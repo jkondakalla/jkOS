@@ -1,0 +1,38 @@
+# ── Dependencies / build output ───────────────────────────────────────────────
+node_modules/
+dist/
+build/
+.turbo/
+*.tsbuildinfo
+__pycache__/
+*.pyc
+
+# ── Secrets (never read by Claude) ───────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.p8
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+id_ecdsa
+jkos_private.pem
+jkos_public.pem
+
+# ── Database files ────────────────────────────────────────────────────────────
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# ── Repo history backups ──────────────────────────────────────────────────────
+.git-backups/
+
+# ── Lock files (large, not useful to read) ───────────────────────────────────
+pnpm-lock.yaml
+package-lock.json
+yarn.lock

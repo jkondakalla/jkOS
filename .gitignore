@@ -1,0 +1,40 @@
+# ── Dependencies / build artifacts ───────────────────────────────────────────
+node_modules/
+dist/
+build/
+.turbo/
+*.tsbuildinfo
+__pycache__/
+*.pyc
+*.pyo
+
+# ── Secrets / credentials (NEVER commit these) ───────────────────────────────
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.p8
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+id_ecdsa
+jkos_private.pem
+jkos_public.pem
+
+# ── Database files ────────────────────────────────────────────────────────────
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# ── Repo history backups (nested git tarballs from monorepo consolidation) ────
+.git-backups/
+
+# ── OS / editor ───────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+*.swo

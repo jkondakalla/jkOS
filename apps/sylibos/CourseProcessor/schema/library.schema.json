@@ -1,0 +1,96 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SylibOS LibraryCourse IR",
+  "type": "object",
+  "required": ["schema_version", "slug", "meta", "units"],
+  "properties": {
+    "schema_version": { "type": "integer", "minimum": 1 },
+    "tool_version": { "type": "string" },
+    "slug": { "type": "string", "pattern": "^[a-z0-9-]+$", "minLength": 1 },
+    "course_number": { "type": "string" },
+    "term": { "type": "string" },
+    "ocw_url": { "type": ["string", "null"] },
+    "layout_format": { "type": "string" },
+    "used_ai_split": { "type": "boolean" },
+    "meta": {
+      "type": "object",
+      "required": ["title"],
+      "properties": {
+        "title": { "type": "string", "minLength": 1 },
+        "description": { "type": "string" },
+        "instructor": { "type": "string" },
+        "subject": { "type": "string" },
+        "level": { "type": "string" }
+      }
+    },
+    "stats": { "type": "object" },
+    "units": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["title", "ord", "lectures"],
+        "properties": {
+          "title": { "type": "string", "minLength": 1 },
+          "ord": { "type": "integer" },
+          "lectures": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["title", "ord", "content"],
+              "properties": {
+                "title": { "type": "string", "minLength": 1 },
+                "ord": { "type": "integer" },
+                "content": { "type": "string" },
+                "unit_title": { "type": "string" },
+                "section": { "type": ["string", "null"] },
+                "videos": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["provider", "id"],
+                    "properties": {
+                      "provider": { "type": "string" },
+                      "id": { "type": "string" },
+                      "title": { "type": "string" }
+                    }
+                  }
+                },
+                "resources": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["url"],
+                    "properties": {
+                      "title": { "type": "string" },
+                      "url": { "type": "string" }
+                    }
+                  }
+                },
+                "assets": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["kind", "filename", "rel_path", "mime", "sha256"],
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": ["lecture-notes", "problem-set", "solution", "slides", "other"]
+                      },
+                      "title": { "type": "string" },
+                      "filename": { "type": "string" },
+                      "rel_path": { "type": "string" },
+                      "mime": { "type": "string" },
+                      "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,415 @@
+/*
+ * Design/tokens/hub.css — jkOS shared design token system
+ *
+ * :root                    → paper / light mode defaults (warm kraft paper aesthetic)
+ * :root[data-mode="dark"]  → CRT phosphor overrides
+ *
+ * Each app @imports this file, then appends its own per-app accent overrides.
+ * applyJkOSTheme() (Design/utils/applyJkOSTheme.ts) overrides --accent and
+ * --hub-amber families at runtime with the user's saved color preference.
+ *
+ * Do not rename --hub-* tokens. Per-app personality is expressed via
+ * --accent, --accent-warm, --accent-soft overrides only.
+ */
+
+/* ─── Paper / light mode defaults ─────────────────────────────────────── */
+:root {
+  /* App accent (ORDECK default: burnt sienna; overridden per-app and at runtime) */
+  --accent:        #c84020;
+  --accent-warm:   #a83018;
+  --accent-soft:   #f0d0c0;
+
+  /* Backward-compat aliases consumed by existing components */
+  --accent-base:      var(--accent);
+  --accent-secondary: var(--hub-cyan);
+
+  /* Background layers — warm kraft tan → light cream */
+  --hub-bg-0: #ede2c8;
+  --hub-bg-1: #e4d5b0;
+  --hub-bg-2: #f5ead4;
+  --hub-bg-3: #ead9bb;
+  --hub-bg-4: #f7f1e3;
+
+  /* Inner content panels ("screen" areas inside widget frames) */
+  --hub-screen:      #f0e8d8;
+  --hub-screen-line: #d8c8b0;
+
+  /* Hardware tones — warm brass / paper metal */
+  --hub-metal-0: #d4c8a8;
+  --hub-metal-1: #c8bca0;
+  --hub-metal-2: #b8a888;
+  --hub-bevel-light: rgba(255, 252, 230, 0.85);
+  --hub-bevel-dark:  rgba(80, 50, 20, 0.18);
+
+  /* Border lines — warm paper lines */
+  --hub-line:        #c8ae88;
+  --hub-line-strong: #b09a72;
+  --hub-line-bright: #907854;
+
+  /* Primary accent family — tracks --accent; overridden at runtime by applyJkOSTheme */
+  --hub-amber:        var(--accent);
+  --hub-amber-bright: color-mix(in srgb, var(--accent) 55%, #ffffff);
+  --hub-amber-dim:    color-mix(in srgb, var(--accent) 72%, #1a0a00);
+  --hub-amber-deep:   color-mix(in srgb, var(--accent) 20%, var(--hub-bg-2));
+  --hub-amber-glow:   color-mix(in srgb, var(--accent) 30%, transparent);
+
+  /* Secondary accent (ORDECK default: cool ink-blue on paper) */
+  --hub-cyan:        #3a5c78;
+  --hub-cyan-dim:    color-mix(in srgb, #3a5c78 60%, #000000);
+  --hub-cyan-glow:   color-mix(in srgb, #3a5c78 25%, transparent);
+
+  /* Semantic status */
+  --hub-red:        #b42010;
+  --hub-red-dim:    color-mix(in srgb, #b42010 60%, #000000);
+  --hub-red-glow:   color-mix(in srgb, #b42010 22%, transparent);
+  --hub-green:      #2a7040;
+  --hub-green-glow: color-mix(in srgb, #2a7040 22%, transparent);
+  --hub-magenta:    #8a2060;
+
+  /* Text — dark ink on paper */
+  --hub-cream:        #6b5038;
+  --hub-cream-bright: #1c1408;
+  --hub-cream-dim:    #9c8060;
+  --hub-cream-faint:  #b8a888;
+
+  /* Shared --color-* aliases (used by components across all apps) */
+  --color-paper:          var(--hub-bg-0);
+  --color-paper-2:        var(--hub-bg-1);
+  --color-card:           var(--hub-bg-2);
+  --color-card-2:         var(--hub-bg-3);
+  --color-ink:            var(--hub-cream-bright);
+  --color-muted:          var(--hub-cream);
+  --color-faint:          var(--hub-cream-dim);
+  --color-line:           var(--hub-line);
+  --color-line-strong:    var(--hub-line-strong);
+  --color-accent:         var(--hub-amber);
+  --color-accent-bright:  var(--hub-amber-bright);
+  --color-accent-dim:     var(--hub-amber-dim);
+  --color-accent-deep:    var(--hub-amber-deep);
+  --color-accent-glow:    var(--hub-amber-glow);
+  --color-accent-soft:    color-mix(in srgb, var(--hub-amber) 12%, var(--hub-bg-2));
+  --color-accent-ink:     color-mix(in srgb, var(--hub-amber) 80%, #000000);
+  --color-accent-contrast: #ffffff;
+  --color-secondary:      var(--hub-cyan);
+  --color-secondary-dim:  var(--hub-cyan-dim);
+  --color-secondary-glow: var(--hub-cyan-glow);
+  --color-ok:     #2a7040;
+  --color-warn:   #a04010;
+  --color-danger: #b42010;
+
+  /* Grain overlay */
+  --grain-opacity: 0.04;
+  --grain-blend:   multiply;
+
+  /* Typography */
+  --hub-font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --hub-font-sans: 'IBM Plex Sans', system-ui, sans-serif;
+  --hub-font-seg:  'Big Shoulders Display', 'IBM Plex Sans', sans-serif;
+
+  /* Spacing grid */
+  --hub-grid:             40px;
+  --hub-radius:           0px;
+  --hub-radius-sm:        0px;
+  --hub-radius-lg:        2px;
+  --hub-radius-soft:      2px;
+  --hub-radius-widget:    0px;
+  --hub-radius-button:    0px;
+
+  /* Widget layout tuning */
+  --hub-widget-pad:       12px;
+  --hub-title-h:          34px;
+  --hub-glow-mul:         0.5;
+  --hub-clip-widget:      none;
+  --hub-clip-title:       none;
+  --hub-widget-blur:      none;
+  --hub-widget-bg-alpha:  1;
+
+  /* Shadows */
+  --hub-shadow-amber:  0 0 6px var(--hub-amber-glow);
+  --hub-shadow-widget: 0 0 0 1px var(--hub-amber-dim);
+  --hub-shadow-inset:  inset 0 1px 0 var(--hub-bevel-light), inset 0 -1px 0 var(--hub-bevel-dark);
+  --hub-shadow-card:   0 2px 8px color-mix(in srgb, var(--hub-cream-bright) 10%, transparent),
+                       0 0 0 1px var(--hub-line);
+
+  /* Shell layout */
+  --hub-header-h:          52px;
+  --hub-bus-h:             28px;
+  --hub-footer-h:          28px;
+  --hub-sidebar-w:         200px;
+  --hub-sidebar-collapsed: 40px;
+  --hub-rail-w:            56px;
+
+  /* CRT effects (off in paper mode) */
+  --crt-scanline-opacity: 0;
+  --crt-vignette-opacity: 0.08;
+
+  /* Canvas */
+  --canvas-grid-opacity: 0.5;
+
+  /* Screw display toggle */
+  --screw-display: inline-block;
+}
+
+/* ─── CRT phosphor overrides ───────────────────────────────────────────── */
+:root[data-mode="dark"] {
+  --accent:      #ffb000;
+  --accent-warm: #ffc840;
+  --accent-soft: #3a2800;
+
+  --hub-bg-0: #11100d;
+  --hub-bg-1: #1a1814;
+  --hub-bg-2: #232019;
+  --hub-bg-3: #2c2820;
+  --hub-bg-4: #38321f;
+
+  --hub-screen:      #0e0c08;
+  --hub-screen-line: #2a2418;
+
+  --hub-metal-0: #2a2620;
+  --hub-metal-1: #3a342b;
+  --hub-metal-2: #4a4234;
+  --hub-bevel-light: rgba(255, 220, 160, 0.06);
+  --hub-bevel-dark:  rgba(0, 0, 0, 0.5);
+
+  --hub-line:        #3a3528;
+  --hub-line-strong: #4a4232;
+  --hub-line-bright: #6a5d3e;
+
+  --hub-amber:        #ffb000;
+  --hub-amber-bright: #ffd266;
+  --hub-amber-dim:    #8a5f00;
+  --hub-amber-deep:   #4a3300;
+  --hub-amber-glow:   rgba(255, 176, 0, 0.35);
+
+  --hub-cyan:        #4ecdc4;
+  --hub-cyan-dim:    #2a6e6a;
+  --hub-cyan-glow:   rgba(78, 205, 196, 0.35);
+
+  --hub-red:        #ff4530;
+  --hub-red-dim:    #6b1c14;
+  --hub-red-glow:   rgba(255, 69, 48, 0.4);
+  --hub-green:      #5cd66a;
+  --hub-green-glow: rgba(92, 214, 106, 0.35);
+  --hub-magenta:    #ff5d8f;
+
+  --hub-cream:        #d6cba8;
+  --hub-cream-bright: #efe6c9;
+  --hub-cream-dim:    #8a8067;
+  --hub-cream-faint:  #5a543f;
+
+  --color-ok:     #34d399;
+  --color-warn:   #fbbf24;
+  --color-danger: #f87171;
+  --color-accent-contrast: #000000;
+
+  --grain-opacity: 0.08;
+  --grain-blend:   screen;
+
+  --hub-glow-mul: 1;
+
+  --crt-scanline-opacity: 0.012;
+  --crt-vignette-opacity: 0.45;
+
+  --canvas-grid-opacity: 1;
+}
+
+/* ─── Shared CSS component classes ─────────────────────────────────────── */
+
+/* Keyframes */
+@keyframes led-pulse    { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+@keyframes blink        { 50% { opacity: 0; } }
+@keyframes data-flicker { 0%, 92%, 100% { opacity: 1; } 94% { opacity: 0.6; } 96% { opacity: 0.95; } }
+@keyframes grain {
+  0%   { transform: translate(0, 0); }
+  10%  { transform: translate(-2%, -3%); }
+  20%  { transform: translate(3%, 1%); }
+  30%  { transform: translate(-1%, 4%); }
+  40%  { transform: translate(4%, -2%); }
+  50%  { transform: translate(-3%, 3%); }
+  60%  { transform: translate(2%, -4%); }
+  70%  { transform: translate(-4%, 2%); }
+  80%  { transform: translate(1%, -1%); }
+  90%  { transform: translate(-2%, 4%); }
+  100% { transform: translate(0, 0); }
+}
+
+/* LEDs */
+.led {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  box-shadow: 0 0 6px currentColor, inset 0 0 2px rgba(0,0,0,0.4);
+  animation: led-pulse 2.4s ease-in-out infinite;
+  flex-shrink: 0;
+}
+.led.green  { background: var(--hub-green);   color: var(--hub-green); }
+.led.amber  { background: var(--hub-amber);   color: var(--hub-amber); }
+.led.red    { background: var(--hub-red);     color: var(--hub-red);   animation-duration: 1s; }
+.led.cyan   { background: var(--hub-cyan);    color: var(--hub-cyan); }
+.led.off    { background: var(--hub-metal-2); color: var(--hub-metal-2);
+              box-shadow: inset 0 0 2px rgba(0,0,0,0.4); animation: none; }
+.led.steady { animation: none; }
+.led.sm     { width: 6px;  height: 6px; }
+.led.lg     { width: 12px; height: 12px; }
+
+/* Hardware bits */
+.screw {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%,
+    var(--hub-line-bright) 0%,
+    var(--hub-metal-1)     60%,
+    var(--hub-metal-0)     100%
+  );
+  box-shadow: inset 0 0 2px rgba(0,0,0,0.8), 0 0 1px rgba(0,0,0,0.6);
+  position: relative;
+  flex-shrink: 0;
+  display: var(--screw-display, inline-block);
+}
+.screw::after {
+  content: '';
+  position: absolute;
+  left: 1px; right: 1px;
+  top: 50%;
+  height: 1px;
+  background: rgba(0,0,0,0.75);
+  transform: translateY(-50%) rotate(var(--screw-rot, 25deg));
+}
+.screw.sm { width: 7px; height: 7px; }
+
+.vent {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 4px 6px;
+  background: var(--hub-bg-0);
+  border: 1px solid var(--hub-line);
+}
+.vent > i {
+  display: block;
+  height: 2px;
+  background: var(--hub-bg-2);
+  border-top: 1px solid rgba(0,0,0,0.4);
+}
+
+.label-tape {
+  display: inline-block;
+  background: linear-gradient(180deg, var(--hub-metal-1), var(--hub-metal-0));
+  color: var(--hub-cream-bright);
+  padding: 3px 8px;
+  font-family: var(--hub-font-mono);
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  border: 1px solid var(--hub-metal-0);
+  box-shadow: inset 0 1px 0 var(--hub-bevel-light), 0 1px 0 rgba(0,0,0,0.4);
+}
+
+/* Dymo tape is always dark (physical object, contrasts with both backgrounds) */
+.dymo-tape {
+  display: inline-block;
+  background: #1f1c16;
+  color: var(--hub-cream-bright);
+  padding: 3px 10px;
+  font-family: var(--hub-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.3em;
+  font-weight: 600;
+  position: relative;
+  text-shadow: 0 -1px 0 rgba(0,0,0,0.8);
+}
+.dymo-tape::before, .dymo-tape::after {
+  content: '';
+  position: absolute; top: 0; bottom: 0;
+  width: 4px;
+  background: radial-gradient(circle at center, #0a0906 1.4px, transparent 1.6px);
+  background-size: 4px 4px;
+  background-repeat: repeat-y;
+}
+.dymo-tape::before { left: 0; }
+.dymo-tape::after  { right: 0; }
+
+.perf {
+  background: var(--hub-bg-0);
+  background-image: radial-gradient(circle, var(--hub-metal-0) 1.2px, var(--hub-bg-2) 1.4px);
+  background-size: 6px 6px;
+}
+
+/* Rubber stamp */
+.stamp {
+  display: inline-block;
+  border: 2px solid currentColor;
+  padding: 2px 8px;
+  font-family: var(--hub-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  opacity: 0.65;
+  transform: rotate(-2deg);
+}
+
+/* 7-segment glow text */
+.seg {
+  font-family: var(--hub-font-seg);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  font-variant-numeric: tabular-nums;
+  color: var(--hub-amber);
+  text-shadow: 0 0 8px var(--hub-amber-glow), 0 0 2px var(--hub-amber-glow);
+}
+
+/* Bar meters */
+.bar-track {
+  background: var(--hub-bg-0);
+  border: 1px solid var(--hub-line);
+  position: relative;
+  overflow: hidden;
+}
+.bar-fill {
+  background: linear-gradient(90deg, var(--hub-amber-dim), var(--hub-amber));
+  box-shadow: 0 0 4px var(--hub-amber-glow);
+  height: 100%;
+}
+
+/* Phosphor text glow */
+.glow     { text-shadow: 0 0 6px var(--hub-amber-glow), 0 0 2px var(--hub-amber-glow); }
+.glow-dim { text-shadow: 0 0 4px var(--hub-amber-glow); }
+.glow-cyan { text-shadow: 0 0 6px var(--hub-cyan-glow), 0 0 2px var(--hub-cyan-glow); }
+
+/* Utility */
+.mono-eyebrow {
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  color: var(--hub-cream-dim);
+  text-transform: uppercase;
+}
+
+/* Canvas grid background */
+.canvas-grid {
+  background-image:
+    linear-gradient(var(--hub-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--hub-line) 1px, transparent 1px);
+  background-size: var(--hub-grid) var(--hub-grid);
+  opacity: var(--canvas-grid-opacity, 1);
+}
+
+/* Boot / canvas layout cells */
+.canvas-cell {
+  position: relative;
+  background: var(--hub-bg-1);
+  border: 1px solid var(--hub-line);
+}
+.boot-sweep {
+  animation: bootIn 0.4s ease-out both;
+}
+@keyframes bootIn { to { opacity: 1; } }
+
+/* Scrollbars */
+::-webkit-scrollbar       { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--hub-bg-1); }
+::-webkit-scrollbar-thumb { background: var(--hub-line-strong); }
+::-webkit-scrollbar-thumb:hover { background: var(--hub-amber-dim); }
+
+/* Selection */
+::selection {
+  background: var(--hub-amber-dim);
+  color: var(--hub-cream-bright);
+}

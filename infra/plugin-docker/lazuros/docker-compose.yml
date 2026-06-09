@@ -1,0 +1,27 @@
+services:
+  # LazurOS API — runs on host network so it can broadcast WoL UDP packets.
+  # Accessible from nginx via host.docker.internal:8080.
+  # Env vars are in .env (copy from .env.example).
+  lazuros-api:
+    build:
+      context: ../../../../LazurOS
+    container_name: ordeck-lazuros-api
+    restart: unless-stopped
+    network_mode: host
+    env_file: .env
+
+  # LazurOS plugin — React widget served as static files for Module Federation.
+  lazuros-plugin:
+    build:
+      context: ../../
+      dockerfile: docker/lazuros/Dockerfile.plugin
+    container_name: ordeck-lazuros-plugin
+    restart: unless-stopped
+    ports:
+      - "3002:80"
+    networks:
+      - ordeck-net
+
+networks:
+  ordeck-net:
+    external: true

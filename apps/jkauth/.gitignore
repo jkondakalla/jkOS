@@ -1,0 +1,17 @@
+.env
+*.db
+*.db-shm
+*.db-wal
+node_modules/
+dist/
+build/
+__pycache__/
+*.pyc
+.DS_Store
+
+# Private keys / certs
+*.pem
+*.key
+*.p8
+*.p12
+*.pfx

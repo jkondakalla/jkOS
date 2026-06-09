@@ -1,0 +1,33 @@
+name: jkos-prod-sylibos
+services:
+  sylibos-frontend:
+    build:
+      context: ../..
+      dockerfile: apps/sylibos/Dockerfile
+    container_name: sylibos-frontend
+    restart: unless-stopped
+    networks:
+      - jkos-internal
+
+  sylibos-api:
+    build:
+      context: ../..
+      dockerfile: apps/sylibos/backend/Dockerfile
+    container_name: sylibos-api
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PORT: "8004"
+      DB_PATH: /data/sylibos.db
+      LIBRARY_DB_PATH: /data/library.db
+    volumes:
+      - ${SYLIBOS_DATA_PATH:-/mnt/Luna/Backends/SylibOS-Data}:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - jkos-internal
+
+networks:
+  jkos-internal:
+    external: true
+    name: jkos-internal

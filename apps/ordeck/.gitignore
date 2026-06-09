@@ -1,0 +1,10 @@
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+node_modules/
+dist/
+build/
+.DS_Store
+*.tsbuildinfo

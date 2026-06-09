@@ -1,0 +1,21 @@
+name: jkos-prod-auth
+services:
+  jkos-auth:
+    build:
+      context: ../..
+      dockerfile: apps/jkauth/Dockerfile
+    container_name: jkos-auth
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PORT: "3100"
+      DB_PATH: /data/jkos-auth.db
+    volumes:
+      - ${JKOS_AUTH_DATA_PATH:-/mnt/Luna/Backends/jkos-auth-data}:/data
+    networks:
+      - jkos-internal
+
+networks:
+  jkos-internal:
+    external: true
+    name: jkos-internal

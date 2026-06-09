@@ -1,0 +1,16 @@
+name: jkos-staging
+
+# Staging — all staging services, path-routed under staging.jkos.net.
+# nginx-staging-proxy network is created by infra/nginx/docker-compose.yml.
+#
+# First run:
+#   cd infra/nginx && docker compose up -d   # must be running first
+#   cd /webhost/jkOS-staging && docker compose -f docker-compose.staging.yml up -d --build
+#
+# Add a new service: add its folder, write docker-compose.staging.yml joining
+# nginx-staging-proxy, then add one include: entry below.
+
+include:
+  - path: apps/jkauth/docker-compose.staging.yml
+  - path: apps/beigeboard/docker-compose.staging.yml
+  - path: apps/sylibos/docker-compose.staging.yml

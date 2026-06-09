@@ -1,0 +1,19 @@
+name: jkos-prod
+
+# Production — all application services.
+# nginx is managed separately (infra/nginx/docker-compose.yml) because it owns
+# the jkos-internal network and must be running before services come up.
+#
+# First run:
+#   cd infra/nginx && docker compose up -d   # creates jkos-internal + nginx-staging-proxy
+#   cd /webhost/jkOS && docker compose up -d --build
+#
+# Add a new service: add its folder, write docker-compose.yml joining jkos-internal,
+# then add one include: entry below. No other files need to change.
+
+include:
+  - path: apps/lazuros/docker-compose.yml
+  - path: apps/jkauth/docker-compose.yml
+  - path: apps/beigeboard/docker-compose.yml
+  - path: apps/sylibos/docker-compose.yml
+  - path: apps/ordeck/docker-compose.yml

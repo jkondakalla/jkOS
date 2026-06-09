@@ -1,0 +1,14 @@
+FROM node:20-alpine AS builder
+RUN corepack enable
+WORKDIR /repo
+
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* turbo.json tsconfig.base.json ./
+COPY packages/ ./packages/
+COPY plugins/lazuros/ ./plugins/lazuros/
+
+RUN pnpm install --frozen-lockfile
+RUN pnpm --filter @ordeck/lazuros-plugin build
+
+FROM nginx:alpine
+COPY --from=builder /repo/plugins/lazuros/dist /usr/share/nginx/html
+EXPOSE 80

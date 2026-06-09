@@ -1,0 +1,16 @@
+{
+  "name": "@jkos/auth-middleware",
+  "version": "1.0.0",
+  "private": true,
+  "description": "jkOS canonical Express middleware — verifies the jkos_token RS256 JWT. The single source for every Node backend (CJS + ESM).",
+  "main": "index.js",
+  "exports": {
+    ".": {
+      "require": "./index.js",
+      "import": "./index.mjs"
+    }
+  },
+  "dependencies": {
+    "jsonwebtoken": "^9.0.2"
+  }
+}

@@ -1,0 +1,24 @@
+name: jkos-prod-bb
+services:
+  bb-app:
+    build:
+      context: ../..
+      dockerfile: apps/beigeboard/Dockerfile
+    container_name: bb-app
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PORT: "3001"
+      DB_PATH: /data/beigeBoard.db
+      STATIC_DIR: /app/dist
+    volumes:
+      - ${BEIGEBOARD_DATA_PATH:-/mnt/Luna/Backends/BeigeBoard-Data}:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - jkos-internal
+
+networks:
+  jkos-internal:
+    external: true
+    name: jkos-internal

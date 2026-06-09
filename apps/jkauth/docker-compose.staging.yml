@@ -1,0 +1,25 @@
+name: jkos-staging-auth
+services:
+  jkos-auth:
+    build:
+      context: ../..
+      dockerfile: apps/jkauth/Dockerfile
+    container_name: staging-jkos-auth
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PORT: "3100"
+      DB_PATH: /data/jkos-auth.db
+      AUTH_ORIGIN: https://staging.jkos.net/auth
+      PORTAL_URL: https://staging.jkos.net
+      COOKIE_DOMAIN: "staging.jkos.net"
+      JKOS_AUTH_ISSUER: "jkos-auth-staging"
+    volumes:
+      - ${JKOS_AUTH_DATA_PATH:-/mnt/Luna/Backends-Staging/jkos-auth-data}:/data
+    networks:
+      - nginx-staging-proxy
+
+networks:
+  nginx-staging-proxy:
+    external: true
+    name: nginx-staging-proxy

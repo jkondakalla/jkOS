@@ -1,0 +1,31 @@
+name: jkos-staging-bb
+services:
+  bb-app:
+    build:
+      context: ../..
+      dockerfile: apps/beigeboard/Dockerfile
+      args:
+        VITE_BASE: /beigeboard/
+        VITE_JKOS_AUTH_URL: https://staging.jkos.net/auth
+        VITE_API_URL: /beigeboard
+    container_name: staging-bb-app
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PORT: "3001"
+      DB_PATH: /data/beigeBoard.db
+      STATIC_DIR: /app/dist
+      JKOS_AUTH_URL: https://staging.jkos.net/auth
+      SHELL_URL: https://staging.jkos.net
+      JKOS_AUTH_ISSUER: "jkos-auth-staging"
+    volumes:
+      - ${BEIGEBOARD_DATA_PATH:-/mnt/Luna/Backends-Staging/BeigeBoard-Data}:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - nginx-staging-proxy
+
+networks:
+  nginx-staging-proxy:
+    external: true
+    name: nginx-staging-proxy

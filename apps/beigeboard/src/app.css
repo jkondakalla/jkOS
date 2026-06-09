@@ -1,0 +1,155 @@
+@import "@jkos/design/tokens.css";
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; }
+body { font-family: var(--hub-font-mono); }
+button { border-radius: 0; font-family: inherit; }
+button:focus, input:focus, select:focus { outline: none; }
+
+/* ── Animations ──────────────────────────────────────────────────────── */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes pulseOpacity {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.35; }
+}
+@keyframes checkBounce {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.35); }
+  70%  { transform: scale(0.9); }
+  100% { transform: scale(1); }
+}
+@keyframes panelIn {
+  from { opacity: 0; transform: translateX(28px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes itemIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes modalIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes scanRoll {
+  from { background-position: 0 0; }
+  to   { background-position: 0 -4px; }
+}
+@keyframes scanPulse {
+  0%, 100% { opacity: 0.7; }
+  50%       { opacity: 1; }
+}
+@keyframes artifactFlash {
+  0%   { opacity: 0; }
+  8%   { opacity: 1; }
+  92%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+@keyframes crtExpand {
+  0%   { clip-path: inset(49.5% 0 49.5% 0); filter: brightness(6); }
+  9%   { clip-path: inset(0% 0 0% 0);        filter: brightness(2.2); }
+  16%  { clip-path: inset(1.2% 0 1.2% 0);   filter: brightness(0.55); }
+  24%  { clip-path: inset(0% 0 0% 0);        filter: brightness(1.5); }
+  33%  { filter: brightness(0.75); }
+  42%  { filter: brightness(1.15); }
+  54%  { filter: brightness(0.9); }
+  68%  { filter: brightness(1.05); }
+  100% { filter: brightness(1); clip-path: inset(0% 0 0% 0); }
+}
+@keyframes introTitleReveal {
+  from { opacity: 0; transform: translateY(6px); filter: blur(3px); }
+  to   { opacity: 1; transform: translateY(0);   filter: blur(0); }
+}
+@keyframes introFadeOut {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+/* ── Reusable utility classes ────────────────────────────────────────── */
+.view-enter   { animation: fadeSlideUp 0.32s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.panel-enter  { animation: panelIn     0.34s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.item-in      { animation: itemIn      0.26s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.modal-in     { animation: modalIn     0.22s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.crt-expand   { animation: crtExpand 0.55s ease-out both; }
+.intro-title  { animation: introTitleReveal 0.7s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.intro-out    { animation: introFadeOut 0.45s ease-in forwards; }
+.now-dot      { animation: pulseOpacity 1.8s ease-in-out infinite; }
+.check-pop    { animation: checkBounce 0.25s ease-out; }
+
+/* ── BeigeBoard accent overrides ─────────────────────────────────────── */
+/* Slightly more orange than ORDECK's burnt sienna on paper */
+:root {
+  --accent:      #c05c15;
+  --accent-warm: #a04510;
+  --accent-soft: #f0d8c0;
+}
+:root[data-mode="dark"] {
+  --accent:      #e8a020;
+  --accent-warm: #f0b840;
+  --accent-soft: #5a4010;
+}
+
+/* ── --color-* aliases → --hub-* (for component compatibility) ───────── */
+:root {
+  --color-paper:          var(--hub-bg-0);
+  --color-paper-2:        var(--hub-bg-1);
+  --color-card:           var(--hub-bg-2);
+  --color-card-2:         var(--hub-bg-3);
+  --color-ink:            var(--hub-cream-bright);
+  --color-muted:          var(--hub-cream);
+  --color-faint:          var(--hub-cream-dim);
+  --color-line:           var(--hub-line);
+  --color-line-strong:    var(--hub-line-strong);
+  --color-accent:         var(--hub-amber);
+  --color-accent-bright:  var(--hub-amber-bright);
+  --color-accent-dim:     var(--hub-amber-dim);
+  --color-accent-deep:    var(--hub-amber-deep);
+  --color-accent-glow:    var(--hub-amber-glow);
+  --color-accent-soft:    color-mix(in srgb, var(--hub-amber) 10%, var(--hub-bg-2));
+  --color-accent-ink:     color-mix(in srgb, var(--hub-amber) 80%, #000000);
+  --color-accent-contrast: var(--hub-bg-4);
+  --color-secondary:      var(--hub-cyan);
+  --color-secondary-dim:  var(--hub-cyan-dim);
+  --color-secondary-glow: var(--hub-cyan-glow);
+  --color-ok:     var(--hub-green);
+  --color-warn:   #a04010;
+  --color-danger: var(--hub-red);
+}
+:root[data-mode="dark"] {
+  --color-ok:     #34d399;
+  --color-warn:   #fbbf24;
+  --color-danger: #f87171;
+  --color-accent-contrast: #000000;
+}
+
+/* ── Base typography ──────────────────────────────────────────────────── */
+html, body { color-scheme: light; }
+html[data-mode="dark"] { color-scheme: dark; }
+body { background: var(--color-paper); color: var(--color-ink); }
+
+/* ── Hover bridges ───────────────────────────────────────────────────── */
+.task-row, .day-chip, .event-chip {
+  transition: background 0.12s, filter 0.12s, opacity 0.12s;
+}
+.task-row:hover  { background: var(--hover-bg, transparent); }
+.day-chip:hover  { opacity: 0.78; }
+.event-chip:hover { filter: brightness(0.92); }
+
+/* ── Buttons ─────────────────────────────────────────────────────────── */
+.btn-action { transition: background 0.15s, transform 0.1s, border-color 0.15s, color 0.15s; }
+.btn-action:active { transform: translateY(1px); }
+
+/* ── Progress bar ────────────────────────────────────────────────────── */
+.progress-fill { transition: width 0.9s cubic-bezier(0.16, 1, 0.3, 1); }
+
+/* ── Scrollbars ──────────────────────────────────────────────────────── */
+*::-webkit-scrollbar       { width: 8px; height: 8px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: var(--hub-line-strong); }
+*::-webkit-scrollbar-thumb:hover { background: var(--hub-amber-dim); }

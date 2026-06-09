@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@jkos/ui": ["../../packages/ui/src/index.ts"],
+      "@jkos/ui/*": ["../../packages/ui/src/*"],
+      "@jkos/types": ["../../packages/types/src/index.ts"]
+    }
+  },
+  "include": ["src", "src/remotes.d.ts"]
+}

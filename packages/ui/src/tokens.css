@@ -1,0 +1,39 @@
+/* @jkos/ui — ORDECK design tokens
+   Single source of truth: Design/tokens/hub.css defines all --hub-* variables.
+   ORDECK-specific extensions (layout, CRT, widget tuning) remain here. */
+
+@import '@jkos/design/tokens.css';
+
+/* ── ORDECK keeps the amber-first dark identity as its base dark accent ── */
+/* (No override needed — hub.css dark mode already defaults to #ffb000)    */
+
+/* ── CRT overlay controls — 0 in paper mode, JS sets scan opacity in dark ── */
+:root {
+  --crt-scanline-opacity: 0;
+  --crt-vignette-opacity: 0;
+}
+:root[data-mode="dark"] {
+  --crt-vignette-opacity: 0.5;
+}
+
+/* ── Backward-compat aliases for ORDECK panel / settings components ───── */
+:root {
+  --color-paper:          var(--hub-bg-0);
+  --color-paper-2:        var(--hub-bg-1);
+  --color-card:           var(--hub-bg-2);
+  --color-card-2:         var(--hub-bg-3);
+  --color-ink:            var(--hub-cream-bright);
+  --color-muted:          var(--hub-cream-dim);
+  --color-faint:          var(--hub-cream-faint);
+  --color-line:           var(--hub-line);
+  --color-line-strong:    var(--hub-line-strong);
+  --color-accent:         var(--hub-amber);
+  --color-accent-bright:  var(--hub-amber-bright);
+  --color-accent-dim:     var(--hub-amber-dim);
+  --color-accent-deep:    var(--hub-amber-deep);
+  --color-accent-glow:    var(--hub-amber-glow);
+  --color-accent-soft:    color-mix(in srgb, var(--hub-amber) 12%, var(--hub-bg-2));
+  --color-secondary:      var(--hub-cyan);
+  --color-secondary-dim:  var(--hub-cyan-dim);
+  --color-secondary-glow: var(--hub-cyan-glow);
+}

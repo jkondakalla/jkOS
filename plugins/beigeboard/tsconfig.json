@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "types": ["vite/client"],
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "paths": {
+      "@jkos/beigeboard": ["../../apps/beigeboard/src/index.ts"],
+      "@jkos/beigeboard/*": ["../../apps/beigeboard/src/*"],
+      "@jkos/ui": ["../../packages/ui/src/index.ts"],
+      "@jkos/ui/*": ["../../packages/ui/src/*"],
+      "@jkos/types": ["../../packages/types/src/index.ts"]
+    }
+  },
+  "include": ["src", "../../apps/beigeboard/src"]
+}

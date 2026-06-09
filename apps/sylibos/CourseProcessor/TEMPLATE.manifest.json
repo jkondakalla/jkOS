@@ -1,0 +1,75 @@
+{
+  "_comment": "Remove this _comment field before uploading. See CourseProcessor/schema/course-manifest.v1.json for full field documentation.",
+
+  "schema_version": 1,
+  "slug": "replace-with-url-safe-course-slug",
+  "course_number": "SUBJ 101",
+  "term": "Fall 2024",
+  "ocw_url": null,
+  "layout_format": "manual",
+  "used_ai_split": false,
+
+  "meta": {
+    "title": "Replace with Course Title",
+    "description": "One to three sentence overview of the course, shown in the library catalog.",
+    "instructor": "Instructor Full Name",
+    "subject": "Mathematics",
+    "level": "Undergraduate"
+  },
+
+  "units": [
+    {
+      "title": "Unit 1: Introduction",
+      "ord": 1,
+      "lectures": [
+        {
+          "title": "Lecture 1: Getting Started",
+          "ord": 1,
+          "unit_title": "Unit 1: Introduction",
+          "section": null,
+          "content": "Replace this with the lecture notes or a summary. Markdown is supported.\n\nThis text is what the AI segment generator reads to produce quiz questions and study tasks. Aim for at least 150 words per lecture for good quiz quality.",
+          "videos": [
+            {
+              "provider": "youtube",
+              "id": "YOUTUBE_VIDEO_ID_HERE",
+              "title": "Lecture 1 Video"
+            }
+          ],
+          "resources": [
+            {
+              "title": "Course Syllabus",
+              "url": "https://example.com/syllabus.pdf"
+            }
+          ],
+          "assets": []
+        },
+        {
+          "title": "Lecture 2: Core Concepts",
+          "ord": 2,
+          "unit_title": "Unit 1: Introduction",
+          "section": null,
+          "content": "Replace with lecture content.",
+          "videos": [],
+          "resources": [],
+          "assets": []
+        }
+      ]
+    },
+    {
+      "title": "Unit 2: Advanced Topics",
+      "ord": 2,
+      "lectures": [
+        {
+          "title": "Lecture 3: Going Deeper",
+          "ord": 3,
+          "unit_title": "Unit 2: Advanced Topics",
+          "section": null,
+          "content": "Replace with lecture content.",
+          "videos": [],
+          "resources": [],
+          "assets": []
+        }
+      ]
+    }
+  ]
+}

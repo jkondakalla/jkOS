@@ -1,0 +1,13 @@
+# Build context is the repo root for all JS app images. Keep it lean.
+**/node_modules
+**/dist
+**/build
+**/.turbo
+.git
+.git-backups
+**/*.db
+**/*.db-shm
+**/*.db-wal
+**/.env
+**/__pycache__
+*.tsbuildinfo

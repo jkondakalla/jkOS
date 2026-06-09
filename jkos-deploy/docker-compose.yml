@@ -1,0 +1,19 @@
+name: jkos-deploy
+services:
+  jkos-deploy:
+    build: .
+    container_name: jkos-deploy
+    restart: unless-stopped
+    networks:
+      - nginx-staging-proxy
+    volumes:
+      - /mnt/Luna/Webhost:/webhost
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /root/.ssh:/root/.ssh:ro
+    env_file: .env
+    environment:
+      PORT: "8090"
+
+networks:
+  nginx-staging-proxy:
+    external: true

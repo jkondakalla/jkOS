@@ -1,0 +1,44 @@
+# Assumes Hub/ layout: ORDECK/ and BeigeBoard/ are siblings
+services:
+  beigeboard-plugin:
+    build:
+      context: ../../
+      dockerfile: docker/beigeboard/Dockerfile.plugin
+    container_name: ordeck-beigeboard-plugin
+    restart: unless-stopped
+    ports:
+      - "3003:80"
+    networks:
+      - ordeck-net
+
+  beigeboard-api:
+    build:
+      context: ../../../BeigeBoard/backend
+    container_name: ordeck-beigeboard-api
+    restart: unless-stopped
+    ports:
+      - "8003:8003"
+    volumes:
+      - ${BEIGEBOARD_DATA_PATH:-/mnt/Luna/Backends/BeigeBoard-Data}:/data
+    env_file: .env
+    environment:
+      - PORT=8003
+      - DB_PATH=/data/beigeBoard.db
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - GOOGLE_REDIRECT_URI=${GOOGLE_REDIRECT_URI}
+      - MICROSOFT_CLIENT_ID=${MICROSOFT_CLIENT_ID}
+      - MICROSOFT_CLIENT_SECRET=${MICROSOFT_CLIENT_SECRET}
+      - MICROSOFT_REDIRECT_URI=${MICROSOFT_REDIRECT_URI}
+      - SHELL_URL=${SHELL_URL}
+      - LAZUROS_URL=${LAZUROS_URL}
+      - LAZUROS_TOKEN=${LAZUROS_TOKEN}
+      - LAZUROS_DEFAULT_MODEL=${LAZUROS_DEFAULT_MODEL:-llama3.2}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - ordeck-net
+
+networks:
+  ordeck-net:
+    external: true

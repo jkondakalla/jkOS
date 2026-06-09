@@ -1,0 +1,23 @@
+{
+  "name": "@jkos/sylibos-api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SylibOS backend — REST API + nightly AI segment generation",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  },
+  "dependencies": {
+    "@jkos/auth-middleware": "workspace:*",
+    "better-sqlite3": "^9.4.3",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "node-cron": "^3.0.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

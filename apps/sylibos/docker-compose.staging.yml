@@ -1,0 +1,38 @@
+name: jkos-staging-sylibos
+services:
+  sylibos-frontend:
+    build:
+      context: ../..
+      dockerfile: apps/sylibos/Dockerfile
+      args:
+        VITE_BASE: /sylib/
+        VITE_JKOS_AUTH_URL: https://staging.jkos.net/auth
+    container_name: staging-sylibos-frontend
+    restart: unless-stopped
+    networks:
+      - nginx-staging-proxy
+
+  sylibos-api:
+    build:
+      context: ../..
+      dockerfile: apps/sylibos/backend/Dockerfile
+    container_name: staging-sylibos-api
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PORT: "8004"
+      DB_PATH: /data/sylibos.db
+      LIBRARY_DB_PATH: /data/library.db
+      SHELL_URL: https://staging.jkos.net
+      JKOS_AUTH_ISSUER: "jkos-auth-staging"
+    volumes:
+      - ${SYLIBOS_DATA_PATH:-/mnt/Luna/Backends-Staging/SylibOS-Data}:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - nginx-staging-proxy
+
+networks:
+  nginx-staging-proxy:
+    external: true
+    name: nginx-staging-proxy

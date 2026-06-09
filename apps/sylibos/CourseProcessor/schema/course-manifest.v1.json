@@ -1,0 +1,225 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://jkos.net/schemas/course-manifest.v1.json",
+  "title": "SylibOS Course Manifest v1",
+  "description": "Structured course data that SylibOS ingests into library.db. CourseProcessor outputs this format; operators may also author it by hand for manual courses.",
+  "type": "object",
+  "required": ["schema_version", "slug", "meta", "units"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Must be 1. Bump the filename to v2 for breaking changes."
+    },
+    "tool_version": {
+      "type": "string",
+      "description": "CourseProcessor version that produced this file. Omit for hand-authored manifests."
+    },
+    "slug": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*[a-z0-9]$",
+      "minLength": 3,
+      "description": "URL-safe, unique identifier for the course. Used as the primary key in library.db. e.g. '18-01sc-single-variable-calculus-fall-2010'"
+    },
+    "course_number": {
+      "type": "string",
+      "description": "Institutional course number. e.g. '18.01SC'",
+      "default": ""
+    },
+    "term": {
+      "type": "string",
+      "description": "Term the course was offered. e.g. 'Fall 2010'",
+      "default": ""
+    },
+    "ocw_url": {
+      "type": ["string", "null"],
+      "description": "Canonical source URL if the course was sourced from OCW or similar. null for original content."
+    },
+    "layout_format": {
+      "type": "string",
+      "enum": ["scholar", "flat_feature", "project_lab", "seminar", "video_only", "manual"],
+      "description": "Structural shape used to build the course. 'manual' for hand-authored manifests.",
+      "default": "manual"
+    },
+    "used_ai_split": {
+      "type": "boolean",
+      "description": "True if CourseProcessor used AI to split long documents into lecture segments.",
+      "default": false
+    },
+    "meta": {
+      "type": "object",
+      "required": ["title"],
+      "additionalProperties": false,
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Full course title."
+        },
+        "description": {
+          "type": "string",
+          "description": "One-to-three sentence course overview shown in the library catalog.",
+          "default": ""
+        },
+        "instructor": {
+          "type": "string",
+          "description": "Instructor name(s). For multiple instructors, join with '; '.",
+          "default": ""
+        },
+        "subject": {
+          "type": "string",
+          "description": "Top-level subject category used for the library filter strip. e.g. 'Mathematics', 'Physics'.",
+          "default": ""
+        },
+        "level": {
+          "type": "string",
+          "description": "Audience level. e.g. 'Undergraduate', 'Graduate', 'High School'.",
+          "default": ""
+        }
+      }
+    },
+    "units": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Ordered list of course units (top-level groupings). Use a single unit with title '' for flat courses with no grouping.",
+      "items": {
+        "type": "object",
+        "required": ["title", "ord", "lectures"],
+        "additionalProperties": false,
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "Unit title. Can be empty string for flat (ungrouped) courses."
+          },
+          "ord": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "1-based display order."
+          },
+          "lectures": {
+            "type": "array",
+            "minItems": 1,
+            "description": "Ordered lectures (sessions) within this unit.",
+            "items": {
+              "type": "object",
+              "required": ["title", "ord", "content"],
+              "additionalProperties": false,
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Lecture title shown in the course TOC and study view."
+                },
+                "ord": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "1-based display order within the unit."
+                },
+                "unit_title": {
+                  "type": "string",
+                  "description": "Denormalised copy of the parent unit title. Used by the backend for display without a join."
+                },
+                "section": {
+                  "type": ["string", "null"],
+                  "description": "Optional sub-section label within the unit. e.g. 'Part I'. null if unused."
+                },
+                "content": {
+                  "type": "string",
+                  "description": "Main lecture text (markdown). This is what the AI segment generator reads to produce quiz questions and tasks. Should be at least a paragraph; can be the full lecture notes."
+                },
+                "videos": {
+                  "type": "array",
+                  "description": "Video resources attached to this lecture.",
+                  "default": [],
+                  "items": {
+                    "type": "object",
+                    "required": ["provider", "id"],
+                    "additionalProperties": false,
+                    "properties": {
+                      "provider": {
+                        "type": "string",
+                        "enum": ["youtube", "vimeo", "ocw"],
+                        "description": "Video host."
+                      },
+                      "id": {
+                        "type": "string",
+                        "description": "Provider video ID. e.g. YouTube watch?v=<id>"
+                      },
+                      "title": {
+                        "type": "string",
+                        "description": "Display title for the video link.",
+                        "default": ""
+                      }
+                    }
+                  }
+                },
+                "resources": {
+                  "type": "array",
+                  "description": "External link resources (syllabi, supplementary readings, etc.).",
+                  "default": [],
+                  "items": {
+                    "type": "object",
+                    "required": ["url"],
+                    "additionalProperties": false,
+                    "properties": {
+                      "title": {
+                        "type": "string",
+                        "description": "Link display label.",
+                        "default": ""
+                      },
+                      "url": {
+                        "type": "string",
+                        "description": "Absolute URL."
+                      }
+                    }
+                  }
+                },
+                "assets": {
+                  "type": "array",
+                  "description": "Downloadable file assets (PDFs). CourseProcessor populates these from the source ZIP. Hand-authored manifests typically leave this empty; PDFs can be added later via the Python ingest tool.",
+                  "default": [],
+                  "items": {
+                    "type": "object",
+                    "required": ["kind", "filename", "rel_path", "mime", "sha256"],
+                    "additionalProperties": false,
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": ["lecture-notes", "problem-set", "solution", "slides", "exam", "other"],
+                        "description": "Asset category used for display grouping."
+                      },
+                      "title": {
+                        "type": "string",
+                        "description": "Display title for the asset.",
+                        "default": ""
+                      },
+                      "filename": {
+                        "type": "string",
+                        "description": "Original filename with extension. e.g. 'MIT18_01SCF10_Ses1a.pdf'"
+                      },
+                      "rel_path": {
+                        "type": "string",
+                        "description": "Path to the file relative to this manifest.json, within the build directory. e.g. 'assets/MIT18_01SCF10_Ses1a.pdf'"
+                      },
+                      "mime": {
+                        "type": "string",
+                        "description": "MIME type. e.g. 'application/pdf'",
+                        "default": "application/pdf"
+                      },
+                      "sha256": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$",
+                        "description": "Hex SHA-256 of the file bytes, used for deduplication."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

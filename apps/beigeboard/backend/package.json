@@ -1,0 +1,17 @@
+{
+  "name": "@jkos/beigeboard-backend",
+  "version": "0.6.0",
+  "private": true,
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "@jkos/auth-middleware": "workspace:*",
+    "better-sqlite3": "^11.5.0",
+    "cookie-parser": "^1.4.7",
+    "express": "^4.19.2",
+    "googleapis": "^172.0.0"
+  }
+}
