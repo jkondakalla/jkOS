@@ -43,21 +43,64 @@ class Page:
         return parts[-1] if parts else ""
 
 
+# Directories whose HTML is site chrome or aggregate dumps, never lessons
+_JUNK_SEGMENTS = frozenset({
+    "download", "static_shared", "static_resources", "__macosx",
+    "instructor-insights", "resource-index",
+})
+_MAX_PAGE_BYTES = 5 * 1024 * 1024
+
+
 def read_zip(zip_path: str) -> tuple[list[Page], set[str]]:
     pages: list[Page] = []
     with zipfile.ZipFile(zip_path) as zf:
         names = set(zf.namelist())
-        for name in sorted(names):
+        for info in sorted(zf.infolist(), key=lambda i: i.filename):
+            name = info.filename
             low = name.lower()
             if not (low.endswith(".html") or low.endswith(".htm")):
                 continue
+            if any(seg in _JUNK_SEGMENTS for seg in low.split("/")):
+                continue
+            if info.file_size > _MAX_PAGE_BYTES:
+                continue
             try:
                 raw = zf.read(name)
-            except KeyError:
+            except (KeyError, zipfile.BadZipFile):
                 continue
             page = _parse_page(name, raw)
             if page is not None:
                 pages.append(page)
+    return pages, names
+
+
+def read_dir(course_dir) -> tuple[list[Page], set[str]]:
+    """read_zip for an already-extracted course directory. Entry names are
+    posix paths relative to course_dir, matching zip-namelist semantics."""
+    from pathlib import Path
+
+    root = Path(course_dir)
+    pages: list[Page] = []
+    names: set[str] = set()
+    for p in sorted(root.rglob("*")):
+        if not p.is_file():
+            continue
+        name = p.relative_to(root).as_posix()
+        names.add(name)
+        low = name.lower()
+        if not (low.endswith(".html") or low.endswith(".htm")):
+            continue
+        if any(seg in _JUNK_SEGMENTS for seg in low.split("/")):
+            continue
+        if p.stat().st_size > _MAX_PAGE_BYTES:
+            continue
+        try:
+            raw = p.read_bytes()
+        except OSError:
+            continue
+        page = _parse_page(name, raw)
+        if page is not None:
+            pages.append(page)
     return pages, names
 
 

@@ -47,7 +47,7 @@ class Lecture:
     pending_assets: list[dict[str, str]] = field(default_factory=list, repr=False)
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        d = {
             "title": self.title,
             "ord": self.ord,
             "content": self.content,
@@ -57,6 +57,11 @@ class Lecture:
             "resources": self.resources,
             "assets": [a.to_dict() for a in self.assets],
         }
+        if self.pending_assets:
+            # Pre-build only (build materializes these into assets and clears
+            # the list) — lets inspect/validate see what build will extract.
+            d["pending_assets"] = self.pending_assets
+        return d
 
     @property
     def has_video(self) -> bool:

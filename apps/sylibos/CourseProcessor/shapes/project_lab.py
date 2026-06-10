@@ -12,6 +12,7 @@ from pathlib import Path
 
 from .._utils import enrich_overview, html_to_text, read_json, str_field
 from ..manifest import SessionNode, UnitNode
+from ..ordering import ordered_dirs
 from .base import SpineBuilder
 
 _PROJECT_PAT    = re.compile(r"^(project|lab|studio|design)-", re.IGNORECASE)
@@ -31,11 +32,14 @@ class ProjectLabBuilder(SpineBuilder):
         if not pages_dir.is_dir():
             return []
 
-        unit_dirs = sorted(
-            d for d in pages_dir.iterdir()
-            if d.is_dir()
-            and _PROJECT_PAT.match(d.name)
-            and d.name not in _SKIP_SLUGS
+        unit_dirs = ordered_dirs(
+            [
+                d for d in pages_dir.iterdir()
+                if d.is_dir()
+                and _PROJECT_PAT.match(d.name)
+                and d.name not in _SKIP_SLUGS
+            ],
+            [self.zip_root / "index.html", pages_dir / "index.html"],
         )
 
         units: list[UnitNode] = []
@@ -51,9 +55,12 @@ class ProjectLabBuilder(SpineBuilder):
             if unit_data.get("deleted"):
                 continue
 
-            sub_dirs = sorted(
-                d for d in unit_dir.iterdir()
-                if d.is_dir() and not d.name.startswith(".")
+            sub_dirs = ordered_dirs(
+                [
+                    d for d in unit_dir.iterdir()
+                    if d.is_dir() and not d.name.startswith(".")
+                ],
+                [unit_dir / "index.html"],
             )
 
             sessions: list[SessionNode] = []
@@ -79,6 +86,7 @@ class ProjectLabBuilder(SpineBuilder):
                     is_assessment=is_assessment,
                     order=si,
                     page_uid=data.get("uid") or data.get("id"),
+                    page_path=str(sub.relative_to(self.zip_root)),
                 ))
 
             if not sessions:
@@ -90,6 +98,7 @@ class ProjectLabBuilder(SpineBuilder):
                     is_assessment=False,
                     order=0,
                     page_uid=unit_data.get("uid") or unit_data.get("id"),
+                    page_path=str(unit_dir.relative_to(self.zip_root)),
                 )]
 
             units.append(UnitNode(

@@ -43,9 +43,7 @@ def build_course(pages: list[Page], *, course_number: str, term: str,
     if not lecture_pages:
         return course, 0.0
 
-    groups: dict[str, list[Page]] = {}
-    for p in lecture_pages:
-        groups.setdefault(p.slug_segment, []).append(p)
+    groups = _make_groups(lecture_pages)
 
     multi_unit = len(groups) > 1
     for u_index, (seg, group) in enumerate(_sorted_groups(groups), start=1):
@@ -78,6 +76,39 @@ def _lecture_from_page(page: Page, unit_title: str, fallback_ord: int) -> Lectur
             "filename": filename,
         })
     return lec
+
+
+def _group_key(page: Page, level: int = 1) -> str:
+    """
+    Unit-grouping key for a page. Two-level trees (pages/{unit}/{session}/…)
+    group by the *unit* dir. Elsewhere, `level` selects the parent (1) or
+    grandparent (2) directory segment.
+    """
+    parts = [p for p in page.path.split("/") if p][:-1]  # dir segments only
+    if "pages" in parts:
+        rest = parts[parts.index("pages") + 1:]
+        return rest[0] if rest else ""
+    return parts[-level] if len(parts) >= level else ""
+
+
+def _make_groups(lecture_pages: list[Page]) -> dict[str, list[Page]]:
+    """
+    Group lectures into units by parent dir. Legacy trees often nest each
+    page in its own dir (lecture1/index.htm), which makes every group a
+    singleton — when most groups are singletons, regroup one level up.
+    """
+    groups: dict[str, list[Page]] = {}
+    for p in lecture_pages:
+        groups.setdefault(_group_key(p), []).append(p)
+
+    singletons = sum(1 for g in groups.values() if len(g) == 1)
+    if len(groups) > 1 and singletons > len(groups) / 2:
+        regrouped: dict[str, list[Page]] = {}
+        for p in lecture_pages:
+            regrouped.setdefault(_group_key(p, level=2), []).append(p)
+        if len(regrouped) < len(groups):
+            return regrouped
+    return groups
 
 
 def _is_lecture(page: Page) -> bool:

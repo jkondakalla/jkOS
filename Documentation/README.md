@@ -8,6 +8,14 @@ Agent-oriented reference for the jkOS monorepo. Three files, read in this order:
 | [SERVICES.md](SERVICES.md) | Per-service detail: dirs, packages, containers, ports, key files, routes. |
 | [OPERATIONS.md](OPERATIONS.md) | Build/dev commands, Docker build model, compose/ports, deploy, staging, TrueNAS paths, verification checklist. |
 
+## App-level and supplementary docs
+
+| File | Covers |
+|------|--------|
+| [apps/sylibos/README.md](../apps/sylibos/README.md) | SylibOS dev setup, CourseProcessor CLI usage, backend API reference, environment variables. |
+| [apps/beigeboard/MOBILE_INTEGRATION.md](../apps/beigeboard/MOBILE_INTEGRATION.md) | BeigeBoard mobile layout (`src/mobile/`) — component overview, integration steps, props API, theming. |
+| [infra/plugin-docker/TRUENAS_SETUP.md](../infra/plugin-docker/TRUENAS_SETUP.md) | **Deprecated (2026-06-04)** — old polyrepo TrueNAS deploy guide. Superseded by OPERATIONS.md and the monorepo deploy model. Kept for historical reference only. |
+
 ## TL;DR for agents
 
 - One pnpm + Turbo **monorepo**. `apps/*` = deployable units, `packages/@jkos/*` = shared

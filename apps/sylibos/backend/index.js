@@ -14,6 +14,7 @@ import {
 } from './db.js'
 import { generateSegmentContent } from './ai.js'
 import { openLibraryDb, attachLibraryAssetRoute, attachLibraryRoutes, attachLibraryUploadRoute } from './library.js'
+import { attachProcessedRoutes } from './processed.js'
 import { runLibraryMigrations } from './migrations.js'
 
 const app = express()
@@ -29,6 +30,7 @@ app.use(express.json({ limit: '20mb' }))
 app.use(cookieParser())
 
 const LIBRARY_DB_PATH = process.env.LIBRARY_DB_PATH || '/data/library.db'
+const PROCESSED_COURSES_PATH = process.env.PROCESSED_COURSES_PATH || '/data/ProcessedCourses'
 const lib = openLibraryDb(LIBRARY_DB_PATH)
 runLibraryMigrations(db)
 
@@ -58,6 +60,10 @@ app.use(authMiddleware)
 
 attachLibraryRoutes(app, { lib, db })
 attachLibraryUploadRoute(app, LIBRARY_DB_PATH)
+
+// ── Processed-course (concept tree) routes (authenticated, read-only) ────────
+
+attachProcessedRoutes(app, PROCESSED_COURSES_PATH)
 
 app.get('/api/auth/me', (req, res) => {
   const { sub, iat, exp, iss, ...rest } = req.user

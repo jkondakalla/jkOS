@@ -14,7 +14,7 @@ jkos/                      single git repo (was a polyrepo; consolidated)
 │   ├── jkauth/            @jkos/jkauth     SSO service (Express, RS256)        [hub]
 │   ├── beigeboard/        @jkos/beigeboard SPA + Node backend (calendar/tasks) [hub]
 │   ├── lazuros/           Python service   AI gateway (Ollama proxy + WoL)     [hub]
-│   └── sylibos/           @jkos/sylibos    SPA + Node backend (OCW scheduler)  [app]
+│   └── sylibos/           @jkos/sylibos    SPA + Node backend (OCW); CourseProcessor (Python ingest CLI) [app]
 ├── packages/             shared libraries — the contract every consumer references
 │   ├── design/           @jkos/design          hub.css tokens + theme appliers
 │   ├── auth-client/      @jkos/auth-client      FE auth/preferences contract + hook

@@ -145,7 +145,9 @@ def extract_pdf_text(
 
     if primary_type not in EXTRACT_FOR_TYPES:
         return None
-    if file_type != "application/pdf":
+    is_pdf = (file_type == "application/pdf"
+              or str(file_path or "").lower().endswith(".pdf"))
+    if not is_pdf:
         return None
 
     pdf_path = _resolve_pdf_path(file_path or "", zip_root)
@@ -209,7 +211,8 @@ def attach_pdf_texts(spine: list, zip_root: Path, ocr: bool = False, verbose: bo
             for resource in sess.resources:
                 if resource.primary_type not in EXTRACT_FOR_TYPES:
                     continue
-                if resource.file_type != "application/pdf":
+                if (resource.file_type != "application/pdf"
+                        and not str(resource.file_path or "").lower().endswith(".pdf")):
                     continue
                 done += 1
                 if verbose:

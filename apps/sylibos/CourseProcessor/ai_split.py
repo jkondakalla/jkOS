@@ -102,12 +102,11 @@ def _structure_source(pages: list[Page], max_chars: int = 8000) -> str:
     blocks: list[str] = []
     budget = max_chars
     for p in chosen:
-        block = f"### {p.title} ({p.path})\n{p.text}"
-        block = block[: max(0, budget)]
-        if not block:
+        if budget <= 0:
             break
+        block = f"### {p.title} ({p.path})\n{p.text}"[:budget]
         blocks.append(block)
-        budget -= len(block)
+        budget -= len(block) + 2  # account for the join separator
     return "\n\n".join(blocks)
 
 

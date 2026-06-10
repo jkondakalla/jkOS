@@ -12,9 +12,10 @@ Usage:
 
 Default DB path: /mnt/Luna/Backends/SylibOS-Data/library.db (or $LIBRARY_DB_PATH).
 
-Do not point --ai at LazurOS while it returns stub responses. Use the real
-Ollama on the GPU desktop: --ai-url http://<desktop-ip>:11434. Clean STEM
-courses do not call the model at all.
+Ingestion ladder (see ingest.py): structured format/shape-aware parse first,
+heuristic HTML walking for legacy/unknown layouts, AI structural split only
+as an opt-in last resort (--ai). Do not point --ai at LazurOS while it returns
+stub responses; use the real Ollama on the GPU desktop: --ai-url http://<ip>:11434.
 """
 
 from __future__ import annotations
@@ -23,62 +24,62 @@ import argparse
 import json
 import os
 import re
+import shutil
 import sys
 
 from . import assets as assets_mod
 from . import db as db_mod
-from . import extract, report, structure, validate
-from .ai_split import ProviderConfig, propose_and_apply
+from . import report, scaffold, validate
+from .ai_split import ProviderConfig
+from .ingest import IngestError, IngestResult, ingest_dir, ingest_zip
 from .ir import Course
 
 DEFAULT_DB = os.environ.get("LIBRARY_DB_PATH", "/mnt/Luna/Backends/SylibOS-Data/library.db")
 DEFAULT_MIN_CONFIDENCE = 0.45
 
 
-def _build_ir(zip_path, course_number, term, ocw_url, use_ai, cfg, min_conf):
-    pages, _names = extract.read_zip(zip_path)
-    if not pages:
-        sys.exit(f"error: no HTML pages found in {zip_path}")
+def _run_ingest(args) -> IngestResult:
+    cfg = _provider_from_args(args)
+    try:
+        result = ingest_zip(
+            args.zip,
+            course_number=args.course_number,
+            term=args.term,
+            ocw_url=args.ocw_url,
+            use_ai=args.ai,
+            ai_cfg=cfg,
+            min_confidence=args.min_confidence,
+            no_pdfs=args.no_pdfs,
+            verbose=args.verbose,
+        )
+    except IngestError as e:
+        sys.exit(f"error: {e}")
 
-    course, confidence = structure.build_course(
-        pages, course_number=course_number, term=term, ocw_url=ocw_url
-    )
-
-    if confidence < min_conf:
-        if use_ai:
-            ok = propose_and_apply(course, pages, cfg)
-            if ok:
-                confidence = 1.0
-            else:
-                print("warning: AI split fallback failed; keeping deterministic split",
-                      file=sys.stderr)
-        else:
-            print(f"warning: low split confidence ({confidence}); "
-                  f"consider re-running with --ai", file=sys.stderr)
-    return course, confidence, pages
+    if result.confidence < args.min_confidence and not result.used_ai:
+        hint = "" if args.ai else "; consider re-running with --ai"
+        print(f"warning: low split confidence ({result.confidence}){hint}",
+              file=sys.stderr)
+    for w in result.warnings:
+        print(f"warning: {w}", file=sys.stderr)
+    return result
 
 
 def cmd_inspect(args):
-    cfg = _provider_from_args(args)
-    course, confidence, _pages = _build_ir(
-        args.zip, args.course_number, args.term, args.ocw_url,
-        use_ai=args.ai, cfg=cfg, min_conf=args.min_confidence,
-    )
-    d = course.to_dict()
+    result = _run_ingest(args)
+    d = result.course.to_dict()
     warnings = []
     try:
         warnings = validate.validate_ir(d, build_dir=None)
     except validate.ValidationError as e:
         warnings = [f"WOULD FAIL VALIDATION: {e}"]
-    print(report.render(d, confidence, warnings))
+    print(f"format={result.source_format}"
+          + (f"  shape={result.detected_shape}" if result.detected_shape else ""))
+    print(report.render(d, result.confidence, warnings))
 
 
 def cmd_build(args):
-    cfg = _provider_from_args(args)
-    course, confidence, _pages = _build_ir(
-        args.zip, args.course_number, args.term, args.ocw_url,
-        use_ai=args.ai, cfg=cfg, min_conf=args.min_confidence,
-    )
+    result = _run_ingest(args)
+    course = result.course
 
     build_dir = os.path.join(args.out, course.slug)
     os.makedirs(build_dir, exist_ok=True)
@@ -94,9 +95,116 @@ def cmd_build(args):
     with open(os.path.join(build_dir, "ir.json"), "w", encoding="utf-8") as fh:
         json.dump(d, fh, indent=2, ensure_ascii=False)
 
-    print(report.render(d, confidence, warnings))
+    print(f"format={result.source_format}"
+          + (f"  shape={result.detected_shape}" if result.detected_shape else ""))
+    print(report.render(d, result.confidence, warnings))
     print(f"built -> {build_dir}  ({n_assets} asset files)")
     print(f"next:  python -m preprocessor.library_cli load {build_dir} --db {args.db}")
+
+
+def _build_processed_dir(course_dir: str, out_root: str, *,
+                         include_videos: bool, no_pdfs: bool,
+                         verbose: bool) -> dict:
+    """ingest_dir -> assets -> ir.json + scaffold bundle files. Returns the
+    summary row for batch reporting."""
+    result = ingest_dir(course_dir, no_pdfs=no_pdfs, verbose=verbose)
+    course, manifest, src = result.course, result.manifest, result.source_dir
+    if manifest is None:  # heuristic path: no session pages to align against
+        manifest = scaffold.synthesize_manifest(course)
+    for w in result.warnings:
+        print(f"warning: {w}", file=sys.stderr)
+
+    routed = scaffold.prepare_exercise_assets(course, manifest, src)
+
+    build_dir = os.path.join(out_root, course.slug)
+    # processed folders are regenerated wholesale; a stale assets/ would make
+    # _avoid_collision suffix every re-extracted file
+    if os.path.isdir(build_dir):
+        shutil.rmtree(build_dir)
+    os.makedirs(build_dir, exist_ok=True)
+    n_assets = assets_mod.extract_course_assets_from_dir(course, str(src), build_dir)
+
+    d = course.to_dict()
+    warnings = validate.validate_ir(d, build_dir=build_dir)
+    with open(os.path.join(build_dir, "ir.json"), "w", encoding="utf-8") as fh:
+        json.dump(d, fh, indent=2, ensure_ascii=False)
+
+    bundle = scaffold.build_bundle(course, manifest, src,
+                                   include_videos=include_videos)
+    tree_warnings = validate.validate_tree(bundle, build_dir=build_dir)
+
+    for name in ("course", "tree", "concepts", "exercises", "lessons", "videos"):
+        if bundle.get(name) is None:
+            continue
+        with open(os.path.join(build_dir, f"{name}.json"), "w", encoding="utf-8") as fh:
+            json.dump(bundle[name], fh, indent=2, ensure_ascii=False)
+
+    print(f"format={result.source_format}  shape={result.detected_shape}")
+    print(report.render(d, result.confidence, warnings + tree_warnings))
+    print(report.render_tree(bundle))
+    counts = bundle["course"]["counts"]
+    print(f"built -> {build_dir}  ({n_assets} asset files, {routed} routed exercises)")
+    return {
+        "slug": course.slug, "title": course.title,
+        "lectures": course.lecture_count,
+        "trunk": counts["trunk_nodes"], "nodes": counts["nodes"],
+        "backed": counts["backed_exercises"],
+        "match_rate": bundle["course"]["match_rate"],
+        "assets": n_assets,
+        "warnings": len(result.warnings) + len(bundle["warnings"]),
+    }
+
+
+def cmd_build_dir(args):
+    try:
+        _build_processed_dir(args.course_dir, args.out,
+                             include_videos=not args.no_videos,
+                             no_pdfs=args.no_pdfs, verbose=args.verbose)
+    except (IngestError, validate.ValidationError) as e:
+        sys.exit(f"error: {e}")
+
+
+def cmd_batch(args):
+    root = args.courses_root
+    dirs = sorted(
+        d for d in (os.path.join(root, n) for n in os.listdir(root))
+        if os.path.isdir(d) and (
+            os.path.exists(os.path.join(d, "data.json"))
+            or os.path.exists(os.path.join(d, "content_map.json"))
+        )
+    )
+    if not dirs:
+        sys.exit(f"error: no course directories found under {root}")
+
+    rows, failures = [], []
+    for i, d in enumerate(dirs, 1):
+        name = os.path.basename(d)
+        if args.skip and name in args.skip:
+            print(f"\n### [{i}/{len(dirs)}] {name} — skipped")
+            continue
+        print(f"\n### [{i}/{len(dirs)}] {name}")
+        try:
+            rows.append(_build_processed_dir(
+                d, args.out, include_videos=not args.no_videos,
+                no_pdfs=args.no_pdfs, verbose=args.verbose,
+            ))
+        except Exception as e:  # keep the batch alive
+            failures.append((name, str(e)))
+            print(f"FAILED: {e}", file=sys.stderr)
+
+    print("\n" + "=" * 98)
+    print(f"{'slug':<38} {'lec':>4} {'trunk':>5} {'nodes':>5} {'backed':>6} "
+          f"{'match':>5} {'assets':>6} {'warn':>4}")
+    print("-" * 98)
+    for r in rows:
+        mr = f"{r['match_rate']:.2f}" if r["match_rate"] is not None else "-"
+        print(f"{r['slug']:<38} {r['lectures']:>4} {r['trunk']:>5} {r['nodes']:>5} "
+              f"{r['backed']:>6} {mr:>5} {r['assets']:>6} {r['warnings']:>4}")
+    if failures:
+        print(f"\nFAILED ({len(failures)}):")
+        for name, err in failures:
+            print(f"  - {name}: {err}")
+    print(f"\n{len(rows)} ok, {len(failures)} failed -> {args.out}")
 
 
 def cmd_load(args):
@@ -148,6 +256,9 @@ def main(argv=None):
         sp.add_argument("--term", default="")
         sp.add_argument("--ocw-url", default=None)
         sp.add_argument("--min-confidence", type=float, default=DEFAULT_MIN_CONFIDENCE)
+        sp.add_argument("--no-pdfs", action="store_true", default=False,
+                        help="skip PDF text extraction (faster)")
+        sp.add_argument("--verbose", "-v", action="store_true", default=False)
         sp.add_argument("--ai", action="store_true", default=False)
         sp.add_argument("--ai-provider", choices=["ollama", "lazuros"], default="ollama")
         sp.add_argument("--ai-url", default="http://localhost:11434")
@@ -170,6 +281,29 @@ def main(argv=None):
     sp_l.add_argument("build_dir")
     sp_l.add_argument("--db", default=DEFAULT_DB)
     sp_l.set_defaults(func=cmd_load)
+
+    sp_d = sub.add_parser(
+        "build-dir",
+        help="extracted course dir -> processed folder (ir + tree + chunks)")
+    sp_d.add_argument("course_dir")
+    sp_d.add_argument("--out", default="./ProcessedCourses")
+    sp_d.add_argument("--no-videos", action="store_true", default=False,
+                      help="skip videos.json (skeleton mode)")
+    sp_d.add_argument("--no-pdfs", action="store_true", default=False)
+    sp_d.add_argument("--verbose", "-v", action="store_true", default=False)
+    sp_d.set_defaults(func=cmd_build_dir)
+
+    sp_a = sub.add_parser(
+        "batch",
+        help="process every course dir under a root into --out")
+    sp_a.add_argument("courses_root")
+    sp_a.add_argument("--out", default="./ProcessedCourses")
+    sp_a.add_argument("--no-videos", action="store_true", default=False)
+    sp_a.add_argument("--no-pdfs", action="store_true", default=False)
+    sp_a.add_argument("--skip", action="append", default=[],
+                      help="course dir basename to skip (repeatable)")
+    sp_a.add_argument("--verbose", "-v", action="store_true", default=False)
+    sp_a.set_defaults(func=cmd_batch)
 
     args = p.parse_args(argv)
 
