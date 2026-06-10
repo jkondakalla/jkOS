@@ -12,7 +12,7 @@ services:
       DB_PATH: /data/beigeBoard.db
       STATIC_DIR: /app/dist
     volumes:
-      - ${BEIGEBOARD_DATA_PATH:-/mnt/Luna/Backends/BeigeBoard-Data}:/data
+      - ${BEIGEBOARD_DATA_PATH:-/mnt/Luna/Backends/Production/beigeboard-data}:/data
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
