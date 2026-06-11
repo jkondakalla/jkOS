@@ -2,6 +2,9 @@
 # workspace (@jkos/auth-middleware) resolves. See root docker-compose.yml.
 FROM node:20-slim AS builder
 RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ && rm -rf /var/lib/apt/lists/*
+# io_uring off: Node/libuv io_uring throws spurious EAGAIN on copyfile under
+# ZFS (TrueNAS SCALE) — broke pnpm install mid-build with ERR_PNPM_EAGAIN.
+ENV UV_USE_IO_URING=0
 RUN corepack enable
 WORKDIR /repo
 COPY . .
