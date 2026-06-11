@@ -17,8 +17,9 @@ html, body {
   touch-action: manipulation;
 }
 
-/* CRT scanline overlay — driven by --crt-scanline-opacity (0 in paper mode) */
-body::before {
+/* CRT scanline overlay — driven by --crt-scanline-opacity (0 in paper mode).
+   Canvas view only; the v2 room HUD (html.od-v2) has its own quiet grain. */
+html:not(.od-v2) body::before {
   content: '';
   position: fixed; inset: 0;
   background: repeating-linear-gradient(
@@ -32,8 +33,8 @@ body::before {
   z-index: 9999;
 }
 
-/* CRT vignette overlay */
-body::after {
+/* CRT vignette overlay — canvas view only */
+html:not(.od-v2) body::after {
   content: '';
   position: fixed; inset: 0;
   background: radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,var(--crt-vignette-opacity)) 100%);

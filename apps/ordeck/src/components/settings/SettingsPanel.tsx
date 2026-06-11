@@ -126,21 +126,10 @@ export function SettingsPanel({ open, onClose, settings, set, reset }: SettingsP
            tab === 'tokens'   ? <TokensPanel />  :
            (
             <>
-              <SettingsSection title="CRT · EFFECTS" code="01">
-                <SettingsSlider
-                  label="SCANLINES"
-                  value={settings.scanlines}
-                  min={0} max={0.08} step={0.002}
-                  fmt={v => Math.round((v / 0.08) * 100) + '%'}
-                  onChange={v => set('scanlines', v)}
-                />
-                <SettingsSlider
-                  label="VIGNETTE"
-                  value={settings.vignette}
-                  min={0} max={0.8} step={0.02}
-                  fmt={v => Math.round((v / 0.8) * 100) + '%'}
-                  onChange={v => set('vignette', v)}
-                />
+              {/* Visual effects (scanlines/vignette/grain) live in the unified
+                  profile panel — they're server-synced. This panel is layout
+                  chrome only. */}
+              <SettingsSection title="CANVAS" code="01">
                 <SettingsSlider
                   label="CANVAS GRID"
                   value={settings.gridDensity}
@@ -151,7 +140,6 @@ export function SettingsPanel({ open, onClose, settings, set, reset }: SettingsP
               </SettingsSection>
 
               <SettingsSection title="HARDWARE" code="02">
-                <SettingsToggle label="BOLD GLOW"        hint="thicker phosphor halo"    value={settings.boldGlow}    onChange={v => set('boldGlow', v)} />
                 <SettingsToggle label="WIDGET SCREWS"    hint="show panel hardware"      value={settings.showScrews}  onChange={v => set('showScrews', v)} />
                 <SettingsToggle label="SYSTEM BUS STRIP" hint="top telemetry waveform"   value={settings.showBus}     onChange={v => set('showBus', v)} />
                 <SettingsToggle label="RIGHT VU RAIL"    hint="meters + knobs panel"     value={settings.showRail}    onChange={v => set('showRail', v)} />
