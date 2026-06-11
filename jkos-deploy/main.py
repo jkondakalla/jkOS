@@ -198,11 +198,12 @@ async def staging_sync(_=Depends(get_admin)):
                     ["git", "-C", STAGING_DIR, "reset", "--hard", f"origin/{STAGING_BRANCH}"],
                     ["docker", "compose", "-f", f"{STAGING_DIR}/docker-compose.staging.yml", "up", "--build", "-d"],
                     ["docker", "exec", "standalone-nginx", "nginx", "-t"],
-                    # restart, not reload: standalone.conf is a FILE bind-mount.
-                    # git reset --hard swaps the file inode, and nginx -s reload
-                    # keeps reading the old (pinned) inode — so conf changes
-                    # silently never apply. A restart re-resolves the mount.
-                    ["docker", "restart", "standalone-nginx"],
+                    # Rebuild the nginx image, not just restart: standalone.conf is a
+                    # FILE bind-mount (inode-pinned — reload silently reads old inode),
+                    # and staging-static/ is now COPYd into the image (TrueNAS
+                    # POSIX_RESTRICTED ACLs block chmod so bind-mounting 770 files
+                    # leaves nginx workers unable to read them). --build picks up both.
+                    ["docker", "compose", "-f", f"{STAGING_DIR}/infra/nginx/docker-compose.yml", "up", "--build", "-d"],
                 ],
             )
 
