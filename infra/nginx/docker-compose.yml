@@ -13,7 +13,7 @@
 
 services:
   standalone-nginx:
-    image: nginx:alpine
+    build: .
     container_name: standalone-nginx
     restart: unless-stopped
     ports:
@@ -21,9 +21,6 @@ services:
       - "443:443"
     volumes:
       - ./standalone.conf:/etc/nginx/nginx.conf:ro
-      # Directory mount (not file) so the landing page updates on git reset
-      # without the single-file inode-pinning problem standalone.conf has.
-      - ./staging-static:/etc/nginx/staging-html:ro
       - ${SSL_PATH:-/mnt/Luna/Backends/ssl}:/etc/nginx/ssl:ro
       - ${NGINX_LOGS_PATH:-/mnt/Luna/Backends/Production/nginx-logs}:/var/log/nginx
     networks:
