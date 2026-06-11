@@ -46,6 +46,17 @@ shared-package contract and auth/theme flows.
   - `src/store/authStore.ts` = session init (getMe → refresh → redirect).
 - Backend: `backend/index.js` (Express ESM + better-sqlite3 + node-cron). Auth via
   `@jkos/auth-middleware`. Two images (`Dockerfile`, `backend/Dockerfile`), root context.
+- **Question stems** (`backend/stems.js` + `expr.js` + `pdftext.js`): parameterized
+  questions distilled from each course's actual assignment PDFs (psets/exams in
+  library.db asset BLOBs → `unpdf` text extraction → one AI call per assignment →
+  validated templates with `{{var}}` slots, ranges, constraints, answer/distractor
+  expressions). Variants are instantiated deterministically (seeded RNG + safe
+  expression evaluator — no eval, no AI): same seed ⇒ same variants; answers and MCQ
+  distractors are computed per variant. Routes: `GET /api/stems/assignments`,
+  `POST /api/stems/from-course`, `POST /api/stems/generate` (manual text path),
+  `GET /api/stems[/:id][/variants]`, `DELETE /api/stems/:id`. Stems link back to
+  `(course_id, lecture_id, asset_id)`; AI output is shape-checked **and** functionally
+  proven (sampled + evaluated under multiple seeds) before storage.
 
 #### CourseProcessor — `apps/sylibos/CourseProcessor/`
 Python OCW ingest pipeline. Entry point: `library_cli.py` (`inspect` / `build` / `load`

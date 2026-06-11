@@ -12,9 +12,11 @@ import {
   getSettings, saveSettings,
   getLecturesWithoutSegments,
 } from './db.js'
-import { generateSegmentContent } from './ai.js'
+import { generateSegmentContent, generateQuestionStems } from './ai.js'
 import { openLibraryDb, attachLibraryAssetRoute, attachLibraryRoutes, attachLibraryUploadRoute } from './library.js'
 import { attachProcessedRoutes } from './processed.js'
+import { attachStemRoutes } from './stems.js'
+import { extractPdfText } from './pdftext.js'
 import { runLibraryMigrations } from './migrations.js'
 
 const app = express()
@@ -64,6 +66,10 @@ attachLibraryUploadRoute(app, LIBRARY_DB_PATH)
 // ── Processed-course (concept tree) routes (authenticated, read-only) ────────
 
 attachProcessedRoutes(app, PROCESSED_COURSES_PATH)
+
+// ── Question stems (distilled from each course's assignment PDFs) ───────────
+
+attachStemRoutes(app, { db, lib, getSettings, generateQuestionStems, extractPdfText })
 
 app.get('/api/auth/me', (req, res) => {
   const { sub, iat, exp, iss, ...rest } = req.user
