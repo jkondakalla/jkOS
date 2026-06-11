@@ -17,7 +17,7 @@ services:
       STATIC_DIR: /app/dist
       JKOS_AUTH_URL: https://staging.jkos.net/auth
       SHELL_URL: https://staging.jkos.net
-      JKOS_AUTH_ISSUER: "jkos-auth-staging"
+      JKOS_AUTH_ISSUER: "jkos-auth"
     volumes:
       - ${BEIGEBOARD_DATA_PATH:-/mnt/Luna/Backends/Staging/beigeboard-data}:/data
     extra_hosts:

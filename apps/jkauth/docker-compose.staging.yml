@@ -13,7 +13,7 @@ services:
       AUTH_ORIGIN: https://staging.jkos.net/auth
       PORTAL_URL: https://staging.jkos.net
       COOKIE_DOMAIN: "staging.jkos.net"
-      JKOS_AUTH_ISSUER: "jkos-auth-staging"
+      JKOS_AUTH_ISSUER: "jkos-auth"
     volumes:
       - ${JKOS_AUTH_DATA_PATH:-/mnt/Luna/Backends/Staging/jkos-auth-data}:/data
     networks:

@@ -24,7 +24,7 @@ services:
       DB_PATH: /data/sylibos.db
       LIBRARY_DB_PATH: /data/library.db
       SHELL_URL: https://staging.jkos.net
-      JKOS_AUTH_ISSUER: "jkos-auth-staging"
+      JKOS_AUTH_ISSUER: "jkos-auth"
     volumes:
       - ${SYLIBOS_DATA_PATH:-/mnt/Luna/Backends/Staging/sylibos-data}:/data
     extra_hosts:
