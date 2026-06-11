@@ -102,8 +102,18 @@ and `ProcessedCourses/` are gitignored — regenerable data, never committed.
 - Real OCW test fixtures: `/mnt/Luna/Open Courseware/`. Venv: `CourseProcessor/.venv`.
 
 ### LazurOS — `apps/lazuros`
-- Python (FastAPI/uvicorn). Ollama proxy + Wake-on-LAN. `network_mode: host` (WoL broadcast).
-- `auth.py` verifies jkOS JWTs in Python (separate from `@jkos/auth-middleware`).
+- Python (FastAPI/uvicorn + httpx). Real Ollama gateway: streams `/api/*` through to the
+  GPU desktop (`COMPUTE_NODE_IP:11434`), NDJSON chat tokens pass through unbuffered.
+- **Wake-on-LAN**: `network_mode: host` (raw LAN broadcast). A `/api/*` request against a
+  sleeping node auto-sends the magic packet and waits `WAKE_TIMEOUT_SECONDS` (this is what
+  lets the SylibOS 2am nightly job wake the desktop). Passive endpoints (`/health`,
+  `/models`, `/ps`) report `sleeping`/`compute_online` but **never** wake — widget polling
+  doesn't keep the desktop up. `POST /wake` = explicit wake (20s WoL cooldown).
+- `auth.py` accepts **either** the static `LAZUROS_TOKEN` bearer (server-to-server:
+  SylibOS/BeigeBoard backends, CLI) **or** a jkOS SSO JWT — `jkos_token` cookie or JWT
+  bearer — verified in Python (PyJWT RS256, same key/issuer contract as `@jkos/auth-middleware`).
+- Prod browser path: `jkos.net/api/lazuros/*` → edge nginx (prefix-stripped, buffering off,
+  via `host.docker.internal`) → lazuros:8080. ORDECK AiPanel/widget use this with cookies.
 
 ## Shared packages — `packages/*`
 See ARCHITECTURE.md → "Shared package map". All are `private`, source-only, `@jkos/*`.

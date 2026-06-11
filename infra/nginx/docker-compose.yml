@@ -26,6 +26,10 @@ services:
     networks:
       - jkos-internal
       - nginx-staging-proxy
+    # LazurOS runs on the host network (WoL needs raw LAN broadcast) — give
+    # nginx a route to it for the /api/lazuros/ location on jkos.net.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
 networks:
   # All prod services join this network (created here so nginx is always the owner).

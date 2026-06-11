@@ -14,8 +14,8 @@ Default DB path: /mnt/Luna/Backends/Production/sylibos-data/library.db (or $LIBR
 
 Ingestion ladder (see ingest.py): structured format/shape-aware parse first,
 heuristic HTML walking for legacy/unknown layouts, AI structural split only
-as an opt-in last resort (--ai). Do not point --ai at LazurOS while it returns
-stub responses; use the real Ollama on the GPU desktop: --ai-url http://<ip>:11434.
+as an opt-in last resort (--ai). --ai-url can point at LazurOS (it proxies and
+wakes the GPU desktop) or directly at Ollama: http://<ip>:11434.
 """
 
 from __future__ import annotations

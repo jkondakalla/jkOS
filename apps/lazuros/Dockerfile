@@ -5,7 +5,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY main.py auth.py ./
+COPY main.py auth.py compute.py ./
 
 EXPOSE 8080
 
