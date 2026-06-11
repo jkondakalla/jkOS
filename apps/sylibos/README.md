@@ -103,6 +103,14 @@ GET        /api/processed                 ← catalog of processed course folder
 GET        /api/processed/:slug           ← course.json
 GET        /api/processed/:slug/:artifact ← tree | concepts | exercises | lessons | videos
 GET        /api/processed/:slug/asset/*   ← PDF streaming (path-traversal guarded)
+
+GET        /api/stems/assignments         ← pset/exam PDFs in user's courses
+POST       /api/stems/from-course         ← AI-distill stems from all assignments in a course
+POST       /api/stems/generate            ← AI-distill stems from provided assignment text
+GET        /api/stems                     ← all stems for user (filter: ?course_id=)
+GET        /api/stems/:id                 ← single stem
+GET        /api/stems/:id/variants        ← deterministic variants (seeded RNG, no AI)
+DELETE     /api/stems/:id
 ```
 
 The processed-course routes are served from `$PROCESSED_COURSES_PATH` (default `/data/ProcessedCourses`). Frontend types are in `src/lib/treeApi.ts`.

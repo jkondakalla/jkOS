@@ -85,12 +85,15 @@ needed, import it from `@jkos/auth-client` (frontend) or `@jkos/auth-middleware`
 ```
 internet → standalone-nginx (infra/nginx) :80/:443
   ├── jkos.net            → ordeck-shell:80
+  │     /api/lazuros/*    → host.docker.internal:8080 (lazuros, host net; prefix stripped)
   ├── auth.jkos.net       → jkos-auth:3100
   ├── beigeboard.jkos.net → bb-app:3001
   ├── sylibos.jkos.net    → sylibos-frontend:80  +  /api → sylibos-api:8004
   └── staging.jkos.net    → path-routed, admin-gated (see OPERATIONS.md)
 networks: jkos-internal (prod) · nginx-staging-proxy (staging + jkos-deploy)
           both created by infra/nginx/docker-compose.yml
+lazuros: network_mode=host (needs raw LAN for WoL broadcast); nginx reaches it via
+         host.docker.internal (extra_hosts: host-gateway). Never joins jkos-internal.
 ```
 
 See **SERVICES.md** for per-service detail, **OPERATIONS.md** for build/deploy/staging.
