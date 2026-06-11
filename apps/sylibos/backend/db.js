@@ -75,6 +75,7 @@ db.transaction(() => {
     db.exec(`ALTER TABLE segments ADD COLUMN user_id TEXT NOT NULL DEFAULT ''`)
   }
   db.exec(`CREATE INDEX IF NOT EXISTS idx_segments_user ON segments(user_id)`)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_lectures_course ON lectures(course_id)`)
 
   // daily_logs: old schema had date TEXT PRIMARY KEY — recreate with composite PK
   if (!cols('daily_logs').includes('user_id')) {
@@ -103,11 +104,18 @@ db.transaction(() => {
 
 export function getCourses(userId) {
   const courses = db.prepare('SELECT * FROM courses WHERE user_id = ? ORDER BY imported_at DESC').all(userId)
+  const byCourse = new Map(courses.map(c => [c.id, []]))
+  const lectures = db.prepare(`
+    SELECT l.* FROM lectures l
+    JOIN courses c ON c.id = l.course_id
+    WHERE c.user_id = ? ORDER BY l.ord
+  `).all(userId)
+  for (const l of lectures) byCourse.get(l.course_id)?.push(normLecture(l))
   return courses.map(c => ({
     ...c,
     importedAt: c.imported_at,
     completedSegments: c.completed_segments,
-    lectures: db.prepare('SELECT * FROM lectures WHERE course_id = ? ORDER BY ord').all(c.id).map(normLecture),
+    lectures: byCourse.get(c.id) ?? [],
   }))
 }
 
@@ -123,6 +131,13 @@ export function getCourse(id, userId) {
 }
 
 export const insertCourse = db.transaction((course) => {
+  // Course ids are client-supplied: a re-import of your own course replaces it,
+  // but an id owned by another user must never be silently REPLACE'd away.
+  const existing = db.prepare('SELECT user_id FROM courses WHERE id = ?').get(course.id)
+  if (existing && existing.user_id !== course.userId) {
+    throw Object.assign(new Error('course id belongs to another user'), { status: 403 })
+  }
+
   db.prepare(`
     INSERT OR REPLACE INTO courses (id, user_id, title, description, instructor, subject, level, imported_at, completed_segments)
     VALUES (@id, @user_id, @title, @description, @instructor, @subject, @level, @imported_at, @completed_segments)
@@ -138,9 +153,13 @@ export const insertCourse = db.transaction((course) => {
     completed_segments: course.completedSegments ?? 0,
   })
 
+  // Plain INSERT after clearing this course's own rows: a lecture id colliding
+  // with another user's lecture throws (PK) and rolls back instead of REPLACE
+  // re-parenting their row into this course.
+  db.prepare('DELETE FROM lectures WHERE course_id = ?').run(course.id)
   for (const lec of (course.lectures ?? [])) {
     db.prepare(`
-      INSERT OR REPLACE INTO lectures (id, course_id, title, unit, section, ord, content, video_url, has_segment, segment_id)
+      INSERT INTO lectures (id, course_id, title, unit, section, ord, content, video_url, has_segment, segment_id)
       VALUES (@id, @course_id, @title, @unit, @section, @ord, @content, @video_url, @has_segment, @segment_id)
     `).run({
       id: lec.id,
@@ -172,7 +191,7 @@ export function getSegments(userId) {
 }
 
 export function insertSegment(seg) {
-  db.prepare(`
+  const info = db.prepare(`
     INSERT OR IGNORE INTO segments
       (id, user_id, lecture_id, course_id, lecture_title, course_title, unit, section, generated_at, quiz, tasks, completed_at, quiz_score)
     VALUES
@@ -193,10 +212,15 @@ export function insertSegment(seg) {
     quiz_score: seg.quizScore ?? null,
   })
 
-  db.prepare(`
-    UPDATE lectures SET has_segment = 1, segment_id = ?
-    WHERE id = ? AND course_id IN (SELECT id FROM courses WHERE user_id = ?)
-  `).run(seg.id, seg.lectureId, seg.userId)
+  // OR IGNORE means a duplicate id inserts nothing — don't point the lecture at
+  // a segment row this user doesn't own (ids are client-supplied on the API path).
+  if (info.changes > 0) {
+    db.prepare(`
+      UPDATE lectures SET has_segment = 1, segment_id = ?
+      WHERE id = ? AND course_id IN (SELECT id FROM courses WHERE user_id = ?)
+    `).run(seg.id, seg.lectureId, seg.userId)
+  }
+  return info
 }
 
 export const patchSegment = db.transaction((id, userId, patch) => {
@@ -206,9 +230,14 @@ export const patchSegment = db.transaction((id, userId, patch) => {
     result = db.prepare('UPDATE segments SET completed_at = ?, quiz_score = ? WHERE id = ? AND user_id = ? AND completed_at IS NULL')
       .run(patch.completedAt, patch.quizScore ?? null, id, userId)
   }
+  // Patch quiz/tasks independently — a quiz-only patch must not reset tasks.
   if (patch.quiz !== undefined) {
-    db.prepare('UPDATE segments SET quiz = ?, tasks = ? WHERE id = ? AND user_id = ?')
-      .run(JSON.stringify(patch.quiz), JSON.stringify(patch.tasks ?? []), id, userId)
+    db.prepare('UPDATE segments SET quiz = ? WHERE id = ? AND user_id = ?')
+      .run(JSON.stringify(patch.quiz), id, userId)
+  }
+  if (patch.tasks !== undefined) {
+    db.prepare('UPDATE segments SET tasks = ? WHERE id = ? AND user_id = ?')
+      .run(JSON.stringify(patch.tasks), id, userId)
   }
   return result
 })

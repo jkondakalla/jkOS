@@ -85,7 +85,13 @@ app.post('/api/courses', (req, res) => {
     }
     insertCourse(course)
     res.status(201).json({ ok: true })
-  } catch (e) { res.status(500).json({ error: e.message }) }
+  } catch (e) {
+    if (e.status) return res.status(e.status).json({ error: e.message })
+    if (e.code?.startsWith?.('SQLITE_CONSTRAINT')) {
+      return res.status(409).json({ error: 'id conflicts with an existing record' })
+    }
+    res.status(500).json({ error: e.message })
+  }
 })
 
 app.get('/api/courses/:id', (req, res) => {
@@ -146,6 +152,9 @@ app.post('/api/daily-logs', (req, res) => {
     const log = req.body
     if (!log?.date) return res.status(400).json({ error: 'date required' })
     if (!/^\d{4}-\d{2}-\d{2}$/.test(log.date)) return res.status(400).json({ error: 'date must be YYYY-MM-DD' })
+    if (log.segmentIds !== undefined && !Array.isArray(log.segmentIds)) {
+      return res.status(400).json({ error: 'segmentIds must be an array' })
+    }
     upsertDailyLog(String(req.user.sub), log)
     res.status(201).json({ ok: true })
   } catch (e) { res.status(500).json({ error: e.message }) }
@@ -174,15 +183,16 @@ app.get('/api/summary', (req, res) => {
   const settings = getSettings(userId)
   const dailyGoal = settings.dailyGoal ?? 2
 
+  const logByDate = new Map(logs.map(l => [l.date, l]))
   const today = new Date().toISOString().slice(0, 10)
-  const todayLog = logs.find(l => l.date === today)
+  const todayLog = logByDate.get(today)
   const todayDone = todayLog?.segmentIds?.length ?? 0
 
   let streak = 0
   const d = new Date()
   for (let i = 0; i < 366; i++) {
     const key = d.toISOString().slice(0, 10)
-    const log = logs.find(l => l.date === key)
+    const log = logByDate.get(key)
     if (log && log.segmentIds.length >= dailyGoal) {
       streak++
       d.setDate(d.getDate() - 1)
@@ -277,7 +287,7 @@ async function runNightlyJob() {
   }
 }
 
-cron.schedule(NIGHTLY_CRON, () => {
+const nightlyTask = cron.schedule(NIGHTLY_CRON, () => {
   console.log(`[nightly] Starting job (cron: ${NIGHTLY_CRON})`)
   runNightlyJob().catch(e => console.error('[nightly] Unexpected error:', e))
 })
@@ -341,8 +351,10 @@ app.post('/api/import-manifest', (req, res) => {
     lectures,
   }
 
-  insertCourse(course)
-  res.status(201).json({ ok: true, courseId, lectureCount: lectures.length })
+  try {
+    insertCourse(course)
+    res.status(201).json({ ok: true, courseId, lectureCount: lectures.length })
+  } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
 // ── Manual trigger for nightly job ───────────────────────────────────────────
@@ -356,9 +368,24 @@ app.post('/api/admin/run-nightly', async (req, res) => {
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`[sylibos-api] Running on port ${PORT}`)
   console.log(`[sylibos-api] DB: ${process.env.DB_PATH ?? 'sylibos.db'}`)
   console.log(`[sylibos-api] Auth: jkOS Auth RS256 (JKOS_AUTH_PUBLIC_KEY ${process.env.JKOS_AUTH_PUBLIC_KEY ? 'set' : 'MISSING'})`)
   console.log(`[sylibos-api] Nightly cron: ${NIGHTLY_CRON}`)
 })
+
+// Docker sends SIGTERM on stop; without this the process hangs until SIGKILL
+// and the SQLite WAL files are left without a clean checkpoint.
+function shutdown(signal) {
+  console.log(`[sylibos-api] ${signal} — shutting down`)
+  nightlyTask.stop()
+  server.close(() => {
+    try { db.close() } catch {}
+    try { lib.ldb.close() } catch {}
+    process.exit(0)
+  })
+  setTimeout(() => process.exit(1), 8000).unref()
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'))
+process.on('SIGINT', () => shutdown('SIGINT'))

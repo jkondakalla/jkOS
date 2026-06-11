@@ -99,6 +99,10 @@ function validateAiResponse(parsed) {
   return parsed
 }
 
+// A hung provider would otherwise wedge the nightly job indefinitely
+// (it holds the _nightlyRunning lock until every fetch settles).
+const AI_TIMEOUT_MS = Number(process.env.AI_TIMEOUT_MS ?? 120_000)
+
 async function callOllama(url, model, title, content, unit, courseTitle) {
   const res = await fetch(`${url}/api/generate`, {
     method: 'POST',
@@ -109,6 +113,7 @@ async function callOllama(url, model, title, content, unit, courseTitle) {
       stream: false,
       format: 'json',
     }),
+    signal: AbortSignal.timeout(AI_TIMEOUT_MS),
   })
   if (!res.ok) throw new Error(`Ollama HTTP ${res.status}`)
   const data = await res.json()
@@ -130,6 +135,7 @@ async function callLazuros(url, token, model, title, content, unit, courseTitle)
       stream: false,
       format: 'json',
     }),
+    signal: AbortSignal.timeout(AI_TIMEOUT_MS),
   })
   if (!res.ok) throw new Error(`LazurOS HTTP ${res.status}`)
   const data = await res.json()
