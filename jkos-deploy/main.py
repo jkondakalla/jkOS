@@ -188,7 +188,11 @@ async def staging_sync(_=Depends(get_admin)):
                     ["git", "-C", STAGING_DIR, "reset", "--hard", f"origin/{STAGING_BRANCH}"],
                     ["docker", "compose", "-f", f"{STAGING_DIR}/docker-compose.staging.yml", "up", "--build", "-d"],
                     ["docker", "exec", "standalone-nginx", "nginx", "-t"],
-                    ["docker", "exec", "standalone-nginx", "nginx", "-s", "reload"],
+                    # restart, not reload: standalone.conf is a FILE bind-mount.
+                    # git reset --hard swaps the file inode, and nginx -s reload
+                    # keeps reading the old (pinned) inode — so conf changes
+                    # silently never apply. A restart re-resolves the mount.
+                    ["docker", "restart", "standalone-nginx"],
                 ],
             )
 
@@ -210,7 +214,8 @@ async def prod_deploy(_=Depends(get_admin)):
                     ["git", "-C", PROD_DIR, "reset", "--hard", "origin/main"],
                     ["docker", "compose", "-f", f"{PROD_DIR}/docker-compose.yml", "up", "--build", "-d"],
                     ["docker", "exec", "standalone-nginx", "nginx", "-t"],
-                    ["docker", "exec", "standalone-nginx", "nginx", "-s", "reload"],
+                    # restart, not reload — see staging_sync for the inode rationale.
+                    ["docker", "restart", "standalone-nginx"],
                 ],
             )
 

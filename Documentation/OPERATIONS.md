@@ -155,6 +155,21 @@ git -c core.fileMode=false reset --hard origin/<branch>
 
 Never run `git config core.fileMode false` — it hangs on the lock.
 
+### nginx config is a FILE bind-mount — `reset --hard` needs a restart, not reload
+
+`standalone-nginx` runs from the **staging checkout** and mounts
+`infra/nginx/standalone.conf` as a single-file bind mount
+(`./standalone.conf:/etc/nginx/nginx.conf:ro`). `git reset --hard` replaces the
+file's inode; the container's mount stays pinned to the **old** inode, so
+`nginx -s reload` re-reads stale content and config changes silently never
+apply. Fix: `docker restart standalone-nginx` (re-resolves the mount). The
+jkos-deploy controller does this automatically after each `reset --hard`. When
+editing `standalone.conf` by hand on the server, restart — don't reload.
+
+Note that nginx serves **both** prod and staging and is bind-mounted from
+`/mnt/Luna/Webhost/jkOS-staging/infra/nginx/standalone.conf`, so edit/sync that
+checkout's copy when changing the proxy config.
+
 ### Compose refuses unlabeled pre-existing networks
 
 If a network was created manually (or by an older compose run without labels), `docker
