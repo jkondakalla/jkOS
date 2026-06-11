@@ -13,6 +13,9 @@ services:
     env_file: .env
     environment:
       PORT: "8090"
+      # Promote = deploy the exact staging commit you just tested. Flip back to
+      # "main" to restore a merge-gated release flow.
+      PROD_BRANCH: staging
 
 networks:
   nginx-staging-proxy:

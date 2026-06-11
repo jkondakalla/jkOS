@@ -11,6 +11,10 @@ from jose import JWTError, jwt
 
 PUBLIC_KEY = os.getenv("JKOS_AUTH_PUBLIC_KEY", "").replace("\\n", "\n")
 STAGING_BRANCH = os.getenv("STAGING_BRANCH", "staging")
+# Branch the prod checkout resets to on deploy. Set to "staging" so promoting
+# deploys the exact commit just tested on staging.jkos.net — no GitHub merge
+# step (the server has no push credentials anyway).
+PROD_BRANCH = os.getenv("PROD_BRANCH", "main")
 
 PROD_DIR = "/webhost/jkOS"
 STAGING_DIR = "/webhost/jkOS-staging"
@@ -139,7 +143,13 @@ async def info(_=Depends(get_admin)):
         _git_info(STAGING_DIR),
         _git_info(PROD_DIR),
     )
-    return {"staging": staging_info, "prod": prod_info, "status": status, "operation": current_operation}
+    return {
+        "staging": staging_info,
+        "prod": prod_info,
+        "status": status,
+        "operation": current_operation,
+        "branches": {"staging": STAGING_BRANCH, "prod": PROD_BRANCH},
+    }
 
 
 @app.get("/logs/stream")
@@ -208,10 +218,10 @@ async def prod_deploy(_=Depends(get_admin)):
     async def run():
         async with deploy_lock:
             await _run_sequence(
-                "Deploying main to production...",
+                f"Deploying {PROD_BRANCH} to production...",
                 [
                     ["git", "-C", PROD_DIR, "fetch", "origin"],
-                    ["git", "-C", PROD_DIR, "reset", "--hard", "origin/main"],
+                    ["git", "-C", PROD_DIR, "reset", "--hard", f"origin/{PROD_BRANCH}"],
                     ["docker", "compose", "-f", f"{PROD_DIR}/docker-compose.yml", "up", "--build", "-d"],
                     ["docker", "exec", "standalone-nginx", "nginx", "-t"],
                     # restart, not reload — see staging_sync for the inode rationale.

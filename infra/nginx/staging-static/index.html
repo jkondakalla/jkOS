@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en" data-mode="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>jkOS // STAGING</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Standalone staging landing — served directly by standalone-nginx.
+   Mirrors the ORDECK v2 dark (CRT amber) palette; self-contained on purpose:
+   this page must render even when every app container is down. */
+:root {
+  --accent:      #ffb000;
+  --bg-0: #11100d; --bg-2: #201d17; --bg-4: #38321f;
+  --line: #363023; --line-strong: #4a4232;
+  --cream: #d6cba8; --cream-bright: #efe6c9; --cream-dim: #8a8067; --cream-faint: #5a543f;
+  --green: #5cd66a; --red: #ff4530; --warn: #fbbf24;
+  --accent-tint: color-mix(in srgb, var(--accent) 13%, var(--bg-2));
+  --accent-ink:  color-mix(in srgb, var(--accent) 78%, #ffffff);
+  --radius: 16px;
+  --shadow: 0 1px 2px rgba(0,0,0,0.35), 0 10px 30px -14px rgba(0,0,0,0.65);
+  --shadow-lift: 0 2px 6px rgba(0,0,0,0.4), 0 22px 50px -18px rgba(0,0,0,0.75);
+  --glow: 0 0 14px color-mix(in srgb, var(--accent) 35%, transparent);
+  --mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --sans: 'IBM Plex Sans', system-ui, sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  background: var(--bg-0);
+  color: var(--cream-bright);
+  font-family: var(--sans);
+  -webkit-font-smoothing: antialiased;
+  display: flex; flex-direction: column;
+  min-height: 100vh;
+}
+body::before {
+  content: ""; position: fixed; inset: 0; z-index: 2000; pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='0.65'/%3E%3C/svg%3E");
+  background-size: 200px 200px; mix-blend-mode: screen; opacity: 0.07;
+}
+::selection { background: var(--accent); color: #1a1000; }
+@keyframes fade-up { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.45; } }
+
+.top {
+  display: flex; align-items: center; gap: 12px;
+  padding: 16px 28px 0;
+}
+.logo {
+  width: 26px; height: 26px; border-radius: 8px;
+  background: var(--accent); color: #1a1000;
+  display: grid; place-items: center;
+  font-family: var(--mono); font-weight: 700; font-size: 11px;
+  box-shadow: var(--glow);
+}
+.wordmark { font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: 0.24em; color: var(--cream-dim); }
+.envchip {
+  margin-left: auto;
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.16em;
+  color: var(--warn);
+  border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent);
+  background: color-mix(in srgb, var(--warn) 10%, var(--bg-2));
+  border-radius: 999px; padding: 5px 12px;
+}
+
+.wrap {
+  flex: 1; width: 100%; max-width: 880px;
+  margin: 0 auto; padding: 36px 28px;
+  display: flex; flex-direction: column; gap: 18px;
+  animation: fade-up 0.5s cubic-bezier(0.22,1,0.36,1) both;
+}
+h1 { font-size: 28px; font-weight: 650; letter-spacing: -0.01em; }
+h1 small { display: block; margin-top: 6px; font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: 0.14em; color: var(--cream-dim); }
+
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+.card {
+  display: block; text-decoration: none;
+  border-radius: var(--radius);
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  padding: 18px;
+  transition: box-shadow 0.2s, transform 0.2s, border-color 0.2s;
+}
+.card:hover { box-shadow: var(--shadow-lift); transform: translateY(-2px); border-color: var(--line-strong); }
+.card .eyebrow { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: 0.16em; color: var(--cream-dim); margin-bottom: 12px; }
+.card h2 { font-size: 17px; font-weight: 650; color: var(--cream-bright); }
+.card p { margin-top: 5px; font-family: var(--mono); font-size: 10.5px; color: var(--cream-dim); }
+.card.deploy { border-color: color-mix(in srgb, var(--accent) 30%, var(--line)); background: var(--accent-tint); }
+.card.deploy h2 { color: var(--accent-ink); }
+
+.panel {
+  border-radius: var(--radius);
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+}
+.panel-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 14px 18px 11px;
+  border-bottom: 1px solid var(--line);
+  font-family: var(--mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.16em; color: var(--cream-dim);
+}
+.panel-head .count { margin-left: auto; color: var(--cream-faint); font-weight: 400; }
+.sysrows { padding: 6px 18px 10px; }
+.sys { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--line); }
+.sys:last-child { border-bottom: none; }
+.dot { width: 7px; height: 7px; border-radius: 999px; background: var(--line-strong); flex: none; }
+.dot.up { background: var(--green); }
+.dot.down { background: var(--red); animation: pulse 1.2s ease-in-out infinite; }
+.sys b { font-size: 13.5px; font-weight: 600; color: var(--cream-bright); }
+.sys span { margin-left: auto; font-family: var(--mono); font-size: 11px; font-variant-numeric: tabular-nums; color: var(--cream-dim); white-space: nowrap; }
+.sys.bad span { color: var(--red); }
+
+.bottom {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  padding: 0 28px 16px;
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.12em;
+  color: var(--cream-faint); white-space: nowrap;
+}
+.bottom .sep { opacity: 0.5; }
+.bottom .commit { color: var(--cream-dim); }
+.bottom .spacer { flex: 1; }
+</style>
+</head>
+<body>
+
+  <div class="top">
+    <span class="logo">jk</span>
+    <span class="wordmark">JKOS STAGING</span>
+    <span class="envchip">STAGING · ADMIN GATED</span>
+  </div>
+
+  <div class="wrap">
+    <h1>Staging surface
+      <small>EVERY APP BELOW RUNS THE STAGING BRANCH · PROD IS UNTOUCHED</small>
+    </h1>
+
+    <div class="cards">
+      <a class="card" href="/beigeboard/">
+        <span class="eyebrow"><span class="dot" id="led-bb"></span>BEIGEBOARD</span>
+        <h2>Tasks &amp; calendar</h2>
+        <p>/beigeboard/</p>
+      </a>
+      <a class="card" href="/sylib/">
+        <span class="eyebrow"><span class="dot" id="led-sylib"></span>SYLIBOS</span>
+        <h2>Study system</h2>
+        <p>/sylib/</p>
+      </a>
+      <a class="card deploy" href="/deploy/">
+        <span class="eyebrow"><span class="dot" id="led-deploy"></span>DEPLOY CONSOLE</span>
+        <h2>Sync staging · promote to prod</h2>
+        <p>/deploy/</p>
+      </a>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">SYSTEMS<span class="count" id="syscount">— / 4</span></div>
+      <div class="sysrows">
+        <div class="sys" id="row-auth"><span class="dot"></span><b>staging-auth</b><span>probing…</span></div>
+        <div class="sys" id="row-bb"><span class="dot"></span><b>beigeboard</b><span>probing…</span></div>
+        <div class="sys" id="row-sylib"><span class="dot"></span><b>sylibos</b><span>probing…</span></div>
+        <div class="sys" id="row-deploy"><span class="dot"></span><b>deploy</b><span>probing…</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="bottom">
+    <span>JKOS STAGING</span>
+    <span class="sep">·</span>
+    <span class="commit" id="commit-staging">STAGING @ …</span>
+    <span class="sep">·</span>
+    <span class="commit" id="commit-prod">PROD @ …</span>
+    <span class="spacer"></span>
+    <span id="clock"></span>
+  </div>
+
+<script>
+// Same-origin probes; the admin cookie that admitted you to this page admits
+// these too. Each row degrades independently.
+const PROBES = [
+  { id: 'auth',   row: 'row-auth',   led: null,         path: '/auth/health' },
+  { id: 'bb',     row: 'row-bb',     led: 'led-bb',     path: '/beigeboard/health' },
+  { id: 'sylib',  row: 'row-sylib',  led: 'led-sylib',  path: '/sylib/health' },
+  { id: 'deploy', row: 'row-deploy', led: 'led-deploy', path: '/deploy/health' },
+];
+
+async function probe(p) {
+  const row = document.getElementById(p.row);
+  const dot = row.querySelector('.dot');
+  const val = row.querySelector('span:last-child');
+  const led = p.led && document.getElementById(p.led);
+  const t0 = performance.now();
+  let up = false, detail = 'down';
+  try {
+    const r = await fetch(p.path, { credentials: 'same-origin', signal: AbortSignal.timeout(5000) });
+    if (r.ok) { up = true; detail = Math.max(1, Math.round(performance.now() - t0)) + ' ms'; }
+  } catch (e) { /* down */ }
+  dot.className = 'dot ' + (up ? 'up' : 'down');
+  if (led) led.className = 'dot ' + (up ? 'up' : 'down');
+  row.classList.toggle('bad', !up);
+  val.textContent = detail;
+  return up;
+}
+
+async function sweep() {
+  const ups = await Promise.all(PROBES.map(probe));
+  const n = ups.filter(Boolean).length;
+  document.getElementById('syscount').textContent = n + ' / ' + PROBES.length;
+}
+
+async function commits() {
+  try {
+    const r = await fetch('/deploy/info', { credentials: 'same-origin', signal: AbortSignal.timeout(5000) });
+    if (!r.ok) return;
+    const d = await r.json();
+    const fmt = (g) => (g && g.commit_hash !== 'unknown')
+      ? g.commit_hash.slice(0, 7) + ' · ' + g.commit_msg.slice(0, 48)
+      : 'unknown';
+    document.getElementById('commit-staging').textContent = 'STAGING @ ' + fmt(d.staging);
+    document.getElementById('commit-prod').textContent    = 'PROD @ ' + fmt(d.prod);
+  } catch (e) { /* deploy controller down — bottom strip keeps placeholders */ }
+}
+
+function tick() {
+  const n = new Date(), p = (x) => String(x).padStart(2, '0');
+  document.getElementById('clock').textContent =
+    p(n.getHours()) + ':' + p(n.getMinutes()) + ':' + p(n.getSeconds());
+}
+
+sweep(); setInterval(sweep, 30000);
+commits(); setInterval(commits, 60000);
+tick(); setInterval(tick, 1000);
+</script>
+</body>
+</html>

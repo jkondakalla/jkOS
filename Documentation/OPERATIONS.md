@@ -64,18 +64,32 @@ its compose joining `jkos-internal` + one `include:` line in the root compose.
 Controller at `staging.jkos.net/deploy/` (admin-gated). Per environment it runs:
 ```bash
 git -C <DIR> fetch origin
-git -C <DIR> reset --hard origin/<branch>          # main = prod, staging branch = staging
+git -C <DIR> reset --hard origin/<branch>
 docker compose [-f docker-compose.staging.yml] up --build -d
+docker restart standalone-nginx     # restart, not reload — see gotchas below
 ```
 Now that the suite is one repo, `<DIR>` is the repo root and the root `include:` compose
 builds every service — consistent with the deploy model.
+
+**Branch model:** `staging` is the deployable branch. "Sync Staging" resets the
+staging checkout to `origin/staging`; "Promote to Production" resets the prod
+checkout to `origin/${PROD_BRANCH}` — set to **`staging`** in
+`jkos-deploy/docker-compose.yml`, so promote deploys the exact commit you just
+tested on staging.jkos.net (no GitHub merge step; the server has no push
+credentials). Flip `PROD_BRANCH` back to `main` to restore a merge-gated
+release flow. `main` is kept as a stable marker, updated from a dev machine
+when desired.
 
 ## Staging
 
 - Mirrors prod under `staging.jkos.net` via **path routing** (not subdomains), same
   `standalone-nginx`, on the `nginx-staging-proxy` network. `set $upstream` proxy_pass
   returns 503 gracefully when staging is down.
-- Paths: `/auth/`→staging-jkos-auth, `/beigeboard/`→staging-bb-app, `/sylib/`→staging-sylibos-frontend, `/sylib/api/`→staging-sylibos-api, `/deploy/`→jkos-deploy. Root → `/deploy/`.
+- Paths: `/auth/`→staging-jkos-auth, `/beigeboard/`→staging-bb-app, `/sylib/`→staging-sylibos-frontend, `/sylib/api/`→staging-sylibos-api, `/deploy/`→jkos-deploy.
+- **Root** serves a static landing page from `infra/nginx/staging-static/`
+  (mounted as a directory into nginx — renders even with every container down).
+  It links each staged app + the deploy console and probes their `/health`
+  paths client-side. Admin-gated like every other staging location.
 - **Admin gate:** every staging location runs `auth_request` → `jkos-auth /auth/require-admin`
   (prod auth). 401→login redirect, 403→forbidden.
 - Staging containers verify JWTs with issuer **`jkos-auth-staging`** (set in each
