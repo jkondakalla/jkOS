@@ -1,5 +1,4 @@
-from .modern  import ModernAdapter
-from .legacy  import LegacyAdapter
-from .archive import ArchiveAdapter
+from .modern import ModernAdapter
+from .legacy import LegacyAdapter
 
-__all__ = ["ModernAdapter", "LegacyAdapter", "ArchiveAdapter"]
+__all__ = ["ModernAdapter", "LegacyAdapter"]

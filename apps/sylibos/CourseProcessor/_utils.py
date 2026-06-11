@@ -18,6 +18,8 @@ _MD_PATTERNS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"^[-*+]\s+", re.MULTILINE),       ""),     # unordered list markers
     (re.compile(r"^\d+\.\s+", re.MULTILINE),       ""),     # ordered list markers
     (re.compile(r"[-]{3,}|[*]{3,}|[_]{3,}"),       ""),     # horizontal rules
+    # OCW page-navigation chrome that survives into the content field
+    (re.compile(r"«\s*Previous(?:\s*\|\s*Next)?\s*»|«\s*Previous\b|\bNext\s*»"), ""),
 ]
 
 

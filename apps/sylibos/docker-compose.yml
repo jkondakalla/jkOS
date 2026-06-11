@@ -21,7 +21,7 @@ services:
       DB_PATH: /data/sylibos.db
       LIBRARY_DB_PATH: /data/library.db
     volumes:
-      - ${SYLIBOS_DATA_PATH:-/mnt/Luna/Backends/SylibOS-Data}:/data
+      - ${SYLIBOS_DATA_PATH:-/mnt/Luna/Backends/Production/sylibos-data}:/data
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:

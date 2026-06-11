@@ -11,7 +11,7 @@ services:
       PORT: "3100"
       DB_PATH: /data/jkos-auth.db
     volumes:
-      - ${JKOS_AUTH_DATA_PATH:-/mnt/Luna/Backends/jkos-auth-data}:/data
+      - ${JKOS_AUTH_DATA_PATH:-/mnt/Luna/Backends/Production/jkos-auth-data}:/data
     networks:
       - jkos-internal
 

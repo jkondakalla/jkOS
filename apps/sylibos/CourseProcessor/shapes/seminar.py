@@ -12,6 +12,7 @@ from pathlib import Path
 
 from .._utils import enrich_overview, html_to_text, read_json, str_field
 from ..manifest import SessionNode, UnitNode
+from ..ordering import ordered_dirs
 from .base import SpineBuilder
 
 _WEEK_PAT = re.compile(r"^week-?(\d+)", re.IGNORECASE)
@@ -24,9 +25,12 @@ class SeminarBuilder(SpineBuilder):
         if not readings_dir.is_dir():
             return []
 
-        sub_dirs = sorted(
-            d for d in readings_dir.iterdir()
-            if d.is_dir() and not d.name.startswith(".")
+        sub_dirs = ordered_dirs(
+            [
+                d for d in readings_dir.iterdir()
+                if d.is_dir() and not d.name.startswith(".")
+            ],
+            [readings_dir / "index.html"],
         )
 
         # Detect week-based organisation
@@ -73,6 +77,7 @@ class SeminarBuilder(SpineBuilder):
                     is_assessment=False,
                     order=si,
                     page_uid=data.get("uid") or data.get("id"),
+                    page_path=str(sub.relative_to(self.zip_root)),
                 ))
 
             if not sessions:
@@ -110,6 +115,7 @@ class SeminarBuilder(SpineBuilder):
                 is_assessment=False,
                 order=si,
                 page_uid=data.get("uid") or data.get("id"),
+                page_path=str(sub.relative_to(self.zip_root)),
             ))
 
         if not sessions:

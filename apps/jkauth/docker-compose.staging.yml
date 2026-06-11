@@ -15,7 +15,7 @@ services:
       COOKIE_DOMAIN: "staging.jkos.net"
       JKOS_AUTH_ISSUER: "jkos-auth-staging"
     volumes:
-      - ${JKOS_AUTH_DATA_PATH:-/mnt/Luna/Backends-Staging/jkos-auth-data}:/data
+      - ${JKOS_AUTH_DATA_PATH:-/mnt/Luna/Backends/Staging/jkos-auth-data}:/data
     networks:
       - nginx-staging-proxy
 

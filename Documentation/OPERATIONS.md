@@ -87,9 +87,14 @@ builds every service — consistent with the deploy model.
 |---------|------|
 | Repo (prod) | `/mnt/Luna/Webhost/jkOS/` |
 | Repo (staging checkout) | `/mnt/Luna/Webhost/jkOS-staging/` |
-| Prod data volumes | `/mnt/Luna/Backends/<svc>-data` |
-| Staging data volumes | `/mnt/Luna/Backends-Staging/<svc>-data` |
-| nginx SSL (CF origin cert) | `/mnt/Luna/Backends/ssl` |
+| Prod data volumes | `/mnt/Luna/Backends/Production/<svc>-data` |
+| Staging data volumes | `/mnt/Luna/Backends/Staging/<svc>-data` |
+| nginx SSL (CF origin cert) | `/mnt/Luna/Backends/ssl/` — `cert.pem` (644) + `key.pem` (600), mounted as `/etc/nginx/ssl` |
+| nginx access/error logs | `/mnt/Luna/Backends/Production/nginx-logs/` |
+
+All data directories live under `/mnt/Luna/Backends/` with prod and staging isolated by
+sub-folder. SSL lives at the `Backends/` root (shared by both envs).
+ACLs: `truenas_admin:truenas_admin`, `POSIX_RESTRICTED` inheritance.
 
 ## Secrets / environment files
 
@@ -105,6 +110,56 @@ Every service reads config from a `.env` file (gitignored at root and per-app).
 
 **Gitignored globally:** `.env`, `.env.local`, `.env.*.local`, `*.pem`, `*.key`, `*.db`,
 `.git-backups/`. See root `.gitignore`. `.claudeignore` mirrors these so Claude never reads secret files.
+
+## TrueNAS / Docker gotchas
+
+Learned in production — all fixed in repo as of 2026-06-11.
+
+### pnpm in Docker on TrueNAS ZFS → `ERR_PNPM_EAGAIN`
+
+`copy_file_range` throws spurious `EAGAIN` under Docker overlay-on-ZFS. pnpm hits it
+when copying packages from its content store into the image. **Fix** already in root
+`.npmrc`:
+
+```ini
+package-import-method=hardlink   # uses link() not copyfile; ZFS-safe
+```
+
+`UV_USE_IO_URING=0` (also set in Dockerfiles) does **not** fix this alone — io_uring was
+already off. Keep both. Also keep `child-concurrency=1` + `force-legacy-deploy` that were
+added earlier for related ZFS symptoms.
+
+### nginx upstreams must be lazy (`set $upstream`)
+
+`proxy_pass http://ordeck-shell:80` resolves the hostname at config load. If the upstream
+container is down, nginx refuses to start at all — taking the edge down with it. All prod
+and staging `proxy_pass` entries use the resolver pattern:
+
+```nginx
+resolver 127.0.0.11 valid=10s ipv6=off;   # Docker internal DNS
+set $upstream http://ordeck-shell:80;
+proxy_pass $upstream;
+```
+
+This is mandatory for every new location block. A down service returns 502 on its vhost;
+it does not crash nginx.
+
+### git checkout on TrueNAS — mode-bit flips, `git config` fails
+
+POSIX_RESTRICTED ACLs cause constant mode-bit churn on checkout. `git config` itself
+can't write because `.git/config.lock` chmod fails. Use:
+
+```bash
+git -c core.fileMode=false reset --hard origin/<branch>
+```
+
+Never run `git config core.fileMode false` — it hangs on the lock.
+
+### Compose refuses unlabeled pre-existing networks
+
+If a network was created manually (or by an older compose run without labels), `docker
+compose up` refuses to manage it. Diagnose with `docker network inspect <name>` — if
+`Labels` is empty, remove (`docker network rm`) and let compose recreate it.
 
 ## Verification checklist (after changes)
 

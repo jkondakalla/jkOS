@@ -15,3 +15,11 @@ __pycache__/
 *.p8
 *.p12
 *.pfx
+
+# Python virtualenvs
+.venv/
+
+# OCW course data: originals (Courses/) and generated output (ProcessedCourses/)
+# are multi-GB and regenerable via `library_cli build-dir|batch` — never commit.
+Courses/
+ProcessedCourses/

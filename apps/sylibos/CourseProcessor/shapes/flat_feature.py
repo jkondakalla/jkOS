@@ -21,8 +21,10 @@ from .base import SpineBuilder
 # Covers the full range of slug names seen across OCW Studio exports.
 _FEATURE_PRIORITY = [
     "lecture-notes", "lectures", "lecture-slides",
+    "lecture-videos", "video-lectures",
     "recitations",
     "assignments", "assignments-and-problem-sets", "problem-sets",
+    "labs",
     "exams",
     "readings",
     "tools",
@@ -93,6 +95,7 @@ class FlatFeatureBuilder(SpineBuilder):
                         is_assessment=bool(_EXAM_PAT.search(sub.name)),
                         order=0,
                         page_uid=data.get("uid") or data.get("id"),
+                        page_path=str(sub.relative_to(self.zip_root)),
                     )))
         else:
             # Fallback: top-level pages/ items as sessions
@@ -119,6 +122,7 @@ class FlatFeatureBuilder(SpineBuilder):
                     is_assessment=bool(_EXAM_PAT.search(d.name)),
                     order=0,
                     page_uid=data.get("uid") or data.get("id"),
+                    page_path=str(d.relative_to(self.zip_root)),
                 )))
 
         if not sessions:

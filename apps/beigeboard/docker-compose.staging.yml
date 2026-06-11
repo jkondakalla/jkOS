@@ -19,7 +19,7 @@ services:
       SHELL_URL: https://staging.jkos.net
       JKOS_AUTH_ISSUER: "jkos-auth-staging"
     volumes:
-      - ${BEIGEBOARD_DATA_PATH:-/mnt/Luna/Backends-Staging/BeigeBoard-Data}:/data
+      - ${BEIGEBOARD_DATA_PATH:-/mnt/Luna/Backends/Staging/beigeboard-data}:/data
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:

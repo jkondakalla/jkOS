@@ -46,10 +46,74 @@ shared-package contract and auth/theme flows.
   - `src/store/authStore.ts` = session init (getMe → refresh → redirect).
 - Backend: `backend/index.js` (Express ESM + better-sqlite3 + node-cron). Auth via
   `@jkos/auth-middleware`. Two images (`Dockerfile`, `backend/Dockerfile`), root context.
+- **Question stems** (`backend/stems.js` + `expr.js` + `pdftext.js`): parameterized
+  questions distilled from each course's actual assignment PDFs (psets/exams in
+  library.db asset BLOBs → `unpdf` text extraction → one AI call per assignment →
+  validated templates with `{{var}}` slots, ranges, constraints, answer/distractor
+  expressions). Variants are instantiated deterministically (seeded RNG + safe
+  expression evaluator — no eval, no AI): same seed ⇒ same variants; answers and MCQ
+  distractors are computed per variant. Routes: `GET /api/stems/assignments`,
+  `POST /api/stems/from-course`, `POST /api/stems/generate` (manual text path),
+  `GET /api/stems[/:id][/variants]`, `DELETE /api/stems/:id`. Stems link back to
+  `(course_id, lecture_id, asset_id)`; AI output is shape-checked **and** functionally
+  proven (sampled + evaluated under multiple seeds) before storage.
+
+#### CourseProcessor — `apps/sylibos/CourseProcessor/`
+Python OCW ingest pipeline. Entry point: `library_cli.py` (`inspect` / `build` / `load`
+commands writing to `library.db`; `build-dir` / `batch` writing file-based processed
+course folders). Core calls: `ingest.ingest_zip()` (zips) and `ingest.ingest_dir()`
+(already-extracted modern exports — structured parse with heuristic HTML fallback for
+single-page feature courses; no AI rung for directory ingest).
+
+**Processed course folders** (`build-dir <course_dir>` / `batch <courses_root>`,
+default `--out ./ProcessedCourses`): per-course `<out>/<slug>/` containing `ir.json` +
+`assets/` (same contract as `build`) plus the concept-tree artifacts `course.json`
+(identity + counts), `tree.json` (trunk/branch/leaf node graph, uuid5 ids stable
+across re-ingest), `concepts.json` (chunked ~15-min trunk content), `exercises.json`
+(pset/exam-backed + stub branches), `lessons.json` (notes-text chunks), `videos.json`
+(per-video cue-timed segments; skipped with `--no-videos`). Chunking modules:
+`chunk.py` (split ladder: discourse > silence gap > proportional; headings for text),
+`syllabus.py` (calendar table/paragraph parse + title-similarity join),
+`scaffold.py` (bundle orchestrator; Scholar shared-clip videos are apportioned across
+their sessions by clip count — `boundary_quality: clip_share`). Served read-only by
+`backend/processed.js` under `/api/processed` (path via `$PROCESSED_COURSES_PATH`);
+frontend types in `src/lib/treeApi.ts` mirror the JSON 1:1. `Courses/` (originals)
+and `ProcessedCourses/` are gitignored — regenerable data, never committed.
+
+**Ingest ladder (in order, first non-empty result wins):**
+1. **Structured** — `detect.detect_format` → `ModernAdapter` / `LegacyAdapter` → shape
+   builders (`shapes/scholar`, `seminar`, `flat_feature`, `project_lab`) →
+   `manifest_to_ir` converts `CourseManifest` → `Course` IR.
+2. **Heuristic** — `extract` + `structure` HTML walk for unknown/legacy layouts; legacy
+   metadata merged from `LegacyAdapter` when present.
+3. **AI split** — only when heuristic confidence < threshold AND `--ai` flag passed;
+   model proposes skeleton, deterministic extraction still fills content.
+
+**Key invariants:**
+- Modern OCW has two live vintages: **v1** (`video_metadata.youtube_id` +
+  `learning_resource_types`), **v2** (`youtube_key` + `resource_type`, empty
+  `learning_resource_types`). Both must stay supported in `adapters/modern.py`.
+- Session↔resource linking (`linking.py`) is deterministic via session `index.html`
+  hrefs → `resources/{slug}/`. Fuzzy matching is suppressed when page-ref coverage
+  is good (prevents zh-hans dub mislinks).
+- Teaching order comes from rendered nav hrefs (`ordering.py`), not alphabetical slugs.
+- `library.db` schema is mirrored in `backend/library.js` (Node read-only runtime) —
+  **change both together**.
+- Real OCW test fixtures: `/mnt/Luna/Open Courseware/`. Venv: `CourseProcessor/.venv`.
 
 ### LazurOS — `apps/lazuros`
-- Python (FastAPI/uvicorn). Ollama proxy + Wake-on-LAN. `network_mode: host` (WoL broadcast).
-- `auth.py` verifies jkOS JWTs in Python (separate from `@jkos/auth-middleware`).
+- Python (FastAPI/uvicorn + httpx). Real Ollama gateway: streams `/api/*` through to the
+  GPU desktop (`COMPUTE_NODE_IP:11434`), NDJSON chat tokens pass through unbuffered.
+- **Wake-on-LAN**: `network_mode: host` (raw LAN broadcast). A `/api/*` request against a
+  sleeping node auto-sends the magic packet and waits `WAKE_TIMEOUT_SECONDS` (this is what
+  lets the SylibOS 2am nightly job wake the desktop). Passive endpoints (`/health`,
+  `/models`, `/ps`) report `sleeping`/`compute_online` but **never** wake — widget polling
+  doesn't keep the desktop up. `POST /wake` = explicit wake (20s WoL cooldown).
+- `auth.py` accepts **either** the static `LAZUROS_TOKEN` bearer (server-to-server:
+  SylibOS/BeigeBoard backends, CLI) **or** a jkOS SSO JWT — `jkos_token` cookie or JWT
+  bearer — verified in Python (PyJWT RS256, same key/issuer contract as `@jkos/auth-middleware`).
+- Prod browser path: `jkos.net/api/lazuros/*` → edge nginx (prefix-stripped, buffering off,
+  via `host.docker.internal`) → lazuros:8080. ORDECK AiPanel/widget use this with cookies.
 
 ## Shared packages — `packages/*`
 See ARCHITECTURE.md → "Shared package map". All are `private`, source-only, `@jkos/*`.

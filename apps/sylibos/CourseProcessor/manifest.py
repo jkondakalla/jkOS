@@ -29,6 +29,7 @@ class ResourceNode(BaseModel):
     file_path: Optional[str] = None
     file_type: str = ""
     youtube_id: Optional[str] = None
+    archive_url: Optional[str] = None
     transcript_text: Optional[str] = None
     extracted_text: Optional[str] = None
 
@@ -38,8 +39,14 @@ class SessionNode(BaseModel):
     title: str
     overview: str = ""
     is_assessment: bool = False
+    # Intermediate grouping inside a unit (e.g. 18.01SC "Part A: …" dirs in
+    # three-level unit/part/session trees)
+    section: Optional[str] = None
     order: int = 0
     page_uid: Optional[str] = None
+    # Path of the session's page dir relative to zip root (e.g.
+    # "pages/unit-1/session-2") — used for exact page-reference linking.
+    page_path: Optional[str] = None
     resources: list[ResourceNode] = Field(default_factory=list)
     prerequisite_session_slugs: list[str] = Field(default_factory=list)
 
@@ -62,7 +69,7 @@ class CourseManifest(BaseModel):
     title: str
 
     # Provenance
-    source_format: Literal["modern", "legacy", "archive"]
+    source_format: Literal["modern", "legacy", "unknown"]
     detected_shape: Literal["scholar", "flat_feature", "project_lab", "seminar", "video_only"]
     shape_confidence: float = 0.0
     zip_sha256: str = ""

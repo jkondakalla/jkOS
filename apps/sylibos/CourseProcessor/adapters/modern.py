@@ -1,8 +1,14 @@
 """
-Modern OCW adapter (ocw-studio / Hugo format, post-2015).
+Modern OCW adapter (ocw-studio / Hugo format, all export vintages).
 
 Reads root data.json, content_map.json, and resources/*/data.json.
 Falls back to slug-based metadata if root data.json is absent.
+
+Resource field vintages handled:
+  v1 (~2020):  learning_resource_types + video_metadata.youtube_id
+  v2 (~2023+): resource_type ("Video"/"Document"/"Other") + youtube_key,
+               learning_resource_types often empty, captions/transcript/
+               archive_url fields on video resources
 """
 
 from __future__ import annotations
@@ -58,8 +64,22 @@ _SKIP_FILE_TYPES = frozenset({
     "image/webp", "image/svg+xml", "text/plain",
 })
 
-# Matches an 11-char YouTube ID at end of a string
-_YT_ID_PAT = re.compile(r"[A-Za-z0-9_-]{11}$")
+# Caption/sidecar files exposed as resources (v2 exports list every static
+# file as a resource; the .vtt/.srt entries duplicate static_resources/ and
+# the "3play" PDFs are machine-generated transcript sidecars)
+_CAPTION_FILE_TYPES = frozenset({
+    "application/x-subrip", "text/vtt", "text/srt",
+})
+_JUNK_TITLE_PAT = re.compile(r"^3play\b|caption file$", re.IGNORECASE)
+_CAPTION_EXT_PAT = re.compile(r"\.(vtt|srt)$", re.IGNORECASE)
+
+_YT_ID = re.compile(r"^[A-Za-z0-9_-]{11}$")
+
+_LECTUREISH_PAT = re.compile(
+    r"lecture|^lec[\s._-]|^ses[\s._-]?\d|session|^l\d{1,2}\b|^\d{1,2}[\s.:_-]",
+    re.IGNORECASE,
+)
+_RECITATIONISH_PAT = re.compile(r"recitation|problem[\s-]*solving", re.IGNORECASE)
 
 # ── Field normalisation helpers ───────────────────────────────────────────────
 
@@ -111,27 +131,30 @@ def _normalize_level(raw: Any) -> list[str]:
 
 
 _SLUG_TYPE_HINTS: list[tuple[re.Pattern, str]] = [
-    (re.compile(r"lecture|^lec[-_]|^l\d", re.IGNORECASE), "Lecture Notes"),
     (re.compile(r"exam|quiz|midterm|final",              re.IGNORECASE), "Exams"),
-    (re.compile(r"problem|pset|homework|hw|assignment",  re.IGNORECASE), "Problem Sets"),
-    (re.compile(r"recitation|rec[-_]",                  re.IGNORECASE), "Recitations"),
+    (re.compile(r"sol(?:ution|n)?s?\b|_sol\b|[-_]sol\b", re.IGNORECASE), "Problem Set Solutions"),
+    (re.compile(r"problem|pset|homework|\bhw\b|assignment", re.IGNORECASE), "Problem Sets"),
+    (re.compile(r"recitation|\brec[-_]",                 re.IGNORECASE), "Recitations"),
     (re.compile(r"reading",                              re.IGNORECASE), "Readings"),
+    (re.compile(r"slide|deck",                           re.IGNORECASE), "Presentation Assets"),
+    (re.compile(r"lecture|^lec[-_]|^l\d|note|summary|\bsum\b", re.IGNORECASE), "Lecture Notes"),
 ]
 
 
-def _infer_resource_types(slug: str, file_type: str) -> list[str]:
-    """
-    Guess resource type from slug keywords and file_type when
-    learning_resource_types is missing.  Returns [] to skip the resource
-    if no useful classification can be made.
-    """
-    if file_type == "application/pdf" or file_type == "":
-        for pat, label in _SLUG_TYPE_HINTS:
-            if pat.search(slug):
-                return [label]
-        if file_type == "application/pdf":
-            return ["Lecture Notes"]  # unclassified PDF → assume lecture notes
-    return []
+def _infer_document_types(slug: str, title: str, file_path: str) -> list[str]:
+    """Classify an untyped document by slug/title/filename keywords."""
+    hay = f"{slug} {title} {Path(file_path or '').name}"
+    for pat, label in _SLUG_TYPE_HINTS:
+        if pat.search(hay):
+            return [label]
+    return ["Lecture Notes"]  # unclassified PDF → assume lecture notes
+
+
+def _extract_yt_from_url(url: str) -> str | None:
+    m = (re.search(r"[?&]v=([A-Za-z0-9_-]{11})", url)
+         or re.search(r"/(?:embed|v)/([A-Za-z0-9_-]{11})", url)
+         or re.search(r"youtu\.be/([A-Za-z0-9_-]{11})", url))
+    return m.group(1) if m else None
 
 
 class ModernAdapter(CourseAdapter):
@@ -147,6 +170,8 @@ class ModernAdapter(CourseAdapter):
             data = json.loads(data_path.read_text(encoding="utf-8", errors="replace"))
         except Exception:
             return self._metadata_from_slug()
+        if not isinstance(data, dict):
+            return self._metadata_from_slug()
 
         dept_numbers: list[str] = _coerce_str_list(data.get("department_numbers"))
         instructors = [
@@ -159,6 +184,12 @@ class ModernAdapter(CourseAdapter):
             )
             for i in (data.get("instructors") or [])
             if isinstance(i, dict)
+        ]
+        # Some exports carry instructors as plain strings
+        instructors += [
+            Instructor(last_name=str(i).strip())
+            for i in (data.get("instructors") or [])
+            if isinstance(i, str) and str(i).strip()
         ]
 
         return {
@@ -191,46 +222,82 @@ class ModernAdapter(CourseAdapter):
             return []
 
         results: list[ResourceNode] = []
-        for data_path in resources_dir.rglob("data.json"):
+        for data_path in sorted(resources_dir.rglob("data.json")):
             slug = data_path.parent.name
             try:
                 raw = json.loads(data_path.read_text(encoding="utf-8", errors="replace"))
             except Exception:
                 continue
-
-            types = _coerce_str_list(raw.get("learning_resource_types"))
-            file_type = raw.get("file_type") or ""
-
-            if not types:
-                # Heuristically classify untyped resources by file extension / slug
-                types = _infer_resource_types(slug, file_type)
-                if not types:
-                    continue
-
-            if file_type in _SKIP_FILE_TYPES:
+            if not isinstance(raw, dict) or raw.get("deleted"):
                 continue
 
-            # Skip soft-deleted resources
-            if raw.get("deleted"):
-                continue
-
-            is_video = any("Video" in t for t in types)
-            youtube_id = self._extract_youtube_id(raw, slug, is_video=is_video)
-
-            results.append(ResourceNode(
-                slug=slug,
-                uid=raw.get("uid") or raw.get("id") or raw.get("site_uid"),
-                parent_uid=raw.get("parent_uid") or raw.get("parent_id"),
-                title=raw.get("title") or slug,
-                description=raw.get("description") or "",
-                primary_type=types[0],
-                secondary_types=types[1:],
-                file_path=raw.get("file") or "",
-                file_type=file_type,
-                youtube_id=youtube_id,
-            ))
+            node = self._parse_resource(slug, raw)
+            if node is not None:
+                results.append(node)
 
         return results
+
+    def _parse_resource(self, slug: str, raw: dict) -> ResourceNode | None:
+        title     = str(raw.get("title") or slug).strip()
+        file_path = raw.get("file") or ""
+        file_type = raw.get("file_type") or ""
+        rtype     = raw.get("resource_type") or ""
+        types     = _coerce_str_list(raw.get("learning_resource_types"))
+
+        # Caption sidecars duplicate static_resources/ and pollute the catalog
+        if file_type in _CAPTION_FILE_TYPES or _CAPTION_EXT_PAT.search(file_path):
+            return None
+        if _JUNK_TITLE_PAT.search(title):
+            return None
+
+        youtube_id  = self._extract_youtube_id(raw, slug)
+        archive_url = raw.get("archive_url") or None
+        is_video = bool(
+            youtube_id
+            or rtype == "Video"
+            or any("Video" in t for t in types)
+        )
+
+        if is_video:
+            if not types:
+                types = self._classify_video(slug, title)
+        else:
+            if file_type in _SKIP_FILE_TYPES:
+                return None
+            if not types:
+                is_doc = (rtype == "Document"
+                          or file_type == "application/pdf"
+                          or file_path.lower().endswith(".pdf"))
+                if not is_doc:
+                    return None  # no useful classification possible
+                types = _infer_document_types(slug, title, file_path)
+
+        return ResourceNode(
+            slug=slug,
+            uid=raw.get("uid") or raw.get("id") or raw.get("site_uid"),
+            parent_uid=raw.get("parent_uid") or raw.get("parent_id"),
+            title=title,
+            description=raw.get("description") or "",
+            primary_type=types[0],
+            secondary_types=types[1:],
+            file_path=file_path,
+            file_type=file_type,
+            youtube_id=youtube_id,
+            archive_url=archive_url,
+        )
+
+    @staticmethod
+    def _classify_video(slug: str, title: str) -> list[str]:
+        """Type an untyped video by name; non-lecture material → Other Video."""
+        hay = f"{slug} {title}"
+        if _RECITATIONISH_PAT.search(hay):
+            return ["Problem-solving Videos"]
+        if _LECTUREISH_PAT.search(hay):
+            return ["Lecture Videos"]
+        # Mostly non-ASCII titles are translated duplicates (e.g. zh-hans dubs)
+        if title and sum(1 for c in title if ord(c) > 127) > len(title) / 2:
+            return ["Other Video"]
+        return ["Lecture Videos"]
 
     # ── Content map ───────────────────────────────────────────────────────────
 
@@ -239,7 +306,8 @@ class ModernAdapter(CourseAdapter):
         if not p.exists():
             return {}
         try:
-            return json.loads(p.read_text(encoding="utf-8"))
+            data = json.loads(p.read_text(encoding="utf-8"))
+            return data if isinstance(data, dict) else {}
         except Exception:
             return {}
 
@@ -258,32 +326,32 @@ class ModernAdapter(CourseAdapter):
         return [n.strip().upper() for n in str(raw).split(",") if n.strip()]
 
     @staticmethod
-    def _extract_youtube_id(raw: dict, slug: str, *, is_video: bool = False) -> str | None:
+    def _extract_youtube_id(raw: dict, slug: str) -> str | None:
+        # v2 exports: youtube_key directly on the resource
+        yk = str(raw.get("youtube_key") or "").strip()
+        if _YT_ID.match(yk):
+            return yk
+
+        # v1 exports: video_metadata block
         vm = raw.get("video_metadata") or {}
+        if isinstance(vm, dict):
+            if vm.get("youtube_id") and _YT_ID.match(str(vm["youtube_id"])):
+                return str(vm["youtube_id"])
+            for field in ("youtube_description_url", "youtube_embed_url", "youtube_url"):
+                got = _extract_yt_from_url(str(vm.get(field) or ""))
+                if got:
+                    return got
 
-        if vm.get("youtube_id"):
-            return vm["youtube_id"]
+        # Some courses put a YouTube URL straight in the file field
+        got = _extract_yt_from_url(str(raw.get("file") or ""))
+        if got:
+            return got
 
-        # Some exports use description/embed URL fields instead of youtube_id
-        _YT_URL_FIELDS = ("youtube_description_url", "youtube_embed_url", "youtube_url")
-        for field in _YT_URL_FIELDS:
-            url = vm.get(field) or ""
-            m = (re.search(r"[?&]v=([A-Za-z0-9_-]{11})", url)
-                 or re.search(r"/(?:embed|v)/([A-Za-z0-9_-]{11})", url)
-                 or re.search(r"youtu\.be/([A-Za-z0-9_-]{11})", url))
-            if m:
-                return m.group(1)
-
-        # Check the file field for YouTube URLs (some courses link directly)
-        file_url = raw.get("file") or ""
-        m = (re.search(r"[?&]v=([A-Za-z0-9_-]{11})", file_url)
-             or re.search(r"youtu\.be/([A-Za-z0-9_-]{11})", file_url))
-        if m:
-            return m.group(1)
-
-        # Slug heuristic only applies to video resources — non-video slugs that
-        # happen to be 11 chars (e.g. "lecture-pdf") would produce false positives
-        if is_video and re.match(r"^[A-Za-z0-9_-]{11}$", slug):
+        # Slug heuristic only when the resource is explicitly a video
+        is_video = (raw.get("resource_type") == "Video"
+                    or any("Video" in t
+                           for t in _coerce_str_list(raw.get("learning_resource_types"))))
+        if is_video and _YT_ID.match(slug):
             return slug
         return None
 
@@ -300,7 +368,6 @@ class ModernAdapter(CourseAdapter):
     def _metadata_from_slug(self) -> dict:
         """Minimal metadata derived from the directory slug."""
         slug  = self.zip_root.name
-        parts = slug.split("-")
 
         year_m   = re.search(r"(20\d{2}|19\d{2})", slug)
         year     = year_m.group(1) if year_m else ""

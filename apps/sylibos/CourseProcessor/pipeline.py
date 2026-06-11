@@ -1,16 +1,18 @@
 """
 OCW Preprocessor pipeline orchestrator.
 
-preprocess(zip_path) → CourseManifest
+preprocess(zip_path) → CourseManifest                 (zip entry point)
+build_manifest_from_dir(zip_root) → CourseManifest    (extracted-dir entry
+                                                       point, used by ingest)
 
 Stages:
-  1. Extract zip + hash
+  1. Extract zip + hash (preprocess only)
   2. Detect format and shape
   3. Parse metadata via adapter
   4. Parse resources via adapter
   5. Attach VTT/SRT transcripts
-  6. Build spine via shape builder
-  7. Link resources to sessions
+  6. Build spine via shape builder (with shape fallbacks if empty)
+  7. Link resources to sessions (exact page refs → uid → gated fuzzy)
   8. Resolve Hugo shortcodes across all text fields
   9. Parse syllabus page for prerequisites/goals
  10. Selective PDF text extraction
@@ -34,20 +36,19 @@ from .pdfs import attach_pdf_texts
 from .shortcodes import ShortcodeResolver, load_content_map
 from .transcripts import attach_transcripts
 
-from .adapters.modern  import ModernAdapter
-from .adapters.legacy  import LegacyAdapter
-from .adapters.archive import ArchiveAdapter
+from .adapters.modern import ModernAdapter
+from .adapters.legacy import LegacyAdapter
 
-from .shapes.scholar     import ScholarBuilder
+from .shapes.scholar import ScholarBuilder
 from .shapes.flat_feature import FlatFeatureBuilder
-from .shapes.project_lab  import ProjectLabBuilder
-from .shapes.seminar      import SeminarBuilder
-from .shapes.video_only   import VideoOnlyBuilder
+from .shapes.project_lab import ProjectLabBuilder
+from .shapes.seminar import SeminarBuilder
+from .shapes.video_only import VideoOnlyBuilder
 
 _ADAPTERS = {
     "modern":  ModernAdapter,
     "legacy":  LegacyAdapter,
-    "archive": ArchiveAdapter,
+    "unknown": LegacyAdapter,  # generic HTML metadata scrape
 }
 _BUILDERS = {
     "scholar":      ScholarBuilder,
@@ -58,7 +59,7 @@ _BUILDERS = {
 }
 
 
-# ── Public entry point ────────────────────────────────────────────────────────
+# ── Public entry points ───────────────────────────────────────────────────────
 
 def preprocess(
     zip_path: str | Path,
@@ -68,18 +69,7 @@ def preprocess(
     ocr:         bool = False,
     verbose:     bool = False,
 ) -> CourseManifest:
-    """
-    Parse an OCW course zip and return a CourseManifest.
-
-    Parameters
-    ----------
-    zip_path    : path to the .zip file
-    output_path : write manifest JSON here (optional)
-    cache_dir   : directory for SHA256-keyed cache (idempotency)
-    no_pdfs     : skip PDF text extraction
-    ocr         : enable OCR fallback for scanned PDFs (requires Tesseract)
-    verbose     : log progress to stdout
-    """
+    """Parse an OCW course zip and return a CourseManifest."""
     zip_path = Path(zip_path)
     zip_sha  = _hash_file(zip_path)
 
@@ -95,86 +85,12 @@ def preprocess(
             return CourseManifest.model_validate_json(cached.read_text())
 
     with tempfile.TemporaryDirectory(prefix="ocw_") as _tmp:
-        zip_root = _extract_and_normalize(zip_path, Path(_tmp))
+        zip_root = extract_and_normalize(zip_path, Path(_tmp))
         log(f"Extracted to {zip_root}")
 
-        # ── Format + shape ────────────────────────────────────────────────────
-        fmt              = detect_format(zip_root)
-        shape, confidence = detect_shape(zip_root, fmt)
-        log(f"Format: {fmt}  |  Shape: {shape} (confidence={confidence:.2f})")
-
-        # ── Adapter + builder ─────────────────────────────────────────────────
-        adapter = _ADAPTERS[fmt](zip_root)
-        builder = _BUILDERS[shape](zip_root, adapter)
-
-        # ── Metadata + resources ──────────────────────────────────────────────
-        log("Parsing metadata…")
-        metadata = adapter.parse_metadata()
-
-        log("Parsing resources…")
-        resources = adapter.parse_resources()
-        log(f"  {len(resources)} classified resources")
-
-        # ── Transcripts ───────────────────────────────────────────────────────
-        log("Attaching transcripts…")
-        attach_transcripts(resources, zip_root)
-
-        # ── Spine ─────────────────────────────────────────────────────────────
-        log("Building spine…")
-        units = builder.build()
-        total_sessions = sum(len(u.sessions) for u in units)
-        log(f"  {len(units)} units, {total_sessions} sessions")
-
-        # ── Resource linking ──────────────────────────────────────────────────
-        log("Linking resources to sessions…")
-        unlinked = builder.link_resources(units, resources)
-        log(f"  Unlinked: {len(unlinked)}")
-
-        # ── Shortcode resolution ──────────────────────────────────────────────
-        log("Resolving shortcodes…")
-        cmap     = load_content_map(zip_root)
-        resolver = ShortcodeResolver(cmap, zip_root)
-
-        if "description" in metadata:
-            metadata["description"] = resolver.resolve(metadata["description"])
-        for unit in units:
-            unit.overview = resolver.resolve(unit.overview)
-            for session in unit.sessions:
-                session.overview = resolver.resolve(session.overview)
-                for r in session.resources:
-                    r.title       = resolver.resolve(r.title)
-                    r.description = resolver.resolve(r.description)
-        for r in unlinked:
-            r.title       = resolver.resolve(r.title)
-            r.description = resolver.resolve(r.description)
-
-        # ── Syllabus supplement (prerequisites / goals) ───────────────────────
-        syllabus = _parse_syllabus(zip_root, resolver)
-        metadata.setdefault("prerequisites", syllabus.get("prerequisites", ""))
-        metadata.setdefault("goals",         syllabus.get("goals", ""))
-
-        if not metadata.get("title") or metadata["title"].lower() == "syllabus":
-            metadata["title"] = humanise_slug(zip_root.name)
-
-        # ── PDF extraction ────────────────────────────────────────────────────
-        if not no_pdfs:
-            log("Extracting PDF text…")
-            attach_pdf_texts(units, zip_root, ocr=ocr, verbose=verbose)
-
-        # ── Assemble manifest ─────────────────────────────────────────────────
-        manifest = CourseManifest(
-            **metadata,
-            source_format=fmt,
-            detected_shape=shape,
-            shape_confidence=confidence,
-            zip_sha256=zip_sha,
-            units=units,
-            unlinked_resources=unlinked,
-            warnings=_collect_warnings(units, resources, metadata),
+        manifest = build_manifest_from_dir(
+            zip_root, zip_sha=zip_sha, no_pdfs=no_pdfs, ocr=ocr, verbose=verbose,
         )
-
-        if manifest.warnings:
-            log(f"Warnings: {', '.join(manifest.warnings)}")
 
         # ── Output ────────────────────────────────────────────────────────────
         manifest_json = manifest.model_dump_json(indent=2)
@@ -190,7 +106,111 @@ def preprocess(
         return manifest
 
 
-# ── Private helpers ───────────────────────────────────────────────────────────
+def build_manifest_from_dir(
+    zip_root: Path,
+    *,
+    zip_sha: str = "",
+    no_pdfs: bool = False,
+    ocr:     bool = False,
+    verbose: bool = False,
+) -> CourseManifest:
+    """Run stages 2–11 on an already-extracted course directory."""
+
+    def log(msg: str) -> None:
+        if verbose:
+            print(msg)
+
+    # ── Format + shape ────────────────────────────────────────────────────────
+    fmt               = detect_format(zip_root)
+    shape, confidence = detect_shape(zip_root, fmt)
+    log(f"Format: {fmt}  |  Shape: {shape} (confidence={confidence:.2f})")
+
+    # ── Adapter + builder ─────────────────────────────────────────────────────
+    adapter = _ADAPTERS[fmt](zip_root)
+
+    # ── Metadata + resources ──────────────────────────────────────────────────
+    log("Parsing metadata…")
+    metadata = adapter.parse_metadata()
+
+    log("Parsing resources…")
+    resources = adapter.parse_resources()
+    log(f"  {len(resources)} classified resources")
+
+    # ── Transcripts ───────────────────────────────────────────────────────────
+    log("Attaching transcripts…")
+    attach_transcripts(resources, zip_root)
+
+    # ── Spine (with shape fallbacks) ──────────────────────────────────────────
+    log("Building spine…")
+    builder = _BUILDERS[shape](zip_root, adapter)
+    units = builder.build()
+    if not units and shape != "flat_feature":
+        log(f"  {shape} produced no units — falling back to flat_feature")
+        shape, confidence = "flat_feature", min(confidence, 0.4)
+        builder = FlatFeatureBuilder(zip_root, adapter)
+        units = builder.build()
+    if not units and any("Video" in r.primary_type for r in resources):
+        log("  no page spine — falling back to video_only")
+        shape, confidence = "video_only", min(confidence, 0.5)
+        builder = VideoOnlyBuilder(zip_root, adapter)
+        units = builder.build()
+    total_sessions = sum(len(u.sessions) for u in units)
+    log(f"  {len(units)} units, {total_sessions} sessions")
+
+    # ── Resource linking ──────────────────────────────────────────────────────
+    log("Linking resources to sessions…")
+    unlinked = builder.link_resources(units, resources)
+    log(f"  Unlinked: {len(unlinked)}")
+
+    # ── Shortcode resolution ──────────────────────────────────────────────────
+    log("Resolving shortcodes…")
+    cmap     = load_content_map(zip_root)
+    resolver = ShortcodeResolver(cmap, zip_root)
+
+    if "description" in metadata:
+        metadata["description"] = resolver.resolve(metadata["description"])
+    for unit in units:
+        unit.overview = resolver.resolve(unit.overview)
+        for session in unit.sessions:
+            session.overview = resolver.resolve(session.overview)
+            for r in session.resources:
+                r.title       = resolver.resolve(r.title)
+                r.description = resolver.resolve(r.description)
+    for r in unlinked:
+        r.title       = resolver.resolve(r.title)
+        r.description = resolver.resolve(r.description)
+
+    # ── Syllabus supplement (prerequisites / goals) ───────────────────────────
+    syllabus = _parse_syllabus(zip_root, resolver)
+    metadata.setdefault("prerequisites", syllabus.get("prerequisites", ""))
+    metadata.setdefault("goals",         syllabus.get("goals", ""))
+
+    if not metadata.get("title") or metadata["title"].lower() == "syllabus":
+        metadata["title"] = humanise_slug(zip_root.name)
+
+    # ── PDF extraction ────────────────────────────────────────────────────────
+    if not no_pdfs:
+        log("Extracting PDF text…")
+        attach_pdf_texts(units, zip_root, ocr=ocr, verbose=verbose)
+
+    # ── Assemble manifest ─────────────────────────────────────────────────────
+    manifest = CourseManifest(
+        **metadata,
+        source_format=fmt,
+        detected_shape=shape,
+        shape_confidence=confidence,
+        zip_sha256=zip_sha,
+        units=units,
+        unlinked_resources=unlinked,
+        warnings=_collect_warnings(units, resources, metadata),
+    )
+
+    if manifest.warnings:
+        log(f"Warnings: {', '.join(manifest.warnings)}")
+    return manifest
+
+
+# ── Zip extraction (shared with ingest) ──────────────────────────────────────
 
 def _hash_file(path: Path) -> str:
     h = hashlib.sha256()
@@ -203,7 +223,8 @@ def _hash_file(path: Path) -> str:
 _JUNK_NAMES = frozenset({"__MACOSX", "__pycache__", ".DS_Store"})
 
 
-def _extract_and_normalize(zip_path: Path, dest: Path) -> Path:
+def extract_and_normalize(zip_path: Path, dest: Path) -> Path:
+    """Extract safely (zip-slip guarded) and unwrap a single nested root dir."""
     dest_resolved = dest.resolve()
     try:
         with zipfile.ZipFile(zip_path) as zf:
@@ -225,24 +246,29 @@ def _extract_and_normalize(zip_path: Path, dest: Path) -> Path:
     return dest
 
 
+# Back-compat alias (pre-refactor private name)
+_extract_and_normalize = extract_and_normalize
+
+
+_SECTION_CAP = 1_500
+
+
 def _extract_between(text: str, start: str, end_candidates: list[str]) -> str:
-    """Extract text between start header and the first matching end header."""
-    m = re.search(
-        rf"(?:^|\n)\s*{re.escape(start)}[:\s]*\n",
-        text, re.IGNORECASE,
-    )
+    """
+    Extract text between a start header and the first end header.
+    html_to_text() flattens content to a single line, so headers are matched
+    as standalone words rather than line starts.
+    """
+    m = re.search(rf"\b{re.escape(start)}\b[:\s]*", text, re.IGNORECASE)
     if not m:
         return ""
     body_start = m.end()
     end_pos = len(text)
     for end_word in end_candidates:
-        em = re.search(
-            rf"(?:^|\n)\s*{re.escape(end_word)}[:\s]*\n",
-            text, re.IGNORECASE,
-        )
-        if em and em.start() > body_start and em.start() < end_pos:
-            end_pos = em.start()
-    return text[body_start:end_pos].strip()
+        em = re.search(rf"\b{re.escape(end_word)}\b", text[body_start:], re.IGNORECASE)
+        if em and body_start + em.start() < end_pos:
+            end_pos = body_start + em.start()
+    return text[body_start:end_pos].strip()[:_SECTION_CAP]
 
 
 _SYLLABUS_SLUGS = ("syllabus", "course-info", "about-this-course", "overview", "calendar")
