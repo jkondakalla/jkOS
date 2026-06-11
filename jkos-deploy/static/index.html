@@ -213,7 +213,7 @@ body {
 
 <div class="actions">
   <button class="btn" id="btn-sync" onclick="syncStaging()">[ Sync Staging from GitHub ]</button>
-  <button class="btn btn-danger" id="btn-deploy" onclick="openModal()">[ Deploy Main to Production ]</button>
+  <button class="btn btn-danger" id="btn-deploy" onclick="openModal()">[ Promote to Production ]</button>
 </div>
 
 <div class="status-bar">
@@ -227,9 +227,11 @@ body {
 <div class="overlay" id="modal">
   <div class="modal">
     <div class="modal-title">&#9888; Production Deploy</div>
-    <div class="modal-body">
-      This will pull the latest main branch and rebuild production containers.<br><br>
-      Make sure you have merged staging &#8594; main on GitHub before proceeding.
+    <div class="modal-body" id="modal-body">
+      This will reset the prod checkout to <b id="modal-branch">origin/staging</b>
+      and rebuild production containers.<br><br>
+      Make sure staging.jkos.net looks right before promoting &mdash; prod will
+      run the exact commit shown on the staging card above.
     </div>
     <div class="modal-actions">
       <button class="btn btn-danger" onclick="confirmDeploy()">[ Confirm Deploy ]</button>
@@ -288,6 +290,11 @@ async function fetchInfo() {
     };
     fill('s', d.staging);
     fill('p', d.prod);
+    if (d.branches) {
+      document.getElementById('modal-branch').textContent = 'origin/' + d.branches.prod;
+      document.getElementById('btn-deploy').textContent =
+        '[ Promote ' + d.branches.prod + ' to Production ]';
+    }
     applyStatus({ status: d.status, operation: d.operation });
   } catch (_) {}
 }
