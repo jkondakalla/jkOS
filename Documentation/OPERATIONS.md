@@ -89,7 +89,7 @@ builds every service — consistent with the deploy model.
 | Repo (staging checkout) | `/mnt/Luna/Webhost/jkOS-staging/` |
 | Prod data volumes | `/mnt/Luna/Backends/Production/<svc>-data` |
 | Staging data volumes | `/mnt/Luna/Backends/Staging/<svc>-data` |
-| nginx SSL (CF origin cert) | `/mnt/Luna/Backends/ssl/` |
+| nginx SSL (CF origin cert) | `/mnt/Luna/Backends/ssl/` — `cert.pem` (644) + `key.pem` (600), mounted as `/etc/nginx/ssl` |
 | nginx access/error logs | `/mnt/Luna/Backends/Production/nginx-logs/` |
 
 All data directories live under `/mnt/Luna/Backends/` with prod and staging isolated by

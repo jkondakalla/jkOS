@@ -10,7 +10,7 @@ Usage:
   python -m preprocessor.library_cli build   COURSE.zip --out ./build [--ai]
   python -m preprocessor.library_cli load    ./build/<slug> [--db /data/library.db]
 
-Default DB path: /mnt/Luna/Backends/SylibOS-Data/library.db (or $LIBRARY_DB_PATH).
+Default DB path: /mnt/Luna/Backends/Production/sylibos-data/library.db (or $LIBRARY_DB_PATH).
 
 Ingestion ladder (see ingest.py): structured format/shape-aware parse first,
 heuristic HTML walking for legacy/unknown layouts, AI structural split only
@@ -34,7 +34,7 @@ from .ai_split import ProviderConfig
 from .ingest import IngestError, IngestResult, ingest_dir, ingest_zip
 from .ir import Course
 
-DEFAULT_DB = os.environ.get("LIBRARY_DB_PATH", "/mnt/Luna/Backends/SylibOS-Data/library.db")
+DEFAULT_DB = os.environ.get("LIBRARY_DB_PATH", "/mnt/Luna/Backends/Production/sylibos-data/library.db")
 DEFAULT_MIN_CONFIDENCE = 0.45
 
 

@@ -1,147 +1,130 @@
 # jkOS — Design System Reference
 
-Reference for visual and UX design work across the suite. Intended for Claude Design
-(or any design tool) to produce work that integrates cleanly with the existing codebase.
+For design-focused agents (Claude Design) working on any jkOS frontend. Everything here
+is derived from the actual token/applier source — when in doubt, the code wins:
+`packages/design/tokens/hub.css` (tokens + shared classes) and
+`packages/design/utils/applyJkOSTheme.ts` (mode/accent appliers).
 
----
+## The aesthetic — two-faced retro hardware
 
-## Token foundation — `@jkos/design`
+jkOS has one distinctive design identity with two faces, switched by `data-mode` on `<html>`:
 
-All visual values are CSS custom properties declared in `packages/design/src/hub.css`.
-**Never hardcode colors or radii.** Reference tokens only.
+- **`data-mode="paper"`** (light) — warm kraft-paper office: tan/cream layered backgrounds,
+  dark ink text, brass/metal hardware tones, grain overlay (multiply), burnt-sienna default accent.
+- **`data-mode="dark"`** — CRT amber phosphor terminal: near-black warm backgrounds,
+  amber `#ffb000` default accent, text glow (`--hub-amber-glow`), scanline/vignette overlays
+  (ORDECK), grain overlay (screen).
 
-### Core tokens
+It is **skeuomorphic, not flat-SaaS**: corners are sharp (`--hub-radius: 0px`, max 2px),
+chrome is built from CSS "hardware" — LEDs, screws, vents, dymo tape, rubber stamps,
+7-segment displays. Subtle ambient animation (LED pulse, data flicker) is part of the
+identity. New UI should extend this language, not normalize it toward generic modern UI.
 
-| Token | Role |
-|-------|------|
-| `--accent` | Primary brand accent — set at runtime via `applyJkOSTheme` |
-| `--hub-bg` | Page background |
-| `--hub-surface` | Card / panel surface |
-| `--hub-border` | Divider / stroke |
-| `--hub-text` | Primary text |
-| `--hub-text-muted` | Secondary / label text |
-| `--hub-radius` | Standard border-radius (cards, inputs) |
-| `--hub-radius-sm` | Tight radius (chips, badges) |
+## Token source of truth — `@jkos/design/tokens.css`
 
-### Modes
+`:root` holds paper-mode defaults; `:root[data-mode="dark"]` holds the CRT overrides.
+Every app imports this file, then overrides only its accent personality.
 
-Two modes are set via `data-mode` on `<html>`:
+| Family | Tokens | Role |
+|--------|--------|------|
+| Per-app accent | `--accent`, `--accent-warm`, `--accent-soft` | The **only** sanctioned per-app override surface |
+| Backgrounds | `--hub-bg-0`…`--hub-bg-4` | Layered surfaces, darkest/outermost → lightest/innermost |
+| Screen | `--hub-screen`, `--hub-screen-line` | Inner "display" panels inside widget frames |
+| Hardware | `--hub-metal-0..2`, `--hub-bevel-light/dark` | Bezels, screws, physical chrome |
+| Lines | `--hub-line`, `-strong`, `-bright` | Borders/dividers in three weights |
+| Primary accent family | `--hub-amber`, `-bright`, `-dim`, `-deep`, `-glow` | Tracks `--accent` via `color-mix`; **overridden at runtime** by `applyJkOSTheme` |
+| Secondary accent | `--hub-cyan`, `-dim`, `-glow` | Runtime-overridable secondary |
+| Status | `--hub-red/green/magenta`, `--color-ok/warn/danger` | Semantic colors — use these for destructive/success, never tint from `--accent` |
+| Text | `--hub-cream`, `-bright`, `-dim`, `-faint` | Ink hierarchy (bright = primary text) |
+| Semantic aliases | `--color-paper/card/ink/muted/faint/line/accent…` | Component-facing aliases onto `--hub-*` — prefer these in app code |
+| Typography | `--hub-font-mono/sans/seg` | See Typography below |
+| Spacing/radii | `--hub-grid: 40px`, `--hub-radius*: 0–2px` | Canvas grid; sharp corners |
+| Shell layout | `--hub-header-h: 52px`, `--hub-bus-h/footer-h: 28px`, `--hub-sidebar-w: 200px` (collapsed `40px`), `--hub-rail-w: 56px`, `--hub-widget-pad: 12px`, `--hub-title-h: 34px` | Fixed chrome dimensions |
+| Effects | `--grain-opacity/blend`, `--crt-scanline-opacity`, `--crt-vignette-opacity`, `--hub-glow-mul`, `--hub-shadow-*` | Mode-dependent atmosphere |
 
-- `data-mode="paper"` — light mode (warm off-white)
-- `data-mode="dark"` — dark mode
+**Hard rule (stated in hub.css itself):** do not rename `--hub-*` tokens. Per-app
+personality is expressed via `--accent`, `--accent-warm`, `--accent-soft` overrides only.
+Never hardcode hex values in components — both modes *and* arbitrary user accent colors
+must resolve through the token chain.
 
-Mode is applied by `applyJkOSMode()` from `@jkos/design`. Components must use tokens
-and respond to mode via `[data-mode="dark"] .component { … }` selectors, not hardcoded
-`prefers-color-scheme` media queries. jkOS controls mode explicitly, not via OS preference.
+## Mode & theme application
 
-### Accent
+- `applyJkOSMode(mode)` (`@jkos/design`) — accepts `'system' | 'light' | 'dark'`, sets
+  `data-mode` to `"paper"` or `"dark"` (those are the only two attribute values), returns `isDark`.
+- `applyJkOSTheme(theme, isDark)` — writes the user's saved accent onto `--accent` +
+  the `--hub-amber` family (and `--hub-cyan` family if a secondary is set).
+- Apps call `applyTheme` from `@jkos/auth-client`, which takes the canonical **flat**
+  theme `{ mode, primary, secondary }` (stored in jkAuth `users.preferences`, synced via
+  `PATCH /auth/profile`); `normaliseTheme` migrates the legacy nested shape on read.
+- **Design implication:** every screen must hold up in both modes and under any user-chosen
+  accent. Dark-mode styling hangs off `[data-mode="dark"]` selectors — **never**
+  `prefers-color-scheme` media queries (jkOS controls mode explicitly).
 
-`--accent` is injected at runtime from the user's stored preference. Design components
-must derive interactive states (hover, focus-ring) from `--accent` directly rather than
-defining fixed colors.
+## Typography
 
----
+- `--hub-font-mono` — **IBM Plex Mono**: data, labels, eyebrows, hardware tape text.
+- `--hub-font-sans` — **IBM Plex Sans**: body copy.
+- `--hub-font-seg` — **Big Shoulders Display**: 7-segment numeric displays (`.seg`).
+- Loaded from Google Fonts per app `index.html` (ORDECK additionally loads VT323, Orbitron,
+  Space Grotesk, Inter; SylibOS adds Fraunces + Hanken Grotesk for its reading surfaces).
+- The label idiom is `.mono-eyebrow`: 9px mono, uppercase, `0.2em` letter-spacing, dim ink.
 
-## Per-app design contexts
+## Shared component classes (in hub.css — reuse, don't recreate)
 
-### ORDECK — `apps/ordeck`
+| Class | What it renders |
+|-------|-----------------|
+| `.led` (+ `.green/.amber/.red/.cyan/.off/.steady/.sm/.lg`) | Pulsing status LED with glow |
+| `.screw`, `.vent`, `.perf` | Hardware chrome: screw heads, vent slats, perforation |
+| `.label-tape`, `.dymo-tape` | Embossed label strips (dymo is always dark — a physical object) |
+| `.stamp` | Rotated rubber-stamp badge |
+| `.seg` | 7-segment glowing numeric text |
+| `.bar-track` / `.bar-fill` | Amber-gradient meter |
+| `.glow`, `.glow-dim`, `.glow-cyan` | Phosphor text glow |
+| `.canvas-grid`, `.canvas-cell`, `.boot-sweep` | Grid canvas background, layout cells, boot-in animation |
 
-**Role:** Hub portal / launcher. First thing users see.
+Keyframes available: `led-pulse`, `blink`, `data-flicker`, `grain`. Scrollbars and
+`::selection` are already styled globally — don't restyle per-app.
 
-- Tailwind v3 + `@jkos/ui` tokens (`packages/ui/src/tokens.css` re-imports hub.css).
-- Additional vars: `--crt-scanline-opacity` (CRT overlay effect), toggled by ORDECK's
-  own preferences hook extension.
-- Widget system: each widget in `src/widgets/` is a self-contained card. Use `WidgetShell`
-  from `@jkos/ui` as the outer wrapper — it handles consistent padding, border, radius.
-- AppLauncher grid: icon + label tiles, 2-column on mobile, 4-column+ desktop.
-- Typography: system-ui stack; no custom font loaded by default.
+## Per-app stacks — critical constraints
 
-### BeigeBoard — `apps/beigeboard`
+| App | React | Styling | Notes |
+|-----|-------|---------|-------|
+| ORDECK | 18 | Plain CSS + `@jkos/ui` | **No Tailwind.** `WidgetShell` from `@jkos/ui` wraps widgets; `@jkos/ui/tokens.css` re-imports design tokens + CRT overlay vars + `--color-*` aliases |
+| BeigeBoard | 18 | Plain CSS (`src/app.css`) | **No Tailwind.** App-specific helpers (fonts, colors, date fmt) in `src/lib/theme.ts` |
+| SylibOS | 19 | **Tailwind v4** (CSS-first) | Config lives in `src/index.css` `@theme` block — there is **no `tailwind.config.js`**; don't introduce v3 idioms |
 
-**Role:** Calendar + task manager hub app.
+SylibOS specifics:
+- `@custom-variant dark` is keyed to `[data-mode="dark"]` — `dark:` utilities follow jkOS
+  mode, not the OS setting.
+- After `@theme`, the `--color-*` utility vars are remapped to `var(--hub-*)`, so Tailwind
+  color utilities resolve through the hub token chain and flip with mode automatically.
+  New colors must join this chain, not bypass it.
+- Preset schemes in `src/lib/theme.ts` (`SCHEMES`): `reading-room`, `sandstone` (light) /
+  `nocturne` (default), `velvet` (dark). `applyScheme` sets `data-mode` + `--accent`.
+  Adding a scheme = adding to `SCHEMES`, not new CSS.
 
-- Vite SPA, React 18. `src/lib/theme.ts` handles app-specific helpers (date formats,
-  `halate` color utility, accent-tinted palette) **on top of** the shared jkOS theme.
-- Design character: clean productivity tool, high information density, no decorative flair.
-- Date/time display: format helpers live in `src/lib/theme.ts` — reuse, don't add new ones.
-- Sidebar navigation pattern: icon rail (collapsed) or icon+label (expanded).
+## Icons
 
-### SylibOS — `apps/sylibos`
+There is **no icon library** in the workspace (no lucide/heroicons/react-icons).
+Iconography is inline SVG plus the CSS hardware classes above. Don't add an icon
+dependency as part of a design pass — that's an architecture decision, not a polish one.
 
-**Role:** OCW library / learning platform. Pluggable app (served at `sylibos.jkos.net`,
-path-routed under `staging.jkos.net/sylib/`).
+## Motion
 
-- Vite SPA, **React 19** + **Tailwind v4** (inline CSS approach — no `tailwind.config.js`
-  class list; uses `@theme` / `@layer` / arbitrary properties). **Do not add Tailwind v3
-  syntax** (e.g. `bg-[#hex]` is fine; `theme()` calls in CSS are not).
-- `src/lib/theme.ts` stores SylibOS **color scheme presets** (named palettes); user picks
-  one and it is persisted via `@jkos/auth-client`'s `patchProfile`. The jkOS global
-  `applyTheme` still runs; SylibOS simply seeds `--accent` and `data-mode` from the
-  chosen preset before the global applier runs.
-- Design character: academic / library aesthetic. Clean type-forward layouts. Card grids
-  for course browsing; detail pages are text-heavy with sidebar nav.
-- CourseProcessor output surfaces (`/api/processed`): concept tree, chunked lessons,
-  exercises, videos — design as reading/study views, not dashboards.
+- Ambient hardware effects (LED pulse, occasional `data-flicker`) are the house idiom —
+  subtle opacity-only loops are fine; large movement loops are not.
+- Entrances use `boot-sweep` (0.4s ease-out). Keep new transitions in that range (~200–400ms).
+- CRT scanline/vignette intensity is token-driven (`--crt-*-opacity`) — adjust via tokens,
+  never bake overlay opacities into components.
 
----
+## Invariants — do not change in a design pass
 
-## Layout constraints
-
-- **Max content width:** `72rem` (hub shell); pluggable apps may go wider for their
-  own content areas but should not exceed viewport width on mobile.
-- **Sidebar:** fixed-width, not resizable. ORDECK widget shell uses a consistent gutter.
-- **Spacing scale:** use Tailwind or CSS `calc()` from a 4px base grid. No arbitrary
-  pixel values outside the 4px grid except 1px borders.
-- **Z-index layers:** modals > dropdowns > sticky headers > base content. Document any
-  new layer added.
-
----
-
-## Component conventions
-
-### Forms / inputs
-
-- All interactive elements must have visible focus rings using `--accent` (not removed
-  for aesthetics). `outline: 2px solid var(--accent); outline-offset: 2px;` minimum.
-- Labels always present (visually or via `aria-label`); never placeholder-as-label.
-
-### Icons
-
-- Lucide React is the icon library used across the suite. Import named SVG components;
-  do not bundle icon fonts or use emoji as icons in UI chrome.
-- Icon sizing: `16px` inline, `20px` standalone action, `24px` hero/empty-state.
-
-### Buttons
-
-- Primary: `background: var(--accent); color: white`.
-- Secondary / ghost: border + transparent background; hover fills `--hub-surface`.
-- Destructive: red — use a static `--color-destructive: oklch(55% 0.18 25)` token; do
-  not tint from `--accent`.
-
-### Cards
-
-- `background: var(--hub-surface); border: 1px solid var(--hub-border); border-radius: var(--hub-radius)`.
-- Hover state lifts with a subtle `box-shadow` increase or `border-color` shift to
-  `--accent` — pick one per app and be consistent.
-
----
-
-## Animation / motion
-
-- Prefer CSS transitions (`200ms ease`) for state changes (hover, expand, collapse).
-- Page transitions: crossfade or slide — must complete in ≤ 300ms.
-- No looping ambient animations in UI chrome (loading spinners excepted).
-- Respect `prefers-reduced-motion`: wrap decorative transitions in
-  `@media (prefers-reduced-motion: no-preference) { … }`.
-
----
-
-## What NOT to change
-
-- `packages/design/hub.css` token names — renaming a token breaks every consumer at once.
-- `data-mode` attribute contract — mode must remain `"paper"` or `"dark"`; no new values.
-- `applyJkOSMode` / `applyJkOSTheme` call signatures in `@jkos/design` — backends and
-  frontends both rely on these being stable.
-- Container names or Docker network names — ops scripts reference them by name.
-- The `JKOS_AUTH_PUBLIC_KEY` / `JKOS_AUTH_PRIVATE_KEY` naming convention — propagation
-  scripts pattern-match these exact variable names.
+- `--hub-*` token **names** (every consumer references them; hub.css forbids renames).
+- The `data-mode` contract: attribute values are exactly `"paper"` and `"dark"`.
+- Signatures of `applyJkOSMode` / `applyJkOSTheme` (`@jkos/design`) and
+  `applyTheme` / `normaliseTheme` (`@jkos/auth-client`); flat theme shape `{mode, primary, secondary}`.
+- The rule that per-app identity lives **only** in `--accent` / `--accent-warm` /
+  `--accent-soft` overrides (plus SylibOS's `@theme` remap layer).
+- No per-app duplication of theme/auth logic — import from `@jkos/*`
+  (see ARCHITECTURE.md invariant; the old per-app copies were deliberately deleted).
+- Docker container names and networks (ops reference them by name).

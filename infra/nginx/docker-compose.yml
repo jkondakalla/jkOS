@@ -21,7 +21,7 @@ services:
       - "443:443"
     volumes:
       - ./standalone.conf:/etc/nginx/nginx.conf:ro
-      - ${SSL_PATH:-/mnt/Luna/Backends/ssl}:/etc/letsencrypt:ro
+      - ${SSL_PATH:-/mnt/Luna/Backends/ssl}:/etc/nginx/ssl:ro
       - ${NGINX_LOGS_PATH:-/mnt/Luna/Backends/Production/nginx-logs}:/var/log/nginx
     networks:
       - jkos-internal

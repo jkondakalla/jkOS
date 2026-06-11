@@ -1,12 +1,13 @@
 # jkOS Documentation
 
-Agent-oriented reference for the jkOS monorepo. Three files, read in this order:
+Agent-oriented reference for the jkOS monorepo. Four files, read in this order:
 
 | File | Read it for |
 |------|-------------|
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Mental model: monorepo layout, `@jkos/*` package map, auth flow, theme flow, build system, runtime topology, invariants. **Start here.** |
 | [SERVICES.md](SERVICES.md) | Per-service detail: dirs, packages, containers, ports, key files, routes. |
 | [OPERATIONS.md](OPERATIONS.md) | Build/dev commands, Docker build model, compose/ports, deploy, staging, TrueNAS paths, verification checklist. |
+| [DESIGN.md](DESIGN.md) | Design system: kraft-paper/CRT aesthetic, `--hub-*` token contract, mode/theme appliers, per-app styling stacks, shared hardware-chrome classes, design-pass invariants. |
 
 ## App-level and supplementary docs
 
