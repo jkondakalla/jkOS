@@ -6,7 +6,8 @@ services:
       dockerfile: apps/sylibos/Dockerfile
       args:
         VITE_BASE: /sylib/
-        VITE_JKOS_AUTH_URL: https://staging.jkos.net/auth
+        # Origin only — the auth client appends /auth/... itself.
+        VITE_JKOS_AUTH_URL: https://staging.jkos.net
     container_name: staging-sylibos-frontend
     restart: unless-stopped
     networks:
@@ -24,7 +25,8 @@ services:
       DB_PATH: /data/sylibos.db
       LIBRARY_DB_PATH: /data/library.db
       SHELL_URL: https://staging.jkos.net
-      JKOS_AUTH_ISSUER: "jkos-auth"
+      JKOS_COOKIE_SUFFIX: "_staging"
+      JKOS_AUTH_ISSUER: "jkos-auth-staging"
     volumes:
       - ${SYLIBOS_DATA_PATH:-/mnt/Luna/Backends/Staging/sylibos-data}:/data
     extra_hosts:

@@ -27,8 +27,14 @@ const DUMMY_HASH = bcrypt.hashSync('_timing_sentinel_' + crypto.randomBytes(16).
 
 const ACCESS_TTL_MS = 15 * 60 * 1000
 const REFRESH_TTL_MS = 30 * 24 * 60 * 60 * 1000
-const TOKEN_COOKIE = 'jkos_token'
-const REFRESH_COOKIE = 'jkos_refresh'
+// Cookie name suffix isolates environments that share a parent domain. Prod uses
+// '' → jkos_token on .jkos.net; staging sets JKOS_COOKIE_SUFFIX=_staging →
+// jkos_token_staging on staging.jkos.net. Without distinct names the prod cookie
+// (sent to every *.jkos.net host) collides with the staging cookie and the
+// server reads whichever the browser sends first — defeating env isolation.
+const COOKIE_SUFFIX = process.env.JKOS_COOKIE_SUFFIX || ''
+const TOKEN_COOKIE = 'jkos_token' + COOKIE_SUFFIX
+const REFRESH_COOKIE = 'jkos_refresh' + COOKIE_SUFFIX
 const COOKIE_DOMAIN = process.env.COOKIE_DOMAIN || '.jkos.net'
 const COOKIE_OPTS = { httpOnly: true, sameSite: 'lax', secure: true, path: '/', domain: COOKIE_DOMAIN }
 const JWT_ISSUER = process.env.JKOS_AUTH_ISSUER || 'jkos-auth'

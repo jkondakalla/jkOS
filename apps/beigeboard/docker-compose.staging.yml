@@ -6,7 +6,9 @@ services:
       dockerfile: apps/beigeboard/Dockerfile
       args:
         VITE_BASE: /beigeboard/
-        VITE_JKOS_AUTH_URL: https://staging.jkos.net/auth
+        # Origin only — the auth client appends /auth/... itself. A /auth suffix
+        # here yields broken /auth/auth/login URLs.
+        VITE_JKOS_AUTH_URL: https://staging.jkos.net
         VITE_API_URL: /beigeboard
     container_name: staging-bb-app
     restart: unless-stopped
@@ -15,9 +17,10 @@ services:
       PORT: "3001"
       DB_PATH: /data/beigeBoard.db
       STATIC_DIR: /app/dist
-      JKOS_AUTH_URL: https://staging.jkos.net/auth
+      JKOS_AUTH_URL: https://staging.jkos.net
       SHELL_URL: https://staging.jkos.net
-      JKOS_AUTH_ISSUER: "jkos-auth"
+      JKOS_COOKIE_SUFFIX: "_staging"
+      JKOS_AUTH_ISSUER: "jkos-auth-staging"
     volumes:
       - ${BEIGEBOARD_DATA_PATH:-/mnt/Luna/Backends/Staging/beigeboard-data}:/data
     extra_hosts:

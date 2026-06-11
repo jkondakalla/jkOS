@@ -16,6 +16,10 @@ services:
       # Promote = deploy the exact staging commit you just tested. Flip back to
       # "main" to restore a merge-gated release flow.
       PROD_BRANCH: staging
+      # jkos-deploy is a staging-environment service: it must verify the staging
+      # session cookie (jkos_token_staging) and issuer, not the prod one.
+      JKOS_COOKIE_SUFFIX: "_staging"
+      JKOS_AUTH_ISSUER: "jkos-auth-staging"
 
 networks:
   nginx-staging-proxy:

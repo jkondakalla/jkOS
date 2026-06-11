@@ -3,13 +3,18 @@ import collections
 import os
 from typing import Literal
 
-from fastapi import Cookie, Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, StreamingResponse
 from jose import JWTError, jwt
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 
 PUBLIC_KEY = os.getenv("JKOS_AUTH_PUBLIC_KEY", "").replace("\\n", "\n")
+# jkos-deploy lives in the staging environment, so it verifies staging tokens:
+# cookie name jkos_token_staging (suffix) and issuer jkos-auth-staging. These
+# default to the prod values so the controller still works if run unscoped.
+COOKIE_NAME = "jkos_token" + os.getenv("JKOS_COOKIE_SUFFIX", "")
+EXPECTED_ISSUER = os.getenv("JKOS_AUTH_ISSUER", "jkos-auth")
 STAGING_BRANCH = os.getenv("STAGING_BRANCH", "staging")
 # Branch the prod checkout resets to on deploy. Set to "staging" so promoting
 # deploys the exact commit just tested on staging.jkos.net — no GitHub merge
@@ -103,19 +108,20 @@ async def _run_sequence(operation: str, sequence: list[list[str]]) -> None:
 
 # ── Auth ───────────────────────────────────────────────────────────────────────
 
-async def get_admin(jkos_token: str | None = Cookie(None)):
-    if not jkos_token:
+async def get_admin(request: Request):
+    token = request.cookies.get(COOKIE_NAME)
+    if not token:
         raise HTTPException(status_code=401, detail="Authentication required")
     try:
         payload = jwt.decode(
-            jkos_token,
+            token,
             PUBLIC_KEY,
             algorithms=["RS256"],
             options={"verify_aud": False},
         )
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
-    if payload.get("iss") != "jkos-auth":
+    if payload.get("iss") != EXPECTED_ISSUER:
         raise HTTPException(status_code=401, detail="Invalid token issuer")
     if payload.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Admin access required")
