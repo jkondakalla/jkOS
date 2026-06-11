@@ -31,6 +31,7 @@ interface HeaderProps {
   profileOpen?: boolean;
   onOpenPalette?: () => void;
   paletteOpen?: boolean;
+  onOpenHUD?: () => void;
 }
 
 export default function Header({
@@ -43,6 +44,7 @@ export default function Header({
   profileOpen = false,
   onOpenPalette,
   paletteOpen = false,
+  onOpenHUD,
 }: HeaderProps) {
   const utc = useUTCClock();
   const count = widgetCount;
@@ -119,6 +121,21 @@ export default function Header({
             fontFamily: 'var(--hub-font-seg)',
           }} className="glow">{utc || '00:00:00'}</span>
         </div>
+        {onOpenHUD && (
+          <button
+            onClick={onOpenHUD}
+            title="Return to HUD"
+            style={{
+              background: 'transparent',
+              border: '1px solid var(--hub-line)',
+              color: 'var(--hub-cream-dim)',
+              fontFamily: 'var(--hub-font-mono)',
+              fontSize: 13, width: 32, height: 32,
+              cursor: 'pointer', display: 'grid', placeItems: 'center',
+              transition: 'all 0.15s',
+            }}
+          >⌂</button>
+        )}
         {onOpenPalette && (
           <button
             onClick={onOpenPalette}

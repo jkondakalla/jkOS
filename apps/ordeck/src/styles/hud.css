@@ -1,0 +1,592 @@
+/* ORDECK v2 "room HUD" — Claude Design pass (2026-06-11).
+   Scoped under html.od-v2 so the legacy widget canvas keeps its own look.
+   Token NAMES are unchanged (hub contract); values are ORDECK-v2 overrides.
+   User accent still arrives via inline --accent/--hub-amber from
+   applyJkOSTheme — every derived token below tracks var(--accent). */
+
+html.od-v2 {
+  --accent:        #c84020;
+  --accent-warm:   #a83018;
+  --accent-soft:   #f0d0c0;
+
+  --hub-bg-0: #ede2c8;
+  --hub-bg-1: #e4d5b0;
+  --hub-bg-2: #f5ead4;
+  --hub-bg-3: #ead9bb;
+  --hub-bg-4: #f7f1e3;
+
+  --hub-screen:      #f0e8d8;
+  --hub-screen-line: #d8c8b0;
+
+  --hub-line:        #d3bd97;
+  --hub-line-strong: #b09a72;
+  --hub-line-bright: #907854;
+
+  --hub-cream:        #6b5038;
+  --hub-cream-bright: #1c1408;
+  --hub-cream-dim:    #9c8060;
+  --hub-cream-faint:  #b8a888;
+
+  --hub-amber:        var(--accent);
+  --hub-amber-glow:   color-mix(in srgb, var(--accent) 30%, transparent);
+  --accent-ink:       color-mix(in srgb, var(--accent) 80%, #000000);
+  --accent-tint:      color-mix(in srgb, var(--accent) 11%, var(--hub-bg-2));
+  --accent-contrast:  #fffaf0;
+
+  --hub-green:      #2a7040;
+  --hub-green-soft: color-mix(in srgb, #2a7040 12%, var(--hub-bg-2));
+  --hub-red:        #b42010;
+  --hub-red-soft:   color-mix(in srgb, #b42010 10%, var(--hub-bg-2));
+  --hub-warn:       #a04010;
+  --hub-warn-soft:  color-mix(in srgb, #a04010 11%, var(--hub-bg-2));
+  --hub-cyan:       #3a5c78;
+
+  --hub-radius:        10px;
+  --hub-radius-sm:     7px;
+  --hub-radius-lg:     16px;
+
+  --od-shadow:      0 1px 2px rgba(60, 40, 15, 0.05), 0 8px 24px -12px rgba(60, 40, 15, 0.16);
+  --od-shadow-lift: 0 2px 4px rgba(60, 40, 15, 0.06), 0 18px 40px -16px rgba(60, 40, 15, 0.26);
+
+  --grain-opacity: 0.05;
+  --grain-blend:   multiply;
+  --glow: none;
+}
+
+html.od-v2[data-mode="dark"] {
+  --accent:      #ffb000;
+  --accent-warm: #ffc840;
+  --accent-soft: #3a2800;
+
+  --hub-bg-0: #11100d;
+  --hub-bg-1: #1a1814;
+  --hub-bg-2: #201d17;
+  --hub-bg-3: #2c2820;
+  --hub-bg-4: #38321f;
+
+  --hub-screen:      #0e0c08;
+  --hub-screen-line: #2a2418;
+
+  --hub-line:        #363023;
+  --hub-line-strong: #4a4232;
+  --hub-line-bright: #6a5d3e;
+
+  --hub-cream:        #d6cba8;
+  --hub-cream-bright: #efe6c9;
+  --hub-cream-dim:    #8a8067;
+  --hub-cream-faint:  #5a543f;
+
+  --hub-amber-glow:   color-mix(in srgb, var(--accent) 35%, transparent);
+  --accent-ink:       color-mix(in srgb, var(--accent) 78%, #ffffff);
+  --accent-tint:      color-mix(in srgb, var(--accent) 13%, var(--hub-bg-2));
+  --accent-contrast:  #1a1000;
+
+  --hub-green:      #5cd66a;
+  --hub-green-soft: color-mix(in srgb, #5cd66a 13%, var(--hub-bg-2));
+  --hub-red:        #ff4530;
+  --hub-red-soft:   color-mix(in srgb, #ff4530 12%, var(--hub-bg-2));
+  --hub-warn:       #fbbf24;
+  --hub-warn-soft:  color-mix(in srgb, #fbbf24 12%, var(--hub-bg-2));
+  --hub-cyan:       #4ecdc4;
+
+  --od-shadow:      0 1px 2px rgba(0,0,0,0.35), 0 10px 30px -14px rgba(0,0,0,0.65);
+  --od-shadow-lift: 0 2px 6px rgba(0,0,0,0.4), 0 22px 50px -18px rgba(0,0,0,0.75);
+
+  --grain-opacity: 0.07;
+  --grain-blend:   screen;
+  --glow: 0 0 14px var(--hub-amber-glow);
+}
+
+/* ── Base surface ──────────────────────────────────────────────────────── */
+
+html.od-v2 body {
+  background: var(--hub-bg-0);
+  color: var(--hub-cream-bright);
+  font-family: var(--hub-font-sans);
+  user-select: text;
+  transition: background-color 0.4s ease, color 0.3s ease;
+}
+
+/* Quiet grain — the jkOS motif, kept but calm (replaces canvas scanlines) */
+html.od-v2 body::before {
+  content: "";
+  position: fixed; inset: 0; z-index: 2000; pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='0.65'/%3E%3C/svg%3E");
+  background-size: 200px 200px;
+  mix-blend-mode: var(--grain-blend);
+  opacity: var(--grain-opacity);
+}
+
+html.od-v2 ::selection { background: var(--accent); color: var(--accent-contrast); }
+
+@keyframes od-fade-up { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes od-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+
+/* ── Shell layout ──────────────────────────────────────────────────────── */
+
+.hud-root {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.hud-top {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 28px 0;
+}
+
+.hud-logo {
+  width: 26px; height: 26px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  display: grid; place-items: center;
+  font-family: var(--hub-font-mono);
+  font-weight: 700; font-size: 11px;
+  box-shadow: var(--glow);
+  border: none;
+}
+
+.hud-wordmark {
+  font-family: var(--hub-font-mono);
+  font-size: 10px; font-weight: 600;
+  letter-spacing: 0.24em;
+  color: var(--hub-cream-dim);
+}
+
+.hud-syschip {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-family: var(--hub-font-mono);
+  font-size: 10px; letter-spacing: 0.14em;
+  color: var(--hub-cream-dim);
+}
+
+.hud-dot { width: 6px; height: 6px; border-radius: 999px; flex: none; }
+.hud-dot.pulse { animation: od-pulse 2.4s ease-in-out infinite; }
+
+.hud-topbtn {
+  width: 30px; height: 30px;
+  border-radius: 9px;
+  border: 1px solid var(--hub-line);
+  background: transparent;
+  color: var(--hub-cream);
+  display: grid; place-items: center;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.hud-topbtn:hover {
+  border-color: var(--hub-line-strong);
+  background: var(--hub-bg-2);
+  color: var(--hub-cream-bright);
+}
+.hud-topbtn[data-active="true"] {
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  background: var(--accent-tint);
+}
+
+/* Apps popover */
+.hud-apps-pop {
+  position: absolute;
+  top: 50px; right: 28px;
+  z-index: 100;
+  min-width: 240px;
+  border-radius: var(--hub-radius-lg);
+  background: var(--hub-bg-4);
+  border: 1px solid var(--hub-line-strong);
+  box-shadow: var(--od-shadow-lift);
+  padding: 8px;
+  animation: od-fade-up 0.25s cubic-bezier(0.22,1,0.36,1) both;
+}
+.hud-apps-pop a {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 10px;
+  border-radius: var(--hub-radius);
+  transition: background 0.12s;
+}
+.hud-apps-pop a:hover { background: var(--accent-tint); }
+.hud-app-glyph {
+  width: 28px; height: 28px; flex: none;
+  border-radius: 8px;
+  display: grid; place-items: center;
+  font-family: var(--hub-font-mono);
+  font-size: 10px; font-weight: 700;
+  background: var(--hub-bg-2);
+  border: 1px solid var(--hub-line);
+  color: var(--hub-cream);
+}
+.hud-app-name { font-size: 13.5px; font-weight: 600; color: var(--hub-cream-bright); }
+.hud-app-domain {
+  font-family: var(--hub-font-mono);
+  font-size: 10px; color: var(--hub-cream-dim);
+}
+
+/* ── Main grid ─────────────────────────────────────────────────────────── */
+
+.hud-grid {
+  flex: 1; min-height: 0;
+  display: grid;
+  grid-template-columns: 1.05fr 1.25fr 0.9fr;
+  gap: 18px;
+  padding: 16px 28px;
+}
+
+.hud-col {
+  display: flex; flex-direction: column;
+  gap: 18px; min-height: 0;
+  animation: od-fade-up 0.5s cubic-bezier(0.22,1,0.36,1) both;
+}
+.hud-col:nth-child(2) { animation-delay: 0.06s; }
+.hud-col:nth-child(3) { animation-delay: 0.12s; }
+
+.hud-card {
+  border-radius: var(--hub-radius-lg);
+  background: var(--hub-bg-2);
+  border: 1px solid var(--hub-line);
+  box-shadow: var(--od-shadow);
+}
+
+.hud-eyebrow {
+  font-family: var(--hub-font-mono);
+  font-size: 10.5px; font-weight: 600;
+  letter-spacing: 0.16em;
+  color: var(--hub-cream-dim);
+}
+.hud-eyebrow-src {
+  font-family: var(--hub-font-mono);
+  font-size: 10.5px;
+  color: var(--hub-cream-faint);
+}
+
+/* ── Clock (raw on background, no chrome) ──────────────────────────────── */
+
+.hud-clock { padding: 14px 6px 2px; }
+.hud-clock-time { display: flex; align-items: baseline; gap: 10px; }
+.hud-clock-hm {
+  font-family: var(--hub-font-mono);
+  font-size: clamp(60px, 7vw, 104px);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  line-height: 0.95;
+  color: var(--hub-amber);
+  text-shadow: var(--glow);
+}
+.hud-clock-ss {
+  font-family: var(--hub-font-mono);
+  font-size: clamp(20px, 2vw, 30px);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--hub-cream-dim);
+}
+.hud-clock-meta {
+  margin-top: 12px;
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+}
+.hud-clock-date {
+  font-family: var(--hub-font-mono);
+  font-size: 13.5px; font-weight: 600;
+  letter-spacing: 0.16em;
+  color: var(--hub-cream);
+}
+.hud-clock-utc {
+  font-family: var(--hub-font-mono);
+  font-size: 11px; letter-spacing: 0.12em;
+  color: var(--hub-cream-dim);
+}
+
+/* ── Weather ───────────────────────────────────────────────────────────── */
+
+.hud-weather {
+  flex: 1; min-height: 0;
+  padding: 18px 22px;
+  display: flex; flex-direction: column;
+  justify-content: space-between;
+  gap: 14px;
+}
+.hud-weather-head { display: flex; align-items: center; gap: 8px; }
+.hud-weather-now { display: flex; align-items: center; gap: 20px; }
+.hud-weather-icon { flex: none; filter: drop-shadow(var(--glow)); }
+.hud-weather-temp { display: flex; align-items: flex-start; gap: 4px; }
+.hud-weather-temp b {
+  font-size: 50px; font-weight: 650;
+  letter-spacing: -0.03em; line-height: 1;
+  color: var(--hub-cream-bright);
+}
+.hud-weather-unit {
+  font-size: 19px; font-weight: 600;
+  color: var(--hub-cream-dim);
+  margin-top: 4px;
+}
+.hud-weather-desc {
+  margin-top: 5px;
+  font-size: 14px; font-weight: 600;
+  color: var(--hub-cream);
+}
+.hud-weather-hilo {
+  margin-left: auto;
+  display: flex; flex-direction: column; gap: 6px;
+  text-align: right;
+  font-family: var(--hub-font-mono);
+  font-size: 12.5px;
+}
+.hud-weather-hilo .hi { color: var(--hub-cream); }
+.hud-weather-hilo .lo { color: var(--hub-cream-dim); }
+.hud-weather-strip {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  padding-top: 13px;
+  border-top: 1px solid var(--hub-line);
+}
+.hud-weather-slot { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.hud-weather-slot .t {
+  font-family: var(--hub-font-mono);
+  font-size: 10px; letter-spacing: 0.1em;
+  color: var(--hub-cream-faint);
+}
+.hud-weather-slot .v {
+  font-family: var(--hub-font-mono);
+  font-size: 13.5px; font-weight: 600;
+  color: var(--hub-cream);
+}
+
+/* ── Today (tasks) ─────────────────────────────────────────────────────── */
+
+.hud-today {
+  min-height: 0;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+.hud-today-head {
+  flex: none;
+  display: flex; align-items: center; gap: 10px;
+  padding: 15px 20px 12px;
+  border-bottom: 1px solid var(--hub-line);
+}
+.hud-today-count {
+  font-family: var(--hub-font-mono);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--hub-cream);
+}
+.hud-bar {
+  width: 56px; height: 5px;
+  border-radius: 999px;
+  background: var(--hub-line);
+  overflow: hidden;
+  display: inline-block;
+}
+.hud-bar > span {
+  display: block; height: 100%;
+  border-radius: 999px;
+  background: var(--hub-amber);
+}
+.hud-today-list {
+  flex: 1; min-height: 0;
+  display: flex; flex-direction: column;
+  justify-content: space-evenly;
+  padding: 4px 20px;
+  overflow-y: auto;
+}
+.hud-task {
+  display: flex; align-items: center; gap: 14px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--hub-line);
+}
+.hud-task:last-child { border-bottom: none; }
+.hud-task.done { opacity: 0.45; }
+.hud-task.done .hud-task-title { text-decoration: line-through; }
+.hud-task-time {
+  font-family: var(--hub-font-mono);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--hub-cream-dim);
+  width: 46px; flex: none;
+}
+.hud-task-title {
+  font-size: 15.5px; font-weight: 550;
+  color: var(--hub-cream-bright);
+  min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.hud-task-tag {
+  margin-left: auto; flex: none;
+  font-family: var(--hub-font-mono);
+  font-size: 10.5px;
+  color: var(--hub-cream-dim);
+}
+.hud-task-check {
+  margin-left: auto;
+  width: 20px; height: 20px; flex: none;
+  border-radius: 999px;
+  background: var(--hub-green);
+  display: grid; place-items: center;
+}
+.hud-task.now {
+  padding: 10px 14px;
+  margin: 2px -14px;
+  border-radius: var(--hub-radius);
+  background: var(--accent-tint);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+}
+.hud-task.now .hud-task-time { font-weight: 600; color: var(--accent-ink); }
+.hud-task.now .hud-task-title { font-size: 16px; font-weight: 650; }
+.hud-task-sub {
+  display: block;
+  font-family: var(--hub-font-mono);
+  font-size: 10.5px;
+  color: var(--hub-cream-dim);
+  margin-top: 2px;
+}
+.hud-now-chip {
+  margin-left: auto; flex: none;
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--hub-font-mono);
+  font-size: 9.5px; font-weight: 700;
+  letter-spacing: 0.16em;
+  color: var(--accent-ink);
+}
+.hud-now-chip .hud-dot { background: var(--accent); }
+
+.hud-empty {
+  flex: 1;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 8px;
+  color: var(--hub-cream-dim);
+  font-family: var(--hub-font-mono);
+  font-size: 11px; letter-spacing: 0.12em;
+  text-align: center;
+  padding: 20px;
+}
+.hud-empty a { color: var(--accent-ink); text-decoration: underline; }
+
+/* ── Systems ───────────────────────────────────────────────────────────── */
+
+.hud-systems {
+  flex: 1.3; min-height: 0;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+.hud-systems-head {
+  flex: none;
+  display: flex; align-items: center; gap: 8px;
+  padding: 15px 18px 12px;
+  border-bottom: 1px solid var(--hub-line);
+}
+.hud-systems-count {
+  margin-left: auto;
+  font-family: var(--hub-font-mono);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--hub-cream-faint);
+}
+.hud-systems-list {
+  flex: 1; min-height: 0;
+  overflow-y: auto;
+  display: flex; flex-direction: column;
+  justify-content: space-evenly;
+  gap: 1px;
+  padding: 4px 18px;
+}
+.hud-sys {
+  display: flex; align-items: center; gap: 10px;
+  padding: 5px 0; flex: none;
+}
+.hud-sys-name { font-size: 13.5px; font-weight: 600; color: var(--hub-cream-bright); }
+.hud-sys-val {
+  margin-left: auto; white-space: nowrap;
+  font-family: var(--hub-font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--hub-cream-dim);
+}
+.hud-sys.down {
+  padding: 5px 8px; margin: 0 -8px;
+  border-radius: var(--hub-radius-sm);
+  background: var(--hub-red-soft);
+}
+.hud-sys.down .hud-sys-val { color: var(--hub-red); }
+.hud-sys.warn {
+  padding: 5px 8px; margin: 0 -8px;
+  border-radius: var(--hub-radius-sm);
+  background: var(--hub-warn-soft);
+}
+.hud-sys.warn .hud-sys-val { color: var(--hub-warn); }
+
+/* ── Study / generic info card ─────────────────────────────────────────── */
+
+.hud-info { flex: none; padding: 15px 18px; }
+.hud-info-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.hud-info-title {
+  margin: 0;
+  font-size: 16.5px; font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--hub-cream-bright);
+  line-height: 1.3;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.hud-info-sub {
+  margin: 5px 0 0;
+  font-family: var(--hub-font-mono);
+  font-size: 11px;
+  color: var(--hub-cream-dim);
+}
+.hud-study-row { display: flex; align-items: center; gap: 14px; }
+.hud-study-main { min-width: 0; flex: 1; }
+.hud-streak {
+  flex: none;
+  display: flex; flex-direction: column;
+  align-items: center; gap: 2px;
+  padding: 7px 11px;
+  border-radius: var(--hub-radius);
+  background: var(--hub-warn-soft);
+}
+.hud-streak b {
+  font-family: var(--hub-font-mono);
+  font-size: 17px; font-weight: 700;
+  line-height: 1;
+  color: var(--hub-warn);
+}
+.hud-streak span {
+  font-family: var(--hub-font-mono);
+  font-size: 8px; letter-spacing: 0.14em;
+  color: var(--hub-warn);
+}
+
+a.hud-card { display: block; transition: box-shadow 0.2s, transform 0.2s; }
+a.hud-card:hover { box-shadow: var(--od-shadow-lift); transform: translateY(-1px); }
+
+/* ── Bottom strip ──────────────────────────────────────────────────────── */
+
+.hud-bottom {
+  flex: none;
+  display: flex; align-items: center; gap: 16px;
+  padding: 0 28px 14px;
+  font-family: var(--hub-font-mono);
+  font-size: 10px; letter-spacing: 0.14em;
+  color: var(--hub-cream-faint);
+  white-space: nowrap;
+}
+.hud-bottom .ready { display: inline-flex; align-items: center; gap: 7px; }
+.hud-bottom .ready .hud-dot { width: 5px; height: 5px; background: var(--hub-green); }
+
+/* ── Small screens ─────────────────────────────────────────────────────── */
+
+@media (max-width: 1100px) {
+  html.od-v2 body { overflow: auto; }
+  .hud-root { height: auto; min-height: 100vh; }
+  .hud-grid { grid-template-columns: 1fr; }
+  .hud-weather, .hud-systems { flex: none; }
+  .hud-today { min-height: 320px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hud-col, .hud-apps-pop { animation: none; }
+  .hud-dot.pulse { animation: none; }
+}

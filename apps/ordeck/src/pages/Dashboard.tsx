@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { WidgetInstance, WidgetType } from '@jkos/types';
 import { useJkOSPreferences } from '../hooks/useJkOSPreferences';
 import { UnifiedSettingsPanel } from '../components/settings/UnifiedSettingsPanel';
-import { FilmGrain, Halation, ScanLines, Artifacts } from '../components/Overlays';
+import { FilmGrain, Halation, Artifacts } from '../components/Overlays';
 import { AppLauncher } from '../components/AppLauncher';
 import WidgetPalette from '../components/WidgetPalette';
 import type { PaletteEntry, ActiveSession } from '../components/WidgetPalette';
@@ -278,7 +278,11 @@ function saveLayout(state: LayoutState) {
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
-export default function Dashboard() {
+interface DashboardProps {
+  onOpenHUD?: () => void;
+}
+
+export default function Dashboard({ onOpenHUD }: DashboardProps) {
   const { theme, effects, lazuros, user, saving, patchTheme, patchEffects, patchLazuros } =
     useJkOSPreferences();
 
@@ -393,21 +397,13 @@ export default function Dashboard() {
         profileOpen={profileOpen}
         onOpenPalette={() => setPaletteOpen(o => !o)}
         paletteOpen={paletteOpen}
+        onOpenHUD={onOpenHUD}
       />
 
       {settings.showBus && <BusStrip />}
 
-      {/* Vignette overlay — opacity driven by --crt-vignette-opacity CSS var */}
-      <div
-        aria-hidden="true"
-        style={{
-          position: 'fixed', inset: 0,
-          background: 'radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(0,0,0,0.85) 100%)',
-          opacity: 'var(--crt-vignette-opacity)' as any,
-          pointerEvents: 'none',
-          zIndex: 9991,
-        }}
-      />
+      {/* Vignette is rendered once, by global.css body::after (token-driven).
+          A second overlay here compounded with it and crushed the screen. */}
 
       {/* Main content: AppLauncher spine + Widget Canvas */}
       <div style={{
@@ -495,10 +491,12 @@ export default function Dashboard() {
         patchLazuros={patchLazuros}
       />
 
-      {/* Suite-wide CRT overlays — driven by user preferences */}
+      {/* Suite-wide CRT overlays — driven by user preferences.
+          Scanlines render once via global.css body::before (the hook scales
+          --crt-scanline-opacity); grainStrength (0–1 slider) maps to a calm
+          0–0.2 overlay opacity. */}
       {effects.halation  && <Halation />}
-      {effects.grain     && <FilmGrain strength={effects.grainStrength} />}
-      {effects.scanLines && <ScanLines strength={effects.scanStrength} />}
+      {effects.grain     && <FilmGrain strength={effects.grainStrength * 0.2} />}
       {effects.artifacts && <Artifacts />}
     </>
   );

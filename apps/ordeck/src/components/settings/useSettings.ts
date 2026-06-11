@@ -18,17 +18,13 @@ export function useSettings(): [Settings, (k: keyof Settings, v: Settings[keyof 
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
   }, [s]);
 
+  // Layout chrome only. Visual effects (scanlines/vignette/glow) are owned by
+  // the server-synced preferences (useJkOSPreferences) — writing those vars
+  // from two places is what caused the blacked-out screen bug.
   useEffect(() => {
     const r = document.documentElement;
-    r.style.setProperty('--crt-scanline-opacity', String(s.scanlines));
-    r.style.setProperty('--crt-vignette-opacity', String(s.vignette));
     r.style.setProperty('--canvas-grid-opacity', String(s.gridDensity));
     r.style.setProperty('--screw-display', s.showScrews ? 'inline-block' : 'none');
-    if (s.boldGlow) {
-      r.style.setProperty('--hub-amber-glow', 'color-mix(in srgb, var(--hub-amber) 60%, transparent)');
-    } else {
-      r.style.removeProperty('--hub-amber-glow');
-    }
   }, [s]);
 
   const set = (k: keyof Settings, v: Settings[keyof Settings]) =>
