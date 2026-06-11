@@ -8,6 +8,7 @@ Agent-oriented reference for the jkOS monorepo. Four files, read in this order:
 | [SERVICES.md](SERVICES.md) | Per-service detail: dirs, packages, containers, ports, key files, routes. |
 | [OPERATIONS.md](OPERATIONS.md) | Build/dev commands, Docker build model, compose/ports, deploy, staging, TrueNAS paths, verification checklist. |
 | [DESIGN.md](DESIGN.md) | Design system: kraft-paper/CRT aesthetic, `--hub-*` token contract, mode/theme appliers, per-app styling stacks, shared hardware-chrome classes, design-pass invariants. |
+| [STARTUP.md](STARTUP.md) | Cold-start guide: DNS, certs, data dirs, keypair generation, `.env` setup, startup order, verification, re-deploy, troubleshooting. |
 
 ## App-level and supplementary docs
 
