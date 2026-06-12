@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { SettingsDrawer } from '@jkos/ui';
 import { useJkOSPreferences, AUTH_URL } from '../../hooks/useJkOSPreferences';
 import { WeatherSection } from '../../components/settings/WeatherSection';
+import RemoteWidget from '../../widgets/core/RemoteWidget';
 import {
   useClock, useWeather, useSystems, useToday, useStudy, useApps, isNow,
   useMonthCalendar, type CalDay,
@@ -34,6 +35,31 @@ const CARD_LABELS: Record<string, string> = {
   weather: 'Weather', calendar: 'Calendar', today: 'Today',
   systems: 'Systems', study: 'Study',
 };
+
+/* ── Remote widgets from other jkOS apps ───────────────────────────────────
+   The hook that lets another jkOS app surface a widget on the HUD. Each id maps
+   to a Module-Federation remote declared in vite.config.ts (`<id>-plugin`); the
+   plugin exposes a default <Widget>. Widgets are opt-in — disabled by default,
+   enabled from edit mode, persisted in localStorage. They render through
+   RemoteWidget, which lazy-loads the remote and degrades to a graceful
+   "MODULE FAULT" card when the plugin's remoteEntry.js isn't being served yet.
+   `ai` widgets follow the suite-wide LazurOS kill switch. */
+const REMOTE_WIDGETS: { id: string; label: string; ai?: boolean }[] = [
+  { id: 'beigeboard', label: 'BeigeBoard' },
+  { id: 'plex',       label: 'Plex' },
+  { id: 'recipe',     label: 'Recipe' },
+  { id: 'sylibos',    label: 'SylibOS' },
+  { id: 'lazuros',    label: 'LazurOS', ai: true },
+];
+const WIDGET_STORAGE = 'ordeck-hud-widgets';
+
+function loadWidgets(): string[] {
+  try { const v = JSON.parse(localStorage.getItem(WIDGET_STORAGE) ?? '[]'); return Array.isArray(v) ? v : []; }
+  catch { return []; }
+}
+function saveWidgets(ids: string[]) {
+  localStorage.setItem(WIDGET_STORAGE, JSON.stringify(ids));
+}
 
 function MiniCalendar({ cal, editMode, onHide }: {
   cal: ReturnType<typeof useMonthCalendar>;
@@ -109,6 +135,7 @@ export default function RoomHUD({ onOpenCanvas: _onOpenCanvas }: Props) {
   const [appsOpen, setAppsOpen]         = useState(false);
   const [editMode, setEditMode]         = useState(false);
   const [hidden, setHidden]             = useState<Set<string>>(loadHidden);
+  const [widgets, setWidgets]           = useState<string[]>(loadWidgets);
   const popRef = useRef<HTMLDivElement>(null);
 
   const isDark = document.documentElement.getAttribute('data-mode') === 'dark';
@@ -139,6 +166,22 @@ export default function RoomHUD({ onOpenCanvas: _onOpenCanvas }: Props) {
   function toggleEdit() {
     setEditMode(m => !m);
   }
+  function enableWidget(id: string) {
+    setWidgets(w => { const n = w.includes(id) ? w : [...w, id]; saveWidgets(n); return n; });
+  }
+  function disableWidget(id: string) {
+    setWidgets(w => { const n = w.filter(x => x !== id); saveWidgets(n); return n; });
+  }
+
+  // Available to add: not already enabled, and AI widgets honor the kill switch.
+  const addableWidgets = REMOTE_WIDGETS.filter(
+    w => !widgets.includes(w.id) && (!w.ai || lazuros.enabled),
+  );
+  // Enabled widgets that should actually render (drop AI widgets if AI is off).
+  const liveWidgets = widgets.filter(id => {
+    const meta = REMOTE_WIDGETS.find(w => w.id === id);
+    return meta ? (!meta.ai || lazuros.enabled) : true;
+  });
 
   const doneCount = today.tasks.filter(t => t.done).length;
   const sysDot = systems.up === systems.total ? 'var(--hub-green)'
@@ -221,15 +264,30 @@ export default function RoomHUD({ onOpenCanvas: _onOpenCanvas }: Props) {
         )}
       </div>
 
-      {/* ── Edit mode restore bar ── */}
-      {editMode && hidden.size > 0 && (
+      {/* ── Edit mode bar: restore hidden cards + add app widgets ── */}
+      {editMode && (hidden.size > 0 || addableWidgets.length > 0) && (
         <div className="hud-edit-bar">
-          <span>{hidden.size} card{hidden.size > 1 ? 's' : ''} hidden</span>
-          {[...hidden].map(id => (
-            <button key={id} className="hud-edit-restore" onClick={() => show(id)}>
-              + {CARD_LABELS[id] ?? id}
-            </button>
-          ))}
+          {hidden.size > 0 && (
+            <>
+              <span>{hidden.size} hidden</span>
+              {[...hidden].map(id => (
+                <button key={id} className="hud-edit-restore" onClick={() => show(id)}>
+                  + {CARD_LABELS[id] ?? id}
+                </button>
+              ))}
+            </>
+          )}
+          {hidden.size > 0 && addableWidgets.length > 0 && <span className="hud-edit-sep" />}
+          {addableWidgets.length > 0 && (
+            <>
+              <span>add widget</span>
+              {addableWidgets.map(w => (
+                <button key={w.id} className="hud-edit-restore" onClick={() => enableWidget(w.id)}>
+                  + {w.label}
+                </button>
+              ))}
+            </>
+          )}
         </div>
       )}
 
@@ -378,8 +436,8 @@ export default function RoomHUD({ onOpenCanvas: _onOpenCanvas }: Props) {
           )}
         </div>
 
-        {/* Right: systems + study */}
-        <div className="hud-col">
+        {/* Right: systems + study + app widgets */}
+        <div className={`hud-col${liveWidgets.length ? ' scroll' : ''}`}>
           {showSystems && (
             <div className="hud-card hud-systems" style={{ position: 'relative' }}>
               {editMode && (
@@ -442,6 +500,25 @@ export default function RoomHUD({ onOpenCanvas: _onOpenCanvas }: Props) {
               )}
             </a>
           )}
+
+          {/* App widgets from other jkOS apps (Module Federation remotes) */}
+          {liveWidgets.map(id => {
+            const meta = REMOTE_WIDGETS.find(w => w.id === id);
+            return (
+              <div key={id} className="hud-card hud-widget" style={{ position: 'relative' }}>
+                {editMode && (
+                  <button className="hud-edit-remove" onClick={() => disableWidget(id)} title={`Remove ${meta?.label ?? id}`}>×</button>
+                )}
+                <div className="hud-widget-head">
+                  <span className="hud-eyebrow">{(meta?.label ?? id).toUpperCase()}</span>
+                  <span className="hud-eyebrow-src" style={{ marginLeft: 'auto' }}>WIDGET</span>
+                </div>
+                <div className="hud-widget-body">
+                  <RemoteWidget type={id} />
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 

@@ -6,6 +6,7 @@ const REMOTE_LOADERS: Record<string, () => Promise<{ default: React.ComponentTyp
   lazuros:    () => import('lazuros-plugin/Widget'),
   beigeboard: () => import('beigeboard-plugin/Widget'),
   recipe:     () => import('recipe-plugin/Widget'),
+  sylibos:    () => import('sylibos-plugin/Widget'),
 };
 
 const REMOTE_CACHE: Record<string, React.ComponentType> = {};
