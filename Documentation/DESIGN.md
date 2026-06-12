@@ -41,6 +41,7 @@ Every app imports this file, then overrides only its accent personality.
 | Spacing/radii | `--hub-grid: 40px`, `--hub-radius*: 0–2px` | Canvas grid; sharp corners |
 | Shell layout | `--hub-header-h: 52px`, `--hub-bus-h/footer-h: 28px`, `--hub-sidebar-w: 200px` (collapsed `40px`), `--hub-rail-w: 56px`, `--hub-widget-pad: 12px`, `--hub-title-h: 34px` | Fixed chrome dimensions |
 | Effects | `--grain-opacity/blend`, `--crt-scanline-opacity`, `--crt-vignette-opacity`, `--hub-glow-mul`, `--hub-shadow-*` | Mode-dependent atmosphere |
+| Accent press | `--hub-accent-press` | "Pressed into the paper" deboss (light) / emissive glow (dark) — the mode-aware way to make an accent element feel set into the surface |
 
 **Hard rule (stated in hub.css itself):** do not rename `--hub-*` tokens. Per-app
 personality is expressed via `--accent`, `--accent-warm`, `--accent-soft` overrides only.

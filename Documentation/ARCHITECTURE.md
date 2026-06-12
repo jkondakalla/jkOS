@@ -77,8 +77,10 @@ needed, import it from `@jkos/auth-client` (frontend) or `@jkos/auth-middleware`
 - **pnpm** workspace (single `pnpm-lock.yaml`) + **Turbo** (`turbo run build|lint|typecheck`).
 - Shared `@jkos/*` packages are **source-only** (no build step); consumers' Vite/tsc
   compile them via package `exports` pointing at `src`.
-- Native modules (`bcrypt`, `better-sqlite3`, `esbuild`) are allow-listed in root
+- Native modules (`better-sqlite3`, `esbuild`) are allow-listed in root
   `package.json` → `pnpm.onlyBuiltDependencies` (pnpm 10 blocks build scripts by default).
+  Password hashing uses pure-JS **`bcryptjs`** (no native build), so jkAuth's image
+  needs no compiler toolchain.
 
 ## Runtime topology
 

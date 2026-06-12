@@ -21,21 +21,35 @@ shared-package contract and auth/theme flows.
 - Docker: `apps/ordeck/Dockerfile` (root context) → nginx with `apps/ordeck/nginx.conf`.
 
 ### jkAuth — `apps/jkauth`
-- Express + better-sqlite3 + bcrypt + jsonwebtoken (RS256) + googleapis + express-rate-limit.
+- Express + better-sqlite3 + **bcryptjs** (pure JS) + jsonwebtoken (RS256) + googleapis + express-rate-limit.
 - All logic in `server.js`. DB at `DB_PATH` (`/data/jkos-auth.db`), WAL, FK on.
-- Migrations run **001_init → 002_user_preferences** (order matters; 002 ALTERs the
-  table 001 creates). 002 also self-heals a missing `preferences` column on boot.
+- Migrations run **001_init → 002_user_preferences → 003_remember_me** (order matters;
+  later migrations ALTER tables 001 creates). 002 self-heals a missing `preferences`
+  column on `users`; 003 self-heals a missing `remember_me` column on `sessions`.
+- **Remember me:** login accepts `remember_me` (JSON bool or form `'1'`). When set, the
+  refresh cookie gets a 30-day `maxAge` and the session row stores the flag; when unset,
+  it's a session cookie (cleared on browser close). `/auth/refresh` re-issues the same
+  cookie kind by reading `sessions.remember_me`.
 - Key routes: `POST /auth/{login,register,logout,refresh,guest}`, `GET /auth/{me,profile,apps,jwks,require-admin,google,google/callback}`, `PATCH /auth/profile`, `GET /health`.
 - `require-admin` = nginx `auth_request` target (status-only). `validateRedirectTo`
   allows only `app_registry` origins. No frontend bundle (server-rendered login HTML only).
 - Does **not** use `@jkos/auth-middleware` (it is the issuer; verifies inline via `resolveUser`).
 
 ### BeigeBoard — `apps/beigeboard`
+- Goal-planning app built on the **Breakdown Method** (Define → Ladder → Commit →
+  Review — see PLANNING_METHOD.md). One `items` table, four `kind`s: `goal`,
+  `milestone`, `task` (+ one level of subtasks), `event` (synced, read-only). Goal
+  fields (`done_means`, `target_date`, `position`, `status`) are added by a later
+  migration onto the base `items` table — change the `CREATE TABLE` and migration
+  together.
 - Frontend: Vite SPA (React 18). `src/lib/jkauth.ts` re-exports `@jkos/auth-client`;
   `src/lib/theme.ts` holds app-specific helpers (fonts, colors, `halate`, date fmt) — **not** jkOS theme.
 - Backend: `backend/server.js` (Express + better-sqlite3 + googleapis). Serves the SPA
   from `STATIC_DIR` (catch-all → `dist/index.html`) and `/api/*`. Auth via
   `@jkos/auth-middleware` (`jkosAuth({publicKey, issuer})`). `req.user.sub` = user id.
+- Routes: `GET/POST /api/items`, `PATCH/DELETE /api/items/:id`; calendar sync for
+  Google/Outlook/iCloud (`/api/auth/<provider>*`, `/api/calendar/<provider>/sync`);
+  AI `POST /api/ai/{parse-task,breakdown}` (gated by `lazuros.enabled` + `BB_AI_ENABLED`).
 - One image (`apps/beigeboard/Dockerfile`): builds SPA, `pnpm deploy` bundles backend.
 
 ### SylibOS — `apps/sylibos`
