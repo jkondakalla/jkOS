@@ -41,6 +41,7 @@ Every app imports this file, then overrides only its accent personality.
 | Spacing/radii | `--hub-grid: 40px`, `--hub-radius*: 0–2px` | Canvas grid; sharp corners |
 | Shell layout | `--hub-header-h: 52px`, `--hub-bus-h/footer-h: 28px`, `--hub-sidebar-w: 200px` (collapsed `40px`), `--hub-rail-w: 56px`, `--hub-widget-pad: 12px`, `--hub-title-h: 34px` | Fixed chrome dimensions |
 | Effects | `--grain-opacity/blend`, `--crt-scanline-opacity`, `--crt-vignette-opacity`, `--hub-glow-mul`, `--hub-shadow-*` | Mode-dependent atmosphere |
+| Accent press | `--hub-accent-press` | "Pressed into the paper" deboss (light) / emissive glow (dark) — the mode-aware way to make an accent element feel set into the surface |
 
 **Hard rule (stated in hub.css itself):** do not rename `--hub-*` tokens. Per-app
 personality is expressed via `--accent`, `--accent-warm`, `--accent-soft` overrides only.
@@ -127,4 +128,9 @@ dependency as part of a design pass — that's an architecture decision, not a p
   `--accent-soft` overrides (plus SylibOS's `@theme` remap layer).
 - No per-app duplication of theme/auth logic — import from `@jkos/*`
   (see ARCHITECTURE.md invariant; the old per-app copies were deliberately deleted).
+- **The settings tray is one shared component** — `SettingsDrawer` from `@jkos/ui`.
+  Every app mounts it (ORDECK passes app extras like weather via the `extra` slot);
+  there are no per-app settings panels. It is token-driven and mode-aware, and its
+  AI section is gated on `lazuros.enabled` so the jkAuth kill switch hides LazurOS
+  controls everywhere at once. Don't reintroduce a local settings panel.
 - Docker container names and networks (ops reference them by name).

@@ -130,6 +130,14 @@
   --hub-shadow-inset:  inset 0 1px 0 var(--hub-bevel-light), inset 0 -1px 0 var(--hub-bevel-dark);
   --hub-shadow-card:   0 2px 8px color-mix(in srgb, var(--hub-cream-bright) 10%, transparent),
                        0 0 0 1px var(--hub-line);
+  /* Accent "pressed into the paper" — the light-mode analog of dark-mode
+     halation. A debossed stamp: dark inner top shadow (pushed in) + a light
+     lower-inner highlight + a hairline top highlight, like a brass badge set
+     into leather. Dark mode overrides this with an emissive glow. */
+  --hub-accent-press:
+    inset 0 2px 3px color-mix(in srgb, var(--hub-cream-bright) 32%, transparent),
+    inset 0 -1px 1px color-mix(in srgb, #ffffff 55%, transparent),
+    0 1px 0 color-mix(in srgb, #ffffff 45%, transparent);
 
   /* Shell layout */
   --hub-header-h:          52px;
@@ -180,6 +188,9 @@
   --hub-amber-dim:    #8a5f00;
   --hub-amber-deep:   #4a3300;
   --hub-amber-glow:   rgba(255, 176, 0, 0.35);
+
+  /* Dark mode: accents glow (halation) rather than press into the surface. */
+  --hub-accent-press: 0 0 10px var(--hub-amber-glow), inset 0 0 0 1px color-mix(in srgb, var(--hub-amber) 30%, transparent);
 
   --hub-cyan:        #4ecdc4;
   --hub-cyan-dim:    #2a6e6a;

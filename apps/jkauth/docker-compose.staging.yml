@@ -10,9 +10,13 @@ services:
     environment:
       PORT: "3100"
       DB_PATH: /data/jkos-auth.db
-      AUTH_ORIGIN: https://staging.jkos.net/auth
+      AUTH_ORIGIN: https://staging.jkos.net
       PORTAL_URL: https://staging.jkos.net
+      # Host-scoped cookie + distinct name + distinct issuer = full isolation from
+      # prod. The prod jkos_token (on .jkos.net) is also sent to staging.jkos.net,
+      # so the staging cookie MUST have a different name or they collide.
       COOKIE_DOMAIN: "staging.jkos.net"
+      JKOS_COOKIE_SUFFIX: "_staging"
       JKOS_AUTH_ISSUER: "jkos-auth-staging"
     volumes:
       - ${JKOS_AUTH_DATA_PATH:-/mnt/Luna/Backends/Staging/jkos-auth-data}:/data

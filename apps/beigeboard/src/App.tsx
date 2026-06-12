@@ -11,12 +11,13 @@ import { FilmGrain, Halation, Artifacts, ScanLines, CinematicIntro } from './com
 import { AppHeader } from './components/AppHeader'
 import { ConnectModal } from './components/ConnectModal'
 import { DetailPanel } from './components/DetailPanel'
-import { SettingsPanel } from './components/SettingsPanel'
+import { SettingsDrawer } from '@jkos/ui'
+import { AUTH_URL } from './lib/jkauth'
 
 import { TodayView } from './views/TodayView'
 import { WeekView } from './views/WeekView'
 import { CalendarView } from './views/CalendarView'
-import { TasksView } from './views/TasksView'
+import { WorkshopView } from './views/WorkshopView'
 
 // Set paper mode before React hydrates to prevent flash
 if (!document.documentElement.hasAttribute('data-mode')) {
@@ -258,7 +259,12 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
 
   const readonly = user?.role === 'guest'
 
+  /* AI features need both the instance flag and the suite-wide jkAuth switch */
+  const aiEnabled =
+    (import.meta.env.VITE_BB_AI_ENABLED as string) === 'true' && prefs.lazuros.enabled !== false
+
   const viewProps = {
+    aiEnabled,
     items: visibleItems,
     today: TODAY_ISO,
     onSelect: setSelected,
@@ -359,7 +365,7 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
                 {view === 'today'    && <TodayView    {...viewProps} />}
                 {view === 'week'     && <WeekView     {...viewProps} />}
                 {view === 'calendar' && <CalendarView {...viewProps} />}
-                {view === 'tasks'    && <TasksView    {...viewProps} />}
+                {view === 'tasks'    && <WorkshopView {...viewProps} />}
               </>
             )}
           </main>
@@ -381,12 +387,12 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
         apiUrl={apiUrl}
       />
 
-      <SettingsPanel
+      <SettingsDrawer
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
-        user={user}
-        onLogout={handleLogout}
         {...prefs}
+        user={user}
+        authUrl={AUTH_URL}
       />
     </DragProvider>
   )

@@ -9,6 +9,9 @@ Agent-oriented reference for the jkOS monorepo. Four files, read in this order:
 | [OPERATIONS.md](OPERATIONS.md) | Build/dev commands, Docker build model, compose/ports, deploy, staging, TrueNAS paths, verification checklist. |
 | [DESIGN.md](DESIGN.md) | Design system: kraft-paper/CRT aesthetic, `--hub-*` token contract, mode/theme appliers, per-app styling stacks, shared hardware-chrome classes, design-pass invariants. |
 | [STARTUP.md](STARTUP.md) | Cold-start guide: DNS, certs, data dirs, keypair generation, `.env` setup, startup order, verification, re-deploy, troubleshooting. |
+| [ENVIRONMENTS.md](ENVIRONMENTS.md) | How staging and prod stay isolated on one codebase: the env-driven config contract, why merges are safe, the auth-isolation rules. |
+| [SKILLS.md](SKILLS.md) | High-level, portfolio-facing map of the marketable engineering skills the suite demonstrates, each anchored to real work. |
+| [PLANNING_METHOD.md](PLANNING_METHOD.md) | The Breakdown Method (Define → Ladder → Commit → Review): the product methodology behind the BeigeBoard goal engine and the planned SylibOS rewrite. |
 
 ## App-level and supplementary docs
 

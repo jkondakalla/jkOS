@@ -126,7 +126,7 @@ export function DetailSheet({
           <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
             <SourceDot hex={accent} size={8} />
             <Eyebrow color={'var(--color-muted)'}>
-              {isEvent ? src.label : item.kind === 'goal' ? (item.scope === 'year' ? 'Goal' : 'List') : 'Task'}
+              {isEvent ? src.label : item.kind === 'goal' ? 'Goal' : item.kind === 'milestone' ? 'Checkpoint' : 'Task'}
             </Eyebrow>
           </div>
           <button

@@ -1,9 +1,10 @@
 import React, { useState } from 'react'
-import { FONT_HEAD, FONT_BODY, FONT_NUM, localDate, fmtTime, halate, getGreeting } from '../lib/theme'
+import { FONT_HEAD, FONT_BODY, FONT_NUM, localDate, addDays, fmtTime, halate, getGreeting } from '../lib/theme'
 import { getAncestors, getAccent } from '../lib/seed'
+import { activeGoals, isAdrift, nextUnscheduled } from '../lib/plan'
 import { Eyebrow, Checkbox, Plate, RecLamp } from '../components/SharedComponents'
 
-export function TodayView({ items, today, onSelect, onToggle, onAddTask, setView, selectedId, recentlyAdded, readonly }: any) {
+export function TodayView({ items, today, onSelect, onToggle, onAddTask, onUpdateItem, setView, setFocusedGoalId, selectedId, recentlyAdded, readonly, aiEnabled }: any) {
   const d = localDate(today)
   const dateStr = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
 
@@ -11,7 +12,8 @@ export function TodayView({ items, today, onSelect, onToggle, onAddTask, setView
   const todayAll   = allTasks.filter((t: any) => t.due_date === today)
   const active     = todayAll.filter((t: any) => !t.completed).sort((a: any, b: any) => (a.scheduled_time || 'zz').localeCompare(b.scheduled_time || 'zz'))
   const done       = todayAll.filter((t: any) =>  t.completed)
-  const overdue    = allTasks.filter((t: any) => t.due_date && t.due_date < today && !t.completed)
+  const carried    = allTasks.filter((t: any) => t.due_date && t.due_date < today && !t.completed)
+  const adrift     = activeGoals(items).filter((g: any) => isAdrift(g, items))
   const next       = active[0]
   const rest       = active.slice(1)
 
@@ -30,19 +32,42 @@ export function TodayView({ items, today, onSelect, onToggle, onAddTask, setView
 
         {next ? (
           <NextCard item={next} items={items} onSelect={onSelect} onToggle={onToggle} />
-        ) : todayAll.length === 0 && overdue.length === 0 ? (
-          <EmptyDay onAdd={readonly ? null : onAddTask} today={today} />
+        ) : todayAll.length === 0 && carried.length === 0 ? (
+          <EmptyDay onAdd={readonly ? null : onAddTask} today={today} aiEnabled={aiEnabled} />
         ) : (
           <ClearedDay onceMore={() => setView('tasks')} />
         )}
 
-        {overdue.length > 0 && (
+        {carried.length > 0 && (
           <section style={{ marginTop: 40 }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 }}>
-              <Eyebrow color={'var(--color-accent)'} style={{ marginBottom: 10, textShadow: '0 0 10px var(--color-accent-glow)' }}>{overdue.length} overdue</Eyebrow>
-              <button onClick={() => setView('week')} style={tinyLink()}>see the week →</button>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 4 }}>
+              <Eyebrow color={'var(--color-accent)'} style={{ textShadow: '0 0 10px var(--color-accent-glow)' }}>
+                Carried · {carried.length}
+              </Eyebrow>
+              <span style={{ fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 11.5, color: 'var(--color-faint)' }}>
+                slipped past their day — decide, don't drift
+              </span>
             </div>
-            <Strip tasks={overdue} items={items} onSelect={onSelect} onToggle={onToggle} muted={false} recentlyAdded={recentlyAdded} />
+            <CarriedStrip
+              tasks={carried} items={items} today={today}
+              onSelect={onSelect} onToggle={onToggle} onUpdateItem={onUpdateItem} readonly={readonly}
+            />
+          </section>
+        )}
+
+        {adrift.length > 0 && (
+          <section style={{ marginTop: 40 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 4 }}>
+              <Eyebrow>Adrift · {adrift.length}</Eyebrow>
+              <span style={{ fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 11.5, color: 'var(--color-faint)' }}>
+                goals with nothing on the calendar
+              </span>
+            </div>
+            <AdriftStrip
+              goals={adrift} items={items} today={today}
+              onUpdateItem={onUpdateItem} readonly={readonly}
+              toWorkshop={(g: any) => { setFocusedGoalId?.(g.id); setView('tasks') }}
+            />
           </section>
         )}
 
@@ -134,9 +159,7 @@ function NextCard({ item, items, onSelect, onToggle }: any) {
   )
 }
 
-const AI_ENABLED = (import.meta.env.VITE_BB_AI_ENABLED as string) === 'true'
-
-function EmptyDay({ onAdd, today }: any) {
+function EmptyDay({ onAdd, today, aiEnabled }: any) {
   const [adding, setAdding] = useState(false)
   const [draft, setDraft] = useState('')
   const [aiLoading, setAiLoading] = useState(false)
@@ -198,7 +221,7 @@ function EmptyDay({ onAdd, today }: any) {
               padding: '6px 2px',
             }}
           />
-          {AI_ENABLED && (
+          {aiEnabled && (
           <button
             onClick={handleAI}
             disabled={aiLoading}
@@ -306,6 +329,122 @@ function Strip({ tasks, items, onSelect, onToggle, muted, recentlyAdded }: any) 
                 fontFamily: FONT_NUM, fontStyle: 'italic', fontSize: 12,
                 color: accent, whiteSpace: 'nowrap',
               }}>{fmtTime(task.scheduled_time)}</span>
+            )}
+          </li>
+        )
+      })}
+    </ol>
+  )
+}
+
+/* Carried tasks: rescheduling is a decision, not a default. */
+function CarriedStrip({ tasks, items, today, onSelect, onToggle, onUpdateItem, readonly }: any) {
+  return (
+    <ol style={{ listStyle: 'none', padding: 0, margin: 0, borderTop: '1px solid var(--color-line-strong)' }}>
+      {tasks.map((task: any) => {
+        const accent = getAccent(task, items) || 'var(--color-muted)'
+        const ancestors = getAncestors(task, items)
+        const goal = ancestors[ancestors.length - 1]
+        return (
+          <li
+            key={task.id}
+            className="task-row"
+            onClick={() => onSelect(task)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 12,
+              padding: '11px 6px',
+              borderBottom: '1px solid var(--color-line-strong)',
+              cursor: 'pointer',
+              '--hover-bg': 'var(--color-paper-2)',
+            } as any}
+          >
+            <Checkbox id={task.id} completed={task.completed} onToggle={onToggle} color={accent} size={14} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontFamily: FONT_HEAD, fontSize: 15.5, color: 'var(--color-ink)', lineHeight: 1.25 }}>
+                {task.title}
+              </div>
+              <div style={{ fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 11.5, color: 'var(--color-muted)', marginTop: 2 }}>
+                was {localDate(task.due_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                {goal ? ` · ${goal.title}` : ''}
+              </div>
+            </div>
+            {!readonly && (
+              <span onClick={e => e.stopPropagation()} style={{ display: 'inline-flex', gap: 4, flexShrink: 0 }}>
+                <CarryChip label="today"  onClick={() => onUpdateItem(task.id, { due_date: today })} />
+                <CarryChip label="tmrw"   onClick={() => onUpdateItem(task.id, { due_date: addDays(today, 1) })} />
+                <CarryPick task={task} onUpdateItem={onUpdateItem} />
+                <CarryChip label="let go" muted onClick={() => onUpdateItem(task.id, { due_date: null, scheduled_time: null, scheduled_end: null })} />
+              </span>
+            )}
+          </li>
+        )
+      })}
+    </ol>
+  )
+}
+
+function CarryChip({ label, onClick, muted }: any) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        background: 'transparent', border: '1px solid var(--color-line)',
+        fontFamily: FONT_BODY, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase',
+        color: muted ? 'var(--color-faint)' : 'var(--color-muted)', cursor: 'pointer', padding: '3px 8px',
+      }}
+    >{label}</button>
+  )
+}
+
+function CarryPick({ task, onUpdateItem }: any) {
+  const [open, setOpen] = useState(false)
+  if (!open) return <CarryChip label="pick" onClick={() => setOpen(true)} />
+  return (
+    <input
+      type="date" autoFocus
+      onChange={e => { if (e.target.value) { onUpdateItem(task.id, { due_date: e.target.value }); setOpen(false) } }}
+      onBlur={() => setOpen(false)}
+      onKeyDown={e => { if (e.key === 'Escape') setOpen(false) }}
+      style={{
+        background: 'transparent', border: '1px solid var(--color-line)',
+        fontFamily: FONT_BODY, fontSize: 10, color: 'var(--color-ink)',
+        padding: '2px 4px', outline: 'none',
+      }}
+    />
+  )
+}
+
+/* Goals that have drifted off the calendar — schedule the next step in one tap. */
+function AdriftStrip({ goals, items, today, onUpdateItem, readonly, toWorkshop }: any) {
+  return (
+    <ol style={{ listStyle: 'none', padding: 0, margin: 0, borderTop: '1px solid var(--color-line-strong)' }}>
+      {goals.map((g: any) => {
+        const accent = g.accent || 'var(--color-accent)'
+        const candidate = nextUnscheduled(g, items)
+        return (
+          <li key={g.id} style={{
+            display: 'flex', alignItems: 'center', gap: 12,
+            padding: '11px 6px',
+            borderBottom: '1px solid var(--color-line-strong)',
+          }}>
+            <span style={{ width: 5, height: 30, background: accent, boxShadow: `0 0 10px ${accent}55`, flexShrink: 0 }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontFamily: FONT_HEAD, fontSize: 15.5, color: 'var(--color-ink)', lineHeight: 1.25 }}>
+                {g.title}
+              </div>
+              {candidate && (
+                <div style={{ fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 11.5, color: 'var(--color-muted)', marginTop: 2 }}>
+                  next up: {candidate.title}
+                </div>
+              )}
+            </div>
+            {!readonly && candidate ? (
+              <span style={{ display: 'inline-flex', gap: 4, flexShrink: 0 }}>
+                <CarryChip label="→ today" onClick={() => onUpdateItem(candidate.id, { due_date: today })} />
+                <CarryChip label="→ tmrw"  onClick={() => onUpdateItem(candidate.id, { due_date: addDays(today, 1) })} />
+              </span>
+            ) : (
+              <button onClick={() => toWorkshop(g)} style={tinyLink()}>break it down →</button>
             )}
           </li>
         )

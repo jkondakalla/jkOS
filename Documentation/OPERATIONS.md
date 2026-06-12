@@ -6,7 +6,7 @@ Build, run, deploy, staging. Host: TrueNAS SCALE (ZFS pool `Luna`), dev machine 
 
 ```bash
 pnpm install                 # one workspace install (root). Native build scripts
-                             # (bcrypt, better-sqlite3, esbuild) are allow-listed in
+                             # (better-sqlite3, esbuild) are allow-listed in
                              # root package.json → pnpm.onlyBuiltDependencies.
 pnpm dev                     # turbo run dev (all apps)
 pnpm build                   # turbo run build
@@ -140,8 +140,11 @@ package-import-method=hardlink   # uses link() not copyfile; ZFS-safe
 ```
 
 `UV_USE_IO_URING=0` (also set in Dockerfiles) does **not** fix this alone — io_uring was
-already off. Keep both. Also keep `child-concurrency=1` + `force-legacy-deploy` that were
-added earlier for related ZFS symptoms.
+already off. Keep both. `force-legacy-deploy=true` is also kept (the modern `pnpm deploy`
+needs `inject-workspace-packages` recorded in the lockfile — a deliberate follow-up).
+`child-concurrency=1` was **removed**: hardlink imports, not serialised installs, are
+what prevent EAGAIN, and the serialisation made cold builds ~6× slower (~13 → ~7.5 min
+for jkauth). Don't re-add it.
 
 ### nginx upstreams must be lazy (`set $upstream`)
 

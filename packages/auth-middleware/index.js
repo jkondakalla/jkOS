@@ -3,9 +3,12 @@ const jwt = require('jsonwebtoken')
 
 // Canonical jkOS auth middleware. Verifies the jkos_token cookie (RS256 JWT)
 // minted by jkAuth. Superset of every prior per-service copy:
-//   - publicKey from opts.publicKey or env JKOS_AUTH_PUBLIC_KEY
-//   - issuer    from opts.issuer    or env JKOS_AUTH_ISSUER (default 'jkos-auth';
+//   - publicKey  from opts.publicKey  or env JKOS_AUTH_PUBLIC_KEY
+//   - issuer     from opts.issuer     or env JKOS_AUTH_ISSUER (default 'jkos-auth';
 //     staging passes 'jkos-auth-staging')
+//   - cookieName from opts.cookieName or 'jkos_token' + env JKOS_COOKIE_SUFFIX
+//     (staging passes _staging so it reads jkos_token_staging, not the prod
+//     cookie that the browser also sends to every *.jkos.net host)
 
 function resolveKey(publicKey) {
   const key = (publicKey || process.env.JKOS_AUTH_PUBLIC_KEY || '').replace(/\\n/g, '\n')
@@ -15,6 +18,10 @@ function resolveKey(publicKey) {
 
 function resolveIssuer(issuer) {
   return issuer || process.env.JKOS_AUTH_ISSUER || 'jkos-auth'
+}
+
+function resolveCookieName(cookieName) {
+  return cookieName || 'jkos_token' + (process.env.JKOS_COOKIE_SUFFIX || '')
 }
 
 /**
@@ -32,13 +39,14 @@ function verifyToken(token, opts = {}) {
 /**
  * Express middleware factory. Sets req.user = decoded payload
  * ({ sub, email, name, avatar_url, role, iat, exp }); 401 + { error, code } on failure.
- * @param {{ publicKey?: string, issuer?: string }} [opts]
+ * @param {{ publicKey?: string, issuer?: string, cookieName?: string }} [opts]
  */
 function jkosAuth(opts = {}) {
   const key = resolveKey(opts.publicKey)
   const issuer = resolveIssuer(opts.issuer)
+  const cookieName = resolveCookieName(opts.cookieName)
   return function jkosAuthMiddleware(req, res, next) {
-    const token = req.cookies?.jkos_token
+    const token = req.cookies?.[cookieName]
     if (!token) {
       return res.status(401).json({ error: 'Not authenticated', code: 'UNAUTHENTICATED' })
     }

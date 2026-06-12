@@ -40,7 +40,7 @@ Workspace globs: `apps/*`, `apps/*/backend`, `packages/*`, `plugins/*`. Python u
 | `@jkos/design` | ordeck, beigeboard, sylibos, `@jkos/ui`, `@jkos/auth-client` | `applyJkOSMode`, `applyJkOSTheme`; `@jkos/design/tokens.css` (hub.css) |
 | `@jkos/auth-client` | ordeck, beigeboard, sylibos | types, defaults, `normaliseTheme`, `applyTheme`, profile client (`getProfile`/`patchProfile`/`getMe`/…), `useJkOSPreferences` hook |
 | `@jkos/auth-middleware` | beigeboard/backend, sylibos/backend | `jkosAuth({publicKey,issuer})` Express middleware, `verifyToken` |
-| `@jkos/ui` | ordeck | `WidgetShell`, `@jkos/ui/tokens.css` (re-imports design tokens) |
+| `@jkos/ui` | ordeck, beigeboard, sylibos | `WidgetShell` (ordeck), `SettingsDrawer`/`SettingsSection` (the one suite-wide settings tray — all apps), `@jkos/ui/tokens.css` (re-imports design tokens) |
 | `@jkos/types` | ordeck, plugins | widget manifest/instance TS types |
 
 **Invariant — do not duplicate shared logic.** If auth/theme/preferences logic is
@@ -77,8 +77,10 @@ needed, import it from `@jkos/auth-client` (frontend) or `@jkos/auth-middleware`
 - **pnpm** workspace (single `pnpm-lock.yaml`) + **Turbo** (`turbo run build|lint|typecheck`).
 - Shared `@jkos/*` packages are **source-only** (no build step); consumers' Vite/tsc
   compile them via package `exports` pointing at `src`.
-- Native modules (`bcrypt`, `better-sqlite3`, `esbuild`) are allow-listed in root
+- Native modules (`better-sqlite3`, `esbuild`) are allow-listed in root
   `package.json` → `pnpm.onlyBuiltDependencies` (pnpm 10 blocks build scripts by default).
+  Password hashing uses pure-JS **`bcryptjs`** (no native build), so jkAuth's image
+  needs no compiler toolchain.
 
 ## Runtime topology
 
