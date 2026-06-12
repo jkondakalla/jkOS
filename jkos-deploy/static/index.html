@@ -246,6 +246,40 @@ body {
 const MAX_LINES = 300;
 let lineCount = 0;
 
+/* ── Auth: the console rides the same 15-min jkOS access cookie as every app,
+   so it must refresh it the same way. Without this the cookie expires after
+   15 min and every call 401s with "Invalid token". /auth/* is same-origin
+   (nginx routes staging.jkos.net/auth/ → jkAuth). ───────────────────────── */
+const AUTH_BASE = '/auth';
+let refreshing = null;
+
+function refreshToken() {
+  if (!refreshing) {
+    refreshing = fetch(AUTH_BASE + '/refresh', { method: 'POST', credentials: 'same-origin' })
+      .then(r => r.ok).catch(() => false)
+      .finally(() => { refreshing = null; });
+  }
+  return refreshing;
+}
+
+function gotoLogin() {
+  window.location.href = AUTH_BASE + '/login?redirect_to=' + encodeURIComponent(location.href);
+}
+
+// fetch that transparently refreshes the access token once on 401, then retries;
+// if the refresh token is also dead, bounce to the login page.
+async function authedFetch(url, opts = {}) {
+  const o = { credentials: 'same-origin', ...opts };
+  let r = await fetch(url, o);
+  if (r.status === 401) {
+    const ok = await refreshToken();
+    if (!ok) { gotoLogin(); throw new Error('unauthenticated'); }
+    r = await fetch(url, o);
+    if (r.status === 401) { gotoLogin(); throw new Error('unauthenticated'); }
+  }
+  return r;
+}
+
 function addLog(text) {
   const panel = document.getElementById('log-panel');
   const div = document.createElement('div');
@@ -278,7 +312,7 @@ function applyStatus(s) {
 
 async function fetchInfo() {
   try {
-    const r = await fetch('/deploy/info', { credentials: 'same-origin' });
+    const r = await authedFetch('/deploy/info');
     if (!r.ok) return;
     const d = await r.json();
     const fill = (prefix, data) => {
@@ -302,12 +336,13 @@ async function fetchInfo() {
 function connectSSE() {
   const es = new EventSource('/deploy/logs/stream');
   es.onmessage = e => { if (e.data) addLog(e.data); };
-  es.onerror = () => { es.close(); setTimeout(connectSSE, 5000); };
+  // A 401 (expired cookie) surfaces here as an error — refresh, then reconnect.
+  es.onerror = () => { es.close(); refreshToken().finally(() => setTimeout(connectSSE, 3000)); };
 }
 
 async function syncStaging() {
   try {
-    const r = await fetch('/deploy/staging/sync', { method: 'POST', credentials: 'same-origin' });
+    const r = await authedFetch('/deploy/staging/sync', { method: 'POST' });
     const d = await r.json();
     if (!r.ok) { alert('Error: ' + (d.detail || JSON.stringify(d))); return; }
     applyStatus({ status: 'running' });
@@ -320,16 +355,23 @@ function closeModal() { document.getElementById('modal').classList.remove('activ
 async function confirmDeploy() {
   closeModal();
   try {
-    const r = await fetch('/deploy/prod/deploy', { method: 'POST', credentials: 'same-origin' });
+    const r = await authedFetch('/deploy/prod/deploy', { method: 'POST' });
     const d = await r.json();
     if (!r.ok) { alert('Error: ' + (d.detail || JSON.stringify(d))); return; }
     applyStatus({ status: 'running' });
   } catch (e) { alert('Request failed: ' + e); }
 }
 
-fetchInfo();
-setInterval(fetchInfo, 30000);
-connectSSE();
+(async function init() {
+  // Mint a fresh access token up front so polling + SSE start authenticated
+  // even if the user arrived with an already-expired 15-min cookie.
+  await refreshToken();
+  fetchInfo();
+  setInterval(fetchInfo, 30000);
+  // Keep the 15-min access token alive while the console stays open.
+  setInterval(refreshToken, 10 * 60 * 1000);
+  connectSSE();
+})();
 </script>
 </body>
 </html>

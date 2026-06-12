@@ -24,6 +24,13 @@ PROD_BRANCH = os.getenv("PROD_BRANCH", "main")
 PROD_DIR = "/webhost/jkOS"
 STAGING_DIR = "/webhost/jkOS-staging"
 
+# The checkouts are bind-mounted from the host and owned by a different uid than
+# this container's root user, so git 2.35.3+ refuses to touch them ("detected
+# dubious ownership") — which silently broke both the info cards and every
+# fetch/reset in a deploy. safe.directory=* whitelists them and survives the
+# ownership flipping between deploys. Use GIT in place of "git" everywhere.
+GIT = ["git", "-c", "safe.directory=*"]
+
 # ── State ──────────────────────────────────────────────────────────────────────
 
 deploy_lock = asyncio.Lock()
@@ -64,7 +71,7 @@ async def _run(cmd: list[str]) -> bool:
 async def _git_info(directory: str) -> dict:
     try:
         proc = await asyncio.create_subprocess_exec(
-            "git", "-C", directory, "log", "-1", "--pretty=format:%H|||%s|||%ai",
+            *GIT, "-C", directory, "log", "-1", "--pretty=format:%H|||%s|||%ai",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
@@ -77,7 +84,7 @@ async def _git_info(directory: str) -> dict:
         commit_date = parts[2] if len(parts) > 2 else "unknown"
 
         bp = await asyncio.create_subprocess_exec(
-            "git", "-C", directory, "rev-parse", "--abbrev-ref", "HEAD",
+            *GIT, "-C", directory, "rev-parse", "--abbrev-ref", "HEAD",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
@@ -200,8 +207,8 @@ async def staging_sync(_=Depends(get_admin)):
             await _run_sequence(
                 "Syncing staging from GitHub...",
                 [
-                    ["git", "-C", STAGING_DIR, "fetch", "origin"],
-                    ["git", "-C", STAGING_DIR, "reset", "--hard", f"origin/{STAGING_BRANCH}"],
+                    [*GIT, "-C", STAGING_DIR, "fetch", "origin"],
+                    [*GIT, "-C", STAGING_DIR, "reset", "--hard", f"origin/{STAGING_BRANCH}"],
                     ["docker", "compose", "-f", f"{STAGING_DIR}/docker-compose.staging.yml", "up", "--build", "-d"],
                     ["docker", "exec", "standalone-nginx", "nginx", "-t"],
                     # Rebuild the nginx image, not just restart: standalone.conf is a
@@ -227,8 +234,8 @@ async def prod_deploy(_=Depends(get_admin)):
             await _run_sequence(
                 f"Deploying {PROD_BRANCH} to production...",
                 [
-                    ["git", "-C", PROD_DIR, "fetch", "origin"],
-                    ["git", "-C", PROD_DIR, "reset", "--hard", f"origin/{PROD_BRANCH}"],
+                    [*GIT, "-C", PROD_DIR, "fetch", "origin"],
+                    [*GIT, "-C", PROD_DIR, "reset", "--hard", f"origin/{PROD_BRANCH}"],
                     ["docker", "compose", "-f", f"{PROD_DIR}/docker-compose.yml", "up", "--build", "-d"],
                     ["docker", "exec", "standalone-nginx", "nginx", "-t"],
                     # restart, not reload — see staging_sync for the inode rationale.
