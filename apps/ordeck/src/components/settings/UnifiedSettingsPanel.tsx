@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from 'react';
-import type { JkOSTheme, JkosUser, EffectsPreferences, LazurPreferences } from '../../hooks/useJkOSPreferences';
+import type { JkOSTheme, JkosUser, EffectsPreferences } from '../../hooks/useJkOSPreferences';
 
 const AUTH_URL =
   (import.meta.env.VITE_JKOS_AUTH_URL as string | undefined) ?? 'https://auth.jkos.net';
@@ -19,11 +19,9 @@ interface Props {
   user:         JkosUser | null;
   theme:        JkOSTheme;
   effects:      EffectsPreferences;
-  lazuros:      LazurPreferences;
   saving:       boolean;
   patchTheme:   (p: Partial<JkOSTheme>) => void;
   patchEffects: (p: Partial<EffectsPreferences>) => void;
-  patchLazuros: (p: Partial<LazurPreferences>) => void;
 }
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
@@ -67,8 +65,8 @@ function SectionLabel({ children }: { children: string }) {
 // ── Main panel ────────────────────────────────────────────────────────────────
 
 export function UnifiedSettingsPanel({
-  open, onClose, user, theme, effects, lazuros, saving,
-  patchTheme, patchEffects, patchLazuros,
+  open, onClose, user, theme, effects, saving,
+  patchTheme, patchEffects,
 }: Props) {
   const src = (user?.name || user?.email || '?').trim();
   const parts = src.split(/[\s@.]+/).filter(Boolean);
@@ -210,18 +208,11 @@ export function UnifiedSettingsPanel({
           <EffectRow label="Film grain"  value={effects.grain}     onToggle={v => patchEffects({ grain: v })}>
             {effects.grain && <SliderInput value={effects.grainStrength} min={0} max={1} step={0.05} onChange={v => patchEffects({ grainStrength: v })} />}
           </EffectRow>
-          <EffectRow label="Halation"    value={effects.halation}  onToggle={v => patchEffects({ halation: v })} />
+          {/* Halation is intrinsic to dark mode (always on) — not user-toggleable. */}
           <EffectRow label="Scan lines"  value={effects.scanLines} onToggle={v => patchEffects({ scanLines: v })}>
             {effects.scanLines && <SliderInput value={effects.scanStrength} min={0} max={1} step={0.05} onChange={v => patchEffects({ scanStrength: v })} />}
           </EffectRow>
           <EffectRow label="Artifacts"   value={effects.artifacts} onToggle={v => patchEffects({ artifacts: v })} />
-        </section>
-
-        {/* AI */}
-        <section style={sect}>
-          <SectionLabel>AI · LazurOS</SectionLabel>
-          <LazurRow label="URL"   value={lazuros.url}   onCommit={v => patchLazuros({ url: v })}   placeholder="http://host:8080" />
-          <LazurRow label="Model" value={lazuros.model} onCommit={v => patchLazuros({ model: v })} placeholder="llama3.2" />
         </section>
 
         {/* Account */}
@@ -380,35 +371,3 @@ function SliderInput({ value, min, max, step, onChange }: {
   );
 }
 
-// LazurRow: local display state, only commits on blur to avoid per-keystroke network calls
-function LazurRow({ label, value, onCommit, placeholder }: {
-  label: string; value: string; onCommit: (v: string) => void; placeholder: string;
-}) {
-  const [draft, setDraft] = useState(value);
-  useEffect(() => setDraft(value), [value]);
-
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-      <span style={{ fontSize: 10, color: 'var(--hub-cream-faint)', width: 44, flexShrink: 0, fontFamily: FONT, letterSpacing: '0.06em' }}>
-        {label}
-      </span>
-      <input
-        type="text"
-        value={draft}
-        placeholder={placeholder}
-        onChange={e => setDraft(e.target.value)}
-        onBlur={() => onCommit(draft.trim())}
-        onKeyDown={e => { if (e.key === 'Enter') { onCommit(draft.trim()); (e.target as HTMLInputElement).blur(); } }}
-        spellCheck={false}
-        style={{
-          flex: 1,
-          background: 'rgba(255,255,255,0.05)',
-          border: '1px solid var(--hub-line)',
-          color: 'var(--hub-cream)',
-          padding: '5px 10px',
-          fontFamily: FONT, fontSize: 10, letterSpacing: '0.04em', outline: 'none',
-        }}
-      />
-    </div>
-  );
-}

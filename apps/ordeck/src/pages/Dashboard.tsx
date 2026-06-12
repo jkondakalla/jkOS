@@ -283,8 +283,11 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ onOpenHUD }: DashboardProps) {
-  const { theme, effects, lazuros, user, saving, patchTheme, patchEffects, patchLazuros } =
+  const { theme, effects, lazuros, user, saving, patchTheme, patchEffects } =
     useJkOSPreferences();
+  // Suite-wide AI switch. Off → no AI console, no AI panel. Configured in the
+  // jkAuth portal (auth.jkos.net), not here.
+  const aiEnabled = lazuros.enabled;
 
   const [state, setState] = useState<LayoutState>(() => {
     const saved = loadLayout();
@@ -391,8 +394,8 @@ export default function Dashboard({ onOpenHUD }: DashboardProps) {
         widgetCount={state.widgets.length}
         onOpenConfig={() => setConfigOpen(o => !o)}
         configOpen={configOpen}
-        onOpenAI={() => setAiOpen(o => !o)}
-        aiOpen={aiOpen}
+        onOpenAI={aiEnabled ? () => setAiOpen(o => !o) : undefined}
+        aiOpen={aiEnabled && aiOpen}
         onOpenProfile={() => setProfileOpen(o => !o)}
         profileOpen={profileOpen}
         onOpenPalette={() => setPaletteOpen(o => !o)}
@@ -476,7 +479,7 @@ export default function Dashboard({ onOpenHUD }: DashboardProps) {
         reset={resetSettings}
       />
 
-      <AiPanel open={aiOpen} onClose={() => setAiOpen(false)} />
+      {aiEnabled && <AiPanel open={aiOpen} onClose={() => setAiOpen(false)} />}
 
       <UnifiedSettingsPanel
         open={profileOpen}
@@ -484,11 +487,9 @@ export default function Dashboard({ onOpenHUD }: DashboardProps) {
         user={user}
         theme={theme}
         effects={effects}
-        lazuros={lazuros}
         saving={saving}
         patchTheme={patchTheme}
         patchEffects={patchEffects}
-        patchLazuros={patchLazuros}
       />
 
       {/* Suite-wide CRT overlays — driven by user preferences.

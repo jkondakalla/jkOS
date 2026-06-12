@@ -18,12 +18,12 @@ interface Props {
 }
 
 export default function RoomHUD({ onOpenCanvas }: Props) {
-  const { theme, effects, lazuros, user, saving, patchTheme, patchEffects, patchLazuros } =
+  const { theme, effects, lazuros, user, saving, patchTheme, patchEffects } =
     useJkOSPreferences();
 
   const clock   = useClock();
   const weather = useWeather();
-  const systems = useSystems();
+  const systems = useSystems(lazuros.enabled);
   const today   = useToday();
   const study   = useStudy();
   const apps    = useApps(AUTH_URL);
@@ -315,11 +315,9 @@ export default function RoomHUD({ onOpenCanvas }: Props) {
         user={user}
         theme={theme}
         effects={effects}
-        lazuros={lazuros}
         saving={saving}
         patchTheme={patchTheme}
         patchEffects={patchEffects}
-        patchLazuros={patchLazuros}
       />
     </div>
   );

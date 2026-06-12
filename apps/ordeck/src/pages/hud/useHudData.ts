@@ -144,10 +144,12 @@ async function probe(path: string): Promise<{ ok: boolean; ms: number; body: any
   }
 }
 
-export function useSystems(): { rows: SysRow[]; up: number; total: number } {
+// aiEnabled gates the LazurOS row — when AI is off suite-wide it isn't probed
+// or shown, so the kill switch leaves no "lazuros" mention in the systems panel.
+export function useSystems(aiEnabled = true): { rows: SysRow[]; up: number; total: number } {
   const [rows, setRows] = useState<SysRow[]>([
     ...PROBES.map(p => ({ name: p.name, status: 'probing' as SysStatus, detail: '—' })),
-    { name: 'lazuros', status: 'probing', detail: '—' },
+    ...(aiEnabled ? [{ name: 'lazuros', status: 'probing' as SysStatus, detail: '—' }] : []),
   ]);
 
   useEffect(() => {
@@ -163,14 +165,14 @@ export function useSystems(): { rows: SysRow[]; up: number; total: number } {
             detail: r.ok ? `${r.ms} ms` : 'down',
           };
         }),
-        (async () => {
+        ...(aiEnabled ? [(async () => {
           const r = await probe('/api/lazuros/health');
           if (!r.ok) return { name: 'lazuros', status: 'down' as SysStatus, detail: 'down' };
           if (r.body && r.body.compute_online === false) {
             return { name: 'lazuros', status: 'warn' as SysStatus, detail: 'gpu asleep' };
           }
           return { name: 'lazuros', status: 'up' as SysStatus, detail: `${r.ms} ms` };
-        })(),
+        })()] : []),
       ]);
       if (!dead) setRows(results);
     };
@@ -178,7 +180,7 @@ export function useSystems(): { rows: SysRow[]; up: number; total: number } {
     sweep();
     const iv = setInterval(sweep, 30_000);
     return () => { dead = true; clearInterval(iv); };
-  }, []);
+  }, [aiEnabled]);
 
   // warn counts as up — the service itself responded.
   const up = rows.filter(r => r.status === 'up' || r.status === 'warn').length;
