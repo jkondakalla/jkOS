@@ -6,6 +6,10 @@ export interface JkOSTheme {
   mode:      'light' | 'dark' | 'system';
   primary:   string;   // single hex; CSS color-mix() adapts per mode
   secondary: string;
+  // True when the user typed an exact hex (vs picked a preset). Presets are
+  // auto-darkened in light mode so they don't wash out on the beige paper;
+  // a hand-picked color is always honored exactly. Defaults to preset behavior.
+  customAccent?: boolean;
 }
 
 export interface EffectsPreferences {

@@ -178,7 +178,7 @@ export function UnifiedSettingsPanel({
               return (
                 <button type="button"
                   key={p.label}
-                  onClick={() => patchTheme({ primary: p.primary, secondary: p.secondary })}
+                  onClick={() => patchTheme({ primary: p.primary, secondary: p.secondary, customAccent: false })}
                   title={p.label}
                   style={{
                     width: 48, height: 28,
@@ -198,8 +198,10 @@ export function UnifiedSettingsPanel({
             })}
           </div>
 
-          <ColorRow label="Primary"   color={theme.primary}   onChange={c => patchTheme({ primary: c })} />
-          <ColorRow label="Secondary" color={theme.secondary} onChange={c => patchTheme({ secondary: c })} />
+          {/* Hand-picked colors set customAccent so they're honored exactly in
+              both modes (presets auto-deepen on light paper). */}
+          <ColorRow label="Primary"   color={theme.primary}   onChange={c => patchTheme({ primary: c, customAccent: true })} />
+          <ColorRow label="Secondary" color={theme.secondary} onChange={c => patchTheme({ secondary: c, customAccent: true })} />
         </section>
 
         {/* Effects */}

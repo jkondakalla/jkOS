@@ -62,12 +62,7 @@ export default function RoomHUD({ onOpenCanvas }: Props) {
           {systems.up} OF {systems.total} SYSTEMS UP
         </span>
 
-        <button className="hud-topbtn" data-active={appsOpen} onClick={() => setAppsOpen(o => !o)} title="Apps">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-            <rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" />
-            <rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" />
-          </svg>
-        </button>
+        {/* Apps tray opens from the jk badge (top-left) — the primary entry. */}
 
         <button className="hud-topbtn" onClick={toggleMode} title="Toggle theme">
           {isDark ? (
