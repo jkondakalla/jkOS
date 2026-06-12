@@ -24,7 +24,7 @@ export function MobileTasksView({
   onCreate,
   onUpdate,
 }: MobileTasksViewProps) {
-  const goals = items.filter((it: any) => it.kind === 'goal' && it.scope === 'year')
+  const goals = items.filter((it: any) => it.kind === 'goal' && !it.parent_id)
   const [open, setOpen] = useState(() => (goals[0] ? { [goals[0].id]: true } : {}))
   const [addingGoal, setAddingGoal] = useState(false)
 
@@ -119,7 +119,7 @@ function Cassette({ goal, items, isOpen, onToggleOpen, onSelect, onToggle, onCre
   const accent = goal.accent || 'var(--color-accent)'
   const prog = getProgress(goal, items)
   const kids = getChildren(goal, items)
-  const projects = kids.filter((k: any) => k.kind === 'goal')
+  const projects = kids.filter((k: any) => k.kind === 'milestone' || k.kind === 'goal')
   const looseTasks = kids.filter((k: any) => k.kind === 'task')
   const active = prog.pct > 0 && prog.pct < 100
   const [addingList, setAddingList] = useState(false)
@@ -249,7 +249,7 @@ function Cassette({ goal, items, isOpen, onToggleOpen, onSelect, onToggle, onCre
           {addingList ? (
             <InlineAdd
               onAdd={(title) => {
-                onCreate({ kind: 'goal', scope: 'project', title, parent_id: goal.id })
+                onCreate({ kind: 'milestone', title, parent_id: goal.id })
                 setAddingList(false)
               }}
               onClose={() => setAddingList(false)}

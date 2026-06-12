@@ -204,6 +204,50 @@ const MIGRATIONS = [
       d.exec(`CREATE INDEX IF NOT EXISTS idx_calendar_tokens_user ON calendar_tokens(user_id)`);
     },
   },
+  {
+    id: 5, name: 'goal_engine',
+    up(d) {
+      /*
+       * The Breakdown Method (Documentation/PLANNING_METHOD.md). Goals carry a
+       * definition of done + horizon; the old month/week calendar buckets become
+       * ordered milestones flattened directly under their goal.
+       */
+      for (const col of ['done_means TEXT', 'target_date TEXT', 'position INTEGER', 'status TEXT']) {
+        try { d.exec(`ALTER TABLE items ADD COLUMN ${col}`); }
+        catch (e) { if (!e.message?.includes('duplicate column')) throw e; }
+      }
+
+      d.exec(`UPDATE items SET status='active' WHERE kind='goal' AND scope='year' AND status IS NULL`);
+      d.exec(`UPDATE items SET target_date = year || '-12-31'
+              WHERE kind='goal' AND scope='year' AND year IS NOT NULL AND target_date IS NULL`);
+
+      d.exec(`UPDATE items SET kind='milestone' WHERE kind='goal' AND scope IN ('month','week','project')`);
+
+      /* Week themes lived under month goals — hoist until every milestone sits
+         directly under its root goal. Depth shrinks each pass, so this terminates. */
+      let changed = true;
+      while (changed) {
+        const r = d.prepare(`
+          UPDATE items SET parent_id = (SELECT p.parent_id FROM items p WHERE p.id = items.parent_id)
+          WHERE kind='milestone' AND parent_id IN (SELECT id FROM items WHERE kind='milestone')
+        `).run();
+        changed = r.changes > 0;
+      }
+
+      /* Milestones that lost their root (orphaned buckets) become goals so no data hides */
+      d.exec(`UPDATE items SET kind='goal', status='active' WHERE kind='milestone' AND parent_id IS NULL`);
+
+      /* Stable checkpoint order: original month, then week, then creation */
+      const goals = d.prepare(`SELECT DISTINCT parent_id AS gid FROM items
+                               WHERE kind='milestone' AND parent_id IS NOT NULL`).all();
+      const setPos = d.prepare(`UPDATE items SET position=? WHERE id=?`);
+      for (const { gid } of goals) {
+        const ms = d.prepare(`SELECT id FROM items WHERE kind='milestone' AND parent_id=?
+                              ORDER BY COALESCE(month, 99), COALESCE(week_start, '9999'), id`).all(gid);
+        ms.forEach((m, i) => setPos.run(i, m.id));
+      }
+    },
+  },
 ];
 
 function runMigrations() {
@@ -227,6 +271,7 @@ const ITEM_COLUMNS = new Set([
   'kind', 'scope', 'title', 'notes', 'parent_id', 'accent', 'source', 'completed',
   'year', 'month', 'week_start', 'due_date', 'scheduled_time', 'scheduled_end',
   'end_date', 'location', 'attendees', 'target',
+  'done_means', 'target_date', 'position', 'status',
 ]);
 
 /* ── Safe JSON for embedding in <script> tags ──────────────────────────── */
@@ -508,9 +553,8 @@ app.use((req, res, next) => {
 });
 
 /* ── Auth middleware (jkos SSO) ────────────────────────────────────────── */
-/* These paths are reachable without a valid jkos_token cookie */
+/* These API paths are reachable without a valid jkos_token cookie */
 const PUBLIC_PATHS = [
-  '/health',
   '/api/auth/google',     // initiates Google Calendar OAuth
   '/api/auth/outlook',    // initiates Outlook Calendar OAuth
 ];
@@ -523,7 +567,11 @@ const authMiddleware = JKOS_AUTH_PUBLIC_KEY
   ? jkosAuth({ publicKey: JKOS_AUTH_PUBLIC_KEY, issuer: JKOS_AUTH_ISSUER })
   : (req, _res, next) => { req.user = { sub: 1, role: 'admin' }; next(); }; // dev fallback (non-prod only)
 
+/* Only the API carries user data and is gated. The SPA shell and assets are
+   public so a logged-out browser loads the app, gets 401 from /api/auth/me,
+   and is redirected to jkAuth — instead of a raw 401 in place of the page. */
 app.use((req, res, next) => {
+  if (!req.path.startsWith('/api')) return next();
   if (PUBLIC_PATHS.some(p => req.path === p)) return next();
   authMiddleware(req, res, next);
 });
@@ -886,7 +934,71 @@ Return ONLY a JSON object with exactly these fields:
   }
 });
 
+/* ── AI: draft a goal ladder (Breakdown Method step 2) ─────────────────── */
+app.post('/api/ai/breakdown', async (req, res) => {
+  if (!BB_AI_ENABLED) return res.status(503).json({ error: 'AI is not enabled on this instance.' });
+  try {
+    const { title, done_means, target_date } = req.body || {};
+    if (!title?.toString().trim()) return res.status(400).json({ error: 'title is required' });
+
+    const prompt = `You are helping break a long-term goal into checkpoints and first actions.
+
+Goal: "${title.toString().slice(0, 200)}"
+${done_means ? `Done means: "${done_means.toString().slice(0, 300)}"` : ''}
+${target_date ? `Target date: ${target_date.toString().slice(0, 10)}` : ''}
+
+Rules:
+- 2 to 5 milestones: verifiable checkpoints in order, each provable when passed.
+- 2 to 4 first_actions: concrete tasks toward ONLY the first milestone, each small enough to finish in one sitting.
+- Plain language, no numbering in the text itself.
+
+Return ONLY a JSON object: {"milestones": ["...", ...], "first_actions": ["...", ...]}`;
+
+    const aiHeaders = { 'Content-Type': 'application/json' };
+    if (LAZUROS_TOKEN) aiHeaders['Authorization'] = `Bearer ${LAZUROS_TOKEN}`;
+
+    const r = await fetch(`${LAZUROS_URL}/api/chat`, {
+      method: 'POST',
+      headers: aiHeaders,
+      body: JSON.stringify({
+        model: LAZUROS_DEFAULT_MODEL,
+        messages: [
+          { role: 'system', content: 'You are a JSON API. Respond with a single valid JSON object only. No markdown, no explanation.' },
+          { role: 'user',   content: prompt },
+        ],
+        stream: false,
+      }),
+      signal: AbortSignal.timeout(60_000),
+    });
+    if (!r.ok) {
+      const err = await r.text().catch(() => r.status);
+      return res.status(502).json({ error: `LazurOS error: ${err}` });
+    }
+
+    const aiData = await r.json();
+    const raw    = aiData?.message?.content ?? '';
+    const start  = raw.indexOf('{');
+    const end    = raw.lastIndexOf('}') + 1;
+    if (start < 0 || end <= start) return res.status(502).json({ error: 'AI returned no JSON' });
+
+    let parsed;
+    try { parsed = JSON.parse(raw.slice(start, end)); }
+    catch { return res.status(502).json({ error: 'AI returned malformed JSON' }); }
+
+    const clean = (arr, max) => (Array.isArray(arr) ? arr : [])
+      .filter(s => typeof s === 'string' && s.trim())
+      .map(s => s.trim().slice(0, 200))
+      .slice(0, max);
+
+    res.json({ milestones: clean(parsed.milestones, 5), first_actions: clean(parsed.first_actions, 4) });
+  } catch (e) {
+    console.error('[ai/breakdown]', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 /* ── Static + SPA fallback ─────────────────────────────────────────────── */
+app.all('/api/*', (_req, res) => res.status(404).json({ error: 'Not found' }));
 app.use(express.static(STATIC_DIR));
 app.get('*', (req, res) => {
   res.sendFile(path.join(STATIC_DIR, 'index.html'), err => {
@@ -895,15 +1007,13 @@ app.get('*', (req, res) => {
 });
 
 /* ── Seed defaults (lazy, on first item load per user) ─────────────────── */
+/* One example goal shaped by the Breakdown Method: a defined finish line,
+   ordered checkpoints, and the first actions already committed to days. */
 async function seedDefaults(userId) {
   const now = new Date();
-  const yr  = now.getFullYear();
-  const mo  = now.getMonth() + 1;
-  const d   = new Date(now);
-  d.setHours(0,0,0,0);
-  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
-  const weekStr  = d.toISOString().slice(0, 10);
-  const todayStr = now.toISOString().slice(0, 10);
+  const todayStr    = now.toISOString().slice(0, 10);
+  const tomorrowStr = new Date(now.getTime() + 86400000).toISOString().slice(0, 10);
+  const targetStr   = `${now.getFullYear()}-12-31`;
 
   const ins = (data) => {
     const cols = Object.keys(data).join(', ');
@@ -912,15 +1022,17 @@ async function seedDefaults(userId) {
     return r.lastInsertRowid;
   };
 
-  const g1 = ins({ user_id: userId, kind:'goal',scope:'year',title:'Build something meaningful',accent:'#B85C3A',year:yr,source:'bb' });
-  const g2 = ins({ user_id: userId, kind:'goal',scope:'year',title:'Stay healthy and consistent',accent:'#5A8A5A',year:yr,source:'bb' });
-  const m1 = ins({ user_id: userId, kind:'goal',scope:'month',title:'Ship a working prototype',accent:'#B85C3A',parent_id:g1,year:yr,month:mo,source:'bb' });
-  const m2 = ins({ user_id: userId, kind:'goal',scope:'month',title:'Establish a daily routine',accent:'#5A8A5A',parent_id:g2,year:yr,month:mo,source:'bb' });
-  const w1 = ins({ user_id: userId, kind:'goal',scope:'week',title:'Foundation — get the basics running',accent:'#B85C3A',parent_id:m1,week_start:weekStr,source:'bb' });
-  const w2 = ins({ user_id: userId, kind:'goal',scope:'week',title:'First week of the new routine',accent:'#5A8A5A',parent_id:m2,week_start:weekStr,source:'bb' });
-  ins({ user_id: userId, kind:'task',scope:'day',title:'Define the core feature set',accent:'#B85C3A',parent_id:w1,due_date:todayStr,source:'bb' });
-  ins({ user_id: userId, kind:'task',scope:'day',title:'Set up the project structure',accent:'#B85C3A',parent_id:w1,due_date:todayStr,source:'bb' });
-  ins({ user_id: userId, kind:'task',scope:'day',title:'Morning stretch — 15 min',accent:'#5A8A5A',parent_id:w2,due_date:todayStr,scheduled_time:'07:00',scheduled_end:'07:15',source:'bb' });
+  const g = ins({
+    user_id: userId, kind: 'goal', scope: 'year', status: 'active',
+    title: 'Build something meaningful',
+    done_means: 'A working project I can show someone, live and usable',
+    target_date: targetStr, accent: '#B85C3A', source: 'bb',
+  });
+  const m1 = ins({ user_id: userId, kind:'milestone', parent_id: g, position: 0, title: 'Decide what to build',     accent: '#B85C3A', source: 'bb' });
+  ins({ user_id: userId, kind:'milestone', parent_id: g, position: 1, title: 'A rough working prototype', accent: '#B85C3A', source: 'bb' });
+  ins({ user_id: userId, kind:'milestone', parent_id: g, position: 2, title: 'Polished and shared',       accent: '#B85C3A', source: 'bb' });
+  ins({ user_id: userId, kind:'task', scope:'day', parent_id: m1, title: 'Write down three project ideas',           accent: '#B85C3A', due_date: todayStr,    source: 'bb' });
+  ins({ user_id: userId, kind:'task', scope:'day', parent_id: m1, title: 'Pick one and sketch its single core feature', accent: '#B85C3A', due_date: tomorrowStr, source: 'bb' });
 }
 
 /* ── Boot ──────────────────────────────────────────────────────────────── */

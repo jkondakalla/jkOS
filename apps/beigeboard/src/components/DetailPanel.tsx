@@ -20,20 +20,19 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
   if (!event) return null
 
   const accent = (items && getAccent(event, items)) || (event.source && sourceOf(event.source).hex) || 'var(--color-accent)'
-  const isTask = event.kind === 'task'
-  const isGoal = event.kind === 'goal'
-  const isEvent= event.kind === 'event'
+  const isTask      = event.kind === 'task'
+  const isGoal      = event.kind === 'goal'
+  const isMilestone = event.kind === 'milestone'
+  const isEvent     = event.kind === 'event'
   const ancestors = items ? getAncestors(event, items) : []
   const children  = items ? getChildren(event, items)  : []
   const prog      = items ? getProgress(event, items)  : { done: 0, total: 0, pct: 0 }
 
-  const scopeLabel = ({
-    year:    'Year goal',
-    month:   'Month milestone',
-    week:    'Week theme',
-    day:     'Day task',
-    subtask: 'Smaller step',
-  } as any)[event.scope] || (isGoal ? 'Goal' : isEvent ? 'Event' : 'Task')
+  const scopeLabel = isGoal ? 'Goal'
+    : isMilestone ? 'Checkpoint'
+    : isEvent ? 'Event'
+    : event.scope === 'subtask' ? 'Smaller step'
+    : 'Task'
 
   return (
     <aside className="panel-enter" style={{
@@ -82,7 +81,7 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
               background: 'transparent', border: 'none',
               borderBottom: '1px solid rgba(255,255,255,0.45)',
               fontFamily: FONT_HEAD, fontWeight: 500,
-              fontSize: event.scope === 'year' ? 26 : 22,
+              fontSize: isGoal ? 26 : 22,
               color: 'rgba(255,255,255,0.95)', outline: 'none',
               padding: '2px 0 6px', width: '100%', letterSpacing: '-0.015em',
             }}
@@ -93,8 +92,8 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
             title="Click to edit title"
             style={{
               fontFamily: FONT_HEAD,
-              fontStyle: isGoal && event.scope !== 'year' ? 'italic' : 'normal',
-              fontWeight: 500, fontSize: event.scope === 'year' ? 26 : 22,
+              fontStyle: isMilestone ? 'italic' : 'normal',
+              fontWeight: 500, fontSize: isGoal ? 26 : 22,
               lineHeight: 1.2, letterSpacing: '-0.015em',
               textDecoration: event.completed ? 'line-through' : 'none',
               opacity: event.completed ? 0.7 : 1,
@@ -127,10 +126,10 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
                       textTransform: 'uppercase', color: aAccent || 'var(--color-muted)',
                       border: `1px solid ${(aAccent || 'var(--color-muted)') + '40'}`,
                       padding: '1px 6px', flexShrink: 0,
-                    }}>{a.scope}</span>
+                    }}>{a.kind === 'goal' ? 'goal' : a.kind === 'milestone' ? 'checkpoint' : 'task'}</span>
                     <span style={{
                       fontFamily: FONT_HEAD,
-                      fontStyle: a.scope === 'year' ? 'normal' : 'italic',
+                      fontStyle: a.kind === 'goal' ? 'normal' : 'italic',
                       fontSize: 14 - Math.min(i, 2), color: 'var(--color-ink)',
                       overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                     }}>{a.title}</span>
@@ -168,7 +167,7 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
           </Field>
         )}
 
-        {isTask && (
+        {(isTask || isMilestone) && (
           <Field label="Status">
             <button
               onClick={() => onToggle?.(event.id, event.completed)}
@@ -182,9 +181,15 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
               }}
             >
               <Checkbox id={event.id} completed={event.completed} onToggle={onToggle} color={accent} />
-              {event.completed ? 'Done — mark active' : 'Mark complete'}
+              {isMilestone
+                ? (event.completed ? 'Passed — reopen' : 'Mark checkpoint passed')
+                : (event.completed ? 'Done — mark active' : 'Mark complete')}
             </button>
           </Field>
+        )}
+
+        {isGoal && (
+          <GoalFields event={event} onUpdateItem={onUpdateItem} />
         )}
 
         {isGoal && (
@@ -228,7 +233,7 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
 
             <button
               onClick={() => {
-                if (event.scope === 'year') setFocusedGoalId?.(event.id)
+                setFocusedGoalId?.(event.id)
                 setView?.('tasks')
               }}
               className="btn-action"
@@ -284,6 +289,71 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
         </div>
       </div>
     </aside>
+  )
+}
+
+/* Goal definition: the finish line, the horizon, and active/parked/done status. */
+function GoalFields({ event, onUpdateItem }: any) {
+  const [means, setMeans] = useState(event.done_means || '')
+  useEffect(() => { setMeans(event.done_means || '') }, [event.id, event.done_means])
+
+  const status = event.status || 'active'
+  const statusBtn = (value: string, label: string) => (
+    <button
+      key={value}
+      onClick={() => onUpdateItem?.(event.id, { status: value })}
+      className="btn-action"
+      style={{
+        flex: 1,
+        background: status === value ? 'var(--color-accent)' : 'transparent',
+        color: status === value ? 'var(--color-paper)' : 'var(--color-muted)',
+        border: `1px solid ${status === value ? 'var(--color-accent)' : 'var(--color-line)'}`,
+        fontFamily: FONT_BODY, fontSize: 9.5, letterSpacing: '0.14em',
+        textTransform: 'uppercase', padding: '8px 0', cursor: 'pointer',
+      }}
+    >{label}</button>
+  )
+
+  return (
+    <>
+      <Field label="Done means">
+        <input
+          value={means}
+          onChange={e => setMeans(e.target.value)}
+          onBlur={() => {
+            const v = means.trim()
+            if (v !== (event.done_means || '')) onUpdateItem?.(event.id, { done_means: v || null })
+          }}
+          onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+          placeholder="A verifiable outcome — how will you know?"
+          style={{
+            width: '100%', background: 'transparent', border: 'none',
+            borderBottom: `1px solid var(--color-line)`,
+            fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 14,
+            color: 'var(--color-ink)', outline: 'none', padding: '2px 0 5px',
+          }}
+        />
+      </Field>
+      <Field label="Horizon">
+        <input
+          type="date"
+          value={event.target_date || ''}
+          onChange={e => onUpdateItem?.(event.id, { target_date: e.target.value || null })}
+          style={{
+            background: 'transparent', border: `1px solid var(--color-line)`,
+            fontFamily: FONT_BODY, fontSize: 11, color: 'var(--color-ink)',
+            padding: '4px 6px', outline: 'none',
+          }}
+        />
+      </Field>
+      <Field label="Standing">
+        <div style={{ display: 'flex', gap: 6 }}>
+          {statusBtn('active', 'Active')}
+          {statusBtn('parked', 'Parked')}
+          {statusBtn('done',   'Done')}
+        </div>
+      </Field>
+    </>
   )
 }
 

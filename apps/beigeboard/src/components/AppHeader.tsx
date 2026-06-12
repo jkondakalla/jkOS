@@ -6,7 +6,7 @@ const NAV_TABS = [
   { id: 'today',    label: 'Today',    sub: 'now' },
   { id: 'week',     label: 'Week',     sub: '7 days' },
   { id: 'calendar', label: 'Calendar', sub: 'month' },
-  { id: 'tasks',    label: 'Tasks',    sub: 'workshop' },
+  { id: 'tasks',    label: 'Workshop', sub: 'goals' },
 ]
 
 function initials(name?: string, email?: string): string {

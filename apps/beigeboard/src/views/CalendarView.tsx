@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { FONT_HEAD, FONT_BODY, FONT_NUM, localDate, isoDate, addDays, fmtTime, halate, sourceOf } from '../lib/theme'
 import { useDrag } from '../providers/DragProvider'
+import { getAccent } from '../lib/seed'
 import { Eyebrow, Checkbox } from '../components/SharedComponents'
 
 const DOW       = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -126,6 +127,7 @@ export function CalendarView({ items, today, onSelect, onToggle, onUpdateItem, o
           ) : unscheduled.map((it: any) => (
             <CalTaskChip
               key={it.id} item={it}
+              accent={getAccent(it, items)}
               isDragging={(drag as any)?.item?.id === it.id}
               isSelected={selectedId === it.id}
               onSelect={onSelect} onToggle={onToggle}
@@ -290,6 +292,7 @@ export function CalendarView({ items, today, onSelect, onToggle, onUpdateItem, o
                         {cellItems.slice(0, 4).map((it: any) => (
                           <CalTaskChip
                             key={it.id} item={it}
+                            accent={getAccent(it, items)}
                             isDragging={(drag as any)?.item?.id === it.id}
                             isSelected={selectedId === it.id}
                             onSelect={onSelect} onToggle={onToggle}
@@ -335,8 +338,8 @@ export function CalendarView({ items, today, onSelect, onToggle, onUpdateItem, o
   )
 }
 
-function CalTaskChip({ item, isDragging, isSelected, onSelect, onToggle, compact, onMouseDown }: any) {
-  const accent = item.accent || 'var(--color-muted)'
+function CalTaskChip({ item, accent: inherited, isDragging, isSelected, onSelect, onToggle, compact, onMouseDown }: any) {
+  const accent = inherited || item.accent || 'var(--color-muted)'
 
   if (isDragging) {
     return (
