@@ -28,6 +28,12 @@ const MO_FULL = ['January','February','March','April','May','June',
                  'July','August','September','October','November','December'];
 const DAY_ABBR = ['Su','Mo','Tu','We','Th','Fr','Sa'];
 
+// Friendly labels for the edit-mode restore strip (keys are the localStorage ids).
+const CARD_LABELS: Record<string, string> = {
+  weather: 'Weather', calendar: 'Calendar', today: 'Today',
+  systems: 'Systems', study: 'Study',
+};
+
 function MiniCalendar({ cal, editMode, onHide }: {
   cal: ReturnType<typeof useMonthCalendar>;
   editMode: boolean;
@@ -130,10 +136,7 @@ export default function RoomHUD({ onOpenCanvas: _onOpenCanvas }: Props) {
     setHidden(s => { const n = new Set(s); n.delete(card); saveHidden(n); return n; });
   }
   function toggleEdit() {
-    setEditMode(m => {
-      if (m) { /* leaving edit mode — restore all hidden if nothing visible */ }
-      return !m;
-    });
+    setEditMode(m => !m);
   }
 
   const doneCount = today.tasks.filter(t => t.done).length;
@@ -223,7 +226,7 @@ export default function RoomHUD({ onOpenCanvas: _onOpenCanvas }: Props) {
           <span>{hidden.size} card{hidden.size > 1 ? 's' : ''} hidden</span>
           {[...hidden].map(id => (
             <button key={id} className="hud-edit-restore" onClick={() => show(id)}>
-              + {id}
+              + {CARD_LABELS[id] ?? id}
             </button>
           ))}
         </div>

@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect } from 'react';
 import type { JkOSTheme, JkosUser, EffectsPreferences } from '../../hooks/useJkOSPreferences';
-import { weatherConfig, saveWeatherConfig, type WeatherConfig } from '../../pages/hud/useHudData';
+import { weatherConfig, saveWeatherConfigLive, type WeatherConfig } from '../../pages/hud/useHudData';
 
 const AUTH_URL =
   (import.meta.env.VITE_JKOS_AUTH_URL as string | undefined) ?? 'https://auth.jkos.net';
@@ -401,8 +401,9 @@ function WeatherSettings() {
   }
 
   function save() {
-    // Clear cached location key when lat/lon changes — forces re-lookup.
-    saveWeatherConfig({ ...cfg, acWeatherLocKey: '' });
+    // Clear cached location key when lat/lon changes — forces re-lookup —
+    // and notify the live HUD to refetch immediately (no reload needed).
+    saveWeatherConfigLive({ ...cfg, acWeatherLocKey: '' });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   }

@@ -41,6 +41,8 @@ export function useClock(): ClockState {
 // ── Weather (AccuWeather when key set, open-meteo fallback) ──────────────────
 
 export const WEATHER_STORAGE_KEY = 'ordeck-weather';
+// Fired after saveWeatherConfig so a live HUD re-fetches without a page reload.
+export const WEATHER_CHANGED_EVENT = 'ordeck-weather-changed';
 const DEFAULT_LOC = { lat: 37.34, lon: -121.89, label: 'SAN JOSE' };
 
 const WMO: Record<number, string> = {
@@ -87,6 +89,14 @@ export function weatherConfig(): WeatherConfig {
 export function saveWeatherConfig(cfg: Partial<WeatherConfig>) {
   const cur = weatherConfig();
   localStorage.setItem(WEATHER_STORAGE_KEY, JSON.stringify({ ...cur, ...cfg }));
+}
+
+// Like saveWeatherConfig but notifies a live HUD to re-fetch immediately.
+// (Used by settings "Save"; the internal location-key cache uses the plain
+// saver so it doesn't trigger a redundant reload.)
+export function saveWeatherConfigLive(cfg: Partial<WeatherConfig>) {
+  saveWeatherConfig(cfg);
+  window.dispatchEvent(new Event(WEATHER_CHANGED_EVENT));
 }
 
 // Fetch AccuWeather location key once and cache it in localStorage.
@@ -157,6 +167,13 @@ export function useWeather(): WeatherState {
     loaded: false, offline: false, label: cfg.label, source: 'open-meteo',
     temp: 0, feels: 0, desc: '', hi: 0, lo: 0, slots: [],
   });
+  // Bumped when settings save a new location, so the effect re-runs and refetches.
+  const [version, setVersion] = useState(0);
+  useEffect(() => {
+    const onChange = () => setVersion(v => v + 1);
+    window.addEventListener(WEATHER_CHANGED_EVENT, onChange);
+    return () => window.removeEventListener(WEATHER_CHANGED_EVENT, onChange);
+  }, []);
 
   useEffect(() => {
     let dead = false;
@@ -175,7 +192,7 @@ export function useWeather(): WeatherState {
     const interval = c.accuweatherKey ? 60 * 60_000 : 15 * 60_000;
     const iv = setInterval(load, interval);
     return () => { dead = true; clearInterval(iv); };
-  }, []);
+  }, [version]);
 
   return state;
 }
