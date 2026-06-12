@@ -21,7 +21,9 @@ shared-package contract and auth/theme flows.
 - Docker: `apps/ordeck/Dockerfile` (root context) → nginx with `apps/ordeck/nginx.conf`.
 
 ### jkAuth — `apps/jkauth`
-- Express + better-sqlite3 + **bcryptjs** (pure JS) + jsonwebtoken (RS256) + googleapis + express-rate-limit.
+- Express + better-sqlite3 + **bcryptjs** (pure JS) + jsonwebtoken (RS256) + express-rate-limit.
+  Google OAuth uses **native `fetch`** (auth URL, token exchange, userinfo) — the 116 MB
+  `googleapis` SDK was dropped so the image builds in ~1 min instead of several.
 - All logic in `server.js`. DB at `DB_PATH` (`/data/jkos-auth.db`), WAL, FK on.
 - Migrations run **001_init → 002_user_preferences → 003_remember_me** (order matters;
   later migrations ALTER tables 001 creates). 002 self-heals a missing `preferences`

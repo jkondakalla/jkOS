@@ -576,7 +576,7 @@ html.od-v2 ::selection { background: var(--accent); color: var(--accent-contrast
   letter-spacing: 0.16em;
   color: var(--accent-ink);
 }
-.hud-now-chip .hud-dot { background: var(--accent); }
+.hud-now-chip .hud-dot { background: var(--accent); box-shadow: var(--hub-accent-press); }
 
 .hud-empty {
   flex: 1;

@@ -40,7 +40,7 @@ Workspace globs: `apps/*`, `apps/*/backend`, `packages/*`, `plugins/*`. Python u
 | `@jkos/design` | ordeck, beigeboard, sylibos, `@jkos/ui`, `@jkos/auth-client` | `applyJkOSMode`, `applyJkOSTheme`; `@jkos/design/tokens.css` (hub.css) |
 | `@jkos/auth-client` | ordeck, beigeboard, sylibos | types, defaults, `normaliseTheme`, `applyTheme`, profile client (`getProfile`/`patchProfile`/`getMe`/…), `useJkOSPreferences` hook |
 | `@jkos/auth-middleware` | beigeboard/backend, sylibos/backend | `jkosAuth({publicKey,issuer})` Express middleware, `verifyToken` |
-| `@jkos/ui` | ordeck | `WidgetShell`, `@jkos/ui/tokens.css` (re-imports design tokens) |
+| `@jkos/ui` | ordeck, beigeboard, sylibos | `WidgetShell` (ordeck), `SettingsDrawer`/`SettingsSection` (the one suite-wide settings tray — all apps), `@jkos/ui/tokens.css` (re-imports design tokens) |
 | `@jkos/types` | ordeck, plugins | widget manifest/instance TS types |
 
 **Invariant — do not duplicate shared logic.** If auth/theme/preferences logic is

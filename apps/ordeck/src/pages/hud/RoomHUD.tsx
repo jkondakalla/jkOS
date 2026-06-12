@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
+import { SettingsDrawer } from '@jkos/ui';
 import { useJkOSPreferences, AUTH_URL } from '../../hooks/useJkOSPreferences';
-import { UnifiedSettingsPanel } from '../../components/settings/UnifiedSettingsPanel';
+import { WeatherSection } from '../../components/settings/WeatherSection';
 import {
   useClock, useWeather, useSystems, useToday, useStudy, useApps, isNow,
   useMonthCalendar, type CalDay,
@@ -93,7 +94,7 @@ interface Props {
 }
 
 export default function RoomHUD({ onOpenCanvas: _onOpenCanvas }: Props) {
-  const { theme, effects, lazuros, user, saving, patchTheme, patchEffects } =
+  const { theme, effects, lazuros, user, saving, patchTheme, patchEffects, patchLazuros } =
     useJkOSPreferences();
 
   const clock   = useClock();
@@ -467,15 +468,19 @@ export default function RoomHUD({ onOpenCanvas: _onOpenCanvas }: Props) {
         </span>
       </div>
 
-      <UnifiedSettingsPanel
+      <SettingsDrawer
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
         user={user}
         theme={theme}
         effects={effects}
+        lazuros={lazuros}
         saving={saving}
         patchTheme={patchTheme}
         patchEffects={patchEffects}
+        patchLazuros={patchLazuros}
+        authUrl={AUTH_URL}
+        extra={<WeatherSection />}
       />
     </div>
   );

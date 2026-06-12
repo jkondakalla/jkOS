@@ -5,7 +5,8 @@ import { useAuthStore } from '../store/authStore'
 import { useJkOSPreferences } from '../hooks/useJkOSPreferences'
 import { Bar, Icon, Spinner, ThemeToggle, cx } from './ui'
 import { FilmGrain, Halation, ScanLines, Artifacts } from './Overlays'
-import { SettingsPanel } from './SettingsPanel'
+import { SettingsDrawer } from '@jkos/ui'
+import { AUTH_URL } from '../api/auth'
 
 const NAV = [
   { to: '/', label: 'Today', icon: 'book', end: true },
@@ -125,11 +126,12 @@ export default function Layout() {
       {effects.scanLines && <ScanLines strength={effects.scanStrength} />}
       {effects.artifacts && <Artifacts />}
 
-      <SettingsPanel
+      <SettingsDrawer
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
         {...prefs}
         user={prefs.user ?? user}
+        authUrl={AUTH_URL}
       />
     </div>
   )

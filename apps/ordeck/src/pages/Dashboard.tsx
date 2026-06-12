@@ -1,7 +1,9 @@
 import { useState, useCallback, useEffect } from 'react';
 import { WidgetInstance, WidgetType } from '@jkos/types';
 import { useJkOSPreferences } from '../hooks/useJkOSPreferences';
-import { UnifiedSettingsPanel } from '../components/settings/UnifiedSettingsPanel';
+import { SettingsDrawer } from '@jkos/ui';
+import { WeatherSection } from '../components/settings/WeatherSection';
+import { AUTH_URL } from '../hooks/useJkOSPreferences';
 import { FilmGrain, Halation, Artifacts } from '../components/Overlays';
 import { AppLauncher } from '../components/AppLauncher';
 import WidgetPalette from '../components/WidgetPalette';
@@ -283,7 +285,7 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ onOpenHUD }: DashboardProps) {
-  const { theme, effects, lazuros, user, saving, patchTheme, patchEffects } =
+  const { theme, effects, lazuros, user, saving, patchTheme, patchEffects, patchLazuros } =
     useJkOSPreferences();
   // Suite-wide AI switch. Off → no AI console, no AI panel. Configured in the
   // jkAuth portal (auth.jkos.net), not here.
@@ -481,15 +483,19 @@ export default function Dashboard({ onOpenHUD }: DashboardProps) {
 
       {aiEnabled && <AiPanel open={aiOpen} onClose={() => setAiOpen(false)} />}
 
-      <UnifiedSettingsPanel
+      <SettingsDrawer
         open={profileOpen}
         onClose={() => setProfileOpen(false)}
         user={user}
         theme={theme}
         effects={effects}
+        lazuros={lazuros}
         saving={saving}
         patchTheme={patchTheme}
         patchEffects={patchEffects}
+        patchLazuros={patchLazuros}
+        authUrl={AUTH_URL}
+        extra={<WeatherSection />}
       />
 
       {/* Suite-wide CRT overlays — driven by user preferences.

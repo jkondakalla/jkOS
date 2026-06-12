@@ -128,4 +128,9 @@ dependency as part of a design pass — that's an architecture decision, not a p
   `--accent-soft` overrides (plus SylibOS's `@theme` remap layer).
 - No per-app duplication of theme/auth logic — import from `@jkos/*`
   (see ARCHITECTURE.md invariant; the old per-app copies were deliberately deleted).
+- **The settings tray is one shared component** — `SettingsDrawer` from `@jkos/ui`.
+  Every app mounts it (ORDECK passes app extras like weather via the `extra` slot);
+  there are no per-app settings panels. It is token-driven and mode-aware, and its
+  AI section is gated on `lazuros.enabled` so the jkAuth kill switch hides LazurOS
+  controls everywhere at once. Don't reintroduce a local settings panel.
 - Docker container names and networks (ops reference them by name).

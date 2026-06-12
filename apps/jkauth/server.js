@@ -7,7 +7,9 @@ const jwt = require('jsonwebtoken')
 const crypto = require('crypto')
 const path = require('path')
 const rateLimit = require('express-rate-limit')
-const { google } = require('googleapis')
+// Google OAuth is three plain HTTPS calls (auth URL, token exchange, userinfo)
+// done with Node 20's global fetch — no googleapis SDK. Dropping that 116 MB
+// dependency is what makes this image build in ~1 min instead of several.
 
 const PORT = process.env.PORT || 3100
 const DB_PATH = process.env.DB_PATH || './jkos-auth.db'
@@ -696,11 +698,11 @@ app.get('/auth/jwks', (req, res) => {
   }
 })
 
-// ── Google OAuth ──────────────────────────────────────────────────────────────
+// ── Google OAuth (native fetch — no googleapis SDK) ────────────────────────────
 
-function getGoogleClient() {
-  return new google.auth.OAuth2(GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI)
-}
+const GOOGLE_AUTH_ENDPOINT  = 'https://accounts.google.com/o/oauth2/v2/auth'
+const GOOGLE_TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token'
+const GOOGLE_USERINFO_ENDPOINT = 'https://www.googleapis.com/oauth2/v2/userinfo'
 
 app.get('/auth/google', (req, res) => {
   if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
@@ -713,14 +715,16 @@ app.get('/auth/google', (req, res) => {
   })).toString('base64url')
   // Store nonce in a short-lived httpOnly cookie; verified on callback to prevent CSRF
   res.cookie('_oauth_nonce', nonce, { httpOnly: true, sameSite: 'lax', secure: true, maxAge: 10 * 60 * 1000, path: '/' })
-  const oauthClient = getGoogleClient()
-  const url = oauthClient.generateAuthUrl({
+  const params = new URLSearchParams({
+    client_id: GOOGLE_CLIENT_ID,
+    redirect_uri: GOOGLE_REDIRECT_URI,
+    response_type: 'code',
+    scope: 'openid email profile',
     access_type: 'offline',
-    scope: ['profile', 'email'],
-    state,
     prompt: 'select_account',
+    state,
   })
-  res.redirect(url)
+  res.redirect(`${GOOGLE_AUTH_ENDPOINT}?${params.toString()}`)
 })
 
 app.get('/auth/google/callback', async (req, res) => {
@@ -741,11 +745,28 @@ app.get('/auth/google/callback', async (req, res) => {
   }
   res.clearCookie('_oauth_nonce')
   try {
-    const oauthClient = getGoogleClient()
-    const { tokens } = await oauthClient.getToken(code)
-    oauthClient.setCredentials(tokens)
-    const oauth2 = google.oauth2({ version: 'v2', auth: oauthClient })
-    const { data: profile } = await oauth2.userinfo.get()
+    // 1) Exchange the auth code for an access token.
+    const tokenRes = await fetch(GOOGLE_TOKEN_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        code,
+        client_id: GOOGLE_CLIENT_ID,
+        client_secret: GOOGLE_CLIENT_SECRET,
+        redirect_uri: GOOGLE_REDIRECT_URI,
+        grant_type: 'authorization_code',
+      }),
+    })
+    if (!tokenRes.ok) throw new Error(`token exchange failed (${tokenRes.status})`)
+    const tokens = await tokenRes.json()
+
+    // 2) Fetch the user's basic profile (id, email, name, picture).
+    const profileRes = await fetch(GOOGLE_USERINFO_ENDPOINT, {
+      headers: { Authorization: `Bearer ${tokens.access_token}` },
+    })
+    if (!profileRes.ok) throw new Error(`userinfo failed (${profileRes.status})`)
+    const profile = await profileRes.json()
+
     const profileEmail = (profile.email || '').toLowerCase()
     let user = get('SELECT * FROM users WHERE google_id=?', [profile.id])
     if (!user) user = get('SELECT * FROM users WHERE email=?', [profileEmail])

@@ -11,7 +11,8 @@ import { FilmGrain, Halation, Artifacts, ScanLines, CinematicIntro } from './com
 import { AppHeader } from './components/AppHeader'
 import { ConnectModal } from './components/ConnectModal'
 import { DetailPanel } from './components/DetailPanel'
-import { SettingsPanel } from './components/SettingsPanel'
+import { SettingsDrawer } from '@jkos/ui'
+import { AUTH_URL } from './lib/jkauth'
 
 import { TodayView } from './views/TodayView'
 import { WeekView } from './views/WeekView'
@@ -386,12 +387,12 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
         apiUrl={apiUrl}
       />
 
-      <SettingsPanel
+      <SettingsDrawer
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
-        user={user}
-        onLogout={handleLogout}
         {...prefs}
+        user={user}
+        authUrl={AUTH_URL}
       />
     </DragProvider>
   )
