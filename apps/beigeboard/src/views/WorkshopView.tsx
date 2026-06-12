@@ -197,6 +197,19 @@ function GoalPlate({ goal, items, index, today, autoFocus, onSelect, onToggle, o
             </ol>
           )}
 
+          {/* Loose actions parented straight to the goal (no checkpoint) stay visible */}
+          {tasksOf(goal, items).length > 0 && (
+            <ul style={{ listStyle: 'none', padding: 0, margin: ms.length ? '10px 0 0 44px' : 0 }}>
+              {tasksOf(goal, items).map((t: any) => (
+                <TaskRow
+                  key={t.id} item={t} items={items} today={today} accent={accent} depth={0}
+                  onSelect={onSelect} onToggle={onToggle} onDelete={onDelete} onUpdateItem={onUpdateItem}
+                  onAddItem={onAddItem} selectedId={selectedId} readonly={readonly}
+                />
+              ))}
+            </ul>
+          )}
+
           {ms.length > 0 && !readonly && !allClear && (
             <AddInline
               label="+ checkpoint"
