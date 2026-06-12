@@ -111,3 +111,10 @@ input:focus { border-color: var(--accent); }
 .toggle a { color: var(--accent); text-decoration: none; font-weight: 500; }
 .toggle a:hover { text-decoration: underline; }
 
+.remember-row {
+  display: flex; align-items: center; gap: 0.5rem;
+  font-size: 0.875rem; color: var(--muted);
+  cursor: pointer; user-select: none;
+}
+.remember-row input[type="checkbox"] { width: auto; cursor: pointer; accent-color: var(--accent); }
+

@@ -38,9 +38,9 @@ export function useClock(): ClockState {
   };
 }
 
-// ── Weather (open-meteo, no key) ─────────────────────────────────────────────
+// ── Weather (AccuWeather when key set, open-meteo fallback) ──────────────────
 
-const WEATHER_KEY = 'ordeck-weather';
+export const WEATHER_STORAGE_KEY = 'ordeck-weather';
 const DEFAULT_LOC = { lat: 37.34, lon: -121.89, label: 'SAN JOSE' };
 
 const WMO: Record<number, string> = {
@@ -54,11 +54,20 @@ const WMO: Record<number, string> = {
   95: 'Thunderstorm', 96: 'Thunderstorm', 99: 'Thunderstorm',
 };
 
+export interface WeatherConfig {
+  lat: number;
+  lon: number;
+  label: string;
+  accuweatherKey: string;
+  acWeatherLocKey: string;
+}
+
 export interface WeatherSlot { label: string; temp: number }
 export interface WeatherState {
   loaded: boolean;
   offline: boolean;
   label: string;
+  source: 'accuweather' | 'open-meteo';
   temp: number;
   feels: number;
   desc: string;
@@ -67,53 +76,104 @@ export interface WeatherState {
   slots: WeatherSlot[];
 }
 
-function weatherLocation() {
+export function weatherConfig(): WeatherConfig {
   try {
-    const raw = localStorage.getItem(WEATHER_KEY);
-    if (raw) return { ...DEFAULT_LOC, ...JSON.parse(raw) };
+    const raw = localStorage.getItem(WEATHER_STORAGE_KEY);
+    if (raw) return { ...DEFAULT_LOC, accuweatherKey: '', acWeatherLocKey: '', ...JSON.parse(raw) };
   } catch { /* ignore */ }
-  return DEFAULT_LOC;
+  return { ...DEFAULT_LOC, accuweatherKey: '', acWeatherLocKey: '' };
+}
+
+export function saveWeatherConfig(cfg: Partial<WeatherConfig>) {
+  const cur = weatherConfig();
+  localStorage.setItem(WEATHER_STORAGE_KEY, JSON.stringify({ ...cur, ...cfg }));
+}
+
+// Fetch AccuWeather location key once and cache it in localStorage.
+async function acuLocationKey(cfg: WeatherConfig): Promise<string> {
+  if (cfg.acWeatherLocKey) return cfg.acWeatherLocKey;
+  const r = await fetch(
+    `https://dataservice.accuweather.com/locations/v1/cities/geoposition/search?apikey=${cfg.accuweatherKey}&q=${cfg.lat},${cfg.lon}`,
+    { signal: AbortSignal.timeout(8000) }
+  );
+  if (!r.ok) throw new Error('AccuWeather location lookup failed');
+  const d = await r.json();
+  const key: string = d.Key;
+  saveWeatherConfig({ acWeatherLocKey: key });
+  return key;
+}
+
+async function fetchAccuWeather(cfg: WeatherConfig): Promise<Omit<WeatherState, 'loaded' | 'offline'>> {
+  const locKey = await acuLocationKey(cfg);
+  const [curR, dayR] = await Promise.all([
+    fetch(`https://dataservice.accuweather.com/currentconditions/v1/${locKey}?apikey=${cfg.accuweatherKey}&details=true`, { signal: AbortSignal.timeout(8000) }),
+    fetch(`https://dataservice.accuweather.com/forecasts/v1/daily/1day/${locKey}?apikey=${cfg.accuweatherKey}`, { signal: AbortSignal.timeout(8000) }),
+  ]);
+  if (!curR.ok || !dayR.ok) throw new Error('AccuWeather fetch failed');
+  const [cur, day] = await Promise.all([curR.json(), dayR.json()]);
+  const c = cur[0];
+  const df = day.DailyForecasts?.[0];
+  return {
+    label: cfg.label,
+    source: 'accuweather',
+    temp: Math.round(c.Temperature?.Imperial?.Value ?? 0),
+    feels: Math.round(c.RealFeelTemperature?.Imperial?.Value ?? 0),
+    desc: c.WeatherText ?? '—',
+    hi: Math.round(df?.Temperature?.Maximum?.Value ?? 0),
+    lo: Math.round(df?.Temperature?.Minimum?.Value ?? 0),
+    slots: [],
+  };
+}
+
+async function fetchOpenMeteo(cfg: WeatherConfig): Promise<Omit<WeatherState, 'loaded' | 'offline'>> {
+  const url =
+    `https://api.open-meteo.com/v1/forecast?latitude=${cfg.lat}&longitude=${cfg.lon}` +
+    `&current=temperature_2m,apparent_temperature,weather_code` +
+    `&daily=temperature_2m_max,temperature_2m_min&hourly=temperature_2m` +
+    `&temperature_unit=fahrenheit&timezone=auto&forecast_days=1`;
+  const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
+  if (!r.ok) throw new Error('open-meteo failed');
+  const d = await r.json();
+  const hours = [9, 12, 15, 18, 21];
+  const slots: WeatherSlot[] = hours.map(h => ({
+    label: h < 12 ? `${h}A` : h === 12 ? '12P' : `${h - 12}P`,
+    temp: Math.round(d.hourly?.temperature_2m?.[h] ?? 0),
+  }));
+  return {
+    label: cfg.label,
+    source: 'open-meteo',
+    temp: Math.round(d.current.temperature_2m),
+    feels: Math.round(d.current.apparent_temperature),
+    desc: WMO[d.current.weather_code] ?? '—',
+    hi: Math.round(d.daily.temperature_2m_max[0]),
+    lo: Math.round(d.daily.temperature_2m_min[0]),
+    slots,
+  };
 }
 
 export function useWeather(): WeatherState {
+  const cfg = weatherConfig();
   const [state, setState] = useState<WeatherState>({
-    loaded: false, offline: false, label: weatherLocation().label,
+    loaded: false, offline: false, label: cfg.label, source: 'open-meteo',
     temp: 0, feels: 0, desc: '', hi: 0, lo: 0, slots: [],
   });
 
   useEffect(() => {
     let dead = false;
-    const loc = weatherLocation();
-    const url =
-      `https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.lon}` +
-      `&current=temperature_2m,apparent_temperature,weather_code` +
-      `&daily=temperature_2m_max,temperature_2m_min&hourly=temperature_2m` +
-      `&temperature_unit=fahrenheit&timezone=auto&forecast_days=1`;
+    const c = weatherConfig();
 
-    const load = () => fetch(url)
-      .then(r => r.ok ? r.json() : Promise.reject())
-      .then(d => {
-        if (dead) return;
-        // 5 fixed local-hour slots like the design: 9A 12P 3P 6P 9P
-        const hours = [9, 12, 15, 18, 21];
-        const slots: WeatherSlot[] = hours.map(h => ({
-          label: h < 12 ? `${h}A` : h === 12 ? '12P' : `${h - 12}P`,
-          temp: Math.round(d.hourly?.temperature_2m?.[h] ?? 0),
-        }));
-        setState({
-          loaded: true, offline: false, label: loc.label,
-          temp: Math.round(d.current.temperature_2m),
-          feels: Math.round(d.current.apparent_temperature),
-          desc: WMO[d.current.weather_code] ?? '—',
-          hi: Math.round(d.daily.temperature_2m_max[0]),
-          lo: Math.round(d.daily.temperature_2m_min[0]),
-          slots,
-        });
-      })
-      .catch(() => { if (!dead) setState(s => ({ ...s, loaded: true, offline: true })); });
+    const load = () => {
+      const p = c.accuweatherKey ? fetchAccuWeather(c) : fetchOpenMeteo(c);
+      return p
+        .then(data => { if (!dead) setState({ loaded: true, offline: false, ...data }); })
+        .catch(() => { if (!dead) setState(s => ({ ...s, loaded: true, offline: true })); });
+    };
 
     load();
-    const iv = setInterval(load, 15 * 60_000);
+    // AccuWeather: 60 min to stay within 50 calls/day free tier.
+    // open-meteo: 15 min (no rate limit).
+    const interval = c.accuweatherKey ? 60 * 60_000 : 15 * 60_000;
+    const iv = setInterval(load, interval);
     return () => { dead = true; clearInterval(iv); };
   }, []);
 
@@ -291,6 +351,68 @@ export function useStudy(): StudyState {
         });
       })
       .catch(() => { if (!dead) setState(s => ({ ...s, loaded: true, available: false })); });
+
+    load();
+    const iv = setInterval(load, 5 * 60_000);
+    return () => { dead = true; clearInterval(iv); };
+  }, []);
+
+  return state;
+}
+
+// ── Monthly calendar (BeigeBoard task density per day) ───────────────────────
+
+export interface CalDay {
+  date: string;       // YYYY-MM-DD
+  count: number;      // tasks scheduled that day
+  doneCount: number;
+}
+
+export interface MonthCalState {
+  loaded: boolean;
+  authed: boolean;
+  year: number;
+  month: number;      // 0-indexed
+  days: CalDay[];
+}
+
+export function useMonthCalendar(): MonthCalState {
+  const now = new Date();
+  const [state, setState] = useState<MonthCalState>({
+    loaded: false, authed: true,
+    year: now.getFullYear(), month: now.getMonth(), days: [],
+  });
+
+  useEffect(() => {
+    let dead = false;
+
+    const load = () => fetch('/api/bb/items', { credentials: 'include' })
+      .then(r => {
+        if (r.status === 401 || r.status === 403) {
+          if (!dead) setState(s => ({ ...s, loaded: true, authed: false }));
+          return null;
+        }
+        return r.ok ? r.json() : Promise.reject();
+      })
+      .then((items: any[] | null) => {
+        if (dead || !items) return;
+        const today = new Date();
+        const yr = today.getFullYear();
+        const mo = today.getMonth();
+        // Group by due_date within this month
+        const map = new Map<string, { count: number; doneCount: number }>();
+        for (const it of items) {
+          const d = it.due_date as string | null;
+          if (!d) continue;
+          const [y, m] = d.split('-').map(Number);
+          if (y !== yr || m - 1 !== mo) continue;
+          const cur = map.get(d) ?? { count: 0, doneCount: 0 };
+          map.set(d, { count: cur.count + 1, doneCount: cur.doneCount + (it.completed ? 1 : 0) });
+        }
+        const days: CalDay[] = Array.from(map.entries()).map(([date, v]) => ({ date, ...v }));
+        setState({ loaded: true, authed: true, year: yr, month: mo, days });
+      })
+      .catch(() => { if (!dead) setState(s => ({ ...s, loaded: true })); });
 
     load();
     const iv = setInterval(load, 5 * 60_000);

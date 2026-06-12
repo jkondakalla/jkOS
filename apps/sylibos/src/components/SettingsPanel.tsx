@@ -168,12 +168,14 @@ export function SettingsPanel({
           <EffectRow label="Artifacts"   value={effects.artifacts} onToggle={v => patchEffects({ artifacts: v })} />
         </section>
 
-        {/* AI */}
-        <section style={sect}>
-          <SectionLabel>AI · LazurOS</SectionLabel>
-          <LazurRow label="URL"   value={lazuros.url}   onCommit={v => patchLazuros({ url: v })}   placeholder="http://host:8080" />
-          <LazurRow label="Model" value={lazuros.model} onCommit={v => patchLazuros({ model: v })} placeholder="llama3.2" />
-        </section>
+        {/* AI — hidden when suite kill switch is off */}
+        {lazuros.enabled !== false && (
+          <section style={sect}>
+            <SectionLabel>AI · LazurOS</SectionLabel>
+            <LazurRow label="URL"   value={lazuros.url}   onCommit={v => patchLazuros({ url: v })}   placeholder="http://host:8080" />
+            <LazurRow label="Model" value={lazuros.model} onCommit={v => patchLazuros({ model: v })} placeholder="llama3.2" />
+          </section>
+        )}
 
         {/* Account */}
         <section style={{ ...sect, borderBottom: 'none' }}>
