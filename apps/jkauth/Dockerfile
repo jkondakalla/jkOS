@@ -14,7 +14,11 @@ WORKDIR /repo
 # pnpm needs all workspace package.json files to resolve the graph, even for
 # --filter. Copy them before any source so the install layer is reused when
 # only server.js / public/ change.
-COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+# .npmrc carries force-legacy-deploy=true (pnpm v10 refuses `pnpm deploy`
+# without it) and the ZFS hardlink import method — both needed at build time.
+# The other backend images use `COPY . .` so they already get it; this image
+# copies manifests selectively for layer caching, so name it explicitly.
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json .npmrc ./
 COPY apps/jkauth/package.json          apps/jkauth/
 COPY apps/beigeboard/package.json      apps/beigeboard/
 COPY apps/beigeboard/backend/package.json apps/beigeboard/backend/
