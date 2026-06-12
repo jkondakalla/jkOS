@@ -18,8 +18,9 @@ export interface EffectsPreferences {
 }
 
 export interface LazurPreferences {
-  url:   string;
-  model: string;
+  enabled: boolean;   // suite-wide AI kill switch — false hides all LazurOS UI
+  url:     string;
+  model:   string;
 }
 
 export interface UserPreferences {

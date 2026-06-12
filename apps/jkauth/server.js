@@ -309,20 +309,166 @@ function loginPage(opts = {}) {
 </div>`)
 }
 
+// jkOS portal — shown when a user navigates to jkAuth directly (vs. being
+// bounced here to sign in for a specific app). App launcher + account + the
+// suite-wide AI (LazurOS) controls. Interactive bits read/write /auth/profile.
+function dashboardPage(user) {
+  const src = (user.name || user.email || '?').trim()
+  const parts = src.split(/[\s@.]+/).filter(Boolean)
+  const inits = ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase() || src[0].toUpperCase()
+  const roleBadge = user.role && user.role !== 'user'
+    ? `<span class="role">${escHtml(user.role)}</span>` : ''
+
+  return layout('Portal', `
+<style>
+  body { display:block; align-items:initial; justify-content:initial; }
+  .dash { max-width: 720px; margin: 0 auto; padding: 2.5rem 1.25rem 4rem; display:flex; flex-direction:column; gap: 1.75rem; }
+  .dash-top { display:flex; align-items:center; gap: 1rem; }
+  .avatar { width: 46px; height: 46px; border-radius: 50%; flex-shrink:0; display:grid; place-items:center;
+    background: var(--accent); color:#fff; font-weight:700; font-size: 1rem; }
+  .who { min-width:0; flex:1; }
+  .who h1 { font-size: 1.15rem; font-weight: 700; letter-spacing:-0.01em; display:flex; align-items:center; gap:.5rem; }
+  .who .email { color: var(--muted); font-size: .85rem; margin-top: 2px; }
+  .role { font-size: .6rem; letter-spacing:.12em; text-transform:uppercase; color:#fff; background:var(--accent);
+    padding: 2px 7px; border-radius: 999px; font-weight:600; }
+  .sign-out { margin-left:auto; }
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem 1.25rem 1.4rem; }
+  .panel > h2 { font-size: .7rem; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); margin-bottom: 1rem; }
+  .apps { display:grid; grid-template-columns: repeat(auto-fill, minmax(150px,1fr)); gap: .7rem; }
+  .app { display:flex; align-items:center; gap:.7rem; padding:.8rem .9rem; border:1px solid var(--border); border-radius:10px;
+    text-decoration:none; color:var(--text); background:var(--bg); transition: border-color .15s, transform .15s; }
+  .app:hover { border-color: var(--accent); transform: translateY(-1px); }
+  .app .ic { width:30px; height:30px; border-radius:8px; flex-shrink:0; display:grid; place-items:center;
+    background: var(--accent); color:#fff; font-weight:700; font-size:.85rem; }
+  .app .nm { font-weight:600; font-size:.9rem; }
+  .muted-note { color: var(--muted); font-size: .85rem; }
+  .row { display:flex; align-items:center; gap:.8rem; margin-top:.7rem; }
+  .row label { width: 64px; flex-shrink:0; font-size:.82rem; color: var(--muted); }
+  .row input[type=text] { flex:1; }
+  .ai-head { display:flex; align-items:center; justify-content:space-between; margin-bottom: .25rem; }
+  .ai-head h2 { margin-bottom: 0; }
+  .switch { width: 46px; height: 26px; border-radius: 999px; border:1px solid var(--border); background:#ddd4cc;
+    position:relative; cursor:pointer; transition: background .18s; flex-shrink:0; }
+  .switch[aria-checked=true] { background: var(--accent); border-color: var(--accent); }
+  .switch .knob { position:absolute; top:2px; left:2px; width:20px; height:20px; border-radius:50%; background:#fff;
+    transition: left .18s; box-shadow:0 1px 3px rgba(0,0,0,.25); }
+  .switch[aria-checked=true] .knob { left: 22px; }
+  .ai-body[data-off=true] { opacity:.45; pointer-events:none; }
+  .ai-status { font-size:.8rem; color: var(--muted); margin-top:.6rem; min-height: 1em; }
+</style>
+<div class="dash">
+  <div class="dash-top">
+    <div class="avatar">${escHtml(inits)}</div>
+    <div class="who">
+      <h1>${escHtml(user.name || 'jkOS User')} ${roleBadge}</h1>
+      <div class="email">${escHtml(user.email)}</div>
+    </div>
+    <form class="sign-out" method="POST" action="/auth/logout">
+      <button type="submit" class="btn-ghost" style="width:auto;padding:.5rem .9rem;">Sign out</button>
+    </form>
+  </div>
+
+  <section class="panel">
+    <h2>Your apps</h2>
+    <div class="apps" id="apps"><div class="muted-note">Loading…</div></div>
+  </section>
+
+  <section class="panel">
+    <div class="ai-head">
+      <h2>AI · LazurOS</h2>
+      <div class="switch" id="ai-switch" role="switch" aria-checked="true" tabindex="0" title="Turn AI on/off across the suite">
+        <span class="knob"></span>
+      </div>
+    </div>
+    <p class="muted-note">One switch for AI across every jkOS app. Off hides LazurOS everywhere.</p>
+    <div class="ai-body" id="ai-body">
+      <div class="row"><label for="ai-url">Gateway</label><input type="text" id="ai-url" placeholder="http://host:8080" spellcheck="false"></div>
+      <div class="row"><label for="ai-model">Model</label><input type="text" id="ai-model" placeholder="llama3.2" spellcheck="false"></div>
+    </div>
+    <div class="ai-status" id="ai-status"></div>
+  </section>
+</div>
+
+<script>
+'use strict';
+const ROLE = ${JSON.stringify(user.role || 'user')};
+
+// App launcher — registered apps this role may use (exclude jkAuth itself).
+fetch('/auth/apps', { credentials: 'same-origin' })
+  .then(r => r.ok ? r.json() : { apps: [] })
+  .then(({ apps }) => {
+    const el = document.getElementById('apps');
+    const list = (apps || []).filter(a =>
+      a.id !== 'auth' && (a.allowed_roles || '').split(',').map(s => s.trim()).includes(ROLE));
+    if (!list.length) { el.innerHTML = '<div class="muted-note">No apps available for your account.</div>'; return; }
+    el.innerHTML = list.map(a => {
+      const ic = (a.name || '?').trim()[0].toUpperCase();
+      return '<a class="app" href="' + a.origin + '"><span class="ic">' + ic + '</span><span class="nm">' + a.name + '</span></a>';
+    }).join('');
+  })
+  .catch(() => { document.getElementById('apps').innerHTML = '<div class="muted-note">Could not load apps.</div>'; });
+
+// AI controls — backed by /auth/profile preferences.lazuros.
+const sw = document.getElementById('ai-switch');
+const body = document.getElementById('ai-body');
+const urlEl = document.getElementById('ai-url');
+const modelEl = document.getElementById('ai-model');
+const status = document.getElementById('ai-status');
+let lazuros = { enabled: true, url: '', model: 'llama3.2' };
+let saveTimer = null;
+
+function paint() {
+  sw.setAttribute('aria-checked', String(!!lazuros.enabled));
+  body.setAttribute('data-off', String(!lazuros.enabled));
+}
+function save() {
+  status.textContent = 'Saving…';
+  fetch('/auth/profile', {
+    method: 'PATCH', credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ preferences: { lazuros } }),
+  }).then(r => { status.textContent = r.ok ? 'Saved' : 'Save failed'; })
+    .catch(() => { status.textContent = 'Save failed'; });
+}
+function queueSave() { clearTimeout(saveTimer); saveTimer = setTimeout(save, 500); }
+
+fetch('/auth/profile', { credentials: 'same-origin' })
+  .then(r => r.ok ? r.json() : null)
+  .then(p => { if (p && p.preferences && p.preferences.lazuros) lazuros = Object.assign(lazuros, p.preferences.lazuros);
+    urlEl.value = lazuros.url || ''; modelEl.value = lazuros.model || ''; paint(); })
+  .catch(() => {});
+
+sw.addEventListener('click', () => { lazuros.enabled = !lazuros.enabled; paint(); save(); });
+sw.addEventListener('keydown', e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); sw.click(); } });
+urlEl.addEventListener('change', () => { lazuros.url = urlEl.value.trim(); queueSave(); });
+modelEl.addEventListener('change', () => { lazuros.model = modelEl.value.trim(); queueSave(); });
+</script>`)
+}
+
 // ── Auth routes ───────────────────────────────────────────────────────────────
 
-// GET / → redirect to login or the portal
+// GET / → portal when signed in (direct navigation), else login
 app.get('/', (req, res) => {
   const user = resolveUser(req)
-  res.redirect(user ? PORTAL_URL : '/auth/login')
+  res.redirect(user ? '/auth/dashboard' : '/auth/login')
+})
+
+// GET /auth/dashboard — the jkOS portal
+app.get('/auth/dashboard', (req, res) => {
+  const jwtUser = resolveUser(req)
+  if (!jwtUser) return res.redirect('/auth/login')
+  const u = get('SELECT * FROM users WHERE id=?', [jwtUser.sub])
+  if (!u) { clearTokens(res); return res.redirect('/auth/login') }
+  res.send(dashboardPage(u))
 })
 
 // GET /auth/login — login page (HTML)
 app.get('/auth/login', (req, res) => {
   const user = resolveUser(req)
   if (user) {
+    // App-initiated login returns to the app; direct visits land on the portal.
     const dest = validateRedirectTo(req.query.redirect_to)
-    return res.redirect(dest || PORTAL_URL)
+    return res.redirect(dest || '/auth/dashboard')
   }
   res.send(loginPage({ redirectTo: req.query.redirect_to }))
 })
@@ -330,7 +476,7 @@ app.get('/auth/login', (req, res) => {
 // GET /auth/register — register page (HTML)
 app.get('/auth/register', (req, res) => {
   const user = resolveUser(req)
-  if (user) return res.redirect(PORTAL_URL)
+  if (user) return res.redirect('/auth/dashboard')
   res.send(loginPage({ redirectTo: req.query.redirect_to, mode: 'register' }))
 })
 
@@ -360,7 +506,7 @@ app.post('/auth/register', async (req, res) => {
     const user = get('SELECT * FROM users WHERE id=?', [result.lastInsertRowid])
     issueTokens(res, user)
     if (isJson) return res.status(201).json({ user: publicUser(user) })
-    const dest = validateRedirectTo(redirect_to) || PORTAL_URL
+    const dest = validateRedirectTo(redirect_to) || '/auth/dashboard'
     res.redirect(dest)
   } catch (e) {
     if (e.code === 'SQLITE_CONSTRAINT_UNIQUE' || /UNIQUE/i.test(e.message)) {
@@ -389,7 +535,7 @@ app.post('/auth/login', async (req, res) => {
   run("UPDATE users SET last_login=datetime('now') WHERE id=?", [user.id])
   issueTokens(res, user)
   if (isJson) return res.json({ user: publicUser(user) })
-  const dest = validateRedirectTo(redirect_to) || PORTAL_URL
+  const dest = validateRedirectTo(redirect_to) || '/auth/dashboard'
   res.redirect(dest)
 })
 
@@ -503,7 +649,7 @@ app.post('/auth/guest', (req, res) => {
     const { redirect_to } = req.body
     return res.json({ user: publicUser(guest), redirect_to: validateRedirectTo(redirect_to) })
   }
-  const dest = validateRedirectTo(req.body?.redirect_to) || PORTAL_URL
+  const dest = validateRedirectTo(req.body?.redirect_to) || '/auth/dashboard'
   res.redirect(dest)
 })
 
@@ -592,7 +738,7 @@ app.get('/auth/google/callback', async (req, res) => {
       user = get('SELECT * FROM users WHERE id=?', [result.lastInsertRowid])
     }
     issueTokens(res, user)
-    res.redirect(redirectTo || PORTAL_URL)
+    res.redirect(redirectTo || '/auth/dashboard')
   } catch (e) {
     console.error('[google callback]', e)
     res.redirect('/auth/login?error=google_failed')
