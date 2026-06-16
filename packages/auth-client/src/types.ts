@@ -4,12 +4,8 @@
 
 export interface JkOSTheme {
   mode:      'light' | 'dark' | 'system';
-  primary:   string;   // single hex; CSS color-mix() adapts per mode
-  secondary: string;
-  // True when the user typed an exact hex (vs picked a preset). Presets are
-  // auto-darkened in light mode so they don't wash out on the beige paper;
-  // a hand-picked color is always honored exactly. Defaults to preset behavior.
-  customAccent?: boolean;
+  primary:   string;   // user's primary accent; hub.css deepens for paper, raw + glow for dark
+  secondary: string;   // user's secondary accent — a co-equal vivid accent, not a neutral
 }
 
 export interface EffectsPreferences {

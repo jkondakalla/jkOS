@@ -1,13 +1,14 @@
 /* ORDECK v2 "room HUD" — Claude Design pass (2026-06-11).
    Scoped under html.od-v2 so the legacy widget canvas keeps its own look.
-   Token NAMES are unchanged (hub contract); values are ORDECK-v2 overrides.
-   User accent still arrives via inline --accent/--hub-amber from
-   applyJkOSTheme — every derived token below tracks var(--accent). */
+   Token NAMES are unchanged (hub contract); values here are ORDECK-v2 NEUTRAL /
+   radius / shadow overrides only. The accent pair flows from the shared chain
+   (--accent-raw → --accent / --accent-secondary, applied by applyJkOSTheme), so
+   every accent-derived token (--hub-amber*, --hub-cyan*, --color-*) tracks the
+   user's pick — v2 must not hardcode it. */
 
 html.od-v2 {
-  --accent:        #c84020;
-  --accent-warm:   #a83018;
-  --accent-soft:   #f0d0c0;
+  /* Accent comes from the shared chain (--accent-raw → --accent), so the user's
+     pair flows in. v2 keeps only its own neutrals / rounded radius / shadows. */
 
   --hub-bg-0: #ede2c8;
   --hub-bg-1: #e4d5b0;
@@ -27,8 +28,7 @@ html.od-v2 {
   --hub-cream-dim:    #9c8060;
   --hub-cream-faint:  #b8a888;
 
-  --hub-amber:        var(--accent);
-  --hub-amber-glow:   color-mix(in srgb, var(--accent) 30%, transparent);
+  /* od-v2-only accent helpers (ink/tint/contrast) — derive from the chain's --accent */
   --accent-ink:       color-mix(in srgb, var(--accent) 80%, #000000);
   --accent-tint:      color-mix(in srgb, var(--accent) 11%, var(--hub-bg-2));
   --accent-contrast:  #fffaf0;
@@ -39,7 +39,6 @@ html.od-v2 {
   --hub-red-soft:   color-mix(in srgb, #b42010 10%, var(--hub-bg-2));
   --hub-warn:       #a04010;
   --hub-warn-soft:  color-mix(in srgb, #a04010 11%, var(--hub-bg-2));
-  --hub-cyan:       #3a5c78;
 
   --hub-radius:        10px;
   --hub-radius-sm:     7px;
@@ -54,9 +53,7 @@ html.od-v2 {
 }
 
 html.od-v2[data-mode="dark"] {
-  --accent:      #ffb000;
-  --accent-warm: #ffc840;
-  --accent-soft: #3a2800;
+  /* Accent flows from the shared chain. */
 
   --hub-bg-0: #11100d;
   --hub-bg-1: #1a1814;
@@ -87,7 +84,6 @@ html.od-v2[data-mode="dark"] {
   --hub-red-soft:   color-mix(in srgb, #ff4530 12%, var(--hub-bg-2));
   --hub-warn:       #fbbf24;
   --hub-warn-soft:  color-mix(in srgb, #fbbf24 12%, var(--hub-bg-2));
-  --hub-cyan:       #4ecdc4;
 
   --od-shadow:      0 1px 2px rgba(0,0,0,0.35), 0 10px 30px -14px rgba(0,0,0,0.65);
   --od-shadow-lift: 0 2px 6px rgba(0,0,0,0.4), 0 22px 50px -18px rgba(0,0,0,0.75);

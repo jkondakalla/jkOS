@@ -66,9 +66,9 @@
 
 /* ── SylibOS --hub-* paper overrides (cool slate/blue on cool-neutral paper) ── */
 :root {
-  --accent:        #2468a0;
-  --accent-warm:   #1a5080;
-  --accent-soft:   #c5d8ec;
+  /* Accent flows from the shared chain (@jkos/design): the user's pair, deepened
+     for paper and raw + glow for dark. SylibOS keeps only its cool slate/blue
+     NEUTRALS below — those are its identity; the accents are universal. */
 
   --hub-bg-0: #c8cdd4;
   --hub-bg-1: #d6dce4;
@@ -94,12 +94,7 @@
   --hub-cream-dim:    #4a6070;
   --hub-cream-faint:  #7a90a0;
 
-  /* Amber family tracks --accent (resolves to blue in paper mode) */
-  --hub-amber:        var(--accent);
-  --hub-amber-bright: color-mix(in srgb, var(--accent) 55%, #ffffff);
-  --hub-amber-dim:    color-mix(in srgb, var(--accent) 72%, #000814);
-  --hub-amber-deep:   color-mix(in srgb, var(--accent) 20%, var(--hub-bg-2));
-  --hub-amber-glow:   color-mix(in srgb, var(--accent) 30%, transparent);
+  /* Amber family + accent derivations come from the shared chain (hub.css). */
 
   /* Paper-fibre texture */
   --paper-texture: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='0.65'/%3E%3C/svg%3E");
@@ -110,9 +105,7 @@
 
 /* ── SylibOS dark overrides (cool teal primary / warm amber secondary) ─── */
 :root[data-mode="dark"] {
-  --accent:      #4ecdc4;
-  --accent-warm: #7dddd7;
-  --accent-soft: #1a3d3b;
+  /* Accent flows from the shared chain. */
 
   --hub-bg-0: #0c1018;
   --hub-bg-1: #141a24;
@@ -132,17 +125,7 @@
   --hub-cream-dim:    #7890a0;
   --hub-cream-faint:  #4a5e6c;
 
-  /* Amber family tracks teal --accent in dark mode */
-  --hub-amber:        var(--accent);
-  --hub-amber-bright: var(--accent-warm);
-  --hub-amber-dim:    color-mix(in srgb, var(--accent) 72%, #001a18);
-  --hub-amber-deep:   color-mix(in srgb, var(--accent) 26%, #000000);
-  --hub-amber-glow:   color-mix(in srgb, var(--accent) 30%, transparent);
-
-  /* Secondary becomes warm amber in SylibOS dark (inverse of ORDECK) */
-  --hub-cyan:        #ffb000;
-  --hub-cyan-dim:    color-mix(in srgb, #ffb000 50%, #000000);
-  --hub-cyan-glow:   color-mix(in srgb, #ffb000 38%, transparent);
+  /* Amber + cyan families and accent derivations come from the shared chain. */
 
   --color-ok:          #34d399;
   --color-ok-soft:     #122a20;
@@ -184,8 +167,9 @@
   --color-secondary:      var(--hub-cyan);
   --color-secondary-dim:  var(--hub-cyan-dim);
   --color-secondary-glow: var(--hub-cyan-glow);
-  --accent-base:      var(--accent);
-  --accent-secondary: var(--hub-cyan);
+  /* --accent / --accent-secondary are owned by the shared chain (hub.css); do not
+     restate them here (a local --accent-secondary: var(--hub-cyan) would be circular
+     since hub.css derives --hub-cyan from --accent-secondary). */
 }
 
 /* ── Base reset ──────────────────────────────────────────────────────────── */

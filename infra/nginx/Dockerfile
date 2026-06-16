@@ -1,8 +1,7 @@
 FROM nginx:alpine
 
-# Landing page is COPYd in so it's root-owned and readable by nginx workers.
-# TrueNAS ZFS POSIX_RESTRICTED ACLs prevent chmod/setfacl from the CLI, so
-# bind-mounting host files with mode 770 leaves workers unable to read them.
-# Rebuild this image (docker compose up -d --build) after editing staging-static/.
-COPY staging-static/ /etc/nginx/staging-html/
-RUN chmod -R 755 /etc/nginx/staging-html
+# Reverse proxy for all *.jkos.net services. nginx.conf and the SSL certs are
+# bind-mounted at runtime (see docker-compose.yml), so this image is just stock
+# nginx — `build: .` is kept so `docker compose up --build` has a target and so
+# future baked-in assets have a home. The staging root is now the real ORDECK
+# shell (staging-ordeck-shell), so the former static landing page is gone.

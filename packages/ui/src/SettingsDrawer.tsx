@@ -1,5 +1,6 @@
 import { useRef, useState, useEffect } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
+import { ACCENT_SCHEMES, matchAccentScheme, CUSTOM_SCHEME_ID } from '@jkos/design';
 
 /* ─────────────────────────────────────────────────────────────────────────────
    @jkos/ui — the ONE settings drawer for the whole suite.
@@ -22,7 +23,6 @@ interface Theme {
   mode: 'light' | 'dark' | 'system';
   primary: string;
   secondary: string;
-  customAccent?: boolean;
 }
 interface Effects {
   grain: boolean;
@@ -61,15 +61,6 @@ export interface SettingsDrawerProps {
   /** Drawer width in px (default 380). */
   width?: number;
 }
-
-const PRESETS = [
-  { label: 'Amber · Cyan',    primary: '#ffb000', secondary: '#4ecdc4' },
-  { label: 'Green · Violet',  primary: '#5cd66a', secondary: '#c08aff' },
-  { label: 'Ice · Coral',     primary: '#a8d8ff', secondary: '#ff6b5a' },
-  { label: 'Gold · Mint',     primary: '#ffd000', secondary: '#5affc1' },
-  { label: 'Rose · Amber',    primary: '#ff7a9a', secondary: '#ffb000' },
-  { label: 'Electric · Lime', primary: '#2eb3ff', secondary: '#aeff1e' },
-];
 
 const FONT = 'var(--hub-font-mono)';
 const ACCENT = 'var(--color-accent)';
@@ -194,36 +185,7 @@ export function SettingsDrawer({
             ))}
           </div>
 
-          <div style={{ fontSize: 8, letterSpacing: '0.16em', color: TXT_FAINT, fontFamily: FONT, marginBottom: 8, textTransform: 'uppercase' }}>
-            Presets
-          </div>
-          <div style={{ display: 'flex', gap: 4, marginBottom: 16, flexWrap: 'wrap' }}>
-            {PRESETS.map(p => {
-              const active = theme.primary === p.primary && theme.secondary === p.secondary;
-              return (
-                <button type="button" key={p.label}
-                  onClick={() => patchTheme({ primary: p.primary, secondary: p.secondary, customAccent: false })}
-                  title={p.label}
-                  style={{
-                    width: 48, height: 28,
-                    background: active ? FIELD_HI : FIELD,
-                    border: `1px solid ${active ? ACCENT : LINE}`,
-                    boxShadow: active ? PRESS : 'none',
-                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
-                    transition: 'all 0.12s', outline: 'none',
-                  }}
-                >
-                  <span style={{ width: 9, height: 9, borderRadius: '50%', background: p.primary, boxShadow: `0 0 4px ${p.primary}88`, display: 'inline-block', flexShrink: 0 }} />
-                  <span style={{ width: 9, height: 9, borderRadius: '50%', background: p.secondary, boxShadow: `0 0 4px ${p.secondary}88`, display: 'inline-block', flexShrink: 0 }} />
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Hand-picked colors set customAccent so they're honored exactly in
-              both modes (presets auto-deepen on light paper). */}
-          <ColorRow label="Primary"   color={theme.primary}   onChange={c => patchTheme({ primary: c, customAccent: true })} />
-          <ColorRow label="Secondary" color={theme.secondary} onChange={c => patchTheme({ secondary: c, customAccent: true })} />
+          <AccentChooser theme={theme} patchTheme={patchTheme} />
         </section>
 
         {/* Effects */}
@@ -307,6 +269,73 @@ export function SettingsSection({ label, children }: { label: string; children: 
       <SectionLabel>{label}</SectionLabel>
       {children}
     </section>
+  );
+}
+
+/**
+ * The one suite-wide accent chooser: five slots — the four ACCENT_SCHEMES presets
+ * plus a Custom slot. Picking a preset writes its pair; picking Custom reveals the
+ * dual colour pickers seeded with the current pair. The active slot is derived from
+ * the stored { primary, secondary } via matchAccentScheme(), so nothing extra is
+ * persisted; `customOpen` just keeps the editor open while the user edits a pair
+ * (and re-opens it when the stored pair isn't one of the presets).
+ */
+function AccentChooser({ theme, patchTheme }: { theme: Theme; patchTheme: (p: Partial<Theme>) => void }) {
+  const matchedId = matchAccentScheme(theme.primary, theme.secondary);
+  const [customOpen, setCustomOpen] = useState(matchedId === CUSTOM_SCHEME_ID);
+  useEffect(() => { if (matchedId === CUSTOM_SCHEME_ID) setCustomOpen(true); }, [matchedId]);
+
+  const activeId = customOpen ? CUSTOM_SCHEME_ID : matchedId;
+  const activeLabel = activeId === CUSTOM_SCHEME_ID
+    ? 'Custom'
+    : (ACCENT_SCHEMES.find(s => s.id === activeId)?.label ?? '');
+
+  const dot = (c: string): CSSProperties => ({
+    width: 9, height: 9, borderRadius: '50%', background: c,
+    boxShadow: `0 0 4px ${c}88`, display: 'inline-block', flexShrink: 0,
+  });
+  const tile = (active: boolean): CSSProperties => ({
+    flex: 1, minWidth: 0, height: 30,
+    background: active ? FIELD_HI : FIELD,
+    border: `1px solid ${active ? ACCENT : LINE}`,
+    boxShadow: active ? PRESS : 'none',
+    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+    transition: 'all 0.12s', outline: 'none',
+  });
+
+  return (
+    <>
+      <div style={{ fontSize: 8, letterSpacing: '0.16em', color: TXT_FAINT, fontFamily: FONT, marginBottom: 8, textTransform: 'uppercase' }}>
+        Accent — {activeLabel}
+      </div>
+      <div style={{ display: 'flex', gap: 4, marginBottom: customOpen ? 14 : 0 }}>
+        {ACCENT_SCHEMES.map(s => (
+          <button type="button" key={s.id} title={s.label}
+            onClick={() => { setCustomOpen(false); patchTheme({ primary: s.primary, secondary: s.secondary }); }}
+            style={tile(activeId === s.id)}>
+            <span style={dot(s.primary)} />
+            <span style={dot(s.secondary)} />
+          </button>
+        ))}
+        {/* Fifth slot — the user's own pair; reflects the live custom colours. */}
+        <button type="button" title="Custom — pick your own pair"
+          onClick={() => setCustomOpen(true)}
+          style={{ ...tile(activeId === CUSTOM_SCHEME_ID), position: 'relative' }}>
+          <span style={dot(theme.primary)} />
+          <span style={dot(theme.secondary)} />
+          <span style={{ position: 'absolute', top: 1, right: 3, fontSize: 8, lineHeight: 1, fontFamily: FONT, color: activeId === CUSTOM_SCHEME_ID ? ACCENT : TXT_FAINT }}>✎</span>
+        </button>
+      </div>
+
+      {/* Both accents are co-equal, user-pickable, always in use. hub.css deepens
+          the pair on paper for legibility and shows it raw + glow in dark. */}
+      {customOpen && (
+        <>
+          <ColorRow label="Primary"   color={theme.primary}   onChange={c => patchTheme({ primary: c })} />
+          <ColorRow label="Secondary" color={theme.secondary} onChange={c => patchTheme({ secondary: c })} />
+        </>
+      )}
+    </>
   );
 }
 

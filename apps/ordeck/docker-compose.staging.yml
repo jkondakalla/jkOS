@@ -1,0 +1,22 @@
+name: jkos-staging-ordeck
+services:
+  ordeck-shell:
+    build:
+      context: ../..
+      dockerfile: apps/ordeck/Dockerfile
+      args:
+        # Same-origin auth on staging: the shell and jkAuth both live on
+        # staging.jkos.net, so the auth client calls https://staging.jkos.net/auth/...
+        # and rides the host-scoped staging cookie (jkos_token_staging).
+        VITE_JKOS_AUTH_URL: https://staging.jkos.net
+        # Federated app-widget remotes load from the staging origin's /plugins.
+        VITE_PLUGIN_BASE_URL: https://staging.jkos.net/plugins
+    container_name: staging-ordeck-shell
+    restart: unless-stopped
+    networks:
+      - nginx-staging-proxy
+
+networks:
+  nginx-staging-proxy:
+    external: true
+    name: nginx-staging-proxy

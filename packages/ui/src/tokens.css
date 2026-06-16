@@ -16,24 +16,6 @@
   --crt-vignette-opacity: 0.5;
 }
 
-/* ── Backward-compat aliases for ORDECK panel / settings components ───── */
-:root {
-  --color-paper:          var(--hub-bg-0);
-  --color-paper-2:        var(--hub-bg-1);
-  --color-card:           var(--hub-bg-2);
-  --color-card-2:         var(--hub-bg-3);
-  --color-ink:            var(--hub-cream-bright);
-  --color-muted:          var(--hub-cream-dim);
-  --color-faint:          var(--hub-cream-faint);
-  --color-line:           var(--hub-line);
-  --color-line-strong:    var(--hub-line-strong);
-  --color-accent:         var(--hub-amber);
-  --color-accent-bright:  var(--hub-amber-bright);
-  --color-accent-dim:     var(--hub-amber-dim);
-  --color-accent-deep:    var(--hub-amber-deep);
-  --color-accent-glow:    var(--hub-amber-glow);
-  --color-accent-soft:    color-mix(in srgb, var(--hub-amber) 12%, var(--hub-bg-2));
-  --color-secondary:      var(--hub-cyan);
-  --color-secondary-dim:  var(--hub-cyan-dim);
-  --color-secondary-glow: var(--hub-cyan-glow);
-}
+/* The --color-* aliases are defined once in @jkos/design (hub.css) and derive
+   from the accent chain — no need to restate them here. ORDECK keeps only its
+   CRT overlay knobs above. */

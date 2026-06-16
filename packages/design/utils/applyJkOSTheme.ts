@@ -1,14 +1,18 @@
 /**
- * Design/utils/applyJkOSTheme.ts — suite-wide theme utilities
+ * Design/utils/applyJkOSTheme.ts — suite-wide mode + accent appliers.
  *
  * Single source of truth for jkOS mode switching and user accent application.
- * Imported by ORDECK, BeigeBoard, and SylibOS — do not duplicate these functions.
+ * Imported by @jkos/auth-client (and re-exported to the apps) — do not duplicate.
+ *
+ * The accent CHAIN lives in hub.css: --accent-raw / --accent-2-raw deepen for
+ * paper and stay raw + glow for dark, then derive --accent / --hub-amber* etc.
+ * So applying a user's pair is just writing the two raw inputs; the per-mode
+ * deepening is no longer computed here (that removes the old double-deepen).
  */
 
-export interface JkOSTheme {
-  mode: 'system' | 'light' | 'dark' | string;
-  dark?:  { primary: string; secondary?: string };
-  light?: { primary: string; secondary?: string };
+export interface JkOSAccentPair {
+  primary?: string;
+  secondary?: string;
 }
 
 /**
@@ -25,40 +29,16 @@ export function applyJkOSMode(
 }
 
 /**
- * Applies the user's saved accent colors to CSS custom properties,
- * overriding the per-app token defaults.
+ * Writes the user's saved accent pair onto the two raw inputs. hub.css derives
+ * everything else per mode. The second arg is accepted for backward compat and
+ * ignored — deepening is now done in CSS, not here.
  */
 export function applyJkOSTheme(
-  theme: JkOSTheme | null | undefined,
-  isDark: boolean
+  theme: JkOSAccentPair | null | undefined,
+  _isDark?: boolean
 ): void {
-  if (!theme) return;
-  const colors = isDark ? theme.dark : theme.light;
-  if (!colors?.primary) return;
-
+  if (!theme?.primary) return;
   const root = document.documentElement;
-  const p = colors.primary;
-  const s = colors.secondary;
-
-  root.style.setProperty('--accent',      p);
-  root.style.setProperty('--hub-amber',   p);
-  root.style.setProperty('--hub-amber-bright',
-    `color-mix(in srgb, ${p} 55%, #ffffff)`);
-  root.style.setProperty('--hub-amber-dim',
-    `color-mix(in srgb, ${p} 72%, #1a1400)`);
-  root.style.setProperty('--hub-amber-deep', isDark
-    ? `color-mix(in srgb, ${p} 26%, #000000)`
-    : `color-mix(in srgb, ${p} 20%, var(--hub-bg-2))`);
-  root.style.setProperty('--hub-amber-glow',
-    `color-mix(in srgb, ${p} 38%, transparent)`);
-  root.style.setProperty('--accent-base', p);
-
-  if (!s) return;
-
-  root.style.setProperty('--hub-cyan', s);
-  root.style.setProperty('--hub-cyan-dim',
-    `color-mix(in srgb, ${s} 50%, #000000)`);
-  root.style.setProperty('--hub-cyan-glow',
-    `color-mix(in srgb, ${s} 38%, transparent)`);
-  root.style.setProperty('--accent-secondary', s);
+  root.style.setProperty('--accent-raw', theme.primary);
+  if (theme.secondary) root.style.setProperty('--accent-2-raw', theme.secondary);
 }

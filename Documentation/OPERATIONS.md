@@ -85,11 +85,13 @@ when desired.
 - Mirrors prod under `staging.jkos.net` via **path routing** (not subdomains), same
   `standalone-nginx`, on the `nginx-staging-proxy` network. `set $upstream` proxy_pass
   returns 503 gracefully when staging is down.
-- Paths: `/auth/`→staging-jkos-auth, `/beigeboard/`→staging-bb-app, `/sylib/`→staging-sylibos-frontend, `/sylib/api/`→staging-sylibos-api, `/deploy/`→jkos-deploy.
-- **Root** serves a static landing page from `infra/nginx/staging-static/`
-  (mounted as a directory into nginx — renders even with every container down).
-  It links each staged app + the deploy console and probes their `/health`
-  paths client-side. Admin-gated like every other staging location.
+- Paths: `/`→staging-ordeck-shell (the portal), `/auth/`→staging-jkos-auth, `/beigeboard/`→staging-bb-app, `/sylib/`→staging-sylibos-frontend, `/sylib/api/`→staging-sylibos-api, `/deploy/`→jkos-deploy.
+- **Root is the real ORDECK portal** (`staging-ordeck-shell`), mirroring prod where the
+  shell owns `jkos.net`. Its HUD data feeds use the **same absolute paths as prod** —
+  `/api/lazuros/`, `/api/bb/`, `/api/sylib/`, `/health/{auth,bb,sylibos}` — here routed to
+  the staging upstreams, so the same shell image works in both. The shell is built with
+  `VITE_JKOS_AUTH_URL=https://staging.jkos.net` (same-origin auth). There is no static
+  landing page anymore; if the shell is down, the admin-gated 503 points at `/deploy/`.
 - **Admin gate:** every staging location runs `auth_request` → `jkos-auth /auth/require-admin`
   (prod auth). 401→login redirect, 403→forbidden.
 - Staging containers verify JWTs with issuer **`jkos-auth-staging`** (set in each

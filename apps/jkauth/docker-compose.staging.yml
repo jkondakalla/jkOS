@@ -12,6 +12,11 @@ services:
       DB_PATH: /data/jkos-auth.db
       AUTH_ORIGIN: https://staging.jkos.net
       PORTAL_URL: https://staging.jkos.net
+      # Google OAuth callback must target the staging origin — without this it
+      # falls back to the localhost default in server.js and "Continue with
+      # Google" breaks. This exact URL must ALSO be registered as an Authorized
+      # redirect URI on the staging OAuth client in the Google Cloud console.
+      GOOGLE_REDIRECT_URI: https://staging.jkos.net/auth/google/callback
       # Host-scoped cookie + distinct name + distinct issuer = full isolation from
       # prod. The prod jkos_token (on .jkos.net) is also sent to staging.jkos.net,
       # so the staging cookie MUST have a different name or they collide.

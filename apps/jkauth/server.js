@@ -209,6 +209,38 @@ function clearTokens(res) {
   res.cookie(REFRESH_COOKIE, '', clear)
 }
 
+// Find the live (unexpired) refresh-cookie session + its user, or null.
+// The refresh cookie persists for 30 days when "Remember me" was checked; the
+// 15-min access token does not. This is what lets a remembered session be
+// revived after the access token has expired.
+function liveSession(req) {
+  const refresh = req.cookies?.[REFRESH_COOKIE]
+  if (!refresh) return null
+  const hash = crypto.createHash('sha256').update(refresh).digest('hex')
+  const session = get("SELECT * FROM sessions WHERE token_hash=? AND expires_at > datetime('now')", [hash])
+  if (!session) return null
+  const user = get('SELECT * FROM users WHERE id=?', [session.user_id])
+  return user ? { session, user, hash } : null
+}
+
+// Resolve the user for a server-rendered navigation: from the access token if
+// present, else silently refresh from a valid remember-me session (mint a new
+// access token + rotate the refresh token). This is the server-side equivalent
+// of the SPA apps' getMe→refresh→getMe dance — without it, a remembered user
+// returning to the jkAuth portal after the 15-min access token expired would be
+// bounced to the login page despite holding a valid 30-day session. Safe to
+// Set-Cookie here because these are real top-level navigations (unlike the
+// nginx auth_request gate, which can't deliver Set-Cookie to the browser).
+function resolveOrRefresh(req, res) {
+  const jwtUser = resolveUser(req)
+  if (jwtUser) return jwtUser
+  const live = liveSession(req)
+  if (!live) return null
+  issueTokens(res, live.user, !!live.session.remember_me)
+  run('DELETE FROM sessions WHERE token_hash=?', [live.hash])
+  return { sub: live.user.id, email: live.user.email, name: live.user.name, avatar_url: live.user.avatar_url, role: live.user.role }
+}
+
 function publicUser(u) {
   return { id: u.id, email: u.email, name: u.name, avatar_url: u.avatar_url, role: u.role }
 }
@@ -317,9 +349,9 @@ function loginPage(opts = {}) {
   ${errorHtml}
   <form method="POST" action="${isRegister ? '/auth/register' : '/auth/login'}">
     ${redirectInput}
-    ${isRegister ? '<input type="text" name="name" placeholder="Your name" required autocomplete="name">' : ''}
-    <input type="email" name="email" placeholder="Email" required autocomplete="email">
-    <input type="password" name="password" placeholder="Password" required autocomplete="${isRegister ? 'new-password' : 'current-password'}">
+    ${isRegister ? '<input type="text" id="name" name="name" placeholder="Your name" required autocomplete="name">' : ''}
+    <input type="email" id="email" name="email" placeholder="Email" required autocomplete="username" autocapitalize="none" spellcheck="false">
+    <input type="password" id="password" name="password" placeholder="Password" required autocomplete="${isRegister ? 'new-password' : 'current-password'}">
     ${!isRegister ? `<label class="remember-row"><input type="checkbox" name="remember_me" value="1" checked> Remember me for 30 days</label>` : ''}
     <button type="submit" class="btn-primary">${isRegister ? 'Create account' : 'Sign in'}</button>
   </form>
@@ -472,13 +504,13 @@ modelEl.addEventListener('change', () => { lazuros.model = modelEl.value.trim();
 
 // GET / → portal when signed in (direct navigation), else login
 app.get('/', (req, res) => {
-  const user = resolveUser(req)
+  const user = resolveOrRefresh(req, res)
   res.redirect(user ? '/auth/dashboard' : '/auth/login')
 })
 
 // GET /auth/dashboard — the jkOS portal
 app.get('/auth/dashboard', (req, res) => {
-  const jwtUser = resolveUser(req)
+  const jwtUser = resolveOrRefresh(req, res)
   if (!jwtUser) return res.redirect('/auth/login')
   const u = get('SELECT * FROM users WHERE id=?', [jwtUser.sub])
   if (!u) { clearTokens(res); return res.redirect('/auth/login') }
@@ -487,7 +519,7 @@ app.get('/auth/dashboard', (req, res) => {
 
 // GET /auth/login — login page (HTML)
 app.get('/auth/login', (req, res) => {
-  const user = resolveUser(req)
+  const user = resolveOrRefresh(req, res)
   if (user) {
     // App-initiated login returns to the app; direct visits land on the portal.
     const dest = validateRedirectTo(req.query.redirect_to)
@@ -498,7 +530,7 @@ app.get('/auth/login', (req, res) => {
 
 // GET /auth/register — register page (HTML)
 app.get('/auth/register', (req, res) => {
-  const user = resolveUser(req)
+  const user = resolveOrRefresh(req, res)
   if (user) return res.redirect('/auth/dashboard')
   res.send(loginPage({ redirectTo: req.query.redirect_to, mode: 'register' }))
 })
@@ -596,9 +628,12 @@ app.post('/auth/refresh', (req, res) => {
   }
 })
 
-// GET /auth/require-admin — nginx auth_request target; returns only HTTP status codes, no redirects
+// GET /auth/require-admin — nginx auth_request target; returns only HTTP status codes, no redirects.
+// Falls back to the refresh-cookie session (read-only — auth_request cannot deliver Set-Cookie to
+// the browser, so we never rotate here) so a remembered admin whose 15-min access token has lapsed
+// still passes the staging gate; the SPA behind it then refreshes its own access token.
 app.get('/auth/require-admin', (req, res) => {
-  const user = resolveUser(req)
+  const user = resolveUser(req) || liveSession(req)?.user
   if (!user) return res.status(401).json({ error: 'Authentication required' })
   if (user.role !== 'admin') return res.status(403).json({ error: 'Admin access required' })
   res.status(200).json({ ok: true })

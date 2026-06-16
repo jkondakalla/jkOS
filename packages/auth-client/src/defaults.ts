@@ -1,9 +1,14 @@
+import { ACCENT_SCHEMES } from '@jkos/design';
 import type { JkOSTheme, EffectsPreferences, LazurPreferences } from './types';
+
+// The house default is the first accent scheme (amber · cyan) — single source of
+// truth in @jkos/design, so the default and the chooser's first slot never drift.
+const HOUSE = ACCENT_SCHEMES[0];
 
 export const DEFAULT_THEME: JkOSTheme = {
   mode:      'system',
-  primary:   '#ffb000',
-  secondary: '#4ecdc4',
+  primary:   HOUSE.primary,
+  secondary: HOUSE.secondary,
 };
 
 export const DEFAULT_EFFECTS: EffectsPreferences = {

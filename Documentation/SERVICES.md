@@ -19,6 +19,12 @@ shared-package contract and auth/theme flows.
   adding CRT scanline var + `ordeck-mode` event via `onApply`.
 - AppLauncher fetches `GET /auth/apps`. Widgets in `src/widgets/**`; shell uses `@jkos/ui`.
 - Docker: `apps/ordeck/Dockerfile` (root context) → nginx with `apps/ordeck/nginx.conf`.
+  Build args `VITE_JKOS_AUTH_URL` / `VITE_PLUGIN_BASE_URL` (prod defaults baked in).
+- Staging: `docker-compose.staging.yml` → `staging-ordeck-shell`, served at the
+  `staging.jkos.net` **root** (the shell owns the origin, like prod `jkos.net`), built
+  with `VITE_JKOS_AUTH_URL=https://staging.jkos.net` for same-origin auth. The v2 HUD's
+  data feeds (`/api/bb/`, `/api/sylib/`, `/health/*`, `/api/lazuros/`) are routed to the
+  staging upstreams in `standalone.conf`. See OPERATIONS.md → Staging.
 
 ### jkAuth — `apps/jkauth`
 - Express + better-sqlite3 + **bcryptjs** (pure JS) + jsonwebtoken (RS256) + express-rate-limit.
@@ -31,7 +37,18 @@ shared-package contract and auth/theme flows.
 - **Remember me:** login accepts `remember_me` (JSON bool or form `'1'`). When set, the
   refresh cookie gets a 30-day `maxAge` and the session row stores the flag; when unset,
   it's a session cookie (cleared on browser close). `/auth/refresh` re-issues the same
-  cookie kind by reading `sessions.remember_me`.
+  cookie kind by reading `sessions.remember_me`. **Server-side silent refresh:** the
+  15-min access token outlives a return visit, so the server-rendered pages (`/`,
+  `/auth/dashboard`, `/auth/login`, `/auth/register`) resolve via `resolveOrRefresh` —
+  if the access token is gone but a live refresh session exists, they mint a new access
+  token and rotate the refresh token inline (Set-Cookie on a real navigation). Without
+  this the portal would bounce a remembered user to login even though the SPA apps
+  (getMe→refresh→getMe) stay signed in. `require-admin` (the nginx `auth_request` gate)
+  uses the **non-rotating** `liveSession` fallback — `auth_request` can't deliver
+  Set-Cookie, so it must not rotate; the SPA behind the gate refreshes its own token.
+- **Credential autofill:** the login form uses `autocomplete="username"` (identifier) +
+  `current-password`/`new-password` with stable `id`s, so browser password managers
+  reliably offer to save and autofill.
 - Key routes: `POST /auth/{login,register,logout,refresh,guest}`, `GET /auth/{me,profile,apps,jwks,require-admin,google,google/callback}`, `PATCH /auth/profile`, `GET /health`.
 - `require-admin` = nginx `auth_request` target (status-only). `validateRedirectTo`
   allows only `app_registry` origins. No frontend bundle (server-rendered login HTML only).
