@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { FONT_HEAD, FONT_NUM, localDate } from '../../lib/theme'
 import { RecLamp, Eyebrow } from './MobileWidgets'
+import { Press, Lab } from '@jkos/ui'
 
 /**
  * Mobile Header — compact, with live clock and day info
@@ -59,23 +60,24 @@ export function MobileHeader({ today }: MobileHeaderProps) {
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
-        <span
+        <Press
+          as="span"
           style={{
             fontFamily: FONT_HEAD,
             fontWeight: 600,
             fontStyle: 'italic',
             fontSize: 18,
-            color: 'var(--color-accent)',
             letterSpacing: '-0.01em',
-            textShadow: `0 0 8px ${'var(--color-accent)'}66`,
             whiteSpace: 'nowrap',
             flexShrink: 0,
             paddingRight: 10,
           }}
         >
           BeigeBoard
-        </span>
-        <span
+        </Press>
+        <Lab
+          size="sm"
+          as="span"
           style={{
             display: 'inline-flex',
             alignItems: 'center',
@@ -84,18 +86,12 @@ export function MobileHeader({ today }: MobileHeaderProps) {
             height: 19,
             padding: '0 8px',
             boxSizing: 'border-box',
-            background: 'rgba(0,0,0,0.4)',
-            border: `1px solid ${'var(--color-line)'}`,
+            border: '1px solid var(--color-line)',
             borderRadius: 2,
-            fontFamily: FONT_NUM,
-            fontStyle: 'italic',
-            fontSize: 11,
-            color: 'var(--color-faint)',
-            letterSpacing: '0.04em',
           }}
         >
           W{week}
-        </span>
+        </Lab>
       </div>
 
       <TimeReadout />
