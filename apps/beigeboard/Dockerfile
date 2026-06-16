@@ -21,29 +21,19 @@ ENV VITE_JKOS_AUTH_URL=$VITE_JKOS_AUTH_URL \
 
 # ── Dependency layer ──────────────────────────────────────────────────────────
 # Copy the lockfile + every workspace manifest first (COPY --parents keeps each
-# package.json at its path) and install before any source, so `pnpm install`
-# (better-sqlite3 ships a prebuilt binary, so this is only ~12s) is reused from
-# cache on source-only rebuilds instead of rerunning on every repo edit.
+# package.json at its path) and install before any source, so the install layer
+# is reused from cache on source-only rebuilds instead of rerunning every edit.
 COPY pnpm-lock.yaml pnpm-workspace.yaml .npmrc package.json ./
 COPY --parents **/package.json ./
 RUN pnpm install --frozen-lockfile --filter @jkos/beigeboard... --filter @jkos/beigeboard-backend...
 
-# ── Backend bundle (the expensive step, isolated so it caches) ─────────────────
-# `pnpm deploy` runs the LEGACY copy implementation (forced in .npmrc) and spends
-# ~390s — ~90% of the whole build — copying the 116 MB googleapis tree
-# file-by-file onto ZFS. Its only inputs are the backend + its workspace dep
-# (@jkos/auth-middleware, raw JS) source, which change rarely. Running it BEFORE
-# the frontend source is copied means a frontend/design-only edit (the common
-# case) reuses this layer from cache instead of re-paying the 390s. Eliminating
-# it outright is the inject-workspace-packages follow-up noted in .npmrc.
-COPY packages/auth-middleware packages/auth-middleware
-COPY apps/beigeboard/backend apps/beigeboard/backend
-RUN pnpm --filter @jkos/beigeboard-backend deploy --prod /out
-
-# ── Frontend source + build ───────────────────────────────────────────────────
-# Full source last; a source edit now busts only this ~9s step, not the copy above.
+# ── Source + build + deploy ───────────────────────────────────────────────────
 COPY . .
 RUN pnpm --filter @jkos/beigeboard build
+# Bundle the backend with its workspace deps (incl. @jkos/auth-middleware). With
+# inject-workspace-packages in .npmrc this is the modern hardlink `pnpm deploy`
+# (seconds), not the old ~390s legacy copy of the googleapis tree.
+RUN pnpm --filter @jkos/beigeboard-backend deploy --prod /out
 
 FROM node:20-slim
 WORKDIR /app

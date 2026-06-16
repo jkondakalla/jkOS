@@ -3,6 +3,7 @@ lockfileVersion: '9.0'
 settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
+  injectWorkspacePackages: true
 
 importers:
 
@@ -135,13 +136,13 @@ importers:
         version: 0.95.2(zod@4.4.3)
       '@jkos/auth-client':
         specifier: workspace:*
-        version: link:../../packages/auth-client
+        version: file:packages/auth-client(react@19.2.7)
       '@jkos/design':
         specifier: workspace:*
         version: link:../../packages/design
       '@jkos/ui':
         specifier: workspace:*
-        version: link:../../packages/ui
+        version: file:packages/ui(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       jszip:
         specifier: ^3.10.1
         version: 3.10.1
@@ -917,6 +918,20 @@ packages:
   '@isaacs/cliui@8.0.2':
     resolution: {integrity: sha512-O8jcjabXaleOG9DQ0+ARXWZBTfnP4WNAqzuiJK7ll44AmxGKv/J2M4TPjxjY3znBCfvBXFzucm1twdyFybFqEA==}
     engines: {node: '>=12'}
+
+  '@jkos/auth-client@file:packages/auth-client':
+    resolution: {directory: packages/auth-client, type: directory}
+    peerDependencies:
+      react: '>=18'
+
+  '@jkos/design@file:packages/design':
+    resolution: {directory: packages/design, type: directory}
+
+  '@jkos/ui@file:packages/ui':
+    resolution: {directory: packages/ui, type: directory}
+    peerDependencies:
+      react: '>=18'
+      react-dom: '>=18'
 
   '@jridgewell/gen-mapping@0.3.13':
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
@@ -3266,6 +3281,19 @@ snapshots:
       strip-ansi-cjs: strip-ansi@6.0.1
       wrap-ansi: 8.1.0
       wrap-ansi-cjs: wrap-ansi@7.0.0
+
+  '@jkos/auth-client@file:packages/auth-client(react@19.2.7)':
+    dependencies:
+      '@jkos/design': file:packages/design
+      react: 19.2.7
+
+  '@jkos/design@file:packages/design': {}
+
+  '@jkos/ui@file:packages/ui(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
+    dependencies:
+      '@jkos/design': file:packages/design
+      react: 19.2.7
+      react-dom: 19.2.7(react@19.2.7)
 
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:
