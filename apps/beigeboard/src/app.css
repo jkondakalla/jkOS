@@ -112,3 +112,30 @@ body { background: var(--color-paper); color: var(--color-ink); }
 *::-webkit-scrollbar-track { background: transparent; }
 *::-webkit-scrollbar-thumb { background: var(--hub-line-strong); }
 *::-webkit-scrollbar-thumb:hover { background: var(--hub-amber-dim); }
+
+/* ── Workshop goal well ───────────────────────────────────────────────────
+   The brief's goal card is an inset accent well. Tint it by the goal's OWN
+   colour via --goal-accent (set inline) so per-goal colours survive the well
+   treatment: debossed on paper, accent-glow in CRT. Same physics as @jkos/ui's
+   jk-well, but goal-coloured rather than locked to the theme accent. */
+.bb-goal-well {
+  position: relative;
+  background: color-mix(in srgb, var(--goal-accent) 12%, var(--color-card));
+  border-radius: var(--hub-radius-lg);
+  box-shadow:
+    inset 0 2px 3px color-mix(in srgb, var(--hub-cream-bright) 28%, transparent),
+    inset 0 -1px 1px color-mix(in srgb, #ffffff 50%, transparent),
+    0 1px 0 color-mix(in srgb, #ffffff 38%, transparent);
+}
+html[data-mode="dark"] .bb-goal-well {
+  box-shadow:
+    0 0 14px color-mix(in srgb, var(--goal-accent) 16%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--goal-accent) 26%, transparent);
+}
+
+/* Brief-style thin progress track (goal-coloured fill applied inline) */
+.bb-prog-track {
+  flex: 1; height: 7px; border-radius: 999px; overflow: hidden;
+  background: var(--color-paper);
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.20);
+}

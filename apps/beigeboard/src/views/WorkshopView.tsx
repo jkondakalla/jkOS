@@ -5,8 +5,8 @@ import {
   topGoals, milestonesOf, tasksOf, currentMilestone, goalProgress,
   isAdrift, paceOf, milestoneCleared, fmtTarget,
 } from '../lib/plan'
-import { Eyebrow, Checkbox, VUMeter, Plate } from '../components/SharedComponents'
-import { Press, TButton, Pill } from '@jkos/ui'
+import { Eyebrow, Checkbox, Plate } from '../components/SharedComponents'
+import { Press, TButton, Pill, Lab, Sheet } from '@jkos/ui'
 
 /*
  * The Workshop — the Breakdown Method, embodied (Documentation/PLANNING_METHOD.md).
@@ -125,17 +125,17 @@ function GoalPlate({ goal, items, index, today, autoFocus, onSelect, onToggle, o
   }, [autoFocus])
 
   return (
-    <article ref={ref}>
-      <Plate accent={accent} style={{ padding: '22px 26px 22px 36px' }}>
+    <article
+      ref={ref}
+      className="bb-goal-well"
+      style={{ padding: '24px 28px', '--goal-accent': accent } as React.CSSProperties}
+    >
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 10, flexWrap: 'wrap' }}>
-          <span style={{
-            fontFamily: FONT_BODY, fontSize: 9, letterSpacing: '0.22em',
-            textTransform: 'uppercase', color: accent, textShadow: halate(accent, 'low'),
-          }}>{`Goal ${String(index).padStart(2, '0')}`}</span>
+          <Lab size="sm" as="span" style={{ color: accent, textShadow: halate(accent, 'low') }}>
+            {`Goal ${String(index).padStart(2, '0')}`}
+          </Lab>
           {goal.target_date && (
-            <span style={{ fontFamily: FONT_NUM, fontStyle: 'italic', fontSize: 12, color: 'var(--color-muted)' }}>
-              by {fmtTarget(goal.target_date)}
-            </span>
+            <Lab size="sm" as="span">by {fmtTarget(goal.target_date)}</Lab>
           )}
           {pace && (pace === 'behind' ? (
             <span style={{
@@ -158,8 +158,8 @@ function GoalPlate({ goal, items, index, today, autoFocus, onSelect, onToggle, o
         <h2
           onClick={() => onSelect(goal)}
           style={{
-            fontFamily: FONT_HEAD, fontWeight: 500, fontSize: 28, cursor: 'pointer',
-            margin: 0, letterSpacing: '-0.025em', lineHeight: 1.12, color: 'var(--color-ink)',
+            fontFamily: FONT_HEAD, fontWeight: 600, fontSize: 27, cursor: 'pointer',
+            margin: 0, letterSpacing: '-0.02em', lineHeight: 1.12, color: 'var(--color-ink)',
           }}
         >
           {goal.title}
@@ -168,11 +168,11 @@ function GoalPlate({ goal, items, index, today, autoFocus, onSelect, onToggle, o
 
         <DoneMeans goal={goal} onUpdateItem={onUpdateItem} readonly={readonly} />
 
-        <div style={{ marginTop: 16 }}>
-          <VUMeter
-            pct={prog.pct} color={accent} segments={24}
-            label={prog.total > 0 ? `${prog.done}/${prog.total}` : '—'}
-          />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 18 }}>
+          <div className="bb-prog-track">
+            <div className="progress-fill" style={{ width: `${prog.pct}%`, height: '100%', background: accent, boxShadow: `0 0 8px ${accent}66` }} />
+          </div>
+          <Lab size="sm" as="span">{prog.total > 0 ? `${prog.done}/${prog.total}` : '—'}</Lab>
         </div>
 
         {/* The ladder */}
@@ -243,7 +243,6 @@ function GoalPlate({ goal, items, index, today, autoFocus, onSelect, onToggle, o
             </div>
           )}
         </div>
-      </Plate>
     </article>
   )
 }
@@ -314,24 +313,23 @@ function MilestoneRow({ m, index, items, today, accent, isCurrent, open, onOpen,
   const cleared = milestoneCleared(m, items)
   const state: 'done' | 'current' | 'later' = m.completed ? 'done' : isCurrent ? 'current' : 'later'
 
-  return (
-    <li style={{ borderBottom: '1px solid var(--color-line-strong)' }}>
+  const isCur = state === 'current'
+
+  const inner = (
+    <>
       <header
         onClick={onOpen}
         style={{
           display: 'flex', alignItems: 'center', gap: 12,
-          padding: '9px 10px', cursor: 'pointer',
-          background: state === 'current' ? `${accent}10` : 'transparent',
+          padding: isCur ? '0' : '9px 10px', cursor: 'pointer',
           opacity: state === 'later' ? 0.62 : 1,
-          transition: 'background 0.12s',
         }}
       >
-        <span style={{
-          fontFamily: FONT_NUM, fontStyle: 'italic', fontSize: 13,
+        <Lab size="sm" as="span" style={{
           color: state === 'done' ? 'var(--color-faint)' : accent,
           width: 22, flexShrink: 0, textAlign: 'right',
-          textShadow: state === 'current' ? halate(accent, 'low') : 'none',
-        }}>{String(index).padStart(2, '0')}</span>
+          textShadow: isCur ? halate(accent, 'low') : 'none',
+        }}>{String(index).padStart(2, '0')}</Lab>
 
         <StateGlyph state={state} accent={accent} />
 
@@ -340,24 +338,23 @@ function MilestoneRow({ m, index, items, today, accent, isCurrent, open, onOpen,
           style={{
             flex: 1, minWidth: 0,
             fontFamily: FONT_HEAD, fontStyle: 'italic', fontWeight: 500,
-            fontSize: state === 'current' ? 18 : 15.5,
+            fontSize: isCur ? 18 : 15.5,
             color: state === 'done' ? 'var(--color-muted)' : 'var(--color-ink)',
             textDecoration: state === 'done' ? 'line-through' : 'none',
             lineHeight: 1.25, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           }}
         >{m.title}</span>
 
-        {state === 'current' && (
+        {isCur && (
           <span style={{
-            fontFamily: FONT_BODY, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase',
-            color: accent, border: `1px solid ${accent}66`, padding: '2px 8px', flexShrink: 0,
-            textShadow: halate(accent, 'low'),
+            fontFamily: 'var(--hub-font-mono)', fontSize: 8.5, letterSpacing: '0.18em',
+            textTransform: 'uppercase', fontWeight: 600, color: accent,
+            background: `color-mix(in srgb, ${accent} 16%, var(--color-card))`,
+            padding: '3px 9px', flexShrink: 0, textShadow: halate(accent, 'low'),
           }}>current</span>
         )}
         {tasks.length > 0 && (
-          <span style={{ fontFamily: FONT_NUM, fontStyle: 'italic', fontSize: 12, color: 'var(--color-muted)', flexShrink: 0 }}>
-            {done}/{tasks.length}
-          </span>
+          <Lab size="sm" as="span" style={{ flexShrink: 0 }}>{done}/{tasks.length}</Lab>
         )}
         {!readonly && tasks.length === 0 && !m.completed && (
           <button
@@ -373,7 +370,7 @@ function MilestoneRow({ m, index, items, today, accent, isCurrent, open, onOpen,
 
       {cleared && !readonly && (
         <div style={{
-          margin: '0 10px 10px 44px', padding: '10px 14px',
+          margin: isCur ? '10px 0 0 34px' : '0 10px 10px 44px', padding: '10px 14px',
           border: `1px solid ${accent}66`, background: `${accent}14`,
           display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
         }}>
@@ -394,8 +391,8 @@ function MilestoneRow({ m, index, items, today, accent, isCurrent, open, onOpen,
       )}
 
       {open && !m.completed && (
-        <div style={{ margin: '0 10px 10px 44px' }}>
-          {state === 'current' && tasks.length === 0 && (
+        <div style={{ margin: isCur ? '8px 0 0 34px' : '0 10px 10px 44px' }}>
+          {isCur && tasks.length === 0 && (
             <p style={{
               fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 12.5,
               color: 'var(--color-muted)', margin: '2px 0 6px', lineHeight: 1.4,
@@ -425,8 +422,18 @@ function MilestoneRow({ m, index, items, today, accent, isCurrent, open, onOpen,
           )}
         </div>
       )}
-    </li>
+    </>
   )
+
+  // The current checkpoint is the brief's prominent sheet card; the rest are flat rows.
+  if (isCur) {
+    return (
+      <li style={{ margin: '8px 0' }}>
+        <Sheet style={{ padding: '12px 14px' }}>{inner}</Sheet>
+      </li>
+    )
+  }
+  return <li style={{ borderBottom: '1px solid var(--color-line-strong)' }}>{inner}</li>
 }
 
 function StateGlyph({ state, accent }: any) {
