@@ -3,6 +3,7 @@ import { FONT_HEAD, FONT_BODY, FONT_NUM, localDate, addDays, fmtTime, halate, ge
 import { getAncestors, getAccent } from '../lib/seed'
 import { activeGoals, isAdrift, nextUnscheduled } from '../lib/plan'
 import { Eyebrow, Checkbox, Plate, RecLamp } from '../components/SharedComponents'
+import { TButton, Well } from '@jkos/ui'
 
 export function TodayView({ items, today, onSelect, onToggle, onAddTask, onUpdateItem, setView, setFocusedGoalId, selectedId, recentlyAdded, readonly, aiEnabled }: any) {
   const d = localDate(today)
@@ -97,7 +98,7 @@ export function TodayView({ items, today, onSelect, onToggle, onAddTask, onUpdat
         <footer style={{
           marginTop: 56,
           paddingTop: 18,
-          borderTop: `1px solid 'var(--color-line-strong)'`,
+          borderTop: '1px solid var(--color-line-strong)',
           display: 'flex', justifyContent: 'space-between', gap: 12,
         }}>
           <button onClick={() => setView('week')} style={tinyLink()}>open the week →</button>
@@ -195,7 +196,7 @@ function EmptyDay({ onAdd, today, aiEnabled }: any) {
   return (
     <article style={{
       padding: '40px 36px',
-      border: `1px dashed 'var(--color-line)'`,
+      border: '1px dashed var(--color-line)',
       background: 'var(--color-paper-2)',
     }}>
       <Eyebrow style={{ marginBottom: 6 }}>The day is open.</Eyebrow>
@@ -216,7 +217,7 @@ function EmptyDay({ onAdd, today, aiEnabled }: any) {
             placeholder="Describe a task — or let AI parse it…"
             style={{
               flex: 1, background: 'transparent', border: 'none',
-              borderBottom: `1px solid 'var(--color-line)'`,
+              borderBottom: '1px solid var(--color-line)',
               fontFamily: FONT_HEAD, fontSize: 22, color: 'var(--color-ink)', outline: 'none',
               padding: '6px 2px',
             }}
@@ -259,26 +260,16 @@ function EmptyDay({ onAdd, today, aiEnabled }: any) {
 
 function ClearedDay({ onceMore }: any) {
   return (
-    <article style={{
-      padding: '40px 36px',
-      border: `1px solid 'var(--color-line)'`,
-      background: 'var(--color-paper-2)',
-    }}>
+    <Well as="article" style={{ padding: '40px 36px' }}>
       <Eyebrow style={{ marginBottom: 6, color: 'var(--color-accent)' }}>Today is clear.</Eyebrow>
       <p style={{
         fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 22,
         color: 'var(--color-ink)', margin: '0 0 16px', lineHeight: 1.3,
       }}>Every task on today's list is done.</p>
-      <button
-        onClick={onceMore}
-        style={{
-          background: 'transparent', border: `1px solid var(--color-line)`,
-          fontFamily: FONT_BODY, fontSize: 11, letterSpacing: '0.14em',
-          textTransform: 'uppercase', color: 'var(--color-ink)', cursor: 'pointer',
-          padding: '10px 18px',
-        }}
-      >Plan something for tomorrow →</button>
-    </article>
+      <TButton onClick={onceMore} style={{ fontSize: 10, letterSpacing: '0.14em', padding: '10px 16px' }}>
+        Plan something for tomorrow →
+      </TButton>
+    </Well>
   )
 }
 
@@ -385,14 +376,9 @@ function CarriedStrip({ tasks, items, today, onSelect, onToggle, onUpdateItem, r
 
 function CarryChip({ label, onClick, muted }: any) {
   return (
-    <button
-      onClick={onClick}
-      style={{
-        background: 'transparent', border: '1px solid var(--color-line)',
-        fontFamily: FONT_BODY, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase',
-        color: muted ? 'var(--color-faint)' : 'var(--color-muted)', cursor: 'pointer', padding: '3px 8px',
-      }}
-    >{label}</button>
+    <TButton onClick={onClick} quiet={muted} style={{
+      fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', padding: '3px 8px',
+    }}>{label}</TButton>
   )
 }
 
