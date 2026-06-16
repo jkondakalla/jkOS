@@ -6,6 +6,7 @@ import { TODAY_ISO, INITIAL_ACCOUNTS } from './lib/seed'
 import { useJkOSPreferences } from './hooks/useJkOSPreferences'
 import { DragProvider } from './providers/DragProvider'
 import { MobileApp } from './mobile'
+import { injectJkOSTheme } from '@jkos/design'
 
 import { FilmGrain, Halation, Artifacts, ScanLines, CinematicIntro } from './components/Overlays'
 import { AppHeader } from './components/AppHeader'
@@ -23,6 +24,11 @@ import { WorkshopView } from './views/WorkshopView'
 if (!document.documentElement.hasAttribute('data-mode')) {
   document.documentElement.setAttribute('data-mode', 'paper')
 }
+
+// BeigeBoard typography via the @jkos/design factory: serif → Fraunces; sans/mono
+// inherit the IBM Plex factory defaults. Overrides the hub.css font tokens at
+// startup. Accents stay user-driven (applyJkOSTheme, in useJkOSPreferences).
+injectJkOSTheme({ fonts: { serif: "'Fraunces', Georgia, serif" } })
 
 const DEFAULT_API_URL  = import.meta.env.VITE_API_URL ?? ''
 const JKOS_AUTH_URL    = import.meta.env.VITE_JKOS_AUTH_URL ?? 'https://auth.jkos.net'

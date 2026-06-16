@@ -530,3 +530,61 @@
   border-radius: var(--hub-radius-lg);
   box-shadow: var(--hub-shadow-card), inset 0 1px 0 var(--hub-bevel-light);
 }
+
+/* ─── Mono labels, text buttons, status pills ──────────────────────────────
+ * Reusable text-system primitives shared with the @jkos/ui <Lab>, <TButton>,
+ * <Pill> components. All neutral/semantic — never hardcode an accent; the two
+ * accent families above own the accent surfaces. ────────────────────────── */
+
+/* Uppercase mono label — eyebrows + field labels. Three sizes. */
+.jk-lab {
+  font-family: var(--hub-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--hub-cream);
+}
+.jk-lab.jk-lab-sm { font-size: 9px; letter-spacing: 0.18em; color: var(--hub-cream-dim); }
+.jk-lab.jk-lab-xs { font-size: 8px; letter-spacing: 0.16em; color: var(--hub-cream-dim); }
+
+/* Compact mono text button — flat, hovers to the secondary accent. */
+.jk-tbtn {
+  font-family: var(--hub-font-mono);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  line-height: 1;
+  padding: 6px 10px;
+  color: var(--hub-cream);
+  background: transparent;
+  border: 1px solid var(--hub-line);
+  border-radius: var(--hub-radius-sm);
+  cursor: pointer;
+  transition: color 0.12s, border-color 0.12s;
+}
+.jk-tbtn.jk-tbtn-quiet {
+  color: var(--hub-cream-dim);
+  border-color: color-mix(in srgb, var(--hub-line) 55%, transparent);
+}
+.jk-tbtn:hover {
+  color: var(--accent-secondary);
+  border-color: color-mix(in srgb, var(--accent-secondary) 50%, transparent);
+}
+:root[data-mode="dark"] .jk-tbtn:hover {
+  text-shadow: 0 0 8px color-mix(in srgb, var(--accent-secondary) 40%, transparent);
+}
+
+/* Status pill — defaults to the OK/green status; glows in CRT. */
+.jk-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--hub-font-mono);
+  font-size: 8px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  padding: 4px 9px;
+  border-radius: var(--hub-radius-lg);
+  color: var(--hub-green);
+  border: 1px solid color-mix(in srgb, var(--hub-green) 40%, transparent);
+}
+:root[data-mode="dark"] .jk-pill { text-shadow: 0 0 8px var(--hub-green-glow); }

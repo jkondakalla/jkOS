@@ -1,6 +1,9 @@
-export const FONT_HEAD = "'Newsreader', 'EB Garamond', Georgia, serif"
-export const FONT_BODY = "'Inter Tight', system-ui, sans-serif"
-export const FONT_NUM  = "'Newsreader', Georgia, serif"
+// Fonts flow from the @jkos/design token system (set per-app via the factory in
+// App.tsx: serif → Fraunces, sans/mono → IBM Plex). Referencing the tokens here
+// means every view that uses these constants adopts the brief typography at once.
+export const FONT_HEAD = 'var(--hub-font-serif)'   // Fraunces (serif headers)
+export const FONT_BODY = 'var(--hub-font-sans)'    // IBM Plex Sans
+export const FONT_NUM  = 'var(--hub-font-serif)'   // Fraunces (serif figures)
 
 export const TASK_COLORS = [
   { id: 'rust',  label: 'Rust',  hex: '#B05040' },

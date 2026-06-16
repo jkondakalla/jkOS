@@ -27,13 +27,20 @@ COPY pnpm-lock.yaml pnpm-workspace.yaml .npmrc package.json ./
 COPY --parents **/package.json ./
 RUN pnpm install --frozen-lockfile --filter @jkos/beigeboard... --filter @jkos/beigeboard-backend...
 
-# ── Source + build + deploy ───────────────────────────────────────────────────
+# ── Backend bundle (isolated so it caches) ────────────────────────────────────
+# `pnpm deploy` spends ~390s materializing the 116 MB googleapis tree into /out
+# on ZFS — and that cost is the same for legacy-copy and modern-hardlink deploy
+# (it's the 40k-file write that's slow, not the import method). Its only inputs
+# are the backend + its workspace dep (@jkos/auth-middleware, raw JS) source, so
+# running it BEFORE the frontend source keeps it cached across the common case of
+# frontend/design edits — a UI rebuild is then ~15s instead of ~7min.
+COPY packages/auth-middleware packages/auth-middleware
+COPY apps/beigeboard/backend apps/beigeboard/backend
+RUN pnpm --filter @jkos/beigeboard-backend deploy --prod /out
+
+# ── Frontend source + build last (a UI edit busts only this ~9s step) ─────────
 COPY . .
 RUN pnpm --filter @jkos/beigeboard build
-# Bundle the backend with its workspace deps (incl. @jkos/auth-middleware). With
-# inject-workspace-packages in .npmrc this is the modern hardlink `pnpm deploy`
-# (seconds), not the old ~390s legacy copy of the googleapis tree.
-RUN pnpm --filter @jkos/beigeboard-backend deploy --prod /out
 
 FROM node:20-slim
 WORKDIR /app

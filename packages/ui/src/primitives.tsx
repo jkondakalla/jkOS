@@ -67,3 +67,38 @@ export function Well({ as: As = 'span', className, children, ...rest }: BaseProp
 export function Sheet({ as: As = 'div', className, children, ...rest }: BaseProps) {
   return <As className={cx('jk-sheet', className)} {...rest}>{children}</As>;
 }
+
+/** Uppercase mono label. `size`: 'md' (default) | 'sm' | 'xs'. */
+export function Lab({
+  as: As = 'div',
+  size = 'md',
+  className,
+  children,
+  ...rest
+}: BaseProps & { size?: 'md' | 'sm' | 'xs' }) {
+  return (
+    <As className={cx('jk-lab', size === 'sm' && 'jk-lab-sm', size === 'xs' && 'jk-lab-xs', className)} {...rest}>
+      {children}
+    </As>
+  );
+}
+
+/** Compact mono text button. `quiet` for the de-emphasised variant. */
+export function TButton({
+  as: As = 'button',
+  quiet = false,
+  className,
+  children,
+  ...rest
+}: BaseProps & { quiet?: boolean }) {
+  return (
+    <As className={cx('jk-tbtn', quiet && 'jk-tbtn-quiet', className)} {...rest}>
+      {children}
+    </As>
+  );
+}
+
+/** Status pill — defaults to the OK/green status. */
+export function Pill({ as: As = 'span', className, children, ...rest }: BaseProps) {
+  return <As className={cx('jk-pill', className)} {...rest}>{children}</As>;
+}
