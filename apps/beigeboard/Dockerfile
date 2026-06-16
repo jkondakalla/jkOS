@@ -20,22 +20,30 @@ ENV VITE_JKOS_AUTH_URL=$VITE_JKOS_AUTH_URL \
     VITE_BB_AI_ENABLED=$VITE_BB_AI_ENABLED
 
 # ── Dependency layer ──────────────────────────────────────────────────────────
-# Copy ONLY the lockfile + every workspace manifest first (COPY --parents keeps
-# each package.json at its path) so `pnpm install` — which compiles
-# better-sqlite3 from source and links the 116 MB googleapis tree — lands in its
-# own cached layer, reused on every source-only rebuild. The old `COPY . .`
-# before install busted this on any repo edit, forcing a full reinstall + native
-# recompile every build. (The legacy `pnpm deploy` copy below is still uncached;
-# that's the separate inject-workspace-packages follow-up noted in .npmrc.)
+# Copy the lockfile + every workspace manifest first (COPY --parents keeps each
+# package.json at its path) and install before any source, so `pnpm install`
+# (better-sqlite3 ships a prebuilt binary, so this is only ~12s) is reused from
+# cache on source-only rebuilds instead of rerunning on every repo edit.
 COPY pnpm-lock.yaml pnpm-workspace.yaml .npmrc package.json ./
 COPY --parents **/package.json ./
 RUN pnpm install --frozen-lockfile --filter @jkos/beigeboard... --filter @jkos/beigeboard-backend...
 
-# Source comes after install so edits don't invalidate the dependency layer.
+# ── Backend bundle (the expensive step, isolated so it caches) ─────────────────
+# `pnpm deploy` runs the LEGACY copy implementation (forced in .npmrc) and spends
+# ~390s — ~90% of the whole build — copying the 116 MB googleapis tree
+# file-by-file onto ZFS. Its only inputs are the backend + its workspace dep
+# (@jkos/auth-middleware, raw JS) source, which change rarely. Running it BEFORE
+# the frontend source is copied means a frontend/design-only edit (the common
+# case) reuses this layer from cache instead of re-paying the 390s. Eliminating
+# it outright is the inject-workspace-packages follow-up noted in .npmrc.
+COPY packages/auth-middleware packages/auth-middleware
+COPY apps/beigeboard/backend apps/beigeboard/backend
+RUN pnpm --filter @jkos/beigeboard-backend deploy --prod /out
+
+# ── Frontend source + build ───────────────────────────────────────────────────
+# Full source last; a source edit now busts only this ~9s step, not the copy above.
 COPY . .
 RUN pnpm --filter @jkos/beigeboard build
-# Bundle the backend with its workspace deps (incl. @jkos/auth-middleware)
-RUN pnpm --filter @jkos/beigeboard-backend deploy --prod /out
 
 FROM node:20-slim
 WORKDIR /app
