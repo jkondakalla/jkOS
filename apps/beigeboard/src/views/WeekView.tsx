@@ -5,6 +5,7 @@ import {
 } from '../lib/theme'
 import { useDrag, fracToTime, snapFrac } from '../providers/DragProvider'
 import { Eyebrow } from '../components/SharedComponents'
+import { Press, TButton } from '@jkos/ui'
 
 const WV_FIRST_H = 6
 const WV_LAST_H  = 22
@@ -203,14 +204,14 @@ export function WeekView({ items, today, onSelect, onToggle, onAddItem, onUpdate
         <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 16, paddingBottom: 14, borderBottom: `1px solid var(--color-line)` }}>
           <div>
             <Eyebrow style={{ marginBottom: 4 }}>The week</Eyebrow>
-            <h1 style={{ fontFamily: FONT_HEAD, fontWeight: 500, fontSize: 32, margin: 0, letterSpacing: '-0.025em', lineHeight: 1.04, color: 'var(--color-ink)', whiteSpace: 'nowrap' }}>
-              <em style={{ fontStyle: 'italic', color: 'var(--color-accent)', textShadow: '0 0 16px var(--color-accent-glow)' }}>{weekRange}</em>
+            <h1 style={{ fontFamily: FONT_HEAD, fontWeight: 600, fontSize: 30, margin: 0, letterSpacing: '-0.01em', lineHeight: 1.04, whiteSpace: 'nowrap' }}>
+              <Press large as="em" style={{ fontStyle: 'italic' }}>{weekRange}</Press>
             </h1>
           </div>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button onClick={() => setCursor(addDays(cursor, -7))} style={navBtn()}>‹</button>
-            <button onClick={() => setCursor(weekStart(today))}    style={navBtn(true)}>This week</button>
-            <button onClick={() => setCursor(addDays(cursor, 7))}  style={navBtn()}>›</button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <TButton onClick={() => setCursor(addDays(cursor, -7))} style={{ fontSize: 13, padding: '6px 11px' }}>‹</TButton>
+            <TButton onClick={() => setCursor(weekStart(today))} style={{ letterSpacing: '0.14em', padding: '6px 14px' }}>THIS WEEK</TButton>
+            <TButton onClick={() => setCursor(addDays(cursor, 7))} style={{ fontSize: 13, padding: '6px 11px' }}>›</TButton>
           </div>
         </div>
 
@@ -748,16 +749,3 @@ function TimeBlock({ item, isSelected, isDragging, isResizing, liveOverride, slo
   )
 }
 
-function navBtn(primary?: boolean) {
-  return {
-    background: primary ? 'var(--color-paper-2)' : 'transparent',
-    border: `1px solid var(--color-line)`,
-    fontFamily: FONT_BODY,
-    fontSize: primary ? 10 : 14,
-    letterSpacing: primary ? '0.16em' : '0',
-    textTransform: primary ? 'uppercase' as const : 'none' as const,
-    padding: primary ? '6px 14px' : '5px 12px',
-    color: 'var(--color-ink)', cursor: 'pointer',
-    boxShadow: `inset 0 1px 0 rgba(255,255,255,0.3), inset 0 -1px 0 rgba(0,0,0,0.05)`,
-  }
-}

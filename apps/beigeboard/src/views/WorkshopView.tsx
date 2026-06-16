@@ -6,6 +6,7 @@ import {
   isAdrift, paceOf, milestoneCleared, fmtTarget,
 } from '../lib/plan'
 import { Eyebrow, Checkbox, VUMeter, Plate } from '../components/SharedComponents'
+import { Press, TButton, Pill } from '@jkos/ui'
 
 /*
  * The Workshop — the Breakdown Method, embodied (Documentation/PLANNING_METHOD.md).
@@ -32,10 +33,7 @@ export function WorkshopView({
             fontFamily: FONT_HEAD, fontWeight: 500, fontSize: 44,
             margin: '8px 0 8px', letterSpacing: '-0.025em', lineHeight: 1.04, color: 'var(--color-ink)',
           }}>
-            Break it <em style={{
-              fontStyle: 'italic', color: 'var(--color-accent)',
-              textShadow: '0 0 28px var(--color-accent-glow)',
-            }}>down</em>.
+            Break it <Press large as="em" style={{ fontStyle: 'italic' }}>down</Press>.
           </h1>
           <p style={{
             fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 14,
@@ -139,15 +137,15 @@ function GoalPlate({ goal, items, index, today, autoFocus, onSelect, onToggle, o
               by {fmtTarget(goal.target_date)}
             </span>
           )}
-          {pace && (
+          {pace && (pace === 'behind' ? (
             <span style={{
               fontFamily: FONT_BODY, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase',
-              color: pace === 'behind' ? 'var(--color-accent)' : 'var(--color-muted)',
-              border: `1px solid ${pace === 'behind' ? 'var(--color-accent)' : 'var(--color-line)'}`,
-              padding: '2px 7px',
-              textShadow: pace === 'behind' ? '0 0 8px var(--color-accent-glow)' : 'none',
+              color: 'var(--color-accent)', border: '1px solid var(--color-accent)', padding: '2px 7px',
+              textShadow: '0 0 8px var(--color-accent-glow)',
             }}>{pace}</span>
-          )}
+          ) : (
+            <Pill><span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--color-ok)', flexShrink: 0 }} />{pace}</Pill>
+          ))}
           {adrift && (
             <span style={{
               fontFamily: FONT_BODY, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase',
@@ -574,14 +572,9 @@ function DatePick({ item, onUpdateItem, onClose }: any) {
 
 function DayChip({ label, onClick }: any) {
   return (
-    <button
-      onClick={onClick}
-      style={{
-        background: 'transparent', border: '1px solid var(--color-line)',
-        fontFamily: FONT_BODY, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase',
-        color: 'var(--color-muted)', cursor: 'pointer', padding: '2px 7px',
-      }}
-    >{label}</button>
+    <TButton onClick={onClick} style={{ fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', padding: '2px 7px' }}>
+      {label}
+    </TButton>
   )
 }
 

@@ -3,6 +3,7 @@ import { FONT_HEAD, FONT_BODY, FONT_NUM, localDate, isoDate, addDays, fmtTime, h
 import { useDrag } from '../providers/DragProvider'
 import { getAccent } from '../lib/seed'
 import { Eyebrow, Checkbox } from '../components/SharedComponents'
+import { Press, TButton } from '@jkos/ui'
 
 const DOW       = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const CV_BAR_H  = 20
@@ -145,15 +146,13 @@ export function CalendarView({ items, today, onSelect, onToggle, onUpdateItem, o
           borderBottom: `1px solid var(--color-line)`,
           background: 'var(--color-paper)', flexShrink: 0,
         }}>
-          <h2 style={{ fontFamily: FONT_HEAD, fontWeight: 500, fontSize: 26, margin: 0, letterSpacing: '-0.02em', color: 'var(--color-ink)' }}>
-            <em style={{ color: 'var(--color-accent)', fontStyle: 'italic', textShadow: '0 0 16px var(--color-accent-glow)' }}>
-              {monthLabel(cursor)}
-            </em>
+          <h2 style={{ fontFamily: FONT_HEAD, fontWeight: 600, fontSize: 28, margin: 0, letterSpacing: '-0.01em' }}>
+            <Press large as="em" style={{ fontStyle: 'italic' }}>{monthLabel(cursor)}</Press>
           </h2>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button onClick={() => setCursor(c => addMonths(c, -1))} style={navBtn(false)}>‹</button>
-            <button onClick={() => setCursor(monthStart(today))}     style={navBtn(true)}>This month</button>
-            <button onClick={() => setCursor(c => addMonths(c, 1))}  style={navBtn(false)}>›</button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <TButton onClick={() => setCursor(c => addMonths(c, -1))} style={{ fontSize: 13, padding: '6px 11px' }}>‹</TButton>
+            <TButton onClick={() => setCursor(monthStart(today))} style={{ letterSpacing: '0.14em', padding: '6px 14px' }}>THIS MONTH</TButton>
+            <TButton onClick={() => setCursor(c => addMonths(c, 1))} style={{ fontSize: 13, padding: '6px 11px' }}>›</TButton>
           </div>
         </div>
 
@@ -387,14 +386,3 @@ function CalTaskChip({ item, accent: inherited, isDragging, isSelected, onSelect
   )
 }
 
-function navBtn(primary?: boolean) {
-  return {
-    background: primary ? 'var(--color-accent)' : 'transparent',
-    border: `1px solid ${primary ? 'var(--color-accent)' : 'var(--color-line)'}`,
-    color: primary ? 'var(--color-paper)' : 'var(--color-muted)',
-    fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.14em',
-    textTransform: 'uppercase' as const, padding: '6px 14px',
-    cursor: 'pointer',
-    boxShadow: primary ? `0 0 10px var(--color-accent-glow)` : 'none',
-  }
-}
