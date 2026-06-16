@@ -25,10 +25,15 @@ if (!document.documentElement.hasAttribute('data-mode')) {
   document.documentElement.setAttribute('data-mode', 'paper')
 }
 
-// BeigeBoard typography via the @jkos/design factory: serif → Fraunces; sans/mono
-// inherit the IBM Plex factory defaults. Overrides the hub.css font tokens at
+// BeigeBoard typography + radius via the @jkos/design factory: serif → Fraunces;
+// sans/mono inherit the IBM Plex factory defaults. The brief softens the suite's
+// sharp default corners, so BeigeBoard overrides the radius scale here (factory
+// defaults are 0–2px; other apps keep them). Both override hub.css INPUT tokens at
 // startup. Accents stay user-driven (applyJkOSTheme, in useJkOSPreferences).
-injectJkOSTheme({ fonts: { serif: "'Fraunces', Georgia, serif" } })
+injectJkOSTheme({
+  fonts: { serif: "'Fraunces', Georgia, serif" },
+  radius: { base: '8px', sm: '7px', lg: '11px', soft: '9px', widget: '10px', button: '8px' },
+})
 
 const DEFAULT_API_URL  = import.meta.env.VITE_API_URL ?? ''
 const JKOS_AUTH_URL    = import.meta.env.VITE_JKOS_AUTH_URL ?? 'https://auth.jkos.net'

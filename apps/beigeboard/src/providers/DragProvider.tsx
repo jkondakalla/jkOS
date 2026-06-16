@@ -11,21 +11,48 @@ export const fracToTime = (frac: number) => {
 }
 export const snapFrac = (frac: number, step = 0.25) => Math.round(frac / step) * step
 
+// A press must travel this far (px) before it counts as a drag rather than a
+// click. Below it, mouseup is treated as a click so events select (→ detail
+// panel) and empty grid cells open the create dialog, instead of every press
+// starting a drag.
+const DRAG_THRESHOLD = 4
+
 export function DragProvider({ children }: { children: React.ReactNode }) {
   const [drag, setDrag] = useState<any>(null)
-  const dragRef = useRef<any>(null)
+  const dragRef    = useRef<any>(null)   // the ACTIVE drag (null until threshold crossed)
+  const pendingRef = useRef<any>(null)   // armed on mousedown, awaiting movement
+  const downRef    = useRef({ x: 0, y: 0 })
+  const suppressClickRef = useRef(false)
 
   const beginDrag = useCallback((item: any, mode: string, onDrop: any, opts: any = {}) => {
-    const d = { item, mode, onDrop, x: 0, y: 0, overDay: null, overFrac: null, overZone: null, ...opts }
-    dragRef.current = d
-    setDrag({ ...d })
+    const { x, y } = downRef.current
+    // Arm the drag but don't activate (no ghost / no `drag` state) until the
+    // pointer crosses DRAG_THRESHOLD. A stationary press stays a click.
+    pendingRef.current = {
+      item, mode, onDrop,
+      x, y, startX: x, startY: y,
+      overDay: null, overFrac: null, overZone: null, ...opts,
+    }
+    dragRef.current = null
   }, [])
 
   useEffect(() => {
-    const onMove = (e: MouseEvent) => {
-      const d = dragRef.current
-      if (!d) return
+    const onDown = (e: MouseEvent) => { downRef.current = { x: e.clientX, y: e.clientY } }
 
+    const onMove = (e: MouseEvent) => {
+      const p = pendingRef.current
+      if (!p) return
+
+      // Promote the armed press to a real drag once it has moved far enough.
+      if (!dragRef.current) {
+        const dx = e.clientX - p.startX
+        const dy = e.clientY - p.startY
+        if (dx * dx + dy * dy < DRAG_THRESHOLD * DRAG_THRESHOLD) return
+        dragRef.current = { ...p }
+        setDrag({ ...p })
+      }
+
+      const d = dragRef.current
       let overDay = null, overZone = null, overFrac = null
       try {
         const els = document.elementsFromPoint(e.clientX, e.clientY)
@@ -52,18 +79,39 @@ export function DragProvider({ children }: { children: React.ReactNode }) {
     }
 
     const onUp = () => {
+      const p = pendingRef.current
+      if (!p) return
       const d = dragRef.current
-      if (!d) return
-      try { d.onDrop?.({ overDay: d.overDay, overFrac: d.overFrac, overZone: d.overZone }) } catch (_) {}
+      // Drag dropped → use where it ended; click → fall back to where it began
+      // (so `create` still opens the dialog and other modes harmlessly no-op).
+      const info = d
+        ? { overDay: d.overDay, overFrac: d.overFrac, overZone: d.overZone }
+        : { overDay: p.startDay ?? null, overFrac: p.startFrac ?? null, overZone: null }
+      pendingRef.current = null
       dragRef.current = null
+      try { p.onDrop?.(info) } catch (_) {}
+      // A real drag fires a trailing click on the element — swallow it so a
+      // reschedule doesn't also select the item.
+      if (d) suppressClickRef.current = true
       setDrag(null)
     }
 
+    const onClickCapture = (e: MouseEvent) => {
+      if (!suppressClickRef.current) return
+      suppressClickRef.current = false
+      e.stopPropagation()
+      e.preventDefault()
+    }
+
+    document.addEventListener('mousedown', onDown, true)
     document.addEventListener('mousemove', onMove, { passive: true })
     document.addEventListener('mouseup',  onUp)
+    document.addEventListener('click', onClickCapture, true)
     return () => {
+      document.removeEventListener('mousedown', onDown, true)
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup',  onUp)
+      document.removeEventListener('click', onClickCapture, true)
     }
   }, [])
 

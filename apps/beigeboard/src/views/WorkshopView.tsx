@@ -77,11 +77,12 @@ export function WorkshopView({
                   <div key={g.id} style={{
                     display: 'flex', alignItems: 'center', gap: 12,
                     padding: '10px 14px', border: '1px solid var(--color-line)',
+                    borderRadius: 'var(--hub-radius-lg)',
                     background: 'var(--color-paper-2)', opacity: 0.75,
                   }}>
                     <span style={{
                       fontFamily: FONT_BODY, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase',
-                      color: 'var(--color-muted)', border: '1px solid var(--color-line)', padding: '2px 7px', flexShrink: 0,
+                      color: 'var(--color-muted)', border: '1px solid var(--color-line)', borderRadius: 'var(--hub-radius-sm)', padding: '2px 7px', flexShrink: 0,
                     }}>{g.status === 'done' ? 'Done' : 'Parked'}</span>
                     <span
                       onClick={() => onSelect(g)}
@@ -140,7 +141,7 @@ function GoalPlate({ goal, items, index, today, autoFocus, onSelect, onToggle, o
           {pace && (pace === 'behind' ? (
             <span style={{
               fontFamily: FONT_BODY, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase',
-              color: 'var(--color-accent)', border: '1px solid var(--color-accent)', padding: '2px 7px',
+              color: 'var(--color-accent)', border: '1px solid var(--color-accent)', borderRadius: 'var(--hub-radius-lg)', padding: '2px 7px',
               textShadow: '0 0 8px var(--color-accent-glow)',
             }}>{pace}</span>
           ) : (
@@ -223,6 +224,7 @@ function GoalPlate({ goal, items, index, today, autoFocus, onSelect, onToggle, o
             <div style={{
               marginTop: 12, padding: '14px 18px',
               border: `1px solid ${accent}55`, background: `${accent}10`,
+              borderRadius: 'var(--hub-radius-lg)',
               display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap',
             }}>
               <span style={{ fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 15, color: 'var(--color-ink)', flex: 1 }}>
@@ -372,6 +374,7 @@ function MilestoneRow({ m, index, items, today, accent, isCurrent, open, onOpen,
         <div style={{
           margin: isCur ? '10px 0 0 34px' : '0 10px 10px 44px', padding: '10px 14px',
           border: `1px solid ${accent}66`, background: `${accent}14`,
+          borderRadius: 'var(--hub-radius-soft)',
           display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
         }}>
           <span style={{ fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 13.5, color: 'var(--color-ink)', flex: 1 }}>
@@ -692,7 +695,7 @@ function LadderPrompt({ goal, onAddItem, readonly, aiEnabled, today }: any) {
   }
 
   return (
-    <div style={{ border: '1px dashed var(--color-line)', padding: '16px 18px', background: 'var(--color-paper-2)' }}>
+    <div style={{ border: '1px dashed var(--color-line)', borderRadius: 'var(--hub-radius-lg)', padding: '16px 18px', background: 'var(--color-paper-2)' }}>
       <p style={{
         fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 14,
         color: 'var(--color-ink)', margin: '0 0 12px', lineHeight: 1.4,

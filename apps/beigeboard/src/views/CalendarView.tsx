@@ -204,10 +204,10 @@ export function CalendarView({ items, today, onSelect, onToggle, onUpdateItem, o
                             height: CV_BAR_H,
                             background: `linear-gradient(180deg, rgba(255,255,255,0.12) 0%, rgba(0,0,0,0.09) 100%), ${s.hex}`,
                             boxShadow: `inset 0 1px 0 rgba(255,255,255,0.22), 0 2px 6px rgba(0,0,0,0.35)`,
-                            borderTopLeftRadius:  bar.continuesLeft  ? 0 : 2,
-                            borderBottomLeftRadius: bar.continuesLeft ? 0 : 2,
-                            borderTopRightRadius:  bar.continuesRight ? 0 : 2,
-                            borderBottomRightRadius: bar.continuesRight ? 0 : 2,
+                            borderTopLeftRadius:  bar.continuesLeft  ? 0 : 6,
+                            borderBottomLeftRadius: bar.continuesLeft ? 0 : 6,
+                            borderTopRightRadius:  bar.continuesRight ? 0 : 6,
+                            borderBottomRightRadius: bar.continuesRight ? 0 : 6,
                             display: 'flex', alignItems: 'center',
                             paddingLeft: bar.continuesLeft ? 4 : 6,
                             paddingRight: bar.continuesRight ? 0 : 6,
@@ -318,6 +318,7 @@ export function CalendarView({ items, today, onSelect, onToggle, onUpdateItem, o
                             }}
                             style={{
                               background: 'transparent', border: `1px solid var(--color-accent)`,
+                              borderRadius: 'var(--hub-radius-sm)',
                               fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 11,
                               color: 'var(--color-ink)', outline: 'none', padding: '2px 5px',
                               width: '100%', boxSizing: 'border-box',
@@ -344,7 +345,7 @@ function CalTaskChip({ item, accent: inherited, isDragging, isSelected, onSelect
     return (
       <div style={{
         height: compact ? 18 : 24,
-        background: accent, borderRadius: 4,
+        background: accent, borderRadius: 6,
         opacity: 0.28, userSelect: 'none', pointerEvents: 'none',
       }} />
     )
@@ -358,6 +359,7 @@ function CalTaskChip({ item, accent: inherited, isDragging, isSelected, onSelect
       style={{
         display: 'flex', alignItems: 'center', gap: compact ? 4 : 6,
         padding: compact ? '2px 5px 2px 4px' : '5px 8px 5px 6px',
+        borderRadius: compact ? 5 : 7,
         background: item.completed ? 'transparent' : `linear-gradient(180deg, rgba(255,255,255,0.12) 0%, rgba(0,0,0,0.09) 100%), ${accent}`,
         boxShadow: item.completed ? 'none' : `inset 0 1px 0 rgba(255,255,255,0.18), 0 1px 5px rgba(0,0,0,0.32)`,
         border: item.completed ? `1px solid var(--color-line-strong)` : 'none',

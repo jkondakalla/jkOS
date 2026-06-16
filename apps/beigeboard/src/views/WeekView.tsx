@@ -118,6 +118,7 @@ export function WeekView({ items, today, onSelect, onToggle, onAddItem, onUpdate
   }, [cursor])
 
   const [createPending, setCreatePending] = useState<any>(null)
+  const [hoverCol, setHoverCol] = useState<string | null>(null)
 
   const beginDragUntimed = (e: MouseEvent, item: any) => {
     e.preventDefault()
@@ -297,10 +298,10 @@ export function WeekView({ items, today, onSelect, onToggle, onAddItem, onUpdate
                         top: bar.lane * 22 + 4, height: 18,
                         background: `linear-gradient(180deg, rgba(255,255,255,0.12) 0%, rgba(0,0,0,0.09) 100%), ${s.hex}`,
                         boxShadow: `inset 0 1px 0 rgba(255,255,255,0.22), 0 2px 6px rgba(0,0,0,0.35)`,
-                        borderTopLeftRadius:    bar.continuesLeft  ? 0 : 2,
-                        borderBottomLeftRadius: bar.continuesLeft  ? 0 : 2,
-                        borderTopRightRadius:   bar.continuesRight ? 0 : 2,
-                        borderBottomRightRadius:bar.continuesRight ? 0 : 2,
+                        borderTopLeftRadius:    bar.continuesLeft  ? 0 : 6,
+                        borderBottomLeftRadius: bar.continuesLeft  ? 0 : 6,
+                        borderTopRightRadius:   bar.continuesRight ? 0 : 6,
+                        borderBottomRightRadius:bar.continuesRight ? 0 : 6,
                         display: 'flex', alignItems: 'center',
                         paddingLeft: bar.continuesLeft ? 4 : 6,
                         paddingRight: bar.continuesRight ? 0 : 6,
@@ -389,6 +390,7 @@ export function WeekView({ items, today, onSelect, onToggle, onAddItem, onUpdate
                 const isToday = d === today
                 const isOver  = drag?.overZone === 'timed' && drag?.overDay === d
                 const isTarget = anyDrag && (drag?.mode === 'untimed' || drag?.mode === 'timed' || drag?.mode === 'create')
+                const isHover = hoverCol === d && !anyDrag && !readonly
 
                 const showPreview = isOver && drag?.overFrac != null && (
                   drag?.mode === 'create' || drag?.mode === 'untimed' || drag?.mode === 'timed'
@@ -401,6 +403,8 @@ export function WeekView({ items, today, onSelect, onToggle, onAddItem, onUpdate
                     data-drop-day={d}
                     data-frac-base={WV_FIRST_H}
                     data-frac-scale={WV_ROW_H}
+                    onMouseEnter={() => setHoverCol(d)}
+                    onMouseLeave={() => setHoverCol(c => (c === d ? null : c))}
                     onMouseDown={(e: any) => {
                       if (e.target !== e.currentTarget && !(e.target as HTMLElement).dataset?.gridBg) return
                       // getBoundingClientRect() already accounts for the container's scroll
@@ -411,11 +415,11 @@ export function WeekView({ items, today, onSelect, onToggle, onAddItem, onUpdate
                     style={{
                       position: 'relative',
                       borderRight: i < 6 ? `1px solid var(--color-line)` : 'none',
-                      background: isOver ? `var(--color-accent)0C` : isToday ? `var(--color-accent-soft)44` : 'var(--color-paper)',
+                      background: isOver ? `var(--color-accent)0C` : isToday ? `var(--color-accent-soft)44` : isHover ? `var(--color-accent-soft)22` : 'var(--color-paper)',
                       outline: isTarget && !isToday ? `1px solid var(--color-accent)18` : 'none',
                       outlineOffset: -1,
-                      cursor: anyDrag ? 'copy' : 'crosshair',
-                      transition: 'background 0.08s',
+                      cursor: anyDrag ? 'copy' : readonly ? 'default' : 'crosshair',
+                      transition: 'background 0.12s',
                     }}
                   >
                     {HOURS.map((h, idx) => (
@@ -543,6 +547,7 @@ function TimelinePreview({ drag }: any) {
   return (
     <div style={{
       position: 'absolute', left: 4, right: 4, top, height,
+      borderRadius: 'var(--hub-radius-soft)',
       background: mode === 'timed' ? `${color}CC` : `${color}55`,
       border: `1px dashed ${color}`,
       borderTop: mode === 'timed' ? `2px solid rgba(255,255,255,0.3)` : `1px dashed ${color}`,
@@ -586,6 +591,7 @@ function CreateDialog({ pending, onSubmit, onCancel }: any) {
       <div onClick={(e: any) => e.stopPropagation()} className="modal-in" style={{
         width: 'min(460px, 90vw)', background: 'var(--color-paper-2)',
         border: `1px solid var(--color-line)`,
+        borderRadius: 'var(--hub-radius-lg)',
         boxShadow: `0 24px 64px rgba(0,0,0,0.5), 0 0 0 1px var(--color-accent)22`,
         padding: '22px 26px 24px',
       }}>
@@ -620,7 +626,7 @@ function UntimedChip({ item, isSelected, isDragging, onSelect, onToggle, onMouse
   if (isDragging) {
     return (
       <div style={{
-        height: 18, background: accent, borderRadius: 4,
+        height: 18, background: accent, borderRadius: 6,
         opacity: 0.28, flexShrink: 0,
         userSelect: 'none', pointerEvents: 'none',
       }} />
@@ -634,6 +640,7 @@ function UntimedChip({ item, isSelected, isDragging, onSelect, onToggle, onMouse
       style={{
         display: 'flex', alignItems: 'center', gap: 6,
         padding: '2px 6px 2px 5px',
+        borderRadius: 6,
         background: item.completed ? 'var(--color-paper)' : `linear-gradient(180deg, rgba(255,255,255,0.12) 0%, rgba(0,0,0,0.09) 100%), ${accent}`,
         boxShadow: item.completed ? 'none' : `inset 0 1px 0 rgba(255,255,255,0.18), 0 1px 4px rgba(0,0,0,0.3)`,
         color: item.completed ? 'var(--color-muted)' : 'rgba(255,255,255,0.95)',
@@ -682,7 +689,7 @@ function TimeBlock({ item, isSelected, isDragging, isResizing, liveOverride, slo
         position: 'absolute',
         left: `calc(${leftPct}% + 2px)`, right: `calc(${rightPct}% + 2px)`,
         top, height: Math.min(height, 22),
-        background: accent, borderRadius: 4,
+        background: accent, borderRadius: 'var(--hub-radius-soft)',
         opacity: 0.28, zIndex: 8, pointerEvents: 'none', userSelect: 'none',
       }} />
     )
@@ -698,6 +705,7 @@ function TimeBlock({ item, isSelected, isDragging, isResizing, liveOverride, slo
         top, height,
         background: `linear-gradient(180deg, rgba(255,255,255,0.12) 0%, rgba(0,0,0,0.09) 100%), ${accent}`,
         borderTop: `2px solid rgba(255,255,255,0.28)`,
+        borderRadius: 'var(--hub-radius-soft)',
         outline: isSelected ? `2px solid var(--color-accent)` : 'none',
         outlineOffset: -2,
         boxShadow: isSelected

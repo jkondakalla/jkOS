@@ -125,6 +125,7 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
                       fontFamily: FONT_BODY, fontSize: 8.5, letterSpacing: '0.2em',
                       textTransform: 'uppercase', color: aAccent || 'var(--color-muted)',
                       border: `1px solid ${(aAccent || 'var(--color-muted)') + '40'}`,
+                      borderRadius: 'var(--hub-radius-sm)',
                       padding: '1px 6px', flexShrink: 0,
                     }}>{a.kind === 'goal' ? 'goal' : a.kind === 'milestone' ? 'checkpoint' : 'task'}</span>
                     <span style={{
@@ -202,6 +203,7 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
             {children.length === 0 ? (
               <div style={{
                 padding: '12px 14px', border: `1px dashed var(--color-line)`,
+                borderRadius: 'var(--hub-radius-soft)',
                 fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 13, color: 'var(--color-muted)',
               }}>Not broken down yet. Open in the workshop to add steps.</div>
             ) : (
@@ -341,6 +343,7 @@ function GoalFields({ event, onUpdateItem }: any) {
           onChange={e => onUpdateItem?.(event.id, { target_date: e.target.value || null })}
           style={{
             background: 'transparent', border: `1px solid var(--color-line)`,
+            borderRadius: 'var(--hub-radius-sm)',
             fontFamily: FONT_BODY, fontSize: 11, color: 'var(--color-ink)',
             padding: '4px 6px', outline: 'none',
           }}
@@ -396,6 +399,7 @@ function WhenField({ event, isTask, isEvent, onUpdateItem }: any) {
 
   const inputSty: any = {
     background: 'transparent', border: `1px solid var(--color-line)`,
+    borderRadius: 'var(--hub-radius-sm)',
     fontFamily: FONT_BODY, fontSize: 11,
     color: 'var(--color-ink)', padding: '4px 6px', outline: 'none',
   }
@@ -407,11 +411,10 @@ function WhenField({ event, isTask, isEvent, onUpdateItem }: any) {
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 6 }}>
         <Eyebrow>When</Eyebrow>
         {canEdit && !editing && (
-          <button onClick={() => setEditing(true)} style={{
+          <button onClick={() => setEditing(true)} className="jk-sub-link" style={{
             background: 'none', border: 'none',
             fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 11,
-            color: 'var(--color-muted)', cursor: 'pointer', padding: 0,
-            textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 2,
+            cursor: 'pointer', padding: 0,
           }}>edit</button>
         )}
       </div>

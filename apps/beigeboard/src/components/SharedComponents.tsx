@@ -16,6 +16,7 @@ export function Checkbox({ id, completed, onToggle, color, size = 15 }: any) {
       style={{
         width: size, height: size,
         border: `1px solid ${completed ? accent : 'var(--color-line)'}`,
+        borderRadius: 3,
         background: completed ? accent : 'transparent',
         cursor: 'pointer', flexShrink: 0,
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
@@ -115,6 +116,7 @@ export function Plate({ children, style, accent, recessed, dataDropId, ...rest }
         position: 'relative',
         background: recessed ? 'rgba(0,0,0,0.25)' : 'var(--color-paper-2)',
         border: `1px solid var(--color-line)`,
+        borderRadius: 'var(--hub-radius-lg)',
         boxShadow: recessed
           ? `inset 0 2px 6px rgba(0,0,0,0.4), inset 0 -1px 0 rgba(255,255,255,0.04)`
           : `inset 0 1px 0 rgba(255,255,255,0.06), inset 0 -2px 4px rgba(0,0,0,0.18), 0 1px 0 rgba(0,0,0,0.4), 0 4px 16px rgba(0,0,0,0.18)`,
@@ -124,6 +126,8 @@ export function Plate({ children, style, accent, recessed, dataDropId, ...rest }
         <div style={{
           position: 'absolute', left: 0, top: 0, bottom: 0, width: 5,
           background: accent,
+          borderTopLeftRadius: 'var(--hub-radius-lg)',
+          borderBottomLeftRadius: 'var(--hub-radius-lg)',
           boxShadow: `0 0 14px ${accent}66`,
         }} />
       )}

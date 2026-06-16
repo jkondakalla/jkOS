@@ -197,6 +197,7 @@ function EmptyDay({ onAdd, today, aiEnabled }: any) {
     <article style={{
       padding: '40px 36px',
       border: '1px dashed var(--color-line)',
+      borderRadius: 'var(--hub-radius-lg)',
       background: 'var(--color-paper-2)',
     }}>
       <Eyebrow style={{ marginBottom: 6 }}>The day is open.</Eyebrow>
@@ -439,11 +440,13 @@ function AdriftStrip({ goals, items, today, onUpdateItem, readonly, toWorkshop }
   )
 }
 
+/* Navigational links ride the SECONDARY accent — the flat companion to the
+   pressed primary used for headings/wordmark (the two-accent system). */
 function tinyLink(_?: any): React.CSSProperties {
   return {
     background: 'transparent', border: 'none',
     fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 12,
-    color: 'var(--color-muted)', cursor: 'pointer', padding: 0,
+    color: 'var(--color-secondary)', cursor: 'pointer', padding: 0,
     textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 3,
   }
 }
