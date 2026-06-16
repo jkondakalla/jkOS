@@ -16,7 +16,7 @@ export function Checkbox({ id, completed, onToggle, color, size = 15 }: any) {
       style={{
         width: size, height: size,
         border: `1px solid ${completed ? accent : 'var(--color-line)'}`,
-        borderRadius: 3,
+        borderRadius: 'var(--hub-radius-xs)',
         background: completed ? accent : 'transparent',
         cursor: 'pointer', flexShrink: 0,
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',

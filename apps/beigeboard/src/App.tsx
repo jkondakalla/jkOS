@@ -25,14 +25,16 @@ if (!document.documentElement.hasAttribute('data-mode')) {
   document.documentElement.setAttribute('data-mode', 'paper')
 }
 
-// BeigeBoard typography + radius via the @jkos/design factory: serif → Fraunces;
-// sans/mono inherit the IBM Plex factory defaults. The brief softens the suite's
-// sharp default corners, so BeigeBoard overrides the radius scale here (factory
-// defaults are 0–2px; other apps keep them). Both override hub.css INPUT tokens at
-// startup. Accents stay user-driven (applyJkOSTheme, in useJkOSPreferences).
+// BeigeBoard supplies its per-app inputs to the @jkos/design factory: serif →
+// Fraunces (sans/mono inherit the IBM Plex factory defaults), and its own radius
+// scale. Radius is a first-class factory input like accent/fonts/neutrals — the
+// hub default happens to be sharp (0–2px), BeigeBoard runs a rounder scale, other
+// apps keep theirs. Every BeigeBoard shape reads these --hub-radius-* tokens
+// (no hardcoded radii), so the whole app retunes from this one call. Accents stay
+// user-driven (applyJkOSTheme, in useJkOSPreferences).
 injectJkOSTheme({
   fonts: { serif: "'Fraunces', Georgia, serif" },
-  radius: { base: '8px', sm: '7px', lg: '11px', soft: '9px', widget: '10px', button: '8px' },
+  radius: { base: '8px', xs: '4px', sm: '7px', lg: '11px', soft: '9px', widget: '10px', button: '8px' },
 })
 
 const DEFAULT_API_URL  = import.meta.env.VITE_API_URL ?? ''

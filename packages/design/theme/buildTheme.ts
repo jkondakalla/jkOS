@@ -35,8 +35,11 @@ export interface JkOSNeutrals {
   cream?: string;  creamBright?: string;  creamDim?: string;  creamFaint?: string;
 }
 
+/** Radius scale — a per-app input. Every key maps 1:1 onto a `--hub-radius*`
+ *  token; set the ones an app uses, omit the rest to inherit the (sharp) hub
+ *  default. `xs` is the tiny-control rung (checkboxes, swatches). */
 export interface JkOSRadius {
-  base?: string;  sm?: string;  lg?: string;
+  base?: string;  xs?: string;  sm?: string;  lg?: string;
   soft?: string;  widget?: string;  button?: string;
 }
 
@@ -76,7 +79,7 @@ const NEUTRAL_VARS: Record<keyof JkOSNeutrals, string> = {
 };
 
 const RADIUS_VARS: Record<keyof JkOSRadius, string> = {
-  base: '--hub-radius', sm: '--hub-radius-sm', lg: '--hub-radius-lg',
+  base: '--hub-radius', xs: '--hub-radius-xs', sm: '--hub-radius-sm', lg: '--hub-radius-lg',
   soft: '--hub-radius-soft', widget: '--hub-radius-widget', button: '--hub-radius-button',
 };
 

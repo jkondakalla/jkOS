@@ -19,10 +19,12 @@ It is **skeuomorphic, not flat-SaaS**: corners are sharp **by default**
 (`--hub-radius: 0px`, max 2px), chrome is built from CSS "hardware" — LEDs, screws, vents,
 dymo tape, rubber stamps, 7-segment displays. Subtle ambient animation (LED pulse, data
 flicker) is part of the identity. New UI should extend this language, not normalize it
-toward generic modern UI. Radius is a **per-app input**, though — an app may soften its
-corners through the factory without leaving the language: BeigeBoard overrides the radius
-scale (`injectJkOSTheme({ radius })`, ~8–11px) for a warmer paper feel; other apps keep the
-sharp default.
+toward generic modern UI. Corner radius is a **per-app factory input** — co-equal with
+accent, fonts, and neutrals, not a fixed identity apps "override." The hub default is sharp
+(0–2px), but an app picks its own corner scale through the factory without leaving the
+language: BeigeBoard runs a rounder scale (`injectJkOSTheme({ radius })`, ~8–11px) for a
+warmer paper feel; other apps keep the sharp default. App shapes read the `--hub-radius*`
+tokens (never hardcode a pixel radius), so the whole app retunes from that one call.
 
 ## Token source of truth — `@jkos/design/tokens.css`
 
@@ -128,8 +130,8 @@ rung down, never pressed. Status colours keep their own lane.
   `.jk-bubble-primary` / `.jk-bubble-secondary` (+ `.jk-bubble-lg`) single-element pills,
   `.jk-sheet` (card). Text-system primitives: `.jk-lab` (+ `.jk-lab-sm/-xs`, mono uppercase
   label), `.jk-tbtn` (+ `.jk-tbtn-quiet`, compact mono text button that hovers to the
-  secondary accent), `.jk-pill` (green status pill). Corners follow `--hub-radius*` (sharp by
-  default; a per-app radius softens them, e.g. BeigeBoard); no texture/effect tokens touched.
+  secondary accent), `.jk-pill` (green status pill). Corners follow the per-app
+  `--hub-radius*` scale (sharp by default); no texture/effect tokens touched.
 - **React components** (`@jkos/ui`): `<Bubble tone large>`, `<Press large as>`, `<Sub>`,
   `<SubLink>`, `<Well>`, `<Sheet>`, `<Lab size>`, `<TButton quiet>`, `<Pill>` (+ `cx`) wrap
   those classes — the sanctioned way to use the system. `@jkos/design` stays framework-free
@@ -140,7 +142,7 @@ rung down, never pressed. Status colours keep their own lane.
 | App | React | Styling | Notes |
 |-----|-------|---------|-------|
 | ORDECK | 18 | Plain CSS + `@jkos/ui` | **No Tailwind.** `WidgetShell` from `@jkos/ui` wraps widgets; `@jkos/ui/tokens.css` re-imports design tokens + ORDECK CRT overlay vars only (the `--color-*` aliases now live once in hub.css). v2 HUD (`html.od-v2`) keeps its own neutrals/rounded radius; accent flows from the chain |
-| BeigeBoard | 18 | Plain CSS (`src/app.css`) | **No Tailwind.** App helpers (fonts, colors, date fmt) in `src/lib/theme.ts`. Restyled to the Claude brief via `@jkos/ui` primitives + factory overrides (serif → Fraunces, softened radius ~8–11px); accents stay user-driven. Calendar drag uses a 4px click-vs-drag threshold (`providers/DragProvider`) so taps select/create and only real movement reschedules |
+| BeigeBoard | 18 | Plain CSS (`src/app.css`) | **No Tailwind.** App helpers (fonts, colors, date fmt) in `src/lib/theme.ts`. Restyled to the Claude brief via `@jkos/ui` primitives + per-app factory inputs (serif → Fraunces, a rounder radius scale ~8–11px); accents stay user-driven. Calendar drag uses a 4px click-vs-drag threshold (`providers/DragProvider`) so taps select/create and only real movement reschedules |
 | SylibOS | 19 | **Tailwind v4** (CSS-first) | Config lives in `src/index.css` `@theme` block — there is **no `tailwind.config.js`**; don't introduce v3 idioms |
 
 SylibOS specifics:

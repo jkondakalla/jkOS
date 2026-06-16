@@ -72,9 +72,11 @@
   --hub-font-seg:   'Big Shoulders Display', 'IBM Plex Sans', sans-serif;
   --hub-font-serif: var(--hub-font-sans);
 
-  /* Spacing grid + radii (sharp by default) */
+  /* Spacing grid + radii (a per-app scale; sharp by default — apps soften it
+     through the factory `radius` input, exactly like accent/fonts/neutrals). */
   --hub-grid:             40px;
   --hub-radius:           0px;
+  --hub-radius-xs:        0px;   /* tiny controls (checkboxes, swatches) */
   --hub-radius-sm:        0px;
   --hub-radius-lg:        2px;
   --hub-radius-soft:      2px;

@@ -298,10 +298,10 @@ export function WeekView({ items, today, onSelect, onToggle, onAddItem, onUpdate
                         top: bar.lane * 22 + 4, height: 18,
                         background: `linear-gradient(180deg, rgba(255,255,255,0.12) 0%, rgba(0,0,0,0.09) 100%), ${s.hex}`,
                         boxShadow: `inset 0 1px 0 rgba(255,255,255,0.22), 0 2px 6px rgba(0,0,0,0.35)`,
-                        borderTopLeftRadius:    bar.continuesLeft  ? 0 : 6,
-                        borderBottomLeftRadius: bar.continuesLeft  ? 0 : 6,
-                        borderTopRightRadius:   bar.continuesRight ? 0 : 6,
-                        borderBottomRightRadius:bar.continuesRight ? 0 : 6,
+                        borderTopLeftRadius:    bar.continuesLeft  ? 0 : 'var(--hub-radius-sm)',
+                        borderBottomLeftRadius: bar.continuesLeft  ? 0 : 'var(--hub-radius-sm)',
+                        borderTopRightRadius:   bar.continuesRight ? 0 : 'var(--hub-radius-sm)',
+                        borderBottomRightRadius:bar.continuesRight ? 0 : 'var(--hub-radius-sm)',
                         display: 'flex', alignItems: 'center',
                         paddingLeft: bar.continuesLeft ? 4 : 6,
                         paddingRight: bar.continuesRight ? 0 : 6,
@@ -626,7 +626,7 @@ function UntimedChip({ item, isSelected, isDragging, onSelect, onToggle, onMouse
   if (isDragging) {
     return (
       <div style={{
-        height: 18, background: accent, borderRadius: 6,
+        height: 18, background: accent, borderRadius: 'var(--hub-radius-sm)',
         opacity: 0.28, flexShrink: 0,
         userSelect: 'none', pointerEvents: 'none',
       }} />
@@ -640,7 +640,7 @@ function UntimedChip({ item, isSelected, isDragging, onSelect, onToggle, onMouse
       style={{
         display: 'flex', alignItems: 'center', gap: 6,
         padding: '2px 6px 2px 5px',
-        borderRadius: 6,
+        borderRadius: 'var(--hub-radius-sm)',
         background: item.completed ? 'var(--color-paper)' : `linear-gradient(180deg, rgba(255,255,255,0.12) 0%, rgba(0,0,0,0.09) 100%), ${accent}`,
         boxShadow: item.completed ? 'none' : `inset 0 1px 0 rgba(255,255,255,0.18), 0 1px 4px rgba(0,0,0,0.3)`,
         color: item.completed ? 'var(--color-muted)' : 'rgba(255,255,255,0.95)',

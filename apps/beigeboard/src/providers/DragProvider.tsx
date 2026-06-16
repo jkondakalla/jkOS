@@ -157,7 +157,7 @@ function DragGhost({ drag }: { drag: any }) {
         color: 'rgba(255,255,255,0.96)',
         fontFamily: FONT_BODY, fontSize: 11, fontWeight: 500,
         padding: '4px 10px',
-        borderRadius: 6,
+        borderRadius: 'var(--hub-radius-soft)',
         boxShadow: `0 3px 16px rgba(0,0,0,0.45), 0 0 10px ${color}66`,
         maxWidth: 220, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
       }}>{title}</div>
@@ -168,7 +168,7 @@ function DragGhost({ drag }: { drag: any }) {
           color: 'var(--color-muted)',
           fontFamily: FONT_BODY, fontSize: 8.5,
           letterSpacing: '0.14em', textTransform: 'uppercase',
-          padding: '2px 7px', borderRadius: 3,
+          padding: '2px 7px', borderRadius: 'var(--hub-radius-xs)',
         }}>{hint}</div>
       )}
     </div>
