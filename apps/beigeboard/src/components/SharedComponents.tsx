@@ -49,7 +49,7 @@ export function VUMeter({ pct = 0, color, segments = 20, height = 8, label, peak
         flex: 1, display: 'flex', gap: 2,
         padding: 3,
         background: 'rgba(0,0,0,0.4)',
-        border: `1px solid 'var(--color-line)'`,
+        border: `1px solid var(--color-line)`,
         boxShadow: `inset 0 2px 4px rgba(0,0,0,0.45), inset 0 -1px 0 rgba(255,255,255,0.06)`,
       }}>
         {Array.from({ length: segments }, (_, i) => {
@@ -114,7 +114,7 @@ export function Plate({ children, style, accent, recessed, dataDropId, ...rest }
       style={{
         position: 'relative',
         background: recessed ? 'rgba(0,0,0,0.25)' : 'var(--color-paper-2)',
-        border: `1px solid 'var(--color-line)'`,
+        border: `1px solid var(--color-line)`,
         boxShadow: recessed
           ? `inset 0 2px 6px rgba(0,0,0,0.4), inset 0 -1px 0 rgba(255,255,255,0.04)`
           : `inset 0 1px 0 rgba(255,255,255,0.06), inset 0 -2px 4px rgba(0,0,0,0.18), 0 1px 0 rgba(0,0,0,0.4), 0 4px 16px rgba(0,0,0,0.18)`,
@@ -182,7 +182,7 @@ export function ColorPicker({ current, onChange, onClose }: any) {
     <div ref={ref} style={{
       position: 'absolute', zIndex: 300,
       background: 'var(--color-paper-2)',
-      border: `1px solid 'var(--color-line)'`,
+      border: `1px solid var(--color-line)`,
       boxShadow: `0 8px 32px rgba(0,0,0,0.45)`,
       padding: '8px 10px',
       display: 'flex', gap: 5, alignItems: 'center',
@@ -191,11 +191,11 @@ export function ColorPicker({ current, onChange, onClose }: any) {
         onClick={() => { onChange(null); onClose() }}
         title="No color"
         style={{
-          width: 18, height: 18, border: `1px solid 'var(--color-line)'`,
+          width: 18, height: 18, border: `1px solid var(--color-line)`,
           background: 'transparent', cursor: 'pointer', padding: 0,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           color: 'var(--color-faint)', fontSize: 10, lineHeight: 1,
-          outline: !current ? `2px solid 'var(--color-ink)'` : 'none',
+          outline: !current ? `2px solid var(--color-ink)` : 'none',
           outlineOffset: 1,
         }}
       >✕</button>
@@ -208,7 +208,7 @@ export function ColorPicker({ current, onChange, onClose }: any) {
             width: 18, height: 18,
             background: c.hex,
             border: 'none', cursor: 'pointer', padding: 0,
-            outline: current === c.hex ? `2px solid 'var(--color-ink)'` : 'none',
+            outline: current === c.hex ? `2px solid var(--color-ink)` : 'none',
             outlineOffset: 1,
             boxShadow: current === c.hex ? `0 0 8px ${c.hex}99` : 'none',
           }}

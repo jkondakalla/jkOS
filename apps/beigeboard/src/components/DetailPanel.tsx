@@ -36,7 +36,7 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
 
   return (
     <aside className="panel-enter" style={{
-      borderLeft: `1px solid 'var(--color-line)'`,
+      borderLeft: `1px solid var(--color-line)`,
       background: 'var(--color-paper-2)',
       display: 'flex', flexDirection: 'column',
       overflow: 'hidden',
@@ -174,7 +174,7 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
               className="btn-action"
               style={{
                 display: 'flex', alignItems: 'center', gap: 9,
-                background: 'transparent', border: `1px solid 'var(--color-line)'`,
+                background: 'transparent', border: `1px solid var(--color-line)`,
                 fontFamily: FONT_BODY, fontSize: 12,
                 padding: '9px 14px', color: 'var(--color-ink)', cursor: 'pointer',
                 letterSpacing: '0.05em',
@@ -201,7 +201,7 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
             )}
             {children.length === 0 ? (
               <div style={{
-                padding: '12px 14px', border: `1px dashed 'var(--color-line)'`,
+                padding: '12px 14px', border: `1px dashed var(--color-line)`,
                 fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 13, color: 'var(--color-muted)',
               }}>Not broken down yet. Open in the workshop to add steps.</div>
             ) : (
@@ -209,7 +209,7 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
                 {children.slice(0, 6).map((c: any) => (
                   <li key={c.id} style={{
                     display: 'flex', alignItems: 'center', gap: 8,
-                    padding: '6px 0', borderBottom: `1px solid 'var(--color-line-strong)'`,
+                    padding: '6px 0', borderBottom: `1px solid var(--color-line-strong)`,
                   }}>
                     <span style={{ width: 4, height: 16, background: accent, opacity: 0.5, flexShrink: 0 }} />
                     <span style={{
@@ -273,14 +273,14 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
 
         <div style={{
           display: 'flex', gap: 8, marginTop: 24,
-          paddingTop: 16, borderTop: `1px solid 'var(--color-line-strong)'`,
+          paddingTop: 16, borderTop: `1px solid var(--color-line-strong)`,
         }}>
           <button
             onClick={() => onDelete?.(event.id)}
             className="btn-action"
             style={{
               flex: 1,
-              background: 'transparent', border: `1px solid 'var(--color-line)'`,
+              background: 'transparent', border: `1px solid var(--color-line)`,
               fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.14em',
               textTransform: 'uppercase', color: 'var(--color-muted)',
               padding: '10px 14px', cursor: 'pointer',
@@ -395,7 +395,7 @@ function WhenField({ event, isTask, isEvent, onUpdateItem }: any) {
   }
 
   const inputSty: any = {
-    background: 'transparent', border: `1px solid 'var(--color-line)'`,
+    background: 'transparent', border: `1px solid var(--color-line)`,
     fontFamily: FONT_BODY, fontSize: 11,
     color: 'var(--color-ink)', padding: '4px 6px', outline: 'none',
   }
@@ -442,13 +442,13 @@ function WhenField({ event, isTask, isEvent, onUpdateItem }: any) {
               textTransform: 'uppercase', padding: '7px 0', cursor: 'pointer',
             }}>Save</button>
             <button onClick={() => setEditing(false)} style={{
-              flex: 1, background: 'transparent', border: `1px solid 'var(--color-line)'`,
+              flex: 1, background: 'transparent', border: `1px solid var(--color-line)`,
               fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.14em',
               textTransform: 'uppercase', color: 'var(--color-muted)', padding: '7px 0', cursor: 'pointer',
             }}>Cancel</button>
             {(event.due_date || event.scheduled_time) && (
               <button onClick={clear} style={{
-                background: 'transparent', border: `1px solid 'var(--color-line)'`,
+                background: 'transparent', border: `1px solid var(--color-line)`,
                 fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.12em',
                 textTransform: 'uppercase', color: 'var(--color-faint)', padding: '7px 10px', cursor: 'pointer',
               }}>Clear</button>
@@ -482,7 +482,7 @@ function WhenField({ event, isTask, isEvent, onUpdateItem }: any) {
         </div>
       ) : canEdit ? (
         <button onClick={() => setEditing(true)} style={{
-          background: 'transparent', border: `1px dashed 'var(--color-line)'`,
+          background: 'transparent', border: `1px dashed var(--color-line)`,
           fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 13,
           color: 'var(--color-muted)', cursor: 'pointer', padding: '8px 12px', width: '100%', textAlign: 'left',
         }}>+ Schedule this {isEvent ? 'event' : 'task'}</button>

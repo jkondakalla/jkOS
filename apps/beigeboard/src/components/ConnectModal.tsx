@@ -97,13 +97,13 @@ export function ConnectModal({ open, onClose, accounts, onConnect, onDisconnect,
     }}>
       <div onClick={e => e.stopPropagation()} style={{
         width: 'min(640px, 100%)', maxHeight: '88vh',
-        background: 'var(--color-paper)', border: `1px solid 'var(--color-line)'`,
+        background: 'var(--color-paper)', border: `1px solid var(--color-line)`,
         boxShadow: '0 24px 80px rgba(0,0,0,0.4)',
         display: 'flex', flexDirection: 'column', overflow: 'hidden',
       }} className="modal-in">
         <div style={{
           padding: '22px 28px 18px',
-          borderBottom: `1px solid 'var(--color-line)'`, background: 'var(--color-paper-2)',
+          borderBottom: `1px solid var(--color-line)`, background: 'var(--color-paper-2)',
           display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16,
         }}>
           <div>
@@ -139,7 +139,7 @@ export function ConnectModal({ open, onClose, accounts, onConnect, onDisconnect,
                   <li key={a.id} style={{
                     display: 'flex', alignItems: 'center', gap: 10,
                     padding: '8px 12px',
-                    border: `1px solid 'var(--color-line-strong)'`, background: 'var(--color-paper-2)',
+                    border: `1px solid var(--color-line-strong)`, background: 'var(--color-paper-2)',
                   }}>
                     <span style={{ width: 10, height: 10, background: s.hex, borderRadius: '50%' }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -184,7 +184,7 @@ export function ConnectModal({ open, onClose, accounts, onConnect, onDisconnect,
                   type="email" placeholder="Apple ID (e.g. you@icloud.com)"
                   value={icloudUser} onChange={e => setIcloudUser(e.target.value)}
                   style={{
-                    background: 'var(--color-paper-2)', border: `1px solid 'var(--color-line)'`,
+                    background: 'var(--color-paper-2)', border: `1px solid var(--color-line)`,
                     color: 'var(--color-ink)', fontFamily: FONT_BODY, fontSize: 12,
                     padding: '9px 12px', outline: 'none', width: '100%', boxSizing: 'border-box',
                   }}
@@ -194,7 +194,7 @@ export function ConnectModal({ open, onClose, accounts, onConnect, onDisconnect,
                   value={icloudPass} onChange={e => setIcloudPass(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && handleIcloudSubmit()}
                   style={{
-                    background: 'var(--color-paper-2)', border: `1px solid 'var(--color-line)'`,
+                    background: 'var(--color-paper-2)', border: `1px solid var(--color-line)`,
                     color: 'var(--color-ink)', fontFamily: FONT_BODY, fontSize: 12,
                     padding: '9px 12px', outline: 'none', width: '100%', boxSizing: 'border-box',
                   }}
@@ -208,14 +208,14 @@ export function ConnectModal({ open, onClose, accounts, onConnect, onDisconnect,
               <div style={{ display: 'flex', gap: 8 }}>
                 <button onClick={handleIcloudSubmit} disabled={connecting === 'icloud'} className="btn-action" style={{
                   flex: 1, padding: '9px 14px',
-                  background: 'var(--color-paper-2)', border: `1px solid 'var(--color-line)'`,
+                  background: 'var(--color-paper-2)', border: `1px solid var(--color-line)`,
                   fontFamily: FONT_BODY, fontSize: 12, color: 'var(--color-ink)', cursor: connecting === 'icloud' ? 'wait' : 'pointer',
                 }}>
                   {connecting === 'icloud' ? 'Connecting…' : 'Connect iCloud'}
                 </button>
                 <button onClick={() => { setIcloudForm(false); setIcloudErr(null) }} style={{
                   padding: '9px 14px',
-                  background: 'transparent', border: `1px solid 'var(--color-line-strong)'`,
+                  background: 'transparent', border: `1px solid var(--color-line-strong)`,
                   fontFamily: FONT_BODY, fontSize: 12, color: 'var(--color-muted)', cursor: 'pointer',
                 }}>
                   Cancel
@@ -232,12 +232,12 @@ export function ConnectModal({ open, onClose, accounts, onConnect, onDisconnect,
                     <button key={p.id} onClick={() => handleConnect(p)} disabled={isConn} className="btn-action" style={{
                       display: 'flex', alignItems: 'center', gap: 12,
                       padding: '12px 14px',
-                      background: 'var(--color-paper-2)', border: `1px solid 'var(--color-line)'`,
+                      background: 'var(--color-paper-2)', border: `1px solid var(--color-line)`,
                       cursor: isConn ? 'wait' : 'pointer', textAlign: 'left',
                     }}>
                       <span style={{
                         width: 34, height: 34,
-                        background: 'var(--color-paper)', border: `1px solid 'var(--color-line)'`,
+                        background: 'var(--color-paper)', border: `1px solid var(--color-line)`,
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 18, color: 'var(--color-ink)',
                         flexShrink: 0,
@@ -269,7 +269,7 @@ export function ConnectModal({ open, onClose, accounts, onConnect, onDisconnect,
           <p style={{
             fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 11,
             color: 'var(--color-muted)', marginTop: 18, lineHeight: 1.5,
-            paddingTop: 14, borderTop: `1px solid 'var(--color-line-strong)'`,
+            paddingTop: 14, borderTop: `1px solid var(--color-line-strong)`,
           }}>
             BeigeBoard reads events only. Never message content. Revoke anytime from your provider's settings.
           </p>

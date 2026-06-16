@@ -200,7 +200,7 @@ export function WeekView({ items, today, onSelect, onToggle, onAddItem, onUpdate
     <div style={{ flex: 1, overflowY: 'auto', background: 'var(--color-paper)', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       <div style={{ flex: 1, minHeight: 0, padding: '24px 32px 0', display: 'flex', flexDirection: 'column', maxWidth: 1280, margin: '0 auto', width: '100%' }}>
 
-        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 16, paddingBottom: 14, borderBottom: `1px solid 'var(--color-line)'` }}>
+        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 16, paddingBottom: 14, borderBottom: `1px solid var(--color-line)` }}>
           <div>
             <Eyebrow style={{ marginBottom: 4 }}>The week</Eyebrow>
             <h1 style={{ fontFamily: FONT_HEAD, fontWeight: 500, fontSize: 32, margin: 0, letterSpacing: '-0.025em', lineHeight: 1.04, color: 'var(--color-ink)', whiteSpace: 'nowrap' }}>
@@ -217,23 +217,23 @@ export function WeekView({ items, today, onSelect, onToggle, onAddItem, onUpdate
         <div style={{
           flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column',
           background: 'var(--color-paper-2)',
-          border: `1px solid 'var(--color-line)'`,
+          border: `1px solid var(--color-line)`,
           boxShadow: `inset 0 1px 0 rgba(0,0,0,0.06), inset 0 -1px 0 rgba(255,255,255,0.18)`,
           overflow: 'hidden',
         }}>
 
           <div style={{
             display: 'grid', gridTemplateColumns: `${WV_LABEL_W}px repeat(7, minmax(0, 1fr))`,
-            borderBottom: `1px solid 'var(--color-line)'`, background: 'var(--color-paper)',
+            borderBottom: `1px solid var(--color-line)`, background: 'var(--color-paper)',
           }}>
-            <div style={{ borderRight: `1px solid 'var(--color-line)'` }} />
+            <div style={{ borderRight: `1px solid var(--color-line)` }} />
             {days.map((d, i) => {
               const dd = localDate(d)
               const isToday = d === today
               return (
                 <div key={d} style={{
                   background: isToday ? 'var(--color-accent-soft)' : 'transparent',
-                  borderRight: i < 6 ? `1px solid 'var(--color-line)'` : 'none',
+                  borderRight: i < 6 ? `1px solid var(--color-line)` : 'none',
                   padding: '8px 12px 10px',
                 }}>
                   <div style={{ fontFamily: FONT_BODY, fontSize: 9.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: isToday ? 'var(--color-accent)' : 'var(--color-muted)' }}>
@@ -250,10 +250,10 @@ export function WeekView({ items, today, onSelect, onToggle, onAddItem, onUpdate
           {(alldayLanes > 0 || (anyDrag && drag?.mode === 'allday')) && (
             <div style={{
               display: 'grid', gridTemplateColumns: `${WV_LABEL_W}px 1fr`,
-              borderBottom: `1px solid 'var(--color-line)'`, background: 'var(--color-paper)', flexShrink: 0,
+              borderBottom: `1px solid var(--color-line)`, background: 'var(--color-paper)', flexShrink: 0,
             }}>
               <div style={{
-                borderRight: `1px solid 'var(--color-line)'`,
+                borderRight: `1px solid var(--color-line)`,
                 fontFamily: FONT_BODY, fontSize: 8, letterSpacing: '0.18em',
                 textTransform: 'uppercase', color: 'var(--color-faint)',
                 padding: '5px 5px 0 0', textAlign: 'right',
@@ -270,9 +270,9 @@ export function WeekView({ items, today, onSelect, onToggle, onAddItem, onUpdate
                         data-drop-day={d}
                         onClick={(!anyDrag && !readonly) ? () => setCreatePending({ startDay: d, allDay: true, scheduled_time: null, scheduled_end: null }) : undefined}
                         style={{
-                          borderRight: i < 6 ? `1px solid 'var(--color-line)'` : 'none',
+                          borderRight: i < 6 ? `1px solid var(--color-line)` : 'none',
                           background: isOver ? `var(--color-accent)22` : d === today ? `var(--color-accent-soft)22` : 'transparent',
-                          outline: isOver ? `1px dashed 'var(--color-accent)'` : isTarget ? `1px dashed var(--color-accent-glow)` : 'none',
+                          outline: isOver ? `1px dashed var(--color-accent)` : isTarget ? `1px dashed var(--color-accent-glow)` : 'none',
                           outlineOffset: -2,
                           cursor: anyDrag ? 'copy' : 'pointer',
                           transition: 'background 0.08s',
@@ -305,7 +305,7 @@ export function WeekView({ items, today, onSelect, onToggle, onAddItem, onUpdate
                         paddingRight: bar.continuesRight ? 0 : 6,
                         cursor: 'grab', overflow: 'hidden',
                         opacity: isDraggingThis ? 0.35 : 1,
-                        outline: selectedId === bar.ev.id ? `2px solid 'var(--color-accent)'` : 'none',
+                        outline: selectedId === bar.ev.id ? `2px solid var(--color-accent)` : 'none',
                         outlineOffset: -2,
                         userSelect: 'none',
                         transition: 'opacity 0.1s',
@@ -323,10 +323,10 @@ export function WeekView({ items, today, onSelect, onToggle, onAddItem, onUpdate
 
           <div style={{
             display: 'grid', gridTemplateColumns: `${WV_LABEL_W}px repeat(7, minmax(0, 1fr))`,
-            borderBottom: `1px solid 'var(--color-line)'`, background: 'var(--color-paper)', minHeight: 56,
+            borderBottom: `1px solid var(--color-line)`, background: 'var(--color-paper)', minHeight: 56,
           }}>
             <div style={{
-              borderRight: `1px solid 'var(--color-line)'`,
+              borderRight: `1px solid var(--color-line)`,
               fontFamily: FONT_BODY, fontSize: 8.5, letterSpacing: '0.18em',
               textTransform: 'uppercase', color: 'var(--color-faint)',
               padding: '6px 6px 0 0', textAlign: 'right',
@@ -341,9 +341,9 @@ export function WeekView({ items, today, onSelect, onToggle, onAddItem, onUpdate
                   data-drop-zone="untimed"
                   data-drop-day={d}
                   style={{
-                    borderRight: i < 6 ? `1px solid 'var(--color-line)'` : 'none',
+                    borderRight: i < 6 ? `1px solid var(--color-line)` : 'none',
                     background: isOver ? `var(--color-accent)18` : d === today ? `var(--color-accent-soft)44` : 'transparent',
-                    outline: isOver ? `1px dashed 'var(--color-accent)'` : isTarget ? `1px dashed var(--color-accent-glow)` : 'none',
+                    outline: isOver ? `1px dashed var(--color-accent)` : isTarget ? `1px dashed var(--color-accent-glow)` : 'none',
                     outlineOffset: -2,
                     padding: 4,
                     display: 'flex', flexDirection: 'column', gap: 3,
@@ -373,7 +373,7 @@ export function WeekView({ items, today, onSelect, onToggle, onAddItem, onUpdate
               display: 'grid', gridTemplateColumns: `${WV_LABEL_W}px repeat(7, minmax(0, 1fr))`,
               height: totalH, position: 'relative',
             }}>
-              <div style={{ position: 'relative', borderRight: `1px solid 'var(--color-line)'`, background: 'var(--color-paper)' }}>
+              <div style={{ position: 'relative', borderRight: `1px solid var(--color-line)`, background: 'var(--color-paper)' }}>
                 {HOURS.map((h, i) => (
                   <div key={h} style={{
                     position: 'absolute', top: i * WV_ROW_H, left: 0, right: 0, height: WV_ROW_H,

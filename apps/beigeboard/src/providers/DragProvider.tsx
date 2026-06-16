@@ -116,7 +116,7 @@ function DragGhost({ drag }: { drag: any }) {
       {hint && (
         <div style={{
           background: 'var(--color-paper-2)',
-          border: `1px solid 'var(--color-line)'`,
+          border: `1px solid var(--color-line)`,
           color: 'var(--color-muted)',
           fontFamily: FONT_BODY, fontSize: 8.5,
           letterSpacing: '0.14em', textTransform: 'uppercase',

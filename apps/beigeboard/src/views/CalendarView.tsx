@@ -108,12 +108,12 @@ export function CalendarView({ items, today, onSelect, onToggle, onUpdateItem, o
 
       <aside style={{
         width: 220, flexShrink: 0,
-        borderRight: `1px solid 'var(--color-line)'`,
+        borderRight: `1px solid var(--color-line)`,
         background: 'var(--color-paper-2)',
         display: 'flex', flexDirection: 'column',
         overflow: 'hidden',
       }}>
-        <div style={{ padding: '16px 16px 12px', borderBottom: `1px solid 'var(--color-line)'` }}>
+        <div style={{ padding: '16px 16px 12px', borderBottom: `1px solid var(--color-line)` }}>
           <Eyebrow>Unscheduled · {unscheduled.length}</Eyebrow>
           <p style={{ fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 12, color: 'var(--color-muted)', margin: '4px 0 0', lineHeight: 1.35 }}>
             Drag onto a date to schedule
@@ -142,7 +142,7 @@ export function CalendarView({ items, today, onSelect, onToggle, onUpdateItem, o
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '14px 24px 12px',
-          borderBottom: `1px solid 'var(--color-line)'`,
+          borderBottom: `1px solid var(--color-line)`,
           background: 'var(--color-paper)', flexShrink: 0,
         }}>
           <h2 style={{ fontFamily: FONT_HEAD, fontWeight: 500, fontSize: 26, margin: 0, letterSpacing: '-0.02em', color: 'var(--color-ink)' }}>
@@ -159,12 +159,12 @@ export function CalendarView({ items, today, onSelect, onToggle, onUpdateItem, o
 
         <div style={{
           display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
-          borderBottom: `1px solid 'var(--color-line)'`, background: 'var(--color-paper-2)', flexShrink: 0,
+          borderBottom: `1px solid var(--color-line)`, background: 'var(--color-paper-2)', flexShrink: 0,
         }}>
           {DOW.map(d => (
             <div key={d} style={{
               fontFamily: FONT_BODY, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--color-muted)',
-              padding: '6px 10px', borderRight: d !== 'Sun' ? `1px solid 'var(--color-line)'` : 'none',
+              padding: '6px 10px', borderRight: d !== 'Sun' ? `1px solid var(--color-line)` : 'none',
             }}>{d}</div>
           ))}
         </div>
@@ -181,7 +181,7 @@ export function CalendarView({ items, today, onSelect, onToggle, onUpdateItem, o
               <div key={wi} style={{
                 flex: 1, position: 'relative',
                 display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
-                borderBottom: wi < 5 ? `1px solid 'var(--color-line-strong)'` : 'none',
+                borderBottom: wi < 5 ? `1px solid var(--color-line-strong)` : 'none',
                 minHeight: 90 + barZoneH,
               }}>
                 {barLanes > 0 && (
@@ -215,7 +215,7 @@ export function CalendarView({ items, today, onSelect, onToggle, onUpdateItem, o
                             overflow: 'hidden',
                             cursor: 'grab',
                             opacity: isDraggingThis ? 0.35 : 1,
-                            outline: selectedId === bar.ev.id ? `2px solid 'var(--color-accent)'` : 'none',
+                            outline: selectedId === bar.ev.id ? `2px solid var(--color-accent)` : 'none',
                             outlineOffset: -2,
                             userSelect: 'none',
                             transition: 'opacity 0.1s',
@@ -251,7 +251,7 @@ export function CalendarView({ items, today, onSelect, onToggle, onUpdateItem, o
                         }
                       }}
                       style={{
-                        borderRight: ci < 6 ? `1px solid 'var(--color-line-strong)'` : 'none',
+                        borderRight: ci < 6 ? `1px solid var(--color-line-strong)` : 'none',
                         background: isOver
                           ? `var(--color-accent)18`
                           : isToday
@@ -260,7 +260,7 @@ export function CalendarView({ items, today, onSelect, onToggle, onUpdateItem, o
                           ? 'rgba(0,0,0,0.04)'
                           : 'var(--color-paper)',
                         outline: isOver
-                          ? `1px dashed 'var(--color-accent)'`
+                          ? `1px dashed var(--color-accent)`
                           : isTarget
                           ? `1px dashed var(--color-accent-glow)`
                           : 'none',
@@ -318,7 +318,7 @@ export function CalendarView({ items, today, onSelect, onToggle, onUpdateItem, o
                               if (e.key === 'Escape') setQuickAdd(null)
                             }}
                             style={{
-                              background: 'transparent', border: `1px solid 'var(--color-accent)'`,
+                              background: 'transparent', border: `1px solid var(--color-accent)`,
                               fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 11,
                               color: 'var(--color-ink)', outline: 'none', padding: '2px 5px',
                               width: '100%', boxSizing: 'border-box',
@@ -361,11 +361,11 @@ function CalTaskChip({ item, accent: inherited, isDragging, isSelected, onSelect
         padding: compact ? '2px 5px 2px 4px' : '5px 8px 5px 6px',
         background: item.completed ? 'transparent' : `linear-gradient(180deg, rgba(255,255,255,0.12) 0%, rgba(0,0,0,0.09) 100%), ${accent}`,
         boxShadow: item.completed ? 'none' : `inset 0 1px 0 rgba(255,255,255,0.18), 0 1px 5px rgba(0,0,0,0.32)`,
-        border: item.completed ? `1px solid 'var(--color-line-strong)'` : 'none',
+        border: item.completed ? `1px solid var(--color-line-strong)` : 'none',
         color: item.completed ? 'var(--color-muted)' : 'rgba(255,255,255,0.93)',
         fontFamily: FONT_BODY, fontSize: compact ? 10 : 11.5,
         cursor: 'grab',
-        outline: isSelected ? `1.5px solid 'var(--color-accent)'` : 'none',
+        outline: isSelected ? `1.5px solid var(--color-accent)` : 'none',
         outlineOffset: -1,
         userSelect: 'none', overflow: 'hidden',
       }}
@@ -395,6 +395,6 @@ function navBtn(primary?: boolean) {
     fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.14em',
     textTransform: 'uppercase' as const, padding: '6px 14px',
     cursor: 'pointer',
-    boxShadow: primary ? `0 0 10px 'var(--color-accent-glow)'` : 'none',
+    boxShadow: primary ? `0 0 10px var(--color-accent-glow)` : 'none',
   }
 }
