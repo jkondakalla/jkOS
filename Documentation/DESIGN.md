@@ -15,10 +15,14 @@ jkOS has one distinctive design identity with two faces, switched by `data-mode`
   amber `#ffb000` default accent, text glow (`--hub-amber-glow`), scanline/vignette overlays
   (ORDECK), grain overlay (screen).
 
-It is **skeuomorphic, not flat-SaaS**: corners are sharp (`--hub-radius: 0px`, max 2px),
-chrome is built from CSS "hardware" — LEDs, screws, vents, dymo tape, rubber stamps,
-7-segment displays. Subtle ambient animation (LED pulse, data flicker) is part of the
-identity. New UI should extend this language, not normalize it toward generic modern UI.
+It is **skeuomorphic, not flat-SaaS**: corners are sharp **by default**
+(`--hub-radius: 0px`, max 2px), chrome is built from CSS "hardware" — LEDs, screws, vents,
+dymo tape, rubber stamps, 7-segment displays. Subtle ambient animation (LED pulse, data
+flicker) is part of the identity. New UI should extend this language, not normalize it
+toward generic modern UI. Radius is a **per-app input**, though — an app may soften its
+corners through the factory without leaving the language: BeigeBoard overrides the radius
+scale (`injectJkOSTheme({ radius })`, ~8–11px) for a warmer paper feel; other apps keep the
+sharp default.
 
 ## Token source of truth — `@jkos/design/tokens.css`
 
@@ -89,8 +93,11 @@ key to inherit the hub default. `selector` (default `:root`) scopes a subtree, e
 - `--hub-font-mono` — **IBM Plex Mono**: data, labels, eyebrows, hardware tape text.
 - `--hub-font-sans` — **IBM Plex Sans**: body copy.
 - `--hub-font-seg` — **Big Shoulders Display**: 7-segment numeric displays (`.seg`).
+- `--hub-font-serif` — defaults to the sans stack; apps wanting a serif set it via the
+  factory (`injectJkOSTheme({ fonts:{ serif } })`). BeigeBoard → **Fraunces** for headings
+  and numeric figures; SylibOS → Fraunces for reading surfaces.
 - Loaded from Google Fonts per app `index.html` (ORDECK additionally loads VT323, Orbitron,
-  Space Grotesk, Inter; SylibOS adds Fraunces + Hanken Grotesk for its reading surfaces).
+  Space Grotesk, Inter; SylibOS + BeigeBoard load Fraunces).
 - The label idiom is `.mono-eyebrow`: 9px mono, uppercase, `0.2em` letter-spacing, dim ink.
 
 ## Shared component classes (in hub.css — reuse, don't recreate)
@@ -119,18 +126,21 @@ rung down, never pressed. Status colours keep their own lane.
 - **Classes** (hub.css): `.jk-press` / `.jk-press-lg` (struck primary text), `.jk-sub` /
   `.jk-sub-link` (flat secondary), `.jk-well` (inset container), `.jk-bubble` +
   `.jk-bubble-primary` / `.jk-bubble-secondary` (+ `.jk-bubble-lg`) single-element pills,
-  `.jk-sheet` (card). Sharp corners (`--hub-radius*`); no texture/effect tokens touched.
+  `.jk-sheet` (card). Text-system primitives: `.jk-lab` (+ `.jk-lab-sm/-xs`, mono uppercase
+  label), `.jk-tbtn` (+ `.jk-tbtn-quiet`, compact mono text button that hovers to the
+  secondary accent), `.jk-pill` (green status pill). Corners follow `--hub-radius*` (sharp by
+  default; a per-app radius softens them, e.g. BeigeBoard); no texture/effect tokens touched.
 - **React components** (`@jkos/ui`): `<Bubble tone large>`, `<Press large as>`, `<Sub>`,
-  `<SubLink>`, `<Well>`, `<Sheet>` (+ `cx`) wrap those classes — the sanctioned way to use
-  the system. `@jkos/design` stays framework-free (tokens + factory + appliers); React
-  lives in `@jkos/ui`.
+  `<SubLink>`, `<Well>`, `<Sheet>`, `<Lab size>`, `<TButton quiet>`, `<Pill>` (+ `cx`) wrap
+  those classes — the sanctioned way to use the system. `@jkos/design` stays framework-free
+  (tokens + factory + appliers); React lives in `@jkos/ui`.
 
 ## Per-app stacks — critical constraints
 
 | App | React | Styling | Notes |
 |-----|-------|---------|-------|
 | ORDECK | 18 | Plain CSS + `@jkos/ui` | **No Tailwind.** `WidgetShell` from `@jkos/ui` wraps widgets; `@jkos/ui/tokens.css` re-imports design tokens + ORDECK CRT overlay vars only (the `--color-*` aliases now live once in hub.css). v2 HUD (`html.od-v2`) keeps its own neutrals/rounded radius; accent flows from the chain |
-| BeigeBoard | 18 | Plain CSS (`src/app.css`) | **No Tailwind.** App-specific helpers (fonts, colors, date fmt) in `src/lib/theme.ts` |
+| BeigeBoard | 18 | Plain CSS (`src/app.css`) | **No Tailwind.** App helpers (fonts, colors, date fmt) in `src/lib/theme.ts`. Restyled to the Claude brief via `@jkos/ui` primitives + factory overrides (serif → Fraunces, softened radius ~8–11px); accents stay user-driven. Calendar drag uses a 4px click-vs-drag threshold (`providers/DragProvider`) so taps select/create and only real movement reschedules |
 | SylibOS | 19 | **Tailwind v4** (CSS-first) | Config lives in `src/index.css` `@theme` block — there is **no `tailwind.config.js`**; don't introduce v3 idioms |
 
 SylibOS specifics:
