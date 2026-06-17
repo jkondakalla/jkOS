@@ -1,0 +1,49 @@
+/* hud/grid.css — the custom grid canvas + cell frame.
+   Tokens come from @jkos/design (hub.css); no hardcoded colours. */
+
+.hud-canvas {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  align-content: start;
+  padding: 16px 28px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Each cell positions one widget; the widget fills it and owns its own scroll. */
+.hud-cell {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  animation: od-fade-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.hud-cell > * {
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Edit mode: dashed outline marks rearrangeable cells; drag to rearrange. */
+.hud-canvas.editing .hud-cell {
+  outline: 1px dashed color-mix(in srgb, var(--hub-amber) 45%, transparent);
+  outline-offset: 2px;
+  border-radius: var(--hub-radius-lg);
+  cursor: grab;
+}
+.hud-canvas.editing .hud-cell:active { cursor: grabbing; }
+
+/* Remove (→ shelf) affordance, pinned to the cell corner. Reuses the visual
+   language of .hud-edit-remove; only positioning is overridden here. */
+.hud-cell-remove {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  z-index: 3;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hud-cell { animation: none; }
+}

@@ -1,3 +1,10 @@
+/**
+ * @deprecated ORDECK v3 retired the Module-Federation remote-widget path. The
+ * HUD now renders native, data-driven widgets from the registry (src/hud/), which
+ * read app APIs directly (BeigeBoard's /api/bb/* is the reference). This file and
+ * its federation remotes in vite.config.ts are kept only until the remaining
+ * `*-plugin/Widget` builds are removed; nothing in the app imports it.
+ */
 import { lazy, Suspense } from 'react';
 import ErrorBoundary from '../../components/ErrorBoundary';
 
