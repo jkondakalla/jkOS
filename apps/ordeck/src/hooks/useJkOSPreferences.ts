@@ -8,14 +8,11 @@ export type {
 export { DEFAULT_THEME, DEFAULT_EFFECTS, DEFAULT_LAZUROS, AUTH_URL } from '@jkos/auth-client';
 
 /**
- * Single source of truth for ORDECK's theme/effects/AI prefs. Emits the
- * `ordeck-mode` event on top of the shared applier so the portal's hardware
- * chrome (AuthGuard / LoginPage primitives) reacts to mode changes.
+ * Single source of truth for ORDECK's theme/effects/AI prefs. The shared hook
+ * applies mode/accent to <html>; the auth/login hardware chrome (Led/Screw/Vent)
+ * is pure CSS and re-themes off the --hub-* tokens, so no app-specific onApply
+ * is needed.
  */
 export function useJkOSPreferences() {
-  return useSharedPreferences({
-    onApply: ({ isDark }) => {
-      window.dispatchEvent(new CustomEvent('ordeck-mode', { detail: { isDark } }));
-    },
-  });
+  return useSharedPreferences();
 }

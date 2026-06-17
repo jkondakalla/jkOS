@@ -77,7 +77,7 @@ export default defineConfig(({ mode }) => {
     },
     build: {
       target:       'esnext',
-      minify:       false,
+      minify:       'esbuild',   // host shell — minify the production bundle
       cssCodeSplit: false,
     },
   };

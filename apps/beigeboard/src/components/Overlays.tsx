@@ -1,39 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { FONT_HEAD, FONT_BODY, isoDate, localDate } from '../lib/theme'
 
-/* ── Film Grain ─────────────────────────────────────────────────────────── */
-
-interface FilmGrainProps {
-  strength?: number   // 0–1, defaults to CSS --grain-opacity var or 0.07
-}
-
-export function FilmGrain({ strength }: FilmGrainProps) {
-  const opacity = strength
-    ?? parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--grain-opacity').trim() || '0.07')
-  const blendMode = getComputedStyle(document.documentElement).getPropertyValue('--grain-blend').trim() || 'screen'
-
-  return (
-    <svg
-      style={{
-        position: 'fixed', inset: 0,
-        width: '100%', height: '100%',
-        pointerEvents: 'none',
-        zIndex: 9995,
-        opacity,
-        mixBlendMode: blendMode as any,
-      }}
-      aria-hidden="true"
-    >
-      <filter id="fg">
-        <feTurbulence type="fractalNoise" baseFrequency="0.76" numOctaves={4} stitchTiles="stitch">
-          <animate attributeName="seed" values="0;5;11" calcMode="discrete" dur="22s" repeatCount="indefinite" />
-        </feTurbulence>
-        <feColorMatrix type="matrix" values="2.2 0 0 0 -0.65  2.2 0 0 0 -0.65  2.2 0 0 0 -0.65  0 0 0 1 0" />
-      </filter>
-      <rect width="100%" height="100%" filter="url(#fg)" />
-    </svg>
-  )
-}
+/* Film grain is now a suite-wide background default from the @jkos/design
+   factory (buildJkOSTheme → `<scope> body` background-blend); the old on-top
+   FilmGrain overlay was removed. */
 
 /* ── Halation (lens bloom SVG filter) ───────────────────────────────────── */
 
