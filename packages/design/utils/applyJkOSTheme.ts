@@ -25,6 +25,7 @@ export function applyJkOSMode(
   const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
   const isDark = mode === 'dark' || (mode === 'system' && systemDark);
   document.documentElement.setAttribute('data-mode', isDark ? 'dark' : 'paper');
+  try { localStorage.setItem('jkos-mode', isDark ? 'dark' : 'paper') } catch {}
   return isDark;
 }
 

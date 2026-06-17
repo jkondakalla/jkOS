@@ -20,9 +20,11 @@ import { WeekView } from './views/WeekView'
 import { CalendarView } from './views/CalendarView'
 import { WorkshopView } from './views/WorkshopView'
 
-// Set paper mode before React hydrates to prevent flash
+// Set mode before React hydrates to prevent flash. Check localStorage for user's
+// last-known preference (written by applyJkOSMode), fall back to paper.
 if (!document.documentElement.hasAttribute('data-mode')) {
-  document.documentElement.setAttribute('data-mode', 'paper')
+  const cached = (() => { try { return localStorage.getItem('jkos-mode') } catch { return null } })()
+  document.documentElement.setAttribute('data-mode', cached ?? 'paper')
 }
 
 // BeigeBoard supplies its per-app inputs to the @jkos/design factory: serif →

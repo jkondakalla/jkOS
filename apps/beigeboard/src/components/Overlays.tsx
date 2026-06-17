@@ -1,5 +1,13 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { FONT_HEAD, FONT_BODY, isoDate, localDate } from '../lib/theme'
+
+function getIntroIsDark(): boolean {
+  try {
+    const s = localStorage.getItem('jkos-mode')
+    if (s) return s === 'dark'
+  } catch {}
+  return window.matchMedia('(prefers-color-scheme: dark)').matches
+}
 
 /* Film grain is now a suite-wide background default from the @jkos/design
    factory (buildJkOSTheme → `<scope> body` background-blend); the old on-top
@@ -177,6 +185,7 @@ export function CinematicIntro({ onDone }: { onDone: () => void }) {
   const today = isoDate(new Date())
   const d = localDate(today)
   const dateStr = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
+  const isDark = useMemo(() => getIntroIsDark(), [])
 
   useEffect(() => {
     audioCleanup.current = playStartupAudio()
@@ -195,21 +204,21 @@ export function CinematicIntro({ onDone }: { onDone: () => void }) {
       className={phase === 3 ? 'intro-out' : ''}
       style={{
         position: 'fixed', inset: 0, zIndex: 10000,
-        background: '#0A0703',
+        background: isDark ? '#0A0703' : '#ede2c8',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         overflow: 'hidden',
         pointerEvents: phase === 3 ? 'none' : 'all',
       }}
     >
       <div
-        className={phase >= 1 ? 'crt-expand' : ''}
+        className={phase >= 1 ? (isDark ? 'crt-expand' : 'paper-expand') : ''}
         style={{
           position: 'absolute', inset: 0,
-          background: '#0D0B07',
+          background: isDark ? '#0D0B07' : '#f5ead4',
           clipPath: phase === 0 ? 'inset(50% 0 50% 0)' : undefined,
         }}
       />
-      {phase >= 1 && (
+      {phase >= 1 && isDark && (
         <div style={{
           position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 1,
           backgroundImage: 'repeating-linear-gradient(to bottom, transparent 0px, transparent 2px, rgba(0,0,0,0.18) 2px, rgba(0,0,0,0.18) 4px)',
@@ -218,7 +227,9 @@ export function CinematicIntro({ onDone }: { onDone: () => void }) {
       {phase >= 1 && (
         <div style={{
           position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 1,
-          background: 'radial-gradient(ellipse 70% 60% at 50% 50%, rgba(190,130,20,0.07) 0%, transparent 70%)',
+          background: isDark
+            ? 'radial-gradient(ellipse 70% 60% at 50% 50%, rgba(190,130,20,0.07) 0%, transparent 70%)'
+            : 'radial-gradient(ellipse 70% 60% at 50% 50%, rgba(165,115,35,0.04) 0%, transparent 70%)',
         }} />
       )}
       {phase >= 2 && (
@@ -227,7 +238,9 @@ export function CinematicIntro({ onDone }: { onDone: () => void }) {
             fontFamily: FONT_HEAD, fontStyle: 'italic', fontWeight: 600,
             fontSize: 60, color: 'var(--color-accent)',
             letterSpacing: '-0.02em', lineHeight: 1,
-            textShadow: '0 0 35px var(--color-accent-glow), 0 0 70px var(--color-secondary-glow)',
+            textShadow: isDark
+              ? '0 0 35px var(--color-accent-glow), 0 0 70px var(--color-secondary-glow)'
+              : '0 1px 8px var(--color-accent-glow), 0 0 24px var(--color-accent-glow)',
           }}>
             BeigeBoard
           </div>
