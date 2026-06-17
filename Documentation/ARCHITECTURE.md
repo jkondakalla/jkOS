@@ -8,94 +8,101 @@
 ## Repo layout
 
 ```
-jkos/                      single git repo (was a polyrepo; consolidated)
+jkos/
 ├── apps/
 │   ├── ordeck/            @jkos/ordeck     portal SPA (Vite + module federation)
-│   ├── jkauth/            @jkos/jkauth     SSO service (Express, RS256)        [hub]
-│   ├── beigeboard/        @jkos/beigeboard SPA + Node backend (calendar/tasks) [hub]
-│   ├── lazuros/           Python service   AI gateway (Ollama proxy + WoL)     [hub]
-│   └── sylibos/           @jkos/sylibos    SPA + Node backend (OCW); CourseProcessor (Python ingest CLI) [app]
-├── packages/             shared libraries — the contract every consumer references
-│   ├── design/           @jkos/design          hub.css tokens + theme appliers
-│   ├── auth-client/      @jkos/auth-client      FE auth/preferences contract + hook
-│   ├── auth-middleware/  @jkos/auth-middleware  Node JWT verify middleware (CJS+ESM)
-│   ├── types/            @jkos/types            ORDECK widget/shared TS types
-│   └── ui/               @jkos/ui               ORDECK widget shell + token css
-├── plugins/              ORDECK federation microfrontends (not in prod deploy)
-├── services/             extra Python services (plex-api, recipe-api)
-├── infra/                nginx (reverse proxy) + plugin-docker
-├── jkos-deploy/          deploy controller (FastAPI) behind staging.jkos.net/deploy
-├── Documentation/        ← you are here
-├── pnpm-workspace.yaml  turbo.json  tsconfig.base.json
-└── docker-compose.yml   docker-compose.staging.yml   (root `include:` per service)
+│   ├── jkauth/            @jkos/jkauth     SSO service (Express, RS256)
+│   ├── beigeboard/        @jkos/beigeboard SPA + Node backend (calendar/tasks)
+│   ├── lazuros/           Python           AI gateway (Ollama proxy + WoL)
+│   └── sylibos/           @jkos/sylibos    SPA + Node backend (OCW)
+├── packages/
+│   ├── design/            @jkos/design          hub.css tokens + theme appliers
+│   ├── auth-client/       @jkos/auth-client      FE auth/preferences contract + hook
+│   ├── auth-middleware/   @jkos/auth-middleware  Node JWT verify middleware
+│   ├── types/             @jkos/types            ORDECK widget TS types
+│   └── ui/                @jkos/ui               ORDECK widget shell + token css
+├── plugins/               ORDECK federation microfrontends (experimental, not deployed)
+├── services/              Python extras (plex-api, recipe-api — not deployed)
+├── infra/                 nginx + plugin-docker
+├── jkos-deploy/           deploy controller (FastAPI)
+├── Documentation/         ← you are here
+└── docker-compose.yml  docker-compose.staging.yml  pnpm-workspace.yaml  turbo.json
 ```
 
-Workspace globs: `apps/*`, `apps/*/backend`, `packages/*`, `plugins/*`. Python units
-(`apps/lazuros`, `services/*`) have no `package.json` and are skipped by pnpm.
+Workspace globs: `apps/*`, `apps/*/backend`, `packages/*`, `plugins/*`. Python units have no
+`package.json` and are skipped by pnpm.
 
-## Shared package map (`@jkos/*`)
+## Shared packages (`@jkos/*`)
 
-| Package | Consumed by | Provides |
-|---------|-------------|----------|
-| `@jkos/design` | ordeck, beigeboard, sylibos, `@jkos/ui`, `@jkos/auth-client` | `applyJkOSMode`, `applyJkOSTheme`; `@jkos/design/tokens.css` (hub.css) |
-| `@jkos/auth-client` | ordeck, beigeboard, sylibos | types, defaults, `normaliseTheme`, `applyTheme`, profile client (`getProfile`/`patchProfile`/`getMe`/…), `useJkOSPreferences` hook |
+| Package | Consumers | Provides |
+|---------|-----------|----------|
+| `@jkos/design` | ordeck, beigeboard, sylibos, `@jkos/ui`, `@jkos/auth-client` | `applyJkOSMode`, `applyJkOSTheme`, `buildJkOSTheme`; `tokens.css` (hub.css) |
+| `@jkos/auth-client` | ordeck, beigeboard, sylibos | types, `normaliseTheme`, `applyTheme`, profile client (`getProfile`/`patchProfile`/`getMe`), `useJkOSPreferences` hook |
 | `@jkos/auth-middleware` | beigeboard/backend, sylibos/backend | `jkosAuth({publicKey,issuer})` Express middleware, `verifyToken` |
-| `@jkos/ui` | ordeck, beigeboard, sylibos | `WidgetShell` (ordeck), `SettingsDrawer`/`SettingsSection` (the one suite-wide settings tray — all apps), `@jkos/ui/tokens.css` (re-imports design tokens) |
+| `@jkos/ui` | ordeck, beigeboard, sylibos | `WidgetShell`, `SettingsDrawer`/`SettingsSection` (the one suite-wide settings tray) |
 | `@jkos/types` | ordeck, plugins | widget manifest/instance TS types |
 
-**Invariant — do not duplicate shared logic.** If auth/theme/preferences logic is
-needed, import it from `@jkos/auth-client` (frontend) or `@jkos/auth-middleware`
-(backend). The old per-app copies were deleted; re-adding them is a regression.
+**Invariant — never duplicate shared logic.** Import `@jkos/auth-client` (frontend) or
+`@jkos/auth-middleware` (backend). Per-app copies were deleted; re-adding them is a regression.
 
 ## Auth flow (SSO)
 
-- **jkAuth** (`apps/jkauth/server.js`) mints **RS256 JWTs**: `jkos_token` (15 min)
-  and `jkos_refresh` (30 d), both `httpOnly` cookies scoped to `COOKIE_DOMAIN`
-  (`.jkos.net` prod / `staging.jkos.net` staging). Issuer = `JKOS_AUTH_ISSUER`
-  (`jkos-auth` prod, `jkos-auth-staging` staging).
-- Backends verify the token with **`@jkos/auth-middleware`** using the RSA **public
-  key** (`JKOS_AUTH_PUBLIC_KEY`) + matching issuer. Private key never leaves jkAuth.
-- Frontends never see tokens; they call jkAuth endpoints with `credentials:'include'`
-  via `@jkos/auth-client`. Post-login redirect → `PORTAL_URL` (ORDECK).
-- nginx staging gate uses `auth_request` → `GET /auth/require-admin` (admin-only).
+jkAuth mints **RS256 JWTs**: `jkos_token` (15-min access) and `jkos_refresh` (30-day rotating),
+both `httpOnly` cookies on `COOKIE_DOMAIN` (`.jkos.net` prod / `staging.jkos.net` staging).
+Issuer = `JKOS_AUTH_ISSUER`.
 
-## Theme flow (controlled from auth, applied suite-wide)
+- Backends verify via `@jkos/auth-middleware` using the RSA public key + matching issuer. Private key never leaves jkAuth.
+- Frontends never see tokens — they use `credentials:'include'` via `@jkos/auth-client`. Post-login redirect → `PORTAL_URL` (ORDECK).
+- **Session rotation:** each `/auth/refresh` atomically claims the presented token (`rotated_at`). A token re-presented after rotation → the whole session `family_id` is revoked. Concurrent refreshes within a 10s grace window succeed benignly.
+- **Remember me:** access cookie lifetime mirrors the refresh cookie — 30-day persistent when remember, session-only otherwise. Both lifetimes match so the browser keeps the JWT alive and `TOKEN_EXPIRED` → client refreshes cleanly rather than bouncing to login.
+- nginx staging gate: `auth_request` → `GET /auth/require-admin` (targets prod auth; admin-only).
 
-1. User changes theme/effects in any app's settings panel.
-2. App calls `patchProfile({ theme | effects | lazuros })` → `PATCH /auth/profile`
-   (jkAuth stores it in `users.preferences` JSON).
-3. On load every frontend calls `getProfile()` (`@jkos/auth-client`) and applies it
-   via `applyTheme()` (`@jkos/design`): sets `data-mode="paper"|"dark"` on `<html>`
-   + `--accent`/`--hub-*` CSS vars. **Identical across all three frontends.**
-- Theme is stored **flat** `{ mode, primary, secondary }`; `normaliseTheme()` migrates
-  the legacy nested `{ dark, light }` shape on read.
-- ORDECK extends application with CRT overlay vars + an `ordeck-mode` event via the
-  hook's `onApply` option — it does **not** fork the hook.
+## Theme flow
+
+1. User changes theme in any app's settings panel.
+2. App calls `patchProfile({ theme | effects })` → `PATCH /auth/profile`; jkAuth stores it in `users.preferences` JSON.
+3. On every load, frontends call `getProfile()` and apply via `applyTheme()` (`@jkos/design`): sets `data-mode="paper"|"dark"` on `<html>` + `--accent-raw`/`--accent-2-raw` CSS vars. Identical across all frontends.
+
+Theme stored as flat `{ mode, primary, secondary }`; `normaliseTheme()` migrates the legacy nested shape on read.
 
 ## Build system
 
 - **pnpm** workspace (single `pnpm-lock.yaml`) + **Turbo** (`turbo run build|lint|typecheck`).
-- Shared `@jkos/*` packages are **source-only** (no build step); consumers' Vite/tsc
-  compile them via package `exports` pointing at `src`.
-- Native modules (`better-sqlite3`, `esbuild`) are allow-listed in root
-  `package.json` → `pnpm.onlyBuiltDependencies` (pnpm 10 blocks build scripts by default).
-  Password hashing uses pure-JS **`bcryptjs`** (no native build), so jkAuth's image
-  needs no compiler toolchain.
+- Shared packages are **source-only** (no build step); consumers' Vite/tsc compile them via `exports` pointing at `src/`.
+- Native modules (`better-sqlite3`, `esbuild`) are allow-listed in root `package.json → pnpm.onlyBuiltDependencies`. jkAuth uses pure-JS **`bcryptjs`** — no compiler toolchain in its image.
 
 ## Runtime topology
 
 ```
 internet → standalone-nginx (infra/nginx) :80/:443
   ├── jkos.net            → ordeck-shell:80
-  │     /api/lazuros/*    → host.docker.internal:8080 (lazuros, host net; prefix stripped)
+  │     /api/lazuros/*    → host.docker.internal:8080 (prefix stripped, buffering off)
   ├── auth.jkos.net       → jkos-auth:3100
   ├── beigeboard.jkos.net → bb-app:3001
   ├── sylibos.jkos.net    → sylibos-frontend:80  +  /api → sylibos-api:8004
-  └── staging.jkos.net    → path-routed, admin-gated (see OPERATIONS.md)
+  └── staging.jkos.net    → path-routed, admin-gated
 networks: jkos-internal (prod) · nginx-staging-proxy (staging + jkos-deploy)
           both created by infra/nginx/docker-compose.yml
-lazuros: network_mode=host (needs raw LAN for WoL broadcast); nginx reaches it via
-         host.docker.internal (extra_hosts: host-gateway). Never joins jkos-internal.
+lazuros: network_mode=host (raw LAN for WoL broadcast); nginx reaches it via
+         host.docker.internal (extra_hosts: host-gateway)
 ```
 
-See **SERVICES.md** for per-service detail, **OPERATIONS.md** for build/deploy/staging.
+## Environment isolation (prod vs staging)
+
+The suite deploys twice from one codebase. **Code defaults are prod values** — a service started
+with no env overrides is a prod service. Staging-only values live exclusively in
+`docker-compose.staging.yml`; prod compose files carry no staging values. A merge is safe by
+construction.
+
+| Variable | Production | Staging |
+|----------|------------|---------|
+| `JKOS_COOKIE_SUFFIX` | `` → `jkos_token` | `_staging` → `jkos_token_staging` |
+| `JKOS_AUTH_ISSUER` | `jkos-auth` | `jkos-auth-staging` |
+| `COOKIE_DOMAIN` | `.jkos.net` | `staging.jkos.net` |
+| `JKOS_AUTH_URL` / `VITE_JKOS_AUTH_URL` | `https://auth.jkos.net` | `https://staging.jkos.net` |
+| `VITE_BASE` | `/` | `/sylib/`, `/beigeboard/` |
+| `PROD_BRANCH` (deploy only) | `main` | `staging` |
+
+All three of {distinct cookie name, distinct issuer, distinct auth gate} must hold together.
+If prod behaves like staging, a staging value was written into a prod `docker-compose.yml` —
+a one-line, reviewable diff, never a silent code merge.

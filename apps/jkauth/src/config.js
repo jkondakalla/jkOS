@@ -10,6 +10,12 @@ const AUTH_ORIGIN = process.env.AUTH_ORIGIN || 'https://auth.jkos.net'
 const PRIVATE_KEY = (process.env.JKOS_AUTH_PRIVATE_KEY || '').replace(/\\n/g, '\n')
 const PUBLIC_KEY = (process.env.JKOS_AUTH_PUBLIC_KEY || '').replace(/\\n/g, '\n')
 
+// Optional second public key published alongside the active one in /auth/jwks, so
+// verifiers can pick up a new key BEFORE jkAuth starts signing with it (zero-
+// downtime rotation, U3). To rotate: set *_NEXT to the new public key + a new
+// kid, deploy, let caches warm, then promote NEXT to the active signing key.
+const PUBLIC_KEY_NEXT = (process.env.JKOS_AUTH_PUBLIC_KEY_NEXT || '').replace(/\\n/g, '\n')
+
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || ''
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || ''
 const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || `http://localhost:${PORT}/auth/google/callback`
@@ -40,10 +46,20 @@ const RL_CREDENTIALS = numEnv('RL_CREDENTIALS', 10)   // /auth/login · /auth/re
 const RL_REFRESH = numEnv('RL_REFRESH', 120)          // /auth/refresh
 const RL_GOOGLE = numEnv('RL_GOOGLE', 30)             // /auth/google · /auth/google/callback
 
-// bcrypt silently truncates at 72 bytes; cap input length to avoid that footgun
-// becoming load-bearing and to stop slow-hash DoS on absurd inputs. (S3)
+// Passwords are SHA-256 pre-hashed before bcrypt (see src/password.js), so the
+// 72-byte bcrypt truncation no longer applies — but we still cap input length to
+// stop a slow-hash DoS on absurd inputs and to keep the min a real policy. (S3/U1)
 const PASSWORD_MIN = 8
 const PASSWORD_MAX = 128
+const BCRYPT_COST = numEnv('BCRYPT_COST', 12)
+
+// Per-account login throttle (S6). After LOCKOUT_FREE failed attempts the next
+// attempt must wait an exponentially growing delay (LOCKOUT_BASE_MS, doubling)
+// capped at LOCKOUT_CAP_MS. A soft backoff, not a hard lock — a known victim
+// can't be permanently DoS'd out of their account, and a success resets it.
+const LOCKOUT_FREE = numEnv('LOCKOUT_FREE', 3)
+const LOCKOUT_BASE_MS = numEnv('LOCKOUT_BASE_MS', 1000)
+const LOCKOUT_CAP_MS = numEnv('LOCKOUT_CAP_MS', 30 * 1000)
 
 // Cookie name suffix isolates environments that share a parent domain. Prod uses
 // '' → jkos_token on .jkos.net; staging sets JKOS_COOKIE_SUFFIX=_staging →
@@ -59,17 +75,21 @@ const COOKIE_DOMAIN = process.env.COOKIE_DOMAIN || '.jkos.net'
 const COOKIE_OPTS = { httpOnly: true, sameSite: 'lax', secure: true, path: '/', domain: COOKIE_DOMAIN }
 
 const JWT_ISSUER = process.env.JKOS_AUTH_ISSUER || 'jkos-auth'
-const JWT_KID = '1'   // matches /auth/jwks; gives key rotation a handle (S4)
+// kid of the ACTIVE signing key (must appear in /auth/jwks). Env-overridable so a
+// rotation can advance it without a code change. (S4/U3)
+const JWT_KID = process.env.JKOS_AUTH_KID || '1'
+const JWT_KID_NEXT = process.env.JKOS_AUTH_KID_NEXT || '2'   // kid for PUBLIC_KEY_NEXT
 
 module.exports = {
   PORT, DB_PATH, PORTAL_URL, AUTH_ORIGIN,
-  PRIVATE_KEY, PUBLIC_KEY,
+  PRIVATE_KEY, PUBLIC_KEY, PUBLIC_KEY_NEXT,
   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI,
   ADMIN_SEED_EMAIL, ADMIN_SEED_PASSWORD, GUEST_PASSWORD,
   ACCESS_TTL_MS, REFRESH_TTL_MS, REMEMBER_TTL_MS, REFRESH_GRACE_MS,
   RL_WINDOW_MS, RL_CREDENTIALS, RL_REFRESH, RL_GOOGLE,
-  PASSWORD_MIN, PASSWORD_MAX,
+  PASSWORD_MIN, PASSWORD_MAX, BCRYPT_COST,
+  LOCKOUT_FREE, LOCKOUT_BASE_MS, LOCKOUT_CAP_MS,
   COOKIE_SUFFIX, TOKEN_COOKIE, REFRESH_COOKIE, OAUTH_NONCE_COOKIE,
   COOKIE_DOMAIN, COOKIE_OPTS,
-  JWT_ISSUER, JWT_KID,
+  JWT_ISSUER, JWT_KID, JWT_KID_NEXT,
 }

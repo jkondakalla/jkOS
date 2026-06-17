@@ -53,6 +53,111 @@ function loginPage(opts = {}) {
 </div>`)
 }
 
+// Two-step verification challenge — rendered after a password login passes for
+// an account with 2FA enabled. Carries the stateless pending token; the single
+// code field accepts a TOTP, a recovery code, or the emailed OTP. (U6)
+function twoFactorPage(opts = {}) {
+  const { pendingToken, methods = [], redirectTo, error } = opts
+  const errorHtml = error ? `<p class="error">${escHtml(error)}</p>` : ''
+  const hasTotp = methods.includes('totp')
+  const hasEmail = methods.includes('email')
+  const hint = hasTotp && hasEmail
+    ? 'Enter the code from your authenticator app, or the code we just emailed you.'
+    : hasEmail ? 'We emailed you a 6-digit code. Enter it below to continue.'
+    : 'Enter the 6-digit code from your authenticator app.'
+  const recovery = hasTotp
+    ? `<p class="toggle">Lost your device? Enter one of your recovery codes above.</p>` : ''
+  const backHref = `/auth/login${redirectTo ? '?redirect_to=' + encodeURIComponent(redirectTo) : ''}`
+  return layout('Verify', `
+<div class="card">
+  <h1 class="wordmark">jk<span>OS</span></h1>
+  <p class="subtitle">Two-step verification</p>
+  ${errorHtml}
+  <p class="muted-note" style="margin:-.3rem 0 .2rem">${escHtml(hint)}</p>
+  <form method="POST" action="/auth/login/2fa">
+    <input type="hidden" name="pending_token" value="${escHtml(pendingToken)}">
+    <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"
+      placeholder="Verification code" required autofocus spellcheck="false">
+    <button type="submit" class="btn-primary">Verify</button>
+  </form>
+  ${recovery}
+  <p class="toggle"><a href="${backHref}">Back to sign in</a></p>
+</div>`)
+}
+
+// Account security page (authenticated) — manage TOTP + email 2FA. Pure forms,
+// so it needs no client JS and stays within the strict CSP. (U6)
+function securityPage(user, info = {}, opts = {}) {
+  const { totpEnabled, emailEnabled, recoveryRemaining } = info
+  const { notice, error } = opts
+  const noticeHtml = notice ? `<p class="ok-note">${escHtml(notice)}</p>` : ''
+  const errorHtml = error ? `<p class="error">${escHtml(error)}</p>` : ''
+
+  const totpBlock = totpEnabled
+    ? `<p class="muted-note">Authenticator app is <strong>on</strong>. Recovery codes left: ${recoveryRemaining}.</p>
+       <form method="POST" action="/auth/2fa/totp/disable"><button class="btn-ghost">Turn off authenticator</button></form>`
+    : `<p class="muted-note">Use an authenticator app (Google Authenticator, 1Password, …) for time-based codes.</p>
+       <form method="POST" action="/auth/2fa/totp/setup"><button class="btn-primary">Set up authenticator</button></form>`
+
+  const emailBlock = emailEnabled
+    ? `<p class="muted-note">Email codes are <strong>on</strong> — sent to ${escHtml(user.email)} at sign-in.</p>
+       <form method="POST" action="/auth/2fa/email/disable"><button class="btn-ghost">Turn off email codes</button></form>`
+    : `<p class="muted-note">Get a one-time code by email at each sign-in.</p>
+       <form method="POST" action="/auth/2fa/email/enable"><button class="btn-primary">Turn on email codes</button></form>`
+
+  return layout('Security', `
+<div class="card" style="max-width:460px">
+  <h1 class="wordmark">jk<span>OS</span></h1>
+  <p class="subtitle">Account security · ${escHtml(user.email)}</p>
+  ${noticeHtml}${errorHtml}
+  <div class="sec-section">
+    <h2>Authenticator app (TOTP)</h2>
+    ${totpBlock}
+  </div>
+  <div class="sec-section">
+    <h2>Email codes</h2>
+    ${emailBlock}
+  </div>
+  <p class="toggle"><a href="/auth/dashboard">Back to portal</a></p>
+</div>`)
+}
+
+// Shown right after starting TOTP setup: the QR + secret, and a field to confirm
+// the first code (which enables it). (U6)
+function totpSetupPage(opts = {}) {
+  const { qr, secret, error } = opts
+  const errorHtml = error ? `<p class="error">${escHtml(error)}</p>` : ''
+  return layout('Set up authenticator', `
+<div class="card" style="max-width:460px">
+  <h1 class="wordmark">jk<span>OS</span></h1>
+  <p class="subtitle">Scan, then enter a code to confirm</p>
+  ${errorHtml}
+  <img src="${escHtml(qr)}" alt="Authenticator QR code" width="200" height="200"
+    style="display:block;margin:.5rem auto;border-radius:8px;background:#fff;padding:6px">
+  <p class="muted-note" style="text-align:center">Can't scan? Enter this key manually:</p>
+  <p class="secret-key">${escHtml(secret)}</p>
+  <form method="POST" action="/auth/2fa/totp/enable">
+    <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"
+      placeholder="6-digit code" required autofocus spellcheck="false">
+    <button type="submit" class="btn-primary">Confirm &amp; enable</button>
+  </form>
+  <p class="toggle"><a href="/auth/security">Cancel</a></p>
+</div>`)
+}
+
+// Shown once after TOTP is enabled — the recovery codes. The user must save them.
+function recoveryCodesPage(codes = []) {
+  const list = codes.map(c => `<li>${escHtml(c)}</li>`).join('')
+  return layout('Recovery codes', `
+<div class="card" style="max-width:460px">
+  <h1 class="wordmark">jk<span>OS</span></h1>
+  <p class="subtitle">Save your recovery codes</p>
+  <p class="muted-note">Each works once if you lose your authenticator. Store them somewhere safe — they won't be shown again.</p>
+  <ul class="recovery-list">${list}</ul>
+  <p class="toggle"><a href="/auth/security">Done — I've saved them</a></p>
+</div>`)
+}
+
 // jkOS portal — shown when a user navigates to jkAuth directly (vs. being
 // bounced here to sign in for a specific app). App launcher + account + the
 // suite-wide AI (LazurOS) controls. Interactive bits read/write /auth/profile.
@@ -75,7 +180,7 @@ function dashboardPage(user, nonce = '') {
   .who .email { color: var(--muted); font-size: .85rem; margin-top: 2px; }
   .role { font-size: .6rem; letter-spacing:.12em; text-transform:uppercase; color:#fff; background:var(--accent);
     padding: 2px 7px; border-radius: 999px; font-weight:600; }
-  .sign-out { margin-left:auto; }
+  .dash-actions { margin-left:auto; display:flex; gap:.5rem; align-items:center; }
   .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem 1.25rem 1.4rem; }
   .panel > h2 { font-size: .7rem; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); margin-bottom: 1rem; }
   .apps { display:grid; grid-template-columns: repeat(auto-fill, minmax(150px,1fr)); gap: .7rem; }
@@ -107,9 +212,12 @@ function dashboardPage(user, nonce = '') {
       <h1>${escHtml(user.name || 'jkOS User')} ${roleBadge}</h1>
       <div class="email">${escHtml(user.email)}</div>
     </div>
-    <form class="sign-out" method="POST" action="/auth/logout">
-      <button type="submit" class="btn-ghost" style="width:auto;padding:.5rem .9rem;">Sign out</button>
-    </form>
+    <div class="dash-actions">
+      <a href="/auth/security" class="btn-ghost" style="width:auto;padding:.5rem .9rem;text-decoration:none;">Security</a>
+      <form method="POST" action="/auth/logout">
+        <button type="submit" class="btn-ghost" style="width:auto;padding:.5rem .9rem;">Sign out</button>
+      </form>
+    </div>
   </div>
 
   <section class="panel">
@@ -189,4 +297,7 @@ modelEl.addEventListener('change', () => { lazuros.model = modelEl.value.trim();
 </script>`)
 }
 
-module.exports = { layout, loginPage, dashboardPage }
+module.exports = {
+  layout, loginPage, dashboardPage,
+  twoFactorPage, securityPage, totpSetupPage, recoveryCodesPage,
+}

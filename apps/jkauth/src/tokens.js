@@ -4,7 +4,6 @@
 // refreshing a remembered session on real navigations).
 
 const crypto = require('crypto')
-const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
 const {
   PRIVATE_KEY, PUBLIC_KEY, JWT_ISSUER, JWT_KID,
@@ -12,6 +11,7 @@ const {
   ACCESS_TTL_MS, REFRESH_TTL_MS, REMEMBER_TTL_MS, REFRESH_GRACE_MS,
 } = require('./config')
 const { run, get, logEvent } = require('./db')
+const { hashPasswordSync } = require('./password')
 
 const sha256 = s => crypto.createHash('sha256').update(s).digest('hex')
 
@@ -19,13 +19,17 @@ const sha256 = s => crypto.createHash('sha256').update(s).digest('hex')
 const sqliteToMs = s => Date.parse(String(s).replace(' ', 'T') + 'Z')
 
 // Pre-computed hash used in the login path when the email doesn't exist, so bcrypt
-// always runs and the response time doesn't reveal whether an account exists.
-const DUMMY_HASH = bcrypt.hashSync('_timing_sentinel_' + crypto.randomBytes(16).toString('hex'), 12)
+// always runs and the response time doesn't reveal whether an account exists. Built
+// with the current scheme so verifyPassword(..., HASH_ALGO) does identical work.
+const DUMMY_HASH = hashPasswordSync('_timing_sentinel_' + crypto.randomBytes(16).toString('hex')).hash
 
+// avatar_url is intentionally NOT in the access token: a long Google CDN URL
+// bloats every cookie/request, and no backend reads it from the token (apps fetch
+// it from /auth/me). Keep this payload minimal. (slim-JWT, U9)
 function signAccess(user) {
   if (!PRIVATE_KEY) throw new Error('JKOS_AUTH_PRIVATE_KEY not set')
   return jwt.sign(
-    { sub: user.id, email: user.email, name: user.name, avatar_url: user.avatar_url, role: user.role },
+    { sub: user.id, email: user.email, name: user.name, role: user.role },
     PRIVATE_KEY,
     { algorithm: 'RS256', expiresIn: '15m', issuer: JWT_ISSUER, keyid: JWT_KID }
   )
@@ -144,6 +148,29 @@ function resolveUser(req) {
   }
 }
 
+// Short-lived signed token issued when a password (or Google) login passes but a
+// second factor is still required. It is NOT a session — it only authorises the
+// 2FA step. Stateless (no DB row): carries the user id, the remember choice, and
+// the redirect target, and is rejected unless it bears pending_2fa. (U6)
+function signPending(userId, remember, redirectTo) {
+  if (!PRIVATE_KEY) throw new Error('JKOS_AUTH_PRIVATE_KEY not set')
+  return jwt.sign(
+    { sub: userId, pending_2fa: true, remember: !!remember, rt: redirectTo || '' },
+    PRIVATE_KEY,
+    { algorithm: 'RS256', expiresIn: '5m', issuer: JWT_ISSUER, keyid: JWT_KID }
+  )
+}
+
+function verifyPending(token) {
+  if (!token || !PUBLIC_KEY) return null
+  try {
+    const p = jwt.verify(token, PUBLIC_KEY, { algorithms: ['RS256'], issuer: JWT_ISSUER })
+    return p.pending_2fa ? p : null
+  } catch {
+    return null
+  }
+}
+
 // Resolve the user for a server-rendered navigation: from the access token if
 // present, else silently refresh from a valid remember-me session (mint a new
 // access token + rotate the refresh token). This is the server-side equivalent
@@ -168,4 +195,5 @@ function publicUser(u) {
 module.exports = {
   DUMMY_HASH, sha256, signAccess, issueTokens, clearTokens,
   liveSession, tryRotate, resolveUser, resolveOrRefresh, publicUser,
+  signPending, verifyPending,
 }

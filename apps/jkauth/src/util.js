@@ -2,7 +2,10 @@
 // Small shared helpers: HTML escaping, redirect-target allow-listing, and the
 // password length policy.
 
-const { AUTH_ORIGIN, PASSWORD_MIN, PASSWORD_MAX } = require('./config')
+const {
+  AUTH_ORIGIN, PASSWORD_MIN, PASSWORD_MAX,
+  LOCKOUT_FREE, LOCKOUT_BASE_MS, LOCKOUT_CAP_MS,
+} = require('./config')
 const { getAppOrigins } = require('./db')
 
 function escHtml(s) {
@@ -31,4 +34,13 @@ function passwordError(password) {
   return null
 }
 
-module.exports = { escHtml, validateRedirectTo, passwordError }
+// Backoff (ms) the account must wait before its next login attempt, given how
+// many have failed in a row. The first LOCKOUT_FREE failures are free; after
+// that the delay doubles each time, capped at LOCKOUT_CAP_MS. (S6)
+function loginBackoffMs(failedAttempts) {
+  if (failedAttempts <= LOCKOUT_FREE) return 0
+  const exp = failedAttempts - LOCKOUT_FREE - 1
+  return Math.min(LOCKOUT_CAP_MS, LOCKOUT_BASE_MS * 2 ** exp)
+}
+
+module.exports = { escHtml, validateRedirectTo, passwordError, loginBackoffMs }

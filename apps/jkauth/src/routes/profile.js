@@ -4,7 +4,7 @@
 
 const express = require('express')
 const crypto = require('crypto')
-const { PUBLIC_KEY, JWT_KID } = require('../config')
+const { PUBLIC_KEY, PUBLIC_KEY_NEXT, JWT_KID, JWT_KID_NEXT } = require('../config')
 const { get, all, run } = require('../db')
 const { resolveUser, liveSession, clearTokens, publicUser } = require('../tokens')
 
@@ -94,13 +94,21 @@ router.get('/auth/events', (req, res) => {
   res.json({ events })
 })
 
-// GET /auth/jwks — RSA public key in JWKS format
+// GET /auth/jwks — RSA public key(s) in JWKS format. Publishes the active key and,
+// when configured, a second (next/previous) key so verifiers can rotate without
+// downtime: they fetch the new key by kid before jkAuth signs with it. (S4/U3)
 router.get('/auth/jwks', (req, res) => {
   if (!PUBLIC_KEY) return res.status(503).json({ error: 'Public key not configured' })
   try {
-    const keyObj = crypto.createPublicKey(PUBLIC_KEY)
-    const jwk = keyObj.export({ format: 'jwk' })
-    res.json({ keys: [{ ...jwk, use: 'sig', alg: 'RS256', kid: JWT_KID }] })
+    const keys = []
+    const add = (pem, kid) => {
+      if (!pem) return
+      const jwk = crypto.createPublicKey(pem).export({ format: 'jwk' })
+      keys.push({ ...jwk, use: 'sig', alg: 'RS256', kid })
+    }
+    add(PUBLIC_KEY, JWT_KID)
+    add(PUBLIC_KEY_NEXT, JWT_KID_NEXT)
+    res.json({ keys })
   } catch {
     res.status(500).json({ error: 'Failed to export key' })
   }

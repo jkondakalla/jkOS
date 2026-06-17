@@ -17,19 +17,32 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { TOTP, Secret } from 'otpauth';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SERVER = join(__dirname, '..', 'server.js');
 
-const { privateKey, publicKey } = generateKeyPairSync('rsa', {
+const mkKeypair = () => generateKeyPairSync('rsa', {
   modulusLength: 2048,
   publicKeyEncoding: { type: 'spki', format: 'pem' },
   privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
 });
+const { privateKey, publicKey } = mkKeypair();
+const { publicKey: publicKey2 } = mkKeypair();   // a 2nd public key for the JWKS-rotation test
+
+// Match the server's TOTP parameters (src/twofactor.js) so generated codes verify.
+const totpCode = secret => new TOTP({
+  issuer: 'jkOS', label: 'smoke', algorithm: 'SHA1', digits: 6, period: 30,
+  secret: Secret.fromBase32(secret),
+}).generate();
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 let pass = 0, fail = 0;
 function ok(name, cond, extra = '') { if (cond) { pass++; console.log(`  ✓ ${name}`); } else { fail++; console.log(`  ✗ ${name}  ${extra}`); } }
 const setCookieFor = (arr, name) => (arr || []).find(c => c.startsWith(name + '='));
+const matchHtml = (html, re) => (html.match(re) || [])[1];
+const matchAll = (html, re) => [...html.matchAll(re)].map(m => m[1]);
 
 // One server instance with its own port, temp DB, and cookie jar.
 class Server {
@@ -124,6 +137,9 @@ async function run() {
     ok('header X-Frame-Options DENY', rr.headers.get('x-frame-options') === 'DENY');
     const hdr = JSON.parse(Buffer.from(A.jar.get('jkos_token').split('.')[0], 'base64url').toString());
     ok('access JWT header kid=1 alg=RS256', hdr.kid === '1' && hdr.alg === 'RS256', JSON.stringify(hdr));
+    // Slim JWT: payload carries identity but NOT avatar_url (cookie-bloat fix).
+    const pl = JSON.parse(Buffer.from(A.jar.get('jkos_token').split('.')[1], 'base64url').toString());
+    ok('access JWT payload is slim (no avatar_url)', !('avatar_url' in pl) && !!pl.sub && !!pl.email && !!pl.role, JSON.stringify(pl));
     const longPw = 'x'.repeat(200);
     ok('register >128-char password 400', (await A.req('POST', '/auth/register', { json: { email: 'long@jkos.net', password: longPw }, noJar: true })).status === 400);
   }
@@ -208,6 +224,16 @@ async function run() {
   ok('duplicate email 409', (await A.req('POST', '/auth/register', { json: { email: 'b@jkos.net', password: 'password123' }, noJar: true })).status === 409);
   ok('short password 400', (await A.req('POST', '/auth/register', { json: { email: 'c@jkos.net', password: 'short' }, noJar: true })).status === 400);
 
+  console.log('A · password prehash closes bcrypt 72-byte truncation (U1)');
+  {
+    const base = 'A'.repeat(72);   // bcrypt would truncate everything past here
+    await A.req('POST', '/auth/register', { json: { email: 'trunc@jkos.net', password: base + 'REAL-suffix' }, noJar: true });
+    const wrong = await A.req('POST', '/auth/login', { json: { email: 'trunc@jkos.net', password: base + 'FAKE-suffix' }, noJar: true });
+    ok('login fails when only the first 72 bytes match', wrong.status === 401, `got ${wrong.status}`);
+    const right = await A.req('POST', '/auth/login', { json: { email: 'trunc@jkos.net', password: base + 'REAL-suffix' }, noJar: true });
+    ok('login succeeds with the full password', right.status === 200, `got ${right.status}`);
+  }
+
   console.log('A · guest disabled → 403');
   ok('guest 403 when unset', (await A.req('POST', '/auth/guest', { json: {}, noJar: true })).status === 403);
 
@@ -250,6 +276,89 @@ async function run() {
   r = await D.req('POST', '/auth/register', { json: { email: 'first@jkos.net', password: 'password123' } });
   j = await r.json().catch(() => ({}));
   ok('first non-guest registrant is admin despite seeded guest', r.status === 201 && j.user?.role === 'admin', JSON.stringify(j.user));
+
+  // ── Instance E: tiny lockout budget — FREE=0 so the very first failure starts
+  //    a (short) backoff window; verifies the soft per-account lockout. (S6)
+  const E = start({ LOCKOUT_FREE: '0', LOCKOUT_BASE_MS: '500', LOCKOUT_CAP_MS: '500' });
+  if (!await E.ready()) { console.error('E never became healthy:\n' + E.log); return shutdown(1); }
+  console.log('E · per-account lockout backoff (S6)');
+  await E.req('POST', '/auth/register', { json: { email: 'lock@jkos.net', password: 'password123' }, noJar: true });
+  ok('wrong password 401', (await E.req('POST', '/auth/login', { json: { email: 'lock@jkos.net', password: 'nope' }, noJar: true })).status === 401);
+  {
+    const locked = await E.req('POST', '/auth/login', { json: { email: 'lock@jkos.net', password: 'password123' }, noJar: true });
+    const lj = await locked.json().catch(() => ({}));
+    ok('immediate retry → 429 ACCOUNT_LOCKED + Retry-After', locked.status === 429 && lj.code === 'ACCOUNT_LOCKED' && !!locked.headers.get('retry-after'), `${locked.status} ${JSON.stringify(lj)}`);
+  }
+  await sleep(700);   // let the 500ms backoff window elapse
+  {
+    const okLogin = await E.req('POST', '/auth/login', { json: { email: 'lock@jkos.net', password: 'password123' } });
+    ok('correct login after backoff window → 200', okLogin.status === 200, `got ${okLogin.status}`);
+    // Backoff reset on success: a fresh wrong attempt is 401 (not still-locked 429).
+    ok('backoff reset after success', (await E.req('POST', '/auth/login', { json: { email: 'lock@jkos.net', password: 'nope' }, noJar: true })).status === 401);
+  }
+
+  // ── Instance F: a 2nd public key published in JWKS — verifies multi-key
+  //    rotation output. (U3)
+  const F = start({ JKOS_AUTH_PUBLIC_KEY_NEXT: publicKey2, JKOS_AUTH_KID: '1', JKOS_AUTH_KID_NEXT: '2' });
+  if (!await F.ready()) { console.error('F never became healthy:\n' + F.log); return shutdown(1); }
+  console.log('F · JWKS publishes active + next key (U3)');
+  r = await F.req('GET', '/auth/jwks'); j = await r.json().catch(() => ({}));
+  ok('jwks returns two keys', Array.isArray(j.keys) && j.keys.length === 2, JSON.stringify((j.keys || []).map(k => k.kid)));
+  ok('jwks kids are 1 and 2', (j.keys || []).map(k => k.kid).sort().join(',') === '1,2');
+  ok('both keys RS256 RSA sig', (j.keys || []).every(k => k.alg === 'RS256' && k.kty === 'RSA' && k.use === 'sig'));
+
+  // ── Instance G: TOTP 2FA — setup, enable, challenge on login, recovery code. (U6)
+  const G = start({});
+  if (!await G.ready()) { console.error('G never became healthy:\n' + G.log); return shutdown(1); }
+  console.log('G · TOTP 2FA (U6)');
+  await G.req('POST', '/auth/register', { json: { email: 'totp@jkos.net', password: 'password123' } });
+  let html = await (await G.req('POST', '/auth/2fa/totp/setup', { form: {} })).text();
+  const secret = matchHtml(html, /class="secret-key">([^<]+)</);
+  ok('totp setup returns a base32 secret + QR', !!secret && /^[A-Z2-7]+$/.test(secret) && html.includes('data:image'), secret);
+  html = await (await G.req('POST', '/auth/2fa/totp/enable', { form: { code: totpCode(secret) } })).text();
+  const recovery = matchAll(html, /<li>([^<]+)<\/li>/g);
+  ok('enabling with a valid code returns recovery codes', recovery.length === 8, JSON.stringify(recovery));
+  // Logout, then a fresh login must be challenged.
+  await G.req('POST', '/auth/logout', { json: {} });
+  r = await G.req('POST', '/auth/login', { json: { email: 'totp@jkos.net', password: 'password123' }, noStore: true });
+  j = await r.json().catch(() => ({}));
+  ok('login with 2FA on → TWO_FACTOR_REQUIRED + pending token', r.status === 200 && j.code === 'TWO_FACTOR_REQUIRED' && !!j.pending_token && j.methods?.includes('totp'), JSON.stringify(j));
+  ok('no session cookie issued at the challenge step', !G.jar.has('jkos_token'));
+  const pending = j.pending_token;
+  ok('wrong 2FA code → 401 TWO_FACTOR_INVALID', (await G.req('POST', '/auth/login/2fa', { json: { pending_token: pending, code: '000000' }, noJar: true })).status === 401);
+  r = await G.req('POST', '/auth/login/2fa', { json: { pending_token: pending, code: totpCode(secret) } });
+  j = await r.json().catch(() => ({}));
+  ok('valid TOTP code completes login → 200 + cookies', r.status === 200 && j.user?.email === 'totp@jkos.net' && G.jar.has('jkos_token'), `${r.status} ${JSON.stringify(j)}`);
+  // Recovery code path: new challenge, redeem a recovery code.
+  await G.req('POST', '/auth/logout', { json: {} });
+  r = await G.req('POST', '/auth/login', { json: { email: 'totp@jkos.net', password: 'password123' }, noStore: true });
+  const pending2 = (await r.json().catch(() => ({}))).pending_token;
+  r = await G.req('POST', '/auth/login/2fa', { json: { pending_token: pending2, code: recovery[0] } });
+  ok('recovery code completes login → 200', r.status === 200 && G.jar.has('jkos_token'), `got ${r.status}`);
+  ok('a used recovery code is rejected on reuse', (await (async () => {
+    await G.req('POST', '/auth/logout', { json: {} });
+    const rr = await G.req('POST', '/auth/login', { json: { email: 'totp@jkos.net', password: 'password123' }, noStore: true });
+    const p = (await rr.json().catch(() => ({}))).pending_token;
+    return G.req('POST', '/auth/login/2fa', { json: { pending_token: p, code: recovery[0] }, noJar: true });
+  })()).status === 401);
+
+  // ── Instance H: email-OTP 2FA — OTP_TEST_ECHO surfaces the code in the log. (U6)
+  const H = start({ OTP_TEST_ECHO: '1' });
+  if (!await H.ready()) { console.error('H never became healthy:\n' + H.log); return shutdown(1); }
+  console.log('H · email-OTP 2FA (U6)');
+  await H.req('POST', '/auth/register', { json: { email: 'mail2fa@jkos.net', password: 'password123' } });
+  ok('enable email codes 200', (await H.req('POST', '/auth/2fa/email/enable', { form: {} })).status === 200);
+  await H.req('POST', '/auth/logout', { json: {} });
+  r = await H.req('POST', '/auth/login', { json: { email: 'mail2fa@jkos.net', password: 'password123' }, noStore: true });
+  j = await r.json().catch(() => ({}));
+  ok('login with email 2FA → TWO_FACTOR_REQUIRED (email)', r.status === 200 && j.code === 'TWO_FACTOR_REQUIRED' && j.methods?.includes('email'), JSON.stringify(j));
+  // Pull the emailed code from the server log (echoed because OTP_TEST_ECHO=1).
+  let code = null;
+  for (let i = 0; i < 20 && !code; i++) { code = matchHtml(H.log, /\[otp-echo\] mail2fa@jkos\.net (\d{6})/); if (!code) await sleep(50); }
+  ok('email OTP code was generated + echoed', !!code, H.log.slice(-200));
+  r = await H.req('POST', '/auth/login/2fa', { json: { pending_token: j.pending_token, code } });
+  const hj = await r.json().catch(() => ({}));
+  ok('valid email OTP completes login → 200 + cookies', r.status === 200 && hj.user?.email === 'mail2fa@jkos.net' && H.jar.has('jkos_token'), `${r.status} ${JSON.stringify(hj)}`);
 
   console.log(`\n${fail === 0 ? '✅ ALL PASS' : '❌ FAILURES'}: ${pass} passed, ${fail} failed`);
   shutdown(fail === 0 ? 0 : 1);

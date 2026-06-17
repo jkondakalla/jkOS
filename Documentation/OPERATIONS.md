@@ -1,172 +1,242 @@
 # jkOS — Operations
 
-Build, run, deploy, staging. Host: TrueNAS SCALE (ZFS pool `Luna`), dev machine "Emily".
+Build, run, deploy, cold start. Host: TrueNAS SCALE (ZFS pool `Luna`), dev machine Emily.
 
 ## Local development
 
 ```bash
-pnpm install                 # one workspace install (root). Native build scripts
-                             # (better-sqlite3, esbuild) are allow-listed in
-                             # root package.json → pnpm.onlyBuiltDependencies.
-pnpm dev                     # turbo run dev (all apps)
-pnpm build                   # turbo run build
-pnpm --filter @jkos/<app> build    # one app (ordeck|beigeboard|sylibos)
+pnpm install                        # one workspace install (root)
+pnpm dev                            # turbo run dev (all apps)
+pnpm build                          # turbo run build
+pnpm --filter @jkos/<app> build     # one app (ordeck|beigeboard|sylibos)
 pnpm --filter @jkos/<app> dev
 ```
 
 Per-app typecheck: ORDECK `tsc --noEmit`; BeigeBoard/SylibOS `tsc -b`.
 Frontends read `VITE_JKOS_AUTH_URL` (default `https://auth.jkos.net`; dev proxies to `:3100`).
+After editing `packages/*`, run `pnpm install` to re-inject workspace packages.
 
-## Docker build model (important)
+## Docker build model
 
-Every **JS** image builds from the **repo root context** so the pnpm workspace
-(`packages/@jkos/*`) is present. Each `apps/<svc>/docker-compose.yml` sets
-`build.context: ../..` + `build.dockerfile: apps/<svc>/…`. Pattern:
+Every JS image builds from the **repo root context** so `@jkos/*` is visible. Each
+`apps/<svc>/docker-compose.yml` sets `build.context: ../..`. Never revert to a per-app context.
 
 ```dockerfile
-COPY . .                                            # root context (.dockerignore prunes)
+COPY . .
 RUN pnpm install --frozen-lockfile --filter <pkg>...
-RUN pnpm --filter <pkg> build                       # frontends (Vite)
-RUN pnpm --filter <pkg> deploy --prod /out          # backends → self-contained bundle
+RUN pnpm --filter <pkg> build          # frontends (Vite)
+RUN pnpm --filter <pkg> deploy --prod  # backends → self-contained bundle
 ```
-Backends use `pnpm deploy` so the workspace dep `@jkos/auth-middleware` is injected
-into the runtime image. LazurOS/Python images keep their own (`apps/lazuros`) context.
 
-> **Do not** revert any app to a per-app build context — `@jkos/*` would be invisible
-> and the build fails (this was the original breakage that motivated the monorepo).
+Python images (LazurOS) keep their own per-app context.
 
 ## Compose / ports
 
-Root `docker-compose.yml` (`include:` each `apps/<svc>/docker-compose.yml`) is prod;
-`docker-compose.staging.yml` is staging. nginx is separate (owns the networks).
+Root `docker-compose.yml` (`include:` each `apps/<svc>/docker-compose.yml`) is prod.
+`docker-compose.staging.yml` is staging. nginx is separate and owns both Docker networks.
 
 | Container | Net | Port | Behind |
 |-----------|-----|------|--------|
-| standalone-nginx | jkos-internal + nginx-staging-proxy | 80/443 | — (edge, Cloudflare origin cert) |
+| standalone-nginx | jkos-internal + nginx-staging-proxy | 80/443 | — (edge) |
 | ordeck-shell | jkos-internal | 80 | jkos.net |
 | jkos-auth | jkos-internal | 3100 | auth.jkos.net |
 | bb-app | jkos-internal | 3001 | beigeboard.jkos.net |
-| sylibos-frontend / sylibos-api | jkos-internal | 80 / 8004 | sylibos.jkos.net (`/api`,`/health`→api) |
+| sylibos-frontend / sylibos-api | jkos-internal | 80 / 8004 | sylibos.jkos.net |
 | lazuros | host | 8080 | internal |
-| staging-* , jkos-deploy | nginx-staging-proxy | — | staging.jkos.net |
-
-## First-run order
-
-```bash
-cd infra/nginx && docker compose up -d            # creates jkos-internal + nginx-staging-proxy
-cd <repo root>  && docker compose up -d --build   # all prod services (root include)
-```
-nginx must be up first (it owns both networks). Add a service = new `apps/<svc>/` +
-its compose joining `jkos-internal` + one `include:` line in the root compose.
+| staging-* + jkos-deploy | nginx-staging-proxy | — | staging.jkos.net |
 
 ## Deploy (jkos-deploy)
 
-Controller at `staging.jkos.net/deploy/` (admin-gated). Per environment it runs:
-```bash
-git -C <DIR> fetch origin
-git -C <DIR> reset --hard origin/<branch>
-docker compose [-f docker-compose.staging.yml] up --build -d
-docker restart standalone-nginx     # restart, not reload — see gotchas below
-```
-Now that the suite is one repo, `<DIR>` is the repo root and the root `include:` compose
-builds every service — consistent with the deploy model.
+Controller at `staging.jkos.net/deploy/` (admin-gated). For each environment it runs:
 
-**Branch model:** `staging` is the deployable branch. "Sync Staging" resets the
-staging checkout to `origin/staging`; "Promote to Production" resets the prod
-checkout to `origin/${PROD_BRANCH}` — set to **`staging`** in
-`jkos-deploy/docker-compose.yml`, so promote deploys the exact commit you just
-tested on staging.jkos.net (no GitHub merge step; the server has no push
-credentials). Flip `PROD_BRANCH` back to `main` to restore a merge-gated
-release flow. `main` is kept as a stable marker, updated from a dev machine
-when desired.
+```bash
+git -C <DIR> -c core.fileMode=false fetch origin
+git -C <DIR> -c core.fileMode=false reset --hard origin/<branch>
+docker compose [-f docker-compose.staging.yml] up --build -d
+docker restart standalone-nginx     # restart, not reload — see inode gotcha below
+```
+
+**Branch model:** `staging` is the deployable branch. "Promote to Production" deploys
+`origin/${PROD_BRANCH}` (set to `staging` in `jkos-deploy/docker-compose.yml`, so promote
+deploys the exact commit tested on staging). Flip `PROD_BRANCH` to `main` to restore a
+merge-gated flow. `main` is a stable marker updated from a dev machine.
 
 ## Staging
 
-- Mirrors prod under `staging.jkos.net` via **path routing** (not subdomains), same
-  `standalone-nginx`, on the `nginx-staging-proxy` network. `set $upstream` proxy_pass
-  returns 503 gracefully when staging is down.
-- Paths: `/`→staging-ordeck-shell (the portal), `/auth/`→staging-jkos-auth, `/beigeboard/`→staging-bb-app, `/sylib/`→staging-sylibos-frontend, `/sylib/api/`→staging-sylibos-api, `/deploy/`→jkos-deploy.
-- **Root is the real ORDECK portal** (`staging-ordeck-shell`), mirroring prod where the
-  shell owns `jkos.net`. Its HUD data feeds use the **same absolute paths as prod** —
-  `/api/lazuros/`, `/api/bb/`, `/api/sylib/`, `/health/{auth,bb,sylibos}` — here routed to
-  the staging upstreams, so the same shell image works in both. The shell is built with
-  `VITE_JKOS_AUTH_URL=https://staging.jkos.net` (same-origin auth). There is no static
-  landing page anymore; if the shell is down, the admin-gated 503 points at `/deploy/`.
-- **Admin gate:** every staging location runs `auth_request` → `jkos-auth /auth/require-admin`
-  (prod auth). 401→login redirect, 403→forbidden.
-- Staging containers verify JWTs with issuer **`jkos-auth-staging`** (set in each
-  `docker-compose.staging.yml`); cookies scoped to `staging.jkos.net`.
+Path-routed under `staging.jkos.net` on the `nginx-staging-proxy` network. Root (`/`) →
+staging ORDECK shell. Paths: `/auth/`, `/beigeboard/`, `/sylib/`, `/sylib/api/`, `/deploy/`.
+
+The shell is built with `VITE_JKOS_AUTH_URL=https://staging.jkos.net` (same-origin auth).
+HUD data feeds use the same absolute paths as prod (`/api/lazuros/`, `/api/bb/`, etc.) but
+routed to staging upstreams — the same shell image works in both environments.
+
+Admin gate: every location runs `auth_request` → prod `jkos-auth /auth/require-admin`. Start
+prod first; staging returns 502 on gated routes until prod jkAuth is healthy. `set $upstream`
+returns 503 gracefully when a staging service is down.
+
+---
+
+## Cold start (from zero)
+
+### Prerequisites
+
+**DNS** — A records pointing to your server's public IP:
+
+| Record | Notes |
+|--------|-------|
+| `jkos.net` (apex) | |
+| `auth.jkos.net` | |
+| `beigeboard.jkos.net` | |
+| `sylibos.jkos.net` | |
+| `staging.jkos.net` | |
+
+Use DNS-only (grey cloud) for Cloudflare origin-cert TLS, or Full (Strict) with proxying.
+
+**SSL** — Cloudflare origin cert (wildcard `*.jkos.net` + apex, 15-year) as flat files:
+
+```bash
+mkdir -p /mnt/Luna/Backends/ssl
+cp chain.pem /mnt/Luna/Backends/ssl/cert.pem && chmod 644 /mnt/Luna/Backends/ssl/cert.pem
+cp key.pem   /mnt/Luna/Backends/ssl/key.pem  && chmod 600 /mnt/Luna/Backends/ssl/key.pem
+```
+
+**Data directories:**
+
+```bash
+for svc in jkos-auth beigeboard sylibos; do
+  mkdir -p /mnt/Luna/Backends/{Production,Staging}/$svc-data
+done
+mkdir -p /mnt/Luna/Backends/Production/nginx-logs
+```
+
+**RS256 keypair** — generate once. Private key goes in jkAuth only; public key in every backend.
+
+```bash
+openssl genrsa -out jkos_private.pem 2048
+openssl rsa -in jkos_private.pem -pubout -out jkos_public.pem
+# Inline \n for .env single-line format:
+PRIVATE_KEY=$(awk 'NF {sub(/\r/,""); printf "%s\\n",$0}' jkos_private.pem)
+PUBLIC_KEY=$(awk  'NF {sub(/\r/,""); printf "%s\\n",$0}' jkos_public.pem)
+echo "JKOS_AUTH_PRIVATE_KEY=$PRIVATE_KEY"
+echo "JKOS_AUTH_PUBLIC_KEY=$PUBLIC_KEY"
+```
+
+### Clone
+
+```bash
+ssh truenas_admin@192.168.1.108
+git clone https://github.com/jkondakalla/jkOS.git /mnt/Luna/Webhost/jkOS
+git clone https://github.com/jkondakalla/jkOS.git /mnt/Luna/Webhost/jkOS-staging
+cd /mnt/Luna/Webhost/jkOS-staging && git -c core.fileMode=false checkout staging
+```
+
+### .env files
+
+Copy `.env.example` → `.env` and fill in values for each app. Key required vars:
+
+| Service | File | Key vars |
+|---------|------|----------|
+| jkAuth | `apps/jkauth/.env` | `JKOS_AUTH_PRIVATE_KEY`, `JKOS_AUTH_PUBLIC_KEY`, `COOKIE_DOMAIN`, `AUTH_ORIGIN`, `PORTAL_URL`, `GOOGLE_CLIENT_ID/SECRET/REDIRECT_URI`, `ADMIN_SEED_EMAIL/PASSWORD` |
+| BeigeBoard | `apps/beigeboard/.env` | `JKOS_AUTH_PUBLIC_KEY`, `GOOGLE_CLIENT_ID/SECRET/REDIRECT_URI`, `LAZUROS_URL`, `LAZUROS_TOKEN` |
+| SylibOS | `apps/sylibos/backend/.env` | `JKOS_AUTH_PUBLIC_KEY`, `LAZUROS_URL`, `LAZUROS_TOKEN` |
+| LazurOS | `apps/lazuros/.env` | `LAZUROS_TOKEN`, `JKOS_AUTH_PUBLIC_KEY`, `COMPUTE_NODE_IP`, `COMPUTE_NODE_MAC` |
+| ORDECK | `apps/ordeck/.env` | `JKOS_AUTH_PUBLIC_KEY`, `LAZUROS_URL`, `LAZUROS_TOKEN` |
+
+Staging reads the same `.env` files; staging-specific overrides come from `docker-compose.staging.yml`. Copy to the staging checkout:
+
+```bash
+for app in jkauth beigeboard lazuros ordeck; do
+  cp /mnt/Luna/Webhost/jkOS/apps/$app/.env \
+     /mnt/Luna/Webhost/jkOS-staging/apps/$app/.env
+done
+cp /mnt/Luna/Webhost/jkOS/apps/sylibos/backend/.env \
+   /mnt/Luna/Webhost/jkOS-staging/apps/sylibos/backend/.env
+```
+
+### Start order
+
+nginx must be first — it creates both Docker networks that all other services join.
+
+```bash
+# 1. nginx
+cd /mnt/Luna/Webhost/jkOS/infra/nginx && docker compose up -d
+
+# 2. Production (first build: 5–15 min)
+cd /mnt/Luna/Webhost/jkOS && docker compose up -d --build
+
+# 3. Staging (optional; prod must be healthy first for the admin gate)
+cd /mnt/Luna/Webhost/jkOS-staging && docker compose -f docker-compose.staging.yml up -d --build
+```
+
+Verify:
+
+```bash
+docker ps --format "table {{.Names}}\t{{.Status}}"
+curl -sk https://auth.jkos.net/health
+curl -sk https://jkos.net/ -o /dev/null -w "%{http_code}\n"
+```
+
+---
 
 ## TrueNAS paths
 
 | Purpose | Path |
 |---------|------|
 | Repo (prod) | `/mnt/Luna/Webhost/jkOS/` |
-| Repo (staging checkout) | `/mnt/Luna/Webhost/jkOS-staging/` |
-| Prod data volumes | `/mnt/Luna/Backends/Production/<svc>-data` |
-| Staging data volumes | `/mnt/Luna/Backends/Staging/<svc>-data` |
-| nginx SSL (CF origin cert) | `/mnt/Luna/Backends/ssl/` — `cert.pem` (644) + `key.pem` (600), mounted as `/etc/nginx/ssl` |
-| nginx access/error logs | `/mnt/Luna/Backends/Production/nginx-logs/` |
+| Repo (staging) | `/mnt/Luna/Webhost/jkOS-staging/` |
+| Prod data | `/mnt/Luna/Backends/Production/<svc>-data/` |
+| Staging data | `/mnt/Luna/Backends/Staging/<svc>-data/` |
+| SSL certs | `/mnt/Luna/Backends/ssl/cert.pem` + `key.pem` |
+| nginx logs | `/mnt/Luna/Backends/Production/nginx-logs/` |
 
-All data directories live under `/mnt/Luna/Backends/` with prod and staging isolated by
-sub-folder. SSL lives at the `Backends/` root (shared by both envs).
-ACLs: `truenas_admin:truenas_admin`, `POSIX_RESTRICTED` inheritance.
+nginx is bind-mounted from the **staging checkout** (`/mnt/Luna/Webhost/jkOS-staging/infra/nginx/standalone.conf`). Edit that copy when changing proxy config.
 
-## Secrets / environment files
+## Secrets
 
-Every service reads config from a `.env` file (gitignored at root and per-app).
-`.env.example` files are the canonical reference — copy one to `.env` and fill in values.
+Every service reads from a `.env` file (gitignored). `.env.example` in each app is the reference.
 
 | Variable | Where | Notes |
 |----------|-------|-------|
 | `JKOS_AUTH_PRIVATE_KEY` | `apps/jkauth/.env` only | RS256 private key, inline `\n`. Never in any other app. |
-| `JKOS_AUTH_PUBLIC_KEY` | every backend `.env` + jkauth | RS256 public key. Required by `@jkos/auth-middleware`. |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | `apps/jkauth/.env` | OAuth2 app from Google Cloud Console. |
-| `ADMIN_SEED_EMAIL` / `ADMIN_SEED_PASSWORD` | `apps/jkauth/.env` | Optional; auto-creates first admin on first boot. |
+| `JKOS_AUTH_PUBLIC_KEY` | every backend + jkauth | Required by `@jkos/auth-middleware`. |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | jkauth + beigeboard | Separate OAuth apps (different redirect URIs). |
+| `LAZUROS_TOKEN` | lazuros, beigeboard, sylibos, ordeck | Shared static bearer for server-to-server calls. |
 
-**Gitignored globally:** `.env`, `.env.local`, `.env.*.local`, `*.pem`, `*.key`, `*.db`,
-`.git-backups/`. See root `.gitignore`. `.claudeignore` mirrors these so Claude never reads secret files.
+Gitignored globally: `.env*`, `*.pem`, `*.key`, `*.db`.
 
-## TrueNAS / Docker gotchas
+---
 
-Learned in production — all fixed in repo as of 2026-06-11.
+## Gotchas
 
-### pnpm in Docker on TrueNAS ZFS → `ERR_PNPM_EAGAIN`
+### pnpm + Docker + TrueNAS ZFS → `ERR_PNPM_EAGAIN`
 
-`copy_file_range` throws spurious `EAGAIN` under Docker overlay-on-ZFS. pnpm hits it
-when copying packages from its content store into the image. **Fix** already in root
-`.npmrc`:
+`copy_file_range` throws `EAGAIN` under Docker overlay-on-ZFS. Fix already in root `.npmrc`:
 
 ```ini
-package-import-method=hardlink   # uses link() not copyfile; ZFS-safe
+package-import-method=hardlink
 ```
 
-`UV_USE_IO_URING=0` (also set in Dockerfiles) does **not** fix this alone — io_uring was
-already off. Keep both. `force-legacy-deploy=true` is also kept (the modern `pnpm deploy`
-needs `inject-workspace-packages` recorded in the lockfile — a deliberate follow-up).
-`child-concurrency=1` was **removed**: hardlink imports, not serialised installs, are
-what prevent EAGAIN, and the serialisation made cold builds ~6× slower (~13 → ~7.5 min
-for jkauth). Don't re-add it.
+Keep `UV_USE_IO_URING=0` in Dockerfiles as well. Do **not** add `child-concurrency=1` — it makes cold builds ~6× slower without fixing the root issue.
 
-### nginx upstreams must be lazy (`set $upstream`)
+### nginx lazy upstreams (`set $upstream`)
 
-`proxy_pass http://ordeck-shell:80` resolves the hostname at config load. If the upstream
-container is down, nginx refuses to start at all — taking the edge down with it. All prod
-and staging `proxy_pass` entries use the resolver pattern:
+All `proxy_pass` directives use the variable pattern to defer hostname resolution:
 
 ```nginx
-resolver 127.0.0.11 valid=10s ipv6=off;   # Docker internal DNS
+resolver 127.0.0.11 valid=10s ipv6=off;
 set $upstream http://ordeck-shell:80;
 proxy_pass $upstream;
 ```
 
-This is mandatory for every new location block. A down service returns 502 on its vhost;
-it does not crash nginx.
+A literal `proxy_pass` hostname fails nginx startup if that container is down. Mandatory for every location block.
 
-### git checkout on TrueNAS — mode-bit flips, `git config` fails
+### nginx config bind-mount inode pinning
 
-POSIX_RESTRICTED ACLs cause constant mode-bit churn on checkout. `git config` itself
-can't write because `.git/config.lock` chmod fails. Use:
+`standalone.conf` is a single-file bind mount. `git reset --hard` replaces the inode; `nginx -s reload` re-reads the old (stale) inode. Always `docker restart standalone-nginx` after a deploy. The controller does this automatically.
+
+### git on TrueNAS — mode-bit / lock failures
+
+POSIX_RESTRICTED ACLs cause mode-bit churn and lock `git config`. Always use:
 
 ```bash
 git -c core.fileMode=false reset --hard origin/<branch>
@@ -174,32 +244,25 @@ git -c core.fileMode=false reset --hard origin/<branch>
 
 Never run `git config core.fileMode false` — it hangs on the lock.
 
-### nginx config is a FILE bind-mount — `reset --hard` needs a restart, not reload
+### Unlabeled pre-existing networks
 
-`standalone-nginx` runs from the **staging checkout** and mounts
-`infra/nginx/standalone.conf` as a single-file bind mount
-(`./standalone.conf:/etc/nginx/nginx.conf:ro`). `git reset --hard` replaces the
-file's inode; the container's mount stays pinned to the **old** inode, so
-`nginx -s reload` re-reads stale content and config changes silently never
-apply. Fix: `docker restart standalone-nginx` (re-resolves the mount). The
-jkos-deploy controller does this automatically after each `reset --hard`. When
-editing `standalone.conf` by hand on the server, restart — don't reload.
+If `docker compose up` refuses a network, check `docker network inspect <name>`. If `Labels`
+is empty, `docker network rm` it and let compose recreate it.
 
-Note that nginx serves **both** prod and staging and is bind-mounted from
-`/mnt/Luna/Webhost/jkOS-staging/infra/nginx/standalone.conf`, so edit/sync that
-checkout's copy when changing the proxy config.
+### Data volume permissions
 
-### Compose refuses unlabeled pre-existing networks
+If a container exits with permission errors on `/data`, ensure the host directory is owned by
+the user the container runs as (Node alpine images use uid 1000):
 
-If a network was created manually (or by an older compose run without labels), `docker
-compose up` refuses to manage it. Diagnose with `docker network inspect <name>` — if
-`Labels` is empty, remove (`docker network rm`) and let compose recreate it.
+```bash
+chown -R 1000:1000 /mnt/Luna/Backends/Production/jkos-auth-data
+```
 
-## Verification checklist (after changes)
+---
 
-1. `pnpm install` → `pnpm build` (or `pnpm --filter @jkos/<app> build`) green.
-2. `tsc` per app green.
-3. `docker compose build` (and `-f docker-compose.staging.yml build`) from root — the
-   real gate that shared-package resolution works in images (run on a host with Docker).
-4. Log in, change theme in one app → confirm mode + accent apply identically across all
-   three frontends; reload persists (proves `PATCH /auth/profile` round-trip).
+## Verification (after changes)
+
+1. `pnpm build` (or `--filter @jkos/<app>`) green.
+2. Per-app `tsc` green.
+3. `docker compose build` from root — the real gate that shared-package resolution works in images.
+4. Log in, change theme → confirm mode + accent apply identically in all frontends; reload persists (proves `PATCH /auth/profile` round-trip).

@@ -4,6 +4,9 @@
   "private": true,
   "description": "jkOS canonical Express middleware — verifies the jkos_token RS256 JWT. The single source for every Node backend (CJS + ESM).",
   "main": "index.js",
+  "scripts": {
+    "test": "node test/jwks.mjs"
+  },
   "exports": {
     ".": {
       "require": "./index.js",

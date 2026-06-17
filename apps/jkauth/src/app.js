@@ -75,7 +75,10 @@ app.use((req, res, next) => {
 })
 
 // ── Routes ──────────────────────────────────────────────────────────────────
+// The credential limiter mounted on '/auth/login' also covers '/auth/login/2fa'
+// (app.use matches by path prefix), so the 2FA code-verify endpoint is throttled.
 app.use(require('./routes/auth'))
+app.use(require('./routes/twofactor'))
 app.use(require('./routes/profile'))
 app.use(require('./routes/google'))
 

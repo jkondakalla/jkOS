@@ -12,10 +12,13 @@ const DB_PATH    = process.env.DB_PATH    || path.join(__dirname, 'beigeBoard.db
 const STATIC_DIR = process.env.STATIC_DIR || path.join(__dirname, '..', 'dist');
 const SHELL_URL  = (process.env.SHELL_URL || 'http://localhost:3000').replace(/\/$/, '');
 
-/* RSA public key from jkos-auth — used by jkosAuth middleware */
+/* RSA public key from jkos-auth — used by jkosAuth middleware. Prefer JWKS-by-kid
+   (key rotation, U3) when JKOS_AUTH_JWKS_URI is set; else verify against the
+   static public key. */
 const JKOS_AUTH_PUBLIC_KEY = (process.env.JKOS_AUTH_PUBLIC_KEY || '').trim();
 const JKOS_AUTH_URL        = process.env.JKOS_AUTH_URL        || 'https://auth.jkos.net';
 const JKOS_AUTH_ISSUER     = process.env.JKOS_AUTH_ISSUER     || 'jkos-auth';
+const JKOS_AUTH_JWKS_URI   = (process.env.JKOS_AUTH_JWKS_URI  || '').trim();
 
 const GOOGLE_CLIENT_ID     = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
@@ -559,13 +562,15 @@ const PUBLIC_PATHS = [
   '/api/auth/outlook',    // initiates Outlook Calendar OAuth
 ];
 
-if (!JKOS_AUTH_PUBLIC_KEY && process.env.NODE_ENV === 'production') {
-  console.error('[boot] FATAL: JKOS_AUTH_PUBLIC_KEY is not set in production. Refusing to start.');
+if (!JKOS_AUTH_PUBLIC_KEY && !JKOS_AUTH_JWKS_URI && process.env.NODE_ENV === 'production') {
+  console.error('[boot] FATAL: neither JKOS_AUTH_PUBLIC_KEY nor JKOS_AUTH_JWKS_URI is set in production. Refusing to start.');
   process.exit(1);
 }
-const authMiddleware = JKOS_AUTH_PUBLIC_KEY
-  ? jkosAuth({ publicKey: JKOS_AUTH_PUBLIC_KEY, issuer: JKOS_AUTH_ISSUER })
-  : (req, _res, next) => { req.user = { sub: 1, role: 'admin' }; next(); }; // dev fallback (non-prod only)
+const authMiddleware = JKOS_AUTH_JWKS_URI
+  ? jkosAuth({ jwksUri: JKOS_AUTH_JWKS_URI, issuer: JKOS_AUTH_ISSUER })
+  : JKOS_AUTH_PUBLIC_KEY
+    ? jkosAuth({ publicKey: JKOS_AUTH_PUBLIC_KEY, issuer: JKOS_AUTH_ISSUER })
+    : (req, _res, next) => { req.user = { sub: 1, role: 'admin' }; next(); }; // dev fallback (non-prod only)
 
 /* Only the API carries user data and is gated. The SPA shell and assets are
    public so a logged-out browser loads the app, gets 401 from /api/auth/me,

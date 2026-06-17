@@ -185,10 +185,8 @@ dependency as part of a design pass — that's an architecture decision, not a p
   (see ARCHITECTURE.md invariant; the old per-app copies were deliberately deleted).
 - **The settings tray is one shared component** — `SettingsDrawer` from `@jkos/ui`.
   Every app mounts it (ORDECK passes app extras like weather via the `extra` slot);
-  there are no per-app settings panels. It is token-driven and mode-aware, and its
-  AI section is gated on `lazuros.enabled` so the jkAuth kill switch hides LazurOS
-  controls everywhere at once. Don't reintroduce a local settings panel.
+  there are no per-app settings panels. Its AI section is gated on `lazuros.enabled`
+  so the jkAuth kill switch hides LazurOS controls everywhere at once.
 - **There is one accent chooser, suite-wide** — five slots in `SettingsDrawer`: the four
   `ACCENT_SCHEMES` presets + Custom. The schemes are data in `@jkos/design`; no app defines
   its own accent presets or picker. Edit the palette there, not in app code.
-- Docker container names and networks (ops reference them by name).

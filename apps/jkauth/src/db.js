@@ -5,8 +5,8 @@
 // validation.
 
 const Database = require('better-sqlite3')
-const bcrypt = require('bcryptjs')
 const { DB_PATH, ADMIN_SEED_EMAIL, ADMIN_SEED_PASSWORD, GUEST_PASSWORD } = require('./config')
+const { hashPasswordSync } = require('./password')
 
 const db = new Database(DB_PATH)
 db.pragma('journal_mode = WAL')
@@ -90,6 +90,57 @@ const MIGRATIONS = [
     run(`CREATE INDEX IF NOT EXISTS idx_auth_events_user ON auth_events(user_id)`)
     run(`CREATE INDEX IF NOT EXISTS idx_auth_events_time ON auth_events(created_at)`)
   }],
+
+  // Password hashing scheme marker (U1/S3). NULL = legacy bcrypt-on-raw-password;
+  // 'sha256-bcrypt' = the current SHA-256-prehash→bcrypt scheme. Legacy rows are
+  // rehashed on next successful login.
+  ['006_password_hashing', () => addColumn('users', 'hash_algo', 'TEXT')],
+
+  // Per-account login throttle (S6): failed_attempts drives an exponential
+  // backoff; lockout_until is the soft "no attempt before" timestamp. No hard
+  // lock — backoff is capped — so a known victim can't be DoS'd out of their
+  // account.
+  ['007_account_lockout', () => {
+    addColumn('users', 'failed_attempts', 'INTEGER NOT NULL DEFAULT 0')
+    addColumn('users', 'lockout_until', 'TEXT')
+  }],
+
+  // Two-factor (U6): a TOTP shared secret (set at setup, only trusted once a
+  // first code verifies → totp_enabled), and an email-OTP opt-in flag.
+  ['008_two_factor', () => {
+    addColumn('users', 'totp_secret', 'TEXT')
+    addColumn('users', 'totp_enabled', 'INTEGER NOT NULL DEFAULT 0')
+    addColumn('users', 'email_2fa_enabled', 'INTEGER NOT NULL DEFAULT 0')
+  }],
+
+  // Single-use TOTP recovery codes (U6). Stored as SHA-256 hashes; consumed by
+  // stamping used_at.
+  ['009_recovery_codes', () => {
+    run(`CREATE TABLE IF NOT EXISTS recovery_codes (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      code_hash  TEXT NOT NULL,
+      used_at    TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`)
+    run(`CREATE INDEX IF NOT EXISTS idx_recovery_codes_user ON recovery_codes(user_id)`)
+  }],
+
+  // Short-lived email one-time passcodes (U6). Stored hashed; expire fast and are
+  // consumed by stamping used_at. purpose lets the same table serve login 2FA and
+  // any future flows (e.g. email verification).
+  ['010_email_otp', () => {
+    run(`CREATE TABLE IF NOT EXISTS auth_otp (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      code_hash  TEXT NOT NULL,
+      purpose    TEXT NOT NULL DEFAULT 'login',
+      expires_at TEXT NOT NULL,
+      used_at    TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`)
+    run(`CREATE INDEX IF NOT EXISTS idx_auth_otp_user ON auth_otp(user_id)`)
+  }],
 ]
 
 function runMigrations() {
@@ -119,18 +170,18 @@ function seedAdmin() {
   if (!ADMIN_SEED_EMAIL || !ADMIN_SEED_PASSWORD) return
   const email = ADMIN_SEED_EMAIL.toLowerCase()
   if (get('SELECT 1 FROM users WHERE email=?', [email])) return
-  const hash = bcrypt.hashSync(ADMIN_SEED_PASSWORD, 12)
-  run('INSERT INTO users (email, name, password_hash, role) VALUES (?,?,?,?)',
-    [email, email.split('@')[0], hash, 'admin'])
+  const { hash, algo } = hashPasswordSync(ADMIN_SEED_PASSWORD)
+  run('INSERT INTO users (email, name, password_hash, hash_algo, role) VALUES (?,?,?,?,?)',
+    [email, email.split('@')[0], hash, algo, 'admin'])
   console.log('[boot] admin seeded:', email)
 }
 
 function seedGuest() {
   if (!GUEST_PASSWORD) return
   if (get("SELECT 1 FROM users WHERE email='guest@jkos.net'")) return
-  const hash = bcrypt.hashSync(GUEST_PASSWORD, 12)
-  run('INSERT INTO users (email, name, password_hash, role) VALUES (?,?,?,?)',
-    ['guest@jkos.net', 'Guest', hash, 'guest'])
+  const { hash, algo } = hashPasswordSync(GUEST_PASSWORD)
+  run('INSERT INTO users (email, name, password_hash, hash_algo, role) VALUES (?,?,?,?,?)',
+    ['guest@jkos.net', 'Guest', hash, algo, 'guest'])
   console.log('[boot] guest user seeded')
 }
 

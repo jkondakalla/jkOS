@@ -1,157 +1,91 @@
 # jkOS — Service Reference
 
-Condensed per-unit reference. Paths are repo-relative. See ARCHITECTURE.md for the
-shared-package contract and auth/theme flows.
+Per-unit reference. Paths are repo-relative. See ARCHITECTURE.md for the shared-package
+contract, auth/theme flows, and env isolation.
 
 ## Deployable services
 
-| Service | Dir | Package | Container | Port | URL | Role |
-|---------|-----|---------|-----------|------|-----|------|
-| ORDECK | `apps/ordeck` | `@jkos/ordeck` | `ordeck-shell` | 80 (nginx) | `jkos.net` | hub portal |
-| jkAuth | `apps/jkauth` | `@jkos/jkauth` | `jkos-auth` | 3100 | `auth.jkos.net` | hub SSO |
-| BeigeBoard | `apps/beigeboard` | `@jkos/beigeboard` (+ `…-backend`) | `bb-app` | 3001 | `beigeboard.jkos.net` | hub app |
-| SylibOS | `apps/sylibos` | `@jkos/sylibos` (+ `…-api`) | `sylibos-frontend` / `sylibos-api` | 80 / 8004 | `sylibos.jkos.net` | pluggable app |
-| LazurOS | `apps/lazuros` | — (Python) | `lazuros` | 8080 (host net) | internal | hub AI gateway |
+| Service | Dir | Container | Port | URL |
+|---------|-----|-----------|------|-----|
+| ORDECK | `apps/ordeck` | `ordeck-shell` | 80 | `jkos.net` |
+| jkAuth | `apps/jkauth` | `jkos-auth` | 3100 | `auth.jkos.net` |
+| BeigeBoard | `apps/beigeboard` | `bb-app` | 3001 | `beigeboard.jkos.net` |
+| SylibOS | `apps/sylibos` | `sylibos-frontend` / `sylibos-api` | 80 / 8004 | `sylibos.jkos.net` |
+| LazurOS | `apps/lazuros` | `lazuros` | 8080 (host) | internal |
 
 ### ORDECK — `apps/ordeck`
-- Vite SPA (React 18) + `@originjs/vite-plugin-federation`. Served static by nginx.
-- Theme/prefs: `src/hooks/useJkOSPreferences.ts` wraps `@jkos/auth-client`'s hook,
-  adding CRT scanline var + `ordeck-mode` event via `onApply`.
+
+Vite SPA (React 18) + `@originjs/vite-plugin-federation`. Served static by nginx.
+
+- Theme/prefs: `src/hooks/useJkOSPreferences.ts` wraps `@jkos/auth-client`'s hook, adds CRT scanline var + `ordeck-mode` event via `onApply`.
 - AppLauncher fetches `GET /auth/apps`. Widgets in `src/widgets/**`; shell uses `@jkos/ui`.
-- Docker: `apps/ordeck/Dockerfile` (root context) → nginx with `apps/ordeck/nginx.conf`.
-  Build args `VITE_JKOS_AUTH_URL` / `VITE_PLUGIN_BASE_URL` (prod defaults baked in).
-- Staging: `docker-compose.staging.yml` → `staging-ordeck-shell`, served at the
-  `staging.jkos.net` **root** (the shell owns the origin, like prod `jkos.net`), built
-  with `VITE_JKOS_AUTH_URL=https://staging.jkos.net` for same-origin auth. The v2 HUD's
-  data feeds (`/api/bb/`, `/api/sylib/`, `/health/*`, `/api/lazuros/`) are routed to the
-  staging upstreams in `standalone.conf`. See OPERATIONS.md → Staging.
+- Docker: `apps/ordeck/Dockerfile` (root context) → nginx with `apps/ordeck/nginx.conf`. Build args `VITE_JKOS_AUTH_URL` / `VITE_PLUGIN_BASE_URL` (prod defaults baked in).
+- Staging: built with `VITE_JKOS_AUTH_URL=https://staging.jkos.net` (same-origin auth); serves at the `staging.jkos.net` root. HUD data feeds use the same absolute paths as prod (`/api/lazuros/`, `/api/bb/`, etc.) routed to staging upstreams.
 
 ### jkAuth — `apps/jkauth`
-- Express + better-sqlite3 + **bcryptjs** (pure JS) + jsonwebtoken (RS256) + express-rate-limit.
-  Google OAuth uses **native `fetch`** (auth URL, token exchange, userinfo) — the 116 MB
-  `googleapis` SDK was dropped so the image builds in ~1 min instead of several.
-- All logic in `server.js`. DB at `DB_PATH` (`/data/jkos-auth.db`), WAL, FK on.
-- Migrations run **001_init → 002_user_preferences → 003_remember_me** (order matters;
-  later migrations ALTER tables 001 creates). 002 self-heals a missing `preferences`
-  column on `users`; 003 self-heals a missing `remember_me` column on `sessions`.
-- **Remember me:** login accepts `remember_me` (JSON bool or form `'1'`). When set, the
-  refresh cookie gets a 30-day `maxAge` and the session row stores the flag; when unset,
-  it's a session cookie (cleared on browser close). `/auth/refresh` re-issues the same
-  cookie kind by reading `sessions.remember_me`. **Server-side silent refresh:** the
-  15-min access token outlives a return visit, so the server-rendered pages (`/`,
-  `/auth/dashboard`, `/auth/login`, `/auth/register`) resolve via `resolveOrRefresh` —
-  if the access token is gone but a live refresh session exists, they mint a new access
-  token and rotate the refresh token inline (Set-Cookie on a real navigation). Without
-  this the portal would bounce a remembered user to login even though the SPA apps
-  (getMe→refresh→getMe) stay signed in. `require-admin` (the nginx `auth_request` gate)
-  uses the **non-rotating** `liveSession` fallback — `auth_request` can't deliver
-  Set-Cookie, so it must not rotate; the SPA behind the gate refreshes its own token.
-- **Credential autofill:** the login form uses `autocomplete="username"` (identifier) +
-  `current-password`/`new-password` with stable `id`s, so browser password managers
-  reliably offer to save and autofill.
-- Key routes: `POST /auth/{login,register,logout,refresh,guest}`, `GET /auth/{me,profile,apps,jwks,require-admin,google,google/callback}`, `PATCH /auth/profile`, `GET /health`.
-- `require-admin` = nginx `auth_request` target (status-only). `validateRedirectTo`
-  allows only `app_registry` origins. No frontend bundle (server-rendered login HTML only).
-- Does **not** use `@jkos/auth-middleware` (it is the issuer; verifies inline via `resolveUser`).
+
+Express + better-sqlite3 + **bcryptjs** + jsonwebtoken (RS256) + express-rate-limit.
+Google OAuth via native `fetch` (no googleapis SDK).
+
+**Module structure:**
+```
+server.js              entry — build app, listen
+src/config.js          env constants, cookie opts, TTLs, rate-limit budgets
+src/db.js              database, migrations (001–005), seeds, app-registry cache
+src/util.js            escHtml, validateRedirectTo, password guard
+src/tokens.js          sign/issue/clear/rotate, session resolve + refresh (tryRotate)
+src/views.js           layout, login/register/dashboard HTML
+src/app.js             express factory — middleware order + route mounts
+src/routes/auth.js     /, login, register, logout, guest, me, dashboard
+src/routes/profile.js  profile GET/PATCH, apps, require-admin, jwks, events
+src/routes/google.js   Google OAuth
+```
+
+**DB:** SQLite at `DB_PATH` (`/data/jkos-auth.db`), WAL + FK on. Migrations run in order:
+001 base schema → 002 `users.preferences` → 003 `sessions.remember_me` → 004 `sessions.family_id`/`rotated_at` → 005 `auth_events`. Self-healing `addColumn` — safe to run on existing DBs.
+
+**Security features (current):**
+- Refresh-token reuse detection: rotation atomically claims the token (`rotated_at`). A rotated token re-presented past the 10s grace window (`REFRESH_GRACE_MS`) revokes the whole `family_id`; `logout` does too.
+- Audit log: `auth_events` table — login/fail/register/logout/guest/google/refresh-reuse. `GET /auth/events` (user sees own; admin sees all).
+- CSP: per-request nonce; `default-src 'self'` + nonce'd script/style, no `unsafe-inline`.
+- Google login: rejects `verified_email === false` to prevent account-takeover via unverified Google emails.
+- Rate limiting on login, register, guest, refresh, and Google endpoints; budgets in `src/config.js`, all env-overridable.
+
+**Key routes:** `POST /auth/{login,register,logout,refresh,guest}`, `GET /auth/{me,profile,apps,jwks,require-admin,google,google/callback,events}`, `PATCH /auth/profile`, `GET /health`.
+
+**Smoke test:** `npm test` in `apps/jkauth/` — spawns in-process with a temp DB + keypair and exercises every auth flow. Run before and after any change.
+
+Does **not** use `@jkos/auth-middleware` (it is the issuer; verifies inline via `resolveUser`).
 
 ### BeigeBoard — `apps/beigeboard`
-- Goal-planning app built on the **Breakdown Method** (Define → Ladder → Commit →
-  Review — see PLANNING_METHOD.md). One `items` table, four `kind`s: `goal`,
-  `milestone`, `task` (+ one level of subtasks), `event` (synced, read-only). Goal
-  fields (`done_means`, `target_date`, `position`, `status`) are added by a later
-  migration onto the base `items` table — change the `CREATE TABLE` and migration
-  together.
-- Frontend: Vite SPA (React 18). `src/lib/jkauth.ts` re-exports `@jkos/auth-client`;
-  `src/lib/theme.ts` holds app-specific helpers (fonts, colors, `halate`, date fmt) — **not** jkOS theme.
-- Backend: `backend/server.js` (Express + better-sqlite3 + googleapis). Serves the SPA
-  from `STATIC_DIR` (catch-all → `dist/index.html`) and `/api/*`. Auth via
-  `@jkos/auth-middleware` (`jkosAuth({publicKey, issuer})`). `req.user.sub` = user id.
-- Routes: `GET/POST /api/items`, `PATCH/DELETE /api/items/:id`; calendar sync for
-  Google/Outlook/iCloud (`/api/auth/<provider>*`, `/api/calendar/<provider>/sync`);
-  AI `POST /api/ai/{parse-task,breakdown}` (gated by `lazuros.enabled` + `BB_AI_ENABLED`).
-- One image (`apps/beigeboard/Dockerfile`): builds SPA, `pnpm deploy` bundles backend.
+
+Goal-planning app. One `items` table, four kinds: `goal` (title + `done_means` + `target_date` + `status`), `milestone` (ordered checkpoint under goal), `task` (next action, one level of subtasks), `event` (synced, read-only). Goal fields were added via migration onto the base items table — change the `CREATE TABLE` and migration together.
+
+- Frontend: Vite SPA (React 18). `src/lib/jkauth.ts` re-exports `@jkos/auth-client`; `src/lib/theme.ts` holds app helpers (fonts, date fmt, `halate`) — not jkOS theme.
+- Backend: `backend/server.js` (Express + better-sqlite3 + googleapis). Serves SPA from `STATIC_DIR` + `/api/*`. Auth via `@jkos/auth-middleware`. `req.user.sub` = user id.
+- Routes: `GET/POST /api/items`, `PATCH/DELETE /api/items/:id`; Google/Outlook/iCloud calendar sync (`/api/auth/<provider>*`, `/api/calendar/<provider>/sync`); AI `POST /api/ai/{parse-task,breakdown}` (gated by `lazuros.enabled` + `BB_AI_ENABLED`).
+- One Docker image (`apps/beigeboard/Dockerfile`): builds SPA + `pnpm deploy` bundles backend.
+- Calendar drag uses a 4px click-vs-drag threshold (`providers/DragProvider`) so taps select/create and only real movement reschedules.
 
 ### SylibOS — `apps/sylibos`
-- Frontend: Vite SPA (React 19) + Tailwind v4, Zustand, react-router. Pluggable app.
-  - `src/api/auth.ts` re-exports `@jkos/auth-client`; keeps a same-origin `getMe`
-    (`/api/auth/me`). `src/lib/theme.ts` keeps SylibOS preset **schemes** + delegates
-    jkOS theme to `@jkos/auth-client`'s `applyTheme`.
-  - `src/store/authStore.ts` = session init (getMe → refresh → redirect).
-- Backend: `backend/index.js` (Express ESM + better-sqlite3 + node-cron). Auth via
-  `@jkos/auth-middleware`. Two images (`Dockerfile`, `backend/Dockerfile`), root context.
-- **Question stems** (`backend/stems.js` + `expr.js` + `pdftext.js`): parameterized
-  questions distilled from each course's actual assignment PDFs (psets/exams in
-  library.db asset BLOBs → `unpdf` text extraction → one AI call per assignment →
-  validated templates with `{{var}}` slots, ranges, constraints, answer/distractor
-  expressions). Variants are instantiated deterministically (seeded RNG + safe
-  expression evaluator — no eval, no AI): same seed ⇒ same variants; answers and MCQ
-  distractors are computed per variant. Routes: `GET /api/stems/assignments`,
-  `POST /api/stems/from-course`, `POST /api/stems/generate` (manual text path),
-  `GET /api/stems[/:id][/variants]`, `DELETE /api/stems/:id`. Stems link back to
-  `(course_id, lecture_id, asset_id)`; AI output is shape-checked **and** functionally
-  proven (sampled + evaluated under multiple seeds) before storage.
 
-#### CourseProcessor — `apps/sylibos/CourseProcessor/`
-Python OCW ingest pipeline. Entry point: `library_cli.py` (`inspect` / `build` / `load`
-commands writing to `library.db`; `build-dir` / `batch` writing file-based processed
-course folders). Core calls: `ingest.ingest_zip()` (zips) and `ingest.ingest_dir()`
-(already-extracted modern exports — structured parse with heuristic HTML fallback for
-single-page feature courses; no AI rung for directory ingest).
+> Do not edit `apps/sylibos/` without explicit instructions.
 
-**Processed course folders** (`build-dir <course_dir>` / `batch <courses_root>`,
-default `--out ./ProcessedCourses`): per-course `<out>/<slug>/` containing `ir.json` +
-`assets/` (same contract as `build`) plus the concept-tree artifacts `course.json`
-(identity + counts), `tree.json` (trunk/branch/leaf node graph, uuid5 ids stable
-across re-ingest), `concepts.json` (chunked ~15-min trunk content), `exercises.json`
-(pset/exam-backed + stub branches), `lessons.json` (notes-text chunks), `videos.json`
-(per-video cue-timed segments; skipped with `--no-videos`). Chunking modules:
-`chunk.py` (split ladder: discourse > silence gap > proportional; headings for text),
-`syllabus.py` (calendar table/paragraph parse + title-similarity join),
-`scaffold.py` (bundle orchestrator; Scholar shared-clip videos are apportioned across
-their sessions by clip count — `boundary_quality: clip_share`). Served read-only by
-`backend/processed.js` under `/api/processed` (path via `$PROCESSED_COURSES_PATH`);
-frontend types in `src/lib/treeApi.ts` mirror the JSON 1:1. `Courses/` (originals)
-and `ProcessedCourses/` are gitignored — regenerable data, never committed.
+Pluggable learning app. Frontend: Vite SPA (React 19) + Tailwind v4. Backend: Express ESM + better-sqlite3 + node-cron. Two Docker images (frontend + api), root context.
 
-**Ingest ladder (in order, first non-empty result wins):**
-1. **Structured** — `detect.detect_format` → `ModernAdapter` / `LegacyAdapter` → shape
-   builders (`shapes/scholar`, `seminar`, `flat_feature`, `project_lab`) →
-   `manifest_to_ir` converts `CourseManifest` → `Course` IR.
-2. **Heuristic** — `extract` + `structure` HTML walk for unknown/legacy layouts; legacy
-   metadata merged from `LegacyAdapter` when present.
-3. **AI split** — only when heuristic confidence < threshold AND `--ai` flag passed;
-   model proposes skeleton, deterministic extraction still fills content.
+- Frontend auth: `src/api/auth.ts` re-exports `@jkos/auth-client`; `src/store/authStore.ts` drives session init (getMe → refresh → redirect).
+- Backend auth: `@jkos/auth-middleware`.
 
-**Key invariants:**
-- Modern OCW has two live vintages: **v1** (`video_metadata.youtube_id` +
-  `learning_resource_types`), **v2** (`youtube_key` + `resource_type`, empty
-  `learning_resource_types`). Both must stay supported in `adapters/modern.py`.
-- Session↔resource linking (`linking.py`) is deterministic via session `index.html`
-  hrefs → `resources/{slug}/`. Fuzzy matching is suppressed when page-ref coverage
-  is good (prevents zh-hans dub mislinks).
-- Teaching order comes from rendered nav hrefs (`ordering.py`), not alphabetical slugs.
-- `library.db` schema is mirrored in `backend/library.js` (Node read-only runtime) —
-  **change both together**.
-- Real OCW test fixtures: `/mnt/Luna/Open Courseware/`. Venv: `CourseProcessor/.venv`.
+**CourseProcessor** (`apps/sylibos/CourseProcessor/`) — Python OCW ingest pipeline. Entry: `library_cli.py` (inspect/build/load/build-dir/batch). Ingest ladder: structured parse → heuristic HTML walk → AI rung (only with `--ai`). `build-dir`/`batch` output per-course concept-tree artifacts under `ProcessedCourses/` (course/tree/concepts/exercises/lessons/videos.json). Served read-only by `backend/processed.js` under `/api/processed`. Real test fixtures: `/mnt/Luna/Open Courseware/`; venv: `CourseProcessor/.venv`.
 
 ### LazurOS — `apps/lazuros`
-- Python (FastAPI/uvicorn + httpx). Real Ollama gateway: streams `/api/*` through to the
-  GPU desktop (`COMPUTE_NODE_IP:11434`), NDJSON chat tokens pass through unbuffered.
-- **Wake-on-LAN**: `network_mode: host` (raw LAN broadcast). A `/api/*` request against a
-  sleeping node auto-sends the magic packet and waits `WAKE_TIMEOUT_SECONDS` (this is what
-  lets the SylibOS 2am nightly job wake the desktop). Passive endpoints (`/health`,
-  `/models`, `/ps`) report `sleeping`/`compute_online` but **never** wake — widget polling
-  doesn't keep the desktop up. `POST /wake` = explicit wake (20s WoL cooldown).
-- `auth.py` accepts **either** the static `LAZUROS_TOKEN` bearer (server-to-server:
-  SylibOS/BeigeBoard backends, CLI) **or** a jkOS SSO JWT — `jkos_token` cookie or JWT
-  bearer — verified in Python (PyJWT RS256, same key/issuer contract as `@jkos/auth-middleware`).
-- Prod browser path: `jkos.net/api/lazuros/*` → edge nginx (prefix-stripped, buffering off,
-  via `host.docker.internal`) → lazuros:8080. ORDECK AiPanel/widget use this with cookies.
 
-## Shared packages — `packages/*`
-See ARCHITECTURE.md → "Shared package map". All are `private`, source-only, `@jkos/*`.
+Python (FastAPI/uvicorn + httpx). Streams Ollama API through to `COMPUTE_NODE_IP:11434`, NDJSON unbuffered. `network_mode: host` for WoL broadcast; nginx reaches it via `host.docker.internal`.
+
+- Passive endpoints (`/health`, `/models`, `/ps`) report status, never wake the node. `/api/*` auto-wakes a sleeping node (magic packet + `WAKE_TIMEOUT_SECONDS` wait). `POST /wake` = explicit.
+- Auth: `LAZUROS_TOKEN` static bearer (server-to-server) **or** jkOS SSO JWT (cookie or bearer), verified via PyJWT RS256.
+
+## Shared packages
+
+See ARCHITECTURE.md → "Shared packages". All are `private`, source-only, `@jkos/*`.
 `@jkos/auth-middleware` ships dual entry: `index.js` (CJS) + `index.mjs` (ESM).
-
-## Not in prod deploy
-- `plugins/*` — ORDECK federation microfrontends (`@jkos/*-plugin`); experimental.
-- `services/plex-api`, `services/recipe-api` — Python; not in root compose `include`.
