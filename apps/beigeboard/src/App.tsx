@@ -50,7 +50,11 @@ async function apiFetch(input: string, init: RequestInit = {}): Promise<Response
 
   let data: any
   try { data = await r.clone().json() } catch { return r }
-  if (data?.code !== 'TOKEN_EXPIRED') return r
+  /* Refresh on an expired access JWT *and* on a missing one (UNAUTHENTICATED):
+     the access cookie can be gone while a valid 30-day remember-me refresh cookie
+     persists, and we still want to silently revive the session. A genuinely
+     logged-out user just 401s the (deduped) refresh and falls through. */
+  if (data?.code !== 'TOKEN_EXPIRED' && data?.code !== 'UNAUTHENTICATED') return r
 
   /* Deduplicate concurrent refresh attempts — calls jkos-auth service */
   if (!refreshing) {

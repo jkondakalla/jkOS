@@ -56,7 +56,7 @@ function loginPage(opts = {}) {
 // jkOS portal — shown when a user navigates to jkAuth directly (vs. being
 // bounced here to sign in for a specific app). App launcher + account + the
 // suite-wide AI (LazurOS) controls. Interactive bits read/write /auth/profile.
-function dashboardPage(user) {
+function dashboardPage(user, nonce = '') {
   const src = (user.name || user.email || '?').trim()
   const parts = src.split(/[\s@.]+/).filter(Boolean)
   const inits = ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase() || src[0].toUpperCase()
@@ -64,7 +64,7 @@ function dashboardPage(user) {
     ? `<span class="role">${escHtml(user.role)}</span>` : ''
 
   return layout('Portal', `
-<style>
+<style nonce="${nonce}">
   body { display:block; align-items:initial; justify-content:initial; }
   .dash { max-width: 720px; margin: 0 auto; padding: 2.5rem 1.25rem 4rem; display:flex; flex-direction:column; gap: 1.75rem; }
   .dash-top { display:flex; align-items:center; gap: 1rem; }
@@ -133,7 +133,7 @@ function dashboardPage(user) {
   </section>
 </div>
 
-<script>
+<script nonce="${nonce}">
 'use strict';
 const ROLE = ${JSON.stringify(user.role || 'user')};
 

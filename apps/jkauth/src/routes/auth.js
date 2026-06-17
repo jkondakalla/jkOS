@@ -3,14 +3,13 @@
 // login / register / logout / guest POST handlers.
 
 const express = require('express')
-const crypto = require('crypto')
 const bcrypt = require('bcryptjs')
 const { GUEST_PASSWORD, PASSWORD_MAX, REFRESH_COOKIE } = require('../config')
-const { get, run } = require('../db')
+const { get, run, logEvent } = require('../db')
 const { validateRedirectTo, passwordError } = require('../util')
 const { loginPage, dashboardPage } = require('../views')
 const {
-  DUMMY_HASH, issueTokens, clearTokens, resolveOrRefresh, publicUser,
+  DUMMY_HASH, sha256, issueTokens, clearTokens, tryRotate, resolveOrRefresh, publicUser,
 } = require('../tokens')
 
 const router = express.Router()
@@ -29,7 +28,7 @@ router.get('/auth/dashboard', (req, res) => {
   if (!jwtUser) return res.redirect('/auth/login')
   const u = get('SELECT * FROM users WHERE id=?', [jwtUser.sub])
   if (!u) { clearTokens(res); return res.redirect('/auth/login') }
-  res.send(dashboardPage(u))
+  res.send(dashboardPage(u, res.locals.cspNonce))
 })
 
 // GET /auth/login — login page (HTML)
@@ -70,12 +69,15 @@ router.post('/auth/register', async (req, res) => {
   }
   try {
     const hash = await bcrypt.hash(password, 12)
-    const userCount = get('SELECT COUNT(*) AS c FROM users').c
-    const role = userCount === 0 ? 'admin' : 'user'
+    // First *real* (non-guest) user becomes admin. Counting only non-guest rows
+    // stops a seeded guest from silently consuming the admin bootstrap. (S12)
+    const realUsers = get("SELECT COUNT(*) AS c FROM users WHERE role != 'guest'").c
+    const role = realUsers === 0 ? 'admin' : 'user'
     const result = run('INSERT INTO users (email, name, password_hash, role) VALUES (?,?,?,?)',
       [normalEmail, (name || normalEmail.split('@')[0]).slice(0, 64), hash, role])
     const user = get('SELECT * FROM users WHERE id=?', [result.lastInsertRowid])
     issueTokens(res, user)
+    logEvent('register', user.id, req, { role })
     if (isJson) return res.status(201).json({ user: publicUser(user) })
     const dest = validateRedirectTo(redirect_to) || '/auth/dashboard'
     res.redirect(dest)
@@ -103,6 +105,7 @@ router.post('/auth/login', async (req, res) => {
   const hash = user?.password_hash ?? DUMMY_HASH
   const valid = !tooLong && await bcrypt.compare(password || '', hash) && !!user
   if (!valid) {
+    logEvent('login_fail', user?.id, req, { email: normalEmail })
     if (isJson) return res.status(401).json({ error: 'Invalid email or password' })
     return res.send(loginPage({ error: 'Invalid email or password', redirectTo: redirect_to }))
   }
@@ -110,37 +113,45 @@ router.post('/auth/login', async (req, res) => {
   // JSON callers can pass remember_me boolean; form callers send '1' when checked.
   const remember = isJson ? !!remember_me : remember_me === '1'
   issueTokens(res, user, remember)
+  logEvent('login', user.id, req, { remember })
   if (isJson) return res.json({ user: publicUser(user) })
   const dest = validateRedirectTo(redirect_to) || '/auth/dashboard'
   res.redirect(dest)
 })
 
-// POST /auth/logout (form + JSON)
+// POST /auth/logout (form + JSON) — revoke the whole session family so logging
+// out on one device invalidates every rotation of that login.
 router.post('/auth/logout', (req, res) => {
   const isJson = isJsonReq(req)
   const refresh = req.cookies?.[REFRESH_COOKIE]
   if (refresh) {
-    const hash = crypto.createHash('sha256').update(refresh).digest('hex')
-    run('DELETE FROM sessions WHERE token_hash=?', [hash])
+    const session = get('SELECT * FROM sessions WHERE token_hash=?', [sha256(refresh)])
+    if (session?.family_id) run('DELETE FROM sessions WHERE family_id=?', [session.family_id])
+    else if (session) run('DELETE FROM sessions WHERE token_hash=?', [sha256(refresh)])
+    if (session) logEvent('logout', session.user_id, req)
   }
   clearTokens(res)
   if (isJson) return res.json({ ok: true })
   res.redirect('/auth/login')
 })
 
-// POST /auth/refresh — rotate refresh + issue a new access token
+// POST /auth/refresh — rotate refresh + issue a new access token, with reuse
+// detection (a rotated token re-presented after the grace window burns the
+// family). See tryRotate. (S2/S9)
 router.post('/auth/refresh', (req, res) => {
-  const refresh = req.cookies?.[REFRESH_COOKIE]
-  if (!refresh) return res.status(401).json({ error: 'No refresh token', code: 'UNAUTHENTICATED' })
-  const hash = crypto.createHash('sha256').update(refresh).digest('hex')
-  const session = get("SELECT * FROM sessions WHERE token_hash=? AND expires_at > datetime('now')", [hash])
-  if (!session) { clearTokens(res); return res.status(401).json({ error: 'Session expired', code: 'SESSION_EXPIRED' }) }
-  const user = get('SELECT * FROM users WHERE id=?', [session.user_id])
-  if (!user) { clearTokens(res); return res.status(401).json({ error: 'User not found', code: 'UNAUTHENTICATED' }) }
   try {
-    issueTokens(res, user, !!session.remember_me)
-    run('DELETE FROM sessions WHERE token_hash=?', [hash])
-    res.json({ ok: true })
+    const result = tryRotate(req, res)
+    switch (result.status) {
+      // 'race' = a benign concurrent refresh: the winning call already Set-Cookie'd
+      // fresh tokens into the shared cookie jar, so report success and let the
+      // client retry its request with the new access cookie (avoids a spurious
+      // logout in the losing tab).
+      case 'ok':
+      case 'race':  return res.json({ ok: true })
+      case 'none':  return res.status(401).json({ error: 'No refresh token', code: 'UNAUTHENTICATED' })
+      case 'reuse': return res.status(401).json({ error: 'Session revoked', code: 'SESSION_REVOKED' })
+      default:      return res.status(401).json({ error: 'Session expired', code: 'SESSION_EXPIRED' })
+    }
   } catch (e) {
     console.error('[refresh]', e)
     res.status(500).json({ error: 'Failed to issue token' })
@@ -160,6 +171,7 @@ router.post('/auth/guest', (req, res) => {
     return res.send(loginPage({ error: 'Guest account not available' }))
   }
   issueTokens(res, guest)
+  logEvent('guest_login', guest.id, req)
   if (isJson) {
     const { redirect_to } = req.body
     return res.json({ user: publicUser(guest), redirect_to: validateRedirectTo(redirect_to) })

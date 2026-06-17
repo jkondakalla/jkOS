@@ -1,9 +1,25 @@
 # jkAuth — Audit, Refactor & Upgrade Plan
 
-_Status: prepared 2026-06-17 ahead of the security/feature upgrade. The clean
-refactor + safe hardening in this doc are **committed but NOT deployed** — jkAuth
-is live on prod+staging and the upgrade lands tomorrow. Review, then deploy via
-the normal Sync Staging flow._
+_Status: 2026-06-17. Two passes done, both **committed to `staging` but NOT yet
+deployed** — jkAuth is live on prod+staging; review then deploy via the normal
+Sync Staging flow._
+- **Pass 1 — clean refactor + safe hardening** (modular split, S1/S3-partial/S4/S7/S8).
+- **Pass 2 — security pass + the remember-me fix** (this session): S2, S5, S6, S9,
+  S11, S12 fixed, and the headline bug — *"remember me" not auto-logging-in across
+  the suite* — resolved. Regression net now **45 assertions, all green**.
+
+**Remember-me fix (headline).** The access cookie was set with `maxAge: 15min`, so
+the browser **deleted it after 15 minutes**. A later request then arrived with *no*
+access cookie, which app backends report as `UNAUTHENTICATED` (not `TOKEN_EXPIRED`).
+BeigeBoard's `apiFetch` only refreshed on `TOKEN_EXPIRED`, so it never used the
+valid 30-day refresh cookie and bounced the user to login; ORDECK refreshed on any
+401 so it worked — hence the inconsistency. Fix is two-sided: (1) the access cookie
+now shares the refresh cookie's lifetime — persistent (30d) when *remember*, session-
+only otherwise — so the browser keeps sending the (expiring) JWT and the server can
+answer `TOKEN_EXPIRED` → client refreshes; (2) BeigeBoard's `apiFetch` also refreshes
+on `UNAUTHENTICATED`, covering sessions issued before this change. There is no stored
+password — the httpOnly 30-day refresh cookie *is* the "saved credential", shared
+across `*.jkos.net`.
 
 jkAuth is the suite SSO: an Express service that mints **RS256 JWTs** (15-min
 access cookie `jkos_token` + 30-day rotating refresh cookie `jkos_refresh`, both
@@ -12,9 +28,10 @@ httpOnly on `.jkos.net`), backed by SQLite (`better-sqlite3`), with password
 `@jkos/auth-middleware`. nginx gates staging via `auth_request → /auth/require-admin`.
 
 **Regression net:** `npm test` in `apps/jkauth/` (= `node test/smoke.mjs`) — spawns
-the server with an in-process keypair + temp DB and drives every flow (32
-assertions, two server instances). Run it before and after any change; behaviour
-must stay green.
+the server with an in-process keypair + temp DB and drives every flow (**45
+assertions**, four server instances A–D, incl. remember-me cookie attributes,
+refresh reuse detection, CSP nonce, audit log, guest/admin bootstrap). Run it
+before and after any change; behaviour must stay green.
 
 ---
 
@@ -24,17 +41,18 @@ must stay green.
 | # | Severity | Finding |
 |---|----------|---------|
 | S1 | **High** | **Google account-linking trusted email without checking `verified_email`.** The callback linked a Google login to an existing password account purely by matching email — an unverified Google email matching a victim's jkOS email was an account-takeover vector. _(Fixed today: reject `verified_email === false`.)_ |
-| S2 | High | **No refresh-token reuse/theft detection.** Refresh tokens rotate, but presenting an already-rotated token just 401s silently instead of invalidating the session family. A stolen-then-rotated token isn't detected. _(Upgrade item — needs a `session_family` column.)_ |
-| S3 | Med | **bcrypt 72-byte truncation.** Passwords >72 bytes are silently truncated by bcrypt; no max-length guard (also a mild DoS — bcrypt on a huge string). _(Today: max-length guard. Proper fix: argon2id, see U1.)_ |
-| S4 | Med | **No key rotation path.** Single RSA key; JWTs were signed without a `kid` while JWKS advertised `kid:"1"`. _(Today: sign with `kid:"1"`. Upgrade: multi-key JWKS + kid-based verify in the middleware.)_ |
-| S5 | Med | **No audit log.** Logins, failures, admin actions, and refreshes leave no durable trail. _(Upgrade: `auth_events` table.)_ |
-| S6 | Med | **Rate limiting only on login/register/guest** (10 / 15 min / IP). `/auth/refresh`, `/auth/profile`, `/auth/google` are unthrottled; no account lockout / credential-stuffing defence beyond per-IP. _(Upgrade.)_ |
-| S7 | Low | **Missing hardening headers** (`X-Content-Type-Options`, `Referrer-Policy`, `Cache-Control: no-store` on auth JSON). _(Fixed today.)_ |
-| S8 | Low | **`_oauth_nonce` cookie not environment-suffixed** — prod/staging Google flows on the shared parent domain could collide. _(Fixed today.)_ |
-| S9 | Low | **Refresh rotation race.** `issueTokens` (insert new) then delete old isn't atomic; two concurrent refreshes with the same cookie can both succeed. The SPA client dedups, but the server should too. _(Upgrade: single transaction / rotate-by-id.)_ |
-| S10 | Low | **CSRF rests entirely on SameSite=Lax + the subdomain model.** Adequate today (cross-site POSTs don't carry the cookie; *.jkos.net is same-site), but there's no token defence-in-depth if any subdomain is XSS'd. _(Upgrade: evaluate double-submit token for state-changing POSTs.)_ |
-| S11 | Low | **Inline `<script>`/`<style>`** in the server-rendered portal block a real `script-src` CSP (only `frame-ancestors` is set). _(Upgrade: nonce or externalise the dashboard JS.)_ |
-| S12 | Info | **Guest seed steals the admin bootstrap.** "First registrant becomes admin" counts *all* users, including a seeded `guest`. With `GUEST_PASSWORD` set but no `ADMIN_SEED_*`, the first human is `user` and there's no admin. Prod uses `ADMIN_SEED_*`, so moot — but sharp. _(Upgrade: count only non-guest users, or require an explicit admin seed.)_ |
+| S1 | **High** | Google account-linking trusted email without checking `verified_email`. _(**Fixed** pass 1: reject `verified_email === false`.)_ |
+| S2 | High | **No refresh-token reuse/theft detection.** _(**Fixed** pass 2: `sessions.family_id` + `rotated_at`; rotation atomically claims the token, a rotated token re-presented past the grace window revokes the whole family — see `tryRotate`.)_ |
+| S3 | Med | **bcrypt 72-byte truncation.** Passwords >72 bytes are silently truncated; also a mild slow-hash DoS. _(**Partial**: 128-char max-length guard, pass 1. Proper fix needs argon2id — **U1, needs input** re: native dep.)_ |
+| S4 | Med | **No key rotation path.** _(**Partial**: tokens now signed with `kid:"1"` matching JWKS, pass 1. Full multi-key rotation = **U3, needs input**.)_ |
+| S5 | Med | **No audit log.** _(**Fixed** pass 2: `auth_events` table + `logEvent` on login/fail/register/logout/guest/google/refresh-reuse; admin-readable via `GET /auth/events`.)_ |
+| S6 | Med | **Rate limiting only on login/register/guest.** _(**Fixed** pass 2: added limiters on `/auth/refresh` (120/15m) and `/auth/google[/callback]` (30/15m); all budgets env-overridable. Per-account lockout deliberately deferred — **needs input**, DoS-by-lockout tradeoff.)_ |
+| S7 | Low | Missing hardening headers. _(**Fixed** pass 1.)_ |
+| S8 | Low | `_oauth_nonce` cookie not environment-suffixed. _(**Fixed** pass 1.)_ |
+| S9 | Low | **Refresh rotation race** — two concurrent refreshes could both succeed. _(**Fixed** pass 2: atomic `UPDATE … WHERE rotated_at IS NULL` claim; the loser within a 10s grace gets a benign no-op success, not a logout.)_ |
+| S10 | Low | **CSRF rests entirely on SameSite=Lax + the subdomain model.** Adequate today. _(**Deferred — needs input**: a double-submit token requires every SPA client to send it.)_ |
+| S11 | Low | **Inline `<script>`/`<style>`** in the portal blocked a real CSP. _(**Fixed** pass 2: per-request nonce; CSP is now `default-src 'self'` + nonce'd script/style, no `unsafe-inline`.)_ |
+| S12 | Info | **Guest seed steals the admin bootstrap.** _(**Fixed** pass 2: the "first user is admin" check counts only non-guest rows, in both register and Google paths.)_ |
 
 ### Code / structure
 - **One 833-line `server.js`** mixing config, DB, migrations, seeds, token logic, HTML rendering, routes, and OAuth — hard to test, review, and extend. _(Fixed today: modular split.)_
@@ -45,7 +63,7 @@ must stay green.
 
 ---
 
-## 2. Done today (committed, not deployed)
+## 2. Done — pass 1: clean refactor (committed, not deployed)
 
 **Refactor — behaviour-preserving modular split** (`apps/jkauth/`):
 ```
@@ -73,16 +91,38 @@ No token claims, cookie names, routes, or status codes changed — `@jkos/auth-m
 
 ---
 
-## 3. Upgrade backlog for tomorrow (prioritised)
+## 3. Done — pass 2: security + remember-me (committed, not deployed)
 
-1. **U1 — argon2id hashing**, pluggable, with on-login rehash-from-bcrypt migration (kills S3 truncation; OWASP-preferred). _Schema: add `hash_algo`._
-2. **U2 — refresh-token rotation with reuse detection** (S2/S9): `sessions.family_id`; on reuse of a rotated token, revoke the whole family; rotate inside one transaction.
-3. **U3 — key rotation**: multi-key JWKS keyed by `kid`, middleware verifies by header `kid`; env carries current + previous public keys.
-4. **U4 — audit log** (S5): `auth_events(user_id, type, ip, ua, at)` for login/fail/refresh/logout/admin; surface recent events in the portal.
-5. **U5 — broaden rate limiting + lockout** (S6): throttle `/auth/refresh` & `/auth/google`; per-account failure lockout with backoff.
-6. **U6 — email verification** for password signups; consider TOTP 2FA hooks.
-7. **U7 — CSP/CSRF hardening** (S10/S11): nonce the inline portal script; evaluate a double-submit CSRF token on POSTs.
-8. **U8 — migration runner** cleanup + `auth_events`/`family_id`/`hash_algo` migrations.
-9. **U9 — guest/admin bootstrap fix** (S12) + slim JWT (drop `avatar_url`, fetch via `/auth/me`).
+**Remember-me / suite-wide auto-login** (see headline note at top):
+- `issueTokens`: access cookie lifetime now mirrors the refresh cookie — persistent (30d) when *remember*, session-only otherwise.
+- `apps/beigeboard/src/App.tsx` `apiFetch`: also refreshes on `UNAUTHENTICATED`, not just `TOKEN_EXPIRED` (covers pre-fix sessions + any missing-access-cookie case). ORDECK already refreshed on any 401.
 
-Each upgrade item should land with new `smoke.mjs` assertions first.
+**Refresh-token rotation hardening** (S2/S9) — `src/tokens.js` `tryRotate`:
+- New columns `sessions.family_id` + `sessions.rotated_at` (migration `004_session_family`).
+- Rotation atomically claims the presented token (`UPDATE … WHERE rotated_at IS NULL`). Winner issues the new pair in the same family; a concurrent loser within `REFRESH_GRACE_MS` (10s, env-overridable) gets a benign success; a rotated token re-presented later → **reuse → the whole family is deleted** and cookies cleared (`code: SESSION_REVOKED`).
+- `liveSession` now ignores rotated tokens. `logout` revokes the whole family.
+
+**Audit log** (S5) — `auth_events` table (migration `005_auth_events`) + `logEvent(type, userId, req, meta)` (never throws into the request path). Events: `login`, `login_fail`, `register`, `logout`, `guest_login`, `google_login`, `google_register`, `refresh_reuse`. `GET /auth/events` returns the caller's own events; admins get the whole suite.
+
+**Rate limiting** (S6) — limiters added on `/auth/refresh` and `/auth/google[/callback]`; budgets centralised in `config.js` and env-overridable.
+
+**CSP nonce** (S11) — per-request nonce in `app.js`; CSP is now `default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; img-src 'self' data: https:; style-src 'self' 'nonce-…'; script-src 'self' 'nonce-…'`. The portal's inline `<style>`/`<script>` carry the nonce; no `unsafe-inline`.
+
+**Admin bootstrap** (S12) — "first user is admin" counts only non-guest rows (register + Google).
+
+**Migration runner** (U8) — replaced the ad-hoc id checks with an ordered `MIGRATIONS` array + idempotent `addColumn` helper; added `004`/`005`.
+
+Contracts unchanged for existing clients. New: `family_id`/`rotated_at` columns, `auth_events` table, `GET /auth/events`, and the refresh `code: SESSION_REVOKED` (clients treat any non-2xx refresh as "re-login", so this is compatible). Regression net: **45 assertions, all green** (`npm test`).
+
+---
+
+## 4. Remaining backlog — needs your input
+
+1. **U1 — argon2id hashing** (finishes S3). The OWASP-preferred fix, with on-login rehash-from-bcrypt. **Decision:** add the native `argon2` dep (build-time impact on ZFS, like the googleapis concern) **or** the no-new-dep alternative (SHA-256 pre-hash → bcrypt, which removes the 72-byte limit) **or** leave the 128-char guard as-is. _Schema: add `hash_algo`._
+2. **U3 — key rotation** (finishes S4). Multi-key JWKS keyed by `kid`; `@jkos/auth-middleware` verifies by header `kid`. **Needs:** provisioning a second keypair + a shared-package change deployed to every backend. Signing-side `kid` is already in place.
+3. **S10 — CSRF defence-in-depth.** Double-submit token on state-changing POSTs. **Needs:** a coordinated change to every SPA client to echo the token; SameSite=Lax covers it today.
+4. **U6 — email verification / TOTP 2FA.** **Needs:** outbound email (SMTP creds / provider).
+5. **Per-account lockout** (rest of S6). **Needs:** a policy call — lockout deters credential-stuffing but enables DoS-by-lockout of a known victim. Recommend soft throttle (backoff) over hard lock.
+6. **Slim JWT** — drop `avatar_url` from the access token (cookie bloat), fetch via `/auth/me`. Low risk (`/auth/me` already returns it) but a `req.user` shape change; confirm before doing.
+
+Each item should land with new `smoke.mjs` assertions first.

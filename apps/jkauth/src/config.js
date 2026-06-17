@@ -22,6 +22,24 @@ const ACCESS_TTL_MS = 15 * 60 * 1000
 const REFRESH_TTL_MS = 30 * 24 * 60 * 60 * 1000
 const REMEMBER_TTL_MS = 30 * 24 * 60 * 60 * 1000   // same as REFRESH_TTL_MS — explicit alias
 
+// Grace window for refresh-token rotation: a token presented again within this
+// window of being rotated is treated as a benign concurrent double-refresh (the
+// SPA client dedups, but network retries / two tabs can race) rather than theft.
+// Past the window, re-presenting a rotated token is reuse → revoke the family. (S2/S9)
+// Overridable so tests can drive the reuse path without a real-time wait.
+const REFRESH_GRACE_MS = process.env.REFRESH_GRACE_MS != null
+  ? Number(process.env.REFRESH_GRACE_MS)
+  : 10 * 1000
+
+// Rate-limit budgets per window per IP. Credential endpoints stay tight; refresh
+// is legitimately frequent (every access-token expiry) so it gets headroom. (S6)
+// All overridable via env (tests raise them so the suite isn't throttled).
+const numEnv = (k, d) => (process.env[k] != null ? Number(process.env[k]) : d)
+const RL_WINDOW_MS = numEnv('RL_WINDOW_MS', 15 * 60 * 1000)
+const RL_CREDENTIALS = numEnv('RL_CREDENTIALS', 10)   // /auth/login · /auth/register · /auth/guest
+const RL_REFRESH = numEnv('RL_REFRESH', 120)          // /auth/refresh
+const RL_GOOGLE = numEnv('RL_GOOGLE', 30)             // /auth/google · /auth/google/callback
+
 // bcrypt silently truncates at 72 bytes; cap input length to avoid that footgun
 // becoming load-bearing and to stop slow-hash DoS on absurd inputs. (S3)
 const PASSWORD_MIN = 8
@@ -48,7 +66,8 @@ module.exports = {
   PRIVATE_KEY, PUBLIC_KEY,
   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI,
   ADMIN_SEED_EMAIL, ADMIN_SEED_PASSWORD, GUEST_PASSWORD,
-  ACCESS_TTL_MS, REFRESH_TTL_MS, REMEMBER_TTL_MS,
+  ACCESS_TTL_MS, REFRESH_TTL_MS, REMEMBER_TTL_MS, REFRESH_GRACE_MS,
+  RL_WINDOW_MS, RL_CREDENTIALS, RL_REFRESH, RL_GOOGLE,
   PASSWORD_MIN, PASSWORD_MAX,
   COOKIE_SUFFIX, TOKEN_COOKIE, REFRESH_COOKIE, OAUTH_NONCE_COOKIE,
   COOKIE_DOMAIN, COOKIE_OPTS,

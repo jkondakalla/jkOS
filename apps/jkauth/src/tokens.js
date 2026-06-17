@@ -9,9 +9,14 @@ const jwt = require('jsonwebtoken')
 const {
   PRIVATE_KEY, PUBLIC_KEY, JWT_ISSUER, JWT_KID,
   TOKEN_COOKIE, REFRESH_COOKIE, COOKIE_OPTS,
-  ACCESS_TTL_MS, REFRESH_TTL_MS, REMEMBER_TTL_MS,
+  ACCESS_TTL_MS, REFRESH_TTL_MS, REMEMBER_TTL_MS, REFRESH_GRACE_MS,
 } = require('./config')
-const { run, get } = require('./db')
+const { run, get, logEvent } = require('./db')
+
+const sha256 = s => crypto.createHash('sha256').update(s).digest('hex')
+
+// SQLite datetime('now') is space-separated UTC with no zone; make it parseable.
+const sqliteToMs = s => Date.parse(String(s).replace(' ', 'T') + 'Z')
 
 // Pre-computed hash used in the login path when the email doesn't exist, so bcrypt
 // always runs and the response time doesn't reveal whether an account exists.
@@ -26,28 +31,39 @@ function signAccess(user) {
   )
 }
 
-// remember=true  → both cookies get maxAge (persist across browser close for 30 days)
-// remember=false → access cookie gets 15-min maxAge; refresh is session-only (no maxAge)
-//                  — closes the browser = logged out
-function issueTokens(res, user, remember = true) {
+// Issue a fresh access JWT + refresh token for a user, writing both cookies.
+//
+// remember=true  → BOTH cookies are persistent (Max-Age 30d) so they survive a
+//   browser restart. The access JWT still expires in 15 min; persisting its
+//   cookie just means the browser keeps sending the (now-expired) JWT, so the
+//   server can answer TOKEN_EXPIRED and the client refreshes — instead of the
+//   cookie vanishing and looking like a hard logout. (This vanishing access
+//   cookie was why "remember me" failed to auto-log-in across the suite.)
+// remember=false → BOTH cookies are session-only (no Max-Age): browser close =
+//   logged out, for the two cookies in lockstep.
+//
+// familyId: pass the existing family when rotating (refresh) so the lineage is
+// preserved; omit on a fresh login to start a new family. (S2)
+function issueTokens(res, user, remember = true, familyId = null) {
   const token = signAccess(user)
   const refresh = crypto.randomBytes(64).toString('hex')
-  const refreshHash = crypto.createHash('sha256').update(refresh).digest('hex')
+  const refreshHash = sha256(refresh)
+  const family = familyId || crypto.randomUUID()
   const expiresAt = new Date(Date.now() + REFRESH_TTL_MS).toISOString()
+  // Prune fully-expired rows and rotated rows past the reuse-detection window so
+  // the table stays bounded without discarding tokens we still need to flag.
   run("DELETE FROM sessions WHERE user_id=? AND expires_at < datetime('now')", [user.id])
-  run('INSERT INTO sessions (user_id, token_hash, expires_at, remember_me) VALUES (?,?,?,?)',
-    [user.id, refreshHash, expiresAt, remember ? 1 : 0])
-  // Cap active sessions per user at 10 to prevent unbounded accumulation
-  run(`DELETE FROM sessions WHERE user_id = ? AND id NOT IN (
-    SELECT id FROM sessions WHERE user_id = ? ORDER BY created_at DESC LIMIT 10
+  run("DELETE FROM sessions WHERE user_id=? AND rotated_at IS NOT NULL AND rotated_at < datetime('now','-1 hour')", [user.id])
+  run('INSERT INTO sessions (user_id, token_hash, expires_at, remember_me, family_id) VALUES (?,?,?,?,?)',
+    [user.id, refreshHash, expiresAt, remember ? 1 : 0, family])
+  // Cap active (un-rotated) sessions per user at 10 so a busy account isn't
+  // capped out of real devices by its own rotation history.
+  run(`DELETE FROM sessions WHERE user_id = ? AND rotated_at IS NULL AND id NOT IN (
+    SELECT id FROM sessions WHERE user_id = ? AND rotated_at IS NULL ORDER BY created_at DESC LIMIT 10
   )`, [user.id, user.id])
-  res.cookie(TOKEN_COOKIE, token, { ...COOKIE_OPTS, maxAge: ACCESS_TTL_MS })
-  if (remember) {
-    res.cookie(REFRESH_COOKIE, refresh, { ...COOKIE_OPTS, maxAge: REMEMBER_TTL_MS })
-  } else {
-    // Session cookie — browser close clears it (no maxAge)
-    res.cookie(REFRESH_COOKIE, refresh, { ...COOKIE_OPTS })
-  }
+  const opts = remember ? { ...COOKIE_OPTS, maxAge: REMEMBER_TTL_MS } : { ...COOKIE_OPTS }
+  res.cookie(TOKEN_COOKIE, token, opts)
+  res.cookie(REFRESH_COOKIE, refresh, opts)
 }
 
 function clearTokens(res) {
@@ -56,18 +72,66 @@ function clearTokens(res) {
   res.cookie(REFRESH_COOKIE, '', clear)
 }
 
-// Find the live (unexpired) refresh-cookie session + its user, or null.
-// The refresh cookie persists for 30 days when "Remember me" was checked; the
-// 15-min access token does not. This is what lets a remembered session be
-// revived after the access token has expired.
+// Find the live (unexpired, un-rotated) refresh-cookie session + its user, or
+// null. The refresh cookie persists for 30 days when "Remember me" was checked;
+// the access JWT expires in 15 min. This is what lets a remembered session be
+// revived after the access token has expired. A rotated token is NOT live.
 function liveSession(req) {
   const refresh = req.cookies?.[REFRESH_COOKIE]
   if (!refresh) return null
-  const hash = crypto.createHash('sha256').update(refresh).digest('hex')
-  const session = get("SELECT * FROM sessions WHERE token_hash=? AND expires_at > datetime('now')", [hash])
+  const hash = sha256(refresh)
+  const session = get("SELECT * FROM sessions WHERE token_hash=? AND rotated_at IS NULL AND expires_at > datetime('now')", [hash])
   if (!session) return null
   const user = get('SELECT * FROM users WHERE id=?', [session.user_id])
   return user ? { session, user, hash } : null
+}
+
+// Rotate the refresh cookie: atomically consume the presented token and issue a
+// new access+refresh pair in the same family. Detects token reuse/theft. Sets or
+// clears cookies on `res` as appropriate and returns a status the caller maps to
+// an HTTP response or a resolved user:
+//   { status: 'none' }                 no refresh cookie present
+//   { status: 'ok', user }             rotated; new cookies set
+//   { status: 'expired' }              unknown / expired token; cookies cleared
+//   { status: 'reuse' }                rotated token re-presented → family revoked; cleared
+//   { status: 'race' }                 benign concurrent double-refresh; cookies untouched
+function tryRotate(req, res) {
+  const refresh = req.cookies?.[REFRESH_COOKIE]
+  if (!refresh) return { status: 'none' }
+  const hash = sha256(refresh)
+
+  // Atomically claim the token: only one caller can flip rotated_at NULL→now.
+  // Wins the race (S9) and is the gate for reuse detection (S2).
+  const claim = run(
+    "UPDATE sessions SET rotated_at=datetime('now') WHERE token_hash=? AND rotated_at IS NULL AND expires_at > datetime('now')",
+    [hash])
+
+  if (claim.changes === 1) {
+    const session = get('SELECT * FROM sessions WHERE token_hash=?', [hash])
+    const user = get('SELECT * FROM users WHERE id=?', [session.user_id])
+    if (!user) { clearTokens(res); return { status: 'expired' } }
+    issueTokens(res, user, !!session.remember_me, session.family_id)
+    return { status: 'ok', user }
+  }
+
+  // Claim failed — figure out why.
+  const session = get('SELECT * FROM sessions WHERE token_hash=?', [hash])
+  if (!session) { clearTokens(res); return { status: 'expired' } }
+  if (sqliteToMs(session.expires_at) <= Date.now()) { clearTokens(res); return { status: 'expired' } }
+
+  // Token exists, not expired, but the claim failed → it was already rotated.
+  const rotatedAgoMs = Date.now() - sqliteToMs(session.rotated_at)
+  if (rotatedAgoMs >= 0 && rotatedAgoMs <= REFRESH_GRACE_MS) {
+    // Benign concurrent refresh (two tabs / retry): the winner already minted
+    // and Set-Cookie'd a new pair, so DON'T clear cookies — just signal a no-op.
+    return { status: 'race' }
+  }
+
+  // A token rotated long ago is being presented again → theft. Burn the family.
+  run('DELETE FROM sessions WHERE family_id=?', [session.family_id])
+  clearTokens(res)
+  logEvent('refresh_reuse', session.user_id, req, { family: session.family_id })
+  return { status: 'reuse' }
 }
 
 function resolveUser(req) {
@@ -91,11 +155,10 @@ function resolveUser(req) {
 function resolveOrRefresh(req, res) {
   const jwtUser = resolveUser(req)
   if (jwtUser) return jwtUser
-  const live = liveSession(req)
-  if (!live) return null
-  issueTokens(res, live.user, !!live.session.remember_me)
-  run('DELETE FROM sessions WHERE token_hash=?', [live.hash])
-  return { sub: live.user.id, email: live.user.email, name: live.user.name, avatar_url: live.user.avatar_url, role: live.user.role }
+  const result = tryRotate(req, res)
+  if (result.status !== 'ok') return null
+  const u = result.user
+  return { sub: u.id, email: u.email, name: u.name, avatar_url: u.avatar_url, role: u.role }
 }
 
 function publicUser(u) {
@@ -103,6 +166,6 @@ function publicUser(u) {
 }
 
 module.exports = {
-  DUMMY_HASH, signAccess, issueTokens, clearTokens,
-  liveSession, resolveUser, resolveOrRefresh, publicUser,
+  DUMMY_HASH, sha256, signAccess, issueTokens, clearTokens,
+  liveSession, tryRotate, resolveUser, resolveOrRefresh, publicUser,
 }

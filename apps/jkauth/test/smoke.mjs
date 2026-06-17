@@ -29,6 +29,7 @@ const { privateKey, publicKey } = generateKeyPairSync('rsa', {
 
 let pass = 0, fail = 0;
 function ok(name, cond, extra = '') { if (cond) { pass++; console.log(`  ✓ ${name}`); } else { fail++; console.log(`  ✗ ${name}  ${extra}`); } }
+const setCookieFor = (arr, name) => (arr || []).find(c => c.startsWith(name + '='));
 
 // One server instance with its own port, temp DB, and cookie jar.
 class Server {
@@ -49,6 +50,8 @@ class Server {
         AUTH_ORIGIN: this.base,
         PORTAL_URL: this.base,
         NODE_ENV: 'test',
+        // Don't let per-IP rate limits throttle the test's many sequential calls.
+        RL_CREDENTIALS: '1000', RL_REFRESH: '1000', RL_GOOGLE: '1000',
         ...extraEnv,
       },
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -72,14 +75,20 @@ class Server {
     }
   }
   cookie() { return [...this.jar.entries()].map(([k, v]) => `${k}=${v}`).join('; '); }
-  async req(method, path, { json, form, noJar } = {}) {
+  // Options: json/form (body), noJar (don't send jar cookies), cookieOverride
+  // (send this raw Cookie header instead of the jar), noStore (don't fold the
+  // response's Set-Cookie back into the jar). this.lastSetCookie always holds the
+  // raw Set-Cookie array of the most recent response, for attribute assertions.
+  async req(method, path, { json, form, noJar, cookieOverride, noStore } = {}) {
     const h = {};
-    if (!noJar && this.jar.size) h.Cookie = this.cookie();
+    if (cookieOverride !== undefined) h.Cookie = cookieOverride;
+    else if (!noJar && this.jar.size) h.Cookie = this.cookie();
     let body;
     if (json !== undefined) { h['Content-Type'] = 'application/json'; body = JSON.stringify(json); }
     else if (form !== undefined) { h['Content-Type'] = 'application/x-www-form-urlencoded'; body = new URLSearchParams(form).toString(); }
     const res = await fetch(this.base + path, { method, headers: h, body, redirect: 'manual' });
-    this._setCookies(res);
+    this.lastSetCookie = res.headers.getSetCookie?.() ?? [];
+    if (!noStore) this._setCookies(res);
     return res;
   }
   stop() {
@@ -119,6 +128,21 @@ async function run() {
     ok('register >128-char password 400', (await A.req('POST', '/auth/register', { json: { email: 'long@jkos.net', password: longPw }, noJar: true })).status === 400);
   }
 
+  console.log('A · remember-me cookie persistence (the suite-wide auto-login fix)');
+  {
+    // remember=true → access cookie must carry Max-Age so the browser keeps it
+    // (and keeps sending the expiring JWT) instead of dropping it after 15 min,
+    // which is what broke auto-login across apps. noStore keeps the jar intact.
+    await A.req('POST', '/auth/login', { json: { email: 'a@jkos.net', password: 'password123', remember_me: true }, noStore: true });
+    const remTok = setCookieFor(A.lastSetCookie, 'jkos_token');
+    const remRef = setCookieFor(A.lastSetCookie, 'jkos_refresh');
+    ok('remember=true → access cookie persists (Max-Age)', /max-age=/i.test(remTok || ''), remTok);
+    ok('remember=true → refresh cookie persists (Max-Age)', /max-age=/i.test(remRef || ''), remRef);
+    await A.req('POST', '/auth/login', { json: { email: 'a@jkos.net', password: 'password123', remember_me: false }, noStore: true });
+    const sesTok = setCookieFor(A.lastSetCookie, 'jkos_token');
+    ok('remember=false → access cookie is session-only (no Max-Age)', sesTok && !/max-age=/i.test(sesTok), sesTok);
+  }
+
   console.log('A · me / profile / preferences-merge');
   r = await A.req('GET', '/auth/me'); j = await r.json().catch(() => ({}));
   ok('GET /auth/me 200', r.status === 200 && j.user?.email === 'a@jkos.net');
@@ -143,6 +167,26 @@ async function run() {
   ok('apps list returned', Array.isArray(j.apps) && j.apps.length > 0);
   ok('admin passes require-admin (200)', (await A.req('GET', '/auth/require-admin')).status === 200);
   ok('no-auth require-admin 401', (await A.req('GET', '/auth/require-admin', { noJar: true })).status === 401);
+
+  console.log('A · portal CSP nonce (S11)');
+  {
+    const rr = await A.req('GET', '/auth/dashboard');
+    const csp = rr.headers.get('content-security-policy') || '';
+    const html = await rr.text();
+    const m = csp.match(/script-src 'self' 'nonce-([^']+)'/);
+    ok('dashboard 200 + CSP carries script-src nonce', rr.status === 200 && !!m, csp);
+    ok('inline <script>/<style> tagged with that nonce', !!m && html.includes(`nonce="${m[1]}"`));
+    ok('no unsafe-inline in CSP', !/unsafe-inline/.test(csp));
+  }
+
+  console.log('A · audit log (S5)');
+  {
+    const rr = await A.req('GET', '/auth/events'); const jj = await rr.json().catch(() => ({}));
+    ok('admin GET /auth/events 200 + non-empty', rr.status === 200 && Array.isArray(jj.events) && jj.events.length > 0, `got ${rr.status}`);
+    ok('audit captured a login + register event',
+      (jj.events || []).some(e => e.type === 'login') && (jj.events || []).some(e => e.type === 'register'),
+      JSON.stringify((jj.events || []).map(e => e.type)));
+  }
 
   console.log('A · logout (JSON + form)');
   ok('logout JSON 200', (await A.req('POST', '/auth/logout', { json: {} })).status === 200);
@@ -179,6 +223,33 @@ async function run() {
   r = await B.req('POST', '/auth/guest', { json: {} }); j = await r.json().catch(() => ({}));
   ok('guest login 200 role=guest', r.status === 200 && j.user?.role === 'guest', JSON.stringify(j.user));
   ok('guest fails require-admin (403)', (await B.req('GET', '/auth/require-admin')).status === 403);
+
+  // ── Instance C: REFRESH_GRACE_MS=-1 disables the benign-race window so any
+  //    re-presentation of a rotated refresh token is treated as theft. (S2/S9)
+  const C = start({ REFRESH_GRACE_MS: '-1' });
+  if (!await C.ready()) { console.error('C never became healthy:\n' + C.log); return shutdown(1); }
+  console.log('C · refresh-token reuse detection');
+  await C.req('POST', '/auth/register', { json: { email: 'c@jkos.net', password: 'password123' } });
+  const R1 = C.jar.get('jkos_refresh');
+  r = await C.req('POST', '/auth/refresh');
+  const R2 = C.jar.get('jkos_refresh');
+  ok('first rotation 200 + new refresh', r.status === 200 && R2 && R2 !== R1);
+  ok('R2 works once', (await C.req('POST', '/auth/refresh', { cookieOverride: `jkos_refresh=${C.jar.get('jkos_refresh')}`, noStore: true })).status === 200);
+  // Re-present the already-rotated R1 → reuse → whole family revoked.
+  const reuse = await C.req('POST', '/auth/refresh', { cookieOverride: `jkos_refresh=${R1}`, noStore: true });
+  const reuseBody = await reuse.json().catch(() => ({}));
+  ok('reusing rotated R1 → 401 SESSION_REVOKED', reuse.status === 401 && reuseBody.code === 'SESSION_REVOKED', `${reuse.status} ${JSON.stringify(reuseBody)}`);
+  // After the family is burned, even the latest refresh token is dead.
+  ok('family revoked → latest token also 401', (await C.req('POST', '/auth/refresh')).status === 401);
+
+  // ── Instance D: GUEST_PASSWORD set, NO admin seed — a seeded guest must NOT
+  //    consume the "first real user = admin" bootstrap. (S12)
+  const D = start({ GUEST_PASSWORD: 'guestpass123' });
+  if (!await D.ready()) { console.error('D never became healthy:\n' + D.log); return shutdown(1); }
+  console.log('D · guest seed does not steal admin bootstrap');
+  r = await D.req('POST', '/auth/register', { json: { email: 'first@jkos.net', password: 'password123' } });
+  j = await r.json().catch(() => ({}));
+  ok('first non-guest registrant is admin despite seeded guest', r.status === 201 && j.user?.role === 'admin', JSON.stringify(j.user));
 
   console.log(`\n${fail === 0 ? '✅ ALL PASS' : '❌ FAILURES'}: ${pass} passed, ${fail} failed`);
   shutdown(fail === 0 ? 0 : 1);

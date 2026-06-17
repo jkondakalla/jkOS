@@ -82,6 +82,18 @@ router.get('/auth/apps', (req, res) => {
   res.json({ apps })
 })
 
+// GET /auth/events — recent audit events. Admins see the whole suite; everyone
+// else sees only their own. Read-only view over the auth_events table. (S5)
+router.get('/auth/events', (req, res) => {
+  const jwtUser = resolveUser(req)
+  if (!jwtUser) return res.status(401).json({ error: 'Not authenticated', code: 'UNAUTHENTICATED' })
+  const limit = Math.min(Number(req.query.limit) || 50, 200)
+  const events = jwtUser.role === 'admin'
+    ? all('SELECT id, user_id, type, ip, ua, meta, created_at FROM auth_events ORDER BY id DESC LIMIT ?', [limit])
+    : all('SELECT id, user_id, type, ip, ua, meta, created_at FROM auth_events WHERE user_id=? ORDER BY id DESC LIMIT ?', [jwtUser.sub, limit])
+  res.json({ events })
+})
+
 // GET /auth/jwks — RSA public key in JWKS format
 router.get('/auth/jwks', (req, res) => {
   if (!PUBLIC_KEY) return res.status(503).json({ error: 'Public key not configured' })

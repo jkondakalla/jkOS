@@ -8,7 +8,7 @@ const crypto = require('crypto')
 const {
   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI, OAUTH_NONCE_COOKIE,
 } = require('../config')
-const { get, run } = require('../db')
+const { get, run, logEvent } = require('../db')
 const { validateRedirectTo } = require('../util')
 const { loginPage } = require('../views')
 const { issueTokens } = require('../tokens')
@@ -91,18 +91,22 @@ router.get('/auth/google/callback', async (req, res) => {
     const profileEmail = (profile.email || '').toLowerCase()
     let user = get('SELECT * FROM users WHERE google_id=?', [profile.id])
     if (!user) user = get('SELECT * FROM users WHERE email=?', [profileEmail])
+    let isNew = false
     if (user) {
       run('UPDATE users SET google_id=?, avatar_url=?, last_login=datetime("now") WHERE id=?',
         [profile.id, profile.picture, user.id])
       user = get('SELECT * FROM users WHERE id=?', [user.id])
     } else {
-      const userCount = get('SELECT COUNT(*) AS c FROM users').c
-      const role = userCount === 0 ? 'admin' : 'user'
+      // First non-guest user becomes admin (see S12 note in routes/auth.js).
+      const realUsers = get("SELECT COUNT(*) AS c FROM users WHERE role != 'guest'").c
+      const role = realUsers === 0 ? 'admin' : 'user'
       const result = run('INSERT INTO users (email, name, avatar_url, google_id, role) VALUES (?,?,?,?,?)',
         [profileEmail, profile.name, profile.picture, profile.id, role])
       user = get('SELECT * FROM users WHERE id=?', [result.lastInsertRowid])
+      isNew = true
     }
     issueTokens(res, user)
+    logEvent(isNew ? 'google_register' : 'google_login', user.id, req)
     res.redirect(redirectTo || '/auth/dashboard')
   } catch (e) {
     console.error('[google callback]', e)

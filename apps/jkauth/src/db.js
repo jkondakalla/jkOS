@@ -16,15 +16,20 @@ const run = (sql, p = []) => db.prepare(sql).run(...p)
 const all = (sql, p = []) => db.prepare(sql).all(...p)
 const get = (sql, p = []) => db.prepare(sql).get(...p)
 
-function runMigrations() {
-  run(`CREATE TABLE IF NOT EXISTS migrations (id TEXT PRIMARY KEY)`)
+// Idempotent column-add: ALTER only when the column is absent. Lets each
+// migration self-heal a DB that recorded its marker without the column (the
+// symptom of an earlier ordering bug) and is a no-op once present.
+function addColumn(table, column, decl) {
+  const exists = all(`PRAGMA table_info(${table})`).some(c => c.name === column)
+  if (!exists) run(`ALTER TABLE ${table} ADD COLUMN ${column} ${decl}`)
+}
 
-  const applied = id => !!get('SELECT 1 FROM migrations WHERE id=?', [id])
-
-  // Migrations run in dependency order: 001_init creates the base tables, then
-  // later migrations alter them. Do NOT reorder — 002 ALTERs the users table that
-  // 001 creates, so on a fresh DB 001 must run first.
-  if (!applied('001_init')) {
+// Ordered migration list. Each [id, fn] runs once (recorded in `migrations`) and
+// in array order — later entries ALTER tables earlier ones create, so do NOT
+// reorder. The bodies are written to be safe to re-run (CREATE IF NOT EXISTS /
+// addColumn), so a half-applied DB heals on next boot.
+const MIGRATIONS = [
+  ['001_init', () => {
     run(`CREATE TABLE IF NOT EXISTS users (
       id            INTEGER PRIMARY KEY AUTOINCREMENT,
       email         TEXT UNIQUE NOT NULL,
@@ -53,29 +58,60 @@ function runMigrations() {
     )`)
     run(`CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token_hash)`)
     run(`CREATE INDEX IF NOT EXISTS idx_sessions_user  ON sessions(user_id)`)
-    run(`INSERT INTO migrations VALUES ('001_init')`)
-  }
+  }],
 
-  // Ensure the preferences column exists on every boot, independent of the
-  // migration marker. This self-heals DBs that recorded 002 without actually
-  // adding the column (the symptom of an earlier ordering bug) and is a no-op
-  // once the column is present.
-  const hasPreferences = all(`PRAGMA table_info(users)`).some(c => c.name === 'preferences')
-  if (!hasPreferences) {
-    run(`ALTER TABLE users ADD COLUMN preferences TEXT NOT NULL DEFAULT '{}'`)
-  }
-  if (!applied('002_user_preferences')) {
-    run(`INSERT INTO migrations VALUES ('002_user_preferences')`)
-  }
+  // Cross-app preferences blob on the user row.
+  ['002_user_preferences', () => addColumn('users', 'preferences', "TEXT NOT NULL DEFAULT '{}'")],
 
-  // 003_remember_me: tracks whether a session was created with "Remember me".
-  // The refresh endpoint re-issues with persistent cookies only when this is set.
-  const hasRememberMe = all(`PRAGMA table_info(sessions)`).some(c => c.name === 'remember_me')
-  if (!hasRememberMe) {
-    run(`ALTER TABLE sessions ADD COLUMN remember_me INTEGER NOT NULL DEFAULT 0`)
+  // Whether a session was created with "Remember me" — the refresh endpoint
+  // re-issues persistent cookies only when this is set.
+  ['003_remember_me', () => addColumn('sessions', 'remember_me', 'INTEGER NOT NULL DEFAULT 0')],
+
+  // Refresh-token rotation lineage (S2/S9): family_id groups every rotation of
+  // one login; rotated_at marks a token as consumed so re-presenting it is
+  // detectable as reuse (→ revoke the whole family).
+  ['004_session_family', () => {
+    addColumn('sessions', 'family_id', 'TEXT')
+    addColumn('sessions', 'rotated_at', 'TEXT')
+    run(`CREATE INDEX IF NOT EXISTS idx_sessions_family ON sessions(family_id)`)
+  }],
+
+  // Audit trail (S5): durable record of auth events for review + abuse detection.
+  ['005_auth_events', () => {
+    run(`CREATE TABLE IF NOT EXISTS auth_events (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id    INTEGER,
+      type       TEXT NOT NULL,
+      ip         TEXT,
+      ua         TEXT,
+      meta       TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`)
+    run(`CREATE INDEX IF NOT EXISTS idx_auth_events_user ON auth_events(user_id)`)
+    run(`CREATE INDEX IF NOT EXISTS idx_auth_events_time ON auth_events(created_at)`)
+  }],
+]
+
+function runMigrations() {
+  run(`CREATE TABLE IF NOT EXISTS migrations (id TEXT PRIMARY KEY)`)
+  const applied = id => !!get('SELECT 1 FROM migrations WHERE id=?', [id])
+  for (const [id, fn] of MIGRATIONS) {
+    if (applied(id)) continue
+    fn()
+    run('INSERT INTO migrations VALUES (?)', [id])
   }
-  if (!applied('003_remember_me')) {
-    run(`INSERT INTO migrations VALUES ('003_remember_me')`)
+}
+
+// Append an audit event. Never throws into the request path — auditing must not
+// be able to fail a login/refresh. (S5)
+function logEvent(type, userId, req, meta) {
+  try {
+    const ip = req?.ip || req?.headers?.['x-forwarded-for'] || null
+    const ua = (req?.headers?.['user-agent'] || '').slice(0, 300) || null
+    run('INSERT INTO auth_events (user_id, type, ip, ua, meta) VALUES (?,?,?,?,?)',
+      [userId ?? null, String(type).slice(0, 64), ip, ua, meta ? JSON.stringify(meta).slice(0, 500) : null])
+  } catch (e) {
+    console.error('[audit]', e.message)
   }
 }
 
@@ -129,4 +165,4 @@ seedAdmin()
 seedGuest()
 seedAppRegistry()
 
-module.exports = { db, run, all, get, getAppOrigins }
+module.exports = { db, run, all, get, getAppOrigins, logEvent }
