@@ -8,7 +8,7 @@ import { DragProvider } from './providers/DragProvider'
 import { MobileApp } from './mobile'
 import { injectJkOSTheme } from '@jkos/design'
 
-import { FilmGrain, Halation, Artifacts, ScanLines, CinematicIntro } from './components/Overlays'
+import { Halation, Artifacts, ScanLines, CinematicIntro } from './components/Overlays'
 import { AppHeader } from './components/AppHeader'
 import { ConnectModal } from './components/ConnectModal'
 import { DetailPanel } from './components/DetailPanel'
@@ -332,7 +332,6 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
       )}
 
       {effects.halation  && <Halation />}
-      {effects.grain     && <FilmGrain strength={effects.grainStrength} />}
       {effects.scanLines && <ScanLines strength={effects.scanStrength} />}
       {effects.artifacts && <Artifacts />}
 
@@ -340,7 +339,7 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
         position: 'fixed', inset: 0,
         filter: colorIn ? 'saturate(1) brightness(1)' : 'saturate(0.04) brightness(0.08)',
         transition: colorIn ? 'filter 1.4s ease-out' : 'none',
-        background: 'var(--color-paper)',
+        background: 'transparent',   /* let the body's grained paper backdrop show */
         display: 'flex', flexDirection: 'column',
       }}>
         <div style={{
@@ -348,7 +347,7 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
           display: 'grid',
           gridTemplateRows: 'auto minmax(0, 1fr)',
           gridTemplateColumns: selected ? '1fr 340px' : '1fr',
-          background: 'var(--color-paper)',
+          background: 'transparent',   /* grained paper comes from the body backdrop */
           color: 'var(--color-ink)',
           filter: effects.halation ? 'url(#halation)' : undefined,
         }}>

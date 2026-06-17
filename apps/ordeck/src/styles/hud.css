@@ -40,9 +40,8 @@ html.od-v2 {
   --hub-warn:       #a04010;
   --hub-warn-soft:  color-mix(in srgb, #a04010 11%, var(--hub-bg-2));
 
-  --hub-radius:        10px;
-  --hub-radius-sm:     7px;
-  --hub-radius-lg:     16px;
+  /* Radius scale (base/xs/sm/lg/soft/button) flows from the @jkos/design factory
+     call in App.tsx — injectJkOSTheme({ selector: 'html.od-v2', radius }). */
 
   --od-shadow:      0 1px 2px rgba(60, 40, 15, 0.05), 0 8px 24px -12px rgba(60, 40, 15, 0.16);
   --od-shadow-lift: 0 2px 4px rgba(60, 40, 15, 0.06), 0 18px 40px -16px rgba(60, 40, 15, 0.26);
@@ -96,21 +95,14 @@ html.od-v2[data-mode="dark"] {
 /* ── Base surface ──────────────────────────────────────────────────────── */
 
 html.od-v2 body {
-  background: var(--hub-bg-0);
+  /* background-color is the paper backdrop; the suite-wide film grain image +
+     blend are painted onto this same `html.od-v2 body` by buildJkOSTheme()
+     (injectJkOSTheme in App.tsx), so the grain rides this surface. */
+  background-color: var(--hub-bg-0);
   color: var(--hub-cream-bright);
   font-family: var(--hub-font-sans);
   user-select: text;
   transition: background-color 0.4s ease, color 0.3s ease;
-}
-
-/* Quiet grain — the jkOS motif, kept but calm (replaces canvas scanlines) */
-html.od-v2 body::before {
-  content: "";
-  position: fixed; inset: 0; z-index: 2000; pointer-events: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='0.65'/%3E%3C/svg%3E");
-  background-size: 200px 200px;
-  mix-blend-mode: var(--grain-blend);
-  opacity: var(--grain-opacity);
 }
 
 html.od-v2 ::selection { background: var(--accent); color: var(--accent-contrast); }
@@ -137,7 +129,7 @@ html.od-v2 ::selection { background: var(--accent); color: var(--accent-contrast
 
 .hud-logo {
   width: 26px; height: 26px;
-  border-radius: 8px;
+  border-radius: var(--hub-radius-soft);
   background: var(--accent);
   color: var(--accent-contrast);
   display: grid; place-items: center;
@@ -166,7 +158,7 @@ html.od-v2 ::selection { background: var(--accent); color: var(--accent-contrast
 
 .hud-topbtn {
   width: 30px; height: 30px;
-  border-radius: 9px;
+  border-radius: var(--hub-radius-button);
   border: 1px solid var(--hub-line);
   background: transparent;
   color: var(--hub-cream);
@@ -207,7 +199,7 @@ html.od-v2 ::selection { background: var(--accent); color: var(--accent-contrast
 .hud-apps-pop a:hover { background: var(--accent-tint); }
 .hud-app-glyph {
   width: 28px; height: 28px; flex: none;
-  border-radius: 8px;
+  border-radius: var(--hub-radius-soft);
   display: grid; place-items: center;
   font-family: var(--hub-font-mono);
   font-size: 10px; font-weight: 700;
@@ -411,7 +403,7 @@ html.od-v2 ::selection { background: var(--accent); color: var(--accent-contrast
   display: flex; flex-direction: column;
   align-items: center;
   padding: 3px 2px;
-  border-radius: 5px;
+  border-radius: var(--hub-radius-xs);
   cursor: default;
   position: relative;
   min-height: 26px;
@@ -469,7 +461,7 @@ html.od-v2 ::selection { background: var(--accent); color: var(--accent-contrast
   color: var(--accent-ink);
   font-family: var(--hub-font-mono);
   font-size: 9.5px; letter-spacing: 0.06em;
-  cursor: pointer; border-radius: 4px;
+  cursor: pointer; border-radius: var(--hub-radius-xs);
   transition: border-color 0.12s;
   text-transform: capitalize;
 }
@@ -550,7 +542,8 @@ html.od-v2 ::selection { background: var(--accent); color: var(--accent-contrast
   width: 46px; flex: none;
 }
 .hud-task-title {
-  font-size: 15.5px; font-weight: 550;
+  font-family: var(--hub-font-serif);   /* Fraunces — editorial content headline */
+  font-size: 16px; font-weight: 500;
   color: var(--hub-cream-bright);
   min-width: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -666,7 +659,8 @@ html.od-v2 ::selection { background: var(--accent); color: var(--accent-contrast
 .hud-info-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
 .hud-info-title {
   margin: 0;
-  font-size: 16.5px; font-weight: 650;
+  font-family: var(--hub-font-serif);   /* Fraunces — editorial content headline */
+  font-size: 17px; font-weight: 600;
   letter-spacing: -0.01em;
   color: var(--hub-cream-bright);
   line-height: 1.3;

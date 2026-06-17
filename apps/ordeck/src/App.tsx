@@ -1,36 +1,38 @@
 import { useState, useEffect } from 'react';
+import { injectJkOSTheme } from '@jkos/design';
 import BootSequence from './components/BootSequence';
 import AuthGuard from './components/AuthGuard';
-import Dashboard from './pages/Dashboard';
 import RoomHUD from './pages/hud/RoomHUD';
 
-const VIEW_KEY = 'ordeck-view';
-type View = 'hud' | 'canvas';
+// ORDECK supplies its per-app inputs to the @jkos/design factory, scoped to the
+// HUD theme (html.od-v2) — the portal's only face now that the legacy canvas
+// deck is gone. Like BeigeBoard: serif → Fraunces (sans/mono inherit the IBM
+// Plex factory defaults) and a softened radius scale. The neutral palette and
+// the od-v2 accent/shadow helpers still live in hud.css; this call owns the
+// font + radius inputs so every HUD shape retunes from one place. Accents stay
+// user-driven (applyJkOSTheme, in useJkOSPreferences).
+injectJkOSTheme({
+  selector: 'html.od-v2',
+  fonts: { serif: "'Fraunces', Georgia, serif" },
+  radius: { base: '10px', xs: '4px', sm: '7px', lg: '16px', soft: '8px', button: '9px' },
+});
 
-function loadView(): View {
-  try { return localStorage.getItem(VIEW_KEY) === 'canvas' ? 'canvas' : 'hud'; }
-  catch { return 'hud'; }
-}
+// The HUD is the portal's only view; its styles are scoped under html.od-v2
+// (a future customizable-grid view can branch off this class again).
+document.documentElement.classList.add('od-v2');
 
 export default function App() {
   const [booted, setBooted] = useState(false);
-  const [view, setView] = useState<View>(loadView);
 
-  // The room HUD (v2) is scoped under html.od-v2; the legacy canvas keeps the
-  // CRT scanline/vignette body overlays (gated on html:not(.od-v2)).
-  useEffect(() => {
-    document.documentElement.classList.toggle('od-v2', view === 'hud');
-    try { localStorage.setItem(VIEW_KEY, view); } catch { /* ignore */ }
-  }, [view]);
+  // Keep the od-v2 scope class pinned even if something else toggles it.
+  useEffect(() => { document.documentElement.classList.add('od-v2'); }, []);
 
   return (
     <>
       <BootSequence onDone={() => setBooted(true)} />
       {booted && (
         <AuthGuard>
-          {view === 'hud'
-            ? <RoomHUD onOpenCanvas={() => setView('canvas')} />
-            : <Dashboard onOpenHUD={() => setView('hud')} />}
+          <RoomHUD />
         </AuthGuard>
       )}
     </>

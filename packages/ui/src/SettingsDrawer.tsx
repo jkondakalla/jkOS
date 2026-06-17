@@ -25,12 +25,11 @@ interface Theme {
   secondary: string;
 }
 interface Effects {
-  grain: boolean;
-  grainStrength: number;
   scanLines: boolean;
   scanStrength: number;
   artifacts: boolean;
   // halation is intrinsic to dark mode — deliberately not surfaced as a toggle.
+  // film grain is a suite-wide background default (@jkos/design factory) — no toggle.
 }
 interface Lazuros {
   enabled: boolean;
@@ -191,9 +190,6 @@ export function SettingsDrawer({
         {/* Effects */}
         <section style={sect}>
           <SectionLabel>Effects</SectionLabel>
-          <EffectRow label="Film grain" value={effects.grain} onToggle={v => patchEffects({ grain: v })}>
-            {effects.grain && <SliderInput value={effects.grainStrength} min={0} max={1} step={0.05} onChange={v => patchEffects({ grainStrength: v })} />}
-          </EffectRow>
           <EffectRow label="Scan lines" value={effects.scanLines} onToggle={v => patchEffects({ scanLines: v })}>
             {effects.scanLines && <SliderInput value={effects.scanStrength} min={0} max={1} step={0.05} onChange={v => patchEffects({ scanStrength: v })} />}
           </EffectRow>

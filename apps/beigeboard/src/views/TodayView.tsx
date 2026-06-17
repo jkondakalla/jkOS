@@ -19,7 +19,7 @@ export function TodayView({ items, today, onSelect, onToggle, onAddTask, onUpdat
   const rest       = active.slice(1)
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto', background: 'var(--color-paper)' }}>
+    <div style={{ flex: 1, overflowY: 'auto', background: 'transparent' }}>
       <div style={{ maxWidth: 760, margin: '0 auto', padding: '48px 36px 80px' }}>
 
         <div style={{ marginBottom: 36 }}>

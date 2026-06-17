@@ -105,7 +105,7 @@ export function CalendarView({ items, today, onSelect, onToggle, onUpdateItem, o
   const anyDrag = !!drag
 
   return (
-    <div style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden', background: 'var(--color-paper)' }}>
+    <div style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden', background: 'transparent' }}>
 
       <aside style={{
         width: 220, flexShrink: 0,

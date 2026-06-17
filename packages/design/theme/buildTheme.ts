@@ -64,6 +64,13 @@ export interface JkOSThemeConfig {
   radius?: JkOSRadius;
   /** Font stacks (applies to both modes). */
   fonts?: JkOSFonts;
+  /** Suite-wide film grain on the page background. Default ON: the factory paints
+   *  the shared --hub-grain-image (~18%) onto `<scope> body`, blended INTO the
+   *  body's own background colour (--grain-blend: multiply on paper, screen in
+   *  dark). It textures the backdrop only — never content/cards/text — so apps
+   *  just let the body show through (don't cover it with an opaque fill). Pass
+   *  `grain: false` to opt a scope out. */
+  grain?: boolean;
   /** Scope selector. Default ':root'. Use e.g. 'html.od-v2' to theme a subtree
    *  while the derivation layer (on :root) still reads these inputs. */
   selector?: string;
@@ -117,6 +124,17 @@ export function buildJkOSTheme(config: JkOSThemeConfig = {}): string {
   let css = '';
   if (base.length) css += `${sel} {\n  ${base.join('\n  ')}\n}\n`;
   if (dark.length) css += `${sel}[data-mode="dark"] {\n  ${dark.join('\n  ')}\n}\n`;
+
+  // Film grain — on by default. Blends the shared noise into the body's own
+  // background paint, so it reads as a textured backdrop and never overlays
+  // content. --hub-grain-image (alpha ≈ 18%) + --grain-blend live in hub.css.
+  if (config.grain !== false) {
+    css += `${sel} body {\n` +
+           `  background-image: var(--hub-grain-image);\n` +
+           `  background-size: 160px 160px;\n` +
+           `  background-blend-mode: var(--grain-blend);\n` +
+           `}\n`;
+  }
   return css;
 }
 

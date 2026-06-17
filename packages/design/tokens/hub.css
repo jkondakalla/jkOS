@@ -103,6 +103,12 @@
   /* Grain + CRT effects (CRT off in paper mode) */
   --grain-opacity: 0.04;
   --grain-blend:   multiply;
+  /* Film grain — a suite-wide DEFAULT texture for BACKGROUNDS only. The ~18%
+     intensity is baked into the noise alpha. buildJkOSTheme() (@jkos/design)
+     paints it onto `<scope> body` and blends it into the body's own background
+     colour via --grain-blend (multiply on paper, screen in dark), so it never
+     sits over content/cards/text. */
+  --hub-grain-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='jkg'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23jkg)' opacity='0.18'/%3E%3C/svg%3E");
   --crt-scanline-opacity: 0;
   --crt-vignette-opacity: 0.08;
   --canvas-grid-opacity: 0.5;

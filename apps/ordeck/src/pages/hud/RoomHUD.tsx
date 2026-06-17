@@ -115,11 +115,7 @@ function MiniCalendar({ cal, editMode, onHide }: {
   );
 }
 
-interface Props {
-  onOpenCanvas: () => void;
-}
-
-export default function RoomHUD({ onOpenCanvas: _onOpenCanvas }: Props) {
+export default function RoomHUD() {
   const { theme, effects, lazuros, user, saving, patchTheme, patchEffects, patchLazuros } =
     useJkOSPreferences();
 

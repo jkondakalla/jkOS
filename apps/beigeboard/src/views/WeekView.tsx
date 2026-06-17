@@ -199,7 +199,7 @@ export function WeekView({ items, today, onSelect, onToggle, onAddItem, onUpdate
 
   return (
     <>
-    <div style={{ flex: 1, overflowY: 'auto', background: 'var(--color-paper)', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+    <div style={{ flex: 1, overflowY: 'auto', background: 'transparent', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       <div style={{ flex: 1, minHeight: 0, padding: '24px 32px 0', display: 'flex', flexDirection: 'column', maxWidth: 1280, margin: '0 auto', width: '100%' }}>
 
         <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 16, paddingBottom: 14, borderBottom: `1px solid var(--color-line)` }}>

@@ -24,7 +24,7 @@ export function WorkshopView({
   const year     = localDate(today).getFullYear()
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto', background: 'var(--color-paper)' }}>
+    <div style={{ flex: 1, overflowY: 'auto', background: 'transparent' }}>
       <div style={{ maxWidth: 920, margin: '0 auto', padding: '36px 40px 80px' }}>
 
         <header style={{ paddingBottom: 20, marginBottom: 24, borderBottom: '1px solid var(--color-line)' }}>
