@@ -255,14 +255,14 @@ html.od-v2 ::selection { background: var(--accent); color: var(--accent-contrast
 .hud-clock { padding: 14px 6px 2px; }
 .hud-clock-time { display: flex; align-items: baseline; gap: 10px; }
 .hud-clock-hm {
+  /* Colour + text-shadow come from the .jk-press-lg primitive (struck into the
+     paper on light, halation glow in dark); this rule owns size/weight/figures. */
   font-family: var(--hub-font-mono);
   font-size: clamp(60px, 7vw, 104px);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
   line-height: 0.95;
-  color: var(--hub-amber);
-  text-shadow: var(--glow);
 }
 .hud-clock-ss {
   font-family: var(--hub-font-mono);

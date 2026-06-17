@@ -294,7 +294,7 @@ export default function RoomHUD() {
         <div className="hud-col">
           <div className="hud-clock">
             <div className="hud-clock-time">
-              <span className="hud-clock-hm">{clock.hm}</span>
+              <span className="hud-clock-hm jk-press-lg">{clock.hm}</span>
               <span className="hud-clock-ss">{clock.ss}</span>
             </div>
             <div className="hud-clock-meta">
