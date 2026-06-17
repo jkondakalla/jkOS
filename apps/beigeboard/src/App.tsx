@@ -142,8 +142,11 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
     return () => mq.removeEventListener('change', handler)
   }, [])
 
-  const [intro, setIntro]   = useState(false)
-  const [colorIn, setColorIn] = useState(true)
+  // Opening scroll plays on load (CinematicIntro reads <html data-mode> so it
+  // renders in the user's mode); the app starts desaturated and blooms to colour
+  // when the intro finishes (onDone → setColorIn(true)).
+  const [intro, setIntro]   = useState(true)
+  const [colorIn, setColorIn] = useState(false)
   const [view, setView]                   = useState('today')
   const [items, setItems]                 = useState<any[]>([])
   const [loading, setLoading]             = useState(true)
@@ -344,7 +347,7 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
       <div style={{
         position: 'fixed', inset: 0,
         filter: colorIn ? 'saturate(1) brightness(1)' : 'saturate(0.04) brightness(0.08)',
-        transition: colorIn ? 'filter 1.4s ease-out' : 'none',
+        transition: 'filter 1.4s ease-out',   /* always present so colorIn flip reliably animates the bloom */
         background: 'transparent',   /* let the body's grained paper backdrop show */
         display: 'flex', flexDirection: 'column',
       }}>

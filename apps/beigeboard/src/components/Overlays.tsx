@@ -2,6 +2,13 @@ import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { FONT_HEAD, FONT_BODY, isoDate, localDate } from '../lib/theme'
 
 function getIntroIsDark(): boolean {
+  // Stay in lock-step with the app shell: App.tsx sets <html data-mode> before
+  // React hydrates, from the user's saved mode (localStorage 'jkos-mode'). Reading
+  // that resolved attribute here guarantees the opening scroll matches whatever
+  // mode the user is actually in. localStorage / prefers-color-scheme are only
+  // belt-and-suspenders fallbacks for the (shouldn't-happen) missing-attr case.
+  const m = document.documentElement.getAttribute('data-mode')
+  if (m) return m === 'dark'
   try {
     const s = localStorage.getItem('jkos-mode')
     if (s) return s === 'dark'
