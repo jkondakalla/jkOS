@@ -3,6 +3,7 @@ import { injectJkOSTheme } from '@jkos/design';
 import BootSequence from './components/BootSequence';
 import AuthGuard from './components/AuthGuard';
 import RoomHUD from './pages/hud/RoomHUD';
+import WidgetWorkshop from './pages/WidgetWorkshop';
 
 // ORDECK supplies its per-app inputs to the @jkos/design factory, scoped to the
 // HUD theme (html.od-v2) — the portal's only face now that the legacy canvas
@@ -23,6 +24,8 @@ document.documentElement.classList.add('od-v2');
 
 export default function App() {
   const [booted, setBooted] = useState(false);
+  // Tiny path switch (no router dep): /widgets is the admin workshop, else the HUD.
+  const isWidgets = window.location.pathname.replace(/\/+$/, '') === '/widgets';
 
   // Keep the od-v2 scope class pinned even if something else toggles it.
   useEffect(() => { document.documentElement.classList.add('od-v2'); }, []);
@@ -32,7 +35,7 @@ export default function App() {
       <BootSequence onDone={() => setBooted(true)} />
       {booted && (
         <AuthGuard>
-          <RoomHUD />
+          {isWidgets ? <WidgetWorkshop /> : <RoomHUD />}
         </AuthGuard>
       )}
     </>

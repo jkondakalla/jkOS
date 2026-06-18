@@ -65,6 +65,24 @@ export default function RoomHUD() {
     return () => window.removeEventListener('keydown', close);
   }, [editMode]);
 
+  // Merge admin-published widgets (jkAuth registry) into the registry so they
+  // show on the add strip and render via the spec factory. Server wins; this
+  // runtime merge isn't persisted to the user's local HUD doc.
+  useEffect(() => {
+    fetch(`${AUTH_URL}/auth/widgets`, { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : { widgets: [] }))
+      .then((d) => {
+        const list = Array.isArray(d.widgets) ? d.widgets : [];
+        if (!list.length) return;
+        setHud((h) => {
+          const widgets = { ...h.widgets };
+          for (const w of list) if (w && typeof w.id === 'string') widgets[w.id] = w;
+          return { ...h, widgets };
+        });
+      })
+      .catch(() => {});
+  }, []);
+
   function toggleEdit() {
     setEditMode(m => !m);
   }
@@ -166,6 +184,7 @@ export default function RoomHUD() {
         state={hud}
         editMode={editMode}
         onRemove={shelve}
+        onRequestEdit={() => setEditMode(true)}
         onLayoutChange={(bpName, items) => update(setBreakpointLayout(hud, bpName, items))}
         renderWidget={(def) => renderWidget(def, ctx)}
       />

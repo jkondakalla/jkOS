@@ -141,6 +141,20 @@ const MIGRATIONS = [
     )`)
     run(`CREATE INDEX IF NOT EXISTS idx_auth_otp_user ON auth_otp(user_id)`)
   }],
+
+  // Suite-wide widget registry (ORDECK v3 workshop). Admins publish declarative
+  // widget definitions here; every HUD reads them and can place them. `def` is the
+  // full WidgetDef JSON; id/label are denormalized for listing/ordering.
+  ['011_widget_registry', () => {
+    run(`CREATE TABLE IF NOT EXISTS widget_registry (
+      id          TEXT PRIMARY KEY,
+      label       TEXT NOT NULL,
+      def         TEXT NOT NULL,
+      created_by  INTEGER,
+      created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+    )`)
+  }],
 ]
 
 function runMigrations() {

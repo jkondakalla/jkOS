@@ -114,4 +114,47 @@ router.get('/auth/jwks', (req, res) => {
   }
 })
 
+// ── Widget registry (ORDECK v3 workshop) ────────────────────────────────────
+// Admins publish declarative widget definitions suite-wide; every HUD reads them
+// and can place them. Mirrors the /auth/apps registry pattern.
+
+// GET /auth/widgets — published widget definitions (any signed-in user).
+router.get('/auth/widgets', (req, res) => {
+  const user = resolveUser(req)
+  if (!user) return res.status(401).json({ error: 'Unauthorized' })
+  const widgets = []
+  for (const r of all('SELECT def FROM widget_registry ORDER BY label')) {
+    try { widgets.push(JSON.parse(r.def)) } catch { /* skip a corrupt row */ }
+  }
+  res.json({ widgets })
+})
+
+// POST /auth/widgets — publish (upsert) a widget definition. Admin only.
+router.post('/auth/widgets', (req, res) => {
+  const user = resolveUser(req)
+  if (!user) return res.status(401).json({ error: 'Not authenticated', code: 'UNAUTHENTICATED' })
+  if (user.role !== 'admin') return res.status(403).json({ error: 'Admin access required' })
+  const def = req.body
+  if (!def || typeof def !== 'object' || typeof def.id !== 'string' || !def.id.trim()) {
+    return res.status(400).json({ error: 'Invalid widget: a string id is required' })
+  }
+  const id = def.id.trim().slice(0, 64)
+  const label = String(def.label || id).slice(0, 100)
+  const json = JSON.stringify({ ...def, id }).slice(0, 20000)
+  run(`INSERT INTO widget_registry (id, label, def, created_by, updated_at)
+       VALUES (?,?,?,?,datetime('now'))
+       ON CONFLICT(id) DO UPDATE SET label=excluded.label, def=excluded.def, updated_at=datetime('now')`,
+    [id, label, json, user.sub])
+  res.json({ ok: true, id })
+})
+
+// DELETE /auth/widgets/:id — unpublish. Admin only.
+router.delete('/auth/widgets/:id', (req, res) => {
+  const user = resolveUser(req)
+  if (!user) return res.status(401).json({ error: 'Not authenticated', code: 'UNAUTHENTICATED' })
+  if (user.role !== 'admin') return res.status(403).json({ error: 'Admin access required' })
+  run('DELETE FROM widget_registry WHERE id=?', [String(req.params.id).slice(0, 64)])
+  res.json({ ok: true })
+})
+
 module.exports = router

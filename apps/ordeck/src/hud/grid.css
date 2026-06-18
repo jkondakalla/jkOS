@@ -26,14 +26,22 @@
   min-height: 0;
 }
 
-/* Edit mode: dashed outline marks rearrangeable cells; drag to rearrange. */
+/* Edit mode: dashed outline marks rearrangeable cells; hold + drag to move. */
 .hud-canvas.editing .hud-cell {
   outline: 1px dashed color-mix(in srgb, var(--hub-amber) 45%, transparent);
   outline-offset: 2px;
   border-radius: var(--hub-radius-lg);
   cursor: grab;
+  user-select: none;
 }
 .hud-canvas.editing .hud-cell:active { cursor: grabbing; }
+
+/* A lifted (held) card floats above the rest while it follows the pointer. */
+.hud-cell.dragging {
+  cursor: grabbing;
+  box-shadow: 0 14px 34px color-mix(in srgb, #000 38%, transparent);
+  opacity: 0.97;
+}
 
 /* Remove (→ shelf) affordance, pinned to the cell corner. Reuses the visual
    language of .hud-edit-remove; only positioning is overridden here. */
