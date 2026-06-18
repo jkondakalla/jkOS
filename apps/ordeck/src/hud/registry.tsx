@@ -138,6 +138,42 @@ const PRIMITIVES: Primitives = {
       </span>
     </div>
   ),
+  gauge: (n, scope) => {
+    const v = num(resolve(n.value, scope));
+    const m = n.max != null ? num(resolve(n.max, scope)) : 100;
+    const pct = m > 0 ? Math.max(0, Math.min(1, v / m)) : 0;
+    const R = 26, C = 2 * Math.PI * R;
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+        <svg width="76" height="76" viewBox="0 0 72 72">
+          <circle cx="36" cy="36" r={R} fill="none" stroke="var(--hub-line)" strokeWidth="6" />
+          <circle cx="36" cy="36" r={R} fill="none" stroke="var(--hub-amber)" strokeWidth="6" strokeLinecap="round"
+            strokeDasharray={`${C * pct} ${C}`} transform="rotate(-90 36 36)"
+            style={{ filter: 'drop-shadow(0 0 4px var(--hub-amber-glow))', transition: 'stroke-dasharray 0.4s ease' }} />
+          <text x="36" y="41" textAnchor="middle" style={{ fontFamily: 'var(--hub-font-mono)', fontSize: 17, fontWeight: 600, fill: 'var(--hub-cream-bright)' }}>
+            {Math.round(pct * 100)}
+          </text>
+        </svg>
+        {n.label != null && <span style={{ fontFamily: 'var(--hub-font-mono)', fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--hub-cream-dim)' }}>{str(resolve(n.label, scope))}</span>}
+      </div>
+    );
+  },
+  divider: (n, scope) => {
+    const label = n.label != null ? str(resolve(n.label, scope)) : '';
+    if (!label) return <div style={{ height: 1, background: 'var(--hub-line)', margin: '4px 0' }} />;
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '2px 0' }}>
+        <span style={{ flex: 1, height: 1, background: 'var(--hub-line)' }} />
+        <span style={{ fontFamily: 'var(--hub-font-mono)', fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--hub-cream-dim)' }}>{label}</span>
+        <span style={{ flex: 1, height: 1, background: 'var(--hub-line)' }} />
+      </div>
+    );
+  },
+  link: (n, scope) => (
+    <a href={str(resolve(n.href, scope))} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'var(--hub-font-mono)', fontSize: 11, letterSpacing: '0.06em', color: 'var(--hub-amber)', textDecoration: 'none', border: '1px solid color-mix(in srgb, var(--hub-amber) 40%, transparent)', borderRadius: 'var(--hub-radius-sm)', padding: '7px 12px' }}>
+      {str(resolve(n.text, scope))} →
+    </a>
+  ),
   list: (n, scope) => {
     const arr = resolve(n.from, scope);
     const items = Array.isArray(arr) ? arr : [];

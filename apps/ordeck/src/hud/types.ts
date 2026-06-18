@@ -94,6 +94,9 @@ export type WidgetNode =
   | { t: 'pill'; text: Binding; tone?: Tone }
   | { t: 'dot'; tone?: Tone; pulse?: boolean }
   | { t: 'keyval'; label: Binding; value: Binding; tone?: Tone }
+  | { t: 'gauge'; value: Binding; max?: Binding; label?: Binding }
+  | { t: 'divider'; label?: Binding }
+  | { t: 'link'; text: Binding; href: Binding }
   | { t: 'list'; from: Binding; item: WidgetNode; empty?: Binding };
 
 export type Tone = 'ok' | 'warn' | 'danger' | 'muted' | 'accent';
