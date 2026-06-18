@@ -33,13 +33,19 @@ const optBinding = (b?: EB): Binding | undefined =>
 
 type PrimType =
   | 'label' | 'text' | 'metric' | 'bar' | 'gauge' | 'pill' | 'dot'
-  | 'keyval' | 'divider' | 'link' | 'list';
+  | 'keyval' | 'divider' | 'link' | 'list'
+  | 'time' | 'icon' | 'calendar' | 'weather';
+
+type ItemStyle = 'keyval' | 'status' | 'task';
 
 interface Row {
   type: PrimType;
-  text?: EB; value?: EB; unit?: EB; sub?: EB; max?: EB; label?: EB; href?: EB;
+  text?: EB; value?: EB; unit?: EB; sub?: EB; sub2?: EB; seconds?: EB; max?: EB; label?: EB; href?: EB; name?: EB;
   from?: EB; empty?: EB; itemLabel?: EB; itemValue?: EB;
+  /** "Show if" — when set, the element only renders when this resolves truthy. */
+  cond?: EB;
   size?: string; variant?: string; tone?: Tone; pulse?: boolean;
+  itemStyle?: ItemStyle; dir?: string;
 }
 
 const PRIMS: { type: PrimType; label: string; hint: string }[] = [
@@ -47,34 +53,41 @@ const PRIMS: { type: PrimType; label: string; hint: string }[] = [
   { type: 'gauge', label: 'Gauge', hint: 'circular % ring' },
   { type: 'bar', label: 'Progress bar', hint: 'value vs max' },
   { type: 'keyval', label: 'Key / value', hint: 'name on the left, value on the right' },
-  { type: 'list', label: 'List', hint: 'repeat a key/value row over an array' },
+  { type: 'list', label: 'List', hint: 'repeat a row over an array (key/value, status, or task)' },
   { type: 'pill', label: 'Status pill', hint: 'small coloured badge' },
   { type: 'dot', label: 'Status dot', hint: 'coloured indicator' },
   { type: 'text', label: 'Text', hint: 'heading or body line' },
   { type: 'label', label: 'Eyebrow label', hint: 'small uppercase caption' },
+  { type: 'icon', label: 'Icon', hint: 'a line glyph (sun, check, book…)' },
   { type: 'divider', label: 'Divider', hint: 'rule, optional caption' },
   { type: 'link', label: 'Link button', hint: 'opens a URL' },
+  { type: 'time', label: 'Big clock', hint: 'large time + meta lines' },
+  { type: 'calendar', label: 'Calendar', hint: 'month grid (uses the cal slice)' },
+  { type: 'weather', label: 'Weather', hint: 'full weather card (uses the weather slice)' },
 ];
 
 const TONES: Tone[] = ['ok', 'warn', 'danger', 'accent', 'muted'];
 const SIZES = ['md', 'sm', 'xs'];
-const VARIANTS = ['title', 'body', 'sub'];
+const VARIANTS = ['title', 'body', 'sub', 'mono'];
+const ITEM_STYLES: ItemStyle[] = ['keyval', 'status', 'task'];
+const DIRS = ['col', 'row'];
+const ICON_NAMES = ['sun', 'moon', 'cloud', 'rain', 'bolt', 'check', 'book', 'clock', 'calendar', 'activity', 'star', 'alert', 'dot'];
 
 /* ── Data-source field suggestions (drive the path datalists) ────────────── */
 
 const HUD_SOURCES = ['clock', 'weather', 'systems', 'today', 'study', 'cal'];
 const SCALAR_FIELDS: Record<string, string[]> = {
-  clock: ['hm', 'ss', 'dateLine', 'utcShort', 'jday'],
-  weather: ['temp', 'feels', 'desc', 'hi', 'lo', 'label'],
-  systems: ['up', 'total'],
-  study: ['streak', 'nextLesson', 'courseTitle', 'todayDone', 'dailyGoal'],
+  clock: ['hm', 'ss', 'dateLine', 'utcShort', 'jday', 'utcLine'],
+  weather: ['temp', 'feels', 'desc', 'hi', 'lo', 'label', 'offline', 'loaded'],
+  systems: ['up', 'total', 'summary'],
+  study: ['streak', 'headline', 'subLine', 'nextLesson', 'courseTitle', 'todayDone', 'dailyGoal', 'available', 'showStreak', 'unavailable', 'offlineLabel'],
   cal: ['year', 'month'],
-  today: ['authed'],
+  today: ['authed', 'progressLabel', 'progress', 'doneCount', 'emptyLabel', 'signedOut', 'showOffline', 'showTasks', 'showEmpty'],
 };
 const ARRAY_FIELDS: Record<string, string[]> = {
   systems: ['rows'], today: ['tasks'], weather: ['slots'], cal: ['days'],
 };
-const ITEM_FIELDS = ['name', 'detail', 'status', 'title', 'time', 'done', 'tag', 'label', 'temp', 'date', 'count'];
+const ITEM_FIELDS = ['name', 'detail', 'tone', 'status', 'title', 'time', 'timeLabel', 'stateLabel', 'done', 'now', 'tag', 'label', 'temp', 'date', 'count'];
 const KNOWN_SUGGEST = [...HUD_SOURCES, '$'];
 function pathSuggestions(src: string): string[] {
   if (src === '$') return ITEM_FIELDS;
@@ -93,11 +106,35 @@ function newRow(type: PrimType): Row {
     case 'keyval': return { type, label: eb('Name'), value: eb('Value'), tone: 'muted' };
     case 'divider': return { type, text: eb('') };
     case 'link': return { type, text: eb('Open'), href: eb('https://') };
-    case 'list': return { type, from: dataEb('systems', 'rows'), empty: eb('NOTHING'), itemLabel: dataEb('$', 'name'), itemValue: dataEb('$', 'detail') };
+    case 'icon': return { type, name: eb('sun'), tone: 'accent' };
+    case 'time': return { type, value: dataEb('clock', 'hm'), seconds: dataEb('clock', 'ss'), sub: dataEb('clock', 'dateLine'), sub2: dataEb('clock', 'utcLine') } as Row;
+    case 'calendar': return { type };
+    case 'weather': return { type };
+    case 'list': return { type, from: dataEb('systems', 'rows'), empty: eb('NOTHING'), itemStyle: 'keyval', dir: 'col', itemLabel: dataEb('$', 'name'), itemValue: dataEb('$', 'detail') };
   }
 }
 
-function toNode(r: Row): WidgetNode {
+/** The repeated row for a list, by preset. `status`/`task` assume the array's
+ *  items expose `$.tone` (and `$.timeLabel` for task) — the hud slices do. */
+function listItem(style: ItemStyle | undefined, label: EB, value: EB): WidgetNode {
+  if (style === 'status') {
+    return { t: 'row', gap: 8, children: [
+      { t: 'dot', tone: { src: '$', path: 'tone' } },
+      { t: 'text', text: toBinding(label), variant: 'mono', grow: true },
+      { t: 'text', text: toBinding(value), variant: 'sub' },
+    ] };
+  }
+  if (style === 'task') {
+    return { t: 'row', gap: 8, justify: 'space-between', children: [
+      { t: 'text', text: { src: '$', path: 'timeLabel' }, variant: 'sub' },
+      { t: 'text', text: toBinding(label), variant: 'mono', grow: true },
+      { t: 'pill', text: toBinding(value), tone: { src: '$', path: 'tone' } },
+    ] };
+  }
+  return { t: 'keyval', label: toBinding(label), value: toBinding(value) };
+}
+
+function baseNode(r: Row): WidgetNode {
   switch (r.type) {
     case 'label': return { t: 'label', text: toBinding(r.text!), size: (r.size as 'md') || undefined };
     case 'text': return { t: 'text', text: toBinding(r.text!), variant: (r.variant as 'title') || undefined };
@@ -109,8 +146,20 @@ function toNode(r: Row): WidgetNode {
     case 'keyval': return { t: 'keyval', label: toBinding(r.label!), value: toBinding(r.value!), tone: r.tone };
     case 'divider': return { t: 'divider', label: optBinding(r.text) };
     case 'link': return { t: 'link', text: toBinding(r.text!), href: toBinding(r.href!) };
-    case 'list': return { t: 'list', from: toBinding(r.from!), empty: optBinding(r.empty), item: { t: 'keyval', label: toBinding(r.itemLabel!), value: toBinding(r.itemValue!) } };
+    case 'icon': return { t: 'icon', name: toBinding(r.name!), tone: r.tone };
+    case 'time': return { t: 'time', value: toBinding(r.value!), seconds: optBinding(r.seconds), sub: optBinding(r.sub), sub2: optBinding(r.sub2) };
+    case 'calendar': return { t: 'calendar' };
+    case 'weather': return { t: 'weather' };
+    case 'list': return { t: 'list', from: toBinding(r.from!), empty: optBinding(r.empty), dir: r.dir === 'row' ? 'row' : undefined, item: listItem(r.itemStyle, r.itemLabel!, r.itemValue!) };
   }
+}
+
+/** True when a "show if" condition is actually set (a data path, or a typed literal). */
+const condActive = (c?: EB): boolean => !!c && (c.mode === 'data' ? !!c.src : c.lit !== '');
+
+function toNode(r: Row): WidgetNode {
+  const node = baseNode(r);
+  return condActive(r.cond) ? { t: 'when', cond: toBinding(r.cond!), then: node } : node;
 }
 
 /* Reverse of toBinding/toNode — loads an existing widget back into the editor. */
@@ -121,30 +170,57 @@ function bindingToEb(b?: Binding): EB {
   return dataEb(b.src, b.path || '');
 }
 
-function nodeToRow(n: WidgetNode): Row | null {
+const asTone = (t?: Binding): Tone | undefined => (typeof t === 'string' ? (t as Tone) : undefined);
+
+/** Detect which list preset an item node came from, for round-trip editing. */
+function listStyleOf(item: WidgetNode): { style: ItemStyle; label: EB; value: EB } {
+  if (item.t === 'keyval') return { style: 'keyval', label: bindingToEb(item.label), value: bindingToEb(item.value) };
+  if (item.t === 'row') {
+    const kids = item.children;
+    const hasPill = kids.some((k) => k.t === 'pill');
+    const texts = kids.filter((k): k is Extract<WidgetNode, { t: 'text' }> => k.t === 'text');
+    const grow = texts.find((k) => k.grow) ?? texts[0];
+    const tail = texts.filter((k) => k !== grow).pop() ?? kids.find((k) => k.t === 'pill');
+    const label = grow ? bindingToEb(grow.text) : dataEb('$', 'name');
+    const value = tail && (tail.t === 'text' || tail.t === 'pill') ? bindingToEb(tail.text) : dataEb('$', 'detail');
+    return { style: hasPill ? 'task' : 'status', label, value };
+  }
+  return { style: 'keyval', label: dataEb('$', 'name'), value: dataEb('$', 'detail') };
+}
+
+function baseRow(n: WidgetNode): Row | null {
   switch (n.t) {
     case 'label': return { type: 'label', text: bindingToEb(n.text), size: n.size || 'md' };
     case 'text': return { type: 'text', text: bindingToEb(n.text), variant: n.variant || 'title' };
     case 'metric': return { type: 'metric', value: bindingToEb(n.value), unit: bindingToEb(n.unit), sub: bindingToEb(n.sub) };
     case 'bar': return { type: 'bar', value: bindingToEb(n.value), max: bindingToEb(n.max) };
     case 'gauge': return { type: 'gauge', value: bindingToEb(n.value), max: bindingToEb(n.max), text: bindingToEb(n.label) };
-    case 'pill': return { type: 'pill', text: bindingToEb(n.text), tone: n.tone || 'ok' };
-    case 'dot': return { type: 'dot', tone: n.tone || 'ok', pulse: !!n.pulse };
-    case 'keyval': return { type: 'keyval', label: bindingToEb(n.label), value: bindingToEb(n.value), tone: n.tone || 'muted' };
+    case 'pill': return { type: 'pill', text: bindingToEb(n.text), tone: asTone(n.tone) || 'ok' };
+    case 'dot': return { type: 'dot', tone: asTone(n.tone) || 'ok', pulse: !!n.pulse };
+    case 'keyval': return { type: 'keyval', label: bindingToEb(n.label), value: bindingToEb(n.value), tone: asTone(n.tone) || 'muted' };
     case 'divider': return { type: 'divider', text: bindingToEb(n.label) };
     case 'link': return { type: 'link', text: bindingToEb(n.text), href: bindingToEb(n.href) };
+    case 'icon': return { type: 'icon', name: bindingToEb(n.name), tone: asTone(n.tone) || 'accent' };
+    case 'time': return { type: 'time', value: bindingToEb(n.value), seconds: bindingToEb(n.seconds), sub: bindingToEb(n.sub), sub2: bindingToEb(n.sub2) } as Row;
+    case 'calendar': return { type: 'calendar' };
+    case 'weather': return { type: 'weather' };
     case 'list': {
-      const item = n.item;
-      return {
-        type: 'list',
-        from: bindingToEb(n.from),
-        empty: bindingToEb(n.empty),
-        itemLabel: item.t === 'keyval' ? bindingToEb(item.label) : dataEb('$', 'name'),
-        itemValue: item.t === 'keyval' ? bindingToEb(item.value) : dataEb('$', 'detail'),
-      };
+      const { style, label, value } = listStyleOf(n.item);
+      return { type: 'list', from: bindingToEb(n.from), empty: bindingToEb(n.empty), itemStyle: style, dir: n.dir || 'col', itemLabel: label, itemValue: value };
     }
     default: return null;   // stack / row — not representable in the flat editor
   }
+}
+
+function nodeToRow(n: WidgetNode): Row | null {
+  // A "show if"-wrapped element round-trips when its branch is a single
+  // representable node (nested stacks/rows can't flatten — they drop out).
+  if (n.t === 'when') {
+    const row = baseRow(n.then);
+    if (!row) return null;
+    return { ...row, cond: bindingToEb(n.cond) };
+  }
+  return baseRow(n);
 }
 
 const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n || lo));
@@ -229,10 +305,16 @@ export default function WidgetWorkshop() {
     let def: WidgetDef;
     try { def = JSON.parse(raw); } catch { return; }
     if (!def?.spec) return;
+    // Frame captions are Bindings; only a plain string (or a {lit} string) maps
+    // back into the text inputs — a data-bound caption loads blank.
+    const frameText = (b: unknown): string =>
+      typeof b === 'string' ? b
+        : b && typeof b === 'object' && 'lit' in b && typeof (b as { lit: unknown }).lit === 'string' ? (b as { lit: string }).lit
+          : '';
     setId(def.id || '');
     setLabel(def.label || '');
-    setEyebrow(def.spec.frame?.eyebrow || '');
-    setSource(def.spec.frame?.source || '');
+    setEyebrow(frameText(def.spec.frame?.eyebrow));
+    setSource(frameText(def.spec.frame?.source));
     setDw(def.sizing?.desktop?.w ?? 3); setDh(def.sizing?.desktop?.h ?? 5);
     setMw(def.sizing?.mobile?.w ?? 2); setMh(def.sizing?.mobile?.h ?? 4);
     const fs: { name: string; url: string; poll: string }[] = [];
@@ -256,16 +338,21 @@ export default function WidgetWorkshop() {
     return Object.keys(m).length ? m : undefined;
   }, [fetches]);
 
-  const def = useMemo<WidgetDef>(() => ({
-    id: id.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '-'),
-    label: label || id || 'Untitled',
-    sizing: { desktop: { w: clamp(dw, 1, 12), h: clamp(dh, 1, 40) }, mobile: { w: clamp(mw, 1, 2), h: clamp(mh, 1, 40) } },
-    spec: {
-      frame: { eyebrow: eyebrow || undefined, source: source || undefined },
-      sources: sourcesObj,
-      body: { t: 'stack', gap: 10, children: rows.map(toNode) },
-    },
-  }), [id, label, eyebrow, source, dw, dh, mw, mh, rows, sourcesObj]);
+  const def = useMemo<WidgetDef>(() => {
+    // A lone molecule (calendar/weather) is its own card — emit it frameless so
+    // it isn't double-wrapped. Everything else gets the standard card chrome.
+    const onlyMolecule = rows.length === 1 && (rows[0].type === 'calendar' || rows[0].type === 'weather');
+    return {
+      id: id.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '-'),
+      label: label || id || 'Untitled',
+      sizing: { desktop: { w: clamp(dw, 1, 12), h: clamp(dh, 1, 40) }, mobile: { w: clamp(mw, 1, 2), h: clamp(mh, 1, 40) } },
+      spec: {
+        frame: onlyMolecule ? undefined : { eyebrow: eyebrow || undefined, source: source || undefined },
+        sources: sourcesObj,
+        body: onlyMolecule ? toNode(rows[0]) : { t: 'stack', gap: 10, children: rows.map(toNode) },
+      },
+    };
+  }, [id, label, eyebrow, source, dw, dh, mw, mh, rows, sourcesObj]);
 
   async function publish() {
     if (!def.id) { setMsg('Give the widget an id first.'); return; }
@@ -356,8 +443,16 @@ export default function WidgetWorkshop() {
                   {(r.type === 'label' || r.type === 'text' || r.type === 'pill') && <Line t="text"><BindingInput value={r.text!} sources={sources} onChange={bind(i, 'text')} /></Line>}
                   {r.type === 'label' && <Line t="size"><Select value={r.size!} onChange={(v) => setRow(i, { size: v })} options={SIZES} /></Line>}
                   {r.type === 'text' && <Line t="style"><Select value={r.variant!} onChange={(v) => setRow(i, { variant: v })} options={VARIANTS} /></Line>}
-                  {(r.type === 'pill' || r.type === 'dot' || r.type === 'keyval') && <Line t="tone"><Select value={r.tone!} onChange={(v) => setRow(i, { tone: v as Tone })} options={TONES} /></Line>}
+                  {(r.type === 'pill' || r.type === 'dot' || r.type === 'keyval' || r.type === 'icon') && <Line t="tone"><Select value={r.tone!} onChange={(v) => setRow(i, { tone: v as Tone })} options={TONES} /></Line>}
                   {r.type === 'dot' && <Line t="pulse"><input type="checkbox" checked={!!r.pulse} onChange={(e) => setRow(i, { pulse: e.target.checked })} /></Line>}
+                  {r.type === 'icon' && <Line t="glyph"><span style={{ display: 'inline-flex', gap: 4, flex: 1 }}><Select value={r.name?.lit || 'sun'} onChange={(v) => setRow(i, { name: eb(v) })} options={ICON_NAMES} /></span></Line>}
+                  {r.type === 'time' && <>
+                    <Line t="time"><BindingInput value={r.value!} sources={sources} onChange={bind(i, 'value')} /></Line>
+                    <Line t="seconds"><BindingInput value={r.seconds!} sources={sources} onChange={bind(i, 'seconds')} /></Line>
+                    <Line t="line 1"><BindingInput value={r.sub!} sources={sources} onChange={bind(i, 'sub')} /></Line>
+                    <Line t="line 2"><BindingInput value={r.sub2!} sources={sources} onChange={bind(i, 'sub2')} /></Line>
+                  </>}
+                  {(r.type === 'calendar' || r.type === 'weather') && <p style={hintStyle}>No fields — this card renders from its <code>{r.type === 'calendar' ? 'cal' : 'weather'}</code> slice. Use “show if” below to gate it.</p>}
                   {(r.type === 'metric' || r.type === 'bar' || r.type === 'gauge') && <Line t="value"><BindingInput value={r.value!} sources={sources} onChange={bind(i, 'value')} /></Line>}
                   {r.type === 'metric' && <><Line t="unit"><BindingInput value={r.unit!} sources={sources} onChange={bind(i, 'unit')} /></Line><Line t="sub"><BindingInput value={r.sub!} sources={sources} onChange={bind(i, 'sub')} /></Line></>}
                   {(r.type === 'bar' || r.type === 'gauge') && <Line t="max"><BindingInput value={r.max!} sources={sources} onChange={bind(i, 'max')} /></Line>}
@@ -367,10 +462,13 @@ export default function WidgetWorkshop() {
                   {r.type === 'link' && <><Line t="text"><BindingInput value={r.text!} sources={sources} onChange={bind(i, 'text')} /></Line><Line t="url"><BindingInput value={r.href!} sources={sources} onChange={bind(i, 'href')} /></Line></>}
                   {r.type === 'list' && <>
                     <Line t="from []"><BindingInput value={r.from!} sources={sources} onChange={bind(i, 'from')} /></Line>
+                    <Line t="row style"><Select value={r.itemStyle || 'keyval'} onChange={(v) => setRow(i, { itemStyle: v as ItemStyle })} options={ITEM_STYLES} /><Select value={r.dir || 'col'} onChange={(v) => setRow(i, { dir: v })} options={DIRS} /></Line>
                     <Line t="empty"><BindingInput value={r.empty!} sources={sources} onChange={bind(i, 'empty')} /></Line>
-                    <Line t="item key"><BindingInput value={r.itemLabel!} sources={sources} onChange={bind(i, 'itemLabel')} /></Line>
-                    <Line t="item val"><BindingInput value={r.itemValue!} sources={sources} onChange={bind(i, 'itemValue')} /></Line>
+                    <Line t={r.itemStyle === 'task' ? 'title' : 'item key'}><BindingInput value={r.itemLabel!} sources={sources} onChange={bind(i, 'itemLabel')} /></Line>
+                    <Line t={r.itemStyle === 'task' ? 'badge' : 'item val'}><BindingInput value={r.itemValue!} sources={sources} onChange={bind(i, 'itemValue')} /></Line>
+                    {r.itemStyle && r.itemStyle !== 'keyval' && <p style={hintStyle}>{r.itemStyle === 'status' ? 'A coloured dot reads each item’s ' : 'A coloured badge + time read each item’s '}<code>$.tone</code>{r.itemStyle === 'task' ? ' / $.timeLabel' : ''}.</p>}
                   </>}
+                  <Line t="show if"><BindingInput value={r.cond || eb('')} sources={sources} onChange={bind(i, 'cond')} /></Line>
                 </div>
               ))}
             </Card>
@@ -485,11 +583,19 @@ function Guide() {
         <Def k="Gauge">A circular ring showing value ÷ max as a percentage.</Def>
         <Def k="Progress bar">A horizontal fill of value ÷ max.</Def>
         <Def k="Key / value">A name on the left and a value on the right; tone colours the name.</Def>
-        <Def k="List">Repeats a key/value row over an array (the <code>from</code> field). Set <code>empty</code> for when the array is blank.</Def>
+        <Def k="List">Repeats a row over an array (the <code>from</code> field). <b>Row style</b>: <code>keyval</code> (name + value), <code>status</code> (a tone dot + name + value), or <code>task</code> (time + title + tone badge). The <code>status</code>/<code>task</code> styles colour themselves from each item’s <code>$.tone</code>. <b>Direction</b> lays items in a column or a row. Set <code>empty</code> for the blank-array case.</Def>
         <Def k="Status pill / dot">A small coloured badge or indicator; tone sets the colour (ok/warn/danger/accent/muted). A dot can pulse.</Def>
-        <Def k="Text / Eyebrow">A heading or body line / a small uppercase caption.</Def>
+        <Def k="Icon">A line glyph (sun, check, book, clock, bolt…); tone sets its colour.</Def>
+        <Def k="Big clock">A large time with up to two meta lines under it — point it at <code>clock.hm</code> / <code>clock.ss</code> (or any source).</Def>
+        <Def k="Calendar / Weather">Self-contained cards that render from the <code>cal</code> / <code>weather</code> slices. No fields to set — drop one in (give the widget no eyebrow so it owns its own header).</Def>
+        <Def k="Text / Eyebrow">A heading or body line (styles: title / body / sub / mono) / a small uppercase caption.</Def>
         <Def k="Divider">A rule, with an optional centered caption.</Def>
         <Def k="Link button">An anchor that opens a URL (text + url, either fixed or data-driven).</Def>
+      </GuideCard>
+
+      <GuideCard title="Conditions & states">
+        <Def k="show if">Every element has an optional <b>show if</b>. Leave it blank and the element always shows; bind it to a boolean (e.g. <code>today</code> → <code>showTasks</code>, or <code>study</code> → <code>available</code>) and the element only renders when that’s true. Empty arrays, <code>0</code>, <code>""</code> and <code>false</code> count as “off”.</Def>
+        <Def k="states">That’s how a card swaps between states: add one element per state, each with its own <b>show if</b> — e.g. a “SIGN IN” link <code>show if today.signedOut</code>, an “OFFLINE” note <code>show if today.showOffline</code>, and the task list <code>show if today.showTasks</code>. The slices expose ready-made flags (<code>signedOut, showOffline, showTasks, showEmpty</code>; <code>available, showStreak, unavailable</code>; <code>weather.offline</code>).</Def>
       </GuideCard>
 
       <GuideCard title="Publishing">

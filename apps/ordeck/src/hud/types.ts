@@ -81,31 +81,45 @@ export type DataSource =
   | { from: 'hud'; key: string }
   | { from: 'fetch'; url: string; poll?: number };
 
+/** A tone can be a fixed key OR bound to data (e.g. a list item's `$.tone`),
+ *  so list rows can colour themselves by status. Resolves to 'muted' if the
+ *  bound value isn't a known tone. */
+export type ToneBinding = Tone | { lit: unknown } | { src: string; path?: string; fallback?: unknown };
+
 /** The composable display vocabulary. Each variant is one registered primitive.
  *  `list` repeats its `item` template over a bound array, exposing the current
- *  element as the `$` source inside the template. */
+ *  element as the `$` source inside the template. `when` shows `then`/`else` by a
+ *  condition's truthiness — the conditional building block for offline/empty
+ *  states. `time`, `calendar`, and `weather` are higher-level "molecule"
+ *  primitives (self-contained cards) the same way `gauge` is. */
 export type WidgetNode =
   | { t: 'stack'; gap?: number; grow?: boolean; children: WidgetNode[] }
-  | { t: 'row'; gap?: number; justify?: string; align?: string; children: WidgetNode[] }
+  | { t: 'row'; gap?: number; justify?: string; align?: string; grow?: boolean; children: WidgetNode[] }
   | { t: 'label'; text: Binding; size?: 'md' | 'sm' | 'xs' }
-  | { t: 'text'; text: Binding; variant?: 'title' | 'body' | 'sub' }
+  | { t: 'text'; text: Binding; variant?: 'title' | 'body' | 'sub' | 'mono'; grow?: boolean }
   | { t: 'metric'; value: Binding; unit?: Binding; sub?: Binding }
   | { t: 'bar'; value: Binding; max?: Binding }
-  | { t: 'pill'; text: Binding; tone?: Tone }
-  | { t: 'dot'; tone?: Tone; pulse?: boolean }
-  | { t: 'keyval'; label: Binding; value: Binding; tone?: Tone }
+  | { t: 'pill'; text: Binding; tone?: ToneBinding }
+  | { t: 'dot'; tone?: ToneBinding; pulse?: boolean }
+  | { t: 'keyval'; label: Binding; value: Binding; tone?: ToneBinding }
   | { t: 'gauge'; value: Binding; max?: Binding; label?: Binding }
   | { t: 'divider'; label?: Binding }
   | { t: 'link'; text: Binding; href: Binding }
-  | { t: 'list'; from: Binding; item: WidgetNode; empty?: Binding };
+  | { t: 'icon'; name: Binding; tone?: ToneBinding; size?: number }
+  | { t: 'time'; value: Binding; seconds?: Binding; sub?: Binding; sub2?: Binding }
+  | { t: 'when'; cond: Binding; then: WidgetNode; else?: WidgetNode }
+  | { t: 'calendar' }
+  | { t: 'weather' }
+  | { t: 'list'; from: Binding; item: WidgetNode; empty?: Binding; dir?: 'col' | 'row' };
 
 export type Tone = 'ok' | 'warn' | 'danger' | 'muted' | 'accent';
 
-/** Card chrome around a body. */
+/** Card chrome around a body. The captions are Bindings so they can show live
+ *  values (e.g. a systems card's "3 / 4 UP" on the right). */
 export interface WidgetFrame {
-  eyebrow?: string;
-  source?: string;
-  href?: string;
+  eyebrow?: Binding;
+  source?: Binding;
+  href?: Binding;
   /** Bordered card surface (default true). Set false for raw-on-background (clock). */
   chrome?: boolean;
 }
@@ -141,4 +155,7 @@ export interface HudState {
   shelf: string[];
 }
 
-export const HUD_STATE_VERSION = 3;
+/* v4: the six built-in cards became declarative specs (no more `component`
+   escape hatch), so any v3 document — whose defaults referenced bespoke
+   components — is rebuilt from the new spec defaults on load. */
+export const HUD_STATE_VERSION = 4;

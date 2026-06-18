@@ -21,6 +21,8 @@ export interface ClockState {
   dateLine: string;
   utcShort: string;
   jday: string;
+  /** Composed "UTC hh:mm · DAY ddd" — a single bindable line for the spec factory. */
+  utcLine: string;
 }
 
 export function useClock(): ClockState {
@@ -29,12 +31,15 @@ export function useClock(): ClockState {
     const iv = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(iv);
   }, []);
+  const utcShort = `${pad(now.getUTCHours())}:${pad(now.getUTCMinutes())}`;
+  const jday = String(Math.ceil((now.getTime() - new Date(now.getFullYear(), 0, 0).getTime()) / 86400000)).padStart(3, '0');
   return {
     hm: `${pad(now.getHours())}:${pad(now.getMinutes())}`,
     ss: pad(now.getSeconds()),
     dateLine: `${WD[now.getDay()]} · ${MO[now.getMonth()]} ${pad(now.getDate())}`,
-    utcShort: `${pad(now.getUTCHours())}:${pad(now.getUTCMinutes())}`,
-    jday: String(Math.ceil((now.getTime() - new Date(now.getFullYear(), 0, 0).getTime()) / 86400000)).padStart(3, '0'),
+    utcShort,
+    jday,
+    utcLine: `UTC ${utcShort} · DAY ${jday}`,
   };
 }
 
@@ -200,7 +205,13 @@ export function useWeather(): WeatherState {
 // ── Systems (health probes through the edge) ─────────────────────────────────
 
 export type SysStatus = 'up' | 'down' | 'warn' | 'probing';
-export interface SysRow { name: string; status: SysStatus; detail: string }
+/** Spec-factory tone keys (mirrors the registry's TONE map). */
+export type ViewTone = 'ok' | 'warn' | 'danger' | 'muted' | 'accent';
+export interface SysRow { name: string; status: SysStatus; detail: string; tone: ViewTone }
+
+const SYS_TONE: Record<SysStatus, ViewTone> = {
+  up: 'ok', warn: 'warn', down: 'danger', probing: 'muted',
+};
 
 const PROBES: { name: string; path: string }[] = [
   { name: 'jkauth',     path: '/health/auth' },
@@ -223,10 +234,13 @@ async function probe(path: string): Promise<{ ok: boolean; ms: number; body: any
 
 // aiEnabled gates the LazurOS row — when AI is off suite-wide it isn't probed
 // or shown, so the kill switch leaves no "lazuros" mention in the systems panel.
-export function useSystems(aiEnabled = true): { rows: SysRow[]; up: number; total: number } {
+const sysRow = (name: string, status: SysStatus, detail: string): SysRow =>
+  ({ name, status, detail, tone: SYS_TONE[status] });
+
+export function useSystems(aiEnabled = true): { rows: SysRow[]; up: number; total: number; summary: string } {
   const [rows, setRows] = useState<SysRow[]>([
-    ...PROBES.map(p => ({ name: p.name, status: 'probing' as SysStatus, detail: '—' })),
-    ...(aiEnabled ? [{ name: 'lazuros', status: 'probing' as SysStatus, detail: '—' }] : []),
+    ...PROBES.map(p => sysRow(p.name, 'probing', '—')),
+    ...(aiEnabled ? [sysRow('lazuros', 'probing', '—')] : []),
   ]);
 
   useEffect(() => {
@@ -236,19 +250,15 @@ export function useSystems(aiEnabled = true): { rows: SysRow[]; up: number; tota
       const results = await Promise.all([
         ...PROBES.map(async p => {
           const r = await probe(p.path);
-          return {
-            name: p.name,
-            status: (r.ok ? 'up' : 'down') as SysStatus,
-            detail: r.ok ? `${r.ms} ms` : 'down',
-          };
+          return sysRow(p.name, r.ok ? 'up' : 'down', r.ok ? `${r.ms} ms` : 'down');
         }),
         ...(aiEnabled ? [(async () => {
           const r = await probe('/api/lazuros/health');
-          if (!r.ok) return { name: 'lazuros', status: 'down' as SysStatus, detail: 'down' };
+          if (!r.ok) return sysRow('lazuros', 'down', 'down');
           if (r.body && r.body.compute_online === false) {
-            return { name: 'lazuros', status: 'warn' as SysStatus, detail: 'gpu asleep' };
+            return sysRow('lazuros', 'warn', 'gpu asleep');
           }
-          return { name: 'lazuros', status: 'up' as SysStatus, detail: `${r.ms} ms` };
+          return sysRow('lazuros', 'up', `${r.ms} ms`);
         })()] : []),
       ]);
       if (!dead) setRows(results);
@@ -261,12 +271,13 @@ export function useSystems(aiEnabled = true): { rows: SysRow[]; up: number; tota
 
   // warn counts as up — the service itself responded.
   const up = rows.filter(r => r.status === 'up' || r.status === 'warn').length;
-  return { rows, up, total: rows.length };
+  return { rows, up, total: rows.length, summary: `${up} / ${rows.length} UP` };
 }
 
 // ── Today (BeigeBoard items) ─────────────────────────────────────────────────
 
-export interface TodayTask {
+/** A raw task as fetched, before presentation fields are derived. */
+interface RawTask {
   id: number;
   time: string | null;     // "09:30"
   endTime: string | null;
@@ -274,15 +285,62 @@ export interface TodayTask {
   tag: string;
   done: boolean;
 }
+export interface TodayTask extends RawTask {
+  // ── derived (presentation-ready for the spec factory) ──
+  timeLabel: string;       // time ?? "—"
+  now: boolean;            // the task happening right now
+  tone: ViewTone;          // ok = done, accent = now, muted = upcoming
+  stateLabel: string;      // "DONE" | "NOW" | the tag
+}
 export interface TodayState {
   loaded: boolean;
   authed: boolean;
   offline: boolean;
   tasks: TodayTask[];
+  doneCount: number;
+  progressLabel: string;   // "2 / 5"
+  progress: number;        // doneCount / total (0..1)
+  // ── mutually-exclusive view flags — bind these to a card row's "show if" ──
+  signedOut: boolean;      // not authenticated
+  showOffline: boolean;    // authed but BeigeBoard unreachable
+  showTasks: boolean;      // has tasks to render
+  showEmpty: boolean;      // authed, online, but nothing scheduled
+  emptyLabel: string;
+}
+
+interface TodayBase { loaded: boolean; authed: boolean; offline: boolean; tasks: RawTask[] }
+
+/** Add the derived presentation fields. Called every render so `now` tracks the
+ *  live clock (the HUD re-renders each second), with no extra timer. */
+function viewToday(base: TodayBase): TodayState {
+  const hm = `${pad(new Date().getHours())}:${pad(new Date().getMinutes())}`;
+  const tasks: TodayTask[] = base.tasks.map(t => {
+    const now = isNow(t, hm);
+    return {
+      ...t,
+      timeLabel: t.time ?? '—',
+      now,
+      tone: t.done ? 'ok' : now ? 'accent' : 'muted',
+      stateLabel: t.done ? 'DONE' : now ? 'NOW' : t.tag,
+    };
+  });
+  const doneCount = tasks.filter(t => t.done).length;
+  const signedOut = !base.authed;
+  const showOffline = base.authed && base.offline;
+  const showTasks = base.authed && !base.offline && tasks.length > 0;
+  const showEmpty = base.authed && !base.offline && tasks.length === 0;
+  return {
+    loaded: base.loaded, authed: base.authed, offline: base.offline, tasks,
+    doneCount,
+    progressLabel: `${doneCount} / ${tasks.length}`,
+    progress: tasks.length ? doneCount / tasks.length : 0,
+    signedOut, showOffline, showTasks, showEmpty,
+    emptyLabel: base.loaded ? 'NOTHING SCHEDULED TODAY' : 'LOADING…',
+  };
 }
 
 export function useToday(): TodayState {
-  const [state, setState] = useState<TodayState>({ loaded: false, authed: true, offline: false, tasks: [] });
+  const [base, setBase] = useState<TodayBase>({ loaded: false, authed: true, offline: false, tasks: [] });
 
   useEffect(() => {
     let dead = false;
@@ -290,7 +348,7 @@ export function useToday(): TodayState {
     const load = () => fetch('/api/bb/items', { credentials: 'include' })
       .then(r => {
         if (r.status === 401 || r.status === 403) {
-          if (!dead) setState({ loaded: true, authed: false, offline: false, tasks: [] });
+          if (!dead) setBase({ loaded: true, authed: false, offline: false, tasks: [] });
           return null;
         }
         return r.ok ? r.json() : Promise.reject();
@@ -299,7 +357,7 @@ export function useToday(): TodayState {
         if (dead || !items) return;
         const today = new Date();
         const iso = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
-        const tasks: TodayTask[] = items
+        const tasks: RawTask[] = items
           .filter(i => i.due_date === iso || i.end_date === iso)
           .map(i => ({
             id: i.id,
@@ -310,21 +368,21 @@ export function useToday(): TodayState {
             done: !!i.completed,
           }))
           .sort((a, b) => (a.time ?? '99').localeCompare(b.time ?? '99'));
-        setState({ loaded: true, authed: true, offline: false, tasks });
+        setBase({ loaded: true, authed: true, offline: false, tasks });
       })
-      .catch(() => { if (!dead) setState(s => ({ ...s, loaded: true, offline: true })); });
+      .catch(() => { if (!dead) setBase(s => ({ ...s, loaded: true, offline: true })); });
 
     load();
     const iv = setInterval(load, 60_000);
     return () => { dead = true; clearInterval(iv); };
   }, []);
 
-  return state;
+  return viewToday(base);
 }
 
 /** A task is "now" if the current time falls in [start, end) — or within an
     hour of start when it has no end. */
-export function isNow(t: TodayTask, hm: string): boolean {
+export function isNow(t: { time: string | null; endTime: string | null; done: boolean }, hm: string): boolean {
   if (!t.time || t.done) return false;
   if (t.endTime) return hm >= t.time && hm < t.endTime;
   const [h, m] = t.time.split(':').map(Number);
@@ -343,13 +401,34 @@ export interface StudyState {
   courseTitle: string | null;
   todayDone: number;
   dailyGoal: number;
+  // ── derived (presentation-ready) ──
+  headline: string;        // next lesson → course → "All caught up"
+  subLine: string;         // "2 / 4 today · Course"
+  showStreak: boolean;     // available with a streak to brag about
+  unavailable: boolean;    // SylibOS offline / still loading
+  offlineLabel: string;
+}
+
+function viewStudy(d: {
+  loaded: boolean; available: boolean; streak: number;
+  nextLesson: string | null; courseTitle: string | null; todayDone: number; dailyGoal: number;
+}): StudyState {
+  const course = d.courseTitle && d.nextLesson ? ` · ${d.courseTitle}` : '';
+  return {
+    ...d,
+    headline: d.nextLesson ?? d.courseTitle ?? 'All caught up',
+    subLine: `${d.todayDone} / ${d.dailyGoal} today${course}`,
+    showStreak: d.available && d.streak > 0,
+    unavailable: !d.available,
+    offlineLabel: d.loaded ? 'SYLIBOS OFFLINE — OPEN →' : 'LOADING…',
+  };
 }
 
 export function useStudy(): StudyState {
-  const [state, setState] = useState<StudyState>({
+  const [state, setState] = useState<StudyState>(() => viewStudy({
     loaded: false, available: false, streak: 0,
     nextLesson: null, courseTitle: null, todayDone: 0, dailyGoal: 0,
-  });
+  }));
 
   useEffect(() => {
     let dead = false;
@@ -358,16 +437,16 @@ export function useStudy(): StudyState {
       .then(r => r.ok ? r.json() : Promise.reject())
       .then(d => {
         if (dead) return;
-        setState({
+        setState(viewStudy({
           loaded: true, available: true,
           streak: d.streak ?? 0,
           nextLesson: d.nextLesson?.title ?? null,
           courseTitle: d.activeCourse?.title ?? null,
           todayDone: d.todayDone ?? 0,
           dailyGoal: d.dailyGoal ?? 0,
-        });
+        }));
       })
-      .catch(() => { if (!dead) setState(s => ({ ...s, loaded: true, available: false })); });
+      .catch(() => { if (!dead) setState(s => viewStudy({ ...s, loaded: true, available: false })); });
 
     load();
     const iv = setInterval(load, 5 * 60_000);

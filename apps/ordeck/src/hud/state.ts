@@ -16,38 +16,107 @@ import {
 import { layoutForBreakpoint, placeAtBottom, activeBreakpoint } from './engine';
 import { BREAKPOINTS } from './types';
 
-const STORAGE_KEY = 'ordeck-hud-v3';
+const STORAGE_KEY = 'ordeck-hud-v4';
 
-/** The built-in widgets. The six ported v2 cards use the `component` escape hatch
- *  (bespoke renderers reading app data Ordeck already fetches — `today` and
- *  `calendar` are BeigeBoard-backed via /api/bb/*). `uptime` is a declarative
- *  spec example: it proves the granular factory path end-to-end (metric + bar +
- *  list primitives bound to live `systems` data) and is the shape a text→widget
- *  step will emit later. It ships shelved (absent from the default layout). */
+const BB_URL = 'https://beigeboard.jkos.net';
+const SYLIB_URL = 'https://sylibos.jkos.net';
+
+/** The built-in widgets — all declarative specs now (the `component` escape
+ *  hatch is retired). clock/today/systems/study compose from atoms + structure
+ *  (`when` for their offline/empty states); weather/calendar use the molecule
+ *  primitives. Every one is editable in the workshop and is the exact shape a
+ *  text→widget AI step will emit. `uptime` ships shelved as a second systems view. */
 const DEFAULT_WIDGETS: Record<string, WidgetDef> = {
   clock: {
-    id: 'clock', component: 'clock', label: 'Clock',
+    id: 'clock', label: 'Clock',
     sizing: { desktop: { w: 4, h: 4 }, mobile: { w: 2, h: 3 } },
+    spec: {
+      body: {
+        t: 'time',
+        value: { src: 'clock', path: 'hm' },
+        seconds: { src: 'clock', path: 'ss' },
+        sub: { src: 'clock', path: 'dateLine' },
+        sub2: { src: 'clock', path: 'utcLine' },
+      },
+    },
   },
   weather: {
-    id: 'weather', component: 'weather', label: 'Weather',
+    id: 'weather', label: 'Weather',
     sizing: { desktop: { w: 4, h: 5 }, mobile: { w: 2, h: 4 } },
+    spec: { body: { t: 'weather' } },
   },
   today: {
-    id: 'today', component: 'today', label: 'Today',
+    id: 'today', label: 'Today',
     sizing: { desktop: { w: 5, h: 15 }, mobile: { w: 2, h: 8 } },
+    spec: {
+      frame: { eyebrow: 'TODAY', source: 'BEIGEBOARD' },
+      body: { t: 'stack', gap: 8, grow: true, children: [
+        { t: 'when', cond: { src: 'today', path: 'signedOut' }, then:
+          { t: 'stack', gap: 8, children: [
+            { t: 'text', text: 'SIGN IN TO SEE YOUR DAY', variant: 'sub' },
+            { t: 'link', text: 'LOG IN', href: { src: 'authUrl' } },
+          ] } },
+        { t: 'when', cond: { src: 'today', path: 'showOffline' }, then:
+          { t: 'stack', gap: 8, children: [
+            { t: 'text', text: 'BEIGEBOARD OFFLINE', variant: 'sub' },
+            { t: 'link', text: 'OPEN BEIGEBOARD', href: { lit: BB_URL } },
+          ] } },
+        { t: 'when', cond: { src: 'today', path: 'showEmpty' }, then:
+          { t: 'stack', gap: 8, children: [
+            { t: 'text', text: { src: 'today', path: 'emptyLabel' }, variant: 'sub' },
+            { t: 'link', text: 'OPEN BEIGEBOARD', href: { lit: BB_URL } },
+          ] } },
+        { t: 'when', cond: { src: 'today', path: 'showTasks' }, then:
+          { t: 'stack', gap: 8, children: [
+            { t: 'text', text: { src: 'today', path: 'progressLabel' }, variant: 'sub' },
+            { t: 'bar', value: { src: 'today', path: 'progress' }, max: 1 },
+            { t: 'list', from: { src: 'today', path: 'tasks' },
+              item: { t: 'row', gap: 8, justify: 'space-between', children: [
+                { t: 'text', text: { src: '$', path: 'timeLabel' }, variant: 'sub' },
+                { t: 'text', text: { src: '$', path: 'title' }, variant: 'mono', grow: true },
+                { t: 'pill', text: { src: '$', path: 'stateLabel' }, tone: { src: '$', path: 'tone' } },
+              ] } },
+          ] } },
+      ] },
+    },
   },
   calendar: {
-    id: 'calendar', component: 'calendar', label: 'Calendar',
+    id: 'calendar', label: 'Calendar',
     sizing: { desktop: { w: 4, h: 6 }, mobile: { w: 2, h: 6 } },
+    spec: { body: { t: 'calendar' } },
   },
   systems: {
-    id: 'systems', component: 'systems', label: 'Systems',
+    id: 'systems', label: 'Systems',
     sizing: { desktop: { w: 3, h: 8 }, mobile: { w: 2, h: 5 } },
+    spec: {
+      frame: { eyebrow: 'SYSTEMS', source: { src: 'systems', path: 'summary' } },
+      body: { t: 'list', from: { src: 'systems', path: 'rows' }, empty: 'NO PROBES',
+        item: { t: 'row', gap: 8, children: [
+          { t: 'dot', tone: { src: '$', path: 'tone' } },
+          { t: 'text', text: { src: '$', path: 'name' }, variant: 'mono', grow: true },
+          { t: 'text', text: { src: '$', path: 'detail' }, variant: 'sub' },
+        ] } },
+    },
   },
   study: {
-    id: 'study', component: 'study', label: 'Study',
+    id: 'study', label: 'Study',
     sizing: { desktop: { w: 3, h: 4 }, mobile: { w: 2, h: 3 } },
+    spec: {
+      frame: { eyebrow: 'STUDY', source: 'SYLIBOS', href: { lit: SYLIB_URL } },
+      body: { t: 'stack', gap: 8, children: [
+        { t: 'when', cond: { src: 'study', path: 'available' }, then:
+          { t: 'row', justify: 'space-between', children: [
+            { t: 'stack', gap: 2, grow: true, children: [
+              { t: 'text', text: { src: 'study', path: 'headline' }, variant: 'title' },
+              { t: 'text', text: { src: 'study', path: 'subLine' }, variant: 'sub' },
+            ] },
+            { t: 'when', cond: { src: 'study', path: 'showStreak' }, then:
+              { t: 'metric', value: { src: 'study', path: 'streak' }, unit: 'STREAK' } },
+          ] } },
+        { t: 'when', cond: { src: 'study', path: 'unavailable' }, then:
+          { t: 'text', text: { src: 'study', path: 'offlineLabel' }, variant: 'sub' } },
+      ] },
+    },
   },
   uptime: {
     id: 'uptime', label: 'Uptime',

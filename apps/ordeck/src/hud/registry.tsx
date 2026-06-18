@@ -1,23 +1,25 @@
 /**
  * hud/registry.tsx — the widget factory.
  *
- * Two registries, same spirit as the @jkos/design theme factory: small, fixed,
- * data-driven maps that you extend with a single entry.
+ * A widget is a declarative SPEC: a frame (card chrome) + named data sources +
+ * a tree of PRIMITIVES bound to data. Adding a primitive is one entry in the map
+ * below; adding a WIDGET is pure data — the shape a text→widget AI step emits.
  *
- *   PRIMITIVES        node type → renderer   (the composable display vocabulary)
- *   COMPONENT_REGISTRY component key → React (escape hatch for bespoke cards)
+ * The vocabulary spans three granularities, all composable:
+ *   • atoms      label / text / metric / bar / gauge / pill / dot / keyval /
+ *                divider / link / icon
+ *   • structure  stack / row / list / when   (when = conditional, the states glue)
+ *   • molecules  time / calendar / weather   (self-contained cards, like gauge)
  *
- * A widget is either a declarative SPEC (frame + data sources + a tree of
- * primitives bound to data) or a bespoke `component`. The spec path is the
- * granular, expandable one: adding a primitive is one PRIMITIVES entry, adding a
- * widget is pure data — the shape a text→widget AI step will emit later. The six
- * ported v2 cards stay as components until/if they're re-expressed as specs; the
- * deprecated Module-Federation remote path is gone.
+ * The six v2 cards that used a bespoke `component` escape hatch are now expressed
+ * entirely as specs (see hud/state.ts) — clock/today/systems/study compose from
+ * atoms + structure; weather/calendar are molecules. The escape hatch mechanism
+ * stays (COMPONENT_REGISTRY) for anything a future card truly can't express, but
+ * ships empty. The deprecated Module-Federation remote path is gone.
  */
 
 import { Fragment, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import {
-  isNow,
   type ClockState,
   type WeatherState,
   type SysRow,
@@ -26,10 +28,7 @@ import {
   type MonthCalState,
   type CalDay,
 } from '../pages/hud/useHudData';
-import type { Binding, DataSource, Tone, WidgetDef, WidgetNode, WidgetSpec } from './types';
-
-const BB_URL = 'https://beigeboard.jkos.net';
-const SYLIB_URL = 'https://sylibos.jkos.net';
+import type { Binding, DataSource, Tone, ToneBinding, WidgetDef, WidgetNode, WidgetSpec } from './types';
 
 const MO_FULL = ['January', 'February', 'March', 'April', 'May', 'June',
                  'July', 'August', 'September', 'October', 'November', 'December'];
@@ -37,11 +36,11 @@ const DAY_ABBR = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
 /** Everything a widget renderer can read. RoomHUD assembles this once from its
  *  data hooks; built-in hud slices (clock/weather/today/study/systems/cal) are
- *  always in a spec's binding scope. */
+ *  always in a spec's binding scope, alongside `authUrl`. */
 export interface WidgetCtx {
   clock: ClockState;
   weather: WeatherState;
-  systems: { rows: SysRow[]; up: number; total: number };
+  systems: { rows: SysRow[]; up: number; total: number; summary: string };
   today: TodayState;
   study: StudyState;
   cal: MonthCalState;
@@ -72,16 +71,50 @@ function resolve(b: Binding, scope: Scope): unknown {
   return v ?? b.fallback;
 }
 
+/** Resolve a tone that may be fixed OR data-bound (→ a CSS colour). Unknown
+ *  resolved values fall back to `fallback`, so a bad data path degrades quietly. */
+function toneColor(t: ToneBinding | undefined, scope: Scope, fallback: Tone = 'muted'): string {
+  if (t == null) return TONE[fallback];
+  const v = typeof t === 'object' ? resolve(t as Binding, scope) : t;
+  return TONE[v as Tone] ?? TONE[fallback];
+}
+
+/** Truthiness for `when` — empty arrays/strings and 0 are falsy (so "has tasks"
+ *  is just a bound array, and a "0 / false / ''" condition hides cleanly). */
+function truthy(v: unknown): boolean {
+  if (Array.isArray(v)) return v.length > 0;
+  if (typeof v === 'string') return v !== '' && v !== 'false' && v !== '0';
+  return Boolean(v);
+}
+
 function labelSize(size?: 'md' | 'sm' | 'xs'): CSSProperties {
   if (size === 'sm') return { fontSize: 9 };
   if (size === 'xs') return { fontSize: 8 };
   return {};
 }
-function textStyle(variant?: 'title' | 'body' | 'sub'): CSSProperties {
+function textStyle(variant?: 'title' | 'body' | 'sub' | 'mono'): CSSProperties {
   if (variant === 'title') return { fontFamily: 'var(--hub-font-serif, var(--hub-font-sans))', fontSize: 15, fontWeight: 600, color: 'var(--hub-cream-bright)' };
   if (variant === 'sub') return { fontSize: 11, color: 'var(--hub-cream-dim)' };
+  if (variant === 'mono') return { fontFamily: 'var(--hub-font-mono)', fontSize: 11, color: 'var(--hub-cream)' };
   return { fontSize: 12, color: 'var(--hub-cream)' };
 }
+
+/** Curated line-icon set (inherits stroke colour + size). `dot` is the fallback. */
+const ICONS: Record<string, ReactNode> = {
+  sun: <><circle cx="12" cy="12" r="4.5" /><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3L7 7M17 17l1.7 1.7M5.3 18.7L7 17M17 7l1.7-1.7" /></>,
+  moon: <path d="M20 14.5A8 8 0 119.5 4 6.5 6.5 0 0020 14.5z" />,
+  cloud: <path d="M17.5 19a4.5 4.5 0 000-9 6 6 0 00-11.6 1.5A4 4 0 006 19z" />,
+  rain: <><path d="M17.5 15a4.5 4.5 0 000-9 6 6 0 00-11.6 1.5A4 4 0 005.5 15" /><path d="M8 19v2M12 19v3M16 19v2" /></>,
+  bolt: <path d="M13 2L4.5 13H11l-1 9 8.5-11H12l1-9z" />,
+  check: <path d="M20 6L9 17l-5-5" />,
+  book: <><path d="M4 19.5A2.5 2.5 0 016.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" /></>,
+  clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
+  calendar: <><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></>,
+  activity: <path d="M22 12h-4l-3 9L9 3l-3 9H2" />,
+  star: <path d="M12 2l3 7h7l-5.5 4.5L18.5 21 12 16.5 5.5 21l2-7.5L2 9h7z" />,
+  alert: <><path d="M10.3 3.9 1.8 18a2 2 0 001.7 3h16.9a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z" /><path d="M12 9v4M12 17h.01" /></>,
+  dot: <circle cx="12" cy="12" r="6" />,
+};
 
 /** node type → renderer. Each case is one primitive; adding to the vocabulary is
  *  a new WidgetNode variant + a new entry here. */
@@ -95,12 +128,12 @@ const PRIMITIVES: Primitives = {
     </div>
   ),
   row: (n, scope) => (
-    <div style={{ display: 'flex', alignItems: n.align ?? 'center', justifyContent: n.justify ?? 'flex-start', gap: n.gap ?? 8 }}>
+    <div style={{ display: 'flex', alignItems: n.align ?? 'center', justifyContent: n.justify ?? 'flex-start', gap: n.gap ?? 8, flex: n.grow ? 1 : undefined, minWidth: 0 }}>
       {n.children.map((c, i) => <Fragment key={i}>{renderNode(c, scope)}</Fragment>)}
     </div>
   ),
   label: (n, scope) => <span className="hud-eyebrow" style={labelSize(n.size)}>{str(resolve(n.text, scope))}</span>,
-  text: (n, scope) => <span style={textStyle(n.variant)}>{str(resolve(n.text, scope))}</span>,
+  text: (n, scope) => <span style={{ ...textStyle(n.variant), ...(n.grow ? { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } : {}) }}>{str(resolve(n.text, scope))}</span>,
   metric: (n, scope) => (
     <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
       <b style={{ fontFamily: 'var(--hub-font-mono)', fontVariantNumeric: 'tabular-nums', fontSize: 30, fontWeight: 600, color: 'var(--hub-cream-bright)', lineHeight: 1 }}>
@@ -117,20 +150,20 @@ const PRIMITIVES: Primitives = {
     return <span className="hud-bar"><span style={{ width: `${pct}%` }} /></span>;
   },
   pill: (n, scope) => {
-    const c = TONE[n.tone ?? 'ok'];
+    const c = toneColor(n.tone, scope, 'ok');
     return (
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: 'var(--hub-font-mono)', fontSize: 8, letterSpacing: '0.16em', textTransform: 'uppercase', padding: '4px 9px', borderRadius: 'var(--hub-radius-lg)', color: c, border: `1px solid color-mix(in srgb, ${c} 40%, transparent)` }}>
         {str(resolve(n.text, scope))}
       </span>
     );
   },
-  dot: (n) => {
-    const c = TONE[n.tone ?? 'muted'];
-    return <span className={`hud-dot${n.pulse ? ' pulse' : ''}`} style={{ background: c }} />;
+  dot: (n, scope) => {
+    const c = toneColor(n.tone, scope, 'muted');
+    return <span className={`hud-dot${n.pulse ? ' pulse' : ''}`} style={{ background: c, flex: 'none' }} />;
   },
   keyval: (n, scope) => (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0' }}>
-      <span style={{ minWidth: 0, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'var(--hub-font-mono)', fontSize: 11, color: n.tone ? TONE[n.tone] : 'var(--hub-cream)' }}>
+      <span style={{ minWidth: 0, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'var(--hub-font-mono)', fontSize: 11, color: n.tone ? toneColor(n.tone, scope) : 'var(--hub-cream)' }}>
         {str(resolve(n.label, scope))}
       </span>
       <span style={{ fontFamily: 'var(--hub-font-mono)', fontSize: 11, color: 'var(--hub-cream-dim)' }}>
@@ -174,19 +207,142 @@ const PRIMITIVES: Primitives = {
       {str(resolve(n.text, scope))} →
     </a>
   ),
+  icon: (n, scope) => {
+    const name = str(resolve(n.name, scope));
+    const s = n.size ?? 24;
+    const color = n.tone != null ? toneColor(n.tone, scope, 'accent') : 'var(--hub-amber)';
+    return (
+      <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flex: 'none' }}>
+        {ICONS[name] ?? ICONS.dot}
+      </svg>
+    );
+  },
+  time: (n, scope) => (
+    <div className="hud-clock">
+      <div className="hud-clock-time">
+        <span className="hud-clock-hm jk-press-lg">{str(resolve(n.value, scope))}</span>
+        {n.seconds != null && <span className="hud-clock-ss">{str(resolve(n.seconds, scope))}</span>}
+      </div>
+      {(n.sub != null || n.sub2 != null) && (
+        <div className="hud-clock-meta">
+          {n.sub != null && <span className="hud-clock-date">{str(resolve(n.sub, scope))}</span>}
+          {n.sub2 != null && <span className="hud-clock-utc">{str(resolve(n.sub2, scope))}</span>}
+        </div>
+      )}
+    </div>
+  ),
+  when: (n, scope) =>
+    truthy(resolve(n.cond, scope)) ? renderNode(n.then, scope) : (n.else ? renderNode(n.else, scope) : null),
+  calendar: (_n, scope) => <CalendarBody cal={scope.cal as MonthCalState} />,
+  weather: (_n, scope) => <WeatherBody w={scope.weather as WeatherState} />,
   list: (n, scope) => {
     const arr = resolve(n.from, scope);
     const items = Array.isArray(arr) ? arr : [];
     if (items.length === 0 && n.empty != null) {
       return <div style={{ color: 'var(--hub-cream-faint)', fontFamily: 'var(--hub-font-mono)', fontSize: 10, letterSpacing: '0.12em', padding: '6px 0' }}>{str(resolve(n.empty, scope))}</div>;
     }
-    return <>{items.map((el, i) => <Fragment key={i}>{renderNode(n.item, { ...scope, $: el })}</Fragment>)}</>;
+    const body = items.map((el, i) => <Fragment key={i}>{renderNode(n.item, { ...scope, $: el })}</Fragment>);
+    if (n.dir === 'row') {
+      return <div style={{ display: 'flex', gap: 10, justifyContent: 'space-between' }}>{body}</div>;
+    }
+    return <>{body}</>;
   },
 };
 
 function renderNode(node: WidgetNode, scope: Scope): ReactNode {
   const fn = PRIMITIVES[node.t] as (n: WidgetNode, s: Scope) => ReactNode;
   return fn ? fn(node, scope) : null;
+}
+
+/* ── Molecule bodies (self-contained cards) ─────────────────────────────────
+ * These are the structurally-bespoke cards (a 7-col month grid; a multi-region
+ * weather layout) that don't decompose cleanly into stack/row. They're regular
+ * primitives — one registry entry, read their slice from scope, render a full
+ * `.hud-card`. Specs using them carry no frame; the molecule owns its chrome. */
+
+function CalendarBody({ cal }: { cal: MonthCalState }) {
+  const today = new Date();
+  const yr = cal.year;
+  const mo = cal.month;
+  const first = new Date(yr, mo, 1).getDay();
+  const daysInMonth = new Date(yr, mo + 1, 0).getDate();
+  const cells: (number | null)[] = [
+    ...Array(first).fill(null),
+    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+  ];
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  const dayMap = new Map<string, CalDay>();
+  for (const d of cal.days) dayMap.set(d.date, d);
+
+  return (
+    <div className="hud-card hud-calendar">
+      <div className="hud-calendar-head">
+        <span className="hud-eyebrow">CALENDAR</span>
+        <span className="hud-eyebrow-src" style={{ marginLeft: 'auto' }}>{MO_FULL[mo].toUpperCase()} {yr}</span>
+      </div>
+      <div className="hud-cal-grid">
+        {DAY_ABBR.map((d) => <div key={d} className="hud-cal-dow">{d}</div>)}
+        {cells.map((day, i) => {
+          if (!day) return <div key={`e-${i}`} />;
+          const iso = `${yr}-${String(mo + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+          const info = dayMap.get(iso);
+          const isToday = day === today.getDate() && mo === today.getMonth() && yr === today.getFullYear();
+          return (
+            <div key={iso} className={`hud-cal-day${isToday ? ' today' : ''}${info ? ' has-tasks' : ''}`}>
+              <span className="hud-cal-num">{day}</span>
+              {info && <span className="hud-cal-dot" style={{ background: info.doneCount === info.count ? 'var(--hub-green)' : 'var(--hub-amber)' }} />}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function WeatherBody({ w }: { w: WeatherState }) {
+  return (
+    <div className="hud-card hud-weather-compact">
+      <div className="hud-weather-head">
+        <span className="hud-eyebrow">WEATHER</span>
+        <span className="hud-eyebrow-src" style={{ marginLeft: 'auto' }}>
+          {w.source === 'accuweather' ? 'ACCUWEATHER' : w.label}
+        </span>
+      </div>
+      {w.offline ? (
+        <div style={{ color: 'var(--hub-cream-faint)', fontFamily: 'var(--hub-font-mono)', fontSize: 11, padding: '4px 0' }}>
+          WEATHER FEED OFFLINE
+        </div>
+      ) : (
+        <>
+          <div className="hud-weather-compact-row">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--hub-amber)" strokeWidth="1.4" strokeLinecap="round" style={{ flex: 'none', filter: 'drop-shadow(var(--glow))' }}>
+              <circle cx="12" cy="12" r="4.5" />
+              <path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3L7 7M17 17l1.7 1.7M5.3 18.7L7 17M17 7l1.7-1.7" />
+            </svg>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div className="hud-weather-compact-temp"><b>{w.loaded ? w.temp : '--'}</b><span>°F</span></div>
+              <div className="hud-weather-compact-desc">{w.loaded ? `${w.desc} · feels ${w.feels}°` : 'Loading…'}</div>
+            </div>
+            <div className="hud-weather-hilo" style={{ marginLeft: 0 }}>
+              <span className="hi">H {w.loaded ? w.hi : '--'}°</span>
+              <span className="lo">L {w.loaded ? w.lo : '--'}°</span>
+            </div>
+          </div>
+          {w.slots.length > 0 && (
+            <div className="hud-weather-strip" style={{ paddingTop: 10, marginTop: 10 }}>
+              {w.slots.map((s) => (
+                <div className="hud-weather-slot" key={s.label}>
+                  <span className="t">{s.label}</span>
+                  <span className="v">{s.temp}°</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
 }
 
 /** Poll any `fetch` data sources a spec declares and expose them by name. This
@@ -223,273 +379,33 @@ function SpecWidget({ spec, ctx }: { spec: WidgetSpec; ctx: WidgetCtx }) {
   const body = renderNode(spec.body, scope);
   const f = spec.frame;
 
-  if (!f) return <div style={{ padding: 14 }}>{body}</div>;
+  // No frame: the body is a self-contained card (a molecule, or chrome:false
+  // raw content). Render it bare so it fills the grid cell directly.
+  if (!f) return <>{body}</>;
 
-  const head = (f.eyebrow || f.source) ? (
+  const eyebrow = f.eyebrow != null ? str(resolve(f.eyebrow, scope)) : '';
+  const source = f.source != null ? str(resolve(f.source, scope)) : '';
+  const href = f.href != null ? str(resolve(f.href, scope)) : '';
+
+  const head = (eyebrow || source) ? (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-      {f.eyebrow && <span className="hud-eyebrow">{f.eyebrow}</span>}
-      {f.source && <span className="hud-eyebrow-src" style={{ marginLeft: 'auto' }}>{f.source}</span>}
+      {eyebrow && <span className="hud-eyebrow">{eyebrow}</span>}
+      {source && <span className="hud-eyebrow-src" style={{ marginLeft: 'auto' }}>{source}</span>}
     </div>
   ) : null;
 
   const inner = <>{head}{body}</>;
   const cls = f.chrome === false ? 'hud-spec-raw' : 'hud-card';
   const style: CSSProperties = { padding: f.chrome === false ? '14px 6px' : 14, display: 'flex', flexDirection: 'column', height: '100%' };
-  return f.href
-    ? <a className={cls} href={f.href} style={style}>{inner}</a>
+  return href
+    ? <a className={cls} href={href} style={style}>{inner}</a>
     : <div className={cls} style={style}>{inner}</div>;
 }
 
-/* ═══ Bespoke component escape hatch (ported v2 cards) ══════════════════════ */
-
-function ClockWidget({ clock }: WidgetCtx) {
-  return (
-    <div className="hud-clock">
-      <div className="hud-clock-time">
-        <span className="hud-clock-hm jk-press-lg">{clock.hm}</span>
-        <span className="hud-clock-ss">{clock.ss}</span>
-      </div>
-      <div className="hud-clock-meta">
-        <span className="hud-clock-date">{clock.dateLine}</span>
-        <span className="hud-clock-utc">UTC {clock.utcShort} · DAY {clock.jday}</span>
-      </div>
-    </div>
-  );
-}
-
-function WeatherWidget({ weather }: WidgetCtx) {
-  return (
-    <div className="hud-card hud-weather-compact">
-      <div className="hud-weather-head">
-        <span className="hud-eyebrow">WEATHER</span>
-        <span className="hud-eyebrow-src" style={{ marginLeft: 'auto' }}>
-          {weather.source === 'accuweather' ? 'ACCUWEATHER' : weather.label}
-        </span>
-      </div>
-      {weather.offline ? (
-        <div style={{ color: 'var(--hub-cream-faint)', fontFamily: 'var(--hub-font-mono)', fontSize: 11, padding: '4px 0' }}>
-          WEATHER FEED OFFLINE
-        </div>
-      ) : (
-        <>
-          <div className="hud-weather-compact-row">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--hub-amber)" strokeWidth="1.4" strokeLinecap="round" style={{ flex: 'none', filter: 'drop-shadow(var(--glow))' }}>
-              <circle cx="12" cy="12" r="4.5" />
-              <path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3L7 7M17 17l1.7 1.7M5.3 18.7L7 17M17 7l1.7-1.7" />
-            </svg>
-            <div style={{ minWidth: 0, flex: 1 }}>
-              <div className="hud-weather-compact-temp">
-                <b>{weather.loaded ? weather.temp : '--'}</b>
-                <span>°F</span>
-              </div>
-              <div className="hud-weather-compact-desc">
-                {weather.loaded ? `${weather.desc} · feels ${weather.feels}°` : 'Loading…'}
-              </div>
-            </div>
-            <div className="hud-weather-hilo" style={{ marginLeft: 0 }}>
-              <span className="hi">H {weather.loaded ? weather.hi : '--'}°</span>
-              <span className="lo">L {weather.loaded ? weather.lo : '--'}°</span>
-            </div>
-          </div>
-
-          {weather.slots.length > 0 && (
-            <div className="hud-weather-strip" style={{ paddingTop: 10, marginTop: 10 }}>
-              {weather.slots.map((s) => (
-                <div className="hud-weather-slot" key={s.label}>
-                  <span className="t">{s.label}</span>
-                  <span className="v">{s.temp}°</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </>
-      )}
-    </div>
-  );
-}
-
-function CalendarWidget({ cal }: WidgetCtx) {
-  const today = new Date();
-  const yr = cal.year;
-  const mo = cal.month;
-  const first = new Date(yr, mo, 1).getDay();
-  const daysInMonth = new Date(yr, mo + 1, 0).getDate();
-  const cells: (number | null)[] = [
-    ...Array(first).fill(null),
-    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
-  ];
-  while (cells.length % 7 !== 0) cells.push(null);
-
-  const dayMap = new Map<string, CalDay>();
-  for (const d of cal.days) dayMap.set(d.date, d);
-
-  return (
-    <div className="hud-card hud-calendar">
-      <div className="hud-calendar-head">
-        <span className="hud-eyebrow">CALENDAR</span>
-        <span className="hud-eyebrow-src" style={{ marginLeft: 'auto' }}>
-          {MO_FULL[mo].toUpperCase()} {yr}
-        </span>
-      </div>
-      <div className="hud-cal-grid">
-        {DAY_ABBR.map((d) => (
-          <div key={d} className="hud-cal-dow">{d}</div>
-        ))}
-        {cells.map((day, i) => {
-          if (!day) return <div key={`e-${i}`} />;
-          const iso = `${yr}-${String(mo + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-          const info = dayMap.get(iso);
-          const isToday = day === today.getDate() && mo === today.getMonth() && yr === today.getFullYear();
-          return (
-            <div key={iso} className={`hud-cal-day${isToday ? ' today' : ''}${info ? ' has-tasks' : ''}`}>
-              <span className="hud-cal-num">{day}</span>
-              {info && (
-                <span className="hud-cal-dot" style={{
-                  background: info.doneCount === info.count ? 'var(--hub-green)' : 'var(--hub-amber)',
-                }} />
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function TodayWidget({ today, clock, authUrl }: WidgetCtx) {
-  const doneCount = today.tasks.filter((t) => t.done).length;
-  return (
-    <div className="hud-card hud-today">
-      <div className="hud-today-head">
-        <span className="hud-eyebrow">TODAY</span>
-        <span className="hud-eyebrow-src">BEIGEBOARD</span>
-        <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-          <span className="hud-today-count">{doneCount} / {today.tasks.length}</span>
-          <span className="hud-bar">
-            <span style={{ width: today.tasks.length ? `${(doneCount / today.tasks.length) * 100}%` : '0%' }} />
-          </span>
-        </span>
-      </div>
-
-      {!today.authed ? (
-        <div className="hud-empty">
-          <span>SIGN IN TO SEE YOUR DAY</span>
-          <a href={`${authUrl}/auth/login?redirect_to=${encodeURIComponent('https://jkos.net')}`}>LOG IN</a>
-        </div>
-      ) : today.offline ? (
-        <div className="hud-empty">
-          <span>BEIGEBOARD OFFLINE</span>
-          <a href={BB_URL}>OPEN BEIGEBOARD →</a>
-        </div>
-      ) : today.tasks.length === 0 ? (
-        <div className="hud-empty">
-          <span>{today.loaded ? 'NOTHING SCHEDULED TODAY' : 'LOADING…'}</span>
-          <a href={BB_URL}>OPEN BEIGEBOARD →</a>
-        </div>
-      ) : (
-        <div className="hud-today-list">
-          {today.tasks.map((t) => {
-            const now = isNow(t, clock.hm);
-            return (
-              <div key={t.id} className={`hud-task${t.done ? ' done' : ''}${now ? ' now' : ''}`}>
-                <span className="hud-task-time">{t.time ?? '—'}</span>
-                {now ? (
-                  <span style={{ minWidth: 0 }}>
-                    <span className="hud-task-title" style={{ display: 'block' }}>{t.title}</span>
-                    <span className="hud-task-sub">{t.tag}{t.endTime ? ` · until ${t.endTime}` : ''}</span>
-                  </span>
-                ) : (
-                  <span className="hud-task-title">{t.title}</span>
-                )}
-                {t.done ? (
-                  <span className="hud-task-check">
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--hub-bg-0)" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M20 6L9 17l-5-5" />
-                    </svg>
-                  </span>
-                ) : now ? (
-                  <span className="hud-now-chip"><span className="hud-dot pulse" />NOW</span>
-                ) : (
-                  <span className="hud-task-tag">{t.tag}</span>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function SystemsWidget({ systems }: WidgetCtx) {
-  return (
-    <div className="hud-card hud-systems">
-      <div className="hud-systems-head">
-        <span className="hud-eyebrow">SYSTEMS</span>
-        <span className="hud-systems-count">{systems.up} / {systems.total} UP</span>
-      </div>
-      <div className="hud-systems-list">
-        {systems.rows.map((r) => (
-          <div key={r.name} className={`hud-sys${r.status === 'down' ? ' down' : r.status === 'warn' ? ' warn' : ''}`}>
-            <span
-              className={`hud-dot${r.status === 'down' ? ' pulse' : ''}`}
-              style={{
-                background: r.status === 'up' ? 'var(--hub-green)'
-                  : r.status === 'warn' ? 'var(--hub-warn)'
-                  : r.status === 'down' ? 'var(--hub-red)'
-                  : 'var(--hub-line-strong)',
-              }}
-            />
-            <span className="hud-sys-name">{r.name}</span>
-            <span className="hud-sys-val">{r.detail}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function StudyWidget({ study }: WidgetCtx) {
-  return (
-    <a className="hud-card hud-info" href={SYLIB_URL}>
-      <div className="hud-info-head">
-        <span className="hud-eyebrow">STUDY</span>
-        <span className="hud-eyebrow-src" style={{ marginLeft: 'auto' }}>SYLIBOS</span>
-      </div>
-      {study.available ? (
-        <div className="hud-study-row">
-          <div className="hud-study-main">
-            <p className="hud-info-title">
-              {study.nextLesson ?? study.courseTitle ?? 'All caught up'}
-            </p>
-            <p className="hud-info-sub">
-              {study.todayDone} / {study.dailyGoal} today{study.courseTitle && study.nextLesson ? ` · ${study.courseTitle}` : ''}
-            </p>
-          </div>
-          {study.streak > 0 && (
-            <div className="hud-streak">
-              <b>{study.streak}</b>
-              <span>STREAK</span>
-            </div>
-          )}
-        </div>
-      ) : (
-        <p className="hud-info-sub" style={{ margin: 0 }}>
-          {study.loaded ? 'SYLIBOS OFFLINE — OPEN →' : 'LOADING…'}
-        </p>
-      )}
-    </a>
-  );
-}
-
-const COMPONENT_REGISTRY: Record<string, (ctx: WidgetCtx) => ReactNode> = {
-  clock: ClockWidget,
-  weather: WeatherWidget,
-  calendar: CalendarWidget,
-  today: TodayWidget,
-  systems: SystemsWidget,
-  study: StudyWidget,
-};
+/* ═══ Bespoke component escape hatch ════════════════════════════════════════
+ * Ships empty: all six v2 cards are now specs (hud/state.ts). Register a React
+ * renderer here only for something genuinely beyond the primitive vocabulary. */
+const COMPONENT_REGISTRY: Record<string, (ctx: WidgetCtx) => ReactNode> = {};
 
 /* ═══ Factory entry point ══════════════════════════════════════════════════ */
 
