@@ -34,6 +34,8 @@ interface HudGridProps {
   state: HudState;
   editMode?: boolean;
   onRemove?: (id: string) => void;
+  /** Fired when the edit (pencil) affordance is used on a spec-based card. */
+  onEdit?: (id: string) => void;
   /** Fired when a long-press picks a card up while not yet in edit mode. */
   onRequestEdit?: () => void;
   onLayoutChange?: (bp: BreakpointName, items: GridItem[]) => void;
@@ -77,6 +79,7 @@ export function HudGrid({
   state,
   editMode = false,
   onRemove,
+  onEdit,
   onRequestEdit,
   onLayoutChange,
   rowHeight = DEFAULT_ROW_HEIGHT,
@@ -223,6 +226,18 @@ export function HudGrid({
                 touchAction: editMode ? 'none' : undefined,
               }}
             >
+              {editMode && onEdit && def.spec && (
+                <button
+                  className="hud-edit-remove hud-cell-edit"
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={() => onEdit(item.i)}
+                  title={`Edit ${def.label} in the workshop`}
+                >
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                  </svg>
+                </button>
+              )}
               {editMode && onRemove && (
                 <button
                   className="hud-edit-remove hud-cell-remove"

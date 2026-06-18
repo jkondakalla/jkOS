@@ -48,6 +48,14 @@ export default function RoomHUD() {
   const update = (next: HudState) => { setHud(next); saveHudState(next); };
   const shelve = (id: string) => update(removeToShelf(hud, id));
   const place  = (id: string) => update(placeFromShelf(hud, id, window.innerWidth));
+  // Hand the card's definition to the workshop (works for any placed spec card,
+  // published or not) and open the editor.
+  const editInWorkshop = (id: string) => {
+    const def = hud.widgets[id];
+    if (!def) return;
+    try { localStorage.setItem('ordeck-widget-edit', JSON.stringify(def)); } catch { /* ignore */ }
+    window.location.href = '/widgets';
+  };
 
   useEffect(() => {
     if (!appsOpen) return;
@@ -184,6 +192,7 @@ export default function RoomHUD() {
         state={hud}
         editMode={editMode}
         onRemove={shelve}
+        onEdit={editInWorkshop}
         onRequestEdit={() => setEditMode(true)}
         onLayoutChange={(bpName, items) => update(setBreakpointLayout(hud, bpName, items))}
         renderWidget={(def) => renderWidget(def, ctx)}

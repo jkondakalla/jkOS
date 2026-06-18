@@ -113,6 +113,40 @@ function toNode(r: Row): WidgetNode {
   }
 }
 
+/* Reverse of toBinding/toNode — loads an existing widget back into the editor. */
+function bindingToEb(b?: Binding): EB {
+  if (b == null) return eb('');
+  if (typeof b !== 'object') return eb(String(b));
+  if ('lit' in b) return eb(b.lit == null ? '' : String(b.lit));
+  return dataEb(b.src, b.path || '');
+}
+
+function nodeToRow(n: WidgetNode): Row | null {
+  switch (n.t) {
+    case 'label': return { type: 'label', text: bindingToEb(n.text), size: n.size || 'md' };
+    case 'text': return { type: 'text', text: bindingToEb(n.text), variant: n.variant || 'title' };
+    case 'metric': return { type: 'metric', value: bindingToEb(n.value), unit: bindingToEb(n.unit), sub: bindingToEb(n.sub) };
+    case 'bar': return { type: 'bar', value: bindingToEb(n.value), max: bindingToEb(n.max) };
+    case 'gauge': return { type: 'gauge', value: bindingToEb(n.value), max: bindingToEb(n.max), text: bindingToEb(n.label) };
+    case 'pill': return { type: 'pill', text: bindingToEb(n.text), tone: n.tone || 'ok' };
+    case 'dot': return { type: 'dot', tone: n.tone || 'ok', pulse: !!n.pulse };
+    case 'keyval': return { type: 'keyval', label: bindingToEb(n.label), value: bindingToEb(n.value), tone: n.tone || 'muted' };
+    case 'divider': return { type: 'divider', text: bindingToEb(n.label) };
+    case 'link': return { type: 'link', text: bindingToEb(n.text), href: bindingToEb(n.href) };
+    case 'list': {
+      const item = n.item;
+      return {
+        type: 'list',
+        from: bindingToEb(n.from),
+        empty: bindingToEb(n.empty),
+        itemLabel: item.t === 'keyval' ? bindingToEb(item.label) : dataEb('$', 'name'),
+        itemValue: item.t === 'keyval' ? bindingToEb(item.value) : dataEb('$', 'detail'),
+      };
+    }
+    default: return null;   // stack / row — not representable in the flat editor
+  }
+}
+
 const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n || lo));
 
 /* ── Reusable inputs ────────────────────────────────────────────────────── */
@@ -183,6 +217,35 @@ export default function WidgetWorkshop() {
       .catch(() => {});
   };
   useEffect(loadPublished, []);
+
+  // If the HUD handed us a card to edit (pencil affordance), load it once.
+  useEffect(() => {
+    let raw: string | null = null;
+    try {
+      raw = localStorage.getItem('ordeck-widget-edit');
+      if (raw) localStorage.removeItem('ordeck-widget-edit');
+    } catch { return; }
+    if (!raw) return;
+    let def: WidgetDef;
+    try { def = JSON.parse(raw); } catch { return; }
+    if (!def?.spec) return;
+    setId(def.id || '');
+    setLabel(def.label || '');
+    setEyebrow(def.spec.frame?.eyebrow || '');
+    setSource(def.spec.frame?.source || '');
+    setDw(def.sizing?.desktop?.w ?? 3); setDh(def.sizing?.desktop?.h ?? 5);
+    setMw(def.sizing?.mobile?.w ?? 2); setMh(def.sizing?.mobile?.h ?? 4);
+    const fs: { name: string; url: string; poll: string }[] = [];
+    for (const [name, s] of Object.entries(def.spec.sources || {})) {
+      if (s?.from === 'fetch') fs.push({ name, url: s.url, poll: s.poll != null ? String(s.poll) : '' });
+    }
+    setFetches(fs);
+    const body = def.spec.body;
+    const kids = body?.t === 'stack' ? body.children : body ? [body] : [];
+    const rs = kids.map(nodeToRow).filter((r): r is Row => r != null);
+    setRows(rs.length ? rs : [newRow('metric')]);
+    setMsg(`Editing "${def.id}" — change anything and re-publish to update it everywhere.`);
+  }, []);
 
   const sources = useMemo(() => [...HUD_SOURCES, ...fetches.map((f) => f.name).filter(Boolean), '$'], [fetches]);
 

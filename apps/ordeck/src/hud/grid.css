@@ -67,6 +67,17 @@
   z-index: 3;
 }
 
+/* Edit (→ workshop) affordance, sits just left of the remove button. */
+.hud-cell-edit {
+  position: absolute;
+  top: -8px;
+  right: 22px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .hud-cell, .hud-placeholder { transition: none !important; }
 }
