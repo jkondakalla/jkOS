@@ -1,24 +1,28 @@
-/* hud/grid.css — the custom grid canvas + cell frame.
+/* hud/grid.css — absolute-positioned grid canvas + iOS hold-to-move.
+   Cells are placed by inline left/top/width/height (computed from grid units in
+   HudGrid); this file owns the chrome, the lift, and the drop placeholder.
    Tokens come from @jkos/design (hub.css); no hardcoded colours. */
 
 .hud-canvas {
   flex: 1;
   min-height: 0;
-  display: grid;
-  align-content: start;
   padding: 16px 28px;
   overflow-y: auto;
   overflow-x: hidden;
 }
 
-/* Each cell positions one widget; the widget fills it and owns its own scroll. */
-.hud-cell {
+/* The positioned coordinate space the cells live in. */
+.hud-grid-area {
   position: relative;
-  min-width: 0;
-  min-height: 0;
+  width: 100%;
+}
+
+/* One widget. Absolutely positioned by HudGrid; fills itself, owns its scroll. */
+.hud-cell {
   display: flex;
   flex-direction: column;
-  animation: od-fade-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  min-width: 0;
+  min-height: 0;
 }
 .hud-cell > * {
   width: 100%;
@@ -34,17 +38,28 @@
   cursor: grab;
   user-select: none;
 }
-.hud-canvas.editing .hud-cell:active { cursor: grabbing; }
 
-/* A lifted (held) card floats above the rest while it follows the pointer. */
+/* The lifted card floats above everything and follows the pointer. */
 .hud-cell.dragging {
   cursor: grabbing;
+  z-index: 50;
   box-shadow: 0 14px 34px color-mix(in srgb, #000 38%, transparent);
   opacity: 0.97;
 }
 
-/* Remove (→ shelf) affordance, pinned to the cell corner. Reuses the visual
-   language of .hud-edit-remove; only positioning is overridden here. */
+/* Where the held card will land — the rest of the grid reflows around it. */
+.hud-placeholder {
+  position: absolute;
+  z-index: 1;
+  pointer-events: none;
+  border-radius: var(--hub-radius-lg);
+  background: color-mix(in srgb, var(--hub-amber) 10%, transparent);
+  outline: 1.5px dashed color-mix(in srgb, var(--hub-amber) 55%, transparent);
+  outline-offset: -2px;
+  transition: left 0.16s ease, top 0.16s ease, width 0.16s ease, height 0.16s ease;
+}
+
+/* Remove (→ shelf) affordance, pinned to the cell corner. */
 .hud-cell-remove {
   position: absolute;
   top: -8px;
@@ -53,5 +68,5 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .hud-cell { animation: none; }
+  .hud-cell, .hud-placeholder { transition: none !important; }
 }
