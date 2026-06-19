@@ -18,17 +18,29 @@
  * ships empty. The deprecated Module-Federation remote path is gone.
  */
 
-import { Fragment, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import {
+  Fragment, createContext, useCallback, useContext, useEffect, useMemo, useState,
+  type CSSProperties, type FormEvent, type ReactNode,
+} from 'react';
+import {
+  fetchCapabilities, getCapability, runCommand, suiteApp, type CapabilityDoc,
+} from '@jkos/weave';
 import {
   type ClockState,
   type WeatherState,
-  type SysRow,
+  type SystemsState,
   type TodayState,
   type StudyState,
   type MonthCalState,
   type CalDay,
+  type NotificationsState,
+  type FocusState,
+  type PinnedState,
 } from '../pages/hud/useHudData';
-import type { Binding, DataSource, Tone, ToneBinding, WidgetDef, WidgetNode, WidgetSpec } from './types';
+import type { Binding, CommandRef, DataSource, Tone, ToneBinding, WidgetDef, WidgetNode, WidgetSpec } from './types';
+import { TONE_COLOR } from './tone';
+import { bbCreateItem, todayIso } from '../lib/bb';
+import { clearHudFocus } from '../lib/shelf';
 
 const MO_FULL = ['January', 'February', 'March', 'April', 'May', 'June',
                  'July', 'August', 'September', 'October', 'November', 'December'];
@@ -40,24 +52,19 @@ const DAY_ABBR = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 export interface WidgetCtx {
   clock: ClockState;
   weather: WeatherState;
-  systems: { rows: SysRow[]; up: number; total: number; summary: string };
+  systems: SystemsState;
   today: TodayState;
   study: StudyState;
   cal: MonthCalState;
+  notifications: NotificationsState;
+  focus: FocusState;
+  pinned: PinnedState;
   authUrl: string;
 }
 
 /* ═══ Declarative spec layer ═══════════════════════════════════════════════ */
 
 type Scope = Record<string, unknown>;
-
-const TONE: Record<Tone, string> = {
-  ok: 'var(--hub-green)',
-  warn: 'var(--hub-warn)',
-  danger: 'var(--hub-red)',
-  muted: 'var(--hub-cream-dim)',
-  accent: 'var(--hub-amber)',
-};
 
 const str = (v: unknown): string => (v == null ? '' : String(v));
 const num = (v: unknown): number => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
@@ -74,9 +81,9 @@ function resolve(b: Binding, scope: Scope): unknown {
 /** Resolve a tone that may be fixed OR data-bound (→ a CSS colour). Unknown
  *  resolved values fall back to `fallback`, so a bad data path degrades quietly. */
 function toneColor(t: ToneBinding | undefined, scope: Scope, fallback: Tone = 'muted'): string {
-  if (t == null) return TONE[fallback];
+  if (t == null) return TONE_COLOR[fallback];
   const v = typeof t === 'object' ? resolve(t as Binding, scope) : t;
-  return TONE[v as Tone] ?? TONE[fallback];
+  return TONE_COLOR[v as Tone] ?? TONE_COLOR[fallback];
 }
 
 /** Truthiness for `when` — empty arrays/strings and 0 are falsy (so "has tasks"
@@ -247,11 +254,30 @@ const PRIMITIVES: Primitives = {
     }
     return <>{body}</>;
   },
+  // Write family — each delegates to a hook-bearing component (see below).
+  form:   (n, scope) => <FormNode node={n} scope={scope} />,
+  input:  (n, scope) => <InputNode node={n} scope={scope} />,
+  select: (n, scope) => <SelectNode node={n} scope={scope} />,
+  toggle: (n, scope) => <ToggleNode node={n} scope={scope} />,
+  button: (n, scope) => <ButtonNode node={n} scope={scope} />,
 };
 
 function renderNode(node: WidgetNode, scope: Scope): ReactNode {
   const fn = PRIMITIVES[node.t] as (n: WidgetNode, s: Scope) => ReactNode;
   return fn ? fn(node, scope) : null;
+}
+
+/** The eyebrow + right-aligned source row at the top of a card. One definition
+ *  for the spec frame and every bespoke card, instead of the same inline div
+ *  copy-pasted per component. Renders nothing when both captions are empty. */
+function CardHead({ eyebrow, source }: { eyebrow?: string; source?: string }) {
+  if (!eyebrow && !source) return null;
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+      {eyebrow && <span className="hud-eyebrow">{eyebrow}</span>}
+      {source && <span className="hud-eyebrow-src" style={{ marginLeft: 'auto' }}>{source}</span>}
+    </div>
+  );
 }
 
 /* ── Molecule bodies (self-contained cards) ─────────────────────────────────
@@ -345,6 +371,266 @@ function WeatherBody({ w }: { w: WeatherState }) {
   );
 }
 
+/* ── Interactive escape-hatch cards ─────────────────────────────────────────
+ * The spec vocabulary is deliberately read-only. Cards that WRITE (capture
+ * input, mutate another app) are bespoke components — they own a form and call
+ * the BeigeBoard write client (lib/bb). This is the sanctioned use of the
+ * COMPONENT_REGISTRY escape hatch. */
+
+/** Quick-add: capture a task to BeigeBoard from the HUD, no app switch. Lands on
+ *  today so it appears in the Today/Progress widgets immediately (writes fire a
+ *  change event those read hooks listen for). */
+function QuickAddBody({ authed }: { authed: boolean }) {
+  const [title, setTitle] = useState('');
+  const [status, setStatus] = useState<'idle' | 'saving' | 'ok' | 'err'>('idle');
+
+  const head = <CardHead eyebrow="QUICK ADD" source="BEIGEBOARD" />;
+
+  if (!authed) {
+    return (
+      <div className="hud-card" style={{ padding: 14, display: 'flex', flexDirection: 'column', height: '100%' }}>
+        {head}
+        <span style={{ fontSize: 11, color: 'var(--hub-cream-dim)' }}>SIGN IN TO ADD TASKS</span>
+      </div>
+    );
+  }
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    const t = title.trim();
+    if (!t || status === 'saving') return;
+    setStatus('saving');
+    const ok = await bbCreateItem({ title: t, due_date: todayIso() });
+    if (ok) {
+      setTitle('');
+      setStatus('ok');
+      setTimeout(() => setStatus((s) => (s === 'ok' ? 'idle' : s)), 1600);
+    } else {
+      setStatus('err');
+    }
+  };
+
+  const note = status === 'ok' ? 'ADDED TO TODAY' : status === 'err' ? 'COULDN’T SAVE — RETRY' : 'LANDS ON TODAY';
+  const noteColor = status === 'err' ? 'var(--hub-red)' : status === 'ok' ? 'var(--hub-green)' : 'var(--hub-cream-faint)';
+
+  return (
+    <form className="hud-card" onSubmit={submit} style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 8, height: '100%' }}>
+      {head}
+      <div style={{ display: 'flex', gap: 6 }}>
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="Add a task…"
+          style={{ flex: 1, minWidth: 0, background: 'var(--hub-bg-0)', border: '1px solid var(--hub-line)', color: 'var(--hub-cream-bright)', fontFamily: 'var(--hub-font-mono)', fontSize: 12, padding: '7px 9px', borderRadius: 'var(--hub-radius-sm)' }}
+        />
+        <button
+          type="submit"
+          disabled={!title.trim() || status === 'saving'}
+          style={{ flex: 'none', cursor: title.trim() ? 'pointer' : 'default', background: 'transparent', color: 'var(--hub-amber)', fontFamily: 'var(--hub-font-mono)', fontSize: 11, letterSpacing: '0.06em', padding: '7px 12px', border: '1px solid color-mix(in srgb, var(--hub-amber) 40%, transparent)', borderRadius: 'var(--hub-radius-sm)', opacity: title.trim() ? 1 : 0.4 }}
+        >
+          {status === 'saving' ? '…' : 'ADD'}
+        </button>
+      </div>
+      <span style={{ fontFamily: 'var(--hub-font-mono)', fontSize: 9, letterSpacing: '0.12em', color: noteColor }}>{note}</span>
+    </form>
+  );
+}
+
+/** Focus: the single "now working on" task pushed from BeigeBoard. Interactive
+ *  (it can clear focus → a write), so it's a bespoke component. When focus is
+ *  active the HUD dims its other cards around this one (see RoomHUD/HudGrid). */
+function FocusBody({ focus }: { focus: FocusState }) {
+  const [busy, setBusy] = useState(false);
+
+  const head = <CardHead eyebrow="FOCUS" source="BEIGEBOARD" />;
+
+  if (!focus.authed) {
+    return <div className="hud-card" style={{ padding: 14, display: 'flex', flexDirection: 'column', height: '100%' }}>{head}<span style={{ fontSize: 11, color: 'var(--hub-cream-dim)' }}>SIGN IN TO SET A FOCUS</span></div>;
+  }
+  if (!focus.active) {
+    return (
+      <div className="hud-card" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 6, height: '100%' }}>
+        {head}
+        <span style={{ fontFamily: 'var(--hub-font-serif, var(--hub-font-sans))', fontSize: 15, color: 'var(--hub-cream-dim)' }}>Nothing in focus</span>
+        <span style={{ fontFamily: 'var(--hub-font-mono)', fontSize: 10, letterSpacing: '0.08em', color: 'var(--hub-cream-faint)' }}>PICK A TASK IN BEIGEBOARD → FOCUS ON ORDECK</span>
+      </div>
+    );
+  }
+
+  const clear = async () => { setBusy(true); await clearHudFocus(); setBusy(false); };
+
+  const titleStyle: CSSProperties = { fontFamily: 'var(--hub-font-serif, var(--hub-font-sans))', fontSize: 22, fontWeight: 600, color: 'var(--hub-cream-bright)', lineHeight: 1.2, textDecoration: focus.done ? 'line-through' : 'none', opacity: focus.done ? 0.7 : 1 };
+
+  return (
+    <div className="hud-card" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10, height: '100%', borderColor: 'color-mix(in srgb, var(--hub-amber) 55%, transparent)' }}>
+      {head}
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 6 }}>
+        {focus.deeplink
+          ? <a href={focus.deeplink} style={{ ...titleStyle, textDecorationLine: focus.done ? 'line-through' : 'none' }}>{focus.title}</a>
+          : <span style={titleStyle}>{focus.title}</span>}
+        <span style={{ fontFamily: 'var(--hub-font-mono)', fontSize: 11, letterSpacing: '0.06em', color: 'var(--hub-cream-dim)' }}>
+          {focus.done ? 'DONE' : 'NOW'} · {focus.timeLabel}{focus.tag ? ` · ${focus.tag.toUpperCase()}` : ''}
+        </span>
+      </div>
+      <button
+        onClick={clear}
+        disabled={busy}
+        style={{ alignSelf: 'flex-start', cursor: 'pointer', background: 'transparent', color: 'var(--hub-amber)', fontFamily: 'var(--hub-font-mono)', fontSize: 10, letterSpacing: '0.1em', padding: '6px 11px', border: '1px solid color-mix(in srgb, var(--hub-amber) 40%, transparent)', borderRadius: 'var(--hub-radius-sm)' }}
+      >
+        {busy ? '…' : 'END FOCUS'}
+      </button>
+    </div>
+  );
+}
+
+/* ── Command vocabulary (declarative writes) ────────────────────────────────
+ * The read-only spec grows a write family. A `form` owns a `$form` source its
+ * input/select/toggle children write into; its submit (and standalone `button`s)
+ * run a CommandRef through ONE capability-driven dispatcher — discover the app's
+ * CapabilityDef (weave fetchCapabilities), resolve the body bindings against the
+ * live scope (+$form), issue via runCommand, and let the invalidation bus
+ * reconcile the owning app's views. Pure data in, so the workshop composes it and
+ * an AI can emit it; the dispatcher and loading/error states live here, once. */
+
+interface FormCtxValue { values: Record<string, unknown>; set: (field: string, v: unknown) => void }
+const FormCtx = createContext<FormCtxValue | null>(null);
+
+const fieldStyle: CSSProperties = {
+  width: '100%', boxSizing: 'border-box', background: 'var(--hub-bg-0)',
+  border: '1px solid var(--hub-line)', color: 'var(--hub-cream-bright)',
+  fontFamily: 'var(--hub-font-mono)', fontSize: 12, padding: '7px 9px',
+  borderRadius: 'var(--hub-radius-sm)',
+};
+const actionStyle = (color: string, on: boolean): CSSProperties => ({
+  alignSelf: 'flex-start', cursor: on ? 'pointer' : 'default', background: 'transparent',
+  color, fontFamily: 'var(--hub-font-mono)', fontSize: 11, letterSpacing: '0.06em',
+  padding: '7px 12px', border: `1px solid color-mix(in srgb, ${color} 40%, transparent)`,
+  borderRadius: 'var(--hub-radius-sm)', opacity: on ? 1 : 0.4,
+});
+
+type CmdStatus = 'idle' | 'saving' | 'ok' | 'err';
+
+/** Resolve a CommandRef to its app + capability, and expose a run() that builds
+ *  the body (capability defaults under the ref's bindings) and dispatches it.
+ *  `available` is false until the capability is discovered (or if it's gone) —
+ *  callers render disabled, the soft-fail equivalent of an offline data source. */
+function useCommand(ref: CommandRef) {
+  const [doc, setDoc] = useState<CapabilityDoc | null | undefined>(undefined); // undefined = loading
+  useEffect(() => {
+    let dead = false;
+    fetchCapabilities(ref.app).then((d) => { if (!dead) setDoc(d); });
+    return () => { dead = true; };
+  }, [ref.app]);
+
+  const app = suiteApp(ref.app);
+  const cap = doc ? getCapability(doc, ref.capability) : null;
+  const available = !!(app?.apiBase && cap);
+  const [status, setStatus] = useState<CmdStatus>('idle');
+
+  const run = useCallback(async (scope: Scope): Promise<boolean> => {
+    if (!app || !cap) return false;
+    setStatus('saving');
+    const body: Record<string, unknown> = {};
+    for (const fld of cap.body ?? []) if (fld.default !== undefined) body[fld.name] = fld.default;
+    for (const [k, b] of Object.entries(ref.body ?? {})) {
+      const v = resolve(b, scope);
+      if (v !== undefined && v !== null && v !== '') body[k] = v;  // keep optionals unset
+    }
+    const res = await runCommand(app, cap, body);
+    setStatus(res.ok ? 'ok' : 'err');
+    if (res.ok) setTimeout(() => setStatus((s) => (s === 'ok' ? 'idle' : s)), 1600);
+    return res.ok;
+  }, [app, cap, ref.body]);
+
+  return { loading: doc === undefined, available, status, run };
+}
+
+function FormNode({ node, scope }: { node: Extract<WidgetNode, { t: 'form' }>; scope: Scope }) {
+  const [values, setValues] = useState<Record<string, unknown>>({});
+  const set = useCallback((field: string, v: unknown) => setValues((s) => ({ ...s, [field]: v })), []);
+  const cmd = useCommand(node.cmd);
+  const formScope: Scope = { ...scope, $form: values };
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (cmd.status === 'saving' || !cmd.available) return;
+    if (await cmd.run(formScope)) setValues({});
+  };
+
+  const label = str(resolve(node.submit, scope));
+  const note = !cmd.available && !cmd.loading ? 'UNAVAILABLE'
+    : cmd.status === 'ok' ? 'DONE'
+    : cmd.status === 'err' ? 'COULDN’T SAVE — RETRY' : '';
+  const noteColor = cmd.status === 'err' ? 'var(--hub-red)' : cmd.status === 'ok' ? 'var(--hub-green)' : 'var(--hub-cream-faint)';
+
+  return (
+    <FormCtx.Provider value={{ values, set }}>
+      {/* A layout container, not a card — the spec frame provides the chrome
+          (like every primitive except the calendar/weather molecules). */}
+      <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minHeight: 0 }}>
+        {node.children.map((c, i) => <Fragment key={i}>{renderNode(c, formScope)}</Fragment>)}
+        <button type="submit" disabled={!cmd.available || cmd.status === 'saving'} style={actionStyle('var(--hub-amber)', cmd.available)}>
+          {cmd.status === 'saving' ? '…' : label}
+        </button>
+        {note && <span style={{ fontFamily: 'var(--hub-font-mono)', fontSize: 9, letterSpacing: '0.12em', color: noteColor }}>{note}</span>}
+      </form>
+    </FormCtx.Provider>
+  );
+}
+
+function InputNode({ node, scope }: { node: Extract<WidgetNode, { t: 'input' }>; scope: Scope }) {
+  const ctx = useContext(FormCtx);
+  const v = str(ctx?.values[node.field] ?? '');
+  const ph = node.placeholder != null ? str(resolve(node.placeholder, scope)) : '';
+  return (
+    <input value={v} placeholder={ph} type={node.itype ?? 'text'}
+      onChange={(e) => ctx?.set(node.field, e.target.value)} style={fieldStyle} />
+  );
+}
+
+function SelectNode({ node, scope }: { node: Extract<WidgetNode, { t: 'select' }>; scope: Scope }) {
+  const ctx = useContext(FormCtx);
+  const raw = resolve(node.options, scope);
+  const opts = (Array.isArray(raw) ? raw : []).map((o) =>
+    o && typeof o === 'object'
+      ? { value: str((o as { value?: unknown }).value), label: str((o as { label?: unknown }).label ?? (o as { value?: unknown }).value) }
+      : { value: str(o), label: str(o) });
+  const v = str(ctx?.values[node.field] ?? '');
+  const ph = node.placeholder != null ? str(resolve(node.placeholder, scope)) : '';
+  return (
+    <select value={v} onChange={(e) => ctx?.set(node.field, e.target.value)} style={fieldStyle}>
+      {ph && <option value="">{ph}</option>}
+      {opts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+    </select>
+  );
+}
+
+function ToggleNode({ node, scope }: { node: Extract<WidgetNode, { t: 'toggle' }>; scope: Scope }) {
+  const ctx = useContext(FormCtx);
+  const checked = !!ctx?.values[node.field];
+  const label = node.label != null ? str(resolve(node.label, scope)) : '';
+  return (
+    <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+      <input type="checkbox" checked={checked} onChange={(e) => ctx?.set(node.field, e.target.checked)} />
+      {label && <span style={{ fontFamily: 'var(--hub-font-mono)', fontSize: 11, color: 'var(--hub-cream)' }}>{label}</span>}
+    </label>
+  );
+}
+
+/** Standalone action button (outside a form): runs its command with body bound
+ *  against the live scope — e.g. a "mark done" with a fixed id, or a list-row action. */
+function ButtonNode({ node, scope }: { node: Extract<WidgetNode, { t: 'button' }>; scope: Scope }) {
+  const cmd = useCommand(node.cmd);
+  const label = str(resolve(node.text, scope));
+  const color = node.tone != null ? toneColor(node.tone, scope, 'accent') : 'var(--hub-amber)';
+  const text = cmd.status === 'saving' ? '…' : cmd.status === 'ok' ? 'DONE' : cmd.status === 'err' ? 'RETRY' : label;
+  return (
+    <button onClick={() => cmd.available && cmd.run(scope)} disabled={!cmd.available || cmd.status === 'saving'} style={actionStyle(color, cmd.available)}>
+      {text}
+    </button>
+  );
+}
+
 /** Poll any `fetch` data sources a spec declares and expose them by name. This
  *  is the no-deploy path: a spec with a fetch source + bindings is a brand-new
  *  widget needing zero new code. `hud` sources are already in ctx scope. */
@@ -387,12 +673,7 @@ function SpecWidget({ spec, ctx }: { spec: WidgetSpec; ctx: WidgetCtx }) {
   const source = f.source != null ? str(resolve(f.source, scope)) : '';
   const href = f.href != null ? str(resolve(f.href, scope)) : '';
 
-  const head = (eyebrow || source) ? (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-      {eyebrow && <span className="hud-eyebrow">{eyebrow}</span>}
-      {source && <span className="hud-eyebrow-src" style={{ marginLeft: 'auto' }}>{source}</span>}
-    </div>
-  ) : null;
+  const head = <CardHead eyebrow={eyebrow} source={source} />;
 
   const inner = <>{head}{body}</>;
   const cls = f.chrome === false ? 'hud-spec-raw' : 'hud-card';
@@ -403,9 +684,13 @@ function SpecWidget({ spec, ctx }: { spec: WidgetSpec; ctx: WidgetCtx }) {
 }
 
 /* ═══ Bespoke component escape hatch ════════════════════════════════════════
- * Ships empty: all six v2 cards are now specs (hud/state.ts). Register a React
- * renderer here only for something genuinely beyond the primitive vocabulary. */
-const COMPONENT_REGISTRY: Record<string, (ctx: WidgetCtx) => ReactNode> = {};
+ * The six v2 display cards are all specs now (hud/state.ts). This registry is
+ * for cards genuinely beyond the read-only primitive vocabulary — today, the
+ * interactive ones that WRITE back to a service. */
+const COMPONENT_REGISTRY: Record<string, (ctx: WidgetCtx) => ReactNode> = {
+  quickadd: (ctx) => <QuickAddBody authed={ctx.today.authed} />,
+  focus: (ctx) => <FocusBody focus={ctx.focus} />,
+};
 
 /* ═══ Factory entry point ══════════════════════════════════════════════════ */
 

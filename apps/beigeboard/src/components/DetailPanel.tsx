@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { FONT_HEAD, FONT_BODY, FONT_NUM, sourceOf, fmtTime, fmtFull, localDate, halate } from '../lib/theme'
 import { getAncestors, getChildren, getAccent, getProgress } from '../lib/seed'
 import { Eyebrow, Checkbox } from './SharedComponents'
+import { useHudShelf } from '../lib/jkauth'
 
 export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdateItem, setView, setFocusedGoalId }: any) {
   const [titleEditing, setTitleEditing] = useState(false)
@@ -17,6 +18,9 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
     if (titleEditing && titleInputRef.current) titleInputRef.current.focus()
   }, [titleEditing])
 
+  // ORDECK HUD shelf — pin/focus this item onto the dashboard (suite-wide prefs).
+  const shelf = useHudShelf()
+
   if (!event) return null
 
   const accent = (items && getAccent(event, items)) || (event.source && sourceOf(event.source).hex) || 'var(--color-accent)'
@@ -27,6 +31,11 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
   const ancestors = items ? getAncestors(event, items) : []
   const children  = items ? getChildren(event, items)  : []
   const prog      = items ? getProgress(event, items)  : { done: 0, total: 0, pct: 0 }
+
+  // Pin/focus reference for the HUD shelf — {app,id} + a display snapshot.
+  const hudRef  = { app: 'beigeboard', id: event.id, label: event.title, deeplink: window.location.origin }
+  const focused = shelf.isFocused('beigeboard', event.id)
+  const pinned  = shelf.isPinned('beigeboard', event.id)
 
   const scopeLabel = isGoal ? 'Goal'
     : isMilestone ? 'Checkpoint'
@@ -186,6 +195,37 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
                 ? (event.completed ? 'Passed — reopen' : 'Mark checkpoint passed')
                 : (event.completed ? 'Done — mark active' : 'Mark complete')}
             </button>
+          </Field>
+        )}
+
+        {(isTask || isEvent || isMilestone) && (
+          <Field label="On ORDECK">
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button
+                onClick={() => shelf.toggleFocus(hudRef)}
+                className="btn-action"
+                style={{
+                  flex: 1,
+                  background: focused ? accent : 'transparent',
+                  color: focused ? 'var(--color-paper)' : 'var(--color-muted)',
+                  border: `1px solid ${focused ? accent : 'var(--color-line)'}`,
+                  fontFamily: FONT_BODY, fontSize: 9.5, letterSpacing: '0.12em',
+                  textTransform: 'uppercase', padding: '9px 0', cursor: 'pointer',
+                }}
+              >{focused ? 'Focused — clear' : 'Focus on ORDECK'}</button>
+              <button
+                onClick={() => shelf.togglePin({ ...hudRef, tone: event.completed ? 'ok' : 'accent' })}
+                className="btn-action"
+                style={{
+                  flex: 1,
+                  background: pinned ? accent : 'transparent',
+                  color: pinned ? 'var(--color-paper)' : 'var(--color-muted)',
+                  border: `1px solid ${pinned ? accent : 'var(--color-line)'}`,
+                  fontFamily: FONT_BODY, fontSize: 9.5, letterSpacing: '0.12em',
+                  textTransform: 'uppercase', padding: '9px 0', cursor: 'pointer',
+                }}
+              >{pinned ? 'Pinned to HUD' : 'Pin to HUD'}</button>
+            </div>
           </Field>
         )}
 

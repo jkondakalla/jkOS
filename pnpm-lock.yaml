@@ -109,6 +109,9 @@ importers:
       '@jkos/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      '@jkos/weave':
+        specifier: workspace:*
+        version: file:packages/weave(react@18.3.1)
       react:
         specifier: ^18.3.1
         version: 18.3.1
@@ -287,6 +290,22 @@ importers:
       '@types/react-dom':
         specifier: ^18.3.0
         version: 18.3.7(@types/react@18.3.29)
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+
+  packages/weave:
+    dependencies:
+      '@jkos/auth-client':
+        specifier: workspace:*
+        version: file:packages/auth-client(react@19.2.7)
+      react:
+        specifier: '>=18'
+        version: 19.2.7
+    devDependencies:
+      '@types/react':
+        specifier: ^18.3.3
+        version: 18.3.29
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
@@ -938,6 +957,11 @@ packages:
     peerDependencies:
       react: '>=18'
       react-dom: '>=18'
+
+  '@jkos/weave@file:packages/weave':
+    resolution: {directory: packages/weave, type: directory}
+    peerDependencies:
+      react: '>=18'
 
   '@jridgewell/gen-mapping@0.3.13':
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
@@ -3370,6 +3394,11 @@ snapshots:
       wrap-ansi: 8.1.0
       wrap-ansi-cjs: wrap-ansi@7.0.0
 
+  '@jkos/auth-client@file:packages/auth-client(react@18.3.1)':
+    dependencies:
+      '@jkos/design': file:packages/design
+      react: 18.3.1
+
   '@jkos/auth-client@file:packages/auth-client(react@19.2.7)':
     dependencies:
       '@jkos/design': file:packages/design
@@ -3382,6 +3411,11 @@ snapshots:
       '@jkos/design': file:packages/design
       react: 19.2.7
       react-dom: 19.2.7(react@19.2.7)
+
+  '@jkos/weave@file:packages/weave(react@18.3.1)':
+    dependencies:
+      '@jkos/auth-client': file:packages/auth-client(react@18.3.1)
+      react: 18.3.1
 
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:

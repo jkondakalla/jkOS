@@ -12,11 +12,12 @@
 
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { AUTH_URL, useJkOSPreferences } from '../hooks/useJkOSPreferences';
-import {
-  useClock, useWeather, useSystems, useToday, useStudy, useMonthCalendar,
-} from './hud/useHudData';
-import { renderWidget, type WidgetCtx } from '../hud/registry';
+import { useSuiteApps, fetchCapabilities, type CapabilityDoc } from '@jkos/weave';
+import { useHudContext } from './hud/useHudContext';
+import { HUD_SCHEMA, HUD_ITEM_FIELDS } from './hud/useHudData';
+import { renderWidget } from '../hud/registry';
 import type { Binding, Tone, WidgetDef, WidgetNode } from '../hud/types';
+import { WIDGET_EDIT_KEY } from '../hud/state';
 
 /* ── Binding editor model ───────────────────────────────────────────────── */
 
@@ -28,6 +29,16 @@ const toBinding = (b: EB): Binding =>
   b.mode === 'data' ? { src: b.src, ...(b.path ? { path: b.path } : {}) } : b.lit;
 const optBinding = (b?: EB): Binding | undefined =>
   !b || (b.mode === 'lit' && b.lit === '') ? undefined : toBinding(b);
+
+/* ── Command field-mapper model ─────────────────────────────────────────────
+ * How each capability body field is filled when the widget is an ACTION (form):
+ *   input → a form control the user fills; cmd.body[field] = { src:'$form', ... }
+ *   lit   → a fixed value baked into the command
+ *   data  → a live slice value (e.g. clock.iso for "today")
+ *   skip  → not sent (optional fields) */
+type FMMode = 'input' | 'lit' | 'data' | 'skip';
+interface FMEntry { mode: FMMode; lit: string; src: string; path: string }
+const FM_MODES: FMMode[] = ['input', 'lit', 'data', 'skip'];
 
 /* ── Primitive catalog ──────────────────────────────────────────────────── */
 
@@ -73,25 +84,16 @@ const ITEM_STYLES: ItemStyle[] = ['keyval', 'status', 'task'];
 const DIRS = ['col', 'row'];
 const ICON_NAMES = ['sun', 'moon', 'cloud', 'rain', 'bolt', 'check', 'book', 'clock', 'calendar', 'activity', 'star', 'alert', 'dot'];
 
-/* ── Data-source field suggestions (drive the path datalists) ────────────── */
+/* ── Data-source field suggestions (driven by the slice schema) ──────────── */
+// HUD_SCHEMA + HUD_ITEM_FIELDS live with the slice definitions (useHudData), so a
+// new field is one edit there and appears here automatically — no parallel list.
 
-const HUD_SOURCES = ['clock', 'weather', 'systems', 'today', 'study', 'cal'];
-const SCALAR_FIELDS: Record<string, string[]> = {
-  clock: ['hm', 'ss', 'dateLine', 'utcShort', 'jday', 'utcLine'],
-  weather: ['temp', 'feels', 'desc', 'hi', 'lo', 'label', 'offline', 'loaded'],
-  systems: ['up', 'total', 'summary'],
-  study: ['streak', 'headline', 'subLine', 'nextLesson', 'courseTitle', 'todayDone', 'dailyGoal', 'available', 'showStreak', 'unavailable', 'offlineLabel'],
-  cal: ['year', 'month'],
-  today: ['authed', 'progressLabel', 'progress', 'doneCount', 'emptyLabel', 'signedOut', 'showOffline', 'showTasks', 'showEmpty'],
-};
-const ARRAY_FIELDS: Record<string, string[]> = {
-  systems: ['rows'], today: ['tasks'], weather: ['slots'], cal: ['days'],
-};
-const ITEM_FIELDS = ['name', 'detail', 'tone', 'status', 'title', 'time', 'timeLabel', 'stateLabel', 'done', 'now', 'tag', 'label', 'temp', 'date', 'count'];
+const HUD_SOURCES = Object.keys(HUD_SCHEMA);
 const KNOWN_SUGGEST = [...HUD_SOURCES, '$'];
 function pathSuggestions(src: string): string[] {
-  if (src === '$') return ITEM_FIELDS;
-  return [...(SCALAR_FIELDS[src] || []), ...(ARRAY_FIELDS[src] || [])];
+  if (src === '$') return HUD_ITEM_FIELDS;
+  const s = HUD_SCHEMA[src];
+  return s ? [...s.scalars, ...(s.arrays ?? [])] : [];
 }
 
 function newRow(type: PrimType): Row {
@@ -262,14 +264,8 @@ function BindingInput({ value, onChange, sources }: { value: EB; onChange: (v: E
 export default function WidgetWorkshop() {
   const { user } = useJkOSPreferences();
 
-  // Live preview context — the real HUD hooks, so previews show real values.
-  const clock = useClock();
-  const weather = useWeather();
-  const systems = useSystems(true);
-  const today = useToday();
-  const study = useStudy();
-  const cal = useMonthCalendar();
-  const ctx: WidgetCtx = { clock, weather, systems, today, study, cal, authUrl: AUTH_URL };
+  // Live preview context — the real HUD context, so previews show real values.
+  const ctx = useHudContext(true);
 
   const [tab, setTab] = useState<'build' | 'guide'>('build');
   const [id, setId] = useState('');
@@ -283,6 +279,47 @@ export default function WidgetWorkshop() {
   const [published, setPublished] = useState<WidgetDef[]>([]);
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
+
+  // ── Action (command) authoring ──
+  const suite = useSuiteApps();
+  const cmdApps = useMemo(() => Object.values(suite).filter((a) => a.capabilitiesPath), [suite]);
+  const [actionOn, setActionOn] = useState(false);
+  const [cmdApp, setCmdApp] = useState('');
+  const [cmdCap, setCmdCap] = useState('');
+  const [capDoc, setCapDoc] = useState<CapabilityDoc | null>(null);
+  const [fieldMap, setFieldMap] = useState<Record<string, FMEntry>>({});
+  const [submitLabel, setSubmitLabel] = useState('ADD');
+
+  // Discover the chosen app's capabilities.
+  useEffect(() => {
+    if (!cmdApp) { setCapDoc(null); return; }
+    let dead = false;
+    fetchCapabilities(cmdApp).then((d) => { if (!dead) setCapDoc(d); });
+    return () => { dead = true; };
+  }, [cmdApp]);
+
+  const cap = capDoc?.capabilities.find((c) => c.id === cmdCap) ?? null;
+
+  // Seed sensible defaults for any field not already mapped (so a loaded/edited
+  // mapping survives, but a freshly-picked capability auto-fills): required →
+  // input, has-default → that literal, else → skip.
+  useEffect(() => {
+    if (!cap) return;
+    setFieldMap((prev) => {
+      const fm = { ...prev };
+      for (const f of cap.body ?? []) {
+        if (fm[f.name]) continue;
+        if (f.default !== undefined) fm[f.name] = { mode: 'lit', lit: String(f.default), src: '', path: '' };
+        else if (f.required) fm[f.name] = { mode: 'input', lit: '', src: '', path: '' };
+        else fm[f.name] = { mode: 'skip', lit: '', src: '', path: '' };
+      }
+      return fm;
+    });
+  }, [cap]);
+
+  const FM_DEFAULT: FMEntry = { mode: 'skip', lit: '', src: '', path: '' };
+  const setFM = (name: string, patch: Partial<FMEntry>) =>
+    setFieldMap((m) => ({ ...m, [name]: { ...(m[name] ?? FM_DEFAULT), ...patch } }));
 
   const isAdmin = user?.role === 'admin';
 
@@ -298,8 +335,8 @@ export default function WidgetWorkshop() {
   useEffect(() => {
     let raw: string | null = null;
     try {
-      raw = localStorage.getItem('ordeck-widget-edit');
-      if (raw) localStorage.removeItem('ordeck-widget-edit');
+      raw = localStorage.getItem(WIDGET_EDIT_KEY);
+      if (raw) localStorage.removeItem(WIDGET_EDIT_KEY);
     } catch { return; }
     if (!raw) return;
     let def: WidgetDef;
@@ -323,9 +360,29 @@ export default function WidgetWorkshop() {
     }
     setFetches(fs);
     const body = def.spec.body;
-    const kids = body?.t === 'stack' ? body.children : body ? [body] : [];
-    const rs = kids.map(nodeToRow).filter((r): r is Row => r != null);
-    setRows(rs.length ? rs : [newRow('metric')]);
+    if (body?.t === 'form') {
+      // An ACTION widget — reconstruct the command + field mapping + display rows.
+      setActionOn(true);
+      setCmdApp(body.cmd.app);
+      setCmdCap(body.cmd.capability);
+      setSubmitLabel(typeof body.submit === 'string' ? body.submit : 'ADD');
+      const fm: Record<string, FMEntry> = {};
+      for (const [k, b] of Object.entries(body.cmd.body ?? {})) {
+        if (b && typeof b === 'object' && 'src' in b) {
+          const src = (b as { src: string }).src;
+          fm[k] = src === '$form'
+            ? { mode: 'input', lit: '', src: '', path: '' }
+            : { mode: 'data', lit: '', src, path: (b as { path?: string }).path || '' };
+        } else fm[k] = { mode: 'lit', lit: b == null ? '' : String(b), src: '', path: '' };
+      }
+      setFieldMap(fm);
+      const disp = body.children.filter((c) => c.t !== 'input' && c.t !== 'select' && c.t !== 'toggle');
+      setRows(disp.map(nodeToRow).filter((r): r is Row => r != null));
+    } else {
+      const kids = body?.t === 'stack' ? body.children : body ? [body] : [];
+      const rs = kids.map(nodeToRow).filter((r): r is Row => r != null);
+      setRows(rs.length ? rs : [newRow('metric')]);
+    }
     setMsg(`Editing "${def.id}" — change anything and re-publish to update it everywhere.`);
   }, []);
 
@@ -341,7 +398,34 @@ export default function WidgetWorkshop() {
   const def = useMemo<WidgetDef>(() => {
     // A lone molecule (calendar/weather) is its own card — emit it frameless so
     // it isn't double-wrapped. Everything else gets the standard card chrome.
-    const onlyMolecule = rows.length === 1 && (rows[0].type === 'calendar' || rows[0].type === 'weather');
+    // An ACTION widget is never a molecule (it's a form).
+    const onlyMolecule = !actionOn && rows.length === 1 && (rows[0].type === 'calendar' || rows[0].type === 'weather');
+
+    let body: WidgetNode = onlyMolecule ? toNode(rows[0]) : { t: 'stack', gap: 10, children: rows.map(toNode) };
+
+    // Action → wrap the body in a form bound to the chosen capability: display
+    // rows on top, then one control per field mapped to `input`, then the submit.
+    if (actionOn && cmdApp && cmdCap) {
+      const cmdBody: Record<string, Binding> = {};
+      const controls: WidgetNode[] = [];
+      for (const f of cap?.body ?? []) {
+        const e = fieldMap[f.name];
+        if (!e || e.mode === 'skip') continue;
+        if (e.mode === 'lit') { if (e.lit !== '') cmdBody[f.name] = e.lit; continue; }
+        if (e.mode === 'data') { if (e.src) cmdBody[f.name] = { src: e.src, ...(e.path ? { path: e.path } : {}) }; continue; }
+        cmdBody[f.name] = { src: '$form', path: f.name };       // input → form control
+        if (f.type === 'enum') controls.push({ t: 'select', field: f.name, options: { lit: f.enum ?? [] }, placeholder: f.label || f.name });
+        else if (f.type === 'boolean') controls.push({ t: 'toggle', field: f.name, label: f.label || f.name });
+        else controls.push({ t: 'input', field: f.name, placeholder: f.label || f.name, itype: f.type === 'date' ? 'date' : f.type === 'time' ? 'time' : f.type === 'number' ? 'number' : 'text' });
+      }
+      body = {
+        t: 'form',
+        cmd: { app: cmdApp, capability: cmdCap, body: cmdBody },
+        submit: submitLabel || 'SUBMIT',
+        children: [...rows.map(toNode), ...controls],
+      };
+    }
+
     return {
       id: id.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '-'),
       label: label || id || 'Untitled',
@@ -349,10 +433,10 @@ export default function WidgetWorkshop() {
       spec: {
         frame: onlyMolecule ? undefined : { eyebrow: eyebrow || undefined, source: source || undefined },
         sources: sourcesObj,
-        body: onlyMolecule ? toNode(rows[0]) : { t: 'stack', gap: 10, children: rows.map(toNode) },
+        body,
       },
     };
-  }, [id, label, eyebrow, source, dw, dh, mw, mh, rows, sourcesObj]);
+  }, [id, label, eyebrow, source, dw, dh, mw, mh, rows, sourcesObj, actionOn, cmdApp, cmdCap, cap, fieldMap, submitLabel]);
 
   async function publish() {
     if (!def.id) { setMsg('Give the widget an id first.'); return; }
@@ -470,6 +554,47 @@ export default function WidgetWorkshop() {
                   </>}
                   <Line t="show if"><BindingInput value={r.cond || eb('')} sources={sources} onChange={bind(i, 'cond')} /></Line>
                 </div>
+              ))}
+            </Card>
+
+            <Card title="ACTION (WRITE)">
+              <label style={{ ...rowLine, cursor: 'pointer' }}>
+                <input type="checkbox" checked={actionOn} onChange={(e) => setActionOn(e.target.checked)} />
+                <span style={hintStyle}>Turn this widget into a form that submits a command to a suite app — discovered from its capabilities, no code.</span>
+              </label>
+              {actionOn && (cmdApps.length === 0 ? (
+                <p style={hintStyle}>No suite app exposes capabilities yet (looking for a <code>capabilities_path</code> in the registry).</p>
+              ) : (
+                <>
+                  <Line t="app"><Select value={cmdApp} onChange={(v) => { setCmdApp(v); setCmdCap(''); }} options={['', ...cmdApps.map((a) => a.id)]} /></Line>
+                  {capDoc && <Line t="action"><Select value={cmdCap} onChange={setCmdCap} options={['', ...capDoc.capabilities.map((c) => c.id)]} /></Line>}
+                  {cap && (
+                    <>
+                      <Line t="submit"><input style={{ ...field, flex: 1 }} value={submitLabel} onChange={(e) => setSubmitLabel(e.target.value)} /></Line>
+                      <p style={hintStyle}>Map each field — <b>input</b> (user fills it), <b>lit</b> (fixed value), <b>data</b> (a live slice, e.g. <code>clock.iso</code>), or <b>skip</b>.</p>
+                      {(cap.body ?? []).map((f) => {
+                        const e = fieldMap[f.name] || { mode: 'skip' as FMMode, lit: '', src: '', path: '' };
+                        return (
+                          <div key={f.name} style={{ borderTop: '1px solid var(--hub-line)', marginTop: 8, paddingTop: 6 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span style={{ fontFamily: 'var(--hub-font-mono)', fontSize: 11, color: 'var(--hub-cream)' }}>
+                                {f.name}{f.required ? ' *' : ''} <span style={{ color: 'var(--hub-cream-faint)' }}>· {f.type}</span>
+                              </span>
+                              <span style={{ marginLeft: 'auto' }}><Select value={e.mode} onChange={(m) => setFM(f.name, { mode: m as FMMode })} options={FM_MODES} /></span>
+                            </div>
+                            {e.mode === 'lit' && <div style={rowLine}><input style={{ ...field, flex: 1 }} value={e.lit} placeholder="fixed value" onChange={(ev) => setFM(f.name, { lit: ev.target.value })} /></div>}
+                            {e.mode === 'data' && (
+                              <div style={rowLine}>
+                                <Select value={e.src || 'clock'} onChange={(s) => setFM(f.name, { src: s })} options={HUD_SOURCES} />
+                                <input style={{ ...field, flex: 1 }} list={`pl-${e.src || 'clock'}`} value={e.path} placeholder="field" onChange={(ev) => setFM(f.name, { path: ev.target.value })} />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </>
+                  )}
+                </>
               ))}
             </Card>
 

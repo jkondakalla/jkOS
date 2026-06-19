@@ -30,6 +30,18 @@
   min-height: 0;
 }
 
+/* Focus mode: a task is in focus, so the HUD dims every card except the Focus
+   card to pull attention to the one thing being worked on. */
+.hud-canvas.has-highlight .hud-cell {
+  opacity: 0.32;
+  filter: saturate(0.55);
+  transition: opacity 0.4s ease, filter 0.4s ease;
+}
+.hud-canvas.has-highlight .hud-cell.is-highlight {
+  opacity: 1;
+  filter: none;
+}
+
 /* Edit mode: dashed outline marks rearrangeable cells; hold + drag to move. */
 .hud-canvas.editing .hud-cell {
   outline: 1px dashed color-mix(in srgb, var(--hub-amber) 45%, transparent);

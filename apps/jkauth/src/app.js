@@ -48,6 +48,10 @@ const mkLimiter = limit => rateLimit({
 })
 app.use(['/auth/login', '/auth/register', '/auth/guest'], mkLimiter(RL_CREDENTIALS))
 app.use('/auth/refresh', mkLimiter(RL_REFRESH))
+// Service-token issuance presents a SECRET (client-credentials), so it belongs on
+// the tight credential budget, not refresh's relaxed one — otherwise the secret is
+// brute-forceable at the refresh rate. Tokens live ~10 min, so issuance is rare.
+app.use('/auth/token', mkLimiter(RL_CREDENTIALS))
 app.use(['/auth/google', '/auth/google/callback'], mkLimiter(RL_GOOGLE))
 
 // Security headers on every dynamic response (static assets are served above and
@@ -80,6 +84,7 @@ app.use((req, res, next) => {
 app.use(require('./routes/auth'))
 app.use(require('./routes/twofactor'))
 app.use(require('./routes/profile'))
+app.use(require('./routes/weave'))
 app.use(require('./routes/google'))
 
 app.get('/health', (req, res) => res.json({ ok: true }))

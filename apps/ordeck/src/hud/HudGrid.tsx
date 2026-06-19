@@ -33,6 +33,8 @@ const MOVE_CANCEL_PX = 5;   // movement before the hold completes = scroll/tap, 
 interface HudGridProps {
   state: HudState;
   editMode?: boolean;
+  /** When set, that cell is emphasised and every other cell dims (focus mode). */
+  highlightId?: string;
   onRemove?: (id: string) => void;
   /** Fired when the edit (pencil) affordance is used on a spec-based card. */
   onEdit?: (id: string) => void;
@@ -78,6 +80,7 @@ function useElementWidth(ref: RefObject<HTMLElement>): number {
 export function HudGrid({
   state,
   editMode = false,
+  highlightId,
   onRemove,
   onEdit,
   onRequestEdit,
@@ -190,8 +193,11 @@ export function HudGrid({
   const areaHeight = Math.max(bottom(items) * stepY - gap, stepY);
   const placeholder = drag ? items.find((i) => i.i === drag.id) : null;
 
+  // Only dim siblings if the highlighted cell is actually on this layout.
+  const dimming = !!highlightId && items.some((it) => it.i === highlightId);
+
   return (
-    <div className={`hud-canvas${editMode ? ' editing' : ''}`} data-bp={bp.name}>
+    <div className={`hud-canvas${editMode ? ' editing' : ''}${dimming ? ' has-highlight' : ''}`} data-bp={bp.name}>
       <div ref={areaRef} className="hud-grid-area" style={{ height: areaHeight }}>
         {placeholder && (() => {
           const r = rectOf(placeholder);
@@ -203,11 +209,12 @@ export function HudGrid({
           if (!def) return null;
           const r = rectOf(item);
           const lifted = drag?.id === item.i;
+          const isHighlight = dimming && item.i === highlightId;
           return (
             <div
               key={item.i}
               data-id={item.i}
-              className={`hud-cell${lifted ? ' dragging' : ''}`}
+              className={`hud-cell${lifted ? ' dragging' : ''}${isHighlight ? ' is-highlight' : ''}`}
               onPointerDown={(e) => onPointerDown(e, item)}
               onPointerMove={onPointerMove}
               onPointerUp={onPointerUp}

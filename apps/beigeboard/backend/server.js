@@ -12,6 +12,16 @@ const DB_PATH    = process.env.DB_PATH    || path.join(__dirname, 'beigeBoard.db
 const STATIC_DIR = process.env.STATIC_DIR || path.join(__dirname, '..', 'dist');
 const SHELL_URL  = (process.env.SHELL_URL || 'http://localhost:3000').replace(/\/$/, '');
 
+/* Cross-origin allowlist. The suite directory (jkAuth app_registry) is the
+   canonical list of app origins; ops mirrors it here via ALLOWED_ORIGINS (comma-
+   separated) so a second suite app can call BeigeBoard cross-origin. SHELL_URL is
+   always included for backward compatibility. */
+const ALLOWED_ORIGINS = new Set(
+  [SHELL_URL, ...(process.env.ALLOWED_ORIGINS || '').split(',')]
+    .map(s => s.trim().replace(/\/$/, ''))
+    .filter(Boolean)
+);
+
 /* RSA public key from jkos-auth — used by jkosAuth middleware. Prefer JWKS-by-kid
    (key rotation, U3) when JKOS_AUTH_JWKS_URI is set; else verify against the
    static public key. */
@@ -251,6 +261,36 @@ const MIGRATIONS = [
       }
     },
   },
+  // NOTE: ORDECK's pin/focus are NOT item columns. They live in the user's jkAuth
+  // prefs (the suite-wide "HUD shelf"), so focus is one singleton across every app
+  // and pins are a heterogeneous set — BeigeBoard doesn't carry another app's
+  // surfacing concerns. See @jkos/auth-client useHudShelf.
+  {
+    id: 6, name: 'weave_interop_fields',
+    up(d) {
+      /*
+       * Suite-fabric (Weave) interop surface so other apps can OWN and TRACK
+       * BeigeBoard items they create, and poll cheaply:
+       *   ext_ref    "<app>:<localId>" back-reference to the creating app's entity
+       *   tags       JSON array for cross-app filtering (e.g. ["study","sylib:6.042"])
+       *   updated_at bumped on every row UPDATE so consumers can poll ?since=
+       */
+      for (const col of ['ext_ref TEXT', "tags TEXT DEFAULT '[]'", 'updated_at TEXT']) {
+        try { d.exec(`ALTER TABLE items ADD COLUMN ${col}`); }
+        catch (e) { if (!e.message?.includes('duplicate column')) throw e; }
+      }
+      d.exec(`UPDATE items SET updated_at = COALESCE(updated_at, created_at, datetime('now'))`);
+      d.exec(`CREATE INDEX IF NOT EXISTS idx_items_ext_ref ON items(ext_ref)`);
+      d.exec(`CREATE INDEX IF NOT EXISTS idx_items_updated ON items(updated_at)`);
+      /* Touch updated_at on every UPDATE. The WHEN guard (NEW=OLD) means the
+         trigger's own UPDATE doesn't re-fire it, so this is safe regardless of
+         the recursive_triggers pragma. */
+      d.exec(`DROP TRIGGER IF EXISTS items_touch_updated`);
+      d.exec(`CREATE TRIGGER items_touch_updated AFTER UPDATE ON items
+              FOR EACH ROW WHEN NEW.updated_at = OLD.updated_at
+              BEGIN UPDATE items SET updated_at = datetime('now') WHERE id = NEW.id; END`);
+    },
+  },
 ];
 
 function runMigrations() {
@@ -275,7 +315,29 @@ const ITEM_COLUMNS = new Set([
   'year', 'month', 'week_start', 'due_date', 'scheduled_time', 'scheduled_end',
   'end_date', 'location', 'attendees', 'target',
   'done_means', 'target_date', 'position', 'status',
+  'ext_ref', 'tags',   // Weave interop (updated_at is trigger-managed, not client-writable)
 ]);
+
+/* Coerce a client value to its stored column form. `tags` is ALWAYS normalized to
+   a JSON-array string (the shape toRow parses back and the ?tags= filter matches
+   with LIKE '%"tag"%'): an array/object is JSON-encoded; a comma-separated string
+   — what the createItem capability declares — is split into an array; existing
+   JSON-array text passes through. Storing a raw CSV string here (the old bug) made
+   toRow's JSON.parse throw, silently dropping every tag. Booleans → 0/1. */
+function coerceColumn(k, v) {
+  if (typeof v === 'boolean') return v ? 1 : 0;
+  if (k === 'tags') {
+    if (v == null) return v;
+    if (typeof v === 'object') return JSON.stringify(v);
+    if (typeof v === 'string') {
+      const s = v.trim();
+      if (!s) return '[]';
+      if (s.startsWith('[')) return s;   // already a JSON array
+      return JSON.stringify(s.split(',').map(t => t.trim()).filter(Boolean));
+    }
+  }
+  return v;
+}
 
 /* ── Safe JSON for embedding in <script> tags ──────────────────────────── */
 function safeJson(obj) {
@@ -545,7 +607,7 @@ app.use(express.json({ limit: '1mb' }));
 
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  if (origin === SHELL_URL) {
+  if (origin && ALLOWED_ORIGINS.has(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS');
@@ -560,6 +622,7 @@ app.use((req, res, next) => {
 const PUBLIC_PATHS = [
   '/api/auth/google',     // initiates Google Calendar OAuth
   '/api/auth/outlook',    // initiates Outlook Calendar OAuth
+  '/api/capabilities',    // Weave capability declaration — public, no secrets
 ];
 
 if (!JKOS_AUTH_PUBLIC_KEY && !JKOS_AUTH_JWKS_URI && process.env.NODE_ENV === 'production') {
@@ -581,16 +644,71 @@ app.use((req, res, next) => {
   authMiddleware(req, res, next);
 });
 
-/* Block writes for guest users */
+/* Write authorization — three gates, most-specific first. (Reads need no extra
+   gate beyond a valid token; every row is already scoped to req.user.sub.) */
 app.use((req, res, next) => {
-  if (req.user?.role === 'guest' && ['POST', 'PATCH', 'DELETE'].includes(req.method)) {
+  if (!['POST', 'PATCH', 'DELETE'].includes(req.method)) return next();
+  const u = req.user;
+  // 1. Guests are read-only.
+  if (u?.role === 'guest') {
     return res.status(403).json({ error: 'Guest access is read-only' });
+  }
+  // 2. A service token carries no user (sub is 'svc:<id>', not a numeric id), so a
+  //    per-user write would create orphan rows owned by a non-user. Reject until an
+  //    explicit on-behalf-of mechanism exists. (Weave service tokens, Phase 4.)
+  if (u?.typ === 'service') {
+    return res.status(403).json({ error: 'Service tokens cannot write per-user data', code: 'NO_USER_CONTEXT' });
+  }
+  // 3. Capability scope enforcement: a token carrying scopes must hold
+  //    beigeboard:write. Tokens minted before Weave carry no scope array and fall
+  //    through to the role gate above (rollout-safe — see Documentation/WEAVE.md).
+  if (Array.isArray(u?.scope) && !u.scope.includes('beigeboard:write')) {
+    return res.status(403).json({ error: 'Insufficient scope', code: 'INSUFFICIENT_SCOPE', required: ['beigeboard:write'] });
   }
   next();
 });
 
 /* ── Health ────────────────────────────────────────────────────────────── */
 app.get('/health', (_req, res) => res.json({ status: 'ok', service: 'beigeboard' }));
+
+/* ── Weave capability declaration ──────────────────────────────────────────
+   What can be DONE to BeigeBoard, as pure data. The portal (and eventually an
+   AI step) discovers this at GET /api/bb/capabilities and composes write widgets
+   against it — no portal code per action. Public; the resource routes still
+   enforce auth + scope. See Documentation/WEAVE.md. */
+const CAPABILITIES = {
+  app: 'beigeboard',
+  version: 1,
+  capabilities: [
+    {
+      id: 'createItem', label: 'Add a task', method: 'POST', path: '/items',
+      body: [
+        { name: 'title',          type: 'string', label: 'Title', required: true, max: 200 },
+        { name: 'due_date',       type: 'date',   label: 'Due date' },
+        { name: 'scheduled_time', type: 'time',   label: 'Time' },
+        { name: 'notes',          type: 'text',   label: 'Notes' },
+        { name: 'kind',           type: 'enum',   label: 'Kind', enum: ['task', 'event'], default: 'task' },
+        { name: 'tags',           type: 'string', label: 'Tags (comma-separated)' },
+        { name: 'ext_ref',        type: 'string', label: 'External ref' },
+      ],
+      invalidates: ['bb.items'], scopes: ['beigeboard:write'],
+    },
+    {
+      id: 'completeItem', label: 'Mark done', method: 'PATCH', path: '/items/:id',
+      body: [
+        { name: 'id',        type: 'number',  label: 'Item id', required: true },
+        { name: 'completed', type: 'boolean', label: 'Completed', required: true, default: true },
+      ],
+      invalidates: ['bb.items'], scopes: ['beigeboard:write'],
+    },
+    {
+      id: 'deleteItem', label: 'Delete', method: 'DELETE', path: '/items/:id',
+      body: [{ name: 'id', type: 'number', label: 'Item id', required: true }],
+      invalidates: ['bb.items'], scopes: ['beigeboard:write'],
+    },
+  ],
+};
+app.get('/api/capabilities', (_req, res) => res.json(CAPABILITIES));
 
 /* ── Auth: me ──────────────────────────────────────────────────────────── */
 app.get('/api/auth/me', (req, res) => {
@@ -705,7 +823,9 @@ app.get('/api/auth/outlook/callback', async (req, res) => {
 /* ── Items ─────────────────────────────────────────────────────────────── */
 function toRow(raw) {
   if (!raw) return null;
-  return { ...raw, completed: raw.completed === 1 };
+  let tags = [];
+  if (raw.tags) { try { tags = JSON.parse(raw.tags); } catch { tags = []; } }
+  return { ...raw, completed: raw.completed === 1, tags };
 }
 
 function cascadeDeleteInner(id, userId) {
@@ -717,10 +837,30 @@ const cascadeDelete = db.transaction((id, userId) => cascadeDeleteInner(id, user
 
 app.get('/api/items', async (req, res) => {
   try {
-    let rows = all('SELECT * FROM items WHERE user_id = ? ORDER BY id ASC', [req.user.sub]);
-    if (rows.length === 0 && req.user.role !== 'guest') {
+    /* Server-side filters so other suite apps fetch only what they own/need
+       instead of dumping every row: by kind/scope/due_date, by ext_ref prefix
+       (an app's own items), by tag, and by ?since= (deltas via updated_at). */
+    const q = req.query;
+    const clauses = ['user_id = ?'];
+    const params  = [req.user.sub];
+    if (q.kind)            { clauses.push('kind = ?');        params.push(String(q.kind)); }
+    if (q.scope)           { clauses.push('scope = ?');       params.push(String(q.scope)); }
+    if (q.due_date)        { clauses.push('due_date = ?');    params.push(String(q.due_date)); }
+    if (q.ext_ref_prefix)  { clauses.push('ext_ref LIKE ?');  params.push(String(q.ext_ref_prefix) + '%'); }
+    if (q.since)           { clauses.push('updated_at > ?');  params.push(String(q.since)); }
+    if (q.tags) {
+      for (const t of String(q.tags).split(',').map(s => s.trim()).filter(Boolean)) {
+        clauses.push('tags LIKE ?'); params.push('%"' + t + '"%');   // matches a JSON-array element
+      }
+    }
+    const where    = clauses.join(' AND ');
+    const filtered = Object.keys(q).length > 0;
+    let rows = all(`SELECT * FROM items WHERE ${where} ORDER BY id ASC`, params);
+    // Lazy first-run seed only for an unfiltered, empty, non-guest account — a
+    // filter returning nothing must NOT trigger seeding.
+    if (rows.length === 0 && !filtered && req.user.role !== 'guest') {
       await seedDefaults(req.user.sub);
-      rows = all('SELECT * FROM items WHERE user_id = ? ORDER BY id ASC', [req.user.sub]);
+      rows = all(`SELECT * FROM items WHERE ${where} ORDER BY id ASC`, params);
     }
     res.json(rows.map(toRow));
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -732,7 +872,7 @@ app.post('/api/items', (req, res) => {
     if (!raw?.title?.toString().trim()) return res.status(400).json({ error: 'title is required' });
     const d    = { user_id: req.user.sub };
     for (const k of Object.keys(raw)) {
-      if (ITEM_COLUMNS.has(k)) d[k] = typeof raw[k] === 'boolean' ? (raw[k] ? 1 : 0) : raw[k];
+      if (ITEM_COLUMNS.has(k)) d[k] = coerceColumn(k, raw[k]);
     }
     const keys = Object.keys(d);
     const cols = keys.join(', ');
@@ -751,7 +891,7 @@ app.patch('/api/items/:id', (req, res) => {
     const valid = Object.keys(raw).filter(k => ITEM_COLUMNS.has(k));
     if (!valid.length) return res.status(400).json({ error: 'No valid fields to update' });
     const sets = valid.map(k => `${k} = ?`).join(', ');
-    const vals = valid.map(k => typeof raw[k] === 'boolean' ? (raw[k] ? 1 : 0) : raw[k]);
+    const vals = valid.map(k => coerceColumn(k, raw[k]));
     run(`UPDATE items SET ${sets} WHERE id = ? AND user_id = ?`, [...vals, id, req.user.sub]);
     const row = get('SELECT * FROM items WHERE id = ? AND user_id = ?', [id, req.user.sub]);
     if (!row) return res.status(404).json({ error: 'Not found' });

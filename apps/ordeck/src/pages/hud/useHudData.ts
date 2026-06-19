@@ -1,19 +1,25 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { getProfile, type HudPin, type HudFocus } from '@jkos/auth-client';
+import { usePolledResource, invalidate, apiBase, probeApps, type SuiteApp } from '@jkos/weave';
+import { TONE_RANK, type Tone } from '../../hud/tone';
 
-/* Data hooks for the room HUD. All service calls are same-origin paths
-   proxied by the edge nginx (cookies flow, no CORS):
-     /health/*            → per-service health probes
-     /api/lazuros/health  → LazurOS (includes GPU compute status)
-     /api/bb/*            → bb-app   (/api/bb/items → /api/items)
-     /api/sylib/*         → sylibos-api (/api/sylib/summary → /api/summary)
-   Every hook fails soft — a dead service renders an offline state, never an
-   error boundary. */
+/* Data hooks for the room HUD. All service calls are same-origin paths proxied
+   by the edge nginx (cookies flow, no CORS); the proxied roots come from the app
+   manifest (@jkos/weave), not hardcoded here. Every hook fails soft — a dead
+   service renders an offline state, never an error boundary.
+
+   The fetch/poll/teardown plumbing lives in usePolledResource (@jkos/weave);
+   each hook here just declares its fetcher + how it maps failure into its own
+   shape. Writes signal refetches through the keyed invalidation bus
+   (invalidate('bb.items') etc.) rather than per-feature window events. */
+
+const pad = (n: number) => String(n).padStart(2, '0');
+const isoDate = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
 // ── Clock ────────────────────────────────────────────────────────────────────
 
 const WD = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
 const MO = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
-const pad = (n: number) => String(n).padStart(2, '0');
 
 export interface ClockState {
   hm: string;
@@ -23,6 +29,9 @@ export interface ClockState {
   jday: string;
   /** Composed "UTC hh:mm · DAY ddd" — a single bindable line for the spec factory. */
   utcLine: string;
+  /** Today's local date (YYYY-MM-DD) — a bindable "today" for command bodies
+   *  (e.g. a quick-add form defaulting due_date to today). */
+  iso: string;
 }
 
 export function useClock(): ClockState {
@@ -40,14 +49,13 @@ export function useClock(): ClockState {
     utcShort,
     jday,
     utcLine: `UTC ${utcShort} · DAY ${jday}`,
+    iso: isoDate(now),
   };
 }
 
 // ── Weather (AccuWeather when key set, open-meteo fallback) ──────────────────
 
 export const WEATHER_STORAGE_KEY = 'ordeck-weather';
-// Fired after saveWeatherConfig so a live HUD re-fetches without a page reload.
-export const WEATHER_CHANGED_EVENT = 'ordeck-weather-changed';
 const DEFAULT_LOC = { lat: 37.34, lon: -121.89, label: 'SAN JOSE' };
 
 const WMO: Record<number, string> = {
@@ -96,12 +104,12 @@ export function saveWeatherConfig(cfg: Partial<WeatherConfig>) {
   localStorage.setItem(WEATHER_STORAGE_KEY, JSON.stringify({ ...cur, ...cfg }));
 }
 
-// Like saveWeatherConfig but notifies a live HUD to re-fetch immediately.
-// (Used by settings "Save"; the internal location-key cache uses the plain
-// saver so it doesn't trigger a redundant reload.)
+// Like saveWeatherConfig but tells a live HUD to re-fetch immediately. (Used by
+// settings "Save"; the internal location-key cache uses the plain saver so it
+// doesn't trigger a redundant reload.)
 export function saveWeatherConfigLive(cfg: Partial<WeatherConfig>) {
   saveWeatherConfig(cfg);
-  window.dispatchEvent(new Event(WEATHER_CHANGED_EVENT));
+  invalidate('weather.config');
 }
 
 // Fetch AccuWeather location key once and cache it in localStorage.
@@ -118,7 +126,9 @@ async function acuLocationKey(cfg: WeatherConfig): Promise<string> {
   return key;
 }
 
-async function fetchAccuWeather(cfg: WeatherConfig): Promise<Omit<WeatherState, 'loaded' | 'offline'>> {
+type WeatherData = Omit<WeatherState, 'loaded' | 'offline'>;
+
+async function fetchAccuWeather(cfg: WeatherConfig): Promise<WeatherData> {
   const locKey = await acuLocationKey(cfg);
   const [curR, dayR] = await Promise.all([
     fetch(`https://dataservice.accuweather.com/currentconditions/v1/${locKey}?apikey=${cfg.accuweatherKey}&details=true`, { signal: AbortSignal.timeout(8000) }),
@@ -140,7 +150,7 @@ async function fetchAccuWeather(cfg: WeatherConfig): Promise<Omit<WeatherState, 
   };
 }
 
-async function fetchOpenMeteo(cfg: WeatherConfig): Promise<Omit<WeatherState, 'loaded' | 'offline'>> {
+async function fetchOpenMeteo(cfg: WeatherConfig): Promise<WeatherData> {
   const url =
     `https://api.open-meteo.com/v1/forecast?latitude=${cfg.lat}&longitude=${cfg.lon}` +
     `&current=temperature_2m,apparent_temperature,weather_code` +
@@ -168,56 +178,37 @@ async function fetchOpenMeteo(cfg: WeatherConfig): Promise<Omit<WeatherState, 'l
 
 export function useWeather(): WeatherState {
   const cfg = weatherConfig();
-  const [state, setState] = useState<WeatherState>({
+  const initial: WeatherState = {
     loaded: false, offline: false, label: cfg.label, source: 'open-meteo',
     temp: 0, feels: 0, desc: '', hi: 0, lo: 0, slots: [],
-  });
-  // Bumped when settings save a new location, so the effect re-runs and refetches.
-  const [version, setVersion] = useState(0);
-  useEffect(() => {
-    const onChange = () => setVersion(v => v + 1);
-    window.addEventListener(WEATHER_CHANGED_EVENT, onChange);
-    return () => window.removeEventListener(WEATHER_CHANGED_EVENT, onChange);
-  }, []);
-
-  useEffect(() => {
-    let dead = false;
+  };
+  const fetcher = useCallback(async (): Promise<WeatherState> => {
     const c = weatherConfig();
-
-    const load = () => {
-      const p = c.accuweatherKey ? fetchAccuWeather(c) : fetchOpenMeteo(c);
-      return p
-        .then(data => { if (!dead) setState({ loaded: true, offline: false, ...data }); })
-        .catch(() => { if (!dead) setState(s => ({ ...s, loaded: true, offline: true })); });
-    };
-
-    load();
-    // AccuWeather: 60 min to stay within 50 calls/day free tier.
-    // open-meteo: 15 min (no rate limit).
-    const interval = c.accuweatherKey ? 60 * 60_000 : 15 * 60_000;
-    const iv = setInterval(load, interval);
-    return () => { dead = true; clearInterval(iv); };
-  }, [version]);
-
-  return state;
+    try {
+      const data = c.accuweatherKey ? await fetchAccuWeather(c) : await fetchOpenMeteo(c);
+      return { loaded: true, offline: false, ...data };
+    } catch {
+      return {
+        loaded: true, offline: true, label: c.label,
+        source: c.accuweatherKey ? 'accuweather' : 'open-meteo',
+        temp: 0, feels: 0, desc: '', hi: 0, lo: 0, slots: [],
+      };
+    }
+  }, []);
+  // AccuWeather: 60 min to stay within 50 calls/day free tier. open-meteo: 15 min.
+  const intervalMs = cfg.accuweatherKey ? 60 * 60_000 : 15 * 60_000;
+  return usePolledResource(fetcher, initial, { intervalMs, invalidateOn: ['weather.config'] });
 }
 
 // ── Systems (health probes through the edge) ─────────────────────────────────
 
 export type SysStatus = 'up' | 'down' | 'warn' | 'probing';
-/** Spec-factory tone keys (mirrors the registry's TONE map). */
-export type ViewTone = 'ok' | 'warn' | 'danger' | 'muted' | 'accent';
-export interface SysRow { name: string; status: SysStatus; detail: string; tone: ViewTone }
+export interface SysRow { name: string; status: SysStatus; detail: string; tone: Tone }
+export interface SystemsState { rows: SysRow[]; up: number; total: number; summary: string }
 
-const SYS_TONE: Record<SysStatus, ViewTone> = {
+const SYS_TONE: Record<SysStatus, Tone> = {
   up: 'ok', warn: 'warn', down: 'danger', probing: 'muted',
 };
-
-const PROBES: { name: string; path: string }[] = [
-  { name: 'jkauth',     path: '/health/auth' },
-  { name: 'beigeboard', path: '/health/bb' },
-  { name: 'sylibos',    path: '/health/sylibos' },
-];
 
 async function probe(path: string): Promise<{ ok: boolean; ms: number; body: any }> {
   const t0 = performance.now();
@@ -232,51 +223,107 @@ async function probe(path: string): Promise<{ ok: boolean; ms: number; body: any
   }
 }
 
-// aiEnabled gates the LazurOS row — when AI is off suite-wide it isn't probed
-// or shown, so the kill switch leaves no "lazuros" mention in the systems panel.
 const sysRow = (name: string, status: SysStatus, detail: string): SysRow =>
   ({ name, status, detail, tone: SYS_TONE[status] });
 
-export function useSystems(aiEnabled = true): { rows: SysRow[]; up: number; total: number; summary: string } {
-  const [rows, setRows] = useState<SysRow[]>([
-    ...PROBES.map(p => sysRow(p.name, 'probing', '—')),
-    ...(aiEnabled ? [sysRow('lazuros', 'probing', '—')] : []),
-  ]);
+// The probe set comes from the app manifest; aiEnabled drops the LazurOS row so
+// the suite-wide kill switch leaves no "lazuros" mention in the systems panel.
+// `suite` is the hydrated registry map (from useSuiteApps) — passing it makes the
+// probe set reactive, so an app added to the registry shows up here without a
+// portal code change. Omitted → the current live-or-static manifest.
+export function useSystems(aiEnabled = true, suite?: Record<string, SuiteApp>): SystemsState {
+  const apps = useMemo(() => probeApps(aiEnabled, suite), [aiEnabled, suite]);
 
-  useEffect(() => {
-    let dead = false;
+  const fetcher = useCallback(async (): Promise<SystemsState> => {
+    const rows = await Promise.all(apps.map(async (a) => {
+      const r = await probe(a.healthPath!);
+      // LazurOS reports compute (GPU) status in its body — asleep is a warn, not down.
+      if (a.id === 'lazuros') {
+        if (!r.ok) return sysRow('lazuros', 'down', 'down');
+        if (r.body && r.body.compute_online === false) return sysRow('lazuros', 'warn', 'gpu asleep');
+        return sysRow('lazuros', 'up', `${r.ms} ms`);
+      }
+      return sysRow(a.id, r.ok ? 'up' : 'down', r.ok ? `${r.ms} ms` : 'down');
+    }));
+    const up = rows.filter(r => r.status === 'up' || r.status === 'warn').length;
+    return { rows, up, total: rows.length, summary: `${up} / ${rows.length} UP` };
+  }, [apps]);
 
-    const sweep = async () => {
-      const results = await Promise.all([
-        ...PROBES.map(async p => {
-          const r = await probe(p.path);
-          return sysRow(p.name, r.ok ? 'up' : 'down', r.ok ? `${r.ms} ms` : 'down');
-        }),
-        ...(aiEnabled ? [(async () => {
-          const r = await probe('/api/lazuros/health');
-          if (!r.ok) return sysRow('lazuros', 'down', 'down');
-          if (r.body && r.body.compute_online === false) {
-            return sysRow('lazuros', 'warn', 'gpu asleep');
-          }
-          return sysRow('lazuros', 'up', `${r.ms} ms`);
-        })()] : []),
-      ]);
-      if (!dead) setRows(results);
-    };
-
-    sweep();
-    const iv = setInterval(sweep, 30_000);
-    return () => { dead = true; clearInterval(iv); };
-  }, [aiEnabled]);
-
-  // warn counts as up — the service itself responded.
-  const up = rows.filter(r => r.status === 'up' || r.status === 'warn').length;
-  return { rows, up, total: rows.length, summary: `${up} / ${rows.length} UP` };
+  const initial: SystemsState = {
+    rows: apps.map(a => sysRow(a.id, 'probing', '—')),
+    up: 0, total: apps.length, summary: `0 / ${apps.length} UP`,
+  };
+  return usePolledResource(fetcher, initial, { intervalMs: 30_000 });
 }
 
-// ── Today (BeigeBoard items) ─────────────────────────────────────────────────
+// ── BeigeBoard items (ONE source of truth) ───────────────────────────────────
 
-/** A raw task as fetched, before presentation fields are derived. */
+/** The subset of a BeigeBoard item ORDECK reads, normalized to ORDECK's shapes
+ *  (times sliced to hh:mm, booleans coerced). The single place that knows the
+ *  BeigeBoard wire shape — `today` and `cal` derive from this, and it enriches
+ *  shelf pins/focus that point at BeigeBoard — so the dashboard makes ONE
+ *  request, not four. */
+export interface BbItem {
+  id: number;
+  title: string;
+  kind: string;
+  scope: string;
+  due_date: string | null;
+  end_date: string | null;
+  scheduled_time: string | null;   // hh:mm
+  scheduled_end: string | null;    // hh:mm
+  completed: boolean;
+}
+export interface BbItemsState {
+  loaded: boolean;
+  authed: boolean;
+  offline: boolean;
+  items: BbItem[];
+}
+
+const hhmm = (v: unknown): string | null => (v ? String(v).slice(0, 5) : null);
+
+function normalizeBbItem(i: any): BbItem {
+  return {
+    id: i.id,
+    title: i.title,
+    kind: i.kind ?? '',
+    scope: i.scope ?? '',
+    due_date: i.due_date ?? null,
+    end_date: i.end_date ?? null,
+    scheduled_time: hhmm(i.scheduled_time),
+    scheduled_end: hhmm(i.scheduled_end),
+    completed: !!i.completed,
+  };
+}
+
+const BB_API = apiBase('beigeboard');
+
+/** Fetch the BeigeBoard item list once and share it; refetches on the 60s poll
+ *  and whenever a HUD write fires invalidate('bb.items'). All BeigeBoard-backed
+ *  slices select from the value this returns. */
+export function useBbItems(): BbItemsState {
+  const fetcher = useCallback(async (): Promise<BbItemsState> => {
+    try {
+      const r = await fetch(`${BB_API}/items`, { credentials: 'include' });
+      if (r.status === 401 || r.status === 403) return { loaded: true, authed: false, offline: false, items: [] };
+      if (!r.ok) throw new Error('bb items');
+      const raw = await r.json();
+      return { loaded: true, authed: true, offline: false, items: (raw as any[]).map(normalizeBbItem) };
+    } catch {
+      return { loaded: true, authed: true, offline: true, items: [] };
+    }
+  }, []);
+  return usePolledResource(
+    fetcher,
+    { loaded: false, authed: true, offline: false, items: [] },
+    { intervalMs: 60_000, invalidateOn: ['bb.items'] },
+  );
+}
+
+// ── Today (selector over BeigeBoard items) ───────────────────────────────────
+
+/** A raw task pulled from a BbItem, before presentation fields are derived. */
 interface RawTask {
   id: number;
   time: string | null;     // "09:30"
@@ -289,7 +336,7 @@ export interface TodayTask extends RawTask {
   // ── derived (presentation-ready for the spec factory) ──
   timeLabel: string;       // time ?? "—"
   now: boolean;            // the task happening right now
-  tone: ViewTone;          // ok = done, accent = now, muted = upcoming
+  tone: Tone;              // ok = done, accent = now, muted = upcoming
   stateLabel: string;      // "DONE" | "NOW" | the tag
 }
 export interface TodayState {
@@ -310,8 +357,9 @@ export interface TodayState {
 
 interface TodayBase { loaded: boolean; authed: boolean; offline: boolean; tasks: RawTask[] }
 
-/** Add the derived presentation fields. Called every render so `now` tracks the
- *  live clock (the HUD re-renders each second), with no extra timer. */
+/** Add the derived presentation fields. Called every render (from useHudContext)
+ *  so `now` tracks the live clock with no extra timer — the HUD re-renders each
+ *  second. */
 function viewToday(base: TodayBase): TodayState {
   const hm = `${pad(new Date().getHours())}:${pad(new Date().getMinutes())}`;
   const tasks: TodayTask[] = base.tasks.map(t => {
@@ -339,45 +387,14 @@ function viewToday(base: TodayBase): TodayState {
   };
 }
 
-export function useToday(): TodayState {
-  const [base, setBase] = useState<TodayBase>({ loaded: false, authed: true, offline: false, tasks: [] });
-
-  useEffect(() => {
-    let dead = false;
-
-    const load = () => fetch('/api/bb/items', { credentials: 'include' })
-      .then(r => {
-        if (r.status === 401 || r.status === 403) {
-          if (!dead) setBase({ loaded: true, authed: false, offline: false, tasks: [] });
-          return null;
-        }
-        return r.ok ? r.json() : Promise.reject();
-      })
-      .then((items: any[] | null) => {
-        if (dead || !items) return;
-        const today = new Date();
-        const iso = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
-        const tasks: RawTask[] = items
-          .filter(i => i.due_date === iso || i.end_date === iso)
-          .map(i => ({
-            id: i.id,
-            time: i.scheduled_time ? String(i.scheduled_time).slice(0, 5) : null,
-            endTime: i.scheduled_end ? String(i.scheduled_end).slice(0, 5) : null,
-            title: i.title,
-            tag: i.kind ?? '',
-            done: !!i.completed,
-          }))
-          .sort((a, b) => (a.time ?? '99').localeCompare(b.time ?? '99'));
-        setBase({ loaded: true, authed: true, offline: false, tasks });
-      })
-      .catch(() => { if (!dead) setBase(s => ({ ...s, loaded: true, offline: true })); });
-
-    load();
-    const iv = setInterval(load, 60_000);
-    return () => { dead = true; clearInterval(iv); };
-  }, []);
-
-  return viewToday(base);
+/** Today's scheduled items, presentation-ready. */
+export function selectToday(s: BbItemsState): TodayState {
+  const iso = isoDate(new Date());
+  const tasks: RawTask[] = s.items
+    .filter(i => i.due_date === iso || i.end_date === iso)
+    .map(i => ({ id: i.id, time: i.scheduled_time, endTime: i.scheduled_end, title: i.title, tag: i.kind, done: i.completed }))
+    .sort((a, b) => (a.time ?? '99').localeCompare(b.time ?? '99'));
+  return viewToday({ loaded: s.loaded, authed: s.authed, offline: s.offline, tasks });
 }
 
 /** A task is "now" if the current time falls in [start, end) — or within an
@@ -389,6 +406,125 @@ export function isNow(t: { time: string | null; endTime: string | null; done: bo
   const endMin = h * 60 + m + 60;
   const end = `${pad(Math.floor(endMin / 60) % 24)}:${pad(endMin % 60)}`;
   return hm >= t.time && hm < end;
+}
+
+// ── Monthly calendar (selector — task density per day) ───────────────────────
+
+export interface CalDay {
+  date: string;       // YYYY-MM-DD
+  count: number;      // tasks scheduled that day
+  doneCount: number;
+}
+export interface MonthCalState {
+  loaded: boolean;
+  authed: boolean;
+  year: number;
+  month: number;      // 0-indexed
+  days: CalDay[];
+}
+
+export function selectMonth(s: BbItemsState): MonthCalState {
+  const today = new Date();
+  const yr = today.getFullYear();
+  const mo = today.getMonth();
+  const map = new Map<string, { count: number; doneCount: number }>();
+  for (const it of s.items) {
+    const d = it.due_date;
+    if (!d) continue;
+    const [y, m] = d.split('-').map(Number);
+    if (y !== yr || m - 1 !== mo) continue;
+    const cur = map.get(d) ?? { count: 0, doneCount: 0 };
+    map.set(d, { count: cur.count + 1, doneCount: cur.doneCount + (it.completed ? 1 : 0) });
+  }
+  const days: CalDay[] = Array.from(map.entries()).map(([date, v]) => ({ date, ...v }));
+  return { loaded: s.loaded, authed: s.authed, year: yr, month: mo, days };
+}
+
+// ── Focus + Pins (selectors over the suite-wide HUD shelf) ───────────────────
+// Focus/pins live in jkAuth prefs (the HUD shelf), not on BeigeBoard's items —
+// so they're suite-wide: focus is one singleton across every app, and pins are
+// a heterogeneous set. A reference that points at BeigeBoard is enriched from
+// the live item list; a reference from any other app renders its snapshot.
+
+/** The single "now working on" item across the whole suite, if any. */
+export interface FocusState {
+  loaded: boolean;
+  authed: boolean;
+  active: boolean;         // something is currently focused
+  app: string;             // source app of the focused item
+  id: string | null;
+  title: string;
+  timeLabel: string;       // scheduled time, or "—"
+  tag: string;
+  done: boolean;
+  deeplink: string;        // URL back to the item in its app
+}
+export interface PinnedTask {
+  id: string;
+  app: string;             // source app of the pinned item
+  title: string;
+  timeLabel: string;
+  tag: string;
+  done: boolean;
+  tone: Tone;              // ok = done, accent = open
+  deeplink: string;        // URL back to the item in its app
+}
+export interface PinnedState {
+  loaded: boolean;
+  authed: boolean;
+  items: PinnedTask[];
+  count: number;
+  empty: boolean;          // authed, loaded, nothing pinned
+}
+
+const EMPTY_FOCUS: FocusState = { loaded: false, authed: true, active: false, app: '', id: null, title: '', timeLabel: '—', tag: '', done: false, deeplink: '' };
+
+export function selectFocus(focus: HudFocus | null, bb: BbItemsState): FocusState {
+  if (!bb.authed) return { ...EMPTY_FOCUS, loaded: true, authed: false };
+  if (!focus) return { ...EMPTY_FOCUS, loaded: true };
+  const live = focus.app === 'beigeboard' ? bb.items.find(i => String(i.id) === focus.id) : undefined;
+  return {
+    loaded: true, authed: true, active: true,
+    app: focus.app, id: focus.id,
+    title: live?.title ?? focus.label,
+    timeLabel: live?.scheduled_time ?? '—',
+    tag: live?.kind ?? '',
+    done: live?.completed ?? false,
+    deeplink: focus.deeplink ?? '',
+  };
+}
+
+export function selectPinned(pins: HudPin[], bb: BbItemsState): PinnedState {
+  if (!bb.authed) return { loaded: true, authed: false, items: [], count: 0, empty: false };
+  const items: PinnedTask[] = pins.map(p => {
+    const live = p.app === 'beigeboard' ? bb.items.find(i => String(i.id) === p.id) : undefined;
+    const done = live?.completed ?? false;
+    return {
+      id: p.id, app: p.app,
+      title: live?.title ?? p.label,
+      timeLabel: live?.scheduled_time ?? '—',
+      tag: live?.kind ?? '',
+      done,
+      tone: (done ? 'ok' : ((p.tone as Tone) || 'accent')) as Tone,
+      deeplink: p.deeplink ?? '',
+    };
+  });
+  return { loaded: bb.loaded, authed: true, items, count: items.length, empty: bb.loaded && items.length === 0 };
+}
+
+/** The HUD shelf (pins + focus) from jkAuth prefs, kept live: refetches on the
+ *  60s poll, on tab focus, and when a write fires invalidate('hud.shelf'). */
+export interface ShelfRefs { pins: HudPin[]; focus: HudFocus | null }
+export function useShelfRefs(): ShelfRefs {
+  const fetcher = useCallback(async (): Promise<ShelfRefs> => {
+    try {
+      const p = await getProfile();
+      return { pins: p?.preferences.hudPins ?? [], focus: p?.preferences.hudFocus ?? null };
+    } catch {
+      return { pins: [], focus: null };
+    }
+  }, []);
+  return usePolledResource(fetcher, { pins: [], focus: null }, { intervalMs: 60_000, refetchOnVisible: true, invalidateOn: ['hud.shelf'] });
 }
 
 // ── Study (SylibOS summary) ──────────────────────────────────────────────────
@@ -409,10 +545,12 @@ export interface StudyState {
   offlineLabel: string;
 }
 
-function viewStudy(d: {
+interface StudyBase {
   loaded: boolean; available: boolean; streak: number;
   nextLesson: string | null; courseTitle: string | null; todayDone: number; dailyGoal: number;
-}): StudyState {
+}
+
+function viewStudy(d: StudyBase): StudyState {
   const course = d.courseTitle && d.nextLesson ? ` · ${d.courseTitle}` : '';
   return {
     ...d,
@@ -424,98 +562,107 @@ function viewStudy(d: {
   };
 }
 
+const SYLIB_API = apiBase('sylibos');
+const STUDY_OFFLINE: StudyBase = { loaded: true, available: false, streak: 0, nextLesson: null, courseTitle: null, todayDone: 0, dailyGoal: 0 };
+
 export function useStudy(): StudyState {
-  const [state, setState] = useState<StudyState>(() => viewStudy({
-    loaded: false, available: false, streak: 0,
-    nextLesson: null, courseTitle: null, todayDone: 0, dailyGoal: 0,
-  }));
-
-  useEffect(() => {
-    let dead = false;
-
-    const load = () => fetch('/api/sylib/summary', { credentials: 'include' })
-      .then(r => r.ok ? r.json() : Promise.reject())
-      .then(d => {
-        if (dead) return;
-        setState(viewStudy({
-          loaded: true, available: true,
-          streak: d.streak ?? 0,
-          nextLesson: d.nextLesson?.title ?? null,
-          courseTitle: d.activeCourse?.title ?? null,
-          todayDone: d.todayDone ?? 0,
-          dailyGoal: d.dailyGoal ?? 0,
-        }));
-      })
-      .catch(() => { if (!dead) setState(s => viewStudy({ ...s, loaded: true, available: false })); });
-
-    load();
-    const iv = setInterval(load, 5 * 60_000);
-    return () => { dead = true; clearInterval(iv); };
+  const initial = viewStudy({ ...STUDY_OFFLINE, loaded: false });
+  const fetcher = useCallback(async (): Promise<StudyState> => {
+    try {
+      const r = await fetch(`${SYLIB_API}/summary`, { credentials: 'include' });
+      if (!r.ok) throw new Error('sylib summary');
+      const d = await r.json();
+      return viewStudy({
+        loaded: true, available: true,
+        streak: d.streak ?? 0,
+        nextLesson: d.nextLesson?.title ?? null,
+        courseTitle: d.activeCourse?.title ?? null,
+        todayDone: d.todayDone ?? 0,
+        dailyGoal: d.dailyGoal ?? 0,
+      });
+    } catch {
+      return viewStudy(STUDY_OFFLINE);
+    }
   }, []);
-
-  return state;
+  return usePolledResource(fetcher, initial, { intervalMs: 5 * 60_000 });
 }
 
-// ── Monthly calendar (BeigeBoard task density per day) ───────────────────────
+// ── Notifications (DERIVED — one feed over slices already in scope) ──────────
 
-export interface CalDay {
-  date: string;       // YYYY-MM-DD
-  count: number;      // tasks scheduled that day
-  doneCount: number;
+/** A single normalized alert. `icon` is a key in the registry's ICON set; `tone`
+ *  drives its colour. Aggregating here means new sources (a future reminders
+ *  endpoint) just push into the same shape — the widget never changes. */
+export interface Notification {
+  id: string;
+  icon: string;
+  tone: Tone;
+  text: string;
+  detail: string;
+}
+export interface NotificationsState {
+  items: Notification[];
+  count: number;
+  empty: boolean;
+  summary: string;   // "2 ALERTS" | "ALL CLEAR"
 }
 
-export interface MonthCalState {
-  loaded: boolean;
-  authed: boolean;
-  year: number;
-  month: number;      // 0-indexed
-  days: CalDay[];
+/** The slices a producer may read. Each app contributes a producer; adding a
+ *  source (a future reminders feed, another app) is a new producer in the list
+ *  below — not another branch in one growing function. */
+export interface NotifSource {
+  today: TodayState;
+  systems: { rows: SysRow[] };
+  study: StudyState;
 }
+/** A pure mapper from the live slices to zero or more alerts. */
+export type NotificationProducer = (src: NotifSource) => Notification[];
 
-export function useMonthCalendar(): MonthCalState {
-  const now = new Date();
-  const [state, setState] = useState<MonthCalState>({
-    loaded: false, authed: true,
-    year: now.getFullYear(), month: now.getMonth(), days: [],
-  });
+// Systems — a down probe is a danger; a warn (e.g. GPU asleep) is a warning.
+const systemsNotifications: NotificationProducer = ({ systems }) =>
+  systems.rows.flatMap((r) =>
+    r.status === 'down' ? [{ id: `sys-${r.name}`, icon: 'alert', tone: 'danger' as Tone, text: `${r.name.toUpperCase()} DOWN`, detail: 'system offline' }]
+    : r.status === 'warn' ? [{ id: `sys-${r.name}`, icon: 'alert', tone: 'warn' as Tone, text: r.name.toUpperCase(), detail: r.detail }]
+    : [],
+  );
 
-  useEffect(() => {
-    let dead = false;
+// BeigeBoard — the task happening now (accent) and any past-due, unfinished item.
+const todayNotifications: NotificationProducer = ({ today }) => {
+  if (!today.authed || today.offline) return [];
+  const hm = `${pad(new Date().getHours())}:${pad(new Date().getMinutes())}`;
+  return today.tasks.flatMap((t) =>
+    t.now ? [{ id: `now-${t.id}`, icon: 'clock', tone: 'accent' as Tone, text: t.title, detail: 'happening now' }]
+    : (t.time && !t.done && t.time < hm) ? [{ id: `od-${t.id}`, icon: 'alert', tone: 'warn' as Tone, text: t.title, detail: `overdue · ${t.timeLabel}` }]
+    : [],
+  );
+};
 
-    const load = () => fetch('/api/bb/items', { credentials: 'include' })
-      .then(r => {
-        if (r.status === 401 || r.status === 403) {
-          if (!dead) setState(s => ({ ...s, loaded: true, authed: false }));
-          return null;
-        }
-        return r.ok ? r.json() : Promise.reject();
-      })
-      .then((items: any[] | null) => {
-        if (dead || !items) return;
-        const today = new Date();
-        const yr = today.getFullYear();
-        const mo = today.getMonth();
-        // Group by due_date within this month
-        const map = new Map<string, { count: number; doneCount: number }>();
-        for (const it of items) {
-          const d = it.due_date as string | null;
-          if (!d) continue;
-          const [y, m] = d.split('-').map(Number);
-          if (y !== yr || m - 1 !== mo) continue;
-          const cur = map.get(d) ?? { count: 0, doneCount: 0 };
-          map.set(d, { count: cur.count + 1, doneCount: cur.doneCount + (it.completed ? 1 : 0) });
-        }
-        const days: CalDay[] = Array.from(map.entries()).map(([date, v]) => ({ date, ...v }));
-        setState({ loaded: true, authed: true, year: yr, month: mo, days });
-      })
-      .catch(() => { if (!dead) setState(s => ({ ...s, loaded: true })); });
+// SylibOS — behind on the daily study goal.
+const studyNotifications: NotificationProducer = ({ study }) =>
+  (study.available && study.dailyGoal > 0 && study.todayDone < study.dailyGoal && study.headline)
+    ? [{ id: 'study', icon: 'book', tone: 'muted', text: study.headline, detail: `${study.todayDone} / ${study.dailyGoal} today` }]
+    : [];
 
-    load();
-    const iv = setInterval(load, 5 * 60_000);
-    return () => { dead = true; clearInterval(iv); };
-  }, []);
+/** The registered producers — one per contributing app/source. */
+const NOTIFICATION_PRODUCERS: NotificationProducer[] = [
+  systemsNotifications,
+  todayNotifications,
+  studyNotifications,
+];
 
-  return state;
+/**
+ * Fold every producer's alerts into one ranked feed. Pure — no IO of its own, so
+ * it adds zero polling: useHudContext already holds these slices. Adding a source
+ * means registering a producer above; this function never changes.
+ */
+export function deriveNotifications(src: NotifSource): NotificationsState {
+  const items = NOTIFICATION_PRODUCERS.flatMap((produce) => produce(src));
+  items.sort((a, b) => TONE_RANK[a.tone] - TONE_RANK[b.tone]);
+  return {
+    items,
+    count: items.length,
+    empty: items.length === 0,
+    summary: items.length ? `${items.length} ALERT${items.length > 1 ? 'S' : ''}` : 'ALL CLEAR',
+  };
 }
 
 // ── Apps (jkAuth registry, for the top-strip popover) ────────────────────────
@@ -523,14 +670,38 @@ export function useMonthCalendar(): MonthCalState {
 export interface HudApp { id: string; name: string; origin: string }
 
 export function useApps(authUrl: string): HudApp[] {
-  const [apps, setApps] = useState<HudApp[]>([]);
-  useEffect(() => {
-    let dead = false;
-    fetch(`${authUrl}/auth/apps`, { credentials: 'include' })
-      .then(r => r.ok ? r.json() : Promise.reject())
-      .then(d => { if (!dead) setApps(Array.isArray(d) ? d : d.apps ?? []); })
-      .catch(() => { /* popover just shows nothing */ });
-    return () => { dead = true; };
+  const fetcher = useCallback(async (): Promise<HudApp[]> => {
+    try {
+      const r = await fetch(`${authUrl}/auth/apps`, { credentials: 'include' });
+      if (!r.ok) throw new Error('auth apps');
+      const d = await r.json();
+      return Array.isArray(d) ? d : d.apps ?? [];
+    } catch {
+      return [];
+    }
   }, [authUrl]);
-  return apps;
+  return usePolledResource(fetcher, [], {});
 }
+
+// ── Slice schema (the bindable surface, for the workshop) ─────────────────────
+// The fields each always-in-scope slice exposes. This lives WITH the slice
+// interfaces above (not duplicated in the workshop) so adding a field is one edit
+// here and it shows up as a binding suggestion automatically. Keep in sync with
+// the interfaces — `scalars` are leaf values, `arrays` feed a list's `from`.
+
+export interface SliceSchema { scalars: string[]; arrays?: string[] }
+
+export const HUD_SCHEMA: Record<string, SliceSchema> = {
+  clock:         { scalars: ['hm', 'ss', 'dateLine', 'utcShort', 'jday', 'utcLine', 'iso'] },
+  weather:       { scalars: ['temp', 'feels', 'desc', 'hi', 'lo', 'label', 'offline', 'loaded'], arrays: ['slots'] },
+  systems:       { scalars: ['up', 'total', 'summary'], arrays: ['rows'] },
+  study:         { scalars: ['streak', 'headline', 'subLine', 'nextLesson', 'courseTitle', 'todayDone', 'dailyGoal', 'available', 'showStreak', 'unavailable', 'offlineLabel'] },
+  cal:           { scalars: ['year', 'month'], arrays: ['days'] },
+  today:         { scalars: ['authed', 'progressLabel', 'progress', 'doneCount', 'emptyLabel', 'signedOut', 'showOffline', 'showTasks', 'showEmpty'], arrays: ['tasks'] },
+  notifications: { scalars: ['summary', 'count', 'empty'], arrays: ['items'] },
+  focus:         { scalars: ['active', 'title', 'timeLabel', 'tag', 'done', 'authed', 'app', 'deeplink'] },
+  pinned:        { scalars: ['count', 'empty', 'authed'], arrays: ['items'] },
+};
+
+/** Fields exposed by `$` (the current array element) inside a list item. */
+export const HUD_ITEM_FIELDS = ['name', 'detail', 'tone', 'status', 'title', 'time', 'timeLabel', 'stateLabel', 'done', 'now', 'tag', 'label', 'temp', 'date', 'count', 'icon', 'text', 'app', 'deeplink'];

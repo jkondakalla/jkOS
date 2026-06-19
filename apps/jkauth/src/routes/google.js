@@ -105,7 +105,10 @@ router.get('/auth/google/callback', async (req, res) => {
       user = get('SELECT * FROM users WHERE id=?', [result.lastInsertRowid])
       isNew = true
     }
-    issueTokens(res, user)
+    // Carry the OAuth redirect target so token provenance (azp) resolves to the
+    // app being entered.
+    req.body = { ...(req.body || {}), redirect_to: redirectTo }
+    issueTokens(req, res, user)
     logEvent(isNew ? 'google_register' : 'google_login', user.id, req)
     res.redirect(redirectTo || '/auth/dashboard')
   } catch (e) {

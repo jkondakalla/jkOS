@@ -110,9 +110,30 @@ export type WidgetNode =
   | { t: 'when'; cond: Binding; then: WidgetNode; else?: WidgetNode }
   | { t: 'calendar' }
   | { t: 'weather' }
-  | { t: 'list'; from: Binding; item: WidgetNode; empty?: Binding; dir?: 'col' | 'row' };
+  | { t: 'list'; from: Binding; item: WidgetNode; empty?: Binding; dir?: 'col' | 'row' }
+  /* ── Write / interactive vocabulary (the command family) ──────────────────
+   * `form` owns a mutable `$form` source its `input`/`select`/`toggle` children
+   * write into, and a submit that runs `cmd`. `button` is a standalone action.
+   * All writes go through one capability-driven dispatcher (see registry useCommand);
+   * still pure data, so the workshop composes them and an AI can emit them. */
+  | { t: 'form'; cmd: CommandRef; submit: Binding; children: WidgetNode[] }
+  | { t: 'input'; field: string; placeholder?: Binding; itype?: 'text' | 'number' | 'date' | 'time' }
+  | { t: 'select'; field: string; options: Binding; placeholder?: Binding }
+  | { t: 'toggle'; field: string; label?: Binding }
+  | { t: 'button'; text: Binding; cmd: CommandRef; tone?: ToneBinding };
 
 export type Tone = 'ok' | 'warn' | 'danger' | 'muted' | 'accent';
+
+/** A widget's reference to a declared cross-app command (a CapabilityDef in an
+ *  app's CapabilityDoc, discovered via @jkos/weave fetchCapabilities). `body` maps
+ *  capability fields to Bindings — literals, live slices, or `$form.<field>` values
+ *  captured by a form's inputs. The renderer resolves these to a plain body, then
+ *  weave's runCommand issues the request and invalidates the declared resources. */
+export interface CommandRef {
+  app: string;            // manifest id, e.g. 'beigeboard'
+  capability: string;     // CapabilityDef id, e.g. 'createItem'
+  body?: Record<string, Binding>;
+}
 
 /** Card chrome around a body. The captions are Bindings so they can show live
  *  values (e.g. a systems card's "3 / 4 UP" on the right). */

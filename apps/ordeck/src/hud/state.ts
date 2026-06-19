@@ -1,11 +1,14 @@
 /**
  * hud/state.ts — load / persist / mutate the HUD document.
  *
- * Persisted per-user in localStorage for now (key below). When the registry
- * graduates to an admin-managed, shared store, only this module changes — the
- * engine, grid, and widgets all consume HudState and never touch storage.
+ * Persisted per-user in the shared jkAuth preferences blob (`preferences.hud`),
+ * the same cross-app store that holds theme/effects — so the dashboard syncs
+ * across devices with no ORDECK backend. The engine, grid, and widgets all
+ * consume HudState and never touch storage; only this module knows where it
+ * lives. (Legacy localStorage docs are migrated up on first load.)
  */
 
+import { getProfile, patchProfile } from '@jkos/auth-client';
 import {
   HUD_STATE_VERSION,
   type BreakpointName,
@@ -15,11 +18,20 @@ import {
 } from './types';
 import { layoutForBreakpoint, placeAtBottom, activeBreakpoint } from './engine';
 import { BREAKPOINTS } from './types';
+import { appOrigin } from '@jkos/weave';
 
-const STORAGE_KEY = 'ordeck-hud-v4';
+/** Legacy per-device key — read once to migrate existing layouts into prefs. */
+const LEGACY_STORAGE_KEY = 'ordeck-hud-v4';
 
-const BB_URL = 'https://beigeboard.jkos.net';
-const SYLIB_URL = 'https://sylibos.jkos.net';
+/** Handoff channel: the HUD stashes a WidgetDef here, then navigates to the
+ *  workshop, which reads + clears it (the "edit this card" affordance). One
+ *  constant so the writer (RoomHUD) and reader (WidgetWorkshop) can't drift. */
+export const WIDGET_EDIT_KEY = 'ordeck-widget-edit';
+
+/** "Open the app" links in the built-in specs come from the app manifest, so a
+ *  domain change is one edit in @jkos/weave, not scattered across widget specs. */
+const BB_URL = appOrigin('beigeboard');
+const SYLIB_URL = appOrigin('sylibos');
 
 /** The built-in widgets — all declarative specs now (the `component` escape
  *  hatch is retired). clock/today/systems/study compose from atoms + structure
@@ -131,6 +143,102 @@ const DEFAULT_WIDGETS: Record<string, WidgetDef> = {
       ] },
     },
   },
+  // The day at a glance, as one number: a ring of % of today's tasks completed.
+  // Pure read over the `today` slice the Today widget already pulls — ships
+  // shelved (in the registry, not the default layout → on the add strip).
+  progress: {
+    id: 'progress', label: 'Progress',
+    sizing: { desktop: { w: 3, h: 6 }, mobile: { w: 2, h: 5 } },
+    spec: {
+      frame: { eyebrow: 'PROGRESS', source: 'BEIGEBOARD' },
+      body: { t: 'stack', gap: 10, grow: true, children: [
+        { t: 'when', cond: { src: 'today', path: 'showTasks' }, then:
+          { t: 'gauge', value: { src: 'today', path: 'progress' }, max: 1,
+            label: { src: 'today', path: 'progressLabel' } } },
+        { t: 'when', cond: { src: 'today', path: 'signedOut' }, then:
+          { t: 'text', text: 'SIGN IN TO TRACK PROGRESS', variant: 'sub' } },
+        { t: 'when', cond: { src: 'today', path: 'showEmpty' }, then:
+          { t: 'text', text: 'NOTHING SCHEDULED TODAY', variant: 'sub' } },
+        { t: 'when', cond: { src: 'today', path: 'showOffline' }, then:
+          { t: 'text', text: 'BEIGEBOARD OFFLINE', variant: 'sub' } },
+      ] },
+    },
+  },
+  // One feed for the whole suite: down systems, the task happening now, overdue
+  // items, study reminders — derived (see deriveNotifications), not stored.
+  notifications: {
+    id: 'notifications', label: 'Notifications',
+    sizing: { desktop: { w: 4, h: 8 }, mobile: { w: 2, h: 6 } },
+    spec: {
+      frame: { eyebrow: 'ALERTS', source: { src: 'notifications', path: 'summary' } },
+      body: { t: 'list', from: { src: 'notifications', path: 'items' }, empty: 'ALL CLEAR — NO ALERTS',
+        item: { t: 'row', gap: 10, children: [
+          { t: 'icon', name: { src: '$', path: 'icon' }, tone: { src: '$', path: 'tone' }, size: 16 },
+          { t: 'stack', gap: 1, grow: true, children: [
+            { t: 'text', text: { src: '$', path: 'text' }, variant: 'mono', grow: true },
+            { t: 'text', text: { src: '$', path: 'detail' }, variant: 'sub' },
+          ] },
+        ] } },
+    },
+  },
+  // Capture a task to BeigeBoard from the HUD — an interactive (write) card, so
+  // it's a bespoke component (see registry.tsx) rather than a read-only spec.
+  quickadd: {
+    id: 'quickadd', label: 'Quick Add',
+    sizing: { desktop: { w: 4, h: 4 }, mobile: { w: 2, h: 3 } },
+    component: 'quickadd',
+  },
+  // The single "now working on" task pushed from BeigeBoard. Interactive (it can
+  // clear focus), so a bespoke component. When active, the HUD dims its siblings.
+  focus: {
+    id: 'focus', label: 'Focus',
+    sizing: { desktop: { w: 4, h: 6 }, mobile: { w: 2, h: 5 } },
+    component: 'focus',
+  },
+  // Declarative quick-add — a WRITE widget built entirely from the command
+  // vocabulary (form + input + the beigeboard.createItem capability discovered at
+  // runtime), NOT a bespoke component. The forward path that the `quickadd`
+  // component card will fold into, and the canonical example the workshop + a
+  // text→widget AI step emit. Ships shelved (additive via withBuiltins).
+  taskadd: {
+    id: 'taskadd', label: 'Add Task',
+    sizing: { desktop: { w: 4, h: 4 }, mobile: { w: 2, h: 3 } },
+    spec: {
+      frame: { eyebrow: 'ADD TASK', source: 'BEIGEBOARD' },
+      body: {
+        t: 'form',
+        cmd: {
+          app: 'beigeboard', capability: 'createItem',
+          body: {
+            title:    { src: '$form', path: 'title' },
+            due_date: { src: 'clock', path: 'iso' },   // lands on today
+          },
+        },
+        submit: 'ADD',
+        children: [
+          { t: 'input', field: 'title', placeholder: 'Add a task…' },
+        ],
+      },
+    },
+  },
+  // Tasks the user pinned in BeigeBoard, mirrored onto the HUD — read-only list.
+  pinned: {
+    id: 'pinned', label: 'Pinned',
+    sizing: { desktop: { w: 4, h: 8 }, mobile: { w: 2, h: 6 } },
+    spec: {
+      frame: { eyebrow: 'PINNED', source: 'BEIGEBOARD' },
+      body: { t: 'stack', gap: 8, grow: true, children: [
+        { t: 'when', cond: { src: 'pinned', path: 'authed' }, then:
+          { t: 'list', from: { src: 'pinned', path: 'items' }, empty: 'NOTHING PINNED — PIN A TASK IN BEIGEBOARD',
+            item: { t: 'row', gap: 8, justify: 'space-between', children: [
+              { t: 'text', text: { src: '$', path: 'timeLabel' }, variant: 'sub' },
+              { t: 'text', text: { src: '$', path: 'title' }, variant: 'mono', grow: true },
+              { t: 'dot', tone: { src: '$', path: 'tone' } },
+            ] } },
+          else: { t: 'text', text: 'SIGN IN TO SEE PINNED TASKS', variant: 'sub' } },
+      ] },
+    },
+  },
 };
 
 /** Default desktop arrangement (12-col). Mobile is derived by the engine
@@ -153,26 +261,75 @@ export function defaultHudState(): HudState {
   };
 }
 
-export function loadHudState(): HudState {
+/** Accept a value as a HudState only if it matches the current schema version. */
+function validHud(v: unknown): HudState | null {
+  const s = v as HudState | null;
+  return s && s.version === HUD_STATE_VERSION && s.widgets ? s : null;
+}
+
+/**
+ * Ensure every built-in widget exists in a loaded doc's registry — WITHOUT
+ * touching layout. A stored doc carries the widget set from when it was saved,
+ * so new built-ins (added in a later release) would otherwise be invisible.
+ * Additive only: existing defs are left as-is, so user/workshop customisations
+ * and placements survive. New built-ins land on the shelf (absent from layout).
+ */
+function withBuiltins(state: HudState): HudState {
+  let changed = false;
+  const widgets = { ...state.widgets };
+  for (const [id, def] of Object.entries(DEFAULT_WIDGETS)) {
+    if (!widgets[id]) { widgets[id] = structuredClone(def); changed = true; }
+  }
+  return changed ? { ...state, widgets } : state;
+}
+
+/** Read the legacy per-device doc (pre-prefs). Returns null if absent/invalid. */
+function readLegacy(): HudState | null {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return defaultHudState();
-    const parsed = JSON.parse(raw) as HudState;
-    if (!parsed || parsed.version !== HUD_STATE_VERSION || !parsed.widgets) {
-      return defaultHudState();
-    }
-    return parsed;
+    const raw = localStorage.getItem(LEGACY_STORAGE_KEY);
+    return raw ? validHud(JSON.parse(raw)) : null;
   } catch {
-    return defaultHudState();
+    return null;
   }
 }
 
-export function saveHudState(state: HudState): void {
+/**
+ * Load the HUD document from jkAuth prefs. Falls back to a legacy localStorage
+ * doc (migrating it up to prefs), then to defaults. Async — the dashboard
+ * renders defaults immediately and hydrates when this resolves.
+ */
+export async function loadHudState(): Promise<HudState> {
+  let profileHud: HudState | null = null;
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    const profile = await getProfile();
+    profileHud = validHud(profile?.preferences?.hud);
   } catch {
-    /* storage full / disabled — HUD still works for the session */
+    /* offline / signed out — fall through to legacy/defaults */
   }
+  if (profileHud) return withBuiltins(profileHud);
+
+  const legacy = readLegacy();
+  if (legacy) {
+    const merged = withBuiltins(legacy);
+    saveHudState(merged);                        // migrate device → prefs
+    try { localStorage.removeItem(LEGACY_STORAGE_KEY); } catch { /* ignore */ }
+    return merged;
+  }
+  return defaultHudState();
+}
+
+/* Debounced write-through: drag/resize fire rapidly, but the HUD doc is one
+   small JSON blob and prefs is a merge-patch, so coalesce to one PATCH. */
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
+
+export function saveHudState(state: HudState): void {
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    patchProfile({ hud: state }).catch(() => {
+      /* a failed save is non-fatal — the in-memory HUD is still correct and the
+         next mutation retries. */
+    });
+  }, 600);
 }
 
 /** Move a placed widget to the shelf, removing it from every breakpoint layout. */

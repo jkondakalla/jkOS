@@ -19,6 +19,7 @@ jkos/
 │   ├── design/            @jkos/design          hub.css tokens + theme appliers
 │   ├── auth-client/       @jkos/auth-client      FE auth/preferences contract + hook
 │   ├── auth-middleware/   @jkos/auth-middleware  Node JWT verify middleware
+│   ├── weave/             @jkos/weave            suite fabric: manifest, capabilities, command dispatch (see WEAVE.md)
 │   ├── types/             @jkos/types            ORDECK widget TS types
 │   └── ui/                @jkos/ui               ORDECK widget shell + token css
 ├── plugins/               ORDECK federation microfrontends (experimental, not deployed)
@@ -38,7 +39,8 @@ Workspace globs: `apps/*`, `apps/*/backend`, `packages/*`, `plugins/*`. Python u
 |---------|-----------|----------|
 | `@jkos/design` | ordeck, beigeboard, sylibos, `@jkos/ui`, `@jkos/auth-client` | `applyJkOSMode`, `applyJkOSTheme`, `buildJkOSTheme`; `tokens.css` (hub.css) |
 | `@jkos/auth-client` | ordeck, beigeboard, sylibos | types, `normaliseTheme`, `applyTheme`, profile client (`getProfile`/`patchProfile`/`getMe`), `useJkOSPreferences` hook |
-| `@jkos/auth-middleware` | beigeboard/backend, sylibos/backend | `jkosAuth({publicKey,issuer})` Express middleware, `verifyToken` |
+| `@jkos/auth-middleware` | beigeboard/backend, sylibos/backend | `jkosAuth({publicKey,issuer,appId})` Express middleware, `verifyToken`, `requireScope` |
+| `@jkos/weave` | ordeck (and any portal) | app manifest + `useSuiteApps` hydration, `usePolledResource`/`invalidate` bus, capability contract + `fetchCapabilities`/`runCommand`, `extRef` — see [WEAVE.md](WEAVE.md) |
 | `@jkos/ui` | ordeck, beigeboard, sylibos | `WidgetShell`, `SettingsDrawer`/`SettingsSection` (the one suite-wide settings tray) |
 | `@jkos/types` | ordeck, plugins | widget manifest/instance TS types |
 

@@ -74,6 +74,26 @@ const OAUTH_NONCE_COOKIE = '_oauth_nonce' + COOKIE_SUFFIX   // env-suffixed too 
 const COOKIE_DOMAIN = process.env.COOKIE_DOMAIN || '.jkos.net'
 const COOKIE_OPTS = { httpOnly: true, sameSite: 'lax', secure: true, path: '/', domain: COOKIE_DOMAIN }
 
+// Service-to-service clients (client-credentials grant at POST /auth/token).
+// Format: JKOS_SERVICE_CLIENTS = "id:secret:scopeA|scopeB,id2:secret2:scopeC"
+// — a comma list of clients, each "<clientId>:<secret>:<pipe-separated scopes>".
+// A client may only ever be granted scopes from its own configured set. Unset →
+// the endpoint refuses (503); no service tokens exist until an operator opts in.
+function parseServiceClients(raw) {
+  const out = {}
+  for (const entry of String(raw || '').split(',').map(s => s.trim()).filter(Boolean)) {
+    const i = entry.indexOf(':')
+    const j = entry.indexOf(':', i + 1)
+    if (i < 0 || j < 0) continue
+    const id = entry.slice(0, i)
+    const secret = entry.slice(i + 1, j)
+    const scopes = entry.slice(j + 1).split('|').map(s => s.trim()).filter(Boolean)
+    if (id && secret) out[id] = { secret, scopes }
+  }
+  return out
+}
+const SERVICE_CLIENTS = parseServiceClients(process.env.JKOS_SERVICE_CLIENTS)
+
 const JWT_ISSUER = process.env.JKOS_AUTH_ISSUER || 'jkos-auth'
 // kid of the ACTIVE signing key (must appear in /auth/jwks). Env-overridable so a
 // rotation can advance it without a code change. (S4/U3)
@@ -92,4 +112,5 @@ module.exports = {
   COOKIE_SUFFIX, TOKEN_COOKIE, REFRESH_COOKIE, OAUTH_NONCE_COOKIE,
   COOKIE_DOMAIN, COOKIE_OPTS,
   JWT_ISSUER, JWT_KID, JWT_KID_NEXT,
+  SERVICE_CLIENTS,
 }

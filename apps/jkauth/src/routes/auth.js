@@ -3,13 +3,14 @@
 // login / register / logout / guest POST handlers.
 
 const express = require('express')
-const { GUEST_PASSWORD, PASSWORD_MAX, REFRESH_COOKIE } = require('../config')
+const crypto = require('crypto')
+const { GUEST_PASSWORD, PASSWORD_MAX, REFRESH_COOKIE, SERVICE_CLIENTS } = require('../config')
 const { get, run, logEvent } = require('../db')
 const { validateRedirectTo, passwordError, loginBackoffMs } = require('../util')
 const { loginPage, dashboardPage, twoFactorPage } = require('../views')
 const {
   DUMMY_HASH, sha256, issueTokens, clearTokens, tryRotate, resolveOrRefresh, publicUser,
-  signPending, verifyPending,
+  signPending, verifyPending, signService,
 } = require('../tokens')
 const { HASH_ALGO, hashPassword, verifyPassword, needsRehash } = require('../password')
 const {
@@ -80,7 +81,7 @@ router.post('/auth/register', async (req, res) => {
     const result = run('INSERT INTO users (email, name, password_hash, hash_algo, role) VALUES (?,?,?,?,?)',
       [normalEmail, (name || normalEmail.split('@')[0]).slice(0, 64), hash, algo, role])
     const user = get('SELECT * FROM users WHERE id=?', [result.lastInsertRowid])
-    issueTokens(res, user)
+    issueTokens(req, res, user)
     logEvent('register', user.id, req, { role })
     if (isJson) return res.status(201).json({ user: publicUser(user) })
     const dest = validateRedirectTo(redirect_to) || '/auth/dashboard'
@@ -166,7 +167,7 @@ router.post('/auth/login', async (req, res) => {
     return res.send(twoFactorPage({ pendingToken: pending, methods: enabledMethods(user), redirectTo: dest }))
   }
 
-  issueTokens(res, user, remember)
+  issueTokens(req, res, user, remember)
   logEvent('login', user.id, req, { remember })
   if (isJson) return res.json({ user: publicUser(user) })
   const dest = validateRedirectTo(redirect_to) || '/auth/dashboard'
@@ -200,7 +201,10 @@ router.post('/auth/login/2fa', async (req, res) => {
     }))
   }
   run("UPDATE users SET last_login=datetime('now') WHERE id=?", [user.id])
-  issueTokens(res, user, !!pending.remember)
+  // Carry the pending redirect target through so token provenance (azp) resolves
+  // to the app being entered, not just the request Origin.
+  req.body.redirect_to = pending.rt || req.body.redirect_to
+  issueTokens(req, res, user, !!pending.remember)
   logEvent('login', user.id, req, { remember: !!pending.remember, twofa: method })
   if (isJson) return res.json({ user: publicUser(user) })
   res.redirect(validateRedirectTo(pending.rt) || '/auth/dashboard')
@@ -245,6 +249,41 @@ router.post('/auth/refresh', (req, res) => {
   }
 })
 
+// POST /auth/token — service-to-service client-credentials grant. A configured
+// service (JKOS_SERVICE_CLIENTS) presents its id + secret and gets a short-lived
+// Bearer token (typ:'service', no human sub) scoped to a subset of its allowed
+// scopes. This is how a backend acts cross-app WITHOUT a user cookie — a cron,
+// agent, or webhook. Issuance is auth-core; the directory it acts on is Weave.
+router.post('/auth/token', (req, res) => {
+  if (!SERVICE_CLIENTS || Object.keys(SERVICE_CLIENTS).length === 0) {
+    return res.status(503).json({ error: 'Service tokens are not enabled' })
+  }
+  const { client_id, client_secret, scope } = req.body || {}
+  const client = client_id ? SERVICE_CLIENTS[client_id] : null
+  const secretOk = client && (() => {
+    const a = Buffer.from(String(client_secret || ''))
+    const b = Buffer.from(client.secret)
+    return a.length === b.length && crypto.timingSafeEqual(a, b)
+  })()
+  if (!secretOk) {
+    logEvent('service_token_denied', null, req, { client_id })
+    return res.status(401).json({ error: 'Invalid client credentials' })
+  }
+  // Default to the client's full grant; clamp any request to it (never escalate).
+  const requested = Array.isArray(scope) ? scope
+    : typeof scope === 'string' ? scope.split(/[\s,]+/).filter(Boolean)
+    : client.scopes
+  const granted = requested.filter(s => client.scopes.includes(s))
+  if (granted.length === 0) {
+    // Nothing grantable → a token with no scope (and an empty audience) is useless
+    // and signals a misconfigured request; fail loudly instead of minting it.
+    return res.status(400).json({ error: 'No grantable scope requested', code: 'NO_SCOPE' })
+  }
+  const token = signService(client_id, granted)
+  logEvent('service_token', null, req, { client_id, scopes: granted })
+  res.json({ access_token: token, token_type: 'Bearer', expires_in: 600, scope: granted.join(' ') })
+})
+
 // POST /auth/guest — guest login (only when GUEST_PASSWORD is set)
 router.post('/auth/guest', (req, res) => {
   const isJson = isJsonReq(req)
@@ -257,7 +296,7 @@ router.post('/auth/guest', (req, res) => {
     if (isJson) return res.status(500).json({ error: 'Guest account not available' })
     return res.send(loginPage({ error: 'Guest account not available' }))
   }
-  issueTokens(res, guest)
+  issueTokens(req, res, guest)
   logEvent('guest_login', guest.id, req)
   if (isJson) {
     const { redirect_to } = req.body

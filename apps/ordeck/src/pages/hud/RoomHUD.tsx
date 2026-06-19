@@ -2,14 +2,14 @@ import { useState, useEffect, useRef } from 'react';
 import { SettingsDrawer } from '@jkos/ui';
 import { useJkOSPreferences, AUTH_URL } from '../../hooks/useJkOSPreferences';
 import { WeatherSection } from '../../components/settings/WeatherSection';
-import {
-  useClock, useWeather, useSystems, useToday, useStudy, useApps,
-  useMonthCalendar,
-} from './useHudData';
+import { useApps } from './useHudData';
+import { useHudContext } from './useHudContext';
 import { HudGrid } from '../../hud/HudGrid';
-import { renderWidget, type WidgetCtx } from '../../hud/registry';
+import { renderWidget } from '../../hud/registry';
 import {
-  loadHudState, saveHudState, removeToShelf, placeFromShelf, shelvedWidgets, setBreakpointLayout,
+  loadHudState, saveHudState, defaultHudState,
+  removeToShelf, placeFromShelf, shelvedWidgets, setBreakpointLayout,
+  WIDGET_EDIT_KEY,
 } from '../../hud/state';
 import type { HudState } from '../../hud/types';
 import '../../styles/hud.css';
@@ -27,25 +27,25 @@ export default function RoomHUD() {
   const { theme, effects, lazuros, user, saving, patchTheme, patchEffects, patchLazuros } =
     useJkOSPreferences();
 
-  const clock   = useClock();
-  const weather = useWeather();
-  const systems = useSystems(lazuros.enabled);
-  const today   = useToday();
-  const study   = useStudy();
-  const apps    = useApps(AUTH_URL);
-  const cal     = useMonthCalendar();
+  // All widget slices in one context (single BeigeBoard fetch shared across them).
+  const ctx  = useHudContext(lazuros.enabled);
+  const apps = useApps(AUTH_URL);
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [appsOpen, setAppsOpen]         = useState(false);
   const [editMode, setEditMode]         = useState(false);
-  const [hud, setHud]                   = useState<HudState>(loadHudState);
+  // Render defaults instantly; hydrate from jkAuth prefs once it resolves.
+  const [hud, setHud]                   = useState<HudState>(defaultHudState);
+  const hydratedRef = useRef(false);
   const popRef = useRef<HTMLDivElement>(null);
 
   const isDark = document.documentElement.getAttribute('data-mode') === 'dark';
   const toggleMode = () => patchTheme({ mode: isDark ? 'light' : 'dark' });
 
   // Every HUD mutation persists immediately — placement is the user's document.
-  const update = (next: HudState) => { setHud(next); saveHudState(next); };
+  // Suppressed until hydration completes so the initial defaults never overwrite
+  // the user's stored doc.
+  const update = (next: HudState) => { setHud(next); if (hydratedRef.current) saveHudState(next); };
   const shelve = (id: string) => update(removeToShelf(hud, id));
   const place  = (id: string) => update(placeFromShelf(hud, id, window.innerWidth));
   // Hand the card's definition to the workshop (works for any placed spec card,
@@ -53,7 +53,7 @@ export default function RoomHUD() {
   const editInWorkshop = (id: string) => {
     const def = hud.widgets[id];
     if (!def) return;
-    try { localStorage.setItem('ordeck-widget-edit', JSON.stringify(def)); } catch { /* ignore */ }
+    try { localStorage.setItem(WIDGET_EDIT_KEY, JSON.stringify(def)); } catch { /* ignore */ }
     window.location.href = '/widgets';
   };
 
@@ -73,22 +73,32 @@ export default function RoomHUD() {
     return () => window.removeEventListener('keydown', close);
   }, [editMode]);
 
-  // Merge admin-published widgets (jkAuth registry) into the registry so they
-  // show on the add strip and render via the spec factory. Server wins; this
-  // runtime merge isn't persisted to the user's local HUD doc.
+  // Hydrate the user's HUD doc from jkAuth prefs, THEN merge admin-published
+  // widgets (jkAuth registry) on top so they show on the add strip and render
+  // via the spec factory. Order matters: hydration replaces the whole doc, so
+  // it must land before the (functional) merge — otherwise it would clobber it.
+  // The published merge is runtime-only and isn't persisted to the user's doc.
   useEffect(() => {
-    fetch(`${AUTH_URL}/auth/widgets`, { credentials: 'include' })
-      .then((r) => (r.ok ? r.json() : { widgets: [] }))
-      .then((d) => {
+    let dead = false;
+    (async () => {
+      const loaded = await loadHudState();
+      if (dead) return;
+      setHud(loaded);
+      hydratedRef.current = true;
+
+      try {
+        const r = await fetch(`${AUTH_URL}/auth/widgets`, { credentials: 'include' });
+        const d = r.ok ? await r.json() : { widgets: [] };
         const list = Array.isArray(d.widgets) ? d.widgets : [];
-        if (!list.length) return;
+        if (dead || !list.length) return;
         setHud((h) => {
           const widgets = { ...h.widgets };
           for (const w of list) if (w && typeof w.id === 'string') widgets[w.id] = w;
           return { ...h, widgets };
         });
-      })
-      .catch(() => {});
+      } catch { /* add strip just shows the built-ins */ }
+    })();
+    return () => { dead = true; };
   }, []);
 
   function toggleEdit() {
@@ -99,10 +109,14 @@ export default function RoomHUD() {
   // AI-backed widgets honor the suite-wide LazurOS kill switch.
   const shelf = shelvedWidgets(hud).filter(w => !w.ai || lazuros.enabled);
 
-  const sysDot = systems.up === systems.total ? 'var(--hub-green)'
-    : systems.up === 0 ? 'var(--hub-red)' : 'var(--hub-warn)';
+  const sysDot = ctx.systems.up === ctx.systems.total ? 'var(--hub-green)'
+    : ctx.systems.up === 0 ? 'var(--hub-red)' : 'var(--hub-warn)';
 
-  const ctx: WidgetCtx = { clock, weather, systems, today, study, cal, authUrl: AUTH_URL };
+  // Focus mode: when a task is focused AND the Focus card is on the canvas, the
+  // grid dims every other card around it. Skipped if the card is shelved (else
+  // there'd be nothing to highlight).
+  const focusPlaced = !shelvedWidgets(hud).some((w) => w.id === 'focus');
+  const highlightId = ctx.focus.active && focusPlaced ? 'focus' : undefined;
 
   return (
     <div className={`hud-root${editMode ? ' edit-mode' : ''}`}>
@@ -115,7 +129,7 @@ export default function RoomHUD() {
 
         <span className="hud-syschip">
           <span className="hud-dot pulse" style={{ background: sysDot }} />
-          {systems.up} OF {systems.total} SYSTEMS UP
+          {ctx.systems.up} OF {ctx.systems.total} SYSTEMS UP
         </span>
 
         <button className="hud-topbtn" onClick={toggleMode} title="Toggle theme">
@@ -191,6 +205,7 @@ export default function RoomHUD() {
       <HudGrid
         state={hud}
         editMode={editMode}
+        highlightId={highlightId}
         onRemove={shelve}
         onEdit={editInWorkshop}
         onRequestEdit={() => setEditMode(true)}

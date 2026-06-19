@@ -10,7 +10,7 @@ const {
   TOKEN_COOKIE, REFRESH_COOKIE, COOKIE_OPTS,
   ACCESS_TTL_MS, REFRESH_TTL_MS, REMEMBER_TTL_MS, REFRESH_GRACE_MS,
 } = require('./config')
-const { run, get, logEvent } = require('./db')
+const { run, get, logEvent, roleClaims, appIdForOrigin } = require('./db')
 const { hashPasswordSync } = require('./password')
 
 const sha256 = s => crypto.createHash('sha256').update(s).digest('hex')
@@ -23,16 +23,48 @@ const sqliteToMs = s => Date.parse(String(s).replace(' ', 'T') + 'Z')
 // with the current scheme so verifyPassword(..., HASH_ALGO) does identical work.
 const DUMMY_HASH = hashPasswordSync('_timing_sentinel_' + crypto.randomBytes(16).toString('hex')).hash
 
+// The origin of a URL, or null if unparseable.
+function originOf(url) { try { return new URL(url).origin } catch { return null } }
+
+// `azp` (authorized party / provenance): which app a token is minted through.
+// Prefer the login's redirect target (the app being entered), else the request
+// Origin (set by the SPA on a cross-origin refresh/login fetch). Best-effort —
+// null when neither resolves to a registered app.
+function provenance(req, redirectTo) {
+  return (redirectTo && appIdForOrigin(originOf(redirectTo)))
+    || appIdForOrigin(req?.headers?.origin)
+    || null
+}
+
+const redirectFromReq = req => req?.body?.redirect_to || req?.query?.redirect_to || null
+
 // avatar_url is intentionally NOT in the access token: a long Google CDN URL
 // bloats every cookie/request, and no backend reads it from the token (apps fetch
 // it from /auth/me). Keep this payload minimal. (slim-JWT, U9)
-function signAccess(user) {
+//
+// The token carries the maximal-security claims (registry-derived, role-based):
+//   aud   — app ids this role may access; each app verifies its own id ∈ aud
+//   scope — named-scope grant the resource apps gate capabilities on
+//   azp   — provenance (which app minted the session), when known
+function signAccess(user, { azp = null } = {}) {
   if (!PRIVATE_KEY) throw new Error('JKOS_AUTH_PRIVATE_KEY not set')
-  return jwt.sign(
-    { sub: user.id, email: user.email, name: user.name, role: user.role },
-    PRIVATE_KEY,
-    { algorithm: 'RS256', expiresIn: '15m', issuer: JWT_ISSUER, keyid: JWT_KID }
-  )
+  const { aud, scope } = roleClaims(user.role)
+  const payload = { sub: user.id, email: user.email, name: user.name, role: user.role, scope }
+  if (azp) payload.azp = azp
+  return jwt.sign(payload, PRIVATE_KEY,
+    { algorithm: 'RS256', expiresIn: '15m', issuer: JWT_ISSUER, keyid: JWT_KID, audience: aud })
+}
+
+// Service-to-service token (client-credentials grant, POST /auth/token). No human
+// `sub` — it carries the client identity (azp + sub 'svc:<id>'), typ 'service' so
+// middleware can distinguish it, and the requested scopes. `aud` is derived from
+// the scope prefixes so the same per-app audience check applies as for users.
+function signService(clientId, scope) {
+  if (!PRIVATE_KEY) throw new Error('JKOS_AUTH_PRIVATE_KEY not set')
+  const aud = [...new Set(scope.map(s => s.split(':')[0]).filter(Boolean))]
+  return jwt.sign({ typ: 'service', azp: clientId, scope }, PRIVATE_KEY,
+    { algorithm: 'RS256', expiresIn: '10m', issuer: JWT_ISSUER, keyid: JWT_KID,
+      subject: `svc:${clientId}`, audience: aud })
 }
 
 // Issue a fresh access JWT + refresh token for a user, writing both cookies.
@@ -48,8 +80,10 @@ function signAccess(user) {
 //
 // familyId: pass the existing family when rotating (refresh) so the lineage is
 // preserved; omit on a fresh login to start a new family. (S2)
-function issueTokens(res, user, remember = true, familyId = null) {
-  const token = signAccess(user)
+// `req` is read for token provenance (azp) only — the originating app from the
+// login redirect or the request Origin.
+function issueTokens(req, res, user, remember = true, familyId = null) {
+  const token = signAccess(user, { azp: provenance(req, redirectFromReq(req)) })
   const refresh = crypto.randomBytes(64).toString('hex')
   const refreshHash = sha256(refresh)
   const family = familyId || crypto.randomUUID()
@@ -114,7 +148,7 @@ function tryRotate(req, res) {
     const session = get('SELECT * FROM sessions WHERE token_hash=?', [hash])
     const user = get('SELECT * FROM users WHERE id=?', [session.user_id])
     if (!user) { clearTokens(res); return { status: 'expired' } }
-    issueTokens(res, user, !!session.remember_me, session.family_id)
+    issueTokens(req, res, user, !!session.remember_me, session.family_id)
     return { status: 'ok', user }
   }
 
@@ -193,7 +227,7 @@ function publicUser(u) {
 }
 
 module.exports = {
-  DUMMY_HASH, sha256, signAccess, issueTokens, clearTokens,
+  DUMMY_HASH, sha256, signAccess, signService, issueTokens, clearTokens,
   liveSession, tryRotate, resolveUser, resolveOrRefresh, publicUser,
-  signPending, verifyPending,
+  signPending, verifyPending, provenance,
 }

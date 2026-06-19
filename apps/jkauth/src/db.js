@@ -155,6 +155,29 @@ const MIGRATIONS = [
       updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
     )`)
   }],
+
+  // Suite fabric (Weave): integration metadata on the app directory so the
+  // portal's manifest can hydrate from the registry as the single source of
+  // truth — where each app's edge-proxied API lives (api_base), how to probe it
+  // (health_path), where its capability declaration is (capabilities_path), and
+  // whether it's gated by the suite-wide AI kill switch (ai). Backfilled for the
+  // seeded apps because seedAppRegistry only inserts MISSING rows — existing rows
+  // would otherwise keep NULL metadata.
+  ['012_app_registry_weave', () => {
+    addColumn('app_registry', 'api_base', 'TEXT')
+    addColumn('app_registry', 'health_path', 'TEXT')
+    addColumn('app_registry', 'capabilities_path', 'TEXT')
+    addColumn('app_registry', 'ai', 'INTEGER NOT NULL DEFAULT 0')
+    const meta = {
+      beigeboard: { api_base: '/api/bb',    health_path: '/health/bb',      capabilities_path: '/api/bb/capabilities', ai: 0 },
+      sylibos:    { api_base: '/api/sylib', health_path: '/health/sylibos', capabilities_path: null,                   ai: 0 },
+      auth:       { api_base: null,         health_path: '/health/auth',    capabilities_path: null,                   ai: 0 },
+    }
+    for (const [id, m] of Object.entries(meta)) {
+      run('UPDATE app_registry SET api_base=?, health_path=?, capabilities_path=?, ai=? WHERE id=?',
+        [m.api_base, m.health_path, m.capabilities_path, m.ai, id])
+    }
+  }],
 ]
 
 function runMigrations() {
@@ -200,17 +223,20 @@ function seedGuest() {
 }
 
 function seedAppRegistry() {
+  // Integration metadata (api_base/health_path/capabilities_path/ai) seeds fresh
+  // DBs here; existing DBs are backfilled by migration 012. Keep the two in sync.
   const defaults = [
-    { id: 'beigeboard', name: 'BeigeBoard', origin: 'https://beigeboard.jkos.net', icon_url: null, allowed_roles: 'user,admin,guest' },
-    { id: 'sylibos',    name: 'SylibOS',    origin: 'https://sylibos.jkos.net',    icon_url: null, allowed_roles: 'user,admin' },
-    { id: 'auth',       name: 'jkOS Auth',  origin: 'https://auth.jkos.net',       icon_url: null, allowed_roles: 'user,admin,guest' },
-    { id: 'ordeck',     name: 'ORDECK',     origin: 'https://jkos.net',            icon_url: null, allowed_roles: 'user,admin' },
-    { id: 'staging',    name: 'Staging',    origin: 'https://staging.jkos.net',    icon_url: null, allowed_roles: 'admin' },
+    { id: 'beigeboard', name: 'BeigeBoard', origin: 'https://beigeboard.jkos.net', icon_url: null, allowed_roles: 'user,admin,guest', api_base: '/api/bb',    health_path: '/health/bb',      capabilities_path: '/api/bb/capabilities', ai: 0 },
+    { id: 'sylibos',    name: 'SylibOS',    origin: 'https://sylibos.jkos.net',    icon_url: null, allowed_roles: 'user,admin',       api_base: '/api/sylib', health_path: '/health/sylibos', capabilities_path: null,                   ai: 0 },
+    { id: 'auth',       name: 'jkOS Auth',  origin: 'https://auth.jkos.net',       icon_url: null, allowed_roles: 'user,admin,guest', api_base: null,         health_path: '/health/auth',    capabilities_path: null,                   ai: 0 },
+    { id: 'ordeck',     name: 'ORDECK',     origin: 'https://jkos.net',            icon_url: null, allowed_roles: 'user,admin',       api_base: null,         health_path: null,              capabilities_path: null,                   ai: 0 },
+    { id: 'staging',    name: 'Staging',    origin: 'https://staging.jkos.net',    icon_url: null, allowed_roles: 'admin',            api_base: null,         health_path: null,              capabilities_path: null,                   ai: 0 },
   ]
   for (const app of defaults) {
     if (!get('SELECT 1 FROM app_registry WHERE id=?', [app.id])) {
-      run('INSERT INTO app_registry (id, name, origin, icon_url, allowed_roles) VALUES (?,?,?,?,?)',
-        [app.id, app.name, app.origin, app.icon_url, app.allowed_roles])
+      run(`INSERT INTO app_registry (id, name, origin, icon_url, allowed_roles, api_base, health_path, capabilities_path, ai)
+           VALUES (?,?,?,?,?,?,?,?,?)`,
+        [app.id, app.name, app.origin, app.icon_url, app.allowed_roles, app.api_base, app.health_path, app.capabilities_path, app.ai])
     }
   }
 }
@@ -225,9 +251,48 @@ function getAppOrigins() {
   return _cachedAppOrigins
 }
 
+// origin → app id, cached. Used to stamp an access token's `azp` (provenance:
+// which app the session was minted through) from the login redirect / request
+// origin. Same restart-to-refresh contract as getAppOrigins.
+let _cachedOriginToId = null
+function appIdForOrigin(origin) {
+  if (!origin) return null
+  if (!_cachedOriginToId) {
+    _cachedOriginToId = new Map(all('SELECT id, origin FROM app_registry').map(r => [r.origin, r.id]))
+  }
+  return _cachedOriginToId.get(origin) || null
+}
+
+// Registry-derived token claims for a role, cached per role. `aud` is the set of
+// app ids the role may access (allowed_roles ⊇ role) — each app verifies its own
+// id ∈ aud, giving real audience enforcement without breaking the single shared
+// SSO cookie. `scope` is the named-scope grant derived from the same set:
+// <app>:read for every reachable app, +<app>:write for non-guests, +<app>:admin
+// for admins, plus a suite-wide suite:admin. Capabilities declare required scopes
+// and the resource app checks token.scope ⊇ required. Cached because app_registry
+// only changes on restart (same contract as the other caches above).
+const _cachedRoleClaims = new Map()
+function roleClaims(role) {
+  if (_cachedRoleClaims.has(role)) return _cachedRoleClaims.get(role)
+  const aud = []
+  const scope = []
+  for (const r of all('SELECT id, allowed_roles FROM app_registry')) {
+    const roles = String(r.allowed_roles || '').split(',').map(s => s.trim())
+    if (!roles.includes(role)) continue
+    aud.push(r.id)
+    scope.push(`${r.id}:read`)
+    if (role !== 'guest') scope.push(`${r.id}:write`)
+    if (role === 'admin') scope.push(`${r.id}:admin`)
+  }
+  if (role === 'admin') scope.push('suite:admin')
+  const claims = { aud, scope }
+  _cachedRoleClaims.set(role, claims)
+  return claims
+}
+
 runMigrations()
 seedAdmin()
 seedGuest()
 seedAppRegistry()
 
-module.exports = { db, run, all, get, getAppOrigins, logEvent }
+module.exports = { db, run, all, get, getAppOrigins, appIdForOrigin, roleClaims, logEvent }
