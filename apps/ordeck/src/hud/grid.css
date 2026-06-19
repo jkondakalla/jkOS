@@ -79,11 +79,12 @@
   z-index: 3;
 }
 
-/* Edit (→ workshop) affordance, sits just left of the remove button. */
+/* Edit (→ workshop) affordance, pinned to the opposite (bottom-left) corner so it
+   never overlaps the top-right remove button. */
 .hud-cell-edit {
   position: absolute;
-  top: -8px;
-  right: 22px;
+  bottom: -8px;
+  left: -8px;
   z-index: 3;
   display: inline-flex;
   align-items: center;

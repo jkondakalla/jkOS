@@ -56,6 +56,14 @@ export default function RoomHUD() {
     try { localStorage.setItem(WIDGET_EDIT_KEY, JSON.stringify(def)); } catch { /* ignore */ }
     window.location.href = '/widgets';
   };
+  // Open the workshop to compose a NEW widget — clear any stale "edit this card"
+  // handoff so it starts blank rather than reloading a previously-edited card.
+  const openWorkshop = () => {
+    try { localStorage.removeItem(WIDGET_EDIT_KEY); } catch { /* ignore */ }
+    window.location.href = '/widgets';
+  };
+
+  const isAdmin = (user as { role?: string } | null)?.role === 'admin';
 
   useEffect(() => {
     if (!appsOpen) return;
@@ -150,6 +158,18 @@ export default function RoomHUD() {
             <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33h.01a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51h.01a1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82v.01a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z" />
           </svg>
         </button>
+
+        {/* Widget Workshop — compose/publish a new widget (admin only). */}
+        {isAdmin && (
+          <button className="hud-topbtn" onClick={openWorkshop} title="Widget workshop">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="7" height="7" rx="1" />
+              <rect x="14" y="3" width="7" height="7" rx="1" />
+              <rect x="3" y="14" width="7" height="7" rx="1" />
+              <path d="M17.5 14.5v6M14.5 17.5h6" />
+            </svg>
+          </button>
+        )}
 
         {/* Edit mode — click to enter, click again (or Esc) to exit.
             Long-press entry (Feature 2) replaces this toggle in a later phase. */}
