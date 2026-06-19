@@ -8,7 +8,7 @@ import { DragProvider } from './providers/DragProvider'
 import { MobileApp } from './mobile'
 import { injectJkOSTheme } from '@jkos/design'
 
-import { Halation, Artifacts, ScanLines, CinematicIntro } from './components/Overlays'
+import { Artifacts, ScanLines, CinematicIntro } from './components/Overlays'
 import { AppHeader } from './components/AppHeader'
 import { ConnectModal } from './components/ConnectModal'
 import { DetailPanel } from './components/DetailPanel'
@@ -340,7 +340,6 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
         <CinematicIntro onDone={() => { setIntro(false); setColorIn(true) }} />
       )}
 
-      {effects.halation  && <Halation />}
       {effects.scanLines && <ScanLines strength={effects.scanStrength} />}
       {effects.artifacts && <Artifacts />}
 
@@ -358,7 +357,10 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
           gridTemplateColumns: selected ? '1fr 340px' : '1fr',
           background: 'transparent',   /* grained paper comes from the body backdrop */
           color: 'var(--color-ink)',
-          filter: effects.halation ? 'url(#halation)' : undefined,
+          /* The old global SVG #halation lens filter was removed: it could only
+             bloom WARM pixels, so it reddened the whole UI and made warm-accent
+             (rust) cards halo while cool (sage) ones didn't. Halation is now the
+             per-element, colour-correct --accent-halo token from @jkos/design. */
         }}>
           <div style={{ gridColumn: '1 / -1' }}>
             <AppHeader
