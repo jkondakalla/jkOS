@@ -71,24 +71,24 @@
   transition: left 0.16s ease, top 0.16s ease, width 0.16s ease, height 0.16s ease;
 }
 
-/* Remove (→ shelf) affordance, pinned to the cell corner. */
-.hud-cell-remove {
+/* Edit-mode affordances nestle INSIDE the card's rounded corners — they never
+   drift off the edge. The `inset` shorthand rewrites all four offsets at once,
+   cancelling the base `.hud-edit-remove` top/right pin; the `.hud-cell >` child
+   selector guarantees we win regardless of stylesheet import order. The 10px
+   inset clears the --hub-radius-lg corner so each control sits in its curve.
+   Edit (→ workshop) → bottom-left; remove (→ shelf) → bottom-right. */
+.hud-cell > .hud-cell-edit {
   position: absolute;
-  top: -8px;
-  right: -8px;
-  z-index: 3;
-}
-
-/* Edit (→ workshop) affordance, pinned to the opposite (bottom-left) corner so it
-   never overlaps the top-right remove button. */
-.hud-cell-edit {
-  position: absolute;
-  bottom: -8px;
-  left: -8px;
-  z-index: 3;
+  inset: auto auto 10px 10px;
+  z-index: 10;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+.hud-cell > .hud-cell-remove {
+  position: absolute;
+  inset: auto 10px 10px auto;
+  z-index: 10;
 }
 
 @media (prefers-reduced-motion: reduce) {

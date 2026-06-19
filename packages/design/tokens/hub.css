@@ -101,15 +101,15 @@
   --hub-rail-w:            56px;
 
   /* Grain + CRT effects (CRT off in paper mode) */
-  --grain-opacity: 0.04;
+  --grain-opacity: 0.036;
   --grain-blend:   multiply;
   /* Film grain — a suite-wide DEFAULT texture for BACKGROUNDS only. Opacity is
-     baked into the noise alpha: 0.55 on paper (multiply against warm beige needs
-     real weight or the speckle washes out), 0.18 on dark (screen needs less).
+     baked into the noise alpha: 0.495 on paper (multiply against warm beige needs
+     real weight or the speckle washes out), 0.135 on dark (screen needs less).
      buildJkOSTheme()
      paints it onto `<scope> body` and blends via --grain-blend, so it never sits
      over content/cards/text. Dark mode redefines this variable below. */
-  --hub-grain-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='jkg'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23jkg)' opacity='0.55'/%3E%3C/svg%3E");
+  --hub-grain-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='jkg'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23jkg)' opacity='0.495'/%3E%3C/svg%3E");
   --crt-scanline-opacity: 0;
   --crt-vignette-opacity: 0.08;
   --canvas-grid-opacity: 0.5;
@@ -206,9 +206,9 @@
   --color-warn:   #fbbf24;
   --color-danger: #f87171;
 
-  --grain-opacity: 0.08;
+  --grain-opacity: 0.06;
   --grain-blend:   screen;
-  --hub-grain-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='jkg'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23jkg)' opacity='0.18'/%3E%3C/svg%3E");
+  --hub-grain-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='jkg'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23jkg)' opacity='0.135'/%3E%3C/svg%3E");
   --hub-glow-mul: 1;
   --crt-scanline-opacity: 0.012;
   --crt-vignette-opacity: 0.45;

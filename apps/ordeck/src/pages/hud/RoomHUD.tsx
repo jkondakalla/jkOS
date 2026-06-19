@@ -6,6 +6,7 @@ import { useApps } from './useHudData';
 import { useHudContext } from './useHudContext';
 import { HudGrid } from '../../hud/HudGrid';
 import { renderWidget } from '../../hud/registry';
+import { activeBreakpoint, layoutForBreakpoint, autoBalance } from '../../hud/engine';
 import {
   loadHudState, saveHudState, defaultHudState,
   removeToShelf, placeFromShelf, shelvedWidgets, setBreakpointLayout,
@@ -48,6 +49,14 @@ export default function RoomHUD() {
   const update = (next: HudState) => { setHud(next); if (hydratedRef.current) saveHudState(next); };
   const shelve = (id: string) => update(removeToShelf(hud, id));
   const place  = (id: string) => update(placeFromShelf(hud, id, window.innerWidth));
+  // Auto-balance: repack the active breakpoint's cards to the tightest layout
+  // (least height → least empty space). Uses the same width→tier resolution the
+  // grid itself does, so it balances exactly what's on screen.
+  const balance = () => {
+    const bp = activeBreakpoint(window.innerWidth);
+    const items = layoutForBreakpoint(hud, bp);
+    update(setBreakpointLayout(hud, bp.name, autoBalance(items, bp.cols)));
+  };
   // Hand the card's definition to the workshop (works for any placed spec card,
   // published or not) and open the editor.
   const editInWorkshop = (id: string) => {
@@ -209,15 +218,27 @@ export default function RoomHUD() {
         )}
       </div>
 
-      {/* ── Edit mode bar: place shelved widgets back onto the canvas ── */}
-      {editMode && shelf.length > 0 && (
+      {/* ── Edit mode bar: auto-balance + place shelved widgets back ── */}
+      {editMode && (
         <div className="hud-edit-bar">
-          <span>add widget</span>
-          {shelf.map(w => (
-            <button key={w.id} className="hud-edit-restore" onClick={() => place(w.id)}>
-              + {w.label}
-            </button>
-          ))}
+          <button
+            className="hud-edit-restore"
+            onClick={balance}
+            title="Repack cards into the tightest layout — least height, least empty space"
+          >
+            ⤢ auto-balance
+          </button>
+          {shelf.length > 0 && (
+            <>
+              <span className="hud-edit-sep" />
+              <span>add widget</span>
+              {shelf.map(w => (
+                <button key={w.id} className="hud-edit-restore" onClick={() => place(w.id)}>
+                  + {w.label}
+                </button>
+              ))}
+            </>
+          )}
         </div>
       )}
 
