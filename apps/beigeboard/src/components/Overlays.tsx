@@ -26,14 +26,20 @@ export function Halation() {
   return (
     <svg style={{ position: 'absolute', width: 0, height: 0, overflow: 'hidden' }} aria-hidden="true">
       <defs>
-        <filter id="halation" x="-8%" y="-8%" width="116%" height="116%" colorInterpolationFilters="sRGB">
+        {/* Lens bloom. The alpha row gates the bloom to genuinely BRIGHT warm
+            pixels (alpha = 1.8R − 0.9G − 0.9B − 0.62) so dim accent-tinted card
+            surfaces no longer bloom — they were washing the whole dark UI red.
+            The red channel is also dimmed to 0.55 and the blur tightened, so
+            what survives is a soft halo on bright accent type, not a flood. The
+            deliberate per-accent glow now comes from --accent-halo (@jkos/design). */}
+        <filter id="halation" x="-6%" y="-6%" width="112%" height="112%" colorInterpolationFilters="sRGB">
           <feColorMatrix in="SourceGraphic" type="matrix"
-            values="1 0 0 0  0
-                    0 0 0 0  0
-                    0 0 0 0  0
-                    2 -1 -1 0 -0.5"
+            values="0.55 0    0    0  0
+                    0    0    0    0  0
+                    0    0    0    0  0
+                    1.8 -0.9 -0.9  0 -0.62"
             result="warmOnly" />
-          <feGaussianBlur in="warmOnly" stdDeviation={5} result="bloom" />
+          <feGaussianBlur in="warmOnly" stdDeviation={3.2} result="bloom" />
           <feBlend in="SourceGraphic" in2="bloom" mode="screen" />
         </filter>
       </defs>

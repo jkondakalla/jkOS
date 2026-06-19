@@ -148,7 +148,7 @@ export function RecLamp({ size = 8, label }: any) {
         <span style={{
           fontFamily: FONT_BODY, fontSize: 9, letterSpacing: '0.22em',
           textTransform: 'uppercase', color: 'var(--color-accent)',
-          textShadow: `0 0 8px var(--color-accent-glow)`,
+          textShadow: 'var(--accent-halo-text)',
         }}>{label}</span>
       )}
     </div>
@@ -165,7 +165,7 @@ export function TimeReadout({ style }: any) {
     <span style={{
       fontFamily: FONT_NUM, fontStyle: 'italic',
       fontSize: 13, color: 'var(--color-accent)', letterSpacing: '0.08em',
-      textShadow: `0 0 8px var(--color-accent-glow)`,
+      textShadow: 'var(--accent-halo-text)',
       ...style,
     }}>
       {hh}<span style={{ opacity: 0.4 }}>:</span>{mm}<span style={{ opacity: 0.6, fontSize: 10 }}>:{ss}</span>

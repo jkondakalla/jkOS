@@ -49,7 +49,7 @@ export function MobileTodayView({ items, today, onSelect, onToggle, onAdd }: Mob
               margin: '8px 0 0',
               letterSpacing: '-0.025em',
               color: 'var(--color-ink)',
-              textShadow: `0 0 8px ${'var(--color-accent)'}66`,
+              textShadow: 'var(--accent-halo-text)',
             }}
           >
             {getGreeting()}.

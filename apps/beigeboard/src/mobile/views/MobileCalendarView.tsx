@@ -206,7 +206,7 @@ export function MobileCalendarView({
                       : 'transparent',
                   border: isDropTarget ? `1px dashed ${'var(--color-accent)'}` : isSel ? `1px solid ${'var(--color-accent)'}` : `1px solid transparent`,
                   borderRadius: false ? 4 : 2,
-                  boxShadow: isDropTarget ? `0 0 8px ${'var(--color-accent)'}66` : 'none',
+                  boxShadow: isDropTarget ? '0 0 8px var(--color-accent-glow)' : 'none',
                   opacity: dragId != null && !isDropTarget && isDragSource ? 0.55 : 1,
                   transition: 'background 0.12s, border-color 0.12s',
                 }}
@@ -218,7 +218,7 @@ export function MobileCalendarView({
                     fontSize: 14,
                     color: isToday ? 'var(--color-accent)' : 'var(--color-ink)',
                     fontWeight: isToday ? 600 : 400,
-                    textShadow: isToday ? `0 0 8px ${'var(--color-accent)'}66` : 'none',
+                    textShadow: isToday ? 'var(--accent-halo-text)' : 'none',
                   }}
                 >
                   {localDate(iso).getDate()}
@@ -255,6 +255,7 @@ export function MobileCalendarView({
                 background: 'transparent',
                 border: 'none',
                 color: 'var(--color-accent)',
+                textShadow: 'var(--accent-halo-text)',
                 cursor: 'pointer',
                 fontFamily: FONT_BODY,
                 fontSize: 10,

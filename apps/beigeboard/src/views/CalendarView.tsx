@@ -279,7 +279,7 @@ export function CalendarView({ items, today, onSelect, onToggle, onUpdateItem, o
                           color: isToday ? 'var(--color-accent)' : !cell.inMonth ? 'var(--color-faint)' : 'var(--color-muted)',
                           fontStyle: isToday ? 'italic' : 'normal',
                           fontWeight: isToday ? 500 : 400,
-                          textShadow: isToday ? '0 0 10px var(--color-accent-glow)' : 'none',
+                          textShadow: isToday ? 'var(--accent-halo-text)' : 'none',
                           lineHeight: 1, cursor: 'pointer', zIndex: 3,
                         }}
                         title="Open in Week view"

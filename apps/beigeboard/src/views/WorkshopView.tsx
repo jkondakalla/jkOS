@@ -142,7 +142,7 @@ function GoalPlate({ goal, items, index, today, autoFocus, onSelect, onToggle, o
             <span style={{
               fontFamily: FONT_BODY, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase',
               color: 'var(--color-accent)', border: '1px solid var(--color-accent)', borderRadius: 'var(--hub-radius-lg)', padding: '2px 7px',
-              textShadow: '0 0 8px var(--color-accent-glow)',
+              textShadow: 'var(--accent-halo-text)',
             }}>{pace}</span>
           ) : (
             <Pill><span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--color-ok)', flexShrink: 0 }} />{pace}</Pill>

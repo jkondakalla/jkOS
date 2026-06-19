@@ -111,7 +111,7 @@ export function ConnectModal({ open, onClose, accounts, onConnect, onDisconnect,
             <h2 style={{
               fontFamily: FONT_HEAD, fontWeight: 500, fontSize: 26,
               margin: 0, letterSpacing: '-0.02em', color: 'var(--color-ink)',
-            }}>Connect a <em style={{ color: 'var(--color-accent)', textShadow: `0 0 18px var(--color-accent-glow)` }}>calendar</em>.</h2>
+            }}>Connect a <em style={{ color: 'var(--color-accent)', textShadow: 'var(--accent-halo-text)' }}>calendar</em>.</h2>
             <p style={{
               fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 13,
               color: 'var(--color-muted)', margin: '6px 0 0', lineHeight: 1.4,
@@ -251,6 +251,7 @@ export function ConnectModal({ open, onClose, accounts, onConnect, onDisconnect,
                       <span style={{
                         fontFamily: FONT_BODY, fontSize: 9, letterSpacing: '0.14em',
                         textTransform: 'uppercase', color: 'var(--color-accent)',
+                        textShadow: 'var(--accent-halo-text)',
                       }}>{isConn ? '…' : 'sign in →'}</span>
                     </button>
                   )

@@ -78,7 +78,7 @@ export function MobileWeekView({ items, today, onSelect, onToggle }: MobileWeekV
                       fontSize: 17,
                       color: isToday ? 'var(--color-accent)' : 'var(--color-ink)',
                       minWidth: 26,
-                      textShadow: isToday ? `0 0 8px ${'var(--color-accent)'}66` : 'none',
+                      textShadow: isToday ? 'var(--accent-halo-text)' : 'none',
                     }}
                   >
                     {d.getDate()}
@@ -91,6 +91,7 @@ export function MobileWeekView({ items, today, onSelect, onToggle }: MobileWeekV
                       letterSpacing: '0.22em',
                       textTransform: 'uppercase',
                       color: isToday ? 'var(--color-accent)' : 'var(--color-muted)',
+                      textShadow: isToday ? 'var(--accent-halo-text)' : 'none',
                     }}
                   >
                     {d.toLocaleDateString('en-US', { weekday: 'long' })}

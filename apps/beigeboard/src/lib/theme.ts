@@ -77,10 +77,16 @@ export function getGreeting() {
   return 'Night.'
 }
 
+// Emissive accent glow. Halation is a CRT phenomenon — on paper accents press IN
+// (the @jkos/design --hub-accent-press), so there is NO glow in light mode. In
+// dark mode anything accent-coloured emits: a CSS-var colour (incl. the primary
+// var(--color-accent)) rides the suite-wide --color-accent-glow token so it
+// tracks the user's accent; a literal per-thing hex glows in its own colour.
 export function halate(hex: string | null | undefined, level = 'mid') {
-  if (!hex || hex.startsWith('var(')) return 'none'
+  if (document.documentElement.getAttribute('data-mode') !== 'dark') return 'none'
+  const radius = ({ hi: 28, mid: 16, low: 10, soft: 5 } as any)[level] || 16
+  if (!hex || hex.startsWith('var(')) return `0 0 ${radius}px var(--color-accent-glow)`
   const c = hex.replace('#', '')
   const alpha = ({ hi: '88', mid: '55', low: '33', soft: '1f' } as any)[level] || '55'
-  const radius = ({ hi: 28, mid: 16, low: 10, soft: 5 } as any)[level] || 16
   return `0 0 ${radius}px #${c}${alpha}`
 }

@@ -167,6 +167,18 @@
     inset 0 2px 3px color-mix(in srgb, var(--hub-cream-bright) 32%, transparent),
     inset 0 -1px 1px color-mix(in srgb, #ffffff 55%, transparent),
     0 1px 0 color-mix(in srgb, #ffffff 45%, transparent);
+
+  /* ── Halation ────────────────────────────────────────────────────────────
+     The suite-wide emissive accent glow. Halation is a CRT phenomenon: on paper
+     an accent presses IN (the debossed stamp above), so these halo tokens are
+     `none` here and the dark block below lights them up. Anything coloured with
+     the primary accent emits in dark mode — wire it with `box-shadow:
+     var(--accent-halo)`, `text-shadow: var(--accent-halo-text)`, or the
+     .jk-halo / .jk-halo-text utility classes. --accent-halo-glow is the bare
+     colour, for call sites that compose their own multi-layer shadow. */
+  --accent-halo-glow: var(--color-accent-glow);
+  --accent-halo:      none;
+  --accent-halo-text: none;
 }
 
 /* ─── CRT / dark mode ─────────────────────────────────────────────────────── */
@@ -232,6 +244,12 @@
 
   /* Dark mode: accents glow (halation) rather than press into the surface. */
   --hub-accent-press: 0 0 10px var(--hub-amber-glow), inset 0 0 0 1px color-mix(in srgb, var(--hub-amber) 30%, transparent);
+
+  /* Halation lights up in CRT: every primary-accent element emits. The text
+     halo is tighter than the box halo so accent type stays legible. */
+  --accent-halo-glow: var(--color-accent-glow);
+  --accent-halo:      0 0 16px var(--color-accent-glow);
+  --accent-halo-text: 0 0 12px var(--color-accent-glow);
 }
 
 /* ─── Shared CSS component classes ─────────────────────────────────────── */
@@ -253,6 +271,12 @@
   90%  { transform: translate(-2%, 4%); }
   100% { transform: translate(0, 0); }
 }
+
+/* Halation utilities — the suite-wide accent glow. .jk-halo for surfaces/chips,
+   .jk-halo-text for accent type. Both collapse to nothing on paper (the tokens
+   are `none` in light mode) so a single class is mode-correct everywhere. */
+.jk-halo      { box-shadow:  var(--accent-halo); }
+.jk-halo-text { text-shadow: var(--accent-halo-text); }
 
 /* LEDs */
 .led {

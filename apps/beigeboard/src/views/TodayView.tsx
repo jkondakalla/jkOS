@@ -27,7 +27,7 @@ export function TodayView({ items, today, onSelect, onToggle, onAddTask, onUpdat
           <h1 style={{
             fontFamily: FONT_HEAD, fontWeight: 500, fontSize: 32, lineHeight: 1,
             margin: 0, letterSpacing: '-0.025em', color: 'var(--color-ink)',
-            textShadow: '0 0 5px var(--color-accent-glow)',
+            textShadow: 'var(--accent-halo-text)',
           }}>{getGreeting()}</h1>
         </div>
 
@@ -42,7 +42,7 @@ export function TodayView({ items, today, onSelect, onToggle, onAddTask, onUpdat
         {carried.length > 0 && (
           <section style={{ marginTop: 40 }}>
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 4 }}>
-              <Eyebrow color={'var(--color-accent)'} style={{ textShadow: '0 0 10px var(--color-accent-glow)' }}>
+              <Eyebrow color={'var(--color-accent)'} style={{ textShadow: 'var(--accent-halo-text)' }}>
                 Carried · {carried.length}
               </Eyebrow>
               <span style={{ fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 11.5, color: 'var(--color-faint)' }}>
@@ -262,7 +262,7 @@ function EmptyDay({ onAdd, today, aiEnabled }: any) {
 function ClearedDay({ onceMore }: any) {
   return (
     <Well as="article" style={{ padding: '40px 36px' }}>
-      <Eyebrow style={{ marginBottom: 6, color: 'var(--color-accent)' }}>Today is clear.</Eyebrow>
+      <Eyebrow style={{ marginBottom: 6, color: 'var(--color-accent)', textShadow: 'var(--accent-halo-text)' }}>Today is clear.</Eyebrow>
       <p style={{
         fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 22,
         color: 'var(--color-ink)', margin: '0 0 16px', lineHeight: 1.3,

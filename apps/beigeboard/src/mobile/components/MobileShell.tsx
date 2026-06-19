@@ -27,7 +27,7 @@ function TimeReadout() {
         fontSize: 13,
         color: 'var(--color-accent)',
         letterSpacing: '0.06em',
-        textShadow: `0 0 8px ${'var(--color-accent)'}66`,
+        textShadow: 'var(--accent-halo-text)',
       }}
     >
       {hh}
@@ -150,6 +150,7 @@ export function MobileBottomNav({ view, setView, onAdd, variant }: BottomNavProp
               border: 'none',
               cursor: 'pointer',
               color: isActive ? 'var(--color-accent)' : 'var(--color-muted)',
+              textShadow: isActive ? 'var(--accent-halo-text)' : 'none',
               transition: 'color 0.2s',
               borderTop: isActive ? `2px solid ${'var(--color-accent)'}` : '2px solid transparent',
               paddingTop: 0,
@@ -159,7 +160,7 @@ export function MobileBottomNav({ view, setView, onAdd, variant }: BottomNavProp
               style={{
                 fontSize: 16,
                 lineHeight: 1,
-                textShadow: isActive ? `0 0 8px ${'var(--color-accent)'}66` : 'none',
+                textShadow: isActive ? 'var(--accent-halo-text)' : 'none',
               }}
             >
               {v.glyph}

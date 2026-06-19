@@ -207,6 +207,7 @@ export function DetailSheet({
                   background: 'transparent',
                   border: `1px solid ${'var(--color-accent)'}`,
                   color: 'var(--color-accent)',
+                  textShadow: 'var(--accent-halo-text)',
                   cursor: 'pointer',
                   fontFamily: FONT_BODY,
                   fontSize: 12,

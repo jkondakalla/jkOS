@@ -238,10 +238,10 @@ export function WeekView({ items, today, onSelect, onToggle, onAddItem, onUpdate
                   borderRight: i < 6 ? `1px solid var(--color-line)` : 'none',
                   padding: '8px 12px 10px',
                 }}>
-                  <div style={{ fontFamily: FONT_BODY, fontSize: 9.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: isToday ? 'var(--color-accent)' : 'var(--color-muted)' }}>
+                  <div style={{ fontFamily: FONT_BODY, fontSize: 9.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: isToday ? 'var(--color-accent)' : 'var(--color-muted)', textShadow: isToday ? 'var(--accent-halo-text)' : 'none' }}>
                     {dd.toLocaleDateString('en-US', { weekday: 'short' })}
                   </div>
-                  <div style={{ fontFamily: FONT_NUM, fontSize: 22, marginTop: 2, color: isToday ? 'var(--color-accent)' : 'var(--color-ink)', fontStyle: isToday ? 'italic' : 'normal', fontWeight: isToday ? 500 : 400, letterSpacing: '-0.02em', textShadow: isToday ? '0 0 16px var(--color-accent-glow)' : 'none' }}>
+                  <div style={{ fontFamily: FONT_NUM, fontSize: 22, marginTop: 2, color: isToday ? 'var(--color-accent)' : 'var(--color-ink)', fontStyle: isToday ? 'italic' : 'normal', fontWeight: isToday ? 500 : 400, letterSpacing: '-0.02em', textShadow: isToday ? 'var(--accent-halo-text)' : 'none' }}>
                     {dd.getDate()}
                   </div>
                 </div>
@@ -465,19 +465,19 @@ export function WeekView({ items, today, onSelect, onToggle, onAddItem, onUpdate
                       <div style={{
                         position: 'absolute', top: (nowFrac - WV_FIRST_H) * WV_ROW_H,
                         left: 0, right: 0, height: 1, background: 'var(--color-accent)', zIndex: 12, pointerEvents: 'none',
-                        boxShadow: `0 0 8px var(--color-accent)99, 0 0 14px var(--color-accent)44`,
+                        boxShadow: 'var(--accent-halo)',
                       }}>
                         <span className="now-dot" style={{
                           position: 'absolute', left: -4, top: -3,
                           width: 8, height: 8, borderRadius: '50%', background: 'var(--color-accent)',
-                          boxShadow: `0 0 8px var(--color-accent)cc, 0 0 14px var(--color-accent)66`,
+                          boxShadow: 'var(--accent-halo)',
                         }} />
                         <span style={{
                           position: 'absolute', right: 6, top: -8,
                           fontFamily: FONT_BODY, fontSize: 8, letterSpacing: '0.22em',
                           textTransform: 'uppercase', color: 'var(--color-accent)',
                           background: 'var(--color-paper)', padding: '1px 5px',
-                          textShadow: '0 0 16px var(--color-accent-glow)',
+                          textShadow: 'var(--accent-halo-text)',
                           border: `1px solid var(--color-accent)`,
                         }}>● rec</span>
                       </div>
@@ -595,7 +595,7 @@ function CreateDialog({ pending, onSubmit, onCancel }: any) {
         boxShadow: `0 24px 64px rgba(0,0,0,0.5), 0 0 0 1px var(--color-accent)22`,
         padding: '22px 26px 24px',
       }}>
-        <div style={{ fontFamily: FONT_BODY, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'var(--color-accent)', marginBottom: 10 }}>
+        <div style={{ fontFamily: FONT_BODY, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'var(--color-accent)', textShadow: 'var(--accent-halo-text)', marginBottom: 10 }}>
           {pending.allDay
             ? `${fmtWeekday(pending.startDay)} · all‑day event`
             : `${fmtWeekday(pending.startDay)} · ${fmtTime(pending.scheduled_time)} – ${fmtTime(pending.scheduled_end)}`}
@@ -613,7 +613,7 @@ function CreateDialog({ pending, onSubmit, onCancel }: any) {
         />
         <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
           <button onClick={onCancel} style={{ background: 'transparent', border: `1px solid var(--color-line)`, fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--color-muted)', padding: '8px 16px', cursor: 'pointer' }}>Cancel</button>
-          <button onClick={handle} className="btn-action" style={{ background: 'var(--color-accent)', border: 'none', color: 'var(--color-paper)', fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', padding: '8px 20px', cursor: 'pointer', boxShadow: `0 0 12px var(--color-accent)55` }}>Add →</button>
+          <button onClick={handle} className="btn-action" style={{ background: 'var(--color-accent)', border: 'none', color: 'var(--color-paper)', fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', padding: '8px 20px', cursor: 'pointer', boxShadow: 'var(--accent-halo)' }}>Add →</button>
         </div>
       </div>
     </div>
