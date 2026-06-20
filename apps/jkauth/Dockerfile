@@ -30,6 +30,7 @@ COPY packages/auth-middleware/package.json packages/auth-middleware/
 COPY packages/design/package.json         packages/design/
 COPY packages/types/package.json          packages/types/
 COPY packages/ui/package.json             packages/ui/
+COPY packages/weave/package.json          packages/weave/
 COPY plugins/beigeboard/package.json  plugins/beigeboard/
 COPY plugins/lazuros/package.json     plugins/lazuros/
 COPY plugins/plex/package.json        plugins/plex/
@@ -40,6 +41,10 @@ COPY plugins/sylibos/package.json     plugins/sylibos/
 RUN pnpm install --frozen-lockfile --filter @jkos/jkauth...
 
 # ── Step 3: copy source (busts only the deploy layer, not install) ─────────
+# jkAuth now depends on @jkos/weave (./server), which transitively pulls in
+# @jkos/auth-client + @jkos/auth-middleware + @jkos/design — `pnpm deploy` bundles
+# their source, so the workspace package sources must be present here.
+COPY packages/ packages/
 COPY apps/jkauth/ apps/jkauth/
 
 # Deploy: copy prod node_modules + server files to /out
