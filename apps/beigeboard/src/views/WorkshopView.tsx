@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { FONT_HEAD, FONT_BODY, FONT_NUM, TASK_COLORS, localDate, addDays, fmtWeekday, halate } from '../lib/theme'
+import { FONT_HEAD, FONT_BODY, FONT_NUM, TASK_COLORS, localDate, addDays, fmtWeekday } from '../lib/theme'
 import { getChildren, getAccent } from '../lib/seed'
 import {
   topGoals, milestonesOf, tasksOf, currentMilestone, goalProgress,
@@ -132,7 +132,7 @@ function GoalPlate({ goal, items, index, today, autoFocus, onSelect, onToggle, o
       style={{ padding: '24px 28px', '--goal-accent': accent } as React.CSSProperties}
     >
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 10, flexWrap: 'wrap' }}>
-          <Lab size="sm" as="span" style={{ color: accent, textShadow: halate(accent, 'low') }}>
+          <Lab size="sm" as="span" className="jk-glow-text jk-glow-low" style={{ color: accent, '--jk-glow-color': accent } as React.CSSProperties}>
             {`Goal ${String(index).padStart(2, '0')}`}
           </Lab>
           {goal.target_date && (
@@ -148,11 +148,11 @@ function GoalPlate({ goal, items, index, today, autoFocus, onSelect, onToggle, o
             <Pill><span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--color-ok)', flexShrink: 0 }} />{pace}</Pill>
           ))}
           {adrift && (
-            <span style={{
+            <span className="jk-glow jk-glow-low" style={{
               fontFamily: FONT_BODY, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase',
               color: 'var(--color-paper)', background: accent, padding: '3px 8px',
-              boxShadow: halate(accent, 'low'),
-            }}>nothing on the calendar</span>
+              '--jk-glow-color': accent,
+            } as React.CSSProperties}>nothing on the calendar</span>
           )}
         </div>
 
@@ -164,7 +164,7 @@ function GoalPlate({ goal, items, index, today, autoFocus, onSelect, onToggle, o
           }}
         >
           {goal.title}
-          <span style={{ color: accent, textShadow: halate(accent, 'hi') }}>.</span>
+          <span className="jk-glow-text jk-glow-hi" style={{ color: accent, '--jk-glow-color': accent } as React.CSSProperties}>.</span>
         </h2>
 
         <DoneMeans goal={goal} onUpdateItem={onUpdateItem} readonly={readonly} />
@@ -233,13 +233,13 @@ function GoalPlate({ goal, items, index, today, autoFocus, onSelect, onToggle, o
               {!readonly && (
                 <button
                   onClick={() => onUpdateItem(goal.id, { status: 'done' })}
-                  className="btn-action"
+                  className="btn-action jk-glow jk-glow-mid"
                   style={{
                     background: accent, color: 'var(--color-paper)', border: 'none',
                     fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.16em',
                     textTransform: 'uppercase', padding: '9px 16px', cursor: 'pointer',
-                    boxShadow: halate(accent, 'mid'),
-                  }}
+                    '--jk-glow-color': accent,
+                  } as React.CSSProperties}
                 >Mark the goal done →</button>
               )}
             </div>
@@ -327,11 +327,11 @@ function MilestoneRow({ m, index, items, today, accent, isCurrent, open, onOpen,
           opacity: state === 'later' ? 0.62 : 1,
         }}
       >
-        <Lab size="sm" as="span" style={{
+        <Lab size="sm" as="span" className={isCur ? 'jk-glow-text jk-glow-low' : undefined} style={{
           color: state === 'done' ? 'var(--color-faint)' : accent,
           width: 22, flexShrink: 0, textAlign: 'right',
-          textShadow: isCur ? halate(accent, 'low') : 'none',
-        }}>{String(index).padStart(2, '0')}</Lab>
+          '--jk-glow-color': accent,
+        } as React.CSSProperties}>{String(index).padStart(2, '0')}</Lab>
 
         <StateGlyph state={state} accent={accent} />
 
@@ -348,12 +348,12 @@ function MilestoneRow({ m, index, items, today, accent, isCurrent, open, onOpen,
         >{m.title}</span>
 
         {isCur && (
-          <span style={{
+          <span className="jk-glow-text jk-glow-low" style={{
             fontFamily: 'var(--hub-font-mono)', fontSize: 8.5, letterSpacing: '0.18em',
             textTransform: 'uppercase', fontWeight: 600, color: accent,
             background: `color-mix(in srgb, ${accent} 16%, var(--color-card))`,
-            padding: '3px 9px', flexShrink: 0, textShadow: halate(accent, 'low'),
-          }}>current</span>
+            padding: '3px 9px', flexShrink: 0, '--jk-glow-color': accent,
+          } as React.CSSProperties}>current</span>
         )}
         {tasks.length > 0 && (
           <Lab size="sm" as="span" style={{ flexShrink: 0 }}>{done}/{tasks.length}</Lab>
@@ -382,13 +382,13 @@ function MilestoneRow({ m, index, items, today, accent, isCurrent, open, onOpen,
           </span>
           <button
             onClick={() => onUpdateItem(m.id, { completed: true })}
-            className="btn-action"
+            className="btn-action jk-glow jk-glow-mid"
             style={{
               background: accent, color: 'var(--color-paper)', border: 'none',
               fontFamily: FONT_BODY, fontSize: 9.5, letterSpacing: '0.16em',
               textTransform: 'uppercase', padding: '7px 13px', cursor: 'pointer',
-              boxShadow: halate(accent, 'mid'),
-            }}
+              '--jk-glow-color': accent,
+            } as React.CSSProperties}
           >Checkpoint passed →</button>
         </div>
       )}
@@ -535,11 +535,11 @@ function DueControl({ item, today, accent, onUpdateItem, readonly }: any) {
         {picking ? (
           <DatePick item={item} onUpdateItem={onUpdateItem} onClose={() => setPicking(false)} />
         ) : (
-          <span style={{
+          <span className={overdue ? 'jk-glow-text jk-glow-low' : undefined} style={{
             fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.08em',
             color: overdue ? accent : 'var(--color-muted)',
-            textShadow: overdue ? halate(accent, 'low') : 'none',
-          }}>
+            '--jk-glow-color': accent,
+          } as React.CSSProperties}>
             {item.due_date === today ? 'today' : `${fmtWeekday(item.due_date)} ${localDate(item.due_date).getDate()}`}
           </span>
         )}
@@ -973,16 +973,17 @@ function GoalForge({ startOpen, today, goalCount, onAddItem, aiEnabled }: any) {
 
       <div style={{ marginTop: 22, display: 'flex', justifyContent: 'flex-end' }}>
         <button
-          onClick={stamp} disabled={!canStamp || saving} className="btn-action"
+          onClick={stamp} disabled={!canStamp || saving}
+          className={canStamp ? 'btn-action jk-glow jk-glow-mid' : 'btn-action'}
           style={{
             background: canStamp ? accent : 'var(--color-paper-2)',
             color: canStamp ? 'var(--color-paper)' : 'var(--color-faint)',
             border: canStamp ? 'none' : '1px solid var(--color-line)',
             fontFamily: FONT_BODY, fontSize: 10.5, letterSpacing: '0.16em', textTransform: 'uppercase',
             padding: '10px 20px', cursor: canStamp ? 'pointer' : 'default',
-            boxShadow: canStamp ? halate(accent, 'mid') : 'none',
+            '--jk-glow-color': accent,
             opacity: saving ? 0.6 : 1,
-          }}
+          } as React.CSSProperties}
         >{saving ? 'Stamping…' : 'Stamp the goal →'}</button>
       </div>
     </Plate>

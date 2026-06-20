@@ -77,16 +77,8 @@ export function getGreeting() {
   return 'Night.'
 }
 
-// Emissive accent glow. Halation is a CRT phenomenon — on paper accents press IN
-// (the @jkos/design --hub-accent-press), so there is NO glow in light mode. In
-// dark mode anything accent-coloured emits: a CSS-var colour (incl. the primary
-// var(--color-accent)) rides the suite-wide --color-accent-glow token so it
-// tracks the user's accent; a literal per-thing hex glows in its own colour.
-export function halate(hex: string | null | undefined, level = 'mid') {
-  if (document.documentElement.getAttribute('data-mode') !== 'dark') return 'none'
-  const radius = ({ hi: 28, mid: 16, low: 10, soft: 5 } as any)[level] || 16
-  if (!hex || hex.startsWith('var(')) return `0 0 ${radius}px var(--color-accent-glow)`
-  const c = hex.replace('#', '')
-  const alpha = ({ hi: '88', mid: '55', low: '33', soft: '1f' } as any)[level] || '55'
-  return `0 0 ${radius}px #${c}${alpha}`
-}
+// The per-colour emissive glow that used to live here (halate) now belongs to the
+// @jkos/design factory as the .jk-glow / .jk-glow-text utility classes: add the
+// class + an intensity rung (.jk-glow-low/-mid/-hi) and set the colour inline via
+// --jk-glow-color. Mode-gating (none on paper, glow in CRT) is handled in CSS, so
+// there is no JS helper to call. Primary-accent glows use --accent-halo(-text).

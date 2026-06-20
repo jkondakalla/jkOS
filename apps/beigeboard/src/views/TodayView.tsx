@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { FONT_HEAD, FONT_BODY, FONT_NUM, localDate, addDays, fmtTime, halate, getGreeting } from '../lib/theme'
+import { FONT_HEAD, FONT_BODY, FONT_NUM, localDate, addDays, fmtTime, getGreeting } from '../lib/theme'
 import { getAncestors, getAccent } from '../lib/seed'
 import { activeGoals, isAdrift, nextUnscheduled } from '../lib/plan'
 import { Eyebrow, Checkbox, Plate, RecLamp } from '../components/SharedComponents'

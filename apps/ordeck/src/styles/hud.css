@@ -1,92 +1,27 @@
 /* ORDECK v2 "room HUD" — Claude Design pass (2026-06-11).
    Scoped under html.od-v2 so the legacy widget canvas keeps its own look.
-   Token NAMES are unchanged (hub contract); values here are ORDECK-v2 NEUTRAL /
-   radius / shadow overrides only. The accent pair flows from the shared chain
-   (--accent-raw → --accent / --accent-secondary, applied by applyJkOSTheme), so
-   every accent-derived token (--hub-amber*, --hub-cyan*, --color-*) tracks the
-   user's pick — v2 must not hardcode it. */
+
+   NEUTRALS, accent chain, status colours/tints (--hub-green-soft etc.) and the
+   accent helpers (--color-accent-ink/-soft/-contrast) ALL come from the
+   @jkos/design factory (hub.css) now — ORDECK no longer re-declares them. The
+   only things v2 still owns are its two elevation shadows and the mode-flipped
+   icon glow; radius + fonts arrive via injectJkOSTheme() in App.tsx. */
 
 html.od-v2 {
-  /* Accent comes from the shared chain (--accent-raw → --accent), so the user's
-     pair flows in. v2 keeps only its own neutrals / rounded radius / shadows. */
-
-  --hub-bg-0: #ede2c8;
-  --hub-bg-1: #e4d5b0;
-  --hub-bg-2: #f5ead4;
-  --hub-bg-3: #ead9bb;
-  --hub-bg-4: #f7f1e3;
-
-  --hub-screen:      #f0e8d8;
-  --hub-screen-line: #d8c8b0;
-
-  --hub-line:        #d3bd97;
-  --hub-line-strong: #b09a72;
-  --hub-line-bright: #907854;
-
-  --hub-cream:        #6b5038;
-  --hub-cream-bright: #1c1408;
-  --hub-cream-dim:    #9c8060;
-  --hub-cream-faint:  #b8a888;
-
-  /* od-v2-only accent helpers (ink/tint/contrast) — derive from the chain's --accent */
-  --accent-ink:       color-mix(in srgb, var(--accent) 80%, #000000);
-  --accent-tint:      color-mix(in srgb, var(--accent) 11%, var(--hub-bg-2));
-  --accent-contrast:  #fffaf0;
-
-  --hub-green:      #2a7040;
-  --hub-green-soft: color-mix(in srgb, #2a7040 12%, var(--hub-bg-2));
-  --hub-red:        #b42010;
-  --hub-red-soft:   color-mix(in srgb, #b42010 10%, var(--hub-bg-2));
-  --hub-warn:       #a04010;
-  --hub-warn-soft:  color-mix(in srgb, #a04010 11%, var(--hub-bg-2));
-
-  /* Radius scale (base/xs/sm/lg/soft/button) flows from the @jkos/design factory
-     call in App.tsx — injectJkOSTheme({ selector: 'html.od-v2', radius }). */
-
   --od-shadow:      0 1px 2px rgba(60, 40, 15, 0.05), 0 8px 24px -12px rgba(60, 40, 15, 0.16);
   --od-shadow-lift: 0 2px 4px rgba(60, 40, 15, 0.06), 0 18px 40px -16px rgba(60, 40, 15, 0.26);
 
-  --grain-blend:   multiply;
-  --glow: none;
+  /* No emissive glow on paper. Must stay a VALID drop-shadow() value (not `none`,
+     which makes `filter: drop-shadow(var(--glow))` invalid): a zero/transparent
+     shadow renders nothing while keeping the declaration live. */
+  --glow: 0 0 0 transparent;
 }
 
 html.od-v2[data-mode="dark"] {
-  /* Accent flows from the shared chain. */
-
-  --hub-bg-0: #11100d;
-  --hub-bg-1: #1a1814;
-  --hub-bg-2: #201d17;
-  --hub-bg-3: #2c2820;
-  --hub-bg-4: #38321f;
-
-  --hub-screen:      #0e0c08;
-  --hub-screen-line: #2a2418;
-
-  --hub-line:        #363023;
-  --hub-line-strong: #4a4232;
-  --hub-line-bright: #6a5d3e;
-
-  --hub-cream:        #d6cba8;
-  --hub-cream-bright: #efe6c9;
-  --hub-cream-dim:    #8a8067;
-  --hub-cream-faint:  #5a543f;
-
-  --hub-amber-glow:   color-mix(in srgb, var(--accent) 35%, transparent);
-  --accent-ink:       color-mix(in srgb, var(--accent) 78%, #ffffff);
-  --accent-tint:      color-mix(in srgb, var(--accent) 13%, var(--hub-bg-2));
-  --accent-contrast:  #1a1000;
-
-  --hub-green:      #5cd66a;
-  --hub-green-soft: color-mix(in srgb, #5cd66a 13%, var(--hub-bg-2));
-  --hub-red:        #ff4530;
-  --hub-red-soft:   color-mix(in srgb, #ff4530 12%, var(--hub-bg-2));
-  --hub-warn:       #fbbf24;
-  --hub-warn-soft:  color-mix(in srgb, #fbbf24 12%, var(--hub-bg-2));
-
   --od-shadow:      0 1px 2px rgba(0,0,0,0.35), 0 10px 30px -14px rgba(0,0,0,0.65);
   --od-shadow-lift: 0 2px 6px rgba(0,0,0,0.4), 0 22px 50px -18px rgba(0,0,0,0.75);
 
-  --grain-blend:   screen;
+  /* Icon halation — factory --hub-amber-glow tracks the user's accent. */
   --glow: 0 0 14px var(--hub-amber-glow);
 }
 
@@ -103,7 +38,7 @@ html.od-v2 body {
   transition: background-color 0.4s ease, color 0.3s ease;
 }
 
-html.od-v2 ::selection { background: var(--accent); color: var(--accent-contrast); }
+html.od-v2 ::selection { background: var(--accent); color: var(--color-accent-contrast); }
 
 @keyframes od-fade-up { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 @keyframes od-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
@@ -129,7 +64,7 @@ html.od-v2 ::selection { background: var(--accent); color: var(--accent-contrast
   width: 26px; height: 26px;
   border-radius: var(--hub-radius-soft);
   background: var(--accent);
-  color: var(--accent-contrast);
+  color: var(--color-accent-contrast);
   display: grid; place-items: center;
   font-family: var(--hub-font-mono);
   font-weight: 700; font-size: 11px;
@@ -171,8 +106,8 @@ html.od-v2 ::selection { background: var(--accent); color: var(--accent-contrast
 }
 .hud-topbtn[data-active="true"] {
   border-color: var(--accent);
-  color: var(--accent-ink);
-  background: var(--accent-tint);
+  color: var(--color-accent-ink);
+  background: var(--color-accent-soft);
 }
 
 /* Apps popover — anchored to the jk logo (top-left) */
@@ -194,7 +129,7 @@ html.od-v2 ::selection { background: var(--accent); color: var(--accent-contrast
   border-radius: var(--hub-radius);
   transition: background 0.12s;
 }
-.hud-apps-pop a:hover { background: var(--accent-tint); }
+.hud-apps-pop a:hover { background: var(--color-accent-soft); }
 .hud-app-glyph {
   width: 28px; height: 28px; flex: none;
   border-radius: var(--hub-radius-soft);
@@ -408,8 +343,8 @@ html.od-v2 ::selection { background: var(--accent); color: var(--accent-contrast
   justify-content: center;
   gap: 2px;
 }
-.hud-cal-day.today { background: var(--accent-tint); }
-.hud-cal-day.today .hud-cal-num { color: var(--accent-ink); font-weight: 700; }
+.hud-cal-day.today { background: var(--color-accent-soft); }
+.hud-cal-day.today .hud-cal-num { color: var(--color-accent-ink); font-weight: 700; }
 .hud-cal-num {
   font-family: var(--hub-font-mono);
   font-size: 10.5px;
@@ -456,7 +391,7 @@ html.od-v2 ::selection { background: var(--accent); color: var(--accent-contrast
   padding: 2px 8px;
   border: 1px solid var(--hub-line);
   background: var(--hub-bg-2);
-  color: var(--accent-ink);
+  color: var(--color-accent-ink);
   font-family: var(--hub-font-mono);
   font-size: 9.5px; letter-spacing: 0.06em;
   cursor: pointer; border-radius: var(--hub-radius-xs);
@@ -465,6 +400,45 @@ html.od-v2 ::selection { background: var(--accent); color: var(--accent-contrast
 }
 .hud-edit-restore:hover { border-color: var(--accent); }
 .hud-edit-sep { width: 1px; height: 13px; background: var(--hub-line-strong); margin: 0 2px; }
+
+/* ── Widget Workshop · canvas ghost-add (prototype) ─────────────────────────
+   Right-click the live preview → element menu; hovering an entry appends a
+   translucent GHOST of that element so you see what you'd add before clicking.
+   SpecWidget renders `.hud-card > [head?] > stack`; the body stack is the card's
+   last child and the ghost is the stack's last child, so this dims exactly it. */
+.ww-stage.is-ghosting .hud-card > div:last-child > :last-child {
+  opacity: 0.45;
+  outline: 1px dashed color-mix(in srgb, var(--accent) 70%, transparent);
+  outline-offset: 3px;
+  border-radius: var(--hub-radius-sm);
+  animation: ww-ghost-in 0.12s ease;
+}
+@keyframes ww-ghost-in { from { opacity: 0; } to { opacity: 0.45; } }
+
+.ww-menu-scrim { position: fixed; inset: 0; z-index: 40; }
+.ww-menu {
+  position: absolute; z-index: 50; min-width: 230px; max-width: 280px;
+  max-height: 320px; overflow-y: auto;
+  background: var(--hub-bg-1); border: 1px solid var(--hub-line-strong);
+  border-radius: var(--hub-radius-lg);
+  box-shadow: 0 16px 40px color-mix(in srgb, #000 45%, transparent);
+  padding: 5px;
+}
+.ww-menu-head {
+  font-family: var(--hub-font-mono);
+  font-size: 9px; letter-spacing: 0.16em; color: var(--hub-cream-faint);
+  padding: 5px 8px 6px;
+}
+.ww-menu-item {
+  display: flex; flex-direction: column; gap: 1px; width: 100%; text-align: left;
+  padding: 6px 8px; border: none; background: transparent; cursor: pointer;
+  border-radius: var(--hub-radius-sm); color: var(--hub-cream);
+}
+.ww-menu-item:hover, .ww-menu-item.is-on {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+.ww-menu-label { font-size: 12px; color: var(--hub-cream-bright); }
+.ww-menu-hint  { font-size: 10px; color: var(--hub-cream-faint); font-family: var(--hub-font-mono); }
 
 /* ── App widgets (Module Federation remotes from other jkOS apps) ────────── */
 .hud-col.scroll { overflow-y: auto; }
@@ -563,10 +537,10 @@ html.od-v2 ::selection { background: var(--accent); color: var(--accent-contrast
   padding: 10px 14px;
   margin: 2px -14px;
   border-radius: var(--hub-radius);
-  background: var(--accent-tint);
+  background: var(--color-accent-soft);
   border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
 }
-.hud-task.now .hud-task-time { font-weight: 600; color: var(--accent-ink); }
+.hud-task.now .hud-task-time { font-weight: 600; color: var(--color-accent-ink); }
 .hud-task.now .hud-task-title { font-size: 16px; font-weight: 650; }
 .hud-task-sub {
   display: block;
@@ -581,7 +555,7 @@ html.od-v2 ::selection { background: var(--accent); color: var(--accent-contrast
   font-family: var(--hub-font-mono);
   font-size: 9.5px; font-weight: 700;
   letter-spacing: 0.16em;
-  color: var(--accent-ink);
+  color: var(--color-accent-ink);
 }
 .hud-now-chip .hud-dot { background: var(--accent); box-shadow: var(--hub-accent-press); }
 
@@ -596,7 +570,7 @@ html.od-v2 ::selection { background: var(--accent); color: var(--accent-contrast
   text-align: center;
   padding: 20px;
 }
-.hud-empty a { color: var(--accent-ink); text-decoration: underline; }
+.hud-empty a { color: var(--color-accent-ink); text-decoration: underline; }
 
 /* ── Systems ───────────────────────────────────────────────────────────── */
 

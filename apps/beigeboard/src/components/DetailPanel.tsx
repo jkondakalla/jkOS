@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { FONT_HEAD, FONT_BODY, FONT_NUM, sourceOf, fmtTime, fmtFull, localDate, halate } from '../lib/theme'
+import { FONT_HEAD, FONT_BODY, FONT_NUM, sourceOf, fmtTime, fmtFull, localDate } from '../lib/theme'
 import { getAncestors, getChildren, getAccent, getProgress } from '../lib/seed'
 import { Eyebrow, Checkbox } from './SharedComponents'
 import { useHudShelf } from '../lib/jkauth'
@@ -165,11 +165,11 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
         {event.attendees && (
           <Field label="Attending">
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-              <span style={{
+              <span className="jk-glow-text jk-glow-mid" style={{
                 fontFamily: FONT_NUM, fontStyle: 'italic',
                 fontSize: 30, color: accent, lineHeight: 1,
-                textShadow: halate(accent, 'mid'),
-              }}>{String(event.attendees).padStart(2, '0')}</span>
+                '--jk-glow-color': accent,
+              } as React.CSSProperties}>{String(event.attendees).padStart(2, '0')}</span>
               <span style={{ fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 13, color: 'var(--color-muted)' }}>
                 people
               </span>

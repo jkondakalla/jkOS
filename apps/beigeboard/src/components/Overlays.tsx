@@ -20,32 +20,9 @@ function getIntroIsDark(): boolean {
    factory (buildJkOSTheme → `<scope> body` background-blend); the old on-top
    FilmGrain overlay was removed. */
 
-/* ── Halation (lens bloom SVG filter) ───────────────────────────────────── */
-
-export function Halation() {
-  return (
-    <svg style={{ position: 'absolute', width: 0, height: 0, overflow: 'hidden' }} aria-hidden="true">
-      <defs>
-        {/* Lens bloom. The alpha row gates the bloom to genuinely BRIGHT warm
-            pixels (alpha = 1.8R − 0.9G − 0.9B − 0.62) so dim accent-tinted card
-            surfaces no longer bloom — they were washing the whole dark UI red.
-            The red channel is also dimmed to 0.55 and the blur tightened, so
-            what survives is a soft halo on bright accent type, not a flood. The
-            deliberate per-accent glow now comes from --accent-halo (@jkos/design). */}
-        <filter id="halation" x="-6%" y="-6%" width="112%" height="112%" colorInterpolationFilters="sRGB">
-          <feColorMatrix in="SourceGraphic" type="matrix"
-            values="0.55 0    0    0  0
-                    0    0    0    0  0
-                    0    0    0    0  0
-                    1.8 -0.9 -0.9  0 -0.62"
-            result="warmOnly" />
-          <feGaussianBlur in="warmOnly" stdDeviation={3.2} result="bloom" />
-          <feBlend in="SourceGraphic" in2="bloom" mode="screen" />
-        </filter>
-      </defs>
-    </svg>
-  )
-}
+/* The global lens-bloom SVG <filter id="halation"> lived here; it was removed
+   when halation became the per-accent --accent-halo token in @jkos/design (the
+   filter could only bloom warm pixels, so rust cards haloed and sage didn't). */
 
 /* ── Artifacts (CRT corner glitches) ────────────────────────────────────── */
 
@@ -217,7 +194,9 @@ export function CinematicIntro({ onDone }: { onDone: () => void }) {
       className={phase === 3 ? 'intro-out' : ''}
       style={{
         position: 'fixed', inset: 0, zIndex: 10000,
-        background: isDark ? '#0A0703' : '#ede2c8',
+        // Backdrop + screen pull from the factory neutral ramp (mode-aware), so the
+        // opening scroll matches whatever palette the suite is in.
+        background: 'var(--hub-bg-0)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         overflow: 'hidden',
         pointerEvents: phase === 3 ? 'none' : 'all',
@@ -227,7 +206,7 @@ export function CinematicIntro({ onDone }: { onDone: () => void }) {
         className={phase >= 1 ? (isDark ? 'crt-expand' : 'paper-expand') : ''}
         style={{
           position: 'absolute', inset: 0,
-          background: isDark ? '#0D0B07' : '#f5ead4',
+          background: 'var(--hub-bg-2)',
           clipPath: phase === 0 ? 'inset(50% 0 50% 0)' : undefined,
         }}
       />
@@ -240,9 +219,8 @@ export function CinematicIntro({ onDone }: { onDone: () => void }) {
       {phase >= 1 && (
         <div style={{
           position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 1,
-          background: isDark
-            ? 'radial-gradient(ellipse 70% 60% at 50% 50%, rgba(190,130,20,0.07) 0%, transparent 70%)'
-            : 'radial-gradient(ellipse 70% 60% at 50% 50%, rgba(165,115,35,0.04) 0%, transparent 70%)',
+          // Accent-tinted vignette — tracks the user's accent via the factory.
+          background: 'radial-gradient(ellipse 70% 60% at 50% 50%, color-mix(in srgb, var(--color-accent) 6%, transparent) 0%, transparent 70%)',
         }} />
       )}
       {phase >= 2 && (

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'
-import { FONT_HEAD, FONT_BODY, FONT_NUM, localDate, isoDate, addDays, fmtTime, halate, sourceOf } from '../lib/theme'
+import { FONT_HEAD, FONT_BODY, FONT_NUM, localDate, isoDate, addDays, fmtTime, sourceOf } from '../lib/theme'
 import { useDrag } from '../providers/DragProvider'
 import { getAccent } from '../lib/seed'
 import { Eyebrow, Checkbox } from '../components/SharedComponents'
@@ -252,9 +252,9 @@ export function CalendarView({ items, today, onSelect, onToggle, onUpdateItem, o
                       style={{
                         borderRight: ci < 6 ? `1px solid var(--color-line-strong)` : 'none',
                         background: isOver
-                          ? `var(--color-accent)18`
+                          ? `color-mix(in srgb, var(--color-accent) 12%, transparent)`
                           : isToday
-                          ? `var(--color-accent-soft)55`
+                          ? `var(--color-accent-soft)`
                           : !cell.inMonth
                           ? 'rgba(0,0,0,0.04)'
                           : 'var(--color-paper)',

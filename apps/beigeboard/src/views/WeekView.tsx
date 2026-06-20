@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'
 import {
   FONT_HEAD, FONT_BODY, FONT_NUM,
-  localDate, isoDate, addDays, weekStart, fmtTime, fmtWeekday, fmtHourLabel, timeToFrac, halate, sourceOf,
+  localDate, isoDate, addDays, weekStart, fmtTime, fmtWeekday, fmtHourLabel, timeToFrac, sourceOf,
 } from '../lib/theme'
 import { useDrag, fracToTime, snapFrac } from '../providers/DragProvider'
 import { Eyebrow } from '../components/SharedComponents'
@@ -273,7 +273,7 @@ export function WeekView({ items, today, onSelect, onToggle, onAddItem, onUpdate
                         onClick={(!anyDrag && !readonly) ? () => setCreatePending({ startDay: d, allDay: true, scheduled_time: null, scheduled_end: null }) : undefined}
                         style={{
                           borderRight: i < 6 ? `1px solid var(--color-line)` : 'none',
-                          background: isOver ? `var(--color-accent)22` : d === today ? `var(--color-accent-soft)22` : 'transparent',
+                          background: isOver ? `color-mix(in srgb, var(--color-accent) 12%, transparent)` : d === today ? `var(--color-accent-soft)` : 'transparent',
                           outline: isOver ? `1px dashed var(--color-accent)` : isTarget ? `1px dashed var(--color-accent-glow)` : 'none',
                           outlineOffset: -2,
                           cursor: anyDrag ? 'copy' : 'pointer',
@@ -344,7 +344,7 @@ export function WeekView({ items, today, onSelect, onToggle, onAddItem, onUpdate
                   data-drop-day={d}
                   style={{
                     borderRight: i < 6 ? `1px solid var(--color-line)` : 'none',
-                    background: isOver ? `var(--color-accent)18` : d === today ? `var(--color-accent-soft)44` : 'transparent',
+                    background: isOver ? `color-mix(in srgb, var(--color-accent) 12%, transparent)` : d === today ? `var(--color-accent-soft)` : 'transparent',
                     outline: isOver ? `1px dashed var(--color-accent)` : isTarget ? `1px dashed var(--color-accent-glow)` : 'none',
                     outlineOffset: -2,
                     padding: 4,
@@ -415,8 +415,8 @@ export function WeekView({ items, today, onSelect, onToggle, onAddItem, onUpdate
                     style={{
                       position: 'relative',
                       borderRight: i < 6 ? `1px solid var(--color-line)` : 'none',
-                      background: isOver ? `var(--color-accent)0C` : isToday ? `var(--color-accent-soft)44` : isHover ? `var(--color-accent-soft)22` : 'var(--color-paper)',
-                      outline: isTarget && !isToday ? `1px solid var(--color-accent)18` : 'none',
+                      background: isOver ? `color-mix(in srgb, var(--color-accent) 12%, transparent)` : isToday ? `var(--color-accent-soft)` : isHover ? `color-mix(in srgb, var(--color-accent) 6%, transparent)` : 'var(--color-paper)',
+                      outline: isTarget && !isToday ? `1px solid var(--color-accent-glow)` : 'none',
                       outlineOffset: -1,
                       cursor: anyDrag ? 'copy' : readonly ? 'default' : 'crosshair',
                       transition: 'background 0.12s',
@@ -592,7 +592,7 @@ function CreateDialog({ pending, onSubmit, onCancel }: any) {
         width: 'min(460px, 90vw)', background: 'var(--color-paper-2)',
         border: `1px solid var(--color-line)`,
         borderRadius: 'var(--hub-radius-lg)',
-        boxShadow: `0 24px 64px rgba(0,0,0,0.5), 0 0 0 1px var(--color-accent)22`,
+        boxShadow: `0 24px 64px rgba(0,0,0,0.5), 0 0 0 1px color-mix(in srgb, var(--color-accent) 30%, transparent)`,
         padding: '22px 26px 24px',
       }}>
         <div style={{ fontFamily: FONT_BODY, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'var(--color-accent)', textShadow: 'var(--accent-halo-text)', marginBottom: 10 }}>

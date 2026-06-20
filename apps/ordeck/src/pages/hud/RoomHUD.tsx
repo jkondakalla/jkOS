@@ -267,7 +267,7 @@ export default function RoomHUD() {
         )}
         <span style={{ flex: 1 }} />
         {editMode && (
-          <span style={{ color: 'var(--accent-ink)', fontFamily: 'var(--hub-font-mono)', fontSize: 10, letterSpacing: '0.1em' }}>
+          <span style={{ color: 'var(--color-accent-ink)', fontFamily: 'var(--hub-font-mono)', fontSize: 10, letterSpacing: '0.1em' }}>
             EDIT MODE · ESC TO EXIT
           </span>
         )}

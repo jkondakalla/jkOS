@@ -18,6 +18,7 @@ import { HUD_SCHEMA, HUD_ITEM_FIELDS } from './hud/useHudData';
 import { renderWidget } from '../hud/registry';
 import type { Binding, Tone, WidgetDef, WidgetNode } from '../hud/types';
 import { WIDGET_EDIT_KEY } from '../hud/state';
+import '../styles/hud.css';
 
 /* ── Binding editor model ───────────────────────────────────────────────── */
 
@@ -280,6 +281,15 @@ export default function WidgetWorkshop() {
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
 
+  // ── Canvas ghost-add (prototype slice) ──
+  // Right-click the live preview to open an element menu; hovering an entry
+  // renders a translucent GHOST of that element at the bottom of the card (where
+  // a new row lands), so you see what you'd add before committing. Click adds it.
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  const [ghostType, setGhostType] = useState<PrimType | null>(null);
+  const closeMenu = () => { setMenu(null); setGhostType(null); };
+  const addElement = (type: PrimType) => { setRows((rs) => [...rs, newRow(type)]); closeMenu(); };
+
   // ── Action (command) authoring ──
   const suite = useSuiteApps();
   const cmdApps = useMemo(() => Object.values(suite).filter((a) => a.capabilitiesPath), [suite]);
@@ -437,6 +447,26 @@ export default function WidgetWorkshop() {
       },
     };
   }, [id, label, eyebrow, source, dw, dh, mw, mh, rows, sourcesObj, actionOn, cmdApp, cmdCap, cap, fieldMap, submitLabel]);
+
+  // The preview def, plus a translucent ghost of the hovered element appended to
+  // the body (only for the plain stack body — action/molecule cards fall back to
+  // the real def). The ghost is the last child of the stack, so the .is-ghosting
+  // CSS dims exactly it. No commit happens until the menu entry is clicked.
+  const previewDef = useMemo<WidgetDef>(() => {
+    if (!ghostType || !def.spec) return def;
+    const body = def.spec.body;
+    if (body.t !== 'stack') return def;
+    const ghostNode = toNode(newRow(ghostType));
+    return { ...def, spec: { ...def.spec, body: { ...body, children: [...body.children, ghostNode] } } };
+  }, [def, ghostType]);
+
+  // Esc closes the element menu.
+  useEffect(() => {
+    if (!menu) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeMenu(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [menu]);
 
   async function publish() {
     if (!def.id) { setMsg('Give the widget an id first.'); return; }
@@ -608,8 +638,45 @@ export default function WidgetWorkshop() {
 
           {/* ── Preview + published ── */}
           <div style={{ position: 'sticky', top: 16 }}>
-            <span className="hud-eyebrow">LIVE PREVIEW · {def.sizing.desktop.w}×{def.sizing.desktop.h}</span>
-            <div style={{ marginTop: 8, minHeight: 140 }}>{renderWidget(def, ctx)}</div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+              <span className="hud-eyebrow">LIVE PREVIEW · {def.sizing.desktop.w}×{def.sizing.desktop.h}</span>
+              <span style={{ fontSize: 10, color: 'var(--hub-cream-faint)', fontFamily: 'var(--hub-font-mono)' }}>right-click to add ▸</span>
+            </div>
+            <div
+              className={`ww-stage${ghostType ? ' is-ghosting' : ''}`}
+              style={{ marginTop: 8, minHeight: 140, position: 'relative' }}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                const r = e.currentTarget.getBoundingClientRect();
+                setMenu({ x: e.clientX - r.left, y: e.clientY - r.top });
+              }}
+            >
+              {renderWidget(previewDef, ctx)}
+              {menu && (
+                <>
+                  <div
+                    className="ww-menu-scrim"
+                    onClick={closeMenu}
+                    onContextMenu={(e) => { e.preventDefault(); closeMenu(); }}
+                  />
+                  <div className="ww-menu" style={{ left: menu.x, top: menu.y }} onMouseLeave={() => setGhostType(null)}>
+                    <div className="ww-menu-head">ADD ELEMENT</div>
+                    {PRIMS.map((p) => (
+                      <button
+                        key={p.type}
+                        className={`ww-menu-item${ghostType === p.type ? ' is-on' : ''}`}
+                        onMouseEnter={() => setGhostType(p.type)}
+                        onFocus={() => setGhostType(p.type)}
+                        onClick={() => addElement(p.type)}
+                      >
+                        <span className="ww-menu-label">{p.label}</span>
+                        <span className="ww-menu-hint">{p.hint}</span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
             <span className="hud-eyebrow" style={{ display: 'block', marginTop: 20 }}>PUBLISHED ({published.length})</span>
             <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
               {published.length === 0 && <span style={{ fontSize: 11, color: 'var(--hub-cream-faint)' }}>None yet.</span>}
