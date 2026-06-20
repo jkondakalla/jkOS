@@ -23,7 +23,7 @@ import {
   type CSSProperties, type FormEvent, type ReactNode,
 } from 'react';
 import {
-  fetchCapabilities, getCapability, runCommand, suiteApp, type CapabilityDoc,
+  fetchCapabilities, getCapability, runCommand, suiteApp, subscribe, type CapabilityDoc,
 } from '@jkos/weave';
 import {
   type ClockState,
@@ -633,7 +633,13 @@ function ButtonNode({ node, scope }: { node: Extract<WidgetNode, { t: 'button' }
 
 /** Poll any `fetch` data sources a spec declares and expose them by name. This
  *  is the no-deploy path: a spec with a fetch source + bindings is a brand-new
- *  widget needing zero new code. `hud` sources are already in ctx scope. */
+ *  widget needing zero new code. `hud` sources are already in ctx scope.
+ *
+ *  Each source fetches, polls (`poll` seconds), refetches when the tab becomes
+ *  visible, and — via `invalidateOn` — joins the shared weave invalidation bus, so
+ *  a peer write (`invalidate('bb.items')`) refreshes the widget instead of it
+ *  drifting until the next poll. A failed fetch keeps the last good value (the
+ *  widget never blanks on a transient blip). */
 function useDataSources(sources?: Record<string, DataSource>): Scope {
   const fetchList = useMemo(
     () => Object.entries(sources ?? {}).filter(
@@ -646,15 +652,26 @@ function useDataSources(sources?: Record<string, DataSource>): Scope {
     if (fetchList.length === 0) return;
     let dead = false;
     const timers: ReturnType<typeof setInterval>[] = [];
+    const unsubs: Array<() => void> = [];
+    const loaders: Array<() => void> = [];
     for (const [name, s] of fetchList) {
       const load = () => fetch(s.url)
         .then((r) => (r.ok ? r.json() : Promise.reject(new Error('fetch failed'))))
         .then((j) => { if (!dead) setData((d) => ({ ...d, [name]: j })); })
-        .catch(() => { /* widget renders empty/fallback */ });
+        .catch(() => { /* keep last good value — soft-fail like usePolledResource */ });
+      loaders.push(load);
       load();
       if (s.poll) timers.push(setInterval(load, s.poll * 1000));
+      if (s.invalidateOn?.length) unsubs.push(subscribe(s.invalidateOn, load));
     }
-    return () => { dead = true; timers.forEach(clearInterval); };
+    const onVisible = () => { if (document.visibilityState === 'visible') loaders.forEach((l) => l()); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      dead = true;
+      timers.forEach(clearInterval);
+      unsubs.forEach((u) => u());
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [fetchList]);
   return data;
 }

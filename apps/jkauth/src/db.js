@@ -178,6 +178,15 @@ const MIGRATIONS = [
         [m.api_base, m.health_path, m.capabilities_path, m.ai, id])
     }
   }],
+
+  // Suite fabric (Weave) READ contract: where each app's dataset declaration lives
+  // (datasets_path) — the read-side twin of capabilities_path, so the portal's
+  // manifest hydrates DatasetDoc discovery from the registry too. Backfilled for the
+  // apps that publish one (BeigeBoard); the rest stay NULL (no readable datasets).
+  ['013_app_registry_datasets', () => {
+    addColumn('app_registry', 'datasets_path', 'TEXT')
+    run("UPDATE app_registry SET datasets_path='/api/bb/datasets' WHERE id='beigeboard'")
+  }],
 ]
 
 function runMigrations() {
@@ -223,20 +232,21 @@ function seedGuest() {
 }
 
 function seedAppRegistry() {
-  // Integration metadata (api_base/health_path/capabilities_path/ai) seeds fresh
-  // DBs here; existing DBs are backfilled by migration 012. Keep the two in sync.
+  // Integration metadata (api_base/health_path/capabilities_path/datasets_path/ai)
+  // seeds fresh DBs here; existing DBs are backfilled by migrations 012 + 013. Keep
+  // the two in sync.
   const defaults = [
-    { id: 'beigeboard', name: 'BeigeBoard', origin: 'https://beigeboard.jkos.net', icon_url: null, allowed_roles: 'user,admin,guest', api_base: '/api/bb',    health_path: '/health/bb',      capabilities_path: '/api/bb/capabilities', ai: 0 },
-    { id: 'sylibos',    name: 'SylibOS',    origin: 'https://sylibos.jkos.net',    icon_url: null, allowed_roles: 'user,admin',       api_base: '/api/sylib', health_path: '/health/sylibos', capabilities_path: null,                   ai: 0 },
-    { id: 'auth',       name: 'jkOS Auth',  origin: 'https://auth.jkos.net',       icon_url: null, allowed_roles: 'user,admin,guest', api_base: null,         health_path: '/health/auth',    capabilities_path: null,                   ai: 0 },
-    { id: 'ordeck',     name: 'ORDECK',     origin: 'https://jkos.net',            icon_url: null, allowed_roles: 'user,admin',       api_base: null,         health_path: null,              capabilities_path: null,                   ai: 0 },
-    { id: 'staging',    name: 'Staging',    origin: 'https://staging.jkos.net',    icon_url: null, allowed_roles: 'admin',            api_base: null,         health_path: null,              capabilities_path: null,                   ai: 0 },
+    { id: 'beigeboard', name: 'BeigeBoard', origin: 'https://beigeboard.jkos.net', icon_url: null, allowed_roles: 'user,admin,guest', api_base: '/api/bb',    health_path: '/health/bb',      capabilities_path: '/api/bb/capabilities', datasets_path: '/api/bb/datasets', ai: 0 },
+    { id: 'sylibos',    name: 'SylibOS',    origin: 'https://sylibos.jkos.net',    icon_url: null, allowed_roles: 'user,admin',       api_base: '/api/sylib', health_path: '/health/sylibos', capabilities_path: null,                   datasets_path: null,               ai: 0 },
+    { id: 'auth',       name: 'jkOS Auth',  origin: 'https://auth.jkos.net',       icon_url: null, allowed_roles: 'user,admin,guest', api_base: null,         health_path: '/health/auth',    capabilities_path: null,                   datasets_path: null,               ai: 0 },
+    { id: 'ordeck',     name: 'ORDECK',     origin: 'https://jkos.net',            icon_url: null, allowed_roles: 'user,admin',       api_base: null,         health_path: null,              capabilities_path: null,                   datasets_path: null,               ai: 0 },
+    { id: 'staging',    name: 'Staging',    origin: 'https://staging.jkos.net',    icon_url: null, allowed_roles: 'admin',            api_base: null,         health_path: null,              capabilities_path: null,                   datasets_path: null,               ai: 0 },
   ]
   for (const app of defaults) {
     if (!get('SELECT 1 FROM app_registry WHERE id=?', [app.id])) {
-      run(`INSERT INTO app_registry (id, name, origin, icon_url, allowed_roles, api_base, health_path, capabilities_path, ai)
-           VALUES (?,?,?,?,?,?,?,?,?)`,
-        [app.id, app.name, app.origin, app.icon_url, app.allowed_roles, app.api_base, app.health_path, app.capabilities_path, app.ai])
+      run(`INSERT INTO app_registry (id, name, origin, icon_url, allowed_roles, api_base, health_path, capabilities_path, datasets_path, ai)
+           VALUES (?,?,?,?,?,?,?,?,?,?)`,
+        [app.id, app.name, app.origin, app.icon_url, app.allowed_roles, app.api_base, app.health_path, app.capabilities_path, app.datasets_path, app.ai])
     }
   }
 }

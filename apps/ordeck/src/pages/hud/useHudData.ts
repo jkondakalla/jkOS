@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { getProfile, type HudPin, type HudFocus } from '@jkos/auth-client';
-import { usePolledResource, invalidate, apiBase, probeApps, type SuiteApp } from '@jkos/weave';
+import { usePolledResource, invalidate, apiBase, probeApps, extRef, type SuiteApp } from '@jkos/weave';
 import { TONE_RANK, type Tone } from '../../hud/tone';
 
 /* Data hooks for the room HUD. All service calls are same-origin paths proxied
@@ -479,10 +479,22 @@ export interface PinnedState {
 
 const EMPTY_FOCUS: FocusState = { loaded: false, authed: true, active: false, app: '', id: null, title: '', timeLabel: '—', tag: '', done: false, deeplink: '' };
 
+/* Resolve a pinned/focused HudRef (app + id — the structured form of the weave
+   `<app>:<id>` ext_ref) against the live item slice for its app, so a stored
+   snapshot label upgrades to the live row. Keyed by app id, so surfacing a NEW
+   peer's items on the shelf is one map entry below — not an edited `=== 'beigeboard'`
+   conditional. BeigeBoard is the only items-bearing app today. */
+function resolveLive(app: string, id: string, sources: Record<string, BbItem[]>): BbItem | undefined {
+  const items = sources[app];
+  if (!items) return undefined;
+  const ref = extRef(app, id);
+  return items.find(i => extRef(app, i.id) === ref);
+}
+
 export function selectFocus(focus: HudFocus | null, bb: BbItemsState): FocusState {
   if (!bb.authed) return { ...EMPTY_FOCUS, loaded: true, authed: false };
   if (!focus) return { ...EMPTY_FOCUS, loaded: true };
-  const live = focus.app === 'beigeboard' ? bb.items.find(i => String(i.id) === focus.id) : undefined;
+  const live = resolveLive(focus.app, focus.id, { beigeboard: bb.items });
   return {
     loaded: true, authed: true, active: true,
     app: focus.app, id: focus.id,
@@ -496,8 +508,9 @@ export function selectFocus(focus: HudFocus | null, bb: BbItemsState): FocusStat
 
 export function selectPinned(pins: HudPin[], bb: BbItemsState): PinnedState {
   if (!bb.authed) return { loaded: true, authed: false, items: [], count: 0, empty: false };
+  const sources = { beigeboard: bb.items };
   const items: PinnedTask[] = pins.map(p => {
-    const live = p.app === 'beigeboard' ? bb.items.find(i => String(i.id) === p.id) : undefined;
+    const live = resolveLive(p.app, p.id, sources);
     const done = live?.completed ?? false;
     return {
       id: p.id, app: p.app,

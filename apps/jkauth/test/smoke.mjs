@@ -121,7 +121,8 @@ async function run() {
   if (!await A.ready()) { console.error('A never became healthy:\n' + A.log); return shutdown(1); }
 
   console.log('A · health + first-registrant-is-admin');
-  ok('GET /health', (await (await fetch(A.base + '/health')).json()).ok === true);
+  { const h = await (await fetch(A.base + '/health')).json();
+    ok('GET /health', h.status === 'ok' && h.service === 'jkauth', `got ${JSON.stringify(h)}`); }
   let r = await A.req('POST', '/auth/register', { json: { email: 'a@jkos.net', name: 'Alice', password: 'password123' } });
   let j = await r.json().catch(() => ({}));
   ok('register 201', r.status === 201, `got ${r.status}`);

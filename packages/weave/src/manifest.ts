@@ -30,6 +30,8 @@ export interface SuiteApp {
   healthPath?: string;
   /** Edge-proxied path returning the app's CapabilityDoc; absent = read-only. */
   capabilitiesPath?: string;
+  /** Edge-proxied path returning the app's DatasetDoc (what can be READ); absent = undeclared. */
+  datasetsPath?: string;
   /** Gated behind the suite-wide LazurOS kill switch. */
   ai?: boolean;
 }
@@ -43,7 +45,7 @@ export interface SuiteApp {
  */
 export const SUITE_APPS: Record<string, SuiteApp> = {
   auth:       { id: 'auth',       label: 'jkAuth',     origin: AUTH_URL,                       healthPath: '/health/auth' },
-  beigeboard: { id: 'beigeboard', label: 'BeigeBoard', origin: 'https://beigeboard.jkos.net', apiBase: '/api/bb',      healthPath: '/health/bb',       capabilitiesPath: '/api/bb/capabilities' },
+  beigeboard: { id: 'beigeboard', label: 'BeigeBoard', origin: 'https://beigeboard.jkos.net', apiBase: '/api/bb',      healthPath: '/health/bb',       capabilitiesPath: '/api/bb/capabilities', datasetsPath: '/api/bb/datasets' },
   sylibos:    { id: 'sylibos',    label: 'SylibOS',    origin: 'https://sylibos.jkos.net',    apiBase: '/api/sylib',   healthPath: '/health/sylibos' },
   lazuros:    { id: 'lazuros',    label: 'LazurOS',                                            apiBase: '/api/lazuros', healthPath: '/api/lazuros/health', ai: true },
 };

@@ -79,7 +79,7 @@ export type Binding =
  *  generic client-polled endpoint, the no-deploy path for brand-new widgets. */
 export type DataSource =
   | { from: 'hud'; key: string }
-  | { from: 'fetch'; url: string; poll?: number };
+  | { from: 'fetch'; url: string; poll?: number; invalidateOn?: string[] };
 
 /** A tone can be a fixed key OR bound to data (e.g. a list item's `$.tone`),
  *  so list rows can colour themselves by status. Resolves to 'muted' if the

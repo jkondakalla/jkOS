@@ -22,7 +22,7 @@ router.get('/auth/apps', (req, res) => {
   const user = resolveUser(req)
   if (!user) return res.status(401).json({ error: 'Unauthorized' })
   const apps = all(`SELECT id, name, origin, icon_url, allowed_roles,
-                           api_base, health_path, capabilities_path, ai
+                           api_base, health_path, capabilities_path, datasets_path, ai
                     FROM app_registry ORDER BY name`)
   res.json({ apps })
 })

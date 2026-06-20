@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@jkos/auth-middleware": "workspace:*",
+    "@jkos/weave": "workspace:*",
     "better-sqlite3": "^11.5.0",
     "cookie-parser": "^1.4.7",
     "express": "^4.19.2",

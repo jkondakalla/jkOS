@@ -25,7 +25,11 @@ export function invalidate(...keys: string[]): void {
   for (const k of keys) listeners.get(k)?.forEach((fn) => fn());
 }
 
-function subscribe(keys: string[], fn: Listener): () => void {
+/** Subscribe `fn` to fire whenever any of `keys` is invalidate()'d. Returns an
+ *  unsubscribe. usePolledResource wires this for you; it's exported so other
+ *  multi-resource consumers (e.g. the widget engine's data sources) can join the
+ *  same bus instead of inventing their own refresh signal. */
+export function subscribe(keys: string[], fn: Listener): () => void {
   for (const k of keys) {
     let set = listeners.get(k);
     if (!set) listeners.set(k, (set = new Set()));
@@ -43,6 +47,11 @@ export interface PolledOptions {
   invalidateOn?: string[];
   /** Also refetch when the tab becomes visible again. */
   refetchOnVisible?: boolean;
+  /** Refetch immediately whenever this value changes. The `fetcher` is read through
+   *  a ref (so an inline closure doesn't restart the poll), which means a fetcher
+   *  that closes over changing inputs — e.g. a serialized filter key — won't refetch
+   *  on its own; pass that key here to force an immediate refetch on change. */
+  reloadKey?: string | number;
 }
 
 /**
@@ -60,7 +69,7 @@ export function usePolledResource<T>(
   initial: T,
   opts: PolledOptions = {},
 ): T {
-  const { intervalMs, invalidateOn, refetchOnVisible } = opts;
+  const { intervalMs, invalidateOn, refetchOnVisible, reloadKey } = opts;
   const [value, setValue] = useState<T>(initial);
   const fetcherRef = useRef(fetcher);
   fetcherRef.current = fetcher;
@@ -89,9 +98,10 @@ export function usePolledResource<T>(
       unsub?.();
       if (onVisible) document.removeEventListener('visibilitychange', onVisible);
     };
-    // keyDep captures invalidateOn by value; fetcher is via ref.
+    // keyDep captures invalidateOn by value; fetcher is via ref; reloadKey forces
+    // an immediate refetch when a fetcher's captured inputs change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [intervalMs, refetchOnVisible, keyDep]);
+  }, [intervalMs, refetchOnVisible, keyDep, reloadKey]);
 
   return value;
 }

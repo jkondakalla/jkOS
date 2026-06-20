@@ -55,6 +55,9 @@ importers:
       '@jkos/auth-middleware':
         specifier: workspace:*
         version: link:../../../packages/auth-middleware
+      '@jkos/weave':
+        specifier: workspace:*
+        version: link:../../../packages/weave
       better-sqlite3:
         specifier: ^11.5.0
         version: 11.10.0
@@ -70,6 +73,9 @@ importers:
 
   apps/jkauth:
     dependencies:
+      '@jkos/weave':
+        specifier: workspace:*
+        version: link:../../packages/weave
       bcryptjs:
         specifier: ^2.4.3
         version: 2.4.3
@@ -103,9 +109,6 @@ importers:
       '@jkos/design':
         specifier: workspace:*
         version: link:../../packages/design
-      '@jkos/types':
-        specifier: workspace:*
-        version: link:../../packages/types
       '@jkos/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -299,6 +302,9 @@ importers:
       '@jkos/auth-client':
         specifier: workspace:*
         version: file:packages/auth-client(react@19.2.7)
+      '@jkos/auth-middleware':
+        specifier: workspace:*
+        version: link:../auth-middleware
       react:
         specifier: '>=18'
         version: 19.2.7
@@ -948,6 +954,9 @@ packages:
     resolution: {directory: packages/auth-client, type: directory}
     peerDependencies:
       react: '>=18'
+
+  '@jkos/auth-middleware@file:packages/auth-middleware':
+    resolution: {directory: packages/auth-middleware, type: directory}
 
   '@jkos/design@file:packages/design':
     resolution: {directory: packages/design, type: directory}
@@ -3404,6 +3413,10 @@ snapshots:
       '@jkos/design': file:packages/design
       react: 19.2.7
 
+  '@jkos/auth-middleware@file:packages/auth-middleware':
+    dependencies:
+      jsonwebtoken: 9.0.3
+
   '@jkos/design@file:packages/design': {}
 
   '@jkos/ui@file:packages/ui(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
@@ -3415,6 +3428,7 @@ snapshots:
   '@jkos/weave@file:packages/weave(react@18.3.1)':
     dependencies:
       '@jkos/auth-client': file:packages/auth-client(react@18.3.1)
+      '@jkos/auth-middleware': file:packages/auth-middleware
       react: 18.3.1
 
   '@jridgewell/gen-mapping@0.3.13':

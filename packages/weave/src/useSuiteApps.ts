@@ -25,6 +25,7 @@ interface AppRow {
   api_base?: string | null;
   health_path?: string | null;
   capabilities_path?: string | null;
+  datasets_path?: string | null;
   ai?: number | boolean | null;
 }
 
@@ -36,6 +37,7 @@ function mapRow(row: AppRow): SuiteApp {
   if (row.api_base) app.apiBase = row.api_base;
   if (row.health_path) app.healthPath = row.health_path;
   if (row.capabilities_path) app.capabilitiesPath = row.capabilities_path;
+  if (row.datasets_path) app.datasetsPath = row.datasets_path;
   if (row.ai) app.ai = true;
   return app;
 }

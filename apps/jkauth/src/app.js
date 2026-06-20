@@ -9,6 +9,7 @@ const crypto = require('crypto')
 const path = require('path')
 const rateLimit = require('express-rate-limit')
 const { getAppOrigins } = require('./db')
+const { weaveCors, healthHandler } = require('@jkos/weave/server')
 const {
   RL_WINDOW_MS, RL_CREDENTIALS, RL_REFRESH, RL_GOOGLE,
 } = require('./config')
@@ -20,22 +21,10 @@ app.use(cookieParser())
 app.use(express.static(path.join(__dirname, '..', 'public')))
 app.set('trust proxy', 1)
 
-// CORS — allow registered app origins to call the auth API cross-origin
-// (needed for POST /auth/refresh and POST /auth/logout called from app frontends)
-app.use((req, res, next) => {
-  const origin = req.headers.origin
-  if (origin) {
-    const allowed = getAppOrigins()
-    if (allowed.includes(origin)) {
-      res.setHeader('Access-Control-Allow-Origin', origin)
-      res.setHeader('Access-Control-Allow-Credentials', 'true')
-      res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS')
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
-    }
-  }
-  if (req.method === 'OPTIONS') return res.sendStatus(204)
-  next()
-})
+// CORS — allow registered app origins to call the auth API cross-origin (needed
+// for POST /auth/refresh and POST /auth/logout from app frontends). The shared
+// weave header block over the registry-backed origin list (the single source).
+app.use(weaveCors(getAppOrigins))
 
 // Rate limiting (S6). Credential endpoints stay tight; refresh is legitimately
 // frequent so it gets headroom; the Google flow is throttled too. All per-IP.
@@ -87,6 +76,6 @@ app.use(require('./routes/profile'))
 app.use(require('./routes/weave'))
 app.use(require('./routes/google'))
 
-app.get('/health', (req, res) => res.json({ ok: true }))
+app.get('/health', healthHandler('jkauth'))
 
 module.exports = app

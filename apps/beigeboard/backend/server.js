@@ -1,10 +1,14 @@
 'use strict';
 const express      = require('express');
 const path         = require('path');
+const crypto       = require('crypto');
 const Database     = require('better-sqlite3');
 const { google }   = require('googleapis');
 const cookieParser = require('cookie-parser');
-const { jkosAuth } = require('@jkos/auth-middleware');
+const {
+  weaveCors, weaveAuth, weaveWriteGate, healthHandler,
+  serveCapabilities, serveDatasets, buildItemFilters, coerceWeaveColumn,
+} = require('@jkos/weave/server');
 
 /* ── Env ───────────────────────────────────────────────────────────────── */
 const PORT       = process.env.PORT       || 3001;
@@ -29,6 +33,8 @@ const JKOS_AUTH_PUBLIC_KEY = (process.env.JKOS_AUTH_PUBLIC_KEY || '').trim();
 const JKOS_AUTH_URL        = process.env.JKOS_AUTH_URL        || 'https://auth.jkos.net';
 const JKOS_AUTH_ISSUER     = process.env.JKOS_AUTH_ISSUER     || 'jkos-auth';
 const JKOS_AUTH_JWKS_URI   = (process.env.JKOS_AUTH_JWKS_URI  || '').trim();
+const CALENDAR_ENC_KEY     = (process.env.CALENDAR_ENC_KEY    || '').trim();  // 64 hex chars → AES-256 at rest
+const IS_PROD              = process.env.NODE_ENV === 'production';
 
 const GOOGLE_CLIENT_ID     = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
@@ -318,26 +324,12 @@ const ITEM_COLUMNS = new Set([
   'ext_ref', 'tags',   // Weave interop (updated_at is trigger-managed, not client-writable)
 ]);
 
-/* Coerce a client value to its stored column form. `tags` is ALWAYS normalized to
-   a JSON-array string (the shape toRow parses back and the ?tags= filter matches
-   with LIKE '%"tag"%'): an array/object is JSON-encoded; a comma-separated string
-   — what the createItem capability declares — is split into an array; existing
-   JSON-array text passes through. Storing a raw CSV string here (the old bug) made
-   toRow's JSON.parse throw, silently dropping every tag. Booleans → 0/1. */
-function coerceColumn(k, v) {
-  if (typeof v === 'boolean') return v ? 1 : 0;
-  if (k === 'tags') {
-    if (v == null) return v;
-    if (typeof v === 'object') return JSON.stringify(v);
-    if (typeof v === 'string') {
-      const s = v.trim();
-      if (!s) return '[]';
-      if (s.startsWith('[')) return s;   // already a JSON array
-      return JSON.stringify(s.split(',').map(t => t.trim()).filter(Boolean));
-    }
-  }
-  return v;
-}
+/* Value coercion for item writes (booleans → 0/1, `tags` → a JSON-array string)
+   is the shared weave column rule now — see @jkos/weave/server coerceWeaveColumn,
+   which also fixes the malformed-`[…` tags passthrough that used to make toRow's
+   JSON.parse throw and silently drop every tag. Aliased so the write builders below
+   read unchanged. */
+const coerceColumn = coerceWeaveColumn;
 
 /* ── Safe JSON for embedding in <script> tags ──────────────────────────── */
 function safeJson(obj) {
@@ -360,9 +352,69 @@ function fmt24(d) {
   return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
 }
 
+/* ── Generic 500 responder — log the detail, return a generic message so internal
+   errors (SQLite text, stack hints) don't leak to clients. ─────────────────── */
+function fail(res, e, msg = 'Internal error') {
+  console.error('[bb]', e?.stack || e?.message || e);
+  return res.status(500).json({ error: msg });
+}
+
+/* ── Secret-at-rest encryption (AES-256-GCM) for the iCloud app-specific password,
+   a long-lived reusable credential. Backward-compatible: with no CALENDAR_ENC_KEY
+   set, secrets store as-is (unchanged behaviour); legacy plaintext rows still read
+   back as themselves. Set a 64-hex-char key to activate encryption. ────────── */
+function encKeyBuf() {
+  return /^[0-9a-fA-F]{64}$/.test(CALENDAR_ENC_KEY) ? Buffer.from(CALENDAR_ENC_KEY, 'hex') : null;
+}
+function encryptSecret(plain) {
+  const key = encKeyBuf();
+  if (!key || plain == null) return plain;
+  const iv = crypto.randomBytes(12);
+  const c = crypto.createCipheriv('aes-256-gcm', key, iv);
+  const enc = Buffer.concat([c.update(String(plain), 'utf8'), c.final()]);
+  return 'enc:v1:' + Buffer.concat([iv, c.getAuthTag(), enc]).toString('base64');
+}
+function decryptSecret(stored) {
+  if (typeof stored !== 'string' || !stored.startsWith('enc:v1:')) return stored;  // legacy plaintext
+  const key = encKeyBuf();
+  if (!key) throw new Error('CALENDAR_ENC_KEY is required to decrypt a stored secret');
+  const raw = Buffer.from(stored.slice('enc:v1:'.length), 'base64');
+  const d = crypto.createDecipheriv('aes-256-gcm', key, raw.subarray(0, 12));
+  d.setAuthTag(raw.subarray(12, 28));
+  return Buffer.concat([d.update(raw.subarray(28)), d.final()]).toString('utf8');
+}
+
+/* ── OAuth CSRF state — a random nonce set in an HttpOnly cookie when a calendar
+   connect is initiated, required to match on the callback. Stops an attacker from
+   grafting their calendar onto a victim's account via a forged callback. ───── */
+const OAUTH_STATE_COOKIE = 'bb_oauth_state';
+function setOAuthState(res) {
+  const state = crypto.randomBytes(16).toString('hex');
+  res.cookie(OAUTH_STATE_COOKIE, state, { httpOnly: true, sameSite: 'lax', secure: IS_PROD, maxAge: 600000, path: '/' });
+  return state;
+}
+function checkOAuthState(req, res) {
+  const cookie = req.cookies?.[OAUTH_STATE_COOKIE];
+  res.clearCookie(OAUTH_STATE_COOKIE, { path: '/' });
+  return !!(req.query.state && cookie && req.query.state === cookie);
+}
+
+/* ── Atomic calendar replace — swap one provider's items in a single transaction.
+   Rows are built + validated BEFORE this runs, so a mid-sync throw or a concurrent
+   sync can never leave the calendar half-deleted (better-sqlite3 rolls back on a
+   thrown INSERT, restoring the just-deleted rows). ──────────────────────────── */
+const INSERT_ITEM_SQL = `INSERT INTO items (user_id,kind,scope,title,notes,source,due_date,scheduled_time,scheduled_end,location,end_date)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?)`;
+const replaceCalendarSource = db.transaction((source, userId, rows) => {
+  run("DELETE FROM items WHERE source=? AND user_id=?", [source, userId]);
+  for (const r of rows) run(INSERT_ITEM_SQL, r);
+});
+
 /* ── Microsoft / Outlook helpers ───────────────────────────────────────── */
 async function getMsToken(row) {
-  if (!row.expiry_ms || Date.now() < row.expiry_ms - 60000) return row.access_token;
+  // Refresh when the expiry is unknown (legacy/null row) OR within 60s of expiring —
+  // returning a possibly-expired token would make the sync silently 401 forever.
+  if (row.expiry_ms && Date.now() < row.expiry_ms - 60000) return row.access_token;
   const r = await fetch(MS_TOKEN_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -388,11 +440,16 @@ async function syncOutlookEvents(token, userId) {
   const data = await r.json();
   if (data.error) throw new Error(data.error.message);
 
-  run("DELETE FROM items WHERE source='outlook' AND user_id=?", [userId]);
+  // Build + validate every row BEFORE touching the DB, then swap atomically — a
+  // malformed event (missing start/end, or an unparseable date) is skipped instead
+  // of throwing mid-loop and leaving the calendar wiped.
+  const rows = [];
   for (const ev of data.value || []) {
+    if (!ev.start?.dateTime || !ev.end?.dateTime) continue;
     const isAllDay = !!ev.isAllDay;
     const sd = new Date(ev.start.dateTime + (ev.start.timeZone === 'UTC' ? 'Z' : ''));
     const ed = new Date(ev.end.dateTime   + (ev.end.timeZone   === 'UTC' ? 'Z' : ''));
+    if (isNaN(sd.getTime()) || isNaN(ed.getTime())) continue;
     const due_date = isoDateStr(sd);
     let end_date = null;
     if (isAllDay) {
@@ -402,15 +459,12 @@ async function syncOutlookEvents(token, userId) {
       const endStr = isoDateStr(ed);
       if (endStr !== due_date) end_date = endStr;
     }
-    run(
-      `INSERT INTO items (user_id,kind,scope,title,notes,source,due_date,scheduled_time,scheduled_end,location,end_date)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-      [userId,'event','day',ev.subject||'(No title)',ev.bodyPreview||null,'outlook',
-       due_date, isAllDay?null:fmt24(sd), isAllDay?null:fmt24(ed),
-       ev.location?.displayName||null, end_date]
-    );
+    rows.push([userId,'event','day',ev.subject||'(No title)',ev.bodyPreview||null,'outlook',
+      due_date, isAllDay?null:fmt24(sd), isAllDay?null:fmt24(ed),
+      ev.location?.displayName||null, end_date]);
   }
-  return (data.value||[]).length;
+  replaceCalendarSource('outlook', userId, rows);
+  return rows.length;
 }
 
 /* ── iCloud CalDAV helpers ─────────────────────────────────────────────── */
@@ -511,9 +565,10 @@ async function syncICloudEvents(username, password, userId) {
   const startZ = now.toISOString().replace(/[-:]/g,'').slice(0,15) + 'Z';
   const endZ   = far.toISOString().replace(/[-:]/g,'').slice(0,15) + 'Z';
 
-  run("DELETE FROM items WHERE source='icloud' AND user_id=?", [userId]);
-  let total = 0;
-
+  // Fetch + parse EVERY calendar first; if any REPORT fails, abort the whole sync
+  // WITHOUT deleting — a partial sync after a delete would silently drop the events
+  // of the failed collection. Only once all calendars are in hand do we swap atomically.
+  const rows = [];
   for (const calUrl of calUrls) {
     let reportText;
     try {
@@ -521,7 +576,9 @@ async function syncICloudEvents(username, password, userId) {
         `<?xml version="1.0"?><C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav"><D:prop><D:getetag/><C:calendar-data/></D:prop><C:filter><C:comp-filter name="VCALENDAR"><C:comp-filter name="VEVENT"><C:time-range start="${startZ}" end="${endZ}"/></C:comp-filter></C:comp-filter></C:filter></C:calendar-query>`,
         username, password, '1');
       reportText = text;
-    } catch (e) { console.warn(`iCloud: skipping ${calUrl}: ${e.message}`); continue; }
+    } catch (e) {
+      throw new Error(`iCloud sync aborted (calendar fetch failed): ${e.message}`);
+    }
 
     const calDatas = xmlTagAll(reportText, 'calendar-data')
       .map(s => s.replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&').replace(/&#13;/g,'\r'));
@@ -537,18 +594,14 @@ async function syncICloudEvents(username, password, userId) {
         } else if (!start.allDay && end && end.iso !== start.iso) {
           end_date = end.iso;
         }
-        run(
-          `INSERT INTO items (user_id,kind,scope,title,notes,source,due_date,scheduled_time,scheduled_end,location,end_date)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-          [userId,'event','day', icalText(ev['SUMMARY'])||'(No title)',
-           icalText(ev['DESCRIPTION']),'icloud',start.iso,start.time,end?.time||null,
-           icalText(ev['LOCATION']),end_date]
-        );
-        total++;
+        rows.push([userId,'event','day', icalText(ev['SUMMARY'])||'(No title)',
+          icalText(ev['DESCRIPTION']),'icloud',start.iso,start.time,end?.time||null,
+          icalText(ev['LOCATION']),end_date]);
       }
     }
   }
-  return total;
+  replaceCalendarSource('icloud', userId, rows);
+  return rows.length;
 }
 
 async function syncGoogleEvents(auth, userId) {
@@ -561,8 +614,7 @@ async function syncGoogleEvents(auth, userId) {
     singleEvents: true, orderBy: 'startTime', maxResults: 500,
   });
 
-  run("DELETE FROM items WHERE source='google' AND user_id=?", [userId]);
-
+  const rows = [];
   for (const ev of (data.items || [])) {
     const isAllDay = !!ev.start?.date;
     if (!ev.start?.dateTime && !ev.start?.date) continue;
@@ -586,17 +638,14 @@ async function syncGoogleEvents(auth, userId) {
         if (endStr !== due_date) end_date = endStr;
       }
     }
-    run(
-      `INSERT INTO items (user_id,kind,scope,title,notes,source,due_date,scheduled_time,scheduled_end,location,end_date)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-      [userId,'event','day',ev.summary||'(No title)',ev.description||null,'google',
-       due_date,
-       sd ? fmt24(sd) : null,
-       (!isAllDay && ev.end?.dateTime) ? fmt24(new Date(ev.end.dateTime)) : null,
-       ev.location||null, end_date]
-    );
+    rows.push([userId,'event','day',ev.summary||'(No title)',ev.description||null,'google',
+      due_date,
+      sd ? fmt24(sd) : null,
+      (!isAllDay && ev.end?.dateTime) ? fmt24(new Date(ev.end.dateTime)) : null,
+      ev.location||null, end_date]);
   }
-  return (data.items||[]).length;
+  replaceCalendarSource('google', userId, rows);
+  return rows.length;
 }
 
 /* ── Express app ───────────────────────────────────────────────────────── */
@@ -605,17 +654,9 @@ app.set('trust proxy', 1);
 app.use(cookieParser());
 app.use(express.json({ limit: '1mb' }));
 
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  if (origin && ALLOWED_ORIGINS.has(origin)) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
-  }
-  if (req.method === 'OPTIONS') return res.sendStatus(204);
-  next();
-});
+/* Cross-origin: the shared weave header block over the env-derived allowlist.
+   (Under the suite same-origin edge model, peer browser calls don't hit this.) */
+app.use(weaveCors(() => [...ALLOWED_ORIGINS]));
 
 /* ── Auth middleware (jkos SSO) ────────────────────────────────────────── */
 /* These API paths are reachable without a valid jkos_token cookie */
@@ -623,17 +664,16 @@ const PUBLIC_PATHS = [
   '/api/auth/google',     // initiates Google Calendar OAuth
   '/api/auth/outlook',    // initiates Outlook Calendar OAuth
   '/api/capabilities',    // Weave capability declaration — public, no secrets
+  '/api/datasets',        // Weave dataset declaration — public, no secrets
 ];
 
-if (!JKOS_AUTH_PUBLIC_KEY && !JKOS_AUTH_JWKS_URI && process.env.NODE_ENV === 'production') {
-  console.error('[boot] FATAL: neither JKOS_AUTH_PUBLIC_KEY nor JKOS_AUTH_JWKS_URI is set in production. Refusing to start.');
-  process.exit(1);
-}
-const authMiddleware = JKOS_AUTH_JWKS_URI
-  ? jkosAuth({ jwksUri: JKOS_AUTH_JWKS_URI, issuer: JKOS_AUTH_ISSUER })
-  : JKOS_AUTH_PUBLIC_KEY
-    ? jkosAuth({ publicKey: JKOS_AUTH_PUBLIC_KEY, issuer: JKOS_AUTH_ISSUER })
-    : (req, _res, next) => { req.user = { sub: 1, role: 'admin' }; next(); }; // dev fallback (non-prod only)
+/* Identity gate: JWKS-by-kid → static key → dev stub, with the production
+   fatal-guard, all standardised in @jkos/weave/server (weaveAuth). */
+const authMiddleware = weaveAuth({
+  publicKey: JKOS_AUTH_PUBLIC_KEY,
+  jwksUri: JKOS_AUTH_JWKS_URI,
+  issuer: JKOS_AUTH_ISSUER,
+});
 
 /* Only the API carries user data and is gated. The SPA shell and assets are
    public so a logged-out browser loads the app, gets 401 from /api/auth/me,
@@ -644,32 +684,13 @@ app.use((req, res, next) => {
   authMiddleware(req, res, next);
 });
 
-/* Write authorization — three gates, most-specific first. (Reads need no extra
-   gate beyond a valid token; every row is already scoped to req.user.sub.) */
-app.use((req, res, next) => {
-  if (!['POST', 'PATCH', 'DELETE'].includes(req.method)) return next();
-  const u = req.user;
-  // 1. Guests are read-only.
-  if (u?.role === 'guest') {
-    return res.status(403).json({ error: 'Guest access is read-only' });
-  }
-  // 2. A service token carries no user (sub is 'svc:<id>', not a numeric id), so a
-  //    per-user write would create orphan rows owned by a non-user. Reject until an
-  //    explicit on-behalf-of mechanism exists. (Weave service tokens, Phase 4.)
-  if (u?.typ === 'service') {
-    return res.status(403).json({ error: 'Service tokens cannot write per-user data', code: 'NO_USER_CONTEXT' });
-  }
-  // 3. Capability scope enforcement: a token carrying scopes must hold
-  //    beigeboard:write. Tokens minted before Weave carry no scope array and fall
-  //    through to the role gate above (rollout-safe — see Documentation/WEAVE.md).
-  if (Array.isArray(u?.scope) && !u.scope.includes('beigeboard:write')) {
-    return res.status(403).json({ error: 'Insufficient scope', code: 'INSUFFICIENT_SCOPE', required: ['beigeboard:write'] });
-  }
-  next();
-});
+/* Write authorization — the shared weave gate (guest read-only → service
+   NO_USER_CONTEXT → beigeboard:write scope). Reads need no extra gate beyond a
+   valid token; every row is already scoped to req.user.sub. */
+app.use(weaveWriteGate({ scope: 'beigeboard:write' }));
 
 /* ── Health ────────────────────────────────────────────────────────────── */
-app.get('/health', (_req, res) => res.json({ status: 'ok', service: 'beigeboard' }));
+app.get('/health', healthHandler('beigeboard'));
 
 /* ── Weave capability declaration ──────────────────────────────────────────
    What can be DONE to BeigeBoard, as pure data. The portal (and eventually an
@@ -708,7 +729,43 @@ const CAPABILITIES = {
     },
   ],
 };
-app.get('/api/capabilities', (_req, res) => res.json(CAPABILITIES));
+app.get('/api/capabilities', serveCapabilities(CAPABILITIES));
+
+/* ── Weave dataset declaration ──────────────────────────────────────────────
+   What can be READ from BeigeBoard, as pure data — the read-side mirror of
+   CAPABILITIES. A peer (or the portal, or an AI step) discovers the readable
+   `items` collection, the filters it honours, and a row's shape, then reads it
+   with zero per-pair code. Public; the resource route still enforces auth. */
+const DATASETS = {
+  app: 'beigeboard',
+  version: 1,
+  datasets: [
+    {
+      id: 'items', label: 'Tasks & events', path: '/items',
+      filters: [
+        { name: 'kind',           type: 'enum',   label: 'Kind', enum: ['task', 'event'] },
+        { name: 'scope',          type: 'string', label: 'Scope' },
+        { name: 'due_date',       type: 'date',   label: 'Due date' },
+        { name: 'ext_ref_prefix', type: 'string', label: 'External-ref prefix (an app\'s own items)' },
+        { name: 'since',          type: 'string', label: 'Updated since (updated_at delta)' },
+        { name: 'tags',           type: 'string', label: 'Tags (comma-separated; ANDed)' },
+      ],
+      item: [
+        { name: 'id',             type: 'number' },
+        { name: 'title',          type: 'string' },
+        { name: 'kind',           type: 'enum',    enum: ['task', 'event'] },
+        { name: 'due_date',       type: 'date' },
+        { name: 'scheduled_time', type: 'time' },
+        { name: 'completed',      type: 'boolean' },
+        { name: 'tags',           type: 'string' },
+        { name: 'ext_ref',        type: 'string' },
+        { name: 'updated_at',     type: 'string' },
+      ],
+      invalidates: ['bb.items'],
+    },
+  ],
+};
+app.get('/api/datasets', serveDatasets(DATASETS));
 
 /* ── Auth: me ──────────────────────────────────────────────────────────── */
 app.get('/api/auth/me', (req, res) => {
@@ -720,10 +777,12 @@ app.get('/api/auth/google', (req, res) => {
   if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
     return res.status(501).send('Google credentials not configured.');
   }
+  const state = setOAuthState(res);
   const url = makeOAuth2().generateAuthUrl({
     access_type: 'offline',
     scope: ['https://www.googleapis.com/auth/calendar.readonly'],
     prompt: 'consent',
+    state,
   });
   res.redirect(url);
 });
@@ -733,7 +792,9 @@ app.get('/api/auth/google/callback', async (req, res) => {
   const close = (msg) => res.send(
     `<script>window.opener?.postMessage(${safeJson(msg)},window.location.origin);window.close();</script>`
   );
+  const stateOk = checkOAuthState(req, res);   // CSRF: must match the cookie set on initiate
   if (error) return close({ type: 'google-auth-error', error });
+  if (!stateOk) return close({ type: 'google-auth-error', error: 'Invalid state' });
 
   try {
     const oauth2 = makeOAuth2();
@@ -769,11 +830,12 @@ app.get('/api/auth/outlook', (req, res) => {
   if (!MS_CLIENT_ID || !MS_CLIENT_SECRET) {
     return res.status(501).send('Microsoft credentials not configured.');
   }
+  const state = setOAuthState(res);
   const params = new URLSearchParams({
     client_id: MS_CLIENT_ID, response_type: 'code',
     redirect_uri: MS_REDIRECT_URI,
     scope: 'offline_access Calendars.Read User.Read',
-    response_mode: 'query',
+    response_mode: 'query', state,
   });
   res.redirect(`${MS_AUTH_URL}?${params}`);
 });
@@ -783,7 +845,9 @@ app.get('/api/auth/outlook/callback', async (req, res) => {
   const close = (msg) => res.send(
     `<script>window.opener?.postMessage(${safeJson(msg)},window.location.origin);window.close();</script>`
   );
+  const stateOk = checkOAuthState(req, res);   // CSRF: must match the cookie set on initiate
   if (error) return close({ type: 'outlook-auth-error', error });
+  if (!stateOk) return close({ type: 'outlook-auth-error', error: 'Invalid state' });
 
   try {
     const r = await fetch(MS_TOKEN_URL, {
@@ -828,32 +892,47 @@ function toRow(raw) {
   return { ...raw, completed: raw.completed === 1, tags };
 }
 
-function cascadeDeleteInner(id, userId) {
+function cascadeDeleteInner(id, userId, seen) {
+  if (seen.has(id)) return;   // cycle guard: a self/cyclic parent_id must not recurse forever
+  seen.add(id);
   const children = all('SELECT id FROM items WHERE parent_id = ? AND user_id = ?', [id, userId]);
-  for (const c of children) cascadeDeleteInner(c.id, userId);
+  for (const c of children) cascadeDeleteInner(c.id, userId, seen);
   run('DELETE FROM items WHERE id = ? AND user_id = ?', [id, userId]);
 }
-const cascadeDelete = db.transaction((id, userId) => cascadeDeleteInner(id, userId));
+const cascadeDelete = db.transaction((id, userId) => cascadeDeleteInner(id, userId, new Set()));
+
+/* A client-supplied parent_id must reference an item the SAME user owns, and must
+   not be the item itself — an unvalidated/self/cyclic parent links across users and
+   (with the cycle guard above as backstop) is the recursive-cascade DoS vector. */
+function validParentId(parentId, userId, selfId = null) {
+  if (parentId == null || parentId === '') return true;   // clearing / no parent
+  const pid = parseInt(parentId, 10);
+  if (isNaN(pid)) return false;
+  if (selfId != null && pid === selfId) return false;
+  return !!get('SELECT 1 FROM items WHERE id = ? AND user_id = ?', [pid, userId]);
+}
+
+/* The weave filter vocabulary for items — which query param maps to which column
+   and operator. Drives buildItemFilters; mirrors the DATASETS `items.filters`
+   declaration so what an app DECLARES it can be read by is what it actually filters on. */
+const ITEM_FILTER_SPEC = [
+  { param: 'kind',           column: 'kind',       op: 'eq' },
+  { param: 'scope',          column: 'scope',      op: 'eq' },
+  { param: 'due_date',       column: 'due_date',   op: 'eq' },
+  { param: 'ext_ref_prefix', column: 'ext_ref',    op: 'prefix' },
+  { param: 'since',          column: 'updated_at', op: 'gt' },
+  { param: 'tags',           column: 'tags',       op: 'tags' },
+];
 
 app.get('/api/items', async (req, res) => {
   try {
     /* Server-side filters so other suite apps fetch only what they own/need
-       instead of dumping every row: by kind/scope/due_date, by ext_ref prefix
-       (an app's own items), by tag, and by ?since= (deltas via updated_at). */
+       instead of dumping every row — the shared weave filter builder over the
+       per-user base clause. */
     const q = req.query;
-    const clauses = ['user_id = ?'];
-    const params  = [req.user.sub];
-    if (q.kind)            { clauses.push('kind = ?');        params.push(String(q.kind)); }
-    if (q.scope)           { clauses.push('scope = ?');       params.push(String(q.scope)); }
-    if (q.due_date)        { clauses.push('due_date = ?');    params.push(String(q.due_date)); }
-    if (q.ext_ref_prefix)  { clauses.push('ext_ref LIKE ?');  params.push(String(q.ext_ref_prefix) + '%'); }
-    if (q.since)           { clauses.push('updated_at > ?');  params.push(String(q.since)); }
-    if (q.tags) {
-      for (const t of String(q.tags).split(',').map(s => s.trim()).filter(Boolean)) {
-        clauses.push('tags LIKE ?'); params.push('%"' + t + '"%');   // matches a JSON-array element
-      }
-    }
-    const where    = clauses.join(' AND ');
+    const { where, params } = buildItemFilters(q, ITEM_FILTER_SPEC, {
+      base: ['user_id = ?'], baseParams: [req.user.sub],
+    });
     const filtered = Object.keys(q).length > 0;
     let rows = all(`SELECT * FROM items WHERE ${where} ORDER BY id ASC`, params);
     // Lazy first-run seed only for an unfiltered, empty, non-guest account — a
@@ -863,13 +942,14 @@ app.get('/api/items', async (req, res) => {
       rows = all(`SELECT * FROM items WHERE ${where} ORDER BY id ASC`, params);
     }
     res.json(rows.map(toRow));
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { fail(res, e); }
 });
 
 app.post('/api/items', (req, res) => {
   try {
     const raw  = req.body;
     if (!raw?.title?.toString().trim()) return res.status(400).json({ error: 'title is required' });
+    if (!validParentId(raw.parent_id, req.user.sub)) return res.status(400).json({ error: 'Invalid parent_id' });
     const d    = { user_id: req.user.sub };
     for (const k of Object.keys(raw)) {
       if (ITEM_COLUMNS.has(k)) d[k] = coerceColumn(k, raw[k]);
@@ -880,7 +960,7 @@ app.post('/api/items', (req, res) => {
     const r    = run(`INSERT INTO items (${cols}) VALUES (${phs})`, keys.map(k => d[k]));
     const row  = get('SELECT * FROM items WHERE id = ?', [r.lastInsertRowid]);
     res.status(201).json(toRow(row));
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { fail(res, e); }
 });
 
 app.patch('/api/items/:id', (req, res) => {
@@ -890,13 +970,16 @@ app.patch('/api/items/:id', (req, res) => {
     const raw = req.body;
     const valid = Object.keys(raw).filter(k => ITEM_COLUMNS.has(k));
     if (!valid.length) return res.status(400).json({ error: 'No valid fields to update' });
+    if (Object.prototype.hasOwnProperty.call(raw, 'parent_id') && !validParentId(raw.parent_id, req.user.sub, id)) {
+      return res.status(400).json({ error: 'Invalid parent_id' });
+    }
     const sets = valid.map(k => `${k} = ?`).join(', ');
     const vals = valid.map(k => coerceColumn(k, raw[k]));
     run(`UPDATE items SET ${sets} WHERE id = ? AND user_id = ?`, [...vals, id, req.user.sub]);
     const row = get('SELECT * FROM items WHERE id = ? AND user_id = ?', [id, req.user.sub]);
     if (!row) return res.status(404).json({ error: 'Not found' });
     res.json(toRow(row));
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { fail(res, e); }
 });
 
 app.delete('/api/items/:id', (req, res) => {
@@ -906,7 +989,7 @@ app.delete('/api/items/:id', (req, res) => {
     if (!row) return res.status(404).json({ error: 'Not found' });
     cascadeDelete(id, req.user.sub);
     res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { fail(res, e); }
 });
 
 /* ── Calendar status routes ────────────────────────────────────────────── */
@@ -914,7 +997,7 @@ app.get('/api/auth/google/status', (req, res) => {
   try {
     const row = get('SELECT email FROM calendar_tokens WHERE user_id=? AND provider=?', [req.user.sub, 'google']);
     res.json({ connected: !!row, email: row?.email || null });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { fail(res, e); }
 });
 
 app.delete('/api/auth/google', (req, res) => {
@@ -922,7 +1005,7 @@ app.delete('/api/auth/google', (req, res) => {
     run("DELETE FROM calendar_tokens WHERE user_id=? AND provider='google'", [req.user.sub]);
     run("DELETE FROM items WHERE source='google' AND user_id=?", [req.user.sub]);
     res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { fail(res, e); }
 });
 
 app.post('/api/calendar/google/sync', async (req, res) => {
@@ -937,14 +1020,14 @@ app.post('/api/calendar/google/sync', async (req, res) => {
     });
     const count = await syncGoogleEvents(oauth2, req.user.sub);
     res.json({ ok: true, synced: count });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { fail(res, e); }
 });
 
 app.get('/api/auth/outlook/status', (req, res) => {
   try {
     const row = get('SELECT email FROM calendar_tokens WHERE user_id=? AND provider=?', [req.user.sub, 'outlook']);
     res.json({ connected: !!row, email: row?.email || null });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { fail(res, e); }
 });
 
 app.delete('/api/auth/outlook', (req, res) => {
@@ -952,7 +1035,7 @@ app.delete('/api/auth/outlook', (req, res) => {
     run("DELETE FROM calendar_tokens WHERE user_id=? AND provider='outlook'", [req.user.sub]);
     run("DELETE FROM items WHERE source='outlook' AND user_id=?", [req.user.sub]);
     res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { fail(res, e); }
 });
 
 app.post('/api/calendar/outlook/sync', async (req, res) => {
@@ -962,14 +1045,14 @@ app.post('/api/calendar/outlook/sync', async (req, res) => {
     const token = await getMsToken(row);
     const count = await syncOutlookEvents(token, req.user.sub);
     res.json({ ok: true, synced: count });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { fail(res, e); }
 });
 
 app.get('/api/auth/icloud/status', (req, res) => {
   try {
     const row = get('SELECT email FROM calendar_tokens WHERE user_id=? AND provider=?', [req.user.sub, 'icloud']);
     res.json({ connected: !!row, email: row?.email || null });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { fail(res, e); }
 });
 
 app.post('/api/auth/icloud', async (req, res) => {
@@ -981,7 +1064,7 @@ app.post('/api/auth/icloud', async (req, res) => {
       `INSERT INTO calendar_tokens (user_id,provider,access_token,email)
        VALUES (?,?,?,?)
        ON CONFLICT(user_id,provider) DO UPDATE SET access_token=excluded.access_token, email=excluded.email`,
-      [req.user.sub, 'icloud', appPassword, username]
+      [req.user.sub, 'icloud', encryptSecret(appPassword), username]
     );
     res.json({ ok: true, synced: count, email: username });
   } catch (e) {
@@ -994,16 +1077,16 @@ app.delete('/api/auth/icloud', (req, res) => {
     run("DELETE FROM calendar_tokens WHERE user_id=? AND provider='icloud'", [req.user.sub]);
     run("DELETE FROM items WHERE source='icloud' AND user_id=?", [req.user.sub]);
     res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { fail(res, e); }
 });
 
 app.post('/api/calendar/icloud/sync', async (req, res) => {
   try {
     const row = get('SELECT * FROM calendar_tokens WHERE user_id=? AND provider=?', [req.user.sub, 'icloud']);
     if (!row) return res.status(401).json({ error: 'Not connected' });
-    const count = await syncICloudEvents(row.email, row.access_token, req.user.sub);
+    const count = await syncICloudEvents(row.email, decryptSecret(row.access_token), req.user.sub);
     res.json({ ok: true, synced: count });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { fail(res, e); }
 });
 
 /* ── AI endpoint ───────────────────────────────────────────────────────── */
@@ -1075,7 +1158,7 @@ Return ONLY a JSON object with exactly these fields:
     res.json(parsed);
   } catch (e) {
     console.error('[ai/parse-task]', e);
-    res.status(500).json({ error: e.message });
+    fail(res, e);
   }
 });
 
@@ -1138,7 +1221,7 @@ Return ONLY a JSON object: {"milestones": ["...", ...], "first_actions": ["...",
     res.json({ milestones: clean(parsed.milestones, 5), first_actions: clean(parsed.first_actions, 4) });
   } catch (e) {
     console.error('[ai/breakdown]', e);
-    res.status(500).json({ error: e.message });
+    fail(res, e);
   }
 });
 
