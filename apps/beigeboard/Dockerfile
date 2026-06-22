@@ -34,7 +34,13 @@ RUN pnpm install --frozen-lockfile --filter @jkos/beigeboard... --filter @jkos/b
 # are the backend + its workspace dep (@jkos/auth-middleware, raw JS) source, so
 # running it BEFORE the frontend source keeps it cached across the common case of
 # frontend/design edits — a UI rebuild is then ~15s instead of ~7min.
+# The backend now deps @jkos/weave/server, which transitively pulls @jkos/auth-client
+# + @jkos/design; pnpm deploy bundles all of them, so their source must be here too
+# (else the bundle has @jkos/weave/package.json but not src/server → MODULE_NOT_FOUND).
 COPY packages/auth-middleware packages/auth-middleware
+COPY packages/weave packages/weave
+COPY packages/auth-client packages/auth-client
+COPY packages/design packages/design
 COPY apps/beigeboard/backend apps/beigeboard/backend
 RUN pnpm --filter @jkos/beigeboard-backend deploy --prod /out
 
