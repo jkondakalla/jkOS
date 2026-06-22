@@ -63,7 +63,7 @@ Goal-planning app. One `items` table, four kinds: `goal` (title + `done_means` +
 
 - Frontend: Vite SPA (React 18). `src/lib/jkauth.ts` re-exports `@jkos/auth-client`; `src/lib/theme.ts` holds app helpers (fonts, date fmt, `halate`) — not jkOS theme.
 - Backend: `backend/server.js` (Express + better-sqlite3 + googleapis). Serves SPA from `STATIC_DIR` + `/api/*`. Auth via `@jkos/auth-middleware`. `req.user.sub` = user id.
-- Routes: `GET/POST /api/items`, `PATCH/DELETE /api/items/:id`; Google/Outlook/iCloud calendar sync (`/api/auth/<provider>*`, `/api/calendar/<provider>/sync`); AI `POST /api/ai/{parse-task,breakdown}` (gated by `lazuros.enabled` + `BB_AI_ENABLED`).
+- Routes: `GET/POST /api/items`, `PATCH/DELETE /api/items/:id`; `POST /api/import` (bulk/AI JSON tree → many items in one transaction, validate-then-write, `?dryRun=1`; format in README → *Importing tasks & goals*); Weave `GET /api/capabilities`+`/api/datasets`; Google/Outlook/iCloud calendar sync (`/api/auth/<provider>*`, `/api/calendar/<provider>/sync`); AI `POST /api/ai/{parse-task,breakdown}` (gated by `lazuros.enabled` + `BB_AI_ENABLED`).
 - One Docker image (`apps/beigeboard/Dockerfile`): builds SPA + `pnpm deploy` bundles backend.
 - Calendar drag uses a 4px click-vs-drag threshold (`providers/DragProvider`) so taps select/create and only real movement reschedules.
 

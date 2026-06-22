@@ -297,6 +297,26 @@ const MIGRATIONS = [
               BEGIN UPDATE items SET updated_at = datetime('now') WHERE id = NEW.id; END`);
     },
   },
+  {
+    id: 7, name: 'stamp_updated_at_on_insert',
+    up(d) {
+      /*
+       * BUG FIX: migration 6 added `updated_at` with no DEFAULT and only an AFTER
+       * UPDATE touch-trigger, so every INSERT (createItem, /import, calendar sync,
+       * seed) left it NULL. The weave delta contract — GET /api/items?since=<cursor>
+       * → `updated_at > ?` — silently drops NULLs (NULL > x is never true), so a peer
+       * doing incremental sync NEVER saw a newly-created item, only later-edited ones.
+       * Stamp it on insert too, and backfill rows already written NULL.
+       * (The WHEN guard keeps it a no-op when a value is supplied; with SQLite's
+       * default recursive_triggers=OFF the inner UPDATE won't re-fire items_touch_updated.)
+       */
+      d.exec(`UPDATE items SET updated_at = COALESCE(updated_at, created_at, datetime('now')) WHERE updated_at IS NULL`);
+      d.exec(`DROP TRIGGER IF EXISTS items_stamp_inserted`);
+      d.exec(`CREATE TRIGGER items_stamp_inserted AFTER INSERT ON items
+              FOR EACH ROW WHEN NEW.updated_at IS NULL
+              BEGIN UPDATE items SET updated_at = COALESCE(NEW.created_at, datetime('now')) WHERE id = NEW.id; END`);
+    },
+  },
 ];
 
 function runMigrations() {
@@ -727,6 +747,18 @@ const CAPABILITIES = {
       body: [{ name: 'id', type: 'number', label: 'Item id', required: true }],
       invalidates: ['bb.items'], scopes: ['beigeboard:write'],
     },
+    {
+      // Bulk/AI import: one JSON document → a whole goal→milestone→task tree in one
+      // transaction. Body is a document, not a flat form, so `items`/`defaults` are
+      // declared as JSON; the canonical use is a direct POST (see README → Importing).
+      id: 'importItems', label: 'Import (JSON tree)', method: 'POST', path: '/import',
+      body: [
+        { name: 'items',    type: 'json', label: 'Items — a nested tree or a flat ref/parent list', required: true },
+        { name: 'defaults', type: 'json', label: 'Field defaults applied to every item (optional)' },
+      ],
+      invalidates: ['bb.items'], scopes: ['beigeboard:write'],
+      doc: 'Creates a nested goal→milestone→task tree (or a flat list linked by ref/parent) in one transaction. Validated before any write; ?dryRun=1 previews. See README → Importing tasks & goals.',
+    },
   ],
 };
 app.get('/api/capabilities', serveCapabilities(CAPABILITIES));
@@ -989,6 +1021,269 @@ app.delete('/api/items/:id', (req, res) => {
     if (!row) return res.status(404).json({ error: 'Not found' });
     cascadeDelete(id, req.user.sub);
     res.json({ ok: true });
+  } catch (e) { fail(res, e); }
+});
+
+/* ── Bulk import (AI-friendly) ──────────────────────────────────────────────
+   POST /api/import takes ONE JSON document describing a tree (or flat graph) of
+   items and creates them in a single transaction, wiring parent→child links so a
+   whole broken-down goal (goal → milestones → tasks) lands in one call. Built so an
+   AI tool can emit it directly. Hierarchy can be expressed two equivalent ways:
+
+     • nested  — a node carries `children: [...]`        (also accepts kids/subtasks)
+     • refs    — a node sets `ref: "x"`; a child sets `parent: "x"`
+   You can also point `parent_id` at an EXISTING item id to append beneath it.
+
+   Field names are forgiving (IMPORT_ALIASES); kind/scope/status are inferred from
+   tree position when omitted (root w/ children → goal, deeper w/ children →
+   milestone, leaf → task). The whole document is validated BEFORE any write, so a
+   bad import creates nothing and returns precise per-item errors. `?dryRun=1`
+   validates + echoes the plan without writing. See Documentation/README.md →
+   "Importing tasks & goals (JSON)". */
+const MAX_IMPORT_ITEMS = 500;
+const MAX_IMPORT_DEPTH  = 8;
+
+// Friendly synonyms → canonical item columns (structural keys handled separately).
+const IMPORT_ALIASES = {
+  name: 'title', type: 'kind',
+  date: 'due_date', deadline: 'due_date', when: 'due_date',
+  time: 'scheduled_time', start_time: 'scheduled_time', start: 'scheduled_time',
+  end_time: 'scheduled_end', endtime: 'scheduled_end',
+  description: 'notes', desc: 'notes', note: 'notes', body: 'notes', details: 'notes',
+  color: 'accent', colour: 'accent',
+  definition_of_done: 'done_means', done: 'done_means', success_criteria: 'done_means',
+};
+const IMPORT_STRUCT_KEYS = new Set(['children', 'kids', 'subtasks', 'ref', 'parent', 'parent_id']);
+const IMPORT_DATE_COLS   = new Set(['due_date', 'target_date', 'end_date', 'week_start']);
+const IMPORT_TIME_COLS   = new Set(['scheduled_time', 'scheduled_end']);
+const IMPORT_KIND_ENUM   = new Set(['task', 'event', 'goal', 'milestone']);
+
+const looksLikeDate = (v) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v.trim());
+const looksLikeTime = (v) => typeof v === 'string' && /^\d{1,2}:\d{2}$/.test(v.trim());
+const importChildren = (raw) => {
+  for (const k of ['children', 'kids', 'subtasks']) if (Array.isArray(raw[k])) return raw[k];
+  return null;
+};
+
+/* ── Input hardening for /import ─────────────────────────────────────────────
+   Untrusted JSON (often AI-generated) is cleaned field-by-field BEFORE it reaches
+   the DB: every value is type-normalised, length-bounded, and the constrained
+   columns are validated. Column NAMES are already allowlisted to ITEM_COLUMNS
+   (so `__proto__`/`constructor`/unknown keys are dropped, not written — no
+   prototype pollution, no arbitrary columns) and every value is bound, not
+   interpolated (no SQL injection). This adds the value-level guards. */
+const IMPORT_STR_CAP = {            // per-column max length for text values
+  title: 500, notes: 5000, done_means: 1000, location: 500, target: 500,
+  accent: 40, source: 40, scope: 20, status: 20, ext_ref: 200,
+  due_date: 10, target_date: 10, end_date: 10, week_start: 10,
+  scheduled_time: 5, scheduled_end: 5,
+};
+const IMPORT_NUM_COLS        = new Set(['year', 'month', 'attendees', 'position']);
+const IMPORT_SCOPE_ENUM      = new Set(['day', 'week', 'month', 'year', 'project']);
+const IMPORT_STATUS_ENUM     = new Set(['active', 'parked', 'done']);
+const IMPORT_RESERVED_SOURCE = new Set(['google', 'outlook', 'icloud']);   // owned by calendar sync
+const HEX_COLOR_RE = /^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
+const MAX_TAG_COUNT = 30, MAX_TAG_LEN = 60;
+
+/* Clean ONE allowlisted field value; returns the cleaned value, or undefined to
+   drop the field (a dropped scope/status falls through to its default later). */
+function cleanImportField(col, v, path, warnings) {
+  if (col === 'completed') return v === true || v === 1 || v === '1' || v === 'true';
+  if (IMPORT_NUM_COLS.has(col)) {                       // numeric → bounded integer
+    const n = typeof v === 'number' ? v : parseInt(String(v), 10);
+    if (!Number.isFinite(n)) { warnings.push(`${path}.${col}: not a number — ignored`); return undefined; }
+    let i = Math.trunc(n);
+    if (col === 'month') i = Math.min(12, Math.max(1, i));
+    else i = Math.max(0, i);
+    return i;
+  }
+  if (col === 'tags') {                                  // → cleaned array (coerced to JSON at insert)
+    const arr = Array.isArray(v) ? v : (typeof v === 'string' ? v.split(',') : []);
+    return arr.map(t => String(t).trim().slice(0, MAX_TAG_LEN)).filter(Boolean).slice(0, MAX_TAG_COUNT);
+  }
+  // everything else is text: stringify, cap, trim
+  let s = v == null ? '' : String(v);
+  const cap = IMPORT_STR_CAP[col] ?? 500;
+  if (s.length > cap) { s = s.slice(0, cap); warnings.push(`${path}.${col}: truncated to ${cap} chars`); }
+  s = s.trim();
+  if (s === '') return undefined;
+  if (col === 'kind') return s.toLowerCase();            // enum-checked by the caller
+  if (col === 'accent') { if (!HEX_COLOR_RE.test(s)) { warnings.push(`${path}.accent: not a hex colour — ignored`); return undefined; } return s; }
+  if (col === 'scope')  { const lc = s.toLowerCase(); if (!IMPORT_SCOPE_ENUM.has(lc))  { warnings.push(`${path}.scope: unknown '${s}' — defaulted`); return undefined; } return lc; }
+  if (col === 'status') { const lc = s.toLowerCase(); if (!IMPORT_STATUS_ENUM.has(lc)) { warnings.push(`${path}.status: unknown '${s}' — ignored`);  return undefined; } return lc; }
+  if (col === 'source') { if (IMPORT_RESERVED_SOURCE.has(s.toLowerCase())) { warnings.push(`${path}.source: '${s}' is reserved for connected calendars — defaulted to bb`); return undefined; } return s; }
+  return s;
+}
+
+/* Flatten → normalise/alias/infer → resolve parent links → reject cycles/overflow.
+   Returns { errors, warnings, nodes, roots, childrenOf }: each node carries `.data`
+   (the columns to write), `.kind`, `.parentIdx` (in-document) and `.dbParentId`
+   (an existing item). No DB writes happen here. */
+function planImport(doc, userId) {
+  const errors = [], warnings = [];
+  const defaults = (doc.defaults && typeof doc.defaults === 'object' && !Array.isArray(doc.defaults)) ? doc.defaults : {};
+  const items = Array.isArray(doc.items) ? doc.items : [];
+
+  // ── flatten depth-first, recording the structural parent + a path for messages ──
+  const nodes = [];
+  const walk = (arr, structParent, depth, prefix) => {
+    arr.forEach((raw, i) => {
+      const path = `${prefix}[${i}]`;
+      if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) {
+        errors.push(`${path}: each item must be an object`);
+        return;
+      }
+      const idx = nodes.length;
+      nodes.push({ raw, structParent, depth, path, ref: (typeof raw.ref === 'string' && raw.ref) ? raw.ref.slice(0, 200) : null });
+      const kids = importChildren(raw);
+      if (kids) {
+        if (depth + 1 > MAX_IMPORT_DEPTH) errors.push(`${path}: nesting exceeds ${MAX_IMPORT_DEPTH} levels`);
+        else walk(kids, idx, depth + 1, `${path}.children`);
+      }
+    });
+  };
+  walk(items, null, 0, 'items');
+
+  if (nodes.length === 0) errors.push('items: provide at least one item');
+  if (nodes.length > MAX_IMPORT_ITEMS) errors.push(`items: ${nodes.length} items exceeds the ${MAX_IMPORT_ITEMS} limit`);
+
+  // ── normalise each node into column data + infer kind/scope/status ──
+  for (const n of nodes) {
+    const merged = { ...defaults, ...n.raw };
+    const data = {};
+    for (const [k0, v] of Object.entries(merged)) {
+      if (IMPORT_STRUCT_KEYS.has(k0)) continue;
+      const k = IMPORT_ALIASES[k0] || k0;
+      if (k === 'updated_at') { warnings.push(`${n.path}: 'updated_at' is managed automatically — ignored`); continue; }
+      if (!ITEM_COLUMNS.has(k)) { warnings.push(`${n.path}: ignored unknown field '${k0}'`); continue; }
+      const cleaned = cleanImportField(k, v, n.path, warnings);   // type-normalise + bound + validate
+      if (cleaned !== undefined) data[k] = cleaned;
+    }
+
+    const hasChildren = !!importChildren(n.raw);
+    let kind = (data.kind != null && data.kind !== '') ? data.kind
+             : hasChildren ? (n.depth === 0 ? 'goal' : 'milestone') : 'task';
+    if (!IMPORT_KIND_ENUM.has(kind)) errors.push(`${n.path}.kind: must be one of ${[...IMPORT_KIND_ENUM].join(', ')}`);
+    data.kind = kind;
+
+    if (data.title == null || data.title === '') errors.push(`${n.path}.title: required`);
+
+    // goals use target_date, not due_date — remap a stray date for friendliness
+    if (kind === 'goal' && data.due_date && !data.target_date) {
+      data.target_date = data.due_date; delete data.due_date;
+      warnings.push(`${n.path}: a goal's date was applied to target_date`);
+    }
+    if (data.scope == null || data.scope === '') data.scope = (kind === 'goal') ? 'year' : 'day';
+    if (kind === 'goal' && (data.status == null || data.status === '')) data.status = 'active';
+
+    for (const c of Object.keys(data)) {
+      const val = data[c];
+      if (val == null || val === '') continue;
+      if (IMPORT_DATE_COLS.has(c) && !looksLikeDate(val)) errors.push(`${n.path}.${c}: expected YYYY-MM-DD, got ${JSON.stringify(val)}`);
+      if (IMPORT_TIME_COLS.has(c) && !looksLikeTime(val)) errors.push(`${n.path}.${c}: expected HH:MM, got ${JSON.stringify(val)}`);
+    }
+
+    n.data = data; n.kind = kind;
+  }
+
+  // ── resolve parent links: explicit ref → structural nesting → existing item id ──
+  const byRef = new Map();
+  nodes.forEach((n, i) => {
+    if (!n.ref) return;
+    if (byRef.has(n.ref)) errors.push(`${n.path}.ref: duplicate ref '${n.ref}'`);
+    else byRef.set(n.ref, i);
+  });
+  nodes.forEach((n) => {
+    n.parentIdx = null; n.dbParentId = null;
+    const p = n.raw.parent;
+    if (typeof p === 'string' && p) {
+      if (byRef.has(p)) n.parentIdx = byRef.get(p);
+      else errors.push(`${n.path}.parent: unknown ref '${p}'`);
+    } else if (n.structParent != null) {
+      n.parentIdx = n.structParent;
+    } else if (n.raw.parent_id != null && n.raw.parent_id !== '') {
+      const pid = parseInt(n.raw.parent_id, 10);
+      if (isNaN(pid) || !validParentId(pid, userId)) errors.push(`${n.path}.parent_id: must reference one of your existing items`);
+      else n.dbParentId = pid;
+    }
+  });
+
+  // ── reject cycles (refs can form them) + over-deep chains ──
+  nodes.forEach((n, i) => {
+    let cur = n.parentIdx, hops = 0; const seen = new Set([i]);
+    while (cur != null) {
+      if (seen.has(cur)) { errors.push(`${n.path}: parent cycle detected`); break; }
+      seen.add(cur);
+      if (++hops > MAX_IMPORT_DEPTH) { errors.push(`${n.path}: parent chain exceeds ${MAX_IMPORT_DEPTH} levels`); break; }
+      cur = nodes[cur].parentIdx;
+    }
+  });
+
+  // ── adjacency for insertion (roots first, then DFS so parents precede children) ──
+  const childrenOf = nodes.map(() => []);
+  const roots = [];
+  nodes.forEach((n, i) => {
+    if (n.parentIdx != null) childrenOf[n.parentIdx].push(i);
+    else roots.push(i);
+  });
+
+  return { errors, warnings, nodes, roots, childrenOf };
+}
+
+app.post('/api/import', (req, res) => {
+  try {
+    let doc = req.body;
+    // accept a double-encoded items/defaults (a command form may send JSON strings)
+    if (doc && typeof doc === 'object' && typeof doc.items === 'string') {
+      try { const p = JSON.parse(doc.items); doc = { ...doc, items: p }; } catch { /* leave as-is → shape error below */ }
+    }
+    if (doc && typeof doc === 'object' && typeof doc.defaults === 'string') {
+      try { doc.defaults = JSON.parse(doc.defaults); } catch { delete doc.defaults; }
+    }
+    // forgiving top-level shape: a bare array → items; a single item object → one item
+    if (Array.isArray(doc)) doc = { items: doc };
+    else if (doc && typeof doc === 'object' && !Array.isArray(doc.items) && (doc.title || doc.name || importChildren(doc))) {
+      doc = { items: [doc] };
+    }
+    if (!doc || typeof doc !== 'object' || !Array.isArray(doc.items)) {
+      return res.status(400).json({ ok: false, error: 'Body must be { "items": [ ... ] } — or a bare array of items, or a single item object.' });
+    }
+
+    const plan = planImport(doc, req.user.sub);
+    if (plan.errors.length) {
+      return res.status(400).json({ ok: false, errors: plan.errors, warnings: plan.warnings });
+    }
+
+    const dryRun = req.query.dryRun === '1' || req.query.dryRun === 'true';
+    if (dryRun) {
+      const out = [];
+      const describe = (i, parentLabel) => {
+        const n = plan.nodes[i];
+        out.push({ ...(n.ref ? { ref: n.ref } : {}), title: n.data.title, kind: n.kind, parent: parentLabel ?? null, fields: n.data });
+        for (const c of plan.childrenOf[i]) describe(c, n.ref || n.data.title);
+      };
+      for (const i of plan.roots) describe(i, plan.nodes[i].dbParentId != null ? `#${plan.nodes[i].dbParentId}` : null);
+      return res.json({ ok: true, dryRun: true, wouldCreate: plan.nodes.length, plan: out, warnings: plan.warnings });
+    }
+
+    const out = [];
+    const insertNode = (i, parentRealId) => {
+      const n = plan.nodes[i];
+      const cols = { user_id: req.user.sub };
+      for (const [k, v] of Object.entries(n.data)) cols[k] = coerceColumn(k, v);
+      if (parentRealId != null) cols.parent_id = parentRealId;
+      const keys = Object.keys(cols);
+      const r = run(`INSERT INTO items (${keys.join(', ')}) VALUES (${keys.map(() => '?').join(', ')})`, keys.map(k => cols[k]));
+      out.push({ ...(n.ref ? { ref: n.ref } : {}), id: r.lastInsertRowid, title: n.data.title, kind: n.kind, parent_id: parentRealId ?? null });
+      for (const c of plan.childrenOf[i]) insertNode(c, r.lastInsertRowid);
+    };
+
+    const tx = db.transaction(() => {
+      for (const i of plan.roots) insertNode(i, plan.nodes[i].dbParentId);
+    });
+    tx();
+
+    res.status(201).json({ ok: true, created: out.length, items: out, warnings: plan.warnings });
   } catch (e) { fail(res, e); }
 });
 

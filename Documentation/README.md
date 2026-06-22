@@ -55,6 +55,89 @@ Quick Add · Focus · Add Task**. Admin-published widgets also land on the shelf
 | **Connect a calendar** | In BeigeBoard → connect **Google**, **Outlook**, or **iCloud** (iCloud uses an app-specific password). Events show on the HUD calendar + Today. |
 | **AI task / goal help** | If LazurOS is enabled, BeigeBoard can parse free-text into a task and break a goal into milestones. |
 
+### Importing tasks & goals (JSON)
+
+BeigeBoard accepts a **JSON document** that creates many items — even a whole broken-down
+goal — in one request. It's built so an **AI tool can write the JSON for you**: describe what
+you want in plain language, ask for "BeigeBoard import JSON", and paste the result.
+
+**Endpoint** — `POST /api/import` on BeigeBoard (e.g. `https://beigeboard.jkos.net/api/import`),
+authenticated with your normal jkOS login (suite-wide it's also reachable at `/api/bb/import`
+through the portal). Add **`?dryRun=1`** to validate and preview the plan **without writing**.
+
+The body is `{ "items": [ … ] }` (a bare array, or a single item object, also work). Each item
+is a `task`, `event`, `milestone`, or `goal`. Express the **hierarchy** either way:
+
+- **Nested** — give an item a `children: [ … ]` array.
+- **Flat** — give an item a `ref: "x"`, and its children `parent: "x"`. (Or point `parent_id`
+  at an *existing* item's id to attach beneath it.)
+
+**Fields** — everything except `title` is optional; names are forgiving (aliases in the last column):
+
+| Field | Meaning | Also accepts |
+|-------|---------|--------------|
+| `title` *(required)* | The item's name | `name` |
+| `kind` | `task` · `event` · `milestone` · `goal` | `type` |
+| `notes` | Free-text detail | `description`, `note`, `details`, `body` |
+| `due_date` | Day it's due — `YYYY-MM-DD` (tasks/events) | `date`, `deadline`, `when` |
+| `scheduled_time` | Start time — `HH:MM` (24-hour) | `time`, `start` |
+| `scheduled_end` | End time — `HH:MM` | `end_time` |
+| `end_date` | Multi-day end — `YYYY-MM-DD` | |
+| `done_means` | A goal's definition of done | `definition_of_done`, `success_criteria` |
+| `target_date` | A goal's finish line — `YYYY-MM-DD` | (a bare `date` on a goal lands here) |
+| `location` | Where (events) | |
+| `accent` | Hex colour, e.g. `#B85C3A` | `color` |
+| `tags` | Array, or comma-string, for cross-app filtering | |
+| `children` | Nested child items | `kids`, `subtasks` |
+| `ref` / `parent` | A stable key / a parent's key (flat form) | |
+| `parent_id` | Attach under an existing item's id | |
+
+A top-level **`"defaults": { … }`** object applies its fields to *every* item (a per-item value
+wins). What's **inferred** when omitted: `kind` — a top-level item with children → `goal`, a
+deeper item with children → `milestone`, a leaf → `task`; `scope` — `year` for goals, `day`
+otherwise; goals default to `status: "active"`.
+
+**Example** — one goal, two milestones, the first broken into dated tasks:
+
+```json
+{
+  "defaults": { "accent": "#B85C3A" },
+  "items": [
+    {
+      "title": "Learn to play guitar",
+      "done_means": "Play 3 songs from memory",
+      "target_date": "2026-12-31",
+      "children": [
+        {
+          "title": "Master the open chords",
+          "children": [
+            { "title": "Practice G, C, D for 20 min", "date": "2026-07-01", "time": "18:00" },
+            { "title": "Drill chord transitions",       "date": "2026-07-02" }
+          ]
+        },
+        { "title": "Play one full song start to finish" }
+      ]
+    }
+  ]
+}
+```
+
+The same goal expressed flat, with `ref`/`parent`:
+
+```json
+{ "items": [
+  { "ref": "g",  "kind": "goal", "title": "Learn to play guitar", "target_date": "2026-12-31" },
+  { "ref": "m1", "parent": "g",  "title": "Master the open chords" },
+  { "parent": "m1", "title": "Practice G, C, D for 20 min", "date": "2026-07-01", "time": "18:00" }
+] }
+```
+
+The whole document is **validated before anything is written**: on any error nothing is created
+and you get precise messages (e.g. `items[0].children[1].due_date: expected YYYY-MM-DD`). On
+success you get the created items with their new ids. Limits: **500 items, 8 levels deep** per
+request. (The capability is also published in the [Weave](WEAVE.md) registry as
+`beigeboard.importItems`.)
+
 ### Account & sign-in (jkAuth)
 
 | Action | How |
