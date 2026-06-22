@@ -37,7 +37,13 @@ export function DragProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   useEffect(() => {
-    const onDown = (e: MouseEvent) => { downRef.current = { x: e.clientX, y: e.clientY } }
+    const onDown = (e: MouseEvent) => {
+      downRef.current = { x: e.clientX, y: e.clientY }
+      // A fresh, deliberate press must never inherit a stale suppress flag. If a drag
+      // ended without firing the trailing click we swallow (e.g. mouseup outside the
+      // window), suppressClickRef would otherwise eat the user's NEXT real click.
+      suppressClickRef.current = false
+    }
 
     const onMove = (e: MouseEvent) => {
       const p = pendingRef.current

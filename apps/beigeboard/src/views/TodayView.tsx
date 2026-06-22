@@ -183,7 +183,11 @@ function EmptyDay({ onAdd, today, aiEnabled }: any) {
       })
       if (!r.ok) throw new Error()
       const parsed = await r.json()
-      onAdd({ due_date: today, ...parsed })
+      // The AI returns `due_date: null` when it finds no date — spreading parsed
+      // AFTER `due_date: today` let that null clobber today, so the task created from
+      // the empty-today prompt vanished off Today. Default to today only when the AI
+      // gave none.
+      onAdd({ ...parsed, due_date: parsed.due_date || today })
       setDraft(''); setAdding(false)
     } catch {
       onAdd({ title: draft.trim(), due_date: today })

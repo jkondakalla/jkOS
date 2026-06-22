@@ -818,6 +818,7 @@ function GoalForge({ startOpen, today, goalCount, onAddItem, aiEnabled }: any) {
         target_date: target || null,
         year: localDate(today).getFullYear(),
       })
+      if (!goal?.id) return   // create failed — keep the form so the user can retry
       let firstMs: any = null
       for (let i = 0; i < ladder.length; i++) {
         const m = await onAddItem({ kind: 'milestone', parent_id: goal.id, title: ladder[i], position: i, source: 'bb' })

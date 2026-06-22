@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { FONT_HEAD, FONT_BODY, FONT_NUM, sourceOf } from '../lib/theme'
 import { Eyebrow } from './SharedComponents'
 
@@ -9,7 +9,11 @@ export function ConnectModal({ open, onClose, accounts, onConnect, onDisconnect,
   const [icloudUser, setIcloudUser] = useState('')
   const [icloudPass, setIcloudPass] = useState('')
   const [icloudErr,  setIcloudErr]  = useState<string | null>(null)
-  const msgListenerRef = useRef<any>(null)
+  // Holds the active OAuth popup's teardown (message listener + closed-poll). An
+  // unmount mid-flow (the modal closes before the popup resolves) must run it, or
+  // the `message` listener + interval leak past the modal's lifetime.
+  const cleanupRef = useRef<(() => void) | null>(null)
+  useEffect(() => () => { cleanupRef.current?.() }, [])
   if (!open) return null
 
   const PROVIDERS = [
@@ -30,6 +34,7 @@ export function ConnectModal({ open, onClose, accounts, onConnect, onDisconnect,
     const cleanup = () => {
       window.removeEventListener('message', onMsg)
       clearInterval(closedPoll)
+      cleanupRef.current = null
     }
 
     const onMsg = (e: MessageEvent) => {
@@ -48,14 +53,15 @@ export function ConnectModal({ open, onClose, accounts, onConnect, onDisconnect,
 
     // Detect if the user closed the popup without completing OAuth
     const closedPoll = setInterval(() => {
-      if (popup.closed) {
-        cleanup()
-        setConnecting(null)
-      }
+      if (!popup.closed) return
+      clearInterval(closedPoll)
+      // Grace period: a success message posted just before window.close() may still
+      // be in flight — let it arrive (onMsg) before treating the close as a cancel.
+      setTimeout(() => { cleanup(); setConnecting(null) }, 300)
     }, 500)
 
     window.addEventListener('message', onMsg)
-    msgListenerRef.current = onMsg
+    cleanupRef.current = cleanup
   }
 
   const handleConnect = (provider: any) => {

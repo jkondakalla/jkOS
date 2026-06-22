@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react'
 import './app.css'
 
 import { FONT_BODY, weekStart } from './lib/theme'
-import { TODAY_ISO, INITIAL_ACCOUNTS } from './lib/seed'
+import { TODAY_ISO, INITIAL_ACCOUNTS, getDescendants } from './lib/seed'
 import { useJkOSPreferences } from './hooks/useJkOSPreferences'
 import { DragProvider } from './providers/DragProvider'
 import { MobileApp } from './mobile'
@@ -197,26 +197,40 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
   }
 
   const onDelete = (id: number) => {
-    const snapshot = items.find(it => it.id === id)
-    setItems(prev => prev.filter(it => it.id !== id))
-    setSelected((s: any) => s && s.id === id ? null : s)
+    const target = items.find(it => it.id === id)
+    if (!target) return
+    // The server cascade-deletes the whole subtree (cascadeDelete); mirror that
+    // locally so a deleted goal's milestones/tasks don't linger as ghosts (dangling
+    // parent_id, 404 on interaction) until the next reload.
+    const removed = [target, ...getDescendants(target, items)]
+    const removedIds = new Set(removed.map((r: any) => r.id))
+    setItems(prev => prev.filter(it => !removedIds.has(it.id)))
+    setSelected((s: any) => s && removedIds.has(s.id) ? null : s)
     api.del(`/api/items/${id}`).catch((e: any) => {
       console.error('[onDelete]', e)
-      if (snapshot) setItems(prev => [...prev, snapshot])
+      setItems(prev => [...prev, ...removed])   // restore the whole subtree on failure
     })
   }
 
   const onAddItem = async (partial: any) => {
-    const fresh = await api.post('/api/items', {
-      kind: 'task', scope: 'day', completed: false, source: 'bb', ...partial,
-    })
-    if (!fresh?.id) throw new Error('Item creation failed')
-    setItems(prev => [...prev, fresh])
-    setRecentlyAdded(s => { const n = new Set(s); n.add(fresh.id); return n })
-    setTimeout(() => {
-      setRecentlyAdded(s => { const n = new Set(s); n.delete(fresh.id); return n })
-    }, 600)
-    return fresh
+    // Resolve to null (never reject) on failure: most callers fire-and-forget, so a
+    // throw here became an unhandled rejection and the typed task silently vanished.
+    // Awaiting callers (the Workshop forge/ladder) null-check the result.
+    try {
+      const fresh = await api.post('/api/items', {
+        kind: 'task', scope: 'day', completed: false, source: 'bb', ...partial,
+      })
+      if (!fresh?.id) throw new Error(fresh?.error || 'Item creation failed')
+      setItems(prev => [...prev, fresh])
+      setRecentlyAdded(s => { const n = new Set(s); n.add(fresh.id); return n })
+      setTimeout(() => {
+        setRecentlyAdded(s => { const n = new Set(s); n.delete(fresh.id); return n })
+      }, 600)
+      return fresh
+    } catch (e) {
+      console.error('[onAddItem]', e)
+      return null
+    }
   }
 
   const onUpdateItem = (id: number, patch: any) => {
@@ -325,7 +339,12 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
           onItemToggle={(id, completed) => {
             setItems(prev => prev.map(it => it.id === id ? { ...it, completed } : it))
             setSelected((s: any) => s && s.id === id ? { ...s, completed } : s)
-            api.patch(`/api/items/${id}`, { completed })
+            api.patch(`/api/items/${id}`, { completed }).catch((e: any) => {
+              console.error('[onItemToggle]', e)
+              // revert optimistic update (parity with desktop onToggle)
+              setItems(prev => prev.map(it => it.id === id ? { ...it, completed: !completed } : it))
+              setSelected((s: any) => s && s.id === id ? { ...s, completed: !completed } : s)
+            })
           }}
           onItemDelete={onDelete}
           onItemAdd={onAddItem}

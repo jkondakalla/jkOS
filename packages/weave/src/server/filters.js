@@ -27,6 +27,13 @@
  *   caller always wants ANDed in first (e.g. ['user_id = ?'] + [req.user.sub]).
  * @returns {{ clauses: string[], params: unknown[], where: string }}
  */
+// Escape LIKE metacharacters so a user-supplied value matches LITERALLY. Without
+// this, a `%` or `_` in an ext_ref prefix or a tag acts as a wildcard and the filter
+// silently over-matches (e.g. ?ext_ref_prefix=a_b would match "aXb"). Used with an
+// explicit ESCAPE clause below; values are still bound (this is correctness, not
+// injection — binding already prevents that).
+const escLike = (v) => v.replace(/[\\%_]/g, (c) => '\\' + c)
+
 function buildItemFilters(query, spec, seed = {}) {
   const clauses = Array.isArray(seed.base) ? [...seed.base] : []
   const params = Array.isArray(seed.baseParams) ? [...seed.baseParams] : []
@@ -37,11 +44,12 @@ function buildItemFilters(query, spec, seed = {}) {
     switch (f.op) {
       case 'eq':     clauses.push(`${f.column} = ?`); params.push(s); break
       case 'gt':     clauses.push(`${f.column} > ?`); params.push(s); break
-      case 'prefix': clauses.push(`${f.column} LIKE ?`); params.push(s + '%'); break
+      case 'prefix': clauses.push(`${f.column} LIKE ? ESCAPE '\\'`); params.push(escLike(s) + '%'); break
       case 'tags':
         for (const t of s.split(',').map(x => x.trim()).filter(Boolean)) {
-          // strip embedded quotes so the JSON-membership match can't be broken out of
-          clauses.push(`${f.column} LIKE ?`); params.push('%"' + t.replace(/"/g, '') + '"%')
+          // strip embedded quotes so the JSON-membership match can't be broken out of,
+          // then escape LIKE wildcards so the tag matches literally
+          clauses.push(`${f.column} LIKE ? ESCAPE '\\'`); params.push('%"' + escLike(t.replace(/"/g, '')) + '"%')
         }
         break
       default: break

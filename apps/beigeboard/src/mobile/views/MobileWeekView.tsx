@@ -1,5 +1,5 @@
 import React from 'react'
-import { FONT_HEAD, FONT_BODY, FONT_NUM, localDate, fmtTime, weekStart, addDays } from '../../lib/theme'
+import { FONT_HEAD, FONT_BODY, FONT_NUM, localDate, fmtTime, weekStart, addDays, sourceOf } from '../../lib/theme'
 import { getAccent } from '../../lib/seed'
 import { Eyebrow, RecLamp, Checkbox } from '../components/MobileWidgets'
 
@@ -123,7 +123,9 @@ export function MobileWeekView({ items, today, onSelect, onToggle }: MobileWeekV
                   <div style={{ paddingLeft: 35, display: 'flex', flexDirection: 'column', gap: 5 }}>
                     {dayItems.map((it: any) => {
                       const isEvent = it.kind === 'event'
-                      const accent = isEvent ? it.accent : getAccent(it, items) || 'var(--color-muted)'
+                      // Synced calendar events carry no `accent` — fall back to the
+                      // source colour (else the left border + time render colourless).
+                      const accent = (isEvent ? (it.accent || sourceOf(it.source)?.hex) : getAccent(it, items)) || 'var(--color-muted)'
                       return (
                         <div
                           key={it.id}

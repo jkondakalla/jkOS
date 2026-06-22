@@ -17,6 +17,11 @@
  */
 function weaveCors(originResolver) {
   return function weaveCorsMw(req, res, next) {
+    // The response (the reflected Allow-Origin) depends on the request Origin, so a
+    // shared/proxy cache MUST key on it — without Vary it could serve one origin's
+    // credentialed ACAO header to a request from another origin. `res.vary` appends,
+    // so it won't clobber a Vary another middleware set.
+    res.vary('Origin')
     const origin = req.headers.origin
     if (origin) {
       const allowed = typeof originResolver === 'function' ? originResolver() : originResolver
@@ -25,6 +30,7 @@ function weaveCors(originResolver) {
         res.setHeader('Access-Control-Allow-Credentials', 'true')
         res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS')
         res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        res.setHeader('Access-Control-Max-Age', '600')  // cache the preflight (10 min) instead of re-OPTIONS every call
       }
     }
     if (req.method === 'OPTIONS') return res.sendStatus(204)
