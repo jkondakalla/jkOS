@@ -434,20 +434,29 @@ const replaceCalendarSource = db.transaction((source, userId, rows) => {
 async function getMsToken(row) {
   // Refresh when the expiry is unknown (legacy/null row) OR within 60s of expiring —
   // returning a possibly-expired token would make the sync silently 401 forever.
-  if (row.expiry_ms && Date.now() < row.expiry_ms - 60000) return row.access_token;
+  if (row.expiry_ms && Date.now() < row.expiry_ms - 60000) return decryptSecret(row.access_token);
   const r = await fetch(MS_TOKEN_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       client_id: MS_CLIENT_ID, client_secret: MS_CLIENT_SECRET,
-      refresh_token: row.refresh_token, grant_type: 'refresh_token',
+      refresh_token: decryptSecret(row.refresh_token), grant_type: 'refresh_token',
     }).toString(),
   });
   const t = await r.json();
   if (t.error) throw new Error(t.error_description || t.error);
   const expiry = Date.now() + (t.expires_in || 3600) * 1000;
-  run(`UPDATE calendar_tokens SET access_token=?, expiry_ms=? WHERE id=?`,
-    [t.access_token, expiry, row.id]);
+  // MS rotates the refresh token on each refresh (offline_access). Persist the new
+  // one when present — otherwise the stored token eventually rotates out and every
+  // future sync 401s forever until the user reconnects by hand. (Mirrors the Google
+  // 'tokens'-event handler, which already does this.)
+  if (t.refresh_token) {
+    run(`UPDATE calendar_tokens SET access_token=?, expiry_ms=?, refresh_token=? WHERE id=?`,
+      [encryptSecret(t.access_token), expiry, encryptSecret(t.refresh_token), row.id]);
+  } else {
+    run(`UPDATE calendar_tokens SET access_token=?, expiry_ms=? WHERE id=?`,
+      [encryptSecret(t.access_token), expiry, row.id]);
+  }
   return t.access_token;
 }
 
@@ -840,12 +849,12 @@ app.get('/api/auth/google/callback', async (req, res) => {
          access_token=excluded.access_token,
          refresh_token=COALESCE(excluded.refresh_token, refresh_token),
          expiry_ms=excluded.expiry_ms, email=excluded.email`,
-      [req.user.sub, 'google', tokens.access_token, tokens.refresh_token||null, tokens.expiry_date||null, req.user.email||null]
+      [req.user.sub, 'google', encryptSecret(tokens.access_token), encryptSecret(tokens.refresh_token||null), tokens.expiry_date||null, req.user.email||null]
     );
 
     oauth2.on('tokens', t => {
       run(`UPDATE calendar_tokens SET access_token=?, expiry_ms=? ${t.refresh_token?',refresh_token=?':''} WHERE user_id=? AND provider='google'`,
-        t.refresh_token ? [t.access_token, t.expiry_date, t.refresh_token, req.user.sub] : [t.access_token, t.expiry_date, req.user.sub]);
+        t.refresh_token ? [encryptSecret(t.access_token), t.expiry_date, encryptSecret(t.refresh_token), req.user.sub] : [encryptSecret(t.access_token), t.expiry_date, req.user.sub]);
     });
 
     try { await syncGoogleEvents(oauth2, req.user.sub); } catch (e) { console.warn('Google calendar sync:', e.message); }
@@ -905,10 +914,13 @@ app.get('/api/auth/outlook/callback', async (req, res) => {
        ON CONFLICT(user_id,provider) DO UPDATE SET
          access_token=excluded.access_token, refresh_token=excluded.refresh_token,
          expiry_ms=excluded.expiry_ms, email=excluded.email`,
-      [req.user.sub, 'outlook', t.access_token, t.refresh_token||null, expiry, email]
+      [req.user.sub, 'outlook', encryptSecret(t.access_token), encryptSecret(t.refresh_token||null), expiry, email]
     );
 
-    await syncOutlookEvents(t.access_token, req.user.sub);
+    // The token is saved; a sync blip now must NOT report the connection as failed
+    // (the user IS connected — sync retries on the next poll/manual sync). Mirrors
+    // the Google callback, whose initial sync is wrapped for the same reason.
+    try { await syncOutlookEvents(t.access_token, req.user.sub); } catch (e) { console.warn('Outlook calendar sync:', e.message); }
     close({ type: 'outlook-auth-success', email });
   } catch (e) {
     console.error('Outlook callback error:', e);
@@ -941,7 +953,23 @@ function validParentId(parentId, userId, selfId = null) {
   const pid = parseInt(parentId, 10);
   if (isNaN(pid)) return false;
   if (selfId != null && pid === selfId) return false;
-  return !!get('SELECT 1 FROM items WHERE id = ? AND user_id = ?', [pid, userId]);
+  if (!get('SELECT 1 FROM items WHERE id = ? AND user_id = ?', [pid, userId])) return false;
+  // Reject an INDIRECT cycle: A→B then B→A each passes the direct self-check
+  // above but loops the parent chain, which would hang the frontend tree walkers
+  // (getDescendants/getAncestors). Walk up from the prospective parent — if we
+  // reach selfId, this link closes a cycle. (selfId null = a brand-new item, not
+  // in the tree yet, so no cycle is possible.) The hop cap is a backstop against
+  // a pre-existing cyclic row so this check can't itself loop forever.
+  if (selfId != null) {
+    let cur = pid, hops = 0;
+    while (cur != null) {
+      if (cur === selfId) return false;
+      if (++hops > 1000) return false;
+      const row = get('SELECT parent_id FROM items WHERE id = ? AND user_id = ?', [cur, userId]);
+      cur = row ? row.parent_id : null;
+    }
+  }
+  return true;
 }
 
 /* The weave filter vocabulary for items — which query param maps to which column
@@ -1017,6 +1045,7 @@ app.patch('/api/items/:id', (req, res) => {
 app.delete('/api/items/:id', (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) return res.status(400).json({ error: 'Invalid id' });
     const row = get('SELECT id FROM items WHERE id = ? AND user_id = ?', [id, req.user.sub]);
     if (!row) return res.status(404).json({ error: 'Not found' });
     cascadeDelete(id, req.user.sub);
@@ -1058,10 +1087,30 @@ const IMPORT_DATE_COLS   = new Set(['due_date', 'target_date', 'end_date', 'week
 const IMPORT_TIME_COLS   = new Set(['scheduled_time', 'scheduled_end']);
 const IMPORT_KIND_ENUM   = new Set(['task', 'event', 'goal', 'milestone']);
 
-const looksLikeDate = (v) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v.trim());
-const looksLikeTime = (v) => typeof v === 'string' && /^\d{1,2}:\d{2}$/.test(v.trim());
+// Real calendar dates only. A bare `^\d{4}-\d{2}-\d{2}$` would accept impossible
+// dates (2026-13-45, 2026-02-30); those become `Invalid Date` and poison every
+// view that parses them — and crash the AI endpoint's toISOString() with a 500.
+// Round-trip through Date so a day/month that doesn't actually exist is rejected.
+const looksLikeDate = (v) => {
+  if (typeof v !== 'string') return false;
+  const m = v.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return false;
+  const y = +m[1], mo = +m[2], d = +m[3];
+  if (mo < 1 || mo > 12 || d < 1 || d > 31) return false;
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  return dt.getUTCMonth() === mo - 1 && dt.getUTCDate() === d;   // rejects e.g. Feb 30
+};
+// HH:MM with real hour/minute ranges (rejects 25:00 / 12:99, which would render and
+// string-sort as garbage downstream).
+const looksLikeTime = (v) => {
+  if (typeof v !== 'string') return false;
+  const m = v.trim().match(/^(\d{1,2}):(\d{2})$/);
+  return !!m && +m[1] <= 23 && +m[2] <= 59;
+};
 const importChildren = (raw) => {
-  for (const k of ['children', 'kids', 'subtasks']) if (Array.isArray(raw[k])) return raw[k];
+  // A NON-EMPTY child array only: an explicit `children: []` (common from an AI that
+  // didn't break a leaf down) must read as a leaf → 'task', not as an empty goal.
+  for (const k of ['children', 'kids', 'subtasks']) if (Array.isArray(raw[k]) && raw[k].length) return raw[k];
   return null;
 };
 
@@ -1107,6 +1156,18 @@ function cleanImportField(col, v, path, warnings) {
   if (s.length > cap) { s = s.slice(0, cap); warnings.push(`${path}.${col}: truncated to ${cap} chars`); }
   s = s.trim();
   if (s === '') return undefined;
+  // Zero-pad lenient dates/times (an AI often emits 2026-7-1 / 9:05) into the
+  // canonical YYYY-MM-DD / HH:MM the rest of the suite stores and string-sorts on.
+  // Real-range validity is then enforced by the looksLikeDate/looksLikeTime pass in
+  // planImport, which runs on this normalised output.
+  if (IMPORT_DATE_COLS.has(col)) {
+    const m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    return m ? `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}` : s;
+  }
+  if (IMPORT_TIME_COLS.has(col)) {
+    const m = s.match(/^(\d{1,2}):(\d{2})$/);
+    return m ? `${m[1].padStart(2, '0')}:${m[2]}` : s;
+  }
   if (col === 'kind') return s.toLowerCase();            // enum-checked by the caller
   if (col === 'accent') { if (!HEX_COLOR_RE.test(s)) { warnings.push(`${path}.accent: not a hex colour — ignored`); return undefined; } return s; }
   if (col === 'scope')  { const lc = s.toLowerCase(); if (!IMPORT_SCOPE_ENUM.has(lc))  { warnings.push(`${path}.scope: unknown '${s}' — defaulted`); return undefined; } return lc; }
@@ -1308,10 +1369,10 @@ app.post('/api/calendar/google/sync', async (req, res) => {
     const row = get('SELECT * FROM calendar_tokens WHERE user_id=? AND provider=?', [req.user.sub, 'google']);
     if (!row) return res.status(401).json({ error: 'Not connected' });
     const oauth2 = makeOAuth2();
-    oauth2.setCredentials({ access_token: row.access_token, refresh_token: row.refresh_token, expiry_date: row.expiry_ms });
+    oauth2.setCredentials({ access_token: decryptSecret(row.access_token), refresh_token: decryptSecret(row.refresh_token), expiry_date: row.expiry_ms });
     oauth2.on('tokens', t => {
       run(`UPDATE calendar_tokens SET access_token=?, expiry_ms=? ${t.refresh_token?',refresh_token=?':''} WHERE id=?`,
-        t.refresh_token ? [t.access_token, t.expiry_date, t.refresh_token, row.id] : [t.access_token, t.expiry_date, row.id]);
+        t.refresh_token ? [encryptSecret(t.access_token), t.expiry_date, encryptSecret(t.refresh_token), row.id] : [encryptSecret(t.access_token), t.expiry_date, row.id]);
     });
     const count = await syncGoogleEvents(oauth2, req.user.sub);
     res.json({ ok: true, synced: count });
@@ -1392,7 +1453,9 @@ app.post('/api/ai/parse-task', async (req, res) => {
     if (!text?.trim()) return res.status(400).json({ error: 'text is required' });
     const trimmed = text.trim().slice(0, 500);
 
-    const todayStr    = today || new Date().toISOString().split('T')[0];
+    // Ignore a malformed client `today` (would make an Invalid Date below → a 500
+    // on .toISOString()); fall back to the server's date.
+    const todayStr    = looksLikeDate(today) ? today.trim() : new Date().toISOString().split('T')[0];
     const d           = new Date(todayStr + 'T12:00:00');
     const tomorrowStr = new Date(d.getTime() + 86400000).toISOString().split('T')[0];
     const dayName     = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][d.getDay()];

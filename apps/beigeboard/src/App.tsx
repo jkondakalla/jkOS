@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import './app.css'
 
-import { FONT_BODY, weekStart } from './lib/theme'
+import { FONT_BODY, weekStart, isoDate } from './lib/theme'
 import { TODAY_ISO, INITIAL_ACCOUNTS, getDescendants } from './lib/seed'
 import { useJkOSPreferences } from './hooks/useJkOSPreferences'
 import { DragProvider } from './providers/DragProvider'
@@ -140,6 +140,31 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
     const handler = () => setIsMobile(mq.matches)
     mq.addEventListener('change', handler)
     return () => mq.removeEventListener('change', handler)
+  }, [])
+
+  // "Today" must not freeze at page-load: a planner is routinely left open
+  // overnight, after which TODAY_ISO (a module constant) would keep the Today view,
+  // the calendar highlight, and new-task date defaults stuck on yesterday. Roll it
+  // over at the next local midnight AND whenever the tab refocuses. The setToday
+  // guard returns the previous value when the date is unchanged, so a refocus that
+  // isn't a new day causes no re-render.
+  const [today, setToday] = useState(TODAY_ISO)
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const schedule = () => {
+      const n = new Date()
+      const nextMidnight = new Date(n.getFullYear(), n.getMonth(), n.getDate() + 1, 0, 0, 5)
+      clearTimeout(timer)
+      timer = setTimeout(tick, nextMidnight.getTime() - n.getTime())
+    }
+    const tick = () => {
+      setToday(prev => { const now = isoDate(new Date()); return prev === now ? prev : now })
+      schedule()
+    }
+    const onVisible = () => { if (document.visibilityState === 'visible') tick() }
+    tick()
+    document.addEventListener('visibilitychange', onVisible)
+    return () => { clearTimeout(timer); document.removeEventListener('visibilitychange', onVisible) }
   }, [])
 
   // Opening scroll plays on load (CinematicIntro reads <html data-mode> so it
@@ -302,7 +327,7 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
   const viewProps = {
     aiEnabled,
     items: visibleItems,
-    today: TODAY_ISO,
+    today,
     onSelect: setSelected,
     onToggle, onDelete, onAddItem, onUpdateItem, onAddTask,
     recentlyAdded,
@@ -335,7 +360,7 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
     return (
       <MobileApp
           items={visibleItems}
-          today={TODAY_ISO}
+          today={today}
           onItemToggle={(id, completed) => {
             setItems(prev => prev.map(it => it.id === id ? { ...it, completed } : it))
             setSelected((s: any) => s && s.id === id ? { ...s, completed } : s)
@@ -384,7 +409,7 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
           <div style={{ gridColumn: '1 / -1' }}>
             <AppHeader
               view={view} setView={setView}
-              today={TODAY_ISO}
+              today={today}
               accounts={accounts}
               onConnectClick={() => setShowConnect(true)}
               onLogout={handleLogout}

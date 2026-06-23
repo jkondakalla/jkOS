@@ -357,11 +357,10 @@ export interface TodayState {
 
 interface TodayBase { loaded: boolean; authed: boolean; offline: boolean; tasks: RawTask[] }
 
-/** Add the derived presentation fields. Called every render (from useHudContext)
- *  so `now` tracks the live clock with no extra timer — the HUD re-renders each
- *  second. */
-function viewToday(base: TodayBase): TodayState {
-  const hm = `${pad(new Date().getHours())}:${pad(new Date().getMinutes())}`;
+/** Add the derived presentation fields. `hm` (the current HH:MM) is passed in so
+ *  the result is a pure function of (data, minute) — useHudContext memoises it on
+ *  the minute, so the live "now" flag updates each minute instead of each second. */
+function viewToday(base: TodayBase, hm: string): TodayState {
   const tasks: TodayTask[] = base.tasks.map(t => {
     const now = isNow(t, hm);
     return {
@@ -387,25 +386,34 @@ function viewToday(base: TodayBase): TodayState {
   };
 }
 
-/** Today's scheduled items, presentation-ready. */
-export function selectToday(s: BbItemsState): TodayState {
+/** Today's scheduled items, presentation-ready. `hm` is the current HH:MM (drives
+ *  the live "now" flag); pass clock.hm so the slice is memoisable on the minute. */
+export function selectToday(s: BbItemsState, hm: string): TodayState {
   const iso = isoDate(new Date());
   const tasks: RawTask[] = s.items
     .filter(i => i.due_date === iso || i.end_date === iso)
     .map(i => ({ id: i.id, time: i.scheduled_time, endTime: i.scheduled_end, title: i.title, tag: i.kind, done: i.completed }))
     .sort((a, b) => (a.time ?? '99').localeCompare(b.time ?? '99'));
-  return viewToday({ loaded: s.loaded, authed: s.authed, offline: s.offline, tasks });
+  return viewToday({ loaded: s.loaded, authed: s.authed, offline: s.offline, tasks }, hm);
+}
+
+/** Is hh:mm inside [start, end)? Handles a window that wraps past midnight
+ *  (end <= start), so a late-evening task whose hour-long default window crosses
+ *  00:00 still reads as "now" instead of never. */
+function inWindow(hm: string, start: string, end: string): boolean {
+  if (end === start) return false;
+  return end < start ? (hm >= start || hm < end) : (hm >= start && hm < end);
 }
 
 /** A task is "now" if the current time falls in [start, end) — or within an
     hour of start when it has no end. */
 export function isNow(t: { time: string | null; endTime: string | null; done: boolean }, hm: string): boolean {
   if (!t.time || t.done) return false;
-  if (t.endTime) return hm >= t.time && hm < t.endTime;
+  if (t.endTime) return inWindow(hm, t.time, t.endTime);
   const [h, m] = t.time.split(':').map(Number);
   const endMin = h * 60 + m + 60;
   const end = `${pad(Math.floor(endMin / 60) % 24)}:${pad(endMin % 60)}`;
-  return hm >= t.time && hm < end;
+  return inWindow(hm, t.time, end);
 }
 
 // ── Monthly calendar (selector — task density per day) ───────────────────────
@@ -626,6 +634,7 @@ export interface NotifSource {
   today: TodayState;
   systems: { rows: SysRow[] };
   study: StudyState;
+  now: string;   // current HH:MM — passed in (not read from the clock) so the feed is pure + memoisable
 }
 /** A pure mapper from the live slices to zero or more alerts. */
 export type NotificationProducer = (src: NotifSource) => Notification[];
@@ -639,12 +648,11 @@ const systemsNotifications: NotificationProducer = ({ systems }) =>
   );
 
 // BeigeBoard — the task happening now (accent) and any past-due, unfinished item.
-const todayNotifications: NotificationProducer = ({ today }) => {
+const todayNotifications: NotificationProducer = ({ today, now }) => {
   if (!today.authed || today.offline) return [];
-  const hm = `${pad(new Date().getHours())}:${pad(new Date().getMinutes())}`;
   return today.tasks.flatMap((t) =>
     t.now ? [{ id: `now-${t.id}`, icon: 'clock', tone: 'accent' as Tone, text: t.title, detail: 'happening now' }]
-    : (t.time && !t.done && t.time < hm) ? [{ id: `od-${t.id}`, icon: 'alert', tone: 'warn' as Tone, text: t.title, detail: `overdue · ${t.timeLabel}` }]
+    : (t.time && !t.done && t.time < now) ? [{ id: `od-${t.id}`, icon: 'alert', tone: 'warn' as Tone, text: t.title, detail: `overdue · ${t.timeLabel}` }]
     : [],
   );
 };

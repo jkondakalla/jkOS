@@ -8,6 +8,7 @@
  * from the single useBbItems source, the dashboard makes one request for them.
  */
 
+import { useMemo } from 'react';
 import { AUTH_URL } from '@jkos/auth-client';
 import { useSuiteApps } from '@jkos/weave';
 import { type WidgetCtx } from '../../hud/registry';
@@ -19,19 +20,28 @@ import {
 /** `aiEnabled` (the LazurOS kill switch) gates the systems panel's LazurOS row. */
 export function useHudContext(aiEnabled = true): WidgetCtx {
   const suite = useSuiteApps();          // hydrate the manifest from jkAuth's registry
-  const clock = useClock();
+  const clock = useClock();              // ticks every second → this hook re-runs every second
   const weather = useWeather();
   const systems = useSystems(aiEnabled, suite);
   const study = useStudy();
 
   const bb = useBbItems();
   const refs = useShelfRefs();          // pins + focus from the suite-wide HUD shelf
-  const today = selectToday(bb);
-  const cal = selectMonth(bb);
-  const focus = selectFocus(refs.focus, bb);
-  const pinned = selectPinned(refs.pins, bb);
+  // Every slice is memoised on the data it actually depends on, so its object
+  // reference is STABLE between real changes — that's what lets each card's memo
+  // boundary (registry WidgetCard) re-render only when its own data moves:
+  //   • today/notifications → recompute per MINUTE (their "now"/overdue flags are
+  //     minute-granular) — clock.hm, not the per-second tick, is the dep.
+  //   • cal/focus/pinned → recompute only when their source data changes.
+  const today = useMemo(() => selectToday(bb, clock.hm), [bb, clock.hm]);
+  const cal = useMemo(() => selectMonth(bb), [bb]);
+  const focus = useMemo(() => selectFocus(refs.focus, bb), [refs.focus, bb]);
+  const pinned = useMemo(() => selectPinned(refs.pins, bb), [refs.pins, bb]);
 
-  const notifications = deriveNotifications({ today, systems, study });
+  const notifications = useMemo(
+    () => deriveNotifications({ today, systems, study, now: clock.hm }),
+    [today, systems, study, clock.hm],
+  );
 
   return { clock, weather, systems, today, study, cal, notifications, focus, pinned, authUrl: AUTH_URL };
 }

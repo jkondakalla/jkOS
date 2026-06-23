@@ -171,6 +171,39 @@ try {
   ok(hi?.scope === 'day',  `H: unknown scope defaulted to day (got ${hi?.scope})`);
   ok(Array.isArray(hi?.tags) && hi.tags.every((t) => t.length <= 60), 'H: tags truncated to 60 chars');
   ok(({}).polluted === undefined, 'H: no prototype pollution from a "__proto__" key');
+
+  // ── I. date/time hygiene: lenient input normalised, impossible values rejected ──
+  // I.1 single-digit month/day/hour are zero-padded to the canonical YYYY-MM-DD /
+  //     HH:MM the rest of the suite stores and string-sorts on (an AI emits 2026-7-1).
+  const I1 = await req('POST', '/api/import', { items: [
+    { title: 'lenient datetime', date: '2026-7-1', time: '9:05', tags: ['lenient'] },
+  ] });
+  ok(I1.status === 201, `I1: created (got ${I1.status} ${JSON.stringify(I1.json)})`);
+  const li = (await list('?tags=lenient'))[0];
+  ok(li?.due_date === '2026-07-01', `I1: date zero-padded 2026-7-1 → 2026-07-01 (got ${li?.due_date})`);
+  ok(li?.scheduled_time === '09:05', `I1: time zero-padded 9:05 → 09:05 (got ${li?.scheduled_time})`);
+
+  // I.2 a structurally-shaped but impossible calendar date is rejected, not stored
+  //     (a bare regex would accept it → Invalid Date poisons every view that parses it).
+  const beforeBad = (await list()).length;
+  const I2 = await req('POST', '/api/import', { items: [{ title: 'bad date', due_date: '2026-13-45' }] });
+  ok(I2.status === 400, `I2: impossible date rejected 400 (got ${I2.status})`);
+  ok(I2.json?.errors?.some((e) => /due_date/.test(e)), 'I2: error names the bad date field');
+  ok((await list()).length === beforeBad, 'I2: nothing written for the impossible date');
+
+  // I.3 Feb 30 (round-trips to Mar 2) and an out-of-range clock time are both rejected.
+  const I3 = await req('POST', '/api/import', { items: [
+    { title: 'feb30',    due_date: '2026-02-30' },
+    { title: 'bad time', scheduled_time: '25:00' },
+  ] });
+  ok(I3.status === 400 && (I3.json?.errors?.length >= 2),
+    `I3: Feb-30 + 25:00 both rejected (got ${I3.status} ${JSON.stringify(I3.json?.errors)})`);
+
+  // I.4 an explicitly-empty children array is a LEAF (task), not an empty goal.
+  const I4 = await req('POST', '/api/import', { items: [{ title: 'no kids', children: [], tags: ['nokids'] }] });
+  ok(I4.status === 201 && I4.json?.created === 1, `I4: created 1 (got ${I4.status} ${I4.json?.created})`);
+  const nk = (await list('?tags=nokids'))[0];
+  ok(nk?.kind === 'task', `I4: empty children → task, not goal (got ${nk?.kind})`);
 } catch (e) {
   console.error('harness error:', e);
   fail++;

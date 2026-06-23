@@ -134,9 +134,11 @@ The same goal expressed flat, with `ref`/`parent`:
 
 The whole document is **validated before anything is written**: on any error nothing is created
 and you get precise messages (e.g. `items[0].children[1].due_date: expected YYYY-MM-DD`). On
-success you get the created items with their new ids. Limits: **500 items, 8 levels deep** per
-request. (The capability is also published in the [Weave](WEAVE.md) registry as
-`beigeboard.importItems`.)
+success you get the created items with their new ids. Dates and times are **forgiving on input**
+— a single-digit `2026-7-1` / `9:05` is normalised to canonical `2026-07-01` / `09:05` — but
+**impossible values are rejected** (`2026-13-45`, `2026-02-30`, `25:00`). Limits: **500 items,
+8 levels deep** per request. (The capability is also published in the [Weave](WEAVE.md) registry
+as `beigeboard.importItems`.)
 
 ### Account & sign-in (jkAuth)
 

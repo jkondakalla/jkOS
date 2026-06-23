@@ -20,6 +20,13 @@ services:
       # session cookie (jkos_token_staging) and issuer, not the prod one.
       JKOS_COOKIE_SUFFIX: "_staging"
       JKOS_AUTH_ISSUER: "jkos-auth-staging"
+      # The deploy scripts validate the new nginx config in a throwaway container
+      # via `docker run -v ...`; those bind-mount sources are resolved by the HOST
+      # daemon, so the scripts need host paths. HOST_WEBHOST maps this container's
+      # /webhost mount back to its real host location; SSL_PATH is the nginx certs
+      # dir on the host. (Both match main.py's defaults — set here for clarity.)
+      HOST_WEBHOST: /mnt/Luna/Webhost
+      SSL_PATH: /mnt/Luna/Backends/ssl
 
 networks:
   nginx-staging-proxy:

@@ -166,6 +166,12 @@ export interface WidgetDef {
   component?: string;
   /** AI-backed widgets honor the suite-wide LazurOS kill switch. */
   ai?: boolean;
+  /** Manual refresh override (ms). The card normally re-renders only when a slice
+   *  it binds to changes (auto-detected). Set this to ALSO force a re-render at
+   *  least every N ms — a safety valve for when the auto-detection misses a
+   *  dependency, and the way to make a "live" card tick faster or a heavy one
+   *  refresh on a fixed beat. Omit/0 = pure auto. */
+  refreshMs?: number;
 }
 
 /** The whole per-user HUD document. `version` guards future migrations. */

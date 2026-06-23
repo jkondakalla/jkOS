@@ -142,6 +142,10 @@ export function HudGrid({
   function onPointerDown(e: ReactPointerEvent, item: GridItem) {
     if (e.button !== 0) return;
     if ((e.target as HTMLElement).closest('button')) return;   // never drag from the × control
+    // Clear a stale swallow: if the previous drag ended without a follow-up click
+    // (pointer released over another element under capture), justDragged would
+    // otherwise eat the FIRST click of this fresh gesture.
+    justDragged.current = false;
     const r = areaRef.current?.getBoundingClientRect();
     const slot = rectOf(item);
     press.current = {

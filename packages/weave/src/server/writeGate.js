@@ -21,6 +21,12 @@ function weaveWriteGate({ scope } = {}) {
   return function writeGate(req, res, next) {
     if (!WRITE.includes(req.method)) return next()
     const u = req.user
+    // Fail closed: a write with no identity must never pass. weaveAuth normally
+    // rejects before this, but if this gate is ever mounted without it (or on an
+    // optional-auth path) an undefined user would otherwise slip every check below.
+    if (!u) {
+      return res.status(401).json({ error: 'Authentication required', code: 'NO_AUTH' })
+    }
     if (u?.role === 'guest') {
       return res.status(403).json({ error: 'Guest access is read-only', code: 'READ_ONLY' })
     }

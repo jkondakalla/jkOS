@@ -81,20 +81,14 @@ export function useWeaveList<T = unknown>(
   opts?: PolledOptions,
 ): T[] {
   const filterKey = filters ? JSON.stringify(filters) : '';
-  const fetcher = useCallback(async (): Promise<T[]> => {
-    const ds = getDataset(await fetchDatasets(appId), datasetId);
-    if (!ds) return [];
-    try {
-      const r = await fetch(`${apiBase(appId)}${ds.path}${toQuery(filters)}`, { credentials: 'include' });
-      if (!r.ok) return [];
-      const data = await r.json();
-      return Array.isArray(data) ? (data as T[]) : [];
-    } catch {
-      return [];
-    }
+  // Reuse the imperative client's read path — one definition of discover→fetch→
+  // coerce instead of a second copy that could drift from it.
+  const fetcher = useCallback(
+    () => weaveClient(appId).list<T>(datasetId, filters),
     // filters is captured by value through filterKey; appId/datasetId are primitives.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appId, datasetId, filterKey]);
+    [appId, datasetId, filterKey],
+  );
   // reloadKey forces an immediate refetch when app/dataset/filters change (the
   // fetcher is ref-read by usePolledResource, so it wouldn't refetch on its own).
   return usePolledResource<T[]>(fetcher, [], { ...opts, reloadKey: `${appId}|${datasetId}|${filterKey}` });

@@ -238,6 +238,13 @@ const ghostBtn: CSSProperties = { ...field, cursor: 'pointer' };
 const rowLine: CSSProperties = { display: 'flex', gap: 6, alignItems: 'center', marginTop: 6 };
 const tag = (t: string) => <span style={{ fontFamily: 'var(--hub-font-mono)', fontSize: 10, letterSpacing: '0.06em', color: 'var(--hub-cream-dim)', width: 64, flex: 'none' }}>{t}</span>;
 
+/** [seconds, label] for the per-card refresh override; '' = auto (data-driven). */
+const REFRESH_PRESETS: [string, string][] = [
+  ['', 'Auto — only when data changes'],
+  ['1', 'Every 1 second'], ['5', 'Every 5 seconds'], ['30', 'Every 30 seconds'],
+  ['60', 'Every minute'], ['300', 'Every 5 minutes'], ['900', 'Every 15 minutes'],
+];
+
 function Select({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: string[] }) {
   return <select style={{ ...field, flex: 'none' }} value={value} onChange={(e) => onChange(e.target.value)}>{options.map((o) => <option key={o} value={o}>{o}</option>)}</select>;
 }
@@ -275,6 +282,7 @@ export default function WidgetWorkshop() {
   const [source, setSource] = useState('');
   const [dw, setDw] = useState(3); const [dh, setDh] = useState(5);
   const [mw, setMw] = useState(2); const [mh, setMh] = useState(4);
+  const [refresh, setRefresh] = useState('');   // refresh override in SECONDS ('' = auto)
   const [rows, setRows] = useState<Row[]>([newRow('metric')]);
   const [fetches, setFetches] = useState<{ name: string; url: string; poll: string }[]>([]);
   const [published, setPublished] = useState<WidgetDef[]>([]);
@@ -364,6 +372,7 @@ export default function WidgetWorkshop() {
     setSource(frameText(def.spec.frame?.source));
     setDw(def.sizing?.desktop?.w ?? 3); setDh(def.sizing?.desktop?.h ?? 5);
     setMw(def.sizing?.mobile?.w ?? 2); setMh(def.sizing?.mobile?.h ?? 4);
+    setRefresh(def.refreshMs ? String(def.refreshMs / 1000) : '');
     const fs: { name: string; url: string; poll: string }[] = [];
     for (const [name, s] of Object.entries(def.spec.sources || {})) {
       if (s?.from === 'fetch') fs.push({ name, url: s.url, poll: s.poll != null ? String(s.poll) : '' });
@@ -436,17 +445,19 @@ export default function WidgetWorkshop() {
       };
     }
 
+    const refreshMs = refresh ? Math.max(1000, Math.round(Number(refresh) * 1000)) : 0;
     return {
       id: id.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '-'),
       label: label || id || 'Untitled',
       sizing: { desktop: { w: clamp(dw, 1, 12), h: clamp(dh, 1, 40) }, mobile: { w: clamp(mw, 1, 2), h: clamp(mh, 1, 40) } },
+      ...(refreshMs > 0 ? { refreshMs } : {}),
       spec: {
         frame: onlyMolecule ? undefined : { eyebrow: eyebrow || undefined, source: source || undefined },
         sources: sourcesObj,
         body,
       },
     };
-  }, [id, label, eyebrow, source, dw, dh, mw, mh, rows, sourcesObj, actionOn, cmdApp, cmdCap, cap, fieldMap, submitLabel]);
+  }, [id, label, eyebrow, source, dw, dh, mw, mh, refresh, rows, sourcesObj, actionOn, cmdApp, cmdCap, cap, fieldMap, submitLabel]);
 
   // The preview def, plus a translucent ghost of the hovered element appended to
   // the body (only for the plain stack body — action/molecule cards fall back to
@@ -516,6 +527,20 @@ export default function WidgetWorkshop() {
                 <span style={{ width: 10 }} />
                 <Num label="mobile w" value={mw} min={1} max={2} onChange={setMw} />
                 <Num label="h" value={mh} min={1} max={40} onChange={setMh} />
+              </div>
+              <div style={rowLine}>
+                {tag('refresh')}
+                <select style={{ ...field, flex: 1 }} value={refresh} onChange={(e) => setRefresh(e.target.value)}>
+                  {REFRESH_PRESETS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                  {refresh && !REFRESH_PRESETS.some(([v]) => v === refresh) && <option value={refresh}>{`Every ${refresh}s`}</option>}
+                </select>
+              </div>
+              <div style={{ ...rowLine, marginTop: -4 }}>
+                {tag('')}
+                <span style={{ fontFamily: 'var(--hub-font-mono)', fontSize: 10, color: 'var(--hub-cream-faint)', lineHeight: 1.5 }}>
+                  Auto re-renders the card only when its data changes. Set an interval to force a
+                  minimum refresh beat — for live cards, or as a fallback if auto misses an update.
+                </span>
               </div>
               <p style={hintStyle}>Sizes are in grid cells — desktop is a 12-column grid, mobile is 2. A row is ~44px tall.</p>
             </Card>

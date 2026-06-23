@@ -19,7 +19,7 @@
  */
 
 import {
-  Fragment, createContext, useCallback, useContext, useEffect, useMemo, useState,
+  Fragment, createContext, memo, useCallback, useContext, useEffect, useMemo, useState,
   type CSSProperties, type FormEvent, type ReactNode,
 } from 'react';
 import {
@@ -41,6 +41,7 @@ import type { Binding, CommandRef, DataSource, Tone, ToneBinding, WidgetDef, Wid
 import { TONE_COLOR } from './tone';
 import { bbCreateItem, todayIso } from '../lib/bb';
 import { clearHudFocus } from '../lib/shelf';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 const MO_FULL = ['January', 'February', 'March', 'April', 'May', 'June',
                  'July', 'August', 'September', 'October', 'November', 'December'];
@@ -708,6 +709,85 @@ const COMPONENT_REGISTRY: Record<string, (ctx: WidgetCtx) => ReactNode> = {
   quickadd: (ctx) => <QuickAddBody authed={ctx.today.authed} />,
   focus: (ctx) => <FocusBody focus={ctx.focus} />,
 };
+/** Which ctx slices a bespoke component reads (a spec's are collected from its
+ *  bindings; a component's can't be, so they're declared here). */
+const COMPONENT_SLICES: Record<string, (keyof WidgetCtx)[]> = {
+  quickadd: ['today'],   // reads ctx.today.authed
+  focus: ['focus'],      // reads ctx.focus
+};
+
+/* ═══ Per-card update isolation ═════════════════════════════════════════════
+ * The whole ctx object changes every second (the clock slice ticks), but a card
+ * only depends on the SLICES its spec binds to. We collect those once per def
+ * and gate each card behind a memo that re-renders only when one of THOSE slices
+ * changes reference — so the clock card updates every second, weather on its
+ * 15-min poll, systems every 30s, a static card almost never. Each slice is
+ * memoised upstream (useHudContext) to keep its reference stable between real
+ * changes, which is what makes this comparison meaningful. */
+const SLICE_KEYS = new Set<string>([
+  'clock', 'weather', 'systems', 'today', 'study', 'cal', 'notifications', 'focus', 'pinned', 'authUrl',
+]);
+const sliceCache = new WeakMap<object, Set<string>>();
+
+// Molecule primitives that read a slice straight from scope (no `{src}` binding),
+// so collectSrcs can't see the dependency in their bindings — declare it here.
+const NODE_SLICE: Record<string, string> = { weather: 'weather', calendar: 'cal' };
+
+/** Deep-collect every slice a value depends on: `{ src }` bindings anywhere, plus
+ *  the implicit slice of any molecule node (weather/calendar). */
+function collectSrcs(v: unknown, acc: Set<string>): void {
+  if (!v || typeof v !== 'object') return;
+  if (Array.isArray(v)) { for (const e of v) collectSrcs(e, acc); return; }
+  const obj = v as Record<string, unknown>;
+  if (typeof obj.src === 'string') acc.add(obj.src);
+  if (typeof obj.t === 'string' && NODE_SLICE[obj.t]) acc.add(NODE_SLICE[obj.t]);
+  for (const k in obj) collectSrcs(obj[k], acc);
+}
+
+/** The ctx slices a widget reads — cached per def (spec object identity), so it's
+ *  recomputed only when the def actually changes (workshop edit / published merge). */
+function usedSlices(def: WidgetDef): Set<string> {
+  const key: object = def.spec ?? def;
+  const cached = sliceCache.get(key);
+  if (cached) return cached;
+  const acc = new Set<string>();
+  if (def.spec) collectSrcs(def.spec, acc);
+  else if (def.component) for (const k of COMPONENT_SLICES[def.component] ?? []) acc.add(k);
+  // Drop non-ctx sources ($ list element, $form, fetch-source names) — they're
+  // never on ctx, so they'd never (correctly) trigger a re-render anyway.
+  for (const k of [...acc]) if (!SLICE_KEYS.has(k)) acc.delete(k);
+  sliceCache.set(key, acc);
+  return acc;
+}
+
+interface CardProps { def: WidgetDef; ctx: WidgetCtx }
+
+/** Last time each card actually rendered, for the refreshMs heartbeat. The parent
+ *  re-renders ~once a second (the clock), so cardPropsEqual is consulted at that
+ *  cadence — fine-grained enough to honour any sane refresh interval. */
+const lastRenderAt = new Map<string, number>();
+
+function cardPropsEqual(prev: CardProps, next: CardProps): boolean {
+  if (prev.def !== next.def) return false;     // def changed → re-render
+  for (const k of usedSlices(next.def)) {
+    if (prev.ctx[k as keyof WidgetCtx] !== next.ctx[k as keyof WidgetCtx]) return false;
+  }
+  // Manual override: force a render once refreshMs has elapsed since the last one.
+  // Because the gate runs on the parent's per-second tick, the card re-renders
+  // with the LATEST ctx (no staleness) — this is the safety valve over auto-detect.
+  const ms = next.def.refreshMs;
+  if (ms && ms > 0 && Date.now() - (lastRenderAt.get(next.def.id) ?? 0) >= ms) return false;
+  return true;                                 // every bound slice stable + not due → skip
+}
+
+/** One card, isolated: re-renders when a slice it binds to changes, when its
+ *  refreshMs heartbeat is due, or on its own internal state (a form's inputs, a
+ *  fetch source's polled data) — so interactive/live cards still update themselves. */
+const WidgetCard = memo(function WidgetCard({ def, ctx }: CardProps) {
+  // Stamp the render time post-commit (not during render) for the heartbeat above.
+  useEffect(() => { if (def.refreshMs) lastRenderAt.set(def.id, Date.now()); });
+  return <>{renderWidgetBody(def, ctx)}</>;
+}, cardPropsEqual);
 
 /* ═══ Factory entry point ══════════════════════════════════════════════════ */
 
@@ -721,12 +801,25 @@ function unknownWidget(name: string): ReactNode {
   );
 }
 
-/** Render a widget definition: declarative spec first, bespoke component second. */
-export function renderWidget(def: WidgetDef, ctx: WidgetCtx): ReactNode {
+function renderWidgetBody(def: WidgetDef, ctx: WidgetCtx): ReactNode {
   if (def.spec) return <SpecWidget spec={def.spec} ctx={ctx} />;
   if (def.component) {
     const Component = COMPONENT_REGISTRY[def.component];
     return Component ? Component(ctx) : unknownWidget(def.component);
   }
   return unknownWidget(def.id);
+}
+
+/** Render a widget definition behind its per-card update gate (see WidgetCard):
+ *  declarative spec first, bespoke component second. Each card is isolated by an
+ *  ErrorBoundary so one malformed spec (a bad published/AI/workshop widget) shows
+ *  a single fault tile instead of taking the whole dashboard down. resetKey=def
+ *  clears the fault when the definition is edited/republished. The boundary wraps
+ *  the memo, so a stable card still bails out of re-render on the parent tick. */
+export function renderWidget(def: WidgetDef, ctx: WidgetCtx): ReactNode {
+  return (
+    <ErrorBoundary widgetName={def.label} resetKey={def}>
+      <WidgetCard def={def} ctx={ctx} />
+    </ErrorBoundary>
+  );
 }

@@ -49,7 +49,12 @@ function mergeRegistry(rows: AppRow[]): Record<string, SuiteApp> {
   for (const row of rows) {
     if (!row || typeof row.id !== 'string') continue;
     const m = mapRow(row);
-    merged[m.id] = { ...merged[m.id], ...m };
+    const base = merged[m.id];
+    // mapRow always produces a label (falls back to the id), but a registry row
+    // with no `name` must NOT clobber a nicer static label — keep the existing
+    // one, matching how every other field is omitted-when-empty above.
+    if (!row.name && base?.label) m.label = base.label;
+    merged[m.id] = { ...base, ...m };
   }
   return merged;
 }

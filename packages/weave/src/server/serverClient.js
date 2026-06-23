@@ -24,6 +24,7 @@ function weaveServerClient(appId, opts = {}) {
 
   let token = null
   let tokenExp = 0
+  let minting = null   // in-flight mint, so concurrent calls share ONE token request
 
   async function mint() {
     if (!clientId || !clientSecret) {
@@ -44,7 +45,10 @@ function weaveServerClient(appId, opts = {}) {
 
   async function getToken() {
     if (token && Date.now() < tokenExp) return token
-    return mint()
+    // Coalesce concurrent mints (e.g. a burst of peer calls after a cold start or
+    // a 401 refresh) into a single /auth/token round-trip.
+    if (!minting) minting = mint().finally(() => { minting = null })
+    return minting
   }
 
   // Resolve the peer's reachable API root. baseUrl wins; otherwise discover the
