@@ -167,7 +167,16 @@ async def get_admin(request: Request):
             token,
             PUBLIC_KEY,
             algorithms=["RS256"],
-            options={"verify_aud": False},
+            # jkAuth mints `sub` as the numeric SQLite user id (RFC 7519 says it
+            # SHOULD be a string, but node's jsonwebtoken — what jkAuth signs with
+            # and what the nginx require-admin gate verifies with — accepts a
+            # number). python-jose >= 3.4 enforces the string rule and raises
+            # JWTClaimsError("Subject must be a string"), which 401s EVERY valid
+            # token here — so the nginx gate passes but this backend rejects, and
+            # the console loops to /auth/login. verify_aud is off because each app
+            # owns its own audience check; verify_sub is off for the same reason
+            # the gate tolerates a numeric sub. Signature + exp are still verified.
+            options={"verify_aud": False, "verify_sub": False},
         )
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
