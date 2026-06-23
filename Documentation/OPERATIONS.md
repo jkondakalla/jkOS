@@ -47,19 +47,30 @@ Root `docker-compose.yml` (`include:` each `apps/<svc>/docker-compose.yml`) is p
 
 ## Deploy (jkos-deploy)
 
-Controller at `staging.jkos.net/deploy/` (admin-gated). For each environment it runs:
+Controller at `staging.jkos.net/deploy/` (admin-gated). Two actions:
 
-```bash
-git -C <DIR> -c core.fileMode=false fetch origin
-git -C <DIR> -c core.fileMode=false reset --hard origin/<branch>
-docker compose [-f docker-compose.staging.yml] up --build -d
-docker restart standalone-nginx     # restart, not reload — see inode gotcha below
-```
+- **Deploy Staging** — syncs the staging checkout from `origin/staging`, rebuilds, verifies.
+- **Promote to Production** — runs the same pipeline against the prod checkout (`origin/staging`
+  by default, so exactly the commit just tested on staging).
 
-**Branch model:** `staging` is the deployable branch. "Promote to Production" deploys
-`origin/${PROD_BRANCH}` (set to `staging` in `jkos-deploy/docker-compose.yml`, so promote
-deploys the exact commit tested on staging). Flip `PROD_BRANCH` to `main` to restore a
-merge-gated flow. `main` is a stable marker updated from a dev machine.
+Both run through `infra/scripts/lib-deploy.sh` (sourced by `deploy-staging.sh` /
+`deploy-prod.sh` / `promote.sh`). The shared routine:
+
+1. Copies the scripts to a tmp dir and re-execs — so `git reset --hard` can't corrupt the
+   running shell mid-flight.
+2. `git -c 'safe.directory=*' fetch origin && reset --hard origin/<branch>`.
+3. `docker compose up --build -d`.
+4. `verify_containers` — sleeps 5 s, then inspects every container; fails the deploy if any
+   is not `running` (or is `unhealthy`). Green = actually running, not just started.
+5. nginx step: **staging only** (`MANAGE_NGINX=1`) and only when `infra/nginx` changed —
+   validates the config in a throwaway container, then `docker restart standalone-nginx`.
+   **Prod deploy always skips nginx** (`MANAGE_NGINX=0`) — standalone-nginx mounts its config
+   from the staging checkout; a prod deploy must not restart it with unvalidated config.
+
+**Branch model:** `staging` is the deployable branch. `PROD_BRANCH=staging` is set in
+`jkos-deploy/docker-compose.yml`, so "Promote to Production" deploys the exact commit tested
+on staging. Flip `PROD_BRANCH` to `main` to restore a merge-gated flow. `main` is a stable
+marker updated from a dev machine.
 
 ## Staging
 
@@ -137,7 +148,7 @@ Copy `.env.example` → `.env` and fill in values for each app. Key required var
 | Service | File | Key vars |
 |---------|------|----------|
 | jkAuth | `apps/jkauth/.env` | `JKOS_AUTH_PRIVATE_KEY`, `JKOS_AUTH_PUBLIC_KEY`, `COOKIE_DOMAIN`, `AUTH_ORIGIN`, `PORTAL_URL`, `GOOGLE_CLIENT_ID/SECRET/REDIRECT_URI`, `ADMIN_SEED_EMAIL/PASSWORD` |
-| BeigeBoard | `apps/beigeboard/.env` | `JKOS_AUTH_PUBLIC_KEY`, `GOOGLE_CLIENT_ID/SECRET/REDIRECT_URI`, `LAZUROS_URL`, `LAZUROS_TOKEN` |
+| BeigeBoard | `apps/beigeboard/.env` | `JKOS_AUTH_PUBLIC_KEY`, `GOOGLE_CLIENT_ID/SECRET/REDIRECT_URI`, `LAZUROS_URL`, `LAZUROS_TOKEN`, `CALENDAR_ENC_KEY` |
 | SylibOS | `apps/sylibos/backend/.env` | `JKOS_AUTH_PUBLIC_KEY`, `LAZUROS_URL`, `LAZUROS_TOKEN` |
 | LazurOS | `apps/lazuros/.env` | `LAZUROS_TOKEN`, `JKOS_AUTH_PUBLIC_KEY`, `COMPUTE_NODE_IP`, `COMPUTE_NODE_MAC` |
 | ORDECK | `apps/ordeck/.env` | `JKOS_AUTH_PUBLIC_KEY`, `LAZUROS_URL`, `LAZUROS_TOKEN` |
@@ -201,6 +212,7 @@ Every service reads from a `.env` file (gitignored). `.env.example` in each app 
 | `JKOS_AUTH_PUBLIC_KEY` | every backend + jkauth | Required by `@jkos/auth-middleware`. |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | jkauth + beigeboard | Separate OAuth apps (different redirect URIs). |
 | `LAZUROS_TOKEN` | lazuros, beigeboard, sylibos, ordeck | Shared static bearer for server-to-server calls. |
+| `CALENDAR_ENC_KEY` | `apps/beigeboard/.env` | 64 hex chars → AES-256-GCM encryption of calendar OAuth tokens at rest. Without it, tokens are stored plaintext (safe no-op fallback). Generate: `openssl rand -hex 32`. |
 
 Gitignored globally: `.env*`, `*.pem`, `*.key`, `*.db`.
 
@@ -232,7 +244,7 @@ A literal `proxy_pass` hostname fails nginx startup if that container is down. M
 
 ### nginx config bind-mount inode pinning
 
-`standalone.conf` is a single-file bind mount. `git reset --hard` replaces the inode; `nginx -s reload` re-reads the old (stale) inode. Always `docker restart standalone-nginx` after a deploy. The controller does this automatically.
+`standalone.conf` is a single-file bind mount. `git reset --hard` replaces the inode; `nginx -s reload` re-reads the old (stale) inode. Always `docker restart standalone-nginx` when the config changes. The deploy controller handles this automatically on staging deploys where `infra/nginx` changed; prod deploys skip nginx entirely (`MANAGE_NGINX=0`).
 
 ### git on TrueNAS — mode-bit / lock failures
 
@@ -243,6 +255,19 @@ git -c core.fileMode=false reset --hard origin/<branch>
 ```
 
 Never run `git config core.fileMode false` — it hangs on the lock.
+
+### git on TrueNAS — dubious ownership in bind-mounted checkouts
+
+When git runs inside a container that mounted the repo, the file uid differs from the
+process uid and git refuses with "dubious ownership". Use `safe.directory=*` to whitelist:
+
+```bash
+git -c 'safe.directory=*' -C /path/to/repo fetch origin
+```
+
+**The single quotes are required in zsh** — without them, `*` glob-expands against the cwd
+and the flag is passed as multiple nonsense arguments. `lib-deploy.sh` uses a quoted array
+(`GIT=(git -c 'safe.directory=*')`) for the same reason.
 
 ### Unlabeled pre-existing networks
 

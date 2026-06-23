@@ -18,7 +18,8 @@ contract, auth/theme flows, and env isolation.
 Vite SPA (React 18) + `@originjs/vite-plugin-federation`. Served static by nginx.
 
 - Theme/prefs: `src/hooks/useJkOSPreferences.ts` wraps `@jkos/auth-client`'s hook, adds CRT scanline var + `ordeck-mode` event via `onApply`.
-- AppLauncher fetches `GET /auth/apps`. Widgets in `src/widgets/**`; shell uses `@jkos/ui`.
+- AppLauncher fetches `GET /auth/apps`. Built-in static widgets in `src/widgets/**`; shell uses `@jkos/ui`.
+- Native HUD engine in `src/hud/` (`engine.ts`, `registry.tsx`, `HudGrid.tsx`, `state.ts`, `types.ts`): declarative `WidgetSpec` grid, drag/resize, per-card `ErrorBoundary` (recovers on spec edit via `resetKey`), widget shelf, layout persisted in jkAuth preferences.
 - Docker: `apps/ordeck/Dockerfile` (root context) → nginx with `apps/ordeck/nginx.conf`. Build args `VITE_JKOS_AUTH_URL` / `VITE_PLUGIN_BASE_URL` (prod defaults baked in).
 - Staging: built with `VITE_JKOS_AUTH_URL=https://staging.jkos.net` (same-origin auth); serves at the `staging.jkos.net` root. HUD data feeds use the same absolute paths as prod (`/api/lazuros/`, `/api/bb/`, etc.) routed to staging upstreams.
 
@@ -51,7 +52,7 @@ src/routes/google.js   Google OAuth
 - Google login: rejects `verified_email === false` to prevent account-takeover via unverified Google emails.
 - Rate limiting on login, register, guest, refresh, and Google endpoints; budgets in `src/config.js`, all env-overridable.
 
-**Key routes:** `POST /auth/{login,register,logout,refresh,guest}`, `GET /auth/{me,profile,apps,jwks,require-admin,google,google/callback,events}`, `PATCH /auth/profile`, `GET /health`.
+**Key routes:** `POST /auth/{login,register,logout,refresh,guest,token}`, `GET /auth/{me,profile,apps,jwks,require-admin,google,google/callback,events}`, `PATCH /auth/profile`, `GET /health`. `POST /auth/token` is the service-to-service client-credentials grant (disabled when `JKOS_SERVICE_CLIENTS` is unset).
 
 **Smoke test:** `npm test` in `apps/jkauth/` — spawns in-process with a temp DB + keypair and exercises every auth flow. Run before and after any change.
 
@@ -61,9 +62,12 @@ Does **not** use `@jkos/auth-middleware` (it is the issuer; verifies inline via 
 
 Goal-planning app. One `items` table, four kinds: `goal` (title + `done_means` + `target_date` + `status`), `milestone` (ordered checkpoint under goal), `task` (next action, one level of subtasks), `event` (synced, read-only). Goal fields were added via migration onto the base items table — change the `CREATE TABLE` and migration together.
 
-- Frontend: Vite SPA (React 18). `src/lib/jkauth.ts` re-exports `@jkos/auth-client`; `src/lib/theme.ts` holds app helpers (fonts, date fmt, `halate`) — not jkOS theme.
+- Frontend: Vite SPA (React 18). `src/lib/jkauth.ts` re-exports `@jkos/auth-client`; `src/lib/theme.ts` holds app helpers (fonts, date fmt) — not jkOS theme.
 - Backend: `backend/server.js` (Express + better-sqlite3 + googleapis). Serves SPA from `STATIC_DIR` + `/api/*`. Auth via `@jkos/auth-middleware`. `req.user.sub` = user id.
+- **DB:** SQLite at `DB_PATH` (`/data/beigeBoard.db`). Migrations run in order: 1 core tables → 2 legacy schema migration → 3 detach user FK → 4 cleanup + index → 5 goal engine → 6 weave interop fields → 7 stamp `updated_at` on insert.
+- **Calendar token encryption:** OAuth tokens (Google, Outlook, iCloud) are encrypted at rest with AES-256-GCM when `CALENDAR_ENC_KEY` (64 hex chars) is set in `.env`. Without it, tokens are stored plaintext — safe no-op fallback, but set it for real deployments. Tokens minted before the key was set stay plaintext until next re-auth.
 - Routes: `GET/POST /api/items`, `PATCH/DELETE /api/items/:id`; `POST /api/import` (bulk/AI JSON tree → many items in one transaction, validate-then-write, `?dryRun=1`; format in README → *Importing tasks & goals*); Weave `GET /api/capabilities`+`/api/datasets`; Google/Outlook/iCloud calendar sync (`/api/auth/<provider>*`, `/api/calendar/<provider>/sync`); AI `POST /api/ai/{parse-task,breakdown}` (gated by `lazuros.enabled` + `BB_AI_ENABLED`).
+- Import smoke test: `node backend/test/import.smoke.mjs` (39 assertions); run before/after any import-pipeline change.
 - One Docker image (`apps/beigeboard/Dockerfile`): builds SPA + `pnpm deploy` bundles backend.
 - Calendar drag uses a 4px click-vs-drag threshold (`providers/DragProvider`) so taps select/create and only real movement reschedules.
 

@@ -1,17 +1,14 @@
 import { useState, useEffect, useCallback, createContext, useContext } from 'react';
-
-const JKOS_AUTH_URL = (import.meta.env.VITE_JKOS_AUTH_URL as string | undefined)
-  ?? 'https://auth.jkos.net';
+import {
+  getMe, refreshToken, redirectToLogin, logout as authLogout,
+  useSessionKeepalive, type JkosUser,
+} from '@jkos/auth-client';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export interface AuthUser {
-  id:         string;
-  email:      string;
-  name:       string;
-  avatar_url: string | null;
-  role:       string;
-}
+// The suite-canonical user shape lives in @jkos/auth-client; alias it so the rest
+// of ORDECK keeps importing AuthUser from here.
+export type AuthUser = JkosUser;
 
 export type AuthState =
   | { status: 'loading' }
@@ -28,10 +25,8 @@ export interface AuthContext {
 
 export const authContext = createContext<AuthContext>({
   state:           { status: 'loading' },
-  loginWithGoogle: () => {
-    window.location.href = `${JKOS_AUTH_URL}/auth/login?redirect_to=${encodeURIComponent(window.location.href)}`;
-  },
-  logout: async () => { /* noop */ },
+  loginWithGoogle: () => redirectToLogin(),
+  logout:          async () => { /* noop */ },
 });
 
 export function useAuth(): AuthContext {
@@ -44,61 +39,37 @@ export function useAuthProvider(): AuthContext {
   const [state, setState] = useState<AuthState>({ status: 'loading' });
 
   const fetchMe = useCallback(async (): Promise<boolean> => {
-    const res = await fetch(`${JKOS_AUTH_URL}/auth/me`, { credentials: 'include' });
-    if (res.ok) {
-      const data = await res.json();
-      setState({ status: 'authenticated', user: data.user as AuthUser });
-      return true;
-    }
+    try {
+      const user = await getMe();
+      if (user) { setState({ status: 'authenticated', user }); return true; }
+    } catch { /* 5xx (broken backend ≠ logged out) — fall through to unauthenticated */ }
     return false;
   }, []);
 
-  const refresh = useCallback(async (): Promise<boolean> => {
-    const res = await fetch(`${JKOS_AUTH_URL}/auth/refresh`, {
-      method:      'POST',
-      credentials: 'include',
-    });
-    return res.ok;
-  }, []);
-
+  // Mount bootstrap: who am I? → if the access token lapsed, rotate the remember-me
+  // refresh cookie and ask again → else surface logged-out. (Per-request refresh for
+  // data calls is handled by authFetch in @jkos/auth-client; this is just the gate.)
   const check = useCallback(async () => {
     try {
-      const ok = await fetchMe();
-      if (ok) return;
+      if (await fetchMe()) return;
+      if (await refreshToken() && await fetchMe()) return;
 
-      const refreshed = await refresh();
-      if (refreshed) {
-        const retried = await fetchMe();
-        if (retried) return;
-      }
-
-      const params = new URLSearchParams(window.location.search);
-      const error  = params.get('error') ?? undefined;
+      const error = new URLSearchParams(window.location.search).get('error') ?? undefined;
       setState({ status: 'unauthenticated', error });
     } catch {
       setState({ status: 'unauthenticated' });
     }
-  }, [fetchMe, refresh]);
+  }, [fetchMe]);
 
   useEffect(() => {
     check();
   }, [check]);
 
-  const loginWithGoogle = useCallback(() => {
-    window.location.href =
-      `${JKOS_AUTH_URL}/auth/login?redirect_to=${encodeURIComponent(window.location.href)}`;
-  }, []);
+  // Keep the access token fresh on a long-open HUD so cards never blip to "SIGN IN".
+  useSessionKeepalive();
 
-  const logout = useCallback(async () => {
-    try {
-      await fetch(`${JKOS_AUTH_URL}/auth/logout`, {
-        method:      'POST',
-        credentials: 'include',
-      });
-    } finally {
-      window.location.href = `${JKOS_AUTH_URL}/auth/login`;
-    }
-  }, []);
+  const loginWithGoogle = useCallback(() => redirectToLogin(), []);
+  const logout = useCallback(() => authLogout(), []);
 
   return { state, loginWithGoogle, logout };
 }

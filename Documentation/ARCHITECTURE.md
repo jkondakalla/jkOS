@@ -103,7 +103,7 @@ construction.
 | `COOKIE_DOMAIN` | `.jkos.net` | `staging.jkos.net` |
 | `JKOS_AUTH_URL` / `VITE_JKOS_AUTH_URL` | `https://auth.jkos.net` | `https://staging.jkos.net` |
 | `VITE_BASE` | `/` | `/sylib/`, `/beigeboard/` |
-| `PROD_BRANCH` (deploy only) | `main` | `staging` |
+| `PROD_BRANCH` (deploy only) | `staging` (set in `jkos-deploy/docker-compose.yml` — promote ships the tested commit; flip to `main` to restore merge-gated flow) | `staging` |
 
 All three of {distinct cookie name, distinct issuer, distinct auth gate} must hold together.
 If prod behaves like staging, a staging value was written into a prod `docker-compose.yml` —

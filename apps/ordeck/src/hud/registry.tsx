@@ -25,6 +25,7 @@ import {
 import {
   fetchCapabilities, getCapability, runCommand, suiteApp, subscribe, type CapabilityDoc,
 } from '@jkos/weave';
+import { authFetch } from '@jkos/auth-client';
 import {
   type ClockState,
   type WeatherState,
@@ -641,6 +642,13 @@ function ButtonNode({ node, scope }: { node: Extract<WidgetNode, { t: 'button' }
  *  a peer write (`invalidate('bb.items')`) refreshes the widget instead of it
  *  drifting until the next poll. A failed fetch keeps the last good value (the
  *  widget never blanks on a transient blip). */
+/** A relative URL, or an absolute one on the current origin — i.e. an edge-proxied
+ *  peer endpoint that carries the jkOS session cookie (vs. an external public API). */
+function isSameOrigin(url: string): boolean {
+  try { return new URL(url, window.location.href).origin === window.location.origin; }
+  catch { return false; }
+}
+
 function useDataSources(sources?: Record<string, DataSource>): Scope {
   const fetchList = useMemo(
     () => Object.entries(sources ?? {}).filter(
@@ -656,7 +664,11 @@ function useDataSources(sources?: Record<string, DataSource>): Scope {
     const unsubs: Array<() => void> = [];
     const loaders: Array<() => void> = [];
     for (const [name, s] of fetchList) {
-      const load = () => fetch(s.url)
+      // Same-origin (edge-proxied peer) sources go through authFetch so an expired
+      // access token is silently refreshed + retried; external/public URLs use a
+      // plain fetch (no cookies — credentials:'include' would break their CORS).
+      const get = () => (isSameOrigin(s.url) ? authFetch(s.url) : fetch(s.url));
+      const load = () => get()
         .then((r) => (r.ok ? r.json() : Promise.reject(new Error('fetch failed'))))
         .then((j) => { if (!dead) setData((d) => ({ ...d, [name]: j })); })
         .catch(() => { /* keep last good value — soft-fail like usePolledResource */ });

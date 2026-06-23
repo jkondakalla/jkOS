@@ -17,6 +17,7 @@
  */
 
 import { useCallback } from 'react';
+import { authFetch } from '@jkos/auth-client';
 import { apiBase, suiteApp } from './manifest';
 import { usePolledResource, type PolledOptions } from './resource';
 import { fetchCapabilities, getCapability } from './fetchCapabilities';
@@ -48,7 +49,10 @@ export function weaveClient(appId: string) {
       const ds = getDataset(await fetchDatasets(appId), datasetId);
       if (!ds) return [];
       try {
-        const r = await fetch(`${apiBase(appId)}${ds.path}${toQuery(filters)}`, { credentials: 'include' });
+        // authFetch: a 15-min-expired access token is silently refreshed + retried
+        // from the remember-me cookie, so a polled peer read never flips to "signed
+        // out" while a valid 30-day session is live.
+        const r = await authFetch(`${apiBase(appId)}${ds.path}${toQuery(filters)}`);
         if (!r.ok) return [];
         const data = await r.json();
         return Array.isArray(data) ? (data as T[]) : [];

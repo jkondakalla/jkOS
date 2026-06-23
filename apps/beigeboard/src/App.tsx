@@ -13,7 +13,7 @@ import { AppHeader } from './components/AppHeader'
 import { ConnectModal } from './components/ConnectModal'
 import { DetailPanel } from './components/DetailPanel'
 import { SettingsDrawer } from '@jkos/ui'
-import { AUTH_URL } from './lib/jkauth'
+import { AUTH_URL, authFetch, useSessionKeepalive } from './lib/jkauth'
 
 import { TodayView } from './views/TodayView'
 import { WeekView } from './views/WeekView'
@@ -42,33 +42,10 @@ injectJkOSTheme({
 const DEFAULT_API_URL  = import.meta.env.VITE_API_URL ?? ''
 const JKOS_AUTH_URL    = import.meta.env.VITE_JKOS_AUTH_URL ?? 'https://auth.jkos.net'
 
-/* ── Token-refresh-aware fetch ─────────────────────────────────────────── */
-let refreshing: Promise<boolean> | null = null
-
-async function apiFetch(input: string, init: RequestInit = {}): Promise<Response> {
-  const opts = { credentials: 'include' as const, ...init }
-  const r = await fetch(input, opts)
-  if (r.status !== 401) return r
-
-  let data: any
-  try { data = await r.clone().json() } catch { return r }
-  /* Refresh on an expired access JWT *and* on a missing one (UNAUTHENTICATED):
-     the access cookie can be gone while a valid 30-day remember-me refresh cookie
-     persists, and we still want to silently revive the session. A genuinely
-     logged-out user just 401s the (deduped) refresh and falls through. */
-  if (data?.code !== 'TOKEN_EXPIRED' && data?.code !== 'UNAUTHENTICATED') return r
-
-  /* Deduplicate concurrent refresh attempts — calls jkos-auth service */
-  if (!refreshing) {
-    refreshing = fetch(`${JKOS_AUTH_URL}/auth/refresh`, {
-      method: 'POST', credentials: 'include',
-    }).then(res => res.ok).finally(() => { refreshing = null })
-  }
-
-  const ok = await refreshing
-  if (!ok) return r
-  return fetch(input, opts)
-}
+/* Token-refresh-aware fetch is now the suite-shared authFetch (@jkos/auth-client):
+   on a 401 (TOKEN_EXPIRED/UNAUTHENTICATED) it silently rotates the remember-me
+   refresh cookie and retries, deduping concurrent attempts. One implementation for
+   every app + the weave fabric, instead of a per-app copy. */
 
 /* ── Main app ──────────────────────────────────────────────────────────── */
 export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
@@ -77,13 +54,16 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
   const prefs = useJkOSPreferences()
   const { effects } = prefs
 
+  // Keep the access token fresh so a long-open board never 401s mid-session.
+  useSessionKeepalive()
+
   const toAuthPortal = () => {
     window.location.href = `${JKOS_AUTH_URL}/auth/login?redirect_to=${encodeURIComponent(window.location.href)}`
   }
 
   const checkAuth = async () => {
     try {
-      const r = await apiFetch(`${apiUrl}/api/auth/me`)
+      const r = await authFetch(`${apiUrl}/api/auth/me`)
       if (r.ok) {
         const d = await r.json()
         setUser(d.user)
@@ -98,29 +78,29 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
 
   const handleUnauth = () => toAuthPortal()
 
-  /* All API calls go through apiFetch which handles token refresh */
+  /* All API calls go through authFetch which handles token refresh */
   const api = {
     get: (path: string) =>
-      apiFetch(`${apiUrl}${path}`).then(r => {
+      authFetch(`${apiUrl}${path}`).then(r => {
         if (r.status === 401) { handleUnauth(); throw new Error('Unauthorized') }
         return r.json()
       }),
     post: (path: string, body: any) =>
-      apiFetch(`${apiUrl}${path}`, {
+      authFetch(`${apiUrl}${path}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
       }).then(r => {
         if (r.status === 401) { handleUnauth(); throw new Error('Unauthorized') }
         return r.json()
       }),
     patch: (path: string, body: any) =>
-      apiFetch(`${apiUrl}${path}`, {
+      authFetch(`${apiUrl}${path}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
       }).then(r => {
         if (r.status === 401) { handleUnauth(); throw new Error('Unauthorized') }
         return r.json()
       }),
     del: (path: string) =>
-      apiFetch(`${apiUrl}${path}`, { method: 'DELETE' }).then(r => {
+      authFetch(`${apiUrl}${path}`, { method: 'DELETE' }).then(r => {
         if (r.status === 401) { handleUnauth(); throw new Error('Unauthorized') }
         return r.json()
       }),

@@ -11,6 +11,7 @@
  * engine BEFORE this is called, so the fabric stays free of widget-engine types.
  */
 
+import { authFetch } from '@jkos/auth-client';
 import { invalidate } from './resource';
 import type { SuiteApp } from './manifest';
 import type { CapabilityDef } from './capability';
@@ -32,9 +33,10 @@ export async function runCommand(
   const path = cap.path.replace(/:(\w+)/g, (_, k) => encodeURIComponent(String(body[k] ?? '')));
   const isWrite = cap.method !== 'DELETE';
   try {
-    const r = await fetch(`${base}${path}`, {
+    // authFetch silently refreshes an expired access token + retries, so a write
+    // issued just past the 15-min mark commits instead of failing as a 401.
+    const r = await authFetch(`${base}${path}`, {
       method: cap.method,
-      credentials: 'include',
       headers: isWrite ? { 'Content-Type': 'application/json' } : undefined,
       body: isWrite ? JSON.stringify(body) : undefined,
     });

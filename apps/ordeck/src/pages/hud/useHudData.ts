@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { getProfile, type HudPin, type HudFocus } from '@jkos/auth-client';
+import { getProfile, authFetch, type HudPin, type HudFocus } from '@jkos/auth-client';
 import { usePolledResource, invalidate, apiBase, probeApps, extRef, type SuiteApp } from '@jkos/weave';
 import { TONE_RANK, type Tone } from '../../hud/tone';
 
@@ -305,7 +305,10 @@ const BB_API = apiBase('beigeboard');
 export function useBbItems(): BbItemsState {
   const fetcher = useCallback(async (): Promise<BbItemsState> => {
     try {
-      const r = await fetch(`${BB_API}/items`, { credentials: 'include' });
+      // authFetch silently refreshes a 15-min-expired access token from the
+      // remember-me cookie + retries, so authed:false now means *genuinely* logged
+      // out (refresh failed), not merely an expired access token on a live session.
+      const r = await authFetch(`${BB_API}/items`);
       if (r.status === 401 || r.status === 403) return { loaded: true, authed: false, offline: false, items: [] };
       if (!r.ok) throw new Error('bb items');
       const raw = await r.json();
@@ -590,7 +593,7 @@ export function useStudy(): StudyState {
   const initial = viewStudy({ ...STUDY_OFFLINE, loaded: false });
   const fetcher = useCallback(async (): Promise<StudyState> => {
     try {
-      const r = await fetch(`${SYLIB_API}/summary`, { credentials: 'include' });
+      const r = await authFetch(`${SYLIB_API}/summary`);
       if (!r.ok) throw new Error('sylib summary');
       const d = await r.json();
       return viewStudy({
@@ -693,7 +696,7 @@ export interface HudApp { id: string; name: string; origin: string }
 export function useApps(authUrl: string): HudApp[] {
   const fetcher = useCallback(async (): Promise<HudApp[]> => {
     try {
-      const r = await fetch(`${authUrl}/auth/apps`, { credentials: 'include' });
+      const r = await authFetch(`${authUrl}/auth/apps`);
       if (!r.ok) throw new Error('auth apps');
       const d = await r.json();
       return Array.isArray(d) ? d : d.apps ?? [];
