@@ -277,18 +277,30 @@ function gotoLogin() {
   window.location.href = AUTH_BASE + '/login?redirect_to=' + encodeURIComponent(location.href);
 }
 
-// fetch that transparently refreshes the access token once on 401, then retries;
-// if the refresh token is also dead, bounce to the login page.
+// The suite's refresh-aware fetch, mirroring @jkos/auth-client's authFetch (the
+// canonical browser contract) for this non-bundled, static console. On a
+// REFRESHABLE 401 — code TOKEN_EXPIRED | UNAUTHENTICATED — it rotates the access
+// token ONCE via the deduped refreshToken() (concurrent card polls share one
+// /auth/refresh instead of stampeding the per-IP budget into a 429 lockout) and
+// retries ONCE. A 401 that SURVIVES the refresh is RETURNED to the caller, NOT
+// bounced to /login: treating a backend that rejects a VALID token (e.g. a
+// verifier bug) as "logged out" is exactly what looped this console to the rate
+// limiter. We only send the user to login when the refresh ITSELF fails — i.e. the
+// refresh cookie is genuinely dead.
 async function authedFetch(url, opts = {}) {
   const o = { credentials: 'same-origin', ...opts };
   let r = await fetch(url, o);
-  if (r.status === 401) {
-    const ok = await refreshToken();
-    if (!ok) { gotoLogin(); throw new Error('unauthenticated'); }
-    r = await fetch(url, o);
-    if (r.status === 401) { gotoLogin(); throw new Error('unauthenticated'); }
-  }
-  return r;
+  if (r.status !== 401) return r;
+
+  // Read the code off a clone so the caller can still consume the body. jkos-deploy
+  // nests it under detail (FastAPI); the nginx gate / jkAuth put it top-level.
+  let code;
+  try { const b = await r.clone().json(); code = b.code ?? b.detail?.code; } catch { return r; }
+  if (code !== 'TOKEN_EXPIRED' && code !== 'UNAUTHENTICATED') return r;
+
+  const ok = await refreshToken();
+  if (!ok) { gotoLogin(); throw new Error('unauthenticated'); }
+  return fetch(url, o);   // a surviving 401 is returned, never looped to login
 }
 
 function addLog(text) {

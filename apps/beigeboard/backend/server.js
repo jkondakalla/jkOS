@@ -7,8 +7,10 @@ const { google }   = require('googleapis');
 const cookieParser = require('cookie-parser');
 const {
   weaveCors, weaveAuth, weaveWriteGate, healthHandler,
-  serveCapabilities, serveDatasets, buildItemFilters, coerceWeaveColumn,
+  serveCapabilities, serveDatasets, buildItemFilters, filterSpec, coerceWeaveColumn,
 } = require('@jkos/weave/server');
+const { resolveIssuer } = require('@jkos/auth-middleware');   // shared issuer default (single source)
+const { CAPABILITIES, DATASETS } = require('./discovery');    // Weave discovery docs, as importable data (A3)
 
 /* ── Env ───────────────────────────────────────────────────────────────── */
 const PORT       = process.env.PORT       || 3001;
@@ -31,7 +33,7 @@ const ALLOWED_ORIGINS = new Set(
    static public key. */
 const JKOS_AUTH_PUBLIC_KEY = (process.env.JKOS_AUTH_PUBLIC_KEY || '').trim();
 const JKOS_AUTH_URL        = process.env.JKOS_AUTH_URL        || 'https://auth.jkos.net';
-const JKOS_AUTH_ISSUER     = process.env.JKOS_AUTH_ISSUER     || 'jkos-auth';
+const JKOS_AUTH_ISSUER     = resolveIssuer();   // shared default ('jkos-auth'), JKOS_AUTH_ISSUER overrides
 const JKOS_AUTH_JWKS_URI   = (process.env.JKOS_AUTH_JWKS_URI  || '').trim();
 const CALENDAR_ENC_KEY     = (process.env.CALENDAR_ENC_KEY    || '').trim();  // 64 hex chars → AES-256 at rest
 const IS_PROD              = process.env.NODE_ENV === 'production';
@@ -721,91 +723,14 @@ app.use(weaveWriteGate({ scope: 'beigeboard:write' }));
 /* ── Health ────────────────────────────────────────────────────────────── */
 app.get('/health', healthHandler('beigeboard'));
 
-/* ── Weave capability declaration ──────────────────────────────────────────
-   What can be DONE to BeigeBoard, as pure data. The portal (and eventually an
-   AI step) discovers this at GET /api/bb/capabilities and composes write widgets
-   against it — no portal code per action. Public; the resource routes still
-   enforce auth + scope. See Documentation/WEAVE.md. */
-const CAPABILITIES = {
-  app: 'beigeboard',
-  version: 1,
-  capabilities: [
-    {
-      id: 'createItem', label: 'Add a task', method: 'POST', path: '/items',
-      body: [
-        { name: 'title',          type: 'string', label: 'Title', required: true, max: 200 },
-        { name: 'due_date',       type: 'date',   label: 'Due date' },
-        { name: 'scheduled_time', type: 'time',   label: 'Time' },
-        { name: 'notes',          type: 'text',   label: 'Notes' },
-        { name: 'kind',           type: 'enum',   label: 'Kind', enum: ['task', 'event'], default: 'task' },
-        { name: 'tags',           type: 'string', label: 'Tags (comma-separated)' },
-        { name: 'ext_ref',        type: 'string', label: 'External ref' },
-      ],
-      invalidates: ['bb.items'], scopes: ['beigeboard:write'],
-    },
-    {
-      id: 'completeItem', label: 'Mark done', method: 'PATCH', path: '/items/:id',
-      body: [
-        { name: 'id',        type: 'number',  label: 'Item id', required: true },
-        { name: 'completed', type: 'boolean', label: 'Completed', required: true, default: true },
-      ],
-      invalidates: ['bb.items'], scopes: ['beigeboard:write'],
-    },
-    {
-      id: 'deleteItem', label: 'Delete', method: 'DELETE', path: '/items/:id',
-      body: [{ name: 'id', type: 'number', label: 'Item id', required: true }],
-      invalidates: ['bb.items'], scopes: ['beigeboard:write'],
-    },
-    {
-      // Bulk/AI import: one JSON document → a whole goal→milestone→task tree in one
-      // transaction. Body is a document, not a flat form, so `items`/`defaults` are
-      // declared as JSON; the canonical use is a direct POST (see README → Importing).
-      id: 'importItems', label: 'Import (JSON tree)', method: 'POST', path: '/import',
-      body: [
-        { name: 'items',    type: 'json', label: 'Items — a nested tree or a flat ref/parent list', required: true },
-        { name: 'defaults', type: 'json', label: 'Field defaults applied to every item (optional)' },
-      ],
-      invalidates: ['bb.items'], scopes: ['beigeboard:write'],
-      doc: 'Creates a nested goal→milestone→task tree (or a flat list linked by ref/parent) in one transaction. Validated before any write; ?dryRun=1 previews. See README → Importing tasks & goals.',
-    },
-  ],
-};
+/* ── Weave discovery declarations ──────────────────────────────────────────
+   What can be DONE to (CAPABILITIES) and READ from (DATASETS) BeigeBoard, as pure
+   data — now an importable module (./discovery) so the portal, an AI step, and
+   offline tooling (the suite-prober) all read the SAME declarations the server
+   serves. The portal discovers writes at GET /api/beigeboard/capabilities and reads at
+   GET /api/beigeboard/datasets and composes widgets against them — no portal code per
+   action. Public; the resource routes still enforce auth + scope. See WEAVE.md. */
 app.get('/api/capabilities', serveCapabilities(CAPABILITIES));
-
-/* ── Weave dataset declaration ──────────────────────────────────────────────
-   What can be READ from BeigeBoard, as pure data — the read-side mirror of
-   CAPABILITIES. A peer (or the portal, or an AI step) discovers the readable
-   `items` collection, the filters it honours, and a row's shape, then reads it
-   with zero per-pair code. Public; the resource route still enforces auth. */
-const DATASETS = {
-  app: 'beigeboard',
-  version: 1,
-  datasets: [
-    {
-      id: 'items', label: 'Tasks & events', path: '/items',
-      filters: [
-        { name: 'kind',           type: 'enum',   label: 'Kind', enum: ['task', 'event'] },
-        { name: 'scope',          type: 'string', label: 'Scope' },
-        { name: 'due_date',       type: 'date',   label: 'Due date' },
-        { name: 'ext_ref_prefix', type: 'string', label: 'External-ref prefix (an app\'s own items)' },
-        { name: 'since',          type: 'string', label: 'Updated since (updated_at delta)' },
-        { name: 'tags',           type: 'string', label: 'Tags (comma-separated; ANDed)' },
-      ],
-      item: [
-        { name: 'id',             type: 'number' },
-        { name: 'title',          type: 'string' },
-        { name: 'kind',           type: 'enum',    enum: ['task', 'event'] },
-        { name: 'due_date',       type: 'date' },
-        { name: 'scheduled_time', type: 'time' },
-        { name: 'completed',      type: 'boolean' },
-        { name: 'tags',           type: 'string' },
-        { name: 'ext_ref',        type: 'string' },
-        { name: 'updated_at',     type: 'string' },
-      ],
-      invalidates: ['bb.items'],
-    },
-  ],
-};
 app.get('/api/datasets', serveDatasets(DATASETS));
 
 /* ── Auth: me ──────────────────────────────────────────────────────────── */
@@ -973,16 +898,12 @@ function validParentId(parentId, userId, selfId = null) {
 }
 
 /* The weave filter vocabulary for items — which query param maps to which column
-   and operator. Drives buildItemFilters; mirrors the DATASETS `items.filters`
-   declaration so what an app DECLARES it can be read by is what it actually filters on. */
-const ITEM_FILTER_SPEC = [
-  { param: 'kind',           column: 'kind',       op: 'eq' },
-  { param: 'scope',          column: 'scope',      op: 'eq' },
-  { param: 'due_date',       column: 'due_date',   op: 'eq' },
-  { param: 'ext_ref_prefix', column: 'ext_ref',    op: 'prefix' },
-  { param: 'since',          column: 'updated_at', op: 'gt' },
-  { param: 'tags',           column: 'tags',       op: 'tags' },
-];
+   and operator. DERIVED from the DATASETS `items.filters` declaration (P3) so the
+   filter an app DECLARES it can be read by is exactly the one it enforces: one
+   source, no drift. filterSpec() projects each FilterField → {param,column,op}. */
+const ITEM_FILTER_SPEC = filterSpec(
+  DATASETS.datasets.find((d) => d.id === 'items').filters,
+);
 
 app.get('/api/items', async (req, res) => {
   try {

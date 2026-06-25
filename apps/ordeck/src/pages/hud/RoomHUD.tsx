@@ -20,7 +20,7 @@ import '../../styles/hud.css';
    data-driven widgets from a normalized HUD document (hud/state). The old
    fixed three-column layout and the Module-Federation remote-widget path are
    retired; widgets now read app data Ordeck already pulls (BeigeBoard's
-   /api/bb/* is the reference integration). Edit mode shelves/places cards;
+   /api/beigeboard/* is the reference integration). Edit mode shelves/places cards;
    drag, resize, the asset shelf, long-press, and the admin creator build on
    this foundation in later phases. */
 

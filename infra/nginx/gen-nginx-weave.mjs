@@ -1,33 +1,69 @@
 #!/usr/bin/env node
-// gen-nginx-weave.mjs — generate infra/nginx/weave-proxy.conf from one table.
+// gen-nginx-weave.mjs — generate the Weave peer-proxy nginx includes from ONE table.
 //
 // The shared same-origin peer-proxy include is the edge half of Weave's transport.
 // Keeping it generated means "add a peer" is one row here, not hand-edited nginx —
-// the registry-driven onboarding the standard promises, at the edge.
+// the registry-driven onboarding the standard promises, at the edge. This emits BOTH
+// environments from the same PEERS table so prod and staging can't drift:
 //
-//   node infra/nginx/gen-nginx-weave.mjs           # (re)write weave-proxy.conf
-//   node infra/nginx/gen-nginx-weave.mjs --check    # exit 1 if it's out of sync (CI)
+//   * weave-proxy.conf          PROD: included by every prod app server block. The
+//                               peer locations are NOT auth_request-gated (each
+//                               backend enforces its own JWT) and hit the bare
+//                               <container>:<port> upstreams.
+//   * weave-proxy-staging.conf  STAGING: included by the single staging server block.
+//                               The SAME locations, but admin-gated (auth_request +
+//                               the @staging_* error pages) and pointed at the
+//                               staging-<container> upstreams. Staging is one origin,
+//                               so the whole surface sits behind the admin gate.
+//
+//   node infra/nginx/gen-nginx-weave.mjs           # (re)write BOTH files
+//   node infra/nginx/gen-nginx-weave.mjs --check    # exit 1 if EITHER is out of sync (CI)
 //
 // NOTE: the internal upstream (container:port) is INFRA config, not in the app
 // registry (which stores only edge-relative api_base/health_path). So this table is
 // the source for the addresses; it must stay consistent with the registry's
-// api_base/health_path — `--check` is the guard. After regenerating, RESTART nginx
-// (the conf is a bind-mount; reload won't re-read a replaced inode).
+// api_base/health_path — `--check` is the guard. The staging file references the
+// named locations (/_auth_admin_check, @staging_unauthorized, @staging_forbidden,
+// @staging_unavailable) defined inline in standalone.conf's staging server block.
+// After regenerating, RESTART nginx (the confs are bind-mounts; reload won't re-read
+// a replaced inode) — and ensure weave-proxy-staging.conf is mounted (compose +
+// validate_nginx in infra/scripts/lib-deploy.sh both mount it).
 
 import { readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+// Single source: the same APPS table the jkAuth registry seed + Weave manifest derive
+// from (ToDo A2). Relative path, not the bare specifier — this script is run from the
+// repo root (`node infra/nginx/...`), where @jkos/* is not resolvable. CJS via interop.
+import { peers } from '../../packages/suite-manifest/apps.js'
 
-const OUT = join(dirname(fileURLToPath(import.meta.url)), 'weave-proxy.conf')
+const DIR = dirname(fileURLToPath(import.meta.url))
+const OUT = join(DIR, 'weave-proxy.conf')
+const OUT_STAGING = join(DIR, 'weave-proxy-staging.conf')
 
-// Peers reachable same-origin from every suite origin. `health`/`apiPrefix` mirror
-// the jkAuth app_registry health_path/api_base; `upstream` is the docker address.
-const PEERS = [
-  { id: 'lazuros', kind: 'lazuros' }, // host-network AI gateway, streamed NDJSON
-  { id: 'auth',    upstream: 'jkos-auth:3100',   health: '/health/auth' },
-  { id: 'bb',      upstream: 'bb-app:3001',      health: '/health/bb',      apiPrefix: '/api/bb/' },
-  { id: 'sylib',   upstream: 'sylibos-api:8004', health: '/health/sylibos', apiPrefix: '/api/sylib/' },
+// Peers reachable same-origin from every suite origin, DERIVED from @jkos/suite-manifest:
+// `health`/`apiPrefix` are computed from each app's id (so they mirror the registry
+// health_path/api_base by construction); `upstream` is the docker address (the one
+// infra fact the source stores). Staging derives its upstream by prefixing `staging-`
+// (set once, in stagingUpstream). LazurOS (`kind:'lazuros'`) is the host-network special
+// case rendered by lazurosBlock; its health/apiPrefix are skipped in the loops below.
+const PEERS = peers()
+
+// Staging container names are the prod name with a `staging-` prefix (the convention
+// enforced in standalone.conf's "Adding a new STAGING service" note).
+const stagingUpstream = (upstream) => `staging-${upstream}`
+
+// The admin gate every staging location carries (staging is a single admin-only
+// origin). LazurOS has no @staging_unavailable (it's the host gateway, not a
+// compose service), so its gate omits the 502/503/504 line.
+const GATE = [
+  'auth_request /_auth_admin_check;',
+  'error_page 401 = @staging_unauthorized;',
+  'error_page 403 = @staging_forbidden;',
 ]
+const GATE_UNAVAIL = [...GATE, 'error_page 502 503 504 = @staging_unavailable;']
+// 4-space body indent, matching the location bodies below; '' in prod (no gate).
+const gateBlock = (lines, staging) => (staging ? lines.map(l => `    ${l}`).join('\n') + '\n' : '')
 
 const HEADER = `# weave-proxy.conf — the shared same-origin peer-proxy include (PROD).
 #
@@ -39,18 +75,34 @@ const HEADER = `# weave-proxy.conf — the shared same-origin peer-proxy include
 # into EVERY prod app server block in standalone.conf (the portal, BeigeBoard,
 # jkAuth, SylibOS). Each location is self-contained (it \`set $hud\` itself), so it
 # transplants into any server block; each backend still enforces its own JWT — these
-# are deliberately NOT auth_request-gated. Staging is single-origin and keeps its own
-# admin-gated copies inline (it does NOT include this file).
+# are deliberately NOT auth_request-gated. Staging gets its own admin-gated twin
+# (weave-proxy-staging.conf), generated from the SAME table.
 #
-#   node infra/nginx/gen-nginx-weave.mjs           # write this file
-#   node infra/nginx/gen-nginx-weave.mjs --check    # CI: assert it's in sync
+#   node infra/nginx/gen-nginx-weave.mjs           # write both files
+#   node infra/nginx/gen-nginx-weave.mjs --check    # CI: assert they're in sync
 # Adding a peer = one row in the script, then RESTART nginx (NOT reload — bind-mount).`
 
-function lazurosBlock() {
+const HEADER_STAGING = `# weave-proxy-staging.conf — the same-origin peer-proxy include (STAGING).
+#
+# GENERATED by infra/nginx/gen-nginx-weave.mjs — do not hand-edit; run the script.
+#
+# The staging twin of weave-proxy.conf, from the SAME PEERS table, so the two can't
+# drift. Staging is a single admin-only origin (staging.jkos.net), so every peer
+# location here is admin-gated: each carries \`auth_request /_auth_admin_check\` plus
+# the @staging_unauthorized / @staging_forbidden / @staging_unavailable error pages,
+# and points at the staging-<container> upstreams. \`include\`d ONCE — into the staging
+# server block in standalone.conf, which defines those named locations + the
+# /_auth_admin_check subrequest.
+#
+#   node infra/nginx/gen-nginx-weave.mjs           # write both files
+#   node infra/nginx/gen-nginx-weave.mjs --check    # CI: assert they're in sync
+# Adding a peer = one row in the script, then RESTART nginx (NOT reload — bind-mount).`
+
+function lazurosBlock(staging) {
   return `# LazurOS AI gateway — host network (WoL broadcast), reached via the host gateway.
 # Prefix stripped; buffering off + long read timeout for streamed NDJSON tokens.
 location /api/lazuros/ {
-    proxy_pass         http://host.docker.internal:8080/;
+${gateBlock(GATE, staging)}    proxy_pass         http://host.docker.internal:8080/;
     proxy_http_version 1.1;
     proxy_buffering    off;
     proxy_read_timeout 600s;
@@ -61,19 +113,21 @@ location /api/lazuros/ {
 }`
 }
 
-function healthBlock(p) {
+function healthBlock(p, staging) {
+  const upstream = staging ? stagingUpstream(p.upstream) : p.upstream
   return `location = ${p.health} {
-    set $hud http://${p.upstream};
+${gateBlock(GATE_UNAVAIL, staging)}    set $hud http://${upstream};
     rewrite ^.*$ /health break;
     proxy_pass       $hud;
     proxy_set_header Host $host;
 }`
 }
 
-function apiBlock(p) {
+function apiBlock(p, staging) {
+  const upstream = staging ? stagingUpstream(p.upstream) : p.upstream
   const re = p.apiPrefix.replace(/\//g, '\\/').replace(/\\\/$/, '\\/(.*)$')
   return `location ${p.apiPrefix} {
-    set $hud http://${p.upstream};
+${gateBlock(GATE_UNAVAIL, staging)}    set $hud http://${upstream};
     rewrite ^${re} /api/$1 break;
     proxy_pass       $hud;
     proxy_set_header Host              $host;
@@ -83,25 +137,38 @@ function apiBlock(p) {
 }`
 }
 
-function build() {
+function build(staging) {
   const blocks = []
   // health probes first (one per peer that has one), then api prefixes — matches
   // the original portal ordering; lazuros leads (special-cased).
-  for (const p of PEERS) if (p.kind === 'lazuros') blocks.push(lazurosBlock())
-  for (const p of PEERS) if (p.health) blocks.push(healthBlock(p))
-  for (const p of PEERS) if (p.apiPrefix) blocks.push(apiBlock(p))
-  return `${HEADER}\n# >>> GENERATED REGION <<<\n\n${blocks.join('\n')}\n# >>> END GENERATED REGION <<<\n`
+  for (const p of PEERS) if (p.kind === 'lazuros') blocks.push(lazurosBlock(staging))
+  for (const p of PEERS) if (p.health && p.kind !== 'lazuros') blocks.push(healthBlock(p, staging))
+  for (const p of PEERS) if (p.apiPrefix && p.kind !== 'lazuros') blocks.push(apiBlock(p, staging))
+  const header = staging ? HEADER_STAGING : HEADER
+  return `${header}\n# >>> GENERATED REGION <<<\n\n${blocks.join('\n')}\n# >>> END GENERATED REGION <<<\n`
 }
 
-const content = build()
+const targets = [
+  { path: OUT,         content: build(false), label: 'weave-proxy.conf' },
+  { path: OUT_STAGING, content: build(true),  label: 'weave-proxy-staging.conf' },
+]
+
 if (process.argv.includes('--check')) {
-  const current = readFileSync(OUT, 'utf8')
-  if (current !== content) {
-    console.error('✗ weave-proxy.conf is out of sync with gen-nginx-weave.mjs. Run: node infra/nginx/gen-nginx-weave.mjs')
-    process.exit(1)
+  let drift = false
+  for (const t of targets) {
+    let current = ''
+    try { current = readFileSync(t.path, 'utf8') } catch { /* missing → drift */ }
+    if (current !== t.content) {
+      console.error(`✗ ${t.label} is out of sync with gen-nginx-weave.mjs. Run: node infra/nginx/gen-nginx-weave.mjs`)
+      drift = true
+    } else {
+      console.log(`✓ ${t.label} in sync`)
+    }
   }
-  console.log('✓ weave-proxy.conf in sync')
+  process.exit(drift ? 1 : 0)
 } else {
-  writeFileSync(OUT, content)
-  console.log(`✓ wrote ${OUT}`)
+  for (const t of targets) {
+    writeFileSync(t.path, t.content)
+    console.log(`✓ wrote ${t.path}`)
+  }
 }

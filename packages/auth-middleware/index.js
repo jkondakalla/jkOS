@@ -1,6 +1,7 @@
 'use strict'
 const jwt = require('jsonwebtoken')
 const crypto = require('crypto')
+const { CODES, authError } = require('./codes')
 
 // Canonical jkOS auth middleware. Verifies the jkos_token cookie (RS256 JWT)
 // minted by jkAuth — OR an Authorization: Bearer token (service-to-service).
@@ -27,12 +28,26 @@ function resolveKey(publicKey) {
   return key
 }
 
+// The default token issuer and the access-cookie base name — the two literals the
+// whole suite must agree on. Producers (jkAuth) and verifiers (this middleware,
+// jkos-deploy's python port) import these instead of re-typing 'jkos-auth' /
+// 'jkos_token' independently; `pnpm test:contracts` asserts the python mirror matches.
+const ISSUER_DEFAULT = 'jkos-auth'
+const ACCESS_COOKIE_BASE = 'jkos_token'
+
 function resolveIssuer(issuer) {
-  return issuer || process.env.JKOS_AUTH_ISSUER || 'jkos-auth'
+  return issuer || process.env.JKOS_AUTH_ISSUER || ISSUER_DEFAULT
 }
 
-function resolveCookieName(cookieName) {
-  return cookieName || 'jkos_token' + (process.env.JKOS_COOKIE_SUFFIX || '')
+// Apply the per-environment cookie suffix (prod '' / staging '_staging') to a base.
+// One place owns "how an env-isolated cookie name is built"; callers pass the base
+// (jkAuth also builds its own jkos_refresh / _oauth_nonce names through this).
+function cookieName(base) {
+  return base + (process.env.JKOS_COOKIE_SUFFIX || '')
+}
+
+function resolveCookieName(override) {
+  return override || cookieName(ACCESS_COOKIE_BASE)
 }
 
 function resolveAppId(appId) {
@@ -117,20 +132,20 @@ function jkosAuth(opts = {}) {
 
   const fail = (res, err) => {
     if (err?.name === 'TokenExpiredError') {
-      return res.status(401).json({ error: 'Token expired', code: 'TOKEN_EXPIRED' })
+      return authError(res, 401, CODES.TOKEN_EXPIRED, 'Token expired')
     }
-    res.status(401).json({ error: 'Invalid token', code: 'UNAUTHENTICATED' })
+    authError(res, 401, CODES.UNAUTHENTICATED, 'Invalid token')
   }
 
   if (jwksUri) {
     const getKey = makeJwksResolver(jwksUri, opts.jwksOptions)
     return async function jkosAuthMiddleware(req, res, next) {
       const token = extractToken(req, cookieName)
-      if (!token) return res.status(401).json({ error: 'Not authenticated', code: 'UNAUTHENTICATED' })
+      if (!token) return authError(res, 401, CODES.UNAUTHENTICATED, 'Not authenticated')
       try {
         const kid = jwt.decode(token, { complete: true })?.header?.kid
         const key = await getKey(kid)
-        if (!key) return res.status(401).json({ error: 'Invalid token', code: 'UNAUTHENTICATED' })
+        if (!key) return authError(res, 401, CODES.UNAUTHENTICATED, 'Invalid token')
         req.user = jwt.verify(token, key, verifyOpts(issuer, appId))
         next()
       } catch (err) {
@@ -144,7 +159,7 @@ function jkosAuth(opts = {}) {
   return function jkosAuthMiddleware(req, res, next) {
     const token = extractToken(req, cookieName)
     if (!token) {
-      return res.status(401).json({ error: 'Not authenticated', code: 'UNAUTHENTICATED' })
+      return authError(res, 401, CODES.UNAUTHENTICATED, 'Not authenticated')
     }
     try {
       req.user = jwt.verify(token, key, verifyOpts(issuer, appId))
@@ -164,8 +179,11 @@ function requireScope(...required) {
   return function scopeGuard(req, res, next) {
     const have = new Set(Array.isArray(req.user?.scope) ? req.user.scope : [])
     if (required.every(s => have.has(s))) return next()
-    res.status(403).json({ error: 'Insufficient scope', code: 'INSUFFICIENT_SCOPE', required })
+    authError(res, 403, CODES.INSUFFICIENT_SCOPE, 'Insufficient scope', { required })
   }
 }
 
-module.exports = { jkosAuth, verifyToken, requireScope }
+module.exports = {
+  jkosAuth, verifyToken, requireScope, CODES, authError,
+  resolveIssuer, resolveCookieName, cookieName, ISSUER_DEFAULT, ACCESS_COOKIE_BASE,
+}

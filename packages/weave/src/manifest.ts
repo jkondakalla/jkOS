@@ -18,6 +18,12 @@
  */
 
 import { AUTH_URL } from '@jkos/auth-client';
+import { manifestApps, resourceKey, scopeFor, type ManifestEntry } from '@jkos/suite-manifest';
+
+/** The invalidation bus key for an app resource, e.g. `'beigeboard.items'`. The bus
+ *  key is DERIVED from the app id (`id.resource`), never a free string — re-exported
+ *  from the single source so writers/readers/widgets reference one helper (ToDo A5). */
+export { resourceKey, scopeFor };
 
 export interface SuiteApp {
   id: string;
@@ -37,18 +43,22 @@ export interface SuiteApp {
 }
 
 /**
- * Insertion order is the systems-panel probe order. Ids match the canonical
- * jkAuth `app_registry` ids (so registry rows merge over these by id) — note the
- * auth app is keyed `auth`, not `jkauth`. `lazuros` has no registry row (it's an
- * internal AI gateway, not a launchable app) so it lives here as the only
- * static-only entry; the registry enriches/overrides the rest at runtime.
+ * The static fallback, DERIVED from the single source (`@jkos/suite-manifest`) so it
+ * can't drift from the registry seed / nginx peers (ToDo A2). Insertion order is the
+ * systems-panel probe order. Ids match the canonical jkAuth `app_registry` ids (so
+ * registry rows merge over these by id) — note the auth app is keyed `auth`. `lazuros`
+ * has no registry row (internal AI gateway) so it's static-only; the registry
+ * enriches/overrides the rest at runtime.
+ *
+ * Auth's `origin` is the one field NOT taken from the manifest: it's overridden with
+ * the env-configurable `AUTH_URL` (so a dev proxy / staging can repoint sign-in).
  */
-export const SUITE_APPS: Record<string, SuiteApp> = {
-  auth:       { id: 'auth',       label: 'jkAuth',     origin: AUTH_URL,                       healthPath: '/health/auth' },
-  beigeboard: { id: 'beigeboard', label: 'BeigeBoard', origin: 'https://beigeboard.jkos.net', apiBase: '/api/bb',      healthPath: '/health/bb',       capabilitiesPath: '/api/bb/capabilities', datasetsPath: '/api/bb/datasets' },
-  sylibos:    { id: 'sylibos',    label: 'SylibOS',    origin: 'https://sylibos.jkos.net',    apiBase: '/api/sylib',   healthPath: '/health/sylibos' },
-  lazuros:    { id: 'lazuros',    label: 'LazurOS',                                            apiBase: '/api/lazuros', healthPath: '/api/lazuros/health', ai: true },
-};
+export const SUITE_APPS: Record<string, SuiteApp> = Object.fromEntries(
+  Object.entries(manifestApps() as Record<string, ManifestEntry>).map(([id, e]) => [
+    id,
+    id === 'auth' ? { ...e, origin: AUTH_URL } : e,
+  ]),
+);
 
 /**
  * The live manifest, when hydrated from the registry. `useSuiteApps()` sets this

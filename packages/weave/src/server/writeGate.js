@@ -1,4 +1,5 @@
 'use strict'
+const { CODES, authError } = require('@jkos/auth-middleware')
 // weave/server/writeGate.js — the standard write authorization gate.
 //
 // Three checks, most-specific first, applied to POST/PATCH/DELETE (reads need no
@@ -25,16 +26,16 @@ function weaveWriteGate({ scope } = {}) {
     // rejects before this, but if this gate is ever mounted without it (or on an
     // optional-auth path) an undefined user would otherwise slip every check below.
     if (!u) {
-      return res.status(401).json({ error: 'Authentication required', code: 'NO_AUTH' })
+      return authError(res, 401, CODES.NO_AUTH, 'Authentication required')
     }
     if (u?.role === 'guest') {
-      return res.status(403).json({ error: 'Guest access is read-only', code: 'READ_ONLY' })
+      return authError(res, 403, CODES.READ_ONLY, 'Guest access is read-only')
     }
     if (u?.typ === 'service') {
-      return res.status(403).json({ error: 'Service tokens cannot write per-user data', code: 'NO_USER_CONTEXT' })
+      return authError(res, 403, CODES.NO_USER_CONTEXT, 'Service tokens cannot write per-user data')
     }
     if (scope && Array.isArray(u?.scope) && !u.scope.includes(scope)) {
-      return res.status(403).json({ error: 'Insufficient scope', code: 'INSUFFICIENT_SCOPE', required: [scope] })
+      return authError(res, 403, CODES.INSUFFICIENT_SCOPE, 'Insufficient scope', { required: [scope] })
     }
     next()
   }

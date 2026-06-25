@@ -4,21 +4,22 @@
  * Reads live in pages/hud/useHudData (the `today`/`cal` slices). Writes — the
  * quick-add, focus, and pin interop features — funnel through here so there is
  * ONE place that knows BeigeBoard's item shape and the edge-proxied path
- * (`/api/bb/*`, cookies flow, same jkos_token SSO as everything else).
+ * (`/api/beigeboard/*`, cookies flow, same jkos_token SSO as everything else).
  *
  * BeigeBoard remains the single owner of task data; ORDECK never stores items.
- * Each writer invalidates the 'bb.items' resource on success so useBbItems
+ * Each writer invalidates the 'beigeboard.items' resource on success so useBbItems
  * refetches and the HUD reflects the change immediately instead of waiting for
  * the next poll.
  */
 
-import { invalidate, apiBase } from '@jkos/weave';
+import { invalidate, apiBase, resourceKey } from '@jkos/weave';
 
 const BB = apiBase('beigeboard');
+const BB_ITEMS = resourceKey('beigeboard', 'items'); // 'beigeboard.items' — derived, not free-typed
 
 /** Tell the shared BeigeBoard source to refetch right after a write. */
 function notifyChanged() {
-  invalidate('bb.items');
+  invalidate(BB_ITEMS);
 }
 
 export interface NewItem {

@@ -639,7 +639,7 @@ function ButtonNode({ node, scope }: { node: Extract<WidgetNode, { t: 'button' }
  *
  *  Each source fetches, polls (`poll` seconds), refetches when the tab becomes
  *  visible, and — via `invalidateOn` — joins the shared weave invalidation bus, so
- *  a peer write (`invalidate('bb.items')`) refreshes the widget instead of it
+ *  a peer write (`invalidate('beigeboard.items')`) refreshes the widget instead of it
  *  drifting until the next poll. A failed fetch keeps the last good value (the
  *  widget never blanks on a transient blip). */
 /** A relative URL, or an absolute one on the current origin — i.e. an edge-proxied

@@ -79,6 +79,7 @@ validate_nginx() {
     --add-host host.docker.internal:host-gateway \
     -v "$HOST_NGINX_DIR/infra/nginx/standalone.conf:/etc/nginx/nginx.conf:ro" \
     -v "$HOST_NGINX_DIR/infra/nginx/weave-proxy.conf:/etc/nginx/weave-proxy.conf:ro" \
+    -v "$HOST_NGINX_DIR/infra/nginx/weave-proxy-staging.conf:/etc/nginx/weave-proxy-staging.conf:ro" \
     -v "$SSL_PATH:/etc/nginx/ssl:ro" \
     nginx:alpine nginx -t
 }
@@ -90,6 +91,29 @@ validate_nginx() {
 # file. The config was already validated above, so this is safe.
 reload_nginx() {
   log "=== Reloading standalone-nginx ==="
+
+  # A `docker restart` re-reads the bind-mounted config (refreshing the pinned
+  # inode) but CANNOT change the container's spec — most importantly it cannot add
+  # a bind-mount. So if the new standalone.conf `include`s a file the LIVE container
+  # doesn't have yet (e.g. a freshly added weave-proxy-*.conf), the restart would
+  # load a config referencing a missing file and nginx would fail to start, taking
+  # the whole edge (prod + staging) DOWN — and validate_nginx above won't catch it
+  # because it mounts every include explicitly. Pre-flight, while the container is
+  # still up on its old config: confirm every file standalone.conf `include`s already
+  # exists inside the running container. If one is missing, abort BEFORE the restart;
+  # the container must be RECREATED (only `docker compose up -d` on infra/nginx adds a
+  # mount), not merely restarted. Reads fail-open: a missing conf/inspect just skips
+  # the guard and leaves the prior behaviour untouched.
+  if docker inspect -f '{{.State.Running}}' standalone-nginx 2>/dev/null | grep -q true; then
+    local inc missing=0
+    while IFS= read -r inc; do
+      [ -n "$inc" ] || continue
+      docker exec standalone-nginx sh -c '[ -e "$1" ]' _ "$inc" 2>/dev/null \
+        || { err "standalone-nginx has no $inc (standalone.conf includes it, but the running container mounts no such file)"; missing=1; }
+    done < <(grep -oE '^[[:space:]]*include[[:space:]]+/etc/nginx/[^;[:space:]]+' "$REPO_DIR/infra/nginx/standalone.conf" 2>/dev/null | awk '{print $2}' | sort -u)
+    [ "$missing" = 0 ] || die "a required nginx include is absent from the live standalone-nginx container. A restart cannot add a bind-mount — RECREATE it on the host:  cd infra/nginx && docker compose up -d  (then re-run this deploy)."
+  fi
+
   run docker restart standalone-nginx
   sleep 3
   local state

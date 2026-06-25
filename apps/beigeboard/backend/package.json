@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@jkos/auth-middleware": "workspace:*",
+    "@jkos/suite-manifest": "workspace:*",
     "@jkos/weave": "workspace:*",
     "better-sqlite3": "^11.5.0",
     "cookie-parser": "^1.4.7",

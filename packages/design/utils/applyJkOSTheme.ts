@@ -10,6 +10,16 @@
  * deepening is no longer computed here (that removes the old double-deepen).
  */
 
+/**
+ * localStorage keys this design layer owns. The mode key is WRITTEN here (by
+ * applyJkOSMode) and READ by every app's pre-hydration mode bootstrap to avoid a
+ * theme flash — a cross-package contract, so the literal lives in one place. Import
+ * it (`import { STORAGE_KEYS } from '@jkos/design'`) instead of re-typing 'jkos-mode'.
+ */
+export const STORAGE_KEYS = {
+  mode: 'jkos-mode',
+} as const;
+
 export interface JkOSAccentPair {
   primary?: string;
   secondary?: string;
@@ -25,7 +35,7 @@ export function applyJkOSMode(
   const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
   const isDark = mode === 'dark' || (mode === 'system' && systemDark);
   document.documentElement.setAttribute('data-mode', isDark ? 'dark' : 'paper');
-  try { localStorage.setItem('jkos-mode', isDark ? 'dark' : 'paper') } catch {}
+  try { localStorage.setItem(STORAGE_KEYS.mode, isDark ? 'dark' : 'paper') } catch {}
   return isDark;
 }
 

@@ -11,6 +11,11 @@
     ".": {
       "require": "./index.js",
       "import": "./index.mjs"
+    },
+    "./codes": {
+      "types": "./codes.d.ts",
+      "require": "./codes.js",
+      "import": "./codes.js"
     }
   },
   "dependencies": {

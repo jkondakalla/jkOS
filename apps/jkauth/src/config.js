@@ -2,6 +2,11 @@
 // Centralised configuration — every env-derived constant lives here so the rest
 // of the service reads from one place. Values are resolved once at require time.
 
+// Identity contract (issuer default + cookie naming) comes from the canonical
+// @jkos/auth-middleware so jkAuth (the PRODUCER) and the verifiers share one source
+// instead of independently re-typing 'jkos-auth' / 'jkos_token'.
+const { resolveIssuer, cookieName, ACCESS_COOKIE_BASE } = require('@jkos/auth-middleware')
+
 const PORT = process.env.PORT || 3100
 const DB_PATH = process.env.DB_PATH || './jkos-auth.db'
 const PORTAL_URL = process.env.PORTAL_URL || 'https://jkos.net'
@@ -67,9 +72,12 @@ const LOCKOUT_CAP_MS = numEnv('LOCKOUT_CAP_MS', 30 * 1000)
 // (sent to every *.jkos.net host) collides with the staging cookie and the
 // server reads whichever the browser sends first — defeating env isolation.
 const COOKIE_SUFFIX = process.env.JKOS_COOKIE_SUFFIX || ''
-const TOKEN_COOKIE = 'jkos_token' + COOKIE_SUFFIX
-const REFRESH_COOKIE = 'jkos_refresh' + COOKIE_SUFFIX
-const OAUTH_NONCE_COOKIE = '_oauth_nonce' + COOKIE_SUFFIX   // env-suffixed too (S8)
+// Built through the shared cookieName() so the suffix-application rule (and the
+// access-cookie base the verifiers read) live in one place. jkos_refresh /
+// _oauth_nonce are jkAuth-internal bases; jkos_token is the cross-system contract.
+const TOKEN_COOKIE = cookieName(ACCESS_COOKIE_BASE)
+const REFRESH_COOKIE = cookieName('jkos_refresh')
+const OAUTH_NONCE_COOKIE = cookieName('_oauth_nonce')   // env-suffixed too (S8)
 
 const COOKIE_DOMAIN = process.env.COOKIE_DOMAIN || '.jkos.net'
 const COOKIE_OPTS = { httpOnly: true, sameSite: 'lax', secure: true, path: '/', domain: COOKIE_DOMAIN }
@@ -94,7 +102,7 @@ function parseServiceClients(raw) {
 }
 const SERVICE_CLIENTS = parseServiceClients(process.env.JKOS_SERVICE_CLIENTS)
 
-const JWT_ISSUER = process.env.JKOS_AUTH_ISSUER || 'jkos-auth'
+const JWT_ISSUER = resolveIssuer()   // shared default ('jkos-auth'), JKOS_AUTH_ISSUER overrides
 // kid of the ACTIVE signing key (must appear in /auth/jwks). Env-overridable so a
 // rotation can advance it without a code change. (S4/U3)
 const JWT_KID = process.env.JKOS_AUTH_KID || '1'

@@ -20,6 +20,12 @@ services:
       # session cookie (jkos_token_staging) and issuer, not the prod one.
       JKOS_COOKIE_SUFFIX: "_staging"
       JKOS_AUTH_ISSUER: "jkos-auth-staging"
+      # Verify by JWKS-over-kid (key rotation) instead of a single static key. Both
+      # services are on nginx-staging-proxy, so jkAuth is reachable by container
+      # name. jkos_auth.py still falls back to JKOS_AUTH_PUBLIC_KEY (from .env) if
+      # this endpoint is briefly unreachable — but with it set, promoting jkAuth's
+      # NEXT signing key no longer 401s the console (the latent rotation trap).
+      JKOS_AUTH_JWKS_URI: "http://staging-jkos-auth:3100/auth/jwks"
       # The deploy scripts validate the new nginx config in a throwaway container
       # via `docker run -v ...`; those bind-mount sources are resolved by the HOST
       # daemon, so the scripts need host paths. HOST_WEBHOST maps this container's

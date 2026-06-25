@@ -75,7 +75,7 @@ export function weaveClient(appId: string) {
 /**
  * Reactive read of a peer dataset — the hook form of `weaveClient(app).list`.
  * Polls/​invalidates through the shared bus; pass `invalidateOn` (e.g. the
- * dataset's declared `invalidates` keys like `['bb.items']`) so peer writes
+ * dataset's declared `invalidates` keys like `['beigeboard.items']`) so peer writes
  * refresh the read. Returns [] until the first resolve.
  */
 export function useWeaveList<T = unknown>(

@@ -5,6 +5,7 @@
 // validation.
 
 const Database = require('better-sqlite3')
+const { registrySeed } = require('@jkos/suite-manifest')
 const { DB_PATH, ADMIN_SEED_EMAIL, ADMIN_SEED_PASSWORD, GUEST_PASSWORD } = require('./config')
 const { hashPasswordSync } = require('./password')
 
@@ -187,6 +188,16 @@ const MIGRATIONS = [
     addColumn('app_registry', 'datasets_path', 'TEXT')
     run("UPDATE app_registry SET datasets_path='/api/bb/datasets' WHERE id='beigeboard'")
   }],
+
+  // Edge-slug canonicalization (ToDo A1): BeigeBoard's edge token is now its id
+  // (`/api/beigeboard`) instead of the old `bb` slug, derived from @jkos/suite-manifest.
+  // seedAppRegistry only INSERTS missing rows, so existing DBs (seeded with the /api/bb
+  // paths by migrations 012/013) need an in-place update to the canonical values.
+  ['014_canonical_beigeboard_edge', () => {
+    const bb = registrySeed().find((r) => r.id === 'beigeboard')
+    run('UPDATE app_registry SET api_base=?, health_path=?, capabilities_path=?, datasets_path=? WHERE id=?',
+      [bb.api_base, bb.health_path, bb.capabilities_path, bb.datasets_path, 'beigeboard'])
+  }],
 ]
 
 function runMigrations() {
@@ -233,15 +244,11 @@ function seedGuest() {
 
 function seedAppRegistry() {
   // Integration metadata (api_base/health_path/capabilities_path/datasets_path/ai)
-  // seeds fresh DBs here; existing DBs are backfilled by migrations 012 + 013. Keep
-  // the two in sync.
-  const defaults = [
-    { id: 'beigeboard', name: 'BeigeBoard', origin: 'https://beigeboard.jkos.net', icon_url: null, allowed_roles: 'user,admin,guest', api_base: '/api/bb',    health_path: '/health/bb',      capabilities_path: '/api/bb/capabilities', datasets_path: '/api/bb/datasets', ai: 0 },
-    { id: 'sylibos',    name: 'SylibOS',    origin: 'https://sylibos.jkos.net',    icon_url: null, allowed_roles: 'user,admin',       api_base: '/api/sylib', health_path: '/health/sylibos', capabilities_path: null,                   datasets_path: null,               ai: 0 },
-    { id: 'auth',       name: 'jkOS Auth',  origin: 'https://auth.jkos.net',       icon_url: null, allowed_roles: 'user,admin,guest', api_base: null,         health_path: '/health/auth',    capabilities_path: null,                   datasets_path: null,               ai: 0 },
-    { id: 'ordeck',     name: 'ORDECK',     origin: 'https://jkos.net',            icon_url: null, allowed_roles: 'user,admin',       api_base: null,         health_path: null,              capabilities_path: null,                   datasets_path: null,               ai: 0 },
-    { id: 'staging',    name: 'Staging',    origin: 'https://staging.jkos.net',    icon_url: null, allowed_roles: 'admin',            api_base: null,         health_path: null,              capabilities_path: null,                   datasets_path: null,               ai: 0 },
-  ]
+  // DERIVES from the single source (@jkos/suite-manifest) — the same APPS table the
+  // Weave manifest and nginx peer config build from, so this seed can't drift from
+  // them (ToDo A2). Seeds fresh DBs here; existing DBs are backfilled by migrations
+  // 012–014. Edit an app in @jkos/suite-manifest, not here.
+  const defaults = registrySeed()
   for (const app of defaults) {
     if (!get('SELECT 1 FROM app_registry WHERE id=?', [app.id])) {
       run(`INSERT INTO app_registry (id, name, origin, icon_url, allowed_roles, api_base, health_path, capabilities_path, datasets_path, ai)

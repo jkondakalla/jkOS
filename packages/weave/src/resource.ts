@@ -8,9 +8,9 @@
  * the suite — any app can poll an app's API and any writer can invalidate it.
  *
  * The invalidation bus replaces per-feature `*_CHANGED` window events with dotted
- * keys ('<app>.<resource>', e.g. 'bb.items', 'weather.config'): a writer calls
- * invalidate('bb.items') and only the resources subscribed to that key refetch —
- * so a SylibOS write can't needlessly reload every BeigeBoard hook.
+ * keys ('<app>.<resource>', e.g. 'beigeboard.items', 'weather.config'): a writer calls
+ * invalidate('beigeboard.items') and only the resources subscribed to that key refetch
+ * — so a SylibOS write can't needlessly reload every BeigeBoard hook.
  */
 
 import { useEffect, useRef, useState } from 'react';

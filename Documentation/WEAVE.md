@@ -1,191 +1,219 @@
-# jkOS — Weave (Suite Interconnection Fabric)
+# jkOS — Weave (Suite Integration Fabric)
 
 The connective tissue that makes ORDECK *the one-screen portal into your entire digital
 life, owned entirely by you*. Weave is the contract + shared code by which every jkOS app
-becomes **reachable** (launch/deeplink), **readable** (data slices on the HUD), and
+becomes **reachable** (launch, deeplink), **readable** (data slices on the HUD), and
 **actionable** (write commands from the HUD) — uniformly, so adding a new app is one
 registry row plus one capabilities endpoint, with zero portal code edits.
 
-This doc is the north star. When it disagrees with the code, the code wins — update this.
+This doc is the specification. For how the pieces fit at the architecture level, see
+[ARCHITECTURE.md](ARCHITECTURE.md). When this doc disagrees with the code, the code wins —
+update this.
 
 ## Principles
 
 1. **Each app owns its data.** Weave never introduces a central data store. ORDECK reads
    and writes through each app's own API; the app stays the single source of truth.
-2. **Discovery over hardcoding.** Apps declare themselves (jkAuth `app_registry`) and what
-   can be done to them (`GET /api/capabilities`). The portal consumes declarations, it does
-   not embed per-app knowledge.
-3. **Pure data, GUI- and AI-composable.** Widgets — including write/command widgets — are
-   declarative data (`WidgetSpec`), so the same shape is built by the Workshop GUI and
+2. **Discovery over hardcoding.** Apps declare themselves (`app_registry`) and what can be
+   done to them (`/api/capabilities`, `/api/datasets`). The portal consumes declarations;
+   it does not embed per-app knowledge.
+3. **Pure data, GUI- and AI-composable.** Widget specs — including write/command widgets —
+   are declarative data (`WidgetSpec`), so the same shape is built by the Workshop GUI and
    emitted by an eventual text→widget AI step.
 4. **The edge proxy is the trust boundary.** Cross-app browser calls go same-origin through
    nginx (`/api/<app>/*`), so the `jkos_token` cookie flows and there is no CORS surface.
-   Direct cross-origin calls are the exception.
-5. **Build the seam, defer the machinery.** Ship the lowest-risk consolidation first;
-   gate heavier pieces behind concrete triggers (recorded at the bottom).
+5. **Symmetric fabric.** ORDECK is one client among equals. Any app can reach any peer via
+   `weaveClient(app).list/command`. No special portal channel.
+6. **Build the seam, defer the machinery.** Ship the lowest-risk consolidation first; gate
+   heavier pieces behind concrete triggers (recorded at the bottom).
 
 ## The contract — what an app implements to weave in
 
-Every obligation is met through a **shared `@jkos/weave/server` helper** — never hand-rolled
-per app (that is what drifted across the suite before this standard):
+Every obligation is met through a **shared `@jkos/weave/server` helper** — never
+hand-rolled per app (that is what drifted across the suite before this standard):
 
 | # | Obligation | Shared mechanism |
 |---|---|---|
-| 1 | **Identity** — verify the user/service behind every call | `weaveAuth(opts)` (wraps `@jkos/auth-middleware` `jkosAuth` + the JWKS→key→dev ladder + prod fatal-guard), edge-proxied so the cookie flows |
+| 1 | **Identity** — verify the user/service behind every call | `weaveAuth(opts)` (wraps `jkosAuth` + JWKS→key→dev ladder + prod fatal-guard) |
 | 2 | **Write authorization** | `weaveWriteGate({ scope })` (guest read-only → service `NO_USER_CONTEXT` → scope check) |
-| 3 | **Cross-origin** | `weaveCors(originResolver)` (one header block; pluggable origin source) |
+| 3 | **Cross-origin** | `weaveCors(originResolver)` (one header block; origin list from registry) |
 | 4 | **Liveness** | `healthHandler(service)` → `{ status:'ok', service }` |
-| 5 | **Directory presence** — be discoverable | a row in jkAuth `app_registry` (id, name, origin, allowed_roles, api_base, health_path, capabilities_path, **datasets_path**, ai) |
+| 5 | **Directory presence** — be discoverable | a row in jkAuth `app_registry` (id, name, origin, allowed_roles, api_base, health_path, capabilities_path, datasets_path, ai) |
 | 6 | **Capability declaration** — declare what can be *done* | `serveCapabilities(doc)` → `CapabilityDoc` at `GET /api/<app>/capabilities` |
 | 7 | **Dataset declaration** — declare what can be *read* | `serveDatasets(doc)` → `DatasetDoc` at `GET /api/<app>/datasets` |
 | 8 | **Filtered reads** | `buildItemFilters(query, spec)` + `coerceWeaveColumn(k,v)`; cross-app provenance via an `ext_ref` column |
 
 `/api/<app>/capabilities` and `/api/<app>/datasets` are **app-owned data** served by the app
-about itself — the write- and read-side mirrors of `app_registry`. jkAuth stores only *where*
-to find them (`capabilities_path` / `datasets_path`), never the declarations themselves.
+about itself. jkAuth stores only *where* to find them, never the declarations themselves.
 
 ## Package topology
 
-**Frontend — `@jkos/weave`** (`packages/weave/`, depends on `@jkos/auth-client`):
-- `manifest.ts` — `SuiteApp` shape + `SUITE_APPS` static fallback + `apiBase/appOrigin/probeApps/suiteApp/suiteApps` helpers + `setLiveApps` (hydration hook-in).
-- `resource.ts` — `usePolledResource` + the keyed `invalidate(...)` bus (`'<app>.<resource>'`).
-- `capability.ts` — `FieldType`, `BodyField`, `CapabilityDef`, `CapabilityDoc`.
+### Frontend — `@jkos/weave` (`packages/weave/`)
+
+- `manifest.ts` — `SuiteApp` shape, `SUITE_APPS` static fallback, `apiBase/appOrigin/probeApps/suiteApp/suiteApps` helpers, `setLiveApps` (hydration hook-in).
+- `resource.ts` — `usePolledResource` + keyed `invalidate(...)` bus (`'<app>.<resource>'`). Also exports `subscribe(keys, fn)` so multi-resource consumers join the same bus.
+- `capability.ts` — `FieldType`, `BodyField`, `CapabilityDef`, `CapabilityDoc`. `FieldType`
+  includes `json` (the typed escape hatch for non-flat bodies/outputs) and `ref` (a typed stud:
+  `BodyField.ref = '<app>.<dataset>'`). `CapabilityDef` declares a typed **`returns`** (the
+  primitive's OUTPUT, mirror of `DatasetDef.item`) so one lego's result can be wired into the next.
+- `dataset.ts` — `DatasetDef`, `DatasetDoc`, `FilterField`/`FilterOp` — the read-side mirror of
+  `capability.ts`. A `FilterField` carries its own enforcement mapping (`column`/`op`), so the
+  server derives its list filter from the declaration (single source) — see `filterSpec()` below.
 - `extref.ts` — `extRef(app,id)` / `parseExtRef` (`<app>:<id>` convention).
-- `useSuiteApps.ts` — hydrates the manifest from `GET /auth/apps` (registry over static fallback) and calls `setLiveApps`.
-- `fetchCapabilities.ts` — fetches + caches an app's `CapabilityDoc` (evicts failed/empty results so a transient outage doesn't permanently disable a command widget).
-- `dataset.ts` — the READ contract: `DatasetDef` / `DatasetDoc` (the read-side mirror of `capability.ts`).
-- `fetchDatasets.ts` — fetches + caches an app's `DatasetDoc` (same eviction as capabilities).
+- `useSuiteApps.ts` — hydrates the manifest from `GET /auth/apps` and calls `setLiveApps`.
+- `fetchCapabilities.ts` — fetches + caches an app's `CapabilityDoc`. Evicts failed/empty results so a transient outage doesn't permanently disable a command widget.
+- `fetchDatasets.ts` — fetches + caches an app's `DatasetDoc`. Same eviction semantics.
 - `dispatch.ts` — `runCommand(app, cap, body)`: edge-proxied fetch + `invalidate(...cap.invalidates)` on success.
-- `weaveClient.ts` — **the one-call peer SDK any app uses**: `weaveClient(app).list/command/capabilities/datasets` (imperative) + `useWeaveList(app, dataset, filters?, opts?)` (the reactive read hook). ORDECK is now one client among equals, not the sole consumer.
+- `weaveClient.ts` — **the one-call peer SDK any app uses**: `weaveClient(app).list/command/capabilities/datasets` (imperative) + `useWeaveList(app, dataset, filters?, opts?)` (reactive read hook).
 
-`resource.ts` also exports `subscribe(keys, fn)` so multi-resource consumers (the widget
-engine's fetch sources) join the same invalidation bus instead of inventing a refresh signal.
+### Shared — `@jkos/weave/shared` (`packages/weave/src/shared/`)
 
-**Backend — `@jkos/weave/server`** (`packages/weave/src/server/`, dual CJS+ESM like
-`@jkos/auth-middleware`, depends on it): the shared Express interop every backend weaves in
-with — `weaveCors`, `weaveAuth`, `weaveWriteGate`, `healthHandler`, `serveCapabilities`,
-`serveDatasets`, `buildItemFilters`, `coerceWeaveColumn` — plus `weaveServerClient(appId)`,
-the headless peer client (mints/caches a service token, calls a peer with `Authorization:
-Bearer`; read/aggregate-capable, per-user writes await the on-behalf-of seam). Re-exports
-`jkosAuth`/`requireScope`/`verifyToken`. Backends `require('@jkos/weave/server')`; the
-frontend `.` export stays TS for Vite. (A nested `src/server/package.json` marks the dir
-CommonJS within the otherwise-`type:module` package.)
+- `docShape.js` — **single source of truth for the discovery-doc envelope**: `checkDocShape(doc, listKey)` validates `{ app, version, <list>[] }` where every entry has a string `id`. Runs in any runtime (CommonJS) so Node backends `require` it and Vite bundles it for the browser. Used by both `serveCapabilities`/`serveDatasets` (throw on boot if malformed) and `fetchCapabilities`/`fetchDatasets` (evict on read). The authoritative TS shapes remain in `../capability.ts` and `../dataset.ts`.
 
-`useHudShelf` / `HudRef` stay in `@jkos/auth-client` — they mutate the preferences blob;
-the package boundary follows *who owns the data* (prefs vs an app's API).
+### Backend — `@jkos/weave/server` (`packages/weave/src/server/`)
 
-**Backend — jkAuth** (`apps/jkauth/src/`): `routes/profile.js` is identity only; the suite
-directory/registry/JWKS/events live in `routes/weave.js`. Token issuance stays in
-`tokens.js` (the auth core). One process, two route modules.
+Dual CJS+ESM (a nested `src/server/package.json` marks the dir CJS within the otherwise
+`type:module` package). Backends `require('@jkos/weave/server')`.
+
+- `cors.js` — `weaveCors(originResolver)`
+- `auth.js` — `weaveAuth(opts)` (JWKS fetch + fallback, dev ladder, fatal-guard)
+- `writeGate.js` — `weaveWriteGate({ scope })`
+- `health.js` — `healthHandler(service)`
+- `contracts.js` — `serveCapabilities(doc)`, `serveDatasets(doc)` (validates via `docShape`, throws if malformed)
+- `filters.js` — `buildItemFilters(query, spec)`, `filterSpec(filters)` (projects a dataset's
+  declared `FilterField[]` → the `{param,column,op}` spec `buildItemFilters` enforces, so declared
+  == enforced), `coerceWeaveColumn(k, v)`
+- `columns.js` — column coercion constants
+- `serverClient.js` — `weaveServerClient(appId)`: mints/caches a service token via `POST /auth/token`, then calls a peer with `Authorization: Bearer`. Read/aggregate-capable; per-user writes await the on-behalf-of seam.
+- `index.js` / `index.mjs` — re-exports everything above + `jkosAuth`/`requireScope`/`verifyToken` from `@jkos/auth-middleware`
+
+### Backend — jkAuth (`apps/jkauth/src/`)
+
+`routes/weave.js` is the **suite directory**: `GET /auth/apps` (live registry → `SuiteApp[]`) and `GET /auth/jwks` (key publish for verifiers). Token issuance stays in `tokens.js`; profile/identity in `routes/profile.js`. One process, clear route separation.
 
 ## Source of truth
 
 jkAuth's `app_registry` is **authoritative**. `useSuiteApps()` hydrates the live manifest
-from `GET /auth/apps` and calls `setLiveApps()`, so the plain `manifest.ts` helpers resolve
-against the registry. The static `SUITE_APPS` is only the offline/bootstrap fallback. Adding
-an app = one seed row (plus its own deploy/nginx/DNS), not a two-repo edit.
+from `GET /auth/apps` and calls `setLiveApps()`, so all `manifest.ts` helpers resolve
+against the registry. The static `SUITE_APPS` is only the offline/bootstrap fallback.
+Adding an app = one seed row (plus its own deploy/nginx/DNS), not a two-repo edit.
 
-## Security model (maximal)
+## Security model
 
-Trust boundary = the edge proxy. On top of it, the `jkos_token` access JWT (RS256, minted in
-`tokens.js`) carries:
-- `azp` — which app the session was minted through (provenance; logged in `auth_events`).
-- `aud` — **multi-valued**, computed from `app_registry.allowed_roles`: the set of app ids
-  the user's role may access. Each app verifies its own `JKOS_APP_ID ∈ aud`. This gives real
-  audience enforcement without breaking the single shared SSO cookie.
-- `scope` — role-derived named scopes (`*:read`, `*:write`, …). Capabilities declare
-  `scopes`; the resource app checks `token.scope ⊇ required`.
+Trust boundary = the edge proxy. On top of it, the `jkos_token` access JWT (RS256) carries:
 
-**Service-to-service:** `POST /auth/token` (client-credentials, pre-shared secret) →
-`signService()` mints a `typ:'service'` token (no human `sub`, has `azp` + `scope`).
-`@jkos/auth-middleware` distinguishes `req.user.typ` ('user' | 'service'); apps opt in per
-route. Service tokens are the seam for headless cross-app calls (cron/agent/webhook).
-**Note:** a service token has no user context, so it cannot (yet) write *per-user* data —
-BeigeBoard rejects service tokens on item writes (`NO_USER_CONTEXT`) until an explicit
-on-behalf-of mechanism lands. The endpoint is rate-limited on the tight credential budget
-(it carries a secret) and refuses to mint a token with no grantable scope.
+- `azp` — which app the session was minted through (provenance; logged in `auth_events`)
+- `aud` — multi-valued, computed from `app_registry.allowed_roles`: the set of app ids
+  the user's role may access. Each app verifies its own `JKOS_APP_ID ∈ aud` once the env
+  var is set. Opt-in for safe rollout — set it after aud-bearing tokens are flowing.
+- `scope` — role-derived named scopes. Capabilities declare `scopes`; the resource app
+  checks `token.scope ⊇ required`. The check is rollout-safe: it only enforces when `scope`
+  is present, so tokens minted before the change fall through to the role gate rather than
+  being rejected mid-session.
 
-**Enforcement, in practice:** capability `scopes` are not decorative — BeigeBoard gates its
-write routes on `beigeboard:write`. The check is rollout-safe: it only enforces when the
-token actually carries a `scope` array, so tokens minted before this change fall through to
-the role gate (guests stay read-only) rather than being rejected mid-session.
+**Error codes** — the write gate and middleware emit codes from the shared vocabulary in
+`@jkos/auth-middleware/codes.js` (mirrored in `jkos_auth.py`). `authFetch` on the client
+branches on `TOKEN_EXPIRED`/`UNAUTHENTICATED` to refresh; everything else surfaces to the
+caller. `pnpm test:contracts` asserts Node and Python vocabs are key-for-key equal.
 
-CORS on every backend derives its allowlist from `app_registry` origins.
+**Service-to-service:** `POST /auth/token` (client-credentials) → `signService()` mints a
+`typ:'service'` token (no human `sub`, has `azp` + `scope`). `weaveServerClient(appId)`
+uses this: mints/caches one token, calls a peer with `Authorization: Bearer`. Read-capable;
+per-user writes blocked (`NO_USER_CONTEXT`) until on-behalf-of delegation lands.
+
+CORS on every backend derives from `app_registry` origins via `weaveCors`.
 
 **Operator config (env):**
-- jkAuth: `JKOS_SERVICE_CLIENTS="id:secret:scopeA|scopeB,..."` enables `POST /auth/token`
-  (unset → 503, no service tokens exist).
-- Each resource app: `JKOS_APP_ID=<registry id>` turns on audience enforcement (the
-  token's `aud` must include it). **Opt-in for safe rollout** — leave it unset until
-  aud-bearing tokens are flowing suite-wide (i.e. after jkAuth ships this change), then
-  set it per app to start rejecting tokens not minted for that app. Use `requireScope()`
-  from `@jkos/auth-middleware` to gate write routes on named scopes.
-- BeigeBoard (and peers): `ALLOWED_ORIGINS="https://a.jkos.net,https://b.jkos.net"`
-  mirrors the registry origins for the genuine cross-origin calls (`SHELL_URL` always included).
-- A backend acting headlessly (`weaveServerClient`) sets `JKOS_SERVICE_CLIENT_ID` +
-  `JKOS_SERVICE_CLIENT_SECRET` (one of jkAuth's `JKOS_SERVICE_CLIENTS`) + `JKOS_AUTH_URL`.
+- jkAuth: `JKOS_SERVICE_CLIENTS="id:secret:scopeA|scopeB,..."` enables `POST /auth/token` (unset → 503)
+- Each resource app: `JKOS_APP_ID=<registry id>` turns on audience enforcement (opt-in)
+- Each resource app (headless): `JKOS_SERVICE_CLIENT_ID` + `JKOS_SERVICE_CLIENT_SECRET` + `JKOS_AUTH_URL` for `weaveServerClient`
 
 ## Transports — how a call reaches a peer
 
-The fabric is **symmetric**: any app reaches any peer the same way, via one of three transports
-over the single trust model (edge = boundary; authorization lives in the JWT `aud`/`scope`):
+The fabric is symmetric: any app reaches any peer the same way over one trust model.
 
-1. **Browser → peer: same-origin everywhere.** Every prod origin includes
-   `infra/nginx/weave-proxy.conf` (the `/api/<peer>/*` + `/health/<peer>` blocks), so a page on
-   any `*.jkos.net` app calls `/api/<peer>/…` **same-origin** — the `jkos_token` cookie flows,
-   there is no CORS surface to misconfigure, and the peer backend still enforces its own JWT.
-   The include is generated from one table (`infra/nginx/gen-nginx-weave.mjs`, `--check` in CI)
-   and bind-mounted alongside `standalone.conf` (restart nginx, don't reload). Staging is
-   single-origin and keeps its own admin-gated copies inline.
-2. **Backend → peer: service tokens.** `weaveServerClient(appId)` mints a `typ:'service'`
-   token (client-credentials) and presents it as `Authorization: Bearer`. Read/aggregate-capable;
-   per-user writes await the on-behalf-of seam.
-3. **Cross-origin / off-domain: registry-driven CORS.** *Deferred* — promote transport (1)→this
-   only when a peer can't be nginx-proxied (a genuinely off-domain / third-party app).
+**1. Browser → peer: same-origin everywhere.**
+Every prod server block in `standalone.conf` includes `infra/nginx/weave-proxy.conf` — a
+generated file with `/api/<peer>/*` and `/health/<peer>` locations for every registered peer.
+A page on any `*.jkos.net` origin calls `/api/bb/…` same-origin. The `jkos_token` cookie
+flows; there is no CORS surface to misconfigure; the peer backend still enforces its own JWT.
 
-Because reachability is now universal, **authorization is the gate**: turn on `JKOS_APP_ID` per
-backend (token `aud` must include it) once aud-bearing tokens flow, and keep `weaveWriteGate`
-scopes. Both are opt-in / rollout-safe.
+Staging's single origin gets `weave-proxy-staging.conf` — the same locations, but each one
+admin-gated with `auth_request`. Both files are generated from one `PEERS` table in
+`infra/nginx/gen-nginx-weave.mjs`. `node gen-nginx-weave.mjs --check` exits 1 if either file
+is out of sync (run in CI). After regenerating, **restart** nginx — the files are bind-mounts;
+`reload` won't re-read a replaced inode.
+
+**2. Backend → peer: service tokens.**
+`weaveServerClient(appId)` mints a service token and presents it as `Authorization: Bearer`.
+Read/aggregate-capable. Per-user writes await the on-behalf-of seam.
+
+**3. Cross-origin / off-domain: registry-driven CORS (deferred).**
+Promote transport 1 to this only when a peer can't be nginx-proxied (genuinely off-domain or
+third-party). Today every suite peer is proxied.
 
 ## The command vocabulary (actionable widgets)
 
-The declarative widget engine (`apps/ordeck/src/hud/`) gains a write family — additive
-`WidgetNode` variants `form`/`input`/`select`/`toggle`/`button`, a `CommandRef` (app +
-capability + body bindings), and a `$form` source the renderer injects into scope so
-`{ src: '$form', path: 'title' }` resolves like any binding. The final request body is
-`{ ...resolve(cmd.body), ...$formValues }`. A single `runCommand(app, cap, body)` in
-`@jkos/weave` does fetch + `invalidate(...cap.invalidates)`; ORDECK wraps it with a small
-`useCommand` loading/error hook. The `COMPONENT_REGISTRY` escape hatch remains for the
-genuinely bespoke. Because it is all pure data, the Workshop composes it and an AI can emit it.
+The HUD engine (`apps/ordeck/src/hud/`) supports a write family of `WidgetNode` variants:
+`form`, `input`, `select`, `toggle`, `button`. Each write node carries a `CommandRef`
+(app + capability + body bindings). The `$form` source is injected into scope during
+submission so `{ src: '$form', path: 'title' }` resolves to the current field value. The
+final request body is `{ ...resolvedBindings, ...$formValues }`.
 
-## Adding a new app (the whole onboarding)
+`runCommand(app, cap, body)` in `@jkos/weave` handles the fetch, then calls
+`invalidate(...cap.invalidates)` on success. ORDECK wraps it with a small `useCommand`
+loading/error hook. The Workshop composes these as pure data; an AI can emit the same
+shape. `COMPONENT_REGISTRY` remains as an escape hatch for genuinely bespoke rendering.
 
-1. Seed an `app_registry` row in jkAuth (id, name, origin, allowed_roles, api_base,
-   health_path, capabilities_path?, datasets_path?, ai). This is the authoritative directory.
-2. If the app exposes an API/health for peers, add its `/api/<id>/` + `/health/<id>` to
-   `infra/nginx/gen-nginx-weave.mjs` and regenerate `weave-proxy.conf` (every origin gets it).
-3. Add its prod server block to `standalone.conf` (copy BeigeBoard; it `include`s the peer proxy).
-4. Wire its backend through `@jkos/weave/server` (weaveCors/weaveAuth/weaveWriteGate/health),
-   and serve `serveCapabilities`/`serveDatasets` if it has a write/read surface.
-5. DNS in Cloudflare; deploy; restart nginx (bind-mount).
+## Adding a new app (full onboarding)
+
+1. Seed an `app_registry` row in jkAuth: `id`, `name`, `origin`, `allowed_roles`,
+   `api_base`, `health_path`, `capabilities_path?`, `datasets_path?`, `ai`. This is the
+   authoritative directory — ORDECK and all peers discover from it.
+2. Add the peer to `infra/nginx/gen-nginx-weave.mjs` PEERS table (upstream, health prefix,
+   api prefix), regenerate `weave-proxy.conf` and `weave-proxy-staging.conf`, then restart
+   nginx. Verify with `--check`.
+3. Add the prod server block to `standalone.conf` (copy BeigeBoard; it `include`s the peer proxy).
+4. Wire the backend through `@jkos/weave/server`: `weaveCors` + `weaveAuth` + `weaveWriteGate`
+   + `healthHandler`. Serve `serveCapabilities` / `serveDatasets` if it has a write/read surface.
+5. DNS in Cloudflare; deploy; restart nginx.
 
 No portal code changes — discovery does the rest.
+
+## The contract gate (`pnpm test:contracts`)
+
+The suite-wide conformance check that prevents the silent drift that caused past incidents
+(numeric `sub`, independent re-typings of the issuer string, bespoke per-app FE clients).
+
+Run: `pnpm test:contracts` at the repo root. Exits non-zero if any of:
+- Auth contract: codes vocab (`codes.js` vs `jkos_auth.py` key-for-key parity), issuer/cookie
+  single-source (jkAuth imports from `@jkos/auth-middleware`, not re-typed).
+- Weave contract: `docShape` validates every served capability/dataset doc, `CapabilityDef`
+  schema, `DatasetDef` schema.
+- Token shape: minted token has expected fields and types.
+- nginx: `gen-nginx-weave.mjs --check` confirms `weave-proxy.conf` and `weave-proxy-staging.conf`
+  match the current PEERS table.
 
 ## Deferred (designed seams, un-defer triggers)
 
 - **Cross-app event/notification bus** — when a peer must *push* a change (reactive interop),
   not be polled. Today the invalidation bus is in-process / frontend only.
 - **On-behalf-of delegation** (service token + acting-user claim) — when a headless caller must
-  write *per-user* data; lifts `weaveServerClient`'s read-only-writes limit (`NO_USER_CONTEXT`).
-- **Transport (1)→(3): registry-driven CORS fallback** — when a genuinely off-domain /
-  third-party peer can't be reached through the same-origin edge include.
-- **Runtime `app_registry` CRUD** (+ `_cachedAppOrigins` bust, + dynamic `weave-proxy.conf`
-  regen) — when apps are added without a deploy (dynamic plugins / third-party registration).
-- **Delete `@jkos/types`** — apps no longer import it, but the deprecated `plugins/*` (MF-remote
-  microfrontends, superseded by the native widget engine, not deployed) still do. Prune it with
-  those plugins.
+  write *per-user* data; lifts `weaveServerClient`'s `NO_USER_CONTEXT` limit.
+- **Transport 1→3: registry-driven CORS fallback** — when a genuinely off-domain / third-party
+  peer can't be reached through the same-origin edge include.
+- **Runtime `app_registry` CRUD** (+ `_cachedAppOrigins` bust + dynamic nginx regen) — when
+  apps are added without a deploy (dynamic plugins / third-party registration).
+- **Delete `@jkos/types`** — apps no longer import it, but the deprecated `plugins/*`
+  (MF-remote microfrontends, superseded by the native widget engine, not deployed) still do.
+  Prune with those plugins.
 - **Extract the jkAuth directory into its own service** — when it needs different network
   exposure than the token-signing core, or auth latency degrades.
 
-*(Done since the last revision: `@jkos/weave/server` backend half + `weaveClient`/`useWeaveList`
-+ the `datasets` read contract + same-origin-everywhere edge include.)*
+---
+
+*Done since the last revision: `@jkos/weave/server` backend half · `weaveClient`/`useWeaveList`
+· `datasets` read contract · same-origin-everywhere edge include (generated `weave-proxy.conf`
++ `weave-proxy-staging.conf`) · `shared/docShape.js` shared validator · `codes.js` shared vocab
+· issuer/cookie single-source in `@jkos/auth-middleware` · `jkos_auth.py` Python verifier port
+· `pnpm test:contracts` gate (29 auth + 24 weave + token + nginx check).*

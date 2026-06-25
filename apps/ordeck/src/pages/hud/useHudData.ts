@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { getProfile, authFetch, type HudPin, type HudFocus } from '@jkos/auth-client';
-import { usePolledResource, invalidate, apiBase, probeApps, extRef, type SuiteApp } from '@jkos/weave';
+import { usePolledResource, invalidate, apiBase, resourceKey, probeApps, extRef, type SuiteApp } from '@jkos/weave';
 import { TONE_RANK, type Tone } from '../../hud/tone';
 
 /* Data hooks for the room HUD. All service calls are same-origin paths proxied
@@ -11,7 +11,7 @@ import { TONE_RANK, type Tone } from '../../hud/tone';
    The fetch/poll/teardown plumbing lives in usePolledResource (@jkos/weave);
    each hook here just declares its fetcher + how it maps failure into its own
    shape. Writes signal refetches through the keyed invalidation bus
-   (invalidate('bb.items') etc.) rather than per-feature window events. */
+   (invalidate('beigeboard.items') etc.) rather than per-feature window events. */
 
 const pad = (n: number) => String(n).padStart(2, '0');
 const isoDate = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -298,9 +298,10 @@ function normalizeBbItem(i: any): BbItem {
 }
 
 const BB_API = apiBase('beigeboard');
+const BB_ITEMS = resourceKey('beigeboard', 'items'); // 'beigeboard.items' — derived, not free-typed
 
 /** Fetch the BeigeBoard item list once and share it; refetches on the 60s poll
- *  and whenever a HUD write fires invalidate('bb.items'). All BeigeBoard-backed
+ *  and whenever a HUD write fires invalidate('beigeboard.items'). All BeigeBoard-backed
  *  slices select from the value this returns. */
 export function useBbItems(): BbItemsState {
   const fetcher = useCallback(async (): Promise<BbItemsState> => {
@@ -320,7 +321,7 @@ export function useBbItems(): BbItemsState {
   return usePolledResource(
     fetcher,
     { loaded: false, authed: true, offline: false, items: [] },
-    { intervalMs: 60_000, invalidateOn: ['bb.items'] },
+    { intervalMs: 60_000, invalidateOn: [BB_ITEMS] },
   );
 }
 

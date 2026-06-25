@@ -55,6 +55,9 @@ importers:
       '@jkos/auth-middleware':
         specifier: workspace:*
         version: link:../../../packages/auth-middleware
+      '@jkos/suite-manifest':
+        specifier: workspace:*
+        version: link:../../../packages/suite-manifest
       '@jkos/weave':
         specifier: workspace:*
         version: link:../../../packages/weave
@@ -73,6 +76,12 @@ importers:
 
   apps/jkauth:
     dependencies:
+      '@jkos/auth-middleware':
+        specifier: workspace:*
+        version: link:../../packages/auth-middleware
+      '@jkos/suite-manifest':
+        specifier: workspace:*
+        version: link:../../packages/suite-manifest
       '@jkos/weave':
         specifier: workspace:*
         version: link:../../packages/weave
@@ -243,6 +252,9 @@ importers:
 
   packages/auth-client:
     dependencies:
+      '@jkos/auth-middleware':
+        specifier: workspace:*
+        version: link:../auth-middleware
       '@jkos/design':
         specifier: workspace:*
         version: link:../design
@@ -268,6 +280,10 @@ importers:
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
+
+  packages/suite-manifest: {}
+
+  packages/suite-prober: {}
 
   packages/types:
     devDependencies:
@@ -305,6 +321,9 @@ importers:
       '@jkos/auth-middleware':
         specifier: workspace:*
         version: link:../auth-middleware
+      '@jkos/suite-manifest':
+        specifier: workspace:*
+        version: link:../suite-manifest
       react:
         specifier: '>=18'
         version: 19.2.7
@@ -960,6 +979,9 @@ packages:
 
   '@jkos/design@file:packages/design':
     resolution: {directory: packages/design, type: directory}
+
+  '@jkos/suite-manifest@file:packages/suite-manifest':
+    resolution: {directory: packages/suite-manifest, type: directory}
 
   '@jkos/ui@file:packages/ui':
     resolution: {directory: packages/ui, type: directory}
@@ -3405,11 +3427,13 @@ snapshots:
 
   '@jkos/auth-client@file:packages/auth-client(react@18.3.1)':
     dependencies:
+      '@jkos/auth-middleware': file:packages/auth-middleware
       '@jkos/design': file:packages/design
       react: 18.3.1
 
   '@jkos/auth-client@file:packages/auth-client(react@19.2.7)':
     dependencies:
+      '@jkos/auth-middleware': file:packages/auth-middleware
       '@jkos/design': file:packages/design
       react: 19.2.7
 
@@ -3418,6 +3442,8 @@ snapshots:
       jsonwebtoken: 9.0.3
 
   '@jkos/design@file:packages/design': {}
+
+  '@jkos/suite-manifest@file:packages/suite-manifest': {}
 
   '@jkos/ui@file:packages/ui(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
     dependencies:
@@ -3429,6 +3455,7 @@ snapshots:
     dependencies:
       '@jkos/auth-client': file:packages/auth-client(react@18.3.1)
       '@jkos/auth-middleware': file:packages/auth-middleware
+      '@jkos/suite-manifest': file:packages/suite-manifest
       react: 18.3.1
 
   '@jridgewell/gen-mapping@0.3.13':

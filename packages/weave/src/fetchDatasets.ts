@@ -9,6 +9,7 @@
 
 import { suiteApp } from './manifest';
 import type { DatasetDoc, DatasetDef } from './dataset';
+import { isValidDoc } from './shared/docShape.js';
 
 const cache = new Map<string, Promise<DatasetDoc | null>>();
 
@@ -23,7 +24,10 @@ export function fetchDatasets(appId: string, force = false): Promise<DatasetDoc 
       const r = await fetch(path, { credentials: 'include' });
       if (!r.ok) return null;
       const doc = (await r.json()) as DatasetDoc;
-      return doc && Array.isArray(doc.datasets) ? doc : null;
+      // Validate the PEER's doc with the same rule the producer is held to at boot
+      // (shared/docShape) — not just "has an array" — so a malformed peer disables
+      // itself here instead of crashing a downstream reader.
+      return isValidDoc(doc, 'datasets') ? doc : null;
     } catch {
       return null;
     }

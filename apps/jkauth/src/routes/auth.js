@@ -4,6 +4,7 @@
 
 const express = require('express')
 const crypto = require('crypto')
+const { CODES } = require('@jkos/auth-middleware')   // canonical wire codes (single source)
 const { GUEST_PASSWORD, PASSWORD_MAX, REFRESH_COOKIE, SERVICE_CLIENTS } = require('../config')
 const { get, run, logEvent } = require('../db')
 const { validateRedirectTo, passwordError, loginBackoffMs } = require('../util')
@@ -188,7 +189,7 @@ router.post('/auth/login/2fa', async (req, res) => {
   const user = get('SELECT * FROM users WHERE id=?', [pending.sub])
   if (!user || !twoFactorEnabled(user)) {
     clearTokens(res)
-    if (isJson) return res.status(401).json({ error: 'Cannot verify', code: 'UNAUTHENTICATED' })
+    if (isJson) return res.status(401).json({ error: 'Cannot verify', code: CODES.UNAUTHENTICATED })
     return res.send(loginPage({ error: 'Could not verify — please sign in again' }))
   }
   const method = verifySecondFactor(user, code)
@@ -239,9 +240,9 @@ router.post('/auth/refresh', (req, res) => {
       // logout in the losing tab).
       case 'ok':
       case 'race':  return res.json({ ok: true })
-      case 'none':  return res.status(401).json({ error: 'No refresh token', code: 'UNAUTHENTICATED' })
-      case 'reuse': return res.status(401).json({ error: 'Session revoked', code: 'SESSION_REVOKED' })
-      default:      return res.status(401).json({ error: 'Session expired', code: 'SESSION_EXPIRED' })
+      case 'none':  return res.status(401).json({ error: 'No refresh token', code: CODES.UNAUTHENTICATED })
+      case 'reuse': return res.status(401).json({ error: 'Session revoked', code: CODES.SESSION_REVOKED })
+      default:      return res.status(401).json({ error: 'Session expired', code: CODES.SESSION_EXPIRED })
     }
   } catch (e) {
     console.error('[refresh]', e)

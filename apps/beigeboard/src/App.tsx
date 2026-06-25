@@ -6,7 +6,7 @@ import { TODAY_ISO, INITIAL_ACCOUNTS, getDescendants } from './lib/seed'
 import { useJkOSPreferences } from './hooks/useJkOSPreferences'
 import { DragProvider } from './providers/DragProvider'
 import { MobileApp } from './mobile'
-import { injectJkOSTheme } from '@jkos/design'
+import { injectJkOSTheme, STORAGE_KEYS } from '@jkos/design'
 
 import { Artifacts, ScanLines, CinematicIntro } from './components/Overlays'
 import { AppHeader } from './components/AppHeader'
@@ -23,7 +23,7 @@ import { WorkshopView } from './views/WorkshopView'
 // Set mode before React hydrates to prevent flash. Check localStorage for user's
 // last-known preference (written by applyJkOSMode), fall back to paper.
 if (!document.documentElement.hasAttribute('data-mode')) {
-  const cached = (() => { try { return localStorage.getItem('jkos-mode') } catch { return null } })()
+  const cached = (() => { try { return localStorage.getItem(STORAGE_KEYS.mode) } catch { return null } })()
   document.documentElement.setAttribute('data-mode', cached ?? 'paper')
 }
 

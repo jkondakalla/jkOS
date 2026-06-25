@@ -16,9 +16,14 @@ const { weaveAuth, requireScope, verifyToken } = require('./auth')
 const { weaveWriteGate } = require('./writeGate')
 const { healthHandler } = require('./health')
 const { serveCapabilities, serveDatasets } = require('./contracts')
-const { buildItemFilters } = require('./filters')
+const { buildItemFilters, filterSpec } = require('./filters')
 const { coerceWeaveColumn } = require('./columns')
 const { weaveServerClient } = require('./serverClient')
+// Re-export the canonical error-code vocabulary + envelope helper so backends that
+// already weave in @jkos/weave/server (jkAuth, BeigeBoard) get one source for the
+// `code` field without a second auth-middleware import. Single source lives in
+// @jkos/auth-middleware/codes.
+const { CODES, authError } = require('@jkos/auth-middleware')
 
 module.exports = {
   weaveCors,
@@ -30,6 +35,9 @@ module.exports = {
   serveCapabilities,
   serveDatasets,
   buildItemFilters,
+  filterSpec,
   coerceWeaveColumn,
   weaveServerClient,
+  CODES,
+  authError,
 }

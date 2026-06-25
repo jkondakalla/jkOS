@@ -141,6 +141,9 @@ async function run() {
     // Slim JWT: payload carries identity but NOT avatar_url (cookie-bloat fix).
     const pl = JSON.parse(Buffer.from(A.jar.get('jkos_token').split('.')[1], 'base64url').toString());
     ok('access JWT payload is slim (no avatar_url)', !('avatar_url' in pl) && !!pl.sub && !!pl.email && !!pl.role, JSON.stringify(pl));
+    // RFC 7519: sub MUST be a string. A numeric sub 401s strict verifiers
+    // (python-jose >= 3.4 / PyJWT >= 2.10) and looped staging.jkos.net/deploy.
+    ok('access JWT sub is a string (RFC 7519, strict-verifier safe)', typeof pl.sub === 'string', JSON.stringify(pl.sub));
     const longPw = 'x'.repeat(200);
     ok('register >128-char password 400', (await A.req('POST', '/auth/register', { json: { email: 'long@jkos.net', password: longPw }, noJar: true })).status === 400);
   }

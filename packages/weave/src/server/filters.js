@@ -34,6 +34,20 @@
 // injection — binding already prevents that).
 const escLike = (v) => v.replace(/[\\%_]/g, (c) => '\\' + c)
 
+/**
+ * Project a DatasetDoc's declared `filters` (FilterField[]) into the `{param,column,op}`
+ * spec `buildItemFilters` consumes — the single-source bridge (P3). An app declares its
+ * filters ONCE on the dataset (name/type/label for the GUI/AI + column/op for enforcement);
+ * the list endpoint derives its SQL filter from that same declaration, so what the dataset
+ * SAYS it can be read by is exactly what it filters on. `column` defaults to the param name,
+ * `op` to 'eq'.
+ * @param {Array<{name:string, column?:string, op?:'eq'|'gt'|'prefix'|'tags'}>} filters
+ * @returns {Array<{param:string, column:string, op:string}>}
+ */
+function filterSpec(filters = []) {
+  return (filters || []).map((f) => ({ param: f.name, column: f.column || f.name, op: f.op || 'eq' }))
+}
+
 function buildItemFilters(query, spec, seed = {}) {
   const clauses = Array.isArray(seed.base) ? [...seed.base] : []
   const params = Array.isArray(seed.baseParams) ? [...seed.baseParams] : []
@@ -58,4 +72,4 @@ function buildItemFilters(query, spec, seed = {}) {
   return { clauses, params, where: clauses.join(' AND ') }
 }
 
-module.exports = { buildItemFilters }
+module.exports = { buildItemFilters, filterSpec }

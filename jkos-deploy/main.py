@@ -5,16 +5,15 @@ from typing import Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, StreamingResponse
-from jose import JWTError, jwt
+from jose import ExpiredSignatureError, JWTError
+
+import jkos_auth
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 
-PUBLIC_KEY = os.getenv("JKOS_AUTH_PUBLIC_KEY", "").replace("\\n", "\n")
-# jkos-deploy lives in the staging environment, so it verifies staging tokens:
-# cookie name jkos_token_staging (suffix) and issuer jkos-auth-staging. These
-# default to the prod values so the controller still works if run unscoped.
-COOKIE_NAME = "jkos_token" + os.getenv("JKOS_COOKIE_SUFFIX", "")
-EXPECTED_ISSUER = os.getenv("JKOS_AUTH_ISSUER", "jkos-auth")
+# Token verification (cookie name, issuer, JWKS/static key) lives in jkos_auth.py
+# — a port of the canonical node verifier, so this controller can't drift from the
+# rest of the suite the way the old inline jwt.decode did.
 STAGING_BRANCH = os.getenv("STAGING_BRANCH", "staging")
 # Branch the prod checkout resets to on deploy. Set to "staging" so promoting
 # deploys the exact commit just tested on staging.jkos.net — no GitHub merge
@@ -136,7 +135,9 @@ def _start(operation: str, script: str, env: dict[str, str]) -> dict:
     """
     global status, current_operation
     if status == "running":
-        raise HTTPException(status_code=409, detail="A deploy is already in progress")
+        # Same { error, code } envelope as every other response so a client parses
+        # one shape; DEPLOY_IN_PROGRESS is local (not an auth wire code).
+        raise HTTPException(status_code=409, detail={"error": "A deploy is already in progress", "code": "DEPLOY_IN_PROGRESS"})
     status = "running"
     current_operation = operation
     log_lines.clear()  # fresh panel per deploy; _log_seq stays monotonic for SSE clients
@@ -159,31 +160,22 @@ def _start(operation: str, script: str, env: dict[str, str]) -> dict:
 # ── Auth ───────────────────────────────────────────────────────────────────────
 
 async def get_admin(request: Request):
-    token = request.cookies.get(COOKIE_NAME)
+    # 401s carry a `code` matching the node middleware's vocabulary (TOKEN_EXPIRED
+    # / UNAUTHENTICATED) so the browser console can tell a refreshable expiry from a
+    # real auth failure — and refresh-once-then-surface instead of looping to login.
+    token = request.cookies.get(jkos_auth.COOKIE_NAME)
     if not token:
-        raise HTTPException(status_code=401, detail="Authentication required")
+        raise HTTPException(status_code=401, detail={"error": "Not authenticated", "code": jkos_auth.CODES["UNAUTHENTICATED"]})
     try:
-        payload = jwt.decode(
-            token,
-            PUBLIC_KEY,
-            algorithms=["RS256"],
-            # jkAuth mints `sub` as the numeric SQLite user id (RFC 7519 says it
-            # SHOULD be a string, but node's jsonwebtoken — what jkAuth signs with
-            # and what the nginx require-admin gate verifies with — accepts a
-            # number). python-jose >= 3.4 enforces the string rule and raises
-            # JWTClaimsError("Subject must be a string"), which 401s EVERY valid
-            # token here — so the nginx gate passes but this backend rejects, and
-            # the console loops to /auth/login. verify_aud is off because each app
-            # owns its own audience check; verify_sub is off for the same reason
-            # the gate tolerates a numeric sub. Signature + exp are still verified.
-            options={"verify_aud": False, "verify_sub": False},
-        )
+        # verify_token may fetch JWKS, so run it off the event loop. It verifies
+        # signature, exp and issuer; an invalid token (or bad issuer) raises.
+        payload = await asyncio.get_event_loop().run_in_executor(None, jkos_auth.verify_token, token)
+    except ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail={"error": "Token expired", "code": jkos_auth.CODES["TOKEN_EXPIRED"]})
     except JWTError:
-        raise HTTPException(status_code=401, detail="Invalid token")
-    if payload.get("iss") != EXPECTED_ISSUER:
-        raise HTTPException(status_code=401, detail="Invalid token issuer")
+        raise HTTPException(status_code=401, detail={"error": "Invalid token", "code": jkos_auth.CODES["UNAUTHENTICATED"]})
     if payload.get("role") != "admin":
-        raise HTTPException(status_code=403, detail="Admin access required")
+        raise HTTPException(status_code=403, detail={"error": "Admin access required", "code": jkos_auth.CODES["FORBIDDEN"]})
     return payload
 
 
@@ -199,7 +191,9 @@ async def root():
 
 @app.get("/health")
 async def health():
-    return {"ok": True}
+    # Match @jkos/weave/server's healthHandler shape so the portal's systems panel
+    # reads every service's health with one parser.
+    return {"status": "ok", "service": "jkos-deploy"}
 
 
 @app.get("/info")

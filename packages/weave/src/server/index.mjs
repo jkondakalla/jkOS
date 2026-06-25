@@ -12,6 +12,9 @@ export const healthHandler = server.healthHandler
 export const serveCapabilities = server.serveCapabilities
 export const serveDatasets = server.serveDatasets
 export const buildItemFilters = server.buildItemFilters
+export const filterSpec = server.filterSpec
 export const coerceWeaveColumn = server.coerceWeaveColumn
 export const weaveServerClient = server.weaveServerClient
+export const CODES = server.CODES
+export const authError = server.authError
 export default server

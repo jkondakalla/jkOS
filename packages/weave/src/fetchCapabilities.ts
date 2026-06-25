@@ -9,6 +9,7 @@
 
 import { suiteApp } from './manifest';
 import type { CapabilityDoc, CapabilityDef } from './capability';
+import { isValidDoc } from './shared/docShape.js';
 
 const cache = new Map<string, Promise<CapabilityDoc | null>>();
 
@@ -23,7 +24,10 @@ export function fetchCapabilities(appId: string, force = false): Promise<Capabil
       const r = await fetch(path, { credentials: 'include' });
       if (!r.ok) return null;
       const doc = (await r.json()) as CapabilityDoc;
-      return doc && Array.isArray(doc.capabilities) ? doc : null;
+      // Validate the PEER's doc with the same rule the producer is held to at boot
+      // (shared/docShape), not just "has an array" — a malformed peer disables
+      // itself here instead of breaking the workshop/renderer downstream.
+      return isValidDoc(doc, 'capabilities') ? doc : null;
     } catch {
       return null;
     }

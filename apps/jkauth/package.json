@@ -7,9 +7,13 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "test": "node test/smoke.mjs",
-    "sync:tokens": "node scripts/sync-tokens.mjs"
+    "test:contracts": "node test/contracts.mjs",
+    "sync:tokens": "node scripts/sync-tokens.mjs",
+    "check:tokens": "node scripts/sync-tokens.mjs --check"
   },
   "dependencies": {
+    "@jkos/auth-middleware": "workspace:*",
+    "@jkos/suite-manifest": "workspace:*",
     "@jkos/weave": "workspace:*",
     "bcryptjs": "^2.4.3",
     "better-sqlite3": "^11.5.0",

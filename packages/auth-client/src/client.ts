@@ -1,3 +1,4 @@
+import { CODES } from '@jkos/auth-middleware/codes';
 import type { AuthProfile, UserPreferences, JkosUser } from './types';
 
 /** jkAuth origin. Override per app via VITE_JKOS_AUTH_URL (e.g. dev proxy, staging). */
@@ -69,7 +70,7 @@ export async function authFetch(input: RequestInfo | URL, init: RequestInit = {}
   // Read the code off a clone so the caller can still consume the body.
   let code: string | undefined;
   try { code = (await r.clone().json())?.code; } catch { return r; }
-  if (code !== 'TOKEN_EXPIRED' && code !== 'UNAUTHENTICATED') return r;
+  if (code !== CODES.TOKEN_EXPIRED && code !== CODES.UNAUTHENTICATED) return r;
 
   const ok = await refreshOnce();
   if (!ok) return r;

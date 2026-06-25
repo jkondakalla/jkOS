@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'
+import { STORAGE_KEYS } from '@jkos/design'
 import { FONT_HEAD, FONT_BODY, isoDate, localDate } from '../lib/theme'
 
 function getIntroIsDark(): boolean {
@@ -10,7 +11,7 @@ function getIntroIsDark(): boolean {
   const m = document.documentElement.getAttribute('data-mode')
   if (m) return m === 'dark'
   try {
-    const s = localStorage.getItem('jkos-mode')
+    const s = localStorage.getItem(STORAGE_KEYS.mode)
     if (s) return s === 'dark'
   } catch {}
   return window.matchMedia('(prefers-color-scheme: dark)').matches

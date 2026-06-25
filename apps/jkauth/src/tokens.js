@@ -49,7 +49,15 @@ const redirectFromReq = req => req?.body?.redirect_to || req?.query?.redirect_to
 function signAccess(user, { azp = null } = {}) {
   if (!PRIVATE_KEY) throw new Error('JKOS_AUTH_PRIVATE_KEY not set')
   const { aud, scope } = roleClaims(user.role)
-  const payload = { sub: user.id, email: user.email, name: user.name, role: user.role, scope }
+  // `sub` is stringified per RFC 7519 (it SHOULD be a StringOrURI). node's
+  // jsonwebtoken accepts a number, but strict verifiers — python-jose >= 3.4,
+  // PyJWT >= 2.10 — reject a numeric sub ("Subject must be a string") and 401
+  // every token, which is exactly what looped staging.jkos.net/deploy. Emitting
+  // a string here makes the whole suite's verifiers agree, regardless of runtime.
+  // SQLite numeric affinity means `WHERE id = '5'` still matches the INTEGER row,
+  // so the many `[user.sub]` query params are unaffected. (svc tokens already use
+  // a string `svc:<id>` subject — this brings user tokens in line.)
+  const payload = { sub: String(user.id), email: user.email, name: user.name, role: user.role, scope }
   if (azp) payload.azp = azp
   return jwt.sign(payload, PRIVATE_KEY,
     { algorithm: 'RS256', expiresIn: '15m', issuer: JWT_ISSUER, keyid: JWT_KID, audience: aud })
@@ -189,7 +197,8 @@ function resolveUser(req) {
 function signPending(userId, remember, redirectTo) {
   if (!PRIVATE_KEY) throw new Error('JKOS_AUTH_PRIVATE_KEY not set')
   return jwt.sign(
-    { sub: userId, pending_2fa: true, remember: !!remember, rt: redirectTo || '' },
+    // String(userId) for the same RFC-7519 / strict-verifier reason as signAccess.
+    { sub: String(userId), pending_2fa: true, remember: !!remember, rt: redirectTo || '' },
     PRIVATE_KEY,
     { algorithm: 'RS256', expiresIn: '5m', issuer: JWT_ISSUER, keyid: JWT_KID }
   )

@@ -13,11 +13,13 @@
   },
   "scripts": {
     "lint": "tsc --noEmit",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node test/weave.mjs"
   },
   "dependencies": {
     "@jkos/auth-client": "workspace:*",
-    "@jkos/auth-middleware": "workspace:*"
+    "@jkos/auth-middleware": "workspace:*",
+    "@jkos/suite-manifest": "workspace:*"
   },
   "peerDependencies": {
     "react": ">=18"
