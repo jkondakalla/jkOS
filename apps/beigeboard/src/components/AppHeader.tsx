@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react'
-import { FONT_HEAD, FONT_BODY, FONT_NUM, localDate, sourceOf } from '../lib/theme'
+import { FONT_HEAD, localDate, sourceOf } from '../lib/theme'
+import { Press, Lab } from '@jkos/ui'
 import { TimeReadout } from './SharedComponents'
+
+// Nav + chrome read mono straight from the design token (IBM Plex Mono).
+const MONO = 'var(--hub-font-mono)'
 
 const NAV_TABS = [
   { id: 'today',    label: 'Today',    sub: 'now' },
@@ -27,6 +31,12 @@ export function AppHeader({ view, setView, today, onConnectClick, onLogout, onOp
     return () => document.removeEventListener('scroll', onScroll, { capture: true })
   }, [])
 
+  const badge = {
+    border: '1px solid var(--color-line)',
+    borderRadius: 'var(--hub-radius-sm)',
+    padding: '3px 7px',
+  } as const
+
   return (
     <header style={{
       background: 'var(--color-paper)',
@@ -42,36 +52,21 @@ export function AppHeader({ view, setView, today, onConnectClick, onLogout, onOp
       alignItems: 'center',
       gap: 20,
     }}>
-      {/* Left: wordmark + date badge */}
+      {/* Left: pressed wordmark + week/date label badges */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
-        <span style={{
+        <Press as="span" style={{
           fontFamily: FONT_HEAD, fontWeight: 600, fontStyle: 'italic',
-          fontSize: 20, color: 'var(--color-accent)',
-          letterSpacing: '-0.01em', whiteSpace: 'nowrap', flexShrink: 0,
-          textShadow: '0 0 12px var(--color-accent-glow)',
-        }}>BeigeBoard</span>
+          fontSize: 20, letterSpacing: '-0.01em', whiteSpace: 'nowrap', flexShrink: 0,
+        }}>BeigeBoard</Press>
 
-        <span style={{
-          display: 'inline-flex', alignItems: 'center', gap: 6,
-          padding: '3px 10px',
-          background: 'var(--color-card)',
-          border: '1px solid var(--color-line)',
-          borderRadius: 2,
-          fontFamily: FONT_NUM, fontSize: 11,
-          color: 'var(--color-muted)',
-          letterSpacing: '0.06em',
-          whiteSpace: 'nowrap',
-        }}>
-          <span style={{ color: 'var(--color-accent)', fontStyle: 'italic' }}>
-            W{String(week).padStart(2, '0')}
-          </span>
-          <span style={{ opacity: 0.4 }}>·</span>
+        <Lab size="sm" as="span" style={badge}>W{String(week).padStart(2, '0')}</Lab>
+        <Lab size="sm" as="span" style={badge}>
           {d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-        </span>
+        </Lab>
       </div>
 
-      {/* Center: clean nav tabs */}
-      <nav role="tablist" aria-label="Primary" style={{ display: 'flex', gap: 2 }}>
+      {/* Center: nav tabs — active tab is a struck well + pressed label */}
+      <nav role="tablist" aria-label="Primary" style={{ display: 'flex', gap: 4 }}>
         {NAV_TABS.map(tab => (
           <NavTab key={tab.id} tab={tab} active={view === tab.id} onClick={() => setView(tab.id)} />
         ))}
@@ -80,11 +75,7 @@ export function AppHeader({ view, setView, today, onConnectClick, onLogout, onOp
       {/* Right: sources, time, profile */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 12 }}>
         {user?.role === 'guest' && (
-          <span style={{
-            fontFamily: FONT_BODY, fontSize: 9, letterSpacing: '0.22em',
-            textTransform: 'uppercase', color: 'var(--color-faint)',
-            border: '1px solid var(--color-line)', padding: '3px 8px',
-          }}>Guest</span>
+          <Lab size="sm" as="span" style={{ border: '1px solid var(--color-line)', padding: '3px 8px' }}>Guest</Lab>
         )}
 
         <button
@@ -92,7 +83,7 @@ export function AppHeader({ view, setView, today, onConnectClick, onLogout, onOp
           title="Manage connected calendars"
           style={{
             background: 'transparent', border: 'none',
-            fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.16em',
+            fontFamily: MONO, fontSize: 10, letterSpacing: '0.16em',
             textTransform: 'uppercase', color: 'var(--color-muted)', cursor: 'pointer',
             padding: 0, display: 'flex', alignItems: 'center', gap: 7,
           }}
@@ -157,27 +148,34 @@ function NavTab({ tab, active, onClick }: any) {
       onClick={onClick}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
+      className={active ? 'jk-well' : undefined}
       style={{
-        background: active ? 'var(--color-accent-soft)' : (hover ? 'var(--color-card)' : 'transparent'),
+        background: active ? undefined : (hover ? 'var(--color-card)' : 'transparent'),
         border: 'none',
-        borderBottom: `2px solid ${active ? 'var(--color-accent)' : 'transparent'}`,
-        padding: '8px 18px',
+        borderRadius: 'var(--hub-radius-sm)',
+        padding: '6px 16px',
         cursor: 'pointer',
-        transition: 'background 0.12s, border-color 0.12s',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        transition: 'background 0.12s',
       }}
     >
-      <div style={{
-        fontFamily: FONT_BODY, fontSize: 11, fontWeight: 500,
-        letterSpacing: '0.18em', textTransform: 'uppercase',
-        color: active ? 'var(--color-accent)' : (hover ? 'var(--color-ink)' : 'var(--color-muted)'),
-        lineHeight: 1.1,
-        transition: 'color 0.12s',
-      }}>{tab.label}</div>
-      <div style={{
-        fontFamily: FONT_NUM, fontStyle: 'italic', fontSize: 10,
-        color: 'var(--color-faint)', marginTop: 2, lineHeight: 1,
+      <span
+        className={active ? 'jk-press' : undefined}
+        style={{
+          fontFamily: MONO, fontSize: 11, fontWeight: 500,
+          letterSpacing: '0.18em', textTransform: 'uppercase',
+          color: active ? undefined : (hover ? 'var(--color-ink)' : 'var(--color-muted)'),
+          lineHeight: 1.1,
+          transition: 'color 0.12s',
+        }}
+      >{tab.label}</span>
+      <span style={{
+        fontFamily: MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase',
+        color: 'var(--color-faint)', marginTop: 3, lineHeight: 1,
         opacity: isLit ? 0.85 : 0.5,
-      }}>{tab.sub}</div>
+      }}>{tab.sub}</span>
     </button>
   )
 }

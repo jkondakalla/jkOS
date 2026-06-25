@@ -12,8 +12,8 @@
   "dependencies": {
     "@jkos/auth-client": "workspace:*",
     "@jkos/design": "workspace:*",
-    "@jkos/types": "workspace:*",
     "@jkos/ui": "workspace:*",
+    "@jkos/weave": "workspace:*",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },

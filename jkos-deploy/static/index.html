@@ -253,6 +253,17 @@ let lineCount = 0;
 const AUTH_BASE = '/auth';
 let refreshing = null;
 
+// SSE reconnect backoff. A persistent stream failure must NOT hammer the server:
+// the delay doubles per consecutive failure (capped), with jitter, and resets the
+// moment a connection opens. Without this a dead stream reconnected every 3s and,
+// because each attempt also refreshed the token, drained the shared per-IP
+// /auth/refresh budget until everything 429'd ("too many requests").
+const SSE_BASE_MS = 3000;
+const SSE_MAX_MS  = 30000;
+const SSE_GIVEUP  = 12;     // consecutive fails (~4 min of backoff) → bounce to login, stop looping
+let sseBackoff = SSE_BASE_MS;
+let sseFails   = 0;
+
 function refreshToken() {
   if (!refreshing) {
     refreshing = fetch(AUTH_BASE + '/refresh', { method: 'POST', credentials: 'same-origin' })
@@ -266,22 +277,37 @@ function gotoLogin() {
   window.location.href = AUTH_BASE + '/login?redirect_to=' + encodeURIComponent(location.href);
 }
 
-// fetch that transparently refreshes the access token once on 401, then retries;
-// if the refresh token is also dead, bounce to the login page.
+// The suite's refresh-aware fetch, mirroring @jkos/auth-client's authFetch (the
+// canonical browser contract) for this non-bundled, static console. On a
+// REFRESHABLE 401 — code TOKEN_EXPIRED | UNAUTHENTICATED — it rotates the access
+// token ONCE via the deduped refreshToken() (concurrent card polls share one
+// /auth/refresh instead of stampeding the per-IP budget into a 429 lockout) and
+// retries ONCE. A 401 that SURVIVES the refresh is RETURNED to the caller, NOT
+// bounced to /login: treating a backend that rejects a VALID token (e.g. a
+// verifier bug) as "logged out" is exactly what looped this console to the rate
+// limiter. We only send the user to login when the refresh ITSELF fails — i.e. the
+// refresh cookie is genuinely dead.
 async function authedFetch(url, opts = {}) {
   const o = { credentials: 'same-origin', ...opts };
   let r = await fetch(url, o);
-  if (r.status === 401) {
-    const ok = await refreshToken();
-    if (!ok) { gotoLogin(); throw new Error('unauthenticated'); }
-    r = await fetch(url, o);
-    if (r.status === 401) { gotoLogin(); throw new Error('unauthenticated'); }
-  }
-  return r;
+  if (r.status !== 401) return r;
+
+  // Read the code off a clone so the caller can still consume the body. jkos-deploy
+  // nests it under detail (FastAPI); the nginx gate / jkAuth put it top-level.
+  let code;
+  try { const b = await r.clone().json(); code = b.code ?? b.detail?.code; } catch { return r; }
+  if (code !== 'TOKEN_EXPIRED' && code !== 'UNAUTHENTICATED') return r;
+
+  const ok = await refreshToken();
+  if (!ok) { gotoLogin(); throw new Error('unauthenticated'); }
+  return fetch(url, o);   // a surviving 401 is returned, never looped to login
 }
 
 function addLog(text) {
   const panel = document.getElementById('log-panel');
+  // Stick to the bottom only if we were already there — so scrolling up to read
+  // an error mid-deploy isn't yanked back down by the next streamed line.
+  const atBottom = panel.scrollHeight - panel.scrollTop - panel.clientHeight < 24;
   const div = document.createElement('div');
   let cls = 'log-line';
   if (text.startsWith('$ '))                    cls += ' cmd';
@@ -295,7 +321,15 @@ function addLog(text) {
     panel.removeChild(panel.firstChild);
     lineCount--;
   }
-  panel.scrollTop = panel.scrollHeight;
+  if (atBottom) panel.scrollTop = panel.scrollHeight;
+}
+
+// Reset the panel for a fresh deploy so it mirrors the server (which clears its
+// log buffer on _start); without this an already-connected SSE client appends
+// the new run's lines beneath the previous run's stale output.
+function clearLog() {
+  document.getElementById('log-panel').replaceChildren();
+  lineCount = 0;
 }
 
 function applyStatus(s) {
@@ -335,9 +369,21 @@ async function fetchInfo() {
 
 function connectSSE() {
   const es = new EventSource('/deploy/logs/stream');
+  // A healthy connection resets the backoff so the next blip starts at SSE_BASE_MS.
+  es.onopen = () => { sseBackoff = SSE_BASE_MS; sseFails = 0; };
   es.onmessage = e => { if (e.data) addLog(e.data); };
-  // A 401 (expired cookie) surfaces here as an error — refresh, then reconnect.
-  es.onerror = () => { es.close(); refreshToken().finally(() => setTimeout(connectSSE, 3000)); };
+  // On error, reconnect with capped exponential backoff + jitter — no token refresh
+  // here: the 10-min refresh interval and fetchInfo's 401-retry keep the cookie
+  // alive, so an expired-token drop self-heals on the next fetchInfo tick without
+  // coupling every stream blip to /auth/refresh. After SSE_GIVEUP sustained fails a
+  // genuinely dead session is sent to login instead of looping forever.
+  es.onerror = () => {
+    es.close();
+    if (++sseFails >= SSE_GIVEUP) { gotoLogin(); return; }
+    const delay = sseBackoff * (0.8 + Math.random() * 0.4);  // ±20% jitter
+    sseBackoff = Math.min(sseBackoff * 2, SSE_MAX_MS);
+    setTimeout(connectSSE, delay);
+  };
 }
 
 async function syncStaging() {
@@ -345,6 +391,7 @@ async function syncStaging() {
     const r = await authedFetch('/deploy/staging/sync', { method: 'POST' });
     const d = await r.json();
     if (!r.ok) { alert('Error: ' + (d.detail || JSON.stringify(d))); return; }
+    clearLog();
     applyStatus({ status: 'running' });
   } catch (e) { alert('Request failed: ' + e); }
 }
@@ -352,12 +399,20 @@ async function syncStaging() {
 function openModal()  { document.getElementById('modal').classList.add('active'); }
 function closeModal() { document.getElementById('modal').classList.remove('active'); }
 
+// Esc closes the prod-deploy modal; clicking the backdrop (outside the dialog)
+// closes it too. Both only ever cancel — never confirm — so easing dismissal is safe.
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+document.getElementById('modal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeModal();
+});
+
 async function confirmDeploy() {
   closeModal();
   try {
     const r = await authedFetch('/deploy/prod/deploy', { method: 'POST' });
     const d = await r.json();
     if (!r.ok) { alert('Error: ' + (d.detail || JSON.stringify(d))); return; }
+    clearLog();
     applyStatus({ status: 'running' });
   } catch (e) { alert('Request failed: ' + e); }
 }

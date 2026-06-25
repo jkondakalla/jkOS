@@ -3,7 +3,7 @@
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; }
 body { font-family: var(--hub-font-mono); }
-button { border-radius: 0; font-family: inherit; }
+button { border-radius: var(--hub-radius-button); font-family: inherit; }
 button:focus, input:focus, select:focus { outline: none; }
 
 /* ── Animations ──────────────────────────────────────────────────────── */
@@ -62,6 +62,10 @@ button:focus, input:focus, select:focus { outline: none; }
   68%  { filter: brightness(1.05); }
   100% { filter: brightness(1); clip-path: inset(0% 0 0% 0); }
 }
+@keyframes paperExpand {
+  0%   { clip-path: inset(49.5% 0 49.5% 0); }
+  100% { clip-path: inset(0% 0 0% 0); }
+}
 @keyframes introTitleReveal {
   from { opacity: 0; transform: translateY(6px); filter: blur(3px); }
   to   { opacity: 1; transform: translateY(0);   filter: blur(0); }
@@ -77,56 +81,16 @@ button:focus, input:focus, select:focus { outline: none; }
 .item-in      { animation: itemIn      0.26s cubic-bezier(0.16, 1, 0.3, 1) both; }
 .modal-in     { animation: modalIn     0.22s cubic-bezier(0.16, 1, 0.3, 1) both; }
 .crt-expand   { animation: crtExpand 0.55s ease-out both; }
+.paper-expand { animation: paperExpand 0.55s ease-out both; }
 .intro-title  { animation: introTitleReveal 0.7s cubic-bezier(0.16, 1, 0.3, 1) both; }
 .intro-out    { animation: introFadeOut 0.45s ease-in forwards; }
 .now-dot      { animation: pulseOpacity 1.8s ease-in-out infinite; }
 .check-pop    { animation: checkBounce 0.25s ease-out; }
 
-/* ── BeigeBoard accent overrides ─────────────────────────────────────── */
-/* Slightly more orange than ORDECK's burnt sienna on paper */
-:root {
-  --accent:      #c05c15;
-  --accent-warm: #a04510;
-  --accent-soft: #f0d8c0;
-}
-:root[data-mode="dark"] {
-  --accent:      #e8a020;
-  --accent-warm: #f0b840;
-  --accent-soft: #5a4010;
-}
-
-/* ── --color-* aliases → --hub-* (for component compatibility) ───────── */
-:root {
-  --color-paper:          var(--hub-bg-0);
-  --color-paper-2:        var(--hub-bg-1);
-  --color-card:           var(--hub-bg-2);
-  --color-card-2:         var(--hub-bg-3);
-  --color-ink:            var(--hub-cream-bright);
-  --color-muted:          var(--hub-cream);
-  --color-faint:          var(--hub-cream-dim);
-  --color-line:           var(--hub-line);
-  --color-line-strong:    var(--hub-line-strong);
-  --color-accent:         var(--hub-amber);
-  --color-accent-bright:  var(--hub-amber-bright);
-  --color-accent-dim:     var(--hub-amber-dim);
-  --color-accent-deep:    var(--hub-amber-deep);
-  --color-accent-glow:    var(--hub-amber-glow);
-  --color-accent-soft:    color-mix(in srgb, var(--hub-amber) 10%, var(--hub-bg-2));
-  --color-accent-ink:     color-mix(in srgb, var(--hub-amber) 80%, #000000);
-  --color-accent-contrast: var(--hub-bg-4);
-  --color-secondary:      var(--hub-cyan);
-  --color-secondary-dim:  var(--hub-cyan-dim);
-  --color-secondary-glow: var(--hub-cyan-glow);
-  --color-ok:     var(--hub-green);
-  --color-warn:   #a04010;
-  --color-danger: var(--hub-red);
-}
-:root[data-mode="dark"] {
-  --color-ok:     #34d399;
-  --color-warn:   #fbbf24;
-  --color-danger: #f87171;
-  --color-accent-contrast: #000000;
-}
+/* Accent + --color-* aliases now come entirely from @jkos/design (hub.css): the
+   user's accent pair flows through the one chain (deepened for paper, raw + glow
+   for dark) and every --color-* alias derives from it. BeigeBoard adds no custom
+   neutrals, so it needs no per-app token block — it rides the shared defaults. */
 
 /* ── Base typography ──────────────────────────────────────────────────── */
 html, body { color-scheme: light; }
@@ -153,3 +117,30 @@ body { background: var(--color-paper); color: var(--color-ink); }
 *::-webkit-scrollbar-track { background: transparent; }
 *::-webkit-scrollbar-thumb { background: var(--hub-line-strong); }
 *::-webkit-scrollbar-thumb:hover { background: var(--hub-amber-dim); }
+
+/* ── Workshop goal well ───────────────────────────────────────────────────
+   The brief's goal card is an inset accent well. Tint it by the goal's OWN
+   colour via --goal-accent (set inline) so per-goal colours survive the well
+   treatment: debossed on paper, accent-glow in CRT. Same physics as @jkos/ui's
+   jk-well, but goal-coloured rather than locked to the theme accent. */
+.bb-goal-well {
+  position: relative;
+  background: color-mix(in srgb, var(--goal-accent) 12%, var(--color-card));
+  border-radius: var(--hub-radius-lg);
+  box-shadow:
+    inset 0 2px 3px color-mix(in srgb, var(--hub-cream-bright) 28%, transparent),
+    inset 0 -1px 1px color-mix(in srgb, #ffffff 50%, transparent),
+    0 1px 0 color-mix(in srgb, #ffffff 38%, transparent);
+}
+html[data-mode="dark"] .bb-goal-well {
+  box-shadow:
+    0 0 14px color-mix(in srgb, var(--goal-accent) 16%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--goal-accent) 26%, transparent);
+}
+
+/* Brief-style thin progress track (goal-coloured fill applied inline) */
+.bb-prog-track {
+  flex: 1; height: 7px; border-radius: 999px; overflow: hidden;
+  background: var(--color-paper);
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.20);
+}

@@ -26,9 +26,12 @@ export function schemeById(id: string): Scheme {
 
 export function applyScheme(id: SchemeId): void {
   const s = schemeById(id)
+  // A reading scheme now sets only the mode (light/dark). The accent is owned
+  // suite-wide by the shared chooser (jkAuth theme → --accent-raw), so we no
+  // longer write --accent-raw here — that kept the reading scheme from fighting
+  // the unified accent. `Scheme.accent` is retained as the scheme's intended
+  // tint metadata (used by useTheme's mode-toggle matching), not applied.
   document.documentElement.setAttribute('data-mode', s.theme === 'dark' ? 'dark' : 'paper')
-  document.documentElement.style.setProperty('--accent', s.accent)
-  document.documentElement.style.setProperty('--accent-base', s.accent)
 }
 
 // Suite-wide jkOS theme application (shared with ORDECK + BeigeBoard).

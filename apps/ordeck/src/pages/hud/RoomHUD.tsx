@@ -2,144 +2,77 @@ import { useState, useEffect, useRef } from 'react';
 import { SettingsDrawer } from '@jkos/ui';
 import { useJkOSPreferences, AUTH_URL } from '../../hooks/useJkOSPreferences';
 import { WeatherSection } from '../../components/settings/WeatherSection';
-import RemoteWidget from '../../widgets/core/RemoteWidget';
+import { useApps } from './useHudData';
+import { useHudContext } from './useHudContext';
+import { HudGrid } from '../../hud/HudGrid';
+import { renderWidget } from '../../hud/registry';
+import { activeBreakpoint, layoutForBreakpoint, autoBalance } from '../../hud/engine';
 import {
-  useClock, useWeather, useSystems, useToday, useStudy, useApps, isNow,
-  useMonthCalendar, type CalDay,
-} from './useHudData';
+  loadHudState, saveHudState, defaultHudState,
+  removeToShelf, placeFromShelf, shelvedWidgets, setBreakpointLayout,
+  WIDGET_EDIT_KEY,
+} from '../../hud/state';
+import type { HudState } from '../../hud/types';
 import '../../styles/hud.css';
 
-/* ORDECK v2 "room HUD" — the portal's default face (Claude Design, 2026-06).
-   Calm three-column glanceable dashboard: clock + weather + calendar | today |
-   systems + study. Edit mode lets the user show/hide cards without the canvas. */
+/* ORDECK v3 "room HUD" — the portal's default face.
+   A custom responsive grid (12-col desktop → 2-col mobile) arranges native,
+   data-driven widgets from a normalized HUD document (hud/state). The old
+   fixed three-column layout and the Module-Federation remote-widget path are
+   retired; widgets now read app data Ordeck already pulls (BeigeBoard's
+   /api/beigeboard/* is the reference integration). Edit mode shelves/places cards;
+   drag, resize, the asset shelf, long-press, and the admin creator build on
+   this foundation in later phases. */
 
-const BB_URL    = 'https://beigeboard.jkos.net';
-const SYLIB_URL = 'https://sylibos.jkos.net';
-
-const CARD_STORAGE = 'ordeck-hud-hidden';
-
-function loadHidden(): Set<string> {
-  try { return new Set(JSON.parse(localStorage.getItem(CARD_STORAGE) ?? '[]')); }
-  catch { return new Set(); }
-}
-function saveHidden(s: Set<string>) {
-  localStorage.setItem(CARD_STORAGE, JSON.stringify([...s]));
-}
-
-const MO_FULL = ['January','February','March','April','May','June',
-                 'July','August','September','October','November','December'];
-const DAY_ABBR = ['Su','Mo','Tu','We','Th','Fr','Sa'];
-
-// Friendly labels for the edit-mode restore strip (keys are the localStorage ids).
-const CARD_LABELS: Record<string, string> = {
-  weather: 'Weather', calendar: 'Calendar', today: 'Today',
-  systems: 'Systems', study: 'Study',
-};
-
-/* ── Remote widgets from other jkOS apps ───────────────────────────────────
-   The hook that lets another jkOS app surface a widget on the HUD. Each id maps
-   to a Module-Federation remote declared in vite.config.ts (`<id>-plugin`); the
-   plugin exposes a default <Widget>. Widgets are opt-in — disabled by default,
-   enabled from edit mode, persisted in localStorage. They render through
-   RemoteWidget, which lazy-loads the remote and degrades to a graceful
-   "MODULE FAULT" card when the plugin's remoteEntry.js isn't being served yet.
-   `ai` widgets follow the suite-wide LazurOS kill switch. */
-const REMOTE_WIDGETS: { id: string; label: string; ai?: boolean }[] = [
-  { id: 'beigeboard', label: 'BeigeBoard' },
-  { id: 'plex',       label: 'Plex' },
-  { id: 'recipe',     label: 'Recipe' },
-  { id: 'sylibos',    label: 'SylibOS' },
-  { id: 'lazuros',    label: 'LazurOS', ai: true },
-];
-const WIDGET_STORAGE = 'ordeck-hud-widgets';
-
-function loadWidgets(): string[] {
-  try { const v = JSON.parse(localStorage.getItem(WIDGET_STORAGE) ?? '[]'); return Array.isArray(v) ? v : []; }
-  catch { return []; }
-}
-function saveWidgets(ids: string[]) {
-  localStorage.setItem(WIDGET_STORAGE, JSON.stringify(ids));
-}
-
-function MiniCalendar({ cal, editMode, onHide }: {
-  cal: ReturnType<typeof useMonthCalendar>;
-  editMode: boolean;
-  onHide: () => void;
-}) {
-  const today = new Date();
-  const yr = cal.year; const mo = cal.month;
-  const first = new Date(yr, mo, 1).getDay();  // 0=Sun
-  const daysInMonth = new Date(yr, mo + 1, 0).getDate();
-  const cells: (number | null)[] = [
-    ...Array(first).fill(null),
-    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
-  ];
-  while (cells.length % 7 !== 0) cells.push(null);
-
-  const dayMap = new Map<string, CalDay>();
-  for (const d of cal.days) dayMap.set(d.date, d);
-
-  return (
-    <div className="hud-card hud-calendar" style={{ position: 'relative' }}>
-      {editMode && (
-        <button className="hud-edit-remove" onClick={onHide} title="Hide calendar">×</button>
-      )}
-      <div className="hud-calendar-head">
-        <span className="hud-eyebrow">CALENDAR</span>
-        <span className="hud-eyebrow-src" style={{ marginLeft: 'auto' }}>
-          {MO_FULL[mo].toUpperCase()} {yr}
-        </span>
-      </div>
-      <div className="hud-cal-grid">
-        {DAY_ABBR.map(d => (
-          <div key={d} className="hud-cal-dow">{d}</div>
-        ))}
-        {cells.map((day, i) => {
-          if (!day) return <div key={`e-${i}`} />;
-          const iso = `${yr}-${String(mo + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-          const info = dayMap.get(iso);
-          const isToday = day === today.getDate() && mo === today.getMonth() && yr === today.getFullYear();
-          return (
-            <div key={iso} className={`hud-cal-day${isToday ? ' today' : ''}${info ? ' has-tasks' : ''}`}>
-              <span className="hud-cal-num">{day}</span>
-              {info && (
-                <span className="hud-cal-dot" style={{
-                  background: info.doneCount === info.count ? 'var(--hub-green)' : 'var(--hub-amber)',
-                }} />
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-interface Props {
-  onOpenCanvas: () => void;
-}
-
-export default function RoomHUD({ onOpenCanvas: _onOpenCanvas }: Props) {
+export default function RoomHUD() {
   const { theme, effects, lazuros, user, saving, patchTheme, patchEffects, patchLazuros } =
     useJkOSPreferences();
 
-  const clock   = useClock();
-  const weather = useWeather();
-  const systems = useSystems(lazuros.enabled);
-  const today   = useToday();
-  const study   = useStudy();
-  const apps    = useApps(AUTH_URL);
-  const cal     = useMonthCalendar();
+  // All widget slices in one context (single BeigeBoard fetch shared across them).
+  const ctx  = useHudContext(lazuros.enabled);
+  const apps = useApps(AUTH_URL);
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [appsOpen, setAppsOpen]         = useState(false);
   const [editMode, setEditMode]         = useState(false);
-  const [hidden, setHidden]             = useState<Set<string>>(loadHidden);
-  const [widgets, setWidgets]           = useState<string[]>(loadWidgets);
+  // Render defaults instantly; hydrate from jkAuth prefs once it resolves.
+  const [hud, setHud]                   = useState<HudState>(defaultHudState);
+  const hydratedRef = useRef(false);
   const popRef = useRef<HTMLDivElement>(null);
 
   const isDark = document.documentElement.getAttribute('data-mode') === 'dark';
   const toggleMode = () => patchTheme({ mode: isDark ? 'light' : 'dark' });
+
+  // Every HUD mutation persists immediately — placement is the user's document.
+  // Suppressed until hydration completes so the initial defaults never overwrite
+  // the user's stored doc.
+  const update = (next: HudState) => { setHud(next); if (hydratedRef.current) saveHudState(next); };
+  const shelve = (id: string) => update(removeToShelf(hud, id));
+  const place  = (id: string) => update(placeFromShelf(hud, id, window.innerWidth));
+  // Auto-balance: repack the active breakpoint's cards to the tightest layout
+  // (least height → least empty space). Uses the same width→tier resolution the
+  // grid itself does, so it balances exactly what's on screen.
+  const balance = () => {
+    const bp = activeBreakpoint(window.innerWidth);
+    const items = layoutForBreakpoint(hud, bp);
+    update(setBreakpointLayout(hud, bp.name, autoBalance(items, bp.cols)));
+  };
+  // Hand the card's definition to the workshop (works for any placed spec card,
+  // published or not) and open the editor.
+  const editInWorkshop = (id: string) => {
+    const def = hud.widgets[id];
+    if (!def) return;
+    try { localStorage.setItem(WIDGET_EDIT_KEY, JSON.stringify(def)); } catch { /* ignore */ }
+    window.location.href = '/widgets';
+  };
+  // Open the workshop to compose a NEW widget — clear any stale "edit this card"
+  // handoff so it starts blank rather than reloading a previously-edited card.
+  const openWorkshop = () => {
+    try { localStorage.removeItem(WIDGET_EDIT_KEY); } catch { /* ignore */ }
+    window.location.href = '/widgets';
+  };
+
+  const isAdmin = (user as { role?: string } | null)?.role === 'admin';
 
   useEffect(() => {
     if (!appsOpen) return;
@@ -157,41 +90,50 @@ export default function RoomHUD({ onOpenCanvas: _onOpenCanvas }: Props) {
     return () => window.removeEventListener('keydown', close);
   }, [editMode]);
 
-  function hide(card: string) {
-    setHidden(s => { const n = new Set(s); n.add(card); saveHidden(n); return n; });
-  }
-  function show(card: string) {
-    setHidden(s => { const n = new Set(s); n.delete(card); saveHidden(n); return n; });
-  }
+  // Hydrate the user's HUD doc from jkAuth prefs, THEN merge admin-published
+  // widgets (jkAuth registry) on top so they show on the add strip and render
+  // via the spec factory. Order matters: hydration replaces the whole doc, so
+  // it must land before the (functional) merge — otherwise it would clobber it.
+  // The published merge is runtime-only and isn't persisted to the user's doc.
+  useEffect(() => {
+    let dead = false;
+    (async () => {
+      const loaded = await loadHudState();
+      if (dead) return;
+      setHud(loaded);
+      hydratedRef.current = true;
+
+      try {
+        const r = await fetch(`${AUTH_URL}/auth/widgets`, { credentials: 'include' });
+        const d = r.ok ? await r.json() : { widgets: [] };
+        const list = Array.isArray(d.widgets) ? d.widgets : [];
+        if (dead || !list.length) return;
+        setHud((h) => {
+          const widgets = { ...h.widgets };
+          for (const w of list) if (w && typeof w.id === 'string') widgets[w.id] = w;
+          return { ...h, widgets };
+        });
+      } catch { /* add strip just shows the built-ins */ }
+    })();
+    return () => { dead = true; };
+  }, []);
+
   function toggleEdit() {
     setEditMode(m => !m);
   }
-  function enableWidget(id: string) {
-    setWidgets(w => { const n = w.includes(id) ? w : [...w, id]; saveWidgets(n); return n; });
-  }
-  function disableWidget(id: string) {
-    setWidgets(w => { const n = w.filter(x => x !== id); saveWidgets(n); return n; });
-  }
 
-  // Available to add: not already enabled, and AI widgets honor the kill switch.
-  const addableWidgets = REMOTE_WIDGETS.filter(
-    w => !widgets.includes(w.id) && (!w.ai || lazuros.enabled),
-  );
-  // Enabled widgets that should actually render (drop AI widgets if AI is off).
-  const liveWidgets = widgets.filter(id => {
-    const meta = REMOTE_WIDGETS.find(w => w.id === id);
-    return meta ? (!meta.ai || lazuros.enabled) : true;
-  });
+  // Widgets registered but unplaced — the add strip (asset shelf, Phase 2).
+  // AI-backed widgets honor the suite-wide LazurOS kill switch.
+  const shelf = shelvedWidgets(hud).filter(w => !w.ai || lazuros.enabled);
 
-  const doneCount = today.tasks.filter(t => t.done).length;
-  const sysDot = systems.up === systems.total ? 'var(--hub-green)'
-    : systems.up === 0 ? 'var(--hub-red)' : 'var(--hub-warn)';
+  const sysDot = ctx.systems.up === ctx.systems.total ? 'var(--hub-green)'
+    : ctx.systems.up === 0 ? 'var(--hub-red)' : 'var(--hub-warn)';
 
-  const showWeather  = !hidden.has('weather');
-  const showCalendar = !hidden.has('calendar');
-  const showToday    = !hidden.has('today');
-  const showSystems  = !hidden.has('systems');
-  const showStudy    = !hidden.has('study');
+  // Focus mode: when a task is focused AND the Focus card is on the canvas, the
+  // grid dims every other card around it. Skipped if the card is shelved (else
+  // there'd be nothing to highlight).
+  const focusPlaced = !shelvedWidgets(hud).some((w) => w.id === 'focus');
+  const highlightId = ctx.focus.active && focusPlaced ? 'focus' : undefined;
 
   return (
     <div className={`hud-root${editMode ? ' edit-mode' : ''}`}>
@@ -204,7 +146,7 @@ export default function RoomHUD({ onOpenCanvas: _onOpenCanvas }: Props) {
 
         <span className="hud-syschip">
           <span className="hud-dot pulse" style={{ background: sysDot }} />
-          {systems.up} OF {systems.total} SYSTEMS UP
+          {ctx.systems.up} OF {ctx.systems.total} SYSTEMS UP
         </span>
 
         <button className="hud-topbtn" onClick={toggleMode} title="Toggle theme">
@@ -226,8 +168,20 @@ export default function RoomHUD({ onOpenCanvas: _onOpenCanvas }: Props) {
           </svg>
         </button>
 
-        {/* Edit mode button — replaces canvas shortcut.
-            Click once to enter, click again (or Esc) to exit. */}
+        {/* Widget Workshop — compose/publish a new widget (admin only). */}
+        {isAdmin && (
+          <button className="hud-topbtn" onClick={openWorkshop} title="Widget workshop">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="7" height="7" rx="1" />
+              <rect x="14" y="3" width="7" height="7" rx="1" />
+              <rect x="3" y="14" width="7" height="7" rx="1" />
+              <path d="M17.5 14.5v6M14.5 17.5h6" />
+            </svg>
+          </button>
+        )}
+
+        {/* Edit mode — click to enter, click again (or Esc) to exit.
+            Long-press entry (Feature 2) replaces this toggle in a later phase. */}
         <button
           className="hud-topbtn"
           data-active={editMode}
@@ -264,25 +218,22 @@ export default function RoomHUD({ onOpenCanvas: _onOpenCanvas }: Props) {
         )}
       </div>
 
-      {/* ── Edit mode bar: restore hidden cards + add app widgets ── */}
-      {editMode && (hidden.size > 0 || addableWidgets.length > 0) && (
+      {/* ── Edit mode bar: auto-balance + place shelved widgets back ── */}
+      {editMode && (
         <div className="hud-edit-bar">
-          {hidden.size > 0 && (
+          <button
+            className="hud-edit-restore"
+            onClick={balance}
+            title="Repack cards into the tightest layout — least height, least empty space"
+          >
+            ⤢ auto-balance
+          </button>
+          {shelf.length > 0 && (
             <>
-              <span>{hidden.size} hidden</span>
-              {[...hidden].map(id => (
-                <button key={id} className="hud-edit-restore" onClick={() => show(id)}>
-                  + {CARD_LABELS[id] ?? id}
-                </button>
-              ))}
-            </>
-          )}
-          {hidden.size > 0 && addableWidgets.length > 0 && <span className="hud-edit-sep" />}
-          {addableWidgets.length > 0 && (
-            <>
+              <span className="hud-edit-sep" />
               <span>add widget</span>
-              {addableWidgets.map(w => (
-                <button key={w.id} className="hud-edit-restore" onClick={() => enableWidget(w.id)}>
+              {shelf.map(w => (
+                <button key={w.id} className="hud-edit-restore" onClick={() => place(w.id)}>
                   + {w.label}
                 </button>
               ))}
@@ -291,240 +242,21 @@ export default function RoomHUD({ onOpenCanvas: _onOpenCanvas }: Props) {
         </div>
       )}
 
-      {/* ── Main grid ── */}
-      <div className="hud-grid">
-
-        {/* Left: clock + weather (compact) + monthly calendar */}
-        <div className="hud-col">
-          <div className="hud-clock">
-            <div className="hud-clock-time">
-              <span className="hud-clock-hm">{clock.hm}</span>
-              <span className="hud-clock-ss">{clock.ss}</span>
-            </div>
-            <div className="hud-clock-meta">
-              <span className="hud-clock-date">{clock.dateLine}</span>
-              <span className="hud-clock-utc">UTC {clock.utcShort} · DAY {clock.jday}</span>
-            </div>
-          </div>
-
-          {showWeather && (
-            <div className="hud-card hud-weather-compact" style={{ position: 'relative' }}>
-              {editMode && (
-                <button className="hud-edit-remove" onClick={() => hide('weather')} title="Hide weather">×</button>
-              )}
-              <div className="hud-weather-head">
-                <span className="hud-eyebrow">WEATHER</span>
-                <span className="hud-eyebrow-src" style={{ marginLeft: 'auto' }}>
-                  {weather.source === 'accuweather' ? 'ACCUWEATHER' : weather.label}
-                </span>
-              </div>
-              {weather.offline ? (
-                <div style={{ color: 'var(--hub-cream-faint)', fontFamily: 'var(--hub-font-mono)', fontSize: 11, padding: '4px 0' }}>
-                  WEATHER FEED OFFLINE
-                </div>
-              ) : (
-                <>
-                  <div className="hud-weather-compact-row">
-                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--hub-amber)" strokeWidth="1.4" strokeLinecap="round" style={{ flex: 'none', filter: 'drop-shadow(var(--glow))' }}>
-                      <circle cx="12" cy="12" r="4.5" />
-                      <path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3L7 7M17 17l1.7 1.7M5.3 18.7L7 17M17 7l1.7-1.7" />
-                    </svg>
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <div className="hud-weather-compact-temp">
-                        <b>{weather.loaded ? weather.temp : '--'}</b>
-                        <span>°F</span>
-                      </div>
-                      <div className="hud-weather-compact-desc">
-                        {weather.loaded ? `${weather.desc} · feels ${weather.feels}°` : 'Loading…'}
-                      </div>
-                    </div>
-                    <div className="hud-weather-hilo" style={{ marginLeft: 0 }}>
-                      <span className="hi">H {weather.loaded ? weather.hi : '--'}°</span>
-                      <span className="lo">L {weather.loaded ? weather.lo : '--'}°</span>
-                    </div>
-                  </div>
-
-                  {weather.slots.length > 0 && (
-                    <div className="hud-weather-strip" style={{ paddingTop: 10, marginTop: 10 }}>
-                      {weather.slots.map(s => (
-                        <div className="hud-weather-slot" key={s.label}>
-                          <span className="t">{s.label}</span>
-                          <span className="v">{s.temp}°</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          )}
-
-          {showCalendar && (
-            <MiniCalendar
-              cal={cal}
-              editMode={editMode}
-              onHide={() => hide('calendar')}
-            />
-          )}
-        </div>
-
-        {/* Middle: today's tasks */}
-        <div className="hud-col">
-          {showToday && (
-            <div className="hud-card hud-today" style={{ flex: 1, position: 'relative' }}>
-              {editMode && (
-                <button className="hud-edit-remove" onClick={() => hide('today')} title="Hide today">×</button>
-              )}
-              <div className="hud-today-head">
-                <span className="hud-eyebrow">TODAY</span>
-                <span className="hud-eyebrow-src">BEIGEBOARD</span>
-                <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                  <span className="hud-today-count">{doneCount} / {today.tasks.length}</span>
-                  <span className="hud-bar">
-                    <span style={{ width: today.tasks.length ? `${(doneCount / today.tasks.length) * 100}%` : '0%' }} />
-                  </span>
-                </span>
-              </div>
-
-              {!today.authed ? (
-                <div className="hud-empty">
-                  <span>SIGN IN TO SEE YOUR DAY</span>
-                  <a href={`${AUTH_URL}/auth/login?redirect_to=${encodeURIComponent('https://jkos.net')}`}>LOG IN</a>
-                </div>
-              ) : today.offline ? (
-                <div className="hud-empty">
-                  <span>BEIGEBOARD OFFLINE</span>
-                  <a href={BB_URL}>OPEN BEIGEBOARD →</a>
-                </div>
-              ) : today.tasks.length === 0 ? (
-                <div className="hud-empty">
-                  <span>{today.loaded ? 'NOTHING SCHEDULED TODAY' : 'LOADING…'}</span>
-                  <a href={BB_URL}>OPEN BEIGEBOARD →</a>
-                </div>
-              ) : (
-                <div className="hud-today-list">
-                  {today.tasks.map(t => {
-                    const now = isNow(t, clock.hm);
-                    return (
-                      <div key={t.id} className={`hud-task${t.done ? ' done' : ''}${now ? ' now' : ''}`}>
-                        <span className="hud-task-time">{t.time ?? '—'}</span>
-                        {now ? (
-                          <span style={{ minWidth: 0 }}>
-                            <span className="hud-task-title" style={{ display: 'block' }}>{t.title}</span>
-                            <span className="hud-task-sub">{t.tag}{t.endTime ? ` · until ${t.endTime}` : ''}</span>
-                          </span>
-                        ) : (
-                          <span className="hud-task-title">{t.title}</span>
-                        )}
-                        {t.done ? (
-                          <span className="hud-task-check">
-                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--hub-bg-0)" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M20 6L9 17l-5-5" />
-                            </svg>
-                          </span>
-                        ) : now ? (
-                          <span className="hud-now-chip"><span className="hud-dot pulse" />NOW</span>
-                        ) : (
-                          <span className="hud-task-tag">{t.tag}</span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Right: systems + study + app widgets */}
-        <div className={`hud-col${liveWidgets.length ? ' scroll' : ''}`}>
-          {showSystems && (
-            <div className="hud-card hud-systems" style={{ position: 'relative' }}>
-              {editMode && (
-                <button className="hud-edit-remove" onClick={() => hide('systems')} title="Hide systems">×</button>
-              )}
-              <div className="hud-systems-head">
-                <span className="hud-eyebrow">SYSTEMS</span>
-                <span className="hud-systems-count">{systems.up} / {systems.total} UP</span>
-              </div>
-              <div className="hud-systems-list">
-                {systems.rows.map(r => (
-                  <div key={r.name} className={`hud-sys${r.status === 'down' ? ' down' : r.status === 'warn' ? ' warn' : ''}`}>
-                    <span
-                      className={`hud-dot${r.status === 'down' ? ' pulse' : ''}`}
-                      style={{
-                        background: r.status === 'up' ? 'var(--hub-green)'
-                          : r.status === 'warn' ? 'var(--hub-warn)'
-                          : r.status === 'down' ? 'var(--hub-red)'
-                          : 'var(--hub-line-strong)',
-                      }}
-                    />
-                    <span className="hud-sys-name">{r.name}</span>
-                    <span className="hud-sys-val">{r.detail}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {showStudy && (
-            <a className="hud-card hud-info" href={SYLIB_URL} style={{ position: 'relative' }}>
-              {editMode && (
-                <button className="hud-edit-remove" onClick={e => { e.preventDefault(); hide('study'); }} title="Hide study">×</button>
-              )}
-              <div className="hud-info-head">
-                <span className="hud-eyebrow">STUDY</span>
-                <span className="hud-eyebrow-src" style={{ marginLeft: 'auto' }}>SYLIBOS</span>
-              </div>
-              {study.available ? (
-                <div className="hud-study-row">
-                  <div className="hud-study-main">
-                    <p className="hud-info-title">
-                      {study.nextLesson ?? study.courseTitle ?? 'All caught up'}
-                    </p>
-                    <p className="hud-info-sub">
-                      {study.todayDone} / {study.dailyGoal} today{study.courseTitle && study.nextLesson ? ` · ${study.courseTitle}` : ''}
-                    </p>
-                  </div>
-                  {study.streak > 0 && (
-                    <div className="hud-streak">
-                      <b>{study.streak}</b>
-                      <span>STREAK</span>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <p className="hud-info-sub" style={{ margin: 0 }}>
-                  {study.loaded ? 'SYLIBOS OFFLINE — OPEN →' : 'LOADING…'}
-                </p>
-              )}
-            </a>
-          )}
-
-          {/* App widgets from other jkOS apps (Module Federation remotes) */}
-          {liveWidgets.map(id => {
-            const meta = REMOTE_WIDGETS.find(w => w.id === id);
-            return (
-              <div key={id} className="hud-card hud-widget" style={{ position: 'relative' }}>
-                {editMode && (
-                  <button className="hud-edit-remove" onClick={() => disableWidget(id)} title={`Remove ${meta?.label ?? id}`}>×</button>
-                )}
-                <div className="hud-widget-head">
-                  <span className="hud-eyebrow">{(meta?.label ?? id).toUpperCase()}</span>
-                  <span className="hud-eyebrow-src" style={{ marginLeft: 'auto' }}>WIDGET</span>
-                </div>
-                <div className="hud-widget-body">
-                  <RemoteWidget type={id} />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+      {/* ── Main grid (custom engine) ── */}
+      <HudGrid
+        state={hud}
+        editMode={editMode}
+        highlightId={highlightId}
+        onRemove={shelve}
+        onEdit={editInWorkshop}
+        onRequestEdit={() => setEditMode(true)}
+        onLayoutChange={(bpName, items) => update(setBreakpointLayout(hud, bpName, items))}
+        renderWidget={(def) => renderWidget(def, ctx)}
+      />
 
       {/* ── Bottom strip ── */}
       <div className="hud-bottom">
-        <span>ORDECK V2</span>
+        <span>ORDECK V3</span>
         <span>·</span>
         <span>{isDark ? 'PHOSPHOR' : 'PAPER'}</span>
         {user && (
@@ -535,7 +267,7 @@ export default function RoomHUD({ onOpenCanvas: _onOpenCanvas }: Props) {
         )}
         <span style={{ flex: 1 }} />
         {editMode && (
-          <span style={{ color: 'var(--accent-ink)', fontFamily: 'var(--hub-font-mono)', fontSize: 10, letterSpacing: '0.1em' }}>
+          <span style={{ color: 'var(--color-accent-ink)', fontFamily: 'var(--hub-font-mono)', fontSize: 10, letterSpacing: '0.1em' }}>
             EDIT MODE · ESC TO EXIT
           </span>
         )}

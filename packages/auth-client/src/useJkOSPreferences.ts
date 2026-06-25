@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { getProfile, patchProfile } from './client';
 import { applyTheme, normaliseTheme } from './theme';
 import { DEFAULT_THEME, DEFAULT_EFFECTS, DEFAULT_LAZUROS } from './defaults';
@@ -38,25 +38,46 @@ export function useJkOSPreferences(opts: UseJkOSPreferencesOptions = {}) {
     return isDark;
   }, [onApply]);
 
+  // Fold a fetched profile into local state + apply theme. Shared by the initial
+  // load and the on-visibility refresh, so a change made in one app/tab lands in
+  // any other open one (applyTheme is idempotent — re-applying is harmless).
+  const hydrate = useCallback((data: Awaited<ReturnType<typeof getProfile>>) => {
+    if (!data) return;
+    if (data.user) setUser(data.user);
+    const eff = data.preferences.effects
+      ? { ...DEFAULT_EFFECTS, ...data.preferences.effects }
+      : DEFAULT_EFFECTS;
+    if (data.preferences.effects) setEffects(eff);
+    if (data.preferences.theme) {
+      const t = normaliseTheme(data.preferences.theme);
+      setTheme(t);
+      apply(t, eff);
+    }
+    if (data.preferences.lazuros) {
+      setLazuros(prev => ({ ...prev, ...data.preferences.lazuros }));
+    }
+  }, [apply]);
+
   useEffect(() => {
-    getProfile().then(data => {
-      if (!data) return;
-      if (data.user) setUser(data.user);
-      const eff = data.preferences.effects
-        ? { ...DEFAULT_EFFECTS, ...data.preferences.effects }
-        : DEFAULT_EFFECTS;
-      if (data.preferences.effects) setEffects(eff);
-      if (data.preferences.theme) {
-        const t = normaliseTheme(data.preferences.theme);
-        setTheme(t);
-        apply(t, eff);
-      }
-      if (data.preferences.lazuros) {
-        setLazuros(prev => ({ ...prev, ...data.preferences.lazuros }));
-      }
-    }).catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    getProfile().then(hydrate).catch(() => {});
+  }, [hydrate]);
+
+  // Live cross-app/tab sync: when this tab becomes visible again, re-pull prefs
+  // so a theme/accent change made elsewhere shows without a reload. Skipped while
+  // a local save is in flight so an optimistic edit isn't clobbered by stale data.
+  const savingRef = useRef(false);
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible' || savingRef.current) return;
+      getProfile().then(hydrate).catch(() => {});
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+    };
+  }, [hydrate]);
 
   // Re-apply when the OS dark preference changes (only matters in 'system' mode).
   useEffect(() => {
@@ -69,8 +90,9 @@ export function useJkOSPreferences(opts: UseJkOSPreferencesOptions = {}) {
 
   const patch = useCallback(async (preferences: object) => {
     setSaving(true);
+    savingRef.current = true;
     try { await patchProfile(preferences as any); }
-    finally { setSaving(false); }
+    finally { setSaving(false); savingRef.current = false; }
   }, []);
 
   const patchTheme = useCallback((partial: Partial<JkOSTheme>) => {

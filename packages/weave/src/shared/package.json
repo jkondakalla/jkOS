@@ -1,0 +1,4 @@
+{
+  "//": "Scope marker: the weave package is type:module (its frontend half is ESM/TS for Vite), but docShape.js here is genuine CommonJS so the no-bundler Node backends require() it on ANY Node version — not via the experimental require(ESM) interop. Mirrors src/server/package.json. The .d.ts keeps the TS frontend typed; Vite bundles the CJS via interop. Not a workspace package (pnpm globs packages/*, not nested dirs).",
+  "type": "commonjs"
+}

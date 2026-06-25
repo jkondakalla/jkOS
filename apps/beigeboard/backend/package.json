@@ -5,10 +5,13 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "test": "node test/import.smoke.mjs"
   },
   "dependencies": {
     "@jkos/auth-middleware": "workspace:*",
+    "@jkos/suite-manifest": "workspace:*",
+    "@jkos/weave": "workspace:*",
     "better-sqlite3": "^11.5.0",
     "cookie-parser": "^1.4.7",
     "express": "^4.19.2",

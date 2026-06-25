@@ -1,0 +1,15 @@
+{
+  "name": "@jkos/suite-manifest",
+  "version": "1.0.0",
+  "private": true,
+  "description": "jkOS single source of truth for the app directory: one APPS row per app, from which the jkAuth registry seed, Weave's SUITE_APPS, and the nginx peer table all derive. The app id is the only identifier.",
+  "main": "apps.js",
+  "types": "apps.d.ts",
+  "exports": {
+    ".": {
+      "types": "./apps.d.ts",
+      "require": "./apps.js",
+      "import": "./apps.js"
+    }
+  }
+}

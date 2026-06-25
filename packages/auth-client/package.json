@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@jkos/auth-middleware": "workspace:*",
     "@jkos/design": "workspace:*"
   },
   "peerDependencies": {

@@ -1,0 +1,96 @@
+/* hud/grid.css — absolute-positioned grid canvas + iOS hold-to-move.
+   Cells are placed by inline left/top/width/height (computed from grid units in
+   HudGrid); this file owns the chrome, the lift, and the drop placeholder.
+   Tokens come from @jkos/design (hub.css); no hardcoded colours. */
+
+.hud-canvas {
+  flex: 1;
+  min-height: 0;
+  padding: 16px 28px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* The positioned coordinate space the cells live in. */
+.hud-grid-area {
+  position: relative;
+  width: 100%;
+}
+
+/* One widget. Absolutely positioned by HudGrid; fills itself, owns its scroll. */
+.hud-cell {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.hud-cell > * {
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Focus mode: a task is in focus, so the HUD dims every card except the Focus
+   card to pull attention to the one thing being worked on. */
+.hud-canvas.has-highlight .hud-cell {
+  opacity: 0.32;
+  filter: saturate(0.55);
+  transition: opacity 0.4s ease, filter 0.4s ease;
+}
+.hud-canvas.has-highlight .hud-cell.is-highlight {
+  opacity: 1;
+  filter: none;
+}
+
+/* Edit mode: dashed outline marks rearrangeable cells; hold + drag to move. */
+.hud-canvas.editing .hud-cell {
+  outline: 1px dashed color-mix(in srgb, var(--hub-amber) 45%, transparent);
+  outline-offset: 2px;
+  border-radius: var(--hub-radius-lg);
+  cursor: grab;
+  user-select: none;
+}
+
+/* The lifted card floats above everything and follows the pointer. */
+.hud-cell.dragging {
+  cursor: grabbing;
+  z-index: 50;
+  box-shadow: 0 14px 34px color-mix(in srgb, #000 38%, transparent);
+  opacity: 0.97;
+}
+
+/* Where the held card will land — the rest of the grid reflows around it. */
+.hud-placeholder {
+  position: absolute;
+  z-index: 1;
+  pointer-events: none;
+  border-radius: var(--hub-radius-lg);
+  background: color-mix(in srgb, var(--hub-amber) 10%, transparent);
+  outline: 1.5px dashed color-mix(in srgb, var(--hub-amber) 55%, transparent);
+  outline-offset: -2px;
+  transition: left 0.16s ease, top 0.16s ease, width 0.16s ease, height 0.16s ease;
+}
+
+/* Edit-mode affordances nestle INSIDE the card's rounded corners — they never
+   drift off the edge. The `inset` shorthand rewrites all four offsets at once,
+   cancelling the base `.hud-edit-remove` top/right pin; the `.hud-cell >` child
+   selector guarantees we win regardless of stylesheet import order. The 10px
+   inset clears the --hub-radius-lg corner so each control sits in its curve.
+   Edit (→ workshop) → bottom-left; remove (→ shelf) → bottom-right. */
+.hud-cell > .hud-cell-edit {
+  position: absolute;
+  inset: auto auto 10px 10px;
+  z-index: 10;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.hud-cell > .hud-cell-remove {
+  position: absolute;
+  inset: auto 10px 10px auto;
+  z-index: 10;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hud-cell, .hud-placeholder { transition: none !important; }
+}

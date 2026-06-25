@@ -8,21 +8,20 @@
     <meta name="theme-color" content="#0e7c66" />
     <title>SylibOS</title>
 
-    <!-- Apply saved scheme before paint to avoid a theme/accent flash -->
+    <!-- Apply the saved reading scheme's MODE before paint to avoid a light/dark
+         flash. Accent is owned suite-wide (the jkAuth theme, applied after React
+         hydrates) — deliberately NOT set here: an inline --accent on <html> would
+         shadow the derived accent chain and override the user's chosen pair. -->
     <script>
       try {
-        var SCHEME_MAP = {
-          "reading-room": { theme: "light", accent: "#0e7c66" },
-          "sandstone":    { theme: "light", accent: "#b8543a" },
-          "nocturne":     { theme: "dark",  accent: "#0e7c66" },
-          "velvet":       { theme: "dark",  accent: "#7c3aed" }
+        var SCHEME_MODE = {
+          "reading-room": "light", "sandstone": "light",
+          "nocturne": "dark", "velvet": "dark"
         };
         var s = JSON.parse(localStorage.getItem('sylibos:settings') || '{}');
         var schemeId = s.scheme || (s.theme === 'dark' ? 'nocturne' : 'reading-room');
-        var scheme = SCHEME_MAP[schemeId] || SCHEME_MAP['nocturne'];
-        document.documentElement.setAttribute('data-mode', scheme.theme === 'dark' ? 'dark' : 'paper');
-        document.documentElement.style.setProperty('--accent', scheme.accent);
-        document.documentElement.style.setProperty('--accent-base', scheme.accent);
+        var mode = SCHEME_MODE[schemeId] || 'dark';
+        document.documentElement.setAttribute('data-mode', mode === 'dark' ? 'dark' : 'paper');
       } catch (e) {}
     </script>
 

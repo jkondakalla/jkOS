@@ -1,6 +1,9 @@
-export const FONT_HEAD = "'Newsreader', 'EB Garamond', Georgia, serif"
-export const FONT_BODY = "'Inter Tight', system-ui, sans-serif"
-export const FONT_NUM  = "'Newsreader', Georgia, serif"
+// Fonts flow from the @jkos/design token system (set per-app via the factory in
+// App.tsx: serif → Fraunces, sans/mono → IBM Plex). Referencing the tokens here
+// means every view that uses these constants adopts the brief typography at once.
+export const FONT_HEAD = 'var(--hub-font-serif)'   // Fraunces (serif headers)
+export const FONT_BODY = 'var(--hub-font-sans)'    // IBM Plex Sans
+export const FONT_NUM  = 'var(--hub-font-serif)'   // Fraunces (serif figures)
 
 export const TASK_COLORS = [
   { id: 'rust',  label: 'Rust',  hex: '#B05040' },
@@ -74,10 +77,8 @@ export function getGreeting() {
   return 'Night.'
 }
 
-export function halate(hex: string | null | undefined, level = 'mid') {
-  if (!hex || hex.startsWith('var(')) return 'none'
-  const c = hex.replace('#', '')
-  const alpha = ({ hi: '88', mid: '55', low: '33', soft: '1f' } as any)[level] || '55'
-  const radius = ({ hi: 28, mid: 16, low: 10, soft: 5 } as any)[level] || 16
-  return `0 0 ${radius}px #${c}${alpha}`
-}
+// The per-colour emissive glow that used to live here (halate) now belongs to the
+// @jkos/design factory as the .jk-glow / .jk-glow-text utility classes: add the
+// class + an intensity rung (.jk-glow-low/-mid/-hi) and set the colour inline via
+// --jk-glow-color. Mode-gating (none on paper, glow in CRT) is handled in CSS, so
+// there is no JS helper to call. Primary-accent glows use --accent-halo(-text).

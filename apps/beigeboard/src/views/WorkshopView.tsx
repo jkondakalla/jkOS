@@ -1,11 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { FONT_HEAD, FONT_BODY, FONT_NUM, TASK_COLORS, localDate, addDays, fmtWeekday, halate } from '../lib/theme'
+import { FONT_HEAD, FONT_BODY, FONT_NUM, TASK_COLORS, localDate, addDays, fmtWeekday } from '../lib/theme'
 import { getChildren, getAccent } from '../lib/seed'
 import {
   topGoals, milestonesOf, tasksOf, currentMilestone, goalProgress,
   isAdrift, paceOf, milestoneCleared, fmtTarget,
 } from '../lib/plan'
-import { Eyebrow, Checkbox, VUMeter, Plate } from '../components/SharedComponents'
+import { Eyebrow, Checkbox, Plate } from '../components/SharedComponents'
+import { Press, TButton, Pill, Lab, Sheet } from '@jkos/ui'
 
 /*
  * The Workshop — the Breakdown Method, embodied (Documentation/PLANNING_METHOD.md).
@@ -23,7 +24,7 @@ export function WorkshopView({
   const year     = localDate(today).getFullYear()
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto', background: 'var(--color-paper)' }}>
+    <div style={{ flex: 1, overflowY: 'auto', background: 'transparent' }}>
       <div style={{ maxWidth: 920, margin: '0 auto', padding: '36px 40px 80px' }}>
 
         <header style={{ paddingBottom: 20, marginBottom: 24, borderBottom: '1px solid var(--color-line)' }}>
@@ -32,10 +33,7 @@ export function WorkshopView({
             fontFamily: FONT_HEAD, fontWeight: 500, fontSize: 44,
             margin: '8px 0 8px', letterSpacing: '-0.025em', lineHeight: 1.04, color: 'var(--color-ink)',
           }}>
-            Break it <em style={{
-              fontStyle: 'italic', color: 'var(--color-accent)',
-              textShadow: '0 0 28px var(--color-accent-glow)',
-            }}>down</em>.
+            Break it <Press large as="em" style={{ fontStyle: 'italic' }}>down</Press>.
           </h1>
           <p style={{
             fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 14,
@@ -79,11 +77,12 @@ export function WorkshopView({
                   <div key={g.id} style={{
                     display: 'flex', alignItems: 'center', gap: 12,
                     padding: '10px 14px', border: '1px solid var(--color-line)',
+                    borderRadius: 'var(--hub-radius-lg)',
                     background: 'var(--color-paper-2)', opacity: 0.75,
                   }}>
                     <span style={{
                       fontFamily: FONT_BODY, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase',
-                      color: 'var(--color-muted)', border: '1px solid var(--color-line)', padding: '2px 7px', flexShrink: 0,
+                      color: 'var(--color-muted)', border: '1px solid var(--color-line)', borderRadius: 'var(--hub-radius-sm)', padding: '2px 7px', flexShrink: 0,
                     }}>{g.status === 'done' ? 'Done' : 'Parked'}</span>
                     <span
                       onClick={() => onSelect(g)}
@@ -127,54 +126,54 @@ function GoalPlate({ goal, items, index, today, autoFocus, onSelect, onToggle, o
   }, [autoFocus])
 
   return (
-    <article ref={ref}>
-      <Plate accent={accent} style={{ padding: '22px 26px 22px 36px' }}>
+    <article
+      ref={ref}
+      className="bb-goal-well"
+      style={{ padding: '24px 28px', '--goal-accent': accent } as React.CSSProperties}
+    >
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 10, flexWrap: 'wrap' }}>
-          <span style={{
-            fontFamily: FONT_BODY, fontSize: 9, letterSpacing: '0.22em',
-            textTransform: 'uppercase', color: accent, textShadow: halate(accent, 'low'),
-          }}>{`Goal ${String(index).padStart(2, '0')}`}</span>
+          <Lab size="sm" as="span" className="jk-glow-text jk-glow-low" style={{ color: accent, '--jk-glow-color': accent } as React.CSSProperties}>
+            {`Goal ${String(index).padStart(2, '0')}`}
+          </Lab>
           {goal.target_date && (
-            <span style={{ fontFamily: FONT_NUM, fontStyle: 'italic', fontSize: 12, color: 'var(--color-muted)' }}>
-              by {fmtTarget(goal.target_date)}
-            </span>
+            <Lab size="sm" as="span">by {fmtTarget(goal.target_date)}</Lab>
           )}
-          {pace && (
+          {pace && (pace === 'behind' ? (
             <span style={{
               fontFamily: FONT_BODY, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase',
-              color: pace === 'behind' ? 'var(--color-accent)' : 'var(--color-muted)',
-              border: `1px solid ${pace === 'behind' ? 'var(--color-accent)' : 'var(--color-line)'}`,
-              padding: '2px 7px',
-              textShadow: pace === 'behind' ? '0 0 8px var(--color-accent-glow)' : 'none',
+              color: 'var(--color-accent)', border: '1px solid var(--color-accent)', borderRadius: 'var(--hub-radius-lg)', padding: '2px 7px',
+              textShadow: 'var(--accent-halo-text)',
             }}>{pace}</span>
-          )}
+          ) : (
+            <Pill><span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--color-ok)', flexShrink: 0 }} />{pace}</Pill>
+          ))}
           {adrift && (
-            <span style={{
+            <span className="jk-glow jk-glow-low" style={{
               fontFamily: FONT_BODY, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase',
               color: 'var(--color-paper)', background: accent, padding: '3px 8px',
-              boxShadow: halate(accent, 'low'),
-            }}>nothing on the calendar</span>
+              '--jk-glow-color': accent,
+            } as React.CSSProperties}>nothing on the calendar</span>
           )}
         </div>
 
         <h2
           onClick={() => onSelect(goal)}
           style={{
-            fontFamily: FONT_HEAD, fontWeight: 500, fontSize: 28, cursor: 'pointer',
-            margin: 0, letterSpacing: '-0.025em', lineHeight: 1.12, color: 'var(--color-ink)',
+            fontFamily: FONT_HEAD, fontWeight: 600, fontSize: 27, cursor: 'pointer',
+            margin: 0, letterSpacing: '-0.02em', lineHeight: 1.12, color: 'var(--color-ink)',
           }}
         >
           {goal.title}
-          <span style={{ color: accent, textShadow: halate(accent, 'hi') }}>.</span>
+          <span className="jk-glow-text jk-glow-hi" style={{ color: accent, '--jk-glow-color': accent } as React.CSSProperties}>.</span>
         </h2>
 
         <DoneMeans goal={goal} onUpdateItem={onUpdateItem} readonly={readonly} />
 
-        <div style={{ marginTop: 16 }}>
-          <VUMeter
-            pct={prog.pct} color={accent} segments={24}
-            label={prog.total > 0 ? `${prog.done}/${prog.total}` : '—'}
-          />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 18 }}>
+          <div className="bb-prog-track">
+            <div className="progress-fill" style={{ width: `${prog.pct}%`, height: '100%', background: accent, boxShadow: `0 0 8px ${accent}66` }} />
+          </div>
+          <Lab size="sm" as="span">{prog.total > 0 ? `${prog.done}/${prog.total}` : '—'}</Lab>
         </div>
 
         {/* The ladder */}
@@ -225,6 +224,7 @@ function GoalPlate({ goal, items, index, today, autoFocus, onSelect, onToggle, o
             <div style={{
               marginTop: 12, padding: '14px 18px',
               border: `1px solid ${accent}55`, background: `${accent}10`,
+              borderRadius: 'var(--hub-radius-lg)',
               display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap',
             }}>
               <span style={{ fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 15, color: 'var(--color-ink)', flex: 1 }}>
@@ -233,19 +233,18 @@ function GoalPlate({ goal, items, index, today, autoFocus, onSelect, onToggle, o
               {!readonly && (
                 <button
                   onClick={() => onUpdateItem(goal.id, { status: 'done' })}
-                  className="btn-action"
+                  className="btn-action jk-glow jk-glow-mid"
                   style={{
                     background: accent, color: 'var(--color-paper)', border: 'none',
                     fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.16em',
                     textTransform: 'uppercase', padding: '9px 16px', cursor: 'pointer',
-                    boxShadow: halate(accent, 'mid'),
-                  }}
+                    '--jk-glow-color': accent,
+                  } as React.CSSProperties}
                 >Mark the goal done →</button>
               )}
             </div>
           )}
         </div>
-      </Plate>
     </article>
   )
 }
@@ -316,24 +315,23 @@ function MilestoneRow({ m, index, items, today, accent, isCurrent, open, onOpen,
   const cleared = milestoneCleared(m, items)
   const state: 'done' | 'current' | 'later' = m.completed ? 'done' : isCurrent ? 'current' : 'later'
 
-  return (
-    <li style={{ borderBottom: '1px solid var(--color-line-strong)' }}>
+  const isCur = state === 'current'
+
+  const inner = (
+    <>
       <header
         onClick={onOpen}
         style={{
           display: 'flex', alignItems: 'center', gap: 12,
-          padding: '9px 10px', cursor: 'pointer',
-          background: state === 'current' ? `${accent}10` : 'transparent',
+          padding: isCur ? '0' : '9px 10px', cursor: 'pointer',
           opacity: state === 'later' ? 0.62 : 1,
-          transition: 'background 0.12s',
         }}
       >
-        <span style={{
-          fontFamily: FONT_NUM, fontStyle: 'italic', fontSize: 13,
+        <Lab size="sm" as="span" className={isCur ? 'jk-glow-text jk-glow-low' : undefined} style={{
           color: state === 'done' ? 'var(--color-faint)' : accent,
           width: 22, flexShrink: 0, textAlign: 'right',
-          textShadow: state === 'current' ? halate(accent, 'low') : 'none',
-        }}>{String(index).padStart(2, '0')}</span>
+          '--jk-glow-color': accent,
+        } as React.CSSProperties}>{String(index).padStart(2, '0')}</Lab>
 
         <StateGlyph state={state} accent={accent} />
 
@@ -342,24 +340,23 @@ function MilestoneRow({ m, index, items, today, accent, isCurrent, open, onOpen,
           style={{
             flex: 1, minWidth: 0,
             fontFamily: FONT_HEAD, fontStyle: 'italic', fontWeight: 500,
-            fontSize: state === 'current' ? 18 : 15.5,
+            fontSize: isCur ? 18 : 15.5,
             color: state === 'done' ? 'var(--color-muted)' : 'var(--color-ink)',
             textDecoration: state === 'done' ? 'line-through' : 'none',
             lineHeight: 1.25, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           }}
         >{m.title}</span>
 
-        {state === 'current' && (
-          <span style={{
-            fontFamily: FONT_BODY, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase',
-            color: accent, border: `1px solid ${accent}66`, padding: '2px 8px', flexShrink: 0,
-            textShadow: halate(accent, 'low'),
-          }}>current</span>
+        {isCur && (
+          <span className="jk-glow-text jk-glow-low" style={{
+            fontFamily: 'var(--hub-font-mono)', fontSize: 8.5, letterSpacing: '0.18em',
+            textTransform: 'uppercase', fontWeight: 600, color: accent,
+            background: `color-mix(in srgb, ${accent} 16%, var(--color-card))`,
+            padding: '3px 9px', flexShrink: 0, '--jk-glow-color': accent,
+          } as React.CSSProperties}>current</span>
         )}
         {tasks.length > 0 && (
-          <span style={{ fontFamily: FONT_NUM, fontStyle: 'italic', fontSize: 12, color: 'var(--color-muted)', flexShrink: 0 }}>
-            {done}/{tasks.length}
-          </span>
+          <Lab size="sm" as="span" style={{ flexShrink: 0 }}>{done}/{tasks.length}</Lab>
         )}
         {!readonly && tasks.length === 0 && !m.completed && (
           <button
@@ -375,8 +372,9 @@ function MilestoneRow({ m, index, items, today, accent, isCurrent, open, onOpen,
 
       {cleared && !readonly && (
         <div style={{
-          margin: '0 10px 10px 44px', padding: '10px 14px',
+          margin: isCur ? '10px 0 0 34px' : '0 10px 10px 44px', padding: '10px 14px',
           border: `1px solid ${accent}66`, background: `${accent}14`,
+          borderRadius: 'var(--hub-radius-soft)',
           display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
         }}>
           <span style={{ fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 13.5, color: 'var(--color-ink)', flex: 1 }}>
@@ -384,20 +382,20 @@ function MilestoneRow({ m, index, items, today, accent, isCurrent, open, onOpen,
           </span>
           <button
             onClick={() => onUpdateItem(m.id, { completed: true })}
-            className="btn-action"
+            className="btn-action jk-glow jk-glow-mid"
             style={{
               background: accent, color: 'var(--color-paper)', border: 'none',
               fontFamily: FONT_BODY, fontSize: 9.5, letterSpacing: '0.16em',
               textTransform: 'uppercase', padding: '7px 13px', cursor: 'pointer',
-              boxShadow: halate(accent, 'mid'),
-            }}
+              '--jk-glow-color': accent,
+            } as React.CSSProperties}
           >Checkpoint passed →</button>
         </div>
       )}
 
       {open && !m.completed && (
-        <div style={{ margin: '0 10px 10px 44px' }}>
-          {state === 'current' && tasks.length === 0 && (
+        <div style={{ margin: isCur ? '8px 0 0 34px' : '0 10px 10px 44px' }}>
+          {isCur && tasks.length === 0 && (
             <p style={{
               fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 12.5,
               color: 'var(--color-muted)', margin: '2px 0 6px', lineHeight: 1.4,
@@ -427,8 +425,18 @@ function MilestoneRow({ m, index, items, today, accent, isCurrent, open, onOpen,
           )}
         </div>
       )}
-    </li>
+    </>
   )
+
+  // The current checkpoint is the brief's prominent sheet card; the rest are flat rows.
+  if (isCur) {
+    return (
+      <li style={{ margin: '8px 0' }}>
+        <Sheet style={{ padding: '12px 14px' }}>{inner}</Sheet>
+      </li>
+    )
+  }
+  return <li style={{ borderBottom: '1px solid var(--color-line-strong)' }}>{inner}</li>
 }
 
 function StateGlyph({ state, accent }: any) {
@@ -527,11 +535,11 @@ function DueControl({ item, today, accent, onUpdateItem, readonly }: any) {
         {picking ? (
           <DatePick item={item} onUpdateItem={onUpdateItem} onClose={() => setPicking(false)} />
         ) : (
-          <span style={{
+          <span className={overdue ? 'jk-glow-text jk-glow-low' : undefined} style={{
             fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.08em',
             color: overdue ? accent : 'var(--color-muted)',
-            textShadow: overdue ? halate(accent, 'low') : 'none',
-          }}>
+            '--jk-glow-color': accent,
+          } as React.CSSProperties}>
             {item.due_date === today ? 'today' : `${fmtWeekday(item.due_date)} ${localDate(item.due_date).getDate()}`}
           </span>
         )}
@@ -574,14 +582,9 @@ function DatePick({ item, onUpdateItem, onClose }: any) {
 
 function DayChip({ label, onClick }: any) {
   return (
-    <button
-      onClick={onClick}
-      style={{
-        background: 'transparent', border: '1px solid var(--color-line)',
-        fontFamily: FONT_BODY, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase',
-        color: 'var(--color-muted)', cursor: 'pointer', padding: '2px 7px',
-      }}
-    >{label}</button>
+    <TButton onClick={onClick} style={{ fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', padding: '2px 7px' }}>
+      {label}
+    </TButton>
   )
 }
 
@@ -692,7 +695,7 @@ function LadderPrompt({ goal, onAddItem, readonly, aiEnabled, today }: any) {
   }
 
   return (
-    <div style={{ border: '1px dashed var(--color-line)', padding: '16px 18px', background: 'var(--color-paper-2)' }}>
+    <div style={{ border: '1px dashed var(--color-line)', borderRadius: 'var(--hub-radius-lg)', padding: '16px 18px', background: 'var(--color-paper-2)' }}>
       <p style={{
         fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 14,
         color: 'var(--color-ink)', margin: '0 0 12px', lineHeight: 1.4,
@@ -815,6 +818,7 @@ function GoalForge({ startOpen, today, goalCount, onAddItem, aiEnabled }: any) {
         target_date: target || null,
         year: localDate(today).getFullYear(),
       })
+      if (!goal?.id) return   // create failed — keep the form so the user can retry
       let firstMs: any = null
       for (let i = 0; i < ladder.length; i++) {
         const m = await onAddItem({ kind: 'milestone', parent_id: goal.id, title: ladder[i], position: i, source: 'bb' })
@@ -970,16 +974,17 @@ function GoalForge({ startOpen, today, goalCount, onAddItem, aiEnabled }: any) {
 
       <div style={{ marginTop: 22, display: 'flex', justifyContent: 'flex-end' }}>
         <button
-          onClick={stamp} disabled={!canStamp || saving} className="btn-action"
+          onClick={stamp} disabled={!canStamp || saving}
+          className={canStamp ? 'btn-action jk-glow jk-glow-mid' : 'btn-action'}
           style={{
             background: canStamp ? accent : 'var(--color-paper-2)',
             color: canStamp ? 'var(--color-paper)' : 'var(--color-faint)',
             border: canStamp ? 'none' : '1px solid var(--color-line)',
             fontFamily: FONT_BODY, fontSize: 10.5, letterSpacing: '0.16em', textTransform: 'uppercase',
             padding: '10px 20px', cursor: canStamp ? 'pointer' : 'default',
-            boxShadow: canStamp ? halate(accent, 'mid') : 'none',
+            '--jk-glow-color': accent,
             opacity: saving ? 0.6 : 1,
-          }}
+          } as React.CSSProperties}
         >{saving ? 'Stamping…' : 'Stamp the goal →'}</button>
       </div>
     </Plate>

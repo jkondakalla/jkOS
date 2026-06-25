@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { FONT_HEAD, FONT_BODY, FONT_NUM, sourceOf, fmtTime, fmtFull, localDate, halate } from '../lib/theme'
+import { FONT_HEAD, FONT_BODY, FONT_NUM, sourceOf, fmtTime, fmtFull, localDate } from '../lib/theme'
 import { getAncestors, getChildren, getAccent, getProgress } from '../lib/seed'
 import { Eyebrow, Checkbox } from './SharedComponents'
+import { useHudShelf } from '../lib/jkauth'
 
 export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdateItem, setView, setFocusedGoalId }: any) {
   const [titleEditing, setTitleEditing] = useState(false)
@@ -17,6 +18,9 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
     if (titleEditing && titleInputRef.current) titleInputRef.current.focus()
   }, [titleEditing])
 
+  // ORDECK HUD shelf — pin/focus this item onto the dashboard (suite-wide prefs).
+  const shelf = useHudShelf()
+
   if (!event) return null
 
   const accent = (items && getAccent(event, items)) || (event.source && sourceOf(event.source).hex) || 'var(--color-accent)'
@@ -28,6 +32,11 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
   const children  = items ? getChildren(event, items)  : []
   const prog      = items ? getProgress(event, items)  : { done: 0, total: 0, pct: 0 }
 
+  // Pin/focus reference for the HUD shelf — {app,id} + a display snapshot.
+  const hudRef  = { app: 'beigeboard', id: event.id, label: event.title, deeplink: window.location.origin }
+  const focused = shelf.isFocused('beigeboard', event.id)
+  const pinned  = shelf.isPinned('beigeboard', event.id)
+
   const scopeLabel = isGoal ? 'Goal'
     : isMilestone ? 'Checkpoint'
     : isEvent ? 'Event'
@@ -36,7 +45,7 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
 
   return (
     <aside className="panel-enter" style={{
-      borderLeft: `1px solid 'var(--color-line)'`,
+      borderLeft: `1px solid var(--color-line)`,
       background: 'var(--color-paper-2)',
       display: 'flex', flexDirection: 'column',
       overflow: 'hidden',
@@ -125,6 +134,7 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
                       fontFamily: FONT_BODY, fontSize: 8.5, letterSpacing: '0.2em',
                       textTransform: 'uppercase', color: aAccent || 'var(--color-muted)',
                       border: `1px solid ${(aAccent || 'var(--color-muted)') + '40'}`,
+                      borderRadius: 'var(--hub-radius-sm)',
                       padding: '1px 6px', flexShrink: 0,
                     }}>{a.kind === 'goal' ? 'goal' : a.kind === 'milestone' ? 'checkpoint' : 'task'}</span>
                     <span style={{
@@ -155,11 +165,11 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
         {event.attendees && (
           <Field label="Attending">
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-              <span style={{
+              <span className="jk-glow-text jk-glow-mid" style={{
                 fontFamily: FONT_NUM, fontStyle: 'italic',
                 fontSize: 30, color: accent, lineHeight: 1,
-                textShadow: halate(accent, 'mid'),
-              }}>{String(event.attendees).padStart(2, '0')}</span>
+                '--jk-glow-color': accent,
+              } as React.CSSProperties}>{String(event.attendees).padStart(2, '0')}</span>
               <span style={{ fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 13, color: 'var(--color-muted)' }}>
                 people
               </span>
@@ -174,7 +184,7 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
               className="btn-action"
               style={{
                 display: 'flex', alignItems: 'center', gap: 9,
-                background: 'transparent', border: `1px solid 'var(--color-line)'`,
+                background: 'transparent', border: `1px solid var(--color-line)`,
                 fontFamily: FONT_BODY, fontSize: 12,
                 padding: '9px 14px', color: 'var(--color-ink)', cursor: 'pointer',
                 letterSpacing: '0.05em',
@@ -185,6 +195,37 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
                 ? (event.completed ? 'Passed — reopen' : 'Mark checkpoint passed')
                 : (event.completed ? 'Done — mark active' : 'Mark complete')}
             </button>
+          </Field>
+        )}
+
+        {(isTask || isEvent || isMilestone) && (
+          <Field label="On ORDECK">
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button
+                onClick={() => shelf.toggleFocus(hudRef)}
+                className="btn-action"
+                style={{
+                  flex: 1,
+                  background: focused ? accent : 'transparent',
+                  color: focused ? 'var(--color-paper)' : 'var(--color-muted)',
+                  border: `1px solid ${focused ? accent : 'var(--color-line)'}`,
+                  fontFamily: FONT_BODY, fontSize: 9.5, letterSpacing: '0.12em',
+                  textTransform: 'uppercase', padding: '9px 0', cursor: 'pointer',
+                }}
+              >{focused ? 'Focused — clear' : 'Focus on ORDECK'}</button>
+              <button
+                onClick={() => shelf.togglePin({ ...hudRef, tone: event.completed ? 'ok' : 'accent' })}
+                className="btn-action"
+                style={{
+                  flex: 1,
+                  background: pinned ? accent : 'transparent',
+                  color: pinned ? 'var(--color-paper)' : 'var(--color-muted)',
+                  border: `1px solid ${pinned ? accent : 'var(--color-line)'}`,
+                  fontFamily: FONT_BODY, fontSize: 9.5, letterSpacing: '0.12em',
+                  textTransform: 'uppercase', padding: '9px 0', cursor: 'pointer',
+                }}
+              >{pinned ? 'Pinned to HUD' : 'Pin to HUD'}</button>
+            </div>
           </Field>
         )}
 
@@ -201,7 +242,8 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
             )}
             {children.length === 0 ? (
               <div style={{
-                padding: '12px 14px', border: `1px dashed 'var(--color-line)'`,
+                padding: '12px 14px', border: `1px dashed var(--color-line)`,
+                borderRadius: 'var(--hub-radius-soft)',
                 fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 13, color: 'var(--color-muted)',
               }}>Not broken down yet. Open in the workshop to add steps.</div>
             ) : (
@@ -209,7 +251,7 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
                 {children.slice(0, 6).map((c: any) => (
                   <li key={c.id} style={{
                     display: 'flex', alignItems: 'center', gap: 8,
-                    padding: '6px 0', borderBottom: `1px solid 'var(--color-line-strong)'`,
+                    padding: '6px 0', borderBottom: `1px solid var(--color-line-strong)`,
                   }}>
                     <span style={{ width: 4, height: 16, background: accent, opacity: 0.5, flexShrink: 0 }} />
                     <span style={{
@@ -273,14 +315,14 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
 
         <div style={{
           display: 'flex', gap: 8, marginTop: 24,
-          paddingTop: 16, borderTop: `1px solid 'var(--color-line-strong)'`,
+          paddingTop: 16, borderTop: `1px solid var(--color-line-strong)`,
         }}>
           <button
             onClick={() => onDelete?.(event.id)}
             className="btn-action"
             style={{
               flex: 1,
-              background: 'transparent', border: `1px solid 'var(--color-line)'`,
+              background: 'transparent', border: `1px solid var(--color-line)`,
               fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.14em',
               textTransform: 'uppercase', color: 'var(--color-muted)',
               padding: '10px 14px', cursor: 'pointer',
@@ -341,6 +383,7 @@ function GoalFields({ event, onUpdateItem }: any) {
           onChange={e => onUpdateItem?.(event.id, { target_date: e.target.value || null })}
           style={{
             background: 'transparent', border: `1px solid var(--color-line)`,
+            borderRadius: 'var(--hub-radius-sm)',
             fontFamily: FONT_BODY, fontSize: 11, color: 'var(--color-ink)',
             padding: '4px 6px', outline: 'none',
           }}
@@ -395,7 +438,8 @@ function WhenField({ event, isTask, isEvent, onUpdateItem }: any) {
   }
 
   const inputSty: any = {
-    background: 'transparent', border: `1px solid 'var(--color-line)'`,
+    background: 'transparent', border: `1px solid var(--color-line)`,
+    borderRadius: 'var(--hub-radius-sm)',
     fontFamily: FONT_BODY, fontSize: 11,
     color: 'var(--color-ink)', padding: '4px 6px', outline: 'none',
   }
@@ -407,11 +451,10 @@ function WhenField({ event, isTask, isEvent, onUpdateItem }: any) {
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 6 }}>
         <Eyebrow>When</Eyebrow>
         {canEdit && !editing && (
-          <button onClick={() => setEditing(true)} style={{
+          <button onClick={() => setEditing(true)} className="jk-sub-link" style={{
             background: 'none', border: 'none',
             fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 11,
-            color: 'var(--color-muted)', cursor: 'pointer', padding: 0,
-            textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 2,
+            cursor: 'pointer', padding: 0,
           }}>edit</button>
         )}
       </div>
@@ -442,13 +485,13 @@ function WhenField({ event, isTask, isEvent, onUpdateItem }: any) {
               textTransform: 'uppercase', padding: '7px 0', cursor: 'pointer',
             }}>Save</button>
             <button onClick={() => setEditing(false)} style={{
-              flex: 1, background: 'transparent', border: `1px solid 'var(--color-line)'`,
+              flex: 1, background: 'transparent', border: `1px solid var(--color-line)`,
               fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.14em',
               textTransform: 'uppercase', color: 'var(--color-muted)', padding: '7px 0', cursor: 'pointer',
             }}>Cancel</button>
             {(event.due_date || event.scheduled_time) && (
               <button onClick={clear} style={{
-                background: 'transparent', border: `1px solid 'var(--color-line)'`,
+                background: 'transparent', border: `1px solid var(--color-line)`,
                 fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.12em',
                 textTransform: 'uppercase', color: 'var(--color-faint)', padding: '7px 10px', cursor: 'pointer',
               }}>Clear</button>
@@ -482,7 +525,7 @@ function WhenField({ event, isTask, isEvent, onUpdateItem }: any) {
         </div>
       ) : canEdit ? (
         <button onClick={() => setEditing(true)} style={{
-          background: 'transparent', border: `1px dashed 'var(--color-line)'`,
+          background: 'transparent', border: `1px dashed var(--color-line)`,
           fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 13,
           color: 'var(--color-muted)', cursor: 'pointer', padding: '8px 12px', width: '100%', textAlign: 'left',
         }}>+ Schedule this {isEvent ? 'event' : 'task'}</button>

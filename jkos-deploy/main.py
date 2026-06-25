@@ -5,24 +5,32 @@ from typing import Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, StreamingResponse
-from jose import JWTError, jwt
+from jose import ExpiredSignatureError, JWTError
+
+import jkos_auth
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 
-PUBLIC_KEY = os.getenv("JKOS_AUTH_PUBLIC_KEY", "").replace("\\n", "\n")
-# jkos-deploy lives in the staging environment, so it verifies staging tokens:
-# cookie name jkos_token_staging (suffix) and issuer jkos-auth-staging. These
-# default to the prod values so the controller still works if run unscoped.
-COOKIE_NAME = "jkos_token" + os.getenv("JKOS_COOKIE_SUFFIX", "")
-EXPECTED_ISSUER = os.getenv("JKOS_AUTH_ISSUER", "jkos-auth")
+# Token verification (cookie name, issuer, JWKS/static key) lives in jkos_auth.py
+# — a port of the canonical node verifier, so this controller can't drift from the
+# rest of the suite the way the old inline jwt.decode did.
 STAGING_BRANCH = os.getenv("STAGING_BRANCH", "staging")
 # Branch the prod checkout resets to on deploy. Set to "staging" so promoting
 # deploys the exact commit just tested on staging.jkos.net — no GitHub merge
 # step (the server has no push credentials anyway).
 PROD_BRANCH = os.getenv("PROD_BRANCH", "main")
 
+# Paths as THIS container sees them (the host checkouts are bind-mounted here).
 PROD_DIR = "/webhost/jkOS"
 STAGING_DIR = "/webhost/jkOS-staging"
+# The same checkouts as the HOST docker daemon sees them. The deploy scripts run
+# `docker run -v ...` for nginx config validation, and bind-mount sources are
+# resolved by the host daemon (not this container's fs) — so they need host
+# paths. HOST_WEBHOST maps /webhost -> the host's webhost root.
+HOST_WEBHOST = os.getenv("HOST_WEBHOST", "/mnt/Luna/Webhost")
+HOST_PROD_DIR = f"{HOST_WEBHOST}/jkOS"
+HOST_STAGING_DIR = f"{HOST_WEBHOST}/jkOS-staging"
+SSL_PATH = os.getenv("SSL_PATH", "/mnt/Luna/Backends/ssl")
 
 # The checkouts are bind-mounted from the host and owned by a different uid than
 # this container's root user, so git 2.35.3+ refuses to touch them ("detected
@@ -33,7 +41,6 @@ GIT = ["git", "-c", "safe.directory=*"]
 
 # ── State ──────────────────────────────────────────────────────────────────────
 
-deploy_lock = asyncio.Lock()
 status: Literal["idle", "running", "done", "error"] = "idle"
 current_operation: str = ""
 log_lines: collections.deque = collections.deque(maxlen=500)
@@ -49,13 +56,14 @@ async def _log(line: str) -> None:
         log_lines.append((_log_seq, line))
 
 
-async def _run(cmd: list[str]) -> bool:
+async def _run(cmd: list[str], env: dict | None = None) -> bool:
     await _log(f"$ {' '.join(cmd)}")
     try:
         proc = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
+            env=env,
         )
         async for raw in proc.stdout:
             await _log(raw.decode(errors="replace").rstrip())
@@ -96,42 +104,78 @@ async def _git_info(directory: str) -> dict:
         return {"branch": "unknown", "commit_hash": "unknown", "commit_msg": "unknown", "commit_date": "unknown"}
 
 
-async def _run_sequence(operation: str, sequence: list[list[str]]) -> None:
+async def _run_script(operation: str, script: str, env: dict[str, str]) -> None:
+    """Stream a single deploy script and set terminal status from its exit code.
+
+    The deploy steps live in infra/scripts/*.sh (one source of truth shared with
+    by-hand host runs); this just execs the script with the right env and relays
+    its output. The script prints its own section headers; we own the final
+    DONE/FAILED line so it's authoritative regardless of what the script logs.
+    """
     global status, current_operation
+    current_operation = operation
+    try:
+        ok = await _run(["bash", script], env={**os.environ, **env})
+    except Exception as e:  # never leave status stuck at "running" — that 409s every future deploy
+        await _log(f"[ERROR] deploy crashed: {e}")
+        ok = False
+    await _log("=== DONE ===" if ok else "=== FAILED — see log above ===")
+    status = "done" if ok else "error"
+    current_operation = ""
+
+
+def _start(operation: str, script: str, env: dict[str, str]) -> dict:
+    """Guard against concurrent deploys, then kick one off in the background.
+
+    The guard MUST be synchronous: an async check would let two requests that
+    arrive in the same tick both pass before either flips the flag (the old
+    deploy_lock.locked() check did exactly that — a double-click queued a second
+    deploy). asyncio is single-threaded, so setting status here (no await in
+    between) is atomic against other requests.
+    """
+    global status, current_operation
+    if status == "running":
+        # Same { error, code } envelope as every other response so a client parses
+        # one shape; DEPLOY_IN_PROGRESS is local (not an auth wire code).
+        raise HTTPException(status_code=409, detail={"error": "A deploy is already in progress", "code": "DEPLOY_IN_PROGRESS"})
     status = "running"
     current_operation = operation
-    await _log(f"=== {operation} ===")
-    for cmd in sequence:
-        ok = await _run(cmd)
-        if not ok:
-            await _log("=== FAILED — aborting sequence ===")
+    log_lines.clear()  # fresh panel per deploy; _log_seq stays monotonic for SSE clients
+
+    async def run():
+        global status, current_operation
+        try:
+            await _log(f"=== {operation} ===")
+            await _run_script(operation, script, env)
+        except Exception:
+            # Last-resort guard: if anything above (even _log) blows up, release
+            # the lock so the next deploy isn't permanently 409'd.
             status = "error"
             current_operation = ""
-            return
-    await _log("=== DONE ===")
-    status = "done"
-    current_operation = ""
+
+    asyncio.create_task(run())
+    return {"ok": True, "message": f"{operation} started"}
 
 
 # ── Auth ───────────────────────────────────────────────────────────────────────
 
 async def get_admin(request: Request):
-    token = request.cookies.get(COOKIE_NAME)
+    # 401s carry a `code` matching the node middleware's vocabulary (TOKEN_EXPIRED
+    # / UNAUTHENTICATED) so the browser console can tell a refreshable expiry from a
+    # real auth failure — and refresh-once-then-surface instead of looping to login.
+    token = request.cookies.get(jkos_auth.COOKIE_NAME)
     if not token:
-        raise HTTPException(status_code=401, detail="Authentication required")
+        raise HTTPException(status_code=401, detail={"error": "Not authenticated", "code": jkos_auth.CODES["UNAUTHENTICATED"]})
     try:
-        payload = jwt.decode(
-            token,
-            PUBLIC_KEY,
-            algorithms=["RS256"],
-            options={"verify_aud": False},
-        )
+        # verify_token may fetch JWKS, so run it off the event loop. It verifies
+        # signature, exp and issuer; an invalid token (or bad issuer) raises.
+        payload = await asyncio.get_event_loop().run_in_executor(None, jkos_auth.verify_token, token)
+    except ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail={"error": "Token expired", "code": jkos_auth.CODES["TOKEN_EXPIRED"]})
     except JWTError:
-        raise HTTPException(status_code=401, detail="Invalid token")
-    if payload.get("iss") != EXPECTED_ISSUER:
-        raise HTTPException(status_code=401, detail="Invalid token issuer")
+        raise HTTPException(status_code=401, detail={"error": "Invalid token", "code": jkos_auth.CODES["UNAUTHENTICATED"]})
     if payload.get("role") != "admin":
-        raise HTTPException(status_code=403, detail="Admin access required")
+        raise HTTPException(status_code=403, detail={"error": "Admin access required", "code": jkos_auth.CODES["FORBIDDEN"]})
     return payload
 
 
@@ -147,7 +191,9 @@ async def root():
 
 @app.get("/health")
 async def health():
-    return {"ok": True}
+    # Match @jkos/weave/server's healthHandler shape so the portal's systems panel
+    # reads every service's health with one parser.
+    return {"status": "ok", "service": "jkos-deploy"}
 
 
 @app.get("/info")
@@ -199,49 +245,31 @@ async def logs_stream(_=Depends(get_admin)):
 
 @app.post("/staging/sync")
 async def staging_sync(_=Depends(get_admin)):
-    if deploy_lock.locked():
-        raise HTTPException(status_code=409, detail="A deploy is already in progress")
-
-    async def run():
-        async with deploy_lock:
-            await _run_sequence(
-                "Syncing staging from GitHub...",
-                [
-                    [*GIT, "-C", STAGING_DIR, "fetch", "origin"],
-                    [*GIT, "-C", STAGING_DIR, "reset", "--hard", f"origin/{STAGING_BRANCH}"],
-                    ["docker", "compose", "-f", f"{STAGING_DIR}/docker-compose.staging.yml", "up", "--build", "-d"],
-                    ["docker", "exec", "standalone-nginx", "nginx", "-t"],
-                    # Rebuild the nginx image, not just restart: standalone.conf is a
-                    # FILE bind-mount (inode-pinned — reload silently reads old inode),
-                    # and staging-static/ is now COPYd into the image (TrueNAS
-                    # POSIX_RESTRICTED ACLs block chmod so bind-mounting 770 files
-                    # leaves nginx workers unable to read them). --build picks up both.
-                    ["docker", "compose", "-f", f"{STAGING_DIR}/infra/nginx/docker-compose.yml", "up", "--build", "-d"],
-                ],
-            )
-
-    asyncio.create_task(run())
-    return {"ok": True, "message": "Staging sync started"}
+    return _start(
+        "Syncing staging from GitHub...",
+        f"{STAGING_DIR}/infra/scripts/deploy-staging.sh",
+        {
+            "ENV_NAME": "staging",
+            "REPO_DIR": STAGING_DIR,
+            "HOST_REPO_DIR": HOST_STAGING_DIR,
+            "BRANCH": STAGING_BRANCH,
+            "COMPOSE_FILE": "docker-compose.staging.yml",
+            "SSL_PATH": SSL_PATH,
+        },
+    )
 
 
 @app.post("/prod/deploy")
 async def prod_deploy(_=Depends(get_admin)):
-    if deploy_lock.locked():
-        raise HTTPException(status_code=409, detail="A deploy is already in progress")
-
-    async def run():
-        async with deploy_lock:
-            await _run_sequence(
-                f"Deploying {PROD_BRANCH} to production...",
-                [
-                    [*GIT, "-C", PROD_DIR, "fetch", "origin"],
-                    [*GIT, "-C", PROD_DIR, "reset", "--hard", f"origin/{PROD_BRANCH}"],
-                    ["docker", "compose", "-f", f"{PROD_DIR}/docker-compose.yml", "up", "--build", "-d"],
-                    ["docker", "exec", "standalone-nginx", "nginx", "-t"],
-                    # restart, not reload — see staging_sync for the inode rationale.
-                    ["docker", "restart", "standalone-nginx"],
-                ],
-            )
-
-    asyncio.create_task(run())
-    return {"ok": True, "message": "Production deploy started"}
+    return _start(
+        f"Deploying {PROD_BRANCH} to production...",
+        f"{PROD_DIR}/infra/scripts/deploy-prod.sh",
+        {
+            "ENV_NAME": "production",
+            "REPO_DIR": PROD_DIR,
+            "HOST_REPO_DIR": HOST_PROD_DIR,
+            "BRANCH": PROD_BRANCH,
+            "COMPOSE_FILE": "docker-compose.yml",
+            "SSL_PATH": SSL_PATH,
+        },
+    )

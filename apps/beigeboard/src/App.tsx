@@ -1,55 +1,51 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import './app.css'
 
-import { FONT_BODY, weekStart } from './lib/theme'
-import { TODAY_ISO, INITIAL_ACCOUNTS } from './lib/seed'
+import { FONT_BODY, weekStart, isoDate } from './lib/theme'
+import { TODAY_ISO, INITIAL_ACCOUNTS, getDescendants } from './lib/seed'
 import { useJkOSPreferences } from './hooks/useJkOSPreferences'
 import { DragProvider } from './providers/DragProvider'
 import { MobileApp } from './mobile'
+import { injectJkOSTheme, STORAGE_KEYS } from '@jkos/design'
 
-import { FilmGrain, Halation, Artifacts, ScanLines, CinematicIntro } from './components/Overlays'
+import { Artifacts, ScanLines, CinematicIntro } from './components/Overlays'
 import { AppHeader } from './components/AppHeader'
 import { ConnectModal } from './components/ConnectModal'
 import { DetailPanel } from './components/DetailPanel'
 import { SettingsDrawer } from '@jkos/ui'
-import { AUTH_URL } from './lib/jkauth'
+import { AUTH_URL, authFetch, useSessionKeepalive } from './lib/jkauth'
 
 import { TodayView } from './views/TodayView'
 import { WeekView } from './views/WeekView'
 import { CalendarView } from './views/CalendarView'
 import { WorkshopView } from './views/WorkshopView'
 
-// Set paper mode before React hydrates to prevent flash
+// Set mode before React hydrates to prevent flash. Check localStorage for user's
+// last-known preference (written by applyJkOSMode), fall back to paper.
 if (!document.documentElement.hasAttribute('data-mode')) {
-  document.documentElement.setAttribute('data-mode', 'paper')
+  const cached = (() => { try { return localStorage.getItem(STORAGE_KEYS.mode) } catch { return null } })()
+  document.documentElement.setAttribute('data-mode', cached ?? 'paper')
 }
+
+// BeigeBoard supplies its per-app inputs to the @jkos/design factory: serif →
+// Fraunces (sans/mono inherit the IBM Plex factory defaults), and its own radius
+// scale. Radius is a first-class factory input like accent/fonts/neutrals — the
+// hub default happens to be sharp (0–2px), BeigeBoard runs a rounder scale, other
+// apps keep theirs. Every BeigeBoard shape reads these --hub-radius-* tokens
+// (no hardcoded radii), so the whole app retunes from this one call. Accents stay
+// user-driven (applyJkOSTheme, in useJkOSPreferences).
+injectJkOSTheme({
+  fonts: { serif: "'Fraunces', Georgia, serif" },
+  radius: { base: '8px', xs: '4px', sm: '7px', lg: '11px', soft: '9px', widget: '10px', button: '8px' },
+})
 
 const DEFAULT_API_URL  = import.meta.env.VITE_API_URL ?? ''
 const JKOS_AUTH_URL    = import.meta.env.VITE_JKOS_AUTH_URL ?? 'https://auth.jkos.net'
 
-/* ── Token-refresh-aware fetch ─────────────────────────────────────────── */
-let refreshing: Promise<boolean> | null = null
-
-async function apiFetch(input: string, init: RequestInit = {}): Promise<Response> {
-  const opts = { credentials: 'include' as const, ...init }
-  const r = await fetch(input, opts)
-  if (r.status !== 401) return r
-
-  let data: any
-  try { data = await r.clone().json() } catch { return r }
-  if (data?.code !== 'TOKEN_EXPIRED') return r
-
-  /* Deduplicate concurrent refresh attempts — calls jkos-auth service */
-  if (!refreshing) {
-    refreshing = fetch(`${JKOS_AUTH_URL}/auth/refresh`, {
-      method: 'POST', credentials: 'include',
-    }).then(res => res.ok).finally(() => { refreshing = null })
-  }
-
-  const ok = await refreshing
-  if (!ok) return r
-  return fetch(input, opts)
-}
+/* Token-refresh-aware fetch is now the suite-shared authFetch (@jkos/auth-client):
+   on a 401 (TOKEN_EXPIRED/UNAUTHENTICATED) it silently rotates the remember-me
+   refresh cookie and retries, deduping concurrent attempts. One implementation for
+   every app + the weave fabric, instead of a per-app copy. */
 
 /* ── Main app ──────────────────────────────────────────────────────────── */
 export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
@@ -58,13 +54,16 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
   const prefs = useJkOSPreferences()
   const { effects } = prefs
 
+  // Keep the access token fresh so a long-open board never 401s mid-session.
+  useSessionKeepalive()
+
   const toAuthPortal = () => {
     window.location.href = `${JKOS_AUTH_URL}/auth/login?redirect_to=${encodeURIComponent(window.location.href)}`
   }
 
   const checkAuth = async () => {
     try {
-      const r = await apiFetch(`${apiUrl}/api/auth/me`)
+      const r = await authFetch(`${apiUrl}/api/auth/me`)
       if (r.ok) {
         const d = await r.json()
         setUser(d.user)
@@ -79,29 +78,29 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
 
   const handleUnauth = () => toAuthPortal()
 
-  /* All API calls go through apiFetch which handles token refresh */
+  /* All API calls go through authFetch which handles token refresh */
   const api = {
     get: (path: string) =>
-      apiFetch(`${apiUrl}${path}`).then(r => {
+      authFetch(`${apiUrl}${path}`).then(r => {
         if (r.status === 401) { handleUnauth(); throw new Error('Unauthorized') }
         return r.json()
       }),
     post: (path: string, body: any) =>
-      apiFetch(`${apiUrl}${path}`, {
+      authFetch(`${apiUrl}${path}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
       }).then(r => {
         if (r.status === 401) { handleUnauth(); throw new Error('Unauthorized') }
         return r.json()
       }),
     patch: (path: string, body: any) =>
-      apiFetch(`${apiUrl}${path}`, {
+      authFetch(`${apiUrl}${path}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
       }).then(r => {
         if (r.status === 401) { handleUnauth(); throw new Error('Unauthorized') }
         return r.json()
       }),
     del: (path: string) =>
-      apiFetch(`${apiUrl}${path}`, { method: 'DELETE' }).then(r => {
+      authFetch(`${apiUrl}${path}`, { method: 'DELETE' }).then(r => {
         if (r.status === 401) { handleUnauth(); throw new Error('Unauthorized') }
         return r.json()
       }),
@@ -123,8 +122,36 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
     return () => mq.removeEventListener('change', handler)
   }, [])
 
-  const [intro, setIntro]   = useState(false)
-  const [colorIn, setColorIn] = useState(true)
+  // "Today" must not freeze at page-load: a planner is routinely left open
+  // overnight, after which TODAY_ISO (a module constant) would keep the Today view,
+  // the calendar highlight, and new-task date defaults stuck on yesterday. Roll it
+  // over at the next local midnight AND whenever the tab refocuses. The setToday
+  // guard returns the previous value when the date is unchanged, so a refocus that
+  // isn't a new day causes no re-render.
+  const [today, setToday] = useState(TODAY_ISO)
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const schedule = () => {
+      const n = new Date()
+      const nextMidnight = new Date(n.getFullYear(), n.getMonth(), n.getDate() + 1, 0, 0, 5)
+      clearTimeout(timer)
+      timer = setTimeout(tick, nextMidnight.getTime() - n.getTime())
+    }
+    const tick = () => {
+      setToday(prev => { const now = isoDate(new Date()); return prev === now ? prev : now })
+      schedule()
+    }
+    const onVisible = () => { if (document.visibilityState === 'visible') tick() }
+    tick()
+    document.addEventListener('visibilitychange', onVisible)
+    return () => { clearTimeout(timer); document.removeEventListener('visibilitychange', onVisible) }
+  }, [])
+
+  // Opening scroll plays on load (CinematicIntro reads <html data-mode> so it
+  // renders in the user's mode); the app starts desaturated and blooms to colour
+  // when the intro finishes (onDone → setColorIn(true)).
+  const [intro, setIntro]   = useState(true)
+  const [colorIn, setColorIn] = useState(false)
   const [view, setView]                   = useState('today')
   const [items, setItems]                 = useState<any[]>([])
   const [loading, setLoading]             = useState(true)
@@ -175,26 +202,40 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
   }
 
   const onDelete = (id: number) => {
-    const snapshot = items.find(it => it.id === id)
-    setItems(prev => prev.filter(it => it.id !== id))
-    setSelected((s: any) => s && s.id === id ? null : s)
+    const target = items.find(it => it.id === id)
+    if (!target) return
+    // The server cascade-deletes the whole subtree (cascadeDelete); mirror that
+    // locally so a deleted goal's milestones/tasks don't linger as ghosts (dangling
+    // parent_id, 404 on interaction) until the next reload.
+    const removed = [target, ...getDescendants(target, items)]
+    const removedIds = new Set(removed.map((r: any) => r.id))
+    setItems(prev => prev.filter(it => !removedIds.has(it.id)))
+    setSelected((s: any) => s && removedIds.has(s.id) ? null : s)
     api.del(`/api/items/${id}`).catch((e: any) => {
       console.error('[onDelete]', e)
-      if (snapshot) setItems(prev => [...prev, snapshot])
+      setItems(prev => [...prev, ...removed])   // restore the whole subtree on failure
     })
   }
 
   const onAddItem = async (partial: any) => {
-    const fresh = await api.post('/api/items', {
-      kind: 'task', scope: 'day', completed: false, source: 'bb', ...partial,
-    })
-    if (!fresh?.id) throw new Error('Item creation failed')
-    setItems(prev => [...prev, fresh])
-    setRecentlyAdded(s => { const n = new Set(s); n.add(fresh.id); return n })
-    setTimeout(() => {
-      setRecentlyAdded(s => { const n = new Set(s); n.delete(fresh.id); return n })
-    }, 600)
-    return fresh
+    // Resolve to null (never reject) on failure: most callers fire-and-forget, so a
+    // throw here became an unhandled rejection and the typed task silently vanished.
+    // Awaiting callers (the Workshop forge/ladder) null-check the result.
+    try {
+      const fresh = await api.post('/api/items', {
+        kind: 'task', scope: 'day', completed: false, source: 'bb', ...partial,
+      })
+      if (!fresh?.id) throw new Error(fresh?.error || 'Item creation failed')
+      setItems(prev => [...prev, fresh])
+      setRecentlyAdded(s => { const n = new Set(s); n.add(fresh.id); return n })
+      setTimeout(() => {
+        setRecentlyAdded(s => { const n = new Set(s); n.delete(fresh.id); return n })
+      }, 600)
+      return fresh
+    } catch (e) {
+      console.error('[onAddItem]', e)
+      return null
+    }
   }
 
   const onUpdateItem = (id: number, patch: any) => {
@@ -266,7 +307,7 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
   const viewProps = {
     aiEnabled,
     items: visibleItems,
-    today: TODAY_ISO,
+    today,
     onSelect: setSelected,
     onToggle, onDelete, onAddItem, onUpdateItem, onAddTask,
     recentlyAdded,
@@ -299,11 +340,16 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
     return (
       <MobileApp
           items={visibleItems}
-          today={TODAY_ISO}
+          today={today}
           onItemToggle={(id, completed) => {
             setItems(prev => prev.map(it => it.id === id ? { ...it, completed } : it))
             setSelected((s: any) => s && s.id === id ? { ...s, completed } : s)
-            api.patch(`/api/items/${id}`, { completed })
+            api.patch(`/api/items/${id}`, { completed }).catch((e: any) => {
+              console.error('[onItemToggle]', e)
+              // revert optimistic update (parity with desktop onToggle)
+              setItems(prev => prev.map(it => it.id === id ? { ...it, completed: !completed } : it))
+              setSelected((s: any) => s && s.id === id ? { ...s, completed: !completed } : s)
+            })
           }}
           onItemDelete={onDelete}
           onItemAdd={onAddItem}
@@ -318,16 +364,14 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
         <CinematicIntro onDone={() => { setIntro(false); setColorIn(true) }} />
       )}
 
-      {effects.halation  && <Halation />}
-      {effects.grain     && <FilmGrain strength={effects.grainStrength} />}
       {effects.scanLines && <ScanLines strength={effects.scanStrength} />}
       {effects.artifacts && <Artifacts />}
 
       <div style={{
         position: 'fixed', inset: 0,
         filter: colorIn ? 'saturate(1) brightness(1)' : 'saturate(0.04) brightness(0.08)',
-        transition: colorIn ? 'filter 1.4s ease-out' : 'none',
-        background: 'var(--color-paper)',
+        transition: 'filter 1.4s ease-out',   /* always present so colorIn flip reliably animates the bloom */
+        background: 'transparent',   /* let the body's grained paper backdrop show */
         display: 'flex', flexDirection: 'column',
       }}>
         <div style={{
@@ -335,14 +379,17 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
           display: 'grid',
           gridTemplateRows: 'auto minmax(0, 1fr)',
           gridTemplateColumns: selected ? '1fr 340px' : '1fr',
-          background: 'var(--color-paper)',
+          background: 'transparent',   /* grained paper comes from the body backdrop */
           color: 'var(--color-ink)',
-          filter: effects.halation ? 'url(#halation)' : undefined,
+          /* The old global SVG #halation lens filter was removed: it could only
+             bloom WARM pixels, so it reddened the whole UI and made warm-accent
+             (rust) cards halo while cool (sage) ones didn't. Halation is now the
+             per-element, colour-correct --accent-halo token from @jkos/design. */
         }}>
           <div style={{ gridColumn: '1 / -1' }}>
             <AppHeader
               view={view} setView={setView}
-              today={TODAY_ISO}
+              today={today}
               accounts={accounts}
               onConnectClick={() => setShowConnect(true)}
               onLogout={handleLogout}

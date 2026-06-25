@@ -1,8 +1,9 @@
 import React, { useState } from 'react'
-import { FONT_HEAD, FONT_BODY, FONT_NUM, localDate, addDays, fmtTime, halate, getGreeting } from '../lib/theme'
+import { FONT_HEAD, FONT_BODY, FONT_NUM, localDate, addDays, fmtTime, getGreeting } from '../lib/theme'
 import { getAncestors, getAccent } from '../lib/seed'
 import { activeGoals, isAdrift, nextUnscheduled } from '../lib/plan'
 import { Eyebrow, Checkbox, Plate, RecLamp } from '../components/SharedComponents'
+import { TButton, Well } from '@jkos/ui'
 
 export function TodayView({ items, today, onSelect, onToggle, onAddTask, onUpdateItem, setView, setFocusedGoalId, selectedId, recentlyAdded, readonly, aiEnabled }: any) {
   const d = localDate(today)
@@ -18,7 +19,7 @@ export function TodayView({ items, today, onSelect, onToggle, onAddTask, onUpdat
   const rest       = active.slice(1)
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto', background: 'var(--color-paper)' }}>
+    <div style={{ flex: 1, overflowY: 'auto', background: 'transparent' }}>
       <div style={{ maxWidth: 760, margin: '0 auto', padding: '48px 36px 80px' }}>
 
         <div style={{ marginBottom: 36 }}>
@@ -26,7 +27,7 @@ export function TodayView({ items, today, onSelect, onToggle, onAddTask, onUpdat
           <h1 style={{
             fontFamily: FONT_HEAD, fontWeight: 500, fontSize: 32, lineHeight: 1,
             margin: 0, letterSpacing: '-0.025em', color: 'var(--color-ink)',
-            textShadow: '0 0 5px var(--color-accent-glow)',
+            textShadow: 'var(--accent-halo-text)',
           }}>{getGreeting()}</h1>
         </div>
 
@@ -41,7 +42,7 @@ export function TodayView({ items, today, onSelect, onToggle, onAddTask, onUpdat
         {carried.length > 0 && (
           <section style={{ marginTop: 40 }}>
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 4 }}>
-              <Eyebrow color={'var(--color-accent)'} style={{ textShadow: '0 0 10px var(--color-accent-glow)' }}>
+              <Eyebrow color={'var(--color-accent)'} style={{ textShadow: 'var(--accent-halo-text)' }}>
                 Carried · {carried.length}
               </Eyebrow>
               <span style={{ fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 11.5, color: 'var(--color-faint)' }}>
@@ -97,7 +98,7 @@ export function TodayView({ items, today, onSelect, onToggle, onAddTask, onUpdat
         <footer style={{
           marginTop: 56,
           paddingTop: 18,
-          borderTop: `1px solid 'var(--color-line-strong)'`,
+          borderTop: '1px solid var(--color-line-strong)',
           display: 'flex', justifyContent: 'space-between', gap: 12,
         }}>
           <button onClick={() => setView('week')} style={tinyLink()}>open the week →</button>
@@ -182,7 +183,11 @@ function EmptyDay({ onAdd, today, aiEnabled }: any) {
       })
       if (!r.ok) throw new Error()
       const parsed = await r.json()
-      onAdd({ due_date: today, ...parsed })
+      // The AI returns `due_date: null` when it finds no date — spreading parsed
+      // AFTER `due_date: today` let that null clobber today, so the task created from
+      // the empty-today prompt vanished off Today. Default to today only when the AI
+      // gave none.
+      onAdd({ ...parsed, due_date: parsed.due_date || today })
       setDraft(''); setAdding(false)
     } catch {
       onAdd({ title: draft.trim(), due_date: today })
@@ -195,7 +200,8 @@ function EmptyDay({ onAdd, today, aiEnabled }: any) {
   return (
     <article style={{
       padding: '40px 36px',
-      border: `1px dashed 'var(--color-line)'`,
+      border: '1px dashed var(--color-line)',
+      borderRadius: 'var(--hub-radius-lg)',
       background: 'var(--color-paper-2)',
     }}>
       <Eyebrow style={{ marginBottom: 6 }}>The day is open.</Eyebrow>
@@ -216,7 +222,7 @@ function EmptyDay({ onAdd, today, aiEnabled }: any) {
             placeholder="Describe a task — or let AI parse it…"
             style={{
               flex: 1, background: 'transparent', border: 'none',
-              borderBottom: `1px solid 'var(--color-line)'`,
+              borderBottom: '1px solid var(--color-line)',
               fontFamily: FONT_HEAD, fontSize: 22, color: 'var(--color-ink)', outline: 'none',
               padding: '6px 2px',
             }}
@@ -259,26 +265,16 @@ function EmptyDay({ onAdd, today, aiEnabled }: any) {
 
 function ClearedDay({ onceMore }: any) {
   return (
-    <article style={{
-      padding: '40px 36px',
-      border: `1px solid 'var(--color-line)'`,
-      background: 'var(--color-paper-2)',
-    }}>
-      <Eyebrow style={{ marginBottom: 6, color: 'var(--color-accent)' }}>Today is clear.</Eyebrow>
+    <Well as="article" style={{ padding: '40px 36px' }}>
+      <Eyebrow style={{ marginBottom: 6, color: 'var(--color-accent)', textShadow: 'var(--accent-halo-text)' }}>Today is clear.</Eyebrow>
       <p style={{
         fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 22,
         color: 'var(--color-ink)', margin: '0 0 16px', lineHeight: 1.3,
       }}>Every task on today's list is done.</p>
-      <button
-        onClick={onceMore}
-        style={{
-          background: 'transparent', border: `1px solid var(--color-line)`,
-          fontFamily: FONT_BODY, fontSize: 11, letterSpacing: '0.14em',
-          textTransform: 'uppercase', color: 'var(--color-ink)', cursor: 'pointer',
-          padding: '10px 18px',
-        }}
-      >Plan something for tomorrow →</button>
-    </article>
+      <TButton onClick={onceMore} style={{ fontSize: 10, letterSpacing: '0.14em', padding: '10px 16px' }}>
+        Plan something for tomorrow →
+      </TButton>
+    </Well>
   )
 }
 
@@ -385,14 +381,9 @@ function CarriedStrip({ tasks, items, today, onSelect, onToggle, onUpdateItem, r
 
 function CarryChip({ label, onClick, muted }: any) {
   return (
-    <button
-      onClick={onClick}
-      style={{
-        background: 'transparent', border: '1px solid var(--color-line)',
-        fontFamily: FONT_BODY, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase',
-        color: muted ? 'var(--color-faint)' : 'var(--color-muted)', cursor: 'pointer', padding: '3px 8px',
-      }}
-    >{label}</button>
+    <TButton onClick={onClick} quiet={muted} style={{
+      fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', padding: '3px 8px',
+    }}>{label}</TButton>
   )
 }
 
@@ -453,11 +444,13 @@ function AdriftStrip({ goals, items, today, onUpdateItem, readonly, toWorkshop }
   )
 }
 
+/* Navigational links ride the SECONDARY accent — the flat companion to the
+   pressed primary used for headings/wordmark (the two-accent system). */
 function tinyLink(_?: any): React.CSSProperties {
   return {
     background: 'transparent', border: 'none',
     fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 12,
-    color: 'var(--color-muted)', cursor: 'pointer', padding: 0,
+    color: 'var(--color-secondary)', cursor: 'pointer', padding: 0,
     textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 3,
   }
 }

@@ -1,0 +1,31 @@
+{
+  "name": "@jkos/weave",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "jkOS suite fabric: the app manifest, the polled-resource/invalidation bus, the capability contract, and the cross-app command dispatcher. The connective tissue every app weaves into.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./server": {
+      "require": "./src/server/index.js",
+      "import": "./src/server/index.mjs"
+    }
+  },
+  "scripts": {
+    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "node test/weave.mjs"
+  },
+  "dependencies": {
+    "@jkos/auth-client": "workspace:*",
+    "@jkos/auth-middleware": "workspace:*",
+    "@jkos/suite-manifest": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.3",
+    "typescript": "^5.7.2"
+  }
+}

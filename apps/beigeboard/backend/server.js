@@ -1,10 +1,16 @@
 'use strict';
 const express      = require('express');
 const path         = require('path');
+const crypto       = require('crypto');
 const Database     = require('better-sqlite3');
 const { google }   = require('googleapis');
 const cookieParser = require('cookie-parser');
-const { jkosAuth } = require('@jkos/auth-middleware');
+const {
+  weaveCors, weaveAuth, weaveWriteGate, healthHandler,
+  serveCapabilities, serveDatasets, buildItemFilters, filterSpec, coerceWeaveColumn,
+} = require('@jkos/weave/server');
+const { resolveIssuer } = require('@jkos/auth-middleware');   // shared issuer default (single source)
+const { CAPABILITIES, DATASETS } = require('./discovery');    // Weave discovery docs, as importable data (A3)
 
 /* ── Env ───────────────────────────────────────────────────────────────── */
 const PORT       = process.env.PORT       || 3001;
@@ -12,10 +18,25 @@ const DB_PATH    = process.env.DB_PATH    || path.join(__dirname, 'beigeBoard.db
 const STATIC_DIR = process.env.STATIC_DIR || path.join(__dirname, '..', 'dist');
 const SHELL_URL  = (process.env.SHELL_URL || 'http://localhost:3000').replace(/\/$/, '');
 
-/* RSA public key from jkos-auth — used by jkosAuth middleware */
+/* Cross-origin allowlist. The suite directory (jkAuth app_registry) is the
+   canonical list of app origins; ops mirrors it here via ALLOWED_ORIGINS (comma-
+   separated) so a second suite app can call BeigeBoard cross-origin. SHELL_URL is
+   always included for backward compatibility. */
+const ALLOWED_ORIGINS = new Set(
+  [SHELL_URL, ...(process.env.ALLOWED_ORIGINS || '').split(',')]
+    .map(s => s.trim().replace(/\/$/, ''))
+    .filter(Boolean)
+);
+
+/* RSA public key from jkos-auth — used by jkosAuth middleware. Prefer JWKS-by-kid
+   (key rotation, U3) when JKOS_AUTH_JWKS_URI is set; else verify against the
+   static public key. */
 const JKOS_AUTH_PUBLIC_KEY = (process.env.JKOS_AUTH_PUBLIC_KEY || '').trim();
 const JKOS_AUTH_URL        = process.env.JKOS_AUTH_URL        || 'https://auth.jkos.net';
-const JKOS_AUTH_ISSUER     = process.env.JKOS_AUTH_ISSUER     || 'jkos-auth';
+const JKOS_AUTH_ISSUER     = resolveIssuer();   // shared default ('jkos-auth'), JKOS_AUTH_ISSUER overrides
+const JKOS_AUTH_JWKS_URI   = (process.env.JKOS_AUTH_JWKS_URI  || '').trim();
+const CALENDAR_ENC_KEY     = (process.env.CALENDAR_ENC_KEY    || '').trim();  // 64 hex chars → AES-256 at rest
+const IS_PROD              = process.env.NODE_ENV === 'production';
 
 const GOOGLE_CLIENT_ID     = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
@@ -248,6 +269,56 @@ const MIGRATIONS = [
       }
     },
   },
+  // NOTE: ORDECK's pin/focus are NOT item columns. They live in the user's jkAuth
+  // prefs (the suite-wide "HUD shelf"), so focus is one singleton across every app
+  // and pins are a heterogeneous set — BeigeBoard doesn't carry another app's
+  // surfacing concerns. See @jkos/auth-client useHudShelf.
+  {
+    id: 6, name: 'weave_interop_fields',
+    up(d) {
+      /*
+       * Suite-fabric (Weave) interop surface so other apps can OWN and TRACK
+       * BeigeBoard items they create, and poll cheaply:
+       *   ext_ref    "<app>:<localId>" back-reference to the creating app's entity
+       *   tags       JSON array for cross-app filtering (e.g. ["study","sylib:6.042"])
+       *   updated_at bumped on every row UPDATE so consumers can poll ?since=
+       */
+      for (const col of ['ext_ref TEXT', "tags TEXT DEFAULT '[]'", 'updated_at TEXT']) {
+        try { d.exec(`ALTER TABLE items ADD COLUMN ${col}`); }
+        catch (e) { if (!e.message?.includes('duplicate column')) throw e; }
+      }
+      d.exec(`UPDATE items SET updated_at = COALESCE(updated_at, created_at, datetime('now'))`);
+      d.exec(`CREATE INDEX IF NOT EXISTS idx_items_ext_ref ON items(ext_ref)`);
+      d.exec(`CREATE INDEX IF NOT EXISTS idx_items_updated ON items(updated_at)`);
+      /* Touch updated_at on every UPDATE. The WHEN guard (NEW=OLD) means the
+         trigger's own UPDATE doesn't re-fire it, so this is safe regardless of
+         the recursive_triggers pragma. */
+      d.exec(`DROP TRIGGER IF EXISTS items_touch_updated`);
+      d.exec(`CREATE TRIGGER items_touch_updated AFTER UPDATE ON items
+              FOR EACH ROW WHEN NEW.updated_at = OLD.updated_at
+              BEGIN UPDATE items SET updated_at = datetime('now') WHERE id = NEW.id; END`);
+    },
+  },
+  {
+    id: 7, name: 'stamp_updated_at_on_insert',
+    up(d) {
+      /*
+       * BUG FIX: migration 6 added `updated_at` with no DEFAULT and only an AFTER
+       * UPDATE touch-trigger, so every INSERT (createItem, /import, calendar sync,
+       * seed) left it NULL. The weave delta contract — GET /api/items?since=<cursor>
+       * → `updated_at > ?` — silently drops NULLs (NULL > x is never true), so a peer
+       * doing incremental sync NEVER saw a newly-created item, only later-edited ones.
+       * Stamp it on insert too, and backfill rows already written NULL.
+       * (The WHEN guard keeps it a no-op when a value is supplied; with SQLite's
+       * default recursive_triggers=OFF the inner UPDATE won't re-fire items_touch_updated.)
+       */
+      d.exec(`UPDATE items SET updated_at = COALESCE(updated_at, created_at, datetime('now')) WHERE updated_at IS NULL`);
+      d.exec(`DROP TRIGGER IF EXISTS items_stamp_inserted`);
+      d.exec(`CREATE TRIGGER items_stamp_inserted AFTER INSERT ON items
+              FOR EACH ROW WHEN NEW.updated_at IS NULL
+              BEGIN UPDATE items SET updated_at = COALESCE(NEW.created_at, datetime('now')) WHERE id = NEW.id; END`);
+    },
+  },
 ];
 
 function runMigrations() {
@@ -272,7 +343,15 @@ const ITEM_COLUMNS = new Set([
   'year', 'month', 'week_start', 'due_date', 'scheduled_time', 'scheduled_end',
   'end_date', 'location', 'attendees', 'target',
   'done_means', 'target_date', 'position', 'status',
+  'ext_ref', 'tags',   // Weave interop (updated_at is trigger-managed, not client-writable)
 ]);
+
+/* Value coercion for item writes (booleans → 0/1, `tags` → a JSON-array string)
+   is the shared weave column rule now — see @jkos/weave/server coerceWeaveColumn,
+   which also fixes the malformed-`[…` tags passthrough that used to make toRow's
+   JSON.parse throw and silently drop every tag. Aliased so the write builders below
+   read unchanged. */
+const coerceColumn = coerceWeaveColumn;
 
 /* ── Safe JSON for embedding in <script> tags ──────────────────────────── */
 function safeJson(obj) {
@@ -295,22 +374,91 @@ function fmt24(d) {
   return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
 }
 
+/* ── Generic 500 responder — log the detail, return a generic message so internal
+   errors (SQLite text, stack hints) don't leak to clients. ─────────────────── */
+function fail(res, e, msg = 'Internal error') {
+  console.error('[bb]', e?.stack || e?.message || e);
+  return res.status(500).json({ error: msg });
+}
+
+/* ── Secret-at-rest encryption (AES-256-GCM) for the iCloud app-specific password,
+   a long-lived reusable credential. Backward-compatible: with no CALENDAR_ENC_KEY
+   set, secrets store as-is (unchanged behaviour); legacy plaintext rows still read
+   back as themselves. Set a 64-hex-char key to activate encryption. ────────── */
+function encKeyBuf() {
+  return /^[0-9a-fA-F]{64}$/.test(CALENDAR_ENC_KEY) ? Buffer.from(CALENDAR_ENC_KEY, 'hex') : null;
+}
+function encryptSecret(plain) {
+  const key = encKeyBuf();
+  if (!key || plain == null) return plain;
+  const iv = crypto.randomBytes(12);
+  const c = crypto.createCipheriv('aes-256-gcm', key, iv);
+  const enc = Buffer.concat([c.update(String(plain), 'utf8'), c.final()]);
+  return 'enc:v1:' + Buffer.concat([iv, c.getAuthTag(), enc]).toString('base64');
+}
+function decryptSecret(stored) {
+  if (typeof stored !== 'string' || !stored.startsWith('enc:v1:')) return stored;  // legacy plaintext
+  const key = encKeyBuf();
+  if (!key) throw new Error('CALENDAR_ENC_KEY is required to decrypt a stored secret');
+  const raw = Buffer.from(stored.slice('enc:v1:'.length), 'base64');
+  const d = crypto.createDecipheriv('aes-256-gcm', key, raw.subarray(0, 12));
+  d.setAuthTag(raw.subarray(12, 28));
+  return Buffer.concat([d.update(raw.subarray(28)), d.final()]).toString('utf8');
+}
+
+/* ── OAuth CSRF state — a random nonce set in an HttpOnly cookie when a calendar
+   connect is initiated, required to match on the callback. Stops an attacker from
+   grafting their calendar onto a victim's account via a forged callback. ───── */
+const OAUTH_STATE_COOKIE = 'bb_oauth_state';
+function setOAuthState(res) {
+  const state = crypto.randomBytes(16).toString('hex');
+  res.cookie(OAUTH_STATE_COOKIE, state, { httpOnly: true, sameSite: 'lax', secure: IS_PROD, maxAge: 600000, path: '/' });
+  return state;
+}
+function checkOAuthState(req, res) {
+  const cookie = req.cookies?.[OAUTH_STATE_COOKIE];
+  res.clearCookie(OAUTH_STATE_COOKIE, { path: '/' });
+  return !!(req.query.state && cookie && req.query.state === cookie);
+}
+
+/* ── Atomic calendar replace — swap one provider's items in a single transaction.
+   Rows are built + validated BEFORE this runs, so a mid-sync throw or a concurrent
+   sync can never leave the calendar half-deleted (better-sqlite3 rolls back on a
+   thrown INSERT, restoring the just-deleted rows). ──────────────────────────── */
+const INSERT_ITEM_SQL = `INSERT INTO items (user_id,kind,scope,title,notes,source,due_date,scheduled_time,scheduled_end,location,end_date)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?)`;
+const replaceCalendarSource = db.transaction((source, userId, rows) => {
+  run("DELETE FROM items WHERE source=? AND user_id=?", [source, userId]);
+  for (const r of rows) run(INSERT_ITEM_SQL, r);
+});
+
 /* ── Microsoft / Outlook helpers ───────────────────────────────────────── */
 async function getMsToken(row) {
-  if (!row.expiry_ms || Date.now() < row.expiry_ms - 60000) return row.access_token;
+  // Refresh when the expiry is unknown (legacy/null row) OR within 60s of expiring —
+  // returning a possibly-expired token would make the sync silently 401 forever.
+  if (row.expiry_ms && Date.now() < row.expiry_ms - 60000) return decryptSecret(row.access_token);
   const r = await fetch(MS_TOKEN_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       client_id: MS_CLIENT_ID, client_secret: MS_CLIENT_SECRET,
-      refresh_token: row.refresh_token, grant_type: 'refresh_token',
+      refresh_token: decryptSecret(row.refresh_token), grant_type: 'refresh_token',
     }).toString(),
   });
   const t = await r.json();
   if (t.error) throw new Error(t.error_description || t.error);
   const expiry = Date.now() + (t.expires_in || 3600) * 1000;
-  run(`UPDATE calendar_tokens SET access_token=?, expiry_ms=? WHERE id=?`,
-    [t.access_token, expiry, row.id]);
+  // MS rotates the refresh token on each refresh (offline_access). Persist the new
+  // one when present — otherwise the stored token eventually rotates out and every
+  // future sync 401s forever until the user reconnects by hand. (Mirrors the Google
+  // 'tokens'-event handler, which already does this.)
+  if (t.refresh_token) {
+    run(`UPDATE calendar_tokens SET access_token=?, expiry_ms=?, refresh_token=? WHERE id=?`,
+      [encryptSecret(t.access_token), expiry, encryptSecret(t.refresh_token), row.id]);
+  } else {
+    run(`UPDATE calendar_tokens SET access_token=?, expiry_ms=? WHERE id=?`,
+      [encryptSecret(t.access_token), expiry, row.id]);
+  }
   return t.access_token;
 }
 
@@ -323,11 +471,16 @@ async function syncOutlookEvents(token, userId) {
   const data = await r.json();
   if (data.error) throw new Error(data.error.message);
 
-  run("DELETE FROM items WHERE source='outlook' AND user_id=?", [userId]);
+  // Build + validate every row BEFORE touching the DB, then swap atomically — a
+  // malformed event (missing start/end, or an unparseable date) is skipped instead
+  // of throwing mid-loop and leaving the calendar wiped.
+  const rows = [];
   for (const ev of data.value || []) {
+    if (!ev.start?.dateTime || !ev.end?.dateTime) continue;
     const isAllDay = !!ev.isAllDay;
     const sd = new Date(ev.start.dateTime + (ev.start.timeZone === 'UTC' ? 'Z' : ''));
     const ed = new Date(ev.end.dateTime   + (ev.end.timeZone   === 'UTC' ? 'Z' : ''));
+    if (isNaN(sd.getTime()) || isNaN(ed.getTime())) continue;
     const due_date = isoDateStr(sd);
     let end_date = null;
     if (isAllDay) {
@@ -337,15 +490,12 @@ async function syncOutlookEvents(token, userId) {
       const endStr = isoDateStr(ed);
       if (endStr !== due_date) end_date = endStr;
     }
-    run(
-      `INSERT INTO items (user_id,kind,scope,title,notes,source,due_date,scheduled_time,scheduled_end,location,end_date)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-      [userId,'event','day',ev.subject||'(No title)',ev.bodyPreview||null,'outlook',
-       due_date, isAllDay?null:fmt24(sd), isAllDay?null:fmt24(ed),
-       ev.location?.displayName||null, end_date]
-    );
+    rows.push([userId,'event','day',ev.subject||'(No title)',ev.bodyPreview||null,'outlook',
+      due_date, isAllDay?null:fmt24(sd), isAllDay?null:fmt24(ed),
+      ev.location?.displayName||null, end_date]);
   }
-  return (data.value||[]).length;
+  replaceCalendarSource('outlook', userId, rows);
+  return rows.length;
 }
 
 /* ── iCloud CalDAV helpers ─────────────────────────────────────────────── */
@@ -446,9 +596,10 @@ async function syncICloudEvents(username, password, userId) {
   const startZ = now.toISOString().replace(/[-:]/g,'').slice(0,15) + 'Z';
   const endZ   = far.toISOString().replace(/[-:]/g,'').slice(0,15) + 'Z';
 
-  run("DELETE FROM items WHERE source='icloud' AND user_id=?", [userId]);
-  let total = 0;
-
+  // Fetch + parse EVERY calendar first; if any REPORT fails, abort the whole sync
+  // WITHOUT deleting — a partial sync after a delete would silently drop the events
+  // of the failed collection. Only once all calendars are in hand do we swap atomically.
+  const rows = [];
   for (const calUrl of calUrls) {
     let reportText;
     try {
@@ -456,7 +607,9 @@ async function syncICloudEvents(username, password, userId) {
         `<?xml version="1.0"?><C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav"><D:prop><D:getetag/><C:calendar-data/></D:prop><C:filter><C:comp-filter name="VCALENDAR"><C:comp-filter name="VEVENT"><C:time-range start="${startZ}" end="${endZ}"/></C:comp-filter></C:comp-filter></C:filter></C:calendar-query>`,
         username, password, '1');
       reportText = text;
-    } catch (e) { console.warn(`iCloud: skipping ${calUrl}: ${e.message}`); continue; }
+    } catch (e) {
+      throw new Error(`iCloud sync aborted (calendar fetch failed): ${e.message}`);
+    }
 
     const calDatas = xmlTagAll(reportText, 'calendar-data')
       .map(s => s.replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&').replace(/&#13;/g,'\r'));
@@ -472,18 +625,14 @@ async function syncICloudEvents(username, password, userId) {
         } else if (!start.allDay && end && end.iso !== start.iso) {
           end_date = end.iso;
         }
-        run(
-          `INSERT INTO items (user_id,kind,scope,title,notes,source,due_date,scheduled_time,scheduled_end,location,end_date)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-          [userId,'event','day', icalText(ev['SUMMARY'])||'(No title)',
-           icalText(ev['DESCRIPTION']),'icloud',start.iso,start.time,end?.time||null,
-           icalText(ev['LOCATION']),end_date]
-        );
-        total++;
+        rows.push([userId,'event','day', icalText(ev['SUMMARY'])||'(No title)',
+          icalText(ev['DESCRIPTION']),'icloud',start.iso,start.time,end?.time||null,
+          icalText(ev['LOCATION']),end_date]);
       }
     }
   }
-  return total;
+  replaceCalendarSource('icloud', userId, rows);
+  return rows.length;
 }
 
 async function syncGoogleEvents(auth, userId) {
@@ -496,8 +645,7 @@ async function syncGoogleEvents(auth, userId) {
     singleEvents: true, orderBy: 'startTime', maxResults: 500,
   });
 
-  run("DELETE FROM items WHERE source='google' AND user_id=?", [userId]);
-
+  const rows = [];
   for (const ev of (data.items || [])) {
     const isAllDay = !!ev.start?.date;
     if (!ev.start?.dateTime && !ev.start?.date) continue;
@@ -521,17 +669,14 @@ async function syncGoogleEvents(auth, userId) {
         if (endStr !== due_date) end_date = endStr;
       }
     }
-    run(
-      `INSERT INTO items (user_id,kind,scope,title,notes,source,due_date,scheduled_time,scheduled_end,location,end_date)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-      [userId,'event','day',ev.summary||'(No title)',ev.description||null,'google',
-       due_date,
-       sd ? fmt24(sd) : null,
-       (!isAllDay && ev.end?.dateTime) ? fmt24(new Date(ev.end.dateTime)) : null,
-       ev.location||null, end_date]
-    );
+    rows.push([userId,'event','day',ev.summary||'(No title)',ev.description||null,'google',
+      due_date,
+      sd ? fmt24(sd) : null,
+      (!isAllDay && ev.end?.dateTime) ? fmt24(new Date(ev.end.dateTime)) : null,
+      ev.location||null, end_date]);
   }
-  return (data.items||[]).length;
+  replaceCalendarSource('google', userId, rows);
+  return rows.length;
 }
 
 /* ── Express app ───────────────────────────────────────────────────────── */
@@ -540,32 +685,26 @@ app.set('trust proxy', 1);
 app.use(cookieParser());
 app.use(express.json({ limit: '1mb' }));
 
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  if (origin === SHELL_URL) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
-  }
-  if (req.method === 'OPTIONS') return res.sendStatus(204);
-  next();
-});
+/* Cross-origin: the shared weave header block over the env-derived allowlist.
+   (Under the suite same-origin edge model, peer browser calls don't hit this.) */
+app.use(weaveCors(() => [...ALLOWED_ORIGINS]));
 
 /* ── Auth middleware (jkos SSO) ────────────────────────────────────────── */
 /* These API paths are reachable without a valid jkos_token cookie */
 const PUBLIC_PATHS = [
   '/api/auth/google',     // initiates Google Calendar OAuth
   '/api/auth/outlook',    // initiates Outlook Calendar OAuth
+  '/api/capabilities',    // Weave capability declaration — public, no secrets
+  '/api/datasets',        // Weave dataset declaration — public, no secrets
 ];
 
-if (!JKOS_AUTH_PUBLIC_KEY && process.env.NODE_ENV === 'production') {
-  console.error('[boot] FATAL: JKOS_AUTH_PUBLIC_KEY is not set in production. Refusing to start.');
-  process.exit(1);
-}
-const authMiddleware = JKOS_AUTH_PUBLIC_KEY
-  ? jkosAuth({ publicKey: JKOS_AUTH_PUBLIC_KEY, issuer: JKOS_AUTH_ISSUER })
-  : (req, _res, next) => { req.user = { sub: 1, role: 'admin' }; next(); }; // dev fallback (non-prod only)
+/* Identity gate: JWKS-by-kid → static key → dev stub, with the production
+   fatal-guard, all standardised in @jkos/weave/server (weaveAuth). */
+const authMiddleware = weaveAuth({
+  publicKey: JKOS_AUTH_PUBLIC_KEY,
+  jwksUri: JKOS_AUTH_JWKS_URI,
+  issuer: JKOS_AUTH_ISSUER,
+});
 
 /* Only the API carries user data and is gated. The SPA shell and assets are
    public so a logged-out browser loads the app, gets 401 from /api/auth/me,
@@ -576,16 +715,23 @@ app.use((req, res, next) => {
   authMiddleware(req, res, next);
 });
 
-/* Block writes for guest users */
-app.use((req, res, next) => {
-  if (req.user?.role === 'guest' && ['POST', 'PATCH', 'DELETE'].includes(req.method)) {
-    return res.status(403).json({ error: 'Guest access is read-only' });
-  }
-  next();
-});
+/* Write authorization — the shared weave gate (guest read-only → service
+   NO_USER_CONTEXT → beigeboard:write scope). Reads need no extra gate beyond a
+   valid token; every row is already scoped to req.user.sub. */
+app.use(weaveWriteGate({ scope: 'beigeboard:write' }));
 
 /* ── Health ────────────────────────────────────────────────────────────── */
-app.get('/health', (_req, res) => res.json({ status: 'ok', service: 'beigeboard' }));
+app.get('/health', healthHandler('beigeboard'));
+
+/* ── Weave discovery declarations ──────────────────────────────────────────
+   What can be DONE to (CAPABILITIES) and READ from (DATASETS) BeigeBoard, as pure
+   data — now an importable module (./discovery) so the portal, an AI step, and
+   offline tooling (the suite-prober) all read the SAME declarations the server
+   serves. The portal discovers writes at GET /api/beigeboard/capabilities and reads at
+   GET /api/beigeboard/datasets and composes widgets against them — no portal code per
+   action. Public; the resource routes still enforce auth + scope. See WEAVE.md. */
+app.get('/api/capabilities', serveCapabilities(CAPABILITIES));
+app.get('/api/datasets', serveDatasets(DATASETS));
 
 /* ── Auth: me ──────────────────────────────────────────────────────────── */
 app.get('/api/auth/me', (req, res) => {
@@ -597,10 +743,12 @@ app.get('/api/auth/google', (req, res) => {
   if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
     return res.status(501).send('Google credentials not configured.');
   }
+  const state = setOAuthState(res);
   const url = makeOAuth2().generateAuthUrl({
     access_type: 'offline',
     scope: ['https://www.googleapis.com/auth/calendar.readonly'],
     prompt: 'consent',
+    state,
   });
   res.redirect(url);
 });
@@ -610,7 +758,9 @@ app.get('/api/auth/google/callback', async (req, res) => {
   const close = (msg) => res.send(
     `<script>window.opener?.postMessage(${safeJson(msg)},window.location.origin);window.close();</script>`
   );
+  const stateOk = checkOAuthState(req, res);   // CSRF: must match the cookie set on initiate
   if (error) return close({ type: 'google-auth-error', error });
+  if (!stateOk) return close({ type: 'google-auth-error', error: 'Invalid state' });
 
   try {
     const oauth2 = makeOAuth2();
@@ -624,12 +774,12 @@ app.get('/api/auth/google/callback', async (req, res) => {
          access_token=excluded.access_token,
          refresh_token=COALESCE(excluded.refresh_token, refresh_token),
          expiry_ms=excluded.expiry_ms, email=excluded.email`,
-      [req.user.sub, 'google', tokens.access_token, tokens.refresh_token||null, tokens.expiry_date||null, req.user.email||null]
+      [req.user.sub, 'google', encryptSecret(tokens.access_token), encryptSecret(tokens.refresh_token||null), tokens.expiry_date||null, req.user.email||null]
     );
 
     oauth2.on('tokens', t => {
       run(`UPDATE calendar_tokens SET access_token=?, expiry_ms=? ${t.refresh_token?',refresh_token=?':''} WHERE user_id=? AND provider='google'`,
-        t.refresh_token ? [t.access_token, t.expiry_date, t.refresh_token, req.user.sub] : [t.access_token, t.expiry_date, req.user.sub]);
+        t.refresh_token ? [encryptSecret(t.access_token), t.expiry_date, encryptSecret(t.refresh_token), req.user.sub] : [encryptSecret(t.access_token), t.expiry_date, req.user.sub]);
     });
 
     try { await syncGoogleEvents(oauth2, req.user.sub); } catch (e) { console.warn('Google calendar sync:', e.message); }
@@ -646,11 +796,12 @@ app.get('/api/auth/outlook', (req, res) => {
   if (!MS_CLIENT_ID || !MS_CLIENT_SECRET) {
     return res.status(501).send('Microsoft credentials not configured.');
   }
+  const state = setOAuthState(res);
   const params = new URLSearchParams({
     client_id: MS_CLIENT_ID, response_type: 'code',
     redirect_uri: MS_REDIRECT_URI,
     scope: 'offline_access Calendars.Read User.Read',
-    response_mode: 'query',
+    response_mode: 'query', state,
   });
   res.redirect(`${MS_AUTH_URL}?${params}`);
 });
@@ -660,7 +811,9 @@ app.get('/api/auth/outlook/callback', async (req, res) => {
   const close = (msg) => res.send(
     `<script>window.opener?.postMessage(${safeJson(msg)},window.location.origin);window.close();</script>`
   );
+  const stateOk = checkOAuthState(req, res);   // CSRF: must match the cookie set on initiate
   if (error) return close({ type: 'outlook-auth-error', error });
+  if (!stateOk) return close({ type: 'outlook-auth-error', error: 'Invalid state' });
 
   try {
     const r = await fetch(MS_TOKEN_URL, {
@@ -686,10 +839,13 @@ app.get('/api/auth/outlook/callback', async (req, res) => {
        ON CONFLICT(user_id,provider) DO UPDATE SET
          access_token=excluded.access_token, refresh_token=excluded.refresh_token,
          expiry_ms=excluded.expiry_ms, email=excluded.email`,
-      [req.user.sub, 'outlook', t.access_token, t.refresh_token||null, expiry, email]
+      [req.user.sub, 'outlook', encryptSecret(t.access_token), encryptSecret(t.refresh_token||null), expiry, email]
     );
 
-    await syncOutlookEvents(t.access_token, req.user.sub);
+    // The token is saved; a sync blip now must NOT report the connection as failed
+    // (the user IS connected — sync retries on the next poll/manual sync). Mirrors
+    // the Google callback, whose initial sync is wrapped for the same reason.
+    try { await syncOutlookEvents(t.access_token, req.user.sub); } catch (e) { console.warn('Outlook calendar sync:', e.message); }
     close({ type: 'outlook-auth-success', email });
   } catch (e) {
     console.error('Outlook callback error:', e);
@@ -700,34 +856,84 @@ app.get('/api/auth/outlook/callback', async (req, res) => {
 /* ── Items ─────────────────────────────────────────────────────────────── */
 function toRow(raw) {
   if (!raw) return null;
-  return { ...raw, completed: raw.completed === 1 };
+  let tags = [];
+  if (raw.tags) { try { tags = JSON.parse(raw.tags); } catch { tags = []; } }
+  return { ...raw, completed: raw.completed === 1, tags };
 }
 
-function cascadeDeleteInner(id, userId) {
+function cascadeDeleteInner(id, userId, seen) {
+  if (seen.has(id)) return;   // cycle guard: a self/cyclic parent_id must not recurse forever
+  seen.add(id);
   const children = all('SELECT id FROM items WHERE parent_id = ? AND user_id = ?', [id, userId]);
-  for (const c of children) cascadeDeleteInner(c.id, userId);
+  for (const c of children) cascadeDeleteInner(c.id, userId, seen);
   run('DELETE FROM items WHERE id = ? AND user_id = ?', [id, userId]);
 }
-const cascadeDelete = db.transaction((id, userId) => cascadeDeleteInner(id, userId));
+const cascadeDelete = db.transaction((id, userId) => cascadeDeleteInner(id, userId, new Set()));
+
+/* A client-supplied parent_id must reference an item the SAME user owns, and must
+   not be the item itself — an unvalidated/self/cyclic parent links across users and
+   (with the cycle guard above as backstop) is the recursive-cascade DoS vector. */
+function validParentId(parentId, userId, selfId = null) {
+  if (parentId == null || parentId === '') return true;   // clearing / no parent
+  const pid = parseInt(parentId, 10);
+  if (isNaN(pid)) return false;
+  if (selfId != null && pid === selfId) return false;
+  if (!get('SELECT 1 FROM items WHERE id = ? AND user_id = ?', [pid, userId])) return false;
+  // Reject an INDIRECT cycle: A→B then B→A each passes the direct self-check
+  // above but loops the parent chain, which would hang the frontend tree walkers
+  // (getDescendants/getAncestors). Walk up from the prospective parent — if we
+  // reach selfId, this link closes a cycle. (selfId null = a brand-new item, not
+  // in the tree yet, so no cycle is possible.) The hop cap is a backstop against
+  // a pre-existing cyclic row so this check can't itself loop forever.
+  if (selfId != null) {
+    let cur = pid, hops = 0;
+    while (cur != null) {
+      if (cur === selfId) return false;
+      if (++hops > 1000) return false;
+      const row = get('SELECT parent_id FROM items WHERE id = ? AND user_id = ?', [cur, userId]);
+      cur = row ? row.parent_id : null;
+    }
+  }
+  return true;
+}
+
+/* The weave filter vocabulary for items — which query param maps to which column
+   and operator. DERIVED from the DATASETS `items.filters` declaration (P3) so the
+   filter an app DECLARES it can be read by is exactly the one it enforces: one
+   source, no drift. filterSpec() projects each FilterField → {param,column,op}. */
+const ITEM_FILTER_SPEC = filterSpec(
+  DATASETS.datasets.find((d) => d.id === 'items').filters,
+);
 
 app.get('/api/items', async (req, res) => {
   try {
-    let rows = all('SELECT * FROM items WHERE user_id = ? ORDER BY id ASC', [req.user.sub]);
-    if (rows.length === 0 && req.user.role !== 'guest') {
+    /* Server-side filters so other suite apps fetch only what they own/need
+       instead of dumping every row — the shared weave filter builder over the
+       per-user base clause. */
+    const q = req.query;
+    const { where, params } = buildItemFilters(q, ITEM_FILTER_SPEC, {
+      base: ['user_id = ?'], baseParams: [req.user.sub],
+    });
+    const filtered = Object.keys(q).length > 0;
+    let rows = all(`SELECT * FROM items WHERE ${where} ORDER BY id ASC`, params);
+    // Lazy first-run seed only for an unfiltered, empty, non-guest account — a
+    // filter returning nothing must NOT trigger seeding.
+    if (rows.length === 0 && !filtered && req.user.role !== 'guest') {
       await seedDefaults(req.user.sub);
-      rows = all('SELECT * FROM items WHERE user_id = ? ORDER BY id ASC', [req.user.sub]);
+      rows = all(`SELECT * FROM items WHERE ${where} ORDER BY id ASC`, params);
     }
     res.json(rows.map(toRow));
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { fail(res, e); }
 });
 
 app.post('/api/items', (req, res) => {
   try {
     const raw  = req.body;
     if (!raw?.title?.toString().trim()) return res.status(400).json({ error: 'title is required' });
+    if (!validParentId(raw.parent_id, req.user.sub)) return res.status(400).json({ error: 'Invalid parent_id' });
     const d    = { user_id: req.user.sub };
     for (const k of Object.keys(raw)) {
-      if (ITEM_COLUMNS.has(k)) d[k] = typeof raw[k] === 'boolean' ? (raw[k] ? 1 : 0) : raw[k];
+      if (ITEM_COLUMNS.has(k)) d[k] = coerceColumn(k, raw[k]);
     }
     const keys = Object.keys(d);
     const cols = keys.join(', ');
@@ -735,7 +941,7 @@ app.post('/api/items', (req, res) => {
     const r    = run(`INSERT INTO items (${cols}) VALUES (${phs})`, keys.map(k => d[k]));
     const row  = get('SELECT * FROM items WHERE id = ?', [r.lastInsertRowid]);
     res.status(201).json(toRow(row));
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { fail(res, e); }
 });
 
 app.patch('/api/items/:id', (req, res) => {
@@ -745,23 +951,322 @@ app.patch('/api/items/:id', (req, res) => {
     const raw = req.body;
     const valid = Object.keys(raw).filter(k => ITEM_COLUMNS.has(k));
     if (!valid.length) return res.status(400).json({ error: 'No valid fields to update' });
+    if (Object.prototype.hasOwnProperty.call(raw, 'parent_id') && !validParentId(raw.parent_id, req.user.sub, id)) {
+      return res.status(400).json({ error: 'Invalid parent_id' });
+    }
     const sets = valid.map(k => `${k} = ?`).join(', ');
-    const vals = valid.map(k => typeof raw[k] === 'boolean' ? (raw[k] ? 1 : 0) : raw[k]);
+    const vals = valid.map(k => coerceColumn(k, raw[k]));
     run(`UPDATE items SET ${sets} WHERE id = ? AND user_id = ?`, [...vals, id, req.user.sub]);
     const row = get('SELECT * FROM items WHERE id = ? AND user_id = ?', [id, req.user.sub]);
     if (!row) return res.status(404).json({ error: 'Not found' });
     res.json(toRow(row));
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { fail(res, e); }
 });
 
 app.delete('/api/items/:id', (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) return res.status(400).json({ error: 'Invalid id' });
     const row = get('SELECT id FROM items WHERE id = ? AND user_id = ?', [id, req.user.sub]);
     if (!row) return res.status(404).json({ error: 'Not found' });
     cascadeDelete(id, req.user.sub);
     res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { fail(res, e); }
+});
+
+/* ── Bulk import (AI-friendly) ──────────────────────────────────────────────
+   POST /api/import takes ONE JSON document describing a tree (or flat graph) of
+   items and creates them in a single transaction, wiring parent→child links so a
+   whole broken-down goal (goal → milestones → tasks) lands in one call. Built so an
+   AI tool can emit it directly. Hierarchy can be expressed two equivalent ways:
+
+     • nested  — a node carries `children: [...]`        (also accepts kids/subtasks)
+     • refs    — a node sets `ref: "x"`; a child sets `parent: "x"`
+   You can also point `parent_id` at an EXISTING item id to append beneath it.
+
+   Field names are forgiving (IMPORT_ALIASES); kind/scope/status are inferred from
+   tree position when omitted (root w/ children → goal, deeper w/ children →
+   milestone, leaf → task). The whole document is validated BEFORE any write, so a
+   bad import creates nothing and returns precise per-item errors. `?dryRun=1`
+   validates + echoes the plan without writing. See Documentation/README.md →
+   "Importing tasks & goals (JSON)". */
+const MAX_IMPORT_ITEMS = 500;
+const MAX_IMPORT_DEPTH  = 8;
+
+// Friendly synonyms → canonical item columns (structural keys handled separately).
+const IMPORT_ALIASES = {
+  name: 'title', type: 'kind',
+  date: 'due_date', deadline: 'due_date', when: 'due_date',
+  time: 'scheduled_time', start_time: 'scheduled_time', start: 'scheduled_time',
+  end_time: 'scheduled_end', endtime: 'scheduled_end',
+  description: 'notes', desc: 'notes', note: 'notes', body: 'notes', details: 'notes',
+  color: 'accent', colour: 'accent',
+  definition_of_done: 'done_means', done: 'done_means', success_criteria: 'done_means',
+};
+const IMPORT_STRUCT_KEYS = new Set(['children', 'kids', 'subtasks', 'ref', 'parent', 'parent_id']);
+const IMPORT_DATE_COLS   = new Set(['due_date', 'target_date', 'end_date', 'week_start']);
+const IMPORT_TIME_COLS   = new Set(['scheduled_time', 'scheduled_end']);
+const IMPORT_KIND_ENUM   = new Set(['task', 'event', 'goal', 'milestone']);
+
+// Real calendar dates only. A bare `^\d{4}-\d{2}-\d{2}$` would accept impossible
+// dates (2026-13-45, 2026-02-30); those become `Invalid Date` and poison every
+// view that parses them — and crash the AI endpoint's toISOString() with a 500.
+// Round-trip through Date so a day/month that doesn't actually exist is rejected.
+const looksLikeDate = (v) => {
+  if (typeof v !== 'string') return false;
+  const m = v.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return false;
+  const y = +m[1], mo = +m[2], d = +m[3];
+  if (mo < 1 || mo > 12 || d < 1 || d > 31) return false;
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  return dt.getUTCMonth() === mo - 1 && dt.getUTCDate() === d;   // rejects e.g. Feb 30
+};
+// HH:MM with real hour/minute ranges (rejects 25:00 / 12:99, which would render and
+// string-sort as garbage downstream).
+const looksLikeTime = (v) => {
+  if (typeof v !== 'string') return false;
+  const m = v.trim().match(/^(\d{1,2}):(\d{2})$/);
+  return !!m && +m[1] <= 23 && +m[2] <= 59;
+};
+const importChildren = (raw) => {
+  // A NON-EMPTY child array only: an explicit `children: []` (common from an AI that
+  // didn't break a leaf down) must read as a leaf → 'task', not as an empty goal.
+  for (const k of ['children', 'kids', 'subtasks']) if (Array.isArray(raw[k]) && raw[k].length) return raw[k];
+  return null;
+};
+
+/* ── Input hardening for /import ─────────────────────────────────────────────
+   Untrusted JSON (often AI-generated) is cleaned field-by-field BEFORE it reaches
+   the DB: every value is type-normalised, length-bounded, and the constrained
+   columns are validated. Column NAMES are already allowlisted to ITEM_COLUMNS
+   (so `__proto__`/`constructor`/unknown keys are dropped, not written — no
+   prototype pollution, no arbitrary columns) and every value is bound, not
+   interpolated (no SQL injection). This adds the value-level guards. */
+const IMPORT_STR_CAP = {            // per-column max length for text values
+  title: 500, notes: 5000, done_means: 1000, location: 500, target: 500,
+  accent: 40, source: 40, scope: 20, status: 20, ext_ref: 200,
+  due_date: 10, target_date: 10, end_date: 10, week_start: 10,
+  scheduled_time: 5, scheduled_end: 5,
+};
+const IMPORT_NUM_COLS        = new Set(['year', 'month', 'attendees', 'position']);
+const IMPORT_SCOPE_ENUM      = new Set(['day', 'week', 'month', 'year', 'project']);
+const IMPORT_STATUS_ENUM     = new Set(['active', 'parked', 'done']);
+const IMPORT_RESERVED_SOURCE = new Set(['google', 'outlook', 'icloud']);   // owned by calendar sync
+const HEX_COLOR_RE = /^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
+const MAX_TAG_COUNT = 30, MAX_TAG_LEN = 60;
+
+/* Clean ONE allowlisted field value; returns the cleaned value, or undefined to
+   drop the field (a dropped scope/status falls through to its default later). */
+function cleanImportField(col, v, path, warnings) {
+  if (col === 'completed') return v === true || v === 1 || v === '1' || v === 'true';
+  if (IMPORT_NUM_COLS.has(col)) {                       // numeric → bounded integer
+    const n = typeof v === 'number' ? v : parseInt(String(v), 10);
+    if (!Number.isFinite(n)) { warnings.push(`${path}.${col}: not a number — ignored`); return undefined; }
+    let i = Math.trunc(n);
+    if (col === 'month') i = Math.min(12, Math.max(1, i));
+    else i = Math.max(0, i);
+    return i;
+  }
+  if (col === 'tags') {                                  // → cleaned array (coerced to JSON at insert)
+    const arr = Array.isArray(v) ? v : (typeof v === 'string' ? v.split(',') : []);
+    return arr.map(t => String(t).trim().slice(0, MAX_TAG_LEN)).filter(Boolean).slice(0, MAX_TAG_COUNT);
+  }
+  // everything else is text: stringify, cap, trim
+  let s = v == null ? '' : String(v);
+  const cap = IMPORT_STR_CAP[col] ?? 500;
+  if (s.length > cap) { s = s.slice(0, cap); warnings.push(`${path}.${col}: truncated to ${cap} chars`); }
+  s = s.trim();
+  if (s === '') return undefined;
+  // Zero-pad lenient dates/times (an AI often emits 2026-7-1 / 9:05) into the
+  // canonical YYYY-MM-DD / HH:MM the rest of the suite stores and string-sorts on.
+  // Real-range validity is then enforced by the looksLikeDate/looksLikeTime pass in
+  // planImport, which runs on this normalised output.
+  if (IMPORT_DATE_COLS.has(col)) {
+    const m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    return m ? `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}` : s;
+  }
+  if (IMPORT_TIME_COLS.has(col)) {
+    const m = s.match(/^(\d{1,2}):(\d{2})$/);
+    return m ? `${m[1].padStart(2, '0')}:${m[2]}` : s;
+  }
+  if (col === 'kind') return s.toLowerCase();            // enum-checked by the caller
+  if (col === 'accent') { if (!HEX_COLOR_RE.test(s)) { warnings.push(`${path}.accent: not a hex colour — ignored`); return undefined; } return s; }
+  if (col === 'scope')  { const lc = s.toLowerCase(); if (!IMPORT_SCOPE_ENUM.has(lc))  { warnings.push(`${path}.scope: unknown '${s}' — defaulted`); return undefined; } return lc; }
+  if (col === 'status') { const lc = s.toLowerCase(); if (!IMPORT_STATUS_ENUM.has(lc)) { warnings.push(`${path}.status: unknown '${s}' — ignored`);  return undefined; } return lc; }
+  if (col === 'source') { if (IMPORT_RESERVED_SOURCE.has(s.toLowerCase())) { warnings.push(`${path}.source: '${s}' is reserved for connected calendars — defaulted to bb`); return undefined; } return s; }
+  return s;
+}
+
+/* Flatten → normalise/alias/infer → resolve parent links → reject cycles/overflow.
+   Returns { errors, warnings, nodes, roots, childrenOf }: each node carries `.data`
+   (the columns to write), `.kind`, `.parentIdx` (in-document) and `.dbParentId`
+   (an existing item). No DB writes happen here. */
+function planImport(doc, userId) {
+  const errors = [], warnings = [];
+  const defaults = (doc.defaults && typeof doc.defaults === 'object' && !Array.isArray(doc.defaults)) ? doc.defaults : {};
+  const items = Array.isArray(doc.items) ? doc.items : [];
+
+  // ── flatten depth-first, recording the structural parent + a path for messages ──
+  const nodes = [];
+  const walk = (arr, structParent, depth, prefix) => {
+    arr.forEach((raw, i) => {
+      const path = `${prefix}[${i}]`;
+      if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) {
+        errors.push(`${path}: each item must be an object`);
+        return;
+      }
+      const idx = nodes.length;
+      nodes.push({ raw, structParent, depth, path, ref: (typeof raw.ref === 'string' && raw.ref) ? raw.ref.slice(0, 200) : null });
+      const kids = importChildren(raw);
+      if (kids) {
+        if (depth + 1 > MAX_IMPORT_DEPTH) errors.push(`${path}: nesting exceeds ${MAX_IMPORT_DEPTH} levels`);
+        else walk(kids, idx, depth + 1, `${path}.children`);
+      }
+    });
+  };
+  walk(items, null, 0, 'items');
+
+  if (nodes.length === 0) errors.push('items: provide at least one item');
+  if (nodes.length > MAX_IMPORT_ITEMS) errors.push(`items: ${nodes.length} items exceeds the ${MAX_IMPORT_ITEMS} limit`);
+
+  // ── normalise each node into column data + infer kind/scope/status ──
+  for (const n of nodes) {
+    const merged = { ...defaults, ...n.raw };
+    const data = {};
+    for (const [k0, v] of Object.entries(merged)) {
+      if (IMPORT_STRUCT_KEYS.has(k0)) continue;
+      const k = IMPORT_ALIASES[k0] || k0;
+      if (k === 'updated_at') { warnings.push(`${n.path}: 'updated_at' is managed automatically — ignored`); continue; }
+      if (!ITEM_COLUMNS.has(k)) { warnings.push(`${n.path}: ignored unknown field '${k0}'`); continue; }
+      const cleaned = cleanImportField(k, v, n.path, warnings);   // type-normalise + bound + validate
+      if (cleaned !== undefined) data[k] = cleaned;
+    }
+
+    const hasChildren = !!importChildren(n.raw);
+    let kind = (data.kind != null && data.kind !== '') ? data.kind
+             : hasChildren ? (n.depth === 0 ? 'goal' : 'milestone') : 'task';
+    if (!IMPORT_KIND_ENUM.has(kind)) errors.push(`${n.path}.kind: must be one of ${[...IMPORT_KIND_ENUM].join(', ')}`);
+    data.kind = kind;
+
+    if (data.title == null || data.title === '') errors.push(`${n.path}.title: required`);
+
+    // goals use target_date, not due_date — remap a stray date for friendliness
+    if (kind === 'goal' && data.due_date && !data.target_date) {
+      data.target_date = data.due_date; delete data.due_date;
+      warnings.push(`${n.path}: a goal's date was applied to target_date`);
+    }
+    if (data.scope == null || data.scope === '') data.scope = (kind === 'goal') ? 'year' : 'day';
+    if (kind === 'goal' && (data.status == null || data.status === '')) data.status = 'active';
+
+    for (const c of Object.keys(data)) {
+      const val = data[c];
+      if (val == null || val === '') continue;
+      if (IMPORT_DATE_COLS.has(c) && !looksLikeDate(val)) errors.push(`${n.path}.${c}: expected YYYY-MM-DD, got ${JSON.stringify(val)}`);
+      if (IMPORT_TIME_COLS.has(c) && !looksLikeTime(val)) errors.push(`${n.path}.${c}: expected HH:MM, got ${JSON.stringify(val)}`);
+    }
+
+    n.data = data; n.kind = kind;
+  }
+
+  // ── resolve parent links: explicit ref → structural nesting → existing item id ──
+  const byRef = new Map();
+  nodes.forEach((n, i) => {
+    if (!n.ref) return;
+    if (byRef.has(n.ref)) errors.push(`${n.path}.ref: duplicate ref '${n.ref}'`);
+    else byRef.set(n.ref, i);
+  });
+  nodes.forEach((n) => {
+    n.parentIdx = null; n.dbParentId = null;
+    const p = n.raw.parent;
+    if (typeof p === 'string' && p) {
+      if (byRef.has(p)) n.parentIdx = byRef.get(p);
+      else errors.push(`${n.path}.parent: unknown ref '${p}'`);
+    } else if (n.structParent != null) {
+      n.parentIdx = n.structParent;
+    } else if (n.raw.parent_id != null && n.raw.parent_id !== '') {
+      const pid = parseInt(n.raw.parent_id, 10);
+      if (isNaN(pid) || !validParentId(pid, userId)) errors.push(`${n.path}.parent_id: must reference one of your existing items`);
+      else n.dbParentId = pid;
+    }
+  });
+
+  // ── reject cycles (refs can form them) + over-deep chains ──
+  nodes.forEach((n, i) => {
+    let cur = n.parentIdx, hops = 0; const seen = new Set([i]);
+    while (cur != null) {
+      if (seen.has(cur)) { errors.push(`${n.path}: parent cycle detected`); break; }
+      seen.add(cur);
+      if (++hops > MAX_IMPORT_DEPTH) { errors.push(`${n.path}: parent chain exceeds ${MAX_IMPORT_DEPTH} levels`); break; }
+      cur = nodes[cur].parentIdx;
+    }
+  });
+
+  // ── adjacency for insertion (roots first, then DFS so parents precede children) ──
+  const childrenOf = nodes.map(() => []);
+  const roots = [];
+  nodes.forEach((n, i) => {
+    if (n.parentIdx != null) childrenOf[n.parentIdx].push(i);
+    else roots.push(i);
+  });
+
+  return { errors, warnings, nodes, roots, childrenOf };
+}
+
+app.post('/api/import', (req, res) => {
+  try {
+    let doc = req.body;
+    // accept a double-encoded items/defaults (a command form may send JSON strings)
+    if (doc && typeof doc === 'object' && typeof doc.items === 'string') {
+      try { const p = JSON.parse(doc.items); doc = { ...doc, items: p }; } catch { /* leave as-is → shape error below */ }
+    }
+    if (doc && typeof doc === 'object' && typeof doc.defaults === 'string') {
+      try { doc.defaults = JSON.parse(doc.defaults); } catch { delete doc.defaults; }
+    }
+    // forgiving top-level shape: a bare array → items; a single item object → one item
+    if (Array.isArray(doc)) doc = { items: doc };
+    else if (doc && typeof doc === 'object' && !Array.isArray(doc.items) && (doc.title || doc.name || importChildren(doc))) {
+      doc = { items: [doc] };
+    }
+    if (!doc || typeof doc !== 'object' || !Array.isArray(doc.items)) {
+      return res.status(400).json({ ok: false, error: 'Body must be { "items": [ ... ] } — or a bare array of items, or a single item object.' });
+    }
+
+    const plan = planImport(doc, req.user.sub);
+    if (plan.errors.length) {
+      return res.status(400).json({ ok: false, errors: plan.errors, warnings: plan.warnings });
+    }
+
+    const dryRun = req.query.dryRun === '1' || req.query.dryRun === 'true';
+    if (dryRun) {
+      const out = [];
+      const describe = (i, parentLabel) => {
+        const n = plan.nodes[i];
+        out.push({ ...(n.ref ? { ref: n.ref } : {}), title: n.data.title, kind: n.kind, parent: parentLabel ?? null, fields: n.data });
+        for (const c of plan.childrenOf[i]) describe(c, n.ref || n.data.title);
+      };
+      for (const i of plan.roots) describe(i, plan.nodes[i].dbParentId != null ? `#${plan.nodes[i].dbParentId}` : null);
+      return res.json({ ok: true, dryRun: true, wouldCreate: plan.nodes.length, plan: out, warnings: plan.warnings });
+    }
+
+    const out = [];
+    const insertNode = (i, parentRealId) => {
+      const n = plan.nodes[i];
+      const cols = { user_id: req.user.sub };
+      for (const [k, v] of Object.entries(n.data)) cols[k] = coerceColumn(k, v);
+      if (parentRealId != null) cols.parent_id = parentRealId;
+      const keys = Object.keys(cols);
+      const r = run(`INSERT INTO items (${keys.join(', ')}) VALUES (${keys.map(() => '?').join(', ')})`, keys.map(k => cols[k]));
+      out.push({ ...(n.ref ? { ref: n.ref } : {}), id: r.lastInsertRowid, title: n.data.title, kind: n.kind, parent_id: parentRealId ?? null });
+      for (const c of plan.childrenOf[i]) insertNode(c, r.lastInsertRowid);
+    };
+
+    const tx = db.transaction(() => {
+      for (const i of plan.roots) insertNode(i, plan.nodes[i].dbParentId);
+    });
+    tx();
+
+    res.status(201).json({ ok: true, created: out.length, items: out, warnings: plan.warnings });
+  } catch (e) { fail(res, e); }
 });
 
 /* ── Calendar status routes ────────────────────────────────────────────── */
@@ -769,7 +1274,7 @@ app.get('/api/auth/google/status', (req, res) => {
   try {
     const row = get('SELECT email FROM calendar_tokens WHERE user_id=? AND provider=?', [req.user.sub, 'google']);
     res.json({ connected: !!row, email: row?.email || null });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { fail(res, e); }
 });
 
 app.delete('/api/auth/google', (req, res) => {
@@ -777,7 +1282,7 @@ app.delete('/api/auth/google', (req, res) => {
     run("DELETE FROM calendar_tokens WHERE user_id=? AND provider='google'", [req.user.sub]);
     run("DELETE FROM items WHERE source='google' AND user_id=?", [req.user.sub]);
     res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { fail(res, e); }
 });
 
 app.post('/api/calendar/google/sync', async (req, res) => {
@@ -785,21 +1290,21 @@ app.post('/api/calendar/google/sync', async (req, res) => {
     const row = get('SELECT * FROM calendar_tokens WHERE user_id=? AND provider=?', [req.user.sub, 'google']);
     if (!row) return res.status(401).json({ error: 'Not connected' });
     const oauth2 = makeOAuth2();
-    oauth2.setCredentials({ access_token: row.access_token, refresh_token: row.refresh_token, expiry_date: row.expiry_ms });
+    oauth2.setCredentials({ access_token: decryptSecret(row.access_token), refresh_token: decryptSecret(row.refresh_token), expiry_date: row.expiry_ms });
     oauth2.on('tokens', t => {
       run(`UPDATE calendar_tokens SET access_token=?, expiry_ms=? ${t.refresh_token?',refresh_token=?':''} WHERE id=?`,
-        t.refresh_token ? [t.access_token, t.expiry_date, t.refresh_token, row.id] : [t.access_token, t.expiry_date, row.id]);
+        t.refresh_token ? [encryptSecret(t.access_token), t.expiry_date, encryptSecret(t.refresh_token), row.id] : [encryptSecret(t.access_token), t.expiry_date, row.id]);
     });
     const count = await syncGoogleEvents(oauth2, req.user.sub);
     res.json({ ok: true, synced: count });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { fail(res, e); }
 });
 
 app.get('/api/auth/outlook/status', (req, res) => {
   try {
     const row = get('SELECT email FROM calendar_tokens WHERE user_id=? AND provider=?', [req.user.sub, 'outlook']);
     res.json({ connected: !!row, email: row?.email || null });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { fail(res, e); }
 });
 
 app.delete('/api/auth/outlook', (req, res) => {
@@ -807,7 +1312,7 @@ app.delete('/api/auth/outlook', (req, res) => {
     run("DELETE FROM calendar_tokens WHERE user_id=? AND provider='outlook'", [req.user.sub]);
     run("DELETE FROM items WHERE source='outlook' AND user_id=?", [req.user.sub]);
     res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { fail(res, e); }
 });
 
 app.post('/api/calendar/outlook/sync', async (req, res) => {
@@ -817,14 +1322,14 @@ app.post('/api/calendar/outlook/sync', async (req, res) => {
     const token = await getMsToken(row);
     const count = await syncOutlookEvents(token, req.user.sub);
     res.json({ ok: true, synced: count });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { fail(res, e); }
 });
 
 app.get('/api/auth/icloud/status', (req, res) => {
   try {
     const row = get('SELECT email FROM calendar_tokens WHERE user_id=? AND provider=?', [req.user.sub, 'icloud']);
     res.json({ connected: !!row, email: row?.email || null });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { fail(res, e); }
 });
 
 app.post('/api/auth/icloud', async (req, res) => {
@@ -836,7 +1341,7 @@ app.post('/api/auth/icloud', async (req, res) => {
       `INSERT INTO calendar_tokens (user_id,provider,access_token,email)
        VALUES (?,?,?,?)
        ON CONFLICT(user_id,provider) DO UPDATE SET access_token=excluded.access_token, email=excluded.email`,
-      [req.user.sub, 'icloud', appPassword, username]
+      [req.user.sub, 'icloud', encryptSecret(appPassword), username]
     );
     res.json({ ok: true, synced: count, email: username });
   } catch (e) {
@@ -849,16 +1354,16 @@ app.delete('/api/auth/icloud', (req, res) => {
     run("DELETE FROM calendar_tokens WHERE user_id=? AND provider='icloud'", [req.user.sub]);
     run("DELETE FROM items WHERE source='icloud' AND user_id=?", [req.user.sub]);
     res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { fail(res, e); }
 });
 
 app.post('/api/calendar/icloud/sync', async (req, res) => {
   try {
     const row = get('SELECT * FROM calendar_tokens WHERE user_id=? AND provider=?', [req.user.sub, 'icloud']);
     if (!row) return res.status(401).json({ error: 'Not connected' });
-    const count = await syncICloudEvents(row.email, row.access_token, req.user.sub);
+    const count = await syncICloudEvents(row.email, decryptSecret(row.access_token), req.user.sub);
     res.json({ ok: true, synced: count });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { fail(res, e); }
 });
 
 /* ── AI endpoint ───────────────────────────────────────────────────────── */
@@ -869,7 +1374,9 @@ app.post('/api/ai/parse-task', async (req, res) => {
     if (!text?.trim()) return res.status(400).json({ error: 'text is required' });
     const trimmed = text.trim().slice(0, 500);
 
-    const todayStr    = today || new Date().toISOString().split('T')[0];
+    // Ignore a malformed client `today` (would make an Invalid Date below → a 500
+    // on .toISOString()); fall back to the server's date.
+    const todayStr    = looksLikeDate(today) ? today.trim() : new Date().toISOString().split('T')[0];
     const d           = new Date(todayStr + 'T12:00:00');
     const tomorrowStr = new Date(d.getTime() + 86400000).toISOString().split('T')[0];
     const dayName     = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][d.getDay()];
@@ -930,7 +1437,7 @@ Return ONLY a JSON object with exactly these fields:
     res.json(parsed);
   } catch (e) {
     console.error('[ai/parse-task]', e);
-    res.status(500).json({ error: e.message });
+    fail(res, e);
   }
 });
 
@@ -993,7 +1500,7 @@ Return ONLY a JSON object: {"milestones": ["...", ...], "first_actions": ["...",
     res.json({ milestones: clean(parsed.milestones, 5), first_actions: clean(parsed.first_actions, 4) });
   } catch (e) {
     console.error('[ai/breakdown]', e);
-    res.status(500).json({ error: e.message });
+    fail(res, e);
   }
 });
 

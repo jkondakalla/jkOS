@@ -11,3 +11,11 @@
 **/.env
 **/__pycache__
 *.tsbuildinfo
+
+# SylibOS regenerable data + Python venv. Gigabytes of OCW content and build
+# output, gitignored, copied into NO image — but the root build context is the
+# repo root, so every service build was taring + shipping these to the daemon.
+# This was the dominant build-time cost (context: ~2.6 GB → ~3 MB).
+apps/sylibos/Courses
+apps/sylibos/ProcessedCourses
+**/.venv

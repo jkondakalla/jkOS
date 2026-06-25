@@ -1,27 +1,30 @@
 /*
  * Design/tokens/hub.css — jkOS shared design token system
  *
- * :root                    → paper / light mode defaults (warm kraft paper aesthetic)
- * :root[data-mode="dark"]  → CRT phosphor overrides
+ * ONE chain, defined once:
+ *   --accent-raw / --accent-2-raw   (the user's pair; the ONLY accent defaults)
+ *      |  paper: deepen toward ink   |   dark: raw + glow
+ *   --accent / --accent-secondary
+ *      |
+ *   --hub-amber* / --hub-cyan* / --color-*   (all derived)
  *
- * Each app @imports this file, then appends its own per-app accent overrides.
- * applyJkOSTheme() (Design/utils/applyJkOSTheme.ts) overrides --accent and
- * --hub-amber families at runtime with the user's saved color preference.
+ * INPUTS (the accent pair, neutrals, radius, fonts) are the only things that
+ * legitimately vary per app. They are supplied by buildJkOSTheme() (@jkos/design)
+ * and defined here only as universal defaults. The DERIVATION layer below is
+ * universal and is never duplicated per app. applyJkOSTheme() overrides
+ * --accent-raw / --accent-2-raw at runtime from the user's saved pair.
  *
- * Do not rename --hub-* tokens. Per-app personality is expressed via
- * --accent, --accent-warm, --accent-soft overrides only.
+ * Do not rename --hub-* tokens.
  */
 
-/* ─── Paper / light mode defaults ─────────────────────────────────────── */
+/* ─── Paper / light mode ──────────────────────────────────────────────────── */
 :root {
-  /* App accent (ORDECK default: burnt sienna; overridden per-app and at runtime) */
-  --accent:        #c84020;
-  --accent-warm:   #a83018;
-  --accent-soft:   #f0d0c0;
+  /* ░░ INPUTS — overridden per app by buildJkOSTheme(), else these defaults ░░ */
 
-  /* Backward-compat aliases consumed by existing components */
-  --accent-base:      var(--accent);
-  --accent-secondary: var(--hub-cyan);
+  /* Accent pair — the ONLY accent defaults; everything else derives from these. */
+  --accent-raw:    #ffb000;
+  --accent-2-raw:  #4ecdc4;
+  --accent-deepen-ink: #2a1c0e;   /* paper deepen target (warm near-black) */
 
   /* Background layers — warm kraft tan → light cream */
   --hub-bg-0: #ede2c8;
@@ -46,33 +49,91 @@
   --hub-line-strong: #b09a72;
   --hub-line-bright: #907854;
 
-  /* Primary accent family — tracks --accent; overridden at runtime by applyJkOSTheme */
-  --hub-amber:        var(--accent);
-  --hub-amber-bright: color-mix(in srgb, var(--accent) 55%, #ffffff);
-  --hub-amber-dim:    color-mix(in srgb, var(--accent) 72%, #1a0a00);
-  --hub-amber-deep:   color-mix(in srgb, var(--accent) 20%, var(--hub-bg-2));
-  --hub-amber-glow:   color-mix(in srgb, var(--accent) 30%, transparent);
-
-  /* Secondary accent (ORDECK default: cool ink-blue on paper) */
-  --hub-cyan:        #3a5c78;
-  --hub-cyan-dim:    color-mix(in srgb, #3a5c78 60%, #000000);
-  --hub-cyan-glow:   color-mix(in srgb, #3a5c78 25%, transparent);
-
-  /* Semantic status */
-  --hub-red:        #b42010;
-  --hub-red-dim:    color-mix(in srgb, #b42010 60%, #000000);
-  --hub-red-glow:   color-mix(in srgb, #b42010 22%, transparent);
-  --hub-green:      #2a7040;
-  --hub-green-glow: color-mix(in srgb, #2a7040 22%, transparent);
-  --hub-magenta:    #8a2060;
-
   /* Text — dark ink on paper */
   --hub-cream:        #6b5038;
   --hub-cream-bright: #1c1408;
   --hub-cream-dim:    #9c8060;
   --hub-cream-faint:  #b8a888;
 
-  /* Shared --color-* aliases (used by components across all apps) */
+  /* Semantic status (constants, not accent-derived) */
+  --hub-red:        #b42010;
+  --hub-red-dim:    color-mix(in srgb, #b42010 60%, #000000);
+  --hub-red-glow:   color-mix(in srgb, #b42010 22%, transparent);
+  --hub-green:      #2a7040;
+  --hub-green-glow: color-mix(in srgb, #2a7040 22%, transparent);
+  --hub-magenta:    #8a2060;
+  --color-ok:     #2a7040;
+  --color-warn:   #a04010;
+  --color-danger: #b42010;
+
+  /* Typography */
+  --hub-font-mono:  'IBM Plex Mono', ui-monospace, monospace;
+  --hub-font-sans:  'IBM Plex Sans', system-ui, sans-serif;
+  --hub-font-seg:   'Big Shoulders Display', 'IBM Plex Sans', sans-serif;
+  --hub-font-serif: var(--hub-font-sans);
+
+  /* Spacing grid + radii (a per-app scale; sharp by default — apps soften it
+     through the factory `radius` input, exactly like accent/fonts/neutrals). */
+  --hub-grid:             40px;
+  --hub-radius:           0px;
+  --hub-radius-xs:        0px;   /* tiny controls (checkboxes, swatches) */
+  --hub-radius-sm:        0px;
+  --hub-radius-lg:        2px;
+  --hub-radius-soft:      2px;
+  --hub-radius-widget:    0px;
+  --hub-radius-button:    0px;
+
+  /* Widget layout tuning */
+  --hub-widget-pad:       12px;
+  --hub-title-h:          34px;
+  --hub-glow-mul:         0.5;
+  --hub-clip-widget:      none;
+  --hub-clip-title:       none;
+  --hub-widget-blur:      none;
+  --hub-widget-bg-alpha:  1;
+
+  /* Shell layout */
+  --hub-header-h:          52px;
+  --hub-bus-h:             28px;
+  --hub-footer-h:          28px;
+  --hub-sidebar-w:         200px;
+  --hub-sidebar-collapsed: 40px;
+  --hub-rail-w:            56px;
+
+  /* Grain + CRT effects (CRT off in paper mode) */
+  --grain-opacity: 0.036;
+  --grain-blend:   multiply;
+  /* Film grain — a suite-wide DEFAULT texture for BACKGROUNDS only. Opacity is
+     baked into the noise alpha: 0.495 on paper (multiply against warm beige needs
+     real weight or the speckle washes out), 0.135 on dark (screen needs less).
+     buildJkOSTheme()
+     paints it onto `<scope> body` and blends via --grain-blend, so it never sits
+     over content/cards/text. Dark mode redefines this variable below. */
+  --hub-grain-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='jkg'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23jkg)' opacity='0.495'/%3E%3C/svg%3E");
+  --crt-scanline-opacity: 0;
+  --crt-vignette-opacity: 0.08;
+  --canvas-grid-opacity: 0.5;
+  --screw-display: inline-block;
+
+  /* ░░ DERIVATION — universal; consumes the inputs above. Do not duplicate. ░░ */
+
+  /* Accent chain: paper deepens the raw pair so vivid/pastel picks hold on kraft. */
+  --accent:           color-mix(in srgb, var(--accent-raw)   64%, var(--accent-deepen-ink));
+  --accent-secondary: color-mix(in srgb, var(--accent-2-raw) 64%, var(--accent-deepen-ink));
+
+  /* Primary family — tracks --accent */
+  --hub-amber:        var(--accent);
+  --hub-amber-bright: color-mix(in srgb, var(--accent) 55%, #ffffff);
+  --hub-amber-dim:    color-mix(in srgb, var(--accent) 72%, #1a0a00);
+  --hub-amber-deep:   color-mix(in srgb, var(--accent) 20%, var(--hub-bg-2));
+  --hub-amber-glow:   color-mix(in srgb, var(--accent) 30%, transparent);
+
+  /* Secondary family — tracks --accent-secondary */
+  --hub-cyan:         var(--accent-secondary);
+  --hub-cyan-dim:     color-mix(in srgb, var(--accent-secondary) 60%, #000000);
+  --hub-cyan-glow:    color-mix(in srgb, var(--accent-secondary) 25%, transparent);
+
+  /* --color-* aliases (component-facing) */
   --color-paper:          var(--hub-bg-0);
   --color-paper-2:        var(--hub-bg-1);
   --color-card:           var(--hub-bg-2);
@@ -93,36 +154,14 @@
   --color-secondary:      var(--hub-cyan);
   --color-secondary-dim:  var(--hub-cyan-dim);
   --color-secondary-glow: var(--hub-cyan-glow);
-  --color-ok:     #2a7040;
-  --color-warn:   #a04010;
-  --color-danger: #b42010;
 
-  /* Grain overlay */
-  --grain-opacity: 0.04;
-  --grain-blend:   multiply;
-
-  /* Typography */
-  --hub-font-mono: 'IBM Plex Mono', ui-monospace, monospace;
-  --hub-font-sans: 'IBM Plex Sans', system-ui, sans-serif;
-  --hub-font-seg:  'Big Shoulders Display', 'IBM Plex Sans', sans-serif;
-
-  /* Spacing grid */
-  --hub-grid:             40px;
-  --hub-radius:           0px;
-  --hub-radius-sm:        0px;
-  --hub-radius-lg:        2px;
-  --hub-radius-soft:      2px;
-  --hub-radius-widget:    0px;
-  --hub-radius-button:    0px;
-
-  /* Widget layout tuning */
-  --hub-widget-pad:       12px;
-  --hub-title-h:          34px;
-  --hub-glow-mul:         0.5;
-  --hub-clip-widget:      none;
-  --hub-clip-title:       none;
-  --hub-widget-blur:      none;
-  --hub-widget-bg-alpha:  1;
+  /* Status surface tints — a soft fill behind ok/warn/danger states (e.g. a
+     "system down" row). Derived from the semantic colours over the card bg;
+     defined once and re-resolve per mode via lazy var() substitution. */
+  --hub-green-soft: color-mix(in srgb, var(--hub-green) 12%, var(--hub-bg-2));
+  --hub-red-soft:   color-mix(in srgb, var(--hub-red)   10%, var(--hub-bg-2));
+  --hub-warn:       var(--color-warn);
+  --hub-warn-soft:  color-mix(in srgb, var(--color-warn) 11%, var(--hub-bg-2));
 
   /* Shadows */
   --hub-shadow-amber:  0 0 6px var(--hub-amber-glow);
@@ -130,40 +169,29 @@
   --hub-shadow-inset:  inset 0 1px 0 var(--hub-bevel-light), inset 0 -1px 0 var(--hub-bevel-dark);
   --hub-shadow-card:   0 2px 8px color-mix(in srgb, var(--hub-cream-bright) 10%, transparent),
                        0 0 0 1px var(--hub-line);
-  /* Accent "pressed into the paper" — the light-mode analog of dark-mode
-     halation. A debossed stamp: dark inner top shadow (pushed in) + a light
-     lower-inner highlight + a hairline top highlight, like a brass badge set
-     into leather. Dark mode overrides this with an emissive glow. */
+  /* Accent "pressed into the paper" — light-mode analog of dark-mode halation:
+     a debossed stamp. Dark mode overrides this with an emissive glow. */
   --hub-accent-press:
     inset 0 2px 3px color-mix(in srgb, var(--hub-cream-bright) 32%, transparent),
     inset 0 -1px 1px color-mix(in srgb, #ffffff 55%, transparent),
     0 1px 0 color-mix(in srgb, #ffffff 45%, transparent);
 
-  /* Shell layout */
-  --hub-header-h:          52px;
-  --hub-bus-h:             28px;
-  --hub-footer-h:          28px;
-  --hub-sidebar-w:         200px;
-  --hub-sidebar-collapsed: 40px;
-  --hub-rail-w:            56px;
-
-  /* CRT effects (off in paper mode) */
-  --crt-scanline-opacity: 0;
-  --crt-vignette-opacity: 0.08;
-
-  /* Canvas */
-  --canvas-grid-opacity: 0.5;
-
-  /* Screw display toggle */
-  --screw-display: inline-block;
+  /* ── Halation ────────────────────────────────────────────────────────────
+     The suite-wide emissive accent glow. Halation is a CRT phenomenon: on paper
+     an accent presses IN (the debossed stamp above), so these halo tokens are
+     `none` here and the dark block below lights them up. Anything coloured with
+     the primary accent emits in dark mode — wire it with `box-shadow:
+     var(--accent-halo)`, `text-shadow: var(--accent-halo-text)`, or the
+     .jk-halo / .jk-halo-text utility classes. --accent-halo-glow is the bare
+     colour, for call sites that compose their own multi-layer shadow. */
+  --accent-halo-glow: var(--color-accent-glow);
+  --accent-halo:      none;
+  --accent-halo-text: none;
 }
 
-/* ─── CRT phosphor overrides ───────────────────────────────────────────── */
+/* ─── CRT / dark mode ─────────────────────────────────────────────────────── */
 :root[data-mode="dark"] {
-  --accent:      #ffb000;
-  --accent-warm: #ffc840;
-  --accent-soft: #3a2800;
-
+  /* ░░ INPUTS ░░ */
   --hub-bg-0: #11100d;
   --hub-bg-1: #1a1814;
   --hub-bg-2: #232019;
@@ -183,18 +211,10 @@
   --hub-line-strong: #4a4232;
   --hub-line-bright: #6a5d3e;
 
-  --hub-amber:        #ffb000;
-  --hub-amber-bright: #ffd266;
-  --hub-amber-dim:    #8a5f00;
-  --hub-amber-deep:   #4a3300;
-  --hub-amber-glow:   rgba(255, 176, 0, 0.35);
-
-  /* Dark mode: accents glow (halation) rather than press into the surface. */
-  --hub-accent-press: 0 0 10px var(--hub-amber-glow), inset 0 0 0 1px color-mix(in srgb, var(--hub-amber) 30%, transparent);
-
-  --hub-cyan:        #4ecdc4;
-  --hub-cyan-dim:    #2a6e6a;
-  --hub-cyan-glow:   rgba(78, 205, 196, 0.35);
+  --hub-cream:        #d6cba8;
+  --hub-cream-bright: #efe6c9;
+  --hub-cream-dim:    #8a8067;
+  --hub-cream-faint:  #5a543f;
 
   --hub-red:        #ff4530;
   --hub-red-dim:    #6b1c14;
@@ -202,26 +222,45 @@
   --hub-green:      #5cd66a;
   --hub-green-glow: rgba(92, 214, 106, 0.35);
   --hub-magenta:    #ff5d8f;
-
-  --hub-cream:        #d6cba8;
-  --hub-cream-bright: #efe6c9;
-  --hub-cream-dim:    #8a8067;
-  --hub-cream-faint:  #5a543f;
-
   --color-ok:     #34d399;
   --color-warn:   #fbbf24;
   --color-danger: #f87171;
-  --color-accent-contrast: #000000;
 
-  --grain-opacity: 0.08;
+  --grain-opacity: 0.06;
   --grain-blend:   screen;
-
+  --hub-grain-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='jkg'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23jkg)' opacity='0.135'/%3E%3C/svg%3E");
   --hub-glow-mul: 1;
-
   --crt-scanline-opacity: 0.012;
   --crt-vignette-opacity: 0.45;
-
   --canvas-grid-opacity: 1;
+
+  /* ░░ DERIVATION — CRT uses the raw bright pair (no paper deepening) ░░ */
+  --accent:           var(--accent-raw);
+  --accent-secondary: var(--accent-2-raw);
+
+  --hub-amber:        var(--accent);
+  --hub-amber-bright: color-mix(in srgb, var(--accent) 55%, #ffffff);
+  --hub-amber-dim:    color-mix(in srgb, var(--accent) 72%, #1a1400);
+  --hub-amber-deep:   color-mix(in srgb, var(--accent) 26%, #000000);
+  --hub-amber-glow:   color-mix(in srgb, var(--accent) 38%, transparent);
+
+  --hub-cyan:         var(--accent-secondary);
+  --hub-cyan-dim:     color-mix(in srgb, var(--accent-secondary) 50%, #000000);
+  --hub-cyan-glow:    color-mix(in srgb, var(--accent-secondary) 38%, transparent);
+
+  --color-accent-contrast: #000000;
+  /* Readable accent text flips: darken-on-paper → lighten-on-CRT (so accent type
+     stays legible against the dark ground instead of muddying into it). */
+  --color-accent-ink:      color-mix(in srgb, var(--hub-amber) 78%, #ffffff);
+
+  /* Dark mode: accents glow (halation) rather than press into the surface. */
+  --hub-accent-press: 0 0 10px var(--hub-amber-glow), inset 0 0 0 1px color-mix(in srgb, var(--hub-amber) 30%, transparent);
+
+  /* Halation lights up in CRT: every primary-accent element emits. The text
+     halo is tighter than the box halo so accent type stays legible. */
+  --accent-halo-glow: var(--color-accent-glow);
+  --accent-halo:      0 0 16px var(--color-accent-glow);
+  --accent-halo-text: 0 0 12px var(--color-accent-glow);
 }
 
 /* ─── Shared CSS component classes ─────────────────────────────────────── */
@@ -242,6 +281,29 @@
   80%  { transform: translate(1%, -1%); }
   90%  { transform: translate(-2%, 4%); }
   100% { transform: translate(0, 0); }
+}
+
+/* Halation utilities — the suite-wide accent glow. .jk-halo for surfaces/chips,
+   .jk-halo-text for accent type. Both collapse to nothing on paper (the tokens
+   are `none` in light mode) so a single class is mode-correct everywhere. */
+.jk-halo      { box-shadow:  var(--accent-halo); }
+.jk-halo-text { text-shadow: var(--accent-halo-text); }
+
+/* Arbitrary-colour glow — the per-ITEM analogue of --accent-halo (which is locked
+   to the theme accent). Set the colour with --jk-glow-color inline (falls back to
+   the accent), pick an intensity rung with .jk-glow-low / -mid / -hi. Mode-gated
+   like the halo tokens: nothing on paper, emits in CRT. .jk-glow shadows a surface,
+   .jk-glow-text shadows type. Replaces apps' bespoke per-colour glow helpers. */
+.jk-glow-low { --jk-glow-size: 10px; --jk-glow-strength: 20%; }
+.jk-glow-mid { --jk-glow-size: 16px; --jk-glow-strength: 33%; }
+.jk-glow-hi  { --jk-glow-size: 28px; --jk-glow-strength: 52%; }
+:root[data-mode="dark"] .jk-glow {
+  box-shadow: 0 0 var(--jk-glow-size, 16px)
+    color-mix(in srgb, var(--jk-glow-color, var(--accent)) var(--jk-glow-strength, 33%), transparent);
+}
+:root[data-mode="dark"] .jk-glow-text {
+  text-shadow: 0 0 var(--jk-glow-size, 12px)
+    color-mix(in srgb, var(--jk-glow-color, var(--accent)) var(--jk-glow-strength, 38%), transparent);
 }
 
 /* LEDs */
@@ -424,3 +486,167 @@
   background: var(--hub-amber-dim);
   color: var(--hub-cream-bright);
 }
+
+/* ─── Accent bubbles — the two-accent "pressed / flat" system ──────────────
+ * Primary accent is STRUCK into the paper (lit top face + accent-dark bevel)
+ * and EMITS as halation in CRT; the secondary stays FLAT, one rung down, never
+ * pressed. Both flow from the chain above (--accent / --accent-secondary), so
+ * they deepen for paper and go raw + glow for dark automatically.
+ *
+ * Use the React components from @jkos/ui: <Bubble>, <Press>, <Sheet>.
+ * Corners stay sharp (--hub-radius*); no texture/effect tokens are touched here.
+ * ───────────────────────────────────────────────────────────────────────── */
+
+/* Pressed PRIMARY text — struck flush into the paper */
+.jk-press {
+  color: var(--accent);
+  text-shadow:
+    0 -0.5px 0 rgba(255, 255, 255, 0.45),
+    0 1px 0 color-mix(in srgb, var(--accent) 50%, var(--accent-deepen-ink)),
+    0 2px 1.5px rgba(48, 34, 20, 0.20);
+}
+.jk-press-lg {
+  color: var(--accent);
+  text-shadow:
+    0 -1px 0 rgba(255, 255, 255, 0.50),
+    0 1px 0 color-mix(in srgb, var(--accent) 58%, var(--accent-deepen-ink)),
+    0 2px 0 color-mix(in srgb, var(--accent) 48%, var(--accent-deepen-ink)),
+    0 3px 4px rgba(48, 34, 20, 0.24);
+}
+:root[data-mode="dark"] .jk-press,
+:root[data-mode="dark"] .jk-press-lg {
+  /* halation replaces the bevel — same scarcity, opposite physics */
+  text-shadow:
+    0 0 12px color-mix(in srgb, var(--accent) 55%, transparent),
+    0 0 3px  color-mix(in srgb, var(--accent) 60%, transparent);
+}
+
+/* Flat SECONDARY text + link */
+.jk-sub { color: var(--accent-secondary); }
+.jk-sub-link {
+  color: var(--accent-secondary);
+  text-decoration: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--accent-secondary) 45%, transparent);
+  padding-bottom: 1px;
+}
+:root[data-mode="dark"] .jk-sub,
+:root[data-mode="dark"] .jk-sub-link {
+  text-shadow: 0 0 8px color-mix(in srgb, var(--accent-secondary) 40%, transparent);
+}
+:root[data-mode="dark"] .jk-sub-link {
+  border-bottom-color: color-mix(in srgb, var(--accent-secondary) 50%, transparent);
+}
+
+/* Inset accent-tinted container — debossed on paper, emissive in CRT.
+   Reuses --hub-accent-press so the mode flip is inherited, not re-stated. */
+.jk-well {
+  background: color-mix(in srgb, var(--accent) 14%, var(--hub-bg-2));
+  border-radius: var(--hub-radius-lg);
+  box-shadow: var(--hub-accent-press);
+}
+
+/* Single-element BUBBLES (pills/badges) */
+.jk-bubble {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  line-height: 1;
+  font-family: var(--hub-font-mono);
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  border-radius: var(--hub-radius-lg);
+  padding: 5px 11px;
+}
+.jk-bubble.jk-bubble-lg { font-size: 11px; letter-spacing: 0.14em; padding: 7px 14px; }
+
+/* Primary bubble = struck badge (inset well + pressed text on one node) */
+.jk-bubble-primary {
+  background: color-mix(in srgb, var(--accent) 14%, var(--hub-bg-2));
+  color: var(--accent);
+  box-shadow: var(--hub-accent-press);
+  text-shadow:
+    0 -0.5px 0 rgba(255, 255, 255, 0.45),
+    0 1px 0 color-mix(in srgb, var(--accent) 50%, var(--accent-deepen-ink));
+}
+:root[data-mode="dark"] .jk-bubble-primary {
+  text-shadow: 0 0 10px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+/* Secondary bubble = flat pill (the chip) */
+.jk-bubble-secondary {
+  background: color-mix(in srgb, var(--accent-secondary) 11%, var(--hub-bg-2));
+  border: 1px solid color-mix(in srgb, var(--accent-secondary) 28%, transparent);
+  color: var(--accent-secondary);
+}
+:root[data-mode="dark"] .jk-bubble-secondary {
+  background: color-mix(in srgb, var(--accent-secondary) 10%, var(--hub-bg-1));
+  border-color: color-mix(in srgb, var(--accent-secondary) 36%, transparent);
+}
+
+/* Card surface */
+.jk-sheet {
+  background: var(--hub-bg-2);
+  border: 1px solid var(--hub-line);
+  border-radius: var(--hub-radius-lg);
+  box-shadow: var(--hub-shadow-card), inset 0 1px 0 var(--hub-bevel-light);
+}
+
+/* ─── Mono labels, text buttons, status pills ──────────────────────────────
+ * Reusable text-system primitives shared with the @jkos/ui <Lab>, <TButton>,
+ * <Pill> components. All neutral/semantic — never hardcode an accent; the two
+ * accent families above own the accent surfaces. ────────────────────────── */
+
+/* Uppercase mono label — eyebrows + field labels. Three sizes. */
+.jk-lab {
+  font-family: var(--hub-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--hub-cream);
+}
+.jk-lab.jk-lab-sm { font-size: 9px; letter-spacing: 0.18em; color: var(--hub-cream-dim); }
+.jk-lab.jk-lab-xs { font-size: 8px; letter-spacing: 0.16em; color: var(--hub-cream-dim); }
+
+/* Compact mono text button — flat, hovers to the secondary accent. */
+.jk-tbtn {
+  font-family: var(--hub-font-mono);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  line-height: 1;
+  padding: 6px 10px;
+  color: var(--hub-cream);
+  background: transparent;
+  border: 1px solid var(--hub-line);
+  border-radius: var(--hub-radius-sm);
+  cursor: pointer;
+  transition: color 0.12s, border-color 0.12s;
+}
+.jk-tbtn.jk-tbtn-quiet {
+  color: var(--hub-cream-dim);
+  border-color: color-mix(in srgb, var(--hub-line) 55%, transparent);
+}
+.jk-tbtn:hover {
+  color: var(--accent-secondary);
+  border-color: color-mix(in srgb, var(--accent-secondary) 50%, transparent);
+}
+:root[data-mode="dark"] .jk-tbtn:hover {
+  text-shadow: 0 0 8px color-mix(in srgb, var(--accent-secondary) 40%, transparent);
+}
+
+/* Status pill — defaults to the OK/green status; glows in CRT. */
+.jk-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--hub-font-mono);
+  font-size: 8px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  padding: 4px 9px;
+  border-radius: var(--hub-radius-lg);
+  color: var(--hub-green);
+  border: 1px solid color-mix(in srgb, var(--hub-green) 40%, transparent);
+}
+:root[data-mode="dark"] .jk-pill { text-shadow: 0 0 8px var(--hub-green-glow); }

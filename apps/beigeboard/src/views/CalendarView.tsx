@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'
-import { FONT_HEAD, FONT_BODY, FONT_NUM, localDate, isoDate, addDays, fmtTime, halate, sourceOf } from '../lib/theme'
+import { FONT_HEAD, FONT_BODY, FONT_NUM, localDate, isoDate, addDays, fmtTime, sourceOf } from '../lib/theme'
 import { useDrag } from '../providers/DragProvider'
 import { getAccent } from '../lib/seed'
 import { Eyebrow, Checkbox } from '../components/SharedComponents'
+import { Press, TButton } from '@jkos/ui'
 
 const DOW       = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const CV_BAR_H  = 20
@@ -104,16 +105,16 @@ export function CalendarView({ items, today, onSelect, onToggle, onUpdateItem, o
   const anyDrag = !!drag
 
   return (
-    <div style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden', background: 'var(--color-paper)' }}>
+    <div style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden', background: 'transparent' }}>
 
       <aside style={{
         width: 220, flexShrink: 0,
-        borderRight: `1px solid 'var(--color-line)'`,
+        borderRight: `1px solid var(--color-line)`,
         background: 'var(--color-paper-2)',
         display: 'flex', flexDirection: 'column',
         overflow: 'hidden',
       }}>
-        <div style={{ padding: '16px 16px 12px', borderBottom: `1px solid 'var(--color-line)'` }}>
+        <div style={{ padding: '16px 16px 12px', borderBottom: `1px solid var(--color-line)` }}>
           <Eyebrow>Unscheduled · {unscheduled.length}</Eyebrow>
           <p style={{ fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 12, color: 'var(--color-muted)', margin: '4px 0 0', lineHeight: 1.35 }}>
             Drag onto a date to schedule
@@ -142,29 +143,27 @@ export function CalendarView({ items, today, onSelect, onToggle, onUpdateItem, o
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '14px 24px 12px',
-          borderBottom: `1px solid 'var(--color-line)'`,
+          borderBottom: `1px solid var(--color-line)`,
           background: 'var(--color-paper)', flexShrink: 0,
         }}>
-          <h2 style={{ fontFamily: FONT_HEAD, fontWeight: 500, fontSize: 26, margin: 0, letterSpacing: '-0.02em', color: 'var(--color-ink)' }}>
-            <em style={{ color: 'var(--color-accent)', fontStyle: 'italic', textShadow: '0 0 16px var(--color-accent-glow)' }}>
-              {monthLabel(cursor)}
-            </em>
+          <h2 style={{ fontFamily: FONT_HEAD, fontWeight: 600, fontSize: 28, margin: 0, letterSpacing: '-0.01em' }}>
+            <Press large as="em" style={{ fontStyle: 'italic' }}>{monthLabel(cursor)}</Press>
           </h2>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button onClick={() => setCursor(c => addMonths(c, -1))} style={navBtn(false)}>‹</button>
-            <button onClick={() => setCursor(monthStart(today))}     style={navBtn(true)}>This month</button>
-            <button onClick={() => setCursor(c => addMonths(c, 1))}  style={navBtn(false)}>›</button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <TButton onClick={() => setCursor(c => addMonths(c, -1))} style={{ fontSize: 13, padding: '6px 11px' }}>‹</TButton>
+            <TButton onClick={() => setCursor(monthStart(today))} style={{ letterSpacing: '0.14em', padding: '6px 14px' }}>THIS MONTH</TButton>
+            <TButton onClick={() => setCursor(c => addMonths(c, 1))} style={{ fontSize: 13, padding: '6px 11px' }}>›</TButton>
           </div>
         </div>
 
         <div style={{
           display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
-          borderBottom: `1px solid 'var(--color-line)'`, background: 'var(--color-paper-2)', flexShrink: 0,
+          borderBottom: `1px solid var(--color-line)`, background: 'var(--color-paper-2)', flexShrink: 0,
         }}>
           {DOW.map(d => (
             <div key={d} style={{
               fontFamily: FONT_BODY, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--color-muted)',
-              padding: '6px 10px', borderRight: d !== 'Sun' ? `1px solid 'var(--color-line)'` : 'none',
+              padding: '6px 10px', borderRight: d !== 'Sun' ? `1px solid var(--color-line)` : 'none',
             }}>{d}</div>
           ))}
         </div>
@@ -181,7 +180,7 @@ export function CalendarView({ items, today, onSelect, onToggle, onUpdateItem, o
               <div key={wi} style={{
                 flex: 1, position: 'relative',
                 display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
-                borderBottom: wi < 5 ? `1px solid 'var(--color-line-strong)'` : 'none',
+                borderBottom: wi < 5 ? `1px solid var(--color-line-strong)` : 'none',
                 minHeight: 90 + barZoneH,
               }}>
                 {barLanes > 0 && (
@@ -205,17 +204,17 @@ export function CalendarView({ items, today, onSelect, onToggle, onUpdateItem, o
                             height: CV_BAR_H,
                             background: `linear-gradient(180deg, rgba(255,255,255,0.12) 0%, rgba(0,0,0,0.09) 100%), ${s.hex}`,
                             boxShadow: `inset 0 1px 0 rgba(255,255,255,0.22), 0 2px 6px rgba(0,0,0,0.35)`,
-                            borderTopLeftRadius:  bar.continuesLeft  ? 0 : 2,
-                            borderBottomLeftRadius: bar.continuesLeft ? 0 : 2,
-                            borderTopRightRadius:  bar.continuesRight ? 0 : 2,
-                            borderBottomRightRadius: bar.continuesRight ? 0 : 2,
+                            borderTopLeftRadius:  bar.continuesLeft  ? 0 : 'var(--hub-radius-sm)',
+                            borderBottomLeftRadius: bar.continuesLeft ? 0 : 'var(--hub-radius-sm)',
+                            borderTopRightRadius:  bar.continuesRight ? 0 : 'var(--hub-radius-sm)',
+                            borderBottomRightRadius: bar.continuesRight ? 0 : 'var(--hub-radius-sm)',
                             display: 'flex', alignItems: 'center',
                             paddingLeft: bar.continuesLeft ? 4 : 6,
                             paddingRight: bar.continuesRight ? 0 : 6,
                             overflow: 'hidden',
                             cursor: 'grab',
                             opacity: isDraggingThis ? 0.35 : 1,
-                            outline: selectedId === bar.ev.id ? `2px solid 'var(--color-accent)'` : 'none',
+                            outline: selectedId === bar.ev.id ? `2px solid var(--color-accent)` : 'none',
                             outlineOffset: -2,
                             userSelect: 'none',
                             transition: 'opacity 0.1s',
@@ -251,16 +250,16 @@ export function CalendarView({ items, today, onSelect, onToggle, onUpdateItem, o
                         }
                       }}
                       style={{
-                        borderRight: ci < 6 ? `1px solid 'var(--color-line-strong)'` : 'none',
+                        borderRight: ci < 6 ? `1px solid var(--color-line-strong)` : 'none',
                         background: isOver
-                          ? `var(--color-accent)18`
+                          ? `color-mix(in srgb, var(--color-accent) 12%, transparent)`
                           : isToday
-                          ? `var(--color-accent-soft)55`
+                          ? `var(--color-accent-soft)`
                           : !cell.inMonth
                           ? 'rgba(0,0,0,0.04)'
                           : 'var(--color-paper)',
                         outline: isOver
-                          ? `1px dashed 'var(--color-accent)'`
+                          ? `1px dashed var(--color-accent)`
                           : isTarget
                           ? `1px dashed var(--color-accent-glow)`
                           : 'none',
@@ -280,7 +279,7 @@ export function CalendarView({ items, today, onSelect, onToggle, onUpdateItem, o
                           color: isToday ? 'var(--color-accent)' : !cell.inMonth ? 'var(--color-faint)' : 'var(--color-muted)',
                           fontStyle: isToday ? 'italic' : 'normal',
                           fontWeight: isToday ? 500 : 400,
-                          textShadow: isToday ? '0 0 10px var(--color-accent-glow)' : 'none',
+                          textShadow: isToday ? 'var(--accent-halo-text)' : 'none',
                           lineHeight: 1, cursor: 'pointer', zIndex: 3,
                         }}
                         title="Open in Week view"
@@ -318,7 +317,8 @@ export function CalendarView({ items, today, onSelect, onToggle, onUpdateItem, o
                               if (e.key === 'Escape') setQuickAdd(null)
                             }}
                             style={{
-                              background: 'transparent', border: `1px solid 'var(--color-accent)'`,
+                              background: 'transparent', border: `1px solid var(--color-accent)`,
+                              borderRadius: 'var(--hub-radius-sm)',
                               fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 11,
                               color: 'var(--color-ink)', outline: 'none', padding: '2px 5px',
                               width: '100%', boxSizing: 'border-box',
@@ -345,7 +345,7 @@ function CalTaskChip({ item, accent: inherited, isDragging, isSelected, onSelect
     return (
       <div style={{
         height: compact ? 18 : 24,
-        background: accent, borderRadius: 4,
+        background: accent, borderRadius: 'var(--hub-radius-sm)',
         opacity: 0.28, userSelect: 'none', pointerEvents: 'none',
       }} />
     )
@@ -359,13 +359,14 @@ function CalTaskChip({ item, accent: inherited, isDragging, isSelected, onSelect
       style={{
         display: 'flex', alignItems: 'center', gap: compact ? 4 : 6,
         padding: compact ? '2px 5px 2px 4px' : '5px 8px 5px 6px',
+        borderRadius: 'var(--hub-radius-sm)',
         background: item.completed ? 'transparent' : `linear-gradient(180deg, rgba(255,255,255,0.12) 0%, rgba(0,0,0,0.09) 100%), ${accent}`,
         boxShadow: item.completed ? 'none' : `inset 0 1px 0 rgba(255,255,255,0.18), 0 1px 5px rgba(0,0,0,0.32)`,
-        border: item.completed ? `1px solid 'var(--color-line-strong)'` : 'none',
+        border: item.completed ? `1px solid var(--color-line-strong)` : 'none',
         color: item.completed ? 'var(--color-muted)' : 'rgba(255,255,255,0.93)',
         fontFamily: FONT_BODY, fontSize: compact ? 10 : 11.5,
         cursor: 'grab',
-        outline: isSelected ? `1.5px solid 'var(--color-accent)'` : 'none',
+        outline: isSelected ? `1.5px solid var(--color-accent)` : 'none',
         outlineOffset: -1,
         userSelect: 'none', overflow: 'hidden',
       }}
@@ -387,14 +388,3 @@ function CalTaskChip({ item, accent: inherited, isDragging, isSelected, onSelect
   )
 }
 
-function navBtn(primary?: boolean) {
-  return {
-    background: primary ? 'var(--color-accent)' : 'transparent',
-    border: `1px solid ${primary ? 'var(--color-accent)' : 'var(--color-line)'}`,
-    color: primary ? 'var(--color-paper)' : 'var(--color-muted)',
-    fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.14em',
-    textTransform: 'uppercase' as const, padding: '6px 14px',
-    cursor: 'pointer',
-    boxShadow: primary ? `0 0 10px 'var(--color-accent-glow)'` : 'none',
-  }
-}

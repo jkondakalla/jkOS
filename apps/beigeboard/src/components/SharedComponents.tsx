@@ -16,6 +16,7 @@ export function Checkbox({ id, completed, onToggle, color, size = 15 }: any) {
       style={{
         width: size, height: size,
         border: `1px solid ${completed ? accent : 'var(--color-line)'}`,
+        borderRadius: 'var(--hub-radius-xs)',
         background: completed ? accent : 'transparent',
         cursor: 'pointer', flexShrink: 0,
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
@@ -49,7 +50,7 @@ export function VUMeter({ pct = 0, color, segments = 20, height = 8, label, peak
         flex: 1, display: 'flex', gap: 2,
         padding: 3,
         background: 'rgba(0,0,0,0.4)',
-        border: `1px solid 'var(--color-line)'`,
+        border: `1px solid var(--color-line)`,
         boxShadow: `inset 0 2px 4px rgba(0,0,0,0.45), inset 0 -1px 0 rgba(255,255,255,0.06)`,
       }}>
         {Array.from({ length: segments }, (_, i) => {
@@ -114,7 +115,8 @@ export function Plate({ children, style, accent, recessed, dataDropId, ...rest }
       style={{
         position: 'relative',
         background: recessed ? 'rgba(0,0,0,0.25)' : 'var(--color-paper-2)',
-        border: `1px solid 'var(--color-line)'`,
+        border: `1px solid var(--color-line)`,
+        borderRadius: 'var(--hub-radius-lg)',
         boxShadow: recessed
           ? `inset 0 2px 6px rgba(0,0,0,0.4), inset 0 -1px 0 rgba(255,255,255,0.04)`
           : `inset 0 1px 0 rgba(255,255,255,0.06), inset 0 -2px 4px rgba(0,0,0,0.18), 0 1px 0 rgba(0,0,0,0.4), 0 4px 16px rgba(0,0,0,0.18)`,
@@ -124,6 +126,8 @@ export function Plate({ children, style, accent, recessed, dataDropId, ...rest }
         <div style={{
           position: 'absolute', left: 0, top: 0, bottom: 0, width: 5,
           background: accent,
+          borderTopLeftRadius: 'var(--hub-radius-lg)',
+          borderBottomLeftRadius: 'var(--hub-radius-lg)',
           boxShadow: `0 0 14px ${accent}66`,
         }} />
       )}
@@ -144,7 +148,7 @@ export function RecLamp({ size = 8, label }: any) {
         <span style={{
           fontFamily: FONT_BODY, fontSize: 9, letterSpacing: '0.22em',
           textTransform: 'uppercase', color: 'var(--color-accent)',
-          textShadow: `0 0 8px var(--color-accent-glow)`,
+          textShadow: 'var(--accent-halo-text)',
         }}>{label}</span>
       )}
     </div>
@@ -161,7 +165,7 @@ export function TimeReadout({ style }: any) {
     <span style={{
       fontFamily: FONT_NUM, fontStyle: 'italic',
       fontSize: 13, color: 'var(--color-accent)', letterSpacing: '0.08em',
-      textShadow: `0 0 8px var(--color-accent-glow)`,
+      textShadow: 'var(--accent-halo-text)',
       ...style,
     }}>
       {hh}<span style={{ opacity: 0.4 }}>:</span>{mm}<span style={{ opacity: 0.6, fontSize: 10 }}>:{ss}</span>
@@ -182,7 +186,7 @@ export function ColorPicker({ current, onChange, onClose }: any) {
     <div ref={ref} style={{
       position: 'absolute', zIndex: 300,
       background: 'var(--color-paper-2)',
-      border: `1px solid 'var(--color-line)'`,
+      border: `1px solid var(--color-line)`,
       boxShadow: `0 8px 32px rgba(0,0,0,0.45)`,
       padding: '8px 10px',
       display: 'flex', gap: 5, alignItems: 'center',
@@ -191,11 +195,11 @@ export function ColorPicker({ current, onChange, onClose }: any) {
         onClick={() => { onChange(null); onClose() }}
         title="No color"
         style={{
-          width: 18, height: 18, border: `1px solid 'var(--color-line)'`,
+          width: 18, height: 18, border: `1px solid var(--color-line)`,
           background: 'transparent', cursor: 'pointer', padding: 0,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           color: 'var(--color-faint)', fontSize: 10, lineHeight: 1,
-          outline: !current ? `2px solid 'var(--color-ink)'` : 'none',
+          outline: !current ? `2px solid var(--color-ink)` : 'none',
           outlineOffset: 1,
         }}
       >✕</button>
@@ -208,7 +212,7 @@ export function ColorPicker({ current, onChange, onClose }: any) {
             width: 18, height: 18,
             background: c.hex,
             border: 'none', cursor: 'pointer', padding: 0,
-            outline: current === c.hex ? `2px solid 'var(--color-ink)'` : 'none',
+            outline: current === c.hex ? `2px solid var(--color-ink)` : 'none',
             outlineOffset: 1,
             boxShadow: current === c.hex ? `0 0 8px ${c.hex}99` : 'none',
           }}

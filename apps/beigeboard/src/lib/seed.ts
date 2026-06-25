@@ -15,20 +15,26 @@ export function getChildren(item: any, items: any[]) {
 
 export function getDescendants(item: any, items: any[]) {
   const out: any[] = []
+  const seen = new Set([item.id])   // cycle guard: a parent cycle must not loop forever
   const stack = [item]
   while (stack.length) {
     const cur = stack.pop()
-    const kids = getChildren(cur, items)
-    out.push(...kids)
-    stack.push(...kids)
+    for (const kid of getChildren(cur, items)) {
+      if (seen.has(kid.id)) continue
+      seen.add(kid.id)
+      out.push(kid)
+      stack.push(kid)
+    }
   }
   return out
 }
 
 export function getAncestors(item: any, items: any[]) {
   const out: any[] = []
+  const seen = new Set([item.id])   // cycle guard (see getDescendants)
   let cur = item
-  while (cur && cur.parent_id) {
+  while (cur && cur.parent_id && !seen.has(cur.parent_id)) {
+    seen.add(cur.parent_id)
     cur = items.find(i => i.id === cur.parent_id)
     if (cur) out.push(cur); else break
   }

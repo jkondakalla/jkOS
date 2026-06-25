@@ -81,7 +81,7 @@ export function MobileApp({
         inset: 0,
         display: 'flex',
         flexDirection: 'column',
-        background: 'var(--color-paper)',
+        background: 'transparent',   /* grained paper backdrop comes from the body */
         color: 'var(--color-ink)',
         overflow: 'hidden',
         transition: 'background 0.5s ease, color 0.5s ease',

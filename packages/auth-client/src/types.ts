@@ -4,12 +4,8 @@
 
 export interface JkOSTheme {
   mode:      'light' | 'dark' | 'system';
-  primary:   string;   // single hex; CSS color-mix() adapts per mode
-  secondary: string;
-  // True when the user typed an exact hex (vs picked a preset). Presets are
-  // auto-darkened in light mode so they don't wash out on the beige paper;
-  // a hand-picked color is always honored exactly. Defaults to preset behavior.
-  customAccent?: boolean;
+  primary:   string;   // user's primary accent; hub.css deepens for paper, raw + glow for dark
+  secondary: string;   // user's secondary accent — a co-equal vivid accent, not a neutral
 }
 
 export interface EffectsPreferences {
@@ -27,11 +23,36 @@ export interface LazurPreferences {
   model:   string;
 }
 
+/** A reference to something surfaced on the ORDECK HUD (a pin, or the focus).
+ *  App-agnostic: any suite app pins/focuses its own items by {app,id}, so the
+ *  HUD shelf isn't tied to one app's schema. ORDECK enriches a reference from
+ *  live app data when it has it, else renders the snapshot. */
+export interface HudRef {
+  app:       string;   // source app id (matches the suite manifest)
+  id:        string;   // item id within that app
+  label:     string;   // snapshot of the display text
+  deeplink?: string;   // URL back to the item in its app
+  tone?:     string;   // optional status-colour snapshot (an ORDECK tone key)
+}
+/** Same as HudRef but `id` may arrive as a number from a caller's data. */
+export interface HudRefInput extends Omit<HudRef, 'id'> { id: string | number }
+export type HudPin = HudRef & { ts?: number };
+export type HudFocus = HudRef;
+
 export interface UserPreferences {
   scheme?:  string;   // SylibOS preset id
   theme?:   JkOSTheme;
   effects?: EffectsPreferences;
   lazuros?: LazurPreferences;
+  // ORDECK's HUD layout document — an opaque blob from the suite's perspective
+  // (ORDECK owns and validates its own shape). Lives here so the dashboard syncs
+  // across devices via the same per-user store as theme, with no ORDECK backend.
+  hud?:     unknown;
+  // ORDECK "HUD shelf" — pins (a heterogeneous, suite-wide collection) and focus
+  // (a suite-wide singleton). ORDECK-owned, stored here so ANY app can surface
+  // its items on the HUD by {app,id} without ORDECK-specific columns/endpoints.
+  hudPins?:  HudPin[];
+  hudFocus?: HudFocus | null;
 }
 
 export interface JkosUser {

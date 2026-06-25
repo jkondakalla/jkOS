@@ -1,60 +1,29 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
+import { STORAGE_KEYS } from '@jkos/design'
 import { FONT_HEAD, FONT_BODY, isoDate, localDate } from '../lib/theme'
 
-/* ── Film Grain ─────────────────────────────────────────────────────────── */
-
-interface FilmGrainProps {
-  strength?: number   // 0–1, defaults to CSS --grain-opacity var or 0.07
+function getIntroIsDark(): boolean {
+  // Stay in lock-step with the app shell: App.tsx sets <html data-mode> before
+  // React hydrates, from the user's saved mode (localStorage 'jkos-mode'). Reading
+  // that resolved attribute here guarantees the opening scroll matches whatever
+  // mode the user is actually in. localStorage / prefers-color-scheme are only
+  // belt-and-suspenders fallbacks for the (shouldn't-happen) missing-attr case.
+  const m = document.documentElement.getAttribute('data-mode')
+  if (m) return m === 'dark'
+  try {
+    const s = localStorage.getItem(STORAGE_KEYS.mode)
+    if (s) return s === 'dark'
+  } catch {}
+  return window.matchMedia('(prefers-color-scheme: dark)').matches
 }
 
-export function FilmGrain({ strength }: FilmGrainProps) {
-  const opacity = strength
-    ?? parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--grain-opacity').trim() || '0.07')
-  const blendMode = getComputedStyle(document.documentElement).getPropertyValue('--grain-blend').trim() || 'screen'
+/* Film grain is now a suite-wide background default from the @jkos/design
+   factory (buildJkOSTheme → `<scope> body` background-blend); the old on-top
+   FilmGrain overlay was removed. */
 
-  return (
-    <svg
-      style={{
-        position: 'fixed', inset: 0,
-        width: '100%', height: '100%',
-        pointerEvents: 'none',
-        zIndex: 9995,
-        opacity,
-        mixBlendMode: blendMode as any,
-      }}
-      aria-hidden="true"
-    >
-      <filter id="fg">
-        <feTurbulence type="fractalNoise" baseFrequency="0.76" numOctaves={4} stitchTiles="stitch">
-          <animate attributeName="seed" values="0;5;11" calcMode="discrete" dur="22s" repeatCount="indefinite" />
-        </feTurbulence>
-        <feColorMatrix type="matrix" values="2.2 0 0 0 -0.65  2.2 0 0 0 -0.65  2.2 0 0 0 -0.65  0 0 0 1 0" />
-      </filter>
-      <rect width="100%" height="100%" filter="url(#fg)" />
-    </svg>
-  )
-}
-
-/* ── Halation (lens bloom SVG filter) ───────────────────────────────────── */
-
-export function Halation() {
-  return (
-    <svg style={{ position: 'absolute', width: 0, height: 0, overflow: 'hidden' }} aria-hidden="true">
-      <defs>
-        <filter id="halation" x="-8%" y="-8%" width="116%" height="116%" colorInterpolationFilters="sRGB">
-          <feColorMatrix in="SourceGraphic" type="matrix"
-            values="1 0 0 0  0
-                    0 0 0 0  0
-                    0 0 0 0  0
-                    2 -1 -1 0 -0.5"
-            result="warmOnly" />
-          <feGaussianBlur in="warmOnly" stdDeviation={5} result="bloom" />
-          <feBlend in="SourceGraphic" in2="bloom" mode="screen" />
-        </filter>
-      </defs>
-    </svg>
-  )
-}
+/* The global lens-bloom SVG <filter id="halation"> lived here; it was removed
+   when halation became the per-accent --accent-halo token in @jkos/design (the
+   filter could only bloom warm pixels, so rust cards haloed and sage didn't). */
 
 /* ── Artifacts (CRT corner glitches) ────────────────────────────────────── */
 
@@ -207,6 +176,7 @@ export function CinematicIntro({ onDone }: { onDone: () => void }) {
   const today = isoDate(new Date())
   const d = localDate(today)
   const dateStr = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
+  const isDark = useMemo(() => getIntroIsDark(), [])
 
   useEffect(() => {
     audioCleanup.current = playStartupAudio()
@@ -225,21 +195,23 @@ export function CinematicIntro({ onDone }: { onDone: () => void }) {
       className={phase === 3 ? 'intro-out' : ''}
       style={{
         position: 'fixed', inset: 0, zIndex: 10000,
-        background: '#0A0703',
+        // Backdrop + screen pull from the factory neutral ramp (mode-aware), so the
+        // opening scroll matches whatever palette the suite is in.
+        background: 'var(--hub-bg-0)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         overflow: 'hidden',
         pointerEvents: phase === 3 ? 'none' : 'all',
       }}
     >
       <div
-        className={phase >= 1 ? 'crt-expand' : ''}
+        className={phase >= 1 ? (isDark ? 'crt-expand' : 'paper-expand') : ''}
         style={{
           position: 'absolute', inset: 0,
-          background: '#0D0B07',
+          background: 'var(--hub-bg-2)',
           clipPath: phase === 0 ? 'inset(50% 0 50% 0)' : undefined,
         }}
       />
-      {phase >= 1 && (
+      {phase >= 1 && isDark && (
         <div style={{
           position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 1,
           backgroundImage: 'repeating-linear-gradient(to bottom, transparent 0px, transparent 2px, rgba(0,0,0,0.18) 2px, rgba(0,0,0,0.18) 4px)',
@@ -248,7 +220,8 @@ export function CinematicIntro({ onDone }: { onDone: () => void }) {
       {phase >= 1 && (
         <div style={{
           position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 1,
-          background: 'radial-gradient(ellipse 70% 60% at 50% 50%, rgba(190,130,20,0.07) 0%, transparent 70%)',
+          // Accent-tinted vignette — tracks the user's accent via the factory.
+          background: 'radial-gradient(ellipse 70% 60% at 50% 50%, color-mix(in srgb, var(--color-accent) 6%, transparent) 0%, transparent 70%)',
         }} />
       )}
       {phase >= 2 && (
@@ -257,7 +230,9 @@ export function CinematicIntro({ onDone }: { onDone: () => void }) {
             fontFamily: FONT_HEAD, fontStyle: 'italic', fontWeight: 600,
             fontSize: 60, color: 'var(--color-accent)',
             letterSpacing: '-0.02em', lineHeight: 1,
-            textShadow: '0 0 35px var(--color-accent-glow), 0 0 70px var(--color-secondary-glow)',
+            textShadow: isDark
+              ? '0 0 35px var(--color-accent-glow), 0 0 70px var(--color-secondary-glow)'
+              : '0 1px 8px var(--color-accent-glow), 0 0 24px var(--color-accent-glow)',
           }}>
             BeigeBoard
           </div>

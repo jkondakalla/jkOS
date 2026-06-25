@@ -14,8 +14,8 @@ WORKDIR /repo
 # pnpm needs all workspace package.json files to resolve the graph, even for
 # --filter. Copy them before any source so the install layer is reused when
 # only server.js / public/ change.
-# .npmrc carries force-legacy-deploy=true (pnpm v10 refuses `pnpm deploy`
-# without it) and the ZFS hardlink import method — both needed at build time.
+# .npmrc enables the modern `pnpm deploy` (inject-workspace-packages, hardlinks
+# the bundle) and the ZFS hardlink import method — both needed at build time.
 # The other backend images use `COPY . .` so they already get it; this image
 # copies manifests selectively for layer caching, so name it explicitly.
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json .npmrc ./
@@ -30,6 +30,7 @@ COPY packages/auth-middleware/package.json packages/auth-middleware/
 COPY packages/design/package.json         packages/design/
 COPY packages/types/package.json          packages/types/
 COPY packages/ui/package.json             packages/ui/
+COPY packages/weave/package.json          packages/weave/
 COPY plugins/beigeboard/package.json  plugins/beigeboard/
 COPY plugins/lazuros/package.json     plugins/lazuros/
 COPY plugins/plex/package.json        plugins/plex/
@@ -40,6 +41,10 @@ COPY plugins/sylibos/package.json     plugins/sylibos/
 RUN pnpm install --frozen-lockfile --filter @jkos/jkauth...
 
 # ── Step 3: copy source (busts only the deploy layer, not install) ─────────
+# jkAuth now depends on @jkos/weave (./server), which transitively pulls in
+# @jkos/auth-client + @jkos/auth-middleware + @jkos/design — `pnpm deploy` bundles
+# their source, so the workspace package sources must be present here.
+COPY packages/ packages/
 COPY apps/jkauth/ apps/jkauth/
 
 # Deploy: copy prod node_modules + server files to /out

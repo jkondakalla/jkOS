@@ -5,14 +5,23 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "test": "node test/smoke.mjs",
+    "test:contracts": "node test/contracts.mjs",
+    "sync:tokens": "node scripts/sync-tokens.mjs",
+    "check:tokens": "node scripts/sync-tokens.mjs --check"
   },
   "dependencies": {
+    "@jkos/auth-middleware": "workspace:*",
+    "@jkos/suite-manifest": "workspace:*",
+    "@jkos/weave": "workspace:*",
     "bcryptjs": "^2.4.3",
     "better-sqlite3": "^11.5.0",
     "cookie-parser": "^1.4.7",
     "express": "^4.19.0",
     "express-rate-limit": "^7.0.0",
-    "jsonwebtoken": "^9.0.2"
+    "jsonwebtoken": "^9.0.2",
+    "otpauth": "^9.3.4",
+    "qrcode": "^1.5.4"
   }
 }
