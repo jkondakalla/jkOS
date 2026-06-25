@@ -6,12 +6,13 @@
 // the server validated its OWN doc at boot (contracts.js, throw), while a peer
 // CONSUMER only checked `Array.isArray(list)` on read (fetchCapabilities/
 // fetchDatasets) — so a malformed peer doc (no app, no version, an entry missing
-// its id) sailed past the reader. This is that rule, once, runnable in any runtime:
-// genuine CommonJS (the sibling package.json pins this dir to type:commonjs even
-// though the weave package is type:module) so the no-bundler Node backends
-// `require()` it on ANY Node — not via the experimental require(ESM) path — and Vite
-// bundles the same file for the browser via cjs interop. The authoritative TS shapes
-// live in ../capability.ts and ../dataset.ts; the .d.ts twin types this guard.
+// its id) sailed past the reader. This is that rule, once. It is ESM (the weave
+// package is type:module): Vite/rollup bundle its named exports natively for the
+// browser read path, and the no-bundler Node backends `require()` it via Node's
+// require(ESM) interop (stable on the deployed node:20-slim, Node >=20.19). It is
+// NOT CommonJS — a `module.exports` form breaks the rollup build, which cannot
+// name-import a workspace CJS module. The authoritative TS shapes live in
+// ../capability.ts and ../dataset.ts; the .d.ts twin types this guard.
 
 /**
  * Validate a discovery doc's shape. Returns null when valid, else an error string.
@@ -19,7 +20,7 @@
  * @param {'capabilities'|'datasets'} listKey
  * @returns {string|null}
  */
-function checkDocShape(doc, listKey) {
+export function checkDocShape(doc, listKey) {
   if (!doc || typeof doc !== 'object') return 'doc must be an object'
   if (typeof doc.app !== 'string' || !doc.app) return 'doc.app must be a non-empty string'
   if (typeof doc.version !== 'number') return 'doc.version must be a number'
@@ -33,8 +34,6 @@ function checkDocShape(doc, listKey) {
 }
 
 /** Boolean form — true when the doc is structurally valid. */
-function isValidDoc(doc, listKey) {
+export function isValidDoc(doc, listKey) {
   return checkDocShape(doc, listKey) === null
 }
-
-module.exports = { checkDocShape, isValidDoc }
