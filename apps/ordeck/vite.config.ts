@@ -79,6 +79,15 @@ export default defineConfig(({ mode }) => {
       target:       'esnext',
       minify:       'esbuild',   // host shell — minify the production bundle
       cssCodeSplit: false,
+      commonjsOptions: {
+        // The frontend imports two CJS single-source modules from the workspace —
+        // @jkos/auth-middleware/codes (codes.js) and @jkos/suite-manifest (apps.js).
+        // @rollup/plugin-commonjs only transforms node_modules by default, so a
+        // workspace CJS file's `module.exports` is invisible to rollup at build time
+        // ("CODES is not exported by codes.js"). Extend the transform to those dirs;
+        // node_modules MUST stay included or every CJS npm dep breaks.
+        include: [/node_modules/, /packages\/auth-middleware\//, /packages\/suite-manifest\//],
+      },
     },
   };
 });
