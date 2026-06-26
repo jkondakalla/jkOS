@@ -37,10 +37,14 @@ RUN pnpm install --frozen-lockfile --filter @jkos/beigeboard... --filter @jkos/b
 # The backend now deps @jkos/weave/server, which transitively pulls @jkos/auth-client
 # + @jkos/design; pnpm deploy bundles all of them, so their source must be here too
 # (else the bundle has @jkos/weave/package.json but not src/server → MODULE_NOT_FOUND).
+# @jkos/suite-manifest is required directly by discovery.js AND transitively by
+# @jkos/weave — without its source here the bundle has the manifest but not apps.js
+# (Cannot find module '@jkos/suite-manifest/apps.js' → bb-app crash-loops at boot).
 COPY packages/auth-middleware packages/auth-middleware
 COPY packages/weave packages/weave
 COPY packages/auth-client packages/auth-client
 COPY packages/design packages/design
+COPY packages/suite-manifest packages/suite-manifest
 COPY apps/beigeboard/backend apps/beigeboard/backend
 RUN pnpm --filter @jkos/beigeboard-backend deploy --prod /out
 
