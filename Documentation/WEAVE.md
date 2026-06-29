@@ -84,7 +84,11 @@ Dual CJS+ESM (a nested `src/server/package.json` marks the dir CJS within the ot
   declared `FilterField[]` → the `{param,column,op}` spec `buildItemFilters` enforces, so declared
   == enforced), `coerceWeaveColumn(k, v)`
 - `columns.js` — column coercion constants
-- `serverClient.js` — `weaveServerClient(appId)`: mints/caches a service token via `POST /auth/token`, then calls a peer with `Authorization: Bearer`. Read/aggregate-capable; per-user writes await the on-behalf-of seam.
+- `serverClient.js` — `weaveServerClient(appId, { actingUser? })`: mints/caches a service token via `POST /auth/token`, then calls a peer with `Authorization: Bearer`. Read/aggregate by default; pass `actingUser` (G1) and, if the client is delegation-enrolled, per-user writes commit AS that user.
+- `delegation.js` — `applyDelegation(user)`: normalizes a delegated (on-behalf-of) service token to its effective acting user. Run by `weaveAuth` at the identity chokepoint, so every route writes per-user transparently and the write-gate lifts `NO_USER_CONTEXT` for it (G1).
+- `collection.js` — `defineCollection(def)` (Layer D / F3): one `CollectionDef` (a name + typed fields) → `.ddl()` (table + delta triggers), typed create/update/delete `.capabilities`, the `.dataset` (+ filters), `.mount(router, db)` (scoped CRUD). One spec, no drift between table/routes/docs. Lean subpath `@jkos/weave/collection` (zero-dep) so a discovery doc derives its docs offline.
+- `connector.js` — `defineConnector(def)` (Layer D / F2): wrap an external API/device as a peer — `.capabilities`/`.datasets` are CLEAN Layer-A docs (discoverable like a native app), `.mount(router)` translates each call to the upstream server-side (secret never reaches the browser). Subpath `@jkos/weave/connector`.
+- `trigger.js` — the automation engine (Layer D / F1 + F4): `createTriggerEngine({triggers,dispatch})`, `resolveBindings`, `validateTriggerTypes` (the typed-stud fit between a WHEN capability's `returns` and a DO body — F4), `triggerWebhook(engine)`, `serverDispatch({resolve})` (runs per-user cross-app DOs under the triggering user via G1).
 - `index.js` / `index.mjs` — re-exports everything above + `jkosAuth`/`requireScope`/`verifyToken` from `@jkos/auth-middleware`
 
 ### Backend — jkAuth (`apps/jkauth/src/`)
@@ -194,12 +198,27 @@ Run: `pnpm test:contracts` at the repo root. Exits non-zero if any of:
 - nginx: `gen-nginx-weave.mjs --check` confirms `weave-proxy.conf` and `weave-proxy-staging.conf`
   match the current PEERS table.
 
+## The lego-kit primitives (Layer D)
+
+Beyond "weave an app in," the suite ships three typed, self-describing *brick types* a
+Workshop GUI / an AI emits as pure data; each expands into the Layer-A contract above, so
+they snap together safely. See `@jkos/weave/server` (`collection.js` / `connector.js` /
+`trigger.js`) and `packages/weave/test/lego.mjs`.
+
+- **Collection** (`defineCollection`, F3) — define a data type once → storage + typed CRUD
+  capabilities + a dataset, all from one spec. The scaffolder dogfoods it (`pnpm new-app`'s
+  backend is a `defineCollection` + `.mount`).
+- **Connector** (`defineConnector`, F2) — wrap a third-party API/device as a peer serving the
+  same capability/dataset contract; the upstream call + secret stay server-side.
+- **Trigger** (`createTriggerEngine`, F1) — "WHEN a capability fires → DO another," with the DO
+  body BOUND to the event payload (F4: typed-stud flow, checked by `validateTriggerTypes`).
+- **On-behalf-of delegation** (G1) — a delegation-enrolled service client mints an `act`-bearing
+  token (jkAuth `signService` + the `/auth/token` gate); `weaveAuth`/`applyDelegation` normalize it
+  to the acting user and `weaveWriteGate` lifts `NO_USER_CONTEXT`. This is what lets a trigger do a
+  per-user cross-app write. Enrol a client via `JKOS_DELEGATION_CLIENTS`; it still needs the scope.
+
 ## Deferred (designed seams, un-defer triggers)
 
-- **Cross-app event/notification bus** — when a peer must *push* a change (reactive interop),
-  not be polled. Today the invalidation bus is in-process / frontend only.
-- **On-behalf-of delegation** (service token + acting-user claim) — when a headless caller must
-  write *per-user* data; lifts `weaveServerClient`'s `NO_USER_CONTEXT` limit.
 - **Transport 1→3: registry-driven CORS fallback** — when a genuinely off-domain / third-party
   peer can't be reached through the same-origin edge include.
 - **Runtime `app_registry` CRUD** (+ `_cachedAppOrigins` bust + dynamic nginx regen) — when
@@ -216,4 +235,6 @@ Run: `pnpm test:contracts` at the repo root. Exits non-zero if any of:
 · `datasets` read contract · same-origin-everywhere edge include (generated `weave-proxy.conf`
 + `weave-proxy-staging.conf`) · `shared/docShape.js` shared validator · `codes.js` shared vocab
 · issuer/cookie single-source in `@jkos/auth-middleware` · `jkos_auth.py` Python verifier port
-· `pnpm test:contracts` gate (29 auth + 24 weave + token + nginx check).*
+· `pnpm test:contracts` gate (29 auth + 24 weave + token + nginx check) · Layer-D primitives
+(`defineCollection` / `defineConnector` / trigger engine) + the G1 on-behalf-of delegation seam,
+with `test/lego.mjs` (70 assertions) chained into the weave test.*

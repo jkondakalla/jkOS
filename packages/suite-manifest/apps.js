@@ -160,6 +160,22 @@ function peers() {
   })
 }
 
+/** Apps that take a GENERATED standard edge: a prod origin server block (SPA served at
+ *  root, proxied to one upstream) + an admin-gated `/<id>/` subpath on staging. Opt in
+ *  with `edge: 'standard'` (the scaffolder sets it). The hand-tuned origins — the ORDECK
+ *  portal, the staging shell, SylibOS, jkAuth, BeigeBoard — set NO `edge` and keep their
+ *  bespoke blocks in standalone.conf, so the generator never rewrites them. Consumed by
+ *  infra/nginx/gen-nginx-weave.mjs (apps-generated{,-staging}.conf). `host` is the origin
+ *  hostname; `upstream` is the prod container:port (staging derives `staging-` itself). */
+function edgeApps() {
+  return APPS.filter((a) => a.edge === 'standard' && a.origin && a.upstream).map((a) => ({
+    id: a.id,
+    name: a.name,
+    host: new URL(a.origin).host,
+    upstream: a.upstream,
+  }))
+}
+
 module.exports = {
   APPS,
   apiBaseOf,
@@ -171,4 +187,5 @@ module.exports = {
   registrySeed,
   manifestApps,
   peers,
+  edgeApps,
 }

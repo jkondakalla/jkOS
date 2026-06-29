@@ -9,12 +9,20 @@
     "./server": {
       "require": "./src/server/index.js",
       "import": "./src/server/index.mjs"
+    },
+    "./collection": {
+      "require": "./src/server/collection.js",
+      "import": "./src/server/collection.mjs"
+    },
+    "./connector": {
+      "require": "./src/server/connector.js",
+      "import": "./src/server/connector.mjs"
     }
   },
   "scripts": {
     "lint": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
-    "test": "node test/weave.mjs"
+    "test": "node test/weave.mjs && node test/lego.mjs"
   },
   "dependencies": {
     "@jkos/auth-client": "workspace:*",

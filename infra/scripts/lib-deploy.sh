@@ -80,6 +80,8 @@ validate_nginx() {
     -v "$HOST_NGINX_DIR/infra/nginx/standalone.conf:/etc/nginx/nginx.conf:ro" \
     -v "$HOST_NGINX_DIR/infra/nginx/weave-proxy.conf:/etc/nginx/weave-proxy.conf:ro" \
     -v "$HOST_NGINX_DIR/infra/nginx/weave-proxy-staging.conf:/etc/nginx/weave-proxy-staging.conf:ro" \
+    -v "$HOST_NGINX_DIR/infra/nginx/apps-generated.conf:/etc/nginx/apps-generated.conf:ro" \
+    -v "$HOST_NGINX_DIR/infra/nginx/apps-generated-staging.conf:/etc/nginx/apps-generated-staging.conf:ro" \
     -v "$SSL_PATH:/etc/nginx/ssl:ro" \
     nginx:alpine nginx -t
 }

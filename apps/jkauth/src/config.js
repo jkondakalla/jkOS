@@ -102,6 +102,17 @@ function parseServiceClients(raw) {
 }
 const SERVICE_CLIENTS = parseServiceClients(process.env.JKOS_SERVICE_CLIENTS)
 
+// On-behalf-of delegation (G1). A service client listed here MAY mint a token that
+// acts AS a user (POST /auth/token with on_behalf_of=<userId> → an `act` claim), so a
+// trusted automation backend (the trigger engine) can write per-user data that the
+// weave write-gate would otherwise reject (NO_USER_CONTEXT). Opt-in + separate from
+// the scope grant: a normal service client can NEVER act as a user. Comma list of
+// client ids. Unset → no client may delegate. The client still presents its secret
+// AND must hold the target app's write scope — delegation only supplies the WHO.
+const DELEGATION_CLIENTS = new Set(
+  String(process.env.JKOS_DELEGATION_CLIENTS || '').split(',').map(s => s.trim()).filter(Boolean)
+)
+
 const JWT_ISSUER = resolveIssuer()   // shared default ('jkos-auth'), JKOS_AUTH_ISSUER overrides
 // kid of the ACTIVE signing key (must appear in /auth/jwks). Env-overridable so a
 // rotation can advance it without a code change. (S4/U3)
@@ -120,5 +131,5 @@ module.exports = {
   COOKIE_SUFFIX, TOKEN_COOKIE, REFRESH_COOKIE, OAUTH_NONCE_COOKIE,
   COOKIE_DOMAIN, COOKIE_OPTS,
   JWT_ISSUER, JWT_KID, JWT_KID_NEXT,
-  SERVICE_CLIENTS,
+  SERVICE_CLIENTS, DELEGATION_CLIENTS,
 }

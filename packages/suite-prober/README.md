@@ -17,12 +17,17 @@ node packages/suite-prober/prove.mjs --json    # machine report
 Exit code is non-zero **only** on a `drift` finding (two sources that already claim to
 agree, disagreeing). `consolidate` / `gap` / `info` are opportunities, never failures.
 
+It is **part of the gate**: `pnpm prove` is the last link in `pnpm test:contracts`
+(ToDo B1), so any new `drift` fails CI — e.g. an APPS row that advertises an api/health
+surface with no nginx peer to route it (probe `90-nginx-coverage`).
+
 ## Why it exists
 
 `pnpm test:contracts` guards the *hard* contracts (token shape, codes parity, nginx
-file sync). This prober looks one layer below that gate — at duplicated truth and
-unenforced coupling that no single test owns because it spans systems. The findings
-feed [Documentation/CONSOLIDATION.md](../../Documentation/CONSOLIDATION.md).
+file sync) — and now this prober too. The prober is the cross-system half of that gate:
+besides failing on `drift`, it surfaces duplicated truth and unenforced coupling that no
+single per-system test owns because it spans systems (reported as `consolidate`/`gap`,
+non-failing). The findings feed [Documentation/CONSOLIDATION.md](../../Documentation/CONSOLIDATION.md).
 
 ## How it is built to expand (nothing is hard-coded)
 

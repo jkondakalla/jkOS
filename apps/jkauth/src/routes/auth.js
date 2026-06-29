@@ -5,7 +5,7 @@
 const express = require('express')
 const crypto = require('crypto')
 const { CODES } = require('@jkos/auth-middleware')   // canonical wire codes (single source)
-const { GUEST_PASSWORD, PASSWORD_MAX, REFRESH_COOKIE, SERVICE_CLIENTS } = require('../config')
+const { GUEST_PASSWORD, PASSWORD_MAX, REFRESH_COOKIE, SERVICE_CLIENTS, DELEGATION_CLIENTS } = require('../config')
 const { get, run, logEvent } = require('../db')
 const { validateRedirectTo, passwordError, loginBackoffMs } = require('../util')
 const { loginPage, dashboardPage, twoFactorPage } = require('../views')
@@ -259,7 +259,7 @@ router.post('/auth/token', (req, res) => {
   if (!SERVICE_CLIENTS || Object.keys(SERVICE_CLIENTS).length === 0) {
     return res.status(503).json({ error: 'Service tokens are not enabled' })
   }
-  const { client_id, client_secret, scope } = req.body || {}
+  const { client_id, client_secret, scope, on_behalf_of } = req.body || {}
   const client = client_id ? SERVICE_CLIENTS[client_id] : null
   const secretOk = client && (() => {
     const a = Buffer.from(String(client_secret || ''))
@@ -280,8 +280,19 @@ router.post('/auth/token', (req, res) => {
     // and signals a misconfigured request; fail loudly instead of minting it.
     return res.status(400).json({ error: 'No grantable scope requested', code: 'NO_SCOPE' })
   }
-  const token = signService(client_id, granted)
-  logEvent('service_token', null, req, { client_id, scopes: granted })
+  // On-behalf-of delegation (G1): only a client explicitly enrolled in DELEGATION_CLIENTS
+  // may mint a token that acts AS a user. Gated separately from the scope grant so a
+  // normal service client can never escalate to per-user writes by guessing a parameter.
+  let act
+  if (on_behalf_of != null && String(on_behalf_of) !== '') {
+    if (!DELEGATION_CLIENTS || !DELEGATION_CLIENTS.has(client_id)) {
+      logEvent('service_token_delegation_denied', null, req, { client_id, on_behalf_of: String(on_behalf_of) })
+      return res.status(403).json({ error: 'Delegation is not permitted for this client', code: 'NO_DELEGATION' })
+    }
+    act = String(on_behalf_of)
+  }
+  const token = signService(client_id, granted, { act })
+  logEvent('service_token', null, req, { client_id, scopes: granted, ...(act ? { act } : {}) })
   res.json({ access_token: token, token_type: 'Bearer', expires_in: 600, scope: granted.join(' ') })
 })
 

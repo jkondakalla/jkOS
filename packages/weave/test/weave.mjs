@@ -32,6 +32,15 @@ for (const k of cjsKeys) {
 }
 ok('esm default is the CJS module', esm.default === cjs)
 
+// The lean subpath twins (@jkos/weave/collection · /connector) — each .mjs must
+// surface its .js default + named factory, same drift guard as the server entry.
+for (const [sub, fn] of [['collection', 'defineCollection'], ['connector', 'defineConnector']]) {
+  const c = require(`../src/server/${sub}.js`)
+  const e = await import(`../src/server/${sub}.mjs`)
+  ok(`${sub}.mjs default === ${sub}.js`, e.default === c)
+  ok(`${sub}.mjs re-exports ${fn} (same ref)`, e[fn] === c[fn] && typeof c[fn] === 'function')
+}
+
 // ── 2. doc-shape validator ───────────────────────────────────────────────────────
 console.log('2 · shared doc-shape validator')
 const { checkDocShape, isValidDoc } = require('../src/shared/docShape.js')

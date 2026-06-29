@@ -6,11 +6,12 @@
 // token via jkAuth's client-credentials grant (POST /auth/token) and presents it
 // as `Authorization: Bearer`, auto-refreshing once on a 401.
 //
-// Limit (by design): a service token has no human user, so peers reject it on
-// per-user writes (weaveWriteGate → NO_USER_CONTEXT). This client is therefore
-// read/aggregate-capable today; per-user writes await the on-behalf-of delegation
-// seam (see WEAVE.md). Targets the peer's public origin over TLS; an internal-DNS
-// fast path is a later optimisation.
+// Without `actingUser` a service token has no human user, so peers reject it on
+// per-user writes (weaveWriteGate → NO_USER_CONTEXT) — read/aggregate only. Pass
+// `actingUser` (G1) and, IF this client is delegation-enrolled in jkAuth, the minted
+// token carries an `act` claim so per-user writes commit AS that user. One client
+// instance acts for one user; the trigger engine makes a client per acting user.
+// Targets the peer's public origin over TLS; an internal-DNS fast path is later.
 //
 // Config (opts or env): JKOS_AUTH_URL, JKOS_SERVICE_CLIENT_ID,
 // JKOS_SERVICE_CLIENT_SECRET. baseUrl may be passed to skip registry discovery.
@@ -20,6 +21,7 @@ function weaveServerClient(appId, opts = {}) {
   const clientId = opts.clientId || process.env.JKOS_SERVICE_CLIENT_ID
   const clientSecret = opts.clientSecret || process.env.JKOS_SERVICE_CLIENT_SECRET
   const scope = opts.scope // optional: clamp the minted token to a subset
+  const actingUser = opts.actingUser != null && String(opts.actingUser) !== '' ? String(opts.actingUser) : null
   let baseUrl = opts.baseUrl ? String(opts.baseUrl).replace(/\/$/, '') : null
 
   let token = null
@@ -33,7 +35,11 @@ function weaveServerClient(appId, opts = {}) {
     const r = await fetch(`${authUrl}/auth/token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ client_id: clientId, client_secret: clientSecret, ...(scope ? { scope } : {}) }),
+      body: JSON.stringify({
+        client_id: clientId, client_secret: clientSecret,
+        ...(scope ? { scope } : {}),
+        ...(actingUser ? { on_behalf_of: actingUser } : {}),
+      }),
     })
     if (!r.ok) throw new Error(`weaveServerClient: token mint failed (${r.status})`)
     const d = await r.json()
