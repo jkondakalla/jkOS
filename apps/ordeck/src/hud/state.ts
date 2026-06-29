@@ -350,7 +350,9 @@ export function placeFromShelf(state: HudState, id: string, viewportWidth: numbe
   if (!def) return state;
   const bp = activeBreakpoint(viewportWidth);
   const current = layoutForBreakpoint(state, bp);
-  const size = bp.name === 'mobile' ? def.sizing.mobile : def.sizing.desktop;
+  // Per-tier footprint, falling back to desktop when a tier isn't authored
+  // (tablet is optional — see WidgetSizing).
+  const size = def.sizing[bp.name] ?? def.sizing.desktop;
   const next = placeAtBottom(current, id, size, bp.cols);
   return {
     ...state,

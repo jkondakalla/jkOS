@@ -142,7 +142,7 @@ rung down, never pressed. Status colours keep their own lane.
 | App | React | Styling | Notes |
 |-----|-------|---------|-------|
 | ORDECK | 18 | Plain CSS + `@jkos/ui` | **No Tailwind.** `WidgetShell` from `@jkos/ui` wraps widgets; `@jkos/ui/tokens.css` re-imports design tokens + ORDECK CRT overlay vars only (the `--color-*` aliases now live once in hub.css). v2 HUD (`html.od-v2`) keeps its own neutrals/rounded radius; accent flows from the chain |
-| BeigeBoard | 18 | Plain CSS (`src/app.css`) | **No Tailwind.** App helpers (fonts, colors, date fmt) in `src/lib/theme.ts`. Restyled to the Claude brief via `@jkos/ui` primitives + per-app factory inputs (serif → Fraunces, a rounder radius scale ~8–11px); accents stay user-driven. Calendar drag uses a 4px click-vs-drag threshold (`providers/DragProvider`) so taps select/create and only real movement reschedules |
+| BeigeBoard | 18 | Plain CSS (`src/app.css`) | **No Tailwind.** App helpers (fonts, colors, date fmt) in `src/lib/theme.ts` (date/time math re-exported from `@jkos/cards/datetime.ts` — single source). Restyled to the Claude brief via `@jkos/ui` primitives + per-app factory inputs (serif → Fraunces, a rounder radius scale ~8–11px); accents stay user-driven. Calendar drag uses a 4px click-vs-drag threshold (`providers/DragProvider`) so taps select/create and only real movement reschedules. Week + Calendar tabs use `@jkos/cards` `WeekView`/`CalendarView` — fully responsive (grid on desktop/tablet, agenda on mobile via `useBreakpoint()`); desktop wrappers in `views/` inject `DragAdapter` + colour resolvers; no separate mobile codepath |
 | SylibOS | 19 | **Tailwind v4** (CSS-first) | Config lives in `src/index.css` `@theme` block — there is **no `tailwind.config.js`**; don't introduce v3 idioms |
 
 SylibOS specifics:
@@ -157,6 +157,40 @@ SylibOS specifics:
   reading scheme no longer writes `--accent-raw` (that used to fight the unified accent).
   `Scheme.accent` is retained as intended-tint metadata for `useTheme`'s mode-toggle
   matching, not applied. Adding a scheme = adding to `SCHEMES`, not new CSS.
+
+## Responsive design system
+
+The token system has a **viewport axis** layered on top of the per-app axis:
+
+**Breakpoints (single source):** `packages/design/responsive/breakpoints.ts` exports
+`BREAKPOINTS = { mobile: 0, tablet: 768, desktop: 1024 }`. These are the ONLY breakpoint
+values used across the suite — the `@media` blocks in `hub.css` reference the same numbers.
+`pnpm check:responsive` (`test/responsive.mjs`) pins both; any mismatch fails the gate.
+
+**Responsive card-scale tokens (inputs in `hub.css`):**
+
+| Token | Controls |
+|-------|----------|
+| `--hub-fs-bubble`, `--hub-pad-bubble` | `Bubble` / `.jk-bubble` pill text + padding |
+| `--hub-fs-pill`, `--hub-pad-pill` | Status `Pill` / `.jk-pill` |
+| `--hub-fs-tbtn`, `--hub-pad-tbtn` | `TButton` / `.jk-tbtn` compact button |
+| `--hub-fs-lab`, `--hub-fs-lab-sm`, `--hub-fs-lab-xs` | `Lab` eyebrow sizes |
+| `--hub-tap-min` | Minimum tap-target height (44px on touch tiers) |
+| `--hub-widget-pad` | Widget card internal padding |
+
+Desktop defaults live in `:root`; the `@media (max-width: 1023px)` and
+`@media (max-width: 767px)` blocks override the **inputs** — derivation follows automatically.
+`buildJkOSTheme({ responsive: { tablet, mobile } })` lets an app tune the overrides.
+
+**`useBreakpoint()` hook** (`@jkos/ui`) — returns `'mobile' | 'tablet' | 'desktop'`; backed
+by the canonical breakpoints. Every `@jkos/ui` primitive (`Lab`, `TButton`, etc.) auto-lifts
+tap targets when rendered as `<button>`/`<a>` without any per-component media query.
+
+**Calendar card kit — `@jkos/cards`:** the shared Week and Calendar views use
+`useBreakpoint()` internally to switch between an interactive grid (desktop/tablet) and an
+agenda/month layout (mobile). BeigeBoard's tab wrappers and mobile shell both render the same
+kit component — there is no separate mobile codepath. See [ARCHITECTURE.md](ARCHITECTURE.md)
+for the full seam description.
 
 ## Icons
 

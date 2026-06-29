@@ -16,9 +16,13 @@
  * the renderer — never hardcoded per device.
  */
 
-/** Named viewport tiers. Desktop is the 12-col matrix; mobile the strict 2-col
- *  reflow target. Add intermediate tiers here and the engine handles them. */
-export type BreakpointName = 'desktop' | 'mobile';
+/** Named viewport tiers. The tier NAMES and their minWidths are the suite-wide
+ *  canonical breakpoints (@jkos/design) — ORDECK only layers a column count on
+ *  top. Desktop is the 12-col matrix, tablet an intermediate 6-col, mobile the
+ *  strict 2-up. (Retires ORDECK's old bespoke 880px crossover.) */
+import { BREAKPOINTS as BASE_BREAKPOINTS, type BreakpointName } from '@jkos/design';
+
+export type { BreakpointName };
 
 export interface Breakpoint {
   name: BreakpointName;
@@ -28,12 +32,15 @@ export interface Breakpoint {
   cols: number;
 }
 
-/** Desktop = 12 columns, mobile = 2 (the brief's strict 2-up). The crossover at
- *  880px is below the old 3-col→1-col break (1100px) so tablets keep the matrix. */
-export const BREAKPOINTS: Breakpoint[] = [
-  { name: 'desktop', minWidth: 880, cols: 12 },
-  { name: 'mobile',  minWidth: 0,   cols: 2  },
-];
+/** Column count per tier — ORDECK's call; the minWidths come from the canonical
+ *  source so CSS, the JS hook, and this engine can never disagree. */
+const COLS: Record<BreakpointName, number> = { desktop: 12, tablet: 6, mobile: 2 };
+
+export const BREAKPOINTS: Breakpoint[] = BASE_BREAKPOINTS.map((bp) => ({
+  name: bp.name,
+  minWidth: bp.minWidth,
+  cols: COLS[bp.name],
+}));
 
 /** One widget's placement within a single breakpoint, in grid units. */
 export interface GridItem {
@@ -53,6 +60,9 @@ export type BreakpointLayouts = Partial<Record<BreakpointName, GridItem[]>>;
  *  shelf) and when a tier's layout has to be derived rather than stored. */
 export interface WidgetSizing {
   desktop: { w: number; h: number };
+  /** Optional intermediate footprint; when omitted the tablet tier derives from
+   *  the desktop layout by reflowing into 6 cols (engine layoutForBreakpoint). */
+  tablet?: { w: number; h: number };
   mobile: { w: number; h: number };
 }
 

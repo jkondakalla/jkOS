@@ -86,6 +86,28 @@
   --hub-radius-widget:    0px;
   --hub-radius-button:    0px;
 
+  /* ── Responsive card scale (the VIEWPORT axis) ──────────────────────────────
+   * Card primitives consume these instead of literal px, so they scale by tier.
+   * Desktop defaults preserve the original dense look exactly; the @media blocks
+   * at the foot of this file override ONLY these tokens for tablet/mobile (the
+   * same "override inputs, derivation follows" trick as the dark-mode flip).
+   * Breakpoint px are pinned to packages/design/responsive/breakpoints.ts by
+   * test/responsive.mjs — change the numbers there, not the bare px here. */
+  --hub-fs-bubble:        9px;
+  --hub-fs-bubble-lg:     11px;
+  --hub-pad-bubble:       5px 11px;
+  --hub-pad-bubble-lg:    7px 14px;
+  --hub-fs-pill:          8px;
+  --hub-pad-pill:         4px 9px;
+  --hub-fs-tbtn:          9px;
+  --hub-pad-tbtn:         6px 10px;
+  --hub-fs-lab:           10px;
+  --hub-fs-lab-sm:        9px;
+  --hub-fs-lab-xs:        8px;
+  /* Minimum tap target for INTERACTIVE primitives (button/a). 0 on desktop
+     (pointer precise); the touch tiers below raise it to 44px. */
+  --hub-tap-min:          0px;
+
   /* Widget layout tuning */
   --hub-widget-pad:       12px;
   --hub-title-h:          34px;
@@ -556,13 +578,13 @@
   gap: 6px;
   line-height: 1;
   font-family: var(--hub-font-mono);
-  font-size: 9px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   border-radius: var(--hub-radius-lg);
-  padding: 5px 11px;
+  font-size: var(--hub-fs-bubble);
+  padding: var(--hub-pad-bubble);
 }
-.jk-bubble.jk-bubble-lg { font-size: 11px; letter-spacing: 0.14em; padding: 7px 14px; }
+.jk-bubble.jk-bubble-lg { font-size: var(--hub-fs-bubble-lg); letter-spacing: 0.14em; padding: var(--hub-pad-bubble-lg); }
 
 /* Primary bubble = struck badge (inset well + pressed text on one node) */
 .jk-bubble-primary {
@@ -604,21 +626,21 @@
 /* Uppercase mono label — eyebrows + field labels. Three sizes. */
 .jk-lab {
   font-family: var(--hub-font-mono);
-  font-size: 10px;
+  font-size: var(--hub-fs-lab);
   letter-spacing: 0.22em;
   text-transform: uppercase;
   color: var(--hub-cream);
 }
-.jk-lab.jk-lab-sm { font-size: 9px; letter-spacing: 0.18em; color: var(--hub-cream-dim); }
-.jk-lab.jk-lab-xs { font-size: 8px; letter-spacing: 0.16em; color: var(--hub-cream-dim); }
+.jk-lab.jk-lab-sm { font-size: var(--hub-fs-lab-sm); letter-spacing: 0.18em; color: var(--hub-cream-dim); }
+.jk-lab.jk-lab-xs { font-size: var(--hub-fs-lab-xs); letter-spacing: 0.16em; color: var(--hub-cream-dim); }
 
 /* Compact mono text button — flat, hovers to the secondary accent. */
 .jk-tbtn {
   font-family: var(--hub-font-mono);
-  font-size: 9px;
+  font-size: var(--hub-fs-tbtn);
   letter-spacing: 0.12em;
   line-height: 1;
-  padding: 6px 10px;
+  padding: var(--hub-pad-tbtn);
   color: var(--hub-cream);
   background: transparent;
   border: 1px solid var(--hub-line);
@@ -644,12 +666,65 @@
   align-items: center;
   gap: 5px;
   font-family: var(--hub-font-mono);
-  font-size: 8px;
+  font-size: var(--hub-fs-pill);
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  padding: 4px 9px;
+  padding: var(--hub-pad-pill);
   border-radius: var(--hub-radius-lg);
   color: var(--hub-green);
   border: 1px solid color-mix(in srgb, var(--hub-green) 40%, transparent);
 }
 :root[data-mode="dark"] .jk-pill { text-shadow: 0 0 8px var(--hub-green-glow); }
+
+/* ═══ VIEWPORT AXIS — responsive overrides ═════════════════════════════════
+ * Two tiers below desktop. Each overrides ONLY the responsive-scale INPUT
+ * tokens (declared in the :root INPUTS block); the card classes already read
+ * them, so every card in every app reflows without touching component code —
+ * the same single-source trick as the [data-mode="dark"] flip.
+ *
+ * The max-width values are the upper bounds in
+ * packages/design/responsive/breakpoints.ts (BREAKPOINT_MAX). test/responsive.mjs
+ * fails the suite gate if they drift — keep this comment and that file in sync.
+ * ─────────────────────────────────────────────────────────────────────────── */
+
+/* TABLET — 768–1023px. Touch device, but desktop reading density holds; we only
+   raise the tap-target floor and give widget chrome a touch more breathing room. */
+@media (max-width: 1023px) {
+  :root {
+    --hub-tap-min:    44px;
+    --hub-widget-pad: 14px;
+  }
+}
+
+/* MOBILE — ≤767px. Phones: bump the tiny mono type up a rung for legibility and
+   roomier padding so the tap-floor doesn't visually crush the labels. */
+@media (max-width: 767px) {
+  :root {
+    --hub-tap-min:       44px;
+    --hub-widget-pad:    14px;
+    --hub-fs-bubble:     11px;
+    --hub-fs-bubble-lg:  13px;
+    --hub-pad-bubble:    7px 13px;
+    --hub-pad-bubble-lg: 9px 16px;
+    --hub-fs-pill:       10px;
+    --hub-pad-pill:      6px 11px;
+    --hub-fs-tbtn:       11px;
+    --hub-pad-tbtn:      9px 13px;
+    --hub-fs-lab:        11px;
+    --hub-fs-lab-sm:     10px;
+    --hub-fs-lab-xs:     9px;
+  }
+}
+
+/* Tap-target floor for INTERACTIVE primitives only. The @jkos/ui wrappers render
+   interactive instances as real <button>/<a> (via the `as` prop) and static
+   badges as <span>, so this tag+class selector lifts only the things you tap and
+   leaves dense inline badges alone. --hub-tap-min is 0 on desktop (no effect),
+   44px on the touch tiers above. inline-flex keeps the label centred when the box
+   grows to the floor. */
+button.jk-bubble, a.jk-bubble,
+button.jk-pill,   a.jk-pill,
+.jk-tbtn {
+  min-height: var(--hub-tap-min);
+  min-width:  var(--hub-tap-min);
+}

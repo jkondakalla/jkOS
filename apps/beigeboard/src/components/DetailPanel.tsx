@@ -3,6 +3,7 @@ import { FONT_HEAD, FONT_BODY, FONT_NUM, sourceOf, fmtTime, fmtFull, localDate }
 import { getAncestors, getChildren, getAccent, getProgress } from '../lib/seed'
 import { Eyebrow, Checkbox } from './SharedComponents'
 import { useHudShelf } from '../lib/jkauth'
+import { useBreakpoint } from '@jkos/ui'
 
 export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdateItem, setView, setFocusedGoalId }: any) {
   const [titleEditing, setTitleEditing] = useState(false)
@@ -20,6 +21,12 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
 
   // ORDECK HUD shelf — pin/focus this item onto the dashboard (suite-wide prefs).
   const shelf = useHudShelf()
+
+  // Phones route to the mobile tree entirely; here the tablet tier is the narrow
+  // case. Below desktop, drop the 340px right rail for a full-width bottom sheet
+  // (kinder on touch + narrow widths). Breakpoints from the single @jkos/design
+  // source via useBreakpoint — no bespoke matchMedia.
+  const asSheet = useBreakpoint() !== 'desktop'
 
   if (!event) return null
 
@@ -45,10 +52,28 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
 
   return (
     <aside className="panel-enter" style={{
-      borderLeft: `1px solid var(--color-line)`,
+      // Overlay, not a layout column: share the main content's grid cell (row 2,
+      // col 1). On desktop pin to the right edge as a 340px rail so it pops up in
+      // place instead of squeezing the view; below desktop become a full-width
+      // bottom sheet pinned to the bottom edge.
+      gridRow: 2, gridColumn: 1,
+      zIndex: 20,
       background: 'var(--color-paper-2)',
       display: 'flex', flexDirection: 'column',
       overflow: 'hidden',
+      ...(asSheet ? {
+        justifySelf: 'stretch', alignSelf: 'end',
+        width: '100%', maxHeight: '82vh',
+        boxShadow: '0 -8px 28px rgba(0,0,0,0.18)',
+        borderTop: `1px solid var(--color-line)`,
+        borderTopLeftRadius: 'var(--hub-radius-lg)',
+        borderTopRightRadius: 'var(--hub-radius-lg)',
+      } : {
+        justifySelf: 'end', alignSelf: 'stretch',
+        width: 340, maxWidth: '100%',
+        boxShadow: '-8px 0 28px rgba(0,0,0,0.18)',
+        borderLeft: `1px solid var(--color-line)`,
+      }),
     }}>
       <div style={{
         background: accent, color: 'rgba(255,255,255,0.95)',

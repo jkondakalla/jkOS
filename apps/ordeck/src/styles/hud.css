@@ -683,9 +683,13 @@ a.hud-card:hover { box-shadow: var(--od-shadow-lift); transform: translateY(-1px
 .hud-bottom .ready { display: inline-flex; align-items: center; gap: 7px; }
 .hud-bottom .ready .hud-dot { width: 5px; height: 5px; background: var(--hub-green); }
 
-/* ── Small screens ─────────────────────────────────────────────────────── */
+/* ── Small screens ─────────────────────────────────────────────────────────
+ * Aligned to the canonical tablet upper bound (BREAKPOINT_MAX.tablet, 1023px)
+ * so this legacy single-column stack engages exactly when the widget engine
+ * leaves the 12-col desktop matrix — no more 881–1099px mismatch. Keep in step
+ * with packages/design/responsive/breakpoints.ts (pinned by test/responsive.mjs). */
 
-@media (max-width: 1100px) {
+@media (max-width: 1023px) {
   html.od-v2 body { overflow: auto; }
   .hud-root { height: auto; min-height: 100vh; }
   .hud-grid { grid-template-columns: 1fr; }

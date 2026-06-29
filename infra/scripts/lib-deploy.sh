@@ -75,13 +75,26 @@ verify_containers() {
 # (host.docker.internal, for LazurOS) needs the host-gateway alias to resolve.
 validate_nginx() {
   log "=== Validating new nginx config ==="
+  # Mount standalone.conf as the main config, then EVERY file it `include`s that
+  # lives in infra/nginx — derived from the config itself (same parse the reload
+  # pre-flight uses) so the validator's mount list can NEVER drift from the
+  # includes. A hardcoded list silently breaks the moment standalone.conf gains an
+  # include the validator doesn't mount: that is exactly how a deploy that added
+  # the generated apps-generated*.conf includes failed `nginx -t` ("open() ...
+  # apps-generated.conf failed"). Includes the base image already provides
+  # (mime.types) have no repo file and are skipped. REPO_DIR tests existence (the
+  # caller's view); HOST_NGINX_DIR is the daemon's view for the bind source.
+  local -a mounts=(-v "$HOST_NGINX_DIR/infra/nginx/standalone.conf:/etc/nginx/nginx.conf:ro")
+  local inc base
+  while IFS= read -r inc; do
+    [ -n "$inc" ] || continue
+    base=$(basename "$inc")
+    [ -f "$REPO_DIR/infra/nginx/$base" ] || continue   # not a repo file (e.g. mime.types) — skip
+    mounts+=(-v "$HOST_NGINX_DIR/infra/nginx/$base:$inc:ro")
+  done < <(grep -oE '^[[:space:]]*include[[:space:]]+/etc/nginx/[^;[:space:]]+' "$REPO_DIR/infra/nginx/standalone.conf" 2>/dev/null | awk '{print $2}' | sort -u)
   run docker run --rm \
     --add-host host.docker.internal:host-gateway \
-    -v "$HOST_NGINX_DIR/infra/nginx/standalone.conf:/etc/nginx/nginx.conf:ro" \
-    -v "$HOST_NGINX_DIR/infra/nginx/weave-proxy.conf:/etc/nginx/weave-proxy.conf:ro" \
-    -v "$HOST_NGINX_DIR/infra/nginx/weave-proxy-staging.conf:/etc/nginx/weave-proxy-staging.conf:ro" \
-    -v "$HOST_NGINX_DIR/infra/nginx/apps-generated.conf:/etc/nginx/apps-generated.conf:ro" \
-    -v "$HOST_NGINX_DIR/infra/nginx/apps-generated-staging.conf:/etc/nginx/apps-generated-staging.conf:ro" \
+    "${mounts[@]}" \
     -v "$SSL_PATH:/etc/nginx/ssl:ro" \
     nginx:alpine nginx -t
 }

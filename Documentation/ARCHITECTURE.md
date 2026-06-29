@@ -26,8 +26,9 @@ jkOS/
 │   ├── auth-middleware/ @jkos/auth-middleware  Node JWT middleware (shared issuer/cookie)
 │   ├── auth-client/     @jkos/auth-client      frontend auth + preferences hook
 │   ├── weave/           @jkos/weave            suite fabric: manifest, resources, dispatch
-│   ├── design/          @jkos/design           token CSS + theme factory
-│   └── ui/              @jkos/ui               widget shell component
+│   ├── design/          @jkos/design           token CSS + theme factory + responsive breakpoints
+│   ├── ui/              @jkos/ui               widget shell component + useBreakpoint hook
+│   └── cards/           @jkos/cards            shared calendar card kit (Week/Calendar views)
 ├── infra/
 │   ├── nginx/           standalone.conf + weave-proxy*.conf (generated) + compose
 │   └── scripts/         lib-deploy.sh (shared deploy routine)
@@ -239,6 +240,22 @@ BeigeBoard exposes:
   goals in progress, recent events
 - Write routes gated on `beigeboard:write` scope via `@jkos/weave/server`'s `weaveWriteGate`
 
+### Shared calendar card kit — `@jkos/cards`
+
+BeigeBoard's Week and Calendar tabs are built on the shared `@jkos/cards` package. The kit
+exports `WeekView` and `CalendarView` as fully self-contained, responsive React components.
+Each view reads `useBreakpoint()` from `@jkos/ui` and switches internally between an
+interactive time/month grid (desktop/tablet) and an agenda layout (mobile). The apps/beigeboard
+`views/WeekView.tsx` and `views/CalendarView.tsx` are thin wrappers that inject BeigeBoard's
+`DragAdapter` (from `DragProvider`) and colour resolvers (`getAccent` / `sourceOf`). When
+imported without a `DragAdapter`, the views run in **read + light** mode (select, toggle,
+quick-add — no internal drag), which is how ORDECK will eventually mount them as HUD widgets.
+
+`@jkos/cards` is **source-only** (no build step). It carries its own date/time math in
+`datetime.ts`; BeigeBoard's `lib/theme.ts` re-exports these helpers so there is only one
+copy. ORDECK already has `@jkos/cards` as a dependency for the widget seam; widget
+registration is deferred (see `ToDo.md` §1).
+
 ---
 
 ## ORDECK: the portal and HUD engine
@@ -389,8 +406,9 @@ the boundary — it will be a one-line, reviewable env var diff, never a silent 
 | `@jkos/auth-client` | ordeck, beigeboard | `useJkOSPreferences` hook, `getProfile`/`patchProfile`/`getMe`, `normaliseTheme`, `authFetch` (refresh-aware) |
 | `@jkos/weave` | ordeck, beigeboard | `useWeaveList`, `runCommand`, `usePolledResource`/`invalidate`, `useSuiteApps`, `weaveClient`, capability/dataset types |
 | `@jkos/weave/server` | jkauth/backend, beigeboard/backend | `weaveCors`, `weaveAuth`, `weaveWriteGate`, `healthHandler`, `serveCapabilities`, `serveDatasets`, `buildItemFilters`, `weaveServerClient`; dual CJS+ESM |
-| `@jkos/design` | ordeck, beigeboard, jkauth (via hub.css mirror) | `buildJkOSTheme`, `applyJkOSMode`, `applyJkOSTheme`; `hub.css` token sheet; `STORAGE_KEYS` |
-| `@jkos/ui` | ordeck, beigeboard | `WidgetShell`, `SettingsDrawer`/`SettingsSection` |
+| `@jkos/design` | ordeck, beigeboard, jkauth (via hub.css mirror) | `buildJkOSTheme` (per-app accent/neutrals/radius/fonts/responsive), `applyJkOSMode`, `applyJkOSTheme`; `hub.css` token sheet (incl. responsive card-scale tokens + `@media` overrides); `STORAGE_KEYS`; `packages/design/responsive/breakpoints.ts` (canonical 3-tier breakpoints, pinned by `pnpm check:responsive`) |
+| `@jkos/ui` | ordeck, beigeboard, @jkos/cards | `WidgetShell`, `SettingsDrawer`/`SettingsSection`; `Lab`/`TButton`/`Press`/`Well`/`Sheet`/`Bubble`/`Pill` primitives (auto-consume responsive scale tokens); `useBreakpoint()` hook (mobile/tablet/desktop, backed by canonical breakpoints) |
+| `@jkos/cards` | beigeboard, ordeck (seam) | Shared calendar card kit: `cardSurface()` factory, `TaskChip`/`TimeBlock`/`AllDayBar`/`TimelinePreview`/`CardFrame`, responsive `WeekView`+`CalendarView` (grid on desktop/tablet, agenda on mobile); pure date/time/grid math in `datetime.ts`; `DragAdapter` interface decouples drag from the kit |
 
 **Invariant — never duplicate shared logic.** Import `@jkos/auth-client` (frontend) or
 `@jkos/auth-middleware`/`@jkos/weave/server` (backend). Per-app copies are regressions.

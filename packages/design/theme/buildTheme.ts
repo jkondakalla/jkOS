@@ -23,6 +23,8 @@
  * or injectJkOSTheme() below.
  */
 
+import { BREAKPOINT_MAX } from '../responsive/breakpoints';
+
 /** Neutral palette — only the keys you set are emitted; the rest fall back to
  *  hub.css defaults. Keys map 1:1 onto the --hub-* neutral tokens. */
 export interface JkOSNeutrals {
@@ -47,6 +49,17 @@ export interface JkOSFonts {
   mono?: string;  sans?: string;  seg?: string;  serif?: string;
 }
 
+/** Per-tier overrides for the responsive card scale (the viewport axis). Every
+ *  key maps 1:1 onto a `--hub-*` scale token; set only what an app wants to tune.
+ *  Apps need NOT set this — hub.css ships sensible tablet/mobile defaults. */
+export interface JkOSResponsiveScale {
+  tapMin?: string;  widgetPad?: string;
+  fsBubble?: string;  fsBubbleLg?: string;  padBubble?: string;  padBubbleLg?: string;
+  fsPill?: string;  padPill?: string;
+  fsTbtn?: string;  padTbtn?: string;
+  fsLab?: string;  fsLabSm?: string;  fsLabXs?: string;
+}
+
 export interface JkOSAccentDefault {
   /** Default primary accent (pre-login; user pref overrides at runtime). */
   primary?: string;
@@ -64,6 +77,10 @@ export interface JkOSThemeConfig {
   radius?: JkOSRadius;
   /** Font stacks (applies to both modes). */
   fonts?: JkOSFonts;
+  /** Tune the responsive card scale per tier. Emitted inside the same tablet/
+   *  mobile `@media` bounds hub.css uses (the canonical breakpoints), scoped to
+   *  `selector`. Optional — omit to inherit the shared responsive defaults. */
+  responsive?: { tablet?: JkOSResponsiveScale; mobile?: JkOSResponsiveScale };
   /** Suite-wide film grain on the page background. Default ON: the factory paints
    *  the shared --hub-grain-image (~18%) onto `<scope> body`, blended INTO the
    *  body's own background colour (--grain-blend: multiply on paper, screen in
@@ -92,6 +109,15 @@ const RADIUS_VARS: Record<keyof JkOSRadius, string> = {
 
 const FONT_VARS: Record<keyof JkOSFonts, string> = {
   mono: '--hub-font-mono', sans: '--hub-font-sans', seg: '--hub-font-seg', serif: '--hub-font-serif',
+};
+
+const SCALE_VARS: Record<keyof JkOSResponsiveScale, string> = {
+  tapMin: '--hub-tap-min', widgetPad: '--hub-widget-pad',
+  fsBubble: '--hub-fs-bubble', fsBubbleLg: '--hub-fs-bubble-lg',
+  padBubble: '--hub-pad-bubble', padBubbleLg: '--hub-pad-bubble-lg',
+  fsPill: '--hub-fs-pill', padPill: '--hub-pad-pill',
+  fsTbtn: '--hub-fs-tbtn', padTbtn: '--hub-pad-tbtn',
+  fsLab: '--hub-fs-lab', fsLabSm: '--hub-fs-lab-sm', fsLabXs: '--hub-fs-lab-xs',
 };
 
 function decls<K extends string>(
@@ -134,6 +160,18 @@ export function buildJkOSTheme(config: JkOSThemeConfig = {}): string {
            `  background-size: 160px 160px;\n` +
            `  background-blend-mode: var(--grain-blend);\n` +
            `}\n`;
+  }
+
+  // Responsive-scale tuning — emitted inside the canonical tablet/mobile bounds,
+  // overriding only the scale tokens hub.css already defaults. Skipped entirely
+  // when an app doesn't set `responsive`.
+  const tablet = decls(SCALE_VARS, config.responsive?.tablet);
+  const mobile = decls(SCALE_VARS, config.responsive?.mobile);
+  if (tablet.length) {
+    css += `@media (max-width: ${BREAKPOINT_MAX.tablet}px) {\n  ${sel} {\n    ${tablet.join('\n    ')}\n  }\n}\n`;
+  }
+  if (mobile.length) {
+    css += `@media (max-width: ${BREAKPOINT_MAX.mobile}px) {\n  ${sel} {\n    ${mobile.join('\n    ')}\n  }\n}\n`;
   }
   return css;
 }

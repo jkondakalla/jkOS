@@ -4,6 +4,8 @@
 // Factory:  import { buildJkOSTheme, injectJkOSTheme } from '@jkos/design'
 // React components (<JkOSTheme>, <Bubble>, <Press>, <Sheet>) live in @jkos/ui.
 // Accent palette: import { ACCENT_SCHEMES, matchAccentScheme } from '@jkos/design'
+// Breakpoints: import { BREAKPOINTS, activeBreakpoint } from '@jkos/design'
 export * from './utils/applyJkOSTheme';
 export * from './theme/buildTheme';
 export * from './theme/accentSchemes';
+export * from './responsive/breakpoints';
