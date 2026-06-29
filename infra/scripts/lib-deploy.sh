@@ -41,7 +41,12 @@ err() { echo "[ERROR] $*"; }
 die() { err "$*"; exit 1; }
 # Echo then run a command; abort the whole deploy if it fails. The `if !` context
 # suppresses `set -e` so we can print a useful message instead of dying silently.
-run() { echo "\$ $*"; if ! "$@"; then die "command failed (exit $?): $*"; fi; }
+run() {
+  echo "\$ $*"
+  "$@"
+  local rc=$?
+  [ $rc -eq 0 ] || die "command failed (exit $rc): $*"
+}
 
 # After `up -d`, confirm the targeted containers are actually up. `compose up -d`
 # returns 0 the moment containers START — a container that then crash-loops on
@@ -153,8 +158,14 @@ run_deploy() {
   log "checkout now at ${new:0:7} — $("${GIT[@]}" -C "$REPO_DIR" log -1 --pretty=%s)"
   [ "$prev" = "$new" ] && log "(already at this commit — rebuilding anyway in case images changed)"
 
-  log "=== Building & starting containers ==="
-  run docker compose -f "$REPO_DIR/$COMPOSE_FILE" up --build -d
+  log "=== Pre-flight: pruning dangling images ==="
+  docker image prune -f || true
+
+  log "=== Building images ==="
+  run docker compose -f "$REPO_DIR/$COMPOSE_FILE" build
+
+  log "=== Starting containers ==="
+  run docker compose -f "$REPO_DIR/$COMPOSE_FILE" up -d
   verify_containers
 
   # Touch nginx only when (a) this deploy owns the nginx checkout and (b) its

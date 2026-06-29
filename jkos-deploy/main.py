@@ -1,10 +1,11 @@
 import asyncio
 import collections
 import os
+from pathlib import Path
 from typing import Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
 from jose import ExpiredSignatureError, JWTError
 
 import jkos_auth
@@ -41,11 +42,14 @@ GIT = ["git", "-c", "safe.directory=*"]
 
 # ── State ──────────────────────────────────────────────────────────────────────
 
+LOG_FILE = Path("/var/log/jkos-deploy/last.log")
+
 status: Literal["idle", "running", "done", "error"] = "idle"
 current_operation: str = ""
 log_lines: collections.deque = collections.deque(maxlen=500)
 _log_seq: int = 0
 _log_lock = asyncio.Lock()
+_log_file: "asyncio.StreamWriter | None" = None
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -54,6 +58,12 @@ async def _log(line: str) -> None:
     async with _log_lock:
         _log_seq += 1
         log_lines.append((_log_seq, line))
+        try:
+            LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+            with LOG_FILE.open("a") as f:
+                f.write(line + "\n")
+        except Exception:
+            pass
 
 
 async def _run(cmd: list[str], env: dict | None = None) -> bool:
@@ -141,6 +151,11 @@ def _start(operation: str, script: str, env: dict[str, str]) -> dict:
     status = "running"
     current_operation = operation
     log_lines.clear()  # fresh panel per deploy; _log_seq stays monotonic for SSE clients
+    try:
+        LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+        LOG_FILE.write_text("")
+    except Exception:
+        pass
 
     async def run():
         global status, current_operation
@@ -241,6 +256,14 @@ async def logs_stream(_=Depends(get_admin)):
         media_type="text/event-stream",
         headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"},
     )
+
+
+@app.get("/logs/raw")
+async def logs_raw(_=Depends(get_admin)):
+    """Return the full untruncated log for the last deploy run."""
+    if not LOG_FILE.exists():
+        return PlainTextResponse("(no log yet)", media_type="text/plain")
+    return PlainTextResponse(LOG_FILE.read_text(errors="replace"), media_type="text/plain")
 
 
 @app.post("/staging/sync")
