@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { getProfile, authFetch, type HudPin, type HudFocus } from '@jkos/auth-client';
 import { usePolledResource, invalidate, apiBase, resourceKey, probeApps, extRef, type SuiteApp } from '@jkos/weave';
+import { isoDate, type CalendarItem } from '@jkos/cards';
 import { TONE_RANK, type Tone } from '../../hud/tone';
 
 /* Data hooks for the room HUD. All service calls are same-origin paths proxied
@@ -14,7 +15,7 @@ import { TONE_RANK, type Tone } from '../../hud/tone';
    (invalidate('beigeboard.items') etc.) rather than per-feature window events. */
 
 const pad = (n: number) => String(n).padStart(2, '0');
-const isoDate = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+// isoDate (local-tz YYYY-MM-DD) comes from @jkos/cards — one source for the suite.
 
 // ── Clock ────────────────────────────────────────────────────────────────────
 
@@ -450,6 +451,20 @@ export function selectMonth(s: BbItemsState): MonthCalState {
   }
   const days: CalDay[] = Array.from(map.entries()).map(([date, v]) => ({ date, ...v }));
   return { loaded: s.loaded, authed: s.authed, year: yr, month: mo, days };
+}
+
+/** Project the raw BeigeBoard items into the @jkos/cards CalendarItem shape that the
+ *  shared Week/Calendar views render. BbItem is structurally a CalendarItem already
+ *  (the kit's shape is superset-tolerant); the only coercion is null→undefined on the
+ *  date fields, which the kit types as `string | undefined`. Read-only: the HUD passes
+ *  these to the views with no DragAdapter, so they render in select/quick-add light
+ *  mode (no internal drag to clash with the HUD grid). */
+export function selectCalendarItems(s: BbItemsState): CalendarItem[] {
+  return s.items.map((i) => ({
+    ...i,
+    due_date: i.due_date ?? undefined,
+    end_date: i.end_date ?? undefined,
+  }));
 }
 
 // ── Focus + Pins (selectors over the suite-wide HUD shelf) ───────────────────

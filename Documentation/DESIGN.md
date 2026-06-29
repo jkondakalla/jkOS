@@ -162,10 +162,26 @@ SylibOS specifics:
 
 The token system has a **viewport axis** layered on top of the per-app axis:
 
-**Breakpoints (single source):** `packages/design/responsive/breakpoints.ts` exports
-`BREAKPOINTS = { mobile: 0, tablet: 768, desktop: 1024 }`. These are the ONLY breakpoint
-values used across the suite — the `@media` blocks in `hub.css` reference the same numbers.
-`pnpm check:responsive` (`test/responsive.mjs`) pins both; any mismatch fails the gate.
+**Breakpoints (single source):** `packages/design/responsive/breakpoints.ts` is the ONLY
+place breakpoint numbers live. It exports three derived shapes, all anchored on one
+literal-number object:
+
+- `BREAKPOINTS` — tier list `[{ name:'mobile', minWidth:0 }, { name:'tablet', minWidth:768 },
+  { name:'desktop', minWidth:1024 }]`; what `activeBreakpoint(width)` resolves against.
+- `BREAKPOINT_MAX` — `{ mobile: 767, tablet: 1023 }`, the literal source. **Edit tier numbers
+  here and let everything else derive** — it's the only literal the gate text-parses (Node
+  can't import `.ts`). Each value must stay exactly one below the next tier's `minWidth`.
+- `MEDIA` — `matchMedia`-ready query strings, every bound **derived** from `BREAKPOINT_MAX`
+  (e.g. `tablet: (min-width: ${BREAKPOINT_MAX.mobile + 1}px) and (max-width:
+  ${BREAKPOINT_MAX.tablet}px)`). This is what `useBreakpoint` feeds `matchMedia`, so a raw
+  literal here would silently drift from the CSS `@media` blocks — the gate bans it.
+
+`pnpm check:responsive` (`test/responsive.mjs`) is the conformance gate (folded into
+`pnpm test:contracts`). It pins: (1) `BREAKPOINT_MAX` is one-below the next `minWidth` **and**
+`MEDIA` derives from it with no hardcoded literal; (2) `hub.css`'s `@media (max-width: …)`
+bounds equal `BREAKPOINT_MAX`; (3) the tap-target floor applies to exactly the interactive
+primitives; (4) the retired magic numbers (768/880/1100) don't reappear as raw breakpoints in
+migrated layout code; (5) `buildJkOSTheme`'s `responsive` emit uses the canonical bounds.
 
 **Responsive card-scale tokens (inputs in `hub.css`):**
 

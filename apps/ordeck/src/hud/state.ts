@@ -239,6 +239,20 @@ const DEFAULT_WIDGETS: Record<string, WidgetDef> = {
       ] },
     },
   },
+  // The shared @jkos/cards Calendar + Week views, dropped in as HUD widgets via the
+  // `component` escape hatch (see registry.tsx). Read-only here — no DragAdapter is
+  // passed, so they render in light mode and never clash with the HUD grid's own drag.
+  // Ship shelved (absent from DEFAULT_DESKTOP); add from the shelf.
+  'bb-calendar': {
+    id: 'bb-calendar', label: 'Calendar',
+    sizing: { desktop: { w: 4, h: 8 }, mobile: { w: 2, h: 6 } },
+    component: 'bb-calendar',
+  },
+  'bb-week': {
+    id: 'bb-week', label: 'Week',
+    sizing: { desktop: { w: 6, h: 8 }, mobile: { w: 2, h: 6 } },
+    component: 'bb-week',
+  },
 };
 
 /** Default desktop arrangement (12-col). Mobile is derived by the engine

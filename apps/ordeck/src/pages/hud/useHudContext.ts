@@ -14,7 +14,7 @@ import { useSuiteApps } from '@jkos/weave';
 import { type WidgetCtx } from '../../hud/registry';
 import {
   useClock, useWeather, useSystems, useStudy, useBbItems, useShelfRefs,
-  selectToday, selectMonth, selectFocus, selectPinned, deriveNotifications,
+  selectToday, selectMonth, selectCalendarItems, selectFocus, selectPinned, deriveNotifications,
 } from './useHudData';
 
 /** `aiEnabled` (the LazurOS kill switch) gates the systems panel's LazurOS row. */
@@ -35,6 +35,9 @@ export function useHudContext(aiEnabled = true): WidgetCtx {
   //   • cal/focus/pinned → recompute only when their source data changes.
   const today = useMemo(() => selectToday(bb, clock.hm), [bb, clock.hm]);
   const cal = useMemo(() => selectMonth(bb), [bb]);
+  // Full item list (CalendarItem[]) for the @jkos/cards Week/Calendar widgets —
+  // memoised on bb so its reference is stable until the items actually change.
+  const items = useMemo(() => selectCalendarItems(bb), [bb]);
   const focus = useMemo(() => selectFocus(refs.focus, bb), [refs.focus, bb]);
   const pinned = useMemo(() => selectPinned(refs.pins, bb), [refs.pins, bb]);
 
@@ -43,5 +46,7 @@ export function useHudContext(aiEnabled = true): WidgetCtx {
     [today, systems, study, clock.hm],
   );
 
-  return { clock, weather, systems, today, study, cal, notifications, focus, pinned, authUrl: AUTH_URL };
+  // todayIso is a plain string (changes only at midnight), so the card memo gate
+  // compares it by value — the calendar widgets needn't depend on the per-second clock.
+  return { clock, weather, systems, today, study, cal, items, todayIso: clock.iso, notifications, focus, pinned, authUrl: AUTH_URL };
 }

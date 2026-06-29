@@ -128,7 +128,7 @@ function decls<K extends string>(
   const out: string[] = [];
   for (const key of Object.keys(map) as K[]) {
     const value = obj[key];
-    if (value != null && value !== '') out.push(`${map[key]}: ${value};`);
+    if (typeof value === 'string' && value !== '') out.push(`${map[key]}: ${value};`);
   }
   return out;
 }

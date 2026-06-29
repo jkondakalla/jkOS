@@ -38,6 +38,7 @@ import {
   type FocusState,
   type PinnedState,
 } from '../pages/hud/useHudData';
+import { CalendarView, WeekView, type CalendarItem, type CardResolvers } from '@jkos/cards';
 import type { Binding, CommandRef, DataSource, Tone, ToneBinding, WidgetDef, WidgetNode, WidgetSpec } from './types';
 import { TONE_COLOR } from './tone';
 import { bbCreateItem, todayIso } from '../lib/bb';
@@ -58,6 +59,10 @@ export interface WidgetCtx {
   today: TodayState;
   study: StudyState;
   cal: MonthCalState;
+  /** Full BeigeBoard item list (CalendarItem shape) for the @jkos/cards widgets. */
+  items: CalendarItem[];
+  /** Today's local date (YYYY-MM-DD) — what the calendar widgets centre on. */
+  todayIso: string;
   notifications: NotificationsState;
   focus: FocusState;
   pinned: PinnedState;
@@ -717,15 +722,29 @@ function SpecWidget({ spec, ctx }: { spec: WidgetSpec; ctx: WidgetCtx }) {
  * The six v2 display cards are all specs now (hud/state.ts). This registry is
  * for cards genuinely beyond the read-only primitive vocabulary — today, the
  * interactive ones that WRITE back to a service. */
+/** ORDECK has no goal tree or calendar-source map, so the shared kit's resolvers
+ *  fall back to the suite accent chain — every item renders in the room's accent. */
+const ordeckResolvers: Partial<CardResolvers> = {
+  accentOf: () => 'var(--color-accent)',
+  sourceColorOf: () => 'var(--color-accent)',
+};
+
 const COMPONENT_REGISTRY: Record<string, (ctx: WidgetCtx) => ReactNode> = {
   quickadd: (ctx) => <QuickAddBody authed={ctx.today.authed} />,
   focus: (ctx) => <FocusBody focus={ctx.focus} />,
+  // The shared @jkos/cards views, read+light (no DragAdapter → no internal drag to
+  // clash with the HUD grid). They pick their own grid/agenda layout via useBreakpoint;
+  // at HUD card widths that's the grid, which is right — the HUD is not a phone.
+  'bb-calendar': (ctx) => <CalendarView items={ctx.items} today={ctx.todayIso} resolvers={ordeckResolvers} />,
+  'bb-week': (ctx) => <WeekView items={ctx.items} today={ctx.todayIso} resolvers={ordeckResolvers} />,
 };
 /** Which ctx slices a bespoke component reads (a spec's are collected from its
  *  bindings; a component's can't be, so they're declared here). */
 const COMPONENT_SLICES: Record<string, (keyof WidgetCtx)[]> = {
   quickadd: ['today'],   // reads ctx.today.authed
   focus: ['focus'],      // reads ctx.focus
+  'bb-calendar': ['items', 'todayIso'],
+  'bb-week': ['items', 'todayIso'],
 };
 
 /* ═══ Per-card update isolation ═════════════════════════════════════════════
@@ -737,7 +756,7 @@ const COMPONENT_SLICES: Record<string, (keyof WidgetCtx)[]> = {
  * memoised upstream (useHudContext) to keep its reference stable between real
  * changes, which is what makes this comparison meaningful. */
 const SLICE_KEYS = new Set<string>([
-  'clock', 'weather', 'systems', 'today', 'study', 'cal', 'notifications', 'focus', 'pinned', 'authUrl',
+  'clock', 'weather', 'systems', 'today', 'study', 'cal', 'items', 'todayIso', 'notifications', 'focus', 'pinned', 'authUrl',
 ]);
 const sliceCache = new WeakMap<object, Set<string>>();
 

@@ -33,11 +33,14 @@ export const BREAKPOINT_MAX = {
   tablet: 1023, // < desktop.minWidth (1024)
 } as const;
 
-/** matchMedia-ready query strings — the single source for the JS hook. */
+/** matchMedia-ready query strings — the single source for the JS hook. Every
+ *  bound derives from BREAKPOINT_MAX (each tier's min is one past the tier below)
+ *  so these can never drift from the CSS `@media` blocks. `test/responsive.mjs`
+ *  enforces that no raw breakpoint literal sneaks back in here. */
 export const MEDIA = {
   mobile: `(max-width: ${BREAKPOINT_MAX.mobile}px)`,
-  tablet: `(min-width: 768px) and (max-width: ${BREAKPOINT_MAX.tablet}px)`,
-  desktop: `(min-width: 1024px)`,
+  tablet: `(min-width: ${BREAKPOINT_MAX.mobile + 1}px) and (max-width: ${BREAKPOINT_MAX.tablet}px)`,
+  desktop: `(min-width: ${BREAKPOINT_MAX.tablet + 1}px)`,
 } as const;
 
 /** Resolve a viewport width (px) to its tier. */

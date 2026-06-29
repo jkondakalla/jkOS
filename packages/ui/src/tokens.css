@@ -1,11 +1,9 @@
-/* @jkos/ui — ORDECK design tokens
-   Single source of truth: Design/tokens/hub.css defines all --hub-* variables.
-   ORDECK-specific extensions (layout, CRT, widget tuning) remain here. */
+/* @jkos/ui — shared design tokens (imported by every suite app).
+   Single source of truth: @jkos/design/tokens/hub.css defines all --hub-* and
+   --color-* variables; this file only re-exports it and adds the suite-wide CRT
+   overlay knobs below. Per-app overrides belong in each app's buildJkOSTheme(). */
 
 @import '@jkos/design/tokens.css';
-
-/* ── ORDECK keeps the amber-first dark identity as its base dark accent ── */
-/* (No override needed — hub.css dark mode already defaults to #ffb000)    */
 
 /* ── CRT overlay controls — 0 in paper mode, JS sets scan opacity in dark ── */
 :root {
@@ -17,5 +15,4 @@
 }
 
 /* The --color-* aliases are defined once in @jkos/design (hub.css) and derive
-   from the accent chain — no need to restate them here. ORDECK keeps only its
-   CRT overlay knobs above. */
+   from the accent chain — no need to restate them here. */
