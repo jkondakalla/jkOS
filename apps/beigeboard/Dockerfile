@@ -50,6 +50,15 @@ RUN pnpm --filter @jkos/beigeboard-backend deploy --prod /out
 
 # ── Frontend source + build last (a UI edit busts only this ~9s step) ─────────
 COPY . .
+# Re-sync after source is present: with inject-workspace-packages, pnpm hardlinks
+# COPIES of workspace deps into the store at install time. The dependency layer
+# above ran with only manifests present, so any INJECTED package (e.g. @jkos/cards,
+# which pnpm injects because it pulls @jkos/weave's consumer-specific subtree) was
+# frozen with just its package.json and no src/ → tsc fails TS2307 'Cannot find
+# module @jkos/cards'. This re-install re-injects them now that src/ exists; the
+# store is warm so it only re-hardlinks (seconds). Symlinked deps (ui/design) were
+# never affected. (Same propagate-on-install step the local-dev workflow uses.)
+RUN pnpm install --frozen-lockfile --filter @jkos/beigeboard...
 RUN pnpm --filter @jkos/beigeboard build
 
 FROM node:20-slim
