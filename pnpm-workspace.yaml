@@ -1,7 +1,7 @@
-# jkOS workspace members. Python services (apps/lazuros, services/*) have no
-# package.json and are skipped by pnpm automatically.
+# jkOS workspace members. Remaining Python services (services/*, the sylibos worker)
+# have no package.json and are skipped by pnpm automatically.
 packages:
   - "apps/*"          # ordeck (shell), beigeboard, sylibos, jkauth frontends/services
-  - "apps/*/backend"  # beigeboard + sylibos node backends
+  - "apps/*/backend"  # beigeboard + sylibos + lazuros node backends
   - "packages/*"      # @jkos/{design,auth-client,auth-middleware,types,ui}
   - "plugins/*"       # ORDECK federation microfrontends (not in prod deploy)

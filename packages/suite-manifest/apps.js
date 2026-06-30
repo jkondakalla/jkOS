@@ -33,7 +33,9 @@
 /**
  * The suite. Order is the systems-panel probe order. Optional flags gate which
  * derived surface an app exposes; `registry: false` keeps an app out of the jkAuth
- * registry (LazurOS is an internal gateway, not a launchable app).
+ * registry. LazurOS now HAS a registry row (so its capability scopes are role-gated
+ * and the portal hydrates its ai/capabilities/datasets metadata) but a null `origin`
+ * — it's reached only through the `/api/lazuros` edge proxy, never as a launcher tile.
  */
 const APPS = [
   {
@@ -62,10 +64,11 @@ const APPS = [
     allowedRoles: ['admin'], // the admin-only staging origin — no backend surface
   },
   {
-    id: 'lazuros', name: 'LazurOS', origin: null,
-    allowedRoles: [], registry: false, // internal AI gateway: static-only, no registry row
+    id: 'lazuros', name: 'LazurOS', origin: null, // internal AI gateway: no browsable origin (no launcher tile)
+    allowedRoles: ['admin', 'user'], // registry row gates capability scopes (lazuros:write) by role; guests excluded
     upstream: 'host.docker.internal:8080', kind: 'lazuros',
     health: true, api: true, ai: true,
+    capabilities: true, datasets: true, // Weave write+read contracts (LazurOS refactor)
     apiBase: '/api/lazuros', healthPath: '/api/lazuros/health', // host-network, bespoke paths
   },
 ]
@@ -109,7 +112,7 @@ function registrySeed() {
   return APPS.filter((a) => a.registry !== false).map((a) => ({
     id: a.id,
     name: a.name,
-    origin: a.origin,
+    origin: a.origin || '', // app_registry.origin is NOT NULL; an origin-less gateway (LazurOS) stores ''
     icon_url: null,
     allowed_roles: a.allowedRoles.join(','),
     api_base: apiBaseOf(a),

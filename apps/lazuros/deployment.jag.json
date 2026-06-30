@@ -1,0 +1,33 @@
+{
+  "name": "jag-luna-emily",
+  "computeBackends": {
+    "edge": {
+      "kind": "always-on",
+      "inference": { "provider": "ollama", "baseUrl": "http://localhost:11434" }
+    },
+    "emily": {
+      "kind": "wol",
+      "mac": "TODO_EMILY_MAC",
+      "healthUrl": "http://TODO_EMILY_IP:11434/",
+      "inference": { "provider": "ollama", "baseUrl": "http://TODO_EMILY_IP:11434" }
+    }
+  },
+  "tiers": [
+    { "id": 0, "label": "Local Triage", "computeBackend": "edge", "triggers": ["local-pipeline", "semantic-search", "answered"], "fallback": 1 },
+    { "id": 1, "label": "Edge Web Search", "computeBackend": "edge", "triggers": ["needs-web-context"], "fallback": 2 },
+    { "id": 2, "label": "Heavy Compute", "computeBackend": "emily", "triggers": ["needs-heavy-compute"], "fallback": null }
+  ],
+  "stt": { "provider": "whisper", "baseUrl": "http://localhost:8000", "model": "base", "runtime": "whisper.cpp-vulkan" },
+  "tts": { "provider": "piper", "baseUrl": "http://localhost:5000", "voiceModel": "glados" },
+  "embedding": { "provider": "local", "baseUrl": "http://localhost:11434", "model": "bge-small-en-v1.5", "table": "local_vectors" },
+  "webSearch": { "provider": "ddgs", "baseUrl": "http://localhost:8001" },
+  "models": {
+    "router": "llama3.2:3b-instruct-q8_0",
+    "heavy": {
+      "parse-task": "qwen2.5:14b-instruct-q4_K_M",
+      "breakdown-goal": "qwen2.5:14b-instruct-q4_K_M",
+      "parse-document": "qwen2.5:14b-instruct-q4_K_M",
+      "widget-generate": "qwen2.5-coder:7b-instruct-q8_0"
+    }
+  }
+}

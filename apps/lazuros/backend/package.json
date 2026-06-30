@@ -1,0 +1,18 @@
+{
+  "name": "@jkos/lazuros-backend",
+  "version": "0.1.0",
+  "private": true,
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node test/queue.smoke.mjs && node test/providers.smoke.mjs && node test/writeback.smoke.mjs"
+  },
+  "dependencies": {
+    "@jkos/suite-manifest": "workspace:*",
+    "@jkos/weave": "workspace:*",
+    "better-sqlite3": "^11.5.0",
+    "cookie-parser": "^1.4.7",
+    "express": "^4.19.2"
+  }
+}

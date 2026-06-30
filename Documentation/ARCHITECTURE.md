@@ -21,7 +21,8 @@ jkOS/
 ├── apps/
 │   ├── ordeck/          @jkos/ordeck     portal SPA + HUD engine
 │   ├── jkauth/          @jkos/jkauth     SSO, app directory, session store
-│   └── beigeboard/      @jkos/beigeboard tasks/goals SPA + Node backend
+│   ├── beigeboard/      @jkos/beigeboard tasks/goals SPA + Node backend
+│   └── lazuros/         @jkos/lazuros-backend  AI gateway: job queue + provider/tier composition
 ├── packages/
 │   ├── auth-middleware/ @jkos/auth-middleware  Node JWT middleware (shared issuer/cookie)
 │   ├── auth-client/     @jkos/auth-client      frontend auth + preferences hook
@@ -71,9 +72,11 @@ the `jkos_token` cookie flows naturally and there is no CORS surface. The stagin
 gets `weave-proxy-staging.conf` (admin-gated copies of the same blocks). Both files are
 generated from one PEERS table in `infra/nginx/gen-nginx-weave.mjs`; run `--check` in CI.
 
-**LazurOS** (AI gateway, `apps/lazuros`) runs `network_mode: host` for WoL broadcast;
-nginx reaches it via `host.docker.internal`. **SylibOS** (study app, `apps/sylibos`) is a
-separate development track — not covered here.
+**LazurOS** (AI gateway, `apps/lazuros`) runs `network_mode: host` so it can broadcast
+Wake-on-LAN packets to a compute node; nginx reaches it via `host.docker.internal:8080`
+(the one host-network peer block). It is now a Weave peer (`/api/lazuros/*`) — see the
+LazurOS section below. **SylibOS** (study app, `apps/sylibos`) is a separate development
+track — not covered here.
 
 ---
 
@@ -304,6 +307,84 @@ produces the same pure-data spec shape that an AI step will eventually generate.
 
 The top strip fetches `GET /auth/apps` (the jkAuth registry) to populate the app switcher.
 New apps appear automatically when a row is added to `app_registry` — zero portal code changes.
+
+---
+
+## LazurOS: the AI gateway
+
+LazurOS is the suite's AI gateway — an always-on Node/Express service (the "State node")
+that accepts capability calls and open-ended queries, routes them to a tier of compute
+backends, and returns **async jobs**. Heavy inference runs on a separate compute node; the
+State node only routes, queues, and tracks. The authoritative build spec is the repo-root
+[`LAZUROS.md`](../LAZUROS.md); this section documents the shipped state. **Built (Phases 0–6
+of 8):** the State node, job queue, compute-backend abstraction, the compute-node worker,
+the Tier-0 (STT/TTS/embedding) and Tier-1 (web search) providers, and delegated write-back.
+These are code-complete and unit-tested but not yet exercised against live runtimes — they
+go live once `prompts.json`, a reachable Ollama/whisper/piper, and Emily's MAC/IP exist.
+**Pending (Phases 5/7/8):** real Tier-2 WoL round-trip, the BeigeBoard `/api/ai/*` cutover,
+and ORDECK widgets.
+
+### The composability mandate
+
+LazurOS ships to other self-hosters with different hardware, so **no hardware fact lives in
+code** — no model tags, GPU names, IPs, MACs, or tier counts. Every swappable piece is a
+**provider**: a plain object satisfying a function-shaped contract, built by a
+`createXProvider(config)` factory (a closure — no classes, no `extends`), and composed at
+startup by reading a mounted `deployment.json`. The provider contracts (`backend/providers/contracts.md`):
+`InferenceProvider`, `SttProvider`, `TtsProvider`, `EmbeddingProvider`, `WebSearchProvider`,
+and `ComputeBackend` (wraps an inference provider with `probe()`/`wake()` reachability —
+`always-on` for a local node, `wol` for a Wake-on-LAN burst node). Each ships ≥1 reference
+factory (e.g. STT → an OpenAI-compatible `/v1/audio/transcriptions` server; embeddings → the
+edge node's own Ollama; web search → SearXNG or a DDGS sidecar), selected per-slot by config.
+Adding a runtime is one factory file + one line in `lib/composeProviders.js`; the
+router, queue, and routes never change. Jag's two-node Luna/Emily setup is just one
+`deployment.json` (`deployment.jag.json`); a single-node self-hoster uses
+`deployment.example.json` unchanged.
+
+### Tier registry (data, not branches)
+
+A deployment's `tiers` array is an ordered escalation ladder; each tier names a
+`computeBackend` and the intents it handles. A capability declares `targetTier: 'highest' |
+'lowest'` (never a literal number — a doc must not assume how many tiers exist); the route
+handler resolves that against the loaded registry at request time. The same handler code runs
+a one-tier always-on deployment and a three-tier WoL-burst deployment.
+
+### Job queue + ComputeBackend
+
+Capability calls are async. `POST /api/lazuros/<cap>` creates a job and returns
+`202 { job_id }`; the handler resolves the tier, then `probe()`s its backend — if offline, the
+job is marked `PENDING_WAKEUP` and the backend is best-effort `wake()`d (a WoL magic packet for
+a `wol` backend; a no-op for `always-on`). One SQLite `jobs` table (WAL) tracks the lifecycle
+`PENDING → PENDING_WAKEUP → IN_PROGRESS → DONE | FAILED`. The compute-node **worker**
+(`apps/lazuros/worker/worker.py` — stdlib-only, so a node needs nothing but `python3`) drains
+the queue over a bearer-gated `/internal` API: poll `PENDING`, atomically claim
+(`PENDING → IN_PROGRESS`, so two workers can't both run a job), run inference via the
+node-local runtime, post the result. It hardcodes no model tag or prompt string — both load
+from node-local `models.json` / `prompts.json` (its own slice of deployment config). Every
+mutation bumps `updated_at` — the poll-resource invalidation signal the `jobs` dataset's
+`since` cursor reads (Weave has no imperative `invalidate()`).
+
+### Delegated write-back (G1)
+
+When the worker reports a DONE result for a write-capable capability (`parse-task`,
+`breakdown-goal`), the **State node** — not the worker — commits it into the target app AS the
+acting user, via `weaveServerClient`'s on-behalf-of path (`lib/writeback.js`). Keeping this on
+the State node means the delegation secret never leaves it for a compute node. It requires the
+`lazuros` service client to be enrolled in jkAuth's `JKOS_DELEGATION_CLIENTS` and to hold
+`beigeboard:write` (delegation supplies only the *who*, never the scope). `parse-document` is
+review-first — its result is stored for human review, never auto-written — and write-back is
+best-effort: a failure is recorded on the job but never voids the result.
+
+### Weave surface
+
+LazurOS weaves in like any app: a row in jkAuth `app_registry` (`ai: 1`, roles `admin,user`,
+origin `''` — an internal gateway with no launcher tile), `GET /api/lazuros/capabilities`
+(`parse-task`, `breakdown-goal`, `parse-document`, `widget-generate`, `query`) and
+`GET /api/lazuros/datasets` (`jobs`). Capability writes are gated on `lazuros:write` via
+`weaveWriteGate`; a job's owner is the authenticated token `sub` (never a request-body field).
+Health is the bespoke host-network path `/api/lazuros/health` (the host-network nginx block
+doesn't proxy `/health/<id>`). The registry row, manifest entry, and nginx peer all derive from
+the single source `@jkos/suite-manifest` (jkAuth migration `015` backfills the live DB).
 
 ---
 

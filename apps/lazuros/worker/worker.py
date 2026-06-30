@@ -1,0 +1,156 @@
+#!/usr/bin/env python3
+"""LazurOS compute-node worker daemon (Phase 2).
+
+Polls the State node's bearer-gated /internal API for PENDING jobs, atomically
+claims one, runs inference via the node-local runtime, and posts the result back.
+
+Composability mandate (LAZUROS.md §0): this file hardcodes no model tags and no
+prompt strings. Both come from per-deployment config files — the worker's own
+node-local slice, not the State node's full deployment.json:
+
+  - models.json  : { "<capability>": "<model-tag>", ... }
+  - prompts.json : { "<capability>": "<template with {field} placeholders>", ... }
+
+A different node serving a different capability subset ships different files; a
+node running llama.cpp instead of Ollama points LAZUROS_OLLAMA_URL at it. The
+worker code never references a tag, an f-string prompt, or a runtime by name.
+
+Stdlib only — no pip install on the compute node. The HTTP layer is factored into
+small helpers so the loop can be exercised against a mocked State node in tests.
+"""
+import json
+import os
+import signal
+import sys
+import time
+import urllib.error
+import urllib.request
+
+# ── Config (env) ────────────────────────────────────────────────────────────────
+STATE_URL = os.environ.get('LAZUROS_STATE_URL', 'http://localhost:8080')
+INT_TOKEN = os.environ.get('LAZUROS_INTERNAL_TOKEN', '')
+POLL_MS = int(os.environ.get('POLL_INTERVAL_MS', '2000'))
+MODEL_MAP_PATH = os.environ.get('LAZUROS_MODEL_MAP', '/opt/lazuros/models.json')
+PROMPT_MAP_PATH = os.environ.get('LAZUROS_PROMPT_MAP', '/opt/lazuros/prompts.json')
+OLLAMA_URL = os.environ.get('LAZUROS_OLLAMA_URL', 'http://localhost:11434')
+
+HEADERS = {'Authorization': f'Bearer {INT_TOKEN}', 'Content-Type': 'application/json'}
+
+
+# ── HTTP helpers (stdlib, mockable) ─────────────────────────────────────────────
+def _request(method, url, headers, body=None, timeout=10):
+    data = json.dumps(body).encode('utf-8') if body is not None else None
+    req = urllib.request.Request(url, data=data, headers=headers, method=method)
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        raw = resp.read().decode('utf-8') or '{}'
+        return resp.status, json.loads(raw)
+
+
+def get_pending(state_url=None, limit=1):
+    """Next `limit` PENDING jobs (oldest first). Returns [] on any transport error
+    so a flaky State node degrades to an idle poll loop rather than a crash."""
+    url = f'{state_url or STATE_URL}/internal/jobs?limit={limit}'
+    try:
+        _, data = _request('GET', url, HEADERS, timeout=5)
+        return data.get('jobs', [])
+    except (urllib.error.URLError, OSError, ValueError) as e:
+        print(f'[worker] poll error: {e}', flush=True)
+        return []
+
+
+def claim(job_id, state_url=None):
+    """Atomically flip PENDING → IN_PROGRESS. True only if this worker won the race
+    (200); a peer that already claimed it gets 409 → False."""
+    url = f'{state_url or STATE_URL}/internal/jobs/{job_id}/claim'
+    try:
+        status, _ = _request('PATCH', url, HEADERS, timeout=5)
+        return status == 200
+    except urllib.error.HTTPError as e:
+        return e.code == 200
+    except (urllib.error.URLError, OSError, ValueError):
+        return False
+
+
+def post_result(job_id, status, result=None, error=None, state_url=None):
+    url = f'{state_url or STATE_URL}/internal/jobs/{job_id}/result'
+    _request('POST', url, HEADERS,
+             body={'status': status, 'result': result, 'error': error}, timeout=15)
+
+
+def call_ollama(model, prompt, keep_alive=0, ollama_url=None):
+    _, data = _request('POST', f'{ollama_url or OLLAMA_URL}/api/generate', HEADERS,
+                       body={'model': model, 'prompt': prompt, 'stream': False,
+                             'keep_alive': keep_alive}, timeout=120)
+    return data['response']
+
+
+# ── Config loading + prompt rendering ───────────────────────────────────────────
+def load_json_config(path):
+    with open(path, encoding='utf-8') as f:
+        return json.load(f)
+
+
+def build_prompt(capability, payload, prompt_map):
+    """Render the capability's prompt template from prompts.json against the job
+    payload. The template — never an inline f-string — is the per-deployment content
+    decision (LAZUROS.md §7). A missing template is a config error, not a code path."""
+    template = prompt_map.get(capability)
+    if not template:
+        raise ValueError(
+            f'no prompt template for capability "{capability}" — add it to {PROMPT_MAP_PATH}')
+    try:
+        return template.format(**payload)
+    except KeyError as e:
+        raise ValueError(f'prompt for "{capability}" references missing payload field {e}')
+
+
+def run_inference(job, model_map, prompt_map):
+    capability = job['capability']
+    payload = json.loads(job['payload']) if isinstance(job['payload'], str) else job['payload']
+    model = model_map.get(capability)
+    if not model:
+        raise ValueError(
+            f'no model configured for capability "{capability}" — add it to {MODEL_MAP_PATH}')
+    prompt = build_prompt(capability, payload, prompt_map)
+    response = call_ollama(model, prompt)
+    return {'response': response, 'model': model}
+
+
+# ── Main loop ───────────────────────────────────────────────────────────────────
+def process_once(model_map, prompt_map, state_url=None):
+    """One poll→claim→run→post cycle. Returns the claimed job id if one was
+    processed (DONE or FAILED), else None. Pure enough to drive from a test."""
+    jobs = get_pending(state_url=state_url)
+    if not jobs:
+        return None
+    job = jobs[0]
+    if not claim(job['id'], state_url=state_url):
+        return None  # a peer won the race
+    try:
+        result = run_inference(job, model_map, prompt_map)
+        post_result(job['id'], 'DONE', result=result, state_url=state_url)
+    except Exception as e:  # noqa: BLE001 — any failure becomes a FAILED job, never a crash
+        post_result(job['id'], 'FAILED', error=str(e), state_url=state_url)
+    return job['id']
+
+
+def main():
+    if not INT_TOKEN:
+        sys.exit('[worker] LAZUROS_INTERNAL_TOKEN not set — refusing to start')
+    model_map = load_json_config(MODEL_MAP_PATH)
+    prompt_map = load_json_config(PROMPT_MAP_PATH)
+    print(f'[worker] up — state={STATE_URL} ollama={OLLAMA_URL} '
+          f'capabilities={sorted(model_map)}', flush=True)
+
+    running = {'on': True}
+    signal.signal(signal.SIGTERM, lambda *_: running.update(on=False))
+    signal.signal(signal.SIGINT, lambda *_: running.update(on=False))
+
+    while running['on']:
+        if process_once(model_map, prompt_map) is None:
+            time.sleep(POLL_MS / 1000)
+    print('[worker] shutting down cleanly', flush=True)
+
+
+if __name__ == '__main__':
+    main()

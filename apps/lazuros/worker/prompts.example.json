@@ -1,0 +1,8 @@
+{
+  "_comment": "Node-local prompt templates, keyed by capability id. Each value is a Python str.format() template; {field} placeholders are filled from the job payload (the capability's declared fields in docs.js). These are CONTENT decisions, not architecture — replace the placeholders below with the real prompt engineering. worker.py renders these; it never embeds a prompt string.",
+  "parse-task": "Extract a single structured task from the following text. Respond with JSON only.\n\nText: {text}",
+  "breakdown-goal": "Break the following goal into an ordered list of milestones. Respond with JSON only.\n\nGoal: {goal_text}",
+  "parse-document": "Extract tasks and goals from the following document. Respond with JSON only.\n\nDocument:\n{content}",
+  "widget-generate": "Produce a WidgetSpec JSON document for the following description. Respond with JSON only.\n\nDescription: {description}",
+  "query": "You are a triage router. Classify the intent of the following query and respond with JSON only.\n\nQuery: {text}"
+}

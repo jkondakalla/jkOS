@@ -245,13 +245,14 @@ function dashboardPage(user, nonce = '') {
 'use strict';
 const ROLE = ${JSON.stringify(user.role || 'user')};
 
-// App launcher — registered apps this role may use (exclude jkAuth itself).
+// App launcher — registered apps this role may use (exclude jkAuth itself, and
+// origin-less rows like the LazurOS gateway which has no browsable launcher tile).
 fetch('/auth/apps', { credentials: 'same-origin' })
   .then(r => r.ok ? r.json() : { apps: [] })
   .then(({ apps }) => {
     const el = document.getElementById('apps');
     const list = (apps || []).filter(a =>
-      a.id !== 'auth' && (a.allowed_roles || '').split(',').map(s => s.trim()).includes(ROLE));
+      a.id !== 'auth' && a.origin && (a.allowed_roles || '').split(',').map(s => s.trim()).includes(ROLE));
     if (!list.length) { el.innerHTML = '<div class="muted-note">No apps available for your account.</div>'; return; }
     el.innerHTML = list.map(a => {
       const ic = (a.name || '?').trim()[0].toUpperCase();

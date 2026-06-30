@@ -113,6 +113,24 @@ importers:
         specifier: ^1.5.4
         version: 1.5.4
 
+  apps/lazuros/backend:
+    dependencies:
+      '@jkos/suite-manifest':
+        specifier: workspace:*
+        version: link:../../../packages/suite-manifest
+      '@jkos/weave':
+        specifier: workspace:*
+        version: link:../../../packages/weave
+      better-sqlite3:
+        specifier: ^11.5.0
+        version: 11.10.0
+      cookie-parser:
+        specifier: ^1.4.7
+        version: 1.4.7
+      express:
+        specifier: ^4.19.2
+        version: 4.22.2
+
   apps/ordeck:
     dependencies:
       '@jkos/auth-client':

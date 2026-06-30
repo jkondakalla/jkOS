@@ -1,0 +1,8 @@
+{
+  "_comment": "Node-local model map — the worker's slice of deployment config. Keys are capability ids (see apps/lazuros/backend/docs.js); values are the model tag this node serves them with. A node serving a different capability subset ships a different file. No model tag appears in worker.py.",
+  "parse-task": "REPLACE_WITH_MODEL_TAG",
+  "breakdown-goal": "REPLACE_WITH_MODEL_TAG",
+  "parse-document": "REPLACE_WITH_MODEL_TAG",
+  "widget-generate": "REPLACE_WITH_CODE_MODEL_TAG",
+  "query": "REPLACE_WITH_ROUTER_MODEL_TAG"
+}
