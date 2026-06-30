@@ -4,7 +4,7 @@
  * but reference the @jkos/design tokens directly so the kit carries no app dep.
  */
 
-import type { CalendarItem, CardResolvers } from './types';
+import type { CalendarItem, CardResolvers, PlanResolvers } from './types';
 
 export const FONT_HEAD = 'var(--hub-font-serif)';
 export const FONT_BODY = 'var(--hub-font-sans)';
@@ -21,5 +21,23 @@ export function mergeResolvers(partial?: Partial<CardResolvers>): CardResolvers 
   return {
     accentOf: partial?.accentOf ?? DEFAULT_RESOLVERS.accentOf,
     sourceColorOf: partial?.sourceColorOf ?? DEFAULT_RESOLVERS.sourceColorOf,
+  };
+}
+
+/** No-op plan resolvers: no goal tree, no ancestry, never adrift. An app without
+ *  a goal model gets next/rest/carried/done and an empty `adrift` section. */
+export const DEFAULT_PLAN_RESOLVERS: PlanResolvers = {
+  ancestorsOf: () => [],
+  activeGoals: () => [],
+  isAdrift: () => false,
+  nextUnscheduled: () => null,
+};
+
+export function mergePlanResolvers(partial?: Partial<PlanResolvers>): PlanResolvers {
+  return {
+    ancestorsOf: partial?.ancestorsOf ?? DEFAULT_PLAN_RESOLVERS.ancestorsOf,
+    activeGoals: partial?.activeGoals ?? DEFAULT_PLAN_RESOLVERS.activeGoals,
+    isAdrift: partial?.isAdrift ?? DEFAULT_PLAN_RESOLVERS.isAdrift,
+    nextUnscheduled: partial?.nextUnscheduled ?? DEFAULT_PLAN_RESOLVERS.nextUnscheduled,
   };
 }

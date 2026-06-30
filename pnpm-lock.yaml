@@ -289,6 +289,9 @@ importers:
       '@jkos/ui':
         specifier: workspace:*
         version: file:packages/ui(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@jkos/weave':
+        specifier: workspace:*
+        version: link:../weave
       react:
         specifier: '>=18'
         version: 19.2.7
@@ -3482,6 +3485,7 @@ snapshots:
     dependencies:
       '@jkos/design': file:packages/design
       '@jkos/ui': file:packages/ui(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@jkos/weave': file:packages/weave(react@18.3.1)
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
 

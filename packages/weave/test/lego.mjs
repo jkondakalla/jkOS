@@ -8,9 +8,10 @@
 // Run: node test/lego.mjs   (chained after weave.mjs by `pnpm --filter @jkos/weave test`).
 
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
-import { dirname, join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const require = createRequire(import.meta.url)
@@ -339,5 +340,45 @@ wr = mkRes(); await wh({ body: { capability: 'createItem' } }, wr)
 ok('triggerWebhook rejects a malformed event (400)', wr.code === 400)
 
 ok('serverDispatch requires a resolve()', (() => { try { serverDispatch({}); return false } catch { return true } })())
+
+/* ═══ Calendar primitive · updateItem contract + source-hook mapping ══════════ */
+// The @jkos/cards calendar primitive plugs onto a peer's `items` collection via
+// useCalendarSource, whose reschedule path REQUIRES a general `updateItem`
+// capability (completeItem only flips `completed`). These assert the declared
+// contract is wide enough to drive cross-app drag, and that the source hook maps
+// each callback onto the matching capability — the load-bearing seam of the plan.
+section('Calendar · updateItem capability + useCalendarSource mapping')
+const ROOT = resolve(HERE, '..', '..', '..')
+const disc = require(join(ROOT, 'apps', 'beigeboard', 'backend', 'discovery.js'))
+const caps = disc.CAPABILITIES.capabilities
+const upd = caps.find((c) => c.id === 'updateItem')
+ok('discovery declares an updateItem capability', !!upd)
+ok('updateItem is PATCH /items/:id', upd.method === 'PATCH' && upd.path === '/items/:id')
+ok('updateItem body requires id, fields optional', (() => {
+  const id = upd.body.find((f) => f.name === 'id')
+  return id?.required === true && upd.body.filter((f) => f.name !== 'id').every((f) => !f.required)
+})())
+ok('updateItem patches the schedulable fields (date/time/end)', (() => {
+  const n = new Set(upd.body.map((f) => f.name))
+  return ['due_date', 'end_date', 'scheduled_time', 'scheduled_end'].every((k) => n.has(k))
+})())
+ok('updateItem returns the row shape + invalidates the items key', upd.returns === disc.ITEM_SHAPE && upd.invalidates[0] === 'beigeboard.items')
+ok('updateItem carries the write scope', upd.scopes[0] === 'beigeboard:write')
+ok('ITEM_SHAPE widened to the full calendar field set', (() => {
+  const n = new Set(disc.ITEM_SHAPE.map((f) => f.name))
+  return ['scope', 'parent_id', 'accent', 'source', 'end_date', 'scheduled_end'].every((k) => n.has(k))
+})())
+
+const hookSrc = readFileSync(join(ROOT, 'packages', 'cards', 'src', 'useCalendarSource.ts'), 'utf8')
+const MAPPING = [
+  ['onAddItem', 'createItem'],
+  ['onUpdateItem', 'updateItem'],
+  ['onToggle', 'completeItem'],
+  ['onDelete', 'deleteItem'],
+]
+for (const [cb, cap] of MAPPING) {
+  ok(`useCalendarSource maps ${cb} → ${cap}`, new RegExp(`${cb}[\\s\\S]{0,120}command\\(\\s*['"]${cap}['"]`).test(hookSrc))
+}
+ok('useCalendarSource subscribes the read to the resource key (live reschedule)', /invalidateOn:\s*\[key\]/.test(hookSrc))
 
 console.log(`\nPASS: ${pass} passed, 0 failed${skip ? `, ${skip} skipped` : ''}`)

@@ -28,7 +28,8 @@ export interface TaskChipProps {
   isDragging?: boolean;
   onSelect?: (item: CalendarItem) => void;
   onToggle?: (id: number, completed: boolean) => void;
-  onMouseDown?: (e: React.MouseEvent) => void;
+  /** Arms a drag from the originating pointer event (see usePointerDrag). */
+  onPointerDown?: (e: React.PointerEvent) => void;
 }
 
 export function TaskChip({
@@ -41,7 +42,7 @@ export function TaskChip({
   isDragging = false,
   onSelect,
   onToggle,
-  onMouseDown,
+  onPointerDown,
 }: TaskChipProps) {
   const s = SIZE[size];
 
@@ -76,7 +77,7 @@ export function TaskChip({
 
   return (
     <div
-      onMouseDown={onMouseDown}
+      onPointerDown={onPointerDown}
       onClick={(e) => {
         e.stopPropagation();
         onSelect?.(item);
@@ -98,7 +99,7 @@ export function TaskChip({
       }}
     >
       <span
-        onMouseDown={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => {
           e.stopPropagation();
           onToggle?.(item.id, completed);

@@ -1,3 +1,6 @@
 fastapi>=0.111.0
 uvicorn[standard]>=0.29.0
-python-jose[cryptography]>=3.3.0
+# Capped: python-jose >=3.4 enforces RFC-7519 string `sub` by default.
+# jkAuth mints string subs and jkos_auth.py passes verify_sub:False, so 3.4/3.5 are
+# fine — but cap the ceiling so any future behavioural change is a deliberate bump.
+python-jose[cryptography]>=3.3.0,<3.6.0

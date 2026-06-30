@@ -144,6 +144,33 @@ if (emitLines.length < 2) {
   }
 }
 
+// ── 6. the @jkos/cards calendar views stay token-only + literal-free ────────
+// The calendar primitive is the ONE source for the scheduling look, so its views
+// must not reintroduce raw hex colours (every colour is var(--color-*)/var(--hub-*),
+// with neutral black/white alpha overlays as the only exception — exactly as
+// surface.ts allows) or hardcoded breakpoint numbers. New views (Day/Year) are the
+// most likely place this drifts, so scan the whole view set. A `${accent}66` glow
+// is a CSS-var interpolation, not a literal, and `rgb(a)(0,0,0/255,255,255,…)` are
+// the sanctioned neutral overlays — both pass; a bare `#abc123` does not.
+const CARD_VIEWS = [
+  'packages/cards/src/DayView.tsx',
+  'packages/cards/src/YearView.tsx',
+  'packages/cards/src/Calendar.tsx',
+  'packages/cards/src/WeekView.tsx',
+  'packages/cards/src/CalendarView.tsx',
+  'packages/cards/src/sections.ts',
+];
+for (const file of CARD_VIEWS) {
+  let src;
+  try { src = read(file); } catch { continue; }
+  const stripped = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  const hex = stripped.match(/#[0-9a-fA-F]{3,8}\b/g);
+  const lits = RETIRED.filter((n) => new RegExp(`(max-width:\\s*${n}\\b|minWidth:\\s*${n}\\b|>=?\\s*${n}\\b)`).test(stripped));
+  if (hex) fail(`${file} has raw hex colour(s) ${[...new Set(hex)].join(', ')} — use var(--color-*)/var(--hub-*) (neutral rgba overlays only)`);
+  else if (lits.length) fail(`${file} hardcodes breakpoint literal(s) ${lits.join(', ')} — import from @jkos/design`);
+  else ok(`${file} is token-only + breakpoint-literal-free`);
+}
+
 if (failed) {
   console.error(`\n${failed} responsive conformance check(s) failed.`);
   process.exit(1);

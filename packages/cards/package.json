@@ -15,7 +15,8 @@
   },
   "dependencies": {
     "@jkos/design": "workspace:*",
-    "@jkos/ui": "workspace:*"
+    "@jkos/ui": "workspace:*",
+    "@jkos/weave": "workspace:*"
   },
   "peerDependencies": {
     "react": ">=18",

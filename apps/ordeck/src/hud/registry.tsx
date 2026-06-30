@@ -38,7 +38,7 @@ import {
   type FocusState,
   type PinnedState,
 } from '../pages/hud/useHudData';
-import { CalendarView, WeekView, type CalendarItem, type CardResolvers } from '@jkos/cards';
+import { CalendarView, WeekView, DayView, YearView, type CalendarItem, type CardResolvers } from '@jkos/cards';
 import type { Binding, CommandRef, DataSource, Tone, ToneBinding, WidgetDef, WidgetNode, WidgetSpec } from './types';
 import { TONE_COLOR } from './tone';
 import { bbCreateItem, todayIso } from '../lib/bb';
@@ -737,6 +737,11 @@ const COMPONENT_REGISTRY: Record<string, (ctx: WidgetCtx) => ReactNode> = {
   // at HUD card widths that's the grid, which is right — the HUD is not a phone.
   'bb-calendar': (ctx) => <CalendarView items={ctx.items} today={ctx.todayIso} resolvers={ordeckResolvers} />,
   'bb-week': (ctx) => <WeekView items={ctx.items} today={ctx.todayIso} resolvers={ordeckResolvers} />,
+  // Day (grid) and Year complete the read-only calendar set on the HUD. No
+  // DragAdapter → no internal drag to clash with the widget grid; Year's
+  // onMonthJump is omitted, so it's a pure overview.
+  'bb-day': (ctx) => <DayView items={ctx.items} today={ctx.todayIso} resolvers={ordeckResolvers} />,
+  'bb-year': (ctx) => <YearView items={ctx.items} today={ctx.todayIso} resolvers={ordeckResolvers} />,
 };
 /** Which ctx slices a bespoke component reads (a spec's are collected from its
  *  bindings; a component's can't be, so they're declared here). */
@@ -745,6 +750,8 @@ const COMPONENT_SLICES: Record<string, (keyof WidgetCtx)[]> = {
   focus: ['focus'],      // reads ctx.focus
   'bb-calendar': ['items', 'todayIso'],
   'bb-week': ['items', 'todayIso'],
+  'bb-day': ['items', 'todayIso'],
+  'bb-year': ['items', 'todayIso'],
 };
 
 /* ═══ Per-card update isolation ═════════════════════════════════════════════

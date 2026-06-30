@@ -253,6 +253,16 @@ const DEFAULT_WIDGETS: Record<string, WidgetDef> = {
     sizing: { desktop: { w: 6, h: 8 }, mobile: { w: 2, h: 6 } },
     component: 'bb-week',
   },
+  'bb-day': {
+    id: 'bb-day', label: 'Day',
+    sizing: { desktop: { w: 4, h: 8 }, mobile: { w: 2, h: 6 } },
+    component: 'bb-day',
+  },
+  'bb-year': {
+    id: 'bb-year', label: 'Year',
+    sizing: { desktop: { w: 6, h: 9 }, mobile: { w: 2, h: 6 } },
+    component: 'bb-year',
+  },
 };
 
 /** Default desktop arrangement (12-col). Mobile is derived by the engine

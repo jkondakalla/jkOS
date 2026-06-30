@@ -8,10 +8,11 @@
     "build": "turbo run build",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
-    "test:contracts": "pnpm --filter @jkos/jkauth test:contracts && pnpm --filter @jkos/weave test && pnpm --filter @jkos/jkauth check:tokens && pnpm check:nginx && pnpm check:responsive && pnpm prove",
+    "test:contracts": "pnpm --filter @jkos/jkauth test:contracts && pnpm --filter @jkos/weave test && pnpm --filter @jkos/jkauth check:tokens && pnpm check:nginx && pnpm check:responsive && pnpm check:drag && pnpm prove",
     "check:tokens": "pnpm --filter @jkos/jkauth check:tokens",
     "check:nginx": "node infra/nginx/gen-nginx-weave.mjs --check",
     "check:responsive": "node test/responsive.mjs",
+    "check:drag": "node test/drag.mjs",
     "prove": "node packages/suite-prober/prove.mjs",
     "new-app": "node scripts/new-app.mjs"
   },

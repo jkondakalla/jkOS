@@ -23,8 +23,9 @@ export interface TimeBlockProps {
   liveOverride?: { start?: number; end?: number } | null;
   onSelect?: (item: CalendarItem) => void;
   onToggle?: (id: number, completed: boolean) => void;
-  onBeginDrag?: (e: React.MouseEvent) => void;
-  onBeginResize?: (e: React.MouseEvent) => void;
+  /** Arm a move / resize drag from the originating pointer event (usePointerDrag). */
+  onBeginDrag?: (e: React.PointerEvent) => void;
+  onBeginResize?: (e: React.PointerEvent) => void;
 }
 
 export function TimeBlock({
@@ -78,7 +79,7 @@ export function TimeBlock({
 
   return (
     <div
-      onMouseDown={onBeginDrag}
+      onPointerDown={onBeginDrag}
       onClick={(e) => {
         e.stopPropagation();
         if (!isDragging) onSelect?.(item);
@@ -102,7 +103,7 @@ export function TimeBlock({
         <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
           {!isEvent && (
             <span
-              onMouseDown={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
               onClick={(e) => {
                 e.stopPropagation();
                 onToggle?.(item.id, !!item.completed);
@@ -150,7 +151,7 @@ export function TimeBlock({
         )}
       </div>
       <div
-        onMouseDown={onBeginResize}
+        onPointerDown={onBeginResize}
         style={{
           position: 'absolute',
           bottom: 0,

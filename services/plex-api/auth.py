@@ -1,19 +1,17 @@
-import os
+import asyncio
 from fastapi import Depends, HTTPException, Request
-from jose import jwt, JWTError
+from jose import JWTError
 from typing import Annotated
 
-PUBLIC_KEY = os.getenv("JKOS_AUTH_PUBLIC_KEY", "").replace("\\n", "\n")
+from jkos_auth import verify_token, COOKIE_NAME
 
 
 async def require_user(request: Request) -> dict:
-    token = request.cookies.get("jkos_token")
+    token = request.cookies.get(COOKIE_NAME)
     if not token:
         raise HTTPException(status_code=401, detail="Authentication required")
-    if not PUBLIC_KEY:
-        raise HTTPException(status_code=500, detail="JKOS_AUTH_PUBLIC_KEY is not set")
     try:
-        return jwt.decode(token, PUBLIC_KEY, algorithms=["RS256"], issuer="jkos-auth")
+        return await asyncio.get_event_loop().run_in_executor(None, verify_token, token)
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 

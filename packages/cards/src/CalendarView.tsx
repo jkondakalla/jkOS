@@ -10,7 +10,7 @@
  */
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useBreakpoint } from '@jkos/ui';
+import { useBreakpoint, usePointerDrag, DRAG_THRESHOLD_PX, HOLD_MS } from '@jkos/ui';
 import type { CalendarItem, DragAdapter, CalendarViewProps } from './types';
 import { mergeResolvers, FONT_HEAD, FONT_BODY, FONT_NUM } from './theme';
 import {
@@ -38,6 +38,18 @@ export function CalendarView(props: CalendarViewProps) {
 
 function monthLabel(iso: string) {
   return localDate(iso).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+}
+
+/** The ISO day under a screen point, via the same data-drop-day contract the
+ *  desktop grid uses — so the mobile month grid shares one hit-test approach. */
+function dayUnderPoint(x: number, y: number): string | null {
+  try {
+    for (const el of document.elementsFromPoint(x, y)) {
+      const day = (el as HTMLElement).getAttribute?.('data-drop-day');
+      if (day) return day;
+    }
+  } catch { /* detached node */ }
+  return null;
 }
 
 /* ── Desktop / tablet grid ─────────────────────────────────────────────── */
@@ -83,20 +95,20 @@ function CalendarGrid({
 
   const unscheduled = byDay['__none__'] || [];
 
-  const beginDragChip = (e: React.MouseEvent, item: CalendarItem) => {
+  const beginDragChip = (e: React.PointerEvent, item: CalendarItem) => {
     e.preventDefault();
     if (drag) return;
-    beginDrag(item, 'cell', ({ overDay, overZone }) => {
+    beginDrag(e, item, 'cell', ({ overDay, overZone }) => {
       if (overZone === 'cell' && overDay && overDay !== item.due_date) {
         onUpdateItem?.(item.id, { due_date: overDay });
       }
     });
   };
 
-  const beginDragBar = (e: React.MouseEvent, ev: CalendarItem) => {
+  const beginDragBar = (e: React.PointerEvent, ev: CalendarItem) => {
     e.preventDefault();
     e.stopPropagation();
-    beginDrag(ev, 'allday', ({ overDay, overZone }) => {
+    beginDrag(e, ev, 'allday', ({ overDay, overZone }) => {
       if (overZone === 'cell' && overDay && overDay !== ev.due_date) {
         const delta = Math.round((new Date(overDay).getTime() - new Date(ev.due_date as string).getTime()) / 86400000);
         const updates: Partial<CalendarItem> = { due_date: addDays(ev.due_date as string, delta) };
@@ -131,7 +143,7 @@ function CalendarGrid({
                 isSelected={selectedId === it.id}
                 onSelect={onSelect}
                 onToggle={onToggle}
-                onMouseDown={hasDnd ? (e) => beginDragChip(e, it) : undefined}
+                onPointerDown={hasDnd ? (e) => beginDragChip(e, it) : undefined}
               />
             ))
           )}
@@ -187,7 +199,7 @@ function CalendarGrid({
                         height={CV_BAR_H}
                         isSelected={selectedId === bar.ev.id}
                         isDragging={drag?.item?.id === bar.ev.id}
-                        onMouseDown={hasDnd ? (e) => beginDragBar(e, bar.ev) : undefined}
+                        onPointerDown={hasDnd ? (e) => beginDragBar(e, bar.ev) : undefined}
                         onClick={(e) => {
                           e.stopPropagation();
                           if (!drag) onSelect?.(bar.ev);
@@ -245,7 +257,7 @@ function CalendarGrid({
                             isSelected={selectedId === it.id}
                             onSelect={onSelect}
                             onToggle={onToggle}
-                            onMouseDown={hasDnd ? (e) => beginDragChip(e, it) : undefined}
+                            onPointerDown={hasDnd ? (e) => beginDragChip(e, it) : undefined}
                           />
                         ))}
                         {cellItems.length > 4 && (
@@ -289,6 +301,7 @@ function CalendarMonth({ items, today, resolvers, onSelect, onToggle, onAddItem,
   const [ym, setYm] = useState({ y: base.getFullYear(), m: base.getMonth() });
   const [dragId, setDragId] = useState<number | null>(null);
   const [dragOver, setDragOver] = useState<string | null>(null);
+  const { begin } = usePointerDrag();
   const [adding, setAdding] = useState(false);
   const addRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
@@ -301,6 +314,29 @@ function CalendarMonth({ items, today, resolvers, onSelect, onToggle, onAddItem,
     setSel(iso);
     setDragId(null);
     setDragOver(null);
+  };
+
+  // Pointer-drag a task row onto a day cell to reschedule. Touch must HOLD so the
+  // agenda list still scrolls; mouse/pen drags on the 4px nudge. Replaces the old
+  // HTML5 draggable path (flaky on phones) with the suite's one gesture engine.
+  const beginRowDrag = (e: React.PointerEvent, it: CalendarItem) => {
+    const activation = e.pointerType === 'touch'
+      ? { kind: 'hold' as const, delay: HOLD_MS, cancelDistance: 8 }
+      : { kind: 'distance' as const, threshold: DRAG_THRESHOLD_PX };
+    let overIso: string | null = null;
+    begin(e, {
+      activation,
+      onActivate: () => setDragId(it.id),
+      onMove: (c) => {
+        overIso = dayUnderPoint(c.x, c.y);
+        setDragOver(overIso);
+      },
+      onEnd: (_c, activated) => {
+        if (activated && overIso) reschedule(it.id, overIso);
+        else { setDragId(null); setDragOver(null); }
+      },
+      onCancel: () => { setDragId(null); setDragOver(null); },
+    });
   };
 
   const first = new Date(ym.y, ym.m, 1);
@@ -379,18 +415,8 @@ function CalendarMonth({ items, today, resolvers, onSelect, onToggle, onAddItem,
                 key={i}
                 onClick={() => setSel(iso)}
                 className="bb-btn"
-                onDragOver={(e) => {
-                  if (dragId != null) {
-                    e.preventDefault();
-                    e.dataTransfer.dropEffect = 'move';
-                    if (dragOver !== iso) setDragOver(iso);
-                  }
-                }}
-                onDragLeave={() => setDragOver((o) => (o === iso ? null : o))}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  if (dragId != null) reschedule(dragId, iso);
-                }}
+                data-drop-zone="cell"
+                data-drop-day={iso}
                 style={{
                   aspectRatio: '1 / 1.05',
                   display: 'flex',
@@ -460,22 +486,8 @@ function CalendarMonth({ items, today, resolvers, onSelect, onToggle, onAddItem,
                     key={it.id}
                     className="bb-row"
                     onClick={() => onSelect?.(it)}
-                    draggable={!isEvent}
-                    onDragStart={(e) => {
-                      if (isEvent) return;
-                      setDragId(it.id);
-                      e.dataTransfer.effectAllowed = 'move';
-                      try {
-                        e.dataTransfer.setData('text/plain', String(it.id));
-                      } catch {
-                        /* noop */
-                      }
-                    }}
-                    onDragEnd={() => {
-                      setDragId(null);
-                      setDragOver(null);
-                    }}
-                    style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 6px', cursor: isEvent ? 'pointer' : 'grab', borderLeft: `2px solid ${accent}`, paddingLeft: 8, opacity: beingDragged ? 0.4 : 1, background: beingDragged ? 'rgba(255,240,200,0.04)' : 'transparent' }}
+                    onPointerDown={!isEvent ? (e) => beginRowDrag(e, it) : undefined}
+                    style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 6px', cursor: isEvent ? 'pointer' : 'grab', borderLeft: `2px solid ${accent}`, paddingLeft: 8, opacity: beingDragged ? 0.4 : 1, background: beingDragged ? 'rgba(255,240,200,0.04)' : 'transparent', touchAction: beingDragged ? 'none' : undefined }}
                   >
                     {!isEvent && (
                       <span aria-hidden="true" style={{ color: 'var(--color-faint)', fontSize: 11, lineHeight: 1, letterSpacing: '-1px', cursor: 'grab', flexShrink: 0, userSelect: 'none' }}>

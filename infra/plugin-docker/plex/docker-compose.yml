@@ -12,7 +12,8 @@ services:
 
   plex-api:
     build:
-      context: ../../services/plex-api
+      context: ../../..
+      dockerfile: services/plex-api/Dockerfile
     container_name: ordeck-plex-api
     restart: unless-stopped
     ports:

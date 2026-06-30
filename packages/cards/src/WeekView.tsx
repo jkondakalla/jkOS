@@ -17,7 +17,6 @@ import {
   addDays,
   fmtHourLabel,
   fmtTime,
-  fmtWeekday,
   fracToTime,
   layoutBars,
   layoutTimedEvents,
@@ -31,6 +30,7 @@ import { TaskChip } from './TaskChip';
 import { TimeBlock } from './TimeBlock';
 import { AllDayBar } from './AllDayBar';
 import { TimelinePreview } from './TimelinePreview';
+import { CreateDialog } from './CreateDialog';
 import { Checkbox, Eyebrow, RecLamp } from './primitives';
 import { Press, TButton } from '@jkos/ui';
 
@@ -113,9 +113,9 @@ function WeekGrid({
   const [createPending, setCreatePending] = useState<any>(null);
   const [hoverCol, setHoverCol] = useState<string | null>(null);
 
-  const beginDragUntimed = (e: React.MouseEvent, item: CalendarItem) => {
+  const beginDragUntimed = (e: React.PointerEvent, item: CalendarItem) => {
     e.preventDefault();
-    beginDrag(item, 'untimed', ({ overDay, overFrac, overZone }) => {
+    beginDrag(e, item, 'untimed', ({ overDay, overFrac, overZone }) => {
       if (overZone === 'timed' && overFrac != null) {
         onUpdateItem?.(item.id, {
           due_date: overDay ?? undefined,
@@ -128,13 +128,14 @@ function WeekGrid({
     });
   };
 
-  const beginDragTimed = (e: React.MouseEvent, item: CalendarItem) => {
+  const beginDragTimed = (e: React.PointerEvent, item: CalendarItem) => {
     e.preventDefault();
     e.stopPropagation();
     const baseStart = timeToFrac(item.scheduled_time as string);
     const baseEnd = item.scheduled_end ? timeToFrac(item.scheduled_end) : baseStart + 1;
     const dur = baseEnd - baseStart;
     beginDrag(
+      e,
       item,
       'timed',
       ({ overDay, overFrac, overZone }) => {
@@ -152,11 +153,12 @@ function WeekGrid({
     );
   };
 
-  const beginResize = (e: React.MouseEvent, item: CalendarItem) => {
+  const beginResize = (e: React.PointerEvent, item: CalendarItem) => {
     e.preventDefault();
     e.stopPropagation();
     const startFrac = timeToFrac(item.scheduled_time as string);
     beginDrag(
+      e,
       item,
       'resize',
       ({ overFrac }) => {
@@ -168,10 +170,10 @@ function WeekGrid({
     );
   };
 
-  const beginDragAllday = (e: React.MouseEvent, item: CalendarItem) => {
+  const beginDragAllday = (e: React.PointerEvent, item: CalendarItem) => {
     e.preventDefault();
     e.stopPropagation();
-    beginDrag(item, 'allday', ({ overDay }) => {
+    beginDrag(e, item, 'allday', ({ overDay }) => {
       if (overDay && overDay !== item.due_date) {
         const delta = Math.round((new Date(overDay).getTime() - new Date(item.due_date as string).getTime()) / 86400000);
         const updates: Partial<CalendarItem> = { due_date: addDays(item.due_date as string, delta) };
@@ -181,10 +183,11 @@ function WeekGrid({
     });
   };
 
-  const beginCreate = (e: React.MouseEvent, dayKey: string, hourFrac: number) => {
+  const beginCreate = (e: React.PointerEvent, dayKey: string, hourFrac: number) => {
     if (readonly) return;
     e.preventDefault();
     beginDrag(
+      e,
       null,
       'create',
       ({ overFrac, overDay }) => {
@@ -301,7 +304,7 @@ function WeekGrid({
                       height={18}
                       isSelected={selectedId === bar.ev.id}
                       isDragging={drag?.item?.id === bar.ev.id}
-                      onMouseDown={hasDnd ? (e) => beginDragAllday(e, bar.ev) : undefined}
+                      onPointerDown={hasDnd ? (e) => beginDragAllday(e, bar.ev) : undefined}
                       onClick={(e) => {
                         e.stopPropagation();
                         if (!drag) onSelect?.(bar.ev);
@@ -348,7 +351,7 @@ function WeekGrid({
                         isDragging={drag?.item?.id === it.id}
                         onSelect={onSelect}
                         onToggle={onToggle}
-                        onMouseDown={hasDnd ? (e) => beginDragUntimed(e, it) : undefined}
+                        onPointerDown={hasDnd ? (e) => beginDragUntimed(e, it) : undefined}
                       />
                     ))}
                   </div>
@@ -384,7 +387,7 @@ function WeekGrid({
                       data-frac-scale={WV_ROW_H}
                       onMouseEnter={() => setHoverCol(d)}
                       onMouseLeave={() => setHoverCol((c) => (c === d ? null : c))}
-                      onMouseDown={
+                      onPointerDown={
                         hasDnd
                           ? (e) => {
                               if (e.target !== e.currentTarget && !(e.target as HTMLElement).dataset?.gridBg) return;
@@ -481,48 +484,6 @@ function WeekGrid({
         />
       )}
     </>
-  );
-}
-
-function CreateDialog({ pending, onSubmit, onCancel }: { pending: any; onSubmit: (title: string) => void; onCancel: () => void }) {
-  const [title, setTitle] = useState('');
-  const inputRef = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
-
-  const handle = () => {
-    if (title.trim()) onSubmit(title.trim());
-    else onCancel();
-  };
-
-  return (
-    <div onClick={onCancel} style={{ position: 'fixed', inset: 0, zIndex: 400, background: 'rgba(10,8,6,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(2px)' }}>
-      <div onClick={(e) => e.stopPropagation()} className="modal-in" style={{ width: 'min(460px, 90vw)', background: 'var(--color-paper-2)', border: '1px solid var(--color-line)', borderRadius: 'var(--hub-radius-lg)', boxShadow: '0 24px 64px rgba(0,0,0,0.5), 0 0 0 1px color-mix(in srgb, var(--color-accent) 30%, transparent)', padding: '22px 26px 24px' }}>
-        <div style={{ fontFamily: FONT_BODY, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'var(--color-accent)', textShadow: 'var(--accent-halo-text)', marginBottom: 10 }}>
-          {pending.allDay ? `${fmtWeekday(pending.startDay)} · all‑day event` : `${fmtWeekday(pending.startDay)} · ${fmtTime(pending.scheduled_time)} – ${fmtTime(pending.scheduled_end)}`}
-        </div>
-        <input
-          ref={inputRef}
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') handle();
-            if (e.key === 'Escape') onCancel();
-          }}
-          placeholder="What needs to happen…"
-          style={{ width: '100%', background: 'transparent', border: 'none', borderBottom: '1px solid var(--color-line)', fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 22, color: 'var(--color-ink)', outline: 'none', padding: '4px 0 10px' }}
-        />
-        <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
-          <button onClick={onCancel} style={{ background: 'transparent', border: '1px solid var(--color-line)', fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--color-muted)', padding: '8px 16px', cursor: 'pointer' }}>
-            Cancel
-          </button>
-          <button onClick={handle} className="btn-action" style={{ background: 'var(--color-accent)', border: 'none', color: 'var(--color-paper)', fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', padding: '8px 20px', cursor: 'pointer', boxShadow: 'var(--accent-halo)' }}>
-            Add →
-          </button>
-        </div>
-      </div>
-    </div>
   );
 }
 

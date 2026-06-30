@@ -29,9 +29,15 @@ const ITEM_SHAPE = [
   { name: 'id',             type: 'number' },
   { name: 'title',          type: 'string' },
   { name: 'kind',           type: 'enum',    enum: ['task', 'event'] },
+  { name: 'scope',          type: 'string' },
+  { name: 'parent_id',      type: 'number' },
   { name: 'due_date',       type: 'date' },
+  { name: 'end_date',       type: 'date' },
   { name: 'scheduled_time', type: 'time' },
+  { name: 'scheduled_end',  type: 'time' },
   { name: 'completed',      type: 'boolean' },
+  { name: 'accent',         type: 'string' },
+  { name: 'source',         type: 'string' },
   { name: 'tags',           type: 'string' },
   { name: 'ext_ref',        type: 'string' },
   { name: 'updated_at',     type: 'string' },
@@ -64,6 +70,30 @@ const CAPABILITIES = {
       ],
       returns: ITEM_SHAPE,
       invalidates: [ITEMS_KEY], scopes: ['beigeboard:write'],
+    },
+    {
+      // General partial update — the load-bearing capability for cross-app
+      // scheduling. Drag reschedule (and Today's carried-reschedule) commit through
+      // THIS: any subset of the schedulable fields is patched. completeItem stays a
+      // narrow, intent-named alias for the common "mark done" case; this is the
+      // open seam everything else (move a date/time, rename, recolour) maps onto.
+      // The server's PATCH /items/:id route already accepts any ITEM_COLUMNS field;
+      // this widens only the DECLARED contract so peers can discover the write.
+      id: 'updateItem', label: 'Reschedule / edit', method: 'PATCH', path: '/items/:id',
+      body: [
+        { name: 'id',             type: 'number', label: 'Item id', required: true },
+        { name: 'due_date',       type: 'date',   label: 'Due date' },
+        { name: 'end_date',       type: 'date',   label: 'End date (multi-day)' },
+        { name: 'scheduled_time', type: 'time',   label: 'Start time' },
+        { name: 'scheduled_end',  type: 'time',   label: 'End time' },
+        { name: 'title',          type: 'string', label: 'Title', max: 200 },
+        { name: 'notes',          type: 'text',   label: 'Notes' },
+        { name: 'accent',         type: 'string', label: 'Accent' },
+        { name: 'kind',           type: 'enum',   label: 'Kind', enum: ['task', 'event'] },
+      ],
+      returns: ITEM_SHAPE,
+      invalidates: [ITEMS_KEY], scopes: ['beigeboard:write'],
+      doc: 'Patches any subset of an item\'s schedulable fields. Drag reschedule maps to this. Pass id + only the fields to change.',
     },
     {
       id: 'deleteItem', label: 'Delete', method: 'DELETE', path: '/items/:id',

@@ -4,7 +4,7 @@
  * concrete wiring: the DragProvider adapter and the accent/source resolvers.
  */
 import React from 'react'
-import { WeekView as KitWeekView } from '@jkos/cards'
+import { Calendar } from '@jkos/cards'
 import { useDrag } from '../providers/DragProvider'
 import { getAccent } from '../lib/seed'
 import { sourceOf } from '../lib/theme'
@@ -12,7 +12,8 @@ import { sourceOf } from '../lib/theme'
 export function WeekView(props: any) {
   const dnd = useDrag()
   return (
-    <KitWeekView
+    <Calendar
+      view="week"
       {...props}
       drag={dnd}
       resolvers={{

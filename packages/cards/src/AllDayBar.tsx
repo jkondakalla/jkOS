@@ -16,14 +16,15 @@ export interface AllDayBarProps {
   height: number;
   isSelected?: boolean;
   isDragging?: boolean;
-  onMouseDown?: (e: React.MouseEvent) => void;
+  /** Arms a drag from the originating pointer event (see usePointerDrag). */
+  onPointerDown?: (e: React.PointerEvent) => void;
   onClick?: (e: React.MouseEvent) => void;
 }
 
-export function AllDayBar({ bar, color, top, height, isSelected, isDragging, onMouseDown, onClick }: AllDayBarProps) {
+export function AllDayBar({ bar, color, top, height, isSelected, isDragging, onPointerDown, onClick }: AllDayBarProps) {
   return (
     <div
-      onMouseDown={onMouseDown}
+      onPointerDown={onPointerDown}
       onClick={onClick}
       style={{
         position: 'absolute',

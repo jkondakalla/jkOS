@@ -12,7 +12,8 @@ services:
 
   recipe-api:
     build:
-      context: ../../services/recipe-api
+      context: ../../..
+      dockerfile: services/recipe-api/Dockerfile
     container_name: ordeck-recipe-api
     restart: unless-stopped
     ports:

@@ -4,7 +4,7 @@
  * accent/source resolvers.
  */
 import React from 'react'
-import { CalendarView as KitCalendarView } from '@jkos/cards'
+import { Calendar } from '@jkos/cards'
 import { useDrag } from '../providers/DragProvider'
 import { getAccent } from '../lib/seed'
 import { sourceOf } from '../lib/theme'
@@ -12,7 +12,8 @@ import { sourceOf } from '../lib/theme'
 export function CalendarView(props: any) {
   const dnd = useDrag()
   return (
-    <KitCalendarView
+    <Calendar
+      view="month"
       {...props}
       drag={dnd}
       resolvers={{

@@ -21,14 +21,15 @@ import {
   useRef, useState, useLayoutEffect,
   type ReactNode, type RefObject, type PointerEvent as ReactPointerEvent,
 } from 'react';
+import { usePointerDrag, HOLD_MS, HOLD_CANCEL_PX } from '@jkos/ui';
 import { activeBreakpoint, layoutForBreakpoint, compactVertical, bottom } from './engine';
 import type { BreakpointName, GridItem, HudState, WidgetDef } from './types';
 import './grid.css';
 
 const DEFAULT_ROW_HEIGHT = 44;
 const DEFAULT_GAP = 18;
-const HOLD_MS = 500;        // press-and-hold to pick a card up (outside edit mode)
-const MOVE_CANCEL_PX = 5;   // movement before the hold completes = scroll/tap, not a drag
+// HOLD_MS (press-and-hold to pick up) and HOLD_CANCEL_PX (movement that re-reads
+// the gesture as a scroll/tap) come from @jkos/ui — the suite's one gesture source.
 
 interface HudGridProps {
   state: HudState;
@@ -46,17 +47,6 @@ interface HudGridProps {
   renderWidget: (def: WidgetDef, item: GridItem) => ReactNode;
 }
 
-/** Live gesture (a ref — pointer moves must not re-render until a drag begins). */
-interface Press {
-  id: string;
-  el: HTMLElement;                   // the cell node — captured once a drag begins
-  pointerId: number;
-  startX: number; startY: number;   // pointerdown point (for the 5px cancel test)
-  lastX: number; lastY: number;     // most recent pointer point (for delayed activate)
-  grabX: number; grabY: number;     // pointer offset inside the card at grab time
-  active: boolean;
-  timer: ReturnType<typeof setTimeout> | null;
-}
 /** What's rendered while a card is lifted. */
 interface Drag { id: string; px: number; py: number; col: number; row: number; }
 
@@ -97,9 +87,8 @@ export function HudGrid({
   const stepX = colW + gap;
   const stepY = rowHeight + gap;
 
-  const press = useRef<Press | null>(null);
+  const { begin } = usePointerDrag();
   const dragRef = useRef<Drag | null>(null);
-  const justDragged = useRef(false);
   const [drag, setDragState] = useState<Drag | null>(null);
   const setDrag = (d: Drag | null) => { dragRef.current = d; setDragState(d); };
 
@@ -127,71 +116,40 @@ export function HudGrid({
     return { px, py, col, row };
   }
 
-  function activate() {
-    const p = press.current;
-    if (!p || p.active) return;
-    p.active = true;
-    // Capture only now — before this, native scroll/tap-cancel must stay possible.
-    try { p.el.setPointerCapture(p.pointerId); } catch { /* pointer already released */ }
-    if (!editMode) onRequestEdit?.();
-    const it = baseItems.find((i) => i.i === p.id);
-    if (!it) return;
-    setDrag({ id: p.id, ...locate(p.lastX, p.lastY, it.w, p.grabX, p.grabY) });
-  }
-
-  function onPointerDown(e: ReactPointerEvent, item: GridItem) {
-    if (e.button !== 0) return;
-    if ((e.target as HTMLElement).closest('button')) return;   // never drag from the × control
-    // Clear a stale swallow: if the previous drag ended without a follow-up click
-    // (pointer released over another element under capture), justDragged would
-    // otherwise eat the FIRST click of this fresh gesture.
-    justDragged.current = false;
+  /** Pointer-drag a card to rearrange it. Outside edit mode a press-and-HOLD
+   *  picks it up (and enters edit mode); in edit mode it lifts immediately. The
+   *  gesture mechanics — capture, the hold-cancel threshold, the post-drag click
+   *  swallow — come from @jkos/ui's usePointerDrag, shared with the calendar. */
+  function onCellPointerDown(e: ReactPointerEvent, item: GridItem) {
+    if ((e.target as HTMLElement).closest('button')) return;   // never drag from the edit/× controls
     const r = areaRef.current?.getBoundingClientRect();
     const slot = rectOf(item);
-    press.current = {
-      id: item.i,
-      el: e.currentTarget as HTMLElement,
-      pointerId: e.pointerId,
-      startX: e.clientX, startY: e.clientY,
-      lastX: e.clientX, lastY: e.clientY,
-      grabX: r ? e.clientX - r.left - slot.left : 0,
-      grabY: r ? e.clientY - r.top - slot.top : 0,
-      active: false, timer: null,
+    const grabX = r ? e.clientX - r.left - slot.left : 0;
+    const grabY = r ? e.clientY - r.top - slot.top : 0;
+    const track = (x: number, y: number) => {
+      const it = baseItems.find((i) => i.i === item.i);
+      if (it) setDrag({ id: item.i, ...locate(x, y, it.w, grabX, grabY) });
     };
-    if (editMode) activate();
-    else press.current.timer = setTimeout(activate, HOLD_MS);
-  }
 
-  function onPointerMove(e: ReactPointerEvent) {
-    const p = press.current;
-    if (!p) return;
-    p.lastX = e.clientX; p.lastY = e.clientY;
-    if (!p.active) {
-      if (Math.hypot(e.clientX - p.startX, e.clientY - p.startY) > MOVE_CANCEL_PX) {
-        if (editMode) activate();                                   // already editing → pick up on move
-        else { if (p.timer) clearTimeout(p.timer); press.current = null; }   // else it's a scroll/tap
-      }
-      return;
-    }
-    e.preventDefault();
-    const it = baseItems.find((i) => i.i === p.id);
-    if (it) setDrag({ id: p.id, ...locate(e.clientX, e.clientY, it.w, p.grabX, p.grabY) });
-  }
-
-  function onPointerUp() {
-    const p = press.current;
-    if (p?.timer) clearTimeout(p.timer);
-    const d = dragRef.current;
-    if (p?.active && d && onLayoutChange) {
-      justDragged.current = true;
-      const committed = compactVertical(
-        baseItems.map((it) => (it.i === d.id ? { ...it, x: d.col, y: d.row } : it)),
-        cols,
-      );
-      onLayoutChange(bp.name, committed);
-    }
-    press.current = null;
-    setDrag(null);
+    begin(e, {
+      activation: editMode
+        ? { kind: 'immediate' }
+        : { kind: 'hold', delay: HOLD_MS, cancelDistance: HOLD_CANCEL_PX },
+      onActivate: (c) => { if (!editMode) onRequestEdit?.(); track(c.x, c.y); },
+      onMove: (c) => track(c.x, c.y),
+      onEnd: (_c, activated) => {
+        const d = dragRef.current;
+        if (activated && d && onLayoutChange) {
+          const committed = compactVertical(
+            baseItems.map((it) => (it.i === d.id ? { ...it, x: d.col, y: d.row } : it)),
+            cols,
+          );
+          onLayoutChange(bp.name, committed);
+        }
+        setDrag(null);
+      },
+      onCancel: () => setDrag(null),
+    });
   }
 
   const areaHeight = Math.max(bottom(items) * stepY - gap, stepY);
@@ -219,13 +177,7 @@ export function HudGrid({
               key={item.i}
               data-id={item.i}
               className={`hud-cell${lifted ? ' dragging' : ''}${isHighlight ? ' is-highlight' : ''}`}
-              onPointerDown={(e) => onPointerDown(e, item)}
-              onPointerMove={onPointerMove}
-              onPointerUp={onPointerUp}
-              onPointerCancel={onPointerUp}
-              onClickCapture={(e) => {
-                if (justDragged.current) { e.preventDefault(); e.stopPropagation(); justDragged.current = false; }
-              }}
+              onPointerDown={(e) => onCellPointerDown(e, item)}
               style={{
                 position: 'absolute',
                 left: lifted && drag ? drag.px : r.left,
