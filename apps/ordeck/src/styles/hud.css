@@ -278,8 +278,10 @@ html.od-v2 ::selection { background: var(--accent); color: var(--color-accent-co
 
 /* ── Compact weather ───────────────────────────────────────────────────── */
 
+/* flex:1 — a card must always fill the grid cell it's allotted (.hud-cell > *
+   stretches children; a card root must never opt out with flex:none). */
 .hud-weather-compact {
-  flex: none;
+  flex: 1; min-height: 0;
   padding: 14px 18px;
   display: flex; flex-direction: column;
   gap: 10px;
@@ -379,27 +381,169 @@ html.od-v2 ::selection { background: var(--accent); color: var(--color-accent-co
 .hud-edit-remove:hover {
   background: color-mix(in srgb, var(--hub-red) 25%, transparent);
 }
-.hud-edit-bar {
-  display: flex; align-items: center; gap: 8px;
-  padding: 6px 28px;
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
-  border-bottom: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
-  font-family: var(--hub-font-mono);
-  font-size: 10px; color: var(--hub-cream-dim);
+/* ── Widget tray (edit mode) ───────────────────────────────────────────────
+   Slides down under the top strip when edit mode opens: grid-template-rows
+   0fr→1fr, so the canvas below is pushed down, never overlapped. Stays in the
+   DOM while closed for the exit animation — visibility (with a transition
+   delay matching the collapse) keeps its buttons out of the tab order. Each
+   shelved widget is a fixed-size tile: a spec-derived preview glyph
+   (WidgetTray.tsx) over its name. fadeSlideUp comes from the factory. */
+
+.hud-tray {
+  flex: none;
+  display: grid;
+  grid-template-rows: 0fr;
+  visibility: hidden;
+  transition: grid-template-rows 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+              visibility 0s linear 0.42s;
 }
-.hud-edit-restore {
+.hud-tray.open {
+  grid-template-rows: 1fr;
+  visibility: visible;
+  transition: grid-template-rows 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.hud-tray-clip { overflow: hidden; min-height: 0; }
+.hud-tray-inner {
+  margin-top: 10px;
+  padding: 10px 28px 13px;
+  border-top: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+  background:
+    linear-gradient(180deg,
+      color-mix(in srgb, var(--accent) 10%, transparent),
+      color-mix(in srgb, var(--accent) 3%, transparent) 60%,
+      transparent),
+    var(--hub-bg-1);
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+  /* Inner top shadow — reads as sliding out from UNDER the top strip. */
+  box-shadow: inset 0 12px 18px -16px color-mix(in srgb, #000 60%, transparent);
+}
+
+.hud-tray-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.hud-tray-eyebrow {
+  font-family: var(--hub-font-mono);
+  font-size: 9.5px; font-weight: 700; letter-spacing: 0.22em;
+  color: var(--color-accent-ink);
+}
+.hud-tray-count {
+  font-family: var(--hub-font-mono);
+  font-size: 8.5px; letter-spacing: 0.14em;
+  color: var(--hub-cream-dim);
   padding: 2px 8px;
   border: 1px solid var(--hub-line);
-  background: var(--hub-bg-2);
-  color: var(--color-accent-ink);
-  font-family: var(--hub-font-mono);
-  font-size: 9.5px; letter-spacing: 0.06em;
-  cursor: pointer; border-radius: var(--hub-radius-xs);
-  transition: border-color 0.12s;
-  text-transform: capitalize;
+  border-radius: 999px;
 }
-.hud-edit-restore:hover { border-color: var(--accent); }
-.hud-edit-sep { width: 1px; height: 13px; background: var(--hub-line-strong); margin: 0 2px; }
+.hud-tray-act {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 11px;
+  border: 1px solid var(--hub-line-strong);
+  border-radius: var(--hub-radius-button);
+  background: var(--hub-bg-2);
+  color: var(--hub-cream);
+  font-family: var(--hub-font-mono);
+  font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.hud-tray-act:hover {
+  border-color: var(--accent);
+  color: var(--color-accent-ink);
+  background: var(--color-accent-soft);
+}
+
+.hud-tray-strip {
+  display: flex; gap: 12px;
+  overflow-x: auto;
+  padding: 2px 2px 6px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--hub-line-strong) transparent;
+}
+.hud-tray-strip::-webkit-scrollbar { height: 6px; }
+.hud-tray-strip::-webkit-scrollbar-thumb { background: var(--hub-line-strong); border-radius: 3px; }
+
+.hud-tile {
+  flex: none; width: 132px;
+  padding: 7px 7px 8px;
+  text-align: left;
+  background: var(--hub-bg-2);
+  border: 1px solid var(--hub-line);
+  border-radius: var(--hub-radius-lg);
+  box-shadow: var(--od-shadow);
+  cursor: pointer;
+  transition: transform 0.16s ease, border-color 0.16s, box-shadow 0.16s;
+}
+/* Staggered entrance each time the tray opens (--i set inline per tile). */
+.hud-tray.open .hud-tile {
+  animation: fadeSlideUp 0.4s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation-delay: calc(60ms + var(--i, 0) * 45ms);
+}
+.hud-tile:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  box-shadow: var(--od-shadow-lift);
+}
+.hud-tile:active { transform: none; }
+.hud-tile:focus-visible, .hud-tray-act:focus-visible {
+  outline: 1.5px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.hud-tile-view {
+  position: relative; display: block; height: 62px;
+  border: 1px solid var(--hub-line);
+  border-radius: var(--hub-radius);
+  background: var(--hub-bg-1);
+  overflow: hidden;
+}
+.hud-tile-view svg { display: block; width: 100%; height: 100%; }
+/* Presentation attributes can't carry var() for font-family; fill/stroke can. */
+.hud-tile-view text { font-family: var(--hub-font-mono); }
+
+.hud-tile-add {
+  position: absolute; top: 5px; right: 5px;
+  width: 17px; height: 17px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  background: color-mix(in srgb, var(--hub-bg-2) 72%, transparent);
+  color: var(--color-accent-ink);
+  font-size: 12px; line-height: 1;
+  opacity: 0.85;
+  transition: background 0.15s, color 0.15s, opacity 0.15s;
+}
+.hud-tile:hover .hud-tile-add {
+  opacity: 1;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--color-accent-contrast);
+  box-shadow: 0 0 10px var(--hub-amber-glow);
+}
+.hud-tile-ai {
+  position: absolute; top: 5px; left: 5px;
+  font-family: var(--hub-font-mono);
+  font-size: 7px; font-weight: 700; letter-spacing: 0.14em;
+  color: var(--color-accent-ink);
+  background: var(--color-accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  border-radius: var(--hub-radius-xs);
+  padding: 1px 4px;
+}
+.hud-tile-name {
+  display: block;
+  margin-top: 7px; padding: 0 2px;
+  font-family: var(--hub-font-mono);
+  font-size: 9.5px; font-weight: 600; letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--hub-cream);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.hud-tile:hover .hud-tile-name { color: var(--hub-cream-bright); }
+
+.hud-tray-empty {
+  font-family: var(--hub-font-mono);
+  font-size: 10px; letter-spacing: 0.12em;
+  color: var(--hub-cream-faint);
+  padding: 12px 2px 14px;
+}
 
 /* ── Widget Workshop · context menu (right-click / long-hold) ───────────── */
 @keyframes ww-ghost-in { from { opacity: 0; } to { opacity: 0.45; } }
@@ -819,4 +963,7 @@ a.hud-card:hover { box-shadow: var(--od-shadow-lift); transform: translateY(-1px
 @media (prefers-reduced-motion: reduce) {
   .hud-col, .hud-apps-pop { animation: none; }
   .hud-dot.pulse { animation: none; }
+  .hud-tray, .hud-tray.open { transition: none; }
+  .hud-tray.open .hud-tile { animation: none; }
+  .hud-tile { transition: none; }
 }

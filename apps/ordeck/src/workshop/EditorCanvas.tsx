@@ -259,7 +259,7 @@ export function EditorCanvas({
               flexDirection: n.t === 'row' ? 'row' : 'column',
               gap: n.t === 'form' ? 8 : n.gap ?? 8,
               alignItems: n.t === 'row' ? n.align ?? 'center' : undefined,
-              justifyContent: n.t === 'row' ? n.justify ?? 'flex-start' : undefined,
+              justifyContent: n.t !== 'form' ? n.justify ?? 'flex-start' : undefined,
             }}
           >
             {flowChildren(en, s)}

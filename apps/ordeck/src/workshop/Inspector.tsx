@@ -283,6 +283,10 @@ export interface InspectorProps {
   sel: ENode | null;
   sources: string[];
   identity: IdentityState;
+  /** The body is a lone calendar/weather molecule — it owns its own card head,
+   *  so the eyebrow/source captions are dropped on publish. Surface that instead
+   *  of letting the edit vanish silently. */
+  moleculeOnly?: boolean;
   onIdentity: (patch: Partial<IdentityState>) => void;
   sizing: SizingState;
   onSizing: (patch: Partial<SizingState>) => void;
@@ -312,8 +316,14 @@ export function Inspector(p: InspectorProps) {
         </div>
         <Line t="id"><input style={{ ...field, flex: 1 }} value={idn.id} placeholder="e.g. btc-price" onChange={(e) => p.onIdentity({ id: e.target.value })} /></Line>
         <Line t="label"><input style={{ ...field, flex: 1 }} value={idn.label} placeholder="Display name" onChange={(e) => p.onIdentity({ label: e.target.value })} /></Line>
-        <Line t="eyebrow"><input style={{ ...field, flex: 1 }} value={idn.eyebrow} placeholder="Card eyebrow (optional)" onChange={(e) => p.onIdentity({ eyebrow: e.target.value })} /></Line>
-        <Line t="source"><input style={{ ...field, flex: 1 }} value={idn.source} placeholder="Right-side label (optional)" onChange={(e) => p.onIdentity({ source: e.target.value })} /></Line>
+        {p.moleculeOnly ? (
+          <p style={hintStyle}>This card is a self-contained calendar/weather — it draws its own head, so eyebrow/source don't apply. Add another element beside it to get a framed card.</p>
+        ) : (
+          <>
+            <Line t="eyebrow"><input style={{ ...field, flex: 1 }} value={idn.eyebrow} placeholder="Card eyebrow (optional)" onChange={(e) => p.onIdentity({ eyebrow: e.target.value })} /></Line>
+            <Line t="source"><input style={{ ...field, flex: 1 }} value={idn.source} placeholder="Right-side label (optional)" onChange={(e) => p.onIdentity({ source: e.target.value })} /></Line>
+          </>
+        )}
         <Line t="size">
           <Num label="desk w" value={p.sizing.dw} min={1} max={12} onChange={(n) => p.onSizing({ dw: n })} />
           <Num label="h" value={p.sizing.dh} min={1} max={40} onChange={(n) => p.onSizing({ dh: n })} />
@@ -377,12 +387,26 @@ export function Inspector(p: InspectorProps) {
         <>
           <Line t="unit"><BindField value={n.unit} onChange={(b) => patch({ unit: b })} sources={sources} optional /></Line>
           <Line t="sub"><BindField value={n.sub} onChange={(b) => patch({ sub: b })} sources={sources} optional /></Line>
+          <Line t="size"><Num label="px" value={n.size ?? 30} min={12} max={72} onChange={(v) => patch({ size: v === 30 ? undefined : v })} /></Line>
         </>
       )}
       {(n.t === 'bar' || n.t === 'gauge') && (
         <Line t="max"><BindField value={n.max} onChange={(b) => patch({ max: b })} sources={sources} optional /></Line>
       )}
-      {n.t === 'gauge' && <Line t="caption"><BindField value={n.label} onChange={(b) => patch({ label: b })} sources={sources} optional /></Line>}
+      {n.t === 'gauge' && (
+        <>
+          <Line t="caption"><BindField value={n.label} onChange={(b) => patch({ label: b })} sources={sources} optional /></Line>
+          <Line t="size"><Num label="px" value={n.size ?? 76} min={40} max={160} onChange={(v) => patch({ size: v === 76 ? undefined : v })} /></Line>
+        </>
+      )}
+      {n.t === 'sparkline' && (
+        <>
+          <Line t="from []"><BindField value={n.from} onChange={(b) => patch({ from: b ?? '' })} sources={sources} /></Line>
+          <Line t="field"><input style={{ ...field, flex: 1 }} value={n.path ?? ''} placeholder="number field per element (blank = element itself)" onChange={(e) => patch({ path: e.target.value || undefined })} /></Line>
+          <Line t="height"><Num label="px" value={n.height ?? 28} min={12} max={80} onChange={(v) => patch({ height: v === 28 ? undefined : v })} /></Line>
+          <Line t="tone"><ToneField value={n.tone} onChange={(v) => patch({ tone: v })} sources={sources} /></Line>
+        </>
+      )}
       {(n.t === 'pill' || n.t === 'dot' || n.t === 'keyval' || n.t === 'icon' || n.t === 'button') && (
         <Line t="tone"><ToneField value={n.tone} onChange={(v) => patch({ tone: v })} sources={sources} /></Line>
       )}
@@ -417,6 +441,9 @@ export function Inspector(p: InspectorProps) {
           <Line t="from []"><BindField value={n.from} onChange={(b) => patch({ from: b ?? '' })} sources={sources} /></Line>
           <Line t="empty"><BindField value={n.empty} onChange={(b) => patch({ empty: b })} sources={sources} optional /></Line>
           <Line t="direction"><Select value={n.dir || 'col'} onChange={(v) => patch({ dir: v === 'row' ? 'row' : undefined })} options={['col', 'row']} /></Line>
+          {n.dir !== 'row' && (
+            <Line t="columns"><Num label="n" value={n.cols ?? 1} min={1} max={4} onChange={(v) => patch({ cols: v > 1 ? v : undefined })} /></Line>
+          )}
           <p style={hintStyle}>The row template is on the canvas (EACH ITEM) — tap into it to edit; item fields bind via the <code>$</code> source.</p>
         </>
       )}
@@ -429,11 +456,9 @@ export function Inspector(p: InspectorProps) {
       {(n.t === 'stack' || n.t === 'row') && (
         <>
           <Line t="gap"><Num label="px" value={n.gap ?? 8} min={0} max={40} onChange={(v) => patch({ gap: v })} /></Line>
+          <Line t="justify"><Select value={n.justify || 'flex-start'} onChange={(v) => patch({ justify: v === 'flex-start' ? undefined : v })} options={JUSTIFY} /></Line>
           {n.t === 'row' && (
-            <>
-              <Line t="justify"><Select value={n.justify || 'flex-start'} onChange={(v) => patch({ justify: v })} options={JUSTIFY} /></Line>
-              <Line t="align"><Select value={n.align || 'center'} onChange={(v) => patch({ align: v })} options={ALIGN} /></Line>
-            </>
+            <Line t="align"><Select value={n.align || 'center'} onChange={(v) => patch({ align: v })} options={ALIGN} /></Line>
           )}
           <Line t="grow"><input type="checkbox" checked={!!n.grow} onChange={(e) => patch({ grow: e.target.checked || undefined })} /></Line>
         </>

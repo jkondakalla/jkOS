@@ -17,6 +17,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { authFetch } from '@jkos/auth-client';
 import { AUTH_URL, useJkOSPreferences } from '../hooks/useJkOSPreferences';
 import { useBreakpoint } from '@jkos/ui';
 import { useHudContext } from './hud/useHudContext';
@@ -112,8 +113,10 @@ export default function WidgetWorkshop() {
   const closeMenu = () => { setMenu(null); setGhost(null); };
 
   /* ── published widgets (jkAuth registry) ───────────────────────────────── */
+  // authFetch throughout: an expired access token silently refreshes instead of
+  // 401ing — a stale list here is how "publish worked but nothing changed" happens.
   const loadPublished = () => {
-    fetch(`${AUTH_URL}/auth/widgets`, { credentials: 'include' })
+    authFetch(`${AUTH_URL}/auth/widgets`)
       .then((r) => (r.ok ? r.json() : { widgets: [] }))
       .then((d) => setPublished(Array.isArray(d.widgets) ? d.widgets : []))
       .catch(() => {});
@@ -319,8 +322,8 @@ export default function WidgetWorkshop() {
     if (!def.id) { setMsg('Give the widget an id first (tap the card background).'); return; }
     setBusy(true); setMsg('');
     try {
-      const r = await fetch(`${AUTH_URL}/auth/widgets`, {
-        method: 'POST', credentials: 'include',
+      const r = await authFetch(`${AUTH_URL}/auth/widgets`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(def),
       });
       if (r.ok) { setMsg(`Published "${def.id}" — it's on every HUD's add strip now.`); loadPublished(); }
@@ -331,7 +334,7 @@ export default function WidgetWorkshop() {
   }
 
   async function unpublish(wid: string) {
-    await fetch(`${AUTH_URL}/auth/widgets/${encodeURIComponent(wid)}`, { method: 'DELETE', credentials: 'include' }).catch(() => {});
+    await authFetch(`${AUTH_URL}/auth/widgets/${encodeURIComponent(wid)}`, { method: 'DELETE' }).catch(() => {});
     loadPublished();
   }
 
@@ -350,6 +353,7 @@ export default function WidgetWorkshop() {
       sel={selEn}
       sources={sources}
       identity={identity}
+      moleculeOnly={onlyMolecule}
       onIdentity={(p) => setIdentity((s) => ({ ...s, ...p }))}
       sizing={sizing}
       onSizing={(p) => commit({ sizing: { ...sizing, ...p } }, 'sizing')}
@@ -533,9 +537,10 @@ function Guide() {
       </GuideCard>
 
       <GuideCard title="Elements">
-        <Def k="Metric / Gauge / Bar">A big number with unit; a circular value÷max ring; a horizontal fill.</Def>
+        <Def k="Metric / Gauge / Bar">A big number with unit; a circular value÷max ring; a horizontal fill. Metric and Gauge take a size so they work as compact inline stats too.</Def>
+        <Def k="Sparkline">A tiny trend line over a bound array — set the array (e.g. <code>weather.slots</code>) and the number field per element (e.g. <code>temp</code>).</Def>
         <Def k="Key / value">A name on the left and a value on the right; tone colours the name.</Def>
-        <Def k="List">Repeats its item template over a bound array. On the canvas you edit the template once (EACH ITEM) against the first live element; compose any row from text/pills/dots inside it.</Def>
+        <Def k="List">Repeats its item template over a bound array. On the canvas you edit the template once (EACH ITEM) against the first live element; compose any row from text/pills/dots inside it. Columns wraps it into an N-column grid for dense fact lists.</Def>
         <Def k="Pill / Dot / Icon">Small coloured badge / indicator / line glyph; tone sets the colour (ok/warn/danger/accent/muted) and can be data-bound (e.g. <code>$.tone</code>).</Def>
         <Def k="Row / Stack">Layout groups — side-by-side or vertical. Drag elements in and out; wrap an element via its menu.</Def>
         <Def k="Condition">Shows THEN when the bound value is truthy, otherwise ELSE (add the branch from the menu). Empty arrays, <code>0</code>, <code>""</code> and <code>false</code> count as "off". That's how a card swaps states — the slices expose ready-made flags (<code>signedOut, showOffline, showTasks, available…</code>).</Def>

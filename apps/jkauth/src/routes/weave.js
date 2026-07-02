@@ -20,7 +20,8 @@ const router = express.Router()
 // backward compatibility; the frontend maps it to the camelCase SuiteApp shape.
 router.get('/auth/apps', (req, res) => {
   const user = resolveUser(req)
-  if (!user) return res.status(401).json({ error: 'Unauthorized' })
+  // The UNAUTHENTICATED code lets authFetch refresh an expired token + retry.
+  if (!user) return res.status(401).json({ error: 'Not authenticated', code: 'UNAUTHENTICATED' })
   const apps = all(`SELECT id, name, origin, icon_url, allowed_roles,
                            api_base, health_path, capabilities_path, datasets_path, ai
                     FROM app_registry ORDER BY name`)
@@ -66,7 +67,7 @@ router.get('/auth/jwks', (req, res) => {
 // GET /auth/widgets — published widget definitions (any signed-in user).
 router.get('/auth/widgets', (req, res) => {
   const user = resolveUser(req)
-  if (!user) return res.status(401).json({ error: 'Unauthorized' })
+  if (!user) return res.status(401).json({ error: 'Not authenticated', code: 'UNAUTHENTICATED' })
   const widgets = []
   for (const r of all('SELECT def FROM widget_registry ORDER BY label')) {
     try { widgets.push(JSON.parse(r.def)) } catch { /* skip a corrupt row */ }

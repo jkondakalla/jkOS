@@ -78,7 +78,7 @@ export interface WeatherConfig {
   acWeatherLocKey: string;
 }
 
-export interface WeatherSlot { label: string; temp: number }
+export interface WeatherSlot { label: string; temp: number; tempLabel: string }
 export interface WeatherState {
   loaded: boolean;
   offline: boolean;
@@ -90,6 +90,13 @@ export interface WeatherState {
   hi: number;
   lo: number;
   slots: WeatherSlot[];
+  // ── derived (presentation-ready for the spec factory) ──
+  ready: boolean;          // loaded && !offline — bind the main body to this
+  statusLabel: string;     // 'LOADING…' | 'WEATHER FEED OFFLINE' (the else branch)
+  icon: string;            // registry ICONS key derived from desc (sun/cloud/rain/…)
+  descLine: string;        // "Partly cloudy · feels 74°"
+  hiLabel: string;         // "H 78°"
+  loLabel: string;         // "L 55°"
 }
 
 export function weatherConfig(): WeatherConfig {
@@ -127,7 +134,35 @@ async function acuLocationKey(cfg: WeatherConfig): Promise<string> {
   return key;
 }
 
-type WeatherData = Omit<WeatherState, 'loaded' | 'offline'>;
+type WeatherBase = {
+  loaded: boolean; offline: boolean; label: string; source: 'accuweather' | 'open-meteo';
+  temp: number; feels: number; desc: string; hi: number; lo: number; slots: WeatherSlot[];
+};
+type WeatherData = Omit<WeatherBase, 'loaded' | 'offline'>;
+
+/** Map a free-text condition ("Mostly sunny", "Thunderstorm") onto the curated
+ *  icon set — keyword match so both AccuWeather and open-meteo strings resolve. */
+function weatherIcon(desc: string): string {
+  const d = desc.toLowerCase();
+  if (d.includes('thunder') || d.includes('storm')) return 'bolt';
+  if (d.includes('snow') || d.includes('flurr') || d.includes('sleet') || d.includes('ice')) return 'snow';
+  if (d.includes('rain') || d.includes('drizzle') || d.includes('shower')) return 'rain';
+  if (d.includes('cloud') || d.includes('overcast') || d.includes('fog')) return 'cloud';
+  return 'sun';
+}
+
+/** Add the derived presentation fields the weather spec binds to. */
+function viewWeather(base: WeatherBase): WeatherState {
+  return {
+    ...base,
+    ready: base.loaded && !base.offline,
+    statusLabel: !base.loaded ? 'LOADING…' : base.offline ? 'WEATHER FEED OFFLINE' : '',
+    icon: weatherIcon(base.desc),
+    descLine: base.loaded ? `${base.desc} · feels ${base.feels}°` : '',
+    hiLabel: `H ${base.loaded ? base.hi : '--'}°`,
+    loLabel: `L ${base.loaded ? base.lo : '--'}°`,
+  };
+}
 
 async function fetchAccuWeather(cfg: WeatherConfig): Promise<WeatherData> {
   const locKey = await acuLocationKey(cfg);
@@ -161,10 +196,14 @@ async function fetchOpenMeteo(cfg: WeatherConfig): Promise<WeatherData> {
   if (!r.ok) throw new Error('open-meteo failed');
   const d = await r.json();
   const hours = [9, 12, 15, 18, 21];
-  const slots: WeatherSlot[] = hours.map(h => ({
-    label: h < 12 ? `${h}A` : h === 12 ? '12P' : `${h - 12}P`,
-    temp: Math.round(d.hourly?.temperature_2m?.[h] ?? 0),
-  }));
+  const slots: WeatherSlot[] = hours.map(h => {
+    const temp = Math.round(d.hourly?.temperature_2m?.[h] ?? 0);
+    return {
+      label: h < 12 ? `${h}A` : h === 12 ? '12P' : `${h - 12}P`,
+      temp,
+      tempLabel: `${temp}°`,
+    };
+  });
   return {
     label: cfg.label,
     source: 'open-meteo',
@@ -179,21 +218,21 @@ async function fetchOpenMeteo(cfg: WeatherConfig): Promise<WeatherData> {
 
 export function useWeather(): WeatherState {
   const cfg = weatherConfig();
-  const initial: WeatherState = {
+  const initial: WeatherState = viewWeather({
     loaded: false, offline: false, label: cfg.label, source: 'open-meteo',
     temp: 0, feels: 0, desc: '', hi: 0, lo: 0, slots: [],
-  };
+  });
   const fetcher = useCallback(async (): Promise<WeatherState> => {
     const c = weatherConfig();
     try {
       const data = c.accuweatherKey ? await fetchAccuWeather(c) : await fetchOpenMeteo(c);
-      return { loaded: true, offline: false, ...data };
+      return viewWeather({ loaded: true, offline: false, ...data });
     } catch {
-      return {
+      return viewWeather({
         loaded: true, offline: true, label: c.label,
         source: c.accuweatherKey ? 'accuweather' : 'open-meteo',
         temp: 0, feels: 0, desc: '', hi: 0, lo: 0, slots: [],
-      };
+      });
     }
   }, []);
   // AccuWeather: 60 min to stay within 50 calls/day free tier. open-meteo: 15 min.
@@ -358,6 +397,8 @@ export interface TodayState {
   showTasks: boolean;      // has tasks to render
   showEmpty: boolean;      // authed, online, but nothing scheduled
   emptyLabel: string;
+  /** Writes can land (authed + online) — gates the inline quick-add form. */
+  canAdd: boolean;
 }
 
 interface TodayBase { loaded: boolean; authed: boolean; offline: boolean; tasks: RawTask[] }
@@ -388,6 +429,7 @@ function viewToday(base: TodayBase, hm: string): TodayState {
     progress: tasks.length ? doneCount / tasks.length : 0,
     signedOut, showOffline, showTasks, showEmpty,
     emptyLabel: base.loaded ? 'NOTHING SCHEDULED TODAY' : 'LOADING…',
+    canAdd: base.authed && !base.offline,
   };
 }
 
@@ -733,15 +775,15 @@ export interface SliceSchema { scalars: string[]; arrays?: string[] }
 
 export const HUD_SCHEMA: Record<string, SliceSchema> = {
   clock:         { scalars: ['hm', 'ss', 'dateLine', 'utcShort', 'jday', 'utcLine', 'iso'] },
-  weather:       { scalars: ['temp', 'feels', 'desc', 'hi', 'lo', 'label', 'offline', 'loaded'], arrays: ['slots'] },
+  weather:       { scalars: ['temp', 'feels', 'desc', 'hi', 'lo', 'label', 'offline', 'loaded', 'ready', 'statusLabel', 'icon', 'descLine', 'hiLabel', 'loLabel'], arrays: ['slots'] },
   systems:       { scalars: ['up', 'total', 'summary'], arrays: ['rows'] },
   study:         { scalars: ['streak', 'headline', 'subLine', 'nextLesson', 'courseTitle', 'todayDone', 'dailyGoal', 'available', 'showStreak', 'unavailable', 'offlineLabel'] },
   cal:           { scalars: ['year', 'month'], arrays: ['days'] },
-  today:         { scalars: ['authed', 'progressLabel', 'progress', 'doneCount', 'emptyLabel', 'signedOut', 'showOffline', 'showTasks', 'showEmpty'], arrays: ['tasks'] },
+  today:         { scalars: ['authed', 'progressLabel', 'progress', 'doneCount', 'emptyLabel', 'signedOut', 'showOffline', 'showTasks', 'showEmpty', 'canAdd'], arrays: ['tasks'] },
   notifications: { scalars: ['summary', 'count', 'empty'], arrays: ['items'] },
   focus:         { scalars: ['active', 'title', 'timeLabel', 'tag', 'done', 'authed', 'app', 'deeplink'] },
   pinned:        { scalars: ['count', 'empty', 'authed'], arrays: ['items'] },
 };
 
 /** Fields exposed by `$` (the current array element) inside a list item. */
-export const HUD_ITEM_FIELDS = ['name', 'detail', 'tone', 'status', 'title', 'time', 'timeLabel', 'stateLabel', 'done', 'now', 'tag', 'label', 'temp', 'date', 'count', 'icon', 'text', 'app', 'deeplink'];
+export const HUD_ITEM_FIELDS = ['name', 'detail', 'tone', 'status', 'title', 'time', 'timeLabel', 'stateLabel', 'done', 'now', 'tag', 'label', 'temp', 'tempLabel', 'date', 'count', 'icon', 'text', 'app', 'deeplink'];

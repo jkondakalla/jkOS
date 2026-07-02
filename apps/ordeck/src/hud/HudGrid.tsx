@@ -18,12 +18,12 @@
  */
 
 import {
-  useRef, useState, useLayoutEffect,
+  useRef, useState, useEffect, useLayoutEffect,
   type ReactNode, type RefObject, type PointerEvent as ReactPointerEvent,
 } from 'react';
 import { usePointerDrag, HOLD_MS, HOLD_CANCEL_PX } from '@jkos/ui';
 import { activeBreakpoint, layoutForBreakpoint, compactVertical, bottom } from './engine';
-import type { BreakpointName, GridItem, HudState, WidgetDef } from './types';
+import type { Breakpoint, BreakpointName, GridItem, HudState, WidgetDef } from './types';
 import './grid.css';
 
 const DEFAULT_ROW_HEIGHT = 44;
@@ -41,7 +41,16 @@ interface HudGridProps {
   onEdit?: (id: string) => void;
   /** Fired when a long-press picks a card up while not yet in edit mode. */
   onRequestEdit?: () => void;
-  onLayoutChange?: (bp: BreakpointName, items: GridItem[]) => void;
+  /** Fired when a drag commits: the tier, the full committed layout, and the id
+   *  of the card the user actually moved (the rest merely repacked around it). */
+  onLayoutChange?: (bp: BreakpointName, items: GridItem[], movedId?: string) => void;
+  /** Reports the tier the grid resolved from its OWN container width. Callers
+   *  mutating layouts must use this, not window width — the canvas padding makes
+   *  the two disagree just past the 768/1024 boundaries. */
+  onBreakpoint?: (bp: Breakpoint) => void;
+  /** Ids hand-placed this edit session — badged with a pin in edit mode so it's
+   *  visible why auto-balance packs around them. */
+  sessionPinned?: ReadonlySet<string>;
   rowHeight?: number;
   gap?: number;
   renderWidget: (def: WidgetDef, item: GridItem) => ReactNode;
@@ -75,6 +84,8 @@ export function HudGrid({
   onEdit,
   onRequestEdit,
   onLayoutChange,
+  onBreakpoint,
+  sessionPinned,
   rowHeight = DEFAULT_ROW_HEIGHT,
   gap = DEFAULT_GAP,
   renderWidget,
@@ -86,6 +97,10 @@ export function HudGrid({
   const colW = Math.max(1, (width - (cols - 1) * gap) / cols);
   const stepX = colW + gap;
   const stepY = rowHeight + gap;
+
+  // Tell the owner which tier is actually on screen (bp is a stable BREAKPOINTS
+  // element, so this fires on real tier changes, not every render).
+  useEffect(() => { onBreakpoint?.(bp); }, [bp, onBreakpoint]);
 
   const { begin } = usePointerDrag();
   const dragRef = useRef<Drag | null>(null);
@@ -144,7 +159,7 @@ export function HudGrid({
             baseItems.map((it) => (it.i === d.id ? { ...it, x: d.col, y: d.row } : it)),
             cols,
           );
-          onLayoutChange(bp.name, committed);
+          onLayoutChange(bp.name, committed, d.id);
         }
         setDrag(null);
       },
@@ -189,6 +204,17 @@ export function HudGrid({
                 touchAction: editMode ? 'none' : undefined,
               }}
             >
+              {editMode && sessionPinned?.has(item.i) && (
+                <span
+                  className="hud-cell-pin"
+                  title="Hand-placed this session — auto-balance packs around it"
+                >
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 17v5" />
+                    <path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" />
+                  </svg>
+                </span>
+              )}
               {editMode && onEdit && def.spec && (
                 <button
                   className="hud-edit-remove hud-cell-edit"

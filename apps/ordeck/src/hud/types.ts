@@ -104,16 +104,20 @@ export type ToneBinding = Tone | { lit: unknown } | { src: string; path?: string
  *  states. `time`, `calendar`, and `weather` are higher-level "molecule"
  *  primitives (self-contained cards) the same way `gauge` is. */
 export type WidgetNode =
-  | { t: 'stack'; gap?: number; grow?: boolean; children: WidgetNode[] }
+  /** `justify` distributes children along the column (e.g. space-between pins
+   *  the last child to the card's bottom edge — no dead space in tall cells). */
+  | { t: 'stack'; gap?: number; grow?: boolean; justify?: string; children: WidgetNode[] }
   | { t: 'row'; gap?: number; justify?: string; align?: string; grow?: boolean; children: WidgetNode[] }
   | { t: 'label'; text: Binding; size?: 'md' | 'sm' | 'xs' }
   | { t: 'text'; text: Binding; variant?: 'title' | 'body' | 'sub' | 'mono'; grow?: boolean }
-  | { t: 'metric'; value: Binding; unit?: Binding; sub?: Binding }
+  /** `size` = the number's font-size in px (default 30) — small inline stats vs hero. */
+  | { t: 'metric'; value: Binding; unit?: Binding; sub?: Binding; size?: number }
   | { t: 'bar'; value: Binding; max?: Binding }
   | { t: 'pill'; text: Binding; tone?: ToneBinding }
   | { t: 'dot'; tone?: ToneBinding; pulse?: boolean }
   | { t: 'keyval'; label: Binding; value: Binding; tone?: ToneBinding }
-  | { t: 'gauge'; value: Binding; max?: Binding; label?: Binding }
+  /** `size` = the ring's outer diameter in px (default 76). */
+  | { t: 'gauge'; value: Binding; max?: Binding; label?: Binding; size?: number }
   | { t: 'divider'; label?: Binding }
   | { t: 'link'; text: Binding; href: Binding }
   | { t: 'icon'; name: Binding; tone?: ToneBinding; size?: number }
@@ -121,7 +125,11 @@ export type WidgetNode =
   | { t: 'when'; cond: Binding; then: WidgetNode; else?: WidgetNode }
   | { t: 'calendar' }
   | { t: 'weather' }
-  | { t: 'list'; from: Binding; item: WidgetNode; empty?: Binding; dir?: 'col' | 'row' }
+  /** `cols` wraps a column list into an N-column grid (dense fact lists). */
+  | { t: 'list'; from: Binding; item: WidgetNode; empty?: Binding; dir?: 'col' | 'row'; cols?: number }
+  /** Tiny inline trend line over a bound array; `path` plucks a field per element
+   *  (e.g. weather.slots → temp). Scales itself to the data's min/max. */
+  | { t: 'sparkline'; from: Binding; path?: string; height?: number; tone?: ToneBinding }
   /* ── Write / interactive vocabulary (the command family) ──────────────────
    * `form` owns a mutable `$form` source its `input`/`select`/`toggle` children
    * write into, and a submit that runs `cmd`. `button` is a standalone action.
@@ -195,5 +203,9 @@ export interface HudState {
 
 /* v4: the six built-in cards became declarative specs (no more `component`
    escape hatch), so any v3 document — whose defaults referenced bespoke
-   components — is rebuilt from the new spec defaults on load. */
-export const HUD_STATE_VERSION = 4;
+   components — is rebuilt from the new spec defaults on load.
+   v5: the catalog cull + density redesign — quickadd/taskadd folded into Today,
+   uptime into Systems, progress into Today's head; bb-calendar/day/year retired
+   (Week is the one kit view). A v4 doc references retired ids and pre-redesign
+   specs, so it's rebuilt from the new defaults on load. */
+export const HUD_STATE_VERSION = 5;

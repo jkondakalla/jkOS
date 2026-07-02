@@ -1,18 +1,20 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { SettingsDrawer } from '@jkos/ui';
+import { authFetch } from '@jkos/auth-client';
 import { useJkOSPreferences, AUTH_URL } from '../../hooks/useJkOSPreferences';
 import { WeatherSection } from '../../components/settings/WeatherSection';
 import { useApps } from './useHudData';
 import { useHudContext } from './useHudContext';
 import { HudGrid } from '../../hud/HudGrid';
+import { WidgetTray } from '../../hud/WidgetTray';
 import { renderWidget } from '../../hud/registry';
 import { activeBreakpoint, layoutForBreakpoint, autoBalance } from '../../hud/engine';
 import {
-  loadHudState, saveHudState, defaultHudState,
+  loadHudState, saveHudState, defaultHudState, mergePublished,
   removeToShelf, placeFromShelf, shelvedWidgets, setBreakpointLayout,
   WIDGET_EDIT_KEY,
 } from '../../hud/state';
-import type { HudState } from '../../hud/types';
+import type { Breakpoint, BreakpointName, GridItem, HudState } from '../../hud/types';
 import '../../styles/hud.css';
 
 /* ORDECK v3 "room HUD" — the portal's default face.
@@ -37,6 +39,17 @@ export default function RoomHUD() {
   const [editMode, setEditMode]         = useState(false);
   // Render defaults instantly; hydrate from jkAuth prefs once it resolves.
   const [hud, setHud]                   = useState<HudState>(defaultHudState);
+  // The tier the grid is ACTUALLY showing, reported from its container width.
+  // Resolving from window.innerWidth here would disagree with the grid just
+  // past the 768/1024 boundaries (the canvas padding) and mutate a tier the
+  // user isn't looking at; the window fallback only covers the first frame.
+  const [gridBp, setGridBp]             = useState<Breakpoint | null>(null);
+  // Cards the user hand-placed since entering edit mode. Auto-balance packs
+  // around these instead of moving them — their spot is intent, not accident.
+  const [sessionMoved, setSessionMoved] = useState<ReadonlySet<string>>(new Set());
+  // The layout as it was before the last auto-balance — one-click escape hatch.
+  // Cleared by any other layout mutation, which makes the snapshot stale.
+  const [undoBal, setUndoBal] = useState<{ bp: BreakpointName; items: GridItem[] } | null>(null);
   const hydratedRef = useRef(false);
   const popRef = useRef<HTMLDivElement>(null);
 
@@ -47,16 +60,42 @@ export default function RoomHUD() {
   // Suppressed until hydration completes so the initial defaults never overwrite
   // the user's stored doc.
   const update = (next: HudState) => { setHud(next); if (hydratedRef.current) saveHudState(next); };
-  const shelve = (id: string) => update(removeToShelf(hud, id));
-  const place  = (id: string) => update(placeFromShelf(hud, id, window.innerWidth));
-  // Auto-balance: repack the active breakpoint's cards to the tightest layout
-  // (least height → least empty space). Uses the same width→tier resolution the
-  // grid itself does, so it balances exactly what's on screen.
-  const balance = () => {
-    const bp = activeBreakpoint(window.innerWidth);
-    const items = layoutForBreakpoint(hud, bp);
-    update(setBreakpointLayout(hud, bp.name, autoBalance(items, bp.cols)));
+  const currentBp = () => gridBp ?? activeBreakpoint(window.innerWidth);
+  const shelve = (id: string) => {
+    // A shelved card loses its session pin: if it comes back it lands at an
+    // auto-chosen spot, which is no longer the user's hand placement.
+    setSessionMoved((prev) => {
+      if (!prev.has(id)) return prev;
+      const next = new Set(prev); next.delete(id); return next;
+    });
+    setUndoBal(null);
+    update(removeToShelf(hud, id));
   };
+  const place  = (id: string) => { setUndoBal(null); update(placeFromShelf(hud, id, currentBp())); };
+  // Auto-balance: tidy the tier on screen — pull cards up into gaps while
+  // keeping the arrangement recognisable; cards hand-placed this edit session
+  // stay put (engine `keep`). No-op aware: the undo snapshot is only captured
+  // when something actually moves, so "undo" never appears with nothing to undo.
+  const balance = () => {
+    const bp = currentBp();
+    const items = layoutForBreakpoint(hud, bp);
+    const balanced = autoBalance(items, bp.cols, { keep: sessionMoved });
+    const changed = balanced.some((b) => {
+      const cur = items.find((c) => c.i === b.i);
+      return !cur || cur.x !== b.x || cur.y !== b.y;
+    });
+    if (!changed) return;
+    setUndoBal({ bp: bp.name, items });
+    update(setBreakpointLayout(hud, bp.name, balanced));
+  };
+  const undoBalance = () => {
+    if (!undoBal) return;
+    update(setBreakpointLayout(hud, undoBal.bp, undoBal.items));
+    setUndoBal(null);
+  };
+  // Entering edit mode starts a fresh placement session: the pin set that
+  // auto-balance honours and the balance-undo snapshot both reset.
+  const enterEdit = () => { setSessionMoved(new Set()); setUndoBal(null); setEditMode(true); };
   // Hand the card's definition to the workshop (works for any placed spec card,
   // published or not) and open the editor.
   const editInWorkshop = (id: string) => {
@@ -94,7 +133,9 @@ export default function RoomHUD() {
   // widgets (jkAuth registry) on top so they show on the add strip and render
   // via the spec factory. Order matters: hydration replaces the whole doc, so
   // it must land before the (functional) merge — otherwise it would clobber it.
-  // The published merge is runtime-only and isn't persisted to the user's doc.
+  // authFetch (not plain fetch) so an expired access token is refreshed instead
+  // of a silent 401 leaving stale defs on screen. The merge runs on SUCCESS even
+  // when the list is empty — that's how "everything unpublished" cleans up.
   useEffect(() => {
     let dead = false;
     (async () => {
@@ -104,27 +145,29 @@ export default function RoomHUD() {
       hydratedRef.current = true;
 
       try {
-        const r = await fetch(`${AUTH_URL}/auth/widgets`, { credentials: 'include' });
-        const d = r.ok ? await r.json() : { widgets: [] };
+        const r = await authFetch(`${AUTH_URL}/auth/widgets`);
+        if (!r.ok) return;                       // signed out / error → keep the doc as-is
+        const d = await r.json();
         const list = Array.isArray(d.widgets) ? d.widgets : [];
-        if (dead || !list.length) return;
-        setHud((h) => {
-          const widgets = { ...h.widgets };
-          for (const w of list) if (w && typeof w.id === 'string') widgets[w.id] = w;
-          return { ...h, widgets };
-        });
+        if (dead) return;
+        setHud((h) => mergePublished(h, list));
       } catch { /* add strip just shows the built-ins */ }
     })();
     return () => { dead = true; };
   }, []);
 
   function toggleEdit() {
-    setEditMode(m => !m);
+    if (editMode) setEditMode(false);
+    else enterEdit();
   }
 
-  // Widgets registered but unplaced — the add strip (asset shelf, Phase 2).
-  // AI-backed widgets honor the suite-wide LazurOS kill switch.
-  const shelf = shelvedWidgets(hud).filter(w => !w.ai || lazuros.enabled);
+  // Widgets registered but unplaced — the tray's tiles (asset shelf, Phase 2).
+  // AI-backed widgets honor the suite-wide LazurOS kill switch. Memoised so the
+  // tray (memo'd) skips the per-second clock re-render of this component.
+  const shelf = useMemo(
+    () => shelvedWidgets(hud).filter(w => !w.ai || lazuros.enabled),
+    [hud, lazuros.enabled],
+  );
 
   const sysDot = ctx.systems.up === ctx.systems.total ? 'var(--hub-green)'
     : ctx.systems.up === 0 ? 'var(--hub-red)' : 'var(--hub-warn)';
@@ -218,29 +261,16 @@ export default function RoomHUD() {
         )}
       </div>
 
-      {/* ── Edit mode bar: auto-balance + place shelved widgets back ── */}
-      {editMode && (
-        <div className="hud-edit-bar">
-          <button
-            className="hud-edit-restore"
-            onClick={balance}
-            title="Repack cards into the tightest layout — least height, least empty space"
-          >
-            ⤢ auto-balance
-          </button>
-          {shelf.length > 0 && (
-            <>
-              <span className="hud-edit-sep" />
-              <span>add widget</span>
-              {shelf.map(w => (
-                <button key={w.id} className="hud-edit-restore" onClick={() => place(w.id)}>
-                  + {w.label}
-                </button>
-              ))}
-            </>
-          )}
-        </div>
-      )}
+      {/* ── Widget tray: slides down in edit mode — visual shelf + layout tools.
+             Always mounted so it can animate closed (CSS owns visibility). ── */}
+      <WidgetTray
+        open={editMode}
+        widgets={shelf}
+        onPlace={place}
+        onBalance={balance}
+        canUndo={!!undoBal}
+        onUndo={undoBalance}
+      />
 
       {/* ── Main grid (custom engine) ── */}
       <HudGrid
@@ -249,8 +279,14 @@ export default function RoomHUD() {
         highlightId={highlightId}
         onRemove={shelve}
         onEdit={editInWorkshop}
-        onRequestEdit={() => setEditMode(true)}
-        onLayoutChange={(bpName, items) => update(setBreakpointLayout(hud, bpName, items))}
+        onRequestEdit={enterEdit}
+        onLayoutChange={(bpName, items, movedId) => {
+          if (movedId) setSessionMoved((prev) => new Set(prev).add(movedId));
+          setUndoBal(null);
+          update(setBreakpointLayout(hud, bpName, items));
+        }}
+        onBreakpoint={setGridBp}
+        sessionPinned={sessionMoved}
         renderWidget={(def) => renderWidget(def, ctx)}
       />
 

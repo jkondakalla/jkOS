@@ -252,12 +252,12 @@ interactive time/month grid (desktop/tablet) and an agenda layout (mobile). The 
 `views/WeekView.tsx` and `views/CalendarView.tsx` are thin wrappers that inject BeigeBoard's
 `DragAdapter` (from `DragProvider`) and colour resolvers (`getAccent` / `sourceOf`). When
 imported without a `DragAdapter`, the views run in **read + light** mode (select, toggle,
-quick-add — no internal drag), which is how ORDECK will eventually mount them as HUD widgets.
+quick-add — no internal drag), which is how ORDECK mounts the Week view as a HUD widget.
 
 `@jkos/cards` is **source-only** (no build step). It carries its own date/time math in
 `datetime.ts`; BeigeBoard's `lib/theme.ts` re-exports these helpers so there is only one
-copy. ORDECK already has `@jkos/cards` as a dependency for the widget seam; widget
-registration is deferred (see `ToDo.md` §1).
+copy. ORDECK mounts exactly one kit view (`bb-week`) — the v5 catalog cull retired the
+Day/Month/Year mounts as redundant with the denser built-in cards.
 
 ---
 
@@ -295,6 +295,21 @@ The layout follows the user across devices.
 
 **ErrorBoundary per card.** Each widget card has its own `ErrorBoundary`. A failed widget
 resets on spec edit (`resetKey` prop) and doesn't take down the grid.
+
+**Built-in catalog (v5, `hud/state.ts`).** Ten widgets, culled + redesigned for information
+density: Clock, Weather (a real spec — icon/temp/hi-lo row + hourly strip), Today (agenda +
+progress head + inline quick-add command form), Calendar (month dot molecule), Week
+(`@jkos/cards`), Systems (probes + uptime bar), Alerts, Study, Focus, Pinned. The one-number
+cards (progress, uptime) and the standalone add-task cards were folded into their parents;
+`HUD_STATE_VERSION` 5 rebuilds older docs from these defaults. Cards must always fill their
+allotted grid cell (`.hud-cell > *` stretches; card roots never set `flex: none`).
+
+**Published-widget merge.** On load, the HUD fetches `GET /auth/widgets` (via `authFetch`,
+so an expired access token refreshes instead of silently 401ing) and merges the registry
+over the user doc with `mergePublished`: a published def always wins under its id — that is
+what makes edit → re-publish visible; a placed card still at the old def's default footprint
+snaps to a re-published size (a user-resized card keeps its size); and defs that are neither
+built-in, published, nor placed are dropped, so unpublished widgets don't linger.
 
 ### The Widget Workshop
 

@@ -38,10 +38,9 @@ import {
   type FocusState,
   type PinnedState,
 } from '../pages/hud/useHudData';
-import { CalendarView, WeekView, DayView, YearView, type CalendarItem, type CardResolvers } from '@jkos/cards';
+import { WeekView, type CalendarItem, type CardResolvers } from '@jkos/cards';
 import type { Binding, CommandRef, DataSource, Tone, ToneBinding, WidgetDef, WidgetNode, WidgetSpec } from './types';
 import { TONE_COLOR } from './tone';
-import { bbCreateItem, todayIso } from '../lib/bb';
 import { clearHudFocus } from '../lib/shelf';
 import ErrorBoundary from '../components/ErrorBoundary';
 
@@ -119,6 +118,7 @@ const ICONS: Record<string, ReactNode> = {
   moon: <path d="M20 14.5A8 8 0 119.5 4 6.5 6.5 0 0020 14.5z" />,
   cloud: <path d="M17.5 19a4.5 4.5 0 000-9 6 6 0 00-11.6 1.5A4 4 0 006 19z" />,
   rain: <><path d="M17.5 15a4.5 4.5 0 000-9 6 6 0 00-11.6 1.5A4 4 0 005.5 15" /><path d="M8 19v2M12 19v3M16 19v2" /></>,
+  snow: <><path d="M17.5 14a4.5 4.5 0 000-9 6 6 0 00-11.6 1.5A4 4 0 005.5 14" /><path d="M8 17.5h.01M12 19h.01M16 17.5h.01M10 21h.01M14 21.5h.01" /></>,
   bolt: <path d="M13 2L4.5 13H11l-1 9 8.5-11H12l1-9z" />,
   check: <path d="M20 6L9 17l-5-5" />,
   book: <><path d="M4 19.5A2.5 2.5 0 016.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" /></>,
@@ -137,7 +137,7 @@ type Primitives = { [K in WidgetNode['t']]: (node: NodeOf<K>, scope: Scope) => R
 
 const PRIMITIVES: Primitives = {
   stack: (n, scope) => (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: n.gap ?? 8, flex: n.grow ? 1 : undefined, minHeight: 0 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: n.gap ?? 8, justifyContent: n.justify ?? 'flex-start', flex: n.grow ? 1 : undefined, minHeight: 0 }}>
       {n.children.map((c, i) => <Fragment key={i}>{renderNode(c, scope)}</Fragment>)}
     </div>
   ),
@@ -148,15 +148,18 @@ const PRIMITIVES: Primitives = {
   ),
   label: (n, scope) => <span className="hud-eyebrow" style={labelSize(n.size)}>{str(resolve(n.text, scope))}</span>,
   text: (n, scope) => <span style={{ ...textStyle(n.variant), ...(n.grow ? { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } : {}) }}>{str(resolve(n.text, scope))}</span>,
-  metric: (n, scope) => (
-    <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
-      <b style={{ fontFamily: 'var(--hub-font-mono)', fontVariantNumeric: 'tabular-nums', fontSize: 30, fontWeight: 600, color: 'var(--hub-cream-bright)', lineHeight: 1 }}>
-        {str(resolve(n.value, scope))}
-      </b>
-      {n.unit != null && <span style={{ fontSize: 12, color: 'var(--hub-cream-dim)', letterSpacing: '0.08em' }}>{str(resolve(n.unit, scope))}</span>}
-      {n.sub != null && <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--hub-cream-faint)' }}>{str(resolve(n.sub, scope))}</span>}
-    </div>
-  ),
+  metric: (n, scope) => {
+    const size = n.size ?? 30;
+    return (
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
+        <b style={{ fontFamily: 'var(--hub-font-mono)', fontVariantNumeric: 'tabular-nums', fontSize: size, fontWeight: 600, color: 'var(--hub-cream-bright)', lineHeight: 1 }}>
+          {str(resolve(n.value, scope))}
+        </b>
+        {n.unit != null && <span style={{ fontSize: Math.max(10, Math.round(size * 0.4)), color: 'var(--hub-cream-dim)', letterSpacing: '0.08em' }}>{str(resolve(n.unit, scope))}</span>}
+        {n.sub != null && <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--hub-cream-faint)' }}>{str(resolve(n.sub, scope))}</span>}
+      </div>
+    );
+  },
   bar: (n, scope) => {
     const v = num(resolve(n.value, scope));
     const m = n.max != null ? num(resolve(n.max, scope)) : 100;
@@ -189,10 +192,11 @@ const PRIMITIVES: Primitives = {
     const v = num(resolve(n.value, scope));
     const m = n.max != null ? num(resolve(n.max, scope)) : 100;
     const pct = m > 0 ? Math.max(0, Math.min(1, v / m)) : 0;
+    const size = n.size ?? 76;
     const R = 26, C = 2 * Math.PI * R;
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-        <svg width="76" height="76" viewBox="0 0 72 72">
+        <svg width={size} height={size} viewBox="0 0 72 72">
           <circle cx="36" cy="36" r={R} fill="none" stroke="var(--hub-line)" strokeWidth="6" />
           <circle cx="36" cy="36" r={R} fill="none" stroke="var(--hub-amber)" strokeWidth="6" strokeLinecap="round"
             strokeDasharray={`${C * pct} ${C}`} transform="rotate(-90 36 36)"
@@ -259,7 +263,30 @@ const PRIMITIVES: Primitives = {
     if (n.dir === 'row') {
       return <div style={{ display: 'flex', gap: 10, justifyContent: 'space-between' }}>{body}</div>;
     }
+    if (n.cols && n.cols > 1) {
+      return <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.round(n.cols)}, minmax(0, 1fr))`, columnGap: 14, alignContent: 'start' }}>{body}</div>;
+    }
     return <>{body}</>;
+  },
+  sparkline: (n, scope) => {
+    const arr = resolve(n.from, scope);
+    const values = (Array.isArray(arr) ? arr : [])
+      .map((el) => num(n.path && el != null && typeof el === 'object' ? (el as Record<string, unknown>)[n.path] : el));
+    if (values.length < 2) return null;
+    const h = n.height ?? 28;
+    const min = Math.min(...values), max = Math.max(...values);
+    const span = max - min || 1;
+    // 4px vertical inset keeps the round linecaps from clipping at the extremes.
+    const pts = values
+      .map((v, i) => `${(i / (values.length - 1)) * 100},${4 + (1 - (v - min) / span) * (h - 8)}`)
+      .join(' ');
+    const color = n.tone != null ? toneColor(n.tone, scope, 'accent') : 'var(--hub-amber)';
+    return (
+      <svg width="100%" height={h} viewBox={`0 0 100 ${h}`} preserveAspectRatio="none" style={{ display: 'block' }}>
+        <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
+          vectorEffect="non-scaling-stroke" style={{ filter: 'drop-shadow(0 0 3px var(--hub-amber-glow))' }} />
+      </svg>
+    );
   },
   // Write family — each delegates to a hook-bearing component (see below).
   form:   (n, scope) => <FormNode node={n} scope={scope} />,
@@ -365,7 +392,7 @@ function WeatherBody({ w }: { w: WeatherState }) {
             </div>
           </div>
           {w.slots.length > 0 && (
-            <div className="hud-weather-strip" style={{ paddingTop: 10, marginTop: 10 }}>
+            <div className="hud-weather-strip" style={{ paddingTop: 10, marginTop: 'auto' }}>
               {w.slots.map((s) => (
                 <div className="hud-weather-slot" key={s.label}>
                   <span className="t">{s.label}</span>
@@ -381,69 +408,10 @@ function WeatherBody({ w }: { w: WeatherState }) {
 }
 
 /* ── Interactive escape-hatch cards ─────────────────────────────────────────
- * The spec vocabulary is deliberately read-only. Cards that WRITE (capture
- * input, mutate another app) are bespoke components — they own a form and call
- * the BeigeBoard write client (lib/bb). This is the sanctioned use of the
- * COMPONENT_REGISTRY escape hatch. */
-
-/** Quick-add: capture a task to BeigeBoard from the HUD, no app switch. Lands on
- *  today so it appears in the Today/Progress widgets immediately (writes fire a
- *  change event those read hooks listen for). */
-function QuickAddBody({ authed }: { authed: boolean }) {
-  const [title, setTitle] = useState('');
-  const [status, setStatus] = useState<'idle' | 'saving' | 'ok' | 'err'>('idle');
-
-  const head = <CardHead eyebrow="QUICK ADD" source="BEIGEBOARD" />;
-
-  if (!authed) {
-    return (
-      <div className="hud-card" style={{ padding: 14, display: 'flex', flexDirection: 'column', height: '100%' }}>
-        {head}
-        <span style={{ fontSize: 11, color: 'var(--hub-cream-dim)' }}>SIGN IN TO ADD TASKS</span>
-      </div>
-    );
-  }
-
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
-    const t = title.trim();
-    if (!t || status === 'saving') return;
-    setStatus('saving');
-    const ok = await bbCreateItem({ title: t, due_date: todayIso() });
-    if (ok) {
-      setTitle('');
-      setStatus('ok');
-      setTimeout(() => setStatus((s) => (s === 'ok' ? 'idle' : s)), 1600);
-    } else {
-      setStatus('err');
-    }
-  };
-
-  const note = status === 'ok' ? 'ADDED TO TODAY' : status === 'err' ? 'COULDN’T SAVE — RETRY' : 'LANDS ON TODAY';
-  const noteColor = status === 'err' ? 'var(--hub-red)' : status === 'ok' ? 'var(--hub-green)' : 'var(--hub-cream-faint)';
-
-  return (
-    <form className="hud-card" onSubmit={submit} style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 8, height: '100%' }}>
-      {head}
-      <div style={{ display: 'flex', gap: 6 }}>
-        <input
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="Add a task…"
-          style={{ flex: 1, minWidth: 0, background: 'var(--hub-bg-0)', border: '1px solid var(--hub-line)', color: 'var(--hub-cream-bright)', fontFamily: 'var(--hub-font-mono)', fontSize: 12, padding: '7px 9px', borderRadius: 'var(--hub-radius-sm)' }}
-        />
-        <button
-          type="submit"
-          disabled={!title.trim() || status === 'saving'}
-          style={{ flex: 'none', cursor: title.trim() ? 'pointer' : 'default', background: 'transparent', color: 'var(--hub-amber)', fontFamily: 'var(--hub-font-mono)', fontSize: 11, letterSpacing: '0.06em', padding: '7px 12px', border: '1px solid color-mix(in srgb, var(--hub-amber) 40%, transparent)', borderRadius: 'var(--hub-radius-sm)', opacity: title.trim() ? 1 : 0.4 }}
-        >
-          {status === 'saving' ? '…' : 'ADD'}
-        </button>
-      </div>
-      <span style={{ fontFamily: 'var(--hub-font-mono)', fontSize: 9, letterSpacing: '0.12em', color: noteColor }}>{note}</span>
-    </form>
-  );
-}
+ * The spec vocabulary's write path is the command family (form/button →
+ * capability dispatch); quick-add now lives INSIDE the Today spec as a form.
+ * What remains bespoke is Focus (clears suite-wide focus state, drives the
+ * dim-siblings behaviour) — the sanctioned COMPONENT_REGISTRY use. */
 
 /** Focus: the single "now working on" task pushed from BeigeBoard. Interactive
  *  (it can clear focus → a write), so it's a bespoke component. When focus is
@@ -721,9 +689,9 @@ function SpecWidget({ spec, ctx }: { spec: WidgetSpec; ctx: WidgetCtx }) {
 }
 
 /* ═══ Bespoke component escape hatch ════════════════════════════════════════
- * The six v2 display cards are all specs now (hud/state.ts). This registry is
- * for cards genuinely beyond the read-only primitive vocabulary — today, the
- * interactive ones that WRITE back to a service. */
+ * For cards genuinely beyond the spec vocabulary. Two remain after the v5 cull:
+ * Focus (clears suite-wide focus state + drives the dim-siblings behaviour) and
+ * the shared @jkos/cards Week view (a real time-grid, not composable from atoms). */
 /** ORDECK has no goal tree or calendar-source map, so the shared kit's resolvers
  *  fall back to the suite accent chain — every item renders in the room's accent. */
 const ordeckResolvers: Partial<CardResolvers> = {
@@ -732,28 +700,19 @@ const ordeckResolvers: Partial<CardResolvers> = {
 };
 
 const COMPONENT_REGISTRY: Record<string, (ctx: WidgetCtx) => ReactNode> = {
-  quickadd: (ctx) => <QuickAddBody authed={ctx.today.authed} />,
   focus: (ctx) => <FocusBody focus={ctx.focus} />,
-  // The shared @jkos/cards views, read+light (no DragAdapter → no internal drag to
-  // clash with the HUD grid). They pick their own grid/agenda layout via useBreakpoint;
-  // at HUD card widths that's the grid, which is right — the HUD is not a phone.
-  'bb-calendar': (ctx) => <CalendarView items={ctx.items} today={ctx.todayIso} resolvers={ordeckResolvers} />,
+  // The shared @jkos/cards Week view, read+light (no DragAdapter → no internal
+  // drag to clash with the HUD grid). The one kit view that earns its footprint
+  // here: the planning horizon the month dot-grid can't give. (Month is the
+  // denser `calendar` molecule; Day duplicated Today; Year was outsized for a
+  // dashboard — all culled in the v5 sweep.)
   'bb-week': (ctx) => <WeekView items={ctx.items} today={ctx.todayIso} resolvers={ordeckResolvers} />,
-  // Day (grid) and Year complete the read-only calendar set on the HUD. No
-  // DragAdapter → no internal drag to clash with the widget grid; Year's
-  // onMonthJump is omitted, so it's a pure overview.
-  'bb-day': (ctx) => <DayView items={ctx.items} today={ctx.todayIso} resolvers={ordeckResolvers} />,
-  'bb-year': (ctx) => <YearView items={ctx.items} today={ctx.todayIso} resolvers={ordeckResolvers} />,
 };
 /** Which ctx slices a bespoke component reads (a spec's are collected from its
  *  bindings; a component's can't be, so they're declared here). */
 const COMPONENT_SLICES: Record<string, (keyof WidgetCtx)[]> = {
-  quickadd: ['today'],   // reads ctx.today.authed
   focus: ['focus'],      // reads ctx.focus
-  'bb-calendar': ['items', 'todayIso'],
   'bb-week': ['items', 'todayIso'],
-  'bb-day': ['items', 'todayIso'],
-  'bb-year': ['items', 'todayIso'],
 };
 
 /* ═══ Per-card update isolation ═════════════════════════════════════════════
@@ -774,14 +733,18 @@ const sliceCache = new WeakMap<object, Set<string>>();
 const NODE_SLICE: Record<string, string> = { weather: 'weather', calendar: 'cal' };
 
 /** Deep-collect every slice a value depends on: `{ src }` bindings anywhere, plus
- *  the implicit slice of any molecule node (weather/calendar). */
+ *  the implicit slice of any molecule node (weather/calendar). `cmd` subtrees are
+ *  skipped — a command's body bindings resolve at SUBMIT time against the scope
+ *  of that render, not on screen, so they're not display dependencies (else a
+ *  form defaulting due_date to clock.iso would re-render its card every second;
+ *  the slice polls keep the submit-time scope fresh to within a tick). */
 function collectSrcs(v: unknown, acc: Set<string>): void {
   if (!v || typeof v !== 'object') return;
   if (Array.isArray(v)) { for (const e of v) collectSrcs(e, acc); return; }
   const obj = v as Record<string, unknown>;
   if (typeof obj.src === 'string') acc.add(obj.src);
   if (typeof obj.t === 'string' && NODE_SLICE[obj.t]) acc.add(NODE_SLICE[obj.t]);
-  for (const k in obj) collectSrcs(obj[k], acc);
+  for (const k in obj) { if (k !== 'cmd') collectSrcs(obj[k], acc); }
 }
 
 /** The ctx slices a widget reads — cached per def (spec object identity), so it's

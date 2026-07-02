@@ -265,6 +265,7 @@ export const CATALOG: CatalogEntry[] = [
   { t: 'metric', label: 'Metric', hint: 'big number + unit' },
   { t: 'gauge', label: 'Gauge', hint: 'circular % ring' },
   { t: 'bar', label: 'Progress bar', hint: 'value vs max' },
+  { t: 'sparkline', label: 'Sparkline', hint: 'tiny trend line over an array' },
   { t: 'keyval', label: 'Key / value', hint: 'name left, value right' },
   { t: 'list', label: 'List', hint: 'repeat a template over an array' },
   { t: 'pill', label: 'Status pill', hint: 'small coloured badge' },
@@ -303,6 +304,7 @@ export function newNode(t: NodeT): ENode {
     case 'metric': return leaf({ t, value: { src: 'systems', path: 'up' }, unit: '' });
     case 'bar': return leaf({ t, value: { src: 'systems', path: 'up' }, max: { src: 'systems', path: 'total' } });
     case 'gauge': return leaf({ t, value: { src: 'systems', path: 'up' }, max: { src: 'systems', path: 'total' } });
+    case 'sparkline': return leaf({ t, from: { src: 'weather', path: 'slots' }, path: 'temp' });
     case 'pill': return leaf({ t, text: 'OK', tone: 'ok' });
     case 'dot': return leaf({ t, tone: 'ok' });
     case 'keyval': return leaf({ t, label: 'Name', value: 'Value', tone: 'muted' });
