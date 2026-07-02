@@ -7,7 +7,7 @@
  * capability before rendering its form/button.
  */
 
-import { suiteApp } from './manifest';
+import { suiteApp, type AppId } from './manifest';
 import type { CapabilityDoc, CapabilityDef } from './capability';
 import { isValidDoc } from './shared/docShape.js';
 
@@ -15,7 +15,7 @@ const cache = new Map<string, Promise<CapabilityDoc | null>>();
 
 /** The app's CapabilityDoc, or null if it declares none / is unreachable. Cached;
  *  pass force to re-fetch (e.g. the workshop's refresh). */
-export function fetchCapabilities(appId: string, force = false): Promise<CapabilityDoc | null> {
+export function fetchCapabilities(appId: AppId, force = false): Promise<CapabilityDoc | null> {
   if (!force && cache.has(appId)) return cache.get(appId)!;
   const p = (async (): Promise<CapabilityDoc | null> => {
     const path = suiteApp(appId)?.capabilitiesPath;

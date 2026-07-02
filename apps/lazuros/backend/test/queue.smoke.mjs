@@ -35,15 +35,25 @@ try {
   queue.setJobStatus(id, 'PENDING_WAKEUP');
   ok('setJobStatus → PENDING_WAKEUP', queue.getJob(id).status === 'PENDING_WAKEUP');
 
-  // ── getPendingJobs sees only PENDING (not PENDING_WAKEUP) ─────────────────────
+  // ── getPendingJobs drains BOTH PENDING and PENDING_WAKEUP ─────────────────────
+  // A PENDING_WAKEUP job (its backend woken via WoL) must be claimable once the node
+  // answers; excluding it stranded every job routed to a sleeping backend forever.
   const id2 = queue.createJob({ user_id: 'u2', capability: 'query', payload: {} });
   const pend = queue.getPendingJobs(10);
-  ok('getPendingJobs returns PENDING only (excludes PENDING_WAKEUP)', pend.length === 1 && pend[0].id === id2);
+  ok('getPendingJobs includes PENDING + PENDING_WAKEUP',
+     pend.length === 2 && pend.some((p) => p.id === id) && pend.some((p) => p.id === id2));
 
-  // ── atomic claim: first wins, second is a no-op ──────────────────────────────
+  // ── atomic claim works on a woken job too; a second claim is a no-op ──────────
+  ok('claimJob a PENDING_WAKEUP job → true', queue.claimJob(id) === true);
+  ok('claimed woken job is IN_PROGRESS', queue.getJob(id).status === 'IN_PROGRESS');
   ok('claimJob first time → true', queue.claimJob(id2) === true);
   ok('claimJob second time → false (already IN_PROGRESS)', queue.claimJob(id2) === false);
   ok('claimed job is IN_PROGRESS', queue.getJob(id2).status === 'IN_PROGRESS');
+
+  // ── reaper: a stale IN_PROGRESS job returns to PENDING (worker-crash recovery) ─
+  // A negative timeout puts the cutoff in the future, so any IN_PROGRESS is "stale".
+  ok('requeueStaleJobs resets a stuck IN_PROGRESS job', queue.requeueStaleJobs(-1) >= 1);
+  ok('reaped job is claimable again (PENDING)', queue.getJob(id2).status === 'PENDING');
 
   // ── result round-trip ────────────────────────────────────────────────────────
   queue.setJobResult(id2, { status: 'DONE', result: { title: 'Buy milk' } });

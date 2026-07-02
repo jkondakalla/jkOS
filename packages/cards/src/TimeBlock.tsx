@@ -90,7 +90,7 @@ export function TimeBlock({
         right: `calc(${rightPct}% + 2px)`,
         top,
         height,
-        borderTop: '2px solid rgba(255,255,255,0.28)',
+        borderTop: '2px solid var(--color-on-accent-faint)',
         overflow: 'hidden',
         cursor: 'grab',
         opacity: item.completed ? 0.55 : 1,
@@ -112,8 +112,8 @@ export function TimeBlock({
                 width: 10,
                 height: 10,
                 flexShrink: 0,
-                border: '1px solid rgba(255,255,255,0.7)',
-                background: item.completed ? 'rgba(255,255,255,0.85)' : 'transparent',
+                border: '1px solid var(--color-on-accent-dim)',
+                background: item.completed ? 'var(--color-on-accent)' : 'transparent',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
@@ -133,7 +133,7 @@ export function TimeBlock({
               fontFamily: FONT_BODY,
               fontSize: 11,
               fontWeight: 500,
-              color: 'rgba(255,255,255,0.95)',
+              color: 'var(--color-on-accent)',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
@@ -144,7 +144,7 @@ export function TimeBlock({
           </span>
         </div>
         {showTime && (
-          <div style={{ fontFamily: FONT_NUM, fontStyle: 'italic', fontSize: 9.5, color: 'rgba(255,255,255,0.65)', marginTop: 2 }}>
+          <div style={{ fontFamily: FONT_NUM, fontStyle: 'italic', fontSize: 9.5, color: 'var(--color-on-accent-dim)', marginTop: 2 }}>
             {fmtTime(item.scheduled_time)}
             {item.scheduled_end ? ` – ${fmtTime(item.scheduled_end)}` : ''}
           </div>
@@ -165,8 +165,8 @@ export function TimeBlock({
         }}
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <div style={{ width: 20, height: 1.5, background: 'rgba(255,255,255,0.45)', borderRadius: 1 }} />
-          <div style={{ width: 20, height: 1.5, background: 'rgba(255,255,255,0.45)', borderRadius: 1 }} />
+          <div style={{ width: 20, height: 1.5, background: 'var(--color-on-accent-faint)', borderRadius: 1 }} />
+          <div style={{ width: 20, height: 1.5, background: 'var(--color-on-accent-faint)', borderRadius: 1 }} />
         </div>
       </div>
     </div>

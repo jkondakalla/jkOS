@@ -379,6 +379,14 @@ const MAPPING = [
 for (const [cb, cap] of MAPPING) {
   ok(`useCalendarSource maps ${cb} → ${cap}`, new RegExp(`${cb}[\\s\\S]{0,120}command\\(\\s*['"]${cap}['"]`).test(hookSrc))
 }
-ok('useCalendarSource subscribes the read to the resource key (live reschedule)', /invalidateOn:\s*\[key\]/.test(hookSrc))
+// The live-reschedule subscription moved INTO useWeaveList: it derives its default
+// invalidateOn from resourceKey(appId, datasetId), so no caller types a bus key.
+// Guard both halves: the hook derives the default, and useCalendarSource no longer
+// hand-passes a literal (a reintroduced literal would shadow the derivation).
+const clientSrc = readFileSync(join(ROOT, 'packages', 'weave', 'src', 'weaveClient.ts'), 'utf8')
+ok('useWeaveList derives its bus subscription from resourceKey(app, dataset)',
+  /invalidateOn:\s*\[resourceKey\(appId,\s*datasetId\)\]/.test(clientSrc))
+ok('useCalendarSource relies on the derived subscription (passes no invalidateOn literal)',
+  !/invalidateOn/.test(hookSrc.replace(/\/\/[^\n]*/g, '')))
 
 console.log(`\nPASS: ${pass} passed, 0 failed${skip ? `, ${skip} skipped` : ''}`)

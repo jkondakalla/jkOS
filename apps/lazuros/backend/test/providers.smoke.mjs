@@ -1,15 +1,19 @@
 // providers.smoke.mjs — Phase 3 Tier-0 providers, exercised against a mocked global
 // fetch (no whisper/piper/Ollama runtime needed). Asserts each factory builds the
-// right request and parses the right response behind its contract shape. Run via the
-// package `test` script (chained after queue.smoke).
+// right request and parses the right response behind its contract shape, plus the
+// standardized pathing contract (lib/http): baseUrl validated at boot, trailing
+// slash stripped, every outbound call under a timeout signal. Run via the package
+// `test` script (chained after queue.smoke).
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
+const { createOllamaInferenceProvider } = require('../providers/inference');
 const { createWhisperSttProvider, createCloudSttProvider } = require('../providers/stt');
 const { createPiperTtsProvider, createKokoroTtsProvider, createCloudTtsProvider } = require('../providers/tts');
 const { createLocalEmbeddingProvider } = require('../providers/embedding');
 const { createSearxngWebSearchProvider, createDdgsWebSearchProvider } = require('../providers/webSearch');
+const { createWolBackend } = require('../providers/computeBackend');
 
 let calls = [];
 const ok = (body, { headers = {}, json } = {}) => ({
@@ -42,11 +46,11 @@ await (async () => {
     assert.deepEqual(out, { text: 'buy milk', language: 'en' }));
 })();
 
-await (async () => {
-  const stt = createWhisperSttProvider({ model: 'base' }); // no baseUrl
-  await assert.rejects(() => stt.transcribe(Buffer.from('x')), /no baseUrl configured/);
-  test('whisper without baseUrl throws a config error', () => {});
-})();
+test('whisper without baseUrl fails at BOOT (factory), not at request time', () =>
+  assert.throws(() => createWhisperSttProvider({ model: 'base' }), /no baseUrl configured/));
+test('a malformed baseUrl fails at boot with the slot name', () =>
+  assert.throws(() => createOllamaInferenceProvider({ baseUrl: 'not a url' }),
+    /InferenceProvider "ollama": invalid baseUrl/));
 
 await (async () => {
   mockFetch(() => ok(null, { json: { text: 'hi' } }));
@@ -82,7 +86,7 @@ await (async () => {
 
 await (async () => {
   mockFetch(() => ok('X', { headers: { 'content-type': 'audio/mpeg' } }));
-  const tts = createCloudTtsProvider({ endpoint: 'https://api.example.com', apiKey: 'sk-9', voice: 'nova' });
+  const tts = createCloudTtsProvider({ baseUrl: 'https://api.example.com', apiKey: 'sk-9', voice: 'nova' });
   await tts.synthesize('hi');
   test('cloud tts sends bearer auth to /v1/audio/speech', () => {
     assert.equal(calls[0].url, 'https://api.example.com/v1/audio/speech');
@@ -91,11 +95,14 @@ await (async () => {
 })();
 
 // ── Embedding (Ollama-compat) ────────────────────────────────────────────────────
+test('embedding requires an explicit baseUrl (no hardcoded localhost)', () =>
+  assert.throws(() => createLocalEmbeddingProvider({ model: 'bge' }), /no baseUrl configured/));
+
 await (async () => {
   mockFetch(() => ok(null, { json: { embedding: [0.1, 0.2, 0.3] } }));
-  const emb = createLocalEmbeddingProvider({ model: 'bge-small-en-v1.5' }); // default baseUrl
+  const emb = createLocalEmbeddingProvider({ model: 'bge-small-en-v1.5', baseUrl: 'http://localhost:11434/' });
   const vec = await emb.embed('hello world');
-  test('embedding defaults to local Ollama /api/embeddings', () =>
+  test('embedding hits /api/embeddings off a normalized base', () =>
     assert.equal(calls[0].url, 'http://localhost:11434/api/embeddings'));
   test('embedding sends { model, prompt }', () =>
     assert.deepEqual(JSON.parse(calls[0].init.body), { model: 'bge-small-en-v1.5', prompt: 'hello world' }));
@@ -103,12 +110,19 @@ await (async () => {
   test('embedding declares dimensions for table sizing', () => assert.equal(emb.dimensions, 384));
 })();
 
-// ── error propagation ─────────────────────────────────────────────────────────────
+// ── error propagation (uniform lib/http shapes) ───────────────────────────────────
 await (async () => {
   mockFetch(() => ({ ok: false, status: 503, headers: { get: () => null } }));
-  const emb = createLocalEmbeddingProvider({ model: 'bge' });
+  const emb = createLocalEmbeddingProvider({ model: 'bge', baseUrl: 'http://localhost:11434' });
   await assert.rejects(() => emb.embed('x'), /failed: 503/);
-  test('embedding surfaces a non-200 as an error', () => {});
+  test('embedding surfaces a non-200 as "<what> failed: <status>"', () => {});
+})();
+
+await (async () => {
+  mockFetch(() => { throw Object.assign(new Error('boom'), { name: 'TypeError' }); });
+  const emb = createLocalEmbeddingProvider({ model: 'bge', baseUrl: 'http://localhost:11434' });
+  await assert.rejects(() => emb.embed('x'), /embedding "bge" unreachable: boom/);
+  test('a transport error surfaces as "<what> unreachable: <cause>"', () => {});
 })();
 
 // ── Web search (Tier 1) ───────────────────────────────────────────────────────────
@@ -139,10 +153,31 @@ await (async () => {
     assert.deepEqual(out.results[0], { title: 'D', url: 'http://d', snippet: 'snip-d' }));
 })();
 
+test('web search without baseUrl fails at boot (factory)', () =>
+  assert.throws(() => createSearxngWebSearchProvider({}), /no baseUrl configured/));
+
+// ── Inference + the shared pathing contract ─────────────────────────────────────────
 await (async () => {
-  const ws = createSearxngWebSearchProvider({});
-  await assert.rejects(() => ws.search('x'), /no baseUrl configured/);
-  test('web search without baseUrl throws a config error', () => {});
+  mockFetch(() => ok(null, { json: { response: 'hi there' } }));
+  const inf = createOllamaInferenceProvider({ baseUrl: 'http://gpu-node:11434/' }); // trailing slash
+  const out = await inf.generate('m-tag', 'prompt');
+  test('ollama joins /api/generate off a normalized base (trailing slash stripped)', () =>
+    assert.equal(calls[0].url, 'http://gpu-node:11434/api/generate'));
+  test('inference returns { text, model }', () =>
+    assert.deepEqual(out, { text: 'hi there', model: 'm-tag' }));
+  test('every outbound call carries a timeout AbortSignal', () =>
+    assert.ok(calls[0].init.signal instanceof AbortSignal));
+})();
+
+// ── ComputeBackend (Tier-2 seam) pathing guards ─────────────────────────────────────
+test('wol backend rejects a malformed healthUrl at boot', () =>
+  assert.throws(() => createWolBackend({ id: 'emily', healthUrl: 'not a url' }),
+    /ComputeBackend "emily" healthUrl: invalid baseUrl/));
+
+await (async () => {
+  const wol = createWolBackend({ id: 'emily', mac: 'TODO_EMILY_MAC', healthUrl: 'http://emily:11434/' });
+  await assert.rejects(() => wol.wake(), /invalid mac "TODO_EMILY_MAC"/);
+  test('a placeholder MAC fails the wake loudly instead of broadcasting junk', () => {});
 })();
 
 console.log(`✅ ALL PASS: ${n} assertions (providers.smoke)`);

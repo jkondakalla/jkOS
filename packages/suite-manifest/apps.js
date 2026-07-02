@@ -75,6 +75,10 @@ const APPS = [
 
 /* ── derivations: id → everything ────────────────────────────────────────────── */
 
+/** Every canonical app id, in APPS order. The literal union in apps.d.ts (`AppId`)
+ *  must list exactly these — the weave test gate asserts the two stay in sync. */
+const APP_IDS = Object.freeze(APPS.map((a) => a.id))
+
 /** Edge-proxied API root for an app, or null if it exposes none. */
 function apiBaseOf(app) {
   if (!app.api) return null
@@ -181,6 +185,7 @@ function edgeApps() {
 
 module.exports = {
   APPS,
+  APP_IDS,
   apiBaseOf,
   healthPathOf,
   capabilitiesPathOf,

@@ -58,4 +58,10 @@ export const BACKEND_DOCS = [
     docsFile: 'apps/beigeboard/backend/server.js',  // served from here (serveCapabilities/serveDatasets)
     exported: true,
   },
+  {
+    app: 'lazuros',
+    module: 'apps/lazuros/backend/docs.js',         // CAPABILITIES_DOC/DATASETS_DOC as importable data
+    docsFile: 'apps/lazuros/backend/server.js',     // served from here (serveCapabilities/serveDatasets)
+    exported: true,
+  },
 ];

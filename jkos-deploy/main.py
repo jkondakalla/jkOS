@@ -204,6 +204,13 @@ async def root():
     return FileResponse("/app/static/index.html")
 
 
+@app.get("/jkos-tokens.css")
+async def tokens_css():
+    # Committed mirror of @jkos/design/tokens/hub.css (see scripts/sync-tokens.mjs) —
+    # the console styles itself from the suite token chain like every other app.
+    return FileResponse("/app/static/jkos-tokens.css", media_type="text/css")
+
+
 @app.get("/health")
 async def health():
     # Match @jkos/weave/server's healthHandler shape so the portal's systems panel

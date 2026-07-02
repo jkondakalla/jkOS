@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { VU } from '@jkos/ui'
 import { FONT_HEAD, FONT_BODY, FONT_NUM } from '../../lib/theme'
 import { getChildren, getProgress } from '../../lib/seed'
 import { Eyebrow } from '../components/MobileWidgets'
@@ -298,37 +299,22 @@ function ProjectRow({ project, items, onSelect }: any) {
 
 function VUMeter({ pct = 0, color, label }: any) {
   const accent = color || 'var(--color-accent)'
-  const lit = Math.round((pct / 100) * 20)
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-      <div
+      <VU
+        value={pct / 100}
+        segments={20}
+        tint={accent}
         style={{
           flex: 1,
-          display: 'flex',
-          gap: 2,
+          height: 12,
           padding: 3,
           background: 'rgba(0,0,0,0.4)',
-          border: `1px solid ${'var(--color-line)'}`,
-          boxShadow: `inset 0 2px 4px rgba(0,0,0,0.45), inset 0 -1px 0 rgba(255,255,255,0.06)`,
+          border: '1px solid var(--color-line)',
+          boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.45), inset 0 -1px 0 rgba(255,255,255,0.06)',
         }}
-      >
-        {Array.from({ length: 20 }, (_, i) => {
-          const isLit = i < lit
-          return (
-            <div
-              key={i}
-              style={{
-                flex: 1,
-                height: 6,
-                background: isLit ? accent : 'rgba(0,0,0,0.5)',
-                opacity: isLit ? 1 : 0.45,
-                transition: 'background 0.2s',
-              }}
-            />
-          )
-        })}
-      </div>
+      />
       {label && (
         <span
           style={{

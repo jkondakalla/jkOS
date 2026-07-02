@@ -117,7 +117,7 @@ export function SettingsDrawer({
         onClick={onClose}
         style={{
           position: 'fixed', inset: 0,
-          background: open ? 'rgba(0,0,0,0.35)' : 'transparent',
+          background: open ? 'var(--hub-scrim)' : 'transparent',
           backdropFilter: open ? 'blur(1px)' : 'none',
           opacity: open ? 1 : 0,
           pointerEvents: open ? 'auto' : 'none',

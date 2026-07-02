@@ -20,7 +20,16 @@ code). Findings below are tagged with the prober's classification:
 - **consolidate** — the same truth typed in N places; could collapse to one source.
 - **gap** — a missing enforcement or capability a new app would trip on.
 
-## Run summary (current `staging`)
+> **Status update (2026-07-01, preAlpha sweep).** This report is the original research
+> snapshot; most of it is now CLOSED. C1–C3+C5: the app directory single-sources from
+> `@jkos/suite-manifest` (registry seed, SUITE_APPS, nginx peers all derive; an `AppId`
+> typed union guards call sites). C4: `useWeaveList` derives its bus subscription from
+> `resourceKey(app, dataset)` — no caller-typed key. G1: the on-behalf-of delegation
+> seam is built (`weaveServerClient(app, { actingUser })` + jkAuth `act` claim). G2 is
+> pending the LazurOS Phase 7 cutover. Current headline: **drift 0 · consolidate 1
+> (the off-limits SylibOS slug) · gap 7 · ok 39** — reproduce with `pnpm prove`.
+
+## Run summary (original snapshot)
 
 ```
 topology: 6 apps · 5 registry rows · 4 manifest entries · 4 nginx peers · 9 codes

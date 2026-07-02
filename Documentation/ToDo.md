@@ -45,31 +45,30 @@ staging nginx generated, STORAGE_KEYS). The `isoDate` single-source item is now 
 from `@jkos/cards`; BeigeBoard already re-exports it via `lib/theme`. The backend copies
 (`apps/beigeboard/backend/server.js` `isoDateStr` + two inline `.toISOString().slice(0,10)`) are
 **intentionally left** — that's CJS Node and `@jkos/cards` is a frontend TS package with no build,
-so it can't be required there. These three remain:
+so it can't be required there.
 
-- **`APP_IDS` constant.** Several files reference app IDs as bare strings (`'beigeboard'` ×15 in
-  in-scope FE, `'auth'`, …). A shared `APP_IDS` const + `AppId` union in `@jkos/suite-manifest`
-  would make renames refactor-safe. **Caveat learned 2026-06-29:** the const alone gives no
-  typecheck safety — the payoff (typo-catching) only lands if Weave's public app-id-accepting
-  signatures (`list(app,…)`, `useWeaveList(app,…)`, `apiBase(app)`, `appOrigin(app)`) are retyped
-  from `string` to `AppId`. That's a broad change across the `weave` package (pnpm-copy gotcha +
-  the weave test gate), disproportionate for the value — do it only as a deliberate Weave-API pass,
-  not a drive-by. (`SuiteApp` is a full-object interface, not the id union, so it doesn't already
-  cover this.)
+- **`APP_IDS` constant — DONE (2026-07-01 preAlpha sweep).** `@jkos/suite-manifest` exports
+  `APP_IDS` (runtime, derived from `APPS`) + an `AppId` literal union in `apps.d.ts`; Weave's
+  public app-addressing signatures (`suiteApp`/`apiBase`/`appOrigin`, `weaveClient`/`useWeaveList`,
+  `fetchCapabilities`/`fetchDatasets`) are retyped `string → AppId`, re-exported from `@jkos/weave`.
+  Consumers typed: cards `useCalendarSource(app: AppId)`, ORDECK `CommandRef.app: AppId` (the
+  Widget Workshop's app select is the one boundary cast). The hand-written d.ts tuple is guarded:
+  the weave test gate asserts d.ts ⇄ runtime parity, and `pnpm new-app`/`--remove` patch BOTH files.
+  `extRef` and the collection/connector `app` spec fields deliberately stay `string`
+  (external/pre-registration ids).
 
-- **Keyframe/animation alignment.** The three the suite shares — `led-pulse`, `blink`,
-  `data-flicker` (+ `grain`, `bootIn`) — are **already** consolidated in `hub.css` (and only there;
-  jkAuth gets them via the token mirror). What remains is a *broader* dedup: `apps/beigeboard/src/app.css`
-  and `apps/ordeck/src/styles/global.css` each redefine ~13 of the SAME keyframes (`spin`,
-  `fadeSlideUp`, `pulseOpacity`, `checkBounce`, `panelIn`, `itemIn`, `modalIn`, `scanRoll`,
-  `scanPulse`, `artifactFlash`, `crtExpand`, `introTitleReveal`, `introFadeOut`). They differ
-  subtly between the two apps (e.g. `pulseOpacity` 0.35 vs 0.45), so moving them to `hub.css`
-  needs a careful per-keyframe diff + a visual check of BOTH apps — not a blind move. Lower-value,
-  visual-regression risk; left until a dedicated motion pass.
+- **Keyframe/animation alignment — DONE (2026-07-01 preAlpha sweep).** The 13 shared keyframes
+  (`spin`, `fadeSlideUp`, `pulseOpacity`, `checkBounce`, `panelIn`, `itemIn`, `modalIn`, `scanRoll`,
+  `scanPulse`, `artifactFlash`, `crtExpand`, `introTitleReveal`, `introFadeOut`) + the 9 motion
+  utility classes (`.view-enter`/`.panel-enter`/`.item-in`/`.modal-in`/`.crt-expand`/`.intro-title`/
+  `.intro-out`/`.now-dot`/`.check-pop`) now live ONCE in `hub.css` (jkAuth via the token mirror).
+  The bodies had already converged; the canonical copy keeps the `transform: none` endings + the
+  no-fill-mode rule on `.view-enter`/`.panel-enter` (Chromium fixed-position/stacking fix). Only
+  bespoke frames stay app-side: BB `paperExpand`/`.paper-expand`, ORDECK `reel-spin`/`ticker-scroll`.
 
 - **Toolchain alignment.** `apps/sylibos` uses React 19 + Tailwind v4 while the rest of the suite
   is React 18 + plain CSS. Deferred until SylibOS is back in suite scope (off-limits until Jag
-  says otherwise).
+  says otherwise). *(The last remaining §1 item.)*
 
 ---
 

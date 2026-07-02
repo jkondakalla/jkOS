@@ -34,6 +34,7 @@ const PRIMITIVE = 'packages/ui/src/usePointerDrag.ts';
 const CONSUMERS = {
   'calendar drop-layer': 'packages/cards/src/CalendarDragProvider.tsx',
   'ORDECK HudGrid': 'apps/ordeck/src/hud/HudGrid.tsx',
+  'ORDECK workshop canvas': 'apps/ordeck/src/workshop/EditorCanvas.tsx',
 };
 // Where a forked drag engine would most plausibly regrow.
 const SURFACES = [
@@ -42,6 +43,7 @@ const SURFACES = [
   'packages/cards/src/CalendarView.tsx',
   'packages/cards/src/DayView.tsx',
   'apps/ordeck/src/hud/HudGrid.tsx',
+  'apps/ordeck/src/workshop/EditorCanvas.tsx',
   'apps/beigeboard/src/providers/DragProvider.tsx',
 ];
 

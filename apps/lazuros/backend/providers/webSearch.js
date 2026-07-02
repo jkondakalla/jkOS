@@ -1,7 +1,7 @@
 'use strict';
 // webSearch.js — WebSearchProvider reference implementations (Phase 4, Tier 1).
 //
-// Shape: { search(query, opts) => Promise<{ results: [{ title, url, snippet }] }> }
+// Shape: { kind, search(query, opts) => Promise<{ results: [{ title, url, snippet }] }> }
 //
 // Tier 1 ("needs-web-context") fans a query out to a search backend, then the triage
 // provider contextualizes the results (worker-side, same job machinery). Like every
@@ -13,6 +13,12 @@
 //   - ddgs    : hits a DDGS HTTP sidecar (the `ddgs`/duckduckgo_search Python lib has
 //               no clean Node binding, so it runs as a tiny service returning the same
 //               { results } JSON). Same shape, so config can swap between them freely.
+//
+// Input contract (standardized): `baseUrl` is the ONE address field — validated at
+// boot by normalizeBaseUrl, no `endpoint` alias. The query string is built with
+// URLSearchParams (never interpolated). Optional `timeoutMs` per slot.
+
+const { normalizeBaseUrl, providerFetch } = require('../lib/http');
 
 function normalize(rows = []) {
   return rows.map((r) => ({
@@ -22,34 +28,31 @@ function normalize(rows = []) {
   }));
 }
 
-function createSearxngWebSearchProvider({ baseUrl, safesearch = 1 } = {}) {
+function createSearxngWebSearchProvider({ baseUrl, safesearch = 1, timeoutMs = 15_000 } = {}) {
+  const base = normalizeBaseUrl(baseUrl, 'WebSearchProvider "searxng"');
   return {
     kind: 'searxng',
     search: async (query, opts = {}) => {
-      if (!baseUrl) throw new Error('WebSearchProvider "searxng": no baseUrl configured — set deployment.webSearch.baseUrl');
-      const u = new URL(`${baseUrl.replace(/\/$/, '')}/search`);
+      const u = new URL(`${base}/search`);
       u.searchParams.set('q', query);
       u.searchParams.set('format', 'json');
       u.searchParams.set('safesearch', String(opts.safesearch ?? safesearch));
-      const r = await fetch(u, { headers: { Accept: 'application/json' } });
-      if (!r.ok) throw new Error(`searxng search failed: ${r.status}`);
+      const r = await providerFetch('searxng search', u, { headers: { Accept: 'application/json' } }, { timeoutMs });
       const data = await r.json();
       return { results: normalize(data.results).slice(0, opts.limit ?? 8) };
     },
   };
 }
 
-function createDdgsWebSearchProvider({ baseUrl, endpoint } = {}) {
-  const root = baseUrl || endpoint;
+function createDdgsWebSearchProvider({ baseUrl, timeoutMs = 15_000 } = {}) {
+  const base = normalizeBaseUrl(baseUrl, 'WebSearchProvider "ddgs"');
   return {
     kind: 'ddgs',
     search: async (query, opts = {}) => {
-      if (!root) throw new Error('WebSearchProvider "ddgs": no baseUrl configured — set deployment.webSearch.baseUrl');
-      const u = new URL(`${root.replace(/\/$/, '')}/search`);
+      const u = new URL(`${base}/search`);
       u.searchParams.set('q', query);
       if (opts.limit) u.searchParams.set('max_results', String(opts.limit));
-      const r = await fetch(u, { headers: { Accept: 'application/json' } });
-      if (!r.ok) throw new Error(`ddgs search failed: ${r.status}`);
+      const r = await providerFetch('ddgs search', u, { headers: { Accept: 'application/json' } }, { timeoutMs });
       const data = await r.json();
       return { results: normalize(data.results ?? data).slice(0, opts.limit ?? 8) };
     },

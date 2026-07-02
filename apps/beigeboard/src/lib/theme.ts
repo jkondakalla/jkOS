@@ -36,8 +36,7 @@ export const SOURCES: Record<string, { label: string; hex: string }> = {
 export const sourceOf = (id: string) => SOURCES[id] || { label: 'Source', hex: '#7A6050' }
 
 // BeigeBoard-only formatters layered on the shared localDate.
-export const fmtWeekdayLong = (iso: string) => localDate(iso).toLocaleDateString('en-US', { weekday: 'long' })
-export const fmtMonthDay    = (iso: string) => localDate(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+export const fmtMonthDay = (iso: string) => localDate(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 
 export function getGreeting() {
   const h = new Date().getHours()

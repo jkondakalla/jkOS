@@ -57,7 +57,7 @@ export function TimelinePreview({ drag, sourceColorOf }: TimelinePreviewProps) {
         borderRadius: 'var(--hub-radius-soft)',
         background: mode === 'timed' ? `${color}CC` : `${color}55`,
         border: `1px dashed ${color}`,
-        borderTop: mode === 'timed' ? '2px solid rgba(255,255,255,0.3)' : `1px dashed ${color}`,
+        borderTop: mode === 'timed' ? '2px solid var(--color-on-accent-faint)' : `1px dashed ${color}`,
         boxShadow: `0 0 12px ${color}44`,
         pointerEvents: 'none',
         zIndex: 6,
@@ -72,7 +72,7 @@ export function TimelinePreview({ drag, sourceColorOf }: TimelinePreviewProps) {
           fontSize: 11,
           color:
             mode === 'timed'
-              ? 'rgba(255,255,255,0.9)'
+              ? 'var(--color-on-accent)'
               : mode === 'create'
                 ? 'var(--color-paper)'
                 : 'var(--color-ink)',
@@ -84,7 +84,7 @@ export function TimelinePreview({ drag, sourceColorOf }: TimelinePreviewProps) {
         {label}
       </div>
       {mode === 'timed' && height >= 36 && (
-        <div style={{ padding: '1px 8px', fontFamily: FONT_NUM, fontStyle: 'italic', fontSize: 9.5, color: 'rgba(255,255,255,0.65)' }}>
+        <div style={{ padding: '1px 8px', fontFamily: FONT_NUM, fontStyle: 'italic', fontSize: 9.5, color: 'var(--color-on-accent-dim)' }}>
           {fmtTime(fracToTime(start))} – {fmtTime(fracToTime(end))}
         </div>
       )}

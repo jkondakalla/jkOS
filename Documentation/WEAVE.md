@@ -50,7 +50,9 @@ about itself. jkAuth stores only *where* to find them, never the declarations th
 
 ### Frontend — `@jkos/weave` (`packages/weave/`)
 
-- `manifest.ts` — `SuiteApp` shape, `SUITE_APPS` static fallback, `apiBase/appOrigin/probeApps/suiteApp/suiteApps` helpers, `setLiveApps` (hydration hook-in).
+- `manifest.ts` — `SuiteApp` shape, the `AppId` union (`APP_IDS`, single source for every
+  app id in the suite) typing `suiteApp/apiBase/appOrigin` and all weave signatures, `SUITE_APPS`
+  static fallback, `probeApps/suiteApps` helpers, `setLiveApps` (hydration hook-in).
 - `resource.ts` — `usePolledResource` + keyed `invalidate(...)` bus (`'<app>.<resource>'`). Also exports `subscribe(keys, fn)` so multi-resource consumers join the same bus.
 - `capability.ts` — `FieldType`, `BodyField`, `CapabilityDef`, `CapabilityDoc`. `FieldType`
   includes `json` (the typed escape hatch for non-flat bodies/outputs) and `ref` (a typed stud:
@@ -223,9 +225,6 @@ they snap together safely. See `@jkos/weave/server` (`collection.js` / `connecto
   peer can't be reached through the same-origin edge include.
 - **Runtime `app_registry` CRUD** (+ `_cachedAppOrigins` bust + dynamic nginx regen) — when
   apps are added without a deploy (dynamic plugins / third-party registration).
-- **Delete `@jkos/types`** — apps no longer import it, but the deprecated `plugins/*`
-  (MF-remote microfrontends, superseded by the native widget engine, not deployed) still do.
-  Prune with those plugins.
 - **Extract the jkAuth directory into its own service** — when it needs different network
   exposure than the token-signing core, or auth latency degrades.
 
@@ -237,4 +236,8 @@ they snap together safely. See `@jkos/weave/server` (`collection.js` / `connecto
 · issuer/cookie single-source in `@jkos/auth-middleware` · `jkos_auth.py` Python verifier port
 · `pnpm test:contracts` gate (29 auth + 24 weave + token + nginx check) · Layer-D primitives
 (`defineCollection` / `defineConnector` / trigger engine) + the G1 on-behalf-of delegation seam,
-with `test/lego.mjs` (70 assertions) chained into the weave test.*
+with `test/lego.mjs` (70 assertions) chained into the weave test) · `AppId`-typed app addressing
+(`APP_IDS` union in `manifest.ts`, threaded through every weave signature) · `@jkos/types` and
+the deprecated `plugins/*` microfrontend stack deleted (superseded by the native widget engine)
+· LazurOS (`apps/lazuros`) rebuilt on `weaveServerClient` + `lib/http.js` as a Node/Weave
+job-queue AI gateway — see `LAZUROS.md`.*

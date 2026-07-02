@@ -1,9 +1,10 @@
 /**
  * For every app present in BOTH the registry seed and SUITE_APPS, the integration
  * fields (api_base, health_path, capabilities_path, datasets_path) must be byte-equal
- * — they are the same fact written twice. Any mismatch is 'drift' (a real, shipping
- * inconsistency between the authoritative source and its fallback). Equality is still
- * a 'consolidate' note, because equal-by-hand is one careless edit from drift.
+ * — they are the same fact seen through two derived views. Any mismatch is 'drift':
+ * post-A2 both views come from @jkos/suite-manifest builders, so a mismatch means a
+ * builder maps a field differently (a real bug), not a hand-sync slip. Equality is
+ * an 'ok' — it is guaranteed by construction, and this scan proves it stays so.
  */
 const FIELDS = [
   ['apiBase', 'api_base'],
@@ -37,8 +38,8 @@ export default {
     }
     if (dup) {
       out.push({
-        level: 'consolidate',
-        msg: `${dup} integration field values are duplicated verbatim between the registry seed and SUITE_APPS — equal today, unenforced tomorrow`,
+        level: 'ok',
+        msg: `${dup} integration field values agree between the registry seed and SUITE_APPS — both views derive from @jkos/suite-manifest, so equality is by construction (a mismatch here means a builder mapping bug, reported as drift above)`,
         where: ['apps/jkauth/src/db.js', 'packages/weave/src/manifest.ts'],
       });
     }

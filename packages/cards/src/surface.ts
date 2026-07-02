@@ -75,7 +75,7 @@ export function cardSurface(opts: CardSurfaceOpts): CSSProperties {
   return {
     background: `${ACCENT_GLAZE}, ${accent}`,
     boxShadow: `${e.inset}, ${e.drop}${selectedRing}`,
-    color: 'rgba(255,255,255,0.95)',
+    color: 'var(--color-on-accent)',
     borderRadius: radius,
     outline: selected && elevation !== 'block' ? `${elevation === 'chip' ? 1.5 : 2}px solid var(--color-accent)` : 'none',
     outlineOffset: -2,
@@ -89,7 +89,7 @@ export function chipCheckStyle(completed: boolean, size: number, tick: string): 
     width: size,
     height: size,
     flexShrink: 0,
-    border: `1px solid ${completed ? 'var(--color-muted)' : 'rgba(255,255,255,0.7)'}`,
+    border: `1px solid ${completed ? 'var(--color-muted)' : 'var(--color-on-accent-dim)'}`,
     background: completed ? tick : 'transparent',
     cursor: 'pointer',
     display: 'flex',

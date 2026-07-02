@@ -76,7 +76,7 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
       }),
     }}>
       <div style={{
-        background: accent, color: 'rgba(255,255,255,0.95)',
+        background: accent, color: 'var(--color-on-accent)',
         padding: '16px 22px 18px',
       }}>
         <div style={{
@@ -85,13 +85,13 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
         }}>
           <div style={{
             fontFamily: FONT_BODY, fontSize: 9, letterSpacing: '0.22em',
-            textTransform: 'uppercase', color: 'rgba(255,255,255,0.7)',
+            textTransform: 'uppercase', color: 'var(--color-on-accent-dim)',
           }}>{scopeLabel}{isEvent && event.source ? ` · ${sourceOf(event.source).label}` : ''}</div>
           <button
             onClick={onClose} title="Close"
             style={{
               background: 'transparent', border: 'none',
-              color: 'rgba(255,255,255,0.7)', fontSize: 16,
+              color: 'var(--color-on-accent-dim)', fontSize: 16,
               cursor: 'pointer', padding: 0, lineHeight: 1,
             }}
           >✕</button>
@@ -113,10 +113,10 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
             }}
             style={{
               background: 'transparent', border: 'none',
-              borderBottom: '1px solid rgba(255,255,255,0.45)',
+              borderBottom: '1px solid var(--color-on-accent-faint)',
               fontFamily: FONT_HEAD, fontWeight: 500,
               fontSize: isGoal ? 26 : 22,
-              color: 'rgba(255,255,255,0.95)', outline: 'none',
+              color: 'var(--color-on-accent)', outline: 'none',
               padding: '2px 0 6px', width: '100%', letterSpacing: '-0.015em',
             }}
           />
@@ -138,7 +138,7 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
         {event.target && (
           <div style={{
             fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 12.5,
-            color: 'rgba(255,255,255,0.72)', marginTop: 5,
+            color: 'var(--color-on-accent-dim)', marginTop: 5,
           }}>{event.target}</div>
         )}
       </div>

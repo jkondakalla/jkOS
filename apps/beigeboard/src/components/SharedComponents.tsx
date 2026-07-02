@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
+import { VU } from '@jkos/ui'
 import { FONT_HEAD, FONT_BODY, FONT_NUM, TASK_COLORS } from '../lib/theme'
 
 export function Checkbox({ id, completed, onToggle, color, size = 15 }: any) {
@@ -39,36 +40,23 @@ export function Eyebrow({ children, color, style }: any) {
   )
 }
 
-export function VUMeter({ pct = 0, color, segments = 20, height = 8, label, peak = true }: any) {
+export function VUMeter({ pct = 0, color, segments = 20, height = 8, label }: any) {
   const accent = color || 'var(--color-accent)'
-  const lit = Math.round((pct / 100) * segments)
-  const peakStart = peak ? Math.max(0, segments - Math.ceil(segments * 0.2)) : segments
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-      <div style={{
-        flex: 1, display: 'flex', gap: 2,
-        padding: 3,
-        background: 'rgba(0,0,0,0.4)',
-        border: `1px solid var(--color-line)`,
-        boxShadow: `inset 0 2px 4px rgba(0,0,0,0.45), inset 0 -1px 0 rgba(255,255,255,0.06)`,
-      }}>
-        {Array.from({ length: segments }, (_, i) => {
-          const isLit = i < lit
-          const isHot = i >= peakStart && isLit
-          const ledColor = isLit ? (isHot ? 'var(--color-accent)' : accent) : 'rgba(0,0,0,0.5)'
-          const glow = isLit ? `0 0 4px ${isHot ? 'var(--color-accent)' : accent}99` : 'none'
-          return (
-            <div key={i} style={{
-              flex: 1, height,
-              background: ledColor,
-              boxShadow: glow,
-              opacity: isLit ? 1 : 0.45,
-              transition: 'background 0.2s, box-shadow 0.2s',
-            }} />
-          )
-        })}
-      </div>
+      <VU
+        value={pct / 100}
+        segments={segments}
+        tint={accent}
+        style={{
+          flex: 1, height: height + 6,
+          padding: 3,
+          background: 'rgba(0,0,0,0.4)',
+          border: `1px solid var(--color-line)`,
+          boxShadow: `inset 0 2px 4px rgba(0,0,0,0.45), inset 0 -1px 0 rgba(255,255,255,0.06)`,
+        }}
+      />
       {label && (
         <span style={{
           fontFamily: FONT_NUM, fontStyle: 'italic', fontSize: 12,

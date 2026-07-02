@@ -47,6 +47,16 @@ def install(monkey):
     return log
 
 
+# 0. Pathing contract: one URL builder, normalized bases, quoted ids, scoped creds.
+ok(worker.api_url('/internal/jobs', 'http://host:8080/') == 'http://host:8080/internal/jobs',
+   'api_url strips a trailing slash before joining')
+ok(worker.job_path('a/b c', 'claim') == '/internal/jobs/a%2Fb%20c/claim',
+   'job_path percent-quotes the job id')
+ok('Authorization' not in worker.RUNTIME_HEADERS,
+   'inference runtime headers never carry the internal token')
+ok(worker.STATE_HEADERS.get('Authorization', '').startswith('Bearer'),
+   'State-node headers carry the bearer token')
+
 # 1. build_prompt renders from the template map, never a hardcoded string.
 ok(worker.build_prompt('parse-task', {'text': 'hi'}, PROMPTS) == 'Extract a task from: hi',
    'build_prompt renders template')

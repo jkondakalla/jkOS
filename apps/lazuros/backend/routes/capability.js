@@ -23,8 +23,9 @@ function makeHandler(capDef) {
 
     // Owner is the AUTHENTICATED identity, never a body field — a client must not be
     // able to enqueue work as another user. weaveAuth + weaveWriteGate already ran, so
-    // req.user.sub is a real human (or a delegated acting user, G1). The doc's
-    // `user_id` field stays as declared context; the rest of the body is the payload.
+    // req.user.sub is a real human (or a delegated acting user, G1). The capability
+    // doc deliberately declares NO user_id body field (the workshop shouldn't render
+    // an input the server discards); a stray body user_id is still stripped here.
     if (req.user?.sub == null) return res.status(401).json({ error: 'UNAUTHENTICATED' });
     const user_id = String(req.user.sub);
     const { user_id: _ignoredBodyUser, ...payload } = req.body || {};

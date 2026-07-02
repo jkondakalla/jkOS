@@ -26,8 +26,11 @@ The suite already has a hard-contract gate; the prober is the advisory layer ben
 | **suite-prober** | The layer below the gate — *duplicated truth* and *unenforced coupling* that spans systems, so no single existing test owns it | One topology model + a registry of cross-system probes |
 
 The prober is **why** [CONSOLIDATION.md](CONSOLIDATION.md) exists: it produced those
-findings. Its headline today is **0 drift / 9 consolidate / 10 gap** — the hard contracts
-hold, the opportunities are one layer down.
+findings. Its headline today is **0 drift / 1 consolidate / 7 gap** (2026-07-01 sweep:
+the app-directory consolidations are closed — registry/manifest/nginx all derive from
+`@jkos/suite-manifest`, the invalidation triple collapsed into `useWeaveList`'s derived
+subscription, and LazurOS's doc surface is covered; the one remaining consolidate is the
+off-limits SylibOS `sylib` slug).
 
 ## The mental model
 

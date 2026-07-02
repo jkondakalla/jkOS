@@ -4,7 +4,10 @@ export { WidgetShell } from './WidgetShell';
 export { SettingsDrawer, SettingsSection } from './SettingsDrawer';
 export type { SettingsDrawerProps } from './SettingsDrawer';
 export { JkOSTheme } from './JkOSTheme';
-export { Bubble, Press, Sub, SubLink, Well, Sheet, Lab, TButton, Pill, cx } from './primitives';
+export {
+  Bubble, Press, Sub, SubLink, Well, Sheet, Lab, TButton, Pill,
+  Switch, Check, VU, Scanlines, Vignette, Scrim, cx,
+} from './primitives';
 export { useBreakpoint } from './useBreakpoint';
 export {
   usePointerDrag,

@@ -56,7 +56,7 @@ export function AllDayBar({ bar, color, top, height, isSelected, isDragging, onP
           fontFamily: FONT_BODY,
           fontSize: 10,
           fontWeight: 500,
-          color: 'rgba(255,255,255,0.95)',
+          color: 'var(--color-on-accent)',
           overflow: 'hidden',
           textOverflow: 'ellipsis',
           whiteSpace: 'nowrap',

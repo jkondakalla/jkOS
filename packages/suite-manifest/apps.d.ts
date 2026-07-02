@@ -1,6 +1,18 @@
 // Types for @jkos/suite-manifest — mirrors apps.js (the runtime source of truth).
 // Imported by TS consumers (Weave's manifest.ts) so a shape change is a type error.
 
+/** Every canonical app id, in APPS order. This literal tuple is the ONE typed
+ *  mirror of the runtime rows (a hand-written .d.ts cannot derive literals from
+ *  CJS): `pnpm new-app` appends to it and the weave test gate asserts it matches
+ *  `APP_IDS` in apps.js, so a drifted id fails red. */
+export declare const APP_IDS: readonly ['auth', 'beigeboard', 'sylibos', 'ordeck', 'staging', 'lazuros'];
+
+/** The canonical app-id union. Weave's public app-addressing signatures take THIS
+ *  instead of `string`, so a typo'd or unregistered app id is a compile error at
+ *  the call site (an unregistered id would otherwise fail silently at runtime —
+ *  empty reads, never-refreshing widgets). */
+export type AppId = (typeof APP_IDS)[number];
+
 /** One row in the suite app directory. The `id` is the only identifier; all edge
  *  paths derive from it unless an override pins them (SylibOS / LazurOS). */
 export interface AppRow {
@@ -74,9 +86,9 @@ export declare function capabilitiesPathOf(app: AppRow): string | null;
 export declare function datasetsPathOf(app: AppRow): string | null;
 
 /** The invalidation bus key, e.g. resourceKey('beigeboard','items') → 'beigeboard.items'. */
-export declare function resourceKey(id: string, resource: string): string;
+export declare function resourceKey(id: AppId, resource: string): string;
 /** The capability scope, e.g. scopeFor('beigeboard','write') → 'beigeboard:write'. */
-export declare function scopeFor(id: string, verb: string): string;
+export declare function scopeFor(id: AppId, verb: string): string;
 
 export declare function registrySeed(): RegistryRow[];
 export declare function manifestApps(): Record<string, ManifestEntry>;

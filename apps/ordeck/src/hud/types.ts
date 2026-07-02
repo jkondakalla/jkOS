@@ -21,6 +21,7 @@
  *  top. Desktop is the 12-col matrix, tablet an intermediate 6-col, mobile the
  *  strict 2-up. (Retires ORDECK's old bespoke 880px crossover.) */
 import { BREAKPOINTS as BASE_BREAKPOINTS, type BreakpointName } from '@jkos/design';
+import type { AppId } from '@jkos/weave';
 
 export type { BreakpointName };
 
@@ -140,7 +141,7 @@ export type Tone = 'ok' | 'warn' | 'danger' | 'muted' | 'accent';
  *  captured by a form's inputs. The renderer resolves these to a plain body, then
  *  weave's runCommand issues the request and invalidates the declared resources. */
 export interface CommandRef {
-  app: string;            // manifest id, e.g. 'beigeboard'
+  app: AppId;             // canonical manifest id, e.g. 'beigeboard' (typo = type error)
   capability: string;     // CapabilityDef id, e.g. 'createItem'
   body?: Record<string, Binding>;
 }

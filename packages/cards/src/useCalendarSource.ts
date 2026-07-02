@@ -16,19 +16,18 @@
  */
 
 import { useCallback } from 'react';
-import { useWeaveList, weaveClient, resourceKey, invalidate, type ListFilters } from '@jkos/weave';
+import { useWeaveList, weaveClient, resourceKey, invalidate, type AppId, type ListFilters } from '@jkos/weave';
 import type { CalendarItem, CalendarSource } from './types';
 
 export function useCalendarSource(
-  app: string,
+  app: AppId,
   dataset = 'items',
   filters?: ListFilters,
 ): CalendarSource {
-  // The resource key the `items` capabilities invalidate — derived, not typed by
-  // hand, so a peer write refreshes this read through the shared bus.
+  // useWeaveList derives its bus subscription (resourceKey(app, dataset)) itself;
+  // this hook only re-derives the key for the manual refresh() escape hatch below.
   const key = resourceKey(app, dataset);
   const items = useWeaveList<CalendarItem>(app, dataset, filters, {
-    invalidateOn: [key],
     refetchOnVisible: true,
   });
 

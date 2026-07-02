@@ -71,13 +71,13 @@ export interface WidgetCtx {
 
 /* ═══ Declarative spec layer ═══════════════════════════════════════════════ */
 
-type Scope = Record<string, unknown>;
+export type Scope = Record<string, unknown>;
 
 const str = (v: unknown): string => (v == null ? '' : String(v));
 const num = (v: unknown): number => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
 
 /** Resolve a binding against the current scope (literal, {lit}, or {src,path}). */
-function resolve(b: Binding, scope: Scope): unknown {
+export function resolve(b: Binding, scope: Scope): unknown {
   if (b === null || typeof b !== 'object') return b;
   if ('lit' in b) return b.lit;
   let v: unknown = scope[b.src];
@@ -95,7 +95,7 @@ function toneColor(t: ToneBinding | undefined, scope: Scope, fallback: Tone = 'm
 
 /** Truthiness for `when` — empty arrays/strings and 0 are falsy (so "has tasks"
  *  is just a bound array, and a "0 / false / ''" condition hides cleanly). */
-function truthy(v: unknown): boolean {
+export function truthy(v: unknown): boolean {
   if (Array.isArray(v)) return v.length > 0;
   if (typeof v === 'string') return v !== '' && v !== 'false' && v !== '0';
   return Boolean(v);
@@ -269,7 +269,9 @@ const PRIMITIVES: Primitives = {
   button: (n, scope) => <ButtonNode node={n} scope={scope} />,
 };
 
-function renderNode(node: WidgetNode, scope: Scope): ReactNode {
+/** Exported for the workshop's canvas editor, which reuses the SAME primitive
+ *  renderers for its editable leaves (so what you edit is what ships). */
+export function renderNode(node: WidgetNode, scope: Scope): ReactNode {
   const fn = PRIMITIVES[node.t] as (n: WidgetNode, s: Scope) => ReactNode;
   return fn ? fn(node, scope) : null;
 }
@@ -654,7 +656,7 @@ function isSameOrigin(url: string): boolean {
   catch { return false; }
 }
 
-function useDataSources(sources?: Record<string, DataSource>): Scope {
+export function useDataSources(sources?: Record<string, DataSource>): Scope {
   const fetchList = useMemo(
     () => Object.entries(sources ?? {}).filter(
       (e): e is [string, Extract<DataSource, { from: 'fetch' }>] => e[1].from === 'fetch',

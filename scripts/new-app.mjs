@@ -32,6 +32,7 @@ const HERE = dirname(fileURLToPath(import.meta.url))
 const ROOT = join(HERE, '..')
 const TEMPLATES = join(HERE, 'templates', 'new-app')
 const APPS_FILE = join(ROOT, 'packages', 'suite-manifest', 'apps.js')
+const APPS_DTS = join(ROOT, 'packages', 'suite-manifest', 'apps.d.ts')
 const COMPOSE_FILE = join(ROOT, 'docker-compose.yml')
 const NGINX_GEN = join(ROOT, 'infra', 'nginx', 'gen-nginx-weave.mjs')
 
@@ -132,6 +133,22 @@ function registerApp() {
   const next = text.replace(ANCHOR, `\n${row}${ANCHOR}`)
   writeFileSync(APPS_FILE, next)
   ok(`registered '${id}' in @jkos/suite-manifest APPS`)
+  patchAppIdUnion({ add: true })
+}
+
+/** Keep the hand-written `AppId` literal tuple in apps.d.ts in step with the APPS
+ *  rows — a .d.ts cannot derive literals from CJS, and the weave test gate fails
+ *  red if the two lists differ, so a scaffold/remove must patch both. */
+function patchAppIdUnion({ add }) {
+  const text = readFileSync(APPS_DTS, 'utf8')
+  const re = /(export declare const APP_IDS: readonly \[)([^\]]*)(\])/
+  const m = text.match(re)
+  if (!m) die('could not find the APP_IDS tuple in apps.d.ts — has its format changed?')
+  const ids = m[2].split(',').map((s) => s.trim().replace(/^'|'$/g, '')).filter(Boolean)
+  const next = add ? [...ids, id] : ids.filter((x) => x !== id)
+  if (next.join() === ids.join()) return
+  writeFileSync(APPS_DTS, text.replace(re, `$1${next.map((x) => `'${x}'`).join(', ')}$3`))
+  ok(add ? `added '${id}' to the AppId union (apps.d.ts)` : `removed '${id}' from the AppId union (apps.d.ts)`)
 }
 
 function addComposeInclude() {
@@ -188,6 +205,7 @@ function remove() {
   const re = new RegExp(`\\n {2}\\{\\n {4}id: '${id}',[\\s\\S]*?\\n {2}\\},`)
   if (re.test(text)) { writeFileSync(APPS_FILE, text.replace(re, '')); ok(`deregistered '${id}' from APPS`) }
   else info(`no APPS row for '${id}' (already removed)`)
+  patchAppIdUnion({ add: false })
   // 2. compose include
   let cmp = readFileSync(COMPOSE_FILE, 'utf8')
   const line = `  - path: apps/${id}/docker-compose.yml\n`

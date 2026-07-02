@@ -129,13 +129,27 @@ rung down, never pressed. Status colours keep their own lane.
   `.jk-sub-link` (flat secondary), `.jk-well` (inset container), `.jk-bubble` +
   `.jk-bubble-primary` / `.jk-bubble-secondary` (+ `.jk-bubble-lg`) single-element pills,
   `.jk-sheet` (card). Text-system primitives: `.jk-lab` (+ `.jk-lab-sm/-xs`, mono uppercase
-  label), `.jk-tbtn` (+ `.jk-tbtn-quiet`, compact mono text button that hovers to the
-  secondary accent), `.jk-pill` (green status pill). Corners follow the per-app
-  `--hub-radius*` scale (sharp by default); no texture/effect tokens touched.
+  label; `.jk-lab-sans` swaps to the UI sans — the blessed eyebrow variant), `.jk-tbtn`
+  (+ `.jk-tbtn-quiet`, compact mono text button that hovers to the secondary accent),
+  `.jk-pill` (green status pill). **Controls + veils:** `.jk-switch` (+ `.jk-switch-knob`)
+  and `.jk-check` toggles fill with the accent — or with `--jk-tint` for a data colour — and
+  the check carries `--color-on-accent` ink; `.jk-vu` (+ `.jk-vu-seg.on`) segmented level
+  meter; `.jk-scanlines` / `.jk-vignette` CRT veils driven by the `--crt-*` opacity knobs +
+  `--crt-scanline-ink` (so one markup renders in both faces, no baked opacity); `.jk-scrim`
+  (+ `.jk-scrim-heavy`) modal backdrop from the neutral scrim tokens. Corners follow the
+  per-app `--hub-radius*` scale (sharp by default); no texture/effect tokens touched.
+- **On-accent ink** (`--color-on-accent` / `-dim` / `-faint`): the white-alpha family for
+  text/marks/dividers sitting on the accent or a data colour (task chips, tinted panel
+  headers, filled checks) — pick it over `--color-ink` only when the ground is coloured.
+- **Well retint**: `.jk-well` (and the toggles/VU) read `--jk-tint` (unset → `--accent`), so
+  a caller can retint a well/meter in a goal's own hue; the dark-mode press glow follows the
+  same seam.
 - **React components** (`@jkos/ui`): `<Bubble tone large>`, `<Press large as>`, `<Sub>`,
-  `<SubLink>`, `<Well>`, `<Sheet>`, `<Lab size>`, `<TButton quiet>`, `<Pill>` (+ `cx`) wrap
-  those classes — the sanctioned way to use the system. `@jkos/design` stays framework-free
-  (tokens + factory + appliers); React lives in `@jkos/ui`.
+  `<SubLink>`, `<Well tint>`, `<Sheet>`, `<Lab size sans>`, `<TButton quiet>`, `<Pill>`,
+  `<Switch checked onChange tint>`, `<Check checked onChange tint>`, `<VU value segments tint>`,
+  `<Scanlines>`, `<Vignette>`, `<Scrim heavy>` (+ `cx`) wrap those classes — the sanctioned way
+  to use the system. `@jkos/design` stays framework-free (tokens + factory + appliers); React
+  lives in `@jkos/ui`.
 
 ## Per-app stacks — critical constraints
 

@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { VU } from '@jkos/ui'
 import { FONT_HEAD, FONT_BODY, FONT_NUM, localDate, fmtTime, getGreeting } from '../../lib/theme'
 import { getAccent, getAncestors } from '../../lib/seed'
 import { Eyebrow, RecLamp, Checkbox } from '../components/MobileWidgets'
@@ -79,32 +80,17 @@ export function MobileTodayView({ items, today, onSelect, onToggle, onAdd }: Mob
                 {done.length}/{todayAll.length}
               </Eyebrow>
             </div>
-            <div
+            <VU
+              value={pct / 100}
+              segments={24}
               style={{
-                display: 'flex',
-                gap: 2,
+                height: 14,
                 padding: 3,
                 background: 'rgba(0,0,0,0.4)',
-                border: `1px solid ${'var(--color-line)'}`,
-                boxShadow: `inset 0 2px 4px rgba(0,0,0,0.45), inset 0 -1px 0 rgba(255,255,255,0.06)`,
+                border: '1px solid var(--color-line)',
+                boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.45), inset 0 -1px 0 rgba(255,255,255,0.06)',
               }}
-            >
-              {Array.from({ length: 24 }, (_, i) => {
-                const isLit = i < Math.round((pct / 100) * 24)
-                return (
-                  <div
-                    key={i}
-                    style={{
-                      flex: 1,
-                      height: 8,
-                      background: isLit ? 'var(--color-accent)' : 'rgba(0,0,0,0.5)',
-                      opacity: isLit ? 1 : 0.45,
-                      transition: 'background 0.2s',
-                    }}
-                  />
-                )
-              })}
-            </div>
+            />
           </div>
         )}
 

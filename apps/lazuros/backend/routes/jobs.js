@@ -29,7 +29,10 @@ router.get('/', (req, res) => {
     ...j,
     result: j.result ? JSON.parse(j.result) : null,
   }));
-  res.json({ jobs });
+  // Bare array, not { jobs } — the weave read contract (weaveClient.list /
+  // useWeaveList coerce with Array.isArray, so an enveloped list reads as empty).
+  // BB's items dataset sets the shape; every dataset endpoint matches it.
+  res.json(jobs);
 });
 
 module.exports = router;

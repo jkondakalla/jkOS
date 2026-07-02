@@ -18,12 +18,19 @@
  */
 
 import { AUTH_URL } from '@jkos/auth-client';
-import { manifestApps, resourceKey, scopeFor, type ManifestEntry } from '@jkos/suite-manifest';
+import {
+  APP_IDS, manifestApps, resourceKey, scopeFor,
+  type AppId, type ManifestEntry,
+} from '@jkos/suite-manifest';
 
 /** The invalidation bus key for an app resource, e.g. `'beigeboard.items'`. The bus
  *  key is DERIVED from the app id (`id.resource`), never a free string — re-exported
  *  from the single source so writers/readers/widgets reference one helper (ToDo A5). */
 export { resourceKey, scopeFor };
+
+/** The canonical app-id union + runtime list, re-exported from the single source so
+ *  consumers type app-addressing fields off the fabric import they already use. */
+export { APP_IDS, type AppId };
 
 export interface SuiteApp {
   id: string;
@@ -73,7 +80,7 @@ export function setLiveApps(apps: Record<string, SuiteApp> | null): void {
 }
 
 /** Resolve one app, preferring the live registry over the static fallback. */
-export function suiteApp(id: string): SuiteApp | undefined {
+export function suiteApp(id: AppId): SuiteApp | undefined {
   return liveApps?.[id] ?? SUITE_APPS[id];
 }
 
@@ -83,12 +90,12 @@ export function suiteApps(): Record<string, SuiteApp> {
 }
 
 /** API base for an app, or '' if it exposes none (callers build `${base}/items`). */
-export function apiBase(id: string): string {
+export function apiBase(id: AppId): string {
   return suiteApp(id)?.apiBase ?? '';
 }
 
 /** External origin for an app, or '' (used for "open the app" links/deeplinks). */
-export function appOrigin(id: string): string {
+export function appOrigin(id: AppId): string {
   return suiteApp(id)?.origin ?? '';
 }
 

@@ -86,10 +86,10 @@ function GoogleSignInButton({ onClick }: { onClick: () => void }) {
       onMouseLeave={() => setHovered(false)}
       style={{
         ...styles.button,
-        background:  hovered ? 'rgba(255,176,0,0.10)' : 'transparent',
-        color:       hovered ? 'var(--hub-amber)' : 'var(--hub-cream-dim, #b8a882)',
+        background:  hovered ? 'color-mix(in srgb, var(--hub-amber) 10%, transparent)' : 'transparent',
+        color:       hovered ? 'var(--hub-amber)' : 'var(--hub-cream-dim)',
         borderColor: hovered ? 'var(--hub-amber)' : 'var(--hub-line-strong)',
-        boxShadow:   hovered ? '0 0 12px var(--hub-amber-glow), inset 0 0 6px rgba(255,176,0,0.06)' : 'none',
+        boxShadow:   hovered ? '0 0 12px var(--hub-amber-glow), inset 0 0 6px color-mix(in srgb, var(--hub-amber) 6%, transparent)' : 'none',
       }}
     >
       <GoogleIcon style={{ marginRight: 10, opacity: hovered ? 1 : 0.6 }} />
@@ -173,7 +173,7 @@ const styles: Record<string, CSSProperties> = {
   eyebrow: {
     fontSize:      9,
     letterSpacing: '0.22em',
-    color:         'var(--hub-cream-dim, #b8a882)',
+    color:         'var(--hub-cream-dim)',
     textTransform: 'uppercase',
   },
 
@@ -196,7 +196,7 @@ const styles: Record<string, CSSProperties> = {
   subtitle: {
     fontSize:      10,
     letterSpacing: '0.2em',
-    color:         'var(--hub-cream-dim, #b8a882)',
+    color:         'var(--hub-cream-dim)',
     marginBottom:  24,
   },
 
@@ -217,8 +217,8 @@ const styles: Record<string, CSSProperties> = {
 
   errorBox: {
     width:        '100%',
-    background:   'rgba(180,30,20,0.12)',
-    border:       '1px solid rgba(200,60,50,0.4)',
+    background:   'var(--hub-red-soft)',
+    border:       '1px solid color-mix(in srgb, var(--hub-red) 40%, transparent)',
     padding:      '8px 12px',
     marginBottom: 16,
     display:      'flex',
@@ -229,7 +229,7 @@ const styles: Record<string, CSSProperties> = {
   errorLabel: {
     fontSize:      9,
     letterSpacing: '0.2em',
-    color:         'var(--hub-red, #e03030)',
+    color:         'var(--hub-red)',
     fontWeight:    700,
     flexShrink:    0,
     paddingTop:    1,
@@ -237,7 +237,7 @@ const styles: Record<string, CSSProperties> = {
 
   errorText: {
     fontSize:   11,
-    color:      'var(--hub-cream-dim, #b8a882)',
+    color:      'var(--hub-cream-dim)',
     lineHeight: 1.5,
   },
 

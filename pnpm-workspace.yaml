@@ -3,5 +3,4 @@
 packages:
   - "apps/*"          # ordeck (shell), beigeboard, sylibos, jkauth frontends/services
   - "apps/*/backend"  # beigeboard + sylibos + lazuros node backends
-  - "packages/*"      # @jkos/{design,auth-client,auth-middleware,types,ui}
-  - "plugins/*"       # ORDECK federation microfrontends (not in prod deploy)
+  - "packages/*"      # @jkos/{design,auth-client,auth-middleware,ui,weave,cards,...}

@@ -139,6 +139,16 @@
   --crt-vignette-opacity: 0.08;
   --canvas-grid-opacity: 0.5;
   --screw-display: inline-block;
+  /* Scanline INK — the line colour for .jk-scanlines; visibility comes from
+     --crt-scanline-opacity (an input apps may raise via their theme CSS). Paper
+     scores dark lines into the sheet; dark mode lifts pale phosphor rows. */
+  --crt-scanline-ink: #000000;
+
+  /* Veil scrims — the standard modal backdrop + a heavier variant for
+     destructive confirms. Warm-black in both modes (a scrim dims whatever is
+     behind it; it is not a themed surface). */
+  --hub-scrim:       rgba(10, 8, 6, 0.5);
+  --hub-scrim-heavy: rgba(5, 4, 3, 0.85);
 
   /* ░░ DERIVATION — universal; consumes the inputs above. Do not duplicate. ░░ */
 
@@ -179,6 +189,14 @@
   --color-secondary:      var(--hub-cyan);
   --color-secondary-dim:  var(--hub-cyan-dim);
   --color-secondary-glow: var(--hub-cyan-glow);
+
+  /* Ink over an accent- or item-coloured surface (task chips, tinted panel
+     headers, filled checks). Item colours are mid-tone in both modes, so this
+     is a constant white-alpha family — pick it over --color-ink ONLY when the
+     ground behind the text is the accent or a data colour. */
+  --color-on-accent:       rgba(255, 255, 255, 0.95);
+  --color-on-accent-dim:   rgba(255, 255, 255, 0.7);
+  --color-on-accent-faint: rgba(255, 255, 255, 0.45);
 
   /* Status surface tints — a soft fill behind ok/warn/danger states (e.g. a
      "system down" row). Derived from the semantic colours over the card bg;
@@ -257,6 +275,7 @@
   --hub-glow-mul: 1;
   --crt-scanline-opacity: 0.012;
   --crt-vignette-opacity: 0.45;
+  --crt-scanline-ink: #ffffff;
   --canvas-grid-opacity: 1;
 
   /* ░░ DERIVATION — CRT uses the raw bright pair (no paper deepening) ░░ */
@@ -278,8 +297,11 @@
      stays legible against the dark ground instead of muddying into it). */
   --color-accent-ink:      color-mix(in srgb, var(--hub-amber) 78%, #ffffff);
 
-  /* Dark mode: accents glow (halation) rather than press into the surface. */
-  --hub-accent-press: 0 0 10px var(--hub-amber-glow), inset 0 0 0 1px color-mix(in srgb, var(--hub-amber) 30%, transparent);
+  /* Dark mode: accents glow (halation) rather than press into the surface.
+     Parameterised on --jk-tint (the item-tint seam) so a tinted well/meter
+     glows in ITS colour; unset, it resolves to the accent — byte-identical to
+     the old accent-locked value. */
+  --hub-accent-press: 0 0 10px color-mix(in srgb, var(--jk-tint, var(--accent)) 38%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--jk-tint, var(--accent)) 30%, transparent);
 
   /* Halation lights up in CRT: every primary-accent element emits. The text
      halo is tighter than the box halo so accent type stays legible. */
@@ -307,6 +329,94 @@
   90%  { transform: translate(-2%, 4%); }
   100% { transform: translate(0, 0); }
 }
+
+/* Shared motion — the suite-wide enter/feedback animation vocabulary. One copy
+   here; app sheets keep only their bespoke frames (BB `paperExpand`, ORDECK
+   `reel-spin`/`ticker-scroll`). Transform keyframes end on `transform: none`
+   (not `translate(0)`/`scale(1)`): any non-none transform makes the element a
+   stacking context + a containing block for `position: fixed` descendants. */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes pulseOpacity {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.35; }
+}
+@keyframes checkBounce {
+  0%   { transform: none; }
+  40%  { transform: scale(1.35); }
+  70%  { transform: scale(0.9); }
+  100% { transform: none; }
+}
+@keyframes panelIn {
+  from { opacity: 0; transform: translateX(28px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes itemIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes modalIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes scanRoll {
+  from { background-position: 0 0; }
+  to   { background-position: 0 -4px; }
+}
+@keyframes scanPulse {
+  0%, 100% { opacity: 0.7; }
+  50%       { opacity: 1; }
+}
+@keyframes artifactFlash {
+  0%   { opacity: 0; }
+  8%   { opacity: 1; }
+  92%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+@keyframes crtExpand {
+  0%   { clip-path: inset(49.5% 0 49.5% 0); filter: brightness(6); }
+  9%   { clip-path: inset(0% 0 0% 0);        filter: brightness(2.2); }
+  16%  { clip-path: inset(1.2% 0 1.2% 0);   filter: brightness(0.55); }
+  24%  { clip-path: inset(0% 0 0% 0);        filter: brightness(1.5); }
+  33%  { filter: brightness(0.75); }
+  42%  { filter: brightness(1.15); }
+  54%  { filter: brightness(0.9); }
+  68%  { filter: brightness(1.05); }
+  100% { filter: brightness(1); clip-path: inset(0% 0 0% 0); }
+}
+@keyframes introTitleReveal {
+  from { opacity: 0; transform: translateY(6px); filter: blur(3px); }
+  to   { opacity: 1; transform: none;   filter: none; }
+}
+@keyframes introFadeOut {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+/* Motion utility classes. `.view-enter`/`.panel-enter` carry NO fill-mode on
+   purpose: while an animation targeting `transform` is "in effect" on an
+   element, Chromium keeps treating it as transformed (stacking context +
+   fixed-position containing block) even once it reaches a `transform: none`
+   keyframe — the fill-mode, not the resolved value, is what matters. Both
+   keyframes already end at the element's resting style, so letting the
+   animation end and revert to the non-animated cascade is a visual no-op,
+   and fixed-position popups hosted by (or siblings of) the animated element
+   keep stacking/positioning correctly. */
+.view-enter   { animation: fadeSlideUp 0.32s cubic-bezier(0.16, 1, 0.3, 1); }
+.panel-enter  { animation: panelIn     0.34s cubic-bezier(0.16, 1, 0.3, 1); }
+.item-in      { animation: itemIn      0.26s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.modal-in     { animation: modalIn     0.22s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.crt-expand   { animation: crtExpand 0.55s ease-out both; }
+.intro-title  { animation: introTitleReveal 0.7s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.intro-out    { animation: introFadeOut 0.45s ease-in forwards; }
+.now-dot      { animation: pulseOpacity 1.8s ease-in-out infinite; }
+.check-pop    { animation: checkBounce 0.25s ease-out; }
 
 /* Halation utilities — the suite-wide accent glow. .jk-halo for surfaces/chips,
    .jk-halo-text for accent type. Both collapse to nothing on paper (the tokens
@@ -563,9 +673,11 @@
 }
 
 /* Inset accent-tinted container — debossed on paper, emissive in CRT.
-   Reuses --hub-accent-press so the mode flip is inherited, not re-stated. */
+   Reuses --hub-accent-press so the mode flip is inherited, not re-stated.
+   --jk-tint (unset → --accent) lets a caller retint the well in a data colour
+   (e.g. a goal's own hue); the dark-mode press glow follows the same seam. */
 .jk-well {
-  background: color-mix(in srgb, var(--accent) 14%, var(--hub-bg-2));
+  background: color-mix(in srgb, var(--jk-tint, var(--accent)) 14%, var(--hub-bg-2));
   border-radius: var(--hub-radius-lg);
   box-shadow: var(--hub-accent-press);
 }
@@ -633,6 +745,9 @@
 }
 .jk-lab.jk-lab-sm { font-size: var(--hub-fs-lab-sm); letter-spacing: 0.18em; color: var(--hub-cream-dim); }
 .jk-lab.jk-lab-xs { font-size: var(--hub-fs-lab-xs); letter-spacing: 0.16em; color: var(--hub-cream-dim); }
+/* Sans eyebrow — same tracked-caps label in the UI sans (softer than the mono
+   default) for prose-adjacent section heads. Blessed variant, not a new type. */
+.jk-lab.jk-lab-sans { font-family: var(--hub-font-sans); letter-spacing: 0.14em; }
 
 /* Compact mono text button — flat, hovers to the secondary accent. */
 .jk-tbtn {
@@ -675,6 +790,125 @@
   border: 1px solid color-mix(in srgb, var(--hub-green) 40%, transparent);
 }
 :root[data-mode="dark"] .jk-pill { text-shadow: 0 0 8px var(--hub-green-glow); }
+
+/* ─── Toggles — switch + checkbox ──────────────────────────────────────────
+ * Neutral track/box that fills with the accent (or --jk-tint) when checked and
+ * carries the on-accent ink for the mark. Render on a real <button>/<input>
+ * host with role + aria-checked so the [aria-checked="true"] state drives it. */
+
+/* Sliding switch — 46×26 track, 20px knob. */
+.jk-switch {
+  position: relative;
+  flex: none;
+  width: 46px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--hub-line);
+  border-radius: 999px;
+  background: var(--hub-bg-0);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.jk-switch[aria-checked="true"] {
+  background: var(--jk-tint, var(--accent));
+  border-color: var(--jk-tint, var(--accent));
+}
+:root[data-mode="dark"] .jk-switch[aria-checked="true"] {
+  box-shadow: 0 0 10px color-mix(in srgb, var(--jk-tint, var(--accent)) 45%, transparent);
+}
+.jk-switch-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--hub-bg-2);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  transition: transform 0.15s;
+}
+.jk-switch[aria-checked="true"] .jk-switch-knob { transform: translateX(20px); }
+
+/* Checkbox — square box that fills + shows the child mark when checked. */
+.jk-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid var(--hub-line-strong);
+  border-radius: var(--hub-radius-sm);
+  background: var(--hub-bg-1);
+  color: transparent;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.jk-check[aria-checked="true"] {
+  background: var(--jk-tint, var(--accent));
+  border-color: var(--jk-tint, var(--accent));
+  color: var(--color-on-accent);
+}
+:root[data-mode="dark"] .jk-check[aria-checked="true"] {
+  box-shadow: 0 0 8px color-mix(in srgb, var(--jk-tint, var(--accent)) 40%, transparent);
+}
+
+/* ─── VU meter — segmented level bar ────────────────────────────────────────
+ * Flex row of segments; add `.on` to lit segments. Accent by default; retint a
+ * lit run (e.g. a red peak zone) via --jk-tint on the segment or a wrapper. */
+.jk-vu { display: flex; align-items: stretch; gap: 2px; }
+.jk-vu-seg {
+  flex: 1;
+  min-width: 2px;
+  border-radius: 1px;
+  background: var(--hub-line);
+  transition: background 0.1s, box-shadow 0.1s;
+}
+.jk-vu-seg.on {
+  background: var(--jk-tint, var(--hub-amber));
+}
+:root[data-mode="dark"] .jk-vu-seg.on {
+  box-shadow: 0 0 4px color-mix(in srgb, var(--jk-tint, var(--hub-amber)) 60%, transparent);
+}
+
+/* ─── CRT atmosphere — scanline + vignette veils ───────────────────────────
+ * Absolute overlays for a screen surface (host needs position). Driven by the
+ * suite CRT knobs (--crt-scanline-opacity / --crt-vignette-opacity: 0 in paper,
+ * lit in dark) and --crt-scanline-ink (#000 paper / #fff dark), so a single
+ * markup renders correctly in both faces with no per-app opacity literals. */
+.jk-scanlines {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: var(--crt-scanline-opacity);
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0px,
+    transparent 2.5px,
+    color-mix(in srgb, var(--crt-scanline-ink) 5%, transparent) 2.5px,
+    color-mix(in srgb, var(--crt-scanline-ink) 5%, transparent) 3.5px
+  );
+}
+.jk-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: var(--crt-vignette-opacity);
+  background:
+    radial-gradient(120% 80% at 50% 28%, color-mix(in srgb, var(--accent) 10%, transparent) 0%, transparent 45%),
+    radial-gradient(140% 120% at 50% 50%, transparent 58%, var(--hub-scrim-heavy) 100%);
+}
+
+/* ─── Scrim — modal backdrop veil ──────────────────────────────────────────
+ * Full-viewport dim behind sheets/dialogs. `.jk-scrim-heavy` for opaque covers
+ * (image lightboxes, boot screens). Both read the neutral scrim tokens. */
+.jk-scrim {
+  position: fixed;
+  inset: 0;
+  background: var(--hub-scrim);
+}
+.jk-scrim-heavy { background: var(--hub-scrim-heavy); }
 
 /* ═══ VIEWPORT AXIS — responsive overrides ═════════════════════════════════
  * Two tiers below desktop. Each overrides ONLY the responsive-scale INPUT

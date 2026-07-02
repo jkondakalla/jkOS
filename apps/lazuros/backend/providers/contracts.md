@@ -17,6 +17,36 @@ exporting one factory function that returns an object matching the shape below, 
 one line in the relevant factory map in `composeProviders.js`. Nothing else in the
 codebase — not the router, not the job queue, not a route handler — changes.
 
+## Pathing & transport contract (`../lib/http.js`)
+
+Every network-backed provider — same-node sidecars (Tier 0/1) and external nodes
+(Tier 2) alike — builds URLs and issues requests through **one** module, so the whole
+gateway has one pathing contract:
+
+- **`baseUrl` is the one address field.** Required, no `endpoint` alias, no hardcoded
+  localhost fallback (an address in code is a hardware fact, which the composability
+  mandate forbids). `normalizeBaseUrl` runs at **factory (boot) time**: it requires a
+  parseable http(s) URL and strips the trailing slash, so a malformed
+  `deployment.json` fails at startup with the slot name — never mid-request.
+- **Constant paths only.** Providers append fixed endpoint paths (`/api/generate`,
+  `/v1/audio/speech`, …) onto the normalized base. Anything dynamic goes through
+  `URLSearchParams`, never string interpolation.
+- **Every call has a timeout.** `providerFetch` wraps `fetch` with an
+  `AbortSignal.timeout`. Defaults per slot type (inference 120s, STT/TTS 60s,
+  embedding 30s, web search 15s, probe 500ms), overridable per slot with `timeoutMs`
+  in `deployment.json`.
+- **Three uniform error shapes**, so callers/logs never guess:
+  `"<what> failed: <status>"`, `"<what> timed out after <ms>ms"`,
+  `"<what> unreachable: <cause>"`.
+- **Credentials are scoped to their system.** An `apiKey` goes only to its own
+  provider's base; the worker mirrors this (`worker.py`: `STATE_HEADERS` with the
+  internal bearer token goes only to the State node, `RUNTIME_HEADERS` — never the
+  token — to the inference runtime).
+
+So the standardized slot input is `{ provider, baseUrl, apiKey?, timeoutMs?,
+…slot-specifics (model, voice, …) }`, and every provider output is exactly its
+contract shape below.
+
 ## InferenceProvider
 
 ```js
@@ -35,8 +65,8 @@ API as an escalation target for deployments with no second node).
 // { transcribe(audioBuffer, opts) => Promise<{ text, language? }> }
 ```
 
-Ships: `createWhisperSttProvider({ model, runtime })` (local, faster-whisper /
-whisper.cpp), `createCloudSttProvider({ endpoint, apiKey })`.
+Ships: `createWhisperSttProvider({ baseUrl, model, runtime })` (local, faster-whisper /
+whisper.cpp), `createCloudSttProvider({ baseUrl, apiKey, model })`.
 
 ## TtsProvider
 
@@ -44,8 +74,9 @@ whisper.cpp), `createCloudSttProvider({ endpoint, apiKey })`.
 // { synthesize(text, opts) => Promise<{ audioBuffer, mimeType }> }
 ```
 
-Ships: `createPiperTtsProvider({ voiceModel })`, `createKokoroTtsProvider({ voice })`,
-`createCloudTtsProvider({ endpoint, apiKey })`.
+Ships: `createPiperTtsProvider({ baseUrl, voiceModel })`,
+`createKokoroTtsProvider({ baseUrl, voice })`,
+`createCloudTtsProvider({ baseUrl, apiKey, voice })`.
 
 ## EmbeddingProvider
 
@@ -53,8 +84,20 @@ Ships: `createPiperTtsProvider({ voiceModel })`, `createKokoroTtsProvider({ voic
 // { embed(text) => Promise<number[]>, dimensions: number }
 ```
 
-Ships: `createLocalEmbeddingProvider({ model })` (e.g. bge-small via a local
-sentence-transformers / ONNX call).
+Ships: `createLocalEmbeddingProvider({ baseUrl, model, dimensions })` (e.g. bge-small
+served by the edge node's Ollama).
+
+## WebSearchProvider
+
+```js
+// { search(query, opts) => Promise<{ results: [{ title, url, snippet }] }> }
+// opts: { limit?: number, safesearch?: number }
+```
+
+Ships: `createSearxngWebSearchProvider({ baseUrl, safesearch })` (self-hosted SearXNG
+JSON API), `createDdgsWebSearchProvider({ baseUrl })` (DDGS HTTP sidecar). Both
+normalize whatever field names the backend returns into the one
+`{ title, url, snippet }` result shape, so Tier 1 never branches on which answered.
 
 ## ComputeBackend
 

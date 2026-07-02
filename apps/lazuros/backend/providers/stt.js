@@ -1,7 +1,7 @@
 'use strict';
 // stt.js — SttProvider reference implementations. Real as of Phase 3.
 //
-// Shape: { transcribe(audioBuffer, opts) => Promise<{ text, language? }> }
+// Shape: { kind, transcribe(audioBuffer, opts) => Promise<{ text, language? }> }
 //
 // Both reference impls POST multipart audio to an OpenAI-compatible
 // /v1/audio/transcriptions endpoint — the de-facto local-STT contract spoken by
@@ -9,38 +9,38 @@
 // alike. The only thing that differs between the local (`whisper`) and `cloud` factory
 // is the auth header and where `baseUrl` points; the router calling stt.transcribe(buf)
 // never knows or cares which it got. The runtime itself is deployment config, not code.
+//
+// Input contract (standardized): `baseUrl` is the ONE address field — validated at
+// boot by normalizeBaseUrl, no `endpoint` alias. Optional `timeoutMs` per slot.
 
-async function transcribeOpenAICompat({ baseUrl, apiKey, model }, audioBuffer, opts = {}) {
-  if (!baseUrl) throw new Error('SttProvider: no baseUrl configured — set deployment.stt.baseUrl');
-  const form = new FormData();
-  form.append('file', new Blob([audioBuffer], { type: opts.mimeType || 'audio/wav' }),
-    opts.filename || 'audio.wav');
-  if (model) form.append('model', model);
-  if (opts.language) form.append('language', opts.language);
+const { normalizeBaseUrl, providerFetch } = require('../lib/http');
 
-  const r = await fetch(`${baseUrl.replace(/\/$/, '')}/v1/audio/transcriptions`, {
-    method: 'POST',
-    headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
-    body: form,
-  });
-  if (!r.ok) throw new Error(`stt transcribe failed: ${r.status}`);
-  const data = await r.json();
-  return { text: data.text ?? '', language: data.language };
-}
+function makeTranscribe({ base, apiKey, model, timeoutMs }) {
+  return async (audioBuffer, opts = {}) => {
+    const form = new FormData();
+    form.append('file', new Blob([audioBuffer], { type: opts.mimeType || 'audio/wav' }),
+      opts.filename || 'audio.wav');
+    if (model) form.append('model', model);
+    if (opts.language) form.append('language', opts.language);
 
-function createWhisperSttProvider({ baseUrl, model, runtime } = {}) {
-  return {
-    kind: 'whisper', model, runtime,
-    transcribe: (audioBuffer, opts) => transcribeOpenAICompat({ baseUrl, model }, audioBuffer, opts),
+    const r = await providerFetch('stt transcribe', `${base}/v1/audio/transcriptions`, {
+      method: 'POST',
+      headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
+      body: form,
+    }, { timeoutMs });
+    const data = await r.json();
+    return { text: data.text ?? '', language: data.language };
   };
 }
 
-function createCloudSttProvider({ endpoint, baseUrl, apiKey, model } = {}) {
-  const url = baseUrl || endpoint;
-  return {
-    kind: 'cloud', endpoint: url, model,
-    transcribe: (audioBuffer, opts) => transcribeOpenAICompat({ baseUrl: url, apiKey, model }, audioBuffer, opts),
-  };
+function createWhisperSttProvider({ baseUrl, model, runtime, timeoutMs = 60_000 } = {}) {
+  const base = normalizeBaseUrl(baseUrl, 'SttProvider "whisper"');
+  return { kind: 'whisper', model, runtime, transcribe: makeTranscribe({ base, model, timeoutMs }) };
+}
+
+function createCloudSttProvider({ baseUrl, apiKey, model, timeoutMs = 60_000 } = {}) {
+  const base = normalizeBaseUrl(baseUrl, 'SttProvider "cloud"');
+  return { kind: 'cloud', model, transcribe: makeTranscribe({ base, apiKey, model, timeoutMs }) };
 }
 
 module.exports = { createWhisperSttProvider, createCloudSttProvider };

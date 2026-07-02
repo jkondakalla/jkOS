@@ -15,6 +15,14 @@ A different node serving a different capability subset ships different files; a
 node running llama.cpp instead of Ollama points LAZUROS_OLLAMA_URL at it. The
 worker code never references a tag, an f-string prompt, or a runtime by name.
 
+Pathing contract (mirrors the State node's backend/lib/http.js):
+  - Base URLs are normalized once (trailing slash stripped) and joined with
+    api_url()/job_path() — never ad-hoc f-strings scattered through the file.
+  - Dynamic path segments (job ids) are percent-quoted.
+  - Credentials are scoped to their system: STATE_HEADERS (the internal bearer
+    token) goes ONLY to the State node; the inference runtime gets RUNTIME_HEADERS,
+    which never carries the token.
+
 Stdlib only — no pip install on the compute node. The HTTP layer is factored into
 small helpers so the loop can be exercised against a mocked State node in tests.
 """
@@ -24,17 +32,36 @@ import signal
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 # ── Config (env) ────────────────────────────────────────────────────────────────
-STATE_URL = os.environ.get('LAZUROS_STATE_URL', 'http://localhost:8080')
+STATE_URL = os.environ.get('LAZUROS_STATE_URL', 'http://localhost:8080').rstrip('/')
 INT_TOKEN = os.environ.get('LAZUROS_INTERNAL_TOKEN', '')
 POLL_MS = int(os.environ.get('POLL_INTERVAL_MS', '2000'))
 MODEL_MAP_PATH = os.environ.get('LAZUROS_MODEL_MAP', '/opt/lazuros/models.json')
 PROMPT_MAP_PATH = os.environ.get('LAZUROS_PROMPT_MAP', '/opt/lazuros/prompts.json')
-OLLAMA_URL = os.environ.get('LAZUROS_OLLAMA_URL', 'http://localhost:11434')
+OLLAMA_URL = os.environ.get('LAZUROS_OLLAMA_URL', 'http://localhost:11434').rstrip('/')
 
-HEADERS = {'Authorization': f'Bearer {INT_TOKEN}', 'Content-Type': 'application/json'}
+# Credential scoping: the internal token authenticates this worker TO THE STATE NODE
+# and must never reach any other system — the runtime headers deliberately omit it.
+STATE_HEADERS = {'Authorization': f'Bearer {INT_TOKEN}', 'Content-Type': 'application/json'}
+RUNTIME_HEADERS = {'Content-Type': 'application/json'}
+
+
+# ── URL building (the one pathing seam) ─────────────────────────────────────────
+def api_url(path, base=None):
+    """Join an absolute path onto the State-node base URL. The base is normalized
+    (trailing slash stripped) so 'http://host:8080/' and 'http://host:8080' build
+    identical URLs."""
+    return f"{(base or STATE_URL).rstrip('/')}{path}"
+
+
+def job_path(job_id, action=None):
+    """/internal/jobs path for one job, with the id percent-quoted. Ids are
+    server-issued UUIDs today; quoting means this builder never relies on that."""
+    p = f"/internal/jobs/{urllib.parse.quote(str(job_id), safe='')}"
+    return f'{p}/{action}' if action else p
 
 
 # ── HTTP helpers (stdlib, mockable) ─────────────────────────────────────────────
@@ -49,9 +76,9 @@ def _request(method, url, headers, body=None, timeout=10):
 def get_pending(state_url=None, limit=1):
     """Next `limit` PENDING jobs (oldest first). Returns [] on any transport error
     so a flaky State node degrades to an idle poll loop rather than a crash."""
-    url = f'{state_url or STATE_URL}/internal/jobs?limit={limit}'
+    url = api_url(f'/internal/jobs?{urllib.parse.urlencode({"limit": int(limit)})}', state_url)
     try:
-        _, data = _request('GET', url, HEADERS, timeout=5)
+        _, data = _request('GET', url, STATE_HEADERS, timeout=5)
         return data.get('jobs', [])
     except (urllib.error.URLError, OSError, ValueError) as e:
         print(f'[worker] poll error: {e}', flush=True)
@@ -60,27 +87,39 @@ def get_pending(state_url=None, limit=1):
 
 def claim(job_id, state_url=None):
     """Atomically flip PENDING → IN_PROGRESS. True only if this worker won the race
-    (200); a peer that already claimed it gets 409 → False."""
-    url = f'{state_url or STATE_URL}/internal/jobs/{job_id}/claim'
+    (200); any error — including the 409 a losing peer gets, which urllib raises as
+    HTTPError (a URLError subclass) — is False."""
+    url = api_url(job_path(job_id, 'claim'), state_url)
     try:
-        status, _ = _request('PATCH', url, HEADERS, timeout=5)
+        status, _ = _request('PATCH', url, STATE_HEADERS, timeout=5)
         return status == 200
-    except urllib.error.HTTPError as e:
-        return e.code == 200
     except (urllib.error.URLError, OSError, ValueError):
         return False
 
 
 def post_result(job_id, status, result=None, error=None, state_url=None):
-    url = f'{state_url or STATE_URL}/internal/jobs/{job_id}/result'
-    _request('POST', url, HEADERS,
-             body={'status': status, 'result': result, 'error': error}, timeout=15)
+    """Post a terminal/intermediate result. Swallows transport errors (returns False)
+    rather than propagating: without this, a State-node outage at result-post time
+    crashes the daemon — the FAILED post in process_once's except handler would itself
+    raise, uncaught. On failure the job stays IN_PROGRESS and the State node's reaper
+    requeues it for a retry, so nothing is lost."""
+    url = api_url(job_path(job_id, 'result'), state_url)
+    try:
+        _request('POST', url, STATE_HEADERS,
+                 body={'status': status, 'result': result, 'error': error}, timeout=15)
+        return True
+    except (urllib.error.URLError, OSError, ValueError) as e:
+        print(f'[worker] post_result error for job {job_id}: {e}', flush=True)
+        return False
 
 
 def call_ollama(model, prompt, keep_alive=0, ollama_url=None):
-    _, data = _request('POST', f'{ollama_url or OLLAMA_URL}/api/generate', HEADERS,
+    url = f"{(ollama_url or OLLAMA_URL).rstrip('/')}/api/generate"
+    _, data = _request('POST', url, RUNTIME_HEADERS,
                        body={'model': model, 'prompt': prompt, 'stream': False,
                              'keep_alive': keep_alive}, timeout=120)
+    if 'response' not in data:
+        raise ValueError(f'Ollama returned no "response" field (keys: {sorted(data)})')
     return data['response']
 
 

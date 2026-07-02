@@ -146,7 +146,7 @@ function DragGhost({ drag, sourceColorOf }: { drag: DragState; sourceColorOf?: (
     }}>
       <div style={{
         background: color,
-        color: 'rgba(255,255,255,0.96)',
+        color: 'var(--color-on-accent)',
         fontFamily: FONT_BODY, fontSize: 11, fontWeight: 500,
         padding: '4px 10px',
         borderRadius: 'var(--hub-radius-soft)',

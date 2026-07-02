@@ -401,18 +401,7 @@ html.od-v2 ::selection { background: var(--accent); color: var(--color-accent-co
 .hud-edit-restore:hover { border-color: var(--accent); }
 .hud-edit-sep { width: 1px; height: 13px; background: var(--hub-line-strong); margin: 0 2px; }
 
-/* ── Widget Workshop · canvas ghost-add (prototype) ─────────────────────────
-   Right-click the live preview → element menu; hovering an entry appends a
-   translucent GHOST of that element so you see what you'd add before clicking.
-   SpecWidget renders `.hud-card > [head?] > stack`; the body stack is the card's
-   last child and the ghost is the stack's last child, so this dims exactly it. */
-.ww-stage.is-ghosting .hud-card > div:last-child > :last-child {
-  opacity: 0.45;
-  outline: 1px dashed color-mix(in srgb, var(--accent) 70%, transparent);
-  outline-offset: 3px;
-  border-radius: var(--hub-radius-sm);
-  animation: ww-ghost-in 0.12s ease;
-}
+/* ── Widget Workshop · context menu (right-click / long-hold) ───────────── */
 @keyframes ww-ghost-in { from { opacity: 0; } to { opacity: 0.45; } }
 
 .ww-menu-scrim { position: fixed; inset: 0; z-index: 40; }
@@ -439,6 +428,136 @@ html.od-v2 ::selection { background: var(--accent); color: var(--color-accent-co
 }
 .ww-menu-label { font-size: 12px; color: var(--hub-cream-bright); }
 .ww-menu-hint  { font-size: 10px; color: var(--hub-cream-faint); font-family: var(--hub-font-mono); }
+.ww-menu-item.is-danger .ww-menu-label { color: var(--hub-red); }
+/* Coarse pointers get tap-sized menu rows (the canvas's touch "right-click"). */
+@media (pointer: coarse) {
+  .ww-menu { min-width: 260px; max-height: 50vh; }
+  .ww-menu-item { padding: 11px 10px; }
+}
+
+/* ── Widget Workshop · direct-manipulation canvas (.wc-*) ───────────────────
+   The widget-under-construction renders as a real card; every node sits in a
+   .wc-node hit wrapper (touch-action:none so a touch drag never fights page
+   scroll; .wc-leaf kills pointer-events so taps land on the wrapper). Container
+   nodes get labeled dashed boxes; when/list slots dim their inactive branch. */
+.wc-toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.wc-toolhint {
+  font-family: var(--hub-font-mono); font-size: 9px; letter-spacing: 0.06em;
+  color: var(--hub-cream-faint);
+}
+.wc-canvaswrap { margin-top: 12px; }
+
+.wc-stage { position: relative; padding: 22px 18px; display: flex; justify-content: center; overflow-x: auto; }
+.wc-stage.is-dragging { cursor: grabbing; }
+.wc-card { position: relative; flex: none; display: flex; flex-direction: column; padding: 14px; }
+.wc-card.is-selected { outline: 1.5px solid color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: 3px; }
+.wc-framehead { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.wc-rootflow { flex: 1; min-height: 0; overflow-y: auto; }
+
+.wc-node { position: relative; touch-action: none; border-radius: var(--hub-radius-sm); cursor: grab; }
+.wc-node .wc-leaf, .wc-node .wc-leaf * { pointer-events: none; }
+/* Only the innermost hovered node outlines — ancestors stay quiet. */
+.wc-node:hover:not(:has(.wc-node:hover)) {
+  outline: 1px dashed color-mix(in srgb, var(--accent) 40%, transparent);
+  outline-offset: 2px;
+}
+.wc-node.is-selected,
+.wc-node.is-selected:hover { outline: 1.5px solid var(--accent); outline-offset: 2px; }
+.wc-node.is-lifted { opacity: 0.4; outline: 1.5px dashed color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: 2px; }
+.wc-ghost {
+  opacity: 0.45; pointer-events: none;
+  outline: 1px dashed color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: 3px;
+  border-radius: var(--hub-radius-sm);
+  animation: ww-ghost-in 0.12s ease;
+}
+
+.wc-box {
+  display: flex; flex-direction: column; gap: 4px; padding: 6px;
+  border: 1px dashed color-mix(in srgb, var(--hub-line-strong) 80%, transparent);
+  border-radius: var(--hub-radius-sm);
+}
+.wc-chip {
+  font-family: var(--hub-font-mono); font-size: 8px; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--hub-cream-faint);
+}
+.wc-slot {
+  display: flex; flex-direction: column; gap: 4px;
+  border-left: 2px solid var(--hub-line); padding: 4px 0 4px 8px; margin-top: 2px;
+  opacity: 0.55;
+}
+.wc-slot.is-live { opacity: 1; border-left-color: color-mix(in srgb, var(--accent) 60%, transparent); }
+.wc-slotlabel { font-family: var(--hub-font-mono); font-size: 8px; letter-spacing: 0.14em; color: var(--hub-cream-faint); }
+.wc-empty {
+  border: 1px dashed var(--hub-line); background: transparent; color: var(--hub-cream-faint);
+  font-family: var(--hub-font-mono); font-size: 10px; letter-spacing: 0.1em;
+  padding: 8px; border-radius: var(--hub-radius-sm); cursor: pointer;
+}
+.wc-empty:hover { border-color: var(--accent); color: var(--hub-cream); }
+.wc-fakesubmit {
+  align-self: flex-start; opacity: 0.8;
+  font-family: var(--hub-font-mono); font-size: 11px; letter-spacing: 0.06em; color: var(--hub-amber);
+  border: 1px solid color-mix(in srgb, var(--hub-amber) 40%, transparent);
+  border-radius: var(--hub-radius-sm); padding: 7px 12px;
+}
+
+.wc-dropline {
+  flex: none; height: 2px; margin: -1px 0; border-radius: 1px;
+  background: var(--accent);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 70%, transparent);
+}
+.wc-dropline.is-v { width: 2px; height: auto; min-height: 18px; align-self: stretch; margin: 0 -1px; }
+
+.wc-dragchip {
+  position: absolute; z-index: 60; pointer-events: none;
+  font-family: var(--hub-font-mono); font-size: 10px; letter-spacing: 0.08em;
+  color: var(--hub-bg-0); background: var(--hub-amber);
+  padding: 3px 8px; border-radius: var(--hub-radius-sm);
+  box-shadow: 0 6px 18px color-mix(in srgb, #000 40%, transparent);
+}
+
+/* Frame resize handles — right/bottom edges + corner, in grid units. */
+.wc-handle { position: absolute; z-index: 5; touch-action: none; }
+.wc-handle-e { top: 10%; bottom: 10%; right: -7px; width: 14px; cursor: ew-resize; }
+.wc-handle-s { left: 10%; right: 10%; bottom: -7px; height: 14px; cursor: ns-resize; }
+.wc-handle-se { right: -8px; bottom: -8px; width: 22px; height: 22px; cursor: nwse-resize; }
+.wc-handle::after { content: ''; position: absolute; background: color-mix(in srgb, var(--accent) 55%, transparent); border-radius: 2px; }
+.wc-handle-e::after { top: 50%; right: 5px; width: 3px; height: 26px; transform: translateY(-50%); }
+.wc-handle-s::after { left: 50%; bottom: 5px; height: 3px; width: 26px; transform: translateX(-50%); }
+.wc-handle-se::after {
+  right: 4px; bottom: 4px; width: 10px; height: 10px; background: transparent;
+  border-right: 3px solid color-mix(in srgb, var(--accent) 75%, transparent);
+  border-bottom: 3px solid color-mix(in srgb, var(--accent) 75%, transparent);
+  border-radius: 0 0 3px 0;
+}
+.wc-handle:hover::after { background: var(--accent); }
+.wc-handle-se:hover::after { background: transparent; border-color: var(--accent); }
+.wc-badge {
+  position: absolute; top: -24px; right: 0;
+  font-family: var(--hub-font-mono); font-size: 10px;
+  color: var(--hub-bg-0); background: var(--hub-amber);
+  padding: 2px 7px; border-radius: var(--hub-radius-sm);
+}
+
+/* Inspector panel (desktop side column) + mobile bottom sheet. */
+.wc-inspector {
+  border: 1px solid var(--hub-line); border-radius: var(--hub-radius-lg);
+  background: var(--hub-bg-1); padding: 16px;
+}
+.wc-insp-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.wc-insp-hint { font-family: var(--hub-font-mono); font-size: 9px; color: var(--hub-cream-faint); }
+
+@keyframes wc-sheet-in { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+.wc-sheet-scrim { position: fixed; inset: 0; z-index: 70; background: color-mix(in srgb, #000 45%, transparent); }
+.wc-sheet {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 71;
+  max-height: 70vh; overflow-y: auto;
+  background: var(--hub-bg-1); border-top: 1px solid var(--hub-line-strong);
+  border-radius: 14px 14px 0 0;
+  padding: 8px 16px calc(16px + env(safe-area-inset-bottom));
+  animation: wc-sheet-in 0.18s ease;
+}
+.wc-sheet .wc-inspector { border: none; background: transparent; padding: 8px 0 0; }
+.wc-sheet-handle { width: 44px; height: 4px; border-radius: 2px; background: var(--hub-line-strong); margin: 6px auto 4px; cursor: pointer; }
 
 /* ── App widgets (Module Federation remotes from other jkOS apps) ────────── */
 .hud-col.scroll { overflow-y: auto; }

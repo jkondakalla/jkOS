@@ -6,14 +6,17 @@
 // poll cursor sees the change (no imperative invalidate in weave).
 
 const { Router } = require('express');
-const { getPendingJobs, claimJob, setJobResult, getJob } = require('../lib/queue');
+const { getPendingJobs, claimJob, setJobResult, getJob, requeueStaleJobs } = require('../lib/queue');
 const { runWriteback } = require('../lib/writeback');
 
 const router = Router();
 
-// GET /internal/jobs?limit=N — the next N PENDING jobs (oldest first).
+// GET /internal/jobs?limit=N — the next N claimable jobs (oldest first). Reaping stale
+// IN_PROGRESS jobs on the poll path means a worker crash self-heals on the next poll
+// cycle without a separate timer, and the reaped job re-enters this same list.
 router.get('/jobs', (req, res) => {
   const limit = Math.min(parseInt(req.query.limit, 10) || 1, 20);
+  requeueStaleJobs();
   res.json({ jobs: getPendingJobs(limit) });
 });
 
