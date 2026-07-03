@@ -53,6 +53,11 @@ export interface GridItem {
   h: number;
   /** When true the engine never moves it (compaction/collision skip it). */
   static?: boolean;
+  /** Set when the USER hand-resized this cell in edit mode. It tells the
+   *  published-registry merge to leave this footprint alone — the author's
+   *  default no longer overrides a size the user chose on purpose. Cleared
+   *  naturally by re-shelving + re-placing (that lands the author default). */
+  userSized?: boolean;
 }
 
 export type BreakpointLayouts = Partial<Record<BreakpointName, GridItem[]>>;
@@ -65,7 +70,19 @@ export interface WidgetSizing {
    *  the desktop layout by reflowing into 6 cols (engine layoutForBreakpoint). */
   tablet?: { w: number; h: number };
   mobile: { w: number; h: number };
+  /** Smallest footprint (grid units) the user may drag this card down to in
+   *  edit mode — the legibility floor. Applies across tiers (width auto-clamps
+   *  to the tier's columns). Omit to use DEFAULT_MIN_SIZE; set it per widget
+   *  when a card needs more room to stay readable (e.g. the clock's digits, the
+   *  month grid's seven columns). One value to tune, right next to the card. */
+  min?: { w: number; h: number };
 }
+
+/** Global legibility floor for a hand-resize, in grid units — the minimum any
+ *  card may be shrunk to unless its sizing.min overrides it. Two columns and two
+ *  rows keep a card's frame + a line of content readable. Tune here (or per card
+ *  via WidgetSizing.min) to change how small cards are allowed to get. */
+export const DEFAULT_MIN_SIZE = { w: 2, h: 2 } as const;
 
 /* ── Declarative widget spec ────────────────────────────────────────────────
  * The granular, data-driven layer — same philosophy as the @jkos/design theme

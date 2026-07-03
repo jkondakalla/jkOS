@@ -62,6 +62,13 @@
   opacity: 0.97;
 }
 
+/* Being resized: a firmer amber outline reads as "you're changing this one" and
+   the raised z-index keeps its growing edge over neighbours during their reflow. */
+.hud-canvas.editing .hud-cell.resizing {
+  outline: 1.5px solid color-mix(in srgb, var(--hub-amber) 70%, transparent);
+  cursor: nwse-resize;
+}
+
 /* Where the held card will land — the rest of the grid reflows around it. */
 .hud-placeholder {
   position: absolute;
@@ -79,7 +86,8 @@
    cancelling the base `.hud-edit-remove` top/right pin; the `.hud-cell >` child
    selector guarantees we win regardless of stylesheet import order. The 10px
    inset clears the --hub-radius-lg corner so each control sits in its curve.
-   Edit (→ workshop) → bottom-left; remove (→ shelf) → bottom-right. */
+   One control per corner: pin → top-left, remove (→ shelf) → top-right,
+   edit (→ workshop) → bottom-left, resize grip → bottom-right. */
 .hud-cell > .hud-cell-edit {
   position: absolute;
   inset: auto auto 10px 10px;
@@ -90,8 +98,31 @@
 }
 .hud-cell > .hud-cell-remove {
   position: absolute;
-  inset: auto 10px 10px auto;
+  inset: 10px 10px auto auto;
   z-index: 10;
+}
+
+/* Resize grip: the bottom-right corner, the universal "drag me bigger" spot. A
+   diagonal chevron, pinned tight into the curve (6px) so it reads as an edge
+   handle rather than a floating button. Larger touch target than its glyph via
+   padding; brightens on hover/press. pointer-events stay on — this one IS the
+   gesture surface (unlike the display-only pin). */
+.hud-cell > .hud-cell-resize {
+  position: absolute;
+  inset: auto 6px 6px auto;
+  z-index: 10;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  color: color-mix(in srgb, var(--hub-amber) 60%, transparent);
+  cursor: nwse-resize;
+  touch-action: none;
+  transition: color 0.15s ease;
+}
+.hud-cell > .hud-cell-resize:hover,
+.hud-cell.resizing > .hud-cell-resize {
+  color: var(--hub-amber);
 }
 
 /* Session pin (top-left, the corner the controls above don't use): this card

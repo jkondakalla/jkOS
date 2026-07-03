@@ -22,7 +22,7 @@ import {
   type ReactNode, type RefObject, type PointerEvent as ReactPointerEvent,
 } from 'react';
 import { usePointerDrag, HOLD_MS, HOLD_CANCEL_PX } from '@jkos/ui';
-import { activeBreakpoint, layoutForBreakpoint, compactVertical, bottom } from './engine';
+import { activeBreakpoint, layoutForBreakpoint, compactVertical, bottom, minSize } from './engine';
 import type { Breakpoint, BreakpointName, GridItem, HudState, WidgetDef } from './types';
 import './grid.css';
 
@@ -62,6 +62,11 @@ interface HudGridProps {
 
 /** What's rendered while a card is lifted. */
 interface Drag { id: string; px: number; py: number; col: number; row: number; }
+
+/** A card being hand-resized: its top-left stays put (col/row), only w/h grow or
+ *  shrink as the corner grip is dragged. The engine repacks siblings live around
+ *  the new footprint, exactly like a move. */
+interface Resize { id: string; w: number; h: number; }
 
 /** A tray tile hovering over the grid — an external drag. Same live-repack +
  *  placeholder mechanics as an internal drag; the tile itself (in the tray) is
@@ -131,18 +136,25 @@ export const HudGrid = forwardRef<HudGridHandle, HudGridProps>(function HudGrid(
   const [drag, setDragState] = useState<Drag | null>(null);
   const setDrag = (d: Drag | null) => { dragRef.current = d; setDragState(d); };
 
+  const resizeRef = useRef<Resize | null>(null);
+  const [resize, setResizeState] = useState<Resize | null>(null);
+  const setResize = (r: Resize | null) => { resizeRef.current = r; setResizeState(r); };
+
   const [ext, setExt] = useState<ExtDrag | null>(null);
 
   const baseItems = layoutForBreakpoint(state, bp);
   // While dragging, the held card occupies its hovered cell and the engine
-  // repacks the rest — this is the live preview the placeholder follows. An
-  // external (tray) drag previews the same way: its card joins the layout at
-  // the hovered cell (defensively skipped if the id is somehow already placed).
+  // repacks the rest — this is the live preview the placeholder follows. A
+  // resize keeps the card's top-left and grows/shrinks its footprint, repacking
+  // the same way. An external (tray) drag previews by joining the layout at the
+  // hovered cell (defensively skipped if the id is somehow already placed).
   const items = drag
     ? compactVertical(baseItems.map((it) => (it.i === drag.id ? { ...it, x: drag.col, y: drag.row } : it)), cols)
-    : ext && !baseItems.some((it) => it.i === ext.id)
-      ? compactVertical([...baseItems, { i: ext.id, x: ext.col, y: ext.row, w: ext.w, h: ext.h }], cols)
-      : baseItems;
+    : resize
+      ? compactVertical(baseItems.map((it) => (it.i === resize.id ? { ...it, w: resize.w, h: resize.h } : it)), cols)
+      : ext && !baseItems.some((it) => it.i === ext.id)
+        ? compactVertical([...baseItems, { i: ext.id, x: ext.col, y: ext.row, w: ext.w, h: ext.h }], cols)
+        : baseItems;
 
   /** Tray-drag pointer → the cell its card would land in, sized from the def's
    *  per-tier default (clamped to this tier's columns). Null when the pointer
@@ -229,11 +241,51 @@ export const HudGrid = forwardRef<HudGridHandle, HudGridProps>(function HudGrid(
     });
   }
 
+  /** Drag the bottom-right grip to resize a card in place. The top-left cell is
+   *  the anchor (captured once, stable — the doc isn't committed mid-gesture);
+   *  w/h follow the pointer, snapped to whole grid units and clamped to the
+   *  card's legibility minimum (minSize) and the grid's right edge. On release
+   *  the new footprint commits through onLayoutChange, flagged `userSized` so the
+   *  published-registry merge won't snap it back to the author default. */
+  function onResizePointerDown(e: ReactPointerEvent, item: GridItem) {
+    e.stopPropagation();                       // never start a move drag from the grip
+    const start = baseItems.find((i) => i.i === item.i);
+    if (!start) return;
+    const def = state.widgets[item.i];
+    const min = minSize(def, cols);
+    const track = (clientX: number, clientY: number) => {
+      const r = areaRef.current?.getBoundingClientRect();
+      const px = (r ? clientX - r.left : clientX) - start.x * stepX;
+      const py = (r ? clientY - r.top : clientY) - start.y * stepY;
+      const w = Math.max(min.w, Math.min(cols - start.x, Math.round(px / stepX)));
+      const h = Math.max(min.h, Math.round(py / stepY));
+      setResize({ id: item.i, w, h });
+    };
+
+    begin(e, {
+      activation: { kind: 'immediate' },
+      onActivate: (c) => track(c.x, c.y),
+      onMove: (c) => track(c.x, c.y),
+      onEnd: (_c, activated) => {
+        const rz = resizeRef.current;
+        if (activated && rz && onLayoutChange) {
+          const committed = compactVertical(
+            baseItems.map((it) => (it.i === rz.id ? { ...it, w: rz.w, h: rz.h, userSized: true } : it)),
+            cols,
+          );
+          onLayoutChange(bp.name, committed, rz.id);
+        }
+        setResize(null);
+      },
+      onCancel: () => setResize(null),
+    });
+  }
+
   const areaHeight = Math.max(bottom(items) * stepY - gap, stepY);
-  // Internal drag AND tray drag share the placeholder: it always marks where
-  // the held card will land. The tray card's cell itself isn't rendered — the
-  // floating tile (in the tray) is that drag's visual.
-  const previewId = drag?.id ?? ext?.id;
+  // Internal drag, resize, AND tray drag share the placeholder: it always marks
+  // where the affected card will land / how big it will be. The tray card's cell
+  // itself isn't rendered — the floating tile (in the tray) is that drag's visual.
+  const previewId = drag?.id ?? resize?.id ?? ext?.id;
   const placeholder = previewId ? items.find((i) => i.i === previewId) : null;
 
   // Only dim siblings if the highlighted cell is actually on this layout.
@@ -253,12 +305,13 @@ export const HudGrid = forwardRef<HudGridHandle, HudGridProps>(function HudGrid(
           if (!def) return null;
           const r = rectOf(item);
           const lifted = drag?.id === item.i;
+          const resizing = resize?.id === item.i;
           const isHighlight = dimming && item.i === highlightId;
           return (
             <div
               key={item.i}
               data-id={item.i}
-              className={`hud-cell${lifted ? ' dragging' : ''}${isHighlight ? ' is-highlight' : ''}`}
+              className={`hud-cell${lifted ? ' dragging' : ''}${resizing ? ' resizing' : ''}${isHighlight ? ' is-highlight' : ''}`}
               onPointerDown={(e) => onCellPointerDown(e, item)}
               style={{
                 position: 'absolute',
@@ -266,8 +319,8 @@ export const HudGrid = forwardRef<HudGridHandle, HudGridProps>(function HudGrid(
                 top: lifted && drag ? drag.py : r.top,
                 width: r.width,
                 height: r.height,
-                zIndex: lifted ? 50 : undefined,
-                transition: lifted ? 'none' : 'left 0.16s ease, top 0.16s ease',
+                zIndex: lifted ? 50 : resizing ? 40 : undefined,
+                transition: lifted || resizing ? 'none' : 'left 0.16s ease, top 0.16s ease',
                 touchAction: editMode ? 'none' : undefined,
               }}
             >
@@ -303,6 +356,19 @@ export const HudGrid = forwardRef<HudGridHandle, HudGridProps>(function HudGrid(
                 >
                   ×
                 </button>
+              )}
+              {editMode && onLayoutChange && (
+                <span
+                  className="hud-cell-resize"
+                  onPointerDown={(e) => onResizePointerDown(e, item)}
+                  title={`Resize ${def.label}`}
+                  aria-label={`Resize ${def.label}`}
+                  role="slider"
+                >
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
+                    <path d="M11 5 5 11M11 9l-2 2" />
+                  </svg>
+                </span>
               )}
               {renderWidget(def, item)}
             </div>

@@ -46,7 +46,8 @@ const SYLIB_URL = appOrigin('sylibos');
 const DEFAULT_WIDGETS: Record<string, WidgetDef> = {
   clock: {
     id: 'clock', label: 'Clock',
-    sizing: { desktop: { w: 4, h: 3 }, mobile: { w: 2, h: 3 } },
+    // Min a touch wider than the default: the time digits need the width to read.
+    sizing: { desktop: { w: 4, h: 3 }, mobile: { w: 2, h: 3 }, min: { w: 3, h: 2 } },
     spec: {
       body: {
         t: 'time',
@@ -144,7 +145,8 @@ const DEFAULT_WIDGETS: Record<string, WidgetDef> = {
   // truncated titles. Week (below) is the titles view.
   calendar: {
     id: 'calendar', label: 'Calendar',
-    sizing: { desktop: { w: 4, h: 6 }, mobile: { w: 2, h: 5 } },
+    // The seven-column month grid needs width and enough rows to show the weeks.
+    sizing: { desktop: { w: 4, h: 6 }, mobile: { w: 2, h: 5 }, min: { w: 3, h: 5 } },
     spec: { body: { t: 'calendar' } },
   },
   // Absorbs the old `uptime` card: the "3 / 4 UP" head caption it always had,
@@ -233,7 +235,8 @@ const DEFAULT_WIDGETS: Record<string, WidgetDef> = {
   // drag). The planning horizon the month dots can't give. Ships shelved.
   'bb-week': {
     id: 'bb-week', label: 'Week',
-    sizing: { desktop: { w: 6, h: 8 }, mobile: { w: 2, h: 6 } },
+    // A real seven-day time-grid — below this it stops being legible.
+    sizing: { desktop: { w: 6, h: 8 }, mobile: { w: 2, h: 6 }, min: { w: 4, h: 5 } },
     component: 'bb-week',
   },
 };
@@ -311,15 +314,16 @@ function normalizePublished(w: WidgetDef): WidgetDef {
  * what makes "edit → re-publish" show up on the HUD instead of the stale form.
  * Two extras beyond a plain overwrite:
  *
- *  • Author-resize follow: every placed card snaps to the published def's
- *    footprint for its tier. Unconditional on purpose — the HUD has no user
- *    resize yet, so a placed footprint is ALWAYS the author's default, never
- *    user intent. (An earlier cut snapped only items still matching the OLD
- *    def's default; any doc saved with a new def but an old layout — exactly
- *    what the pre-snap merge wrote — failed that equality forever, leaving the
- *    card permanently stuck at a stale size.) When HUD resize ships, gate this
- *    behind a per-item `userSized` flag, not an equality heuristic. Overlaps a
- *    grown card creates are resolved by the engine's compaction on render.
+ *  • Author-resize follow: a placed card snaps to the published def's footprint
+ *    for its tier UNLESS the user hand-resized it (`item.userSized`). The flag —
+ *    not an equality heuristic — is what distinguishes "the author moved the
+ *    default" from "the user chose this size." (An earlier cut, before HUD resize
+ *    existed, snapped only items still matching the OLD def's default; any doc
+ *    saved with a new def but an old layout — exactly what the pre-snap merge
+ *    wrote — failed that equality forever, leaving the card stuck at a stale
+ *    size. So the snap became unconditional; now that user resize exists, the
+ *    `userSized` flag is the one exception.) Overlaps a grown card creates are
+ *    resolved by the engine's compaction on render.
  *
  *  • Hygiene: a stored def that is neither a built-in, nor currently published,
  *    nor placed in any layout is dropped (with its shelf entry) — unpublished
@@ -347,7 +351,9 @@ export function mergePublished(state: HudState, published: WidgetDef[]): HudStat
       const cols = BREAKPOINTS.find((b) => b.name === name)?.cols ?? size.w;
       const w2 = Math.min(size.w, cols);
       layouts[name] = items.map((it) =>
-        it.i === w.id && (it.w !== w2 || it.h !== size.h) ? { ...it, w: w2, h: size.h } : it,
+        it.i === w.id && !it.userSized && (it.w !== w2 || it.h !== size.h)
+          ? { ...it, w: w2, h: size.h }
+          : it,
       );
     }
   }

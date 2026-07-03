@@ -8,7 +8,16 @@
  * and NO horizontal float (x is never auto-shifted sideways).
  */
 
-import { BREAKPOINTS, type Breakpoint, type GridItem, type HudState } from './types';
+import { BREAKPOINTS, DEFAULT_MIN_SIZE, type Breakpoint, type GridItem, type HudState, type WidgetDef } from './types';
+
+/** The smallest footprint (grid units) a card may be hand-resized to, for a given
+ *  column count. Reads the card's own `sizing.min` when set, else the suite-wide
+ *  DEFAULT_MIN_SIZE. Width is clamped to the tier's columns (a min of 3 can't be
+ *  enforced on a 2-col tier), and both floor at 1 so a card is never zero-sized. */
+export function minSize(def: WidgetDef | undefined, cols: number): { w: number; h: number } {
+  const m = def?.sizing.min ?? DEFAULT_MIN_SIZE;
+  return { w: Math.max(1, Math.min(m.w, cols)), h: Math.max(1, m.h) };
+}
 
 /** Do two items overlap in grid space? An item never collides with itself. */
 export function collides(a: GridItem, b: GridItem): boolean {
