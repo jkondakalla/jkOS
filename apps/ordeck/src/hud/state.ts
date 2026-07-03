@@ -379,6 +379,27 @@ function readLegacy(): HudState | null {
   }
 }
 
+/** True if at least one widget is placed in SOME tier. A doc that fails this
+ *  renders a blank grid — a corrupt/empty layout, or (older builds) a doc with
+ *  no `layouts` object at all. `validHud` only vets version + widgets, so such a
+ *  doc passes as "valid" and would silently replace the good defaults after the
+ *  first paint — the "HUD flashes in, then disappears" symptom. */
+function hasPlacedCards(state: HudState): boolean {
+  const layouts = state.layouts;
+  if (!layouts) return false;
+  return Object.values(layouts).some((items) => !!items && items.length > 0);
+}
+
+/** Repair a doc that would render nothing: re-seed the built-in desktop layout
+ *  (only the built-ins still present in the doc) so the HUD is never blank, while
+ *  keeping the doc's widget registry intact. Mobile/tablet re-derive from desktop
+ *  on render; anything not in the seed shelves itself via layout-absence, so the
+ *  shelf array just resets to empty (shelvedWidgets is the source of truth). */
+function reseedLayout(state: HudState): HudState {
+  const desktop = DEFAULT_DESKTOP.filter((it) => state.widgets[it.i]);
+  return { ...state, layouts: { desktop: structuredClone(desktop) }, shelf: [] };
+}
+
 /**
  * Load the HUD document from jkAuth prefs. Falls back to a legacy localStorage
  * doc (migrating it up to prefs), then to defaults. Async — the dashboard
@@ -392,7 +413,16 @@ export async function loadHudState(): Promise<HudState> {
   } catch {
     /* offline / signed out — fall through to legacy/defaults */
   }
-  if (profileHud) return withBuiltins(profileHud);
+  if (profileHud) {
+    const doc = withBuiltins(profileHud);
+    if (hasPlacedCards(doc)) return doc;
+    // A stored doc whose layout places nothing would blank the HUD a beat after
+    // the defaults paint. Re-seed the built-in layout AND persist the repair, so
+    // the bad doc self-heals instead of overriding the working HUD on every load.
+    const repaired = reseedLayout(doc);
+    saveHudState(repaired);
+    return repaired;
+  }
 
   const legacy = readLegacy();
   if (legacy) {
