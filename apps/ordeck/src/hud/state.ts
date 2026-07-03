@@ -17,6 +17,7 @@ import {
   type GridItem,
   type HudState,
   type WidgetDef,
+  type WidgetNode,
 } from './types';
 import { layoutForBreakpoint, placeAtBottom } from './engine';
 import { BREAKPOINTS } from './types';
@@ -281,17 +282,44 @@ function withBuiltins(state: HudState): HudState {
   return changed ? { ...state, widgets } : state;
 }
 
+/** A published body that is just the clock — the bare `time` molecule, or the
+ *  workshop's root stack holding only it. */
+function isLoneTime(n: WidgetNode): boolean {
+  if (n.t === 'time') return true;
+  return n.t === 'stack' && n.children.length === 1 && n.children[0].t === 'time';
+}
+
+/**
+ * Repair known emission artifacts in a published def before it enters the doc.
+ * The workshop used to wrap a lone `time` (clock) body in an empty frame, which
+ * put card chrome around the one widget designed to sit raw on the background.
+ * Registry rows published by that build carry `frame: {}` forever, so strip it
+ * here — but ONLY the empty-frame + lone-time combination; an authored caption
+ * (eyebrow/source/href) or explicit chrome flag means the card was intentional.
+ */
+function normalizePublished(w: WidgetDef): WidgetDef {
+  const f = w.spec?.frame;
+  if (!w.spec || !f) return w;
+  if (f.eyebrow || f.source || f.href || f.chrome !== undefined) return w;
+  if (!isLoneTime(w.spec.body)) return w;
+  return { ...w, spec: { ...w.spec, frame: undefined } };
+}
+
 /**
  * Merge the admin-published registry (jkAuth /auth/widgets) into a loaded doc.
  * A published def ALWAYS wins over the stored copy under the same id — this is
  * what makes "edit → re-publish" show up on the HUD instead of the stale form.
  * Two extras beyond a plain overwrite:
  *
- *  • Author-resize follow: a placed card whose footprint still equals the OLD
- *    def's default for that tier snaps to the NEW default — so publishing a
- *    size change is visible. A card the user resized themselves keeps its size
- *    (their layout is their document). Overlaps a grown card creates are
- *    resolved by the engine's compaction on render.
+ *  • Author-resize follow: every placed card snaps to the published def's
+ *    footprint for its tier. Unconditional on purpose — the HUD has no user
+ *    resize yet, so a placed footprint is ALWAYS the author's default, never
+ *    user intent. (An earlier cut snapped only items still matching the OLD
+ *    def's default; any doc saved with a new def but an old layout — exactly
+ *    what the pre-snap merge wrote — failed that equality forever, leaving the
+ *    card permanently stuck at a stale size.) When HUD resize ships, gate this
+ *    behind a per-item `userSized` flag, not an equality heuristic. Overlaps a
+ *    grown card creates are resolved by the engine's compaction on render.
  *
  *  • Hygiene: a stored def that is neither a built-in, nor currently published,
  *    nor placed in any layout is dropped (with its shelf entry) — unpublished
@@ -303,21 +331,23 @@ export function mergePublished(state: HudState, published: WidgetDef[]): HudStat
   const layouts: BreakpointLayouts = { ...state.layouts };
   const pubIds = new Set<string>();
 
-  for (const w of published) {
-    if (!w || typeof w.id !== 'string' || !w.id) continue;
+  for (const raw of published) {
+    if (!raw || typeof raw.id !== 'string' || !raw.id) continue;
+    const w = normalizePublished(raw);
     pubIds.add(w.id);
-    const prev = widgets[w.id];
     widgets[w.id] = w;
-    if (!prev?.sizing || !w.sizing) continue;
+    if (!w.sizing) continue;
     for (const [name, items] of Object.entries(layouts) as [BreakpointName, GridItem[]][]) {
       if (!items) continue;
-      const prevSize = prev.sizing[name] ?? prev.sizing.desktop;
-      const nextSize = w.sizing[name] ?? w.sizing.desktop;
-      if (prevSize.w === nextSize.w && prevSize.h === nextSize.h) continue;
+      const size = w.sizing[name] ?? w.sizing.desktop;
+      if (!size) continue;
+      // Clamp to the tier's columns so a wide desktop default can't overflow a
+      // narrower stored tier (render-side compaction would clamp anyway; keep
+      // the stored doc already-valid).
+      const cols = BREAKPOINTS.find((b) => b.name === name)?.cols ?? size.w;
+      const w2 = Math.min(size.w, cols);
       layouts[name] = items.map((it) =>
-        it.i === w.id && it.w === prevSize.w && it.h === prevSize.h
-          ? { ...it, w: nextSize.w, h: nextSize.h }
-          : it,
+        it.i === w.id && (it.w !== w2 || it.h !== size.h) ? { ...it, w: w2, h: size.h } : it,
       );
     }
   }
@@ -408,6 +438,22 @@ export function placeFromShelf(state: HudState, id: string, bp: Breakpoint): Hud
   return {
     ...state,
     layouts: { ...state.layouts, [bp.name]: next },
+    shelf: state.shelf.filter((s) => s !== id),
+  };
+}
+
+/** Commit a tray-drag drop: the grid hands back the tier's full committed
+ *  layout (dropped card included, everyone repacked); adopt it and clear the
+ *  card's shelf entry — the placement IS the un-shelving. */
+export function placeDropped(
+  state: HudState,
+  id: string,
+  name: BreakpointName,
+  items: GridItem[],
+): HudState {
+  return {
+    ...state,
+    layouts: { ...state.layouts, [name]: items },
     shelf: state.shelf.filter((s) => s !== id),
   };
 }

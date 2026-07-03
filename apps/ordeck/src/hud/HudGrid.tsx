@@ -18,7 +18,7 @@
  */
 
 import {
-  useRef, useState, useEffect, useLayoutEffect,
+  useRef, useState, useEffect, useLayoutEffect, forwardRef, useImperativeHandle,
   type ReactNode, type RefObject, type PointerEvent as ReactPointerEvent,
 } from 'react';
 import { usePointerDrag, HOLD_MS, HOLD_CANCEL_PX } from '@jkos/ui';
@@ -44,6 +44,10 @@ interface HudGridProps {
   /** Fired when a drag commits: the tier, the full committed layout, and the id
    *  of the card the user actually moved (the rest merely repacked around it). */
   onLayoutChange?: (bp: BreakpointName, items: GridItem[], movedId?: string) => void;
+  /** Fired when a tray-tile drop commits (see HudGridHandle): the tier, the full
+   *  committed layout WITH the dropped card, and the dropped card's id. The
+   *  owner adopts the layout and clears the card's shelf entry. */
+  onExternalPlace?: (bp: BreakpointName, items: GridItem[], id: string) => void;
   /** Reports the tier the grid resolved from its OWN container width. Callers
    *  mutating layouts must use this, not window width — the canvas padding makes
    *  the two disagree just past the 768/1024 boundaries. */
@@ -58,6 +62,25 @@ interface HudGridProps {
 
 /** What's rendered while a card is lifted. */
 interface Drag { id: string; px: number; py: number; col: number; row: number; }
+
+/** A tray tile hovering over the grid — an external drag. Same live-repack +
+ *  placeholder mechanics as an internal drag; the tile itself (in the tray) is
+ *  the drag visual, so the grid renders only the landing preview. */
+interface ExtDrag { id: string; col: number; row: number; w: number; h: number; }
+
+/** Imperative surface for the tray's tile drag. The gesture LIVES in the tray
+ *  (its tile is what the finger holds); the grid only resolves pointer → cell,
+ *  previews the landing, and commits the drop — so the geometry stays private
+ *  to the one component that owns it. */
+export interface HudGridHandle {
+  /** Preview a tray drag at client coords (clears when the pointer leaves). */
+  trayOver: (id: string, x: number, y: number) => void;
+  /** Commit a tray drop. Returns false (and just clears the preview) when the
+   *  pointer isn't over the grid — the card stays shelved. */
+  trayDrop: (id: string, x: number, y: number) => boolean;
+  /** Abandon the preview (gesture cancelled). */
+  trayCancel: () => void;
+}
 
 function useElementWidth(ref: RefObject<HTMLElement>): number {
   const [width, setWidth] = useState(0);
@@ -76,7 +99,7 @@ function useElementWidth(ref: RefObject<HTMLElement>): number {
   return width;
 }
 
-export function HudGrid({
+export const HudGrid = forwardRef<HudGridHandle, HudGridProps>(function HudGrid({
   state,
   editMode = false,
   highlightId,
@@ -84,12 +107,13 @@ export function HudGrid({
   onEdit,
   onRequestEdit,
   onLayoutChange,
+  onExternalPlace,
   onBreakpoint,
   sessionPinned,
   rowHeight = DEFAULT_ROW_HEIGHT,
   gap = DEFAULT_GAP,
   renderWidget,
-}: HudGridProps) {
+}: HudGridProps, ref) {
   const areaRef = useRef<HTMLDivElement>(null);
   const width = useElementWidth(areaRef);
   const bp = activeBreakpoint(width);
@@ -107,12 +131,50 @@ export function HudGrid({
   const [drag, setDragState] = useState<Drag | null>(null);
   const setDrag = (d: Drag | null) => { dragRef.current = d; setDragState(d); };
 
+  const [ext, setExt] = useState<ExtDrag | null>(null);
+
   const baseItems = layoutForBreakpoint(state, bp);
   // While dragging, the held card occupies its hovered cell and the engine
-  // repacks the rest — this is the live preview the placeholder follows.
+  // repacks the rest — this is the live preview the placeholder follows. An
+  // external (tray) drag previews the same way: its card joins the layout at
+  // the hovered cell (defensively skipped if the id is somehow already placed).
   const items = drag
     ? compactVertical(baseItems.map((it) => (it.i === drag.id ? { ...it, x: drag.col, y: drag.row } : it)), cols)
-    : baseItems;
+    : ext && !baseItems.some((it) => it.i === ext.id)
+      ? compactVertical([...baseItems, { i: ext.id, x: ext.col, y: ext.row, w: ext.w, h: ext.h }], cols)
+      : baseItems;
+
+  /** Tray-drag pointer → the cell its card would land in, sized from the def's
+   *  per-tier default (clamped to this tier's columns). Null when the pointer
+   *  isn't over the grid: horizontal bounds are strict, but anything at/below
+   *  the top edge counts vertically — a drop under the last row appends. */
+  function locateExt(id: string, cx: number, cy: number): ExtDrag | null {
+    const r = areaRef.current?.getBoundingClientRect();
+    const def = state.widgets[id];
+    if (!r || !def) return null;
+    if (cx < r.left || cx > r.right || cy < r.top - stepY / 2) return null;
+    const size = def.sizing[bp.name] ?? def.sizing.desktop;
+    const w = Math.min(size.w, cols);
+    const col = Math.max(0, Math.min(cols - w, Math.round((cx - r.left - (w * stepX) / 2) / stepX)));
+    const row = Math.max(0, Math.round((cy - r.top - stepY / 2) / stepY));
+    return { id, col, row, w, h: size.h };
+  }
+
+  useImperativeHandle(ref, () => ({
+    trayOver: (id, x, y) => setExt(locateExt(id, x, y)),
+    trayDrop: (id, x, y) => {
+      const d = locateExt(id, x, y);
+      setExt(null);
+      if (!d || !onExternalPlace || baseItems.some((it) => it.i === d.id)) return false;
+      const committed = compactVertical(
+        [...baseItems, { i: d.id, x: d.col, y: d.row, w: d.w, h: d.h }],
+        cols,
+      );
+      onExternalPlace(bp.name, committed, d.id);
+      return true;
+    },
+    trayCancel: () => setExt(null),
+  }));
 
   const rectOf = (it: GridItem) => ({
     left: it.x * stepX,
@@ -168,7 +230,11 @@ export function HudGrid({
   }
 
   const areaHeight = Math.max(bottom(items) * stepY - gap, stepY);
-  const placeholder = drag ? items.find((i) => i.i === drag.id) : null;
+  // Internal drag AND tray drag share the placeholder: it always marks where
+  // the held card will land. The tray card's cell itself isn't rendered — the
+  // floating tile (in the tray) is that drag's visual.
+  const previewId = drag?.id ?? ext?.id;
+  const placeholder = previewId ? items.find((i) => i.i === previewId) : null;
 
   // Only dim siblings if the highlighted cell is actually on this layout.
   const dimming = !!highlightId && items.some((it) => it.i === highlightId);
@@ -182,6 +248,7 @@ export function HudGrid({
         })()}
 
         {items.map((item) => {
+          if (ext && item.i === ext.id) return null;   // tray preview: placeholder only
           const def = state.widgets[item.i];
           if (!def) return null;
           const r = rectOf(item);
@@ -244,4 +311,4 @@ export function HudGrid({
       </div>
     </div>
   );
-}
+});

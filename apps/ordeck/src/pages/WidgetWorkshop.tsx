@@ -190,9 +190,13 @@ export default function WidgetWorkshop() {
 
   const kids = root.kids ?? [];
   const lone = kids.length === 1 ? kids[0] : null;
-  // A lone molecule (calendar/weather) is its own card — emit it frameless so it
-  // isn't double-wrapped; a lone form emits directly as the body (old shape).
-  const onlyMolecule = !!lone && (lone.node.t === 'calendar' || lone.node.t === 'weather');
+  // A lone molecule is its own card — emit it frameless so it isn't
+  // double-wrapped; a lone form emits directly as the body (old shape).
+  // `time` is in the set because the clock is DESIGNED to sit raw on the
+  // background (the one chromeless card): an empty frame around it would
+  // wrap it in card chrome on every HUD.
+  const onlyMolecule = !!lone &&
+    (lone.node.t === 'calendar' || lone.node.t === 'weather' || lone.node.t === 'time');
 
   const def = useMemo<WidgetDef>(() => {
     const body: WidgetNode = lone && (onlyMolecule || lone.node.t === 'form') ? enToNode(lone) : enToNode(root);

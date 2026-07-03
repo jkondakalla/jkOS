@@ -14,7 +14,8 @@
  * fixed registry out" philosophy as the spec factory itself.
  */
 
-import { memo, type CSSProperties, type ReactNode } from 'react';
+import { memo, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { usePointerDrag, DRAG_THRESHOLD_PX, HOLD_MS, HOLD_CANCEL_PX } from '@jkos/ui';
 import type { WidgetDef, WidgetNode, WidgetSpec } from './types';
 
 interface WidgetTrayProps {
@@ -25,6 +26,12 @@ interface WidgetTrayProps {
   onBalance: () => void;
   canUndo: boolean;
   onUndo: () => void;
+  /** Tile-drag stream → the grid (HudGridHandle): live coords while a tile is
+   *  held, then a drop or a cancel. The tray owns the gesture + the floating
+   *  tile; the grid owns cells, preview, and the commit. */
+  onTrayDrag: (id: string, x: number, y: number) => void;
+  onTrayDrop: (id: string, x: number, y: number) => void;
+  onTrayCancel: () => void;
 }
 
 /* ═══ Hero detection ════════════════════════════════════════════════════════
@@ -369,7 +376,32 @@ export function WidgetGlyph({ def }: { def: WidgetDef }) {
 
 export const WidgetTray = memo(function WidgetTray({
   open, widgets, onPlace, onBalance, canUndo, onUndo,
+  onTrayDrag, onTrayDrop, onTrayCancel,
 }: WidgetTrayProps) {
+  const { begin } = usePointerDrag();
+  // The lifted tile: a fixed-position clone rides the pointer while the grid
+  // previews the landing cell. Null when no tile is held.
+  const [lift, setLift] = useState<{ def: WidgetDef; x: number; y: number } | null>(null);
+
+  /** Drag a tile onto the grid. Mouse/pen promote on a short travel (a plain
+   *  click still adds-at-bottom via the button's onClick — the engine swallows
+   *  the click only after a REAL drag). Touch uses press-and-hold so the
+   *  strip's horizontal pan stays native (tiles are touch-action: pan-x). */
+  const onTileDown = (e: ReactPointerEvent, w: WidgetDef) => {
+    begin(e, {
+      activation: e.pointerType === 'touch'
+        ? { kind: 'hold', delay: HOLD_MS, cancelDistance: HOLD_CANCEL_PX }
+        : { kind: 'distance', threshold: DRAG_THRESHOLD_PX },
+      onActivate: (c) => { setLift({ def: w, x: c.x, y: c.y }); onTrayDrag(w.id, c.x, c.y); },
+      onMove: (c) => { setLift({ def: w, x: c.x, y: c.y }); onTrayDrag(w.id, c.x, c.y); },
+      onEnd: (c, activated) => {
+        setLift(null);
+        if (activated) onTrayDrop(w.id, c.x, c.y);   // tap → the button's own click
+      },
+      onCancel: () => { setLift(null); onTrayCancel(); },
+    });
+  };
+
   return (
     <div className={`hud-tray${open ? ' open' : ''}`} aria-hidden={!open}>
       <div className="hud-tray-clip">
@@ -402,10 +434,11 @@ export const WidgetTray = memo(function WidgetTray({
               {widgets.map((w, i) => (
                 <button
                   key={w.id}
-                  className="hud-tile"
+                  className={`hud-tile${lift?.def.id === w.id ? ' lifting' : ''}`}
                   style={{ '--i': i } as CSSProperties}
                   onClick={() => onPlace(w.id)}
-                  title={`Add ${w.label} to the grid`}
+                  onPointerDown={(e) => onTileDown(e, w)}
+                  title={`Add ${w.label} to the grid — click, or drag it into place`}
                 >
                   <span className="hud-tile-view">
                     <WidgetGlyph def={w} />
@@ -423,6 +456,14 @@ export const WidgetTray = memo(function WidgetTray({
           )}
         </div>
       </div>
+      {/* The held tile's clone, riding the pointer (position: fixed escapes the
+          tray's clip). pointer-events: none so it never eats its own gesture. */}
+      {lift && (
+        <div className="hud-tile-ghost" style={{ left: lift.x, top: lift.y }}>
+          <span className="hud-tile-view"><WidgetGlyph def={lift.def} /></span>
+          <span className="hud-tile-name">{lift.def.label}</span>
+        </div>
+      )}
     </div>
   );
 });

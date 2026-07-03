@@ -706,7 +706,18 @@ const COMPONENT_REGISTRY: Record<string, (ctx: WidgetCtx) => ReactNode> = {
   // here: the planning horizon the month dot-grid can't give. (Month is the
   // denser `calendar` molecule; Day duplicated Today; Year was outsized for a
   // dashboard — all culled in the v5 sweep.)
-  'bb-week': (ctx) => <WeekView items={ctx.items} today={ctx.todayIso} resolvers={ordeckResolvers} />,
+  // Wrapped in ORDECK's own card chrome: the kit view carries BeigeBoard's
+  // internal styling, and bare on the canvas it read as a foreign patch with no
+  // defined border. The hud-card frame owns the boundary; the kit fills the
+  // body and scrolls inside it (minHeight 0 is what lets it shrink).
+  'bb-week': (ctx) => (
+    <div className="hud-card" style={{ padding: 14, display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+      <CardHead eyebrow="WEEK" source="BEIGEBOARD" />
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        <WeekView items={ctx.items} today={ctx.todayIso} resolvers={ordeckResolvers} />
+      </div>
+    </div>
+  ),
 };
 /** Which ctx slices a bespoke component reads (a spec's are collected from its
  *  bindings; a component's can't be, so they're declared here). */

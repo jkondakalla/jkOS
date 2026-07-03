@@ -468,7 +468,11 @@ html.od-v2 ::selection { background: var(--accent); color: var(--color-accent-co
   border: 1px solid var(--hub-line);
   border-radius: var(--hub-radius-lg);
   box-shadow: var(--od-shadow);
-  cursor: pointer;
+  cursor: grab;
+  /* pan-x: a horizontal touch swipe scrolls the strip natively; vertical
+     movement keeps delivering pointer events, so press-and-HOLD can lift the
+     tile and carry it down onto the grid (WidgetTray usePointerDrag). */
+  touch-action: pan-x;
   transition: transform 0.16s ease, border-color 0.16s, box-shadow 0.16s;
 }
 /* Staggered entrance each time the tray opens (--i set inline per tile). */
@@ -537,6 +541,21 @@ html.od-v2 ::selection { background: var(--accent); color: var(--color-accent-co
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .hud-tile:hover .hud-tile-name { color: var(--hub-cream-bright); }
+
+/* Tile drag: the source tile recedes while its clone rides the pointer. */
+.hud-tile.lifting { opacity: 0.35; }
+.hud-tile-ghost {
+  position: fixed; z-index: 90;
+  width: 132px;
+  padding: 7px 7px 8px;
+  background: var(--hub-bg-2);
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  border-radius: var(--hub-radius-lg);
+  box-shadow: var(--od-shadow-lift);
+  transform: translate(-50%, -80%) scale(1.04);
+  opacity: 0.92;
+  pointer-events: none;
+}
 
 .hud-tray-empty {
   font-family: var(--hub-font-mono);

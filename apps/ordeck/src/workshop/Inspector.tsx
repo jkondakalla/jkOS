@@ -283,9 +283,9 @@ export interface InspectorProps {
   sel: ENode | null;
   sources: string[];
   identity: IdentityState;
-  /** The body is a lone calendar/weather molecule — it owns its own card head,
-   *  so the eyebrow/source captions are dropped on publish. Surface that instead
-   *  of letting the edit vanish silently. */
+  /** The body is a lone calendar/weather/time molecule — it owns its own chrome
+   *  (the clock renders raw), so the eyebrow/source captions are dropped on
+   *  publish. Surface that instead of letting the edit vanish silently. */
   moleculeOnly?: boolean;
   onIdentity: (patch: Partial<IdentityState>) => void;
   sizing: SizingState;
@@ -317,7 +317,7 @@ export function Inspector(p: InspectorProps) {
         <Line t="id"><input style={{ ...field, flex: 1 }} value={idn.id} placeholder="e.g. btc-price" onChange={(e) => p.onIdentity({ id: e.target.value })} /></Line>
         <Line t="label"><input style={{ ...field, flex: 1 }} value={idn.label} placeholder="Display name" onChange={(e) => p.onIdentity({ label: e.target.value })} /></Line>
         {p.moleculeOnly ? (
-          <p style={hintStyle}>This card is a self-contained calendar/weather — it draws its own head, so eyebrow/source don't apply. Add another element beside it to get a framed card.</p>
+          <p style={hintStyle}>This is a self-contained calendar/weather/clock — it draws itself (the clock sits raw on the background), so eyebrow/source don't apply. Add another element beside it to get a framed card.</p>
         ) : (
           <>
             <Line t="eyebrow"><input style={{ ...field, flex: 1 }} value={idn.eyebrow} placeholder="Card eyebrow (optional)" onChange={(e) => p.onIdentity({ eyebrow: e.target.value })} /></Line>

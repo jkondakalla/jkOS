@@ -5,13 +5,13 @@ import { useJkOSPreferences, AUTH_URL } from '../../hooks/useJkOSPreferences';
 import { WeatherSection } from '../../components/settings/WeatherSection';
 import { useApps } from './useHudData';
 import { useHudContext } from './useHudContext';
-import { HudGrid } from '../../hud/HudGrid';
+import { HudGrid, type HudGridHandle } from '../../hud/HudGrid';
 import { WidgetTray } from '../../hud/WidgetTray';
 import { renderWidget } from '../../hud/registry';
 import { activeBreakpoint, layoutForBreakpoint, autoBalance } from '../../hud/engine';
 import {
   loadHudState, saveHudState, defaultHudState, mergePublished,
-  removeToShelf, placeFromShelf, shelvedWidgets, setBreakpointLayout,
+  removeToShelf, placeFromShelf, placeDropped, shelvedWidgets, setBreakpointLayout,
   WIDGET_EDIT_KEY,
 } from '../../hud/state';
 import type { Breakpoint, BreakpointName, GridItem, HudState } from '../../hud/types';
@@ -52,6 +52,8 @@ export default function RoomHUD() {
   const [undoBal, setUndoBal] = useState<{ bp: BreakpointName; items: GridItem[] } | null>(null);
   const hydratedRef = useRef(false);
   const popRef = useRef<HTMLDivElement>(null);
+  // The grid's imperative tray-drag surface (preview / drop / cancel).
+  const gridRef = useRef<HudGridHandle>(null);
 
   const isDark = document.documentElement.getAttribute('data-mode') === 'dark';
   const toggleMode = () => patchTheme({ mode: isDark ? 'light' : 'dark' });
@@ -270,10 +272,14 @@ export default function RoomHUD() {
         onBalance={balance}
         canUndo={!!undoBal}
         onUndo={undoBalance}
+        onTrayDrag={(id, x, y) => gridRef.current?.trayOver(id, x, y)}
+        onTrayDrop={(id, x, y) => { gridRef.current?.trayDrop(id, x, y); }}
+        onTrayCancel={() => gridRef.current?.trayCancel()}
       />
 
       {/* ── Main grid (custom engine) ── */}
       <HudGrid
+        ref={gridRef}
         state={hud}
         editMode={editMode}
         highlightId={highlightId}
@@ -284,6 +290,13 @@ export default function RoomHUD() {
           if (movedId) setSessionMoved((prev) => new Set(prev).add(movedId));
           setUndoBal(null);
           update(setBreakpointLayout(hud, bpName, items));
+        }}
+        onExternalPlace={(bpName, items, id) => {
+          // A dropped card is hand-placed: pin it so auto-balance packs around
+          // it, exactly like a card the user moved on the grid.
+          setSessionMoved((prev) => new Set(prev).add(id));
+          setUndoBal(null);
+          update(placeDropped(hud, id, bpName, items));
         }}
         onBreakpoint={setGridBp}
         sessionPinned={sessionMoved}
