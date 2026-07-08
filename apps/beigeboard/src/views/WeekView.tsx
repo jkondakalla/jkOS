@@ -15,6 +15,8 @@ export function WeekView(props: any) {
     <Calendar
       view="week"
       {...props}
+      benchLane
+      createSource="bb"
       drag={dnd}
       resolvers={{
         accentOf: (it: any) => getAccent(it, props.items),

@@ -12,6 +12,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useBreakpoint, usePointerDrag, DRAG_THRESHOLD_PX, HOLD_MS } from '@jkos/ui';
 import type { CalendarItem, DragAdapter, CalendarViewProps } from './types';
+import { withAlpha } from '@jkos/design';
 import { mergeResolvers, FONT_HEAD, FONT_BODY, FONT_NUM } from './theme';
 import {
   addDays,
@@ -376,17 +377,17 @@ function CalendarMonth({ items, today, resolvers, onSelect, onToggle, onAddItem,
   const triggerAdd = () => (onAddOnDate ? onAddOnDate(sel) : setAdding(true));
 
   return (
-    <div className="bb-scroll" style={{ height: '100%', overflowY: 'auto', overflowX: 'hidden' }}>
+    <div style={{ height: '100%', overflowY: 'auto', overflowX: 'hidden' }}>
       <div style={{ padding: '22px 18px 28px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-          <button onClick={() => shift(-1)} className="bb-btn" style={{ background: 'transparent', border: 'none', color: 'var(--color-ink)', cursor: 'pointer', fontSize: 20, padding: 4 }}>
+          <button onClick={() => shift(-1)} className="jk-cards-btn" style={{ background: 'transparent', border: 'none', color: 'var(--color-ink)', cursor: 'pointer', fontSize: 20, padding: 4 }}>
             ‹
           </button>
           <div style={{ textAlign: 'center' }}>
             <Eyebrow style={{ marginBottom: 3 }}>Calendar</Eyebrow>
             <div style={{ fontFamily: FONT_HEAD, fontWeight: 500, fontStyle: 'italic', fontSize: 22, color: 'var(--color-ink)', letterSpacing: '-0.01em' }}>{monthName}</div>
           </div>
-          <button onClick={() => shift(1)} className="bb-btn" style={{ background: 'transparent', border: 'none', color: 'var(--color-ink)', cursor: 'pointer', fontSize: 20, padding: 4 }}>
+          <button onClick={() => shift(1)} className="jk-cards-btn" style={{ background: 'transparent', border: 'none', color: 'var(--color-ink)', cursor: 'pointer', fontSize: 20, padding: 4 }}>
             ›
           </button>
         </div>
@@ -414,7 +415,7 @@ function CalendarMonth({ items, today, resolvers, onSelect, onToggle, onAddItem,
               <button
                 key={i}
                 onClick={() => setSel(iso)}
-                className="bb-btn"
+                className="jk-cards-btn"
                 data-drop-zone="cell"
                 data-drop-day={iso}
                 style={{
@@ -440,7 +441,7 @@ function CalendarMonth({ items, today, resolvers, onSelect, onToggle, onAddItem,
                 </span>
                 <span style={{ display: 'flex', gap: 2, height: 5, alignItems: 'center' }}>
                   {dots.map((c, j) => (
-                    <span key={j} style={{ width: 4, height: 4, borderRadius: '50%', background: c, boxShadow: `0 0 4px ${c}66` }} />
+                    <span key={j} style={{ width: 4, height: 4, borderRadius: '50%', background: c, boxShadow: `0 0 4px ${withAlpha(c, 0.4)}` }} />
                   ))}
                 </span>
               </button>
@@ -453,7 +454,7 @@ function CalendarMonth({ items, today, resolvers, onSelect, onToggle, onAddItem,
             <Eyebrow color={sel === today ? 'var(--color-accent)' : 'var(--color-muted)'}>{fmtFull(sel)}</Eyebrow>
             {sel === today && <RecLamp size={6} />}
             <span style={{ flex: 1 }} />
-            <button onClick={triggerAdd} className="bb-btn" style={{ background: 'transparent', border: 'none', color: 'var(--color-accent)', textShadow: 'var(--accent-halo-text)', cursor: 'pointer', fontFamily: FONT_BODY, fontSize: 10, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', display: 'inline-flex', alignItems: 'center', gap: 5, padding: '2px 0' }}>
+            <button onClick={triggerAdd} className="jk-cards-btn" style={{ background: 'transparent', border: 'none', color: 'var(--color-accent)', textShadow: 'var(--accent-halo-text)', cursor: 'pointer', fontFamily: FONT_BODY, fontSize: 10, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', display: 'inline-flex', alignItems: 'center', gap: 5, padding: '2px 0' }}>
               <span style={{ fontSize: 14, lineHeight: 1 }}>+</span> Add
             </button>
           </div>
@@ -472,7 +473,7 @@ function CalendarMonth({ items, today, resolvers, onSelect, onToggle, onAddItem,
           )}
 
           {selItems.length === 0 && !adding ? (
-            <button onClick={triggerAdd} className="bb-btn" style={{ width: '100%', textAlign: 'left', cursor: 'pointer', borderRadius: 2, border: '1px dashed var(--color-line)', background: 'transparent', color: 'var(--color-faint)', fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 15, padding: '14px 14px' }}>
+            <button onClick={triggerAdd} className="jk-cards-btn" style={{ width: '100%', textAlign: 'left', cursor: 'pointer', borderRadius: 2, border: '1px dashed var(--color-line)', background: 'transparent', color: 'var(--color-faint)', fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 15, padding: '14px 14px' }}>
               Nothing scheduled — tap to lay down a task…
             </button>
           ) : (
@@ -484,7 +485,7 @@ function CalendarMonth({ items, today, resolvers, onSelect, onToggle, onAddItem,
                 return (
                   <div
                     key={it.id}
-                    className="bb-row"
+                    className="jk-cards-row"
                     onClick={() => onSelect?.(it)}
                     onPointerDown={!isEvent ? (e) => beginRowDrag(e, it) : undefined}
                     style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 6px', cursor: isEvent ? 'pointer' : 'grab', borderLeft: `2px solid ${accent}`, paddingLeft: 8, opacity: beingDragged ? 0.4 : 1, background: beingDragged ? 'rgba(255,240,200,0.04)' : 'transparent', touchAction: beingDragged ? 'none' : undefined }}

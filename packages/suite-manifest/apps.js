@@ -9,8 +9,8 @@
 //
 // THE app `id` is the only identifier. Edge paths, the invalidation bus key, and the
 // scope namespace are all COMPUTED from it (see helpers below), so adding an app is
-// one row here, not the same slug re-typed in four places (ToDo A1/A2, CONSOLIDATION
-// C1–C5). The lone stored infra fact is `upstream` (container:port): nginx needs an
+// one row here, not the same slug re-typed in four places (the old consolidation
+// findings C1–C5). The lone stored infra fact is `upstream` (container:port): nginx needs an
 // address the registry deliberately never stores.
 //
 // Derivations:

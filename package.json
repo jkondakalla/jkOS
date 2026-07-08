@@ -8,12 +8,16 @@
     "build": "turbo run build",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
-    "test:contracts": "pnpm --filter @jkos/jkauth test:contracts && pnpm --filter @jkos/weave test && pnpm check:tokens && pnpm check:nginx && pnpm check:responsive && pnpm check:drag && pnpm prove",
-    "check:tokens": "pnpm --filter @jkos/jkauth check:tokens && node jkos-deploy/scripts/sync-tokens.mjs --check",
+    "test:contracts": "pnpm --filter @jkos/jkauth test:contracts && pnpm --filter @jkos/jkauth test && pnpm --filter @jkos/weave test && pnpm --filter @jkos/beigeboard-backend test && pnpm roundtrip && pnpm --filter @jkos/lazuros-backend test && pnpm test:cards && pnpm check:tokens && pnpm check:nginx && pnpm check:responsive && pnpm check:drag && pnpm check:cards && pnpm check:hud && pnpm prove",
+    "check:tokens": "pnpm --filter @jkos/jkauth check:tokens && node jkos-deploy/scripts/sync-tokens.mjs --check && node test/tokens-parity.mjs",
     "check:nginx": "node infra/nginx/gen-nginx-weave.mjs --check",
     "check:responsive": "node test/responsive.mjs",
     "check:drag": "node test/drag.mjs",
+    "check:cards": "node test/cards-purity.mjs",
+    "check:hud": "node apps/ordeck/scripts/check-hud-doc.mjs",
+    "test:cards": "node test/cards-logic.mjs",
     "prove": "node packages/suite-prober/prove.mjs",
+    "roundtrip": "node packages/suite-prober/roundtrip.mjs",
     "new-app": "node scripts/new-app.mjs"
   },
   "devDependencies": {

@@ -376,8 +376,11 @@ const MAPPING = [
   ['onToggle', 'completeItem'],
   ['onDelete', 'deleteItem'],
 ]
+// Each callback ties to its capability either directly (`command('createItem')`)
+// or through the shared error-handling helper (`run('createItem', …)`) the hook
+// funnels every write through so a rejected command invalidates + surfaces.
 for (const [cb, cap] of MAPPING) {
-  ok(`useCalendarSource maps ${cb} → ${cap}`, new RegExp(`${cb}[\\s\\S]{0,120}command\\(\\s*['"]${cap}['"]`).test(hookSrc))
+  ok(`useCalendarSource maps ${cb} → ${cap}`, new RegExp(`${cb}[\\s\\S]{0,120}(?:command|run)\\(\\s*['"]${cap}['"]`).test(hookSrc))
 }
 // The live-reschedule subscription moved INTO useWeaveList: it derives its default
 // invalidateOn from resourceKey(appId, datasetId), so no caller types a bus key.

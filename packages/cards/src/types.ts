@@ -128,6 +128,10 @@ export interface CalendarViewProps {
   onAddItem?: (partial: Partial<CalendarItem>) => void;
   onUpdateItem?: (id: number, patch: Partial<CalendarItem>) => void;
   onWeekJump?: (iso: string) => void;
+  /** Host's calendar `source` id stamped on kit-created all-day events (BeigeBoard
+   *  passes `'bb'`). Omitted by default so the kit carries no app identity — an
+   *  ORDECK mount that never passes it creates sourceless items. */
+  createSource?: string;
   /** Optional host-driven "add on this date" affordance (e.g. the mobile shell's
    *  AddSheet). When omitted, the mobile calendar falls back to an inline add via
    *  onAddItem; the desktop grid always uses inline quick-add. */
@@ -137,6 +141,13 @@ export interface CalendarViewProps {
 export interface WeekViewProps extends CalendarViewProps {
   /** A signal from a host (e.g. Calendar → Week jump) to recentre on this date. */
   weekJumpDate?: string | null;
+  /** Opt-in "this week's bench" lane above the untimed lane (BeigeBoard's Workshop
+   *  bench, surfaced on the grid). Default off → hosts that don't pass it (ORDECK's
+   *  bb-week widget) render byte-identical. When on, tasks with `week_start` = the
+   *  visible Monday and no `due_date` show in the lane; dragging one onto a day
+   *  commits it (`due_date` + normalised `week_start`), and dragging a day task onto
+   *  the lane demotes it back to the week (clears the day + time). */
+  benchLane?: boolean;
 }
 
 export interface DayViewProps extends CalendarViewProps {

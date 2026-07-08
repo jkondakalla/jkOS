@@ -25,5 +25,6 @@ export { Calendar } from './Calendar';
 export { CreateDialog } from './CreateDialog';
 export type { CreateDialogProps, CreatePending } from './CreateDialog';
 export { useCalendarSource } from './useCalendarSource';
+export type { UseCalendarSourceOpts, CalendarOp } from './useCalendarSource';
 export { CalendarDragProvider, useCalendarDrag } from './CalendarDragProvider';
 export type { CalendarDragProviderProps } from './CalendarDragProvider';

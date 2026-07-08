@@ -38,11 +38,18 @@ export function useJkOSPreferences(opts: UseJkOSPreferencesOptions = {}) {
     return isDark;
   }, [onApply]);
 
+  // Optimistic-lock cursor (ARCH-7.2): the version the server last handed us. A
+  // ref (not state) because `patch` reads it synchronously across a save + retry,
+  // and it must not trigger re-renders. Updated on every hydrate and every
+  // successful patch; on a 409 it's refreshed from the conflict response.
+  const versionRef = useRef(0);
+
   // Fold a fetched profile into local state + apply theme. Shared by the initial
   // load and the on-visibility refresh, so a change made in one app/tab lands in
   // any other open one (applyTheme is idempotent — re-applying is harmless).
   const hydrate = useCallback((data: Awaited<ReturnType<typeof getProfile>>) => {
     if (!data) return;
+    if (typeof data.prefs_version === 'number') versionRef.current = data.prefs_version;
     if (data.user) setUser(data.user);
     const eff = data.preferences.effects
       ? { ...DEFAULT_EFFECTS, ...data.preferences.effects }
@@ -88,12 +95,24 @@ export function useJkOSPreferences(opts: UseJkOSPreferencesOptions = {}) {
     return () => mq.removeEventListener('change', handler);
   }, [theme, effects, apply]);
 
+  // Version-aware save with one conflict retry (ARCH-7.2): send the slice with our
+  // known version; if another tab wrote first the server 409s, so we re-pull the
+  // fresh blob (hydrate applies it + advances the version) and re-send our slice
+  // once. Deep-merge on the server means the retry preserves the other tab's slice.
   const patch = useCallback(async (preferences: object) => {
     setSaving(true);
     savingRef.current = true;
-    try { await patchProfile(preferences as any); }
-    finally { setSaving(false); savingRef.current = false; }
-  }, []);
+    try {
+      let res = await patchProfile(preferences as any, versionRef.current);
+      if (res.conflict) {
+        const fresh = await getProfile();
+        if (fresh) hydrate(fresh);
+        else if (typeof res.prefs_version === 'number') versionRef.current = res.prefs_version;
+        res = await patchProfile(preferences as any, versionRef.current);
+      }
+      if (typeof res.prefs_version === 'number') versionRef.current = res.prefs_version;
+    } finally { setSaving(false); savingRef.current = false; }
+  }, [hydrate]);
 
   const patchTheme = useCallback((partial: Partial<JkOSTheme>) => {
     const next = { ...theme, ...partial };

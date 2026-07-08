@@ -5,7 +5,7 @@ import { activeGoals, isAdrift, nextUnscheduled } from '../lib/plan'
 import { Eyebrow, Checkbox, Plate, RecLamp } from '../components/SharedComponents'
 import { TButton, Well } from '@jkos/ui'
 
-export function TodayView({ items, today, onSelect, onToggle, onAddTask, onUpdateItem, setView, setFocusedGoalId, selectedId, recentlyAdded, readonly, aiEnabled }: any) {
+export function TodayView({ items, today, onSelect, onToggle, onAddTask, onUpdateItem, setView, setFocusedNodeId, selectedId, recentlyAdded, readonly, aiEnabled }: any) {
   const d = localDate(today)
   const dateStr = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
 
@@ -67,7 +67,7 @@ export function TodayView({ items, today, onSelect, onToggle, onAddTask, onUpdat
             <AdriftStrip
               goals={adrift} items={items} today={today}
               onUpdateItem={onUpdateItem} readonly={readonly}
-              toWorkshop={(g: any) => { setFocusedGoalId?.(g.id); setView('tasks') }}
+              toWorkshop={(g: any) => { setFocusedNodeId?.(g.id); setView('tasks') }}
             />
           </section>
         )}

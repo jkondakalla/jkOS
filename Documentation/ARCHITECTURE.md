@@ -28,8 +28,10 @@ jkOS/
 │   ├── auth-client/     @jkos/auth-client      frontend auth + preferences hook
 │   ├── weave/           @jkos/weave            suite fabric: manifest, resources, dispatch
 │   ├── design/          @jkos/design           token CSS + theme factory + responsive breakpoints
-│   ├── ui/              @jkos/ui               widget shell component + useBreakpoint hook
-│   └── cards/           @jkos/cards            shared calendar card kit (Week/Calendar views)
+│   ├── ui/              @jkos/ui               widget shell, primitives, useBreakpoint + usePointerDrag
+│   ├── cards/           @jkos/cards            shared calendar card kit (Day/Week/Month/Year views)
+│   ├── suite-manifest/  @jkos/suite-manifest   THE app directory source (registry/nginx/manifest derive)
+│   └── suite-prober/    @jkos/suite-prober     conformance instrument (prove + roundtrip)
 ├── infra/
 │   ├── nginx/           standalone.conf + weave-proxy*.conf (generated) + compose
 │   └── scripts/         lib-deploy.sh (shared deploy routine)
@@ -131,14 +133,18 @@ human `sub`, carries `azp` and `scope`. Used by headless callers (the deploy con
 server-side weave peers). The endpoint is disabled when `JKOS_SERVICE_CLIENTS` is unset;
 when set, it is rate-limited on the tight credential budget (a pre-shared secret is
 presented). Service tokens can read freely but cannot write per-user data on apps
-(`NO_USER_CONTEXT`) until an explicit on-behalf-of delegation seam lands.
+(`NO_USER_CONTEXT`) — unless the client is enrolled in `JKOS_DELEGATION_CLIENTS`, in which
+case it may mint **on-behalf-of** tokens carrying an `act` claim; `weaveAuth` normalizes
+those to the acting user and the write gate lifts `NO_USER_CONTEXT` (the G1 delegation
+seam — see [WEAVE.md](WEAVE.md)). Delegation supplies only the *who*; the client still
+needs the scope.
 
 ### jkAuth module structure
 
 ```
 server.js           entry — build app, listen
 src/config.js       env constants, cookie opts, TTLs, rate-limit budgets
-src/db.js           SQLite + migrations (001–013) + app_registry cache
+src/db.js           SQLite + migrations (001–016) + app_registry cache
 src/tokens.js       sign/issue/clear/rotate, session resolve + tryRotate
 src/password.js     SHA-256 pre-hash + bcrypt (cap: no 72-byte truncation)
 src/email.js        SMTP transport for 2FA email codes
@@ -235,12 +241,36 @@ writes all items in a single transaction. On any validation error, nothing is wr
 endpoint the Weave `beigeboard.importItems` capability targets — an AI tool that produces
 the JSON is a first-class consumer.
 
+### Backend module structure
+
+The backend (CommonJS) mirrors jkAuth's proven `src/` layout:
+
+```
+server.js            entry — require app, listen
+src/config.js        env constants
+src/db.js            SQLite + migrations (runs on require, like jkAuth)
+src/crypto.js        AES-256-GCM secret-at-rest + OAuth CSRF state
+src/item-fields.js   THE per-column source of truth (pure data, zero deps) —
+                     discovery ITEM_SHAPE, the write whitelist, caps, enums all derive
+src/schema.js        the validation surface (derived from item-fields)
+src/items-store.js   parent cycle-guard, cascade delete, lazy demo seed
+src/auth.js          weaveAuth gate + optionalAuth + PUBLIC_PATHS
+src/calendar/        provider.js (the CalendarProvider contract + shared writer)
+                     + google.js / outlook.js / icloud.js (pure normalize* + fetchWindow)
+src/routes/          items.js · import.js · ai.js · calendar.js
+src/app.js           express factory
+```
+
+`discovery.js` (the served capability/dataset docs) stays at the backend root and is
+offline-`require`-able — the prober reads it without booting anything.
+
 ### Weave surface
 
 BeigeBoard exposes:
-- `GET /api/capabilities` — what ORDECK (and peers) can *do*: `createItem`, `importItems`
-- `GET /api/datasets` — what ORDECK can *read*: today's tasks, pinned item, focused item,
-  goals in progress, recent events
+- `GET /api/capabilities` — what ORDECK (and peers) can *do*: `createItem`, `completeItem`,
+  `updateItem`, `deleteItem`, `importItems`, plus the AI seams `parseTask`/`breakdownGoal`
+- `GET /api/datasets` — what ORDECK can *read*: the `items` dataset with declared filters
+  (kind, completed, date windows, `ext_ref_prefix`, `?since` delta cursor)
 - Write routes gated on `beigeboard:write` scope via `@jkos/weave/server`'s `weaveWriteGate`
 
 ### Shared calendar card kit — `@jkos/cards`
@@ -330,8 +360,8 @@ New apps appear automatically when a row is added to `app_registry` — zero por
 LazurOS is the suite's AI gateway — an always-on Node/Express service (the "State node")
 that accepts capability calls and open-ended queries, routes them to a tier of compute
 backends, and returns **async jobs**. Heavy inference runs on a separate compute node; the
-State node only routes, queues, and tracks. The authoritative build spec is the repo-root
-[`LAZUROS.md`](../LAZUROS.md); this section documents the shipped state. **Built (Phases 0–6
+State node only routes, queues, and tracks. This section documents the shipped state; the
+remaining go-live plan is [ToDo.md §1](ToDo.md). **Built (Phases 0–6
 of 8):** the State node, job queue, compute-backend abstraction, the compute-node worker,
 the Tier-0 (STT/TTS/embedding) and Tier-1 (web search) providers, and delegated write-back.
 These are code-complete and unit-tested but not yet exercised against live runtimes — they
@@ -431,11 +461,10 @@ the CapabilityDoc and DatasetDoc envelope (`{ app, version, <list>[] }` where ev
 has a string `id`). Backends validate at boot (throw); the frontend validates on read
 (evicts malformed docs instead of silently using them). Same validator, both sides.
 
-`pnpm test:contracts` is the suite-wide gate:
-- 29 auth contract assertions (codes vocab, issuer/cookie single-source)
-- 24 Weave contract assertions (docShape, capability/dataset schema)
-- Token shape verification
-- nginx config check (`gen-nginx-weave.mjs --check`)
+`pnpm test:contracts` is the suite-wide gate. It chains the auth contracts + python
+bridge, the jkAuth/BeigeBoard/LazurOS behavioural smokes, the weave + lego-brick tests,
+the write round-trip, the six static conformance checks (tokens/nginx/responsive/drag/
+cards/hud), and the suite prober. Full anatomy: [TESTING.md](TESTING.md).
 
 ---
 

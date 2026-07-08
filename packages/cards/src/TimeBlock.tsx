@@ -9,7 +9,7 @@ import type { CalendarItem } from './types';
 import { cardSurface } from './surface';
 import { FONT_BODY, FONT_NUM } from './theme';
 import { fmtTime, timeToFrac } from './datetime';
-import { WV_FIRST_H, WV_ROW_H } from './constants';
+import { WV_FIRST_H, WV_LAST_H, WV_ROW_H } from './constants';
 
 export interface TimeBlockProps {
   item: CalendarItem;
@@ -49,8 +49,26 @@ export function TimeBlock({
   const start = liveOverride?.start ?? baseStart;
   const end =
     liveOverride?.end ?? (liveOverride?.start != null ? liveOverride.start + (baseEnd - baseStart) : baseEnd);
-  const top = (start - WV_FIRST_H) * WV_ROW_H;
-  const height = Math.max(18, (end - start) * WV_ROW_H);
+  // The grid only draws WV_FIRST_H..WV_LAST_H (06:00–22:00). An item scheduled
+  // outside that window would land at a negative `top` or past the last row and
+  // silently vanish. Clamp it to the nearest edge as an 18px sliver and flag the
+  // direction, so it stays visible AND clickable (a tap still selects/reschedules).
+  const GRID_H = (WV_LAST_H + 1 - WV_FIRST_H) * WV_ROW_H;
+  const rawTop = (start - WV_FIRST_H) * WV_ROW_H;
+  const rawHeight = Math.max(18, (end - start) * WV_ROW_H);
+  const outBefore = start < WV_FIRST_H;
+  const outAfter = rawTop >= GRID_H;
+  let top = rawTop;
+  let height = rawHeight;
+  if (outBefore) {
+    const endPx = (end - WV_FIRST_H) * WV_ROW_H; // where the block would end
+    top = 0;
+    height = endPx > 0 ? Math.max(18, Math.min(endPx, GRID_H)) : 18;
+  } else if (outAfter) {
+    top = GRID_H - 18;
+    height = 18;
+  }
+  const outWindow = outBefore || outAfter;
   const showTime = height >= 32;
   const leftPct = (slot / totalCols) * 100;
   const rightPct = ((totalCols - slot - 1) / totalCols) * 100;
@@ -101,6 +119,14 @@ export function TimeBlock({
     >
       <div style={{ padding: '3px 7px 8px', height: '100%', boxSizing: 'border-box', position: 'relative' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+          {outWindow && (
+            <span
+              title={`${fmtTime(item.scheduled_time)} — outside the ${WV_FIRST_H}:00–${WV_LAST_H}:00 grid`}
+              style={{ flexShrink: 0, fontFamily: FONT_NUM, fontSize: 9, lineHeight: 1, color: 'var(--color-on-accent-dim)' }}
+            >
+              {outBefore ? '▲' : '▼'}{fmtTime(item.scheduled_time)}
+            </span>
+          )}
           {!isEvent && (
             <span
               onPointerDown={(e) => e.stopPropagation()}

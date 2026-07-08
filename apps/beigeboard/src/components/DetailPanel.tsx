@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { FONT_HEAD, FONT_BODY, FONT_NUM, sourceOf, fmtTime, fmtFull, localDate } from '../lib/theme'
+import { FONT_HEAD, FONT_BODY, FONT_NUM, sourceOf, fmtTime, fmtFull, localDate, weekStart, isoDate } from '../lib/theme'
 import { getAncestors, getChildren, getAccent, getProgress } from '../lib/seed'
 import { Eyebrow, Checkbox } from './SharedComponents'
 import { useHudShelf } from '../lib/jkauth'
 import { useBreakpoint } from '@jkos/ui'
 
-export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdateItem, setView, setFocusedGoalId }: any) {
+export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdateItem, setView, setFocusedNodeId }: any) {
   const [titleEditing, setTitleEditing] = useState(false)
   const [titleVal, setTitleVal]         = useState('')
   const titleInputRef = useRef<HTMLInputElement>(null)
@@ -300,7 +300,7 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
 
             <button
               onClick={() => {
-                setFocusedGoalId?.(event.id)
+                setFocusedNodeId?.(event.id)
                 setView?.('tasks')
               }}
               className="btn-action"
@@ -310,6 +310,28 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
                 fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.16em',
                 textTransform: 'uppercase', padding: '10px 14px', cursor: 'pointer',
                 width: '100%',
+              }}
+            >Open in workshop →</button>
+          </Field>
+        )}
+
+        {isMilestone && (
+          <Field label={`Checkpoint · ${prog.total > 0 ? `${prog.done}/${prog.total}` : 'open'}`}>
+            {prog.total > 0 && (
+              <div style={{ height: 2, background: 'var(--color-line-strong)', marginBottom: 12 }}>
+                <div style={{ height: '100%', width: `${prog.pct}%`, background: accent }} />
+              </div>
+            )}
+            <button
+              onClick={() => {
+                setFocusedNodeId?.(event.id)
+                setView?.('tasks')
+              }}
+              className="btn-action"
+              style={{
+                background: accent, color: 'var(--color-paper)', border: 'none',
+                fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.16em',
+                textTransform: 'uppercase', padding: '10px 14px', cursor: 'pointer', width: '100%',
               }}
             >Open in workshop →</button>
           </Field>
@@ -468,8 +490,28 @@ function WhenField({ event, isTask, isEvent, onUpdateItem }: any) {
     fontFamily: FONT_BODY, fontSize: 11,
     color: 'var(--color-ink)', padding: '4px 6px', outline: 'none',
   }
+  const benchBtn: React.CSSProperties = {
+    background: 'transparent', border: `1px solid var(--color-line)`,
+    borderRadius: 'var(--hub-radius-sm)',
+    fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.06em',
+    color: 'var(--color-muted)', padding: '7px 10px', cursor: 'pointer',
+  }
 
   const isMultiDay = event.end_date && event.end_date !== event.due_date
+
+  // The weekly bench: a task committed to this week but no day yet (week_start set,
+  // no due_date). See PLANNING_METHOD.md → the weekly bench.
+  const benched   = isTask && event.week_start && !event.due_date
+  const weekLabel = event.week_start
+    ? localDate(event.week_start).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    : ''
+  const benchThisWeek = () => {
+    onUpdateItem?.(event.id, {
+      week_start: weekStart(isoDate(new Date())), due_date: null, scheduled_time: null, scheduled_end: null,
+    })
+    setEditing(false)
+  }
+  const unbench = () => onUpdateItem?.(event.id, { week_start: null })
 
   return (
     <div style={{ marginBottom: 18 }}>
@@ -521,6 +563,10 @@ function WhenField({ event, isTask, isEvent, onUpdateItem }: any) {
                 textTransform: 'uppercase', color: 'var(--color-faint)', padding: '7px 10px', cursor: 'pointer',
               }}>Clear</button>
             )}
+            {isTask && !benched && (
+              <button onClick={benchThisWeek} style={{ ...benchBtn, textTransform: 'uppercase', letterSpacing: '0.12em' }}
+                title="Move to this week's bench (no day yet)">Bench</button>
+            )}
           </div>
         </div>
       ) : (event.due_date || event.scheduled_time) ? (
@@ -548,12 +594,31 @@ function WhenField({ event, isTask, isEvent, onUpdateItem }: any) {
             </div>
           )}
         </div>
+      ) : benched ? (
+        <div>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 15, color: 'var(--color-ink)', lineHeight: 1.4 }}>
+            On the bench · week of {weekLabel}
+          </div>
+          {canEdit && (
+            <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+              <button onClick={() => setEditing(true)} style={benchBtn}>Pick a day</button>
+              <button onClick={unbench} style={benchBtn}>Off the bench</button>
+            </div>
+          )}
+        </div>
       ) : canEdit ? (
-        <button onClick={() => setEditing(true)} style={{
-          background: 'transparent', border: `1px dashed var(--color-line)`,
-          fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 13,
-          color: 'var(--color-muted)', cursor: 'pointer', padding: '8px 12px', width: '100%', textAlign: 'left',
-        }}>+ Schedule this {isEvent ? 'event' : 'task'}</button>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <button onClick={() => setEditing(true)} style={{
+            flex: '1 1 auto', background: 'transparent', border: `1px dashed var(--color-line)`,
+            fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 13,
+            color: 'var(--color-muted)', cursor: 'pointer', padding: '8px 12px', textAlign: 'left',
+          }}>+ Schedule this {isEvent ? 'event' : 'task'}</button>
+          {isTask && (
+            <button onClick={benchThisWeek} style={benchBtn} title="Commit to this week, pick a day later">
+              · just this week
+            </button>
+          )}
+        </div>
       ) : null}
     </div>
   )

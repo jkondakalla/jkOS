@@ -7,6 +7,7 @@
 
 import { useMemo, useState } from 'react';
 import type { CalendarItem, YearViewProps } from './types';
+import { withAlpha } from '@jkos/design';
 import { mergeResolvers, FONT_HEAD, FONT_BODY, FONT_NUM } from './theme';
 import { buildMonthGrid, isoDate, localDate } from './datetime';
 import { Eyebrow } from './primitives';
@@ -146,7 +147,7 @@ function MiniMonth({
                 {localDate(cell.iso).getDate()}
               </span>
               {info && cell.inMonth && (
-                <span style={{ width: 3.5, height: 3.5, borderRadius: '50%', background: info.color, boxShadow: `0 0 3px ${info.color}88` }} />
+                <span style={{ width: 3.5, height: 3.5, borderRadius: '50%', background: info.color, boxShadow: `0 0 3px ${withAlpha(info.color, 0.533)}` }} />
               )}
             </button>
           );

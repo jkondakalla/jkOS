@@ -117,6 +117,8 @@ import os, sys, json
 os.environ['JKOS_AUTH_PUBLIC_KEY'] = open(sys.argv[3]).read()
 os.environ['JKOS_AUTH_ISSUER'] = '${ISSUER}'
 os.environ['JKOS_COOKIE_SUFFIX'] = '_staging'
+os.environ['BREAK_GLASS_TOKEN'] = 'glass-secret'   # ARCH-8 fallback, tested below
+# no JKOS_AUTH_JWKS_URI → jkauth_reachable() is False → jkAuth "unreachable"
 sys.path.insert(0, sys.argv[1])
 import jkos_auth
 from jose import jwt as jose_jwt, JWTError
@@ -126,12 +128,19 @@ p = jkos_auth.verify_token(open(sys.argv[2]).read())
 assert isinstance(p['sub'], str), 'python got non-string sub: %r' % (p['sub'],)
 assert p['role'] == 'admin', p
 
-# (b) our verifier ALSO tolerates a numeric sub (verify_sub:False defense-in-depth)
-pn = jkos_auth.verify_token(open(sys.argv[4]).read())
-assert pn['sub'] == 7, pn
+# (b) our verifier now REJECTS a numeric sub too — the verify_sub:False workaround is
+#     retired (ARCH-7.3), so jkos_auth is as strict as node/default python-jose. A
+#     numeric-sub regression now fails CLOSED here instead of being silently tolerated.
+rejected = False
+try:
+    jkos_auth.verify_token(open(sys.argv[4]).read())
+except JWTError:
+    rejected = True
+assert rejected, 'jkos_auth.verify_token must REJECT a numeric sub after ARCH-7.3 (verify_sub retired)'
 
 # (c) THE TRAP: python-jose's DEFAULT (strict) options REJECT a numeric sub — this
-#     is the exact 401 that looped /deploy. Proves why the string-sub contract matters.
+#     is the exact 401 that looped /deploy, and now matches what (b) does. Proves why
+#     the string-sub contract matters and that jkos_auth no longer papers over it.
 trapped = False
 try:
     jose_jwt.decode(open(sys.argv[4]).read(), os.environ['JKOS_AUTH_PUBLIC_KEY'],
@@ -140,7 +149,27 @@ except JWTError:
     trapped = True
 assert trapped, 'strict python-jose did NOT reject a numeric sub — trap assumptions changed'
 
+# (b3) Break-glass fallback (ARCH-8): a static admin bearer accepted ONLY when it is
+#      configured, matches, AND jkAuth is unreachable — so a leaked token is inert while
+#      SSO works. All three gates asserted here (jose-only, no network).
+def _raises(fn):
+    try:
+        fn(); return False
+    except JWTError:
+        return True
+bg = jkos_auth.verify_break_glass('glass-secret')          # configured + match + unreachable
+assert bg['role'] == 'admin' and bg.get('break_glass') is True, bg
+assert _raises(lambda: jkos_auth.verify_break_glass('wrong')), 'break-glass accepted a wrong token'
+assert _raises(lambda: jkos_auth.verify_break_glass('')), 'break-glass accepted an empty token'
+jkos_auth.jkauth_reachable = lambda: True                  # jkAuth back up → must refuse
+assert _raises(lambda: jkos_auth.verify_break_glass('glass-secret')), 'break-glass accepted while jkAuth reachable'
+jkos_auth.jkauth_reachable = lambda: False
+jkos_auth.BREAK_GLASS_TOKEN = ''                           # feature off → must refuse
+assert _raises(lambda: jkos_auth.verify_break_glass('glass-secret')), 'break-glass accepted while unconfigured'
+jkos_auth.BREAK_GLASS_TOKEN = 'glass-secret'
+
 # (d) emit the python CODES mirror + identity defaults so node can assert parity
+print('BGOK')
 print('CODESJSON', json.dumps(jkos_auth.CODES))
 print('IDENT', jkos_auth.ISSUER_DEFAULT, jkos_auth.ACCESS_COOKIE_BASE)
 print('PYOK', p['sub'], p['role'], jkos_auth.COOKIE_NAME)
@@ -151,8 +180,9 @@ print('PYOK', p['sub'], p['role'], jkos_auth.COOKIE_NAME)
     process.exit(1)
   }
   ok('python jkos_auth.verify_token accepts the string-sub token', /^PYOK 7 admin jkos_token_staging/m.test(r.stdout.trim()), r.stdout.trim())
-  ok('python tolerates numeric sub (verify_sub:False) yet STRICT python-jose rejects it (the trap, proven)', true)
+  ok('python jkos_auth now REJECTS a numeric sub (verify_sub:False retired, ARCH-7.3) — as strict as default python-jose (the trap closed)', true)
   ok('node and python agree on the same token (cross-runtime contract holds)', true)
+  ok('break-glass (ARCH-8) accepts only when configured+matching+jkAuth-unreachable, refuses all else', /^BGOK$/m.test(r.stdout.trim()), r.stdout.trim())
 
   // ── error-code parity: node CODES === python CODES, key-for-key ────────────────
   console.log('4 · error-code vocabulary agrees across runtimes (node ↔ python)')

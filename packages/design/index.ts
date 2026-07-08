@@ -6,6 +6,7 @@
 // Accent palette: import { ACCENT_SCHEMES, matchAccentScheme } from '@jkos/design'
 // Breakpoints: import { BREAKPOINTS, activeBreakpoint } from '@jkos/design'
 export * from './utils/applyJkOSTheme';
+export { withAlpha } from './utils/color';
 export * from './theme/buildTheme';
 export * from './theme/accentSchemes';
 export * from './responsive/breakpoints';

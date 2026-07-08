@@ -180,6 +180,12 @@ async def get_admin(request: Request):
     # real auth failure — and refresh-once-then-surface instead of looping to login.
     token = request.cookies.get(jkos_auth.COOKIE_NAME)
     if not token:
+        # No SSO cookie — the only way in is the break-glass bearer (ARCH-8), and only
+        # while jkAuth is unreachable (verify_break_glass enforces that). This is the
+        # recovery path for a prod-jkAuth outage that would otherwise lock the fixer.
+        bg = await _try_break_glass(request)
+        if bg is not None:
+            return bg
         raise HTTPException(status_code=401, detail={"error": "Not authenticated", "code": jkos_auth.CODES["UNAUTHENTICATED"]})
     try:
         # verify_token may fetch JWKS, so run it off the event loop. It verifies
@@ -188,9 +194,32 @@ async def get_admin(request: Request):
     except ExpiredSignatureError:
         raise HTTPException(status_code=401, detail={"error": "Token expired", "code": jkos_auth.CODES["TOKEN_EXPIRED"]})
     except JWTError:
+        # A cookie that won't verify during a jkAuth outage (unreachable JWKS, key
+        # rotated mid-outage) also falls through to break-glass before erroring.
+        bg = await _try_break_glass(request)
+        if bg is not None:
+            return bg
         raise HTTPException(status_code=401, detail={"error": "Invalid token", "code": jkos_auth.CODES["UNAUTHENTICATED"]})
     if payload.get("role") != "admin":
         raise HTTPException(status_code=403, detail={"error": "Admin access required", "code": jkos_auth.CODES["FORBIDDEN"]})
+    return payload
+
+
+async def _try_break_glass(request: Request):
+    """Accept an `Authorization: Bearer <BREAK_GLASS_TOKEN>` as admin iff configured,
+    matching, and jkAuth is unreachable (jkos_auth enforces all three). Returns the
+    synthetic admin payload — logging + auditing loudly — or None to fall through."""
+    auth = request.headers.get("authorization", "")
+    bearer = auth[7:].strip() if auth.lower().startswith("bearer ") else ""
+    if not bearer:
+        return None
+    try:
+        payload = await asyncio.get_event_loop().run_in_executor(None, jkos_auth.verify_break_glass, bearer)
+    except JWTError:
+        return None
+    client = request.client.host if request.client else "unknown"
+    await _log(f"[SECURITY] BREAK-GLASS admin access granted to {client} on {request.url.path} "
+               f"(jkAuth unreachable) — verify this was you")
     return payload
 
 

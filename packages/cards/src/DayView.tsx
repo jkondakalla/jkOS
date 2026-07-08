@@ -16,6 +16,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { CalendarItem, DragAdapter, DayViewProps } from './types';
+import { withAlpha } from '@jkos/design';
 import { mergeResolvers, mergePlanResolvers, FONT_HEAD, FONT_BODY, FONT_NUM } from './theme';
 import {
   addDays,
@@ -523,12 +524,12 @@ function NextCard({
 
   return (
     <div style={{ position: 'relative', background: 'var(--color-paper-2)', border: '1px solid var(--color-line)', borderRadius: 'var(--hub-radius-lg)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 16px rgba(0,0,0,0.18)', padding: '28px 32px 30px 44px', cursor: 'pointer' }}>
-      <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 5, background: accent, borderTopLeftRadius: 'var(--hub-radius-lg)', borderBottomLeftRadius: 'var(--hub-radius-lg)', boxShadow: `0 0 14px ${accent}66` }} />
+      <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 5, background: accent, borderTopLeftRadius: 'var(--hub-radius-lg)', borderBottomLeftRadius: 'var(--hub-radius-lg)', boxShadow: `0 0 14px ${withAlpha(accent, 0.4)}` }} />
       <article onClick={() => onSelect?.(item)}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 18, marginBottom: 14 }}>
           <RecLamp size={7} label="Next" />
           {item.scheduled_time && (
-            <span style={{ fontFamily: FONT_NUM, fontStyle: 'italic', fontSize: 14, color: accent, textShadow: `0 0 10px ${accent}99`, letterSpacing: '0.04em' }}>
+            <span style={{ fontFamily: FONT_NUM, fontStyle: 'italic', fontSize: 14, color: accent, textShadow: `0 0 10px ${withAlpha(accent, 0.6)}`, letterSpacing: '0.04em' }}>
               {fmtTime(item.scheduled_time)}
               {item.scheduled_end ? ` – ${fmtTime(item.scheduled_end)}` : ''}
             </span>
@@ -537,14 +538,14 @@ function NextCard({
 
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 18 }}>
           <Checkbox id={item.id} completed={item.completed} onToggle={onToggle} color={accent} size={20} />
-          <h2 style={{ flex: 1, fontFamily: FONT_HEAD, fontWeight: 500, fontSize: 36, margin: 0, lineHeight: 1.1, letterSpacing: '-0.025em', color: 'var(--color-ink)', textDecoration: item.completed ? 'line-through' : 'none', textShadow: `0 0 24px ${accent}22` }}>
+          <h2 style={{ flex: 1, fontFamily: FONT_HEAD, fontWeight: 500, fontSize: 36, margin: 0, lineHeight: 1.1, letterSpacing: '-0.025em', color: 'var(--color-ink)', textDecoration: item.completed ? 'line-through' : 'none', textShadow: `0 0 24px ${withAlpha(accent, 0.133)}` }}>
             {item.title}
           </h2>
         </div>
 
         {ancestors.length > 0 && (
           <div style={{ marginTop: 18, paddingLeft: 38, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <span style={{ width: 5, height: 5, background: accent, boxShadow: `0 0 6px ${accent}cc` }} />
+            <span style={{ width: 5, height: 5, background: accent, boxShadow: `0 0 6px ${withAlpha(accent, 0.8)}` }} />
             <span style={{ fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 14, color: 'var(--color-muted)', lineHeight: 1.3 }}>
               {ancestors.slice().reverse().map((a) => a.title).join('  ›  ')}
             </span>
@@ -586,12 +587,12 @@ function EmptyDay({ onAdd, today }: { onAdd?: (partial: Partial<CalendarItem>) =
             placeholder="Describe a task…"
             style={{ flex: 1, background: 'transparent', border: 'none', borderBottom: '1px solid var(--color-line)', fontFamily: FONT_HEAD, fontSize: 22, color: 'var(--color-ink)', outline: 'none', padding: '6px 2px' }}
           />
-          <button onClick={handle} className="btn-action" style={{ background: 'var(--color-accent)', color: 'var(--color-paper)', border: 'none', fontFamily: FONT_BODY, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', padding: '10px 18px', cursor: 'pointer' }}>
+          <button onClick={handle} className="jk-cards-btn" style={{ background: 'var(--color-accent)', color: 'var(--color-paper)', border: 'none', fontFamily: FONT_BODY, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', padding: '10px 18px', cursor: 'pointer' }}>
             Add →
           </button>
         </div>
       ) : (
-        <button onClick={() => setAdding(true)} className="btn-action" style={{ background: 'var(--color-ink)', color: 'var(--color-paper)', border: 'none', fontFamily: FONT_BODY, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', padding: '12px 22px', cursor: 'pointer' }}>
+        <button onClick={() => setAdding(true)} className="jk-cards-btn" style={{ background: 'var(--color-ink)', color: 'var(--color-paper)', border: 'none', fontFamily: FONT_BODY, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', padding: '12px 22px', cursor: 'pointer' }}>
           + Write something down
         </button>
       ))}
@@ -642,7 +643,7 @@ function Strip({
         return (
           <li
             key={task.id}
-            className="task-row"
+            className="jk-cards-row"
             onClick={() => onSelect?.(task)}
             style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 12, alignItems: 'center', padding: '11px 6px', borderBottom: '1px solid var(--color-line-strong)', cursor: 'pointer', ['--hover-bg' as any]: 'var(--color-paper-2)' }}
           >
@@ -698,7 +699,7 @@ function CarriedStrip({
         return (
           <li
             key={task.id}
-            className="task-row"
+            className="jk-cards-row"
             onClick={() => onSelect?.(task)}
             style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 6px', borderBottom: '1px solid var(--color-line-strong)', cursor: 'pointer', ['--hover-bg' as any]: 'var(--color-paper-2)' }}
           >
@@ -757,7 +758,7 @@ function AdriftStrip({
         const candidate = nextUnscheduled(g, items);
         return (
           <li key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 6px', borderBottom: '1px solid var(--color-line-strong)' }}>
-            <span style={{ width: 5, height: 30, background: accent, boxShadow: `0 0 10px ${accent}55`, flexShrink: 0 }} />
+            <span style={{ width: 5, height: 30, background: accent, boxShadow: `0 0 10px ${withAlpha(accent, 0.333)}`, flexShrink: 0 }} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontFamily: FONT_HEAD, fontSize: 15.5, color: 'var(--color-ink)', lineHeight: 1.25 }}>{g.title}</div>
               {candidate && (

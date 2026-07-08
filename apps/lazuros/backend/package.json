@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "test": "node test/queue.smoke.mjs && node test/providers.smoke.mjs && node test/writeback.smoke.mjs"
+    "test": "node test/queue.smoke.mjs && node test/providers.smoke.mjs && node test/writeback.smoke.mjs && node test/worker-e2e.smoke.mjs"
   },
   "dependencies": {
     "@jkos/suite-manifest": "workspace:*",

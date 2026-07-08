@@ -6,6 +6,7 @@
 
 const express = require('express')
 const { get, run } = require('../db')
+const { deepMerge } = require('../util')
 const { resolveUser, liveSession, clearTokens, publicUser } = require('../tokens')
 
 const router = express.Router()
@@ -30,7 +31,9 @@ router.get('/auth/me', (req, res) => {
   res.json({ user: publicUser(u) })
 })
 
-// GET /auth/profile — user info + cross-app preferences
+// GET /auth/profile — user info + cross-app preferences. `prefs_version` is the
+// optimistic-lock cursor (ARCH-7.2): a client echoes it back on PATCH so a write
+// built on a stale blob is rejected instead of silently clobbering a concurrent one.
 router.get('/auth/profile', (req, res) => {
   const jwtUser = resolveUser(req)
   if (!jwtUser) return res.status(401).json({ error: 'Not authenticated', code: 'UNAUTHENTICATED' })
@@ -38,17 +41,27 @@ router.get('/auth/profile', (req, res) => {
   if (!u) return res.status(401).json({ error: 'User not found', code: 'UNAUTHENTICATED' })
   let preferences = {}
   try { preferences = JSON.parse(u.preferences || '{}') } catch {}
-  res.json({ user: publicUser(u), preferences })
+  res.json({ user: publicUser(u), preferences, prefs_version: u.prefs_version ?? 0 })
 })
 
-// PATCH /auth/profile — update display name, avatar_url, or preferences (merge patch)
+// PATCH /auth/profile — update display name, avatar_url, or preferences.
+//
+// Preferences are DEEP-merged (object-wise; arrays/scalars replace) so two tabs
+// editing different slices — say ORDECK's HUD layout and the theme — no longer
+// clobber each other the way a shallow spread did (ARCH-7.2 / G8). On top of that,
+// an OPTIONAL optimistic lock: when the body carries `prefs_version`, it must equal
+// the stored version or the write is refused with 409 CONFLICT + the current
+// {prefs_version, preferences} so the client can re-apply its slice onto the fresh
+// blob and retry. A client that omits prefs_version (e.g. a fire-and-forget HUD
+// autosave) skips the check — it still deep-merges, so it can't drop a sibling slice.
 router.patch('/auth/profile', (req, res) => {
   const jwtUser = resolveUser(req)
   if (!jwtUser) return res.status(401).json({ error: 'Not authenticated', code: 'UNAUTHENTICATED' })
   const u = get('SELECT * FROM users WHERE id=?', [jwtUser.sub])
   if (!u) return res.status(401).json({ error: 'User not found', code: 'UNAUTHENTICATED' })
 
-  const { name, avatar_url, preferences } = req.body ?? {}
+  const { name, avatar_url, preferences, prefs_version } = req.body ?? {}
+  const version = u.prefs_version ?? 0
   const setClauses = []
   const params = []
 
@@ -60,18 +73,27 @@ router.patch('/auth/profile', (req, res) => {
     setClauses.push('avatar_url = ?')
     params.push(avatar_url ? String(avatar_url).slice(0, 500) : null)
   }
+  let bumpedVersion = version
   if (preferences !== null && typeof preferences === 'object') {
     let current = {}
     try { current = JSON.parse(u.preferences || '{}') } catch {}
+    if (prefs_version !== undefined && Number(prefs_version) !== version) {
+      return res.status(409).json({
+        error: 'Preferences changed elsewhere', code: 'CONFLICT',
+        prefs_version: version, preferences: current,
+      })
+    }
     setClauses.push('preferences = ?')
-    params.push(JSON.stringify({ ...current, ...preferences }))
+    params.push(JSON.stringify(deepMerge(current, preferences)))
+    setClauses.push('prefs_version = prefs_version + 1')
+    bumpedVersion = version + 1
   }
 
   if (setClauses.length > 0) {
     params.push(jwtUser.sub)
     run(`UPDATE users SET ${setClauses.join(', ')} WHERE id = ?`, params)
   }
-  res.json({ ok: true })
+  res.json({ ok: true, prefs_version: bumpedVersion })
 })
 
 module.exports = router

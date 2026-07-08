@@ -125,7 +125,8 @@ caller. `pnpm test:contracts` asserts Node and Python vocabs are key-for-key equ
 **Service-to-service:** `POST /auth/token` (client-credentials) → `signService()` mints a
 `typ:'service'` token (no human `sub`, has `azp` + `scope`). `weaveServerClient(appId)`
 uses this: mints/caches one token, calls a peer with `Authorization: Bearer`. Read-capable;
-per-user writes blocked (`NO_USER_CONTEXT`) until on-behalf-of delegation lands.
+per-user writes are blocked (`NO_USER_CONTEXT`) unless the client is delegation-enrolled
+and passes `actingUser` — the G1 on-behalf-of seam (see "The lego-kit primitives" below).
 
 CORS on every backend derives from `app_registry` origins via `weaveCors`.
 
@@ -151,8 +152,9 @@ is out of sync (run in CI). After regenerating, **restart** nginx — the files 
 `reload` won't re-read a replaced inode.
 
 **2. Backend → peer: service tokens.**
-`weaveServerClient(appId)` mints a service token and presents it as `Authorization: Bearer`.
-Read/aggregate-capable. Per-user writes await the on-behalf-of seam.
+`weaveServerClient(appId, { actingUser? })` mints a service token and presents it as
+`Authorization: Bearer`. Read/aggregate-capable by default; with `actingUser` and a
+delegation-enrolled client, per-user writes commit AS that user (G1).
 
 **3. Cross-origin / off-domain: registry-driven CORS (deferred).**
 Promote transport 1 to this only when a peer can't be nginx-proxied (genuinely off-domain or
@@ -191,14 +193,12 @@ No portal code changes — discovery does the rest.
 The suite-wide conformance check that prevents the silent drift that caused past incidents
 (numeric `sub`, independent re-typings of the issuer string, bespoke per-app FE clients).
 
-Run: `pnpm test:contracts` at the repo root. Exits non-zero if any of:
-- Auth contract: codes vocab (`codes.js` vs `jkos_auth.py` key-for-key parity), issuer/cookie
-  single-source (jkAuth imports from `@jkos/auth-middleware`, not re-typed).
-- Weave contract: `docShape` validates every served capability/dataset doc, `CapabilityDef`
-  schema, `DatasetDef` schema.
-- Token shape: minted token has expected fields and types.
-- nginx: `gen-nginx-weave.mjs --check` confirms `weave-proxy.conf` and `weave-proxy-staging.conf`
-  match the current PEERS table.
+Run: `pnpm test:contracts` at the repo root. Exits non-zero if any hard contract fails.
+The weave-relevant links: codes-vocab node↔python parity + issuer/cookie single-source
+(auth contracts), `docShape`/`CapabilityDef`/`DatasetDef` schema + `AppId` d.ts⇄runtime
+parity (weave tests), the lego-brick contracts (`test/lego.mjs`), the discovered write
+round-trip (`pnpm roundtrip`), the nginx conf sync (`gen-nginx-weave.mjs --check`), and
+the suite prober (`pnpm prove`, fails on `drift`). Full anatomy: [TESTING.md](TESTING.md).
 
 ## The lego-kit primitives (Layer D)
 
@@ -240,4 +240,4 @@ with `test/lego.mjs` (70 assertions) chained into the weave test) · `AppId`-typ
 (`APP_IDS` union in `manifest.ts`, threaded through every weave signature) · `@jkos/types` and
 the deprecated `plugins/*` microfrontend stack deleted (superseded by the native widget engine)
 · LazurOS (`apps/lazuros`) rebuilt on `weaveServerClient` + `lib/http.js` as a Node/Weave
-job-queue AI gateway — see `LAZUROS.md`.*
+job-queue AI gateway — see ARCHITECTURE.md § LazurOS.*

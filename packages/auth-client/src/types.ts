@@ -66,4 +66,9 @@ export interface JkosUser {
 export interface AuthProfile {
   user:        JkosUser;
   preferences: UserPreferences;
+  /** Optimistic-lock cursor for the preferences blob (ARCH-7.2). Echo it back on
+   *  PATCH so a write built on a stale blob 409s instead of clobbering a concurrent
+   *  one; the shared hook tracks it and re-applies on conflict. Absent from a
+   *  pre-ARCH-7 server → treated as unversioned (no lock, last-write-wins). */
+  prefs_version?: number;
 }

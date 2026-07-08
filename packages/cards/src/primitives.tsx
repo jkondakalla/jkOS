@@ -5,6 +5,7 @@
  */
 
 import React, { useState } from 'react';
+import { withAlpha } from '@jkos/design';
 import { FONT_BODY } from './theme';
 
 export function Checkbox({
@@ -51,7 +52,7 @@ export function Checkbox({
         lineHeight: 1,
         transition: 'background 0.15s, border-color 0.15s',
         padding: 0,
-        boxShadow: completed ? `0 0 8px ${accent}66` : 'none',
+        boxShadow: completed ? `0 0 8px ${withAlpha(accent, 0.4)}` : 'none',
       }}
     >
       {completed ? '✓' : ''}

@@ -18,7 +18,7 @@ import { AUTH_URL, authFetch, useSessionKeepalive } from './lib/jkauth'
 import { TodayView } from './views/TodayView'
 import { WeekView } from './views/WeekView'
 import { CalendarView } from './views/CalendarView'
-import { WorkshopView } from './views/WorkshopView'
+import { WorkshopView } from './views/workshop/WorkshopView'
 
 // Set mode before React hydrates to prevent flash. Check localStorage for user's
 // last-known preference (written by applyJkOSMode), fall back to paper.
@@ -155,7 +155,7 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
   const [accounts, setAccounts]           = useState(INITIAL_ACCOUNTS)
   const [selected, setSelected]           = useState<any>(null)
   const [showConnect, setShowConnect]     = useState(false)
-  const [focusedGoalId, setFocusedGoalId] = useState<number | null>(null)
+  const [focusedNodeId, setFocusedNodeId] = useState<number | null>(null)
   const [weekJumpDate, setWeekJumpDate]   = useState<string | null>(null)
 
   const loadItems = async () => {
@@ -309,7 +309,7 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
     recentlyAdded,
     setView,
     selectedId: selected?.id,
-    focusedGoalId, setFocusedGoalId,
+    focusedNodeId, setFocusedNodeId,
     weekJumpDate,
     onWeekJump: (iso: string) => { setWeekJumpDate(weekStart(iso)); setView('week') },
     readonly,
@@ -418,7 +418,7 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
               event={selected} items={items}
               onClose={() => setSelected(null)}
               onToggle={onToggle} onDelete={onDelete} onUpdateItem={onUpdateItem}
-              setView={setView} setFocusedGoalId={setFocusedGoalId}
+              setView={setView} setFocusedNodeId={setFocusedNodeId}
             />
           )}
         </div>

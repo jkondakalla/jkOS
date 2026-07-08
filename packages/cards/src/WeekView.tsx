@@ -54,6 +54,8 @@ function WeekGrid({
   onAddItem,
   onUpdateItem,
   weekJumpDate,
+  benchLane,
+  createSource,
 }: WeekViewProps) {
   const { accentOf, sourceColorOf } = mergeResolvers(resolvers);
   const drag = adapter?.drag ?? null;
@@ -94,6 +96,15 @@ function WeekGrid({
   );
   const alldayLanes = alldayBars.length > 0 ? Math.max(...alldayBars.map((b) => b.lane)) + 1 : 0;
 
+  // The bench lane's contents: open tasks committed to the visible week (week_start
+  // = this Monday) with no day yet. Empty unless benchLane is on.
+  const benched = useMemo(
+    () => (benchLane
+      ? items.filter((it) => it.kind === 'task' && it.week_start === cursor && !it.due_date && !it.completed)
+      : []),
+    [items, cursor, benchLane],
+  );
+
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
     const i = setInterval(() => setNow(new Date()), 60000);
@@ -122,6 +133,9 @@ function WeekGrid({
           scheduled_time: fracToTime(overFrac),
           scheduled_end: fracToTime(overFrac + 1),
         });
+      } else if (overZone === 'bench') {
+        // Demote to this week's bench (zone only exists when benchLane is on).
+        onUpdateItem?.(item.id, { due_date: null, week_start: cursor, scheduled_time: null, scheduled_end: null });
       } else if (overZone === 'untimed' && overDay && overDay !== item.due_date) {
         onUpdateItem?.(item.id, { due_date: overDay });
       }
@@ -145,6 +159,9 @@ function WeekGrid({
             scheduled_time: fracToTime(overFrac),
             scheduled_end: fracToTime(overFrac + dur),
           });
+        } else if (overZone === 'bench') {
+          // Demote to this week's bench (zone only exists when benchLane is on).
+          onUpdateItem?.(item.id, { due_date: null, week_start: cursor, scheduled_time: null, scheduled_end: null });
         } else if (overZone === 'untimed' && overDay) {
           onUpdateItem?.(item.id, { due_date: overDay, scheduled_time: null, scheduled_end: null });
         }
@@ -180,6 +197,24 @@ function WeekGrid({
         if (item.end_date) updates.end_date = addDays(item.end_date, delta);
         onUpdateItem?.(item.id, updates);
       }
+    });
+  };
+
+  // A benched task (this week, no day) dragged onto a day commits it — normalising
+  // week_start to that day's Monday. Uses mode 'untimed' so the day zones highlight
+  // as targets. The reverse (day → bench) rides beginDragUntimed/Timed's bench branch.
+  const beginDragBench = (e: React.PointerEvent, item: CalendarItem) => {
+    e.preventDefault();
+    beginDrag(e, item, 'untimed', ({ overDay, overFrac, overZone }) => {
+      if (overZone === 'timed' && overFrac != null && overDay) {
+        onUpdateItem?.(item.id, {
+          due_date: overDay, week_start: weekStart(overDay),
+          scheduled_time: fracToTime(overFrac), scheduled_end: fracToTime(overFrac + 1),
+        });
+      } else if (overZone === 'untimed' && overDay) {
+        onUpdateItem?.(item.id, { due_date: overDay, week_start: weekStart(overDay) });
+      }
+      // dropped back on the bench (or nowhere): it's already benched here — no-op.
     });
   };
 
@@ -314,6 +349,47 @@ function WeekGrid({
                 </div>
               </div>
             )}
+
+            {/* This week's bench lane (opt-in) */}
+            {benchLane && (() => {
+              const isOver = drag?.overZone === 'bench';
+              const isTarget = anyDrag && (drag?.mode === 'untimed' || drag?.mode === 'timed');
+              return (
+                <div style={{ display: 'grid', gridTemplateColumns: `${WV_LABEL_W}px 1fr`, borderBottom: '1px solid var(--color-line)', background: 'var(--color-paper)', flexShrink: 0 }}>
+                  <div style={{ borderRight: '1px solid var(--color-line)', fontFamily: FONT_BODY, fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--color-faint)', padding: '7px 5px 0 0', textAlign: 'right' }}>
+                    this week
+                  </div>
+                  <div
+                    data-drop-zone="bench"
+                    style={{
+                      minHeight: 44, padding: 5, display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center',
+                      background: isOver ? 'color-mix(in srgb, var(--color-accent) 12%, transparent)' : 'transparent',
+                      outline: isOver ? '1px dashed var(--color-accent)' : isTarget ? '1px dashed var(--color-accent-glow)' : 'none',
+                      outlineOffset: -2, transition: 'background 0.08s',
+                    }}
+                  >
+                    {benched.length === 0 ? (
+                      <span style={{ fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 12, color: 'var(--color-faint)', paddingLeft: 4 }}>
+                        {isTarget ? 'drop to hold for the week' : 'nothing benched this week'}
+                      </span>
+                    ) : benched.map((it) => (
+                      <div key={it.id} style={{ flex: '0 1 200px', minWidth: 120, maxWidth: 220 }}>
+                        <TaskChip
+                          item={it}
+                          accent={accentOf(it) || 'var(--color-muted)'}
+                          size="sm"
+                          isSelected={selectedId === it.id}
+                          isDragging={drag?.item?.id === it.id}
+                          onSelect={onSelect}
+                          onToggle={onToggle}
+                          onPointerDown={hasDnd ? (e) => beginDragBench(e, it) : undefined}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Untimed lane */}
             <div style={{ display: 'grid', gridTemplateColumns: `${WV_LABEL_W}px repeat(7, minmax(0, 1fr))`, borderBottom: '1px solid var(--color-line)', background: 'var(--color-paper)', minHeight: 56 }}>
@@ -467,7 +543,7 @@ function WeekGrid({
           pending={createPending}
           onSubmit={(title: string) => {
             if (createPending.allDay) {
-              onAddItem?.({ kind: 'event', scope: 'day', source: 'bb', due_date: createPending.startDay, title });
+              onAddItem?.({ kind: 'event', scope: 'day', ...(createSource ? { source: createSource } : {}), due_date: createPending.startDay, title });
             } else {
               onAddItem?.({
                 kind: 'task',
@@ -495,7 +571,7 @@ function WeekAgenda({ items, today, resolvers, onSelect, onToggle }: WeekViewPro
   const days = Array.from({ length: 7 }, (_, i) => addDays(start, i));
 
   return (
-    <div className="bb-scroll" style={{ height: '100%', overflowY: 'auto', overflowX: 'hidden' }}>
+    <div style={{ height: '100%', overflowY: 'auto', overflowX: 'hidden' }}>
       <div style={{ padding: '22px 18px 28px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 20, gap: 12 }}>
           <div style={{ flexShrink: 0 }}>
@@ -537,7 +613,7 @@ function WeekAgenda({ items, today, resolvers, onSelect, onToggle }: WeekViewPro
                       return (
                         <div
                           key={it.id}
-                          className="bb-row"
+                          className="jk-cards-row"
                           onClick={() => onSelect?.(it)}
                           style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 9px', cursor: 'pointer', borderRadius: 3, background: isEvent ? 'rgba(0,0,0,0.22)' : 'transparent', borderLeft: `2px solid ${accent}` }}
                         >

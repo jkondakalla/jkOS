@@ -17,6 +17,7 @@
 import React, { createContext, useCallback, useContext, useState } from 'react';
 import { usePointerDrag, DRAG_THRESHOLD_PX, HOLD_MS } from '@jkos/ui';
 import type { DragAdapter, DragState, DropInfo } from './types';
+import { withAlpha } from '@jkos/design';
 import { fmtTime, fracToTime, snapFrac } from './datetime';
 import { FONT_BODY } from './theme';
 
@@ -150,7 +151,7 @@ function DragGhost({ drag, sourceColorOf }: { drag: DragState; sourceColorOf?: (
         fontFamily: FONT_BODY, fontSize: 11, fontWeight: 500,
         padding: '4px 10px',
         borderRadius: 'var(--hub-radius-soft)',
-        boxShadow: `0 3px 16px rgba(0,0,0,0.45), 0 0 10px ${color}66`,
+        boxShadow: `0 3px 16px rgba(0,0,0,0.45), 0 0 10px ${withAlpha(color, 0.4)}`,
         maxWidth: 220, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
       }}>{title}</div>
       {hint && (

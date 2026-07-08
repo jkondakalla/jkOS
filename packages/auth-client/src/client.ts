@@ -18,15 +18,41 @@ export async function getProfile(): Promise<AuthProfile | null> {
   }
 }
 
-/** PATCH /auth/profile — merge-patches top-level preference keys. Refresh-aware
- *  (authFetch) so a preference save issued just past the access-token TTL still
- *  persists instead of silently 401ing. */
-export async function patchProfile(preferences: Partial<UserPreferences>): Promise<void> {
-  await authFetch(`${AUTH_URL}/auth/profile`, {
+/** Result of a preference PATCH (ARCH-7.2). `conflict` is true when the server
+ *  rejected the write because `prefsVersion` was stale (409 CONFLICT); `preferences`
+ *  then carries the current server blob and `prefs_version` its version, so a caller
+ *  can re-apply its slice and retry. On success, `prefs_version` is the new cursor. */
+export interface PatchResult {
+  ok:            boolean;
+  conflict:      boolean;
+  prefs_version?: number;
+  preferences?:  UserPreferences;
+}
+
+/** PATCH /auth/profile — deep-merges preference slices server-side. Refresh-aware
+ *  (authFetch) so a save issued just past the access-token TTL still persists
+ *  instead of silently 401ing. Pass `prefsVersion` to opt into the optimistic lock
+ *  (the shared hook does); omit it for a fire-and-forget write (still deep-merged,
+ *  so it can't drop a sibling slice). Returns the outcome so a caller can react to
+ *  a 409 conflict; existing `await patchProfile(x)` callers can ignore it. */
+export async function patchProfile(
+  preferences: Partial<UserPreferences>,
+  prefsVersion?: number,
+): Promise<PatchResult> {
+  const body: Record<string, unknown> = { preferences };
+  if (prefsVersion !== undefined) body.prefs_version = prefsVersion;
+  const r = await authFetch(`${AUTH_URL}/auth/profile`, {
     method:  'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify({ preferences }),
+    body:    JSON.stringify(body),
   });
+  if (r.status === 409) {
+    const j = await r.json().catch(() => ({}));
+    return { ok: false, conflict: true, prefs_version: j.prefs_version, preferences: j.preferences };
+  }
+  if (!r.ok) return { ok: false, conflict: false };
+  const j = await r.json().catch(() => ({}));
+  return { ok: true, conflict: false, prefs_version: j.prefs_version };
 }
 
 /** GET /auth/me → current user. Throws on 5xx (broken backend ≠ logged out).

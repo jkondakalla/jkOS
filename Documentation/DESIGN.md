@@ -58,6 +58,28 @@ are neutrals (light/dark backgrounds + readable text). Apps **must not** bake `-
 or restate the derivation; they supply only inputs through `buildJkOSTheme()`. Never
 hardcode hex in components — everything resolves through the chain.
 
+### CRT knob ownership
+
+`--crt-scanline-opacity` / `--crt-vignette-opacity` / `--crt-scanline-ink` are **owned by
+hub.css** — it sets the mode-gated base values (paper: flat scanline + a subtle `0.08`
+vignette; dark: `0.012` scanline + `0.45` vignette + pale ink). There is **one** sanctioned
+override: `@jkos/ui/tokens.css` (the import path the full-shell apps ORDECK/BeigeBoard use)
+flattens **only** the paper vignette to `0`, and inherits every other knob from hub.css.
+Static-mirror apps (jkAuth, jkos-deploy) render hub.css directly, so they keep the paper
+vignette. **Any new CRT knob is added in hub.css, never restated in `@jkos/ui`** — a second
+setter that drifts from the base is the exact bug this rule closes (`@jkos/ui` used to also
+re-set the dark vignette to `0.5`, silently diverging from hub's `0.45`). Apps raise the
+scanline atmosphere through `buildJkOSTheme()` inputs, not by re-declaring the knob.
+
+### Alpha on colours — `withAlpha()`, never hex-concat
+
+To fade a colour, use `withAlpha(color, fraction)` from `@jkos/design`. The old
+`` `${color}66` `` pattern only works for bare hex; on a CSS var
+(`var(--color-accent)`) it produces invalid CSS the browser silently drops (the glow just
+vanishes). `withAlpha` hex-concats bare hex and emits `color-mix(… transparent)` for
+everything else. The kit-purity gate (`pnpm check:cards`) bans the raw-concat pattern in
+`@jkos/cards` + `@jkos/ui`.
+
 ## Theme factory — `buildJkOSTheme()`
 
 Apps no longer hand-write token CSS. They call `buildJkOSTheme(config)` (`@jkos/design`)
@@ -114,6 +136,7 @@ key to inherit the hub default. `selector` (default `:root`) scopes a subtree, e
 | `.bar-track` / `.bar-fill` | Amber-gradient meter |
 | `.glow`, `.glow-dim`, `.glow-cyan` | Phosphor text glow |
 | `.canvas-grid`, `.canvas-cell`, `.boot-sweep` | Grid canvas background, layout cells, boot-in animation |
+| `.jk-cards-row` / `.jk-cards-chip` / `.jk-cards-btn` | `@jkos/cards` interaction affordances (row hover, chip fade, button press). Kit-owned so the calendar renders identically in BeigeBoard tabs **and** ORDECK widgets — never reach for a host app.css class inside the kit |
 
 Keyframes available: `led-pulse`, `blink`, `data-flicker`, `grain`. Scrollbars and
 `::selection` are already styled globally — don't restyle per-app.

@@ -11,6 +11,9 @@ services:
       PORT: "3001"
       DB_PATH: /data/beigeBoard.db
       STATIC_DIR: /app/dist
+      # Encrypts calendar OAuth refresh tokens + iCloud app password at rest (AES-256-GCM).
+      # Supply via .env (openssl rand -hex 32). Unset → plaintext (safe no-op). See OPERATIONS.md.
+      CALENDAR_ENC_KEY: ${CALENDAR_ENC_KEY:-}
     volumes:
       - ${BEIGEBOARD_DATA_PATH:-/mnt/Luna/Backends/Production/beigeboard-data}:/data
     extra_hosts:

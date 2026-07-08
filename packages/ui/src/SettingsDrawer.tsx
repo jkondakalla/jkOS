@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
-import { ACCENT_SCHEMES, matchAccentScheme, CUSTOM_SCHEME_ID } from '@jkos/design';
+import { ACCENT_SCHEMES, matchAccentScheme, CUSTOM_SCHEME_ID, withAlpha } from '@jkos/design';
 
 /* ─────────────────────────────────────────────────────────────────────────────
    @jkos/ui — the ONE settings drawer for the whole suite.
@@ -288,7 +288,7 @@ function AccentChooser({ theme, patchTheme }: { theme: Theme; patchTheme: (p: Pa
 
   const dot = (c: string): CSSProperties => ({
     width: 9, height: 9, borderRadius: '50%', background: c,
-    boxShadow: `0 0 4px ${c}88`, display: 'inline-block', flexShrink: 0,
+    boxShadow: `0 0 4px ${withAlpha(c, 0.533)}`, display: 'inline-block', flexShrink: 0,
   });
   const tile = (active: boolean): CSSProperties => ({
     flex: 1, minWidth: 0, height: 30,
@@ -349,7 +349,7 @@ function ColorRow({ label, color, onChange }: { label: string; color: string; on
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
       <span style={{ fontSize: 10, color: TXT_FAINT, width: 62, flexShrink: 0, fontFamily: FONT, letterSpacing: '0.06em' }}>{label}</span>
       <button type="button" onClick={() => ref.current?.click()}
-        style={{ width: 30, height: 30, flexShrink: 0, background: color, border: `2px solid ${LINE}`, cursor: 'pointer', boxShadow: `0 0 10px ${color}55`, outline: 'none', transition: 'box-shadow 0.15s' }} />
+        style={{ width: 30, height: 30, flexShrink: 0, background: color, border: `2px solid ${LINE}`, cursor: 'pointer', boxShadow: `0 0 10px ${withAlpha(color, 0.333)}`, outline: 'none', transition: 'box-shadow 0.15s' }} />
       <input ref={ref} type="color" value={color} onChange={e => onChange(e.target.value)} style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', width: 0, height: 0 }} />
       <input type="text" value={draft} onChange={e => handleText(e.target.value)}
         onBlur={() => { if (!/^#[0-9a-fA-F]{6}$/.test(draft)) setDraft(color); }} maxLength={7} spellCheck={false}

@@ -77,9 +77,11 @@ Layout is saved per user in jkAuth preferences — your HUD follows you across d
 
 | File | Read it for |
 |------|-------------|
-| [ARCHITECTURE.md](ARCHITECTURE.md) | How the five systems fit together — mental models, auth/session model, data ownership, Weave fabric, nginx topology, prod/staging isolation. **Start here for any engineering work.** |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | How the systems fit together — mental models, auth/session model, data ownership, Weave fabric, nginx topology, prod/staging isolation. **Start here for any engineering work.** |
+| [PRIMITIVES.md](PRIMITIVES.md) | **The low-level action catalog** — every command, gate, factory call, hook, component, and skill you can use, by category, with how and why. |
 | [WEAVE.md](WEAVE.md) | The integration contract in full — what an app must implement, transport model, security model, command vocabulary, adding a new app. |
 | [OPERATIONS.md](OPERATIONS.md) | Dev commands, Docker build model, deploy pipeline, cold start from zero, TrueNAS paths, known gotchas. |
 | [DESIGN.md](DESIGN.md) | Design system — aesthetic identity, token contract, factory, typography, per-app constraints. |
-| [SUITE_PROBER.md](SUITE_PROBER.md) | The conformance instrument — a read-only "synthetic sixth app" that asserts cross-system invariants. What it checks, where it fits below the contract gate, how it expands. |
-| [CONSOLIDATION.md](CONSOLIDATION.md) | Findings the prober surfaced — duplicated truth and unenforced coupling, with the consolidation/unification opportunities. |
+| [TESTING.md](TESTING.md) | The test system — every test and what it asserts, the gate anatomy, the suite prober, house patterns for new tests. |
+| [PLANNING_METHOD.md](PLANNING_METHOD.md) | The breakdown method the BeigeBoard Workshop embodies — taxonomy, weekly bench, data mapping. |
+| [ToDo.md](ToDo.md) | The working backlog — self-contained planned-but-not-executed work sections. |

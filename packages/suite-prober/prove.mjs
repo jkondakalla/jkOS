@@ -7,18 +7,32 @@
  * 'gap' / 'info' are reported but never fail the run — they are opportunities, not
  * regressions. Read-only: this process writes nothing back to the suite.
  *
- *   node prove.mjs            human report
- *   node prove.mjs --json     machine report (for piping into the write-up / CI)
+ *   node prove.mjs                         human report (file mode)
+ *   node prove.mjs --json                  machine report (for piping into CI)
+ *   node prove.mjs --live <baseUrl>        run against a DEPLOYED stack (TEST-1); the
+ *                                          1NN-live-* probes turn on and health / doc /
+ *                                          gate liveness are asserted over HTTP. Add
+ *                                          --token <jwt> (or PROBE_TOKEN) to validate the
+ *                                          authed directory + gated docs too.
+ *
+ * In file mode the live-only probes are inert, so this stays the same read-only gate.
+ * A `--live` run exits non-zero on drift exactly like file mode (a dead deployment IS a
+ * hard contract break), so it can gate a post-deploy smoke.
  */
 import { loadTopology } from './src/topology.mjs';
+import { liveTopology } from './src/live.mjs';
 import { loadProbes } from './src/probes/index.mjs';
 
 const ICON = { drift: '✗', consolidate: '⊕', gap: '▲', info: 'ℹ', ok: '✓' };
 const ORDER = ['drift', 'consolidate', 'gap', 'info', 'ok'];
 
-const json = process.argv.includes('--json');
+const argv = process.argv.slice(2);
+const flagValue = (name) => { const i = argv.indexOf(name); return i >= 0 ? argv[i + 1] : null; };
+const json = argv.includes('--json');
+const liveBase = flagValue('--live');
+const token = flagValue('--token') || process.env.PROBE_TOKEN || null;
 
-const model = loadTopology();
+const model = liveBase ? await liveTopology(liveBase, { token }) : loadTopology();
 const probes = await loadProbes();
 
 const results = probes.map((p) => ({ probe: p, findings: p.run(model) }));
@@ -37,7 +51,13 @@ console.log('\n  jkOS suite-prober — the synthetic sixth consumer');
 console.log('  topology: ' +
   `${model.apps.size} apps · ${model.registry.length} registry rows · ` +
   `${model.manifest.length} manifest entries · ${model.nginxPeers.length} nginx peers · ` +
-  `${Object.keys(model.codes).length} codes\n`);
+  `${Object.keys(model.codes).length} codes`);
+if (model.live) {
+  console.log(`  LIVE against ${model.live.baseUrl} ` +
+    `(${model.live.authenticated ? 'authenticated' : 'unauthenticated'}, ` +
+    `probed ${Object.keys(model.live.apps).length} app surfaces at ${model.live.fetchedAt})`);
+}
+console.log('');
 
 for (const { probe, findings } of results) {
   console.log(`── ${probe.title}  [${probe.id}]`);

@@ -5,6 +5,7 @@
  */
 
 import type { DragState } from './types';
+import { withAlpha } from '@jkos/design';
 import { FONT_BODY, FONT_NUM } from './theme';
 import { fmtTime, fracToTime, timeToFrac } from './datetime';
 import { WV_FIRST_H, WV_ROW_H } from './constants';
@@ -55,10 +56,10 @@ export function TimelinePreview({ drag, sourceColorOf }: TimelinePreviewProps) {
         top,
         height,
         borderRadius: 'var(--hub-radius-soft)',
-        background: mode === 'timed' ? `${color}CC` : `${color}55`,
+        background: mode === 'timed' ? withAlpha(color, 0.8) : withAlpha(color, 0.333),
         border: `1px dashed ${color}`,
         borderTop: mode === 'timed' ? '2px solid var(--color-on-accent-faint)' : `1px dashed ${color}`,
-        boxShadow: `0 0 12px ${color}44`,
+        boxShadow: `0 0 12px ${withAlpha(color, 0.267)}`,
         pointerEvents: 'none',
         zIndex: 6,
       }}

@@ -82,7 +82,7 @@ export function TaskChip({
         e.stopPropagation();
         onSelect?.(item);
       }}
-      className="day-chip"
+      className="jk-cards-chip"
       style={{
         display: 'flex',
         alignItems: 'center',

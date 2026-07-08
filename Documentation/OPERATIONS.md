@@ -18,18 +18,14 @@ After editing `packages/*`, run `pnpm install` to re-inject workspace packages i
 
 ## Contract gate
 
-Before pushing: `pnpm test:contracts`. Runs 29 auth assertions + 24 Weave assertions +
-token shape + nginx config check (`gen-nginx-weave.mjs --check`). A failure here means a
-cross-system contract has drifted — fix the source of truth, not the test.
-
-## Smoke tests
-
-```bash
-npm test                                        # jkAuth: 32-assertion in-process smoke test
-node backend/test/import.smoke.mjs              # BeigeBoard: 39-assertion import pipeline test
-```
-
-Run before and after changes to the relevant service.
+Before pushing: `pnpm test:contracts`. One chain covering every hard contract — auth
+contracts + the node↔python bridge, the jkAuth/BeigeBoard/LazurOS behavioural smokes, the
+weave + lego tests, the write round-trip, six static conformance checks
+(tokens/nginx/responsive/drag/cards/hud), and the suite prober (fails on `drift`). A
+failure means a cross-system contract has drifted — fix the source of truth, not the test.
+Full anatomy + per-app runners: [TESTING.md](TESTING.md); command catalog:
+[PRIMITIVES.md](PRIMITIVES.md). Post-deploy:
+`pnpm prove --live https://staging.jkos.net` smokes the deployed edge.
 
 ## Docker build model
 
@@ -80,6 +76,24 @@ Both run through `infra/scripts/lib-deploy.sh`. The shared routine:
 `jkos-deploy/docker-compose.yml` means "Promote to Production" ships exactly what staging ran.
 Flip to `main` to restore a merge-gated flow. The controller cannot redeploy itself — it runs
 as an isolated Compose project; rebuild it manually from the TrueNAS host.
+
+### Break-glass access (prod-jkAuth outage)
+
+The `/deploy` console is admin-gated by **prod** jkAuth — so if prod jkAuth is down, you
+can't sign in to the one tool that redeploys it (a bootstrap deadlock). Two escape hatches:
+
+- **Break-glass bearer (ARCH-8).** Set `BREAK_GLASS_TOKEN` in the controller's TrueNAS-side
+  env (never the repo — `openssl rand -hex 32`). While jkAuth is *unreachable*, the console
+  accepts `Authorization: Bearer <token>` as admin on any gated route; every use logs a
+  `[SECURITY] BREAK-GLASS …` line to `/var/log/jkos-deploy/last.log`. It is **inert whenever
+  jkAuth answers** (`jkauth_reachable()` re-checks live), so a leaked token can't bypass live
+  SSO. Example:
+  `curl -X POST -H "Authorization: Bearer $BREAK_GLASS_TOKEN" https://staging.jkos.net/deploy/staging/sync`
+  Leave `BREAK_GLASS_TOKEN` unset to disable the fallback entirely.
+- **Nginx edge gate.** The `auth_request` block in `standalone.conf` *also* fails closed on a
+  jkAuth outage. The break-glass bearer is checked by the controller *behind* that gate, so if
+  the edge `auth_request` is what's blocking you, hit the container directly on the TrueNAS host
+  (`docker exec` / the mapped container port) rather than through the public edge.
 
 ## Nginx config
 
@@ -177,8 +191,17 @@ for app in jkauth beigeboard ordeck; do
 done
 ```
 
-`CALENDAR_ENC_KEY`: 64 hex chars → AES-256-GCM for calendar OAuth tokens at rest.
-Generate: `openssl rand -hex 32`. Without it, tokens are stored plaintext (safe no-op).
+`CALENDAR_ENC_KEY`: 64 hex chars → AES-256-GCM for calendar OAuth refresh tokens and
+the iCloud app-specific password at rest. Generate: `openssl rand -hex 32`.
+
+Key lifecycle (the encryption is prefix-tagged `enc:v1:`, so reads are dual-mode):
+- **Unset:** secrets store as plaintext — safe no-op, unchanged legacy behaviour.
+- **Adding a key** to a running instance is safe: existing plaintext rows lack the
+  `enc:v1:` tag and read back verbatim; new writes encrypt. No migration needed.
+- **Removing or changing the key** after rows were encrypted makes those rows
+  **undecryptable** — the next sync throws and fails. Recovery is to reconnect the
+  affected calendar (the connect flow re-writes the credential under the current key).
+  So treat the key as permanent per instance; to rotate, reconnect calendars after.
 
 ### Start order
 

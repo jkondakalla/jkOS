@@ -64,18 +64,47 @@ router.get('/auth/jwks', (req, res) => {
 // Admins publish declarative widget definitions suite-wide; every HUD reads them
 // and can place them. Mirrors the /auth/apps registry pattern.
 
-// GET /auth/widgets — published widget definitions (any signed-in user).
+// Normalize an `allowed_roles` input (array of roles, comma string, or absent)
+// to a stored comma list, or null for "all roles" (ARCH-7.1). Empty / falsy →
+// null so an existing publish that omits the field stays visible to everyone.
+function normalizeRoles(input) {
+  const list = Array.isArray(input)
+    ? input
+    : (typeof input === 'string' ? input.split(',') : [])
+  const roles = [...new Set(list.map((s) => String(s).trim()).filter(Boolean))]
+  return roles.length ? roles.join(',') : null
+}
+
+// A widget row's allowed_roles gate: null/'' = every role; else the role must be
+// in the comma list. Admins always see every published widget (so the workshop can
+// manage role-restricted defs it wouldn't otherwise list).
+function roleMaySee(allowedRoles, role) {
+  if (role === 'admin') return true
+  if (!allowedRoles) return true
+  return allowedRoles.split(',').map((s) => s.trim()).includes(role)
+}
+
+// GET /auth/widgets — published widget definitions the caller's ROLE may see
+// (ARCH-7.1). A def can carry `allowed_roles` (set at publish); absent = all roles.
+// ORDECK needs no change — it renders whatever it receives. `allowed_roles` is
+// echoed back on each def so the admin workshop can display/round-trip the setting.
 router.get('/auth/widgets', (req, res) => {
   const user = resolveUser(req)
   if (!user) return res.status(401).json({ error: 'Not authenticated', code: 'UNAUTHENTICATED' })
   const widgets = []
-  for (const r of all('SELECT def FROM widget_registry ORDER BY label')) {
-    try { widgets.push(JSON.parse(r.def)) } catch { /* skip a corrupt row */ }
+  for (const r of all('SELECT def, allowed_roles FROM widget_registry ORDER BY label')) {
+    if (!roleMaySee(r.allowed_roles, user.role)) continue
+    try {
+      const def = JSON.parse(r.def)
+      widgets.push(r.allowed_roles ? { ...def, allowed_roles: r.allowed_roles.split(',') } : def)
+    } catch { /* skip a corrupt row */ }
   }
   res.json({ widgets })
 })
 
-// POST /auth/widgets — publish (upsert) a widget definition. Admin only.
+// POST /auth/widgets — publish (upsert) a widget definition. Admin only. Accepts
+// an optional `allowed_roles` (array or comma string) that scopes which roles see
+// it via GET /auth/widgets; omit for "all roles" (ARCH-7.1).
 router.post('/auth/widgets', (req, res) => {
   const user = resolveUser(req)
   if (!user) return res.status(401).json({ error: 'Not authenticated', code: 'UNAUTHENTICATED' })
@@ -86,11 +115,16 @@ router.post('/auth/widgets', (req, res) => {
   }
   const id = def.id.trim().slice(0, 64)
   const label = String(def.label || id).slice(0, 100)
-  const json = JSON.stringify({ ...def, id }).slice(0, 20000)
-  run(`INSERT INTO widget_registry (id, label, def, created_by, updated_at)
-       VALUES (?,?,?,?,datetime('now'))
-       ON CONFLICT(id) DO UPDATE SET label=excluded.label, def=excluded.def, updated_at=datetime('now')`,
-    [id, label, json, user.sub])
+  const allowedRoles = normalizeRoles(def.allowed_roles)
+  // Keep allowed_roles out of the stored def blob — the column is the source of
+  // truth (and what the GET filter reads); the GET re-attaches it for the client.
+  const { allowed_roles: _dropped, ...defBody } = def
+  const json = JSON.stringify({ ...defBody, id }).slice(0, 20000)
+  run(`INSERT INTO widget_registry (id, label, def, allowed_roles, created_by, updated_at)
+       VALUES (?,?,?,?,?,datetime('now'))
+       ON CONFLICT(id) DO UPDATE SET label=excluded.label, def=excluded.def,
+         allowed_roles=excluded.allowed_roles, updated_at=datetime('now')`,
+    [id, label, json, allowedRoles, user.sub])
   res.json({ ok: true, id })
 })
 

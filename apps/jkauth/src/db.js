@@ -213,6 +213,19 @@ const MIGRATIONS = [
         [lz.id, lz.name, lz.origin, lz.icon_url, lz.allowed_roles, lz.api_base, lz.health_path, lz.capabilities_path, lz.datasets_path, lz.ai])
     }
   }],
+
+  // Multi-user readiness (ARCH-7):
+  //  (7.1) Role-scoped published widgets — a published widget def can restrict which
+  //  roles may SEE it. NULL / '' means "all roles" (the default, so every existing
+  //  published widget stays visible to everyone). A comma list ('admin' or
+  //  'user,admin') is intersected with the requester's role at GET /auth/widgets.
+  //  (7.2) Optimistic-lock version for the preferences blob — bumped on every prefs
+  //  write so two tabs editing different slices (theme vs HUD layout) can't silently
+  //  clobber each other: a stale writer 409s and re-applies onto the fresh blob.
+  ['016_multiuser_readiness', () => {
+    addColumn('widget_registry', 'allowed_roles', 'TEXT')
+    addColumn('users', 'prefs_version', 'INTEGER NOT NULL DEFAULT 0')
+  }],
 ]
 
 function runMigrations() {
