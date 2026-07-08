@@ -1,0 +1,36 @@
+name: jkos-staging-papyros
+services:
+  papyros-app:
+    build:
+      context: ../..
+      dockerfile: apps/papyros/Dockerfile
+      args:
+        VITE_BASE: /papyros/
+        # Origin only — the auth client appends /auth/... itself. A /auth suffix here
+        # yields broken /auth/auth/login URLs.
+        VITE_JKOS_AUTH_URL: https://staging.jkos.net
+        VITE_API_URL: /papyros
+    container_name: staging-papyros-app
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PORT: "3010"
+      DB_PATH: /data/papyros.db
+      STATIC_DIR: /app/dist
+      JKOS_AUTH_URL: https://staging.jkos.net
+      SHELL_URL: https://staging.jkos.net
+      JKOS_COOKIE_SUFFIX: "_staging"
+      JKOS_AUTH_ISSUER: "jkos-auth-staging"
+      AUDIOBOOKS_DIR: /audiobooks
+    volumes:
+      - ${PAPYROS_DATA_PATH:-/mnt/Luna/Backends/Staging/papyros-data}:/data
+      - /mnt/Luna/Plex/Audiobooks:/audiobooks:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - nginx-staging-proxy
+
+networks:
+  nginx-staging-proxy:
+    external: true
+    name: nginx-staging-proxy

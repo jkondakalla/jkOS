@@ -71,6 +71,13 @@ const APPS = [
     capabilities: true, datasets: true, // Weave write+read contracts (LazurOS refactor)
     apiBase: '/api/lazuros', healthPath: '/api/lazuros/health', // host-network, bespoke paths
   },
+  {
+    id: 'papyros', name: 'PapyrOS', origin: 'https://papyros.jkos.net',
+    allowedRoles: ['user', 'admin'],
+    upstream: 'papyros-app:3010', health: true, api: true,
+    capabilities: true, datasets: true,
+    edge: 'standard', // GENERATED nginx server block + staging subpath (gen-nginx-weave.mjs)
+  },
 ]
 
 /* ── derivations: id → everything ────────────────────────────────────────────── */

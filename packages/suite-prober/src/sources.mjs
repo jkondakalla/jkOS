@@ -64,4 +64,10 @@ export const BACKEND_DOCS = [
     docsFile: 'apps/lazuros/backend/server.js',     // served from here (serveCapabilities/serveDatasets)
     exported: true,
   },
+  {
+    app: 'papyros',
+    module: 'apps/papyros/backend/discovery.js',    // CAPABILITIES/DATASETS as importable data (derived from one defineCollection)
+    docsFile: 'apps/papyros/backend/server.js',     // served from here (serveCapabilities/serveDatasets)
+    exported: true,
+  },
 ];

@@ -171,6 +171,61 @@ importers:
         specifier: ^5.4.0
         version: 5.4.21(@types/node@24.13.1)(lightningcss@1.32.0)
 
+  apps/papyros:
+    dependencies:
+      '@jkos/auth-client':
+        specifier: workspace:*
+        version: link:../../packages/auth-client
+      '@jkos/design':
+        specifier: workspace:*
+        version: link:../../packages/design
+      '@jkos/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      react:
+        specifier: ^18.3.1
+        version: 18.3.1
+      react-dom:
+        specifier: ^18.3.1
+        version: 18.3.1(react@18.3.1)
+    devDependencies:
+      '@types/react':
+        specifier: ^18.3.0
+        version: 18.3.29
+      '@types/react-dom':
+        specifier: ^18.3.0
+        version: 18.3.7(@types/react@18.3.29)
+      '@vitejs/plugin-react':
+        specifier: ^4.3.0
+        version: 4.7.0(vite@6.4.3(@types/node@24.13.1)(jiti@2.7.0)(lightningcss@1.32.0))
+      typescript:
+        specifier: ~5.6.0
+        version: 5.6.3
+      vite:
+        specifier: ^6.0.0
+        version: 6.4.3(@types/node@24.13.1)(jiti@2.7.0)(lightningcss@1.32.0)
+
+  apps/papyros/backend:
+    dependencies:
+      '@jkos/auth-middleware':
+        specifier: workspace:*
+        version: link:../../../packages/auth-middleware
+      '@jkos/suite-manifest':
+        specifier: workspace:*
+        version: link:../../../packages/suite-manifest
+      '@jkos/weave':
+        specifier: workspace:*
+        version: link:../../../packages/weave
+      better-sqlite3:
+        specifier: ^11.5.0
+        version: 11.10.0
+      cookie-parser:
+        specifier: ^1.4.7
+        version: 1.4.7
+      express:
+        specifier: ^4.19.2
+        version: 4.22.2
+
   apps/sylibos:
     dependencies:
       '@anthropic-ai/sdk':

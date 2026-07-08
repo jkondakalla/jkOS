@@ -5,7 +5,7 @@
  *  mirror of the runtime rows (a hand-written .d.ts cannot derive literals from
  *  CJS): `pnpm new-app` appends to it and the weave test gate asserts it matches
  *  `APP_IDS` in apps.js, so a drifted id fails red. */
-export declare const APP_IDS: readonly ['auth', 'beigeboard', 'sylibos', 'ordeck', 'staging', 'lazuros'];
+export declare const APP_IDS: readonly ['auth', 'beigeboard', 'sylibos', 'ordeck', 'staging', 'lazuros', 'papyros'];
 
 /** The canonical app-id union. Weave's public app-addressing signatures take THIS
  *  instead of `string`, so a typo'd or unregistered app id is a compile error at

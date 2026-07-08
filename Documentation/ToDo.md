@@ -131,18 +131,18 @@ but nothing below requires them.
 
 **Wave 1 — scaffold + suite wiring `[ARCH]`** *(sequential)*
 
-- [ ] **1.1** Run `pnpm new-app papyros --name "PapyrOS" --port 3010` then `pnpm install`.
+- [x] **1.1** Run `pnpm new-app papyros --name "PapyrOS" --port 3010` then `pnpm install`.
       Verify the emitted `APPS` row (keep `datasets:true` — papyros serves a `books` dataset),
       the `apps.d.ts` AppId entry, the prod compose include, and the four regenerated nginx
       confs.
-- [ ] **1.2** Wire mounts + ffmpeg: in `apps/papyros/docker-compose.yml` **and**
+- [x] **1.2** Wire mounts + ffmpeg: in `apps/papyros/docker-compose.yml` **and**
       `docker-compose.staging.yml` add volumes
       `${PAPYROS_DATA_PATH:-/mnt/Luna/Backends/<env>/papyros-data}:/data` +
       `/mnt/Luna/Plex/Audiobooks:/audiobooks:ro` and env `AUDIOBOOKS_DIR: /audiobooks`; add
       `- path: apps/papyros/docker-compose.staging.yml` to the **root**
       `docker-compose.staging.yml`; `apt-get install -y ffmpeg` in the Dockerfile runtime
       (`node:20-slim`) stage.
-- [ ] **1.3** `cp apps/papyros/.env.example apps/papyros/.env`; add the `BACKEND_DOCS` row in
+- [x] **1.3** `cp apps/papyros/.env.example apps/papyros/.env`; add the `BACKEND_DOCS` row in
       `packages/suite-prober/src/sources.mjs`; run the gate + build. (DNS `papyros.jkos.net`
       is Jag's, blocks prod promote only — staging is path-based.)
 

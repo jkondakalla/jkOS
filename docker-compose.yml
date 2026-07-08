@@ -17,3 +17,4 @@ include:
   - path: apps/beigeboard/docker-compose.yml
   - path: apps/sylibos/docker-compose.yml
   - path: apps/ordeck/docker-compose.yml
+  - path: apps/papyros/docker-compose.yml
