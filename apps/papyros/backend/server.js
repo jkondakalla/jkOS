@@ -17,10 +17,13 @@ const {
   weaveCors, weaveAuth, weaveWriteGate, healthHandler, serveCapabilities, serveDatasets,
 } = require('@jkos/weave/server');
 const { resolveIssuer } = require('@jkos/auth-middleware');   // shared issuer default (single source)
-const { CAPABILITIES, DATASETS } = require('./discovery');   // discovery docs (2.3 write side + 2.4 read side)
+const {
+  CAPABILITIES, DATASETS, PROGRESS, BOOKMARKS, CLUBS, CLUB_MEMBERS,
+} = require('./discovery');   // discovery docs (2.3/2.4) + 3.1's four owner-scoped collections
 const { createScanner } = require('./src/library/scan');     // 2.3: AUDIOBOOKS_DIR walker → `books` catalog
 const { createLibraryRouter } = require('./src/routes/library'); // 2.3: rescanLibrary route
 const { createBooksRouter } = require('./src/routes/books');     // 2.4: filtered `books` dataset read
+const { createMediaRouter } = require('./src/media');            // 3.2/3.3: stream/cover/book/download routes, mounted per 3.4
 
 /* ── Env ───────────────────────────────────────────────────────────────── */
 const PORT       = process.env.PORT       || 3010;
@@ -110,6 +113,13 @@ const MIGRATIONS = [
       `);
     },
   },
+  // 3.1: the four per-user collections — each DDL comes straight off its
+  // defineCollection (discovery.js), so the table, the CRUD routes (mounted below),
+  // and the served capability/dataset docs cannot drift from one another.
+  { id: 2, name: 'create_progress',     up(d) { d.exec(PROGRESS.ddl()); } },
+  { id: 3, name: 'create_bookmarks',    up(d) { d.exec(BOOKMARKS.ddl()); } },
+  { id: 4, name: 'create_clubs',        up(d) { d.exec(CLUBS.ddl()); } },
+  { id: 5, name: 'create_club_members', up(d) { d.exec(CLUB_MEMBERS.ddl()); } },
 ];
 
 function runMigrations() {
@@ -125,6 +135,16 @@ function runMigrations() {
     }
   }
 }
+
+/* 3.4 audit fix: run migrations NOW, before any route is registered below — not
+   deferred into boot() (which used to run it last, AFTER every app.use/app.get call
+   in this file had already executed). library/books routers happened to survive that
+   because they db.prepare() lazily inside each request handler; 3.4's media router
+   (src/media.js) prepares its `books` SELECT at construction time, so mounting it
+   below while `books` doesn't exist yet threw SQLITE_ERROR "no such table: books" at
+   boot. Matches apps/beigeboard/backend/src/db.js's require-time runMigrations() —
+   the DB is ready before any route or the listen() call touches it. */
+runMigrations();
 
 /* ── Express app ───────────────────────────────────────────────────────── */
 const app = express();
@@ -179,6 +199,25 @@ app.get('/api/auth/me', (req, res) => res.json({ user: req.user }));
 app.use(createLibraryRouter({ scanLibrary: scanner.scanLibrary }));
 app.use(createBooksRouter({ db }));
 
+/* ── Per-user collections (3.1) ────────────────────────────────────────────
+   progress/bookmarks/clubs/club_members each wire their own scoped GET/POST/PATCH/
+   DELETE at /api/<id> in one line — filtered (their dataset's declared filters) AND
+   owner-scoped to req.user.sub, derived from the CollectionDefs in discovery.js.
+   Mounted after the identity gate + write gate (above) and before the SPA fallback,
+   same slot as the library/books routes. */
+PROGRESS.mount(app, db);
+BOOKMARKS.mount(app, db);
+CLUBS.mount(app, db);
+CLUB_MEMBERS.mount(app, db);
+
+/* ── Media (3.2 stream/cover/book-detail + 3.3 download) ──────────────────
+   The playback backend: range-aware audio streaming, cover art, book detail (the
+   per-track file manifest BOOK_SHAPE deliberately excludes from the list route), and
+   whole-book download (single file direct, multi-file zipped on the fly). Task 3.4
+   mounts it here — same identity-gated + write-gate-cleared slot as library/books/
+   collections above, still before the /api/* 404 catch-all and the SPA fallback. */
+app.use(createMediaRouter({ db, audiobooksDir: AUDIOBOOKS_DIR, dataDir: DATA_DIR }));
+
 /* ── Static + SPA fallback ─────────────────────────────────────────────── */
 app.all('/api/*', (_req, res) => res.status(404).json({ error: 'Not found' }));
 app.use(express.static(STATIC_DIR));
@@ -190,7 +229,8 @@ app.get('*', (req, res) => {
 
 /* ── Boot ──────────────────────────────────────────────────────────────── */
 function boot() {
-  runMigrations();
+  // runMigrations() already ran above (before routes were registered) — boot() only
+  // has to start listening + kick off the background scan.
   app.listen(PORT, () => {
     console.log(`PapyrOS running on :${PORT}`);
     // Non-blocking background scan: listen() must not wait on walking (possibly a

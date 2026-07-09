@@ -177,23 +177,23 @@ but nothing below requires them.
 
 **Wave 3 — playback backend**
 
-- [ ] **3.1 `[FEAT-P]`** `discovery.js` scoped collections (`defineCollection`, `scoped:true`,
+- [x] **3.1 `[FEAT-P]`** `discovery.js` scoped collections (`defineCollection`, `scoped:true`,
       owner = `req.user.sub`): `progress {book_ref, position, duration, finished(filter:eq),
       last_played}`; `bookmarks {book_ref, position, title, note}`; `clubs {name, description,
       current_pick}`; `club_members {club_ref, member_sub}`. Mount with `.mount(app, db)`.
       *Heads-up for Wave 8, don't solve now:* scoped collections hide rows cross-user, so
       "who's-caught-up" will need a bespoke membership-gated read route.
-- [ ] **3.2 `[FEAT-P]`** ∥ `backend/src/media.js` part 1: `GET /api/stream/:bookId/:fileIndex`
+- [x] **3.2 `[FEAT-P]`** ∥ `backend/src/media.js` part 1: `GET /api/stream/:bookId/:fileIndex`
       — resolve catalog → file under `/audiobooks`; honor `Range` → `206` +
       `Content-Range`/`Accept-Ranges`/`Content-Length` via `fs.createReadStream({start,end})`,
       no Range → `200` full. Also `GET /api/cover/:bookId` (cacheable headers) and
       `GET /api/book/:bookId` (full detail: metadata + files + chapters).
-- [ ] **3.3 `[FEAT-P]`** ∥ `media.js` part 2: `GET /api/download/:bookId` — single file
+- [x] **3.3 `[FEAT-P]`** ∥ `media.js` part 2: `GET /api/download/:bookId` — single file
       streamed direct with `Content-Disposition`; multi-file book → zip stream (new CJS dep,
       e.g. `archiver`). Feeds the Wave-7 offline cache.
-- [ ] **3.4 `[ARCH]`** `server.js` audit: canonical middleware order (see crib); media routes
+- [x] **3.4 `[ARCH]`** `server.js` audit: canonical middleware order (see crib); media routes
       sit after the identity gate (valid `jkos_token` required) and before the SPA fallback.
-- [ ] **3.5 `[FEAT-P]`** Smoke v2: owner-scoped `progress` round-trip as two mock users (B
+- [x] **3.5 `[FEAT-P]`** Smoke v2: owner-scoped `progress` round-trip as two mock users (B
       cannot read A's rows); `Range: bytes=0-1023` → `206` with correct `Content-Range`;
       cover route → `200`.
 

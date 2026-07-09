@@ -29,8 +29,19 @@
 #                                 back to the folder name for its title, and this fixture
 #                                 mirrors that instead of accidentally asserting on a
 #                                 per-track title tag.
+#   Fixture Book B/cover.jpg  — task 3.5: a tiny (229-byte) solid-color JPEG, folder-level
+#                                 (not embedded in either mp3). Neither of Fixture Book B's
+#                                 tracks carries embedded art, so scan.js's extractCover()
+#                                 falls through its embedded-art attempt (ffmpeg -c:v copy
+#                                 fails — no video stream to copy) to the folder `cover.*`
+#                                 fallback and picks this file up, giving playback.smoke.mjs
+#                                 a real `cover_path` to exercise GET /api/cover/:bookId
+#                                 end-to-end. Fixture Book A is deliberately left cover-less
+#                                 so library.smoke.mjs's assertions (which predate covers)
+#                                 stay meaningful either way.
 #
-# Each file is a couple of seconds of a sine tone at 32kb/s — a few KB, safe to commit.
+# Each audio file is a couple of seconds of a sine tone at 32kb/s — a few KB, safe to
+# commit. The cover is a single 32x32 solid-color frame, similarly tiny.
 
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
@@ -86,6 +97,12 @@ ffmpeg -hide_banner -loglevel error -y \
   -metadata date=2023 -metadata genre="Sci-Fi" \
   -c:a libmp3lame -b:a 32k \
   "${B_DIR}/02 track two.mp3"
+
+echo "generating ${B_DIR}/cover.jpg (folder-level cover, task 3.5)…"
+ffmpeg -hide_banner -loglevel error -y \
+  -f lavfi -i "color=c=0x4a7c9b:s=32x32:d=1" \
+  -frames:v 1 -q:v 8 \
+  "${B_DIR}/cover.jpg"
 
 echo "done:"
 find "$A_DIR" "$B_DIR" -type f -exec ls -la {} \;
