@@ -14,7 +14,7 @@ services:
       AUDIOBOOKS_DIR: /audiobooks
     volumes:
       - ${PAPYROS_DATA_PATH:-/mnt/Luna/Backends/Production/papyros-data}:/data
-      - /mnt/Luna/Plex/Audiobooks:/audiobooks:ro
+      - /mnt/Luna/Luna/Plex/Audiobooks:/audiobooks:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:

@@ -122,8 +122,12 @@ but nothing below requires them.
   the vite `commonjsOptions.include` CJS fix (`auth-middleware`, `suite-manifest`); verify via
   **build + preview**, not vite dev.
 - Tests: author via the **new-tester** skill and chain into `pnpm test:contracts`.
-- Library: `/mnt/Luna/Plex/Audiobooks` (~19 titles, one folder per book, no author folders —
-  author/series come from embedded tags or the match step). TrueNAS files are uid/gid
+- Library: `/mnt/Luna/Luna/Plex/Audiobooks` on the TrueNAS host — NOT `/mnt/Luna/Plex/...`. The
+  "Luna" SMB share Jag's desktop mounts is itself a dataset nested one level inside the "Luna"
+  pool, so the pool-root-looking path is a trap: it silently bind-mounts an empty dir instead of
+  erroring (caught 2026-07-09 on papyros's first staging deploy). ~19 titles, one folder per
+  book, no author folders — author/series come from embedded tags or the match step. TrueNAS
+  files are uid/gid
   `1000:1000`. Data dirs: `/mnt/Luna/Backends/{Production,Staging}/<id>-data` (created on
   first deploy). nginx on deploy: **restart, not reload** (bind-mount inodes).
 
@@ -138,7 +142,7 @@ but nothing below requires them.
 - [x] **1.2** Wire mounts + ffmpeg: in `apps/papyros/docker-compose.yml` **and**
       `docker-compose.staging.yml` add volumes
       `${PAPYROS_DATA_PATH:-/mnt/Luna/Backends/<env>/papyros-data}:/data` +
-      `/mnt/Luna/Plex/Audiobooks:/audiobooks:ro` and env `AUDIOBOOKS_DIR: /audiobooks`; add
+      `/mnt/Luna/Luna/Plex/Audiobooks:/audiobooks:ro` and env `AUDIOBOOKS_DIR: /audiobooks`; add
       `- path: apps/papyros/docker-compose.staging.yml` to the **root**
       `docker-compose.staging.yml`; `apt-get install -y ffmpeg` in the Dockerfile runtime
       (`node:20-slim`) stage.
