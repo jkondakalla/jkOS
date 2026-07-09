@@ -43,6 +43,7 @@ One command, every hard contract. Its links, in order:
 | `--filter @jkos/beigeboard-backend test` | `import.smoke` (39) + `items.smoke` (48) + `delta.smoke` (14) + `contract.smoke` (14) + `calendar.sandbox` (29) | import pipeline, CRUD hardening + reserved-source guard, `?since` cursor, declared==enforced, calendar providers + wipe guard + enc round-trip |
 | `pnpm roundtrip` | `roundtrip.mjs` (23) | the discovered write path end-to-end |
 | `--filter @jkos/lazuros-backend test` | queue (18) + providers (30) + writeback (11) + worker-e2e (12) | job queue, provider factories, delegated write-back, real worker.py against the real `/internal` API |
+| `--filter @jkos/papyros-backend test` | `probe.smoke` (33) + `library.smoke` (45) | ffprobe-tag→column mapping (pure), library scanner e2e against a committed fixture library (duration, embedded chapters, multi-file aggregation, `?title=` filter). **Needs `ffprobe` on PATH** — SKIPs cleanly (exit 0) if absent. |
 | `pnpm test:cards` | `test/cards-logic.mjs` (49) | withAlpha + datetime/lane math (the real functions, transpiled in-memory) |
 | `pnpm check:*` × 6 | see §2.2 | static conformance |
 | `pnpm prove` | file-mode prober | cross-system topology invariants; exits non-zero on `drift` |
@@ -87,6 +88,7 @@ pnpm --filter @jkos/jkauth test                # auth smoke + lifecycle + multiu
 pnpm --filter @jkos/jkauth test:contracts      # codes/issuer/python bridge only
 pnpm --filter @jkos/beigeboard-backend test    # all five BB smokes
 pnpm --filter @jkos/lazuros-backend test       # queue/providers/writeback/worker-e2e
+pnpm --filter @jkos/papyros-backend test       # probe.smoke + library.smoke (needs ffprobe)
 pnpm --filter @jkos/weave test                 # weave + lego
 python3 apps/lazuros/worker/test/worker.smoke.py   # worker unit half (15, mocked State node)
 bash jkos-deploy/scripts/selftest.sh           # deploy-pipeline dry-run (read-only; SKIPs cleanly without docker/openssl)

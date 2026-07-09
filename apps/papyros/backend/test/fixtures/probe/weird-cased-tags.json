@@ -1,0 +1,29 @@
+{
+  "streams": [
+    {
+      "index": 0,
+      "codec_name": "aac",
+      "codec_type": "audio",
+      "sample_rate": "44100",
+      "channels": 1
+    }
+  ],
+  "chapters": [],
+  "format": {
+    "filename": "/audiobooks/Weird Casing Test/book.m4b",
+    "nb_streams": 1,
+    "format_name": "mov,mp4,m4a,3gp,3g2,mj2",
+    "duration": "3600.000000",
+    "size": "57600000",
+    "bit_rate": "128000",
+    "tags": {
+      "Title": "Weird Casing Test",
+      "ARTIST": "Some Author",
+      "Album_Artist": "Fallback Author",
+      "COMPOSER": "The Narrator",
+      "Album": "Weird Series",
+      "DATE": "2021-08-15",
+      "Genre": "Sci-Fi"
+    }
+  }
+}

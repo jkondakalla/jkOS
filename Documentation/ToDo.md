@@ -148,27 +148,27 @@ but nothing below requires them.
 
 **Wave 2 — library service: scanner + catalog**
 
-- [ ] **2.1 `[FEAT-P]`** Migration replacing the scaffolded `items` collection: a **shared**
+- [x] **2.1 `[FEAT-P]`** Migration replacing the scaffolded `items` collection: a **shared**
       (not user-scoped) `books` table — `id, path UNIQUE, title, subtitle, author, narrator,
       series, series_seq, year, genres(json), duration, files(json:[{index,path,duration,
       codec}]), chapters(json:[{start,end,title}]), cover_path, metadata_source
       ('embedded'|'itunes'|'manual'), ext_ref, mtime, added_at, updated_at`.
-- [ ] **2.2 `[FEAT-P]`** ∥ `backend/src/library/probe.js`: pure ffprobe wrapper —
+- [x] **2.2 `[FEAT-P]`** ∥ `backend/src/library/probe.js`: pure ffprobe wrapper —
       `ffprobe -v quiet -print_format json -show_format -show_streams -show_chapters <file>` →
       `{tags, duration, chapters, codec}`, plus the tag→column mapping
       (`title/artist/album_artist/composer/album/date/genre` → title/author/narrator/series/
       year). Keep the mapping pure and unit-test it against fixture JSON (no exec needed).
-- [ ] **2.3 `[FEAT-P]`** `backend/src/library/scan.js`: walk `AUDIOBOOKS_DIR` (folder = one
+- [x] **2.3 `[FEAT-P]`** `backend/src/library/scan.js`: walk `AUDIOBOOKS_DIR` (folder = one
       book); collect audio files ordered by track# then filename; aggregate total duration +
       per-file sequential offsets; cover = embedded
       (`ffmpeg -i <f> -an -c:v copy /data/covers/<id>.jpg`) else a folder `cover.*`; upsert
       rows (skip when folder `mtime` unchanged), delete rows whose folder vanished;
       **non-blocking** background scan on boot; `rescanLibrary` admin-scoped capability.
       Design for N books, not 19.
-- [ ] **2.4 `[FEAT-P]`** ∥ Hand-authored `books` `DatasetDef` + filtered `GET /api/books`
+- [x] **2.4 `[FEAT-P]`** ∥ Hand-authored `books` `DatasetDef` + filtered `GET /api/books`
       reusing `buildItemFilters`/`filterSpec` (title/author prefix, series eq), exposed via
       `serveDatasets` so ORDECK/peers can discover the library.
-- [ ] **2.5 `[FEAT-P]`** Smoke v1 (new-tester, chained into the gate): commit a tiny fixture
+- [x] **2.5 `[FEAT-P]`** Smoke v1 (new-tester, chained into the gate): commit a tiny fixture
       library (2 books × 2-second files — generate with an ffmpeg sine source + an
       `;FFMETADATA1` `[CHAPTER]` metadata file so one book has embedded chapters); boot the
       real server; assert `/health`, `/api/capabilities` + `/api/datasets` shapes, and that

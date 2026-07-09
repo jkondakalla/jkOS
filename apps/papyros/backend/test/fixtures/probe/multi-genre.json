@@ -1,0 +1,25 @@
+{
+  "streams": [
+    {
+      "index": 0,
+      "codec_name": "aac",
+      "codec_type": "audio",
+      "sample_rate": "44100",
+      "channels": 2
+    }
+  ],
+  "chapters": [],
+  "format": {
+    "filename": "/audiobooks/Multi Genre Book/book.m4b",
+    "nb_streams": 1,
+    "format_name": "mov,mp4,m4a,3gp,3g2,mj2",
+    "duration": "7200.000000",
+    "size": "115200000",
+    "bit_rate": "128000",
+    "tags": {
+      "title": "Multi Genre Book",
+      "artist": "Author X",
+      "genre": "Mystery/Thriller, Mystery, Crime"
+    }
+  }
+}

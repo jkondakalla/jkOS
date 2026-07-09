@@ -53,6 +53,13 @@ The `/suite-health` skill automates this walk and maps failure signatures to kno
 | `worker-e2e.smoke.mjs` | 12 | The full seam: real State node + real `worker.py process_once` (via `python3`) against the live bearer-gated `/internal` API, only Ollama faked; `PENDING_WAKEUP` path; write-back invocation. **Gotcha pinned in its header:** drive the worker via async `spawn`, never `spawnSync` — a sync child freezes the event loop that must answer it. |
 | `worker/test/worker.smoke.py` | 15 | Worker unit half against a mocked State node (claim race, unconfigured cap, infer error). Run: `python3 apps/lazuros/worker/test/worker.smoke.py`. |
 
+### PapyrOS backend (`apps/papyros/backend/test/`)
+
+| File | Assertions | Owns |
+|------|-----------|------|
+| `probe.smoke.mjs` | 33 | The PURE half of the library service (`src/library/probe.js`): `parseProbe`/`mapTagsToColumns`/`normalizeTags`/`extractYear`/`parseGenres` against hand-authored ffprobe JSON fixtures (`test/fixtures/probe/`) — casing-inconsistent tags, missing tags, multi-genre delimiters, chapter mapping. No `ffprobe` exec, no DB. |
+| `library.smoke.mjs` | 45 | End-to-end: boots the real server against a committed 2-book fixture library (`test/fixtures/library/`, regenerate via its `gen-fixtures.sh`), polls `/api/books` for the non-blocking boot scan to land, then asserts `/health`, `/api/capabilities` + `/api/datasets` doc shape, a single-file book's duration/tags/2 embedded chapters (chapters/files read straight off the sqlite file — `BOOK_SHAPE` deliberately excludes them from the list row), a two-file book's summed duration + sequential (track-tag) file ordering + no synthesized chapters, and the `?title=` prefix filter. **Requires `ffprobe` on PATH** (install `ffmpeg`) — SKIPS cleanly (exit 0, loud warning) if it's absent, same as `jkos-deploy/scripts/selftest.sh`'s docker/openssl skip pattern. |
+
 ### Cross-system (root `test/` + `packages/suite-prober/` + scripts)
 
 | Runner | Owns |
