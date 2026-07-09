@@ -11,10 +11,16 @@
 // four per-user tables — progress/bookmarks/clubs/club_members are genuine user CRUD (not
 // scanner-populated, not shared), exactly the shape defineCollection was built for — so
 // their table, routes, and discovery docs derive from ONE spec each (Layer D / F3), same
-// as Wave 1's `items`. Kept as pure data + zero side effects — safe for the suite-prober,
-// a workshop GUI, or an AI composer to require() with no env/DB/network.
+// as Wave 1's `items`. Wave 4 (4.1, below) brings `defineConnector` in for META — the
+// suite's FIRST production connector, wrapping the free/keyless iTunes Search API as a
+// suite peer (Layer D / F2+G2) so a book's metadata can be enriched from a search step,
+// same lego property as a native app's dataset. Kept as pure data + zero side effects —
+// safe for the suite-prober, a workshop GUI, or an AI composer to require() with no
+// env/DB/network: `defineConnector` only builds the clean dataset doc + a mount CLOSURE
+// here — it doesn't read auth.env or touch fetch until server.js calls `META.mount(app)`.
 const { resourceKey } = require('@jkos/suite-manifest');
 const { defineCollection } = require('@jkos/weave/collection');   // 3.1: the four collections below
+const { defineConnector } = require('@jkos/weave/connector');     // 4.1: META, the iTunes metadata connector below
 
 /** The `books` catalog's invalidation bus key — the scanner (src/library/scan.js)
  *  bumps every book row it touches, so a peer polling `books` refetches on rescan.
@@ -101,6 +107,62 @@ const CLUB_MEMBERS = defineCollection({
   ],
 });
 
+/* ── 4.1: META — the iTunes metadata connector (the suite's first) ────────────────
+   PapyrOS's `books` rows can carry only what the scanner extracted from the file's own
+   tags (embedded metadata, `metadata_source: 'embedded'`); a folder with sparse/missing
+   tags has nothing better to fall back on. iTunes Search is the ONE sanctioned external
+   call in this app — free, no key — so `defineConnector` wraps it as a suite peer: a
+   `metadataSearch` read that proxies `GET /search?media=audiobook&entity=audiobook` and
+   maps the JSON response straight to the SAME typed-row shape a native app's dataset
+   would serve (the lego property — a GUI/AI composer can't tell META apart from a
+   defineCollection dataset). `term` is the only filter and passes straight through to
+   the upstream query untouched (no upstream :param substitution needed), so this is
+   pure-data spec + factory — @jkos/weave stays untouched by this task. auth:{kind:'none'}
+   because the endpoint takes no key; `map` reads each mapped field off the upstream
+   result row by its iTunes JSON key (collectionId/collectionName/artistName/
+   artworkUrl100/description/releaseDate/primaryGenreName), `item` is this app's own
+   typed contract for what a metadata candidate row looks like on the wire — future
+   waves can wire this into rescanLibrary's enrichment ladder (`metadata_source:
+   'itunes'`) without discovery.js or server.js changing again. */
+const META = defineConnector({
+  app: 'papyros', id: 'meta', label: 'Audiobook metadata',
+  base: 'https://itunes.apple.com', auth: { kind: 'none' },   // free, no key
+  reads: [{ id: 'metadataSearch', label: 'Metadata candidates',
+    upstream: { path: '/search', query: { media: 'audiobook', entity: 'audiobook', limit: '5' } },
+    collection: 'results',
+    map: { id: 'collectionId', title: 'collectionName', author: 'artistName',
+           cover: 'artworkUrl100', description: 'description', year: 'releaseDate',
+           genre: 'primaryGenreName' },
+    item: [
+      { name: 'id',          type: 'number', label: 'iTunes collection id' },
+      { name: 'title',       type: 'string', label: 'Title' },
+      { name: 'author',      type: 'string', label: 'Author (artist)' },
+      { name: 'cover',       type: 'string', label: 'Cover artwork URL' },
+      { name: 'description', type: 'string', label: 'Description' },
+      { name: 'year',        type: 'string', label: 'Release date (ISO timestamp)' },
+      { name: 'genre',       type: 'string', label: 'Genre' },
+    ],
+    filters: [{ name: 'term', type: 'string', label: 'Search term', column: 'term', op: 'eq' }] }],
+});
+
+/* 4.2 closes the loop META opened: `matchBook` (below, in CAPABILITIES) takes ONE
+   candidate row shaped exactly like META's `metadataSearch` item above (the caller
+   picked it from that same read) plus a bookId, and writes it onto the `books` row —
+   author/description/year/genres + metadata_source:'itunes' + ext_ref:'itunes:<id>',
+   and best-effort upsizes+downloads the cover art. See src/routes/match.js for the
+   write set and artwork-failure semantics (long comment there, not repeated here). */
+
+/* 4.3 adds `matchAllMissing` (below, in CAPABILITIES) — an admin sweep over EVERY book
+   still `metadata_source:'embedded'` with a missing author or cover. Manual-first is
+   suite philosophy (AI-assist via LazurOS is parked, ToDo §2): the sweep only WRITES
+   (via the same applyCandidate() matchBook uses) when a candidate's title AND author
+   both match the book's exactly after conservative normalization (case-fold + trim +
+   collapse whitespace — nothing fuzzier); everything else — including every book
+   missing an author, since there's then no author to match against — comes back as a
+   review list for a human to pick from (the existing metadataSearch + matchBook flow).
+   See src/routes/match.js for the exact-match gate, the batch cap/throttle, and the
+   per-book upstream-failure handling (long comments there, not repeated here). */
+
 /* ── What can be DONE to PapyrOS (the write contract) ─────────────────────────
    rescanLibrary (2.3) walks AUDIOBOOKS_DIR and (re)catalogs books via
    src/library/scan.js. Admin-scoped (scopes: ['papyros:admin'] — jkAuth mints this for
@@ -127,6 +189,71 @@ const CAPABILITIES = {
       invalidates: [BOOKS_KEY], scopes: ['papyros:admin'],
       doc: 'Walks AUDIOBOOKS_DIR and (re)catalogs books: probes new/changed folders, extracts covers, removes rows whose folder vanished. A scan already in flight is joined, not duplicated.',
     },
+    {
+      // 4.2: matchBook — a REGULAR-USER capability (unlike rescanLibrary above): the
+      // Wave-5 "Fix metadata" flow lets any listener pick a candidate off
+      // GET /api/metadataSearch and apply it to a book they're looking at, so this
+      // carries no admin scopes/role gate of its own — weaveWriteGate (server.js)
+      // already requires `papyros:write` for any POST from a service caller, same as
+      // every other write route in this app.
+      id: 'matchBook', label: 'Match book metadata (iTunes)', method: 'POST', path: '/match',
+      body: [
+        { name: 'bookId', type: 'ref', label: 'Book', ref: 'papyros.books', required: true },
+        // `candidate` is one whole row off META's `metadataSearch` dataset (id/title/
+        // author/cover/description/year/genre) — the caller round-trips exactly what
+        // that read served, not a re-typed subset, so `type: 'json'` (the documented
+        // escape hatch, weave/capability.ts) is the honest shape here rather than
+        // flattening it into six top-level body fields a form would have to re-derive.
+        { name: 'candidate', type: 'json', label: 'Chosen metadataSearch candidate row', required: true },
+      ],
+      returns: [
+        { name: 'updated', type: 'boolean', label: 'Metadata written to the book row' },
+        { name: 'cover', type: 'enum', enum: ['updated', 'failed'], label: 'Artwork download outcome' },
+      ],
+      invalidates: [BOOKS_KEY], scopes: ['papyros:write'],
+      doc: 'Applies a chosen iTunes metadata candidate to a book: writes author/description/'
+        + 'year/genres (merged) + metadata_source:\'itunes\' + ext_ref:\'itunes:<candidate.id>\', '
+        + 'and best-effort downloads a 600x600 cover to /data/covers/<id>.jpg (upsized from the '
+        + 'candidate\'s 100x100 artworkUrl100). Title and series are left untouched — the scanner/'
+        + 'user title wins, and iTunes audiobook candidates carry no series field. A failed artwork '
+        + 'download does not fail the match: metadata still writes, cover_path is left unchanged, '
+        + 'and the response reports cover:\'failed\'.',
+    },
+    {
+      // 4.3: matchAllMissing — an ADMIN capability (unlike matchBook above): it writes
+      // to books other than the one the caller is looking at, so it carries the same
+      // admin gate as rescanLibrary (scopes:['papyros:admin'] + the equivalent
+      // req.user.role === 'admin' route check — src/routes/match.js, mirroring
+      // src/routes/library.js's precedent).
+      id: 'matchAllMissing', label: 'Match all missing metadata (iTunes, admin sweep)', method: 'POST', path: '/match/all',
+      body: [],
+      returns: [
+        { name: 'examined', type: 'number', label: 'Books examined this run (bounded by the per-run cap)' },
+        {
+          name: 'applied', type: 'json',
+          label: 'Books auto-applied via an exact title+author match: [{bookId, title, extRef}]',
+        },
+        {
+          name: 'review', type: 'json',
+          label: 'Books needing manual review: [{bookId, title, candidates, error?}] — '
+            + 'candidates is metadataSearch\'s typed item shape (possibly empty); error:true marks '
+            + 'a book whose iTunes search itself failed (network/upstream error), not a failed match.',
+        },
+        { name: 'truncated', type: 'boolean', label: 'True when more candidate books remain beyond this run\'s cap' },
+      ],
+      invalidates: [BOOKS_KEY], scopes: ['papyros:admin'],
+      doc: 'Sweeps every book still metadata_source:\'embedded\' with a missing author or missing '
+        + 'cover. For each, searches iTunes (title, plus author when the book has one) and '
+        + 'CONSERVATIVELY auto-applies (same write as matchBook) only when a candidate\'s title AND '
+        + 'author both match the book\'s exactly, after case-fold + trim + collapse-whitespace '
+        + 'normalization — nothing fuzzier, by design (manual-first is suite philosophy; AI-assist '
+        + 'via LazurOS is parked). A book with no author can never auto-apply (nothing to match '
+        + 'against) and always lands in review, even when candidates were found. Every other book — '
+        + 'no exact match, or the search itself failed — comes back in `review` for a human to pick '
+        + 'from via the existing metadataSearch + matchBook flow. Sequential, ~250ms between books '
+        + '(polite to the free/keyless upstream) and capped at 50 books per run (`truncated` flags '
+        + 'more); one book\'s search failure does not abort the run.',
+    },
     ...PROGRESS.capabilities,
     ...BOOKMARKS.capabilities,
     ...CLUBS.capabilities,
@@ -143,6 +270,11 @@ const CAPABILITIES = {
    derives its SELECT column list from BOOK_SHAPE.map(f => f.name) — the fields this
    doc says a `books` row carries and the columns the route actually queries are
    provably the same set, not two hand-synced lists (the drift class ARCH-1 named). */
+// NOTE (4.2): the `books` table also carries a `description` TEXT column (migration 6,
+// server.js) — added for matchBook to write iTunes' description onto. It's deliberately
+// NOT in BOOK_SHAPE: list rows stay lean for the browse grid (a blurb is detail-only
+// weight), so it's exposed solely by GET /api/book/:id (src/media.js), same asymmetry
+// as `files`/`chapters` above this comment's header already establishes.
 const BOOK_SHAPE = [
   { name: 'id',              type: 'number' },
   { name: 'title',           type: 'string' },
@@ -183,14 +315,18 @@ const BOOKS_DATASET = {
 /* 3.1 appends the four collections' DatasetDefs (DERIVED — filters/item shape come
    straight off the CollectionDefs above) so a peer (ORDECK's Wave-8 widget, a search
    step) can discover `progress`/`bookmarks`/`clubs`/`club_members` the same way it
-   discovers `books` — one served contract, no hand-typed second copy. */
+   discovers `books` — one served contract, no hand-typed second copy. 4.1 appends
+   META.datasets (just `metadataSearch` today) the same way — `defineConnector` already
+   strips the upstream/map plumbing, so it's exactly as clean as a defineCollection
+   dataset by the time it lands here. */
 const DATASETS = {
   app: 'papyros',
   version: 1,
-  datasets: [BOOKS_DATASET, PROGRESS.dataset, BOOKMARKS.dataset, CLUBS.dataset, CLUB_MEMBERS.dataset],
+  datasets: [BOOKS_DATASET, PROGRESS.dataset, BOOKMARKS.dataset, CLUBS.dataset, CLUB_MEMBERS.dataset, ...META.datasets],
 };
 
 module.exports = {
   CAPABILITIES, DATASETS, BOOKS_KEY, BOOK_SHAPE,
   PROGRESS, BOOKMARKS, CLUBS, CLUB_MEMBERS,   // 3.1: server.js .mount()s each of these
+  META,                                        // 4.1: server.js .mount()s this too (reads only, no CollectionDef .ddl())
 };

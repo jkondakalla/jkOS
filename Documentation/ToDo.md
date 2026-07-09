@@ -199,7 +199,7 @@ but nothing below requires them.
 
 **Wave 4 — metadata enrichment (the suite's first production connector)**
 
-- [ ] **4.1 `[FEAT-P]`** `META` connector in `discovery.js` — copy this spec verbatim:
+- [x] **4.1 `[FEAT-P]`** `META` connector in `discovery.js` — copy this spec verbatim:
 
       ```js
       const META = defineConnector({
@@ -218,15 +218,15 @@ but nothing below requires them.
 
       `term` passes straight through to the upstream query — no path-param needed, so
       **`packages/weave` stays untouched**.
-- [ ] **4.2 `[FEAT-P]`** `matchBook` capability + `POST /api/match`: given bookId + a chosen
+- [x] **4.2 `[FEAT-P]`** `matchBook` capability + `POST /api/match`: given bookId + a chosen
       candidate, upsize artwork (`100x100` → `600x600` in the URL), download it to
       `/data/covers/<id>.jpg`, write author/series/description + `metadata_source='itunes'` +
       `ext_ref='itunes:<collectionId>'` into the book row.
-- [ ] **4.3 `[FEAT-P]`** `matchAllMissing` admin capability — conservative: auto-apply only
+- [x] **4.3 `[FEAT-P]`** `matchAllMissing` admin capability — conservative: auto-apply only
       exact title+author matches for books still `metadata_source='embedded'` with missing
       author/cover; return everything else as candidate lists for manual review. Manual-first
       is suite philosophy; AI-assist via LazurOS is parked.
-- [ ] **4.4 `[FEAT-P]`** Smoke v3: mock global `fetch`; assert the connector maps an iTunes
+- [x] **4.4 `[FEAT-P]`** Smoke v3: mock global `fetch`; assert the connector maps an iTunes
       payload to typed rows, and `matchBook` writes the row + the cover file.
 
 **Wave 5 — frontend SPA + PWA foundation** *(5.2/5.3/5.5 ∥ after 5.1)*

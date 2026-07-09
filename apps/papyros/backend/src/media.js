@@ -367,6 +367,9 @@ function createMediaRouter({ db, audiobooksDir, dataDir }) {
   // manifest a player needs to build a playlist. The filesystem `path` column is
   // deliberately left off the wire: the FE streams by (bookId, fileIndex) through
   // /api/stream, never by a raw path, so there is nothing for it to do client-side.
+  // 4.2 adds `description` here (migration 6, server.js) — detail-only, same asymmetry
+  // as files/chapters above: a blurb is too heavy for the browse-grid list row, so it's
+  // NOT in BOOK_SHAPE and never appears on GET /api/books, only here.
   router.get('/api/book/:bookId', (req, res) => {
     const book = getBookStmt.get(req.params.bookId);
     if (!book) return res.status(404).json({ error: 'Not found' });
@@ -389,6 +392,7 @@ function createMediaRouter({ db, audiobooksDir, dataDir }) {
       series_seq: book.series_seq,
       year: book.year,
       genres,
+      description: book.description,
       duration: book.duration,
       cover_path: book.cover_path,
       metadata_source: book.metadata_source,

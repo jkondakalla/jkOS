@@ -18,12 +18,13 @@ const {
 } = require('@jkos/weave/server');
 const { resolveIssuer } = require('@jkos/auth-middleware');   // shared issuer default (single source)
 const {
-  CAPABILITIES, DATASETS, PROGRESS, BOOKMARKS, CLUBS, CLUB_MEMBERS,
-} = require('./discovery');   // discovery docs (2.3/2.4) + 3.1's four owner-scoped collections
+  CAPABILITIES, DATASETS, PROGRESS, BOOKMARKS, CLUBS, CLUB_MEMBERS, META,
+} = require('./discovery');   // discovery docs (2.3/2.4) + 3.1's four owner-scoped collections + 4.1's META connector
 const { createScanner } = require('./src/library/scan');     // 2.3: AUDIOBOOKS_DIR walker → `books` catalog
 const { createLibraryRouter } = require('./src/routes/library'); // 2.3: rescanLibrary route
 const { createBooksRouter } = require('./src/routes/books');     // 2.4: filtered `books` dataset read
 const { createMediaRouter } = require('./src/media');            // 3.2/3.3: stream/cover/book/download routes, mounted per 3.4
+const { createMatchRouter } = require('./src/routes/match');     // 4.2: matchBook — applies a metadataSearch candidate to a book
 
 /* ── Env ───────────────────────────────────────────────────────────────── */
 const PORT       = process.env.PORT       || 3010;
@@ -120,6 +121,11 @@ const MIGRATIONS = [
   { id: 3, name: 'create_bookmarks',    up(d) { d.exec(BOOKMARKS.ddl()); } },
   { id: 4, name: 'create_clubs',        up(d) { d.exec(CLUBS.ddl()); } },
   { id: 5, name: 'create_club_members', up(d) { d.exec(CLUB_MEMBERS.ddl()); } },
+  // 4.2: `books` had no home for an iTunes-sourced blurb — matchBook (src/routes/
+  // match.js) writes a candidate's description onto the book it matched, and
+  // GET /api/book/:id (src/media.js) serves it back. Deliberately NOT in BOOK_SHAPE's
+  // list row (discovery.js) — see that file's comment just above BOOK_SHAPE.
+  { id: 6, name: 'add_book_description', up(d) { d.exec('ALTER TABLE books ADD COLUMN description TEXT'); } },
 ];
 
 function runMigrations() {
@@ -209,6 +215,27 @@ PROGRESS.mount(app, db);
 BOOKMARKS.mount(app, db);
 CLUBS.mount(app, db);
 CLUB_MEMBERS.mount(app, db);
+
+/* ── Connectors (4.1) ──────────────────────────────────────────────────────
+   META wires GET /api/metadataSearch — it proxies to the iTunes Search API
+   server-side and maps the JSON response to the typed row shape declared in
+   discovery.js. `defineConnector`'s mount(router, opts) signature (not
+   defineCollection's mount(app, db) above) defaults opts.fetch to the global
+   fetch (Node >=18) and opts.basePath to '/api', so `META.mount(app)` needs no
+   overrides here — auth.kind is 'none' so there's no token to resolve either.
+   Mounted in the same identity-gated + write-gate-cleared slot as every other
+   route below (it is NOT in PUBLIC_PATHS above, so the gate at line ~170
+   still covers it — only /api/capabilities and /api/datasets are public). */
+META.mount(app);
+
+/* ── matchBook (4.2) ────────────────────────────────────────────────────────
+   POST /api/match applies a chosen metadataSearch candidate (META, just above) to a
+   book: author/description/year/genres + metadata_source/ext_ref, plus a best-effort
+   600x600 cover download to DATA_DIR/covers/<id>.jpg. No fetch override here — the
+   route defaults to the real global fetch (Node >=20); only the throwaway test in
+   task 4.2/4.4 injects a mock. Same identity-gated + write-gate-cleared slot as every
+   other route in this file. */
+app.use(createMatchRouter({ db, dataDir: DATA_DIR }));
 
 /* ── Media (3.2 stream/cover/book-detail + 3.3 download) ──────────────────
    The playback backend: range-aware audio streaming, cover art, book detail (the
