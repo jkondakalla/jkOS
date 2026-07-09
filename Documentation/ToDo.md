@@ -133,6 +133,16 @@ but nothing below requires them.
 
 ### PapyrOS
 
+**Waves 1–5 — DONE 2026-07-08/09.** Scaffold+suite wiring, library scanner/catalog, playback
+backend (Range/206 streaming, download/zip), iTunes metadata connector (`META`
+`defineConnector` + `matchBook`/`matchAllMissing`), frontend SPA+PWA (library browser, player
+bar with global multi-file position math, PWA app-shell caching). Committed, gate-green,
+documented in [ARCHITECTURE.md § PapyrOS](ARCHITECTURE.md#papyros-the-audiobook-app). Full
+task-level detail below is kept for the record; nothing here is open.
+
+<details>
+<summary>Wave 1–5 task detail (completed, collapsed)</summary>
+
 **Wave 1 — scaffold + suite wiring `[ARCH]`** *(sequential)*
 
 - [x] **1.1** Run `pnpm new-app papyros --name "PapyrOS" --port 3010` then `pnpm install`.
@@ -254,16 +264,48 @@ but nothing below requires them.
       app-shell caching (installable, **online-first** — media caching is Wave 7). Verify via
       build + preview.
 
+</details>
+
 **Wave 6 — staging bring-up + live verify `[ARCH/ops]`**
 
-- [ ] **6.1** Deploy to staging via `/deploy`; **restart** nginx; app at
-      `staging.jkos.net/papyros/`.
-- [ ] **6.2** Live checklist: boot scan catalogs the ~19 real titles; jkAuth login;
-      `curl -H 'Range: bytes=0-1023'` → `206`; two users → independent resume; match one
-      thin-metadata book; add a bookmark; download a file; install the PWA;
-      `pnpm prove --live https://staging.jkos.net` + suite-health; then promote (prod blocked
-      on DNS).
-- [ ] **6.3** Documentation: ARCHITECTURE.md § PapyrOS (surfaces, scanner, connector); fold
+- [x] **6.1** Deploy to staging via `/deploy`; **restart** nginx; app at
+      `staging.jkos.net/papyros/`. Confirmed 2026-07-09: `staging-papyros-app` healthy,
+      nginx edge routes `/papyros/*` to it correctly.
+- [x] **6.1a `[BUG]`** Bare `staging.jkos.net/papyros` (no trailing slash) matched neither
+      `location /papyros/` nor any other prefix, so it fell through to the staging
+      `location /` — the ORDECK portal — and the app looked like it "redirected to ORDECK".
+      Fixed 2026-07-09 in `gen-nginx-weave.mjs` (`appStagingLocation` now also emits
+      `location = /<id> { return 301 …/<id>/; }`), so every current and future
+      `edge:'standard'` app gets it. Also what makes the PWA manifest resolve: vite does
+      NOT rewrite `public/` hrefs against `base`, so `index.html`'s relative
+      `manifest.webmanifest` / `icon-512.png` only resolve from `/papyros/`.
+      **Needs an nginx RESTART (not reload) to take effect** — bind-mounted inode.
+      *(Same latent bug exists for the hand-written `/beigeboard/`, `/sylib/`, `/deploy/`
+      blocks in `standalone.conf` — not fixed here, they're bespoke, not generated.)*
+- [x] **6.1b `[FEAT-P]`** Frontend usability gaps closed 2026-07-09: mounted the shared
+      `@jkos/ui` `SettingsDrawer` (PapyrOS was the only app without one — no sign-out, no
+      account, no light/dark or accent control) behind a header gear; added the admin-only
+      **Rescan** button wired to the existing `rescanLibrary` capability (the empty state
+      told you to rescan but nothing in the UI could); widened `.app-main` 720→1080px so the
+      4-column cover grid isn't ~160px/cover, with `.view-book-detail` holding a 720px
+      reading measure; dropped the dead Wave-5.1 `.book-list` placeholder CSS.
+- [ ] **6.2** Live checklist — **partially verified 2026-07-09, rest needs Jag's own login:**
+      - [x] boot scan catalogs the real titles (18 found, embedded metadata) — confirmed via
+            direct DB read on the TrueNAS host.
+      - [x] `/health`, `/api/capabilities`, `/api/datasets` shapes correct (direct container hit).
+      - [ ] jkAuth login; `curl -H 'Range: bytes=0-1023'` → `206`; two users → independent
+            resume; match one thin-metadata book; add a bookmark; download a file; install
+            the PWA — **all need a real authenticated session** (staging's edge `auth_request`
+            + papyros's own JWT identity gate both require a live jkAuth login; no service
+            token substitutes for "two independent users"). Do this manually against
+            `staging.jkos.net/papyros/`.
+      - [ ] `pnpm prove --live https://staging.jkos.net` — ran 2026-07-09, reports `drift` on
+            every app's health/capabilities (302 redirect to login), because staging gates
+            the whole edge via `auth_request`, not because anything is broken — same result
+            for auth/beigeboard/sylibos/lazuros. Re-run with `--token <admin jwt>` once Jag
+            has a session to get a clean signal; unauthenticated is expected-red on staging.
+      - [ ] suite-health; then promote (prod blocked on DNS).
+- [x] **6.3** Documentation: ARCHITECTURE.md § PapyrOS (surfaces, scanner, connector); fold
       finished waves out of this file.
 
 **Wave 7 — offline media (own milestone)**
@@ -381,6 +423,97 @@ zip-folder download, trash/versioning.
 - [ ] **15.2** Refactor papyros `backend/src/media.js` + vault `backend/src/fs-routes.js` onto
       `@jkos/files`; both smokes + the gate stay green. The second consumer proves the seam —
       that's why this waited.
+
+### Wave 16 — media/player factory extraction `[ARCH]` *(trigger: the dedicated MUSIC app, not the papyros/vault program)*
+
+Catalogued 2026-07-09 while making PapyrOS deploy-usable. An audiobook app and a music app
+overlap almost completely: both are *a scanned library of tagged audio files, rendered as a
+cover grid, played through one persistent `<audio>` with a docked transport bar, resumed
+per-user across devices*. Everything below already exists **once**, in PapyrOS, written
+generically enough to lift. Per the Wave-15 doctrine (*the second consumer proves the seam*),
+**do not extract any of it until the music app is real** — build the music app against copies,
+then pull the two implementations together. Listed most-valuable first; the source file is
+the spec.
+
+**Tier 1 — the media/player kit (only pays off with the 2nd consumer)**
+
+- [ ] **16.1 `[opus]`** `@jkos/player` — headless playback engine, from
+      `apps/papyros/src/player/usePlayerEngine.ts` + `position.ts`. The pure math
+      (`buildFileMap`/`locate`/`toGlobal`/`navPoints`/`currentNav`/`clamp`/`fmtClock`) lifts
+      verbatim; the engine (one persistent `<audio>` built via lazy-ref so handler identity is
+      stable, refs-not-state inside listeners, `reqSeq` guard on racing loads, auto-advance on
+      `ended`, rate persisted to localStorage) is the hard-won part. **The one real
+      difference:** an audiobook is *one continuous timeline over concatenated files*, a music
+      album is *discrete tracks*. Same primitive with `timeline: 'continuous' | 'discrete'` —
+      continuous keeps the global-seconds cursor, discrete resets per track and exposes
+      `trackIndex`. Everything else (transport, seek, buffering, rate) is shared as-is.
+- [ ] **16.2** `PlayerBar` as a **slotted shell + stock controls**, not one component. Today's
+      `apps/papyros/src/player/PlayerBar.tsx` hardcodes the audiobook control set (±30 s,
+      speed, sleep timer, bookmarks); music wants shuffle/repeat/queue/volume. The *layout* is
+      what's reusable — desktop 3-column `meta | transport+scrubber | actions`, mobile compact
+      row + a "more" bottom sheet, the `pb-scrim`, and the `document.body` padding coordination
+      so the fixed bar never covers content. Ship as `<PlayerBar meta actions …>` plus a
+      library of stock controls (`<Transport>`, `<Scrubber>`, `<RateButton>`, `<SleepButton>`),
+      same kit-of-parts shape as `@jkos/cards`' `cardSurface` factory.
+- [ ] **16.3** `useMediaSession({ metadata, handlers })` — the OS lock-screen/media-key wiring
+      (`usePlayerEngine.ts`'s `setMediaSession`/`setMediaPlayback`). Pure guarded boilerplate,
+      identical for any player, and easy to get subtly wrong (`MediaMetadata` feature-detect,
+      per-action try/catch, `playbackState` sync).
+- [ ] **16.4** `useResumeCursor(collection, key)` — the debounced (~5 s) find-or-create progress
+      upsert from `usePlayerEngine.ts`: serialize in-flight writes, queue the latest, skip
+      unchanged positions, guard a late write for the *outgoing* item, and flush on `pause` /
+      `visibilitychange` / `beforeunload`. ~60 lines of genuinely subtle code that any player
+      (and "recently played" / scrobbling) needs. Natural home is `@jkos/weave` — it is a
+      collection-client concern, not an audio one.
+- [ ] **16.5** `defineMediaRoutes({ resolveFile })` — a **fourth backend brick type** next to
+      `defineCollection` / `defineConnector` / triggers, from `apps/papyros/backend/src/media.js`:
+      range-aware `/stream/:id/:index`, `/cover/:id`, and `/download/:id` (single file direct,
+      multi-file zipped on the fly). Sits directly on Wave 15's `@jkos/files` `rangeStream` +
+      `containPath` — do **16.5 after 15.1**, they are the same seam at two altitudes.
+- [ ] **16.6** `defineLibraryScanner({ dir, extensions, mapTags })` — from
+      `backend/src/library/{scan,probe}.js`: walk a mount, `mtime`-skip unchanged rows, ffprobe,
+      map tags → columns, upsert + prune, bump the resource-bus key. The *ladder* is generic;
+      only `mapTagsToColumns` is app-specific (audiobook: composer→narrator, album→series;
+      music: album→album, track number, disc number). Pairs with `defineCollection`.
+
+**Tier 2 — suite-wide primitives PapyrOS proved are missing (worth doing regardless of the music app)**
+
+- [ ] **16.7 `[BUG]`** **Primitive prop types are wrong.** `@jkos/ui`'s `BaseProps extends
+      HTMLAttributes<HTMLElement>`, so `TButton` cannot take `disabled`/`type` and `Sheet`
+      cannot take `href` — even though both accept `as`. Hit **twice** in this one app:
+      `views/library/BookCard.tsx` bails to a tagged `<a>` + `cx()`, and `views/Library.tsx`'s
+      Rescan button bails to a plain `<button>` + `cx()`. Both carry a comment apologising for
+      it. Fix: make the primitives polymorphic over `as` (`ComponentPropsWithoutRef<E>`), so
+      `TButton` gets `ButtonHTMLAttributes` and `TButton as="a"` gets `AnchorHTMLAttributes`.
+      Cheap, and it deletes the workaround from every app.
+- [ ] **16.8** `<AppShell>` — AuthGuard + header (wordmark, subtitle, settings gear) +
+      `SettingsDrawer` + `useJkOSPreferences` wiring. Written **four times** now (ORDECK,
+      BeigeBoard, SylibOS, and PapyrOS as of 2026-07-09 — which had shipped with *no* drawer at
+      all, i.e. no sign-out and no mode toggle, precisely because it was a hand-copy that
+      dropped a step). A shell primitive makes that class of omission impossible.
+- [ ] **16.9** `CoverArt` + `MediaGrid` + a **grid-density ladder**. `views/library/CoverArt.tsx`
+      (skip the network round-trip when `cover_path` is null, `onError` → initials placeholder)
+      and the `lib-grid` `data-density` ladder (mobile/tablet/desktop → 2/3/4 columns) are
+      pure media-library idiom that a music app reproduces exactly. The 2/3/4 ladder is
+      currently hardcoded in `library.css`; it belongs in the design factory next to
+      `useBreakpoint`, as tokens or a `useGridDensity()` hook.
+- [ ] **16.10** `<AsyncView state={…} empty={…}>` — the `loading ? … : error ? … : empty ? … :`
+      triad is hand-rolled in `Library.tsx`, `BookDetail.tsx` and `MatchPanel.tsx` alone, with
+      three different copy conventions. Suite-wide papercut.
+- [ ] **16.11** `<MatchPanel>` driven by a **connector + capability pair** rather than
+      hardcoding `searchMetadata`/`matchBook`. "Search an external provider → show candidates →
+      apply one → refresh the row" is exactly the `defineConnector` + write-capability shape
+      that already exists in the lego kit; a music app matching MusicBrainz/iTunes wants the
+      identical panel. Ties into the parked Audnexus decision above.
+
+**Tier 3 — noted, low value, don't build speculatively**
+
+- `useHashRoute` (papyros) vs ORDECK's path switch — a third hand-rolled router in the music app
+  would justify a tiny shared one; two does not.
+- `public/sw.js` (base-relative, online-first, unconditional `/api/` bypass so Range requests
+  reach the network untouched) is already deploy-shape-agnostic — promote it to the
+  `pnpm new-app` template rather than a package. Revisit after Wave 7 adds media caching, since
+  that is the part a music app would actually share.
 
 **Program unblockers (Jag — decisions, not code)**
 

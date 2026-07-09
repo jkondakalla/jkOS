@@ -12,10 +12,25 @@
   gap: 0.75rem;
   margin-top: 0.75rem;
 }
+.lib-heading-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
 .lib-count {
   font-family: var(--hub-font-mono);
   font-size: var(--hub-fs-lab-sm);
   letter-spacing: 0.1em;
+  color: var(--hub-cream-dim);
+}
+
+/* Admin-only rescanLibrary trigger. Disabled while a walk is in flight — a rescan can
+   take a while over a large NAS mount, so the label carries the progress, not a spinner. */
+.lib-rescan[disabled] { opacity: 0.55; cursor: progress; }
+.lib-rescan-note {
+  margin: 0.5rem 0 0;
+  font-family: var(--hub-font-mono);
+  font-size: var(--hub-fs-lab-sm);
   color: var(--hub-cream-dim);
 }
 

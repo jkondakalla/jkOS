@@ -433,6 +433,105 @@ the single source `@jkos/suite-manifest` (jkAuth migration `015` backfills the l
 
 ---
 
+## PapyrOS: the audiobook app
+
+PapyrOS is a fully-native multi-user audiobook library — its own filesystem scanner,
+catalog, and Range-streamed playback backend, gated by jkAuth like every other suite app.
+It is not a client of Audiobookshelf or any other media server; the only external call it
+makes is the iTunes Search API, used solely to enrich sparse metadata. Waves 1–5 (scaffold,
+scanner/catalog, playback backend, metadata connector, frontend SPA+PWA) are code-complete
+and deployed live to staging.
+
+### Data model
+
+One SQLite database, split on a scope boundary:
+- **`books`** — a hand-rolled migration (not a `defineCollection`), because it's
+  populated by the library scanner, not user CRUD, and has no `user_id`: every user sees
+  the same shared catalog. Columns: `path` (unique, absolute folder), scalar metadata
+  (`title`/`author`/`narrator`/`series`/`series_seq`/`year`/`genres`/`description`),
+  `duration`, `files`/`chapters` (JSON-array TEXT columns), `cover_path`, `metadata_source`
+  (`embedded` | `itunes` | `manual`), `ext_ref`, `mtime` (scan skip cursor), `updated_at`
+  (delta-cursor, `books_touch_updated` trigger). The served list shape (`BOOK_SHAPE` in
+  `discovery.js`) deliberately omits `files`/`chapters`/`path`/`description` — those are
+  detail-only weight, served by `GET /api/book/:id`.
+- **`progress` / `bookmarks` / `clubs` / `club_members`** — four genuine per-user
+  collections, each a one-line `defineCollection` in `discovery.js` (`scoped: true`), so
+  table DDL, CRUD routes, and the served capability/dataset docs derive from one spec.
+  `progress`/`bookmarks` carry a `book_ref` (typed `ref` stud at `papyros.books`); `clubs`
+  has a `current_pick` ref; `club_members` joins a club to a jkAuth `sub`. `clubs`/
+  `club_members` being owner-scoped means a member currently only sees rows *they*
+  created — a shared roster/"who's caught up" view needs a bespoke membership-gated read,
+  deferred to a later wave.
+
+### The scanner (`backend/src/library/`)
+
+`scan.js`'s `createScanner` walks `AUDIOBOOKS_DIR` one level deep — **one subfolder = one
+book** — recursing further only to collect audio files (per-disc rips). Runs
+non-blocking at boot (`server.js` fires `scanner.scanLibrary()` after `app.listen()`,
+uncaught so a scan failure can't crash the process) and again on-demand via the admin-only
+`rescanLibrary` capability; a scan already in flight is joined, not duplicated. Per book: a
+bounded worker pool (default 4) runs `probe.js`'s `ffprobe` wrapper over every audio file,
+orders tracks by embedded `track` tag then filename (numeric-aware), sums durations, and
+extracts a cover (embedded art via `ffmpeg -an -c:v copy`, else a folder-level
+`cover.*`). Folder `mtime` is compared against the stored row on every pass — an unchanged
+folder is skipped entirely (no reprobe); a folder no longer present is deleted. Chapters are
+only trusted from a genuinely single-file book's embedded chapter list — a multi-file book's
+chapter model is the player's cumulative-offset math (below), not fabricated at scan time.
+
+### Streaming (`backend/src/media.js`)
+
+`GET /api/stream/:bookId/:fileIndex` hand-parses a single-range `Range` header
+(`bytes=start-end` / `start-` / `-suffix`), serves `206` with `Content-Range`/
+`Accept-Ranges`, or the full file with `200` when no `Range` is sent; unsatisfiable ranges
+get `416`. Paths are re-resolved and containment-checked against `audiobooksDir` on every
+request (belt-and-braces — the catalog is entirely scanner-written) rather than trusted
+from the DB row. `GET /api/cover/:bookId` and `GET /api/download/:bookId` (single file
+direct, multi-file zip-streamed on the fly via `archiver`, store-only — audio is already
+compressed) share the same containment + fd-leak-guard pattern.
+
+**This hand-rolls the same Range-streaming primitive VaultOS will need for its own media.**
+It is deliberately *not* extracted into `@jkos/files` now — Wave 15 of the lego-kit program
+is where that dedup happens, once a second real consumer exists. Building the shared
+abstraction from a single call site would be guessing at its shape.
+
+### The iTunes connector (`backend/discovery.js`)
+
+`META` is the suite's first `defineConnector` — a keyless, unauthenticated
+(`auth.kind: 'none'`) wrapper around `GET https://itunes.apple.com/search`, mapped to a
+typed `metadataSearch` dataset row (id/title/author/cover/description/year/genre). Manual
+flow: a listener searches and applies one candidate via `matchBook` (writes
+author/description/year/genres + `metadata_source:'itunes'` + `ext_ref`, best-effort
+600x600 cover download; a failed artwork fetch doesn't fail the match). `matchAllMissing`
+is an admin sweep over every `embedded`-sourced book missing an author or cover:
+conservative by design (manual-first is suite philosophy) — it auto-applies only when a
+candidate's title *and* author match the book's exactly after case-fold/trim/whitespace
+normalization; everything else, including any book with no author to match against, lands
+in a `review` list. Sequential, ~250ms between books, capped at 50/run.
+
+### Player bar — global position (`src/player/position.ts`)
+
+The player speaks one number, `globalPos`: seconds across the *whole* book with its files
+concatenated in `files[].index` order. `buildFileMap` turns a book's `files[]` into a
+cumulative-offset table (`starts[i]` = the global second file `i` begins at); `locate(map,
+globalPos)` maps a global position to `{ fileIndex, offset }` for `<audio>.currentTime` and
+`streamUrl`, with a boundary rule that a position landing exactly on a file edge belongs to
+the *later* file at offset 0. `toGlobal` is the inverse. Only this module (pure, no React,
+no network) does the arithmetic — the `<audio>` element itself only ever sees a single
+file's offset. Chapter nav falls back to one nav-point per file when the book has no real
+embedded chapters.
+
+### PWA foundation
+
+`public/sw.js` is app-shell caching only, explicitly **online-first**: navigations and
+static assets are network-first with a cached fallback; `/api/*` (especially the
+Range-streamed `/api/stream`) is bypassed unconditionally so partial-content responses are
+never risked in the cache. Offline *media* caching — pulling `/api/download/:bookId` into a
+local cache for offline listening — is a distinct, not-yet-built future wave.
+`manifest.webmanifest` declares a standalone-display installable app (SVG + 192/512 PNG
+icons, theme/background colors).
+
+---
+
 ## Weave: the integration fabric
 
 Weave is the contract and shared code by which every jkOS app becomes reachable (launch,

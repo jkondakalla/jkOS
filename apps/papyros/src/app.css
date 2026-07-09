@@ -23,12 +23,40 @@ body {
 
 .app-header {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 1rem;
   padding: 1.1rem 1.5rem;
   border-bottom: 1px solid var(--hub-line);
 }
+
+.app-brand {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+
+/* Opens the shared @jkos/ui SettingsDrawer (Account/Sign out, mode, accent). --hub-tap-min
+   is 0 on desktop and 44px on mobile/tablet, so it is a FLOOR over the base size, never the
+   size itself. On mobile this is the only control in the header. */
+.app-settings-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  min-width: var(--hub-tap-min);
+  min-height: var(--hub-tap-min);
+  padding: 0;
+  border: 1px solid var(--hub-line);
+  border-radius: var(--hub-radius-button);
+  background: var(--hub-bg-1);
+  color: var(--hub-cream-bright);
+  cursor: pointer;
+}
+.app-settings-btn:hover { border-color: var(--accent); color: var(--accent); }
+.app-settings-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .wordmark {
   font-family: var(--hub-font-serif);
@@ -36,46 +64,29 @@ body {
   text-decoration: none;
 }
 
+/* The library is a cover GRID (4 columns on desktop) and wants width; a book's detail
+   page is prose and wants a reading measure. The shell holds the wider of the two, and
+   `.view-book-detail` narrows itself back down. */
 .app-main {
   flex: 1;
   width: 100%;
-  max-width: 720px;
+  max-width: 1080px;
   margin: 0 auto;
   padding: 1.75rem 1.25rem 3rem;
 }
 
 .muted { opacity: 0.6; padding: 1.5rem 0; }
 
-/* ── Library (5.2 owns the real grid; this is the Wave-5.1 flat-list placeholder) ── */
-
-.book-list {
-  list-style: none;
-  margin: 1rem 0 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-.book-list li {
-  border: 1px solid var(--hub-line);
-  border-radius: var(--hub-radius-lg);
-  background: var(--hub-bg-1);
-}
-.book-list a {
-  display: block;
-  padding: 0.65rem 0.9rem;
-  text-decoration: none;
-  color: inherit;
-  font-family: var(--hub-font-serif);
-}
-
-/* ── Book detail (5.3 owns the real layout; this is the Wave-5.1 placeholder) ────── */
+/* ── Book detail (library.css / book-detail.css own the rest of each view) ───────── */
 
 .view-book-detail {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 0.75rem;
+  /* Prose, not a grid — hold a reading measure inside the wider `.app-main` shell. */
+  width: 100%;
+  max-width: 720px;
 }
 .back-link { text-decoration: none; }
 .book-title { font-family: var(--hub-font-serif); margin: 0; }

@@ -64,6 +64,14 @@ export interface BookDetail extends Book {
   chapters: BookChapter[];
 }
 
+/** POST /api/library/rescan's response — what one walk of AUDIOBOOKS_DIR did. */
+export interface RescanCounts {
+  scanned: number;
+  upserted: number;
+  removed: number;
+  skipped: number;
+}
+
 /** A row off GET /api/metadataSearch (the META iTunes connector's typed item shape). */
 export interface Candidate {
   id: number;
@@ -149,6 +157,13 @@ export function streamUrl(id: number, fileIndex: number): string {
 /** Whole-book download URL (single file direct, multi-file zipped server-side). */
 export function downloadUrl(id: number): string {
   return `${API}/api/download/${id}`;
+}
+
+/** The `rescanLibrary` capability — walk AUDIOBOOKS_DIR and upsert the `books` catalog.
+ *  Admin-only server-side (routes/library.js gates on req.user.role), so callers should
+ *  only offer it when the signed-in user is an admin; a non-admin gets a 403. */
+export function rescanLibrary(): Promise<RescanCounts> {
+  return apiJson<RescanCounts>('/api/library/rescan', { method: 'POST' });
 }
 
 // ─── Metadata matching (4.1/4.2 — META connector + matchBook) ───────────────────

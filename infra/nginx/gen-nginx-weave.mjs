@@ -215,6 +215,12 @@ ${PROXY_HEADERS.map(h => '        ' + h).join('\n')}
 
 function appStagingLocation(a) {
   return `# ${a.name} — GENERATED admin-gated app subpath on staging.jkos.net; do not hand-edit.
+# Bare /<id> (no trailing slash) matches neither \`location /<id>/\` below nor any other
+# prefix, so it falls through to this server's \`location /\` — the ORDECK portal — and
+# the app silently "redirects to ORDECK". Send it to the real subpath first.
+location = /${a.id} {
+    return 301 https://$host/${a.id}/;
+}
 location /${a.id}/ {
 ${GATE_UNAVAIL.map(l => '    ' + l).join('\n')}
     set $upstream http://${stagingUpstream(a.upstream)};

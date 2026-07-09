@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Lab, useBreakpoint } from '@jkos/ui';
-import { listBooks, type Book, type BookFilters } from '../api';
+import { Lab, cx, useBreakpoint } from '@jkos/ui';
+import { listBooks, rescanLibrary, type Book, type BookFilters } from '../api';
+import { useAuth } from '../hooks/useAuth';
 import BookCard from './library/BookCard';
 import LibraryToolbar, { type GroupMode, type SearchField } from './library/LibraryToolbar';
 import { groupBySeries, sortBooks, STANDALONE_KEY, type SortMode } from './library/format';
@@ -14,6 +15,8 @@ const SEARCH_DEBOUNCE_MS = 300;
 // client-side sort. Replaces the Wave-5.1 flat title list.
 export default function Library() {
   const bp = useBreakpoint();
+  const { state } = useAuth();
+  const isAdmin = state.status === 'authenticated' && state.user.role === 'admin';
 
   const [field, setField] = useState<SearchField>('title');
   const [query, setQuery] = useState('');
@@ -25,6 +28,13 @@ export default function Library() {
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+
+  // Rescan (admin-only — routes/library.js gates on role). Bumping `reloadKey` is what
+  // re-runs the fetch effect below; a rescan can add/remove rows without any filter
+  // having changed, so it needs its own dependency rather than piggybacking on one.
+  const [reloadKey, setReloadKey] = useState(0);
+  const [rescanning, setRescanning] = useState(false);
+  const [rescanNote, setRescanNote] = useState<string | null>(null);
 
   // Debounce the free-text query before it drives a server refetch.
   useEffect(() => {
@@ -57,7 +67,7 @@ export default function Library() {
       },
     );
     return () => { alive = false; };
-  }, [field, debouncedQuery, seriesFilter]);
+  }, [field, debouncedQuery, seriesFilter, reloadKey]);
 
   const sorted = useMemo(() => sortBooks(books, sortMode), [books, sortMode]);
   const groups = useMemo(() => groupBySeries(sorted), [sorted]);
@@ -74,12 +84,42 @@ export default function Library() {
     setSeriesFilter(series);
   }
 
+  async function handleRescan() {
+    setRescanning(true);
+    setRescanNote(null);
+    try {
+      const counts = await rescanLibrary();
+      setRescanNote(`Scanned ${counts.scanned} · ${counts.upserted} updated · ${counts.removed} removed`);
+      setReloadKey((k) => k + 1);
+    } catch {
+      setRescanNote('Rescan failed.');
+    } finally {
+      setRescanning(false);
+    }
+  }
+
   return (
     <section className="view-library">
       <div className="lib-heading">
         <Lab size="sm">Library</Lab>
-        {!loading && !error && <span className="lib-count">{sorted.length} book{sorted.length === 1 ? '' : 's'}</span>}
+        <div className="lib-heading-actions">
+          {!loading && !error && <span className="lib-count">{sorted.length} book{sorted.length === 1 ? '' : 's'}</span>}
+          {isAdmin && (
+            // A plain <button> + cx() rather than the TButton primitive: TButton's props
+            // are a bare HTMLAttributes, so it can't carry `disabled` (same reason
+            // BookCard uses a tagged <a> for `href`).
+            <button
+              type="button"
+              className={cx('jk-tbtn', 'jk-tbtn-quiet', 'lib-rescan')}
+              disabled={rescanning}
+              onClick={handleRescan}
+            >
+              {rescanning ? 'Rescanning…' : 'Rescan'}
+            </button>
+          )}
+        </div>
       </div>
+      {rescanNote && <p className="lib-rescan-note">{rescanNote}</p>}
 
       <LibraryToolbar
         field={field}
@@ -103,7 +143,9 @@ export default function Library() {
         <p className="muted">
           {hasActiveFilter
             ? 'No books match this search.'
-            : 'No books yet — rescan the library to populate the catalog.'}
+            : isAdmin
+              ? 'No books yet — use Rescan above to walk the library folder.'
+              : 'No books yet — an admin needs to rescan the library.'}
         </p>
       ) : showGrouped ? (
         <div className="lib-groups">
