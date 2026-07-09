@@ -1,0 +1,213 @@
+/* library.css — the real library browser (task 5.2): cover grid, toolbar
+   (search/filter/group/sort), series sections. Owned entirely by this task; reads
+   only the suite's --hub- and --accent design tokens (app.css's header comment
+   applies here too — no hardcoded hex/radius). Imported once, from Library.tsx. */
+
+/* ── Heading row ───────────────────────────────────────────────────────────── */
+
+.lib-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+.lib-count {
+  font-family: var(--hub-font-mono);
+  font-size: var(--hub-fs-lab-sm);
+  letter-spacing: 0.1em;
+  color: var(--hub-cream-dim);
+}
+
+/* ── Toolbar ───────────────────────────────────────────────────────────────── */
+
+.lib-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0.9rem 0 0.25rem;
+}
+.lib-toolbar[data-bp="mobile"] {
+  flex-direction: column;
+  align-items: stretch;
+}
+.lib-toolbar[data-bp="mobile"] .lib-search,
+.lib-toolbar[data-bp="mobile"] .lib-seg,
+.lib-toolbar[data-bp="mobile"] .lib-sort {
+  width: 100%;
+}
+.lib-toolbar[data-bp="mobile"] .lib-seg {
+  justify-content: stretch;
+}
+.lib-toolbar[data-bp="mobile"] .lib-seg button {
+  flex: 1;
+}
+
+.lib-search {
+  position: relative;
+  flex: 1 1 200px;
+  min-width: 160px;
+}
+.lib-input,
+.lib-select {
+  width: 100%;
+  min-height: var(--hub-tap-min);
+  font-family: var(--hub-font-sans);
+  font-size: 0.85rem;
+  color: var(--hub-cream-bright);
+  background: var(--hub-bg-1);
+  border: 1px solid var(--hub-line);
+  border-radius: var(--hub-radius-sm);
+  padding: 0.5rem 0.7rem;
+}
+.lib-input::placeholder { color: var(--hub-cream-dim); }
+.lib-input:focus,
+.lib-select:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--accent-secondary) 55%, transparent);
+}
+.lib-search .lib-input { padding-right: 2.1rem; }
+
+.lib-clear {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 100%;
+  min-width: var(--hub-tap-min, 2rem);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--hub-cream-dim);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.lib-clear:hover { color: var(--accent-secondary); }
+
+.lib-seg {
+  display: flex;
+  gap: 0.35rem;
+}
+.lib-seg button { cursor: pointer; border: none; }
+
+.lib-sort {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.lib-chip { cursor: pointer; border: none; white-space: nowrap; }
+
+/* ── Series sections ───────────────────────────────────────────────────────── */
+
+.lib-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  margin-top: 0.75rem;
+}
+.lib-group-header { margin-bottom: 0.55rem; }
+.lib-group-title {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--hub-tap-min);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+.lib-group-title:hover .jk-lab { color: var(--accent-secondary); }
+
+/* ── Cover grid ────────────────────────────────────────────────────────────── */
+
+.lib-grid {
+  display: grid;
+  gap: 0.85rem;
+  margin-top: 0.75rem;
+}
+/* Density adapts per useBreakpoint tier (Library.tsx) — mobile favours bigger,
+   easier-to-tap tiles over raw density; desktop trades some size back for more
+   covers on screen at once within the shell's fixed reading-column width. */
+.lib-grid[data-density="compact"]     { grid-template-columns: repeat(2, 1fr); }
+.lib-grid[data-density="cozy"]        { grid-template-columns: repeat(3, 1fr); gap: 0.75rem; }
+.lib-grid[data-density="comfortable"] { grid-template-columns: repeat(4, 1fr); gap: 0.75rem; }
+
+.lib-card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  text-decoration: none;
+  color: inherit;
+  transition: transform 0.12s ease, border-color 0.12s ease;
+}
+.lib-card:hover {
+  border-color: color-mix(in srgb, var(--accent-secondary) 45%, var(--hub-line));
+  transform: translateY(-1px);
+}
+
+.lib-cover {
+  display: block;
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  background: var(--hub-bg-1);
+}
+.lib-cover-placeholder {
+  align-items: center;
+  justify-content: center;
+  border-radius: 0;
+}
+.lib-cover-placeholder span { font-size: 1.7rem; letter-spacing: 0.04em; }
+
+.lib-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.6rem 0.65rem 0.75rem;
+}
+.lib-card-title {
+  margin: 0;
+  font-family: var(--hub-font-serif);
+  font-size: 0.92rem;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.lib-card-author {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--hub-cream-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lib-card-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.3rem 0.4rem;
+  margin-top: 0.15rem;
+}
+.lib-card-series {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lib-card-duration {
+  flex: none;
+  font-family: var(--hub-font-mono);
+  font-size: 0.7rem;
+  color: var(--hub-cream-dim);
+}
+
+/* ── Compact tier tweaks ───────────────────────────────────────────────────── */
+
+.lib-grid[data-density="compact"] .lib-card-title { font-size: 0.88rem; }
+.lib-grid[data-density="compact"] .lib-card-series { max-width: 100%; }

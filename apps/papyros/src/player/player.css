@@ -1,0 +1,327 @@
+/* player.css — the persistent playback bar (task 5.4). Layout + chrome only; every
+   colour, radius, font and tap-floor reads a suite --hub- / --accent token (app.css's
+   header rule applies: no hardcoded hex or radius literal). Imported once, from
+   PlayerBar.tsx. The bar is position:fixed, so the reserve-space rule below keeps it
+   from covering the last of the scrolling content without touching app.css. */
+
+/* ── Reserve bottom space (owned here, toggled by a body class from PlayerBar) ──
+   The class lands on <body>; .app-main is app.css's, but adding a scoped rule from
+   THIS stylesheet only augments the cascade — it never edits app.css. */
+.papyros-player-open .app-main { padding-bottom: 132px; }
+@media (max-width: 767px) {
+  .papyros-player-open .app-main { padding-bottom: 176px; }
+}
+
+/* ── The bar ──────────────────────────────────────────────────────────────── */
+.player-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 6000;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.6rem 1.1rem;
+  background: color-mix(in srgb, var(--hub-bg-2) 94%, transparent);
+  border-top: 1px solid var(--hub-line);
+  box-shadow: var(--hub-shadow-card);
+  backdrop-filter: blur(var(--hub-widget-blur, 8px));
+}
+
+.player-bar.is-mobile {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.4rem;
+  padding: 0.5rem 0.75rem 0.7rem;
+}
+
+/* ── Regions ──────────────────────────────────────────────────────────────── */
+.pb-left { flex: 1 1 0; min-width: 0; max-width: 320px; }
+.pb-center {
+  flex: 2 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+}
+.pb-right {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.4rem;
+}
+.pb-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+/* ── Now-playing meta ─────────────────────────────────────────────────────── */
+.pb-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+  flex: 1 1 0;
+}
+.pb-cover {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--hub-radius-sm);
+  object-fit: cover;
+  background: var(--hub-bg-1);
+  border: 1px solid var(--hub-line);
+}
+.pb-cover-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--hub-cream-faint);
+}
+.pb-meta-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 0.1rem;
+}
+.pb-title {
+  font-family: var(--hub-font-serif);
+  font-size: 0.95rem;
+  line-height: 1.2;
+  color: var(--hub-cream-bright);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pb-title:hover { color: var(--accent-secondary); }
+.pb-sub {
+  font-size: 0.78rem;
+  color: var(--hub-cream-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Buttons ──────────────────────────────────────────────────────────────── */
+.pb-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  min-width: var(--hub-tap-min);
+  min-height: var(--hub-tap-min);
+  padding: 0 0.5rem;
+  background: transparent;
+  border: none;
+  border-radius: var(--hub-radius-sm);
+  color: var(--hub-cream);
+  font-family: var(--hub-font-mono);
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: color 0.12s, background 0.12s;
+}
+.pb-btn:hover { color: var(--accent-secondary); background: color-mix(in srgb, var(--accent-secondary) 12%, transparent); }
+.pb-btn:disabled { opacity: 0.4; cursor: default; }
+.pb-btn:disabled:hover { color: var(--hub-cream); background: transparent; }
+.pb-btn-wide { padding: 0 0.6rem; }
+
+.pb-btn-primary {
+  width: 46px;
+  height: 46px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--hub-bg-1));
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.pb-btn-primary:hover {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 22%, var(--hub-bg-1));
+}
+:root[data-mode="dark"] .pb-btn-primary {
+  box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.pb-btn.is-armed { color: var(--accent-secondary); }
+.pb-armed, .pb-count {
+  font-size: 0.68rem;
+  font-family: var(--hub-font-mono);
+  letter-spacing: 0.02em;
+}
+.pb-count { color: var(--accent-secondary); }
+
+.pb-transport {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+}
+.pb-transport-compact { gap: 0.15rem; }
+
+.pb-spin { animation: pb-rot 0.9s linear infinite; }
+@keyframes pb-rot { to { transform: rotate(360deg); } }
+
+/* ── Scrubber ─────────────────────────────────────────────────────────────── */
+.pb-scrubber {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+}
+.pb-time {
+  flex: none;
+  font-family: var(--hub-font-mono);
+  font-size: 0.72rem;
+  color: var(--hub-cream-dim);
+  min-width: 3.2ch;
+  text-align: center;
+}
+/* A tall input gives the full ≥44px hit area (the visible track stays thin), while
+   accent-color paints BOTH the themed thumb and the elapsed-fill below it — so no
+   ::-webkit-/::-moz- pseudo overrides (which would defeat that fill) are needed. */
+.pb-range {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: var(--hub-tap-min);
+  accent-color: var(--accent);
+  cursor: pointer;
+  background: transparent;
+}
+.pb-range:disabled { cursor: default; opacity: 0.5; }
+
+/* ── Popovers + scrim ─────────────────────────────────────────────────────── */
+.pb-menu { position: relative; display: inline-flex; }
+
+.pb-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 5990;
+  background: transparent;
+}
+
+.pb-popover {
+  position: absolute;
+  bottom: calc(100% + 0.5rem);
+  right: 0;
+  z-index: 6010;
+  min-width: 168px;
+  max-height: 60vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  padding: 0.35rem;
+  background: var(--hub-bg-3, var(--hub-bg-2));
+  border: 1px solid var(--hub-line);
+  border-radius: var(--hub-radius-lg);
+  box-shadow: var(--hub-shadow-card);
+}
+.pb-popover-wide { min-width: 240px; }
+
+.pb-popover-head {
+  font-family: var(--hub-font-mono);
+  font-size: var(--hub-fs-lab-xs, 0.66rem);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--hub-cream-dim);
+  padding: 0.4rem 0.5rem 0.25rem;
+}
+.pb-popover-row {
+  display: flex;
+  align-items: center;
+  min-height: var(--hub-tap-min);
+  padding: 0.4rem 0.55rem;
+  background: transparent;
+  border: none;
+  border-radius: var(--hub-radius-sm);
+  color: var(--hub-cream);
+  font-family: var(--hub-font-sans);
+  font-size: 0.85rem;
+  text-align: left;
+  cursor: pointer;
+}
+.pb-popover-row:hover { background: color-mix(in srgb, var(--accent-secondary) 14%, transparent); color: var(--accent-secondary); }
+.pb-popover-row.is-active { color: var(--accent); }
+.pb-popover-row.is-active::after { content: "•"; margin-left: auto; }
+
+.pb-popover-add {
+  display: flex;
+  align-items: center;
+  min-height: var(--hub-tap-min);
+  margin: 0.15rem 0.15rem 0.35rem;
+  padding: 0.45rem 0.55rem;
+  background: color-mix(in srgb, var(--accent) 12%, var(--hub-bg-1));
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  border-radius: var(--hub-radius-sm);
+  color: var(--accent);
+  font-family: var(--hub-font-mono);
+  font-size: 0.76rem;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+}
+.pb-popover-add:hover { background: color-mix(in srgb, var(--accent) 20%, var(--hub-bg-1)); }
+
+.pb-popover-empty {
+  padding: 0.5rem 0.55rem 0.6rem;
+  color: var(--hub-cream-dim);
+  font-size: 0.82rem;
+}
+
+.pb-bm-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.15rem; }
+.pb-bm-row { display: flex; align-items: stretch; gap: 0.2rem; }
+.pb-bm-jump {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-height: var(--hub-tap-min);
+  padding: 0.35rem 0.5rem;
+  background: transparent;
+  border: none;
+  border-radius: var(--hub-radius-sm);
+  color: var(--hub-cream);
+  text-align: left;
+  cursor: pointer;
+}
+.pb-bm-jump:hover { background: color-mix(in srgb, var(--accent-secondary) 14%, transparent); color: var(--accent-secondary); }
+.pb-bm-time { flex: none; font-family: var(--hub-font-mono); font-size: 0.72rem; color: var(--hub-cream-dim); }
+.pb-bm-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.82rem; }
+.pb-bm-del {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--hub-tap-min);
+  background: transparent;
+  border: none;
+  border-radius: var(--hub-radius-sm);
+  color: var(--hub-cream-dim);
+  cursor: pointer;
+}
+.pb-bm-del:hover { color: var(--hub-red, var(--accent)); }
+
+/* ── Mobile — popovers become full-width stacked sheets above the bar ──────── */
+.pb-popover.is-sheet {
+  position: fixed;
+  left: 0.5rem;
+  right: 0.5rem;
+  bottom: calc(100% + 0.4rem);
+  min-width: 0;
+  max-height: 55vh;
+}
+.player-bar.is-mobile .pb-menu { position: static; }
+.pb-popover-more .pb-more-cluster {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.15rem 0.4rem;
+  border-bottom: 1px solid var(--hub-line);
+  margin-bottom: 0.25rem;
+}
+.pb-popover-more .pb-more-cluster .pb-btn-wide { margin-right: auto; }

@@ -231,22 +231,22 @@ but nothing below requires them.
 
 **Wave 5 — frontend SPA + PWA foundation** *(5.2/5.3/5.5 ∥ after 5.1)*
 
-- [ ] **5.1 `[FEAT-P]`+`[BUG]`** App shell: `injectJkOSTheme` (parchment/papyrus accent),
+- [x] **5.1 `[FEAT-P]`+`[BUG]`** App shell: `injectJkOSTheme` (parchment/papyrus accent),
       `AuthGuard` redirect login, api client (`authFetch` +
       `weaveClient('papyros').list('books')`); `[BUG]` mirror the vite
       `commonjsOptions.include` fix (`auth-middleware`, `suite-manifest`).
-- [ ] **5.2 `[FEAT-P]`** Library browser: cover grid, server-driven search/filter (the books
+- [x] **5.2 `[FEAT-P]`** Library browser: cover grid, server-driven search/filter (the books
       dataset filters), series grouping, sort; mobile-first via `useBreakpoint` (44px tap
       floor).
-- [ ] **5.3 `[FEAT-P]`** Item detail: metadata, chapter list, resume, and the "Fix metadata"
+- [x] **5.3 `[FEAT-P]`** Item detail: metadata, chapter list, resume, and the "Fix metadata"
       match flow (search term → candidates → pick → `POST /api/match` → refresh).
-- [ ] **5.4 `[FEAT-P]` `[opus]`** Persistent player bar: `<audio>` on
+- [x] **5.4 `[FEAT-P]` `[opus]`** Persistent player bar: `<audio>` on
       `/api/stream/:bookId/:fileIndex`. The hard part is **global position ↔ (fileIndex,
       offset)** across multi-file books — use the `files[].duration` sequential offsets from
       2.3. Chapter prev/next, speed control, scrubber, sleep timer; debounced (~5s) progress
       upsert → per-user resume anywhere; bookmarks add/list/jump.
-- [ ] **5.5 `[FEAT-P]`** Authenticated download button wired to the 3.3 route.
-- [ ] **5.6 `[FEAT-P]`** PWA foundation: `public/manifest.webmanifest` + a service worker with
+- [x] **5.5 `[FEAT-P]`** Authenticated download button wired to the 3.3 route.
+- [x] **5.6 `[FEAT-P]`** PWA foundation: `public/manifest.webmanifest` + a service worker with
       app-shell caching (installable, **online-first** — media caching is Wave 7). Verify via
       build + preview.
 

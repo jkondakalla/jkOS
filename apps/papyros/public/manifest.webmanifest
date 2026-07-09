@@ -1,0 +1,30 @@
+{
+  "name": "PapyrOS",
+  "short_name": "PapyrOS",
+  "description": "PapyrOS is an audiobook library — browse your collection, stream chapters, and pick up playback where you left off.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "theme_color": "#9a4b2c",
+  "background_color": "#ede2c8",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
