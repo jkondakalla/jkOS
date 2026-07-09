@@ -48,6 +48,37 @@ run() {
   [ $rc -eq 0 ] || die "command failed (exit $rc): $*"
 }
 
+# `env_file: .env` (any app that verifies identity or holds OAuth/API secrets) is
+# gitignored by design — so a checkout freshly cloned/reset onto a NEW app (one that
+# never had a human SSH in and create its .env) has no such file, and `docker compose
+# up -d` refuses the ENTIRE stack with exit 14 ("env file ... not found"). Worse, that
+# only surfaces AFTER the full (multi-minute) image build. Papyros's first staging
+# sync hit exactly this (2026-07-09) — this makes it self-heal instead, for any
+# app, present or future: scaffold a blank .env from the app's own .env.example
+# (every app ships one) so a first deploy succeeds with safe defaults/no-ops, and
+# log loudly so the real secrets get filled in by hand afterward.
+ensure_env_files() {
+  log "=== Pre-flight: checking per-app .env files ==="
+  local dir base envfile example missing=0
+  for dir in "$REPO_DIR"/apps/*/; do
+    dir="${dir%/}"
+    base=$(basename "$dir")
+    ls "$dir"/docker-compose*.yml >/dev/null 2>&1 || continue
+    grep -qE '^\s*-?\s*env_file:' "$dir"/docker-compose*.yml 2>/dev/null || continue
+    envfile="$dir/.env"
+    [ -f "$envfile" ] && continue
+    example="$dir/.env.example"
+    if [ -f "$example" ]; then
+      cp "$example" "$envfile"
+      err "created $base/.env from .env.example (blank scaffold — no real secrets set). Fill in real values on the host at $envfile, then redeploy if that app needs them."
+    else
+      err "$base declares env_file but the host has neither .env nor a committed .env.example to self-heal from"
+      missing=1
+    fi
+  done
+  [ "$missing" = 0 ] || die "one or more apps have no usable .env and no template to scaffold from — see above"
+}
+
 # After `up -d`, confirm the targeted containers are actually up. `compose up -d`
 # returns 0 the moment containers START — a container that then crash-loops on
 # boot would otherwise be reported as a successful deploy. This makes a green
@@ -157,6 +188,8 @@ run_deploy() {
   new=$("${GIT[@]}" -C "$REPO_DIR" rev-parse HEAD)
   log "checkout now at ${new:0:7} — $("${GIT[@]}" -C "$REPO_DIR" log -1 --pretty=%s)"
   [ "$prev" = "$new" ] && log "(already at this commit — rebuilding anyway in case images changed)"
+
+  ensure_env_files
 
   log "=== Pre-flight: pruning dangling images ==="
   docker image prune -f || true

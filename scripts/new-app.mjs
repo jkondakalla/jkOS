@@ -112,8 +112,12 @@ validateDoc()
 
 console.log(`\n${C.grn}Done.${C.off} apps/${id} is registered + wired — APPS row, compose include, nginx server block + peer routes all derive from the one APPS entry. Next:\n`)
 console.log(`  ${C.dim}1.${C.off} pnpm install               ${C.dim}# link the new @jkos/${id}[-backend] workspace packages${C.off}`)
-console.log(`  ${C.dim}2.${C.off} cp apps/${id}/.env.example apps/${id}/.env   ${C.dim}# fill identity + origins${C.off}`)
+console.log(`  ${C.dim}2.${C.off} cp apps/${id}/.env.example apps/${id}/.env   ${C.dim}# fill identity + origins, for LOCAL dev${C.off}`)
 console.log(`  ${C.dim}3.${C.off} add the ${id}.jkos.net DNS record (Cloudflare), deploy, then RESTART nginx ${C.dim}(bind-mount — reload won't re-read)${C.off}`)
+console.log(`\n  ${C.dim}note:${C.off} the staging/prod HOST checkouts are separate clones — .env is gitignored so`)
+console.log(`  it won't exist there on first deploy. lib-deploy.sh now self-heals this (scaffolds a`)
+console.log(`  blank .env from .env.example so the first deploy doesn't fail the whole stack), but`)
+console.log(`  ${id}.jkos.net won't have real secrets until you SSH in and fill apps/${id}/.env by hand.`)
 console.log(`\n  ${C.dim}verify:${C.off} pnpm test:contracts   ${C.dim}# the registry/manifest/nginx/prober all check against that APPS row${C.off}\n`)
 
 /* ── steps ─────────────────────────────────────────────────────────────── */
