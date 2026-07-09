@@ -19,35 +19,19 @@
 //     folder-level cover.jpg (added by this task to Fixture Book B — see
 //     fixtures/library/gen-fixtures.sh's header for why B and not A).
 //
-// ── BUGS pinned, not fixed (out of scope here — packages/weave/* is off-limits) ─────
+// ── Two packages/weave bugs, FIXED (were pinned here, now regression-asserted) ──────
 //
 // (a) A `type: 'ref'` field (book_ref/club_ref/current_pick) gets a TEXT-affinity
-// column (collection.js's sqlType() only special-cases number/boolean), but coerce()
-// never stringifies a numeric ref value before it's bound. better-sqlite3 binds a
-// plain JS number as SQLite REAL, and SQLite's REAL→TEXT affinity conversion renders
-// integer 1 as the literal string "1.0", not "1" — confirmed deterministic across
-// values (1 → "1.0", 42 → "42.0", 999999 → "999999.0"). Every ref-typed column in the
-// suite is silently mangled this way. Harmless for THIS smoke's round trip (any
-// consumer normalizes with Number()/parseInt() anyway) but a landmine for a future
-// string-equality comparison (a `?book_ref=1` filter, or a join key) — pinned below
-// (both the numeric-equivalence check AND the exact ".0"-suffixed raw string) so a
-// future packages/weave fix flips the raw-string assertion red on purpose.
+// column (collection.js's sqlType() only special-cases number/boolean); coerce() now
+// stringifies a numeric ref value (String(v)) before it's bound, so it stores/returns
+// its canonical form ("1", not the REAL→TEXT-mangled "1.0" better-sqlite3 used to
+// produce for a plain JS number). See collection.js's `coerceRef()`.
 //
 // (b) The PROGRESS collection's `finished` field is `type: 'boolean', filter: 'eq'`, and
 // discovery.js's own doc comment advertises `GET /api/progress?finished=true|false` as
-// the wire contract. That does NOT work: packages/weave/src/server/filters.js's 'eq'
-// op binds the raw query STRING straight into the SQL (`buildItemFilters`) with no
-// type-aware coercion, so `?finished=true` compares the TEXT literal "true" against an
-// INTEGER-affinity column (booleans are stored 0/1 — see collection.js's `coerce()`)
-// and SQLite's affinity rules mean an INTEGER never equals a non-numeric TEXT value —
-// zero rows ever match. `?finished=1`/`?finished=0` DO work (the numeral string
-// converts losslessly under column affinity). Every other boolean-filterable field in
-// the suite so far has been hand-routed (e.g. BeigeBoard's src/schema.js explicitly
-// string-compares `v === '1' || v === 'true'`); PROGRESS is the first defineCollection
-// field to hit this gap. Below, the numeral form is asserted as the (currently) WORKING
-// filter and the documented word form is asserted as the (currently) BROKEN one, so a
-// future fix to packages/weave's filter/coerce layer flips this test red as an
-// unmissable signal to update it, rather than silently starting to pass.
+// the wire contract. filters.js's `buildItemFilters` now type-coerces a bound filter
+// value to match its column's affinity (`coerceFilterValue()` — boolean 'true'/'1' → 1,
+// 'false'/'0' → 0), so both the word form and the numeral form match correctly.
 //
 // Requires `ffprobe`/`ffmpeg` on PATH (same as library.smoke.mjs) — SKIPS cleanly
 // (exit 0, loud warning) if ffprobe is absent.
@@ -211,9 +195,9 @@ try {
     ok(createA.status === 201, `progress: A creates a row → 201 (got ${createA.status} ${JSON.stringify(createA.json)})`);
     ok(Number(createA.json?.book_ref) === bookA.id,
       `progress: A's row carries book_ref pointing at bookA (got ${JSON.stringify(createA.json?.book_ref)}, expected numeric ${bookA.id})`);
-    ok(String(createA.json?.book_ref) === `${bookA.id}.0`,
-      `BUG (packages/weave/src/server/collection.js): ref-typed book_ref is stored/returned as "${bookA.id}.0", not "${bookA.id}" `
-      + `(TEXT-affinity REAL-to-text conversion on a numeric ref — see file header) (got ${JSON.stringify(createA.json?.book_ref)})`);
+    ok(String(createA.json?.book_ref) === `${bookA.id}`,
+      `progress: ref-typed book_ref is stored/returned as its canonical string "${bookA.id}" `
+      + `(packages/weave/src/server/collection.js's coerceRef() — see file header) (got ${JSON.stringify(createA.json?.book_ref)})`);
     ok(createA.json?.finished === false, `progress: A's row starts finished=false (got ${createA.json?.finished})`);
 
     // A sees only their own row.
@@ -273,13 +257,15 @@ try {
       `progress: ?finished=0 excludes the now-finished row (got ${JSON.stringify(numFalse.json?.map((r) => r.id))})`);
 
     // Word-form filter ('true'/'false') — the contract discovery.js's own comment
-    // documents (GET /api/progress?finished=true|false), but currently BROKEN — see
-    // this file's header for the root cause (packages/weave, out of scope to fix here).
-    // Pinned so a future fix flips this red as an unmissable signal to update it.
+    // documents (GET /api/progress?finished=true|false). packages/weave/src/server/
+    // filters.js's coerceFilterValue() now binds an actual 0/1 for a boolean 'eq'
+    // filter, so the word form matches the same rows the numeral form does above.
     const wordTrue = await req('GET', '/api/progress?finished=true', undefined, A);
-    ok(Array.isArray(wordTrue.json) && wordTrue.json.length === 0,
-      `BUG (packages/weave/src/server/filters.js): ?finished=true currently matches 0 rows, not the finished row `
-      + `(TEXT 'true' bound against an INTEGER column never compares equal — see file header) (got ${JSON.stringify(wordTrue.json)})`);
+    ok(Array.isArray(wordTrue.json) && wordTrue.json.some((r) => r.id === createA.json.id),
+      `progress: ?finished=true includes the now-finished row (got ${JSON.stringify(wordTrue.json?.map((r) => r.id))})`);
+    const wordFalse = await req('GET', '/api/progress?finished=false', undefined, A);
+    ok(Array.isArray(wordFalse.json) && !wordFalse.json.some((r) => r.id === createA.json.id),
+      `progress: ?finished=false excludes the now-finished row (got ${JSON.stringify(wordFalse.json?.map((r) => r.id))})`);
   }
 
   // =====================================================================================

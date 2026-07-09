@@ -35,15 +35,21 @@ function loadSqlite() {
 section('D1 · collection primitive (defineCollection)')
 const { defineCollection } = require('../src/server/collection.js')
 
-// A faithful `items`-style collection — the shape the scaffolder dogfoods.
+// A faithful `items`-style collection — the shape the scaffolder dogfoods. `priority`
+// (number, filter:'gt') and `parent_ref` (ref, filter:'eq') exercise the two bug
+// fixes below: a numeric ref must round-trip as canonical TEXT ("1", not "1.0"),
+// and every affinity-sensitive filter op (not just boolean 'eq') needs type-aware
+// coercion of the bound value.
 const items = defineCollection({
   app: 'demo', id: 'items', label: 'Items',
   fields: [
-    { name: 'title',   type: 'string',  label: 'Title', required: true, max: 200 },
-    { name: 'notes',   type: 'text',    label: 'Notes' },
-    { name: 'done',    type: 'boolean', label: 'Done', filter: 'eq' },
-    { name: 'tags',    type: 'string',  label: 'Tags', list: true, filter: 'tags' },
-    { name: 'ext_ref', type: 'string',  label: 'External ref', filter: 'prefix' },
+    { name: 'title',      type: 'string',  label: 'Title', required: true, max: 200 },
+    { name: 'notes',      type: 'text',    label: 'Notes' },
+    { name: 'done',       type: 'boolean', label: 'Done', filter: 'eq' },
+    { name: 'priority',   type: 'number',  label: 'Priority', filter: 'gt' },
+    { name: 'tags',       type: 'string',  label: 'Tags', list: true, filter: 'tags' },
+    { name: 'ext_ref',    type: 'string',  label: 'External ref', filter: 'prefix' },
+    { name: 'parent_ref', type: 'ref',     label: 'Parent', ref: 'demo.items', filter: 'eq' },
   ],
 })
 
@@ -70,16 +76,18 @@ ok('derived DatasetDoc passes checkDocShape',
 // The dataset filters are single-sourced (each carries its own column/op → enforced SQL).
 ok('dataset exposes the opted-in filters + the universal since cursor, each with column/op', (() => {
   const f = items.dataset.filters
-  return f.length === 4 && f.every((x) => x.column && x.op) &&
+  return f.length === 6 && f.every((x) => x.column && x.op) &&
     f.find((x) => x.name === 'tags').op === 'tags' && f.find((x) => x.name === 'ext_ref').op === 'prefix' &&
+    f.find((x) => x.name === 'priority').op === 'gt' && f.find((x) => x.name === 'parent_ref').op === 'eq' &&
     f.find((x) => x.name === 'since').column === 'updated_at' && f.find((x) => x.name === 'since').op === 'gt'
 })())
-ok('row shape = id + fields + updated_at', items.item.map((f) => f.name).join(',') === 'id,title,notes,done,tags,ext_ref,updated_at')
+ok('row shape = id + fields + updated_at', items.item.map((f) => f.name).join(',') === 'id,title,notes,done,priority,tags,ext_ref,parent_ref,updated_at')
 
 // DDL derives the table, indexes and the weave delta triggers.
 const ddl = items.ddl()
 for (const frag of ['CREATE TABLE IF NOT EXISTS items', 'user_id    INTEGER', 'title TEXT NOT NULL',
-  "tags TEXT DEFAULT '[]'", 'done INTEGER DEFAULT 0', 'idx_items_updated', 'items_stamp_inserted', 'items_touch_updated']) {
+  "tags TEXT DEFAULT '[]'", 'done INTEGER DEFAULT 0', 'priority INTEGER', 'parent_ref TEXT',
+  'idx_items_updated', 'items_stamp_inserted', 'items_touch_updated']) {
   ok(`ddl() contains: ${frag}`, ddl.includes(frag))
 }
 
@@ -90,6 +98,16 @@ ok('toRow: 0/1 → boolean, JSON text → array', (() => {
   const r = items.toRow({ id: 1, done: 1, tags: '["x","y"]', title: 't' })
   return r.done === true && Array.isArray(r.tags) && r.tags[0] === 'x'
 })())
+
+// ── REGRESSION (bug 1): a `ref` field's numeric value must stringify to its
+// canonical form, never the REAL→TEXT-mangled "1.0" a raw JS number would produce
+// once bound by better-sqlite3 against the TEXT-affinity column (collection.js's
+// coerceRef()).
+ok('coerce: ref number → canonical string ("1", not "1.0")', items.coerce('parent_ref', 1) === '1')
+ok('coerce: ref number stays exact for large ids (no float noise)', items.coerce('parent_ref', 999999) === '999999')
+ok('coerce: ref string passes through unchanged', items.coerce('parent_ref', 'abc-123') === 'abc-123')
+ok('coerce: ref null/undefined pass through (existing nullability rule)',
+  items.coerce('parent_ref', null) === null && items.coerce('parent_ref', undefined) === undefined)
 
 // Reserved-column + identifier guards fail loud.
 ok('rejects a reserved field name', (() => { try { defineCollection({ app: 'a', id: 'c', label: 'C', fields: [{ name: 'updated_at', type: 'string' }] }); return false } catch { return true } })())
@@ -121,11 +139,20 @@ if (!Database) {
     const r = res(); routes[key]({ user, body, query, params }, r); return r
   }
 
-  // create two rows for user 7, one for user 9
-  let r = call('POST /api/items', { body: { title: 'first', tags: 'a,b', done: false } })
+  // create two rows for user 7, one for user 9 — `first` carries a numeric ref
+  // (parent_ref: 1) and a low priority; `second` carries a STRING ref and a high
+  // priority, so both the numeric-ref round trip and the ref/number filter paths
+  // get exercised over real SQLite, not just coerce() in isolation.
+  let r = call('POST /api/items', { body: { title: 'first', tags: 'a,b', done: false, priority: 5, parent_ref: 1 } })
   ok('POST creates a row (201) with parsed tags + boolean', r.code === 201 && r.body.title === 'first' && r.body.done === false && r.body.tags[0] === 'a')
   const firstId = r.body.id
-  call('POST /api/items', { body: { title: 'second', done: true } })
+  // ── REGRESSION (bug 1) over a real DB round trip: a numeric ref must come back
+  // as canonical TEXT ("1"), never the REAL→TEXT-mangled "1.0" better-sqlite3's
+  // affinity conversion used to produce for an un-stringified numeric bind.
+  ok('POST: ref-typed field round-trips as canonical string ("1", not "1.0")', r.body.parent_ref === '1')
+
+  r = call('POST /api/items', { body: { title: 'second', done: true, priority: 15, parent_ref: 'ext-abc' } })
+  ok('POST: a string ref value passes through unchanged', r.body.parent_ref === 'ext-abc')
   call('POST /api/items', { user: { sub: 9 }, body: { title: 'other-user' } })
 
   ok('POST without the required field → 400', call('POST /api/items', { body: { notes: 'no title' } }).code === 400)
@@ -133,9 +160,40 @@ if (!Database) {
   // list is scoped to the owner
   r = call('GET /api/items')
   ok('GET lists only the caller’s rows (scoped)', Array.isArray(r.body) && r.body.length === 2)
-  // filter: done=true
+
+  // ── REGRESSION (bug 2): boolean 'eq' filter, both wire forms. The numeral form
+  // ('1'/'0') happened to work before the fix (SQLite's affinity conversion
+  // coerces a numeral TEXT literal); the word form ('true'/'false') — the form
+  // discovery.js's own doc comments advertise — did NOT, until filters.js's
+  // coerceFilterValue() started binding an actual 0/1 instead of the raw string.
   r = call('GET /api/items', { query: { done: '1' } })
-  ok('GET ?done=1 filters via the declared dataset filter', r.body.length === 1 && r.body[0].title === 'second')
+  ok('GET ?done=1 (numeral true) filters via the declared dataset filter', r.body.length === 1 && r.body[0].title === 'second')
+  r = call('GET /api/items', { query: { done: '0' } })
+  ok('GET ?done=0 (numeral false) filters via the declared dataset filter', r.body.length === 1 && r.body[0].title === 'first')
+  r = call('GET /api/items', { query: { done: 'true' } })
+  ok('GET ?done=true (word form) now matches — was the pinned bug', r.body.length === 1 && r.body[0].title === 'second')
+  r = call('GET /api/items', { query: { done: 'false' } })
+  ok('GET ?done=false (word form) now matches — was the pinned bug', r.body.length === 1 && r.body[0].title === 'first')
+  r = call('GET /api/items', { query: { done: 'maybe' } })
+  ok('GET ?done=maybe (invalid boolean) is ignored, not a false-match-everything or a 500',
+    r.code === 200 && r.body.length === 2)
+
+  // ── Op-coverage: 'gt' needs the same type-aware coercion as 'eq' (a number field
+  // opted into filter:'gt', not just the universal `since` delta cursor).
+  r = call('GET /api/items', { query: { priority: '3' } })
+  ok('GET ?priority=3 (gt, number) matches both rows (5>3, 15>3)', r.body.length === 2)
+  r = call('GET /api/items', { query: { priority: '10' } })
+  ok('GET ?priority=10 (gt, number) matches only the higher row', r.body.length === 1 && r.body[0].title === 'second')
+  r = call('GET /api/items', { query: { priority: 'nope' } })
+  ok('GET ?priority=nope (invalid number) is ignored, not a false-match-everything or a 500',
+    r.code === 200 && r.body.length === 2)
+
+  // ── Op-coverage: 'eq' on a `ref` field matches the same canonical string the
+  // write path stored (numeric ref "1", and a string ref unchanged).
+  r = call('GET /api/items', { query: { parent_ref: '1' } })
+  ok('GET ?parent_ref=1 (eq, ref) matches the numeric-ref row', r.body.length === 1 && r.body[0].title === 'first')
+  r = call('GET /api/items', { query: { parent_ref: 'ext-abc' } })
+  ok('GET ?parent_ref=ext-abc (eq, ref) matches the string-ref row', r.body.length === 1 && r.body[0].title === 'second')
 
   // update (partial) — toggles done
   r = call('PATCH /api/items/:id', { params: { id: String(firstId) }, body: { done: true } })

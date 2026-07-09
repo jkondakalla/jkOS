@@ -154,10 +154,23 @@ function defineCollection(def) {
   const FILTER_SPEC = filterSpec(filters)
 
   /* ── the column ⇄ wire transforms ─────────────────────────────────────── */
+  // A `ref` field's column has TEXT affinity (sqlType, above) — everything that
+  // isn't number/boolean falls to TEXT. A JS number written unstringified binds as
+  // SQLite REAL, and SQLite's REAL→TEXT storage conversion mangles it (1 → "1.0",
+  // 999999 → "999999.0" — confirmed deterministic). Numbers get their canonical
+  // string form (String(1) === '1', no float noise); strings pass through as-is
+  // (already canonical TEXT); null/undefined follow the field's existing
+  // nullability rules (required is enforced before coerce() runs; an optional ref
+  // may be omitted/null) — coerce() never invents a value for those.
+  function coerceRef(v) {
+    if (typeof v === 'number') return String(v)
+    return v
+  }
   function coerce(name, v) {
     const f = byName.get(name)
     if (!f) return v
     if (f.type === 'boolean') return typeof v === 'boolean' ? (v ? 1 : 0) : v
+    if (f.type === 'ref') return coerceRef(v)
     if (f.list) return coerceWeaveColumn('tags', v)   // reuse the JSON-array rule
     return coerceWeaveColumn(name, v)
   }
