@@ -42,6 +42,16 @@ RUN pnpm --filter @jkos/__ID__-backend deploy --prod /out
 
 # ── Frontend source + build last (a UI edit busts only this step) ─────────────
 COPY . .
+# Re-sync after source is present: with inject-workspace-packages (.npmrc), pnpm
+# hardlinks COPIES (not symlinks) of any workspace dep that declares peerDependencies
+# — e.g. @jkos/weave or @jkos/cards (both peer on react). The dependency layer above
+# ran with only manifests present, so an injected dep is frozen with just its
+# package.json and no src/, and `tsc -b` then fails TS2307 'Cannot find module …'.
+# This re-install re-injects from the now-present source (store is warm → seconds);
+# plain symlinked deps (ui/design/auth-client) are unaffected. Keep this step even if
+# the app starts with no injected dep — the moment it adds @jkos/weave the build needs
+# it. `pnpm check:docker` (in pnpm test:contracts) fails red if it's missing.
+RUN pnpm install --frozen-lockfile --filter @jkos/__ID__...
 RUN pnpm --filter @jkos/__ID__ build
 
 FROM node:20-slim

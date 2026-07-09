@@ -42,6 +42,16 @@ RUN pnpm --filter @jkos/papyros-backend deploy --prod /out
 
 # ── Frontend source + build last (a UI edit busts only this step) ─────────────
 COPY . .
+# Re-sync after source is present: with inject-workspace-packages (.npmrc), pnpm
+# hardlinks COPIES (not symlinks) of any workspace dep that declares peerDependencies
+# into the store at install time — here @jkos/weave (it peers on react, so it's
+# injected). The dependency layer above ran with only manifests present, so that
+# injected copy was frozen with just its package.json and no src/, and `tsc -b` then
+# fails TS2307 'Cannot find module @jkos/weave'. This re-install re-injects from the
+# now-present source (store is warm → seconds). Plain symlinked deps (ui/design/
+# auth-client) were never affected. Keep this step — `pnpm check:docker` fails red if
+# a frontend build follows `COPY . .` without it. (Mirrors apps/beigeboard/Dockerfile.)
+RUN pnpm install --frozen-lockfile --filter @jkos/papyros...
 RUN pnpm --filter @jkos/papyros build
 
 FROM node:20-slim
