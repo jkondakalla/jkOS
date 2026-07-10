@@ -185,12 +185,19 @@ async function buildBookRow({ bookDir, concurrency }) {
   const folderStat = fs.statSync(bookDir);
   const mtime = Math.floor(folderStat.mtimeMs / 1000);
 
+  // The book's FINAL title may come from the folder name (no title tag) — re-apply the
+  // album==title junk-series guard against it (probe.js can only compare per-file tags;
+  // a rip with per-track titles or no title tag slips past that check).
+  const title = cols.title || path.basename(bookDir);
+  const normT = (v) => String(v == null ? '' : v).trim().toLowerCase().replace(/\s+/g, ' ');
+  const series = cols.series && normT(cols.series) !== normT(title) ? cols.series : null;
+
   return {
     path: bookDir,
-    title: cols.title || path.basename(bookDir),
+    title,
     author: cols.author,
     narrator: cols.narrator,
-    series: cols.series,
+    series,
     year: cols.year,
     genres: JSON.stringify(cols.genres),
     duration,
@@ -288,7 +295,7 @@ async function scanLibraryOnce({ db, audiobooksDir, dataDir, concurrency }) {
  * not here.
  * @param {{ db: import('better-sqlite3').Database, audiobooksDir: string, dataDir: string, concurrency?: number }} opts
  */
-function createScanner({ db, audiobooksDir, dataDir, concurrency = 4 } = {}) {
+function createScanner({ db, audiobooksDir, dataDir, concurrency = 4, onScanComplete } = {}) {
   if (!db) throw new Error('createScanner: db is required');
   if (!audiobooksDir) throw new Error('createScanner: audiobooksDir is required');
   if (!dataDir) throw new Error('createScanner: dataDir is required');
@@ -300,7 +307,12 @@ function createScanner({ db, audiobooksDir, dataDir, concurrency = 4 } = {}) {
 
   function scanLibrary() {
     if (inFlight) return inFlight;
-    inFlight = scanLibraryOnce({ db, audiobooksDir, dataDir, concurrency }).finally(() => {
+    inFlight = scanLibraryOnce({ db, audiobooksDir, dataDir, concurrency }).then((counts) => {
+      // Post-scan hook (server.js wires auto-enrichment + compat pre-generation).
+      // Fired for BOTH the boot scan and admin rescans; never allowed to fail the scan.
+      if (onScanComplete) { try { onScanComplete(counts); } catch (err) { console.warn(`[papyros] onScanComplete failed: ${err.message}`); } }
+      return counts;
+    }).finally(() => {
       inFlight = null;
     });
     return inFlight;

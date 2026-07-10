@@ -24,7 +24,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { Router } = require('express');
 const { CODES, authError } = require('@jkos/auth-middleware');   // 4.3's admin gate — same house pattern as routes/library.js
-const { extractYear } = require('../library/probe');   // same 4-digit-year convention scan.js's mapTagsToColumns uses
+const { extractYear, cleanGenres } = require('../library/probe');   // same 4-digit-year convention scan.js's mapTagsToColumns uses
 
 /** iTunes serves search-result artwork at `artworkUrl100` (a 100x100 thumbnail), but
  *  the SAME asset is addressable at other sizes by swapping that `100x100` path segment
@@ -46,8 +46,8 @@ function mergeGenres(existingJson, genre) {
     existing = [];
   }
   if (!Array.isArray(existing)) existing = [];
-  if (!genre || existing.includes(genre)) return existing;
-  return [...existing, genre];
+  if (!genre || existing.includes(genre)) return cleanGenres(existing);
+  return cleanGenres([...existing, genre]);
 }
 
 /** Only accept an https:// artwork URL before ever fetching it. The brief allows either
@@ -234,6 +234,92 @@ async function searchItunesCandidates(doFetch, term) {
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/** Knockoff/companion products that must NEVER auto-apply over the real book — the
+ *  search term includes the author, but "Summary of …"-mill listings often rank above
+ *  the real audiobook on iTunes. Filtered out of the auto-pick entirely; they still
+ *  appear in the manual per-book candidate list (matchBook is the user's own click). */
+function isKnockoff(candidate) {
+  const t = String(candidate.title || '').trim();
+  const a = String(candidate.author || '');
+  return /^(a |the )?(summary|workbook|study guide|analysis|key takeaways|conversation starters)\b/i.test(t)
+      || /\bsummar(y|ies)\b/i.test(a);
+}
+
+/** The enrichment sweep, extracted from POST /api/match/all so server.js can also run
+ *  it automatically after every scan (PAPYROS_AUTO_ENRICH=1 — Jag 2026-07-10: "all
+ *  books should be enriched by default as long as a match is found").
+ *
+ *  Apply policy (relaxed 2026-07-10 from exact-only, per that directive): knockoffs
+ *  are filtered, then the FIRST of — exact title+author match → exact-author match →
+ *  exact-or-subtitle-extension title match → the top remaining candidate — is applied.
+ *  A book lands in `review` only when the search errored or returned nothing usable.
+ *  `applied` rows carry `via` ('exact'|'author'|'title'|'first') so the UI/logs can
+ *  show how confident each auto-match was.
+ *
+ * @returns {Promise<{examined:number, applied:Array, review:Array, truncated:boolean}>}
+ */
+async function runEnrichmentSweep({ db, dataDir, doFetch, cap = 50, delayMs = 250 }) {
+  // Pool: every still-embedded book missing an author, a cover, OR a description
+  // (description joined 2026-07-09 — embedded rips carry author+cover but never a
+  // synopsis, so the original trigger was a no-op on a healthy library). Books already
+  // enriched (metadata_source != 'embedded') are never re-touched.
+  const pool = db.prepare(`
+    SELECT id, title, author, genres FROM books
+    WHERE metadata_source = 'embedded'
+      AND (author IS NULL OR author = '' OR cover_path IS NULL
+           OR description IS NULL OR description = '')
+    ORDER BY id
+  `).all();
+
+  const truncated = pool.length > cap;
+  const batch = pool.slice(0, cap);
+  const applied = [];
+  const review = [];
+
+  for (let i = 0; i < batch.length; i++) {
+    const book = batch[i];
+    if (i > 0) await sleep(delayMs);   // sequential + throttled — polite to a keyless upstream
+
+    let candidates;
+    try {
+      const term = [book.title, book.author].filter(Boolean).join(' ');
+      candidates = await searchItunesCandidates(doFetch, term);
+    } catch (err) {
+      console.warn(`[papyros] enrichment search failed for book ${book.id}: ${err.message}`);
+      review.push({ bookId: book.id, title: book.title, candidates: [], error: true });
+      continue;
+    }
+
+    const usable = candidates.filter((c) => !isKnockoff(c));
+    const exact = usable.find((c) => isExactMatch(book, c));
+    const byAuthor = usable.find((c) => {
+      const ba = normalizeAuthors(book.author);
+      return ba && ba === normalizeAuthors(c.author);
+    });
+    const byTitle = usable.find((c) => {
+      const bt = normalizeForMatch(book.title);
+      const ct = normalizeForMatch(c.title);
+      return bt && ct && (bt === ct || bt.startsWith(ct + ':') || ct.startsWith(bt + ':'));
+    });
+    const pick = exact || byAuthor || byTitle || usable[0] || null;
+    const via = pick === exact ? 'exact' : pick === byAuthor ? 'author' : pick === byTitle ? 'title' : 'first';
+
+    if (pick) {
+      try {
+        await applyCandidate(db, dataDir, doFetch, book, pick);
+        applied.push({ bookId: book.id, title: book.title, extRef: `itunes:${pick.id}`, via });
+      } catch (err) {
+        console.error(`[papyros] enrichment apply failed for book ${book.id}: ${err.message}`);
+        review.push({ bookId: book.id, title: book.title, candidates });
+      }
+    } else {
+      review.push({ bookId: book.id, title: book.title, candidates });
+    }
+  }
+
+  return { examined: batch.length, applied, review, truncated };
+}
+
 /**
  * @param {{ db: import('better-sqlite3').Database, dataDir: string, fetch?: typeof globalThis.fetch }} deps
  */
@@ -246,23 +332,6 @@ function createMatchRouter({ db, dataDir, fetch: injectedFetch }) {
   const router = Router();
 
   const getBookStmt = db.prepare('SELECT id, genres FROM books WHERE id = ?');
-
-  // 4.3: the pool matchAllMissing sweeps — every still-embedded book missing an author,
-  // a cover, OR a description. Description joined the trigger set 2026-07-09: a ripped
-  // library's embedded tags almost always carry author+cover but essentially never a
-  // synopsis, so the original author/cover-only trigger matched zero real books and the
-  // sweep was a no-op on a healthy library — enrichment IS the description/genres/year
-  // upgrade, not just hole-filling. `title`/`author`/`genres` are the only columns
-  // applyCandidate/the exact-match check need; `metadata_source='itunes'` books are
-  // excluded entirely (not examined, not counted, not in either response list) since
-  // they've already been enriched once — re-running the sweep shouldn't touch them again.
-  const enrichmentPoolStmt = db.prepare(`
-    SELECT id, title, author, genres FROM books
-    WHERE metadata_source = 'embedded'
-      AND (author IS NULL OR author = '' OR cover_path IS NULL
-           OR description IS NULL OR description = '')
-    ORDER BY id
-  `);
 
   router.post('/api/match', async (req, res) => {
     const { bookId, candidate } = req.body || {};
@@ -294,72 +363,16 @@ function createMatchRouter({ db, dataDir, fetch: injectedFetch }) {
   // is the suite's existing admin-gate precedent (apps/lazuros/backend/routes/jobs.js).
   // The capability doc (discovery.js) still declares scopes:['papyros:admin'] — role
   // and scope agree for every real token, this check is just resilient to the dev stub.
-  const CAP = 50;         // one run examines at most this many books — see comment below
-  const DELAY_MS = 250;   // pause between books — be polite to the free/keyless upstream
-
   router.post('/api/match/all', async (req, res) => {
     if (req.user?.role !== 'admin') {
       return authError(res, 403, CODES.INSUFFICIENT_SCOPE, 'Insufficient scope', { required: ['papyros:admin'] });
     }
-
-    const pool = enrichmentPoolStmt.all();
-    // Bounded per run rather than unbounded: this hits a real (if free/keyless)
-    // upstream once per book, sequentially, ~250ms apart — an unbounded library could
-    // turn one click into a multi-minute request. 50 keeps a single run well under a
-    // minute for a big backlog while still making visible progress; `truncated` tells
-    // the caller (Wave 5's admin UI) there's more, so it can re-run the sweep to keep
-    // working through the library N books at a time.
-    const truncated = pool.length > CAP;
-    const batch = pool.slice(0, CAP);
-
-    const applied = [];
-    const review = [];
-
-    for (let i = 0; i < batch.length; i++) {
-      const book = batch[i];
-      // Sequential + throttled: no Promise.all fan-out, and a small delay before every
-      // book after the first — deliberately slower than necessary so a free API with no
-      // key isn't hammered by an admin re-running this over a large backlog.
-      if (i > 0) await sleep(DELAY_MS);
-
-      let candidates;
-      try {
-        const term = [book.title, book.author].filter(Boolean).join(' ');
-        candidates = await searchItunesCandidates(doFetch, term);
-      } catch (err) {
-        // A single upstream failure must not abort the batch — record this book under
-        // review (empty candidates, error:true) and keep going with the rest.
-        console.warn(`[papyros] matchAllMissing search failed for book ${book.id}: ${err.message}`);
-        review.push({ bookId: book.id, title: book.title, candidates: [], error: true });
-        continue;
-      }
-
-      // Books missing an author can NEVER auto-apply — there is no author on the book
-      // to match a candidate's author against, so isExactMatch always returns false for
-      // them (see its own comment). They land in review below with whatever candidates
-      // came back, same as any other non-exact result — explicit, not incidental.
-      const exact = candidates.find((c) => isExactMatch(book, c));
-
-      if (exact) {
-        try {
-          await applyCandidate(db, dataDir, doFetch, book, exact);
-          applied.push({ bookId: book.id, title: book.title, extRef: `itunes:${exact.id}` });
-        } catch (err) {
-          // The metadata write itself failed (not an upstream/search problem) — fall
-          // back to review with the candidates already in hand rather than silently
-          // dropping the book from both lists.
-          console.error(`[papyros] matchAllMissing apply failed for book ${book.id}: ${err.message}`);
-          review.push({ bookId: book.id, title: book.title, candidates });
-        }
-      } else {
-        review.push({ bookId: book.id, title: book.title, candidates });
-      }
-    }
-
-    res.json({ examined: batch.length, applied, review, truncated });
+    // The whole sweep lives in runEnrichmentSweep (module level) so server.js can run
+    // the identical policy automatically after every scan (PAPYROS_AUTO_ENRICH).
+    res.json(await runEnrichmentSweep({ db, dataDir, doFetch }));
   });
 
   return router;
 }
 
-module.exports = { createMatchRouter };
+module.exports = { createMatchRouter, runEnrichmentSweep };

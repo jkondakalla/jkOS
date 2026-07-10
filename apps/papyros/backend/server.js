@@ -24,7 +24,7 @@ const { createScanner } = require('./src/library/scan');     // 2.3: AUDIOBOOKS_
 const { createLibraryRouter } = require('./src/routes/library'); // 2.3: rescanLibrary route
 const { createBooksRouter } = require('./src/routes/books');     // 2.4: filtered `books` dataset read
 const { createMediaRouter } = require('./src/media');            // 3.2/3.3: stream/cover/book/download routes, mounted per 3.4
-const { createMatchRouter } = require('./src/routes/match');     // 4.2: matchBook — applies a metadataSearch candidate to a book
+const { createMatchRouter, runEnrichmentSweep } = require('./src/routes/match');   // 4.2 matchBook + the auto-enrichment sweep
 
 /* ── Env ───────────────────────────────────────────────────────────────── */
 const PORT       = process.env.PORT       || 3010;
@@ -61,7 +61,19 @@ db.pragma('journal_mode = WAL');
    statements are prepared lazily inside scanLibrary(), not here — so route mounting
    below (module load time) and the boot scan (after migrations, inside boot()) can
    share the one instance without an ordering trap. */
-const scanner = createScanner({ db, audiobooksDir: AUDIOBOOKS_DIR, dataDir: DATA_DIR });
+/* Post-scan hook (boot scan AND admin rescans): auto-enrich metadata when
+   PAPYROS_AUTO_ENRICH=1 (both compose files set it; tests don't, so smoke boots never
+   touch the live iTunes API). Fire-and-forget — enrichment failing must never affect
+   a scan's result, same doctrine as the boot scan itself. */
+const AUTO_ENRICH = process.env.PAPYROS_AUTO_ENRICH === '1';
+function onScanComplete() {
+  if (!AUTO_ENRICH) return;
+  runEnrichmentSweep({ db, dataDir: DATA_DIR, doFetch: globalThis.fetch })
+    .then((r) => console.log(`[papyros] auto-enrich: applied ${r.applied.length}/${r.examined}${r.truncated ? ' (truncated — next scan continues)' : ''}`))
+    .catch((err) => console.warn(`[papyros] auto-enrich failed: ${err.message}`));
+}
+
+const scanner = createScanner({ db, audiobooksDir: AUDIOBOOKS_DIR, dataDir: DATA_DIR, onScanComplete });
 
 /* ── Migrations ────────────────────────────────────────────────────────────
    `books` is a SHARED catalog (no user_id — every user sees the same library) that the
@@ -126,6 +138,12 @@ const MIGRATIONS = [
   // GET /api/book/:id (src/media.js) serves it back. Deliberately NOT in BOOK_SHAPE's
   // list row (discovery.js) — see that file's comment just above BOOK_SHAPE.
   { id: 6, name: 'add_book_description', up(d) { d.exec('ALTER TABLE books ADD COLUMN description TEXT'); } },
+  /* Tags fix (Jag 2026-07-10): standalone rips tag album == title, and the old probe
+     mapping wrote that through as a junk "series" equal to the book's own name (every
+     card wore its title as a pill). probe.js now maps album==title -> NULL for future
+     scans; this one-shot heals rows written before the fix — a rescan alone never
+     would, because the scanner skips mtime-unchanged folders. */
+  { id: 7, name: 'null_series_equal_title', up(d) { d.exec("UPDATE books SET series = NULL WHERE series IS NOT NULL AND title IS NOT NULL AND lower(trim(series)) = lower(trim(title))"); } },
 ];
 
 function runMigrations() {

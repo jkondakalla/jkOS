@@ -88,9 +88,22 @@ function extractYear(dateStr) {
   return match ? Number(match[0]) : null;
 }
 
+/** Genre values that carry zero signal in an audiobook library — every row would
+ *  wear them ("Audiobook" is iTunes' primaryGenreName for the whole medium;
+ *  "(Un)abridged" is an edition fact, not a genre). Filtered at parse AND serve
+ *  time (serve-time also cleans rows written before this filter existed). */
+const NOISE_GENRES = new Set(['audiobook', 'audiobooks', 'audio book', 'audio books', 'unabridged', 'abridged']);
+
+/** Drop noise genres from an array (case-insensitive), preserving order. PURE. */
+function cleanGenres(genres) {
+  if (!Array.isArray(genres)) return [];
+  return genres.filter((g) => typeof g === 'string' && g.trim() && !NOISE_GENRES.has(g.trim().toLowerCase()));
+}
+
 /**
  * Split a `genre` tag into a trimmed, order-preserving, de-duplicated array.
  * Handles the common multi-genre delimiters taggers use: `;`, `,`, `/`.
+ * Noise genres (see NOISE_GENRES) are dropped.
  */
 function parseGenres(genreStr) {
   if (genreStr == null) return [];
@@ -103,7 +116,7 @@ function parseGenres(genreStr) {
       genres.push(g);
     }
   }
-  return genres;
+  return cleanGenres(genres);
 }
 
 /**
@@ -125,24 +138,31 @@ function parseGenres(genreStr) {
  *                                consistently store it in the composer atom/frame
  *   album          → series     audiobook convention: the `album` tag carries the
  *                                series/collection name (books in a series share
- *                                one "album"), not an individual book title
+ *                                one "album"). BUT standalone books are near-always
+ *                                tagged album == title (rippers copy it), which
+ *                                would give every book a junk "series" equal to its
+ *                                own name — an album that matches the title
+ *                                (case/space-insensitive) maps to NO series.
  *   date           → year       first 4-digit run extracted from whatever date
  *                                format the tagger used
  *   genre          → genres     split into an array (see parseGenres)
  */
 function mapTagsToColumns(tags) {
   const t = normalizeTags(tags);
+  const norm = (v) => String(v == null ? '' : v).trim().toLowerCase().replace(/\s+/g, ' ');
+  const series = t.album && norm(t.album) !== norm(t.title) ? t.album : null;
   return {
     title: t.title || null,
     author: t.artist || t.album_artist || null,
     narrator: t.composer || null,
-    series: t.album || null,
+    series,
     year: extractYear(t.date),
     genres: parseGenres(t.genre),
   };
 }
 
 module.exports = {
+  cleanGenres,
   probeFile,
   parseProbe,
   normalizeTags,

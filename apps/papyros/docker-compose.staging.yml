@@ -22,6 +22,8 @@ services:
       JKOS_COOKIE_SUFFIX: "_staging"
       JKOS_AUTH_ISSUER: "jkos-auth-staging"
       AUDIOBOOKS_DIR: /audiobooks
+      # Auto-run the metadata enrichment sweep after every scan (boot + rescan).
+      PAPYROS_AUTO_ENRICH: "1"
     volumes:
       - ${PAPYROS_DATA_PATH:-/mnt/Luna/Backends/Staging/papyros-data}:/data
       - /mnt/Luna/Luna/Plex/Audiobooks:/audiobooks:ro

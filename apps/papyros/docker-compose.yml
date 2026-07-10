@@ -12,6 +12,8 @@ services:
       DB_PATH: /data/papyros.db
       STATIC_DIR: /app/dist
       AUDIOBOOKS_DIR: /audiobooks
+      # Auto-run the metadata enrichment sweep after every scan (boot + rescan).
+      PAPYROS_AUTO_ENRICH: "1"
     volumes:
       - ${PAPYROS_DATA_PATH:-/mnt/Luna/Backends/Production/papyros-data}:/data
       - /mnt/Luna/Luna/Plex/Audiobooks:/audiobooks:ro

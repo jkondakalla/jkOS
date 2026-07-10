@@ -173,7 +173,7 @@ try {
     ok(typeof bookB.duration === 'number' && bookB.duration > 3.9 && bookB.duration < 4.3,
       `B: duration is the SUM of both ~2.04s tracks (got ${bookB.duration})`);
     ok(bookB.author === 'Fixture Author B', `B: author from embedded artist tag (got ${bookB.author})`);
-    ok(bookB.series === 'Fixture Book B', `B: series from embedded album tag (got ${bookB.series})`);
+    ok(bookB.series === null, `B: album == title (standalone rip) maps to NO series — the junk-pill fix (got ${bookB.series})`);
     ok(bookB.year === 2023, `B: year from embedded date tag (got ${bookB.year})`);
     ok(bookB.metadata_source === 'embedded', `B: metadata_source embedded (got ${bookB.metadata_source})`);
   }

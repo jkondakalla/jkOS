@@ -27,6 +27,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 const { Router } = require('express');
+const { cleanGenres } = require('./library/probe');   // serve-time noise-genre filter (heals pre-filter rows)
 const archiver = require('archiver');
 
 /* Extension → MIME, the small fixed set the scanner's AUDIO_EXTENSIONS actually probes
@@ -559,7 +560,7 @@ function createMediaRouter({ db, audiobooksDir, dataDir }) {
       codec: f.codec,
     }));
     const chapters = parseJsonColumn(book.chapters, []);
-    const genres = parseJsonColumn(book.genres, []);
+    const genres = cleanGenres(parseJsonColumn(book.genres, []));
 
     res.json({
       id: book.id,

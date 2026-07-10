@@ -9,6 +9,7 @@
 
 const { Router } = require('express');
 const { buildItemFilters, filterSpec } = require('@jkos/weave/server');
+const { cleanGenres } = require('../library/probe');   // serve-time noise-genre filter (heals pre-filter rows)
 const { DATASETS, BOOK_SHAPE } = require('../../discovery');
 
 /* The weave filter vocabulary for books — which query param maps to which column and
@@ -29,7 +30,7 @@ const SELECT_SQL = `SELECT ${BOOK_COLUMNS.join(', ')} FROM books`;
 /** genres is a JSON-array TEXT column (2.1); every other BOOK_SHAPE field is a plain
  *  SQLite scalar already JSON-ready as-is. */
 function toRow(r) {
-  return { ...r, genres: r.genres ? JSON.parse(r.genres) : [] };
+  return { ...r, genres: r.genres ? cleanGenres(JSON.parse(r.genres)) : [] };
 }
 
 /**

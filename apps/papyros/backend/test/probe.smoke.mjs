@@ -119,6 +119,16 @@ test('mapTagsToColumns: missing composer → narrator is null', () => {
 test('mapTagsToColumns: missing album → series is null', () => {
   assert.equal(mp3Cols.series, null);
 });
+
+test('mapTagsToColumns: album equal to title (standalone rip) → series is null', () => {
+  const cols = mapTagsToColumns({ title: 'Standalone Book', album: '  standalone  BOOK ' });
+  assert.equal(cols.series, null);
+});
+
+test('parseGenres/cleanGenres: noise genres are dropped', () => {
+  const cols = mapTagsToColumns({ title: 'X', album: 'Y', genre: 'Audiobooks; History; Unabridged' });
+  assert.deepEqual(cols.genres, ['History']);
+});
 test('mapTagsToColumns: missing date → year is null', () => {
   assert.equal(mp3Cols.year, null);
 });

@@ -62,13 +62,10 @@ export default function BookCard({ book, activeGenre = null, onGenreClick }: Boo
             ))}
           </div>
         )}
+        {/* Genres are the card's ONLY pills (Jag, 2026-07-10) — the old series pill
+            mostly echoed the title (standalone rips tag album == title; the backend
+            now nulls those, and real series still group via the toolbar). */}
         <div className="lib-card-meta">
-          {book.series && (
-            <span className={cx('jk-bubble', 'jk-bubble-secondary', 'lib-card-series')}>
-              {book.series}
-              {book.series_seq != null ? ` #${book.series_seq}` : ''}
-            </span>
-          )}
           <span className="lib-card-duration">{formatDuration(book.duration)}</span>
         </div>
       </div>
