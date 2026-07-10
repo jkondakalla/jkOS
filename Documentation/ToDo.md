@@ -340,9 +340,15 @@ task-level detail below is kept for the record; nothing here is open.
 
 **Wave 7 — offline media (own milestone)**
 
-- [ ] **7.1 `[FEAT-P]` `[opus]`** Offline book cache: download pipeline into Cache
+- [x] **7.1 `[FEAT-P]` `[opus]`** Offline book cache: download pipeline into Cache
       API/IndexedDB (per-file entries keyed by book), storage estimate + eviction UI,
-      "available offline" badge per book.
+      "available offline" badge per book. *(DONE 2026-07-09: `src/offline/` module —
+      Cache `papyros-media-v1` keyed by exact request URL (full-200 stream files + cover +
+      detail JSON), IDB `papyros-offline` v1 store `books` keyPath `bookId` (row exists ⇔
+      fully cached); one module-level store drives all badges via `useSyncExternalStore`;
+      OfflineButton in BookDetail, OfflineSettings in the SettingsDrawer `extra` slot;
+      resume-safe, cancel purges partials, error keeps them for retry; `sw.js` untouched —
+      7.3 consumes these exact cache/DB names.)*
 - [ ] **7.2 `[FEAT-P]` `[opus]`** Offline write queue for progress/bookmarks; reconcile on
       reconnect via the collections' `?since=` delta cursor, last-write-wins on `updated_at`.
 - [ ] **7.3 `[FEAT-P]`** Service-worker media routing: serve cached audio when offline,

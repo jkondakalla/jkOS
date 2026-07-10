@@ -139,6 +139,12 @@ export function listBooks(filters?: BookFilters): Promise<Book[]> {
   return weaveClient('papyros').list<Book>('books', filters as ListFilters);
 }
 
+/** Detail-JSON URL for one book. Single-source so the offline cache (Wave 7) keys its
+ *  stored detail response under the exact same URL `getBook` fetches / the SW matches. */
+export function bookDetailUrl(id: number): string {
+  return `${API}/api/book/${id}`;
+}
+
 export function getBook(id: number): Promise<BookDetail> {
   return apiJson<BookDetail>(`/api/book/${id}`);
 }

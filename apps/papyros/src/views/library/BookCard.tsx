@@ -1,6 +1,7 @@
 import { cx } from '@jkos/ui';
 import type { Book } from '../../api';
 import CoverArt from './CoverArt';
+import { OfflineBadge } from '../../offline';
 import { formatDuration } from './format';
 
 /** One cover-grid tile. A plain `<a>` (not the `Sheet` primitive's `as` prop — Sheet's
@@ -11,6 +12,7 @@ import { formatDuration } from './format';
 export default function BookCard({ book }: { book: Book }) {
   return (
     <a href={`#/book/${book.id}`} className={cx('jk-sheet', 'lib-card')}>
+      <OfflineBadge bookId={book.id} />
       <CoverArt book={book} />
       <div className="lib-card-body">
         <p className="lib-card-title">{book.title}</p>

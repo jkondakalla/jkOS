@@ -5,6 +5,7 @@ import { AUTH_URL, useJkOSPreferences } from '@jkos/auth-client'
 import { Lab, SettingsDrawer, cx } from '@jkos/ui'
 import AuthGuard from './components/AuthGuard'
 import { useAuth } from './hooks/useAuth'
+import { OfflineSettings } from './offline'
 import Library from './views/Library'
 import BookDetail from './views/BookDetail'
 import PlayerBar from './player/PlayerBar'
@@ -85,6 +86,7 @@ function Shell() {
         {...prefs}
         user={user}
         authUrl={AUTH_URL}
+        extra={<OfflineSettings />}
       />
     </div>
   )

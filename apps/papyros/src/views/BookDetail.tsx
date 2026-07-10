@@ -5,6 +5,7 @@ import {
   type BookDetail as BookDetailRow, type ProgressRow,
 } from '../api';
 import DownloadButton from '../components/DownloadButton';
+import { OfflineBadge, OfflineButton } from '../offline';
 import { requestPlay } from '../player/controller';
 import MatchPanel from './book-detail/MatchPanel';
 import { formatClock, formatHM } from './book-detail/format';
@@ -114,7 +115,10 @@ export default function BookDetail({ bookId }: { bookId: number }) {
             )}
 
             <div className="book-hero-info">
-              <Lab size="sm">Audiobook</Lab>
+              <div className="book-hero-eyebrow">
+                <Lab size="sm">Audiobook</Lab>
+                <OfflineBadge bookId={book.id} label />
+              </div>
               <h2 className="book-title">{book.title}</h2>
               {book.subtitle && <p className="book-subtitle">{book.subtitle}</p>}
               <div className="book-byline">
@@ -144,6 +148,7 @@ export default function BookDetail({ bookId }: { bookId: number }) {
             <TButton className="play-button" onClick={handlePlay}>
               {canResume && row ? `Resume · ${formatClock(row.position)}` : 'Play'}
             </TButton>
+            <OfflineButton book={book} />
             <DownloadButton book={book} />
           </div>
           {row && row.duration > 0 && (
