@@ -14,12 +14,13 @@
 //    (stable) refs + setState, so every handler identity is stable for the lifetime
 //    of the mount — the effect wiring never needs to re-subscribe.
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { authFetch } from '@jkos/auth-client';
 import {
   coverUrl, createBookmark, createProgress, deleteBookmark, getBook,
   listBookmarks, listProgress, streamUrl, updateProgress,
   type BookDetail, type BookmarkRow, type ProgressRow,
 } from '../api';
-import { onPlayRequest, type PlayRequest } from './controller';
+import { onPlayRequest, publishPosition, type PlayRequest } from './controller';
 import {
   buildFileMap, clamp, currentNav, EMPTY_MAP, locate, navPoints, toGlobal,
   type FileMap, type NavPoint,
@@ -32,6 +33,24 @@ const RATE_KEY = 'papyros.player.rate';   // papyros-namespaced (task requiremen
 const SKIP_SEC = 30;
 const PROGRESS_DEBOUNCE_MS = 5000;
 const PREV_RESTART_SEC = 3;   // >3s into a chapter, "prev" restarts it (the standard idiom)
+
+// ── Compat-pipeline recovery (decode-failure auto-fallback) ────────────────────────
+// Firefox's strict mp4parse rejects the moov box on some otherwise-valid .m4b files
+// (NS_ERROR_DOM_MEDIA_METADATA_ERR) that ffmpeg itself decodes cleanly — the backend's
+// two-rung compat pipeline (apps/papyros/backend/src/media.js) normalizes the
+// container server-side on request: POST <streamUrl>/prepare kicks off (or joins) an
+// ffmpeg run, the client polls the same route until it reports {ready:true}, then
+// reloads the file with `?compat=<n>` appended so /api/stream serves the generated
+// variant instead of the source.
+const COMPAT_POLL_INTERVAL_MS = 2000;
+const COMPAT_POLL_TIMEOUT_MS = 120_000;   // ~120s bound — a rung that never finishes gives up, not hangs forever
+
+/** Per-(bookId,fileIndex) key into the session-only compat-level map — matches the
+ *  `${bookId}-${fileIndex}` naming src/media.js keys its cached variants by (though
+ *  this key is only ever used client-side, never sent on the wire). */
+function compatKeyFor(bookId: number, fileIndex: number): string {
+  return `${bookId}:${fileIndex}`;
+}
 
 function readInitialRate(): number {
   try {
@@ -101,10 +120,19 @@ export function usePlayerEngine(): PlayerApi {
   const writeQueuedRef = useRef<boolean | null>(null);  // latest queued finished-flag
   const lastWrittenRef = useRef<{ pos: number; finished: boolean } | null>(null);
   const reqSeqRef = useRef(0);               // guards racing async loads
+  // Session-only memory of which compat rung (0 none, 1 remux, 2 re-encode) is active
+  // for a given (bookId, fileIndex) — bumped by attemptCompatRecovery below, read by
+  // loadFile to append `?compat=<n>` to the stream URL. `recoveringRef` is the
+  // reentrancy guard: an error arriving while a recovery is already in flight (e.g. a
+  // stray event off the src loadFile is about to replace) must not spawn a second,
+  // parallel poll loop.
+  const compatLevelRef = useRef<Map<string, 0 | 1 | 2>>(new Map());
+  const recoveringRef = useRef(false);
   const sleepRef = useRef<{ mode: SleepMode; until: number | null; chapterEnd: number | null }>(
     { mode: 'off', until: null, chapterEnd: null },
   );
   const sleepTimerRef = useRef<number | null>(null);
+  const lastPublishRef = useRef(0);          // Date.now() of the last publishPosition() call
 
   // ── The imperative engine, built exactly once (stable closures over refs) ──
   const engineRef = useRef<ReturnType<typeof buildEngine> | null>(null);
@@ -112,6 +140,16 @@ export function usePlayerEngine(): PlayerApi {
   const eng = engineRef.current;
 
   function buildEngine() {
+    // ---- Live position broadcast (controller.ts's publishPosition) ----------
+    // Immediate on loads/seeks (so BookDetail's chapter fill snaps to a nav click
+    // rather than waiting on the next throttled tick); onTime below throttles its
+    // own calls to ~1/s since timeupdate fires ~4x/s.
+    function publishNow(g: number): void {
+      const b = bookRef.current;
+      if (b) publishPosition({ bookId: b.id, globalPos: g });
+      lastPublishRef.current = Date.now();
+    }
+
     // ---- Progress upsert (serialized find-or-create, skip-unchanged) --------
     async function doWrite(finished: boolean): Promise<void> {
       const b = bookRef.current;
@@ -193,12 +231,22 @@ export function usePlayerEngine(): PlayerApi {
       arrayIndexRef.current = arrayIndex;
       pendingSeekRef.current = Math.max(0, offset);
       wantPlayRef.current = autoplay;
-      audio.src = streamUrl(b.id, file.index);
+      // A prior decode failure on this exact (book, file) may have bumped its compat
+      // level this session (attemptCompatRecovery below) — replay that choice on every
+      // load so a re-seek/re-open doesn't retry the raw original and fail again.
+      const level = compatLevelRef.current.get(compatKeyFor(b.id, file.index)) ?? 0;
+      audio.src = level > 0 ? `${streamUrl(b.id, file.index)}?compat=${level}` : streamUrl(b.id, file.index);
       audio.playbackRate = rateRef.current;   // some browsers reset rate on src change
       audio.load();
       const g = toGlobal(map, arrayIndex, offset);
       globalPosRef.current = g;
       setGlobalPos(g);                          // reflect immediately (before metadata)
+      publishNow(g);
+      // Every load — book swap, file-boundary seek, auto-advance, or a compat-recovery
+      // reload — is a fresh "current load attempt". Bumping here (not just in
+      // handleRequest) is what lets attemptCompatRecovery's poll loop detect it was
+      // superseded by ANY of those, not just a full book swap.
+      reqSeqRef.current += 1;
     }
 
     // ---- Seek in GLOBAL seconds (same file → currentTime, else swap src) ----
@@ -212,6 +260,7 @@ export function usePlayerEngine(): PlayerApi {
         try { audio.currentTime = offset; } catch { /* metadata not ready yet */ }
         globalPosRef.current = g;
         setGlobalPos(g);
+        publishNow(g);
       } else {
         loadFile(arrayIndex, offset, !audio.paused);   // preserve play/pause across the boundary
       }
@@ -352,6 +401,69 @@ export function usePlayerEngine(): PlayerApi {
       try { (navigator as any).mediaSession.playbackState = state; } catch { /* ignore */ }
     }
 
+    // ---- Decode-failure auto-recovery (compat pipeline) ---------------------
+    // Triggered from onError below when audio.error.code is 3 (decode) or 4
+    // (src-not-supported) and this (book,file) hasn't already exhausted both compat
+    // rungs. Bumps the level, asks the backend to build that rung (POST
+    // <streamUrl>/prepare), polls until it reports {ready:true} (bounded, ~120s), then
+    // reloads the SAME file at the position playback failed at — derived from
+    // globalPosRef via locate(), per the file-map's own mapping, not from whatever
+    // arrayIndex/offset were in flight when the error fired.
+    async function attemptCompatRecovery(): Promise<void> {
+      if (recoveringRef.current) return;   // reentrancy guard — see the ref's comment above
+      const b = bookRef.current;
+      const file = mapRef.current.files[arrayIndexRef.current];
+      if (!b || !file) return;
+      const key = compatKeyFor(b.id, file.index);
+      const level = compatLevelRef.current.get(key) ?? 0;
+      if (level >= 2) return;   // both rungs already tried this session — nothing left to attempt
+
+      recoveringRef.current = true;
+      const seq = reqSeqRef.current;   // a book/file swap bumps this (loadFile does, on every call)
+      const nextLevel = (level + 1) as 1 | 2;
+      compatLevelRef.current.set(key, nextLevel);
+      const wantPlay = wantPlayRef.current;
+      setError('Optimizing this file for your browser…');
+
+      try {
+        const prepareUrl = `${streamUrl(b.id, file.index)}/prepare`;
+        let ready = false;
+        const deadline = Date.now() + COMPAT_POLL_TIMEOUT_MS;
+        while (Date.now() < deadline) {
+          if (seq !== reqSeqRef.current) return;   // superseded — bail without touching error state
+          try {
+            const res = await authFetch(prepareUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ level: nextLevel }),
+            });
+            if (seq !== reqSeqRef.current) return;
+            if (res.ok) {
+              const body = await res.json().catch(() => null);
+              if (body?.ready) { ready = true; break; }
+            } else if (res.status >= 400 && res.status < 500) {
+              break;   // the request itself is invalid — polling further won't help
+            }
+          } catch {
+            // network hiccup — keep polling until the deadline
+          }
+          await new Promise((r) => setTimeout(r, COMPAT_POLL_INTERVAL_MS));
+        }
+        if (seq !== reqSeqRef.current) return;
+        if (!ready) {
+          // Final failure for this rung: timed out or the backend rejected the
+          // request. Leave the REAL error mapping (same message onError would have
+          // shown without recovery) rather than the transient "Optimizing…" one.
+          setError('Could not decode this file — your browser may lack AAC/M4B support.');
+          return;
+        }
+        const { arrayIndex, offset } = locate(mapRef.current, globalPosRef.current);
+        loadFile(arrayIndex, offset, wantPlay);
+      } finally {
+        recoveringRef.current = false;
+      }
+    }
+
     // ---- <audio> event handlers --------------------------------------------
     function onLoaded(): void {
       const audio = audioRef.current;
@@ -370,6 +482,7 @@ export function usePlayerEngine(): PlayerApi {
       const g = toGlobal(mapRef.current, arrayIndexRef.current, audio.currentTime);
       globalPosRef.current = g;
       setGlobalPos(g);
+      if (Date.now() - lastPublishRef.current >= 1000) publishNow(g);
       if (!audio.paused) scheduleWrite();
       const sl = sleepRef.current;
       if (sl.mode === 'chapter' && sl.chapterEnd != null && g >= sl.chapterEnd - 0.25) fireSleep();
@@ -382,6 +495,23 @@ export function usePlayerEngine(): PlayerApi {
       const audio = audioRef.current;
       const e = audio?.error;
       if (!e) return;
+      // Decode / src-not-supported (codes 3/4) on a file that hasn't already
+      // exhausted both compat rungs this session → try the compat pipeline instead of
+      // surfacing the raw error. recoveringRef guards against a stray error arriving
+      // while a recovery attempt is already in flight (spawning a second, parallel
+      // poll loop) — attemptCompatRecovery re-checks the level itself too.
+      if ((e.code === 3 || e.code === 4) && !recoveringRef.current) {
+        const b = bookRef.current;
+        const file = mapRef.current.files[arrayIndexRef.current];
+        const level = b && file ? (compatLevelRef.current.get(compatKeyFor(b.id, file.index)) ?? 0) : 2;
+        if (b && file && level < 2) {
+          console.error('[papyros] media error, attempting compat recovery', { code: e.code, level, src: audio.currentSrc });
+          setBuffering(false);
+          setPlaying(false);
+          void attemptCompatRecovery();
+          return;
+        }
+      }
       // MediaError codes: 1 aborted · 2 network · 3 decode · 4 src-not-supported.
       const msg =
         e.code === 3 ? 'Could not decode this file — your browser may lack AAC/M4B support.' :
@@ -400,6 +530,7 @@ export function usePlayerEngine(): PlayerApi {
       } else {
         globalPosRef.current = mapRef.current.total;
         setGlobalPos(mapRef.current.total);
+        publishNow(mapRef.current.total);
         wantPlayRef.current = false;
         setPlaying(false);
         setMediaPlayback('paused');

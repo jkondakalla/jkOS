@@ -346,6 +346,42 @@ task-level detail below is kept for the record; nothing here is open.
 - [x] **6.3** Documentation: ARCHITECTURE.md § PapyrOS (surfaces, scanner, connector); fold
       finished waves out of this file.
 
+**Wave 6.5 — live-feedback fixes (Jag, 2026-07-09/10, staging test drive)**
+
+- [x] **6.5a** Square covers — `.lib-cover` 2/3 → 1/1 (committed `c99a25f`).
+- [x] **6.5b** Playback failures were INVISIBLE — engine `error` state + MediaError
+      mapping + `.pb-error` strip (committed `c99a25f`). Jag's console then pinned the
+      real fault: `NS_ERROR_DOM_MEDIA_METADATA_ERR` on SOME m4b files (Abundance/
+      Artemis/Atomic Habits fail, Universe plays). Forensics: all AAC-LC, same brands/
+      atom order/track flags; ffmpeg decodes the broken ones clean — Firefox's strict
+      mp4parse rejects something in their (4.5–5.6MB) moov.
+- [x] **6.5c** Fix = server-side **compat pipeline** (the ToDo-8.3 "transcode fallback",
+      promoted): `?compat=1` lossless `-c copy +faststart` audio-only remux, `?compat=2`
+      aac re-encode, cached under `/data/compat` (mtime-invalidated, atomic tmp+rename,
+      single-flight), `POST /api/stream/:id/:idx/prepare` + 2s poll (120s cap); engine
+      auto-retries decode errors up the ladder preserving position + play intent
+      ("Optimizing this file for your browser…"). playback.smoke → 58 (21 compat
+      assertions; skip gate now needs ffmpeg too). Needs Jag's live confirm on
+      Abundance/Artemis/Atomic Habits.
+- [x] **6.5d** Enrichment actually enriches (committed `c99a25f`): matchAllMissing
+      trigger now includes missing description; normalizer strips "(Unabridged)" +
+      punctuation-spacing; authors drop role annotations + canonicalize separators.
+      Live-iTunes dry run on the real library: 7/18 auto-apply, clean candidates for
+      the rest. Admin "Match metadata" button added.
+- [ ] **6.5e** Multi-source metadata (Jag approved: **Open Library + Audible/Audnexus +
+      iTunes**, all keyless): provider registry, merged/deduped candidates with per-source
+      badges, field precedence (narrator/series/chapters=audnexus; description=audnexus>OL>
+      itunes; genres=union; cover=audnexus>itunes600>OL-L), cross-source agreement boosts
+      auto-apply confidence. IN FLIGHT (agent, spawned at the 6.5c commit point).
+- [x] **6.5f** Genre chips on library cards + `genre` dataset filter (weave's existing
+      `tags` op — declared==enforced held; library.smoke → 50). DONE.
+- [x] **6.5g** Book-page chapter rows: show chapter LENGTH not start timestamp; row
+      fills left-to-right with listening progress (live via a controller position
+      broadcast when this book is playing, saved progress row otherwise). DONE.
+- [x] **6.5h** Player-bar scrubber is the CURRENT CHAPTER's timeline, not the whole
+      book (points are gap-free, so file-spans stand in when a book has no chapters).
+      DONE.
+
 **Wave 7 — offline media (own milestone)**
 
 - [x] **7.1 `[FEAT-P]` `[opus]`** Offline book cache: download pipeline into Cache

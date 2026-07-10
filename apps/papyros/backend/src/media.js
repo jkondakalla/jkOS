@@ -25,6 +25,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const { spawn } = require('node:child_process');
 const { Router } = require('express');
 const archiver = require('archiver');
 
@@ -110,6 +111,158 @@ function attachmentHeader(stem, ext) {
   return `attachment; filename="${asciiName}"; filename*=UTF-8''${encoded}`;
 }
 
+/** The one Range-aware file-streaming implementation — the ORIGINAL /api/stream body
+ *  (task 3.2), factored out so both the raw source file and a `?compat=N` variant
+ *  (below) stream through the exact same 200/206/416 logic and can never drift. Wire
+ *  behavior is byte-identical to before this refactor — playback.smoke.mjs pins it. */
+function sendFileRange(req, res, filePath, mime, stat) {
+  const total = stat.size;
+  const rangeHeader = req.headers.range;
+
+  let start = 0;
+  let end = total - 1;
+  let status = 200;
+
+  if (rangeHeader) {
+    // Only the single-range "bytes=start-end" / "bytes=start-" / "bytes=-suffix" forms
+    // are handled — multi-range ("bytes=0-1,10-20") is not a real audiobook-player use
+    // case and falls through to the unsatisfiable branch below.
+    const m = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader.trim());
+    if (!m || (m[1] === '' && m[2] === '')) {
+      res.set('Content-Range', `bytes */${total}`);
+      return res.status(416).end();
+    }
+    if (m[1] === '') {
+      // Suffix range: "bytes=-500" → last 500 bytes.
+      const suffixLen = Number.parseInt(m[2], 10);
+      start = Math.max(0, total - suffixLen);
+      end = total - 1;
+    } else {
+      start = Number.parseInt(m[1], 10);
+      end = m[2] === '' ? total - 1 : Number.parseInt(m[2], 10);
+    }
+    if (Number.isNaN(start) || Number.isNaN(end) || start > end || start >= total) {
+      res.set('Content-Range', `bytes */${total}`);
+      return res.status(416).end();
+    }
+    end = Math.min(end, total - 1);
+    status = 206;
+  }
+
+  res.status(status);
+  res.set('Accept-Ranges', 'bytes');
+  res.set('Content-Type', mime);
+  res.set('Content-Length', String(end - start + 1));
+  if (status === 206) res.set('Content-Range', `bytes ${start}-${end}/${total}`);
+
+  const stream = fs.createReadStream(filePath, { start, end });
+  // Guard against a leaked fd if the client disconnects mid-stream (a scrub/seek that
+  // abandons the in-flight request is the common case for a Range-served player).
+  res.on('close', () => { stream.destroy(); });
+  stream.on('error', (err) => {
+    console.error(`[papyros] stream read failed for "${filePath}": ${err.message}`);
+    stream.destroy();
+    if (!res.headersSent) res.status(500).end();
+    else res.end();
+  });
+  stream.pipe(res);
+}
+
+/* ── Compat pipeline (browser-decode-failure fallback) ────────────────────────────
+   Some .m4b rips (44.1kHz encodes have been the reproducible case) carry a `moov`
+   Firefox's strict `mp4parse` rejects (NS_ERROR_DOM_MEDIA_METADATA_ERR) even though
+   ffmpeg decodes them cleanly — the files aren't corrupt, Firefox is just stricter
+   than the encoder that wrote them. Fix: normalize the container SERVER-SIDE, like
+   every real media server does. Two rungs, tried in order by the player:
+     level 1 — lossless remux: `-map 0:a:0 -c copy -movflags +faststart -f mp4`
+               (audio-only, rewrites `moov` cleanly; near-certain fix, zero re-encode
+               cost).
+     level 2 — re-encode fallback: same, plus `-c:a aac -b:a 128k`, for the rare file
+               a clean remux alone doesn't save.
+   Variants are cached under <dataDir>/compat/<bookId>-<fileIndex>.c<level>.m4a and
+   regenerated only when the SOURCE file's mtime has moved past the cached variant's
+   (stat compare) — a re-scanned/replaced source file doesn't keep serving a stale
+   variant forever. */
+
+const COMPAT_DIR_NAME = 'compat';
+
+function compatVariantPath(dataDir, bookId, fileIndex, level) {
+  return path.join(dataDir, COMPAT_DIR_NAME, `${bookId}-${fileIndex}.c${level}.m4a`);
+}
+
+/** A variant is servable when it exists, is non-empty, and is at least as new as the
+ *  source it was built from — the mtime-compare regeneration rule. */
+function isVariantFresh(srcStat, variantPath) {
+  let vStat;
+  try {
+    vStat = fs.statSync(variantPath);
+  } catch {
+    return false;
+  }
+  return vStat.isFile() && vStat.size > 0 && vStat.mtimeMs >= srcStat.mtimeMs;
+}
+
+/** Spawn ffmpeg to build one compat rung, writing to a `.tmp` sibling and atomically
+ *  renaming into place only once ffmpeg exits 0 — a crashed/killed run never leaves a
+ *  half-written file a later request could serve. ALWAYS `child_process.spawn`, NEVER
+ *  `spawnSync` (the pinned house gotcha: a synchronous ffmpeg call blocks the whole
+ *  event loop, starving every other request in the process for however long the
+ *  remux/encode takes). stderr is captured into a small bounded buffer purely for the
+ *  failure log — never buffered without a cap, a pathological run could emit MBs. */
+function runCompatGeneration({ srcPath, variantPath, level }) {
+  const tmpPath = `${variantPath}.tmp`;
+  const args = level === 1
+    ? ['-y', '-i', srcPath, '-map', '0:a:0', '-c', 'copy', '-movflags', '+faststart', '-f', 'mp4', tmpPath]
+    : ['-y', '-i', srcPath, '-map', '0:a:0', '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart', '-f', 'mp4', tmpPath];
+
+  return new Promise((resolve, reject) => {
+    const STDERR_CAP = 4096;
+    let stderr = '';
+    let child;
+    try {
+      child = spawn('ffmpeg', args, { stdio: ['ignore', 'ignore', 'pipe'] });
+    } catch (err) {
+      reject(err);
+      return;
+    }
+    child.stderr.on('data', (chunk) => {
+      if (stderr.length < STDERR_CAP) stderr += chunk.toString('utf8');
+    });
+    child.on('error', (err) => reject(err));   // e.g. ffmpeg missing from PATH
+    child.on('close', (code) => {
+      if (code !== 0) {
+        try { fs.unlinkSync(tmpPath); } catch { /* nothing to clean up */ }
+        reject(new Error(`ffmpeg exited ${code}: ${stderr.slice(0, STDERR_CAP)}`));
+        return;
+      }
+      try {
+        fs.renameSync(tmpPath, variantPath);
+        resolve();
+      } catch (err) {
+        reject(err);
+      }
+    });
+  });
+}
+
+/** Start (or JOIN — single-flight per bookId+fileIndex+level, same in-flight-join
+ *  idiom as the scanner's scanLibrary, see src/library/scan.js) the ffmpeg run behind
+ *  one compat variant. `inFlight` is the router-instance Map (one per createMediaRouter
+ *  call). The returned promise never REJECTS — a failure is logged and swallowed here
+ *  so the fire-and-forget caller (POST .../prepare responds 202 without awaiting this)
+ *  never produces an unhandled-rejection warning. */
+function ensureCompatGeneration(inFlight, { key, srcPath, variantPath, level }) {
+  const existing = inFlight.get(key);
+  if (existing) return existing;
+  const promise = runCompatGeneration({ srcPath, variantPath, level })
+    .catch((err) => {
+      console.error(`[papyros] compat generation failed for ${key}: ${err.message}`);
+    })
+    .finally(() => { inFlight.delete(key); });
+  inFlight.set(key, promise);
+  return promise;
+}
+
 /**
  * @param {{ db: import('better-sqlite3').Database, audiobooksDir: string, dataDir: string }} deps
  */
@@ -122,21 +275,27 @@ function createMediaRouter({ db, audiobooksDir, dataDir }) {
 
   const getBookStmt = db.prepare('SELECT * FROM books WHERE id = ?');
 
-  // ── GET /api/stream/:bookId/:fileIndex ──────────────────────────────────────────
-  // Range-aware file streaming — the one route that actually moves audio bytes. A
-  // player (Wave 5) issues a Range request per the HTML5 <audio> / MSE contract; a
-  // plain GET (curl, prefetch, a download) gets the whole file.
-  router.get('/api/stream/:bookId/:fileIndex', (req, res) => {
+  // Compat-generation single-flight map, scoped to this router instance (mirrors the
+  // scanner's own `inFlight` in scan.js) — keyed `${bookId}:${fileIndex}:${level}`.
+  const compatInFlight = new Map();
+
+  /** Shared bookId/:fileIndex resolution + containment for both /api/stream and its
+   *  .../prepare sibling below — book/file lookup, integer fileIndex validation, and
+   *  the same double resolveContained() check the original stream route always did.
+   *  Returns `{ error: 404 }` on any failure, else `{ filePath, bookId, fileIndex }`
+   *  (bookId/fileIndex are the CANONICAL numeric values off the row/file, not the raw
+   *  req.params strings — what the compat variant filename is keyed on). */
+  function resolveStreamSource(req) {
     const book = getBookStmt.get(req.params.bookId);
-    if (!book) return res.status(404).json({ error: 'Not found' });
+    if (!book) return { error: 404 };
 
     const fileIndex = Number.parseInt(req.params.fileIndex, 10);
     if (!Number.isInteger(fileIndex) || String(fileIndex) !== req.params.fileIndex.trim()) {
-      return res.status(404).json({ error: 'Not found' });
+      return { error: 404 };
     }
     const files = parseJsonColumn(book.files, []);
     const file = Array.isArray(files) ? files.find((f) => f.index === fileIndex) : null;
-    if (!file || typeof file.path !== 'string') return res.status(404).json({ error: 'Not found' });
+    if (!file || typeof file.path !== 'string') return { error: 404 };
 
     // book.path is itself the (already-absolute, scanner-written) book folder —
     // resolveContained(audiobooksDir, book.path) with an ABSOLUTE second argument just
@@ -145,9 +304,27 @@ function createMediaRouter({ db, audiobooksDir, dataDir }) {
     // drifted via direct DB tampering, but cheap to check every request). The per-file
     // path is then resolved against that folder, same containment check again.
     const bookDir = resolveContained(audiobooksDir, book.path);
-    if (!bookDir) return res.status(404).json({ error: 'Not found' });
+    if (!bookDir) return { error: 404 };
     const filePath = resolveContained(bookDir, file.path);
-    if (!filePath) return res.status(404).json({ error: 'Not found' });
+    if (!filePath) return { error: 404 };
+
+    return { filePath, bookId: book.id, fileIndex: file.index };
+  }
+
+  // ── GET /api/stream/:bookId/:fileIndex ──────────────────────────────────────────
+  // Range-aware file streaming — the one route that actually moves audio bytes. A
+  // player (Wave 5) issues a Range request per the HTML5 <audio> / MSE contract; a
+  // plain GET (curl, prefetch, a download) gets the whole file.
+  //
+  // `?compat=1|2` (added for the browser-decode-failure fallback, see the compat
+  // pipeline block above sendFileRange): serves an already-generated, still-fresh
+  // variant instead of the source file. This branch never GENERATES a variant inline
+  // — that's POST .../prepare's job, deliberately off this request's critical path —
+  // it 404s if the requested rung isn't ready yet, exactly like an unknown book/file.
+  router.get('/api/stream/:bookId/:fileIndex', (req, res) => {
+    const resolved = resolveStreamSource(req);
+    if (resolved.error) return res.status(resolved.error).json({ error: 'Not found' });
+    const { filePath, bookId, fileIndex } = resolved;
 
     let stat;
     try {
@@ -157,57 +334,59 @@ function createMediaRouter({ db, audiobooksDir, dataDir }) {
     }
     if (!stat.isFile()) return res.status(404).json({ error: 'Not found' });
 
-    const total = stat.size;
-    const mime = audioMimeFor(filePath);
-    const rangeHeader = req.headers.range;
-
-    let start = 0;
-    let end = total - 1;
-    let status = 200;
-
-    if (rangeHeader) {
-      // Only the single-range "bytes=start-end" / "bytes=start-" / "bytes=-suffix" forms
-      // are handled — multi-range ("bytes=0-1,10-20") is not a real audiobook-player use
-      // case and falls through to the unsatisfiable branch below.
-      const m = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader.trim());
-      if (!m || (m[1] === '' && m[2] === '')) {
-        res.set('Content-Range', `bytes */${total}`);
-        return res.status(416).end();
+    const compatRaw = req.query.compat;
+    if (compatRaw !== undefined) {
+      const level = Number.parseInt(compatRaw, 10);
+      if ((level !== 1 && level !== 2) || String(level) !== String(compatRaw).trim()) {
+        return res.status(400).json({ error: 'Invalid compat level' });
       }
-      if (m[1] === '') {
-        // Suffix range: "bytes=-500" → last 500 bytes.
-        const suffixLen = Number.parseInt(m[2], 10);
-        start = Math.max(0, total - suffixLen);
-        end = total - 1;
-      } else {
-        start = Number.parseInt(m[1], 10);
-        end = m[2] === '' ? total - 1 : Number.parseInt(m[2], 10);
-      }
-      if (Number.isNaN(start) || Number.isNaN(end) || start > end || start >= total) {
-        res.set('Content-Range', `bytes */${total}`);
-        return res.status(416).end();
-      }
-      end = Math.min(end, total - 1);
-      status = 206;
+      const variantPath = compatVariantPath(dataDir, bookId, fileIndex, level);
+      if (!isVariantFresh(stat, variantPath)) return res.status(404).json({ error: 'Not found' });
+      const variantStat = fs.statSync(variantPath);
+      return sendFileRange(req, res, variantPath, audioMimeFor(variantPath), variantStat);
     }
 
-    res.status(status);
-    res.set('Accept-Ranges', 'bytes');
-    res.set('Content-Type', mime);
-    res.set('Content-Length', String(end - start + 1));
-    if (status === 206) res.set('Content-Range', `bytes ${start}-${end}/${total}`);
+    sendFileRange(req, res, filePath, audioMimeFor(filePath), stat);
+  });
 
-    const stream = fs.createReadStream(filePath, { start, end });
-    // Guard against a leaked fd if the client disconnects mid-stream (a scrub/seek that
-    // abandons the in-flight request is the common case for a Range-served player).
-    res.on('close', () => { stream.destroy(); });
-    stream.on('error', (err) => {
-      console.error(`[papyros] stream read failed for "${filePath}": ${err.message}`);
-      stream.destroy();
-      if (!res.headersSent) res.status(500).end();
-      else res.end();
-    });
-    stream.pipe(res);
+  // ── POST /api/stream/:bookId/:fileIndex/prepare ─────────────────────────────────
+  // Kicks off (or JOINS, single-flight) generation of one compat rung for a file.
+  // `{level: 1}` = lossless remux, `{level: 2}` = AAC re-encode fallback (see the
+  // compat pipeline block above). Responds `{ready: true}` immediately if a fresh
+  // variant already exists (a no-op re-poll, or a warm cache from an earlier
+  // session); otherwise starts (or joins) the ffmpeg run and responds 202
+  // `{pending: true}` WITHOUT waiting on it — the player polls this same route until
+  // it flips to `{ready: true}`.
+  router.post('/api/stream/:bookId/:fileIndex/prepare', (req, res) => {
+    const resolved = resolveStreamSource(req);
+    if (resolved.error) return res.status(resolved.error).json({ error: 'Not found' });
+    const { filePath, bookId, fileIndex } = resolved;
+
+    const levelRaw = req.body && req.body.level;
+    const level = typeof levelRaw === 'number' ? levelRaw : Number.parseInt(levelRaw, 10);
+    if (level !== 1 && level !== 2) return res.status(400).json({ error: 'Invalid level' });
+
+    let stat;
+    try {
+      stat = fs.statSync(filePath);
+    } catch {
+      return res.status(404).json({ error: 'Not found' });
+    }
+    if (!stat.isFile()) return res.status(404).json({ error: 'Not found' });
+
+    const variantPath = compatVariantPath(dataDir, bookId, fileIndex, level);
+    if (isVariantFresh(stat, variantPath)) return res.json({ ready: true });
+
+    try {
+      fs.mkdirSync(path.dirname(variantPath), { recursive: true });
+    } catch (err) {
+      console.error(`[papyros] cannot create compat dir: ${err.message}`);
+      return res.status(500).json({ error: 'Server error' });
+    }
+
+    const key = `${bookId}:${fileIndex}:${level}`;
+    ensureCompatGeneration(compatInFlight, { key, srcPath: filePath, variantPath, level });
+    res.status(202).json({ pending: true });
   });
 
   // ── GET /api/cover/:bookId ───────────────────────────────────────────────────────

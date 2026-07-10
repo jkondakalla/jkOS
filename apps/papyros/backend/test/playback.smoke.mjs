@@ -43,7 +43,7 @@ import { promisify } from 'node:util';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { mkdtempSync, rmSync, statSync } from 'node:fs';
+import { mkdtempSync, rmSync, statSync, utimesSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { generateKeyPairSync, sign as cryptoSign } from 'node:crypto';
 
@@ -60,12 +60,16 @@ const ISSUER = 'jkos-auth';
 let pass = 0, fail = 0;
 const ok = (cond, msg) => { if (cond) pass++; else { fail++; console.error('  ✗ ' + msg); } };
 
-// ── ffprobe availability gate — SKIP (exit 0) rather than fail if it's missing ──────
+// ── ffprobe/ffmpeg availability gate — SKIP (exit 0) rather than fail if either is
+//    missing. ffprobe drives the scanner; ffmpeg drives §4's real compat-pipeline
+//    generation (src/media.js's ?compat=N remux/encode) below — both ship in the same
+//    OS package on every dev box and the runtime image, so this is one gate, not two.
 try {
   await execFileAsync('ffprobe', ['-version']);
+  await execFileAsync('ffmpeg', ['-version']);
 } catch {
-  console.warn('⚠ SKIPPED playback.smoke: `ffprobe` is not on PATH.');
-  console.warn('  Install ffmpeg (which provides ffprobe) to run this smoke — see Documentation/TESTING.md.');
+  console.warn('⚠ SKIPPED playback.smoke: `ffprobe`/`ffmpeg` is not on PATH.');
+  console.warn('  Install ffmpeg (which provides both) to run this smoke — see Documentation/TESTING.md.');
   process.exit(0);
 }
 
@@ -126,6 +130,22 @@ async function waitForBooks(token, count, ms = 30000) {
     await new Promise((r2) => setTimeout(r2, 300));
   }
   return rows;
+}
+
+/** Poll POST .../prepare (the "client polls" contract — src/media.js's compat
+ *  pipeline) until it reports {ready:true} or the timeout elapses. Returns the last
+ *  {status,json} pair either way so a caller can assert on either outcome. Fixture
+ *  audio is a 2s sine tone at 32kb/s — a real ffmpeg remux/encode of it is near-
+ *  instant, so the default timeout is generous, not load-bearing. */
+async function waitForCompatReady(token, bookId, fileIndex, level, ms = 20000) {
+  const deadline = Date.now() + ms;
+  let last = null;
+  while (Date.now() < deadline) {
+    last = await req('POST', `/api/stream/${bookId}/${fileIndex}/prepare`, { level }, token);
+    if (last.json?.ready) return last;
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  return last;
 }
 
 /** Poll GET /api/book/:id until cover_path lands — extractCover() runs AFTER a book's
@@ -324,6 +344,87 @@ try {
       const noCoverRes = await fetch(BASE + `/api/cover/${bookA.id}`, { headers: { Authorization: `Bearer ${A}` } });
       ok(noCoverRes.status === 404, `cover: a book with no cover_path → 404 (got ${noCoverRes.status})`);
     }
+  }
+
+  // =====================================================================================
+  // 4. Compat pipeline (the NS_ERROR_DOM_MEDIA_METADATA_ERR fix) — POST .../prepare
+  //    (level whitelist, single-flight, prepare→poll→ready), GET ?compat=1 serving the
+  //    generated variant through the SAME sendFileRange the plain path uses (206/
+  //    Content-Range off the VARIANT's own on-disk size, never the source's), and
+  //    mtime-based regeneration when the source file changes underneath a cached
+  //    variant. DATA_DIR mirrors server.js's own `path.dirname(DB_PATH)` — DB_PATH is
+  //    `<tmp>/test.db`, so compat variants land under `<tmp>/compat/`.
+  // =====================================================================================
+  if (bookA) {
+    const fixtureFilePath = join(FIXTURES_DIR, 'Fixture Book A', 'book.m4b');
+    const DATA_DIR = tmp;
+    const variantPath = join(DATA_DIR, 'compat', `${bookA.id}-0.c1.m4a`);
+
+    // A bogus level is rejected on both the write side (prepare) and the read side
+    // (?compat=N) — never silently ignored or coerced to a real rung.
+    const badPrepare = await req('POST', `/api/stream/${bookA.id}/0/prepare`, { level: 3 }, A);
+    ok(badPrepare.status >= 400 && badPrepare.status < 500,
+      `compat: prepare with an out-of-whitelist level → 4xx (got ${badPrepare.status})`);
+    const badCompatGet = await fetch(BASE + `/api/stream/${bookA.id}/0?compat=3`, { headers: { Authorization: `Bearer ${A}` } });
+    ok(badCompatGet.status >= 400 && badCompatGet.status < 500,
+      `compat: GET ?compat=3 (out of whitelist) → 4xx (got ${badCompatGet.status})`);
+
+    // Before anything has been prepared, the variant plainly isn't ready — 404, not a
+    // silent fallback to the source file (the player relies on this to know when to
+    // keep polling vs. play).
+    const notYet = await fetch(BASE + `/api/stream/${bookA.id}/0?compat=1`, { headers: { Authorization: `Bearer ${A}` } });
+    ok(notYet.status === 404, `compat: ?compat=1 before any prepare call → 404 (got ${notYet.status})`);
+
+    // prepare → poll → ready.
+    const firstPrepare = await req('POST', `/api/stream/${bookA.id}/0/prepare`, { level: 1 }, A);
+    ok(firstPrepare.status === 202 && firstPrepare.json?.pending === true,
+      `compat: first prepare call starts generation → 202 {pending:true} (got ${firstPrepare.status} ${JSON.stringify(firstPrepare.json)})`);
+
+    const readyResult = await waitForCompatReady(A, bookA.id, 0, 1);
+    ok(readyResult?.json?.ready === true,
+      `compat: polling prepare eventually reports {ready:true} (got ${JSON.stringify(readyResult?.json)})`);
+
+    // Once ready, re-polling prepare is a cheap no-op (still 200 {ready:true}, not a
+    // fresh 202 — it must not re-spawn ffmpeg for an already-fresh variant).
+    const rePrepare = await req('POST', `/api/stream/${bookA.id}/0/prepare`, { level: 1 }, A);
+    ok(rePrepare.status === 200 && rePrepare.json?.ready === true,
+      `compat: prepare after ready stays {ready:true} (got ${rePrepare.status} ${JSON.stringify(rePrepare.json)})`);
+
+    const variantSize = statSync(variantPath).size;
+    ok(variantSize > 0, `compat: level-1 variant landed on disk with nonzero size (got ${variantSize} bytes)`);
+
+    // ?compat=1 now serves the VARIANT — sizes/ranges computed off the variant's own
+    // stat, never the (larger, original-container) source file's.
+    const compatWhole = await fetch(BASE + `/api/stream/${bookA.id}/0?compat=1`, { headers: { Authorization: `Bearer ${A}` } });
+    const compatWholeBody = await compatWhole.arrayBuffer();
+    ok(compatWhole.status === 200, `compat: ?compat=1 no-Range GET → 200 (got ${compatWhole.status})`);
+    ok(compatWholeBody.byteLength === variantSize,
+      `compat: ?compat=1 whole-file body length matches the variant's on-disk size (got ${compatWholeBody.byteLength}, expected ${variantSize})`);
+    ok(compatWhole.headers.get('content-type') === 'audio/mp4',
+      `compat: ?compat=1 Content-Type audio/mp4 (got ${compatWhole.headers.get('content-type')})`);
+
+    const compatRange = await fetch(BASE + `/api/stream/${bookA.id}/0?compat=1`, {
+      headers: { Authorization: `Bearer ${A}`, Range: 'bytes=0-511' },
+    });
+    const compatRangeBody = await compatRange.arrayBuffer();
+    ok(compatRange.status === 206, `compat: ?compat=1 Range request → 206 (got ${compatRange.status})`);
+    ok(compatRange.headers.get('content-range') === `bytes 0-511/${variantSize}`,
+      `compat: ?compat=1 Content-Range is correct off the variant's size (got ${compatRange.headers.get('content-range')}, expected bytes 0-511/${variantSize})`);
+    ok(compatRangeBody.byteLength === 512, `compat: ?compat=1 range body is exactly 512 bytes (got ${compatRangeBody.byteLength})`);
+
+    // Regeneration: bump the SOURCE file's mtime past the cached variant's — the
+    // variant must stop being servable (stale, per the mtime-compare rule) until a
+    // fresh prepare rebuilds it.
+    utimesSync(fixtureFilePath, new Date(), new Date());
+    const staleGet = await fetch(BASE + `/api/stream/${bookA.id}/0?compat=1`, { headers: { Authorization: `Bearer ${A}` } });
+    ok(staleGet.status === 404,
+      `compat: after the source mtime bumps past the variant's, ?compat=1 → 404 until regenerated (got ${staleGet.status})`);
+
+    const regenReady = await waitForCompatReady(A, bookA.id, 0, 1);
+    ok(regenReady?.json?.ready === true,
+      `compat: re-prepare after a source mtime bump regenerates and reports ready again (got ${JSON.stringify(regenReady?.json)})`);
+    const regenGet = await fetch(BASE + `/api/stream/${bookA.id}/0?compat=1`, { headers: { Authorization: `Bearer ${A}` } });
+    ok(regenGet.status === 200, `compat: ?compat=1 serves again once regenerated → 200 (got ${regenGet.status})`);
   }
 } catch (e) {
   console.error('playback.smoke crashed:', e);
