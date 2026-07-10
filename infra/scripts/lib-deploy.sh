@@ -155,6 +155,15 @@ reload_nginx() {
   # the container must be RECREATED (only `docker compose up -d` on infra/nginx adds a
   # mount), not merely restarted. Reads fail-open: a missing conf/inspect just skips
   # the guard and leaves the prior behaviour untouched.
+  #
+  # If a mount really is missing, self-heal it here instead of just dying and
+  # handing a human a manual `docker compose up -d` (same rationale as
+  # ensure_env_files above): a restart can't add a bind-mount, but `compose up
+  # -d` against infra/nginx/docker-compose.yml recreates the container with
+  # whatever mounts are in the checked-out compose file, which is exactly what
+  # the missing-include case needs. Re-check afterward; only die if the
+  # recreate itself didn't fix it (e.g. the include is missing from the repo
+  # compose file too, not just the live container).
   if docker inspect -f '{{.State.Running}}' standalone-nginx 2>/dev/null | grep -q true; then
     local inc missing=0
     while IFS= read -r inc; do
@@ -162,7 +171,21 @@ reload_nginx() {
       docker exec standalone-nginx sh -c '[ -e "$1" ]' _ "$inc" 2>/dev/null \
         || { err "standalone-nginx has no $inc (standalone.conf includes it, but the running container mounts no such file)"; missing=1; }
     done < <(grep -oE '^[[:space:]]*include[[:space:]]+/etc/nginx/[^;[:space:]]+' "$REPO_DIR/infra/nginx/standalone.conf" 2>/dev/null | awk '{print $2}' | sort -u)
-    [ "$missing" = 0 ] || die "a required nginx include is absent from the live standalone-nginx container. A restart cannot add a bind-mount — RECREATE it on the host:  cd infra/nginx && docker compose up -d  (then re-run this deploy)."
+    if [ "$missing" != 0 ]; then
+      err "a required nginx include is absent from the live standalone-nginx container - self-healing by recreating it (cd infra/nginx && docker compose up -d)"
+      run docker compose -f "$REPO_DIR/infra/nginx/docker-compose.yml" up -d
+      local inc2 missing2=0
+      while IFS= read -r inc2; do
+        [ -n "$inc2" ] || continue
+        docker exec standalone-nginx sh -c '[ -e "$1" ]' _ "$inc2" 2>/dev/null \
+          || { err "standalone-nginx still has no $inc2 after recreate - check infra/nginx/docker-compose.yml mounts that file"; missing2=1; }
+      done < <(grep -oE '^[[:space:]]*include[[:space:]]+/etc/nginx/[^;[:space:]]+' "$REPO_DIR/infra/nginx/standalone.conf" 2>/dev/null | awk '{print $2}' | sort -u)
+      [ "$missing2" = 0 ] || die "standalone-nginx recreate did not add the required mount(s) - see above"
+      log "  ok  standalone-nginx recreated with all required mounts"
+      run docker exec standalone-nginx nginx -t
+      log "  ok  standalone-nginx running with new config"
+      return 0
+    fi
   fi
 
   run docker restart standalone-nginx
