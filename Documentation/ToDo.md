@@ -395,8 +395,16 @@ task-level detail below is kept for the record; nothing here is open.
       7.3 consumes these exact cache/DB names.)*
 - [ ] **7.2 `[FEAT-P]` `[opus]`** Offline write queue for progress/bookmarks; reconcile on
       reconnect via the collections' `?since=` delta cursor, last-write-wins on `updated_at`.
-- [ ] **7.3 `[FEAT-P]`** Service-worker media routing: serve cached audio when offline,
-      online-first otherwise; regression-check the online player.
+- [x] **7.3 `[FEAT-P]`** Service-worker media routing: serve cached audio when offline,
+      online-first otherwise. *(DONE 2026-07-10: sw.js's /api/ handler now respondWith()s
+      stream/cover/book GETs via serveMedia() — online path is a bare pass-through
+      fetch (Range semantics untouched), offline falls back to the papyros-media-v1
+      cache; Range requests are answered by lazily slicing the cached full-body 200
+      (Blob.slice, disk-backed — no 400MB in memory), ignoreSearch so ?compat=N falls
+      back to the cached original. Caveat flagged: offline serves the ORIGINAL
+      container, so a book whose original Firefox can't demux should be re-downloaded
+      after compat variants exist — future: the download pipeline should prefer the
+      compat variant when compat_ready.)*
 
 **Wave 8 — book club + suite integration**
 

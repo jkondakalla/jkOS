@@ -60,11 +60,18 @@ self.addEventListener('fetch', (event) => {
   // etc.) is left to the browser's own cache/network handling.
   if (url.origin !== self.location.origin) return
 
-  // Never intercept the API — especially /api/stream, which is Range-streamed
-  // audio. Not calling event.respondWith() here means the request falls through
-  // to the browser's default handling, so Range semantics stay intact and we
-  // never accidentally cache a (partial) media response.
-  if (url.pathname.includes('/api/')) return
+  // API requests: media routes get OFFLINE fallback service (Wave 7.3), the rest
+  // pass straight through untouched. The online path inside serveMedia() is a bare
+  // fetch(request) — Range headers and 200/206 semantics reach the network exactly
+  // as if the SW weren't there; the Cache API is consulted ONLY when that fetch
+  // itself rejects (offline). We still never WRITE media into a cache here — the
+  // in-app download pipeline (src/offline/store.ts) is the only writer.
+  if (url.pathname.includes('/api/')) {
+    if (/\/api\/(stream|cover|book)\//.test(url.pathname)) {
+      event.respondWith(serveMedia(request))
+    }
+    return
+  }
 
   // Full-page navigations: network-first, falling back to the cached app shell
   // when offline so the SPA shell can still boot (client-side routing takes it
@@ -109,5 +116,59 @@ async function networkFirstAsset(request) {
     const cached = await cache.match(request)
     if (cached) return cached
     throw err
+  }
+}
+
+/* ── Wave 7.3: offline media routing ─────────────────────────────────────────
+ * Online-first: a healthy network is a transparent pass-through. Offline, serve
+ * from the media cache the download pipeline populated. MUST match
+ * src/offline/constants.ts's MEDIA_CACHE — the two files cannot import each
+ * other (this one is a plain public/ script), so the name is duplicated by
+ * contract; change BOTH or neither.
+ *
+ * Range handling: the pipeline stores each audio file as ONE full-body 200
+ * keyed by its bare stream URL. A Range request offline is answered by slicing
+ * that body — Blob.slice() is lazy (disk-backed), so a 400MB audiobook never
+ * materializes in memory. `ignoreSearch` lets a `?compat=N` request fall back
+ * to the cached original when offline. */
+const MEDIA_CACHE = 'papyros-media-v1'
+
+async function serveMedia(request) {
+  try {
+    return await fetch(request)
+  } catch (err) {
+    const cache = await caches.open(MEDIA_CACHE)
+    const cached = await cache.match(request.url, { ignoreSearch: true })
+    if (!cached) throw err
+
+    const rangeHeader = request.headers.get('range')
+    if (!rangeHeader) return cached
+
+    const blob = await cached.blob()
+    const total = blob.size
+    const m = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader.trim())
+    if (!m || (m[1] === '' && m[2] === '')) {
+      return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${total}` } })
+    }
+    let start, end
+    if (m[1] === '') {
+      start = Math.max(0, total - Number.parseInt(m[2], 10))
+      end = total - 1
+    } else {
+      start = Number.parseInt(m[1], 10)
+      end = m[2] === '' ? total - 1 : Math.min(Number.parseInt(m[2], 10), total - 1)
+    }
+    if (Number.isNaN(start) || Number.isNaN(end) || start > end || start >= total) {
+      return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${total}` } })
+    }
+    return new Response(blob.slice(start, end + 1), {
+      status: 206,
+      headers: {
+        'Content-Type': cached.headers.get('Content-Type') || 'application/octet-stream',
+        'Content-Length': String(end - start + 1),
+        'Content-Range': `bytes ${start}-${end}/${total}`,
+        'Accept-Ranges': 'bytes',
+      },
+    })
   }
 }

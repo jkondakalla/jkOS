@@ -18,7 +18,7 @@ import { streamUrl, coverUrl, bookDetailUrl } from '../api';
 /** Cache API bucket for media bytes. Kept distinct from the app-shell cache
  *  (`papyros-shell-*`, public/sw.js) so shell eviction never drops a downloaded book
  *  and a book removal never touches the shell. */
-export const MEDIA_CACHE = 'papyros-media-v1';
+export const MEDIA_CACHE = 'papyros-media-v1'   /* MUST match public/sw.js's MEDIA_CACHE literal (7.3) — the SW can't import this module */;
 
 /** IndexedDB database name for offline bookkeeping. */
 export const OFFLINE_DB = 'papyros-offline';
