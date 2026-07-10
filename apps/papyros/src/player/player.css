@@ -38,10 +38,13 @@
   align-items: center;
   gap: 1rem;
   padding: 0.6rem 1.1rem;
-  background: color-mix(in srgb, var(--hub-bg-2) 94%, transparent);
-  border-top: 1px solid var(--hub-line);
+  /* SOLID surface + an accent-tinted top rule. The original 94%-translucent + blur
+     chrome visually merged into the page (especially dark mode) — the whole bar read
+     as invisible except the bordered circular play button ("just a circle in a
+     non-intuitive location", Jag 2026-07-10). */
+  background: var(--hub-bg-2);
+  border-top: 2px solid color-mix(in srgb, var(--accent) 35%, var(--hub-line));
   box-shadow: var(--hub-shadow-card);
-  backdrop-filter: blur(var(--hub-widget-blur, 8px));
 }
 
 .player-bar.is-mobile {

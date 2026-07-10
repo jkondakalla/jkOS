@@ -48,6 +48,9 @@ export interface BookFile {
   path?: string;
   duration: number;
   codec: string;
+  /** Level-1 (lossless remux) compat variant exists server-side — the player starts
+   *  this file on the normalized container (Firefox-safe) instead of failing first. */
+  compat_ready?: boolean;
 }
 
 export interface BookChapter {

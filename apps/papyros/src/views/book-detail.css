@@ -76,10 +76,19 @@
 }
 
 .play-button {
-  background: color-mix(in srgb, var(--accent) 14%, var(--hub-bg-2));
+  /* THE primary action on the page — sized like one (it was a small quiet text
+     button visually identical to its Download/Offline neighbours; Jag 2026-07-10). */
+  min-height: 48px;
+  padding: 0.55rem 1.6rem;
+  font-size: 1rem;
+  background: color-mix(in srgb, var(--accent) 22%, var(--hub-bg-2));
   color: var(--accent);
-  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
-  font-weight: 600;
+  border: 2px solid color-mix(in srgb, var(--accent) 60%, transparent);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.play-button:hover {
+  background: color-mix(in srgb, var(--accent) 32%, var(--hub-bg-2));
 }
 :root[data-mode="dark"] .play-button {
   text-shadow: 0 0 8px color-mix(in srgb, var(--accent) 45%, transparent);

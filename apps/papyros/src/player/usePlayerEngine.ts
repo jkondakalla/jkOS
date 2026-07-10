@@ -234,7 +234,12 @@ export function usePlayerEngine(): PlayerApi {
       // A prior decode failure on this exact (book, file) may have bumped its compat
       // level this session (attemptCompatRecovery below) — replay that choice on every
       // load so a re-seek/re-open doesn't retry the raw original and fail again.
-      const level = compatLevelRef.current.get(compatKeyFor(b.id, file.index)) ?? 0;
+      // Start on the pre-generated lossless remux when the server says it's ready
+      // (compat_ready off /api/book) — Firefox's mp4parse rejects some real-world m4b
+      // moovs, so beginning on the normalized container skips the fail→generate→retry
+      // dance entirely. A session-bumped level (a decode failure THIS session) wins.
+      const readyLevel = file.compat_ready ? 1 : 0;
+      const level = Math.max(compatLevelRef.current.get(compatKeyFor(b.id, file.index)) ?? 0, readyLevel);
       audio.src = level > 0 ? `${streamUrl(b.id, file.index)}?compat=${level}` : streamUrl(b.id, file.index);
       audio.playbackRate = rateRef.current;   // some browsers reset rate on src change
       audio.load();

@@ -23,7 +23,7 @@ const {
 const { createScanner } = require('./src/library/scan');     // 2.3: AUDIOBOOKS_DIR walker → `books` catalog
 const { createLibraryRouter } = require('./src/routes/library'); // 2.3: rescanLibrary route
 const { createBooksRouter } = require('./src/routes/books');     // 2.4: filtered `books` dataset read
-const { createMediaRouter } = require('./src/media');            // 3.2/3.3: stream/cover/book/download routes, mounted per 3.4
+const { createMediaRouter, prepareAllCompat } = require('./src/media');   // 3.2/3.3 media routes + the compat pre-generation sweep
 const { createMatchRouter, runEnrichmentSweep } = require('./src/routes/match');   // 4.2 matchBook + the auto-enrichment sweep
 
 /* ── Env ───────────────────────────────────────────────────────────────── */
@@ -66,11 +66,18 @@ db.pragma('journal_mode = WAL');
    touch the live iTunes API). Fire-and-forget — enrichment failing must never affect
    a scan's result, same doctrine as the boot scan itself. */
 const AUTO_ENRICH = process.env.PAPYROS_AUTO_ENRICH === '1';
+const AUTO_COMPAT = process.env.PAPYROS_AUTO_COMPAT === '1';
 function onScanComplete() {
-  if (!AUTO_ENRICH) return;
-  runEnrichmentSweep({ db, dataDir: DATA_DIR, doFetch: globalThis.fetch })
-    .then((r) => console.log(`[papyros] auto-enrich: applied ${r.applied.length}/${r.examined}${r.truncated ? ' (truncated — next scan continues)' : ''}`))
-    .catch((err) => console.warn(`[papyros] auto-enrich failed: ${err.message}`));
+  if (AUTO_ENRICH) {
+    runEnrichmentSweep({ db, dataDir: DATA_DIR, doFetch: globalThis.fetch })
+      .then((r) => console.log(`[papyros] auto-enrich: applied ${r.applied.length}/${r.examined}${r.truncated ? ' (truncated — next scan continues)' : ''}`))
+      .catch((err) => console.warn(`[papyros] auto-enrich failed: ${err.message}`));
+  }
+  if (AUTO_COMPAT) {
+    prepareAllCompat({ db, audiobooksDir: AUDIOBOOKS_DIR, dataDir: DATA_DIR })
+      .then((r) => console.log(`[papyros] auto-compat: ${r.made} generated, ${r.fresh} already fresh${r.failed ? `, ${r.failed} FAILED` : ''}`))
+      .catch((err) => console.warn(`[papyros] auto-compat failed: ${err.message}`));
+  }
 }
 
 const scanner = createScanner({ db, audiobooksDir: AUDIOBOOKS_DIR, dataDir: DATA_DIR, onScanComplete });

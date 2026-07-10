@@ -264,6 +264,43 @@ function ensureCompatGeneration(inFlight, { key, srcPath, variantPath, level }) 
   return promise;
 }
 
+/* One process-wide single-flight map — shared by the routes AND the post-scan
+   pre-generation sweep below, so a poll-triggered prepare and the background sweep
+   can never run two ffmpegs for the same variant. Keyed `${bookId}:${fileIndex}:${level}`. */
+const compatInFlight = new Map();
+
+/** Pre-generate the level-1 (lossless remux) compat variant for EVERY catalog file.
+ *  Fired after each scan by server.js (PAPYROS_AUTO_COMPAT=1 — compose-only, never in
+ *  tests: playback.smoke asserts 404-before-prepare, which a background sweep would
+ *  race). Sequential on purpose: -c copy remuxes are I/O-bound and the library lives
+ *  on a NAS mount — one at a time keeps the disk polite; freshness-skip makes re-runs
+ *  cheap no-ops. Firefox's strict mp4parse rejects some real-world m4b moovs, so with
+ *  variants pre-built the player can start every file on the normalized container
+ *  instead of failing once, waiting for generation, then retrying. */
+async function prepareAllCompat({ db, audiobooksDir, dataDir }) {
+  const rows = db.prepare('SELECT id, path, files FROM books ORDER BY id').all();
+  let made = 0, fresh = 0, failed = 0;
+  for (const row of rows) {
+    const bookDir = resolveContained(audiobooksDir, row.path);
+    if (!bookDir) continue;
+    for (const f of parseJsonColumn(row.files, [])) {
+      if (!f || typeof f.path !== 'string' || !Number.isInteger(f.index)) continue;
+      const srcPath = resolveContained(bookDir, f.path);
+      if (!srcPath) continue;
+      let srcStat;
+      try { srcStat = fs.statSync(srcPath); } catch { continue; }
+      const variantPath = compatVariantPath(dataDir, row.id, f.index, 1);
+      if (isVariantFresh(srcStat, variantPath)) { fresh += 1; continue; }
+      fs.mkdirSync(path.join(dataDir, COMPAT_DIR_NAME), { recursive: true });
+      await ensureCompatGeneration(compatInFlight, {
+        key: `${row.id}:${f.index}:1`, srcPath, variantPath, level: 1,
+      });
+      if (isVariantFresh(srcStat, variantPath)) made += 1; else failed += 1;
+    }
+  }
+  return { made, fresh, failed };
+}
+
 /**
  * @param {{ db: import('better-sqlite3').Database, audiobooksDir: string, dataDir: string }} deps
  */
@@ -276,9 +313,6 @@ function createMediaRouter({ db, audiobooksDir, dataDir }) {
 
   const getBookStmt = db.prepare('SELECT * FROM books WHERE id = ?');
 
-  // Compat-generation single-flight map, scoped to this router instance (mirrors the
-  // scanner's own `inFlight` in scan.js) — keyed `${bookId}:${fileIndex}:${level}`.
-  const compatInFlight = new Map();
 
   /** Shared bookId/:fileIndex resolution + containment for both /api/stream and its
    *  .../prepare sibling below — book/file lookup, integer fileIndex validation, and
@@ -554,11 +588,21 @@ function createMediaRouter({ db, audiobooksDir, dataDir }) {
     const book = getBookStmt.get(req.params.bookId);
     if (!book) return res.status(404).json({ error: 'Not found' });
 
-    const files = parseJsonColumn(book.files, []).map((f) => ({
-      index: f.index,
-      duration: f.duration,
-      codec: f.codec,
-    }));
+    // `compat_ready` tells the player it can START this file on the normalized
+    // level-1 remux (Firefox-safe) instead of discovering a decode failure first.
+    const bookDir = resolveContained(audiobooksDir, book.path);
+    const files = parseJsonColumn(book.files, []).map((f) => {
+      let compatReady = false;
+      if (bookDir && typeof f.path === 'string' && Number.isInteger(f.index)) {
+        const src = resolveContained(bookDir, f.path);
+        if (src) {
+          try {
+            compatReady = isVariantFresh(fs.statSync(src), compatVariantPath(dataDir, book.id, f.index, 1));
+          } catch { /* missing source — stays false */ }
+        }
+      }
+      return { index: f.index, duration: f.duration, codec: f.codec, compat_ready: compatReady };
+    });
     const chapters = parseJsonColumn(book.chapters, []);
     const genres = cleanGenres(parseJsonColumn(book.genres, []));
 
@@ -586,4 +630,4 @@ function createMediaRouter({ db, audiobooksDir, dataDir }) {
   return router;
 }
 
-module.exports = { createMediaRouter };
+module.exports = { createMediaRouter, prepareAllCompat };

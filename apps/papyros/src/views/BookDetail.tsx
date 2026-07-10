@@ -169,7 +169,7 @@ export default function BookDetail({ bookId }: { bookId: number }) {
 
           <div className="book-actions">
             <TButton className="play-button" onClick={handlePlay}>
-              {canResume && row ? `Resume · ${formatClock(row.position)}` : 'Play'}
+              {canResume && row ? `▶ Resume · ${formatClock(row.position)}` : '▶ Play'}
             </TButton>
             <OfflineButton book={book} />
             <DownloadButton book={book} />
