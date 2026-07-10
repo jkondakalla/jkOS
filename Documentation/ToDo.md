@@ -268,20 +268,40 @@ task-level detail below is kept for the record; nothing here is open.
 
 **Wave 6 — staging bring-up + live verify `[ARCH/ops]`**
 
-- [x] **6.1** Deploy to staging via `/deploy`; **restart** nginx; app at
-      `staging.jkos.net/papyros/`. Confirmed 2026-07-09: `staging-papyros-app` healthy,
-      nginx edge routes `/papyros/*` to it correctly.
-- [x] **6.1a `[BUG]`** Bare `staging.jkos.net/papyros` (no trailing slash) matched neither
-      `location /papyros/` nor any other prefix, so it fell through to the staging
-      `location /` — the ORDECK portal — and the app looked like it "redirected to ORDECK".
-      Fixed 2026-07-09 in `gen-nginx-weave.mjs` (`appStagingLocation` now also emits
-      `location = /<id> { return 301 …/<id>/; }`), so every current and future
-      `edge:'standard'` app gets it. Also what makes the PWA manifest resolve: vite does
-      NOT rewrite `public/` hrefs against `base`, so `index.html`'s relative
-      `manifest.webmanifest` / `icon-512.png` only resolve from `/papyros/`.
-      **Needs an nginx RESTART (not reload) to take effect** — bind-mounted inode.
-      *(Same latent bug exists for the hand-written `/beigeboard/`, `/sylib/`, `/deploy/`
-      blocks in `standalone.conf` — not fixed here, they're bespoke, not generated.)*
+- [x] **6.1** Deploy to staging via `/deploy`. `staging-papyros-app` is up + healthy; boot
+      scan cataloged 18 titles. The app container was never the problem.
+- [ ] **6.1a `[BUG]` — THE `/papyros` → ORDECK BUG. Root-caused 2026-07-09; fix is a one-line
+      host action, NOT a code change.** The live `standalone-nginx` container was created
+      **Jun 25** and its config is a *stale bind-mounted inode*: `docker exec standalone-nginx
+      grep papyros /etc/nginx/nginx.conf` returns **nothing**, and `grep apps-generated` returns
+      **nothing**. There is no `/papyros` location in the running config at all, so *every*
+      `/papyros` request — trailing slash or not — falls through to `location /`, the ORDECK
+      portal. `docker inspect` confirms it mounts `weave-proxy*.conf` but **not**
+      `apps-generated.conf` / `apps-generated-staging.conf`, which were added to
+      `infra/nginx/docker-compose.yml` after the container was created.
+      **A bind-mount cannot be added by `docker restart` — only by recreating the container.**
+      ⚠️ Worse: a bare `docker restart` now *takes the edge down*. Restart re-resolves
+      `standalone.conf` to its new inode, which `include`s `apps-generated*.conf` — files the
+      container doesn't mount — so nginx dies with `[emerg] open() failed` and every prod +
+      staging site goes with it. **Recreate, don't restart.**
+      **Fix (on the TrueNAS host):** `cd /mnt/Luna/Webhost/jkOS-staging/infra/nginx && docker compose up -d`
+      — or just run `/deploy`, since `reload_nginx` in `infra/scripts/lib-deploy.sh` now
+      self-heals exactly this case (commit `4cba7f8`). Config was validated against the real
+      image before recommending: `nginx -t` passes with all five confs mounted (the only
+      `[emerg]` in a throwaway container is `host.docker.internal`, which the real container
+      resolves via compose `extra_hosts`). **Verify after:** `docker exec standalone-nginx grep
+      -c papyros /etc/nginx/nginx.conf` → non-zero, then `curl -I https://staging.jkos.net/papyros/`.
+- [x] **6.1a-i `[BUG]`** *(separate, real, already fixed — but it was NOT the cause of the
+      above.)* Bare `/<id>` (no trailing slash) matches neither `location /<id>/` nor any other
+      prefix, so once the config above is actually loaded, bare `/papyros` would still fall to
+      `location /`. Fixed in the **generator** (`gen-nginx-weave.mjs`'s `appStagingLocation` now
+      also emits `location = /<id> { return 301 …/<id>/; }`), so every current and future
+      `edge:'standard'` app gets it. It also matters for the PWA: vite does NOT rewrite
+      `public/` hrefs against `base`, so `index.html`'s relative `manifest.webmanifest` /
+      `icon-512.png` only resolve from `/papyros/`.
+      *(The same bare-path gap exists for the hand-written `/beigeboard/`, `/sylib/`, `/deploy/`
+      blocks in `standalone.conf` — bespoke, not generated, so unfixed. Low priority: those are
+      long-bookmarked apps and nobody has hit it.)*
 - [x] **6.1b `[FEAT-P]`** Frontend usability gaps closed 2026-07-09: mounted the shared
       `@jkos/ui` `SettingsDrawer` (PapyrOS was the only app without one — no sign-out, no
       account, no light/dark or accent control) behind a header gear; added the admin-only
