@@ -270,7 +270,7 @@ task-level detail below is kept for the record; nothing here is open.
 
 - [x] **6.1** Deploy to staging via `/deploy`. `staging-papyros-app` is up + healthy; boot
       scan cataloged 18 titles. The app container was never the problem.
-- [ ] **6.1a `[BUG]` — THE `/papyros` → ORDECK BUG. Root-caused 2026-07-09; fix is a one-line
+- [x] **6.1a `[BUG]` — THE `/papyros` → ORDECK BUG. Root-caused 2026-07-09; fix is a one-line
       host action, NOT a code change.** The live `standalone-nginx` container was created
       **Jun 25** and its config is a *stale bind-mounted inode*: `docker exec standalone-nginx
       grep papyros /etc/nginx/nginx.conf` returns **nothing**, and `grep apps-generated` returns
@@ -291,6 +291,12 @@ task-level detail below is kept for the record; nothing here is open.
       `[emerg]` in a throwaway container is `host.docker.internal`, which the real container
       resolves via compose `extra_hosts`). **Verify after:** `docker exec standalone-nginx grep
       -c papyros /etc/nginx/nginx.conf` → non-zero, then `curl -I https://staging.jkos.net/papyros/`.
+      **FIXED 2026-07-09 (Jag-approved recreate):** `docker compose up -d` recreated the
+      container with all five confs mounted; assembled config (`nginx -T`) has 18 papyros
+      refs — note `/etc/nginx/nginx.conf` alone shows 0 because papyros lives in the
+      *included* `apps-generated-staging.conf`, so verify via `nginx -T`. Bare `/papyros` →
+      301 `/papyros/`; `/papyros/` → 302 jkAuth login (the staging edge gate — correct);
+      prod edge unaffected. Remaining live checks need a real login (6.2).
 - [x] **6.1a-i `[BUG]`** *(separate, real, already fixed — but it was NOT the cause of the
       above.)* Bare `/<id>` (no trailing slash) matches neither `location /<id>/` nor any other
       prefix, so once the config above is actually loaded, bare `/papyros` would still fall to
