@@ -43,25 +43,36 @@ export default function PlayerBar() {
   const displayPos = scrub != null ? scrub : Math.min(p.globalPos, total || p.globalPos);
   const commitScrub = () => { if (scrub != null) { p.seekTo(scrub); setScrub(null); } };
 
+  // The scrubber is the CURRENT CHAPTER's timeline, not the whole book (Jag,
+  // 2026-07-09). `points` is gap-free over [0, total] (real chapters, else one span
+  // per file), so the current point always brackets the position; `scrub` state stays
+  // in GLOBAL seconds (seekTo's unit) — only the input's min/max/value are
+  // chapter-relative. Crossing chapters is the prev/next buttons' job; while playback
+  // rolls over a boundary, currentIndex advances and the bar re-brackets itself.
+  const ch = p.currentIndex >= 0 ? p.points[p.currentIndex] : null;
+  const chStart = ch ? ch.start : 0;
+  const chLen = Math.max(0, (ch ? ch.end : total) - chStart);
+  const chPos = Math.max(0, Math.min(displayPos - chStart, chLen));
+
   const scrubber = (
     <div className="pb-scrubber">
-      <span className="pb-time" aria-hidden="true">{fmtClock(displayPos)}</span>
+      <span className="pb-time" aria-hidden="true">{fmtClock(chPos)}</span>
       <input
         className="pb-range"
         type="range"
         min={0}
-        max={total || 1}
+        max={chLen || 1}
         step={1}
-        value={Math.max(0, Math.min(displayPos, total || 1))}
+        value={chPos}
         disabled={total === 0}
-        aria-label="Seek position"
-        onChange={(e) => setScrub(Number(e.currentTarget.value))}
+        aria-label="Seek position in chapter"
+        onChange={(e) => setScrub(chStart + Number(e.currentTarget.value))}
         onPointerUp={commitScrub}
         onMouseUp={commitScrub}
         onTouchEnd={commitScrub}
         onKeyUp={commitScrub}
       />
-      <span className="pb-time" aria-hidden="true">{fmtClock(total)}</span>
+      <span className="pb-time" aria-hidden="true">{fmtClock(chLen)}</span>
     </div>
   );
 

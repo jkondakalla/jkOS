@@ -113,11 +113,14 @@ export interface BookmarkRow {
 }
 
 /** Server-driven `books` filters (discovery.js BOOKS_DATASET.filters). `since` (the
- *  delta cursor) is omitted here — no Wave-5 view needs it yet; add it if one does. */
+ *  delta cursor) is omitted here — no Wave-5 view needs it yet; add it if one does.
+ *  `genre` is an exact JSON-array membership match (the `tags` op — see discovery.js),
+ *  driven by the library grid's genre chips (BookCard.tsx / Library.tsx). */
 export interface BookFilters {
   title?: string;
   author?: string;
   series?: string;
+  genre?: string;
 }
 
 // ─── Shared fetch helper ───────────────────────────────────────────────────────────

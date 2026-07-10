@@ -6,7 +6,7 @@ import {
 } from '../api';
 import DownloadButton from '../components/DownloadButton';
 import { OfflineBadge, OfflineButton } from '../offline';
-import { requestPlay } from '../player/controller';
+import { getLastPosition, onPosition, requestPlay, type PositionUpdate } from '../player/controller';
 import MatchPanel from './book-detail/MatchPanel';
 import { formatClock, formatHM } from './book-detail/format';
 import './book-detail.css';
@@ -15,6 +15,28 @@ import './book-detail.css';
 // "Fix metadata" match flow. Supersedes the Wave-5.1 placeholder (fetch + title only).
 // Playback is entirely delegated through player/controller.ts's requestPlay — this
 // view never touches <audio> or PlayerBar directly (see that module's own comment).
+
+/** The listener's position for THIS book: live off controller.ts's position broadcast
+ *  while it's the one playing (BookDetail can't call usePlayerEngine() itself — that
+ *  would spin up a second <audio>, see usePlayerEngine's header), else the saved
+ *  progress row, else 0. Drives both the chapter-row loading-bar fill below. */
+function useListenerPosition(bookId: number, savedPosition: number): number {
+  const [live, setLive] = useState<PositionUpdate | null>(() => getLastPosition());
+  useEffect(() => {
+    setLive(getLastPosition());   // this book may already be mid-playback on mount
+    return onPosition(setLive);
+  }, [bookId]);
+  return live && live.bookId === bookId ? live.globalPos : savedPosition;
+}
+
+/** Fraction [0, 1] of a [start, end) chapter/track already behind the listener's
+ *  position — 0 ahead of it, 1 for chapters fully finished, fractional for the one
+ *  they're inside. Chapter rows use this as their loading-bar fill width. */
+function chapterFraction(start: number, end: number, position: number): number {
+  if (position <= start) return 0;
+  if (position >= end) return 1;
+  return (position - start) / (end - start);
+}
 
 const SOURCE_LABELS: Record<BookDetailRow['metadata_source'], string> = {
   embedded: 'Source: embedded tags',
@@ -68,6 +90,7 @@ export default function BookDetail({ bookId }: { bookId: number }) {
 
   const row = progress.find((p) => p.book_ref === bookId) ?? null;
   const canResume = !!row && !row.finished;
+  const listenerPos = useListenerPosition(bookId, row?.position ?? 0);
 
   const sortedFiles = useMemo(
     () => (book ? [...book.files].sort((a, b) => a.index - b.index) : []),
@@ -194,9 +217,14 @@ export default function BookDetail({ bookId }: { bookId: number }) {
                         className="chapter-row"
                         onClick={() => requestPlay({ bookId, position: ch.start })}
                       >
+                        <span
+                          className="chapter-row-fill"
+                          style={{ width: `${chapterFraction(ch.start, ch.end, listenerPos) * 100}%` }}
+                          aria-hidden="true"
+                        />
                         <span className="chapter-index">{i + 1}</span>
                         <span className="chapter-title">{ch.title || `Chapter ${i + 1}`}</span>
-                        <span className="chapter-time">{formatClock(ch.start)}</span>
+                        <span className="chapter-time">{formatClock(ch.end - ch.start)}</span>
                       </button>
                     </li>
                   ))
@@ -207,6 +235,13 @@ export default function BookDetail({ bookId }: { bookId: number }) {
                         className="chapter-row"
                         onClick={() => requestPlay({ bookId, position: fileOffsets[i] })}
                       >
+                        <span
+                          className="chapter-row-fill"
+                          style={{
+                            width: `${chapterFraction(fileOffsets[i], fileOffsets[i] + f.duration, listenerPos) * 100}%`,
+                          }}
+                          aria-hidden="true"
+                        />
                         <span className="chapter-index">{i + 1}</span>
                         <span className="chapter-title">
                           Track {f.index + 1}{f.codec ? ` · ${f.codec.toUpperCase()}` : ''}

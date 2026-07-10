@@ -16,6 +16,8 @@ interface LibraryToolbarProps {
   onSortModeChange: (mode: SortMode) => void;
   seriesFilter: string | null;
   onClearSeriesFilter: () => void;
+  genreFilter: string | null;
+  onClearGenreFilter: () => void;
   bp: 'mobile' | 'tablet' | 'desktop';
 }
 
@@ -43,7 +45,7 @@ function SegButton({ active, onClick, children }: { active: boolean; onClick: ()
 export default function LibraryToolbar({
   field, onFieldChange, query, onQueryChange,
   groupMode, onGroupModeChange, sortMode, onSortModeChange,
-  seriesFilter, onClearSeriesFilter, bp,
+  seriesFilter, onClearSeriesFilter, genreFilter, onClearGenreFilter, bp,
 }: LibraryToolbarProps) {
   return (
     <div className="lib-toolbar" data-bp={bp}>
@@ -90,6 +92,16 @@ export default function LibraryToolbar({
       {seriesFilter && (
         <button type="button" className={cx('jk-bubble', 'jk-bubble-secondary', 'lib-chip')} onClick={onClearSeriesFilter}>
           Series: {seriesFilter} &times;
+        </button>
+      )}
+
+      {/* Genre's own clear-pill, mirroring seriesFilter's exactly (task: "clear
+          affordance to remove the filter" — this is the documented one; re-tapping
+          the active chip on a card is a second, card-local shortcut to the same
+          state, see BookCard.tsx / Library.tsx's pickGenre). */}
+      {genreFilter && (
+        <button type="button" className={cx('jk-bubble', 'jk-bubble-secondary', 'lib-chip')} onClick={onClearGenreFilter}>
+          Genre: {genreFilter} &times;
         </button>
       )}
     </div>

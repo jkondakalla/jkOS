@@ -203,6 +203,24 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* Genre chips (task: filter-by-genre) — the card's tap-target floor is the whole
+   `<a>` (44px+ on touch tiers already, via .lib-card's own sizing), but each chip is
+   its OWN nested `<button>` too so hub.css's `button.jk-bubble` selector lifts it to
+   the 44px floor independently on touch (0 on desktop, dense pills). flex-wrap so a
+   book with several genres just grows the card rather than clipping/scrolling. */
+.lib-card-genres {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+.lib-genre-chip {
+  cursor: pointer;
+  border: none;
+  white-space: nowrap;
+}
+.lib-genre-chip:hover { border-color: color-mix(in srgb, var(--accent-secondary) 55%, transparent); }
+
 .lib-card-meta {
   display: flex;
   align-items: center;

@@ -22,6 +22,7 @@ export default function Library() {
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [seriesFilter, setSeriesFilter] = useState<string | null>(null);
+  const [genreFilter, setGenreFilter] = useState<string | null>(null);
   const [groupMode, setGroupMode] = useState<GroupMode>('all');
   const [sortMode, setSortMode] = useState<SortMode>('title');
 
@@ -54,6 +55,7 @@ export default function Library() {
     const q = debouncedQuery.trim();
     if (q) filters[field] = q;
     if (seriesFilter) filters.series = seriesFilter;
+    if (genreFilter) filters.genre = genreFilter;
 
     listBooks(filters).then(
       (rows) => {
@@ -68,7 +70,7 @@ export default function Library() {
       },
     );
     return () => { alive = false; };
-  }, [field, debouncedQuery, seriesFilter, reloadKey]);
+  }, [field, debouncedQuery, seriesFilter, genreFilter, reloadKey]);
 
   const sorted = useMemo(() => sortBooks(books, sortMode), [books, sortMode]);
   const groups = useMemo(() => groupBySeries(sorted), [sorted]);
@@ -79,10 +81,19 @@ export default function Library() {
   const showGrouped = groupMode === 'series' && !seriesFilter;
 
   const density = bp === 'mobile' ? 'compact' : bp === 'tablet' ? 'cozy' : 'comfortable';
-  const hasActiveFilter = debouncedQuery.trim().length > 0 || seriesFilter != null;
+  const hasActiveFilter = debouncedQuery.trim().length > 0 || seriesFilter != null || genreFilter != null;
 
   function pickSeries(series: string) {
     setSeriesFilter(series);
+  }
+
+  // A genre chip lives on every card in the result set (unlike the series entry
+  // point, which disappears once grouping collapses out — see showGrouped below), so
+  // re-clicking the currently-active genre toggles it off — a second, more discoverable
+  // clear affordance alongside the toolbar's clear-pill (mirrors seriesFilter's dance,
+  // plus this one nicety since the chip stays clickable after the filter is applied).
+  function pickGenre(genre: string) {
+    setGenreFilter((cur) => (cur === genre ? null : genre));
   }
 
   async function handleRescan() {
@@ -165,6 +176,8 @@ export default function Library() {
         onSortModeChange={setSortMode}
         seriesFilter={seriesFilter}
         onClearSeriesFilter={() => setSeriesFilter(null)}
+        genreFilter={genreFilter}
+        onClearGenreFilter={() => setGenreFilter(null)}
         bp={bp}
       />
 
@@ -194,7 +207,9 @@ export default function Library() {
                 )}
               </header>
               <div className="lib-grid" data-density={density}>
-                {group.books.map((book) => <BookCard key={book.id} book={book} />)}
+                {group.books.map((book) => (
+                  <BookCard key={book.id} book={book} activeGenre={genreFilter} onGenreClick={pickGenre} />
+                ))}
               </div>
             </section>
           ))}

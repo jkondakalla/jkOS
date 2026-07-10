@@ -305,10 +305,25 @@ const BOOKS_DATASET = {
   // derives its SQL filter from these via filterSpec() (same pattern as BeigeBoard's
   // items dataset), so what this doc DECLARES the books list can be read by is
   // exactly what the route filters on (no drift).
+  //
+  // `genre` (task: genre chips on the library card + filter-by-genre) reuses the
+  // `tags` op already in @jkos/weave/server/filters.js's vocabulary (BeigeBoard's
+  // `items.tags` filter is the precedent) rather than a naive `eq` on `genres`:
+  // `genres` is a JSON-array TEXT column ('["Fantasy","Adventure"]'), and `eq` would
+  // compare the WHOLE serialized array to one genre string and never match. `tags`
+  // instead binds one `genres LIKE '%"<value>"%' ESCAPE '\'` clause per CSV entry (LIKE
+  // metachars escaped, embedded quotes stripped — see filters.js) — exact JSON-array
+  // MEMBERSHIP, not a substring/prefix match, so "Fantasy" doesn't also match a
+  // "Fantasy Romance" tag. A chip click sends one bare value (no comma), so this is
+  // effectively exact-membership in practice. buildItemFilters (routes/books.js,
+  // UNCHANGED) already handles `op:'tags'` generically, so declaring it here is the
+  // WHOLE enforcement — declared==enforced holds through the existing seam, no
+  // packages/weave change needed.
   filters: [
     { name: 'title',  type: 'string', label: 'Title prefix',                          column: 'title',      op: 'prefix' },
     { name: 'author', type: 'string', label: 'Author prefix',                          column: 'author',     op: 'prefix' },
     { name: 'series', type: 'string', label: 'Series (exact)',                         column: 'series',     op: 'eq' },
+    { name: 'genre',  type: 'string', label: 'Genre (exact tag match)',                column: 'genres',     op: 'tags' },
     { name: 'since',  type: 'string', label: 'Updated since (updated_at delta cursor)', column: 'updated_at', op: 'gt' },
   ],
   item: BOOK_SHAPE,

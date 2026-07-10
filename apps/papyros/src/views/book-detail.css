@@ -222,6 +222,7 @@
 }
 
 .chapter-row {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 0.7rem;
@@ -236,6 +237,7 @@
   text-align: left;
   cursor: pointer;
   min-height: var(--hub-tap-min);
+  overflow: hidden;   /* clip the fill to the row's own rounded corners */
   transition: border-color 0.12s, color 0.12s;
 }
 .chapter-row:hover {
@@ -243,7 +245,24 @@
   color: var(--accent-secondary);
 }
 
+/* Loading-bar-style listened fill — 0% ahead of the listener, 100% for chapters
+   already finished, fractional for the one they're in. Width is set inline per row
+   (BookDetail.tsx computes the fraction); a low-alpha accent wash so it never fights
+   the row text's contrast in either paper or dark mode. Painted first + absolutely
+   positioned so it sits behind the index/title/time spans without touching flex
+   layout (those get `position: relative` below purely to win the stacking order). */
+.chapter-row-fill {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 0%;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  pointer-events: none;
+}
+
 .chapter-index {
+  position: relative;
+  z-index: 1;
   flex: none;
   width: 1.6rem;
   font-family: var(--hub-font-mono);
@@ -253,6 +272,8 @@
 }
 
 .chapter-title {
+  position: relative;
+  z-index: 1;
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -261,6 +282,8 @@
 }
 
 .chapter-time {
+  position: relative;
+  z-index: 1;
   flex: none;
   font-family: var(--hub-font-mono);
   font-size: 0.78rem;

@@ -144,6 +144,8 @@ try {
   ok(!!booksDs && Array.isArray(booksDs.item), 'datasets: declares a `books` dataset with a row shape');
   ok(Array.isArray(booksDs?.filters) && booksDs.filters.some((f) => f.name === 'title'),
     'datasets: `books` declares a `title` filter');
+  ok(Array.isArray(booksDs?.filters) && booksDs.filters.some((f) => f.name === 'genre' && f.column === 'genres' && f.op === 'tags'),
+    'datasets: `books` declares a `genre` filter (JSON-array membership, the `tags` op)');
 
   // ── boot scan: poll /api/books until the 2-book fixture library lands ──────
   const rows = await waitForBooks(2);
@@ -217,6 +219,27 @@ try {
   const noMatch = await req('GET', '/api/books?title=Nonexistent');
   ok(Array.isArray(noMatch.json) && noMatch.json.length === 0,
     `filter: title=Nonexistent matches nothing (got ${noMatch.json?.length})`);
+
+  // ── GET /api/books?genre=<value> — the declared `genre` filter (tags op, JSON-array
+  //    membership) is enforced. Book A carries genres ["Fantasy","Adventure"] (fixture
+  //    tag "Fantasy;Adventure"), Book B carries ["Sci-Fi"] — see gen-fixtures.sh. ──
+  const genreFantasy = await req('GET', '/api/books?genre=Fantasy');
+  ok(Array.isArray(genreFantasy.json) && genreFantasy.json.length === 1 && genreFantasy.json[0]?.title === 'Fixture Book A',
+    `filter: genre=Fantasy matches only Book A (got ${JSON.stringify(genreFantasy.json?.map((r) => r.title))})`);
+
+  const genreSciFi = await req('GET', '/api/books?genre=' + encodeURIComponent('Sci-Fi'));
+  ok(Array.isArray(genreSciFi.json) && genreSciFi.json.length === 1 && genreSciFi.json[0]?.title === 'Fixture Book B',
+    `filter: genre=Sci-Fi matches only Book B (got ${JSON.stringify(genreSciFi.json?.map((r) => r.title))})`);
+
+  const genreNoMatch = await req('GET', '/api/books?genre=Nonexistent');
+  ok(Array.isArray(genreNoMatch.json) && genreNoMatch.json.length === 0,
+    `filter: genre=Nonexistent matches nothing (got ${genreNoMatch.json?.length})`);
+
+  // A genre that's a PREFIX of a real tag must NOT match (membership, not substring) —
+  // "Fantas" is a strict prefix of Book A's "Fantasy" tag.
+  const genrePrefixOnly = await req('GET', '/api/books?genre=Fantas');
+  ok(Array.isArray(genrePrefixOnly.json) && genrePrefixOnly.json.length === 0,
+    `filter: genre=Fantas (strict prefix, not a full tag) matches nothing (got ${genrePrefixOnly.json?.length})`);
 } catch (e) {
   console.error('library.smoke crashed:', e);
   fail++;
