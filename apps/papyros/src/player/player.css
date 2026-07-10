@@ -12,6 +12,21 @@
   .papyros-player-open .app-main { padding-bottom: 176px; }
 }
 
+/* ── Playback error strip (engine `error`: decode / network / autoplay-blocked).
+   Absolutely positioned above the bar so it never disturbs the transport layout. ── */
+.pb-error {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  padding: 0.3rem 1.1rem;
+  font-size: 0.78rem;
+  text-align: center;
+  color: color-mix(in srgb, var(--hub-red) 80%, var(--hub-cream-dim));
+  background: var(--hub-red-soft);
+  border-top: 1px solid color-mix(in srgb, var(--hub-red) 35%, var(--hub-line));
+}
+
 /* ── The bar ──────────────────────────────────────────────────────────────── */
 .player-bar {
   position: fixed;

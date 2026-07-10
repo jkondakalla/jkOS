@@ -193,6 +193,7 @@ export default function PlayerBar() {
     <>
       {menu && <div className="pb-scrim" onClick={() => setMenu(null)} aria-hidden="true" />}
       <section className={cx('player-bar', mobile && 'is-mobile')} data-bp={bp} aria-label="Now playing">
+        {p.error && <div className="pb-error" role="alert">{p.error}</div>}
         {mobile ? (
           <>
             {scrubber}

@@ -153,11 +153,14 @@ const META = defineConnector({
    write set and artwork-failure semantics (long comment there, not repeated here). */
 
 /* 4.3 adds `matchAllMissing` (below, in CAPABILITIES) — an admin sweep over EVERY book
-   still `metadata_source:'embedded'` with a missing author or cover. Manual-first is
-   suite philosophy (AI-assist via LazurOS is parked, ToDo §2): the sweep only WRITES
-   (via the same applyCandidate() matchBook uses) when a candidate's title AND author
-   both match the book's exactly after conservative normalization (case-fold + trim +
-   collapse whitespace — nothing fuzzier); everything else — including every book
+   still `metadata_source:'embedded'` with a missing author, cover, OR description
+   (description joined the trigger set 2026-07-09 — embedded rips carry author+cover
+   but never a synopsis, so the original trigger was a no-op on a healthy library).
+   Manual-first is suite philosophy (AI-assist via LazurOS is parked, ToDo §2): the
+   sweep only WRITES (via the same applyCandidate() matchBook uses) when a candidate's
+   title AND author both match the book's exactly after conservative normalization
+   (case-fold + trim + collapse whitespace + stripping iTunes' trailing
+   "(Unabridged)" — nothing fuzzier); everything else — including every book
    missing an author, since there's then no author to match against — comes back as a
    review list for a human to pick from (the existing metadataSearch + matchBook flow).
    See src/routes/match.js for the exact-match gate, the batch cap/throttle, and the

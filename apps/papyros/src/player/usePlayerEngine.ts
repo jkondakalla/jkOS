@@ -47,6 +47,10 @@ export interface PlayerApi {
   book: BookDetail | null;
   playing: boolean;
   buffering: boolean;
+  /** Human-readable playback failure (decode/network/autoplay-blocked), null when fine.
+   *  Cleared on the next successful `play` or file load. Without this, a MediaError or
+   *  a rejected play() is INVISIBLE — the bar just sits paused (bit us on staging). */
+  error: string | null;
   globalPos: number;
   total: number;
   rate: number;
@@ -74,6 +78,7 @@ export function usePlayerEngine(): PlayerApi {
   const [book, setBook] = useState<BookDetail | null>(null);
   const [playing, setPlaying] = useState(false);
   const [buffering, setBuffering] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [globalPos, setGlobalPos] = useState(0);
   const [rate, setRate] = useState<number>(readInitialRate);
   const [bookmarks, setBookmarks] = useState<BookmarkRow[]>([]);
@@ -155,6 +160,27 @@ export function usePlayerEngine(): PlayerApi {
       void doWrite(false);
     }
 
+    // ---- Play rejection / media error surfacing -----------------------------
+    // A rejected play() or a MediaError used to be swallowed silently — the bar sat
+    // paused with zero signal (bit us on staging: "playback doesn't work"). Surface
+    // both; onPlay/loadFile clear the message once something works again.
+    function playFailed(err: unknown): void {
+      const name = (err as { name?: string } | null)?.name;
+      if (name === 'AbortError') return;   // load() superseded the play() — routine, not a failure
+      console.error('[papyros] play() rejected', err);
+      setPlaying(false);
+      if (name === 'NotAllowedError') {
+        // Autoplay policy: the deferred play() outlived the click's transient
+        // activation (slow metadata load — e.g. an 80MB moov-at-end m4b). Pressing
+        // the bar's play button is a fresh gesture and will succeed.
+        setError('Autoplay blocked — press play to start.');
+      } else if (name === 'NotSupportedError') {
+        setError('This audio format is not supported by your browser.');
+      } else {
+        setError('Playback failed — see the browser console.');
+      }
+    }
+
     // ---- Loading a file into the persistent <audio> ------------------------
     function loadFile(arrayIndex: number, offset: number, autoplay: boolean): void {
       const audio = audioRef.current;
@@ -163,6 +189,7 @@ export function usePlayerEngine(): PlayerApi {
       if (!audio || !b) return;
       const file = map.files[arrayIndex];
       if (!file) return;
+      setError(null);
       arrayIndexRef.current = arrayIndex;
       pendingSeekRef.current = Math.max(0, offset);
       wantPlayRef.current = autoplay;
@@ -216,7 +243,7 @@ export function usePlayerEngine(): PlayerApi {
     function toggle(): void {
       const audio = audioRef.current;
       if (!audio || !bookRef.current) return;
-      if (audio.paused) { wantPlayRef.current = true; void audio.play().catch(() => {}); }
+      if (audio.paused) { wantPlayRef.current = true; void audio.play().catch(playFailed); }
       else audio.pause();
     }
 
@@ -288,7 +315,7 @@ export function usePlayerEngine(): PlayerApi {
     function jumpBookmark(pos: number): void {
       seekTo(pos);
       wantPlayRef.current = true;
-      void audioRef.current?.play().catch(() => {});
+      void audioRef.current?.play().catch(playFailed);
     }
     function removeBookmark(id: number): void {
       deleteBookmark(id).then(
@@ -335,7 +362,7 @@ export function usePlayerEngine(): PlayerApi {
         pendingSeekRef.current = null;
       }
       audio.playbackRate = rateRef.current;
-      if (wantPlayRef.current) void audio.play().catch(() => {});
+      if (wantPlayRef.current) void audio.play().catch(playFailed);
     }
     function onTime(): void {
       const audio = audioRef.current;
@@ -347,10 +374,25 @@ export function usePlayerEngine(): PlayerApi {
       const sl = sleepRef.current;
       if (sl.mode === 'chapter' && sl.chapterEnd != null && g >= sl.chapterEnd - 0.25) fireSleep();
     }
-    function onPlay(): void { setPlaying(true); setBuffering(false); setMediaPlayback('playing'); }
+    function onPlay(): void { setPlaying(true); setBuffering(false); setError(null); setMediaPlayback('playing'); }
     function onPause(): void { setPlaying(false); setMediaPlayback('paused'); flushNow(); }
     function onWaiting(): void { setBuffering(true); }
     function onPlaying(): void { setBuffering(false); setPlaying(true); }
+    function onError(): void {
+      const audio = audioRef.current;
+      const e = audio?.error;
+      if (!e) return;
+      // MediaError codes: 1 aborted · 2 network · 3 decode · 4 src-not-supported.
+      const msg =
+        e.code === 3 ? 'Could not decode this file — your browser may lack AAC/M4B support.' :
+        e.code === 4 ? 'This audio format is not supported by your browser.' :
+        e.code === 2 ? 'Network error while streaming — check the connection and press play.' :
+        'Playback was aborted.';
+      console.error('[papyros] media error', { code: e.code, message: e.message, src: audio?.currentSrc });
+      setBuffering(false);
+      setPlaying(false);
+      setError(msg);
+    }
     function onEnded(): void {
       const next = arrayIndexRef.current + 1;
       if (next < mapRef.current.files.length) {
@@ -374,7 +416,7 @@ export function usePlayerEngine(): PlayerApi {
       if (bookRef.current && bookRef.current.id === req.bookId && mapRef.current.total > 0) {
         if (req.position != null) seekTo(req.position);
         wantPlayRef.current = true;
-        if (audio && audio.paused) void audio.play().catch(() => {});
+        if (audio && audio.paused) void audio.play().catch(playFailed);
         return;
       }
       // Different book → flush the outgoing book, then swap everything.
@@ -413,7 +455,7 @@ export function usePlayerEngine(): PlayerApi {
 
     return {
       handleRequest, flushNow,
-      handlers: { onLoaded, onTime, onPlay, onPause, onWaiting, onPlaying, onEnded },
+      handlers: { onLoaded, onTime, onPlay, onPause, onWaiting, onPlaying, onEnded, onError },
       controls: {
         toggle, seekTo, skip, prevChapter, nextChapter, cycleRate,
         setSleep, addBookmarkHere, jumpBookmark, removeBookmark,
@@ -435,6 +477,7 @@ export function usePlayerEngine(): PlayerApi {
     audio.addEventListener('waiting', h.onWaiting);
     audio.addEventListener('playing', h.onPlaying);
     audio.addEventListener('ended', h.onEnded);
+    audio.addEventListener('error', h.onError);
 
     const unsub = onPlayRequest(eng.handleRequest);
     const onVis = () => { if (document.visibilityState === 'hidden') eng.flushNow(); };
@@ -452,6 +495,7 @@ export function usePlayerEngine(): PlayerApi {
       audio.removeEventListener('waiting', h.onWaiting);
       audio.removeEventListener('playing', h.onPlaying);
       audio.removeEventListener('ended', h.onEnded);
+      audio.removeEventListener('error', h.onError);
       if (writeTimerRef.current != null) clearTimeout(writeTimerRef.current);
       if (sleepTimerRef.current != null) clearInterval(sleepTimerRef.current);
       audio.pause();
@@ -466,7 +510,7 @@ export function usePlayerEngine(): PlayerApi {
   const chapterLabel = currentIndex >= 0 ? points[currentIndex]?.title ?? null : null;
 
   return {
-    visible, book, playing, buffering, globalPos, total: rmap.total, rate,
+    visible, book, playing, buffering, error, globalPos, total: rmap.total, rate,
     points, currentIndex, chapterLabel, bookmarks, sleepMode, sleepRemainingMs,
     ...eng.controls,
   };

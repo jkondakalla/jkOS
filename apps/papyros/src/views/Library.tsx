@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Lab, cx, useBreakpoint } from '@jkos/ui';
-import { listBooks, rescanLibrary, type Book, type BookFilters } from '../api';
+import { listBooks, matchAllMissing, rescanLibrary, type Book, type BookFilters } from '../api';
 import { useAuth } from '../hooks/useAuth';
 import BookCard from './library/BookCard';
 import LibraryToolbar, { type GroupMode, type SearchField } from './library/LibraryToolbar';
@@ -35,6 +35,7 @@ export default function Library() {
   const [reloadKey, setReloadKey] = useState(0);
   const [rescanning, setRescanning] = useState(false);
   const [rescanNote, setRescanNote] = useState<string | null>(null);
+  const [matching, setMatching] = useState(false);
 
   // Debounce the free-text query before it drives a server refetch.
   useEffect(() => {
@@ -98,6 +99,27 @@ export default function Library() {
     }
   }
 
+  // The matchAllMissing admin sweep (iTunes enrichment: descriptions/genres/year/
+  // covers for still-`embedded` books). Sequential + throttled server-side, so a run
+  // over a real library takes a few seconds; `truncated` means the per-run cap
+  // stopped early and another click continues the backlog.
+  async function handleMatchAll() {
+    setMatching(true);
+    setRescanNote(null);
+    try {
+      const r = await matchAllMissing();
+      const parts = [`Matched ${r.applied.length} of ${r.examined}`];
+      if (r.review.length) parts.push(`${r.review.length} need review — open a book and use “Fix metadata”`);
+      if (r.truncated) parts.push('more remain, run again');
+      setRescanNote(parts.join(' · '));
+      setReloadKey((k) => k + 1);
+    } catch {
+      setRescanNote('Metadata match failed.');
+    } finally {
+      setMatching(false);
+    }
+  }
+
   return (
     <section className="view-library">
       <div className="lib-heading">
@@ -105,17 +127,28 @@ export default function Library() {
         <div className="lib-heading-actions">
           {!loading && !error && <span className="lib-count">{sorted.length} book{sorted.length === 1 ? '' : 's'}</span>}
           {isAdmin && (
-            // A plain <button> + cx() rather than the TButton primitive: TButton's props
+            // Plain <button>s + cx() rather than the TButton primitive: TButton's props
             // are a bare HTMLAttributes, so it can't carry `disabled` (same reason
             // BookCard uses a tagged <a> for `href`).
-            <button
-              type="button"
-              className={cx('jk-tbtn', 'jk-tbtn-quiet', 'lib-rescan')}
-              disabled={rescanning}
-              onClick={handleRescan}
-            >
-              {rescanning ? 'Rescanning…' : 'Rescan'}
-            </button>
+            <>
+              <button
+                type="button"
+                className={cx('jk-tbtn', 'jk-tbtn-quiet', 'lib-rescan')}
+                disabled={matching || rescanning}
+                onClick={handleMatchAll}
+                title="Enrich embedded metadata from iTunes (descriptions, genres, covers)"
+              >
+                {matching ? 'Matching…' : 'Match metadata'}
+              </button>
+              <button
+                type="button"
+                className={cx('jk-tbtn', 'jk-tbtn-quiet', 'lib-rescan')}
+                disabled={rescanning || matching}
+                onClick={handleRescan}
+              >
+                {rescanning ? 'Rescanning…' : 'Rescan'}
+              </button>
+            </>
           )}
         </div>
       </div>

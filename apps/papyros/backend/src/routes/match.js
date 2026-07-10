@@ -143,9 +143,40 @@ async function applyCandidate(db, dataDir, doFetch, book, candidate) {
    this stays deliberately dumb: case-fold + trim + collapse inner whitespace, NOTHING
    fuzzier (no Levenshtein/soundex/subset matching). A near-miss ("Foundation" vs
    "Foundation: A Novel", "J.R.R. Tolkien" vs "JRR Tolkien") is exactly the kind of call
-   a human should make, not a heuristic — those land in the review list instead. */
+   a human should make, not a heuristic — those land in the review list instead.
+
+   The format-level allowances (verified against the real library + live iTunes,
+   2026-07-09 — each is a fixed upstream formatting convention, not fuzzy matching):
+   - a trailing "(Unabridged)"/"(Abridged)" parenthetical is stripped — iTunes titles
+     virtually every audiobook "<Title> (Unabridged)" while embedded tags never do;
+     without stripping it the exact matcher structurally failed on ~every candidate;
+   - whitespace before punctuation is collapsed — iTunes emits "Breakneck : China's…"
+     where tags say "Breakneck: China's…";
+   - spaced ellipses are folded (". . ." / "…" → "...").
+   Authors get two more (normalizeAuthors): "(translator)"-style parenthetical role
+   annotations are dropped, and the list separator (", " vs " & " vs " and ") is
+   canonicalized — the NAMES still have to match exactly, in order; a candidate listing
+   fewer/other authors than the tags still goes to review. */
 function normalizeForMatch(s) {
-  return String(s == null ? '' : s).trim().toLowerCase().replace(/\s+/g, ' ');
+  return String(s == null ? '' : s)
+    .trim()
+    .replace(/\s*\((?:un)?abridged\)\s*$/i, '')
+    .toLowerCase()
+    .replace(/…/g, '...')
+    .replace(/\.\s+\.\s+\./g, '...')
+    .replace(/\s+([:;,.!?])/g, '$1')
+    .replace(/\s+/g, ' ');
+}
+
+/** Author-list comparison form: normalizeForMatch plus role-annotation and separator
+ *  canonicalization (see the comment block above for exactly what is allowed). */
+function normalizeAuthors(s) {
+  return normalizeForMatch(s)
+    .replace(/\([^)]*\)/g, ' ')
+    .split(/\s*(?:,|&|\band\b)\s*/)
+    .map((a) => a.trim())
+    .filter(Boolean)
+    .join(', ');
 }
 
 /** True only when `candidate`'s title AND author both normalize to the SAME string as
@@ -154,11 +185,11 @@ function normalizeForMatch(s) {
  *  title looks like an exact hit (matchAllMissing's caller relies on this, but the
  *  check is repeated here too so this function is safe to call standalone). */
 function isExactMatch(book, candidate) {
-  const bAuthor = normalizeForMatch(book.author);
+  const bAuthor = normalizeAuthors(book.author);
   if (!bAuthor) return false;   // no author on the book — nothing to match, always review
   const bTitle = normalizeForMatch(book.title);
   const cTitle = normalizeForMatch(candidate.title);
-  const cAuthor = normalizeForMatch(candidate.author);
+  const cAuthor = normalizeAuthors(candidate.author);
   if (!bTitle || !cTitle || !cAuthor) return false;
   return bTitle === cTitle && bAuthor === cAuthor;
 }
@@ -216,14 +247,20 @@ function createMatchRouter({ db, dataDir, fetch: injectedFetch }) {
 
   const getBookStmt = db.prepare('SELECT id, genres FROM books WHERE id = ?');
 
-  // 4.3: the pool matchAllMissing sweeps — every still-embedded book missing an author
-  // OR a cover. `title`/`author`/`genres` are the only columns applyCandidate/the
-  // exact-match check need; `metadata_source='itunes'` books are excluded entirely (not
-  // examined, not counted, not in either response list) since they've already been
-  // enriched once — re-running the sweep shouldn't touch them again.
+  // 4.3: the pool matchAllMissing sweeps — every still-embedded book missing an author,
+  // a cover, OR a description. Description joined the trigger set 2026-07-09: a ripped
+  // library's embedded tags almost always carry author+cover but essentially never a
+  // synopsis, so the original author/cover-only trigger matched zero real books and the
+  // sweep was a no-op on a healthy library — enrichment IS the description/genres/year
+  // upgrade, not just hole-filling. `title`/`author`/`genres` are the only columns
+  // applyCandidate/the exact-match check need; `metadata_source='itunes'` books are
+  // excluded entirely (not examined, not counted, not in either response list) since
+  // they've already been enriched once — re-running the sweep shouldn't touch them again.
   const enrichmentPoolStmt = db.prepare(`
     SELECT id, title, author, genres FROM books
-    WHERE metadata_source = 'embedded' AND (author IS NULL OR author = '' OR cover_path IS NULL)
+    WHERE metadata_source = 'embedded'
+      AND (author IS NULL OR author = '' OR cover_path IS NULL
+           OR description IS NULL OR description = '')
     ORDER BY id
   `);
 

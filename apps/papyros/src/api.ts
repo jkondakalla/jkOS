@@ -186,6 +186,22 @@ export function matchBook(bookId: number, candidate: Candidate): Promise<MatchRe
   });
 }
 
+/** POST /api/match/all's response — the admin enrichment sweep (matchAllMissing).
+ *  `applied` auto-matched exactly; `review` needs a human (per-book "Fix metadata"). */
+export interface MatchAllResult {
+  examined: number;
+  applied: { bookId: number; title: string; extRef: string }[];
+  review: { bookId: number; title: string; candidates: Candidate[]; error?: boolean }[];
+  truncated: boolean;
+}
+
+/** The `matchAllMissing` admin capability — sweep every still-`embedded` book missing
+ *  author/cover/description and auto-apply exact iTunes matches. Admin-only server-side
+ *  (same gate as rescanLibrary); offer it only to admins. */
+export function matchAllMissing(): Promise<MatchAllResult> {
+  return apiJson<MatchAllResult>('/api/match/all', { method: 'POST' });
+}
+
 // ─── Progress (owner-scoped CRUD) ────────────────────────────────────────────────
 
 export function listProgress(filters?: { finished?: boolean }): Promise<ProgressRow[]> {
