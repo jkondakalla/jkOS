@@ -446,9 +446,12 @@ the single source `@jkos/suite-manifest` (jkAuth migration `015` backfills the l
 PapyrOS is a fully-native multi-user audiobook library — its own filesystem scanner,
 catalog, and Range-streamed playback backend, gated by jkAuth like every other suite app.
 It is not a client of Audiobookshelf or any other media server; the only external call it
-makes is the iTunes Search API, used solely to enrich sparse metadata. Waves 1–5 (scaffold,
-scanner/catalog, playback backend, metadata connector, frontend SPA+PWA) are code-complete
-and deployed live to staging.
+makes is the iTunes Search API, used solely to enrich metadata (an Open Library + Audible/
+Audnexus multi-source expansion is approved and specced in ToDo §2 6.5e, not yet built).
+Waves 1–5 (scaffold, scanner/catalog, playback backend, metadata connector, frontend
+SPA+PWA), the 6.x live-hardening batch, and Waves 7.1/7.3 (offline cache + offline
+serving) are code-complete and deployed live to staging; 7.2 (offline write queue) and
+Wave 8 (book club + ORDECK widget) remain.
 
 ### Data model
 
@@ -487,6 +490,14 @@ extracts a cover (embedded art via `ffmpeg -an -c:v copy`, else a folder-level
 folder is skipped entirely (no reprobe); a folder no longer present is deleted. Chapters are
 only trusted from a genuinely single-file book's embedded chapter list — a multi-file book's
 chapter model is the player's cumulative-offset math (below), not fabricated at scan time.
+Two hygiene rules keep tag junk out of the catalog: an `album` equal to the book's FINAL
+title (standalone rips near-always tag it that way) maps to **no** series — guarded both in
+the probe tag mapping and again at row assembly against the folder-name title fallback
+(migration 7 healed pre-guard rows) — and noise genres ("Audiobook(s)", "(Un)abridged")
+are filtered at parse, match-write, AND both serve sites, so pre-filter rows heal without
+a rescan. After every scan (boot or admin rescan) the scanner fires an `onScanComplete`
+hook; server.js uses it to run the enrichment sweep (`PAPYROS_AUTO_ENRICH=1`) and the
+compat pre-generation pass (`PAPYROS_AUTO_COMPAT=1`) — both compose-set, never in tests.
 
 ### Streaming (`backend/src/media.js`)
 
@@ -498,6 +509,20 @@ request (belt-and-braces — the catalog is entirely scanner-written) rather tha
 from the DB row. `GET /api/cover/:bookId` and `GET /api/download/:bookId` (single file
 direct, multi-file zip-streamed on the fly via `archiver`, store-only — audio is already
 compressed) share the same containment + fd-leak-guard pattern.
+
+**The compat pipeline (Firefox).** Firefox's strict `mp4parse` demuxer rejects the moov
+box on some otherwise-valid m4b files (`NS_ERROR_DOM_MEDIA_METADATA_ERR`) that ffmpeg
+decodes cleanly. media.js therefore serves a two-rung ladder of normalized variants:
+`?compat=1` is a lossless `-map 0:a:0 -c copy -movflags +faststart` remux, `?compat=2` an
+aac re-encode — cached under `/data/compat/<bookId>-<fileIndex>.c<level>.m4a`,
+source-mtime-invalidated, generated via async-spawned ffmpeg (tmp file + atomic rename,
+process-wide single-flight). `POST /api/stream/:id/:idx/prepare {level}` starts/joins a
+generation (202 → poll → `{ready:true}`); both serving paths share one `sendFileRange`
+helper so the default path stayed wire-identical. `prepareAllCompat` pre-generates every
+level-1 variant post-scan, `GET /api/book/:id` reports per-file `compat_ready`, and the
+player STARTS ready files on the normalized container; a decode error at play time
+auto-escalates the ladder (prepare → poll → reload at the same position) before
+surfacing an error.
 
 **This hand-rolls the same Range-streaming primitive VaultOS will need for its own media.**
 It is deliberately *not* extracted into `@jkos/files` now — Wave 15 of the lego-kit program
@@ -512,11 +537,16 @@ typed `metadataSearch` dataset row (id/title/author/cover/description/year/genre
 flow: a listener searches and applies one candidate via `matchBook` (writes
 author/description/year/genres + `metadata_source:'itunes'` + `ext_ref`, best-effort
 600x600 cover download; a failed artwork fetch doesn't fail the match). `matchAllMissing`
-is an admin sweep over every `embedded`-sourced book missing an author or cover:
-conservative by design (manual-first is suite philosophy) — it auto-applies only when a
-candidate's title *and* author match the book's exactly after case-fold/trim/whitespace
-normalization; everything else, including any book with no author to match against, lands
-in a `review` list. Sequential, ~250ms between books, capped at 50/run.
+(core: `runEnrichmentSweep`, also fired automatically after every scan when
+`PAPYROS_AUTO_ENRICH=1`) sweeps every `embedded`-sourced book missing an author, cover,
+**or description** and applies the best candidate — policy relaxed 2026-07-10 from
+exact-only to a knockoff-filtered ladder ("Summary of …"-mill listings can never apply):
+exact title+author → exact author → exact-or-subtitle-extension title → top remaining
+candidate, each applied row tagged `via` with which rung matched. Normalization tolerates
+iTunes' fixed formatting conventions ((Un)abridged suffix, space-before-punctuation,
+author-separator styles, role annotations) but is never fuzzy. A book lands in `review`
+only when search errored or returned nothing usable. Sequential, ~250ms between books,
+capped at 50/run.
 
 ### Player bar — global position (`src/player/position.ts`)
 
@@ -528,15 +558,26 @@ globalPos)` maps a global position to `{ fileIndex, offset }` for `<audio>.curre
 the *later* file at offset 0. `toGlobal` is the inverse. Only this module (pure, no React,
 no network) does the arithmetic — the `<audio>` element itself only ever sees a single
 file's offset. Chapter nav falls back to one nav-point per file when the book has no real
-embedded chapters.
+embedded chapters. The bar's scrubber is the CURRENT CHAPTER's timeline (elapsed/length),
+not the whole book; crossing chapters is the prev/next buttons' job. The engine surfaces
+playback failures (an `error` state mapped from MediaError codes + rejected `play()`
+calls — decode failures first auto-recover through the compat ladder above) and
+broadcasts its position (~1/s) through `player/controller.ts`, which BookDetail's
+chapter-progress fills subscribe to.
 
 ### PWA foundation
 
-`public/sw.js` is app-shell caching only, explicitly **online-first**: navigations and
-static assets are network-first with a cached fallback; `/api/*` (especially the
-Range-streamed `/api/stream`) is bypassed unconditionally so partial-content responses are
-never risked in the cache. Offline *media* caching — pulling `/api/download/:bookId` into a
-local cache for offline listening — is a distinct, not-yet-built future wave.
+`public/sw.js` is **online-first** throughout: navigations and static assets are
+network-first with a cached fallback, and API requests always reach the network when it's
+up. Offline media (Waves 7.1/7.3): the in-app download pipeline (`src/offline/` — Cache
+`papyros-media-v1` holding full-200 per-file stream bodies + cover + detail JSON, IDB
+`papyros-offline` bookkeeping where a `books` row existing ⇔ fully cached; storage
+estimate + eviction UI in the SettingsDrawer, per-book badges via one
+`useSyncExternalStore` store) is the ONLY cache writer; the SW's `serveMedia()` serves
+stream/cover/book GETs from that cache only when the network fetch itself rejects,
+answering offline Range requests as 206 slices of the cached body via lazy `Blob.slice`
+(disk-backed — no whole-file memory spike). The 7.2 offline write queue
+(progress/bookmarks with `?since=` reconciliation) is not yet built.
 `manifest.webmanifest` declares a standalone-display installable app (SVG + 192/512 PNG
 icons, theme/background colors).
 

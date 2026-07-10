@@ -87,8 +87,9 @@ a `createXProvider(config)` factory; prompts/model tags load from node-local
 ## 2. Program: PapyrOS + VaultOS — new-app wave backlog
 
 Two plans approved 2026-07-08. **PapyrOS** (`papyros`, port 3010): fully-native multi-user
-audiobook app — own scanner/catalog/streaming, per-user progress gated by jkAuth; the iTunes
-metadata connector is the ONLY sanctioned external call (no Audiobookshelf). **VaultOS**
+audiobook app — own scanner/catalog/streaming, per-user progress gated by jkAuth; sanctioned
+external calls = the iTunes Search API (live) plus the approved-but-unbuilt Open Library +
+Audible/Audnexus expansion (6.5e below). Never a client of Audiobookshelf itself. **VaultOS**
 (`vault`, port 3011 — *working name, id NOT final*): TrueNAS file browser with per-share ACLs
 and hard path containment; explicitly "not soon" — build when Jag says go. This section is
 self-contained; the source plans live at `~/.claude/plans/we-will-be-creating-abstract-thompson.md`
@@ -372,7 +373,10 @@ task-level detail below is kept for the record; nothing here is open.
       iTunes**, all keyless): provider registry, merged/deduped candidates with per-source
       badges, field precedence (narrator/series/chapters=audnexus; description=audnexus>OL>
       itunes; genres=union; cover=audnexus>itunes600>OL-L), cross-source agreement boosts
-      auto-apply confidence. IN FLIGHT (agent, spawned at the 6.5c commit point).
+      auto-apply confidence. **NOT BUILT** — two build agents were killed by session
+      limits (2026-07-10); the spec above is complete and ready for the next session's
+      first agent. Single-source iTunes enrichment meanwhile runs automatically (6.5d +
+      PAPYROS_AUTO_ENRICH).
 - [x] **6.5f** Genre chips on library cards + `genre` dataset filter (weave's existing
       `tags` op — declared==enforced held; library.smoke → 50). DONE.
 - [x] **6.5g** Book-page chapter rows: show chapter LENGTH not start timestamp; row
