@@ -378,7 +378,13 @@ code** — no model tags, GPU names, IPs, MACs, or tier counts. Every swappable 
 startup by reading a mounted `deployment.json`. The provider contracts (`backend/providers/contracts.md`):
 `InferenceProvider`, `SttProvider`, `TtsProvider`, `EmbeddingProvider`, `WebSearchProvider`,
 and `ComputeBackend` (wraps an inference provider with `probe()`/`wake()` reachability —
-`always-on` for a local node, `wol` for a Wake-on-LAN burst node). Each ships ≥1 reference
+`always-on` for a local node, `wol` for a Wake-on-LAN burst node). Every network-backed
+provider builds its requests through one transport module, `lib/http.js`: `normalizeBaseUrl`
+validates a slot's `baseUrl` at factory (boot) time — required, http(s) only, no `endpoint`
+alias, no hardcoded localhost fallback — so a malformed `deployment.json` fails at startup
+naming the slot, never mid-request; `providerFetch` wraps every outbound call in an
+`AbortSignal` timeout and maps failures to three uniform shapes (`"<what> failed: <status>"`,
+`"<what> timed out after <ms>ms"`, `"<what> unreachable: <cause>"`). Each ships ≥1 reference
 factory (e.g. STT → an OpenAI-compatible `/v1/audio/transcriptions` server; embeddings → the
 edge node's own Ollama; web search → SearXNG or a DDGS sidecar), selected per-slot by config.
 Adding a runtime is one factory file + one line in `lib/composeProviders.js`; the
@@ -402,8 +408,10 @@ job is marked `PENDING_WAKEUP` and the backend is best-effort `wake()`d (a WoL m
 a `wol` backend; a no-op for `always-on`). One SQLite `jobs` table (WAL) tracks the lifecycle
 `PENDING → PENDING_WAKEUP → IN_PROGRESS → DONE | FAILED`. The compute-node **worker**
 (`apps/lazuros/worker/worker.py` — stdlib-only, so a node needs nothing but `python3`) drains
-the queue over a bearer-gated `/internal` API: poll `PENDING`, atomically claim
-(`PENDING → IN_PROGRESS`, so two workers can't both run a job), run inference via the
+the queue over a bearer-gated `/internal` API: poll claimable jobs (`PENDING` or a
+woken `PENDING_WAKEUP` — both must drain, or a job sent to a sleeping backend would strand
+even after it boots, since nothing else transitions `PENDING_WAKEUP` back to `PENDING`),
+atomically claim (→ `IN_PROGRESS`, so two workers can't both run a job), run inference via the
 node-local runtime, post the result. It hardcodes no model tag or prompt string — both load
 from node-local `models.json` / `prompts.json` (its own slice of deployment config). Every
 mutation bumps `updated_at` — the poll-resource invalidation signal the `jobs` dataset's
@@ -448,12 +456,14 @@ One SQLite database, split on a scope boundary:
 - **`books`** — a hand-rolled migration (not a `defineCollection`), because it's
   populated by the library scanner, not user CRUD, and has no `user_id`: every user sees
   the same shared catalog. Columns: `path` (unique, absolute folder), scalar metadata
-  (`title`/`author`/`narrator`/`series`/`series_seq`/`year`/`genres`/`description`),
+  (`title`/`subtitle`/`author`/`narrator`/`series`/`series_seq`/`year`/`genres`/`description`),
   `duration`, `files`/`chapters` (JSON-array TEXT columns), `cover_path`, `metadata_source`
   (`embedded` | `itunes` | `manual`), `ext_ref`, `mtime` (scan skip cursor), `updated_at`
   (delta-cursor, `books_touch_updated` trigger). The served list shape (`BOOK_SHAPE` in
   `discovery.js`) deliberately omits `files`/`chapters`/`path`/`description` — those are
-  detail-only weight, served by `GET /api/book/:id`.
+  detail-only weight, served by `GET /api/book/:id`. Note: `subtitle` and `series_seq`
+  are schema'd, served, and rendered, but currently have **no writer** — neither the
+  scanner's upsert nor `matchBook` populates them, so they read as `NULL` today.
 - **`progress` / `bookmarks` / `clubs` / `club_members`** — four genuine per-user
   collections, each a one-line `defineCollection` in `discovery.js` (`scoped: true`), so
   table DDL, CRUD routes, and the served capability/dataset docs derive from one spec.
@@ -597,7 +607,11 @@ Both call into `infra/scripts/lib-deploy.sh`:
 4. **Container health verify** — waits 5s, then inspects every container; fails the deploy
    if any is not `running` (green = actually up, not just started).
 5. **nginx step (staging only)** — validates the new config in a throwaway container, then
-   `docker restart standalone-nginx`. Prod deploys skip nginx (`MANAGE_NGINX=0`) — the
+   pre-flights every file `standalone.conf` `include`s against the LIVE container: if one
+   is missing (a restart cannot add a bind-mount), it **self-heals by recreating** the
+   container via `docker compose up -d` on `infra/nginx`; otherwise a plain
+   `docker restart standalone-nginx` refreshes the pinned inodes. Either way it finishes
+   with an in-container `nginx -t`. Prod deploys skip nginx (`MANAGE_NGINX=0`) — the
    standalone-nginx bind-mounts its config from the staging checkout, so a prod deploy
    must not restart it with potentially unvalidated config.
 

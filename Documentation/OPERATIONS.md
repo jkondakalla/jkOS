@@ -19,9 +19,9 @@ After editing `packages/*`, run `pnpm install` to re-inject workspace packages i
 ## Contract gate
 
 Before pushing: `pnpm test:contracts`. One chain covering every hard contract — auth
-contracts + the node↔python bridge, the jkAuth/BeigeBoard/LazurOS behavioural smokes, the
-weave + lego tests, the write round-trip, six static conformance checks
-(tokens/nginx/responsive/drag/cards/hud), and the suite prober (fails on `drift`). A
+contracts + the node↔python bridge, the jkAuth/BeigeBoard/LazurOS/PapyrOS behavioural
+smokes, the weave + lego tests, the write round-trip, seven static conformance checks
+(tokens/nginx/responsive/drag/cards/hud/docker), and the suite prober (fails on `drift`). A
 failure means a cross-system contract has drifted — fix the source of truth, not the test.
 Full anatomy + per-app runners: [TESTING.md](TESTING.md); command catalog:
 [PRIMITIVES.md](PRIMITIVES.md). Post-deploy:
@@ -68,7 +68,9 @@ Both run through `infra/scripts/lib-deploy.sh`. The shared routine:
 3. `docker compose up --build -d`.
 4. `verify_containers` — waits 5s, inspects every container; fails if any is not `running`.
 5. nginx step: **staging only** (`MANAGE_NGINX=1`) and only when `infra/nginx` changed —
-   validates config in a throwaway container, then `docker restart standalone-nginx`.
+   validates config in a throwaway container, then `reload_nginx` (see § Nginx config below;
+   as of commit `4cba7f8` this self-heals a missing bind-mount by recreating the container
+   instead of a bare restart, before falling back to `docker restart standalone-nginx`).
    **Prod deploy always skips nginx** (`MANAGE_NGINX=0`) — standalone-nginx mounts its config
    from the staging checkout; a prod deploy must not restart it with unvalidated config.
 
@@ -97,15 +99,65 @@ can't sign in to the one tool that redeploys it (a bootstrap deadlock). Two esca
 
 ## Nginx config
 
-`standalone.conf` is the main config. `weave-proxy.conf` (peer proxy blocks) and
-`weave-proxy-staging.conf` (admin-gated peer proxy) are **generated** — do not hand-edit them:
+`standalone.conf` is the only **hand-written** config. Four files are **generated** by
+`infra/nginx/gen-nginx-weave.mjs` from `@jkos/suite-manifest` — never hand-edit any of them:
+
+| File | Role |
+|------|------|
+| `weave-proxy.conf` | Prod same-origin peer-proxy include (`/api/<peer>/*`, `/health/<peer>`), NOT admin-gated — each backend enforces its own JWT. |
+| `weave-proxy-staging.conf` | The same peer locations, admin-gated (`auth_request`), pointed at `staging-<container>` upstreams. |
+| `apps-generated.conf` | Prod origin server blocks for apps that opt into `edge:'standard'` (the `pnpm new-app` scaffolder sets it). Empty (header only) until the first such app. |
+| `apps-generated-staging.conf` | The staging admin-gated `location /<id>/` twin of the above. |
 
 ```bash
-node infra/nginx/gen-nginx-weave.mjs          # regenerate both files
-node infra/nginx/gen-nginx-weave.mjs --check  # CI: exit 1 if out of sync
+node infra/nginx/gen-nginx-weave.mjs          # regenerate all four files
+node infra/nginx/gen-nginx-weave.mjs --check  # CI: exit 1 if any is out of sync
 ```
 
-After any nginx config change, **restart** nginx (don't reload — see gotchas below).
+All four are file bind-mounts declared in `infra/nginx/docker-compose.yml` (alongside
+`standalone.conf`), so they must be mounted before `standalone.conf` can `include` them.
+
+### Recreate, don't (bare) restart
+
+`standalone.conf` and its four generated includes are all **file bind-mounts**, which pins
+an inode at container-create time. That has two consequences:
+
+- `nginx -s reload` re-reads the **stale, pre-`git reset` inode** — it is a no-op after a
+  deploy's `git reset --hard` and must never be relied on to pick up new config.
+- `docker restart standalone-nginx` DOES re-resolve every already-mounted inode to its
+  current on-disk content — but it **cannot add a bind-mount that wasn't in the container's
+  create-time spec**. If the freshly-checked-out `standalone.conf` now `include`s a
+  generated `.conf` file the *running* container was never started with a mount for, a bare
+  restart loads a config referencing a missing file and nginx fails to start with
+  `[emerg] open() failed (...)` — taking every prod **and** staging site behind the edge
+  down at once.
+
+  The fix is to **recreate**, not restart:
+
+  ```bash
+  cd /mnt/Luna/Webhost/jkOS-staging/infra/nginx && docker compose up -d
+  ```
+
+  `docker compose up -d` reconciles the container's mounts against the checked-out
+  `docker-compose.yml`, adding any new bind-mount, then starts it — the one operation that
+  can add a mount `restart` cannot.
+
+- `reload_nginx()` in `infra/scripts/lib-deploy.sh` (the deploy pipeline's nginx step, used
+  by both the "Deploy Staging" and staging-owned nginx changes) now **self-heals exactly
+  this** as of commit `4cba7f8`: before touching the running container it diffs every
+  `include` path `standalone.conf` declares against what the live `standalone-nginx`
+  container actually has mounted; if anything is missing it recreates the container via
+  `docker compose up -d` against `infra/nginx/docker-compose.yml` (re-verifying afterward),
+  and only falls back to a plain `docker restart standalone-nginx` when nothing was missing.
+  So the deploy pipeline no longer needs a human to notice and recreate manually — but a
+  manual, ad-hoc `docker restart standalone-nginx` run outside the pipeline still carries the
+  full risk above and should be treated as unsafe whenever the mounted conf set might have
+  drifted.
+
+  **This happened for real on 2026-07-09**: the live `standalone-nginx` container predated
+  the `apps-generated*.conf` bind-mounts, so `/papyros` silently fell through to the ORDECK
+  portal's `location /` instead of PapyrOS's subpath — a routing/mount-drift bug, not a
+  code bug, and the reason `reload_nginx`'s self-heal exists.
 
 ## Staging
 
@@ -115,6 +167,11 @@ staging ORDECK. Paths: `/auth/`, `/beigeboard/`, `/deploy/`.
 The shell is built with `VITE_JKOS_AUTH_URL=https://staging.jkos.net` (same-origin auth).
 Admin gate: every location runs `auth_request` → prod `jkos-auth /auth/require-admin`. Prod
 must be healthy before staging's gated routes work.
+
+Because of that gate, an **unauthenticated** `pnpm prove --live https://staging.jkos.net`
+reports `drift` on every app's health/capabilities checks (302 → prod login) — this is
+expected staging behaviour, not a regression. Re-run with `--token <admin jwt>` (or
+`PROBE_TOKEN=`) for a clean signal.
 
 ---
 
@@ -241,8 +298,9 @@ curl -sk https://jkos.net/ -o /dev/null -w "%{http_code}\n"
 
 nginx mounts its config from the **staging checkout**
 (`/mnt/Luna/Webhost/jkOS-staging/infra/nginx/standalone.conf`). Edit that copy when
-changing proxy config. Both `weave-proxy.conf` and `weave-proxy-staging.conf` are in the
-same directory; they are generated, not hand-edited.
+changing proxy config. `weave-proxy.conf`, `weave-proxy-staging.conf`, `apps-generated.conf`
+and `apps-generated-staging.conf` are all in the same directory; all four are generated
+(§ Nginx config), never hand-edited.
 
 ## Secrets
 
@@ -290,10 +348,14 @@ for every location block.
 
 ### nginx config bind-mount inode pinning
 
-`standalone.conf` is a single-file bind mount. `git reset --hard` replaces the inode;
-`nginx -s reload` re-reads the old (stale) inode. Always `docker restart standalone-nginx`
-when the config changes. The deploy controller handles this automatically on staging deploys
-where `infra/nginx` changed; prod deploys skip nginx entirely.
+`standalone.conf` and its four generated includes are file bind mounts. `git reset --hard`
+replaces the inode; `nginx -s reload` re-reads the old (stale) inode — never relied on. A
+bare `docker restart standalone-nginx` refreshes already-mounted inodes but **cannot add a
+new bind-mount**, so it's only safe when the mounted conf set hasn't changed; otherwise
+RECREATE (`cd infra/nginx && docker compose up -d`). Full anatomy, the self-healing
+`reload_nginx()`, and the 2026-07-09 incident it fixed: § Nginx config above. The deploy
+controller runs this automatically on staging deploys where `infra/nginx` changed; prod
+deploys skip nginx entirely.
 
 ### git on TrueNAS — mode-bit / lock failures
 

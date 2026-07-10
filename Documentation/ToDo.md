@@ -34,7 +34,8 @@ and is pushed to origin. **Remaining follow-through (Jag/ops):** deploy via `/de
 
 ## 1. LazurOS go-live (phases 5 / 7 / 8)
 
-Phases 0–6 are built, tested (71 backend + 15 worker assertions, all in the gate), and
+Phases 0–6 are built, tested (71 backend assertions in the gate + 19 worker assertions in
+the standalone `worker.smoke.py` — NOT gate-chained, run it manually), and
 code-complete; nothing is mid-edit. What's left is **live bring-up, then two code phases**.
 Architecture: [ARCHITECTURE.md § LazurOS](ARCHITECTURE.md). *(The old repo-root LAZUROS.md
 spec no longer exists — the architecture section + this list are the plan now.)*
@@ -68,7 +69,10 @@ a `createXProvider(config)` factory; prompts/model tags load from node-local
   `LAZUROS_TOKEN` absent from BB `.env.example`; `deployment.example.json` validates
   against `validateDeploymentConfig`.
 - **Phase 8 — ORDECK widgets.** Publish WidgetSpec docs through the Workshop for `query`
-  (assistant box) + a job-status list. No ORDECK code changes.
+  (assistant box) + a job-status list. No ORDECK code changes. *(Heads-up from the
+  2026-07-09 audit: the `jobs` dataset currently declares only `job_id`/`status`/`user_id`
+  filters — no `since` delta cursor yet; the widget polls fine without it, but don't
+  assume delta reads exist.)*
 
 ---
 
@@ -505,11 +509,18 @@ the spec.
 **Tier 2 — suite-wide primitives PapyrOS proved are missing (worth doing regardless of the music app)**
 
 - [ ] **16.7 `[BUG]`** **Primitive prop types are wrong.** `@jkos/ui`'s `BaseProps extends
-      HTMLAttributes<HTMLElement>`, so `TButton` cannot take `disabled`/`type` and `Sheet`
-      cannot take `href` — even though both accept `as`. Hit **twice** in this one app:
-      `views/library/BookCard.tsx` bails to a tagged `<a>` + `cx()`, and `views/Library.tsx`'s
-      Rescan button bails to a plain `<button>` + `cx()`. Both carry a comment apologising for
-      it. Fix: make the primitives polymorphic over `as` (`ComponentPropsWithoutRef<E>`), so
+      HTMLAttributes<HTMLElement>` (`packages/ui/src/primitives.tsx:20`), so `TButton` cannot
+      take `disabled`/`type` and `Sheet` cannot take `href` — even though both accept `as`.
+      **2026-07-09 audit: 9 call sites across 6 PapyrOS files** (not the 2 first recorded):
+      `views/library/BookCard.tsx:13` (Sheet-as-a, `href`), `views/Library.tsx:111` (Rescan,
+      `disabled`/`type`), `views/BookDetail.tsx:97` (TButton-as-a, `href`),
+      `views/book-detail/MatchPanel.tsx:97,132` (`disabled`/`type` ×2),
+      `components/DownloadButton.tsx:25` (`href`/`download`),
+      `views/library/LibraryToolbar.tsx:27,91` (Bubble-as-button, `type` ×2),
+      `App.tsx:61` (Press-as-a wordmark, `href`). Only 3 carry an apology comment; the rest
+      repeat the workaround silently. Zero instances in BB/ORDECK (their raw buttons are
+      bespoke-styled, never attempted primitive reuse); jkAuth/LazurOS have no React FE.
+      Fix: make the primitives polymorphic over `as` (`ComponentPropsWithoutRef<E>`), so
       `TButton` gets `ButtonHTMLAttributes` and `TButton as="a"` gets `AnchorHTMLAttributes`.
       Cheap, and it deletes the workaround from every app.
 - [ ] **16.8** `<AppShell>` — AuthGuard + header (wordmark, subtitle, settings gear) +

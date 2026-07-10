@@ -22,7 +22,7 @@ are off-limits.
 | `pnpm prove` | The suite prober — read-only cross-system conformance report (§2.3). |
 | `pnpm roundtrip` | The write round-trip — boots the real BeigeBoard backend and drives create→read→update→complete→delete through discovered docs (§2.3). |
 | `pnpm new-app <id>` | Scaffold a complete Layer-A-conformant app (§7). `--remove` undoes it. |
-| `pnpm check:tokens` \| `check:nginx` \| `check:responsive` \| `check:drag` \| `check:cards` \| `check:hud` | Individual conformance gates (§2.2) — each is also inside `test:contracts`. |
+| `pnpm check:tokens` \| `check:nginx` \| `check:responsive` \| `check:drag` \| `check:cards` \| `check:hud` \| `check:docker` | Individual conformance gates (§2.2) — each is also inside `test:contracts`. |
 | `pnpm test:cards` | Pure-logic unit tests for `@jkos/design` color + `@jkos/cards` datetime math (49 assertions). |
 
 ---
@@ -43,9 +43,9 @@ One command, every hard contract. Its links, in order:
 | `--filter @jkos/beigeboard-backend test` | `import.smoke` (39) + `items.smoke` (48) + `delta.smoke` (14) + `contract.smoke` (14) + `calendar.sandbox` (29) | import pipeline, CRUD hardening + reserved-source guard, `?since` cursor, declared==enforced, calendar providers + wipe guard + enc round-trip |
 | `pnpm roundtrip` | `roundtrip.mjs` (23) | the discovered write path end-to-end |
 | `--filter @jkos/lazuros-backend test` | queue (18) + providers (30) + writeback (11) + worker-e2e (12) | job queue, provider factories, delegated write-back, real worker.py against the real `/internal` API |
-| `--filter @jkos/papyros-backend test` | `probe.smoke` (33) + `library.smoke` (45) | ffprobe-tag→column mapping (pure), library scanner e2e against a committed fixture library (duration, embedded chapters, multi-file aggregation, `?title=` filter). **Needs `ffprobe` on PATH** — SKIPs cleanly (exit 0) if absent. |
+| `--filter @jkos/papyros-backend test` | `probe.smoke` (33) + `library.smoke` (45) + `playback.smoke` (42) + `meta.smoke` (40) | ffprobe-tag→column mapping (pure), library scanner e2e against a committed fixture library (duration, embedded chapters, multi-file aggregation, `?title=` filter), owner-scoped playback/progress + range-aware streaming, iTunes metadata-match enrichment. **Needs `ffprobe` on PATH** — SKIPs cleanly (exit 0) if absent. |
 | `pnpm test:cards` | `test/cards-logic.mjs` (49) | withAlpha + datetime/lane math (the real functions, transpiled in-memory) |
-| `pnpm check:*` × 6 | see §2.2 | static conformance |
+| `pnpm check:*` × 7 | see §2.2 | static conformance |
 | `pnpm prove` | file-mode prober | cross-system topology invariants; exits non-zero on `drift` |
 
 The Python half needs `python3` + `python-jose` (pinned `<3.6.0`).
@@ -55,11 +55,12 @@ The Python half needs `python3` + `python-jose` (pinned `<3.6.0`).
 | Command | Asserts |
 |---------|---------|
 | `pnpm check:tokens` | jkAuth's static `jkos-tokens.css` mirror + jkos-deploy's mirror are byte-identical to canonical `hub.css` (regen: `pnpm --filter @jkos/jkauth sync:tokens`, `node jkos-deploy/scripts/sync-tokens.mjs`); plus `test/tokens-parity.mjs` — paper/dark accent-family SET parity + CRT knob ownership. |
-| `pnpm check:nginx` | `weave-proxy.conf` + `weave-proxy-staging.conf` match what `infra/nginx/gen-nginx-weave.mjs` derives from the manifest. Fix = regenerate, never hand-edit. |
+| `pnpm check:nginx` | All four generated files (`weave-proxy.conf`, `weave-proxy-staging.conf`, `apps-generated.conf`, `apps-generated-staging.conf`) match what `infra/nginx/gen-nginx-weave.mjs` derives from the manifest. Fix = regenerate, never hand-edit. |
 | `pnpm check:responsive` | All `@media` bounds equal `packages/design/responsive/breakpoints.ts`; `MEDIA` derives from `BREAKPOINT_MAX`; tap-target floor on the right primitives. |
 | `pnpm check:drag` | The drag-unification invariants (one `usePointerDrag` primitive, no legacy HTML5-DnD reintroduction). |
 | `pnpm check:cards` | Kit purity: no app ids, no host CSS classes, no `` `${x}NN` `` alpha-concat inside `@jkos/cards`/`@jkos/ui` (`withAlpha` is the one blessed path). |
 | `pnpm check:hud` | ORDECK HUD doc validity + `mergePublished` idempotency, using the REAL healer. Also a fleet tool: `node apps/ordeck/scripts/check-hud-doc.mjs <file.json>` validates a doc/profile/DB export; `--live` checks the deployed profile. |
+| `pnpm check:docker` | `test/dockerfile-inject.mjs` — every app Dockerfile that does a frontend build after `COPY . .` re-runs `pnpm install` first, so an injected workspace dep (e.g. `@jkos/weave`) picked up post-copy doesn't build against a stale manifest-only install. Broke papyros's wave-6 deploy (2026-07-09) before this gate existed. |
 
 ### 2.3 The prober — live and write modes
 
@@ -88,9 +89,9 @@ pnpm --filter @jkos/jkauth test                # auth smoke + lifecycle + multiu
 pnpm --filter @jkos/jkauth test:contracts      # codes/issuer/python bridge only
 pnpm --filter @jkos/beigeboard-backend test    # all five BB smokes
 pnpm --filter @jkos/lazuros-backend test       # queue/providers/writeback/worker-e2e
-pnpm --filter @jkos/papyros-backend test       # probe.smoke + library.smoke (needs ffprobe)
+pnpm --filter @jkos/papyros-backend test       # probe.smoke + library.smoke + playback.smoke + meta.smoke (needs ffprobe)
 pnpm --filter @jkos/weave test                 # weave + lego
-python3 apps/lazuros/worker/test/worker.smoke.py   # worker unit half (15, mocked State node)
+python3 apps/lazuros/worker/test/worker.smoke.py   # worker unit half (19, mocked State node)
 bash jkos-deploy/scripts/selftest.sh           # deploy-pipeline dry-run (read-only; SKIPs cleanly without docker/openssl)
 ```
 
@@ -267,8 +268,8 @@ the `AppId` union in `apps.d.ts` (gate asserts their parity).
 
 | Action | How |
 |--------|-----|
-| **Create a new app** | `pnpm new-app <id> [--name "Display Name"] [--port 3010]` — emits a weave-wired backend (a `defineCollection` + `.mount`), a themed frontend, root-context Dockerfile + compose entries, and registers the app in the manifest (registry/nginx/prober derive). Then: `pnpm install`, fill `apps/<id>/.env`, add the nginx server block to `standalone.conf`, deploy, restart nginx. `pnpm new-app <id> --remove` undoes it. |
-| **Regenerate nginx peer confs** | `node infra/nginx/gen-nginx-weave.mjs` (then `--check`). The two `weave-proxy*.conf` files are GENERATED — never hand-edit. Configs are bind-mounts: **restart** nginx (`docker restart standalone-nginx`), never reload. |
+| **Create a new app** | `pnpm new-app <id> [--name "Display Name"] [--port 3010]` — emits a weave-wired backend (a `defineCollection` + `.mount`), a themed frontend, root-context Dockerfile + compose entries, registers the app in the manifest (registry/prober derive), and — since it sets `edge:'standard'` — REGENERATES all four nginx includes itself (no manual `standalone.conf` edit needed; `apps-generated*.conf` picks it up). Then: `pnpm install`, fill `apps/<id>/.env`, deploy, apply the nginx change (recreate if the mount set changed, else the deploy pipeline's self-healing `reload_nginx` — OPERATIONS.md § Nginx config). `pnpm new-app <id> --remove` undoes it. |
+| **Regenerate nginx peer confs** | `node infra/nginx/gen-nginx-weave.mjs` (then `--check`). All four generated files (`weave-proxy.conf`, `weave-proxy-staging.conf`, `apps-generated.conf`, `apps-generated-staging.conf`) are GENERATED — never hand-edit; `standalone.conf` is hand-written. Configs are bind-mounts, so content-only changes go through the deploy pipeline's self-healing `reload_nginx` (detects a missing mount and RECREATES instead of restarting — see OPERATIONS.md § Nginx config). Manual intervention: `cd infra/nginx && docker compose up -d` (recreate). A bare `docker restart standalone-nginx` is UNSAFE if the mounted conf set has drifted — it can take prod+staging down. |
 | **Regenerate token mirrors** | `pnpm --filter @jkos/jkauth sync:tokens` and `node jkos-deploy/scripts/sync-tokens.mjs` after any `hub.css` change. |
 | **Deploy staging / promote prod** | `staging.jkos.net/deploy/` (admin-gated console). Promote ships the exact commit staging just ran (`PROD_BRANCH=staging`). Details + cold-start: [OPERATIONS.md](OPERATIONS.md). |
 | **Break-glass (prod jkAuth down)** | `curl -X POST -H "Authorization: Bearer $BREAK_GLASS_TOKEN" https://staging.jkos.net/deploy/…` — only works while jkAuth is unreachable; inert otherwise. Host-env only. See OPERATIONS.md § Break-glass. |
@@ -283,7 +284,7 @@ the `AppId` union in `apps.d.ts` (gate asserts their parity).
 |--------|------|
 | pnpm workspace copies | After editing `packages/*`: `pnpm install`, or consumers keep the stale copy. |
 | ORDECK vite dev | Broken (CJS `codes.js`). Verify via `pnpm --filter @jkos/ordeck build` + `preview`. |
-| nginx bind-mount inodes | Config changes need `docker restart standalone-nginx` — `reload` re-reads the stale inode. Prod deploys never touch nginx (`MANAGE_NGINX=0`); new peers are inert in prod until a manual restart. |
+| nginx bind-mount inodes | `nginx -s reload` re-reads the stale inode — useless after `git reset`. Content-only changes: the deploy pipeline's `reload_nginx` handles it (and self-heals a missing bind-mount by recreating). Manual fix when the mounted conf set itself has drifted (e.g. a new generated `.conf` file the running container never mounted): RECREATE, `cd infra/nginx && docker compose up -d` — a bare `docker restart standalone-nginx` cannot add a bind-mount and, if `standalone.conf`'s new inode `include`s a file the container doesn't have mounted, crashes nginx with `[emerg] open() failed`, taking prod+staging down. Details: OPERATIONS.md § Nginx config. Prod deploys never touch nginx (`MANAGE_NGINX=0`); new peers are inert in prod until a manual recreate. |
 | Docker context | Every JS image builds from the **repo root** so `@jkos/*` resolves. Never per-app context. |
 | BeigeBoard backend is CommonJS | It `require`s `@jkos/weave/server` (dual-build). Frontend packages are ESM/TS — no mixing. |
 | `CALENDAR_ENC_KEY` lifecycle | Adding a key later is safe (dual-read); removing/changing one after encryption breaks those rows. Treat as permanent per instance. |
