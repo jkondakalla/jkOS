@@ -73,6 +73,14 @@ a `createXProvider(config)` factory; prompts/model tags load from node-local
   2026-07-09 audit: the `jobs` dataset currently declares only `job_id`/`status`/`user_id`
   filters — no `since` delta cursor yet; the widget polls fine without it, but don't
   assume delta reads exist.)*
+  **2026-07-09: specs AUTHORED + validated — awaiting Jag's publish click.**
+  `apps/lazuros/widgets/lazuros-query.json` (Ask-LazurOS form → `runCommand('lazuros',
+  'query')`) + `lazuros-jobs.json` (8s-polled job list) + `README.md` with the exact
+  Workshop publish steps. Validated via the real `check-hud-doc.mjs` (v5-valid,
+  `mergePublished` idempotent) + a lossless `nodeToEn`/`enToNode` round-trip. Two dialect
+  gaps recorded in the README: no command-result capture (so query box + jobs list ship
+  as two independent widgets, not input→poll-that-job), and no eq-binding to drive
+  status→tone coloring. Zero ORDECK code touched.
 
 ---
 

@@ -1,0 +1,41 @@
+{
+  "id": "lazuros-jobs",
+  "label": "LazurOS Jobs",
+  "sizing": {
+    "desktop": { "w": 4, "h": 6 },
+    "mobile": { "w": 2, "h": 5 },
+    "min": { "w": 3, "h": 4 }
+  },
+  "spec": {
+    "frame": { "eyebrow": "LAZUROS", "source": "JOBS" },
+    "sources": {
+      "jobs": { "from": "fetch", "url": "/api/lazuros/jobs", "poll": 8 }
+    },
+    "body": {
+      "t": "list",
+      "from": { "src": "jobs" },
+      "empty": "NO JOBS YET",
+      "item": {
+        "t": "stack",
+        "gap": 2,
+        "children": [
+          {
+            "t": "row",
+            "gap": 8,
+            "justify": "space-between",
+            "children": [
+              { "t": "pill", "text": { "src": "$", "path": "status" }, "tone": "muted" },
+              { "t": "text", "text": { "src": "$", "path": "capability" }, "variant": "mono", "grow": true },
+              { "t": "text", "text": { "src": "$", "path": "created_at" }, "variant": "sub" }
+            ]
+          },
+          {
+            "t": "when",
+            "cond": { "src": "$", "path": "error" },
+            "then": { "t": "text", "text": { "src": "$", "path": "error" }, "variant": "sub" }
+          }
+        ]
+      }
+    }
+  }
+}
