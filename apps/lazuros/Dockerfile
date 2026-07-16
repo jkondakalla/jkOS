@@ -21,10 +21,13 @@ RUN pnpm install --frozen-lockfile --filter @jkos/lazuros-backend...
 
 # ── Backend bundle ────────────────────────────────────────────────────────────
 # @jkos/weave/server transitively pulls auth-middleware + auth-client + design +
-# suite-manifest; pnpm deploy bundles all of them, so their SOURCE must be present
-# here (else the bundle has their package.json but not src → MODULE_NOT_FOUND at boot).
+# suite-manifest + files (its mediaRoutes.js requires @jkos/files at module load, so it
+# is needed even though LazurOS serves no media); pnpm deploy bundles all of them, so
+# their SOURCE must be present here (else the bundle has their package.json but not
+# src → MODULE_NOT_FOUND at boot).
 COPY packages/auth-middleware packages/auth-middleware
 COPY packages/weave packages/weave
+COPY packages/files packages/files
 COPY packages/auth-client packages/auth-client
 COPY packages/design packages/design
 COPY packages/suite-manifest packages/suite-manifest

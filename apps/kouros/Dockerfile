@@ -29,11 +29,13 @@ RUN pnpm install --frozen-lockfile --filter @jkos/kouros... --filter @jkos/kouro
 # ── Backend bundle (isolated so it caches across frontend edits) ──────────────
 # `pnpm deploy` materializes the backend + its workspace deps into /out. Its deps are
 # @jkos/weave/server (which transitively pulls @jkos/auth-client + @jkos/design) and
-# @jkos/suite-manifest (required by discovery.js AND transitively by @jkos/weave) — all
-# their source must be present or the bundle has the package.json but not the source
-# (MODULE_NOT_FOUND at boot). Running deploy BEFORE the frontend source keeps it cached.
+# @jkos/suite-manifest (required by discovery.js AND transitively by @jkos/weave) and
+# @jkos/files (a dep of @jkos/weave — its server/mediaRoutes.js requires it at module
+# load) — all their source must be present or the bundle has the package.json but not
+# the source (MODULE_NOT_FOUND at boot). Running deploy BEFORE the frontend keeps cache.
 COPY packages/auth-middleware packages/auth-middleware
 COPY packages/weave packages/weave
+COPY packages/files packages/files
 COPY packages/auth-client packages/auth-client
 COPY packages/design packages/design
 COPY packages/suite-manifest packages/suite-manifest

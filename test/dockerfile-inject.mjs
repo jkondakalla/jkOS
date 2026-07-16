@@ -23,6 +23,28 @@
 // Backend-only / static images (jkauth, lazuros) have no such frontend build, so the
 // pattern doesn't match them and they're exempt automatically.
 //
+// ── Check 2: deploy-bundle source closure ────────────────────────────────────
+// The backend images run `pnpm --filter <pkg> deploy --prod /out` BEFORE `COPY . .`
+// (so the expensive bundle caches across frontend edits), and the runtime image ships
+// /out. That means every workspace package the bundle pulls in must have its SOURCE
+// copied in ahead of the deploy — `pnpm deploy` copies what's on disk, so a package
+// whose source is absent lands in /out as a bare package.json with no entrypoint and
+// the container crash-loops at boot with MODULE_NOT_FOUND.
+//
+// Each Dockerfile lists those copies by hand, which silently rots the moment a shared
+// package gains a new workspace dep: 2026-07-16 @jkos/weave gained @jkos/files (its
+// server/mediaRoutes.js requires it at module load), no Dockerfile learned about it,
+// and bb-app + papyros + kouros all crash-looped on deploy — while this gate stayed
+// green, because check 1 only polices the re-install.
+//
+// The invariant asserted here is CLOSURE, which needs no per-app knowledge and works
+// on the `__ID__` template too:
+//
+//   The set of packages/* copied before the deploy must be closed under workspace
+//   dependencies — if you COPY a package, you COPY everything it depends on.
+//
+// A whole-directory `COPY packages/ packages/` (jkauth) is trivially closed and exempt.
+//
 // Run:  node test/dockerfile-inject.mjs   (wired as `pnpm check:docker`, folded
 //                                           into `pnpm test:contracts`)
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
@@ -84,9 +106,79 @@ for (const [label, path] of targets) {
   }
 }
 
+// ── Check 2: every packages/* copied before `pnpm deploy` brings its deps along ──
+// name → directory basename, for the workspace packages that can be COPY'd.
+const pkgDirByName = new Map();
+const pkgsDir = resolve(root, 'packages');
+for (const dir of readdirSync(pkgsDir)) {
+  const manifest = resolve(pkgsDir, dir, 'package.json');
+  if (!existsSync(manifest)) continue;
+  pkgDirByName.set(JSON.parse(readFileSync(manifest, 'utf8')).name, dir);
+}
+
+/** The workspace packages `dir` depends on (prod deps only — `deploy --prod`). */
+const workspaceDepsOf = (dir) => {
+  const { dependencies = {} } = JSON.parse(
+    readFileSync(resolve(pkgsDir, dir, 'package.json'), 'utf8'),
+  );
+  return Object.keys(dependencies)
+    .filter((n) => pkgDirByName.has(n))
+    .map((n) => [n, pkgDirByName.get(n)]);
+};
+
+// Anchored to RUN so the prose above each deploy stage ("`pnpm deploy` materializes
+// the backend …") can't be mistaken for the step itself — that would put deployIdx
+// above the COPY lines and pass vacuously on zero packages.
+const DEPLOY = /^RUN\s+.*\bpnpm\b.*\bdeploy\b/;
+const COPY_PKG = /^COPY\s+packages\/([^/\s]+)\s+packages\//;
+const COPY_PKGS_ALL = /^COPY\s+packages\/\s+packages\/\s*$/;
+
+for (const [label, path] of targets) {
+  const lines = readFileSync(path, 'utf8').split('\n');
+
+  const deployIdx = lines.findIndex((l) => DEPLOY.test(l.trim()));
+  if (deployIdx === -1) {
+    ok(`${label} — no 'pnpm deploy' bundle (exempt)`);
+    continue;
+  }
+
+  const before = lines.slice(0, deployIdx).map((l) => l.trim());
+  if (before.some((l) => COPY_PKGS_ALL.test(l))) {
+    ok(`${label} — copies all of packages/ before deploy (closed by construction)`);
+    continue;
+  }
+
+  const copied = new Set();
+  for (const l of before) {
+    const m = l.match(COPY_PKG);
+    if (m && pkgDirByName.has(`@jkos/${m[1]}`)) copied.add(m[1]);
+  }
+
+  const missing = [];
+  for (const dir of copied) {
+    for (const [depName, depDir] of workspaceDepsOf(dir)) {
+      if (!copied.has(depDir)) missing.push({ dir, depName, depDir });
+    }
+  }
+
+  if (missing.length === 0) {
+    ok(`${label} — deploy-bundle copies are closed under workspace deps (${copied.size} pkgs)`);
+  } else {
+    for (const { dir, depName, depDir } of missing) {
+      fail(
+        `${label} — copies packages/${dir} before 'pnpm deploy' but NOT its workspace dep ` +
+        `${depName}. The bundle would ship ${depName}/package.json with no source → ` +
+        `MODULE_NOT_FOUND crash-loop at boot. Add 'COPY packages/${depDir} packages/${depDir}' ` +
+        `before the deploy line.`,
+      );
+    }
+  }
+}
+
 console.log('');
 if (failed) {
   console.error(`Dockerfile inject-sync: ${failed} failure(s).`);
   process.exit(1);
 }
-console.log('Dockerfile inject-sync: all app images re-inject before the frontend build.');
+console.log('Dockerfile inject-sync: images re-inject before the frontend build, and every');
+console.log('deploy bundle copies its workspace deps\' source.');
