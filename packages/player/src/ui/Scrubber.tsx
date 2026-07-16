@@ -10,6 +10,7 @@
 // committed on release — identical event set to the papyros original (pointer/mouse/
 // touch/key up), so a keyboard nudge seeks exactly once, on keyup.
 import { useState } from 'react';
+import { Slider } from '@jkos/ui';
 import { fmtClock } from '../core/timeline';
 import type { NavPoint } from '../core/timeline';
 import { segmentWindow } from './scrub';
@@ -59,21 +60,19 @@ export function Scrubber({
   };
 
   const showTicks = mode === 'timeline' && points.length > 1 && total > 0;
+  // The suite <Slider> owns the release-commit event set (pointer/mouse/touch/key
+  // up) that this file used to wire by hand; `commit` reads the GLOBAL `scrub`
+  // state, so the window-relative value it hands back is deliberately ignored.
   const range = (
-    <input
-      className="pb-range"
-      type="range"
+    <Slider
       min={0}
       max={win.length || 1}
       step={1}
       value={win.pos}
       disabled={disabled ?? total === 0}
       aria-label={ariaLabel}
-      onChange={(e) => setScrub(win.start + Number(e.currentTarget.value))}
-      onPointerUp={commit}
-      onMouseUp={commit}
-      onTouchEnd={commit}
-      onKeyUp={commit}
+      onChange={(v) => setScrub(win.start + v)}
+      onCommit={commit}
     />
   );
 

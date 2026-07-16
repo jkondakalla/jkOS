@@ -200,6 +200,64 @@ export function Check({ checked, onChange, tint, className, style, children, ...
   );
 }
 
+/** Continuous range control — the house fader. Controlled: pass `value` +
+ *  `onChange`. Renders a real <input type="range"> so keyboard/step/aria come
+ *  from the platform; the elapsed fill is painted from the value via
+ *  --jk-slider-fill, and `tint` recolours it (and the CRT cap glow) via --jk-tint.
+ *
+ *  `onChange` fires on every move (live value); `onCommit` fires once the drag /
+ *  key press is released — the split a seek control needs, so it can preview
+ *  without committing a seek per pixel. */
+export function Slider({
+  value,
+  min = 0,
+  max = 100,
+  step = 1,
+  onChange,
+  onCommit,
+  tint,
+  className,
+  style,
+  ...rest
+}: Omit<ComponentPropsWithoutRef<'input'>, 'value' | 'onChange' | 'type'> & {
+  value: number;
+  min?: number;
+  max?: number;
+  step?: number | 'any';
+  onChange?: (next: number) => void;
+  onCommit?: (next: number) => void;
+  tint?: string;
+}) {
+  const span = max - min;
+  const pct = span > 0 ? ((Math.max(min, Math.min(max, value)) - min) / span) * 100 : 0;
+  const commit = () => onCommit?.(value);
+  // `rest` is spread BEFORE the wiring, not after: the four release events are this
+  // component's commit contract, so a caller passing its own onKeyUp must not silently
+  // disable the commit. Everything a caller legitimately overrides (className, style)
+  // is destructured above and merged explicitly.
+  return (
+    <input
+      {...rest}
+      type="range"
+      className={cx('jk-slider', className)}
+      min={min}
+      max={max}
+      step={step}
+      value={value}
+      style={{
+        ...style,
+        ['--jk-slider-fill' as string]: `${pct}%`,
+        ...(tint ? { ['--jk-tint' as string]: tint } : null),
+      }}
+      onChange={(e) => onChange?.(Number(e.currentTarget.value))}
+      onPointerUp={commit}
+      onMouseUp={commit}
+      onTouchEnd={commit}
+      onKeyUp={commit}
+    />
+  );
+}
+
 /** Segmented VU / level meter. `value` 0–1 lights the first N of `segments`. */
 export function VU({
   value,

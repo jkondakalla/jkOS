@@ -384,6 +384,38 @@ stays on its direct `api.ts` calls (throw-on-non-2xx distinguishes "search faile
 routers doesn't justify it); promote `public/sw.js` into the `pnpm new-app` template (it's already
 deploy-shape-agnostic) once the music app shows what it actually shares.
 
+### Wave 21 — design-page completeness + the slider primitive. **DONE 2026-07-16.**
+
+`/design` now renders **every** shared class (`pnpm check:design` proves it — see below), plus the
+two things it was missing: a live **player bar** (the page inlines `player-ui.css` alongside
+hub.css) and a **`.jk-slider`** primitive / `<Slider>` component, which the player `<Scrubber>` and
+KourOS's volume + crossfade knobs now all ride instead of three bespoke ranges. Record:
+[DESIGN.md](DESIGN.md) (controls + structural-primitives tables). New gate `check:design`
+(`test/design-page.mjs`) fails on **stale** (the page is a built snapshot — rerun
+`node apps/jkauth/scripts/build-design-page.mjs`) and on **incomplete** (a hub.css class nobody
+demos), which is what let the shell/match/async/scrim/cards/player surfaces go unrendered for weeks.
+
+**Open follow-ups this exposed** (found by rendering the system, deliberately *not* fixed in-wave):
+
+- **`.muted` is a legacy alias.** `<MatchPanel>` hardcodes `muted` on its message/meta lines, but
+  the rule lived only in `apps/papyros/src/app.css` + `apps/kouros/src/app.css` — a shared
+  component that rendered right only in the apps shipping their own copy (the exact trap
+  `.jk-cards-*` exists to close). hub.css now owns it byte-identically, so nothing moved. **To
+  retire:** point MatchPanel's four `muted jk-match-msg` paragraphs at `.jk-async-note` (identical
+  declaration, and they *are* the async triad), delete the two app copies, drop `.muted`.
+- **`.jk-match-candidate-meta` inherits `.muted`'s `padding: 1.5rem 0`** — ~24px of dead vertical
+  space between a candidate's title and its description, visible on `/design` §13. Almost certainly
+  unintended: the author cancelled the same padding one rule away (`.jk-match-msg { padding: 0 }`)
+  and missed the meta line. One-line fix, but it changes live PapyrOS spacing — Jag's call.
+- **`.jk-sub` on dense small text** blooms into a solid slab in dark mode: its 8px 40%-alpha
+  text-shadow compounds across glyphs. It's for short flat secondary text/links; a metadata line
+  wants `--color-muted`. Worth a note in the DESIGN.md fence if it bites again.
+
+**Fixed in-wave:** `.jk-media-cover-placeholder` declared `align-items`/`justify-content: center`
+but never `display: flex`, and `.jk-media-cover`'s `display: block` won at equal specificity — so
+every fallback cover glyph in the suite (PapyrOS's real library grid included) sat in the tile's
+top-left corner. Two declarations that had never once done anything.
+
 ### Program unblockers (Jag — decisions, not code)
 
 | Decision | Blocks | Default if unspecified |

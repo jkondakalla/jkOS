@@ -179,15 +179,26 @@ rung down, never pressed. Status colours keep their own lane.
 - **On-accent ink** (`--color-on-accent` / `-dim` / `-faint`): the white-alpha family for
   text/marks/dividers sitting on the accent or a data colour (task chips, tinted panel
   headers, filled checks) — pick it over `--color-ink` only when the ground is coloured.
-- **Well retint**: `.jk-well` (and the toggles/VU) read `--jk-tint` (unset → `--accent`), so
-  a caller can retint a well/meter in a goal's own hue; the dark-mode press glow follows the
+- **Well retint**: `.jk-well` (and the toggles/slider/VU) read `--jk-tint` (unset → `--accent`),
+  so a caller can retint a well/meter in a goal's own hue; the dark-mode press glow follows the
   same seam.
+- **Controls** (`.jk-switch`, `.jk-check`, `.jk-slider`, `.jk-vu`): one rule across the set — a
+  neutral, debossed track that fills with the accent (or `--jk-tint`) as it engages. Each hosts
+  on a real form/aria element, so the platform keeps the keyboard and the styling keys off the
+  state attribute. **`.jk-slider`** is the continuous one (seek, volume, rate): a milled metal
+  cap on a filling channel. Its input box is a full `--hub-tap-min` tall for the ≥44px hit area
+  while the visible track stays thin, and the elapsed fill paints from **`--jk-slider-fill`**
+  (a percentage; `<Slider>` sets it from the value — a bare class renders unfilled, not broken).
+  Never hand-roll a range: a bare `<input type="range">` with `accent-color` themes the thumb
+  but leaves the bar as OS chrome, which is what the player scrubber used to do.
 - **React components** (`@jkos/ui`): `<Bubble tone large>`, `<Press large as>`, `<Sub>`,
   `<SubLink>`, `<Well tint>`, `<Sheet>`, `<Lab size sans>`, `<TButton quiet>`, `<Pill>`,
-  `<Switch checked onChange tint>`, `<Check checked onChange tint>`, `<VU value segments tint>`,
+  `<Switch checked onChange tint>`, `<Check checked onChange tint>`,
+  `<Slider value min max step onChange onCommit tint>`, `<VU value segments tint>`,
   `<Scanlines>`, `<Vignette>`, `<Scrim heavy>` (+ `cx`) wrap those classes — the sanctioned way
   to use the system. `@jkos/design` stays framework-free (tokens + factory + appliers); React
-  lives in `@jkos/ui`.
+  lives in `@jkos/ui`. `<Slider>`'s `onChange` fires per move, `onCommit` on release — the split
+  a seek control needs so it can preview without committing a seek per pixel.
 
 ## Structural primitives — shell, media, async, match
 
@@ -201,9 +212,16 @@ neutral/structural (no accent of their own) and resolve through the same `--hub-
 | `.jk-media-grid` (`data-density="compact\|cozy\|comfortable"`) + `.jk-media-cover` / `.jk-media-cover-placeholder` | `<MediaGrid>` / `<CoverArt>` | The responsive cover grid + square artwork tile. Columns key off the density ladder tokens (`--hub-media-cols-*`, `--hub-media-grid-gap*`), pinned to `packages/design/responsive/mediaGrid.ts` by `check:responsive`. Placeholder reuses `.jk-well` |
 | `.jk-async-note` / `.jk-async-error` | `<AsyncView>` | The loading / error / empty state paragraph, unified out of three hand-rolled versions. `check:async-view` gates it. Error blends toward the danger hue via `color-mix`, never a raw red |
 | `.jk-match-panel` / `.jk-match-head` / `.jk-match-search` / `.jk-match-input` / `.jk-match-candidate*` | `<MatchPanel>` | The search → candidates → apply panel (papyros "Fix metadata"), lifted so the next consumer reuses it instead of repeating the single-app copy |
+| `.player-bar` / `.pb-*` (`packages/player/src/ui/player-ui.css`) | `<PlayerBar>` + `<NowPlaying>` / `<Scrubber>` / `<QueuePanel>` / `<SegmentList>` | The **slotted** player shell: meta · transport · scrubber · actions, 3 columns on desktop, stacked on mobile. The control *set* stays the app's (PapyrOS audiobook, KourOS music) — only layout + chrome are shared. The one shared component stylesheet outside hub.css (it ships with `@jkos/player/ui`), so the design page inlines it separately. The bar is a **solid** surface with an accent-tinted top rule: an earlier translucent+blur version dissolved into the page. Seeking goes through `.jk-slider` |
 
 These back the **media apps** (see the stack table below). New media-shaped UI should assemble
 from these, not re-hardcode a `repeat(N, 1fr)` grid or a bespoke loading paragraph.
+
+> **`.muted` is legacy.** `@jkos/ui`'s `<MatchPanel>` hardcodes `muted` on its message/meta
+> lines, but the rule used to live only in `apps/papyros/src/app.css` + `apps/kouros/src/app.css`
+> — a shared component that rendered correctly only in the apps shipping their own copy. hub.css
+> now owns it (byte-identical) so every consumer gets it. **New code uses `.jk-async-note` /
+> `<AsyncView>`**; retiring the old name + the two app copies is open in `ToDo.md`.
 
 ## Per-app stacks — critical constraints
 

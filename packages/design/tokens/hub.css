@@ -779,7 +779,13 @@
   object-fit: cover;
   background: var(--hub-bg-1);
 }
+/* `display: flex` is load-bearing: .jk-media-cover above sets `display: block`,
+   and at equal specificity the later rule wins — so without this the centering
+   pair below was inert and every fallback glyph in the suite sat in the tile's
+   top-left corner. (Inherited from `.lib-cover-placeholder`, which leaned on a
+   papyros-local flex rule that didn't come along with the lift.) */
 .jk-media-cover-placeholder {
+  display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 0;
@@ -795,6 +801,20 @@
  * offline.css's `.is-error` hint) rather than going pure red — legible in
  * both modes without a hardcoded hex. ───────────────────────────────────── */
 .jk-async-note {
+  padding: 1.5rem 0;
+  opacity: 0.6;
+}
+
+/* Legacy alias for the same thing. @jkos/ui's <MatchPanel> hardcodes `muted` on
+   its message/meta lines, but the rule lived ONLY in apps/papyros/src/app.css and
+   apps/kouros/src/app.css (identical copies) — so a shared component rendered
+   correctly only in the two apps that happened to ship their own class. That is
+   the same trap the .jk-cards-* block above exists to close, so the rule moves
+   here, byte-identical, and every consumer gets it. New code should use
+   .jk-async-note (or <AsyncView>) — this exists so the existing call sites are
+   not silently broken. See Documentation/ToDo.md: the two app copies and
+   MatchPanel's use of the old name are still to be retired. */
+.muted {
   padding: 1.5rem 0;
   opacity: 0.6;
 }
@@ -926,6 +946,103 @@
 :root[data-mode="dark"] .jk-check[aria-checked="true"] {
   box-shadow: 0 0 8px color-mix(in srgb, var(--jk-tint, var(--accent)) 40%, transparent);
 }
+
+/* ─── Slider — continuous range control ────────────────────────────────────
+ * The house fader: a recessed track that fills with the accent (or --jk-tint)
+ * up to the playhead, under a metal fader CAP — the hardware sibling of the
+ * switch/check pair above, for continuous values (seek, volume, rate).
+ *
+ * Host a real <input type="range" class="jk-slider"> so keyboard, aria and the
+ * step semantics come from the platform. The input box is a full --hub-tap-min
+ * tall (the ≥44px hit area) while the visible track stays thin — the same trick
+ * the player scrubber used, kept.
+ *
+ * The elapsed fill is painted from --jk-slider-fill (a percentage the caller
+ * sets from its own value; @jkos/ui <Slider> does it for you). It defaults to
+ * 0% so a bare, JS-free `.jk-slider` still renders correctly — just unfilled.
+ *
+ * Vendor pseudo-elements CANNOT be grouped: one unknown selector drops the whole
+ * rule, so the ::-webkit-/::-moz- pairs below are deliberately duplicated. */
+.jk-slider {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: var(--hub-tap-min);
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.jk-slider:disabled { cursor: default; opacity: 0.5; }
+
+/* Track — debossed channel, accent to the left of the cap, neutral to the right. */
+.jk-slider::-webkit-slider-runnable-track {
+  height: 6px;
+  border: 1px solid var(--hub-line);
+  border-radius: var(--hub-radius-xs);
+  box-shadow: var(--hub-shadow-inset);
+  background:
+    linear-gradient(
+      to right,
+      var(--jk-tint, var(--accent)) 0 var(--jk-slider-fill, 0%),
+      var(--hub-bg-0) var(--jk-slider-fill, 0%)
+    );
+}
+.jk-slider::-moz-range-track {
+  height: 6px;
+  border: 1px solid var(--hub-line);
+  border-radius: var(--hub-radius-xs);
+  box-shadow: var(--hub-shadow-inset);
+  background:
+    linear-gradient(
+      to right,
+      var(--jk-tint, var(--accent)) 0 var(--jk-slider-fill, 0%),
+      var(--hub-bg-0) var(--jk-slider-fill, 0%)
+    );
+}
+
+/* Cap — a milled fader knob: metal gradient, bevel highlight, centre grip line.
+ * webkit centres the thumb by margin against the track box (6px + 2×1px border
+ * = 8px), hence the -7px; moz centres it for us. */
+.jk-slider::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 12px;
+  height: 22px;
+  margin-top: -7px;
+  border: 1px solid var(--hub-line-bright);
+  border-radius: var(--hub-radius-xs);
+  background:
+    linear-gradient(to bottom, var(--hub-metal-2), var(--hub-metal-0));
+  box-shadow: inset 0 1px 0 var(--hub-bevel-light), 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+.jk-slider::-moz-range-thumb {
+  width: 12px;
+  height: 22px;
+  border: 1px solid var(--hub-line-bright);
+  border-radius: var(--hub-radius-xs);
+  background:
+    linear-gradient(to bottom, var(--hub-metal-2), var(--hub-metal-0));
+  box-shadow: inset 0 1px 0 var(--hub-bevel-light), 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+/* CRT: the filled run emits, and the cap picks up the accent edge it rides. */
+:root[data-mode="dark"] .jk-slider::-webkit-slider-thumb {
+  border-color: color-mix(in srgb, var(--jk-tint, var(--accent)) 60%, var(--hub-line-bright));
+  box-shadow:
+    inset 0 1px 0 var(--hub-bevel-light),
+    0 0 10px color-mix(in srgb, var(--jk-tint, var(--accent)) 45%, transparent);
+}
+:root[data-mode="dark"] .jk-slider::-moz-range-thumb {
+  border-color: color-mix(in srgb, var(--jk-tint, var(--accent)) 60%, var(--hub-line-bright));
+  box-shadow:
+    inset 0 1px 0 var(--hub-bevel-light),
+    0 0 10px color-mix(in srgb, var(--jk-tint, var(--accent)) 45%, transparent);
+}
+
+.jk-slider:focus-visible { outline: none; }
+.jk-slider:focus-visible::-webkit-slider-thumb { outline: 2px solid var(--accent); outline-offset: 2px; }
+.jk-slider:focus-visible::-moz-range-thumb     { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* ─── VU meter — segmented level bar ────────────────────────────────────────
  * Flex row of segments; add `.on` to lit segments. Accent by default; retint a

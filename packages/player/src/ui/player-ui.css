@@ -195,28 +195,21 @@
   min-width: 3.2ch;
   text-align: center;
 }
-/* A tall input gives the full ≥44px hit area (the visible track stays thin), while
-   accent-color paints BOTH the themed thumb and the elapsed-fill below it — so no
-   ::-webkit-/::-moz- pseudo overrides (which would defeat that fill) are needed. */
-.pb-range {
-  flex: 1 1 auto;
-  min-width: 0;
-  height: var(--hub-tap-min);
-  accent-color: var(--accent);
-  cursor: pointer;
-  background: transparent;
-}
-.pb-range:disabled { cursor: default; opacity: 0.5; }
+/* The seek control is the suite SLIDER: <Scrubber> renders @jkos/ui's <Slider>, so
+   the track, fader cap, elapsed fill and ≥44px tap-floor all come from hub.css's
+   `.jk-slider` — nothing to restate here. This was a bare range leaning on
+   `accent-color`, which themed the thumb but left the bar as generic OS chrome —
+   the one control in the suite that wasn't house hardware. */
 
 /* Whole-timeline mode only: a positioned wrap so segment-boundary ticks can overlay
-   the native range. Segment mode renders the bare input (papyros's exact markup). */
+   the slider. Segment mode renders the bare input (papyros's exact markup). */
 .pb-range-wrap {
   position: relative;
   flex: 1 1 auto;
   min-width: 0;
   display: flex;
 }
-.pb-range-wrap .pb-range { width: 100%; }
+.pb-range-wrap .jk-slider { width: 100%; }
 .pb-scrub-ticks {
   position: absolute;
   inset: 0;

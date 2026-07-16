@@ -21,14 +21,17 @@
    property overrides that cascade down into the kit's pb-* rules underneath it. ──── */
 .kouros-player-scope { display: contents; }
 
-/* ── Volume control (./controls.tsx's <VolumeControl>) — a mute button + a range,
-   same shape as the kit's own pb-scrubber row. Music-only; no kit precedent. ──────── */
+/* ── Volume control (./controls.tsx's <VolumeControl>) — a mute button + the suite
+   <Slider>, same shape as the kit's own pb-scrubber row. Music-only; no kit
+   precedent. Only the WIDTH is ours: the slider defaults to flex-grow, which would
+   let it eat the bar's right column, so pin it. ─────────────────────────────────── */
 .pb-volume {
   display: flex;
   align-items: center;
   gap: 0.3rem;
 }
 .pb-volume-range {
+  flex: none;
   width: 84px;
 }
 @media (max-width: 767px) {
@@ -51,7 +54,6 @@
   white-space: nowrap;
 }
 .pb-crossfade-range {
-  flex: 1;
   min-width: 72px;
 }
 .pb-crossfade-value {

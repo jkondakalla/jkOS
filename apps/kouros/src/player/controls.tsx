@@ -9,7 +9,7 @@
 // @jkos/player/ui, already imported by PlayerBar.tsx) so they read as first-class
 // siblings of PlayPauseButton, not bolted-on. See this wave's report for the verdict
 // on why these six didn't already exist.
-import { cx } from '@jkos/ui';
+import { cx, Slider } from '@jkos/ui';
 import type { Queue, RepeatMode } from '@jkos/player/core';
 import { QueuePanel, IconPrev, IconNext } from '@jkos/player/ui';
 import type { Track } from './api';
@@ -81,15 +81,14 @@ export function VolumeControl({
       >
         {silent ? <IconVolumeMute /> : <IconVolume />}
       </button>
-      <input
-        className="pb-range pb-volume-range"
-        type="range"
+      <Slider
+        className="pb-volume-range"
         min={0}
         max={1}
         step={0.01}
         value={muted ? 0 : volume}
         aria-label="Volume"
-        onChange={(e) => onChange(Number(e.currentTarget.value))}
+        onChange={onChange}
       />
     </div>
   );
@@ -104,15 +103,14 @@ export function CrossfadeControl({ seconds, onChange }: { seconds: number; onCha
   return (
     <label className="pb-crossfade">
       <span className="pb-crossfade-label">Crossfade</span>
-      <input
-        className="pb-range pb-crossfade-range"
-        type="range"
+      <Slider
+        className="pb-crossfade-range"
         min={0}
         max={12}
         step={1}
         value={seconds}
         aria-label="Crossfade seconds (0 is gapless)"
-        onChange={(e) => onChange(Number(e.currentTarget.value))}
+        onChange={onChange}
       />
       <span className="pb-crossfade-value">{seconds === 0 ? 'Off' : `${seconds}s`}</span>
     </label>
