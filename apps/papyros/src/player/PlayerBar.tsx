@@ -1,12 +1,26 @@
-// PlayerBar.tsx — the persistent playback bar (task 5.4). Mounted once in App.tsx
-// below the routed view; renders nothing until the first play request lands on the
-// controller seam. All <audio> state, position math, progress writes and bookmarks
-// live in usePlayerEngine — this file is purely the transport UI over that engine.
+// PlayerBar.tsx — the persistent playback bar (task 5.4; re-based onto the
+// @jkos/player/ui kit in Wave 16.6). Mounted once in App.tsx below the routed view;
+// renders nothing until the first play request lands on the controller seam. All
+// <audio> state, position math, progress writes and bookmarks live in
+// usePlayerEngine — this file is the transport UI over that engine.
+//
+// The bar's LAYOUT (desktop 3-column / mobile compact-row) and the stock controls
+// (play/pause, ±30s, prev/next chapter, rate, sleep menu, scrubber, meta block) now
+// come from @jkos/player/ui — markup/classes byte-identical to what this file
+// rendered bespoke before the migration. What stays papyros-owned here: the
+// bookmarks menu, the mobile More sheet (both audiobook-specific), the CoverThumb
+// (the kit's CoverArt heals its 404-glyph on the next item — a behavior change this
+// zero-change migration must not take), and the reserve-space body class.
 import { useEffect, useState } from 'react';
 import { useBreakpoint, cx } from '@jkos/ui';
+import {
+  PlayerBar as PlayerBarShell, Transport, PlayerScrim,
+  PlayPauseButton, SkipButton, SegmentButton, RateButton, SleepMenu,
+  Scrubber, NowPlaying, formatRate, IconClose,
+} from '@jkos/player/ui';
 import { coverUrl } from '../api';
 import { usePlayerEngine, type SleepMode } from './usePlayerEngine';
-import { fmtClock } from './position';
+import { fmtClock } from '@jkos/player/core';
 import './player.css';
 
 const SLEEP_OPTIONS: { mode: SleepMode; label: string }[] = [
@@ -23,7 +37,6 @@ export default function PlayerBar() {
   const bp = useBreakpoint();
   const mobile = bp === 'mobile';
   const [menu, setMenu] = useState<'sleep' | 'bookmarks' | 'more' | null>(null);
-  const [scrub, setScrub] = useState<number | null>(null);
 
   // Reserve bottom space so the fixed bar never covers the last of the scrolling
   // content. Toggling a body class (consumed by a rule this file owns in player.css)
@@ -40,102 +53,35 @@ export default function PlayerBar() {
   const book = p.book;
 
   const total = Math.max(0, p.total);
-  const displayPos = scrub != null ? scrub : Math.min(p.globalPos, total || p.globalPos);
-  const commitScrub = () => { if (scrub != null) { p.seekTo(scrub); setScrub(null); } };
+
+  // The adapter speaks papyros's chapter vocabulary; the kit's segment controls
+  // bridge with this one literal (labels stay "chapter" via each control's prop).
+  const segApi = { prevSegment: p.prevChapter, nextSegment: p.nextChapter };
 
   // The scrubber is the CURRENT CHAPTER's timeline, not the whole book (Jag,
-  // 2026-07-09). `points` is gap-free over [0, total] (real chapters, else one span
-  // per file), so the current point always brackets the position; `scrub` state stays
-  // in GLOBAL seconds (seekTo's unit) — only the input's min/max/value are
-  // chapter-relative. Crossing chapters is the prev/next buttons' job; while playback
-  // rolls over a boundary, currentIndex advances and the bar re-brackets itself.
-  const ch = p.currentIndex >= 0 ? p.points[p.currentIndex] : null;
-  const chStart = ch ? ch.start : 0;
-  const chLen = Math.max(0, (ch ? ch.end : total) - chStart);
-  const chPos = Math.max(0, Math.min(displayPos - chStart, chLen));
-
+  // 2026-07-09) — the kit Scrubber's 'segment' mode, which is this file's original
+  // chapter-window math promoted verbatim (see @jkos/player/ui's segmentWindow).
+  // Scrub state lives inside the kit control now; it still commits seekTo in
+  // GLOBAL seconds on release, exactly as before.
   const scrubber = (
-    <div className="pb-scrubber">
-      <span className="pb-time" aria-hidden="true">{fmtClock(chPos)}</span>
-      <input
-        className="pb-range"
-        type="range"
-        min={0}
-        max={chLen || 1}
-        step={1}
-        value={chPos}
-        disabled={total === 0}
-        aria-label="Seek position in chapter"
-        onChange={(e) => setScrub(chStart + Number(e.currentTarget.value))}
-        onPointerUp={commitScrub}
-        onMouseUp={commitScrub}
-        onTouchEnd={commitScrub}
-        onKeyUp={commitScrub}
-      />
-      <span className="pb-time" aria-hidden="true">{fmtClock(chLen)}</span>
-    </div>
+    <Scrubber
+      position={p.globalPos}
+      total={total}
+      points={p.points}
+      currentIndex={p.currentIndex}
+      onSeek={p.seekTo}
+      ariaLabel="Seek position in chapter"
+    />
   );
 
   const transport = (
-    <div className="pb-transport">
-      <button className="pb-btn" title="Previous chapter" aria-label="Previous chapter" onClick={p.prevChapter}>
-        <IconPrev />
-      </button>
-      <button className="pb-btn" title="Back 30 seconds" aria-label="Back 30 seconds" onClick={() => p.skip(-30)}>
-        <IconSkip dir="back" />
-      </button>
-      <button
-        className="pb-btn pb-btn-primary"
-        title={p.playing ? 'Pause' : 'Play'}
-        aria-label={p.playing ? 'Pause' : 'Play'}
-        onClick={p.toggle}
-      >
-        {p.buffering && !p.playing ? <IconSpinner /> : p.playing ? <IconPause /> : <IconPlay />}
-      </button>
-      <button className="pb-btn" title="Forward 30 seconds" aria-label="Forward 30 seconds" onClick={() => p.skip(30)}>
-        <IconSkip dir="fwd" />
-      </button>
-      <button className="pb-btn" title="Next chapter" aria-label="Next chapter" onClick={p.nextChapter}>
-        <IconNext />
-      </button>
-    </div>
-  );
-
-  const speedBtn = (
-    <button className="pb-btn pb-btn-wide" title="Playback speed" aria-label="Playback speed" onClick={p.cycleRate}>
-      {formatRate(p.rate)}
-    </button>
-  );
-
-  const sleepBtn = (
-    <div className="pb-menu">
-      <button
-        className={cx('pb-btn', 'pb-btn-wide', p.sleepMode !== 'off' && 'is-armed')}
-        title="Sleep timer"
-        aria-label="Sleep timer"
-        aria-expanded={menu === 'sleep'}
-        onClick={() => setMenu((m) => (m === 'sleep' ? null : 'sleep'))}
-      >
-        <IconMoon />
-        {p.sleepMode !== 'off' && <span className="pb-armed">{sleepLabel(p.sleepMode, p.sleepRemainingMs)}</span>}
-      </button>
-      {menu === 'sleep' && (
-        <div className={cx('pb-popover', mobile && 'is-sheet')} role="menu">
-          <div className="pb-popover-head">Sleep timer</div>
-          {SLEEP_OPTIONS.map((o) => (
-            <button
-              key={o.mode}
-              className={cx('pb-popover-row', p.sleepMode === o.mode && 'is-active')}
-              role="menuitemradio"
-              aria-checked={p.sleepMode === o.mode}
-              onClick={() => { p.setSleep(o.mode); setMenu(null); }}
-            >
-              {o.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
+    <Transport>
+      <SegmentButton api={segApi} dir="prev" label="Previous chapter" />
+      <SkipButton api={p} seconds={-30} />
+      <PlayPauseButton api={p} />
+      <SkipButton api={p} seconds={30} />
+      <SegmentButton api={segApi} dir="next" label="Next chapter" />
+    </Transport>
   );
 
   const bookmarksBtn = (
@@ -188,117 +134,108 @@ export default function PlayerBar() {
   );
 
   const meta = (
-    <div className="pb-meta">
-      <CoverThumb bookId={book.id} hasCover={!!book.cover_path} title={book.title} />
-      <div className="pb-meta-text">
-        <a className="pb-title" href={`#/book/${book.id}`} title={book.title}>{book.title}</a>
-        <span className="pb-sub">
-          {book.author || 'Unknown author'}
-          {p.chapterLabel ? ` · ${p.chapterLabel}` : ''}
-        </span>
-      </div>
+    <NowPlaying
+      art={<CoverThumb bookId={book.id} hasCover={!!book.cover_path} title={book.title} />}
+      title={book.title}
+      titleHref={`#/book/${book.id}`}
+      subtitle={`${book.author || 'Unknown author'}${p.chapterLabel ? ` · ${p.chapterLabel}` : ''}`}
+    />
+  );
+
+  // Mobile collapses the full control set into a More sheet — papyros's own
+  // audiobook overflow design, so it stays bespoke here (the sleep/bookmark rows
+  // inside it are sheet content, not the standalone menu controls).
+  const moreMenu = (
+    <div className="pb-menu">
+      <button
+        className="pb-btn"
+        title="More controls"
+        aria-label="More controls"
+        aria-expanded={menu === 'more'}
+        onClick={() => setMenu((m) => (m === 'more' ? null : 'more'))}
+      >
+        <IconMore />
+      </button>
+      {menu === 'more' && (
+        <div className="pb-popover is-sheet pb-popover-more" role="menu">
+          <div className="pb-more-cluster">
+            <button className="pb-btn pb-btn-wide" onClick={p.cycleRate}>{formatRate(p.rate)}</button>
+            <SegmentButton api={segApi} dir="prev" label="Previous chapter" />
+            <SegmentButton api={segApi} dir="next" label="Next chapter" />
+          </div>
+          <div className="pb-popover-head">Sleep timer</div>
+          {SLEEP_OPTIONS.map((o) => (
+            <button
+              key={o.mode}
+              className={cx('pb-popover-row', p.sleepMode === o.mode && 'is-active')}
+              onClick={() => { p.setSleep(o.mode); setMenu(null); }}
+            >
+              {o.label}
+            </button>
+          ))}
+          <div className="pb-popover-head">Bookmarks</div>
+          <button className="pb-popover-add" onClick={() => p.addBookmarkHere()}>
+            + Add at {fmtClock(p.globalPos)}
+          </button>
+          {p.bookmarks.length === 0 ? (
+            <div className="pb-popover-empty">No bookmarks yet.</div>
+          ) : (
+            <ul className="pb-bm-list">
+              {p.bookmarks.map((bm) => (
+                <li key={bm.id} className="pb-bm-row">
+                  <button className="pb-bm-jump" onClick={() => { p.jumpBookmark(bm.position); setMenu(null); }}>
+                    <span className="pb-bm-time">{fmtClock(bm.position)}</span>
+                    <span className="pb-bm-title">{bm.title || 'Bookmark'}</span>
+                  </button>
+                  <button className="pb-bm-del" aria-label="Delete bookmark" onClick={() => p.removeBookmark(bm.id)}>
+                    <IconClose />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
     </div>
   );
 
   return (
     <>
-      {menu && <div className="pb-scrim" onClick={() => setMenu(null)} aria-hidden="true" />}
-      <section className={cx('player-bar', mobile && 'is-mobile')} data-bp={bp} aria-label="Now playing">
-        {p.error && <div className="pb-error" role="alert">{p.error}</div>}
-        {mobile ? (
+      {menu && <PlayerScrim onDismiss={() => setMenu(null)} />}
+      <PlayerBarShell
+        error={p.error}
+        meta={meta}
+        transport={transport}
+        scrubber={scrubber}
+        actions={
           <>
-            {scrubber}
-            <div className="pb-row">
-              {meta}
-              <div className="pb-transport pb-transport-compact">
-                <button className="pb-btn" title="Back 30 seconds" aria-label="Back 30 seconds" onClick={() => p.skip(-30)}>
-                  <IconSkip dir="back" />
-                </button>
-                <button
-                  className="pb-btn pb-btn-primary"
-                  title={p.playing ? 'Pause' : 'Play'}
-                  aria-label={p.playing ? 'Pause' : 'Play'}
-                  onClick={p.toggle}
-                >
-                  {p.buffering && !p.playing ? <IconSpinner /> : p.playing ? <IconPause /> : <IconPlay />}
-                </button>
-                <button className="pb-btn" title="Forward 30 seconds" aria-label="Forward 30 seconds" onClick={() => p.skip(30)}>
-                  <IconSkip dir="fwd" />
-                </button>
-              </div>
-              <div className="pb-menu">
-                <button
-                  className="pb-btn"
-                  title="More controls"
-                  aria-label="More controls"
-                  aria-expanded={menu === 'more'}
-                  onClick={() => setMenu((m) => (m === 'more' ? null : 'more'))}
-                >
-                  <IconMore />
-                </button>
-                {menu === 'more' && (
-                  <div className="pb-popover is-sheet pb-popover-more" role="menu">
-                    <div className="pb-more-cluster">
-                      <button className="pb-btn pb-btn-wide" onClick={p.cycleRate}>{formatRate(p.rate)}</button>
-                      <button className="pb-btn" title="Previous chapter" aria-label="Previous chapter" onClick={p.prevChapter}><IconPrev /></button>
-                      <button className="pb-btn" title="Next chapter" aria-label="Next chapter" onClick={p.nextChapter}><IconNext /></button>
-                    </div>
-                    <div className="pb-popover-head">Sleep timer</div>
-                    {SLEEP_OPTIONS.map((o) => (
-                      <button
-                        key={o.mode}
-                        className={cx('pb-popover-row', p.sleepMode === o.mode && 'is-active')}
-                        onClick={() => { p.setSleep(o.mode); setMenu(null); }}
-                      >
-                        {o.label}
-                      </button>
-                    ))}
-                    <div className="pb-popover-head">Bookmarks</div>
-                    <button className="pb-popover-add" onClick={() => p.addBookmarkHere()}>
-                      + Add at {fmtClock(p.globalPos)}
-                    </button>
-                    {p.bookmarks.length === 0 ? (
-                      <div className="pb-popover-empty">No bookmarks yet.</div>
-                    ) : (
-                      <ul className="pb-bm-list">
-                        {p.bookmarks.map((bm) => (
-                          <li key={bm.id} className="pb-bm-row">
-                            <button className="pb-bm-jump" onClick={() => { p.jumpBookmark(bm.position); setMenu(null); }}>
-                              <span className="pb-bm-time">{fmtClock(bm.position)}</span>
-                              <span className="pb-bm-title">{bm.title || 'Bookmark'}</span>
-                            </button>
-                            <button className="pb-bm-del" aria-label="Delete bookmark" onClick={() => p.removeBookmark(bm.id)}>
-                              <IconClose />
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
+            <RateButton api={p} />
+            <SleepMenu
+              api={p}
+              options={SLEEP_OPTIONS}
+              open={menu === 'sleep'}
+              onOpenChange={(open) => setMenu(open ? 'sleep' : null)}
+              sheet={mobile}
+            />
+            {bookmarksBtn}
           </>
-        ) : (
-          <>
-            <div className="pb-left">{meta}</div>
-            <div className="pb-center">
-              {transport}
-              {scrubber}
-            </div>
-            <div className="pb-right">
-              {speedBtn}
-              {sleepBtn}
-              {bookmarksBtn}
-            </div>
-          </>
-        )}
-      </section>
+        }
+        mobileTransport={
+          <Transport compact>
+            <SkipButton api={p} seconds={-30} />
+            <PlayPauseButton api={p} />
+            <SkipButton api={p} seconds={30} />
+          </Transport>
+        }
+        mobileActions={moreMenu}
+      />
     </>
   );
 }
 
 // ─── Cover thumbnail (guards the coverUrl 404 → glyph fallback) ──────────────
+// Stays papyros-bespoke (not the kit's CoverArt): its `failed` flag deliberately
+// never resets on book change, matching pre-migration behavior exactly.
 function CoverThumb({ bookId, hasCover, title }: { bookId: number; hasCover: boolean; title: string }) {
   const [failed, setFailed] = useState(false);
   if (!hasCover || failed) {
@@ -314,56 +251,13 @@ function CoverThumb({ bookId, hasCover, title }: { bookId: number; hasCover: boo
   );
 }
 
-function formatRate(r: number): string {
-  return `${Number.isInteger(r) ? r : r.toString()}×`;
-}
-function sleepLabel(mode: SleepMode, remainingMs: number | null): string {
-  if (mode === 'chapter') return 'CH';
-  if (remainingMs != null) return fmtClock(remainingMs / 1000);
-  return '';
-}
-
-// ─── Inline glyphs (currentColor; the button's `color` drives them) ─────────
-function IconPlay() {
-  return <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor" /></svg>;
-}
-function IconPause() {
-  return <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h4v14H7zM13 5h4v14h-4z" fill="currentColor" /></svg>;
-}
-function IconSpinner() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" className="pb-spin">
-      <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="2.2" opacity="0.25" />
-      <path d="M12 3a9 9 0 0 1 9 9" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-    </svg>
-  );
-}
-function IconSkip({ dir }: { dir: 'back' | 'fwd' }) {
-  // A circular arrow with "30" — mirrored for back vs forward.
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" style={dir === 'fwd' ? { transform: 'scaleX(-1)' } : undefined}>
-      <path d="M12 6V3L7 7l5 4V8a5 5 0 1 1-5 5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-      <text x="12.5" y="16.5" textAnchor="middle" fontSize="7" fontFamily="var(--hub-font-mono)" fill="currentColor" style={dir === 'fwd' ? { transform: 'scaleX(-1)', transformOrigin: '12.5px 14px' } : undefined}>30</text>
-    </svg>
-  );
-}
-function IconPrev() {
-  return <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 6v12M19 6l-9 6 9 6z" fill="currentColor" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" /></svg>;
-}
-function IconNext() {
-  return <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 6v12M5 6l9 6-9 6z" fill="currentColor" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" /></svg>;
-}
-function IconMoon() {
-  return <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a7 7 0 1 0 10.5 10.5z" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" /></svg>;
-}
+// ─── Inline glyphs for the bespoke controls (currentColor; the button's `color`
+//     drives them). The stock controls' glyphs ship with @jkos/player/ui. ────────
 function IconBookmark() {
   return <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10v16l-5-4-5 4z" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" /></svg>;
 }
 function IconMore() {
   return <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><circle cx="6" cy="12" r="1.7" /><circle cx="12" cy="12" r="1.7" /><circle cx="18" cy="12" r="1.7" /></svg>;
-}
-function IconClose() {
-  return <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>;
 }
 function IconBook() {
   return <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4" width="14" height="16" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.5" /><line x1="9" y1="8" x2="15" y2="8" stroke="currentColor" strokeWidth="1.2" opacity="0.6" /></svg>;

@@ -163,13 +163,18 @@ already pre-derive a `.tone` field client-side in `useHudData.ts` — give the
 lazuros `jobs` dataset (or a client-side selector) a derived `tone` column so
 `ToneBinding` has something to bind to directly.
 
-**3. `jobs` dataset has no `capability` filter (flagged in the task
-brief).** `docs.js` `DATASETS_DOC.jobs.filters` is `job_id`/`status`/
-`user_id` only — no `capability` and no `since` cursor. `lazuros-jobs`
-therefore lists **all** of the user's recent jobs (any capability), not just
-`query` jobs; this is functionally fine (owner-scoped, 50-row cap, still
-useful) but not a capability-scoped feed. *(Backend change, not ORDECK —
-noted per the task's own heads-up, not implemented here.)*
+**3. ~~`jobs` dataset has no `capability` filter~~ FIXED (ToDo §1a 1.3).**
+`docs.js` `DATASETS_DOC.jobs.filters` now also declares `capability` (exact
+match, `column: 'capability', op: 'eq'`) and `since` (delta cursor,
+`column: 'updated_at', op: 'gt'`, exclusive — the same convention BeigeBoard's
+`items` and PapyrOS's `books` use), both enforced in `routes/jobs.js` via
+`@jkos/weave/server`'s `buildItemFilters`/`filterSpec` (declared == enforced,
+no drift). `lazuros-jobs` as shipped still lists all of the user's recent
+jobs (its spec's `sources.jobs.url` is a fixed `/api/lazuros/jobs` literal,
+not a templated query string), but a capability-scoped feed is now one query
+param away (`/api/lazuros/jobs?capability=query`) for whichever consumer
+wants it — including a future `lazuros-jobs` variant. *(Backend change only;
+nothing under `apps/ordeck/` or these WidgetSpec JSON files was touched.)*
 
 None of the above blocks Phase 8 — both specs are valid, round-trip losslessly,
 and render/poll against the real backend using only already-existing ORDECK

@@ -296,12 +296,7 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
 
   const readonly = user?.role === 'guest'
 
-  /* AI features need both the instance flag and the suite-wide jkAuth switch */
-  const aiEnabled =
-    (import.meta.env.VITE_BB_AI_ENABLED as string) === 'true' && prefs.lazuros.enabled !== false
-
   const viewProps = {
-    aiEnabled,
     items: visibleItems,
     today,
     onSelect: setSelected,

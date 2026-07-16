@@ -21,6 +21,8 @@ const { coerceWeaveColumn } = require('./columns')
 const { weaveServerClient } = require('./serverClient')
 const { defineCollection } = require('./collection')
 const { defineConnector } = require('./connector')
+const { defineLibraryScanner } = require('./libraryScanner')
+const { defineMediaRoutes, decidePlayback } = require('./mediaRoutes')
 const { createTriggerEngine, resolveBindings, validateTriggerTypes, triggerWebhook, serverDispatch } = require('./trigger')
 // Re-export the canonical error-code vocabulary + envelope helper so backends that
 // already weave in @jkos/weave/server (jkAuth, BeigeBoard) get one source for the
@@ -43,6 +45,9 @@ module.exports = {
   weaveServerClient,
   defineCollection,
   defineConnector,
+  defineLibraryScanner,
+  defineMediaRoutes,
+  decidePlayback,
   createTriggerEngine,
   resolveBindings,
   validateTriggerTypes,

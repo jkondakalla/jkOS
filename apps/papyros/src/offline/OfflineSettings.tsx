@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { SettingsSection } from '@jkos/ui';
+import { AsyncView, SettingsSection } from '@jkos/ui';
 import { useOfflineLibrary, removeDownload, estimateStorage, type StorageEstimate } from './store';
 import { offlineSupported } from './db';
 import { formatBytes } from './format';
@@ -39,35 +39,34 @@ export default function OfflineSettings() {
         </div>
       )}
 
-      {books.length === 0 ? (
-        <p className="offline-empty">No books downloaded yet. Open a book and choose “Save offline”.</p>
-      ) : (
-        <>
-          <p className="offline-summary">
-            {books.length} book{books.length === 1 ? '' : 's'} · {formatBytes(totalBytes)}
-          </p>
-          <ul className="offline-list">
-            {books.map((b) => (
-              <li key={b.bookId} className="offline-list-row">
-                <div className="offline-list-info">
-                  <span className="offline-list-title" title={b.title}>{b.title}</span>
-                  <span className="offline-list-meta">
-                    {b.author ? `${b.author} · ` : ''}{formatBytes(b.bytes)}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  className="offline-list-remove"
-                  onClick={() => { void removeDownload(b.bookId); }}
-                  title={`Remove “${b.title}”`}
-                >
-                  Remove
-                </button>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
+      <AsyncView
+        empty={books.length === 0}
+        emptyText="No books downloaded yet. Open a book and choose “Save offline”."
+      >
+        <p className="offline-summary">
+          {books.length} book{books.length === 1 ? '' : 's'} · {formatBytes(totalBytes)}
+        </p>
+        <ul className="offline-list">
+          {books.map((b) => (
+            <li key={b.bookId} className="offline-list-row">
+              <div className="offline-list-info">
+                <span className="offline-list-title" title={b.title}>{b.title}</span>
+                <span className="offline-list-meta">
+                  {b.author ? `${b.author} · ` : ''}{formatBytes(b.bytes)}
+                </span>
+              </div>
+              <button
+                type="button"
+                className="offline-list-remove"
+                onClick={() => { void removeDownload(b.bookId); }}
+                title={`Remove “${b.title}”`}
+              >
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      </AsyncView>
     </SettingsSection>
   );
 }

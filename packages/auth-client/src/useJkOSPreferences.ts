@@ -129,11 +129,8 @@ export function useJkOSPreferences(opts: UseJkOSPreferencesOptions = {}) {
     patch({ effects: next });
   }, [theme, effects, onApply, patch]);
 
-  const patchLazuros = useCallback((partial: Partial<LazurPreferences>) => {
-    const next = { ...lazuros, ...partial };
-    setLazuros(next);
-    patch({ lazuros: next });
-  }, [lazuros, patch]);
-
-  return { theme, effects, lazuros, user, saving, patchTheme, patchEffects, patchLazuros };
+  // No patchLazuros: the AI kill switch is set in ONE place (the jkAuth portal, which
+  // PATCHes /auth/profile directly). Apps read `lazuros.enabled` to hide AI surfaces;
+  // none of them owns the switch, so none of them writes it.
+  return { theme, effects, lazuros, user, saving, patchTheme, patchEffects };
 }

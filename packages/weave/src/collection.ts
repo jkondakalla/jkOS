@@ -57,6 +57,11 @@ export interface CollectionDef {
                            // every route filters to req.user.sub. false → a shared table.
   noun?: string;           // capability noun, e.g. 'Item' → createItem/updateItem/deleteItem.
                            // Defaults to a singularised id (items → Item).
+  only?: Array<'create' | 'update' | 'delete'>;   // restrict which write capabilities/
+                           // routes this collection emits (default: all three — every
+                           // existing collection is unaffected). Read (list) is always
+                           // mounted regardless. An append-only event log (no edits, no
+                           // deletes, ever) declares only: ['create'].
 }
 
 /** What `defineCollection(def)` resolves to: the derived Layer-A primitives (pure

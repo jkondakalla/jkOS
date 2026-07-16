@@ -11,8 +11,7 @@ copy, and gives the wiring checklist so the test actually runs in the gate. **Co
 test — don't invent a new style.**
 
 Repo root: `/media/jag/The Forge/jkOS` (path has a space — quote it). Branch `staging`.
-**Off-limits:** `apps/sylibos/`, `services/plex-api/`, `services/recipe-api/` — never add tests
-that edit or boot these.
+**Off-limits:** `apps/sylibos/` — never add tests that edit or boot it.
 
 Golden rule: **a test must exercise the REAL code, never a re-implementation.** Boot the real
 server, transpile the real module, drive the real function. A test that reimplements the logic

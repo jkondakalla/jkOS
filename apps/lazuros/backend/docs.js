@@ -100,6 +100,8 @@ const DATASETS_DOC = {
       { name: 'job_id', column: 'id', op: 'eq', type: 'string' },
       { name: 'status', column: 'status', op: 'eq', type: 'string' },
       { name: 'user_id', column: 'user_id', op: 'eq', type: 'string' },
+      { name: 'capability', type: 'string', label: 'Capability (exact)', column: 'capability', op: 'eq' },
+      { name: 'since', type: 'string', label: 'Updated since (updated_at delta cursor)', column: 'updated_at', op: 'gt' },
     ],
   }],
 };

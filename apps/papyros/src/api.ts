@@ -16,6 +16,10 @@
 //                           weave discovery for routes this app already owns.
 import { authFetch } from '@jkos/auth-client';
 import { weaveClient, type ListFilters } from '@jkos/weave';
+// Deliberately './offline/writes' (not './offline') — the offline barrel re-exports
+// constants.ts, which imports THIS module for its URL builders; writes.ts imports
+// nothing from here at runtime (type-only), so this edge keeps the graph acyclic.
+import { initOfflineWrites } from './offline/writes';
 
 const API = (import.meta as any).env?.VITE_API_URL ?? '';
 
@@ -115,6 +119,18 @@ export interface BookmarkRow {
   note: string | null;
 }
 
+/** GET/POST /api/history — one row per LISTENING SESSION (17.4). Append-only
+ *  server-side (@jkos/weave/server's defineCollection mount with `only: ['create']`
+ *  — see apps/papyros/backend/discovery.js's HISTORY); there is no PATCH/DELETE. */
+export interface HistoryRow {
+  id: number;
+  item_ref: number;
+  started_at: string;   // ISO timestamp — when this session began
+  ms_played: number;    // accumulated milliseconds actually played this session
+  completed: boolean;   // true when this session's playback reached the book's end
+  updated_at: string;
+}
+
 /** Server-driven `books` filters (discovery.js BOOKS_DATASET.filters). `since` (the
  *  delta cursor) is omitted here — no Wave-5 view needs it yet; add it if one does.
  *  `genre` is an exact JSON-array membership match (the `tags` op — see discovery.js),
@@ -130,7 +146,14 @@ export interface BookFilters {
 
 async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
   const r = await authFetch(`${API}${path}`, init);
-  if (!r.ok) throw new Error(`${init?.method ?? 'GET'} ${path} failed: ${r.status}`);
+  if (!r.ok) {
+    // `.status` rides along (message unchanged) so the offline write queue can
+    // tell a server VERDICT (4xx → drop the queued write) from a transport
+    // failure (fetch throws TypeError → keep it queued). See offline/writes.ts.
+    const err = new Error(`${init?.method ?? 'GET'} ${path} failed: ${r.status}`) as Error & { status: number };
+    err.status = r.status;
+    throw err;
+  }
   if (r.status === 204) return undefined as T;
   return r.json() as Promise<T>;
 }
@@ -208,39 +231,81 @@ export function matchAllMissing(): Promise<MatchAllResult> {
   return apiJson<MatchAllResult>('/api/match/all', { method: 'POST' });
 }
 
-// ─── Progress (owner-scoped CRUD) ────────────────────────────────────────────────
+// ─── Progress + Bookmarks (owner-scoped CRUD, offline-queued writes) ─────────────
+// Wave 7.2 / ToDo §3 16.5: the WRITE functions below are wrapped by the offline
+// write queue (offline/writes.ts → @jkos/player/services). Online they hit the
+// direct authFetch path and behave exactly as before; when a write fails because
+// the network is down it is queued durably (IndexedDB) and replayed on reconnect,
+// reconciled against GET /api/<collection>?since= with last-write-wins on
+// updated_at. Same exported names + signatures — no consumer changes.
 
 export function listProgress(filters?: { finished?: boolean }): Promise<ProgressRow[]> {
   const qs = filters?.finished === undefined ? '' : `?finished=${filters.finished}`;
   return apiJson<ProgressRow[]>(`/api/progress${qs}`);
 }
 
-export function createProgress(row: Partial<Omit<ProgressRow, 'id' | 'updated_at'>>): Promise<ProgressRow> {
-  return apiJson<ProgressRow>('/api/progress', { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(row) });
-}
-
-export function updateProgress(id: number, patch: Partial<Omit<ProgressRow, 'id' | 'updated_at'>>): Promise<ProgressRow> {
-  return apiJson<ProgressRow>(`/api/progress/${id}`, { method: 'PATCH', headers: JSON_HEADERS, body: JSON.stringify(patch) });
-}
-
-export async function deleteProgress(id: number): Promise<void> {
-  await apiJson<void>(`/api/progress/${id}`, { method: 'DELETE' });
-}
-
-// ─── Bookmarks (owner-scoped CRUD) ───────────────────────────────────────────────
-
 export function listBookmarks(): Promise<BookmarkRow[]> {
   return apiJson<BookmarkRow[]>('/api/bookmarks');
 }
 
+// The direct (unqueued) implementations, injected into the queue layer. The
+// wrapped functions exported below replay through these on reconnect.
+const offlineWrites = initOfflineWrites({
+  listProgress: () => listProgress(),
+  createProgress: (row) =>
+    apiJson<ProgressRow>('/api/progress', { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(row) }),
+  updateProgress: (id, patch) =>
+    apiJson<ProgressRow>(`/api/progress/${id}`, { method: 'PATCH', headers: JSON_HEADERS, body: JSON.stringify(patch) }),
+  deleteProgress: async (id) => { await apiJson<void>(`/api/progress/${id}`, { method: 'DELETE' }); },
+  createBookmark: (row) =>
+    apiJson<BookmarkRow>('/api/bookmarks', { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(row) }),
+  updateBookmark: (id, patch) =>
+    apiJson<BookmarkRow>(`/api/bookmarks/${id}`, { method: 'PATCH', headers: JSON_HEADERS, body: JSON.stringify(patch) }),
+  deleteBookmark: async (id) => { await apiJson<void>(`/api/bookmarks/${id}`, { method: 'DELETE' }); },
+  // The reconnect reconciliation read: every defineCollection dataset declares the
+  // universal `since` filter (updated_at delta cursor), owner-scoped, bare-array.
+  fetchDelta: (collection, since) =>
+    apiJson<Array<Record<string, unknown>>>(`/api/${collection}?since=${encodeURIComponent(since)}`),
+});
+
+export function createProgress(row: Partial<Omit<ProgressRow, 'id' | 'updated_at'>>): Promise<ProgressRow> {
+  return offlineWrites.createProgress(row);
+}
+
+export function updateProgress(id: number, patch: Partial<Omit<ProgressRow, 'id' | 'updated_at'>>): Promise<ProgressRow> {
+  return offlineWrites.updateProgress(id, patch);
+}
+
+export async function deleteProgress(id: number): Promise<void> {
+  await offlineWrites.deleteProgress(id);
+}
+
 export function createBookmark(row: Partial<Omit<BookmarkRow, 'id'>>): Promise<BookmarkRow> {
-  return apiJson<BookmarkRow>('/api/bookmarks', { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(row) });
+  return offlineWrites.createBookmark(row);
 }
 
 export function updateBookmark(id: number, patch: Partial<Omit<BookmarkRow, 'id'>>): Promise<BookmarkRow> {
-  return apiJson<BookmarkRow>(`/api/bookmarks/${id}`, { method: 'PATCH', headers: JSON_HEADERS, body: JSON.stringify(patch) });
+  return offlineWrites.updateBookmark(id, patch);
 }
 
 export async function deleteBookmark(id: number): Promise<void> {
-  await apiJson<void>(`/api/bookmarks/${id}`, { method: 'DELETE' });
+  await offlineWrites.deleteBookmark(id);
+}
+
+// ─── Play history (17.4 — append-only; plain authFetch, NOT offline-queued) ──────
+// Unlike progress/bookmarks — a resume cursor and saved spots the user would
+// genuinely notice missing — a history row is best-effort telemetry: nothing reads
+// it back yet, and the worst case of a dropped POST during a network blip is one
+// absent "recently played" data point, not lost user-facing state. The offline
+// queue's adapter (offline/writes.ts) is also purpose-built around exactly the two
+// shapes it durably replays (progress's find-by-book_ref upsert, bookmarks'
+// create/update/delete keyed by a temp id) — bolting on a third, differently-shaped
+// (pure-append, no natural update/delete) collection would widen shared queue
+// plumbing for a write that doesn't need durability. Plain apiJson/authFetch;
+// see usePlayerEngine.ts's recordHistoryEvent for the fire-and-forget call site
+// (a failed POST here is swallowed with a console.warn, never surfaced to the UI).
+export function createHistoryEvent(
+  row: { item_ref: number; started_at: string; ms_played: number; completed: boolean },
+): Promise<HistoryRow> {
+  return apiJson<HistoryRow>('/api/history', { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(row) });
 }

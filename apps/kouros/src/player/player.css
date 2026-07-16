@@ -1,0 +1,62 @@
+/* player.css — KourOS's bespoke bar styling (ToDo.md §3 Wave 18, item 18.4). The bar
+   shell, stock controls, scrubber, meta block, and popover framework (`player-bar` /
+   `pb-*`) come from @jkos/player/ui's player-ui.css (imported by that barrel, pulled
+   in transitively via PlayerBar.tsx's import of @jkos/player/ui) — this file only
+   adds what's genuinely KourOS-specific: the reserve-space body rule and the two
+   music-only controls (./controls.tsx's <VolumeControl>) the kit has no styling for.
+   Same header rule as papyros's: every colour, radius, font and tap-floor reads a
+   suite --hub- / --accent token — no hardcoded hex or radius literal. Imported once,
+   from PlayerBar.tsx. */
+
+/* ── Reserve bottom space — scoped to <body> (this app's layout isn't this file's to
+   assume; 18.3 owns App.tsx/app.css). Toggled by PlayerBar's body-class effect. ──── */
+.kouros-player-open { padding-bottom: 96px; }
+@media (max-width: 767px) {
+  .kouros-player-open { padding-bottom: 132px; }
+}
+
+/* ── The art-derived-accent scope wrapper (PlayerBar.tsx's `scopeRef`). Escapes
+   normal flow entirely — the bar itself is `position: fixed` — so this wrapper never
+   affects layout; it exists only to hold the --accent/--accent-secondary custom
+   property overrides that cascade down into the kit's pb-* rules underneath it. ──── */
+.kouros-player-scope { display: contents; }
+
+/* ── Volume control (./controls.tsx's <VolumeControl>) — a mute button + a range,
+   same shape as the kit's own pb-scrubber row. Music-only; no kit precedent. ──────── */
+.pb-volume {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.pb-volume-range {
+  width: 84px;
+}
+@media (max-width: 767px) {
+  .pb-volume-range { width: 64px; }
+}
+
+/* ── Crossfade knob (./controls.tsx's <CrossfadeControl>, 18.5) — a settings row at
+   the foot of the queue popover: label · range · readout. Tokens only, per the file
+   header rule. ─────────────────────────────────────────────────────────────────── */
+.pb-crossfade {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-top: 1px solid var(--hub-line);
+  font-size: 0.8rem;
+  color: var(--hub-cream-dim);
+}
+.pb-crossfade-label {
+  white-space: nowrap;
+}
+.pb-crossfade-range {
+  flex: 1;
+  min-width: 72px;
+}
+.pb-crossfade-value {
+  min-width: 2.2em;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}

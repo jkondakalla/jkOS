@@ -13,11 +13,9 @@ WORKDIR /repo
 ARG VITE_JKOS_AUTH_URL=https://auth.jkos.net
 ARG VITE_BASE=/
 ARG VITE_API_URL=
-ARG VITE_BB_AI_ENABLED=false
 ENV VITE_JKOS_AUTH_URL=$VITE_JKOS_AUTH_URL \
     VITE_BASE=$VITE_BASE \
-    VITE_API_URL=$VITE_API_URL \
-    VITE_BB_AI_ENABLED=$VITE_BB_AI_ENABLED
+    VITE_API_URL=$VITE_API_URL
 
 # ── Dependency layer ──────────────────────────────────────────────────────────
 # Copy the lockfile + every workspace manifest first (COPY --parents keeps each

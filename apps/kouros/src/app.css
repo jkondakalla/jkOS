@@ -1,0 +1,83 @@
+/* The suite design tokens + primitive styles (jk-sheet, jk-press, jk-tbtn, …) come
+   from @jkos/design's hub.css. injectJkOSTheme() (App.tsx) emits this app's INPUT
+   tokens (accent/fonts/radius); the derivations live in this stylesheet. Everything
+   below reads --hub-* and --accent tokens — no hardcoded hex/radius in this app. */
+@import "@jkos/design/tokens.css";
+
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  font-family: var(--hub-font-sans, system-ui, sans-serif);
+  background: var(--hub-bg-0);
+  color: var(--hub-cream-bright);
+}
+
+/* ── App shell ─────────────────────────────────────────────────────────────── */
+/* The guard/header/drawer frame itself (.jk-shell, .jk-shell-header, .jk-shell-brand,
+   .jk-shell-wordmark, .jk-shell-settings-btn) lives in @jkos/design's hub.css,
+   shared via @jkos/ui's <AppShell> (ToDo.md §3 Wave 20 item 20.1) — App.tsx renders
+   no app-local .app/.app-header/etc. classes. `.app-main` is this app's own width
+   policy: grids (Home/Artists) want the wide column, detail/search pages narrow
+   themselves back down (views/detail.css's `.view-detail`). */
+.app-main {
+  flex: 1;
+  width: 100%;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 1.25rem 1.25rem 3rem;
+}
+
+.muted { opacity: 0.6; padding: 1.5rem 0; }
+
+/* ── Nav (Home / Artists / Search — @jkos/ui's <AppShell> supplies the brand/
+   settings header, not routed-content nav, so KourOS renders this row itself
+   just below it; components/NavBar.tsx) ──────────────────────────────────────── */
+.kr-nav {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+.kr-nav-link { text-decoration: none; cursor: pointer; }
+
+/* ── Heading row + note/count — shared by every view (Home/Artists/Search) ──── */
+.kr-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.25rem;
+}
+.kr-count {
+  font-family: var(--hub-font-mono);
+  font-size: var(--hub-fs-lab-sm);
+  letter-spacing: 0.1em;
+  color: var(--hub-cream-dim);
+}
+.kr-note {
+  margin: 0.5rem 0 0;
+  font-family: var(--hub-font-mono);
+  font-size: var(--hub-fs-lab-sm);
+  color: var(--hub-cream-dim);
+}
+
+/* ── Auth veil (AuthGuard's loading/redirecting states) ───────────────────────── */
+.auth-veil {
+  position: fixed;
+  inset: 0;
+  z-index: 8000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  background: var(--hub-bg-0);
+}
+.auth-veil-mark {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 60%, transparent);
+  animation: led-pulse 1.4s ease-in-out infinite;   /* shared keyframe, @jkos/design/tokens.css */
+}

@@ -2,7 +2,8 @@
 
 **ORDECK is the one-screen portal into your entire digital life, owned entirely by you.**
 
-jkOS is a self-hosted productivity suite running on TrueNAS SCALE. Five systems:
+jkOS is a self-hosted productivity suite running on TrueNAS SCALE. Five **core systems**
+form the backbone:
 
 | System | What it is |
 |--------|-----------|
@@ -12,8 +13,16 @@ jkOS is a self-hosted productivity suite running on TrueNAS SCALE. Five systems:
 | **Weave** | The integration fabric connecting all apps, read and write |
 | **jkDeploy** | The deploy controller — staging→production in one button |
 
+Two more apps ride the same fabric:
+
+| App | What it is | State |
+|-----|-----------|-------|
+| **LazurOS** | AI gateway — an async job queue routing inference to a tier of compute nodes; powers BeigeBoard's task-parse / goal-breakdown | Built (Phases 0–6), not yet live — awaiting real runtimes ([ToDo §1](ToDo.md)) |
+| **PapyrOS** | Fully-native multi-user audiobook library — own scanner, catalog, Range-streamed playback, offline caching, per-user resume | **Live on staging** ([ARCHITECTURE § PapyrOS](ARCHITECTURE.md#papyros-the-audiobook-app)) |
+
 Everything goes through jkAuth SSO. The portal is driven by Weave discovery — adding a
-new app means one registry row, not portal code changes.
+new app means one registry row, not portal code changes. (A separate study app, **SylibOS**,
+lives in the repo on its own development track and is not part of the suite contract.)
 
 ---
 
@@ -52,6 +61,20 @@ Layout is saved per user in jkAuth preferences — your HUD follows you across d
 | **Import tasks / goals via JSON** | `POST /api/import` on BeigeBoard (also reachable at `/api/bb/import` from the portal). Add `?dryRun=1` to validate without writing. Body: `{ "items": [ … ] }` — nested or flat, with inferred `kind`, forgiving date formats, and validate-then-write semantics. |
 | **AI task breakdown** | If LazurOS is enabled, BeigeBoard can parse free-text into tasks and break goals into milestones. |
 
+### Audiobooks (PapyrOS)
+
+Reachable at `staging.jkos.net/papyros/` (staging; prod pending DNS). The library is scanned
+from a TrueNAS folder — one subfolder per book — with metadata read from embedded tags and
+enriched from the iTunes Search API.
+
+| Action | How |
+|--------|-----|
+| **Browse & play** | Cover grid → open a book → **Play**. One persistent player bar streams across a book's files as a single timeline; speed, sleep timer, chapter skip. |
+| **Resume anywhere** | Progress saves per user (debounced) — pick up on any device where you're signed in. |
+| **Fix metadata** | Book detail → **Fix metadata** → search → pick a candidate. Admins can also **Rescan** the library and batch-**Match metadata**. |
+| **Listen offline** | Book detail → make **available offline** (caches audio + cover); the service worker serves it when the network is down. |
+| **Download** | Book detail → download (single file direct, multi-file zipped). |
+
 ### Account & sign-in
 
 | Action | How |
@@ -77,6 +100,7 @@ Layout is saved per user in jkAuth preferences — your HUD follows you across d
 
 | File | Read it for |
 |------|-------------|
+| [QUICKSTART.md](QUICKSTART.md) | **A one-screen refresher** — what the suite is, what each system does, where things stand, and the day-to-day commands. Start here after time away. |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | How the systems fit together — mental models, auth/session model, data ownership, Weave fabric, nginx topology, prod/staging isolation. **Start here for any engineering work.** |
 | [PRIMITIVES.md](PRIMITIVES.md) | **The low-level action catalog** — every command, gate, factory call, hook, component, and skill you can use, by category, with how and why. |
 | [WEAVE.md](WEAVE.md) | The integration contract in full — what an app must implement, transport model, security model, command vocabulary, adding a new app. |

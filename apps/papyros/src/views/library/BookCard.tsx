@@ -1,8 +1,7 @@
-import { cx } from '@jkos/ui';
-import type { Book } from '../../api';
-import CoverArt from './CoverArt';
+import { CoverArt, Sheet, cx } from '@jkos/ui';
+import { coverUrl, type Book } from '../../api';
 import { OfflineBadge } from '../../offline';
-import { formatDuration } from './format';
+import { formatDuration, initials } from './format';
 
 interface BookCardProps {
   book: Book;
@@ -15,11 +14,8 @@ interface BookCardProps {
   onGenreClick?: (genre: string) => void;
 }
 
-/** One cover-grid tile. A plain `<a>` (not the `Sheet` primitive's `as` prop — Sheet's
- *  prop type is a bare HTMLAttributes, which doesn't carry `href`; every other view in
- *  this app reaches for a plain tagged element + `cx()` when it needs an anchor/button
- *  with a primitive's look, see BookDetail's `back-link`) so the WHOLE card is one tap
- *  target into `#/book/<id>`, styled with the `jk-sheet` card surface.
+/** One cover-grid tile — `Sheet as="a"` so the WHOLE card is one tap target into
+ *  `#/book/<id>`, styled with the `jk-sheet` card surface.
  *
  *  Genre chips (task: filter-by-genre) live INSIDE that same anchor, so each chip is a
  *  real `<button>` — nested interactive content is invalid HTML5, but it's the pragmatic
@@ -33,9 +29,17 @@ interface BookCardProps {
  *  the same as mouse — a tap synthesizes the same `click` event either way. */
 export default function BookCard({ book, activeGenre = null, onGenreClick }: BookCardProps) {
   return (
-    <a href={`#/book/${book.id}`} className={cx('jk-sheet', 'lib-card')}>
+    <Sheet as="a" href={`#/book/${book.id}`} className="lib-card">
       <OfflineBadge bookId={book.id} />
-      <CoverArt book={book} />
+      {/* `cover_path === null` means the scanner never extracted/matched artwork —
+          `coverUrl` 404s for those rows, so pass no `src` and skip the round-trip
+          entirely (CoverArt's own `onError` still catches the rarer case: an
+          extracted cover missing/unreadable on disk). */}
+      <CoverArt
+        src={book.cover_path ? coverUrl(book.id) : undefined}
+        alt=""
+        fallback={<span className="jk-press-lg">{initials(book.title)}</span>}
+      />
       <div className="lib-card-body">
         <p className="lib-card-title">{book.title}</p>
         {book.author && <p className="lib-card-author">{book.author}</p>}
@@ -69,6 +73,6 @@ export default function BookCard({ book, activeGenre = null, onGenreClick }: Boo
           <span className="lib-card-duration">{formatDuration(book.duration)}</span>
         </div>
       </div>
-    </a>
+    </Sheet>
   );
 }

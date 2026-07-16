@@ -1,6 +1,16 @@
 // @jkos/ui — shared design tokens and React components
 // Import tokens directly: import '@jkos/ui/tokens.css'
 export { WidgetShell } from './WidgetShell';
+export { AppShell } from './AppShell';
+export type { AppShellProps, AppShellPreferences, AppShellPreferencesOptions } from './AppShell';
+export { CoverArt } from './CoverArt';
+export type { CoverArtProps } from './CoverArt';
+export { MediaGrid } from './MediaGrid';
+export type { MediaGridProps, MediaGridDensity } from './MediaGrid';
+export { MatchPanel } from './MatchPanel';
+export type { MatchPanelProps, MatchCandidate } from './MatchPanel';
+export { AsyncView } from './AsyncView';
+export type { AsyncViewProps } from './AsyncView';
 export { SettingsDrawer, SettingsSection } from './SettingsDrawer';
 export type { SettingsDrawerProps } from './SettingsDrawer';
 export { JkOSTheme } from './JkOSTheme';

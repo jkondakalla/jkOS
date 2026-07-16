@@ -7,6 +7,7 @@
 // Built from the repo ROOT context so the @jkos/* workspace resolves (see
 // ../Dockerfile, ../docker-compose.yml). CommonJS, matching the other node backends.
 
+const path = require('path');
 const express = require('express');
 const cookieParser = require('cookie-parser');
 const {
@@ -61,10 +62,39 @@ app.use((req, res, next) => {
   authMiddleware(req, res, next);
 });
 
-/* ── Health + Weave discovery (public) ───────────────────────────────────────── */
-app.get('/api/lazuros/health', healthHandler('lazuros'));
+/* ── Health + Weave discovery (public) ─────────────────────────────────────────
+   Health carries the one thing that is true of LazurOS and no other app: the State node
+   can be perfectly healthy while the machine that does the actual thinking is ASLEEP.
+   That's the design (a wol backend is off until a job wakes it), so it is reported, not
+   hidden — `compute_online:false` is the ORDECK systems panel's "gpu asleep" warn, and
+   the console's amber row. Probes are bounded (500ms each, in parallel) and cached for
+   a few seconds so a polling HUD can't stampede a sleeping node. */
+const COMPUTE_TTL_MS = 5000;
+let computeCache = { at: 0, value: null };
+async function computeStatus() {
+  if (computeCache.value && Date.now() - computeCache.at < COMPUTE_TTL_MS) return computeCache.value;
+  const entries = Object.entries(providers.computeBackends);
+  const probed = await Promise.all(entries.map(async ([id, b]) => [id, await b.probe().catch(() => false)]));
+  const backends = Object.fromEntries(probed);
+  const value = { compute_online: probed.some(([, online]) => online), backends };
+  computeCache = { at: Date.now(), value };
+  return value;
+}
+app.get('/api/lazuros/health', healthHandler('lazuros', computeStatus));
 app.get('/api/lazuros/capabilities', serveCapabilities(CAPABILITIES_DOC));
 app.get('/api/lazuros/datasets', serveDatasets(DATASETS_DOC));
+
+/* ── Test console (authed) ──────────────────────────────────────────────────────
+   A static page for DRIVING the gateway by hand: pick a capability, submit it, watch
+   the job walk PENDING → (PENDING_WAKEUP) → IN_PROGRESS → DONE|FAILED. It is the only
+   first-party UI LazurOS has, it ships with the node (no build step, no bundle), and
+   it talks to this server through the SAME public HTTP contract any peer uses — so
+   what it proves, it proves for real.
+
+   Not in PUBLIC_PATHS: it sits behind the weaveAuth gate above, like every other
+   non-discovery route. The edge exposes it at https://staging.jkos.net/LazurOS, where
+   nginx additionally admin-gates it (see infra/nginx/gen-nginx-weave.mjs). */
+app.use('/api/lazuros/console', express.static(path.join(__dirname, 'console')));
 
 /* ── Jobs dataset (authed read) — owner-scoped SQLite-backed list (the read contract). */
 app.use('/api/lazuros/jobs', jobsRouter);

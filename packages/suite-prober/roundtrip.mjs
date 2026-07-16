@@ -105,7 +105,7 @@ async function main() {
     tmp = mkdtempSync(join(tmpdir(), 'bb-roundtrip-'));
     child = spawn('node', ['server.js'], {
       cwd: BB_BACKEND,
-      env: { ...process.env, NODE_ENV: '', PORT: String(PORT), DB_PATH: join(tmp, 'test.db'), BB_AI_ENABLED: 'false' },
+      env: { ...process.env, NODE_ENV: '', PORT: String(PORT), DB_PATH: join(tmp, 'test.db') },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     let log = ''; child.stdout.on('data', (d) => { log += d; }); child.stderr.on('data', (d) => { log += d; });

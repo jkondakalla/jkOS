@@ -5,8 +5,8 @@ components to mount, skills to invoke — with what each is for and how to use i
 Organized by category. When this doc disagrees with the code, the code wins — update this.
 
 Everything runs from the repo root `/media/jag/The Forge/jkOS` (the path has a space —
-quote it). Branch `staging`. `apps/sylibos/`, `services/plex-api/`, `services/recipe-api/`
-are off-limits.
+quote it). Branch `staging`. `apps/sylibos/` is off-limits. (`services/` is gone — the two
+Python sidecars in it were deleted 2026-07-13 with the rest of the archaic LazurOS surface.)
 
 ---
 
@@ -39,7 +39,8 @@ One command, every hard contract. Its links, in order:
 |------|------|--------|
 | `--filter @jkos/jkauth test:contracts` | `contracts.mjs` (30) | codes vocab node↔python parity, issuer/cookie single-source, numeric-sub rejection, break-glass gates |
 | `--filter @jkos/jkauth test` | `smoke.mjs` (68) + `lifecycle.mjs` (24) + `multiuser.mjs` (27) | auth flows, cookie flags, rotation/reuse, guest/service/delegation, python cross-verify, prefs deep-merge + 409 lock, role-scoped widgets |
-| `--filter @jkos/weave test` | `weave.mjs` (39) + `lego.mjs` (83) | docShape, capability/dataset schema, AppId d.ts⇄runtime parity, collection/connector/trigger bricks |
+| `--filter @jkos/weave test` | `weave.mjs` (39) + `lego.mjs` (100) | docShape, capability/dataset schema, AppId d.ts⇄runtime parity, collection/connector/trigger bricks |
+| `--filter @jkos/player test` | `core.test` (84) + `backend.test` (40) + `engine.test` (34) | timeline math parity with papyros's retired `position.ts` (locate boundary rule, clamps), Queue reducers + seeded-shuffle stability, MediaBackend event/error classification on a scripted fake element, rate/recovery-ladder arithmetic |
 | `--filter @jkos/beigeboard-backend test` | `import.smoke` (39) + `items.smoke` (48) + `delta.smoke` (14) + `contract.smoke` (14) + `calendar.sandbox` (29) | import pipeline, CRUD hardening + reserved-source guard, `?since` cursor, declared==enforced, calendar providers + wipe guard + enc round-trip |
 | `pnpm roundtrip` | `roundtrip.mjs` (23) | the discovered write path end-to-end |
 | `--filter @jkos/lazuros-backend test` | queue (18) + providers (30) + writeback (11) + worker-e2e (12) | job queue, provider factories, delegated write-back, real worker.py against the real `/internal` API |
@@ -248,8 +249,9 @@ The Layer-A obligations — always via these helpers, never hand-rolled:
 
 | Factory | One spec buys you |
 |---------|------------------|
-| `defineCollection(def)` (`@jkos/weave/collection`, zero-dep subpath) | A data type → `.ddl()` (table + delta triggers), typed CRUD `.capabilities`, `.dataset` (+ filters), `.mount(router, db)`. Table/routes/docs cannot drift. The scaffolder's backend is one of these. |
+| `defineCollection(def)` (`@jkos/weave/collection`, zero-dep subpath) | A data type → `.ddl()` (table + delta triggers), typed CRUD `.capabilities`, `.dataset` (+ filters), `.mount(router, db)`. Table/routes/docs cannot drift. The scaffolder's backend is one of these. `def.only?: Array<'create'\|'update'\|'delete'>` (default all three) restricts which write capabilities/routes get emitted — read (list) always mounts regardless; an append-only event log (papyros `history`, ToDo §3 17.4) declares `only: ['create']`, so there is no update/delete capability AND no PATCH/DELETE route at all. |
 | `defineConnector(def)` (`@jkos/weave/connector`) | An external API/device wrapped as a peer — clean discoverable docs, `.mount(router)` translates server-side (secret never reaches the browser). |
+| `defineMediaRoutes(spec)` (`@jkos/weave/mediaRoutes`) | A media backend from an app's `{resolveFile}` (+ mime/cover/cacheDir/ladder config) → `.mount(router)` wires stream (Range, via `@jkos/files`) + cover + download (1 file direct, N zipped store-only) + the compat `POST …/prepare` pipeline. The transcode ladder is generalized into a PURE `decidePlayback({ladder,source,client,requestedLevel})` decision engine (Jellyfin direct-play → remux → re-encode); single-flight + atomic-rename + prepare-only-generation invariants live in the brick. |
 | `createTriggerEngine({ triggers, dispatch })` + `resolveBindings` / `validateTriggerTypes` / `triggerWebhook` / `serverDispatch` | "WHEN capability → DO capability" automation, with the DO body typed-bound to the WHEN's declared `returns` (checked by `validateTriggerTypes`); `serverDispatch` runs cross-app DOs under the triggering user via G1. |
 
 Exemplars + assertions: `packages/weave/test/lego.mjs`.

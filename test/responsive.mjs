@@ -171,6 +171,46 @@ for (const file of CARD_VIEWS) {
   else ok(`${file} is token-only + breakpoint-literal-free`);
 }
 
+// ── 7. the media-grid density ladder agrees between JS and hub.css ─────────
+// ToDo.md §3 20.2 moved papyros's hardcoded `.lib-grid[data-density]` 2/3/4-
+// column ladder into packages/design/responsive/mediaGrid.ts (MEDIA_GRID_
+// COLUMNS) + the `.jk-media-grid[data-density]` rule in tokens/hub.css. Two
+// sources describing the same three numbers is exactly the drift trap this
+// suite's conformance tests exist to close (see BREAKPOINT_MAX above) — so
+// text-parse both and assert every tier's column count agrees.
+const mgSrc = read('packages/design/responsive/mediaGrid.ts');
+const mgBlock = mgSrc.match(/MEDIA_GRID_COLUMNS[^{]*\{([^}]*)\}/);
+const MEDIA_GRID_COLUMNS = mgBlock
+  ? Object.fromEntries([...mgBlock[1].matchAll(/(\w+)\s*:\s*(\d+)/g)].map(([, k, v]) => [k, Number(v)]))
+  : null;
+if (!MEDIA_GRID_COLUMNS) {
+  fail('could not find MEDIA_GRID_COLUMNS in packages/design/responsive/mediaGrid.ts');
+} else {
+  for (const [tier, cols] of Object.entries(MEDIA_GRID_COLUMNS)) {
+    const re = new RegExp(`--hub-media-cols-${tier}:\\s*${cols};`);
+    if (re.test(hub)) ok(`hub.css --hub-media-cols-${tier} is ${cols} (matches MEDIA_GRID_COLUMNS.${tier})`);
+    else fail(`hub.css --hub-media-cols-${tier} drifted from MEDIA_GRID_COLUMNS.${tier} (${cols}) in ` +
+              'packages/design/responsive/mediaGrid.ts');
+  }
+  // The .jk-media-grid[data-density] rule must key off those SAME tokens (a
+  // literal `repeat(2, 1fr)` creeping back in would silently un-link the two).
+  const gridBlock = hubNoComments.match(/\.jk-media-grid\s*\{([\s\S]*?)\}/);
+  if (gridBlock && /var\(--hub-media-grid-gap\)/.test(gridBlock[1])) {
+    ok('.jk-media-grid derives its gap from --hub-media-grid-gap (no hardcoded literal)');
+  } else {
+    fail('.jk-media-grid does not derive its gap from --hub-media-grid-gap — check hub.css');
+  }
+  for (const tier of Object.keys(MEDIA_GRID_COLUMNS)) {
+    const tierRule = hubNoComments.match(new RegExp(`\\.jk-media-grid\\[data-density="${tier}"\\]\\s*\\{([^}]*)\\}`));
+    if (tierRule && new RegExp(`var\\(--hub-media-cols-${tier}\\)`).test(tierRule[1])) {
+      ok(`.jk-media-grid[data-density="${tier}"] derives its column count from --hub-media-cols-${tier}`);
+    } else {
+      fail(`.jk-media-grid[data-density="${tier}"] does not derive its columns from --hub-media-cols-${tier} — ` +
+           'a literal repeat(N, 1fr) would silently drift from MEDIA_GRID_COLUMNS');
+    }
+  }
+}
+
 if (failed) {
   console.error(`\n${failed} responsive conformance check(s) failed.`);
   process.exit(1);

@@ -1,0 +1,24 @@
+name: jkos-prod-kouros
+services:
+  kouros-app:
+    build:
+      context: ../..
+      dockerfile: apps/kouros/Dockerfile
+    container_name: kouros-app
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PORT: "3011"
+      DB_PATH: /data/kouros.db
+      STATIC_DIR: /app/dist
+    volumes:
+      - ${KOUROS_DATA_PATH:-/mnt/Luna/Backends/Production/kouros-data}:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - jkos-internal
+
+networks:
+  jkos-internal:
+    external: true
+    name: jkos-internal

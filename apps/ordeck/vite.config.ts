@@ -19,21 +19,20 @@ export default defineConfig({
         changeOrigin:        true,
         cookieDomainRewrite: 'localhost',
       },
-      // Dev proxy: routes data APIs → their respective services
-      // LazurOS and BeigeBoard need prefix stripping — their routes don't
-      // include the /api/lazuros/ or /api/beigeboard/ prefix internally.
+      // Dev proxy: routes data APIs → their respective services.
+      // BeigeBoard needs prefix stripping (its routes are /api/items, not
+      // /api/beigeboard/items). LazurOS does NOT: the State node registers its routes
+      // at their full edge paths (/api/lazuros/health, /api/lazuros/<capability>), so
+      // the prefix must survive — mirroring the nginx block, which also preserves it.
       '/api/lazuros': {
         target:      'http://localhost:8080',
         changeOrigin: true,
-        rewrite:     (path: string) => path.replace(/^\/api\/lazuros/, ''),
       },
       '/api/beigeboard': {
         target:      'http://localhost:3001',
         changeOrigin: true,
         rewrite:     (path: string) => path.replace(/^\/api\/beigeboard/, ''),
       },
-      '/api/plex':            { target: 'http://localhost:8001', changeOrigin: true },
-      '/api/recipes':         { target: 'http://localhost:8002', changeOrigin: true },
       '/api/sylibos':  { target: 'http://localhost:8004', changeOrigin: true,
                          rewrite: (path: string) => path.replace(/^\/api\/sylibos/, '') },
     },

@@ -6,6 +6,9 @@
 // `test` script (chained after queue.smoke).
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { join, dirname } from 'node:path';
 
 const require = createRequire(import.meta.url);
 const { createOllamaInferenceProvider } = require('../providers/inference');
@@ -14,6 +17,10 @@ const { createPiperTtsProvider, createKokoroTtsProvider, createCloudTtsProvider 
 const { createLocalEmbeddingProvider } = require('../providers/embedding');
 const { createSearxngWebSearchProvider, createDdgsWebSearchProvider } = require('../providers/webSearch');
 const { createWolBackend } = require('../providers/computeBackend');
+const { validateDeploymentConfig } = require('../lib/loadDeployment');
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const LAZUROS_ROOT = join(__dirname, '..', '..'); // test/ -> backend/ -> apps/lazuros/
 
 let calls = [];
 const ok = (body, { headers = {}, json } = {}) => ({
@@ -179,5 +186,27 @@ await (async () => {
   await assert.rejects(() => wol.wake(), /invalid mac "TODO_EMILY_MAC"/);
   test('a placeholder MAC fails the wake loudly instead of broadcasting junk', () => {});
 })();
+
+// ── Deployment config: the example must not be a trap ──────────────────────────────
+// deployment.example.json is what a self-hoster copies to stand up a node (ToDo §1a
+// item 1.2). If it doesn't pass the same schema check loadDeployment.js runs at boot,
+// it's a silent trap for the next person. Path resolved relative to this test file —
+// never a hardcoded repo path.
+test('deployment.example.json validates against validateDeploymentConfig', () => {
+  const raw = readFileSync(join(LAZUROS_ROOT, 'deployment.example.json'), 'utf8');
+  const cfg = JSON.parse(raw);
+  assert.doesNotThrow(() => validateDeploymentConfig(cfg));
+});
+
+// deployment.jag.json's TODO_EMILY_MAC/TODO_EMILY_IP are unresolved-hardware placeholders,
+// but validateDeploymentConfig only checks structure (tiers/computeBackends shape) — the
+// MAC format is checked later, at WoL provider construction (see the placeholder-MAC test
+// above), not here. So this file validates cleanly too; assert it as extra coverage of the
+// multi-tier + wol shape the single-tier example doesn't exercise.
+test('deployment.jag.json also validates (placeholders are hardware facts, not structural)', () => {
+  const raw = readFileSync(join(LAZUROS_ROOT, 'deployment.jag.json'), 'utf8');
+  const cfg = JSON.parse(raw);
+  assert.doesNotThrow(() => validateDeploymentConfig(cfg));
+});
 
 console.log(`✅ ALL PASS: ${n} assertions (providers.smoke)`);

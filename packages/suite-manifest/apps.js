@@ -78,6 +78,13 @@ const APPS = [
     capabilities: true, datasets: true,
     edge: 'standard', // GENERATED nginx server block + staging subpath (gen-nginx-weave.mjs)
   },
+  {
+    id: 'kouros', name: 'KourOS', origin: 'https://kouros.jkos.net',
+    allowedRoles: ['user', 'admin'],
+    upstream: 'kouros-app:3011', health: true, api: true,
+    capabilities: true, datasets: true,
+    edge: 'standard', // GENERATED nginx server block + staging subpath (gen-nginx-weave.mjs)
+  },
 ]
 
 /* ── derivations: id → everything ────────────────────────────────────────────── */

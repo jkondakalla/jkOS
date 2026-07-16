@@ -5,20 +5,17 @@
 // contract: per-user scoping, parent ownership + cycle rejection, cascade delete,
 // the reserved-source write guard (BUG-1), and the no-seed-for-service rule (BUG-1).
 //
-// Wave 2 added the contract-truth + AI-passthrough coverage, driven against a mock
-// LazurOS (started here so /api/ai/* is exercisable with AI enabled and no network):
+// Wave 2 added the contract-truth coverage:
 //   • BUG-3 — cap/date parity: oversized title + impossible date/time → 400 on direct
 //     POST, while import still warns-and-truncates (the cap VALUE is shared, not the
 //     behaviour).
 //   • BUG-6.2 — OAuth callback is a public path: a cookie-less popup gets the
 //     postMessage error contract, not a bare 401 page.
-//   • BUG-7 — /api/ai/parse-task whitelists a prompt-injected model reply to the
-//     createItem fields (422 when unusable); an upstream error body is redacted.
+//   • L — the retired /api/ai/* chat-proxy surface stays retired (404).
 //
 //   node apps/beigeboard/backend/test/items.smoke.mjs
 
 import { spawn } from 'node:child_process';
-import { createServer } from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -78,31 +75,10 @@ async function waitForHealth(ms = 15000) {
   return false;
 }
 
-// ── Mock LazurOS (/api/chat) so the AI routes are drivable with no network. The
-//    mode + payload are mutated per-assertion below. Its error mode returns a body
-//    with a sentinel we assert never leaks to the client (BUG-6.3 redaction).
-let aiMode = 'ok';        // 'ok' | 'error' | 'nojson'
-let aiPayload = {};       // the object the mock model "returns" when aiMode === 'ok'
-const lazuros = createServer((r, res) => {
-  if (r.method === 'POST' && r.url === '/api/chat') {
-    let body = ''; r.on('data', c => { body += c; }); r.on('end', () => {
-      if (aiMode === 'error') { res.writeHead(500, { 'Content-Type': 'text/plain' }); res.end('LAZUROS_INTERNAL_STACK_TRACE_SENTINEL'); return; }
-      const content = aiMode === 'nojson' ? 'sorry, no json for you' : JSON.stringify(aiPayload);
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ message: { content } }));
-    });
-    return;
-  }
-  res.writeHead(404); res.end();
-});
-await new Promise((r) => lazuros.listen(0, '127.0.0.1', r));
-const LAZUROS_PORT = lazuros.address().port;
-
 const child = spawn('node', ['server.js'], {
   cwd: BACKEND,
   env: {
     ...process.env, NODE_ENV: '', PORT: String(PORT), DB_PATH,
-    BB_AI_ENABLED: 'true', LAZUROS_URL: `http://127.0.0.1:${LAZUROS_PORT}`,
     JKOS_AUTH_PUBLIC_KEY: publicKey, JKOS_AUTH_ISSUER: ISSUER,
   },
   stdio: ['ignore', 'pipe', 'pipe'],
@@ -113,7 +89,6 @@ child.stderr.on('data', d => { serverLog += d; });
 
 function done() {
   try { child.kill('SIGKILL'); } catch { /* already gone */ }
-  try { lazuros.close(); } catch { /* best effort */ }
   try { rmSync(tmp, { recursive: true, force: true }); } catch { /* best effort */ }
   console.log(`\nitems.smoke: ${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
@@ -239,40 +214,14 @@ try {
   ok(cbAuthed.status === 200 && /Invalid state/.test(cbAuthedText),
     `K: authed callback w/o state cookie → 200 Invalid state (optionalAuth ran, CSRF held) (got ${cbAuthed.status})`);
 
-  // ── L. AI parse-task passthrough validation (BUG-7) ──────────────────────────
-  aiMode = 'ok';
-  aiPayload = {
-    title: 't'.repeat(900),        // over the 500 cap → capped
-    kind: 'wormhole',              // invalid enum → dropped
-    scope: 'day',                  // valid → kept
-    due_date: '2026-13-45',        // impossible date → dropped
-    scheduled_time: '99:99',       // invalid time → dropped
-    notes: 'ctx',                  // kept
-    parent_id: 999999,             // not a whitelisted field → dropped
-    source: 'google',              // not whitelisted → dropped
-    completed: true,               // not whitelisted → dropped
-    evil: { rm: '-rf /' },         // injected junk → dropped
-  };
-  const ai = await req('POST', '/api/ai/parse-task', { text: 'lunch tomorrow' }, A);
-  ok(ai.status === 200, `L: parse-task → 200 (got ${ai.status} ${JSON.stringify(ai.json)})`);
-  const aiKeys = Object.keys(ai.json || {});
-  const allowedKeys = ['title', 'kind', 'scope', 'due_date', 'scheduled_time', 'notes'];
-  ok(aiKeys.length > 0 && aiKeys.every(k => allowedKeys.includes(k)), `L: only whitelisted keys survive (got ${aiKeys.join(',')})`);
-  ok(ai.json?.title?.length === 500, `L: oversized model title capped to 500 (got ${ai.json?.title?.length})`);
-  ok(!('kind' in (ai.json || {})), 'L: invalid kind enum dropped');
-  ok(!('due_date' in (ai.json || {})), 'L: impossible due_date dropped');
-  ok(!('scheduled_time' in (ai.json || {})), 'L: invalid scheduled_time dropped');
-  ok(ai.json?.scope === 'day' && ai.json?.notes === 'ctx', 'L: valid fields (scope, notes) pass through');
-  ok(!('parent_id' in (ai.json || {})) && !('source' in (ai.json || {})) && !('evil' in (ai.json || {})), 'L: non-whitelisted keys dropped');
-
-  aiPayload = { kind: 'task', notes: 'no title here' };   // unusable core (no title)
-  const aiBad = await req('POST', '/api/ai/parse-task', { text: 'junk' }, A);
-  ok(aiBad.status === 422 && aiBad.json?.code === 'AI_INVALID', `L: unusable reply → 422 AI_INVALID (got ${aiBad.status} ${JSON.stringify(aiBad.json)})`);
-
-  aiMode = 'error';   // upstream 500 with a sentinel body — must be redacted
-  const aiErr = await req('POST', '/api/ai/parse-task', { text: 'x' }, A);
-  ok(aiErr.status === 502 && aiErr.json?.code === 'AI_UPSTREAM' && !/SENTINEL/.test(JSON.stringify(aiErr.json || {})),
-    `L: upstream error redacted → 502 AI_UPSTREAM, no leak (got ${aiErr.status} ${JSON.stringify(aiErr.json)})`);
+  // ── L. No AI surface. BeigeBoard used to proxy a synchronous Ollama chat call at
+  //    /api/ai/*; LazurOS is an async job gateway now, and it writes results back
+  //    through /api/items as the acting user. The route is gone, so it must 404 —
+  //    not linger as an unauthenticated hole or a half-wired stub.
+  const aiGone = await req('POST', '/api/ai/parse-task', { text: 'lunch tomorrow' }, A);
+  ok(aiGone.status === 404, `L: /api/ai/parse-task is gone → 404 (got ${aiGone.status})`);
+  const bdGone = await req('POST', '/api/ai/breakdown', { title: 'ship it' }, A);
+  ok(bdGone.status === 404, `L: /api/ai/breakdown is gone → 404 (got ${bdGone.status})`);
 } catch (e) {
   console.error('harness error:', e);
   fail++;

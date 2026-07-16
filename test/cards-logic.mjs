@@ -46,6 +46,7 @@ async function importTs(relPath, outName) {
 
 const color = await importTs('packages/design/utils/color.ts', 'color.mjs');
 const dt = await importTs('packages/cards/src/datetime.ts', 'datetime.mjs');
+const mediaGrid = await importTs('packages/design/responsive/mediaGrid.ts', 'mediaGrid.mjs');
 
 /* ── withAlpha ─────────────────────────────────────────────────────────── */
 const { withAlpha } = color;
@@ -147,6 +148,87 @@ const spillR = bars.find((b) => b.ev.id === 3);
 check(spillR.endCol === 6 && spillR.continuesRight, 'layoutBars flags a right-spilling event');
 // spillL (ends Tue) and trip (starts Tue) touch on col 1 → must not share a lane.
 check(spillL.lane !== trip.lane, 'touching bars occupy separate lanes');
+
+/* ── media-grid density ladder (ToDo.md §3 20.2) ───────────────────────── */
+const { MEDIA_GRID_COLUMNS } = mediaGrid;
+check(MEDIA_GRID_COLUMNS.compact === 2, 'MEDIA_GRID_COLUMNS.compact is 2 (the original .lib-grid ladder)');
+check(MEDIA_GRID_COLUMNS.cozy === 3, 'MEDIA_GRID_COLUMNS.cozy is 3');
+check(MEDIA_GRID_COLUMNS.comfortable === 4, 'MEDIA_GRID_COLUMNS.comfortable is 4');
+check(
+  Object.keys(MEDIA_GRID_COLUMNS).length === 3,
+  'MEDIA_GRID_COLUMNS has exactly the three density tiers (no drift)',
+);
+
+/* ── <MatchPanel> class + wiring parity (ToDo.md §3 20.4) ─────────────────
+ * @jkos/ui's generic <MatchPanel> (packages/ui/src/MatchPanel.tsx) owns a set
+ * of `.jk-match-*` classes that must actually be styled in hub.css (moved
+ * there, verbatim, from papyros's old `.match-panel`/`.match-candidate*`
+ * rules) — the same "component classes vs. hub.css drift" class of bug 20.2's
+ * media-grid check above guards against. Plus a few structural invariants:
+ * papyros's binding stays THIN (imports the generic panel rather than
+ * re-implementing it) and its old bespoke CSS rules are actually gone, not
+ * just unreferenced. */
+const matchPanelSrc = readFileSync(resolve(root, 'packages/ui/src/MatchPanel.tsx'), 'utf8');
+const hubCss = readFileSync(resolve(root, 'packages/design/tokens/hub.css'), 'utf8');
+
+const jkMatchClasses = [...new Set((matchPanelSrc.match(/jk-match[\w-]*/g) || []))];
+check(jkMatchClasses.length >= 10, `MatchPanel.tsx references at least 10 jk-match-* classes (found ${jkMatchClasses.length})`);
+
+function hubHasSelector(cls) {
+  const escaped = cls.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+  // Negative lookahead for a word char OR hyphen — a bare `\b` would also match
+  // inside a LONGER class name sharing this one's prefix (e.g. `.jk-match-panel`
+  // would falsely "find" `.jk-match-panel-head`'s selector, since `-` is not a
+  // \w char and so still trips a \b boundary there).
+  return new RegExp(`\\.${escaped}(?![\\w-])`).test(hubCss);
+}
+const missingInHub = jkMatchClasses.filter((c) => !hubHasSelector(c));
+check(missingInHub.length === 0,
+  missingInHub.length === 0
+    ? 'every jk-match-* class MatchPanel.tsx uses has a hub.css selector'
+    : `hub.css is missing selectors for: ${missingInHub.join(', ')}`);
+
+// @jkos/ui stays transport-agnostic (the <AppShell> decoupling rule, 20.1) —
+// the generic panel takes injected search/apply functions, never its own fetch.
+// (Matches an actual `import … from '@jkos/weave'` — prose mentioning the
+// package names to EXPLAIN the rule, as this file's own header comment does,
+// is fine and shouldn't trip the check.)
+check(
+  !/from\s*['"]@jkos\/(weave|auth-client)['"]/.test(matchPanelSrc),
+  'MatchPanel.tsx does not import @jkos/weave or @jkos/auth-client (stays transport-agnostic)',
+);
+
+// The panel is exported from the @jkos/ui barrel (so a consumer besides papyros
+// can actually reach it).
+const uiIndex = readFileSync(resolve(root, 'packages/ui/src/index.ts'), 'utf8');
+check(/export\s*\{\s*MatchPanel\s*\}\s*from\s*['"]\.\/MatchPanel['"]/.test(uiIndex),
+  '@jkos/ui barrel exports MatchPanel');
+check(/MatchCandidate/.test(uiIndex) && /MatchPanelProps/.test(uiIndex),
+  '@jkos/ui barrel exports the MatchCandidate/MatchPanelProps types');
+
+// connectorPair (the weave-side binding helper) is barreled from @jkos/weave.
+const weaveIndex = readFileSync(resolve(root, 'packages/weave/src/index.ts'), 'utf8');
+check(/export \* from '\.\/connectorPair'/.test(weaveIndex), '@jkos/weave barrel exports connectorPair');
+
+// papyros's own binding stays a THIN wrapper (imports the generic panel; doesn't
+// re-implement the search/candidate-list/apply flow itself).
+const papyrosBinding = readFileSync(
+  resolve(root, 'apps/papyros/src/views/book-detail/MatchPanel.tsx'), 'utf8',
+);
+check(/import\s*\{\s*MatchPanel as GenericMatchPanel\s*\}\s*from\s*['"]@jkos\/ui['"]/.test(papyrosBinding),
+  "papyros's MatchPanel.tsx binds @jkos/ui's generic <MatchPanel> rather than re-implementing it");
+const papyrosBindingLines = papyrosBinding.split('\n').length;
+check(papyrosBindingLines <= 60,
+  `papyros's MatchPanel.tsx stays a thin binding (${papyrosBindingLines} lines, expected <= 60 — a `
+  + 'much bigger file would mean the search/apply flow got re-implemented locally again)');
+
+// The old bespoke `.match-panel`/`.match-candidate*` rules are actually deleted
+// from papyros's book-detail.css, not just shadowed by hub.css's new classes.
+const bookDetailCss = readFileSync(resolve(root, 'apps/papyros/src/views/book-detail.css'), 'utf8');
+check(
+  !/^\.match-panel\b|^\.match-candidate/m.test(bookDetailCss),
+  "book-detail.css no longer defines its own .match-panel/.match-candidate* rules (moved to hub.css's .jk-match-*)",
+);
 
 if (failed) {
   console.error(`\n✗ cards-logic: ${failed} assertion(s) failed`);

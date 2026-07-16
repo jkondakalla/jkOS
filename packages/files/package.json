@@ -1,0 +1,10 @@
+{
+  "name": "@jkos/files",
+  "version": "1.0.0",
+  "private": true,
+  "description": "jkOS shared file-serving primitives (CJS): Range-aware HTTP streaming (200/206/416, Accept-Ranges, Content-Range) and path-containment resolution. Lifted from PapyrOS backend/src/media.js (ToDo Sec3 Wave 17, 17.1) so every media backend shares one implementation instead of drifting copies.",
+  "main": "index.js",
+  "scripts": {
+    "test": "node test/files.smoke.mjs"
+  }
+}

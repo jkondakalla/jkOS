@@ -191,9 +191,6 @@ function dashboardPage(user, nonce = '') {
     background: var(--accent); color:var(--color-on-accent); font-weight:700; font-size:.85rem; }
   .app .nm { font-weight:600; font-size:.9rem; }
   .muted-note { color: var(--muted); font-size: .85rem; }
-  .row { display:flex; align-items:center; gap:.8rem; margin-top:.7rem; }
-  .row label { width: 64px; flex-shrink:0; font-size:.82rem; color: var(--muted); }
-  .row input[type=text] { flex:1; }
   .ai-head { display:flex; align-items:center; justify-content:space-between; margin-bottom: .25rem; }
   .ai-head h2 { margin-bottom: 0; }
   .switch { width: 46px; height: 26px; border-radius: 999px; border:1px solid var(--border); background:var(--hub-bg-0);
@@ -202,7 +199,6 @@ function dashboardPage(user, nonce = '') {
   .switch .knob { position:absolute; top:2px; left:2px; width:20px; height:20px; border-radius:50%; background:var(--hub-bg-2);
     transition: left .18s; box-shadow:0 1px 3px rgba(0,0,0,.25); }
   .switch[aria-checked=true] .knob { left: 22px; }
-  .ai-body[data-off=true] { opacity:.45; pointer-events:none; }
   .ai-status { font-size:.8rem; color: var(--muted); margin-top:.6rem; min-height: 1em; }
 </style>
 <div class="dash">
@@ -232,11 +228,9 @@ function dashboardPage(user, nonce = '') {
         <span class="knob"></span>
       </div>
     </div>
-    <p class="muted-note">One switch for AI across every jkOS app. Off hides LazurOS everywhere.</p>
-    <div class="ai-body" id="ai-body">
-      <div class="row"><label for="ai-url">Gateway</label><input type="text" id="ai-url" placeholder="http://host:8080" spellcheck="false"></div>
-      <div class="row"><label for="ai-model">Model</label><input type="text" id="ai-model" placeholder="llama3.2" spellcheck="false"></div>
-    </div>
+    <p class="muted-note">One switch for AI across every jkOS app. Off hides LazurOS everywhere.
+      There is nothing else to configure: the gateway is reached at a fixed suite path, and
+      each tier picks its own model from the deployment config on the machine that runs it.</p>
     <div class="ai-status" id="ai-status"></div>
   </section>
 </div>
@@ -261,19 +255,13 @@ fetch('/auth/apps', { credentials: 'same-origin' })
   })
   .catch(() => { document.getElementById('apps').innerHTML = '<div class="muted-note">Could not load apps.</div>'; });
 
-// AI controls — backed by /auth/profile preferences.lazuros.
+// The AI kill switch — the ONE preference LazurOS has, owned here. Every other app
+// reads preferences.lazuros.enabled and hides its AI surfaces; none of them writes it.
 const sw = document.getElementById('ai-switch');
-const body = document.getElementById('ai-body');
-const urlEl = document.getElementById('ai-url');
-const modelEl = document.getElementById('ai-model');
 const status = document.getElementById('ai-status');
-let lazuros = { enabled: true, url: '', model: 'llama3.2' };
-let saveTimer = null;
+let lazuros = { enabled: true };
 
-function paint() {
-  sw.setAttribute('aria-checked', String(!!lazuros.enabled));
-  body.setAttribute('data-off', String(!lazuros.enabled));
-}
+function paint() { sw.setAttribute('aria-checked', String(!!lazuros.enabled)); }
 function save() {
   status.textContent = 'Saving…';
   fetch('/auth/profile', {
@@ -283,18 +271,15 @@ function save() {
   }).then(r => { status.textContent = r.ok ? 'Saved' : 'Save failed'; })
     .catch(() => { status.textContent = 'Save failed'; });
 }
-function queueSave() { clearTimeout(saveTimer); saveTimer = setTimeout(save, 500); }
 
 fetch('/auth/profile', { credentials: 'same-origin' })
   .then(r => r.ok ? r.json() : null)
-  .then(p => { if (p && p.preferences && p.preferences.lazuros) lazuros = Object.assign(lazuros, p.preferences.lazuros);
-    urlEl.value = lazuros.url || ''; modelEl.value = lazuros.model || ''; paint(); })
+  .then(p => { if (p && p.preferences && p.preferences.lazuros) lazuros = { enabled: p.preferences.lazuros.enabled !== false };
+    paint(); })
   .catch(() => {});
 
 sw.addEventListener('click', () => { lazuros.enabled = !lazuros.enabled; paint(); save(); });
 sw.addEventListener('keydown', e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); sw.click(); } });
-urlEl.addEventListener('change', () => { lazuros.url = urlEl.value.trim(); queueSave(); });
-modelEl.addEventListener('change', () => { lazuros.model = modelEl.value.trim(); queueSave(); });
 </script>`)
 }
 

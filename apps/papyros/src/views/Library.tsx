@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Lab, cx, useBreakpoint } from '@jkos/ui';
+import { AsyncView, Lab, MediaGrid, TButton, useBreakpoint } from '@jkos/ui';
 import { listBooks, matchAllMissing, rescanLibrary, type Book, type BookFilters } from '../api';
 import { useAuth } from '../hooks/useAuth';
 import BookCard from './library/BookCard';
@@ -138,27 +138,24 @@ export default function Library() {
         <div className="lib-heading-actions">
           {!loading && !error && <span className="lib-count">{sorted.length} book{sorted.length === 1 ? '' : 's'}</span>}
           {isAdmin && (
-            // Plain <button>s + cx() rather than the TButton primitive: TButton's props
-            // are a bare HTMLAttributes, so it can't carry `disabled` (same reason
-            // BookCard uses a tagged <a> for `href`).
             <>
-              <button
-                type="button"
-                className={cx('jk-tbtn', 'jk-tbtn-quiet', 'lib-rescan')}
+              <TButton
+                quiet
+                className="lib-rescan"
                 disabled={matching || rescanning}
                 onClick={handleMatchAll}
                 title="Enrich embedded metadata from iTunes (descriptions, genres, covers)"
               >
                 {matching ? 'Matching…' : 'Match metadata'}
-              </button>
-              <button
-                type="button"
-                className={cx('jk-tbtn', 'jk-tbtn-quiet', 'lib-rescan')}
+              </TButton>
+              <TButton
+                quiet
+                className="lib-rescan"
                 disabled={rescanning || matching}
                 onClick={handleRescan}
               >
                 {rescanning ? 'Rescanning…' : 'Rescan'}
-              </button>
+              </TButton>
             </>
           )}
         </div>
@@ -181,44 +178,46 @@ export default function Library() {
         bp={bp}
       />
 
-      {loading ? (
-        <p className="muted">Loading books…</p>
-      ) : error ? (
-        <p className="muted">Could not load the library. Try again shortly.</p>
-      ) : sorted.length === 0 ? (
-        <p className="muted">
-          {hasActiveFilter
+      <AsyncView
+        loading={loading}
+        error={error}
+        errorText="Could not load the library. Try again shortly."
+        empty={sorted.length === 0}
+        emptyText={
+          hasActiveFilter
             ? 'No books match this search.'
             : isAdmin
               ? 'No books yet — use Rescan above to walk the library folder.'
-              : 'No books yet — an admin needs to rescan the library.'}
-        </p>
-      ) : showGrouped ? (
-        <div className="lib-groups">
-          {groups.map((group) => (
-            <section key={group.key} className="lib-group">
-              <header className="lib-group-header">
-                {group.key === STANDALONE_KEY ? (
-                  <Lab as="span" size="sm">{group.label} &middot; {group.books.length}</Lab>
-                ) : (
-                  <button type="button" className="lib-group-title" onClick={() => pickSeries(group.label)}>
+              : 'No books yet — an admin needs to rescan the library.'
+        }
+      >
+        {showGrouped ? (
+          <div className="lib-groups">
+            {groups.map((group) => (
+              <section key={group.key} className="lib-group">
+                <header className="lib-group-header">
+                  {group.key === STANDALONE_KEY ? (
                     <Lab as="span" size="sm">{group.label} &middot; {group.books.length}</Lab>
-                  </button>
-                )}
-              </header>
-              <div className="lib-grid" data-density={density}>
-                {group.books.map((book) => (
-                  <BookCard key={book.id} book={book} activeGenre={genreFilter} onGenreClick={pickGenre} />
-                ))}
-              </div>
-            </section>
-          ))}
-        </div>
-      ) : (
-        <div className="lib-grid" data-density={density}>
-          {sorted.map((book) => <BookCard key={book.id} book={book} />)}
-        </div>
-      )}
+                  ) : (
+                    <button type="button" className="lib-group-title" onClick={() => pickSeries(group.label)}>
+                      <Lab as="span" size="sm">{group.label} &middot; {group.books.length}</Lab>
+                    </button>
+                  )}
+                </header>
+                <MediaGrid density={density} className="lib-grid">
+                  {group.books.map((book) => (
+                    <BookCard key={book.id} book={book} activeGenre={genreFilter} onGenreClick={pickGenre} />
+                  ))}
+                </MediaGrid>
+              </section>
+            ))}
+          </div>
+        ) : (
+          <MediaGrid density={density} className="lib-grid">
+            {sorted.map((book) => <BookCard key={book.id} book={book} />)}
+          </MediaGrid>
+        )}
+      </AsyncView>
     </section>
   );
 }

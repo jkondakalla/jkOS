@@ -44,16 +44,10 @@ const MS_GRAPH     = 'https://graph.microsoft.com/v1.0';
 
 const ICLOUD_CALDAV = 'https://caldav.icloud.com';
 
-const LAZUROS_URL           = (process.env.LAZUROS_URL || 'http://localhost:8080').replace(/\/$/, '');
-const LAZUROS_TOKEN         = process.env.LAZUROS_TOKEN         || '';
-const LAZUROS_DEFAULT_MODEL = process.env.LAZUROS_DEFAULT_MODEL || 'llama3.2';
-const BB_AI_ENABLED         = process.env.BB_AI_ENABLED === 'true';
-
 module.exports = {
   PORT, DB_PATH, STATIC_DIR, SHELL_URL, ALLOWED_ORIGINS,
   JKOS_AUTH_PUBLIC_KEY, JKOS_AUTH_ISSUER, JKOS_AUTH_JWKS_URI, CALENDAR_ENC_KEY, IS_PROD,
   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI,
   MS_CLIENT_ID, MS_CLIENT_SECRET, MS_REDIRECT_URI, MS_AUTH_URL, MS_TOKEN_URL, MS_GRAPH,
   ICLOUD_CALDAV,
-  LAZUROS_URL, LAZUROS_TOKEN, LAZUROS_DEFAULT_MODEL, BB_AI_ENABLED,
 };

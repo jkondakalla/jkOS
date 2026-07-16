@@ -17,10 +17,12 @@ export interface EffectsPreferences {
   artifacts:     boolean;
 }
 
+/** The suite-wide AI kill switch, and nothing else. LazurOS is reached at one fixed
+ *  edge path (/api/lazuros) and picks its own model per tier from the deployment's
+ *  mounted deployment.json — so there is no per-user gateway URL or model to set.
+ *  Owned by the jkAuth portal; every other app only READS `enabled`. */
 export interface LazurPreferences {
-  enabled: boolean;   // suite-wide AI kill switch — false hides all LazurOS UI
-  url:     string;
-  model:   string;
+  enabled: boolean;   // false hides all LazurOS UI, suite-wide
 }
 
 /** A reference to something surfaced on the ORDECK HUD (a pin, or the focus).

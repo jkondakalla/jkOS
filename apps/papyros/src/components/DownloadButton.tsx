@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Lab, cx } from '@jkos/ui';
+import { Lab, TButton, cx } from '@jkos/ui';
 import type { BookDetail } from '../api';
 import { downloadUrl } from '../api';
 import './download-button.css';
@@ -22,11 +22,12 @@ export default function DownloadButton({ book }: { book: BookDetail }) {
 
   return (
     <div className="download-btn">
-      <a
+      <TButton
+        as="a"
         href={downloadUrl(book.id)}
         download
         aria-disabled={starting || undefined}
-        className={cx('jk-tbtn', 'download-btn-link', starting && 'is-starting')}
+        className={cx('download-btn-link', starting && 'is-starting')}
         title={`Download "${book.title}" (${hint})`}
         onClick={() => {
           setStarting(true);
@@ -34,7 +35,7 @@ export default function DownloadButton({ book }: { book: BookDetail }) {
         }}
       >
         {starting ? 'Starting…' : 'Download'}
-      </a>
+      </TButton>
       <Lab as="span" size="xs" className="download-btn-hint">{hint}</Lab>
     </div>
   );

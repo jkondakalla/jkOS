@@ -1,85 +1,21 @@
 'use strict';
-// probe.js (PapyrOS library service, task 2.2) — pure ffprobe wrapper + the
-// ffprobe-tag → `books`-column mapping that the scanner (2.3) will call per file.
-//
-// Two layers, deliberately kept apart so the mapping can be unit-tested with zero
-// process spawning:
-//   1. probeFile(path)         — the ONLY impure piece: execFile('ffprobe', […]),
-//                                 promisified, JSON-parsed, handed to parseProbe.
-//   2. parseProbe / mapTagsToColumns / normalizeTags / extractYear / parseGenres
-//                               — pure functions over plain objects. Feed them a
-//                                 hand-authored ffprobe JSON fixture and they behave
-//                                 identically to the real exec path.
+// probe.js (PapyrOS library service, task 2.2) — the ffprobe-tag → `books`-column
+// mapping (mapTagsToColumns) plus its year/genre helpers. This is the ONE app-specific
+// piece of the library ladder (ToDo §3 17.2): everything else — walking, spawning
+// ffprobe, parsing its JSON, the concurrency pool, mtime-incremental skip, the
+// ON CONFLICT(path) upsert, pruning vanished rows — moved to the shared brick
+// (`@jkos/weave/libraryScanner`, used by src/library/scan.js). `probeFile` / `parseProbe`
+// / `normalizeTags` are the brick's generic, app-agnostic ffprobe wrapper + JSON parser;
+// re-exported here UNCHANGED so nothing importing them from `./probe` (probe.smoke.mjs,
+// scan.js) had to change when the mapping moved. `parseProbe` stays pure (no I/O) there
+// too — feed it a hand-authored ffprobe JSON fixture and it behaves identically to the
+// real exec path, with zero process spawning.
 //
 // ffprobe tag casing is inconsistent across containers/taggers (an .m4b from one
-// tool emits `artist`, another emits `ARTIST`) — every tag read here goes through
-// normalizeTags() first so the mapping never depends on the source's casing.
+// tool emits `artist`, another emits `ARTIST`) — mapTagsToColumns re-normalizes via
+// normalizeTags() so the mapping never depends on the source's casing.
 
-const { execFile } = require('node:child_process');
-const { promisify } = require('node:util');
-
-const execFileAsync = promisify(execFile);
-
-/**
- * Run the exact probe command PapyrOS standardizes on and parse its output.
- *   ffprobe -v quiet -print_format json -show_format -show_streams -show_chapters <file>
- * Returns the same shape as parseProbe(): { tags, duration, chapters, codec }.
- */
-async function probeFile(filePath) {
-  const { stdout } = await execFileAsync(
-    'ffprobe',
-    ['-v', 'quiet', '-print_format', 'json', '-show_format', '-show_streams', '-show_chapters', filePath],
-    { maxBuffer: 16 * 1024 * 1024 },
-  );
-  return parseProbe(JSON.parse(stdout));
-}
-
-/** Lowercase every key of a tags object; ffprobe's tag casing varies by container/tagger. */
-function normalizeTags(tags) {
-  const out = {};
-  if (!tags || typeof tags !== 'object') return out;
-  for (const [key, value] of Object.entries(tags)) {
-    out[String(key).toLowerCase()] = value;
-  }
-  return out;
-}
-
-/**
- * PURE. Turn a raw ffprobe JSON payload (format/streams/chapters) into the shape
- * the scanner consumes:
- *   tags     — normalized (lowercase-keyed) format-level tag map
- *   duration — total seconds as a number, or null if ffprobe didn't report one
- *   chapters — [{ start, end, title }] with start/end in seconds (numbers)
- *   codec    — the first audio stream's codec_name, or null if there is none
- */
-function parseProbe(json) {
-  const format = (json && json.format) || {};
-  const streams = Array.isArray(json && json.streams) ? json.streams : [];
-  const rawChapters = Array.isArray(json && json.chapters) ? json.chapters : [];
-
-  const tags = normalizeTags(format.tags);
-
-  const duration = format.duration != null ? Number(format.duration) : null;
-
-  const audioStream = streams.find((s) => s && s.codec_type === 'audio');
-  const codec = (audioStream && audioStream.codec_name) || null;
-
-  const chapters = rawChapters.map((c) => {
-    const chapterTags = normalizeTags(c && c.tags);
-    return {
-      start: c && c.start_time != null ? Number(c.start_time) : null,
-      end: c && c.end_time != null ? Number(c.end_time) : null,
-      title: chapterTags.title != null ? chapterTags.title : null,
-    };
-  });
-
-  return {
-    tags,
-    duration: Number.isFinite(duration) ? duration : null,
-    chapters,
-    codec,
-  };
-}
+const { probeFile, parseProbe, normalizeTags } = require('@jkos/weave/libraryScanner');
 
 /** Pull a 4-digit year out of a `date` tag ("2023", "2023-05-14", "05/2023", …). */
 function extractYear(dateStr) {

@@ -97,6 +97,22 @@ function defineCollection(def) {
   const writeScope = `${app}:write`
   const Noun = def.noun || pascal(singular(id))
 
+  // Which write capabilities/routes to emit — default all three (unchanged behavior
+  // for every existing caller). 17.4 (papyros `history`, an append-only play-event
+  // log) needed a collection that is genuinely never mutable after creation — no
+  // update, no delete, ever — which the generic mount() below couldn't express
+  // before this: it always wired all four CRUD routes. Smallest additive knob
+  // (rather than a bespoke hand-rolled table, the `books`-in-server.js precedent)
+  // so an append-only collection keeps the same one-spec-drives-table+routes+docs
+  // property every other collection has. Read (list) is NOT gated by this — it
+  // always mounts; `only` restricts mutation, not visibility.
+  const ALLOWED_OPS = new Set(['create', 'update', 'delete'])
+  const only = def.only || ['create', 'update', 'delete']
+  for (const op of only) {
+    if (!ALLOWED_OPS.has(op)) throw new Error(`defineCollection('${id}'): only[] entries must be one of create/update/delete, got '${op}'`)
+  }
+  const ops = new Set(only)
+
   // Client-writable columns: everything not server-managed.
   const writable = fields.filter((f) => !f.readOnly)
   const writableNames = new Set(writable.map((f) => f.name))
@@ -111,22 +127,22 @@ function defineCollection(def) {
   const idField = { name: 'id', type: 'number', label: `${Noun} id`, required: true }
 
   const capabilities = [
-    {
+    ops.has('create') && {
       id: `create${Noun}`, label: `Add ${article(label || Noun)}`, method: 'POST', path: `/${id}`,
       body: writable.map((f) => toBodyField(f)),
       returns: item, invalidates: [key], scopes: [writeScope],
     },
-    {
+    ops.has('update') && {
       id: `update${Noun}`, label: `Update ${Noun}`, method: 'PATCH', path: `/${id}/:id`,
       body: [idField, ...writable.map((f) => toBodyField(f, { required: false }))],
       returns: item, invalidates: [key], scopes: [writeScope],
     },
-    {
+    ops.has('delete') && {
       id: `delete${Noun}`, label: `Delete ${Noun}`, method: 'DELETE', path: `/${id}/:id`,
       body: [idField],
       returns: [{ name: 'ok', type: 'boolean' }], invalidates: [key], scopes: [writeScope],
     },
-  ]
+  ].filter(Boolean)
 
   // Filters: one per field that opted in (filter: op | true), PLUS the universal
   // `since` delta cursor over the implicit updated_at (the polled-resource bus reads
@@ -225,7 +241,9 @@ function defineCollection(def) {
     const fail = (res, e) => { console.error(`[${app}.${id}]`, e?.stack || e?.message || e); return res.status(500).json({ error: 'Internal error' }) }
     const required = writable.filter((f) => f.required).map((f) => f.name)
 
-    // LIST — filtered (its dataset's declared filters) + scoped to the owner.
+    // LIST — filtered (its dataset's declared filters) + scoped to the owner. Not
+    // gated by `only` — an append-only collection is still fully readable, it's
+    // mutation after creation that's disallowed.
     router.get(base, (req, res) => {
       try {
         const seed = scoped ? { base: ['user_id = ?'], baseParams: [ownerOf(req)] } : {}
@@ -236,52 +254,58 @@ function defineCollection(def) {
     })
 
     // CREATE
-    router.post(base, (req, res) => {
-      try {
-        const raw = req.body || {}
-        for (const name of required) {
-          const v = raw[name]
-          if (v == null || String(v).trim() === '') return res.status(400).json({ error: `${name} is required` })
-        }
-        const d = scoped ? { user_id: ownerOf(req) } : {}
-        for (const k of Object.keys(raw)) if (writableNames.has(k)) d[k] = coerce(k, raw[k])
-        const keys = Object.keys(d)
-        if (!keys.length) return res.status(400).json({ error: 'No valid fields' })
-        const r = run(`INSERT INTO ${id} (${keys.join(', ')}) VALUES (${keys.map(() => '?').join(', ')})`, keys.map((k) => d[k]))
-        res.status(201).json(toRow(get(`SELECT * FROM ${id} WHERE id = ?`, [r.lastInsertRowid])))
-      } catch (e) { fail(res, e) }
-    })
+    if (ops.has('create')) {
+      router.post(base, (req, res) => {
+        try {
+          const raw = req.body || {}
+          for (const name of required) {
+            const v = raw[name]
+            if (v == null || String(v).trim() === '') return res.status(400).json({ error: `${name} is required` })
+          }
+          const d = scoped ? { user_id: ownerOf(req) } : {}
+          for (const k of Object.keys(raw)) if (writableNames.has(k)) d[k] = coerce(k, raw[k])
+          const keys = Object.keys(d)
+          if (!keys.length) return res.status(400).json({ error: 'No valid fields' })
+          const r = run(`INSERT INTO ${id} (${keys.join(', ')}) VALUES (${keys.map(() => '?').join(', ')})`, keys.map((k) => d[k]))
+          res.status(201).json(toRow(get(`SELECT * FROM ${id} WHERE id = ?`, [r.lastInsertRowid])))
+        } catch (e) { fail(res, e) }
+      })
+    }
 
-    // UPDATE (partial)
-    router.patch(`${base}/:id`, (req, res) => {
-      try {
-        const rowId = parseInt(req.params.id, 10)
-        if (isNaN(rowId)) return res.status(400).json({ error: 'Invalid id' })
-        const valid = Object.keys(req.body || {}).filter((k) => writableNames.has(k))
-        if (!valid.length) return res.status(400).json({ error: 'No valid fields to update' })
-        const scope = scoped ? ' AND user_id = ?' : ''
-        const tail = scoped ? [rowId, ownerOf(req)] : [rowId]
-        run(`UPDATE ${id} SET ${valid.map((k) => `${k} = ?`).join(', ')} WHERE id = ?${scope}`,
-          [...valid.map((k) => coerce(k, req.body[k])), ...tail])
-        const row = get(`SELECT * FROM ${id} WHERE id = ?${scope}`, tail)
-        if (!row) return res.status(404).json({ error: 'Not found' })
-        res.json(toRow(row))
-      } catch (e) { fail(res, e) }
-    })
+    // UPDATE (partial) — omitted entirely (no route mounted) unless `only` opts in.
+    if (ops.has('update')) {
+      router.patch(`${base}/:id`, (req, res) => {
+        try {
+          const rowId = parseInt(req.params.id, 10)
+          if (isNaN(rowId)) return res.status(400).json({ error: 'Invalid id' })
+          const valid = Object.keys(req.body || {}).filter((k) => writableNames.has(k))
+          if (!valid.length) return res.status(400).json({ error: 'No valid fields to update' })
+          const scope = scoped ? ' AND user_id = ?' : ''
+          const tail = scoped ? [rowId, ownerOf(req)] : [rowId]
+          run(`UPDATE ${id} SET ${valid.map((k) => `${k} = ?`).join(', ')} WHERE id = ?${scope}`,
+            [...valid.map((k) => coerce(k, req.body[k])), ...tail])
+          const row = get(`SELECT * FROM ${id} WHERE id = ?${scope}`, tail)
+          if (!row) return res.status(404).json({ error: 'Not found' })
+          res.json(toRow(row))
+        } catch (e) { fail(res, e) }
+      })
+    }
 
-    // DELETE
-    router.delete(`${base}/:id`, (req, res) => {
-      try {
-        const rowId = parseInt(req.params.id, 10)
-        if (isNaN(rowId)) return res.status(400).json({ error: 'Invalid id' })
-        const scope = scoped ? ' AND user_id = ?' : ''
-        const tail = scoped ? [rowId, ownerOf(req)] : [rowId]
-        const row = get(`SELECT id FROM ${id} WHERE id = ?${scope}`, tail)
-        if (!row) return res.status(404).json({ error: 'Not found' })
-        run(`DELETE FROM ${id} WHERE id = ?${scope}`, tail)
-        res.json({ ok: true })
-      } catch (e) { fail(res, e) }
-    })
+    // DELETE — omitted entirely (no route mounted) unless `only` opts in.
+    if (ops.has('delete')) {
+      router.delete(`${base}/:id`, (req, res) => {
+        try {
+          const rowId = parseInt(req.params.id, 10)
+          if (isNaN(rowId)) return res.status(400).json({ error: 'Invalid id' })
+          const scope = scoped ? ' AND user_id = ?' : ''
+          const tail = scoped ? [rowId, ownerOf(req)] : [rowId]
+          const row = get(`SELECT id FROM ${id} WHERE id = ?${scope}`, tail)
+          if (!row) return res.status(404).json({ error: 'Not found' })
+          run(`DELETE FROM ${id} WHERE id = ?${scope}`, tail)
+          res.json({ ok: true })
+        } catch (e) { fail(res, e) }
+      })
+    }
   }
 
   return { app, id, key, scoped, item, capabilities, dataset, filterSpec: FILTER_SPEC, ddl, coerce, toRow, mount }

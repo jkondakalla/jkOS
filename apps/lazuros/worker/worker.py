@@ -4,7 +4,7 @@
 Polls the State node's bearer-gated /internal API for PENDING jobs, atomically
 claims one, runs inference via the node-local runtime, and posts the result back.
 
-Composability mandate (LAZUROS.md §0): this file hardcodes no model tags and no
+Composability mandate (Documentation/ARCHITECTURE.md § LazurOS): this file hardcodes no model tags and no
 prompt strings. Both come from per-deployment config files — the worker's own
 node-local slice, not the State node's full deployment.json:
 
@@ -132,7 +132,7 @@ def load_json_config(path):
 def build_prompt(capability, payload, prompt_map):
     """Render the capability's prompt template from prompts.json against the job
     payload. The template — never an inline f-string — is the per-deployment content
-    decision (LAZUROS.md §7). A missing template is a config error, not a code path."""
+    decision (Documentation/ToDo.md §1). A missing template is a config error, not a code path."""
     template = prompt_map.get(capability)
     if not template:
         raise ValueError(

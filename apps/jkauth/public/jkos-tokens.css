@@ -108,6 +108,17 @@
      (pointer precise); the touch tiers below raise it to 44px. */
   --hub-tap-min:          0px;
 
+  /* Media grid density ladder (@jkos/ui MediaGrid) — the 2/3/4-column cover-
+     grid progression, one source instead of a per-app `repeat(N, 1fr)`.
+     Mirrors packages/design/responsive/mediaGrid.ts's MEDIA_GRID_COLUMNS —
+     test/responsive.mjs pins the two together. Class rules are below,
+     next to .jk-sheet. */
+  --hub-media-cols-compact:     2;
+  --hub-media-cols-cozy:        3;
+  --hub-media-cols-comfortable: 4;
+  --hub-media-grid-gap:         0.85rem;
+  --hub-media-grid-gap-tight:   0.75rem;
+
   /* Widget layout tuning */
   --hub-widget-pad:       12px;
   --hub-title-h:          34px;
@@ -746,6 +757,55 @@
   box-shadow: var(--hub-shadow-card), inset 0 1px 0 var(--hub-bevel-light);
 }
 
+/* ─── Media grid + cover art (@jkos/ui MediaGrid / CoverArt) ───────────────
+ * The suite's responsive cover grid + its image/fallback tile — lifted out
+ * of papyros's library.css (ToDo.md §3 20.2) so the column ladder and cover
+ * styling live once, not re-hardcoded per app. Density keys off the ladder
+ * tokens declared with --hub-tap-min above (kept in sync with
+ * packages/design/responsive/mediaGrid.ts by test/responsive.mjs). ───────── */
+.jk-media-grid {
+  display: grid;
+  gap: var(--hub-media-grid-gap);
+}
+.jk-media-grid[data-density="compact"]     { grid-template-columns: repeat(var(--hub-media-cols-compact), 1fr); }
+.jk-media-grid[data-density="cozy"]        { grid-template-columns: repeat(var(--hub-media-cols-cozy), 1fr); gap: var(--hub-media-grid-gap-tight); }
+.jk-media-grid[data-density="comfortable"] { grid-template-columns: repeat(var(--hub-media-cols-comfortable), 1fr); gap: var(--hub-media-grid-gap-tight); }
+
+/* Cover image — square (audiobook/media artwork convention; a 2/3 book-
+   jacket ratio would crop real covers). Placeholder reuses .jk-well (inset
+   accent-tinted container) and only cancels its border-radius, matching the
+   original `.lib-cover`/`.lib-cover-placeholder` pairing exactly. */
+.jk-media-cover {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  background: var(--hub-bg-1);
+}
+.jk-media-cover-placeholder {
+  align-items: center;
+  justify-content: center;
+  border-radius: 0;
+}
+.jk-media-cover-placeholder span { font-size: 1.7rem; letter-spacing: 0.04em; }
+
+/* ─── Async state text (@jkos/ui <AsyncView>) ──────────────────────────────
+ * ToDo.md §3 Wave 20 item 20.3: the loading/error/empty triad's single state
+ * paragraph, unified out of three hand-rolled versions (papyros's local
+ * `.muted` in Library.tsx/BookDetail.tsx, `.offline-empty` in
+ * OfflineSettings.tsx). Neutral/muted by default like the retired `.muted`;
+ * `.jk-async-error` blends toward the danger hue (same color-mix ratio as
+ * offline.css's `.is-error` hint) rather than going pure red — legible in
+ * both modes without a hardcoded hex. ───────────────────────────────────── */
+.jk-async-note {
+  padding: 1.5rem 0;
+  opacity: 0.6;
+}
+.jk-async-error {
+  color: color-mix(in srgb, var(--hub-red) 75%, var(--hub-cream-dim));
+  opacity: 1;
+}
+
 /* ─── Mono labels, text buttons, status pills ──────────────────────────────
  * Reusable text-system primitives shared with the @jkos/ui <Lab>, <TButton>,
  * <Pill> components. All neutral/semantic — never hardcode an accent; the two
@@ -925,6 +985,147 @@
   background: var(--hub-scrim);
 }
 .jk-scrim-heavy { background: var(--hub-scrim-heavy); }
+
+/* ─── App shell — invariant guard→header→drawer frame (@jkos/ui <AppShell>) ──
+ * ToDo.md §3 Wave 20 item 20.1: the frame every full-shell app hand-wrote
+ * (auth guard, header row, SettingsDrawer, useJkOSPreferences wiring) — lifted
+ * so a hand-copy can't drop a step again. Purely structural/neutral, same as
+ * the scrim above; the header carries no accent of its own. */
+.jk-shell {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.jk-shell-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.1rem 1.5rem;
+  border-bottom: 1px solid var(--hub-line);
+}
+.jk-shell-brand {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  min-width: 0;
+}
+.jk-shell-wordmark {
+  font-family: var(--hub-font-serif);
+  font-size: 1.4rem;
+  text-decoration: none;
+}
+/* Opens the SettingsDrawer. --hub-tap-min is 0 on desktop and 44px on
+   mobile/tablet, so it is a FLOOR over the base size, never the size itself. */
+.jk-shell-settings-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  min-width: var(--hub-tap-min);
+  min-height: var(--hub-tap-min);
+  padding: 0;
+  border: 1px solid var(--hub-line);
+  border-radius: var(--hub-radius-button);
+  background: var(--hub-bg-1);
+  color: var(--hub-cream-bright);
+  cursor: pointer;
+}
+.jk-shell-settings-btn:hover { border-color: var(--accent); color: var(--accent); }
+.jk-shell-settings-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ─── Match panel — search→candidates→apply (@jkos/ui <MatchPanel>) ────────
+ * ToDo.md §3 Wave 20 item 20.4: lifted verbatim (same properties, `.match-*`
+ * renamed `.jk-match-*`) out of papyros's book-detail.css — the "Fix metadata"
+ * panel was the ONLY consumer, so a hand-copy per future consumer would repeat
+ * papyros's original single-app mistake (20.1's brief). Reads the same --hub-
+ * tokens every other component class here does; no new tokens introduced. ── */
+.jk-match-panel {
+  align-self: stretch;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.jk-match-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.jk-match-search {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.jk-match-input {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--hub-font-sans);
+  font-size: 0.9rem;
+  padding: 0.5rem 0.7rem;
+  min-height: var(--hub-tap-min);
+  border: 1px solid var(--hub-line);
+  border-radius: var(--hub-radius-sm);
+  background: var(--hub-bg-1);
+  color: var(--hub-cream-bright);
+}
+.jk-match-input:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--accent-secondary) 55%, transparent);
+}
+
+.jk-match-msg { margin: 0; padding: 0; }
+
+.jk-match-candidates {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.jk-match-candidate {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.6rem;
+  border: 1px solid var(--hub-line);
+  border-radius: var(--hub-radius-lg);
+  background: var(--hub-bg-1);
+}
+
+.jk-match-candidate-cover {
+  flex: none;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--hub-radius-sm);
+  object-fit: cover;
+  background: var(--hub-bg-2);
+}
+.jk-match-candidate-cover-placeholder {
+  border: 1px dashed var(--hub-line);
+}
+
+.jk-match-candidate-info { flex: 1; min-width: 0; }
+.jk-match-candidate-title {
+  font-family: var(--hub-font-serif);
+  font-weight: 600;
+}
+.jk-match-candidate-meta { font-size: 0.8rem; }
+.jk-match-candidate-desc {
+  margin: 0.3rem 0 0;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: var(--hub-cream-dim);
+}
+
+.jk-match-candidate-apply { flex: none; align-self: center; }
 
 /* ═══ VIEWPORT AXIS — responsive overrides ═════════════════════════════════
  * Two tiers below desktop. Each overrides ONLY the responsive-scale INPUT

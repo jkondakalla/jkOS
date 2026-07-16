@@ -34,7 +34,7 @@ ok('esm default is the CJS module', esm.default === cjs)
 
 // The lean subpath twins (@jkos/weave/collection · /connector) — each .mjs must
 // surface its .js default + named factory, same drift guard as the server entry.
-for (const [sub, fn] of [['collection', 'defineCollection'], ['connector', 'defineConnector']]) {
+for (const [sub, fn] of [['collection', 'defineCollection'], ['connector', 'defineConnector'], ['libraryScanner', 'defineLibraryScanner']]) {
   const c = require(`../src/server/${sub}.js`)
   const e = await import(`../src/server/${sub}.mjs`)
   ok(`${sub}.mjs default === ${sub}.js`, e.default === c)

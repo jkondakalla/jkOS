@@ -6,6 +6,7 @@
   "description": "jkOS suite fabric: the app manifest, the polled-resource/invalidation bus, the capability contract, and the cross-app command dispatcher. The connective tissue every app weaves into.",
   "exports": {
     ".": "./src/index.ts",
+    "./resumeCursor": "./src/resumeCursor.ts",
     "./server": {
       "require": "./src/server/index.js",
       "import": "./src/server/index.mjs"
@@ -17,16 +18,25 @@
     "./connector": {
       "require": "./src/server/connector.js",
       "import": "./src/server/connector.mjs"
+    },
+    "./libraryScanner": {
+      "require": "./src/server/libraryScanner.js",
+      "import": "./src/server/libraryScanner.mjs"
+    },
+    "./mediaRoutes": {
+      "require": "./src/server/mediaRoutes.js",
+      "import": "./src/server/mediaRoutes.mjs"
     }
   },
   "scripts": {
     "lint": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
-    "test": "node test/weave.mjs && node test/lego.mjs"
+    "test": "node test/weave.mjs && node test/lego.mjs && node test/libraryScanner.mjs && node test/mediaRoutes.mjs && node test/resumeCursor.mjs"
   },
   "dependencies": {
     "@jkos/auth-client": "workspace:*",
     "@jkos/auth-middleware": "workspace:*",
+    "@jkos/files": "workspace:*",
     "@jkos/suite-manifest": "workspace:*"
   },
   "peerDependencies": {

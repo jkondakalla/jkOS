@@ -25,6 +25,7 @@ const path = require('node:path');
 const { Router } = require('express');
 const { CODES, authError } = require('@jkos/auth-middleware');   // 4.3's admin gate — same house pattern as routes/library.js
 const { extractYear, cleanGenres } = require('../library/probe');   // same 4-digit-year convention scan.js's mapTagsToColumns uses
+const { META } = require('../../discovery');   // 17.6: META.call('metadataSearch', …) — the connector's in-process read surface, no hand-rolled duplicate
 
 /** iTunes serves search-result artwork at `artworkUrl100` (a 100x100 thumbnail), but
  *  the SAME asset is addressable at other sizes by swapping that `100x100` path segment
@@ -194,43 +195,16 @@ function isExactMatch(book, candidate) {
   return bTitle === cTitle && bAuthor === cAuthor;
 }
 
-/** Hand-rolled iTunes search + map for matchAllMissing's internal batch sweep.
- *
- *  This does NOT call through @jkos/weave/connector's META.mount() (discovery.js) —
- *  checked packages/weave/src/server/connector.js: `defineConnector(def).mount(router,
- *  opts)` only wires `reads`/`actions` onto Express routes; it exposes no standalone
- *  "fetch + map one term" function a route handler could call in-process (mount()'s
- *  closures — upstreamUrl/authParts/mapItem — aren't returned, only bound into the
- *  route it registers). So this function mirrors META's spec (discovery.js: same
- *  media/entity/limit query, same collectionId/collectionName/artistName/
- *  artworkUrl100/description/releaseDate/primaryGenreName → id/title/author/cover/
- *  description/year/genre map) rather than reusing it. META (discovery.js) stays the
- *  single SERVED wire contract for GET /api/metadataSearch — this is a second caller of
- *  the same upstream with the same shape, not a second contract to keep in sync by hand
- *  (both read off the one comment block in discovery.js documenting the field mapping).
- *
- * @returns {Promise<Array<{id:number, title:string, author:string, cover:string, description:string, year:string, genre:string}>>}
- */
-async function searchItunesCandidates(doFetch, term) {
-  const url = new URL('https://itunes.apple.com/search');
-  url.searchParams.set('media', 'audiobook');
-  url.searchParams.set('entity', 'audiobook');
-  url.searchParams.set('limit', '5');
-  url.searchParams.set('term', term);
-  const r = await doFetch(url);
-  if (!r.ok) throw new Error(`upstream ${r.status}`);
-  const data = await r.json();
-  const rows = Array.isArray(data && data.results) ? data.results : [];
-  return rows.map((rec) => ({
-    id: rec.collectionId,
-    title: rec.collectionName,
-    author: rec.artistName,
-    cover: rec.artworkUrl100,
-    description: rec.description,
-    year: rec.releaseDate,
-    genre: rec.primaryGenreName,
-  }));
-}
+/** 17.6: matchAllMissing's internal batch sweep searches iTunes via META's in-process
+ *  `call()` surface (@jkos/weave/connector, discovery.js) — `META.call('metadataSearch',
+ *  { term }, { fetch: doFetch })` runs the EXACT SAME query-building + field-mapping
+ *  code GET /api/metadataSearch runs (same media/entity/limit query, same
+ *  collectionId/collectionName/artistName/artworkUrl100/description/releaseDate/
+ *  primaryGenreName → id/title/author/cover/description/year/genre map), just without
+ *  the HTTP hop through this app's own route. Before 17.6 the connector exposed no
+ *  standalone callable surface, so this used to hand-roll a second copy of the same
+ *  upstream call + map; that duplicate is gone, META is now the single implementation
+ *  for both the served route and this in-process caller. */
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -283,7 +257,7 @@ async function runEnrichmentSweep({ db, dataDir, doFetch, cap = 50, delayMs = 25
     let candidates;
     try {
       const term = [book.title, book.author].filter(Boolean).join(' ');
-      candidates = await searchItunesCandidates(doFetch, term);
+      candidates = await META.call('metadataSearch', { term }, { fetch: doFetch });
     } catch (err) {
       console.warn(`[papyros] enrichment search failed for book ${book.id}: ${err.message}`);
       review.push({ bookId: book.id, title: book.title, candidates: [], error: true });

@@ -18,8 +18,8 @@ const {
 } = require('@jkos/weave/server');
 const { resolveIssuer } = require('@jkos/auth-middleware');   // shared issuer default (single source)
 const {
-  CAPABILITIES, DATASETS, PROGRESS, BOOKMARKS, CLUBS, CLUB_MEMBERS, META,
-} = require('./discovery');   // discovery docs (2.3/2.4) + 3.1's four owner-scoped collections + 4.1's META connector
+  CAPABILITIES, DATASETS, PROGRESS, BOOKMARKS, CLUBS, CLUB_MEMBERS, HISTORY, META,
+} = require('./discovery');   // discovery docs (2.3/2.4) + 3.1's four owner-scoped collections + 17.4's append-only HISTORY + 4.1's META connector
 const { createScanner } = require('./src/library/scan');     // 2.3: AUDIOBOOKS_DIR walker → `books` catalog
 const { createLibraryRouter } = require('./src/routes/library'); // 2.3: rescanLibrary route
 const { createBooksRouter } = require('./src/routes/books');     // 2.4: filtered `books` dataset read
@@ -151,6 +151,64 @@ const MIGRATIONS = [
      scans; this one-shot heals rows written before the fix — a rescan alone never
      would, because the scanner skips mtime-unchanged folders. */
   { id: 7, name: 'null_series_equal_title', up(d) { d.exec("UPDATE books SET series = NULL WHERE series IS NOT NULL AND title IS NOT NULL AND lower(trim(series)) = lower(trim(title))"); } },
+  /* 17.5 (BUG): `progress` had no server-side UNIQUE(user_id, book_ref) — one-row-
+     per-user-per-book was a CLIENT convention only (the resume cursor's find-then-
+     create/update choreography, packages/weave/src/resumeCursor.ts + offline/
+     writes.ts's find-by-book_ref-else-POST replay), which the server would happily
+     let a race violate (two POSTs landing before either's row existed yet — e.g.
+     two tabs' first play of the same book). Dedupe FIRST (keep the newest row per
+     pair — highest updated_at, ties by highest id — via ROW_NUMBER(), so this
+     migration can't crash on a staging DB that already carries duplicates: a
+     migration that dies on existing rows is a boot-loop trap), THEN add the
+     composite UNIQUE index. SQLite has no ALTER TABLE ADD CONSTRAINT — a UNIQUE
+     INDEX is the idiom, same DDL-only shape as migration 1's idx_books_* (no table
+     rebuild). A companion BEFORE INSERT trigger makes POST /api/progress upsert-
+     safe against that index WITHOUT touching packages/weave/src/server/
+     collection.js's generic mount(): defineCollection's create route has no per-
+     collection conflict hook, and its generic `fail()` maps ANY thrown error
+     (including SQLITE_CONSTRAINT_UNIQUE) to a bare 500 — which resumeCursor.ts's
+     doWrite() swallows non-fatally (by design, for transient failures), but since
+     `row` is only ever reassigned on a SUCCESSFUL write, a raw constraint violation
+     would silently and PERMANENTLY stop that tab's position saves for the book
+     (every later tick retries the same losing create forever). The trigger deletes
+     the stale (user_id, book_ref) row immediately before the INSERT proceeds, so
+     the create route's own SQL is untouched and always succeeds — the second
+     creator's data wins, same last-write-wins semantics an unconstrained PATCH race
+     already had, and the collection's `id`/`updated_at` triggers (PROGRESS.ddl())
+     still stamp the surviving row normally. */
+  {
+    id: 8,
+    name: 'progress_unique_user_book',
+    up(d) {
+      d.exec(`
+        DELETE FROM progress WHERE id IN (
+          SELECT id FROM (
+            SELECT id, ROW_NUMBER() OVER (
+              PARTITION BY user_id, book_ref
+              ORDER BY updated_at DESC, id DESC
+            ) AS rn
+            FROM progress
+          )
+          WHERE rn > 1
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_progress_user_book ON progress(user_id, book_ref);
+
+        DROP TRIGGER IF EXISTS progress_upsert_on_conflict;
+        CREATE TRIGGER progress_upsert_on_conflict BEFORE INSERT ON progress
+          FOR EACH ROW WHEN EXISTS (
+            SELECT 1 FROM progress WHERE user_id = NEW.user_id AND book_ref = NEW.book_ref
+          )
+          BEGIN
+            DELETE FROM progress WHERE user_id = NEW.user_id AND book_ref = NEW.book_ref;
+          END;
+      `);
+    },
+  },
+  // 17.4: `history` — append-only play events (HISTORY.ddl(), same one-source
+  // pattern as migration 2's `progress`). Deliberately NO analogue of migration 8's
+  // upsert-on-conflict trigger: history is meant to accumulate one row per session,
+  // never collapse duplicates — the opposite intent of progress's resume cursor.
+  { id: 9, name: 'create_history', up(d) { d.exec(HISTORY.ddl()); } },
 ];
 
 function runMigrations() {
@@ -230,16 +288,19 @@ app.get('/api/auth/me', (req, res) => res.json({ user: req.user }));
 app.use(createLibraryRouter({ scanLibrary: scanner.scanLibrary }));
 app.use(createBooksRouter({ db }));
 
-/* ── Per-user collections (3.1) ────────────────────────────────────────────
+/* ── Per-user collections (3.1 + 17.4) ─────────────────────────────────────
    progress/bookmarks/clubs/club_members each wire their own scoped GET/POST/PATCH/
    DELETE at /api/<id> in one line — filtered (their dataset's declared filters) AND
    owner-scoped to req.user.sub, derived from the CollectionDefs in discovery.js.
-   Mounted after the identity gate + write gate (above) and before the SPA fallback,
-   same slot as the library/books routes. */
+   `history` (17.4) is the same shape but append-only — its CollectionDef declares
+   `only: ['create']`, so .mount() below wires GET (list) + POST (create) only; there
+   is no PATCH/DELETE route for it at all. Mounted after the identity gate + write
+   gate (above) and before the SPA fallback, same slot as the library/books routes. */
 PROGRESS.mount(app, db);
 BOOKMARKS.mount(app, db);
 CLUBS.mount(app, db);
 CLUB_MEMBERS.mount(app, db);
+HISTORY.mount(app, db);   // 17.4: GET (list) + POST (create) only — see discovery.js's HISTORY comment
 
 /* ── Connectors (4.1) ──────────────────────────────────────────────────────
    META wires GET /api/metadataSearch — it proxies to the iTunes Search API

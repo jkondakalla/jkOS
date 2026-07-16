@@ -11,8 +11,7 @@ fix it, re-run from there**. Then use the decision table to turn a failure *sign
 into a *fix*. This encodes tribal knowledge that otherwise lives in session notes.
 
 Repo root: `/media/jag/The Forge/jkOS` (the path has a space — quote it). Branch `staging`.
-**Off-limits:** `apps/sylibos/`, `services/plex-api/`, `services/recipe-api/` — never edit,
-even in a sweep.
+**Off-limits:** `apps/sylibos/` — never edit, even in a sweep.
 
 ## Run order
 

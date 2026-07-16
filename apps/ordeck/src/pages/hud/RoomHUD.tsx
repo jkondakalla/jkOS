@@ -27,7 +27,7 @@ import '../../styles/hud.css';
    this foundation in later phases. */
 
 export default function RoomHUD() {
-  const { theme, effects, lazuros, user, saving, patchTheme, patchEffects, patchLazuros } =
+  const { theme, effects, lazuros, user, saving, patchTheme, patchEffects } =
     useJkOSPreferences();
 
   // All widget slices in one context (single BeigeBoard fetch shared across them).
@@ -332,11 +332,9 @@ export default function RoomHUD() {
         user={user}
         theme={theme}
         effects={effects}
-        lazuros={lazuros}
         saving={saving}
         patchTheme={patchTheme}
         patchEffects={patchEffects}
-        patchLazuros={patchLazuros}
         authUrl={AUTH_URL}
         extra={<WeatherSection />}
       />

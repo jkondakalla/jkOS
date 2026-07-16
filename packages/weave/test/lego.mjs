@@ -207,6 +207,59 @@ if (!Database) {
   ok('list reflects the delete', call('GET /api/items').body.length === 1)
 }
 
+// ── `only` (17.4): an append-only collection — a play-history log needs create +
+// read, and MUST NOT expose update/delete, ever (a listener editing/deleting past
+// play events would corrupt any stat derived from it). Exercises both the derived
+// docs (capabilities list) and the live mount (routes literally not wired, not just
+// authorization-denied — a request falls through to the app's own 404 catch-all).
+section('D1b · defineCollection({ only }) — append-only capability/route selection')
+const history = defineCollection({
+  app: 'demo', id: 'history', label: 'Play history', noun: 'HistoryEvent',
+  only: ['create'],
+  fields: [
+    { name: 'item_ref',   type: 'ref',     label: 'Item',   ref: 'demo.items', required: true },
+    { name: 'started_at', type: 'string',  label: 'Started at (ISO timestamp)', required: true },
+    { name: 'ms_played',  type: 'number',  label: 'Milliseconds played', default: 0 },
+    { name: 'completed',  type: 'boolean', label: 'Completed' },
+  ],
+})
+ok('only: [\'create\'] emits ONLY the create capability', history.capabilities.map((c) => c.id).join(',') === 'createHistoryEvent')
+ok('derived CapabilityDoc still passes checkDocShape',
+  checkDocShape({ app: 'demo', version: 1, capabilities: history.capabilities }, 'capabilities') === null)
+ok('rejects an invalid only[] entry', (() => {
+  try { defineCollection({ app: 'a', id: 'b', label: 'B', only: ['read'], fields: [{ name: 'x', type: 'string' }] }); return false }
+  catch { return true }
+})())
+
+if (!Database) {
+  skip++; console.log('  ⤼ SKIP append-only live-route test (better-sqlite3 not resolvable in this env)')
+} else {
+  const db = new Database(':memory:')
+  db.exec(history.ddl())
+  const routes = {}
+  const router = {
+    get: (p, h) => { routes[`GET ${p}`] = h },
+    post: (p, h) => { routes[`POST ${p}`] = h },
+    patch: (p, h) => { routes[`PATCH ${p}`] = h },
+    delete: (p, h) => { routes[`DELETE ${p}`] = h },
+  }
+  history.mount(router, db)
+  ok('mount wires GET (list) + POST (create) only', typeof routes['GET /api/history'] === 'function' && typeof routes['POST /api/history'] === 'function')
+  ok('mount does NOT wire PATCH', routes['PATCH /api/history/:id'] === undefined)
+  ok('mount does NOT wire DELETE', routes['DELETE /api/history/:id'] === undefined)
+
+  const res = () => { const r = { code: 200, body: undefined, status(c) { this.code = c; return this }, json(b) { this.body = b; return this } }; return r }
+  const call2 = (key, { user = { sub: 7 }, body = {}, query = {}, params = {} } = {}) => {
+    const r = res(); routes[key]({ user, body, query, params }, r); return r
+  }
+  let hr = call2('POST /api/history', { body: { item_ref: 1, started_at: '2026-07-15T00:00:00.000Z', ms_played: 1000, completed: false } })
+  ok('POST appends a row (201) scoped to the caller', hr.code === 201 && hr.body.item_ref === '1' && hr.body.ms_played === 1000)
+  call2('POST /api/history', { body: { item_ref: 1, started_at: '2026-07-15T00:05:00.000Z', ms_played: 2000, completed: true } })
+  call2('POST /api/history', { user: { sub: 9 }, body: { item_ref: 1, started_at: '2026-07-15T00:00:00.000Z', ms_played: 500, completed: false } })
+  hr = call2('GET /api/history')
+  ok('GET lists only the caller’s rows, append accumulates (no upsert)', hr.body.length === 2)
+}
+
 /* ═══ D2 · Connector primitive ═══════════════════════════════════════════════ */
 section('D2 · connector primitive (defineConnector)')
 const { defineConnector } = require('../src/server/connector.js')

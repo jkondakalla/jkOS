@@ -50,8 +50,15 @@ Root `docker-compose.yml` (`include:` each `apps/<svc>/docker-compose.yml`) is p
 | ordeck-shell | jkos-internal | 80 | jkos.net |
 | jkos-auth | jkos-internal | 3100 | auth.jkos.net |
 | bb-app | jkos-internal | 3001 | beigeboard.jkos.net |
+| papyros-app | jkos-internal | 3010 | papyros.jkos.net (prod pending DNS); `/papyros/` on staging |
 | lazuros | host | 8080 | internal |
 | staging-* + jkos-deploy | nginx-staging-proxy | — | staging.jkos.net |
+
+PapyrOS additionally bind-mounts the read-only audiobook library
+(`/mnt/Luna/Luna/Plex/Audiobooks` on the host — note the nested `Luna/Luna`; the pool-root
+path silently mounts empty) and needs `ffmpeg` in its image (the Dockerfile installs it).
+LazurOS runs `network_mode: host` to broadcast Wake-on-LAN packets; nginx reaches it via
+`host.docker.internal:8080`.
 
 ## Deploy (jkos-deploy)
 
@@ -207,6 +214,12 @@ done
 mkdir -p /mnt/Luna/Backends/Production/nginx-logs
 ```
 
+The five core services above are the from-zero baseline. **Additional apps** (PapyrOS,
+LazurOS) get their `<id>-data` dir created on first deploy — `lib-deploy.sh` self-heals a
+missing per-app data dir and `.env`. PapyrOS also needs the read-only audiobook library
+mounted (`AUDIOBOOKS_DIR`, see its `docker-compose*.yml`); LazurOS needs a mounted
+`deployment.json` before it can serve (ToDo §1).
+
 **RS256 keypair** — generate once. Private key goes in jkAuth only.
 
 ```bash
@@ -235,8 +248,10 @@ Copy `.env.example` → `.env` in each app. Key required vars:
 | Service | File | Key vars |
 |---------|------|----------|
 | jkAuth | `apps/jkauth/.env` | `JKOS_AUTH_PRIVATE_KEY`, `JKOS_AUTH_PUBLIC_KEY`, `COOKIE_DOMAIN`, `AUTH_ORIGIN`, `PORTAL_URL`, `GOOGLE_CLIENT_ID/SECRET/REDIRECT_URI`, `ADMIN_SEED_EMAIL/PASSWORD` |
-| BeigeBoard | `apps/beigeboard/.env` | `JKOS_AUTH_PUBLIC_KEY`, `GOOGLE_CLIENT_ID/SECRET/REDIRECT_URI`, `LAZUROS_URL`, `LAZUROS_TOKEN`, `CALENDAR_ENC_KEY` |
+| BeigeBoard | `apps/beigeboard/.env` | `JKOS_AUTH_PUBLIC_KEY`, `GOOGLE_CLIENT_ID/SECRET/REDIRECT_URI`, `CALENDAR_ENC_KEY` (no AI keys — BB does not call a model; LazurOS writes INTO it) |
 | ORDECK | `apps/ordeck/.env` | build-time `VITE_JKOS_AUTH_URL` (prod default baked in) |
+| PapyrOS | `apps/papyros/.env` | `JKOS_AUTH_PUBLIC_KEY`, `AUDIOBOOKS_DIR` (`/audiobooks` in-container), `PAPYROS_AUTO_ENRICH`/`PAPYROS_AUTO_COMPAT` toggles |
+| LazurOS | `apps/lazuros/.env` | `JKOS_AUTH_PUBLIC_KEY`, `LAZUROS_INTERNAL_TOKEN`, `LAZUROS_DEPLOYMENT_CONFIG` (the mounted `deployment.json`), `JKOS_SERVICE_CLIENT_ID/SECRET` for delegated write-back. **Not a stack service** — host-network compose project of its own; see [LAZUROS_STARTUP.md](LAZUROS_STARTUP.md) |
 
 Staging reads the same `.env` files; staging-specific overrides come from
 `docker-compose.staging.yml`. Copy to the staging checkout after filling in prod values:
@@ -312,7 +327,7 @@ reference.
 | `JKOS_AUTH_PRIVATE_KEY` | `apps/jkauth/.env` only | RS256 private key, inline `\n`. Never in any other app. |
 | `JKOS_AUTH_PUBLIC_KEY` | every backend + jkauth | Required by `@jkos/auth-middleware`. |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | jkauth + beigeboard | Separate OAuth apps (different redirect URIs). |
-| `LAZUROS_TOKEN` | lazuros, beigeboard | Shared static bearer for server-to-server LazurOS calls. |
+| `LAZUROS_INTERNAL_TOKEN` | lazuros + each compute-node worker | Bearer for the State node's `/internal` worker API (LAN-only, not edge-exposed). **Not** shared with BeigeBoard — BB holds no LazurOS keys. There is no `LAZUROS_TOKEN` (that var survives only in out-of-scope `apps/sylibos`). |
 | `CALENDAR_ENC_KEY` | `apps/beigeboard/.env` | 64 hex chars → AES-256-GCM encryption of calendar OAuth tokens at rest. Generate: `openssl rand -hex 32`. |
 | `JKOS_SERVICE_CLIENTS` | `apps/jkauth/.env` | `"id:secret:scopeA\|scopeB,..."` — enables `POST /auth/token` (client-credentials). Unset → endpoint disabled. |
 

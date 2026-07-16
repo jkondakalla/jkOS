@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Lab, Pill, TButton, cx } from '@jkos/ui';
+import { AsyncView, Lab, Pill, TButton } from '@jkos/ui';
 import {
   coverUrl, getBook, listProgress,
   type BookDetail as BookDetailRow, type ProgressRow,
@@ -118,12 +118,14 @@ export default function BookDetail({ bookId }: { bookId: number }) {
 
   return (
     <section className="view-book-detail">
-      <a href="#/" className={cx('jk-tbtn', 'jk-tbtn-quiet', 'back-link')}>&larr; Library</a>
+      <TButton as="a" href="#/" quiet className="back-link">&larr; Library</TButton>
 
-      {error && <p className="muted">Could not load this book.</p>}
-      {!error && !book && <p className="muted">Loading…</p>}
-
-      {book && (
+      <AsyncView
+        loading={!error && !book}
+        error={error}
+        errorText="Could not load this book. Try again shortly."
+      >
+        {book && (
         <>
           <div className="book-hero">
             {showCoverImg ? (
@@ -253,7 +255,8 @@ export default function BookDetail({ bookId }: { bookId: number }) {
             </ol>
           </div>
         </>
-      )}
+        )}
+      </AsyncView>
     </section>
   );
 }

@@ -29,6 +29,7 @@ import { tmpdir } from 'node:os';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
+const Database = require('better-sqlite3');
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const BACKEND = join(__dirname, '..');
 const WORKER_DIR = resolve(BACKEND, '../worker');
@@ -212,6 +213,85 @@ async function main() {
     'write-back delegates as the acting user, to beigeboard, with the parsed doc');
   const skip = await runWriteback({ capability: 'query', user_id: 'u42' }, { response: '{}' }, { makeClient: fakeClient });
   ok(skip.skipped === true && calls.length === 1, 'a non-write capability (query) skips write-back');
+
+  // ═══ Part D — the edge contract: routes live at their FULL declared paths ═══
+  // LazurOS is the one peer whose Express routes carry the '/api/lazuros' prefix, so its
+  // nginx block must NOT strip it (the others' do strip). That disagreement is invisible
+  // to every in-process test — the server was fine, the conf was fine, and the edge 404'd
+  // everything — so pin BOTH halves: the prober checks the conf against these declared
+  // paths, and here we prove the server really only answers on them.
+  const { CAPABILITIES_DOC } = require('../docs');
+  for (const cap of CAPABILITIES_DOC.capabilities) {
+    ok(cap.path.startsWith('/api/lazuros/'), `capability '${cap.id}' declares its full edge path (${cap.path})`);
+  }
+  const stripped = await fetch(`${node.base}/health`);          // what a prefix-stripping edge would send
+  ok(stripped.status === 404, 'the STRIPPED path (/health) 404s — proof the routes are not mounted bare, so nginx must preserve the prefix');
+  const full = await fetch(`${node.base}/api/lazuros/health`);  // what the fixed edge sends
+  ok(full.ok, 'the FULL path (/api/lazuros/health) is the one the server answers');
+
+  // Health reports COMPUTE state, not just process state: the State node is up whether or
+  // not the machine that thinks is awake, and the HUD/console must be able to tell those
+  // apart (ORDECK renders compute_online:false as "gpu asleep", a warn).
+  const hbody = await full.json();
+  ok(hbody.status === 'ok' && hbody.service === 'lazuros', 'health keeps the uniform weave payload');
+  ok(hbody.compute_online === true && hbody.backends?.local === true,
+    'an always-on backend reports compute_online:true, named per backend');
+  const wolHealth = await (await fetch(`${wolNode.base}/api/lazuros/health`)).json();
+  ok(wolHealth.status === 'ok' && wolHealth.compute_online === false,
+    'a sleeping wol backend → still status:ok (the node is up) but compute_online:false (the GPU is not)');
+
+  // The test console ships with the node and is served under the same authed prefix
+  // (staging exposes it at /LazurOS).
+  const con = await fetch(`${node.base}/api/lazuros/console/`);
+  const conHtml = await con.text();
+  ok(con.ok && /LazurOS/.test(conHtml), 'the test console is served at /api/lazuros/console/');
+
+  // ═══ Part E — jobs dataset filters: capability (eq) + since (delta cursor over
+  // updated_at, exclusive) + undeclared-param handling (ToDo §1a 1.3, docs.js/jobs.js).
+  // Seed two rows DIRECTLY into the running node's SQLite file — a second connection
+  // alongside the server's (same pattern as library.smoke.mjs), used here to WRITE
+  // rows with exactly controlled capability/timestamps instead of racing wall-clock
+  // POSTs. No background writer runs on the server between seed and read (queue.js's
+  // requeueStaleJobs only fires inside an /internal poll this test never makes), so a
+  // one-shot connection that inserts then closes before the next HTTP call is safe. ══
+  const seedDb = new Database(node.dbPath);
+  const seedJob = (id, capability, stamp) => seedDb.prepare(
+    `INSERT INTO jobs (id, user_id, capability, tier_id, status, payload, created_at, updated_at)
+     VALUES (?, '1', ?, NULL, 'PENDING', '{}', ?, ?)`,
+  ).run(id, capability, stamp, stamp);
+  seedJob('e2e-cap-old', 'seed-old', '2020-01-01 00:00:00');
+  seedJob('e2e-cap-new', 'seed-new', '2099-01-01 00:00:00');
+  seedDb.close();
+
+  // capability: exact-match narrowing, independently in both directions (proves the
+  // filter isn't hardcoded to one value — declared == enforced over the real column).
+  const byOldCap = await jsonReq(node.base, 'GET', '/api/lazuros/jobs?capability=seed-old');
+  ok(Array.isArray(byOldCap.json) && byOldCap.json.length === 1 && byOldCap.json[0].id === 'e2e-cap-old',
+    '?capability= narrows to exactly the matching capability');
+  const byNewCap = await jsonReq(node.base, 'GET', '/api/lazuros/jobs?capability=seed-new');
+  ok(Array.isArray(byNewCap.json) && byNewCap.json.length === 1 && byNewCap.json[0].id === 'e2e-cap-new',
+    '?capability= narrows to a DIFFERENT capability independently');
+
+  // since: delta cursor over updated_at — matches the BB items / PapyrOS books
+  // convention (`gt`, exclusive): a row strictly after the cursor is IN, a row exactly
+  // ON the cursor is OUT.
+  const sinceMid = await jsonReq(node.base, 'GET', `/api/lazuros/jobs?since=${encodeURIComponent('2050-01-01 00:00:00')}`);
+  const sinceMidIds = (sinceMid.json || []).map((j) => j.id);
+  ok(sinceMidIds.includes('e2e-cap-new') && !sinceMidIds.includes('e2e-cap-old'),
+    '?since= returns only rows updated AFTER the cursor (newer row in, older row out)');
+
+  const sinceExact = await jsonReq(node.base, 'GET', `/api/lazuros/jobs?since=${encodeURIComponent('2099-01-01 00:00:00')}`);
+  const sinceExactIds = (sinceExact.json || []).map((j) => j.id);
+  ok(!sinceExactIds.includes('e2e-cap-new'),
+    '?since= is EXCLUSIVE — a row whose updated_at exactly equals the cursor is not returned');
+
+  // An undeclared filter param is silently ignored (buildItemFilters only ever reads
+  // params present in the declared spec), not rejected and not misapplied as a filter —
+  // the row set is identical to the unfiltered read.
+  const unfiltered = await jsonReq(node.base, 'GET', '/api/lazuros/jobs');
+  const bogus = await jsonReq(node.base, 'GET', '/api/lazuros/jobs?definitely_not_a_declared_filter=xyz');
+  ok(bogus.status === 200 && Array.isArray(bogus.json) && bogus.json.length === (unfiltered.json || []).length,
+    'an undeclared query param is silently ignored (200, same row set as unfiltered)');
 
   console.log(`\n✅ worker-e2e: ${pass} assertions`);
 }

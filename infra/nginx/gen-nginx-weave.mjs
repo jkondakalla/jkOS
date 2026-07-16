@@ -102,12 +102,33 @@ const HEADER_STAGING = `# weave-proxy-staging.conf — the same-origin peer-prox
 
 function lazurosBlock(staging) {
   return `# LazurOS AI gateway — host network (WoL broadcast), reached via the host gateway.
-# Prefix stripped; buffering off + long read timeout for streamed NDJSON tokens.
+# Prefix PRESERVED (no trailing slash on proxy_pass): unlike the other peers, the State
+# node registers its routes at their full edge paths — /api/lazuros/health, and the
+# capability paths declared in backend/docs.js — so the path a capability doc ADVERTISES
+# is the path the server actually serves. Stripping here would 404 every one of them.
+# Buffering off + long read timeout for streamed NDJSON tokens.
 location /api/lazuros/ {
-${gateBlock(GATE, staging)}    proxy_pass         http://host.docker.internal:8080/;
+${gateBlock(GATE, staging)}    proxy_pass         http://host.docker.internal:8080;
     proxy_http_version 1.1;
     proxy_buffering    off;
     proxy_read_timeout 600s;
+    proxy_set_header   Host              $host;
+    proxy_set_header   X-Real-IP         $remote_addr;
+    proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+    proxy_set_header   X-Forwarded-Proto $scheme;
+}`
+}
+
+// The LazurOS test console — STAGING ONLY, and deliberately so: it is the surface for
+// exercising the gateway (submit a capability, watch the job walk its states) before any
+// app depends on it. Pretty path -> the console the State node serves under its own API
+// prefix. Prod gets no /LazurOS: nothing in prod should be driving the gateway by hand.
+function lazurosConsoleBlock() {
+  return `# LazurOS test console (staging only) — https://staging.jkos.net/LazurOS
+location = /LazurOS { return 302 /LazurOS/; }
+location /LazurOS/ {
+${gateBlock(GATE, true)}    proxy_pass         http://host.docker.internal:8080/api/lazuros/console/;
+    proxy_http_version 1.1;
     proxy_set_header   Host              $host;
     proxy_set_header   X-Real-IP         $remote_addr;
     proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
@@ -143,7 +164,10 @@ function build(staging) {
   const blocks = []
   // health probes first (one per peer that has one), then api prefixes — matches
   // the original portal ordering; lazuros leads (special-cased).
-  for (const p of PEERS) if (p.kind === 'lazuros') blocks.push(lazurosBlock(staging))
+  for (const p of PEERS) if (p.kind === 'lazuros') {
+    blocks.push(lazurosBlock(staging))
+    if (staging) blocks.push(lazurosConsoleBlock())
+  }
   for (const p of PEERS) if (p.health && p.kind !== 'lazuros') blocks.push(healthBlock(p, staging))
   for (const p of PEERS) if (p.apiPrefix && p.kind !== 'lazuros') blocks.push(apiBlock(p, staging))
   const header = staging ? HEADER_STAGING : HEADER

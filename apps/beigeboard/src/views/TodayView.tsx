@@ -5,7 +5,7 @@ import { activeGoals, isAdrift, nextUnscheduled } from '../lib/plan'
 import { Eyebrow, Checkbox, Plate, RecLamp } from '../components/SharedComponents'
 import { TButton, Well } from '@jkos/ui'
 
-export function TodayView({ items, today, onSelect, onToggle, onAddTask, onUpdateItem, setView, setFocusedNodeId, selectedId, recentlyAdded, readonly, aiEnabled }: any) {
+export function TodayView({ items, today, onSelect, onToggle, onAddTask, onUpdateItem, setView, setFocusedNodeId, selectedId, recentlyAdded, readonly }: any) {
   const d = localDate(today)
   const dateStr = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
 
@@ -34,7 +34,7 @@ export function TodayView({ items, today, onSelect, onToggle, onAddTask, onUpdat
         {next ? (
           <NextCard item={next} items={items} onSelect={onSelect} onToggle={onToggle} />
         ) : todayAll.length === 0 && carried.length === 0 ? (
-          <EmptyDay onAdd={readonly ? null : onAddTask} today={today} aiEnabled={aiEnabled} />
+          <EmptyDay onAdd={readonly ? null : onAddTask} today={today} />
         ) : (
           <ClearedDay onceMore={() => setView('tasks')} />
         )}
@@ -160,41 +160,14 @@ function NextCard({ item, items, onSelect, onToggle }: any) {
   )
 }
 
-function EmptyDay({ onAdd, today, aiEnabled }: any) {
+function EmptyDay({ onAdd, today }: any) {
   const [adding, setAdding] = useState(false)
   const [draft, setDraft] = useState('')
-  const [aiLoading, setAiLoading] = useState(false)
 
   const handle = () => {
     if (!draft.trim()) { setAdding(false); return }
     onAdd({ title: draft.trim(), due_date: today })
     setDraft(''); setAdding(false)
-  }
-
-  const handleAI = async () => {
-    if (!draft.trim() || aiLoading) return
-    setAiLoading(true)
-    try {
-      const r = await fetch('/api/ai/parse-task', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ text: draft.trim(), today }),
-      })
-      if (!r.ok) throw new Error()
-      const parsed = await r.json()
-      // The AI returns `due_date: null` when it finds no date — spreading parsed
-      // AFTER `due_date: today` let that null clobber today, so the task created from
-      // the empty-today prompt vanished off Today. Default to today only when the AI
-      // gave none.
-      onAdd({ ...parsed, due_date: parsed.due_date || today })
-      setDraft(''); setAdding(false)
-    } catch {
-      onAdd({ title: draft.trim(), due_date: today })
-      setDraft(''); setAdding(false)
-    } finally {
-      setAiLoading(false)
-    }
   }
 
   return (
@@ -219,7 +192,7 @@ function EmptyDay({ onAdd, today, aiEnabled }: any) {
               if (e.key === 'Enter') handle()
               if (e.key === 'Escape') { setAdding(false); setDraft('') }
             }}
-            placeholder="Describe a task — or let AI parse it…"
+            placeholder="Describe a task…"
             style={{
               flex: 1, background: 'transparent', border: 'none',
               borderBottom: '1px solid var(--color-line)',
@@ -227,21 +200,6 @@ function EmptyDay({ onAdd, today, aiEnabled }: any) {
               padding: '6px 2px',
             }}
           />
-          {aiEnabled && (
-          <button
-            onClick={handleAI}
-            disabled={aiLoading}
-            className="btn-action"
-            title="Let AI parse this into a structured task"
-            style={{
-              background: aiLoading ? 'var(--color-paper-2)' : 'transparent',
-              color: 'var(--color-accent)', border: `1px solid var(--color-accent-glow)`,
-              fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.14em',
-              textTransform: 'uppercase', padding: '10px 14px',
-              cursor: aiLoading ? 'wait' : 'pointer', opacity: aiLoading ? 0.6 : 1,
-            }}
-          >{aiLoading ? '…' : '✦ AI'}</button>
-          )}
           <button onClick={handle} className="btn-action" style={{
             background: 'var(--color-accent)', color: 'var(--color-paper)', border: 'none',
             fontFamily: FONT_BODY, fontSize: 11, letterSpacing: '0.14em',

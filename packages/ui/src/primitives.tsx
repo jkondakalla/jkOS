@@ -1,4 +1,4 @@
-import type { ElementType, HTMLAttributes, ReactNode } from 'react';
+import type { ComponentPropsWithoutRef, ElementType, HTMLAttributes, ReactNode } from 'react';
 
 /* ─────────────────────────────────────────────────────────────────────────────
    @jkos/ui — accent "bubble" primitives.
@@ -17,21 +17,28 @@ export function cx(...parts: Array<string | false | null | undefined>): string {
   return parts.filter(Boolean).join(' ');
 }
 
-interface BaseProps extends HTMLAttributes<HTMLElement> {
+/** Shared polymorphic prop shape for the primitives below: `as` picks the
+ *  rendered element (default per component, see each component's signature),
+ *  and the allowed DOM props follow THAT element — so a button-default
+ *  primitive carries `disabled`/`type`, and `as="a"` unlocks `href` — instead
+ *  of the old fixed `HTMLAttributes<HTMLElement>`, which had neither. Own
+ *  props (`tone`, `size`, `quiet`, ...) win over any same-named DOM attribute. */
+type PolymorphicProps<E extends ElementType, Own extends object = object> = Own & {
   /** Render as a different element (default per component). */
-  as?: ElementType;
+  as?: E;
   children?: ReactNode;
-}
+} & Omit<ComponentPropsWithoutRef<E>, keyof Own | 'as' | 'children'>;
 
 /** Single-element accent pill — struck (primary) or flat (secondary). */
-export function Bubble({
-  as: As = 'span',
+export function Bubble<E extends ElementType = 'span'>({
+  as,
   tone = 'primary',
   large = false,
   className,
   children,
   ...rest
-}: BaseProps & { tone?: 'primary' | 'secondary'; large?: boolean }) {
+}: PolymorphicProps<E, { tone?: 'primary' | 'secondary'; large?: boolean }>) {
+  const As = (as ?? 'span') as ElementType;
   return (
     <As className={cx('jk-bubble', `jk-bubble-${tone}`, large && 'jk-bubble-lg', className)} {...rest}>
       {children}
@@ -40,7 +47,14 @@ export function Bubble({
 }
 
 /** Struck/pressed PRIMARY text. `large` for display sizes (clocks, hero figures). */
-export function Press({ as: As = 'span', large = false, className, children, ...rest }: BaseProps & { large?: boolean }) {
+export function Press<E extends ElementType = 'span'>({
+  as,
+  large = false,
+  className,
+  children,
+  ...rest
+}: PolymorphicProps<E, { large?: boolean }>) {
+  const As = (as ?? 'span') as ElementType;
   return (
     <As className={cx(large ? 'jk-press-lg' : 'jk-press', className)} {...rest}>
       {children}
@@ -49,18 +63,28 @@ export function Press({ as: As = 'span', large = false, className, children, ...
 }
 
 /** Flat SECONDARY text. */
-export function Sub({ as: As = 'span', className, children, ...rest }: BaseProps) {
+export function Sub<E extends ElementType = 'span'>({ as, className, children, ...rest }: PolymorphicProps<E>) {
+  const As = (as ?? 'span') as ElementType;
   return <As className={cx('jk-sub', className)} {...rest}>{children}</As>;
 }
 
 /** Flat SECONDARY link (underlined). */
-export function SubLink({ as: As = 'a', className, children, ...rest }: BaseProps) {
+export function SubLink<E extends ElementType = 'a'>({ as, className, children, ...rest }: PolymorphicProps<E>) {
+  const As = (as ?? 'a') as ElementType;
   return <As className={cx('jk-sub-link', className)} {...rest}>{children}</As>;
 }
 
 /** Inset accent-tinted container (debossed on paper, emissive in CRT).
  *  `tint` retints the fill (and dark-mode glow) in a data colour via --jk-tint. */
-export function Well({ as: As = 'span', tint, className, style, children, ...rest }: BaseProps & { tint?: string }) {
+export function Well<E extends ElementType = 'span'>({
+  as,
+  tint,
+  className,
+  style,
+  children,
+  ...rest
+}: PolymorphicProps<E, { tint?: string }>) {
+  const As = (as ?? 'span') as ElementType;
   return (
     <As
       className={cx('jk-well', className)}
@@ -73,20 +97,22 @@ export function Well({ as: As = 'span', tint, className, style, children, ...res
 }
 
 /** Card surface. */
-export function Sheet({ as: As = 'div', className, children, ...rest }: BaseProps) {
+export function Sheet<E extends ElementType = 'div'>({ as, className, children, ...rest }: PolymorphicProps<E>) {
+  const As = (as ?? 'div') as ElementType;
   return <As className={cx('jk-sheet', className)} {...rest}>{children}</As>;
 }
 
 /** Uppercase mono label. `size`: 'md' (default) | 'sm' | 'xs'. `sans` swaps the
  *  mono face for the UI sans (the blessed eyebrow variant). */
-export function Lab({
-  as: As = 'div',
+export function Lab<E extends ElementType = 'div'>({
+  as,
   size = 'md',
   sans = false,
   className,
   children,
   ...rest
-}: BaseProps & { size?: 'md' | 'sm' | 'xs'; sans?: boolean }) {
+}: PolymorphicProps<E, { size?: 'md' | 'sm' | 'xs'; sans?: boolean }>) {
+  const As = (as ?? 'div') as ElementType;
   return (
     <As
       className={cx('jk-lab', size === 'sm' && 'jk-lab-sm', size === 'xs' && 'jk-lab-xs', sans && 'jk-lab-sans', className)}
@@ -98,13 +124,14 @@ export function Lab({
 }
 
 /** Compact mono text button. `quiet` for the de-emphasised variant. */
-export function TButton({
-  as: As = 'button',
+export function TButton<E extends ElementType = 'button'>({
+  as,
   quiet = false,
   className,
   children,
   ...rest
-}: BaseProps & { quiet?: boolean }) {
+}: PolymorphicProps<E, { quiet?: boolean }>) {
+  const As = (as ?? 'button') as ElementType;
   return (
     <As className={cx('jk-tbtn', quiet && 'jk-tbtn-quiet', className)} {...rest}>
       {children}
@@ -113,7 +140,8 @@ export function TButton({
 }
 
 /** Status pill — defaults to the OK/green status. */
-export function Pill({ as: As = 'span', className, children, ...rest }: BaseProps) {
+export function Pill<E extends ElementType = 'span'>({ as, className, children, ...rest }: PolymorphicProps<E>) {
+  const As = (as ?? 'span') as ElementType;
   return <As className={cx('jk-pill', className)} {...rest}>{children}</As>;
 }
 

@@ -84,4 +84,19 @@ export interface Connector {
   mount(router: unknown, opts?: {
     fetch?: typeof fetch; token?: string; headers?: Record<string, string>; basePath?: string;
   }): void;
+  /**
+   * The in-process callable surface (17.6): run one declared read — the SAME
+   * query-building + field-mapping code `mount()`'s GET route runs — with no HTTP hop.
+   * `params` is matched against that read's declared `filters` by name (mirrors
+   * `req.query`); `opts` mirrors `mount()`'s (`fetch`/`base`/`token`/`headers`).
+   *
+   * Lets a route handler in the connector's OWN app reuse the connector's upstream call
+   * in-process instead of hand-rolling a second copy of it (the trap papyros's
+   * src/routes/match.js used to fall into for META's `metadataSearch`). Throws — never
+   * resolves null/undefined — on an unknown read id, a missing fetch, or an upstream
+   * failure; turning that into an HTTP response stays `mount()`'s job.
+   */
+  call(readId: string, params?: Record<string, unknown>, opts?: {
+    fetch?: typeof fetch; base?: string; token?: string; headers?: Record<string, string>;
+  }): Promise<Array<Record<string, unknown>>>;
 }

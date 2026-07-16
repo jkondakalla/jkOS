@@ -138,17 +138,13 @@
 
 /* ── Cover grid ────────────────────────────────────────────────────────────── */
 
-.lib-grid {
-  display: grid;
-  gap: 0.85rem;
-  margin-top: 0.75rem;
-}
-/* Density adapts per useBreakpoint tier (Library.tsx) — mobile favours bigger,
-   easier-to-tap tiles over raw density; desktop trades some size back for more
-   covers on screen at once within the shell's fixed reading-column width. */
-.lib-grid[data-density="compact"]     { grid-template-columns: repeat(2, 1fr); }
-.lib-grid[data-density="cozy"]        { grid-template-columns: repeat(3, 1fr); gap: 0.75rem; }
-.lib-grid[data-density="comfortable"] { grid-template-columns: repeat(4, 1fr); gap: 0.75rem; }
+/* The grid itself (display/gap/2-3-4-column ladder) is @jkos/ui's <MediaGrid>
+   (packages/design/tokens/hub.css `.jk-media-grid[data-density]`, ToDo.md §3
+   20.2) — `density` still comes from useBreakpoint() here (mobile favours
+   bigger, easier-to-tap tiles over raw density; desktop trades some size back
+   for more covers on screen within the shell's fixed reading-column width).
+   `.lib-grid` only carries the spacing this view wants around its own grid. */
+.lib-grid { margin-top: 0.75rem; }
 
 .lib-card {
   display: flex;
@@ -163,21 +159,10 @@
   transform: translateY(-1px);
 }
 
-.lib-cover {
-  display: block;
-  width: 100%;
-  /* Audiobook artwork is square (iTunes serves 600x600; embedded art follows suit) —
-     a 2/3 book-jacket ratio crops every real cover. */
-  aspect-ratio: 1 / 1;
-  object-fit: cover;
-  background: var(--hub-bg-1);
-}
-.lib-cover-placeholder {
-  align-items: center;
-  justify-content: center;
-  border-radius: 0;
-}
-.lib-cover-placeholder span { font-size: 1.7rem; letter-spacing: 0.04em; }
+/* Cover art (image + fallback tile) is @jkos/ui's <CoverArt> — `.jk-media-
+   cover`/`.jk-media-cover-placeholder` in packages/design/tokens/hub.css
+   (ToDo.md §3 20.2). Audiobook artwork is square (iTunes serves 600x600;
+   embedded art follows suit), which is why that primitive is square too. */
 
 .lib-card-body {
   display: flex;

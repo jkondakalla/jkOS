@@ -1,0 +1,31 @@
+{
+  "name": "@jkos/player",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "jkOS media player primitive. Layer 0 (this package today): pure timeline math + queue reducers, no DOM, no React. Engine (headless hook) / services / UI-kit layers land on top of this — see Documentation/PLAYER_PARITY.md.",
+  "exports": {
+    "./core": "./src/core/index.ts",
+    "./backend": "./src/backend/index.ts",
+    "./engine": "./src/engine/index.ts",
+    "./services": "./src/services/index.ts",
+    "./ui": "./src/ui/index.ts",
+    "./factory": "./src/factory/index.ts"
+  },
+  "scripts": {
+    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "node scripts/run-tests.mjs"
+  },
+  "dependencies": {
+    "@jkos/ui": "workspace:*",
+    "@jkos/weave": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.3",
+    "typescript": "^5.7.2"
+  }
+}

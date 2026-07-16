@@ -22,6 +22,4 @@ export const DEFAULT_EFFECTS: EffectsPreferences = {
 
 export const DEFAULT_LAZUROS: LazurPreferences = {
   enabled: true,
-  url:     '',
-  model:   'llama3.2',
 };

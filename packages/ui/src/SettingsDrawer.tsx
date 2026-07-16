@@ -14,8 +14,10 @@ import { ACCENT_SCHEMES, matchAccentScheme, CUSTOM_SCHEME_ID, withAlpha } from '
    Types are declared structurally here so @jkos/ui stays decoupled from
    auth-client; the field names are the canonical preferences contract.
 
-   AI (LazurOS) rows respect the suite-wide kill switch: when jkAuth sets
-   lazuros.enabled === false the section disappears in every app at once.
+   There is deliberately no AI section: LazurOS has no per-user settings (one fixed
+   edge path, models chosen per tier from the deployment config), and its one knob —
+   the suite-wide kill switch — is owned by the jkAuth portal. Apps only READ
+   `lazuros.enabled` to hide their own AI surfaces.
    App-specific settings (e.g. ORDECK weather) are passed via `extra`.
    ───────────────────────────────────────────────────────────────────────────── */
 
@@ -31,11 +33,6 @@ interface Effects {
   // halation is intrinsic to dark mode — deliberately not surfaced as a toggle.
   // film grain is a suite-wide background default (@jkos/design factory) — no toggle.
 }
-interface Lazuros {
-  enabled: boolean;
-  url: string;
-  model: string;
-}
 interface User {
   email: string;
   name: string;
@@ -48,11 +45,9 @@ export interface SettingsDrawerProps {
   user: User | null;
   theme: Theme;
   effects: Effects;
-  lazuros: Lazuros;
   saving: boolean;
   patchTheme: (p: Partial<Theme>) => void;
   patchEffects: (p: Partial<Effects>) => void;
-  patchLazuros: (p: Partial<Lazuros>) => void;
   /** jkAuth origin used by the Manage ↗ / Sign out actions. */
   authUrl: string;
   /** App-specific extra section(s), rendered just before Account (e.g. weather). */
@@ -75,8 +70,8 @@ const PRESS = 'var(--hub-accent-press)';
 const sect: CSSProperties = { padding: '18px 20px', borderBottom: `1px solid ${LINE}` };
 
 export function SettingsDrawer({
-  open, onClose, user, theme, effects, lazuros, saving,
-  patchTheme, patchEffects, patchLazuros, authUrl, extra, width = 380,
+  open, onClose, user, theme, effects, saving,
+  patchTheme, patchEffects, authUrl, extra, width = 380,
 }: SettingsDrawerProps) {
   const src = (user?.name || user?.email || '?').trim();
   const parts = src.split(/[\s@.]+/).filter(Boolean);
@@ -195,15 +190,6 @@ export function SettingsDrawer({
           </EffectRow>
           <EffectRow label="Artifacts" value={effects.artifacts} onToggle={v => patchEffects({ artifacts: v })} />
         </section>
-
-        {/* AI · LazurOS — hidden entirely when the suite kill switch is off */}
-        {lazuros.enabled !== false && (
-          <section style={sect}>
-            <SectionLabel>AI · LazurOS</SectionLabel>
-            <LazurRow label="URL"   value={lazuros.url}   onCommit={v => patchLazuros({ url: v })}   placeholder="http://host:8080" />
-            <LazurRow label="Model" value={lazuros.model} onCommit={v => patchLazuros({ model: v })} placeholder="llama3.2" />
-          </section>
-        )}
 
         {/* App-specific extras (e.g. ORDECK weather) */}
         {extra}
@@ -384,22 +370,6 @@ function SliderInput({ value, min, max, step, onChange }: { value: number; min: 
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingLeft: 10, marginTop: 2 }}>
       <input type="range" min={min} max={max} step={step} value={value} onChange={e => onChange(parseFloat(e.target.value))} style={{ flex: 1, accentColor: ACCENT, cursor: 'pointer' }} />
       <span style={{ fontSize: 10, color: TXT_MUTED, width: 30, textAlign: 'right', fontFamily: FONT, flexShrink: 0 }}>{Math.round(value * 100)}%</span>
-    </div>
-  );
-}
-
-function LazurRow({ label, value, onCommit, placeholder }: { label: string; value: string; onCommit: (v: string) => void; placeholder: string }) {
-  const [draft, setDraft] = useState(value);
-  useEffect(() => setDraft(value), [value]);
-
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-      <span style={{ fontSize: 10, color: TXT_FAINT, width: 44, flexShrink: 0, fontFamily: FONT, letterSpacing: '0.06em' }}>{label}</span>
-      <input type="text" value={draft} placeholder={placeholder} spellCheck={false}
-        onChange={e => setDraft(e.target.value)}
-        onBlur={() => onCommit(draft.trim())}
-        onKeyDown={e => { if (e.key === 'Enter') { onCommit(draft.trim()); (e.target as HTMLInputElement).blur(); } }}
-        style={{ flex: 1, background: FIELD, border: `1px solid ${LINE}`, color: TXT, padding: '5px 10px', fontFamily: FONT, fontSize: 10, letterSpacing: '0.04em', outline: 'none' }} />
     </div>
   );
 }

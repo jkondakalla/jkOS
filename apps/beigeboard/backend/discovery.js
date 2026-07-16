@@ -113,44 +113,12 @@ const CAPABILITIES = {
       invalidates: [ITEMS_KEY], scopes: ['beigeboard:write'],
       doc: 'Creates a nested goal→milestone→task tree (or a flat list linked by ref/parent) in one transaction. Validated before any write; ?dryRun=1 previews. See README → Importing tasks & goals.',
     },
-    {
-      // AI: free text → structured task/event fields (the "quick add" parser). Declared
-      // here so it stops being a parallel, undiscoverable surface:
-      // a HUD widget or AI step can now discover + invoke it through Weave. It only
-      // PARSES — the caller still createItem's the result — so it invalidates nothing.
-      id: 'parseTask', label: 'Parse text → task', method: 'POST', path: '/ai/parse-task',
-      body: [
-        { name: 'text',  type: 'string', label: 'Natural-language task/event', required: true, max: 500 },
-        { name: 'today', type: 'date',   label: 'Anchor date for relative phrasing (defaults to server date)' },
-      ],
-      returns: [
-        { name: 'title',          type: 'string' },
-        { name: 'kind',           type: 'enum', enum: ['task', 'event'] },
-        { name: 'scope',          type: 'enum', enum: ['day', 'week', 'month'] },
-        { name: 'due_date',       type: 'date' },
-        { name: 'scheduled_time', type: 'time' },
-        { name: 'notes',          type: 'text' },
-      ],
-      scopes: ['beigeboard:write'], ai: true,
-      doc: 'Parses one free-text line into structured fields; does not write. Feed the result into createItem.',
-    },
-    {
-      // AI: a goal → a short ladder of milestones + first actions (Breakdown Method).
-      // Declared (G2) so it is discoverable; the milestone/action lists are free-form
-      // arrays, hence `json` outputs (no array FieldType yet — see ToDo F4).
-      id: 'breakdownGoal', label: 'Break a goal into steps', method: 'POST', path: '/ai/breakdown',
-      body: [
-        { name: 'title',       type: 'string', label: 'Goal', required: true, max: 200 },
-        { name: 'done_means',  type: 'text',   label: 'Definition of done' },
-        { name: 'target_date', type: 'date',   label: 'Target date' },
-      ],
-      returns: [
-        { name: 'milestones',    type: 'json', label: 'Ordered checkpoints (string[])' },
-        { name: 'first_actions', type: 'json', label: 'Concrete first tasks (string[])' },
-      ],
-      scopes: ['beigeboard:write'], ai: true,
-      doc: 'Drafts 2–5 milestones + 2–4 first actions for a goal; does not write. Feed into importItems to materialise the ladder.',
-    },
+    // NO AI capabilities here. BeigeBoard used to declare `parseTask` + `breakdownGoal`
+    // over its own /api/ai/* routes, which proxied a synchronous Ollama chat call. That
+    // whole surface is retired: AI is LazurOS's job, it is ASYNCHRONOUS (202 {job_id} →
+    // poll), and its results come back INTO BeigeBoard through `createItem`/`importItems`
+    // below via delegated write-back. So an AI parse is a LazurOS capability composed with
+    // a BeigeBoard one — not a second, parallel AI surface bolted onto this app.
   ],
 };
 

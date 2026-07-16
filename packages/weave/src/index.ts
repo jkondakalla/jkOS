@@ -14,3 +14,6 @@ export * from './fetchCapabilities';
 export * from './fetchDatasets';
 export * from './dispatch';
 export * from './weaveClient';
+export * from './connectorPair';
+export * from './resumeCursor';
+export * from './useResumeCursor';

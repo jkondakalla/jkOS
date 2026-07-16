@@ -1,8 +1,7 @@
-import { useState } from 'react'
 import './app.css'
 import { injectJkOSTheme, STORAGE_KEYS } from '@jkos/design'
 import { AUTH_URL, useJkOSPreferences } from '@jkos/auth-client'
-import { Lab, SettingsDrawer, cx } from '@jkos/ui'
+import { AppShell } from '@jkos/ui'
 import AuthGuard from './components/AuthGuard'
 import { useAuth } from './hooks/useAuth'
 import { OfflineSettings } from './offline'
@@ -33,74 +32,47 @@ injectJkOSTheme({
   radius: { base: '6px', xs: '3px', sm: '5px', lg: '10px', soft: '7px', button: '6px' },
 })
 
+// AppShell (@jkos/ui, ToDo.md §3 Wave 20 item 20.1) owns the invariant frame —
+// AuthGuard → header (brand + settings trigger) → SettingsDrawer wiring →
+// useJkOSPreferences — so PapyrOS only supplies its own routed content plus the
+// two injected selectors (usePreferences, useUser) the shell calls from inside
+// AuthGuard's subtree. This is also where PapyrOS GAINS the settings drawer: the
+// original hand-copy of this shell dropped the SettingsDrawer step entirely.
 export default function App() {
   return (
-    <AuthGuard>
-      <Shell />
-    </AuthGuard>
+    <AppShell
+      guard={AuthGuard}
+      usePreferences={useJkOSPreferences}
+      useUser={useShellUser}
+      authUrl={AUTH_URL}
+      brand="PapyrOS"
+      tagline="Audiobook library"
+      settingsExtra={<OfflineSettings />}
+    >
+      <Content />
+    </AppShell>
   )
 }
 
-// The signed-in shell. Split out of App so `useJkOSPreferences` (which reads
-// /auth/profile) mounts only once AuthGuard has resolved a session. Same shape as
-// BeigeBoard's App: spread the hook straight into the shared @jkos/ui SettingsDrawer —
-// which is where the whole suite keeps Account/Sign out, the light/dark mode toggle and
-// the accent picker — and override `user` with the identity AuthGuard already has, so
-// the Account row paints on first render instead of after the profile round-trip.
-function Shell() {
-  const { bookId } = useHashRoute()
+// The identity AuthGuard already has (not the preferences hook's `user`) — it
+// paints the drawer's Account row on first render, ahead of the /auth/profile
+// round-trip. Called by AppShell from inside AuthGuard's provider subtree.
+function useShellUser() {
   const { state } = useAuth()
-  const prefs = useJkOSPreferences()
-  const [settingsOpen, setSettingsOpen] = useState(false)
+  return state.status === 'authenticated' ? state.user : null
+}
 
-  const user = state.status === 'authenticated' ? state.user : null
-
+// PapyrOS's routed content — rendered by AppShell between the header and the
+// drawer, exactly where the old hand-copy put its <main> + <PlayerBar>.
+function Content() {
+  const { bookId } = useHashRoute()
   return (
-    <div className="app">
-      <header className="app-header">
-        <div className="app-brand">
-          <a href="#/" className={cx('jk-press-lg', 'wordmark')}>PapyrOS</a>
-          <Lab size="sm">Audiobook library</Lab>
-        </div>
-        <button
-          type="button"
-          className="app-settings-btn"
-          aria-label="Settings"
-          aria-expanded={settingsOpen}
-          title="Settings"
-          onClick={() => setSettingsOpen(true)}
-        >
-          <IconGear />
-        </button>
-      </header>
-
+    <>
       <main className="app-main">
         {bookId != null ? <BookDetail bookId={bookId} /> : <Library />}
       </main>
 
       <PlayerBar />
-
-      <SettingsDrawer
-        open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-        {...prefs}
-        user={user}
-        authUrl={AUTH_URL}
-        extra={<OfflineSettings />}
-      />
-    </div>
-  )
-}
-
-/** currentColor gear — the button's `color` drives it (same idiom as PlayerBar's glyphs). */
-function IconGear() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
-      <circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" strokeWidth="1.6" />
-      <path
-        d="M12 2.8v2.1M12 19.1v2.1M4.5 4.5L6 6M18 18l1.5 1.5M2.8 12h2.1M19.1 12h2.1M4.5 19.5L6 18M18 6l1.5-1.5"
-        fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"
-      />
-    </svg>
+    </>
   )
 }

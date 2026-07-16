@@ -53,7 +53,6 @@ app.get('/api/datasets', serveDatasets(DATASETS));
 app.use(require('./routes/calendar'));       // /api/auth/me + OAuth flows + status/sync
 app.use(require('./routes/items'));          // /api/items CRUD
 app.use(require('./routes/import').router);  // /api/import
-app.use(require('./routes/ai').router);      // /api/ai/*
 
 /* ── Static + SPA fallback ─────────────────────────────────────────────── */
 app.all('/api/*', (_req, res) => res.status(404).json({ error: 'Not found' }));

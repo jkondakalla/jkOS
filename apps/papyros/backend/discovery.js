@@ -43,7 +43,30 @@ const BOOKS_KEY = resourceKey('papyros', 'books'); // 'papyros.books'
  *  `GET /api/progress?finished=true|false`, owner-scoped for free.
  *  NOUN OVERRIDE: the id `progress` ends in a lone `s` that ISN'T a plural marker, so the
  *  factory's naive singularizer (strip trailing `s`) would mangle it to `Progres` —
- *  `noun: 'Progress'` sidesteps that (createProgress/updateProgress/deleteProgress). */
+ *  `noun: 'Progress'` sidesteps that (createProgress/updateProgress/deleteProgress).
+ *
+ *  DOCUMENTED, NOT FIXED (17.5): every `type: 'ref'` field (this one, BOOKMARKS.book_ref,
+ *  CLUBS.current_pick, CLUB_MEMBERS.club_ref below) gets a TEXT-affinity column —
+ *  packages/weave/src/server/collection.js's `sqlType()` only special-cases number/
+ *  boolean, and `coerceRef()` stores a numeric ref as its canonical string ("12", not
+ *  "12.0"). `books.id` (server.js migration 1) is INTEGER PRIMARY KEY. So
+ *  `progress.book_ref` is stored as `'12'` against `books.id` `12` — SQLite's type
+ *  affinity makes an `=` comparison between them work by coincidence (TEXT '12' does
+ *  NOT numeric-compare equal to INTEGER 12 in a raw join predicate; every actual read
+ *  path here goes through the app layer instead — src/routes/books.js's SELECT, this
+ *  collection's owner-scoped list, and the frontend's `row.book_ref === bookId`
+ *  strict-equal-after-Number()-coercion in usePlayerEngine.ts/writes.ts — never a raw
+ *  SQL `JOIN progress ON progress.book_ref = books.id`). A real SQL JOIN between them
+ *  needs `CAST(progress.book_ref AS INTEGER) = books.id` (or `= CAST(books.id AS TEXT)`)
+ *  — there is no such join in this codebase today, but the Wave-8 club "who's caught
+ *  up" route (heads-up below, at CLUBS) is the first candidate that would need one.
+ *  Not fixed here: rebuilding `progress`/`bookmarks`/`clubs`/`club_members` onto an
+ *  INTEGER-affinity ref column means changing `sqlType()` (collection.js, out of scope
+ *  for this task — sibling agents are mid-edit on packages/weave/src/server/) for
+ *  EVERY collection in the suite, not just this one; a targeted rebuild of just these
+ *  four tables would still desync from collection.js's own `ddl()` output for every
+ *  future collection. Cheaper and safer to name the CAST requirement here than to
+ *  risk a half-migrated ref-column convention. */
 const PROGRESS = defineCollection({
   app: 'papyros', id: 'progress', label: 'Reading progress', noun: 'Progress',
   scoped: true,
@@ -104,6 +127,42 @@ const CLUB_MEMBERS = defineCollection({
   fields: [
     { name: 'club_ref',   type: 'ref',    label: 'Club',               ref: 'papyros.clubs', required: true },
     { name: 'member_sub', type: 'string', label: 'Member (jkAuth sub)', required: true },
+  ],
+});
+
+/* ── 17.4: `history` — append-only play events ────────────────────────────────────
+   There is no event log today and nothing computes stats — every "recently played",
+   "most played", or recommendation feature later assumes events have been recorded
+   ALL ALONG. Cheap to add now, impossible to backfill retroactively, so this starts
+   recording immediately even though nothing reads it back yet.
+
+   One row per LISTENING SESSION (not per timeupdate tick — the frontend, src/api.ts/
+   usePlayerEngine.ts, debounces to exactly one POST per session-end: pause, book/
+   track change, or page unload/visibilitychange). `item_ref` is a typed `ref` stud
+   at the shared `books` catalog — same TEXT-affinity convention as PROGRESS.book_ref
+   above (see that field's long NOTE for the ref/INTEGER-affinity join caveat;
+   unchanged and unfixed here for the same reason). `started_at` is the ISO
+   timestamp the session began; `ms_played` is milliseconds ACTUALLY played
+   (accumulated play time, not wall-clock session length — paused/backgrounded time
+   doesn't count); `completed` is true when that session's playback reached the
+   track's end.
+
+   APPEND-ONLY, enforced server-side, not just by frontend convention: `only:
+   ['create']` (packages/weave/src/server/collection.js, added for this task) means
+   defineCollection emits ONLY the createHistory capability and mounts ONLY GET
+   (list) + POST (create) — there is no updateHistory/deleteHistory capability and no
+   PATCH/DELETE route AT ALL (not merely auth-denied — the route literally isn't
+   wired, so a PATCH/DELETE falls through to server.js's /api/* 404 catch-all). A
+   past play event can never be edited or removed by anyone, including the user who
+   created it — the one property every downstream stat needs to be trustworthy. */
+const HISTORY = defineCollection({
+  app: 'papyros', id: 'history', label: 'Play history',
+  scoped: true, only: ['create'],
+  fields: [
+    { name: 'item_ref',   type: 'ref',     label: 'Book',                          ref: 'papyros.books', required: true },
+    { name: 'started_at', type: 'string',  label: 'Session start (ISO timestamp)', required: true },
+    { name: 'ms_played',  type: 'number',  label: 'Milliseconds played',           default: 0 },
+    { name: 'completed',  type: 'boolean', label: 'Completed' },
   ],
 });
 
@@ -261,6 +320,7 @@ const CAPABILITIES = {
     ...BOOKMARKS.capabilities,
     ...CLUBS.capabilities,
     ...CLUB_MEMBERS.capabilities,
+    ...HISTORY.capabilities,   // 17.4: createHistory only — see HISTORY's comment above
   ],
 };
 
@@ -340,11 +400,16 @@ const BOOKS_DATASET = {
 const DATASETS = {
   app: 'papyros',
   version: 1,
-  datasets: [BOOKS_DATASET, PROGRESS.dataset, BOOKMARKS.dataset, CLUBS.dataset, CLUB_MEMBERS.dataset, ...META.datasets],
+  datasets: [
+    BOOKS_DATASET, PROGRESS.dataset, BOOKMARKS.dataset, CLUBS.dataset, CLUB_MEMBERS.dataset,
+    HISTORY.dataset,   // 17.4: readable (list, owner-scoped) even though it's create-only to write
+    ...META.datasets,
+  ],
 };
 
 module.exports = {
   CAPABILITIES, DATASETS, BOOKS_KEY, BOOK_SHAPE,
   PROGRESS, BOOKMARKS, CLUBS, CLUB_MEMBERS,   // 3.1: server.js .mount()s each of these
+  HISTORY,                                     // 17.4: server.js .mount()s this too (append-only)
   META,                                        // 4.1: server.js .mount()s this too (reads only, no CollectionDef .ddl())
 };

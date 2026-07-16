@@ -18,3 +18,4 @@ include:
   - path: apps/sylibos/docker-compose.yml
   - path: apps/ordeck/docker-compose.yml
   - path: apps/papyros/docker-compose.yml
+  - path: apps/kouros/docker-compose.yml
