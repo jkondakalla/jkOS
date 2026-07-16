@@ -1,0 +1,630 @@
+<!doctype html>
+<html lang="en" data-mode="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>jkOS — Design System Reference</title>
+  <meta name="description" content="Living style guide for the jkOS suite: tokens, components and hardware chrome rendered live in both faces. A reference for design work that stays inside the system." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@400;600;700&family=Fraunces:opsz,ital,wght@9..144,0,400;9..144,0,600;9..144,1,400;9..144,1,600;9..144,0,700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       hub.css — the CANONICAL jkOS design tokens + shared component classes,
+       inlined VERBATIM from packages/design/tokens/hub.css so this page renders
+       the real system with zero drift. Regenerate after any hub.css change:
+         node apps/jkauth/scripts/build-design-page.mjs
+       Everything this page demonstrates is defined below; the gallery CSS that
+       follows is namespaced .dg-* and only lays out the page — it never restyles
+       a token or a component class.
+       ═══════════════════════════════════════════════════════════════════════ -->
+  <style id="hub-tokens">
+/*__HUB_CSS__*/
+  </style>
+
+  <!-- Per-page font inputs — the same lane BeigeBoard/SylibOS use: serif → Fraunces
+       for editorial headings. A legitimate per-app factory input, not an override. -->
+  <style id="page-fonts">
+    :root { --hub-font-serif: 'Fraunces', Georgia, 'Times New Roman', serif; }
+  </style>
+
+  <!-- ── Gallery layout (namespaced .dg-*; lays the page out, styles nothing in the system) ── -->
+  <style id="design-guide">
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      background-color: var(--hub-bg-0);
+      background-image: var(--hub-grain-image);
+      background-size: 160px 160px;
+      background-blend-mode: var(--grain-blend);
+      color: var(--color-ink);
+      font-family: var(--hub-font-sans);
+      font-size: 16px;
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .dg-wrap { max-width: 1120px; margin: 0 auto; padding: 0 clamp(16px, 4vw, 40px) 120px; }
+
+    /* ── Operator control deck (sticky) ─────────────────────────────────── */
+    .dg-deck {
+      position: sticky; top: 0; z-index: 50;
+      background: linear-gradient(180deg, var(--hub-metal-1), var(--hub-metal-0));
+      border-bottom: 1px solid var(--hub-line-bright);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.35), inset 0 1px 0 var(--hub-bevel-light);
+    }
+    .dg-deck-inner {
+      max-width: 1120px; margin: 0 auto;
+      padding: 10px clamp(14px, 4vw, 40px);
+      display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+    }
+    .dg-deck .dymo-tape { font-size: 11px; }
+    .dg-deck-spacer { flex: 1 1 auto; }
+    .dg-deck-group { display: flex; align-items: center; gap: 8px; }
+    .dg-deck-group > .jk-lab { color: var(--hub-cream-bright); opacity: 0.7; }
+
+    /* segmented mode + radius controls */
+    .dg-seg { display: inline-flex; border: 1px solid var(--hub-line-bright); border-radius: var(--hub-radius-sm); overflow: hidden; }
+    .dg-seg button {
+      font-family: var(--hub-font-mono); font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+      padding: 7px 11px; border: 0; background: var(--hub-bg-1); color: var(--hub-cream-dim); cursor: pointer;
+      min-height: 34px;
+    }
+    .dg-seg button + button { border-left: 1px solid var(--hub-line-bright); }
+    .dg-seg button[aria-pressed="true"] { background: var(--accent); color: var(--color-accent-contrast); }
+    :root[data-mode="dark"] .dg-seg button[aria-pressed="true"] { box-shadow: inset 0 0 12px color-mix(in srgb, var(--accent) 55%, transparent); }
+
+    /* accent scheme swatches */
+    .dg-accents { display: inline-flex; gap: 6px; }
+    .dg-accent {
+      width: 30px; height: 30px; padding: 0; border-radius: 50%; cursor: pointer;
+      border: 2px solid transparent; position: relative;
+      background: conic-gradient(from 220deg, var(--dg-p) 0 50%, var(--dg-s) 50% 100%);
+      box-shadow: inset 0 0 0 1px rgba(0,0,0,0.35);
+    }
+    .dg-accent[aria-pressed="true"] { border-color: var(--hub-cream-bright); box-shadow: 0 0 0 2px var(--hub-bg-0), 0 0 10px rgba(0,0,0,0.4); }
+    .dg-accent.dg-custom { background: repeating-conic-gradient(from 0deg, var(--hub-metal-2) 0 25%, var(--hub-metal-1) 0 50%); font-size: 14px; color: var(--hub-cream-bright); }
+    .dg-custom-pickers { display: none; gap: 6px; align-items: center; }
+    .dg-custom-pickers.on { display: inline-flex; }
+    .dg-custom-pickers input[type="color"] { width: 30px; height: 30px; border: 1px solid var(--hub-line-bright); background: none; padding: 0; cursor: pointer; }
+
+    /* ── Hero ───────────────────────────────────────────────────────────── */
+    .dg-hero { position: relative; margin: 34px 0 12px; padding: 40px clamp(20px, 4vw, 48px); overflow: hidden; }
+    .dg-hero .canvas-grid { position: absolute; inset: 0; opacity: calc(var(--canvas-grid-opacity) * 0.5); }
+    .dg-hero-body { position: relative; }
+    .dg-kicker { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+    .dg-hero h1 {
+      font-family: var(--hub-font-serif); font-weight: 600; font-size: clamp(2.4rem, 6vw, 4rem);
+      line-height: 1.02; margin: 0 0 6px; text-wrap: balance; letter-spacing: -0.01em;
+    }
+    .dg-hero .dg-ver { font-family: var(--hub-font-seg); font-size: clamp(2.4rem, 6vw, 4rem); }
+    .dg-hero-lede { max-width: 62ch; font-size: 1.08rem; color: var(--color-muted); margin: 14px 0 0; }
+    .dg-hero-meta { display: flex; flex-wrap: wrap; gap: 10px 22px; margin-top: 26px; }
+
+    /* ── Sections ───────────────────────────────────────────────────────── */
+    .dg-sec { position: relative; margin: 22px 0; padding: 30px clamp(18px, 3.5vw, 40px); }
+    .dg-sec > .screw { position: absolute; width: 9px; height: 9px; }
+    .dg-sec > .screw.tl { top: 11px; left: 11px; } .dg-sec > .screw.tr { top: 11px; right: 11px; }
+    .dg-sec > .screw.bl { bottom: 11px; left: 11px; } .dg-sec > .screw.br { bottom: 11px; right: 11px; }
+    .dg-sec-head { margin-bottom: 24px; }
+    .dg-sec-tag { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+    .dg-sec-num { font-variant-numeric: tabular-nums; color: var(--hub-cream-faint); }
+    .dg-sec h2 { font-family: var(--hub-font-serif); font-weight: 600; font-size: clamp(1.5rem, 3vw, 2rem); margin: 0; line-height: 1.1; text-wrap: balance; }
+    .dg-lede { max-width: 68ch; color: var(--color-muted); margin: 10px 0 0; }
+    .dg-lede code, .dg-note code, li code, p code { font-family: var(--hub-font-mono); font-size: 0.85em; background: color-mix(in srgb, var(--hub-cream) 12%, transparent); padding: 1px 5px; border-radius: 3px; color: var(--color-ink); }
+
+    /* generic tile grids */
+    .dg-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+    .dg-grid.wide { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+    .dg-row { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
+    .dg-block { padding: 18px; }
+    .dg-block-lab { margin-bottom: 14px; }
+
+    /* colour swatches */
+    .dg-swatch { display: flex; flex-direction: column; gap: 8px; }
+    .dg-chip { height: 62px; border-radius: var(--hub-radius-lg); border: 1px solid var(--hub-line); box-shadow: var(--hub-shadow-inset); }
+    .dg-swatch code { font-family: var(--hub-font-mono); font-size: 11px; color: var(--color-ink); }
+    .dg-swatch em { font-style: normal; font-size: 11px; color: var(--color-faint); letter-spacing: 0.04em; }
+    .dg-chip-text { display: flex; align-items: center; justify-content: center; font-family: var(--hub-font-serif); font-size: 1.5rem; background: var(--hub-bg-2); }
+
+    /* spec list (used in the brief) */
+    .dg-specs { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); margin: 0; padding: 0; list-style: none; }
+    .dg-specs li { padding: 14px 16px; border: 1px solid var(--hub-line); border-radius: var(--hub-radius-lg); background: color-mix(in srgb, var(--hub-bg-1) 60%, transparent); }
+    .dg-specs .dg-yes { color: var(--color-ok); } .dg-specs .dg-no { color: var(--color-danger); }
+    .dg-specs b { display: block; font-family: var(--hub-font-mono); font-size: 11px; letter-spacing: 0.08em; margin-bottom: 4px; }
+    .dg-specs span { font-size: 0.92rem; color: var(--color-muted); }
+
+    /* typography specimen */
+    .dg-type-row { display: grid; grid-template-columns: 120px 1fr; gap: 18px; align-items: baseline; padding: 16px 0; border-top: 1px solid var(--hub-line); }
+    .dg-type-row:first-child { border-top: 0; }
+    .dg-type-role { font-family: var(--hub-font-mono); font-size: 11px; letter-spacing: 0.1em; color: var(--color-faint); text-transform: uppercase; }
+    .dg-type-role small { display: block; margin-top: 4px; color: var(--color-faint); opacity: 0.7; text-transform: none; letter-spacing: 0; }
+    .dg-spec-mono { font-family: var(--hub-font-mono); }
+    .dg-spec-sans { font-family: var(--hub-font-sans); font-size: 1.15rem; }
+    .dg-spec-serif { font-family: var(--hub-font-serif); font-size: 1.7rem; font-weight: 600; }
+    .dg-spec-seg { font-family: var(--hub-font-seg); font-size: 2.4rem; font-weight: 700; color: var(--hub-amber); text-shadow: 0 0 8px var(--hub-amber-glow); }
+
+    .dg-caption { font-family: var(--hub-font-mono); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-faint); margin: 0 0 8px; }
+
+    /* screen panel (CRT atmosphere demo) */
+    .dg-screen { position: relative; overflow: hidden; padding: 26px; background: var(--hub-screen); border: 1px solid var(--hub-screen-line); border-radius: var(--hub-radius-lg); min-height: 120px; }
+
+    /* media grid demo tiles use the real .jk-media-* classes; give them a size */
+    .dg-media-demo { max-width: 440px; }
+
+    /* footer */
+    .dg-foot { margin-top: 40px; padding-top: 22px; border-top: 1px solid var(--hub-line); color: var(--color-faint); font-family: var(--hub-font-mono); font-size: 11px; letter-spacing: 0.06em; display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center; }
+
+    a { color: var(--accent-secondary); }
+
+    @media (max-width: 640px) {
+      .dg-type-row { grid-template-columns: 1fr; gap: 6px; }
+      .dg-deck-inner { gap: 12px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ══ Operator deck ══ -->
+  <div class="dg-deck">
+    <div class="dg-deck-inner">
+      <span class="dymo-tape">jkOS // DESIGN</span>
+      <span class="led green steady" title="live tokens"></span>
+      <div class="dg-deck-spacer"></div>
+
+      <div class="dg-deck-group">
+        <span class="jk-lab jk-lab-xs">Face</span>
+        <div class="dg-seg" id="dg-mode">
+          <button data-mode="paper">Paper</button>
+          <button data-mode="dark" aria-pressed="true">Dark</button>
+        </div>
+      </div>
+
+      <div class="dg-deck-group">
+        <span class="jk-lab jk-lab-xs">Accent</span>
+        <div class="dg-accents" id="dg-accents"></div>
+        <div class="dg-custom-pickers" id="dg-custom">
+          <input type="color" id="dg-cp" value="#ffb000" aria-label="Primary accent" />
+          <input type="color" id="dg-cs" value="#4ecdc4" aria-label="Secondary accent" />
+        </div>
+      </div>
+
+      <div class="dg-deck-group">
+        <span class="jk-lab jk-lab-xs">Corners</span>
+        <div class="dg-seg" id="dg-radius">
+          <button data-radius="sharp" aria-pressed="true">Sharp</button>
+          <button data-radius="soft">Soft</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="dg-wrap">
+
+    <!-- ══ Hero ══ -->
+    <section class="dg-hero jk-sheet">
+      <div class="canvas-grid"></div>
+      <div class="dg-hero-body">
+        <div class="dg-kicker">
+          <span class="screw"></span>
+          <span class="label-tape">REFERENCE PLATE</span>
+          <span class="led amber"></span>
+          <span class="mono-eyebrow">two-faced retro hardware</span>
+        </div>
+        <h1>jkOS Design System</h1>
+        <div class="dg-ver seg">v1.0</div>
+        <p class="dg-hero-lede">
+          A living style plate for the whole suite. Everything below is rendered by the
+          real <code>hub.css</code> token chain — flip the <b>Face</b>, <b>Accent</b> and
+          <b>Corners</b> controls above and the entire page retunes, exactly as an app does.
+          Hand this to a design pass as the fence: elevate the surfaces, but stay inside
+          these tokens, classes and invariants.
+        </p>
+        <div class="dg-hero-meta">
+          <span class="jk-bubble jk-bubble-primary">PAPER · office</span>
+          <span class="jk-bubble jk-bubble-secondary">DARK · CRT</span>
+          <span class="jk-pill"><span class="led green sm"></span>tokens live</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 01 The two faces ══ -->
+    <section class="dg-sec jk-sheet" id="faces">
+      <span class="screw tl"></span><span class="screw tr"></span><span class="screw bl"></span><span class="screw br"></span>
+      <div class="dg-sec-head">
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">01</span><span class="label-tape">IDENTITY</span></div>
+        <h2>One identity, two faces</h2>
+        <p class="dg-lede">
+          jkOS is <b>skeuomorphic, not flat-SaaS</b>. A single attribute — <code>data-mode</code>
+          on <code>&lt;html&gt;</code> — switches between two physical worlds. There are exactly
+          two values, <code>"paper"</code> and <code>"dark"</code>; the mode is controlled
+          explicitly and <b>never</b> from <code>prefers-color-scheme</code>. Corners are sharp
+          by default; chrome is built from CSS hardware, not shadows-on-cards.
+        </p>
+      </div>
+      <div class="dg-grid wide">
+        <div class="dg-block jk-well">
+          <div class="dg-block-lab"><span class="jk-bubble jk-bubble-primary">data-mode="paper"</span></div>
+          <p class="dg-lede" style="margin-top:0">Warm kraft-paper office — tan/cream layers, dark ink, brass hardware, film-grain multiply, burnt-sienna default accent. Accents <b>press into</b> the paper.</p>
+        </div>
+        <div class="dg-block jk-well">
+          <div class="dg-block-lab"><span class="jk-bubble jk-bubble-primary">data-mode="dark"</span></div>
+          <p class="dg-lede" style="margin-top:0">CRT amber-phosphor terminal — near-black warm grounds, <code>#ffb000</code> amber, text glow, scanline + vignette veils. Accents <b>emit</b> as halation.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 02 Accent chain ══ -->
+    <section class="dg-sec jk-sheet" id="accent">
+      <span class="screw tl"></span><span class="screw tr"></span><span class="screw bl"></span><span class="screw br"></span>
+      <div class="dg-sec-head">
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">02</span><span class="label-tape">ACCENT CHAIN</span></div>
+        <h2>The two-accent chain</h2>
+        <p class="dg-lede">
+          Both accents are <b>user-driven and co-equal</b> — a vivid primary and a vivid
+          secondary, never a neutral. Apps supply only a <b>default</b> pair; the live pair
+          is the signed-in user's. From two raw inputs the whole palette derives: paper deepens
+          them toward ink for legibility, dark keeps them raw and adds glow. <b>Never hardcode
+          <code>--accent</code></b> — let it derive; components read the <code>--color-accent*</code> aliases.
+        </p>
+      </div>
+      <p class="dg-caption">Primary family — tracks <code>--accent</code></p>
+      <div class="dg-grid" style="margin-bottom:18px">
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--accent-raw)"></span><code>--accent-raw</code><em>raw input</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--accent)"></span><code>--accent</code><em>derived / per-mode</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-amber-bright)"></span><code>--hub-amber-bright</code><em>lift</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-amber-dim)"></span><code>--hub-amber-dim</code><em>shade</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-amber-deep)"></span><code>--hub-amber-deep</code><em>toward bg</em></div>
+      </div>
+      <p class="dg-caption">Secondary family — tracks <code>--accent-secondary</code></p>
+      <div class="dg-grid">
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--accent-2-raw)"></span><code>--accent-2-raw</code><em>raw input</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--accent-secondary)"></span><code>--accent-secondary</code><em>derived / per-mode</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-cyan-dim)"></span><code>--hub-cyan-dim</code><em>shade</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-cyan-glow)"></span><code>--hub-cyan-glow</code><em>glow</em></div>
+      </div>
+    </section>
+
+    <!-- ══ 03 Neutrals + status ══ -->
+    <section class="dg-sec jk-sheet" id="colour">
+      <span class="screw tl"></span><span class="screw tr"></span><span class="screw bl"></span><span class="screw br"></span>
+      <div class="dg-sec-head">
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">03</span><span class="label-tape">NEUTRALS · STATUS</span></div>
+        <h2>Neutrals, hardware &amp; status</h2>
+        <p class="dg-lede">
+          Neutrals are the only <b>designed</b> defaults (backgrounds + readable text). They are
+          per-app inputs, but every app keeps the same token <b>names</b>. Status hues are
+          semantic constants — <b>never</b> tinted from the accent.
+        </p>
+      </div>
+
+      <p class="dg-caption">Backgrounds &amp; screen</p>
+      <div class="dg-grid" style="margin-bottom:18px">
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-bg-0)"></span><code>--hub-bg-0</code><em>paper</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-bg-1)"></span><code>--hub-bg-1</code><em>paper-2</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-bg-2)"></span><code>--hub-bg-2</code><em>card</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-bg-3)"></span><code>--hub-bg-3</code><em>card-2</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-screen)"></span><code>--hub-screen</code><em>inner screen</em></div>
+      </div>
+
+      <p class="dg-caption">Hardware metal &amp; lines</p>
+      <div class="dg-grid" style="margin-bottom:18px">
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-metal-0)"></span><code>--hub-metal-0</code><em>metal</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-metal-1)"></span><code>--hub-metal-1</code><em>metal</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-metal-2)"></span><code>--hub-metal-2</code><em>metal</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-line)"></span><code>--hub-line</code><em>border</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-line-bright)"></span><code>--hub-line-bright</code><em>border+</em></div>
+      </div>
+
+      <p class="dg-caption">Text ramp (ink on ground)</p>
+      <div class="dg-grid" style="margin-bottom:18px">
+        <div class="dg-swatch"><span class="dg-chip dg-chip-text" style="color:var(--hub-cream-bright)">Aa</span><code>--hub-cream-bright</code><em>ink</em></div>
+        <div class="dg-swatch"><span class="dg-chip dg-chip-text" style="color:var(--hub-cream)">Aa</span><code>--hub-cream</code><em>muted</em></div>
+        <div class="dg-swatch"><span class="dg-chip dg-chip-text" style="color:var(--hub-cream-dim)">Aa</span><code>--hub-cream-dim</code><em>faint</em></div>
+        <div class="dg-swatch"><span class="dg-chip dg-chip-text" style="color:var(--hub-cream-faint)">Aa</span><code>--hub-cream-faint</code><em>ghost</em></div>
+      </div>
+
+      <p class="dg-caption">Status — semantic constants, one lane</p>
+      <div class="dg-grid">
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-green)"></span><code>--hub-green</code><em>ok</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--color-warn)"></span><code>--color-warn</code><em>warn</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-red)"></span><code>--hub-red</code><em>danger</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-magenta)"></span><code>--hub-magenta</code><em>accent-free</em></div>
+      </div>
+    </section>
+
+    <!-- ══ 04 Typography ══ -->
+    <section class="dg-sec jk-sheet" id="type">
+      <span class="screw tl"></span><span class="screw tr"></span><span class="screw bl"></span><span class="screw br"></span>
+      <div class="dg-sec-head">
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">04</span><span class="label-tape">TYPE</span></div>
+        <h2>Four type roles</h2>
+        <p class="dg-lede">Data + labels are mono; body is sans; numeric displays are the 7-segment face; a serif is the per-app reading voice. The label idiom is <code>.mono-eyebrow</code> / <code>.jk-lab</code>.</p>
+      </div>
+      <div class="dg-type-row"><div class="dg-type-role">mono<small>IBM Plex Mono</small></div><div class="dg-spec-mono">READOUT 0x1A · labels · hardware tape</div></div>
+      <div class="dg-type-row"><div class="dg-type-role">sans<small>IBM Plex Sans</small></div><div class="dg-spec-sans">The quick brown fox reads the manual.</div></div>
+      <div class="dg-type-row"><div class="dg-type-role">serif<small>Fraunces (per-app)</small></div><div class="dg-spec-serif">Editorial headings &amp; figures</div></div>
+      <div class="dg-type-row"><div class="dg-type-role">seg<small>Big Shoulders Display</small></div><div class="dg-spec-seg">08:42:17</div></div>
+      <div class="dg-row" style="margin-top:22px">
+        <span class="jk-lab">jk-lab · 10px</span>
+        <span class="jk-lab jk-lab-sm">jk-lab-sm · 9px</span>
+        <span class="jk-lab jk-lab-xs">jk-lab-xs · 8px</span>
+        <span class="jk-lab jk-lab-sans">jk-lab-sans</span>
+        <span class="mono-eyebrow">mono-eyebrow</span>
+      </div>
+    </section>
+
+    <!-- ══ 05 Accent bubbles ══ -->
+    <section class="dg-sec jk-sheet" id="bubbles">
+      <span class="screw tl"></span><span class="screw tr"></span><span class="screw bl"></span><span class="screw br"></span>
+      <div class="dg-sec-head">
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">05</span><span class="label-tape">BUBBLE SYSTEM</span></div>
+        <h2>The pressed / flat accent system</h2>
+        <p class="dg-lede">
+          One rule carries the whole component language: <b>primary is struck / pressed</b>
+          (lit face + bevel on paper, halation in CRT); <b>secondary stays flat</b>, one rung
+          down, never pressed. Use the <code>@jkos/ui</code> React wrappers
+          (<code>&lt;Press&gt;</code>, <code>&lt;Bubble&gt;</code>, <code>&lt;Sub&gt;</code>,
+          <code>&lt;Well&gt;</code>, <code>&lt;Sheet&gt;</code>, <code>&lt;Pill&gt;</code>,
+          <code>&lt;TButton&gt;</code>) — don't recreate them.
+        </p>
+      </div>
+      <div class="dg-row" style="margin-bottom:18px">
+        <span class="jk-press-lg" style="font-size:1.4rem;font-family:var(--hub-font-serif)">Pressed primary</span>
+        <a class="jk-sub-link" href="#">flat secondary link</a>
+        <span class="jk-sub">jk-sub</span>
+      </div>
+      <div class="dg-row" style="margin-bottom:18px">
+        <span class="jk-bubble jk-bubble-primary">PRIMARY</span>
+        <span class="jk-bubble jk-bubble-primary jk-bubble-lg">PRIMARY LG</span>
+        <span class="jk-bubble jk-bubble-secondary">SECONDARY</span>
+        <span class="jk-bubble jk-bubble-secondary jk-bubble-lg">SECONDARY LG</span>
+        <span class="jk-pill"><span class="led green sm"></span>ONLINE</span>
+        <button class="jk-tbtn">Text button</button>
+        <button class="jk-tbtn jk-tbtn-quiet">Quiet</button>
+      </div>
+      <div class="dg-grid wide">
+        <div class="dg-block jk-well">
+          <span class="jk-lab jk-lab-sm">jk-well · inset (accent tint)</span>
+          <p style="margin:10px 0 0;color:var(--color-muted)">A debossed container on paper, emissive in CRT. Retint with <code>--jk-tint</code>.</p>
+        </div>
+        <div class="dg-block jk-well" style="--jk-tint: var(--hub-magenta)">
+          <span class="jk-lab jk-lab-sm">jk-well · retinted</span>
+          <p style="margin:10px 0 0;color:var(--color-muted)">Same well, <code>--jk-tint: var(--hub-magenta)</code> — a data colour.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 06 Controls ══ -->
+    <section class="dg-sec jk-sheet" id="controls">
+      <span class="screw tl"></span><span class="screw tr"></span><span class="screw bl"></span><span class="screw br"></span>
+      <div class="dg-sec-head">
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">06</span><span class="label-tape">CONTROLS</span></div>
+        <h2>Toggles &amp; meters</h2>
+        <p class="dg-lede">Neutral tracks that fill with the accent (or <code>--jk-tint</code>) when active. React: <code>&lt;Switch&gt;</code>, <code>&lt;Check&gt;</code>, <code>&lt;VU&gt;</code>.</p>
+      </div>
+      <div class="dg-row" style="gap:28px">
+        <div class="dg-row" style="gap:10px">
+          <button class="jk-switch" aria-checked="true" id="dg-sw"><span class="jk-switch-knob"></span></button>
+          <span class="jk-lab jk-lab-sm">jk-switch</span>
+        </div>
+        <div class="dg-row" style="gap:10px">
+          <button class="jk-check" aria-checked="true" id="dg-ck">✓</button>
+          <span class="jk-lab jk-lab-sm">jk-check</span>
+        </div>
+        <div class="dg-row" style="gap:10px;flex:1;min-width:220px">
+          <div class="jk-vu" style="flex:1;height:26px">
+            <span class="jk-vu-seg on"></span><span class="jk-vu-seg on"></span><span class="jk-vu-seg on"></span>
+            <span class="jk-vu-seg on"></span><span class="jk-vu-seg on"></span><span class="jk-vu-seg on"></span>
+            <span class="jk-vu-seg"></span><span class="jk-vu-seg"></span><span class="jk-vu-seg"></span><span class="jk-vu-seg"></span>
+          </div>
+          <span class="jk-lab jk-lab-sm">jk-vu</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 07 Hardware chrome ══ -->
+    <section class="dg-sec jk-sheet" id="chrome">
+      <span class="screw tl"></span><span class="screw tr"></span><span class="screw bl"></span><span class="screw br"></span>
+      <div class="dg-sec-head">
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">07</span><span class="label-tape">HARDWARE</span></div>
+        <h2>Hardware chrome</h2>
+        <p class="dg-lede">The CSS "hardware kit" — reuse these classes, don't invent new chrome. There is <b>no icon library</b>: iconography is inline SVG + these primitives.</p>
+      </div>
+      <div class="dg-grid wide">
+        <div class="dg-block jk-well" style="background:var(--hub-bg-1);box-shadow:none">
+          <p class="dg-caption">LEDs — .led</p>
+          <div class="dg-row" style="gap:14px">
+            <span class="led green"></span><span class="led amber"></span><span class="led red"></span><span class="led cyan"></span>
+            <span class="led off"></span><span class="led green lg"></span><span class="led amber sm steady"></span>
+          </div>
+        </div>
+        <div class="dg-block jk-well" style="background:var(--hub-bg-1);box-shadow:none">
+          <p class="dg-caption">Screws · vent · perf</p>
+          <div class="dg-row" style="gap:14px">
+            <span class="screw"></span><span class="screw sm"></span>
+            <span class="vent"><i></i><i></i><i></i></span>
+            <span class="perf" style="width:52px;height:32px;border:1px solid var(--hub-line);display:inline-block"></span>
+          </div>
+        </div>
+        <div class="dg-block jk-well" style="background:var(--hub-bg-1);box-shadow:none">
+          <p class="dg-caption">Tape &amp; stamp</p>
+          <div class="dg-row" style="gap:12px">
+            <span class="label-tape">LABEL TAPE</span>
+            <span class="dymo-tape">DYMO</span>
+            <span class="stamp">APPROVED</span>
+          </div>
+        </div>
+        <div class="dg-block jk-well" style="background:var(--hub-bg-1);box-shadow:none">
+          <p class="dg-caption">Meters — .bar / .seg</p>
+          <div class="bar-track" style="height:12px;margin-bottom:12px"><div class="bar-fill" style="width:64%"></div></div>
+          <span class="seg" style="font-size:1.8rem">1024 MB</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 08 Glow + halation ══ -->
+    <section class="dg-sec jk-sheet" id="glow">
+      <span class="screw tl"></span><span class="screw tr"></span><span class="screw bl"></span><span class="screw br"></span>
+      <div class="dg-sec-head">
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">08</span><span class="label-tape">GLOW · HALATION</span></div>
+        <h2>Phosphor glow &amp; halation</h2>
+        <p class="dg-lede">
+          Emissive light is <b>scarce</b> and mode-gated: it <b>only lights up in dark mode</b>
+          — on paper the same accent presses IN instead. Switch <b>Face → Dark</b> to see these
+          come alive. <code>.jk-halo</code> / <code>.jk-glow</code> collapse to nothing on paper,
+          so one class is correct in both faces.
+        </p>
+      </div>
+      <div class="dg-screen">
+        <div class="jk-scanlines"></div>
+        <div class="dg-row" style="gap:22px;position:relative">
+          <span class="glow" style="font-family:var(--hub-font-mono)">.glow amber</span>
+          <span class="glow-cyan" style="font-family:var(--hub-font-mono)">.glow-cyan</span>
+          <span class="jk-halo-text" style="font-family:var(--hub-font-seg);font-size:1.6rem;color:var(--hub-amber)">HALO</span>
+          <span class="jk-bubble jk-bubble-primary jk-halo">HALO SURFACE</span>
+          <span class="jk-glow jk-glow-hi" style="--jk-glow-color:var(--hub-magenta);display:inline-block;padding:8px 12px;border:1px solid var(--hub-magenta);color:var(--hub-magenta);font-family:var(--hub-font-mono);font-size:11px">.jk-glow · custom</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 09 Media ══ -->
+    <section class="dg-sec jk-sheet" id="media">
+      <span class="screw tl"></span><span class="screw tr"></span><span class="screw bl"></span><span class="screw br"></span>
+      <div class="dg-sec-head">
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">09</span><span class="label-tape">MEDIA</span></div>
+        <h2>Media grid &amp; covers</h2>
+        <p class="dg-lede">The suite cover grid + tile — <code>@jkos/ui</code> <code>&lt;MediaGrid&gt;</code> / <code>&lt;CoverArt&gt;</code>. Density keys off one token ladder (compact/cozy/comfortable).</p>
+      </div>
+      <div class="dg-media-demo">
+        <p class="dg-caption">jk-media-grid · data-density="cozy"</p>
+        <div class="jk-media-grid" data-density="cozy">
+          <div class="jk-media-cover jk-well jk-media-cover-placeholder"><span>♪</span></div>
+          <div class="jk-media-cover jk-well jk-media-cover-placeholder"><span>◈</span></div>
+          <div class="jk-media-cover jk-well jk-media-cover-placeholder"><span>☰</span></div>
+          <div class="jk-media-cover jk-well jk-media-cover-placeholder"><span>◷</span></div>
+          <div class="jk-media-cover jk-well jk-media-cover-placeholder"><span>✦</span></div>
+          <div class="jk-media-cover jk-well jk-media-cover-placeholder"><span>❖</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 10 Motion ══ -->
+    <section class="dg-sec jk-sheet" id="motion">
+      <span class="screw tl"></span><span class="screw tr"></span><span class="screw bl"></span><span class="screw br"></span>
+      <div class="dg-sec-head">
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">10</span><span class="label-tape">MOTION</span></div>
+        <h2>Motion vocabulary</h2>
+        <p class="dg-lede">
+          Ambient hardware effects (LED pulse, occasional flicker) are the house idiom —
+          subtle, opacity-only. Entrances land in ~200–400ms. Adjust CRT intensity via the
+          <code>--crt-*</code> tokens, never by baking overlay opacity into a component.
+        </p>
+      </div>
+      <div class="dg-row">
+        <span class="jk-bubble jk-bubble-secondary">view-enter</span>
+        <span class="jk-bubble jk-bubble-secondary">panel-enter</span>
+        <span class="jk-bubble jk-bubble-secondary">item-in</span>
+        <span class="jk-bubble jk-bubble-secondary">modal-in</span>
+        <span class="jk-bubble jk-bubble-secondary">boot-sweep</span>
+        <span class="jk-bubble jk-bubble-secondary">led-pulse</span>
+        <span class="jk-bubble jk-bubble-secondary">data-flicker</span>
+        <span class="jk-bubble jk-bubble-secondary">check-pop</span>
+      </div>
+    </section>
+
+    <!-- ══ 11 The brief ══ -->
+    <section class="dg-sec jk-sheet" id="brief">
+      <span class="screw tl"></span><span class="screw tr"></span><span class="screw bl"></span><span class="screw br"></span>
+      <div class="dg-sec-head">
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">11</span><span class="label-tape">FOR A DESIGN PASS</span></div>
+        <h2>The fence — elevate inside these lines</h2>
+        <p class="dg-lede">The invariants a design pass must not cross. Push craft on spacing, hierarchy, composition and atmosphere; keep the token names, the two-mode contract and the derivation chain intact.</p>
+      </div>
+      <ul class="dg-specs">
+        <li><b class="dg-yes">DO</b><span>Extend the retro-hardware language — LEDs, screws, vents, tape, 7-seg, screens.</span></li>
+        <li><b class="dg-yes">DO</b><span>Resolve every colour through the <code>--hub-*</code> / <code>--color-*</code> chain.</span></li>
+        <li><b class="dg-yes">DO</b><span>Reuse the shared classes &amp; <code>@jkos/ui</code> components; make both faces hold up.</span></li>
+        <li><b class="dg-yes">DO</b><span>Fade colours with <code>withAlpha()</code>, never hex-concat on a CSS var.</span></li>
+        <li><b class="dg-no">DON'T</b><span>Rename any <code>--hub-*</code> token, or hardcode <code>--accent</code> / a hex in a component.</span></li>
+        <li><b class="dg-no">DON'T</b><span>Use <code>prefers-color-scheme</code> — mode is driven by <code>data-mode</code>.</span></li>
+        <li><b class="dg-no">DON'T</b><span>Add an icon library, or normalise the chrome toward flat modern UI.</span></li>
+        <li><b class="dg-no">DON'T</b><span>Restate the derivation or re-set a CRT knob per app — inputs only.</span></li>
+      </ul>
+      <p class="dg-lede" style="margin-top:20px">
+        Full prose reference: <code>Documentation/DESIGN.md</code>. Token source of truth:
+        <code>packages/design/tokens/hub.css</code>. Factory &amp; appliers:
+        <code>packages/design/theme/buildTheme.ts</code> · <code>utils/applyJkOSTheme.ts</code>.
+      </p>
+    </section>
+
+    <div class="dg-foot">
+      <span class="led green sm steady"></span>
+      <span>jkOS DESIGN SYSTEM — rendered by hub.css</span>
+      <span class="dg-deck-spacer"></span>
+      <span>packages/design · Documentation/DESIGN.md</span>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var root = document.documentElement;
+      var SCHEMES = [
+        { id: 'amber-cyan',   label: 'Amber · Cyan',   primary: '#ffb000', secondary: '#4ecdc4' },
+        { id: 'green-violet', label: 'Green · Violet', primary: '#5cd66a', secondary: '#c08aff' },
+        { id: 'ice-coral',    label: 'Ice · Coral',    primary: '#a8d8ff', secondary: '#ff6b5a' },
+        { id: 'gold-mint',    label: 'Gold · Mint',    primary: '#ffd000', secondary: '#5affc1' }
+      ];
+      // BeigeBoard-style soft radius scale — demonstrates the per-app corner input.
+      var SOFT = { '--hub-radius':'10px','--hub-radius-xs':'6px','--hub-radius-sm':'8px','--hub-radius-lg':'11px','--hub-radius-soft':'11px','--hub-radius-widget':'10px','--hub-radius-button':'8px' };
+
+      /* ── Mode ── */
+      var modeBox = document.getElementById('dg-mode');
+      function setMode(m) {
+        root.setAttribute('data-mode', m);
+        modeBox.querySelectorAll('button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.mode === m)); });
+      }
+      modeBox.addEventListener('click', function (e) { var b = e.target.closest('button'); if (b) setMode(b.dataset.mode); });
+
+      /* ── Accent ── */
+      var accBox = document.getElementById('dg-accents');
+      var custom = document.getElementById('dg-custom');
+      var cp = document.getElementById('dg-cp'), cs = document.getElementById('dg-cs');
+      function applyAccent(p, s) { root.style.setProperty('--accent-raw', p); root.style.setProperty('--accent-2-raw', s); }
+      function pressAccent(id) { accBox.querySelectorAll('.dg-accent').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.id === id)); }); }
+      SCHEMES.forEach(function (sc, i) {
+        var b = document.createElement('button');
+        b.className = 'dg-accent'; b.dataset.id = sc.id; b.title = sc.label;
+        b.style.setProperty('--dg-p', sc.primary); b.style.setProperty('--dg-s', sc.secondary);
+        if (i === 0) b.setAttribute('aria-pressed', 'true');
+        b.addEventListener('click', function () { applyAccent(sc.primary, sc.secondary); pressAccent(sc.id); custom.classList.remove('on'); });
+        accBox.appendChild(b);
+      });
+      var cb = document.createElement('button');
+      cb.className = 'dg-accent dg-custom'; cb.dataset.id = 'custom'; cb.title = 'Custom'; cb.textContent = '+';
+      cb.addEventListener('click', function () { custom.classList.toggle('on'); pressAccent('custom'); applyAccent(cp.value, cs.value); });
+      accBox.appendChild(cb);
+      cp.addEventListener('input', function () { applyAccent(cp.value, cs.value); });
+      cs.addEventListener('input', function () { applyAccent(cp.value, cs.value); });
+
+      /* ── Radius ── */
+      var radBox = document.getElementById('dg-radius');
+      function setRadius(kind) {
+        radBox.querySelectorAll('button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.radius === kind)); });
+        if (kind === 'soft') { Object.keys(SOFT).forEach(function (k) { root.style.setProperty(k, SOFT[k]); }); }
+        else { Object.keys(SOFT).forEach(function (k) { root.style.removeProperty(k); }); }
+      }
+      radBox.addEventListener('click', function (e) { var b = e.target.closest('button'); if (b) setRadius(b.dataset.radius); });
+
+      /* ── Demo toggles ── */
+      ['dg-sw', 'dg-ck'].forEach(function (id) {
+        var el = document.getElementById(id);
+        el.addEventListener('click', function () { el.setAttribute('aria-checked', el.getAttribute('aria-checked') === 'true' ? 'false' : 'true'); });
+      });
+    })();
+  </script>
+</body>
+</html>

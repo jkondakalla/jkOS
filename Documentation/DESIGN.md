@@ -5,6 +5,13 @@ is derived from the actual token/applier source — when in doubt, the code wins
 `packages/design/tokens/hub.css` (tokens + shared classes) and
 `packages/design/utils/applyJkOSTheme.ts` (mode/accent appliers).
 
+> **See it rendered — `staging.jkos.net/design`.** A self-contained living style guide
+> renders every token, component and hardware primitive below in **both faces**, with live
+> **mode / accent / corner** toggles — the visual companion to this doc. It is generated
+> straight from `hub.css` (`node apps/jkauth/scripts/build-design-page.mjs` → served from
+> the jkAuth static root at `/design`), so it never drifts from the real system. Read the
+> page for the *look*, this file for the *rules*. Elevate the surfaces; stay inside the fence.
+
 ## The aesthetic — two-faced retro hardware
 
 jkOS has one distinctive design identity with two faces, switched by `data-mode` on `<html>`:
@@ -137,9 +144,17 @@ key to inherit the hub default. `selector` (default `:root`) scopes a subtree, e
 | `.glow`, `.glow-dim`, `.glow-cyan` | Phosphor text glow |
 | `.canvas-grid`, `.canvas-cell`, `.boot-sweep` | Grid canvas background, layout cells, boot-in animation |
 | `.jk-cards-row` / `.jk-cards-chip` / `.jk-cards-btn` | `@jkos/cards` interaction affordances (row hover, chip fade, button press). Kit-owned so the calendar renders identically in BeigeBoard tabs **and** ORDECK widgets — never reach for a host app.css class inside the kit |
+| `.jk-halo` / `.jk-halo-text` | Suite-wide accent halation — box/text glow locked to the theme accent. **Mode-gated:** collapses to nothing on paper (the tokens are `none`), emits in CRT, so one class is correct in both faces |
+| `.jk-glow` / `.jk-glow-text` (+ `.jk-glow-low/-mid/-hi`) | The per-**item** analogue of the halo: set an arbitrary colour with `--jk-glow-color` inline and an intensity rung with the size classes. Same paper→dark gating. Replaces apps' bespoke per-colour glow helpers |
 
-Keyframes available: `led-pulse`, `blink`, `data-flicker`, `grain`. Scrollbars and
-`::selection` are already styled globally — don't restyle per-app.
+**Keyframes** (in hub.css, one copy): `led-pulse`, `blink`, `data-flicker`, `grain`,
+`spin`, `fadeSlideUp`, `pulseOpacity`, `checkBounce`, `panelIn`, `itemIn`, `modalIn`,
+`scanRoll`, `scanPulse`, `artifactFlash`, `crtExpand`, `introTitleReveal`, `introFadeOut`.
+**Motion utility classes** wrap the common ones: `.view-enter`, `.panel-enter`, `.item-in`,
+`.modal-in`, `.crt-expand`, `.intro-title` / `.intro-out`, `.now-dot`, `.check-pop`,
+`.boot-sweep`. App sheets keep only their bespoke frames (BeigeBoard `paperExpand`, ORDECK
+`reel-spin`/`ticker-scroll`) — the shared vocabulary lives here, not re-declared per app.
+Scrollbars and `::selection` are already styled globally — don't restyle per-app.
 
 ## Accent bubbles — the two-accent pressed/flat system
 
@@ -174,12 +189,30 @@ rung down, never pressed. Status colours keep their own lane.
   to use the system. `@jkos/design` stays framework-free (tokens + factory + appliers); React
   lives in `@jkos/ui`.
 
+## Structural primitives — shell, media, async, match
+
+Beyond the accent/text system, the suite lifted its repeated **layout** shapes into shared
+classes + `@jkos/ui` components so a hand-copy can't drop a step or drift a style. All are
+neutral/structural (no accent of their own) and resolve through the same `--hub-*` chain.
+
+| Class(es) | React (`@jkos/ui`) | What it is |
+|-----------|--------------------|------------|
+| `.jk-shell` / `.jk-shell-header` / `.jk-shell-brand` / `.jk-shell-wordmark` / `.jk-shell-settings-btn` | `<AppShell>` | The invariant app frame every full-shell app hand-wrote: auth guard → header row → `SettingsDrawer` → `useJkOSPreferences` wiring. Purely structural; the header carries no accent |
+| `.jk-media-grid` (`data-density="compact\|cozy\|comfortable"`) + `.jk-media-cover` / `.jk-media-cover-placeholder` | `<MediaGrid>` / `<CoverArt>` | The responsive cover grid + square artwork tile. Columns key off the density ladder tokens (`--hub-media-cols-*`, `--hub-media-grid-gap*`), pinned to `packages/design/responsive/mediaGrid.ts` by `check:responsive`. Placeholder reuses `.jk-well` |
+| `.jk-async-note` / `.jk-async-error` | `<AsyncView>` | The loading / error / empty state paragraph, unified out of three hand-rolled versions. `check:async-view` gates it. Error blends toward the danger hue via `color-mix`, never a raw red |
+| `.jk-match-panel` / `.jk-match-head` / `.jk-match-search` / `.jk-match-input` / `.jk-match-candidate*` | `<MatchPanel>` | The search → candidates → apply panel (papyros "Fix metadata"), lifted so the next consumer reuses it instead of repeating the single-app copy |
+
+These back the **media apps** (see the stack table below). New media-shaped UI should assemble
+from these, not re-hardcode a `repeat(N, 1fr)` grid or a bespoke loading paragraph.
+
 ## Per-app stacks — critical constraints
 
 | App | React | Styling | Notes |
 |-----|-------|---------|-------|
 | ORDECK | 18 | Plain CSS + `@jkos/ui` | **No Tailwind.** `WidgetShell` from `@jkos/ui` wraps widgets; `@jkos/ui/tokens.css` re-imports design tokens + ORDECK CRT overlay vars only (the `--color-*` aliases now live once in hub.css). v2 HUD (`html.od-v2`) keeps its own neutrals/rounded radius; accent flows from the chain |
 | BeigeBoard | 18 | Plain CSS (`src/app.css`) | **No Tailwind.** App helpers (fonts, colors, date fmt) in `src/lib/theme.ts` (date/time math re-exported from `@jkos/cards/datetime.ts` — single source). Restyled to the Claude brief via `@jkos/ui` primitives + per-app factory inputs (serif → Fraunces, a rounder radius scale ~8–11px); accents stay user-driven. Calendar drag uses a 4px click-vs-drag threshold (`providers/DragProvider`) so taps select/create and only real movement reschedules. Week + Calendar tabs use `@jkos/cards` `WeekView`/`CalendarView` — fully responsive (grid on desktop/tablet, agenda on mobile via `useBreakpoint()`); desktop wrappers in `views/` inject `DragAdapter` + colour resolvers; no separate mobile codepath |
+| PapyrOS | 18 | Plain CSS + `@jkos/ui` | **No Tailwind.** Audiobook library + player — first consumer of the `@jkos/player` primitive. Assembles from `<AppShell>`/`<MediaGrid>`/`<CoverArt>`/`<MatchPanel>`/`<AsyncView>`; offline cache + service-worker media. Fraunces for titles |
+| KourOS | 18 | Plain CSS + `@jkos/ui` | **No Tailwind.** Music player — second `@jkos/player` consumer (gapless/crossfade, playlists, queue). Same media + shell primitives, a deliberately *different* shape, to prove the player bricks fork nothing |
 | SylibOS | 19 | **Tailwind v4** (CSS-first) | Config lives in `src/index.css` `@theme` block — there is **no `tailwind.config.js`**; don't introduce v3 idioms |
 
 SylibOS specifics:
