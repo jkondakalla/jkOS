@@ -22,16 +22,23 @@ jkOS has one distinctive design identity with two faces, switched by `data-mode`
   amber `#ffb000` default accent, text glow (`--hub-amber-glow`), scanline/vignette overlays
   (ORDECK), grain overlay (screen).
 
-It is **skeuomorphic, not flat-SaaS**: corners are sharp **by default**
-(`--hub-radius: 0px`, max 2px), chrome is built from CSS "hardware" — LEDs, screws, vents,
-dymo tape, rubber stamps, 7-segment displays. Subtle ambient animation (LED pulse, data
+It is **skeuomorphic, not flat-SaaS**: chrome is built from CSS "hardware" — LEDs, label
+tape, rubber stamps, perforation, 7-segment displays. **Hardware chrome is scarce
+punctuation, not decoration**: one LED marks *the* live thing; a strip of tape names *the*
+important panel; put an LED on everything and none of them mean anything. (The v0.1
+screws, vents and dymo strips were dead code and were removed 2026-07-17 — reintroduce
+from git history only with a job to do.) Subtle ambient animation (LED pulse, data
 flicker) is part of the identity. New UI should extend this language, not normalize it
-toward generic modern UI. Corner radius is a **per-app factory input** — co-equal with
-accent, fonts, and neutrals, not a fixed identity apps "override." The hub default is sharp
-(0–2px), but an app picks its own corner scale through the factory without leaving the
-language: BeigeBoard runs a rounder scale (`injectJkOSTheme({ radius })`, ~8–11px) for a
-warmer paper feel; other apps keep the sharp default. App shapes read the `--hub-radius*`
-tokens (never hardcode a pixel radius), so the whole app retunes from that one call.
+toward generic modern UI.
+
+Corners are **soft by default** (`--hub-radius: 10px`, scale ~6–11px) — the house corner
+suite-wide. **Sharp is the opt-in**: it must be specified, per app (a 0–2px scale through
+the factory `radius` input) or per card (zero the `--hub-radius*` tokens on that element),
+and it is deliberately uncommon across the suite. Corner radius remains a **per-app
+factory input** — co-equal with accent, fonts, and neutrals: an app picks its own scale
+through `injectJkOSTheme({ radius })` without leaving the language. App shapes read the
+`--hub-radius*` tokens (never hardcode a pixel radius), so the whole app retunes from
+that one call.
 
 ## Token source of truth — `@jkos/design/tokens.css`
 
@@ -50,7 +57,7 @@ hub.css is split into **INPUTS** (the only things that vary per app) and a unive
 |--------|--------|------|
 | **Accent inputs** | `--accent-raw`, `--accent-2-raw`, `--accent-deepen-ink` | The user's pair (default = `ACCENT_SCHEMES[0]`, amber·cyan). The **only** accent defaults. `applyJkOSTheme` sets these at runtime. |
 | Neutral inputs | `--hub-bg-0..4`, `--hub-screen*`, `--hub-metal-0..2`, `--hub-bevel-*`, `--hub-line*`, `--hub-cream*` (text) | Per-app palette — supplied via `buildJkOSTheme()`, else hub defaults |
-| Radius / fonts inputs | `--hub-radius*` (sharp by default), `--hub-font-mono/sans/seg/serif` | Per-app via `buildJkOSTheme()` |
+| Radius / fonts inputs | `--hub-radius*` (soft by default; sharp is the opt-in), `--hub-font-mono/sans/seg/serif` | Per-app via `buildJkOSTheme()` |
 | **Derived** accent chain | `--accent`, `--accent-secondary` | Paper deepens the pair for legibility; dark uses it raw + glow. **Do not hardcode `--accent`** — let it derive. Component code uses the `--color-accent*` aliases, not these. |
 | **Derived** families | `--hub-amber/-bright/-dim/-deep/-glow`, `--hub-cyan/-dim/-glow` | Track `--accent` / `--accent-secondary` in **both** modes via `color-mix` |
 | Status | `--hub-red/green/magenta`, `--color-ok/warn/danger` | Semantic — never tint from `--accent` |
@@ -135,9 +142,9 @@ key to inherit the hub default. `selector` (default `:root`) scopes a subtree, e
 
 | Class | What it renders |
 |-------|-----------------|
-| `.led` (+ `.green/.amber/.red/.cyan/.off/.steady/.sm/.lg`) | Pulsing status LED with glow |
-| `.screw`, `.vent`, `.perf` | Hardware chrome: screw heads, vent slats, perforation |
-| `.label-tape`, `.dymo-tape` | Embossed label strips (dymo is always dark — a physical object) |
+| `.led` (+ `.green/.amber/.red/.cyan/.off/.steady/.sm/.lg`) | Pulsing status LED with glow — one per live thing, never decoration |
+| `.perf` | Perforated ground texture |
+| `.label-tape` | Embossed label strip — the **physical** alternative to the `.jk-bubble` text badge, for naming chrome rather than content |
 | `.stamp` | Rotated rubber-stamp badge |
 | `.seg` | 7-segment glowing numeric text |
 | `.bar-track` / `.bar-fill` | Amber-gradient meter |
@@ -156,17 +163,26 @@ key to inherit the hub default. `selector` (default `:root`) scopes a subtree, e
 `reel-spin`/`ticker-scroll`) — the shared vocabulary lives here, not re-declared per app.
 Scrollbars and `::selection` are already styled globally — don't restyle per-app.
 
-## Accent bubbles — the two-accent pressed/flat system
+## Wells & badges — the paper accent language
+
+Paper mode has exactly **two physical accent moves**:
+
+- **The well** sinks *into* the sheet — an inner shadow (`--hub-accent-press`) that gives a
+  region depth. Wells provide **boundaries**: use one to contain, group or delimit.
+- **The badge** sits *on* the sheet — a raised chip with a drop shadow, put on text and
+  small marks. The badge is paper's **emphasis** — the exact analogue of dark mode's glow.
 
 The pair flows from the chain (`--accent` / `--accent-secondary`), so it deepens for paper
-and goes raw + glow for dark automatically. One rule: **primary is struck/pressed** (lit
-top face + accent-dark bevel on paper; halation glow in CRT); **secondary stays flat**, one
-rung down, never pressed. Status colours keep their own lane.
+and goes raw + glow for dark automatically. **Primary takes the badge treatment; secondary
+stays flat**, one rung down, never raised. In CRT both moves go emissive: the well's
+boundary becomes an accent ring + glow, the badge's emphasis becomes halation. `.label-tape`
+is the badge made physical (an embossed hardware strip) — reach for it when the thing being
+named is chrome rather than content. Status colours keep their own lane.
 
-- **Classes** (hub.css): `.jk-press` / `.jk-press-lg` (struck primary text), `.jk-sub` /
-  `.jk-sub-link` (flat secondary), `.jk-well` (inset container), `.jk-bubble` +
-  `.jk-bubble-primary` / `.jk-bubble-secondary` (+ `.jk-bubble-lg`) single-element pills,
-  `.jk-sheet` (card). Text-system primitives: `.jk-lab` (+ `.jk-lab-sm/-xs`, mono uppercase
+- **Classes** (hub.css): `.jk-press` / `.jk-press-lg` (badged primary text — raised off the
+  sheet), `.jk-sub` / `.jk-sub-link` (flat secondary), `.jk-well` (inset boundary container),
+  `.jk-bubble` + `.jk-bubble-primary` (the raised badge chip) / `.jk-bubble-secondary` (flat
+  chip) (+ `.jk-bubble-lg`), `.jk-sheet` (card). Text-system primitives: `.jk-lab` (+ `.jk-lab-sm/-xs`, mono uppercase
   label; `.jk-lab-sans` swaps to the UI sans — the blessed eyebrow variant), `.jk-tbtn`
   (+ `.jk-tbtn-quiet`, compact mono text button that hovers to the secondary accent),
   `.jk-pill` (green status pill). **Controls + veils:** `.jk-switch` (+ `.jk-switch-knob`)
@@ -175,7 +191,7 @@ rung down, never pressed. Status colours keep their own lane.
   meter; `.jk-scanlines` / `.jk-vignette` CRT veils driven by the `--crt-*` opacity knobs +
   `--crt-scanline-ink` (so one markup renders in both faces, no baked opacity); `.jk-scrim`
   (+ `.jk-scrim-heavy`) modal backdrop from the neutral scrim tokens. Corners follow the
-  per-app `--hub-radius*` scale (sharp by default); no texture/effect tokens touched.
+  per-app `--hub-radius*` scale (soft by default); no texture/effect tokens touched.
 - **On-accent ink** (`--color-on-accent` / `-dim` / `-faint`): the white-alpha family for
   text/marks/dividers sitting on the accent or a data colour (task chips, tinted panel
   headers, filled checks) — pick it over `--color-ink` only when the ground is coloured.

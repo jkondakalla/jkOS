@@ -75,16 +75,18 @@
   --hub-font-seg:   'Big Shoulders Display', 'IBM Plex Sans', sans-serif;
   --hub-font-serif: var(--hub-font-sans);
 
-  /* Spacing grid + radii (a per-app scale; sharp by default — apps soften it
-     through the factory `radius` input, exactly like accent/fonts/neutrals). */
+  /* Spacing grid + radii (a per-app scale; SOFT by default — the house corner.
+     Sharp is the opt-in: an app passes a 0–2px scale through the factory
+     `radius` input, or a single card zeroes the --hub-radius* tokens on its own
+     element. Sharp is deliberate punctuation, not the ground state. */
   --hub-grid:             40px;
-  --hub-radius:           0px;
-  --hub-radius-xs:        0px;   /* tiny controls (checkboxes, swatches) */
-  --hub-radius-sm:        0px;
-  --hub-radius-lg:        2px;
-  --hub-radius-soft:      2px;
-  --hub-radius-widget:    0px;
-  --hub-radius-button:    0px;
+  --hub-radius:           10px;
+  --hub-radius-xs:        6px;   /* tiny controls (checkboxes, swatches) */
+  --hub-radius-sm:        8px;
+  --hub-radius-lg:        11px;
+  --hub-radius-soft:      11px;
+  --hub-radius-widget:    10px;
+  --hub-radius-button:    8px;
 
   /* ── Responsive card scale (the VIEWPORT axis) ──────────────────────────────
    * Card primitives consume these instead of literal px, so they scale by tier.
@@ -153,7 +155,6 @@
   --crt-scanline-opacity: 0;
   --crt-vignette-opacity: 0.08;
   --canvas-grid-opacity: 0.5;
-  --screw-display: inline-block;
   /* Scanline INK — the line colour for .jk-scanlines; visibility comes from
      --crt-scanline-opacity (an input apps may raise via their theme CSS). Paper
      scores dark lines into the sheet; dark mode lifts pale phosphor rows. */
@@ -227,8 +228,10 @@
   --hub-shadow-inset:  inset 0 1px 0 var(--hub-bevel-light), inset 0 -1px 0 var(--hub-bevel-dark);
   --hub-shadow-card:   0 2px 8px color-mix(in srgb, var(--hub-cream-bright) 10%, transparent),
                        0 0 0 1px var(--hub-line);
-  /* Accent "pressed into the paper" — light-mode analog of dark-mode halation:
-     a debossed stamp. Dark mode overrides this with an emissive glow. */
+  /* The WELL shadow — an inner shadow that sinks a region INTO the sheet. On
+     paper the well is one of the two accent moves (wells give depth + boundary;
+     badges give emphasis — see the wells/badges block below). Dark mode
+     overrides this with an emissive glow so the same class stays mode-correct. */
   --hub-accent-press:
     inset 0 2px 3px color-mix(in srgb, var(--hub-cream-bright) 32%, transparent),
     inset 0 -1px 1px color-mix(in srgb, #ffffff 55%, transparent),
@@ -487,44 +490,15 @@
 .led.sm     { width: 6px;  height: 6px; }
 .led.lg     { width: 12px; height: 12px; }
 
-/* Hardware bits */
-.screw {
-  width: 10px; height: 10px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 30% 30%,
-    var(--hub-line-bright) 0%,
-    var(--hub-metal-1)     60%,
-    var(--hub-metal-0)     100%
-  );
-  box-shadow: inset 0 0 2px rgba(0,0,0,0.8), 0 0 1px rgba(0,0,0,0.6);
-  position: relative;
-  flex-shrink: 0;
-  display: var(--screw-display, inline-block);
-}
-.screw::after {
-  content: '';
-  position: absolute;
-  left: 1px; right: 1px;
-  top: 50%;
-  height: 1px;
-  background: rgba(0,0,0,0.75);
-  transform: translateY(-50%) rotate(var(--screw-rot, 25deg));
-}
-.screw.sm { width: 7px; height: 7px; }
+/* Hardware bits — SCARCE punctuation, not decoration. One LED marks THE live
+   thing; a strip of tape names THE important panel. Spamming hardware chrome
+   removes the importance it exists to grant. (The v0.1 screw/vent/dymo pieces
+   were dead code and are gone — reintroduce from git history only with a job
+   to do.) */
 
-.vent {
-  display: flex; flex-direction: column; gap: 2px;
-  padding: 4px 6px;
-  background: var(--hub-bg-0);
-  border: 1px solid var(--hub-line);
-}
-.vent > i {
-  display: block;
-  height: 2px;
-  background: var(--hub-bg-2);
-  border-top: 1px solid rgba(0,0,0,0.4);
-}
-
+/* Label tape — the PHYSICAL alternative to the .jk-bubble text badge: an
+   embossed strip you stick on a panel to name it. Same badge doctrine (drop
+   shadow, sits ON the surface), rendered as hardware instead of accent. */
 .label-tape {
   display: inline-block;
   background: linear-gradient(180deg, var(--hub-metal-1), var(--hub-metal-0));
@@ -536,30 +510,6 @@
   border: 1px solid var(--hub-metal-0);
   box-shadow: inset 0 1px 0 var(--hub-bevel-light), 0 1px 0 rgba(0,0,0,0.4);
 }
-
-/* Dymo tape is always dark (physical object, contrasts with both backgrounds) */
-.dymo-tape {
-  display: inline-block;
-  background: #1f1c16;
-  color: var(--hub-cream-bright);
-  padding: 3px 10px;
-  font-family: var(--hub-font-mono);
-  font-size: 10px;
-  letter-spacing: 0.3em;
-  font-weight: 600;
-  position: relative;
-  text-shadow: 0 -1px 0 rgba(0,0,0,0.8);
-}
-.dymo-tape::before, .dymo-tape::after {
-  content: '';
-  position: absolute; top: 0; bottom: 0;
-  width: 4px;
-  background: radial-gradient(circle at center, #0a0906 1.4px, transparent 1.6px);
-  background-size: 4px 4px;
-  background-repeat: repeat-y;
-}
-.dymo-tape::before { left: 0; }
-.dymo-tape::after  { right: 0; }
 
 .perf {
   background: var(--hub-bg-0);
@@ -632,10 +582,18 @@
   background: var(--hub-bg-1);
   border: 1px solid var(--hub-line);
 }
+/* No fill-mode on purpose (same reasoning as .view-enter above): the keyframes
+   end at the resting style, and a retained non-none clip-path would make the
+   cell a containing block for fixed/absolute descendants forever after. The
+   old `to`-only keyframe animated opacity 1→1 — the entrance was invisibly a
+   no-op until 2026-07-17. The sweep is a fade + left-to-right reveal. */
 .boot-sweep {
-  animation: bootIn 0.4s ease-out both;
+  animation: bootIn 0.4s ease-out;
 }
-@keyframes bootIn { to { opacity: 1; } }
+@keyframes bootIn {
+  from { opacity: 0; clip-path: inset(0 100% 0 0); }
+  to   { opacity: 1; clip-path: inset(0 0 0 0); }
+}
 
 /* Scrollbars */
 ::-webkit-scrollbar       { width: 6px; height: 6px; }
@@ -649,17 +607,27 @@
   color: var(--hub-cream-bright);
 }
 
-/* ─── Accent bubbles — the two-accent "pressed / flat" system ──────────────
- * Primary accent is STRUCK into the paper (lit top face + accent-dark bevel)
- * and EMITS as halation in CRT; the secondary stays FLAT, one rung down, never
- * pressed. Both flow from the chain above (--accent / --accent-secondary), so
- * they deepen for paper and go raw + glow for dark automatically.
+/* ─── Wells & badges — the paper accent language ───────────────────────────
+ * Paper mode has exactly two physical accent moves:
  *
- * Use the React components from @jkos/ui: <Bubble>, <Press>, <Sheet>.
- * Corners stay sharp (--hub-radius*); no texture/effect tokens are touched here.
+ *   WELL  — sinks INTO the sheet (inner shadow, --hub-accent-press). Wells
+ *           provide DEPTH and BOUNDARY: use one to contain or delimit a region.
+ *   BADGE — sits ON the sheet (raised chip, drop shadow) on text and small
+ *           marks. The badge is paper's EMPHASIS — the exact analogue of dark
+ *           mode's glow. Primary accent takes the badge treatment; the
+ *           secondary stays FLAT, one rung down, never raised.
+ *
+ * In CRT both moves become emissive: the well's boundary is an accent ring +
+ * glow, the badge's emphasis is halation. Both flow from the chain above
+ * (--accent / --accent-secondary), so they deepen for paper and go raw + glow
+ * for dark automatically.
+ *
+ * Use the React components from @jkos/ui: <Bubble>, <Press>, <Well>, <Sheet>.
+ * Corners follow the per-app --hub-radius* scale (soft by default); no
+ * texture/effect tokens are touched here.
  * ───────────────────────────────────────────────────────────────────────── */
 
-/* Pressed PRIMARY text — struck flush into the paper */
+/* Badged PRIMARY text — raised off the sheet: highlight above, shade below */
 .jk-press {
   color: var(--accent);
   text-shadow:
@@ -699,10 +667,12 @@
   border-bottom-color: color-mix(in srgb, var(--accent-secondary) 50%, transparent);
 }
 
-/* Inset accent-tinted container — debossed on paper, emissive in CRT.
-   Reuses --hub-accent-press so the mode flip is inherited, not re-stated.
-   --jk-tint (unset → --accent) lets a caller retint the well in a data colour
-   (e.g. a goal's own hue); the dark-mode press glow follows the same seam. */
+/* The WELL — inset accent-tinted container: debossed on paper, emissive in
+   CRT. Wells give a region depth and a boundary; they are containment, not
+   emphasis (that's the badge's job). Reuses --hub-accent-press so the mode
+   flip is inherited, not re-stated. --jk-tint (unset → --accent) lets a caller
+   retint the well in a data colour (e.g. a goal's own hue); the dark-mode
+   press glow follows the same seam. */
 .jk-well {
   background: color-mix(in srgb, var(--jk-tint, var(--accent)) 14%, var(--hub-bg-2));
   border-radius: var(--hub-radius-lg);
@@ -725,16 +695,23 @@
 }
 .jk-bubble.jk-bubble-lg { font-size: var(--hub-fs-bubble-lg); letter-spacing: 0.14em; padding: var(--hub-pad-bubble-lg); }
 
-/* Primary bubble = struck badge (inset well + pressed text on one node) */
+/* Primary bubble = the BADGE: a raised chip that sits ON the sheet — top
+   bevel highlight, drop shadow below. It used to borrow the well's inset
+   shadow, which read as debossed; a badge is emphasis, so it rises. */
 .jk-bubble-primary {
   background: color-mix(in srgb, var(--accent) 14%, var(--hub-bg-2));
   color: var(--accent);
-  box-shadow: var(--hub-accent-press);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #ffffff 60%, transparent),
+    0 1px 0 color-mix(in srgb, var(--accent) 28%, var(--hub-line)),
+    0 2px 5px rgba(48, 34, 20, 0.28);
   text-shadow:
     0 -0.5px 0 rgba(255, 255, 255, 0.45),
     0 1px 0 color-mix(in srgb, var(--accent) 50%, var(--accent-deepen-ink));
 }
 :root[data-mode="dark"] .jk-bubble-primary {
+  /* in CRT the badge's emphasis is halation, not elevation */
+  box-shadow: var(--hub-accent-press);
   text-shadow: 0 0 10px color-mix(in srgb, var(--accent) 55%, transparent);
 }
 

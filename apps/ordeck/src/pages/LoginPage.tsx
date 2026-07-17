@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react';
 import { useEffect, useState } from 'react';
-import { Led, Screw, Vent } from '../components/hardware';
+import { Led } from '../components/hardware';
 import { useAuth } from '../hooks/useAuth';
 
 // ─── LoginPage ────────────────────────────────────────────────────────────────
@@ -26,12 +26,6 @@ export default function LoginPage() {
   return (
     <div style={styles.root}>
       <div style={{ ...styles.panel, opacity: visible ? 1 : 0, transition: 'opacity 0.5s ease' }}>
-        {/* Corner screws */}
-        <Screw rot={15}  style={styles.screwTL} />
-        <Screw rot={-22} style={styles.screwTR} />
-        <Screw rot={62}  style={styles.screwBL} />
-        <Screw rot={-48} style={styles.screwBR} />
-
         {/* Header row */}
         <div style={styles.headerRow}>
           <Led color="amber" steady style={{ marginRight: 8 }} />
@@ -47,12 +41,8 @@ export default function LoginPage() {
         {/* Subtitle */}
         <div style={styles.subtitle}>// AUTHENTICATION REQUIRED</div>
 
-        {/* Vent separator */}
-        <div style={styles.ventRow}>
-          <Vent slats={3} width={48} />
-          <div style={styles.ventLine} />
-          <Vent slats={3} width={48} />
-        </div>
+        {/* Separator */}
+        <div style={{ ...styles.divider, marginBottom: 24 }} />
 
         {/* Error display */}
         {errorMsg && (
@@ -132,8 +122,6 @@ function errorLabel(code: string): string {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-const screwBase: CSSProperties = { position: 'absolute' };
-
 const styles: Record<string, CSSProperties> = {
   root: {
     position:       'fixed',
@@ -157,11 +145,6 @@ const styles: Record<string, CSSProperties> = {
     alignItems: 'center',
     gap:        0,
   },
-
-  screwTL: { ...screwBase, top: 6, left: 6 },
-  screwTR: { ...screwBase, top: 6, right: 6 },
-  screwBL: { ...screwBase, bottom: 6, left: 6 },
-  screwBR: { ...screwBase, bottom: 6, right: 6 },
 
   headerRow: {
     display:    'flex',
@@ -198,21 +181,6 @@ const styles: Record<string, CSSProperties> = {
     letterSpacing: '0.2em',
     color:         'var(--hub-cream-dim)',
     marginBottom:  24,
-  },
-
-  ventRow: {
-    display:    'flex',
-    alignItems: 'center',
-    width:      '100%',
-    marginBottom: 24,
-    gap:        0,
-  },
-
-  ventLine: {
-    flex:       1,
-    height:     1,
-    background: 'var(--hub-line)',
-    margin:     '0 8px',
   },
 
   errorBox: {
