@@ -1,346 +1,568 @@
-# jkOS — Design System Reference
+# jkOS Design System — the complete context
 
-For design-focused agents (Claude Design) working on any jkOS frontend. Everything here
-is derived from the actual token/applier source — when in doubt, the code wins:
-`packages/design/tokens/hub.css` (tokens + shared classes) and
-`packages/design/utils/applyJkOSTheme.ts` (mode/accent appliers).
+**This file is the whole design system in one document.** It is written so a design-focused
+agent (Claude Design) needs **no other source in the repo**: every token value, every shared
+class, every component API, every rule and every file path it may need is here. Pair it with
+the living style guide at **https://staging.jkos.net/design** — the page shows the *look*
+(both faces, live mode/accent/corner toggles, every primitive rendered by the real CSS);
+this file gives the *values and the rules*.
 
-> **See it rendered — `staging.jkos.net/design`.** A self-contained living style guide
-> renders every token, component and hardware primitive below in **both faces**, with live
-> **mode / accent / corner** toggles — the visual companion to this doc. It is generated
-> straight from `hub.css` (`node apps/jkauth/scripts/build-design-page.mjs` → served from
-> the jkAuth static root at `/design`), so it never drifts from the real system. Read the
-> page for the *look*, this file for the *rules*. Elevate the surfaces; stay inside the fence.
+> **Snapshot honesty:** the value tables below are a faithful copy of
+> `packages/design/tokens/hub.css` as of 2026-07-17 (commit `be7837b`). For machines,
+> hub.css remains the source of truth; if this doc and the code ever disagree, the code
+> wins — and this doc should be fixed. §14 lists the regen commands that keep everything
+> else in sync.
 
-## The aesthetic — two-faced retro hardware
+---
 
-jkOS has one distinctive design identity with two faces, switched by `data-mode` on `<html>`:
+## 1. Identity — two-faced retro hardware
 
-- **`data-mode="paper"`** (light) — warm kraft-paper office: tan/cream layered backgrounds,
-  dark ink text, brass/metal hardware tones, grain overlay (multiply), burnt-sienna default accent.
-- **`data-mode="dark"`** — CRT amber phosphor terminal: near-black warm backgrounds,
-  amber `#ffb000` default accent, text glow (`--hub-amber-glow`), scanline/vignette overlays
-  (ORDECK), grain overlay (screen).
+jkOS has **one distinctive identity with two faces**, switched by a single attribute:
+`data-mode` on `<html>`, whose only legal values are `"paper"` and `"dark"`.
 
-It is **skeuomorphic, not flat-SaaS**: chrome is built from CSS "hardware" — LEDs, label
-tape, rubber stamps, perforation, 7-segment displays. **Hardware chrome is scarce
-punctuation, not decoration**: one LED marks *the* live thing; a strip of tape names *the*
-important panel; put an LED on everything and none of them mean anything. (The v0.1
-screws, vents and dymo strips were dead code and were removed 2026-07-17 — reintroduce
-from git history only with a job to do.) Subtle ambient animation (LED pulse, data
-flicker) is part of the identity. New UI should extend this language, not normalize it
-toward generic modern UI.
+- **`data-mode="paper"`** — a warm kraft-paper office: tan/cream layered stock, dark ink,
+  brass hardware tones, film-grain multiplied into the backdrop, burnt-sienna default
+  accent. Physical accents: things sink into the sheet or sit raised on it (§4).
+- **`data-mode="dark"`** — a CRT amber-phosphor terminal: near-black warm grounds,
+  `#ffb000` amber, text glow, scanline + vignette veils, grain screened in. Accents
+  **emit** — halation is this face's emphasis.
 
-Corners are **soft by default** (`--hub-radius: 10px`, scale ~6–11px) — the house corner
-suite-wide. **Sharp is the opt-in**: it must be specified, per app (a 0–2px scale through
-the factory `radius` input) or per card (zero the `--hub-radius*` tokens on that element),
-and it is deliberately uncommon across the suite. Corner radius remains a **per-app
-factory input** — co-equal with accent, fonts, and neutrals: an app picks its own scale
-through `injectJkOSTheme({ radius })` without leaving the language. App shapes read the
-`--hub-radius*` tokens (never hardcode a pixel radius), so the whole app retunes from
-that one call.
+The character in one paragraph: **skeuomorphic, not flat-SaaS**. Chrome is built from CSS
+"hardware" — LEDs, label tape, rubber stamps, perforation, 7-segment readouts — and that
+hardware is **scarce punctuation, not decoration**: one LED marks *the* live thing; a strip
+of tape names *the* important panel; an LED on everything means nothing is live. Corners
+are **soft by default** (6–11px house scale); sharp is a deliberate opt-in. Subtle ambient
+animation (LED pulse, occasional data flicker) is part of the identity; large movement
+loops are not. There is **no icon library** — iconography is inline SVG plus the hardware
+classes. Every screen must hold up in **both faces** and under **any user-chosen accent**.
 
-## Token source of truth — `@jkos/design/tokens.css`
+Mode is controlled explicitly — components never read `prefers-color-scheme`. Dark-mode
+styling hangs off `[data-mode="dark"]` selectors, period. (The single sanctioned use of the
+OS preference is inside `applyJkOSMode('system')`, which resolves it once and then stamps
+`data-mode`.)
 
-hub.css is split into **INPUTS** (the only things that vary per app) and a universal
-**DERIVATION** layer (written once, never duplicated):
+---
+
+## 2. The two faces — complete palettes
+
+hub.css is split into **INPUTS** (the only things that legitimately vary per app) and a
+universal **DERIVATION** layer written once. These are the input values.
+
+### Paper (`:root`)
+
+| Token | Value | Role |
+|---|---|---|
+| `--hub-bg-0` | `#ede2c8` | page ground (kraft tan) |
+| `--hub-bg-1` | `#e4d5b0` | second layer |
+| `--hub-bg-2` | `#f5ead4` | card |
+| `--hub-bg-3` | `#ead9bb` | card-2 |
+| `--hub-bg-4` | `#f7f1e3` | lightest lift |
+| `--hub-screen` / `--hub-screen-line` | `#f0e8d8` / `#d8c8b0` | inner "screen" panels + their border |
+| `--hub-metal-0/1/2` | `#d4c8a8` / `#c8bca0` / `#b8a888` | hardware metal ramp (brass-paper) |
+| `--hub-bevel-light` / `--hub-bevel-dark` | `rgba(255,252,230,.85)` / `rgba(80,50,20,.18)` | bevel highlights/shades |
+| `--hub-line` / `-strong` / `-bright` | `#c8ae88` / `#b09a72` / `#907854` | border ramp |
+| `--hub-cream-bright` | `#1c1408` | primary ink |
+| `--hub-cream` | `#6b5038` | muted body |
+| `--hub-cream-dim` | `#9c8060` | faint |
+| `--hub-cream-faint` | `#b8a888` | ghost |
+| `--accent-raw` / `--accent-2-raw` | `#ffb000` / `#4ecdc4` | THE only accent defaults (user pair overrides at runtime) |
+| `--accent-deepen-ink` | `#2a1c0e` | paper deepen target |
+
+### Dark (`:root[data-mode="dark"]`)
+
+| Token | Value | Role |
+|---|---|---|
+| `--hub-bg-0..4` | `#11100d` / `#1a1814` / `#232019` / `#2c2820` / `#38321f` | warm near-black ramp |
+| `--hub-screen` / `--hub-screen-line` | `#0e0c08` / `#2a2418` | CRT screen wells |
+| `--hub-metal-0/1/2` | `#2a2620` / `#3a342b` / `#4a4234` | dark metal |
+| `--hub-bevel-light` / `--hub-bevel-dark` | `rgba(255,220,160,.06)` / `rgba(0,0,0,.5)` | |
+| `--hub-line` / `-strong` / `-bright` | `#3a3528` / `#4a4232` / `#6a5d3e` | |
+| `--hub-cream-bright` | `#efe6c9` | primary ink |
+| `--hub-cream` | `#d6cba8` | muted |
+| `--hub-cream-dim` / `-faint` | `#8a8067` / `#5a543f` | |
+
+### Status — semantic constants, never accent-derived
+
+| Token | Paper | Dark |
+|---|---|---|
+| `--hub-red` (danger) | `#b42010` | `#ff4530` (dim `#6b1c14`) |
+| `--hub-green` (ok) | `#2a7040` | `#5cd66a` |
+| `--hub-magenta` (accent-free data hue) | `#8a2060` | `#ff5d8f` |
+| `--color-ok` | `#2a7040` | `#34d399` |
+| `--color-warn` | `#a04010` | `#fbbf24` |
+| `--color-danger` | `#b42010` | `#f87171` |
+
+Soft status fills derive once: `--hub-green-soft` / `--hub-red-soft` / `--hub-warn-soft` =
+`color-mix(status 10–12%, var(--hub-bg-2))`.
+
+---
+
+## 3. The accent chain — the one derivation
+
+**Both accents are user-driven and co-equal** — a vivid primary and a vivid secondary,
+never a neutral. Apps supply only a *default* pair; the live pair is the signed-in user's
+(flat theme `{ mode, primary, secondary }`, stored in jkAuth `users.preferences`, applied
+by `applyTheme` from `@jkos/auth-client`). From two raw inputs everything derives:
 
 ```
---accent-raw / --accent-2-raw        ← the user's pair (the ONLY accent defaults)
-   ↓  paper: deepen toward ink   |   dark: raw
---accent / --accent-secondary
-   ↓
---hub-amber* / --hub-cyan* / --color-*   (all derived)
+--accent-raw / --accent-2-raw            (the user's pair)
+   │  paper: deepen toward ink              dark: keep raw
+   ▼
+--accent           = color-mix(in srgb, var(--accent-raw)   64%, var(--accent-deepen-ink))   [paper]
+                   = var(--accent-raw)                                                        [dark]
+--accent-secondary = same treatment on --accent-2-raw
+   ▼
+primary family  (tracks --accent):
+  --hub-amber        = var(--accent)
+  --hub-amber-bright = color-mix(accent 55%, #ffffff)                 (both modes)
+  --hub-amber-dim    = color-mix(accent 72%, #1a0a00)  [paper]  · 72%, #1a1400 [dark]
+  --hub-amber-deep   = color-mix(accent 20%, bg-2)     [paper]  · 26%, #000    [dark]
+  --hub-amber-glow   = color-mix(accent 30%, transparent) [paper] · 38% [dark]
+secondary family (tracks --accent-secondary):
+  --hub-cyan         = var(--accent-secondary)
+  --hub-cyan-dim     = color-mix(secondary 60%, #000)  [paper]  · 50% [dark]
+  --hub-cyan-glow    = color-mix(secondary 25%, transparent) [paper] · 38% [dark]
 ```
 
-| Layer | Tokens | Role |
-|--------|--------|------|
-| **Accent inputs** | `--accent-raw`, `--accent-2-raw`, `--accent-deepen-ink` | The user's pair (default = `ACCENT_SCHEMES[0]`, amber·cyan). The **only** accent defaults. `applyJkOSTheme` sets these at runtime. |
-| Neutral inputs | `--hub-bg-0..4`, `--hub-screen*`, `--hub-metal-0..2`, `--hub-bevel-*`, `--hub-line*`, `--hub-cream*` (text) | Per-app palette — supplied via `buildJkOSTheme()`, else hub defaults |
-| Radius / fonts inputs | `--hub-radius*` (soft by default; sharp is the opt-in), `--hub-font-mono/sans/seg/serif` | Per-app via `buildJkOSTheme()` |
-| **Derived** accent chain | `--accent`, `--accent-secondary` | Paper deepens the pair for legibility; dark uses it raw + glow. **Do not hardcode `--accent`** — let it derive. Component code uses the `--color-accent*` aliases, not these. |
-| **Derived** families | `--hub-amber/-bright/-dim/-deep/-glow`, `--hub-cyan/-dim/-glow` | Track `--accent` / `--accent-secondary` in **both** modes via `color-mix` |
-| Status | `--hub-red/green/magenta`, `--color-ok/warn/danger` | Semantic — never tint from `--accent` |
-| Semantic aliases | `--color-paper/card/ink/muted/faint/line/accent/secondary…` | Component-facing aliases onto `--hub-*` — defined **once** here; prefer these in app code |
-| Shell layout | `--hub-header-h`, `--hub-bus-h/footer-h`, `--hub-sidebar-w`, `--hub-rail-w`, `--hub-widget-pad`, `--hub-title-h` | Fixed chrome dimensions |
-| Effects | `--grain-opacity/blend`, `--crt-scanline-opacity`, `--crt-vignette-opacity`, `--hub-glow-mul`, `--hub-shadow-*` | Mode-dependent atmosphere |
-| Accent press | `--hub-accent-press` | "Pressed into the paper" deboss (light) / emissive glow (dark) |
+**Component-facing aliases** (use these in app code, not the families):
+`--color-paper`(bg-0) · `--color-paper-2`(bg-1) · `--color-card`(bg-2) · `--color-card-2`(bg-3)
+· `--color-ink`(cream-bright) · `--color-muted`(cream) · `--color-faint`(cream-dim)
+· `--color-line`/`-strong` · `--color-accent`/`-bright`/`-dim`/`-deep`/`-glow`
+· `--color-accent-soft` (12% over card) · `--color-accent-ink` (accent 80% black on paper,
+78% white in dark — readable accent type) · `--color-accent-contrast` (#fff paper / #000 dark)
+· `--color-secondary`/`-dim`/`-glow`.
 
-**Hard rules:** do not rename `--hub-*` tokens. **Both accents are user-driven and
-co-equal** — secondary is a vivid accent, never a neutral. The only *designed* defaults
-are neutrals (light/dark backgrounds + readable text). Apps **must not** bake `--accent`
-or restate the derivation; they supply only inputs through `buildJkOSTheme()`. Never
-hardcode hex in components — everything resolves through the chain.
+**On-accent ink** — text sitting ON the accent or a data colour uses the constant
+white-alpha family, not `--color-ink`: `--color-on-accent` `rgba(255,255,255,.95)` /
+`-dim` `.7` / `-faint` `.45`.
 
-### CRT knob ownership
+**Shadow / emphasis tokens:**
 
-`--crt-scanline-opacity` / `--crt-vignette-opacity` / `--crt-scanline-ink` are **owned by
-hub.css** — it sets the mode-gated base values (paper: flat scanline + a subtle `0.08`
-vignette; dark: `0.012` scanline + `0.45` vignette + pale ink). There is **one** sanctioned
-override: `@jkos/ui/tokens.css` (the import path the full-shell apps ORDECK/BeigeBoard use)
-flattens **only** the paper vignette to `0`, and inherits every other knob from hub.css.
-Static-mirror apps (jkAuth, jkos-deploy) render hub.css directly, so they keep the paper
-vignette. **Any new CRT knob is added in hub.css, never restated in `@jkos/ui`** — a second
-setter that drifts from the base is the exact bug this rule closes (`@jkos/ui` used to also
-re-set the dark vignette to `0.5`, silently diverging from hub's `0.45`). Apps raise the
-scanline atmosphere through `buildJkOSTheme()` inputs, not by re-declaring the knob.
+| Token | Paper | Dark |
+|---|---|---|
+| `--hub-shadow-inset` | `inset 0 1px 0 bevel-light, inset 0 -1px 0 bevel-dark` | same (dark bevels) |
+| `--hub-shadow-card` | `0 2px 8px ink@10%, 0 0 0 1px line` | same formula |
+| `--hub-accent-press` (the WELL shadow) | `inset 0 2px 3px ink@32%, inset 0 -1px 1px #fff@55%, 0 1px 0 #fff@45%` | `0 0 10px tint@38%, inset 0 0 0 1px tint@30%` (emissive; reads `--jk-tint`) |
+| `--accent-halo` / `--accent-halo-text` | `none` / `none` | `0 0 16px accent-glow` / `0 0 12px accent-glow` |
+| `--hub-glow-mul` | `0.5` | `1` |
 
-### Alpha on colours — `withAlpha()`, never hex-concat
+**The five accent slots (suite-wide chooser, `ACCENT_SCHEMES` in `@jkos/design`):**
 
-To fade a colour, use `withAlpha(color, fraction)` from `@jkos/design`. The old
-`` `${color}66` `` pattern only works for bare hex; on a CSS var
-(`var(--color-accent)`) it produces invalid CSS the browser silently drops (the glow just
-vanishes). `withAlpha` hex-concats bare hex and emits `color-mix(… transparent)` for
-everything else. The kit-purity gate (`pnpm check:cards`) bans the raw-concat pattern in
-`@jkos/cards` + `@jkos/ui`.
+| id | label | primary | secondary |
+|---|---|---|---|
+| `amber-cyan` (house default) | Amber · Cyan | `#ffb000` | `#4ecdc4` |
+| `green-violet` | Green · Violet | `#5cd66a` | `#c08aff` |
+| `ice-coral` | Ice · Coral | `#a8d8ff` | `#ff6b5a` |
+| `gold-mint` | Gold · Mint | `#ffd000` | `#5affc1` |
+| `custom` | user's own pair | — | — |
 
-## Theme factory — `buildJkOSTheme()`
+The shared `SettingsDrawer` renders exactly these five; the active slot is *derived* from
+the stored pair via `matchAccentScheme(primary, secondary)` — nothing extra is persisted.
+Add/retune a preset by editing `ACCENT_SCHEMES` only.
 
-Apps no longer hand-write token CSS. They call `buildJkOSTheme(config)` (`@jkos/design`)
-with the inputs that vary — default accent pair, light/dark neutrals, radius, fonts — and
-get back the CSS overriding the hub.css inputs; the universal derivation recomputes from
-them. Inject once via `<JkOSTheme config>` (`@jkos/ui`) or `injectJkOSTheme()`. Friendly
-keys map 1:1 onto `--hub-*` (`bg0→--hub-bg-0`, `creamBright→--hub-cream-bright`, …); omit a
-key to inherit the hub default. `selector` (default `:root`) scopes a subtree, e.g.
-`'html.od-v2'`.
+**Alpha rule:** fade a colour with `withAlpha(color, fraction)` from `@jkos/design` — bare
+hex gets hex-concat, anything else (CSS vars!) gets `color-mix(… transparent)`. The old
+`` `${color}66` `` pattern on a var produces invalid CSS the browser silently drops.
+`pnpm check:cards` bans the raw pattern in `@jkos/cards` + `@jkos/ui`.
 
-## Mode & theme application
+---
 
-- `applyJkOSMode(mode)` (`@jkos/design`) — accepts `'system' | 'light' | 'dark'`, sets
-  `data-mode` to `"paper"` or `"dark"` (those are the only two attribute values), returns `isDark`.
-- `applyJkOSTheme({ primary, secondary })` — writes the pair onto `--accent-raw` /
-  `--accent-2-raw`. The per-mode treatment (paper deepens for legibility; dark is raw +
-  glow) is derived in hub.css, so the applier no longer computes it — this removed the old
-  double-deepen and the `customAccent` exception (every pick now deepens on paper).
-- Apps call `applyTheme` from `@jkos/auth-client`, which takes the canonical **flat**
-  theme `{ mode, primary, secondary }` (stored in jkAuth `users.preferences`, synced via
-  `PATCH /auth/profile`); `normaliseTheme` migrates the legacy nested shape on read.
-- **Accent chooser — five slots, suite-wide.** The accent palette is defined once in
-  `@jkos/design` as `ACCENT_SCHEMES` (four named preset pairs) plus a Custom slot. The
-  shared `SettingsDrawer` renders exactly these five: picking a preset writes its pair;
-  picking Custom reveals dual colour pickers. The active slot is **derived** from the
-  stored `{ primary, secondary }` via `matchAccentScheme()` — nothing extra is persisted,
-  so the flat theme contract is unchanged. Add/retune a preset by editing `ACCENT_SCHEMES`
-  only; the chooser and `DEFAULT_THEME` follow automatically.
-- **Design implication:** every screen must hold up in both modes and under any user-chosen
-  accent. Dark-mode styling hangs off `[data-mode="dark"]` selectors — **never**
-  `prefers-color-scheme` media queries (jkOS controls mode explicitly).
-
-## Typography
-
-- `--hub-font-mono` — **IBM Plex Mono**: data, labels, eyebrows, hardware tape text.
-- `--hub-font-sans` — **IBM Plex Sans**: body copy.
-- `--hub-font-seg` — **Big Shoulders Display**: 7-segment numeric displays (`.seg`).
-- `--hub-font-serif` — defaults to the sans stack; apps wanting a serif set it via the
-  factory (`injectJkOSTheme({ fonts:{ serif } })`). BeigeBoard → **Fraunces** for headings
-  and numeric figures; SylibOS → Fraunces for reading surfaces.
-- Loaded from Google Fonts per app `index.html` (ORDECK additionally loads VT323, Orbitron,
-  Space Grotesk, Inter; SylibOS + BeigeBoard load Fraunces).
-- The label idiom is `.mono-eyebrow`: 9px mono, uppercase, `0.2em` letter-spacing, dim ink.
-
-## Shared component classes (in hub.css — reuse, don't recreate)
-
-| Class | What it renders |
-|-------|-----------------|
-| `.led` (+ `.green/.amber/.red/.cyan/.off/.steady/.sm/.lg`) | Pulsing status LED with glow — one per live thing, never decoration |
-| `.perf` | Perforated ground texture |
-| `.label-tape` | Embossed label strip — the **physical** alternative to the `.jk-bubble` text badge, for naming chrome rather than content |
-| `.stamp` | Rotated rubber-stamp badge |
-| `.seg` | 7-segment glowing numeric text |
-| `.bar-track` / `.bar-fill` | Amber-gradient meter |
-| `.glow`, `.glow-dim`, `.glow-cyan` | Phosphor text glow |
-| `.canvas-grid`, `.canvas-cell`, `.boot-sweep` | Grid canvas background, layout cells, boot-in animation |
-| `.jk-cards-row` / `.jk-cards-chip` / `.jk-cards-btn` | `@jkos/cards` interaction affordances (row hover, chip fade, button press). Kit-owned so the calendar renders identically in BeigeBoard tabs **and** ORDECK widgets — never reach for a host app.css class inside the kit |
-| `.jk-halo` / `.jk-halo-text` | Suite-wide accent halation — box/text glow locked to the theme accent. **Mode-gated:** collapses to nothing on paper (the tokens are `none`), emits in CRT, so one class is correct in both faces |
-| `.jk-glow` / `.jk-glow-text` (+ `.jk-glow-low/-mid/-hi`) | The per-**item** analogue of the halo: set an arbitrary colour with `--jk-glow-color` inline and an intensity rung with the size classes. Same paper→dark gating. Replaces apps' bespoke per-colour glow helpers |
-
-**Keyframes** (in hub.css, one copy): `led-pulse`, `blink`, `data-flicker`, `grain`,
-`spin`, `fadeSlideUp`, `pulseOpacity`, `checkBounce`, `panelIn`, `itemIn`, `modalIn`,
-`scanRoll`, `scanPulse`, `artifactFlash`, `crtExpand`, `introTitleReveal`, `introFadeOut`.
-**Motion utility classes** wrap the common ones: `.view-enter`, `.panel-enter`, `.item-in`,
-`.modal-in`, `.crt-expand`, `.intro-title` / `.intro-out`, `.now-dot`, `.check-pop`,
-`.boot-sweep`. App sheets keep only their bespoke frames (BeigeBoard `paperExpand`, ORDECK
-`reel-spin`/`ticker-scroll`) — the shared vocabulary lives here, not re-declared per app.
-Scrollbars and `::selection` are already styled globally — don't restyle per-app.
-
-## Wells & badges — the paper accent language
+## 4. Wells & badges — the paper accent doctrine
 
 Paper mode has exactly **two physical accent moves**:
 
-- **The well** sinks *into* the sheet — an inner shadow (`--hub-accent-press`) that gives a
-  region depth. Wells provide **boundaries**: use one to contain, group or delimit.
-- **The badge** sits *on* the sheet — a raised chip with a drop shadow, put on text and
-  small marks. The badge is paper's **emphasis** — the exact analogue of dark mode's glow.
+- **The WELL** sinks *into* the sheet — an inner shadow (`--hub-accent-press`) that gives a
+  region depth. Wells provide **boundaries**: contain, group, delimit. Class: `.jk-well`
+  (accent-tinted 14% over card; retint any well/control with `--jk-tint: <colour>`).
+- **The BADGE** sits *on* the sheet — a raised chip: top bevel highlight + drop shadow
+  (`inset 0 1px 0 #fff@60%, 0 1px 0 accent@28%+line, 0 2px 5px rgba(48,34,20,.28)`).
+  Badges are put on text and small marks; the badge is paper's **emphasis** — the exact
+  analogue of dark mode's glow. Classes: `.jk-bubble-primary` (chip), `.jk-press` /
+  `.jk-press-lg` (badged text: highlight above, accent-dark shade below).
 
-The pair flows from the chain (`--accent` / `--accent-secondary`), so it deepens for paper
-and goes raw + glow for dark automatically. **Primary takes the badge treatment; secondary
-stays flat**, one rung down, never raised. In CRT both moves go emissive: the well's
-boundary becomes an accent ring + glow, the badge's emphasis becomes halation. `.label-tape`
-is the badge made physical (an embossed hardware strip) — reach for it when the thing being
-named is chrome rather than content. Status colours keep their own lane.
+**Primary accent takes the badge treatment; secondary stays flat** — one rung down, never
+raised: `.jk-sub`, `.jk-sub-link`, `.jk-bubble-secondary` (tinted flat pill with a hairline
+border). In CRT both moves flip to emissive automatically: the well's boundary becomes an
+accent ring + glow, the badge's emphasis becomes halation — same classes, no forking.
 
-- **Classes** (hub.css): `.jk-press` / `.jk-press-lg` (badged primary text — raised off the
-  sheet), `.jk-sub` / `.jk-sub-link` (flat secondary), `.jk-well` (inset boundary container),
-  `.jk-bubble` + `.jk-bubble-primary` (the raised badge chip) / `.jk-bubble-secondary` (flat
-  chip) (+ `.jk-bubble-lg`), `.jk-sheet` (card). Text-system primitives: `.jk-lab` (+ `.jk-lab-sm/-xs`, mono uppercase
-  label; `.jk-lab-sans` swaps to the UI sans — the blessed eyebrow variant), `.jk-tbtn`
-  (+ `.jk-tbtn-quiet`, compact mono text button that hovers to the secondary accent),
-  `.jk-pill` (green status pill). **Controls + veils:** `.jk-switch` (+ `.jk-switch-knob`)
-  and `.jk-check` toggles fill with the accent — or with `--jk-tint` for a data colour — and
-  the check carries `--color-on-accent` ink; `.jk-vu` (+ `.jk-vu-seg.on`) segmented level
-  meter; `.jk-scanlines` / `.jk-vignette` CRT veils driven by the `--crt-*` opacity knobs +
-  `--crt-scanline-ink` (so one markup renders in both faces, no baked opacity); `.jk-scrim`
-  (+ `.jk-scrim-heavy`) modal backdrop from the neutral scrim tokens. Corners follow the
-  per-app `--hub-radius*` scale (soft by default); no texture/effect tokens touched.
-- **On-accent ink** (`--color-on-accent` / `-dim` / `-faint`): the white-alpha family for
-  text/marks/dividers sitting on the accent or a data colour (task chips, tinted panel
-  headers, filled checks) — pick it over `--color-ink` only when the ground is coloured.
-- **Well retint**: `.jk-well` (and the toggles/slider/VU) read `--jk-tint` (unset → `--accent`),
-  so a caller can retint a well/meter in a goal's own hue; the dark-mode press glow follows the
-  same seam.
-- **Controls** (`.jk-switch`, `.jk-check`, `.jk-slider`, `.jk-vu`): one rule across the set — a
-  neutral, debossed track that fills with the accent (or `--jk-tint`) as it engages. Each hosts
-  on a real form/aria element, so the platform keeps the keyboard and the styling keys off the
-  state attribute. **`.jk-slider`** is the continuous one (seek, volume, rate): a milled metal
-  cap on a filling channel. Its input box is a full `--hub-tap-min` tall for the ≥44px hit area
-  while the visible track stays thin, and the elapsed fill paints from **`--jk-slider-fill`**
-  (a percentage; `<Slider>` sets it from the value — a bare class renders unfilled, not broken).
-  Never hand-roll a range: a bare `<input type="range">` with `accent-color` themes the thumb
-  but leaves the bar as OS chrome, which is what the player scrubber used to do.
-- **React components** (`@jkos/ui`): `<Bubble tone large>`, `<Press large as>`, `<Sub>`,
-  `<SubLink>`, `<Well tint>`, `<Sheet>`, `<Lab size sans>`, `<TButton quiet>`, `<Pill>`,
-  `<Switch checked onChange tint>`, `<Check checked onChange tint>`,
-  `<Slider value min max step onChange onCommit tint>`, `<VU value segments tint>`,
-  `<Scanlines>`, `<Vignette>`, `<Scrim heavy>` (+ `cx`) wrap those classes — the sanctioned way
-  to use the system. `@jkos/design` stays framework-free (tokens + factory + appliers); React
-  lives in `@jkos/ui`. `<Slider>`'s `onChange` fires per move, `onCommit` on release — the split
-  a seek control needs so it can preview without committing a seek per pixel.
+`.label-tape` is the badge made **physical** — an embossed metal strip for naming a panel.
+Reach for it when the thing being named is *chrome* rather than *content*.
 
-## Structural primitives — shell, media, async, match
+Glow (§8 of the live page) is the same doctrine on the dark face: `.jk-halo` /
+`.jk-halo-text` (accent-locked) and `.jk-glow` / `.jk-glow-text` with `--jk-glow-color` +
+intensity rungs `.jk-glow-low/-mid/-hi` (10px/20% · 16px/33% · 28px/52%). All collapse to
+nothing on paper, so one class is correct in both faces. Emissive light is **scarce** —
+the same one-LED rule as hardware.
 
-Beyond the accent/text system, the suite lifted its repeated **layout** shapes into shared
-classes + `@jkos/ui` components so a hand-copy can't drop a step or drift a style. All are
-neutral/structural (no accent of their own) and resolve through the same `--hub-*` chain.
+---
 
-| Class(es) | React (`@jkos/ui`) | What it is |
-|-----------|--------------------|------------|
-| `.jk-shell` / `.jk-shell-header` / `.jk-shell-brand` / `.jk-shell-wordmark` / `.jk-shell-settings-btn` | `<AppShell>` | The invariant app frame every full-shell app hand-wrote: auth guard → header row → `SettingsDrawer` → `useJkOSPreferences` wiring. Purely structural; the header carries no accent |
-| `.jk-media-grid` (`data-density="compact\|cozy\|comfortable"`) + `.jk-media-cover` / `.jk-media-cover-placeholder` | `<MediaGrid>` / `<CoverArt>` | The responsive cover grid + square artwork tile. Columns key off the density ladder tokens (`--hub-media-cols-*`, `--hub-media-grid-gap*`), pinned to `packages/design/responsive/mediaGrid.ts` by `check:responsive`. Placeholder reuses `.jk-well` |
-| `.jk-async-note` / `.jk-async-error` | `<AsyncView>` | The loading / error / empty state paragraph, unified out of three hand-rolled versions. `check:async-view` gates it. Error blends toward the danger hue via `color-mix`, never a raw red |
-| `.jk-match-panel` / `.jk-match-head` / `.jk-match-search` / `.jk-match-input` / `.jk-match-candidate*` | `<MatchPanel>` | The search → candidates → apply panel (papyros "Fix metadata"), lifted so the next consumer reuses it instead of repeating the single-app copy |
-| `.player-bar` / `.pb-*` (`packages/player/src/ui/player-ui.css`) | `<PlayerBar>` + `<NowPlaying>` / `<Scrubber>` / `<QueuePanel>` / `<SegmentList>` | The **slotted** player shell: meta · transport · scrubber · actions, 3 columns on desktop, stacked on mobile. The control *set* stays the app's (PapyrOS audiobook, KourOS music) — only layout + chrome are shared. The one shared component stylesheet outside hub.css (it ships with `@jkos/player/ui`), so the design page inlines it separately. The bar is a **solid** surface with an accent-tinted top rule: an earlier translucent+blur version dissolved into the page. Seeking goes through `.jk-slider` |
+## 5. Typography — four roles
 
-These back the **media apps** (see the stack table below). New media-shaped UI should assemble
-from these, not re-hardcode a `repeat(N, 1fr)` grid or a bespoke loading paragraph.
+| Token | Face | Use |
+|---|---|---|
+| `--hub-font-mono` | **IBM Plex Mono** | data, labels, eyebrows, tape text, buttons |
+| `--hub-font-sans` | **IBM Plex Sans** | body copy |
+| `--hub-font-seg` | **Big Shoulders Display** | 7-segment numeric readouts (`.seg`) |
+| `--hub-font-serif` | defaults to the sans stack | the per-app *reading voice* — set via factory `fonts.serif` |
 
-> **`.muted` is legacy.** `@jkos/ui`'s `<MatchPanel>` hardcodes `muted` on its message/meta
-> lines, but the rule used to live only in `apps/papyros/src/app.css` + `apps/kouros/src/app.css`
-> — a shared component that rendered correctly only in the apps shipping their own copy. hub.css
-> now owns it (byte-identical) so every consumer gets it. **New code uses `.jk-async-note` /
-> `<AsyncView>`**; retiring the old name + the two app copies is open in `ToDo.md`.
+The label idiom is tracked-caps mono: `.mono-eyebrow` (9px, 0.2em, dim) and the `.jk-lab`
+ladder (10/9/8px; `.jk-lab-sans` swaps to the sans — the blessed softer eyebrow).
 
-## Per-app stacks — critical constraints
+**What each app actually loads** (Google Fonts, per `index.html`): BeigeBoard, ORDECK and
+PapyrOS load Plex Mono + Plex Sans + **Fraunces** (their serif); KourOS loads Mono + Sans
+only (deliberately serif-less); SylibOS loads Fraunces + **Hanken Grotesk**. **Known gap:**
+no app currently loads Big Shoulders Display, so `.seg` readouts render in the Plex Sans
+fallback inside apps (the design page loads it and shows the true face). If a design pass
+leans on 7-seg displays in an app, add the font to that app's `index.html`.
 
-| App | React | Styling | Notes |
-|-----|-------|---------|-------|
-| ORDECK | 18 | Plain CSS + `@jkos/ui` | **No Tailwind.** `WidgetShell` from `@jkos/ui` wraps widgets; `@jkos/ui/tokens.css` re-imports design tokens + ORDECK CRT overlay vars only (the `--color-*` aliases now live once in hub.css). v2 HUD (`html.od-v2`) keeps its own neutrals/rounded radius; accent flows from the chain |
-| BeigeBoard | 18 | Plain CSS (`src/app.css`) | **No Tailwind.** App helpers (fonts, colors, date fmt) in `src/lib/theme.ts` (date/time math re-exported from `@jkos/cards/datetime.ts` — single source). Restyled to the Claude brief via `@jkos/ui` primitives + per-app factory inputs (serif → Fraunces, a rounder radius scale ~8–11px); accents stay user-driven. Calendar drag uses a 4px click-vs-drag threshold (`providers/DragProvider`) so taps select/create and only real movement reschedules. Week + Calendar tabs use `@jkos/cards` `WeekView`/`CalendarView` — fully responsive (grid on desktop/tablet, agenda on mobile via `useBreakpoint()`); desktop wrappers in `views/` inject `DragAdapter` + colour resolvers; no separate mobile codepath |
-| PapyrOS | 18 | Plain CSS + `@jkos/ui` | **No Tailwind.** Audiobook library + player — first consumer of the `@jkos/player` primitive. Assembles from `<AppShell>`/`<MediaGrid>`/`<CoverArt>`/`<MatchPanel>`/`<AsyncView>`; offline cache + service-worker media. Fraunces for titles |
-| KourOS | 18 | Plain CSS + `@jkos/ui` | **No Tailwind.** Music player — second `@jkos/player` consumer (gapless/crossfade, playlists, queue). Same media + shell primitives, a deliberately *different* shape, to prove the player bricks fork nothing |
-| SylibOS | 19 | **Tailwind v4** (CSS-first) | Config lives in `src/index.css` `@theme` block — there is **no `tailwind.config.js`**; don't introduce v3 idioms |
+---
 
-SylibOS specifics:
-- `@custom-variant dark` is keyed to `[data-mode="dark"]` — `dark:` utilities follow jkOS
-  mode, not the OS setting.
-- After `@theme`, the `--color-*` utility vars are remapped to `var(--hub-*)`, so Tailwind
-  color utilities resolve through the hub token chain and flip with mode automatically.
-  New colors must join this chain, not bypass it.
-- Reading schemes in `src/lib/theme.ts` (`SCHEMES`): `reading-room`, `sandstone` (light) /
-  `nocturne` (default), `velvet` (dark). `applyScheme` now sets **only** `data-mode` — the
-  accent is owned suite-wide by the shared chooser (jkAuth theme → `--accent-raw`), so a
-  reading scheme no longer writes `--accent-raw` (that used to fight the unified accent).
-  `Scheme.accent` is retained as intended-tint metadata for `useTheme`'s mode-toggle
-  matching, not applied. Adding a scheme = adding to `SCHEMES`, not new CSS.
+## 6. Geometry — corners, spacing, shell, breakpoints
 
-## Responsive design system
+**Corner radius — soft is the default, sharp is specified.** The hub scale (any app that
+doesn't pass `radius` gets this):
 
-The token system has a **viewport axis** layered on top of the per-app axis:
+```
+--hub-radius: 10px   --hub-radius-xs: 6px    --hub-radius-sm: 8px   --hub-radius-lg: 11px
+--hub-radius-soft: 11px   --hub-radius-widget: 10px   --hub-radius-button: 8px
+```
 
-**Breakpoints (single source):** `packages/design/responsive/breakpoints.ts` is the ONLY
-place breakpoint numbers live. It exports three derived shapes, all anchored on one
-literal-number object:
+Sharp is an opt-in, per app (a 0–2px scale through the factory `radius` input) or per card
+(zero the `--hub-radius*` tokens on that element) — and it should stay uncommon. Never
+hardcode a pixel radius; shapes read the tokens so a whole app retunes from one call.
 
-- `BREAKPOINTS` — tier list `[{ name:'mobile', minWidth:0 }, { name:'tablet', minWidth:768 },
-  { name:'desktop', minWidth:1024 }]`; what `activeBreakpoint(width)` resolves against.
-- `BREAKPOINT_MAX` — `{ mobile: 767, tablet: 1023 }`, the literal source. **Edit tier numbers
-  here and let everything else derive** — it's the only literal the gate text-parses (Node
-  can't import `.ts`). Each value must stay exactly one below the next tier's `minWidth`.
-- `MEDIA` — `matchMedia`-ready query strings, every bound **derived** from `BREAKPOINT_MAX`
-  (e.g. `tablet: (min-width: ${BREAKPOINT_MAX.mobile + 1}px) and (max-width:
-  ${BREAKPOINT_MAX.tablet}px)`). This is what `useBreakpoint` feeds `matchMedia`, so a raw
-  literal here would silently drift from the CSS `@media` blocks — the gate bans it.
+**Shell dimensions:** `--hub-header-h: 52px` · `--hub-bus-h`/`--hub-footer-h: 28px` ·
+`--hub-sidebar-w: 200px` (collapsed `40px`) · `--hub-rail-w: 56px` · `--hub-title-h: 34px`
+· `--hub-widget-pad: 12px` · `--hub-grid: 40px` (the canvas-grid pitch).
 
-`pnpm check:responsive` (`test/responsive.mjs`) is the conformance gate (folded into
-`pnpm test:contracts`). It pins: (1) `BREAKPOINT_MAX` is one-below the next `minWidth` **and**
-`MEDIA` derives from it with no hardcoded literal; (2) `hub.css`'s `@media (max-width: …)`
-bounds equal `BREAKPOINT_MAX`; (3) the tap-target floor applies to exactly the interactive
-primitives; (4) the retired magic numbers (768/880/1100) don't reappear as raw breakpoints in
-migrated layout code; (5) `buildJkOSTheme`'s `responsive` emit uses the canonical bounds.
+**Breakpoints — one source, three tiers** (`packages/design/responsive/breakpoints.ts`):
+mobile `0–767`, tablet `768–1023`, desktop `1024+`. `BREAKPOINT_MAX = { mobile: 767,
+tablet: 1023 }` is the only literal; the `MEDIA` query strings and hub.css `@media` bounds
+derive from it (gated by `pnpm check:responsive`). `useBreakpoint()` (`@jkos/ui`) returns
+`'mobile' | 'tablet' | 'desktop'`.
 
-**Responsive card-scale tokens (inputs in `hub.css`):**
+**Responsive card scale** — components read these tokens, never literal px; the touch tiers
+override only the inputs and derivation follows:
 
-| Token | Controls |
-|-------|----------|
-| `--hub-fs-bubble`, `--hub-pad-bubble` | `Bubble` / `.jk-bubble` pill text + padding |
-| `--hub-fs-pill`, `--hub-pad-pill` | Status `Pill` / `.jk-pill` |
-| `--hub-fs-tbtn`, `--hub-pad-tbtn` | `TButton` / `.jk-tbtn` compact button |
-| `--hub-fs-lab`, `--hub-fs-lab-sm`, `--hub-fs-lab-xs` | `Lab` eyebrow sizes |
-| `--hub-tap-min` | Minimum tap-target height (44px on touch tiers) |
-| `--hub-widget-pad` | Widget card internal padding |
+| Token | Desktop | Tablet ≤1023 | Mobile ≤767 |
+|---|---|---|---|
+| `--hub-tap-min` (tap floor) | `0px` | `44px` | `44px` |
+| `--hub-widget-pad` | `12px` | `14px` | `14px` |
+| `--hub-fs-bubble` / `-lg` | `9px` / `11px` | — | `11px` / `13px` |
+| `--hub-pad-bubble` / `-lg` | `5px 11px` / `7px 14px` | — | `7px 13px` / `9px 16px` |
+| `--hub-fs-pill` / `--hub-pad-pill` | `8px` / `4px 9px` | — | `10px` / `6px 11px` |
+| `--hub-fs-tbtn` / `--hub-pad-tbtn` | `9px` / `6px 10px` | — | `11px` / `9px 13px` |
+| `--hub-fs-lab` / `-sm` / `-xs` | `10/9/8px` | — | `11/10/9px` |
 
-Desktop defaults live in `:root`; the `@media (max-width: 1023px)` and
-`@media (max-width: 767px)` blocks override the **inputs** — derivation follows automatically.
-`buildJkOSTheme({ responsive: { tablet, mobile } })` lets an app tune the overrides.
+The tap floor applies only to **interactive** primitives (`button.jk-bubble`, `a.jk-bubble`,
+`button.jk-pill`, `a.jk-pill`, `.jk-tbtn`) — `@jkos/ui` wrappers render interactive
+instances as real `<button>`/`<a>` and static badges as `<span>`, so dense inline badges
+stay dense.
 
-**`useBreakpoint()` hook** (`@jkos/ui`) — returns `'mobile' | 'tablet' | 'desktop'`; backed
-by the canonical breakpoints. Every `@jkos/ui` primitive (`Lab`, `TButton`, etc.) auto-lifts
-tap targets when rendered as `<button>`/`<a>` without any per-component media query.
+**Media-grid density ladder:** `--hub-media-cols-compact/cozy/comfortable` = 2/3/4 columns,
+gaps `0.85rem` / `0.75rem` (tight). Callers pick the density (usually from
+`useBreakpoint()`); the grid never guesses.
 
-**Calendar card kit — `@jkos/cards`:** the shared Week and Calendar views use
-`useBreakpoint()` internally to switch between an interactive grid (desktop/tablet) and an
-agenda/month layout (mobile). BeigeBoard's tab wrappers and mobile shell both render the same
-kit component — there is no separate mobile codepath. See [ARCHITECTURE.md](ARCHITECTURE.md)
-for the full seam description.
+---
 
-## Icons
+## 7. Atmosphere — grain, CRT veils, scrims, canvas
 
-There is **no icon library** in the workspace (no lucide/heroicons/react-icons).
-Iconography is inline SVG plus the CSS hardware classes above. Don't add an icon
-dependency as part of a design pass — that's an architecture decision, not a polish one.
+- **Film grain** — a suite-wide backdrop texture, painted by the factory onto `<scope> body`
+  and blended into the body's own background (`--grain-blend`: `multiply` paper / `screen`
+  dark; noise alpha baked at ~0.495 paper / 0.135 dark). It textures the **backdrop only**
+  — never content, cards or text; don't cover the body with an opaque fill. Opt a scope out
+  with `grain: false`.
+- **CRT knobs — owned by hub.css in both modes:** `--crt-scanline-opacity` (`0` paper /
+  `0.012` dark), `--crt-vignette-opacity` (`0.08` paper / `0.45` dark), `--crt-scanline-ink`
+  (`#000` paper / `#fff` dark — paper *scores* lines, dark *lifts* phosphor rows). The ONE
+  sanctioned override: `@jkos/ui/tokens.css` flattens only the paper vignette to `0` for
+  the full-shell apps. Never re-set a knob per app or bake an overlay opacity into a
+  component — raise atmosphere through factory inputs.
+- **Veils** (`.jk-scanlines`, `.jk-vignette`) are absolute overlays reading those knobs, so
+  one markup is correct in both faces (they fall to nothing on paper). Host needs
+  `position`.
+- **Scrims:** `--hub-scrim` `rgba(10,8,6,.5)`, `--hub-scrim-heavy` `rgba(5,4,3,.85)` —
+  warm-black in both modes (a scrim dims, it is not a themed surface). Classes `.jk-scrim`
+  / `.jk-scrim-heavy`.
+- **Canvas:** `.canvas-grid` — the workshop/boot ground (line-colour grid at `--hub-grid`
+  pitch; opacity `0.5` paper / `1` dark via `--canvas-grid-opacity`); `.canvas-cell` — a
+  bordered cell on it; `.perf` — perforation texture.
 
-## Motion
+---
 
-- Ambient hardware effects (LED pulse, occasional `data-flicker`) are the house idiom —
-  subtle opacity-only loops are fine; large movement loops are not.
-- Entrances use `boot-sweep` (0.4s ease-out). Keep new transitions in that range (~200–400ms).
-- CRT scanline/vignette intensity is token-driven (`--crt-*-opacity`) — adjust via tokens,
-  never bake overlay opacities into components.
+## 8. Shared class catalog (hub.css)
 
-## Invariants — do not change in a design pass
+Everything here is demonstrated live on staging.jkos.net/design; `pnpm check:design` fails
+if a class exists and isn't on the page. Reuse these — don't recreate them.
 
-- `--hub-*` token **names** (every consumer references them; hub.css forbids renames).
-- The `data-mode` contract: attribute values are exactly `"paper"` and `"dark"`.
-- Signatures of `applyJkOSMode` / `applyJkOSTheme` (`@jkos/design`, now `{primary, secondary}`)
-  and `applyTheme` / `normaliseTheme` (`@jkos/auth-client`); flat theme shape `{mode, primary, secondary}`.
-- **Accents are universal and user-driven** — apps never bake `--accent`; per-app identity is
-  expressed only through **neutrals/radius/fonts** passed to `buildJkOSTheme()` (plus SylibOS's
-  `@theme` remap layer). The derivation chain is written once in hub.css; don't restate it per app.
-- No per-app duplication of theme/auth logic — import from `@jkos/*`
-  (see ARCHITECTURE.md invariant; the old per-app copies were deliberately deleted).
-- **The settings tray is one shared component** — `SettingsDrawer` from `@jkos/ui`.
-  Every app mounts it (ORDECK passes app extras like weather via the `extra` slot);
-  there are no per-app settings panels. Its AI section is gated on `lazuros.enabled`
-  so the jkAuth kill switch hides LazurOS controls everywhere at once.
-- **There is one accent chooser, suite-wide** — five slots in `SettingsDrawer`: the four
-  `ACCENT_SCHEMES` presets + Custom. The schemes are data in `@jkos/design`; no app defines
-  its own accent presets or picker. Edit the palette there, not in app code.
+**Hardware (scarce punctuation):**
+`.led` + `.green/.amber/.red/.cyan/.off/.steady/.sm/.lg` (8px pulsing dot; red pulses
+faster) · `.label-tape` (embossed metal naming strip) · `.stamp` (rotated rubber stamp,
+`currentColor`) · `.perf` · `.canvas-grid` / `.canvas-cell` · `.seg` (7-seg glowing
+numerals) · `.bar-track` / `.bar-fill` (amber-gradient meter).
+
+**Accent system (§4):**
+`.jk-well` (+ `--jk-tint`) · `.jk-bubble` base + `.jk-bubble-primary` /
+`.jk-bubble-secondary` / `.jk-bubble-lg` · `.jk-press` / `.jk-press-lg` · `.jk-sub` /
+`.jk-sub-link` · `.jk-sheet` (the card surface: bg-2, line border, card shadow + bevel).
+
+**Glow:** `.glow` / `.glow-dim` / `.glow-cyan` (phosphor text, accent families) ·
+`.jk-halo` / `.jk-halo-text` · `.jk-glow` / `.jk-glow-text` + `.jk-glow-low/-mid/-hi` +
+`--jk-glow-color`.
+
+**Text system:** `.jk-lab` (+ `-sm`, `-xs`, `-sans`) · `.mono-eyebrow` · `.jk-tbtn`
+(+ `.jk-tbtn-quiet`; hovers to the secondary accent) · `.jk-pill` (green status pill).
+
+**Controls** — one rule across the set: a neutral debossed track that fills with the accent
+(or `--jk-tint`) as it engages; each hosts on a real form/aria element so the platform
+keeps the keyboard, and state styling keys off the aria attribute:
+`.jk-switch` + `.jk-switch-knob` (46×26, `aria-checked`) · `.jk-check` (18px box) ·
+`.jk-slider` (the house fader: real `<input type="range">`, milled metal cap on a filling
+channel; the input box is `--hub-tap-min` tall while the track stays 6px; elapsed fill
+paints from `--jk-slider-fill` — a percentage the caller sets, `<Slider>` does it for you;
+never hand-roll a range with `accent-color`) · `.jk-vu` + `.jk-vu-seg.on` (segment meter).
+
+**Veils:** `.jk-scanlines` · `.jk-vignette` · `.jk-scrim` / `.jk-scrim-heavy` (§7).
+
+**Structural:**
+- `.jk-shell` / `-header` / `-brand` / `-wordmark` / `-settings-btn` — the invariant app
+  frame (auth guard → header → settings drawer). Deliberately neutral; the header carries
+  no accent — the app's content is what gets lit.
+- `.jk-media-grid[data-density="compact|cozy|comfortable"]` + `.jk-media-cover` /
+  `.jk-media-cover-placeholder` — the cover grid + square art tile (placeholder reuses
+  `.jk-well`).
+- `.jk-async-note` / `.jk-async-error` — the loading/error/empty paragraph (error blends
+  toward danger via color-mix, never raw red). `.muted` is its legacy alias — kept for old
+  call sites, don't use in new code.
+- `.jk-match-panel` / `-head` / `-search` / `-input` / `-candidate*` — the search →
+  candidates → apply panel.
+- `.jk-cards-row` / `.jk-cards-chip` / `.jk-cards-btn` — `@jkos/cards` hover/press
+  affordances (kit-owned so the calendar renders identically in BeigeBoard tabs and ORDECK
+  widgets).
+
+**Global:** scrollbars (6px, line-strong thumb, accent-dim hover) and `::selection`
+(accent-dim ground, bright ink) are styled once — don't restyle per app.
+
+---
+
+## 9. The player bar (`@jkos/player/ui`)
+
+The one shared component stylesheet outside hub.css (`player-ui.css`, ships with the
+package; the design page inlines it so §12 there is the real bar). `<PlayerBar>` is a
+**slotted shell**, not a fixed control set — `meta · transport · scrubber · actions`
+(+ `mobileTransport` / `mobileActions` overrides), three columns on desktop, stacked on
+mobile. The control *set* stays the app's (PapyrOS stocks an audiobook vocabulary, KourOS a
+music one) — only layout and chrome are shared. The bar is a **solid** surface with an
+accent-tinted top rule (an earlier translucent+blur version dissolved into the page).
+Seeking goes through the same `.jk-slider` as §8.
+
+Class families: `.player-bar`, `.pb-left/center/right`, `.pb-meta`, `.pb-cover`
+(+ `-empty`), `.pb-title` / `.pb-sub`, `.pb-transport`, `.pb-btn` (+ `-primary`, `-wide`,
+`.is-armed`, `.pb-armed`, `.pb-count`), `.pb-scrubber` / `.pb-time` / `.pb-range-wrap` /
+`.pb-scrub-ticks`/`-tick`, `.pb-queue` rows (`.pb-q-row` + `.is-current` /
+`.is-drop-target` / `.is-dragging`, `.pb-q-handle/-item/-index/-title/-remove`),
+`.pb-seglist` (`.pb-seg-row` + `.is-current`, `.pb-seg-fill` listened-width,
+`-index/-title/-time`), `.pb-popover` (+ `-wide`, `-head`, `-row.is-active`, `-empty`),
+`.pb-scrim`, `.pb-error`. React: `<PlayerBar>`, `<NowPlaying>`, `<Scrubber>`,
+`<QueuePanel>`, `<SegmentList>`, `<Transport>`.
+
+---
+
+## 10. React & factory API
+
+**`@jkos/design`** (framework-free):
+- `buildJkOSTheme(config) → css` / `injectJkOSTheme(config, id?)` — the theme factory.
+  Config (all optional; omitted keys inherit hub defaults):
+  - `accent: { primary, secondary, deepenInk }` — pre-login defaults only
+  - `light` / `dark`: neutrals with friendly keys mapping 1:1 onto tokens — `bg0..bg4`,
+    `screen`, `screenLine`, `metal0..2`, `bevelLight/Dark`, `line/lineStrong/lineBright`,
+    `cream/creamBright/creamDim/creamFaint`
+  - `radius: { base, xs, sm, lg, soft, widget, button }`
+  - `fonts: { mono, sans, seg, serif }`
+  - `responsive: { tablet?, mobile? }` with `tapMin/widgetPad/fsBubble(...)/fsLab(...)` keys
+  - `grain: false` to opt out · `selector` (default `:root`; e.g. `'html.od-v2'` scopes a
+    subtree while derivation on `:root` still reads the inputs)
+- `applyJkOSMode('system'|'light'|'dark') → isDark` — stamps `data-mode`, persists to
+  `localStorage[STORAGE_KEYS.mode]` (`'jkos-mode'`) for the pre-hydration bootstrap.
+- `applyJkOSTheme({ primary, secondary })` — writes the raw pair; CSS does the rest.
+- `withAlpha(color, fraction)` (§3) · `ACCENT_SCHEMES` / `CUSTOM_SCHEME_ID` /
+  `matchAccentScheme` · `BREAKPOINTS` / `BREAKPOINT_MAX` / `MEDIA` / `activeBreakpoint` ·
+  `MEDIA_GRID_COLUMNS` · `STORAGE_KEYS`.
+
+**`@jkos/ui`** (React; polymorphic `as` prop on the text/accent primitives):
+- Accent/text: `<Bubble tone="primary|secondary" large>`, `<Press large>`, `<Sub>`,
+  `<SubLink>`, `<Well tint>`, `<Sheet>`, `<Lab size="sm|xs" sans>`, `<TButton quiet>`,
+  `<Pill>`, plus `cx(...)` classname join.
+- Controls: `<Switch checked onChange tint>`, `<Check checked onChange tint>`,
+  `<Slider value min max step onChange onCommit tint>` (`onChange` per move, `onCommit` on
+  release — the split a seek control needs), `<VU value segments tint>`.
+- Veils: `<Scanlines>`, `<Vignette>`, `<Scrim heavy>`.
+- Structural: `<AppShell>` (guard → header → `SettingsDrawer` → preferences wiring; brand,
+  wordmark, settings button), `<MediaGrid density>`, `<CoverArt src alt>` (falsy `src` →
+  immediate fallback tile), `<MatchPanel>`, `<AsyncView loading error empty>`,
+  `<WidgetShell>` (ORDECK widget frame), `<JkOSTheme config>` (declarative
+  `injectJkOSTheme`), `<SettingsDrawer>` (THE settings tray — every app mounts it; extras
+  go in its `extra` slot; its AI section is gated on the jkAuth `lazuros.enabled` kill
+  switch).
+- Hooks: `useBreakpoint()`, `usePointerDrag` (the one drag gesture primitive —
+  immediate/distance/hold activation, capture + click-suppress; 4px threshold so taps
+  select and drags move).
+
+**Mode/theme flow at runtime:** app boots → pre-hydration script reads
+`localStorage['jkos-mode']` and stamps `data-mode` (no flash) → auth loads the user's flat
+theme → `applyTheme` (`@jkos/auth-client`) calls `applyJkOSMode` + `applyJkOSTheme` →
+`SettingsDrawer` edits write back via `PATCH /auth/profile`.
+
+---
+
+## 11. Per-app profiles
+
+| App | Stack | Serif | Factory config (actual) | Notes |
+|---|---|---|---|---|
+| **BeigeBoard** (planner) | React 18, plain CSS (`src/app.css`) | Fraunces | `radius: { base 8, xs 4, sm 7, lg 11, soft 9, widget 10, button 8 }` | The Claude-brief restyle; calendar tabs render `@jkos/cards` Week/Calendar views; drag via `usePointerDrag` |
+| **ORDECK** (HUD/portal) | React 18, plain CSS | Fraunces | `selector: 'html.od-v2'`, `radius: { base 10, xs 4, sm 7, lg 16, soft 8, button 9 }` | v2 HUD scopes its theme to `html.od-v2`; widget system + workshop; login page is minimal hardware (LED + glow title) |
+| **PapyrOS** (audiobooks) | React 18, plain CSS | Fraunces | `accent: { #9a4b2c, #5c8a72 }`, `radius: { base 6, xs 3, sm 5, lg 10, soft 7, button 6 }` | First `@jkos/player` consumer; offline cache + SW media |
+| **KourOS** (music) | React 18, plain CSS | — (sans) | `accent: { #4b3f8f, #dba13c }`, `radius: { base 5, xs 3, sm 4, lg 8, soft 6, button 5 }` | Second player consumer — deliberately different shape |
+| **jkAuth** (login/portal) + **jkos-deploy** (console) | static HTML/JS | — | none (hub defaults) | Render a generated **mirror** of hub.css (`jkos-tokens.css`) — regen commands in §14 |
+| **SylibOS** (reading) | React 19, **Tailwind v4 CSS-first** | Fraunces (+ Hanken Grotesk sans) | `@theme` block in `src/index.css`; no `tailwind.config.js` | `dark:` variant keyed to `[data-mode="dark"]`; Tailwind colour utilities remapped onto `var(--hub-*)`. **Off-limits for edits** (owner's standing rule) — described here for coherence only |
+
+Observations a design pass should know: no app currently passes custom **neutrals** — every
+app runs the two hub palettes and differentiates via accent defaults, radius scale and the
+serif voice. That is a deliberate open lever (§15). All apps mount the same `SettingsDrawer`
+and `AppShell`; there are no per-app settings panels or shells.
+
+---
+
+## 12. Motion vocabulary
+
+Utilities (hub.css, one copy — app sheets keep only bespoke frames like BeigeBoard's
+`paperExpand`, ORDECK's `reel-spin`/`ticker-scroll`):
+
+| Class | Keyframe | Duration/fill | Feel |
+|---|---|---|---|
+| `.view-enter` | fadeSlideUp | 0.32s, no fill | view mounts: rise 10px + fade |
+| `.panel-enter` | panelIn | 0.34s, no fill | side panel: slide 28px from right |
+| `.item-in` | itemIn | 0.26s both | list item: drop 4px + fade |
+| `.modal-in` | modalIn | 0.22s both | dialog: scale .96 → 1 |
+| `.boot-sweep` | bootIn | 0.4s, no fill | boot cell: fade + left-to-right clip reveal |
+| `.crt-expand` | crtExpand | 0.55s both | CRT power-on: line collapse + brightness flutter |
+| `.intro-title` / `.intro-out` | introTitleReveal / introFadeOut | 0.7s both / 0.45s forwards | boot title in / boot screen out |
+| `.now-dot` | pulseOpacity | 1.8s infinite | "live now" marker |
+| `.check-pop` | checkBounce | 0.25s | check confirmation pop |
+
+Ambient keyframes: `led-pulse` (2.4s, on every `.led`), `blink`, `data-flicker` (rare
+4s-cycle dip), `grain`, `spin`, `scanRoll`, `scanPulse`, `artifactFlash`.
+
+Rules: ambient effects are subtle and **opacity-only**; entrances land in **200–400ms**;
+everything honours `prefers-reduced-motion` at the page level. **Fill-mode gotcha:**
+`.view-enter`/`.panel-enter`/`.boot-sweep` carry no fill-mode on purpose — a retained
+`transform`/`clip-path` makes the element a containing block for `position: fixed`
+descendants (Chromium keeps treating it as such while the animation is "in effect"), so
+keyframes end at the resting style and revert. Keep that property when adding entrances.
+
+---
+
+## 13. Invariants — the fence
+
+Do not cross these in any design pass:
+
+1. **Token names are frozen** — never rename a `--hub-*` / `--color-*` token; every
+   consumer references them.
+2. **The mode contract** — `data-mode` ∈ {`"paper"`, `"dark"`} on `<html>`; no
+   `prefers-color-scheme` in components.
+3. **Accents are universal and user-driven** — never hardcode `--accent` or a hex in a
+   component; per-app identity is expressed only through **accent defaults / neutrals /
+   radius / fonts** passed to the factory. The derivation is written once in hub.css —
+   never restate it.
+4. **Both faces, any accent** — every screen must hold up in paper and dark under all five
+   accent slots.
+5. **API freezes** — signatures of `applyJkOSMode` / `applyJkOSTheme` / `applyTheme` /
+   `normaliseTheme`; the flat theme shape `{ mode, primary, secondary }`; the friendly-key
+   maps in `buildJkOSTheme`.
+6. **One of each** — one settings tray (`SettingsDrawer`), one accent chooser (five slots),
+   one shell (`AppShell`), one drag primitive (`usePointerDrag`), one async triad
+   (`AsyncView`). No per-app copies.
+7. **No icon library** — inline SVG + hardware classes.
+8. **Hardware & glow are scarce** — punctuation, not wallpaper.
+9. **CRT knobs are hub-owned** — the `@jkos/ui` paper-vignette flatten is the only
+   sanctioned override.
+10. **`withAlpha()` for fades** — never hex-concat on a var.
+11. **SylibOS is not edited** — describe-only in this doc.
+
+---
+
+## 14. Working agreement — how a design pass ships
+
+**Files a design pass touches:**
+
+| What | Where |
+|---|---|
+| Tokens + shared classes | `packages/design/tokens/hub.css` (inputs *and* the one derivation) |
+| Factory / schemes / breakpoints | `packages/design/theme/*.ts`, `packages/design/responsive/*.ts` |
+| React primitives | `packages/ui/src/*.tsx` (+ `packages/player/src/ui/*` for the bar) |
+| Per-app styling | `apps/<app>/src/app.css` + the app's `injectJkOSTheme` call |
+| The reference page | `apps/jkauth/scripts/design-template.html` (gallery layout is namespaced `.dg-*` and may not restyle a system class) |
+| This document | `Documentation/DESIGN.md` — update the value tables if you change hub.css |
+
+**After ANY hub.css change, regenerate all three derived artifacts** (they are committed):
+
+```bash
+pnpm --filter @jkos/jkauth sync:tokens        # jkAuth static mirror
+node jkos-deploy/scripts/sync-tokens.mjs      # jkos-deploy static mirror
+node apps/jkauth/scripts/build-design-page.mjs  # staging.jkos.net/design snapshot
+```
+
+**Gates** (all folded into `pnpm test:contracts`; run the focused ones while iterating):
+`pnpm check:tokens` (mirrors + alias resolution + derivation parity) · `pnpm check:design`
+(page fresh + every hub class demoed) · `pnpm check:responsive` (breakpoint single-source +
+tap floor) · `pnpm check:cards` (kit purity, `withAlpha` ban) · `pnpm check:async-view`.
+
+**Verification:** open the design page (or the app) in **both faces**, cycle the accent
+slots, and check the three breakpoint tiers. The repo path contains a space — quote it in
+shell commands. Branch is `staging`; the live page updates after the jkAuth image rebuilds.
+
+---
+
+## 15. Brief for Claude Design — elevate inside the fence
+
+*This section is the prompt. Everything above is your context; the live page
+https://staging.jkos.net/design is your eyes. You need no other repo source — but the code
+always wins over this doc if they disagree.*
+
+**Mission.** Elevate the overall aesthetic of jkOS — composition, hierarchy, spacing,
+atmosphere, craft — while staying entirely inside the fence (§13). The owner is a systems
+builder, not a visual designer: your judgment on *taste* is why you're here. The identity
+(§1) is settled and loved; the request is to make it **more itself**, never to normalise it
+toward flat modern UI.
+
+**How to work.**
+- Think in the system's own physics: paper = wells (boundary) and badges (emphasis);
+  dark = emissive glow. If a new element needs emphasis, it takes the badge/glow treatment;
+  if it needs containment, a well — not a new shadow style.
+- Prefer moving *values through existing seams* (tokens, factory inputs, class refinements)
+  over new CSS surface. If a genuinely new primitive is warranted, add it in hub.css +
+  `@jkos/ui`, demo it on the design page (the gate forces this), and document it here.
+- Ship changes the way §14 describes; keep both faces and all five accent slots beautiful —
+  the amber·cyan default is the face of the system, but ice·coral is the stress test.
+- Respect scarcity budgets: per screen, roughly one LED, one tape strip, one glowing
+  element cluster. Emphasis spent everywhere is emphasis lost.
+
+**Known opportunities (a starting map, not a limit):**
+1. **Per-app neutral palettes.** Every app currently runs the two hub palettes (§11) —
+   the factory's `light`/`dark` neutrals input is an untouched lever for giving each app a
+   distinct paper stock / phosphor tint while keeping one identity.
+2. **The seg face.** Big Shoulders Display isn't loaded by any app, so 7-seg readouts fall
+   back to Plex Sans — decide per app: load it where readouts matter, or stop pretending.
+3. **Off-states.** Loading/empty/error (`AsyncView`) are functionally unified but visually
+   plain — they could carry the hardware idiom (a dim LED, a stamped NO SIGNAL) without
+   new primitives.
+4. **The design page's own deck badge** (`jkOS // DESIGN` label-tape) is a placeholder the
+   owner wants redesigned — a small, high-visibility canvas.
+5. **Login surfaces** (jkAuth portal, ORDECK login) predate the wells/badges doctrine and
+   could be brought onto it.
+6. **Atmosphere tuning.** The CRT knobs and grain alphas (§7) have never had a deliberate
+   design pass — small value moves, big mood shifts. Change them in hub.css only.
+
+**Deliverables.** Concrete diffs (or precise value/class proposals) + updated value tables
+in this doc + regenerated artifacts + green gates — with a short rationale per change
+written in the system's vocabulary (which face, which accent move, what got scarcer).
