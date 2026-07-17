@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PapyrOS</title>
+  <!-- PWA: manifest + icon + theme color, matching injectJkOSTheme's terracotta-on-
+       parchment identity (src/App.tsx). Relative hrefs so vite rewrites them against
+       `base` at build time — this app deploys both path-based and root-domain. -->
+  <link rel="manifest" href="manifest.webmanifest" />
+  <meta name="theme-color" content="#9a4b2c" />
+  <link rel="apple-touch-icon" href="icon-512.png" />
+  <!-- Typography: Fraunces (serif, --hub-font-serif — title/author display, the same
+       suite serif BeigeBoard/ORDECK use) + IBM Plex Mono/Sans (the @jkos/design factory
+       defaults). App.tsx's injectJkOSTheme call wires fonts.serif to it. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=Fraunces:opsz,ital,wght@9..144,0,400;9..144,0,600;9..144,1,400;9..144,1,600&display=swap" rel="stylesheet" />
+  <script type="module" src="/src/main.tsx"></script>
+</head>
+<body>
+  <div id="root"></div>
+</body>
+</html>

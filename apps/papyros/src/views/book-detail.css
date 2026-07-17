@@ -1,0 +1,226 @@
+/* book-detail.css — the real detail layout (task 5.3). Imported by BookDetail.tsx only
+   (no other view pulls this in). Reads the same --hub- and --accent tokens app.css
+   already brought into scope (its `@import "@jkos/design/tokens.css"` applies suite-wide) —
+   nothing here hardcodes a hex or a radius literal. `.view-book-detail` itself (the flex
+   column + gap) is app.css's — this file only adds the new sections' contents; each
+   full-width block opts in via `align-self: stretch` on itself rather than fighting that
+   shared parent rule, since app.css is out of scope for this task. */
+
+.book-hero {
+  display: flex;
+  gap: 1.1rem;
+  align-self: stretch;
+}
+
+.book-cover {
+  flex: none;
+  width: 128px;
+  height: 128px;
+  border-radius: var(--hub-radius-lg);
+  object-fit: cover;
+  background: var(--hub-bg-2);
+  border: 1px solid var(--hub-line);
+  box-shadow: var(--hub-shadow-card);
+}
+.book-cover-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--hub-cream-faint);
+}
+
+.book-hero-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.book-subtitle {
+  margin: 0;
+  font-family: var(--hub-font-serif);
+  color: var(--hub-cream-dim);
+}
+
+.book-byline { color: var(--hub-cream-bright); }
+.book-series { margin: 0; }
+
+.book-meta-row {
+  display: flex;
+  gap: 0.6rem;
+  font-size: 0.85rem;
+}
+
+.book-genres {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.2rem;
+}
+.genre-pill {
+  color: var(--accent-secondary);
+  border-color: color-mix(in srgb, var(--accent-secondary) 40%, transparent);
+}
+:root[data-mode="dark"] .genre-pill {
+  text-shadow: 0 0 8px color-mix(in srgb, var(--accent-secondary) 40%, transparent);
+}
+
+/* ── Play/Resume + download ─────────────────────────────────────────────────── */
+
+.book-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-self: stretch;
+}
+
+.play-button {
+  /* THE primary action on the page — sized like one (it was a small quiet text
+     button visually identical to its Download/Offline neighbours; Jag 2026-07-10). */
+  min-height: 48px;
+  padding: 0.55rem 1.6rem;
+  font-size: 1rem;
+  background: color-mix(in srgb, var(--accent) 22%, var(--hub-bg-2));
+  color: var(--accent);
+  border: 2px solid color-mix(in srgb, var(--accent) 60%, transparent);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.play-button:hover {
+  background: color-mix(in srgb, var(--accent) 32%, var(--hub-bg-2));
+}
+:root[data-mode="dark"] .play-button {
+  text-shadow: 0 0 8px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.progress-track {
+  align-self: stretch;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--hub-line);
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: inherit;
+}
+
+/* ── Description ──────────────────────────────────────────────────────────── */
+
+.book-description {
+  align-self: stretch;
+  margin: 0;
+  line-height: 1.55;
+  color: var(--hub-cream);
+}
+
+/* ── Provenance + fix-metadata trigger ────────────────────────────────────── */
+
+.book-provenance {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  align-self: stretch;
+}
+
+/* ── Match panel ("Fix metadata") ─────────────────────────────────────────── */
+/* The panel itself (search box, candidate list, cover/title/meta layout) moved
+   to @jkos/ui's <MatchPanel> (ToDo.md §3 20.4) — its `.jk-match-*` rules now
+   live in packages/design/tokens/hub.css, lifted verbatim (same properties)
+   from this file's old `.match-panel`/`.match-candidate*` rules below, which
+   are deleted. Nothing app-specific to override here. */
+
+/* ── Chapters / tracks ────────────────────────────────────────────────────── */
+
+.book-chapters {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.chapter-list {
+  list-style: none;
+  margin: 0.4rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.chapter-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  width: 100%;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--hub-line);
+  border-radius: var(--hub-radius-lg);
+  background: var(--hub-bg-1);
+  color: inherit;
+  font-family: var(--hub-font-sans);
+  font-size: 0.88rem;
+  text-align: left;
+  cursor: pointer;
+  min-height: var(--hub-tap-min);
+  overflow: hidden;   /* clip the fill to the row's own rounded corners */
+  transition: border-color 0.12s, color 0.12s;
+}
+.chapter-row:hover {
+  border-color: color-mix(in srgb, var(--accent-secondary) 50%, transparent);
+  color: var(--accent-secondary);
+}
+
+/* Loading-bar-style listened fill — 0% ahead of the listener, 100% for chapters
+   already finished, fractional for the one they're in. Width is set inline per row
+   (BookDetail.tsx computes the fraction); a low-alpha accent wash so it never fights
+   the row text's contrast in either paper or dark mode. Painted first + absolutely
+   positioned so it sits behind the index/title/time spans without touching flex
+   layout (those get `position: relative` below purely to win the stacking order). */
+.chapter-row-fill {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 0%;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  pointer-events: none;
+}
+
+.chapter-index {
+  position: relative;
+  z-index: 1;
+  flex: none;
+  width: 1.6rem;
+  font-family: var(--hub-font-mono);
+  font-size: 0.78rem;
+  color: var(--hub-cream-dim);
+  text-align: right;
+}
+
+.chapter-title {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chapter-time {
+  position: relative;
+  z-index: 1;
+  flex: none;
+  font-family: var(--hub-font-mono);
+  font-size: 0.78rem;
+  color: var(--hub-cream-dim);
+}
+
+/* ── Mobile — keep the hero from feeling top-heavy on a narrow phone ────────── */
+
+@media (max-width: 480px) {
+  .book-cover { width: 96px; height: 96px; }
+}

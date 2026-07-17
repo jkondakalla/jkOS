@@ -49,7 +49,7 @@ function LoadingOverlay() {
       <span style={{
         fontSize:      9,
         letterSpacing: '0.24em',
-        color:         'var(--hub-cream-dim, #b8a882)',
+        color:         'var(--hub-cream-dim)',
         textTransform: 'uppercase',
       }}>
         VERIFYING SESSION

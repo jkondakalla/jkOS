@@ -8,6 +8,20 @@
 // re-exported so an app imports the whole fabric from one place.
 
 const { jkosAuth, requireScope, verifyToken } = require('@jkos/auth-middleware')
+const { applyDelegation } = require('./delegation')
+
+// Wrap a verify middleware so that, on a successful verify, a delegated (on-behalf-of)
+// service token is normalized to its effective acting user BEFORE the route or the
+// write-gate runs (G1). Failure paths send their own response and never call next, so
+// this only post-processes the success path.
+function withDelegation(mw) {
+  return function delegatingAuth(req, res, next) {
+    mw(req, res, (err) => {
+      if (!err && req.user) applyDelegation(req.user)
+      next(err)
+    })
+  }
+}
 
 /**
  * Build the suite auth gate.
@@ -23,8 +37,8 @@ function weaveAuth(opts = {}) {
   const jwksUri = opts.jwksUri ?? process.env.JKOS_AUTH_JWKS_URI
   const pass = { issuer: opts.issuer, appId: opts.appId, cookieName: opts.cookieName }
 
-  if (jwksUri) return jkosAuth({ jwksUri, ...pass })
-  if (pk) return jkosAuth({ publicKey: pk, ...pass })
+  if (jwksUri) return withDelegation(jkosAuth({ jwksUri, ...pass }))
+  if (pk) return withDelegation(jkosAuth({ publicKey: pk, ...pass }))
 
   // No verifying key. Never run open in production.
   if (process.env.NODE_ENV === 'production') {

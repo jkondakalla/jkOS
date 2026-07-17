@@ -1,9 +1,13 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react'
 import { FONT_HEAD } from '../lib/theme'
 
+import { WeekView as KitWeekView, CalendarView as KitCalendarView } from '@jkos/cards'
+import { getAccent } from '../lib/seed'
+import { sourceOf } from '../lib/theme'
+
 import { Chrome, MobileHeader, MobileBottomNav } from './components'
 import { DetailSheet, AddSheet } from './components/MobileSheets'
-import { MobileTodayView, MobileWeekView, MobileCalendarView, MobileTasksView } from './views'
+import { MobileTodayView, MobileTasksView } from './views'
 
 /**
  * Mobile App — main layout component for phone interface
@@ -73,6 +77,13 @@ export function MobileApp({
     setAdding(date)
   }
 
+  // Inject BeigeBoard's accent inheritance + calendar source colours into the
+  // shared card kit (same resolvers the desktop wrappers pass).
+  const resolvers = {
+    accentOf: (it: any) => getAccent(it, items),
+    sourceColorOf: (s?: string) => sourceOf(s ?? '').hex,
+  }
+
   return (
     <div
       data-density="compact"
@@ -112,16 +123,17 @@ export function MobileApp({
           />
         )}
         {view === 'week' && (
-          <MobileWeekView items={items} today={today} onSelect={handleSelect} onToggle={handleToggle} />
+          <KitWeekView items={items} today={today} onSelect={handleSelect} onToggle={handleToggle} resolvers={resolvers} />
         )}
         {view === 'calendar' && (
-          <MobileCalendarView
+          <KitCalendarView
             items={items}
             today={today}
             onSelect={handleSelect}
             onToggle={handleToggle}
-            onUpdate={onItemUpdate}
+            onUpdateItem={onItemUpdate}
             onAddOnDate={handleAddOnDate}
+            resolvers={resolvers}
           />
         )}
         {view === 'tasks' && (

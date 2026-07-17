@@ -1,10 +1,11 @@
 import asyncio
 import collections
 import os
+from pathlib import Path
 from typing import Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
 from jose import ExpiredSignatureError, JWTError
 
 import jkos_auth
@@ -41,11 +42,14 @@ GIT = ["git", "-c", "safe.directory=*"]
 
 # ── State ──────────────────────────────────────────────────────────────────────
 
+LOG_FILE = Path("/var/log/jkos-deploy/last.log")
+
 status: Literal["idle", "running", "done", "error"] = "idle"
 current_operation: str = ""
 log_lines: collections.deque = collections.deque(maxlen=500)
 _log_seq: int = 0
 _log_lock = asyncio.Lock()
+_log_file: "asyncio.StreamWriter | None" = None
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -54,6 +58,12 @@ async def _log(line: str) -> None:
     async with _log_lock:
         _log_seq += 1
         log_lines.append((_log_seq, line))
+        try:
+            LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+            with LOG_FILE.open("a") as f:
+                f.write(line + "\n")
+        except Exception:
+            pass
 
 
 async def _run(cmd: list[str], env: dict | None = None) -> bool:
@@ -141,6 +151,11 @@ def _start(operation: str, script: str, env: dict[str, str]) -> dict:
     status = "running"
     current_operation = operation
     log_lines.clear()  # fresh panel per deploy; _log_seq stays monotonic for SSE clients
+    try:
+        LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+        LOG_FILE.write_text("")
+    except Exception:
+        pass
 
     async def run():
         global status, current_operation
@@ -165,6 +180,12 @@ async def get_admin(request: Request):
     # real auth failure — and refresh-once-then-surface instead of looping to login.
     token = request.cookies.get(jkos_auth.COOKIE_NAME)
     if not token:
+        # No SSO cookie — the only way in is the break-glass bearer (ARCH-8), and only
+        # while jkAuth is unreachable (verify_break_glass enforces that). This is the
+        # recovery path for a prod-jkAuth outage that would otherwise lock the fixer.
+        bg = await _try_break_glass(request)
+        if bg is not None:
+            return bg
         raise HTTPException(status_code=401, detail={"error": "Not authenticated", "code": jkos_auth.CODES["UNAUTHENTICATED"]})
     try:
         # verify_token may fetch JWKS, so run it off the event loop. It verifies
@@ -173,9 +194,32 @@ async def get_admin(request: Request):
     except ExpiredSignatureError:
         raise HTTPException(status_code=401, detail={"error": "Token expired", "code": jkos_auth.CODES["TOKEN_EXPIRED"]})
     except JWTError:
+        # A cookie that won't verify during a jkAuth outage (unreachable JWKS, key
+        # rotated mid-outage) also falls through to break-glass before erroring.
+        bg = await _try_break_glass(request)
+        if bg is not None:
+            return bg
         raise HTTPException(status_code=401, detail={"error": "Invalid token", "code": jkos_auth.CODES["UNAUTHENTICATED"]})
     if payload.get("role") != "admin":
         raise HTTPException(status_code=403, detail={"error": "Admin access required", "code": jkos_auth.CODES["FORBIDDEN"]})
+    return payload
+
+
+async def _try_break_glass(request: Request):
+    """Accept an `Authorization: Bearer <BREAK_GLASS_TOKEN>` as admin iff configured,
+    matching, and jkAuth is unreachable (jkos_auth enforces all three). Returns the
+    synthetic admin payload — logging + auditing loudly — or None to fall through."""
+    auth = request.headers.get("authorization", "")
+    bearer = auth[7:].strip() if auth.lower().startswith("bearer ") else ""
+    if not bearer:
+        return None
+    try:
+        payload = await asyncio.get_event_loop().run_in_executor(None, jkos_auth.verify_break_glass, bearer)
+    except JWTError:
+        return None
+    client = request.client.host if request.client else "unknown"
+    await _log(f"[SECURITY] BREAK-GLASS admin access granted to {client} on {request.url.path} "
+               f"(jkAuth unreachable) — verify this was you")
     return payload
 
 
@@ -187,6 +231,13 @@ app = FastAPI()
 @app.get("/")
 async def root():
     return FileResponse("/app/static/index.html")
+
+
+@app.get("/jkos-tokens.css")
+async def tokens_css():
+    # Committed mirror of @jkos/design/tokens/hub.css (see scripts/sync-tokens.mjs) —
+    # the console styles itself from the suite token chain like every other app.
+    return FileResponse("/app/static/jkos-tokens.css", media_type="text/css")
 
 
 @app.get("/health")
@@ -241,6 +292,14 @@ async def logs_stream(_=Depends(get_admin)):
         media_type="text/event-stream",
         headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"},
     )
+
+
+@app.get("/logs/raw")
+async def logs_raw(_=Depends(get_admin)):
+    """Return the full untruncated log for the last deploy run."""
+    if not LOG_FILE.exists():
+        return PlainTextResponse("(no log yet)", media_type="text/plain")
+    return PlainTextResponse(LOG_FILE.read_text(errors="replace"), media_type="text/plain")
 
 
 @app.post("/staging/sync")

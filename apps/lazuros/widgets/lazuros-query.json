@@ -1,0 +1,39 @@
+{
+  "id": "lazuros-query",
+  "label": "Ask LazurOS",
+  "sizing": {
+    "desktop": { "w": 4, "h": 4 },
+    "mobile": { "w": 2, "h": 4 },
+    "min": { "w": 3, "h": 3 }
+  },
+  "spec": {
+    "frame": { "eyebrow": "LAZUROS", "source": "ASSISTANT" },
+    "body": {
+      "t": "stack",
+      "gap": 10,
+      "grow": true,
+      "justify": "space-between",
+      "children": [
+        {
+          "t": "form",
+          "cmd": {
+            "app": "lazuros",
+            "capability": "query",
+            "body": {
+              "text": { "src": "$form", "path": "text" }
+            }
+          },
+          "submit": "ASK",
+          "children": [
+            { "t": "input", "field": "text", "placeholder": "Ask LazurOS…" }
+          ]
+        },
+        {
+          "t": "text",
+          "text": "Answers post as jobs — watch the LazurOS Jobs widget.",
+          "variant": "sub"
+        }
+      ]
+    }
+  }
+}

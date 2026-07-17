@@ -2,6 +2,7 @@ fastapi>=0.111.0
 uvicorn[standard]>=0.29.0
 # Capped: an unpinned >=3.3.0 silently pulled 3.5.0, whose RFC-7519 string-`sub`
 # enforcement 401'd every (numeric-sub) token and looped /deploy. jkAuth now mints
-# a string sub and jkos_auth.py passes verify_sub:False, so 3.4/3.5 are fine — but
-# cap the ceiling so the next behavioural change is a deliberate bump, not a build.
+# a string sub on every path and jkos_auth.py VERIFIES sub (the verify_sub:False
+# workaround is retired, ARCH-7.3), so 3.4/3.5's stricter check is exactly what we
+# want — but cap the ceiling so the next behavioural change is a deliberate bump.
 python-jose[cryptography]>=3.3.0,<3.6.0

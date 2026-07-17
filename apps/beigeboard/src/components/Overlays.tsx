@@ -99,10 +99,9 @@ interface ScanLinesProps {
 }
 
 export function ScanLines({ strength = 1 }: ScanLinesProps) {
-  const isDark = document.documentElement.getAttribute('data-mode') === 'dark'
-  const lineColor = isDark
-    ? `rgba(255,255,255,${0.018 * strength})`
-    : `rgba(0,0,0,${0.022 * strength})`
+  // Ink flips per mode via the factory's --crt-scanline-ink token (#000 paper /
+  // #fff dark); `strength` scales the alpha. No JS mode-branch, no baked rgb.
+  const lineColor = `color-mix(in srgb, var(--crt-scanline-ink) ${(2 * strength).toFixed(2)}%, transparent)`
   return (
     <div
       aria-hidden="true"

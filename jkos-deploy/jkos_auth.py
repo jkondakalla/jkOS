@@ -22,6 +22,7 @@ console down either). Same env contract as @jkos/auth-middleware:
   JKOS_APP_ID           when set, ``aud`` MUST include it (opt-in audience check)
 """
 
+import hmac
 import json
 import os
 import threading
@@ -59,6 +60,16 @@ EXPECTED_ISSUER = os.getenv("JKOS_AUTH_ISSUER", ISSUER_DEFAULT)
 STATIC_PUBLIC_KEY = os.getenv("JKOS_AUTH_PUBLIC_KEY", "").replace("\\n", "\n")
 JWKS_URI = os.getenv("JKOS_AUTH_JWKS_URI", "").strip()
 APP_ID = os.getenv("JKOS_APP_ID") or None
+
+# ── Break-glass fallback (ARCH-8) ───────────────────────────────────────────────
+# jkos-deploy IS the recovery tool — the one console that restarts a broken stack.
+# But every gated route auth_requests PROD jkAuth, so a prod-jkAuth outage locks you
+# out of the very fixer you'd use to bring it back (G7). BREAK_GLASS_TOKEN is a static
+# admin bearer, kept ONLY in the TrueNAS-side env (never the repo), that is accepted
+# for admin actions — but ONLY while jkAuth is actually unreachable, so it is inert
+# during normal operation (a leaked token can't be used to bypass live SSO). Every
+# acceptance logs loudly + writes an audit line (main.py). Unset = feature off.
+BREAK_GLASS_TOKEN = os.getenv("BREAK_GLASS_TOKEN", "").strip()
 
 # Match the node resolver's timings: refresh the whole set every 10 min, and
 # throttle refetch-on-unknown-kid to once per 30 s so a barrage of bad/old tokens
@@ -135,14 +146,51 @@ def verify_token(token: str) -> dict:
     kid = jwt.get_unverified_header(token).get("kid")
     key = _resolve_key(kid)
     # Signature, exp, and iss ARE verified (issuer moved into decode to match the
-    # node side); aud only when APP_ID is set. verify_sub stays OFF as
-    # defense-in-depth: jkAuth now mints a string `sub` so this is moot, but it
-    # stops a future numeric-sub regression from looping the console again.
+    # node side); aud only when APP_ID is set. `sub` IS verified (RFC-7519 string):
+    # the verify_sub:False workaround for the numeric-sub incident is retired now
+    # that jkAuth mints a string `sub` on EVERY path (tokens.js: signAccess /
+    # signService / signPending) and the auth-lifecycle contract test cross-verifies
+    # real tokens through THIS module — a numeric-sub regression can't ship green, so
+    # this verifier can be as strict as the node one instead of papering over drift.
     return jwt.decode(
         token,
         key,
         algorithms=["RS256"],
         issuer=EXPECTED_ISSUER,
         audience=APP_ID,
-        options={"verify_aud": bool(APP_ID), "verify_sub": False},
+        options={"verify_aud": bool(APP_ID)},
     )
+
+
+# ── Break-glass (ARCH-8) ────────────────────────────────────────────────────────
+def jkauth_reachable() -> bool:
+    """Best-effort: is jkAuth answering right now? True only on a live 200 from its
+    JWKS endpoint. Used to keep the break-glass fallback INERT while SSO works — any
+    error, timeout, or unconfigured JWKS reads as 'unreachable' (fail toward allowing
+    the documented recovery path, since a real outage is exactly when it's needed)."""
+    if not JWKS_URI:
+        return False
+    try:
+        req = urllib.request.Request(JWKS_URI, headers={"accept": "application/json"})
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            return getattr(resp, "status", resp.getcode()) == 200
+    except Exception:
+        return False
+
+
+def verify_break_glass(token: str) -> dict:
+    """Accept the static break-glass bearer as admin — but ONLY when it is configured,
+    matches (constant-time), AND jkAuth is currently unreachable. Returns a synthetic
+    admin payload the caller must log + audit; raises JWTError in every other case so
+    it can never be a silent bypass while SSO is up.
+
+    The reachability gate is what makes a leaked token safe during normal operation:
+    present it while jkAuth answers and this refuses. It only opens the door during
+    the prod-jkAuth outage the token exists for."""
+    if not BREAK_GLASS_TOKEN:
+        raise JWTError("break-glass not configured")
+    if not token or not hmac.compare_digest(token, BREAK_GLASS_TOKEN):
+        raise JWTError("break-glass token mismatch")
+    if jkauth_reachable():
+        raise JWTError("break-glass refused — jkAuth is reachable; sign in normally")
+    return {"sub": "break-glass", "role": "admin", "break_glass": True}

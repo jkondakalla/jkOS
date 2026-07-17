@@ -41,7 +41,43 @@ err() { echo "[ERROR] $*"; }
 die() { err "$*"; exit 1; }
 # Echo then run a command; abort the whole deploy if it fails. The `if !` context
 # suppresses `set -e` so we can print a useful message instead of dying silently.
-run() { echo "\$ $*"; if ! "$@"; then die "command failed (exit $?): $*"; fi; }
+run() {
+  echo "\$ $*"
+  "$@"
+  local rc=$?
+  [ $rc -eq 0 ] || die "command failed (exit $rc): $*"
+}
+
+# `env_file: .env` (any app that verifies identity or holds OAuth/API secrets) is
+# gitignored by design — so a checkout freshly cloned/reset onto a NEW app (one that
+# never had a human SSH in and create its .env) has no such file, and `docker compose
+# up -d` refuses the ENTIRE stack with exit 14 ("env file ... not found"). Worse, that
+# only surfaces AFTER the full (multi-minute) image build. Papyros's first staging
+# sync hit exactly this (2026-07-09) — this makes it self-heal instead, for any
+# app, present or future: scaffold a blank .env from the app's own .env.example
+# (every app ships one) so a first deploy succeeds with safe defaults/no-ops, and
+# log loudly so the real secrets get filled in by hand afterward.
+ensure_env_files() {
+  log "=== Pre-flight: checking per-app .env files ==="
+  local dir base envfile example missing=0
+  for dir in "$REPO_DIR"/apps/*/; do
+    dir="${dir%/}"
+    base=$(basename "$dir")
+    ls "$dir"/docker-compose*.yml >/dev/null 2>&1 || continue
+    grep -qE '^\s*-?\s*env_file:' "$dir"/docker-compose*.yml 2>/dev/null || continue
+    envfile="$dir/.env"
+    [ -f "$envfile" ] && continue
+    example="$dir/.env.example"
+    if [ -f "$example" ]; then
+      cp "$example" "$envfile"
+      err "created $base/.env from .env.example (blank scaffold — no real secrets set). Fill in real values on the host at $envfile, then redeploy if that app needs them."
+    else
+      err "$base declares env_file but the host has neither .env nor a committed .env.example to self-heal from"
+      missing=1
+    fi
+  done
+  [ "$missing" = 0 ] || die "one or more apps have no usable .env and no template to scaffold from — see above"
+}
 
 # After `up -d`, confirm the targeted containers are actually up. `compose up -d`
 # returns 0 the moment containers START — a container that then crash-loops on
@@ -75,11 +111,26 @@ verify_containers() {
 # (host.docker.internal, for LazurOS) needs the host-gateway alias to resolve.
 validate_nginx() {
   log "=== Validating new nginx config ==="
+  # Mount standalone.conf as the main config, then EVERY file it `include`s that
+  # lives in infra/nginx — derived from the config itself (same parse the reload
+  # pre-flight uses) so the validator's mount list can NEVER drift from the
+  # includes. A hardcoded list silently breaks the moment standalone.conf gains an
+  # include the validator doesn't mount: that is exactly how a deploy that added
+  # the generated apps-generated*.conf includes failed `nginx -t` ("open() ...
+  # apps-generated.conf failed"). Includes the base image already provides
+  # (mime.types) have no repo file and are skipped. REPO_DIR tests existence (the
+  # caller's view); HOST_NGINX_DIR is the daemon's view for the bind source.
+  local -a mounts=(-v "$HOST_NGINX_DIR/infra/nginx/standalone.conf:/etc/nginx/nginx.conf:ro")
+  local inc base
+  while IFS= read -r inc; do
+    [ -n "$inc" ] || continue
+    base=$(basename "$inc")
+    [ -f "$REPO_DIR/infra/nginx/$base" ] || continue   # not a repo file (e.g. mime.types) — skip
+    mounts+=(-v "$HOST_NGINX_DIR/infra/nginx/$base:$inc:ro")
+  done < <(grep -oE '^[[:space:]]*include[[:space:]]+/etc/nginx/[^;[:space:]]+' "$REPO_DIR/infra/nginx/standalone.conf" 2>/dev/null | awk '{print $2}' | sort -u)
   run docker run --rm \
     --add-host host.docker.internal:host-gateway \
-    -v "$HOST_NGINX_DIR/infra/nginx/standalone.conf:/etc/nginx/nginx.conf:ro" \
-    -v "$HOST_NGINX_DIR/infra/nginx/weave-proxy.conf:/etc/nginx/weave-proxy.conf:ro" \
-    -v "$HOST_NGINX_DIR/infra/nginx/weave-proxy-staging.conf:/etc/nginx/weave-proxy-staging.conf:ro" \
+    "${mounts[@]}" \
     -v "$SSL_PATH:/etc/nginx/ssl:ro" \
     nginx:alpine nginx -t
 }
@@ -104,6 +155,15 @@ reload_nginx() {
   # the container must be RECREATED (only `docker compose up -d` on infra/nginx adds a
   # mount), not merely restarted. Reads fail-open: a missing conf/inspect just skips
   # the guard and leaves the prior behaviour untouched.
+  #
+  # If a mount really is missing, self-heal it here instead of just dying and
+  # handing a human a manual `docker compose up -d` (same rationale as
+  # ensure_env_files above): a restart can't add a bind-mount, but `compose up
+  # -d` against infra/nginx/docker-compose.yml recreates the container with
+  # whatever mounts are in the checked-out compose file, which is exactly what
+  # the missing-include case needs. Re-check afterward; only die if the
+  # recreate itself didn't fix it (e.g. the include is missing from the repo
+  # compose file too, not just the live container).
   if docker inspect -f '{{.State.Running}}' standalone-nginx 2>/dev/null | grep -q true; then
     local inc missing=0
     while IFS= read -r inc; do
@@ -111,7 +171,21 @@ reload_nginx() {
       docker exec standalone-nginx sh -c '[ -e "$1" ]' _ "$inc" 2>/dev/null \
         || { err "standalone-nginx has no $inc (standalone.conf includes it, but the running container mounts no such file)"; missing=1; }
     done < <(grep -oE '^[[:space:]]*include[[:space:]]+/etc/nginx/[^;[:space:]]+' "$REPO_DIR/infra/nginx/standalone.conf" 2>/dev/null | awk '{print $2}' | sort -u)
-    [ "$missing" = 0 ] || die "a required nginx include is absent from the live standalone-nginx container. A restart cannot add a bind-mount — RECREATE it on the host:  cd infra/nginx && docker compose up -d  (then re-run this deploy)."
+    if [ "$missing" != 0 ]; then
+      err "a required nginx include is absent from the live standalone-nginx container - self-healing by recreating it (cd infra/nginx && docker compose up -d)"
+      run docker compose -f "$REPO_DIR/infra/nginx/docker-compose.yml" up -d
+      local inc2 missing2=0
+      while IFS= read -r inc2; do
+        [ -n "$inc2" ] || continue
+        docker exec standalone-nginx sh -c '[ -e "$1" ]' _ "$inc2" 2>/dev/null \
+          || { err "standalone-nginx still has no $inc2 after recreate - check infra/nginx/docker-compose.yml mounts that file"; missing2=1; }
+      done < <(grep -oE '^[[:space:]]*include[[:space:]]+/etc/nginx/[^;[:space:]]+' "$REPO_DIR/infra/nginx/standalone.conf" 2>/dev/null | awk '{print $2}' | sort -u)
+      [ "$missing2" = 0 ] || die "standalone-nginx recreate did not add the required mount(s) - see above"
+      log "  ok  standalone-nginx recreated with all required mounts"
+      run docker exec standalone-nginx nginx -t
+      log "  ok  standalone-nginx running with new config"
+      return 0
+    fi
   fi
 
   run docker restart standalone-nginx
@@ -138,8 +212,16 @@ run_deploy() {
   log "checkout now at ${new:0:7} — $("${GIT[@]}" -C "$REPO_DIR" log -1 --pretty=%s)"
   [ "$prev" = "$new" ] && log "(already at this commit — rebuilding anyway in case images changed)"
 
-  log "=== Building & starting containers ==="
-  run docker compose -f "$REPO_DIR/$COMPOSE_FILE" up --build -d
+  ensure_env_files
+
+  log "=== Pre-flight: pruning dangling images ==="
+  docker image prune -f || true
+
+  log "=== Building images ==="
+  run docker compose -f "$REPO_DIR/$COMPOSE_FILE" build
+
+  log "=== Starting containers ==="
+  run docker compose -f "$REPO_DIR/$COMPOSE_FILE" up -d
   verify_containers
 
   # Touch nginx only when (a) this deploy owns the nginx checkout and (b) its

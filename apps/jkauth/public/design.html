@@ -1,0 +1,2911 @@
+<!doctype html>
+<html lang="en" data-mode="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>jkOS — Design System Reference</title>
+  <meta name="description" content="Living style guide for the jkOS suite: tokens, components and hardware chrome rendered live in both faces. A reference for design work that stays inside the system." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@400;600;700&family=Fraunces:opsz,ital,wght@9..144,0,400;9..144,0,600;9..144,1,400;9..144,1,600;9..144,0,700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       hub.css — the CANONICAL jkOS design tokens + shared component classes,
+       inlined VERBATIM from packages/design/tokens/hub.css so this page renders
+       the real system with zero drift. Regenerate after any hub.css change:
+         node apps/jkauth/scripts/build-design-page.mjs
+       Everything this page demonstrates is defined below; the gallery CSS that
+       follows is namespaced .dg-* and only lays out the page — it never restyles
+       a token or a component class.
+       ═══════════════════════════════════════════════════════════════════════ -->
+  <style id="hub-tokens">
+/*
+ * Design/tokens/hub.css — jkOS shared design token system
+ *
+ * ONE chain, defined once:
+ *   --accent-raw / --accent-2-raw   (the user's pair; the ONLY accent defaults)
+ *      |  paper: deepen toward ink   |   dark: raw + glow
+ *   --accent / --accent-secondary
+ *      |
+ *   --hub-amber* / --hub-cyan* / --color-*   (all derived)
+ *
+ * INPUTS (the accent pair, neutrals, radius, fonts) are the only things that
+ * legitimately vary per app. They are supplied by buildJkOSTheme() (@jkos/design)
+ * and defined here only as universal defaults. The DERIVATION layer below is
+ * universal and is never duplicated per app. applyJkOSTheme() overrides
+ * --accent-raw / --accent-2-raw at runtime from the user's saved pair.
+ *
+ * Do not rename --hub-* tokens.
+ */
+
+/* ─── Paper / light mode ──────────────────────────────────────────────────── */
+:root {
+  /* ░░ INPUTS — overridden per app by buildJkOSTheme(), else these defaults ░░ */
+
+  /* Accent pair — the ONLY accent defaults; everything else derives from these. */
+  --accent-raw:    #ffb000;
+  --accent-2-raw:  #4ecdc4;
+  --accent-deepen-ink: #2a1c0e;   /* paper deepen target (warm near-black) */
+
+  /* Background layers — warm kraft tan → light cream */
+  --hub-bg-0: #ede2c8;
+  --hub-bg-1: #e4d5b0;
+  --hub-bg-2: #f5ead4;
+  --hub-bg-3: #ead9bb;
+  --hub-bg-4: #f7f1e3;
+
+  /* Inner content panels ("screen" areas inside widget frames) */
+  --hub-screen:      #f0e8d8;
+  --hub-screen-line: #d8c8b0;
+
+  /* Hardware tones — warm brass / paper metal */
+  --hub-metal-0: #d4c8a8;
+  --hub-metal-1: #c8bca0;
+  --hub-metal-2: #b8a888;
+  --hub-bevel-light: rgba(255, 252, 230, 0.85);
+  --hub-bevel-dark:  rgba(80, 50, 20, 0.18);
+
+  /* Border lines — warm paper lines */
+  --hub-line:        #c8ae88;
+  --hub-line-strong: #b09a72;
+  --hub-line-bright: #907854;
+
+  /* Text — dark ink on paper */
+  --hub-cream:        #6b5038;
+  --hub-cream-bright: #1c1408;
+  --hub-cream-dim:    #9c8060;
+  --hub-cream-faint:  #b8a888;
+
+  /* Semantic status (constants, not accent-derived) */
+  --hub-red:        #b42010;
+  --hub-red-dim:    color-mix(in srgb, #b42010 60%, #000000);
+  --hub-red-glow:   color-mix(in srgb, #b42010 22%, transparent);
+  --hub-green:      #2a7040;
+  --hub-green-glow: color-mix(in srgb, #2a7040 22%, transparent);
+  --hub-magenta:    #8a2060;
+  --color-ok:     #2a7040;
+  --color-warn:   #a04010;
+  --color-danger: #b42010;
+
+  /* Typography */
+  --hub-font-mono:  'IBM Plex Mono', ui-monospace, monospace;
+  --hub-font-sans:  'IBM Plex Sans', system-ui, sans-serif;
+  --hub-font-seg:   'Big Shoulders Display', 'IBM Plex Sans', sans-serif;
+  --hub-font-serif: var(--hub-font-sans);
+
+  /* Spacing grid + radii (a per-app scale; SOFT by default — the house corner.
+     Sharp is the opt-in: an app passes a 0–2px scale through the factory
+     `radius` input, or a single card zeroes the --hub-radius* tokens on its own
+     element. Sharp is deliberate punctuation, not the ground state. */
+  --hub-grid:             40px;
+  --hub-radius:           10px;
+  --hub-radius-xs:        6px;   /* tiny controls (checkboxes, swatches) */
+  --hub-radius-sm:        8px;
+  --hub-radius-lg:        11px;
+  --hub-radius-soft:      11px;
+  --hub-radius-widget:    10px;
+  --hub-radius-button:    8px;
+
+  /* ── Responsive card scale (the VIEWPORT axis) ──────────────────────────────
+   * Card primitives consume these instead of literal px, so they scale by tier.
+   * Desktop defaults preserve the original dense look exactly; the @media blocks
+   * at the foot of this file override ONLY these tokens for tablet/mobile (the
+   * same "override inputs, derivation follows" trick as the dark-mode flip).
+   * Breakpoint px are pinned to packages/design/responsive/breakpoints.ts by
+   * test/responsive.mjs — change the numbers there, not the bare px here. */
+  --hub-fs-bubble:        9px;
+  --hub-fs-bubble-lg:     11px;
+  --hub-pad-bubble:       5px 11px;
+  --hub-pad-bubble-lg:    7px 14px;
+  --hub-fs-pill:          8px;
+  --hub-pad-pill:         4px 9px;
+  --hub-fs-tbtn:          9px;
+  --hub-pad-tbtn:         6px 10px;
+  --hub-fs-lab:           10px;
+  --hub-fs-lab-sm:        9px;
+  --hub-fs-lab-xs:        8px;
+  /* Minimum tap target for INTERACTIVE primitives (button/a). 0 on desktop
+     (pointer precise); the touch tiers below raise it to 44px. */
+  --hub-tap-min:          0px;
+
+  /* Media grid density ladder (@jkos/ui MediaGrid) — the 2/3/4-column cover-
+     grid progression, one source instead of a per-app `repeat(N, 1fr)`.
+     Mirrors packages/design/responsive/mediaGrid.ts's MEDIA_GRID_COLUMNS —
+     test/responsive.mjs pins the two together. Class rules are below,
+     next to .jk-sheet. */
+  --hub-media-cols-compact:     2;
+  --hub-media-cols-cozy:        3;
+  --hub-media-cols-comfortable: 4;
+  --hub-media-grid-gap:         0.85rem;
+  --hub-media-grid-gap-tight:   0.75rem;
+
+  /* Widget layout tuning */
+  --hub-widget-pad:       12px;
+  --hub-title-h:          34px;
+  --hub-glow-mul:         0.5;
+  --hub-clip-widget:      none;
+  --hub-clip-title:       none;
+  --hub-widget-blur:      none;
+  --hub-widget-bg-alpha:  1;
+
+  /* Shell layout */
+  --hub-header-h:          52px;
+  --hub-bus-h:             28px;
+  --hub-footer-h:          28px;
+  --hub-sidebar-w:         200px;
+  --hub-sidebar-collapsed: 40px;
+  --hub-rail-w:            56px;
+
+  /* Grain + CRT effects (CRT off in paper mode) */
+  --grain-opacity: 0.036;
+  --grain-blend:   multiply;
+  /* Film grain — a suite-wide DEFAULT texture for BACKGROUNDS only. Opacity is
+     baked into the noise alpha: 0.495 on paper (multiply against warm beige needs
+     real weight or the speckle washes out), 0.135 on dark (screen needs less).
+     buildJkOSTheme()
+     paints it onto `<scope> body` and blends via --grain-blend, so it never sits
+     over content/cards/text. Dark mode redefines this variable below. */
+  --hub-grain-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='jkg'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23jkg)' opacity='0.495'/%3E%3C/svg%3E");
+  /* CRT overlay knobs — hub.css OWNS these base values (both modes). @jkos/ui
+     re-imports hub.css and flattens ONLY the paper vignette for the full-shell
+     apps (its one sanctioned opt-out); every other knob derives from here so the
+     atmosphere can't drift across import paths. DESIGN.md § "CRT knob ownership". */
+  --crt-scanline-opacity: 0;
+  --crt-vignette-opacity: 0.08;
+  --canvas-grid-opacity: 0.5;
+  /* Scanline INK — the line colour for .jk-scanlines; visibility comes from
+     --crt-scanline-opacity (an input apps may raise via their theme CSS). Paper
+     scores dark lines into the sheet; dark mode lifts pale phosphor rows. */
+  --crt-scanline-ink: #000000;
+
+  /* Veil scrims — the standard modal backdrop + a heavier variant for
+     destructive confirms. Warm-black in both modes (a scrim dims whatever is
+     behind it; it is not a themed surface). */
+  --hub-scrim:       rgba(10, 8, 6, 0.5);
+  --hub-scrim-heavy: rgba(5, 4, 3, 0.85);
+
+  /* ░░ DERIVATION — universal; consumes the inputs above. Do not duplicate. ░░ */
+
+  /* Accent chain: paper deepens the raw pair so vivid/pastel picks hold on kraft. */
+  --accent:           color-mix(in srgb, var(--accent-raw)   64%, var(--accent-deepen-ink));
+  --accent-secondary: color-mix(in srgb, var(--accent-2-raw) 64%, var(--accent-deepen-ink));
+
+  /* Primary family — tracks --accent */
+  --hub-amber:        var(--accent);
+  --hub-amber-bright: color-mix(in srgb, var(--accent) 55%, #ffffff);
+  --hub-amber-dim:    color-mix(in srgb, var(--accent) 72%, #1a0a00);
+  --hub-amber-deep:   color-mix(in srgb, var(--accent) 20%, var(--hub-bg-2));
+  --hub-amber-glow:   color-mix(in srgb, var(--accent) 30%, transparent);
+
+  /* Secondary family — tracks --accent-secondary */
+  --hub-cyan:         var(--accent-secondary);
+  --hub-cyan-dim:     color-mix(in srgb, var(--accent-secondary) 60%, #000000);
+  --hub-cyan-glow:    color-mix(in srgb, var(--accent-secondary) 25%, transparent);
+
+  /* --color-* aliases (component-facing) */
+  --color-paper:          var(--hub-bg-0);
+  --color-paper-2:        var(--hub-bg-1);
+  --color-card:           var(--hub-bg-2);
+  --color-card-2:         var(--hub-bg-3);
+  --color-ink:            var(--hub-cream-bright);
+  --color-muted:          var(--hub-cream);
+  --color-faint:          var(--hub-cream-dim);
+  --color-line:           var(--hub-line);
+  --color-line-strong:    var(--hub-line-strong);
+  --color-accent:         var(--hub-amber);
+  --color-accent-bright:  var(--hub-amber-bright);
+  --color-accent-dim:     var(--hub-amber-dim);
+  --color-accent-deep:    var(--hub-amber-deep);
+  --color-accent-glow:    var(--hub-amber-glow);
+  --color-accent-soft:    color-mix(in srgb, var(--hub-amber) 12%, var(--hub-bg-2));
+  --color-accent-ink:     color-mix(in srgb, var(--hub-amber) 80%, #000000);
+  --color-accent-contrast: #ffffff;
+  --color-secondary:      var(--hub-cyan);
+  --color-secondary-dim:  var(--hub-cyan-dim);
+  --color-secondary-glow: var(--hub-cyan-glow);
+
+  /* Ink over an accent- or item-coloured surface (task chips, tinted panel
+     headers, filled checks). Item colours are mid-tone in both modes, so this
+     is a constant white-alpha family — pick it over --color-ink ONLY when the
+     ground behind the text is the accent or a data colour. */
+  --color-on-accent:       rgba(255, 255, 255, 0.95);
+  --color-on-accent-dim:   rgba(255, 255, 255, 0.7);
+  --color-on-accent-faint: rgba(255, 255, 255, 0.45);
+
+  /* Status surface tints — a soft fill behind ok/warn/danger states (e.g. a
+     "system down" row). Derived from the semantic colours over the card bg;
+     defined once and re-resolve per mode via lazy var() substitution. */
+  --hub-green-soft: color-mix(in srgb, var(--hub-green) 12%, var(--hub-bg-2));
+  --hub-red-soft:   color-mix(in srgb, var(--hub-red)   10%, var(--hub-bg-2));
+  --hub-warn:       var(--color-warn);
+  --hub-warn-soft:  color-mix(in srgb, var(--color-warn) 11%, var(--hub-bg-2));
+
+  /* Shadows */
+  --hub-shadow-amber:  0 0 6px var(--hub-amber-glow);
+  --hub-shadow-widget: 0 0 0 1px var(--hub-amber-dim);
+  --hub-shadow-inset:  inset 0 1px 0 var(--hub-bevel-light), inset 0 -1px 0 var(--hub-bevel-dark);
+  --hub-shadow-card:   0 2px 8px color-mix(in srgb, var(--hub-cream-bright) 10%, transparent),
+                       0 0 0 1px var(--hub-line);
+  /* The WELL shadow — an inner shadow that sinks a region INTO the sheet. On
+     paper the well is one of the two accent moves (wells give depth + boundary;
+     badges give emphasis — see the wells/badges block below). Dark mode
+     overrides this with an emissive glow so the same class stays mode-correct. */
+  --hub-accent-press:
+    inset 0 2px 3px color-mix(in srgb, var(--hub-cream-bright) 32%, transparent),
+    inset 0 -1px 1px color-mix(in srgb, #ffffff 55%, transparent),
+    0 1px 0 color-mix(in srgb, #ffffff 45%, transparent);
+
+  /* ── Halation ────────────────────────────────────────────────────────────
+     The suite-wide emissive accent glow. Halation is a CRT phenomenon: on paper
+     an accent presses IN (the debossed stamp above), so these halo tokens are
+     `none` here and the dark block below lights them up. Anything coloured with
+     the primary accent emits in dark mode — wire it with `box-shadow:
+     var(--accent-halo)`, `text-shadow: var(--accent-halo-text)`, or the
+     .jk-halo / .jk-halo-text utility classes. --accent-halo-glow is the bare
+     colour, for call sites that compose their own multi-layer shadow. */
+  --accent-halo-glow: var(--color-accent-glow);
+  --accent-halo:      none;
+  --accent-halo-text: none;
+}
+
+/* ─── CRT / dark mode ─────────────────────────────────────────────────────── */
+:root[data-mode="dark"] {
+  /* ░░ INPUTS ░░ */
+  --hub-bg-0: #11100d;
+  --hub-bg-1: #1a1814;
+  --hub-bg-2: #232019;
+  --hub-bg-3: #2c2820;
+  --hub-bg-4: #38321f;
+
+  --hub-screen:      #0e0c08;
+  --hub-screen-line: #2a2418;
+
+  --hub-metal-0: #2a2620;
+  --hub-metal-1: #3a342b;
+  --hub-metal-2: #4a4234;
+  --hub-bevel-light: rgba(255, 220, 160, 0.06);
+  --hub-bevel-dark:  rgba(0, 0, 0, 0.5);
+
+  --hub-line:        #3a3528;
+  --hub-line-strong: #4a4232;
+  --hub-line-bright: #6a5d3e;
+
+  --hub-cream:        #d6cba8;
+  --hub-cream-bright: #efe6c9;
+  --hub-cream-dim:    #8a8067;
+  --hub-cream-faint:  #5a543f;
+
+  --hub-red:        #ff4530;
+  --hub-red-dim:    #6b1c14;
+  --hub-red-glow:   rgba(255, 69, 48, 0.4);
+  --hub-green:      #5cd66a;
+  --hub-green-glow: rgba(92, 214, 106, 0.35);
+  --hub-magenta:    #ff5d8f;
+  --color-ok:     #34d399;
+  --color-warn:   #fbbf24;
+  --color-danger: #f87171;
+
+  --grain-opacity: 0.06;
+  --grain-blend:   screen;
+  --hub-grain-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='jkg'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23jkg)' opacity='0.135'/%3E%3C/svg%3E");
+  --hub-glow-mul: 1;
+  --crt-scanline-opacity: 0.012;
+  --crt-vignette-opacity: 0.45;
+  --crt-scanline-ink: #ffffff;
+  --canvas-grid-opacity: 1;
+
+  /* ░░ DERIVATION — CRT uses the raw bright pair (no paper deepening) ░░ */
+  --accent:           var(--accent-raw);
+  --accent-secondary: var(--accent-2-raw);
+
+  --hub-amber:        var(--accent);
+  --hub-amber-bright: color-mix(in srgb, var(--accent) 55%, #ffffff);
+  --hub-amber-dim:    color-mix(in srgb, var(--accent) 72%, #1a1400);
+  --hub-amber-deep:   color-mix(in srgb, var(--accent) 26%, #000000);
+  --hub-amber-glow:   color-mix(in srgb, var(--accent) 38%, transparent);
+
+  --hub-cyan:         var(--accent-secondary);
+  --hub-cyan-dim:     color-mix(in srgb, var(--accent-secondary) 50%, #000000);
+  --hub-cyan-glow:    color-mix(in srgb, var(--accent-secondary) 38%, transparent);
+
+  --color-accent-contrast: #000000;
+  /* Readable accent text flips: darken-on-paper → lighten-on-CRT (so accent type
+     stays legible against the dark ground instead of muddying into it). */
+  --color-accent-ink:      color-mix(in srgb, var(--hub-amber) 78%, #ffffff);
+
+  /* Dark mode: accents glow (halation) rather than press into the surface.
+     Parameterised on --jk-tint (the item-tint seam) so a tinted well/meter
+     glows in ITS colour; unset, it resolves to the accent — byte-identical to
+     the old accent-locked value. */
+  --hub-accent-press: 0 0 10px color-mix(in srgb, var(--jk-tint, var(--accent)) 38%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--jk-tint, var(--accent)) 30%, transparent);
+
+  /* Halation lights up in CRT: every primary-accent element emits. The text
+     halo is tighter than the box halo so accent type stays legible. */
+  --accent-halo-glow: var(--color-accent-glow);
+  --accent-halo:      0 0 16px var(--color-accent-glow);
+  --accent-halo-text: 0 0 12px var(--color-accent-glow);
+}
+
+/* ─── Shared CSS component classes ─────────────────────────────────────── */
+
+/* Keyframes */
+@keyframes led-pulse    { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+@keyframes blink        { 50% { opacity: 0; } }
+@keyframes data-flicker { 0%, 92%, 100% { opacity: 1; } 94% { opacity: 0.6; } 96% { opacity: 0.95; } }
+@keyframes grain {
+  0%   { transform: translate(0, 0); }
+  10%  { transform: translate(-2%, -3%); }
+  20%  { transform: translate(3%, 1%); }
+  30%  { transform: translate(-1%, 4%); }
+  40%  { transform: translate(4%, -2%); }
+  50%  { transform: translate(-3%, 3%); }
+  60%  { transform: translate(2%, -4%); }
+  70%  { transform: translate(-4%, 2%); }
+  80%  { transform: translate(1%, -1%); }
+  90%  { transform: translate(-2%, 4%); }
+  100% { transform: translate(0, 0); }
+}
+
+/* Shared motion — the suite-wide enter/feedback animation vocabulary. One copy
+   here; app sheets keep only their bespoke frames (BB `paperExpand`, ORDECK
+   `reel-spin`/`ticker-scroll`). Transform keyframes end on `transform: none`
+   (not `translate(0)`/`scale(1)`): any non-none transform makes the element a
+   stacking context + a containing block for `position: fixed` descendants. */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes pulseOpacity {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.35; }
+}
+@keyframes checkBounce {
+  0%   { transform: none; }
+  40%  { transform: scale(1.35); }
+  70%  { transform: scale(0.9); }
+  100% { transform: none; }
+}
+@keyframes panelIn {
+  from { opacity: 0; transform: translateX(28px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes itemIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes modalIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes scanRoll {
+  from { background-position: 0 0; }
+  to   { background-position: 0 -4px; }
+}
+@keyframes scanPulse {
+  0%, 100% { opacity: 0.7; }
+  50%       { opacity: 1; }
+}
+@keyframes artifactFlash {
+  0%   { opacity: 0; }
+  8%   { opacity: 1; }
+  92%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+@keyframes crtExpand {
+  0%   { clip-path: inset(49.5% 0 49.5% 0); filter: brightness(6); }
+  9%   { clip-path: inset(0% 0 0% 0);        filter: brightness(2.2); }
+  16%  { clip-path: inset(1.2% 0 1.2% 0);   filter: brightness(0.55); }
+  24%  { clip-path: inset(0% 0 0% 0);        filter: brightness(1.5); }
+  33%  { filter: brightness(0.75); }
+  42%  { filter: brightness(1.15); }
+  54%  { filter: brightness(0.9); }
+  68%  { filter: brightness(1.05); }
+  100% { filter: brightness(1); clip-path: inset(0% 0 0% 0); }
+}
+@keyframes introTitleReveal {
+  from { opacity: 0; transform: translateY(6px); filter: blur(3px); }
+  to   { opacity: 1; transform: none;   filter: none; }
+}
+@keyframes introFadeOut {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+/* Motion utility classes. `.view-enter`/`.panel-enter` carry NO fill-mode on
+   purpose: while an animation targeting `transform` is "in effect" on an
+   element, Chromium keeps treating it as transformed (stacking context +
+   fixed-position containing block) even once it reaches a `transform: none`
+   keyframe — the fill-mode, not the resolved value, is what matters. Both
+   keyframes already end at the element's resting style, so letting the
+   animation end and revert to the non-animated cascade is a visual no-op,
+   and fixed-position popups hosted by (or siblings of) the animated element
+   keep stacking/positioning correctly. */
+.view-enter   { animation: fadeSlideUp 0.32s cubic-bezier(0.16, 1, 0.3, 1); }
+.panel-enter  { animation: panelIn     0.34s cubic-bezier(0.16, 1, 0.3, 1); }
+.item-in      { animation: itemIn      0.26s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.modal-in     { animation: modalIn     0.22s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.crt-expand   { animation: crtExpand 0.55s ease-out both; }
+.intro-title  { animation: introTitleReveal 0.7s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.intro-out    { animation: introFadeOut 0.45s ease-in forwards; }
+.now-dot      { animation: pulseOpacity 1.8s ease-in-out infinite; }
+.check-pop    { animation: checkBounce 0.25s ease-out; }
+
+/* @jkos/cards interaction primitives — the shared calendar kit carries these so
+   its hover/press affordances render wherever it mounts (BeigeBoard tabs AND
+   ORDECK widgets), instead of depending on a host app.css that only BeigeBoard
+   ships. Rules mirror BeigeBoard's original .task-row/.day-chip/.btn-action (kept
+   in its app.css for its own non-kit components). */
+.jk-cards-row  { transition: background 0.12s, filter 0.12s, opacity 0.12s; }
+.jk-cards-row:hover  { background: var(--hover-bg, transparent); }
+.jk-cards-chip { transition: opacity 0.12s; }
+.jk-cards-chip:hover { opacity: 0.78; }
+.jk-cards-btn  { transition: background 0.15s, transform 0.1s, border-color 0.15s, color 0.15s; }
+.jk-cards-btn:active { transform: translateY(1px); }
+
+/* Halation utilities — the suite-wide accent glow. .jk-halo for surfaces/chips,
+   .jk-halo-text for accent type. Both collapse to nothing on paper (the tokens
+   are `none` in light mode) so a single class is mode-correct everywhere. */
+.jk-halo      { box-shadow:  var(--accent-halo); }
+.jk-halo-text { text-shadow: var(--accent-halo-text); }
+
+/* Arbitrary-colour glow — the per-ITEM analogue of --accent-halo (which is locked
+   to the theme accent). Set the colour with --jk-glow-color inline (falls back to
+   the accent), pick an intensity rung with .jk-glow-low / -mid / -hi. Mode-gated
+   like the halo tokens: nothing on paper, emits in CRT. .jk-glow shadows a surface,
+   .jk-glow-text shadows type. Replaces apps' bespoke per-colour glow helpers. */
+.jk-glow-low { --jk-glow-size: 10px; --jk-glow-strength: 20%; }
+.jk-glow-mid { --jk-glow-size: 16px; --jk-glow-strength: 33%; }
+.jk-glow-hi  { --jk-glow-size: 28px; --jk-glow-strength: 52%; }
+:root[data-mode="dark"] .jk-glow {
+  box-shadow: 0 0 var(--jk-glow-size, 16px)
+    color-mix(in srgb, var(--jk-glow-color, var(--accent)) var(--jk-glow-strength, 33%), transparent);
+}
+:root[data-mode="dark"] .jk-glow-text {
+  text-shadow: 0 0 var(--jk-glow-size, 12px)
+    color-mix(in srgb, var(--jk-glow-color, var(--accent)) var(--jk-glow-strength, 38%), transparent);
+}
+
+/* LEDs */
+.led {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  box-shadow: 0 0 6px currentColor, inset 0 0 2px rgba(0,0,0,0.4);
+  animation: led-pulse 2.4s ease-in-out infinite;
+  flex-shrink: 0;
+}
+.led.green  { background: var(--hub-green);   color: var(--hub-green); }
+.led.amber  { background: var(--hub-amber);   color: var(--hub-amber); }
+.led.red    { background: var(--hub-red);     color: var(--hub-red);   animation-duration: 1s; }
+.led.cyan   { background: var(--hub-cyan);    color: var(--hub-cyan); }
+.led.off    { background: var(--hub-metal-2); color: var(--hub-metal-2);
+              box-shadow: inset 0 0 2px rgba(0,0,0,0.4); animation: none; }
+.led.steady { animation: none; }
+.led.sm     { width: 6px;  height: 6px; }
+.led.lg     { width: 12px; height: 12px; }
+
+/* Hardware bits — SCARCE punctuation, not decoration. One LED marks THE live
+   thing; a strip of tape names THE important panel. Spamming hardware chrome
+   removes the importance it exists to grant. (The v0.1 screw/vent/dymo pieces
+   were dead code and are gone — reintroduce from git history only with a job
+   to do.) */
+
+/* Label tape — the PHYSICAL alternative to the .jk-bubble text badge: an
+   embossed strip you stick on a panel to name it. Same badge doctrine (drop
+   shadow, sits ON the surface), rendered as hardware instead of accent. */
+.label-tape {
+  display: inline-block;
+  background: linear-gradient(180deg, var(--hub-metal-1), var(--hub-metal-0));
+  color: var(--hub-cream-bright);
+  padding: 3px 8px;
+  font-family: var(--hub-font-mono);
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  border: 1px solid var(--hub-metal-0);
+  box-shadow: inset 0 1px 0 var(--hub-bevel-light), 0 1px 0 rgba(0,0,0,0.4);
+}
+
+.perf {
+  background: var(--hub-bg-0);
+  background-image: radial-gradient(circle, var(--hub-metal-0) 1.2px, var(--hub-bg-2) 1.4px);
+  background-size: 6px 6px;
+}
+
+/* Rubber stamp */
+.stamp {
+  display: inline-block;
+  border: 2px solid currentColor;
+  padding: 2px 8px;
+  font-family: var(--hub-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  opacity: 0.65;
+  transform: rotate(-2deg);
+}
+
+/* 7-segment glow text */
+.seg {
+  font-family: var(--hub-font-seg);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  font-variant-numeric: tabular-nums;
+  color: var(--hub-amber);
+  text-shadow: 0 0 8px var(--hub-amber-glow), 0 0 2px var(--hub-amber-glow);
+}
+
+/* Bar meters */
+.bar-track {
+  background: var(--hub-bg-0);
+  border: 1px solid var(--hub-line);
+  position: relative;
+  overflow: hidden;
+}
+.bar-fill {
+  background: linear-gradient(90deg, var(--hub-amber-dim), var(--hub-amber));
+  box-shadow: 0 0 4px var(--hub-amber-glow);
+  height: 100%;
+}
+
+/* Phosphor text glow */
+.glow     { text-shadow: 0 0 6px var(--hub-amber-glow), 0 0 2px var(--hub-amber-glow); }
+.glow-dim { text-shadow: 0 0 4px var(--hub-amber-glow); }
+.glow-cyan { text-shadow: 0 0 6px var(--hub-cyan-glow), 0 0 2px var(--hub-cyan-glow); }
+
+/* Utility */
+.mono-eyebrow {
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  color: var(--hub-cream-dim);
+  text-transform: uppercase;
+}
+
+/* Canvas grid background */
+.canvas-grid {
+  background-image:
+    linear-gradient(var(--hub-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--hub-line) 1px, transparent 1px);
+  background-size: var(--hub-grid) var(--hub-grid);
+  opacity: var(--canvas-grid-opacity, 1);
+}
+
+/* Boot / canvas layout cells */
+.canvas-cell {
+  position: relative;
+  background: var(--hub-bg-1);
+  border: 1px solid var(--hub-line);
+}
+/* No fill-mode on purpose (same reasoning as .view-enter above): the keyframes
+   end at the resting style, and a retained non-none clip-path would make the
+   cell a containing block for fixed/absolute descendants forever after. The
+   old `to`-only keyframe animated opacity 1→1 — the entrance was invisibly a
+   no-op until 2026-07-17. The sweep is a fade + left-to-right reveal. */
+.boot-sweep {
+  animation: bootIn 0.4s ease-out;
+}
+@keyframes bootIn {
+  from { opacity: 0; clip-path: inset(0 100% 0 0); }
+  to   { opacity: 1; clip-path: inset(0 0 0 0); }
+}
+
+/* Scrollbars */
+::-webkit-scrollbar       { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--hub-bg-1); }
+::-webkit-scrollbar-thumb { background: var(--hub-line-strong); }
+::-webkit-scrollbar-thumb:hover { background: var(--hub-amber-dim); }
+
+/* Selection */
+::selection {
+  background: var(--hub-amber-dim);
+  color: var(--hub-cream-bright);
+}
+
+/* ─── Wells & badges — the paper accent language ───────────────────────────
+ * Paper mode has exactly two physical accent moves:
+ *
+ *   WELL  — sinks INTO the sheet (inner shadow, --hub-accent-press). Wells
+ *           provide DEPTH and BOUNDARY: use one to contain or delimit a region.
+ *   BADGE — sits ON the sheet (raised chip, drop shadow) on text and small
+ *           marks. The badge is paper's EMPHASIS — the exact analogue of dark
+ *           mode's glow. Primary accent takes the badge treatment; the
+ *           secondary stays FLAT, one rung down, never raised.
+ *
+ * In CRT both moves become emissive: the well's boundary is an accent ring +
+ * glow, the badge's emphasis is halation. Both flow from the chain above
+ * (--accent / --accent-secondary), so they deepen for paper and go raw + glow
+ * for dark automatically.
+ *
+ * Use the React components from @jkos/ui: <Bubble>, <Press>, <Well>, <Sheet>.
+ * Corners follow the per-app --hub-radius* scale (soft by default); no
+ * texture/effect tokens are touched here.
+ * ───────────────────────────────────────────────────────────────────────── */
+
+/* Badged PRIMARY text — raised off the sheet: highlight above, shade below */
+.jk-press {
+  color: var(--accent);
+  text-shadow:
+    0 -0.5px 0 rgba(255, 255, 255, 0.45),
+    0 1px 0 color-mix(in srgb, var(--accent) 50%, var(--accent-deepen-ink)),
+    0 2px 1.5px rgba(48, 34, 20, 0.20);
+}
+.jk-press-lg {
+  color: var(--accent);
+  text-shadow:
+    0 -1px 0 rgba(255, 255, 255, 0.50),
+    0 1px 0 color-mix(in srgb, var(--accent) 58%, var(--accent-deepen-ink)),
+    0 2px 0 color-mix(in srgb, var(--accent) 48%, var(--accent-deepen-ink)),
+    0 3px 4px rgba(48, 34, 20, 0.24);
+}
+:root[data-mode="dark"] .jk-press,
+:root[data-mode="dark"] .jk-press-lg {
+  /* halation replaces the bevel — same scarcity, opposite physics */
+  text-shadow:
+    0 0 12px color-mix(in srgb, var(--accent) 55%, transparent),
+    0 0 3px  color-mix(in srgb, var(--accent) 60%, transparent);
+}
+
+/* Flat SECONDARY text + link */
+.jk-sub { color: var(--accent-secondary); }
+.jk-sub-link {
+  color: var(--accent-secondary);
+  text-decoration: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--accent-secondary) 45%, transparent);
+  padding-bottom: 1px;
+}
+:root[data-mode="dark"] .jk-sub,
+:root[data-mode="dark"] .jk-sub-link {
+  text-shadow: 0 0 8px color-mix(in srgb, var(--accent-secondary) 40%, transparent);
+}
+:root[data-mode="dark"] .jk-sub-link {
+  border-bottom-color: color-mix(in srgb, var(--accent-secondary) 50%, transparent);
+}
+
+/* The WELL — inset accent-tinted container: debossed on paper, emissive in
+   CRT. Wells give a region depth and a boundary; they are containment, not
+   emphasis (that's the badge's job). Reuses --hub-accent-press so the mode
+   flip is inherited, not re-stated. --jk-tint (unset → --accent) lets a caller
+   retint the well in a data colour (e.g. a goal's own hue); the dark-mode
+   press glow follows the same seam. */
+.jk-well {
+  background: color-mix(in srgb, var(--jk-tint, var(--accent)) 14%, var(--hub-bg-2));
+  border-radius: var(--hub-radius-lg);
+  box-shadow: var(--hub-accent-press);
+}
+
+/* Single-element BUBBLES (pills/badges) */
+.jk-bubble {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  line-height: 1;
+  font-family: var(--hub-font-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  border-radius: var(--hub-radius-lg);
+  font-size: var(--hub-fs-bubble);
+  padding: var(--hub-pad-bubble);
+}
+.jk-bubble.jk-bubble-lg { font-size: var(--hub-fs-bubble-lg); letter-spacing: 0.14em; padding: var(--hub-pad-bubble-lg); }
+
+/* Primary bubble = the BADGE: a raised chip that sits ON the sheet — top
+   bevel highlight, drop shadow below. It used to borrow the well's inset
+   shadow, which read as debossed; a badge is emphasis, so it rises. */
+.jk-bubble-primary {
+  background: color-mix(in srgb, var(--accent) 14%, var(--hub-bg-2));
+  color: var(--accent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #ffffff 60%, transparent),
+    0 1px 0 color-mix(in srgb, var(--accent) 28%, var(--hub-line)),
+    0 2px 5px rgba(48, 34, 20, 0.28);
+  text-shadow:
+    0 -0.5px 0 rgba(255, 255, 255, 0.45),
+    0 1px 0 color-mix(in srgb, var(--accent) 50%, var(--accent-deepen-ink));
+}
+:root[data-mode="dark"] .jk-bubble-primary {
+  /* in CRT the badge's emphasis is halation, not elevation */
+  box-shadow: var(--hub-accent-press);
+  text-shadow: 0 0 10px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+/* Secondary bubble = flat pill (the chip) */
+.jk-bubble-secondary {
+  background: color-mix(in srgb, var(--accent-secondary) 11%, var(--hub-bg-2));
+  border: 1px solid color-mix(in srgb, var(--accent-secondary) 28%, transparent);
+  color: var(--accent-secondary);
+}
+:root[data-mode="dark"] .jk-bubble-secondary {
+  background: color-mix(in srgb, var(--accent-secondary) 10%, var(--hub-bg-1));
+  border-color: color-mix(in srgb, var(--accent-secondary) 36%, transparent);
+}
+
+/* Card surface */
+.jk-sheet {
+  background: var(--hub-bg-2);
+  border: 1px solid var(--hub-line);
+  border-radius: var(--hub-radius-lg);
+  box-shadow: var(--hub-shadow-card), inset 0 1px 0 var(--hub-bevel-light);
+}
+
+/* ─── Media grid + cover art (@jkos/ui MediaGrid / CoverArt) ───────────────
+ * The suite's responsive cover grid + its image/fallback tile — lifted out
+ * of papyros's library.css (ToDo.md §3 20.2) so the column ladder and cover
+ * styling live once, not re-hardcoded per app. Density keys off the ladder
+ * tokens declared with --hub-tap-min above (kept in sync with
+ * packages/design/responsive/mediaGrid.ts by test/responsive.mjs). ───────── */
+.jk-media-grid {
+  display: grid;
+  gap: var(--hub-media-grid-gap);
+}
+.jk-media-grid[data-density="compact"]     { grid-template-columns: repeat(var(--hub-media-cols-compact), 1fr); }
+.jk-media-grid[data-density="cozy"]        { grid-template-columns: repeat(var(--hub-media-cols-cozy), 1fr); gap: var(--hub-media-grid-gap-tight); }
+.jk-media-grid[data-density="comfortable"] { grid-template-columns: repeat(var(--hub-media-cols-comfortable), 1fr); gap: var(--hub-media-grid-gap-tight); }
+
+/* Cover image — square (audiobook/media artwork convention; a 2/3 book-
+   jacket ratio would crop real covers). Placeholder reuses .jk-well (inset
+   accent-tinted container) and only cancels its border-radius, matching the
+   original `.lib-cover`/`.lib-cover-placeholder` pairing exactly. */
+.jk-media-cover {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  background: var(--hub-bg-1);
+}
+/* `display: flex` is load-bearing: .jk-media-cover above sets `display: block`,
+   and at equal specificity the later rule wins — so without this the centering
+   pair below was inert and every fallback glyph in the suite sat in the tile's
+   top-left corner. (Inherited from `.lib-cover-placeholder`, which leaned on a
+   papyros-local flex rule that didn't come along with the lift.) */
+.jk-media-cover-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0;
+}
+.jk-media-cover-placeholder span { font-size: 1.7rem; letter-spacing: 0.04em; }
+
+/* ─── Async state text (@jkos/ui <AsyncView>) ──────────────────────────────
+ * ToDo.md §3 Wave 20 item 20.3: the loading/error/empty triad's single state
+ * paragraph, unified out of three hand-rolled versions (papyros's local
+ * `.muted` in Library.tsx/BookDetail.tsx, `.offline-empty` in
+ * OfflineSettings.tsx). Neutral/muted by default like the retired `.muted`;
+ * `.jk-async-error` blends toward the danger hue (same color-mix ratio as
+ * offline.css's `.is-error` hint) rather than going pure red — legible in
+ * both modes without a hardcoded hex. ───────────────────────────────────── */
+.jk-async-note {
+  padding: 1.5rem 0;
+  opacity: 0.6;
+}
+
+/* Legacy alias for the same thing. @jkos/ui's <MatchPanel> hardcodes `muted` on
+   its message/meta lines, but the rule lived ONLY in apps/papyros/src/app.css and
+   apps/kouros/src/app.css (identical copies) — so a shared component rendered
+   correctly only in the two apps that happened to ship their own class. That is
+   the same trap the .jk-cards-* block above exists to close, so the rule moves
+   here, byte-identical, and every consumer gets it. New code should use
+   .jk-async-note (or <AsyncView>) — this exists so the existing call sites are
+   not silently broken. See Documentation/ToDo.md: the two app copies and
+   MatchPanel's use of the old name are still to be retired. */
+.muted {
+  padding: 1.5rem 0;
+  opacity: 0.6;
+}
+.jk-async-error {
+  color: color-mix(in srgb, var(--hub-red) 75%, var(--hub-cream-dim));
+  opacity: 1;
+}
+
+/* ─── Mono labels, text buttons, status pills ──────────────────────────────
+ * Reusable text-system primitives shared with the @jkos/ui <Lab>, <TButton>,
+ * <Pill> components. All neutral/semantic — never hardcode an accent; the two
+ * accent families above own the accent surfaces. ────────────────────────── */
+
+/* Uppercase mono label — eyebrows + field labels. Three sizes. */
+.jk-lab {
+  font-family: var(--hub-font-mono);
+  font-size: var(--hub-fs-lab);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--hub-cream);
+}
+.jk-lab.jk-lab-sm { font-size: var(--hub-fs-lab-sm); letter-spacing: 0.18em; color: var(--hub-cream-dim); }
+.jk-lab.jk-lab-xs { font-size: var(--hub-fs-lab-xs); letter-spacing: 0.16em; color: var(--hub-cream-dim); }
+/* Sans eyebrow — same tracked-caps label in the UI sans (softer than the mono
+   default) for prose-adjacent section heads. Blessed variant, not a new type. */
+.jk-lab.jk-lab-sans { font-family: var(--hub-font-sans); letter-spacing: 0.14em; }
+
+/* Compact mono text button — flat, hovers to the secondary accent. */
+.jk-tbtn {
+  font-family: var(--hub-font-mono);
+  font-size: var(--hub-fs-tbtn);
+  letter-spacing: 0.12em;
+  line-height: 1;
+  padding: var(--hub-pad-tbtn);
+  color: var(--hub-cream);
+  background: transparent;
+  border: 1px solid var(--hub-line);
+  border-radius: var(--hub-radius-sm);
+  cursor: pointer;
+  transition: color 0.12s, border-color 0.12s;
+}
+.jk-tbtn.jk-tbtn-quiet {
+  color: var(--hub-cream-dim);
+  border-color: color-mix(in srgb, var(--hub-line) 55%, transparent);
+}
+.jk-tbtn:hover {
+  color: var(--accent-secondary);
+  border-color: color-mix(in srgb, var(--accent-secondary) 50%, transparent);
+}
+:root[data-mode="dark"] .jk-tbtn:hover {
+  text-shadow: 0 0 8px color-mix(in srgb, var(--accent-secondary) 40%, transparent);
+}
+
+/* Status pill — defaults to the OK/green status; glows in CRT. */
+.jk-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--hub-font-mono);
+  font-size: var(--hub-fs-pill);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  padding: var(--hub-pad-pill);
+  border-radius: var(--hub-radius-lg);
+  color: var(--hub-green);
+  border: 1px solid color-mix(in srgb, var(--hub-green) 40%, transparent);
+}
+:root[data-mode="dark"] .jk-pill { text-shadow: 0 0 8px var(--hub-green-glow); }
+
+/* ─── Toggles — switch + checkbox ──────────────────────────────────────────
+ * Neutral track/box that fills with the accent (or --jk-tint) when checked and
+ * carries the on-accent ink for the mark. Render on a real <button>/<input>
+ * host with role + aria-checked so the [aria-checked="true"] state drives it. */
+
+/* Sliding switch — 46×26 track, 20px knob. */
+.jk-switch {
+  position: relative;
+  flex: none;
+  width: 46px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--hub-line);
+  border-radius: 999px;
+  background: var(--hub-bg-0);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.jk-switch[aria-checked="true"] {
+  background: var(--jk-tint, var(--accent));
+  border-color: var(--jk-tint, var(--accent));
+}
+:root[data-mode="dark"] .jk-switch[aria-checked="true"] {
+  box-shadow: 0 0 10px color-mix(in srgb, var(--jk-tint, var(--accent)) 45%, transparent);
+}
+.jk-switch-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--hub-bg-2);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  transition: transform 0.15s;
+}
+.jk-switch[aria-checked="true"] .jk-switch-knob { transform: translateX(20px); }
+
+/* Checkbox — square box that fills + shows the child mark when checked. */
+.jk-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid var(--hub-line-strong);
+  border-radius: var(--hub-radius-sm);
+  background: var(--hub-bg-1);
+  color: transparent;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.jk-check[aria-checked="true"] {
+  background: var(--jk-tint, var(--accent));
+  border-color: var(--jk-tint, var(--accent));
+  color: var(--color-on-accent);
+}
+:root[data-mode="dark"] .jk-check[aria-checked="true"] {
+  box-shadow: 0 0 8px color-mix(in srgb, var(--jk-tint, var(--accent)) 40%, transparent);
+}
+
+/* ─── Slider — continuous range control ────────────────────────────────────
+ * The house fader: a recessed track that fills with the accent (or --jk-tint)
+ * up to the playhead, under a metal fader CAP — the hardware sibling of the
+ * switch/check pair above, for continuous values (seek, volume, rate).
+ *
+ * Host a real <input type="range" class="jk-slider"> so keyboard, aria and the
+ * step semantics come from the platform. The input box is a full --hub-tap-min
+ * tall (the ≥44px hit area) while the visible track stays thin — the same trick
+ * the player scrubber used, kept.
+ *
+ * The elapsed fill is painted from --jk-slider-fill (a percentage the caller
+ * sets from its own value; @jkos/ui <Slider> does it for you). It defaults to
+ * 0% so a bare, JS-free `.jk-slider` still renders correctly — just unfilled.
+ *
+ * Vendor pseudo-elements CANNOT be grouped: one unknown selector drops the whole
+ * rule, so the ::-webkit-/::-moz- pairs below are deliberately duplicated. */
+.jk-slider {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: var(--hub-tap-min);
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.jk-slider:disabled { cursor: default; opacity: 0.5; }
+
+/* Track — debossed channel, accent to the left of the cap, neutral to the right. */
+.jk-slider::-webkit-slider-runnable-track {
+  height: 6px;
+  border: 1px solid var(--hub-line);
+  border-radius: var(--hub-radius-xs);
+  box-shadow: var(--hub-shadow-inset);
+  background:
+    linear-gradient(
+      to right,
+      var(--jk-tint, var(--accent)) 0 var(--jk-slider-fill, 0%),
+      var(--hub-bg-0) var(--jk-slider-fill, 0%)
+    );
+}
+.jk-slider::-moz-range-track {
+  height: 6px;
+  border: 1px solid var(--hub-line);
+  border-radius: var(--hub-radius-xs);
+  box-shadow: var(--hub-shadow-inset);
+  background:
+    linear-gradient(
+      to right,
+      var(--jk-tint, var(--accent)) 0 var(--jk-slider-fill, 0%),
+      var(--hub-bg-0) var(--jk-slider-fill, 0%)
+    );
+}
+
+/* Cap — a milled fader knob: metal gradient, bevel highlight, centre grip line.
+ * webkit centres the thumb by margin against the track box (6px + 2×1px border
+ * = 8px), hence the -7px; moz centres it for us. */
+.jk-slider::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 12px;
+  height: 22px;
+  margin-top: -7px;
+  border: 1px solid var(--hub-line-bright);
+  border-radius: var(--hub-radius-xs);
+  background:
+    linear-gradient(to bottom, var(--hub-metal-2), var(--hub-metal-0));
+  box-shadow: inset 0 1px 0 var(--hub-bevel-light), 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+.jk-slider::-moz-range-thumb {
+  width: 12px;
+  height: 22px;
+  border: 1px solid var(--hub-line-bright);
+  border-radius: var(--hub-radius-xs);
+  background:
+    linear-gradient(to bottom, var(--hub-metal-2), var(--hub-metal-0));
+  box-shadow: inset 0 1px 0 var(--hub-bevel-light), 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+/* CRT: the filled run emits, and the cap picks up the accent edge it rides. */
+:root[data-mode="dark"] .jk-slider::-webkit-slider-thumb {
+  border-color: color-mix(in srgb, var(--jk-tint, var(--accent)) 60%, var(--hub-line-bright));
+  box-shadow:
+    inset 0 1px 0 var(--hub-bevel-light),
+    0 0 10px color-mix(in srgb, var(--jk-tint, var(--accent)) 45%, transparent);
+}
+:root[data-mode="dark"] .jk-slider::-moz-range-thumb {
+  border-color: color-mix(in srgb, var(--jk-tint, var(--accent)) 60%, var(--hub-line-bright));
+  box-shadow:
+    inset 0 1px 0 var(--hub-bevel-light),
+    0 0 10px color-mix(in srgb, var(--jk-tint, var(--accent)) 45%, transparent);
+}
+
+.jk-slider:focus-visible { outline: none; }
+.jk-slider:focus-visible::-webkit-slider-thumb { outline: 2px solid var(--accent); outline-offset: 2px; }
+.jk-slider:focus-visible::-moz-range-thumb     { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ─── VU meter — segmented level bar ────────────────────────────────────────
+ * Flex row of segments; add `.on` to lit segments. Accent by default; retint a
+ * lit run (e.g. a red peak zone) via --jk-tint on the segment or a wrapper. */
+.jk-vu { display: flex; align-items: stretch; gap: 2px; }
+.jk-vu-seg {
+  flex: 1;
+  min-width: 2px;
+  border-radius: 1px;
+  background: var(--hub-line);
+  transition: background 0.1s, box-shadow 0.1s;
+}
+.jk-vu-seg.on {
+  background: var(--jk-tint, var(--hub-amber));
+}
+:root[data-mode="dark"] .jk-vu-seg.on {
+  box-shadow: 0 0 4px color-mix(in srgb, var(--jk-tint, var(--hub-amber)) 60%, transparent);
+}
+
+/* ─── CRT atmosphere — scanline + vignette veils ───────────────────────────
+ * Absolute overlays for a screen surface (host needs position). Driven by the
+ * suite CRT knobs (--crt-scanline-opacity / --crt-vignette-opacity: 0 in paper,
+ * lit in dark) and --crt-scanline-ink (#000 paper / #fff dark), so a single
+ * markup renders correctly in both faces with no per-app opacity literals. */
+.jk-scanlines {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: var(--crt-scanline-opacity);
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0px,
+    transparent 2.5px,
+    color-mix(in srgb, var(--crt-scanline-ink) 5%, transparent) 2.5px,
+    color-mix(in srgb, var(--crt-scanline-ink) 5%, transparent) 3.5px
+  );
+}
+.jk-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: var(--crt-vignette-opacity);
+  background:
+    radial-gradient(120% 80% at 50% 28%, color-mix(in srgb, var(--accent) 10%, transparent) 0%, transparent 45%),
+    radial-gradient(140% 120% at 50% 50%, transparent 58%, var(--hub-scrim-heavy) 100%);
+}
+
+/* ─── Scrim — modal backdrop veil ──────────────────────────────────────────
+ * Full-viewport dim behind sheets/dialogs. `.jk-scrim-heavy` for opaque covers
+ * (image lightboxes, boot screens). Both read the neutral scrim tokens. */
+.jk-scrim {
+  position: fixed;
+  inset: 0;
+  background: var(--hub-scrim);
+}
+.jk-scrim-heavy { background: var(--hub-scrim-heavy); }
+
+/* ─── App shell — invariant guard→header→drawer frame (@jkos/ui <AppShell>) ──
+ * ToDo.md §3 Wave 20 item 20.1: the frame every full-shell app hand-wrote
+ * (auth guard, header row, SettingsDrawer, useJkOSPreferences wiring) — lifted
+ * so a hand-copy can't drop a step again. Purely structural/neutral, same as
+ * the scrim above; the header carries no accent of its own. */
+.jk-shell {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.jk-shell-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.1rem 1.5rem;
+  border-bottom: 1px solid var(--hub-line);
+}
+.jk-shell-brand {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  min-width: 0;
+}
+.jk-shell-wordmark {
+  font-family: var(--hub-font-serif);
+  font-size: 1.4rem;
+  text-decoration: none;
+}
+/* Opens the SettingsDrawer. --hub-tap-min is 0 on desktop and 44px on
+   mobile/tablet, so it is a FLOOR over the base size, never the size itself. */
+.jk-shell-settings-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  min-width: var(--hub-tap-min);
+  min-height: var(--hub-tap-min);
+  padding: 0;
+  border: 1px solid var(--hub-line);
+  border-radius: var(--hub-radius-button);
+  background: var(--hub-bg-1);
+  color: var(--hub-cream-bright);
+  cursor: pointer;
+}
+.jk-shell-settings-btn:hover { border-color: var(--accent); color: var(--accent); }
+.jk-shell-settings-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ─── Match panel — search→candidates→apply (@jkos/ui <MatchPanel>) ────────
+ * ToDo.md §3 Wave 20 item 20.4: lifted verbatim (same properties, `.match-*`
+ * renamed `.jk-match-*`) out of papyros's book-detail.css — the "Fix metadata"
+ * panel was the ONLY consumer, so a hand-copy per future consumer would repeat
+ * papyros's original single-app mistake (20.1's brief). Reads the same --hub-
+ * tokens every other component class here does; no new tokens introduced. ── */
+.jk-match-panel {
+  align-self: stretch;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.jk-match-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.jk-match-search {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.jk-match-input {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--hub-font-sans);
+  font-size: 0.9rem;
+  padding: 0.5rem 0.7rem;
+  min-height: var(--hub-tap-min);
+  border: 1px solid var(--hub-line);
+  border-radius: var(--hub-radius-sm);
+  background: var(--hub-bg-1);
+  color: var(--hub-cream-bright);
+}
+.jk-match-input:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--accent-secondary) 55%, transparent);
+}
+
+.jk-match-msg { margin: 0; padding: 0; }
+
+.jk-match-candidates {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.jk-match-candidate {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.6rem;
+  border: 1px solid var(--hub-line);
+  border-radius: var(--hub-radius-lg);
+  background: var(--hub-bg-1);
+}
+
+.jk-match-candidate-cover {
+  flex: none;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--hub-radius-sm);
+  object-fit: cover;
+  background: var(--hub-bg-2);
+}
+.jk-match-candidate-cover-placeholder {
+  border: 1px dashed var(--hub-line);
+}
+
+.jk-match-candidate-info { flex: 1; min-width: 0; }
+.jk-match-candidate-title {
+  font-family: var(--hub-font-serif);
+  font-weight: 600;
+}
+.jk-match-candidate-meta { font-size: 0.8rem; }
+.jk-match-candidate-desc {
+  margin: 0.3rem 0 0;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: var(--hub-cream-dim);
+}
+
+.jk-match-candidate-apply { flex: none; align-self: center; }
+
+/* ═══ VIEWPORT AXIS — responsive overrides ═════════════════════════════════
+ * Two tiers below desktop. Each overrides ONLY the responsive-scale INPUT
+ * tokens (declared in the :root INPUTS block); the card classes already read
+ * them, so every card in every app reflows without touching component code —
+ * the same single-source trick as the [data-mode="dark"] flip.
+ *
+ * The max-width values are the upper bounds in
+ * packages/design/responsive/breakpoints.ts (BREAKPOINT_MAX). test/responsive.mjs
+ * fails the suite gate if they drift — keep this comment and that file in sync.
+ * ─────────────────────────────────────────────────────────────────────────── */
+
+/* TABLET — 768–1023px. Touch device, but desktop reading density holds; we only
+   raise the tap-target floor and give widget chrome a touch more breathing room. */
+@media (max-width: 1023px) {
+  :root {
+    --hub-tap-min:    44px;
+    --hub-widget-pad: 14px;
+  }
+}
+
+/* MOBILE — ≤767px. Phones: bump the tiny mono type up a rung for legibility and
+   roomier padding so the tap-floor doesn't visually crush the labels. */
+@media (max-width: 767px) {
+  :root {
+    --hub-tap-min:       44px;
+    --hub-widget-pad:    14px;
+    --hub-fs-bubble:     11px;
+    --hub-fs-bubble-lg:  13px;
+    --hub-pad-bubble:    7px 13px;
+    --hub-pad-bubble-lg: 9px 16px;
+    --hub-fs-pill:       10px;
+    --hub-pad-pill:      6px 11px;
+    --hub-fs-tbtn:       11px;
+    --hub-pad-tbtn:      9px 13px;
+    --hub-fs-lab:        11px;
+    --hub-fs-lab-sm:     10px;
+    --hub-fs-lab-xs:     9px;
+  }
+}
+
+/* Tap-target floor for INTERACTIVE primitives only. The @jkos/ui wrappers render
+   interactive instances as real <button>/<a> (via the `as` prop) and static
+   badges as <span>, so this tag+class selector lifts only the things you tap and
+   leaves dense inline badges alone. --hub-tap-min is 0 on desktop (no effect),
+   44px on the touch tiers above. inline-flex keeps the label centred when the box
+   grows to the floor. */
+button.jk-bubble, a.jk-bubble,
+button.jk-pill,   a.jk-pill,
+.jk-tbtn {
+  min-height: var(--hub-tap-min);
+  min-width:  var(--hub-tap-min);
+}
+  </style>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       player-ui.css — the @jkos/player UI kit's stylesheet, inlined VERBATIM
+       from packages/player/src/ui/player-ui.css. The one shared component
+       stylesheet that lives outside hub.css (it ships with @jkos/player/ui), so
+       the page inlines it too and §12's bar is the REAL bar.
+       ═══════════════════════════════════════════════════════════════════════ -->
+  <style id="player-ui">
+/* player-ui.css — the @jkos/player UI kit's stylesheet (ToDo.md §3 Wave 16, item
+   16.6). The `player-bar` / `pb-*` rules are lifted VERBATIM from
+   apps/papyros/src/player/player.css (papyros now keeps only its bespoke rules —
+   bookmarks, the mobile More sheet, and its body-class reserve-space rule), so the
+   papyros bar renders pixel-identically off this file. Layout + chrome only; every
+   colour, radius, font and tap-floor reads a suite --hub- / --accent token — no
+   hardcoded hex or radius/font literals. Imported once, from this package's ui
+   barrel (src/ui/index.ts); the consuming app's bundler ships it. */
+
+/* ── Playback error strip (engine `error`: decode / network / autoplay-blocked).
+   Absolutely positioned above the bar so it never disturbs the transport layout. ── */
+.pb-error {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  padding: 0.3rem 1.1rem;
+  font-size: 0.78rem;
+  text-align: center;
+  color: color-mix(in srgb, var(--hub-red) 80%, var(--hub-cream-dim));
+  background: var(--hub-red-soft);
+  border-top: 1px solid color-mix(in srgb, var(--hub-red) 35%, var(--hub-line));
+}
+
+/* ── The bar shell — desktop 3-column, mobile stacked compact row ─────────── */
+.player-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 6000;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.6rem 1.1rem;
+  /* SOLID surface + an accent-tinted top rule. The original 94%-translucent + blur
+     chrome visually merged into the page (especially dark mode) — the whole bar read
+     as invisible except the bordered circular play button ("just a circle in a
+     non-intuitive location", Jag 2026-07-10). */
+  background: var(--hub-bg-2);
+  border-top: 2px solid color-mix(in srgb, var(--accent) 35%, var(--hub-line));
+  box-shadow: var(--hub-shadow-card);
+}
+
+.player-bar.is-mobile {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.4rem;
+  padding: 0.5rem 0.75rem 0.7rem;
+}
+
+/* ── Regions (the slots) ──────────────────────────────────────────────────── */
+.pb-left { flex: 1 1 0; min-width: 0; max-width: 320px; }
+.pb-center {
+  flex: 2 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+}
+.pb-right {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.4rem;
+}
+.pb-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+/* ── Now-playing meta (<NowPlaying> + <CoverArt>) ─────────────────────────── */
+.pb-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+  flex: 1 1 0;
+}
+.pb-cover {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--hub-radius-sm);
+  object-fit: cover;
+  background: var(--hub-bg-1);
+  border: 1px solid var(--hub-line);
+}
+.pb-cover-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--hub-cream-faint);
+}
+.pb-meta-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 0.1rem;
+}
+.pb-title {
+  font-family: var(--hub-font-serif);
+  font-size: 0.95rem;
+  line-height: 1.2;
+  color: var(--hub-cream-bright);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pb-title:hover { color: var(--accent-secondary); }
+.pb-sub {
+  font-size: 0.78rem;
+  color: var(--hub-cream-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Buttons (the stock controls) ─────────────────────────────────────────── */
+.pb-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  min-width: var(--hub-tap-min);
+  min-height: var(--hub-tap-min);
+  padding: 0 0.5rem;
+  background: transparent;
+  border: none;
+  border-radius: var(--hub-radius-sm);
+  color: var(--hub-cream);
+  font-family: var(--hub-font-mono);
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: color 0.12s, background 0.12s;
+}
+.pb-btn:hover { color: var(--accent-secondary); background: color-mix(in srgb, var(--accent-secondary) 12%, transparent); }
+.pb-btn:disabled { opacity: 0.4; cursor: default; }
+.pb-btn:disabled:hover { color: var(--hub-cream); background: transparent; }
+.pb-btn-wide { padding: 0 0.6rem; }
+
+.pb-btn-primary {
+  width: 46px;
+  height: 46px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--hub-bg-1));
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.pb-btn-primary:hover {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 22%, var(--hub-bg-1));
+}
+:root[data-mode="dark"] .pb-btn-primary {
+  box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.pb-btn.is-armed { color: var(--accent-secondary); }
+.pb-armed, .pb-count {
+  font-size: 0.68rem;
+  font-family: var(--hub-font-mono);
+  letter-spacing: 0.02em;
+}
+.pb-count { color: var(--accent-secondary); }
+
+.pb-transport {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+}
+.pb-transport-compact { gap: 0.15rem; }
+
+.pb-spin { animation: pb-rot 0.9s linear infinite; }
+@keyframes pb-rot { to { transform: rotate(360deg); } }
+
+/* ── Scrubber ─────────────────────────────────────────────────────────────── */
+.pb-scrubber {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+}
+.pb-time {
+  flex: none;
+  font-family: var(--hub-font-mono);
+  font-size: 0.72rem;
+  color: var(--hub-cream-dim);
+  min-width: 3.2ch;
+  text-align: center;
+}
+/* The seek control is the suite SLIDER: <Scrubber> renders @jkos/ui's <Slider>, so
+   the track, fader cap, elapsed fill and ≥44px tap-floor all come from hub.css's
+   `.jk-slider` — nothing to restate here. This was a bare range leaning on
+   `accent-color`, which themed the thumb but left the bar as generic OS chrome —
+   the one control in the suite that wasn't house hardware. */
+
+/* Whole-timeline mode only: a positioned wrap so segment-boundary ticks can overlay
+   the slider. Segment mode renders the bare input (papyros's exact markup). */
+.pb-range-wrap {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+}
+.pb-range-wrap .jk-slider { width: 100%; }
+.pb-scrub-ticks {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.pb-scrub-tick {
+  position: absolute;
+  top: 50%;
+  width: 1px;
+  height: 8px;
+  transform: translate(-50%, -50%);
+  background: color-mix(in srgb, var(--hub-cream-dim) 55%, transparent);
+}
+
+/* ── Popover framework + scrim (menu-shaped stock controls, e.g. <SleepMenu>) ── */
+.pb-menu { position: relative; display: inline-flex; }
+
+.pb-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 5990;
+  background: transparent;
+}
+
+.pb-popover {
+  position: absolute;
+  bottom: calc(100% + 0.5rem);
+  right: 0;
+  z-index: 6010;
+  min-width: 168px;
+  max-height: 60vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  padding: 0.35rem;
+  background: var(--hub-bg-3, var(--hub-bg-2));
+  border: 1px solid var(--hub-line);
+  border-radius: var(--hub-radius-lg);
+  box-shadow: var(--hub-shadow-card);
+}
+.pb-popover-wide { min-width: 240px; }
+
+.pb-popover-head {
+  font-family: var(--hub-font-mono);
+  font-size: var(--hub-fs-lab-xs, 0.66rem);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--hub-cream-dim);
+  padding: 0.4rem 0.5rem 0.25rem;
+}
+.pb-popover-row {
+  display: flex;
+  align-items: center;
+  min-height: var(--hub-tap-min);
+  padding: 0.4rem 0.55rem;
+  background: transparent;
+  border: none;
+  border-radius: var(--hub-radius-sm);
+  color: var(--hub-cream);
+  font-family: var(--hub-font-sans);
+  font-size: 0.85rem;
+  text-align: left;
+  cursor: pointer;
+}
+.pb-popover-row:hover { background: color-mix(in srgb, var(--accent-secondary) 14%, transparent); color: var(--accent-secondary); }
+.pb-popover-row.is-active { color: var(--accent); }
+.pb-popover-row.is-active::after { content: "•"; margin-left: auto; }
+
+.pb-popover-empty {
+  padding: 0.5rem 0.55rem 0.6rem;
+  color: var(--hub-cream-dim);
+  font-size: 0.82rem;
+}
+
+/* Mobile — popovers become full-width stacked sheets above the bar. */
+.pb-popover.is-sheet {
+  position: fixed;
+  left: 0.5rem;
+  right: 0.5rem;
+  bottom: calc(100% + 0.4rem);
+  min-width: 0;
+  max-height: 55vh;
+}
+.player-bar.is-mobile .pb-menu { position: static; }
+
+/* ── <QueuePanel> — up-next list, usePointerDrag reorder ──────────────────── */
+.pb-queue {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.pb-q-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.2rem;
+  border-radius: var(--hub-radius-sm);
+}
+.pb-q-row.is-dragging { opacity: 0.45; }
+.pb-q-row.is-drop-target {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+.pb-q-handle {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--hub-tap-min);
+  background: transparent;
+  border: none;
+  border-radius: var(--hub-radius-sm);
+  color: var(--hub-cream-faint);
+  cursor: grab;
+  /* A dedicated drag affordance — never scrollable content — so claiming the touch
+     gesture outright is correct here (the hold heuristic still gates activation). */
+  touch-action: none;
+}
+.pb-q-handle:hover { color: var(--accent-secondary); }
+.pb-q-item {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-height: var(--hub-tap-min);
+  padding: 0.35rem 0.5rem;
+  background: transparent;
+  border: none;
+  border-radius: var(--hub-radius-sm);
+  color: var(--hub-cream);
+  text-align: left;
+  cursor: pointer;
+}
+.pb-q-item:hover { background: color-mix(in srgb, var(--accent-secondary) 14%, transparent); color: var(--accent-secondary); }
+.pb-q-index {
+  flex: none;
+  min-width: 1.6rem;
+  font-family: var(--hub-font-mono);
+  font-size: 0.72rem;
+  color: var(--hub-cream-dim);
+  text-align: right;
+}
+.pb-q-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.82rem;
+}
+.pb-q-row.is-current .pb-q-item { color: var(--accent); }
+.pb-q-row.is-current .pb-q-index { color: var(--accent); }
+.pb-q-remove {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--hub-tap-min);
+  background: transparent;
+  border: none;
+  border-radius: var(--hub-radius-sm);
+  color: var(--hub-cream-dim);
+  cursor: pointer;
+}
+.pb-q-remove:hover { color: var(--hub-red, var(--accent)); }
+
+/* ── <SegmentList> — chapter/marker list, current row highlighted ─────────────
+   Row anatomy mirrors papyros BookDetail's chapter-row (fill wash painted first +
+   absolutely positioned, content z-raised above it) so both surfaces read alike. */
+.pb-seglist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.pb-seg-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  width: 100%;
+  min-height: var(--hub-tap-min);
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--hub-line);
+  border-radius: var(--hub-radius-lg);
+  background: transparent;
+  color: var(--hub-cream);
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+}
+.pb-seg-row:hover {
+  border-color: color-mix(in srgb, var(--accent-secondary) 50%, transparent);
+  color: var(--accent-secondary);
+}
+.pb-seg-row.is-current {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  color: var(--accent);
+}
+/* Loading-bar-style listened fill — width set inline per row from segmentFraction;
+   a low-alpha accent wash so it never fights the row text's contrast in either
+   paper or dark mode. */
+.pb-seg-fill {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 0%;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  pointer-events: none;
+}
+.pb-seg-index {
+  position: relative;
+  z-index: 1;
+  flex: none;
+  width: 1.6rem;
+  font-family: var(--hub-font-mono);
+  font-size: 0.78rem;
+  color: var(--hub-cream-dim);
+  text-align: right;
+}
+.pb-seg-title {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pb-seg-time {
+  position: relative;
+  z-index: 1;
+  flex: none;
+  font-family: var(--hub-font-mono);
+  font-size: 0.78rem;
+  color: var(--hub-cream-dim);
+}
+  </style>
+
+  <!-- Per-page font inputs — the same lane BeigeBoard/SylibOS use: serif → Fraunces
+       for editorial headings. A legitimate per-app factory input, not an override. -->
+  <style id="page-fonts">
+    :root { --hub-font-serif: 'Fraunces', Georgia, 'Times New Roman', serif; }
+  </style>
+
+  <!-- ── Gallery layout (namespaced .dg-*; lays the page out, styles nothing in the system) ── -->
+  <style id="design-guide">
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      background-color: var(--hub-bg-0);
+      background-image: var(--hub-grain-image);
+      background-size: 160px 160px;
+      background-blend-mode: var(--grain-blend);
+      color: var(--color-ink);
+      font-family: var(--hub-font-sans);
+      font-size: 16px;
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .dg-wrap { max-width: 1120px; margin: 0 auto; padding: 0 clamp(16px, 4vw, 40px) 120px; }
+
+    /* ── Operator control deck (sticky) ─────────────────────────────────── */
+    .dg-deck {
+      position: sticky; top: 0; z-index: 50;
+      background: linear-gradient(180deg, var(--hub-metal-1), var(--hub-metal-0));
+      border-bottom: 1px solid var(--hub-line-bright);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.35), inset 0 1px 0 var(--hub-bevel-light);
+    }
+    .dg-deck-inner {
+      max-width: 1120px; margin: 0 auto;
+      padding: 10px clamp(14px, 4vw, 40px);
+      display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+    }
+    .dg-deck .label-tape { font-size: 11px; }
+    .dg-deck-spacer { flex: 1 1 auto; }
+    .dg-deck-group { display: flex; align-items: center; gap: 8px; }
+    .dg-deck-group > .jk-lab { color: var(--hub-cream-bright); opacity: 0.7; }
+
+    /* segmented mode + radius controls */
+    .dg-seg { display: inline-flex; border: 1px solid var(--hub-line-bright); border-radius: var(--hub-radius-sm); overflow: hidden; }
+    .dg-seg button {
+      font-family: var(--hub-font-mono); font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+      padding: 7px 11px; border: 0; background: var(--hub-bg-1); color: var(--hub-cream-dim); cursor: pointer;
+      min-height: 34px;
+    }
+    .dg-seg button + button { border-left: 1px solid var(--hub-line-bright); }
+    .dg-seg button[aria-pressed="true"] { background: var(--accent); color: var(--color-accent-contrast); }
+    :root[data-mode="dark"] .dg-seg button[aria-pressed="true"] { box-shadow: inset 0 0 12px color-mix(in srgb, var(--accent) 55%, transparent); }
+
+    /* accent scheme swatches */
+    .dg-accents { display: inline-flex; gap: 6px; }
+    .dg-accent {
+      width: 30px; height: 30px; padding: 0; border-radius: 50%; cursor: pointer;
+      border: 2px solid transparent; position: relative;
+      background: conic-gradient(from 220deg, var(--dg-p) 0 50%, var(--dg-s) 50% 100%);
+      /* stop the wheel at the padding edge — painting under the transparent
+         border bled each half's colour out to the rim */
+      background-clip: padding-box;
+      box-shadow: inset 0 0 0 1px rgba(0,0,0,0.35);
+    }
+    .dg-accent[aria-pressed="true"] { border-color: var(--hub-cream-bright); box-shadow: 0 0 0 2px var(--hub-bg-0), 0 0 10px rgba(0,0,0,0.4); }
+    .dg-accent.dg-custom { background: repeating-conic-gradient(from 0deg, var(--hub-metal-2) 0 25%, var(--hub-metal-1) 0 50%); font-size: 14px; color: var(--hub-cream-bright); }
+    .dg-custom-pickers { display: none; gap: 6px; align-items: center; }
+    .dg-custom-pickers.on { display: inline-flex; }
+    .dg-custom-pickers input[type="color"] { width: 30px; height: 30px; border: 1px solid var(--hub-line-bright); background: none; padding: 0; cursor: pointer; }
+
+    /* ── Hero ───────────────────────────────────────────────────────────── */
+    .dg-hero { position: relative; margin: 34px 0 12px; padding: 40px clamp(20px, 4vw, 48px); overflow: hidden; }
+    .dg-hero .canvas-grid { position: absolute; inset: 0; opacity: calc(var(--canvas-grid-opacity) * 0.5); }
+    .dg-hero-body { position: relative; }
+    .dg-kicker { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+    .dg-hero h1 {
+      font-family: var(--hub-font-serif); font-weight: 600; font-size: clamp(2.4rem, 6vw, 4rem);
+      line-height: 1.02; margin: 0 0 6px; text-wrap: balance; letter-spacing: -0.01em;
+    }
+    .dg-hero .dg-ver { font-family: var(--hub-font-seg); font-size: clamp(2.4rem, 6vw, 4rem); }
+    .dg-hero-lede { max-width: 62ch; font-size: 1.08rem; color: var(--color-muted); margin: 14px 0 0; }
+    .dg-hero-meta { display: flex; flex-wrap: wrap; gap: 10px 22px; margin-top: 26px; }
+
+    /* ── Sections ───────────────────────────────────────────────────────── */
+    .dg-sec { position: relative; margin: 22px 0; padding: 30px clamp(18px, 3.5vw, 40px); }
+    .dg-sec-head { margin-bottom: 24px; }
+    .dg-sec-tag { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+    .dg-sec-num { font-variant-numeric: tabular-nums; color: var(--hub-cream-faint); }
+    .dg-sec h2 { font-family: var(--hub-font-serif); font-weight: 600; font-size: clamp(1.5rem, 3vw, 2rem); margin: 0; line-height: 1.1; text-wrap: balance; }
+    .dg-lede { max-width: 68ch; color: var(--color-muted); margin: 10px 0 0; }
+    .dg-lede code, .dg-note code, li code, p code { font-family: var(--hub-font-mono); font-size: 0.85em; background: color-mix(in srgb, var(--hub-cream) 12%, transparent); padding: 1px 5px; border-radius: 3px; color: var(--color-ink); }
+
+    /* generic tile grids */
+    .dg-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+    .dg-grid.wide { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+    .dg-row { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
+    .dg-block { padding: 18px; }
+    .dg-block-lab { margin-bottom: 14px; }
+
+    /* colour swatches */
+    .dg-swatch { display: flex; flex-direction: column; gap: 8px; }
+    .dg-chip { height: 62px; border-radius: var(--hub-radius-lg); border: 1px solid var(--hub-line); box-shadow: var(--hub-shadow-inset); }
+    .dg-swatch code { font-family: var(--hub-font-mono); font-size: 11px; color: var(--color-ink); }
+    .dg-swatch em { font-style: normal; font-size: 11px; color: var(--color-faint); letter-spacing: 0.04em; }
+    .dg-chip-text { display: flex; align-items: center; justify-content: center; font-family: var(--hub-font-serif); font-size: 1.5rem; background: var(--hub-bg-2); }
+
+    /* spec list (used in the brief) */
+    .dg-specs { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); margin: 0; padding: 0; list-style: none; }
+    .dg-specs li { padding: 14px 16px; border: 1px solid var(--hub-line); border-radius: var(--hub-radius-lg); background: color-mix(in srgb, var(--hub-bg-1) 60%, transparent); }
+    .dg-specs .dg-yes { color: var(--color-ok); } .dg-specs .dg-no { color: var(--color-danger); }
+    .dg-specs b { display: block; font-family: var(--hub-font-mono); font-size: 11px; letter-spacing: 0.08em; margin-bottom: 4px; }
+    .dg-specs span { font-size: 0.92rem; color: var(--color-muted); }
+
+    /* typography specimen */
+    .dg-type-row { display: grid; grid-template-columns: 120px 1fr; gap: 18px; align-items: baseline; padding: 16px 0; border-top: 1px solid var(--hub-line); }
+    .dg-type-row:first-child { border-top: 0; }
+    .dg-type-role { font-family: var(--hub-font-mono); font-size: 11px; letter-spacing: 0.1em; color: var(--color-faint); text-transform: uppercase; }
+    .dg-type-role small { display: block; margin-top: 4px; color: var(--color-faint); opacity: 0.7; text-transform: none; letter-spacing: 0; }
+    .dg-spec-mono { font-family: var(--hub-font-mono); }
+    .dg-spec-sans { font-family: var(--hub-font-sans); font-size: 1.15rem; }
+    .dg-spec-serif { font-family: var(--hub-font-serif); font-size: 1.7rem; font-weight: 600; }
+    .dg-spec-seg { font-family: var(--hub-font-seg); font-size: 2.4rem; font-weight: 700; color: var(--hub-amber); text-shadow: 0 0 8px var(--hub-amber-glow); }
+
+    .dg-caption { font-family: var(--hub-font-mono); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-faint); margin: 0 0 8px; }
+
+    /* screen panel (CRT atmosphere demo) */
+    .dg-screen { position: relative; overflow: hidden; padding: 26px; background: var(--hub-screen); border: 1px solid var(--hub-screen-line); border-radius: var(--hub-radius-lg); min-height: 120px; }
+
+    /* media grid demo tiles use the real .jk-media-* classes; give them a size */
+    .dg-media-demo { max-width: 440px; }
+
+    /* ── Demo hosts for the FIXED/absolute components ─────────────────────────
+       Four system components position themselves against the viewport, because
+       that is their whole job: .jk-scrim + .jk-vignette + .jk-scanlines are
+       overlays, and .player-bar is docked to the bottom of the window. A gallery
+       can't show a docked bar in place, so these hosts re-anchor them to a demo
+       box. This is the ONLY thing the page overrides on a system class, it is
+       always `position` + stacking, and it is always scoped under a .dg-* host —
+       never a colour, size, radius or font. ─────────────────────────────────── */
+    .dg-stage { position: relative; overflow: hidden; min-height: 128px; padding: 16px; }
+    .dg-stage .jk-scrim { position: absolute; }
+    .dg-player { position: relative; overflow: hidden; border-radius: var(--hub-radius-lg); }
+    .dg-player .player-bar { position: relative; z-index: 0; }
+    .dg-player .pb-popover, .dg-player .pb-scrim { position: absolute; }
+
+    /* Panel demos: give the stretch/flex components a bounded column to live in */
+    .dg-panel { max-width: 520px; border: 1px solid var(--hub-line); border-radius: var(--hub-radius-lg); background: var(--hub-bg-1); }
+    .dg-shell-demo { border: 1px solid var(--hub-line); border-radius: var(--hub-radius-lg); background: var(--hub-bg-1); overflow: hidden; }
+    .dg-shell-demo .jk-shell { min-height: 0; }
+
+    /* Motion demos — hover (or tap) a tile and its entrance replays on a loop
+       with a rest beat between plays; leave and it settles. */
+    .dg-motion { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+    .dg-motion-cell { position: relative; display: flex; align-items: center; justify-content: center; min-height: 76px; padding: 10px; text-align: center; cursor: pointer; }
+    .dg-motion-cell code { font-family: var(--hub-font-mono); font-size: 10px; letter-spacing: 0.08em; color: var(--color-ink); }
+
+    /* ── §01 identity compare — the same specimen markup rendered in BOTH faces
+       (two same-origin iframes, since hub.css keys mode off :root[data-mode]),
+       revealed by a draggable split. The invisible full-area range input is the
+       control: click, drag or arrow-key the divider. ── */
+    .dg-compare { position: relative; height: 420px; border: 1px solid var(--hub-line); border-radius: var(--hub-radius-lg); overflow: hidden; background: var(--hub-bg-1); --dg-split: 50%; }
+    .dg-compare-pane { position: absolute; inset: 0; }
+    .dg-compare-pane iframe { display: block; width: 100%; height: 100%; border: 0; pointer-events: none; }
+    .dg-compare-pane.dark { clip-path: inset(0 0 0 var(--dg-split)); }
+    .dg-compare-divider { position: absolute; top: 0; bottom: 0; left: var(--dg-split); width: 0; z-index: 2; pointer-events: none; }
+    .dg-compare-divider::before { content: ''; position: absolute; top: 0; bottom: 0; left: -1px; width: 2px; background: var(--accent); box-shadow: 0 0 8px var(--hub-amber-glow); }
+    .dg-compare-grip {
+      position: absolute; top: 50%; left: 0; transform: translate(-50%, -50%);
+      width: 34px; height: 34px; border-radius: 50%;
+      background: linear-gradient(180deg, var(--hub-metal-2), var(--hub-metal-0));
+      border: 1px solid var(--hub-line-bright);
+      box-shadow: inset 0 1px 0 var(--hub-bevel-light), 0 2px 6px rgba(0,0,0,0.35);
+      display: flex; align-items: center; justify-content: center;
+      color: var(--hub-cream-bright); font-family: var(--hub-font-mono); font-size: 11px;
+    }
+    .dg-compare > input[type="range"] { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: ew-resize; z-index: 3; }
+
+    /* footer */
+    .dg-foot { margin-top: 40px; padding-top: 22px; border-top: 1px solid var(--hub-line); color: var(--color-faint); font-family: var(--hub-font-mono); font-size: 11px; letter-spacing: 0.06em; display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center; }
+
+    a { color: var(--accent-secondary); }
+
+    @media (max-width: 640px) {
+      .dg-type-row { grid-template-columns: 1fr; gap: 6px; }
+      .dg-deck-inner { gap: 12px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ══ Operator deck ══ -->
+  <div class="dg-deck">
+    <div class="dg-deck-inner">
+      <span class="label-tape">jkOS // DESIGN</span>
+      <span class="led green steady" title="live tokens"></span>
+      <div class="dg-deck-spacer"></div>
+
+      <div class="dg-deck-group">
+        <span class="jk-lab jk-lab-xs">Face</span>
+        <div class="dg-seg" id="dg-mode">
+          <button data-mode="paper">Paper</button>
+          <button data-mode="dark" aria-pressed="true">Dark</button>
+        </div>
+      </div>
+
+      <div class="dg-deck-group">
+        <span class="jk-lab jk-lab-xs">Accent</span>
+        <div class="dg-accents" id="dg-accents"></div>
+        <div class="dg-custom-pickers" id="dg-custom">
+          <input type="color" id="dg-cp" value="#ffb000" aria-label="Primary accent" />
+          <input type="color" id="dg-cs" value="#4ecdc4" aria-label="Secondary accent" />
+        </div>
+      </div>
+
+      <div class="dg-deck-group">
+        <span class="jk-lab jk-lab-xs">Corners</span>
+        <div class="dg-seg" id="dg-radius">
+          <button data-radius="soft" aria-pressed="true">Soft</button>
+          <button data-radius="sharp">Sharp</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="dg-wrap">
+
+    <!-- ══ Hero ══ -->
+    <section class="dg-hero jk-sheet">
+      <div class="canvas-grid"></div>
+      <div class="dg-hero-body">
+        <div class="dg-kicker">
+          <span class="label-tape">REFERENCE PLATE</span>
+          <span class="mono-eyebrow">two-faced retro hardware</span>
+        </div>
+        <h1>jkOS Design System</h1>
+        <div class="dg-ver seg">v1.0</div>
+        <p class="dg-hero-lede">
+          A living style plate for the whole suite. Everything below is rendered by the
+          real <code>hub.css</code> token chain — flip the <b>Face</b>, <b>Accent</b> and
+          <b>Corners</b> controls above and the entire page retunes, exactly as an app does.
+          Hand this to a design pass as the fence: elevate the surfaces, but stay inside
+          these tokens, classes and invariants.
+        </p>
+        <div class="dg-hero-meta">
+          <span class="jk-bubble jk-bubble-primary">PAPER · office</span>
+          <span class="jk-bubble jk-bubble-secondary">DARK · CRT</span>
+          <span class="jk-pill"><span class="led green sm"></span>tokens live</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 01 The two faces ══ -->
+    <section class="dg-sec jk-sheet" id="faces">
+      <div class="dg-sec-head">
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">01</span><span class="label-tape">IDENTITY</span></div>
+        <h2>One identity, two faces</h2>
+        <p class="dg-lede">
+          jkOS is <b>skeuomorphic, not flat-SaaS</b>. A single attribute — <code>data-mode</code>
+          on <code>&lt;html&gt;</code> — switches between two physical worlds. There are exactly
+          two values, <code>"paper"</code> and <code>"dark"</code>; the mode is controlled
+          explicitly and <b>never</b> from <code>prefers-color-scheme</code>. Corners are
+          <b>soft by default</b> (sharp is a per-app or per-card opt-in through the
+          <code>--hub-radius*</code> tokens); chrome is built from CSS hardware, spent sparingly.
+        </p>
+      </div>
+
+      <p class="dg-caption">Drag the divider — one specimen markup, paper physics left, CRT physics right</p>
+      <div class="dg-compare" id="dg-compare">
+        <div class="dg-compare-pane paper"></div>
+        <div class="dg-compare-pane dark"></div>
+        <div class="dg-compare-divider" aria-hidden="true">
+          <span class="dg-compare-grip">
+            <svg width="14" height="10" viewBox="0 0 14 10" aria-hidden="true"><path d="M5 1 1 5l4 4M9 1l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </span>
+        </div>
+        <input type="range" id="dg-cmp-range" min="4" max="96" value="50" step="0.5"
+               aria-label="Reveal the paper face (left) or the dark face (right)" />
+      </div>
+
+      <!-- The specimen both panes render — IDENTICAL markup; only data-mode differs.
+           Kept in a <template> so it exists exactly once and can't drift per face. -->
+      <template id="dg-cmp-spec">
+        <div class="jk-scanlines"></div>
+        <div class="jk-sheet spec-card">
+          <div class="spec-head">
+            <span class="jk-lab jk-lab-sm">SPECIMEN · SAME MARKUP</span>
+            <span class="jk-pill"><span class="led green sm"></span>LIVE</span>
+          </div>
+          <h3 class="spec-title">Two faces, one system</h3>
+          <p class="spec-copy">Paper presses ink and shadow into kraft stock; the CRT lights
+          phosphor behind glass. Every class in this pane is byte-identical in the other one —
+          the face flips the physics, not the markup.</p>
+          <div class="spec-row">
+            <span class="jk-bubble jk-bubble-primary">BADGE</span>
+            <span class="jk-bubble jk-bubble-secondary">CHIP</span>
+            <span class="jk-press">jk-press</span>
+            <span class="seg spec-seg">18:42</span>
+          </div>
+          <div class="jk-well spec-well">
+            <span class="jk-lab jk-lab-sm">jk-well · boundary</span>
+            <div class="bar-track spec-bar"><div class="bar-fill" style="width:64%"></div></div>
+          </div>
+        </div>
+      </template>
+      <template id="dg-cmp-css">
+        body { margin: 0; padding: 24px; background-color: var(--hub-bg-0);
+               background-image: var(--hub-grain-image); background-size: 160px 160px;
+               background-blend-mode: var(--grain-blend); color: var(--color-ink);
+               font-family: var(--hub-font-sans); font-size: 15px; line-height: 1.5;
+               overflow: hidden; }
+        .spec-card { padding: 20px 22px; }
+        .spec-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+        .spec-title { font-family: var(--hub-font-serif); font-weight: 600; font-size: 1.5rem; margin: 0 0 6px; }
+        .spec-copy { color: var(--color-muted); margin: 0 0 16px; }
+        .spec-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 16px; }
+        .spec-seg { font-size: 1.5rem; }
+        .spec-well { padding: 14px 16px; }
+        .spec-bar { height: 10px; margin-top: 10px; }
+      </template>
+
+      <div class="dg-grid wide" style="margin-top:16px">
+        <div class="dg-block jk-well">
+          <div class="dg-block-lab"><span class="jk-bubble jk-bubble-primary">data-mode="paper"</span></div>
+          <p class="dg-lede" style="margin-top:0">Warm kraft-paper office — tan/cream layers, dark ink, brass hardware, film-grain multiply, burnt-sienna default accent. Accents work as <b>wells and badges</b> — sunk boundaries and raised emphasis (§05).</p>
+        </div>
+        <div class="dg-block jk-well">
+          <div class="dg-block-lab"><span class="jk-bubble jk-bubble-primary">data-mode="dark"</span></div>
+          <p class="dg-lede" style="margin-top:0">CRT amber-phosphor terminal — near-black warm grounds, <code>#ffb000</code> amber, text glow, scanline + vignette veils. Accents <b>emit</b> — halation is the dark face's badge (§08).</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 02 Accent chain ══ -->
+    <section class="dg-sec jk-sheet" id="accent">
+      <div class="dg-sec-head">
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">02</span><span class="label-tape">ACCENT CHAIN</span></div>
+        <h2>The two-accent chain</h2>
+        <p class="dg-lede">
+          Both accents are <b>user-driven and co-equal</b> — a vivid primary and a vivid
+          secondary, never a neutral. Apps supply only a <b>default</b> pair; the live pair
+          is the signed-in user's. From two raw inputs the whole palette derives: paper deepens
+          them toward ink for legibility, dark keeps them raw and adds glow. <b>Never hardcode
+          <code>--accent</code></b> — let it derive; components read the <code>--color-accent*</code> aliases.
+        </p>
+      </div>
+      <p class="dg-caption">Primary family — tracks <code>--accent</code></p>
+      <div class="dg-grid" style="margin-bottom:18px">
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--accent-raw)"></span><code>--accent-raw</code><em>raw input</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--accent)"></span><code>--accent</code><em>derived / per-mode</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-amber-bright)"></span><code>--hub-amber-bright</code><em>lift</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-amber-dim)"></span><code>--hub-amber-dim</code><em>shade</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-amber-deep)"></span><code>--hub-amber-deep</code><em>toward bg</em></div>
+      </div>
+      <p class="dg-caption">Secondary family — tracks <code>--accent-secondary</code></p>
+      <div class="dg-grid">
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--accent-2-raw)"></span><code>--accent-2-raw</code><em>raw input</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--accent-secondary)"></span><code>--accent-secondary</code><em>derived / per-mode</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-cyan-dim)"></span><code>--hub-cyan-dim</code><em>shade</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-cyan-glow)"></span><code>--hub-cyan-glow</code><em>glow</em></div>
+      </div>
+    </section>
+
+    <!-- ══ 03 Neutrals + status ══ -->
+    <section class="dg-sec jk-sheet" id="colour">
+      <div class="dg-sec-head">
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">03</span><span class="label-tape">NEUTRALS · STATUS</span></div>
+        <h2>Neutrals, hardware &amp; status</h2>
+        <p class="dg-lede">
+          Neutrals are the only <b>designed</b> defaults (backgrounds + readable text). They are
+          per-app inputs, but every app keeps the same token <b>names</b>. Status hues are
+          semantic constants — <b>never</b> tinted from the accent.
+        </p>
+      </div>
+
+      <p class="dg-caption">Backgrounds &amp; screen</p>
+      <div class="dg-grid" style="margin-bottom:18px">
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-bg-0)"></span><code>--hub-bg-0</code><em>paper</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-bg-1)"></span><code>--hub-bg-1</code><em>paper-2</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-bg-2)"></span><code>--hub-bg-2</code><em>card</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-bg-3)"></span><code>--hub-bg-3</code><em>card-2</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-screen)"></span><code>--hub-screen</code><em>inner screen</em></div>
+      </div>
+
+      <p class="dg-caption">Hardware metal &amp; lines</p>
+      <div class="dg-grid" style="margin-bottom:18px">
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-metal-0)"></span><code>--hub-metal-0</code><em>metal</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-metal-1)"></span><code>--hub-metal-1</code><em>metal</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-metal-2)"></span><code>--hub-metal-2</code><em>metal</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-line)"></span><code>--hub-line</code><em>border</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-line-bright)"></span><code>--hub-line-bright</code><em>border+</em></div>
+      </div>
+
+      <p class="dg-caption">Text ramp (ink on ground)</p>
+      <div class="dg-grid" style="margin-bottom:18px">
+        <div class="dg-swatch"><span class="dg-chip dg-chip-text" style="color:var(--hub-cream-bright)">Aa</span><code>--hub-cream-bright</code><em>ink</em></div>
+        <div class="dg-swatch"><span class="dg-chip dg-chip-text" style="color:var(--hub-cream)">Aa</span><code>--hub-cream</code><em>muted</em></div>
+        <div class="dg-swatch"><span class="dg-chip dg-chip-text" style="color:var(--hub-cream-dim)">Aa</span><code>--hub-cream-dim</code><em>faint</em></div>
+        <div class="dg-swatch"><span class="dg-chip dg-chip-text" style="color:var(--hub-cream-faint)">Aa</span><code>--hub-cream-faint</code><em>ghost</em></div>
+      </div>
+
+      <p class="dg-caption">Status — semantic constants, one lane</p>
+      <div class="dg-grid">
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-green)"></span><code>--hub-green</code><em>ok</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--color-warn)"></span><code>--color-warn</code><em>warn</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-red)"></span><code>--hub-red</code><em>danger</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-magenta)"></span><code>--hub-magenta</code><em>accent-free</em></div>
+      </div>
+    </section>
+
+    <!-- ══ 04 Typography ══ -->
+    <section class="dg-sec jk-sheet" id="type">
+      <div class="dg-sec-head">
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">04</span><span class="label-tape">TYPE</span></div>
+        <h2>Four type roles</h2>
+        <p class="dg-lede">Data + labels are mono; body is sans; numeric displays are the 7-segment face; a serif is the per-app reading voice. The label idiom is <code>.mono-eyebrow</code> / <code>.jk-lab</code>.</p>
+      </div>
+      <div class="dg-type-row"><div class="dg-type-role">mono<small>IBM Plex Mono</small></div><div class="dg-spec-mono">READOUT 0x1A · labels · hardware tape</div></div>
+      <div class="dg-type-row"><div class="dg-type-role">sans<small>IBM Plex Sans</small></div><div class="dg-spec-sans">The quick brown fox reads the manual.</div></div>
+      <div class="dg-type-row"><div class="dg-type-role">serif<small>Fraunces (per-app)</small></div><div class="dg-spec-serif">Editorial headings &amp; figures</div></div>
+      <div class="dg-type-row"><div class="dg-type-role">seg<small>Big Shoulders Display</small></div><div class="dg-spec-seg">08:42:17</div></div>
+      <div class="dg-row" style="margin-top:22px">
+        <span class="jk-lab">jk-lab · 10px</span>
+        <span class="jk-lab jk-lab-sm">jk-lab-sm · 9px</span>
+        <span class="jk-lab jk-lab-xs">jk-lab-xs · 8px</span>
+        <span class="jk-lab jk-lab-sans">jk-lab-sans</span>
+        <span class="mono-eyebrow">mono-eyebrow</span>
+      </div>
+    </section>
+
+    <!-- ══ 05 Accent bubbles ══ -->
+    <section class="dg-sec jk-sheet" id="bubbles">
+      <div class="dg-sec-head">
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">05</span><span class="label-tape">WELLS · BADGES</span></div>
+        <h2>Wells &amp; badges — the paper accent language</h2>
+        <p class="dg-lede">
+          Paper mode has exactly <b>two physical accent moves</b>. The <b>well</b> sinks
+          <i>into</i> the sheet — an inner shadow that gives a region depth; wells provide
+          <b>boundaries</b> (contain, group, delimit). The <b>badge</b> sits <i>on</i> the
+          sheet — a raised chip with a drop shadow, put on text and small marks; the badge is
+          paper's <b>emphasis</b>, the exact analogue of dark mode's glow (§08). Primary accent
+          takes the badge treatment; <b>secondary stays flat</b>, one rung down, never raised.
+          In CRT both moves go emissive automatically. Use the <code>@jkos/ui</code> React
+          wrappers (<code>&lt;Press&gt;</code>, <code>&lt;Bubble&gt;</code>, <code>&lt;Sub&gt;</code>,
+          <code>&lt;Well&gt;</code>, <code>&lt;Sheet&gt;</code>, <code>&lt;Pill&gt;</code>,
+          <code>&lt;TButton&gt;</code>) — don't recreate them.
+        </p>
+      </div>
+
+      <p class="dg-caption">The badge — raised emphasis, on text and marks</p>
+      <div class="dg-row" style="margin-bottom:18px">
+        <span class="jk-press">jk-press · badged text</span>
+        <span class="jk-press-lg" style="font-size:1.4rem;font-family:var(--hub-font-serif)">jk-press-lg · display</span>
+        <span class="jk-bubble jk-bubble-primary">PRIMARY</span>
+        <span class="jk-bubble jk-bubble-primary jk-bubble-lg">PRIMARY LG</span>
+        <span class="label-tape">LABEL TAPE</span>
+      </div>
+      <p class="dg-lede" style="margin-top:0;margin-bottom:18px">
+        <code>.label-tape</code> is the badge made <b>physical</b> — an embossed hardware strip
+        for naming a panel, the alternative to an accent badge when the thing labelled is
+        chrome rather than content (§07).
+      </p>
+
+      <p class="dg-caption">The flat secondary — one rung down, never raised</p>
+      <div class="dg-row" style="margin-bottom:18px">
+        <a class="jk-sub-link" href="#">flat secondary link</a>
+        <span class="jk-sub">jk-sub</span>
+        <span class="jk-bubble jk-bubble-secondary">SECONDARY</span>
+        <span class="jk-bubble jk-bubble-secondary jk-bubble-lg">SECONDARY LG</span>
+        <span class="jk-pill"><span class="led green sm"></span>ONLINE</span>
+        <button class="jk-tbtn">Text button</button>
+        <button class="jk-tbtn jk-tbtn-quiet">Quiet</button>
+      </div>
+
+      <p class="dg-caption">The well — sunk boundary, holds a region</p>
+      <div class="dg-grid wide">
+        <div class="dg-block jk-well">
+          <span class="jk-lab jk-lab-sm">jk-well · inset (accent tint)</span>
+          <p style="margin:10px 0 0;color:var(--color-muted)">Debossed into the paper, emissive in CRT. A well <b>contains</b> — it is depth and boundary, not emphasis. Retint with <code>--jk-tint</code>.</p>
+        </div>
+        <div class="dg-block jk-well" style="--jk-tint: var(--hub-magenta)">
+          <span class="jk-lab jk-lab-sm">jk-well · retinted</span>
+          <p style="margin:10px 0 0;color:var(--color-muted)">Same well, <code>--jk-tint: var(--hub-magenta)</code> — a data colour.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 06 Controls ══ -->
+    <section class="dg-sec jk-sheet" id="controls">
+      <div class="dg-sec-head">
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">06</span><span class="label-tape">CONTROLS</span></div>
+        <h2>Toggles, faders &amp; meters</h2>
+        <p class="dg-lede">
+          One rule across the set: a neutral, debossed track that fills with the accent
+          (or <code>--jk-tint</code>) as it engages. React:
+          <code>&lt;Switch&gt;</code>, <code>&lt;Check&gt;</code>, <code>&lt;Slider&gt;</code>,
+          <code>&lt;VU&gt;</code> — all controlled, all on real form/aria hosts, so the
+          platform keeps the keyboard and the state styling keys off the aria attribute.
+        </p>
+      </div>
+      <div class="dg-row" style="gap:28px">
+        <div class="dg-row" style="gap:10px">
+          <button class="jk-switch" aria-checked="true" id="dg-sw"><span class="jk-switch-knob"></span></button>
+          <span class="jk-lab jk-lab-sm">jk-switch</span>
+        </div>
+        <div class="dg-row" style="gap:10px">
+          <button class="jk-check" aria-checked="true" id="dg-ck">✓</button>
+          <span class="jk-lab jk-lab-sm">jk-check</span>
+        </div>
+        <div class="dg-row" style="gap:10px;flex:1;min-width:220px">
+          <div class="jk-vu" style="flex:1;height:26px">
+            <span class="jk-vu-seg on"></span><span class="jk-vu-seg on"></span><span class="jk-vu-seg on"></span>
+            <span class="jk-vu-seg on"></span><span class="jk-vu-seg on"></span><span class="jk-vu-seg on"></span>
+            <span class="jk-vu-seg"></span><span class="jk-vu-seg"></span><span class="jk-vu-seg"></span><span class="jk-vu-seg"></span>
+          </div>
+          <span class="jk-lab jk-lab-sm">jk-vu</span>
+        </div>
+      </div>
+
+      <p class="dg-caption" style="margin-top:26px">jk-slider — the house fader</p>
+      <p class="dg-lede" style="margin-top:0;margin-bottom:14px">
+        The continuous sibling of the switch: a milled metal cap riding a debossed
+        channel that fills behind it. Hosted on a real <code>&lt;input type="range"&gt;</code>
+        — the input box is a full <code>--hub-tap-min</code> tall for the ≥44px hit area
+        while the visible track stays thin. The elapsed fill paints from
+        <code>--jk-slider-fill</code> (a percentage; <code>&lt;Slider&gt;</code> sets it from
+        the value), so a bare class still renders — just unfilled.
+      </p>
+      <div class="dg-grid wide">
+        <div class="dg-block jk-well" style="background:var(--hub-bg-1);box-shadow:none">
+          <span class="jk-lab jk-lab-sm">accent (default)</span>
+          <input class="jk-slider dg-sl" type="range" min="0" max="100" value="62" style="width:100%;--jk-slider-fill:62%" aria-label="Accent slider demo" />
+        </div>
+        <div class="dg-block jk-well" style="background:var(--hub-bg-1);box-shadow:none">
+          <span class="jk-lab jk-lab-sm">retinted · --jk-tint</span>
+          <input class="jk-slider dg-sl" type="range" min="0" max="100" value="35" style="width:100%;--jk-tint:var(--hub-magenta);--jk-slider-fill:35%" aria-label="Retinted slider demo" />
+        </div>
+        <div class="dg-block jk-well" style="background:var(--hub-bg-1);box-shadow:none">
+          <span class="jk-lab jk-lab-sm">disabled</span>
+          <input class="jk-slider" type="range" min="0" max="100" value="48" style="width:100%;--jk-slider-fill:48%" disabled aria-label="Disabled slider demo" />
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 07 Hardware chrome ══ -->
+    <section class="dg-sec jk-sheet" id="chrome">
+      <div class="dg-sec-head">
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">07</span><span class="label-tape">HARDWARE</span></div>
+        <h2>Hardware chrome — scarce punctuation</h2>
+        <p class="dg-lede">
+          The CSS "hardware kit" — reuse these classes, don't invent new chrome, and
+          <b>spend them sparingly</b>: hardware earns importance through scarcity. One LED
+          marks <i>the</i> live thing; put an LED on everything and none of them mean
+          anything. A strip of tape names <i>the</i> important panel. (The v0.1 screws,
+          vents and dymo strips are gone — they were decoration, not information.)
+          There is <b>no icon library</b>: iconography is inline SVG + these primitives.
+        </p>
+      </div>
+      <div class="dg-grid wide">
+        <div class="dg-block jk-well" style="background:var(--hub-bg-1);box-shadow:none">
+          <p class="dg-caption">LEDs — .led · one per live thing</p>
+          <div class="dg-row" style="gap:14px">
+            <span class="led green"></span><span class="led amber"></span><span class="led red"></span><span class="led cyan"></span>
+            <span class="led off"></span><span class="led green lg"></span><span class="led amber sm steady"></span>
+          </div>
+        </div>
+        <div class="dg-block jk-well" style="background:var(--hub-bg-1);box-shadow:none">
+          <p class="dg-caption">Tape &amp; stamp — badges made physical (§05)</p>
+          <div class="dg-row" style="gap:12px">
+            <span class="label-tape">LABEL TAPE</span>
+            <span class="stamp">APPROVED</span>
+          </div>
+        </div>
+        <div class="dg-block jk-well" style="background:var(--hub-bg-1);box-shadow:none">
+          <p class="dg-caption">Grounds — .perf · .canvas-grid</p>
+          <div class="dg-row" style="gap:14px">
+            <span class="perf" style="width:52px;height:32px;border:1px solid var(--hub-line);display:inline-block"></span>
+            <span class="canvas-grid" style="width:52px;height:32px;border:1px solid var(--hub-line);display:inline-block;--hub-grid:10px"></span>
+          </div>
+          <p class="dg-caption" style="margin:10px 0 0">canvas-grid is the workshop/boot ground — the hero plate above sits on it (§09 shows it at scale)</p>
+        </div>
+        <div class="dg-block jk-well" style="background:var(--hub-bg-1);box-shadow:none">
+          <p class="dg-caption">Meters — .bar / .seg</p>
+          <div class="bar-track" style="height:12px;margin-bottom:12px"><div class="bar-fill" style="width:64%"></div></div>
+          <span class="seg" style="font-size:1.8rem">1024 MB</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 08 Glow + halation ══ -->
+    <section class="dg-sec jk-sheet" id="glow">
+      <div class="dg-sec-head">
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">08</span><span class="label-tape">GLOW · HALATION</span></div>
+        <h2>Phosphor glow &amp; halation</h2>
+        <p class="dg-lede">
+          Glow is the <b>dark face's badge</b>: where paper raises a chip off the sheet (§05),
+          the CRT lights the phosphor behind it — same emphasis, opposite physics, same
+          scarcity rules. It is mode-gated and <b>only lights up in dark mode</b>; on paper the
+          same accent renders as the badge/well pair instead. Switch <b>Face → Dark</b> to see
+          these come alive. <code>.jk-halo</code> / <code>.jk-glow</code> collapse to nothing on
+          paper, so one class is correct in both faces.
+        </p>
+      </div>
+      <div class="dg-screen" style="margin-bottom:16px">
+        <div class="jk-scanlines"></div>
+        <div class="dg-row" style="gap:22px;position:relative">
+          <span class="glow" style="font-family:var(--hub-font-mono)">.glow amber</span>
+          <span class="glow-dim" style="font-family:var(--hub-font-mono)">.glow-dim</span>
+          <span class="glow-cyan" style="font-family:var(--hub-font-mono)">.glow-cyan</span>
+          <span class="jk-halo-text" style="font-family:var(--hub-font-seg);font-size:1.6rem;color:var(--hub-amber)">HALO TEXT</span>
+          <span class="jk-bubble jk-bubble-primary jk-halo">HALO SURFACE</span>
+          <span class="jk-glow-text jk-glow-mid" style="--jk-glow-color:var(--hub-cyan);font-family:var(--hub-font-mono);color:var(--hub-cyan)">.jk-glow-text</span>
+        </div>
+      </div>
+      <p class="dg-caption">.jk-glow ladder — one class, three intensities, any <code>--jk-glow-color</code></p>
+      <div class="dg-screen">
+        <div class="jk-scanlines"></div>
+        <div class="dg-row" style="gap:16px;position:relative">
+          <span class="jk-glow jk-glow-low" style="--jk-glow-color:var(--accent);display:inline-block;padding:8px 12px;border:1px solid var(--accent);color:var(--accent);font-family:var(--hub-font-mono);font-size:11px">jk-glow-low</span>
+          <span class="jk-glow jk-glow-mid" style="--jk-glow-color:var(--accent);display:inline-block;padding:8px 12px;border:1px solid var(--accent);color:var(--accent);font-family:var(--hub-font-mono);font-size:11px">jk-glow-mid</span>
+          <span class="jk-glow jk-glow-hi" style="--jk-glow-color:var(--accent);display:inline-block;padding:8px 12px;border:1px solid var(--accent);color:var(--accent);font-family:var(--hub-font-mono);font-size:11px">jk-glow-hi</span>
+          <span class="jk-glow jk-glow-hi" style="--jk-glow-color:var(--hub-magenta);display:inline-block;padding:8px 12px;border:1px solid var(--hub-magenta);color:var(--hub-magenta);font-family:var(--hub-font-mono);font-size:11px">custom colour</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 09 Veils & canvas ══ -->
+    <section class="dg-sec jk-sheet" id="veils">
+      <div class="dg-sec-head">
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">09</span><span class="label-tape">VEILS · CANVAS</span></div>
+        <h2>Atmosphere veils &amp; the canvas</h2>
+        <p class="dg-lede">
+          Absolute overlays that give a surface its air. All four read the suite
+          <code>--crt-*</code> / <code>--hub-scrim*</code> knobs, so <b>one</b> markup is
+          correct in both faces — the scanline and vignette simply fall to nothing on paper.
+          <b>Never</b> bake an overlay opacity into a component; raise the atmosphere through
+          the factory inputs. React: <code>&lt;Scanlines&gt;</code>, <code>&lt;Vignette&gt;</code>,
+          <code>&lt;Scrim&gt;</code>. The host needs <code>position</code>.
+        </p>
+      </div>
+      <div class="dg-grid wide">
+        <div class="dg-stage" style="background:var(--hub-screen);border:1px solid var(--hub-screen-line);border-radius:var(--hub-radius-lg)">
+          <div class="jk-scanlines"></div>
+          <span class="jk-lab jk-lab-sm" style="position:relative">jk-scanlines</span>
+        </div>
+        <div class="dg-stage" style="background:var(--hub-screen);border:1px solid var(--hub-screen-line);border-radius:var(--hub-radius-lg)">
+          <div class="jk-vignette"></div>
+          <span class="jk-lab jk-lab-sm" style="position:relative">jk-vignette</span>
+        </div>
+        <div class="dg-stage" style="background:var(--hub-bg-2);border:1px solid var(--hub-line);border-radius:var(--hub-radius-lg)">
+          <span class="jk-lab jk-lab-sm">under the scrim</span>
+          <div class="jk-scrim"></div>
+          <span class="jk-bubble jk-bubble-primary" style="position:relative;z-index:1">jk-scrim</span>
+        </div>
+        <div class="dg-stage" style="background:var(--hub-bg-2);border:1px solid var(--hub-line);border-radius:var(--hub-radius-lg)">
+          <span class="jk-lab jk-lab-sm">under the heavy scrim</span>
+          <div class="jk-scrim jk-scrim-heavy"></div>
+          <span class="jk-bubble jk-bubble-primary" style="position:relative;z-index:1">jk-scrim-heavy</span>
+        </div>
+      </div>
+
+      <p class="dg-caption" style="margin-top:22px">Canvas — the boot/workshop ground</p>
+      <div class="dg-stage" style="background:var(--hub-bg-1);border:1px solid var(--hub-line);border-radius:var(--hub-radius-lg)">
+        <div class="canvas-grid" style="position:absolute;inset:0"></div>
+        <div class="dg-row" style="position:relative;gap:12px">
+          <span class="canvas-cell boot-sweep" style="padding:10px 14px"><span class="jk-lab jk-lab-sm">canvas-cell</span></span>
+          <span class="canvas-cell boot-sweep" style="padding:10px 14px"><span class="jk-lab jk-lab-sm">.boot-sweep</span></span>
+          <span class="jk-pill"><span class="led green sm now-dot"></span>now-dot · live</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 10 App shell ══ -->
+    <section class="dg-sec jk-sheet" id="shell">
+      <div class="dg-sec-head">
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">10</span><span class="label-tape">APP SHELL</span></div>
+        <h2>The shell frame</h2>
+        <p class="dg-lede">
+          The frame every full-shell app used to hand-write — auth guard → header →
+          settings drawer. <code>@jkos/ui</code> <code>&lt;AppShell&gt;</code> owns it now, so a
+          hand-copy can't drop a step. It is deliberately <b>neutral</b>: the header carries no
+          accent of its own, because the app's content is what should be lit. The wordmark is
+          the per-app serif voice; the settings button is the drawer's only opener.
+        </p>
+      </div>
+      <div class="dg-shell-demo">
+        <div class="jk-shell">
+          <header class="jk-shell-header">
+            <div class="jk-shell-brand">
+              <a class="jk-shell-wordmark" href="#shell">BeigeBoard</a>
+              <span class="mono-eyebrow">workshop</span>
+              <span class="led green sm steady"></span>
+            </div>
+            <button class="jk-shell-settings-btn" aria-label="Settings">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle cx="12" cy="12" r="3.2" stroke="currentColor" stroke-width="1.6" />
+                <path d="M12 2.8v2.6M12 18.6v2.6M21.2 12h-2.6M5.4 12H2.8M18.5 5.5l-1.8 1.8M7.3 16.7l-1.8 1.8M18.5 18.5l-1.8-1.8M7.3 7.3L5.5 5.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+              </svg>
+            </button>
+          </header>
+          <div style="padding:22px 24px">
+            <p class="dg-lede" style="margin:0">App content mounts here — <code>.jk-shell</code> is a flex column, so the view fills the rest.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 11 Media ══ -->
+    <section class="dg-sec jk-sheet" id="media">
+      <div class="dg-sec-head">
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">11</span><span class="label-tape">MEDIA</span></div>
+        <h2>Media grid &amp; covers</h2>
+        <p class="dg-lede">The suite cover grid + tile — <code>@jkos/ui</code> <code>&lt;MediaGrid&gt;</code> / <code>&lt;CoverArt&gt;</code>. Density keys off one token ladder (compact/cozy/comfortable).</p>
+      </div>
+      <div class="dg-media-demo">
+        <p class="dg-caption">jk-media-grid · data-density="cozy"</p>
+        <div class="jk-media-grid" data-density="cozy">
+          <div class="jk-media-cover jk-well jk-media-cover-placeholder"><span>♪</span></div>
+          <div class="jk-media-cover jk-well jk-media-cover-placeholder"><span>◈</span></div>
+          <div class="jk-media-cover jk-well jk-media-cover-placeholder"><span>☰</span></div>
+          <div class="jk-media-cover jk-well jk-media-cover-placeholder"><span>◷</span></div>
+          <div class="jk-media-cover jk-well jk-media-cover-placeholder"><span>✦</span></div>
+          <div class="jk-media-cover jk-well jk-media-cover-placeholder"><span>❖</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 12 Player ══ -->
+    <section class="dg-sec jk-sheet" id="player">
+      <div class="dg-sec-head">
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">12</span><span class="label-tape">PLAYER</span></div>
+        <h2>The player bar</h2>
+        <p class="dg-lede">
+          <code>@jkos/player/ui</code>'s <code>&lt;PlayerBar&gt;</code> — a slotted shell, not a
+          fixed control set: <b>meta · transport · scrubber · actions</b>, three columns on
+          desktop, stacked on mobile. The control <i>set</i> stays the app's (PapyrOS stocks the
+          audiobook vocabulary, KourOS a music one) — only the layout and chrome are shared.
+          The bar is a <b>solid</b> surface with an accent-tinted top rule: an earlier
+          translucent+blur version dissolved into the page and read as "just a circle in a
+          non-intuitive location". The seek control is the same <code>.jk-slider</code> from §06.
+        </p>
+      </div>
+
+      <p class="dg-caption">player-bar — docked bottom in the app; re-anchored here to show it</p>
+      <div class="dg-player" style="margin-bottom:22px">
+        <section class="player-bar" aria-label="Now playing (sample)">
+          <div class="pb-left">
+            <div class="pb-meta">
+              <div class="pb-cover pb-cover-empty" aria-hidden="true">
+                <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+                  <rect x="4" y="4" width="16" height="16" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5" />
+                  <circle cx="12" cy="12" r="3.5" fill="none" stroke="currentColor" stroke-width="1.3" opacity="0.7" />
+                  <circle cx="12" cy="12" r="0.9" fill="currentColor" opacity="0.7" />
+                </svg>
+              </div>
+              <div class="pb-meta-text">
+                <span class="pb-title">The Left Hand of Darkness</span>
+                <span class="pb-sub">Ursula K. Le Guin · Ch. 4</span>
+              </div>
+            </div>
+          </div>
+          <div class="pb-center">
+            <div class="pb-transport">
+              <button class="pb-btn" aria-label="Previous">
+                <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 6v12M19 6l-9 6 9 6z" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" /></svg>
+              </button>
+              <button class="pb-btn pb-btn-primary" aria-label="Play">
+                <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor" /></svg>
+              </button>
+              <button class="pb-btn" aria-label="Next">
+                <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 6v12M5 6l9 6-9 6z" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" /></svg>
+              </button>
+            </div>
+            <div class="pb-scrubber">
+              <span class="pb-time" aria-hidden="true">12:04</span>
+              <div class="pb-range-wrap">
+                <input class="jk-slider dg-sl" type="range" min="0" max="100" value="38" style="--jk-slider-fill:38%" aria-label="Sample seek" />
+                <div class="pb-scrub-ticks" aria-hidden="true">
+                  <span class="pb-scrub-tick" style="left:18%"></span>
+                  <span class="pb-scrub-tick" style="left:44%"></span>
+                  <span class="pb-scrub-tick" style="left:71%"></span>
+                </div>
+              </div>
+              <span class="pb-time" aria-hidden="true">31:47</span>
+            </div>
+          </div>
+          <div class="pb-right">
+            <button class="pb-btn pb-btn-wide"><span class="pb-armed">1.5×</span></button>
+            <button class="pb-btn is-armed" aria-label="Sleep timer">
+              <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a7 7 0 1 0 10.5 10.5z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" /></svg>
+            </button>
+            <button class="pb-btn pb-btn-wide">Queue <span class="pb-count">3</span></button>
+          </div>
+        </section>
+      </div>
+
+      <div class="dg-grid wide">
+        <div>
+          <p class="dg-caption">pb-queue — up-next, drag to reorder</p>
+          <div class="dg-panel" style="padding:8px">
+            <ul class="pb-queue">
+              <li class="pb-q-row is-current">
+                <button class="pb-q-handle" aria-label="Reorder"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg></button>
+                <button class="pb-q-item"><span class="pb-q-index">1</span><span class="pb-q-title">Chapter 4 — The Nineteenth Day</span></button>
+                <button class="pb-q-remove" aria-label="Remove"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+              </li>
+              <li class="pb-q-row is-drop-target">
+                <button class="pb-q-handle" aria-label="Reorder"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg></button>
+                <button class="pb-q-item"><span class="pb-q-index">2</span><span class="pb-q-title">Chapter 5 — The Domestication of Hunch</span></button>
+                <button class="pb-q-remove" aria-label="Remove"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+              </li>
+              <li class="pb-q-row is-dragging">
+                <button class="pb-q-handle" aria-label="Reorder"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg></button>
+                <button class="pb-q-item"><span class="pb-q-index">3</span><span class="pb-q-title">Chapter 6 — One Way into Orgoreyn</span></button>
+                <button class="pb-q-remove" aria-label="Remove"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+              </li>
+            </ul>
+            <p class="dg-caption" style="margin:10px 0 2px">rows: <code>.is-current</code> · <code>.is-drop-target</code> · <code>.is-dragging</code></p>
+          </div>
+        </div>
+
+        <div>
+          <p class="dg-caption">pb-seglist — chapters, listened-fill per row</p>
+          <div class="dg-panel" style="padding:10px">
+            <ul class="pb-seglist">
+              <li><button class="pb-seg-row"><span class="pb-seg-fill" style="width:100%"></span><span class="pb-seg-index">1</span><span class="pb-seg-title">The Parade in Erhenrang</span><span class="pb-seg-time">18:22</span></button></li>
+              <li><button class="pb-seg-row is-current"><span class="pb-seg-fill" style="width:38%"></span><span class="pb-seg-index">2</span><span class="pb-seg-title">The Place Inside the Blizzard</span><span class="pb-seg-time">31:47</span></button></li>
+              <li><button class="pb-seg-row"><span class="pb-seg-fill" style="width:0%"></span><span class="pb-seg-index">3</span><span class="pb-seg-title">The Mad King</span><span class="pb-seg-time">24:05</span></button></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <p class="dg-caption" style="margin-top:22px">pb-popover — the menu framework · pb-error — the playback error strip</p>
+      <div class="dg-grid wide">
+        <div class="dg-player dg-stage" style="background:var(--hub-bg-1);border:1px solid var(--hub-line);min-height:180px;display:flex;align-items:flex-end;justify-content:center">
+          <div class="pb-popover" style="position:relative;bottom:auto;right:auto">
+            <span class="pb-popover-head">Sleep timer</span>
+            <button class="pb-popover-row">15 minutes</button>
+            <button class="pb-popover-row is-active">30 minutes</button>
+            <button class="pb-popover-row">End of chapter</button>
+          </div>
+        </div>
+        <div class="dg-player dg-stage" style="background:var(--hub-bg-1);border:1px solid var(--hub-line);min-height:180px">
+          <div class="pb-popover pb-popover-wide" style="position:relative;bottom:auto;right:auto;margin-bottom:14px">
+            <span class="pb-popover-head">Queue</span>
+            <p class="pb-popover-empty">Nothing up next.</p>
+          </div>
+          <div style="position:relative;padding-top:20px">
+            <div class="pb-error" style="position:relative;bottom:auto" role="alert">Playback blocked — tap play to start audio.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 13 Panels & states ══ -->
+    <section class="dg-sec jk-sheet" id="panels">
+      <div class="dg-sec-head">
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">13</span><span class="label-tape">PANELS · STATES</span></div>
+        <h2>Panels &amp; the async triad</h2>
+        <p class="dg-lede">
+          Every view that loads has the same three off-states — <b>loading, error, empty</b> —
+          and <code>@jkos/ui</code> <code>&lt;AsyncView&gt;</code> is the only place they're
+          spelled. Don't hand-roll a fourth variant with a ternary.
+        </p>
+      </div>
+
+      <p class="dg-caption">jk-async-note / jk-async-error — the AsyncView triad</p>
+      <div class="dg-grid wide" style="margin-bottom:26px">
+        <div class="dg-block jk-well" style="background:var(--hub-bg-1);box-shadow:none">
+          <span class="jk-lab jk-lab-sm">loading</span>
+          <p class="jk-async-note" style="margin:8px 0 0">Loading library…</p>
+        </div>
+        <div class="dg-block jk-well" style="background:var(--hub-bg-1);box-shadow:none">
+          <span class="jk-lab jk-lab-sm">empty</span>
+          <p class="jk-async-note" style="margin:8px 0 0">No books yet — add one to get started.</p>
+        </div>
+        <div class="dg-block jk-well" style="background:var(--hub-bg-1);box-shadow:none">
+          <span class="jk-lab jk-lab-sm">error</span>
+          <p class="jk-async-error" style="margin:8px 0 0">Couldn't reach the library service.</p>
+        </div>
+      </div>
+
+      <p class="dg-caption">jk-match-panel — the search → candidates → apply shape</p>
+      <p class="dg-lede" style="margin-top:0;margin-bottom:12px">
+        <code>&lt;MatchPanel&gt;</code>: pick the right record for a local item. Lifted out of
+        PapyrOS's "Fix metadata" panel so the next consumer reuses it instead of repeating
+        the original single-app mistake.
+      </p>
+      <div class="dg-panel jk-match-panel" style="margin-bottom:26px">
+        <div class="jk-match-head">
+          <span class="jk-lab jk-lab-sm">Fix metadata</span>
+          <button class="jk-tbtn jk-tbtn-quiet">Close</button>
+        </div>
+        <div class="jk-match-search">
+          <input class="jk-match-input" type="text" value="left hand of darkness" aria-label="Search records" />
+          <button class="jk-tbtn">Search</button>
+        </div>
+        <p class="muted jk-match-msg">3 candidates.</p>
+        <ul class="jk-match-candidates">
+          <li class="jk-match-candidate">
+            <div class="jk-match-candidate-cover jk-match-candidate-cover-placeholder"></div>
+            <div class="jk-match-candidate-info">
+              <div class="jk-match-candidate-title">The Left Hand of Darkness</div>
+              <div class="muted jk-match-candidate-meta">Ursula K. Le Guin · 1969 · Ace Books</div>
+              <p class="jk-match-candidate-desc">A lone envoy on the frozen world of Gethen, where inhabitants can change gender.</p>
+            </div>
+            <button class="jk-tbtn jk-match-candidate-apply">Apply</button>
+          </li>
+          <li class="jk-match-candidate">
+            <div class="jk-match-candidate-cover jk-match-candidate-cover-placeholder"></div>
+            <div class="jk-match-candidate-info">
+              <div class="jk-match-candidate-title">The Left Hand of Darkness (50th Anniversary)</div>
+              <div class="muted jk-match-candidate-meta">Ursula K. Le Guin · 2019 · Ace Books</div>
+              <p class="jk-match-candidate-desc">Anniversary edition with an introduction by David Mitchell.</p>
+            </div>
+            <button class="jk-tbtn jk-match-candidate-apply">Apply</button>
+          </li>
+        </ul>
+      </div>
+
+      <p class="dg-caption">jk-cards-* — the @jkos/cards interaction affordances</p>
+      <p class="dg-lede" style="margin-top:0;margin-bottom:12px">
+        The calendar kit carries its own hover/press transitions so they render wherever it
+        mounts (BeigeBoard tabs <b>and</b> ORDECK widgets) instead of depending on a host
+        app.css only one app ships. They are transitions over the host's shape — hover a row,
+        press a button.
+      </p>
+      <div class="dg-panel" style="padding:12px">
+        <div class="jk-cards-row" style="--hover-bg:color-mix(in srgb, var(--accent-secondary) 12%, transparent);display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:var(--hub-radius-sm);cursor:pointer">
+          <span class="led amber sm steady"></span>
+          <span style="flex:1">jk-cards-row — hover me</span>
+          <span class="jk-cards-chip" style="background:var(--accent-secondary);color:var(--color-on-accent);font-family:var(--hub-font-mono);font-size:10px;padding:2px 7px;border-radius:var(--hub-radius-xs)">CHIP</span>
+        </div>
+        <div class="jk-cards-row" style="--hover-bg:color-mix(in srgb, var(--accent-secondary) 12%, transparent);display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:var(--hub-radius-sm);cursor:pointer">
+          <span class="led green sm steady"></span>
+          <span style="flex:1">jk-cards-row — another</span>
+          <span class="jk-cards-chip" style="background:var(--accent);color:var(--color-on-accent);font-family:var(--hub-font-mono);font-size:10px;padding:2px 7px;border-radius:var(--hub-radius-xs)">CHIP</span>
+        </div>
+        <div class="dg-row" style="margin-top:12px">
+          <button class="jk-cards-btn jk-tbtn">jk-cards-btn — press me</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 14 Motion ══ -->
+    <section class="dg-sec jk-sheet" id="motion">
+      <div class="dg-sec-head">
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">14</span><span class="label-tape">MOTION</span></div>
+        <h2>Motion vocabulary</h2>
+        <p class="dg-lede">
+          Ambient hardware effects (LED pulse, occasional flicker) are the house idiom —
+          subtle, opacity-only. Entrances land in ~200–400ms. Adjust CRT intensity via the
+          <code>--crt-*</code> tokens, never by baking overlay opacity into a component.
+          Everything below honours <code>prefers-reduced-motion</code>. <b>Hover a tile</b>
+          (or tap it) and its entrance replays on a loop — with a rest beat between plays,
+          so it demonstrates rather than strobes.
+        </p>
+      </div>
+      <p class="dg-caption">Entrances — one-shot · hover to replay</p>
+      <div class="dg-motion" id="dg-motion">
+        <div class="dg-motion-cell jk-well view-enter" data-anim="view-enter"><code>view-enter</code></div>
+        <div class="dg-motion-cell jk-well panel-enter" data-anim="panel-enter"><code>panel-enter</code></div>
+        <div class="dg-motion-cell jk-well item-in" data-anim="item-in"><code>item-in</code></div>
+        <div class="dg-motion-cell jk-well modal-in" data-anim="modal-in"><code>modal-in</code></div>
+        <div class="dg-motion-cell jk-well boot-sweep" data-anim="boot-sweep"><code>boot-sweep</code></div>
+        <div class="dg-motion-cell jk-well crt-expand" data-anim="crt-expand"><code>crt-expand</code></div>
+        <div class="dg-motion-cell jk-well intro-title" data-anim="intro-title"><code>intro-title</code></div>
+        <div class="dg-motion-cell jk-well check-pop" data-anim="check-pop"><code>check-pop</code></div>
+      </div>
+
+      <p class="dg-caption" style="margin-top:26px">Ambient — continuous</p>
+      <div class="dg-row">
+        <span class="jk-pill"><span class="led green sm"></span>led-pulse (on every .led)</span>
+        <span class="jk-pill"><span class="led amber sm now-dot"></span>now-dot · pulseOpacity</span>
+        <span class="jk-bubble jk-bubble-secondary" style="animation:data-flicker 4s infinite">data-flicker</span>
+        <span class="jk-bubble jk-bubble-secondary" style="animation:blink 1.4s step-end infinite">blink</span>
+      </div>
+      <p class="dg-lede" style="margin-top:16px">
+        <code>.intro-out</code> is <code>intro-title</code>'s partner — the boot screen's fade
+        <i>out</i>, <code>forwards</code>-filled so it stays gone. It's omitted from the grid
+        above for the obvious reason: a correct demo of it is an empty box.
+      </p>
+    </section>
+
+    <!-- ══ 15 The brief ══ -->
+    <section class="dg-sec jk-sheet" id="brief">
+      <div class="dg-sec-head">
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">15</span><span class="label-tape">FOR A DESIGN PASS</span></div>
+        <h2>The fence — elevate inside these lines</h2>
+        <p class="dg-lede">The invariants a design pass must not cross. Push craft on spacing, hierarchy, composition and atmosphere; keep the token names, the two-mode contract and the derivation chain intact.</p>
+      </div>
+      <ul class="dg-specs">
+        <li><b class="dg-yes">DO</b><span>Extend the retro-hardware language — LEDs, tape, stamps, perf, 7-seg, screens — as scarce punctuation.</span></li>
+        <li><b class="dg-yes">DO</b><span>Resolve every colour through the <code>--hub-*</code> / <code>--color-*</code> chain.</span></li>
+        <li><b class="dg-yes">DO</b><span>Reuse the shared classes &amp; <code>@jkos/ui</code> components; make both faces hold up.</span></li>
+        <li><b class="dg-yes">DO</b><span>Accent with the paper pair — wells for boundary, badges for emphasis (glow in CRT).</span></li>
+        <li><b class="dg-yes">DO</b><span>Fade colours with <code>withAlpha()</code>, never hex-concat on a CSS var.</span></li>
+        <li><b class="dg-no">DON'T</b><span>Rename any <code>--hub-*</code> token, or hardcode <code>--accent</code> / a hex in a component.</span></li>
+        <li><b class="dg-no">DON'T</b><span>Use <code>prefers-color-scheme</code> — mode is driven by <code>data-mode</code>.</span></li>
+        <li><b class="dg-no">DON'T</b><span>Scatter hardware chrome decoratively — an LED on everything means nothing is live.</span></li>
+        <li><b class="dg-no">DON'T</b><span>Add an icon library, or normalise the chrome toward flat modern UI.</span></li>
+        <li><b class="dg-no">DON'T</b><span>Restate the derivation or re-set a CRT knob per app — inputs only.</span></li>
+      </ul>
+      <p class="dg-lede" style="margin-top:20px">
+        Full prose reference: <code>Documentation/DESIGN.md</code>. Token source of truth:
+        <code>packages/design/tokens/hub.css</code>. Factory &amp; appliers:
+        <code>packages/design/theme/buildTheme.ts</code> · <code>utils/applyJkOSTheme.ts</code>.
+      </p>
+    </section>
+
+    <div class="dg-foot">
+      <span class="led green sm steady"></span>
+      <span>jkOS DESIGN SYSTEM — rendered by hub.css</span>
+      <span class="dg-deck-spacer"></span>
+      <span>packages/design · Documentation/DESIGN.md</span>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var root = document.documentElement;
+      var SCHEMES = [
+        { id: 'amber-cyan',   label: 'Amber · Cyan',   primary: '#ffb000', secondary: '#4ecdc4' },
+        { id: 'green-violet', label: 'Green · Violet', primary: '#5cd66a', secondary: '#c08aff' },
+        { id: 'ice-coral',    label: 'Ice · Coral',    primary: '#a8d8ff', secondary: '#ff6b5a' },
+        { id: 'gold-mint',    label: 'Gold · Mint',    primary: '#ffd000', secondary: '#5affc1' }
+      ];
+      // Sharp opt-in scale — the per-app/per-card override (soft is the hub
+      // default now; sharp is specified, not assumed). Same seam an app uses.
+      var SHARP = { '--hub-radius':'0px','--hub-radius-xs':'0px','--hub-radius-sm':'0px','--hub-radius-lg':'2px','--hub-radius-soft':'2px','--hub-radius-widget':'0px','--hub-radius-button':'0px' };
+
+      /* ── Mode ── */
+      var modeBox = document.getElementById('dg-mode');
+      function setMode(m) {
+        root.setAttribute('data-mode', m);
+        modeBox.querySelectorAll('button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.mode === m)); });
+      }
+      modeBox.addEventListener('click', function (e) { var b = e.target.closest('button'); if (b) setMode(b.dataset.mode); });
+
+      /* ── Accent ── */
+      var accBox = document.getElementById('dg-accents');
+      var custom = document.getElementById('dg-custom');
+      var cp = document.getElementById('dg-cp'), cs = document.getElementById('dg-cs');
+      function applyAccent(p, s) { root.style.setProperty('--accent-raw', p); root.style.setProperty('--accent-2-raw', s); syncPanes(); }
+      function pressAccent(id) { accBox.querySelectorAll('.dg-accent').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.id === id)); }); }
+      SCHEMES.forEach(function (sc, i) {
+        var b = document.createElement('button');
+        b.className = 'dg-accent'; b.dataset.id = sc.id; b.title = sc.label;
+        b.style.setProperty('--dg-p', sc.primary); b.style.setProperty('--dg-s', sc.secondary);
+        if (i === 0) b.setAttribute('aria-pressed', 'true');
+        b.addEventListener('click', function () { applyAccent(sc.primary, sc.secondary); pressAccent(sc.id); custom.classList.remove('on'); });
+        accBox.appendChild(b);
+      });
+      var cb = document.createElement('button');
+      cb.className = 'dg-accent dg-custom'; cb.dataset.id = 'custom'; cb.title = 'Custom'; cb.textContent = '+';
+      cb.addEventListener('click', function () { custom.classList.toggle('on'); pressAccent('custom'); applyAccent(cp.value, cs.value); });
+      accBox.appendChild(cb);
+      cp.addEventListener('input', function () { applyAccent(cp.value, cs.value); });
+      cs.addEventListener('input', function () { applyAccent(cp.value, cs.value); });
+
+      /* ── Radius — soft is the hub default (no overrides); sharp applies the
+         opt-in scale, exactly as a sharp-cornered app or card would. ── */
+      var radBox = document.getElementById('dg-radius');
+      function setRadius(kind) {
+        radBox.querySelectorAll('button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.radius === kind)); });
+        if (kind === 'sharp') { Object.keys(SHARP).forEach(function (k) { root.style.setProperty(k, SHARP[k]); }); }
+        else { Object.keys(SHARP).forEach(function (k) { root.style.removeProperty(k); }); }
+        syncPanes();
+      }
+      radBox.addEventListener('click', function (e) { var b = e.target.closest('button'); if (b) setRadius(b.dataset.radius); });
+
+      /* ── Demo toggles ── */
+      ['dg-sw', 'dg-ck'].forEach(function (id) {
+        var el = document.getElementById(id);
+        el.addEventListener('click', function () { el.setAttribute('aria-checked', el.getAttribute('aria-checked') === 'true' ? 'false' : 'true'); });
+      });
+
+      /* ── Sliders — repaint the elapsed fill as they move. This is what @jkos/ui
+         <Slider> does from the React value; here it's the same one line by hand. ── */
+      document.querySelectorAll('.dg-sl').forEach(function (sl) {
+        var paint = function () {
+          var min = Number(sl.min || 0), max = Number(sl.max || 100);
+          var pct = max > min ? ((Number(sl.value) - min) / (max - min)) * 100 : 0;
+          sl.style.setProperty('--jk-slider-fill', pct + '%');
+        };
+        sl.addEventListener('input', paint);
+        paint();
+      });
+
+      /* ── Motion — hover a tile and its entrance loops while the pointer stays,
+         with a rest beat between plays so it demonstrates rather than strobes;
+         tap replays once on touch. Replaying = drop the class, force a reflow so
+         the animation is torn down, re-add it (re-adding alone does nothing: the
+         style never changed as far as the engine is concerned). ── */
+      var MOTION_REST_MS = 850;
+      document.querySelectorAll('#dg-motion [data-anim]').forEach(function (cell) {
+        var anim = cell.dataset.anim;
+        var hovering = false;
+        var rest = null;
+        function play() {
+          cell.classList.remove(anim);
+          void cell.offsetWidth;
+          cell.classList.add(anim);
+        }
+        cell.addEventListener('animationend', function () {
+          if (!hovering) return;
+          clearTimeout(rest);
+          rest = setTimeout(function () { if (hovering) play(); }, MOTION_REST_MS);
+        });
+        cell.addEventListener('mouseenter', function () { hovering = true; play(); });
+        cell.addEventListener('mouseleave', function () { hovering = false; clearTimeout(rest); });
+        cell.addEventListener('click', play);
+      });
+
+      /* ── §01 identity compare — build the two face panes. Same-origin srcdoc
+         iframes, because hub.css keys the mode flip off :root[data-mode] — each
+         face needs to BE a document root. Both panes render the IDENTICAL
+         specimen markup from the <template>; the deck's live accent/radius
+         overrides are mirrored in on every change, so the specimen retunes with
+         the controls while the mode stays fixed per pane (the point of the demo). ── */
+      var cmp = document.getElementById('dg-compare');
+      var cmpFrames = [];
+      function syncPanes() {
+        cmpFrames.forEach(function (f) {
+          try { if (f.contentDocument) f.contentDocument.documentElement.style.cssText = root.style.cssText; }
+          catch (err) { /* pane not ready — its load handler syncs */ }
+        });
+      }
+      if (cmp) {
+        var fontsLink = document.querySelector('link[href*="fonts.googleapis.com/css2"]');
+        var hubCss = document.getElementById('hub-tokens').textContent;
+        var specHtml = document.getElementById('dg-cmp-spec').innerHTML;
+        var specCss = document.getElementById('dg-cmp-css').innerHTML;
+        ['paper', 'dark'].forEach(function (mode) {
+          var f = document.createElement('iframe');
+          f.setAttribute('title', 'Design specimen — ' + mode + ' face');
+          f.setAttribute('tabindex', '-1');
+          f.setAttribute('aria-hidden', 'true');
+          f.addEventListener('load', syncPanes);
+          f.srcdoc = '<!doctype html><html data-mode="' + mode + '"><head><meta charset="utf-8">'
+            + (fontsLink ? fontsLink.outerHTML : '')
+            + '<style>' + hubCss + '</style><style>' + specCss + '</style></head><body>'
+            + specHtml + '</body></html>';
+          cmp.querySelector('.dg-compare-pane.' + mode).appendChild(f);
+          cmpFrames.push(f);
+        });
+        var cmpRange = document.getElementById('dg-cmp-range');
+        cmpRange.addEventListener('input', function () { cmp.style.setProperty('--dg-split', cmpRange.value + '%'); });
+      }
+    })();
+  </script>
+</body>
+</html>

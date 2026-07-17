@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LazurOS — test console</title>
+<!--
+  The LazurOS test console. Staging surface (https://staging.jkos.net/LazurOS) for driving
+  the gateway by hand before any app depends on it.
+
+  Two rules it keeps, deliberately:
+   1. It is DERIVED, not hardcoded. The capability list and every input field come from
+      GET /api/lazuros/capabilities at load. Add a sixth capability to backend/docs.js and
+      it appears here with the right form — the same property the route table has.
+   2. It talks to the server over the SAME public HTTP contract a peer uses (cookie auth,
+      202 → poll the jobs dataset). No console-only backdoor, so a green run here is
+      evidence about the real path, not about the console.
+-->
+<style>
+  :root {
+    --bg: #0b0d0f; --panel: #14181c; --line: #262d33;
+    --ink: #d7dde3; --muted: #7d8996; --faint: #4a545e;
+    --accent: #6fd3c7; --ok: #78c98a; --warn: #e0b36a; --bad: #e07a7a;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: var(--mono); font-size: 13px; line-height: 1.55;
+    padding: 28px 20px 60px;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; }
+  header { display: flex; align-items: baseline; gap: 12px; margin-bottom: 4px; }
+  h1 { font-size: 15px; letter-spacing: .18em; text-transform: uppercase; margin: 0; font-weight: 600; }
+  .sub { color: var(--muted); font-size: 11px; margin-bottom: 22px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px 18px; margin-bottom: 16px; }
+  .lbl { font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--faint); margin-bottom: 10px; }
+  .health { display: flex; flex-wrap: wrap; gap: 18px; align-items: center; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 7px; background: var(--faint); }
+  .dot.up { background: var(--ok); } .dot.warn { background: var(--warn); } .dot.down { background: var(--bad); }
+  select, textarea, input, button { font-family: var(--mono); font-size: 13px; }
+  select, textarea, input {
+    width: 100%; background: #0d1114; color: var(--ink);
+    border: 1px solid var(--line); border-radius: 5px; padding: 8px 10px; outline: none;
+  }
+  select:focus, textarea:focus, input:focus { border-color: var(--accent); }
+  textarea { min-height: 74px; resize: vertical; }
+  .field { margin-bottom: 12px; }
+  .field label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 5px; }
+  .field .req { color: var(--accent); }
+  .desc { color: var(--faint); font-size: 11px; margin: -4px 0 12px; }
+  button {
+    background: var(--accent); color: #06201d; border: none; border-radius: 5px;
+    padding: 9px 20px; font-weight: 600; cursor: pointer; letter-spacing: .06em;
+  }
+  button:disabled { opacity: .45; cursor: wait; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); font-weight: 500; padding-bottom: 8px; }
+  td { padding: 7px 10px 7px 0; border-top: 1px solid var(--line); vertical-align: top; }
+  td.st { white-space: nowrap; }
+  .PENDING, .PENDING_WAKEUP { color: var(--warn); }
+  .IN_PROGRESS { color: var(--accent); }
+  .DONE { color: var(--ok); }
+  .FAILED { color: var(--bad); }
+  pre {
+    margin: 0; white-space: pre-wrap; word-break: break-word;
+    color: var(--muted); font-size: 11px; max-height: 260px; overflow: auto;
+  }
+  .note { color: var(--faint); font-size: 11px; }
+  .err { color: var(--bad); }
+  .scroll { overflow-x: auto; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><h1>LazurOS</h1><span class="note">test console · staging</span></header>
+  <div class="sub" id="deployment">…</div>
+
+  <section class="panel">
+    <div class="lbl">Gateway</div>
+    <div class="health" id="health"><span class="note">probing…</span></div>
+  </section>
+
+  <section class="panel">
+    <div class="lbl">Run a capability</div>
+    <div class="field">
+      <label for="cap">Capability</label>
+      <select id="cap"></select>
+    </div>
+    <div class="desc" id="capdesc"></div>
+    <div id="fields"></div>
+    <button id="run">Submit →</button>
+    <span id="runmsg" class="note" style="margin-left:12px"></span>
+  </section>
+
+  <section class="panel">
+    <div class="lbl">Jobs</div>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>id</th><th>capability</th><th>tier</th><th>status</th><th>result</th></tr></thead>
+        <tbody id="jobs"><tr><td colspan="5" class="note">no jobs yet</td></tr></tbody>
+      </table>
+    </div>
+    <div class="note" style="margin-top:10px">Polling every 2s. A job that wakes a sleeping node sits in PENDING_WAKEUP until its worker claims it.</div>
+  </section>
+</div>
+
+<script>
+'use strict';
+const API = '/api/lazuros';
+const $ = (id) => document.getElementById(id);
+
+// Same-origin, cookie-authed — exactly how a peer app calls the gateway.
+async function api(path, opts = {}) {
+  const r = await fetch(API + path, { credentials: 'same-origin', ...opts });
+  const body = await r.json().catch(() => null);
+  if (!r.ok) throw new Error((body && (body.error || body.code)) || ('HTTP ' + r.status));
+  return body;
+}
+
+/* ── Health ─────────────────────────────────────────────────────────────────── */
+async function paintHealth() {
+  const el = $('health');
+  try {
+    const h = await api('/health');
+    // A sleeping compute node is a WARN, not a fault: a wol backend is meant to be off
+    // until a job wakes it. Each backend is named and shown on its own, so "asleep" can
+    // never be mistaken for "broken" — and an unreported field is shown as unknown
+    // rather than quietly rendered as healthy.
+    const rows = ['<span><span class="dot up"></span>state node up</span>'];
+    const backends = h.backends || {};
+    const names = Object.keys(backends);
+    if (!names.length) {
+      rows.push('<span><span class="dot"></span>compute state not reported</span>');
+    } else {
+      for (const id of names) {
+        const online = backends[id];
+        rows.push('<span><span class="dot ' + (online ? 'up' : 'warn') + '"></span>' +
+          esc(id) + (online ? ' online' : ' asleep — a job will wake it') + '</span>');
+      }
+    }
+    el.innerHTML = rows.join('');
+  } catch (e) {
+    el.innerHTML = '<span><span class="dot down"></span>unreachable — ' + esc(e.message) + '</span>';
+  }
+}
+
+/* ── Capabilities → the form (derived, never hardcoded) ──────────────────────── */
+let CAPS = [];
+
+function renderFields() {
+  const cap = CAPS.find(c => c.id === $('cap').value);
+  $('capdesc').textContent = cap ? (cap.description || '') : '';
+  $('fields').innerHTML = (cap && cap.body || []).map(f => {
+    const req = f.required ? ' <span class="req">*</span>' : '';
+    return '<div class="field">' +
+      '<label for="f_' + esc(f.name) + '">' + esc(f.label || f.name) + req + '</label>' +
+      '<textarea id="f_' + esc(f.name) + '" data-name="' + esc(f.name) + '"></textarea>' +
+      '</div>';
+  }).join('');
+}
+
+async function loadCaps() {
+  const doc = await api('/capabilities');
+  CAPS = doc.capabilities || [];
+  $('cap').innerHTML = CAPS.map(c => '<option value="' + esc(c.id) + '">' + esc(c.label || c.id) + '</option>').join('');
+  renderFields();
+}
+
+/* ── Submit → 202 {job_id}; the jobs poll below takes it from there ──────────── */
+async function submit() {
+  const cap = CAPS.find(c => c.id === $('cap').value);
+  if (!cap) return;
+  const payload = {};
+  for (const el of $('fields').querySelectorAll('[data-name]')) {
+    const v = el.value.trim();
+    if (v) payload[el.dataset.name] = v;
+  }
+  const missing = (cap.body || []).filter(f => f.required && !payload[f.name]);
+  if (missing.length) { msg('required: ' + missing.map(f => f.name).join(', '), true); return; }
+
+  $('run').disabled = true;
+  msg('submitting…');
+  try {
+    // cap.path is the FULL edge path from the doc (/api/lazuros/<id>) — the same path
+    // nginx and the server agree on, so this is a real end-to-end call.
+    const r = await fetch(cap.path, {
+      method: cap.method || 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const body = await r.json().catch(() => null);
+    if (r.status !== 202) throw new Error((body && (body.error || body.code)) || ('HTTP ' + r.status));
+    msg('queued as job ' + body.job_id);
+    for (const el of $('fields').querySelectorAll('[data-name]')) el.value = '';
+    paintJobs();
+  } catch (e) {
+    msg(e.message, true);
+  } finally {
+    $('run').disabled = false;
+  }
+}
+function msg(text, bad) {
+  const el = $('runmsg');
+  el.textContent = text;
+  el.className = bad ? 'err' : 'note';
+}
+
+/* ── Jobs — the read contract, polled ────────────────────────────────────────── */
+async function paintJobs() {
+  let jobs;
+  try { jobs = await api('/jobs'); }
+  catch (e) { $('jobs').innerHTML = '<tr><td colspan="5" class="err">' + esc(e.message) + '</td></tr>'; return; }
+  if (!jobs || !jobs.length) { $('jobs').innerHTML = '<tr><td colspan="5" class="note">no jobs yet</td></tr>'; return; }
+
+  $('jobs').innerHTML = jobs.slice(0, 25).map(j => {
+    const payload = j.result || j.error || null;
+    const shown = payload == null ? '<span class="note">—</span>'
+      : '<pre>' + esc(typeof payload === 'string' ? payload : JSON.stringify(payload, null, 2)) + '</pre>';
+    return '<tr>' +
+      '<td>' + esc(String(j.id)) + '</td>' +
+      '<td>' + esc(j.capability || '') + '</td>' +
+      '<td>' + esc(j.tier_id == null ? '—' : String(j.tier_id)) + '</td>' +
+      '<td class="st ' + esc(j.status || '') + '">' + esc(j.status || '') + '</td>' +
+      '<td>' + shown + '</td>' +
+      '</tr>';
+  }).join('');
+}
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+  ));
+}
+
+/* ── Boot ───────────────────────────────────────────────────────────────────── */
+$('cap').addEventListener('change', () => { renderFields(); msg(''); });
+$('run').addEventListener('click', submit);
+
+api('/health').then(h => {
+  $('deployment').textContent = 'deployment: ' + (h.deployment || h.app || 'lazuros');
+}).catch(() => { $('deployment').textContent = ''; });
+
+loadCaps().catch(e => { $('fields').innerHTML = '<span class="err">could not load capabilities — ' + esc(e.message) + '</span>'; });
+paintHealth();
+paintJobs();
+setInterval(paintJobs, 2000);
+setInterval(paintHealth, 15000);
+</script>
+</body>
+</html>

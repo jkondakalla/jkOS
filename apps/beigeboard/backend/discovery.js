@@ -6,7 +6,7 @@
 // server can serve them AND any tool — the suite-prober, a workshop GUI, an AI
 // composer — can `require()` and lint them without parsing server.js. (Previously
 // these were inline `const`s in the server, invisible to everything but the running
-// process; see CONSOLIDATION.md C3 / ToDo A3.)
+// process — the "sources of truth must be importable data" rule.)
 //
 // Zero side effects on purpose (and its one dep, @jkos/suite-manifest, is itself
 // zero-dep pure data): this file is required both by the live backend and by offline
@@ -18,24 +18,22 @@
 // The invalidation bus key is DERIVED from the app id via resourceKey (ToDo A5), not a
 // free-typed 'beigeboard.items' repeated on each capability + the dataset.
 const { resourceKey } = require('@jkos/suite-manifest');
+// ITEM_SHAPE is DERIVED (ARCH-1) from the one per-column list in src/item-fields —
+// the same source src/schema.js derives ITEM_COLUMNS + the import cleaner tables
+// from. So the row a peer READS (this shape), the columns the server WRITES
+// (ITEM_COLUMNS), and the caps/enums it ENFORCES are provably one schema, not four
+// hand-synced copies (the drift class behind BUG-1/3/7). item-fields.js is pure,
+// zero-dep data, so requiring it keeps this file offline-safe for the prober.
+const { ITEM_SHAPE } = require('./src/item-fields');
 
 /** This app's one polled resource. Writers bump it; the `items` dataset reads it. */
 const ITEMS_KEY = resourceKey('beigeboard', 'items'); // 'beigeboard.items'
 
 /* The shape of ONE items row. createItem/completeItem RESOLVE TO this, and the
-   `items` dataset reads it — declared once so a capability's OUTPUT stud and the
-   dataset's row are provably the same `beigeboard.items` shape (no drift). */
-const ITEM_SHAPE = [
-  { name: 'id',             type: 'number' },
-  { name: 'title',          type: 'string' },
-  { name: 'kind',           type: 'enum',    enum: ['task', 'event'] },
-  { name: 'due_date',       type: 'date' },
-  { name: 'scheduled_time', type: 'time' },
-  { name: 'completed',      type: 'boolean' },
-  { name: 'tags',           type: 'string' },
-  { name: 'ext_ref',        type: 'string' },
-  { name: 'updated_at',     type: 'string' },
-];
+   `items` dataset reads it — declared once (in item-fields) so a capability's
+   OUTPUT stud and the dataset's row are provably the same `beigeboard.items`
+   shape (no drift). It declares EVERY column a `SELECT *` row through toRow
+   returns, and every `kind` the API emits (goal/milestone included). */
 
 /* ── What can be DONE to BeigeBoard (the write contract) ─────────────────────── */
 const CAPABILITIES = {
@@ -45,7 +43,8 @@ const CAPABILITIES = {
     {
       id: 'createItem', label: 'Add a task', method: 'POST', path: '/items',
       body: [
-        { name: 'title',          type: 'string', label: 'Title', required: true, max: 200 },
+        { name: 'title',          type: 'string', label: 'Title', required: true, max: 500 },
+        { name: 'week_start',     type: 'date',   label: 'Week bench (ISO Monday)' },
         { name: 'due_date',       type: 'date',   label: 'Due date' },
         { name: 'scheduled_time', type: 'time',   label: 'Time' },
         { name: 'notes',          type: 'text',   label: 'Notes' },
@@ -64,6 +63,31 @@ const CAPABILITIES = {
       ],
       returns: ITEM_SHAPE,
       invalidates: [ITEMS_KEY], scopes: ['beigeboard:write'],
+    },
+    {
+      // General partial update — the load-bearing capability for cross-app
+      // scheduling. Drag reschedule (and Today's carried-reschedule) commit through
+      // THIS: any subset of the schedulable fields is patched. completeItem stays a
+      // narrow, intent-named alias for the common "mark done" case; this is the
+      // open seam everything else (move a date/time, rename, recolour) maps onto.
+      // The server's PATCH /items/:id route already accepts any ITEM_COLUMNS field;
+      // this widens only the DECLARED contract so peers can discover the write.
+      id: 'updateItem', label: 'Reschedule / edit', method: 'PATCH', path: '/items/:id',
+      body: [
+        { name: 'id',             type: 'number', label: 'Item id', required: true },
+        { name: 'week_start',     type: 'date',   label: 'Week bench (ISO Monday)' },
+        { name: 'due_date',       type: 'date',   label: 'Due date' },
+        { name: 'end_date',       type: 'date',   label: 'End date (multi-day)' },
+        { name: 'scheduled_time', type: 'time',   label: 'Start time' },
+        { name: 'scheduled_end',  type: 'time',   label: 'End time' },
+        { name: 'title',          type: 'string', label: 'Title', max: 500 },
+        { name: 'notes',          type: 'text',   label: 'Notes' },
+        { name: 'accent',         type: 'string', label: 'Accent' },
+        { name: 'kind',           type: 'enum',   label: 'Kind', enum: ['task', 'event'] },
+      ],
+      returns: ITEM_SHAPE,
+      invalidates: [ITEMS_KEY], scopes: ['beigeboard:write'],
+      doc: 'Patches any subset of an item\'s schedulable fields. Drag reschedule maps to this. Pass id + only the fields to change.',
     },
     {
       id: 'deleteItem', label: 'Delete', method: 'DELETE', path: '/items/:id',
@@ -89,44 +113,12 @@ const CAPABILITIES = {
       invalidates: [ITEMS_KEY], scopes: ['beigeboard:write'],
       doc: 'Creates a nested goal→milestone→task tree (or a flat list linked by ref/parent) in one transaction. Validated before any write; ?dryRun=1 previews. See README → Importing tasks & goals.',
     },
-    {
-      // AI: free text → structured task/event fields (the "quick add" parser). Declared
-      // here so it stops being a parallel, undiscoverable surface (CONSOLIDATION.md G2):
-      // a HUD widget or AI step can now discover + invoke it through Weave. It only
-      // PARSES — the caller still createItem's the result — so it invalidates nothing.
-      id: 'parseTask', label: 'Parse text → task', method: 'POST', path: '/ai/parse-task',
-      body: [
-        { name: 'text',  type: 'string', label: 'Natural-language task/event', required: true, max: 500 },
-        { name: 'today', type: 'date',   label: 'Anchor date for relative phrasing (defaults to server date)' },
-      ],
-      returns: [
-        { name: 'title',          type: 'string' },
-        { name: 'kind',           type: 'enum', enum: ['task', 'event'] },
-        { name: 'scope',          type: 'enum', enum: ['day', 'week', 'month'] },
-        { name: 'due_date',       type: 'date' },
-        { name: 'scheduled_time', type: 'time' },
-        { name: 'notes',          type: 'text' },
-      ],
-      scopes: ['beigeboard:write'], ai: true,
-      doc: 'Parses one free-text line into structured fields; does not write. Feed the result into createItem.',
-    },
-    {
-      // AI: a goal → a short ladder of milestones + first actions (Breakdown Method).
-      // Declared (G2) so it is discoverable; the milestone/action lists are free-form
-      // arrays, hence `json` outputs (no array FieldType yet — see ToDo F4).
-      id: 'breakdownGoal', label: 'Break a goal into steps', method: 'POST', path: '/ai/breakdown',
-      body: [
-        { name: 'title',       type: 'string', label: 'Goal', required: true, max: 200 },
-        { name: 'done_means',  type: 'text',   label: 'Definition of done' },
-        { name: 'target_date', type: 'date',   label: 'Target date' },
-      ],
-      returns: [
-        { name: 'milestones',    type: 'json', label: 'Ordered checkpoints (string[])' },
-        { name: 'first_actions', type: 'json', label: 'Concrete first tasks (string[])' },
-      ],
-      scopes: ['beigeboard:write'], ai: true,
-      doc: 'Drafts 2–5 milestones + 2–4 first actions for a goal; does not write. Feed into importItems to materialise the ladder.',
-    },
+    // NO AI capabilities here. BeigeBoard used to declare `parseTask` + `breakdownGoal`
+    // over its own /api/ai/* routes, which proxied a synchronous Ollama chat call. That
+    // whole surface is retired: AI is LazurOS's job, it is ASYNCHRONOUS (202 {job_id} →
+    // poll), and its results come back INTO BeigeBoard through `createItem`/`importItems`
+    // below via delegated write-back. So an AI parse is a LazurOS capability composed with
+    // a BeigeBoard one — not a second, parallel AI surface bolted onto this app.
   ],
 };
 
@@ -143,6 +135,7 @@ const DATASETS = {
       filters: [
         { name: 'kind',           type: 'enum',   label: 'Kind', enum: ['task', 'event'],                 column: 'kind',       op: 'eq' },
         { name: 'scope',          type: 'string', label: 'Scope',                                          column: 'scope',      op: 'eq' },
+        { name: 'week_start',     type: 'date',   label: 'Week bench (ISO Monday)',                        column: 'week_start', op: 'eq' },
         { name: 'due_date',       type: 'date',   label: 'Due date',                                       column: 'due_date',   op: 'eq' },
         { name: 'ext_ref_prefix', type: 'string', label: 'External-ref prefix (an app\'s own items)',      column: 'ext_ref',    op: 'prefix' },
         { name: 'since',          type: 'string', label: 'Updated since (updated_at delta)',               column: 'updated_at', op: 'gt' },

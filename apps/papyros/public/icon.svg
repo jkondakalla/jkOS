@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="PapyrOS">
+  <!-- PapyrOS app icon: an open scroll (audiobook library identity), terracotta on
+       parchment — the same accent/paper pair injectJkOSTheme sets in src/App.tsx.
+       Kept geometric (no fine detail) so it stays legible at favicon/small sizes. -->
+  <rect width="512" height="512" rx="96" fill="#ede2c8" />
+  <!-- scroll rolled ends -->
+  <circle cx="112" cy="256" r="56" fill="#9a4b2c" />
+  <circle cx="400" cy="256" r="56" fill="#9a4b2c" />
+  <!-- scroll body, spanning between the rolled ends -->
+  <rect x="112" y="200" width="288" height="112" fill="#9a4b2c" />
+  <!-- unrolled page -->
+  <rect x="150" y="222" width="212" height="68" rx="6" fill="#ede2c8" />
+  <!-- lines of text on the page, in the app's secondary (verdigris) accent -->
+  <rect x="168" y="238" width="176" height="10" rx="5" fill="#5c8a72" />
+  <rect x="168" y="256" width="176" height="10" rx="5" fill="#5c8a72" />
+  <rect x="168" y="274" width="120" height="10" rx="5" fill="#5c8a72" />
+</svg>

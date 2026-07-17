@@ -1,0 +1,1189 @@
+<!doctype html>
+<html lang="en" data-mode="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>jkOS — Design System Reference</title>
+  <meta name="description" content="Living style guide for the jkOS suite: tokens, components and hardware chrome rendered live in both faces. A reference for design work that stays inside the system." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@400;600;700&family=Fraunces:opsz,ital,wght@9..144,0,400;9..144,0,600;9..144,1,400;9..144,1,600;9..144,0,700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       hub.css — the CANONICAL jkOS design tokens + shared component classes,
+       inlined VERBATIM from packages/design/tokens/hub.css so this page renders
+       the real system with zero drift. Regenerate after any hub.css change:
+         node apps/jkauth/scripts/build-design-page.mjs
+       Everything this page demonstrates is defined below; the gallery CSS that
+       follows is namespaced .dg-* and only lays out the page — it never restyles
+       a token or a component class.
+       ═══════════════════════════════════════════════════════════════════════ -->
+  <style id="hub-tokens">
+/*__HUB_CSS__*/
+  </style>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       player-ui.css — the @jkos/player UI kit's stylesheet, inlined VERBATIM
+       from packages/player/src/ui/player-ui.css. The one shared component
+       stylesheet that lives outside hub.css (it ships with @jkos/player/ui), so
+       the page inlines it too and §12's bar is the REAL bar.
+       ═══════════════════════════════════════════════════════════════════════ -->
+  <style id="player-ui">
+/*__PLAYER_CSS__*/
+  </style>
+
+  <!-- Per-page font inputs — the same lane BeigeBoard/SylibOS use: serif → Fraunces
+       for editorial headings. A legitimate per-app factory input, not an override. -->
+  <style id="page-fonts">
+    :root { --hub-font-serif: 'Fraunces', Georgia, 'Times New Roman', serif; }
+  </style>
+
+  <!-- ── Gallery layout (namespaced .dg-*; lays the page out, styles nothing in the system) ── -->
+  <style id="design-guide">
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      background-color: var(--hub-bg-0);
+      background-image: var(--hub-grain-image);
+      background-size: 160px 160px;
+      background-blend-mode: var(--grain-blend);
+      color: var(--color-ink);
+      font-family: var(--hub-font-sans);
+      font-size: 16px;
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .dg-wrap { max-width: 1120px; margin: 0 auto; padding: 0 clamp(16px, 4vw, 40px) 120px; }
+
+    /* ── Operator control deck (sticky) ─────────────────────────────────── */
+    .dg-deck {
+      position: sticky; top: 0; z-index: 50;
+      background: linear-gradient(180deg, var(--hub-metal-1), var(--hub-metal-0));
+      border-bottom: 1px solid var(--hub-line-bright);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.35), inset 0 1px 0 var(--hub-bevel-light);
+    }
+    .dg-deck-inner {
+      max-width: 1120px; margin: 0 auto;
+      padding: 10px clamp(14px, 4vw, 40px);
+      display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+    }
+    .dg-deck .label-tape { font-size: 11px; }
+    .dg-deck-spacer { flex: 1 1 auto; }
+    .dg-deck-group { display: flex; align-items: center; gap: 8px; }
+    .dg-deck-group > .jk-lab { color: var(--hub-cream-bright); opacity: 0.7; }
+
+    /* segmented mode + radius controls */
+    .dg-seg { display: inline-flex; border: 1px solid var(--hub-line-bright); border-radius: var(--hub-radius-sm); overflow: hidden; }
+    .dg-seg button {
+      font-family: var(--hub-font-mono); font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+      padding: 7px 11px; border: 0; background: var(--hub-bg-1); color: var(--hub-cream-dim); cursor: pointer;
+      min-height: 34px;
+    }
+    .dg-seg button + button { border-left: 1px solid var(--hub-line-bright); }
+    .dg-seg button[aria-pressed="true"] { background: var(--accent); color: var(--color-accent-contrast); }
+    :root[data-mode="dark"] .dg-seg button[aria-pressed="true"] { box-shadow: inset 0 0 12px color-mix(in srgb, var(--accent) 55%, transparent); }
+
+    /* accent scheme swatches */
+    .dg-accents { display: inline-flex; gap: 6px; }
+    .dg-accent {
+      width: 30px; height: 30px; padding: 0; border-radius: 50%; cursor: pointer;
+      border: 2px solid transparent; position: relative;
+      background: conic-gradient(from 220deg, var(--dg-p) 0 50%, var(--dg-s) 50% 100%);
+      /* stop the wheel at the padding edge — painting under the transparent
+         border bled each half's colour out to the rim */
+      background-clip: padding-box;
+      box-shadow: inset 0 0 0 1px rgba(0,0,0,0.35);
+    }
+    .dg-accent[aria-pressed="true"] { border-color: var(--hub-cream-bright); box-shadow: 0 0 0 2px var(--hub-bg-0), 0 0 10px rgba(0,0,0,0.4); }
+    .dg-accent.dg-custom { background: repeating-conic-gradient(from 0deg, var(--hub-metal-2) 0 25%, var(--hub-metal-1) 0 50%); font-size: 14px; color: var(--hub-cream-bright); }
+    .dg-custom-pickers { display: none; gap: 6px; align-items: center; }
+    .dg-custom-pickers.on { display: inline-flex; }
+    .dg-custom-pickers input[type="color"] { width: 30px; height: 30px; border: 1px solid var(--hub-line-bright); background: none; padding: 0; cursor: pointer; }
+
+    /* ── Hero ───────────────────────────────────────────────────────────── */
+    .dg-hero { position: relative; margin: 34px 0 12px; padding: 40px clamp(20px, 4vw, 48px); overflow: hidden; }
+    .dg-hero .canvas-grid { position: absolute; inset: 0; opacity: calc(var(--canvas-grid-opacity) * 0.5); }
+    .dg-hero-body { position: relative; }
+    .dg-kicker { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+    .dg-hero h1 {
+      font-family: var(--hub-font-serif); font-weight: 600; font-size: clamp(2.4rem, 6vw, 4rem);
+      line-height: 1.02; margin: 0 0 6px; text-wrap: balance; letter-spacing: -0.01em;
+    }
+    .dg-hero .dg-ver { font-family: var(--hub-font-seg); font-size: clamp(2.4rem, 6vw, 4rem); }
+    .dg-hero-lede { max-width: 62ch; font-size: 1.08rem; color: var(--color-muted); margin: 14px 0 0; }
+    .dg-hero-meta { display: flex; flex-wrap: wrap; gap: 10px 22px; margin-top: 26px; }
+
+    /* ── Sections ───────────────────────────────────────────────────────── */
+    .dg-sec { position: relative; margin: 22px 0; padding: 30px clamp(18px, 3.5vw, 40px); }
+    .dg-sec-head { margin-bottom: 24px; }
+    .dg-sec-tag { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+    .dg-sec-num { font-variant-numeric: tabular-nums; color: var(--hub-cream-faint); }
+    .dg-sec h2 { font-family: var(--hub-font-serif); font-weight: 600; font-size: clamp(1.5rem, 3vw, 2rem); margin: 0; line-height: 1.1; text-wrap: balance; }
+    .dg-lede { max-width: 68ch; color: var(--color-muted); margin: 10px 0 0; }
+    .dg-lede code, .dg-note code, li code, p code { font-family: var(--hub-font-mono); font-size: 0.85em; background: color-mix(in srgb, var(--hub-cream) 12%, transparent); padding: 1px 5px; border-radius: 3px; color: var(--color-ink); }
+
+    /* generic tile grids */
+    .dg-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+    .dg-grid.wide { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+    .dg-row { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
+    .dg-block { padding: 18px; }
+    .dg-block-lab { margin-bottom: 14px; }
+
+    /* colour swatches */
+    .dg-swatch { display: flex; flex-direction: column; gap: 8px; }
+    .dg-chip { height: 62px; border-radius: var(--hub-radius-lg); border: 1px solid var(--hub-line); box-shadow: var(--hub-shadow-inset); }
+    .dg-swatch code { font-family: var(--hub-font-mono); font-size: 11px; color: var(--color-ink); }
+    .dg-swatch em { font-style: normal; font-size: 11px; color: var(--color-faint); letter-spacing: 0.04em; }
+    .dg-chip-text { display: flex; align-items: center; justify-content: center; font-family: var(--hub-font-serif); font-size: 1.5rem; background: var(--hub-bg-2); }
+
+    /* spec list (used in the brief) */
+    .dg-specs { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); margin: 0; padding: 0; list-style: none; }
+    .dg-specs li { padding: 14px 16px; border: 1px solid var(--hub-line); border-radius: var(--hub-radius-lg); background: color-mix(in srgb, var(--hub-bg-1) 60%, transparent); }
+    .dg-specs .dg-yes { color: var(--color-ok); } .dg-specs .dg-no { color: var(--color-danger); }
+    .dg-specs b { display: block; font-family: var(--hub-font-mono); font-size: 11px; letter-spacing: 0.08em; margin-bottom: 4px; }
+    .dg-specs span { font-size: 0.92rem; color: var(--color-muted); }
+
+    /* typography specimen */
+    .dg-type-row { display: grid; grid-template-columns: 120px 1fr; gap: 18px; align-items: baseline; padding: 16px 0; border-top: 1px solid var(--hub-line); }
+    .dg-type-row:first-child { border-top: 0; }
+    .dg-type-role { font-family: var(--hub-font-mono); font-size: 11px; letter-spacing: 0.1em; color: var(--color-faint); text-transform: uppercase; }
+    .dg-type-role small { display: block; margin-top: 4px; color: var(--color-faint); opacity: 0.7; text-transform: none; letter-spacing: 0; }
+    .dg-spec-mono { font-family: var(--hub-font-mono); }
+    .dg-spec-sans { font-family: var(--hub-font-sans); font-size: 1.15rem; }
+    .dg-spec-serif { font-family: var(--hub-font-serif); font-size: 1.7rem; font-weight: 600; }
+    .dg-spec-seg { font-family: var(--hub-font-seg); font-size: 2.4rem; font-weight: 700; color: var(--hub-amber); text-shadow: 0 0 8px var(--hub-amber-glow); }
+
+    .dg-caption { font-family: var(--hub-font-mono); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-faint); margin: 0 0 8px; }
+
+    /* screen panel (CRT atmosphere demo) */
+    .dg-screen { position: relative; overflow: hidden; padding: 26px; background: var(--hub-screen); border: 1px solid var(--hub-screen-line); border-radius: var(--hub-radius-lg); min-height: 120px; }
+
+    /* media grid demo tiles use the real .jk-media-* classes; give them a size */
+    .dg-media-demo { max-width: 440px; }
+
+    /* ── Demo hosts for the FIXED/absolute components ─────────────────────────
+       Four system components position themselves against the viewport, because
+       that is their whole job: .jk-scrim + .jk-vignette + .jk-scanlines are
+       overlays, and .player-bar is docked to the bottom of the window. A gallery
+       can't show a docked bar in place, so these hosts re-anchor them to a demo
+       box. This is the ONLY thing the page overrides on a system class, it is
+       always `position` + stacking, and it is always scoped under a .dg-* host —
+       never a colour, size, radius or font. ─────────────────────────────────── */
+    .dg-stage { position: relative; overflow: hidden; min-height: 128px; padding: 16px; }
+    .dg-stage .jk-scrim { position: absolute; }
+    .dg-player { position: relative; overflow: hidden; border-radius: var(--hub-radius-lg); }
+    .dg-player .player-bar { position: relative; z-index: 0; }
+    .dg-player .pb-popover, .dg-player .pb-scrim { position: absolute; }
+
+    /* Panel demos: give the stretch/flex components a bounded column to live in */
+    .dg-panel { max-width: 520px; border: 1px solid var(--hub-line); border-radius: var(--hub-radius-lg); background: var(--hub-bg-1); }
+    .dg-shell-demo { border: 1px solid var(--hub-line); border-radius: var(--hub-radius-lg); background: var(--hub-bg-1); overflow: hidden; }
+    .dg-shell-demo .jk-shell { min-height: 0; }
+
+    /* Motion demos — hover (or tap) a tile and its entrance replays on a loop
+       with a rest beat between plays; leave and it settles. */
+    .dg-motion { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+    .dg-motion-cell { position: relative; display: flex; align-items: center; justify-content: center; min-height: 76px; padding: 10px; text-align: center; cursor: pointer; }
+    .dg-motion-cell code { font-family: var(--hub-font-mono); font-size: 10px; letter-spacing: 0.08em; color: var(--color-ink); }
+
+    /* ── §01 identity compare — the same specimen markup rendered in BOTH faces
+       (two same-origin iframes, since hub.css keys mode off :root[data-mode]),
+       revealed by a draggable split. The invisible full-area range input is the
+       control: click, drag or arrow-key the divider. ── */
+    .dg-compare { position: relative; height: 420px; border: 1px solid var(--hub-line); border-radius: var(--hub-radius-lg); overflow: hidden; background: var(--hub-bg-1); --dg-split: 50%; }
+    .dg-compare-pane { position: absolute; inset: 0; }
+    .dg-compare-pane iframe { display: block; width: 100%; height: 100%; border: 0; pointer-events: none; }
+    .dg-compare-pane.dark { clip-path: inset(0 0 0 var(--dg-split)); }
+    .dg-compare-divider { position: absolute; top: 0; bottom: 0; left: var(--dg-split); width: 0; z-index: 2; pointer-events: none; }
+    .dg-compare-divider::before { content: ''; position: absolute; top: 0; bottom: 0; left: -1px; width: 2px; background: var(--accent); box-shadow: 0 0 8px var(--hub-amber-glow); }
+    .dg-compare-grip {
+      position: absolute; top: 50%; left: 0; transform: translate(-50%, -50%);
+      width: 34px; height: 34px; border-radius: 50%;
+      background: linear-gradient(180deg, var(--hub-metal-2), var(--hub-metal-0));
+      border: 1px solid var(--hub-line-bright);
+      box-shadow: inset 0 1px 0 var(--hub-bevel-light), 0 2px 6px rgba(0,0,0,0.35);
+      display: flex; align-items: center; justify-content: center;
+      color: var(--hub-cream-bright); font-family: var(--hub-font-mono); font-size: 11px;
+    }
+    .dg-compare > input[type="range"] { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: ew-resize; z-index: 3; }
+
+    /* footer */
+    .dg-foot { margin-top: 40px; padding-top: 22px; border-top: 1px solid var(--hub-line); color: var(--color-faint); font-family: var(--hub-font-mono); font-size: 11px; letter-spacing: 0.06em; display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center; }
+
+    a { color: var(--accent-secondary); }
+
+    @media (max-width: 640px) {
+      .dg-type-row { grid-template-columns: 1fr; gap: 6px; }
+      .dg-deck-inner { gap: 12px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ══ Operator deck ══ -->
+  <div class="dg-deck">
+    <div class="dg-deck-inner">
+      <span class="label-tape">jkOS // DESIGN</span>
+      <span class="led green steady" title="live tokens"></span>
+      <div class="dg-deck-spacer"></div>
+
+      <div class="dg-deck-group">
+        <span class="jk-lab jk-lab-xs">Face</span>
+        <div class="dg-seg" id="dg-mode">
+          <button data-mode="paper">Paper</button>
+          <button data-mode="dark" aria-pressed="true">Dark</button>
+        </div>
+      </div>
+
+      <div class="dg-deck-group">
+        <span class="jk-lab jk-lab-xs">Accent</span>
+        <div class="dg-accents" id="dg-accents"></div>
+        <div class="dg-custom-pickers" id="dg-custom">
+          <input type="color" id="dg-cp" value="#ffb000" aria-label="Primary accent" />
+          <input type="color" id="dg-cs" value="#4ecdc4" aria-label="Secondary accent" />
+        </div>
+      </div>
+
+      <div class="dg-deck-group">
+        <span class="jk-lab jk-lab-xs">Corners</span>
+        <div class="dg-seg" id="dg-radius">
+          <button data-radius="soft" aria-pressed="true">Soft</button>
+          <button data-radius="sharp">Sharp</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="dg-wrap">
+
+    <!-- ══ Hero ══ -->
+    <section class="dg-hero jk-sheet">
+      <div class="canvas-grid"></div>
+      <div class="dg-hero-body">
+        <div class="dg-kicker">
+          <span class="label-tape">REFERENCE PLATE</span>
+          <span class="mono-eyebrow">two-faced retro hardware</span>
+        </div>
+        <h1>jkOS Design System</h1>
+        <div class="dg-ver seg">v1.0</div>
+        <p class="dg-hero-lede">
+          A living style plate for the whole suite. Everything below is rendered by the
+          real <code>hub.css</code> token chain — flip the <b>Face</b>, <b>Accent</b> and
+          <b>Corners</b> controls above and the entire page retunes, exactly as an app does.
+          Hand this to a design pass as the fence: elevate the surfaces, but stay inside
+          these tokens, classes and invariants.
+        </p>
+        <div class="dg-hero-meta">
+          <span class="jk-bubble jk-bubble-primary">PAPER · office</span>
+          <span class="jk-bubble jk-bubble-secondary">DARK · CRT</span>
+          <span class="jk-pill"><span class="led green sm"></span>tokens live</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 01 The two faces ══ -->
+    <section class="dg-sec jk-sheet" id="faces">
+      <div class="dg-sec-head">
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">01</span><span class="label-tape">IDENTITY</span></div>
+        <h2>One identity, two faces</h2>
+        <p class="dg-lede">
+          jkOS is <b>skeuomorphic, not flat-SaaS</b>. A single attribute — <code>data-mode</code>
+          on <code>&lt;html&gt;</code> — switches between two physical worlds. There are exactly
+          two values, <code>"paper"</code> and <code>"dark"</code>; the mode is controlled
+          explicitly and <b>never</b> from <code>prefers-color-scheme</code>. Corners are
+          <b>soft by default</b> (sharp is a per-app or per-card opt-in through the
+          <code>--hub-radius*</code> tokens); chrome is built from CSS hardware, spent sparingly.
+        </p>
+      </div>
+
+      <p class="dg-caption">Drag the divider — one specimen markup, paper physics left, CRT physics right</p>
+      <div class="dg-compare" id="dg-compare">
+        <div class="dg-compare-pane paper"></div>
+        <div class="dg-compare-pane dark"></div>
+        <div class="dg-compare-divider" aria-hidden="true">
+          <span class="dg-compare-grip">
+            <svg width="14" height="10" viewBox="0 0 14 10" aria-hidden="true"><path d="M5 1 1 5l4 4M9 1l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </span>
+        </div>
+        <input type="range" id="dg-cmp-range" min="4" max="96" value="50" step="0.5"
+               aria-label="Reveal the paper face (left) or the dark face (right)" />
+      </div>
+
+      <!-- The specimen both panes render — IDENTICAL markup; only data-mode differs.
+           Kept in a <template> so it exists exactly once and can't drift per face. -->
+      <template id="dg-cmp-spec">
+        <div class="jk-scanlines"></div>
+        <div class="jk-sheet spec-card">
+          <div class="spec-head">
+            <span class="jk-lab jk-lab-sm">SPECIMEN · SAME MARKUP</span>
+            <span class="jk-pill"><span class="led green sm"></span>LIVE</span>
+          </div>
+          <h3 class="spec-title">Two faces, one system</h3>
+          <p class="spec-copy">Paper presses ink and shadow into kraft stock; the CRT lights
+          phosphor behind glass. Every class in this pane is byte-identical in the other one —
+          the face flips the physics, not the markup.</p>
+          <div class="spec-row">
+            <span class="jk-bubble jk-bubble-primary">BADGE</span>
+            <span class="jk-bubble jk-bubble-secondary">CHIP</span>
+            <span class="jk-press">jk-press</span>
+            <span class="seg spec-seg">18:42</span>
+          </div>
+          <div class="jk-well spec-well">
+            <span class="jk-lab jk-lab-sm">jk-well · boundary</span>
+            <div class="bar-track spec-bar"><div class="bar-fill" style="width:64%"></div></div>
+          </div>
+        </div>
+      </template>
+      <template id="dg-cmp-css">
+        body { margin: 0; padding: 24px; background-color: var(--hub-bg-0);
+               background-image: var(--hub-grain-image); background-size: 160px 160px;
+               background-blend-mode: var(--grain-blend); color: var(--color-ink);
+               font-family: var(--hub-font-sans); font-size: 15px; line-height: 1.5;
+               overflow: hidden; }
+        .spec-card { padding: 20px 22px; }
+        .spec-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+        .spec-title { font-family: var(--hub-font-serif); font-weight: 600; font-size: 1.5rem; margin: 0 0 6px; }
+        .spec-copy { color: var(--color-muted); margin: 0 0 16px; }
+        .spec-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 16px; }
+        .spec-seg { font-size: 1.5rem; }
+        .spec-well { padding: 14px 16px; }
+        .spec-bar { height: 10px; margin-top: 10px; }
+      </template>
+
+      <div class="dg-grid wide" style="margin-top:16px">
+        <div class="dg-block jk-well">
+          <div class="dg-block-lab"><span class="jk-bubble jk-bubble-primary">data-mode="paper"</span></div>
+          <p class="dg-lede" style="margin-top:0">Warm kraft-paper office — tan/cream layers, dark ink, brass hardware, film-grain multiply, burnt-sienna default accent. Accents work as <b>wells and badges</b> — sunk boundaries and raised emphasis (§05).</p>
+        </div>
+        <div class="dg-block jk-well">
+          <div class="dg-block-lab"><span class="jk-bubble jk-bubble-primary">data-mode="dark"</span></div>
+          <p class="dg-lede" style="margin-top:0">CRT amber-phosphor terminal — near-black warm grounds, <code>#ffb000</code> amber, text glow, scanline + vignette veils. Accents <b>emit</b> — halation is the dark face's badge (§08).</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 02 Accent chain ══ -->
+    <section class="dg-sec jk-sheet" id="accent">
+      <div class="dg-sec-head">
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">02</span><span class="label-tape">ACCENT CHAIN</span></div>
+        <h2>The two-accent chain</h2>
+        <p class="dg-lede">
+          Both accents are <b>user-driven and co-equal</b> — a vivid primary and a vivid
+          secondary, never a neutral. Apps supply only a <b>default</b> pair; the live pair
+          is the signed-in user's. From two raw inputs the whole palette derives: paper deepens
+          them toward ink for legibility, dark keeps them raw and adds glow. <b>Never hardcode
+          <code>--accent</code></b> — let it derive; components read the <code>--color-accent*</code> aliases.
+        </p>
+      </div>
+      <p class="dg-caption">Primary family — tracks <code>--accent</code></p>
+      <div class="dg-grid" style="margin-bottom:18px">
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--accent-raw)"></span><code>--accent-raw</code><em>raw input</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--accent)"></span><code>--accent</code><em>derived / per-mode</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-amber-bright)"></span><code>--hub-amber-bright</code><em>lift</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-amber-dim)"></span><code>--hub-amber-dim</code><em>shade</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-amber-deep)"></span><code>--hub-amber-deep</code><em>toward bg</em></div>
+      </div>
+      <p class="dg-caption">Secondary family — tracks <code>--accent-secondary</code></p>
+      <div class="dg-grid">
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--accent-2-raw)"></span><code>--accent-2-raw</code><em>raw input</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--accent-secondary)"></span><code>--accent-secondary</code><em>derived / per-mode</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-cyan-dim)"></span><code>--hub-cyan-dim</code><em>shade</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-cyan-glow)"></span><code>--hub-cyan-glow</code><em>glow</em></div>
+      </div>
+    </section>
+
+    <!-- ══ 03 Neutrals + status ══ -->
+    <section class="dg-sec jk-sheet" id="colour">
+      <div class="dg-sec-head">
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">03</span><span class="label-tape">NEUTRALS · STATUS</span></div>
+        <h2>Neutrals, hardware &amp; status</h2>
+        <p class="dg-lede">
+          Neutrals are the only <b>designed</b> defaults (backgrounds + readable text). They are
+          per-app inputs, but every app keeps the same token <b>names</b>. Status hues are
+          semantic constants — <b>never</b> tinted from the accent.
+        </p>
+      </div>
+
+      <p class="dg-caption">Backgrounds &amp; screen</p>
+      <div class="dg-grid" style="margin-bottom:18px">
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-bg-0)"></span><code>--hub-bg-0</code><em>paper</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-bg-1)"></span><code>--hub-bg-1</code><em>paper-2</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-bg-2)"></span><code>--hub-bg-2</code><em>card</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-bg-3)"></span><code>--hub-bg-3</code><em>card-2</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-screen)"></span><code>--hub-screen</code><em>inner screen</em></div>
+      </div>
+
+      <p class="dg-caption">Hardware metal &amp; lines</p>
+      <div class="dg-grid" style="margin-bottom:18px">
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-metal-0)"></span><code>--hub-metal-0</code><em>metal</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-metal-1)"></span><code>--hub-metal-1</code><em>metal</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-metal-2)"></span><code>--hub-metal-2</code><em>metal</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-line)"></span><code>--hub-line</code><em>border</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-line-bright)"></span><code>--hub-line-bright</code><em>border+</em></div>
+      </div>
+
+      <p class="dg-caption">Text ramp (ink on ground)</p>
+      <div class="dg-grid" style="margin-bottom:18px">
+        <div class="dg-swatch"><span class="dg-chip dg-chip-text" style="color:var(--hub-cream-bright)">Aa</span><code>--hub-cream-bright</code><em>ink</em></div>
+        <div class="dg-swatch"><span class="dg-chip dg-chip-text" style="color:var(--hub-cream)">Aa</span><code>--hub-cream</code><em>muted</em></div>
+        <div class="dg-swatch"><span class="dg-chip dg-chip-text" style="color:var(--hub-cream-dim)">Aa</span><code>--hub-cream-dim</code><em>faint</em></div>
+        <div class="dg-swatch"><span class="dg-chip dg-chip-text" style="color:var(--hub-cream-faint)">Aa</span><code>--hub-cream-faint</code><em>ghost</em></div>
+      </div>
+
+      <p class="dg-caption">Status — semantic constants, one lane</p>
+      <div class="dg-grid">
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-green)"></span><code>--hub-green</code><em>ok</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--color-warn)"></span><code>--color-warn</code><em>warn</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-red)"></span><code>--hub-red</code><em>danger</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-magenta)"></span><code>--hub-magenta</code><em>accent-free</em></div>
+      </div>
+    </section>
+
+    <!-- ══ 04 Typography ══ -->
+    <section class="dg-sec jk-sheet" id="type">
+      <div class="dg-sec-head">
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">04</span><span class="label-tape">TYPE</span></div>
+        <h2>Four type roles</h2>
+        <p class="dg-lede">Data + labels are mono; body is sans; numeric displays are the 7-segment face; a serif is the per-app reading voice. The label idiom is <code>.mono-eyebrow</code> / <code>.jk-lab</code>.</p>
+      </div>
+      <div class="dg-type-row"><div class="dg-type-role">mono<small>IBM Plex Mono</small></div><div class="dg-spec-mono">READOUT 0x1A · labels · hardware tape</div></div>
+      <div class="dg-type-row"><div class="dg-type-role">sans<small>IBM Plex Sans</small></div><div class="dg-spec-sans">The quick brown fox reads the manual.</div></div>
+      <div class="dg-type-row"><div class="dg-type-role">serif<small>Fraunces (per-app)</small></div><div class="dg-spec-serif">Editorial headings &amp; figures</div></div>
+      <div class="dg-type-row"><div class="dg-type-role">seg<small>Big Shoulders Display</small></div><div class="dg-spec-seg">08:42:17</div></div>
+      <div class="dg-row" style="margin-top:22px">
+        <span class="jk-lab">jk-lab · 10px</span>
+        <span class="jk-lab jk-lab-sm">jk-lab-sm · 9px</span>
+        <span class="jk-lab jk-lab-xs">jk-lab-xs · 8px</span>
+        <span class="jk-lab jk-lab-sans">jk-lab-sans</span>
+        <span class="mono-eyebrow">mono-eyebrow</span>
+      </div>
+    </section>
+
+    <!-- ══ 05 Accent bubbles ══ -->
+    <section class="dg-sec jk-sheet" id="bubbles">
+      <div class="dg-sec-head">
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">05</span><span class="label-tape">WELLS · BADGES</span></div>
+        <h2>Wells &amp; badges — the paper accent language</h2>
+        <p class="dg-lede">
+          Paper mode has exactly <b>two physical accent moves</b>. The <b>well</b> sinks
+          <i>into</i> the sheet — an inner shadow that gives a region depth; wells provide
+          <b>boundaries</b> (contain, group, delimit). The <b>badge</b> sits <i>on</i> the
+          sheet — a raised chip with a drop shadow, put on text and small marks; the badge is
+          paper's <b>emphasis</b>, the exact analogue of dark mode's glow (§08). Primary accent
+          takes the badge treatment; <b>secondary stays flat</b>, one rung down, never raised.
+          In CRT both moves go emissive automatically. Use the <code>@jkos/ui</code> React
+          wrappers (<code>&lt;Press&gt;</code>, <code>&lt;Bubble&gt;</code>, <code>&lt;Sub&gt;</code>,
+          <code>&lt;Well&gt;</code>, <code>&lt;Sheet&gt;</code>, <code>&lt;Pill&gt;</code>,
+          <code>&lt;TButton&gt;</code>) — don't recreate them.
+        </p>
+      </div>
+
+      <p class="dg-caption">The badge — raised emphasis, on text and marks</p>
+      <div class="dg-row" style="margin-bottom:18px">
+        <span class="jk-press">jk-press · badged text</span>
+        <span class="jk-press-lg" style="font-size:1.4rem;font-family:var(--hub-font-serif)">jk-press-lg · display</span>
+        <span class="jk-bubble jk-bubble-primary">PRIMARY</span>
+        <span class="jk-bubble jk-bubble-primary jk-bubble-lg">PRIMARY LG</span>
+        <span class="label-tape">LABEL TAPE</span>
+      </div>
+      <p class="dg-lede" style="margin-top:0;margin-bottom:18px">
+        <code>.label-tape</code> is the badge made <b>physical</b> — an embossed hardware strip
+        for naming a panel, the alternative to an accent badge when the thing labelled is
+        chrome rather than content (§07).
+      </p>
+
+      <p class="dg-caption">The flat secondary — one rung down, never raised</p>
+      <div class="dg-row" style="margin-bottom:18px">
+        <a class="jk-sub-link" href="#">flat secondary link</a>
+        <span class="jk-sub">jk-sub</span>
+        <span class="jk-bubble jk-bubble-secondary">SECONDARY</span>
+        <span class="jk-bubble jk-bubble-secondary jk-bubble-lg">SECONDARY LG</span>
+        <span class="jk-pill"><span class="led green sm"></span>ONLINE</span>
+        <button class="jk-tbtn">Text button</button>
+        <button class="jk-tbtn jk-tbtn-quiet">Quiet</button>
+      </div>
+
+      <p class="dg-caption">The well — sunk boundary, holds a region</p>
+      <div class="dg-grid wide">
+        <div class="dg-block jk-well">
+          <span class="jk-lab jk-lab-sm">jk-well · inset (accent tint)</span>
+          <p style="margin:10px 0 0;color:var(--color-muted)">Debossed into the paper, emissive in CRT. A well <b>contains</b> — it is depth and boundary, not emphasis. Retint with <code>--jk-tint</code>.</p>
+        </div>
+        <div class="dg-block jk-well" style="--jk-tint: var(--hub-magenta)">
+          <span class="jk-lab jk-lab-sm">jk-well · retinted</span>
+          <p style="margin:10px 0 0;color:var(--color-muted)">Same well, <code>--jk-tint: var(--hub-magenta)</code> — a data colour.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 06 Controls ══ -->
+    <section class="dg-sec jk-sheet" id="controls">
+      <div class="dg-sec-head">
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">06</span><span class="label-tape">CONTROLS</span></div>
+        <h2>Toggles, faders &amp; meters</h2>
+        <p class="dg-lede">
+          One rule across the set: a neutral, debossed track that fills with the accent
+          (or <code>--jk-tint</code>) as it engages. React:
+          <code>&lt;Switch&gt;</code>, <code>&lt;Check&gt;</code>, <code>&lt;Slider&gt;</code>,
+          <code>&lt;VU&gt;</code> — all controlled, all on real form/aria hosts, so the
+          platform keeps the keyboard and the state styling keys off the aria attribute.
+        </p>
+      </div>
+      <div class="dg-row" style="gap:28px">
+        <div class="dg-row" style="gap:10px">
+          <button class="jk-switch" aria-checked="true" id="dg-sw"><span class="jk-switch-knob"></span></button>
+          <span class="jk-lab jk-lab-sm">jk-switch</span>
+        </div>
+        <div class="dg-row" style="gap:10px">
+          <button class="jk-check" aria-checked="true" id="dg-ck">✓</button>
+          <span class="jk-lab jk-lab-sm">jk-check</span>
+        </div>
+        <div class="dg-row" style="gap:10px;flex:1;min-width:220px">
+          <div class="jk-vu" style="flex:1;height:26px">
+            <span class="jk-vu-seg on"></span><span class="jk-vu-seg on"></span><span class="jk-vu-seg on"></span>
+            <span class="jk-vu-seg on"></span><span class="jk-vu-seg on"></span><span class="jk-vu-seg on"></span>
+            <span class="jk-vu-seg"></span><span class="jk-vu-seg"></span><span class="jk-vu-seg"></span><span class="jk-vu-seg"></span>
+          </div>
+          <span class="jk-lab jk-lab-sm">jk-vu</span>
+        </div>
+      </div>
+
+      <p class="dg-caption" style="margin-top:26px">jk-slider — the house fader</p>
+      <p class="dg-lede" style="margin-top:0;margin-bottom:14px">
+        The continuous sibling of the switch: a milled metal cap riding a debossed
+        channel that fills behind it. Hosted on a real <code>&lt;input type="range"&gt;</code>
+        — the input box is a full <code>--hub-tap-min</code> tall for the ≥44px hit area
+        while the visible track stays thin. The elapsed fill paints from
+        <code>--jk-slider-fill</code> (a percentage; <code>&lt;Slider&gt;</code> sets it from
+        the value), so a bare class still renders — just unfilled.
+      </p>
+      <div class="dg-grid wide">
+        <div class="dg-block jk-well" style="background:var(--hub-bg-1);box-shadow:none">
+          <span class="jk-lab jk-lab-sm">accent (default)</span>
+          <input class="jk-slider dg-sl" type="range" min="0" max="100" value="62" style="width:100%;--jk-slider-fill:62%" aria-label="Accent slider demo" />
+        </div>
+        <div class="dg-block jk-well" style="background:var(--hub-bg-1);box-shadow:none">
+          <span class="jk-lab jk-lab-sm">retinted · --jk-tint</span>
+          <input class="jk-slider dg-sl" type="range" min="0" max="100" value="35" style="width:100%;--jk-tint:var(--hub-magenta);--jk-slider-fill:35%" aria-label="Retinted slider demo" />
+        </div>
+        <div class="dg-block jk-well" style="background:var(--hub-bg-1);box-shadow:none">
+          <span class="jk-lab jk-lab-sm">disabled</span>
+          <input class="jk-slider" type="range" min="0" max="100" value="48" style="width:100%;--jk-slider-fill:48%" disabled aria-label="Disabled slider demo" />
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 07 Hardware chrome ══ -->
+    <section class="dg-sec jk-sheet" id="chrome">
+      <div class="dg-sec-head">
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">07</span><span class="label-tape">HARDWARE</span></div>
+        <h2>Hardware chrome — scarce punctuation</h2>
+        <p class="dg-lede">
+          The CSS "hardware kit" — reuse these classes, don't invent new chrome, and
+          <b>spend them sparingly</b>: hardware earns importance through scarcity. One LED
+          marks <i>the</i> live thing; put an LED on everything and none of them mean
+          anything. A strip of tape names <i>the</i> important panel. (The v0.1 screws,
+          vents and dymo strips are gone — they were decoration, not information.)
+          There is <b>no icon library</b>: iconography is inline SVG + these primitives.
+        </p>
+      </div>
+      <div class="dg-grid wide">
+        <div class="dg-block jk-well" style="background:var(--hub-bg-1);box-shadow:none">
+          <p class="dg-caption">LEDs — .led · one per live thing</p>
+          <div class="dg-row" style="gap:14px">
+            <span class="led green"></span><span class="led amber"></span><span class="led red"></span><span class="led cyan"></span>
+            <span class="led off"></span><span class="led green lg"></span><span class="led amber sm steady"></span>
+          </div>
+        </div>
+        <div class="dg-block jk-well" style="background:var(--hub-bg-1);box-shadow:none">
+          <p class="dg-caption">Tape &amp; stamp — badges made physical (§05)</p>
+          <div class="dg-row" style="gap:12px">
+            <span class="label-tape">LABEL TAPE</span>
+            <span class="stamp">APPROVED</span>
+          </div>
+        </div>
+        <div class="dg-block jk-well" style="background:var(--hub-bg-1);box-shadow:none">
+          <p class="dg-caption">Grounds — .perf · .canvas-grid</p>
+          <div class="dg-row" style="gap:14px">
+            <span class="perf" style="width:52px;height:32px;border:1px solid var(--hub-line);display:inline-block"></span>
+            <span class="canvas-grid" style="width:52px;height:32px;border:1px solid var(--hub-line);display:inline-block;--hub-grid:10px"></span>
+          </div>
+          <p class="dg-caption" style="margin:10px 0 0">canvas-grid is the workshop/boot ground — the hero plate above sits on it (§09 shows it at scale)</p>
+        </div>
+        <div class="dg-block jk-well" style="background:var(--hub-bg-1);box-shadow:none">
+          <p class="dg-caption">Meters — .bar / .seg</p>
+          <div class="bar-track" style="height:12px;margin-bottom:12px"><div class="bar-fill" style="width:64%"></div></div>
+          <span class="seg" style="font-size:1.8rem">1024 MB</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 08 Glow + halation ══ -->
+    <section class="dg-sec jk-sheet" id="glow">
+      <div class="dg-sec-head">
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">08</span><span class="label-tape">GLOW · HALATION</span></div>
+        <h2>Phosphor glow &amp; halation</h2>
+        <p class="dg-lede">
+          Glow is the <b>dark face's badge</b>: where paper raises a chip off the sheet (§05),
+          the CRT lights the phosphor behind it — same emphasis, opposite physics, same
+          scarcity rules. It is mode-gated and <b>only lights up in dark mode</b>; on paper the
+          same accent renders as the badge/well pair instead. Switch <b>Face → Dark</b> to see
+          these come alive. <code>.jk-halo</code> / <code>.jk-glow</code> collapse to nothing on
+          paper, so one class is correct in both faces.
+        </p>
+      </div>
+      <div class="dg-screen" style="margin-bottom:16px">
+        <div class="jk-scanlines"></div>
+        <div class="dg-row" style="gap:22px;position:relative">
+          <span class="glow" style="font-family:var(--hub-font-mono)">.glow amber</span>
+          <span class="glow-dim" style="font-family:var(--hub-font-mono)">.glow-dim</span>
+          <span class="glow-cyan" style="font-family:var(--hub-font-mono)">.glow-cyan</span>
+          <span class="jk-halo-text" style="font-family:var(--hub-font-seg);font-size:1.6rem;color:var(--hub-amber)">HALO TEXT</span>
+          <span class="jk-bubble jk-bubble-primary jk-halo">HALO SURFACE</span>
+          <span class="jk-glow-text jk-glow-mid" style="--jk-glow-color:var(--hub-cyan);font-family:var(--hub-font-mono);color:var(--hub-cyan)">.jk-glow-text</span>
+        </div>
+      </div>
+      <p class="dg-caption">.jk-glow ladder — one class, three intensities, any <code>--jk-glow-color</code></p>
+      <div class="dg-screen">
+        <div class="jk-scanlines"></div>
+        <div class="dg-row" style="gap:16px;position:relative">
+          <span class="jk-glow jk-glow-low" style="--jk-glow-color:var(--accent);display:inline-block;padding:8px 12px;border:1px solid var(--accent);color:var(--accent);font-family:var(--hub-font-mono);font-size:11px">jk-glow-low</span>
+          <span class="jk-glow jk-glow-mid" style="--jk-glow-color:var(--accent);display:inline-block;padding:8px 12px;border:1px solid var(--accent);color:var(--accent);font-family:var(--hub-font-mono);font-size:11px">jk-glow-mid</span>
+          <span class="jk-glow jk-glow-hi" style="--jk-glow-color:var(--accent);display:inline-block;padding:8px 12px;border:1px solid var(--accent);color:var(--accent);font-family:var(--hub-font-mono);font-size:11px">jk-glow-hi</span>
+          <span class="jk-glow jk-glow-hi" style="--jk-glow-color:var(--hub-magenta);display:inline-block;padding:8px 12px;border:1px solid var(--hub-magenta);color:var(--hub-magenta);font-family:var(--hub-font-mono);font-size:11px">custom colour</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 09 Veils & canvas ══ -->
+    <section class="dg-sec jk-sheet" id="veils">
+      <div class="dg-sec-head">
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">09</span><span class="label-tape">VEILS · CANVAS</span></div>
+        <h2>Atmosphere veils &amp; the canvas</h2>
+        <p class="dg-lede">
+          Absolute overlays that give a surface its air. All four read the suite
+          <code>--crt-*</code> / <code>--hub-scrim*</code> knobs, so <b>one</b> markup is
+          correct in both faces — the scanline and vignette simply fall to nothing on paper.
+          <b>Never</b> bake an overlay opacity into a component; raise the atmosphere through
+          the factory inputs. React: <code>&lt;Scanlines&gt;</code>, <code>&lt;Vignette&gt;</code>,
+          <code>&lt;Scrim&gt;</code>. The host needs <code>position</code>.
+        </p>
+      </div>
+      <div class="dg-grid wide">
+        <div class="dg-stage" style="background:var(--hub-screen);border:1px solid var(--hub-screen-line);border-radius:var(--hub-radius-lg)">
+          <div class="jk-scanlines"></div>
+          <span class="jk-lab jk-lab-sm" style="position:relative">jk-scanlines</span>
+        </div>
+        <div class="dg-stage" style="background:var(--hub-screen);border:1px solid var(--hub-screen-line);border-radius:var(--hub-radius-lg)">
+          <div class="jk-vignette"></div>
+          <span class="jk-lab jk-lab-sm" style="position:relative">jk-vignette</span>
+        </div>
+        <div class="dg-stage" style="background:var(--hub-bg-2);border:1px solid var(--hub-line);border-radius:var(--hub-radius-lg)">
+          <span class="jk-lab jk-lab-sm">under the scrim</span>
+          <div class="jk-scrim"></div>
+          <span class="jk-bubble jk-bubble-primary" style="position:relative;z-index:1">jk-scrim</span>
+        </div>
+        <div class="dg-stage" style="background:var(--hub-bg-2);border:1px solid var(--hub-line);border-radius:var(--hub-radius-lg)">
+          <span class="jk-lab jk-lab-sm">under the heavy scrim</span>
+          <div class="jk-scrim jk-scrim-heavy"></div>
+          <span class="jk-bubble jk-bubble-primary" style="position:relative;z-index:1">jk-scrim-heavy</span>
+        </div>
+      </div>
+
+      <p class="dg-caption" style="margin-top:22px">Canvas — the boot/workshop ground</p>
+      <div class="dg-stage" style="background:var(--hub-bg-1);border:1px solid var(--hub-line);border-radius:var(--hub-radius-lg)">
+        <div class="canvas-grid" style="position:absolute;inset:0"></div>
+        <div class="dg-row" style="position:relative;gap:12px">
+          <span class="canvas-cell boot-sweep" style="padding:10px 14px"><span class="jk-lab jk-lab-sm">canvas-cell</span></span>
+          <span class="canvas-cell boot-sweep" style="padding:10px 14px"><span class="jk-lab jk-lab-sm">.boot-sweep</span></span>
+          <span class="jk-pill"><span class="led green sm now-dot"></span>now-dot · live</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 10 App shell ══ -->
+    <section class="dg-sec jk-sheet" id="shell">
+      <div class="dg-sec-head">
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">10</span><span class="label-tape">APP SHELL</span></div>
+        <h2>The shell frame</h2>
+        <p class="dg-lede">
+          The frame every full-shell app used to hand-write — auth guard → header →
+          settings drawer. <code>@jkos/ui</code> <code>&lt;AppShell&gt;</code> owns it now, so a
+          hand-copy can't drop a step. It is deliberately <b>neutral</b>: the header carries no
+          accent of its own, because the app's content is what should be lit. The wordmark is
+          the per-app serif voice; the settings button is the drawer's only opener.
+        </p>
+      </div>
+      <div class="dg-shell-demo">
+        <div class="jk-shell">
+          <header class="jk-shell-header">
+            <div class="jk-shell-brand">
+              <a class="jk-shell-wordmark" href="#shell">BeigeBoard</a>
+              <span class="mono-eyebrow">workshop</span>
+              <span class="led green sm steady"></span>
+            </div>
+            <button class="jk-shell-settings-btn" aria-label="Settings">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle cx="12" cy="12" r="3.2" stroke="currentColor" stroke-width="1.6" />
+                <path d="M12 2.8v2.6M12 18.6v2.6M21.2 12h-2.6M5.4 12H2.8M18.5 5.5l-1.8 1.8M7.3 16.7l-1.8 1.8M18.5 18.5l-1.8-1.8M7.3 7.3L5.5 5.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+              </svg>
+            </button>
+          </header>
+          <div style="padding:22px 24px">
+            <p class="dg-lede" style="margin:0">App content mounts here — <code>.jk-shell</code> is a flex column, so the view fills the rest.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 11 Media ══ -->
+    <section class="dg-sec jk-sheet" id="media">
+      <div class="dg-sec-head">
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">11</span><span class="label-tape">MEDIA</span></div>
+        <h2>Media grid &amp; covers</h2>
+        <p class="dg-lede">The suite cover grid + tile — <code>@jkos/ui</code> <code>&lt;MediaGrid&gt;</code> / <code>&lt;CoverArt&gt;</code>. Density keys off one token ladder (compact/cozy/comfortable).</p>
+      </div>
+      <div class="dg-media-demo">
+        <p class="dg-caption">jk-media-grid · data-density="cozy"</p>
+        <div class="jk-media-grid" data-density="cozy">
+          <div class="jk-media-cover jk-well jk-media-cover-placeholder"><span>♪</span></div>
+          <div class="jk-media-cover jk-well jk-media-cover-placeholder"><span>◈</span></div>
+          <div class="jk-media-cover jk-well jk-media-cover-placeholder"><span>☰</span></div>
+          <div class="jk-media-cover jk-well jk-media-cover-placeholder"><span>◷</span></div>
+          <div class="jk-media-cover jk-well jk-media-cover-placeholder"><span>✦</span></div>
+          <div class="jk-media-cover jk-well jk-media-cover-placeholder"><span>❖</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 12 Player ══ -->
+    <section class="dg-sec jk-sheet" id="player">
+      <div class="dg-sec-head">
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">12</span><span class="label-tape">PLAYER</span></div>
+        <h2>The player bar</h2>
+        <p class="dg-lede">
+          <code>@jkos/player/ui</code>'s <code>&lt;PlayerBar&gt;</code> — a slotted shell, not a
+          fixed control set: <b>meta · transport · scrubber · actions</b>, three columns on
+          desktop, stacked on mobile. The control <i>set</i> stays the app's (PapyrOS stocks the
+          audiobook vocabulary, KourOS a music one) — only the layout and chrome are shared.
+          The bar is a <b>solid</b> surface with an accent-tinted top rule: an earlier
+          translucent+blur version dissolved into the page and read as "just a circle in a
+          non-intuitive location". The seek control is the same <code>.jk-slider</code> from §06.
+        </p>
+      </div>
+
+      <p class="dg-caption">player-bar — docked bottom in the app; re-anchored here to show it</p>
+      <div class="dg-player" style="margin-bottom:22px">
+        <section class="player-bar" aria-label="Now playing (sample)">
+          <div class="pb-left">
+            <div class="pb-meta">
+              <div class="pb-cover pb-cover-empty" aria-hidden="true">
+                <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+                  <rect x="4" y="4" width="16" height="16" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5" />
+                  <circle cx="12" cy="12" r="3.5" fill="none" stroke="currentColor" stroke-width="1.3" opacity="0.7" />
+                  <circle cx="12" cy="12" r="0.9" fill="currentColor" opacity="0.7" />
+                </svg>
+              </div>
+              <div class="pb-meta-text">
+                <span class="pb-title">The Left Hand of Darkness</span>
+                <span class="pb-sub">Ursula K. Le Guin · Ch. 4</span>
+              </div>
+            </div>
+          </div>
+          <div class="pb-center">
+            <div class="pb-transport">
+              <button class="pb-btn" aria-label="Previous">
+                <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 6v12M19 6l-9 6 9 6z" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" /></svg>
+              </button>
+              <button class="pb-btn pb-btn-primary" aria-label="Play">
+                <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor" /></svg>
+              </button>
+              <button class="pb-btn" aria-label="Next">
+                <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 6v12M5 6l9 6-9 6z" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" /></svg>
+              </button>
+            </div>
+            <div class="pb-scrubber">
+              <span class="pb-time" aria-hidden="true">12:04</span>
+              <div class="pb-range-wrap">
+                <input class="jk-slider dg-sl" type="range" min="0" max="100" value="38" style="--jk-slider-fill:38%" aria-label="Sample seek" />
+                <div class="pb-scrub-ticks" aria-hidden="true">
+                  <span class="pb-scrub-tick" style="left:18%"></span>
+                  <span class="pb-scrub-tick" style="left:44%"></span>
+                  <span class="pb-scrub-tick" style="left:71%"></span>
+                </div>
+              </div>
+              <span class="pb-time" aria-hidden="true">31:47</span>
+            </div>
+          </div>
+          <div class="pb-right">
+            <button class="pb-btn pb-btn-wide"><span class="pb-armed">1.5×</span></button>
+            <button class="pb-btn is-armed" aria-label="Sleep timer">
+              <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a7 7 0 1 0 10.5 10.5z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" /></svg>
+            </button>
+            <button class="pb-btn pb-btn-wide">Queue <span class="pb-count">3</span></button>
+          </div>
+        </section>
+      </div>
+
+      <div class="dg-grid wide">
+        <div>
+          <p class="dg-caption">pb-queue — up-next, drag to reorder</p>
+          <div class="dg-panel" style="padding:8px">
+            <ul class="pb-queue">
+              <li class="pb-q-row is-current">
+                <button class="pb-q-handle" aria-label="Reorder"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg></button>
+                <button class="pb-q-item"><span class="pb-q-index">1</span><span class="pb-q-title">Chapter 4 — The Nineteenth Day</span></button>
+                <button class="pb-q-remove" aria-label="Remove"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+              </li>
+              <li class="pb-q-row is-drop-target">
+                <button class="pb-q-handle" aria-label="Reorder"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg></button>
+                <button class="pb-q-item"><span class="pb-q-index">2</span><span class="pb-q-title">Chapter 5 — The Domestication of Hunch</span></button>
+                <button class="pb-q-remove" aria-label="Remove"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+              </li>
+              <li class="pb-q-row is-dragging">
+                <button class="pb-q-handle" aria-label="Reorder"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg></button>
+                <button class="pb-q-item"><span class="pb-q-index">3</span><span class="pb-q-title">Chapter 6 — One Way into Orgoreyn</span></button>
+                <button class="pb-q-remove" aria-label="Remove"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+              </li>
+            </ul>
+            <p class="dg-caption" style="margin:10px 0 2px">rows: <code>.is-current</code> · <code>.is-drop-target</code> · <code>.is-dragging</code></p>
+          </div>
+        </div>
+
+        <div>
+          <p class="dg-caption">pb-seglist — chapters, listened-fill per row</p>
+          <div class="dg-panel" style="padding:10px">
+            <ul class="pb-seglist">
+              <li><button class="pb-seg-row"><span class="pb-seg-fill" style="width:100%"></span><span class="pb-seg-index">1</span><span class="pb-seg-title">The Parade in Erhenrang</span><span class="pb-seg-time">18:22</span></button></li>
+              <li><button class="pb-seg-row is-current"><span class="pb-seg-fill" style="width:38%"></span><span class="pb-seg-index">2</span><span class="pb-seg-title">The Place Inside the Blizzard</span><span class="pb-seg-time">31:47</span></button></li>
+              <li><button class="pb-seg-row"><span class="pb-seg-fill" style="width:0%"></span><span class="pb-seg-index">3</span><span class="pb-seg-title">The Mad King</span><span class="pb-seg-time">24:05</span></button></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <p class="dg-caption" style="margin-top:22px">pb-popover — the menu framework · pb-error — the playback error strip</p>
+      <div class="dg-grid wide">
+        <div class="dg-player dg-stage" style="background:var(--hub-bg-1);border:1px solid var(--hub-line);min-height:180px;display:flex;align-items:flex-end;justify-content:center">
+          <div class="pb-popover" style="position:relative;bottom:auto;right:auto">
+            <span class="pb-popover-head">Sleep timer</span>
+            <button class="pb-popover-row">15 minutes</button>
+            <button class="pb-popover-row is-active">30 minutes</button>
+            <button class="pb-popover-row">End of chapter</button>
+          </div>
+        </div>
+        <div class="dg-player dg-stage" style="background:var(--hub-bg-1);border:1px solid var(--hub-line);min-height:180px">
+          <div class="pb-popover pb-popover-wide" style="position:relative;bottom:auto;right:auto;margin-bottom:14px">
+            <span class="pb-popover-head">Queue</span>
+            <p class="pb-popover-empty">Nothing up next.</p>
+          </div>
+          <div style="position:relative;padding-top:20px">
+            <div class="pb-error" style="position:relative;bottom:auto" role="alert">Playback blocked — tap play to start audio.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 13 Panels & states ══ -->
+    <section class="dg-sec jk-sheet" id="panels">
+      <div class="dg-sec-head">
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">13</span><span class="label-tape">PANELS · STATES</span></div>
+        <h2>Panels &amp; the async triad</h2>
+        <p class="dg-lede">
+          Every view that loads has the same three off-states — <b>loading, error, empty</b> —
+          and <code>@jkos/ui</code> <code>&lt;AsyncView&gt;</code> is the only place they're
+          spelled. Don't hand-roll a fourth variant with a ternary.
+        </p>
+      </div>
+
+      <p class="dg-caption">jk-async-note / jk-async-error — the AsyncView triad</p>
+      <div class="dg-grid wide" style="margin-bottom:26px">
+        <div class="dg-block jk-well" style="background:var(--hub-bg-1);box-shadow:none">
+          <span class="jk-lab jk-lab-sm">loading</span>
+          <p class="jk-async-note" style="margin:8px 0 0">Loading library…</p>
+        </div>
+        <div class="dg-block jk-well" style="background:var(--hub-bg-1);box-shadow:none">
+          <span class="jk-lab jk-lab-sm">empty</span>
+          <p class="jk-async-note" style="margin:8px 0 0">No books yet — add one to get started.</p>
+        </div>
+        <div class="dg-block jk-well" style="background:var(--hub-bg-1);box-shadow:none">
+          <span class="jk-lab jk-lab-sm">error</span>
+          <p class="jk-async-error" style="margin:8px 0 0">Couldn't reach the library service.</p>
+        </div>
+      </div>
+
+      <p class="dg-caption">jk-match-panel — the search → candidates → apply shape</p>
+      <p class="dg-lede" style="margin-top:0;margin-bottom:12px">
+        <code>&lt;MatchPanel&gt;</code>: pick the right record for a local item. Lifted out of
+        PapyrOS's "Fix metadata" panel so the next consumer reuses it instead of repeating
+        the original single-app mistake.
+      </p>
+      <div class="dg-panel jk-match-panel" style="margin-bottom:26px">
+        <div class="jk-match-head">
+          <span class="jk-lab jk-lab-sm">Fix metadata</span>
+          <button class="jk-tbtn jk-tbtn-quiet">Close</button>
+        </div>
+        <div class="jk-match-search">
+          <input class="jk-match-input" type="text" value="left hand of darkness" aria-label="Search records" />
+          <button class="jk-tbtn">Search</button>
+        </div>
+        <p class="muted jk-match-msg">3 candidates.</p>
+        <ul class="jk-match-candidates">
+          <li class="jk-match-candidate">
+            <div class="jk-match-candidate-cover jk-match-candidate-cover-placeholder"></div>
+            <div class="jk-match-candidate-info">
+              <div class="jk-match-candidate-title">The Left Hand of Darkness</div>
+              <div class="muted jk-match-candidate-meta">Ursula K. Le Guin · 1969 · Ace Books</div>
+              <p class="jk-match-candidate-desc">A lone envoy on the frozen world of Gethen, where inhabitants can change gender.</p>
+            </div>
+            <button class="jk-tbtn jk-match-candidate-apply">Apply</button>
+          </li>
+          <li class="jk-match-candidate">
+            <div class="jk-match-candidate-cover jk-match-candidate-cover-placeholder"></div>
+            <div class="jk-match-candidate-info">
+              <div class="jk-match-candidate-title">The Left Hand of Darkness (50th Anniversary)</div>
+              <div class="muted jk-match-candidate-meta">Ursula K. Le Guin · 2019 · Ace Books</div>
+              <p class="jk-match-candidate-desc">Anniversary edition with an introduction by David Mitchell.</p>
+            </div>
+            <button class="jk-tbtn jk-match-candidate-apply">Apply</button>
+          </li>
+        </ul>
+      </div>
+
+      <p class="dg-caption">jk-cards-* — the @jkos/cards interaction affordances</p>
+      <p class="dg-lede" style="margin-top:0;margin-bottom:12px">
+        The calendar kit carries its own hover/press transitions so they render wherever it
+        mounts (BeigeBoard tabs <b>and</b> ORDECK widgets) instead of depending on a host
+        app.css only one app ships. They are transitions over the host's shape — hover a row,
+        press a button.
+      </p>
+      <div class="dg-panel" style="padding:12px">
+        <div class="jk-cards-row" style="--hover-bg:color-mix(in srgb, var(--accent-secondary) 12%, transparent);display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:var(--hub-radius-sm);cursor:pointer">
+          <span class="led amber sm steady"></span>
+          <span style="flex:1">jk-cards-row — hover me</span>
+          <span class="jk-cards-chip" style="background:var(--accent-secondary);color:var(--color-on-accent);font-family:var(--hub-font-mono);font-size:10px;padding:2px 7px;border-radius:var(--hub-radius-xs)">CHIP</span>
+        </div>
+        <div class="jk-cards-row" style="--hover-bg:color-mix(in srgb, var(--accent-secondary) 12%, transparent);display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:var(--hub-radius-sm);cursor:pointer">
+          <span class="led green sm steady"></span>
+          <span style="flex:1">jk-cards-row — another</span>
+          <span class="jk-cards-chip" style="background:var(--accent);color:var(--color-on-accent);font-family:var(--hub-font-mono);font-size:10px;padding:2px 7px;border-radius:var(--hub-radius-xs)">CHIP</span>
+        </div>
+        <div class="dg-row" style="margin-top:12px">
+          <button class="jk-cards-btn jk-tbtn">jk-cards-btn — press me</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 14 Motion ══ -->
+    <section class="dg-sec jk-sheet" id="motion">
+      <div class="dg-sec-head">
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">14</span><span class="label-tape">MOTION</span></div>
+        <h2>Motion vocabulary</h2>
+        <p class="dg-lede">
+          Ambient hardware effects (LED pulse, occasional flicker) are the house idiom —
+          subtle, opacity-only. Entrances land in ~200–400ms. Adjust CRT intensity via the
+          <code>--crt-*</code> tokens, never by baking overlay opacity into a component.
+          Everything below honours <code>prefers-reduced-motion</code>. <b>Hover a tile</b>
+          (or tap it) and its entrance replays on a loop — with a rest beat between plays,
+          so it demonstrates rather than strobes.
+        </p>
+      </div>
+      <p class="dg-caption">Entrances — one-shot · hover to replay</p>
+      <div class="dg-motion" id="dg-motion">
+        <div class="dg-motion-cell jk-well view-enter" data-anim="view-enter"><code>view-enter</code></div>
+        <div class="dg-motion-cell jk-well panel-enter" data-anim="panel-enter"><code>panel-enter</code></div>
+        <div class="dg-motion-cell jk-well item-in" data-anim="item-in"><code>item-in</code></div>
+        <div class="dg-motion-cell jk-well modal-in" data-anim="modal-in"><code>modal-in</code></div>
+        <div class="dg-motion-cell jk-well boot-sweep" data-anim="boot-sweep"><code>boot-sweep</code></div>
+        <div class="dg-motion-cell jk-well crt-expand" data-anim="crt-expand"><code>crt-expand</code></div>
+        <div class="dg-motion-cell jk-well intro-title" data-anim="intro-title"><code>intro-title</code></div>
+        <div class="dg-motion-cell jk-well check-pop" data-anim="check-pop"><code>check-pop</code></div>
+      </div>
+
+      <p class="dg-caption" style="margin-top:26px">Ambient — continuous</p>
+      <div class="dg-row">
+        <span class="jk-pill"><span class="led green sm"></span>led-pulse (on every .led)</span>
+        <span class="jk-pill"><span class="led amber sm now-dot"></span>now-dot · pulseOpacity</span>
+        <span class="jk-bubble jk-bubble-secondary" style="animation:data-flicker 4s infinite">data-flicker</span>
+        <span class="jk-bubble jk-bubble-secondary" style="animation:blink 1.4s step-end infinite">blink</span>
+      </div>
+      <p class="dg-lede" style="margin-top:16px">
+        <code>.intro-out</code> is <code>intro-title</code>'s partner — the boot screen's fade
+        <i>out</i>, <code>forwards</code>-filled so it stays gone. It's omitted from the grid
+        above for the obvious reason: a correct demo of it is an empty box.
+      </p>
+    </section>
+
+    <!-- ══ 15 The brief ══ -->
+    <section class="dg-sec jk-sheet" id="brief">
+      <div class="dg-sec-head">
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">15</span><span class="label-tape">FOR A DESIGN PASS</span></div>
+        <h2>The fence — elevate inside these lines</h2>
+        <p class="dg-lede">The invariants a design pass must not cross. Push craft on spacing, hierarchy, composition and atmosphere; keep the token names, the two-mode contract and the derivation chain intact.</p>
+      </div>
+      <ul class="dg-specs">
+        <li><b class="dg-yes">DO</b><span>Extend the retro-hardware language — LEDs, tape, stamps, perf, 7-seg, screens — as scarce punctuation.</span></li>
+        <li><b class="dg-yes">DO</b><span>Resolve every colour through the <code>--hub-*</code> / <code>--color-*</code> chain.</span></li>
+        <li><b class="dg-yes">DO</b><span>Reuse the shared classes &amp; <code>@jkos/ui</code> components; make both faces hold up.</span></li>
+        <li><b class="dg-yes">DO</b><span>Accent with the paper pair — wells for boundary, badges for emphasis (glow in CRT).</span></li>
+        <li><b class="dg-yes">DO</b><span>Fade colours with <code>withAlpha()</code>, never hex-concat on a CSS var.</span></li>
+        <li><b class="dg-no">DON'T</b><span>Rename any <code>--hub-*</code> token, or hardcode <code>--accent</code> / a hex in a component.</span></li>
+        <li><b class="dg-no">DON'T</b><span>Use <code>prefers-color-scheme</code> — mode is driven by <code>data-mode</code>.</span></li>
+        <li><b class="dg-no">DON'T</b><span>Scatter hardware chrome decoratively — an LED on everything means nothing is live.</span></li>
+        <li><b class="dg-no">DON'T</b><span>Add an icon library, or normalise the chrome toward flat modern UI.</span></li>
+        <li><b class="dg-no">DON'T</b><span>Restate the derivation or re-set a CRT knob per app — inputs only.</span></li>
+      </ul>
+      <p class="dg-lede" style="margin-top:20px">
+        Full prose reference: <code>Documentation/DESIGN.md</code>. Token source of truth:
+        <code>packages/design/tokens/hub.css</code>. Factory &amp; appliers:
+        <code>packages/design/theme/buildTheme.ts</code> · <code>utils/applyJkOSTheme.ts</code>.
+      </p>
+    </section>
+
+    <div class="dg-foot">
+      <span class="led green sm steady"></span>
+      <span>jkOS DESIGN SYSTEM — rendered by hub.css</span>
+      <span class="dg-deck-spacer"></span>
+      <span>packages/design · Documentation/DESIGN.md</span>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var root = document.documentElement;
+      var SCHEMES = [
+        { id: 'amber-cyan',   label: 'Amber · Cyan',   primary: '#ffb000', secondary: '#4ecdc4' },
+        { id: 'green-violet', label: 'Green · Violet', primary: '#5cd66a', secondary: '#c08aff' },
+        { id: 'ice-coral',    label: 'Ice · Coral',    primary: '#a8d8ff', secondary: '#ff6b5a' },
+        { id: 'gold-mint',    label: 'Gold · Mint',    primary: '#ffd000', secondary: '#5affc1' }
+      ];
+      // Sharp opt-in scale — the per-app/per-card override (soft is the hub
+      // default now; sharp is specified, not assumed). Same seam an app uses.
+      var SHARP = { '--hub-radius':'0px','--hub-radius-xs':'0px','--hub-radius-sm':'0px','--hub-radius-lg':'2px','--hub-radius-soft':'2px','--hub-radius-widget':'0px','--hub-radius-button':'0px' };
+
+      /* ── Mode ── */
+      var modeBox = document.getElementById('dg-mode');
+      function setMode(m) {
+        root.setAttribute('data-mode', m);
+        modeBox.querySelectorAll('button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.mode === m)); });
+      }
+      modeBox.addEventListener('click', function (e) { var b = e.target.closest('button'); if (b) setMode(b.dataset.mode); });
+
+      /* ── Accent ── */
+      var accBox = document.getElementById('dg-accents');
+      var custom = document.getElementById('dg-custom');
+      var cp = document.getElementById('dg-cp'), cs = document.getElementById('dg-cs');
+      function applyAccent(p, s) { root.style.setProperty('--accent-raw', p); root.style.setProperty('--accent-2-raw', s); syncPanes(); }
+      function pressAccent(id) { accBox.querySelectorAll('.dg-accent').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.id === id)); }); }
+      SCHEMES.forEach(function (sc, i) {
+        var b = document.createElement('button');
+        b.className = 'dg-accent'; b.dataset.id = sc.id; b.title = sc.label;
+        b.style.setProperty('--dg-p', sc.primary); b.style.setProperty('--dg-s', sc.secondary);
+        if (i === 0) b.setAttribute('aria-pressed', 'true');
+        b.addEventListener('click', function () { applyAccent(sc.primary, sc.secondary); pressAccent(sc.id); custom.classList.remove('on'); });
+        accBox.appendChild(b);
+      });
+      var cb = document.createElement('button');
+      cb.className = 'dg-accent dg-custom'; cb.dataset.id = 'custom'; cb.title = 'Custom'; cb.textContent = '+';
+      cb.addEventListener('click', function () { custom.classList.toggle('on'); pressAccent('custom'); applyAccent(cp.value, cs.value); });
+      accBox.appendChild(cb);
+      cp.addEventListener('input', function () { applyAccent(cp.value, cs.value); });
+      cs.addEventListener('input', function () { applyAccent(cp.value, cs.value); });
+
+      /* ── Radius — soft is the hub default (no overrides); sharp applies the
+         opt-in scale, exactly as a sharp-cornered app or card would. ── */
+      var radBox = document.getElementById('dg-radius');
+      function setRadius(kind) {
+        radBox.querySelectorAll('button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.radius === kind)); });
+        if (kind === 'sharp') { Object.keys(SHARP).forEach(function (k) { root.style.setProperty(k, SHARP[k]); }); }
+        else { Object.keys(SHARP).forEach(function (k) { root.style.removeProperty(k); }); }
+        syncPanes();
+      }
+      radBox.addEventListener('click', function (e) { var b = e.target.closest('button'); if (b) setRadius(b.dataset.radius); });
+
+      /* ── Demo toggles ── */
+      ['dg-sw', 'dg-ck'].forEach(function (id) {
+        var el = document.getElementById(id);
+        el.addEventListener('click', function () { el.setAttribute('aria-checked', el.getAttribute('aria-checked') === 'true' ? 'false' : 'true'); });
+      });
+
+      /* ── Sliders — repaint the elapsed fill as they move. This is what @jkos/ui
+         <Slider> does from the React value; here it's the same one line by hand. ── */
+      document.querySelectorAll('.dg-sl').forEach(function (sl) {
+        var paint = function () {
+          var min = Number(sl.min || 0), max = Number(sl.max || 100);
+          var pct = max > min ? ((Number(sl.value) - min) / (max - min)) * 100 : 0;
+          sl.style.setProperty('--jk-slider-fill', pct + '%');
+        };
+        sl.addEventListener('input', paint);
+        paint();
+      });
+
+      /* ── Motion — hover a tile and its entrance loops while the pointer stays,
+         with a rest beat between plays so it demonstrates rather than strobes;
+         tap replays once on touch. Replaying = drop the class, force a reflow so
+         the animation is torn down, re-add it (re-adding alone does nothing: the
+         style never changed as far as the engine is concerned). ── */
+      var MOTION_REST_MS = 850;
+      document.querySelectorAll('#dg-motion [data-anim]').forEach(function (cell) {
+        var anim = cell.dataset.anim;
+        var hovering = false;
+        var rest = null;
+        function play() {
+          cell.classList.remove(anim);
+          void cell.offsetWidth;
+          cell.classList.add(anim);
+        }
+        cell.addEventListener('animationend', function () {
+          if (!hovering) return;
+          clearTimeout(rest);
+          rest = setTimeout(function () { if (hovering) play(); }, MOTION_REST_MS);
+        });
+        cell.addEventListener('mouseenter', function () { hovering = true; play(); });
+        cell.addEventListener('mouseleave', function () { hovering = false; clearTimeout(rest); });
+        cell.addEventListener('click', play);
+      });
+
+      /* ── §01 identity compare — build the two face panes. Same-origin srcdoc
+         iframes, because hub.css keys the mode flip off :root[data-mode] — each
+         face needs to BE a document root. Both panes render the IDENTICAL
+         specimen markup from the <template>; the deck's live accent/radius
+         overrides are mirrored in on every change, so the specimen retunes with
+         the controls while the mode stays fixed per pane (the point of the demo). ── */
+      var cmp = document.getElementById('dg-compare');
+      var cmpFrames = [];
+      function syncPanes() {
+        cmpFrames.forEach(function (f) {
+          try { if (f.contentDocument) f.contentDocument.documentElement.style.cssText = root.style.cssText; }
+          catch (err) { /* pane not ready — its load handler syncs */ }
+        });
+      }
+      if (cmp) {
+        var fontsLink = document.querySelector('link[href*="fonts.googleapis.com/css2"]');
+        var hubCss = document.getElementById('hub-tokens').textContent;
+        var specHtml = document.getElementById('dg-cmp-spec').innerHTML;
+        var specCss = document.getElementById('dg-cmp-css').innerHTML;
+        ['paper', 'dark'].forEach(function (mode) {
+          var f = document.createElement('iframe');
+          f.setAttribute('title', 'Design specimen — ' + mode + ' face');
+          f.setAttribute('tabindex', '-1');
+          f.setAttribute('aria-hidden', 'true');
+          f.addEventListener('load', syncPanes);
+          f.srcdoc = '<!doctype html><html data-mode="' + mode + '"><head><meta charset="utf-8">'
+            + (fontsLink ? fontsLink.outerHTML : '')
+            + '<style>' + hubCss + '</style><style>' + specCss + '</style></head><body>'
+            + specHtml + '</body></html>';
+          cmp.querySelector('.dg-compare-pane.' + mode).appendChild(f);
+          cmpFrames.push(f);
+        });
+        var cmpRange = document.getElementById('dg-cmp-range');
+        cmpRange.addEventListener('input', function () { cmp.style.setProperty('--dg-split', cmpRange.value + '%'); });
+      }
+    })();
+  </script>
+</body>
+</html>

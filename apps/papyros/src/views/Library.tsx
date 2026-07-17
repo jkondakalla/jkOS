@@ -1,0 +1,223 @@
+import { useEffect, useMemo, useState } from 'react';
+import { AsyncView, Lab, MediaGrid, TButton, useBreakpoint } from '@jkos/ui';
+import { listBooks, matchAllMissing, rescanLibrary, type Book, type BookFilters } from '../api';
+import { useAuth } from '../hooks/useAuth';
+import BookCard from './library/BookCard';
+import LibraryToolbar, { type GroupMode, type SearchField } from './library/LibraryToolbar';
+import { groupBySeries, sortBooks, STANDALONE_KEY, type SortMode } from './library/format';
+import './library.css';
+
+const SEARCH_DEBOUNCE_MS = 300;
+
+// The real library browser (task 5.2): cover grid, server-driven search/filter over
+// the `books` dataset's title/author/series filters (discovery.js BOOKS_DATASET —
+// title/author are PREFIX matches, series is exact), series grouping, and a
+// client-side sort. Replaces the Wave-5.1 flat title list.
+export default function Library() {
+  const bp = useBreakpoint();
+  const { state } = useAuth();
+  const isAdmin = state.status === 'authenticated' && state.user.role === 'admin';
+
+  const [field, setField] = useState<SearchField>('title');
+  const [query, setQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+  const [seriesFilter, setSeriesFilter] = useState<string | null>(null);
+  const [genreFilter, setGenreFilter] = useState<string | null>(null);
+  const [groupMode, setGroupMode] = useState<GroupMode>('all');
+  const [sortMode, setSortMode] = useState<SortMode>('title');
+
+  const [books, setBooks] = useState<Book[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  // Rescan (admin-only — routes/library.js gates on role). Bumping `reloadKey` is what
+  // re-runs the fetch effect below; a rescan can add/remove rows without any filter
+  // having changed, so it needs its own dependency rather than piggybacking on one.
+  const [reloadKey, setReloadKey] = useState(0);
+  const [rescanning, setRescanning] = useState(false);
+  const [rescanNote, setRescanNote] = useState<string | null>(null);
+  const [matching, setMatching] = useState(false);
+
+  // Debounce the free-text query before it drives a server refetch.
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(query), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  // Server-driven fetch — filters go straight to `listBooks` (the `books` dataset's
+  // declared filters), never a client-side substring pass over an already-fetched list.
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    setError(false);
+
+    const filters: BookFilters = {};
+    const q = debouncedQuery.trim();
+    if (q) filters[field] = q;
+    if (seriesFilter) filters.series = seriesFilter;
+    if (genreFilter) filters.genre = genreFilter;
+
+    listBooks(filters).then(
+      (rows) => {
+        if (!alive) return;
+        setBooks(rows);
+        setLoading(false);
+      },
+      () => {
+        if (!alive) return;
+        setError(true);
+        setLoading(false);
+      },
+    );
+    return () => { alive = false; };
+  }, [field, debouncedQuery, seriesFilter, genreFilter, reloadKey]);
+
+  const sorted = useMemo(() => sortBooks(books, sortMode), [books, sortMode]);
+  const groups = useMemo(() => groupBySeries(sorted), [sorted]);
+
+  // Once a series is pinned via the exact-match filter there's only one series left
+  // in the result set — grouping has nothing left to do, so the grid always renders
+  // flat while a series filter is active, regardless of the toggle's last position.
+  const showGrouped = groupMode === 'series' && !seriesFilter;
+
+  const density = bp === 'mobile' ? 'compact' : bp === 'tablet' ? 'cozy' : 'comfortable';
+  const hasActiveFilter = debouncedQuery.trim().length > 0 || seriesFilter != null || genreFilter != null;
+
+  function pickSeries(series: string) {
+    setSeriesFilter(series);
+  }
+
+  // A genre chip lives on every card in the result set (unlike the series entry
+  // point, which disappears once grouping collapses out — see showGrouped below), so
+  // re-clicking the currently-active genre toggles it off — a second, more discoverable
+  // clear affordance alongside the toolbar's clear-pill (mirrors seriesFilter's dance,
+  // plus this one nicety since the chip stays clickable after the filter is applied).
+  function pickGenre(genre: string) {
+    setGenreFilter((cur) => (cur === genre ? null : genre));
+  }
+
+  async function handleRescan() {
+    setRescanning(true);
+    setRescanNote(null);
+    try {
+      const counts = await rescanLibrary();
+      setRescanNote(`Scanned ${counts.scanned} · ${counts.upserted} updated · ${counts.removed} removed`);
+      setReloadKey((k) => k + 1);
+    } catch {
+      setRescanNote('Rescan failed.');
+    } finally {
+      setRescanning(false);
+    }
+  }
+
+  // The matchAllMissing admin sweep (iTunes enrichment: descriptions/genres/year/
+  // covers for still-`embedded` books). Sequential + throttled server-side, so a run
+  // over a real library takes a few seconds; `truncated` means the per-run cap
+  // stopped early and another click continues the backlog.
+  async function handleMatchAll() {
+    setMatching(true);
+    setRescanNote(null);
+    try {
+      const r = await matchAllMissing();
+      const parts = [`Matched ${r.applied.length} of ${r.examined}`];
+      if (r.review.length) parts.push(`${r.review.length} need review — open a book and use “Fix metadata”`);
+      if (r.truncated) parts.push('more remain, run again');
+      setRescanNote(parts.join(' · '));
+      setReloadKey((k) => k + 1);
+    } catch {
+      setRescanNote('Metadata match failed.');
+    } finally {
+      setMatching(false);
+    }
+  }
+
+  return (
+    <section className="view-library">
+      <div className="lib-heading">
+        <Lab size="sm">Library</Lab>
+        <div className="lib-heading-actions">
+          {!loading && !error && <span className="lib-count">{sorted.length} book{sorted.length === 1 ? '' : 's'}</span>}
+          {isAdmin && (
+            <>
+              <TButton
+                quiet
+                className="lib-rescan"
+                disabled={matching || rescanning}
+                onClick={handleMatchAll}
+                title="Enrich embedded metadata from iTunes (descriptions, genres, covers)"
+              >
+                {matching ? 'Matching…' : 'Match metadata'}
+              </TButton>
+              <TButton
+                quiet
+                className="lib-rescan"
+                disabled={rescanning || matching}
+                onClick={handleRescan}
+              >
+                {rescanning ? 'Rescanning…' : 'Rescan'}
+              </TButton>
+            </>
+          )}
+        </div>
+      </div>
+      {rescanNote && <p className="lib-rescan-note">{rescanNote}</p>}
+
+      <LibraryToolbar
+        field={field}
+        onFieldChange={setField}
+        query={query}
+        onQueryChange={setQuery}
+        groupMode={groupMode}
+        onGroupModeChange={setGroupMode}
+        sortMode={sortMode}
+        onSortModeChange={setSortMode}
+        seriesFilter={seriesFilter}
+        onClearSeriesFilter={() => setSeriesFilter(null)}
+        genreFilter={genreFilter}
+        onClearGenreFilter={() => setGenreFilter(null)}
+        bp={bp}
+      />
+
+      <AsyncView
+        loading={loading}
+        error={error}
+        errorText="Could not load the library. Try again shortly."
+        empty={sorted.length === 0}
+        emptyText={
+          hasActiveFilter
+            ? 'No books match this search.'
+            : isAdmin
+              ? 'No books yet — use Rescan above to walk the library folder.'
+              : 'No books yet — an admin needs to rescan the library.'
+        }
+      >
+        {showGrouped ? (
+          <div className="lib-groups">
+            {groups.map((group) => (
+              <section key={group.key} className="lib-group">
+                <header className="lib-group-header">
+                  {group.key === STANDALONE_KEY ? (
+                    <Lab as="span" size="sm">{group.label} &middot; {group.books.length}</Lab>
+                  ) : (
+                    <button type="button" className="lib-group-title" onClick={() => pickSeries(group.label)}>
+                      <Lab as="span" size="sm">{group.label} &middot; {group.books.length}</Lab>
+                    </button>
+                  )}
+                </header>
+                <MediaGrid density={density} className="lib-grid">
+                  {group.books.map((book) => (
+                    <BookCard key={book.id} book={book} activeGenre={genreFilter} onGenreClick={pickGenre} />
+                  ))}
+                </MediaGrid>
+              </section>
+            ))}
+          </div>
+        ) : (
+          <MediaGrid density={density} className="lib-grid">
+            {sorted.map((book) => <BookCard key={book.id} book={book} />)}
+          </MediaGrid>
+        )}
+      </AsyncView>
+    </section>
+  );
+}

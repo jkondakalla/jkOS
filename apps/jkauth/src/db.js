@@ -198,6 +198,34 @@ const MIGRATIONS = [
     run('UPDATE app_registry SET api_base=?, health_path=?, capabilities_path=?, datasets_path=? WHERE id=?',
       [bb.api_base, bb.health_path, bb.capabilities_path, bb.datasets_path, 'beigeboard'])
   }],
+
+  // LazurOS joins the registry (was registry:false, internal-gateway-only) for the
+  // Weave refactor: a row makes its capability scopes (lazuros:write) role-gated and
+  // lets the portal hydrate its ai/capabilities/datasets metadata. seedAppRegistry
+  // only runs on fresh DBs, so existing DBs need this one INSERT — pulled from the
+  // single source (registrySeed) so it can't drift from the seed/manifest/nginx. Its
+  // origin is '' (no browsable origin); the launcher skips origin-less rows.
+  ['015_lazuros_registry', () => {
+    const lz = registrySeed().find((r) => r.id === 'lazuros')
+    if (lz && !get('SELECT 1 FROM app_registry WHERE id=?', ['lazuros'])) {
+      run(`INSERT INTO app_registry (id, name, origin, icon_url, allowed_roles, api_base, health_path, capabilities_path, datasets_path, ai)
+           VALUES (?,?,?,?,?,?,?,?,?,?)`,
+        [lz.id, lz.name, lz.origin, lz.icon_url, lz.allowed_roles, lz.api_base, lz.health_path, lz.capabilities_path, lz.datasets_path, lz.ai])
+    }
+  }],
+
+  // Multi-user readiness (ARCH-7):
+  //  (7.1) Role-scoped published widgets — a published widget def can restrict which
+  //  roles may SEE it. NULL / '' means "all roles" (the default, so every existing
+  //  published widget stays visible to everyone). A comma list ('admin' or
+  //  'user,admin') is intersected with the requester's role at GET /auth/widgets.
+  //  (7.2) Optimistic-lock version for the preferences blob — bumped on every prefs
+  //  write so two tabs editing different slices (theme vs HUD layout) can't silently
+  //  clobber each other: a stale writer 409s and re-applies onto the fresh blob.
+  ['016_multiuser_readiness', () => {
+    addColumn('widget_registry', 'allowed_roles', 'TEXT')
+    addColumn('users', 'prefs_version', 'INTEGER NOT NULL DEFAULT 0')
+  }],
 ]
 
 function runMigrations() {

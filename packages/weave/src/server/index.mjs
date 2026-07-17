@@ -15,6 +15,16 @@ export const buildItemFilters = server.buildItemFilters
 export const filterSpec = server.filterSpec
 export const coerceWeaveColumn = server.coerceWeaveColumn
 export const weaveServerClient = server.weaveServerClient
+export const defineCollection = server.defineCollection
+export const defineConnector = server.defineConnector
+export const defineLibraryScanner = server.defineLibraryScanner
+export const defineMediaRoutes = server.defineMediaRoutes
+export const decidePlayback = server.decidePlayback
+export const createTriggerEngine = server.createTriggerEngine
+export const resolveBindings = server.resolveBindings
+export const validateTriggerTypes = server.validateTriggerTypes
+export const triggerWebhook = server.triggerWebhook
+export const serverDispatch = server.serverDispatch
 export const CODES = server.CODES
 export const authError = server.authError
 export default server

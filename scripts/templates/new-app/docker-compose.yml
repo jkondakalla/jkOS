@@ -1,0 +1,24 @@
+name: jkos-prod-__ID__
+services:
+  __ID__-app:
+    build:
+      context: ../..
+      dockerfile: apps/__ID__/Dockerfile
+    container_name: __ID__-app
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PORT: "__PORT__"
+      DB_PATH: /data/__DB__
+      STATIC_DIR: /app/dist
+    volumes:
+      - ${__IDUP___DATA_PATH:-/mnt/Luna/Backends/Production/__ID__-data}:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - jkos-internal
+
+networks:
+  jkos-internal:
+    external: true
+    name: jkos-internal

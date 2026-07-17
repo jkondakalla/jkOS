@@ -18,18 +18,14 @@ After editing `packages/*`, run `pnpm install` to re-inject workspace packages i
 
 ## Contract gate
 
-Before pushing: `pnpm test:contracts`. Runs 29 auth assertions + 24 Weave assertions +
-token shape + nginx config check (`gen-nginx-weave.mjs --check`). A failure here means a
-cross-system contract has drifted — fix the source of truth, not the test.
-
-## Smoke tests
-
-```bash
-npm test                                        # jkAuth: 32-assertion in-process smoke test
-node backend/test/import.smoke.mjs              # BeigeBoard: 39-assertion import pipeline test
-```
-
-Run before and after changes to the relevant service.
+Before pushing: `pnpm test:contracts`. One chain covering every hard contract — auth
+contracts + the node↔python bridge, the jkAuth/BeigeBoard/LazurOS/PapyrOS behavioural
+smokes, the weave + lego tests, the write round-trip, seven static conformance checks
+(tokens/nginx/responsive/drag/cards/hud/docker), and the suite prober (fails on `drift`). A
+failure means a cross-system contract has drifted — fix the source of truth, not the test.
+Full anatomy + per-app runners: [TESTING.md](TESTING.md); command catalog:
+[PRIMITIVES.md](PRIMITIVES.md). Post-deploy:
+`pnpm prove --live https://staging.jkos.net` smokes the deployed edge.
 
 ## Docker build model
 
@@ -54,8 +50,15 @@ Root `docker-compose.yml` (`include:` each `apps/<svc>/docker-compose.yml`) is p
 | ordeck-shell | jkos-internal | 80 | jkos.net |
 | jkos-auth | jkos-internal | 3100 | auth.jkos.net |
 | bb-app | jkos-internal | 3001 | beigeboard.jkos.net |
+| papyros-app | jkos-internal | 3010 | papyros.jkos.net (prod pending DNS); `/papyros/` on staging |
 | lazuros | host | 8080 | internal |
 | staging-* + jkos-deploy | nginx-staging-proxy | — | staging.jkos.net |
+
+PapyrOS additionally bind-mounts the read-only audiobook library
+(`/mnt/Luna/Luna/Plex/Audiobooks` on the host — note the nested `Luna/Luna`; the pool-root
+path silently mounts empty) and needs `ffmpeg` in its image (the Dockerfile installs it).
+LazurOS runs `network_mode: host` to broadcast Wake-on-LAN packets; nginx reaches it via
+`host.docker.internal:8080`.
 
 ## Deploy (jkos-deploy)
 
@@ -72,7 +75,9 @@ Both run through `infra/scripts/lib-deploy.sh`. The shared routine:
 3. `docker compose up --build -d`.
 4. `verify_containers` — waits 5s, inspects every container; fails if any is not `running`.
 5. nginx step: **staging only** (`MANAGE_NGINX=1`) and only when `infra/nginx` changed —
-   validates config in a throwaway container, then `docker restart standalone-nginx`.
+   validates config in a throwaway container, then `reload_nginx` (see § Nginx config below;
+   as of commit `4cba7f8` this self-heals a missing bind-mount by recreating the container
+   instead of a bare restart, before falling back to `docker restart standalone-nginx`).
    **Prod deploy always skips nginx** (`MANAGE_NGINX=0`) — standalone-nginx mounts its config
    from the staging checkout; a prod deploy must not restart it with unvalidated config.
 
@@ -81,17 +86,85 @@ Both run through `infra/scripts/lib-deploy.sh`. The shared routine:
 Flip to `main` to restore a merge-gated flow. The controller cannot redeploy itself — it runs
 as an isolated Compose project; rebuild it manually from the TrueNAS host.
 
+### Break-glass access (prod-jkAuth outage)
+
+The `/deploy` console is admin-gated by **prod** jkAuth — so if prod jkAuth is down, you
+can't sign in to the one tool that redeploys it (a bootstrap deadlock). Two escape hatches:
+
+- **Break-glass bearer (ARCH-8).** Set `BREAK_GLASS_TOKEN` in the controller's TrueNAS-side
+  env (never the repo — `openssl rand -hex 32`). While jkAuth is *unreachable*, the console
+  accepts `Authorization: Bearer <token>` as admin on any gated route; every use logs a
+  `[SECURITY] BREAK-GLASS …` line to `/var/log/jkos-deploy/last.log`. It is **inert whenever
+  jkAuth answers** (`jkauth_reachable()` re-checks live), so a leaked token can't bypass live
+  SSO. Example:
+  `curl -X POST -H "Authorization: Bearer $BREAK_GLASS_TOKEN" https://staging.jkos.net/deploy/staging/sync`
+  Leave `BREAK_GLASS_TOKEN` unset to disable the fallback entirely.
+- **Nginx edge gate.** The `auth_request` block in `standalone.conf` *also* fails closed on a
+  jkAuth outage. The break-glass bearer is checked by the controller *behind* that gate, so if
+  the edge `auth_request` is what's blocking you, hit the container directly on the TrueNAS host
+  (`docker exec` / the mapped container port) rather than through the public edge.
+
 ## Nginx config
 
-`standalone.conf` is the main config. `weave-proxy.conf` (peer proxy blocks) and
-`weave-proxy-staging.conf` (admin-gated peer proxy) are **generated** — do not hand-edit them:
+`standalone.conf` is the only **hand-written** config. Four files are **generated** by
+`infra/nginx/gen-nginx-weave.mjs` from `@jkos/suite-manifest` — never hand-edit any of them:
+
+| File | Role |
+|------|------|
+| `weave-proxy.conf` | Prod same-origin peer-proxy include (`/api/<peer>/*`, `/health/<peer>`), NOT admin-gated — each backend enforces its own JWT. |
+| `weave-proxy-staging.conf` | The same peer locations, admin-gated (`auth_request`), pointed at `staging-<container>` upstreams. |
+| `apps-generated.conf` | Prod origin server blocks for apps that opt into `edge:'standard'` (the `pnpm new-app` scaffolder sets it). Empty (header only) until the first such app. |
+| `apps-generated-staging.conf` | The staging admin-gated `location /<id>/` twin of the above. |
 
 ```bash
-node infra/nginx/gen-nginx-weave.mjs          # regenerate both files
-node infra/nginx/gen-nginx-weave.mjs --check  # CI: exit 1 if out of sync
+node infra/nginx/gen-nginx-weave.mjs          # regenerate all four files
+node infra/nginx/gen-nginx-weave.mjs --check  # CI: exit 1 if any is out of sync
 ```
 
-After any nginx config change, **restart** nginx (don't reload — see gotchas below).
+All four are file bind-mounts declared in `infra/nginx/docker-compose.yml` (alongside
+`standalone.conf`), so they must be mounted before `standalone.conf` can `include` them.
+
+### Recreate, don't (bare) restart
+
+`standalone.conf` and its four generated includes are all **file bind-mounts**, which pins
+an inode at container-create time. That has two consequences:
+
+- `nginx -s reload` re-reads the **stale, pre-`git reset` inode** — it is a no-op after a
+  deploy's `git reset --hard` and must never be relied on to pick up new config.
+- `docker restart standalone-nginx` DOES re-resolve every already-mounted inode to its
+  current on-disk content — but it **cannot add a bind-mount that wasn't in the container's
+  create-time spec**. If the freshly-checked-out `standalone.conf` now `include`s a
+  generated `.conf` file the *running* container was never started with a mount for, a bare
+  restart loads a config referencing a missing file and nginx fails to start with
+  `[emerg] open() failed (...)` — taking every prod **and** staging site behind the edge
+  down at once.
+
+  The fix is to **recreate**, not restart:
+
+  ```bash
+  cd /mnt/Luna/Webhost/jkOS-staging/infra/nginx && docker compose up -d
+  ```
+
+  `docker compose up -d` reconciles the container's mounts against the checked-out
+  `docker-compose.yml`, adding any new bind-mount, then starts it — the one operation that
+  can add a mount `restart` cannot.
+
+- `reload_nginx()` in `infra/scripts/lib-deploy.sh` (the deploy pipeline's nginx step, used
+  by both the "Deploy Staging" and staging-owned nginx changes) now **self-heals exactly
+  this** as of commit `4cba7f8`: before touching the running container it diffs every
+  `include` path `standalone.conf` declares against what the live `standalone-nginx`
+  container actually has mounted; if anything is missing it recreates the container via
+  `docker compose up -d` against `infra/nginx/docker-compose.yml` (re-verifying afterward),
+  and only falls back to a plain `docker restart standalone-nginx` when nothing was missing.
+  So the deploy pipeline no longer needs a human to notice and recreate manually — but a
+  manual, ad-hoc `docker restart standalone-nginx` run outside the pipeline still carries the
+  full risk above and should be treated as unsafe whenever the mounted conf set might have
+  drifted.
+
+  **This happened for real on 2026-07-09**: the live `standalone-nginx` container predated
+  the `apps-generated*.conf` bind-mounts, so `/papyros` silently fell through to the ORDECK
+  portal's `location /` instead of PapyrOS's subpath — a routing/mount-drift bug, not a
+  code bug, and the reason `reload_nginx`'s self-heal exists.
 
 ## Staging
 
@@ -101,6 +174,11 @@ staging ORDECK. Paths: `/auth/`, `/beigeboard/`, `/deploy/`.
 The shell is built with `VITE_JKOS_AUTH_URL=https://staging.jkos.net` (same-origin auth).
 Admin gate: every location runs `auth_request` → prod `jkos-auth /auth/require-admin`. Prod
 must be healthy before staging's gated routes work.
+
+Because of that gate, an **unauthenticated** `pnpm prove --live https://staging.jkos.net`
+reports `drift` on every app's health/capabilities checks (302 → prod login) — this is
+expected staging behaviour, not a regression. Re-run with `--token <admin jwt>` (or
+`PROBE_TOKEN=`) for a clean signal.
 
 ---
 
@@ -136,6 +214,12 @@ done
 mkdir -p /mnt/Luna/Backends/Production/nginx-logs
 ```
 
+The five core services above are the from-zero baseline. **Additional apps** (PapyrOS,
+LazurOS) get their `<id>-data` dir created on first deploy — `lib-deploy.sh` self-heals a
+missing per-app data dir and `.env`. PapyrOS also needs the read-only audiobook library
+mounted (`AUDIOBOOKS_DIR`, see its `docker-compose*.yml`); LazurOS needs a mounted
+`deployment.json` before it can serve (ToDo §1).
+
 **RS256 keypair** — generate once. Private key goes in jkAuth only.
 
 ```bash
@@ -164,8 +248,10 @@ Copy `.env.example` → `.env` in each app. Key required vars:
 | Service | File | Key vars |
 |---------|------|----------|
 | jkAuth | `apps/jkauth/.env` | `JKOS_AUTH_PRIVATE_KEY`, `JKOS_AUTH_PUBLIC_KEY`, `COOKIE_DOMAIN`, `AUTH_ORIGIN`, `PORTAL_URL`, `GOOGLE_CLIENT_ID/SECRET/REDIRECT_URI`, `ADMIN_SEED_EMAIL/PASSWORD` |
-| BeigeBoard | `apps/beigeboard/.env` | `JKOS_AUTH_PUBLIC_KEY`, `GOOGLE_CLIENT_ID/SECRET/REDIRECT_URI`, `LAZUROS_URL`, `LAZUROS_TOKEN`, `CALENDAR_ENC_KEY` |
+| BeigeBoard | `apps/beigeboard/.env` | `JKOS_AUTH_PUBLIC_KEY`, `GOOGLE_CLIENT_ID/SECRET/REDIRECT_URI`, `CALENDAR_ENC_KEY` (no AI keys — BB does not call a model; LazurOS writes INTO it) |
 | ORDECK | `apps/ordeck/.env` | build-time `VITE_JKOS_AUTH_URL` (prod default baked in) |
+| PapyrOS | `apps/papyros/.env` | `JKOS_AUTH_PUBLIC_KEY`, `AUDIOBOOKS_DIR` (`/audiobooks` in-container), `PAPYROS_AUTO_ENRICH`/`PAPYROS_AUTO_COMPAT` toggles |
+| LazurOS | `apps/lazuros/.env` | `JKOS_AUTH_PUBLIC_KEY`, `LAZUROS_INTERNAL_TOKEN`, `LAZUROS_DEPLOYMENT_CONFIG` (the mounted `deployment.json`), `JKOS_SERVICE_CLIENT_ID/SECRET` for delegated write-back. **Not a stack service** — host-network compose project of its own; see [LAZUROS_STARTUP.md](LAZUROS_STARTUP.md) |
 
 Staging reads the same `.env` files; staging-specific overrides come from
 `docker-compose.staging.yml`. Copy to the staging checkout after filling in prod values:
@@ -177,8 +263,17 @@ for app in jkauth beigeboard ordeck; do
 done
 ```
 
-`CALENDAR_ENC_KEY`: 64 hex chars → AES-256-GCM for calendar OAuth tokens at rest.
-Generate: `openssl rand -hex 32`. Without it, tokens are stored plaintext (safe no-op).
+`CALENDAR_ENC_KEY`: 64 hex chars → AES-256-GCM for calendar OAuth refresh tokens and
+the iCloud app-specific password at rest. Generate: `openssl rand -hex 32`.
+
+Key lifecycle (the encryption is prefix-tagged `enc:v1:`, so reads are dual-mode):
+- **Unset:** secrets store as plaintext — safe no-op, unchanged legacy behaviour.
+- **Adding a key** to a running instance is safe: existing plaintext rows lack the
+  `enc:v1:` tag and read back verbatim; new writes encrypt. No migration needed.
+- **Removing or changing the key** after rows were encrypted makes those rows
+  **undecryptable** — the next sync throws and fails. Recovery is to reconnect the
+  affected calendar (the connect flow re-writes the credential under the current key).
+  So treat the key as permanent per instance; to rotate, reconnect calendars after.
 
 ### Start order
 
@@ -218,8 +313,9 @@ curl -sk https://jkos.net/ -o /dev/null -w "%{http_code}\n"
 
 nginx mounts its config from the **staging checkout**
 (`/mnt/Luna/Webhost/jkOS-staging/infra/nginx/standalone.conf`). Edit that copy when
-changing proxy config. Both `weave-proxy.conf` and `weave-proxy-staging.conf` are in the
-same directory; they are generated, not hand-edited.
+changing proxy config. `weave-proxy.conf`, `weave-proxy-staging.conf`, `apps-generated.conf`
+and `apps-generated-staging.conf` are all in the same directory; all four are generated
+(§ Nginx config), never hand-edited.
 
 ## Secrets
 
@@ -231,7 +327,7 @@ reference.
 | `JKOS_AUTH_PRIVATE_KEY` | `apps/jkauth/.env` only | RS256 private key, inline `\n`. Never in any other app. |
 | `JKOS_AUTH_PUBLIC_KEY` | every backend + jkauth | Required by `@jkos/auth-middleware`. |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | jkauth + beigeboard | Separate OAuth apps (different redirect URIs). |
-| `LAZUROS_TOKEN` | lazuros, beigeboard | Shared static bearer for server-to-server LazurOS calls. |
+| `LAZUROS_INTERNAL_TOKEN` | lazuros + each compute-node worker | Bearer for the State node's `/internal` worker API (LAN-only, not edge-exposed). **Not** shared with BeigeBoard — BB holds no LazurOS keys. There is no `LAZUROS_TOKEN` (that var survives only in out-of-scope `apps/sylibos`). |
 | `CALENDAR_ENC_KEY` | `apps/beigeboard/.env` | 64 hex chars → AES-256-GCM encryption of calendar OAuth tokens at rest. Generate: `openssl rand -hex 32`. |
 | `JKOS_SERVICE_CLIENTS` | `apps/jkauth/.env` | `"id:secret:scopeA\|scopeB,..."` — enables `POST /auth/token` (client-credentials). Unset → endpoint disabled. |
 
@@ -267,10 +363,14 @@ for every location block.
 
 ### nginx config bind-mount inode pinning
 
-`standalone.conf` is a single-file bind mount. `git reset --hard` replaces the inode;
-`nginx -s reload` re-reads the old (stale) inode. Always `docker restart standalone-nginx`
-when the config changes. The deploy controller handles this automatically on staging deploys
-where `infra/nginx` changed; prod deploys skip nginx entirely.
+`standalone.conf` and its four generated includes are file bind mounts. `git reset --hard`
+replaces the inode; `nginx -s reload` re-reads the old (stale) inode — never relied on. A
+bare `docker restart standalone-nginx` refreshes already-mounted inodes but **cannot add a
+new bind-mount**, so it's only safe when the mounted conf set hasn't changed; otherwise
+RECREATE (`cd infra/nginx && docker compose up -d`). Full anatomy, the self-healing
+`reload_nginx()`, and the 2026-07-09 incident it fixed: § Nginx config above. The deploy
+controller runs this automatically on staging deploys where `infra/nginx` changed; prod
+deploys skip nginx entirely.
 
 ### git on TrueNAS — mode-bit / lock failures
 

@@ -61,11 +61,9 @@ export const PATHWAYS = [
   // ── Weave (the fabric the sixth app rides) ────────────────────────────────────
   { system: 'weave', id: 'discover-apps', method: 'fn', path: 'useSuiteApps()', helper: 'useSuiteApps', kind: 'discovery' },
   { system: 'weave', id: 'list', method: 'fn', path: "weaveClient(app).list()", helper: 'weaveClient', kind: 'read' },
-  { system: 'weave', id: 'useWeaveList', method: 'fn', path: 'useWeaveList(app, ds, filters)', helper: 'useWeaveList', kind: 'read',
-    gap: "invalidateOn is caller-supplied; nothing enforces the dataset's invalidates key, the capability's invalidates key, and the widget's subscription agree" },
+  { system: 'weave', id: 'useWeaveList', method: 'fn', path: 'useWeaveList(app, ds, filters)', helper: 'useWeaveList', kind: 'read' },
   { system: 'weave', id: 'command', method: 'fn', path: "weaveClient(app).command()", helper: 'runCommand', kind: 'write' },
-  { system: 'weave', id: 'server-client', method: 'fn', path: 'weaveServerClient(app)', helper: 'weaveServerClient', kind: 'write',
-    gap: 'service-token writes return NO_USER_CONTEXT — the on-behalf-of delegation seam is unbuilt, so backend→peer per-user writes are architecturally blocked' },
+  { system: 'weave', id: 'server-client', method: 'fn', path: 'weaveServerClient(app, { actingUser })', helper: 'weaveServerClient', kind: 'write' },
   { system: 'weave', id: 'docshape', method: 'fn', path: 'checkDocShape()', helper: 'checkDocShape', kind: 'contract' },
 
   // ── ORDECK ────────────────────────────────────────────────────────────────────

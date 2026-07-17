@@ -5,6 +5,15 @@ export const FONT_HEAD = 'var(--hub-font-serif)'   // Fraunces (serif headers)
 export const FONT_BODY = 'var(--hub-font-sans)'    // IBM Plex Sans
 export const FONT_NUM  = 'var(--hub-font-serif)'   // Fraunces (serif figures)
 
+// Date/time + grid math is single-sourced in @jkos/cards (the calendar card kit);
+// re-exported here so existing BeigeBoard imports keep working without a second,
+// drifting copy. BeigeBoard-only formatters that build on these stay below.
+export {
+  isoDate, localDate, addDays, weekStart,
+  fmtTime, timeToFrac, fmtHourLabel, fmtWeekday, fmtFull,
+} from '@jkos/cards'
+import { localDate } from '@jkos/cards'
+
 export const TASK_COLORS = [
   { id: 'rust',  label: 'Rust',  hex: '#B05040' },
   { id: 'amber', label: 'Amber', hex: '#A07828' },
@@ -26,47 +35,8 @@ export const SOURCES: Record<string, { label: string; hex: string }> = {
 
 export const sourceOf = (id: string) => SOURCES[id] || { label: 'Source', hex: '#7A6050' }
 
-export function isoDate(d: Date): string {
-  const z = new Date(d)
-  const y = z.getFullYear()
-  const m = String(z.getMonth() + 1).padStart(2, '0')
-  const day = String(z.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
-}
-
-export const localDate     = (iso: string) => new Date(iso + 'T00:00:00')
-export const fmtWeekday    = (iso: string) => localDate(iso).toLocaleDateString('en-US', { weekday: 'short' })
-export const fmtWeekdayLong= (iso: string) => localDate(iso).toLocaleDateString('en-US', { weekday: 'long' })
-export const fmtFull       = (iso: string) => localDate(iso).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
-export const fmtMonthDay   = (iso: string) => localDate(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-
-export const fmtTime = (t: string) => {
-  if (!t) return ''
-  const [h, m] = t.split(':')
-  const hour = parseInt(h, 10)
-  return `${hour % 12 || 12}:${m} ${hour < 12 ? 'AM' : 'PM'}`
-}
-
-export const timeToFrac = (t: string) => {
-  const [h, m] = t.split(':').map(Number)
-  return h + m / 60
-}
-
-export const fmtHourLabel = (h: number) =>
-  h === 0 ? '12 AM' : h === 12 ? '12 PM' : h < 12 ? `${h} AM` : `${h - 12} PM`
-
-export const addDays = (iso: string, n: number) => {
-  const d = localDate(iso)
-  d.setDate(d.getDate() + n)
-  return isoDate(d)
-}
-
-export const weekStart = (iso: string) => {
-  const d = localDate(iso)
-  const dow = (d.getDay() + 6) % 7
-  d.setDate(d.getDate() - dow)
-  return isoDate(d)
-}
+// BeigeBoard-only formatters layered on the shared localDate.
+export const fmtMonthDay = (iso: string) => localDate(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 
 export function getGreeting() {
   const h = new Date().getHours()

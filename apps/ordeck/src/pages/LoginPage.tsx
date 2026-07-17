@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react';
 import { useEffect, useState } from 'react';
-import { Led, Screw, Vent } from '../components/hardware';
+import { Led } from '../components/hardware';
 import { useAuth } from '../hooks/useAuth';
 
 // ─── LoginPage ────────────────────────────────────────────────────────────────
@@ -26,12 +26,6 @@ export default function LoginPage() {
   return (
     <div style={styles.root}>
       <div style={{ ...styles.panel, opacity: visible ? 1 : 0, transition: 'opacity 0.5s ease' }}>
-        {/* Corner screws */}
-        <Screw rot={15}  style={styles.screwTL} />
-        <Screw rot={-22} style={styles.screwTR} />
-        <Screw rot={62}  style={styles.screwBL} />
-        <Screw rot={-48} style={styles.screwBR} />
-
         {/* Header row */}
         <div style={styles.headerRow}>
           <Led color="amber" steady style={{ marginRight: 8 }} />
@@ -47,12 +41,8 @@ export default function LoginPage() {
         {/* Subtitle */}
         <div style={styles.subtitle}>// AUTHENTICATION REQUIRED</div>
 
-        {/* Vent separator */}
-        <div style={styles.ventRow}>
-          <Vent slats={3} width={48} />
-          <div style={styles.ventLine} />
-          <Vent slats={3} width={48} />
-        </div>
+        {/* Separator */}
+        <div style={{ ...styles.divider, marginBottom: 24 }} />
 
         {/* Error display */}
         {errorMsg && (
@@ -86,10 +76,10 @@ function GoogleSignInButton({ onClick }: { onClick: () => void }) {
       onMouseLeave={() => setHovered(false)}
       style={{
         ...styles.button,
-        background:  hovered ? 'rgba(255,176,0,0.10)' : 'transparent',
-        color:       hovered ? 'var(--hub-amber)' : 'var(--hub-cream-dim, #b8a882)',
+        background:  hovered ? 'color-mix(in srgb, var(--hub-amber) 10%, transparent)' : 'transparent',
+        color:       hovered ? 'var(--hub-amber)' : 'var(--hub-cream-dim)',
         borderColor: hovered ? 'var(--hub-amber)' : 'var(--hub-line-strong)',
-        boxShadow:   hovered ? '0 0 12px var(--hub-amber-glow), inset 0 0 6px rgba(255,176,0,0.06)' : 'none',
+        boxShadow:   hovered ? '0 0 12px var(--hub-amber-glow), inset 0 0 6px color-mix(in srgb, var(--hub-amber) 6%, transparent)' : 'none',
       }}
     >
       <GoogleIcon style={{ marginRight: 10, opacity: hovered ? 1 : 0.6 }} />
@@ -132,8 +122,6 @@ function errorLabel(code: string): string {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-const screwBase: CSSProperties = { position: 'absolute' };
-
 const styles: Record<string, CSSProperties> = {
   root: {
     position:       'fixed',
@@ -158,11 +146,6 @@ const styles: Record<string, CSSProperties> = {
     gap:        0,
   },
 
-  screwTL: { ...screwBase, top: 6, left: 6 },
-  screwTR: { ...screwBase, top: 6, right: 6 },
-  screwBL: { ...screwBase, bottom: 6, left: 6 },
-  screwBR: { ...screwBase, bottom: 6, right: 6 },
-
   headerRow: {
     display:    'flex',
     alignItems: 'center',
@@ -173,7 +156,7 @@ const styles: Record<string, CSSProperties> = {
   eyebrow: {
     fontSize:      9,
     letterSpacing: '0.22em',
-    color:         'var(--hub-cream-dim, #b8a882)',
+    color:         'var(--hub-cream-dim)',
     textTransform: 'uppercase',
   },
 
@@ -196,29 +179,14 @@ const styles: Record<string, CSSProperties> = {
   subtitle: {
     fontSize:      10,
     letterSpacing: '0.2em',
-    color:         'var(--hub-cream-dim, #b8a882)',
+    color:         'var(--hub-cream-dim)',
     marginBottom:  24,
-  },
-
-  ventRow: {
-    display:    'flex',
-    alignItems: 'center',
-    width:      '100%',
-    marginBottom: 24,
-    gap:        0,
-  },
-
-  ventLine: {
-    flex:       1,
-    height:     1,
-    background: 'var(--hub-line)',
-    margin:     '0 8px',
   },
 
   errorBox: {
     width:        '100%',
-    background:   'rgba(180,30,20,0.12)',
-    border:       '1px solid rgba(200,60,50,0.4)',
+    background:   'var(--hub-red-soft)',
+    border:       '1px solid color-mix(in srgb, var(--hub-red) 40%, transparent)',
     padding:      '8px 12px',
     marginBottom: 16,
     display:      'flex',
@@ -229,7 +197,7 @@ const styles: Record<string, CSSProperties> = {
   errorLabel: {
     fontSize:      9,
     letterSpacing: '0.2em',
-    color:         'var(--hub-red, #e03030)',
+    color:         'var(--hub-red)',
     fontWeight:    700,
     flexShrink:    0,
     paddingTop:    1,
@@ -237,7 +205,7 @@ const styles: Record<string, CSSProperties> = {
 
   errorText: {
     fontSize:   11,
-    color:      'var(--hub-cream-dim, #b8a882)',
+    color:      'var(--hub-cream-dim)',
     lineHeight: 1.5,
   },
 

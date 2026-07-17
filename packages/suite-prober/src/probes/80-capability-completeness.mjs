@@ -17,6 +17,16 @@
  * All findings are gap/ok (never drift): these are completeness opportunities a new app
  * trips on, not contradictions between sources that already claim to agree.
  */
+/** Normalize a capability's declared I/O across the two doc dialects in the suite:
+ *  the Layer-A canonical shape (`body`/`returns` as arrays of {name,type} fields —
+ *  BeigeBoard) and the map dialect (`fields` array with `id` keys + `returns` as a
+ *  name→type object — LazurOS). Both are typed; only the spelling differs. */
+function normalizeFields(v) {
+  if (Array.isArray(v)) return v.map((f) => ({ name: f.name ?? f.id, type: f.type }));
+  if (v && typeof v === 'object') return Object.entries(v).map(([name, type]) => ({ name, type }));
+  return [];
+}
+
 export default {
   id: 'capability-completeness',
   title: 'Primitive I/O contract — typed returns, json escapes, single-source filters',
@@ -27,14 +37,25 @@ export default {
       // Only inspectable when the docs are exported as data (real objects, not scraped).
       if (!docs || (!docs.capabilities && !docs.datasets)) continue;
 
+      const mapDialect = (docs.capabilities || []).some((c) => c.returns && !Array.isArray(c.returns));
+      if (mapDialect) {
+        out.push({
+          level: 'consolidate',
+          msg: `'${app.id}' declares capabilities in the map dialect (\`fields\` + \`returns: {name: type}\`) while the Layer-A canonical shape is \`body\`/\`returns\` field arrays — same information, second spelling; collapse when its doc next changes`,
+          where: [docs.file],
+        });
+      }
+
       for (const c of docs.capabilities || []) {
         const label = `${app.id}.${c.id}`;
-        if (Array.isArray(c.returns) && c.returns.length) {
-          out.push({ level: 'ok', msg: `${label}: declares a typed \`returns\` (${c.returns.length} field${c.returns.length > 1 ? 's' : ''}) — its output can be wired onward`, where: [docs.file] });
+        const returns = normalizeFields(c.returns);
+        const body = normalizeFields(c.body ?? c.fields);
+        if (returns.length) {
+          out.push({ level: 'ok', msg: `${label}: declares a typed \`returns\` (${returns.length} field${returns.length > 1 ? 's' : ''}) — its output can be wired onward`, where: [docs.file] });
         } else {
           out.push({ level: 'gap', msg: `${label}: no typed \`returns\` — declares its INPUT but not its OUTPUT, so a GUI/AI can't wire its result into the next lego`, where: [docs.file] });
         }
-        const jsonFields = [...(c.body || []), ...(c.returns || [])].filter((f) => f.type === 'json').map((f) => f.name);
+        const jsonFields = [...body, ...returns].filter((f) => f.type === 'json').map((f) => f.name);
         if (jsonFields.length) {
           out.push({ level: 'gap', msg: `${label}: uses the \`json\` escape hatch (${jsonFields.join(', ')}) — an opaque blob a GUI/AI can't snap a stud onto; not fully lego-typed`, where: [docs.file] });
         }

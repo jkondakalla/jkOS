@@ -1,0 +1,29 @@
+/* The suite design tokens + primitive styles (jk-sheet, jk-press, jk-tbtn, …) come
+   from @jkos/design's hub.css. injectJkOSTheme() (App.tsx) emits this app's INPUT
+   tokens (accent/fonts/radius); the derivations live in this stylesheet. */
+@import "@jkos/design/tokens.css";
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: var(--hub-font-sans, system-ui, sans-serif);
+  background: var(--hub-bg, #f4f1ea);
+  color: var(--hub-ink, #2b2b2b);
+}
+
+.app {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 4rem;
+}
+.app-header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 1.5rem; }
+.add-row { display: flex; gap: 0.5rem; margin-bottom: 1.25rem; }
+.add-row input {
+  flex: 1; padding: 0.55rem 0.7rem; font: inherit;
+  border: 1px solid var(--hub-line, #d8d2c4); border-radius: var(--hub-radius-button, 6px);
+  background: var(--hub-surface, #fff); color: inherit;
+}
+.item { display: flex; align-items: center; gap: 0.6rem; padding: 0.6rem 0.8rem; margin-bottom: 0.5rem; }
+.item.done .item-title { opacity: 0.55; text-decoration: line-through; }
+.item-title { flex: 1; cursor: pointer; }
+.empty { opacity: 0.6; padding: 2rem 0; text-align: center; }

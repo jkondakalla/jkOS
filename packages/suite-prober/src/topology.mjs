@@ -98,14 +98,17 @@ function loadBackendDocs() {
     if (row.module && row.exported) {
       // The C3 payoff: require the REAL declarations instead of scraping. Pure-data
       // module (zero side effects) so this is safe in a checkout with no deployment.
+      // Apps name the exports CAPABILITIES/DATASETS (BB) or *_DOC (lazuros) — accept both.
       const mod = require(join(REPO_ROOT, row.module));
-      const caps = mod.CAPABILITIES?.capabilities || [];
-      const dsets = mod.DATASETS?.datasets || [];
+      const capDoc = mod.CAPABILITIES ?? mod.CAPABILITIES_DOC;
+      const dsDoc = mod.DATASETS ?? mod.DATASETS_DOC;
+      const caps = capDoc?.capabilities || [];
+      const dsets = dsDoc?.datasets || [];
       return {
         app: row.app,
         file: row.module,
         exported: true,
-        declaredApp: [...new Set([mod.CAPABILITIES?.app, mod.DATASETS?.app].filter(Boolean))],
+        declaredApp: [...new Set([capDoc?.app, dsDoc?.app].filter(Boolean))],
         invalidateKeys: [...new Set([
           ...caps.flatMap((c) => c.invalidates || []),
           ...dsets.flatMap((d) => d.invalidates || []),

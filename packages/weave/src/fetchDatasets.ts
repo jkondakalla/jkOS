@@ -7,7 +7,7 @@
  * permanently disable a reader.
  */
 
-import { suiteApp } from './manifest';
+import { suiteApp, type AppId } from './manifest';
 import type { DatasetDoc, DatasetDef } from './dataset';
 import { isValidDoc } from './shared/docShape.js';
 
@@ -15,7 +15,7 @@ const cache = new Map<string, Promise<DatasetDoc | null>>();
 
 /** The app's DatasetDoc, or null if it declares none / is unreachable. Cached;
  *  pass force to re-fetch. */
-export function fetchDatasets(appId: string, force = false): Promise<DatasetDoc | null> {
+export function fetchDatasets(appId: AppId, force = false): Promise<DatasetDoc | null> {
   if (!force && cache.has(appId)) return cache.get(appId)!;
   const p = (async (): Promise<DatasetDoc | null> => {
     const path = suiteApp(appId)?.datasetsPath;

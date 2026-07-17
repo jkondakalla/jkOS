@@ -35,11 +35,13 @@ import { dirname, join } from 'node:path'
 // Single source: the same APPS table the jkAuth registry seed + Weave manifest derive
 // from (ToDo A2). Relative path, not the bare specifier — this script is run from the
 // repo root (`node infra/nginx/...`), where @jkos/* is not resolvable. CJS via interop.
-import { peers } from '../../packages/suite-manifest/apps.js'
+import { peers, edgeApps } from '../../packages/suite-manifest/apps.js'
 
 const DIR = dirname(fileURLToPath(import.meta.url))
 const OUT = join(DIR, 'weave-proxy.conf')
 const OUT_STAGING = join(DIR, 'weave-proxy-staging.conf')
+const OUT_APPS = join(DIR, 'apps-generated.conf')
+const OUT_APPS_STAGING = join(DIR, 'apps-generated-staging.conf')
 
 // Peers reachable same-origin from every suite origin, DERIVED from @jkos/suite-manifest:
 // `health`/`apiPrefix` are computed from each app's id (so they mirror the registry
@@ -100,12 +102,33 @@ const HEADER_STAGING = `# weave-proxy-staging.conf — the same-origin peer-prox
 
 function lazurosBlock(staging) {
   return `# LazurOS AI gateway — host network (WoL broadcast), reached via the host gateway.
-# Prefix stripped; buffering off + long read timeout for streamed NDJSON tokens.
+# Prefix PRESERVED (no trailing slash on proxy_pass): unlike the other peers, the State
+# node registers its routes at their full edge paths — /api/lazuros/health, and the
+# capability paths declared in backend/docs.js — so the path a capability doc ADVERTISES
+# is the path the server actually serves. Stripping here would 404 every one of them.
+# Buffering off + long read timeout for streamed NDJSON tokens.
 location /api/lazuros/ {
-${gateBlock(GATE, staging)}    proxy_pass         http://host.docker.internal:8080/;
+${gateBlock(GATE, staging)}    proxy_pass         http://host.docker.internal:8080;
     proxy_http_version 1.1;
     proxy_buffering    off;
     proxy_read_timeout 600s;
+    proxy_set_header   Host              $host;
+    proxy_set_header   X-Real-IP         $remote_addr;
+    proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+    proxy_set_header   X-Forwarded-Proto $scheme;
+}`
+}
+
+// The LazurOS test console — STAGING ONLY, and deliberately so: it is the surface for
+// exercising the gateway (submit a capability, watch the job walk its states) before any
+// app depends on it. Pretty path -> the console the State node serves under its own API
+// prefix. Prod gets no /LazurOS: nothing in prod should be driving the gateway by hand.
+function lazurosConsoleBlock() {
+  return `# LazurOS test console (staging only) — https://staging.jkos.net/LazurOS
+location = /LazurOS { return 302 /LazurOS/; }
+location /LazurOS/ {
+${gateBlock(GATE, true)}    proxy_pass         http://host.docker.internal:8080/api/lazuros/console/;
+    proxy_http_version 1.1;
     proxy_set_header   Host              $host;
     proxy_set_header   X-Real-IP         $remote_addr;
     proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
@@ -141,16 +164,132 @@ function build(staging) {
   const blocks = []
   // health probes first (one per peer that has one), then api prefixes — matches
   // the original portal ordering; lazuros leads (special-cased).
-  for (const p of PEERS) if (p.kind === 'lazuros') blocks.push(lazurosBlock(staging))
+  for (const p of PEERS) if (p.kind === 'lazuros') {
+    blocks.push(lazurosBlock(staging))
+    if (staging) blocks.push(lazurosConsoleBlock())
+  }
   for (const p of PEERS) if (p.health && p.kind !== 'lazuros') blocks.push(healthBlock(p, staging))
   for (const p of PEERS) if (p.apiPrefix && p.kind !== 'lazuros') blocks.push(apiBlock(p, staging))
   const header = staging ? HEADER_STAGING : HEADER
   return `${header}\n# >>> GENERATED REGION <<<\n\n${blocks.join('\n')}\n# >>> END GENERATED REGION <<<\n`
 }
 
+/* ── Per-app edge server blocks (ToDo C2) ────────────────────────────────────
+ * The OTHER hand-written nginx step a new app needed: a prod origin server block (and a
+ * staging admin-gated subpath). Generated for apps that opt in with edge:'standard' in
+ * @jkos/suite-manifest — an SPA served at root, proxied to one upstream. The hand-tuned
+ * origins (ORDECK portal, jkAuth, BeigeBoard, SylibOS, the staging shell) set no edge and
+ * keep their bespoke blocks in standalone.conf, so this never rewrites them. Both files
+ * are empty (header only) until the first edge:'standard' app — included unconditionally
+ * by standalone.conf (apps-generated.conf at http{} level, apps-generated-staging.conf
+ * inside the staging server block, where /_auth_admin_check + @staging_* are defined). */
+const EDGE_APPS = edgeApps()
+
+const SEC_HEADERS = [
+  'add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;',
+  'add_header X-Content-Type-Options nosniff always;',
+  'add_header X-Frame-Options SAMEORIGIN always;',
+  'add_header X-XSS-Protection "1; mode=block" always;',
+  'add_header Referrer-Policy "strict-origin-when-cross-origin" always;',
+]
+
+const PROXY_HEADERS = [
+  'proxy_set_header   Upgrade           $http_upgrade;',
+  'proxy_set_header   Connection        "upgrade";',
+  'proxy_set_header   Host              $host;',
+  'proxy_set_header   X-Real-IP         $remote_addr;',
+  'proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;',
+  'proxy_set_header   X-Forwarded-Proto $scheme;',
+]
+
+function appServerBlock(a) {
+  return `# ${a.name} — GENERATED from @jkos/suite-manifest APPS (edge:'standard'); do not hand-edit.
+server {
+    listen 80;
+    server_name ${a.host};
+    return 301 https://$host$request_uri;
+}
+server {
+    listen 443 ssl http2;
+    server_name ${a.host};
+
+    ssl_certificate     /etc/nginx/ssl/cert.pem;
+    ssl_certificate_key /etc/nginx/ssl/key.pem;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         HIGH:!aNULL:!MD5;
+    ssl_session_cache   shared:SSL:10m;
+
+${SEC_HEADERS.map(h => '    ' + h).join('\n')}
+
+    client_max_body_size 10m;
+
+    # Weave same-origin peer proxy (every prod origin reaches every peer).
+    include /etc/nginx/weave-proxy.conf;
+
+    location / {
+        set $upstream      http://${a.upstream};
+        proxy_pass         $upstream;
+        proxy_http_version 1.1;
+${PROXY_HEADERS.map(h => '        ' + h).join('\n')}
+        proxy_cache_bypass $http_upgrade;
+        proxy_read_timeout 60s;
+    }
+}`
+}
+
+function appStagingLocation(a) {
+  return `# ${a.name} — GENERATED admin-gated app subpath on staging.jkos.net; do not hand-edit.
+# Bare /<id> (no trailing slash) matches neither \`location /<id>/\` below nor any other
+# prefix, so it falls through to this server's \`location /\` — the ORDECK portal — and
+# the app silently "redirects to ORDECK". Send it to the real subpath first.
+location = /${a.id} {
+    return 301 https://$host/${a.id}/;
+}
+location /${a.id}/ {
+${GATE_UNAVAIL.map(l => '    ' + l).join('\n')}
+    set $upstream http://${stagingUpstream(a.upstream)};
+    rewrite ^/${a.id}/(.*) /$1 break;
+    proxy_pass         $upstream;
+    proxy_http_version 1.1;
+${PROXY_HEADERS.map(h => '    ' + h).join('\n')}
+    proxy_cache_bypass $http_upgrade;
+    proxy_read_timeout 60s;
+}`
+}
+
+const HEADER_APPS = `# apps-generated.conf — GENERATED standard prod origin server blocks.
+#
+# GENERATED by infra/nginx/gen-nginx-weave.mjs from @jkos/suite-manifest APPS — do not
+# hand-edit; run the script. One <listen 80 redirect> + <listen 443 SPA-at-root> server
+# block per app that opts in with edge:'standard' (the scaffolder sets it). \`include\`d at
+# the http{} level in standalone.conf. The hand-tuned origins (portal, jkAuth, BeigeBoard,
+# SylibOS, staging) set no edge and keep their bespoke blocks. Empty until the first one.
+#   node infra/nginx/gen-nginx-weave.mjs           # write
+#   node infra/nginx/gen-nginx-weave.mjs --check    # CI: assert in sync
+# Adding an app = \`pnpm new-app <id>\`, then RESTART nginx (NOT reload — bind-mount).`
+
+const HEADER_APPS_STAGING = `# apps-generated-staging.conf — GENERATED admin-gated app subpaths (STAGING).
+#
+# GENERATED by infra/nginx/gen-nginx-weave.mjs from @jkos/suite-manifest APPS — do not
+# hand-edit. One \`location /<id>/\` per edge:'standard' app, admin-gated + path-rewritten,
+# pointed at the staging-<container> upstream. \`include\`d INSIDE the staging server block
+# in standalone.conf (which defines /_auth_admin_check + the @staging_* named locations).
+# Empty until the first edge:'standard' app exists.
+#   node infra/nginx/gen-nginx-weave.mjs           # write
+#   node infra/nginx/gen-nginx-weave.mjs --check    # CI: assert in sync`
+
+function buildApps(staging) {
+  const blocks = EDGE_APPS.map(staging ? appStagingLocation : appServerBlock)
+  const header = staging ? HEADER_APPS_STAGING : HEADER_APPS
+  const region = blocks.length ? `\n${blocks.join('\n\n')}\n` : '\n'
+  return `${header}\n# >>> GENERATED REGION <<<\n${region}# >>> END GENERATED REGION <<<\n`
+}
+
 const targets = [
-  { path: OUT,         content: build(false), label: 'weave-proxy.conf' },
-  { path: OUT_STAGING, content: build(true),  label: 'weave-proxy-staging.conf' },
+  { path: OUT,              content: build(false),     label: 'weave-proxy.conf' },
+  { path: OUT_STAGING,      content: build(true),      label: 'weave-proxy-staging.conf' },
+  { path: OUT_APPS,         content: buildApps(false), label: 'apps-generated.conf' },
+  { path: OUT_APPS_STAGING, content: buildApps(true),  label: 'apps-generated-staging.conf' },
 ]
 
 if (process.argv.includes('--check')) {

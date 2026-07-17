@@ -28,14 +28,8 @@ COPY apps/sylibos/backend/package.json apps/sylibos/backend/
 COPY packages/auth-client/package.json     packages/auth-client/
 COPY packages/auth-middleware/package.json packages/auth-middleware/
 COPY packages/design/package.json         packages/design/
-COPY packages/types/package.json          packages/types/
 COPY packages/ui/package.json             packages/ui/
 COPY packages/weave/package.json          packages/weave/
-COPY plugins/beigeboard/package.json  plugins/beigeboard/
-COPY plugins/lazuros/package.json     plugins/lazuros/
-COPY plugins/plex/package.json        plugins/plex/
-COPY plugins/recipe/package.json      plugins/recipe/
-COPY plugins/sylibos/package.json     plugins/sylibos/
 
 # ── Step 2: install (cached until lockfile or any package.json changes) ────
 RUN pnpm install --frozen-lockfile --filter @jkos/jkauth...

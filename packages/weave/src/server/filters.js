@@ -34,18 +34,51 @@
 // injection — binding already prevents that).
 const escLike = (v) => v.replace(/[\\%_]/g, (c) => '\\' + c)
 
+// A query value arrives as a raw string, but the column it's compared against has
+// whatever affinity the field's declared FieldType maps to (collection.js's
+// sqlType()): number/boolean → INTEGER, everything else → TEXT. Binding the wrong
+// JS type is a silent no-match, not an error — SQLite's affinity conversion rules
+// mean an INTEGER column never equals a non-numeric TEXT literal (a
+// `type:'boolean', filter:'eq'` field bound with the TEXT "true" never matches the
+// INTEGER 1, even though the numeral string "1" happens to work by accident). This
+// coerces the bound value to match the column, same rule at read-time that
+// collection.js's coerce() applies at write-time:
+//   boolean  → 1/0 (accepts 'true'/'1' and 'false'/'0'; anything else is invalid)
+//   number   → Number(s) (invalid if it doesn't parse)
+//   anything else (string/text/enum/date/time/json/ref/…) → the string as-is —
+//     already the column's TEXT-affinity canonical form (a `ref` column stores the
+//     same String(v) shape collection.js's coerce() writes, and a query value is
+//     already a JS string, so this is a no-op for ref).
+// Returns `undefined` for a value that doesn't coerce under the field's type —
+// the caller drops that clause entirely, the SAME treatment as an empty/missing
+// value (never a 500 or a silently-wrong bind for a malformed query param).
+function coerceFilterValue(type, s) {
+  if (type === 'boolean') {
+    if (s === 'true' || s === '1') return 1
+    if (s === 'false' || s === '0') return 0
+    return undefined
+  }
+  if (type === 'number') {
+    if (s.trim() === '') return undefined
+    const n = Number(s)
+    return Number.isNaN(n) ? undefined : n
+  }
+  return s
+}
+
 /**
  * Project a DatasetDoc's declared `filters` (FilterField[]) into the `{param,column,op}`
  * spec `buildItemFilters` consumes — the single-source bridge (P3). An app declares its
  * filters ONCE on the dataset (name/type/label for the GUI/AI + column/op for enforcement);
  * the list endpoint derives its SQL filter from that same declaration, so what the dataset
  * SAYS it can be read by is exactly what it filters on. `column` defaults to the param name,
- * `op` to 'eq'.
- * @param {Array<{name:string, column?:string, op?:'eq'|'gt'|'prefix'|'tags'}>} filters
- * @returns {Array<{param:string, column:string, op:string}>}
+ * `op` to 'eq'. `type` rides along too — buildItemFilters needs it to bind a value that
+ * matches the column's actual storage affinity (see coerceFilterValue above).
+ * @param {Array<{name:string, type?:string, column?:string, op?:'eq'|'gt'|'prefix'|'tags'}>} filters
+ * @returns {Array<{param:string, column:string, op:string, type:string}>}
  */
 function filterSpec(filters = []) {
-  return (filters || []).map((f) => ({ param: f.name, column: f.column || f.name, op: f.op || 'eq' }))
+  return (filters || []).map((f) => ({ param: f.name, column: f.column || f.name, op: f.op || 'eq', type: f.type }))
 }
 
 function buildItemFilters(query, spec, seed = {}) {
@@ -56,8 +89,17 @@ function buildItemFilters(query, spec, seed = {}) {
     if (v == null || v === '') continue
     const s = String(v)
     switch (f.op) {
-      case 'eq':     clauses.push(`${f.column} = ?`); params.push(s); break
-      case 'gt':     clauses.push(`${f.column} > ?`); params.push(s); break
+      case 'eq':
+      case 'gt': {
+        // Both are single-value column comparisons, so both need the same
+        // affinity-matching coercion — 'gt' is not just the `since` delta cursor
+        // (a number field can opt into `filter:'gt'` too), and an un-coerced
+        // boolean/number bound here would silently mismatch exactly like 'eq' did.
+        const cv = coerceFilterValue(f.type, s)
+        if (cv === undefined) continue
+        clauses.push(`${f.column} ${f.op === 'eq' ? '=' : '>'} ?`); params.push(cv)
+        break
+      }
       case 'prefix': clauses.push(`${f.column} LIKE ? ESCAPE '\\'`); params.push(escLike(s) + '%'); break
       case 'tags':
         for (const t of s.split(',').map(x => x.trim()).filter(Boolean)) {

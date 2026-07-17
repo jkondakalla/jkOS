@@ -13,11 +13,9 @@ WORKDIR /repo
 ARG VITE_JKOS_AUTH_URL=https://auth.jkos.net
 ARG VITE_BASE=/
 ARG VITE_API_URL=
-ARG VITE_BB_AI_ENABLED=false
 ENV VITE_JKOS_AUTH_URL=$VITE_JKOS_AUTH_URL \
     VITE_BASE=$VITE_BASE \
-    VITE_API_URL=$VITE_API_URL \
-    VITE_BB_AI_ENABLED=$VITE_BB_AI_ENABLED
+    VITE_API_URL=$VITE_API_URL
 
 # ── Dependency layer ──────────────────────────────────────────────────────────
 # Copy the lockfile + every workspace manifest first (COPY --parents keeps each
@@ -40,8 +38,12 @@ RUN pnpm install --frozen-lockfile --filter @jkos/beigeboard... --filter @jkos/b
 # @jkos/suite-manifest is required directly by discovery.js AND transitively by
 # @jkos/weave — without its source here the bundle has the manifest but not apps.js
 # (Cannot find module '@jkos/suite-manifest/apps.js' → bb-app crash-loops at boot).
+# @jkos/files is a dep of @jkos/weave (its server/mediaRoutes.js requires it at module
+# load), so it is needed even though BeigeBoard serves no media — omit it and the /out
+# bundle has @jkos/files/package.json but no index.js → MODULE_NOT_FOUND at boot.
 COPY packages/auth-middleware packages/auth-middleware
 COPY packages/weave packages/weave
+COPY packages/files packages/files
 COPY packages/auth-client packages/auth-client
 COPY packages/design packages/design
 COPY packages/suite-manifest packages/suite-manifest
@@ -50,6 +52,15 @@ RUN pnpm --filter @jkos/beigeboard-backend deploy --prod /out
 
 # ── Frontend source + build last (a UI edit busts only this ~9s step) ─────────
 COPY . .
+# Re-sync after source is present: with inject-workspace-packages, pnpm hardlinks
+# COPIES of workspace deps into the store at install time. The dependency layer
+# above ran with only manifests present, so any INJECTED package (e.g. @jkos/cards,
+# which pnpm injects because it pulls @jkos/weave's consumer-specific subtree) was
+# frozen with just its package.json and no src/ → tsc fails TS2307 'Cannot find
+# module @jkos/cards'. This re-install re-injects them now that src/ exists; the
+# store is warm so it only re-hardlinks (seconds). Symlinked deps (ui/design) were
+# never affected. (Same propagate-on-install step the local-dev workflow uses.)
+RUN pnpm install --frozen-lockfile --filter @jkos/beigeboard...
 RUN pnpm --filter @jkos/beigeboard build
 
 FROM node:20-slim

@@ -1,0 +1,13 @@
+.env
+*.db
+*.db-shm
+*.db-wal
+node_modules/
+dist/
+build/
+.DS_Store
+tsconfig.tsbuildinfo
+
+# Private keys / certs
+*.pem
+*.key

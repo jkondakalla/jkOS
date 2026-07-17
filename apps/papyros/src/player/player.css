@@ -1,0 +1,79 @@
+/* player.css — papyros's BESPOKE bar styling only (Wave 16.6). The bar shell,
+   stock controls, scrubber, meta block, and popover framework (`player-bar` /
+   `pb-*`) moved VERBATIM into @jkos/player/ui's player-ui.css — imported via the
+   kit barrel, so PlayerBar.tsx renders pixel-identically off the kit sheet. What
+   stays here is what stays papyros-owned in PlayerBar.tsx: the reserve-space body
+   class, the bookmarks menu, and the mobile More sheet. Same header rule as ever:
+   every colour, radius, font and tap-floor reads a suite --hub- / --accent token —
+   no hardcoded hex or radius literal. Imported once, from PlayerBar.tsx. */
+
+/* ── Reserve bottom space (owned here, toggled by a body class from PlayerBar) ──
+   The class lands on <body>; .app-main is app.css's, but adding a scoped rule from
+   THIS stylesheet only augments the cascade — it never edits app.css. */
+.papyros-player-open .app-main { padding-bottom: 132px; }
+@media (max-width: 767px) {
+  .papyros-player-open .app-main { padding-bottom: 176px; }
+}
+
+/* ── Bookmarks menu (audiobook-specific; the popover frame it sits in is kit css) ── */
+.pb-popover-add {
+  display: flex;
+  align-items: center;
+  min-height: var(--hub-tap-min);
+  margin: 0.15rem 0.15rem 0.35rem;
+  padding: 0.45rem 0.55rem;
+  background: color-mix(in srgb, var(--accent) 12%, var(--hub-bg-1));
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  border-radius: var(--hub-radius-sm);
+  color: var(--accent);
+  font-family: var(--hub-font-mono);
+  font-size: 0.76rem;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+}
+.pb-popover-add:hover { background: color-mix(in srgb, var(--accent) 20%, var(--hub-bg-1)); }
+
+.pb-bm-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.15rem; }
+.pb-bm-row { display: flex; align-items: stretch; gap: 0.2rem; }
+.pb-bm-jump {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-height: var(--hub-tap-min);
+  padding: 0.35rem 0.5rem;
+  background: transparent;
+  border: none;
+  border-radius: var(--hub-radius-sm);
+  color: var(--hub-cream);
+  text-align: left;
+  cursor: pointer;
+}
+.pb-bm-jump:hover { background: color-mix(in srgb, var(--accent-secondary) 14%, transparent); color: var(--accent-secondary); }
+.pb-bm-time { flex: none; font-family: var(--hub-font-mono); font-size: 0.72rem; color: var(--hub-cream-dim); }
+.pb-bm-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.82rem; }
+.pb-bm-del {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--hub-tap-min);
+  background: transparent;
+  border: none;
+  border-radius: var(--hub-radius-sm);
+  color: var(--hub-cream-dim);
+  cursor: pointer;
+}
+.pb-bm-del:hover { color: var(--hub-red, var(--accent)); }
+
+/* ── Mobile More sheet — rate/prev/next cluster pinned above the option rows ── */
+.pb-popover-more .pb-more-cluster {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.15rem 0.4rem;
+  border-bottom: 1px solid var(--hub-line);
+  margin-bottom: 0.25rem;
+}
+.pb-popover-more .pb-more-cluster .pb-btn-wide { margin-right: auto; }

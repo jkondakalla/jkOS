@@ -6,8 +6,9 @@ const { CODES, authError } = require('@jkos/auth-middleware')
 // extra gate beyond a valid token — every row is already scoped to its owner):
 //   1. Guests are read-only.
 //   2. A service token carries no human user (sub is 'svc:<id>'), so a per-user
-//      write would orphan rows — reject until an explicit on-behalf-of mechanism
-//      exists (see WEAVE.md, the delegation seam).
+//      write would orphan rows — reject UNLESS it is a delegated (on-behalf-of)
+//      token, which weaveAuth has already normalized to its acting user (G1): then
+//      `req.user.sub` IS that user and the write is owned correctly.
 //   3. Capability scope: a token that carries a `scope` array must hold the app's
 //      write scope. Tokens minted before Weave carry no scope and fall through to
 //      the role gate above (rollout-safe).
@@ -31,7 +32,7 @@ function weaveWriteGate({ scope } = {}) {
     if (u?.role === 'guest') {
       return authError(res, 403, CODES.READ_ONLY, 'Guest access is read-only')
     }
-    if (u?.typ === 'service') {
+    if (u?.typ === 'service' && !u.delegated) {
       return authError(res, 403, CODES.NO_USER_CONTEXT, 'Service tokens cannot write per-user data')
     }
     if (scope && Array.isArray(u?.scope) && !u.scope.includes(scope)) {

@@ -1,20 +1,32 @@
 <!DOCTYPE html>
-<html lang="en">
+<!-- data-mode="dark": the console is pinned to the CRT face of the suite theme —
+     it has always been a dark terminal, and it runs no JS theme applier. -->
+<html lang="en" data-mode="dark">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>jkOS Deploy Control</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&display=swap">
+<!-- Suite design tokens — committed mirror of @jkos/design/tokens/hub.css,
+     served by main.py. Regenerate: node jkos-deploy/scripts/sync-tokens.mjs -->
+<link rel="stylesheet" href="/deploy/jkos-tokens.css">
 <style>
+/* Everything below styles ONLY through the @jkos/design token chain (the mirror
+   above). No hardcoded identity colors: amber tracks the accent chain, status
+   colors ride --hub-green/--hub-red, surfaces ride the --hub-bg/--hub-screen
+   ramp, and the blink/led-pulse keyframes come from hub.css. */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
-  background: #0d0d0d;
+  background: var(--hub-bg-0);
   background-image: repeating-linear-gradient(
     0deg, transparent, transparent 2px,
     rgba(0,0,0,0.06) 2px, rgba(0,0,0,0.06) 4px
   );
-  color: #ffb000;
-  font-family: 'Courier New', Courier, monospace;
+  color: var(--hub-cream);
+  font-family: var(--hub-font-mono);
   font-size: 14px;
   min-height: 100vh;
   padding: 28px 24px;
@@ -25,28 +37,29 @@ body {
   text-align: center;
   margin-bottom: 32px;
   padding-bottom: 16px;
-  border-bottom: 1px solid #ffb00030;
+  border-bottom: 1px solid var(--hub-line);
 }
 .title {
   font-size: 26px;
   font-weight: bold;
   letter-spacing: 5px;
+  color: var(--hub-amber);
+  text-shadow: var(--accent-halo-text);
 }
 .cursor {
   display: inline-block;
   width: 13px;
   height: 22px;
-  background: #ffb000;
+  background: var(--hub-amber);
   vertical-align: bottom;
   margin-left: 2px;
   animation: blink 1s step-end infinite;
 }
-@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
 .subtitle {
   margin-top: 6px;
   font-size: 11px;
   letter-spacing: 2px;
-  color: #ffb00055;
+  color: var(--hub-cream-dim);
 }
 
 /* ── Info cards ── */
@@ -57,37 +70,38 @@ body {
   margin-bottom: 22px;
 }
 .card {
-  border: 1px solid #ffb00030;
-  background: #101010;
+  border: 1px solid var(--hub-line);
+  background: var(--hub-bg-1);
+  border-radius: var(--hub-radius-lg);
   padding: 16px;
 }
 .card-label {
   font-size: 10px;
   letter-spacing: 2px;
-  color: #4a7c59;
+  color: var(--hub-green);
   text-transform: uppercase;
   margin-bottom: 10px;
 }
 .card-branch {
   font-size: 17px;
-  color: #ffb000;
+  color: var(--hub-amber);
   margin-bottom: 5px;
 }
 .card-hash {
   font-size: 12px;
-  color: #4a7c59;
+  color: var(--hub-green);
   margin-bottom: 3px;
 }
 .card-msg {
   font-size: 12px;
-  color: #ffb00088;
+  color: var(--hub-cream);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .card-date {
   font-size: 11px;
-  color: #ffb00044;
+  color: var(--hub-cream-faint);
   margin-top: 6px;
 }
 
@@ -101,19 +115,28 @@ body {
 .btn {
   background: transparent;
   border: 1px solid currentColor;
-  color: #ffb000;
+  border-radius: var(--hub-radius-button);
+  color: var(--hub-amber);
   font-family: inherit;
   font-size: 12px;
   letter-spacing: 2px;
   padding: 10px 18px;
   cursor: pointer;
   text-transform: uppercase;
-  transition: background 0.12s, color 0.12s;
+  transition: background 0.12s, color 0.12s, box-shadow 0.12s;
 }
-.btn:hover:not(:disabled) { background: #ffb000; color: #0d0d0d; }
+.btn:hover:not(:disabled) {
+  background: var(--hub-amber);
+  color: var(--color-accent-contrast);
+  box-shadow: var(--accent-halo);
+}
 .btn:disabled { opacity: 0.35; cursor: not-allowed; }
-.btn-danger { color: #ff5555; border-color: #ff5555; }
-.btn-danger:hover:not(:disabled) { background: #ff5555; color: #0d0d0d; }
+.btn-danger { color: var(--hub-red); border-color: var(--hub-red); }
+.btn-danger:hover:not(:disabled) {
+  background: var(--hub-red);
+  color: var(--color-accent-contrast);
+  box-shadow: 0 0 16px var(--hub-red-glow);
+}
 
 /* ── Status bar ── */
 .status-bar {
@@ -121,8 +144,9 @@ body {
   align-items: center;
   gap: 10px;
   padding: 8px 14px;
-  border: 1px solid #ffb00025;
-  background: #0a0a0a;
+  border: 1px solid var(--hub-line);
+  background: var(--hub-screen);
+  border-radius: var(--hub-radius-soft);
   margin-bottom: 14px;
   font-size: 12px;
   letter-spacing: 1px;
@@ -132,27 +156,31 @@ body {
   border-radius: 50%;
   flex-shrink: 0;
 }
-.dot.idle    { background: #333; }
-.dot.running { background: #ffb000; animation: pulse 1s ease-in-out infinite; }
-.dot.done    { background: #4a7c59; }
-.dot.error   { background: #ff5555; }
-@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.25} }
-.status-op { margin-left: auto; color: #ffb00055; font-size: 11px; }
+.dot.idle    { background: var(--hub-metal-1); }
+.dot.running {
+  background: var(--hub-amber);
+  box-shadow: 0 0 6px var(--hub-amber-glow);
+  animation: led-pulse 1s ease-in-out infinite;
+}
+.dot.done    { background: var(--hub-green); box-shadow: 0 0 6px var(--hub-green-glow); }
+.dot.error   { background: var(--hub-red);   box-shadow: 0 0 6px var(--hub-red-glow); }
+.status-op { margin-left: auto; color: var(--hub-cream-dim); font-size: 11px; }
 
 /* ── Log panel ── */
 .log-panel {
-  border: 1px solid #ffb00025;
-  background: #060606;
+  border: 1px solid var(--hub-line);
+  background: var(--hub-screen);
+  border-radius: var(--hub-radius-soft);
   height: 380px;
   overflow-y: auto;
   padding: 12px;
   font-size: 12px;
   line-height: 1.65;
 }
-.log-line           { color: #ffb00077; white-space: pre-wrap; word-break: break-all; }
-.log-line.cmd       { color: #4a7c59; }
-.log-line.err       { color: #ff6666; }
-.log-line.head      { color: #ffb000; font-weight: bold; }
+.log-line           { color: var(--hub-cream-dim); white-space: pre-wrap; word-break: break-all; }
+.log-line.cmd       { color: var(--hub-green); }
+.log-line.err       { color: var(--hub-red); }
+.log-line.head      { color: var(--hub-amber); font-weight: bold; }
 
 /* ── Modal ── */
 .overlay {
@@ -165,21 +193,23 @@ body {
 }
 .overlay.active { display: flex; }
 .modal {
-  background: #111;
-  border: 1px solid #ff5555;
+  background: var(--hub-bg-1);
+  border: 1px solid var(--hub-red);
+  border-radius: var(--hub-radius-lg);
+  box-shadow: 0 0 24px var(--hub-red-glow);
   padding: 32px;
   max-width: 460px;
   width: 90%;
 }
 .modal-title {
-  color: #ff5555;
+  color: var(--hub-red);
   font-size: 13px;
   letter-spacing: 2px;
   text-transform: uppercase;
   margin-bottom: 14px;
 }
 .modal-body {
-  color: #ffb000;
+  color: var(--hub-cream);
   font-size: 13px;
   line-height: 1.75;
   margin-bottom: 24px;

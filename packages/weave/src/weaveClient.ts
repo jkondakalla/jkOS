@@ -18,7 +18,7 @@
 
 import { useCallback } from 'react';
 import { authFetch } from '@jkos/auth-client';
-import { apiBase, suiteApp } from './manifest';
+import { apiBase, suiteApp, resourceKey, type AppId } from './manifest';
 import { usePolledResource, type PolledOptions } from './resource';
 import { fetchCapabilities, getCapability } from './fetchCapabilities';
 import { fetchDatasets, getDataset } from './fetchDatasets';
@@ -36,7 +36,7 @@ function toQuery(filters?: ListFilters): string {
 }
 
 /** Imperative, discovery-driven peer client. Cheap to construct (no hooks). */
-export function weaveClient(appId: string) {
+export function weaveClient(appId: AppId) {
   return {
     /** The peer's CapabilityDoc (cached). */
     capabilities: (force?: boolean) => fetchCapabilities(appId, force),
@@ -74,12 +74,15 @@ export function weaveClient(appId: string) {
 
 /**
  * Reactive read of a peer dataset — the hook form of `weaveClient(app).list`.
- * Polls/​invalidates through the shared bus; pass `invalidateOn` (e.g. the
- * dataset's declared `invalidates` keys like `['beigeboard.items']`) so peer writes
- * refresh the read. Returns [] until the first resolve.
+ * Polls/​invalidates through the shared bus. The subscription key is DERIVED —
+ * `resourceKey(app, dataset)`, the same `id.resource` convention every capability
+ * declares in `invalidates` — so a write to the collection refreshes this read
+ * with no caller-typed bus key (a typo'd literal used to silently never refresh).
+ * Pass `invalidateOn` only to REPLACE the default (e.g. an aggregate view fed by
+ * several keys). Returns [] until the first resolve.
  */
 export function useWeaveList<T = unknown>(
-  appId: string,
+  appId: AppId,
   datasetId: string,
   filters?: ListFilters,
   opts?: PolledOptions,
@@ -95,5 +98,9 @@ export function useWeaveList<T = unknown>(
   );
   // reloadKey forces an immediate refetch when app/dataset/filters change (the
   // fetcher is ref-read by usePolledResource, so it wouldn't refetch on its own).
-  return usePolledResource<T[]>(fetcher, [], { ...opts, reloadKey: `${appId}|${datasetId}|${filterKey}` });
+  return usePolledResource<T[]>(fetcher, [], {
+    invalidateOn: [resourceKey(appId, datasetId)],
+    ...opts,
+    reloadKey: `${appId}|${datasetId}|${filterKey}`,
+  });
 }

@@ -15,3 +15,5 @@ include:
   - path: apps/beigeboard/docker-compose.staging.yml
   - path: apps/sylibos/docker-compose.staging.yml
   - path: apps/ordeck/docker-compose.staging.yml
+  - path: apps/papyros/docker-compose.staging.yml
+  - path: apps/kouros/docker-compose.staging.yml

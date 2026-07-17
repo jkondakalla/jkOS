@@ -67,10 +67,19 @@ function signAccess(user, { azp = null } = {}) {
 // `sub` — it carries the client identity (azp + sub 'svc:<id>'), typ 'service' so
 // middleware can distinguish it, and the requested scopes. `aud` is derived from
 // the scope prefixes so the same per-app audience check applies as for users.
-function signService(clientId, scope) {
+//
+// `act` (RFC 8693 actor): when a delegation-enabled client mints on-behalf-of a user
+// (G1), the token additionally carries `act` = that user id (a string, like `sub`).
+// The token stays typ 'service' (so it's never mistaken for a real login), but the
+// weave write-gate reads `act` to authorize a per-user write AS that user — lifting
+// NO_USER_CONTEXT for trusted automation. Only set for delegation clients (the grant
+// handler gates it); a normal service token has no `act`.
+function signService(clientId, scope, { act } = {}) {
   if (!PRIVATE_KEY) throw new Error('JKOS_AUTH_PRIVATE_KEY not set')
   const aud = [...new Set(scope.map(s => s.split(':')[0]).filter(Boolean))]
-  return jwt.sign({ typ: 'service', azp: clientId, scope }, PRIVATE_KEY,
+  const payload = { typ: 'service', azp: clientId, scope }
+  if (act != null && String(act) !== '') payload.act = String(act)
+  return jwt.sign(payload, PRIVATE_KEY,
     { algorithm: 'RS256', expiresIn: '10m', issuer: JWT_ISSUER, keyid: JWT_KID,
       subject: `svc:${clientId}`, audience: aud })
 }

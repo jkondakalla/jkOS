@@ -7,85 +7,16 @@ button { border-radius: var(--hub-radius-button); font-family: inherit; }
 button:focus, input:focus, select:focus { outline: none; }
 
 /* ── Animations ──────────────────────────────────────────────────────── */
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to   { transform: rotate(360deg); }
-}
-@keyframes fadeSlideUp {
-  from { opacity: 0; transform: translateY(10px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-@keyframes pulseOpacity {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.35; }
-}
-@keyframes checkBounce {
-  0%   { transform: scale(1); }
-  40%  { transform: scale(1.35); }
-  70%  { transform: scale(0.9); }
-  100% { transform: scale(1); }
-}
-@keyframes panelIn {
-  from { opacity: 0; transform: translateX(28px); }
-  to   { opacity: 1; transform: translateX(0); }
-}
-@keyframes itemIn {
-  from { opacity: 0; transform: translateY(-4px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-@keyframes modalIn {
-  from { opacity: 0; transform: scale(0.96); }
-  to   { opacity: 1; transform: scale(1); }
-}
-@keyframes scanRoll {
-  from { background-position: 0 0; }
-  to   { background-position: 0 -4px; }
-}
-@keyframes scanPulse {
-  0%, 100% { opacity: 0.7; }
-  50%       { opacity: 1; }
-}
-@keyframes artifactFlash {
-  0%   { opacity: 0; }
-  8%   { opacity: 1; }
-  92%  { opacity: 1; }
-  100% { opacity: 0; }
-}
-@keyframes crtExpand {
-  0%   { clip-path: inset(49.5% 0 49.5% 0); filter: brightness(6); }
-  9%   { clip-path: inset(0% 0 0% 0);        filter: brightness(2.2); }
-  16%  { clip-path: inset(1.2% 0 1.2% 0);   filter: brightness(0.55); }
-  24%  { clip-path: inset(0% 0 0% 0);        filter: brightness(1.5); }
-  33%  { filter: brightness(0.75); }
-  42%  { filter: brightness(1.15); }
-  54%  { filter: brightness(0.9); }
-  68%  { filter: brightness(1.05); }
-  100% { filter: brightness(1); clip-path: inset(0% 0 0% 0); }
-}
+/* The shared motion vocabulary (spin/fadeSlideUp/panelIn/… keyframes + the
+   .view-enter/.panel-enter/.item-in/… utility classes) lives in @jkos/design
+   hub.css — one copy for the whole suite, including the no-fill-mode rule that
+   keeps fixed-position popups (CreateDialog, DetailPanel) stacking correctly.
+   Only BeigeBoard's bespoke paper-mode frame stays here. */
 @keyframes paperExpand {
   0%   { clip-path: inset(49.5% 0 49.5% 0); }
   100% { clip-path: inset(0% 0 0% 0); }
 }
-@keyframes introTitleReveal {
-  from { opacity: 0; transform: translateY(6px); filter: blur(3px); }
-  to   { opacity: 1; transform: translateY(0);   filter: blur(0); }
-}
-@keyframes introFadeOut {
-  from { opacity: 1; }
-  to   { opacity: 0; }
-}
-
-/* ── Reusable utility classes ────────────────────────────────────────── */
-.view-enter   { animation: fadeSlideUp 0.32s cubic-bezier(0.16, 1, 0.3, 1) both; }
-.panel-enter  { animation: panelIn     0.34s cubic-bezier(0.16, 1, 0.3, 1) both; }
-.item-in      { animation: itemIn      0.26s cubic-bezier(0.16, 1, 0.3, 1) both; }
-.modal-in     { animation: modalIn     0.22s cubic-bezier(0.16, 1, 0.3, 1) both; }
-.crt-expand   { animation: crtExpand 0.55s ease-out both; }
 .paper-expand { animation: paperExpand 0.55s ease-out both; }
-.intro-title  { animation: introTitleReveal 0.7s cubic-bezier(0.16, 1, 0.3, 1) both; }
-.intro-out    { animation: introFadeOut 0.45s ease-in forwards; }
-.now-dot      { animation: pulseOpacity 1.8s ease-in-out infinite; }
-.check-pop    { animation: checkBounce 0.25s ease-out; }
 
 /* Accent + --color-* aliases now come entirely from @jkos/design (hub.css): the
    user's accent pair flows through the one chain (deepened for paper, raw + glow

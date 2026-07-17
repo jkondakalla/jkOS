@@ -9,8 +9,8 @@
 //
 // THE app `id` is the only identifier. Edge paths, the invalidation bus key, and the
 // scope namespace are all COMPUTED from it (see helpers below), so adding an app is
-// one row here, not the same slug re-typed in four places (ToDo A1/A2, CONSOLIDATION
-// C1–C5). The lone stored infra fact is `upstream` (container:port): nginx needs an
+// one row here, not the same slug re-typed in four places (the old consolidation
+// findings C1–C5). The lone stored infra fact is `upstream` (container:port): nginx needs an
 // address the registry deliberately never stores.
 //
 // Derivations:
@@ -33,7 +33,9 @@
 /**
  * The suite. Order is the systems-panel probe order. Optional flags gate which
  * derived surface an app exposes; `registry: false` keeps an app out of the jkAuth
- * registry (LazurOS is an internal gateway, not a launchable app).
+ * registry. LazurOS now HAS a registry row (so its capability scopes are role-gated
+ * and the portal hydrates its ai/capabilities/datasets metadata) but a null `origin`
+ * — it's reached only through the `/api/lazuros` edge proxy, never as a launcher tile.
  */
 const APPS = [
   {
@@ -62,15 +64,34 @@ const APPS = [
     allowedRoles: ['admin'], // the admin-only staging origin — no backend surface
   },
   {
-    id: 'lazuros', name: 'LazurOS', origin: null,
-    allowedRoles: [], registry: false, // internal AI gateway: static-only, no registry row
+    id: 'lazuros', name: 'LazurOS', origin: null, // internal AI gateway: no browsable origin (no launcher tile)
+    allowedRoles: ['admin', 'user'], // registry row gates capability scopes (lazuros:write) by role; guests excluded
     upstream: 'host.docker.internal:8080', kind: 'lazuros',
     health: true, api: true, ai: true,
+    capabilities: true, datasets: true, // Weave write+read contracts (LazurOS refactor)
     apiBase: '/api/lazuros', healthPath: '/api/lazuros/health', // host-network, bespoke paths
+  },
+  {
+    id: 'papyros', name: 'PapyrOS', origin: 'https://papyros.jkos.net',
+    allowedRoles: ['user', 'admin'],
+    upstream: 'papyros-app:3010', health: true, api: true,
+    capabilities: true, datasets: true,
+    edge: 'standard', // GENERATED nginx server block + staging subpath (gen-nginx-weave.mjs)
+  },
+  {
+    id: 'kouros', name: 'KourOS', origin: 'https://kouros.jkos.net',
+    allowedRoles: ['user', 'admin'],
+    upstream: 'kouros-app:3011', health: true, api: true,
+    capabilities: true, datasets: true,
+    edge: 'standard', // GENERATED nginx server block + staging subpath (gen-nginx-weave.mjs)
   },
 ]
 
 /* ── derivations: id → everything ────────────────────────────────────────────── */
+
+/** Every canonical app id, in APPS order. The literal union in apps.d.ts (`AppId`)
+ *  must list exactly these — the weave test gate asserts the two stay in sync. */
+const APP_IDS = Object.freeze(APPS.map((a) => a.id))
 
 /** Edge-proxied API root for an app, or null if it exposes none. */
 function apiBaseOf(app) {
@@ -109,7 +130,7 @@ function registrySeed() {
   return APPS.filter((a) => a.registry !== false).map((a) => ({
     id: a.id,
     name: a.name,
-    origin: a.origin,
+    origin: a.origin || '', // app_registry.origin is NOT NULL; an origin-less gateway (LazurOS) stores ''
     icon_url: null,
     allowed_roles: a.allowedRoles.join(','),
     api_base: apiBaseOf(a),
@@ -160,8 +181,25 @@ function peers() {
   })
 }
 
+/** Apps that take a GENERATED standard edge: a prod origin server block (SPA served at
+ *  root, proxied to one upstream) + an admin-gated `/<id>/` subpath on staging. Opt in
+ *  with `edge: 'standard'` (the scaffolder sets it). The hand-tuned origins — the ORDECK
+ *  portal, the staging shell, SylibOS, jkAuth, BeigeBoard — set NO `edge` and keep their
+ *  bespoke blocks in standalone.conf, so the generator never rewrites them. Consumed by
+ *  infra/nginx/gen-nginx-weave.mjs (apps-generated{,-staging}.conf). `host` is the origin
+ *  hostname; `upstream` is the prod container:port (staging derives `staging-` itself). */
+function edgeApps() {
+  return APPS.filter((a) => a.edge === 'standard' && a.origin && a.upstream).map((a) => ({
+    id: a.id,
+    name: a.name,
+    host: new URL(a.origin).host,
+    upstream: a.upstream,
+  }))
+}
+
 module.exports = {
   APPS,
+  APP_IDS,
   apiBaseOf,
   healthPathOf,
   capabilitiesPathOf,
@@ -171,4 +209,5 @@ module.exports = {
   registrySeed,
   manifestApps,
   peers,
+  edgeApps,
 }

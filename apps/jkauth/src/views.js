@@ -174,11 +174,11 @@ function dashboardPage(user, nonce = '') {
   .dash { max-width: 720px; margin: 0 auto; padding: 2.5rem 1.25rem 4rem; display:flex; flex-direction:column; gap: 1.75rem; }
   .dash-top { display:flex; align-items:center; gap: 1rem; }
   .avatar { width: 46px; height: 46px; border-radius: 50%; flex-shrink:0; display:grid; place-items:center;
-    background: var(--accent); color:#fff; font-weight:700; font-size: 1rem; }
+    background: var(--accent); color:var(--color-on-accent); font-weight:700; font-size: 1rem; }
   .who { min-width:0; flex:1; }
   .who h1 { font-size: 1.15rem; font-weight: 700; letter-spacing:-0.01em; display:flex; align-items:center; gap:.5rem; }
   .who .email { color: var(--muted); font-size: .85rem; margin-top: 2px; }
-  .role { font-size: .6rem; letter-spacing:.12em; text-transform:uppercase; color:#fff; background:var(--accent);
+  .role { font-size: .6rem; letter-spacing:.12em; text-transform:uppercase; color:var(--color-on-accent); background:var(--accent);
     padding: 2px 7px; border-radius: 999px; font-weight:600; }
   .dash-actions { margin-left:auto; display:flex; gap:.5rem; align-items:center; }
   .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem 1.25rem 1.4rem; }
@@ -188,21 +188,17 @@ function dashboardPage(user, nonce = '') {
     text-decoration:none; color:var(--text); background:var(--bg); transition: border-color .15s, transform .15s; }
   .app:hover { border-color: var(--accent); transform: translateY(-1px); }
   .app .ic { width:30px; height:30px; border-radius:8px; flex-shrink:0; display:grid; place-items:center;
-    background: var(--accent); color:#fff; font-weight:700; font-size:.85rem; }
+    background: var(--accent); color:var(--color-on-accent); font-weight:700; font-size:.85rem; }
   .app .nm { font-weight:600; font-size:.9rem; }
   .muted-note { color: var(--muted); font-size: .85rem; }
-  .row { display:flex; align-items:center; gap:.8rem; margin-top:.7rem; }
-  .row label { width: 64px; flex-shrink:0; font-size:.82rem; color: var(--muted); }
-  .row input[type=text] { flex:1; }
   .ai-head { display:flex; align-items:center; justify-content:space-between; margin-bottom: .25rem; }
   .ai-head h2 { margin-bottom: 0; }
-  .switch { width: 46px; height: 26px; border-radius: 999px; border:1px solid var(--border); background:#ddd4cc;
+  .switch { width: 46px; height: 26px; border-radius: 999px; border:1px solid var(--border); background:var(--hub-bg-0);
     position:relative; cursor:pointer; transition: background .18s; flex-shrink:0; }
   .switch[aria-checked=true] { background: var(--accent); border-color: var(--accent); }
-  .switch .knob { position:absolute; top:2px; left:2px; width:20px; height:20px; border-radius:50%; background:#fff;
+  .switch .knob { position:absolute; top:2px; left:2px; width:20px; height:20px; border-radius:50%; background:var(--hub-bg-2);
     transition: left .18s; box-shadow:0 1px 3px rgba(0,0,0,.25); }
   .switch[aria-checked=true] .knob { left: 22px; }
-  .ai-body[data-off=true] { opacity:.45; pointer-events:none; }
   .ai-status { font-size:.8rem; color: var(--muted); margin-top:.6rem; min-height: 1em; }
 </style>
 <div class="dash">
@@ -232,11 +228,9 @@ function dashboardPage(user, nonce = '') {
         <span class="knob"></span>
       </div>
     </div>
-    <p class="muted-note">One switch for AI across every jkOS app. Off hides LazurOS everywhere.</p>
-    <div class="ai-body" id="ai-body">
-      <div class="row"><label for="ai-url">Gateway</label><input type="text" id="ai-url" placeholder="http://host:8080" spellcheck="false"></div>
-      <div class="row"><label for="ai-model">Model</label><input type="text" id="ai-model" placeholder="llama3.2" spellcheck="false"></div>
-    </div>
+    <p class="muted-note">One switch for AI across every jkOS app. Off hides LazurOS everywhere.
+      There is nothing else to configure: the gateway is reached at a fixed suite path, and
+      each tier picks its own model from the deployment config on the machine that runs it.</p>
     <div class="ai-status" id="ai-status"></div>
   </section>
 </div>
@@ -245,13 +239,14 @@ function dashboardPage(user, nonce = '') {
 'use strict';
 const ROLE = ${JSON.stringify(user.role || 'user')};
 
-// App launcher — registered apps this role may use (exclude jkAuth itself).
+// App launcher — registered apps this role may use (exclude jkAuth itself, and
+// origin-less rows like the LazurOS gateway which has no browsable launcher tile).
 fetch('/auth/apps', { credentials: 'same-origin' })
   .then(r => r.ok ? r.json() : { apps: [] })
   .then(({ apps }) => {
     const el = document.getElementById('apps');
     const list = (apps || []).filter(a =>
-      a.id !== 'auth' && (a.allowed_roles || '').split(',').map(s => s.trim()).includes(ROLE));
+      a.id !== 'auth' && a.origin && (a.allowed_roles || '').split(',').map(s => s.trim()).includes(ROLE));
     if (!list.length) { el.innerHTML = '<div class="muted-note">No apps available for your account.</div>'; return; }
     el.innerHTML = list.map(a => {
       const ic = (a.name || '?').trim()[0].toUpperCase();
@@ -260,19 +255,13 @@ fetch('/auth/apps', { credentials: 'same-origin' })
   })
   .catch(() => { document.getElementById('apps').innerHTML = '<div class="muted-note">Could not load apps.</div>'; });
 
-// AI controls — backed by /auth/profile preferences.lazuros.
+// The AI kill switch — the ONE preference LazurOS has, owned here. Every other app
+// reads preferences.lazuros.enabled and hides its AI surfaces; none of them writes it.
 const sw = document.getElementById('ai-switch');
-const body = document.getElementById('ai-body');
-const urlEl = document.getElementById('ai-url');
-const modelEl = document.getElementById('ai-model');
 const status = document.getElementById('ai-status');
-let lazuros = { enabled: true, url: '', model: 'llama3.2' };
-let saveTimer = null;
+let lazuros = { enabled: true };
 
-function paint() {
-  sw.setAttribute('aria-checked', String(!!lazuros.enabled));
-  body.setAttribute('data-off', String(!lazuros.enabled));
-}
+function paint() { sw.setAttribute('aria-checked', String(!!lazuros.enabled)); }
 function save() {
   status.textContent = 'Saving…';
   fetch('/auth/profile', {
@@ -282,18 +271,15 @@ function save() {
   }).then(r => { status.textContent = r.ok ? 'Saved' : 'Save failed'; })
     .catch(() => { status.textContent = 'Save failed'; });
 }
-function queueSave() { clearTimeout(saveTimer); saveTimer = setTimeout(save, 500); }
 
 fetch('/auth/profile', { credentials: 'same-origin' })
   .then(r => r.ok ? r.json() : null)
-  .then(p => { if (p && p.preferences && p.preferences.lazuros) lazuros = Object.assign(lazuros, p.preferences.lazuros);
-    urlEl.value = lazuros.url || ''; modelEl.value = lazuros.model || ''; paint(); })
+  .then(p => { if (p && p.preferences && p.preferences.lazuros) lazuros = { enabled: p.preferences.lazuros.enabled !== false };
+    paint(); })
   .catch(() => {});
 
 sw.addEventListener('click', () => { lazuros.enabled = !lazuros.enabled; paint(); save(); });
 sw.addEventListener('keydown', e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); sw.click(); } });
-urlEl.addEventListener('change', () => { lazuros.url = urlEl.value.trim(); queueSave(); });
-modelEl.addEventListener('change', () => { lazuros.model = modelEl.value.trim(); queueSave(); });
 </script>`)
 }
 

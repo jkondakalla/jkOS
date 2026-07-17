@@ -8,7 +8,16 @@
  * and NO horizontal float (x is never auto-shifted sideways).
  */
 
-import { BREAKPOINTS, type Breakpoint, type GridItem, type HudState } from './types';
+import { BREAKPOINTS, DEFAULT_MIN_SIZE, type Breakpoint, type GridItem, type HudState, type WidgetDef } from './types';
+
+/** The smallest footprint (grid units) a card may be hand-resized to, for a given
+ *  column count. Reads the card's own `sizing.min` when set, else the suite-wide
+ *  DEFAULT_MIN_SIZE. Width is clamped to the tier's columns (a min of 3 can't be
+ *  enforced on a 2-col tier), and both floor at 1 so a card is never zero-sized. */
+export function minSize(def: WidgetDef | undefined, cols: number): { w: number; h: number } {
+  const m = def?.sizing.min ?? DEFAULT_MIN_SIZE;
+  return { w: Math.max(1, Math.min(m.w, cols)), h: Math.max(1, m.h) };
+}
 
 /** Do two items overlap in grid space? An item never collides with itself. */
 export function collides(a: GridItem, b: GridItem): boolean {
@@ -61,27 +70,44 @@ export function compactVertical(items: GridItem[], cols: number): GridItem[] {
 }
 
 /**
- * Auto-balance: repack every card to MINIMISE the page's total height, then its
- * empty space. The two goals are one objective — occupied area is fixed, so the
- * holes left over are `height * cols - area`; driving the height down drives the
- * wasted space down with it. Unlike compactVertical (which only slides a card
- * straight down, holding its x), this is free to move a card sideways, so a
- * small card drops into a gap a tall neighbour left beside it.
+ * Auto-balance: tidy the layout — pull cards up into the gaps so the page gets
+ * shorter — WITHOUT reshuffling the arrangement into something unrecognisable.
+ * (An earlier cut sorted every card by size, first-fit-decreasing: minimal
+ * empty space, but it relocated everything on each press.) Two rules instead:
  *
- * Method: first-fit-decreasing into an occupancy grid. Cards are placed largest
- * first (taller, then wider) so the big blocks anchor the layout; each then
- * lands in the topmost-leftmost free slot — the lowest hole available, which is
- * "minimum height first, least empty space second" by construction. `static`
- * cards keep their stored cell and act as fixed obstacles the rest pack around.
+ *   • Familiarity: movable cards are processed in READING ORDER of the current
+ *     layout (top-to-bottom, left-to-right), and each lands in the slot that
+ *     minimises `2·row + lateral distance from its own column`. Rising is what
+ *     balance is FOR, but a sideways move costs double: a card crosses k
+ *     columns only to climb more than k/2 rows. A big hole still gets filled —
+ *     even from across the page when the climb earns it — but nobody trades a
+ *     whole column identity for one row. A layout with no holes is a fixed
+ *     point: balance leaves it exactly as-is.
+ *   • Respect intent: `static` cards and ids in `opts.keep` (cards the user
+ *     hand-placed this edit session) are fixed obstacles — they keep their
+ *     exact cell and everyone else packs around them. One caveat: the
+ *     no-floating-gaps invariant is global (layoutForBreakpoint compacts every
+ *     render), so if balance clears the space directly above a kept card, the
+ *     render slides it up its own column — held sideways, never reshuffled.
+ *
+ * Placement is still gap-seeking, so holes fill and the height drops — it's
+ * just no longer worth scrambling the page over. Movable placements are
+ * compactVertical-stable (each takes the topmost fit in its chosen column),
+ * so the render path keeps them untouched.
  */
-export function autoBalance(items: GridItem[], cols: number): GridItem[] {
+export function autoBalance(
+  items: GridItem[],
+  cols: number,
+  opts: { keep?: ReadonlySet<string> } = {},
+): GridItem[] {
   const fitted = items.map((it) => clampToCols(it, cols));
-  const statics = fitted.filter((it) => it.static);
-  const movable = fitted.filter((it) => !it.static);
+  const isFixed = (it: GridItem) => !!it.static || !!opts.keep?.has(it.i);
+  const fixed = fitted.filter(isFixed);
+  const movable = fitted.filter((it) => !isFixed(it));
 
-  // FFD ordering; later keys are pure tie-breakers so the result is deterministic.
-  movable.sort((a, b) =>
-    b.h - a.h || b.w - a.w || a.y - b.y || a.x - b.x || (a.i < b.i ? -1 : 1));
+  // Reading order of the CURRENT layout; the id key is a pure tie-breaker so
+  // the result is deterministic.
+  movable.sort((a, b) => a.y - b.y || a.x - b.x || (a.i < b.i ? -1 : 1));
 
   // Sparse occupancy grid — rows materialise on demand, width is fixed at `cols`.
   const rows: boolean[][] = [];
@@ -101,23 +127,33 @@ export function autoBalance(items: GridItem[], cols: number): GridItem[] {
   };
 
   const placed: GridItem[] = [];
-  for (const it of statics) { occupy(it.x, it.y, it.w, it.h); placed.push(it); }
+  for (const it of fixed) { occupy(it.x, it.y, it.w, it.h); placed.push(it); }
 
-  // First-fit, topmost row then leftmost column. The search can never need more
-  // rows than every card stacked single-file, so that's a safe upper bound.
+  // Weighted best-fit: per column, the topmost row the card fits; the winner
+  // minimises 2·row + |Δcolumn|. Cost ties keep the smaller sideways move
+  // (equal cost + equal distance can only differ left/right — first found,
+  // i.e. leftmost, wins). The scan can never need more rows than every card
+  // stacked single-file, so that's a safe upper bound.
   const maxY = fitted.reduce((sum, it) => sum + it.h, 0) + 1;
   for (const it of movable) {
-    let done = false;
-    for (let y = 0; y < maxY && !done; y++) {
-      for (let x = 0; x <= cols - it.w; x++) {
-        if (isFree(x, y, it.w, it.h)) {
-          occupy(x, y, it.w, it.h);
-          placed.push({ ...it, x, y });
-          done = true;
-          break;
+    let bestX = 0, bestY = 0, bestCost = Infinity;
+    for (let x = 0; x <= cols - it.w; x++) {
+      const dx = Math.abs(x - it.x);
+      for (let y = 0; y < maxY; y++) {
+        if (!isFree(x, y, it.w, it.h)) continue;
+        const cost = y * 2 + dx;
+        if (cost < bestCost || (cost === bestCost && dx < Math.abs(bestX - it.x))) {
+          bestX = x; bestY = y; bestCost = cost;
         }
+        break;                       // topmost fit for this column found
       }
     }
+    if (bestCost === Infinity) {     // unreachable when the input has no overlaps
+      bestX = Math.max(0, Math.min(it.x, cols - it.w));
+      bestY = bottom(placed);
+    }
+    occupy(bestX, bestY, it.w, it.h);
+    placed.push({ ...it, x: bestX, y: bestY });
   }
   return placed;
 }

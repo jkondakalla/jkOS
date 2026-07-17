@@ -47,7 +47,7 @@ async function waitForHealth(ms = 15000) {
 
 const child = spawn('node', ['server.js'], {
   cwd: BACKEND,
-  env: { ...process.env, NODE_ENV: '', PORT: String(PORT), DB_PATH, BB_AI_ENABLED: 'false' },
+  env: { ...process.env, NODE_ENV: '', PORT: String(PORT), DB_PATH },
   stdio: ['ignore', 'pipe', 'pipe'],
 });
 let serverLog = '';

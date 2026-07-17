@@ -1,4 +1,7 @@
 .env
+# The filled-in deployment config (real WoL MAC / node IPs) — copied from a committed
+# template (deployment.example.json / deployment.jag.json) and mounted at runtime.
+deployment.json
 *.db
 *.db-shm
 *.db-wal

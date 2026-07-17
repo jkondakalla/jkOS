@@ -32,6 +32,15 @@ for (const k of cjsKeys) {
 }
 ok('esm default is the CJS module', esm.default === cjs)
 
+// The lean subpath twins (@jkos/weave/collection · /connector) — each .mjs must
+// surface its .js default + named factory, same drift guard as the server entry.
+for (const [sub, fn] of [['collection', 'defineCollection'], ['connector', 'defineConnector'], ['libraryScanner', 'defineLibraryScanner']]) {
+  const c = require(`../src/server/${sub}.js`)
+  const e = await import(`../src/server/${sub}.mjs`)
+  ok(`${sub}.mjs default === ${sub}.js`, e.default === c)
+  ok(`${sub}.mjs re-exports ${fn} (same ref)`, e[fn] === c[fn] && typeof c[fn] === 'function')
+}
+
 // ── 2. doc-shape validator ───────────────────────────────────────────────────────
 console.log('2 · shared doc-shape validator')
 const { checkDocShape, isValidDoc } = require('../src/shared/docShape.js')
@@ -51,5 +60,24 @@ ok('serveDatasets throws on a malformed doc (producer fails loud)', true)
 ok('serveDatasets returns a handler for a good doc', typeof serveDatasets(goodDs) === 'function')
 ok('serveCapabilities validates against the capabilities list', typeof serveCapabilities(
   { app: 'beigeboard', version: 1, capabilities: [{ id: 'createItem' }] }) === 'function')
+
+// ── 3. AppId union ⇄ APPS parity ────────────────────────────────────────────────
+// The `AppId` literal tuple in suite-manifest's apps.d.ts is the ONE typed mirror
+// of the runtime APPS rows (a .d.ts cannot derive literals from CJS). Weave's
+// public app-addressing signatures are typed on it, so if the two lists drift a
+// registered app becomes unaddressable (or a ghost id typechecks). Fail red here;
+// `pnpm new-app` patches both files.
+console.log('3 · AppId union ⇄ APPS parity')
+const { readFileSync } = await import('node:fs')
+const { APPS, APP_IDS } = require('@jkos/suite-manifest')
+ok('APP_IDS derives from APPS (same ids, same order)',
+  JSON.stringify(APP_IDS) === JSON.stringify(APPS.map((a) => a.id)))
+const dts = readFileSync(new URL('../../suite-manifest/apps.d.ts', import.meta.url), 'utf8')
+const tuple = dts.match(/export declare const APP_IDS: readonly \[([^\]]*)\]/)
+ok('apps.d.ts declares the APP_IDS literal tuple', !!tuple)
+const dtsIds = tuple[1].split(',').map((s) => s.trim().replace(/^'|'$/g, '')).filter(Boolean)
+ok('apps.d.ts AppId union matches the runtime APPS ids',
+  JSON.stringify(dtsIds) === JSON.stringify([...APP_IDS]),
+  `\n    d.ts:    ${dtsIds}\n    runtime: ${[...APP_IDS]}`)
 
 console.log(`\nPASS: ${pass} passed, 0 failed`)

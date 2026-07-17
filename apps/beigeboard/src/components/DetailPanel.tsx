@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { FONT_HEAD, FONT_BODY, FONT_NUM, sourceOf, fmtTime, fmtFull, localDate } from '../lib/theme'
+import { FONT_HEAD, FONT_BODY, FONT_NUM, sourceOf, fmtTime, fmtFull, localDate, weekStart, isoDate } from '../lib/theme'
 import { getAncestors, getChildren, getAccent, getProgress } from '../lib/seed'
 import { Eyebrow, Checkbox } from './SharedComponents'
 import { useHudShelf } from '../lib/jkauth'
+import { useBreakpoint } from '@jkos/ui'
 
-export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdateItem, setView, setFocusedGoalId }: any) {
+export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdateItem, setView, setFocusedNodeId }: any) {
   const [titleEditing, setTitleEditing] = useState(false)
   const [titleVal, setTitleVal]         = useState('')
   const titleInputRef = useRef<HTMLInputElement>(null)
@@ -20,6 +21,12 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
 
   // ORDECK HUD shelf — pin/focus this item onto the dashboard (suite-wide prefs).
   const shelf = useHudShelf()
+
+  // Phones route to the mobile tree entirely; here the tablet tier is the narrow
+  // case. Below desktop, drop the 340px right rail for a full-width bottom sheet
+  // (kinder on touch + narrow widths). Breakpoints from the single @jkos/design
+  // source via useBreakpoint — no bespoke matchMedia.
+  const asSheet = useBreakpoint() !== 'desktop'
 
   if (!event) return null
 
@@ -45,13 +52,31 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
 
   return (
     <aside className="panel-enter" style={{
-      borderLeft: `1px solid var(--color-line)`,
+      // Overlay, not a layout column: share the main content's grid cell (row 2,
+      // col 1). On desktop pin to the right edge as a 340px rail so it pops up in
+      // place instead of squeezing the view; below desktop become a full-width
+      // bottom sheet pinned to the bottom edge.
+      gridRow: 2, gridColumn: 1,
+      zIndex: 20,
       background: 'var(--color-paper-2)',
       display: 'flex', flexDirection: 'column',
       overflow: 'hidden',
+      ...(asSheet ? {
+        justifySelf: 'stretch', alignSelf: 'end',
+        width: '100%', maxHeight: '82vh',
+        boxShadow: '0 -8px 28px rgba(0,0,0,0.18)',
+        borderTop: `1px solid var(--color-line)`,
+        borderTopLeftRadius: 'var(--hub-radius-lg)',
+        borderTopRightRadius: 'var(--hub-radius-lg)',
+      } : {
+        justifySelf: 'end', alignSelf: 'stretch',
+        width: 340, maxWidth: '100%',
+        boxShadow: '-8px 0 28px rgba(0,0,0,0.18)',
+        borderLeft: `1px solid var(--color-line)`,
+      }),
     }}>
       <div style={{
-        background: accent, color: 'rgba(255,255,255,0.95)',
+        background: accent, color: 'var(--color-on-accent)',
         padding: '16px 22px 18px',
       }}>
         <div style={{
@@ -60,13 +85,13 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
         }}>
           <div style={{
             fontFamily: FONT_BODY, fontSize: 9, letterSpacing: '0.22em',
-            textTransform: 'uppercase', color: 'rgba(255,255,255,0.7)',
+            textTransform: 'uppercase', color: 'var(--color-on-accent-dim)',
           }}>{scopeLabel}{isEvent && event.source ? ` · ${sourceOf(event.source).label}` : ''}</div>
           <button
             onClick={onClose} title="Close"
             style={{
               background: 'transparent', border: 'none',
-              color: 'rgba(255,255,255,0.7)', fontSize: 16,
+              color: 'var(--color-on-accent-dim)', fontSize: 16,
               cursor: 'pointer', padding: 0, lineHeight: 1,
             }}
           >✕</button>
@@ -88,10 +113,10 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
             }}
             style={{
               background: 'transparent', border: 'none',
-              borderBottom: '1px solid rgba(255,255,255,0.45)',
+              borderBottom: '1px solid var(--color-on-accent-faint)',
               fontFamily: FONT_HEAD, fontWeight: 500,
               fontSize: isGoal ? 26 : 22,
-              color: 'rgba(255,255,255,0.95)', outline: 'none',
+              color: 'var(--color-on-accent)', outline: 'none',
               padding: '2px 0 6px', width: '100%', letterSpacing: '-0.015em',
             }}
           />
@@ -113,7 +138,7 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
         {event.target && (
           <div style={{
             fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 12.5,
-            color: 'rgba(255,255,255,0.72)', marginTop: 5,
+            color: 'var(--color-on-accent-dim)', marginTop: 5,
           }}>{event.target}</div>
         )}
       </div>
@@ -275,7 +300,7 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
 
             <button
               onClick={() => {
-                setFocusedGoalId?.(event.id)
+                setFocusedNodeId?.(event.id)
                 setView?.('tasks')
               }}
               className="btn-action"
@@ -285,6 +310,28 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
                 fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.16em',
                 textTransform: 'uppercase', padding: '10px 14px', cursor: 'pointer',
                 width: '100%',
+              }}
+            >Open in workshop →</button>
+          </Field>
+        )}
+
+        {isMilestone && (
+          <Field label={`Checkpoint · ${prog.total > 0 ? `${prog.done}/${prog.total}` : 'open'}`}>
+            {prog.total > 0 && (
+              <div style={{ height: 2, background: 'var(--color-line-strong)', marginBottom: 12 }}>
+                <div style={{ height: '100%', width: `${prog.pct}%`, background: accent }} />
+              </div>
+            )}
+            <button
+              onClick={() => {
+                setFocusedNodeId?.(event.id)
+                setView?.('tasks')
+              }}
+              className="btn-action"
+              style={{
+                background: accent, color: 'var(--color-paper)', border: 'none',
+                fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.16em',
+                textTransform: 'uppercase', padding: '10px 14px', cursor: 'pointer', width: '100%',
               }}
             >Open in workshop →</button>
           </Field>
@@ -443,8 +490,28 @@ function WhenField({ event, isTask, isEvent, onUpdateItem }: any) {
     fontFamily: FONT_BODY, fontSize: 11,
     color: 'var(--color-ink)', padding: '4px 6px', outline: 'none',
   }
+  const benchBtn: React.CSSProperties = {
+    background: 'transparent', border: `1px solid var(--color-line)`,
+    borderRadius: 'var(--hub-radius-sm)',
+    fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.06em',
+    color: 'var(--color-muted)', padding: '7px 10px', cursor: 'pointer',
+  }
 
   const isMultiDay = event.end_date && event.end_date !== event.due_date
+
+  // The weekly bench: a task committed to this week but no day yet (week_start set,
+  // no due_date). See PLANNING_METHOD.md → the weekly bench.
+  const benched   = isTask && event.week_start && !event.due_date
+  const weekLabel = event.week_start
+    ? localDate(event.week_start).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    : ''
+  const benchThisWeek = () => {
+    onUpdateItem?.(event.id, {
+      week_start: weekStart(isoDate(new Date())), due_date: null, scheduled_time: null, scheduled_end: null,
+    })
+    setEditing(false)
+  }
+  const unbench = () => onUpdateItem?.(event.id, { week_start: null })
 
   return (
     <div style={{ marginBottom: 18 }}>
@@ -496,6 +563,10 @@ function WhenField({ event, isTask, isEvent, onUpdateItem }: any) {
                 textTransform: 'uppercase', color: 'var(--color-faint)', padding: '7px 10px', cursor: 'pointer',
               }}>Clear</button>
             )}
+            {isTask && !benched && (
+              <button onClick={benchThisWeek} style={{ ...benchBtn, textTransform: 'uppercase', letterSpacing: '0.12em' }}
+                title="Move to this week's bench (no day yet)">Bench</button>
+            )}
           </div>
         </div>
       ) : (event.due_date || event.scheduled_time) ? (
@@ -523,12 +594,31 @@ function WhenField({ event, isTask, isEvent, onUpdateItem }: any) {
             </div>
           )}
         </div>
+      ) : benched ? (
+        <div>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 15, color: 'var(--color-ink)', lineHeight: 1.4 }}>
+            On the bench · week of {weekLabel}
+          </div>
+          {canEdit && (
+            <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+              <button onClick={() => setEditing(true)} style={benchBtn}>Pick a day</button>
+              <button onClick={unbench} style={benchBtn}>Off the bench</button>
+            </div>
+          )}
+        </div>
       ) : canEdit ? (
-        <button onClick={() => setEditing(true)} style={{
-          background: 'transparent', border: `1px dashed var(--color-line)`,
-          fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 13,
-          color: 'var(--color-muted)', cursor: 'pointer', padding: '8px 12px', width: '100%', textAlign: 'left',
-        }}>+ Schedule this {isEvent ? 'event' : 'task'}</button>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <button onClick={() => setEditing(true)} style={{
+            flex: '1 1 auto', background: 'transparent', border: `1px dashed var(--color-line)`,
+            fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 13,
+            color: 'var(--color-muted)', cursor: 'pointer', padding: '8px 12px', textAlign: 'left',
+          }}>+ Schedule this {isEvent ? 'event' : 'task'}</button>
+          {isTask && (
+            <button onClick={benchThisWeek} style={benchBtn} title="Commit to this week, pick a day later">
+              · just this week
+            </button>
+          )}
+        </div>
       ) : null}
     </div>
   )

@@ -1,21 +1,21 @@
-/* @jkos/ui — ORDECK design tokens
-   Single source of truth: Design/tokens/hub.css defines all --hub-* variables.
-   ORDECK-specific extensions (layout, CRT, widget tuning) remain here. */
+/* @jkos/ui — shared design tokens (imported by every suite app).
+   Single source of truth: @jkos/design/tokens/hub.css defines all --hub-* and
+   --color-* variables (including the CRT overlay knobs); this file re-exports it
+   and applies ONE sanctioned app-tier override below. Per-app overrides belong in
+   each app's buildJkOSTheme(). */
 
 @import '@jkos/design/tokens.css';
 
-/* ── ORDECK keeps the amber-first dark identity as its base dark accent ── */
-/* (No override needed — hub.css dark mode already defaults to #ffb000)    */
-
-/* ── CRT overlay controls — 0 in paper mode, JS sets scan opacity in dark ── */
-:root {
-  --crt-scanline-opacity: 0;
-  --crt-vignette-opacity: 0;
-}
-:root[data-mode="dark"] {
-  --crt-vignette-opacity: 0.5;
-}
+/* ── CRT overlay knobs — OWNED by @jkos/design/hub.css ─────────────────────
+   hub.css sets the base values, mode-gated (a subtle paper vignette; a lit dark
+   scanline + vignette). The full-shell apps that import THIS file (ORDECK,
+   BeigeBoard) take exactly ONE sanctioned opt-out — a flat paper backdrop (no
+   paper vignette) — and inherit every other knob (dark vignette, scanline, ink)
+   from hub.css, so the atmosphere can't silently drift between the two import
+   paths. Static-mirror apps (jkAuth, jkos-deploy) render hub.css directly and so
+   keep the paper vignette. Any NEW CRT knob belongs in hub.css, not here.
+   See DESIGN.md § "CRT knob ownership". */
+:root { --crt-vignette-opacity: 0; }
 
 /* The --color-* aliases are defined once in @jkos/design (hub.css) and derive
-   from the accent chain — no need to restate them here. ORDECK keeps only its
-   CRT overlay knobs above. */
+   from the accent chain — no need to restate them here. */

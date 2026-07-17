@@ -1,0 +1,70 @@
+/* library.css — Home + Artists (task 18.3): grid sections, and the shared
+   `.kr-tile` card used by ArtistTile/AlbumTile/TrackTile (views/library/*).
+   Reads only --hub- and --accent design tokens (app.css's header comment
+   applies suite-wide) — no hardcoded hex/radius. Card chrome (background/
+   border/radius/shadow) comes from @jkos/ui's <Sheet> (`.jk-sheet`, hub.css) —
+   this file only resets the UA button defaults a `Sheet as="button">` tile
+   (TrackTile — it plays, it doesn't navigate) would otherwise carry, and adds
+   the layout/typography `.jk-sheet` itself doesn't own. */
+
+.kr-section { margin-top: 1.5rem; }
+.kr-section:first-child { margin-top: 0.75rem; }
+
+.kr-grid { margin-top: 0.6rem; }
+
+.kr-tile {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  width: 100%;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+  transition: transform 0.12s ease, border-color 0.12s ease;
+}
+.kr-tile:hover {
+  border-color: color-mix(in srgb, var(--accent-secondary) 45%, var(--hub-line));
+  transform: translateY(-1px);
+}
+
+/* Cover art (image + fallback tile) is @jkos/ui's <CoverArt> — square by
+   default (`.jk-media-cover` in packages/design/tokens/hub.css). ArtistTile
+   rounds it into a circle (a person/act reads rounder than an album jacket);
+   the className lands directly on the rendered <img>/placeholder <div>. */
+.kr-tile-cover-round { border-radius: 50%; }
+
+.kr-tile-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.6rem 0.65rem 0.75rem;
+}
+.kr-tile-title {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.kr-tile-sub {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--hub-cream-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.kr-tile-meta {
+  margin: 0;
+  font-family: var(--hub-font-mono);
+  font-size: 0.7rem;
+  color: var(--hub-cream-dim);
+}
+
+.kr-grid[data-density="compact"] .kr-tile-title { font-size: 0.88rem; }

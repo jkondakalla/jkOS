@@ -1,0 +1,18 @@
+# LazurOS worker — install on the compute node as /etc/systemd/system/lazuros-worker.service.
+# No inference-runtime dependency is declared on purpose: a node may run Ollama, llama.cpp
+# server, or vLLM — whichever it is, point LAZUROS_OLLAMA_URL at it and manage that runtime's
+# own unit separately, outside LazurOS's concern. Stdlib-only worker → no venv/pip needed.
+[Unit]
+Description=LazurOS Worker Daemon
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/bin/python3 /opt/lazuros/worker.py
+Restart=always
+RestartSec=5
+TimeoutStopSec=120
+EnvironmentFile=/opt/lazuros/.env
+
+[Install]
+WantedBy=multi-user.target

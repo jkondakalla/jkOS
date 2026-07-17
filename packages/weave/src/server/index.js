@@ -19,6 +19,11 @@ const { serveCapabilities, serveDatasets } = require('./contracts')
 const { buildItemFilters, filterSpec } = require('./filters')
 const { coerceWeaveColumn } = require('./columns')
 const { weaveServerClient } = require('./serverClient')
+const { defineCollection } = require('./collection')
+const { defineConnector } = require('./connector')
+const { defineLibraryScanner } = require('./libraryScanner')
+const { defineMediaRoutes, decidePlayback } = require('./mediaRoutes')
+const { createTriggerEngine, resolveBindings, validateTriggerTypes, triggerWebhook, serverDispatch } = require('./trigger')
 // Re-export the canonical error-code vocabulary + envelope helper so backends that
 // already weave in @jkos/weave/server (jkAuth, BeigeBoard) get one source for the
 // `code` field without a second auth-middleware import. Single source lives in
@@ -38,6 +43,16 @@ module.exports = {
   filterSpec,
   coerceWeaveColumn,
   weaveServerClient,
+  defineCollection,
+  defineConnector,
+  defineLibraryScanner,
+  defineMediaRoutes,
+  decidePlayback,
+  createTriggerEngine,
+  resolveBindings,
+  validateTriggerTypes,
+  triggerWebhook,
+  serverDispatch,
   CODES,
   authError,
 }

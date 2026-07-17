@@ -25,7 +25,7 @@ function ScanLines() {
         pointerEvents: 'none',
         zIndex: 61,
         backgroundImage:
-          'repeating-linear-gradient(to bottom, transparent 0px, transparent 2.5px, rgba(0,0,0,0.05) 2.5px, rgba(0,0,0,0.05) 3.5px)',
+          'repeating-linear-gradient(to bottom, transparent 0px, transparent 2.5px, color-mix(in srgb, var(--crt-scanline-ink) 5%, transparent) 2.5px, color-mix(in srgb, var(--crt-scanline-ink) 5%, transparent) 3.5px)',
         animation: 'bb-scanroll 10s linear infinite, bb-scanpulse 16s ease-in-out infinite',
       }}
     />
@@ -42,7 +42,7 @@ function HalationVignette() {
         pointerEvents: 'none',
         zIndex: 59,
         background:
-          'radial-gradient(120% 80% at 50% 28%, rgba(224,160,32,0.05) 0%, transparent 45%), radial-gradient(140% 120% at 50% 50%, transparent 58%, rgba(0,0,0,0.55) 100%)',
+          'radial-gradient(120% 80% at 50% 28%, color-mix(in srgb, var(--color-accent) 5%, transparent) 0%, transparent 45%), radial-gradient(140% 120% at 50% 50%, transparent 58%, var(--hub-scrim-heavy) 100%)',
       }}
     />
   )
@@ -99,7 +99,7 @@ function Artifacts() {
             width: 1,
             height: `${a.h}%`,
             opacity: a.op,
-            background: a.bright ? '#FFF5E0' : '#1A0F06',
+            background: a.bright ? 'var(--hub-cream-bright)' : 'var(--hub-bg-0)',
             animation: `bb-flash ${a.dur}ms ease-in-out forwards`,
           }}
         />

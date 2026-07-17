@@ -1,0 +1,253 @@
+/* playlists.css — Playlists list, PlaylistDetail, and AddToPlaylistMenu (task 18.6).
+   Reads only --hub-/--accent tokens, same policy as the rest of this app's CSS
+   (app.css's header comment). `.kr-track-li`/`.kr-track-row` sizing lives in
+   detail.css (TrackRow's own file) — this file owns everything new to this wave. */
+
+/* ── Error-tinted note — reorder/save failures. Same hue as @jkos/ui's
+   .jk-async-error (color-mix toward --hub-red), just on the plain .kr-note
+   (app.css) instead of AsyncView's own state paragraph. ─────────────────────── */
+.kr-note-error {
+  color: color-mix(in srgb, var(--hub-red) 75%, var(--hub-cream-dim));
+}
+
+/* ── Playlists list (#/playlists) ─────────────────────────────────────────────── */
+
+.view-playlists { max-width: 720px; }
+
+.kr-playlist-list {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  max-width: 640px;
+}
+.kr-playlist-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.7rem 0.9rem;
+  flex-wrap: wrap;
+}
+.kr-playlist-link {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  min-width: 0;
+  flex: 1;
+  color: inherit;
+  text-decoration: none;
+}
+.kr-playlist-link:hover .kr-playlist-name { color: var(--accent-secondary); }
+.kr-playlist-name {
+  font-size: 0.95rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kr-playlist-count {
+  flex: none;
+  font-family: var(--hub-font-mono);
+  font-size: 0.75rem;
+  color: var(--hub-cream-dim);
+}
+.kr-playlist-actions {
+  display: flex;
+  gap: 0.3rem;
+  flex: none;
+}
+.kr-playlist-rename {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex: 1;
+}
+.kr-playlist-new { margin-top: 0.6rem; max-width: 420px; }
+.kr-playlist-desc { margin: 0; }
+
+/* ── Shared "form + text input" bits (top-level create form, rename form, and
+   AddToPlaylistMenu's "new playlist" form all use these) ─────────────────────── */
+
+.kr-picker-new {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.kr-picker-input {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--hub-tap-min, 2.2rem);
+  font-family: var(--hub-font-sans);
+  font-size: 0.9rem;
+  color: var(--hub-cream-bright);
+  background: var(--hub-bg-1);
+  border: 1px solid var(--hub-line);
+  border-radius: var(--hub-radius-sm);
+  padding: 0.4rem 0.6rem;
+}
+.kr-picker-input:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--accent-secondary) 55%, transparent);
+}
+
+/* ── AddToPlaylistMenu — the "+" trigger + its centered picker dialog ─────────
+   z-index sits above @jkos/player/ui's popover (6010, PlayerBar's QueueMenu —
+   see packages/player/src/ui/player-ui.css) so the picker can never end up
+   under the persistent player bar's own popovers, and below this app's own
+   auth veil (8000, app.css — the two never coexist regardless). ─────────────── */
+
+.kr-add-menu { position: relative; display: inline-flex; flex: none; }
+
+.kr-add-btn {
+  width: 1.9rem;
+  height: 1.9rem;
+  min-width: var(--hub-tap-min, 1.9rem);
+  min-height: var(--hub-tap-min, 1.9rem);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px solid var(--hub-line);
+  background: var(--hub-bg-1);
+  color: var(--hub-cream-dim);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  flex: none;
+}
+.kr-add-btn:hover {
+  color: var(--accent-secondary);
+  border-color: color-mix(in srgb, var(--accent-secondary) 50%, var(--hub-line));
+}
+
+.kr-picker-scrim { z-index: 7000; }
+
+.kr-picker {
+  position: fixed;
+  z-index: 7010;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(380px, calc(100vw - 2rem));
+  max-height: min(72vh, 560px);
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1rem;
+  overflow: hidden;
+}
+.kr-picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.kr-picker-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  overflow-y: auto;
+}
+.kr-picker-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  min-height: var(--hub-tap-min, 2.4rem);
+  border: 1px solid var(--hub-line);
+  border-radius: var(--hub-radius-sm);
+  background: var(--hub-bg-1);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.kr-picker-item:hover {
+  border-color: color-mix(in srgb, var(--accent-secondary) 50%, transparent);
+  color: var(--accent-secondary);
+}
+.kr-picker-item[disabled] { opacity: 0.5; cursor: not-allowed; }
+.kr-picker-item-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kr-picker-count {
+  flex: none;
+  font-family: var(--hub-font-mono);
+  font-size: 0.75rem;
+  color: var(--hub-cream-dim);
+}
+.kr-picker-new-btn { align-self: flex-start; }
+
+/* ── PlaylistDetail's reorderable track list (#/playlist/<id>) ────────────────
+   Three sibling buttons per row (grip / play / remove) — the same shape as
+   @jkos/player/ui's <QueuePanel> row, kept local rather than reusing TrackRow
+   (which only has one action slot). `.kr-reorder-track` reuses detail.css's
+   `.kr-track-row` chrome, just stretched to share the row with the grip/remove
+   buttons instead of spanning it alone. ───────────────────────────────────── */
+
+.kr-reorder-list {
+  align-self: stretch;
+  list-style: none;
+  margin: 0.4rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.kr-reorder-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.4rem;
+}
+.kr-reorder-row.is-dragging { opacity: 0.5; }
+.kr-reorder-row.is-drop-target .kr-reorder-track {
+  border-color: var(--accent-secondary);
+}
+.kr-reorder-grip {
+  flex: none;
+  width: 1.9rem;
+  min-height: var(--hub-tap-min, 2.4rem);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--hub-line);
+  border-radius: var(--hub-radius-sm);
+  background: var(--hub-bg-1);
+  color: var(--hub-cream-dim);
+  cursor: grab;
+  touch-action: none;
+}
+.kr-reorder-grip:hover { color: var(--accent-secondary); }
+.kr-reorder-track { flex: 1; min-width: 0; width: auto; }
+.kr-reorder-remove {
+  flex: none;
+  width: 1.9rem;
+  min-height: var(--hub-tap-min, 2.4rem);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--hub-line);
+  border-radius: var(--hub-radius-sm);
+  background: var(--hub-bg-1);
+  color: var(--hub-cream-dim);
+  font-size: 1rem;
+  cursor: pointer;
+}
+.kr-reorder-remove:hover {
+  color: color-mix(in srgb, var(--hub-red) 75%, var(--hub-cream-dim));
+  border-color: color-mix(in srgb, var(--hub-red) 45%, var(--hub-line));
+}
+
+@media (max-width: 480px) {
+  .kr-playlist-row { padding: 0.6rem 0.7rem; }
+}

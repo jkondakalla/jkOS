@@ -18,17 +18,18 @@
  */
 
 import {
-  useRef, useState, useLayoutEffect,
+  useRef, useState, useEffect, useLayoutEffect, forwardRef, useImperativeHandle,
   type ReactNode, type RefObject, type PointerEvent as ReactPointerEvent,
 } from 'react';
-import { activeBreakpoint, layoutForBreakpoint, compactVertical, bottom } from './engine';
-import type { BreakpointName, GridItem, HudState, WidgetDef } from './types';
+import { usePointerDrag, HOLD_MS, HOLD_CANCEL_PX } from '@jkos/ui';
+import { activeBreakpoint, layoutForBreakpoint, compactVertical, bottom, minSize } from './engine';
+import type { Breakpoint, BreakpointName, GridItem, HudState, WidgetDef } from './types';
 import './grid.css';
 
 const DEFAULT_ROW_HEIGHT = 44;
 const DEFAULT_GAP = 18;
-const HOLD_MS = 500;        // press-and-hold to pick a card up (outside edit mode)
-const MOVE_CANCEL_PX = 5;   // movement before the hold completes = scroll/tap, not a drag
+// HOLD_MS (press-and-hold to pick up) and HOLD_CANCEL_PX (movement that re-reads
+// the gesture as a scroll/tap) come from @jkos/ui — the suite's one gesture source.
 
 interface HudGridProps {
   state: HudState;
@@ -40,25 +41,51 @@ interface HudGridProps {
   onEdit?: (id: string) => void;
   /** Fired when a long-press picks a card up while not yet in edit mode. */
   onRequestEdit?: () => void;
-  onLayoutChange?: (bp: BreakpointName, items: GridItem[]) => void;
+  /** Fired when a drag commits: the tier, the full committed layout, and the id
+   *  of the card the user actually moved (the rest merely repacked around it). */
+  onLayoutChange?: (bp: BreakpointName, items: GridItem[], movedId?: string) => void;
+  /** Fired when a tray-tile drop commits (see HudGridHandle): the tier, the full
+   *  committed layout WITH the dropped card, and the dropped card's id. The
+   *  owner adopts the layout and clears the card's shelf entry. */
+  onExternalPlace?: (bp: BreakpointName, items: GridItem[], id: string) => void;
+  /** Reports the tier the grid resolved from its OWN container width. Callers
+   *  mutating layouts must use this, not window width — the canvas padding makes
+   *  the two disagree just past the 768/1024 boundaries. */
+  onBreakpoint?: (bp: Breakpoint) => void;
+  /** Ids hand-placed this edit session — badged with a pin in edit mode so it's
+   *  visible why auto-balance packs around them. */
+  sessionPinned?: ReadonlySet<string>;
   rowHeight?: number;
   gap?: number;
   renderWidget: (def: WidgetDef, item: GridItem) => ReactNode;
 }
 
-/** Live gesture (a ref — pointer moves must not re-render until a drag begins). */
-interface Press {
-  id: string;
-  el: HTMLElement;                   // the cell node — captured once a drag begins
-  pointerId: number;
-  startX: number; startY: number;   // pointerdown point (for the 5px cancel test)
-  lastX: number; lastY: number;     // most recent pointer point (for delayed activate)
-  grabX: number; grabY: number;     // pointer offset inside the card at grab time
-  active: boolean;
-  timer: ReturnType<typeof setTimeout> | null;
-}
 /** What's rendered while a card is lifted. */
 interface Drag { id: string; px: number; py: number; col: number; row: number; }
+
+/** A card being hand-resized: its top-left stays put (col/row), only w/h grow or
+ *  shrink as the corner grip is dragged. The engine repacks siblings live around
+ *  the new footprint, exactly like a move. */
+interface Resize { id: string; w: number; h: number; }
+
+/** A tray tile hovering over the grid — an external drag. Same live-repack +
+ *  placeholder mechanics as an internal drag; the tile itself (in the tray) is
+ *  the drag visual, so the grid renders only the landing preview. */
+interface ExtDrag { id: string; col: number; row: number; w: number; h: number; }
+
+/** Imperative surface for the tray's tile drag. The gesture LIVES in the tray
+ *  (its tile is what the finger holds); the grid only resolves pointer → cell,
+ *  previews the landing, and commits the drop — so the geometry stays private
+ *  to the one component that owns it. */
+export interface HudGridHandle {
+  /** Preview a tray drag at client coords (clears when the pointer leaves). */
+  trayOver: (id: string, x: number, y: number) => void;
+  /** Commit a tray drop. Returns false (and just clears the preview) when the
+   *  pointer isn't over the grid — the card stays shelved. */
+  trayDrop: (id: string, x: number, y: number) => boolean;
+  /** Abandon the preview (gesture cancelled). */
+  trayCancel: () => void;
+}
 
 function useElementWidth(ref: RefObject<HTMLElement>): number {
   const [width, setWidth] = useState(0);
@@ -77,7 +104,7 @@ function useElementWidth(ref: RefObject<HTMLElement>): number {
   return width;
 }
 
-export function HudGrid({
+export const HudGrid = forwardRef<HudGridHandle, HudGridProps>(function HudGrid({
   state,
   editMode = false,
   highlightId,
@@ -85,10 +112,13 @@ export function HudGrid({
   onEdit,
   onRequestEdit,
   onLayoutChange,
+  onExternalPlace,
+  onBreakpoint,
+  sessionPinned,
   rowHeight = DEFAULT_ROW_HEIGHT,
   gap = DEFAULT_GAP,
   renderWidget,
-}: HudGridProps) {
+}: HudGridProps, ref) {
   const areaRef = useRef<HTMLDivElement>(null);
   const width = useElementWidth(areaRef);
   const bp = activeBreakpoint(width);
@@ -97,18 +127,66 @@ export function HudGrid({
   const stepX = colW + gap;
   const stepY = rowHeight + gap;
 
-  const press = useRef<Press | null>(null);
+  // Tell the owner which tier is actually on screen (bp is a stable BREAKPOINTS
+  // element, so this fires on real tier changes, not every render).
+  useEffect(() => { onBreakpoint?.(bp); }, [bp, onBreakpoint]);
+
+  const { begin } = usePointerDrag();
   const dragRef = useRef<Drag | null>(null);
-  const justDragged = useRef(false);
   const [drag, setDragState] = useState<Drag | null>(null);
   const setDrag = (d: Drag | null) => { dragRef.current = d; setDragState(d); };
 
+  const resizeRef = useRef<Resize | null>(null);
+  const [resize, setResizeState] = useState<Resize | null>(null);
+  const setResize = (r: Resize | null) => { resizeRef.current = r; setResizeState(r); };
+
+  const [ext, setExt] = useState<ExtDrag | null>(null);
+
   const baseItems = layoutForBreakpoint(state, bp);
   // While dragging, the held card occupies its hovered cell and the engine
-  // repacks the rest — this is the live preview the placeholder follows.
+  // repacks the rest — this is the live preview the placeholder follows. A
+  // resize keeps the card's top-left and grows/shrinks its footprint, repacking
+  // the same way. An external (tray) drag previews by joining the layout at the
+  // hovered cell (defensively skipped if the id is somehow already placed).
   const items = drag
     ? compactVertical(baseItems.map((it) => (it.i === drag.id ? { ...it, x: drag.col, y: drag.row } : it)), cols)
-    : baseItems;
+    : resize
+      ? compactVertical(baseItems.map((it) => (it.i === resize.id ? { ...it, w: resize.w, h: resize.h } : it)), cols)
+      : ext && !baseItems.some((it) => it.i === ext.id)
+        ? compactVertical([...baseItems, { i: ext.id, x: ext.col, y: ext.row, w: ext.w, h: ext.h }], cols)
+        : baseItems;
+
+  /** Tray-drag pointer → the cell its card would land in, sized from the def's
+   *  per-tier default (clamped to this tier's columns). Null when the pointer
+   *  isn't over the grid: horizontal bounds are strict, but anything at/below
+   *  the top edge counts vertically — a drop under the last row appends. */
+  function locateExt(id: string, cx: number, cy: number): ExtDrag | null {
+    const r = areaRef.current?.getBoundingClientRect();
+    const def = state.widgets[id];
+    if (!r || !def) return null;
+    if (cx < r.left || cx > r.right || cy < r.top - stepY / 2) return null;
+    const size = def.sizing[bp.name] ?? def.sizing.desktop;
+    const w = Math.min(size.w, cols);
+    const col = Math.max(0, Math.min(cols - w, Math.round((cx - r.left - (w * stepX) / 2) / stepX)));
+    const row = Math.max(0, Math.round((cy - r.top - stepY / 2) / stepY));
+    return { id, col, row, w, h: size.h };
+  }
+
+  useImperativeHandle(ref, () => ({
+    trayOver: (id, x, y) => setExt(locateExt(id, x, y)),
+    trayDrop: (id, x, y) => {
+      const d = locateExt(id, x, y);
+      setExt(null);
+      if (!d || !onExternalPlace || baseItems.some((it) => it.i === d.id)) return false;
+      const committed = compactVertical(
+        [...baseItems, { i: d.id, x: d.col, y: d.row, w: d.w, h: d.h }],
+        cols,
+      );
+      onExternalPlace(bp.name, committed, d.id);
+      return true;
+    },
+    trayCancel: () => setExt(null),
+  }));
 
   const rectOf = (it: GridItem) => ({
     left: it.x * stepX,
@@ -127,75 +205,88 @@ export function HudGrid({
     return { px, py, col, row };
   }
 
-  function activate() {
-    const p = press.current;
-    if (!p || p.active) return;
-    p.active = true;
-    // Capture only now — before this, native scroll/tap-cancel must stay possible.
-    try { p.el.setPointerCapture(p.pointerId); } catch { /* pointer already released */ }
-    if (!editMode) onRequestEdit?.();
-    const it = baseItems.find((i) => i.i === p.id);
-    if (!it) return;
-    setDrag({ id: p.id, ...locate(p.lastX, p.lastY, it.w, p.grabX, p.grabY) });
-  }
-
-  function onPointerDown(e: ReactPointerEvent, item: GridItem) {
-    if (e.button !== 0) return;
-    if ((e.target as HTMLElement).closest('button')) return;   // never drag from the × control
-    // Clear a stale swallow: if the previous drag ended without a follow-up click
-    // (pointer released over another element under capture), justDragged would
-    // otherwise eat the FIRST click of this fresh gesture.
-    justDragged.current = false;
+  /** Pointer-drag a card to rearrange it. Outside edit mode a press-and-HOLD
+   *  picks it up (and enters edit mode); in edit mode it lifts immediately. The
+   *  gesture mechanics — capture, the hold-cancel threshold, the post-drag click
+   *  swallow — come from @jkos/ui's usePointerDrag, shared with the calendar. */
+  function onCellPointerDown(e: ReactPointerEvent, item: GridItem) {
+    if ((e.target as HTMLElement).closest('button')) return;   // never drag from the edit/× controls
     const r = areaRef.current?.getBoundingClientRect();
     const slot = rectOf(item);
-    press.current = {
-      id: item.i,
-      el: e.currentTarget as HTMLElement,
-      pointerId: e.pointerId,
-      startX: e.clientX, startY: e.clientY,
-      lastX: e.clientX, lastY: e.clientY,
-      grabX: r ? e.clientX - r.left - slot.left : 0,
-      grabY: r ? e.clientY - r.top - slot.top : 0,
-      active: false, timer: null,
+    const grabX = r ? e.clientX - r.left - slot.left : 0;
+    const grabY = r ? e.clientY - r.top - slot.top : 0;
+    const track = (x: number, y: number) => {
+      const it = baseItems.find((i) => i.i === item.i);
+      if (it) setDrag({ id: item.i, ...locate(x, y, it.w, grabX, grabY) });
     };
-    if (editMode) activate();
-    else press.current.timer = setTimeout(activate, HOLD_MS);
+
+    begin(e, {
+      activation: editMode
+        ? { kind: 'immediate' }
+        : { kind: 'hold', delay: HOLD_MS, cancelDistance: HOLD_CANCEL_PX },
+      onActivate: (c) => { if (!editMode) onRequestEdit?.(); track(c.x, c.y); },
+      onMove: (c) => track(c.x, c.y),
+      onEnd: (_c, activated) => {
+        const d = dragRef.current;
+        if (activated && d && onLayoutChange) {
+          const committed = compactVertical(
+            baseItems.map((it) => (it.i === d.id ? { ...it, x: d.col, y: d.row } : it)),
+            cols,
+          );
+          onLayoutChange(bp.name, committed, d.id);
+        }
+        setDrag(null);
+      },
+      onCancel: () => setDrag(null),
+    });
   }
 
-  function onPointerMove(e: ReactPointerEvent) {
-    const p = press.current;
-    if (!p) return;
-    p.lastX = e.clientX; p.lastY = e.clientY;
-    if (!p.active) {
-      if (Math.hypot(e.clientX - p.startX, e.clientY - p.startY) > MOVE_CANCEL_PX) {
-        if (editMode) activate();                                   // already editing → pick up on move
-        else { if (p.timer) clearTimeout(p.timer); press.current = null; }   // else it's a scroll/tap
-      }
-      return;
-    }
-    e.preventDefault();
-    const it = baseItems.find((i) => i.i === p.id);
-    if (it) setDrag({ id: p.id, ...locate(e.clientX, e.clientY, it.w, p.grabX, p.grabY) });
-  }
+  /** Drag the bottom-right grip to resize a card in place. The top-left cell is
+   *  the anchor (captured once, stable — the doc isn't committed mid-gesture);
+   *  w/h follow the pointer, snapped to whole grid units and clamped to the
+   *  card's legibility minimum (minSize) and the grid's right edge. On release
+   *  the new footprint commits through onLayoutChange, flagged `userSized` so the
+   *  published-registry merge won't snap it back to the author default. */
+  function onResizePointerDown(e: ReactPointerEvent, item: GridItem) {
+    e.stopPropagation();                       // never start a move drag from the grip
+    const start = baseItems.find((i) => i.i === item.i);
+    if (!start) return;
+    const def = state.widgets[item.i];
+    const min = minSize(def, cols);
+    const track = (clientX: number, clientY: number) => {
+      const r = areaRef.current?.getBoundingClientRect();
+      const px = (r ? clientX - r.left : clientX) - start.x * stepX;
+      const py = (r ? clientY - r.top : clientY) - start.y * stepY;
+      const w = Math.max(min.w, Math.min(cols - start.x, Math.round(px / stepX)));
+      const h = Math.max(min.h, Math.round(py / stepY));
+      setResize({ id: item.i, w, h });
+    };
 
-  function onPointerUp() {
-    const p = press.current;
-    if (p?.timer) clearTimeout(p.timer);
-    const d = dragRef.current;
-    if (p?.active && d && onLayoutChange) {
-      justDragged.current = true;
-      const committed = compactVertical(
-        baseItems.map((it) => (it.i === d.id ? { ...it, x: d.col, y: d.row } : it)),
-        cols,
-      );
-      onLayoutChange(bp.name, committed);
-    }
-    press.current = null;
-    setDrag(null);
+    begin(e, {
+      activation: { kind: 'immediate' },
+      onActivate: (c) => track(c.x, c.y),
+      onMove: (c) => track(c.x, c.y),
+      onEnd: (_c, activated) => {
+        const rz = resizeRef.current;
+        if (activated && rz && onLayoutChange) {
+          const committed = compactVertical(
+            baseItems.map((it) => (it.i === rz.id ? { ...it, w: rz.w, h: rz.h, userSized: true } : it)),
+            cols,
+          );
+          onLayoutChange(bp.name, committed, rz.id);
+        }
+        setResize(null);
+      },
+      onCancel: () => setResize(null),
+    });
   }
 
   const areaHeight = Math.max(bottom(items) * stepY - gap, stepY);
-  const placeholder = drag ? items.find((i) => i.i === drag.id) : null;
+  // Internal drag, resize, AND tray drag share the placeholder: it always marks
+  // where the affected card will land / how big it will be. The tray card's cell
+  // itself isn't rendered — the floating tile (in the tray) is that drag's visual.
+  const previewId = drag?.id ?? resize?.id ?? ext?.id;
+  const placeholder = previewId ? items.find((i) => i.i === previewId) : null;
 
   // Only dim siblings if the highlighted cell is actually on this layout.
   const dimming = !!highlightId && items.some((it) => it.i === highlightId);
@@ -209,34 +300,41 @@ export function HudGrid({
         })()}
 
         {items.map((item) => {
+          if (ext && item.i === ext.id) return null;   // tray preview: placeholder only
           const def = state.widgets[item.i];
           if (!def) return null;
           const r = rectOf(item);
           const lifted = drag?.id === item.i;
+          const resizing = resize?.id === item.i;
           const isHighlight = dimming && item.i === highlightId;
           return (
             <div
               key={item.i}
               data-id={item.i}
-              className={`hud-cell${lifted ? ' dragging' : ''}${isHighlight ? ' is-highlight' : ''}`}
-              onPointerDown={(e) => onPointerDown(e, item)}
-              onPointerMove={onPointerMove}
-              onPointerUp={onPointerUp}
-              onPointerCancel={onPointerUp}
-              onClickCapture={(e) => {
-                if (justDragged.current) { e.preventDefault(); e.stopPropagation(); justDragged.current = false; }
-              }}
+              className={`hud-cell${lifted ? ' dragging' : ''}${resizing ? ' resizing' : ''}${isHighlight ? ' is-highlight' : ''}`}
+              onPointerDown={(e) => onCellPointerDown(e, item)}
               style={{
                 position: 'absolute',
                 left: lifted && drag ? drag.px : r.left,
                 top: lifted && drag ? drag.py : r.top,
                 width: r.width,
                 height: r.height,
-                zIndex: lifted ? 50 : undefined,
-                transition: lifted ? 'none' : 'left 0.16s ease, top 0.16s ease',
+                zIndex: lifted ? 50 : resizing ? 40 : undefined,
+                transition: lifted || resizing ? 'none' : 'left 0.16s ease, top 0.16s ease',
                 touchAction: editMode ? 'none' : undefined,
               }}
             >
+              {editMode && sessionPinned?.has(item.i) && (
+                <span
+                  className="hud-cell-pin"
+                  title="Hand-placed this session — auto-balance packs around it"
+                >
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 17v5" />
+                    <path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" />
+                  </svg>
+                </span>
+              )}
               {editMode && onEdit && def.spec && (
                 <button
                   className="hud-edit-remove hud-cell-edit"
@@ -259,6 +357,19 @@ export function HudGrid({
                   ×
                 </button>
               )}
+              {editMode && onLayoutChange && (
+                <span
+                  className="hud-cell-resize"
+                  onPointerDown={(e) => onResizePointerDown(e, item)}
+                  title={`Resize ${def.label}`}
+                  aria-label={`Resize ${def.label}`}
+                  role="slider"
+                >
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
+                    <path d="M11 5 5 11M11 9l-2 2" />
+                  </svg>
+                </span>
+              )}
               {renderWidget(def, item)}
             </div>
           );
@@ -266,4 +377,4 @@ export function HudGrid({
       </div>
     </div>
   );
-}
+});

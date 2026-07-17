@@ -17,10 +17,12 @@ export interface EffectsPreferences {
   artifacts:     boolean;
 }
 
+/** The suite-wide AI kill switch, and nothing else. LazurOS is reached at one fixed
+ *  edge path (/api/lazuros) and picks its own model per tier from the deployment's
+ *  mounted deployment.json — so there is no per-user gateway URL or model to set.
+ *  Owned by the jkAuth portal; every other app only READS `enabled`. */
 export interface LazurPreferences {
-  enabled: boolean;   // suite-wide AI kill switch — false hides all LazurOS UI
-  url:     string;
-  model:   string;
+  enabled: boolean;   // false hides all LazurOS UI, suite-wide
 }
 
 /** A reference to something surfaced on the ORDECK HUD (a pin, or the focus).
@@ -66,4 +68,9 @@ export interface JkosUser {
 export interface AuthProfile {
   user:        JkosUser;
   preferences: UserPreferences;
+  /** Optimistic-lock cursor for the preferences blob (ARCH-7.2). Echo it back on
+   *  PATCH so a write built on a stale blob 409s instead of clobbering a concurrent
+   *  one; the shared hook tracks it and re-applies on conflict. Absent from a
+   *  pre-ARCH-7 server → treated as unversioned (no lock, last-write-wins). */
+  prefs_version?: number;
 }

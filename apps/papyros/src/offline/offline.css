@@ -1,0 +1,160 @@
+/* offline.css — Wave 7.1 offline-cache UI (badge / detail control / settings section).
+   Reads only the suite --hub-*, --accent* and --color-* tokens (app.css brought the
+   token sheet into scope) — no hardcoded hex/radius, same rule as the rest of the app.
+   Imported by the three offline/* components; the bundler dedupes the repeats. */
+
+/* ── Badge (BookCard corner + BookDetail hero) ─────────────────────────────────── */
+
+.offline-badge {
+  gap: 4px;
+  padding: 2px 6px;
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  border-radius: var(--hub-radius-sm);
+  color: var(--accent-secondary);
+  background: color-mix(in srgb, var(--accent-secondary) 12%, var(--hub-bg-2));
+  border: 1px solid color-mix(in srgb, var(--accent-secondary) 30%, transparent);
+}
+.offline-badge svg { display: block; }
+.offline-badge.is-downloading {
+  color: var(--hub-cream-dim);
+  background: color-mix(in srgb, var(--hub-cream-dim) 10%, var(--hub-bg-2));
+  border-color: var(--hub-line);
+}
+:root[data-mode="dark"] .offline-badge.is-available {
+  text-shadow: 0 0 8px color-mix(in srgb, var(--accent-secondary) 40%, transparent);
+}
+.offline-badge-text { line-height: 1; }
+
+/* Card badge sits over the cover's top-right so it never reflows the title/meta rows. */
+.lib-card { position: relative; }
+.lib-card .offline-badge {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  z-index: 1;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+
+/* Hero eyebrow row — the "Audiobook" label with the offline badge trailing it. */
+.book-hero-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* ── Detail control (in .book-actions) ─────────────────────────────────────────── */
+
+.offline-ctl {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.3rem;
+}
+.offline-ctl-btn { white-space: nowrap; }
+.offline-ctl-btn.is-available { color: var(--accent-secondary); }
+
+.offline-ctl-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  align-self: stretch;
+}
+.offline-ctl-hint {
+  font-family: var(--hub-font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  color: var(--hub-cream-dim);
+}
+.offline-ctl-hint.is-error { color: color-mix(in srgb, var(--hub-red) 80%, var(--hub-cream-dim)); }
+
+.offline-progress {
+  flex: 1;
+  min-width: 80px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--hub-line);
+  overflow: hidden;
+}
+.offline-progress-fill {
+  height: 100%;
+  background: var(--accent-secondary);
+  border-radius: inherit;
+  transition: width 0.2s ease;
+}
+
+/* ── Settings "Downloads" section (SettingsDrawer extra slot) ───────────────────── */
+/* The drawer is theme-token driven (--color-ink / --hub-line), so this content matches
+   it in both light (paper) and dark (phosphor) modes. */
+
+.offline-estimate { margin-bottom: 14px; }
+.offline-estimate-bar {
+  height: 5px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-ink) 10%, transparent);
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+.offline-estimate-fill {
+  height: 100%;
+  background: var(--color-accent, var(--accent));
+  border-radius: inherit;
+}
+.offline-estimate-text,
+.offline-summary {
+  font-family: var(--hub-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--color-muted, var(--hub-cream-dim));
+}
+.offline-summary { margin: 0 0 10px; }
+
+.offline-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.offline-list-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: space-between;
+}
+.offline-list-info { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.offline-list-title {
+  font-size: 12px;
+  color: var(--color-ink, var(--hub-cream-bright));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.offline-list-meta {
+  font-family: var(--hub-font-mono);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  color: var(--color-faint, var(--hub-cream-dim));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.offline-list-remove {
+  flex: none;
+  min-height: var(--hub-tap-min);
+  padding: 5px 10px;
+  font-family: var(--hub-font-mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  background: transparent;
+  color: color-mix(in srgb, var(--hub-red) 75%, var(--color-ink, var(--hub-cream-bright)));
+  border: 1px solid color-mix(in srgb, var(--hub-red) 35%, transparent);
+  border-radius: var(--hub-radius-sm);
+  transition: border-color 0.12s, color 0.12s;
+}
+.offline-list-remove:hover {
+  border-color: var(--hub-red);
+  color: var(--hub-red);
+}

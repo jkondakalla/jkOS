@@ -12,13 +12,13 @@ import { Artifacts, ScanLines, CinematicIntro } from './components/Overlays'
 import { AppHeader } from './components/AppHeader'
 import { ConnectModal } from './components/ConnectModal'
 import { DetailPanel } from './components/DetailPanel'
-import { SettingsDrawer } from '@jkos/ui'
+import { SettingsDrawer, useBreakpoint } from '@jkos/ui'
 import { AUTH_URL, authFetch, useSessionKeepalive } from './lib/jkauth'
 
 import { TodayView } from './views/TodayView'
 import { WeekView } from './views/WeekView'
 import { CalendarView } from './views/CalendarView'
-import { WorkshopView } from './views/WorkshopView'
+import { WorkshopView } from './views/workshop/WorkshopView'
 
 // Set mode before React hydrates to prevent flash. Check localStorage for user's
 // last-known preference (written by applyJkOSMode), fall back to paper.
@@ -113,14 +113,10 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
     window.location.href = `${JKOS_AUTH_URL}/auth/login`
   }
 
-  const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 768px)').matches)
-
-  useEffect(() => {
-    const mq = window.matchMedia('(max-width: 768px)')
-    const handler = () => setIsMobile(mq.matches)
-    mq.addEventListener('change', handler)
-    return () => mq.removeEventListener('change', handler)
-  }, [])
+  // Phone gets the dedicated mobile tree; tablet rides the desktop layout (the
+  // canonical mobile tier is ≤767px, so this preserves the old 768px crossover).
+  // Breakpoints come from the single @jkos/design source — see useBreakpoint.
+  const isMobile = useBreakpoint() === 'mobile'
 
   // "Today" must not freeze at page-load: a planner is routinely left open
   // overnight, after which TODAY_ISO (a module constant) would keep the Today view,
@@ -159,7 +155,7 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
   const [accounts, setAccounts]           = useState(INITIAL_ACCOUNTS)
   const [selected, setSelected]           = useState<any>(null)
   const [showConnect, setShowConnect]     = useState(false)
-  const [focusedGoalId, setFocusedGoalId] = useState<number | null>(null)
+  const [focusedNodeId, setFocusedNodeId] = useState<number | null>(null)
   const [weekJumpDate, setWeekJumpDate]   = useState<string | null>(null)
 
   const loadItems = async () => {
@@ -300,12 +296,7 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
 
   const readonly = user?.role === 'guest'
 
-  /* AI features need both the instance flag and the suite-wide jkAuth switch */
-  const aiEnabled =
-    (import.meta.env.VITE_BB_AI_ENABLED as string) === 'true' && prefs.lazuros.enabled !== false
-
   const viewProps = {
-    aiEnabled,
     items: visibleItems,
     today,
     onSelect: setSelected,
@@ -313,7 +304,7 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
     recentlyAdded,
     setView,
     selectedId: selected?.id,
-    focusedGoalId, setFocusedGoalId,
+    focusedNodeId, setFocusedNodeId,
     weekJumpDate,
     onWeekJump: (iso: string) => { setWeekJumpDate(weekStart(iso)); setView('week') },
     readonly,
@@ -378,7 +369,7 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
           flex: 1, minHeight: 0, position: 'relative',
           display: 'grid',
           gridTemplateRows: 'auto minmax(0, 1fr)',
-          gridTemplateColumns: selected ? '1fr 340px' : '1fr',
+          gridTemplateColumns: '1fr',
           background: 'transparent',   /* grained paper comes from the body backdrop */
           color: 'var(--color-ink)',
           /* The old global SVG #halation lens filter was removed: it could only
@@ -422,7 +413,7 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
               event={selected} items={items}
               onClose={() => setSelected(null)}
               onToggle={onToggle} onDelete={onDelete} onUpdateItem={onUpdateItem}
-              setView={setView} setFocusedGoalId={setFocusedGoalId}
+              setView={setView} setFocusedNodeId={setFocusedNodeId}
             />
           )}
         </div>

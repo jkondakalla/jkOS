@@ -11,12 +11,15 @@
 import { getProfile, patchProfile } from '@jkos/auth-client';
 import {
   HUD_STATE_VERSION,
+  type Breakpoint,
+  type BreakpointLayouts,
   type BreakpointName,
   type GridItem,
   type HudState,
   type WidgetDef,
+  type WidgetNode,
 } from './types';
-import { layoutForBreakpoint, placeAtBottom, activeBreakpoint } from './engine';
+import { layoutForBreakpoint, placeAtBottom } from './engine';
 import { BREAKPOINTS } from './types';
 import { appOrigin } from '@jkos/weave';
 
@@ -33,15 +36,18 @@ export const WIDGET_EDIT_KEY = 'ordeck-widget-edit';
 const BB_URL = appOrigin('beigeboard');
 const SYLIB_URL = appOrigin('sylibos');
 
-/** The built-in widgets — all declarative specs now (the `component` escape
- *  hatch is retired). clock/today/systems/study compose from atoms + structure
- *  (`when` for their offline/empty states); weather/calendar use the molecule
- *  primitives. Every one is editable in the workshop and is the exact shape a
- *  text→widget AI step will emit. `uptime` ships shelved as a second systems view. */
+/** The v5 built-in catalog — 10 widgets, culled + redesigned for information
+ *  density (waste no allotted space; absorb one-number cards into their parent).
+ *  The fold-ins: quick-add lives INSIDE Today as a command form; progress is
+ *  Today's head caption + bar; uptime is Systems' head + bar. Month is the dense
+ *  `calendar` dot molecule; Week is the one @jkos/cards view that earns its
+ *  footprint. Everything except Focus/Week is a declarative spec — editable in
+ *  the workshop and the exact shape a text→widget AI step will emit. */
 const DEFAULT_WIDGETS: Record<string, WidgetDef> = {
   clock: {
     id: 'clock', label: 'Clock',
-    sizing: { desktop: { w: 4, h: 4 }, mobile: { w: 2, h: 3 } },
+    // Min a touch wider than the default: the time digits need the width to read.
+    sizing: { desktop: { w: 4, h: 3 }, mobile: { w: 2, h: 3 }, min: { w: 3, h: 2 } },
     spec: {
       body: {
         t: 'time',
@@ -52,67 +58,134 @@ const DEFAULT_WIDGETS: Record<string, WidgetDef> = {
       },
     },
   },
+  // A real spec now (not the molecule): icon + temp + hi/lo on one row, hourly
+  // strip pinned to the card's bottom edge. Fully editable in the workshop.
   weather: {
     id: 'weather', label: 'Weather',
-    sizing: { desktop: { w: 4, h: 5 }, mobile: { w: 2, h: 4 } },
-    spec: { body: { t: 'weather' } },
+    sizing: { desktop: { w: 4, h: 4 }, mobile: { w: 2, h: 4 } },
+    spec: {
+      frame: { eyebrow: 'WEATHER', source: { src: 'weather', path: 'label' } },
+      body: { t: 'when', cond: { src: 'weather', path: 'ready' },
+        then: { t: 'stack', gap: 10, grow: true, justify: 'space-between', children: [
+          { t: 'row', gap: 12, children: [
+            { t: 'icon', name: { src: 'weather', path: 'icon' }, size: 30 },
+            { t: 'stack', gap: 3, grow: true, children: [
+              { t: 'metric', value: { src: 'weather', path: 'temp' }, unit: '°F' },
+              { t: 'text', text: { src: 'weather', path: 'descLine' }, variant: 'sub' },
+            ] },
+            { t: 'stack', gap: 4, children: [
+              { t: 'text', text: { src: 'weather', path: 'hiLabel' }, variant: 'mono' },
+              { t: 'text', text: { src: 'weather', path: 'loLabel' }, variant: 'sub' },
+            ] },
+          ] },
+          { t: 'when', cond: { src: 'weather', path: 'slots' }, then:
+            { t: 'stack', gap: 6, children: [
+              { t: 'divider' },
+              { t: 'list', from: { src: 'weather', path: 'slots' }, dir: 'row',
+                item: { t: 'stack', gap: 2, children: [
+                  { t: 'label', text: { src: '$', path: 'label' }, size: 'xs' },
+                  { t: 'text', text: { src: '$', path: 'tempLabel' }, variant: 'mono' },
+                ] } },
+            ] } },
+        ] },
+        else: { t: 'text', text: { src: 'weather', path: 'statusLabel' }, variant: 'sub' },
+      },
+    },
   },
+  // The flagship: agenda + progress (head caption + bar) + inline quick-add
+  // (command form, pinned to the bottom edge). Dense rows — time · title · dot.
   today: {
     id: 'today', label: 'Today',
-    sizing: { desktop: { w: 5, h: 15 }, mobile: { w: 2, h: 8 } },
+    sizing: { desktop: { w: 5, h: 13 }, mobile: { w: 2, h: 8 } },
     spec: {
-      frame: { eyebrow: 'TODAY', source: 'BEIGEBOARD' },
+      frame: { eyebrow: 'TODAY', source: { src: 'today', path: 'progressLabel' } },
       body: { t: 'stack', gap: 8, grow: true, children: [
         { t: 'when', cond: { src: 'today', path: 'signedOut' }, then:
-          { t: 'stack', gap: 8, children: [
+          { t: 'stack', gap: 8, grow: true, children: [
             { t: 'text', text: 'SIGN IN TO SEE YOUR DAY', variant: 'sub' },
             { t: 'link', text: 'LOG IN', href: { src: 'authUrl' } },
           ] } },
         { t: 'when', cond: { src: 'today', path: 'showOffline' }, then:
-          { t: 'stack', gap: 8, children: [
+          { t: 'stack', gap: 8, grow: true, children: [
             { t: 'text', text: 'BEIGEBOARD OFFLINE', variant: 'sub' },
             { t: 'link', text: 'OPEN BEIGEBOARD', href: { lit: BB_URL } },
           ] } },
         { t: 'when', cond: { src: 'today', path: 'showEmpty' }, then:
-          { t: 'stack', gap: 8, children: [
+          { t: 'stack', gap: 8, grow: true, children: [
             { t: 'text', text: { src: 'today', path: 'emptyLabel' }, variant: 'sub' },
-            { t: 'link', text: 'OPEN BEIGEBOARD', href: { lit: BB_URL } },
           ] } },
         { t: 'when', cond: { src: 'today', path: 'showTasks' }, then:
-          { t: 'stack', gap: 8, children: [
-            { t: 'text', text: { src: 'today', path: 'progressLabel' }, variant: 'sub' },
+          { t: 'stack', gap: 8, grow: true, children: [
             { t: 'bar', value: { src: 'today', path: 'progress' }, max: 1 },
             { t: 'list', from: { src: 'today', path: 'tasks' },
               item: { t: 'row', gap: 8, justify: 'space-between', children: [
                 { t: 'text', text: { src: '$', path: 'timeLabel' }, variant: 'sub' },
                 { t: 'text', text: { src: '$', path: 'title' }, variant: 'mono', grow: true },
-                { t: 'pill', text: { src: '$', path: 'stateLabel' }, tone: { src: '$', path: 'tone' } },
+                { t: 'dot', tone: { src: '$', path: 'tone' } },
               ] } },
+          ] } },
+        { t: 'when', cond: { src: 'today', path: 'canAdd' }, then:
+          { t: 'form',
+            cmd: {
+              app: 'beigeboard', capability: 'createItem',
+              body: {
+                title:    { src: '$form', path: 'title' },
+                due_date: { src: 'clock', path: 'iso' },   // lands on today
+              },
+            },
+            submit: 'ADD',
+            children: [
+              { t: 'input', field: 'title', placeholder: 'Add a task for today…' },
+            ] } },
+      ] },
+    },
+  },
+  // The month at a glance — the dense dot molecule (done/pending per day), not
+  // the chip view: at HUD widths dots carry more signal per pixel than
+  // truncated titles. Week (below) is the titles view.
+  calendar: {
+    id: 'calendar', label: 'Calendar',
+    // The seven-column month grid needs width and enough rows to show the weeks.
+    sizing: { desktop: { w: 4, h: 6 }, mobile: { w: 2, h: 5 }, min: { w: 3, h: 5 } },
+    spec: { body: { t: 'calendar' } },
+  },
+  // Absorbs the old `uptime` card: the "3 / 4 UP" head caption it always had,
+  // plus the fill bar, over the same probe rows.
+  systems: {
+    id: 'systems', label: 'Systems',
+    sizing: { desktop: { w: 3, h: 5 }, mobile: { w: 2, h: 4 } },
+    spec: {
+      frame: { eyebrow: 'SYSTEMS', source: { src: 'systems', path: 'summary' } },
+      body: { t: 'stack', gap: 10, grow: true, children: [
+        { t: 'bar', value: { src: 'systems', path: 'up' }, max: { src: 'systems', path: 'total' } },
+        { t: 'list', from: { src: 'systems', path: 'rows' }, empty: 'NO PROBES',
+          item: { t: 'row', gap: 8, children: [
+            { t: 'dot', tone: { src: '$', path: 'tone' } },
+            { t: 'text', text: { src: '$', path: 'name' }, variant: 'mono', grow: true },
+            { t: 'text', text: { src: '$', path: 'detail' }, variant: 'sub' },
           ] } },
       ] },
     },
   },
-  calendar: {
-    id: 'calendar', label: 'Calendar',
-    sizing: { desktop: { w: 4, h: 6 }, mobile: { w: 2, h: 6 } },
-    spec: { body: { t: 'calendar' } },
-  },
-  systems: {
-    id: 'systems', label: 'Systems',
-    sizing: { desktop: { w: 3, h: 8 }, mobile: { w: 2, h: 5 } },
+  // One feed for the whole suite: down systems, the task happening now, overdue
+  // items, study reminders — derived (see deriveNotifications), not stored.
+  // Single-line rows: icon · text · detail.
+  notifications: {
+    id: 'notifications', label: 'Alerts',
+    sizing: { desktop: { w: 3, h: 5 }, mobile: { w: 2, h: 4 } },
     spec: {
-      frame: { eyebrow: 'SYSTEMS', source: { src: 'systems', path: 'summary' } },
-      body: { t: 'list', from: { src: 'systems', path: 'rows' }, empty: 'NO PROBES',
+      frame: { eyebrow: 'ALERTS', source: { src: 'notifications', path: 'summary' } },
+      body: { t: 'list', from: { src: 'notifications', path: 'items' }, empty: 'ALL CLEAR — NO ALERTS',
         item: { t: 'row', gap: 8, children: [
-          { t: 'dot', tone: { src: '$', path: 'tone' } },
-          { t: 'text', text: { src: '$', path: 'name' }, variant: 'mono', grow: true },
+          { t: 'icon', name: { src: '$', path: 'icon' }, tone: { src: '$', path: 'tone' }, size: 14 },
+          { t: 'text', text: { src: '$', path: 'text' }, variant: 'mono', grow: true },
           { t: 'text', text: { src: '$', path: 'detail' }, variant: 'sub' },
         ] } },
     },
   },
   study: {
     id: 'study', label: 'Study',
-    sizing: { desktop: { w: 3, h: 4 }, mobile: { w: 2, h: 3 } },
+    sizing: { desktop: { w: 3, h: 3 }, mobile: { w: 2, h: 3 } },
     spec: {
       frame: { eyebrow: 'STUDY', source: 'SYLIBOS', href: { lit: SYLIB_URL } },
       body: { t: 'stack', gap: 8, children: [
@@ -123,108 +196,26 @@ const DEFAULT_WIDGETS: Record<string, WidgetDef> = {
               { t: 'text', text: { src: 'study', path: 'subLine' }, variant: 'sub' },
             ] },
             { t: 'when', cond: { src: 'study', path: 'showStreak' }, then:
-              { t: 'metric', value: { src: 'study', path: 'streak' }, unit: 'STREAK' } },
+              { t: 'metric', value: { src: 'study', path: 'streak' }, unit: 'STREAK', size: 22 } },
           ] } },
         { t: 'when', cond: { src: 'study', path: 'unavailable' }, then:
           { t: 'text', text: { src: 'study', path: 'offlineLabel' }, variant: 'sub' } },
       ] },
     },
   },
-  uptime: {
-    id: 'uptime', label: 'Uptime',
-    sizing: { desktop: { w: 3, h: 5 }, mobile: { w: 2, h: 4 } },
-    spec: {
-      frame: { eyebrow: 'UPTIME', source: 'ORDECK' },
-      body: { t: 'stack', gap: 12, children: [
-        { t: 'metric', value: { src: 'systems', path: 'up' }, unit: 'up', sub: { src: 'systems', path: 'total' } },
-        { t: 'bar', value: { src: 'systems', path: 'up' }, max: { src: 'systems', path: 'total' } },
-        { t: 'list', from: { src: 'systems', path: 'rows' }, empty: 'NO PROBES',
-          item: { t: 'keyval', label: { src: '$', path: 'name' }, value: { src: '$', path: 'detail' } } },
-      ] },
-    },
-  },
-  // The day at a glance, as one number: a ring of % of today's tasks completed.
-  // Pure read over the `today` slice the Today widget already pulls — ships
-  // shelved (in the registry, not the default layout → on the add strip).
-  progress: {
-    id: 'progress', label: 'Progress',
-    sizing: { desktop: { w: 3, h: 6 }, mobile: { w: 2, h: 5 } },
-    spec: {
-      frame: { eyebrow: 'PROGRESS', source: 'BEIGEBOARD' },
-      body: { t: 'stack', gap: 10, grow: true, children: [
-        { t: 'when', cond: { src: 'today', path: 'showTasks' }, then:
-          { t: 'gauge', value: { src: 'today', path: 'progress' }, max: 1,
-            label: { src: 'today', path: 'progressLabel' } } },
-        { t: 'when', cond: { src: 'today', path: 'signedOut' }, then:
-          { t: 'text', text: 'SIGN IN TO TRACK PROGRESS', variant: 'sub' } },
-        { t: 'when', cond: { src: 'today', path: 'showEmpty' }, then:
-          { t: 'text', text: 'NOTHING SCHEDULED TODAY', variant: 'sub' } },
-        { t: 'when', cond: { src: 'today', path: 'showOffline' }, then:
-          { t: 'text', text: 'BEIGEBOARD OFFLINE', variant: 'sub' } },
-      ] },
-    },
-  },
-  // One feed for the whole suite: down systems, the task happening now, overdue
-  // items, study reminders — derived (see deriveNotifications), not stored.
-  notifications: {
-    id: 'notifications', label: 'Notifications',
-    sizing: { desktop: { w: 4, h: 8 }, mobile: { w: 2, h: 6 } },
-    spec: {
-      frame: { eyebrow: 'ALERTS', source: { src: 'notifications', path: 'summary' } },
-      body: { t: 'list', from: { src: 'notifications', path: 'items' }, empty: 'ALL CLEAR — NO ALERTS',
-        item: { t: 'row', gap: 10, children: [
-          { t: 'icon', name: { src: '$', path: 'icon' }, tone: { src: '$', path: 'tone' }, size: 16 },
-          { t: 'stack', gap: 1, grow: true, children: [
-            { t: 'text', text: { src: '$', path: 'text' }, variant: 'mono', grow: true },
-            { t: 'text', text: { src: '$', path: 'detail' }, variant: 'sub' },
-          ] },
-        ] } },
-    },
-  },
-  // Capture a task to BeigeBoard from the HUD — an interactive (write) card, so
-  // it's a bespoke component (see registry.tsx) rather than a read-only spec.
-  quickadd: {
-    id: 'quickadd', label: 'Quick Add',
-    sizing: { desktop: { w: 4, h: 4 }, mobile: { w: 2, h: 3 } },
-    component: 'quickadd',
-  },
   // The single "now working on" task pushed from BeigeBoard. Interactive (it can
   // clear focus), so a bespoke component. When active, the HUD dims its siblings.
+  // Ships shelved.
   focus: {
     id: 'focus', label: 'Focus',
-    sizing: { desktop: { w: 4, h: 6 }, mobile: { w: 2, h: 5 } },
+    sizing: { desktop: { w: 4, h: 4 }, mobile: { w: 2, h: 4 } },
     component: 'focus',
   },
-  // Declarative quick-add — a WRITE widget built entirely from the command
-  // vocabulary (form + input + the beigeboard.createItem capability discovered at
-  // runtime), NOT a bespoke component. The forward path that the `quickadd`
-  // component card will fold into, and the canonical example the workshop + a
-  // text→widget AI step emit. Ships shelved (additive via withBuiltins).
-  taskadd: {
-    id: 'taskadd', label: 'Add Task',
-    sizing: { desktop: { w: 4, h: 4 }, mobile: { w: 2, h: 3 } },
-    spec: {
-      frame: { eyebrow: 'ADD TASK', source: 'BEIGEBOARD' },
-      body: {
-        t: 'form',
-        cmd: {
-          app: 'beigeboard', capability: 'createItem',
-          body: {
-            title:    { src: '$form', path: 'title' },
-            due_date: { src: 'clock', path: 'iso' },   // lands on today
-          },
-        },
-        submit: 'ADD',
-        children: [
-          { t: 'input', field: 'title', placeholder: 'Add a task…' },
-        ],
-      },
-    },
-  },
-  // Tasks the user pinned in BeigeBoard, mirrored onto the HUD — read-only list.
+  // Tasks the user pinned in BeigeBoard, mirrored onto the HUD — read-only list,
+  // same dense row template as Today. Ships shelved.
   pinned: {
     id: 'pinned', label: 'Pinned',
-    sizing: { desktop: { w: 4, h: 8 }, mobile: { w: 2, h: 6 } },
+    sizing: { desktop: { w: 4, h: 5 }, mobile: { w: 2, h: 4 } },
     spec: {
       frame: { eyebrow: 'PINNED', source: 'BEIGEBOARD' },
       body: { t: 'stack', gap: 8, grow: true, children: [
@@ -239,17 +230,28 @@ const DEFAULT_WIDGETS: Record<string, WidgetDef> = {
       ] },
     },
   },
+  // The shared @jkos/cards Week view via the `component` escape hatch (see
+  // registry.tsx) — read-only (no DragAdapter → no clash with the HUD grid's
+  // drag). The planning horizon the month dots can't give. Ships shelved.
+  'bb-week': {
+    id: 'bb-week', label: 'Week',
+    // A real seven-day time-grid — below this it stops being legible.
+    sizing: { desktop: { w: 6, h: 8 }, mobile: { w: 2, h: 6 }, min: { w: 4, h: 5 } },
+    component: 'bb-week',
+  },
 };
 
-/** Default desktop arrangement (12-col). Mobile is derived by the engine
- *  (reflow → strict 2-col stack) unless the user pins an explicit mobile layout. */
+/** Default desktop arrangement (12-col) — every column lands flush at 13 rows:
+ *  left 3+4+6, centre 13, right 5+5+3. Mobile is derived by the engine (reflow
+ *  → strict 2-col stack) unless the user pins an explicit mobile layout. */
 const DEFAULT_DESKTOP: GridItem[] = [
-  { i: 'clock',    x: 0, y: 0, w: 4, h: 4 },
-  { i: 'weather',  x: 0, y: 4, w: 4, h: 5 },
-  { i: 'calendar', x: 0, y: 9, w: 4, h: 6 },
-  { i: 'today',    x: 4, y: 0, w: 5, h: 15 },
-  { i: 'systems',  x: 9, y: 0, w: 3, h: 8 },
-  { i: 'study',    x: 9, y: 8, w: 3, h: 4 },
+  { i: 'clock',         x: 0, y: 0,  w: 4, h: 3 },
+  { i: 'weather',       x: 0, y: 3,  w: 4, h: 4 },
+  { i: 'calendar',      x: 0, y: 7,  w: 4, h: 6 },
+  { i: 'today',         x: 4, y: 0,  w: 5, h: 13 },
+  { i: 'systems',       x: 9, y: 0,  w: 3, h: 5 },
+  { i: 'notifications', x: 9, y: 5,  w: 3, h: 5 },
+  { i: 'study',         x: 9, y: 10, w: 3, h: 3 },
 ];
 
 export function defaultHudState(): HudState {
@@ -283,6 +285,90 @@ function withBuiltins(state: HudState): HudState {
   return changed ? { ...state, widgets } : state;
 }
 
+/** A published body that is just the clock — the bare `time` molecule, or the
+ *  workshop's root stack holding only it. */
+function isLoneTime(n: WidgetNode): boolean {
+  if (n.t === 'time') return true;
+  return n.t === 'stack' && n.children.length === 1 && n.children[0].t === 'time';
+}
+
+/**
+ * Repair known emission artifacts in a published def before it enters the doc.
+ * The workshop used to wrap a lone `time` (clock) body in an empty frame, which
+ * put card chrome around the one widget designed to sit raw on the background.
+ * Registry rows published by that build carry `frame: {}` forever, so strip it
+ * here — but ONLY the empty-frame + lone-time combination; an authored caption
+ * (eyebrow/source/href) or explicit chrome flag means the card was intentional.
+ */
+function normalizePublished(w: WidgetDef): WidgetDef {
+  const f = w.spec?.frame;
+  if (!w.spec || !f) return w;
+  if (f.eyebrow || f.source || f.href || f.chrome !== undefined) return w;
+  if (!isLoneTime(w.spec.body)) return w;
+  return { ...w, spec: { ...w.spec, frame: undefined } };
+}
+
+/**
+ * Merge the admin-published registry (jkAuth /auth/widgets) into a loaded doc.
+ * A published def ALWAYS wins over the stored copy under the same id — this is
+ * what makes "edit → re-publish" show up on the HUD instead of the stale form.
+ * Two extras beyond a plain overwrite:
+ *
+ *  • Author-resize follow: a placed card snaps to the published def's footprint
+ *    for its tier UNLESS the user hand-resized it (`item.userSized`). The flag —
+ *    not an equality heuristic — is what distinguishes "the author moved the
+ *    default" from "the user chose this size." (An earlier cut, before HUD resize
+ *    existed, snapped only items still matching the OLD def's default; any doc
+ *    saved with a new def but an old layout — exactly what the pre-snap merge
+ *    wrote — failed that equality forever, leaving the card stuck at a stale
+ *    size. So the snap became unconditional; now that user resize exists, the
+ *    `userSized` flag is the one exception.) Overlaps a grown card creates are
+ *    resolved by the engine's compaction on render.
+ *
+ *  • Hygiene: a stored def that is neither a built-in, nor currently published,
+ *    nor placed in any layout is dropped (with its shelf entry) — unpublished
+ *    widgets must not linger as dead catalog entries. Only call this with a
+ *    SUCCESSFUL registry fetch; on failure keep the doc untouched.
+ */
+export function mergePublished(state: HudState, published: WidgetDef[]): HudState {
+  const widgets = { ...state.widgets };
+  const layouts: BreakpointLayouts = { ...state.layouts };
+  const pubIds = new Set<string>();
+
+  for (const raw of published) {
+    if (!raw || typeof raw.id !== 'string' || !raw.id) continue;
+    const w = normalizePublished(raw);
+    pubIds.add(w.id);
+    widgets[w.id] = w;
+    if (!w.sizing) continue;
+    for (const [name, items] of Object.entries(layouts) as [BreakpointName, GridItem[]][]) {
+      if (!items) continue;
+      const size = w.sizing[name] ?? w.sizing.desktop;
+      if (!size) continue;
+      // Clamp to the tier's columns so a wide desktop default can't overflow a
+      // narrower stored tier (render-side compaction would clamp anyway; keep
+      // the stored doc already-valid).
+      const cols = BREAKPOINTS.find((b) => b.name === name)?.cols ?? size.w;
+      const w2 = Math.min(size.w, cols);
+      layouts[name] = items.map((it) =>
+        it.i === w.id && !it.userSized && (it.w !== w2 || it.h !== size.h)
+          ? { ...it, w: w2, h: size.h }
+          : it,
+      );
+    }
+  }
+
+  const placed = new Set<string>();
+  for (const items of Object.values(layouts)) for (const it of items ?? []) placed.add(it.i);
+  for (const id of Object.keys(widgets)) {
+    if (DEFAULT_WIDGETS[id] || pubIds.has(id) || placed.has(id)) continue;
+    delete widgets[id];
+  }
+  const shelf = state.shelf.filter((id) => !!widgets[id]);
+
+  return { ...state, widgets, layouts, shelf };
+}
+
 /** Read the legacy per-device doc (pre-prefs). Returns null if absent/invalid. */
 function readLegacy(): HudState | null {
   try {
@@ -291,6 +377,27 @@ function readLegacy(): HudState | null {
   } catch {
     return null;
   }
+}
+
+/** True if at least one widget is placed in SOME tier. A doc that fails this
+ *  renders a blank grid — a corrupt/empty layout, or (older builds) a doc with
+ *  no `layouts` object at all. `validHud` only vets version + widgets, so such a
+ *  doc passes as "valid" and would silently replace the good defaults after the
+ *  first paint — the "HUD flashes in, then disappears" symptom. */
+function hasPlacedCards(state: HudState): boolean {
+  const layouts = state.layouts;
+  if (!layouts) return false;
+  return Object.values(layouts).some((items) => !!items && items.length > 0);
+}
+
+/** Repair a doc that would render nothing: re-seed the built-in desktop layout
+ *  (only the built-ins still present in the doc) so the HUD is never blank, while
+ *  keeping the doc's widget registry intact. Mobile/tablet re-derive from desktop
+ *  on render; anything not in the seed shelves itself via layout-absence, so the
+ *  shelf array just resets to empty (shelvedWidgets is the source of truth). */
+function reseedLayout(state: HudState): HudState {
+  const desktop = DEFAULT_DESKTOP.filter((it) => state.widgets[it.i]);
+  return { ...state, layouts: { desktop: structuredClone(desktop) }, shelf: [] };
 }
 
 /**
@@ -306,7 +413,16 @@ export async function loadHudState(): Promise<HudState> {
   } catch {
     /* offline / signed out — fall through to legacy/defaults */
   }
-  if (profileHud) return withBuiltins(profileHud);
+  if (profileHud) {
+    const doc = withBuiltins(profileHud);
+    if (hasPlacedCards(doc)) return doc;
+    // A stored doc whose layout places nothing would blank the HUD a beat after
+    // the defaults paint. Re-seed the built-in layout AND persist the repair, so
+    // the bad doc self-heals instead of overriding the working HUD on every load.
+    const repaired = reseedLayout(doc);
+    saveHudState(repaired);
+    return repaired;
+  }
 
   const legacy = readLegacy();
   if (legacy) {
@@ -343,18 +459,37 @@ export function removeToShelf(state: HudState, id: string): HudState {
   return { ...state, layouts, shelf };
 }
 
-/** Place a shelved widget into the current viewport's breakpoint, at the bottom
- *  of the stack, using its default footprint. Other tiers re-derive on render. */
-export function placeFromShelf(state: HudState, id: string, viewportWidth: number): HudState {
+/** Place a shelved widget into a breakpoint's layout, at the bottom of the
+ *  stack, using its default footprint. Other tiers re-derive on render. The
+ *  caller passes the tier the GRID is showing (HudGrid onBreakpoint) — resolving
+ *  from window width here would target the wrong tier near tier boundaries. */
+export function placeFromShelf(state: HudState, id: string, bp: Breakpoint): HudState {
   const def = state.widgets[id];
   if (!def) return state;
-  const bp = activeBreakpoint(viewportWidth);
   const current = layoutForBreakpoint(state, bp);
-  const size = bp.name === 'mobile' ? def.sizing.mobile : def.sizing.desktop;
+  // Per-tier footprint, falling back to desktop when a tier isn't authored
+  // (tablet is optional — see WidgetSizing).
+  const size = def.sizing[bp.name] ?? def.sizing.desktop;
   const next = placeAtBottom(current, id, size, bp.cols);
   return {
     ...state,
     layouts: { ...state.layouts, [bp.name]: next },
+    shelf: state.shelf.filter((s) => s !== id),
+  };
+}
+
+/** Commit a tray-drag drop: the grid hands back the tier's full committed
+ *  layout (dropped card included, everyone repacked); adopt it and clear the
+ *  card's shelf entry — the placement IS the un-shelving. */
+export function placeDropped(
+  state: HudState,
+  id: string,
+  name: BreakpointName,
+  items: GridItem[],
+): HudState {
+  return {
+    ...state,
+    layouts: { ...state.layouts, [name]: items },
     shelf: state.shelf.filter((s) => s !== id),
   };
 }
