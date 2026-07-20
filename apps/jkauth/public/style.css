@@ -71,7 +71,8 @@ body {
   color: var(--accent);
 }
 .wordmark span { color: var(--muted); font-weight: 400; }
-.subtitle { color: var(--muted); font-size: 0.9rem; margin-top: -0.5rem; }
+/* Full Press: the compositor's aside — the sign-in subtitle is SET, not typed. */
+.subtitle { color: var(--muted); font-family: var(--hub-font-serif); font-style: italic; font-size: 0.95rem; margin-top: -0.5rem; }
 
 .error {
   color: var(--danger); font-size: 0.875rem;
@@ -104,7 +105,9 @@ input:focus { border-color: var(--accent); }
   color: var(--color-accent-contrast);
   border: none;
   border-radius: var(--hub-radius-button);
-  font-size: 0.95rem;
+  /* Full Press: the form's one act is printed (the letterpress button). */
+  font-family: var(--hub-font-serif);
+  font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
   transition: background 0.15s;
@@ -166,7 +169,8 @@ input:focus { border-color: var(--accent); }
   border: 1px solid var(--border); border-radius: var(--hub-radius-lg);
   padding: 1rem 1.1rem; display: flex; flex-direction: column; gap: 0.6rem;
 }
-.sec-section h2 { font-size: 0.7rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+/* Section heads follow the .jk-lab print cut (tracked serif caps). */
+.sec-section h2 { font-family: var(--hub-font-serif); font-weight: 600; font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
 .secret-key {
   font-family: var(--hub-font-mono); font-size: 0.95rem;
   letter-spacing: 0.06em; text-align: center; word-break: break-all;

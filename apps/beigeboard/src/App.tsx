@@ -27,15 +27,15 @@ if (!document.documentElement.hasAttribute('data-mode')) {
   document.documentElement.setAttribute('data-mode', cached ?? 'paper')
 }
 
-// BeigeBoard supplies its per-app inputs to the @jkos/design factory: serif →
-// Fraunces (sans/mono inherit the IBM Plex factory defaults), and its own radius
-// scale. Radius is a first-class factory input like accent/fonts/neutrals — the
-// hub default happens to be sharp (0–2px), BeigeBoard runs a rounder scale, other
-// apps keep theirs. Every BeigeBoard shape reads these --hub-radius-* tokens
-// (no hardcoded radii), so the whole app retunes from this one call. Accents stay
+// BeigeBoard supplies its per-app inputs to the @jkos/design factory. Since
+// Full Press (Wave 22) the serif default IS Fraunces suite-wide, so the old
+// fonts.serif input here is gone — BeigeBoard inherits the print voice for
+// free (the webfont still loads from index.html). Radius stays a first-class
+// per-app input: BeigeBoard runs its own rounder scale over the hub print
+// scale. Every BeigeBoard shape reads these --hub-radius-* tokens (no
+// hardcoded radii), so the whole app retunes from this one call. Accents stay
 // user-driven (applyJkOSTheme, in useJkOSPreferences).
 injectJkOSTheme({
-  fonts: { serif: "'Fraunces', Georgia, serif" },
   radius: { base: '8px', xs: '4px', sm: '7px', lg: '11px', soft: '9px', widget: '10px', button: '8px' },
 })
 
@@ -391,12 +391,16 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
 
           <main
             key={view}
-            className={view === 'tasks' ? undefined : 'view-enter'}
+            // Full Press entrance physics at the VIEW boundary: ink dries on
+            // paper, the tube powers on in dark — one class, face-aware.
+            // (Workshop keeps no entrance: its inner canvas manages its own.)
+            className={view === 'tasks' ? undefined : 'ink-in'}
             style={{ overflow: 'hidden', minHeight: 0, position: 'relative', display: 'flex', flexDirection: 'column' }}
           >
             {loading ? (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1, opacity: 0.4 }}>
-                Loading…
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
+                {/* off-states carry the print idiom (DESIGN.md §13.12) */}
+                <span className="jk-async-note" style={{ padding: 0 }}>Setting type…</span>
               </div>
             ) : (
               <>

@@ -28,7 +28,6 @@ if (!document.documentElement.hasAttribute('data-mode')) {
 // of this default), same contract as every other app's injectJkOSTheme call.
 injectJkOSTheme({
   accent: { primary: '#9a4b2c', secondary: '#5c8a72' },
-  fonts:  { serif: "'Fraunces', Georgia, serif" },
   radius: { base: '6px', xs: '3px', sm: '5px', lg: '10px', soft: '7px', button: '6px' },
 })
 
@@ -68,7 +67,8 @@ function Content() {
   const { bookId } = useHashRoute()
   return (
     <>
-      <main className="app-main">
+      {/* Full Press entrance at the view boundary (ink dries / tube powers on) */}
+      <main className="app-main ink-in">
         {bookId != null ? <BookDetail bookId={bookId} /> : <Library />}
       </main>
 

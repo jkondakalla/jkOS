@@ -145,8 +145,8 @@ export default function PlaylistDetail({ playlistId }: PlaylistDetailProps) {
             <div className="detail-hero detail-hero-simple">
               <Lab size="sm">Playlist</Lab>
               <h2 className="detail-title">{playlist.name}</h2>
-              {playlist.description && <p className="muted kr-playlist-desc">{playlist.description}</p>}
-              <p className="muted detail-meta-row">
+              {playlist.description && <p className="kr-playlist-desc">{playlist.description}</p>}
+              <p className="detail-meta-row">
                 <span>{rows.length} track{rows.length === 1 ? '' : 's'}</span>
                 <span>{formatTotalDuration(rows)}</span>
               </p>

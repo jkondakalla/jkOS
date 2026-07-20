@@ -397,16 +397,12 @@ demos), which is what let the shell/match/async/scrim/cards/player surfaces go u
 
 **Open follow-ups this exposed** (found by rendering the system, deliberately *not* fixed in-wave):
 
-- **`.muted` is a legacy alias.** `<MatchPanel>` hardcodes `muted` on its message/meta lines, but
-  the rule lived only in `apps/papyros/src/app.css` + `apps/kouros/src/app.css` — a shared
-  component that rendered right only in the apps shipping their own copy (the exact trap
-  `.jk-cards-*` exists to close). hub.css now owns it byte-identically, so nothing moved. **To
-  retire:** point MatchPanel's four `muted jk-match-msg` paragraphs at `.jk-async-note` (identical
-  declaration, and they *are* the async triad), delete the two app copies, drop `.muted`.
-- **`.jk-match-candidate-meta` inherits `.muted`'s `padding: 1.5rem 0`** — ~24px of dead vertical
-  space between a candidate's title and its description, visible on `/design` §13. Almost certainly
-  unintended: the author cancelled the same padding one rule away (`.jk-match-msg { padding: 0 }`)
-  and missed the meta line. One-line fix, but it changes live PapyrOS spacing — Jag's call.
+- **`.muted` retirement — mostly DONE (Full Press Wave 23, 2026-07-19):** MatchPanel's state
+  lines now ride `.jk-async-note` (+`.jk-async-error` on the failure lines), the meta line
+  carries dim ink directly (`.jk-match-candidate-meta` gained `color`, killing the accidental
+  `1.5rem` padding inheritance), and both app-local `.muted` copies are deleted. hub.css keeps
+  the alias only for straggler app markup (papyros/kouros views still class `muted` in TSX) —
+  the §7 Wave 25 per-app passes sweep those, then Wave 26 drops the alias.
 - **`.jk-sub` on dense small text** blooms into a solid slab in dark mode: its 8px 40%-alpha
   text-shadow compounds across glyphs. It's for short flat secondary text/links; a metadata line
   wants `--color-muted`. Worth a note in the DESIGN.md fence if it bites again.
@@ -478,3 +474,96 @@ Each was consciously stopped, not forgotten — pick any up by choice, none is b
    confirm `bash jkos-deploy/scripts/selftest.sh` passes on the host.
 4. Confirm `CALENDAR_ENC_KEY` is set in the real BB `.env` (both prod + staging) before anyone
    connects a calendar — adding it later is safe, but earlier rows stay plaintext.
+
+---
+
+## 7. Full Press — the design-system reface (Waves 22–26)
+
+**The ask (Jag, 2026-07-19):** land the settled-and-loved **Full Press** design layer — do not
+redesign it. Plan of record = the *Full Press Rollout Dossier* (delivered as a `.dc.html`
+package outside the repo, with `press.css` as the 76-line diff over hub.css). Signature:
+**humans read print (Fraunces), the machine speaks mono (Plex Mono), the tube emits
+(Big Shoulders + halation).** Fence = [DESIGN.md](DESIGN.md) §13; ship discipline = §14.
+
+**Renumbering:** the dossier labels its waves 21–25, but §3 already spent Wave 21
+(design-page completeness, DONE 2026-07-16) — so in this repo the Full Press waves are
+**22–26** (dossier N ↦ repo N+1; dossier task 21.1 = repo 22.1, etc.).
+
+**The six dossier decisions, resolved (2026-07-19, from the code — flag to overturn):**
+
+| Q | Call |
+|---|---|
+| Q1 merge-vs-layer | **Merge** press.css into hub.css (its own header says "the proposed hub.css diff"). press.css never entered the repo, so there is no file to delete afterwards — the dossier's 25.4 deletion is void. |
+| Q2 roster & order | **Amended by Jag 2026-07-19 mid-flight:** build the functionality *including animations* first (Waves 22–24), then a **BeigeBoard pass first** (its design is mostly finalized — the test bed), then the rest: jkAuth → PapyrOS → KourOS → ORDECK. **SylibOS exempt** (standing rule). jkos-deploy's console stays machine-mono chrome (doctrine-correct) — tokens flow via its mirror; no serif load needed. |
+| Q3 wave numbers | Collision confirmed → renumbered 22–26 as above. |
+| Q4 hand-rolled primitives | None found beyond the recorded ones: BB/ORDECK keep bespoke headers (deliberate, §3 20.1) and each app has app-local serif headings to sweep in Wave 25's per-app audit. No app forks a @jkos/ui primitive. |
+| Q5 Fraunces always-on | Yes. OFL via Google Fonts; already loaded by BB/ORDECK/PapyrOS. Wave 22 adds it to KourOS + jkAuth's `views.js` layout (weights +700); jkos-deploy console deliberately stays mono-only (machine chrome). Subset/FOUT pass = Wave 26. |
+| Q6 seg on paper | Adopt the sheet's verdict globally: `.seg` prints **Fraunces lining tabular figures on paper** and keeps **Big Shoulders + glow in dark**. No app currently renders `.seg` outside `/design`, so there is no dense-readout regression surface today; re-judge per app in Wave 25 QA. Big Shoulders stays loaded only where `.seg` is actually rendered. |
+
+### Waves 22–24 — the functionality batch. **DONE 2026-07-19 (uncommitted, gate EXIT 0).**
+
+- **22 · fold-in:** press.css merged into hub.css (serif default → Fraunces stack; print
+  radius scale 8/4/6/10/10/8/5; `.jk-lab`/`.jk-tbtn`/`.jk-bubble`/`.stamp` re-set in print;
+  letterpress chip shadows; the seg paper/dark split; `.jk-async-note` serif italic; NEW
+  `.jk-rule/-strong/-double` + `.jk-folio/-no` + `.jk-colophon`; `.pb-title` weighted in
+  player-ui.css). Fonts: Fraunces 700 added to BB/ORDECK/PapyrOS links; Fraunces added to
+  KourOS + jkAuth's `views.js` layout (jkAuth had NO webfont link at all — its serif
+  wordmark had been silently falling back to system fonts); jkos-deploy console stays
+  mono-only by doctrine. Gates: **Full Press face checks** in `test/tokens-parity.mjs`
+  (serif default, seg verdict both directions, print voice on the four re-cut classes,
+  `.jk-pill` pinned mono, print marks present). DESIGN.md §§4–6/8/9/11/13 rewritten;
+  §13.12 (the Voice) added to the fence; §15 marked SPENT. All three mirrors regenerated.
+- **23 · @jkos/ui re-cut:** `<Rule weight>` / `<Folio no>` / `<Colophon>` over the new
+  classes, exported from the barrel; `<MatchPanel>` state lines → `.jk-async-note`
+  (+`-error` on failures), meta line off the alias (hub.css `.jk-match-candidate-meta`
+  gained dim ink — kills the accidental 1.5rem padding); both app-local `.muted` copies
+  deleted. No component signature changed.
+- **24 · motion:** `inkDry` keyframes + **`.ink-in`** — the face-aware entrance (ink dries
+  on paper / `crtExpand` powers on in dark), no fill-mode per the §12 gotcha; **`.jk-rake`**
+  ambient raking light, tweak-gated on `<html data-ambient="on">`, paper-face only;
+  suite-wide `prefers-reduced-motion` block in hub.css (entrances snap, LED/now-dot/rake
+  stop). `/design` demos all of it (motion tile + an Ambient deck toggle).
+
+### Wave 25 — per app (BeigeBoard first per Jag). **DONE 2026-07-19 (uncommitted) — surgical; deep editorial-grid work awaits Jag's BB verdict.**
+
+Folio audit result: **no app names content with `.label-tape` today** — zero conversions
+owed; the folio is available for future surfaces. All five app passes:
+
+- **25.1 BeigeBoard (the test bed):** redundant `fonts.serif` factory input dropped
+  (inherits the suite default), `view-enter` → `ink-in` at the view boundary, loading
+  off-state → `.jk-async-note` "Setting type…". `.jk-cards-*` untouched. Build 921ms clean.
+- **25.2 jkAuth (the letterpress form):** subtitle → serif italic (the compositor's
+  aside), `.btn-primary` printed (serif 600), `.sec-section h2` on the `.jk-lab` print
+  cut, all five cards enter with `ink-in`. views.js load-checked.
+- **25.3 PapyrOS:** `muted` swept from BookDetail (narrator/series/meta-row → dim ink on
+  their own classes, provenance Lab inline), redundant `fonts.serif` dropped, `ink-in` on
+  `.app-main`. Build clean.
+- **25.4 KourOS:** `muted` swept (detail-meta-row ×3, playlist desc, search hint),
+  `ink-in` on `.app-main`; now inherits Fraunces (webfont added in 22). Build clean.
+- **25.5 ORDECK:** redundant `fonts.serif` dropped; chrome refaces flow entirely through
+  the token mirror; bespoke reel-spin/ticker untouched; no entrance stacked on the HUD's
+  own boot vocabulary. Build clean.
+- ~~25.6 SylibOS~~ — **EXEMPT** (standing rule).
+
+**Deliberately left for Jag's review (not forgotten):** per-route entrance *replay*
+(remount-keying the routed view would refetch on every nav — wire it only if the BB feel
+demands it); deeper per-app editorial-grid composition beyond the surgical pass; live
+both-face eyeballing on staging.
+
+### Wave 26 — harden & sign off. **CODE ITEMS DONE 2026-07-19; visual QA owed to a browser session.**
+
+- [x] **26.4** Docs freeze: DESIGN.md updated throughout + §15 superseded; **`.muted`
+      retired from hub.css** (zero call sites after the W23/W25 sweeps; the design-page
+      demo trued up to the real MatchPanel markup).
+- [x] Gates: full `pnpm test:contracts` green on the batch (twice — after Waves 22–24 and
+      after 25/26).
+- [ ] **26.1** Both-face visual QA (paper+dark × 5 accent slots × 3 tiers) — needs a
+      browser; ride Jag's next staging session, `/design` + each app. The jkAuth image
+      must rebuild for `/design` + the login reface to go live.
+- [ ] **26.2** A11y spot-check: contrast is untouched by the reface (font faces changed,
+      colours didn't) except `.jk-bubble-primary`'s lighter letterpress text-shadow —
+      eyeball it on ice·coral (the stress slot). Reduced-motion + tap floors are now
+      gate-pinned.
+- [ ] **26.3** Font perf: Google Fonts links already subset by weight + `display=swap`;
+      Big Shoulders stays seg-surface-only (today: `/design` alone). A self-host/subset
+      pass remains available if FOUT on Fraunces bothers.

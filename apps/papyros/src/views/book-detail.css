@@ -43,12 +43,17 @@
 }
 
 .book-byline { color: var(--hub-cream-bright); }
-.book-series { margin: 0; }
+/* Dim ink directly on these three — they used to ride the legacy `.muted`
+   alias (retired Full Press W25), which also dragged in an unintended
+   1.5rem vertical padding on the block ones. */
+.book-narrator { opacity: 0.6; }
+.book-series { margin: 0; opacity: 0.6; }
 
 .book-meta-row {
   display: flex;
   gap: 0.6rem;
   font-size: 0.85rem;
+  opacity: 0.6;
 }
 
 .book-genres {

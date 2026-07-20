@@ -32,11 +32,9 @@
 /*__PLAYER_CSS__*/
   </style>
 
-  <!-- Per-page font inputs — the same lane BeigeBoard/SylibOS use: serif → Fraunces
-       for editorial headings. A legitimate per-app factory input, not an override. -->
-  <style id="page-fonts">
-    :root { --hub-font-serif: 'Fraunces', Georgia, 'Times New Roman', serif; }
-  </style>
+  <!-- No per-page serif input any more: since Full Press (Wave 22) the Fraunces
+       stack IS the hub.css default for --hub-font-serif — this page shows the
+       real default, unoverridden. -->
 
   <!-- ── Gallery layout (namespaced .dg-*; lays the page out, styles nothing in the system) ── -->
   <style id="design-guide">
@@ -255,8 +253,21 @@
           <button data-radius="sharp">Sharp</button>
         </div>
       </div>
+
+      <div class="dg-deck-group">
+        <span class="jk-lab jk-lab-xs">Ambient</span>
+        <div class="dg-seg" id="dg-ambient">
+          <button data-ambient="off" aria-pressed="true">Off</button>
+          <button data-ambient="on">Rake</button>
+        </div>
+      </div>
     </div>
   </div>
+
+  <!-- Ambient raking light — .jk-rake (Full Press Wave 24). Tweak-gated: inert
+       until the deck's Ambient toggle sets data-ambient="on" on <html>, and
+       paper-face only. -->
+  <div class="jk-rake" style="z-index:1"></div>
 
   <div class="dg-wrap">
 
@@ -447,20 +458,25 @@
     <section class="dg-sec jk-sheet" id="type">
       <div class="dg-sec-head">
         <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">04</span><span class="label-tape">TYPE</span></div>
-        <h2>Four type roles</h2>
-        <p class="dg-lede">Data + labels are mono; body is sans; numeric displays are the 7-segment face; a serif is the per-app reading voice. The label idiom is <code>.mono-eyebrow</code> / <code>.jk-lab</code>.</p>
+        <h2>The Voice — four type roles</h2>
+        <p class="dg-lede">The Full Press doctrine: <b>humans read print</b> (Fraunces — headings, labels, buttons, chips), <b>the machine speaks mono</b> (Plex Mono — data, annotation, tape, <code>.mono-eyebrow</code>, <code>.jk-pill</code>), <b>the tube emits</b> (Big Shoulders + halation, dark face). Body copy stays in Plex Sans — quiet, legible, never the event.</p>
       </div>
-      <div class="dg-type-row"><div class="dg-type-role">mono<small>IBM Plex Mono</small></div><div class="dg-spec-mono">READOUT 0x1A · labels · hardware tape</div></div>
+      <div class="dg-type-row"><div class="dg-type-role">mono<small>IBM Plex Mono</small></div><div class="dg-spec-mono">READOUT 0x1A · data · annotation · tape</div></div>
       <div class="dg-type-row"><div class="dg-type-role">sans<small>IBM Plex Sans</small></div><div class="dg-spec-sans">The quick brown fox reads the manual.</div></div>
-      <div class="dg-type-row"><div class="dg-type-role">serif<small>Fraunces (per-app)</small></div><div class="dg-spec-serif">Editorial headings &amp; figures</div></div>
-      <div class="dg-type-row"><div class="dg-type-role">seg<small>Big Shoulders Display</small></div><div class="dg-spec-seg">08:42:17</div></div>
+      <div class="dg-type-row"><div class="dg-type-role">serif<small>Fraunces (suite default)</small></div><div class="dg-spec-serif">Ink answers light.</div></div>
+      <div class="dg-type-row"><div class="dg-type-role">seg<small>Big Shoulders / Fraunces</small></div><div class="dg-spec-seg">08:42:17</div></div>
+      <p class="dg-caption" style="margin-top:8px">the seg verdict — the readout splits by medium: flip the face above; dark keeps phosphor Big Shoulders + glow, paper prints Fraunces lining figures</p>
       <div class="dg-row" style="margin-top:22px">
-        <span class="jk-lab">jk-lab · 10px</span>
-        <span class="jk-lab jk-lab-sm">jk-lab-sm · 9px</span>
-        <span class="jk-lab jk-lab-xs">jk-lab-xs · 8px</span>
-        <span class="jk-lab jk-lab-sans">jk-lab-sans</span>
-        <span class="mono-eyebrow">mono-eyebrow</span>
+        <span class="jk-lab">jk-lab · printed</span>
+        <span class="jk-lab jk-lab-sm">jk-lab-sm</span>
+        <span class="jk-lab jk-lab-xs">jk-lab-xs</span>
+        <span class="jk-lab jk-lab-sans">jk-lab-sans · stays sans</span>
+        <span class="mono-eyebrow">mono-eyebrow · the machine's, untouched</span>
       </div>
+      <p class="dg-caption" style="margin-top:22px">the rules ladder — an <code>&lt;hr&gt;</code> face: hairline for rows, ink for chapter heads, double for contents &amp; colophon</p>
+      <hr class="jk-rule" style="margin:0 0 4px"><span class="mono-eyebrow">jk-rule</span>
+      <hr class="jk-rule-strong" style="margin:12px 0 4px"><span class="mono-eyebrow">jk-rule-strong</span>
+      <hr class="jk-rule-double" style="margin:12px 0 4px"><span class="mono-eyebrow">jk-rule-double</span>
     </section>
 
     <!-- ══ 05 Accent bubbles ══ -->
@@ -600,11 +616,13 @@
           </div>
         </div>
         <div class="dg-block jk-well" style="background:var(--hub-bg-1);box-shadow:none">
-          <p class="dg-caption">Tape &amp; stamp — badges made physical (§05)</p>
+          <p class="dg-caption">Naming things — folio for content, tape for machine chrome</p>
           <div class="dg-row" style="gap:12px">
+            <span class="jk-folio">Library <span class="jk-folio-no">No. 4</span></span>
             <span class="label-tape">LABEL TAPE</span>
             <span class="stamp">APPROVED</span>
           </div>
+          <p class="dg-caption" style="margin:10px 0 0">.jk-folio names <i>content</i> in print; .label-tape stays for <i>machine</i> chrome only; .stamp is the printer's (serif now)</p>
         </div>
         <div class="dg-block jk-well" style="background:var(--hub-bg-1);box-shadow:none">
           <p class="dg-caption">Grounds — .perf · .canvas-grid</p>
@@ -931,13 +949,13 @@
           <input class="jk-match-input" type="text" value="left hand of darkness" aria-label="Search records" />
           <button class="jk-tbtn">Search</button>
         </div>
-        <p class="muted jk-match-msg">3 candidates.</p>
+        <p class="jk-async-note jk-match-msg">3 candidates.</p>
         <ul class="jk-match-candidates">
           <li class="jk-match-candidate">
             <div class="jk-match-candidate-cover jk-match-candidate-cover-placeholder"></div>
             <div class="jk-match-candidate-info">
               <div class="jk-match-candidate-title">The Left Hand of Darkness</div>
-              <div class="muted jk-match-candidate-meta">Ursula K. Le Guin · 1969 · Ace Books</div>
+              <div class="jk-match-candidate-meta">Ursula K. Le Guin · 1969 · Ace Books</div>
               <p class="jk-match-candidate-desc">A lone envoy on the frozen world of Gethen, where inhabitants can change gender.</p>
             </div>
             <button class="jk-tbtn jk-match-candidate-apply">Apply</button>
@@ -946,7 +964,7 @@
             <div class="jk-match-candidate-cover jk-match-candidate-cover-placeholder"></div>
             <div class="jk-match-candidate-info">
               <div class="jk-match-candidate-title">The Left Hand of Darkness (50th Anniversary)</div>
-              <div class="muted jk-match-candidate-meta">Ursula K. Le Guin · 2019 · Ace Books</div>
+              <div class="jk-match-candidate-meta">Ursula K. Le Guin · 2019 · Ace Books</div>
               <p class="jk-match-candidate-desc">Anniversary edition with an introduction by David Mitchell.</p>
             </div>
             <button class="jk-tbtn jk-match-candidate-apply">Apply</button>
@@ -992,8 +1010,9 @@
           so it demonstrates rather than strobes.
         </p>
       </div>
-      <p class="dg-caption">Entrances — one-shot · hover to replay</p>
+      <p class="dg-caption">Entrances — one-shot · hover to replay · <code>ink-in</code> is the Full Press face-aware entrance (ink dries on paper; the tube powers on in dark — flip the face)</p>
       <div class="dg-motion" id="dg-motion">
+        <div class="dg-motion-cell jk-well ink-in" data-anim="ink-in"><code>ink-in</code></div>
         <div class="dg-motion-cell jk-well view-enter" data-anim="view-enter"><code>view-enter</code></div>
         <div class="dg-motion-cell jk-well panel-enter" data-anim="panel-enter"><code>panel-enter</code></div>
         <div class="dg-motion-cell jk-well item-in" data-anim="item-in"><code>item-in</code></div>
@@ -1043,6 +1062,14 @@
         <code>packages/design/theme/buildTheme.ts</code> · <code>utils/applyJkOSTheme.ts</code>.
       </p>
     </section>
+
+    <hr class="jk-rule-double" style="margin:44px 0 34px">
+    <div class="jk-colophon" style="max-width:52ch;margin:0 auto 36px">
+      <span class="jk-lab" style="display:block;margin-bottom:10px">Colophon</span>
+      <p style="margin:0"><b>jkOS — Full Press</b> · Edition 2026<br>
+      Set in Fraunces &amp; IBM Plex on kraft and phosphor.<br>
+      The end-of-sheet record: <code>.jk-colophon</code> — centre-set serif over the accent fleuron.</p>
+    </div>
 
     <div class="dg-foot">
       <span class="led green sm steady"></span>
@@ -1104,6 +1131,17 @@
         syncPanes();
       }
       radBox.addEventListener('click', function (e) { var b = e.target.closest('button'); if (b) setRadius(b.dataset.radius); });
+
+      /* ── Ambient — the tweak gate for .jk-rake (Full Press Wave 24). "On"
+         stamps data-ambient="on" on <html>, exactly the seam an app tweak
+         uses; the rake itself only renders on the paper face. ── */
+      var ambBox = document.getElementById('dg-ambient');
+      function setAmbient(kind) {
+        ambBox.querySelectorAll('button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.ambient === kind)); });
+        if (kind === 'on') root.setAttribute('data-ambient', 'on');
+        else root.removeAttribute('data-ambient');
+      }
+      ambBox.addEventListener('click', function (e) { var b = e.target.closest('button'); if (b) setAmbient(b.dataset.ambient); });
 
       /* ── Demo toggles ── */
       ['dg-sw', 'dg-ck'].forEach(function (id) {

@@ -12,6 +12,9 @@ function layout(title, body) {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${title} — jkOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=Fraunces:opsz,ital,wght@9..144,0,400;9..144,0,600;9..144,0,700;9..144,1,400;9..144,1,600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
@@ -32,7 +35,7 @@ function loginPage(opts = {}) {
   const googleHref = `/auth/google${redirectTo ? '?redirect_to=' + encodeURIComponent(redirectTo) : ''}`
 
   return layout(isRegister ? 'Register' : 'Sign in', `
-<div class="card">
+<div class="card ink-in">
   <h1 class="wordmark">jk<span>OS</span></h1>
   <p class="subtitle">${isRegister ? 'Create your account' : 'Sign in to your workspace'}</p>
   ${errorHtml}
@@ -69,7 +72,7 @@ function twoFactorPage(opts = {}) {
     ? `<p class="toggle">Lost your device? Enter one of your recovery codes above.</p>` : ''
   const backHref = `/auth/login${redirectTo ? '?redirect_to=' + encodeURIComponent(redirectTo) : ''}`
   return layout('Verify', `
-<div class="card">
+<div class="card ink-in">
   <h1 class="wordmark">jk<span>OS</span></h1>
   <p class="subtitle">Two-step verification</p>
   ${errorHtml}
@@ -106,7 +109,7 @@ function securityPage(user, info = {}, opts = {}) {
        <form method="POST" action="/auth/2fa/email/enable"><button class="btn-primary">Turn on email codes</button></form>`
 
   return layout('Security', `
-<div class="card" style="max-width:460px">
+<div class="card ink-in" style="max-width:460px">
   <h1 class="wordmark">jk<span>OS</span></h1>
   <p class="subtitle">Account security · ${escHtml(user.email)}</p>
   ${noticeHtml}${errorHtml}
@@ -128,7 +131,7 @@ function totpSetupPage(opts = {}) {
   const { qr, secret, error } = opts
   const errorHtml = error ? `<p class="error">${escHtml(error)}</p>` : ''
   return layout('Set up authenticator', `
-<div class="card" style="max-width:460px">
+<div class="card ink-in" style="max-width:460px">
   <h1 class="wordmark">jk<span>OS</span></h1>
   <p class="subtitle">Scan, then enter a code to confirm</p>
   ${errorHtml}
@@ -149,7 +152,7 @@ function totpSetupPage(opts = {}) {
 function recoveryCodesPage(codes = []) {
   const list = codes.map(c => `<li>${escHtml(c)}</li>`).join('')
   return layout('Recovery codes', `
-<div class="card" style="max-width:460px">
+<div class="card ink-in" style="max-width:460px">
   <h1 class="wordmark">jk<span>OS</span></h1>
   <p class="subtitle">Save your recovery codes</p>
   <p class="muted-note">Each works once if you lose your authenticator. Store them somewhere safe — they won't be shown again.</p>

@@ -8,10 +8,10 @@ the living style guide at **https://staging.jkos.net/design** — the page shows
 this file gives the *values and the rules*.
 
 > **Snapshot honesty:** the value tables below are a faithful copy of
-> `packages/design/tokens/hub.css` as of 2026-07-17 (commit `be7837b`). For machines,
-> hub.css remains the source of truth; if this doc and the code ever disagree, the code
-> wins — and this doc should be fixed. §14 lists the regen commands that keep everything
-> else in sync.
+> `packages/design/tokens/hub.css` as of 2026-07-19 (**Full Press Wave 22** folded in,
+> uncommitted on `staging`). For machines, hub.css remains the source of truth; if this
+> doc and the code ever disagree, the code wins — and this doc should be fixed. §14 lists
+> the regen commands that keep everything else in sync.
 
 ---
 
@@ -184,6 +184,9 @@ Paper mode has exactly **two physical accent moves**:
 raised: `.jk-sub`, `.jk-sub-link`, `.jk-bubble-secondary` (tinted flat pill with a hairline
 border). In CRT both moves flip to emissive automatically: the well's boundary becomes an
 accent ring + glow, the badge's emphasis becomes halation — same classes, no forking.
+Under Full Press the chips are **letterpress-cut**: `.jk-bubble` is serif caps (Fraunces
+700) with the ink pressed into the chip on paper (a single lower-edge light catch) and
+halation on the tube — the doctrine is unchanged, only the cut.
 
 `.label-tape` is the badge made **physical** — an embossed metal strip for naming a panel.
 Reach for it when the thing being named is *chrome* rather than *content*.
@@ -196,35 +199,47 @@ the same one-LED rule as hardware.
 
 ---
 
-## 5. Typography — four roles
+## 5. Typography — the Voice (Full Press)
+
+One doctrine, three speakers: **humans read print, the machine speaks mono, the tube
+emits.** Full Press (Wave 22, 2026-07-19) promoted the serif from app copy into the
+primitive layer — labels, text buttons, chips and stamps are now *printed*.
 
 | Token | Face | Use |
 |---|---|---|
-| `--hub-font-mono` | **IBM Plex Mono** | data, labels, eyebrows, tape text, buttons |
-| `--hub-font-sans` | **IBM Plex Sans** | body copy |
-| `--hub-font-seg` | **Big Shoulders Display** | 7-segment numeric readouts (`.seg`) |
-| `--hub-font-serif` | defaults to the sans stack | the per-app *reading voice* — set via factory `fonts.serif` |
+| `--hub-font-serif` | **Fraunces** (suite default; Georgia fallback) | the print voice: headings, `.jk-lab`, `.jk-tbtn`, `.jk-bubble`, `.stamp`, `.jk-folio`, `.jk-colophon`, `.jk-async-note`, paper-face `.seg` |
+| `--hub-font-mono` | **IBM Plex Mono** | the machine: data, annotation, tape text, `.mono-eyebrow`, `.jk-pill` |
+| `--hub-font-sans` | **IBM Plex Sans** | body copy — quiet, legible, never the event; `.jk-lab-sans` |
+| `--hub-font-seg` | **Big Shoulders Display** | phosphor numeric readouts (`.seg`, dark face) |
 
-The label idiom is tracked-caps mono: `.mono-eyebrow` (9px, 0.2em, dim) and the `.jk-lab`
-ladder (10/9/8px; `.jk-lab-sans` swaps to the sans — the blessed softer eyebrow).
+**Deliberately mono, untouched by the reface:** `.mono-eyebrow` and `.jk-pill` — machine
+annotations and machine statuses keep the mono voice. `.jk-lab-sans` remains the blessed
+softer (sans) eyebrow. The `.jk-lab` ladder is tracked Fraunces caps at
+`calc(--hub-fs-lab* + 1px)` (the serif needs the extra point at these sizes).
 
-**What each app actually loads** (Google Fonts, per `index.html`): BeigeBoard, ORDECK and
-PapyrOS load Plex Mono + Plex Sans + **Fraunces** (their serif); KourOS loads Mono + Sans
-only (deliberately serif-less); SylibOS loads Fraunces + **Hanken Grotesk**. **Known gap:**
-no app currently loads Big Shoulders Display, so `.seg` readouts render in the Plex Sans
-fallback inside apps (the design page loads it and shows the true face). If a design pass
-leans on 7-seg displays in an app, add the font to that app's `index.html`.
+**The seg verdict — `.seg` splits by medium.** The tube keeps Big Shoulders + glow
+(dark face, unchanged); paper *prints* the readout — Fraunces lining tabular figures, no
+glow (`:root:not([data-mode="dark"]) .seg`). One class, mode-correct.
+
+**What each app actually loads** (Google Fonts, per `index.html` / jkAuth's `views.js`
+layout): BeigeBoard, ORDECK, PapyrOS, KourOS and jkAuth all load Plex Mono + Plex Sans +
+**Fraunces** (wght 400/600/**700** + italics — 700 is required by the chips/folio/stamps).
+jkos-deploy's console deliberately loads Mono only — it is machine chrome end to end.
+SylibOS loads Fraunces + Hanken Grotesk (off-limits). **Big Shoulders** is loaded only by
+surfaces that actually render `.seg` — today that is the design page; if an app grows a
+phosphor readout, add the font to that app's `index.html`.
 
 ---
 
 ## 6. Geometry — corners, spacing, shell, breakpoints
 
-**Corner radius — soft is the default, sharp is specified.** The hub scale (any app that
-doesn't pass `radius` gets this):
+**Corner radius — soft is the default, sharp is specified.** The hub scale is the Full
+Press **print scale** (Wave 22 — a shade crisper than the old 10/6/8/11 cut; apps passing
+their own `radius` are untouched). Any app that doesn't pass `radius` gets this:
 
 ```
---hub-radius: 10px   --hub-radius-xs: 6px    --hub-radius-sm: 8px   --hub-radius-lg: 11px
---hub-radius-soft: 11px   --hub-radius-widget: 10px   --hub-radius-button: 8px
+--hub-radius: 8px    --hub-radius-xs: 4px    --hub-radius-sm: 6px   --hub-radius-lg: 10px
+--hub-radius-soft: 10px   --hub-radius-widget: 8px   --hub-radius-button: 5px
 ```
 
 Sharp is an opt-in, per app (a 0–2px scale through the factory `radius` input) or per card
@@ -297,9 +312,18 @@ if a class exists and isn't on the page. Reuse these — don't recreate them.
 
 **Hardware (scarce punctuation):**
 `.led` + `.green/.amber/.red/.cyan/.off/.steady/.sm/.lg` (8px pulsing dot; red pulses
-faster) · `.label-tape` (embossed metal naming strip) · `.stamp` (rotated rubber stamp,
-`currentColor`) · `.perf` · `.canvas-grid` / `.canvas-cell` · `.seg` (7-seg glowing
-numerals) · `.bar-track` / `.bar-fill` (amber-gradient meter).
+faster) · `.label-tape` (embossed metal naming strip — **machine chrome only** under Full
+Press) · `.stamp` (rotated rubber stamp, `currentColor`, serif — the printer's) · `.perf`
+· `.canvas-grid` / `.canvas-cell` · `.seg` (phosphor numerals in dark; printed Fraunces
+lining figures on paper — §5) · `.bar-track` / `.bar-fill` (amber-gradient meter).
+
+**Print marks (Full Press — the press's own hardware, same scarcity rule):**
+`.jk-rule` / `.jk-rule-strong` / `.jk-rule-double` — the rules ladder, an `<hr>` face
+(hairline for rows/exhibits, ink for chapter heads, double for contents & colophon) ·
+`.jk-folio` + `.jk-folio-no` — the folio mark that names **content** in print
+(running-head rules, serif caps, accent-italic number; the counterpart of `.label-tape`,
+which keeps naming machine panels) · `.jk-colophon` — the end-of-sheet record
+(centre-set serif over an accent fleuron; halates in CRT).
 
 **Accent system (§4):**
 `.jk-well` (+ `--jk-tint`) · `.jk-bubble` base + `.jk-bubble-primary` /
@@ -310,8 +334,11 @@ numerals) · `.bar-track` / `.bar-fill` (amber-gradient meter).
 `.jk-halo` / `.jk-halo-text` · `.jk-glow` / `.jk-glow-text` + `.jk-glow-low/-mid/-hi` +
 `--jk-glow-color`.
 
-**Text system:** `.jk-lab` (+ `-sm`, `-xs`, `-sans`) · `.mono-eyebrow` · `.jk-tbtn`
-(+ `.jk-tbtn-quiet`; hovers to the secondary accent) · `.jk-pill` (green status pill).
+**Text system (the Voice, §5):** `.jk-lab` (+ `-sm`, `-xs` — tracked Fraunces caps;
+`-sans` stays sans) · `.mono-eyebrow` (machine, mono, untouched) · `.jk-tbtn`
+(+ `.jk-tbtn-quiet`; printed serif caps, hovers to the secondary accent) · `.jk-pill`
+(green status pill — machine, stays mono) · `.jk-async-note` is set serif-italic (the
+compositor's aside).
 
 **Controls** — one rule across the set: a neutral debossed track that fills with the accent
 (or `--jk-tint`) as it engages; each hosts on a real form/aria element so the platform
@@ -332,8 +359,9 @@ never hand-roll a range with `accent-color`) · `.jk-vu` + `.jk-vu-seg.on` (segm
   `.jk-media-cover-placeholder` — the cover grid + square art tile (placeholder reuses
   `.jk-well`).
 - `.jk-async-note` / `.jk-async-error` — the loading/error/empty paragraph (error blends
-  toward danger via color-mix, never raw red). `.muted` is its legacy alias — kept for old
-  call sites, don't use in new code.
+  toward danger via color-mix, never raw red; set serif-italic under Full Press). Its old
+  `.muted` alias was **retired** (Full Press Wave 26) — metadata lines carry dim ink on
+  their own classes instead.
 - `.jk-match-panel` / `-head` / `-search` / `-input` / `-candidate*` — the search →
   candidates → apply panel.
 - `.jk-cards-row` / `.jk-cards-chip` / `.jk-cards-btn` — `@jkos/cards` hover/press
@@ -354,7 +382,8 @@ package; the design page inlines it so §12 there is the real bar). `<PlayerBar>
 mobile. The control *set* stays the app's (PapyrOS stocks an audiobook vocabulary, KourOS a
 music one) — only layout and chrome are shared. The bar is a **solid** surface with an
 accent-tinted top rule (an earlier translucent+blur version dissolved into the page).
-Seeking goes through the same `.jk-slider` as §8.
+Seeking goes through the same `.jk-slider` as §8. Full Press weights `.pb-title` like a
+title (Fraunces 600, −0.01em) — the bar's one serif line reads as one.
 
 Class families: `.player-bar`, `.pb-left/center/right`, `.pb-meta`, `.pb-cover`
 (+ `-empty`), `.pb-title` / `.pb-sub`, `.pb-transport`, `.pb-btn` (+ `-primary`, `-wide`,
@@ -422,7 +451,7 @@ theme → `applyTheme` (`@jkos/auth-client`) calls `applyJkOSMode` + `applyJkOST
 | **BeigeBoard** (planner) | React 18, plain CSS (`src/app.css`) | Fraunces | `radius: { base 8, xs 4, sm 7, lg 11, soft 9, widget 10, button 8 }` | The Claude-brief restyle; calendar tabs render `@jkos/cards` Week/Calendar views; drag via `usePointerDrag` |
 | **ORDECK** (HUD/portal) | React 18, plain CSS | Fraunces | `selector: 'html.od-v2'`, `radius: { base 10, xs 4, sm 7, lg 16, soft 8, button 9 }` | v2 HUD scopes its theme to `html.od-v2`; widget system + workshop; login page is minimal hardware (LED + glow title) |
 | **PapyrOS** (audiobooks) | React 18, plain CSS | Fraunces | `accent: { #9a4b2c, #5c8a72 }`, `radius: { base 6, xs 3, sm 5, lg 10, soft 7, button 6 }` | First `@jkos/player` consumer; offline cache + SW media |
-| **KourOS** (music) | React 18, plain CSS | — (sans) | `accent: { #4b3f8f, #dba13c }`, `radius: { base 5, xs 3, sm 4, lg 8, soft 6, button 5 }` | Second player consumer — deliberately different shape |
+| **KourOS** (music) | React 18, plain CSS | Fraunces (suite default) | `accent: { #4b3f8f, #dba13c }`, `radius: { base 5, xs 3, sm 4, lg 8, soft 6, button 5 }` | Second player consumer — deliberately different shape; loads Fraunces since Full Press (the primitives are printed) |
 | **jkAuth** (login/portal) + **jkos-deploy** (console) | static HTML/JS | — | none (hub defaults) | Render a generated **mirror** of hub.css (`jkos-tokens.css`) — regen commands in §14 |
 | **SylibOS** (reading) | React 19, **Tailwind v4 CSS-first** | Fraunces (+ Hanken Grotesk sans) | `@theme` block in `src/index.css`; no `tailwind.config.js` | `dark:` variant keyed to `[data-mode="dark"]`; Tailwind colour utilities remapped onto `var(--hub-*)`. **Off-limits for edits** (owner's standing rule) — described here for coherence only |
 
@@ -449,12 +478,16 @@ Utilities (hub.css, one copy — app sheets keep only bespoke frames like BeigeB
 | `.intro-title` / `.intro-out` | introTitleReveal / introFadeOut | 0.7s both / 0.45s forwards | boot title in / boot screen out |
 | `.now-dot` | pulseOpacity | 1.8s infinite | "live now" marker |
 | `.check-pop` | checkBounce | 0.25s | check confirmation pop |
+| `.ink-in` (Full Press) | inkDry / crtExpand | 0.44s / 0.5s, no fill | **the face-aware entrance**: ink dries on paper; the tube powers on in dark — same class, opposite physics. Apply at view/panel/item boundaries once; never stack on another entrance |
+| `.jk-rake` (Full Press) | rakeSweep | 26s infinite | ambient raking light across the sheet — **tweak-gated** (`<html data-ambient="on">`), off by default, paper face only |
 
 Ambient keyframes: `led-pulse` (2.4s, on every `.led`), `blink`, `data-flicker` (rare
 4s-cycle dip), `grain`, `spin`, `scanRoll`, `scanPulse`, `artifactFlash`.
 
-Rules: ambient effects are subtle and **opacity-only**; entrances land in **200–400ms**;
-everything honours `prefers-reduced-motion` at the page level. **Fill-mode gotcha:**
+Rules: ambient effects are subtle and **opacity-only**; entrances land in **200–400ms**.
+`prefers-reduced-motion` is now honoured **once in hub.css** for the shared entrances and
+ambient loops (entrances snap to their final frame; LED pulse / now-dot / rake stop) —
+app sheets still guard their own bespoke frames. **Fill-mode gotcha:**
 `.view-enter`/`.panel-enter`/`.boot-sweep` carry no fill-mode on purpose — a retained
 `transform`/`clip-path` makes the element a containing block for `position: fixed`
 descendants (Chromium keeps treating it as such while the animation is "in effect"), so
@@ -488,6 +521,11 @@ Do not cross these in any design pass:
    sanctioned override.
 10. **`withAlpha()` for fades** — never hex-concat on a var.
 11. **SylibOS is not edited** — describe-only in this doc.
+12. **The Voice holds (Full Press):** content is named in **print** (`.jk-folio`);
+    `.label-tape` is for **machine** chrome only. The machine speaks mono — never re-face
+    `.mono-eyebrow` or `.jk-pill` into the serif, and never take Big Shoulders off the
+    dark-face `.seg`. Off-state copy follows the print idiom ("Setting type…", a stamped
+    NO SIGNAL), not generic spinner prose.
 
 ---
 
@@ -525,7 +563,13 @@ shell commands. Branch is `staging`; the live page updates after the jkAuth imag
 
 ## 15. Brief for Claude Design — elevate inside the fence
 
-*This section is the prompt. Everything above is your context; the live page
+> **SPENT (2026-07-19).** This brief was answered by **Full Press** — the Rollout Dossier
+> (ToDo.md §7, Waves 22–26) is its successor and the plan of record. The "known
+> opportunities" below are resolved by it: the seg face (opportunity 2) became the seg
+> verdict (§5), off-states (3) carry the print idiom, login surfaces (5) land in the
+> per-app wave. Treat §1–§14 as live context and this section as historical.
+
+*This section was the prompt. Everything above is your context; the live page
 https://staging.jkos.net/design is your eyes. You need no other repo source — but the code
 always wins over this doc if they disagree.*
 

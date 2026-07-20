@@ -14,7 +14,6 @@ import WidgetWorkshop from './pages/WidgetWorkshop';
 // user-driven (applyJkOSTheme, in useJkOSPreferences).
 injectJkOSTheme({
   selector: 'html.od-v2',
-  fonts: { serif: "'Fraunces', Georgia, serif" },
   radius: { base: '10px', xs: '4px', sm: '7px', lg: '16px', soft: '8px', button: '9px' },
 });
 

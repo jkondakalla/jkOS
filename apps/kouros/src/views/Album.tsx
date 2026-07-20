@@ -68,7 +68,7 @@ export default function Album({ artist, album }: AlbumProps) {
             <p className="detail-byline">
               <a href={artistHref(artist)} className="detail-artist-link">{artist}</a>
             </p>
-            <p className="muted detail-meta-row">
+            <p className="detail-meta-row">
               {year != null ? <span>{year}</span> : null}
               <span>{tracks.length} track{tracks.length === 1 ? '' : 's'}</span>
               <span>{formatTotalDuration(tracks)}</span>

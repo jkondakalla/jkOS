@@ -75,7 +75,8 @@ function Content() {
   const route = useHashRoute()
   return (
     <>
-      <main className="app-main">
+      {/* Full Press entrance at the view boundary (ink dries / tube powers on) */}
+      <main className="app-main ink-in">
         <NavBar active={route.view} />
         {route.view === 'artist' && route.artist != null ? (
           <Artist artist={route.artist} />

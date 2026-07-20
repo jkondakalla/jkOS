@@ -179,16 +179,18 @@ export function MatchPanel<C extends MatchCandidate = MatchCandidate, R = unknow
         </TButton>
       </form>
 
+      {/* State lines ride .jk-async-note (they ARE the async triad) — the
+          legacy .muted alias is retired here (Full Press Wave 23). */}
       {applied && (
-        <p className={cx('muted', 'jk-match-msg')}>
+        <p className={cx('jk-async-note', 'jk-match-msg')}>
           Applied "{applied.candidate.title}".
           {resultNote?.(applied.result)}
         </p>
       )}
-      {applyError && <p className="muted jk-match-msg">{applyError}</p>}
-      {status === 'error' && <p className="muted jk-match-msg">{searchErrorText}</p>}
+      {applyError && <p className="jk-async-note jk-async-error jk-match-msg">{applyError}</p>}
+      {status === 'error' && <p className="jk-async-note jk-async-error jk-match-msg">{searchErrorText}</p>}
       {status === 'idle' && candidates && candidates.length === 0 && (
-        <p className="muted jk-match-msg">
+        <p className="jk-async-note jk-match-msg">
           {noResultsText ? noResultsText(term) : `No matches for "${term}".`}
         </p>
       )}
@@ -204,7 +206,7 @@ export function MatchPanel<C extends MatchCandidate = MatchCandidate, R = unknow
               )}
               <div className="jk-match-candidate-info">
                 <div className="jk-match-candidate-title">{c.title}</div>
-                <div className="muted jk-match-candidate-meta">
+                <div className="jk-match-candidate-meta">
                   {[c.author, c.year, c.genre].filter(Boolean).join(' · ') || '—'}
                 </div>
                 {c.description && (

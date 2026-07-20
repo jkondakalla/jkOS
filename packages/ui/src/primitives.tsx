@@ -146,6 +146,60 @@ export function Pill<E extends ElementType = 'span'>({ as, className, children, 
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
+   Print marks (Full Press, Wave 23) — thin wrappers over the .jk-rule* /
+   .jk-folio / .jk-colophon classes. Doctrine: content is named in PRINT
+   (<Folio>); .label-tape stays for machine chrome. Same scarcity rule as the
+   hardware — one folio names THE content panel, one colophon closes THE sheet.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/** Editorial rule — the <hr> face of the rules ladder. `weight`: 'hairline'
+ *  (default — rows, exhibits) | 'strong' (chapter heads) | 'double' (the
+ *  contents block, the colophon). */
+export function Rule<E extends ElementType = 'hr'>({
+  as,
+  weight = 'hairline',
+  className,
+  ...rest
+}: PolymorphicProps<E, { weight?: 'hairline' | 'strong' | 'double' }>) {
+  const As = (as ?? 'hr') as ElementType;
+  return (
+    <As
+      className={cx(
+        weight === 'strong' ? 'jk-rule-strong' : weight === 'double' ? 'jk-rule-double' : 'jk-rule',
+        className,
+      )}
+      {...rest}
+    />
+  );
+}
+
+/** The folio mark — names CONTENT in print: running-head rules above/below,
+ *  serif caps, with `no` filling the accent-italic number/count slot
+ *  ("No. 4", "3 / 12"). Chrome keeps `.label-tape`; content takes the folio. */
+export function Folio<E extends ElementType = 'span'>({
+  as,
+  no,
+  className,
+  children,
+  ...rest
+}: PolymorphicProps<E, { no?: ReactNode }>) {
+  const As = (as ?? 'span') as ElementType;
+  return (
+    <As className={cx('jk-folio', className)} {...rest}>
+      {children}
+      {no != null && <span className="jk-folio-no">{no}</span>}
+    </As>
+  );
+}
+
+/** The colophon — the end-of-sheet record: centre-set serif over the accent
+ *  fleuron (which halates in CRT). One per sheet, at the foot. */
+export function Colophon<E extends ElementType = 'div'>({ as, className, children, ...rest }: PolymorphicProps<E>) {
+  const As = (as ?? 'div') as ElementType;
+  return <As className={cx('jk-colophon', className)} {...rest}>{children}</As>;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
    Toggles, meters, and CRT atmosphere.
 
    Switch/Check are controlled: pass `checked` + `onChange`. They render a real

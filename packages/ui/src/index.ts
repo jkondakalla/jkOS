@@ -16,6 +16,7 @@ export type { SettingsDrawerProps } from './SettingsDrawer';
 export { JkOSTheme } from './JkOSTheme';
 export {
   Bubble, Press, Sub, SubLink, Well, Sheet, Lab, TButton, Pill,
+  Rule, Folio, Colophon,
   Switch, Check, Slider, VU, Scanlines, Vignette, Scrim, cx,
 } from './primitives';
 export { useBreakpoint } from './useBreakpoint';

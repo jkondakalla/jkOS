@@ -104,6 +104,9 @@
 }
 .pb-title {
   font-family: var(--hub-font-serif);
+  /* Full Press: the bar's title is already serif — weight it like a title. */
+  font-weight: 600;
+  letter-spacing: -0.01em;
   font-size: 0.95rem;
   line-height: 1.2;
   color: var(--hub-cream-bright);

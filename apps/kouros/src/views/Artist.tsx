@@ -46,7 +46,7 @@ export default function Artist({ artist }: ArtistProps) {
       >
         <div className="detail-hero detail-hero-simple">
           <h2 className="detail-title">{artist}</h2>
-          <p className="muted detail-meta-row">
+          <p className="detail-meta-row">
             {albums.length} album{albums.length === 1 ? '' : 's'} &middot; {tracks.length} track{tracks.length === 1 ? '' : 's'} &middot; {formatTotalDuration(tracks)}
           </p>
           <TButton className="play-button" onClick={playAll} disabled={tracks.length === 0}>
