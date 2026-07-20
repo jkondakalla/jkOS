@@ -6,8 +6,7 @@
 
 import React from 'react';
 import type { AllDayBar as AllDayBarLayout } from './datetime';
-import { ACCENT_GLAZE } from './surface';
-import { FONT_BODY } from './theme';
+import { cardSurface } from './surface';
 
 export interface AllDayBarProps {
   bar: AllDayBarLayout;
@@ -22,22 +21,23 @@ export interface AllDayBarProps {
 }
 
 export function AllDayBar({ bar, color, top, height, isSelected, isDragging, onPointerDown, onClick }: AllDayBarProps) {
+  const surface = cardSurface({ accent: color, variant: 'solid', sm: true, selected: isSelected });
+  const rad = 'var(--hub-radius-xs)';
   return (
     <div
       onPointerDown={onPointerDown}
       onClick={onClick}
+      className={surface.className}
       style={{
         position: 'absolute',
         left: `calc(${(bar.startCol / 7) * 100}% + ${bar.continuesLeft ? 0 : 2}px)`,
         width: `calc(${((bar.endCol - bar.startCol + 1) / 7) * 100}% - ${bar.continuesLeft ? 0 : 2}px - ${bar.continuesRight ? 0 : 2}px)`,
         top,
         height,
-        background: `${ACCENT_GLAZE}, ${color}`,
-        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.22), 0 2px 6px rgba(0,0,0,0.35)',
-        borderTopLeftRadius: bar.continuesLeft ? 0 : 'var(--hub-radius-sm)',
-        borderBottomLeftRadius: bar.continuesLeft ? 0 : 'var(--hub-radius-sm)',
-        borderTopRightRadius: bar.continuesRight ? 0 : 'var(--hub-radius-sm)',
-        borderBottomRightRadius: bar.continuesRight ? 0 : 'var(--hub-radius-sm)',
+        borderTopLeftRadius: bar.continuesLeft ? 0 : rad,
+        borderBottomLeftRadius: bar.continuesLeft ? 0 : rad,
+        borderTopRightRadius: bar.continuesRight ? 0 : rad,
+        borderBottomRightRadius: bar.continuesRight ? 0 : rad,
         display: 'flex',
         alignItems: 'center',
         paddingLeft: bar.continuesLeft ? 4 : 6,
@@ -45,18 +45,17 @@ export function AllDayBar({ bar, color, top, height, isSelected, isDragging, onP
         cursor: 'grab',
         overflow: 'hidden',
         opacity: isDragging ? 0.35 : 1,
-        outline: isSelected ? '2px solid var(--color-accent)' : 'none',
-        outlineOffset: -2,
         userSelect: 'none',
         transition: 'opacity 0.1s',
+        ...surface.style,
       }}
     >
       <span
+        className="jk-press-rev"
         style={{
-          fontFamily: FONT_BODY,
+          fontFamily: 'var(--hub-font-serif)',
           fontSize: 10,
-          fontWeight: 500,
-          color: 'var(--color-on-accent)',
+          fontWeight: 600,
           overflow: 'hidden',
           textOverflow: 'ellipsis',
           whiteSpace: 'nowrap',

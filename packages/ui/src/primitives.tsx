@@ -46,17 +46,66 @@ export function Bubble<E extends ElementType = 'span'>({
   );
 }
 
-/** Struck/pressed PRIMARY text. `large` for display sizes (clocks, hero figures). */
+/** Struck/pressed text. Default is the RAISED primary-accent badge (`.jk-press`);
+ *  `large` for display sizes (clocks, hero figures). `variant` switches to the
+ *  Full Press chip CUT — type pressed INTO the sheet, reading `tint` (--jk-tint):
+ *    'ink' neutral-ink title on a tinted chip · 'rev' cream knockout on a solid
+ *    tab · 'sm' the small tinted press. `variant` wins over `large`. */
 export function Press<E extends ElementType = 'span'>({
   as,
   large = false,
+  variant,
+  tint,
   className,
+  style,
   children,
   ...rest
-}: PolymorphicProps<E, { large?: boolean }>) {
+}: PolymorphicProps<E, { large?: boolean; variant?: 'ink' | 'rev' | 'sm'; tint?: string }>) {
+  const As = (as ?? 'span') as ElementType;
+  const cls = variant ? `jk-press-${variant}` : large ? 'jk-press-lg' : 'jk-press';
+  return (
+    <As
+      className={cx(cls, className)}
+      style={tint ? { ...style, ['--jk-tint' as string]: tint } : style}
+      {...rest}
+    >
+      {children}
+    </As>
+  );
+}
+
+/** The Full Press solid-ink CHIP — the suite-default tinted item (a calendar
+ *  event, a task leaf, a bench card). `solid` (default true) paints the loud
+ *  saturated tab; drop to false for the faint raised base. `live`/`done`/`small`
+ *  layer the state modifiers. `tint` colours the chip in a data hue (--jk-tint).
+ *  Pair a `<Press variant="rev">` title inside a solid chip, `variant="ink"` on
+ *  the faint base. */
+export function Chip<E extends ElementType = 'span'>({
+  as,
+  solid = true,
+  live = false,
+  done = false,
+  small = false,
+  tint,
+  className,
+  style,
+  children,
+  ...rest
+}: PolymorphicProps<E, { solid?: boolean; live?: boolean; done?: boolean; small?: boolean; tint?: string }>) {
   const As = (as ?? 'span') as ElementType;
   return (
-    <As className={cx(large ? 'jk-press-lg' : 'jk-press', className)} {...rest}>
+    <As
+      className={cx(
+        'jk-chip',
+        solid && 'jk-chip-solid',
+        live && 'jk-chip-live',
+        done && 'jk-chip-done',
+        small && 'jk-chip-sm',
+        className,
+      )}
+      style={tint ? { ...style, ['--jk-tint' as string]: tint } : style}
+      {...rest}
+    >
       {children}
     </As>
   );

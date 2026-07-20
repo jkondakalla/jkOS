@@ -6,8 +6,8 @@
 
 import React from 'react';
 import type { CalendarItem } from './types';
-import { cardSurface } from './surface';
-import { FONT_BODY, FONT_NUM } from './theme';
+import { cardSurface, chipCheck } from './surface';
+import { FONT_BODY } from './theme';
 import { fmtTime, timeToFrac } from './datetime';
 import { WV_FIRST_H, WV_LAST_H, WV_ROW_H } from './constants';
 
@@ -93,7 +93,13 @@ export function TimeBlock({
     );
   }
 
-  const surface = cardSurface({ accent, selected: isSelected, elevation: 'block', radius: 'var(--hub-radius-soft)' });
+  const surface = cardSurface({
+    accent,
+    variant: 'solid',
+    completed: item.completed,
+    selected: isSelected,
+    radius: 'var(--hub-radius-soft)',
+  });
 
   return (
     <div
@@ -102,64 +108,55 @@ export function TimeBlock({
         e.stopPropagation();
         if (!isDragging) onSelect?.(item);
       }}
+      className={surface.className}
       style={{
         position: 'absolute',
         left: `calc(${leftPct}% + 2px)`,
         right: `calc(${rightPct}% + 2px)`,
         top,
         height,
-        borderTop: '2px solid var(--color-on-accent-faint)',
         overflow: 'hidden',
         cursor: 'grab',
-        opacity: item.completed ? 0.55 : 1,
         zIndex: 4,
         userSelect: 'none',
-        ...surface,
+        ...surface.style,
       }}
     >
       <div style={{ padding: '3px 7px 8px', height: '100%', boxSizing: 'border-box', position: 'relative' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
           {outWindow && (
             <span
+              className="mono-eyebrow"
               title={`${fmtTime(item.scheduled_time)} — outside the ${WV_FIRST_H}:00–${WV_LAST_H}:00 grid`}
-              style={{ flexShrink: 0, fontFamily: FONT_NUM, fontSize: 9, lineHeight: 1, color: 'var(--color-on-accent-dim)' }}
+              style={{ flexShrink: 0, fontSize: 8, lineHeight: 1 }}
             >
               {outBefore ? '▲' : '▼'}{fmtTime(item.scheduled_time)}
             </span>
           )}
           {!isEvent && (
             <span
+              role="checkbox"
+              aria-checked={!!item.completed}
               onPointerDown={(e) => e.stopPropagation()}
               onClick={(e) => {
                 e.stopPropagation();
                 onToggle?.(item.id, !!item.completed);
               }}
-              style={{
-                width: 10,
-                height: 10,
-                flexShrink: 0,
-                border: '1px solid var(--color-on-accent-dim)',
-                background: item.completed ? 'var(--color-on-accent)' : 'transparent',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: 7,
-                color: accent,
-                lineHeight: 1,
-              }}
+              className={chipCheck(12).className}
+              style={chipCheck(12).style}
             >
-              {item.completed ? '✓' : ''}
+              ✓
             </span>
           )}
           <span
+            className={item.completed ? undefined : 'jk-press-rev'}
             style={{
               flex: 1,
               minWidth: 0,
               fontFamily: FONT_BODY,
               fontSize: 11,
-              fontWeight: 500,
-              color: 'var(--color-on-accent)',
+              fontWeight: 600,
+              color: item.completed ? 'var(--color-faint)' : undefined,
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
@@ -170,7 +167,7 @@ export function TimeBlock({
           </span>
         </div>
         {showTime && (
-          <div style={{ fontFamily: FONT_NUM, fontStyle: 'italic', fontSize: 9.5, color: 'var(--color-on-accent-dim)', marginTop: 2 }}>
+          <div className="mono-eyebrow" style={{ fontSize: 8, marginTop: 3 }}>
             {fmtTime(item.scheduled_time)}
             {item.scheduled_end ? ` – ${fmtTime(item.scheduled_end)}` : ''}
           </div>

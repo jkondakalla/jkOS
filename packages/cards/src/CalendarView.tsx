@@ -139,7 +139,6 @@ function CalendarGrid({
                 accent={accentOf(it) || 'var(--color-muted)'}
                 size="md"
                 showTime
-                spentBorder
                 isDragging={drag?.item?.id === it.id}
                 isSelected={selectedId === it.id}
                 onSelect={onSelect}
@@ -173,7 +172,7 @@ function CalendarGrid({
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', borderBottom: '1px solid var(--color-line)', background: 'var(--color-paper-2)', flexShrink: 0 }}>
           {DOW.map((d) => (
-            <div key={d} style={{ fontFamily: FONT_BODY, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--color-muted)', padding: '6px 10px', borderRight: d !== 'Sun' ? '1px solid var(--color-line)' : 'none' }}>
+            <div key={d} className="jk-lab jk-lab-xs" style={{ color: 'var(--color-muted)', padding: '6px 10px', borderRight: d !== 'Sun' ? '1px solid var(--color-line)' : 'none' }}>
               {d}
             </div>
           ))}
@@ -226,7 +225,14 @@ function CalendarGrid({
                       }}
                       style={{
                         borderRight: ci < 6 ? '1px solid var(--color-line-strong)' : 'none',
-                        background: isOver ? 'color-mix(in srgb, var(--color-accent) 12%, transparent)' : isToday ? 'var(--color-accent-soft)' : !cell.inMonth ? 'rgba(0,0,0,0.04)' : 'var(--color-paper)',
+                        background: isOver
+                          ? 'color-mix(in srgb, var(--color-accent) 12%, transparent)'
+                          : isToday
+                            ? 'color-mix(in srgb, var(--jk-tint, var(--accent)) 14%, var(--hub-bg-2))'
+                            : !cell.inMonth
+                              ? 'rgba(0,0,0,0.04)'
+                              : 'var(--color-paper)',
+                        boxShadow: isToday ? 'var(--hub-accent-press)' : 'none',
                         outline: isOver ? '1px dashed var(--color-accent)' : isTarget ? '1px dashed var(--color-accent-glow)' : 'none',
                         outlineOffset: -1,
                         padding: `${CV_DAY_NUM + barZoneH + 2}px 6px 6px`,
@@ -236,11 +242,12 @@ function CalendarGrid({
                       }}
                     >
                       <div
+                        className={isToday ? 'jk-press' : undefined}
                         onClick={(e) => {
                           e.stopPropagation();
                           onWeekJump?.(cell.iso);
                         }}
-                        style={{ position: 'absolute', top: 5, left: `calc(${(ci / 7) * 100}% + 6px)`, fontFamily: FONT_NUM, fontSize: 14, color: isToday ? 'var(--color-accent)' : !cell.inMonth ? 'var(--color-faint)' : 'var(--color-muted)', fontStyle: isToday ? 'italic' : 'normal', fontWeight: isToday ? 500 : 400, textShadow: isToday ? 'var(--accent-halo-text)' : 'none', lineHeight: 1, cursor: 'pointer', zIndex: 3 }}
+                        style={{ position: 'absolute', top: 5, left: `calc(${(ci / 7) * 100}% + 6px)`, fontFamily: FONT_NUM, fontSize: 14, color: isToday ? 'var(--color-accent)' : !cell.inMonth ? 'var(--color-faint)' : 'var(--color-muted)', fontStyle: isToday ? 'italic' : 'normal', fontWeight: isToday ? 600 : 400, lineHeight: 1, cursor: 'pointer', zIndex: 3 }}
                         title="Open in Week view"
                       >
                         {localDate(cell.iso).getDate()}
@@ -253,7 +260,7 @@ function CalendarGrid({
                             item={it}
                             accent={accentOf(it) || 'var(--color-muted)'}
                             size="xs"
-                            spentBorder
+                            variant="solid"
                             isDragging={drag?.item?.id === it.id}
                             isSelected={selectedId === it.id}
                             onSelect={onSelect}

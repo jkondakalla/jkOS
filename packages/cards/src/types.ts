@@ -136,6 +136,12 @@ export interface CalendarViewProps {
    *  AddSheet). When omitted, the mobile calendar falls back to an inline add via
    *  onAddItem; the desktop grid always uses inline quick-add. */
   onAddOnDate?: (date: string) => void;
+  /** Framing density. `comfortable` (default) is the full-air prototype layout
+   *  (wide inter-lane gaps, generous padding). `compact` tightens gaps + padding
+   *  for small mounts (ORDECK's `bb-week` widget) — **the lane framing is
+   *  preserved**, only the air shrinks, so the day-separation survives at every
+   *  size instead of forking. */
+  density?: 'comfortable' | 'compact';
 }
 
 export interface WeekViewProps extends CalendarViewProps {

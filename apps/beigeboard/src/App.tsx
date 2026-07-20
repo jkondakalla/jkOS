@@ -6,7 +6,7 @@ import { TODAY_ISO, INITIAL_ACCOUNTS, getDescendants } from './lib/seed'
 import { useJkOSPreferences } from './hooks/useJkOSPreferences'
 import { DragProvider } from './providers/DragProvider'
 import { MobileApp } from './mobile'
-import { injectJkOSTheme, STORAGE_KEYS } from '@jkos/design'
+import { injectJkOSTheme, STORAGE_KEYS, applyJkOSMotion } from '@jkos/design'
 
 import { Artifacts, ScanLines, CinematicIntro } from './components/Overlays'
 import { AppHeader } from './components/AppHeader'
@@ -56,6 +56,14 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
 
   // Keep the access token fresh so a long-open board never 401s mid-session.
   useSessionKeepalive()
+
+  // Motion axis (Full Press): per-item .mo-item entrances ride the default
+  // 'entrance', and the ambient rake (paper) / buzz (tube) is the opt-in 'full'
+  // tier — wired to the CRT-atmosphere toggle so it's user-controlled. hub.css
+  // still honours prefers-reduced-motion regardless.
+  useEffect(() => {
+    applyJkOSMotion(effects.halation ? 'full' : 'entrance')
+  }, [effects.halation])
 
   const toAuthPortal = () => {
     window.location.href = `${JKOS_AUTH_URL}/auth/login?redirect_to=${encodeURIComponent(window.location.href)}`
@@ -420,6 +428,12 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
               setView={setView} setFocusedNodeId={setFocusedNodeId}
             />
           )}
+
+          {/* Ambient atmosphere — raking light across the sheet (paper) / phosphor
+              buzz (tube). Each shows only in its own face, gated to data-motion
+              'full' + reduced-motion in hub.css. */}
+          <div className="jk-rake" />
+          <div className="jk-buzz" />
         </div>
       </div>
 

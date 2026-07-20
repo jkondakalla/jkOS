@@ -225,13 +225,12 @@ export function CinematicIntro({ onDone }: { onDone: () => void }) {
       )}
       {phase >= 2 && (
         <div className="intro-title" style={{ position: 'relative', zIndex: 2, textAlign: 'center' }}>
-          <div style={{
+          {/* The brand PRESSES on paper (debossed via .jk-press-lg) and halates on
+              the tube — the class owns both faces, so no inline paper glow. */}
+          <div className="jk-press-lg" style={{
             fontFamily: FONT_HEAD, fontStyle: 'italic', fontWeight: 600,
             fontSize: 60, color: 'var(--color-accent)',
             letterSpacing: '-0.02em', lineHeight: 1,
-            textShadow: isDark
-              ? '0 0 35px var(--color-accent-glow), 0 0 70px var(--color-secondary-glow)'
-              : '0 1px 8px var(--color-accent-glow), 0 0 24px var(--color-accent-glow)',
           }}>
             BeigeBoard
           </div>

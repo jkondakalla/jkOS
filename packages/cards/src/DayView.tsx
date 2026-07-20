@@ -232,8 +232,8 @@ function DayGrid({
             {/* All-day lane */}
             {(alldayLanes > 0 || (anyDrag && drag?.mode === 'allday')) && (
               <div style={{ display: 'grid', gridTemplateColumns: `${WV_LABEL_W}px 1fr`, borderBottom: '1px solid var(--color-line)', background: 'var(--color-paper)', flexShrink: 0 }}>
-                <div style={{ borderRight: '1px solid var(--color-line)', fontFamily: FONT_BODY, fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--color-faint)', padding: '5px 5px 0 0', textAlign: 'right' }}>
-                  all‑day
+                <div className="mono-eyebrow" style={{ borderRight: '1px solid var(--color-line)', fontSize: 7, padding: '5px 5px 0 0', textAlign: 'right' }}>
+                  ALL-DAY
                 </div>
                 <div data-drop-zone="allday" data-drop-day={day} style={{ position: 'relative', height: Math.max(alldayLanes, 1) * 22 + 8, overflow: 'hidden', background: isToday ? 'var(--color-accent-soft)' : 'transparent' }}>
                   {alldayBars.map((bar) => (
@@ -257,8 +257,8 @@ function DayGrid({
 
             {/* Untimed lane */}
             <div style={{ display: 'grid', gridTemplateColumns: `${WV_LABEL_W}px 1fr`, borderBottom: '1px solid var(--color-line)', background: 'var(--color-paper)', minHeight: 44 }}>
-              <div style={{ borderRight: '1px solid var(--color-line)', fontFamily: FONT_BODY, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--color-faint)', padding: '6px 6px 0 0', textAlign: 'right' }}>
-                untimed
+              <div className="mono-eyebrow" style={{ borderRight: '1px solid var(--color-line)', fontSize: 7, padding: '6px 6px 0 0', textAlign: 'right' }}>
+                UNTIMED
               </div>
               <div
                 data-drop-zone="untimed"
@@ -293,12 +293,19 @@ function DayGrid({
             {/* Hour grid */}
             <div ref={scrollRef} data-hour-scroll style={{ flex: 1, minHeight: 0, overflowY: 'auto', position: 'relative' }}>
               <div style={{ display: 'grid', gridTemplateColumns: `${WV_LABEL_W}px 1fr`, height: totalH, position: 'relative' }}>
-                <div style={{ position: 'relative', borderRight: '1px solid var(--color-line)', background: 'var(--color-paper)' }}>
+                <div style={{ position: 'relative' }}>
                   {HOURS.map((h, i) => (
-                    <div key={h} style={{ position: 'absolute', top: i * WV_ROW_H, left: 0, right: 0, height: WV_ROW_H, fontFamily: FONT_NUM, fontStyle: 'italic', fontSize: 10.5, color: 'var(--color-muted)', textAlign: 'right', padding: '3px 6px 0 0' }}>
-                      {i === 0 ? '' : fmtHourLabel(h)}
+                    <div key={h} style={{ position: 'absolute', top: i * WV_ROW_H, left: 0, right: 0, height: WV_ROW_H, textAlign: 'right', padding: '2px 8px 0 0' }}>
+                      <span className="seg" style={{ fontSize: 9, color: 'var(--color-faint)', letterSpacing: '0.04em' }}>{i === 0 ? '' : fmtHourLabel(h)}</span>
                     </div>
                   ))}
+                  {isToday && nowFrac >= WV_FIRST_H && nowFrac <= WV_LAST_H + 1 && (
+                    <div style={{ position: 'absolute', top: (nowFrac - WV_FIRST_H) * WV_ROW_H, right: 6, transform: 'translateY(-50%)' }}>
+                      <span className="seg" style={{ fontSize: 10, color: 'var(--color-accent)' }}>
+                        {String(now.getHours()).padStart(2, '0')}:{String(now.getMinutes()).padStart(2, '0')}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 <div
@@ -309,7 +316,7 @@ function DayGrid({
                   onPointerDown={
                     hasDnd
                       ? (e) => {
-                          if (e.target !== e.currentTarget && !(e.target as HTMLElement).dataset?.gridBg) return;
+                          if (e.target !== e.currentTarget) return;
                           const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
                           const frac = snapFrac(WV_FIRST_H + (e.clientY - r.top) / WV_ROW_H);
                           beginCreate(e, frac);
@@ -318,19 +325,20 @@ function DayGrid({
                   }
                   style={{
                     position: 'relative',
-                    background: isOverTimed ? 'color-mix(in srgb, var(--color-accent) 12%, transparent)' : isToday ? 'var(--color-accent-soft)' : 'var(--color-paper)',
+                    border: '1px solid var(--color-line)',
+                    borderRadius: 'var(--hub-radius-sm)',
+                    background: isOverTimed
+                      ? 'color-mix(in srgb, var(--color-accent) 12%, transparent)'
+                      : isToday
+                        ? 'color-mix(in srgb, var(--jk-tint, var(--accent)) 14%, var(--hub-bg-2))'
+                        : 'var(--color-paper)',
+                    backgroundImage: `repeating-linear-gradient(to bottom, var(--color-line-strong) 0 1px, transparent 1px ${WV_ROW_H}px)`,
                     outline: isTargetTimed && !isToday ? '1px solid var(--color-accent-glow)' : 'none',
                     outlineOffset: -1,
                     cursor: anyDrag ? 'copy' : readonly || !hasDnd ? 'default' : 'crosshair',
                     transition: 'background 0.12s',
                   }}
                 >
-                  {HOURS.map((h, idx) => (
-                    <div key={h} data-grid-bg style={{ position: 'absolute', left: 0, right: 0, top: idx * WV_ROW_H, height: WV_ROW_H, borderBottom: idx < HOURS.length - 1 ? '1px solid var(--color-line-strong)' : 'none', pointerEvents: 'none' }}>
-                      <div data-grid-bg style={{ position: 'absolute', left: 0, right: 0, top: WV_ROW_H / 2, borderTop: '1px dotted var(--color-line-strong)', opacity: 0.4 }} />
-                    </div>
-                  ))}
-
                   {timedLayout.map(({ ev: item, slot, totalCols }) => {
                     const isMine = drag?.item?.id === item.id;
                     const isRsz = isMine && drag?.mode === 'resize';
@@ -364,8 +372,12 @@ function DayGrid({
                   {showPreview && drag && <TimelinePreview drag={drag} sourceColorOf={sourceColorOf} />}
 
                   {isToday && nowFrac >= WV_FIRST_H && nowFrac <= WV_LAST_H + 1 && (
-                    <div style={{ position: 'absolute', top: (nowFrac - WV_FIRST_H) * WV_ROW_H, left: 0, right: 0, height: 1, background: 'var(--color-accent)', zIndex: 12, pointerEvents: 'none', boxShadow: 'var(--accent-halo)' }}>
-                      <span className="now-dot" style={{ position: 'absolute', left: -4, top: -3, width: 8, height: 8, borderRadius: '50%', background: 'var(--color-accent)', boxShadow: 'var(--accent-halo)' }} />
+                    <div style={{ position: 'absolute', top: (nowFrac - WV_FIRST_H) * WV_ROW_H, left: 0, right: 0, height: 0, zIndex: 12, pointerEvents: 'none', display: 'flex', alignItems: 'center' }}>
+                      <span className="now-dot" style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--color-accent)', boxShadow: 'var(--accent-halo)', marginLeft: -5 }} />
+                      <span style={{ flex: 1, height: 2, background: 'var(--color-accent)', opacity: 0.7 }} />
+                      <span className="jk-press" style={{ fontFamily: 'var(--hub-font-mono)', fontSize: 8.5, letterSpacing: '0.2em', fontWeight: 600, padding: '0 8px', whiteSpace: 'nowrap', color: 'var(--color-accent)' }}>
+                        NOW
+                      </span>
                     </div>
                   )}
                 </div>

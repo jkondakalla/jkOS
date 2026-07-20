@@ -8,8 +8,8 @@ the living style guide at **https://staging.jkos.net/design** — the page shows
 this file gives the *values and the rules*.
 
 > **Snapshot honesty:** the value tables below are a faithful copy of
-> `packages/design/tokens/hub.css` as of 2026-07-19 (**Full Press Wave 22** folded in,
-> uncommitted on `staging`). For machines, hub.css remains the source of truth; if this
+> `packages/design/tokens/hub.css` as of 2026-07-19 (**Full Press Waves 22–26** folded in,
+> committed on `staging`). For machines, hub.css remains the source of truth; if this
 > doc and the code ever disagree, the code wins — and this doc should be fixed. §14 lists
 > the regen commands that keep everything else in sync.
 
@@ -188,6 +188,21 @@ Under Full Press the chips are **letterpress-cut**: `.jk-bubble` is serif caps (
 700) with the ink pressed into the chip on paper (a single lower-edge light catch) and
 halation on the tube — the doctrine is unchanged, only the cut.
 
+**The CHIP — the solid-ink item (suite default).** Where a bubble is a *pill/badge* and a
+well is a *region*, a **chip** is a single tinted **item**: a calendar event, a task leaf,
+a bench card. The default `.jk-chip.jk-chip-solid` is a saturated `--jk-tint` fill
+(`color-mix(--jk-tint 82%, --accent-deepen-ink)`) with the type **cream-knocked-out and
+pressed in** (`.jk-press-rev`); the faint raised base `.jk-chip` keeps neutral ink
+(`.jk-press-ink`). State modifiers layer on: `-live` (now — brighter fill + ring), `-done`
+(spent — flat, dimmed), `-sm` (dense). It mode-flips like every accent surface — inset
+bevel + drop on paper, halation ring on the tube — and reads `--jk-tint` (unset → `--accent`)
+so an item carries its own data hue. It **supersedes the calendar kit's old `ACCENT_GLAZE`
+chip look** (that recipe retires as the kit adopts `.jk-chip` in Wave B). The pressed-type
+family that titles chips — `.jk-press-ink` (neutral ink, shadow only), `.jk-press-rev`
+(cream knockout on a solid tab), `.jk-press-sm` (small tinted press) — is the CUT applied
+row-by-row, distinct from `.jk-press`'s raised primary badge. React: `<Chip>` +
+`<Press variant="ink|rev|sm">` (`@jkos/ui`).
+
 `.label-tape` is the badge made **physical** — an embossed metal strip for naming a panel.
 Reach for it when the thing being named is *chrome* rather than *content*.
 
@@ -331,6 +346,13 @@ which keeps naming machine panels) · `.jk-colophon` — the end-of-sheet record
 `.jk-bubble-secondary` / `.jk-bubble-lg` · `.jk-press` / `.jk-press-lg` · `.jk-sub` /
 `.jk-sub-link` · `.jk-sheet` (the card surface: bg-2, line border, card shadow + bevel).
 
+**Chips — the solid-ink item (§4, suite default):**
+`.jk-chip` (faint raised base, `--jk-tint`) + `.jk-chip-solid` (the loud saturated tab,
+THE default) · state modifiers `.jk-chip-live` / `.jk-chip-done` / `.jk-chip-sm` · pressed
+titles `.jk-press-ink` (neutral, shadow-only) / `.jk-press-rev` (cream knockout on a solid
+tab) / `.jk-press-sm` (small tinted press). All `--jk-tint`-driven, mode-flipping; supersedes
+`ACCENT_GLAZE`.
+
 **Glow:** `.glow` / `.glow-dim` / `.glow-cyan` (phosphor text, accent families) ·
 `.jk-halo` / `.jk-halo-text` · `.jk-glow` / `.jk-glow-text` + `.jk-glow-low/-mid/-hi` +
 `--jk-glow-color`.
@@ -449,7 +471,7 @@ theme → `applyTheme` (`@jkos/auth-client`) calls `applyJkOSMode` + `applyJkOST
 
 | App | Stack | Serif | Factory config (actual) | Notes |
 |---|---|---|---|---|
-| **BeigeBoard** (planner) | React 18, plain CSS (`src/app.css`) | Fraunces | `radius: { base 8, xs 4, sm 7, lg 11, soft 9, widget 10, button 8 }` | **Full editorial pass (2026-07-19):** masthead folio (`.jk-folio` names the edition — date + week no.), printed nav + buttons (Fraunces 600 tracked caps; machine sublines/chips stay mono), section heads on `.jk-lab` via its `Eyebrow` wrapper, rules ladder (ink rule closes covers/chapter heads, hairlines under rows, double rule + `.jk-colophon` ends the Today sheet), `.jk-press-lg` cover greeting, masthead clock is the app's one `.seg` verdict (Big Shoulders loaded in `index.html`). Calendar tabs render `@jkos/cards` Week/Calendar views (kit classes untouched); drag via `usePointerDrag` |
+| **BeigeBoard** (planner) | React 18, plain CSS (`src/app.css`) | Fraunces | `radius: { base 8, xs 4, sm 7, lg 11, soft 9, widget 10, button 8 }` | **Full Press rebuild (2026-07-20)** — a view-layer redesign onto the new solid-ink chip system (the editorial pass 2026-07-19 was its masthead/rules groundwork; the folio retired for bordered `.jk-lab` week/date chips). **Today** = kit `DayView` single-day timeline + a 388px right rail (`.jk-sheet` bench + goals-in-press rollups + `.jk-colophon`); **Week/Calendar** = the reskinned kit views unchanged at the app level (the kit now owns the chrome — seven framed gapped day-lanes, today = tinted `jk-well` + `jk-press`); **Workshop** = a two-pane forge (goal rail, `jk-well` when selected → header `jk-press-lg` + `jk-rule` + expand/collapse milestone→leaf tree, each leaf a `.jk-chip` + `.jk-check`), retiring the drill-down + weekly bench + carried/adrift/next planning intel; **header** = pressed serif wordmark + `.jk-lab` chips + **mono** nav (active = `jk-well` + `jk-press`) + `.seg` clock. Motion on the `data-motion` axis (`.mo-item` rows, ambient rake/buzz opt-in; intro presses on paper). DetailPanel kept + restyled as the edit surface. Desktop only — `src/mobile/*` untouched behind `useBreakpoint()`; drag via `usePointerDrag` |
 | **ORDECK** (HUD/portal) | React 18, plain CSS | Fraunces | `selector: 'html.od-v2'`, `radius: { base 10, xs 4, sm 7, lg 16, soft 8, button 9 }` | v2 HUD scopes its theme to `html.od-v2`; widget system + workshop; login page is minimal hardware (LED + glow title) |
 | **PapyrOS** (audiobooks) | React 18, plain CSS | Fraunces | `accent: { #9a4b2c, #5c8a72 }`, `radius: { base 6, xs 3, sm 5, lg 10, soft 7, button 6 }` | First `@jkos/player` consumer; offline cache + SW media |
 | **KourOS** (music) | React 18, plain CSS | Fraunces (suite default) | `accent: { #4b3f8f, #dba13c }`, `radius: { base 5, xs 3, sm 4, lg 8, soft 6, button 5 }` | Second player consumer — deliberately different shape; loads Fraunces since Full Press (the primitives are printed) |
@@ -480,14 +502,23 @@ Utilities (hub.css, one copy — app sheets keep only bespoke frames like BeigeB
 | `.now-dot` | pulseOpacity | 1.8s infinite | "live now" marker |
 | `.check-pop` | checkBounce | 0.25s | check confirmation pop |
 | `.ink-in` (Full Press) | inkDry / crtExpand | 0.44s / 0.5s, no fill | **the face-aware entrance**: ink dries on paper; the tube powers on in dark — same class, opposite physics. Apply at view/panel/item boundaries once; never stack on another entrance |
-| `.jk-rake` (Full Press) | rakeSweep | 26s infinite | ambient raking light across the sheet — **tweak-gated** (`<html data-ambient="on">`), off by default, paper face only |
+| `.mo-item` (Full Press) | inkDry / crtOn | 0.5s / 0.62s **both** | the `.ink-in` physics applied **row-by-row**, staggered via inline `animation-delay`. Carries `both` so a row sits hidden until its delay fires — so ONLY on elements that don't host a `position: fixed` popup (fill-mode caveat below). Gated by `data-motion` |
+| `.jk-rake` (Full Press) | rakeSweep | 26s infinite | ambient raking light across the **paper** sheet — gated `<html data-motion="full">`, off otherwise |
+| `.jk-buzz` (Full Press) | crtBuzz | 4.3s infinite | ambient phosphor glow breathing in the **tube** — the CRT companion to the rake, same `data-motion="full"` gate, dark face only |
+
+**The `data-motion` axis** (Full Press) — a runtime attribute on `<html>`, the motion sibling
+of `data-mode`, written by `applyJkOSMotion()` (`@jkos/design`): `full` (entrances + ambient
+rake/buzz) · `entrance` (entrances only, ambient quiet) · `static` (nothing moves). **Absent
+behaves as `entrance`** (entrances fire, ambient off — the sensible default), so an app opts
+*into* atmosphere with `full`. `'system'` resolves to `static` under `prefers-reduced-motion`.
+It folded the old `data-ambient="on"` rake gate onto one axis.
 
 Ambient keyframes: `led-pulse` (2.4s, on every `.led`), `blink`, `data-flicker` (rare
 4s-cycle dip), `grain`, `spin`, `scanRoll`, `scanPulse`, `artifactFlash`.
 
 Rules: ambient effects are subtle and **opacity-only**; entrances land in **200–400ms**.
 `prefers-reduced-motion` is now honoured **once in hub.css** for the shared entrances and
-ambient loops (entrances snap to their final frame; LED pulse / now-dot / rake stop) —
+ambient loops (entrances snap to their final frame; LED pulse / now-dot / rake / buzz stop) —
 app sheets still guard their own bespoke frames. **Fill-mode gotcha:**
 `.view-enter`/`.panel-enter`/`.boot-sweep` carry no fill-mode on purpose — a retained
 `transform`/`clip-path` makes the element a containing block for `position: fixed`

@@ -263,8 +263,8 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
         {isGoal && (
           <Field label={`Breakdown · ${prog.total > 0 ? `${prog.done}/${prog.total}` : 'open'}`}>
             {prog.total > 0 && (
-              <div style={{ height: 2, background: 'var(--color-line-strong)', marginBottom: 12 }}>
-                <div style={{ height: '100%', width: `${prog.pct}%`, background: accent }} />
+              <div className="bar-track" style={{ height: 5, borderRadius: 3, overflow: 'hidden', marginBottom: 12, ['--jk-tint' as any]: accent }}>
+                <div className="bar-fill" style={{ height: '100%', width: `${prog.pct}%`, background: `linear-gradient(90deg, color-mix(in srgb, ${accent} 72%, #1a0a00), ${accent})` }} />
               </div>
             )}
             {children.length === 0 ? (
@@ -320,8 +320,8 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
         {isMilestone && (
           <Field label={`Checkpoint · ${prog.total > 0 ? `${prog.done}/${prog.total}` : 'open'}`}>
             {prog.total > 0 && (
-              <div style={{ height: 2, background: 'var(--color-line-strong)', marginBottom: 12 }}>
-                <div style={{ height: '100%', width: `${prog.pct}%`, background: accent }} />
+              <div className="bar-track" style={{ height: 5, borderRadius: 3, overflow: 'hidden', marginBottom: 12, ['--jk-tint' as any]: accent }}>
+                <div className="bar-fill" style={{ height: '100%', width: `${prog.pct}%`, background: `linear-gradient(90deg, color-mix(in srgb, ${accent} 72%, #1a0a00), ${accent})` }} />
               </div>
             )}
             <button

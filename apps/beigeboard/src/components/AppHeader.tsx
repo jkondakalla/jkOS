@@ -48,19 +48,20 @@ export function AppHeader({ view, setView, today, onConnectClick, onLogout, onOp
       alignItems: 'center',
       gap: 20,
     }}>
-      {/* Left: pressed wordmark + the folio mark. The folio (running-head rules,
-          serif caps, accent-italic number) names the EDITION — today's sheet and
-          its week number — replacing the two bordered badges it used to take. */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, minWidth: 0 }}>
+      {/* Left: pressed serif wordmark + two bordered jk-lab chips (the edition —
+          week number + today's date), per the Full Press prototype. */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
         <Press as="span" style={{
           fontFamily: FONT_HEAD, fontWeight: 600, fontStyle: 'italic',
           fontSize: 20, letterSpacing: '-0.01em', whiteSpace: 'nowrap', flexShrink: 0,
         }}>BeigeBoard</Press>
 
-        <span className="jk-folio" style={{ flexShrink: 0 }}>
+        <Lab size="sm" as="span" style={{ border: '1px solid var(--color-line)', borderRadius: 'var(--hub-radius-sm)', padding: '3px 7px', flexShrink: 0 }}>
+          W{String(week).padStart(2, '0')}
+        </Lab>
+        <Lab size="sm" as="span" style={{ border: '1px solid var(--color-line)', borderRadius: 'var(--hub-radius-sm)', padding: '3px 7px', flexShrink: 0 }}>
           {d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-          <span className="jk-folio-no">Wk {String(week).padStart(2, '0')}</span>
-        </span>
+        </Lab>
       </div>
 
       {/* Center: nav tabs — active tab is a struck well + pressed label */}
@@ -162,10 +163,10 @@ function NavTab({ tab, active, onClick }: any) {
       <span
         className={active ? 'jk-press' : undefined}
         style={{
-          // Printed, not typed — Fraunces tracked caps (the .jk-lab cut); the
-          // machine subline below keeps mono.
-          fontFamily: FONT_HEAD, fontSize: 11.5, fontWeight: 600,
-          letterSpacing: '0.15em', textTransform: 'uppercase',
+          // The prototype nav is set in the MACHINE voice — mono tracked caps,
+          // active label pressed. (The wordmark carries the print voice.)
+          fontFamily: MONO, fontSize: 11, fontWeight: 500,
+          letterSpacing: '0.18em', textTransform: 'uppercase',
           color: active ? undefined : (hover ? 'var(--color-ink)' : 'var(--color-muted)'),
           lineHeight: 1.1,
           transition: 'color 0.12s',

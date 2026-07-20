@@ -39,6 +39,29 @@ export function applyJkOSMode(
   return isDark;
 }
 
+/** The motion axis (Full Press). Drives .mo-item entrances + the ambient
+ *  rake/buzz, gated in hub.css:
+ *    full     — per-item entrances + ambient atmosphere
+ *    entrance — per-item entrances, ambient quiet (the sensible default)
+ *    static   — nothing moves
+ *  Absent behaves as `entrance`. 'system' resolves to `static` under
+ *  prefers-reduced-motion, else `entrance`. */
+export type JkOSMotion = 'full' | 'entrance' | 'static' | 'system';
+
+/**
+ * Resolves the motion preference and sets data-motion on <html>. Returns the
+ * concrete axis applied. Mirrors applyJkOSMode — a runtime axis, not a token
+ * (buildJkOSTheme emits per-app tokens; the axis is user/session state).
+ */
+export function applyJkOSMotion(pref: JkOSMotion | undefined): Exclude<JkOSMotion, 'system'> {
+  const reduce = typeof window !== 'undefined'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const axis: Exclude<JkOSMotion, 'system'> =
+    !pref || pref === 'system' ? (reduce ? 'static' : 'entrance') : pref;
+  document.documentElement.setAttribute('data-motion', axis);
+  return axis;
+}
+
 /**
  * Writes the user's saved accent pair onto the two raw inputs. hub.css derives
  * everything else per mode. The second arg is accepted for backward compat and

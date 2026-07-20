@@ -255,19 +255,20 @@
       </div>
 
       <div class="dg-deck-group">
-        <span class="jk-lab jk-lab-xs">Ambient</span>
+        <span class="jk-lab jk-lab-xs">Motion</span>
         <div class="dg-seg" id="dg-ambient">
-          <button data-ambient="off" aria-pressed="true">Off</button>
-          <button data-ambient="on">Rake</button>
+          <button data-motion="entrance" aria-pressed="true">Entrance</button>
+          <button data-motion="full">Full</button>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Ambient raking light — .jk-rake (Full Press Wave 24). Tweak-gated: inert
-       until the deck's Ambient toggle sets data-ambient="on" on <html>, and
-       paper-face only. -->
+  <!-- Ambient atmosphere — .jk-rake (paper) + .jk-buzz (CRT), Full Press Wave 24,
+       folded onto the data-motion axis. Both inert until the deck's Motion toggle
+       sets data-motion="full" on <html>; each self-gates on the active face. -->
   <div class="jk-rake" style="z-index:1"></div>
+  <div class="jk-buzz" style="z-index:1"></div>
 
   <div class="dg-wrap">
 
@@ -533,6 +534,39 @@
           <span class="jk-lab jk-lab-sm">jk-well · retinted</span>
           <p style="margin:10px 0 0;color:var(--color-muted)">Same well, <code>--jk-tint: var(--hub-magenta)</code> — a data colour.</p>
         </div>
+      </div>
+
+      <p class="dg-caption" style="margin-top:26px">The chip — the solid-ink tab (Full Press, the suite default item)</p>
+      <p class="dg-lede" style="margin-top:0;margin-bottom:16px">
+        A <b>chip</b> is a single tinted <i>item</i> — a calendar event, a task leaf, a bench
+        card. The default <code>.jk-chip.jk-chip-solid</code> is a saturated <code>--jk-tint</code>
+        fill with the type <b>cream-knocked-out and pressed in</b> (<code>.jk-press-rev</code>);
+        the faint <code>.jk-chip</code> base keeps neutral ink (<code>.jk-press-ink</code>). It
+        mode-flips like every accent surface — inset bevel + drop on paper, halation ring on the
+        tube. Supersedes the calendar kit's old <code>ACCENT_GLAZE</code> look. React:
+        <code>&lt;Chip&gt;</code> + <code>&lt;Press variant="rev|ink|sm"&gt;</code>.
+      </p>
+      <div class="dg-row" style="margin-bottom:14px;align-items:stretch">
+        <span class="jk-chip jk-chip-solid" style="padding:6px 12px;display:inline-flex;flex-direction:column;gap:1px">
+          <span class="jk-press-rev" style="font-family:var(--hub-font-serif);font-weight:600;font-size:13px">Deep work</span>
+          <span class="mono-eyebrow" style="font-size:8px">09:00 · 90 MIN</span>
+        </span>
+        <span class="jk-chip jk-chip-solid jk-chip-live" style="padding:6px 12px;display:inline-flex;flex-direction:column;gap:1px;--jk-tint:var(--hub-cyan)">
+          <span class="jk-press-rev" style="font-family:var(--hub-font-serif);font-weight:600;font-size:13px">Live now</span>
+          <span class="mono-eyebrow" style="font-size:8px">jk-chip-live</span>
+        </span>
+        <span class="jk-chip jk-chip-solid jk-chip-done" style="padding:6px 12px;display:inline-flex;flex-direction:column;gap:1px">
+          <span class="jk-press-rev" style="font-family:var(--hub-font-serif);font-weight:600;font-size:13px">Shipped</span>
+          <span class="mono-eyebrow" style="font-size:8px">jk-chip-done</span>
+        </span>
+        <span class="jk-chip jk-chip-solid jk-chip-sm" style="padding:4px 9px;--jk-tint:var(--hub-magenta)">
+          <span class="jk-press-rev" style="font-family:var(--hub-font-serif);font-weight:600;font-size:11px">Small · jk-chip-sm</span>
+        </span>
+      </div>
+      <div class="dg-row" style="margin-bottom:6px">
+        <span class="jk-chip jk-press-ink" style="padding:5px 12px;font-family:var(--hub-font-serif);font-weight:600;font-size:12px">Faint base · jk-press-ink</span>
+        <span class="jk-chip jk-chip-live jk-press-ink" style="padding:5px 12px;font-family:var(--hub-font-serif);font-weight:600;font-size:12px;--jk-tint:var(--hub-cyan)">Base live</span>
+        <span class="jk-chip jk-chip-done" style="padding:5px 12px"><span class="jk-press-sm" style="font-family:var(--hub-font-serif);font-weight:600;font-size:12px">Base done · jk-press-sm</span></span>
       </div>
     </section>
 
@@ -1132,16 +1166,16 @@
       }
       radBox.addEventListener('click', function (e) { var b = e.target.closest('button'); if (b) setRadius(b.dataset.radius); });
 
-      /* ── Ambient — the tweak gate for .jk-rake (Full Press Wave 24). "On"
-         stamps data-ambient="on" on <html>, exactly the seam an app tweak
-         uses; the rake itself only renders on the paper face. ── */
+      /* ── Motion — the data-motion axis (Full Press). "Full" stamps
+         data-motion="full" on <html> (entrances + ambient rake/buzz); "Entrance"
+         stamps "entrance" (entrances only, ambient quiet). Exactly the seam
+         applyJkOSMotion() writes; the rake/buzz each self-gate on the face. ── */
       var ambBox = document.getElementById('dg-ambient');
-      function setAmbient(kind) {
-        ambBox.querySelectorAll('button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.ambient === kind)); });
-        if (kind === 'on') root.setAttribute('data-ambient', 'on');
-        else root.removeAttribute('data-ambient');
+      function setMotion(kind) {
+        ambBox.querySelectorAll('button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.motion === kind)); });
+        root.setAttribute('data-motion', kind);
       }
-      ambBox.addEventListener('click', function (e) { var b = e.target.closest('button'); if (b) setAmbient(b.dataset.ambient); });
+      ambBox.addEventListener('click', function (e) { var b = e.target.closest('button'); if (b) setMotion(b.dataset.motion); });
 
       /* ── Demo toggles ── */
       ['dg-sw', 'dg-ck'].forEach(function (id) {

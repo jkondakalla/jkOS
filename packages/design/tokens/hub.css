@@ -413,6 +413,13 @@
   68%  { filter: brightness(1.05); }
   100% { filter: brightness(1); clip-path: inset(0% 0 0% 0); }
 }
+/* Per-item phosphor flick — the .mo-item dark entrance (crtExpand's leaner
+   sibling: one clip-open + brighten, cheap enough to stagger across many rows). */
+@keyframes crtOn {
+  0%   { clip-path: inset(49% 0 49% 0); filter: brightness(5); opacity: 0.4; }
+  12%  { clip-path: inset(0 0 0 0);     filter: brightness(1.8); }
+  100% { filter: brightness(1); opacity: 1; }
+}
 @keyframes introTitleReveal {
   from { opacity: 0; transform: translateY(6px); filter: blur(3px); }
   to   { opacity: 1; transform: none;   filter: none; }
@@ -459,12 +466,32 @@
 .ink-in { animation: inkDry 0.44s cubic-bezier(0.2, 0.7, 0.25, 1); }
 :root[data-mode="dark"] .ink-in { animation: crtExpand 0.5s ease-out; }
 
-/* Ambient raking light (Wave 24) — a slow beam sweeping across the sheet.
- * TWEAK-GATED and OFF by default: it renders only under <html
- * data-ambient="on">, and only on the paper face (light rakes stock; the
- * tube has its own atmosphere). Mount one fixed overlay div per page; the
- * host app owns the z-index. Grain stays backdrop-only — this is light ON
- * the sheet, not texture. */
+/* Per-item staggered entrance — the .ink-in physics applied ROW-BY-ROW, gated by
+ * the data-motion axis (see .jk-buzz below). Unlike .ink-in this carries `both`:
+ * pre-delay the row must sit hidden (opacity 0) until its inline animation-delay
+ * fires, so a list of .mo-item children ripples in. Both keyframe sets END at the
+ * resting style (no retained transform), so the fill-mode is safe HERE — but only
+ * put .mo-item on elements that DON'T host a fixed-position popup (a retained
+ * `both` keeps the element a containing block; that's the .ink-in caveat, and the
+ * reason view/panel boundaries use .ink-in while rows use .mo-item).
+ *   data-motion  absent/entrance → entrances fire, ambient off (the default)
+ *                full            → entrances + ambient (rake/buzz)
+ *                static          → nothing moves */
+:root:not([data-motion="static"]):not([data-mode="dark"]) .mo-item {
+  animation: inkDry 0.5s cubic-bezier(0.2, 0.7, 0.25, 1) both;
+}
+:root:not([data-motion="static"])[data-mode="dark"] .mo-item {
+  animation: crtOn 0.62s ease-out both;
+}
+
+/* Ambient atmosphere (Wave 24; Full Press folds it onto the data-motion axis) —
+ * the sheet and the tube each get their own slow, OFF-by-default beat, shown only
+ * under <html data-motion="full"> (the axis that also drives .mo-item). Absent or
+ * "entrance", entrances still fire but the ambient stays quiet; "static" stops
+ * everything. Mount one fixed overlay div per page (.jk-rake on paper, .jk-buzz on
+ * dark — render both; each self-gates on face); the host app owns the z-index.
+ *   RAKE — a raking beam sweeping across the paper stock (light ON the sheet, not
+ *   texture — grain stays backdrop-only). */
 @keyframes rakeSweep {
   0%   { transform: translateX(-40%) rotate(8deg); opacity: 0; }
   20%  { opacity: 0.25; }
@@ -483,9 +510,28 @@
   mix-blend-mode: soft-light;
   background: linear-gradient(105deg, transparent, rgba(255, 251, 235, 0.9) 45%, rgba(120, 80, 30, 0.25) 60%, transparent);
 }
-:root[data-ambient="on"]:not([data-mode="dark"]) .jk-rake {
+:root[data-motion="full"]:not([data-mode="dark"]) .jk-rake {
   display: block;
   animation: rakeSweep 26s ease-in-out infinite;
+}
+
+/* BUZZ — the CRT companion to the rake: a faint phosphor glow that breathes in
+   the centre of the tube. Dark-face only, same data-motion="full" gate. */
+@keyframes crtBuzz {
+  0%, 100% { opacity: 0.05; }
+  50%      { opacity: 0.062; }
+}
+.jk-buzz {
+  display: none;
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  background: radial-gradient(120% 80% at 50% 40%, rgba(255, 240, 210, 0.9), rgba(255, 220, 170, 0.2) 60%, transparent 78%);
+}
+:root[data-motion="full"][data-mode="dark"] .jk-buzz {
+  display: block;
+  animation: crtBuzz 4.3s ease-in-out infinite;
 }
 
 /* Reduced motion — the shared entrances + ambient loops collapse here once,
@@ -493,13 +539,13 @@
  * Entrances snap to their final frame; the loops (LED pulse, now-dot, rake)
  * stop. Bespoke app frames still add their own page-level guard. */
 @media (prefers-reduced-motion: reduce) {
-  .ink-in, .view-enter, .panel-enter, .item-in, .modal-in,
+  .ink-in, .mo-item, .view-enter, .panel-enter, .item-in, .modal-in,
   .boot-sweep, .crt-expand, .intro-title, .check-pop {
     animation-duration: 0.01ms;
     animation-iteration-count: 1;
   }
   .led, .now-dot { animation: none; }
-  .jk-rake { display: none !important; }
+  .jk-rake, .jk-buzz { display: none !important; }
 }
 
 /* @jkos/cards interaction primitives — the shared calendar kit carries these so
@@ -763,6 +809,45 @@
     0 0 3px  color-mix(in srgb, var(--accent) 60%, transparent);
 }
 
+/* ─── Pressed-type family — the chip CUT (Full Press chip system) ───────────
+ * Where .jk-press badges PRIMARY accent text RAISED off the sheet, these press
+ * DATA-tinted or NEUTRAL type INTO it — the letterpress impression on a chip.
+ * All read --jk-tint (unset → --accent), so a chip in a goal's own hue presses
+ * in that hue. Mode-flips like every accent move: debossed on paper (white top
+ * catch-light + a tint-dark bottom lip), halated on the tube.
+ *   -ink : neutral-ink title, pressed-shadow ONLY — task titles on a tinted
+ *          chip that keep their own ink colour (pair with .jk-chip).
+ *   -rev : cream KNOCKOUT on a solid-ink tab — the loud title (pair with
+ *          .jk-chip-solid).
+ *   -sm  : the small tinted press — dense chips + calendar cells.
+ * ───────────────────────────────────────────────────────────────────────── */
+.jk-press-ink {
+  text-shadow:
+    0 1px 0 color-mix(in srgb, #ffffff 55%, transparent),
+    0 -0.5px 0 color-mix(in srgb, var(--jk-tint, var(--accent)) 34%, var(--accent-deepen-ink));
+}
+.jk-press-rev {
+  /* #f7efdc is a printed-cream knockout on a colour tab — a NEUTRAL ink, the
+     paper-face analogue of --color-on-accent's white (warm, not stark). */
+  color: #f7efdc;
+  text-shadow: 0 -1px 0 rgba(30, 18, 4, 0.42), 0 1px 0 rgba(255, 246, 226, 0.26);
+}
+.jk-press-sm {
+  color: color-mix(in srgb, var(--jk-tint, var(--accent)) 82%, var(--color-ink));
+  text-shadow: 0 0.5px 0 color-mix(in srgb, #ffffff 55%, transparent);
+}
+:root[data-mode="dark"] .jk-press-ink {
+  text-shadow: 0 0 9px color-mix(in srgb, var(--jk-tint, var(--accent)) 45%, transparent);
+}
+:root[data-mode="dark"] .jk-press-sm {
+  color: var(--jk-tint, var(--accent));
+  text-shadow: 0 0 10px color-mix(in srgb, var(--jk-tint, var(--accent)) 55%, transparent);
+}
+:root[data-mode="dark"] .jk-press-rev {
+  color: var(--jk-tint, var(--accent));
+  text-shadow: 0 0 10px color-mix(in srgb, var(--jk-tint, var(--accent)) 60%, transparent);
+}
+
 /* Flat SECONDARY text + link */
 .jk-sub { color: var(--accent-secondary); }
 .jk-sub-link {
@@ -845,6 +930,117 @@
   border: 1px solid var(--hub-line);
   border-radius: var(--hub-radius-lg);
   box-shadow: var(--hub-shadow-card), inset 0 1px 0 var(--hub-bevel-light);
+}
+
+/* ─── Chips — the Full Press solid-ink tab (SUITE DEFAULT) ──────────────────
+ * The saturated letter-tab that supersedes the calendar kit's old ACCENT_GLAZE
+ * chip: a --jk-tint (unset → --accent) fill deepened toward --accent-deepen-ink,
+ * with the type cream-KNOCKED-OUT and pressed in (pair with .jk-press-rev on a
+ * solid tab, .jk-press-ink on the faint base). Mode-flips like every accent
+ * surface — inset bevel + drop on paper, halation ring on the tube. A chip is a
+ * single tinted ITEM (a calendar event, a task leaf, a bench card); it sits
+ * beside .jk-bubble (the pill/badge) and .jk-well (the region).
+ *   .jk-chip        raised, faint-tint chip — neutral-ink rows
+ *   .jk-chip-solid  THE DEFAULT — saturated tint tab, cream knockout
+ *   .jk-chip-live   now / active (brighter fill + ring)
+ *   .jk-chip-done   spent — flat, dimmed
+ *   .jk-chip-sm     dense (calendar cells, tight rails)
+ * ───────────────────────────────────────────────────────────────────────── */
+.jk-chip {
+  border-radius: var(--hub-radius-xs);
+  background: color-mix(in srgb, var(--jk-tint, var(--accent)) 14%, var(--hub-bg-2));
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #ffffff 60%, transparent),
+    0 1px 0 color-mix(in srgb, var(--jk-tint, var(--accent)) 28%, var(--hub-line)),
+    0 2px 5px rgba(48, 34, 20, 0.28);
+  transition: box-shadow 0.16s, transform 0.12s, background 0.16s;
+}
+.jk-chip:hover {
+  transform: translateY(1px);
+  background: color-mix(in srgb, var(--jk-tint, var(--accent)) 18%, var(--hub-bg-2));
+  box-shadow: var(--hub-accent-press);
+}
+.jk-chip-live {
+  background: color-mix(in srgb, var(--jk-tint, var(--accent)) 18%, var(--hub-bg-2));
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #ffffff 62%, transparent),
+    0 1px 0 color-mix(in srgb, var(--jk-tint, var(--accent)) 32%, var(--hub-line)),
+    0 4px 9px rgba(48, 34, 20, 0.28);
+}
+.jk-chip-done {
+  background: color-mix(in srgb, var(--jk-tint, var(--accent)) 7%, var(--hub-bg-2));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--jk-tint, var(--accent)) 20%, transparent);
+  opacity: 0.62;
+}
+.jk-chip-done:hover {
+  transform: none;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--jk-tint, var(--accent)) 28%, transparent);
+}
+.jk-chip-sm {
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #ffffff 55%, transparent),
+    0 1px 2px rgba(48, 34, 20, 0.2);
+}
+/* THE DEFAULT tab — Opt 4 solid-ink fill + Opt 1 pressed type (cream knockout) */
+.jk-chip-solid {
+  background: color-mix(in srgb, var(--jk-tint, var(--accent)) 82%, var(--accent-deepen-ink));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 2px 5px rgba(48, 34, 20, 0.3);
+}
+.jk-chip-solid:hover {
+  transform: translateY(1px);
+  background: color-mix(in srgb, var(--jk-tint, var(--accent)) 88%, var(--accent-deepen-ink));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 1px 3px rgba(48, 34, 20, 0.34);
+}
+.jk-chip-solid.jk-chip-sm {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 1px 2px rgba(48, 34, 20, 0.26);
+}
+.jk-chip-solid.jk-chip-live {
+  background: color-mix(in srgb, var(--jk-tint, var(--accent)) 92%, var(--accent-deepen-ink));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    0 0 0 1.5px color-mix(in srgb, #ffffff 55%, var(--jk-tint, var(--accent))),
+    0 3px 9px rgba(48, 34, 20, 0.36);
+}
+.jk-chip-solid.jk-chip-done {
+  background: color-mix(in srgb, var(--jk-tint, var(--accent)) 7%, var(--hub-bg-2));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--jk-tint, var(--accent)) 20%, transparent);
+}
+/* a spent solid chip's knockout title + mono meta fall back to faint ink */
+.jk-chip-done .jk-press-rev { color: var(--color-faint); text-shadow: none; }
+.jk-chip-solid .mono-eyebrow { color: rgba(247, 239, 220, 0.78); }
+.jk-chip-done.jk-chip-solid .mono-eyebrow { color: var(--color-faint); }
+
+/* CRT — every chip becomes emissive: halation ring, no bevel/drop. #0e0b07 is a
+   neutral phosphor-black base (like the dark neutral ramp), tinted per --jk-tint. */
+:root[data-mode="dark"] .jk-chip,
+:root[data-mode="dark"] .jk-chip-live {
+  box-shadow:
+    0 0 14px color-mix(in srgb, var(--jk-tint, var(--accent)) 48%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--jk-tint, var(--accent)) 42%, transparent);
+}
+:root[data-mode="dark"] .jk-chip:hover {
+  transform: none;
+  box-shadow:
+    0 0 5px color-mix(in srgb, var(--jk-tint, var(--accent)) 30%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--jk-tint, var(--accent)) 55%, transparent);
+}
+:root[data-mode="dark"] .jk-chip-done,
+:root[data-mode="dark"] .jk-chip-done:hover {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--jk-tint, var(--accent)) 25%, transparent);
+}
+:root[data-mode="dark"] .jk-chip-solid {
+  background: color-mix(in srgb, var(--jk-tint, var(--accent)) 26%, #0e0b07);
+  box-shadow:
+    0 0 14px color-mix(in srgb, var(--jk-tint, var(--accent)) 35%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--jk-tint, var(--accent)) 52%, transparent);
+}
+:root[data-mode="dark"] .jk-chip-solid.jk-chip-live {
+  box-shadow:
+    0 0 20px color-mix(in srgb, var(--jk-tint, var(--accent)) 55%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--jk-tint, var(--accent)) 70%, transparent);
+}
+:root[data-mode="dark"] .jk-chip-solid .mono-eyebrow {
+  color: color-mix(in srgb, var(--jk-tint, var(--accent)) 55%, transparent);
 }
 
 /* ─── Media grid + cover art (@jkos/ui MediaGrid / CoverArt) ───────────────
