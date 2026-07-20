@@ -22,13 +22,16 @@ export function TodayView({ items, today, onSelect, onToggle, onAddTask, onUpdat
     <div style={{ flex: 1, overflowY: 'auto', background: 'transparent' }}>
       <div style={{ maxWidth: 760, margin: '0 auto', padding: '48px 36px 80px' }}>
 
+        {/* The cover — the sheet's one pressed-accent moment (.jk-press-lg
+            debosses on paper, halates on the tube), closed by the chapter-head
+            ink rule from the rules ladder. */}
         <div style={{ marginBottom: 36 }}>
-          <Eyebrow style={{ marginBottom: 6 }}>{dateStr}</Eyebrow>
-          <h1 style={{
-            fontFamily: FONT_HEAD, fontWeight: 500, fontSize: 32, lineHeight: 1,
-            margin: 0, letterSpacing: '-0.025em', color: 'var(--color-ink)',
-            textShadow: 'var(--accent-halo-text)',
+          <Eyebrow style={{ marginBottom: 8 }}>{dateStr}</Eyebrow>
+          <h1 className="jk-press-lg" style={{
+            fontFamily: FONT_HEAD, fontWeight: 700, fontSize: 40, lineHeight: 1,
+            margin: 0, letterSpacing: '-0.025em',
           }}>{getGreeting()}</h1>
+          <hr className="jk-rule-strong" style={{ margin: '18px 0 0' }} />
         </div>
 
         {next ? (
@@ -85,7 +88,7 @@ export function TodayView({ items, today, onSelect, onToggle, onAddTask, onUpdat
         {done.length > 0 && (
           <details style={{ marginTop: 36, opacity: 0.7 }}>
             <summary style={{
-              fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.22em',
+              fontFamily: FONT_HEAD, fontWeight: 600, fontSize: 10.5, letterSpacing: '0.18em',
               textTransform: 'uppercase', color: 'var(--color-muted)', cursor: 'pointer',
               padding: '4px 0',
             }}>{done.length} done today</summary>
@@ -95,14 +98,17 @@ export function TodayView({ items, today, onSelect, onToggle, onAddTask, onUpdat
           </details>
         )}
 
-        <footer style={{
-          marginTop: 56,
-          paddingTop: 18,
-          borderTop: '1px solid var(--color-line-strong)',
-          display: 'flex', justifyContent: 'space-between', gap: 12,
-        }}>
-          <button onClick={() => setView('week')} style={tinyLink()}>open the week →</button>
-          <button onClick={() => setView('tasks')} style={tinyLink()}>open the workshop →</button>
+        {/* The end of the sheet: the double rule from the rules ladder, then the
+            colophon — the one end-of-sheet record (fleuron + centre-set serif). */}
+        <footer style={{ marginTop: 56 }}>
+          <hr className="jk-rule-double" style={{ margin: '0 0 16px' }} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+            <button onClick={() => setView('week')} style={tinyLink()}>open the week →</button>
+            <button onClick={() => setView('tasks')} style={tinyLink()}>open the workshop →</button>
+          </div>
+          <div className="jk-colophon" style={{ fontSize: '0.8rem', marginTop: 26 }}>
+            BeigeBoard · set in ink &amp; light · Edition {d.getFullYear()}
+          </div>
         </footer>
       </div>
     </div>
@@ -202,7 +208,7 @@ function EmptyDay({ onAdd, today }: any) {
           />
           <button onClick={handle} className="btn-action" style={{
             background: 'var(--color-accent)', color: 'var(--color-paper)', border: 'none',
-            fontFamily: FONT_BODY, fontSize: 11, letterSpacing: '0.14em',
+            fontFamily: FONT_HEAD, fontWeight: 600, fontSize: 11, letterSpacing: '0.14em',
             textTransform: 'uppercase', padding: '10px 18px', cursor: 'pointer',
           }}>Add →</button>
         </div>
@@ -212,7 +218,7 @@ function EmptyDay({ onAdd, today }: any) {
           className="btn-action"
           style={{
             background: 'var(--color-ink)', color: 'var(--color-paper)', border: 'none',
-            fontFamily: FONT_BODY, fontSize: 11, letterSpacing: '0.14em',
+            fontFamily: FONT_HEAD, fontWeight: 600, fontSize: 11, letterSpacing: '0.14em',
             textTransform: 'uppercase', padding: '12px 22px', cursor: 'pointer',
           }}
         >+ Write something down</button>
@@ -240,7 +246,7 @@ function Strip({ tasks, items, onSelect, onToggle, muted, recentlyAdded }: any) 
   return (
     <ol style={{
       listStyle: 'none', padding: 0, margin: 0,
-      borderTop: `1px solid var(--color-line-strong)`,
+      borderTop: `1px solid var(--color-line)`,
       opacity: muted ? 0.55 : 1,
     }}>
       {tasks.map((task: any) => {
@@ -258,7 +264,7 @@ function Strip({ tasks, items, onSelect, onToggle, muted, recentlyAdded }: any) 
               display: 'grid', gridTemplateColumns: 'auto 1fr auto',
               gap: 12, alignItems: 'center',
               padding: '11px 6px',
-              borderBottom: `1px solid var(--color-line-strong)`,
+              borderBottom: `1px solid var(--color-line)`,
               cursor: 'pointer',
               '--hover-bg': 'var(--color-paper-2)',
             } as any}
@@ -294,7 +300,7 @@ function Strip({ tasks, items, onSelect, onToggle, muted, recentlyAdded }: any) 
 /* Carried tasks: rescheduling is a decision, not a default. */
 function CarriedStrip({ tasks, items, today, onSelect, onToggle, onUpdateItem, readonly }: any) {
   return (
-    <ol style={{ listStyle: 'none', padding: 0, margin: 0, borderTop: '1px solid var(--color-line-strong)' }}>
+    <ol style={{ listStyle: 'none', padding: 0, margin: 0, borderTop: '1px solid var(--color-line)' }}>
       {tasks.map((task: any) => {
         const accent = getAccent(task, items) || 'var(--color-muted)'
         const ancestors = getAncestors(task, items)
@@ -307,7 +313,7 @@ function CarriedStrip({ tasks, items, today, onSelect, onToggle, onUpdateItem, r
             style={{
               display: 'flex', alignItems: 'center', gap: 12,
               padding: '11px 6px',
-              borderBottom: '1px solid var(--color-line-strong)',
+              borderBottom: '1px solid var(--color-line)',
               cursor: 'pointer',
               '--hover-bg': 'var(--color-paper-2)',
             } as any}
@@ -366,7 +372,7 @@ function CarryPick({ task, onUpdateItem }: any) {
 /* Goals that have drifted off the calendar — schedule the next step in one tap. */
 function AdriftStrip({ goals, items, today, onUpdateItem, readonly, toWorkshop }: any) {
   return (
-    <ol style={{ listStyle: 'none', padding: 0, margin: 0, borderTop: '1px solid var(--color-line-strong)' }}>
+    <ol style={{ listStyle: 'none', padding: 0, margin: 0, borderTop: '1px solid var(--color-line)' }}>
       {goals.map((g: any) => {
         const accent = g.accent || 'var(--color-accent)'
         const candidate = nextUnscheduled(g, items)
@@ -374,7 +380,7 @@ function AdriftStrip({ goals, items, today, onUpdateItem, readonly, toWorkshop }
           <li key={g.id} style={{
             display: 'flex', alignItems: 'center', gap: 12,
             padding: '11px 6px',
-            borderBottom: '1px solid var(--color-line-strong)',
+            borderBottom: '1px solid var(--color-line)',
           }}>
             <span style={{ width: 5, height: 30, background: accent, boxShadow: `0 0 10px ${accent}55`, flexShrink: 0 }} />
             <div style={{ flex: 1, minWidth: 0 }}>

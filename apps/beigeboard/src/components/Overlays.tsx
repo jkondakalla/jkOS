@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { STORAGE_KEYS } from '@jkos/design'
-import { FONT_HEAD, FONT_BODY, isoDate, localDate } from '../lib/theme'
+import { FONT_HEAD, isoDate, localDate } from '../lib/theme'
 
 function getIntroIsDark(): boolean {
   // Stay in lock-step with the app shell: App.tsx sets <html data-mode> before
@@ -236,7 +236,8 @@ export function CinematicIntro({ onDone }: { onDone: () => void }) {
             BeigeBoard
           </div>
           <div style={{
-            fontFamily: FONT_BODY, fontSize: 9, letterSpacing: '0.30em',
+            // machine annotation under the pressed brand — the mono voice
+            fontFamily: 'var(--hub-font-mono)', fontSize: 9, letterSpacing: '0.30em',
             textTransform: 'uppercase', color: 'var(--color-muted)',
             marginTop: 13,
           }}>

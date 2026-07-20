@@ -226,8 +226,9 @@ layout): BeigeBoard, ORDECK, PapyrOS, KourOS and jkAuth all load Plex Mono + Ple
 **Fraunces** (wght 400/600/**700** + italics — 700 is required by the chips/folio/stamps).
 jkos-deploy's console deliberately loads Mono only — it is machine chrome end to end.
 SylibOS loads Fraunces + Hanken Grotesk (off-limits). **Big Shoulders** is loaded only by
-surfaces that actually render `.seg` — today that is the design page; if an app grows a
-phosphor readout, add the font to that app's `index.html`.
+surfaces that actually render `.seg` — today that is the design page and **BeigeBoard**
+(its masthead clock became the app's one `.seg` readout in the 2026-07-19 editorial pass);
+if an app grows a phosphor readout, add the font to that app's `index.html`.
 
 ---
 
@@ -448,7 +449,7 @@ theme → `applyTheme` (`@jkos/auth-client`) calls `applyJkOSMode` + `applyJkOST
 
 | App | Stack | Serif | Factory config (actual) | Notes |
 |---|---|---|---|---|
-| **BeigeBoard** (planner) | React 18, plain CSS (`src/app.css`) | Fraunces | `radius: { base 8, xs 4, sm 7, lg 11, soft 9, widget 10, button 8 }` | The Claude-brief restyle; calendar tabs render `@jkos/cards` Week/Calendar views; drag via `usePointerDrag` |
+| **BeigeBoard** (planner) | React 18, plain CSS (`src/app.css`) | Fraunces | `radius: { base 8, xs 4, sm 7, lg 11, soft 9, widget 10, button 8 }` | **Full editorial pass (2026-07-19):** masthead folio (`.jk-folio` names the edition — date + week no.), printed nav + buttons (Fraunces 600 tracked caps; machine sublines/chips stay mono), section heads on `.jk-lab` via its `Eyebrow` wrapper, rules ladder (ink rule closes covers/chapter heads, hairlines under rows, double rule + `.jk-colophon` ends the Today sheet), `.jk-press-lg` cover greeting, masthead clock is the app's one `.seg` verdict (Big Shoulders loaded in `index.html`). Calendar tabs render `@jkos/cards` Week/Calendar views (kit classes untouched); drag via `usePointerDrag` |
 | **ORDECK** (HUD/portal) | React 18, plain CSS | Fraunces | `selector: 'html.od-v2'`, `radius: { base 10, xs 4, sm 7, lg 16, soft 8, button 9 }` | v2 HUD scopes its theme to `html.od-v2`; widget system + workshop; login page is minimal hardware (LED + glow title) |
 | **PapyrOS** (audiobooks) | React 18, plain CSS | Fraunces | `accent: { #9a4b2c, #5c8a72 }`, `radius: { base 6, xs 3, sm 5, lg 10, soft 7, button 6 }` | First `@jkos/player` consumer; offline cache + SW media |
 | **KourOS** (music) | React 18, plain CSS | Fraunces (suite default) | `accent: { #4b3f8f, #dba13c }`, `radius: { base 5, xs 3, sm 4, lg 8, soft 6, button 5 }` | Second player consumer — deliberately different shape; loads Fraunces since Full Press (the primitives are printed) |

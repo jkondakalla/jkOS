@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { FONT_BODY, weekStart } from '../../lib/theme'
+import { FONT_HEAD, weekStart } from '../../lib/theme'
 import { useBreakpoint } from '@jkos/ui'
 import { ShopFloor } from './ShopFloor'
 import { NodePage } from './NodePage'
@@ -68,7 +68,7 @@ export function WorkshopView({
                   width: '100%', textAlign: 'left', cursor: 'pointer',
                   background: 'var(--color-paper-2)', border: '1px solid var(--color-line)',
                   borderRadius: 'var(--hub-radius-lg)', padding: '12px 16px',
-                  fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase',
+                  fontFamily: FONT_HEAD, fontWeight: 600, fontSize: 10.5, letterSpacing: '0.18em', textTransform: 'uppercase',
                   color: 'var(--color-muted)',
                 }}
               >This week’s bench {benchOpen ? '▴' : '▾'}</button>

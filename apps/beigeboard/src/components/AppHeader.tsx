@@ -3,7 +3,9 @@ import { FONT_HEAD, localDate, sourceOf } from '../lib/theme'
 import { Press, Lab } from '@jkos/ui'
 import { TimeReadout } from './SharedComponents'
 
-// Nav + chrome read mono straight from the design token (IBM Plex Mono).
+// The Voice (DESIGN.md §5): the nav labels are things a human READS — they print
+// in Fraunces; only the machine annotations (tab sublines, the sources readout)
+// keep the mono voice.
 const MONO = 'var(--hub-font-mono)'
 
 const NAV_TABS = [
@@ -31,12 +33,6 @@ export function AppHeader({ view, setView, today, onConnectClick, onLogout, onOp
     return () => document.removeEventListener('scroll', onScroll, { capture: true })
   }, [])
 
-  const badge = {
-    border: '1px solid var(--color-line)',
-    borderRadius: 'var(--hub-radius-sm)',
-    padding: '3px 7px',
-  } as const
-
   return (
     <header style={{
       background: 'var(--color-paper)',
@@ -52,17 +48,19 @@ export function AppHeader({ view, setView, today, onConnectClick, onLogout, onOp
       alignItems: 'center',
       gap: 20,
     }}>
-      {/* Left: pressed wordmark + week/date label badges */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+      {/* Left: pressed wordmark + the folio mark. The folio (running-head rules,
+          serif caps, accent-italic number) names the EDITION — today's sheet and
+          its week number — replacing the two bordered badges it used to take. */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, minWidth: 0 }}>
         <Press as="span" style={{
           fontFamily: FONT_HEAD, fontWeight: 600, fontStyle: 'italic',
           fontSize: 20, letterSpacing: '-0.01em', whiteSpace: 'nowrap', flexShrink: 0,
         }}>BeigeBoard</Press>
 
-        <Lab size="sm" as="span" style={badge}>W{String(week).padStart(2, '0')}</Lab>
-        <Lab size="sm" as="span" style={badge}>
+        <span className="jk-folio" style={{ flexShrink: 0 }}>
           {d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-        </Lab>
+          <span className="jk-folio-no">Wk {String(week).padStart(2, '0')}</span>
+        </span>
       </div>
 
       {/* Center: nav tabs — active tab is a struck well + pressed label */}
@@ -164,8 +162,10 @@ function NavTab({ tab, active, onClick }: any) {
       <span
         className={active ? 'jk-press' : undefined}
         style={{
-          fontFamily: MONO, fontSize: 11, fontWeight: 500,
-          letterSpacing: '0.18em', textTransform: 'uppercase',
+          // Printed, not typed — Fraunces tracked caps (the .jk-lab cut); the
+          // machine subline below keeps mono.
+          fontFamily: FONT_HEAD, fontSize: 11.5, fontWeight: 600,
+          letterSpacing: '0.15em', textTransform: 'uppercase',
           color: active ? undefined : (hover ? 'var(--color-ink)' : 'var(--color-muted)'),
           lineHeight: 1.1,
           transition: 'color 0.12s',

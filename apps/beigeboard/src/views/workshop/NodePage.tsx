@@ -62,6 +62,9 @@ export function NodePage({ node, items, today, weekIso, drill, onSelect, onToggl
       <NodeHeader node={node} items={items} accent={accent} today={today} isGoal={isGoal}
                   onSelect={onSelect} onUpdateItem={onUpdateItem} onToggle={onToggle} readonly={readonly} />
 
+      {/* Chapter-head ink rule closes the header; the ladders read below it. */}
+      <hr className="jk-rule-strong" style={{ margin: '20px 0 0' }} />
+
       {/* The checkpoint ladder */}
       <section style={{ marginTop: 22 }}>
         <Eyebrow color={accent}>{isGoal ? 'The ladder' : 'Sub-checkpoints'}</Eyebrow>
@@ -128,14 +131,16 @@ function NodeHeader({ node, items, accent, today, isGoal, onSelect, onUpdateItem
 
   return (
     <header>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 8, flexWrap: 'wrap' }}>
-        <Lab size="sm" as="span" className="jk-glow-text jk-glow-low" style={{ color: accent, '--jk-glow-color': accent } as React.CSSProperties}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 10, flexWrap: 'wrap' }}>
+        {/* The folio names the page — kind + horizon in one print mark (the
+            press's mark, so it keeps the theme accent, not the goal tint). */}
+        <span className="jk-folio" style={{ flexShrink: 0 }}>
           {isGoal ? 'Goal' : 'Checkpoint'}
-        </Lab>
-        {isGoal && node.target_date && <Lab size="sm" as="span">by {fmtTarget(node.target_date)}</Lab>}
+          {isGoal && node.target_date && <span className="jk-folio-no">by {fmtTarget(node.target_date)}</span>}
+        </span>
         {pace && (pace === 'behind'
           ? <span style={{
-              fontFamily: FONT_BODY, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase',
+              fontFamily: 'var(--hub-font-mono)', fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase',
               color: 'var(--color-accent)', border: '1px solid var(--color-accent)', borderRadius: 'var(--hub-radius-lg)',
               padding: '2px 7px', textShadow: 'var(--accent-halo-text)',
             }}>{pace}</span>
@@ -181,7 +186,7 @@ function NodeHeader({ node, items, accent, today, isGoal, onSelect, onUpdateItem
             style={{
               background: accent, color: 'var(--color-paper)', border: 'none',
               borderRadius: 'var(--hub-radius-button)',
-              fontFamily: FONT_BODY, fontSize: 9.5, letterSpacing: '0.16em',
+              fontFamily: FONT_HEAD, fontWeight: 600, fontSize: 9.5, letterSpacing: '0.16em',
               textTransform: 'uppercase', padding: '8px 15px', cursor: 'pointer',
               '--jk-glow-color': accent,
             } as React.CSSProperties}
@@ -259,7 +264,7 @@ function StepRow({ m, index, items, accent, isCurrent, drill, canUp, canDown, mo
   if (isCurrent) {
     return <li style={{ margin: '8px 0' }}><Sheet style={{ padding: '10px 12px' }}>{inner}</Sheet></li>
   }
-  return <li style={{ borderBottom: '1px solid var(--color-line-strong)' }}>{inner}</li>
+  return <li style={{ borderBottom: '1px solid var(--color-line)' }}>{inner}</li>
 }
 
 function reorderBtn(enabled: boolean): React.CSSProperties {
@@ -283,7 +288,7 @@ function TaskRow({ item, items, today, weekIso, accent, depth, onSelect, onToggl
         style={{
           display: 'flex', alignItems: 'center', gap: 9,
           padding: depth === 0 ? '7px 4px' : '5px 4px',
-          borderBottom: '1px solid var(--color-line-strong)',
+          borderBottom: '1px solid var(--color-line)',
           cursor: 'pointer',
           background: selectedId === item.id ? 'var(--color-accent-soft)' : 'transparent',
           '--hover-bg': 'var(--color-paper-2)',
@@ -318,7 +323,7 @@ function TaskRow({ item, items, today, weekIso, accent, depth, onSelect, onToggl
       </div>
 
       {subs.length > 0 && (
-        <ul style={{ listStyle: 'none', padding: 0, margin: 0, marginLeft: 16, paddingLeft: 10, borderLeft: '1px solid var(--color-line-strong)' }}>
+        <ul style={{ listStyle: 'none', padding: 0, margin: 0, marginLeft: 16, paddingLeft: 10, borderLeft: '1px solid var(--color-line)' }}>
           {subs.map((s: any) => (
             <TaskRow
               key={s.id} item={s} items={items} today={today} weekIso={weekIso} accent={a} depth={depth + 1}

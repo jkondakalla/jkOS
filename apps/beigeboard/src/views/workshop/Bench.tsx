@@ -45,7 +45,7 @@ export function Bench({ items, today, weekIso, drill, setView, onToggle, onUpdat
       ))}
 
       {carried.length > 0 && (
-        <div style={{ borderTop: '1px solid var(--color-line-strong)', paddingTop: 12 }}>
+        <div style={{ borderTop: '1px solid var(--color-line)', paddingTop: 12 }}>
           <Eyebrow>Carried over · {carried.length}</Eyebrow>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
             {carried.map((t: any) => (

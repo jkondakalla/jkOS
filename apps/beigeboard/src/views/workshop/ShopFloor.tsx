@@ -1,5 +1,5 @@
 import React from 'react'
-import { FONT_HEAD, FONT_BODY, localDate } from '../../lib/theme'
+import { FONT_HEAD, localDate } from '../../lib/theme'
 import { topGoals, nodeProgress, currentStep, paceOf, isAdrift, thisWeekOf, fmtTarget } from '../../lib/plan'
 import { Eyebrow } from '../../components/SharedComponents'
 import { Press, Lab, Pill } from '@jkos/ui'
@@ -18,8 +18,15 @@ export function ShopFloor({ items, today, weekIso, drill, onSelect, onAddItem, o
 
   return (
     <div>
-      <header style={{ paddingBottom: 18, marginBottom: 22, borderBottom: '1px solid var(--color-line)' }}>
-        <Eyebrow>The workshop · {year}</Eyebrow>
+      {/* Chapter head: printed eyebrow + a machine annotation on the right, the
+          title, then the ink rule from the rules ladder closes the head. */}
+      <header style={{ marginBottom: 22 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
+          <Eyebrow>The workshop · {year}</Eyebrow>
+          <span className="mono-eyebrow" style={{ marginLeft: 'auto' }}>
+            {active.length} on the floor{shelved.length > 0 ? ` · ${shelved.length} shelved` : ''}
+          </span>
+        </div>
         <h1 style={{
           fontFamily: FONT_HEAD, fontWeight: 500, fontSize: 40,
           margin: '8px 0 8px', letterSpacing: '-0.025em', lineHeight: 1.04, color: 'var(--color-ink)',
@@ -29,6 +36,7 @@ export function ShopFloor({ items, today, weekIso, drill, onSelect, onAddItem, o
         <p style={{ fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 14, color: 'var(--color-muted)', margin: 0, lineHeight: 1.4 }}>
           Name the destination · ladder it to checkpoints · put the next step on the week, then a day.
         </p>
+        <hr className="jk-rule-strong" style={{ margin: '16px 0 0' }} />
       </header>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -44,7 +52,7 @@ export function ShopFloor({ items, today, weekIso, drill, onSelect, onAddItem, o
         {shelved.length > 0 && (
           <details style={{ marginTop: 8 }}>
             <summary style={{
-              fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.22em',
+              fontFamily: FONT_HEAD, fontWeight: 600, fontSize: 10.5, letterSpacing: '0.18em',
               textTransform: 'uppercase', color: 'var(--color-muted)', cursor: 'pointer', padding: '4px 0',
             }}>
               {shelved.length} on the shelf
@@ -57,7 +65,7 @@ export function ShopFloor({ items, today, weekIso, drill, onSelect, onAddItem, o
                   borderRadius: 'var(--hub-radius-lg)', background: 'var(--color-paper-2)', opacity: 0.75,
                 }}>
                   <span style={{
-                    fontFamily: FONT_BODY, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase',
+                    fontFamily: 'var(--hub-font-mono)', fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase',
                     color: 'var(--color-muted)', border: '1px solid var(--color-line)', borderRadius: 'var(--hub-radius-sm)', padding: '2px 7px', flexShrink: 0,
                   }}>{g.status === 'done' ? 'Done' : 'Parked'}</span>
                   <span
@@ -108,7 +116,7 @@ function GoalCard({ goal, items, index, today, weekIso, drill, onSelect }: any) 
         {goal.target_date && <Lab size="sm" as="span">by {fmtTarget(goal.target_date)}</Lab>}
         {pace && (pace === 'behind'
           ? <span style={{
-              fontFamily: FONT_BODY, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase',
+              fontFamily: 'var(--hub-font-mono)', fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase',
               color: 'var(--color-accent)', border: '1px solid var(--color-accent)', borderRadius: 'var(--hub-radius-lg)',
               padding: '2px 7px', textShadow: 'var(--accent-halo-text)',
             }}>{pace}</span>
@@ -116,13 +124,13 @@ function GoalCard({ goal, items, index, today, weekIso, drill, onSelect }: any) 
         )}
         {adrift && (
           <span className="jk-glow jk-glow-low" style={{
-            fontFamily: FONT_BODY, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase',
+            fontFamily: 'var(--hub-font-mono)', fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase',
             color: 'var(--color-paper)', background: accent, padding: '3px 8px', '--jk-glow-color': accent,
           } as React.CSSProperties}>nothing in reach</span>
         )}
         {quiet && (
           <span style={{
-            fontFamily: FONT_BODY, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase',
+            fontFamily: 'var(--hub-font-mono)', fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase',
             color: 'var(--color-muted)', border: '1px solid var(--color-line)', borderRadius: 'var(--hub-radius-lg)', padding: '2px 8px',
           }}>quiet this week</span>
         )}
@@ -160,7 +168,7 @@ function GoalCard({ goal, items, index, today, weekIso, drill, onSelect }: any) 
         }}>
           {cur ? <>up next · {cur.title}</> : prog.total > 0 ? 'all checkpoints cleared' : 'not laddered down yet'}
         </span>
-        <span style={{ fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: accent, flexShrink: 0 }}>
+        <span style={{ fontFamily: FONT_HEAD, fontWeight: 600, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: accent, flexShrink: 0 }}>
           open →
         </span>
       </div>

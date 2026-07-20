@@ -109,7 +109,7 @@ export function GoalForge({ startOpen, today, goalCount, onAddItem }: any) {
           }}
         />
         <label style={{ display: 'inline-flex', alignItems: 'baseline', gap: 8, flexShrink: 0 }}>
-          <span style={{ fontFamily: FONT_BODY, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--color-muted)' }}>by</span>
+          <span style={{ fontFamily: FONT_HEAD, fontWeight: 600, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--color-muted)' }}>by</span>
           <input
             type="date" value={target}
             onChange={e => setTarget(e.target.value)}
@@ -199,7 +199,7 @@ export function GoalForge({ startOpen, today, goalCount, onAddItem }: any) {
             color: canStamp ? 'var(--color-paper)' : 'var(--color-faint)',
             border: canStamp ? 'none' : '1px solid var(--color-line)',
             borderRadius: 'var(--hub-radius-button)',
-            fontFamily: FONT_BODY, fontSize: 10.5, letterSpacing: '0.16em', textTransform: 'uppercase',
+            fontFamily: FONT_HEAD, fontWeight: 600, fontSize: 10.5, letterSpacing: '0.16em', textTransform: 'uppercase',
             padding: '10px 20px', cursor: canStamp ? 'pointer' : 'default',
             '--jk-glow-color': accent, opacity: saving ? 0.6 : 1,
           } as React.CSSProperties}
