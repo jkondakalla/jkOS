@@ -148,14 +148,14 @@ export default function BookDetail({ bookId }: { bookId: number }) {
               {book.subtitle && <p className="book-subtitle">{book.subtitle}</p>}
               <div className="book-byline">
                 {book.author && <span>{book.author}</span>}
-                {book.narrator && <span className="muted"> · narrated by {book.narrator}</span>}
+                {book.narrator && <span className="book-narrator"> · narrated by {book.narrator}</span>}
               </div>
               {book.series && (
-                <p className="muted book-series">
+                <p className="book-series">
                   {book.series}{book.series_seq != null ? ` #${book.series_seq}` : ''}
                 </p>
               )}
-              <div className="muted book-meta-row">
+              <div className="book-meta-row">
                 {book.year != null && <span>{book.year}</span>}
                 <span>{formatHM(book.duration)}</span>
               </div>
@@ -194,7 +194,7 @@ export default function BookDetail({ bookId }: { bookId: number }) {
           {book.description && <p className="book-description">{book.description}</p>}
 
           <div className="book-provenance">
-            <Lab size="xs" sans className="muted">{SOURCE_LABELS[book.metadata_source]}</Lab>
+            <Lab size="xs" sans style={{ opacity: 0.6 }}>{SOURCE_LABELS[book.metadata_source]}</Lab>
             <TButton quiet onClick={() => setMatchOpen((o) => !o)}>
               {matchOpen ? 'Close' : 'Fix metadata'}
             </TButton>

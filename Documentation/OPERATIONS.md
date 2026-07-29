@@ -215,9 +215,10 @@ mkdir -p /mnt/Luna/Backends/Production/nginx-logs
 ```
 
 The five core services above are the from-zero baseline. **Additional apps** (PapyrOS,
-LazurOS) get their `<id>-data` dir created on first deploy — `lib-deploy.sh` self-heals a
-missing per-app data dir and `.env`. PapyrOS also needs the read-only audiobook library
-mounted (`AUDIOBOOKS_DIR`, see its `docker-compose*.yml`); LazurOS needs a mounted
+LazurOS, KourOS) get their `<id>-data` dir created on first deploy — `lib-deploy.sh` self-heals
+a missing per-app data dir and `.env`. PapyrOS also needs the read-only audiobook library
+mounted (`AUDIOBOOKS_DIR`, see its `docker-compose*.yml`); KourOS likewise needs `MUSIC_DIR`
+pointed at a real music path (unset today — ToDo §3); LazurOS needs a mounted
 `deployment.json` before it can serve (ToDo §1).
 
 **RS256 keypair** — generate once. Private key goes in jkAuth only.

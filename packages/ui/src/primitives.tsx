@@ -46,17 +46,66 @@ export function Bubble<E extends ElementType = 'span'>({
   );
 }
 
-/** Struck/pressed PRIMARY text. `large` for display sizes (clocks, hero figures). */
+/** Struck/pressed text. Default is the RAISED primary-accent badge (`.jk-press`);
+ *  `large` for display sizes (clocks, hero figures). `variant` switches to the
+ *  Full Press chip CUT — type pressed INTO the sheet, reading `tint` (--jk-tint):
+ *    'ink' neutral-ink title on a tinted chip · 'rev' cream knockout on a solid
+ *    tab · 'sm' the small tinted press. `variant` wins over `large`. */
 export function Press<E extends ElementType = 'span'>({
   as,
   large = false,
+  variant,
+  tint,
   className,
+  style,
   children,
   ...rest
-}: PolymorphicProps<E, { large?: boolean }>) {
+}: PolymorphicProps<E, { large?: boolean; variant?: 'ink' | 'rev' | 'sm'; tint?: string }>) {
+  const As = (as ?? 'span') as ElementType;
+  const cls = variant ? `jk-press-${variant}` : large ? 'jk-press-lg' : 'jk-press';
+  return (
+    <As
+      className={cx(cls, className)}
+      style={tint ? { ...style, ['--jk-tint' as string]: tint } : style}
+      {...rest}
+    >
+      {children}
+    </As>
+  );
+}
+
+/** The Full Press solid-ink CHIP — the suite-default tinted item (a calendar
+ *  event, a task leaf, a bench card). `solid` (default true) paints the loud
+ *  saturated tab; drop to false for the faint raised base. `live`/`done`/`small`
+ *  layer the state modifiers. `tint` colours the chip in a data hue (--jk-tint).
+ *  Pair a `<Press variant="rev">` title inside a solid chip, `variant="ink"` on
+ *  the faint base. */
+export function Chip<E extends ElementType = 'span'>({
+  as,
+  solid = true,
+  live = false,
+  done = false,
+  small = false,
+  tint,
+  className,
+  style,
+  children,
+  ...rest
+}: PolymorphicProps<E, { solid?: boolean; live?: boolean; done?: boolean; small?: boolean; tint?: string }>) {
   const As = (as ?? 'span') as ElementType;
   return (
-    <As className={cx(large ? 'jk-press-lg' : 'jk-press', className)} {...rest}>
+    <As
+      className={cx(
+        'jk-chip',
+        solid && 'jk-chip-solid',
+        live && 'jk-chip-live',
+        done && 'jk-chip-done',
+        small && 'jk-chip-sm',
+        className,
+      )}
+      style={tint ? { ...style, ['--jk-tint' as string]: tint } : style}
+      {...rest}
+    >
       {children}
     </As>
   );
@@ -143,6 +192,60 @@ export function TButton<E extends ElementType = 'button'>({
 export function Pill<E extends ElementType = 'span'>({ as, className, children, ...rest }: PolymorphicProps<E>) {
   const As = (as ?? 'span') as ElementType;
   return <As className={cx('jk-pill', className)} {...rest}>{children}</As>;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Print marks (Full Press, Wave 23) — thin wrappers over the .jk-rule* /
+   .jk-folio / .jk-colophon classes. Doctrine: content is named in PRINT
+   (<Folio>); .label-tape stays for machine chrome. Same scarcity rule as the
+   hardware — one folio names THE content panel, one colophon closes THE sheet.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/** Editorial rule — the <hr> face of the rules ladder. `weight`: 'hairline'
+ *  (default — rows, exhibits) | 'strong' (chapter heads) | 'double' (the
+ *  contents block, the colophon). */
+export function Rule<E extends ElementType = 'hr'>({
+  as,
+  weight = 'hairline',
+  className,
+  ...rest
+}: PolymorphicProps<E, { weight?: 'hairline' | 'strong' | 'double' }>) {
+  const As = (as ?? 'hr') as ElementType;
+  return (
+    <As
+      className={cx(
+        weight === 'strong' ? 'jk-rule-strong' : weight === 'double' ? 'jk-rule-double' : 'jk-rule',
+        className,
+      )}
+      {...rest}
+    />
+  );
+}
+
+/** The folio mark — names CONTENT in print: running-head rules above/below,
+ *  serif caps, with `no` filling the accent-italic number/count slot
+ *  ("No. 4", "3 / 12"). Chrome keeps `.label-tape`; content takes the folio. */
+export function Folio<E extends ElementType = 'span'>({
+  as,
+  no,
+  className,
+  children,
+  ...rest
+}: PolymorphicProps<E, { no?: ReactNode }>) {
+  const As = (as ?? 'span') as ElementType;
+  return (
+    <As className={cx('jk-folio', className)} {...rest}>
+      {children}
+      {no != null && <span className="jk-folio-no">{no}</span>}
+    </As>
+  );
+}
+
+/** The colophon — the end-of-sheet record: centre-set serif over the accent
+ *  fleuron (which halates in CRT). One per sheet, at the foot. */
+export function Colophon<E extends ElementType = 'div'>({ as, className, children, ...rest }: PolymorphicProps<E>) {
+  const As = (as ?? 'div') as ElementType;
+  return <As className={cx('jk-colophon', className)} {...rest}>{children}</As>;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────

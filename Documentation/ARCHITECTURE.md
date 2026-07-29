@@ -382,7 +382,7 @@ to rot. LazurOS is *asynchronous* (`202 {job_id}` → poll), so BB's replacement
 job-polling UX, and its results land through delegated write-back into the ordinary
 `createItem` / `importItems` surface — no second AI surface on BB.
 
-**Gate hardening (2026-07-13, ToDo §1a):** the Python worker smoke — 19 assertions over the
+**Gate hardening (2026-07-13, done — [ToDo.md](ToDo.md) "Done so far"):** the Python worker smoke — 19 assertions over the
 poll→claim→render→infer→post loop, including the lost-claim race and the unconfigured-cap /
 infer-error → `FAILED` paths — now rides the node gate via `backend/test/worker-py.smoke.mjs`,
 which spawns `python3` and skips **only** when python3 itself is absent (an import failure

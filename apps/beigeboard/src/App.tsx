@@ -6,7 +6,7 @@ import { TODAY_ISO, INITIAL_ACCOUNTS, getDescendants } from './lib/seed'
 import { useJkOSPreferences } from './hooks/useJkOSPreferences'
 import { DragProvider } from './providers/DragProvider'
 import { MobileApp } from './mobile'
-import { injectJkOSTheme, STORAGE_KEYS } from '@jkos/design'
+import { injectJkOSTheme, STORAGE_KEYS, applyJkOSMotion } from '@jkos/design'
 
 import { Artifacts, ScanLines, CinematicIntro } from './components/Overlays'
 import { AppHeader } from './components/AppHeader'
@@ -27,15 +27,15 @@ if (!document.documentElement.hasAttribute('data-mode')) {
   document.documentElement.setAttribute('data-mode', cached ?? 'paper')
 }
 
-// BeigeBoard supplies its per-app inputs to the @jkos/design factory: serif →
-// Fraunces (sans/mono inherit the IBM Plex factory defaults), and its own radius
-// scale. Radius is a first-class factory input like accent/fonts/neutrals — the
-// hub default happens to be sharp (0–2px), BeigeBoard runs a rounder scale, other
-// apps keep theirs. Every BeigeBoard shape reads these --hub-radius-* tokens
-// (no hardcoded radii), so the whole app retunes from this one call. Accents stay
+// BeigeBoard supplies its per-app inputs to the @jkos/design factory. Since
+// Full Press (Wave 22) the serif default IS Fraunces suite-wide, so the old
+// fonts.serif input here is gone — BeigeBoard inherits the print voice for
+// free (the webfont still loads from index.html). Radius stays a first-class
+// per-app input: BeigeBoard runs its own rounder scale over the hub print
+// scale. Every BeigeBoard shape reads these --hub-radius-* tokens (no
+// hardcoded radii), so the whole app retunes from this one call. Accents stay
 // user-driven (applyJkOSTheme, in useJkOSPreferences).
 injectJkOSTheme({
-  fonts: { serif: "'Fraunces', Georgia, serif" },
   radius: { base: '8px', xs: '4px', sm: '7px', lg: '11px', soft: '9px', widget: '10px', button: '8px' },
 })
 
@@ -56,6 +56,14 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
 
   // Keep the access token fresh so a long-open board never 401s mid-session.
   useSessionKeepalive()
+
+  // Motion axis (Full Press): per-item .mo-item entrances ride the default
+  // 'entrance', and the ambient rake (paper) / buzz (tube) is the opt-in 'full'
+  // tier — wired to the CRT-atmosphere toggle so it's user-controlled. hub.css
+  // still honours prefers-reduced-motion regardless.
+  useEffect(() => {
+    applyJkOSMotion(effects.halation ? 'full' : 'entrance')
+  }, [effects.halation])
 
   const toAuthPortal = () => {
     window.location.href = `${JKOS_AUTH_URL}/auth/login?redirect_to=${encodeURIComponent(window.location.href)}`
@@ -391,12 +399,16 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
 
           <main
             key={view}
-            className={view === 'tasks' ? undefined : 'view-enter'}
+            // Full Press entrance physics at the VIEW boundary: ink dries on
+            // paper, the tube powers on in dark — one class, face-aware.
+            // (Workshop keeps no entrance: its inner canvas manages its own.)
+            className={view === 'tasks' ? undefined : 'ink-in'}
             style={{ overflow: 'hidden', minHeight: 0, position: 'relative', display: 'flex', flexDirection: 'column' }}
           >
             {loading ? (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1, opacity: 0.4 }}>
-                Loading…
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
+                {/* off-states carry the print idiom (DESIGN.md §13.12) */}
+                <span className="jk-async-note" style={{ padding: 0 }}>Setting type…</span>
               </div>
             ) : (
               <>
@@ -416,6 +428,12 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
               setView={setView} setFocusedNodeId={setFocusedNodeId}
             />
           )}
+
+          {/* Ambient atmosphere — raking light across the sheet (paper) / phosphor
+              buzz (tube). Each shows only in its own face, gated to data-motion
+              'full' + reduced-motion in hub.css. */}
+          <div className="jk-rake" />
+          <div className="jk-buzz" />
         </div>
       </div>
 

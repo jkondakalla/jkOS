@@ -255,7 +255,7 @@ export function ConnectModal({ open, onClose, accounts, onConnect, onDisconnect,
                         }}>{isConn ? 'opening provider…' : p.sub}</div>
                       </div>
                       <span style={{
-                        fontFamily: FONT_BODY, fontSize: 9, letterSpacing: '0.14em',
+                        fontFamily: FONT_HEAD, fontWeight: 600, fontSize: 9.5, letterSpacing: '0.14em',
                         textTransform: 'uppercase', color: 'var(--color-accent)',
                         textShadow: 'var(--accent-halo-text)',
                       }}>{isConn ? '…' : 'sign in →'}</span>

@@ -92,7 +92,7 @@ export default function Search({ initialQuery }: SearchProps) {
       </div>
 
       {!hasQuery ? (
-        <p className="muted kr-note">Start typing to search titles and artists.</p>
+        <p className="kr-note">Start typing to search titles and artists.</p>
       ) : (
         <AsyncView
           loading={loading}

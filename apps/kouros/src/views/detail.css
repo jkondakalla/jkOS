@@ -53,6 +53,9 @@
   gap: 0.6rem;
   font-size: 0.85rem;
   margin: 0;
+  /* dim ink directly — was the legacy `.muted` alias (retired Full Press W25),
+     which also dragged in an unintended 1.5rem vertical padding */
+  opacity: 0.6;
 }
 
 /* Artist.tsx (no cover to show — an artist is a bucket, not a single piece of

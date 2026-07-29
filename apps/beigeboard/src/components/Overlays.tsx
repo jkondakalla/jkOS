@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { STORAGE_KEYS } from '@jkos/design'
-import { FONT_HEAD, FONT_BODY, isoDate, localDate } from '../lib/theme'
+import { FONT_HEAD, isoDate, localDate } from '../lib/theme'
 
 function getIntroIsDark(): boolean {
   // Stay in lock-step with the app shell: App.tsx sets <html data-mode> before
@@ -225,18 +225,18 @@ export function CinematicIntro({ onDone }: { onDone: () => void }) {
       )}
       {phase >= 2 && (
         <div className="intro-title" style={{ position: 'relative', zIndex: 2, textAlign: 'center' }}>
-          <div style={{
+          {/* The brand PRESSES on paper (debossed via .jk-press-lg) and halates on
+              the tube — the class owns both faces, so no inline paper glow. */}
+          <div className="jk-press-lg" style={{
             fontFamily: FONT_HEAD, fontStyle: 'italic', fontWeight: 600,
             fontSize: 60, color: 'var(--color-accent)',
             letterSpacing: '-0.02em', lineHeight: 1,
-            textShadow: isDark
-              ? '0 0 35px var(--color-accent-glow), 0 0 70px var(--color-secondary-glow)'
-              : '0 1px 8px var(--color-accent-glow), 0 0 24px var(--color-accent-glow)',
           }}>
             BeigeBoard
           </div>
           <div style={{
-            fontFamily: FONT_BODY, fontSize: 9, letterSpacing: '0.30em',
+            // machine annotation under the pressed brand — the mono voice
+            fontFamily: 'var(--hub-font-mono)', fontSize: 9, letterSpacing: '0.30em',
             textTransform: 'uppercase', color: 'var(--color-muted)',
             marginTop: 13,
           }}>

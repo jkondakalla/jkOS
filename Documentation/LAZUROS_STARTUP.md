@@ -513,10 +513,10 @@ node packages/suite-prober/roundtrip.mjs --live https://staging.jkos.net --token
   set in no compose file, so it was already dead. Phase 7 is therefore a **build**, not a cutover,
   and it is not a startup step — see [ToDo §1d](ToDo.md).
 
-## Known code gaps (ToDo §1a — none block bring-up)
+## Known code gaps — CLOSED (ToDo §1a)
 
-- **1.1** `worker.smoke.py` (19 assertions) runs manually only — the worker has zero CI coverage.
-- **1.2** `deployment.example.json` isn't asserted to validate. Use `deployment.jag.json`.
-- **1.3** The `jobs` dataset declares no `capability` filter and no `since` cursor.
-- **1.4** `worker.py:7` / `:135` cite `LAZUROS.md §0` / `§7` — **a file that has never existed in
-  git.** The content lives in [ARCHITECTURE.md § LazurOS](ARCHITECTURE.md) and [ToDo §1](ToDo.md).
+All four gaps this section used to list are fixed and gate-wired: `worker.smoke.py` rides the
+node gate (`backend/test/worker-py.smoke.mjs`, only skips when `python3` itself is absent); both
+`deployment.example.json` and `deployment.jag.json` validate under test; the `jobs` dataset
+declares and enforces `capability` + `since`; `worker.py`'s dangling `LAZUROS.md` citations were
+repointed at [ARCHITECTURE.md § LazurOS](ARCHITECTURE.md). None of this blocks bring-up.

@@ -3,7 +3,9 @@ import { FONT_HEAD, localDate, sourceOf } from '../lib/theme'
 import { Press, Lab } from '@jkos/ui'
 import { TimeReadout } from './SharedComponents'
 
-// Nav + chrome read mono straight from the design token (IBM Plex Mono).
+// The Voice (DESIGN.md §5): the nav labels are things a human READS — they print
+// in Fraunces; only the machine annotations (tab sublines, the sources readout)
+// keep the mono voice.
 const MONO = 'var(--hub-font-mono)'
 
 const NAV_TABS = [
@@ -31,12 +33,6 @@ export function AppHeader({ view, setView, today, onConnectClick, onLogout, onOp
     return () => document.removeEventListener('scroll', onScroll, { capture: true })
   }, [])
 
-  const badge = {
-    border: '1px solid var(--color-line)',
-    borderRadius: 'var(--hub-radius-sm)',
-    padding: '3px 7px',
-  } as const
-
   return (
     <header style={{
       background: 'var(--color-paper)',
@@ -52,15 +48,18 @@ export function AppHeader({ view, setView, today, onConnectClick, onLogout, onOp
       alignItems: 'center',
       gap: 20,
     }}>
-      {/* Left: pressed wordmark + week/date label badges */}
+      {/* Left: pressed serif wordmark + two bordered jk-lab chips (the edition —
+          week number + today's date), per the Full Press prototype. */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
         <Press as="span" style={{
           fontFamily: FONT_HEAD, fontWeight: 600, fontStyle: 'italic',
           fontSize: 20, letterSpacing: '-0.01em', whiteSpace: 'nowrap', flexShrink: 0,
         }}>BeigeBoard</Press>
 
-        <Lab size="sm" as="span" style={badge}>W{String(week).padStart(2, '0')}</Lab>
-        <Lab size="sm" as="span" style={badge}>
+        <Lab size="sm" as="span" style={{ border: '1px solid var(--color-line)', borderRadius: 'var(--hub-radius-sm)', padding: '3px 7px', flexShrink: 0 }}>
+          W{String(week).padStart(2, '0')}
+        </Lab>
+        <Lab size="sm" as="span" style={{ border: '1px solid var(--color-line)', borderRadius: 'var(--hub-radius-sm)', padding: '3px 7px', flexShrink: 0 }}>
           {d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
         </Lab>
       </div>
@@ -164,6 +163,8 @@ function NavTab({ tab, active, onClick }: any) {
       <span
         className={active ? 'jk-press' : undefined}
         style={{
+          // The prototype nav is set in the MACHINE voice — mono tracked caps,
+          // active label pressed. (The wordmark carries the print voice.)
           fontFamily: MONO, fontSize: 11, fontWeight: 500,
           letterSpacing: '0.18em', textTransform: 'uppercase',
           color: active ? undefined : (hover ? 'var(--color-ink)' : 'var(--color-muted)'),

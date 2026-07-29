@@ -84,7 +84,8 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
           gap: 12, marginBottom: 6,
         }}>
           <div style={{
-            fontFamily: FONT_BODY, fontSize: 9, letterSpacing: '0.22em',
+            // printed head label — the panel's kind reads in the print voice
+            fontFamily: FONT_HEAD, fontWeight: 600, fontSize: 9.5, letterSpacing: '0.18em',
             textTransform: 'uppercase', color: 'var(--color-on-accent-dim)',
           }}>{scopeLabel}{isEvent && event.source ? ` · ${sourceOf(event.source).label}` : ''}</div>
           <button
@@ -156,7 +157,8 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
                   }}>
                     {i > 0 && <span style={{ color: 'var(--color-faint)', marginRight: 2 }}>↳</span>}
                     <span style={{
-                      fontFamily: FONT_BODY, fontSize: 8.5, letterSpacing: '0.2em',
+                      // genealogy kind-marks are machine annotation → mono voice
+                      fontFamily: 'var(--hub-font-mono)', fontSize: 8.5, letterSpacing: '0.2em',
                       textTransform: 'uppercase', color: aAccent || 'var(--color-muted)',
                       border: `1px solid ${(aAccent || 'var(--color-muted)') + '40'}`,
                       borderRadius: 'var(--hub-radius-sm)',
@@ -234,7 +236,7 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
                   background: focused ? accent : 'transparent',
                   color: focused ? 'var(--color-paper)' : 'var(--color-muted)',
                   border: `1px solid ${focused ? accent : 'var(--color-line)'}`,
-                  fontFamily: FONT_BODY, fontSize: 9.5, letterSpacing: '0.12em',
+                  fontFamily: FONT_HEAD, fontWeight: 600, fontSize: 9.5, letterSpacing: '0.12em',
                   textTransform: 'uppercase', padding: '9px 0', cursor: 'pointer',
                 }}
               >{focused ? 'Focused — clear' : 'Focus on ORDECK'}</button>
@@ -246,7 +248,7 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
                   background: pinned ? accent : 'transparent',
                   color: pinned ? 'var(--color-paper)' : 'var(--color-muted)',
                   border: `1px solid ${pinned ? accent : 'var(--color-line)'}`,
-                  fontFamily: FONT_BODY, fontSize: 9.5, letterSpacing: '0.12em',
+                  fontFamily: FONT_HEAD, fontWeight: 600, fontSize: 9.5, letterSpacing: '0.12em',
                   textTransform: 'uppercase', padding: '9px 0', cursor: 'pointer',
                 }}
               >{pinned ? 'Pinned to HUD' : 'Pin to HUD'}</button>
@@ -261,8 +263,8 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
         {isGoal && (
           <Field label={`Breakdown · ${prog.total > 0 ? `${prog.done}/${prog.total}` : 'open'}`}>
             {prog.total > 0 && (
-              <div style={{ height: 2, background: 'var(--color-line-strong)', marginBottom: 12 }}>
-                <div style={{ height: '100%', width: `${prog.pct}%`, background: accent }} />
+              <div className="bar-track" style={{ height: 5, borderRadius: 3, overflow: 'hidden', marginBottom: 12, ['--jk-tint' as any]: accent }}>
+                <div className="bar-fill" style={{ height: '100%', width: `${prog.pct}%`, background: `linear-gradient(90deg, color-mix(in srgb, ${accent} 72%, #1a0a00), ${accent})` }} />
               </div>
             )}
             {children.length === 0 ? (
@@ -276,7 +278,7 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
                 {children.slice(0, 6).map((c: any) => (
                   <li key={c.id} style={{
                     display: 'flex', alignItems: 'center', gap: 8,
-                    padding: '6px 0', borderBottom: `1px solid var(--color-line-strong)`,
+                    padding: '6px 0', borderBottom: `1px solid var(--color-line)`,
                   }}>
                     <span style={{ width: 4, height: 16, background: accent, opacity: 0.5, flexShrink: 0 }} />
                     <span style={{
@@ -307,7 +309,7 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
               style={{
                 marginTop: 12,
                 background: accent, color: 'var(--color-paper)', border: 'none',
-                fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.16em',
+                fontFamily: FONT_HEAD, fontWeight: 600, fontSize: 10, letterSpacing: '0.16em',
                 textTransform: 'uppercase', padding: '10px 14px', cursor: 'pointer',
                 width: '100%',
               }}
@@ -318,8 +320,8 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
         {isMilestone && (
           <Field label={`Checkpoint · ${prog.total > 0 ? `${prog.done}/${prog.total}` : 'open'}`}>
             {prog.total > 0 && (
-              <div style={{ height: 2, background: 'var(--color-line-strong)', marginBottom: 12 }}>
-                <div style={{ height: '100%', width: `${prog.pct}%`, background: accent }} />
+              <div className="bar-track" style={{ height: 5, borderRadius: 3, overflow: 'hidden', marginBottom: 12, ['--jk-tint' as any]: accent }}>
+                <div className="bar-fill" style={{ height: '100%', width: `${prog.pct}%`, background: `linear-gradient(90deg, color-mix(in srgb, ${accent} 72%, #1a0a00), ${accent})` }} />
               </div>
             )}
             <button
@@ -330,7 +332,7 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
               className="btn-action"
               style={{
                 background: accent, color: 'var(--color-paper)', border: 'none',
-                fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.16em',
+                fontFamily: FONT_HEAD, fontWeight: 600, fontSize: 10, letterSpacing: '0.16em',
                 textTransform: 'uppercase', padding: '10px 14px', cursor: 'pointer', width: '100%',
               }}
             >Open in workshop →</button>
@@ -362,7 +364,7 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
 
         <div style={{
           display: 'flex', gap: 8, marginTop: 24,
-          paddingTop: 16, borderTop: `1px solid var(--color-line-strong)`,
+          paddingTop: 16, borderTop: `1px solid var(--color-line)`,
         }}>
           <button
             onClick={() => onDelete?.(event.id)}
@@ -370,7 +372,7 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
             style={{
               flex: 1,
               background: 'transparent', border: `1px solid var(--color-line)`,
-              fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.14em',
+              fontFamily: FONT_HEAD, fontWeight: 600, fontSize: 10, letterSpacing: '0.14em',
               textTransform: 'uppercase', color: 'var(--color-muted)',
               padding: '10px 14px', cursor: 'pointer',
             }}
@@ -397,7 +399,7 @@ function GoalFields({ event, onUpdateItem }: any) {
         background: status === value ? 'var(--color-accent)' : 'transparent',
         color: status === value ? 'var(--color-paper)' : 'var(--color-muted)',
         border: `1px solid ${status === value ? 'var(--color-accent)' : 'var(--color-line)'}`,
-        fontFamily: FONT_BODY, fontSize: 9.5, letterSpacing: '0.14em',
+        fontFamily: FONT_HEAD, fontWeight: 600, fontSize: 9.5, letterSpacing: '0.14em',
         textTransform: 'uppercase', padding: '8px 0', cursor: 'pointer',
       }}
     >{label}</button>
@@ -548,18 +550,18 @@ function WhenField({ event, isTask, isEvent, onUpdateItem }: any) {
           <div style={{ display: 'flex', gap: 6, marginTop: 2 }}>
             <button onClick={save} className="btn-action" style={{
               flex: 1, background: 'var(--color-accent)', color: 'var(--color-paper)', border: 'none',
-              fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.14em',
+              fontFamily: FONT_HEAD, fontWeight: 600, fontSize: 10, letterSpacing: '0.14em',
               textTransform: 'uppercase', padding: '7px 0', cursor: 'pointer',
             }}>Save</button>
             <button onClick={() => setEditing(false)} style={{
               flex: 1, background: 'transparent', border: `1px solid var(--color-line)`,
-              fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.14em',
+              fontFamily: FONT_HEAD, fontWeight: 600, fontSize: 10, letterSpacing: '0.14em',
               textTransform: 'uppercase', color: 'var(--color-muted)', padding: '7px 0', cursor: 'pointer',
             }}>Cancel</button>
             {(event.due_date || event.scheduled_time) && (
               <button onClick={clear} style={{
                 background: 'transparent', border: `1px solid var(--color-line)`,
-                fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.12em',
+                fontFamily: FONT_HEAD, fontWeight: 600, fontSize: 10, letterSpacing: '0.12em',
                 textTransform: 'uppercase', color: 'var(--color-faint)', padding: '7px 10px', cursor: 'pointer',
               }}>Clear</button>
             )}

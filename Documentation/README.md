@@ -13,12 +13,13 @@ form the backbone:
 | **Weave** | The integration fabric connecting all apps, read and write |
 | **jkDeploy** | The deploy controller — staging→production in one button |
 
-Two more apps ride the same fabric:
+Three more apps ride the same fabric:
 
 | App | What it is | State |
 |-----|-----------|-------|
-| **LazurOS** | AI gateway — an async job queue routing inference to a tier of compute nodes; powers BeigeBoard's task-parse / goal-breakdown | Built (Phases 0–6), not yet live — awaiting real runtimes ([ToDo §1](ToDo.md)) |
+| **LazurOS** | AI gateway — an async job queue routing inference to a tier of compute nodes; powers BeigeBoard's task-parse / goal-breakdown | Built, not yet live — awaiting real runtimes ([ToDo §1](ToDo.md)) |
 | **PapyrOS** | Fully-native multi-user audiobook library — own scanner, catalog, Range-streamed playback, offline caching, per-user resume | **Live on staging** ([ARCHITECTURE § PapyrOS](ARCHITECTURE.md#papyros-the-audiobook-app)) |
+| **KourOS** | Fully-native multi-user music library — the shared `@jkos/player` primitive's second consumer, gapless/crossfade playback, playlists, ratings | Built, staging bring-up pending real `MUSIC_DIR` ([ToDo §3](ToDo.md)) |
 
 Everything goes through jkAuth SSO. The portal is driven by Weave discovery — adding a
 new app means one registry row, not portal code changes. (A separate study app, **SylibOS**,
@@ -74,6 +75,18 @@ enriched from the iTunes Search API.
 | **Fix metadata** | Book detail → **Fix metadata** → search → pick a candidate. Admins can also **Rescan** the library and batch-**Match metadata**. |
 | **Listen offline** | Book detail → make **available offline** (caches audio + cover); the service worker serves it when the network is down. |
 | **Download** | Book detail → download (single file direct, multi-file zipped). |
+
+### Music (KourOS)
+
+Reachable at `staging.jkos.net/kouros/` (staging; prod pending DNS + a real library mount).
+The library is scanned per-file (not per-folder) from a TrueNAS music path.
+
+| Action | How |
+|--------|-----|
+| **Browse & play** | Library grid (artist/album/track views) → **Play**. Gapless playback with a
+short crossfade between tracks. |
+| **Queue** | Shuffle, repeat, reorder by drag; volume and now-playing art-derived accent color. |
+| **Playlists** | Create, reorder via drag, rate tracks. |
 
 ### Account & sign-in
 

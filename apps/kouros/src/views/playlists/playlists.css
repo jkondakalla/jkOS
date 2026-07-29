@@ -65,7 +65,7 @@
   flex: 1;
 }
 .kr-playlist-new { margin-top: 0.6rem; max-width: 420px; }
-.kr-playlist-desc { margin: 0; }
+.kr-playlist-desc { margin: 0; opacity: 0.6; } /* dim ink — replaces the retired .muted alias */
 
 /* ── Shared "form + text input" bits (top-level create form, rename form, and
    AddToPlaylistMenu's "new playlist" form all use these) ─────────────────────── */

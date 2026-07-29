@@ -1,102 +1,84 @@
 /**
- * surface.ts — the card recipe factory.
+ * surface.ts — the card recipe factory (Full Press).
  *
- * ONE source of truth for the "filled accent card" look BeigeBoard previously
- * inlined three times (task chip, time block, all-day bar): an accent base under
- * a top-light glaze, an inset highlight, a tiered drop shadow, and a selected
- * ring. Token-driven (radius/accent from @jkos/design) so the same recipe scales
- * per tier and renders identically wherever the kit is mounted (BeigeBoard tabs
- * and, later, ORDECK widgets).
+ * ONE source of truth for the "tinted item" look BeigeBoard previously inlined
+ * three times (task chip, time block, all-day bar). Under Full Press this is the
+ * SUITE-DEFAULT solid-ink chip: it defers to hub.css's `.jk-chip*` family rather
+ * than inlining a glaze + rgba shadows, because those classes are mode-gated
+ * (debossed-on-paper / halated-on-the-tube) and inline styles can't be. The
+ * factory's job is now to pick the class set and carry the per-item `--jk-tint`
+ * so the same recipe renders identically wherever the kit is mounted (BeigeBoard
+ * tabs and ORDECK widgets).
+ *
+ * Supersedes the old ACCENT_GLAZE surface — see DESIGN.md §8 (chip system).
  */
 
 import type { CSSProperties } from 'react';
 
-/** Top-light → bottom-shade glaze laid OVER the flat accent, giving every card
- *  the same dimensional sheen. */
-export const ACCENT_GLAZE = 'linear-gradient(180deg, rgba(255,255,255,0.12) 0%, rgba(0,0,0,0.09) 100%)';
-
-export type CardElevation = 'chip' | 'bar' | 'block';
-
-const ELEVATION: Record<CardElevation, { inset: string; drop: string }> = {
-  chip: { inset: 'inset 0 1px 0 rgba(255,255,255,0.18)', drop: '0 1px 4px rgba(0,0,0,0.3)' },
-  bar: { inset: 'inset 0 1px 0 rgba(255,255,255,0.22)', drop: '0 2px 6px rgba(0,0,0,0.35)' },
-  block: {
-    inset: 'inset 0 1px 0 rgba(255,255,255,0.22)',
-    drop: '0 3px 10px rgba(0,0,0,0.4), 0 1px 3px rgba(0,0,0,0.25)',
-  },
-};
+/** solid = the saturated `.jk-chip-solid` tab (default, cream-knockout title via
+ *  `.jk-press-rev`); faint = the raised `.jk-chip` in faint tint (neutral-ink
+ *  rows via `.jk-press-ink`). */
+export type CardVariant = 'solid' | 'faint';
 
 export interface CardSurfaceOpts {
-  /** Accent colour (hex or CSS var). Ignored when `completed` flattens the card. */
+  /** Tint colour (hex or CSS var) → drives `--jk-tint` for the whole chip. */
   accent: string;
+  variant?: CardVariant;
+  /** Spent state → `.jk-chip-done` (flat, dimmed). */
   completed?: boolean;
+  /** Now / active → `.jk-chip-live` (brighter fill + ring). */
+  live?: boolean;
+  /** Selection ring, laid over the chip's own shadow. */
   selected?: boolean;
-  elevation?: CardElevation;
-  /** Border radius (CSS value/var). Defaults to the small radius token. */
+  /** Dense chip → `.jk-chip-sm` (calendar cells, tight rails). */
+  sm?: boolean;
+  /** Border radius override (CSS value/var). Defaults to the chip class radius. */
   radius?: string;
-  /** Background when `completed` (the spent state). Default = paper. */
-  emptyBg?: string;
+}
+
+export interface CardSurface {
+  /** Apply to the element (the mode-gated visual recipe). */
+  className: string;
+  /** Spread onto the element's style AFTER layout — carries `--jk-tint`, an
+   *  optional radius override, and the selection ring. */
+  style: CSSProperties;
 }
 
 /**
- * Produce the surface CSS for a card. Spread it, then add layout (position /
- * padding / size) at the call site.
+ * Produce the chip surface for a card: a class set + the `--jk-tint` seam. Add
+ * layout (position / padding / size) and a pressed-type title
+ * (`.jk-press-rev` on solid, `.jk-press-ink` on faint) at the call site.
  */
-export function cardSurface(opts: CardSurfaceOpts): CSSProperties {
-  const {
-    accent,
-    completed = false,
-    selected = false,
-    elevation = 'chip',
-    radius = 'var(--hub-radius-sm)',
-    emptyBg = 'var(--color-paper)',
-  } = opts;
+export function cardSurface(opts: CardSurfaceOpts): CardSurface {
+  const { accent, variant = 'solid', completed = false, live = false, selected = false, sm = false, radius } = opts;
 
-  const e = ELEVATION[elevation];
+  const className = [
+    'jk-chip',
+    variant === 'solid' && 'jk-chip-solid',
+    sm && 'jk-chip-sm',
+    live && !completed && 'jk-chip-live',
+    completed && 'jk-chip-done',
+  ]
+    .filter(Boolean)
+    .join(' ');
 
-  if (completed) {
-    return {
-      background: emptyBg,
-      boxShadow: 'none',
-      color: 'var(--color-muted)',
-      borderRadius: radius,
-      outline: selected ? '1.5px solid var(--color-accent)' : 'none',
-      outlineOffset: -1,
-    };
-  }
+  const style: CSSProperties = {
+    ['--jk-tint' as string]: accent,
+    ...(radius ? { borderRadius: radius } : null),
+    ...(selected ? { outline: '1.5px solid var(--color-accent)', outlineOffset: -2 } : null),
+  } as CSSProperties;
 
-  // A selected block gets a paper-gapped accent ring on top of its drop shadow;
-  // chips/bars use a plain outline.
-  const selectedRing =
-    selected && elevation === 'block'
-      ? ', 0 0 0 1px var(--color-paper), 0 0 0 3px var(--color-accent)'
-      : '';
-
-  return {
-    background: `${ACCENT_GLAZE}, ${accent}`,
-    boxShadow: `${e.inset}, ${e.drop}${selectedRing}`,
-    color: 'var(--color-on-accent)',
-    borderRadius: radius,
-    outline: selected && elevation !== 'block' ? `${elevation === 'chip' ? 1.5 : 2}px solid var(--color-accent)` : 'none',
-    outlineOffset: -2,
-  };
+  return { className, style };
 }
 
-/** The white inline "check square" used inside filled cards (week untimed/time
- *  block). Returns the box style; render the ✓ as its child when completed. */
-export function chipCheckStyle(completed: boolean, size: number, tick: string): CSSProperties {
+/** The inline "check square" inside filled cards → the suite `.jk-check` look
+ *  (mode-correct: tint fill + cream tick on paper, halated on the tube). Sizeable
+ *  for tight calendar cells. Host as a `role="checkbox"` with `aria-checked`, and
+ *  always render `✓` as the child — `.jk-check` hides the mark until checked. The
+ *  tint is inherited from the chip's `--jk-tint`. */
+export function chipCheck(size: number): { className: string; style: CSSProperties } {
   return {
-    width: size,
-    height: size,
-    flexShrink: 0,
-    border: `1px solid ${completed ? 'var(--color-muted)' : 'var(--color-on-accent-dim)'}`,
-    background: completed ? tick : 'transparent',
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontSize: Math.round(size * 0.66),
-    color: 'var(--color-paper)',
-    lineHeight: 1,
+    className: 'jk-check',
+    style: { width: size, height: size, fontSize: Math.round(size * 0.62), borderRadius: 'var(--hub-radius-xs)' },
   };
 }

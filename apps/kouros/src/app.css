@@ -28,7 +28,7 @@ body {
   padding: 1.25rem 1.25rem 3rem;
 }
 
-.muted { opacity: 0.6; padding: 1.5rem 0; }
+/* .muted moved to hub.css (legacy alias of .jk-async-note; app copy deleted Full Press Wave 23) */
 
 /* ── Nav (Home / Artists / Search — @jkos/ui's <AppShell> supplies the brand/
    settings header, not routed-content nav, so KourOS renders this row itself

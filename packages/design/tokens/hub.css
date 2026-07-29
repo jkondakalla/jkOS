@@ -66,24 +66,32 @@
   --color-warn:   #a04010;
   --color-danger: #b42010;
 
-  /* Typography */
+  /* Typography — the Full Press Voice: humans read print (the serif), the
+     machine speaks mono, the tube emits (seg). The serif default IS Fraunces
+     (2026-07-19, Full Press Wave 22) — it is no longer a per-app opt-in; apps
+     may still override via the factory `fonts.serif` input. Apps must load the
+     Fraunces webfont (incl. wght 700) in index.html; Big Shoulders is loaded
+     only by surfaces that actually render `.seg` (dark face). */
   --hub-font-mono:  'IBM Plex Mono', ui-monospace, monospace;
   --hub-font-sans:  'IBM Plex Sans', system-ui, sans-serif;
   --hub-font-seg:   'Big Shoulders Display', 'IBM Plex Sans', sans-serif;
-  --hub-font-serif: var(--hub-font-sans);
+  --hub-font-serif: 'Fraunces', Georgia, 'Times New Roman', serif;
 
   /* Spacing grid + radii (a per-app scale; SOFT by default — the house corner.
      Sharp is the opt-in: an app passes a 0–2px scale through the factory
      `radius` input, or a single card zeroes the --hub-radius* tokens on its own
-     element. Sharp is deliberate punctuation, not the ground state. */
+     element. Sharp is deliberate punctuation, not the ground state.
+     Values are the Full Press PRINT scale (Wave 22) — a shade crisper than the
+     old 10/6/8/11 hub scale; same tokens, apps with their own `radius` input
+     are untouched. */
   --hub-grid:             40px;
-  --hub-radius:           10px;
-  --hub-radius-xs:        6px;   /* tiny controls (checkboxes, swatches) */
-  --hub-radius-sm:        8px;
-  --hub-radius-lg:        11px;
-  --hub-radius-soft:      11px;
-  --hub-radius-widget:    10px;
-  --hub-radius-button:    8px;
+  --hub-radius:           8px;
+  --hub-radius-xs:        4px;   /* tiny controls (checkboxes, swatches) */
+  --hub-radius-sm:        6px;
+  --hub-radius-lg:        10px;
+  --hub-radius-soft:      10px;
+  --hub-radius-widget:    8px;
+  --hub-radius-button:    5px;
 
   /* ── Responsive card scale (the VIEWPORT axis) ──────────────────────────────
    * Card primitives consume these instead of literal px, so they scale by tier.
@@ -405,6 +413,13 @@
   68%  { filter: brightness(1.05); }
   100% { filter: brightness(1); clip-path: inset(0% 0 0% 0); }
 }
+/* Per-item phosphor flick — the .mo-item dark entrance (crtExpand's leaner
+   sibling: one clip-open + brighten, cheap enough to stagger across many rows). */
+@keyframes crtOn {
+  0%   { clip-path: inset(49% 0 49% 0); filter: brightness(5); opacity: 0.4; }
+  12%  { clip-path: inset(0 0 0 0);     filter: brightness(1.8); }
+  100% { filter: brightness(1); opacity: 1; }
+}
 @keyframes introTitleReveal {
   from { opacity: 0; transform: translateY(6px); filter: blur(3px); }
   to   { opacity: 1; transform: none;   filter: none; }
@@ -432,6 +447,106 @@
 .intro-out    { animation: introFadeOut 0.45s ease-in forwards; }
 .now-dot      { animation: pulseOpacity 1.8s ease-in-out infinite; }
 .check-pop    { animation: checkBounce 0.25s ease-out; }
+
+/* ─── Full Press entrance physics (Wave 24) ────────────────────────────────
+ * ONE face-aware entrance: on paper the ink DRIES onto the sheet (rise +
+ * sharpen + darken to full ink); in CRT the tube POWERS ON (reuses the
+ * crtExpand keyframes — the dark-native entrance the system already had).
+ * Same class, opposite physics — apply at view/panel/item boundaries, ONCE
+ * per surface; never stack it on an element that already carries another
+ * entrance utility. NO fill-mode, same reasoning as .view-enter above: a
+ * retained transform/filter/clip-path would leave the element a containing
+ * block for fixed descendants; both keyframe sets end at the resting style. */
+@keyframes inkDry {
+  0%   { opacity: 0; transform: translateY(6px) scale(1.012); filter: blur(1.4px) brightness(0.62) contrast(1.15); }
+  18%  { opacity: 1; }
+  55%  { filter: blur(0.5px) brightness(0.82) contrast(1.06); }
+  100% { opacity: 1; transform: none; filter: none; }
+}
+.ink-in { animation: inkDry 0.44s cubic-bezier(0.2, 0.7, 0.25, 1); }
+:root[data-mode="dark"] .ink-in { animation: crtExpand 0.5s ease-out; }
+
+/* Per-item staggered entrance — the .ink-in physics applied ROW-BY-ROW, gated by
+ * the data-motion axis (see .jk-buzz below). Unlike .ink-in this carries `both`:
+ * pre-delay the row must sit hidden (opacity 0) until its inline animation-delay
+ * fires, so a list of .mo-item children ripples in. Both keyframe sets END at the
+ * resting style (no retained transform), so the fill-mode is safe HERE — but only
+ * put .mo-item on elements that DON'T host a fixed-position popup (a retained
+ * `both` keeps the element a containing block; that's the .ink-in caveat, and the
+ * reason view/panel boundaries use .ink-in while rows use .mo-item).
+ *   data-motion  absent/entrance → entrances fire, ambient off (the default)
+ *                full            → entrances + ambient (rake/buzz)
+ *                static          → nothing moves */
+:root:not([data-motion="static"]):not([data-mode="dark"]) .mo-item {
+  animation: inkDry 0.5s cubic-bezier(0.2, 0.7, 0.25, 1) both;
+}
+:root:not([data-motion="static"])[data-mode="dark"] .mo-item {
+  animation: crtOn 0.62s ease-out both;
+}
+
+/* Ambient atmosphere (Wave 24; Full Press folds it onto the data-motion axis) —
+ * the sheet and the tube each get their own slow, OFF-by-default beat, shown only
+ * under <html data-motion="full"> (the axis that also drives .mo-item). Absent or
+ * "entrance", entrances still fire but the ambient stays quiet; "static" stops
+ * everything. Mount one fixed overlay div per page (.jk-rake on paper, .jk-buzz on
+ * dark — render both; each self-gates on face); the host app owns the z-index.
+ *   RAKE — a raking beam sweeping across the paper stock (light ON the sheet, not
+ *   texture — grain stays backdrop-only). */
+@keyframes rakeSweep {
+  0%   { transform: translateX(-40%) rotate(8deg); opacity: 0; }
+  20%  { opacity: 0.25; }
+  50%  { opacity: 0.5; }
+  80%  { opacity: 0.25; }
+  100% { transform: translateX(60%) rotate(8deg); opacity: 0; }
+}
+.jk-rake {
+  display: none;
+  position: fixed;
+  top: -30%;
+  bottom: -30%;
+  left: 0;
+  width: 60%;
+  pointer-events: none;
+  mix-blend-mode: soft-light;
+  background: linear-gradient(105deg, transparent, rgba(255, 251, 235, 0.9) 45%, rgba(120, 80, 30, 0.25) 60%, transparent);
+}
+:root[data-motion="full"]:not([data-mode="dark"]) .jk-rake {
+  display: block;
+  animation: rakeSweep 26s ease-in-out infinite;
+}
+
+/* BUZZ — the CRT companion to the rake: a faint phosphor glow that breathes in
+   the centre of the tube. Dark-face only, same data-motion="full" gate. */
+@keyframes crtBuzz {
+  0%, 100% { opacity: 0.05; }
+  50%      { opacity: 0.062; }
+}
+.jk-buzz {
+  display: none;
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  background: radial-gradient(120% 80% at 50% 40%, rgba(255, 240, 210, 0.9), rgba(255, 220, 170, 0.2) 60%, transparent 78%);
+}
+:root[data-motion="full"][data-mode="dark"] .jk-buzz {
+  display: block;
+  animation: crtBuzz 4.3s ease-in-out infinite;
+}
+
+/* Reduced motion — the shared entrances + ambient loops collapse here once,
+ * suite-wide, instead of relying on every page to remember its own guard.
+ * Entrances snap to their final frame; the loops (LED pulse, now-dot, rake)
+ * stop. Bespoke app frames still add their own page-level guard. */
+@media (prefers-reduced-motion: reduce) {
+  .ink-in, .mo-item, .view-enter, .panel-enter, .item-in, .modal-in,
+  .boot-sweep, .crt-expand, .intro-title, .check-pop {
+    animation-duration: 0.01ms;
+    animation-iteration-count: 1;
+  }
+  .led, .now-dot { animation: none; }
+  .jk-rake, .jk-buzz { display: none !important; }
+}
 
 /* @jkos/cards interaction primitives — the shared calendar kit carries these so
    its hover/press affordances render wherever it mounts (BeigeBoard tabs AND
@@ -514,15 +629,49 @@
   background-size: 6px 6px;
 }
 
-/* Rubber stamp */
+/* ─── Print marks (Full Press) — the press's own hardware ──────────────────
+ * Editorial rules, the folio mark, the colophon. Doctrine: content is named
+ * in PRINT (.jk-folio); .label-tape remains for MACHINE chrome only. The
+ * scarcity rule applies to these like any hardware — one folio names THE
+ * content panel, one colophon closes THE sheet. */
+
+/* The rules ladder — editorial hairlines, three weights. An <hr> face:
+   hairline for rows/exhibits, ink for chapter heads, double for the
+   contents block and the colophon. */
+.jk-rule        { border: none; height: 1px; background: var(--hub-line); margin: 0; }
+.jk-rule-strong { border: none; height: 2px; background: var(--color-ink); opacity: 0.85; margin: 0; }
+.jk-rule-double { border: none; height: 5px; margin: 0; opacity: 0.85;
+  background: linear-gradient(180deg,
+    var(--color-ink) 0 1.5px, transparent 1.5px 3.5px, var(--color-ink) 3.5px 5px); }
+
+/* The folio mark — names CONTENT in print: running-head rules above and
+   below, serif caps, the number/count slot in accent italic. */
+.jk-folio { display: inline-flex; align-items: baseline; gap: 8px;
+  font-family: var(--hub-font-serif); font-weight: 700; font-size: 10.5px;
+  letter-spacing: 0.2em; text-transform: uppercase; color: var(--color-ink);
+  padding: 5px 2px; border-top: 1.5px solid var(--color-ink);
+  border-bottom: 1px solid var(--color-ink); }
+.jk-folio .jk-folio-no { color: var(--color-accent); font-style: italic; }
+:root[data-mode="dark"] .jk-folio .jk-folio-no { text-shadow: var(--accent-halo-text); }
+
+/* The colophon block — the end-of-sheet record. Centre-set serif over a
+   fleuron; the fleuron takes the accent (and its halation in CRT). */
+.jk-colophon { text-align: center; font-family: var(--hub-font-serif);
+  font-size: 0.92rem; line-height: 1.75; color: var(--color-muted); }
+.jk-colophon::before { content: "❧"; display: block; font-size: 1.35rem;
+  color: var(--color-accent); margin: 0 0 10px; }
+:root[data-mode="dark"] .jk-colophon::before { text-shadow: var(--accent-halo-text); }
+
+/* Rubber stamp — the printer's stamp: serif under Full Press, same rotation
+   and currentColor discipline. */
 .stamp {
   display: inline-block;
   border: 2px solid currentColor;
   padding: 2px 8px;
-  font-family: var(--hub-font-mono);
+  font-family: var(--hub-font-serif);
   font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.15em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   opacity: 0.65;
   transform: rotate(-2deg);
@@ -536,6 +685,18 @@
   font-variant-numeric: tabular-nums;
   color: var(--hub-amber);
   text-shadow: 0 0 8px var(--hub-amber-glow), 0 0 2px var(--hub-amber-glow);
+}
+/* THE SEG VERDICT (Full Press) — the readout splits by medium: the tube keeps
+   its phosphor numerals (Big Shoulders + glow, unchanged in dark); paper
+   PRINTS them — Fraunces lining tabular figures, no glow. One class, mode-
+   correct. A 7-seg readout is phosphor hardware; printing one on kraft was a
+   costume. Surfaces that render .seg must load Big Shoulders for the dark face. */
+:root:not([data-mode="dark"]) .seg {
+  font-family: var(--hub-font-serif);
+  font-weight: 600;
+  font-variant-numeric: lining-nums tabular-nums;
+  letter-spacing: 0.03em;
+  text-shadow: none;
 }
 
 /* Bar meters */
@@ -648,6 +809,45 @@
     0 0 3px  color-mix(in srgb, var(--accent) 60%, transparent);
 }
 
+/* ─── Pressed-type family — the chip CUT (Full Press chip system) ───────────
+ * Where .jk-press badges PRIMARY accent text RAISED off the sheet, these press
+ * DATA-tinted or NEUTRAL type INTO it — the letterpress impression on a chip.
+ * All read --jk-tint (unset → --accent), so a chip in a goal's own hue presses
+ * in that hue. Mode-flips like every accent move: debossed on paper (white top
+ * catch-light + a tint-dark bottom lip), halated on the tube.
+ *   -ink : neutral-ink title, pressed-shadow ONLY — task titles on a tinted
+ *          chip that keep their own ink colour (pair with .jk-chip).
+ *   -rev : cream KNOCKOUT on a solid-ink tab — the loud title (pair with
+ *          .jk-chip-solid).
+ *   -sm  : the small tinted press — dense chips + calendar cells.
+ * ───────────────────────────────────────────────────────────────────────── */
+.jk-press-ink {
+  text-shadow:
+    0 1px 0 color-mix(in srgb, #ffffff 55%, transparent),
+    0 -0.5px 0 color-mix(in srgb, var(--jk-tint, var(--accent)) 34%, var(--accent-deepen-ink));
+}
+.jk-press-rev {
+  /* #f7efdc is a printed-cream knockout on a colour tab — a NEUTRAL ink, the
+     paper-face analogue of --color-on-accent's white (warm, not stark). */
+  color: #f7efdc;
+  text-shadow: 0 -1px 0 rgba(30, 18, 4, 0.42), 0 1px 0 rgba(255, 246, 226, 0.26);
+}
+.jk-press-sm {
+  color: color-mix(in srgb, var(--jk-tint, var(--accent)) 82%, var(--color-ink));
+  text-shadow: 0 0.5px 0 color-mix(in srgb, #ffffff 55%, transparent);
+}
+:root[data-mode="dark"] .jk-press-ink {
+  text-shadow: 0 0 9px color-mix(in srgb, var(--jk-tint, var(--accent)) 45%, transparent);
+}
+:root[data-mode="dark"] .jk-press-sm {
+  color: var(--jk-tint, var(--accent));
+  text-shadow: 0 0 10px color-mix(in srgb, var(--jk-tint, var(--accent)) 55%, transparent);
+}
+:root[data-mode="dark"] .jk-press-rev {
+  color: var(--jk-tint, var(--accent));
+  text-shadow: 0 0 10px color-mix(in srgb, var(--jk-tint, var(--accent)) 60%, transparent);
+}
+
 /* Flat SECONDARY text + link */
 .jk-sub { color: var(--accent-secondary); }
 .jk-sub-link {
@@ -676,15 +876,17 @@
   box-shadow: var(--hub-accent-press);
 }
 
-/* Single-element BUBBLES (pills/badges) */
+/* Single-element BUBBLES (pills/badges) — letterpress chips under Full Press:
+   serif caps with the ink pressed in on paper, halation on the tube. */
 .jk-bubble {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
   line-height: 1;
-  font-family: var(--hub-font-mono);
-  letter-spacing: 0.16em;
+  font-family: var(--hub-font-serif);
+  font-weight: 700;
+  letter-spacing: 0.11em;
   text-transform: uppercase;
   border-radius: var(--hub-radius-lg);
   font-size: var(--hub-fs-bubble);
@@ -702,14 +904,13 @@
     inset 0 1px 0 color-mix(in srgb, #ffffff 60%, transparent),
     0 1px 0 color-mix(in srgb, var(--accent) 28%, var(--hub-line)),
     0 2px 5px rgba(48, 34, 20, 0.28);
-  text-shadow:
-    0 -0.5px 0 rgba(255, 255, 255, 0.45),
-    0 1px 0 color-mix(in srgb, var(--accent) 50%, var(--accent-deepen-ink));
+  /* letterpress: light catches the lower edge of the pressed type */
+  text-shadow: 0 1px 0 color-mix(in srgb, #ffffff 45%, transparent);
 }
 :root[data-mode="dark"] .jk-bubble-primary {
   /* in CRT the badge's emphasis is halation, not elevation */
   box-shadow: var(--hub-accent-press);
-  text-shadow: 0 0 10px color-mix(in srgb, var(--accent) 55%, transparent);
+  text-shadow: var(--accent-halo-text);
 }
 
 /* Secondary bubble = flat pill (the chip) */
@@ -729,6 +930,117 @@
   border: 1px solid var(--hub-line);
   border-radius: var(--hub-radius-lg);
   box-shadow: var(--hub-shadow-card), inset 0 1px 0 var(--hub-bevel-light);
+}
+
+/* ─── Chips — the Full Press solid-ink tab (SUITE DEFAULT) ──────────────────
+ * The saturated letter-tab that supersedes the calendar kit's old ACCENT_GLAZE
+ * chip: a --jk-tint (unset → --accent) fill deepened toward --accent-deepen-ink,
+ * with the type cream-KNOCKED-OUT and pressed in (pair with .jk-press-rev on a
+ * solid tab, .jk-press-ink on the faint base). Mode-flips like every accent
+ * surface — inset bevel + drop on paper, halation ring on the tube. A chip is a
+ * single tinted ITEM (a calendar event, a task leaf, a bench card); it sits
+ * beside .jk-bubble (the pill/badge) and .jk-well (the region).
+ *   .jk-chip        raised, faint-tint chip — neutral-ink rows
+ *   .jk-chip-solid  THE DEFAULT — saturated tint tab, cream knockout
+ *   .jk-chip-live   now / active (brighter fill + ring)
+ *   .jk-chip-done   spent — flat, dimmed
+ *   .jk-chip-sm     dense (calendar cells, tight rails)
+ * ───────────────────────────────────────────────────────────────────────── */
+.jk-chip {
+  border-radius: var(--hub-radius-xs);
+  background: color-mix(in srgb, var(--jk-tint, var(--accent)) 14%, var(--hub-bg-2));
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #ffffff 60%, transparent),
+    0 1px 0 color-mix(in srgb, var(--jk-tint, var(--accent)) 28%, var(--hub-line)),
+    0 2px 5px rgba(48, 34, 20, 0.28);
+  transition: box-shadow 0.16s, transform 0.12s, background 0.16s;
+}
+.jk-chip:hover {
+  transform: translateY(1px);
+  background: color-mix(in srgb, var(--jk-tint, var(--accent)) 18%, var(--hub-bg-2));
+  box-shadow: var(--hub-accent-press);
+}
+.jk-chip-live {
+  background: color-mix(in srgb, var(--jk-tint, var(--accent)) 18%, var(--hub-bg-2));
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #ffffff 62%, transparent),
+    0 1px 0 color-mix(in srgb, var(--jk-tint, var(--accent)) 32%, var(--hub-line)),
+    0 4px 9px rgba(48, 34, 20, 0.28);
+}
+.jk-chip-done {
+  background: color-mix(in srgb, var(--jk-tint, var(--accent)) 7%, var(--hub-bg-2));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--jk-tint, var(--accent)) 20%, transparent);
+  opacity: 0.62;
+}
+.jk-chip-done:hover {
+  transform: none;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--jk-tint, var(--accent)) 28%, transparent);
+}
+.jk-chip-sm {
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #ffffff 55%, transparent),
+    0 1px 2px rgba(48, 34, 20, 0.2);
+}
+/* THE DEFAULT tab — Opt 4 solid-ink fill + Opt 1 pressed type (cream knockout) */
+.jk-chip-solid {
+  background: color-mix(in srgb, var(--jk-tint, var(--accent)) 82%, var(--accent-deepen-ink));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 2px 5px rgba(48, 34, 20, 0.3);
+}
+.jk-chip-solid:hover {
+  transform: translateY(1px);
+  background: color-mix(in srgb, var(--jk-tint, var(--accent)) 88%, var(--accent-deepen-ink));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 1px 3px rgba(48, 34, 20, 0.34);
+}
+.jk-chip-solid.jk-chip-sm {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 1px 2px rgba(48, 34, 20, 0.26);
+}
+.jk-chip-solid.jk-chip-live {
+  background: color-mix(in srgb, var(--jk-tint, var(--accent)) 92%, var(--accent-deepen-ink));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    0 0 0 1.5px color-mix(in srgb, #ffffff 55%, var(--jk-tint, var(--accent))),
+    0 3px 9px rgba(48, 34, 20, 0.36);
+}
+.jk-chip-solid.jk-chip-done {
+  background: color-mix(in srgb, var(--jk-tint, var(--accent)) 7%, var(--hub-bg-2));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--jk-tint, var(--accent)) 20%, transparent);
+}
+/* a spent solid chip's knockout title + mono meta fall back to faint ink */
+.jk-chip-done .jk-press-rev { color: var(--color-faint); text-shadow: none; }
+.jk-chip-solid .mono-eyebrow { color: rgba(247, 239, 220, 0.78); }
+.jk-chip-done.jk-chip-solid .mono-eyebrow { color: var(--color-faint); }
+
+/* CRT — every chip becomes emissive: halation ring, no bevel/drop. #0e0b07 is a
+   neutral phosphor-black base (like the dark neutral ramp), tinted per --jk-tint. */
+:root[data-mode="dark"] .jk-chip,
+:root[data-mode="dark"] .jk-chip-live {
+  box-shadow:
+    0 0 14px color-mix(in srgb, var(--jk-tint, var(--accent)) 48%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--jk-tint, var(--accent)) 42%, transparent);
+}
+:root[data-mode="dark"] .jk-chip:hover {
+  transform: none;
+  box-shadow:
+    0 0 5px color-mix(in srgb, var(--jk-tint, var(--accent)) 30%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--jk-tint, var(--accent)) 55%, transparent);
+}
+:root[data-mode="dark"] .jk-chip-done,
+:root[data-mode="dark"] .jk-chip-done:hover {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--jk-tint, var(--accent)) 25%, transparent);
+}
+:root[data-mode="dark"] .jk-chip-solid {
+  background: color-mix(in srgb, var(--jk-tint, var(--accent)) 26%, #0e0b07);
+  box-shadow:
+    0 0 14px color-mix(in srgb, var(--jk-tint, var(--accent)) 35%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--jk-tint, var(--accent)) 52%, transparent);
+}
+:root[data-mode="dark"] .jk-chip-solid.jk-chip-live {
+  box-shadow:
+    0 0 20px color-mix(in srgb, var(--jk-tint, var(--accent)) 55%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--jk-tint, var(--accent)) 70%, transparent);
+}
+:root[data-mode="dark"] .jk-chip-solid .mono-eyebrow {
+  color: color-mix(in srgb, var(--jk-tint, var(--accent)) 55%, transparent);
 }
 
 /* ─── Media grid + cover art (@jkos/ui MediaGrid / CoverArt) ───────────────
@@ -778,23 +1090,19 @@
  * offline.css's `.is-error` hint) rather than going pure red — legible in
  * both modes without a hardcoded hex. ───────────────────────────────────── */
 .jk-async-note {
+  /* Full Press: off-states carry the idiom — the note is SET (serif italic),
+     like a compositor's aside, not typed. Copy follows the print idiom too
+     ("Setting type…", a stamped NO SIGNAL on error) — that part is per-app. */
+  font-family: var(--hub-font-serif);
+  font-style: italic;
+  font-size: 0.95rem;
   padding: 1.5rem 0;
   opacity: 0.6;
 }
 
-/* Legacy alias for the same thing. @jkos/ui's <MatchPanel> hardcodes `muted` on
-   its message/meta lines, but the rule lived ONLY in apps/papyros/src/app.css and
-   apps/kouros/src/app.css (identical copies) — so a shared component rendered
-   correctly only in the two apps that happened to ship their own class. That is
-   the same trap the .jk-cards-* block above exists to close, so the rule moves
-   here, byte-identical, and every consumer gets it. New code should use
-   .jk-async-note (or <AsyncView>) — this exists so the existing call sites are
-   not silently broken. See Documentation/ToDo.md: the two app copies and
-   MatchPanel's use of the old name are still to be retired. */
-.muted {
-  padding: 1.5rem 0;
-  opacity: 0.6;
-}
+/* (.muted, the legacy alias of .jk-async-note, was retired in Full Press Wave
+   26 — the W23/W25 sweeps left zero call sites: MatchPanel rides .jk-async-note,
+   metadata lines carry dim ink on their own classes.) */
 .jk-async-error {
   color: color-mix(in srgb, var(--hub-red) 75%, var(--hub-cream-dim));
   opacity: 1;
@@ -805,25 +1113,31 @@
  * <Pill> components. All neutral/semantic — never hardcode an accent; the two
  * accent families above own the accent surfaces. ────────────────────────── */
 
-/* Uppercase mono label — eyebrows + field labels. Three sizes. */
+/* Uppercase label — eyebrows + field labels, three sizes. Full Press re-set
+   the ladder in PRINT: tracked Fraunces caps (+1px over the mono scale so the
+   serif holds legibility at these sizes). The machine's own annotations stay
+   mono — that's .mono-eyebrow, deliberately untouched. */
 .jk-lab {
-  font-family: var(--hub-font-mono);
-  font-size: var(--hub-fs-lab);
-  letter-spacing: 0.22em;
+  font-family: var(--hub-font-serif);
+  font-weight: 600;
+  font-size: calc(var(--hub-fs-lab) + 1px);
+  letter-spacing: 0.15em;
   text-transform: uppercase;
   color: var(--hub-cream);
 }
-.jk-lab.jk-lab-sm { font-size: var(--hub-fs-lab-sm); letter-spacing: 0.18em; color: var(--hub-cream-dim); }
-.jk-lab.jk-lab-xs { font-size: var(--hub-fs-lab-xs); letter-spacing: 0.16em; color: var(--hub-cream-dim); }
+.jk-lab.jk-lab-sm { font-size: calc(var(--hub-fs-lab-sm) + 1px); letter-spacing: 0.14em; color: var(--hub-cream-dim); }
+.jk-lab.jk-lab-xs { font-size: calc(var(--hub-fs-lab-xs) + 1px); letter-spacing: 0.13em; color: var(--hub-cream-dim); }
 /* Sans eyebrow — same tracked-caps label in the UI sans (softer than the mono
    default) for prose-adjacent section heads. Blessed variant, not a new type. */
 .jk-lab.jk-lab-sans { font-family: var(--hub-font-sans); letter-spacing: 0.14em; }
 
-/* Compact mono text button — flat, hovers to the secondary accent. */
+/* Compact text button — printed, not typed (Full Press): Fraunces caps, flat,
+   hovers to the secondary accent (behaviour unchanged). */
 .jk-tbtn {
-  font-family: var(--hub-font-mono);
-  font-size: var(--hub-fs-tbtn);
-  letter-spacing: 0.12em;
+  font-family: var(--hub-font-serif);
+  font-weight: 600;
+  font-size: calc(var(--hub-fs-tbtn) + 1.5px);
+  letter-spacing: 0.09em;
   line-height: 1;
   padding: var(--hub-pad-tbtn);
   color: var(--hub-cream);
@@ -1208,7 +1522,10 @@
   font-family: var(--hub-font-serif);
   font-weight: 600;
 }
-.jk-match-candidate-meta { font-size: 0.8rem; }
+/* Dim ink directly — this line used to ride the `.muted` alias, which dragged
+   in an unintended 1.5rem vertical padding (the author cancelled it on
+   .jk-match-msg one rule away and missed this one). Retired Full Press Wave 23. */
+.jk-match-candidate-meta { font-size: 0.8rem; color: var(--hub-cream-dim); }
 .jk-match-candidate-desc {
   margin: 0.3rem 0 0;
   font-size: 0.82rem;

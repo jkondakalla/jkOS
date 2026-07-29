@@ -5,8 +5,8 @@
 
 import React from 'react';
 import type { CalendarItem } from './types';
-import { cardSurface, chipCheckStyle } from './surface';
-import { FONT_BODY, FONT_NUM } from './theme';
+import { cardSurface, chipCheck, type CardVariant } from './surface';
+import { FONT_BODY } from './theme';
 import { fmtTime } from './datetime';
 
 export type ChipSize = 'xs' | 'sm' | 'md';
@@ -21,9 +21,10 @@ export interface TaskChipProps {
   item: CalendarItem;
   accent: string;
   size?: ChipSize;
+  /** Chip skin: `faint` (default) = raised faint-tint row with a neutral-ink
+   *  pressed title; `solid` = saturated tab with a cream-knockout title. */
+  variant?: CardVariant;
   showTime?: boolean;
-  /** Spent (completed) cards: outline border instead of flat paper fill. */
-  spentBorder?: boolean;
   isSelected?: boolean;
   isDragging?: boolean;
   onSelect?: (item: CalendarItem) => void;
@@ -36,8 +37,8 @@ export function TaskChip({
   item,
   accent,
   size = 'sm',
+  variant = 'faint',
   showTime = false,
-  spentBorder = false,
   isSelected = false,
   isDragging = false,
   onSelect,
@@ -52,7 +53,7 @@ export function TaskChip({
         style={{
           height: size === 'md' ? 24 : 18,
           background: accent,
-          borderRadius: 'var(--hub-radius-sm)',
+          borderRadius: 'var(--hub-radius-xs)',
           opacity: 0.28,
           flexShrink: 0,
           userSelect: 'none',
@@ -63,17 +64,10 @@ export function TaskChip({
   }
 
   const completed = !!item.completed;
-  const surface = completed
-    ? {
-        background: spentBorder ? 'transparent' : 'var(--color-paper)',
-        border: spentBorder ? '1px solid var(--color-line-strong)' : 'none',
-        boxShadow: 'none',
-        color: 'var(--color-muted)',
-        borderRadius: 'var(--hub-radius-sm)',
-        outline: isSelected ? '1.5px solid var(--color-accent)' : 'none',
-        outlineOffset: -1,
-      }
-    : cardSurface({ accent, selected: isSelected, elevation: 'chip' });
+  const surface = cardSurface({ accent, variant, completed, selected: isSelected, sm: size === 'xs' || size === 'sm' });
+  const check = chipCheck(s.cb);
+  // The pressed title: cream knockout on a solid tab, neutral-ink on a faint chip.
+  const titleClass = variant === 'solid' ? 'jk-press-rev' : 'jk-press-ink';
 
   return (
     <div
@@ -82,7 +76,7 @@ export function TaskChip({
         e.stopPropagation();
         onSelect?.(item);
       }}
-      className="jk-cards-chip"
+      className={`jk-cards-chip ${surface.className}`}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -95,32 +89,37 @@ export function TaskChip({
         overflow: 'hidden',
         textOverflow: 'ellipsis',
         userSelect: 'none',
-        ...surface,
+        ...surface.style,
       }}
     >
       <span
+        role="checkbox"
+        aria-checked={completed}
         onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => {
           e.stopPropagation();
           onToggle?.(item.id, completed);
         }}
-        style={chipCheckStyle(completed, s.cb, completed ? 'var(--color-muted)' : 'transparent')}
+        className={check.className}
+        style={check.style}
       >
-        {completed ? '✓' : ''}
+        ✓
       </span>
       <span
+        className={completed ? undefined : titleClass}
         style={{
           flex: 1,
           minWidth: 0,
           overflow: 'hidden',
           textOverflow: 'ellipsis',
           textDecoration: completed ? 'line-through' : 'none',
+          color: completed ? 'var(--color-faint)' : undefined,
         }}
       >
         {item.title}
       </span>
       {showTime && item.scheduled_time && (
-        <span style={{ fontFamily: FONT_NUM, fontStyle: 'italic', fontSize: 10, opacity: 0.75, flexShrink: 0 }}>
+        <span className="mono-eyebrow" style={{ fontSize: 8, flexShrink: 0, opacity: 0.85 }}>
           {fmtTime(item.scheduled_time)}
         </span>
       )}

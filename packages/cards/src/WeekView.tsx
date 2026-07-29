@@ -18,7 +18,6 @@ import {
   fmtHourLabel,
   fmtTime,
   fracToTime,
-  layoutBars,
   layoutTimedEvents,
   localDate,
   snapFrac,
@@ -28,7 +27,6 @@ import {
 import { WV_FIRST_H, WV_LAST_H, WV_ROW_H, WV_LABEL_W } from './constants';
 import { TaskChip } from './TaskChip';
 import { TimeBlock } from './TimeBlock';
-import { AllDayBar } from './AllDayBar';
 import { TimelinePreview } from './TimelinePreview';
 import { CreateDialog } from './CreateDialog';
 import { Checkbox, Eyebrow, RecLamp } from './primitives';
@@ -56,7 +54,14 @@ function WeekGrid({
   weekJumpDate,
   benchLane,
   createSource,
+  density = 'comfortable',
 }: WeekViewProps) {
+  const compact = density === 'compact';
+  // Framing metrics — the lane framing is preserved at both densities; only the
+  // air (inter-lane gap + padding) shrinks so the day-separation survives in the
+  // small ORDECK widget without forking the layout.
+  const GAP = compact ? 5 : 11;
+  const PAD_X = compact ? 12 : 28;
   const { accentOf, sourceColorOf } = mergeResolvers(resolvers);
   const drag = adapter?.drag ?? null;
   const beginDrag: DragAdapter['beginDrag'] = adapter?.beginDrag ?? (() => {});
@@ -77,12 +82,26 @@ function WeekGrid({
       : `${a.toLocaleDateString('en-US', { month: 'short' })} ${a.getDate()} – ${b.toLocaleDateString('en-US', { month: 'short' })} ${b.getDate()}`;
   }, [days]);
 
+  // Per-day buckets. Under Full Press the week reads as seven framed, gapped day
+  // lanes, so a spanning all-day bar (which needs continuous columns) can't cross
+  // the gaps — all-day events surface as a chip in EACH day they cover instead,
+  // held in the day's top band beside its untimed tasks. (The continuous
+  // AllDayBar lives on in CalendarView's month rows, which are not gapped.)
   const byDay = useMemo(() => {
-    const out: Record<string, { untimed: CalendarItem[]; timed: CalendarItem[] }> = {};
-    days.forEach((d) => (out[d] = { untimed: [], timed: [] }));
+    const out: Record<string, { allday: CalendarItem[]; untimed: CalendarItem[]; timed: CalendarItem[] }> = {};
+    days.forEach((d) => (out[d] = { allday: [], untimed: [], timed: [] }));
     items.forEach((it) => {
       if (it.kind !== 'task' && it.kind !== 'event') return;
-      if (it.kind === 'event' && !it.scheduled_time) return;
+      if (it.kind === 'event' && !it.scheduled_time) {
+        // Multi-day span → drop a chip in every covered day within the week.
+        const start = it.due_date;
+        if (!start) return;
+        const end = it.end_date || start;
+        days.forEach((d) => {
+          if (d >= start && d <= end) out[d].allday.push(it);
+        });
+        return;
+      }
       if (!it.due_date || !out[it.due_date]) return;
       if (it.scheduled_time) out[it.due_date].timed.push(it);
       else out[it.due_date].untimed.push(it);
@@ -90,11 +109,7 @@ function WeekGrid({
     return out;
   }, [items, days]);
 
-  const alldayBars = useMemo(
-    () => layoutBars(items.filter((it) => it.kind === 'event' && !it.scheduled_time), days),
-    [items, days],
-  );
-  const alldayLanes = alldayBars.length > 0 ? Math.max(...alldayBars.map((b) => b.lane)) + 1 : 0;
+  const anyAllday = useMemo(() => days.some((d) => byDay[d]?.allday.length > 0), [days, byDay]);
 
   // The bench lane's contents: open tasks committed to the visible week (week_start
   // = this Monday) with no day yet. Empty unless benchLane is on.
@@ -244,10 +259,31 @@ function WeekGrid({
   const HOURS = Array.from({ length: WV_LAST_H - WV_FIRST_H + 1 }, (_, i) => i + WV_FIRST_H);
   const totalH = HOURS.length * WV_ROW_H;
 
+  // The seven day lanes are framed, gapped columns; the header rounds its top,
+  // the timed body rounds its bottom, and the (optional) all-day + untimed bands
+  // between them carry only side borders — so a column's bands stack flush into
+  // ONE bordered unit with real air between neighbours (the day-separation that
+  // replaces the old monolithic hairline grid). Today's whole lane is a tinted
+  // well. `pos` places a band in the column stack.
+  const cols = `${WV_LABEL_W}px repeat(7, minmax(0, 1fr))`;
+  const rad = 'var(--hub-radius-sm)';
+  const laneFrame = (pos: 'head' | 'mid' | 'foot', isToday: boolean): React.CSSProperties => ({
+    border: '1px solid var(--color-line)',
+    borderTop: pos === 'head' ? undefined : 'none',
+    borderTopLeftRadius: pos === 'head' ? rad : 0,
+    borderTopRightRadius: pos === 'head' ? rad : 0,
+    borderBottomLeftRadius: pos === 'foot' ? rad : 0,
+    borderBottomRightRadius: pos === 'foot' ? rad : 0,
+    background: isToday
+      ? 'color-mix(in srgb, var(--jk-tint, var(--accent)) 14%, var(--hub-bg-2))'
+      : 'var(--color-paper)',
+    minWidth: 0,
+  });
+
   return (
     <>
       <div style={{ flex: 1, overflowY: 'auto', background: 'transparent', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-        <div style={{ flex: 1, minHeight: 0, padding: '24px 32px 0', display: 'flex', flexDirection: 'column', maxWidth: 1280, margin: '0 auto', width: '100%' }}>
+        <div style={{ flex: 1, minHeight: 0, padding: compact ? `10px ${PAD_X}px 0` : `24px ${PAD_X}px 0`, display: 'flex', flexDirection: 'column', maxWidth: 1280, margin: '0 auto', width: '100%' }}>
           <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 16, paddingBottom: 14, borderBottom: '1px solid var(--color-line)' }}>
             <div>
               <Eyebrow style={{ marginBottom: 4 }}>The week</Eyebrow>
@@ -270,110 +306,31 @@ function WeekGrid({
             </div>
           </div>
 
-          <div
-            style={{
-              flex: 1,
-              minHeight: 0,
-              display: 'flex',
-              flexDirection: 'column',
-              background: 'var(--color-paper-2)',
-              border: '1px solid var(--color-line)',
-              boxShadow: 'inset 0 1px 0 rgba(0,0,0,0.06), inset 0 -1px 0 rgba(255,255,255,0.18)',
-              overflow: 'hidden',
-            }}
-          >
-            {/* Day header */}
-            <div style={{ display: 'grid', gridTemplateColumns: `${WV_LABEL_W}px repeat(7, minmax(0, 1fr))`, borderBottom: '1px solid var(--color-line)', background: 'var(--color-paper)' }}>
-              <div style={{ borderRight: '1px solid var(--color-line)' }} />
-              {days.map((d, i) => {
-                const dd = localDate(d);
-                const isToday = d === today;
-                return (
-                  <div key={d} style={{ background: isToday ? 'var(--color-accent-soft)' : 'transparent', borderRight: i < 6 ? '1px solid var(--color-line)' : 'none', padding: '8px 12px 10px' }}>
-                    <div style={{ fontFamily: FONT_BODY, fontSize: 9.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: isToday ? 'var(--color-accent)' : 'var(--color-muted)', textShadow: isToday ? 'var(--accent-halo-text)' : 'none' }}>
-                      {dd.toLocaleDateString('en-US', { weekday: 'short' })}
-                    </div>
-                    <div style={{ fontFamily: FONT_NUM, fontSize: 22, marginTop: 2, color: isToday ? 'var(--color-accent)' : 'var(--color-ink)', fontStyle: isToday ? 'italic' : 'normal', fontWeight: isToday ? 500 : 400, letterSpacing: '-0.02em', textShadow: isToday ? 'var(--accent-halo-text)' : 'none' }}>
-                      {dd.getDate()}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* All-day lane */}
-            {(alldayLanes > 0 || (anyDrag && drag?.mode === 'allday')) && (
-              <div style={{ display: 'grid', gridTemplateColumns: `${WV_LABEL_W}px 1fr`, borderBottom: '1px solid var(--color-line)', background: 'var(--color-paper)', flexShrink: 0 }}>
-                <div style={{ borderRight: '1px solid var(--color-line)', fontFamily: FONT_BODY, fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--color-faint)', padding: '5px 5px 0 0', textAlign: 'right' }}>
-                  all‑day
-                </div>
-                <div style={{ position: 'relative', height: Math.max(alldayLanes, 1) * 22 + 8, overflow: 'hidden' }}>
-                  <div style={{ position: 'absolute', inset: 0, display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
-                    {days.map((d, i) => {
-                      const isOver = drag?.overZone === 'allday' && drag?.overDay === d;
-                      const isTarget = anyDrag && drag?.mode === 'allday';
-                      return (
-                        <div
-                          key={d}
-                          data-drop-zone="allday"
-                          data-drop-day={d}
-                          onClick={!anyDrag && !readonly ? () => setCreatePending({ startDay: d, allDay: true, scheduled_time: null, scheduled_end: null }) : undefined}
-                          style={{
-                            borderRight: i < 6 ? '1px solid var(--color-line)' : 'none',
-                            background: isOver ? 'color-mix(in srgb, var(--color-accent) 12%, transparent)' : d === today ? 'var(--color-accent-soft)' : 'transparent',
-                            outline: isOver ? '1px dashed var(--color-accent)' : isTarget ? '1px dashed var(--color-accent-glow)' : 'none',
-                            outlineOffset: -2,
-                            cursor: anyDrag ? 'copy' : 'pointer',
-                            transition: 'background 0.08s',
-                          }}
-                        />
-                      );
-                    })}
-                  </div>
-                  {alldayBars.map((bar) => (
-                    <AllDayBar
-                      key={bar.ev.id}
-                      bar={bar}
-                      color={sourceColorOf(bar.ev.source)}
-                      top={bar.lane * 22 + 4}
-                      height={18}
-                      isSelected={selectedId === bar.ev.id}
-                      isDragging={drag?.item?.id === bar.ev.id}
-                      onPointerDown={hasDnd ? (e) => beginDragAllday(e, bar.ev) : undefined}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (!drag) onSelect?.(bar.ev);
-                      }}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* This week's bench lane (opt-in) */}
+          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            {/* This week's bench — a full-width strip ABOVE the framed lanes (opt-in) */}
             {benchLane && (() => {
               const isOver = drag?.overZone === 'bench';
               const isTarget = anyDrag && (drag?.mode === 'untimed' || drag?.mode === 'timed');
               return (
-                <div style={{ display: 'grid', gridTemplateColumns: `${WV_LABEL_W}px 1fr`, borderBottom: '1px solid var(--color-line)', background: 'var(--color-paper)', flexShrink: 0 }}>
-                  <div style={{ borderRight: '1px solid var(--color-line)', fontFamily: FONT_BODY, fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--color-faint)', padding: '7px 5px 0 0', textAlign: 'right' }}>
-                    this week
-                  </div>
-                  <div
-                    data-drop-zone="bench"
-                    style={{
-                      minHeight: 44, padding: 5, display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center',
-                      background: isOver ? 'color-mix(in srgb, var(--color-accent) 12%, transparent)' : 'transparent',
-                      outline: isOver ? '1px dashed var(--color-accent)' : isTarget ? '1px dashed var(--color-accent-glow)' : 'none',
-                      outlineOffset: -2, transition: 'background 0.08s',
-                    }}
-                  >
-                    {benched.length === 0 ? (
-                      <span style={{ fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 12, color: 'var(--color-faint)', paddingLeft: 4 }}>
-                        {isTarget ? 'drop to hold for the week' : 'nothing benched this week'}
-                      </span>
-                    ) : benched.map((it) => (
-                      <div key={it.id} style={{ flex: '0 1 200px', minWidth: 120, maxWidth: 220 }}>
+                <div
+                  data-drop-zone="bench"
+                  style={{
+                    flexShrink: 0, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+                    padding: `${compact ? 6 : 9}px ${compact ? 6 : 4}px`, marginBottom: 4,
+                    background: isOver ? 'color-mix(in srgb, var(--color-accent) 12%, transparent)' : 'transparent',
+                    outline: isOver ? '1px dashed var(--color-accent)' : isTarget ? '1px dashed var(--color-accent-glow)' : 'none',
+                    outlineOffset: -2, transition: 'background 0.08s',
+                  }}
+                >
+                  <span className="jk-lab jk-lab-xs" style={{ color: 'var(--color-accent)' }}>The bench</span>
+                  {benched.length === 0 ? (
+                    <span className="mono-eyebrow">{isTarget ? 'DROP TO HOLD FOR THE WEEK' : 'NOTHING BENCHED THIS WEEK'}</span>
+                  ) : (
+                    <span className="mono-eyebrow">UNSCHEDULED — DROP ONTO A DAY</span>
+                  )}
+                  <span style={{ marginLeft: 'auto', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {benched.map((it) => (
+                      <div key={it.id} style={{ flex: '0 1 auto', minWidth: 110, maxWidth: 220 }}>
                         <TaskChip
                           item={it}
                           accent={accentOf(it) || 'var(--color-muted)'}
@@ -386,18 +343,85 @@ function WeekGrid({
                         />
                       </div>
                     ))}
-                  </div>
+                  </span>
                 </div>
               );
             })()}
 
-            {/* Untimed lane */}
-            <div style={{ display: 'grid', gridTemplateColumns: `${WV_LABEL_W}px repeat(7, minmax(0, 1fr))`, borderBottom: '1px solid var(--color-line)', background: 'var(--color-paper)', minHeight: 56 }}>
-              <div style={{ borderRight: '1px solid var(--color-line)', fontFamily: FONT_BODY, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--color-faint)', padding: '6px 6px 0 0', textAlign: 'right' }}>
-                untimed
+            {/* ── Day-header band — framed column tops (rounded on top) ── */}
+            <div style={{ display: 'grid', gridTemplateColumns: cols, columnGap: GAP, flexShrink: 0 }}>
+              <div />
+              {days.map((d) => {
+                const dd = localDate(d);
+                const isToday = d === today;
+                return (
+                  <div key={d} style={{ ...laneFrame('head', isToday), display: 'flex', alignItems: 'baseline', gap: 6, padding: compact ? '5px 7px 4px' : '9px 11px 7px' }}>
+                    <span className="jk-lab jk-lab-xs" style={{ color: isToday ? 'var(--color-accent)' : 'var(--color-muted)' }}>
+                      {dd.toLocaleDateString('en-US', { weekday: 'short' })}
+                    </span>
+                    <span
+                      className={isToday ? 'jk-press' : undefined}
+                      style={{ fontFamily: FONT_HEAD, fontWeight: 700, fontSize: compact ? 15 : 20, marginLeft: 'auto', letterSpacing: '-0.02em', fontStyle: isToday ? 'italic' : 'normal', color: isToday ? 'var(--color-accent)' : 'var(--color-ink)' }}
+                    >
+                      {dd.getDate()}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* ── All-day band — one chip per covered day (framed sides) ── */}
+            {(anyAllday || (anyDrag && drag?.mode === 'allday')) && (
+              <div style={{ display: 'grid', gridTemplateColumns: cols, columnGap: GAP, flexShrink: 0 }}>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-start', padding: '4px 6px 0 0' }}>
+                  <span className="mono-eyebrow" style={{ fontSize: 7 }}>ALL-DAY</span>
+                </div>
+                {days.map((d) => {
+                  const isToday = d === today;
+                  const isOver = drag?.overZone === 'allday' && drag?.overDay === d;
+                  const isTarget = anyDrag && drag?.mode === 'allday';
+                  return (
+                    <div
+                      key={d}
+                      data-drop-zone="allday"
+                      data-drop-day={d}
+                      onClick={!anyDrag && !readonly ? () => setCreatePending({ startDay: d, allDay: true, scheduled_time: null, scheduled_end: null }) : undefined}
+                      style={{
+                        ...laneFrame('mid', isToday),
+                        ...(isOver ? { background: 'color-mix(in srgb, var(--color-accent) 12%, transparent)' } : null),
+                        outline: isOver ? '1px dashed var(--color-accent)' : isTarget ? '1px dashed var(--color-accent-glow)' : 'none',
+                        outlineOffset: -2,
+                        minHeight: 24, padding: 4, display: 'flex', flexDirection: 'column', gap: 3,
+                        cursor: anyDrag ? 'copy' : readonly ? 'default' : 'pointer', transition: 'background 0.08s',
+                      }}
+                    >
+                      {(byDay[d]?.allday || []).map((ev) => (
+                        <TaskChip
+                          key={ev.id}
+                          item={ev}
+                          accent={accentOf(ev) || sourceColorOf(ev.source) || 'var(--color-muted)'}
+                          size="xs"
+                          variant="solid"
+                          isSelected={selectedId === ev.id}
+                          isDragging={drag?.item?.id === ev.id}
+                          onSelect={onSelect}
+                          onPointerDown={hasDnd ? (e) => beginDragAllday(e, ev) : undefined}
+                        />
+                      ))}
+                    </div>
+                  );
+                })}
               </div>
-              {days.map((d, i) => {
+            )}
+
+            {/* ── Untimed band — framed sides ── */}
+            <div style={{ display: 'grid', gridTemplateColumns: cols, columnGap: GAP, flexShrink: 0 }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-start', padding: '5px 6px 0 0' }}>
+                <span className="mono-eyebrow" style={{ fontSize: 7 }}>UNTIMED</span>
+              </div>
+              {days.map((d) => {
                 const dayItems = byDay[d]?.untimed || [];
+                const isToday = d === today;
                 const isOver = drag?.overZone === 'untimed' && drag?.overDay === d;
                 const isTarget = anyDrag && (drag?.mode === 'untimed' || drag?.mode === 'timed');
                 return (
@@ -406,14 +430,11 @@ function WeekGrid({
                     data-drop-zone="untimed"
                     data-drop-day={d}
                     style={{
-                      borderRight: i < 6 ? '1px solid var(--color-line)' : 'none',
-                      background: isOver ? 'color-mix(in srgb, var(--color-accent) 12%, transparent)' : d === today ? 'var(--color-accent-soft)' : 'transparent',
+                      ...laneFrame('mid', isToday),
+                      ...(isOver ? { background: 'color-mix(in srgb, var(--color-accent) 12%, transparent)' } : null),
                       outline: isOver ? '1px dashed var(--color-accent)' : isTarget ? '1px dashed var(--color-accent-glow)' : 'none',
                       outlineOffset: -2,
-                      padding: 4,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 3,
+                      minHeight: compact ? 30 : 44, padding: 4, display: 'flex', flexDirection: 'column', gap: 3,
                       transition: 'background 0.08s',
                     }}
                   >
@@ -435,18 +456,25 @@ function WeekGrid({
               })}
             </div>
 
-            {/* Hour grid */}
+            {/* ── Timed hour grid — framed column bottoms (rounded on bottom) ── */}
             <div ref={scrollRef} data-hour-scroll style={{ flex: 1, minHeight: 0, overflowY: 'auto', position: 'relative' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: `${WV_LABEL_W}px repeat(7, minmax(0, 1fr))`, height: totalH, position: 'relative' }}>
-                <div style={{ position: 'relative', borderRight: '1px solid var(--color-line)', background: 'var(--color-paper)' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: cols, columnGap: GAP, height: totalH, position: 'relative' }}>
+                <div style={{ position: 'relative' }}>
                   {HOURS.map((h, i) => (
-                    <div key={h} style={{ position: 'absolute', top: i * WV_ROW_H, left: 0, right: 0, height: WV_ROW_H, fontFamily: FONT_NUM, fontStyle: 'italic', fontSize: 10.5, color: 'var(--color-muted)', textAlign: 'right', padding: '3px 6px 0 0' }}>
-                      {i === 0 ? '' : fmtHourLabel(h)}
+                    <div key={h} style={{ position: 'absolute', top: i * WV_ROW_H, left: 0, right: 0, height: WV_ROW_H, textAlign: 'right', padding: '2px 8px 0 0' }}>
+                      <span className="seg" style={{ fontSize: 9, color: 'var(--color-faint)', letterSpacing: '0.04em' }}>{i === 0 ? '' : fmtHourLabel(h)}</span>
                     </div>
                   ))}
+                  {days.includes(today) && nowFrac >= WV_FIRST_H && nowFrac <= WV_LAST_H + 1 && (
+                    <div style={{ position: 'absolute', top: (nowFrac - WV_FIRST_H) * WV_ROW_H, right: 6, transform: 'translateY(-50%)' }}>
+                      <span className="seg" style={{ fontSize: 10, color: 'var(--color-accent)' }}>
+                        {String(now.getHours()).padStart(2, '0')}:{String(now.getMinutes()).padStart(2, '0')}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
-                {days.map((d, i) => {
+                {days.map((d) => {
                   const timedLayout = layoutTimedEvents(byDay[d]?.timed || []);
                   const isToday = d === today;
                   const isOver = drag?.overZone === 'timed' && drag?.overDay === d;
@@ -466,7 +494,7 @@ function WeekGrid({
                       onPointerDown={
                         hasDnd
                           ? (e) => {
-                              if (e.target !== e.currentTarget && !(e.target as HTMLElement).dataset?.gridBg) return;
+                              if (e.target !== e.currentTarget) return;
                               const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
                               const frac = snapFrac(WV_FIRST_H + (e.clientY - r.top) / WV_ROW_H);
                               beginCreate(e, d, frac);
@@ -474,21 +502,21 @@ function WeekGrid({
                           : undefined
                       }
                       style={{
+                        ...laneFrame('foot', isToday),
+                        ...(isOver
+                          ? { background: 'color-mix(in srgb, var(--color-accent) 12%, transparent)' }
+                          : isHover
+                            ? { background: 'color-mix(in srgb, var(--color-accent) 6%, var(--color-paper))' }
+                            : null),
+                        // per-lane hour gridlines (applied AFTER the frame's background)
+                        backgroundImage: `repeating-linear-gradient(to bottom, var(--color-line-strong) 0 1px, transparent 1px ${WV_ROW_H}px)`,
                         position: 'relative',
-                        borderRight: i < 6 ? '1px solid var(--color-line)' : 'none',
-                        background: isOver ? 'color-mix(in srgb, var(--color-accent) 12%, transparent)' : isToday ? 'var(--color-accent-soft)' : isHover ? 'color-mix(in srgb, var(--color-accent) 6%, transparent)' : 'var(--color-paper)',
                         outline: isTarget && !isToday ? '1px solid var(--color-accent-glow)' : 'none',
                         outlineOffset: -1,
                         cursor: anyDrag ? 'copy' : readonly || !hasDnd ? 'default' : 'crosshair',
                         transition: 'background 0.12s',
                       }}
                     >
-                      {HOURS.map((h, idx) => (
-                        <div key={h} data-grid-bg style={{ position: 'absolute', left: 0, right: 0, top: idx * WV_ROW_H, height: WV_ROW_H, borderBottom: idx < HOURS.length - 1 ? '1px solid var(--color-line-strong)' : 'none', pointerEvents: 'none' }}>
-                          <div data-grid-bg style={{ position: 'absolute', left: 0, right: 0, top: WV_ROW_H / 2, borderTop: '1px dotted var(--color-line-strong)', opacity: 0.4 }} />
-                        </div>
-                      ))}
-
                       {timedLayout.map(({ ev: item, slot, totalCols }) => {
                         const isMine = drag?.item?.id === item.id;
                         const isRsz = isMine && drag?.mode === 'resize';
@@ -522,11 +550,9 @@ function WeekGrid({
                       {showPreview && drag && <TimelinePreview drag={drag} sourceColorOf={sourceColorOf} />}
 
                       {isToday && nowFrac >= WV_FIRST_H && nowFrac <= WV_LAST_H + 1 && (
-                        <div style={{ position: 'absolute', top: (nowFrac - WV_FIRST_H) * WV_ROW_H, left: 0, right: 0, height: 1, background: 'var(--color-accent)', zIndex: 12, pointerEvents: 'none', boxShadow: 'var(--accent-halo)' }}>
-                          <span className="now-dot" style={{ position: 'absolute', left: -4, top: -3, width: 8, height: 8, borderRadius: '50%', background: 'var(--color-accent)', boxShadow: 'var(--accent-halo)' }} />
-                          <span style={{ position: 'absolute', right: 6, top: -8, fontFamily: FONT_BODY, fontSize: 8, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'var(--color-accent)', background: 'var(--color-paper)', padding: '1px 5px', textShadow: 'var(--accent-halo-text)', border: '1px solid var(--color-accent)' }}>
-                            ● rec
-                          </span>
+                        <div style={{ position: 'absolute', top: (nowFrac - WV_FIRST_H) * WV_ROW_H, left: 0, right: 0, height: 0, zIndex: 12, pointerEvents: 'none', display: 'flex', alignItems: 'center' }}>
+                          <span className="now-dot" style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--color-accent)', boxShadow: 'var(--accent-halo)', marginLeft: -4 }} />
+                          <span style={{ flex: 1, height: 2, background: 'var(--color-accent)', opacity: 0.75 }} />
                         </div>
                       )}
                     </div>

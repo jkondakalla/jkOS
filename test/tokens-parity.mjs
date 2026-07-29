@@ -118,6 +118,58 @@ else
   fail(`@jkos/ui/tokens.css re-overrides CRT knobs beyond its sanctioned opt-out: ${extra.map((n) => '--' + n).join(', ')}\n` +
     `  → these belong in hub.css (the base owner) so atmosphere can't fork between import paths. See DESIGN.md § "CRT knob ownership".`);
 
+// ── 3. Full Press face checks (Wave 22, 2026-07-19) ─────────────────────────
+// The Voice: humans read PRINT (--hub-font-serif, Fraunces by default), the
+// machine speaks MONO (.jk-pill keeps its mono face; .mono-eyebrow is untouched
+// by doctrine), the tube EMITS (.seg keeps Big Shoulders + glow in dark while
+// paper prints serif lining figures — "the seg verdict"). These pins stop a
+// future cleanup from quietly un-cutting the press or re-facing the machine.
+{
+  const hubCode = hub.replace(/\/\*[\s\S]*?\*\//g, '');
+  const ruleOf = (selector) => {
+    const m = hubCode.match(new RegExp(selector.replace(/[.[\]()*+?^$\\]/g, '\\$&') + '\\s*\\{([^}]*)\\}'));
+    return m ? m[1] : null;
+  };
+
+  const serifDef = paper.match(/--hub-font-serif\s*:\s*([^;]+);/);
+  if (serifDef && /^['"]Fraunces['"]/.test(serifDef[1].trim()))
+    ok('--hub-font-serif defaults to the Fraunces stack (the print voice is the default)');
+  else
+    fail(`--hub-font-serif no longer defaults to Fraunces (got: ${serifDef ? serifDef[1].trim() : 'missing'}) — ` +
+         'Full Press promoted the serif to a suite default; apps only override via the factory fonts.serif input');
+
+  // The seg verdict — one class, two faces.
+  const segBase = ruleOf('.seg');
+  const segPaper = ruleOf(':root:not([data-mode="dark"]) .seg');
+  if (segBase && /var\(--hub-font-seg\)/.test(segBase))
+    ok('.seg keeps the phosphor face (--hub-font-seg) as its base — the tube still emits');
+  else
+    fail('.seg no longer reads --hub-font-seg — the dark-face readout lost its phosphor numerals');
+  if (segPaper && /var\(--hub-font-serif\)/.test(segPaper) && /text-shadow:\s*none/.test(segPaper))
+    ok('paper .seg override prints serif lining figures with no glow (the seg verdict holds)');
+  else
+    fail('the paper .seg override (:root:not([data-mode="dark"]) .seg) must set font-family: ' +
+         'var(--hub-font-serif) and text-shadow: none — the readout face splits by medium');
+
+  // Print voice on the re-cut primitives; mono voice retained where doctrine says.
+  for (const cls of ['.jk-lab', '.jk-tbtn', '.jk-bubble', '.stamp']) {
+    const body = ruleOf(cls);
+    if (body && /var\(--hub-font-serif\)/.test(body)) ok(`${cls} is set in print (var(--hub-font-serif))`);
+    else fail(`${cls} no longer reads var(--hub-font-serif) — the Full Press voice was un-cut`);
+  }
+  const pill = ruleOf('.jk-pill');
+  if (pill && /var\(--hub-font-mono\)/.test(pill))
+    ok('.jk-pill keeps the machine\'s mono voice (a status, not prose)');
+  else
+    fail('.jk-pill must stay in var(--hub-font-mono) — the machine speaks mono');
+
+  // The print marks exist.
+  for (const cls of ['.jk-rule', '.jk-rule-strong', '.jk-rule-double', '.jk-folio', '.jk-colophon']) {
+    if (ruleOf(cls) !== null) ok(`${cls} print mark present`);
+    else fail(`${cls} is missing from hub.css — the Full Press print marks were dropped`);
+  }
+}
+
 // ── summary ─────────────────────────────────────────────────────────────────
 if (failed) {
   console.error(`\n✗ tokens-parity: ${failed} check(s) failed`);

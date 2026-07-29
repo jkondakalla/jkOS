@@ -1,5 +1,13 @@
 # Fable orchestration prompt — LazurOS §1 + Player §3
 
+**STATUS (2026-07-20): the program this prompt orchestrates is DONE.** LazurOS §1a shipped,
+`@jkos/player` Waves 15–18+20 shipped (KourOS is the music app, id confirmed), all committed.
+Do **not** paste this into a fresh session as-is — it would re-delegate already-finished work.
+Kept for the delegation *pattern* (wave planning, subagent briefing, integration-pass discipline)
+if a future multi-wave program wants the same shape. Current open work is in
+[ToDo.md](ToDo.md); LazurOS's remaining items are §1b–1d there (content/hardware from Jag, then
+the BeigeBoard AI rebuild).
+
 Paste everything below the line into a fresh **Fable** session at the repo root. It is written to
 be self-contained for a cold agent.
 

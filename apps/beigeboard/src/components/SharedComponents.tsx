@@ -30,13 +30,12 @@ export function Checkbox({ id, completed, onToggle, color, size = 15 }: any) {
   )
 }
 
+/* Section heads speak the print voice: the .jk-lab ladder (tracked Fraunces
+   caps under Full Press — hub.css owns the face, so this stays correct if the
+   system re-cuts again). `color` still overrides for goal-tinted eyebrows. */
 export function Eyebrow({ children, color, style }: any) {
   return (
-    <div style={{
-      fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.22em',
-      textTransform: 'uppercase', color: color || 'var(--color-muted)',
-      ...style,
-    }}>{children}</div>
+    <div className="jk-lab" style={{ color: color || undefined, ...style }}>{children}</div>
   )
 }
 
@@ -143,6 +142,9 @@ export function RecLamp({ size = 8, label }: any) {
   )
 }
 
+/* The masthead clock is the app's ONE phosphor readout — the seg verdict:
+   Big Shoulders + glow on the tube, Fraunces lining tabular figures on paper.
+   hub.css owns the face flip; nothing mode-aware here. */
 export function TimeReadout({ style }: any) {
   const [now, setNow] = useState(() => new Date())
   useEffect(() => { const i = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(i) }, [])
@@ -150,12 +152,7 @@ export function TimeReadout({ style }: any) {
   const mm = String(now.getMinutes()).padStart(2, '0')
   const ss = String(now.getSeconds()).padStart(2, '0')
   return (
-    <span style={{
-      fontFamily: FONT_NUM, fontStyle: 'italic',
-      fontSize: 13, color: 'var(--color-accent)', letterSpacing: '0.08em',
-      textShadow: 'var(--accent-halo-text)',
-      ...style,
-    }}>
+    <span className="seg" style={{ fontSize: 13, ...style }}>
       {hh}<span style={{ opacity: 0.4 }}>:</span>{mm}<span style={{ opacity: 0.6, fontSize: 10 }}>:{ss}</span>
     </span>
   )

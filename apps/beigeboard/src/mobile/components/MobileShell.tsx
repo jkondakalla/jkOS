@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { FONT_HEAD, FONT_NUM, localDate } from '../../lib/theme'
+import { FONT_HEAD, localDate } from '../../lib/theme'
 import { RecLamp, Eyebrow } from './MobileWidgets'
 import { Press, Lab } from '@jkos/ui'
 
@@ -20,16 +20,9 @@ function TimeReadout() {
   const ss = String(now.getSeconds()).padStart(2, '0')
 
   return (
-    <span
-      style={{
-        fontFamily: FONT_NUM,
-        fontStyle: 'italic',
-        fontSize: 13,
-        color: 'var(--color-accent)',
-        letterSpacing: '0.06em',
-        textShadow: 'var(--accent-halo-text)',
-      }}
-    >
+    // The seg verdict, same as the desktop masthead clock: Big Shoulders + glow
+    // on the tube, Fraunces lining figures on paper — hub.css owns the flip.
+    <span className="seg" style={{ fontSize: 13 }}>
       {hh}
       <span style={{ opacity: 0.4 }}>:</span>
       {mm}

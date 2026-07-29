@@ -1,8 +1,8 @@
 // @jkos/cards — shared calendar card kit (BeigeBoard tabs + ORDECK widgets).
 export * from './types';
 export * from './datetime';
-export { cardSurface, chipCheckStyle, ACCENT_GLAZE } from './surface';
-export type { CardElevation, CardSurfaceOpts } from './surface';
+export { cardSurface, chipCheck } from './surface';
+export type { CardVariant, CardSurface, CardSurfaceOpts } from './surface';
 export { FONT_HEAD, FONT_BODY, FONT_NUM, DEFAULT_RESOLVERS, mergeResolvers, DEFAULT_PLAN_RESOLVERS, mergePlanResolvers } from './theme';
 export * from './constants';
 export { deriveDaySections } from './sections';

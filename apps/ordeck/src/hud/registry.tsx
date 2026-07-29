@@ -714,7 +714,7 @@ const COMPONENT_REGISTRY: Record<string, (ctx: WidgetCtx) => ReactNode> = {
     <div className="hud-card" style={{ padding: 14, display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       <CardHead eyebrow="WEEK" source="BEIGEBOARD" />
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-        <WeekView items={ctx.items} today={ctx.todayIso} resolvers={ordeckResolvers} />
+        <WeekView items={ctx.items} today={ctx.todayIso} resolvers={ordeckResolvers} density="compact" />
       </div>
     </div>
   ),

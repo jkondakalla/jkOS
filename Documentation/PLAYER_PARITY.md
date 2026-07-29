@@ -9,7 +9,7 @@ shared backend, because it mostly does the same job.
 
 **Written 2026-07-13.**
 
-**Status — Wave 15 SHIPPED 2026-07-14 (staging, uncommitted):** `packages/player` exists with
+**Status — Wave 15 SHIPPED 2026-07-14 (committed `efcd32c`):** `packages/player` exists with
 Layer 0 (`./core`: timeline math lifted verbatim from papyros `position.ts` + pure Queue
 reducers with stable seeded shuffle), the `MediaBackend` seam (`./backend`:
 `createHtmlMediaBackend`, one impl for `<audio>`/`<video>`, classified error vocabulary), and
@@ -19,7 +19,7 @@ invariants preserved with inline `[INVARIANT x]` tags). PapyrOS migrated: its
 (`fmtClock` imports from `@jkos/player/core`), `PlayerBar.tsx` and all other consumers
 unchanged. 158 package assertions chained into `pnpm test:contracts`.
 
-**Wave 16, item 16.7 SHIPPED 2026-07-15 (staging, uncommitted):** `@jkos/player/factory`
+**Wave 16, item 16.7 SHIPPED 2026-07-15 (committed `efcd32c`):** `@jkos/player/factory`
 (`packages/player/src/factory/`) — `createPlayer(spec)` + `audiobookPlayer()` / `musicPlayer()`
 / `videoPlayer()`. See §3 "Layer 3 — UI kit" below for the shape actually built. The rest of
 Wave 16 (16.1–16.6) and Layers 2/3's remaining pieces track separately in ToDo.md §3.
@@ -175,7 +175,7 @@ Two separate export subpaths, deliberately not one module:
     hover-thumbnail scrub, skip-intro, next-episode card, or idle-hide chrome. Wave 19 extends the
     capability vocabulary when it builds those.
 
-**Status — Wave 18.4 SHIPPED 2026-07-15 (staging, uncommitted): the queue-composition verdict.**
+**Status — Wave 18.4 SHIPPED 2026-07-15 (committed `efcd32c`): the queue-composition verdict.**
 KourOS (`apps/kouros/src/player/`) is consumer #2. The engine drives exactly ONE Timeline (a
 music track is a single-file Timeline, per the table in §1) — the Queue layer above it is composed
 entirely in APP code over `@jkos/player/core`'s pure reducers, never inside the engine. Two real
@@ -199,7 +199,7 @@ bar's own wrapper element — every kit rule already keyed on `var(--accent)` re
 CSS custom-property inheritance, zero `@jkos/player` changes needed. Record:
 ARCHITECTURE.md § KourOS.
 
-**Status — Wave 18.5 SHIPPED 2026-07-16 (staging, uncommitted): `gaplessDual` exists.**
+**Status — Wave 18.5 SHIPPED 2026-07-16 (committed `efcd32c`): `gaplessDual` exists.**
 `createGaplessDualBackend` (`packages/player/src/backend/gaplessDual.ts`) is the second
 `MediaBackend` impl — two elements, the standby preloads the `prepareNext(url)` ~15 s out, swap at
 the boundary (crossfade 0 = at the exact 'ended'; 0–12 s = linear cross-ramp under the user-volume
