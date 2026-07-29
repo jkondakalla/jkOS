@@ -5,7 +5,7 @@
  * BeigeBoard's lib/theme re-exports these to avoid a second, drifting set.
  */
 
-import type { CalendarItem } from './types';
+import type { CalendarItem, ChipState } from './types';
 
 /* ── Time-of-day fractions ─────────────────────────────────────────────── */
 
@@ -67,6 +67,25 @@ export const addMonths = (iso: string, n: number): string => {
 };
 
 /* ── Display formatting ────────────────────────────────────────────────── */
+
+/** Ordinal day of the year (1–366) for a YYYY-MM-DD. */
+export function dayOfYear(iso: string): number {
+  const d = localDate(iso);
+  const jan1 = new Date(d.getFullYear(), 0, 1);
+  return 1 + Math.round((d.getTime() - jan1.getTime()) / (24 * 3600 * 1000));
+}
+
+/** ISO-8601 week number (1–53) for a YYYY-MM-DD. Monday-first, and the week
+ *  containing the year's first Thursday is week 1 — the same rule the rest of
+ *  the kit's Monday-first date maths already follows. */
+export function isoWeekNo(iso: string): number {
+  const d = localDate(iso);
+  // Shift to the Thursday of this week: the year that Thursday falls in owns it.
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7) + 3);
+  const firstThu = new Date(d.getFullYear(), 0, 4);
+  firstThu.setDate(firstThu.getDate() - ((firstThu.getDay() + 6) % 7) + 3);
+  return 1 + Math.round((d.getTime() - firstThu.getTime()) / (7 * 24 * 3600 * 1000));
+}
 
 export const fmtTime = (t: string | null | undefined): string => {
   if (!t) return '';
@@ -142,6 +161,59 @@ export function layoutBars(events: CalendarItem[], weekDays: string[]): AllDayBa
     bar.lane = lane;
   }
   return bars;
+}
+
+/* ── Chip state — the clock decides, not the call site ─────────────────── */
+
+/**
+ * What weight an item's chip is wearing right now.
+ *
+ * Wave 0 shipped the four classes (.jk-chip-live / -spent / -done) but nothing
+ * ever decided WHERE they get applied, so every block in the grid carried the
+ * same weight and the now-line read as a line drawn across the day rather than a
+ * position in it. This is that decision, made once:
+ *
+ *   done      struck off — the item's own `completed` flag wins over the clock
+ *   live      started, not finished
+ *   spent     ended, and nobody struck it off
+ *   upcoming  everything else, including anything with no time at all
+ *
+ * `now` is a Date so a host can pass a frozen clock in tests. Items on a day
+ * other than `now`'s are judged by date alone: a whole past day is spent, a
+ * whole future day is upcoming.
+ */
+export function chipState(item: CalendarItem, now: Date = new Date()): ChipState {
+  if (item.completed) return 'done';
+
+  const day = item.due_date;
+  if (!day) return 'upcoming';
+
+  const todayIso = isoDate(now);
+  if (day > todayIso) return 'upcoming';
+  if (day < todayIso) return 'spent';
+
+  // Same day: fall through to the clock. An untimed item on today has not ended.
+  const start = item.scheduled_time;
+  if (!start) return 'upcoming';
+
+  const nowFrac = now.getHours() + now.getMinutes() / 60;
+  const startFrac = timeToFrac(start);
+  const endFrac = item.scheduled_end ? timeToFrac(item.scheduled_end) : startFrac + 1;
+
+  if (nowFrac >= endFrac) return 'spent';
+  if (nowFrac >= startFrac) return 'live';
+  return 'upcoming';
+}
+
+/** The hub.css modifier for a chip state. `upcoming` is the base chip, so it
+ *  contributes no class. */
+export function chipStateClass(state: ChipState): string {
+  switch (state) {
+    case 'live': return 'jk-chip-live';
+    case 'spent': return 'jk-chip-spent';
+    case 'done': return 'jk-chip-done';
+    default: return '';
+  }
 }
 
 /* ── Layout: timed events into side-by-side slots ──────────────────────── */

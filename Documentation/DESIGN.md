@@ -348,10 +348,16 @@ which keeps naming machine panels) · `.jk-colophon` — the end-of-sheet record
 
 **Chips — the solid-ink item (§4, suite default):**
 `.jk-chip` (faint raised base, `--jk-tint`) + `.jk-chip-solid` (the loud saturated tab,
-THE default) · state modifiers `.jk-chip-live` / `.jk-chip-done` / `.jk-chip-sm` · pressed
-titles `.jk-press-ink` (neutral, shadow-only) / `.jk-press-rev` (cream knockout on a solid
-tab) / `.jk-press-sm` (small tinted press). All `--jk-tint`-driven, mode-flipping; supersedes
-`ACCENT_GLAZE`.
+THE default) · state modifiers `.jk-chip-live` / `.jk-chip-spent` / `.jk-chip-done` /
+`.jk-chip-sm` · pressed titles `.jk-press-ink` (neutral, shadow-only) / `.jk-press-rev`
+(cream knockout on a solid tab) / `.jk-press-sm` (small tinted press). All
+`--jk-tint`-driven, mode-flipping; supersedes `ACCENT_GLAZE`.
+
+`.jk-chip-spent` is **ended, but nobody struck it off** — deliberately only an `opacity: .68`,
+so a spent chip keeps its fill, ring and type and loses only its weight. It is what makes a
+now-line read as a position in the day rather than a line drawn across it. **The states are
+not a per-call-site choice:** `chipState(item, now)` in `@jkos/cards` decides, so an item
+carries the same weight in every view that renders it.
 
 **Glow:** `.glow` / `.glow-dim` / `.glow-cyan` (phosphor text, accent families) ·
 `.jk-halo` / `.jk-halo-text` · `.jk-glow` / `.jk-glow-text` + `.jk-glow-low/-mid/-hi` +
@@ -390,6 +396,21 @@ never hand-roll a range with `accent-color`) · `.jk-vu` + `.jk-vu-seg.on` (segm
 - `.jk-cards-row` / `.jk-cards-chip` / `.jk-cards-btn` — `@jkos/cards` hover/press
   affordances (kit-owned so the calendar renders identically in BeigeBoard tabs and ORDECK
   widgets).
+- `.jk-hit` / `.jk-scroll` — the two generic affordances every app was hand-rolling.
+  `.jk-hit` is the hover response for anything clickable with no button face (a goal card,
+  a calendar cell, a caret): it lifts the background to `--hub-bg-4` and takes a 1px press,
+  and that is deliberately all. `.jk-scroll` is the scroll region — **vertical only**, so a
+  long title can never shove a pane sideways.
+- `.jk-divider` — `.jk-rule`'s vertical sibling: the 1×14px hairline that separates clusters
+  *inside* a bar (header sources | clock | avatar, a folio head, ORDECK's footer strip).
+
+**Deepen inks — two, and they are not interchangeable:** `--accent-deepen-ink` (`#2a1c0e`)
+is the ACCENT CHAIN's paper deepen target, used by the accent derivation and the solid chip
+fill. `--bar-deepen-ink` (`#1a0a00`) is one stop darker and belongs to METERS — it is the
+dark end of `--hub-amber-dim` and of every `<Bar>` gradient, so a per-item meter deepens
+exactly the way the amber family does. Never inline either hex (§13.3); `<Bar>` exists so
+the meter one can't be retyped. `--hub-shadow-panel-ink` is the shadow ink for a floating
+panel/drawer/modal — direction is the call site's business, the ink is not.
 
 **Global:** scrollbars (6px, line-strong thumb, accent-dim hover) and `::selection`
 (accent-dim ground, bright ink) are styled once — don't restyle per app.
@@ -471,7 +492,7 @@ theme → `applyTheme` (`@jkos/auth-client`) calls `applyJkOSMode` + `applyJkOST
 
 | App | Stack | Serif | Factory config (actual) | Notes |
 |---|---|---|---|---|
-| **BeigeBoard** (planner) | React 18, plain CSS (`src/app.css`) | Fraunces | `radius: { base 8, xs 4, sm 7, lg 11, soft 9, widget 10, button 8 }` | **Full Press rebuild (2026-07-20)** — a view-layer redesign onto the new solid-ink chip system (the editorial pass 2026-07-19 was its masthead/rules groundwork; the folio retired for bordered `.jk-lab` week/date chips). **Today** = kit `DayView` single-day timeline + a 388px right rail (`.jk-sheet` bench + goals-in-press rollups + `.jk-colophon`); **Week/Calendar** = the reskinned kit views unchanged at the app level (the kit now owns the chrome — seven framed gapped day-lanes, today = tinted `jk-well` + `jk-press`); **Workshop** = a two-pane forge (goal rail, `jk-well` when selected → header `jk-press-lg` + `jk-rule` + expand/collapse milestone→leaf tree, each leaf a `.jk-chip` + `.jk-check`), retiring the drill-down + weekly bench + carried/adrift/next planning intel; **header** = pressed serif wordmark + `.jk-lab` chips + **mono** nav (active = `jk-well` + `jk-press`) + `.seg` clock. Motion on the `data-motion` axis (`.mo-item` rows, ambient rake/buzz opt-in; intro presses on paper). DetailPanel kept + restyled as the edit surface. Desktop only — `src/mobile/*` untouched behind `useBreakpoint()`; drag via `usePointerDrag` |
+| **BeigeBoard** (planner) | React 18, plain CSS (`src/app.css`) | Fraunces | `radius: { base 8, xs 4, sm 7, lg 11, soft 9, widget 10, button 8 }` | **Full Press rebuild (2026-07-20)** — a view-layer redesign onto the new solid-ink chip system (the editorial pass 2026-07-19 was its masthead/rules groundwork; the folio retired for bordered `.jk-lab` week/date chips). **Today** = kit `DayView` single-day timeline + a 388px right rail (`.jk-sheet` bench + goals-in-press rollups + `.jk-colophon`); **Week/Calendar** = the reskinned kit views unchanged at the app level (the kit now owns the chrome — seven framed gapped day-lanes, today = tinted `jk-well` + `jk-press`); **Workshop** = a two-pane forge (goal rail, `jk-well` when selected → header `jk-press-lg` + `jk-rule` + expand/collapse milestone→leaf tree, each leaf a `.jk-chip` + `.jk-check`), retiring the drill-down + weekly bench + carried/adrift/next planning intel; **header** = pressed serif wordmark + `.jk-lab` chips + **mono** nav (active = `jk-well` + `jk-press`) + `.seg` clock. Motion on the `data-motion` axis (`.mo-item` rows, ambient rake/buzz opt-in; intro presses on paper). DetailPanel kept + restyled as the edit surface. Desktop only — `src/mobile/*` untouched behind `useBreakpoint()`; drag via `usePointerDrag`. **Parity pass (2026-07-29)** brought it to the prototype: the timeline is 60px rows (17 × 60 = 1020px) with hour rules in `--hub-line` and a half-hour ghost rule on Today only, all keyed off `density` so ORDECK's HUD keeps 48px; the gutter speaks **mono** (`.seg` only on the now badge, §13.12); the three 30px serif mastheads became one 46px `<ChromeBar>`; **Calendar was rebuilt** from a hairline table + 220px sidebar into 7×N gapped, individually bordered cells (the Week lane idea at month scale — sidebar now off by default, spanning all-day bars become a chip per covered day); Today's now-line names the live event and counts down, and the timeline opens where the day is; every view cascades from `MO_DELAYS` and no view double-animates |
 | **ORDECK** (HUD/portal) | React 18, plain CSS | Fraunces | `selector: 'html.od-v2'`, `radius: { base 10, xs 4, sm 7, lg 16, soft 8, button 9 }` | v2 HUD scopes its theme to `html.od-v2`; widget system + workshop; login page is minimal hardware (LED + glow title) |
 | **PapyrOS** (audiobooks) | React 18, plain CSS | Fraunces | `accent: { #9a4b2c, #5c8a72 }`, `radius: { base 6, xs 3, sm 5, lg 10, soft 7, button 6 }` | First `@jkos/player` consumer; offline cache + SW media |
 | **KourOS** (music) | React 18, plain CSS | Fraunces (suite default) | `accent: { #4b3f8f, #dba13c }`, `radius: { base 5, xs 3, sm 4, lg 8, soft 6, button 5 }` | Second player consumer — deliberately different shape; loads Fraunces since Full Press (the primitives are printed) |
@@ -515,6 +536,27 @@ It folded the old `data-ambient="on"` rake gate onto one axis.
 
 Ambient keyframes: `led-pulse` (2.4s, on every `.led`), `blink`, `data-flicker` (rare
 4s-cycle dip), `grain`, `spin`, `scanRoll`, `scanPulse`, `artifactFlash`.
+
+**The choreography — `MO_DELAYS` / `stagger()` (`@jkos/design`).** hub.css owns the
+physics; it cannot own the ORDER. `.mo-item` carries `both`, so an element with no delay
+just *appears* — the entire cascade lives in the offsets, and those offsets were prose in a
+work order until they became data. Import the region; never pick a number at the call site:
+
+| Region | Delay |
+|---|---|
+| a view's header bar / masthead — every cascade starts here | `0ms` |
+| the band under it: Week bench strip · Today rule · Calendar DOW row | `70` / `60` / `50ms` |
+| the structural row below: Week day-heads · Calendar cell grid | `120` / `100ms` |
+| the timeline itself: Week · Today | `170` / `110ms` |
+| Today's right rail: first sheet → second sheet → colophon | `170` / `250` / `330ms` |
+| indexed runs | `stagger(i, 60, 70)` goal cards · `stagger(i, 120, 40)` forge rows |
+
+**Never stack entrances.** An `.mo-item` inside an `.ink-in` parent double-animates: the
+parent fades the whole pane in while the child still holds its pre-animation frame. A view
+that staggers internally must NOT also carry `ink-in` at the `<main>` boundary — the inner
+cascade wins wherever there is one, because it says more. **The app header animates once,
+on boot**, not with the view: it doesn't remount on tab change, so it takes a lone `.mo-item`
+at `0ms` and each view then owns its own cascade from `0ms`.
 
 Rules: ambient effects are subtle and **opacity-only**; entrances land in **200–400ms**.
 `prefers-reduced-motion` is now honoured **once in hub.css** for the shared entrances and

@@ -27,6 +27,15 @@ export interface CalendarItem {
   [k: string]: any;
 }
 
+/** Framing + geometry density. One axis, two settings — a full-page surface and
+ *  a HUD widget — read by every geometry helper in constants.ts. */
+export type CardDensity = 'comfortable' | 'compact';
+
+/** What weight a chip is wearing, derived from the clock rather than chosen per
+ *  call site. `spent` is the state that is easy to forget: ended, but nobody
+ *  struck it off. See chipState() in datetime.ts. */
+export type ChipState = 'upcoming' | 'live' | 'spent' | 'done';
+
 /** Resolvers a host app injects so the kit can colour items without knowing the
  *  host's data model. `accentOf` walks the host's goal tree; `sourceColorOf` maps
  *  a calendar source id (google/outlook/…) to its hex. Both have safe defaults. */
@@ -128,6 +137,12 @@ export interface CalendarViewProps {
   onAddItem?: (partial: Partial<CalendarItem>) => void;
   onUpdateItem?: (id: number, patch: Partial<CalendarItem>) => void;
   onWeekJump?: (iso: string) => void;
+  /** Calendar month only: show the unscheduled-tasks rail beside the grid.
+   *  **Off by default.** It is not in the prototype's month, and having it on was
+   *  the reason Calendar read as a different app from the other three tabs —
+   *  unplaced work belongs on the Week bench strip. Kept as a prop for any
+   *  consumer that genuinely wants the rail back. */
+  sidebar?: boolean;
   /** Host's calendar `source` id stamped on kit-created all-day events (BeigeBoard
    *  passes `'bb'`). Omitted by default so the kit carries no app identity — an
    *  ORDECK mount that never passes it creates sourceless items. */
@@ -140,8 +155,11 @@ export interface CalendarViewProps {
    *  (wide inter-lane gaps, generous padding). `compact` tightens gaps + padding
    *  for small mounts (ORDECK's `bb-week` widget) — **the lane framing is
    *  preserved**, only the air shrinks, so the day-separation survives at every
-   *  size instead of forking. */
-  density?: 'comfortable' | 'compact';
+   *  size instead of forking.
+   *
+   *  It also picks the TIMELINE GEOMETRY: see constants.ts, where rowHeight /
+   *  labelW / minBlockH / chipInset / gridRules are all functions of this. */
+  density?: CardDensity;
 }
 
 export interface WeekViewProps extends CalendarViewProps {

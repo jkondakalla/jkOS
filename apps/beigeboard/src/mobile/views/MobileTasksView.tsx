@@ -34,7 +34,7 @@ export function MobileTasksView({
   const overallPct = total.length ? Math.round((doneCount / total.length) * 100) : 0
 
   return (
-    <div className="bb-scroll" style={{ height: '100%', overflowY: 'auto', overflowX: 'hidden' }}>
+    <div className="jk-scroll" style={{ height: '100%', overflowY: 'auto', overflowX: 'hidden' }}>
       <div style={{ padding: '22px 18px 28px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 18 }}>
           <div>

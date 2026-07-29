@@ -37,8 +37,8 @@ export function AppHeader({ view, setView, today, onConnectClick, onLogout, onOp
     <header style={{
       background: 'var(--color-paper)',
       borderBottom: '1px solid var(--color-line)',
-      padding: '0 28px',
-      height: 56,
+      padding: '0 26px',
+      height: 58,
       flexShrink: 0,
       boxShadow: scrolled ? '0 2px 24px rgba(0,0,0,0.4)' : 'none',
       transition: 'box-shadow 0.25s',
@@ -53,7 +53,7 @@ export function AppHeader({ view, setView, today, onConnectClick, onLogout, onOp
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
         <Press as="span" style={{
           fontFamily: FONT_HEAD, fontWeight: 600, fontStyle: 'italic',
-          fontSize: 20, letterSpacing: '-0.01em', whiteSpace: 'nowrap', flexShrink: 0,
+          fontSize: 21, letterSpacing: '-0.01em', whiteSpace: 'nowrap', flexShrink: 0,
         }}>BeigeBoard</Press>
 
         <Lab size="sm" as="span" style={{ border: '1px solid var(--color-line)', borderRadius: 'var(--hub-radius-sm)', padding: '3px 7px', flexShrink: 0 }}>
@@ -77,6 +77,8 @@ export function AppHeader({ view, setView, today, onConnectClick, onLogout, onOp
           <Lab size="sm" as="span" style={{ border: '1px solid var(--color-line)', padding: '3px 8px' }}>Guest</Lab>
         )}
 
+        <span className="jk-divider" />
+
         <button
           onClick={onConnectClick}
           title="Manage connected calendars"
@@ -93,16 +95,15 @@ export function AppHeader({ view, setView, today, onConnectClick, onLogout, onOp
                 width: 6, height: 6, borderRadius: '50%',
                 background: a.connected ? sourceOf(a.id).hex : 'var(--color-line-strong)',
                 opacity: a.connected ? 0.9 : 0.3,
-                boxShadow: a.connected ? `0 0 4px ${sourceOf(a.id).hex}80` : 'none',
               }} />
             ))}
           </span>
           {connected > 0 ? `${connected} sources` : 'connect'}
         </button>
 
-        <span style={{ width: 1, height: 14, background: 'var(--color-line)' }} />
+        <span className="jk-divider" />
         <TimeReadout />
-        <span style={{ width: 1, height: 14, background: 'var(--color-line)' }} />
+        <span className="jk-divider" />
 
         {user && (
           <button
@@ -152,7 +153,7 @@ function NavTab({ tab, active, onClick }: any) {
         background: active ? undefined : (hover ? 'var(--color-card)' : 'transparent'),
         border: 'none',
         borderRadius: 'var(--hub-radius-sm)',
-        padding: '6px 16px',
+        padding: '7px 18px',
         cursor: 'pointer',
         display: 'flex',
         flexDirection: 'column',

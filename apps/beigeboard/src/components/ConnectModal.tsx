@@ -97,14 +97,14 @@ export function ConnectModal({ open, onClose, accounts, onConnect, onDisconnect,
   return (
     <div onClick={onClose} style={{
       position: 'fixed', inset: 0, zIndex: 500,
-      background: 'rgba(10, 8, 6, 0.55)',
+      background: 'var(--hub-scrim)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       padding: 32, backdropFilter: 'blur(3px)',
     }}>
       <div onClick={e => e.stopPropagation()} style={{
         width: 'min(640px, 100%)', maxHeight: '88vh',
         background: 'var(--color-paper)', border: `1px solid var(--color-line)`,
-        boxShadow: '0 24px 80px rgba(0,0,0,0.4)',
+        boxShadow: '0 24px 80px var(--hub-shadow-panel-ink)',
         display: 'flex', flexDirection: 'column', overflow: 'hidden',
       }} className="modal-in">
         <div style={{

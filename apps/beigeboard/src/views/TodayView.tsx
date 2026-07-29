@@ -14,7 +14,8 @@
  */
 import React, { useMemo } from 'react'
 import { Calendar } from '@jkos/cards'
-import { Sheet, Colophon, Chip, Press, Check } from '@jkos/ui'
+import { Sheet, Colophon, Chip, Press, Check, Bar } from '@jkos/ui'
+import { MO_DELAYS } from '@jkos/design'
 import { FONT_HEAD, weekStart, sourceOf } from '../lib/theme'
 import { getAccent, getProgress } from '../lib/seed'
 import { useDrag } from '../providers/DragProvider'
@@ -74,11 +75,11 @@ export function TodayView(props: any) {
 
       {/* ── Right rail: the sheet ── */}
       <aside
-        className="bb-scroll"
+        className="jk-scroll"
         style={{ width: 388, flex: 'none', display: 'flex', flexDirection: 'column', gap: 14, padding: '16px 22px', minHeight: 0, overflowY: 'auto' }}
       >
         {/* The bench */}
-        <Sheet className="mo-item" style={{ borderRadius: 'var(--hub-radius)', padding: '16px 18px', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        <Sheet className="mo-item" style={{ borderRadius: 'var(--hub-radius)', padding: '16px 18px', display: 'flex', flexDirection: 'column', minHeight: 0, animationDelay: `${MO_DELAYS.railFirst}ms` }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 6 }}>
             <span className="jk-lab jk-lab-sm" style={{ color: 'var(--color-accent)' }}>The bench</span>
             <span className="mono-eyebrow" style={{ marginLeft: 'auto' }}>
@@ -130,11 +131,11 @@ export function TodayView(props: any) {
         </Sheet>
 
         {/* Goals in press */}
-        <Sheet className="mo-item" style={{ borderRadius: 'var(--hub-radius)', padding: '16px 18px' }}>
+        <Sheet className="mo-item" style={{ borderRadius: 'var(--hub-radius)', padding: '16px 18px', animationDelay: `${MO_DELAYS.railSecond}ms` }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 12 }}>
             <span className="jk-lab jk-lab-sm" style={{ color: 'var(--color-accent)' }}>Goals in press</span>
             <button
-              className="bb-hit mono-eyebrow"
+              className="jk-hit mono-eyebrow"
               onClick={() => setView?.('tasks')}
               style={{ marginLeft: 'auto', cursor: 'pointer', padding: '2px 4px', borderRadius: 4, background: 'transparent', border: 'none' }}
             >
@@ -160,9 +161,7 @@ export function TodayView(props: any) {
                       <span style={{ fontFamily: FONT_HEAD, fontWeight: 600, fontSize: 14, letterSpacing: '-0.01em' }}>{g.title}</span>
                       <span className="seg" style={{ marginLeft: 'auto', fontSize: 14 }}>{prog.pct}%</span>
                     </div>
-                    <div className="bar-track" style={{ height: 5, borderRadius: 3, overflow: 'hidden' }}>
-                      <div className="bar-fill" style={{ width: `${prog.pct}%`, height: '100%', background: `linear-gradient(90deg, color-mix(in srgb, ${tint} 72%, #1a0a00), ${tint})` }} />
-                    </div>
+                    <Bar value={prog.pct / 100} tint={tint} height={5} radius={3} />
                     <span className="mono-eyebrow">{meta || `${prog.done}/${prog.total} LEAVES`}</span>
                   </div>
                 )
@@ -171,7 +170,7 @@ export function TodayView(props: any) {
           )}
         </Sheet>
 
-        <Colophon style={{ marginTop: 'auto', fontSize: '0.82rem' }}>the sheet holds what the day forgot</Colophon>
+        <Colophon className="mo-item" style={{ marginTop: 'auto', fontSize: '0.82rem', animationDelay: `${MO_DELAYS.railColophon}ms` }}>the sheet holds what the day forgot</Colophon>
       </aside>
     </div>
   )

@@ -3,7 +3,7 @@ import { FONT_HEAD, FONT_BODY, FONT_NUM, sourceOf, fmtTime, fmtFull, localDate, 
 import { getAncestors, getChildren, getAccent, getProgress } from '../lib/seed'
 import { Eyebrow, Checkbox } from './SharedComponents'
 import { useHudShelf } from '../lib/jkauth'
-import { useBreakpoint } from '@jkos/ui'
+import { useBreakpoint, Bar } from '@jkos/ui'
 
 export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdateItem, setView, setFocusedNodeId }: any) {
   const [titleEditing, setTitleEditing] = useState(false)
@@ -64,14 +64,14 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
       ...(asSheet ? {
         justifySelf: 'stretch', alignSelf: 'end',
         width: '100%', maxHeight: '82vh',
-        boxShadow: '0 -8px 28px rgba(0,0,0,0.18)',
+        boxShadow: '0 -8px 28px var(--hub-shadow-panel-ink)',
         borderTop: `1px solid var(--color-line)`,
         borderTopLeftRadius: 'var(--hub-radius-lg)',
         borderTopRightRadius: 'var(--hub-radius-lg)',
       } : {
         justifySelf: 'end', alignSelf: 'stretch',
         width: 340, maxWidth: '100%',
-        boxShadow: '-8px 0 28px rgba(0,0,0,0.18)',
+        boxShadow: '-8px 0 28px var(--hub-shadow-panel-ink)',
         borderLeft: `1px solid var(--color-line)`,
       }),
     }}>
@@ -263,9 +263,7 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
         {isGoal && (
           <Field label={`Breakdown · ${prog.total > 0 ? `${prog.done}/${prog.total}` : 'open'}`}>
             {prog.total > 0 && (
-              <div className="bar-track" style={{ height: 5, borderRadius: 3, overflow: 'hidden', marginBottom: 12, ['--jk-tint' as any]: accent }}>
-                <div className="bar-fill" style={{ height: '100%', width: `${prog.pct}%`, background: `linear-gradient(90deg, color-mix(in srgb, ${accent} 72%, #1a0a00), ${accent})` }} />
-              </div>
+              <Bar value={prog.pct / 100} tint={accent} height={5} radius={3} style={{ marginBottom: 12 }} />
             )}
             {children.length === 0 ? (
               <div style={{
@@ -320,9 +318,7 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
         {isMilestone && (
           <Field label={`Checkpoint · ${prog.total > 0 ? `${prog.done}/${prog.total}` : 'open'}`}>
             {prog.total > 0 && (
-              <div className="bar-track" style={{ height: 5, borderRadius: 3, overflow: 'hidden', marginBottom: 12, ['--jk-tint' as any]: accent }}>
-                <div className="bar-fill" style={{ height: '100%', width: `${prog.pct}%`, background: `linear-gradient(90deg, color-mix(in srgb, ${accent} 72%, #1a0a00), ${accent})` }} />
-              </div>
+              <Bar value={prog.pct / 100} tint={accent} height={5} radius={3} style={{ marginBottom: 12 }} />
             )}
             <button
               onClick={() => {

@@ -32,7 +32,7 @@ export function MobileTodayView({ items, today, onSelect, onToggle, onAdd }: Mob
   const pct = todayAll.length ? Math.round((done.length / todayAll.length) * 100) : 0
 
   return (
-    <div className="bb-scroll" style={{ height: '100%', overflowY: 'auto', overflowX: 'hidden' }}>
+    <div className="jk-scroll" style={{ height: '100%', overflowY: 'auto', overflowX: 'hidden' }}>
       <div style={{ padding: '26px 20px 30px' }}>
         {/* Masthead */}
         <div style={{ marginBottom: 22 }}>

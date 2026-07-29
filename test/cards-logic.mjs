@@ -149,6 +149,87 @@ check(spillR.endCol === 6 && spillR.continuesRight, 'layoutBars flags a right-sp
 // spillL (ends Tue) and trip (starts Tue) touch on col 1 → must not share a lane.
 check(spillL.lane !== trip.lane, 'touching bars occupy separate lanes');
 
+/* ── equal-width lanes, never shingled ─────────────────────────────────── */
+// The chip-inset numbers in constants.ts all derive from lanes being exactly
+// 100/totalCols wide. If packing ever became shingled (overlapping, offset
+// cards) every inset would silently become wrong, so pin the invariant here.
+{
+  const three = layoutTimedEvents([
+    { id: 1, kind: 'event', title: 'a', scheduled_time: '09:00', scheduled_end: '11:00' },
+    { id: 2, kind: 'event', title: 'b', scheduled_time: '09:30', scheduled_end: '11:00' },
+    { id: 3, kind: 'event', title: 'c', scheduled_time: '10:00', scheduled_end: '11:00' },
+  ]);
+  check(three.every((l) => l.totalCols === 3), 'three concurrent events split into 3 equal lanes');
+  check(new Set(three.map((l) => l.slot)).size === 3, 'each concurrent event gets its own lane');
+  // Equal width means left edges land on exact multiples of 100/totalCols.
+  const lefts = three.map((l) => (l.slot / l.totalCols) * 100).sort((a, b) => a - b);
+  check(
+    lefts.every((v, i) => Math.abs(v - (i * 100) / 3) < 1e-9),
+    'lane left edges are exact multiples of 100/totalCols (equal width, not shingled)',
+  );
+}
+
+/* ── chipState — the clock decides, not the call site ──────────────────── */
+{
+  const { chipState, chipStateClass } = dt;
+  // A fixed clock: 2026-07-18, 10:30 local.
+  const now = new Date(2026, 6, 18, 10, 30);
+  const at = (over) => ({ id: 1, kind: 'task', title: 't', due_date: '2026-07-18', ...over });
+
+  check(chipState(at({ completed: true, scheduled_time: '09:00' }), now) === 'done',
+    'completed wins over the clock → done');
+  check(chipState(at({ scheduled_time: '10:00', scheduled_end: '11:00' }), now) === 'live',
+    'started and not finished → live');
+  check(chipState(at({ scheduled_time: '08:00', scheduled_end: '09:00' }), now) === 'spent',
+    'ended and not struck off → spent');
+  check(chipState(at({ scheduled_time: '14:00', scheduled_end: '15:00' }), now) === 'upcoming',
+    'not started yet → upcoming');
+  check(chipState(at({ scheduled_time: '10:00' }), now) === 'live',
+    'an item with no end runs an hour → still live at +30min');
+  check(chipState(at({}), now) === 'upcoming',
+    'an untimed item on today has not ended → upcoming');
+  check(chipState(at({ due_date: '2026-07-17' }), now) === 'spent',
+    'a whole past day is spent');
+  check(chipState(at({ due_date: '2026-07-19' }), now) === 'upcoming',
+    'a whole future day is upcoming');
+  check(chipState({ id: 2, kind: 'task', title: 'x' }, now) === 'upcoming',
+    'an item with no date at all is upcoming, not spent');
+
+  check(chipStateClass('upcoming') === '', 'upcoming is the base chip — no modifier class');
+  check(chipStateClass('live') === 'jk-chip-live', 'live → .jk-chip-live');
+  check(chipStateClass('spent') === 'jk-chip-spent', 'spent → .jk-chip-spent');
+  check(chipStateClass('done') === 'jk-chip-done', 'done → .jk-chip-done');
+}
+
+/* ── timeline geometry rides the density axis ──────────────────────────── */
+{
+  const geo = await importTs('packages/cards/src/constants.ts', 'cards-constants.mjs');
+  const { rowHeight, labelW, minBlockH, gridHeight, chipInset, gridRules, GRID_HOURS } = geo;
+
+  check(rowHeight('comfortable') === 60, 'comfortable row is the prototype 60px');
+  check(rowHeight('compact') === 48, "compact row stays 48px — ORDECK's HUD must not grow 20%");
+  check(rowHeight() === 60, 'rowHeight defaults to comfortable');
+  check(minBlockH('comfortable') === 26 && minBlockH('compact') === 18, 'block floor follows density');
+  check(labelW('comfortable') === 52 && labelW('compact') === 60, 'gutter width follows density');
+  check(GRID_HOURS === 17, '06:00–22:00 inclusive is 17 rows');
+  check(gridHeight('comfortable') === 1020, '17 rows x 60px = 1020px of timeline');
+  check(gridHeight('compact') === 816, 'compact timeline is 17 x 48');
+
+  check(String(chipInset('comfortable', 'week')) === '5,10', 'Week chip inset is +5 / -10');
+  check(String(chipInset('comfortable', 'day')) === '6,12', 'Today chip inset is +6 / -12');
+
+  // Hour rules are the faint ledger, never --color-line-strong.
+  const weekRules = gridRules('comfortable');
+  check(weekRules.includes('var(--hub-line)'), 'grid rules paint --hub-line');
+  check(!weekRules.includes('--color-line-strong'), 'grid rules never paint --color-line-strong');
+  check(weekRules.split('repeating-linear-gradient').length - 1 === 1,
+    'Week gets the hour rule only — one gradient');
+  const dayRules = gridRules('comfortable', { halfHour: true });
+  check(dayRules.split('repeating-linear-gradient').length - 1 === 2,
+    'Today layers the half-hour ghost rule — two gradients');
+  check(dayRules.includes('30px'), "the ghost rule sits at the row's half-height");
+}
+
 /* ── media-grid density ladder (ToDo.md §3 20.2) ───────────────────────── */
 const { MEDIA_GRID_COLUMNS } = mediaGrid;
 check(MEDIA_GRID_COLUMNS.compact === 2, 'MEDIA_GRID_COLUMNS.compact is 2 (the original .lib-grid ladder)');

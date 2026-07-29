@@ -28,6 +28,11 @@
   --accent-raw:    #ffb000;
   --accent-2-raw:  #4ecdc4;
   --accent-deepen-ink: #2a1c0e;   /* paper deepen target (warm near-black) */
+  --bar-deepen-ink:    #1a0a00;   /* meter deepen target — the DARK end of a bar
+                                     gradient, one stop below the accent chain's.
+                                     Consumed by --hub-amber-dim and by <Bar>, so
+                                     a per-item meter deepens exactly like the
+                                     amber family does. Never inline this hex. */
 
   /* Background layers — warm kraft tan → light cream */
   --hub-bg-0: #ede2c8;
@@ -183,7 +188,7 @@
   /* Primary family — tracks --accent */
   --hub-amber:        var(--accent);
   --hub-amber-bright: color-mix(in srgb, var(--accent) 55%, #ffffff);
-  --hub-amber-dim:    color-mix(in srgb, var(--accent) 72%, #1a0a00);
+  --hub-amber-dim:    color-mix(in srgb, var(--accent) 72%, var(--bar-deepen-ink));
   --hub-amber-deep:   color-mix(in srgb, var(--accent) 20%, var(--hub-bg-2));
   --hub-amber-glow:   color-mix(in srgb, var(--accent) 30%, transparent);
 
@@ -236,6 +241,13 @@
   --hub-shadow-inset:  inset 0 1px 0 var(--hub-bevel-light), inset 0 -1px 0 var(--hub-bevel-dark);
   --hub-shadow-card:   0 2px 8px color-mix(in srgb, var(--hub-cream-bright) 10%, transparent),
                        0 0 0 1px var(--hub-line);
+  /* The FLOATING PANEL shadow — what lifts a detail panel, drawer or modal off
+     the sheet. Direction is the call site's business (`0 24px 80px var(...)`);
+     the INK is not, which is why three components had each picked their own
+     rgba black. Deepens toward the paper's own shadow ink rather than pure
+     black, and the dark face overrides it to near-nothing (a panel on the tube
+     is defined by its ring, not by a shadow nobody can see). */
+  --hub-shadow-panel-ink: rgba(24, 16, 8, 0.20);
   /* The WELL shadow — an inner shadow that sinks a region INTO the sheet. On
      paper the well is one of the two accent moves (wells give depth + boundary;
      badges give emphasis — see the wells/badges block below). Dark mode
@@ -563,6 +575,18 @@
 .jk-cards-btn  { transition: background 0.15s, transform 0.1s, border-color 0.15s, color 0.15s; }
 .jk-cards-btn:active { transform: translateY(1px); }
 
+/* The two generic affordances every app was hand-rolling. .jk-hit is the hover
+   response for anything clickable that isn't a button face (a goal card, a
+   calendar cell, a caret, a disclosure row) — it lifts the background and takes
+   a 1px press, nothing more. .jk-scroll is the scroll region: vertical only,
+   never horizontal, so a long title can't shove a pane sideways. Both live here
+   rather than in an app.css because BeigeBoard, ORDECK and PapyrOS each want
+   them and only one of them ships a stylesheet the kit can see. */
+.jk-scroll { overflow-y: auto; overflow-x: hidden; }
+.jk-hit { transition: background 0.12s, border-color 0.12s, color 0.12s, transform 0.1s; }
+.jk-hit:hover  { background: var(--hub-bg-4); }
+.jk-hit:active { transform: translateY(1px); }
+
 /* Halation utilities — the suite-wide accent glow. .jk-halo for surfaces/chips,
    .jk-halo-text for accent type. Both collapse to nothing on paper (the tokens
    are `none` in light mode) so a single class is mode-correct everywhere. */
@@ -642,6 +666,10 @@
    hairline for rows/exhibits, ink for chapter heads, double for the
    contents block and the colophon. */
 .jk-rule        { border: none; height: 1px; background: var(--hub-line); margin: 0; }
+/* The vertical sibling of .jk-rule — the hairline that separates clusters
+   INSIDE a bar (header sources | clock | avatar, a folio head, ORDECK's footer
+   strip). Three apps drew this by hand before it had a name. */
+.jk-divider     { width: 1px; height: 14px; background: var(--color-line); flex: none; }
 .jk-rule-strong { border: none; height: 2px; background: var(--color-ink); opacity: 0.85; margin: 0; }
 .jk-rule-double { border: none; height: 5px; margin: 0; opacity: 0.85;
   background: linear-gradient(180deg,
@@ -946,7 +974,8 @@
  *   .jk-chip        raised, faint-tint chip — neutral-ink rows
  *   .jk-chip-solid  THE DEFAULT — saturated tint tab, cream knockout
  *   .jk-chip-live   now / active (brighter fill + ring)
- *   .jk-chip-done   spent — flat, dimmed
+ *   .jk-chip-spent  ENDED, NOT DONE — the chip keeps its ink, loses its weight
+ *   .jk-chip-done   struck off — flat, dimmed
  *   .jk-chip-sm     dense (calendar cells, tight rails)
  * ───────────────────────────────────────────────────────────────────────── */
 .jk-chip {
@@ -979,6 +1008,13 @@
   transform: none;
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--jk-tint, var(--accent)) 28%, transparent);
 }
+/* Ended but not struck off. Deliberately ONLY an opacity — a spent chip is the
+   same chip, just behind you, so it keeps its fill, its ring and its type. This
+   is the whole of the dimming behaviour, and it's what makes the now-line read
+   as a position in the day rather than a line drawn across it. Face-independent:
+   .68 of an emissive chip reads spent on the tube exactly as .68 of an inked one
+   does on paper. */
+.jk-chip-spent { opacity: 0.68; }
 .jk-chip-sm {
   box-shadow:
     inset 0 1px 0 color-mix(in srgb, #ffffff 55%, transparent),

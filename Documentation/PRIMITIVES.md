@@ -137,8 +137,15 @@ Full design-language reference (tokens, aesthetic rules, hub.css classes): [DESI
 `import '@jkos/design/tokens.css'` (canonical hub.css). Static-served apps (jkAuth,
 jkos-deploy) use generated mirrors — regen with `pnpm --filter @jkos/jkauth sync:tokens` /
 `node jkos-deploy/scripts/sync-tokens.mjs` after any hub.css change (`check:tokens` catches
-forgetting). The `.jk-*` / `.led` / `.seg` / hardware class catalog is in
+forgetting). **A new hub.css CLASS also needs a demo block in
+`apps/jkauth/scripts/design-template.html` plus a design-page rebuild** — `check:design`
+scans every top-level class hub.css defines and fails if the page never renders it.
+The `.jk-*` / `.led` / `.seg` / hardware class catalog is in
 [DESIGN.md](DESIGN.md) § "Shared component classes" and § "Accent bubbles".
+
+| Export | For |
+|--------|-----|
+| `MO_DELAYS` / `moDelay(region)` / `stagger(i, base, step, max)` | The motion **choreography**. hub.css owns the physics; `.mo-item` carries `both`, so an element with no delay just appears and the whole cascade lives in the offsets. This is that rhythm as data — a region→ms map plus the helper for indexed runs (`stagger(i, 60, 70)` goal cards, `stagger(i, 120, 40)` forge rows), capped so a long list can't take eight seconds to arrive. One rhythm the suite reads instead of four apps inventing ms values. |
 
 ---
 
@@ -155,8 +162,11 @@ import '@jkos/ui/tokens.css'   // full-shell apps (ORDECK/BB) — hub.css + the 
 | `<WidgetShell>` | The HUD/widget card chrome (title strip, frame). |
 | `<SettingsDrawer>` / `<SettingsSection>` | THE one settings tray, suite-wide — every app mounts it; app extras go in the `extra` slot. No per-app settings panels. |
 | `<Bubble tone large>` · `<Press large as>` · `<Sub>` / `<SubLink>` | The two-accent system: primary pressed/struck, secondary flat. |
+| `<Chip solid live spent done small tint>` | The solid-ink item chip. Don't pick the state flags per call site — `chipState(item, now)` decides (see §5), so an item carries the same weight in every view. |
 | `<Well tint>` · `<Sheet>` | Inset container (retintable via `--jk-tint`) · card surface. |
 | `<Lab size sans>` · `<TButton quiet>` · `<Pill>` | Mono eyebrow label · compact text button · green status pill. |
+| `<Bar value tint height radius>` | THE progress meter. Fill runs from the tint deepened toward `--bar-deepen-ink` to the tint itself — the `--hub-amber-dim → --hub-amber` gradient generalised to a per-item hue. Six call sites used to inline the deepen ink as a raw hex (a §13.3 violation); never hand-assemble `.bar-track` + `.bar-fill` again. Heights in service: 5 rail · 6 branch · 7 forge. |
+| `<EmptyState line sub>` | The print idiom for nothing-here (§15.3): italic Fraunces line over a `mono-eyebrow` sub. The component owns the treatment; **copy is a prop**, so each view still speaks for itself. |
 | `<Switch>` / `<Check>` (checked, onChange, tint) · `<VU value segments tint>` | Accent-filled toggles · segmented level meter. |
 | `<Scanlines>` / `<Vignette>` / `<Scrim heavy>` | CRT veils (token-driven opacity) · modal backdrop. |
 | `cx(...)` | Tiny classnames join. |
@@ -186,10 +196,15 @@ BeigeBoard tab.
 | `useCalendarSource(app, opts?)` | The lego seam: feeds any view from any Weave peer's `items` dataset — list + create/update/complete/delete ops that funnel through one `run(op)` (a failed write invalidates the list = optimistic rollback, and calls `opts.onError`). |
 | `<CalendarDragProvider>` / `useCalendarDrag()` | Kit-owned drag context over `usePointerDrag` (touch = hold-to-drag; 4px click-vs-drag threshold so taps select, movement reschedules). |
 | `deriveDaySections(items, todayIso)` | Day agenda sectioning (overdue/morning/…): one shared derivation. |
-| `datetime.ts` (via barrel) | ALL date/time/grid math: `isoDate`, `weekStart` (ISO-Monday), time↔fraction, lane packing, month grids. BeigeBoard's `lib/theme` re-exports these — never write a second copy. |
-| `cardSurface(opts)` / `chipCheckStyle` / `ACCENT_GLAZE` | The card-surface style factory (elevation, glaze). |
+| `datetime.ts` (via barrel) | ALL date/time/grid math: `isoDate`, `weekStart` (ISO-Monday), `isoWeekNo`, `dayOfYear`, time↔fraction, lane packing (**equal-width lanes, never shingled** — pinned by `test:cards`), month grids. BeigeBoard's `lib/theme` re-exports these — never write a second copy. |
+| `chipState(item, now)` / `chipStateClass(state)` | `'upcoming' \| 'live' \| 'spent' \| 'done'` → the hub.css modifier. THE one place that decides what weight a chip wears, so every surface rendering an item agrees. `spent` = **ended, but nobody struck it off** — the state that makes a now-line read as a position in the day. Asserted in `test:cards`. |
+| `constants.ts` — `rowHeight` / `labelW` / `minBlockH` / `gridHeight` / `chipInset` / `gridRules` | Timeline geometry as a **function of density**, not a bare constant. `comfortable` = the prototype (60px rows, 1020px timeline, 26px block floor); `compact` = ORDECK's HUD (48/816/18). `gridRules(density, {halfHour})` returns the gradient stack — painted in `--hub-line`, never `--color-line-strong`. `WV_ROW_H`/`WV_LABEL_W` survive for outside importers but are deprecated inside the kit. All pinned by `test:cards`. |
+| `cardSurface(opts)` / `chipCheck(size)` | The chip-surface recipe factory — picks the `.jk-chip*` class set and carries `--jk-tint`. Prefer `state:` (from `chipState`) over the legacy `completed`/`live` booleans: it is the only way to reach `spent`. |
 | `DEFAULT_RESOLVERS` / `mergeResolvers` / `DEFAULT_PLAN_RESOLVERS` / `mergePlanResolvers` | Colour/plan resolver chain — hosts inject `getAccent`/`sourceOf`; defaults fall back to the accent chain. |
-| `TaskChip` · `TimeBlock` · `AllDayBar` · `TimelinePreview` · `CardFrame` · `Checkbox` · `Eyebrow` · `RecLamp` | The atoms, exported for bespoke composition. `TimeBlock` clamps out-of-window items (06:00–22:00) to an edge sliver with a ▲/▼ marker. |
+| `TaskChip` · `TimeBlock` · `AllDayBar` · `TimelinePreview` · `CardFrame` · `Checkbox` · `Eyebrow` · `RecLamp` | The atoms, exported for bespoke composition. `TimeBlock` takes `density` + `surface` ('week'/'day') and clamps out-of-window items (06:00–22:00) to an edge sliver with a ▲/▼ marker. |
+| `<ChromeBar title stats nav>` | The 46px view header every timeline view opens with: pressed serif title · `mono-eyebrow` stat line · `.jk-tbtn` nav trio pushed right. Replaces the three separate 28–30px serif mastheads, which cost ~40px of timeline for no information. |
+| `<NowLine label dot>` | The accent rule at the current minute. The label is a **Today** affordance — it names the live event (from `chipState`) and counts down, and is omitted rather than faked when nothing is running. Week passes no label. |
+| `<HourLabel>` | The gutter annotation: mono, not `.seg`. The gutter is the machine annotating the grid (§13.12); `.seg` stays on the now-time badge, which genuinely is a readout. |
 
 BeigeBoard-side plan helpers (bench/drill-down: `currentStep`, `isAdrift`, `carriedBench`)
 live in `apps/beigeboard/src/lib/plan.ts` — method doc: [PLANNING_METHOD.md](PLANNING_METHOD.md).

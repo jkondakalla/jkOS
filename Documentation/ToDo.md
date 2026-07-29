@@ -4,8 +4,8 @@ The working backlog. **Completed work is summarized, not enumerated** — the ta
 for a finished wave lives in the relevant `Documentation/*.md` (mostly ARCHITECTURE.md and
 DESIGN.md). This file carries detail only for **open and future** work. Gate
 (`pnpm test:contracts`) is **green** as of 2026-07-20 (one known flake, see §5). Everything
-through the Full Press functionality batch + BeigeBoard's editorial pass is **committed and
-pushed to `staging`** (`3b98302`) — working tree is clean.
+through the Full Press functionality batch, BeigeBoard's editorial pass and the BB rebuild
+(Waves A–D) is **committed and pushed to `staging`** (`f64c1ca`, merged to `main` as `d29bfcc`).
 
 Section numbering is stable: **§1 = LazurOS**, **§2 = PapyrOS** (other docs cross-reference these,
 and the `6.5e` label). **§3 = the media primitive program**. **§7 = Full Press** (the design
@@ -256,9 +256,9 @@ Each was consciously stopped, not forgotten — pick any up by choice, none is b
 **humans read print (Fraunces), the machine speaks mono (Plex Mono), the tube emits
 (Big Shoulders + halation).** Fence = [DESIGN.md](DESIGN.md) §13; ship discipline = §14.
 
-The functionality batch (press.css folded into hub.css, `@jkos/ui` re-cut, motion vocabulary)
-and a full editorial pass for **BeigeBoard** (named the test bed, done first per Jag) are
-**committed and pushed** (`55671a3`, `3b98302`).
+The functionality batch (press.css folded into hub.css, `@jkos/ui` re-cut, motion vocabulary),
+a full editorial pass for **BeigeBoard** (named the test bed, done first per Jag) and the BB
+rebuild onto the prototype are **committed and pushed** (`55671a3`, `3b98302`, `f64c1ca`).
 
 ### Open — the rest of the per-app roster
 
@@ -269,13 +269,23 @@ Those four currently have only the **surgical** Wave-25 pass (redundant `fonts.s
 calls). Whether that deeper pass is still wanted for each app, and in what order, is Jag's call —
 nothing is currently blocking or scheduled.
 
-- [ ] **BeigeBoard rebuild → the interactive prototype** (Jag 2026-07-20) — the designed variant
-      is a view-layer redesign + a **new solid-ink chip system that is now the suite-wide
-      default**: promote `jk-chip*`/`jk-press-ink|rev` into hub.css + the factory, re-skin
-      `@jkos/cards` (`surface.ts` `cardSurface`), rebuild BB's 4 desktop views (Today→timeline+rails,
-      Week/Calendar→reskinned kit, Workshop→two-pane forge), drop carried/adrift, keep suite
-      integration; ORDECK inherits the kit reskin. **Desktop only** (mobile is the later showpiece).
-      Full work order: [BEIGEBOARD_FULL_PRESS.md](BEIGEBOARD_FULL_PRESS.md).
+- [x] **BeigeBoard rebuild → the interactive prototype** (Jag 2026-07-20) — view-layer redesign +
+      the **solid-ink chip system, now the suite-wide default**. Waves A–D shipped as `f64c1ca`
+      (merged to `main` as `d29bfcc`): `jk-chip*`/`jk-press-ink|rev` in hub.css, `cardSurface()`
+      re-cut, BB's 4 desktop views rebuilt, ORDECK inherits the kit reskin. Desktop only. Work
+      order: [BEIGEBOARD_FULL_PRESS.md](BEIGEBOARD_FULL_PRESS.md).
+- [ ] **BeigeBoard design parity — the fidelity pass** (2026-07-29) — the rebuild is structurally
+      right and **visually flat** next to the prototype. Five causes: the hour grid is 20% too
+      tight (`WV_ROW_H 48` vs `60`) and drawn in `--color-line-strong` instead of `--hub-line`;
+      Calendar + every kit view header never got the relayout; the `.mo-item` cascade has no
+      delays; `.bb-hit`/`.bb-scroll` are referenced 8× and **defined nowhere**; the hour gutter
+      speaks `.seg` where §13.12 wants mono. Sequenced **P0b → P0 → P1 → P2 → P3**: twelve
+      primitives first (`.jk-hit`/`.jk-scroll`/`.jk-chip-spent`/`.jk-divider`,
+      `--accent-deepen-ink` closing a live §13.3 violation, `<Bar>`, `<EmptyState>`, `chipState()`,
+      density-derived geometry, `<ChromeBar>`, `<NowLine>`, `MO_DELAYS`, `DEFAULT_EFFECTS`), then
+      per-view parity. Full work order: [BEIGEBOARD_PARITY.md](BEIGEBOARD_PARITY.md) — its
+      *Corrections* section records nine fixes to the incoming design draft, incl. that new
+      hub.css classes **fail `check:design`** until `design-template.html` demos them.
 - [ ] **jkAuth deep pass** — the letterpress form is the next natural candidate (small surface,
       login + portal dashboard).
 - [ ] **PapyrOS deep pass**

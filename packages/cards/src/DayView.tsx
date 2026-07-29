@@ -28,15 +28,18 @@ import {
   localDate,
   snapFrac,
   timeToFrac,
+  chipState,
+  dayOfYear,
 } from './datetime';
-import { WV_FIRST_H, WV_LAST_H, WV_ROW_H, WV_LABEL_W } from './constants';
+import { WV_FIRST_H, WV_LAST_H, rowHeight, labelW, gridRules, gridHeight } from './constants';
 import { TaskChip } from './TaskChip';
 import { TimeBlock } from './TimeBlock';
 import { AllDayBar } from './AllDayBar';
 import { TimelinePreview } from './TimelinePreview';
 import { CreateDialog, type CreatePending } from './CreateDialog';
-import { Checkbox, Eyebrow, RecLamp } from './primitives';
-import { Press, TButton, Well } from '@jkos/ui';
+import { Checkbox, Eyebrow, RecLamp, HourLabel, NowLine } from './primitives';
+import { Press, TButton, Well, EmptyState } from '@jkos/ui';
+import { MO_DELAYS } from '@jkos/design';
 import { deriveDaySections } from './sections';
 
 export function DayView(props: DayViewProps) {
@@ -62,8 +65,12 @@ function DayGrid({
   onToggle,
   onAddItem,
   onUpdateItem,
+  density = 'comfortable',
 }: DayViewProps) {
   const { accentOf, sourceColorOf } = mergeResolvers(resolvers);
+  // Geometry rides the density axis — see constants.ts.
+  const ROW_H = rowHeight(density);
+  const LABEL_W = labelW(density);
   const drag = adapter?.drag ?? null;
   const beginDrag: DragAdapter['beginDrag'] = adapter?.beginDrag ?? (() => {});
   const hasDnd = !!adapter;
@@ -102,10 +109,22 @@ function DayGrid({
 
   const scrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (scrollRef.current) {
-      const target = day === today ? Math.max(WV_FIRST_H, nowFrac - 1) : 8;
-      scrollRef.current.scrollTop = (target - WV_FIRST_H) * WV_ROW_H;
-    }
+    if (!scrollRef.current) return;
+    // Open the timeline where the day IS. Landing on 06:00 every morning is the
+    // most-noticed daily papercut: on today, show the hour before now; on any
+    // other day, show the half-hour before its first event (and fall back to 08:00
+    // for an empty day, which is the old behaviour and still the right one).
+    const firstEvent = timed.reduce<number | null>((min, it) => {
+      const f = timeToFrac(it.scheduled_time as string);
+      return min == null || f < min ? f : min;
+    }, null);
+    // Note: NOT max(now-60, firstEvent-30) across both terms — on today with a
+    // 20:00 first event that would scroll to the evening and hide the current
+    // hour. The first-event anchor is for days that have no "now".
+    const target = day === today
+      ? nowFrac - 1
+      : firstEvent != null ? firstEvent - 0.5 : 8;
+    scrollRef.current.scrollTop = Math.max(0, (target - WV_FIRST_H) * ROW_H);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cursor]);
 
@@ -184,8 +203,22 @@ function DayGrid({
 
   const anyDrag = !!drag;
   const isToday = day === today;
+
+  // The now-line label names the LIVE event and counts down. A static "NOW" is
+  // worse than none — it takes the same space and says nothing the dot doesn't —
+  // so with nothing running the label is omitted rather than faked.
+  const nowLabel = useMemo(() => {
+    if (!isToday) return undefined;
+    const live = timed.find((it) => chipState(it, now) === 'live');
+    if (!live) return undefined;
+    const endFrac = live.scheduled_end
+      ? timeToFrac(live.scheduled_end)
+      : timeToFrac(live.scheduled_time as string) + 1;
+    const mins = Math.max(0, Math.round((endFrac - nowFrac) * 60));
+    return `NOW · ${live.title.toUpperCase()} · ${mins} MIN LEFT`;
+  }, [isToday, timed, now, nowFrac]);
   const HOURS = Array.from({ length: WV_LAST_H - WV_FIRST_H + 1 }, (_, i) => i + WV_FIRST_H);
-  const totalH = HOURS.length * WV_ROW_H;
+  const totalH = gridHeight(density);
   const isOverTimed = drag?.overZone === 'timed';
   const isTargetTimed = anyDrag && (drag?.mode === 'untimed' || drag?.mode === 'timed' || drag?.mode === 'create');
   const showPreview = isOverTimed && drag?.overFrac != null;
@@ -194,28 +227,23 @@ function DayGrid({
   return (
     <>
       <div style={{ flex: 1, overflowY: 'auto', background: 'transparent', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-        <div style={{ flex: 1, minHeight: 0, padding: '24px 32px 0', display: 'flex', flexDirection: 'column', maxWidth: 760, margin: '0 auto', width: '100%' }}>
-          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 16, paddingBottom: 14, borderBottom: '1px solid var(--color-line)' }}>
-            <div>
-              <Eyebrow style={{ marginBottom: 4 }}>The day</Eyebrow>
-              <h1 style={{ fontFamily: FONT_HEAD, fontWeight: 600, fontSize: 30, margin: 0, letterSpacing: '-0.01em', lineHeight: 1.04, whiteSpace: 'nowrap' }}>
-                <Press large as="em" style={{ fontStyle: 'italic', color: isToday ? 'var(--color-accent)' : undefined }}>
-                  {dayLabel(day)}
-                </Press>
-              </h1>
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <TButton onClick={() => setCursor((c) => addDays(c, -1))} style={{ fontSize: 13, padding: '6px 11px' }}>
-                ‹
-              </TButton>
-              <TButton onClick={() => setCursor(today)} style={{ letterSpacing: '0.14em', padding: '6px 14px' }}>
-                TODAY
-              </TButton>
-              <TButton onClick={() => setCursor((c) => addDays(c, 1))} style={{ fontSize: 13, padding: '6px 11px' }}>
-                ›
-              </TButton>
-            </div>
+        <div style={{ flex: 1, minHeight: 0, padding: '14px 30px 12px', display: 'flex', flexDirection: 'column', maxWidth: 760, margin: '0 auto', width: '100%' }}>
+          {/* The masthead. The full stop is deliberate — it is the prototype's
+              voice: a day is a statement, not a heading. */}
+          <div className="mo-item" style={{ display: 'flex', alignItems: 'baseline', gap: 14, marginBottom: 10, animationDelay: `${MO_DELAYS.header}ms` }}>
+            <Press large style={{ fontFamily: FONT_HEAD, fontWeight: 700, fontSize: '2rem', lineHeight: 1, letterSpacing: '-0.025em', whiteSpace: 'nowrap' }}>
+              {dayLabel(day)}.
+            </Press>
+            <span className="mono-eyebrow">
+              {`DAY ${String(dayOfYear(day)).padStart(2, '0')} · ${String(timed.length + untimed.length).padStart(2, '0')} EVENTS · ${String(untimed.length).padStart(2, '0')} UNTIMED`}
+            </span>
+            <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 7 }}>
+              <TButton quiet onClick={() => setCursor((c) => addDays(c, -1))}>← Prev</TButton>
+              <TButton onClick={() => setCursor(today)}>Today</TButton>
+              <TButton quiet onClick={() => setCursor((c) => addDays(c, 1))}>Next →</TButton>
+            </span>
           </div>
+          <hr className="jk-rule-strong mo-item" style={{ margin: '0 0 12px', animationDelay: `${MO_DELAYS.todayRule}ms` }} />
 
           <div
             style={{
@@ -231,7 +259,7 @@ function DayGrid({
           >
             {/* All-day lane */}
             {(alldayLanes > 0 || (anyDrag && drag?.mode === 'allday')) && (
-              <div style={{ display: 'grid', gridTemplateColumns: `${WV_LABEL_W}px 1fr`, borderBottom: '1px solid var(--color-line)', background: 'var(--color-paper)', flexShrink: 0 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: `${LABEL_W}px 1fr`, borderBottom: '1px solid var(--color-line)', background: 'var(--color-paper)', flexShrink: 0 }}>
                 <div className="mono-eyebrow" style={{ borderRight: '1px solid var(--color-line)', fontSize: 7, padding: '5px 5px 0 0', textAlign: 'right' }}>
                   ALL-DAY
                 </div>
@@ -256,7 +284,7 @@ function DayGrid({
             )}
 
             {/* Untimed lane */}
-            <div style={{ display: 'grid', gridTemplateColumns: `${WV_LABEL_W}px 1fr`, borderBottom: '1px solid var(--color-line)', background: 'var(--color-paper)', minHeight: 44 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: `${LABEL_W}px 1fr`, borderBottom: '1px solid var(--color-line)', background: 'var(--color-paper)', minHeight: 44 }}>
               <div className="mono-eyebrow" style={{ borderRight: '1px solid var(--color-line)', fontSize: 7, padding: '6px 6px 0 0', textAlign: 'right' }}>
                 UNTIMED
               </div>
@@ -291,16 +319,28 @@ function DayGrid({
             </div>
 
             {/* Hour grid */}
-            <div ref={scrollRef} data-hour-scroll style={{ flex: 1, minHeight: 0, overflowY: 'auto', position: 'relative' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: `${WV_LABEL_W}px 1fr`, height: totalH, position: 'relative' }}>
+            <div
+              ref={scrollRef}
+              data-hour-scroll
+              className="mo-item"
+              style={{ flex: 1, minHeight: 0, overflowY: 'auto', position: 'relative', animationDelay: `${MO_DELAYS.todayGrid}ms` }}
+            >
+              {/* Floats over the grid rather than replacing it, so drag-to-create
+                  still works on an empty day. */}
+              {timed.length === 0 && untimed.length === 0 && (
+                <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', pointerEvents: 'none', zIndex: 3 }}>
+                  <EmptyState line="Nothing set for this day." sub="DRAG ON THE GRID TO SCHEDULE" />
+                </div>
+              )}
+              <div style={{ display: 'grid', gridTemplateColumns: `${LABEL_W}px 1fr`, height: totalH, position: 'relative' }}>
                 <div style={{ position: 'relative' }}>
                   {HOURS.map((h, i) => (
-                    <div key={h} style={{ position: 'absolute', top: i * WV_ROW_H, left: 0, right: 0, height: WV_ROW_H, textAlign: 'right', padding: '2px 8px 0 0' }}>
-                      <span className="seg" style={{ fontSize: 9, color: 'var(--color-faint)', letterSpacing: '0.04em' }}>{i === 0 ? '' : fmtHourLabel(h)}</span>
+                    <div key={h} style={{ position: 'absolute', top: i * ROW_H, left: 0, right: 0, height: ROW_H, textAlign: 'right', padding: '2px 8px 0 0' }}>
+                      <HourLabel>{i === 0 ? '' : fmtHourLabel(h)}</HourLabel>
                     </div>
                   ))}
                   {isToday && nowFrac >= WV_FIRST_H && nowFrac <= WV_LAST_H + 1 && (
-                    <div style={{ position: 'absolute', top: (nowFrac - WV_FIRST_H) * WV_ROW_H, right: 6, transform: 'translateY(-50%)' }}>
+                    <div style={{ position: 'absolute', top: (nowFrac - WV_FIRST_H) * ROW_H, right: 6, transform: 'translateY(-50%)' }}>
                       <span className="seg" style={{ fontSize: 10, color: 'var(--color-accent)' }}>
                         {String(now.getHours()).padStart(2, '0')}:{String(now.getMinutes()).padStart(2, '0')}
                       </span>
@@ -312,13 +352,13 @@ function DayGrid({
                   data-drop-zone="timed"
                   data-drop-day={day}
                   data-frac-base={WV_FIRST_H}
-                  data-frac-scale={WV_ROW_H}
+                  data-frac-scale={ROW_H}
                   onPointerDown={
                     hasDnd
                       ? (e) => {
                           if (e.target !== e.currentTarget) return;
                           const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                          const frac = snapFrac(WV_FIRST_H + (e.clientY - r.top) / WV_ROW_H);
+                          const frac = snapFrac(WV_FIRST_H + (e.clientY - r.top) / ROW_H);
                           beginCreate(e, frac);
                         }
                       : undefined
@@ -332,7 +372,7 @@ function DayGrid({
                       : isToday
                         ? 'color-mix(in srgb, var(--jk-tint, var(--accent)) 14%, var(--hub-bg-2))'
                         : 'var(--color-paper)',
-                    backgroundImage: `repeating-linear-gradient(to bottom, var(--color-line-strong) 0 1px, transparent 1px ${WV_ROW_H}px)`,
+                    backgroundImage: gridRules(density, { halfHour: true }),
                     outline: isTargetTimed && !isToday ? '1px solid var(--color-accent-glow)' : 'none',
                     outlineOffset: -1,
                     cursor: anyDrag ? 'copy' : readonly || !hasDnd ? 'default' : 'crosshair',
@@ -349,6 +389,9 @@ function DayGrid({
                         key={item.id}
                         item={item}
                         accent={blockAccent}
+                        density={density}
+                        surface="day"
+                        now={now}
                         slot={slot}
                         totalCols={totalCols}
                         isSelected={selectedId === item.id}
@@ -369,15 +412,11 @@ function DayGrid({
                     );
                   })}
 
-                  {showPreview && drag && <TimelinePreview drag={drag} sourceColorOf={sourceColorOf} />}
+                  {showPreview && drag && <TimelinePreview drag={drag} sourceColorOf={sourceColorOf} density={density} />}
 
                   {isToday && nowFrac >= WV_FIRST_H && nowFrac <= WV_LAST_H + 1 && (
-                    <div style={{ position: 'absolute', top: (nowFrac - WV_FIRST_H) * WV_ROW_H, left: 0, right: 0, height: 0, zIndex: 12, pointerEvents: 'none', display: 'flex', alignItems: 'center' }}>
-                      <span className="now-dot" style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--color-accent)', boxShadow: 'var(--accent-halo)', marginLeft: -5 }} />
-                      <span style={{ flex: 1, height: 2, background: 'var(--color-accent)', opacity: 0.7 }} />
-                      <span className="jk-press" style={{ fontFamily: 'var(--hub-font-mono)', fontSize: 8.5, letterSpacing: '0.2em', fontWeight: 600, padding: '0 8px', whiteSpace: 'nowrap', color: 'var(--color-accent)' }}>
-                        NOW
-                      </span>
+                    <div style={{ position: 'absolute', top: (nowFrac - WV_FIRST_H) * ROW_H, left: 0, right: 0, height: 0, zIndex: 12, pointerEvents: 'none', display: 'flex', alignItems: 'center' }}>
+                      <NowLine dot={10} label={nowLabel} />
                     </div>
                   )}
                 </div>

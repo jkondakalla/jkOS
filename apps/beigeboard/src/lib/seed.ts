@@ -1,4 +1,4 @@
-import { isoDate } from './theme'
+import { isoDate, tagTintOf } from './theme'
 
 export const TODAY_ISO = isoDate(new Date())
 
@@ -41,9 +41,24 @@ export function getAncestors(item: any, items: any[]) {
   return out
 }
 
+/**
+ * An item's tint, resolved ORIGIN → PARENT → THEME.
+ *
+ * Origin first: an explicit accent the user set, else the tint its tag implies
+ * (what kind of work it is). Only then does it inherit the goal it hangs under,
+ * and only if nothing at all applies does the caller fall back to the theme
+ * accent. Tint should say something about the item, never just repeat the
+ * user's current accent choice back at them.
+ */
 export function getAccent(item: any, items: any[]): string | null {
   if (item.accent) return item.accent
-  for (const a of getAncestors(item, items)) if (a.accent) return a.accent
+  const own = tagTintOf(item.tag ?? item.category)
+  if (own) return own
+  for (const a of getAncestors(item, items)) {
+    if (a.accent) return a.accent
+    const inherited = tagTintOf(a.tag ?? a.category)
+    if (inherited) return inherited
+  }
   return null
 }
 

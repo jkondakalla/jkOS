@@ -42,6 +42,10 @@ injectJkOSTheme({
 const DEFAULT_API_URL  = import.meta.env.VITE_API_URL ?? ''
 const JKOS_AUTH_URL    = import.meta.env.VITE_JKOS_AUTH_URL ?? 'https://auth.jkos.net'
 
+/** Views that run their own internal .mo-item cascade, so the <main> boundary
+ *  must NOT also apply `ink-in` — see the comment at the boundary below. */
+const STAGGERED_VIEWS = new Set(['today', 'week', 'tasks'])
+
 /* Token-refresh-aware fetch is now the suite-shared authFetch (@jkos/auth-client):
    on a 401 (TOKEN_EXPIRED/UNAUTHENTICATED) it silently rotates the remember-me
    refresh cookie and retries, deduping concurrent attempts. One implementation for
@@ -385,7 +389,10 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
              (rust) cards halo while cool (sage) ones didn't. Halation is now the
              per-element, colour-correct --accent-halo token from @jkos/design. */
         }}>
-          <div style={{ gridColumn: '1 / -1' }}>
+          {/* The header animates ONCE, on app boot — it doesn't remount on tab
+              change, so it must not carry the view's cascade. Each view then
+              owns its own cascade from 0ms. */}
+          <div className="mo-item" style={{ gridColumn: '1 / -1', animationDelay: '0ms' }}>
             <AppHeader
               view={view} setView={setView}
               today={today}
@@ -401,8 +408,14 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
             key={view}
             // Full Press entrance physics at the VIEW boundary: ink dries on
             // paper, the tube powers on in dark — one class, face-aware.
-            // (Workshop keeps no entrance: its inner canvas manages its own.)
-            className={view === 'tasks' ? undefined : 'ink-in'}
+            //
+            // Only the CALENDAR keeps it. Today, Week and Workshop each stagger
+            // their own regions with .mo-item, and .mo-item carries `both`, so
+            // an .mo-item inside an .ink-in parent double-animates: the parent
+            // fades the whole pane in while the child is still holding its
+            // pre-animation frame. One entrance per view — the inner cascade
+            // wins wherever a view has one, because it says more.
+            className={STAGGERED_VIEWS.has(view) ? undefined : 'ink-in'}
             style={{ overflow: 'hidden', minHeight: 0, position: 'relative', display: 'flex', flexDirection: 'column' }}
           >
             {loading ? (

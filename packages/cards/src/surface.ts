@@ -14,6 +14,8 @@
  */
 
 import type { CSSProperties } from 'react';
+import type { ChipState } from './types';
+import { chipStateClass } from './datetime';
 
 /** solid = the saturated `.jk-chip-solid` tab (default, cream-knockout title via
  *  `.jk-press-rev`); faint = the raised `.jk-chip` in faint tint (neutral-ink
@@ -24,10 +26,15 @@ export interface CardSurfaceOpts {
   /** Tint colour (hex or CSS var) → drives `--jk-tint` for the whole chip. */
   accent: string;
   variant?: CardVariant;
-  /** Spent state → `.jk-chip-done` (flat, dimmed). */
+  /** Struck off → `.jk-chip-done` (flat, dimmed). */
   completed?: boolean;
   /** Now / active → `.jk-chip-live` (brighter fill + ring). */
   live?: boolean;
+  /** The weight this chip is wearing, from `chipState(item, now)`. Prefer this
+   *  over `completed`/`live`: it is the one place that decides, so every surface
+   *  rendering the same item gives it the same weight — and it is the only way
+   *  to reach `spent` (ended, but nobody struck it off). Wins over both flags. */
+  state?: ChipState;
   /** Selection ring, laid over the chip's own shadow. */
   selected?: boolean;
   /** Dense chip → `.jk-chip-sm` (calendar cells, tight rails). */
@@ -50,14 +57,17 @@ export interface CardSurface {
  * (`.jk-press-rev` on solid, `.jk-press-ink` on faint) at the call site.
  */
 export function cardSurface(opts: CardSurfaceOpts): CardSurface {
-  const { accent, variant = 'solid', completed = false, live = false, selected = false, sm = false, radius } = opts;
+  const { accent, variant = 'solid', completed = false, live = false, state, selected = false, sm = false, radius } = opts;
+
+  // `state` is the modern seam; the two booleans are the legacy one. Fold them
+  // into a single state so the class set below has exactly one input.
+  const s: ChipState = state ?? (completed ? 'done' : live ? 'live' : 'upcoming');
 
   const className = [
     'jk-chip',
     variant === 'solid' && 'jk-chip-solid',
     sm && 'jk-chip-sm',
-    live && !completed && 'jk-chip-live',
-    completed && 'jk-chip-done',
+    chipStateClass(s),
   ]
     .filter(Boolean)
     .join(' ');

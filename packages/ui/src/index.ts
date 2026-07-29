@@ -15,7 +15,7 @@ export { SettingsDrawer, SettingsSection } from './SettingsDrawer';
 export type { SettingsDrawerProps } from './SettingsDrawer';
 export { JkOSTheme } from './JkOSTheme';
 export {
-  Bubble, Press, Chip, Sub, SubLink, Well, Sheet, Lab, TButton, Pill,
+  Bubble, Press, Chip, Sub, SubLink, Well, Sheet, Lab, TButton, Pill, Bar, EmptyState,
   Rule, Folio, Colophon,
   Switch, Check, Slider, VU, Scanlines, Vignette, Scrim, cx,
 } from './primitives';

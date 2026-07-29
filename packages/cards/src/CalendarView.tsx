@@ -21,15 +21,16 @@ import {
   fmtFull,
   fmtTime,
   isoDate,
-  layoutBars,
   localDate,
   monthStart,
+  chipState,
+  chipStateClass,
 } from './datetime';
-import { CV_BAR_H, CV_BAR_GAP, CV_DAY_NUM, DOW } from './constants';
+import { DOW } from './constants';
 import { TaskChip } from './TaskChip';
-import { AllDayBar } from './AllDayBar';
-import { Checkbox, Eyebrow, RecLamp } from './primitives';
-import { Press, TButton } from '@jkos/ui';
+import { Checkbox, Eyebrow, RecLamp, ChromeBar } from './primitives';
+import { TButton, EmptyState } from '@jkos/ui';
+import { MO_DELAYS } from '@jkos/design';
 
 export function CalendarView(props: CalendarViewProps) {
   const bp = useBreakpoint();
@@ -37,8 +38,8 @@ export function CalendarView(props: CalendarViewProps) {
   return <CalendarGrid {...props} />;
 }
 
-function monthLabel(iso: string) {
-  return localDate(iso).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+function shortMonth(iso: string) {
+  return localDate(iso).toLocaleDateString('en-US', { month: 'short' });
 }
 
 /** The ISO day under a screen point, via the same data-drop-day contract the
@@ -66,6 +67,7 @@ function CalendarGrid({
   onAddItem,
   onUpdateItem,
   onWeekJump,
+  sidebar = false,
 }: CalendarViewProps) {
   const { accentOf, sourceColorOf } = mergeResolvers(resolvers);
   const drag = adapter?.drag ?? null;
@@ -80,13 +82,25 @@ function CalendarGrid({
   }, [quickAdd]);
 
   const grid = useMemo(() => buildMonthGrid(cursor), [cursor]);
-  const alldayEvents = useMemo(() => items.filter((it) => it.kind === 'event' && !it.scheduled_time), [items]);
 
+  // Per-day buckets. Like the Week lanes, the month is now GAPPED cells — and a
+  // continuous spanning bar needs continuous columns, so a multi-day event
+  // surfaces as a chip in EACH day it covers instead of one bar across the row.
+  // (The spanning AllDayBar lives on in DayView's all-day lane.)
   const byDay = useMemo(() => {
     const out: Record<string, CalendarItem[]> = {};
     items.forEach((it) => {
       if (it.kind !== 'task' && it.kind !== 'event') return;
-      if (it.kind === 'event' && !it.scheduled_time) return;
+      if (it.kind === 'event' && !it.scheduled_time) {
+        const start = it.due_date;
+        if (!start) return;
+        const end = it.end_date || start;
+        for (let d = start; d <= end; d = addDays(d, 1)) {
+          if (!out[d]) out[d] = [];
+          out[d].push(it);
+        }
+        return;
+      }
       const key = it.due_date || '__none__';
       if (!out[key]) out[key] = [];
       out[key].push(it);
@@ -95,6 +109,28 @@ function CalendarGrid({
   }, [items]);
 
   const unscheduled = byDay['__none__'] || [];
+
+  // How many week rows this month actually needs. The prototype hardcodes 5,
+  // which is only right for the month it was drawn in — a month starting late
+  // in the week spills into a 6th. Trim trailing all-out-of-month weeks instead,
+  // so `1fr` rows always divide the pane evenly and no month clips.
+  const weekRows = useMemo(() => {
+    for (let w = 6; w > 4; w--) {
+      if (grid.slice((w - 1) * 7, w * 7).some((c) => c.inMonth)) return w;
+    }
+    return 5;
+  }, [grid]);
+
+  const monthName = useMemo(() => localDate(cursor).toLocaleDateString('en-US', { month: 'long' }), [cursor]);
+  const monthYear = useMemo(() => String(localDate(cursor).getFullYear()), [cursor]);
+  const daysInMonth = useMemo(() => {
+    const d = localDate(cursor);
+    return new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  }, [cursor]);
+  const monthItemCount = useMemo(
+    () => grid.reduce((n, c) => n + (c.inMonth ? (byDay[c.iso]?.length ?? 0) : 0), 0),
+    [grid, byDay],
+  );
 
   const beginDragChip = (e: React.PointerEvent, item: CalendarItem) => {
     e.preventDefault();
@@ -106,191 +142,213 @@ function CalendarGrid({
     });
   };
 
-  const beginDragBar = (e: React.PointerEvent, ev: CalendarItem) => {
-    e.preventDefault();
-    e.stopPropagation();
-    beginDrag(e, ev, 'allday', ({ overDay, overZone }) => {
-      if (overZone === 'cell' && overDay && overDay !== ev.due_date) {
-        const delta = Math.round((new Date(overDay).getTime() - new Date(ev.due_date as string).getTime()) / 86400000);
-        const updates: Partial<CalendarItem> = { due_date: addDays(ev.due_date as string, delta) };
-        if (ev.end_date) updates.end_date = addDays(ev.end_date, delta);
-        onUpdateItem?.(ev.id, updates);
-      }
-    });
-  };
-
   const anyDrag = !!drag;
 
   return (
     <div style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden', background: 'transparent' }}>
-      <aside style={{ width: 220, flexShrink: 0, borderRight: '1px solid var(--color-line)', background: 'var(--color-paper-2)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <div style={{ padding: '16px 16px 12px', borderBottom: '1px solid var(--color-line)' }}>
-          <Eyebrow>Unscheduled · {unscheduled.length}</Eyebrow>
-          <p style={{ fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 12, color: 'var(--color-muted)', margin: '4px 0 0', lineHeight: 1.35 }}>Drag onto a date to schedule</p>
-        </div>
-        <div style={{ flex: 1, overflowY: 'auto', padding: '8px 10px' }}>
-          {unscheduled.length === 0 ? (
-            <p style={{ fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 13, color: 'var(--color-faint)', margin: '12px 4px' }}>Nothing left to place.</p>
-          ) : (
-            unscheduled.map((it) => (
-              <TaskChip
-                key={it.id}
-                item={it}
-                accent={accentOf(it) || 'var(--color-muted)'}
-                size="md"
-                showTime
-                isDragging={drag?.item?.id === it.id}
-                isSelected={selectedId === it.id}
-                onSelect={onSelect}
-                onToggle={onToggle}
-                onPointerDown={hasDnd ? (e) => beginDragChip(e, it) : undefined}
-              />
-            ))
-          )}
-        </div>
-      </aside>
-
-      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 24px 12px', borderBottom: '1px solid var(--color-line)', background: 'var(--color-paper)', flexShrink: 0 }}>
-          <h2 style={{ fontFamily: FONT_HEAD, fontWeight: 600, fontSize: 28, margin: 0, letterSpacing: '-0.01em' }}>
-            <Press large as="em" style={{ fontStyle: 'italic' }}>
-              {monthLabel(cursor)}
-            </Press>
-          </h2>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <TButton onClick={() => setCursor((c) => addMonths(c, -1))} style={{ fontSize: 13, padding: '6px 11px' }}>
-              ‹
-            </TButton>
-            <TButton onClick={() => setCursor(monthStart(today))} style={{ letterSpacing: '0.14em', padding: '6px 14px' }}>
-              THIS MONTH
-            </TButton>
-            <TButton onClick={() => setCursor((c) => addMonths(c, 1))} style={{ fontSize: 13, padding: '6px 11px' }}>
-              ›
-            </TButton>
+      {/* The unscheduled sidebar is OFF by default: it is not in the prototype's
+          month, and it was the reason Calendar read as a different app from the
+          other three tabs. Unplaced work belongs on the Week bench strip. Kept
+          behind a prop for any consumer that still wants the rail. */}
+      {sidebar && (
+        <aside className="jk-scroll" style={{ width: 220, flexShrink: 0, borderRight: '1px solid var(--hub-line)', background: 'var(--color-paper-2)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ padding: '16px 16px 12px', borderBottom: '1px solid var(--hub-line)' }}>
+            <Eyebrow>Unscheduled · {unscheduled.length}</Eyebrow>
+            <p style={{ fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 12, color: 'var(--color-muted)', margin: '4px 0 0', lineHeight: 1.35 }}>Drag onto a date to schedule</p>
           </div>
-        </div>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '8px 10px' }}>
+            {unscheduled.length === 0 ? (
+              <EmptyState line="Nothing left to place." />
+            ) : (
+              unscheduled.map((it) => (
+                <TaskChip
+                  key={it.id}
+                  item={it}
+                  accent={accentOf(it) || 'var(--color-muted)'}
+                  size="md"
+                  showTime
+                  isDragging={drag?.item?.id === it.id}
+                  isSelected={selectedId === it.id}
+                  onSelect={onSelect}
+                  onToggle={onToggle}
+                  onPointerDown={hasDnd ? (e) => beginDragChip(e, it) : undefined}
+                />
+              ))
+            )}
+          </div>
+        </aside>
+      )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', borderBottom: '1px solid var(--color-line)', background: 'var(--color-paper-2)', flexShrink: 0 }}>
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: '16px 30px 22px' }}>
+        <ChromeBar
+          className="mo-item"
+          style={{ height: 'auto', padding: 0, border: 'none', marginBottom: 14, animationDelay: `${MO_DELAYS.header}ms` }}
+          title={
+            <span style={{ fontSize: '1.9rem', letterSpacing: '-0.02em', lineHeight: 1 }}>
+              {monthName} <span style={{ fontStyle: 'italic' }}>{monthYear}</span>
+            </span>
+          }
+          stats={`${String(daysInMonth).padStart(2, '0')} DAYS · ${String(monthItemCount).padStart(2, '0')} ITEMS · CLICK A DAY TO OPEN IT`}
+          nav={
+            <>
+              <TButton quiet onClick={() => setCursor((c) => addMonths(c, -1))}>← {shortMonth(addMonths(cursor, -1))}</TButton>
+              <TButton onClick={() => setCursor(monthStart(today))}>Today</TButton>
+              <TButton quiet onClick={() => setCursor((c) => addMonths(c, 1))}>{shortMonth(addMonths(cursor, 1))} →</TButton>
+            </>
+          }
+        />
+
+        {/* Day-of-week row — no borders, no background: the cells carry the frame. */}
+        <div className="mo-item" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6, marginBottom: 6, flexShrink: 0, animationDelay: `${MO_DELAYS.calendarDow}ms` }}>
           {DOW.map((d) => (
-            <div key={d} className="jk-lab jk-lab-xs" style={{ color: 'var(--color-muted)', padding: '6px 10px', borderRight: d !== 'Sun' ? '1px solid var(--color-line)' : 'none' }}>
+            <div key={d} className="jk-lab jk-lab-xs" style={{ color: 'var(--color-muted)', textAlign: 'center' }}>
               {d}
             </div>
           ))}
         </div>
 
-        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
-          {Array.from({ length: 6 }, (_, wi) => {
-            const weekCells = grid.slice(wi * 7, (wi + 1) * 7);
-            const weekDays = weekCells.map((c) => c.iso);
-            const bars = layoutBars(alldayEvents, weekDays);
-            const barLanes = bars.length > 0 ? Math.max(...bars.map((b) => b.lane)) + 1 : 0;
-            const barZoneH = barLanes * (CV_BAR_H + CV_BAR_GAP) + (barLanes > 0 ? 6 : 0);
+        {/* The cell grid — gapped, individually bordered cells: Week's lane idea
+            at month scale. Rows are 1fr so the grid fills the pane instead of
+            scrolling a fixed 90px-per-row table. */}
+        <div
+          className="mo-item"
+          style={{
+            flex: 1,
+            minHeight: 0,
+            display: 'grid',
+            gridTemplateColumns: 'repeat(7, 1fr)',
+            gridTemplateRows: `repeat(${weekRows}, 1fr)`,
+            gap: 6,
+            position: 'relative',
+            animationDelay: `${MO_DELAYS.calendarGrid}ms`,
+          }}
+        >
+          {monthItemCount === 0 && (
+            <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', pointerEvents: 'none', zIndex: 4 }}>
+              <EmptyState line="No impressions this month." sub="CLICK A DAY TO OPEN IT" />
+            </div>
+          )}
+          {grid.slice(0, weekRows * 7).map((cell) => {
+            const cellItems = byDay[cell.iso] || [];
+            const isToday = cell.iso === today;
+            const isOver = drag?.overZone === 'cell' && drag?.overDay === cell.iso;
+            const isTarget = anyDrag && cell.inMonth;
 
             return (
-              <div key={wi} style={{ flex: 1, position: 'relative', display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', borderBottom: wi < 5 ? '1px solid var(--color-line-strong)' : 'none', minHeight: 90 + barZoneH }}>
-                {barLanes > 0 && (
-                  <div style={{ position: 'absolute', top: CV_DAY_NUM, left: 0, right: 0, height: barZoneH, zIndex: 2 }}>
-                    {bars.map((bar) => (
-                      <AllDayBar
-                        key={bar.ev.id}
-                        bar={bar}
-                        color={sourceColorOf(bar.ev.source)}
-                        top={bar.lane * (CV_BAR_H + CV_BAR_GAP) + 2}
-                        height={CV_BAR_H}
-                        isSelected={selectedId === bar.ev.id}
-                        isDragging={drag?.item?.id === bar.ev.id}
-                        onPointerDown={hasDnd ? (e) => beginDragBar(e, bar.ev) : undefined}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (!drag) onSelect?.(bar.ev);
+              <div
+                key={cell.iso}
+                data-drop-zone="cell"
+                data-drop-day={cell.iso}
+                className={cell.inMonth ? 'jk-hit' : undefined}
+                onClick={(e) => {
+                  if (e.target !== e.currentTarget || !cell.inMonth || anyDrag) return;
+                  // Clicking the cell opens that day; the quick-add lives on the
+                  // day number, so a cell is one gesture with one meaning.
+                  onWeekJump?.(cell.iso);
+                }}
+                style={{
+                  border: '1px solid var(--hub-line)',
+                  borderRadius: 'var(--hub-radius-xs)',
+                  padding: '7px 9px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 4,
+                  overflow: 'hidden',
+                  minWidth: 0,
+                  opacity: cell.inMonth ? 1 : 0.36,
+                  background: isOver
+                    ? 'color-mix(in srgb, var(--color-accent) 12%, transparent)'
+                    : isToday
+                      ? 'color-mix(in srgb, var(--jk-tint, var(--accent)) 14%, var(--hub-bg-2))'
+                      : 'var(--color-paper)',
+                  boxShadow: isToday ? 'var(--hub-accent-press)' : 'none',
+                  outline: isOver ? '1px dashed var(--color-accent)' : isTarget ? '1px dashed var(--color-accent-glow)' : 'none',
+                  outlineOffset: -1,
+                  cursor: anyDrag ? (cell.inMonth ? 'copy' : 'default') : cell.inMonth ? 'pointer' : 'default',
+                  userSelect: 'none',
+                }}
+              >
+                <div
+                  className={isToday ? 'jk-press' : undefined}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (cell.inMonth) setQuickAdd(cell.iso);
+                  }}
+                  style={{
+                    fontFamily: FONT_HEAD,
+                    fontWeight: 700,
+                    fontSize: 14,
+                    lineHeight: 1,
+                    flex: 'none',
+                    alignSelf: 'flex-start',
+                    cursor: cell.inMonth ? 'text' : 'default',
+                  }}
+                  title="Add on this day"
+                >
+                  {localDate(cell.iso).getDate()}
+                </div>
+
+                {cell.inMonth && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minHeight: 0, overflow: 'hidden' }}>
+                    {cellItems.slice(0, 4).map((it) => {
+                      const tint = accentOf(it) || sourceColorOf(it.source);
+                      return (
+                        <span
+                          key={it.id}
+                          className={`jk-chip jk-chip-solid jk-chip-sm ${chipStateClass(chipState(it))}`}
+                          onPointerDown={hasDnd ? (e) => beginDragChip(e, it) : undefined}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!drag) onSelect?.(it);
+                          }}
+                          style={{
+                            ['--jk-tint' as string]: tint,
+                            padding: '3px 7px',
+                            cursor: 'pointer',
+                            outline: selectedId === it.id ? '1.5px solid var(--color-accent)' : undefined,
+                            outlineOffset: -2,
+                            opacity: drag?.item?.id === it.id ? 0.4 : undefined,
+                          }}
+                        >
+                          <span
+                            className="jk-press-rev"
+                            style={{
+                              fontFamily: FONT_HEAD,
+                              fontWeight: 600,
+                              fontSize: 10,
+                              display: 'block',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {it.title}
+                          </span>
+                        </span>
+                      );
+                    })}
+                    {cellItems.length > 4 && (
+                      <span className="mono-eyebrow" style={{ fontSize: 8 }}>+{cellItems.length - 4} MORE</span>
+                    )}
+                    {quickAdd === cell.iso && (
+                      <input
+                        ref={quickRef}
+                        placeholder="New task…"
+                        onBlur={() => setQuickAdd(null)}
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => {
+                          const v = (e.target as HTMLInputElement).value.trim();
+                          if (e.key === 'Enter' && v) {
+                            onAddItem?.({ kind: 'task', scope: 'day', due_date: cell.iso, title: v });
+                            setQuickAdd(null);
+                          }
+                          if (e.key === 'Escape') setQuickAdd(null);
                         }}
+                        style={{ background: 'transparent', border: '1px solid var(--color-accent)', borderRadius: 'var(--hub-radius-sm)', fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 11, color: 'var(--color-ink)', outline: 'none', padding: '2px 5px', width: '100%', boxSizing: 'border-box' }}
                       />
-                    ))}
+                    )}
                   </div>
                 )}
-
-                {weekCells.map((cell, ci) => {
-                  const cellItems = byDay[cell.iso] || [];
-                  const isToday = cell.iso === today;
-                  const isOver = drag?.overZone === 'cell' && drag?.overDay === cell.iso;
-                  const isTarget = anyDrag && cell.inMonth;
-
-                  return (
-                    <div
-                      key={cell.iso}
-                      data-drop-zone="cell"
-                      data-drop-day={cell.iso}
-                      onClick={(e) => {
-                        if (e.target === e.currentTarget && cell.inMonth && !anyDrag) setQuickAdd(cell.iso);
-                      }}
-                      style={{
-                        borderRight: ci < 6 ? '1px solid var(--color-line-strong)' : 'none',
-                        background: isOver
-                          ? 'color-mix(in srgb, var(--color-accent) 12%, transparent)'
-                          : isToday
-                            ? 'color-mix(in srgb, var(--jk-tint, var(--accent)) 14%, var(--hub-bg-2))'
-                            : !cell.inMonth
-                              ? 'rgba(0,0,0,0.04)'
-                              : 'var(--color-paper)',
-                        boxShadow: isToday ? 'var(--hub-accent-press)' : 'none',
-                        outline: isOver ? '1px dashed var(--color-accent)' : isTarget ? '1px dashed var(--color-accent-glow)' : 'none',
-                        outlineOffset: -1,
-                        padding: `${CV_DAY_NUM + barZoneH + 2}px 6px 6px`,
-                        cursor: anyDrag ? (cell.inMonth ? 'copy' : 'default') : cell.inMonth ? 'text' : 'default',
-                        transition: 'background 0.08s',
-                        userSelect: 'none',
-                      }}
-                    >
-                      <div
-                        className={isToday ? 'jk-press' : undefined}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onWeekJump?.(cell.iso);
-                        }}
-                        style={{ position: 'absolute', top: 5, left: `calc(${(ci / 7) * 100}% + 6px)`, fontFamily: FONT_NUM, fontSize: 14, color: isToday ? 'var(--color-accent)' : !cell.inMonth ? 'var(--color-faint)' : 'var(--color-muted)', fontStyle: isToday ? 'italic' : 'normal', fontWeight: isToday ? 600 : 400, lineHeight: 1, cursor: 'pointer', zIndex: 3 }}
-                        title="Open in Week view"
-                      >
-                        {localDate(cell.iso).getDate()}
-                      </div>
-
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                        {cellItems.slice(0, 4).map((it) => (
-                          <TaskChip
-                            key={it.id}
-                            item={it}
-                            accent={accentOf(it) || 'var(--color-muted)'}
-                            size="xs"
-                            variant="solid"
-                            isDragging={drag?.item?.id === it.id}
-                            isSelected={selectedId === it.id}
-                            onSelect={onSelect}
-                            onToggle={onToggle}
-                            onPointerDown={hasDnd ? (e) => beginDragChip(e, it) : undefined}
-                          />
-                        ))}
-                        {cellItems.length > 4 && (
-                          <span style={{ fontFamily: FONT_BODY, fontSize: 9.5, color: 'var(--color-faint)', fontStyle: 'italic', paddingLeft: 4 }}>+{cellItems.length - 4} more</span>
-                        )}
-                        {quickAdd === cell.iso && (
-                          <input
-                            ref={quickRef}
-                            placeholder="New task…"
-                            onBlur={() => setQuickAdd(null)}
-                            onKeyDown={(e) => {
-                              const v = (e.target as HTMLInputElement).value.trim();
-                              if (e.key === 'Enter' && v) {
-                                onAddItem?.({ kind: 'task', scope: 'day', due_date: cell.iso, title: v });
-                                setQuickAdd(null);
-                              }
-                              if (e.key === 'Escape') setQuickAdd(null);
-                            }}
-                            style={{ background: 'transparent', border: '1px solid var(--color-accent)', borderRadius: 'var(--hub-radius-sm)', fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 11, color: 'var(--color-ink)', outline: 'none', padding: '2px 5px', width: '100%', boxSizing: 'border-box' }}
-                          />
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
               </div>
             );
           })}

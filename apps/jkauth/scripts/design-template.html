@@ -546,6 +546,12 @@
         tube. Supersedes the calendar kit's old <code>ACCENT_GLAZE</code> look. React:
         <code>&lt;Chip&gt;</code> + <code>&lt;Press variant="rev|ink|sm"&gt;</code>.
       </p>
+      <p class="dg-note">
+        The four states are not a style choice per call site — <code>chipState(item, now)</code> in
+        <code>@jkos/cards</code> decides which one an item is wearing, so a chip carries the same
+        weight in every view that renders it. <strong>Spent</strong> is the state that is easy to
+        forget: ended, but nobody struck it off. It keeps its ink and loses only its weight.
+      </p>
       <div class="dg-row" style="margin-bottom:14px;align-items:stretch">
         <span class="jk-chip jk-chip-solid" style="padding:6px 12px;display:inline-flex;flex-direction:column;gap:1px">
           <span class="jk-press-rev" style="font-family:var(--hub-font-serif);font-weight:600;font-size:13px">Deep work</span>
@@ -554,6 +560,10 @@
         <span class="jk-chip jk-chip-solid jk-chip-live" style="padding:6px 12px;display:inline-flex;flex-direction:column;gap:1px;--jk-tint:var(--hub-cyan)">
           <span class="jk-press-rev" style="font-family:var(--hub-font-serif);font-weight:600;font-size:13px">Live now</span>
           <span class="mono-eyebrow" style="font-size:8px">jk-chip-live</span>
+        </span>
+        <span class="jk-chip jk-chip-solid jk-chip-spent" style="padding:6px 12px;display:inline-flex;flex-direction:column;gap:1px">
+          <span class="jk-press-rev" style="font-family:var(--hub-font-serif);font-weight:600;font-size:13px">Ran over</span>
+          <span class="mono-eyebrow" style="font-size:8px">jk-chip-spent</span>
         </span>
         <span class="jk-chip jk-chip-solid jk-chip-done" style="padding:6px 12px;display:inline-flex;flex-direction:column;gap:1px">
           <span class="jk-press-rev" style="font-family:var(--hub-font-serif);font-weight:600;font-size:13px">Shipped</span>
@@ -1026,6 +1036,29 @@
         </div>
         <div class="dg-row" style="margin-top:12px">
           <button class="jk-cards-btn jk-tbtn">jk-cards-btn — press me</button>
+        </div>
+      </div>
+      <p class="dg-note" style="margin-top:16px">
+        <code>.jk-hit</code> is the same idea one level down: the hover response for anything
+        clickable that has no button face — a goal card, a calendar cell, a caret. It lifts the
+        background and takes a 1px press, and that is deliberately all it does.
+        <code>.jk-scroll</code> is the scroll region, vertical only, so a long title can never
+        shove a pane sideways. <code>.jk-divider</code> is <code>.jk-rule</code>'s vertical
+        sibling — the hairline that separates clusters inside a bar.
+      </p>
+      <div class="dg-panel" style="padding:12px">
+        <div class="jk-scroll" style="max-height:96px;display:flex;flex-direction:column;gap:6px">
+          <div class="jk-hit" style="padding:9px 11px;border:1px solid var(--hub-line);border-radius:var(--hub-radius-sm);cursor:pointer">jk-hit — hover me, then press</div>
+          <div class="jk-hit" style="padding:9px 11px;border:1px solid var(--hub-line);border-radius:var(--hub-radius-sm);cursor:pointer">jk-hit — inside a jk-scroll region</div>
+          <div class="jk-hit" style="padding:9px 11px;border:1px solid var(--hub-line);border-radius:var(--hub-radius-sm);cursor:pointer">jk-hit — scroll to reach me</div>
+          <div class="jk-hit" style="padding:9px 11px;border:1px solid var(--hub-line);border-radius:var(--hub-radius-sm);cursor:pointer">jk-hit — vertical only, never sideways</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;margin-top:12px">
+          <span class="mono-eyebrow">4 SOURCES</span>
+          <span class="jk-divider"></span>
+          <span class="seg" style="font-size:15px">09:41</span>
+          <span class="jk-divider"></span>
+          <span class="mono-eyebrow">jk-divider</span>
         </div>
       </div>
     </section>
