@@ -19,7 +19,7 @@ export function WeekView(props: any) {
       benchLane
       createSource="bb"
       drag={dnd}
-      // The sheet's foot. The kit renders the anchor (.jk-canvas-foot), the app
+      // The canvas foot. The kit renders the anchor (.jk-canvas-foot), the app
       // supplies the voice — see the `foot` prop in @jkos/cards types.ts.
       foot={<Colophon style={{ fontSize: '0.82rem' }}>seven days, set and locked up</Colophon>}
       resolvers={{

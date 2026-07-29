@@ -12,9 +12,9 @@
  * the pipeline that fits the forge gets designed later; a seam for it is marked
  * below).
  *
- * Both panes sit INSIDE the page canvas (App.tsx's .jk-canvas-sheet), and the
- * colophon has moved out of the rail into a foot spanning the whole sheet — see
- * DESIGN.md §6, "The canvas".
+ * Both panes sit INSIDE the page canvas (App.tsx's .jk-canvas), and the
+ * colophon has moved out of the rail into a foot spanning the whole measure —
+ * see DESIGN.md §6, "The canvas".
  */
 import React, { useMemo } from 'react'
 import { Calendar } from '@jkos/cards'
@@ -185,8 +185,8 @@ export function TodayView(props: any) {
         </aside>
       </div>
 
-      {/* The sheet's foot — spans both panes, pinned to the bottom of the
-          canvas (.jk-canvas-foot in hub.css). */}
+      {/* The canvas foot — spans both panes, pinned to the bottom of the
+          measure (.jk-canvas-foot in hub.css). */}
       <div className="jk-canvas-foot mo-item" style={{ margin: '0 28px', animationDelay: `${MO_DELAYS.railColophon}ms` }}>
         <Colophon style={{ fontSize: '0.82rem' }}>the sheet holds what the day forgot</Colophon>
       </div>

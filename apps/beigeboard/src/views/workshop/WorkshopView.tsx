@@ -147,7 +147,7 @@ export function WorkshopView({
         </div>
       </div>
 
-      {/* The sheet's foot — spans rail + forge (.jk-canvas-foot in hub.css). */}
+      {/* The canvas foot — spans rail + forge (.jk-canvas-foot in hub.css). */}
       <div className="jk-canvas-foot" style={{ margin: '0 28px' }}>
         <Colophon style={{ fontSize: '0.82rem' }}>the forge holds what isn't finished</Colophon>
       </div>

@@ -38,6 +38,7 @@ import { AllDayBar } from './AllDayBar';
 import { TimelinePreview } from './TimelinePreview';
 import { CreateDialog, type CreatePending } from './CreateDialog';
 import { Checkbox, Eyebrow, RecLamp, HourLabel, NowLine } from './primitives';
+import { useScrollGutter } from './useScrollGutter';
 import { Press, TButton, Well, EmptyState } from '@jkos/ui';
 import { MO_DELAYS } from '@jkos/design';
 import { deriveDaySections } from './sections';
@@ -128,6 +129,16 @@ function DayGrid({
     scrollRef.current.scrollTop = Math.max(0, (target - WV_FIRST_H) * ROW_H);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cursor]);
+
+  // The all-day/untimed lanes don't scroll; the hour grid does. Same column
+  // template, so the scrollbar's width has to come out of the lanes above too or
+  // the label rule sits 8px off the grid's (see useScrollGutter).
+  const gutter = useScrollGutter(scrollRef);
+  const laneBand: React.CSSProperties = {
+    display: 'grid', gridTemplateColumns: `${LABEL_W}px 1fr`,
+    borderBottom: '1px solid var(--color-line)',
+    background: 'var(--color-paper)', paddingRight: gutter,
+  };
 
   const [createPending, setCreatePending] = useState<CreatePending | null>(null);
 
@@ -267,7 +278,7 @@ function DayGrid({
           >
             {/* All-day lane */}
             {(alldayLanes > 0 || (anyDrag && drag?.mode === 'allday')) && (
-              <div style={{ display: 'grid', gridTemplateColumns: `${LABEL_W}px 1fr`, borderBottom: '1px solid var(--color-line)', background: 'var(--color-paper)', flexShrink: 0 }}>
+              <div style={{ ...laneBand, flexShrink: 0 }}>
                 <div className="mono-eyebrow" style={{ borderRight: '1px solid var(--color-line)', fontSize: 7, padding: '5px 5px 0 0', textAlign: 'right' }}>
                   ALL-DAY
                 </div>
@@ -292,7 +303,7 @@ function DayGrid({
             )}
 
             {/* Untimed lane */}
-            <div style={{ display: 'grid', gridTemplateColumns: `${LABEL_W}px 1fr`, borderBottom: '1px solid var(--color-line)', background: 'var(--color-paper)', minHeight: 44 }}>
+            <div style={{ ...laneBand, minHeight: 44 }}>
               <div className="mono-eyebrow" style={{ borderRight: '1px solid var(--color-line)', fontSize: 7, padding: '6px 6px 0 0', textAlign: 'right' }}>
                 UNTIMED
               </div>
@@ -331,7 +342,13 @@ function DayGrid({
               ref={scrollRef}
               data-hour-scroll
               className="mo-item"
-              style={{ flex: 1, minHeight: 0, overflowY: 'auto', position: 'relative', animationDelay: `${MO_DELAYS.todayGrid}ms` }}
+              style={{
+                flex: 1, minHeight: 0, overflowY: 'auto', position: 'relative',
+                // Always reserve the gutter, so the measured lane padding above
+                // can't blink on and off as the grid crosses the overflow line.
+                scrollbarGutter: 'stable',
+                animationDelay: `${MO_DELAYS.todayGrid}ms`,
+              }}
             >
               {/* Floats over the grid rather than replacing it, so drag-to-create
                   still works on an empty day. */}

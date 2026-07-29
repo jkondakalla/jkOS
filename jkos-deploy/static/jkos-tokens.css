@@ -118,7 +118,7 @@
    * The width is FLUID WITH A CAP, three terms, smallest wins:
    *   1. the window minus its gutters  — below ~1440px the canvas simply fills
    *   2. 900px + 34vw                  — above that it grows at ~⅓ the rate the
-   *                                      window does, so the desk opens up
+   *                                      window does, so the margins open up
    *                                      progressively instead of all at once
    *   3. --jk-canvas-cap               — and stops, so line length never runs away
    * Roughly: 964 @1024 · 1380 @1440 · 1545 @1920 · 1760 @2560 and up.
@@ -140,17 +140,6 @@
      same weight in every view instead of BeigeBoard's old 388 / 340 / 220. */
   --jk-rail:    360px;
   --jk-rail-sm: 260px;
-
-  /* The DESK — the surface the sheet sits on. One shade off the paper stock so
-     the margins on a wide screen read as deliberate desk, not as content that
-     failed to stretch. A base layer, so it is a literal like --hub-bg-*: the
-     paper face has no layer below --hub-bg-0 to derive it from, and on the dark
-     face the relationship inverts (the tube is lifted OUT of the black). */
-  --jk-desk: #d9cdb2;
-  --jk-sheet-lift:
-    0 0 0 1px var(--hub-line),
-    0 2px 20px color-mix(in srgb, var(--accent-deepen-ink) 14%, transparent),
-    0 14px 48px color-mix(in srgb, var(--accent-deepen-ink) 9%, transparent);
 
   /* ── Responsive card scale (the VIEWPORT axis) ──────────────────────────────
    * Card primitives consume these instead of literal px, so they scale by tier.
@@ -357,16 +346,6 @@
   --color-ok:     #34d399;
   --color-warn:   #fbbf24;
   --color-danger: #f87171;
-
-  /* The desk, dark face — the relationship inverts. On paper the desk is a
-     shade DARKER than the sheet; on the tube there is nothing below #11100d to
-     go darker into, so the surround drops to near-black and the sheet reads as
-     the thing that is LIT. The lift becomes a faint phosphor edge, not a cast
-     shadow: a CRT emits, it doesn't sit on anything. */
-  --jk-desk: #080806;
-  --jk-sheet-lift:
-    0 0 0 1px var(--hub-line),
-    0 0 40px color-mix(in srgb, var(--accent) 7%, transparent);
 
   --grain-opacity: 0.06;
   --grain-blend:   screen;
@@ -1025,8 +1004,8 @@
 }
 
 /* ─── The canvas — one measure for a full-page view ─────────────────────────
- * Tokens + rationale live up in the :root block (--jk-canvas). These are the
- * three composable pieces:
+ * Tokens + rationale live up in the :root block (--jk-canvas). Two composable
+ * pieces, and deliberately NO third one that draws a surface:
  *
  *   .jk-canvas        the measure. Centre a block at the house width. Override
  *                     for one view with --jk-canvas-w (a whole number, or
@@ -1034,24 +1013,26 @@
  *   .jk-canvas-fill   + fill a flex parent as a column. A full-height app page
  *                     (masthead row + content row) rather than a document that
  *                     scrolls.
- *   .jk-canvas-sheet  + draw it. Paper stock with a real edge and a lift, so
- *                     the desk around it is legible as desk.
+ *
+ * The canvas is a MEASURE, not a card. It was briefly drawn as a lifted sheet
+ * of paper stock on a darker desk; the motif read as a document floating in a
+ * window rather than as the app's own ground, so it is gone. The page ground is
+ * the app's grained background (buildJkOSTheme paints --hub-grain-image onto
+ * `body`), content sits DIRECTLY on it, and the canvas only decides how wide
+ * that content runs. Anything that still wants to read as a raised card uses
+ * .jk-sheet above — a card, at card scale.
  *
  * Put them on the OUTERMOST element of the page, wrapping the masthead too —
  * a folio pinned to the window edge while its own content sits 500px inboard
- * is the exact weighting failure this replaces. Panes inside never re-centre.
- *
- * `.jk-desk` goes on whatever the sheet sits on (the app shell, or <body>). */
-.jk-desk        { background: var(--jk-desk); }
+ * is the exact weighting failure this replaces. Panes inside never re-centre. */
 .jk-canvas      { width: 100%; min-width: 0; margin-inline: auto;
                   max-width: var(--jk-canvas-w, var(--jk-canvas)); }
 .jk-canvas-fill { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
-.jk-canvas-sheet { background: var(--color-paper); box-shadow: var(--jk-sheet-lift); }
 
-/* The sheet's own foot — the anchor that keeps a short view from trailing off
- * into dead paper. Top-set content, then a rule and a colophon pinned to the
- * bottom of the canvas: the empty middle becomes measured margin between two
- * anchors instead of a void. Pair with <Colophon> (.jk-colophon). */
+/* The canvas's foot — the anchor that keeps a short view from trailing off into
+ * dead ground. Top-set content, then a rule and a colophon pinned to the bottom
+ * of the canvas: the empty middle becomes measured margin between two anchors
+ * instead of a void. Pair with <Colophon> (.jk-colophon). */
 .jk-canvas-foot {
   margin-top: auto;
   flex: none;

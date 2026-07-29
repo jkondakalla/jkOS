@@ -370,21 +370,27 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
       {effects.scanLines && <ScanLines strength={effects.scanStrength} />}
       {effects.artifacts && <Artifacts />}
 
-      {/* The DESK — full bleed. Everything the sheet does not cover. */}
-      <div className="jk-desk" style={{
+      {/* The shell — full bleed and TRANSPARENT, so the body's grained ground
+          shows through it. It exists for the boot bloom (the filter below) and
+          the column layout, never to paint a surface. */}
+      <div style={{
         position: 'fixed', inset: 0,
         filter: colorIn ? 'saturate(1) brightness(1)' : 'saturate(0.04) brightness(0.08)',
         transition: 'filter 1.4s ease-out',   /* always present so colorIn flip reliably animates the bloom */
+        background: 'transparent',   /* let the body's grained backdrop show */
         display: 'flex', flexDirection: 'column',
       }}>
-        {/* The SHEET — the one canvas the whole app is set on (hub.css
-            --jk-canvas: fluid, capped at 1760). It wraps the MASTHEAD as well
-            as the content on purpose: a folio pinned to the window edge while
-            the page it labels sits 500px inboard is the weighting failure this
-            replaces. Every view below therefore inherits one centred measure,
-            and rails are panes INSIDE it rather than siblings of the window. */}
-        <div className="jk-canvas jk-canvas-fill jk-canvas-sheet" style={{
+        {/* The CANVAS — the one measure the whole app is set to (hub.css
+            --jk-canvas: fluid, capped at 1760). A measure only: it is NOT drawn
+            as a sheet, content sits directly on the grained ground. It spans the
+            MASTHEAD as well as the content on purpose — a folio pinned to the
+            window edge while the page it labels sits 500px inboard is the
+            weighting failure this replaces. Every view below therefore inherits
+            one centred measure, and rails are panes INSIDE it rather than
+            siblings of the window. */}
+        <div className="jk-canvas jk-canvas-fill" style={{
           position: 'relative',
+          background: 'transparent',   /* grained ground comes from the body */
           display: 'grid',
           gridTemplateRows: 'auto minmax(0, 1fr)',
           gridTemplateColumns: '1fr',

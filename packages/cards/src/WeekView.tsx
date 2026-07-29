@@ -31,6 +31,7 @@ import { TimeBlock } from './TimeBlock';
 import { TimelinePreview } from './TimelinePreview';
 import { CreateDialog } from './CreateDialog';
 import { Checkbox, Eyebrow, RecLamp, ChromeBar, HourLabel, NowLine } from './primitives';
+import { useScrollGutter } from './useScrollGutter';
 import { TButton, EmptyState } from '@jkos/ui';
 import { MO_DELAYS } from '@jkos/design';
 
@@ -151,6 +152,11 @@ function WeekGrid({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cursor]);
+
+  // The hour grid scrolls, the three header bands above it don't — but all four
+  // are grids on ONE column template, so the scrollbar's width has to come out
+  // of the headers too or the columns drift apart (see useScrollGutter).
+  const gutter = useScrollGutter(scrollRef);
 
   const [createPending, setCreatePending] = useState<any>(null);
   const [hoverCol, setHoverCol] = useState<string | null>(null);
@@ -282,6 +288,13 @@ function WeekGrid({
   // replaces the old monolithic hairline grid). Today's whole lane is a tinted
   // well. `pos` places a band in the column stack.
   const cols = `${LABEL_W}px repeat(7, minmax(0, 1fr))`;
+  // Every non-scrolling band shares this: the same column template as the hour
+  // grid, minus the scrollbar gutter the grid loses, so the eight columns land
+  // in exactly the same places top to bottom.
+  const headBand: React.CSSProperties = {
+    display: 'grid', gridTemplateColumns: cols, columnGap: GAP,
+    flexShrink: 0, paddingRight: gutter,
+  };
   const rad = 'var(--hub-radius-sm)';
   // NEVER the `background` shorthand here. The timed lane paints its hour rules
   // with `backgroundImage`, and the shorthand resets background-image to none —
@@ -374,7 +387,7 @@ function WeekGrid({
             })()}
 
             {/* ── Day-header band — framed column tops (rounded on top) ── */}
-            <div className={compact ? undefined : 'mo-item'} style={{ display: 'grid', gridTemplateColumns: cols, columnGap: GAP, flexShrink: 0, animationDelay: `${MO_DELAYS.weekDayHeads}ms` }}>
+            <div className={compact ? undefined : 'mo-item'} style={{ ...headBand, animationDelay: `${MO_DELAYS.weekDayHeads}ms` }}>
               <div />
               {days.map((d) => {
                 const dd = localDate(d);
@@ -401,7 +414,7 @@ function WeekGrid({
 
             {/* ── All-day band — one chip per covered day (framed sides) ── */}
             {(anyAllday || (anyDrag && drag?.mode === 'allday')) && (
-              <div style={{ display: 'grid', gridTemplateColumns: cols, columnGap: GAP, flexShrink: 0 }}>
+              <div style={headBand}>
                 <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-start', padding: '4px 6px 0 0' }}>
                   <span className="mono-eyebrow" style={{ fontSize: 7 }}>ALL-DAY</span>
                 </div>
@@ -444,7 +457,7 @@ function WeekGrid({
             )}
 
             {/* ── Untimed band — framed sides ── */}
-            <div style={{ display: 'grid', gridTemplateColumns: cols, columnGap: GAP, flexShrink: 0 }}>
+            <div style={headBand}>
               <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-start', padding: '5px 6px 0 0' }}>
                 <span className="mono-eyebrow" style={{ fontSize: 7 }}>UNTIMED</span>
               </div>
@@ -490,7 +503,13 @@ function WeekGrid({
               ref={scrollRef}
               data-hour-scroll
               className={compact ? undefined : 'mo-item'}
-              style={{ flex: 1, minHeight: 0, overflowY: 'auto', position: 'relative', animationDelay: `${MO_DELAYS.weekGrid}ms` }}
+              style={{
+                flex: 1, minHeight: 0, overflowY: 'auto', position: 'relative',
+                // Reserve the gutter even when the grid happens to fit, so the
+                // measured header padding above can't blink on and off.
+                scrollbarGutter: 'stable',
+                animationDelay: `${MO_DELAYS.weekGrid}ms`,
+              }}
             >
               {/* A clean week still draws its grid — the empty state floats over
                   it rather than replacing it, so drag-to-create keeps working. */}
