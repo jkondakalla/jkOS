@@ -370,19 +370,24 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
       {effects.scanLines && <ScanLines strength={effects.scanStrength} />}
       {effects.artifacts && <Artifacts />}
 
-      <div style={{
+      {/* The DESK — full bleed. Everything the sheet does not cover. */}
+      <div className="jk-desk" style={{
         position: 'fixed', inset: 0,
         filter: colorIn ? 'saturate(1) brightness(1)' : 'saturate(0.04) brightness(0.08)',
         transition: 'filter 1.4s ease-out',   /* always present so colorIn flip reliably animates the bloom */
-        background: 'transparent',   /* let the body's grained paper backdrop show */
         display: 'flex', flexDirection: 'column',
       }}>
-        <div style={{
-          flex: 1, minHeight: 0, position: 'relative',
+        {/* The SHEET — the one canvas the whole app is set on (hub.css
+            --jk-canvas: fluid, capped at 1760). It wraps the MASTHEAD as well
+            as the content on purpose: a folio pinned to the window edge while
+            the page it labels sits 500px inboard is the weighting failure this
+            replaces. Every view below therefore inherits one centred measure,
+            and rails are panes INSIDE it rather than siblings of the window. */}
+        <div className="jk-canvas jk-canvas-fill jk-canvas-sheet" style={{
+          position: 'relative',
           display: 'grid',
           gridTemplateRows: 'auto minmax(0, 1fr)',
           gridTemplateColumns: '1fr',
-          background: 'transparent',   /* grained paper comes from the body backdrop */
           color: 'var(--color-ink)',
           /* The old global SVG #halation lens filter was removed: it could only
              bloom WARM pixels, so it reddened the whole UI and made warm-accent

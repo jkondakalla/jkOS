@@ -56,6 +56,7 @@ function WeekGrid({
   weekJumpDate,
   benchLane,
   createSource,
+  foot,
   density = 'comfortable',
 }: WeekViewProps) {
   const compact = density === 'compact';
@@ -282,6 +283,11 @@ function WeekGrid({
   // well. `pos` places a band in the column stack.
   const cols = `${LABEL_W}px repeat(7, minmax(0, 1fr))`;
   const rad = 'var(--hub-radius-sm)';
+  // NEVER the `background` shorthand here. The timed lane paints its hour rules
+  // with `backgroundImage`, and the shorthand resets background-image to none —
+  // React's style diff only re-writes the keys that CHANGED, so a hover that
+  // flips `background` wipes the gridlines and never puts them back. Every lane
+  // state below sets backgroundCOLOR so the two layers stay independent.
   const laneFrame = (pos: 'head' | 'mid' | 'foot', isToday: boolean): React.CSSProperties => ({
     border: '1px solid var(--color-line)',
     borderTop: pos === 'head' ? undefined : 'none',
@@ -289,7 +295,7 @@ function WeekGrid({
     borderTopRightRadius: pos === 'head' ? rad : 0,
     borderBottomLeftRadius: pos === 'foot' ? rad : 0,
     borderBottomRightRadius: pos === 'foot' ? rad : 0,
-    background: isToday
+    backgroundColor: isToday
       ? 'color-mix(in srgb, var(--jk-tint, var(--accent)) 14%, var(--hub-bg-2))'
       : 'var(--color-paper)',
     minWidth: 0,
@@ -298,7 +304,9 @@ function WeekGrid({
   return (
     <>
       <div style={{ flex: 1, overflowY: 'auto', background: 'transparent', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-        <div style={{ flex: 1, minHeight: 0, padding: compact ? `10px ${PAD_X}px 0` : `14px ${PAD_X}px 0`, display: 'flex', flexDirection: 'column', maxWidth: 1280, margin: '0 auto', width: '100%' }}>
+        {/* Fills its container — the page's .jk-canvas owns the measure. (Was a
+            self-imposed maxWidth: 1280; see the note in DayView.) */}
+        <div style={{ flex: 1, minHeight: 0, padding: compact ? `10px ${PAD_X}px 0` : `14px ${PAD_X}px 0`, display: 'flex', flexDirection: 'column', width: '100%' }}>
           {/* The chrome bar. The old 30px serif <h1> cost ~40px of timeline for
               no information the stat line doesn't carry better. */}
           {!compact && (
@@ -409,11 +417,11 @@ function WeekGrid({
                       onClick={!anyDrag && !readonly ? () => setCreatePending({ startDay: d, allDay: true, scheduled_time: null, scheduled_end: null }) : undefined}
                       style={{
                         ...laneFrame('mid', isToday),
-                        ...(isOver ? { background: 'color-mix(in srgb, var(--color-accent) 12%, transparent)' } : null),
+                        ...(isOver ? { backgroundColor: 'color-mix(in srgb, var(--color-accent) 12%, transparent)' } : null),
                         outline: isOver ? '1px dashed var(--color-accent)' : isTarget ? '1px dashed var(--color-accent-glow)' : 'none',
                         outlineOffset: -2,
                         minHeight: 24, padding: 4, display: 'flex', flexDirection: 'column', gap: 3,
-                        cursor: anyDrag ? 'copy' : readonly ? 'default' : 'pointer', transition: 'background 0.08s',
+                        cursor: anyDrag ? 'copy' : readonly ? 'default' : 'pointer', transition: 'background-color 0.08s',
                       }}
                     >
                       {(byDay[d]?.allday || []).map((ev) => (
@@ -452,11 +460,11 @@ function WeekGrid({
                     data-drop-day={d}
                     style={{
                       ...laneFrame('mid', isToday),
-                      ...(isOver ? { background: 'color-mix(in srgb, var(--color-accent) 12%, transparent)' } : null),
+                      ...(isOver ? { backgroundColor: 'color-mix(in srgb, var(--color-accent) 12%, transparent)' } : null),
                       outline: isOver ? '1px dashed var(--color-accent)' : isTarget ? '1px dashed var(--color-accent-glow)' : 'none',
                       outlineOffset: -2,
                       minHeight: compact ? 30 : 44, padding: 4, display: 'flex', flexDirection: 'column', gap: 3,
-                      transition: 'background 0.08s',
+                      transition: 'background-color 0.08s',
                     }}
                   >
                     {dayItems.map((it) => (
@@ -537,17 +545,18 @@ function WeekGrid({
                       style={{
                         ...laneFrame('foot', isToday),
                         ...(isOver
-                          ? { background: 'color-mix(in srgb, var(--color-accent) 12%, transparent)' }
+                          ? { backgroundColor: 'color-mix(in srgb, var(--color-accent) 12%, transparent)' }
                           : isHover
-                            ? { background: 'color-mix(in srgb, var(--color-accent) 6%, var(--color-paper))' }
+                            ? { backgroundColor: 'color-mix(in srgb, var(--color-accent) 6%, var(--color-paper))' }
                             : null),
-                        // per-lane hour gridlines (applied AFTER the frame's background)
+                        // per-lane hour gridlines — a SEPARATE layer from the lane
+                        // colour above (see laneFrame: no `background` shorthand).
                         backgroundImage: gridRules(density),
                         position: 'relative',
                         outline: isTarget && !isToday ? '1px solid var(--color-accent-glow)' : 'none',
                         outlineOffset: -1,
                         cursor: anyDrag ? 'copy' : readonly || !hasDnd ? 'default' : 'crosshair',
-                        transition: 'background 0.12s',
+                        transition: 'background-color 0.12s',
                       }}
                     >
                       {timedLayout.map(({ ev: item, slot, totalCols }) => {
@@ -597,6 +606,10 @@ function WeekGrid({
                 })}
               </div>
             </div>
+
+            {/* The page's foot — the bottom anchor of the canvas (hub.css).
+                Never in a HUD widget: `compact` has no room to spend on it. */}
+            {!compact && foot && <div className="jk-canvas-foot">{foot}</div>}
           </div>
         </div>
       </div>

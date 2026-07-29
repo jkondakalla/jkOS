@@ -26,7 +26,11 @@ button:focus, input:focus, select:focus { outline: none; }
 /* ── Base typography ──────────────────────────────────────────────────── */
 html, body { color-scheme: light; }
 html[data-mode="dark"] { color-scheme: dark; }
-body { background: var(--color-paper); color: var(--color-ink); }
+/* The body is the DESK, not the paper: the app is set on one centred sheet
+   (.jk-canvas-sheet in App.tsx) and everything outside it is desk. The shell's
+   fixed .jk-desk layer covers this in practice — this keeps overscroll and the
+   pre-mount frame from flashing paper-coloured behind it. */
+body { background: var(--jk-desk); color: var(--color-ink); }
 
 /* Hover bridges (.task-row / .day-chip / .event-chip) are GONE — the Full Press
    rebuild moved every row and chip onto hub.css's .jk-chip* / .jk-hit, which are

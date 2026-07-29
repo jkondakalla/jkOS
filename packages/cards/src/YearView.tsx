@@ -38,7 +38,8 @@ export function YearView({ items, today, year, selectedId, resolvers, onSelect, 
 
   return (
     <div style={{ flex: 1, overflowY: 'auto', background: 'transparent', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-      <div style={{ flex: 1, minHeight: 0, padding: '24px 32px 40px', display: 'flex', flexDirection: 'column', maxWidth: 1280, margin: '0 auto', width: '100%' }}>
+      {/* Fills its container — the page's .jk-canvas owns the measure. */}
+      <div style={{ flex: 1, minHeight: 0, padding: '24px 28px 40px', display: 'flex', flexDirection: 'column', width: '100%' }}>
         <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 18, paddingBottom: 14, borderBottom: '1px solid var(--color-line)' }}>
           <div>
             <Eyebrow style={{ marginBottom: 4 }}>The year</Eyebrow>

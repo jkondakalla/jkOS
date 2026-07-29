@@ -98,6 +98,57 @@
   --hub-radius-widget:    8px;
   --hub-radius-button:    5px;
 
+  /* ── The CANVAS (the MEASURE axis) ─────────────────────────────────────────
+   * ONE measure for a full-page view. Before this, every view invented its own
+   * rule — BeigeBoard's Week capped at 1280, its Today capped the timeline at
+   * 760 *inside* a pane while the rail stayed welded to the WINDOW edge, and
+   * Calendar/Workshop ran full bleed. On a 2560px monitor the four disagreed
+   * violently: content drifting left of centre with a marooned rail, 350px
+   * month cells, 2200px-long forge rows.
+   *
+   * The rule: a view's OUTERMOST element is the canvas, and everything —
+   * including rails — lives inside it. Panes never re-centre themselves; the
+   * page owns the measure, the component fills what it is given. (This is why
+   * the @jkos/cards views no longer carry a maxWidth of their own: dropped into
+   * an ORDECK widget they fill the widget, dropped on a page they fill the page.)
+   *
+   * The width is FLUID WITH A CAP, three terms, smallest wins:
+   *   1. the window minus its gutters  — below ~1440px the canvas simply fills
+   *   2. 900px + 34vw                  — above that it grows at ~⅓ the rate the
+   *                                      window does, so the desk opens up
+   *                                      progressively instead of all at once
+   *   3. --jk-canvas-cap               — and stops, so line length never runs away
+   * Roughly: 964 @1024 · 1380 @1440 · 1545 @1920 · 1760 @2560 and up.
+   *
+   * MOBILE is already handled: term 1 wins outright on a phone, so the canvas
+   * is the viewport minus gutters and the @media block at the foot of this file
+   * only has to shrink the gutter. Nothing here needs a second implementation. */
+  --jk-canvas-cap:    1760px;
+  --jk-canvas-gutter: 28px;
+  --jk-canvas-base:   900px;  /* the fluid term's fixed part … */
+  --jk-canvas-rise:   34vw;   /* … and its growth rate */
+  --jk-canvas: min(
+    calc(100% - 2 * var(--jk-canvas-gutter)),
+    calc(var(--jk-canvas-base) + var(--jk-canvas-rise)),
+    var(--jk-canvas-cap)
+  );
+
+  /* Rails — the ONE width for an in-canvas side pane, so a rail carries the
+     same weight in every view instead of BeigeBoard's old 388 / 340 / 220. */
+  --jk-rail:    360px;
+  --jk-rail-sm: 260px;
+
+  /* The DESK — the surface the sheet sits on. One shade off the paper stock so
+     the margins on a wide screen read as deliberate desk, not as content that
+     failed to stretch. A base layer, so it is a literal like --hub-bg-*: the
+     paper face has no layer below --hub-bg-0 to derive it from, and on the dark
+     face the relationship inverts (the tube is lifted OUT of the black). */
+  --jk-desk: #d9cdb2;
+  --jk-sheet-lift:
+    0 0 0 1px var(--hub-line),
+    0 2px 20px color-mix(in srgb, var(--accent-deepen-ink) 14%, transparent),
+    0 14px 48px color-mix(in srgb, var(--accent-deepen-ink) 9%, transparent);
+
   /* ── Responsive card scale (the VIEWPORT axis) ──────────────────────────────
    * Card primitives consume these instead of literal px, so they scale by tier.
    * Desktop defaults preserve the original dense look exactly; the @media blocks
@@ -303,6 +354,16 @@
   --color-ok:     #34d399;
   --color-warn:   #fbbf24;
   --color-danger: #f87171;
+
+  /* The desk, dark face — the relationship inverts. On paper the desk is a
+     shade DARKER than the sheet; on the tube there is nothing below #11100d to
+     go darker into, so the surround drops to near-black and the sheet reads as
+     the thing that is LIT. The lift becomes a faint phosphor edge, not a cast
+     shadow: a CRT emits, it doesn't sit on anything. */
+  --jk-desk: #080806;
+  --jk-sheet-lift:
+    0 0 0 1px var(--hub-line),
+    0 0 40px color-mix(in srgb, var(--accent) 7%, transparent);
 
   --grain-opacity: 0.06;
   --grain-blend:   screen;
@@ -960,6 +1021,51 @@
   box-shadow: var(--hub-shadow-card), inset 0 1px 0 var(--hub-bevel-light);
 }
 
+/* ─── The canvas — one measure for a full-page view ─────────────────────────
+ * Tokens + rationale live up in the :root block (--jk-canvas). These are the
+ * three composable pieces:
+ *
+ *   .jk-canvas        the measure. Centre a block at the house width. Override
+ *                     for one view with --jk-canvas-w (a whole number, or
+ *                     `none` for a view that genuinely must run full bleed).
+ *   .jk-canvas-fill   + fill a flex parent as a column. A full-height app page
+ *                     (masthead row + content row) rather than a document that
+ *                     scrolls.
+ *   .jk-canvas-sheet  + draw it. Paper stock with a real edge and a lift, so
+ *                     the desk around it is legible as desk.
+ *
+ * Put them on the OUTERMOST element of the page, wrapping the masthead too —
+ * a folio pinned to the window edge while its own content sits 500px inboard
+ * is the exact weighting failure this replaces. Panes inside never re-centre.
+ *
+ * `.jk-desk` goes on whatever the sheet sits on (the app shell, or <body>). */
+.jk-desk        { background: var(--jk-desk); }
+.jk-canvas      { width: 100%; min-width: 0; margin-inline: auto;
+                  max-width: var(--jk-canvas-w, var(--jk-canvas)); }
+.jk-canvas-fill { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+.jk-canvas-sheet { background: var(--color-paper); box-shadow: var(--jk-sheet-lift); }
+
+/* The sheet's own foot — the anchor that keeps a short view from trailing off
+ * into dead paper. Top-set content, then a rule and a colophon pinned to the
+ * bottom of the canvas: the empty middle becomes measured margin between two
+ * anchors instead of a void. Pair with <Colophon> (.jk-colophon). */
+.jk-canvas-foot {
+  margin-top: auto;
+  flex: none;
+  padding: 9px 0 10px;
+  border-top: 1px solid var(--hub-line);
+}
+/* A colophon in an app's foot sets on ONE line — fleuron inline, not stacked.
+   Standalone (end of a long document, as on the design page) it keeps the full
+   three-line flourish; inside a page foot that would cost ~80px of the view for
+   a decoration. Same class, tightened by context. */
+.jk-canvas-foot .jk-colophon { line-height: 1.35; }
+.jk-canvas-foot .jk-colophon::before {
+  display: inline;
+  font-size: 1rem;
+  margin: 0 9px 0 0;
+}
+
 /* ─── Chips — the Full Press solid-ink tab (SUITE DEFAULT) ──────────────────
  * The saturated letter-tab that supersedes the calendar kit's old ACCENT_GLAZE
  * chip: a --jk-tint (unset → --accent) fill deepened toward --accent-deepen-ink,
@@ -1588,6 +1694,11 @@
   :root {
     --hub-tap-min:    44px;
     --hub-widget-pad: 14px;
+    /* The canvas needs no tier logic — below ~1440px its "window minus gutters"
+       term already wins, so the sheet simply fills. All a touch tier has to do
+       is give back the desk margin as usable width. */
+    --jk-canvas-gutter: 16px;
+    --jk-rail:          300px;
   }
 }
 
@@ -1597,6 +1708,11 @@
   :root {
     --hub-tap-min:       44px;
     --hub-widget-pad:    14px;
+    /* Phone: the sheet IS the screen. No desk to show, and a rail that stacks
+       below the content is full-width, so --jk-rail stops meaning anything
+       horizontal — it becomes the stacked block's max width. */
+    --jk-canvas-gutter:  0px;
+    --jk-rail:           100%;
     --hub-fs-bubble:     11px;
     --hub-fs-bubble-lg:  13px;
     --hub-pad-bubble:    7px 13px;

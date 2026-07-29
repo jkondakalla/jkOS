@@ -65,6 +65,7 @@ function DayGrid({
   onToggle,
   onAddItem,
   onUpdateItem,
+  foot,
   density = 'comfortable',
 }: DayViewProps) {
   const { accentOf, sourceColorOf } = mergeResolvers(resolvers);
@@ -227,7 +228,14 @@ function DayGrid({
   return (
     <>
       <div style={{ flex: 1, overflowY: 'auto', background: 'transparent', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-        <div style={{ flex: 1, minHeight: 0, padding: '14px 30px 12px', display: 'flex', flexDirection: 'column', maxWidth: 760, margin: '0 auto', width: '100%' }}>
+        {/* No maxWidth here. The kit view FILLS what it is handed — the page's
+            .jk-canvas owns the measure (hub.css --jk-canvas). This used to cap
+            itself at 760 and centre, which meant that inside BeigeBoard's Today
+            it centred within its own pane while the rail beside it stayed pinned
+            to the window edge: two independent centrings, ~700px of dead paper
+            between them. Same reason the widget case works — dropped into an
+            ORDECK card it fills the card. */}
+        <div style={{ flex: 1, minHeight: 0, padding: '14px 28px 12px', display: 'flex', flexDirection: 'column', width: '100%' }}>
           {/* The masthead. The full stop is deliberate — it is the prototype's
               voice: a day is a statement, not a heading. */}
           <div className="mo-item" style={{ display: 'flex', alignItems: 'baseline', gap: 14, marginBottom: 10, animationDelay: `${MO_DELAYS.header}ms` }}>
@@ -367,7 +375,11 @@ function DayGrid({
                     position: 'relative',
                     border: '1px solid var(--color-line)',
                     borderRadius: 'var(--hub-radius-sm)',
-                    background: isOverTimed
+                    // backgroundCOLOR, never the shorthand: the hour rules below
+                    // are a separate background-image layer, and the shorthand
+                    // resets it to none — which React's key-wise style diff would
+                    // then never repaint. (Same trap fixed in WeekView's lanes.)
+                    backgroundColor: isOverTimed
                       ? 'color-mix(in srgb, var(--color-accent) 12%, transparent)'
                       : isToday
                         ? 'color-mix(in srgb, var(--jk-tint, var(--accent)) 14%, var(--hub-bg-2))'
@@ -376,7 +388,7 @@ function DayGrid({
                     outline: isTargetTimed && !isToday ? '1px solid var(--color-accent-glow)' : 'none',
                     outlineOffset: -1,
                     cursor: anyDrag ? 'copy' : readonly || !hasDnd ? 'default' : 'crosshair',
-                    transition: 'background 0.12s',
+                    transition: 'background-color 0.12s',
                   }}
                 >
                   {timedLayout.map(({ ev: item, slot, totalCols }) => {
@@ -423,6 +435,10 @@ function DayGrid({
               </div>
             </div>
           </div>
+
+          {/* The page's foot — the bottom anchor of the canvas (hub.css).
+              Outside the timeline's frame: it ends the SHEET, not the grid. */}
+          {density !== 'compact' && foot && <div className="jk-canvas-foot">{foot}</div>}
         </div>
       </div>
 

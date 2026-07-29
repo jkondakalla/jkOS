@@ -160,6 +160,17 @@ export interface CalendarViewProps {
    *  It also picks the TIMELINE GEOMETRY: see constants.ts, where rowHeight /
    *  labelW / minBlockH / chipInset / gridRules are all functions of this. */
   density?: CardDensity;
+  /** The page's FOOT — content pinned to the bottom of the view (a colophon, a
+   *  legend, a status line). The kit renders the anchor (`.jk-canvas-foot`: a
+   *  rule + `margin-top: auto`), the host supplies the words, because the voice
+   *  is the app's and not the kit's.
+   *
+   *  This is the vertical half of the canvas rule (hub.css --jk-canvas): content
+   *  top-sets like a printed page and the foot holds the bottom, so a short view
+   *  on a tall monitor reads as measured margin between two anchors instead of
+   *  trailing off into dead paper. Ignored at `compact` density — a HUD widget
+   *  has no foot. */
+  foot?: React.ReactNode;
 }
 
 export interface WeekViewProps extends CalendarViewProps {

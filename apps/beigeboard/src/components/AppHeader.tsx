@@ -37,7 +37,10 @@ export function AppHeader({ view, setView, today, onConnectClick, onLogout, onOp
     <header style={{
       background: 'var(--color-paper)',
       borderBottom: '1px solid var(--color-line)',
-      padding: '0 26px',
+      /* Matches the views' 28px sheet inset — the masthead now sits ON the
+         canvas (App.tsx wraps header+main in one .jk-canvas-sheet), so the
+         folio must hang on the same left margin the content below it does. */
+      padding: '0 28px',
       height: 58,
       flexShrink: 0,
       boxShadow: scrolled ? '0 2px 24px rgba(0,0,0,0.4)' : 'none',

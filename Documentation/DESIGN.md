@@ -266,6 +266,51 @@ hardcode a pixel radius; shapes read the tokens so a whole app retunes from one 
 `--hub-sidebar-w: 200px` (collapsed `40px`) · `--hub-rail-w: 56px` · `--hub-title-h: 34px`
 · `--hub-widget-pad: 12px` · `--hub-grid: 40px` (the canvas-grid pitch).
 
+**The canvas — one measure per page.** A full-page view's **outermost** element is the
+canvas, and *everything lives inside it, rails included*. Panes never re-centre themselves:
+the page owns the measure, a component fills what it is given. This replaced four
+disagreeing rules in BeigeBoard alone — Week capped at 1280, Today capped its timeline at
+760 *inside a pane* while its rail stayed welded to the window edge, Calendar and Workshop
+ran full bleed. On a 2560px monitor that read as content adrift left of centre beside a
+marooned rail, 350px month cells, and 2200px-long forge rows. It is also why the
+`@jkos/cards` views carry **no `max-width` of their own**: in an ORDECK widget they fill the
+widget, on a page they fill the page.
+
+Width is **fluid with a cap** — the smallest of three terms:
+
+```
+--jk-canvas: min(100% - 2*--jk-canvas-gutter,  --jk-canvas-base + --jk-canvas-rise,  --jk-canvas-cap)
+             ↑ window minus gutters            ↑ 900px + 34vw                        ↑ 1760px
+```
+
+Below ~1440px the first term wins and the sheet simply fills; above it the sheet grows at
+about a third the rate the window does, so the desk opens progressively rather than all at
+once, and stops at the cap. Roughly **964 @1024 · 1380 @1440 · 1545 @1920 · 1760 @2560+**.
+Mobile needs no second implementation — term 1 wins outright and the gutter drops to `0`.
+
+| Class | Does |
+|---|---|
+| `.jk-canvas` | the measure: centre at the house width. Override per view with `--jk-canvas-w` |
+| `.jk-canvas-fill` | + fill a flex parent as a column (a full-height app page) |
+| `.jk-canvas-sheet` | + draw it — paper stock, a real edge, and `--jk-sheet-lift` |
+| `.jk-canvas-foot` | the bottom anchor: `margin-top:auto` + a rule. A `.jk-colophon` inside sets on one line |
+| `.jk-desk` | whatever the sheet sits on (`--jk-desk`) |
+
+**Rails** are one width, `--jk-rail: 360px` (`--jk-rail-sm: 260px`; `300px` on tablet, `100%`
+on mobile where a rail stacks). A rail is a pane *inside* the canvas — never a sibling of
+the window.
+
+**Vertical:** views **top-set** like a printed page and the foot holds the bottom, so a
+short view on a tall monitor reads as measured margin between two anchors rather than
+trailing off into dead paper. The kit's page views take the words via a `foot` prop
+(ignored at `compact` density — a HUD widget has no foot); the app supplies the voice.
+
+**The desk.** `--jk-desk` is a base literal per face, not a derivation: on paper it is a
+shade *darker* than the sheet (`#d9cdb2`), and on the tube the relationship inverts —
+there is nothing below `#11100d` to go darker into, so the surround drops to near-black
+(`#080806`) and the sheet reads as the thing that is lit. `--jk-sheet-lift` follows: a cast
+shadow on paper, a faint phosphor edge in CRT (a tube emits, it doesn't sit on anything).
+
 **Breakpoints — one source, three tiers** (`packages/design/responsive/breakpoints.ts`):
 mobile `0–767`, tablet `768–1023`, desktop `1024+`. `BREAKPOINT_MAX = { mobile: 767,
 tablet: 1023 }` is the only literal; the `MEDIA` query strings and hub.css `@media` bounds
@@ -345,6 +390,12 @@ which keeps naming machine panels) · `.jk-colophon` — the end-of-sheet record
 `.jk-well` (+ `--jk-tint`) · `.jk-bubble` base + `.jk-bubble-primary` /
 `.jk-bubble-secondary` / `.jk-bubble-lg` · `.jk-press` / `.jk-press-lg` · `.jk-sub` /
 `.jk-sub-link` · `.jk-sheet` (the card surface: bg-2, line border, card shadow + bevel).
+
+**The canvas — page measure (§6):**
+`.jk-canvas` (centre at `--jk-canvas`; override with `--jk-canvas-w`) · `.jk-canvas-fill`
+(fill a flex parent as a column) · `.jk-canvas-sheet` (draw the paper page + `--jk-sheet-lift`)
+· `.jk-canvas-foot` (bottom anchor: `margin-top:auto` + rule; a `.jk-colophon` inside sets
+on one line) · `.jk-desk` (what the sheet sits on). Rails: `--jk-rail`.
 
 **Chips — the solid-ink item (§4, suite default):**
 `.jk-chip` (faint raised base, `--jk-tint`) + `.jk-chip-solid` (the loud saturated tab,

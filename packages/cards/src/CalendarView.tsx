@@ -67,6 +67,7 @@ function CalendarGrid({
   onAddItem,
   onUpdateItem,
   onWeekJump,
+  foot,
   sidebar = false,
 }: CalendarViewProps) {
   const { accentOf, sourceColorOf } = mergeResolvers(resolvers);
@@ -179,7 +180,9 @@ function CalendarGrid({
         </aside>
       )}
 
-      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: '16px 30px 22px' }}>
+      {/* Fills its container — the page's .jk-canvas owns the measure. Month
+          cells were 350px wide on a 2560 monitor before the canvas capped it. */}
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: '16px 28px 18px' }}>
         <ChromeBar
           className="mo-item"
           style={{ height: 'auto', padding: 0, border: 'none', marginBottom: 14, animationDelay: `${MO_DELAYS.header}ms` }}
@@ -353,6 +356,9 @@ function CalendarGrid({
             );
           })}
         </div>
+
+        {/* The page's foot — the bottom anchor of the canvas (hub.css). */}
+        {foot && <div className="jk-canvas-foot">{foot}</div>}
       </div>
     </div>
   );

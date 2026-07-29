@@ -17,7 +17,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { FONT_HEAD, TASK_COLORS, localDate } from '../../lib/theme'
 import { getChildren, getAncestors, getProgress } from '../../lib/seed'
-import { Press, Well, Bubble, Chip, Check, TButton, Rule, Bar } from '@jkos/ui'
+import { Press, Well, Bubble, Chip, Check, TButton, Rule, Bar, Colophon } from '@jkos/ui'
 import { stagger } from '@jkos/design'
 
 const MONO = 'var(--hub-font-mono)'
@@ -88,57 +88,68 @@ export function WorkshopView({
   }
 
   return (
-    <div style={{ height: '100%', display: 'flex', minHeight: 0 }}>
-      {/* ── Goals rail ── */}
-      <div style={{ width: 340, flex: 'none', display: 'flex', flexDirection: 'column', borderRight: '1px solid var(--hub-line)', minHeight: 0 }}>
-        <div className="mo-item" style={{ flex: 'none', display: 'flex', alignItems: 'baseline', gap: 10, padding: '16px 20px 12px' }}>
-          <span className="label-tape">GOALS</span>
-          <span className="mono-eyebrow" style={{ marginLeft: 'auto' }}>{String(active.length).padStart(2, '0')} ACTIVE</span>
+    // Column: the rail + forge row, then ONE foot across the bottom of the
+    // sheet. This is the view the canvas rule helps most — a three-milestone
+    // goal used to leave the bottom 60% of a tall monitor as dead paper; now
+    // the top-set tree and the pinned foot bracket it as deliberate margin.
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+      <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+        {/* ── Goals rail ── */}
+        <div style={{ width: 'var(--jk-rail)', flex: 'none', display: 'flex', flexDirection: 'column', borderRight: '1px solid var(--hub-line)', minHeight: 0 }}>
+          <div className="mo-item" style={{ flex: 'none', display: 'flex', alignItems: 'baseline', gap: 10, padding: '16px 20px 12px' }}>
+            <span className="label-tape">GOALS</span>
+            <span className="mono-eyebrow" style={{ marginLeft: 'auto' }}>{String(active.length).padStart(2, '0')} ACTIVE</span>
+          </div>
+          <div className="jk-scroll" style={{ flex: 1, minHeight: 0, padding: '0 18px 12px', display: 'flex', flexDirection: 'column', gap: 10, overflowY: 'auto' }}>
+            {goals.map((g: any, i: number) => (
+              <GoalCard
+                key={g.id}
+                goal={g}
+                items={items}
+                selected={selGoal?.id === g.id}
+                delay={stagger(i, 60, 70)}
+                onClick={() => setSelId(g.id)}
+              />
+            ))}
+            {!readonly && (
+              <TButton quiet onClick={addGoal} style={{ padding: 11, borderStyle: 'dashed', cursor: 'pointer' }}>
+                + New goal
+              </TButton>
+            )}
+          </div>
         </div>
-        <div className="jk-scroll" style={{ flex: 1, minHeight: 0, padding: '0 18px 12px', display: 'flex', flexDirection: 'column', gap: 10, overflowY: 'auto' }}>
-          {goals.map((g: any, i: number) => (
-            <GoalCard
-              key={g.id}
-              goal={g}
+
+        {/* ── The forge ── */}
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          {selGoal ? (
+            <Forge
+              goal={selGoal}
               items={items}
-              selected={selGoal?.id === g.id}
-              delay={stagger(i, 60, 70)}
-              onClick={() => setSelId(g.id)}
+              expanded={expanded}
+              readonly={readonly}
+              onSelect={onSelect}
+              onToggle={onToggle}
+              onUpdateItem={onUpdateItem}
+              onToggleExpand={toggleExpand}
+              onAddLeaf={addLeaf}
+              onAddBranch={addBranch}
             />
-          ))}
-          {!readonly && (
-            <TButton quiet onClick={addGoal} style={{ padding: 11, borderStyle: 'dashed', cursor: 'pointer' }}>
-              + New goal
-            </TButton>
+          ) : (
+            <div style={{ flex: 1, display: 'grid', placeItems: 'center', padding: 40 }}>
+              <div style={{ textAlign: 'center', maxWidth: 320 }}>
+                <span className="jk-lab jk-lab-xs" style={{ color: 'var(--color-accent)' }}>THE FORGE</span>
+                <p style={{ fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 18, color: 'var(--color-muted)', margin: '12px 0 0', lineHeight: 1.4 }}>
+                  No goals yet. Forge one on the rail, then break it down into milestones and leaves.
+                </p>
+              </div>
+            </div>
           )}
         </div>
       </div>
 
-      {/* ── The forge ── */}
-      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-        {selGoal ? (
-          <Forge
-            goal={selGoal}
-            items={items}
-            expanded={expanded}
-            readonly={readonly}
-            onSelect={onSelect}
-            onToggle={onToggle}
-            onUpdateItem={onUpdateItem}
-            onToggleExpand={toggleExpand}
-            onAddLeaf={addLeaf}
-            onAddBranch={addBranch}
-          />
-        ) : (
-          <div style={{ flex: 1, display: 'grid', placeItems: 'center', padding: 40 }}>
-            <div style={{ textAlign: 'center', maxWidth: 320 }}>
-              <span className="jk-lab jk-lab-xs" style={{ color: 'var(--color-accent)' }}>THE FORGE</span>
-              <p style={{ fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 18, color: 'var(--color-muted)', margin: '12px 0 0', lineHeight: 1.4 }}>
-                No goals yet. Forge one on the rail, then break it down into milestones and leaves.
-              </p>
-            </div>
-          </div>
-        )}
+      {/* The sheet's foot — spans rail + forge (.jk-canvas-foot in hub.css). */}
+      <div className="jk-canvas-foot" style={{ margin: '0 28px' }}>
+        <Colophon style={{ fontSize: '0.82rem' }}>the forge holds what isn't finished</Colophon>
       </div>
     </div>
   )

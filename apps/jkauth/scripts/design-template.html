@@ -178,6 +178,15 @@
     .dg-panel { max-width: 520px; border: 1px solid var(--hub-line); border-radius: var(--hub-radius-lg); background: var(--hub-bg-1); }
     .dg-shell-demo { border: 1px solid var(--hub-line); border-radius: var(--hub-radius-lg); background: var(--hub-bg-1); overflow: hidden; }
     .dg-shell-demo .jk-shell { min-height: 0; }
+    /* The canvas demo — a scaled desk with a sheet centred on it. The canvas's
+       "window minus gutters" term resolves against THIS box, so the sheet
+       behaves here exactly as it does at full size. */
+    .dg-canvas-demo { display: flex; min-height: 250px; border-radius: var(--hub-radius-lg); overflow: hidden; padding-block: 18px; }
+    .dg-canvas-masthead { display: flex; align-items: baseline; gap: 12px; padding: 11px 20px; border-bottom: 1px solid var(--color-line); }
+    .dg-canvas-body { flex: 1; display: flex; min-height: 0; }
+    .dg-canvas-main { flex: 1; min-width: 0; padding: 16px 20px; border-right: 1px solid var(--color-line); }
+    .dg-canvas-rail { width: var(--jk-rail); max-width: 40%; flex: none; padding: 16px 18px; }
+    .dg-canvas-demo .jk-canvas-foot { margin-inline: 20px; }
 
     /* Motion demos — hover (or tap) a tile and its entrance replays on a loop
        with a rest beat between plays; leave and it settles. */
@@ -802,10 +811,55 @@
       </div>
     </section>
 
-    <!-- ══ 11 Media ══ -->
+    <!-- ══ 11 Measure ══ -->
+    <section class="dg-sec jk-sheet" id="measure">
+      <div class="dg-sec-head">
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">11</span><span class="label-tape">MEASURE · THE SHEET</span></div>
+        <h2>The canvas</h2>
+        <p class="dg-lede">
+          One measure per page. A full-page view's <b>outermost</b> element is the canvas, and
+          everything — rails included — lives inside it. Before this each view invented its own
+          rule, so on a wide monitor one app centred its content while its own rail stayed welded
+          to the window edge 700px away. The page owns the measure; a component fills what it is
+          given. That is also why the <code>@jkos/cards</code> views carry no
+          <code>max-width</code>: in a widget they fill the widget, on a page they fill the page.
+        </p>
+        <p class="dg-lede">
+          Width is <b>fluid with a cap</b> — <code>--jk-canvas</code> takes the smallest of the
+          window minus its gutters, <code>900px + 34vw</code>, and <code>--jk-canvas-cap</code>.
+          Below ~1440px the sheet simply fills; above it, it grows at about a third the rate the
+          window does, so the desk opens progressively instead of all at once, and stops at 1760.
+          Roughly <b>964 @1024 · 1380 @1440 · 1545 @1920 · 1760 @2560</b> and up. A phone needs no
+          second implementation: the first term wins outright and the gutter drops to zero.
+        </p>
+      </div>
+      <p class="dg-caption">jk-desk › jk-canvas · jk-canvas-fill · jk-canvas-sheet › jk-canvas-foot</p>
+      <div class="dg-canvas-demo jk-desk">
+        <div class="jk-canvas jk-canvas-fill jk-canvas-sheet">
+          <div class="dg-canvas-masthead">
+            <span class="jk-folio">Masthead</span>
+            <span class="mono-eyebrow">ON THE SHEET, NOT THE WINDOW</span>
+          </div>
+          <div class="dg-canvas-body">
+            <div class="dg-canvas-main">
+              <p class="dg-lede" style="margin:0">The view. Top-set like a printed page.</p>
+            </div>
+            <aside class="dg-canvas-rail">
+              <span class="mono-eyebrow">RAIL</span>
+              <p class="dg-caption" style="margin:6px 0 0">--jk-rail · a pane <b>inside</b> the canvas</p>
+            </aside>
+          </div>
+          <div class="jk-canvas-foot">
+            <div class="jk-colophon" style="font-size:0.82rem">the foot holds the bottom of the sheet</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 12 Media ══ -->
     <section class="dg-sec jk-sheet" id="media">
       <div class="dg-sec-head">
-        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">11</span><span class="label-tape">MEDIA</span></div>
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">12</span><span class="label-tape">MEDIA</span></div>
         <h2>Media grid &amp; covers</h2>
         <p class="dg-lede">The suite cover grid + tile — <code>@jkos/ui</code> <code>&lt;MediaGrid&gt;</code> / <code>&lt;CoverArt&gt;</code>. Density keys off one token ladder (compact/cozy/comfortable).</p>
       </div>
@@ -825,7 +879,7 @@
     <!-- ══ 12 Player ══ -->
     <section class="dg-sec jk-sheet" id="player">
       <div class="dg-sec-head">
-        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">12</span><span class="label-tape">PLAYER</span></div>
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">13</span><span class="label-tape">PLAYER</span></div>
         <h2>The player bar</h2>
         <p class="dg-lede">
           <code>@jkos/player/ui</code>'s <code>&lt;PlayerBar&gt;</code> — a slotted shell, not a
@@ -953,7 +1007,7 @@
     <!-- ══ 13 Panels & states ══ -->
     <section class="dg-sec jk-sheet" id="panels">
       <div class="dg-sec-head">
-        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">13</span><span class="label-tape">PANELS · STATES</span></div>
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">14</span><span class="label-tape">PANELS · STATES</span></div>
         <h2>Panels &amp; the async triad</h2>
         <p class="dg-lede">
           Every view that loads has the same three off-states — <b>loading, error, empty</b> —
@@ -1066,7 +1120,7 @@
     <!-- ══ 14 Motion ══ -->
     <section class="dg-sec jk-sheet" id="motion">
       <div class="dg-sec-head">
-        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">14</span><span class="label-tape">MOTION</span></div>
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">15</span><span class="label-tape">MOTION</span></div>
         <h2>Motion vocabulary</h2>
         <p class="dg-lede">
           Ambient hardware effects (LED pulse, occasional flicker) are the house idiom —
@@ -1107,7 +1161,7 @@
     <!-- ══ 15 The brief ══ -->
     <section class="dg-sec jk-sheet" id="brief">
       <div class="dg-sec-head">
-        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">15</span><span class="label-tape">FOR A DESIGN PASS</span></div>
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">16</span><span class="label-tape">FOR A DESIGN PASS</span></div>
         <h2>The fence — elevate inside these lines</h2>
         <p class="dg-lede">The invariants a design pass must not cross. Push craft on spacing, hierarchy, composition and atmosphere; keep the token names, the two-mode contract and the derivation chain intact.</p>
       </div>
