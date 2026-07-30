@@ -186,8 +186,8 @@
        stands in for where it falls. Never do this in an app. */
     .dg-canvas-demo .jk-canvas { outline: 1px dashed var(--color-line-strong); }
     .dg-canvas-demo .jk-masthead { display: flex; align-items: center; gap: 14px; padding: 10px 20px 6px; }
-    .dg-canvas-demo .jk-masthead nav { display: flex; gap: 2px; margin-left: auto; align-self: stretch; }
-    .dg-canvas-demo .jk-masthead-tab { padding: 6px 13px 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    .dg-canvas-demo .jk-masthead nav { display: flex; gap: 4px; margin-left: auto; align-items: center; }
+    .dg-canvas-demo .jk-masthead-tab { padding: 6px 14px; display: flex; flex-direction: column; align-items: center; }
     .dg-canvas-body { flex: 1; display: flex; min-height: 0; position: relative; }
     .dg-canvas-main { flex: 1; min-width: 0; padding: 16px 20px; border-right: 1px solid var(--color-line); }
     .dg-canvas-rail { width: var(--jk-rail); max-width: 40%; flex: none; padding: 16px 18px; }
@@ -502,11 +502,19 @@
       <hr class="jk-rule-double" style="margin:12px 0 4px"><span class="mono-eyebrow">jk-rule-double</span>
       <hr class="jk-rule-taper" style="margin:12px 0 4px"><span class="mono-eyebrow">jk-rule-taper</span>
       <p class="dg-caption" style="margin-top:8px">
-        the fourth weight <b>dies into the ground</b> at both ends. A square cut is right inside
-        something that already has an edge; at the boundaries of the canvas there is no edge, so a
-        square-cut rule terminates in mid-air and the page reads as <i>cropped</i>. Use it for the two
-        rules that bracket a page — the masthead ladder and the canvas foot (§11). Inside a bordered
-        container keep <code>.jk-rule</code>: a taper there just looks like a printing fault.
+        the fourth weight is <b>the inlay</b> — and the one divider in the suite that is not ink.
+        Geometry earns it the slot: it <b>dies into the ground</b> at both ends, where every rule
+        above is cut square. A square cut is right inside something that already has an edge; at the
+        boundaries of the canvas there is no edge, so a square-cut rule terminates in mid-air and the
+        page reads as <i>cropped</i>. Being the only line that ends in points, it is also the only one
+        with a silhouette of its own — so it gets a material: <b>hammered steel let into the sheet</b>
+        on paper (groove shadow, crown catch-light, steel body, lip, then the sheet's catch — a round
+        profile drawn in shading — one band per device pixel — never in <code>border-radius</code>, which would fight the taper),
+        and the <b>same blade lit</b> on the tube, silver rather than cream because this is metal and
+        not type. Flip the face above and watch it change state. Scarcity is the whole point: it is
+        spent on the masthead's edge (§11) and nowhere else — the canvas foot borrows the taper's
+        geometry and stays ink. Inside a bordered container keep <code>.jk-rule</code>: an inlay
+        there is furniture.
       </p>
     </section>
 
@@ -862,21 +870,25 @@
           <code>.jk-sheet</code> — at card scale, not page scale.
         </p>
         <p class="dg-lede">
-          <b>Head and foot are a matched pair.</b> <code>.jk-masthead</code> spends no fill and no
+          <b>The head's edge is the inlay.</b> <code>.jk-masthead</code> spends no fill and no
           border: the ground's grain runs unbroken from the first pixel, and the bottom edge is the
-          <i>masthead ladder</i> — an ink rule with a hairline hung under it, both tapered (§04). It
-          replaced an opaque bar with a square <code>border-bottom</code>, which was a slab: its fill
-          was the one place in the app where the grain stopped, and because the canvas floats on the
-          ground its edges were square cuts in mid-air. <code>.jk-canvas-foot</code> now taper-rules
-          to match, so the two bracket the page on the same feathered margin — which is what makes
-          the empty middle read as <i>measured</i> rather than unfinished.
+          tapered metal bead of §04, drawn from the same <code>--jk-inlay-*</code> recipe so the two
+          are one object rather than two that drift. It replaced an opaque bar with a square
+          <code>border-bottom</code>, which was a slab: its fill was the one place in the app where
+          the grain stopped, and because the canvas floats on the ground its edges were square cuts
+          in mid-air. One bead, not the ink rule + hairline ladder it was briefly — a second line
+          under a piece of metal reads as two pieces of trim. <code>.jk-canvas-foot</code> takes the
+          same feathered margin in ink, so head and foot bracket the page as a pair by margin rather
+          than by substance.
         </p>
         <p class="dg-lede">
-          Nav in a masthead is a <b>thumb-index</b> (<code>.jk-masthead-tab</code>), not a row of
-          buttons. The current tab is named by weight plus a stub of accent rule dropped onto the
-          ladder beneath it — cut <i>into</i> the rule, the way a thumb-index marks the open section
-          on the edge of a book. It replaced filled <code>.jk-well</code> tabs, four of which in a
-          row read as a widget strip rather than a nav.
+          Nav in a masthead is <b>boxed</b> (<code>.jk-masthead-tab</code>, plus
+          <code>.jk-well</code> on the current one). It spent a pass as a fill-less thumb-index —
+          marked by weight and a stub of accent rule on the ladder — and came back, which is the
+          instructive part: a filled box states the <i>face</i> instantly, because the fill IS the
+          face (debossed tint on paper, emissive ring and glow on the tube, both from
+          <code>--hub-accent-press</code>). A weight change and a 2px stub state neither, and the nav
+          is the first thing looked at. Reuse the well; don't restate its mode flip.
         </p>
       </div>
       <p class="dg-caption">jk-canvas · jk-canvas-fill › jk-masthead › jk-masthead-tab › jk-canvas-foot &nbsp;(dashed edge = demo only)</p>
@@ -885,7 +897,7 @@
           <header class="jk-masthead">
             <span class="jk-folio">Masthead <span class="jk-folio-no">No. 11</span></span>
             <nav>
-              <button class="jk-masthead-tab" aria-selected="true">
+              <button class="jk-masthead-tab jk-well" aria-selected="true">
                 <span class="jk-press" style="font-family:var(--hub-font-mono);font-size:10px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;line-height:1.1">Today</span>
                 <span class="mono-eyebrow" style="font-size:7px;margin-top:3px">NOW</span>
               </button>

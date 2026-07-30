@@ -5,7 +5,7 @@
 // React components (<JkOSTheme>, <Bubble>, <Press>, <Sheet>) live in @jkos/ui.
 // Accent palette: import { ACCENT_SCHEMES, matchAccentScheme } from '@jkos/design'
 // Breakpoints: import { BREAKPOINTS, activeBreakpoint } from '@jkos/design'
-// Motion choreography: import { MO_DELAYS, moDelay, stagger } from '@jkos/design'
+// Motion choreography: import { MO_DELAYS, moDelay, stagger, ringOrder } from '@jkos/design'
 // Media grid density ladder: import { MEDIA_GRID_COLUMNS } from '@jkos/design'
 export * from './utils/applyJkOSTheme';
 export { withAlpha } from './utils/color';

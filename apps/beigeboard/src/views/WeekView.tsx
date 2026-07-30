@@ -5,7 +5,6 @@
  */
 import React from 'react'
 import { Calendar } from '@jkos/cards'
-import { Colophon } from '@jkos/ui'
 import { useDrag } from '../providers/DragProvider'
 import { getAccent } from '../lib/seed'
 import { sourceTintOf } from '../lib/theme'
@@ -19,9 +18,8 @@ export function WeekView(props: any) {
       benchLane
       createSource="bb"
       drag={dnd}
-      // The canvas foot. The kit renders the anchor (.jk-canvas-foot), the app
-      // supplies the voice — see the `foot` prop in @jkos/cards types.ts.
-      foot={<Colophon style={{ fontSize: '0.82rem' }}>seven days, set and locked up</Colophon>}
+      // No `foot` — the page footer is gone suite-wide in BeigeBoard; see the
+      // note in CalendarView.tsx. The kit's seam stays open.
       resolvers={{
         accentOf: (it: any) => getAccent(it, props.items),
         sourceColorOf: sourceTintOf,

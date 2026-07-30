@@ -292,16 +292,25 @@ Mobile needs no second implementation — term 1 wins outright and the gutter dr
 |---|---|
 | `.jk-canvas` | the measure: centre at the house width. Override per view with `--jk-canvas-w` |
 | `.jk-canvas-fill` | + fill a flex parent as a column (a full-height app page) |
-| `.jk-canvas-foot` | the bottom anchor: `margin-top:auto` + a rule. A `.jk-colophon` inside sets on one line |
+| `.jk-canvas-foot` | the optional bottom anchor: `margin-top:auto` + a tapered ink rule. A `.jk-colophon` inside sets on one line. BeigeBoard renders none — see "Vertical" below |
 
 **Rails** are one width, `--jk-rail: 360px` (`--jk-rail-sm: 260px`; `300px` on tablet, `100%`
 on mobile where a rail stacks). A rail is a pane *inside* the canvas — never a sibling of
 the window.
 
-**Vertical:** views **top-set** like a printed page and the foot holds the bottom, so a
-short view on a tall monitor reads as measured margin between two anchors rather than
-trailing off into dead ground. The kit's page views take the words via a `foot` prop
-(ignored at `compact` density — a HUD widget has no foot); the app supplies the voice.
+**Vertical:** views **top-set** like a printed page. `.jk-canvas-foot` is the optional
+bottom anchor — a rule plus a colophon that makes a short view on a tall monitor read as
+measured margin rather than as trailing off into dead ground. The kit's page views take the
+words via a `foot` prop (ignored at `compact` density — a HUD widget has no foot); the app
+supplies the voice.
+
+**BeigeBoard now passes no `foot` at all (2026-07-30, Jag's call).** As a page footer that
+line "only distracts": it pulls the eye down *below* the thing the view exists to show, and
+its rule makes a second page boundary arguing with the masthead's inlay. The margin it was
+spending is still needed — content running to the last pixel of the window reads as clipped
+— so the canvas keeps it directly (`paddingBottom: 18`) and the page simply ends in air, no
+divide. The primitive and the `foot` seam stay: the colophon is worth re-siting, not
+deleting.
 
 **A measure, not a card — the canvas draws NOTHING.** The page ground is the app's own
 grained background (`buildJkOSTheme` paints `--hub-grain-image` onto `body`), and content
@@ -382,12 +391,30 @@ lining figures on paper — §5) · `.bar-track` / `.bar-fill` (amber-gradient m
 **Print marks (Full Press — the press's own hardware, same scarcity rule):**
 `.jk-rule` / `.jk-rule-strong` / `.jk-rule-double` / `.jk-rule-taper` — the rules ladder,
 an `<hr>` face (hairline for rows/exhibits, ink for chapter heads, double for contents &
-colophon, **taper** for the two rules that bracket a page). A square cut is right *inside*
-something that already has an edge; at the boundaries of the canvas there is no edge, so a
-square-cut rule terminates in mid-air and the page reads as **cropped**. The taper feathers
-out over the last ~9% at each end so the rule belongs to the ground it's printed on. Inside
-a bordered container keep `.jk-rule` — a taper there reads as a printing fault. Retint with
-`--jk-rule-ink`. ·
+colophon). The fourth weight is **the inlay**, and it is the one divider in the suite that
+is not ink. *Geometry* earns it the slot: a square cut is right *inside* something that
+already has an edge, but at the boundaries of the canvas there is no edge, so a square-cut
+rule terminates in mid-air and the page reads as **cropped**. The inlay feathers out over
+the last ~9% at each end. Being the only line that ends in **points**, it is also the only
+one with a silhouette of its own — so it gets a *material*: hammered steel let into the
+sheet on paper (groove shadow → crown catch-light → lit face → shaded face and lip → the
+sheet's catch), and the same blade **lit** on the tube, silver rather than cream because
+this is metal and not type. Spend it on the masthead's edge and nowhere else — scarcity is
+what makes it read; `.jk-canvas-foot` borrows the geometry and stays ink. Inside a bordered
+container keep `.jk-rule` — an inlay there is furniture.
+Two implementation facts are load-bearing, both learned the hard way.
+**(1)** The face is authored **one band per device pixel** (5px bead, whole-pixel stops).
+Drawn first at 4px with sub-pixel stops, Chromium averaged each pair into one row: the
+groove shadow cancelled the crown, the sheet's catch cancelled the lip, and the bullnose
+rendered as a flat line. A bevel this small must be authored at the resolution it will be
+rasterised at.
+**(2)** The dark face's glow is a **background layer inside a 15px box**, not a
+`filter: drop-shadow()`. Chromium applies `mask` to the *filtered* output and clips it to
+the border box — `mask-clip: no-clip` does not lift it — so a drop-shadow comes out sliced
+flush, giving square ends to the one element whose entire identity is that it has points.
+Drawn inside the masked box, the same taper that shapes the bead shapes its light.
+Seams: `--jk-inlay-mask` / `--jk-inlay-face` (`.jk-masthead::after` renders the same object
+from the same recipe, so the two cannot drift). ·
 `.jk-folio` + `.jk-folio-no` — the folio mark that names **content** in print
 (running-head rules, serif caps, accent-italic number; the counterpart of `.label-tape`,
 which keeps naming machine panels) · `.jk-colophon` — the end-of-sheet record
@@ -400,30 +427,37 @@ which keeps naming machine panels) · `.jk-colophon` — the end-of-sheet record
 
 **The canvas — page measure (§6):**
 `.jk-canvas` (centre at `--jk-canvas`; override with `--jk-canvas-w`) · `.jk-canvas-fill`
-(fill a flex parent as a column) · `.jk-canvas-foot` (bottom anchor: `margin-top:auto` +
-**tapered** rule; a `.jk-colophon` inside sets on one line). Rails: `--jk-rail`. The canvas
+(fill a flex parent as a column) · `.jk-canvas-foot` (optional bottom anchor:
+`margin-top:auto` + a **tapered ink** rule — the taper's geometry, deliberately not its
+metal; a `.jk-colophon` inside sets on one line). Rails: `--jk-rail`. The canvas
 paints no surface of its own — the grained `body` is the ground (`.jk-canvas-sheet` /
 `.jk-desk` are gone).
 
-**The masthead — the canvas's head, and the foot's matched pair:**
+**The masthead — the canvas's head:**
 `.jk-masthead` · `.jk-masthead-tab`. A page's top bar is **set as a masthead, not built as
 a toolbar**: no fill and no border, so the ground's grain runs unbroken from the first pixel,
-and the bottom edge is the *masthead ladder* — an ink rule with a hairline hung under it,
-both tapered. It replaced an opaque `--color-paper` bar with a square `border-bottom`, which
-was a **slab**: its fill was the one region where the grain stopped, and because the canvas
-is a measure floating on the ground, that rectangle's left, right and bottom edges were
-square cuts in mid-air — the same "document floating in a window" reading the drawn-sheet
-motif was deleted for. `.jk-canvas-foot` taper-rules to match, so head and foot bracket the
-page on one feathered margin, which is what makes the empty middle read as *measured* rather
-than unfinished. Retint the ladder with `--jk-masthead-ink`.
+and the bottom edge is **the inlay** (§ print marks) — one tapered metal bead, drawn from
+the same `--jk-inlay-*` recipe as `.jk-rule-taper`. It replaced an opaque `--color-paper` bar
+with a square `border-bottom`, which was a **slab**: its fill was the one region where the
+grain stopped, and because the canvas is a measure floating on the ground, that rectangle's
+left, right and bottom edges were square cuts in mid-air — the same "document floating in a
+window" reading the drawn-sheet motif was deleted for. It was then briefly an ink *ladder*
+(a rule with a hairline hung under it); one bead replaced both, because a second line under a
+piece of metal reads as two pieces of trim.
 Transparency is only safe because a canvas app-shell never scrolls content *under* its head
 (each view scrolls inside its own `.jk-scroll`); a masthead over a scrolling document needs
-its own fill. Nav in a masthead is a **thumb-index** (`.jk-masthead-tab`): no fill, no frame
-— the current tab is named by weight plus a stub of accent rule dropped onto the ladder
-beneath it, cut *into* the rule the way a thumb-index marks the open section on the edge of a
-book. It replaced filled `.jk-well` tabs, four of which in a row read as a widget strip
-rather than a nav. The tab carries `z-index: 1` on purpose: the ladder is a pseudo-element on
-the masthead, so it is that element's last child and would otherwise paint over the mark.
+its own fill.
+Nav in a masthead is **boxed**: `.jk-masthead-tab` for the reset and the hover fill, plus
+`.jk-well` on the current tab. It spent one pass as a fill-less *thumb-index* (marked by
+weight and a stub of accent rule on the ladder) and came back, which is the instructive part
+— **a filled box states the face instantly, because the fill IS the face**: a tint debossed
+into the sheet on paper, an emissive ring and glow on the tube, both inherited from
+`--hub-accent-press` rather than restated. A weight change and a 2px stub state neither, and
+the nav is the first thing looked at, so it is where the mode has to be legible.
+Both of the tab's own background rules are guarded on `:not([aria-selected="true"])`, and the
+guard is load-bearing: the block is declared *after* `.jk-well` (it must be, to bring the
+radius down to tab scale), so at equal specificity an unguarded `background: transparent`
+silently blanks the current tab's tint and leaves a well with no fill.
 
 **The detail panel — an overlay ON the canvas, never a member of it:**
 `.jk-panel` + `.jk-panel-rail` / `.jk-panel-sheet` › `.jk-panel-head`. The pane that slides
@@ -596,7 +630,7 @@ theme → `applyTheme` (`@jkos/auth-client`) calls `applyJkOSMode` + `applyJkOST
 
 | App | Stack | Serif | Factory config (actual) | Notes |
 |---|---|---|---|---|
-| **BeigeBoard** (planner) | React 18, plain CSS (`src/app.css`) | Fraunces | `radius: { base 8, xs 4, sm 7, lg 11, soft 9, widget 10, button 8 }` | **Full Press rebuild (2026-07-20)** — a view-layer redesign onto the new solid-ink chip system (the editorial pass 2026-07-19 was its masthead/rules groundwork; the folio retired for bordered `.jk-lab` week/date chips). **Today** = kit `DayView` single-day timeline + a 388px right rail (`.jk-sheet` bench + goals-in-press rollups + `.jk-colophon`); **Week/Calendar** = the reskinned kit views unchanged at the app level (the kit now owns the chrome — seven framed gapped day-lanes, today = tinted `jk-well` + `jk-press`); **Workshop** = a two-pane forge (goal rail, `jk-well` when selected → header `jk-press-lg` + `jk-rule` + expand/collapse milestone→leaf tree, each leaf a `.jk-chip` + `.jk-check`), retiring the drill-down + weekly bench + carried/adrift/next planning intel; **header** = pressed serif wordmark + `.jk-lab` chips + **mono** nav (active = `jk-well` + `jk-press`) + `.seg` clock. Motion on the `data-motion` axis (`.mo-item` rows, ambient rake/buzz opt-in; intro presses on paper). DetailPanel kept + restyled as the edit surface. Desktop only — `src/mobile/*` untouched behind `useBreakpoint()`; drag via `usePointerDrag`. **Parity pass (2026-07-29)** brought it to the prototype: the timeline is 60px rows (17 × 60 = 1020px) with hour rules in `--hub-line` and a half-hour ghost rule on Today only, all keyed off `density` so ORDECK's HUD keeps 48px; the gutter speaks **mono** (`.seg` only on the now badge, §13.12); the three 30px serif mastheads became one 46px `<ChromeBar>`; **Calendar was rebuilt** from a hairline table + 220px sidebar into 7×N gapped, individually bordered cells (the Week lane idea at month scale — sidebar now off by default, spanning all-day bars become a chip per covered day); Today's now-line names the live event and counts down, and the timeline opens where the day is; every view cascades from `MO_DELAYS` and no view double-animates. **Masthead + panel pass (2026-07-29)**: the header became a `.jk-masthead` (no fill/border, tapered ink ladder, `.jk-folio` edition mark, thumb-index nav) and the DetailPanel a `.jk-panel` overlay — see §8. Today's rail gained **Loose leaves**, the one section listing tasks filed under no goal (no goal anywhere up the parent chain, not merely `!parent_id`); before it, an unfiled task with no date and no `week_start` appeared on no screen at all. **Today's lane is marked by LIGHT, not by pigment**: `--jk-tint` 5% over `--hub-bg-4` (the brightest stock) with a `--color-line-strong` frame and `gridRules(density, { tone: 'strong' })`. The old recipe was the faint-CHIP wash (14% over `--hub-bg-2`), a mid-tone that sat at nearly equal lightness to BOTH its `--color-paper` neighbours *and* `--hub-line` — so the lane didn't read as marked and its hour rules vanished inside it. A wash too weak to see and strong enough to erase the ledger is the worst of both; the lit lane differs in the axis the eye actually finds, and gains rule contrast instead of losing it. Day's timeline takes `tone: 'strong'` too — it is drawn straight on the grained ground with no lane fill, the faintest pairing in the app |
+| **BeigeBoard** (planner) | React 18, plain CSS (`src/app.css`) | Fraunces | `radius: { base 8, xs 4, sm 7, lg 11, soft 9, widget 10, button 8 }` | **Full Press rebuild (2026-07-20)** — a view-layer redesign onto the new solid-ink chip system (the editorial pass 2026-07-19 was its masthead/rules groundwork; the folio retired for bordered `.jk-lab` week/date chips). **Today** = kit `DayView` single-day timeline + a 388px right rail (`.jk-sheet` bench + goals-in-press rollups + `.jk-colophon`); **Week/Calendar** = the reskinned kit views unchanged at the app level (the kit now owns the chrome — seven framed gapped day-lanes, today = tinted `jk-well` + `jk-press`); **Workshop** = a two-pane forge (goal rail, `jk-well` when selected → header `jk-press-lg` + `jk-rule` + expand/collapse milestone→leaf tree, each leaf a `.jk-chip` + `.jk-check`), retiring the drill-down + weekly bench + carried/adrift/next planning intel; **header** = pressed serif wordmark + `.jk-lab` chips + **mono** nav (active = `jk-well` + `jk-press`) + `.seg` clock. Motion on the `data-motion` axis (`.mo-item` rows, ambient rake/buzz opt-in; intro presses on paper). DetailPanel kept + restyled as the edit surface. Desktop only — `src/mobile/*` untouched behind `useBreakpoint()`; drag via `usePointerDrag`. **Parity pass (2026-07-29)** brought it to the prototype: the timeline is 60px rows (17 × 60 = 1020px) with hour rules in `--hub-line` and a half-hour ghost rule on Today only, all keyed off `density` so ORDECK's HUD keeps 48px; the gutter speaks **mono** (`.seg` only on the now badge, §13.12); the three 30px serif mastheads became one 46px `<ChromeBar>`; **Calendar was rebuilt** from a hairline table + 220px sidebar into 7×N gapped, individually bordered cells (the Week lane idea at month scale — sidebar now off by default, spanning all-day bars become a chip per covered day); Today's now-line names the live event and counts down, and the timeline opens where the day is; every view cascades from `MO_DELAYS` and no view double-animates. **Masthead + panel pass (2026-07-29)**: the header became a `.jk-masthead` (no fill/border, tapered ink ladder, `.jk-folio` edition mark, thumb-index nav) and the DetailPanel a `.jk-panel` overlay — see §8. Today's rail gained **Loose leaves**, the one section listing tasks filed under no goal (no goal anywhere up the parent chain, not merely `!parent_id`); before it, an unfiled task with no date and no `week_start` appeared on no screen at all. **Today's lane is marked by LIGHT, not by pigment**: `--jk-tint` 5% over `--hub-bg-4` (the brightest stock) with a `--color-line-strong` frame and `gridRules(density, { tone: 'strong' })`. The old recipe was the faint-CHIP wash (14% over `--hub-bg-2`), a mid-tone that sat at nearly equal lightness to BOTH its `--color-paper` neighbours *and* `--hub-line` — so the lane didn't read as marked and its hour rules vanished inside it. A wash too weak to see and strong enough to erase the ledger is the worst of both; the lit lane differs in the axis the eye actually finds, and gains rule contrast instead of losing it. Day's timeline takes `tone: 'strong'` too — it is drawn straight on the grained ground with no lane fill, the faintest pairing in the app. **Head/foot + month-ring pass (2026-07-30)**: the masthead ladder became **the inlay** (one tapered metal bead, hammered steel on paper / lit silver on the tube — §04) and the thumb-index nav went back to **boxed** tabs, because the box is what states light-vs-dark at a glance; the **page footer is gone** (colophon + rule both — the canvas keeps an 18px bottom margin and the page ends in air); and Calendar's day cells now enter on the **month ring** (`ringOrder`), starting on today and wrapping, so the entrance itself points at the current date |
 | **ORDECK** (HUD/portal) | React 18, plain CSS | Fraunces | `selector: 'html.od-v2'`, `radius: { base 10, xs 4, sm 7, lg 16, soft 8, button 9 }` | v2 HUD scopes its theme to `html.od-v2`; widget system + workshop; login page is minimal hardware (LED + glow title) |
 | **PapyrOS** (audiobooks) | React 18, plain CSS | Fraunces | `accent: { #9a4b2c, #5c8a72 }`, `radius: { base 6, xs 3, sm 5, lg 10, soft 7, button 6 }` | First `@jkos/player` consumer; offline cache + SW media |
 | **KourOS** (music) | React 18, plain CSS | Fraunces (suite default) | `accent: { #4b3f8f, #dba13c }`, `radius: { base 5, xs 3, sm 4, lg 8, soft 6, button 5 }` | Second player consumer — deliberately different shape; loads Fraunces since Full Press (the primitives are printed) |
@@ -654,11 +688,29 @@ work order until they became data. Import the region; never pick a number at the
 | the timeline itself: Week · Today | `170` / `110ms` |
 | Today's right rail: first sheet → second sheet → colophon | `170` / `250` / `330ms` |
 | indexed runs | `stagger(i, 60, 70)` goal cards · `stagger(i, 120, 40)` forge rows |
+| the month grid's day cells | `ringOrder(day, anchor, count) × MO_RING_STEP` from `100ms` |
+
+**The month ring — choreography as a POINTER (`ringOrder`, 2026-07-30).** The month grid is
+the one grid in the suite with a *you are here*, so its cells do not enter in reading order.
+The cascade **starts on today**, runs to the end of the month, wraps to the 1st and closes on
+the day before — a ring, not a run. The eye follows where motion *begins*, so the entrance
+names the current date before any pigment or light has to. The anchor is today only when the
+cursor is on today's month; a month you paged to has no "now", opens from the 1st, and
+degrades to plain reading order. Out-of-month gutter cells are not days, take no place in the
+ring, and fill in together on the beat after it closes.
+`MO_RING_STEP` is `15ms`, far tighter than a list's `70` — 31 cells at list pace would put
+the last day of the month two seconds behind the first, and the whole sweep has to finish
+inside ~half a second so the page is usable while it is still arriving. `ringOrder` is a pure
+function with a unit test (`test/cards-logic.mjs`) asserting it is a **permutation** of
+`0..count-1`: get the wrap wrong and the pointer aims at the wrong date, which no typecheck
+and no eyeball on a single month would catch.
 
 **Never stack entrances.** An `.mo-item` inside an `.ink-in` parent double-animates: the
 parent fades the whole pane in while the child still holds its pre-animation frame. A view
 that staggers internally must NOT also carry `ink-in` at the `<main>` boundary — the inner
-cascade wins wherever there is one, because it says more. **The app header animates once,
+cascade wins wherever there is one, because it says more. In BeigeBoard that is now **every**
+view (Calendar was the last holdout and took the ring), so `<main>` carries no entrance class
+at all; a future view with no internal cascade should take `ink-in` there. **The app header animates once,
 on boot**, not with the view: it doesn't remount on tab change, so it takes a lone `.mo-item`
 at `0ms` and each view then owns its own cascade from `0ms`.
 

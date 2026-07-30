@@ -47,6 +47,7 @@ async function importTs(relPath, outName) {
 const color = await importTs('packages/design/utils/color.ts', 'color.mjs');
 const dt = await importTs('packages/cards/src/datetime.ts', 'datetime.mjs');
 const mediaGrid = await importTs('packages/design/responsive/mediaGrid.ts', 'mediaGrid.mjs');
+const motion = await importTs('packages/design/theme/motion.ts', 'motion.mjs');
 
 /* ── withAlpha ─────────────────────────────────────────────────────────── */
 const { withAlpha } = color;
@@ -108,6 +109,33 @@ const grid = buildMonthGrid('2026-07-06');
 check(grid.length === 42, 'buildMonthGrid yields a 6×7 grid');
 check(grid[0].iso === '2026-06-29' && !grid[0].inMonth, 'month grid leads with the trailing days of June');
 check(grid.some((c) => c.iso === '2026-07-01' && c.inMonth), 'month grid flags in-month days');
+
+/* ── the month grid's entrance ring ────────────────────────────────────── */
+// The month view's cells enter starting on TODAY, run to the end of the month,
+// wrap to the 1st and close on the day before — the cascade is how the view says
+// where "now" is. Get the wrap wrong and the pointer aims at the wrong date, in a
+// way no typecheck and no eyeball on one month would catch.
+const { ringOrder, MO_RING_STEP } = motion;
+check(ringOrder(14, 14, 31) === 0, 'ringOrder: the anchor day goes first');
+check(ringOrder(15, 14, 31) === 1, 'ringOrder: the day after the anchor is next');
+check(ringOrder(31, 14, 31) === 17, 'ringOrder: the last day of the month closes the forward run');
+check(ringOrder(1, 14, 31) === 18, 'ringOrder: the 1st picks up immediately after the month end');
+check(ringOrder(13, 14, 31) === 30, 'ringOrder: the day BEFORE the anchor lands last');
+// Every day is used exactly once — the ring is a permutation, so no two cells
+// share a beat and none is left holding its pre-delay frame forever.
+const ranks = Array.from({ length: 31 }, (_, i) => ringOrder(i + 1, 14, 31)).sort((a, b) => a - b);
+check(ranks.every((r, i) => r === i), 'ringOrder over a 31-day month is a permutation of 0..30');
+// Anchoring on the 1st (a month that doesn't contain today) degrades to plain
+// reading order rather than to a special case.
+check(ringOrder(1, 1, 30) === 0 && ringOrder(30, 1, 30) === 29, 'ringOrder anchored on the 1st is reading order');
+// Short months and out-of-range input clamp instead of producing negative delays
+// (a negative animation-delay starts the animation mid-flight — the cell would
+// appear already half-arrived).
+check(ringOrder(28, 28, 28) === 0, 'ringOrder handles a 28-day February');
+check(ringOrder(40, 14, 31) === 17 && ringOrder(0, 14, 31) === 18, 'ringOrder clamps out-of-range days');
+check(ringOrder(5, 5, 0) === 0, 'ringOrder tolerates a zero-length month');
+// The sweep has to be over fast enough that the page is usable while it arrives.
+check(MO_RING_STEP * 31 < 600, `a 31-day sweep costs under 600ms (${MO_RING_STEP * 31}ms)`);
 
 /* ── timed-event slot packing ──────────────────────────────────────────── */
 const { layoutTimedEvents } = dt;

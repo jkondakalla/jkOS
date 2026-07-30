@@ -42,7 +42,10 @@ export const MO_DELAYS = {
   weekGrid: 170,
   todayGrid: 110,
 
-  /** Today's right rail, top to bottom. */
+  /** Today's right rail, top to bottom. `railColophon` currently has no call
+   *  site: BeigeBoard's page foot was cut on 2026-07-30 (DESIGN.md §6) and the
+   *  colophon is waiting to be re-sited, not deleted. Kept so the beat is
+   *  already named when it lands. */
   railFirst: 170,
   railSecond: 250,
   railColophon: 330,
@@ -68,4 +71,40 @@ export const moDelay = (region: MoRegion): string => `${MO_DELAYS[region]}ms`;
 export function stagger(i: number, base = 60, step = 70, max = 900): string {
   const raw = base + Math.max(0, i) * step;
   return `${Math.min(raw, max)}ms`;
+}
+
+/**
+ * Step between two neighbours on the month RING (see ringOrder). Deliberately
+ * far tighter than a list's: a run of 8 goal cards can afford 70ms apiece, but a
+ * month is 31 cells and at that rate the last day of the month would land two
+ * full seconds after the first. 15ms sweeps the whole grid in under half a
+ * second, which is short enough that the page is usable while it is still
+ * arriving — the cascade is a POINTER, not a curtain.
+ */
+export const MO_RING_STEP = 15;
+
+/**
+ * Where a day sits on the month grid's entrance RING.
+ *
+ * A month is the one grid in the suite that has a "you are here", so it does not
+ * enter in reading order — it enters from TODAY. The cascade starts on the
+ * current date, runs to the end of the month, wraps round to the 1st, and closes
+ * on the day before today. The eye follows the start of the motion, so where the
+ * animation begins is where today is: the view marks the date by choreography
+ * before any pigment or light has to.
+ *
+ * Returns the day's position in that order — 0 for the anchor itself, count-1
+ * for the day immediately before it. Multiply by MO_RING_STEP and add the
+ * region's base delay.
+ *
+ * @param day     1-based day-of-month of the cell
+ * @param anchor  1-based day the ring starts on (today; the 1st in a month that
+ *                doesn't contain today, which has no "now" to start from)
+ * @param count   days in the month
+ */
+export function ringOrder(day: number, anchor: number, count: number): number {
+  if (!(count > 0)) return 0;
+  const d = Math.min(Math.max(day, 1), count);
+  const a = Math.min(Math.max(anchor, 1), count);
+  return d >= a ? d - a : count - a + d;
 }

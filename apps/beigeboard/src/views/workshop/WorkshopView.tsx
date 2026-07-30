@@ -17,7 +17,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { FONT_HEAD, TASK_COLORS, localDate } from '../../lib/theme'
 import { getChildren, getAncestors, getProgress } from '../../lib/seed'
-import { Press, Well, Bubble, Chip, Check, TButton, Rule, Bar, Colophon } from '@jkos/ui'
+import { Press, Well, Bubble, Chip, Check, TButton, Rule, Bar } from '@jkos/ui'
 import { stagger } from '@jkos/design'
 
 const MONO = 'var(--hub-font-mono)'
@@ -88,10 +88,10 @@ export function WorkshopView({
   }
 
   return (
-    // Column: the rail + forge row, then ONE foot across the bottom of the
-    // sheet. This is the view the canvas rule helps most — a three-milestone
-    // goal used to leave the bottom 60% of a tall monitor as dead paper; now
-    // the top-set tree and the pinned foot bracket it as deliberate margin.
+    // Column around the rail + forge row. It carried a pinned foot until the
+    // page footer was cut suite-wide; kept as the seam for anything that spans
+    // both panes, and because the rail/forge row wants an explicit `flex: 1`
+    // parent rather than being the height-100% child itself.
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
         {/* ── Goals rail ── */}
@@ -145,11 +145,6 @@ export function WorkshopView({
             </div>
           )}
         </div>
-      </div>
-
-      {/* The canvas foot — spans rail + forge (.jk-canvas-foot in hub.css). */}
-      <div className="jk-canvas-foot" style={{ margin: '0 28px' }}>
-        <Colophon style={{ fontSize: '0.82rem' }}>the forge holds what isn't finished</Colophon>
       </div>
     </div>
   )

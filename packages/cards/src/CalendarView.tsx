@@ -30,7 +30,7 @@ import { DOW } from './constants';
 import { TaskChip } from './TaskChip';
 import { Checkbox, Eyebrow, RecLamp, ChromeBar } from './primitives';
 import { TButton, EmptyState } from '@jkos/ui';
-import { MO_DELAYS } from '@jkos/design';
+import { MO_DELAYS, MO_RING_STEP, ringOrder } from '@jkos/design';
 
 export function CalendarView(props: CalendarViewProps) {
   const bp = useBreakpoint();
@@ -133,6 +133,32 @@ function CalendarGrid({
     [grid, byDay],
   );
 
+  // ── The entrance ring ──────────────────────────────────────────────────
+  // The month is the one grid with a "you are here", so its cells do not enter
+  // in reading order: the cascade STARTS ON TODAY, runs to the end of the month,
+  // wraps to the 1st and closes on the day before. The eye goes to where motion
+  // begins, so the current date is named by choreography — before the tint, the
+  // press and the type have to carry it alone. (ringOrder + MO_RING_STEP live in
+  // @jkos/design: the order is choreography, and choreography is shared data.)
+  //
+  // Anchor is today only when the cursor is on today's month; a month you paged
+  // to has no "now", so it opens from the 1st and simply reads left-to-right.
+  // Out-of-month gutter cells are not days and take no place in the ring — they
+  // fill in together on the beat after it closes.
+  const cellDelay = useMemo(() => {
+    const t = localDate(today);
+    const c = localDate(cursor);
+    const anchor = t.getFullYear() === c.getFullYear() && t.getMonth() === c.getMonth()
+      ? t.getDate()
+      : 1;
+    return (cell: { iso: string; inMonth: boolean }) => {
+      const rank = cell.inMonth
+        ? ringOrder(localDate(cell.iso).getDate(), anchor, daysInMonth)
+        : daysInMonth;
+      return MO_DELAYS.calendarGrid + rank * MO_RING_STEP;
+    };
+  }, [today, cursor, daysInMonth]);
+
   const beginDragChip = (e: React.PointerEvent, item: CalendarItem) => {
     e.preventDefault();
     if (drag) return;
@@ -212,9 +238,12 @@ function CalendarGrid({
 
         {/* The cell grid — gapped, individually bordered cells: Week's lane idea
             at month scale. Rows are 1fr so the grid fills the pane instead of
-            scrolling a fixed 90px-per-row table. */}
+            scrolling a fixed 90px-per-row table.
+            The container itself does NOT animate: the entrance belongs to the
+            cells (see cellDelay), and a .mo-item wrapper around .mo-item children
+            fades the whole pane in while each child is still holding its
+            pre-delay frame — one entrance per surface. */}
         <div
-          className="mo-item"
           style={{
             flex: 1,
             minHeight: 0,
@@ -223,7 +252,6 @@ function CalendarGrid({
             gridTemplateRows: `repeat(${weekRows}, 1fr)`,
             gap: 6,
             position: 'relative',
-            animationDelay: `${MO_DELAYS.calendarGrid}ms`,
           }}
         >
           {monthItemCount === 0 && (
@@ -242,7 +270,7 @@ function CalendarGrid({
                 key={cell.iso}
                 data-drop-zone="cell"
                 data-drop-day={cell.iso}
-                className={cell.inMonth ? 'jk-hit' : undefined}
+                className={cell.inMonth ? 'mo-item jk-hit' : 'mo-item'}
                 onClick={(e) => {
                   if (e.target !== e.currentTarget || !cell.inMonth || anyDrag) return;
                   // Clicking the cell opens that day; the quick-add lives on the
@@ -250,6 +278,7 @@ function CalendarGrid({
                   onWeekJump?.(cell.iso);
                 }}
                 style={{
+                  animationDelay: `${cellDelay(cell)}ms`,
                   border: '1px solid var(--hub-line)',
                   borderRadius: 'var(--hub-radius-xs)',
                   padding: '7px 9px',

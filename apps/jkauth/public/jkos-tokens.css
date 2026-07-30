@@ -308,6 +308,49 @@
   --accent-halo-glow: var(--color-accent-glow);
   --accent-halo:      none;
   --accent-halo-text: none;
+
+  /* ── The inlay ───────────────────────────────────────────────────────────
+     The material of the system's ONE metal divider — see .jk-rule-taper for
+     what it is and why it exists. Three seams, so the class and the masthead
+     ladder (.jk-masthead::after) render the same object from one recipe:
+       --jk-inlay-mask  the taper. Both ends feather out over 9%, which is what
+                        makes this the only line on the page that ends in points.
+       --jk-inlay-face  the whole object, mode-flipped below, painted into a
+                        15px-tall box: 5px of halo, the 5px bead, 5px of halo.
+     THE BOX IS TALLER THAN THE BEAD ON PURPOSE. The obvious way to light the
+     dark face is `filter: drop-shadow()`, and it does not work here: Chromium
+     applies the mask to the FILTERED output and clips it to the border box, so
+     the bloom is sliced off flush — square ends on the one element whose whole
+     identity is that it has points. (`mask-clip: no-clip` does not lift it.) So
+     the halo is drawn as a background layer INSIDE the masked box, where the same
+     taper that shapes the bead also shapes its light. Paper leaves those bands
+     transparent: an inlay is lit BY the room, it does not emit.
+     Paper face: a hammered-steel bead let into the sheet. Reading down the bead —
+     the groove's shadow, the crown catch-light, the lit face, the shaded face and
+     lip, then the sheet's own catch on the lower edge of the groove. Five bands,
+     five pixels, and the whole-pixel stops are the point: this was first drawn
+     4px tall with sub-pixel stops (0.5px, 3.6px) and Chromium averaged each pair
+     into one device row, so the shadow cancelled the crown, the catch cancelled
+     the lip, and a bullnose came out a flat line. A bevel this small has to be
+     authored at the resolution it will be rasterised at.
+     The two radial layers are the hammer marks. They are confined to the bead's
+     middle rows (`/ Npx 3px`) so they modulate the steel instead of punching
+     through the crown and the catch — the first pass let them cover the full
+     height and the bar read as a dotted line, not as metal — and they ride
+     coprime 17px/29px periods so they never tile visibly across a 1700px measure.
+     The steel is deliberately NOT the --hub-metal-* family: that stock is warm
+     brass, and against kraft a warm bead is just a thicker beige rule. Neutral
+     grey is what makes the eye call it metal here. */
+  --jk-inlay-mask: linear-gradient(90deg, transparent 0, #000 9%, #000 91%, transparent 100%);
+  --jk-inlay-face:
+    radial-gradient(56% 150% at 50% 28%, rgba(255, 255, 255, 0.42), transparent 68%) 0 6px / 17px 3px repeat-x,
+    radial-gradient(52% 150% at 50% 72%, rgba(58, 40, 16, 0.22), transparent 68%) 9px 6px / 29px 3px repeat-x,
+    linear-gradient(180deg,
+      rgba(64, 42, 16, 0.30)   0 1px,
+      #fbf8f0                  1px 2px,
+      #cfccc2                  2px 3px,
+      #8e8a80                  3px 4px,
+      rgba(255, 253, 246, 0.9) 4px 5px) 0 5px / 100% 5px repeat-x;
 }
 
 /* ─── CRT / dark mode ─────────────────────────────────────────────────────── */
@@ -386,6 +429,29 @@
   --accent-halo-glow: var(--color-accent-glow);
   --accent-halo:      0 0 16px var(--color-accent-glow);
   --accent-halo-text: 0 0 12px var(--color-accent-glow);
+
+  /* The inlay, lit. Same bead, same taper, opposite physics: on the tube the
+     metal is a light source, so the bead goes SILVER — deliberately not the warm
+     cream every ink rule takes, because this is the one element that is metal
+     rather than type — and the halo bands the paper face leaves empty light up.
+     Last layer is the bloom across the full 15px box; it is a background rather
+     than a drop-shadow so the taper can shape it (see --jk-inlay-face above). */
+  --jk-inlay-face:
+    radial-gradient(56% 150% at 50% 28%, rgba(255, 255, 255, 0.5), transparent 68%) 0 6px / 17px 3px repeat-x,
+    radial-gradient(52% 150% at 50% 72%, rgba(96, 126, 148, 0.4), transparent 68%) 9px 6px / 29px 3px repeat-x,
+    linear-gradient(180deg,
+      rgba(200, 228, 246, 0.55) 0 1px,
+      #f6fbff                   1px 2px,
+      #dceaf3                   2px 3px,
+      #9fb2c2                   3px 4px,
+      rgba(200, 228, 246, 0.6)  4px 5px) 0 5px / 100% 5px repeat-x,
+    linear-gradient(180deg,
+      transparent               0%,
+      rgba(150, 190, 220, 0.07) 22%,
+      rgba(170, 205, 232, 0.24) 40%,
+      rgba(170, 205, 232, 0.24) 60%,
+      rgba(150, 190, 220, 0.07) 78%,
+      transparent               100%);
 }
 
 /* ─── Shared CSS component classes ─────────────────────────────────────── */
@@ -714,23 +780,50 @@
 .jk-rule-double { border: none; height: 5px; margin: 0; opacity: 0.85;
   background: linear-gradient(180deg,
     var(--color-ink) 0 1.5px, transparent 1.5px 3.5px, var(--color-ink) 3.5px 5px); }
-/* The fourth weight — a hairline that DIES INTO THE GROUND at both ends.
+/* The fourth weight — the INLAY. The one divider in the system that is not ink.
  *
- * Every rule above is cut square, and a square cut is right when the rule sits
- * inside something that already has an edge (a card, a row, a bordered lane).
- * At the boundaries of the CANVAS there is no such edge: the measure floats on
- * the grained ground, so a square-cut rule terminates in mid-air and reads as a
- * slab edge — the page looks cropped rather than set. The taper is the printer's
- * answer: ink at full weight across the measure, feathering out over the last
- * ~10% at each end so the rule belongs to the ground it's printed on.
+ * GEOMETRY is what earns it a place in the ladder. Every rule above is cut
+ * square, and a square cut is right when the rule sits inside something that
+ * already has an edge (a card, a row, a bordered lane). At the boundaries of the
+ * CANVAS there is no such edge — the measure floats on the grained ground — so a
+ * square-cut rule terminates in mid-air and reads as a slab edge: the page looks
+ * cropped rather than set. This one feathers to nothing over the last ~9% at each
+ * end. It is therefore the only line on the page that ends in POINTS, which is
+ * what makes it read as a distinct object rather than as one more hairline.
  *
- * Use it for the two rules that bracket a page (the masthead ladder, the canvas
- * foot). Inside a bordered container keep .jk-rule — a taper there just looks
- * like a printing fault. --jk-rule-ink retints it (the masthead's ink weight). */
-.jk-rule-taper  { border: none; height: 1px; margin: 0;
-  background: linear-gradient(90deg, transparent 0,
-    var(--jk-rule-ink, var(--hub-line)) 9%,
-    var(--jk-rule-ink, var(--hub-line)) 91%, transparent 100%); }
+ * MATERIAL follows from that. Because it is the one divider with its own
+ * silhouette, it is also the one that is not printed:
+ *
+ *   paper → a hammered-steel inlay: a half-round bead let into the sheet. Five
+ *           bands in 4px carry the whole illusion — the groove's shadow above the
+ *           bead, the crown catch-light, the steel body, the bead's bottom lip,
+ *           then the sheet's own catch on the lower edge of the groove. The round
+ *           profile is drawn in SHADING, not in border-radius, because a radius
+ *           would fight the taper (the ends have to be able to dissolve). The two
+ *           dimple layers ride coprime periods — 13px and 21px — so the hammer
+ *           marks don't visibly tile across a 1700px measure. Cooled off the warm
+ *           --hub-metal-* stock so it reads as steel in a kraft world rather than
+ *           as one more beige line.
+ *   CRT   → the same blade, lit: silver rather than the warm cream the ink rules
+ *           take (metal, not type), and the glow is drawn with drop-shadow so it
+ *           rides the mask and dies out WITH the points instead of squaring them
+ *           off again.
+ *
+ * All of it lives in the three --jk-inlay-* seams so the masthead ladder
+ * (.jk-masthead::after) is the SAME OBJECT, not a second recipe that drifts.
+ * Inside a bordered container keep .jk-rule — an inlay there is furniture. */
+.jk-rule-taper {
+  border: none;
+  /* 15px of box for a 5px bead, centred: the outer bands are the halo the dark
+     face lights up (transparent on paper). Both numbers are fixed — the face is
+     authored one band per device row, so a shorter box crops the bead's lip and
+     the sheet's catch, and a taller one strands the bead off centre. */
+  height: 15px;
+  margin: 0;
+  background: var(--jk-inlay-face);
+  -webkit-mask-image: var(--jk-inlay-mask);
+          mask-image: var(--jk-inlay-mask);
+}
 
 /* The folio mark — names CONTENT in print: running-head rules above and
    below, serif caps, the number/count slot in accent italic. */
@@ -1060,17 +1153,20 @@
  * a slab. It is type set at the top of the sheet with rules under it.
  *
  * So: NO fill (the grain runs unbroken from the first pixel), NO border, and the
- * bottom edge is the masthead ladder — an ink rule at full weight with a
- * hairline hung under it, both TAPERED so they die into the ground instead of
- * being cropped. That double rule under the flag is the oldest masthead signal
- * in print, and here it also does the job the border was failing at: it says
- * "the page starts below this line" without drawing a box to say it.
+ * bottom edge is the INLAY — the tapered metal bead defined at .jk-rule-taper,
+ * rendered here as a pseudo-element from the same --jk-inlay-* recipe so the two
+ * can never drift into being two different objects.
+ *
+ * It was briefly a printed ladder (a 2px ink rule with a hairline hung under it).
+ * That was correct print and slightly too quiet: the page has a dozen hairlines
+ * and this is the one that has to say "everything below here is the document".
+ * One bead, not a rule plus a hairline — a second line under a piece of metal
+ * reads as two pieces of trim, and the whole point is that there is exactly ONE
+ * metal divider in the suite.
  *
  * Transparency is safe because the canvas app-shell never scrolls its content
  * under the head — each view scrolls inside its own .jk-scroll pane. If you ever
- * put a masthead over a scrolling document, that document needs its own fill.
- *
- * --jk-masthead-ink retints the ladder (defaults to the page ink). */
+ * put a masthead over a scrolling document, that document needs its own fill. */
 .jk-masthead {
   position: relative;
   flex: none;
@@ -1080,72 +1176,65 @@
 .jk-masthead::after {
   content: "";
   position: absolute;
-  left: 0; right: 0; bottom: 0;
-  height: 4px;
+  /* bottom:-5px puts the BEAD (rows 5–10 of the 15px face) exactly on the
+     masthead's bottom edge; the 5px of halo below it hangs over the page, which
+     is what a lit blade does and why this pseudo is pointer-transparent. */
+  left: 0; right: 0; bottom: -5px;
+  height: 15px;
   pointer-events: none;
-  /* the ladder: 2px ink, 1px air, 1px hairline — both weights feathered at the
-     ends by the same 9%/91% stops .jk-rule-taper uses, so a masthead and a
-     tapered rule elsewhere on the page fade on the same margin. */
-  background:
-    linear-gradient(90deg, transparent 0,
-      var(--jk-masthead-ink, var(--color-ink)) 9%,
-      var(--jk-masthead-ink, var(--color-ink)) 91%, transparent 100%) top / 100% 2px no-repeat,
-    linear-gradient(90deg, transparent 0,
-      var(--hub-line) 9%, var(--hub-line) 91%, transparent 100%) bottom / 100% 1px no-repeat;
-  opacity: 0.85;
+  background: var(--jk-inlay-face);
+  -webkit-mask-image: var(--jk-inlay-mask);
+          mask-image: var(--jk-inlay-mask);
 }
 
-/* The thumb-index — a nav tab in the masthead, marked the way a printed index
- * is. The old tab was a .jk-well: a filled, rounded box that had to compete with
- * every other rounded box on the page and lost, which is why four tabs in a row
- * read as a widget strip instead of a nav. A thumb-index spends no fill at all —
- * the CURRENT tab is named by weight (the label presses) and by a stub of accent
- * rule dropped onto the masthead ladder directly beneath it, exactly as a
- * thumb-index marks the open section on the edge of a book. Hover gets the stub
- * at low opacity: the affordance is "this is where the mark would go".
+/* A nav tab in the masthead — a BOX.
  *
- * Sits on .jk-masthead (it positions its mark against the ladder). */
+ * This was briefly a printed thumb-index: no fill, no frame, the current tab
+ * named by weight plus a stub of accent rule dropped onto the ladder beneath it.
+ * It was defensible print and it failed at the first thing a nav has to do. The
+ * verdict that sent it back: "I preferred the boxed looks as they showed the
+ * theme of the light/dark mode instantly." A filled box is the fastest statement
+ * of FACE the system owns, because the fill IS the face — a tint debossed into
+ * the sheet on paper, an emissive ring + glow on the tube, both of them the same
+ * --hub-accent-press flip every other surface takes. A weight change and a 2px
+ * accent stub say neither, so at a glance the masthead stopped telling you which
+ * mode you were in.
+ *
+ * So this class is the reset and the hover fill only; the SELECTED tab adds
+ * .jk-well — the suite's existing region primitive, reused rather than restated,
+ * which is what keeps the mode flip in one place. The radius comes back down to
+ * --hub-radius-sm (the well's own lg is a page-scale corner, too soft at tab
+ * scale); this rule is declared after .jk-well, so it wins without !important. */
 .jk-masthead-tab {
   position: relative;
-  /* Above .jk-masthead::after. The ladder is a pseudo-element on the masthead, so
-     it is that element's LAST child and paints over everything in it — including
-     the mark this tab drops onto the ladder, which is the whole point of the
-     thumb-index. Both were z-index:auto, so DOM order decided and the mark lost.
-     Lifting the tab lets its accent stub interrupt the ink rule, which is exactly
-     the effect: the index mark is cut INTO the rule, not laid beside it. */
-  z-index: 1;
-  background: none;
   border: none;
+  border-radius: var(--hub-radius-sm);
   cursor: pointer;
-  transition: color 0.14s;
+  transition: background 0.14s, box-shadow 0.14s, color 0.14s;
 }
-.jk-masthead-tab::after {
-  content: "";
-  position: absolute;
-  left: 50%; bottom: -3px;
-  width: 0; height: 2px;
-  transform: translateX(-50%);
-  background: var(--accent);
-  transition: width 0.18s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.18s;
-  opacity: 0;
-}
-.jk-masthead-tab:hover::after     { width: 42%; opacity: 0.4; }
-.jk-masthead-tab[aria-selected="true"]::after { width: 100%; opacity: 1; }
-:root[data-mode="dark"] .jk-masthead-tab[aria-selected="true"]::after {
-  box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 70%, transparent);
-}
+/* Both fills are guarded on the state, and the guard is load-bearing rather than
+   tidy: this block is declared AFTER .jk-well (it has to be, so the radius comes
+   down to tab scale), and at equal specificity later wins — an unguarded
+   `background: transparent` here silently blanks the current tab's tint, leaving
+   a well with no fill and only its press shadow. Let .jk-well own the selected
+   background; claim only the states it doesn't. */
+.jk-masthead-tab:not([aria-selected="true"])       { background: transparent; }
+.jk-masthead-tab:not([aria-selected="true"]):hover { background: var(--color-card); }
 
 /* The canvas's foot — the anchor that keeps a short view from trailing off into
  * dead ground. Top-set content, then a rule and a colophon pinned to the bottom
  * of the canvas: the empty middle becomes measured margin between two anchors
  * instead of a void. Pair with <Colophon> (.jk-colophon).
  *
- * The top rule is TAPERED (see .jk-rule-taper): the foot sits at the same
- * open boundary the masthead does, so a square-cut hairline reads as a slab edge
- * there for the same reason. Head and foot now bracket the page with the same
- * feathered margin — a matched pair, which is what makes the empty middle read
- * as measured rather than unfinished. Drawn as a background layer rather than a
- * border so the taper is a gradient, not a solid edge. */
+ * The top rule FEATHERS at both ends, for the reason .jk-rule-taper gives: the
+ * foot sits at the same open boundary the masthead does, so a square-cut hairline
+ * reads as a slab edge there too. Drawn as a background layer rather than a
+ * border so the taper is a gradient, not a solid edge.
+ *
+ * It borrows the taper's GEOMETRY and none of its material. The masthead's bead
+ * is metal precisely because it is the one of its kind; a second inlay at the
+ * bottom of the page would spend the scarcity that makes the first one read.
+ * Head and foot are a pair by margin, not by substance — ink answering steel. */
 .jk-canvas-foot {
   margin-top: auto;
   flex: none;

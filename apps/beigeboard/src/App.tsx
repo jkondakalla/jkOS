@@ -42,10 +42,6 @@ injectJkOSTheme({
 const DEFAULT_API_URL  = import.meta.env.VITE_API_URL ?? ''
 const JKOS_AUTH_URL    = import.meta.env.VITE_JKOS_AUTH_URL ?? 'https://auth.jkos.net'
 
-/** Views that run their own internal .mo-item cascade, so the <main> boundary
- *  must NOT also apply `ink-in` — see the comment at the boundary below. */
-const STAGGERED_VIEWS = new Set(['today', 'week', 'tasks'])
-
 /* Token-refresh-aware fetch is now the suite-shared authFetch (@jkos/auth-client):
    on a 401 (TOKEN_EXPIRED/UNAUTHENTICATED) it silently rotates the remember-me
    refresh cookie and retries, deduping concurrent attempts. One implementation for
@@ -397,6 +393,14 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
           gridTemplateRows: 'auto minmax(0, 1fr)',
           gridTemplateColumns: '1fr',
           color: 'var(--color-ink)',
+          /* The bottom margin of the page. It used to be spent by the canvas
+             foot (a taper rule + a colophon), which is gone: as a footer that
+             line only pulled the eye down out of the view, and the rule above it
+             made a second page boundary competing with the masthead's inlay. The
+             margin itself still has to exist — content running to the last pixel
+             of the window reads as clipped — so the canvas keeps it directly, and
+             the page below the head simply ends in air. */
+          paddingBottom: 18,
           /* The old global SVG #halation lens filter was removed: it could only
              bloom WARM pixels, so it reddened the whole UI and made warm-accent
              (rust) cards halo while cool (sage) ones didn't. Halation is now the
@@ -428,16 +432,16 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
 
           <main
             key={view}
-            // Full Press entrance physics at the VIEW boundary: ink dries on
-            // paper, the tube powers on in dark — one class, face-aware.
-            //
-            // Only the CALENDAR keeps it. Today, Week and Workshop each stagger
-            // their own regions with .mo-item, and .mo-item carries `both`, so
-            // an .mo-item inside an .ink-in parent double-animates: the parent
-            // fades the whole pane in while the child is still holding its
-            // pre-animation frame. One entrance per view — the inner cascade
-            // wins wherever a view has one, because it says more.
-            className={STAGGERED_VIEWS.has(view) ? undefined : 'ink-in'}
+            // NO entrance class here, deliberately. All four views now stagger
+            // their own regions with .mo-item — Calendar was the last holdout and
+            // took the day-cell ring — and .mo-item carries `both`, so an
+            // .mo-item inside an .ink-in parent double-animates: the parent fades
+            // the whole pane in while each child is still holding its pre-delay
+            // frame, which mushes exactly the cascade the child is there to draw.
+            // ONE entrance per surface, and the inner one wins wherever a view has
+            // one because it says more. A future view with no internal cascade
+            // should carry `ink-in` here (Full Press's face-aware boundary
+            // entrance: ink dries on paper, the tube powers on in dark).
             style={{ gridRow: 2, gridColumn: 1, overflow: 'hidden', minHeight: 0, position: 'relative', display: 'flex', flexDirection: 'column' }}
           >
             {loading ? (

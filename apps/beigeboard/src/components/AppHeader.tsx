@@ -12,22 +12,25 @@
  * A masthead is type at the top of the sheet with rules under it. So:
  *
  *   · NO fill and NO border (.jk-masthead) — the grain runs unbroken from the
- *     first pixel, and the bottom edge is the masthead ladder: an ink rule with a
- *     hairline hung beneath it, both TAPERED so they die into the ground rather
- *     than being cropped. The oldest masthead signal in print, and it says "the
- *     page starts below this line" without drawing a box to say it.
+ *     first pixel, and the bottom edge is the INLAY: the suite's one piece of
+ *     metal, a tapered bead that dies into the ground at both ends rather than
+ *     being cropped (hammered steel let into the sheet on paper, a lit silver
+ *     blade on the tube — see --jk-inlay-* in hub.css). It says "the page starts
+ *     below this line" without drawing a box to say it.
  *   · The edition reads as a FOLIO MARK (.jk-folio) — the house primitive for
  *     naming content in print, its own running-head rules above and below, count
  *     slot in accent italic. It replaces two bordered chips, i.e. two more rounded
  *     boxes competing with every other rounded box on the page.
- *   · Nav is a THUMB-INDEX (.jk-masthead-tab). The current tab is named by weight
- *     plus a stub of accent rule dropped onto the ladder beneath it, the way a
- *     thumb-index marks the open section on the edge of a book. It replaces a
- *     filled .jk-well tab — four of which in a row read as a widget strip.
+ *   · Nav is BOXED (.jk-masthead-tab + .jk-well when current). It spent one pass
+ *     as a fill-less thumb-index and came back, for a reason worth keeping
+ *     written down: a filled box states the FACE instantly (debossed tint on
+ *     paper, emissive ring on the tube) where a weight change and a 2px accent
+ *     stub state nothing. The nav is the first thing looked at, so it is where
+ *     the mode has to be legible.
  *   · No scroll shadow. The old one hung a pure-black `0 2px 24px` drop off the
  *     bar on any inner scroll — a shadow with no face (wrong in both modes) for a
  *     job that doesn't exist: each view scrolls inside its own .jk-scroll pane, so
- *     nothing ever passes under the masthead. The ink ladder is the boundary.
+ *     nothing ever passes under the masthead. The inlay is the boundary.
  *
  * The Voice (DESIGN.md §5): the wordmark and the folio print in Fraunces; the nav
  * labels and the sources readout keep the mono machine voice.
@@ -88,8 +91,8 @@ export function AppHeader({ view, setView, today, onConnectClick, onOpenSettings
         </span>
       </div>
 
-      {/* Center: the thumb-index */}
-      <nav role="tablist" aria-label="Primary" style={{ display: 'flex', gap: 2, alignSelf: 'stretch', alignItems: 'center' }}>
+      {/* Center: the boxed nav */}
+      <nav role="tablist" aria-label="Primary" style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
         {NAV_TABS.map(tab => (
           <NavTab key={tab.id} tab={tab} active={view === tab.id} onClick={() => setView(tab.id)} />
         ))}
@@ -162,9 +165,11 @@ export function AppHeader({ view, setView, today, onConnectClick, onOpenSettings
   )
 }
 
-/** One thumb-index tab. All of the marking is .jk-masthead-tab's ::after stub
- *  (which reaches down onto the masthead ladder) — no fill, no frame, so the
- *  only thing this has to do in JS is the type's weight and colour. */
+/** One boxed nav tab. The box IS the state: .jk-masthead-tab carries the reset
+ *  and the hover fill, and the current tab adds .jk-well — the same debossed /
+ *  emissive region primitive the rest of the suite uses, so the tab flips face
+ *  with everything else instead of owning a private recipe. JS is left with the
+ *  type's weight and colour only. */
 function NavTab({ tab, active, onClick }: any) {
   const [hover, setHover] = useState(false)
   const isLit = active || hover
@@ -176,16 +181,12 @@ function NavTab({ tab, active, onClick }: any) {
       onClick={onClick}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
-      className="jk-masthead-tab"
+      className={active ? 'jk-masthead-tab jk-well' : 'jk-masthead-tab'}
       style={{
-        /* Bottom padding runs the tab down to the ladder so the accent stub lands
-           ON the rule rather than floating above it. */
-        padding: '8px 17px 12px',
-        alignSelf: 'stretch',
+        padding: '7px 18px',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        justifyContent: 'center',
       }}
     >
       <span

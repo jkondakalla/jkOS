@@ -12,13 +12,14 @@
  * the pipeline that fits the forge gets designed later; a seam for it is marked
  * below).
  *
- * Both panes sit INSIDE the page canvas (App.tsx's .jk-canvas), and the
- * colophon has moved out of the rail into a foot spanning the whole measure —
- * see DESIGN.md §6, "The canvas".
+ * Both panes sit INSIDE the page canvas (App.tsx's .jk-canvas) — see DESIGN.md
+ * §6, "The canvas". There is no page foot: the colophon that used to close the
+ * measure is gone (it read as a distraction below the day rather than as an
+ * anchor under it), and the canvas keeps the bottom margin itself.
  */
 import React, { useMemo } from 'react'
 import { Calendar } from '@jkos/cards'
-import { Sheet, Colophon, Chip, Press, Check, Bar } from '@jkos/ui'
+import { Sheet, Chip, Press, Check, Bar } from '@jkos/ui'
 import { MO_DELAYS } from '@jkos/design'
 import { FONT_HEAD, weekStart, sourceOf, sourceTintOf, localDate } from '../lib/theme'
 import { getAccent, getProgress, getLooseTasks } from '../lib/seed'
@@ -64,9 +65,10 @@ export function TodayView(props: any) {
   const looseOpen = loose.filter((t: any) => !t.completed).length
 
   return (
-    // Column, not a bare row: the two panes share ONE foot across the bottom of
-    // the sheet (see below) rather than the rail carrying a colophon only it can
-    // see. Same anchor the Week/Calendar tabs get from the kit's `foot` prop.
+    // Still a column around the two-pane row, even now that the foot it was
+    // wrapped for is gone: it is the seam anything spanning BOTH panes hangs on
+    // (the colophon will want re-siting, and a planning strip is specced), and
+    // collapsing it would make that a layout change rather than one more child.
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
         {/* ── Left: the single-day timeline (kit DayView, grid mode) ── */}
@@ -253,11 +255,6 @@ export function TodayView(props: any) {
         </aside>
       </div>
 
-      {/* The canvas foot — spans both panes, pinned to the bottom of the
-          measure (.jk-canvas-foot in hub.css). */}
-      <div className="jk-canvas-foot mo-item" style={{ margin: '0 28px', animationDelay: `${MO_DELAYS.railColophon}ms` }}>
-        <Colophon style={{ fontSize: '0.82rem' }}>the sheet holds what the day forgot</Colophon>
-      </div>
     </div>
   )
 }
