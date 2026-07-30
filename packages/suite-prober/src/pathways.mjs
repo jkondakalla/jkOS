@@ -27,8 +27,14 @@ export const PATHWAYS = [
     gap: 'disabled unless JKOS_SERVICE_CLIENTS is set; no contract test asserts the env is present for a new service client' },
   { system: 'jkauth', id: 'me', method: 'GET', path: '/auth/me', helper: 'authFetch', kind: 'identity' },
   { system: 'jkauth', id: 'profile-get', method: 'GET', path: '/auth/profile', helper: 'useJkOSPreferences', kind: 'prefs' },
+  // The old gap here ('last-write-wins, no optimistic lock') was FIXED by ARCH-7.2/G8
+  // and went stale in this catalogue — the prose is hand-written and nothing re-checks it
+  // against the route, so it kept reporting a solved problem (corrected 2026-07-30).
+  // What's live now: preferences DEEP-merge (so two tabs on different slices can't clobber),
+  // and `prefs_version` is a real optimistic lock returning 409 CONFLICT — asserted in
+  // apps/jkauth/test/multiuser.mjs. The residual, genuine gap is that the lock is OPT-IN.
   { system: 'jkauth', id: 'profile-patch', method: 'PATCH', path: '/auth/profile', helper: 'patchProfile', kind: 'prefs',
-    gap: 'read-merge-write of the whole preferences blob; concurrent PATCH (theme tab vs layout tab) is last-write-wins, no optimistic lock' },
+    gap: 'the prefs_version optimistic lock is OPT-IN: a client that omits it still writes (deep-merged, so it cannot drop a sibling slice, but it cannot detect a concurrent edit either)' },
   { system: 'jkauth', id: 'apps', method: 'GET', path: '/auth/apps', helper: 'useSuiteApps', kind: 'directory' },
   { system: 'jkauth', id: 'events', method: 'GET', path: '/auth/events', helper: 'authFetch', kind: 'directory' },
   { system: 'jkauth', id: 'jwks', method: 'GET', path: '/auth/jwks', helper: 'weaveAuth', kind: 'key' },
