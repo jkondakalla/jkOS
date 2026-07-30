@@ -121,7 +121,10 @@ does (manifest → registry seed → nginx peers → each app's capability/datas
 from the source-of-truth *files*, so it runs in a plain checkout. It asserts the
 cross-system invariants a real new app would rely on: single-source app identity, doc
 shapes, filter enforcement declared==enforced, edge reachability, env/config conformance
-(every secret-shaped `process.env` read is provisioned somewhere).
+(every secret-shaped `process.env` read is provisioned somewhere), and typecheck coverage
+(every TS package is reachable from `pnpm typecheck` — `turbo run` skips a package with no
+such script and still reports success, so half the workspace once went unchecked while the
+command looked green).
 
 - **Classifications:** `drift` (two sources that must agree, disagreeing — **fails the
   gate**) · `consolidate` (same truth typed twice) · `gap` (missing enforcement) · `info` · `ok`.
