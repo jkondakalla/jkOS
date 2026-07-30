@@ -389,6 +389,8 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
             one centred measure, and rails are panes INSIDE it rather than
             siblings of the window. */}
         <div className="jk-canvas jk-canvas-fill" style={{
+          /* position:relative is what the .jk-panel overlay pins itself to —
+             see the DetailPanel note below. Do not remove it. */
           position: 'relative',
           background: 'transparent',   /* grained ground comes from the body */
           display: 'grid',
@@ -402,8 +404,17 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
         }}>
           {/* The header animates ONCE, on app boot — it doesn't remount on tab
               change, so it must not carry the view's cascade. Each view then
-              owns its own cascade from 0ms. */}
-          <div className="mo-item" style={{ gridColumn: '1 / -1', animationDelay: '0ms' }}>
+              owns its own cascade from 0ms.
+
+              EVERY child of this grid is placed EXPLICITLY (gridRow + gridColumn),
+              and new ones must be too. Auto-placement here is order-dependent on
+              which siblings happen to be mounted: the DetailPanel used to be the
+              one definitely-placed item, so grid placed IT first, auto-placement
+              found row 2 taken and pushed <main> into an implicit row 3, and the
+              declared 1fr row collapsed to 0px — every view lost the panel at
+              once. Explicit placement makes the shell's rows a fact rather than
+              a consequence of the render tree. */}
+          <div className="mo-item" style={{ gridRow: 1, gridColumn: '1 / -1', animationDelay: '0ms' }}>
             <AppHeader
               view={view} setView={setView}
               today={today}
@@ -427,7 +438,7 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
             // pre-animation frame. One entrance per view — the inner cascade
             // wins wherever a view has one, because it says more.
             className={STAGGERED_VIEWS.has(view) ? undefined : 'ink-in'}
-            style={{ overflow: 'hidden', minHeight: 0, position: 'relative', display: 'flex', flexDirection: 'column' }}
+            style={{ gridRow: 2, gridColumn: 1, overflow: 'hidden', minHeight: 0, position: 'relative', display: 'flex', flexDirection: 'column' }}
           >
             {loading ? (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
@@ -444,14 +455,30 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
             )}
           </main>
 
-          {selected && (
-            <DetailPanel
-              event={selected} items={items}
-              onClose={() => setSelected(null)}
-              onToggle={onToggle} onDelete={onDelete} onUpdateItem={onUpdateItem}
-              setView={setView} setFocusedNodeId={setFocusedNodeId}
-            />
-          )}
+          {/* THE OVERLAY HOST — the content row's second layer.
+              An empty, explicitly-placed pane stacked on the same cell as <main>,
+              existing only to be the positioned ancestor the .jk-panel overlay
+              pins to. Three properties earn their keep:
+                position:relative  → the panel measures itself against the CONTENT
+                                     row, so it stops below the masthead without
+                                     anyone hardcoding the masthead's height.
+                pointer-events:none → an always-mounted full-cell layer would
+                                     otherwise swallow every click on the view
+                                     beneath it; .jk-panel turns them back on.
+                overflow:hidden     → the panel slides in from off-measure.
+              It is NOT inside <main>, which carries key={view}: an overlay hosted
+              there would unmount and replay its entrance on every tab switch
+              while the selection it shows is unchanged. */}
+          <div style={{ gridRow: 2, gridColumn: 1, position: 'relative', pointerEvents: 'none', overflow: 'hidden' }}>
+            {selected && (
+              <DetailPanel
+                event={selected} items={items}
+                onClose={() => setSelected(null)}
+                onToggle={onToggle} onDelete={onDelete} onUpdateItem={onUpdateItem}
+                setView={setView} setFocusedNodeId={setFocusedNodeId}
+              />
+            )}
+          </div>
 
           {/* Ambient atmosphere — raking light across the sheet (paper) / phosphor
               buzz (tube). Each shows only in its own face, gated to data-motion

@@ -62,6 +62,42 @@ export function getAccent(item: any, items: any[]): string | null {
   return null
 }
 
+/**
+ * The LOOSE LEAVES — tasks that hang under no goal.
+ *
+ * The Breakdown Method files work under goals, and every view is built around
+ * that: the Workshop lists goals and drills into them, Today's rail rolls up
+ * "goals in press", and the bench holds this week's committed work. A task that
+ * was never filed under a goal therefore had exactly one way to be seen — being
+ * scheduled on a day — and one with no date and no week_start appeared NOWHERE in
+ * the app. It was in the database, it was in `items`, and there was no screen that
+ * would show it to you.
+ *
+ * "Not part of a goal" means no GOAL anywhere up the parent chain, not merely
+ * `!parent_id`: a task hung under another loose task is still loose, and reading
+ * only the immediate parent would have quietly hidden that whole shape. Milestones
+ * don't count as filing either — a milestone under a goal puts its children under
+ * that goal, and a milestone under nothing is itself loose.
+ *
+ * Ordering is the section's argument: open before done, then most-committed first
+ * (dated → benched → undated), then oldest date first. So the row at the top is
+ * always the one with a real claim on today, and the drift sits at the bottom
+ * where it can be filed or dropped.
+ */
+export function getLooseTasks(items: any[]) {
+  return items
+    .filter((it: any) => {
+      if (it.kind !== 'task') return false
+      return !getAncestors(it, items).some((a: any) => a.kind === 'goal')
+    })
+    .sort((a: any, b: any) => {
+      if (!!a.completed !== !!b.completed) return Number(a.completed) - Number(b.completed)
+      const rank = (t: any) => (t.due_date ? 0 : t.week_start ? 1 : 2)
+      if (rank(a) !== rank(b)) return rank(a) - rank(b)
+      return String(a.due_date || a.week_start || '').localeCompare(String(b.due_date || b.week_start || ''))
+    })
+}
+
 export function getProgress(item: any, items: any[]) {
   const desc = getDescendants(item, items)
   const leaves = desc.filter(d => d.kind === 'task' && (!getChildren(d, items).length))

@@ -35,6 +35,14 @@ export const SOURCES: Record<string, { label: string; hex: string }> = {
 
 export const sourceOf = (id: string) => SOURCES[id] || { label: 'Source', hex: '#7A6050' }
 
+/** Tint by SOURCE — the card kit's `sourceColorOf` resolver. An UNKNOWN source is
+ *  NOT tinted: it returns '' so the kit's `sourceColorOf(…) || 'var(--color-accent)'`
+ *  chains fall through to the theme, exactly the way `tagTintOf` falls through
+ *  below. Do not wire `sourceOf(…).hex` in here — that catch-all umber is a LABEL
+ *  colour, and answering the tint question with it painted every untracked item
+ *  the same dead brown AND short-circuited every `||` fallback downstream of it. */
+export const sourceTintOf = (id?: string | null): string => (id && SOURCES[id] ? SOURCES[id].hex : '')
+
 /** Tint by ORIGIN — an item's tag says what kind of work it is, and that is a
  *  more durable reason to colour it than the theme accent, which changes with
  *  the user's mood. Values are hub tokens, not hex, so the pair still follows

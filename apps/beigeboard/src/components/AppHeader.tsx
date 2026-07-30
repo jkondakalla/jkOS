@@ -1,11 +1,42 @@
-import React, { useState, useEffect } from 'react'
+/**
+ * AppHeader — BeigeBoard's masthead.
+ *
+ * Set as a printed masthead, not built as a toolbar. What this replaced was an
+ * opaque --color-paper bar with a square border-bottom and a black drop shadow,
+ * and every complaint about it came down to one thing: it was a SLAB. Because the
+ * canvas is a measure floating on the grained ground, that bar's left, right and
+ * bottom edges were square cuts in mid-air, and its opaque fill was the one place
+ * in the app where the ground's grain stopped — a flat rectangle cut out of the
+ * top of the sheet the whole page is printed on.
+ *
+ * A masthead is type at the top of the sheet with rules under it. So:
+ *
+ *   · NO fill and NO border (.jk-masthead) — the grain runs unbroken from the
+ *     first pixel, and the bottom edge is the masthead ladder: an ink rule with a
+ *     hairline hung beneath it, both TAPERED so they die into the ground rather
+ *     than being cropped. The oldest masthead signal in print, and it says "the
+ *     page starts below this line" without drawing a box to say it.
+ *   · The edition reads as a FOLIO MARK (.jk-folio) — the house primitive for
+ *     naming content in print, its own running-head rules above and below, count
+ *     slot in accent italic. It replaces two bordered chips, i.e. two more rounded
+ *     boxes competing with every other rounded box on the page.
+ *   · Nav is a THUMB-INDEX (.jk-masthead-tab). The current tab is named by weight
+ *     plus a stub of accent rule dropped onto the ladder beneath it, the way a
+ *     thumb-index marks the open section on the edge of a book. It replaces a
+ *     filled .jk-well tab — four of which in a row read as a widget strip.
+ *   · No scroll shadow. The old one hung a pure-black `0 2px 24px` drop off the
+ *     bar on any inner scroll — a shadow with no face (wrong in both modes) for a
+ *     job that doesn't exist: each view scrolls inside its own .jk-scroll pane, so
+ *     nothing ever passes under the masthead. The ink ladder is the boundary.
+ *
+ * The Voice (DESIGN.md §5): the wordmark and the folio print in Fraunces; the nav
+ * labels and the sources readout keep the mono machine voice.
+ */
+import React, { useState } from 'react'
 import { FONT_HEAD, localDate, sourceOf } from '../lib/theme'
-import { Press, Lab } from '@jkos/ui'
+import { Press } from '@jkos/ui'
 import { TimeReadout } from './SharedComponents'
 
-// The Voice (DESIGN.md §5): the nav labels are things a human READS — they print
-// in Fraunces; only the machine annotations (tab sublines, the sources readout)
-// keep the mono voice.
 const MONO = 'var(--hub-font-mono)'
 
 const NAV_TABS = [
@@ -21,54 +52,44 @@ function initials(name?: string, email?: string): string {
   return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase() || src[0].toUpperCase()
 }
 
-export function AppHeader({ view, setView, today, onConnectClick, onLogout, onOpenSettings, accounts, user }: any) {
+export function AppHeader({ view, setView, today, onConnectClick, onOpenSettings, accounts, user }: any) {
   const d    = localDate(today)
   const week = Math.ceil(((d.getTime() - new Date(d.getFullYear(), 0, 0).getTime()) / 86400000) / 7)
-  const [scrolled, setScrolled] = useState(false)
   const connected = accounts.filter((a: any) => a.connected).length
 
-  useEffect(() => {
-    const onScroll = (e: Event) => setScrolled(((e.target as any)?.scrollTop || 0) > 4)
-    document.addEventListener('scroll', onScroll, { passive: true, capture: true })
-    return () => document.removeEventListener('scroll', onScroll, { capture: true })
-  }, [])
-
   return (
-    <header style={{
-      background: 'var(--color-paper)',
-      borderBottom: '1px solid var(--color-line)',
-      /* Matches the views' 28px inset — the masthead sits inside the canvas
-         (App.tsx spans header+main with one .jk-canvas), so the folio must hang
-         on the same left margin the content below it does. */
-      padding: '0 28px',
-      height: 58,
-      flexShrink: 0,
-      boxShadow: scrolled ? '0 2px 24px rgba(0,0,0,0.4)' : 'none',
-      transition: 'box-shadow 0.25s',
-      zIndex: 100,
-      display: 'grid',
-      gridTemplateColumns: '1fr auto 1fr',
-      alignItems: 'center',
-      gap: 20,
-    }}>
-      {/* Left: pressed serif wordmark + two bordered jk-lab chips (the edition —
-          week number + today's date), per the Full Press prototype. */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+    <header
+      className="jk-masthead"
+      style={{
+        /* Matches the views' 28px inset — the masthead sits inside the canvas
+           (App.tsx spans header+main with one .jk-canvas), so the flag must hang
+           on the same left margin the content below it does. */
+        padding: '0 28px 5px',
+        height: 64,
+        zIndex: 100,
+        display: 'grid',
+        gridTemplateColumns: '1fr auto 1fr',
+        alignItems: 'center',
+        gap: 20,
+      }}
+    >
+      {/* Left: the flag — pressed serif wordmark, then the edition as a folio mark */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
         <Press as="span" style={{
           fontFamily: FONT_HEAD, fontWeight: 600, fontStyle: 'italic',
-          fontSize: 21, letterSpacing: '-0.01em', whiteSpace: 'nowrap', flexShrink: 0,
+          fontSize: 22, letterSpacing: '-0.01em', whiteSpace: 'nowrap', flexShrink: 0,
         }}>BeigeBoard</Press>
 
-        <Lab size="sm" as="span" style={{ border: '1px solid var(--color-line)', borderRadius: 'var(--hub-radius-sm)', padding: '3px 7px', flexShrink: 0 }}>
+        <span className="jk-folio" style={{ flexShrink: 0 }}>
           W{String(week).padStart(2, '0')}
-        </Lab>
-        <Lab size="sm" as="span" style={{ border: '1px solid var(--color-line)', borderRadius: 'var(--hub-radius-sm)', padding: '3px 7px', flexShrink: 0 }}>
-          {d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-        </Lab>
+          <span className="jk-folio-no">
+            {d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+          </span>
+        </span>
       </div>
 
-      {/* Center: nav tabs — active tab is a struck well + pressed label */}
-      <nav role="tablist" aria-label="Primary" style={{ display: 'flex', gap: 4 }}>
+      {/* Center: the thumb-index */}
+      <nav role="tablist" aria-label="Primary" style={{ display: 'flex', gap: 2, alignSelf: 'stretch', alignItems: 'center' }}>
         {NAV_TABS.map(tab => (
           <NavTab key={tab.id} tab={tab} active={view === tab.id} onClick={() => setView(tab.id)} />
         ))}
@@ -77,10 +98,11 @@ export function AppHeader({ view, setView, today, onConnectClick, onLogout, onOp
       {/* Right: sources, time, profile */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 12 }}>
         {user?.role === 'guest' && (
-          <Lab size="sm" as="span" style={{ border: '1px solid var(--color-line)', padding: '3px 8px' }}>Guest</Lab>
+          <>
+            <span className="jk-lab jk-lab-xs">Guest</span>
+            <span className="jk-divider" />
+          </>
         )}
-
-        <span className="jk-divider" />
 
         <button
           onClick={onConnectClick}
@@ -140,6 +162,9 @@ export function AppHeader({ view, setView, today, onConnectClick, onLogout, onOp
   )
 }
 
+/** One thumb-index tab. All of the marking is .jk-masthead-tab's ::after stub
+ *  (which reaches down onto the masthead ladder) — no fill, no frame, so the
+ *  only thing this has to do in JS is the type's weight and colour. */
 function NavTab({ tab, active, onClick }: any) {
   const [hover, setHover] = useState(false)
   const isLit = active || hover
@@ -151,25 +176,22 @@ function NavTab({ tab, active, onClick }: any) {
       onClick={onClick}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
-      className={active ? 'jk-well' : undefined}
+      className="jk-masthead-tab"
       style={{
-        background: active ? undefined : (hover ? 'var(--color-card)' : 'transparent'),
-        border: 'none',
-        borderRadius: 'var(--hub-radius-sm)',
-        padding: '7px 18px',
-        cursor: 'pointer',
+        /* Bottom padding runs the tab down to the ladder so the accent stub lands
+           ON the rule rather than floating above it. */
+        padding: '8px 17px 12px',
+        alignSelf: 'stretch',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        transition: 'background 0.12s',
+        justifyContent: 'center',
       }}
     >
       <span
         className={active ? 'jk-press' : undefined}
         style={{
-          // The prototype nav is set in the MACHINE voice — mono tracked caps,
-          // active label pressed. (The wordmark carries the print voice.)
-          fontFamily: MONO, fontSize: 11, fontWeight: 500,
+          fontFamily: MONO, fontSize: 11, fontWeight: active ? 600 : 500,
           letterSpacing: '0.18em', textTransform: 'uppercase',
           color: active ? undefined : (hover ? 'var(--color-ink)' : 'var(--color-muted)'),
           lineHeight: 1.1,

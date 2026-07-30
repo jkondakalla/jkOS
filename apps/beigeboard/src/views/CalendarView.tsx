@@ -8,7 +8,7 @@ import { Calendar } from '@jkos/cards'
 import { Colophon } from '@jkos/ui'
 import { useDrag } from '../providers/DragProvider'
 import { getAccent } from '../lib/seed'
-import { sourceOf } from '../lib/theme'
+import { sourceTintOf } from '../lib/theme'
 
 export function CalendarView(props: any) {
   const dnd = useDrag()
@@ -21,7 +21,7 @@ export function CalendarView(props: any) {
       foot={<Colophon style={{ fontSize: '0.82rem' }}>a month, impressed one day at a time</Colophon>}
       resolvers={{
         accentOf: (it: any) => getAccent(it, props.items),
-        sourceColorOf: (s?: string) => sourceOf(s ?? '').hex,
+        sourceColorOf: sourceTintOf,
       }}
     />
   )

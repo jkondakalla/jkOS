@@ -66,6 +66,7 @@ function DayGrid({
   onToggle,
   onAddItem,
   onUpdateItem,
+  createSource,
   foot,
   density = 'comfortable',
 }: DayViewProps) {
@@ -264,25 +265,21 @@ function DayGrid({
           </div>
           <hr className="jk-rule-strong mo-item" style={{ margin: '0 0 12px', animationDelay: `${MO_DELAYS.todayRule}ms` }} />
 
-          <div
-            style={{
-              flex: 1,
-              minHeight: 0,
-              display: 'flex',
-              flexDirection: 'column',
-              background: 'var(--color-paper-2)',
-              border: '1px solid var(--color-line)',
-              boxShadow: 'inset 0 1px 0 rgba(0,0,0,0.06), inset 0 -1px 0 rgba(255,255,255,0.18)',
-              overflow: 'hidden',
-            }}
-          >
+          {/* NO frame. Today runs masthead → rule → bare sheet: the timeline is
+              drawn ON the page, not inside a panel. The framed paper-2 box this
+              used to be came straight from Week, where an edge is what makes seven
+              lanes read as seven OF something — one column has nothing to be one
+              of, so the frame only boxed the day in and broke the run of the page
+              (this is the "stylistically different" tell vs the reference Today). */}
+          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
             {/* All-day lane */}
             {(alldayLanes > 0 || (anyDrag && drag?.mode === 'allday')) && (
               <div style={{ ...laneBand, flexShrink: 0 }}>
                 <div className="mono-eyebrow" style={{ borderRight: '1px solid var(--color-line)', fontSize: 7, padding: '5px 5px 0 0', textAlign: 'right' }}>
                   ALL-DAY
                 </div>
-                <div data-drop-zone="allday" data-drop-day={day} style={{ position: 'relative', height: Math.max(alldayLanes, 1) * 22 + 8, overflow: 'hidden', background: isToday ? 'var(--color-accent-soft)' : 'transparent' }}>
+                {/* No isToday wash here either — one always-today column. */}
+                <div data-drop-zone="allday" data-drop-day={day} style={{ position: 'relative', height: Math.max(alldayLanes, 1) * 22 + 8, overflow: 'hidden', background: 'transparent' }}>
                   {alldayBars.map((bar) => (
                     <AllDayBar
                       key={bar.ev.id}
@@ -302,7 +299,13 @@ function DayGrid({
               </div>
             )}
 
-            {/* Untimed lane */}
+            {/* Untimed lane — CONDITIONAL, like the all-day lane above it. It used
+                to render unconditionally at minHeight 44, so an empty day always
+                wore an "UNTIMED" band that the reference Today has nowhere (the
+                bench in the right rail is where unscheduled work lives). It still
+                appears the moment it has contents OR a drag could land in it, so
+                dragging a timed block out to unschedule it keeps a target. */}
+            {(untimed.length > 0 || (anyDrag && (drag?.mode === 'untimed' || drag?.mode === 'timed'))) && (
             <div style={{ ...laneBand, minHeight: 44 }}>
               <div className="mono-eyebrow" style={{ borderRight: '1px solid var(--color-line)', fontSize: 7, padding: '6px 6px 0 0', textAlign: 'right' }}>
                 UNTIMED
@@ -311,7 +314,9 @@ function DayGrid({
                 data-drop-zone="untimed"
                 data-drop-day={day}
                 style={{
-                  background: drag?.overZone === 'untimed' ? 'color-mix(in srgb, var(--color-accent) 12%, transparent)' : isToday ? 'var(--color-accent-soft)' : 'transparent',
+                  // No isToday wash: same reason as the hour grid below — the one
+                  // column is always today, so tinting it distinguishes nothing.
+                  background: drag?.overZone === 'untimed' ? 'color-mix(in srgb, var(--color-accent) 12%, transparent)' : 'transparent',
                   outline: drag?.overZone === 'untimed' ? '1px dashed var(--color-accent)' : anyDrag && (drag?.mode === 'untimed' || drag?.mode === 'timed') ? '1px dashed var(--color-accent-glow)' : 'none',
                   outlineOffset: -2,
                   padding: 6,
@@ -336,6 +341,7 @@ function DayGrid({
                 ))}
               </div>
             </div>
+            )}
 
             {/* Hour grid */}
             <div
@@ -390,19 +396,32 @@ function DayGrid({
                   }
                   style={{
                     position: 'relative',
-                    border: '1px solid var(--color-line)',
-                    borderRadius: 'var(--hub-radius-sm)',
+                    // Bare paper + hour rules, no border and no tint — see the note
+                    // on the frame above. The `isToday` wash that used to live here
+                    // was WeekView's laneFrame() recipe, which is itself the FAINT
+                    // CHIP background (14% tint over --hub-bg-2). In Week that says
+                    // which of seven lanes is today; here the single column is
+                    // always today, so it painted the entire timeline as one giant
+                    // chip — and every solid chip then sat on a chip-coloured
+                    // field, which is why the day read as flat olive boxes.
                     // backgroundCOLOR, never the shorthand: the hour rules below
                     // are a separate background-image layer, and the shorthand
                     // resets it to none — which React's key-wise style diff would
                     // then never repaint. (Same trap fixed in WeekView's lanes.)
                     backgroundColor: isOverTimed
                       ? 'color-mix(in srgb, var(--color-accent) 12%, transparent)'
-                      : isToday
-                        ? 'color-mix(in srgb, var(--jk-tint, var(--accent)) 14%, var(--hub-bg-2))'
-                        : 'var(--color-paper)',
-                    backgroundImage: gridRules(density, { halfHour: true }),
-                    outline: isTargetTimed && !isToday ? '1px solid var(--color-accent-glow)' : 'none',
+                      : 'transparent',
+                    // tone 'strong' — the Day timeline is drawn directly on the
+                    // grained ground with no lane fill under it, and --hub-line
+                    // over grain is the faintest pairing in the app: the hour
+                    // ledger was legible in theory and invisible in practice. This
+                    // is also the ONE timeline on screen, a close-read surface that
+                    // earns the heavier rule where seven competing lanes would not.
+                    backgroundImage: gridRules(density, { halfHour: true, tone: 'strong' }),
+                    // No `&& !isToday` guard any more: that existed because the
+                    // today wash already marked the column. With no wash, the drag
+                    // target has to be able to show itself on today too.
+                    outline: isTargetTimed ? '1px solid var(--color-accent-glow)' : 'none',
                     outlineOffset: -1,
                     cursor: anyDrag ? 'copy' : readonly || !hasDnd ? 'default' : 'crosshair',
                     transition: 'background-color 0.12s',
@@ -466,6 +485,12 @@ function DayGrid({
             onAddItem?.({
               kind: 'task',
               scope: 'day',
+              // `createSource` was declared on the props (types.ts) and passed by
+              // every host, but this view silently dropped it — so an item drawn
+              // on the day grid came back with no source while the SAME gesture
+              // in Week stamped one (WeekView honours it). Untracked source then
+              // fell through the tint chain to a neutral.
+              ...(createSource ? { source: createSource } : {}),
               due_date: createPending.startDay,
               scheduled_time: createPending.scheduled_time,
               scheduled_end: createPending.scheduled_end,

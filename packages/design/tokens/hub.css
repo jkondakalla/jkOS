@@ -711,6 +711,23 @@
 .jk-rule-double { border: none; height: 5px; margin: 0; opacity: 0.85;
   background: linear-gradient(180deg,
     var(--color-ink) 0 1.5px, transparent 1.5px 3.5px, var(--color-ink) 3.5px 5px); }
+/* The fourth weight — a hairline that DIES INTO THE GROUND at both ends.
+ *
+ * Every rule above is cut square, and a square cut is right when the rule sits
+ * inside something that already has an edge (a card, a row, a bordered lane).
+ * At the boundaries of the CANVAS there is no such edge: the measure floats on
+ * the grained ground, so a square-cut rule terminates in mid-air and reads as a
+ * slab edge — the page looks cropped rather than set. The taper is the printer's
+ * answer: ink at full weight across the measure, feathering out over the last
+ * ~10% at each end so the rule belongs to the ground it's printed on.
+ *
+ * Use it for the two rules that bracket a page (the masthead ladder, the canvas
+ * foot). Inside a bordered container keep .jk-rule — a taper there just looks
+ * like a printing fault. --jk-rule-ink retints it (the masthead's ink weight). */
+.jk-rule-taper  { border: none; height: 1px; margin: 0;
+  background: linear-gradient(90deg, transparent 0,
+    var(--jk-rule-ink, var(--hub-line)) 9%,
+    var(--jk-rule-ink, var(--hub-line)) 91%, transparent 100%); }
 
 /* The folio mark — names CONTENT in print: running-head rules above and
    below, serif caps, the number/count slot in accent italic. */
@@ -1026,15 +1043,116 @@
                   max-width: var(--jk-canvas-w, var(--jk-canvas)); }
 .jk-canvas-fill { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
 
+/* ── The masthead — the canvas's HEAD, and the foot's matched pair ───────────
+ * The app's top bar, set as a printed masthead rather than built as a toolbar.
+ *
+ * What it replaces: an opaque --color-paper bar with a square border-bottom.
+ * Two things were wrong with that, and they are the same thing twice. (1) The
+ * fill was opaque, so the bar was the one region of the app where the ground's
+ * grain stopped — the sheet the whole page is printed on had a flat rectangle
+ * cut out of the top of it. (2) Because the canvas is a MEASURE floating on the
+ * ground, that rectangle's left, right and bottom edges were square cuts in
+ * mid-air: a slab laid over the page, which is precisely the "document floating
+ * in a window" reading the drawn-sheet motif was deleted for. A masthead is not
+ * a slab. It is type set at the top of the sheet with rules under it.
+ *
+ * So: NO fill (the grain runs unbroken from the first pixel), NO border, and the
+ * bottom edge is the masthead ladder — an ink rule at full weight with a
+ * hairline hung under it, both TAPERED so they die into the ground instead of
+ * being cropped. That double rule under the flag is the oldest masthead signal
+ * in print, and here it also does the job the border was failing at: it says
+ * "the page starts below this line" without drawing a box to say it.
+ *
+ * Transparency is safe because the canvas app-shell never scrolls its content
+ * under the head — each view scrolls inside its own .jk-scroll pane. If you ever
+ * put a masthead over a scrolling document, that document needs its own fill.
+ *
+ * --jk-masthead-ink retints the ladder (defaults to the page ink). */
+.jk-masthead {
+  position: relative;
+  flex: none;
+  background: transparent;
+  border: none;
+}
+.jk-masthead::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 4px;
+  pointer-events: none;
+  /* the ladder: 2px ink, 1px air, 1px hairline — both weights feathered at the
+     ends by the same 9%/91% stops .jk-rule-taper uses, so a masthead and a
+     tapered rule elsewhere on the page fade on the same margin. */
+  background:
+    linear-gradient(90deg, transparent 0,
+      var(--jk-masthead-ink, var(--color-ink)) 9%,
+      var(--jk-masthead-ink, var(--color-ink)) 91%, transparent 100%) top / 100% 2px no-repeat,
+    linear-gradient(90deg, transparent 0,
+      var(--hub-line) 9%, var(--hub-line) 91%, transparent 100%) bottom / 100% 1px no-repeat;
+  opacity: 0.85;
+}
+
+/* The thumb-index — a nav tab in the masthead, marked the way a printed index
+ * is. The old tab was a .jk-well: a filled, rounded box that had to compete with
+ * every other rounded box on the page and lost, which is why four tabs in a row
+ * read as a widget strip instead of a nav. A thumb-index spends no fill at all —
+ * the CURRENT tab is named by weight (the label presses) and by a stub of accent
+ * rule dropped onto the masthead ladder directly beneath it, exactly as a
+ * thumb-index marks the open section on the edge of a book. Hover gets the stub
+ * at low opacity: the affordance is "this is where the mark would go".
+ *
+ * Sits on .jk-masthead (it positions its mark against the ladder). */
+.jk-masthead-tab {
+  position: relative;
+  /* Above .jk-masthead::after. The ladder is a pseudo-element on the masthead, so
+     it is that element's LAST child and paints over everything in it — including
+     the mark this tab drops onto the ladder, which is the whole point of the
+     thumb-index. Both were z-index:auto, so DOM order decided and the mark lost.
+     Lifting the tab lets its accent stub interrupt the ink rule, which is exactly
+     the effect: the index mark is cut INTO the rule, not laid beside it. */
+  z-index: 1;
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: color 0.14s;
+}
+.jk-masthead-tab::after {
+  content: "";
+  position: absolute;
+  left: 50%; bottom: -3px;
+  width: 0; height: 2px;
+  transform: translateX(-50%);
+  background: var(--accent);
+  transition: width 0.18s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.18s;
+  opacity: 0;
+}
+.jk-masthead-tab:hover::after     { width: 42%; opacity: 0.4; }
+.jk-masthead-tab[aria-selected="true"]::after { width: 100%; opacity: 1; }
+:root[data-mode="dark"] .jk-masthead-tab[aria-selected="true"]::after {
+  box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 70%, transparent);
+}
+
 /* The canvas's foot — the anchor that keeps a short view from trailing off into
  * dead ground. Top-set content, then a rule and a colophon pinned to the bottom
  * of the canvas: the empty middle becomes measured margin between two anchors
- * instead of a void. Pair with <Colophon> (.jk-colophon). */
+ * instead of a void. Pair with <Colophon> (.jk-colophon).
+ *
+ * The top rule is TAPERED (see .jk-rule-taper): the foot sits at the same
+ * open boundary the masthead does, so a square-cut hairline reads as a slab edge
+ * there for the same reason. Head and foot now bracket the page with the same
+ * feathered margin — a matched pair, which is what makes the empty middle read
+ * as measured rather than unfinished. Drawn as a background layer rather than a
+ * border so the taper is a gradient, not a solid edge. */
 .jk-canvas-foot {
   margin-top: auto;
   flex: none;
   padding: 9px 0 10px;
-  border-top: 1px solid var(--hub-line);
+  border-top: none;
+  background-image: linear-gradient(90deg, transparent 0,
+    var(--hub-line) 9%, var(--hub-line) 91%, transparent 100%);
+  background-size: 100% 1px;
+  background-repeat: no-repeat;
+  background-position: left top;
 }
 /* A colophon in an app's foot sets on ONE line — fleuron inline, not stacked.
    Standalone (end of a long document, as on the design page) it keeps the full
@@ -1045,6 +1163,99 @@
   display: inline;
   font-size: 1rem;
   margin: 0 9px 0 0;
+}
+
+/* ─── The detail panel — an OVERLAY on the canvas, never a member of it ──────
+ * The pane that slides in over a page to show one selected thing (BeigeBoard's
+ * item detail; anything with the same shape). Two variants of one primitive:
+ *   .jk-panel-rail   desktop — a rail pinned to the canvas's inboard right edge
+ *   .jk-panel-sheet  below desktop — a bottom sheet across the full measure
+ *
+ * WHY THIS IS A PRIMITIVE, AND WHY IT IS `position: absolute`
+ * This panel has now broken twice, both times because it was written as a member
+ * of the app-shell grid (`grid-row: 2; grid-column: 1`, sharing the cell with
+ * <main>) instead of as an overlay ON that grid.
+ *
+ *   1st: it took `transform`-animated entrance classes with a fill-mode, and a
+ *        transform "in effect" makes an element a containing block — so fixed
+ *        popups inside it mispositioned. (Fixed by dropping fill-mode; see the
+ *        note on .panel-enter.)
+ *   2nd: it was the only grid item with an EXPLICIT row/column. CSS grid places
+ *        definite items before auto ones, so the panel claimed row 2 / col 1
+ *        first, auto-placement then found that cell taken and pushed <main> into
+ *        an IMPLICIT row 3 — which absorbed the free space and collapsed the
+ *        declared `minmax(0, 1fr)` row 2 to 0px. The panel mounted, rendered its
+ *        whole subtree, reported height 0, and was invisible. Opening a task
+ *        appeared to do nothing, in every view at once.
+ *
+ * Both failures come from one mistake: an overlay that participates in layout.
+ * `position: absolute` is therefore load-bearing, not styling — it takes the
+ * panel out of flow AND out of grid placement, so it cannot size a track, cannot
+ * displace a sibling, and cannot be displaced by one.
+ *
+ * HOW TO MOUNT ONE. Give it a positioned HOST that spans the region it overlays
+ * — for a full-page app shell, a `position: relative; pointer-events: none` pane
+ * stacked on the content cell (BeigeBoard's App.tsx shows the pattern). The panel
+ * itself takes no grid-row / grid-column / align-self / justify-self, ever: if
+ * you are reaching for those, the overlay is becoming a layout member again and
+ * that is bug #2 coming back. The host is also why this class does not simply
+ * pin to the .jk-canvas: the canvas spans the masthead, and a panel pinned to it
+ * would either cover the masthead or need the masthead's height hardcoded.
+ *
+ * --jk-panel-w sets the rail width (default 340px). Pair with .panel-enter.  */
+.jk-panel {
+  position: absolute;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--hub-bg-2);
+  color: var(--color-ink);
+  /* the host layer runs pointer-events:none so it doesn't eat clicks on the view
+     underneath; the panel is the part that must receive them. */
+  pointer-events: auto;
+}
+.jk-panel-rail {
+  top: 0; right: 0; bottom: 0;
+  width: min(var(--jk-panel-w, 340px), 100%);
+  border-left: 1px solid var(--color-line);
+  /* soft on the INBOARD corners only: the panel is a leaf tipped in against the
+     page's right edge, so the edge it shares with the window stays square and
+     the two corners that face the content round. */
+  border-top-left-radius: var(--hub-radius-lg);
+  border-bottom-left-radius: var(--hub-radius-lg);
+  box-shadow: -10px 0 30px var(--hub-shadow-panel-ink);
+}
+.jk-panel-sheet {
+  left: 0; right: 0; bottom: 0;
+  max-height: 82vh;
+  border-top: 1px solid var(--color-line);
+  border-top-left-radius: var(--hub-radius-lg);
+  border-top-right-radius: var(--hub-radius-lg);
+  box-shadow: 0 -10px 30px var(--hub-shadow-panel-ink);
+}
+/* The panel's own masthead — the selected item's flag. A solid --jk-tint band
+   (the item's colour, the chip system's seam) closed by a cream hairline, so the
+   head reads as the same pressed-ink tab family as every chip under it rather
+   than as a coloured toolbar. */
+.jk-panel-head {
+  flex: none;
+  background: color-mix(in srgb, var(--jk-tint, var(--accent)) 82%, var(--accent-deepen-ink));
+  box-shadow: inset 0 -1px 0 rgba(247, 239, 220, 0.28), 0 2px 6px rgba(48, 34, 20, 0.26);
+}
+/* CRT — the same face flip .jk-chip-solid takes, and for the same reason: on the
+   tube a saturated fill does not read as "solid ink", it reads as a light source,
+   and the cream knockout that sits on it in print has nothing to knock out of. So
+   the band drops to the phosphor-black base tinted through, and the title (which
+   is .jk-press-rev) becomes emissive tint over it. A slightly thinner tint than a
+   chip's 26% because this band is two orders of magnitude larger in area — the
+   same saturation that reads as one lit chip reads as glare across a header.
+   Getting this wrong is not cosmetic: keeping the paper recipe here put tinted
+   type on a same-tinted band, and the panel's title became unreadable in dark. */
+:root[data-mode="dark"] .jk-panel-head {
+  background: color-mix(in srgb, var(--jk-tint, var(--accent)) 20%, #0e0b07);
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--jk-tint, var(--accent)) 45%, transparent),
+              0 0 18px color-mix(in srgb, var(--jk-tint, var(--accent)) 22%, transparent);
 }
 
 /* ─── Chips — the Full Press solid-ink tab (SUITE DEFAULT) ──────────────────

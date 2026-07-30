@@ -301,15 +301,41 @@ function WeekGrid({
   // React's style diff only re-writes the keys that CHANGED, so a hover that
   // flips `background` wipes the gridlines and never puts them back. Every lane
   // state below sets backgroundCOLOR so the two layers stay independent.
+  // TODAY'S LANE IS LIT, NOT WASHED.
+  //
+  // It used to be the faint-CHIP recipe — 14% tint over --hub-bg-2 — which is a
+  // mid-tone, and that failed twice over. Against its neighbours (--color-paper)
+  // it was a barely-there shift in hue at nearly equal lightness, so the lane
+  // didn't read as marked; and against --hub-line it was nearly equal lightness
+  // too, so the hour rules inside it disappeared. A wash that is too weak to see
+  // and strong enough to erase the ledger is the worst of both.
+  //
+  // The fix is to mark today by LIGHT rather than by pigment: a 5% tint over
+  // --hub-bg-4, the brightest stock in the palette, so today's lane is a visibly
+  // cleaner sheet than the six around it while carrying only a trace of accent
+  // warmth. The tint is kept deliberately thin — every extra percent pulls the
+  // lane back toward its neighbours' value and spends the contrast this is for,
+  // and today's accent IDENTITY is already carried three other ways (the pressed
+  // day number, the accent weekday eyebrow, the now-line). The lane's only job is
+  // to be the lit column. Lightness now differs (the thing the eye actually
+  // finds), and because
+  // the lane got LIGHTER the rules gain contrast instead of losing it — they then
+  // step up a weight anyway (tone: 'strong', below) so the marked lane is the
+  // best-ruled one, not the worst. The frame follows in --color-line-strong: a
+  // second, structural cue that survives at any tint and in either face.
+  //
+  // Mode-correct by token, not by branch: in dark, --hub-bg-4 (#38321f) is
+  // likewise the brightest stock and --hub-line-strong the heavier rule, so "lit"
+  // and "better-ruled" mean the same thing on the tube as on paper.
   const laneFrame = (pos: 'head' | 'mid' | 'foot', isToday: boolean): React.CSSProperties => ({
-    border: '1px solid var(--color-line)',
+    border: `1px solid ${isToday ? 'var(--color-line-strong)' : 'var(--color-line)'}`,
     borderTop: pos === 'head' ? undefined : 'none',
     borderTopLeftRadius: pos === 'head' ? rad : 0,
     borderTopRightRadius: pos === 'head' ? rad : 0,
     borderBottomLeftRadius: pos === 'foot' ? rad : 0,
     borderBottomRightRadius: pos === 'foot' ? rad : 0,
     backgroundColor: isToday
-      ? 'color-mix(in srgb, var(--jk-tint, var(--accent)) 14%, var(--hub-bg-2))'
+      ? 'color-mix(in srgb, var(--jk-tint, var(--accent)) 5%, var(--hub-bg-4))'
       : 'var(--color-paper)',
     minWidth: 0,
   });
@@ -566,11 +592,17 @@ function WeekGrid({
                         ...(isOver
                           ? { backgroundColor: 'color-mix(in srgb, var(--color-accent) 12%, transparent)' }
                           : isHover
-                            ? { backgroundColor: 'color-mix(in srgb, var(--color-accent) 6%, var(--color-paper))' }
+                            // Hover mixes into the lane's OWN stock, so hovering
+                            // today doesn't knock it back down to paper and undo
+                            // the lit state that marks it.
+                            ? { backgroundColor: `color-mix(in srgb, var(--color-accent) 6%, ${isToday ? 'var(--hub-bg-4)' : 'var(--color-paper)'})` }
                             : null),
                         // per-lane hour gridlines — a SEPARATE layer from the lane
                         // colour above (see laneFrame: no `background` shorthand).
-                        backgroundImage: gridRules(density),
+                        // Today's lane takes the heavier rule: it is the lane that
+                        // gets read, and its lighter fill has the headroom for it
+                        // (see the laneFrame note on marking today by light).
+                        backgroundImage: gridRules(density, { tone: isToday ? 'strong' : 'default' }),
                         position: 'relative',
                         outline: isTarget && !isToday ? '1px solid var(--color-accent-glow)' : 'none',
                         outlineOffset: -1,

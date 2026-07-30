@@ -20,8 +20,8 @@ import React, { useMemo } from 'react'
 import { Calendar } from '@jkos/cards'
 import { Sheet, Colophon, Chip, Press, Check, Bar } from '@jkos/ui'
 import { MO_DELAYS } from '@jkos/design'
-import { FONT_HEAD, weekStart, sourceOf } from '../lib/theme'
-import { getAccent, getProgress } from '../lib/seed'
+import { FONT_HEAD, weekStart, sourceOf, sourceTintOf, localDate } from '../lib/theme'
+import { getAccent, getProgress, getLooseTasks } from '../lib/seed'
 import { useDrag } from '../providers/DragProvider'
 
 export function TodayView(props: any) {
@@ -31,7 +31,7 @@ export function TodayView(props: any) {
 
   const resolvers = {
     accentOf: (it: any) => getAccent(it, items),
-    sourceColorOf: (s?: string) => sourceOf(s ?? '').hex,
+    sourceColorOf: sourceTintOf,
   }
 
   // The bench: tasks committed to THIS week (week_start = this Monday) with no day
@@ -54,6 +54,14 @@ export function TodayView(props: any) {
         .slice(0, 3),
     [items],
   )
+
+  // Loose leaves: every task filed under no goal. See getLooseTasks — undated,
+  // unbenched loose tasks had no screen at all before this section existed, so
+  // this deliberately lists ALL of them (not just the invisible ones): the value
+  // is one place that answers "what isn't filed?", and a row that also appears on
+  // the timeline says its own whereabouts in its state chip.
+  const loose = useMemo(() => getLooseTasks(items), [items])
+  const looseOpen = loose.filter((t: any) => !t.completed).length
 
   return (
     // Column, not a bare row: the two panes share ONE foot across the bottom of
@@ -182,6 +190,66 @@ export function TodayView(props: any) {
             )}
           </Sheet>
 
+          {/* Loose leaves — the unfiled pile. A "leaf" is already this app's word
+              for a terminal task in a goal's breakdown; a LOOSE leaf is the print
+              term for a sheet that was never bound into a signature, which is
+              exactly what these are. The section stays mounted when empty: an
+              empty inbox is information (nothing is adrift), and a section that
+              only exists when something is wrong can't be checked. */}
+          <Sheet className="mo-item" style={{ borderRadius: 'var(--hub-radius)', padding: '16px 18px', animationDelay: `${MO_DELAYS.railSecond + 60}ms` }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 8 }}>
+              <span className="jk-lab jk-lab-sm" style={{ color: 'var(--color-accent)' }}>Loose leaves</span>
+              <span className="mono-eyebrow" style={{ marginLeft: 'auto' }}>
+                {loose.length === 0 ? 'ALL FILED' : `${String(looseOpen).padStart(2, '0')} UNFILED`}
+              </span>
+            </div>
+            {loose.length === 0 ? (
+              <p style={{ fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 13, color: 'var(--color-faint)', margin: 0, lineHeight: 1.4 }}>
+                Every task is filed under a goal. Nothing loose.
+              </p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                {loose.map((t: any) => {
+                  const tint = getAccent(t, items) || 'var(--color-accent)'
+                  const state = looseState(t, today)
+                  return (
+                    <Chip
+                      key={t.id}
+                      solid={false}
+                      done={t.completed}
+                      tint={tint}
+                      onClick={() => onSelect?.(t)}
+                      style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '8px 11px', flex: 'none', cursor: 'pointer' }}
+                    >
+                      <span onClick={(e) => e.stopPropagation()} style={{ display: 'inline-flex' }}>
+                        <Check
+                          checked={!!t.completed}
+                          onChange={readonly ? undefined : () => onToggle?.(t.id, !t.completed)}
+                          tint={tint}
+                          style={{ fontSize: 11 }}
+                        />
+                      </span>
+                      <Press
+                        variant="ink"
+                        style={{ fontFamily: FONT_HEAD, fontWeight: 600, fontSize: 13, color: t.completed ? 'var(--color-faint)' : 'var(--color-ink)', textDecoration: t.completed ? 'line-through' : 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                      >
+                        {t.title}
+                      </Press>
+                      {/* Where the row already lives, so a task that IS on the
+                          timeline doesn't read as a duplicate. Overdue is the one
+                          state that takes accent — it's the only one that's a
+                          problem rather than a location. */}
+                      <span
+                        className="mono-eyebrow"
+                        style={{ marginLeft: 'auto', flex: 'none', fontSize: 8, color: state.urgent ? 'var(--color-accent)' : undefined }}
+                      >{state.label}</span>
+                    </Chip>
+                  )
+                })}
+              </div>
+            )}
+          </Sheet>
+
         </aside>
       </div>
 
@@ -192,6 +260,19 @@ export function TodayView(props: any) {
       </div>
     </div>
   )
+}
+
+/** Where a loose task currently sits, as one annotation. `urgent` marks the one
+ *  state that is a problem rather than a place, so only that one spends accent. */
+function looseState(t: any, today: string): { label: string; urgent: boolean } {
+  if (t.completed) return { label: 'DONE', urgent: false }
+  if (t.due_date) {
+    if (t.due_date < today) return { label: 'OVERDUE', urgent: true }
+    if (t.due_date === today) return { label: 'TODAY', urgent: false }
+    return { label: fmtTarget(t.due_date).toUpperCase(), urgent: false }
+  }
+  if (t.week_start) return { label: 'BENCHED', urgent: false }
+  return { label: 'NO DATE', urgent: false }
 }
 
 function fmtTarget(iso: string) {

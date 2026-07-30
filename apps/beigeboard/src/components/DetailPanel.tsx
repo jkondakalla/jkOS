@@ -51,37 +51,23 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
     : 'Task'
 
   return (
-    <aside className="panel-enter" style={{
-      // Overlay, not a layout column: share the main content's grid cell (row 2,
-      // col 1). On desktop pin to the right edge as a 340px rail so it pops up in
-      // place instead of squeezing the view; below desktop become a full-width
-      // bottom sheet pinned to the bottom edge.
-      gridRow: 2, gridColumn: 1,
-      zIndex: 20,
-      background: 'var(--color-paper-2)',
-      display: 'flex', flexDirection: 'column',
-      overflow: 'hidden',
-      ...(asSheet ? {
-        justifySelf: 'stretch', alignSelf: 'end',
-        width: '100%', maxHeight: '82vh',
-        boxShadow: '0 -8px 28px var(--hub-shadow-panel-ink)',
-        borderTop: `1px solid var(--color-line)`,
-        borderTopLeftRadius: 'var(--hub-radius-lg)',
-        borderTopRightRadius: 'var(--hub-radius-lg)',
-      } : {
-        justifySelf: 'end', alignSelf: 'stretch',
-        width: 340, maxWidth: '100%',
-        boxShadow: '-8px 0 28px var(--hub-shadow-panel-ink)',
-        borderLeft: `1px solid var(--color-line)`,
-      }),
-    }}>
-      <div style={{
-        background: accent, color: 'var(--color-on-accent)',
-        padding: '16px 22px 18px',
-      }}>
+    // An OVERLAY, not a layout column. Everything positional lives in the
+    // .jk-panel primitive (hub.css) — deliberately, because writing it inline
+    // here as a grid member is what broke "open a task" twice. This element takes
+    // no grid or self-alignment properties; App.tsx gives it a positioned host and
+    // .jk-panel pins itself inside it. Read the .jk-panel comment before changing
+    // any of this. `--jk-tint` hands the item's colour to the head + chips below,
+    // so the panel presses in the same hue the item does everywhere else.
+    <aside
+      className={`panel-enter jk-panel ${asSheet ? 'jk-panel-sheet' : 'jk-panel-rail'}`}
+      style={{ '--jk-tint': accent } as React.CSSProperties}
+    >
+      {/* The item's own masthead: folio eyebrow, serif title, closed by the same
+          rules ladder the page masthead uses (.jk-panel-head owns the ink band). */}
+      <div className="jk-panel-head" style={{ color: 'var(--color-on-accent)', padding: '15px 20px 16px' }}>
         <div style={{
           display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
-          gap: 12, marginBottom: 6,
+          gap: 12, marginBottom: 5,
         }}>
           <div style={{
             // printed head label — the panel's kind reads in the print voice
@@ -89,11 +75,14 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
             textTransform: 'uppercase', color: 'var(--color-on-accent-dim)',
           }}>{scopeLabel}{isEvent && event.source ? ` · ${sourceOf(event.source).label}` : ''}</div>
           <button
-            onClick={onClose} title="Close"
+            onClick={onClose} title="Close" aria-label="Close"
+            className="jk-hit"
             style={{
               background: 'transparent', border: 'none',
-              color: 'var(--color-on-accent-dim)', fontSize: 16,
-              cursor: 'pointer', padding: 0, lineHeight: 1,
+              color: 'var(--color-on-accent-dim)', fontSize: 14,
+              cursor: 'pointer', lineHeight: 1, flex: 'none',
+              width: 22, height: 22, borderRadius: 'var(--hub-radius-sm)',
+              display: 'grid', placeItems: 'center',
             }}
           >✕</button>
         </div>
@@ -125,10 +114,14 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
           <div
             onClick={() => { setTitleVal(event.title); setTitleEditing(true) }}
             title="Click to edit title"
+            // .jk-press-rev = the cream knockout pressed into a solid-ink tab —
+            // the same cut every chip title in the app takes, so the panel's title
+            // is the loudest member of one family instead of its own treatment.
+            className="jk-press-rev"
             style={{
               fontFamily: FONT_HEAD,
               fontStyle: isMilestone ? 'italic' : 'normal',
-              fontWeight: 500, fontSize: isGoal ? 26 : 22,
+              fontWeight: 600, fontSize: isGoal ? 26 : 22,
               lineHeight: 1.2, letterSpacing: '-0.015em',
               textDecoration: event.completed ? 'line-through' : 'none',
               opacity: event.completed ? 0.7 : 1,

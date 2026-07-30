@@ -8,7 +8,7 @@ import { Calendar } from '@jkos/cards'
 import { Colophon } from '@jkos/ui'
 import { useDrag } from '../providers/DragProvider'
 import { getAccent } from '../lib/seed'
-import { sourceOf } from '../lib/theme'
+import { sourceTintOf } from '../lib/theme'
 
 export function WeekView(props: any) {
   const dnd = useDrag()
@@ -24,7 +24,7 @@ export function WeekView(props: any) {
       foot={<Colophon style={{ fontSize: '0.82rem' }}>seven days, set and locked up</Colophon>}
       resolvers={{
         accentOf: (it: any) => getAccent(it, props.items),
-        sourceColorOf: (s?: string) => sourceOf(s ?? '').hex,
+        sourceColorOf: sourceTintOf,
       }}
     />
   )
