@@ -13,7 +13,6 @@
     "./factory": "./src/factory/index.ts"
   },
   "scripts": {
-    "lint": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
     "test": "node scripts/run-tests.mjs"
   },

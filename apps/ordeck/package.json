@@ -7,8 +7,7 @@
     "dev": "vite --port 3000",
     "build": "tsc && vite build",
     "typecheck": "tsc --noEmit",
-    "preview": "vite preview --port 3000",
-    "lint": "tsc --noEmit"
+    "preview": "vite preview --port 3000"
   },
   "dependencies": {
     "@jkos/auth-client": "workspace:*",
