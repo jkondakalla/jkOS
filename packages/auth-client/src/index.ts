@@ -6,3 +6,4 @@ export * from './theme';
 export * from './useJkOSPreferences';
 export * from './useHudShelf';
 export * from './useSessionKeepalive';
+export * from './useAuthProvider';

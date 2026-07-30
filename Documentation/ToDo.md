@@ -3,7 +3,9 @@
 The working backlog. **Completed work is summarized, not enumerated** — the task-level record
 for a finished wave lives in the relevant `Documentation/*.md` (mostly ARCHITECTURE.md and
 DESIGN.md). This file carries detail only for **open and future** work. Gate
-(`pnpm test:contracts`) is **green** as of 2026-07-20 (one known flake, see §5). Everything
+(`pnpm test:contracts`) is **green** as of 2026-07-30 — **no known flakes** (the one 429-timing
+blip is fixed, see §5), now a 24-link chain including the new `check:text` + `check:auth`.
+Everything
 through the Full Press functionality batch, BeigeBoard's editorial pass and the BB rebuild
 (Waves A–D) is **committed and pushed to `staging`** (`f64c1ca`, merged to `main` as `d29bfcc`).
 
@@ -68,8 +70,9 @@ All four landed; record folded into
 19-assertion Python worker smoke rides the gate; both `deployment.example.json` and
 `deployment.jag.json` validate under test; the `jobs` dataset declares **and** enforces
 `capability` + `since`; worker.py's dangling `LAZUROS.md` citations repointed. Nothing open
-here — if [LAZUROS_STARTUP.md](LAZUROS_STARTUP.md)'s "Known code gaps (ToDo §1a)" section still
-lists these as open, that section is stale and should be corrected next time that doc is touched.
+here. (The follow-up this entry used to carry — "check whether LAZUROS_STARTUP.md's *Known code
+gaps* section is stale" — is discharged: verified 2026-07-30, that section already reads
+"**CLOSED**".)
 
 ### 1b. Unblockers needing Jag (content + hardware, not code) — still open
 
@@ -225,13 +228,21 @@ Each was consciously stopped, not forgotten — pick any up by choice, none is b
   code-complete + gated. Remaining: on a running stack, add from the shelf, confirm real BB
   items render, grid drag doesn't clash with the view's internal layout, select is a clean
   no-op. Then note it in ARCHITECTURE.md and delete this line.
-- **jkAuth smoke flake.** One 429-timing lockout assertion in `smoke.mjs` can blip in a full
-  `test:contracts` chain (confirmed still reproduces 2026-07-20; passes clean in isolation —
-  68/68). Make the budget/wait deterministic (inject the rate-limit window or reset the limiter
-  between suites).
-- **BeigeBoard mobile drill-down + bench.** The desktop Workshop is the breakdown surface;
-  `MobileTasksView` reads the same trees but lacks drill-in/breadcrumb + a compact bench rail
-  ([PLANNING_METHOD.md](PLANNING_METHOD.md) § Follow-up).
+- ~~**jkAuth smoke flake.**~~ **FIXED 2026-07-30.** The 429-timing lockout assertion in
+  `smoke.mjs` was one instance on a 500ms budget asserting both that an "immediate" retry is
+  still locked *and*, after `sleep(700)`, that the window reopened. Under a loaded
+  `test:contracts` chain the two adjacent requests could straddle 500ms, so the window had
+  legitimately expired and the 429 never came — hence green in isolation, flaky in the chain.
+  Now split into **E1** (60s window: the immediate-retry assertion can only break if a full
+  minute passes between back-to-back calls) and **E2** (500ms window, asserted only *after*
+  sleeping past it, where extra delay makes the window more expired, not less). Both halves are
+  monotonic in elapsed time, so load can't flip either. Still 68/68; no assertion lost.
+- **BeigeBoard mobile drill-down + bench.** `MobileTasksView` reads the same trees but lacks
+  drill-in/breadcrumb + a compact bench rail ([PLANNING_METHOD.md](PLANNING_METHOD.md)
+  § Follow-up). **Re-scope before starting:** this predates the Full Press rebuild, which
+  *retired* the desktop drill-down and bench sidebar it was written against — so it now asks for
+  mobile affordances the desktop no longer has. That's a design question for Jag, not a
+  port.
 - **Toolchain alignment.** `apps/sylibos` is React 19 + Tailwind v4 vs the suite's React 18 +
   plain CSS. Deferred until SylibOS re-enters scope (off-limits until then).
 
@@ -274,18 +285,23 @@ nothing is currently blocking or scheduled.
       (merged to `main` as `d29bfcc`): `jk-chip*`/`jk-press-ink|rev` in hub.css, `cardSurface()`
       re-cut, BB's 4 desktop views rebuilt, ORDECK inherits the kit reskin. Desktop only. Work
       order: [BEIGEBOARD_FULL_PRESS.md](BEIGEBOARD_FULL_PRESS.md).
-- [ ] **BeigeBoard design parity — the fidelity pass** (2026-07-29) — the rebuild is structurally
-      right and **visually flat** next to the prototype. Five causes: the hour grid is 20% too
-      tight (`WV_ROW_H 48` vs `60`) and drawn in `--color-line-strong` instead of `--hub-line`;
-      Calendar + every kit view header never got the relayout; the `.mo-item` cascade has no
-      delays; `.bb-hit`/`.bb-scroll` are referenced 8× and **defined nowhere**; the hour gutter
-      speaks `.seg` where §13.12 wants mono. Sequenced **P0b → P0 → P1 → P2 → P3**: twelve
-      primitives first (`.jk-hit`/`.jk-scroll`/`.jk-chip-spent`/`.jk-divider`,
-      `--accent-deepen-ink` closing a live §13.3 violation, `<Bar>`, `<EmptyState>`, `chipState()`,
-      density-derived geometry, `<ChromeBar>`, `<NowLine>`, `MO_DELAYS`, `DEFAULT_EFFECTS`), then
-      per-view parity. Full work order: [BEIGEBOARD_PARITY.md](BEIGEBOARD_PARITY.md) — its
-      *Corrections* section records nine fixes to the incoming design draft, incl. that new
-      hub.css classes **fail `check:design`** until `design-template.html` demos them.
+- [ ] **BeigeBoard design parity — the fidelity pass** (2026-07-29; **status corrected
+      2026-07-30**) — sequenced **P0b → P0 → P1 → P2 → P3** in
+      [BEIGEBOARD_PARITY.md](BEIGEBOARD_PARITY.md).
+      **P0b (all twelve primitives) and P0.1–P0.3 are DONE** — they shipped in `963e744` /
+      `9cf5dba` / `4fffb23` but were never ticked, so this entry described them as open and
+      **all five of its original "causes" are now fixed**: the hour row is `rowHeight` 60 (not
+      48), gridlines paint `--hub-line`, `<ChromeBar>` is in Week *and* Calendar, `MO_DELAYS`
+      exists, `.bb-hit`/`.bb-scroll` are gone in favour of real `.jk-hit`/`.jk-scroll`, and the
+      gutter speaks mono. Two drafting details resolved differently than written: the meter token
+      shipped as **`--bar-deepen-ink`** (the name `--accent-deepen-ink` was already taken by the
+      accent chain, at a different value), and the deprecated `WV_ROW_H`/`WV_LABEL_W` shims were
+      **deleted** — they had no importers.
+      **What actually remains: P0.4** (the kit still spells nav buttons `.jk-cards-btn`, not
+      `.jk-tbtn`) **then P1–P3**, the per-view visual literals — those need the prototype
+      side-by-side in a browser and have **not** been audited. PARITY.md's *Corrections* section
+      still stands, incl. that new hub.css classes **fail `check:design`** until
+      `design-template.html` demos them.
 - [ ] **jkAuth deep pass** — the letterpress form is the next natural candidate (small surface,
       login + portal dashboard).
 - [ ] **PapyrOS deep pass**

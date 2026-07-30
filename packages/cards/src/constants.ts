@@ -10,9 +10,10 @@
  *   comfortable  the prototype layout: 60px rows, 1020px of timeline
  *   compact      the HUD: 48px rows, everything one notch tighter
  *
- * `WV_ROW_H` / `WV_LABEL_W` survive as the comfortable values so an outside
- * importer doesn't break, but inside the kit they are deprecated — call
- * rowHeight(density) instead.
+ * The refactor left `WV_ROW_H` / `WV_LABEL_W` behind as deprecated comfortable-value
+ * shims "so an outside importer doesn't break". No importer ever existed — every
+ * consumer takes a density — so they were deleted rather than left as a second way
+ * to spell a number the kit already owns.
  */
 import type { CardDensity } from './types';
 
@@ -80,15 +81,5 @@ export const gridRules = (
     `transparent ${half + 1}px ${row}px)`;
   return `${hour}, ${ghost}`;
 };
-
-/** @deprecated inside the kit — use rowHeight(density). Kept for outside importers. */
-export const WV_ROW_H = rowHeight('comfortable');
-/** @deprecated inside the kit — use labelW(density). Kept for outside importers. */
-export const WV_LABEL_W = labelW('comfortable');
-
-/** Calendar month-grid bar geometry. */
-export const CV_BAR_H = 20;
-export const CV_BAR_GAP = 2;
-export const CV_DAY_NUM = 24;
 
 export const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];

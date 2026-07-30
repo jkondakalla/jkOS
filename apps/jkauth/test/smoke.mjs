@@ -281,24 +281,43 @@ async function run() {
   j = await r.json().catch(() => ({}));
   ok('first non-guest registrant is admin despite seeded guest', r.status === 201 && j.user?.role === 'admin', JSON.stringify(j.user));
 
-  // ── Instance E: tiny lockout budget — FREE=0 so the very first failure starts
-  //    a (short) backoff window; verifies the soft per-account lockout. (S6)
-  const E = start({ LOCKOUT_FREE: '0', LOCKOUT_BASE_MS: '500', LOCKOUT_CAP_MS: '500' });
-  if (!await E.ready()) { console.error('E never became healthy:\n' + E.log); return shutdown(1); }
-  console.log('E · per-account lockout backoff (S6)');
-  await E.req('POST', '/auth/register', { json: { email: 'lock@jkos.net', password: 'password123' }, noJar: true });
-  ok('wrong password 401', (await E.req('POST', '/auth/login', { json: { email: 'lock@jkos.net', password: 'nope' }, noJar: true })).status === 401);
+  // ── Instances E1/E2: the soft per-account lockout, in two halves. (S6)
+  //
+  // These used to share ONE instance on a 500ms budget: assert the immediate retry
+  // is 429, then sleep(700) and assert the window reopened. That made the 429 the
+  // suite's one flake — "immediate" is only immediate on an idle machine, and inside
+  // a full `test:contracts` chain the two adjacent requests could straddle 500ms, by
+  // which point the window had legitimately expired and the retry was no longer
+  // locked. It passed 68/68 in isolation and blipped in the chain (ToDo §5).
+  //
+  // Split so each half can only be broken by an absurd delay, never a plausible one:
+  //   E1 · window 60s  → an "immediate" retry stays locked unless a whole minute
+  //                      elapses between two back-to-back calls.
+  //   E2 · window 500ms → only ever asserted AFTER sleeping past it, where extra
+  //                      scheduling delay makes the window MORE expired, not less.
+  // Both directions are now monotonic in elapsed time, so load can't flip either.
+  const E1 = start({ LOCKOUT_FREE: '0', LOCKOUT_BASE_MS: '60000', LOCKOUT_CAP_MS: '60000' });
+  if (!await E1.ready()) { console.error('E1 never became healthy:\n' + E1.log); return shutdown(1); }
+  console.log('E1 · per-account lockout engages (S6)');
+  await E1.req('POST', '/auth/register', { json: { email: 'lock@jkos.net', password: 'password123' }, noJar: true });
+  ok('wrong password 401', (await E1.req('POST', '/auth/login', { json: { email: 'lock@jkos.net', password: 'nope' }, noJar: true })).status === 401);
   {
-    const locked = await E.req('POST', '/auth/login', { json: { email: 'lock@jkos.net', password: 'password123' }, noJar: true });
+    const locked = await E1.req('POST', '/auth/login', { json: { email: 'lock@jkos.net', password: 'password123' }, noJar: true });
     const lj = await locked.json().catch(() => ({}));
     ok('immediate retry → 429 ACCOUNT_LOCKED + Retry-After', locked.status === 429 && lj.code === 'ACCOUNT_LOCKED' && !!locked.headers.get('retry-after'), `${locked.status} ${JSON.stringify(lj)}`);
   }
-  await sleep(700);   // let the 500ms backoff window elapse
+
+  const E2 = start({ LOCKOUT_FREE: '0', LOCKOUT_BASE_MS: '500', LOCKOUT_CAP_MS: '500' });
+  if (!await E2.ready()) { console.error('E2 never became healthy:\n' + E2.log); return shutdown(1); }
+  console.log('E2 · lockout window reopens, then resets (S6)');
+  await E2.req('POST', '/auth/register', { json: { email: 'lock@jkos.net', password: 'password123' }, noJar: true });
+  await E2.req('POST', '/auth/login', { json: { email: 'lock@jkos.net', password: 'nope' }, noJar: true });
+  await sleep(700);   // ≥ the 500ms backoff window; overshooting is harmless here
   {
-    const okLogin = await E.req('POST', '/auth/login', { json: { email: 'lock@jkos.net', password: 'password123' } });
+    const okLogin = await E2.req('POST', '/auth/login', { json: { email: 'lock@jkos.net', password: 'password123' } });
     ok('correct login after backoff window → 200', okLogin.status === 200, `got ${okLogin.status}`);
     // Backoff reset on success: a fresh wrong attempt is 401 (not still-locked 429).
-    ok('backoff reset after success', (await E.req('POST', '/auth/login', { json: { email: 'lock@jkos.net', password: 'nope' }, noJar: true })).status === 401);
+    ok('backoff reset after success', (await E2.req('POST', '/auth/login', { json: { email: 'lock@jkos.net', password: 'nope' }, noJar: true })).status === 401);
   }
 
   // ── Instance F: a 2nd public key published in JWKS — verifies multi-key

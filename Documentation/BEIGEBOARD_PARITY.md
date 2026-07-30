@@ -9,6 +9,42 @@ the app is structurally right and visually flat next to the prototype. Fence =
 
 ---
 
+## Status — audited against the tree 2026-07-30
+
+**P0b (all twelve primitives) and P0.1–P0.3 are LANDED and now ticked below.** They were built
+but never checked off, so this doc read as entirely open work. Each was verified individually,
+not inferred:
+
+| Item | Evidence in the tree |
+|---|---|
+| P0b.1 `.jk-hit` / `.jk-scroll` | [hub.css:622-625](../packages/design/tokens/hub.css#L622) — and the dead `.bb-hit`/`.bb-scroll` references are gone suite-wide |
+| P0b.2 deepen-ink token | **Renamed in flight — the doc's name was wrong.** `--accent-deepen-ink` already existed for the accent chain at `#2a1c0e`; the meter target shipped as **`--bar-deepen-ink: #1a0a00`** ([hub.css:28](../packages/design/tokens/hub.css#L28)), consumed by `<Bar>` ([primitives.tsx:246](../packages/ui/src/primitives.tsx#L246)). Two tokens, two jobs. No raw `#1a0a00` survives outside the token definition + its jkAuth mirror. |
+| P0b.3 `.jk-chip-spent` | [hub.css:1312](../packages/design/tokens/hub.css#L1312) — `opacity: 0.68`, exactly as specced |
+| P0b.4 `.jk-divider` | [hub.css:709](../packages/design/tokens/hub.css#L709) — `1px × 14px`, `var(--color-line)`, exactly as specced |
+| P0b.5–6 `<Bar>` / `<EmptyState>` | [primitives.tsx:215](../packages/ui/src/primitives.tsx#L215) / [:257](../packages/ui/src/primitives.tsx#L257) |
+| P0b.7 `chipState` | [datetime.ts:185](../packages/cards/src/datetime.ts#L185) (+ `chipStateClass`) |
+| P0b.8 density geometry | [constants.ts](../packages/cards/src/constants.ts) — `rowHeight`/`labelW`/`minBlockH`/`gridHeight`/`chipInset`/`gridRules`; `TimeBlock` takes density (correction 4's warning was heeded) |
+| P0b.9–10 `<ChromeBar>` / `<NowLine>` | [primitives.tsx:76](../packages/cards/src/primitives.tsx#L76); ChromeBar consumed by **both** Week and Calendar |
+| P0b.11–12 `MO_DELAYS` / `DEFAULT_EFFECTS` | present in `@jkos/design` and consumed |
+| P0.1 row geometry | `rowHeight('comfortable')` = **60**, `labelW` = 52 |
+| P0.2 gridline ink | `gridRules()` paints `var(--hub-line)`; the `--color-line-strong` default is gone (a tinted lane opts into `tone:'strong'`) |
+| P0.3 gutter speaks mono | `HourLabel`'s docblock states "Mono, not `.seg`" |
+
+**P0.4 is genuinely still OPEN** — the kit still spells its nav buttons `.jk-cards-btn`, not
+`.jk-tbtn` ([CalendarView.tsx:454](../packages/cards/src/CalendarView.tsx#L454), `:461`, `:489`,
+`:528`, `:547`, plus `CreateDialog.tsx:59`).
+
+**P1–P3 were NOT audited** — they are per-view visual literals that need the prototype
+side-by-side in a browser, which this pass had no way to do. Treat them as open. So the honest
+next step is **P0.4, then P1**, not a rebuild of the primitives.
+
+*Also corrected while auditing: the deprecated `WV_ROW_H`/`WV_LABEL_W` shims this doc's P0b.8
+said to "keep exported for any outside importer" had **no importers at all** — every consumer
+already takes a density — so they were deleted rather than kept as a second way to spell a
+number the kit owns. Correction 4's "hardcoded 48s sweep is a no-op" verdict still holds.*
+
+---
+
 ## How to read this
 
 Every item cites the repo file and the prototype value it must match. Where a number is given,
@@ -197,7 +233,7 @@ consumers keep the stale copy. The four load-bearing ones are **1**, **5**, **7*
 
 ### Tokens and classes — `packages/design/tokens/hub.css`
 
-- [ ] **1 · `.jk-hit` + `.jk-scroll`.** The two classes referenced 8× and defined nowhere
+- [x] **1 · `.jk-hit` + `.jk-scroll`.** The two classes referenced 8× and defined nowhere
       (verdict #4). Generic hover affordance and scroll region, so they belong in hub.css where
       ORDECK and PapyrOS can stop hand-rolling their own:
       ```css
@@ -208,21 +244,21 @@ consumers keep the stale copy. The four load-bearing ones are **1**, **5**, **7*
       ```
       Then rewrite all 8 call sites (including the two mobile ones — that is the only sanctioned
       mobile change in this order) and add `bb-hit`/`bb-scroll` to P3's orphan grep.
-- [ ] **2 · `--accent-deepen-ink: #1a0a00`.** The raw hex hardcoded in six progress bars — a
+- [x] **2 · `--accent-deepen-ink: #1a0a00`.** The raw hex hardcoded in six progress bars — a
       §13.3 fence violation already shipped. Declare it beside the accent block; one value serves
       both faces. **`hub.css:183` already inlines this same hex** inside `--hub-amber-dim` —
       point it at the new token so there is exactly one literal. Consumed by primitive **5**,
       which is what keeps it from being retyped a seventh time.
-- [ ] **3 · `.jk-chip-spent`** — `opacity: .68`. Completes the shipped `.jk-chip-live` / `-done`
+- [x] **3 · `.jk-chip-spent`** — `opacity: .68`. Completes the shipped `.jk-chip-live` / `-done`
       set with the state nobody named: **ended, not done**. This is the whole of the dimming
       behaviour; it makes `now` read as a position in the day rather than a line drawn across it.
-- [ ] **4 · `.jk-divider`** — `width:1px; height:14px; background: var(--color-line)`. The
+- [x] **4 · `.jk-divider`** — `width:1px; height:14px; background: var(--color-line)`. The
       hairline between header clusters (P1.5), and the same one ORDECK's footer strip and the
       folio head draw by hand. Three implementations, one rule.
 
 ### React — `@jkos/ui`
 
-- [ ] **5 · `<Bar value tint />`.** The progress bar exists six times (`TodayView:164`,
+- [x] **5 · `<Bar value tint />`.** The progress bar exists six times (`TodayView:164`,
       `WorkshopView:170/:214/:244`, `DetailPanel:267/:324`), each re-declaring the gradient:
       ```
       linear-gradient(90deg, color-mix(in srgb, var(--jk-tint) 72%, var(--accent-deepen-ink)), var(--jk-tint))
@@ -230,20 +266,20 @@ consumers keep the stale copy. The four load-bearing ones are **1**, **5**, **7*
       Props: `value` (0–1), `tint`, `height` (5 rail / 6 branch inner / 7 forge — the three
       heights in Appendix A), `radius`. Replaces `.bar-track` + `.bar-fill` hand-assembly at every
       call site. Six copies → one, and the fence violation becomes structurally unrepeatable.
-- [ ] **6 · `<EmptyState line sub />`.** The print idiom (§15.3) — italic Fraunces line + a
+- [x] **6 · `<EmptyState line sub />`.** The print idiom (§15.3) — italic Fraunces line + a
       `mono-eyebrow` sub — currently written per view, present in Today's bench and the forge and
       missing everywhere else. Component owns the treatment; **copy is a prop**, so each view
       still speaks for itself.
 
 ### Calendar kit — `@jkos/cards`
 
-- [ ] **7 · `chipState(item, now)`** → `'upcoming' | 'live' | 'spent' | 'done'`, plus
+- [x] **7 · `chipState(item, now)`** → `'upcoming' | 'live' | 'spent' | 'done'`, plus
       `chipStateClass(state)` → the class from **3**. Pure, colocated with `datetime.ts`, asserted
       in `pnpm test:cards`. Wave 0 shipped the classes; nothing ever decided **where they get
       applied**, so every block in the grid currently carries the same weight. Called from every
       surface that renders an item — Today grid, Week lanes, Calendar cells, bench chips, forge
       rows, leaves, and ORDECK's `bb-week` for free.
-- [ ] **8 · Geometry by density, not by constant.** `packages/cards/src/constants.ts` +
+- [x] **8 · Geometry by density, not by constant.** `packages/cards/src/constants.ts` +
       `datetime.ts`: `rowHeight(density)` (`default 60` / `compact 48`), `labelW(density)`
       (`52` / `60`), `minBlockH(density)` (`26` / `18`, per correction 5), `chipInset(density)`
       (Week `+5/−10`, Today `+6/−12`), `gridRules(density, { halfHour })` returning the
@@ -253,24 +289,24 @@ consumers keep the stale copy. The four load-bearing ones are **1**, **5**, **7*
       top, height and the overflow clamp, and is where compact would otherwise inherit 60px rows.
       Keep `WV_ROW_H` exported as `rowHeight('default')` for any outside importer, but no view may
       read it directly.
-- [ ] **9 · `<ChromeBar>`** — the 46px view header: `<Press>` title · `mono-eyebrow` stat line ·
+- [x] **9 · `<ChromeBar>`** — the 46px view header: `<Press>` title · `mono-eyebrow` stat line ·
       `margin-left:auto` `.jk-tbtn` nav trio. Verdict #2 is that Calendar and the kit view headers
       never got the relayout; they're all the same bar, so P1.1 / P1.2 / P1.3 each describing it
       separately is three chances to drift. Also what ORDECK's folio head wants. Props: `title`
       (node — Calendar passes roman + italic year), `stats`, `nav`.
-- [ ] **10 · `<NowLine label? />`** — 8–10px `now-dot` with `--accent-halo` and negative margin, a
+- [x] **10 · `<NowLine label? />`** — 8–10px `now-dot` with `--accent-halo` and negative margin, a
       2px accent rule, and the optional pressed mono label. Implemented twice today
       (`WeekView:553`, `DayView:375`) differing only by `label`. The label counts down and names
       the live event — it takes `chipState`'s `'live'` item, so **7** and **10** land together.
 
 ### Motion and ambience — `@jkos/design`
 
-- [ ] **11 · `MO_DELAYS` + `stagger(i, base, step)`.** The physics are in hub.css and the axis is
+- [x] **11 · `MO_DELAYS` + `stagger(i, base, step)`.** The physics are in hub.css and the axis is
       wired; the **choreography** is missing, and P2's delay table is currently prose. Export it as
       data — the region→ms map, plus the helper for indexed runs (`stagger(i, 60, 70)` for goal
       cards, `stagger(i, 120, 40)` for forge rows). One rhythm the whole suite reads instead of
       four apps inventing their own ms values. **P2 becomes "import the map."**
-- [ ] **12 · `DEFAULT_EFFECTS`** — ambient defaults per face: **paper** = rake only (halation on,
+- [x] **12 · `DEFAULT_EFFECTS`** — ambient defaults per face: **paper** = rake only (halation on,
       scanlines off, vignette off); **dark** = scanlines + vignette + buzz. The prototype runs
       everything always because it's a mock on a canvas; nothing ever said what the real app
       defaults to. Consumed by `<SettingsDrawer>` and every app shell; the user's `effects`
@@ -320,13 +356,13 @@ reface is conformance to twelve named primitives plus the Wave 0 chip system.
 Everything downstream inherits these. Land P0 and screenshot before starting P1; several P1 items
 will already look right. **P0.1 and P0.2's constants come from P0b.8, not from fresh literals.**
 
-- [ ] **P0.1 · Hour-row geometry.** Row `48 → 60`, label column `60 → 52`, via
+- [x] **P0.1 · Hour-row geometry.** Row `48 → 60`, label column `60 → 52`, via
       `rowHeight(density)` / `labelW(density)`. `WV_FIRST_H`/`WV_LAST_H` (6/22) are already
       correct — 17 rows × 60 = **1020px** of timeline, matching the prototype exactly. **Compact
       density keeps 48** (ORDECK widgets). The `* 48` sweep the draft asks for is a no-op
       (correction 4) — the actual work is threading `density` into `TimeBlock.tsx` so the drag
       math and the `data-frac-*` drop zones retune *with* the row, not against it.
-- [ ] **P0.2 · Gridline ink.** Change the gradient stop from `--color-line-strong` to
+- [x] **P0.2 · Gridline ink.** Change the gradient stop from `--color-line-strong` to
       **`var(--hub-line)`**, then add the prototype's **half-hour ghost rule** — Today only
       (`DayView`, grid mode), layered as a second gradient *under* the hour rule. Both come from
       `gridRules(density, { halfHour })`:
@@ -337,7 +373,7 @@ will already look right. **P0.1 and P0.2's constants come from P0b.8, not from f
       ```
       Week lanes get the hour rule only — the prototype deliberately keeps the seven-lane grid
       quieter than the single day.
-- [ ] **P0.3 · The gutter speaks mono.** Replace `<span className="seg">` on the hour label with
+- [x] **P0.3 · The gutter speaks mono.** Replace `<span className="seg">` on the hour label with
       `<Lab>`-equivalent machine annotation: `fontFamily: var(--hub-font-mono)`, `fontSize: 9`,
       `letterSpacing: '0.06em'`, `color: var(--color-faint)`. **Keep `.seg` on the now-time
       badge** (accent-coloured, 10–11px): that one *is* a readout. §13.12.

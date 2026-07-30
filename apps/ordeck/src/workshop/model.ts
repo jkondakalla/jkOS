@@ -20,7 +20,6 @@ import type { WidgetNode } from '../hud/types';
 export type NodeT = WidgetNode['t'];
 export type SlotName = 'item' | 'then' | 'else';
 const SLOT_NAMES: SlotName[] = ['item', 'then', 'else'];
-export const SLOT_LABEL: Record<SlotName, string> = { item: 'EACH ITEM', then: 'THEN', else: 'ELSE' };
 
 let seq = 0;
 export const newId = (): string => `e${++seq}x${Math.random().toString(36).slice(2, 6)}`;

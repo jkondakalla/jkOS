@@ -7,6 +7,19 @@ is a **view-layer redesign plus a new solid-ink chip system**, and per Jag (2026
 system is the **suite-wide default going forward**. Fence = [DESIGN.md](DESIGN.md) §13; ship
 discipline = §14.*
 
+> **STATUS: SHIPPED — this is a historical work order, not a live checklist.**
+> The rebuild it scopes landed as `f64c1ca` (merged to `main` as `d29bfcc`); Waves A–D are done.
+> Its 23 `- [ ]` boxes were never ticked on the way out, so **read them as the original plan,
+> not as open work** — a cold agent working down this list would rebuild what already exists.
+> The successor doc for what remains is
+> [BEIGEBOARD_PARITY.md](BEIGEBOARD_PARITY.md) (the fidelity pass), and the live backlog is
+> [ToDo.md](ToDo.md) §7. Wave-0's numbered "Jag's calls" below are still binding.
+>
+> *Two corrections found while auditing this file (2026-07-30): its file links were all
+> repo-root-relative, so every one of them 404'd from `Documentation/` — now re-based to `../`;
+> and the four `workshop/` files C4 retired (`ShopFloor`/`NodePage`/`Bench`/`bits`) are deleted,
+> so their links are now plain names.*
+
 ---
 
 ## Wave 0 — the brief, locked
@@ -73,11 +86,11 @@ SylibOS untouched (§13.11); the machine keeps mono (§13.12). One direction onl
 Everything downstream reads these. Port the prototype's `bb-*` values verbatim, renamed `jk-*`,
 mode-gated. **Nothing else starts until A is green.**
 
-- [ ] **A1 · Pressed-type family → hub.css** (anchor after `.jk-press-lg`, [hub.css:750](packages/design/tokens/hub.css#L750)):
+- [ ] **A1 · Pressed-type family → hub.css** (anchor after `.jk-press-lg`, [hub.css:750](../packages/design/tokens/hub.css#L750)):
       `.jk-press-ink` (neutral-ink title, pressed-shadow only — for task titles on tinted
       chips), `.jk-press-rev` (cream knockout on a solid tint — the loud chip title),
       `.jk-press-sm`. Mode-gated: paper = white top-catch + tint-dark bottom lip; dark = tint
-      glow. (Prototype [BeigeBoard.dc.html:43-64](BeigeBoard.dc.html).)
+      glow. (Prototype `BeigeBoard.dc.html:43-64`.)
 - [ ] **A2 · Chip surface family → hub.css:** `.jk-chip`, `.jk-chip-solid`, `.jk-chip-live`,
       `.jk-chip-done`, `.jk-chip-sm` — all `--jk-tint`-driven (`unset → --accent`), solid fill
       `color-mix(... --jk-tint 82%, --accent-deepen-ink)`, inset bevel + drop on paper, halation
@@ -85,12 +98,12 @@ mode-gated. **Nothing else starts until A is green.**
 - [ ] **A3 · Extend the factory for what the prototype needs** (Jag's grant):
       **(a)** a `data-motion` axis (`full` / `entrance` / `static`) as a `buildJkOSTheme` input +
       hub gating, driving `.mo-item` staggered entrance — reconcile with the existing `.ink-in`
-      ([hub.css:459](packages/design/tokens/hub.css#L459)); add the `crtOn` per-item flick
+      ([hub.css:459](../packages/design/tokens/hub.css#L459)); add the `crtOn` per-item flick
       keyframe beside `crtExpand`. **(b)** ambient `.jk-rake` already exists (§12) — add the CRT
       `.jk-buzz` companion, same `data-motion="full"` gate. Keep all of it reduced-motion-gated
       in the one hub block.
 - [ ] **A4 · `@jkos/ui` primitive:** expose `<Chip tint variant>` (+ the pressed-type as a
-      `<Press ink|rev>` prop or `cx` helper) in [primitives.tsx](packages/ui/src/primitives.tsx)
+      `<Press ink|rev>` prop or `cx` helper) in [primitives.tsx](../packages/ui/src/primitives.tsx)
       and the barrel, so apps consume the primitive, not raw classes.
 - [ ] **A5 · Ship the foundation:** document the chip/press system in [DESIGN.md](DESIGN.md)
       §4/§8 (it *supersedes* the kit's `ACCENT_GLAZE` chip look — call that out); regenerate the
@@ -102,28 +115,28 @@ Two things live here: the **chip look** (one factory) and the **day-separation r
 load-bearing change that stops Week reading as a flat grid. Both land in the shared kit so
 BeigeBoard *and* ORDECK inherit them.
 
-- [ ] **B1 · Rewrite `cardSurface()`** in [surface.ts](packages/cards/src/surface.ts#L45) to the
+- [ ] **B1 · Rewrite `cardSurface()`** in [surface.ts](../packages/cards/src/surface.ts#L45) to the
       solid-ink/pressed recipe (mode-gated), replacing `ACCENT_GLAZE` + the hardcoded `rgba`
       shadows. Add a reverse-press title helper (or have chips take `.jk-press-rev`). Point
       `chipCheckStyle` at the `.jk-check` look (mode-correct). Because
-      [`TaskChip`](packages/cards/src/TaskChip.tsx), `TimeBlock`, `AllDayBar` **all** consume
+      [`TaskChip`](../packages/cards/src/TaskChip.tsx), `TimeBlock`, `AllDayBar` **all** consume
       `cardSurface`, this re-skins the entire kit in one place.
 - [ ] **B2 · Day-separation — the point of the redesign (a RELAYOUT, not a re-skin).** Today's
-      `WeekView` is one monolithic bordered grid ([WeekView.tsx:280](packages/cards/src/WeekView.tsx#L280))
+      `WeekView` is one monolithic bordered grid ([WeekView.tsx:280](../packages/cards/src/WeekView.tsx#L280))
       whose days are divided only by `borderRight` hairlines, with today merely washed
-      `--color-accent-soft` ([:286-301](packages/cards/src/WeekView.tsx#L286)) — exactly the flat
+      `--color-accent-soft` ([:286-301](../packages/cards/src/WeekView.tsx#L286)) — exactly the flat
       grid to kill. Rebuild it as **seven individually-framed, gapped day lanes**: each day is its
       own bordered box (real `gap` of air between columns, *not* hairlines; header rounded on top,
       body rounded on the bottom so the two read as one unit), the timed body carries a **per-lane**
       hour-gridline background, and **today's whole lane is a tinted `jk-well`** (not a soft wash)
       with a `jk-press` date. Prototype refs: day headers
-      [BeigeBoard.dc.html:173-180](BeigeBoard.dc.html), lanes [:189-202](BeigeBoard.dc.html).
+      `BeigeBoard.dc.html:173-180`, lanes `:189-202`.
       Mirror the framing in `DayView` (its single lane framed the same way) and keep
       `CalendarView` month cells visibly distinct (today = `jk-well` + `jk-press`).
 - [ ] **B3 · The rest of the grid chrome** across DayView / WeekView / CalendarView: mono
       hour-gutter labels, the **now-line** (accent dot with `--accent-halo` + accent rule + pressed
       `NOW ·…` label), day headers (`jk-lab` weekday + serif date).
-- [ ] **B4 · Reconcile the kit's own primitives** ([primitives.tsx](packages/cards/src/primitives.tsx):
+- [ ] **B4 · Reconcile the kit's own primitives** ([primitives.tsx](../packages/cards/src/primitives.tsx):
       `Checkbox`/`Eyebrow`/`RecLamp`) onto `.jk-check` / `.jk-lab` so the kit stops shipping
       pre-Full-Press copies.
 - [ ] **B5 · Density seam + gate.** The framed lanes are spacious (the prototype is 1440px); the
@@ -136,19 +149,19 @@ BeigeBoard *and* ORDECK inherit them.
 - [ ] **C1 · Today** → kit `DayView` (single-day timeline) in the left pane + a 388px right rail
       of two `jk-sheet` cards (**bench**: `week_start` set & no `due_date`, `jk-check` +
       `.jk-press-ink`; **goals in press**: `bar-track`/`bar-fill` + `.seg` %) + a `jk-colophon`.
-      **Rewrite** [TodayView.tsx](apps/beigeboard/src/views/TodayView.tsx) — retire
+      **Rewrite** [TodayView.tsx](../apps/beigeboard/src/views/TodayView.tsx) — retire
       `NextCard`/`CarriedStrip`/`AdriftStrip`/`Strip`/`EmptyDay`/`ClearedDay` and the
       carried/adrift/next logic (Wave-0 #2).
 - [ ] **C2 · Week** → kit `WeekView` + a **bench strip** across the top (benched/unscheduled
       chips, drag onto a day via the existing `DragProvider`/`usePointerDrag`). Header = pressed
-      "Week of…" + mono stats + `jk-tbtn` nav. Rewrite [WeekView.tsx](apps/beigeboard/src/views/WeekView.tsx)
+      "Week of…" + mono stats + `jk-tbtn` nav. Rewrite [WeekView.tsx](../apps/beigeboard/src/views/WeekView.tsx)
       (stays a thin kit wrapper — the reskin lives in the kit).
 - [ ] **C3 · Calendar** → kit `CalendarView` (month), reskinned; header = `jk-press-lg` month +
-      `jk-tbtn` nav. [CalendarView.tsx](apps/beigeboard/src/views/CalendarView.tsx).
+      `jk-tbtn` nav. [CalendarView.tsx](../apps/beigeboard/src/views/CalendarView.tsx).
 - [ ] **C4 · Workshop** → the prototype's **two-pane forge** (new components; retire
-      [ShopFloor](apps/beigeboard/src/views/workshop/ShopFloor.tsx) /
-      [NodePage](apps/beigeboard/src/views/workshop/NodePage.tsx) /
-      [Bench](apps/beigeboard/src/views/workshop/Bench.tsx) / [bits](apps/beigeboard/src/views/workshop/bits.tsx)
+      ShopFloor (`ShopFloor.tsx`, deleted) /
+      NodePage (`NodePage.tsx`, deleted) /
+      Bench (`Bench.tsx`, deleted) / bits (`bits.tsx`, deleted)
       drill-down). Left rail = goal cards (`jk-well` when selected); right = the forge (goal
       header + `jk-rule` + expand/collapse tree). **Map to the item model:** goal → milestone
       (branch) → task (leaf); rollup = leaves done/total; add/toggle/expand wired to the real
@@ -157,10 +170,10 @@ BeigeBoard *and* ORDECK inherit them.
 - [ ] **C5 · AppHeader** → the prototype: pressed serif wordmark, two bordered `jk-lab` chips
       (week no. + date), **mono** nav tabs (active = `jk-well` + `jk-press`), source dots +
       "N sources", `.seg` clock, avatar. **No** in-header face toggle. Keep the ConnectModal +
-      SettingsDrawer + settings-button wiring. [AppHeader.tsx](apps/beigeboard/src/components/AppHeader.tsx).
+      SettingsDrawer + settings-button wiring. [AppHeader.tsx](../apps/beigeboard/src/components/AppHeader.tsx).
 - [ ] **C6 · Motion + intro** → apply `.mo-item` staggered entrances at view/row boundaries via
       the `data-motion` axis; wire the app's ambient rake/buzz opt-in; make the
-      [CinematicIntro](apps/beigeboard/src/components/Overlays.tsx) brand **press** on paper
+      [CinematicIntro](../apps/beigeboard/src/components/Overlays.tsx) brand **press** on paper
       instead of glow.
 - [ ] **C7 · Keep suite integration:** auth/keepalive, weave, drag, SettingsDrawer, and the
       ORDECK HUD shelf. **DetailPanel stays** as the (restyled) edit surface for an

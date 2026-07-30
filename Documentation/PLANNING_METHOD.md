@@ -6,9 +6,23 @@
 This is the method the **Workshop** view embodies. It is a planning *discipline* expressed
 as data: a small vocabulary of item rows, ordered and nested, plus two derived rituals
 (the current path and the weekly bench). When this doc disagrees with the code, the code
-wins — update this. Domain helpers live in [`apps/beigeboard/src/lib/plan.ts`](../apps/beigeboard/src/lib/plan.ts);
-the tree walkers they build on are in [`src/lib/seed.ts`](../apps/beigeboard/src/lib/seed.ts);
-the read/write contract is [`backend/discovery.js`](../apps/beigeboard/backend/discovery.js).
+wins — update this.
+
+**Where the code lives (revised 2026-07-30).** The Full Press rebuild (`f64c1ca`) replaced the
+unlimited-depth drill-down with a two-pane forge, and BeigeBoard's `src/lib/plan.ts` helper
+layer — `currentStep`/`currentLeaf`/`nodeCleared`/`carriedBench`/`paceOf` and friends — went
+with it. It sat in the tree unimported for a while afterwards and has now been deleted; read
+this doc as the **method**, not as a map of that module. What survives:
+
+- **Tree walkers** — [`src/lib/seed.ts`](../apps/beigeboard/src/lib/seed.ts)
+  (`getChildren`/`getAncestors`/`getDescendants`/`getProgress`), depth-N and cycle-guarded.
+  [`WorkshopView`](../apps/beigeboard/src/views/workshop/WorkshopView.tsx) derives its rollups
+  straight from these.
+- **The day briefing** — `deriveDaySections` in
+  [`packages/cards/src/sections.ts`](../packages/cards/src/sections.ts), with `activeGoals` /
+  `isAdrift` / `nextUnscheduled` now a host-supplied `PlanResolvers` seam (defaults in
+  [`theme.ts`](../packages/cards/src/theme.ts)) rather than BeigeBoard-local functions.
+- **The read/write contract** — [`backend/discovery.js`](../apps/beigeboard/backend/discovery.js).
 
 ## The mission
 
@@ -114,14 +128,19 @@ The bench is a **derived, live** view of the current week — there is no batch 
 - **A goal's contribution this week** = its open tasks that are either benched to *this*
   week or `due_date`-scheduled within this week. The bench nudges toward **1–3** per goal —
   a soft copy nudge, never a hard cap.
-- **Adrift** (`isAdrift`): an active goal is adrift when it has **neither** an open
-  day-scheduled task **nor** an open task benched to the *current* week. This is the
-  invariant the Workshop and Today both surface: an active goal should always have a next
-  action somewhere in reach.
-- **Carried bench** (`carriedBench`): an open, undated task whose `week_start` is *before*
-  this week's Monday — a leftover from a past week. It's surfaced in a "carried" strip with
-  four choices: **this week** (re-bench to current W), **pick a day** (promote), **let go**
-  (delete), or **park the goal** for the week. Nothing rolls over silently.
+- **Adrift** — an active goal is adrift when it has **neither** an open day-scheduled task
+  **nor** an open task benched to the *current* week: an active goal should always have a next
+  action somewhere in reach. **Not currently surfaced in BeigeBoard.** The Full Press rebuild
+  removed the carried/adrift/next strips from Today on purpose (see the note at
+  [TodayView.tsx:11](../apps/beigeboard/src/views/TodayView.tsx#L11)), and the concept now
+  lives in `@jkos/cards` as the `isAdrift` **`PlanResolvers` seam** — whose default is
+  `() => false`, so a host that supplies no resolver simply gets no adrift section. Reviving it
+  means passing real resolvers, not rewriting the rule.
+- **Carried bench** — an open, undated task whose `week_start` is *before* this week's Monday.
+  The week-based carry ritual (re-bench / pick a day / let go / park) was **retired with the
+  bench sidebar** and its helper is gone. Do not confuse it with the kit's surviving `carried`
+  slice in [`sections.ts`](../packages/cards/src/sections.ts), which is a different rule:
+  tasks whose **`due_date`** slipped past today. Nothing rolls over silently either way.
 
 ## Data mapping
 
@@ -130,7 +149,7 @@ Every state above is a plain column edit — no new tables, no new entities, one
 
 | Concept | Columns | Transition |
 |---------|---------|-----------|
-| Goal | `kind='goal'`, `parent_id=NULL`, `done_means`, `target_date`, `status`, `accent` | create in GoalForge |
+| Goal | `kind='goal'`, `parent_id=NULL`, `done_means`, `target_date`, `status`, `accent` | create from the Workshop's goals rail |
 | Checkpoint | `kind='milestone'`, `parent_id=<goal or milestone>`, `position` | add under any node; reorder = `position` |
 | Sub-checkpoint | same, `parent_id=<milestone>` | drill in, add checkpoint |
 | Next action | `kind='task'`, `parent_id=<milestone>` | add under a checkpoint |
@@ -138,7 +157,7 @@ Every state above is a plain column edit — no new tables, no new entities, one
 | Commit to a day | `due_date=<day>`, `week_start=weekStart(day)` | "today / tmrw / pick" |
 | Demote day→week | `due_date=NULL`, keep/set `week_start`, **clear `scheduled_time`/`scheduled_end`** | "back to week" |
 | Promote task→checkpoint | `kind='milestone'` | "make it a checkpoint" |
-| Cleared checkpoint | all descendant tasks `completed` | `nodeCleared` → review prompt |
+| Cleared checkpoint | all descendant tasks `completed` | derived from `getProgress` → review prompt |
 | Park a goal for the week | (no write; the bench simply shows "quiet this week") | conscious skip |
 | Retire a goal | `status` ≠ `'active'` | park/done on the goal header |
 
@@ -164,14 +183,17 @@ in `discovery.js` so a Weave peer (eventually LazurOS) can reach them without an
   **does not write**.
 - **`importItems`** (`POST /import`) — one JSON document → a whole goal→milestone→task tree in
   one transaction (`?dryRun=1` previews). Depth limit `MAX_IMPORT_DEPTH = 8`, comfortably
-  above the 4-deep trees the drill-down produces.
+  above the goal → milestone → task trees the Workshop creates (new creation caps at three
+  levels; deeper *existing* nodes still render, surfacing as clickable leaves).
 
 Keeping these as declared-but-unbuttoned seams means turning AI assistance on later is a
 front-end decision, not a re-architecture.
 
 ## Follow-up
 
-- **Mobile drill-down + bench.** The desktop Workshop is the drill-down + bench surface;
-  `MobileTasksView` currently reads the same trees generically (deeper trees render, just
-  without the drill-in/breadcrumb affordance and without the bench rail). A mobile-native
-  drill-down and a compact bench are the next iteration.
+- **Mobile drill-down + bench.** Note this item predates the Full Press rebuild, which
+  **retired the desktop drill-down and the bench sidebar** it was written against — so scope it
+  against the current two-pane forge, not the old `ShopFloor`/`NodePage`/`Bench` surface.
+  `MobileTasksView` reads the same trees generically (deeper trees render, just without a
+  drill-in/breadcrumb affordance or a bench rail). Whether mobile should grow affordances the
+  desktop no longer has is an open design question, not a settled follow-up.

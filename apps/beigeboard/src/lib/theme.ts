@@ -59,8 +59,6 @@ export const tagTintOf = (tag?: string | null): string | null =>
   (tag ? TAG_TINTS[tag.toUpperCase()] ?? null : null)
 
 // BeigeBoard-only formatters layered on the shared localDate.
-export const fmtMonthDay = (iso: string) => localDate(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-
 export function getGreeting() {
   const h = new Date().getHours()
   if (h <  5) return 'Late night.'
