@@ -49,6 +49,17 @@ lettering stable even as items close out; don't renumber.**
   motion vocabulary) plus a **BeigeBoard deep editorial pass** (masthead folio, printed nav,
   rules ladder, colophon) — committed (`55671a3`, `3b98302`). [DESIGN.md](DESIGN.md) §§4–13.
   Remaining Full Press work: §7 below.
+- **Tech-debt sweep** (2026-07-30, `9c06267` · `49b8e1f` · `7c834a3`). Dead code deleted
+  (BeigeBoard's orphaned `lib/plan.ts`, the `WV_ROW_H`/`WV_LABEL_W` shims that had no importers,
+  `Plate`/`ColorPicker`, three smaller symbols, dead CSS); the three copies of the auth state
+  machine folded onto `@jkos/auth-client`'s `useAuthProvider`; a raw NUL byte removed from
+  papyros's `format.ts`, which had made the file **binary to git and grep** and therefore
+  invisible to every text-scan gate; the gate's one known flake fixed; `pnpm typecheck` made to
+  actually cover the workspace (6 → 10 tasks) and the seven fake `lint` aliases dropped; a
+  swallowed preferences-blob parse failure in jkAuth surfaced. Two new gates —
+  **`check:text`** and **`check:auth`** (chain is now 24 links). Docs reconciled against code:
+  21 dead markdown links → 0, and landed work that the backlog still described as open was
+  verified and ticked. What was found but deliberately left is logged in §5.
 
 ---
 
@@ -245,6 +256,36 @@ Each was consciously stopped, not forgotten — pick any up by choice, none is b
   port.
 - **Toolchain alignment.** `apps/sylibos` is React 19 + Tailwind v4 vs the suite's React 18 +
   plain CSS. Deferred until SylibOS re-enters scope (off-limits until then).
+
+### Found by the 2026-07-30 tech-debt sweep — measured, deliberately NOT actioned
+
+Three duplications/dead spots were located and quantified but left alone, each for a stated
+reason. They are logged here so the measurement isn't lost; none is blocking.
+
+- **ORDECK's HUD CSS carries ~37 dead classes.** `apps/ordeck/src/styles/hud.css` (988 lines)
+  defines `hud-widget*`, `hud-today*`, `hud-task*`, `hud-systems*`, `hud-info*`, `hud-col`,
+  `hud-grid`, `hud-now-chip`, `hud-streak`, `hud-study-*`, `hud-sys*`, `is-on`, and a subset of
+  `hud-weather*` (`-now`/`-icon`/`-temp`/`-unit`/`-desc`) that nothing references — leftovers
+  from the v2 hand-written widget markup that the v3 declarative WidgetSpec system replaced.
+  Confirmed absent from TSX, JSON widget specs and dynamic-class construction. **Not deleted:**
+  `registry.tsx` still uses the *sibling* weather classes (`-head`/`-hilo`/`-slot`), so this is a
+  partial migration, and CSS deletion has no gate to catch a regression — it wants a browser
+  open. ORDECK is also the app DESIGN.md flags as needing the most judgment.
+- **`AuthGuard.tsx` is byte-identical (normalised) between PapyrOS and KourOS**, and the
+  `.auth-veil` rules are duplicated in both `app.css`es. The auth *state machine* was
+  consolidated (see `check:auth`), but sharing the component needs a new
+  `@jkos/ui → @jkos/auth-client` dependency edge (or the reverse, which is worse) and moves
+  `.auth-veil` into hub.css behind `check:design`. That's an architecture call, not cleanup.
+- **`backend/src/routes/library.js` is 96% duplicated** between PapyrOS and KourOS — the
+  `rescanLibrary` route differs only in header prose, one scope string (`papyros:admin` vs
+  `kouros:admin`) and a log prefix. The subtle part is shared-by-copy: the admin gate checks
+  `req.user.role === 'admin'` rather than a scope array *on purpose* (weaveAuth's dev stub
+  injects no scope array), and KourOS's copy documents that only by pointing at PapyrOS's
+  header — so a third consumer would copy again. **Not consolidated:** `@jkos/weave`
+  deliberately has no `express` dependency (every existing brick returns handlers, never a
+  `Router`), so a shared route brick means new API surface on a shared package plus touching a
+  live auth gate on two backends, to remove ~20 lines. Worth doing *with* the next media-app
+  wave, not as a drive-by.
 
 ---
 
