@@ -4,18 +4,21 @@
  * injected sourceColorOf to colour a moving event.
  */
 
-import type { DragState } from './types';
+import type { CardDensity, DragState } from './types';
 import { withAlpha } from '@jkos/design';
 import { FONT_BODY, FONT_NUM } from './theme';
 import { fmtTime, fracToTime, timeToFrac } from './datetime';
-import { WV_FIRST_H, WV_ROW_H } from './constants';
+import { WV_FIRST_H, rowHeight, minBlockH } from './constants';
 
 export interface TimelinePreviewProps {
   drag: DragState;
   sourceColorOf: (source: string | undefined) => string;
+  /** Must match the grid the ghost is drawn over, or the preview lands at a
+   *  different minute than the drop does — see constants.ts. */
+  density?: CardDensity;
 }
 
-export function TimelinePreview({ drag, sourceColorOf }: TimelinePreviewProps) {
+export function TimelinePreview({ drag, sourceColorOf, density = 'comfortable' }: TimelinePreviewProps) {
   const { mode, startFrac, overFrac, item } = drag;
   if (overFrac == null) return null;
 
@@ -44,8 +47,9 @@ export function TimelinePreview({ drag, sourceColorOf }: TimelinePreviewProps) {
     label = `${fmtTime(fracToTime(start))} – ${fmtTime(fracToTime(end))}`;
   }
 
-  const top = (start - WV_FIRST_H) * WV_ROW_H;
-  const height = Math.max(24, (end - start) * WV_ROW_H);
+  const ROW_H = rowHeight(density);
+  const top = (start - WV_FIRST_H) * ROW_H;
+  const height = Math.max(minBlockH(density), (end - start) * ROW_H);
 
   return (
     <div

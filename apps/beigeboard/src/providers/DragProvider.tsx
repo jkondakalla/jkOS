@@ -9,14 +9,14 @@
  */
 import React from 'react'
 import { CalendarDragProvider, useCalendarDrag } from '@jkos/cards'
-import { sourceOf } from '../lib/theme'
+import { sourceTintOf } from '../lib/theme'
 
 /** The view wrappers read the adapter through this alias (unchanged call site). */
 export const useDrag = useCalendarDrag
 
 export function DragProvider({ children }: { children: React.ReactNode }) {
   return (
-    <CalendarDragProvider sourceColorOf={(s) => sourceOf(s ?? '').hex}>
+    <CalendarDragProvider sourceColorOf={sourceTintOf}>
       {children}
     </CalendarDragProvider>
   )

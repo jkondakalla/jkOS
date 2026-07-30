@@ -26,22 +26,19 @@ button:focus, input:focus, select:focus { outline: none; }
 /* ── Base typography ──────────────────────────────────────────────────── */
 html, body { color-scheme: light; }
 html[data-mode="dark"] { color-scheme: dark; }
+/* The body IS the ground — one grained surface, full bleed, with the app set
+   directly on it (buildJkOSTheme paints --hub-grain-image over this colour).
+   The shell must therefore stay transparent all the way down to here; nothing
+   above it may paint an opaque fill or the texture is lost. */
 body { background: var(--color-paper); color: var(--color-ink); }
 
-/* ── Hover bridges ───────────────────────────────────────────────────── */
-.task-row, .day-chip, .event-chip {
-  transition: background 0.12s, filter 0.12s, opacity 0.12s;
-}
-.task-row:hover  { background: var(--hover-bg, transparent); }
-.day-chip:hover  { opacity: 0.78; }
-.event-chip:hover { filter: brightness(0.92); }
+/* Hover bridges (.task-row / .day-chip / .event-chip) are GONE — the Full Press
+   rebuild moved every row and chip onto hub.css's .jk-chip* / .jk-hit, which are
+   mode-gated in a way inline app rules can't be. */
 
 /* ── Buttons ─────────────────────────────────────────────────────────── */
 .btn-action { transition: background 0.15s, transform 0.1s, border-color 0.15s, color 0.15s; }
 .btn-action:active { transform: translateY(1px); }
-
-/* ── Progress bar ────────────────────────────────────────────────────── */
-.progress-fill { transition: width 0.9s cubic-bezier(0.16, 1, 0.3, 1); }
 
 /* ── Scrollbars ──────────────────────────────────────────────────────── */
 *::-webkit-scrollbar       { width: 8px; height: 8px; }
@@ -49,29 +46,6 @@ body { background: var(--color-paper); color: var(--color-ink); }
 *::-webkit-scrollbar-thumb { background: var(--hub-line-strong); }
 *::-webkit-scrollbar-thumb:hover { background: var(--hub-amber-dim); }
 
-/* ── Workshop goal well ───────────────────────────────────────────────────
-   The brief's goal card is an inset accent well. Tint it by the goal's OWN
-   colour via --goal-accent (set inline) so per-goal colours survive the well
-   treatment: debossed on paper, accent-glow in CRT. Same physics as @jkos/ui's
-   jk-well, but goal-coloured rather than locked to the theme accent. */
-.bb-goal-well {
-  position: relative;
-  background: color-mix(in srgb, var(--goal-accent) 12%, var(--color-card));
-  border-radius: var(--hub-radius-lg);
-  box-shadow:
-    inset 0 2px 3px color-mix(in srgb, var(--hub-cream-bright) 28%, transparent),
-    inset 0 -1px 1px color-mix(in srgb, #ffffff 50%, transparent),
-    0 1px 0 color-mix(in srgb, #ffffff 38%, transparent);
-}
-html[data-mode="dark"] .bb-goal-well {
-  box-shadow:
-    0 0 14px color-mix(in srgb, var(--goal-accent) 16%, transparent),
-    inset 0 0 0 1px color-mix(in srgb, var(--goal-accent) 26%, transparent);
-}
-
-/* Brief-style thin progress track (goal-coloured fill applied inline) */
-.bb-prog-track {
-  flex: 1; height: 7px; border-radius: 999px; overflow: hidden;
-  background: var(--color-paper);
-  box-shadow: inset 0 1px 2px rgba(0,0,0,0.20);
-}
+/* The workshop goal well (.bb-goal-well) and its thin track (.bb-prog-track)
+   are GONE: the forge now composes @jkos/ui's <Well> and <Bar>, which carry the
+   same physics without a BeigeBoard-only copy of them. */

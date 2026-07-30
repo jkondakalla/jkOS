@@ -6,9 +6,8 @@
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",
-    "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
-    "test:contracts": "pnpm --filter @jkos/jkauth test:contracts && pnpm --filter @jkos/jkauth test && pnpm --filter @jkos/weave test && pnpm --filter @jkos/player test && pnpm --filter @jkos/beigeboard-backend test && pnpm roundtrip && pnpm --filter @jkos/lazuros-backend test && pnpm --filter @jkos/files test && pnpm --filter @jkos/papyros-backend test && pnpm --filter @jkos/kouros-backend test && pnpm test:cards && pnpm check:tokens && pnpm check:nginx && pnpm check:responsive && pnpm check:drag && pnpm check:cards && pnpm check:hud && pnpm check:docker && pnpm check:async-view && pnpm check:design && pnpm prove",
+    "test:contracts": "pnpm --filter @jkos/jkauth test:contracts && pnpm --filter @jkos/jkauth test && pnpm --filter @jkos/weave test && pnpm --filter @jkos/player test && pnpm --filter @jkos/beigeboard-backend test && pnpm roundtrip && pnpm --filter @jkos/lazuros-backend test && pnpm --filter @jkos/files test && pnpm --filter @jkos/papyros-backend test && pnpm --filter @jkos/kouros-backend test && pnpm test:cards && pnpm check:tokens && pnpm check:nginx && pnpm check:responsive && pnpm check:drag && pnpm check:cards && pnpm check:hud && pnpm check:docker && pnpm check:async-view && pnpm check:overlay && pnpm check:design && pnpm check:text && pnpm check:auth && pnpm prove",
     "check:tokens": "pnpm --filter @jkos/jkauth check:tokens && node jkos-deploy/scripts/sync-tokens.mjs --check && node test/tokens-parity.mjs",
     "check:nginx": "node infra/nginx/gen-nginx-weave.mjs --check",
     "check:responsive": "node test/responsive.mjs",
@@ -17,7 +16,10 @@
     "check:hud": "node apps/ordeck/scripts/check-hud-doc.mjs",
     "check:docker": "node test/dockerfile-inject.mjs",
     "check:async-view": "node test/async-view.mjs",
+    "check:overlay": "node test/overlay-panel.mjs",
     "check:design": "node test/design-page.mjs",
+    "check:text": "node test/text-purity.mjs",
+    "check:auth": "node test/auth-single-source.mjs",
     "test:cards": "node test/cards-logic.mjs",
     "prove": "node packages/suite-prober/prove.mjs",
     "roundtrip": "node packages/suite-prober/roundtrip.mjs",
@@ -33,6 +35,9 @@
     "pnpm": ">=9"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["better-sqlite3", "esbuild"]
+    "onlyBuiltDependencies": [
+      "better-sqlite3",
+      "esbuild"
+    ]
   }
 }

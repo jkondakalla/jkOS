@@ -7,7 +7,7 @@ import React from 'react'
 import { Calendar } from '@jkos/cards'
 import { useDrag } from '../providers/DragProvider'
 import { getAccent } from '../lib/seed'
-import { sourceOf } from '../lib/theme'
+import { sourceTintOf } from '../lib/theme'
 
 export function WeekView(props: any) {
   const dnd = useDrag()
@@ -18,9 +18,11 @@ export function WeekView(props: any) {
       benchLane
       createSource="bb"
       drag={dnd}
+      // No `foot` — the page footer is gone suite-wide in BeigeBoard; see the
+      // note in CalendarView.tsx. The kit's seam stays open.
       resolvers={{
         accentOf: (it: any) => getAccent(it, props.items),
-        sourceColorOf: (s?: string) => sourceOf(s ?? '').hex,
+        sourceColorOf: sourceTintOf,
       }}
     />
   )

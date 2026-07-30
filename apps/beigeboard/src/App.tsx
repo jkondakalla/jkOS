@@ -366,26 +366,59 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
       {effects.scanLines && <ScanLines strength={effects.scanStrength} />}
       {effects.artifacts && <Artifacts />}
 
+      {/* The shell — full bleed and TRANSPARENT, so the body's grained ground
+          shows through it. It exists for the boot bloom (the filter below) and
+          the column layout, never to paint a surface. */}
       <div style={{
         position: 'fixed', inset: 0,
         filter: colorIn ? 'saturate(1) brightness(1)' : 'saturate(0.04) brightness(0.08)',
         transition: 'filter 1.4s ease-out',   /* always present so colorIn flip reliably animates the bloom */
-        background: 'transparent',   /* let the body's grained paper backdrop show */
+        background: 'transparent',   /* let the body's grained backdrop show */
         display: 'flex', flexDirection: 'column',
       }}>
-        <div style={{
-          flex: 1, minHeight: 0, position: 'relative',
+        {/* The CANVAS — the one measure the whole app is set to (hub.css
+            --jk-canvas: fluid, capped at 1760). A measure only: it is NOT drawn
+            as a sheet, content sits directly on the grained ground. It spans the
+            MASTHEAD as well as the content on purpose — a folio pinned to the
+            window edge while the page it labels sits 500px inboard is the
+            weighting failure this replaces. Every view below therefore inherits
+            one centred measure, and rails are panes INSIDE it rather than
+            siblings of the window. */}
+        <div className="jk-canvas jk-canvas-fill" style={{
+          /* position:relative is what the .jk-panel overlay pins itself to —
+             see the DetailPanel note below. Do not remove it. */
+          position: 'relative',
+          background: 'transparent',   /* grained ground comes from the body */
           display: 'grid',
           gridTemplateRows: 'auto minmax(0, 1fr)',
           gridTemplateColumns: '1fr',
-          background: 'transparent',   /* grained paper comes from the body backdrop */
           color: 'var(--color-ink)',
+          /* The bottom margin of the page. It used to be spent by the canvas
+             foot (a taper rule + a colophon), which is gone: as a footer that
+             line only pulled the eye down out of the view, and the rule above it
+             made a second page boundary competing with the masthead's inlay. The
+             margin itself still has to exist — content running to the last pixel
+             of the window reads as clipped — so the canvas keeps it directly, and
+             the page below the head simply ends in air. */
+          paddingBottom: 18,
           /* The old global SVG #halation lens filter was removed: it could only
              bloom WARM pixels, so it reddened the whole UI and made warm-accent
              (rust) cards halo while cool (sage) ones didn't. Halation is now the
              per-element, colour-correct --accent-halo token from @jkos/design. */
         }}>
-          <div style={{ gridColumn: '1 / -1' }}>
+          {/* The header animates ONCE, on app boot — it doesn't remount on tab
+              change, so it must not carry the view's cascade. Each view then
+              owns its own cascade from 0ms.
+
+              EVERY child of this grid is placed EXPLICITLY (gridRow + gridColumn),
+              and new ones must be too. Auto-placement here is order-dependent on
+              which siblings happen to be mounted: the DetailPanel used to be the
+              one definitely-placed item, so grid placed IT first, auto-placement
+              found row 2 taken and pushed <main> into an implicit row 3, and the
+              declared 1fr row collapsed to 0px — every view lost the panel at
+              once. Explicit placement makes the shell's rows a fact rather than
+              a consequence of the render tree. */}
+          <div className="mo-item" style={{ gridRow: 1, gridColumn: '1 / -1', animationDelay: '0ms' }}>
             <AppHeader
               view={view} setView={setView}
               today={today}
@@ -399,11 +432,17 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
 
           <main
             key={view}
-            // Full Press entrance physics at the VIEW boundary: ink dries on
-            // paper, the tube powers on in dark — one class, face-aware.
-            // (Workshop keeps no entrance: its inner canvas manages its own.)
-            className={view === 'tasks' ? undefined : 'ink-in'}
-            style={{ overflow: 'hidden', minHeight: 0, position: 'relative', display: 'flex', flexDirection: 'column' }}
+            // NO entrance class here, deliberately. All four views now stagger
+            // their own regions with .mo-item — Calendar was the last holdout and
+            // took the day-cell ring — and .mo-item carries `both`, so an
+            // .mo-item inside an .ink-in parent double-animates: the parent fades
+            // the whole pane in while each child is still holding its pre-delay
+            // frame, which mushes exactly the cascade the child is there to draw.
+            // ONE entrance per surface, and the inner one wins wherever a view has
+            // one because it says more. A future view with no internal cascade
+            // should carry `ink-in` here (Full Press's face-aware boundary
+            // entrance: ink dries on paper, the tube powers on in dark).
+            style={{ gridRow: 2, gridColumn: 1, overflow: 'hidden', minHeight: 0, position: 'relative', display: 'flex', flexDirection: 'column' }}
           >
             {loading ? (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
@@ -420,14 +459,30 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
             )}
           </main>
 
-          {selected && (
-            <DetailPanel
-              event={selected} items={items}
-              onClose={() => setSelected(null)}
-              onToggle={onToggle} onDelete={onDelete} onUpdateItem={onUpdateItem}
-              setView={setView} setFocusedNodeId={setFocusedNodeId}
-            />
-          )}
+          {/* THE OVERLAY HOST — the content row's second layer.
+              An empty, explicitly-placed pane stacked on the same cell as <main>,
+              existing only to be the positioned ancestor the .jk-panel overlay
+              pins to. Three properties earn their keep:
+                position:relative  → the panel measures itself against the CONTENT
+                                     row, so it stops below the masthead without
+                                     anyone hardcoding the masthead's height.
+                pointer-events:none → an always-mounted full-cell layer would
+                                     otherwise swallow every click on the view
+                                     beneath it; .jk-panel turns them back on.
+                overflow:hidden     → the panel slides in from off-measure.
+              It is NOT inside <main>, which carries key={view}: an overlay hosted
+              there would unmount and replay its entrance on every tab switch
+              while the selection it shows is unchanged. */}
+          <div style={{ gridRow: 2, gridColumn: 1, position: 'relative', pointerEvents: 'none', overflow: 'hidden' }}>
+            {selected && (
+              <DetailPanel
+                event={selected} items={items}
+                onClose={() => setSelected(null)}
+                onToggle={onToggle} onDelete={onDelete} onUpdateItem={onUpdateItem}
+                setView={setView} setFocusedNodeId={setFocusedNodeId}
+              />
+            )}
+          </div>
 
           {/* Ambient atmosphere — raking light across the sheet (paper) / phosphor
               buzz (tube). Each shows only in its own face, gated to data-motion

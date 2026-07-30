@@ -40,7 +40,12 @@ router.get('/auth/profile', (req, res) => {
   const u = get('SELECT * FROM users WHERE id=?', [jwtUser.sub])
   if (!u) return res.status(401).json({ error: 'User not found', code: 'UNAUTHENTICATED' })
   let preferences = {}
-  try { preferences = JSON.parse(u.preferences || '{}') } catch {}
+  // Serving {} for an unparseable blob is right (the client gets a usable baseline and
+  // its next PATCH repairs the row), but it must not be SILENT: this server is the only
+  // writer and always writes JSON.stringify, so a parse failure means the row was damaged
+  // from outside, and that is worth knowing about.
+  try { preferences = JSON.parse(u.preferences || '{}') }
+  catch (e) { console.error(`[profile] user ${u.id} has an unparseable preferences blob:`, e.message) }
   res.json({ user: publicUser(u), preferences, prefs_version: u.prefs_version ?? 0 })
 })
 
@@ -76,7 +81,19 @@ router.patch('/auth/profile', (req, res) => {
   let bumpedVersion = version
   if (preferences !== null && typeof preferences === 'object') {
     let current = {}
-    try { current = JSON.parse(u.preferences || '{}') } catch {}
+    // This catch is the load-bearing one: `current` is the BASE of the deep merge, so
+    // falling back to {} turns a partial PATCH into a full replacement of the blob —
+    // exactly the sibling-slice clobber the deep merge exists to prevent. It stays a
+    // fallback (an unparseable blob has no recoverable slices, so the write repairs the
+    // row) but it is no longer silent, because the difference between "merged" and
+    // "replaced everything" is invisible in the 200 response.
+    try { current = JSON.parse(u.preferences || '{}') }
+    catch (e) {
+      console.error(
+        `[profile] user ${u.id} has an unparseable preferences blob — PATCH will REPLACE it, ` +
+        `not merge onto it: ${e.message}`,
+      )
+    }
     if (prefs_version !== undefined && Number(prefs_version) !== version) {
       return res.status(409).json({
         error: 'Preferences changed elsewhere', code: 'CONFLICT',

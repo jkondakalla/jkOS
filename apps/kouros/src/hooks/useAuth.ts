@@ -1,72 +1,16 @@
-import { useState, useEffect, useCallback, createContext, useContext } from 'react';
-import {
-  getMe, refreshToken, logout as authLogout, useSessionKeepalive, type JkosUser,
+// KourOS's auth gate is the suite's shared one — see
+// packages/auth-client/src/useAuthProvider.ts. This file's header used to read
+// "mirrors apps/papyros/src/hooks/useAuth.ts verbatim", which it did — byte for
+// byte apart from the comments. Now it mirrors nothing; it re-exports.
+//
+// Kept as a re-export so KourOS's call sites still import from './hooks/useAuth'.
+// KourOS only ever runs behind the auth portal, so it never reads
+// `loginWithGoogle` — AuthGuard redirects instead.
+export {
+  authContext,
+  useAuth,
+  useAuthProvider,
+  type AuthUser,
+  type AuthState,
+  type AuthContextValue,
 } from '@jkos/auth-client';
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-// Mirrors apps/papyros/src/hooks/useAuth.ts verbatim (itself mirroring ORDECK's
-// auth-guard pattern): the suite-canonical user shape lives in @jkos/auth-client,
-// aliased so the rest of KourOS keeps importing AuthUser from here.
-
-export type AuthUser = JkosUser;
-
-export type AuthState =
-  | { status: 'loading' }
-  | { status: 'authenticated'; user: AuthUser }
-  | { status: 'unauthenticated' };
-
-export interface AuthContextValue {
-  state:  AuthState;
-  logout: () => Promise<void>;
-}
-
-// ─── Context (exported so any view can read `user` via useAuth()) ────────────────
-
-export const authContext = createContext<AuthContextValue>({
-  state:  { status: 'loading' },
-  logout: async () => { /* noop */ },
-});
-
-export function useAuth(): AuthContextValue {
-  return useContext(authContext);
-}
-
-// ─── Core hook ────────────────────────────────────────────────────────────────
-// Like papyros (and unlike ORDECK's click-to-sign-in LoginPage), KourOS only ever
-// runs behind the auth portal — AuthGuard reacts to 'unauthenticated' by sending
-// the browser straight there. This hook only owns the identity check; the
-// redirect lives in AuthGuard.
-
-export function useAuthProvider(): AuthContextValue {
-  const [state, setState] = useState<AuthState>({ status: 'loading' });
-
-  const fetchMe = useCallback(async (): Promise<boolean> => {
-    try {
-      const user = await getMe();
-      if (user) { setState({ status: 'authenticated', user }); return true; }
-    } catch { /* 5xx (broken backend ≠ logged out) — fall through to unauthenticated */ }
-    return false;
-  }, []);
-
-  // Mount bootstrap: who am I? → if the access token lapsed, rotate the remember-me
-  // refresh cookie and ask again → else surface logged-out. (Per-request refresh for
-  // data calls is handled by authFetch in @jkos/auth-client; this is just the gate.)
-  const check = useCallback(async () => {
-    try {
-      if (await fetchMe()) return;
-      if (await refreshToken() && await fetchMe()) return;
-      setState({ status: 'unauthenticated' });
-    } catch {
-      setState({ status: 'unauthenticated' });
-    }
-  }, [fetchMe]);
-
-  useEffect(() => { check(); }, [check]);
-
-  // Keep the access token fresh so a long-open tab never 401s mid-session.
-  useSessionKeepalive();
-
-  const logout = useCallback(() => authLogout(), []);
-
-  return { state, logout };
-}

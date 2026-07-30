@@ -6,8 +6,8 @@
   "scripts": {
     "dev": "vite --port 3000",
     "build": "tsc && vite build",
-    "preview": "vite preview --port 3000",
-    "lint": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "preview": "vite preview --port 3000"
   },
   "dependencies": {
     "@jkos/auth-client": "workspace:*",

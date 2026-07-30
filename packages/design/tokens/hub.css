@@ -25,6 +25,11 @@
   --accent-raw:    #ffb000;
   --accent-2-raw:  #4ecdc4;
   --accent-deepen-ink: #2a1c0e;   /* paper deepen target (warm near-black) */
+  --bar-deepen-ink:    #1a0a00;   /* meter deepen target — the DARK end of a bar
+                                     gradient, one stop below the accent chain's.
+                                     Consumed by --hub-amber-dim and by <Bar>, so
+                                     a per-item meter deepens exactly like the
+                                     amber family does. Never inline this hex. */
 
   /* Background layers — warm kraft tan → light cream */
   --hub-bg-0: #ede2c8;
@@ -92,6 +97,46 @@
   --hub-radius-soft:      10px;
   --hub-radius-widget:    8px;
   --hub-radius-button:    5px;
+
+  /* ── The CANVAS (the MEASURE axis) ─────────────────────────────────────────
+   * ONE measure for a full-page view. Before this, every view invented its own
+   * rule — BeigeBoard's Week capped at 1280, its Today capped the timeline at
+   * 760 *inside* a pane while the rail stayed welded to the WINDOW edge, and
+   * Calendar/Workshop ran full bleed. On a 2560px monitor the four disagreed
+   * violently: content drifting left of centre with a marooned rail, 350px
+   * month cells, 2200px-long forge rows.
+   *
+   * The rule: a view's OUTERMOST element is the canvas, and everything —
+   * including rails — lives inside it. Panes never re-centre themselves; the
+   * page owns the measure, the component fills what it is given. (This is why
+   * the @jkos/cards views no longer carry a maxWidth of their own: dropped into
+   * an ORDECK widget they fill the widget, dropped on a page they fill the page.)
+   *
+   * The width is FLUID WITH A CAP, three terms, smallest wins:
+   *   1. the window minus its gutters  — below ~1440px the canvas simply fills
+   *   2. 900px + 34vw                  — above that it grows at ~⅓ the rate the
+   *                                      window does, so the margins open up
+   *                                      progressively instead of all at once
+   *   3. --jk-canvas-cap               — and stops, so line length never runs away
+   * Roughly: 964 @1024 · 1380 @1440 · 1545 @1920 · 1760 @2560 and up.
+   *
+   * MOBILE is already handled: term 1 wins outright on a phone, so the canvas
+   * is the viewport minus gutters and the @media block at the foot of this file
+   * only has to shrink the gutter. Nothing here needs a second implementation. */
+  --jk-canvas-cap:    1760px;
+  --jk-canvas-gutter: 28px;
+  --jk-canvas-base:   900px;  /* the fluid term's fixed part … */
+  --jk-canvas-rise:   34vw;   /* … and its growth rate */
+  --jk-canvas: min(
+    calc(100% - 2 * var(--jk-canvas-gutter)),
+    calc(var(--jk-canvas-base) + var(--jk-canvas-rise)),
+    var(--jk-canvas-cap)
+  );
+
+  /* Rails — the ONE width for an in-canvas side pane, so a rail carries the
+     same weight in every view instead of BeigeBoard's old 388 / 340 / 220. */
+  --jk-rail:    360px;
+  --jk-rail-sm: 260px;
 
   /* ── Responsive card scale (the VIEWPORT axis) ──────────────────────────────
    * Card primitives consume these instead of literal px, so they scale by tier.
@@ -180,7 +225,7 @@
   /* Primary family — tracks --accent */
   --hub-amber:        var(--accent);
   --hub-amber-bright: color-mix(in srgb, var(--accent) 55%, #ffffff);
-  --hub-amber-dim:    color-mix(in srgb, var(--accent) 72%, #1a0a00);
+  --hub-amber-dim:    color-mix(in srgb, var(--accent) 72%, var(--bar-deepen-ink));
   --hub-amber-deep:   color-mix(in srgb, var(--accent) 20%, var(--hub-bg-2));
   --hub-amber-glow:   color-mix(in srgb, var(--accent) 30%, transparent);
 
@@ -233,6 +278,13 @@
   --hub-shadow-inset:  inset 0 1px 0 var(--hub-bevel-light), inset 0 -1px 0 var(--hub-bevel-dark);
   --hub-shadow-card:   0 2px 8px color-mix(in srgb, var(--hub-cream-bright) 10%, transparent),
                        0 0 0 1px var(--hub-line);
+  /* The FLOATING PANEL shadow — what lifts a detail panel, drawer or modal off
+     the sheet. Direction is the call site's business (`0 24px 80px var(...)`);
+     the INK is not, which is why three components had each picked their own
+     rgba black. Deepens toward the paper's own shadow ink rather than pure
+     black, and the dark face overrides it to near-nothing (a panel on the tube
+     is defined by its ring, not by a shadow nobody can see). */
+  --hub-shadow-panel-ink: rgba(24, 16, 8, 0.20);
   /* The WELL shadow — an inner shadow that sinks a region INTO the sheet. On
      paper the well is one of the two accent moves (wells give depth + boundary;
      badges give emphasis — see the wells/badges block below). Dark mode
@@ -253,6 +305,49 @@
   --accent-halo-glow: var(--color-accent-glow);
   --accent-halo:      none;
   --accent-halo-text: none;
+
+  /* ── The inlay ───────────────────────────────────────────────────────────
+     The material of the system's ONE metal divider — see .jk-rule-taper for
+     what it is and why it exists. Three seams, so the class and the masthead
+     ladder (.jk-masthead::after) render the same object from one recipe:
+       --jk-inlay-mask  the taper. Both ends feather out over 9%, which is what
+                        makes this the only line on the page that ends in points.
+       --jk-inlay-face  the whole object, mode-flipped below, painted into a
+                        15px-tall box: 5px of halo, the 5px bead, 5px of halo.
+     THE BOX IS TALLER THAN THE BEAD ON PURPOSE. The obvious way to light the
+     dark face is `filter: drop-shadow()`, and it does not work here: Chromium
+     applies the mask to the FILTERED output and clips it to the border box, so
+     the bloom is sliced off flush — square ends on the one element whose whole
+     identity is that it has points. (`mask-clip: no-clip` does not lift it.) So
+     the halo is drawn as a background layer INSIDE the masked box, where the same
+     taper that shapes the bead also shapes its light. Paper leaves those bands
+     transparent: an inlay is lit BY the room, it does not emit.
+     Paper face: a hammered-steel bead let into the sheet. Reading down the bead —
+     the groove's shadow, the crown catch-light, the lit face, the shaded face and
+     lip, then the sheet's own catch on the lower edge of the groove. Five bands,
+     five pixels, and the whole-pixel stops are the point: this was first drawn
+     4px tall with sub-pixel stops (0.5px, 3.6px) and Chromium averaged each pair
+     into one device row, so the shadow cancelled the crown, the catch cancelled
+     the lip, and a bullnose came out a flat line. A bevel this small has to be
+     authored at the resolution it will be rasterised at.
+     The two radial layers are the hammer marks. They are confined to the bead's
+     middle rows (`/ Npx 3px`) so they modulate the steel instead of punching
+     through the crown and the catch — the first pass let them cover the full
+     height and the bar read as a dotted line, not as metal — and they ride
+     coprime 17px/29px periods so they never tile visibly across a 1700px measure.
+     The steel is deliberately NOT the --hub-metal-* family: that stock is warm
+     brass, and against kraft a warm bead is just a thicker beige rule. Neutral
+     grey is what makes the eye call it metal here. */
+  --jk-inlay-mask: linear-gradient(90deg, transparent 0, #000 9%, #000 91%, transparent 100%);
+  --jk-inlay-face:
+    radial-gradient(56% 150% at 50% 28%, rgba(255, 255, 255, 0.42), transparent 68%) 0 6px / 17px 3px repeat-x,
+    radial-gradient(52% 150% at 50% 72%, rgba(58, 40, 16, 0.22), transparent 68%) 9px 6px / 29px 3px repeat-x,
+    linear-gradient(180deg,
+      rgba(64, 42, 16, 0.30)   0 1px,
+      #fbf8f0                  1px 2px,
+      #cfccc2                  2px 3px,
+      #8e8a80                  3px 4px,
+      rgba(255, 253, 246, 0.9) 4px 5px) 0 5px / 100% 5px repeat-x;
 }
 
 /* ─── CRT / dark mode ─────────────────────────────────────────────────────── */
@@ -331,6 +426,29 @@
   --accent-halo-glow: var(--color-accent-glow);
   --accent-halo:      0 0 16px var(--color-accent-glow);
   --accent-halo-text: 0 0 12px var(--color-accent-glow);
+
+  /* The inlay, lit. Same bead, same taper, opposite physics: on the tube the
+     metal is a light source, so the bead goes SILVER — deliberately not the warm
+     cream every ink rule takes, because this is the one element that is metal
+     rather than type — and the halo bands the paper face leaves empty light up.
+     Last layer is the bloom across the full 15px box; it is a background rather
+     than a drop-shadow so the taper can shape it (see --jk-inlay-face above). */
+  --jk-inlay-face:
+    radial-gradient(56% 150% at 50% 28%, rgba(255, 255, 255, 0.5), transparent 68%) 0 6px / 17px 3px repeat-x,
+    radial-gradient(52% 150% at 50% 72%, rgba(96, 126, 148, 0.4), transparent 68%) 9px 6px / 29px 3px repeat-x,
+    linear-gradient(180deg,
+      rgba(200, 228, 246, 0.55) 0 1px,
+      #f6fbff                   1px 2px,
+      #dceaf3                   2px 3px,
+      #9fb2c2                   3px 4px,
+      rgba(200, 228, 246, 0.6)  4px 5px) 0 5px / 100% 5px repeat-x,
+    linear-gradient(180deg,
+      transparent               0%,
+      rgba(150, 190, 220, 0.07) 22%,
+      rgba(170, 205, 232, 0.24) 40%,
+      rgba(170, 205, 232, 0.24) 60%,
+      rgba(150, 190, 220, 0.07) 78%,
+      transparent               100%);
 }
 
 /* ─── Shared CSS component classes ─────────────────────────────────────── */
@@ -560,6 +678,18 @@
 .jk-cards-btn  { transition: background 0.15s, transform 0.1s, border-color 0.15s, color 0.15s; }
 .jk-cards-btn:active { transform: translateY(1px); }
 
+/* The two generic affordances every app was hand-rolling. .jk-hit is the hover
+   response for anything clickable that isn't a button face (a goal card, a
+   calendar cell, a caret, a disclosure row) — it lifts the background and takes
+   a 1px press, nothing more. .jk-scroll is the scroll region: vertical only,
+   never horizontal, so a long title can't shove a pane sideways. Both live here
+   rather than in an app.css because BeigeBoard, ORDECK and PapyrOS each want
+   them and only one of them ships a stylesheet the kit can see. */
+.jk-scroll { overflow-y: auto; overflow-x: hidden; }
+.jk-hit { transition: background 0.12s, border-color 0.12s, color 0.12s, transform 0.1s; }
+.jk-hit:hover  { background: var(--hub-bg-4); }
+.jk-hit:active { transform: translateY(1px); }
+
 /* Halation utilities — the suite-wide accent glow. .jk-halo for surfaces/chips,
    .jk-halo-text for accent type. Both collapse to nothing on paper (the tokens
    are `none` in light mode) so a single class is mode-correct everywhere. */
@@ -639,10 +769,58 @@
    hairline for rows/exhibits, ink for chapter heads, double for the
    contents block and the colophon. */
 .jk-rule        { border: none; height: 1px; background: var(--hub-line); margin: 0; }
+/* The vertical sibling of .jk-rule — the hairline that separates clusters
+   INSIDE a bar (header sources | clock | avatar, a folio head, ORDECK's footer
+   strip). Three apps drew this by hand before it had a name. */
+.jk-divider     { width: 1px; height: 14px; background: var(--color-line); flex: none; }
 .jk-rule-strong { border: none; height: 2px; background: var(--color-ink); opacity: 0.85; margin: 0; }
 .jk-rule-double { border: none; height: 5px; margin: 0; opacity: 0.85;
   background: linear-gradient(180deg,
     var(--color-ink) 0 1.5px, transparent 1.5px 3.5px, var(--color-ink) 3.5px 5px); }
+/* The fourth weight — the INLAY. The one divider in the system that is not ink.
+ *
+ * GEOMETRY is what earns it a place in the ladder. Every rule above is cut
+ * square, and a square cut is right when the rule sits inside something that
+ * already has an edge (a card, a row, a bordered lane). At the boundaries of the
+ * CANVAS there is no such edge — the measure floats on the grained ground — so a
+ * square-cut rule terminates in mid-air and reads as a slab edge: the page looks
+ * cropped rather than set. This one feathers to nothing over the last ~9% at each
+ * end. It is therefore the only line on the page that ends in POINTS, which is
+ * what makes it read as a distinct object rather than as one more hairline.
+ *
+ * MATERIAL follows from that. Because it is the one divider with its own
+ * silhouette, it is also the one that is not printed:
+ *
+ *   paper → a hammered-steel inlay: a half-round bead let into the sheet. Five
+ *           bands in 4px carry the whole illusion — the groove's shadow above the
+ *           bead, the crown catch-light, the steel body, the bead's bottom lip,
+ *           then the sheet's own catch on the lower edge of the groove. The round
+ *           profile is drawn in SHADING, not in border-radius, because a radius
+ *           would fight the taper (the ends have to be able to dissolve). The two
+ *           dimple layers ride coprime periods — 13px and 21px — so the hammer
+ *           marks don't visibly tile across a 1700px measure. Cooled off the warm
+ *           --hub-metal-* stock so it reads as steel in a kraft world rather than
+ *           as one more beige line.
+ *   CRT   → the same blade, lit: silver rather than the warm cream the ink rules
+ *           take (metal, not type), and the glow is drawn with drop-shadow so it
+ *           rides the mask and dies out WITH the points instead of squaring them
+ *           off again.
+ *
+ * All of it lives in the three --jk-inlay-* seams so the masthead ladder
+ * (.jk-masthead::after) is the SAME OBJECT, not a second recipe that drifts.
+ * Inside a bordered container keep .jk-rule — an inlay there is furniture. */
+.jk-rule-taper {
+  border: none;
+  /* 15px of box for a 5px bead, centred: the outer bands are the halo the dark
+     face lights up (transparent on paper). Both numbers are fixed — the face is
+     authored one band per device row, so a shorter box crops the bead's lip and
+     the sheet's catch, and a taller one strands the bead off centre. */
+  height: 15px;
+  margin: 0;
+  background: var(--jk-inlay-face);
+  -webkit-mask-image: var(--jk-inlay-mask);
+          mask-image: var(--jk-inlay-mask);
+}
 
 /* The folio mark — names CONTENT in print: running-head rules above and
    below, serif caps, the number/count slot in accent italic. */
@@ -932,6 +1110,243 @@
   box-shadow: var(--hub-shadow-card), inset 0 1px 0 var(--hub-bevel-light);
 }
 
+/* ─── The canvas — one measure for a full-page view ─────────────────────────
+ * Tokens + rationale live up in the :root block (--jk-canvas). Two composable
+ * pieces, and deliberately NO third one that draws a surface:
+ *
+ *   .jk-canvas        the measure. Centre a block at the house width. Override
+ *                     for one view with --jk-canvas-w (a whole number, or
+ *                     `none` for a view that genuinely must run full bleed).
+ *   .jk-canvas-fill   + fill a flex parent as a column. A full-height app page
+ *                     (masthead row + content row) rather than a document that
+ *                     scrolls.
+ *
+ * The canvas is a MEASURE, not a card. It was briefly drawn as a lifted sheet
+ * of paper stock on a darker desk; the motif read as a document floating in a
+ * window rather than as the app's own ground, so it is gone. The page ground is
+ * the app's grained background (buildJkOSTheme paints --hub-grain-image onto
+ * `body`), content sits DIRECTLY on it, and the canvas only decides how wide
+ * that content runs. Anything that still wants to read as a raised card uses
+ * .jk-sheet above — a card, at card scale.
+ *
+ * Put them on the OUTERMOST element of the page, wrapping the masthead too —
+ * a folio pinned to the window edge while its own content sits 500px inboard
+ * is the exact weighting failure this replaces. Panes inside never re-centre. */
+.jk-canvas      { width: 100%; min-width: 0; margin-inline: auto;
+                  max-width: var(--jk-canvas-w, var(--jk-canvas)); }
+.jk-canvas-fill { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+
+/* ── The masthead — the canvas's HEAD, and the foot's matched pair ───────────
+ * The app's top bar, set as a printed masthead rather than built as a toolbar.
+ *
+ * What it replaces: an opaque --color-paper bar with a square border-bottom.
+ * Two things were wrong with that, and they are the same thing twice. (1) The
+ * fill was opaque, so the bar was the one region of the app where the ground's
+ * grain stopped — the sheet the whole page is printed on had a flat rectangle
+ * cut out of the top of it. (2) Because the canvas is a MEASURE floating on the
+ * ground, that rectangle's left, right and bottom edges were square cuts in
+ * mid-air: a slab laid over the page, which is precisely the "document floating
+ * in a window" reading the drawn-sheet motif was deleted for. A masthead is not
+ * a slab. It is type set at the top of the sheet with rules under it.
+ *
+ * So: NO fill (the grain runs unbroken from the first pixel), NO border, and the
+ * bottom edge is the INLAY — the tapered metal bead defined at .jk-rule-taper,
+ * rendered here as a pseudo-element from the same --jk-inlay-* recipe so the two
+ * can never drift into being two different objects.
+ *
+ * It was briefly a printed ladder (a 2px ink rule with a hairline hung under it).
+ * That was correct print and slightly too quiet: the page has a dozen hairlines
+ * and this is the one that has to say "everything below here is the document".
+ * One bead, not a rule plus a hairline — a second line under a piece of metal
+ * reads as two pieces of trim, and the whole point is that there is exactly ONE
+ * metal divider in the suite.
+ *
+ * Transparency is safe because the canvas app-shell never scrolls its content
+ * under the head — each view scrolls inside its own .jk-scroll pane. If you ever
+ * put a masthead over a scrolling document, that document needs its own fill. */
+.jk-masthead {
+  position: relative;
+  flex: none;
+  background: transparent;
+  border: none;
+}
+.jk-masthead::after {
+  content: "";
+  position: absolute;
+  /* bottom:-5px puts the BEAD (rows 5–10 of the 15px face) exactly on the
+     masthead's bottom edge; the 5px of halo below it hangs over the page, which
+     is what a lit blade does and why this pseudo is pointer-transparent. */
+  left: 0; right: 0; bottom: -5px;
+  height: 15px;
+  pointer-events: none;
+  background: var(--jk-inlay-face);
+  -webkit-mask-image: var(--jk-inlay-mask);
+          mask-image: var(--jk-inlay-mask);
+}
+
+/* A nav tab in the masthead — a BOX.
+ *
+ * This was briefly a printed thumb-index: no fill, no frame, the current tab
+ * named by weight plus a stub of accent rule dropped onto the ladder beneath it.
+ * It was defensible print and it failed at the first thing a nav has to do. The
+ * verdict that sent it back: "I preferred the boxed looks as they showed the
+ * theme of the light/dark mode instantly." A filled box is the fastest statement
+ * of FACE the system owns, because the fill IS the face — a tint debossed into
+ * the sheet on paper, an emissive ring + glow on the tube, both of them the same
+ * --hub-accent-press flip every other surface takes. A weight change and a 2px
+ * accent stub say neither, so at a glance the masthead stopped telling you which
+ * mode you were in.
+ *
+ * So this class is the reset and the hover fill only; the SELECTED tab adds
+ * .jk-well — the suite's existing region primitive, reused rather than restated,
+ * which is what keeps the mode flip in one place. The radius comes back down to
+ * --hub-radius-sm (the well's own lg is a page-scale corner, too soft at tab
+ * scale); this rule is declared after .jk-well, so it wins without !important. */
+.jk-masthead-tab {
+  position: relative;
+  border: none;
+  border-radius: var(--hub-radius-sm);
+  cursor: pointer;
+  transition: background 0.14s, box-shadow 0.14s, color 0.14s;
+}
+/* Both fills are guarded on the state, and the guard is load-bearing rather than
+   tidy: this block is declared AFTER .jk-well (it has to be, so the radius comes
+   down to tab scale), and at equal specificity later wins — an unguarded
+   `background: transparent` here silently blanks the current tab's tint, leaving
+   a well with no fill and only its press shadow. Let .jk-well own the selected
+   background; claim only the states it doesn't. */
+.jk-masthead-tab:not([aria-selected="true"])       { background: transparent; }
+.jk-masthead-tab:not([aria-selected="true"]):hover { background: var(--color-card); }
+
+/* The canvas's foot — the anchor that keeps a short view from trailing off into
+ * dead ground. Top-set content, then a rule and a colophon pinned to the bottom
+ * of the canvas: the empty middle becomes measured margin between two anchors
+ * instead of a void. Pair with <Colophon> (.jk-colophon).
+ *
+ * The top rule FEATHERS at both ends, for the reason .jk-rule-taper gives: the
+ * foot sits at the same open boundary the masthead does, so a square-cut hairline
+ * reads as a slab edge there too. Drawn as a background layer rather than a
+ * border so the taper is a gradient, not a solid edge.
+ *
+ * It borrows the taper's GEOMETRY and none of its material. The masthead's bead
+ * is metal precisely because it is the one of its kind; a second inlay at the
+ * bottom of the page would spend the scarcity that makes the first one read.
+ * Head and foot are a pair by margin, not by substance — ink answering steel. */
+.jk-canvas-foot {
+  margin-top: auto;
+  flex: none;
+  padding: 9px 0 10px;
+  border-top: none;
+  background-image: linear-gradient(90deg, transparent 0,
+    var(--hub-line) 9%, var(--hub-line) 91%, transparent 100%);
+  background-size: 100% 1px;
+  background-repeat: no-repeat;
+  background-position: left top;
+}
+/* A colophon in an app's foot sets on ONE line — fleuron inline, not stacked.
+   Standalone (end of a long document, as on the design page) it keeps the full
+   three-line flourish; inside a page foot that would cost ~80px of the view for
+   a decoration. Same class, tightened by context. */
+.jk-canvas-foot .jk-colophon { line-height: 1.35; }
+.jk-canvas-foot .jk-colophon::before {
+  display: inline;
+  font-size: 1rem;
+  margin: 0 9px 0 0;
+}
+
+/* ─── The detail panel — an OVERLAY on the canvas, never a member of it ──────
+ * The pane that slides in over a page to show one selected thing (BeigeBoard's
+ * item detail; anything with the same shape). Two variants of one primitive:
+ *   .jk-panel-rail   desktop — a rail pinned to the canvas's inboard right edge
+ *   .jk-panel-sheet  below desktop — a bottom sheet across the full measure
+ *
+ * WHY THIS IS A PRIMITIVE, AND WHY IT IS `position: absolute`
+ * This panel has now broken twice, both times because it was written as a member
+ * of the app-shell grid (`grid-row: 2; grid-column: 1`, sharing the cell with
+ * <main>) instead of as an overlay ON that grid.
+ *
+ *   1st: it took `transform`-animated entrance classes with a fill-mode, and a
+ *        transform "in effect" makes an element a containing block — so fixed
+ *        popups inside it mispositioned. (Fixed by dropping fill-mode; see the
+ *        note on .panel-enter.)
+ *   2nd: it was the only grid item with an EXPLICIT row/column. CSS grid places
+ *        definite items before auto ones, so the panel claimed row 2 / col 1
+ *        first, auto-placement then found that cell taken and pushed <main> into
+ *        an IMPLICIT row 3 — which absorbed the free space and collapsed the
+ *        declared `minmax(0, 1fr)` row 2 to 0px. The panel mounted, rendered its
+ *        whole subtree, reported height 0, and was invisible. Opening a task
+ *        appeared to do nothing, in every view at once.
+ *
+ * Both failures come from one mistake: an overlay that participates in layout.
+ * `position: absolute` is therefore load-bearing, not styling — it takes the
+ * panel out of flow AND out of grid placement, so it cannot size a track, cannot
+ * displace a sibling, and cannot be displaced by one.
+ *
+ * HOW TO MOUNT ONE. Give it a positioned HOST that spans the region it overlays
+ * — for a full-page app shell, a `position: relative; pointer-events: none` pane
+ * stacked on the content cell (BeigeBoard's App.tsx shows the pattern). The panel
+ * itself takes no grid-row / grid-column / align-self / justify-self, ever: if
+ * you are reaching for those, the overlay is becoming a layout member again and
+ * that is bug #2 coming back. The host is also why this class does not simply
+ * pin to the .jk-canvas: the canvas spans the masthead, and a panel pinned to it
+ * would either cover the masthead or need the masthead's height hardcoded.
+ *
+ * --jk-panel-w sets the rail width (default 340px). Pair with .panel-enter.  */
+.jk-panel {
+  position: absolute;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--hub-bg-2);
+  color: var(--color-ink);
+  /* the host layer runs pointer-events:none so it doesn't eat clicks on the view
+     underneath; the panel is the part that must receive them. */
+  pointer-events: auto;
+}
+.jk-panel-rail {
+  top: 0; right: 0; bottom: 0;
+  width: min(var(--jk-panel-w, 340px), 100%);
+  border-left: 1px solid var(--color-line);
+  /* soft on the INBOARD corners only: the panel is a leaf tipped in against the
+     page's right edge, so the edge it shares with the window stays square and
+     the two corners that face the content round. */
+  border-top-left-radius: var(--hub-radius-lg);
+  border-bottom-left-radius: var(--hub-radius-lg);
+  box-shadow: -10px 0 30px var(--hub-shadow-panel-ink);
+}
+.jk-panel-sheet {
+  left: 0; right: 0; bottom: 0;
+  max-height: 82vh;
+  border-top: 1px solid var(--color-line);
+  border-top-left-radius: var(--hub-radius-lg);
+  border-top-right-radius: var(--hub-radius-lg);
+  box-shadow: 0 -10px 30px var(--hub-shadow-panel-ink);
+}
+/* The panel's own masthead — the selected item's flag. A solid --jk-tint band
+   (the item's colour, the chip system's seam) closed by a cream hairline, so the
+   head reads as the same pressed-ink tab family as every chip under it rather
+   than as a coloured toolbar. */
+.jk-panel-head {
+  flex: none;
+  background: color-mix(in srgb, var(--jk-tint, var(--accent)) 82%, var(--accent-deepen-ink));
+  box-shadow: inset 0 -1px 0 rgba(247, 239, 220, 0.28), 0 2px 6px rgba(48, 34, 20, 0.26);
+}
+/* CRT — the same face flip .jk-chip-solid takes, and for the same reason: on the
+   tube a saturated fill does not read as "solid ink", it reads as a light source,
+   and the cream knockout that sits on it in print has nothing to knock out of. So
+   the band drops to the phosphor-black base tinted through, and the title (which
+   is .jk-press-rev) becomes emissive tint over it. A slightly thinner tint than a
+   chip's 26% because this band is two orders of magnitude larger in area — the
+   same saturation that reads as one lit chip reads as glare across a header.
+   Getting this wrong is not cosmetic: keeping the paper recipe here put tinted
+   type on a same-tinted band, and the panel's title became unreadable in dark. */
+:root[data-mode="dark"] .jk-panel-head {
+  background: color-mix(in srgb, var(--jk-tint, var(--accent)) 20%, #0e0b07);
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--jk-tint, var(--accent)) 45%, transparent),
+              0 0 18px color-mix(in srgb, var(--jk-tint, var(--accent)) 22%, transparent);
+}
+
 /* ─── Chips — the Full Press solid-ink tab (SUITE DEFAULT) ──────────────────
  * The saturated letter-tab that supersedes the calendar kit's old ACCENT_GLAZE
  * chip: a --jk-tint (unset → --accent) fill deepened toward --accent-deepen-ink,
@@ -943,7 +1358,8 @@
  *   .jk-chip        raised, faint-tint chip — neutral-ink rows
  *   .jk-chip-solid  THE DEFAULT — saturated tint tab, cream knockout
  *   .jk-chip-live   now / active (brighter fill + ring)
- *   .jk-chip-done   spent — flat, dimmed
+ *   .jk-chip-spent  ENDED, NOT DONE — the chip keeps its ink, loses its weight
+ *   .jk-chip-done   struck off — flat, dimmed
  *   .jk-chip-sm     dense (calendar cells, tight rails)
  * ───────────────────────────────────────────────────────────────────────── */
 .jk-chip {
@@ -976,6 +1392,13 @@
   transform: none;
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--jk-tint, var(--accent)) 28%, transparent);
 }
+/* Ended but not struck off. Deliberately ONLY an opacity — a spent chip is the
+   same chip, just behind you, so it keeps its fill, its ring and its type. This
+   is the whole of the dimming behaviour, and it's what makes the now-line read
+   as a position in the day rather than a line drawn across it. Face-independent:
+   .68 of an emissive chip reads spent on the tube exactly as .68 of an inked one
+   does on paper. */
+.jk-chip-spent { opacity: 0.68; }
 .jk-chip-sm {
   box-shadow:
     inset 0 1px 0 color-mix(in srgb, #ffffff 55%, transparent),
@@ -1552,6 +1975,11 @@
   :root {
     --hub-tap-min:    44px;
     --hub-widget-pad: 14px;
+    /* The canvas needs no tier logic — below ~1440px its "window minus gutters"
+       term already wins, so the sheet simply fills. All a touch tier has to do
+       is give back the desk margin as usable width. */
+    --jk-canvas-gutter: 16px;
+    --jk-rail:          300px;
   }
 }
 
@@ -1561,6 +1989,11 @@
   :root {
     --hub-tap-min:       44px;
     --hub-widget-pad:    14px;
+    /* Phone: the sheet IS the screen. No desk to show, and a rail that stacks
+       below the content is full-width, so --jk-rail stops meaning anything
+       horizontal — it becomes the stacked block's max width. */
+    --jk-canvas-gutter:  0px;
+    --jk-rail:           100%;
     --hub-fs-bubble:     11px;
     --hub-fs-bubble-lg:  13px;
     --hub-pad-bubble:    7px 13px;

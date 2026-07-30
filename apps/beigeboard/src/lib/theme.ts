@@ -35,9 +35,30 @@ export const SOURCES: Record<string, { label: string; hex: string }> = {
 
 export const sourceOf = (id: string) => SOURCES[id] || { label: 'Source', hex: '#7A6050' }
 
-// BeigeBoard-only formatters layered on the shared localDate.
-export const fmtMonthDay = (iso: string) => localDate(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+/** Tint by SOURCE — the card kit's `sourceColorOf` resolver. An UNKNOWN source is
+ *  NOT tinted: it returns '' so the kit's `sourceColorOf(…) || 'var(--color-accent)'`
+ *  chains fall through to the theme, exactly the way `tagTintOf` falls through
+ *  below. Do not wire `sourceOf(…).hex` in here — that catch-all umber is a LABEL
+ *  colour, and answering the tint question with it painted every untracked item
+ *  the same dead brown AND short-circuited every `||` fallback downstream of it. */
+export const sourceTintOf = (id?: string | null): string => (id && SOURCES[id] ? SOURCES[id].hex : '')
 
+/** Tint by ORIGIN — an item's tag says what kind of work it is, and that is a
+ *  more durable reason to colour it than the theme accent, which changes with
+ *  the user's mood. Values are hub tokens, not hex, so the pair still follows
+ *  the chosen accent scheme: DESIGN takes the primary, DOCS and INFRA take the
+ *  suite's fixed secondaries. An unknown tag is not tinted — it falls through
+ *  to the parent goal, then to the theme. */
+const TAG_TINTS: Record<string, string> = {
+  DESIGN: 'var(--color-accent)',
+  DOCS:   'var(--hub-cyan)',
+  INFRA:  'var(--hub-magenta)',
+}
+
+export const tagTintOf = (tag?: string | null): string | null =>
+  (tag ? TAG_TINTS[tag.toUpperCase()] ?? null : null)
+
+// BeigeBoard-only formatters layered on the shared localDate.
 export function getGreeting() {
   const h = new Date().getHours()
   if (h <  5) return 'Late night.'

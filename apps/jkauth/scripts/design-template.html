@@ -178,6 +178,28 @@
     .dg-panel { max-width: 520px; border: 1px solid var(--hub-line); border-radius: var(--hub-radius-lg); background: var(--hub-bg-1); }
     .dg-shell-demo { border: 1px solid var(--hub-line); border-radius: var(--hub-radius-lg); background: var(--hub-bg-1); overflow: hidden; }
     .dg-shell-demo .jk-shell { min-height: 0; }
+    /* The canvas demo — a scaled desk with a sheet centred on it. The canvas's
+       "window minus gutters" term resolves against THIS box, so the sheet
+       behaves here exactly as it does at full size. */
+    .dg-canvas-demo { display: flex; min-height: 250px; border-radius: var(--hub-radius-lg); overflow: hidden; padding-block: 18px; }
+    /* Demo-only: the canvas is a MEASURE and draws nothing, so this dashed edge
+       stands in for where it falls. Never do this in an app. */
+    .dg-canvas-demo .jk-canvas { outline: 1px dashed var(--color-line-strong); }
+    .dg-canvas-demo .jk-masthead { display: flex; align-items: center; gap: 14px; padding: 10px 20px 6px; }
+    .dg-canvas-demo .jk-masthead nav { display: flex; gap: 4px; margin-left: auto; align-items: center; }
+    .dg-canvas-demo .jk-masthead-tab { padding: 6px 14px; display: flex; flex-direction: column; align-items: center; }
+    .dg-canvas-body { flex: 1; display: flex; min-height: 0; position: relative; }
+    .dg-canvas-main { flex: 1; min-width: 0; padding: 16px 20px; border-right: 1px solid var(--color-line); }
+    .dg-canvas-rail { width: var(--jk-rail); max-width: 40%; flex: none; padding: 16px 18px; }
+    .dg-canvas-demo .jk-canvas-foot { margin-inline: 20px; }
+    /* Demo-only: the overlay panels are shown at demo scale, and the sheet variant
+       is stacked below the rail rather than on top of it so both are legible at
+       once. In an app exactly one of them renders, sized by --jk-panel-w. */
+    .dg-panel-demo { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+    .dg-panel-stage { position: relative; min-height: 190px; border: 1px dashed var(--color-line-strong); border-radius: var(--hub-radius-lg); overflow: hidden; background-color: var(--color-paper); }
+    .dg-panel-stage .jk-panel { --jk-panel-w: 190px; }
+    .dg-panel-stage .jk-panel-head { padding: 12px 15px 13px; }
+    .dg-panel-stage .dg-panel-body { padding: 13px 15px; }
 
     /* Motion demos — hover (or tap) a tile and its entrance replays on a loop
        with a rest beat between plays; leave and it settles. */
@@ -478,6 +500,22 @@
       <hr class="jk-rule" style="margin:0 0 4px"><span class="mono-eyebrow">jk-rule</span>
       <hr class="jk-rule-strong" style="margin:12px 0 4px"><span class="mono-eyebrow">jk-rule-strong</span>
       <hr class="jk-rule-double" style="margin:12px 0 4px"><span class="mono-eyebrow">jk-rule-double</span>
+      <hr class="jk-rule-taper" style="margin:12px 0 4px"><span class="mono-eyebrow">jk-rule-taper</span>
+      <p class="dg-caption" style="margin-top:8px">
+        the fourth weight is <b>the inlay</b> — and the one divider in the suite that is not ink.
+        Geometry earns it the slot: it <b>dies into the ground</b> at both ends, where every rule
+        above is cut square. A square cut is right inside something that already has an edge; at the
+        boundaries of the canvas there is no edge, so a square-cut rule terminates in mid-air and the
+        page reads as <i>cropped</i>. Being the only line that ends in points, it is also the only one
+        with a silhouette of its own — so it gets a material: <b>hammered steel let into the sheet</b>
+        on paper (groove shadow, crown catch-light, steel body, lip, then the sheet's catch — a round
+        profile drawn in shading — one band per device pixel — never in <code>border-radius</code>, which would fight the taper),
+        and the <b>same blade lit</b> on the tube, silver rather than cream because this is metal and
+        not type. Flip the face above and watch it change state. Scarcity is the whole point: it is
+        spent on the masthead's edge (§11) and nowhere else — the canvas foot borrows the taper's
+        geometry and stays ink. Inside a bordered container keep <code>.jk-rule</code>: an inlay
+        there is furniture.
+      </p>
     </section>
 
     <!-- ══ 05 Accent bubbles ══ -->
@@ -546,6 +584,12 @@
         tube. Supersedes the calendar kit's old <code>ACCENT_GLAZE</code> look. React:
         <code>&lt;Chip&gt;</code> + <code>&lt;Press variant="rev|ink|sm"&gt;</code>.
       </p>
+      <p class="dg-note">
+        The four states are not a style choice per call site — <code>chipState(item, now)</code> in
+        <code>@jkos/cards</code> decides which one an item is wearing, so a chip carries the same
+        weight in every view that renders it. <strong>Spent</strong> is the state that is easy to
+        forget: ended, but nobody struck it off. It keeps its ink and loses only its weight.
+      </p>
       <div class="dg-row" style="margin-bottom:14px;align-items:stretch">
         <span class="jk-chip jk-chip-solid" style="padding:6px 12px;display:inline-flex;flex-direction:column;gap:1px">
           <span class="jk-press-rev" style="font-family:var(--hub-font-serif);font-weight:600;font-size:13px">Deep work</span>
@@ -554,6 +598,10 @@
         <span class="jk-chip jk-chip-solid jk-chip-live" style="padding:6px 12px;display:inline-flex;flex-direction:column;gap:1px;--jk-tint:var(--hub-cyan)">
           <span class="jk-press-rev" style="font-family:var(--hub-font-serif);font-weight:600;font-size:13px">Live now</span>
           <span class="mono-eyebrow" style="font-size:8px">jk-chip-live</span>
+        </span>
+        <span class="jk-chip jk-chip-solid jk-chip-spent" style="padding:6px 12px;display:inline-flex;flex-direction:column;gap:1px">
+          <span class="jk-press-rev" style="font-family:var(--hub-font-serif);font-weight:600;font-size:13px">Ran over</span>
+          <span class="mono-eyebrow" style="font-size:8px">jk-chip-spent</span>
         </span>
         <span class="jk-chip jk-chip-solid jk-chip-done" style="padding:6px 12px;display:inline-flex;flex-direction:column;gap:1px">
           <span class="jk-press-rev" style="font-family:var(--hub-font-serif);font-weight:600;font-size:13px">Shipped</span>
@@ -792,10 +840,146 @@
       </div>
     </section>
 
-    <!-- ══ 11 Media ══ -->
+    <!-- ══ 11 Measure ══ -->
+    <section class="dg-sec jk-sheet" id="measure">
+      <div class="dg-sec-head">
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">11</span><span class="label-tape">MEASURE</span></div>
+        <h2>The canvas</h2>
+        <p class="dg-lede">
+          One measure per page. A full-page view's <b>outermost</b> element is the canvas, and
+          everything — rails included — lives inside it. Before this each view invented its own
+          rule, so on a wide monitor one app centred its content while its own rail stayed welded
+          to the window edge 700px away. The page owns the measure; a component fills what it is
+          given. That is also why the <code>@jkos/cards</code> views carry no
+          <code>max-width</code>: in a widget they fill the widget, on a page they fill the page.
+        </p>
+        <p class="dg-lede">
+          Width is <b>fluid with a cap</b> — <code>--jk-canvas</code> takes the smallest of the
+          window minus its gutters, <code>900px + 34vw</code>, and <code>--jk-canvas-cap</code>.
+          Below ~1440px the canvas simply fills; above it, it grows at about a third the rate the
+          window does, so the margins open progressively instead of all at once, and stop at 1760.
+          Roughly <b>964 @1024 · 1380 @1440 · 1545 @1920 · 1760 @2560</b> and up. A phone needs no
+          second implementation: the first term wins outright and the gutter drops to zero.
+        </p>
+        <p class="dg-lede">
+          A measure, <b>not a card</b>. The canvas draws nothing: the page ground is the app's own
+          grained background and content sits directly on it. It was briefly drawn as a lifted
+          sheet of paper stock on a darker desk — that read as a document floating in a window
+          instead of as the app's ground, so it's gone, along with <code>--jk-desk</code> and
+          <code>.jk-canvas-sheet</code>. Something that should read as a raised card uses
+          <code>.jk-sheet</code> — at card scale, not page scale.
+        </p>
+        <p class="dg-lede">
+          <b>The head's edge is the inlay.</b> <code>.jk-masthead</code> spends no fill and no
+          border: the ground's grain runs unbroken from the first pixel, and the bottom edge is the
+          tapered metal bead of §04, drawn from the same <code>--jk-inlay-*</code> recipe so the two
+          are one object rather than two that drift. It replaced an opaque bar with a square
+          <code>border-bottom</code>, which was a slab: its fill was the one place in the app where
+          the grain stopped, and because the canvas floats on the ground its edges were square cuts
+          in mid-air. One bead, not the ink rule + hairline ladder it was briefly — a second line
+          under a piece of metal reads as two pieces of trim. <code>.jk-canvas-foot</code> takes the
+          same feathered margin in ink, so head and foot bracket the page as a pair by margin rather
+          than by substance.
+        </p>
+        <p class="dg-lede">
+          Nav in a masthead is <b>boxed</b> (<code>.jk-masthead-tab</code>, plus
+          <code>.jk-well</code> on the current one). It spent a pass as a fill-less thumb-index —
+          marked by weight and a stub of accent rule on the ladder — and came back, which is the
+          instructive part: a filled box states the <i>face</i> instantly, because the fill IS the
+          face (debossed tint on paper, emissive ring and glow on the tube, both from
+          <code>--hub-accent-press</code>). A weight change and a 2px stub state neither, and the nav
+          is the first thing looked at. Reuse the well; don't restate its mode flip.
+        </p>
+      </div>
+      <p class="dg-caption">jk-canvas · jk-canvas-fill › jk-masthead › jk-masthead-tab › jk-canvas-foot &nbsp;(dashed edge = demo only)</p>
+      <div class="dg-canvas-demo">
+        <div class="jk-canvas jk-canvas-fill">
+          <header class="jk-masthead">
+            <span class="jk-folio">Masthead <span class="jk-folio-no">No. 11</span></span>
+            <nav>
+              <button class="jk-masthead-tab jk-well" aria-selected="true">
+                <span class="jk-press" style="font-family:var(--hub-font-mono);font-size:10px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;line-height:1.1">Today</span>
+                <span class="mono-eyebrow" style="font-size:7px;margin-top:3px">NOW</span>
+              </button>
+              <button class="jk-masthead-tab" aria-selected="false">
+                <span style="font-family:var(--hub-font-mono);font-size:10px;font-weight:500;letter-spacing:.18em;text-transform:uppercase;color:var(--color-muted);line-height:1.1">Week</span>
+                <span class="mono-eyebrow" style="font-size:7px;margin-top:3px;opacity:.5">7 DAYS</span>
+              </button>
+              <button class="jk-masthead-tab" aria-selected="false">
+                <span style="font-family:var(--hub-font-mono);font-size:10px;font-weight:500;letter-spacing:.18em;text-transform:uppercase;color:var(--color-muted);line-height:1.1">Month</span>
+                <span class="mono-eyebrow" style="font-size:7px;margin-top:3px;opacity:.5">GRID</span>
+              </button>
+            </nav>
+          </header>
+          <div class="dg-canvas-body">
+            <div class="dg-canvas-main">
+              <p class="dg-lede" style="margin:0">The view. Top-set like a printed page.</p>
+            </div>
+            <aside class="dg-canvas-rail">
+              <span class="mono-eyebrow">RAIL</span>
+              <p class="dg-caption" style="margin:6px 0 0">--jk-rail · a pane <b>inside</b> the canvas</p>
+            </aside>
+          </div>
+          <div class="jk-canvas-foot">
+            <div class="jk-colophon" style="font-size:0.82rem">the foot holds the bottom of the measure</div>
+          </div>
+        </div>
+      </div>
+
+      <p class="dg-lede" style="margin-top:30px">
+        <b>The detail panel overlays the canvas — it is never a member of it.</b> The pane that slides
+        in over a page to show one selected thing, in two variants of one primitive:
+        <code>.jk-panel-rail</code> pins to the content area's inboard right edge (soft on the two
+        corners that face the content, square on the one it shares with the window);
+        <code>.jk-panel-sheet</code> is the below-desktop bottom sheet. <code>.jk-panel-head</code> is
+        the selected item's own flag — a solid <code>--jk-tint</code> band, so it reads as the loudest
+        member of the chip family (§13) rather than as a coloured toolbar.
+      </p>
+      <p class="dg-lede">
+        <code>position: absolute</code> here is <b>load-bearing, not styling</b>. This panel has broken
+        twice, both times because it was written as a grid item sharing the app shell's content cell:
+        once through a fill-moded transform making it a containing block for the fixed popups it
+        hosted, and once because it was the only <i>definitely</i>-placed grid child — grid placed it
+        first, auto-placement then found its cell taken, pushed <code>&lt;main&gt;</code> into an
+        implicit row, and the declared <code>1fr</code> row collapsed to <b>0px</b>. The panel mounted,
+        rendered its whole subtree, measured zero, and vanished in every view at once. Give it a
+        positioned, <code>pointer-events: none</code> host spanning the region it covers — and never
+        <code>grid-row</code>, <code>grid-column</code> or a self-alignment again.
+        (<code>pnpm check:overlay</code> holds this.)
+      </p>
+      <p class="dg-caption">jk-panel + jk-panel-rail / jk-panel-sheet › jk-panel-head &nbsp;(dashed edge = the host region)</p>
+      <div class="dg-panel-demo">
+        <div class="dg-panel-stage">
+          <div class="jk-panel jk-panel-rail" style="--jk-tint:var(--hub-cyan)">
+            <div class="jk-panel-head">
+              <div class="mono-eyebrow" style="color:var(--color-on-accent-dim);margin-bottom:4px">TASK</div>
+              <div class="jk-press-rev" style="font-family:var(--hub-font-serif);font-weight:600;font-size:15px;letter-spacing:-.015em;line-height:1.2">Refine the masthead</div>
+            </div>
+            <div class="dg-panel-body">
+              <span class="jk-lab jk-lab-xs">When</span>
+              <p class="dg-caption" style="margin:4px 0 0">9:30 — 11:00</p>
+            </div>
+          </div>
+        </div>
+        <div class="dg-panel-stage">
+          <div class="jk-panel jk-panel-sheet" style="--jk-tint:var(--color-accent)">
+            <div class="jk-panel-head">
+              <div class="mono-eyebrow" style="color:var(--color-on-accent-dim);margin-bottom:4px">GOAL</div>
+              <div class="jk-press-rev" style="font-family:var(--hub-font-serif);font-weight:600;font-size:15px;letter-spacing:-.015em;line-height:1.2">Ship the suite</div>
+            </div>
+            <div class="dg-panel-body">
+              <span class="jk-lab jk-lab-xs">Horizon</span>
+              <p class="dg-caption" style="margin:4px 0 0">the narrow-width variant</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 12 Media ══ -->
     <section class="dg-sec jk-sheet" id="media">
       <div class="dg-sec-head">
-        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">11</span><span class="label-tape">MEDIA</span></div>
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">12</span><span class="label-tape">MEDIA</span></div>
         <h2>Media grid &amp; covers</h2>
         <p class="dg-lede">The suite cover grid + tile — <code>@jkos/ui</code> <code>&lt;MediaGrid&gt;</code> / <code>&lt;CoverArt&gt;</code>. Density keys off one token ladder (compact/cozy/comfortable).</p>
       </div>
@@ -815,7 +999,7 @@
     <!-- ══ 12 Player ══ -->
     <section class="dg-sec jk-sheet" id="player">
       <div class="dg-sec-head">
-        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">12</span><span class="label-tape">PLAYER</span></div>
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">13</span><span class="label-tape">PLAYER</span></div>
         <h2>The player bar</h2>
         <p class="dg-lede">
           <code>@jkos/player/ui</code>'s <code>&lt;PlayerBar&gt;</code> — a slotted shell, not a
@@ -943,7 +1127,7 @@
     <!-- ══ 13 Panels & states ══ -->
     <section class="dg-sec jk-sheet" id="panels">
       <div class="dg-sec-head">
-        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">13</span><span class="label-tape">PANELS · STATES</span></div>
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">14</span><span class="label-tape">PANELS · STATES</span></div>
         <h2>Panels &amp; the async triad</h2>
         <p class="dg-lede">
           Every view that loads has the same three off-states — <b>loading, error, empty</b> —
@@ -1028,12 +1212,35 @@
           <button class="jk-cards-btn jk-tbtn">jk-cards-btn — press me</button>
         </div>
       </div>
+      <p class="dg-note" style="margin-top:16px">
+        <code>.jk-hit</code> is the same idea one level down: the hover response for anything
+        clickable that has no button face — a goal card, a calendar cell, a caret. It lifts the
+        background and takes a 1px press, and that is deliberately all it does.
+        <code>.jk-scroll</code> is the scroll region, vertical only, so a long title can never
+        shove a pane sideways. <code>.jk-divider</code> is <code>.jk-rule</code>'s vertical
+        sibling — the hairline that separates clusters inside a bar.
+      </p>
+      <div class="dg-panel" style="padding:12px">
+        <div class="jk-scroll" style="max-height:96px;display:flex;flex-direction:column;gap:6px">
+          <div class="jk-hit" style="padding:9px 11px;border:1px solid var(--hub-line);border-radius:var(--hub-radius-sm);cursor:pointer">jk-hit — hover me, then press</div>
+          <div class="jk-hit" style="padding:9px 11px;border:1px solid var(--hub-line);border-radius:var(--hub-radius-sm);cursor:pointer">jk-hit — inside a jk-scroll region</div>
+          <div class="jk-hit" style="padding:9px 11px;border:1px solid var(--hub-line);border-radius:var(--hub-radius-sm);cursor:pointer">jk-hit — scroll to reach me</div>
+          <div class="jk-hit" style="padding:9px 11px;border:1px solid var(--hub-line);border-radius:var(--hub-radius-sm);cursor:pointer">jk-hit — vertical only, never sideways</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;margin-top:12px">
+          <span class="mono-eyebrow">4 SOURCES</span>
+          <span class="jk-divider"></span>
+          <span class="seg" style="font-size:15px">09:41</span>
+          <span class="jk-divider"></span>
+          <span class="mono-eyebrow">jk-divider</span>
+        </div>
+      </div>
     </section>
 
     <!-- ══ 14 Motion ══ -->
     <section class="dg-sec jk-sheet" id="motion">
       <div class="dg-sec-head">
-        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">14</span><span class="label-tape">MOTION</span></div>
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">15</span><span class="label-tape">MOTION</span></div>
         <h2>Motion vocabulary</h2>
         <p class="dg-lede">
           Ambient hardware effects (LED pulse, occasional flicker) are the house idiom —
@@ -1074,7 +1281,7 @@
     <!-- ══ 15 The brief ══ -->
     <section class="dg-sec jk-sheet" id="brief">
       <div class="dg-sec-head">
-        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">15</span><span class="label-tape">FOR A DESIGN PASS</span></div>
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">16</span><span class="label-tape">FOR A DESIGN PASS</span></div>
         <h2>The fence — elevate inside these lines</h2>
         <p class="dg-lede">The invariants a design pass must not cross. Push craft on spacing, hierarchy, composition and atmosphere; keep the token names, the two-mode contract and the derivation chain intact.</p>
       </div>

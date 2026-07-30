@@ -29,7 +29,6 @@
     }
   },
   "scripts": {
-    "lint": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
     "test": "node test/weave.mjs && node test/lego.mjs && node test/libraryScanner.mjs && node test/mediaRoutes.mjs && node test/resumeCursor.mjs"
   },

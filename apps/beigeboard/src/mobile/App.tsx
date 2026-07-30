@@ -1,9 +1,11 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react'
 import { FONT_HEAD } from '../lib/theme'
 
-import { WeekView as KitWeekView, CalendarView as KitCalendarView } from '@jkos/cards'
+// The phone week/calendar bodies are OURS, not the kit's — @jkos/cards is the
+// design spec and ships one desktop body at every width. See the file headers.
+import { MobileWeekAgenda as KitWeekView, MobileCalendarMonth as KitCalendarView } from './views'
 import { getAccent } from '../lib/seed'
-import { sourceOf } from '../lib/theme'
+import { sourceTintOf } from '../lib/theme'
 
 import { Chrome, MobileHeader, MobileBottomNav } from './components'
 import { DetailSheet, AddSheet } from './components/MobileSheets'
@@ -81,7 +83,7 @@ export function MobileApp({
   // shared card kit (same resolvers the desktop wrappers pass).
   const resolvers = {
     accentOf: (it: any) => getAccent(it, items),
-    sourceColorOf: (s?: string) => sourceOf(s ?? '').hex,
+    sourceColorOf: sourceTintOf,
   }
 
   return (

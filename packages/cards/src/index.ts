@@ -16,7 +16,7 @@ export { TimelinePreview } from './TimelinePreview';
 export type { TimelinePreviewProps } from './TimelinePreview';
 export { CardFrame } from './CardFrame';
 export type { CardFrameProps } from './CardFrame';
-export { Checkbox, Eyebrow, RecLamp } from './primitives';
+export { Checkbox, Eyebrow, RecLamp, ChromeBar, NowLine, HourLabel } from './primitives';
 export { WeekView } from './WeekView';
 export { CalendarView } from './CalendarView';
 export { DayView } from './DayView';

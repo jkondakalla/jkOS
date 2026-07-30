@@ -9,7 +9,6 @@
     "./tokens.css": "./tokens/hub.css"
   },
   "scripts": {
-    "lint": "tsc --noEmit",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

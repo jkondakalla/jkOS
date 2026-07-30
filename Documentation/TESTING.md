@@ -106,6 +106,11 @@ Chained into `apps/kouros/backend/package.json`'s `test` script and
 | `pnpm check:cards` (`test/cards-purity.mjs`) | Kit purity text-scan (comment-stripped): no app ids, no host CSS classes, no raw alpha-concat in `@jkos/cards`/`@jkos/ui`. |
 | `pnpm check:hud` (`apps/ordeck/scripts/check-hud-doc.mjs`) | HUD doc validity (every placed id has a def, footprints within grid + ≥ `minSize`, shelf resolves) + the REAL `mergePublished` healer is idempotent (merge∘merge byte-identical; `userSized` cells untouched). Also a fleet tool: `<file.json>` or `--live`. |
 | `pnpm check:docker` (`test/dockerfile-inject.mjs`) | Every app Dockerfile that builds a frontend after `COPY . .` re-runs `pnpm install` first — so an injected `packages/*` workspace dep (e.g. `@jkos/weave`) doesn't build against a stale, manifest-only install. Root-caused a real papyros wave-6 deploy break (2026-07-09, TS2307) before this gate existed. |
+| `pnpm check:async-view` (`test/async-view.mjs`) | The loading/error/empty triad stays on ONE `AsyncView` component (three PapyrOS views once hand-rolled it three ways); barrel is the only sanctioned import path. |
+| `pnpm check:overlay` (`test/overlay-panel.mjs`) | BeigeBoard's detail panel stays an **overlay** on the app-shell grid, never a member of it — a regression gate for a bug that shipped twice (transform-as-containing-block, then the definite-placement row collapse). |
+| `pnpm check:design` (`test/design-page.mjs`) | `/design` is an honest built snapshot: not STALE (rebuild in memory + diff the committed file) and not INCOMPLETE (every top-level hub.css class is demoed in `design-template.html`). |
+| `pnpm check:text` (`test/text-purity.mjs`) | Every tracked source file is really **text** — no NUL/C0 control bytes. The rest of this table is text scanners, and `git`/`grep` silently skip a file they think is binary, so one raw byte can make a file invisible to the gate policing it. Caught a real NUL in papyros's `format.ts` (2026-07-30). Skips `apps/sylibos/`. |
+| `pnpm check:auth` (`test/auth-single-source.mjs`) | One session state machine for the suite: `@jkos/auth-client`'s `useAuthProvider` owns it, the bootstrap order (`getMe` → `refreshToken` → retry → logged-out) survives, and ORDECK/PapyrOS/KourOS stay thin re-exports instead of the three copies they were. |
 | `pnpm prove` (`suite-prober/prove.mjs`) | The prober (below). |
 | `bash jkos-deploy/scripts/selftest.sh` | Deploy-pipeline dry-run: scripts parse + carry the load-bearing steps, every compose file passes `docker compose config`, current nginx conf loads in a throwaway container, break-glass gates hold. Read-only; SKIPs cleanly (exit 0) without docker/openssl. Not in the gate (needs a docker daemon); the auth half is gate-wired via `contracts.mjs`. |
 
@@ -116,7 +121,10 @@ does (manifest → registry seed → nginx peers → each app's capability/datas
 from the source-of-truth *files*, so it runs in a plain checkout. It asserts the
 cross-system invariants a real new app would rely on: single-source app identity, doc
 shapes, filter enforcement declared==enforced, edge reachability, env/config conformance
-(every secret-shaped `process.env` read is provisioned somewhere).
+(every secret-shaped `process.env` read is provisioned somewhere), and typecheck coverage
+(every TS package is reachable from `pnpm typecheck` — `turbo run` skips a package with no
+such script and still reports success, so half the workspace once went unchecked while the
+command looked green).
 
 - **Classifications:** `drift` (two sources that must agree, disagreeing — **fails the
   gate**) · `consolidate` (same truth typed twice) · `gap` (missing enforcement) · `info` · `ok`.

@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "types": "./src/index.ts",
   "exports": {
     ".": {
       "import": "./src/index.ts",
@@ -11,8 +12,7 @@
     "./tokens.css": "./src/tokens.css"
   },
   "scripts": {
-    "build": "echo '@jkos/ui is source-only; no build step required'",
-    "lint": "tsc --noEmit"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@jkos/design": "workspace:*"
@@ -23,7 +23,6 @@
   },
   "devDependencies": {
     "@types/react": "^18.3.3",
-    "@types/react-dom": "^18.3.0",
     "typescript": "^5.7.2"
   }
 }

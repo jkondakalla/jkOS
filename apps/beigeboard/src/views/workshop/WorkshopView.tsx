@@ -17,7 +17,8 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { FONT_HEAD, TASK_COLORS, localDate } from '../../lib/theme'
 import { getChildren, getAncestors, getProgress } from '../../lib/seed'
-import { Press, Well, Bubble, Chip, Check, TButton, Rule } from '@jkos/ui'
+import { Press, Well, Bubble, Chip, Check, TButton, Rule, Bar } from '@jkos/ui'
+import { stagger } from '@jkos/design'
 
 const MONO = 'var(--hub-font-mono)'
 
@@ -87,57 +88,63 @@ export function WorkshopView({
   }
 
   return (
-    <div style={{ height: '100%', display: 'flex', minHeight: 0 }}>
-      {/* ── Goals rail ── */}
-      <div style={{ width: 340, flex: 'none', display: 'flex', flexDirection: 'column', borderRight: '1px solid var(--hub-line)', minHeight: 0 }}>
-        <div className="mo-item" style={{ flex: 'none', display: 'flex', alignItems: 'baseline', gap: 10, padding: '16px 20px 12px' }}>
-          <span className="label-tape">GOALS</span>
-          <span className="mono-eyebrow" style={{ marginLeft: 'auto' }}>{String(active.length).padStart(2, '0')} ACTIVE</span>
+    // Column around the rail + forge row. It carried a pinned foot until the
+    // page footer was cut suite-wide; kept as the seam for anything that spans
+    // both panes, and because the rail/forge row wants an explicit `flex: 1`
+    // parent rather than being the height-100% child itself.
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+      <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+        {/* ── Goals rail ── */}
+        <div style={{ width: 'var(--jk-rail)', flex: 'none', display: 'flex', flexDirection: 'column', borderRight: '1px solid var(--hub-line)', minHeight: 0 }}>
+          <div className="mo-item" style={{ flex: 'none', display: 'flex', alignItems: 'baseline', gap: 10, padding: '16px 20px 12px' }}>
+            <span className="label-tape">GOALS</span>
+            <span className="mono-eyebrow" style={{ marginLeft: 'auto' }}>{String(active.length).padStart(2, '0')} ACTIVE</span>
+          </div>
+          <div className="jk-scroll" style={{ flex: 1, minHeight: 0, padding: '0 18px 12px', display: 'flex', flexDirection: 'column', gap: 10, overflowY: 'auto' }}>
+            {goals.map((g: any, i: number) => (
+              <GoalCard
+                key={g.id}
+                goal={g}
+                items={items}
+                selected={selGoal?.id === g.id}
+                delay={stagger(i, 60, 70)}
+                onClick={() => setSelId(g.id)}
+              />
+            ))}
+            {!readonly && (
+              <TButton quiet onClick={addGoal} style={{ padding: 11, borderStyle: 'dashed', cursor: 'pointer' }}>
+                + New goal
+              </TButton>
+            )}
+          </div>
         </div>
-        <div className="bb-scroll" style={{ flex: 1, minHeight: 0, padding: '0 18px 12px', display: 'flex', flexDirection: 'column', gap: 10, overflowY: 'auto' }}>
-          {goals.map((g: any, i: number) => (
-            <GoalCard
-              key={g.id}
-              goal={g}
+
+        {/* ── The forge ── */}
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          {selGoal ? (
+            <Forge
+              goal={selGoal}
               items={items}
-              selected={selGoal?.id === g.id}
-              delay={`${60 + i * 70}ms`}
-              onClick={() => setSelId(g.id)}
+              expanded={expanded}
+              readonly={readonly}
+              onSelect={onSelect}
+              onToggle={onToggle}
+              onUpdateItem={onUpdateItem}
+              onToggleExpand={toggleExpand}
+              onAddLeaf={addLeaf}
+              onAddBranch={addBranch}
             />
-          ))}
-          {!readonly && (
-            <TButton quiet onClick={addGoal} style={{ padding: 11, borderStyle: 'dashed', cursor: 'pointer' }}>
-              + New goal
-            </TButton>
+          ) : (
+            <div style={{ flex: 1, display: 'grid', placeItems: 'center', padding: 40 }}>
+              <div style={{ textAlign: 'center', maxWidth: 320 }}>
+                <span className="jk-lab jk-lab-xs" style={{ color: 'var(--color-accent)' }}>THE FORGE</span>
+                <p style={{ fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 18, color: 'var(--color-muted)', margin: '12px 0 0', lineHeight: 1.4 }}>
+                  No goals yet. Forge one on the rail, then break it down into milestones and leaves.
+                </p>
+              </div>
+            </div>
           )}
         </div>
-      </div>
-
-      {/* ── The forge ── */}
-      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-        {selGoal ? (
-          <Forge
-            goal={selGoal}
-            items={items}
-            expanded={expanded}
-            readonly={readonly}
-            onSelect={onSelect}
-            onToggle={onToggle}
-            onUpdateItem={onUpdateItem}
-            onToggleExpand={toggleExpand}
-            onAddLeaf={addLeaf}
-            onAddBranch={addBranch}
-          />
-        ) : (
-          <div style={{ flex: 1, display: 'grid', placeItems: 'center', padding: 40 }}>
-            <div style={{ textAlign: 'center', maxWidth: 320 }}>
-              <span className="jk-lab jk-lab-xs" style={{ color: 'var(--color-accent)' }}>THE FORGE</span>
-              <p style={{ fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 18, color: 'var(--color-muted)', margin: '12px 0 0', lineHeight: 1.4 }}>
-                No goals yet. Forge one on the rail, then break it down into milestones and leaves.
-              </p>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   )
@@ -153,7 +160,7 @@ function GoalCard({ goal, items, selected, delay, onClick }: any) {
 
   return (
     <As
-      className={`bb-hit mo-item${selected ? '' : ''}`}
+      className="jk-hit mo-item"
       onClick={onClick}
       style={{
         border: '1px solid var(--hub-line)', borderRadius: 'var(--hub-radius)', padding: '13px 15px',
@@ -166,9 +173,7 @@ function GoalCard({ goal, items, selected, delay, onClick }: any) {
         <span style={{ fontFamily: FONT_HEAD, fontWeight: 700, fontSize: 15, letterSpacing: '-0.015em' }}>{goal.title}</span>
         <span className="seg" style={{ marginLeft: 'auto', fontSize: 16 }}>{prog.pct}%</span>
       </div>
-      <div className="bar-track" style={{ height: 5, borderRadius: 3, overflow: 'hidden' }}>
-        <div className="bar-fill" style={{ width: `${prog.pct}%`, height: '100%', background: `linear-gradient(90deg, color-mix(in srgb, ${tint} 72%, #1a0a00), ${tint})` }} />
-      </div>
+      <Bar value={prog.pct / 100} tint={tint} height={5} radius={3} />
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
         <span className="mono-eyebrow">{meta || 'GOAL'}</span>
         <span className="mono-eyebrow" style={{ marginLeft: 'auto' }}>{prog.done}/{prog.total} LEAVES</span>
@@ -187,7 +192,7 @@ function Forge({ goal, items, expanded, readonly, onSelect, onToggle, onUpdateIt
   const looseLeaves = children.filter((c: any) => c.kind === 'task')
 
   let idx = 0
-  const delay = () => `${120 + idx++ * 40}ms`
+  const delay = () => stagger(idx++, 120, 40)
 
   return (
     <>
@@ -210,12 +215,10 @@ function Forge({ goal, items, expanded, readonly, onSelect, onToggle, onUpdateIt
           </span>
           <span className="seg" style={{ marginLeft: 'auto', fontSize: 30 }}>{prog.pct}%</span>
         </div>
-        <div className="bar-track" style={{ height: 7, borderRadius: 4, overflow: 'hidden', marginTop: 8, ['--jk-tint' as string]: tint }}>
-          <div className="bar-fill" style={{ width: `${prog.pct}%`, height: '100%', background: `linear-gradient(90deg, color-mix(in srgb, ${tint} 72%, #1a0a00), ${tint})` }} />
-        </div>
+        <Bar value={prog.pct / 100} tint={tint} height={7} radius={4} style={{ marginTop: 8 }} />
       </div>
       <Rule style={{ margin: '4px 28px 0' }} />
-      <div className="bb-scroll" style={{ flex: 1, minHeight: 0, padding: '14px 28px 20px', display: 'flex', flexDirection: 'column', gap: 7, overflowY: 'auto' }}>
+      <div className="jk-scroll" style={{ flex: 1, minHeight: 0, padding: '14px 28px 20px', display: 'flex', flexDirection: 'column', gap: 7, overflowY: 'auto' }}>
         {looseLeaves.map((leaf: any) => (
           <Leaf key={leaf.id} node={leaf} tint={tint} delay={delay()} readonly={readonly} onSelect={onSelect} onToggle={onToggle} items={items} />
         ))}
@@ -227,7 +230,7 @@ function Forge({ goal, items, expanded, readonly, onSelect, onToggle, onUpdateIt
               <div className="mo-item" style={{ display: 'flex', alignItems: 'center', animationDelay: delay() }}>
                 <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 11, padding: '10px 14px', borderRadius: 'var(--hub-radius-sm)', border: '1px solid var(--hub-line)', background: 'var(--hub-bg-3)' }}>
                   <span
-                    className="bb-hit"
+                    className="jk-hit"
                     onClick={() => onToggleExpand(b.id)}
                     style={{ fontFamily: MONO, fontSize: 11, width: 14, textAlign: 'center', color: 'var(--color-muted)', cursor: 'pointer', borderRadius: 3 }}
                   >
@@ -240,9 +243,7 @@ function Forge({ goal, items, expanded, readonly, onSelect, onToggle, onUpdateIt
                     {b.title}
                   </span>
                   <Bubble tone="secondary" style={{ fontSize: 8, padding: '2px 8px' }}>{br.done}/{br.total}</Bubble>
-                  <div className="bar-track" style={{ marginLeft: 'auto', width: 130, height: 6, borderRadius: 3, overflow: 'hidden', ['--jk-tint' as string]: tint }}>
-                    <div className="bar-fill" style={{ width: `${br.pct}%`, height: '100%', background: `linear-gradient(90deg, color-mix(in srgb, ${tint} 72%, #1a0a00), ${tint})` }} />
-                  </div>
+                  <Bar value={br.pct / 100} tint={tint} height={6} radius={3} style={{ marginLeft: 'auto', width: 130, flex: 'none' }} />
                   <span className="seg" style={{ fontSize: 15, minWidth: 46, textAlign: 'right' }}>{br.pct}%</span>
                   {!readonly && (
                     <TButton quiet onClick={() => onAddLeaf(b.id)} style={{ flex: 'none', cursor: 'pointer' }}>+ task</TButton>

@@ -214,12 +214,6 @@
   gap: 0.3rem 0.4rem;
   margin-top: 0.15rem;
 }
-.lib-card-series {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 .lib-card-duration {
   flex: none;
   font-family: var(--hub-font-mono);
@@ -230,4 +224,3 @@
 /* ── Compact tier tweaks ───────────────────────────────────────────────────── */
 
 .lib-grid[data-density="compact"] .lib-card-title { font-size: 0.88rem; }
-.lib-grid[data-density="compact"] .lib-card-series { max-width: 100%; }

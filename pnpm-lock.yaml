@@ -448,9 +448,6 @@ importers:
       '@types/react':
         specifier: ^18.3.3
         version: 18.3.29
-      '@types/react-dom':
-        specifier: ^18.3.0
-        version: 18.3.7(@types/react@18.3.29)
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
@@ -501,9 +498,6 @@ importers:
       '@types/react':
         specifier: ^18.3.3
         version: 18.3.29
-      '@types/react-dom':
-        specifier: ^18.3.0
-        version: 18.3.7(@types/react@18.3.29)
       typescript:
         specifier: ^5.7.2
         version: 5.9.3

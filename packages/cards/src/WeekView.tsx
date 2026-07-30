@@ -1,46 +1,45 @@
 /**
- * WeekView — responsive week tab.
- *   • desktop/tablet → interactive time grid (drag to schedule/move/resize,
- *     all-day lane, untimed lane, click-to-create) when a DragAdapter is given;
- *     read+light (select/toggle) when not.
- *   • mobile → a vertical 7-day agenda (no drag).
+ * WeekView — the week tab: an interactive time grid (drag to schedule/move/
+ * resize, all-day lane, untimed lane, click-to-create) when a DragAdapter is
+ * given; read+light (select/toggle) when not. `density="compact"` is the small
+ * mount (ORDECK's bb-week widget); the framing survives, only the air shrinks.
  *
- * Ported from BeigeBoard's WeekView + MobileWeekView; drag and accent/source
- * colour are injected so the same component serves BeigeBoard and ORDECK.
+ * ONE BODY AT EVERY WIDTH. This used to branch on `useBreakpoint()` and render
+ * a separate phone agenda, which meant a narrow WINDOW silently swapped in
+ * un-migrated v0 chrome — in ORDECK's widget and in the design system's own
+ * previews as much as on a phone. That body now lives with the app that wants
+ * it (apps/beigeboard/src/mobile/views/MobileWeekAgenda.tsx), and picking it is
+ * the app's call, not this component's.
+ *
+ * Drag and accent/source colour are injected so the same component serves
+ * BeigeBoard and ORDECK.
  */
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useBreakpoint } from '@jkos/ui';
 import type { CalendarItem, DragAdapter, WeekViewProps } from './types';
-import { mergeResolvers, FONT_HEAD, FONT_BODY, FONT_NUM } from './theme';
+import { mergeResolvers, FONT_HEAD } from './theme';
 import {
   addDays,
   fmtHourLabel,
-  fmtTime,
   fracToTime,
   layoutTimedEvents,
   localDate,
   snapFrac,
   timeToFrac,
   weekStart,
+  isoWeekNo,
 } from './datetime';
-import { WV_FIRST_H, WV_LAST_H, WV_ROW_H, WV_LABEL_W } from './constants';
+import { WV_FIRST_H, WV_LAST_H, rowHeight, labelW, gridRules, gridHeight } from './constants';
 import { TaskChip } from './TaskChip';
 import { TimeBlock } from './TimeBlock';
 import { TimelinePreview } from './TimelinePreview';
 import { CreateDialog } from './CreateDialog';
-import { Checkbox, Eyebrow, RecLamp } from './primitives';
-import { Press, TButton } from '@jkos/ui';
+import { ChromeBar, HourLabel, NowLine } from './primitives';
+import { useScrollGutter } from './useScrollGutter';
+import { TButton, EmptyState } from '@jkos/ui';
+import { MO_DELAYS } from '@jkos/design';
 
-export function WeekView(props: WeekViewProps) {
-  const bp = useBreakpoint();
-  if (bp === 'mobile') return <WeekAgenda {...props} />;
-  return <WeekGrid {...props} />;
-}
-
-/* ── Desktop / tablet interactive grid ─────────────────────────────────── */
-
-function WeekGrid({
+export function WeekView({
   items,
   today,
   selectedId,
@@ -54,6 +53,7 @@ function WeekGrid({
   weekJumpDate,
   benchLane,
   createSource,
+  foot,
   density = 'comfortable',
 }: WeekViewProps) {
   const compact = density === 'compact';
@@ -62,6 +62,10 @@ function WeekGrid({
   // small ORDECK widget without forking the layout.
   const GAP = compact ? 5 : 11;
   const PAD_X = compact ? 12 : 28;
+  // Geometry rides the density axis — see constants.ts. Never a bare constant:
+  // a 60px row in ORDECK's compact HUD would grow every widget by 20%.
+  const ROW_H = rowHeight(density);
+  const LABEL_W = labelW(density);
   const { accentOf, sourceColorOf } = mergeResolvers(resolvers);
   const drag = adapter?.drag ?? null;
   const beginDrag: DragAdapter['beginDrag'] = adapter?.beginDrag ?? (() => {});
@@ -111,6 +115,15 @@ function WeekGrid({
 
   const anyAllday = useMemo(() => days.some((d) => byDay[d]?.allday.length > 0), [days, byDay]);
 
+  /** Everything actually placed on a day this week — the chrome bar's stat. */
+  const scheduledCount = useMemo(
+    () => days.reduce((n, d) => {
+      const b = byDay[d];
+      return n + (b ? b.timed.length + b.untimed.length + b.allday.length : 0);
+    }, 0),
+    [days, byDay],
+  );
+
   // The bench lane's contents: open tasks committed to the visible week (week_start
   // = this Monday) with no day yet. Empty unless benchLane is on.
   const benched = useMemo(
@@ -131,10 +144,15 @@ function WeekGrid({
   useEffect(() => {
     if (scrollRef.current) {
       const target = days.includes(today) ? Math.max(WV_FIRST_H, nowFrac - 1) : 8;
-      scrollRef.current.scrollTop = (target - WV_FIRST_H) * WV_ROW_H;
+      scrollRef.current.scrollTop = (target - WV_FIRST_H) * ROW_H;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cursor]);
+
+  // The hour grid scrolls, the three header bands above it don't — but all four
+  // are grids on ONE column template, so the scrollbar's width has to come out
+  // of the headers too or the columns drift apart (see useScrollGutter).
+  const gutter = useScrollGutter(scrollRef);
 
   const [createPending, setCreatePending] = useState<any>(null);
   const [hoverCol, setHoverCol] = useState<string | null>(null);
@@ -257,7 +275,7 @@ function WeekGrid({
 
   const anyDrag = !!drag;
   const HOURS = Array.from({ length: WV_LAST_H - WV_FIRST_H + 1 }, (_, i) => i + WV_FIRST_H);
-  const totalH = HOURS.length * WV_ROW_H;
+  const totalH = gridHeight(density);
 
   // The seven day lanes are framed, gapped columns; the header rounds its top,
   // the timed body rounds its bottom, and the (optional) all-day + untimed bands
@@ -265,17 +283,55 @@ function WeekGrid({
   // ONE bordered unit with real air between neighbours (the day-separation that
   // replaces the old monolithic hairline grid). Today's whole lane is a tinted
   // well. `pos` places a band in the column stack.
-  const cols = `${WV_LABEL_W}px repeat(7, minmax(0, 1fr))`;
+  const cols = `${LABEL_W}px repeat(7, minmax(0, 1fr))`;
+  // Every non-scrolling band shares this: the same column template as the hour
+  // grid, minus the scrollbar gutter the grid loses, so the eight columns land
+  // in exactly the same places top to bottom.
+  const headBand: React.CSSProperties = {
+    display: 'grid', gridTemplateColumns: cols, columnGap: GAP,
+    flexShrink: 0, paddingRight: gutter,
+  };
   const rad = 'var(--hub-radius-sm)';
+  // NEVER the `background` shorthand here. The timed lane paints its hour rules
+  // with `backgroundImage`, and the shorthand resets background-image to none —
+  // React's style diff only re-writes the keys that CHANGED, so a hover that
+  // flips `background` wipes the gridlines and never puts them back. Every lane
+  // state below sets backgroundCOLOR so the two layers stay independent.
+  // TODAY'S LANE IS LIT, NOT WASHED.
+  //
+  // It used to be the faint-CHIP recipe — 14% tint over --hub-bg-2 — which is a
+  // mid-tone, and that failed twice over. Against its neighbours (--color-paper)
+  // it was a barely-there shift in hue at nearly equal lightness, so the lane
+  // didn't read as marked; and against --hub-line it was nearly equal lightness
+  // too, so the hour rules inside it disappeared. A wash that is too weak to see
+  // and strong enough to erase the ledger is the worst of both.
+  //
+  // The fix is to mark today by LIGHT rather than by pigment: a 5% tint over
+  // --hub-bg-4, the brightest stock in the palette, so today's lane is a visibly
+  // cleaner sheet than the six around it while carrying only a trace of accent
+  // warmth. The tint is kept deliberately thin — every extra percent pulls the
+  // lane back toward its neighbours' value and spends the contrast this is for,
+  // and today's accent IDENTITY is already carried three other ways (the pressed
+  // day number, the accent weekday eyebrow, the now-line). The lane's only job is
+  // to be the lit column. Lightness now differs (the thing the eye actually
+  // finds), and because
+  // the lane got LIGHTER the rules gain contrast instead of losing it — they then
+  // step up a weight anyway (tone: 'strong', below) so the marked lane is the
+  // best-ruled one, not the worst. The frame follows in --color-line-strong: a
+  // second, structural cue that survives at any tint and in either face.
+  //
+  // Mode-correct by token, not by branch: in dark, --hub-bg-4 (#38321f) is
+  // likewise the brightest stock and --hub-line-strong the heavier rule, so "lit"
+  // and "better-ruled" mean the same thing on the tube as on paper.
   const laneFrame = (pos: 'head' | 'mid' | 'foot', isToday: boolean): React.CSSProperties => ({
-    border: '1px solid var(--color-line)',
+    border: `1px solid ${isToday ? 'var(--color-line-strong)' : 'var(--color-line)'}`,
     borderTop: pos === 'head' ? undefined : 'none',
     borderTopLeftRadius: pos === 'head' ? rad : 0,
     borderTopRightRadius: pos === 'head' ? rad : 0,
     borderBottomLeftRadius: pos === 'foot' ? rad : 0,
     borderBottomRightRadius: pos === 'foot' ? rad : 0,
-    background: isToday
-      ? 'color-mix(in srgb, var(--jk-tint, var(--accent)) 14%, var(--hub-bg-2))'
+    backgroundColor: isToday
+      ? 'color-mix(in srgb, var(--jk-tint, var(--accent)) 5%, var(--hub-bg-4))'
       : 'var(--color-paper)',
     minWidth: 0,
   });
@@ -283,28 +339,26 @@ function WeekGrid({
   return (
     <>
       <div style={{ flex: 1, overflowY: 'auto', background: 'transparent', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-        <div style={{ flex: 1, minHeight: 0, padding: compact ? `10px ${PAD_X}px 0` : `24px ${PAD_X}px 0`, display: 'flex', flexDirection: 'column', maxWidth: 1280, margin: '0 auto', width: '100%' }}>
-          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 16, paddingBottom: 14, borderBottom: '1px solid var(--color-line)' }}>
-            <div>
-              <Eyebrow style={{ marginBottom: 4 }}>The week</Eyebrow>
-              <h1 style={{ fontFamily: FONT_HEAD, fontWeight: 600, fontSize: 30, margin: 0, letterSpacing: '-0.01em', lineHeight: 1.04, whiteSpace: 'nowrap' }}>
-                <Press large as="em" style={{ fontStyle: 'italic' }}>
-                  {weekRange}
-                </Press>
-              </h1>
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <TButton onClick={() => setCursor(addDays(cursor, -7))} style={{ fontSize: 13, padding: '6px 11px' }}>
-                ‹
-              </TButton>
-              <TButton onClick={() => setCursor(weekStart(today))} style={{ letterSpacing: '0.14em', padding: '6px 14px' }}>
-                THIS WEEK
-              </TButton>
-              <TButton onClick={() => setCursor(addDays(cursor, 7))} style={{ fontSize: 13, padding: '6px 11px' }}>
-                ›
-              </TButton>
-            </div>
-          </div>
+        {/* Fills its container — the page's .jk-canvas owns the measure. (Was a
+            self-imposed maxWidth: 1280; see the note in DayView.) */}
+        <div style={{ flex: 1, minHeight: 0, padding: compact ? `10px ${PAD_X}px 0` : `14px ${PAD_X}px 0`, display: 'flex', flexDirection: 'column', width: '100%' }}>
+          {/* The chrome bar. The old 30px serif <h1> cost ~40px of timeline for
+              no information the stat line doesn't carry better. */}
+          {!compact && (
+            <ChromeBar
+              className="mo-item"
+              style={{ margin: `0 -${PAD_X}px`, animationDelay: `${MO_DELAYS.header}ms` }}
+              title={weekRange}
+              stats={`7 DAYS · ${String(scheduledCount).padStart(2, '0')} SCHEDULED · ${String(benched.length).padStart(2, '0')} ON THE BENCH`}
+              nav={
+                <>
+                  <TButton quiet onClick={() => setCursor(addDays(cursor, -7))}>← W{isoWeekNo(addDays(cursor, -7))}</TButton>
+                  <TButton onClick={() => setCursor(weekStart(today))}>This week</TButton>
+                  <TButton quiet onClick={() => setCursor(addDays(cursor, 7))}>W{isoWeekNo(addDays(cursor, 7))} →</TButton>
+                </>
+              }
+            />
+          )}
 
           <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             {/* This week's bench — a full-width strip ABOVE the framed lanes (opt-in) */}
@@ -314,10 +368,16 @@ function WeekGrid({
               return (
                 <div
                   data-drop-zone="bench"
+                  className={compact ? undefined : 'mo-item'}
                   style={{
                     flexShrink: 0, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
-                    padding: `${compact ? 6 : 9}px ${compact ? 6 : 4}px`, marginBottom: 4,
-                    background: isOver ? 'color-mix(in srgb, var(--color-accent) 12%, transparent)' : 'transparent',
+                    padding: compact ? '6px 6px' : '10px 28px',
+                    margin: compact ? '0 0 4px' : `0 -${PAD_X}px 4px`,
+                    borderBottom: compact ? undefined : '1px solid var(--hub-line)',
+                    animationDelay: `${MO_DELAYS.weekBench}ms`,
+                    background: isOver
+                      ? 'color-mix(in srgb, var(--color-accent) 12%, transparent)'
+                      : compact ? 'transparent' : 'color-mix(in srgb, var(--hub-bg-1) 30%, transparent)',
                     outline: isOver ? '1px dashed var(--color-accent)' : isTarget ? '1px dashed var(--color-accent-glow)' : 'none',
                     outlineOffset: -2, transition: 'background 0.08s',
                   }}
@@ -349,19 +409,23 @@ function WeekGrid({
             })()}
 
             {/* ── Day-header band — framed column tops (rounded on top) ── */}
-            <div style={{ display: 'grid', gridTemplateColumns: cols, columnGap: GAP, flexShrink: 0 }}>
+            <div className={compact ? undefined : 'mo-item'} style={{ ...headBand, animationDelay: `${MO_DELAYS.weekDayHeads}ms` }}>
               <div />
               {days.map((d) => {
                 const dd = localDate(d);
                 const isToday = d === today;
                 return (
                   <div key={d} style={{ ...laneFrame('head', isToday), display: 'flex', alignItems: 'baseline', gap: 6, padding: compact ? '5px 7px 4px' : '9px 11px 7px' }}>
-                    <span className="jk-lab jk-lab-xs" style={{ color: isToday ? 'var(--color-accent)' : 'var(--color-muted)' }}>
+                    {/* The weekday is machine annotation (mono); the date is
+                        content (print). Today's number stays in INK — the tinted
+                        lane well plus the press carry the state, so the number
+                        doesn't have to shout it a third time. */}
+                    <span className="mono-eyebrow" style={{ fontSize: 8, color: isToday ? 'var(--color-accent)' : undefined }}>
                       {dd.toLocaleDateString('en-US', { weekday: 'short' })}
                     </span>
                     <span
                       className={isToday ? 'jk-press' : undefined}
-                      style={{ fontFamily: FONT_HEAD, fontWeight: 700, fontSize: compact ? 15 : 20, marginLeft: 'auto', letterSpacing: '-0.02em', fontStyle: isToday ? 'italic' : 'normal', color: isToday ? 'var(--color-accent)' : 'var(--color-ink)' }}
+                      style={{ fontFamily: FONT_HEAD, fontWeight: 700, fontSize: compact ? 15 : 20, marginLeft: 'auto', letterSpacing: '-0.02em' }}
                     >
                       {dd.getDate()}
                     </span>
@@ -372,7 +436,7 @@ function WeekGrid({
 
             {/* ── All-day band — one chip per covered day (framed sides) ── */}
             {(anyAllday || (anyDrag && drag?.mode === 'allday')) && (
-              <div style={{ display: 'grid', gridTemplateColumns: cols, columnGap: GAP, flexShrink: 0 }}>
+              <div style={headBand}>
                 <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-start', padding: '4px 6px 0 0' }}>
                   <span className="mono-eyebrow" style={{ fontSize: 7 }}>ALL-DAY</span>
                 </div>
@@ -388,11 +452,11 @@ function WeekGrid({
                       onClick={!anyDrag && !readonly ? () => setCreatePending({ startDay: d, allDay: true, scheduled_time: null, scheduled_end: null }) : undefined}
                       style={{
                         ...laneFrame('mid', isToday),
-                        ...(isOver ? { background: 'color-mix(in srgb, var(--color-accent) 12%, transparent)' } : null),
+                        ...(isOver ? { backgroundColor: 'color-mix(in srgb, var(--color-accent) 12%, transparent)' } : null),
                         outline: isOver ? '1px dashed var(--color-accent)' : isTarget ? '1px dashed var(--color-accent-glow)' : 'none',
                         outlineOffset: -2,
                         minHeight: 24, padding: 4, display: 'flex', flexDirection: 'column', gap: 3,
-                        cursor: anyDrag ? 'copy' : readonly ? 'default' : 'pointer', transition: 'background 0.08s',
+                        cursor: anyDrag ? 'copy' : readonly ? 'default' : 'pointer', transition: 'background-color 0.08s',
                       }}
                     >
                       {(byDay[d]?.allday || []).map((ev) => (
@@ -415,7 +479,7 @@ function WeekGrid({
             )}
 
             {/* ── Untimed band — framed sides ── */}
-            <div style={{ display: 'grid', gridTemplateColumns: cols, columnGap: GAP, flexShrink: 0 }}>
+            <div style={headBand}>
               <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-start', padding: '5px 6px 0 0' }}>
                 <span className="mono-eyebrow" style={{ fontSize: 7 }}>UNTIMED</span>
               </div>
@@ -431,11 +495,11 @@ function WeekGrid({
                     data-drop-day={d}
                     style={{
                       ...laneFrame('mid', isToday),
-                      ...(isOver ? { background: 'color-mix(in srgb, var(--color-accent) 12%, transparent)' } : null),
+                      ...(isOver ? { backgroundColor: 'color-mix(in srgb, var(--color-accent) 12%, transparent)' } : null),
                       outline: isOver ? '1px dashed var(--color-accent)' : isTarget ? '1px dashed var(--color-accent-glow)' : 'none',
                       outlineOffset: -2,
                       minHeight: compact ? 30 : 44, padding: 4, display: 'flex', flexDirection: 'column', gap: 3,
-                      transition: 'background 0.08s',
+                      transition: 'background-color 0.08s',
                     }}
                   >
                     {dayItems.map((it) => (
@@ -457,16 +521,34 @@ function WeekGrid({
             </div>
 
             {/* ── Timed hour grid — framed column bottoms (rounded on bottom) ── */}
-            <div ref={scrollRef} data-hour-scroll style={{ flex: 1, minHeight: 0, overflowY: 'auto', position: 'relative' }}>
+            <div
+              ref={scrollRef}
+              data-hour-scroll
+              className={compact ? undefined : 'mo-item'}
+              style={{
+                flex: 1, minHeight: 0, overflowY: 'auto', position: 'relative',
+                // Reserve the gutter even when the grid happens to fit, so the
+                // measured header padding above can't blink on and off.
+                scrollbarGutter: 'stable',
+                animationDelay: `${MO_DELAYS.weekGrid}ms`,
+              }}
+            >
+              {/* A clean week still draws its grid — the empty state floats over
+                  it rather than replacing it, so drag-to-create keeps working. */}
+              {!compact && scheduledCount === 0 && (
+                <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', pointerEvents: 'none', zIndex: 3 }}>
+                  <EmptyState line="A clean week. Nothing set in type yet." sub="DROP FROM THE BENCH TO SCHEDULE" />
+                </div>
+              )}
               <div style={{ display: 'grid', gridTemplateColumns: cols, columnGap: GAP, height: totalH, position: 'relative' }}>
                 <div style={{ position: 'relative' }}>
                   {HOURS.map((h, i) => (
-                    <div key={h} style={{ position: 'absolute', top: i * WV_ROW_H, left: 0, right: 0, height: WV_ROW_H, textAlign: 'right', padding: '2px 8px 0 0' }}>
-                      <span className="seg" style={{ fontSize: 9, color: 'var(--color-faint)', letterSpacing: '0.04em' }}>{i === 0 ? '' : fmtHourLabel(h)}</span>
+                    <div key={h} style={{ position: 'absolute', top: i * ROW_H, left: 0, right: 0, height: ROW_H, textAlign: 'right', padding: '2px 8px 0 0' }}>
+                      <HourLabel>{i === 0 ? '' : fmtHourLabel(h)}</HourLabel>
                     </div>
                   ))}
                   {days.includes(today) && nowFrac >= WV_FIRST_H && nowFrac <= WV_LAST_H + 1 && (
-                    <div style={{ position: 'absolute', top: (nowFrac - WV_FIRST_H) * WV_ROW_H, right: 6, transform: 'translateY(-50%)' }}>
+                    <div style={{ position: 'absolute', top: (nowFrac - WV_FIRST_H) * ROW_H, right: 6, transform: 'translateY(-50%)' }}>
                       <span className="seg" style={{ fontSize: 10, color: 'var(--color-accent)' }}>
                         {String(now.getHours()).padStart(2, '0')}:{String(now.getMinutes()).padStart(2, '0')}
                       </span>
@@ -488,7 +570,7 @@ function WeekGrid({
                       data-drop-zone="timed"
                       data-drop-day={d}
                       data-frac-base={WV_FIRST_H}
-                      data-frac-scale={WV_ROW_H}
+                      data-frac-scale={ROW_H}
                       onMouseEnter={() => setHoverCol(d)}
                       onMouseLeave={() => setHoverCol((c) => (c === d ? null : c))}
                       onPointerDown={
@@ -496,7 +578,7 @@ function WeekGrid({
                           ? (e) => {
                               if (e.target !== e.currentTarget) return;
                               const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                              const frac = snapFrac(WV_FIRST_H + (e.clientY - r.top) / WV_ROW_H);
+                              const frac = snapFrac(WV_FIRST_H + (e.clientY - r.top) / ROW_H);
                               beginCreate(e, d, frac);
                             }
                           : undefined
@@ -504,17 +586,24 @@ function WeekGrid({
                       style={{
                         ...laneFrame('foot', isToday),
                         ...(isOver
-                          ? { background: 'color-mix(in srgb, var(--color-accent) 12%, transparent)' }
+                          ? { backgroundColor: 'color-mix(in srgb, var(--color-accent) 12%, transparent)' }
                           : isHover
-                            ? { background: 'color-mix(in srgb, var(--color-accent) 6%, var(--color-paper))' }
+                            // Hover mixes into the lane's OWN stock, so hovering
+                            // today doesn't knock it back down to paper and undo
+                            // the lit state that marks it.
+                            ? { backgroundColor: `color-mix(in srgb, var(--color-accent) 6%, ${isToday ? 'var(--hub-bg-4)' : 'var(--color-paper)'})` }
                             : null),
-                        // per-lane hour gridlines (applied AFTER the frame's background)
-                        backgroundImage: `repeating-linear-gradient(to bottom, var(--color-line-strong) 0 1px, transparent 1px ${WV_ROW_H}px)`,
+                        // per-lane hour gridlines — a SEPARATE layer from the lane
+                        // colour above (see laneFrame: no `background` shorthand).
+                        // Today's lane takes the heavier rule: it is the lane that
+                        // gets read, and its lighter fill has the headroom for it
+                        // (see the laneFrame note on marking today by light).
+                        backgroundImage: gridRules(density, { tone: isToday ? 'strong' : 'default' }),
                         position: 'relative',
                         outline: isTarget && !isToday ? '1px solid var(--color-accent-glow)' : 'none',
                         outlineOffset: -1,
                         cursor: anyDrag ? 'copy' : readonly || !hasDnd ? 'default' : 'crosshair',
-                        transition: 'background 0.12s',
+                        transition: 'background-color 0.12s',
                       }}
                     >
                       {timedLayout.map(({ ev: item, slot, totalCols }) => {
@@ -527,6 +616,9 @@ function WeekGrid({
                             key={item.id}
                             item={item}
                             accent={blockAccent}
+                            density={density}
+                            surface="week"
+                            now={now}
                             slot={slot}
                             totalCols={totalCols}
                             isSelected={selectedId === item.id}
@@ -547,12 +639,13 @@ function WeekGrid({
                         );
                       })}
 
-                      {showPreview && drag && <TimelinePreview drag={drag} sourceColorOf={sourceColorOf} />}
+                      {showPreview && drag && <TimelinePreview drag={drag} sourceColorOf={sourceColorOf} density={density} />}
 
                       {isToday && nowFrac >= WV_FIRST_H && nowFrac <= WV_LAST_H + 1 && (
-                        <div style={{ position: 'absolute', top: (nowFrac - WV_FIRST_H) * WV_ROW_H, left: 0, right: 0, height: 0, zIndex: 12, pointerEvents: 'none', display: 'flex', alignItems: 'center' }}>
-                          <span className="now-dot" style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--color-accent)', boxShadow: 'var(--accent-halo)', marginLeft: -4 }} />
-                          <span style={{ flex: 1, height: 2, background: 'var(--color-accent)', opacity: 0.75 }} />
+                        <div style={{ position: 'absolute', top: (nowFrac - WV_FIRST_H) * ROW_H, left: 0, right: 0, height: 0, zIndex: 12, pointerEvents: 'none', display: 'flex', alignItems: 'center' }}>
+                          {/* No label in Week — naming the live event is a Today
+                              affordance; seven lanes have no room for it. */}
+                          <NowLine dot={8} />
                         </div>
                       )}
                     </div>
@@ -560,6 +653,10 @@ function WeekGrid({
                 })}
               </div>
             </div>
+
+            {/* The page's foot — the bottom anchor of the canvas (hub.css).
+                Never in a HUD widget: `compact` has no room to spend on it. */}
+            {!compact && foot && <div className="jk-canvas-foot">{foot}</div>}
           </div>
         </div>
       </div>
@@ -586,80 +683,5 @@ function WeekGrid({
         />
       )}
     </>
-  );
-}
-
-/* ── Mobile vertical agenda ────────────────────────────────────────────── */
-
-function WeekAgenda({ items, today, resolvers, onSelect, onToggle }: WeekViewProps) {
-  const { accentOf, sourceColorOf } = mergeResolvers(resolvers);
-  const start = weekStart(today);
-  const days = Array.from({ length: 7 }, (_, i) => addDays(start, i));
-
-  return (
-    <div style={{ height: '100%', overflowY: 'auto', overflowX: 'hidden' }}>
-      <div style={{ padding: '22px 18px 28px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 20, gap: 12 }}>
-          <div style={{ flexShrink: 0 }}>
-            <Eyebrow>This week</Eyebrow>
-            <h1 style={{ fontFamily: FONT_HEAD, fontWeight: 500, fontSize: 30, margin: '6px 0 0', letterSpacing: '-0.02em', color: 'var(--color-ink)', whiteSpace: 'nowrap' }}>7 days</h1>
-          </div>
-          <span style={{ fontFamily: FONT_NUM, fontStyle: 'italic', fontSize: 13, color: 'var(--color-muted)', whiteSpace: 'nowrap' }}>
-            {localDate(start).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – {localDate(addDays(start, 6)).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-          </span>
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {days.map((iso) => {
-            const isToday = iso === today;
-            const dayItems = items
-              .filter((it) => it.due_date === iso)
-              .sort((a, b) => (a.scheduled_time || 'zz').localeCompare(b.scheduled_time || 'zz'));
-            const d = localDate(iso);
-
-            return (
-              <div key={iso}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 8 }}>
-                  <span style={{ fontFamily: FONT_NUM, fontStyle: 'italic', fontSize: 17, color: isToday ? 'var(--color-accent)' : 'var(--color-ink)', minWidth: 26, textShadow: isToday ? 'var(--accent-halo-text)' : 'none' }}>{d.getDate()}</span>
-                  <span style={{ fontFamily: FONT_BODY, fontSize: 10, fontWeight: 500, letterSpacing: '0.22em', textTransform: 'uppercase', color: isToday ? 'var(--color-accent)' : 'var(--color-muted)', textShadow: isToday ? 'var(--accent-halo-text)' : 'none' }}>
-                    {d.toLocaleDateString('en-US', { weekday: 'long' })}
-                  </span>
-                  {isToday && <RecLamp size={6} label="Today" />}
-                  <span style={{ flex: 1, height: 1, background: 'var(--color-line-strong)' }} />
-                  {dayItems.length > 0 && <span style={{ fontFamily: FONT_NUM, fontStyle: 'italic', fontSize: 12, color: 'var(--color-faint)' }}>{dayItems.length}</span>}
-                </div>
-
-                {dayItems.length === 0 ? (
-                  <div style={{ paddingLeft: 35, fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 13, color: 'var(--color-faint)', opacity: 0.7, paddingBottom: 4 }}>open</div>
-                ) : (
-                  <div style={{ paddingLeft: 35, display: 'flex', flexDirection: 'column', gap: 5 }}>
-                    {dayItems.map((it) => {
-                      const isEvent = it.kind === 'event';
-                      const accent = (isEvent ? it.accent || sourceColorOf(it.source) : accentOf(it)) || 'var(--color-muted)';
-                      return (
-                        <div
-                          key={it.id}
-                          className="jk-cards-row"
-                          onClick={() => onSelect?.(it)}
-                          style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 9px', cursor: 'pointer', borderRadius: 3, background: isEvent ? 'rgba(0,0,0,0.22)' : 'transparent', borderLeft: `2px solid ${accent}` }}
-                        >
-                          {!isEvent && <Checkbox id={it.id} completed={it.completed} onToggle={onToggle} color={accent} size={14} />}
-                          {isEvent && <span style={{ width: 14, textAlign: 'center', fontSize: 9, color: accent }}>◇</span>}
-                          <span style={{ flex: 1, fontFamily: FONT_HEAD, fontSize: 15, color: it.completed ? 'var(--color-muted)' : 'var(--color-ink)', textDecoration: it.completed ? 'line-through' : 'none', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontStyle: isEvent ? 'italic' : 'normal' }}>
-                            {it.title}
-                          </span>
-                          {it.scheduled_time && <span style={{ fontFamily: FONT_NUM, fontStyle: 'italic', fontSize: 11.5, color: accent, whiteSpace: 'nowrap' }}>{fmtTime(it.scheduled_time)}</span>}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-        <div style={{ height: 16 }} />
-      </div>
-    </div>
   );
 }

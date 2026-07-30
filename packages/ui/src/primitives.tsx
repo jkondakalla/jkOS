@@ -79,11 +79,18 @@ export function Press<E extends ElementType = 'span'>({
  *  saturated tab; drop to false for the faint raised base. `live`/`done`/`small`
  *  layer the state modifiers. `tint` colours the chip in a data hue (--jk-tint).
  *  Pair a `<Press variant="rev">` title inside a solid chip, `variant="ink"` on
- *  the faint base. */
+ *  the faint base.
+ *
+ *  `spent` is the state that is easy to forget: ENDED, but nobody struck it off.
+ *  It keeps its ink and loses only its weight, which is what makes a now-line
+ *  read as a position in the day rather than a line drawn across it. Don't
+ *  choose these per call site — `chipState(item, now)` in @jkos/cards decides,
+ *  so a chip carries the same weight in every view that renders it. */
 export function Chip<E extends ElementType = 'span'>({
   as,
   solid = true,
   live = false,
+  spent = false,
   done = false,
   small = false,
   tint,
@@ -91,7 +98,7 @@ export function Chip<E extends ElementType = 'span'>({
   style,
   children,
   ...rest
-}: PolymorphicProps<E, { solid?: boolean; live?: boolean; done?: boolean; small?: boolean; tint?: string }>) {
+}: PolymorphicProps<E, { solid?: boolean; live?: boolean; spent?: boolean; done?: boolean; small?: boolean; tint?: string }>) {
   const As = (as ?? 'span') as ElementType;
   return (
     <As
@@ -99,6 +106,7 @@ export function Chip<E extends ElementType = 'span'>({
         'jk-chip',
         solid && 'jk-chip-solid',
         live && 'jk-chip-live',
+        spent && 'jk-chip-spent',
         done && 'jk-chip-done',
         small && 'jk-chip-sm',
         className,
@@ -192,6 +200,95 @@ export function TButton<E extends ElementType = 'button'>({
 export function Pill<E extends ElementType = 'span'>({ as, className, children, ...rest }: PolymorphicProps<E>) {
   const As = (as ?? 'span') as ElementType;
   return <As className={cx('jk-pill', className)} {...rest}>{children}</As>;
+}
+
+/** Progress meter — a `.bar-track` well with a tint-deepened fill.
+ *
+ *  The gradient runs from the tint deepened toward --bar-deepen-ink to the tint
+ *  itself, which is exactly how --hub-amber-dim → --hub-amber works, generalised
+ *  to an arbitrary per-item hue. It lived open-coded at six call sites before
+ *  this, each inlining the deepen ink as a raw hex — a §13.3 fence violation
+ *  that this component makes structurally unrepeatable.
+ *
+ *  `value` is 0–1 and clamps. `height` is the one number that varies by context:
+ *  5 on a rail card, 6 inside a branch row, 7 on the forge header. */
+export function Bar({
+  value,
+  tint = 'var(--accent)',
+  height = 5,
+  radius,
+  className,
+  style,
+  ...rest
+}: Omit<HTMLAttributes<HTMLDivElement>, 'children'> & {
+  value: number;
+  tint?: string;
+  height?: number;
+  radius?: number;
+}) {
+  const pct = Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0)) * 100;
+  const r = radius ?? Math.round(height / 2) + 1;
+  return (
+    <div
+      className={cx('bar-track', className)}
+      style={{ height, borderRadius: r, ...style }}
+      role="progressbar"
+      aria-valuenow={Math.round(pct)}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      {...rest}
+    >
+      <div
+        className="bar-fill"
+        style={{
+          width: `${pct}%`,
+          height: '100%',
+          background: `linear-gradient(90deg, color-mix(in srgb, ${tint} 72%, var(--bar-deepen-ink)), ${tint})`,
+        }}
+      />
+    </div>
+  );
+}
+
+/** The print idiom for nothing-here (§15.3): an italic Fraunces line over a mono
+ *  sub. The component owns the TREATMENT; the copy is a prop, so each view still
+ *  speaks for itself — "A clean week. Nothing set in type yet." is Week's voice,
+ *  not the primitive's. */
+export function EmptyState({
+  line,
+  sub,
+  className,
+  style,
+  ...rest
+}: Omit<HTMLAttributes<HTMLDivElement>, 'children'> & { line: ReactNode; sub?: ReactNode }) {
+  return (
+    <div
+      className={className}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 7,
+        padding: '28px 20px',
+        textAlign: 'center',
+        ...style,
+      }}
+      {...rest}
+    >
+      <span
+        style={{
+          fontFamily: 'var(--hub-font-serif)',
+          fontStyle: 'italic',
+          fontSize: 15,
+          color: 'var(--color-muted)',
+        }}
+      >
+        {line}
+      </span>
+      {sub != null && <span className="mono-eyebrow" style={{ fontSize: 8 }}>{sub}</span>}
+    </div>
+  );
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
