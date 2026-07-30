@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=Big+Shoulders+Display:wght@400;600;700;800&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="jkos.css">
+<link rel="stylesheet" href="player-ui.css">
+<style>
+  html,body{margin:0;padding:0}
+  body{background-color:var(--hub-bg-0);background-image:var(--hub-grain-image);background-size:160px 160px;background-blend-mode:var(--grain-blend);color:var(--color-ink);font-family:var(--hub-font-sans);-webkit-font-smoothing:antialiased}
+  :root{--hub-font-serif:'Fraunces',Georgia,'Times New Roman',serif}
+  a{color:var(--color-secondary);text-decoration:none}
+  a:hover{color:var(--color-accent)}
+  @media (prefers-reduced-motion: reduce){*{animation-duration:.01ms !important;animation-iteration-count:1 !important;transition-duration:.01ms !important}}
+</style>
+<script>(function(){try{var m=localStorage.getItem('jkos-canvas-mode');if(m)document.documentElement.setAttribute('data-mode',m);else document.documentElement.setAttribute('data-mode','paper');}catch(e){document.documentElement.setAttribute('data-mode','paper');}})();</script>
+</helmet>
+
+<div style="position:relative;min-height:100vh">
+  <div class="canvas-grid" style="position:fixed;inset:0;pointer-events:none;z-index:0"></div>
+
+  <!-- ═══ OPERATOR DECK ═══ -->
+  <div style="position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:9px 20px;background:linear-gradient(180deg,var(--hub-metal-1),var(--hub-metal-0));border-bottom:1px solid var(--hub-line-strong);box-shadow:0 1px 0 rgba(0,0,0,.28),inset 0 1px 0 var(--hub-bevel-light)">
+    <!-- redesigned deck plate -->
+    <div style="display:flex;align-items:center;gap:11px;padding:6px 13px 6px 11px;background:var(--hub-screen);border:1px solid var(--hub-screen-line);border-radius:var(--hub-radius-sm);box-shadow:var(--hub-accent-press)">
+      <span class="led green steady" title="live tokens"></span>
+      <span style="font-family:var(--hub-font-mono);font-weight:700;letter-spacing:.02em;font-size:14px;color:var(--color-ink)">jk<span style="color:var(--color-accent)">OS</span></span>
+      <span style="width:1px;height:16px;background:var(--hub-line)"></span>
+      <span style="font-family:var(--hub-font-mono);font-weight:500;letter-spacing:.22em;font-size:10px;color:var(--color-muted)">DESIGN&nbsp;CANVAS</span>
+    </div>
+    <span class="jk-lab jk-lab-xs" style="opacity:.8">rendered by hub.css · living plate</span>
+
+    <div style="margin-left:auto;display:flex;align-items:center;gap:18px">
+      <div style="display:flex;align-items:center;gap:9px">
+        <span class="jk-lab jk-lab-xs">PAPER</span>
+        <button class="jk-switch" aria-checked="{{ darkAria }}" onClick="{{ toggleMode }}" aria-label="Toggle face" style="--jk-tint:var(--hub-amber)"><span class="jk-switch-knob"></span></button>
+        <span class="jk-lab jk-lab-xs">DARK</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;padding:3px 10px;background:var(--hub-screen);border:1px solid var(--hub-screen-line);border-radius:var(--hub-radius-sm)">
+        <span class="led amber sm"></span>
+        <span class="seg" id="dc-clock" style="font-size:1.05rem;letter-spacing:.08em">00:00:00</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="position:relative;z-index:1;max-width:1180px;margin:0 auto;padding:0 26px 110px">
+
+    <!-- ═══ HERO ═══ -->
+    <section style="padding:44px 0 8px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px">
+        <span class="label-tape">REFERENCE PLATE</span>
+        <span class="mono-eyebrow">two-faced retro hardware</span>
+      </div>
+      <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap">
+        <h1 style="font-family:var(--hub-font-serif);font-weight:600;font-size:clamp(2.4rem,5vw,4rem);line-height:1.02;margin:0;letter-spacing:-.01em;text-wrap:balance">The whole system,<br><span class="jk-press-lg">one canvas</span> to iterate on.</h1>
+        <div class="seg" style="font-size:2.4rem;color:var(--color-faint)">v1.0</div>
+      </div>
+      <p style="max-width:70ch;margin:20px 0 26px;color:var(--color-muted);line-height:1.6;font-size:1.02rem">Every primitive below is rendered by the real <code style="font-family:var(--hub-font-mono);color:var(--color-ink)">hub.css</code> token chain — the same one the apps ship. Flip <b style="color:var(--color-ink)">Face</b> up top and the whole plate retunes. This is the fence: elevate the surfaces, stay inside the tokens.</p>
+
+      <!-- paper | dark live split -->
+      <p style="font-family:var(--hub-font-mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--color-faint);margin:0 0 10px">Drag the divider — identical markup · paper physics left · CRT physics right</p>
+      <div id="dc-hero-split" style="--dc-split:50%;position:relative;height:392px;border:1px solid var(--hub-line);border-radius:var(--hub-radius-lg);overflow:hidden;box-shadow:var(--hub-shadow-card),inset 0 1px 0 var(--hub-bevel-light)">
+        <div id="dc-hero-paper" style="position:absolute;inset:0"></div>
+        <div id="dc-hero-dark" style="position:absolute;inset:0;clip-path:inset(0 0 0 var(--dc-split))"></div>
+        <div style="position:absolute;top:0;bottom:0;left:var(--dc-split);width:2px;margin-left:-1px;background:var(--color-accent);box-shadow:0 0 10px var(--color-accent-glow);pointer-events:none;z-index:4"></div>
+        <div style="position:absolute;top:50%;left:var(--dc-split);transform:translate(-50%,-50%);width:26px;height:26px;border-radius:50%;background:linear-gradient(180deg,var(--hub-metal-1),var(--hub-metal-0));border:1px solid var(--hub-line-strong);display:flex;align-items:center;justify-content:center;color:var(--color-ink);box-shadow:0 1px 3px rgba(0,0,0,.4);pointer-events:none;z-index:5">
+          <svg width="13" height="9" viewBox="0 0 14 10" aria-hidden="true"><path d="M5 1 1 5l4 4M9 1l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <span class="jk-bubble jk-bubble-secondary" style="position:absolute;top:12px;left:12px;z-index:4;pointer-events:none">PAPER · office</span>
+        <span class="jk-bubble jk-bubble-primary" style="position:absolute;top:12px;right:12px;z-index:4;pointer-events:none">DARK · CRT</span>
+        <input id="dc-hero-range" type="range" min="4" max="96" value="50" step="0.5" aria-label="Reveal paper (left) or dark (right)" style="position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:ew-resize;z-index:6">
+      </div>
+    </section>
+
+    <!-- ═══ 02 ACCENT CHAIN ═══ -->
+    <section style="margin-top:52px">
+      <div style="display:flex;align-items:baseline;gap:14px;margin-bottom:8px">
+        <span class="seg" style="font-size:1.5rem;color:var(--color-faint)">02</span>
+        <span class="label-tape">ACCENT CHAIN</span>
+      </div>
+      <h2 style="font-family:var(--hub-font-serif);font-weight:600;font-size:1.9rem;margin:0 0 8px">Two accents, one derivation</h2>
+      <p style="max-width:66ch;margin:0 0 22px;color:var(--color-muted);line-height:1.55">Both accents are user-driven and co-equal. From two raw inputs the whole palette derives — paper deepens toward ink, dark keeps them raw and adds glow. Components read the <code style="font-family:var(--hub-font-mono);color:var(--color-ink)">--color-accent*</code> aliases, never a hex.</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:22px">
+        <div>
+          <p style="font-family:var(--hub-font-mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--color-faint);margin:0 0 9px">Primary — tracks --accent</p>
+          <div style="display:flex;border:1px solid var(--hub-line);border-radius:var(--hub-radius-sm);overflow:hidden">
+            <div style="flex:1.3;height:72px;background:var(--accent-raw)"></div>
+            <div style="flex:1.6;height:72px;background:var(--accent)"></div>
+            <div style="flex:1;height:72px;background:var(--hub-amber-bright)"></div>
+            <div style="flex:1;height:72px;background:var(--hub-amber-dim)"></div>
+            <div style="flex:1;height:72px;background:var(--hub-amber-deep)"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-top:6px;font-family:var(--hub-font-mono);font-size:8px;letter-spacing:.06em;color:var(--color-faint)"><span>raw</span><span>accent</span><span>bright</span><span>dim</span><span>deep</span></div>
+        </div>
+        <div>
+          <p style="font-family:var(--hub-font-mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--color-faint);margin:0 0 9px">Secondary — tracks --accent-secondary</p>
+          <div style="display:flex;border:1px solid var(--hub-line);border-radius:var(--hub-radius-sm);overflow:hidden">
+            <div style="flex:1.3;height:72px;background:var(--accent-2-raw)"></div>
+            <div style="flex:1.6;height:72px;background:var(--accent-secondary)"></div>
+            <div style="flex:1;height:72px;background:var(--hub-cyan-dim)"></div>
+            <div style="flex:1;height:72px;background:var(--hub-cyan-glow)"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-top:6px;font-family:var(--hub-font-mono);font-size:8px;letter-spacing:.06em;color:var(--color-faint)"><span>raw</span><span>secondary</span><span>dim</span><span>glow</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ 03 NEUTRALS · STATUS ═══ -->
+    <section style="margin-top:52px">
+      <div style="display:flex;align-items:baseline;gap:14px;margin-bottom:8px">
+        <span class="seg" style="font-size:1.5rem;color:var(--color-faint)">03</span>
+        <span class="label-tape">NEUTRALS · STATUS</span>
+      </div>
+      <h2 style="font-family:var(--hub-font-serif);font-weight:600;font-size:1.9rem;margin:0 0 8px">The stock, the ink, the lamps</h2>
+      <p style="max-width:66ch;margin:0 0 22px;color:var(--color-muted);line-height:1.55">Neutrals are per-app inputs but share token names. Status hues are semantic constants — never tinted from the accent.</p>
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:22px;align-items:start">
+        <div>
+          <p style="font-family:var(--hub-font-mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--color-faint);margin:0 0 9px">Backgrounds → screen (layered stock)</p>
+          <div style="display:flex;border:1px solid var(--hub-line);border-radius:var(--hub-radius-sm);overflow:hidden">
+            <div style="flex:1;height:80px;background:var(--hub-bg-0);display:flex;align-items:flex-end;padding:6px"><span style="font-family:var(--hub-font-mono);font-size:8px;color:var(--color-faint)">bg-0</span></div>
+            <div style="flex:1;height:80px;background:var(--hub-bg-1);display:flex;align-items:flex-end;padding:6px"><span style="font-family:var(--hub-font-mono);font-size:8px;color:var(--color-faint)">bg-1</span></div>
+            <div style="flex:1;height:80px;background:var(--hub-bg-2);display:flex;align-items:flex-end;padding:6px"><span style="font-family:var(--hub-font-mono);font-size:8px;color:var(--color-faint)">bg-2</span></div>
+            <div style="flex:1;height:80px;background:var(--hub-bg-3);display:flex;align-items:flex-end;padding:6px"><span style="font-family:var(--hub-font-mono);font-size:8px;color:var(--color-faint)">bg-3</span></div>
+            <div style="flex:1;height:80px;background:var(--hub-bg-4);display:flex;align-items:flex-end;padding:6px"><span style="font-family:var(--hub-font-mono);font-size:8px;color:var(--color-faint)">bg-4</span></div>
+            <div style="flex:1;height:80px;background:var(--hub-screen);display:flex;align-items:flex-end;padding:6px"><span style="font-family:var(--hub-font-mono);font-size:8px;color:var(--color-faint)">screen</span></div>
+          </div>
+          <p style="font-family:var(--hub-font-mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--color-faint);margin:18px 0 9px">Ink ramp</p>
+          <div style="display:flex;gap:22px;align-items:baseline">
+            <span style="font-family:var(--hub-font-serif);font-size:2rem;color:var(--hub-cream-bright)">Aa<span style="font-family:var(--hub-font-mono);font-size:9px;color:var(--color-faint);margin-left:6px">ink</span></span>
+            <span style="font-family:var(--hub-font-serif);font-size:2rem;color:var(--hub-cream)">Aa<span style="font-family:var(--hub-font-mono);font-size:9px;color:var(--color-faint);margin-left:6px">muted</span></span>
+            <span style="font-family:var(--hub-font-serif);font-size:2rem;color:var(--hub-cream-dim)">Aa<span style="font-family:var(--hub-font-mono);font-size:9px;color:var(--color-faint);margin-left:6px">faint</span></span>
+            <span style="font-family:var(--hub-font-serif);font-size:2rem;color:var(--hub-cream-faint)">Aa<span style="font-family:var(--hub-font-mono);font-size:9px;color:var(--color-faint);margin-left:6px">ghost</span></span>
+          </div>
+        </div>
+        <div>
+          <p style="font-family:var(--hub-font-mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--color-faint);margin:0 0 9px">Status — one lane</p>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <span class="jk-pill" style="align-self:flex-start"><span class="led green sm"></span>OK · --hub-green</span>
+            <span class="jk-pill" style="align-self:flex-start;color:var(--color-warn);border-color:color-mix(in srgb,var(--color-warn) 40%,transparent)"><span class="led amber sm steady"></span>WARN · --color-warn</span>
+            <span class="jk-pill" style="align-self:flex-start;color:var(--hub-red);border-color:color-mix(in srgb,var(--hub-red) 40%,transparent)"><span class="led red sm"></span>DANGER · --hub-red</span>
+            <span class="jk-pill" style="align-self:flex-start;color:var(--hub-magenta);border-color:color-mix(in srgb,var(--hub-magenta) 40%,transparent)"><span class="led sm steady" style="background:var(--hub-magenta);color:var(--hub-magenta)"></span>DATA · --hub-magenta</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ 04 TYPE ═══ -->
+    <section style="margin-top:52px">
+      <div style="display:flex;align-items:baseline;gap:14px;margin-bottom:8px">
+        <span class="seg" style="font-size:1.5rem;color:var(--color-faint)">04</span>
+        <span class="label-tape">TYPE</span>
+      </div>
+      <h2 style="font-family:var(--hub-font-serif);font-weight:600;font-size:1.9rem;margin:0 0 22px">Four roles</h2>
+      <div style="display:flex;flex-direction:column">
+        <div style="display:grid;grid-template-columns:150px 1fr;gap:20px;align-items:baseline;padding:16px 0;border-top:1px solid var(--hub-line)">
+          <div><div style="font-family:var(--hub-font-mono);font-size:13px;color:var(--color-ink)">mono</div><div style="font-family:var(--hub-font-mono);font-size:9px;color:var(--color-faint)">IBM Plex Mono</div></div>
+          <div style="font-family:var(--hub-font-mono);font-size:1.15rem;color:var(--color-ink);letter-spacing:.02em">READOUT 0x1A · labels · hardware tape</div>
+        </div>
+        <div style="display:grid;grid-template-columns:150px 1fr;gap:20px;align-items:baseline;padding:16px 0;border-top:1px solid var(--hub-line)">
+          <div><div style="font-family:var(--hub-font-mono);font-size:13px;color:var(--color-ink)">sans</div><div style="font-family:var(--hub-font-mono);font-size:9px;color:var(--color-faint)">IBM Plex Sans</div></div>
+          <div style="font-family:var(--hub-font-sans);font-size:1.35rem;color:var(--color-ink)">The quick brown fox reads the manual.</div>
+        </div>
+        <div style="display:grid;grid-template-columns:150px 1fr;gap:20px;align-items:baseline;padding:16px 0;border-top:1px solid var(--hub-line)">
+          <div><div style="font-family:var(--hub-font-mono);font-size:13px;color:var(--color-ink)">serif</div><div style="font-family:var(--hub-font-mono);font-size:9px;color:var(--color-faint)">Fraunces · per-app</div></div>
+          <div style="font-family:var(--hub-font-serif);font-weight:600;font-size:2rem;color:var(--color-ink)">Editorial headings &amp; figures</div>
+        </div>
+        <div style="display:grid;grid-template-columns:150px 1fr;gap:20px;align-items:baseline;padding:16px 0;border-top:1px solid var(--hub-line);border-bottom:1px solid var(--hub-line)">
+          <div><div style="font-family:var(--hub-font-mono);font-size:13px;color:var(--color-ink)">seg</div><div style="font-family:var(--hub-font-mono);font-size:9px;color:var(--color-faint)">Big Shoulders Display</div></div>
+          <div class="seg" style="font-size:2.6rem">08:42:17</div>
+        </div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:18px;align-items:center;margin-top:20px">
+        <span class="jk-lab">jk-lab</span>
+        <span class="jk-lab jk-lab-sm">jk-lab-sm</span>
+        <span class="jk-lab jk-lab-xs">jk-lab-xs</span>
+        <span class="jk-lab jk-lab-sans">jk-lab-sans</span>
+        <span class="mono-eyebrow">mono-eyebrow</span>
+      </div>
+    </section>
+
+    <!-- ═══ 05 WELLS · BADGES ═══ -->
+    <section style="margin-top:52px">
+      <div style="display:flex;align-items:baseline;gap:14px;margin-bottom:8px">
+        <span class="seg" style="font-size:1.5rem;color:var(--color-faint)">05</span>
+        <span class="label-tape">WELLS · BADGES</span>
+      </div>
+      <h2 style="font-family:var(--hub-font-serif);font-weight:600;font-size:1.9rem;margin:0 0 8px">The two physical accent moves</h2>
+      <p style="max-width:66ch;margin:0 0 22px;color:var(--color-muted);line-height:1.55">The <b style="color:var(--color-ink)">badge</b> sits <i>on</i> the sheet — raised emphasis. The <b style="color:var(--color-ink)">well</b> sinks <i>in</i> — a boundary that holds a region. Primary takes the badge; secondary stays flat, one rung down. In CRT both go emissive.</p>
+      <div style="display:grid;grid-template-columns:1.15fr 1fr;gap:22px;align-items:start">
+        <div>
+          <p style="font-family:var(--hub-font-mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--color-faint);margin:0 0 12px">Badges — raised emphasis</p>
+          <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:16px">
+            <span class="jk-press">jk-press</span>
+            <span class="jk-press-lg" style="font-size:1.35rem;font-family:var(--hub-font-serif)">jk-press-lg</span>
+            <span class="jk-bubble jk-bubble-primary">PRIMARY</span>
+            <span class="jk-bubble jk-bubble-primary jk-bubble-lg">PRIMARY LG</span>
+            <span class="label-tape">LABEL TAPE</span>
+          </div>
+          <p style="font-family:var(--hub-font-mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--color-faint);margin:0 0 12px">Flat secondary — one rung down</p>
+          <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center">
+            <a class="jk-sub-link" href="#">secondary link</a>
+            <span class="jk-sub">jk-sub</span>
+            <span class="jk-bubble jk-bubble-secondary">SECONDARY</span>
+            <span class="jk-pill"><span class="led green sm"></span>ONLINE</span>
+            <button class="jk-tbtn">Text button</button>
+            <button class="jk-tbtn jk-tbtn-quiet">Quiet</button>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+          <div class="jk-well" style="padding:16px">
+            <span class="jk-lab jk-lab-sm">jk-well · boundary</span>
+            <p style="margin:10px 0 0;color:var(--color-muted);font-size:.9rem;line-height:1.5">Debossed on paper, emissive in CRT. Retint with <code style="font-family:var(--hub-font-mono);color:var(--color-ink)">--jk-tint</code>.</p>
+          </div>
+          <div class="jk-well" style="padding:16px;--jk-tint:var(--hub-magenta)">
+            <span class="jk-lab jk-lab-sm">jk-well · retinted</span>
+            <p style="margin:10px 0 0;color:var(--color-muted);font-size:.9rem;line-height:1.5">Same well, a data colour on <code style="font-family:var(--hub-font-mono);color:var(--color-ink)">--jk-tint</code>.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ 06 CONTROLS ═══ -->
+    <section style="margin-top:52px">
+      <div style="display:flex;align-items:baseline;gap:14px;margin-bottom:8px">
+        <span class="seg" style="font-size:1.5rem;color:var(--color-faint)">06</span>
+        <span class="label-tape">CONTROLS</span>
+      </div>
+      <h2 style="font-family:var(--hub-font-serif);font-weight:600;font-size:1.9rem;margin:0 0 8px">Toggles, faders &amp; meters</h2>
+      <p style="max-width:66ch;margin:0 0 22px;color:var(--color-muted);line-height:1.55">One rule across the set: a neutral debossed track that fills with the accent (or <code style="font-family:var(--hub-font-mono);color:var(--color-ink)">--jk-tint</code>) as it engages. All on real form/aria hosts.</p>
+      <div class="jk-well" style="padding:22px 24px;display:grid;grid-template-columns:auto auto 1fr;gap:30px;align-items:center">
+        <div style="display:flex;flex-direction:column;gap:12px;align-items:flex-start">
+          <div style="display:flex;align-items:center;gap:10px"><button class="jk-switch" aria-checked="{{ swAria }}" onClick="{{ toggleSw }}" aria-label="Demo switch"><span class="jk-switch-knob"></span></button><span class="jk-lab jk-lab-sm">jk-switch</span></div>
+          <div style="display:flex;align-items:center;gap:10px"><button class="jk-check" aria-checked="{{ ckAria }}" onClick="{{ toggleCk }}" aria-label="Demo check">✓</button><span class="jk-lab jk-lab-sm">jk-check</span></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="jk-vu" style="height:44px">
+            <span class="jk-vu-seg on"></span><span class="jk-vu-seg on"></span><span class="jk-vu-seg on"></span><span class="jk-vu-seg on"></span><span class="jk-vu-seg on"></span><span class="jk-vu-seg on"></span><span class="jk-vu-seg"></span><span class="jk-vu-seg"></span><span class="jk-vu-seg"></span><span class="jk-vu-seg"></span>
+          </div>
+          <span class="jk-lab jk-lab-sm">jk-vu</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:16px">
+          <div><span class="jk-lab jk-lab-sm">jk-slider · accent</span><input class="jk-slider" type="range" min="0" max="100" value="62" onInput="{{ onSlide }}" style="width:100%;--jk-slider-fill:62%" aria-label="Accent fader"></div>
+          <div><span class="jk-lab jk-lab-sm">retinted · --jk-tint</span><input class="jk-slider" type="range" min="0" max="100" value="35" onInput="{{ onSlide }}" style="width:100%;--jk-tint:var(--hub-magenta);--jk-slider-fill:35%" aria-label="Retinted fader"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ 07 HARDWARE (pegboard) ═══ -->
+    <section style="margin-top:52px">
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:8px">
+        <span class="seg" style="font-size:1.5rem;color:var(--color-faint)">07</span>
+        <span class="stamp">HARDWARE</span>
+      </div>
+      <h2 style="font-family:var(--hub-font-serif);font-weight:600;font-size:1.9rem;margin:0 0 8px">Chrome — scarce punctuation</h2>
+      <p style="max-width:66ch;margin:0 0 22px;color:var(--color-muted);line-height:1.55">Reuse these; don't invent new chrome, and spend it sparingly — one LED marks <i>the</i> live thing. No icon library: iconography is inline SVG + these primitives.</p>
+      <div style="position:relative;border:1px solid var(--hub-line);border-radius:var(--hub-radius-lg);overflow:hidden;background:var(--hub-bg-1)">
+        <div class="canvas-grid" style="position:absolute;inset:0"></div>
+        <div style="position:relative;display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--hub-line)">
+          <div style="background:var(--hub-bg-1);padding:18px">
+            <p style="font-family:var(--hub-font-mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-faint);margin:0 0 14px">LEDs · one per live thing</p>
+            <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap"><span class="led green"></span><span class="led amber"></span><span class="led red"></span><span class="led cyan"></span><span class="led off"></span><span class="led green lg"></span><span class="led amber sm steady"></span></div>
+          </div>
+          <div style="background:var(--hub-bg-1);padding:18px">
+            <p style="font-family:var(--hub-font-mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-faint);margin:0 0 14px">Tape &amp; stamp</p>
+            <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap"><span class="label-tape">LABEL TAPE</span><span class="stamp">APPROVED</span></div>
+          </div>
+          <div style="background:var(--hub-bg-1);padding:18px">
+            <p style="font-family:var(--hub-font-mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-faint);margin:0 0 14px">Grounds · perf · grid</p>
+            <div style="display:flex;gap:14px;align-items:center"><span class="perf" style="width:56px;height:34px;border:1px solid var(--hub-line);display:inline-block;border-radius:4px"></span><span class="canvas-grid" style="width:56px;height:34px;border:1px solid var(--hub-line);display:inline-block;border-radius:4px;--hub-grid:11px"></span></div>
+          </div>
+          <div style="background:var(--hub-bg-1);padding:18px">
+            <p style="font-family:var(--hub-font-mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-faint);margin:0 0 14px">Meters · bar · seg</p>
+            <div class="bar-track" style="height:12px;margin-bottom:12px;border-radius:6px"><div class="bar-fill" style="width:64%;border-radius:6px"></div></div>
+            <span class="seg" style="font-size:1.7rem">1024 MB</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ 08 GLOW · HALATION (forced-dark CRT strip) ═══ -->
+    <section style="margin-top:52px">
+      <div style="display:flex;align-items:baseline;gap:14px;margin-bottom:8px">
+        <span class="seg" style="font-size:1.5rem;color:var(--color-faint)">08</span>
+        <span class="label-tape">GLOW · HALATION</span>
+        <span class="jk-bubble jk-bubble-secondary">shown in CRT</span>
+      </div>
+      <h2 style="font-family:var(--hub-font-serif);font-weight:600;font-size:1.9rem;margin:0 0 8px">The dark face's badge</h2>
+      <p style="max-width:66ch;margin:0 0 18px;color:var(--color-muted);line-height:1.55">Where paper raises a chip, the CRT lights the phosphor behind it — same emphasis, opposite physics. Mode-gated: on paper these collapse to the badge/well pair, so this stage is pinned to dark to show them lit.</p>
+      <div id="dc-glow-stage" style="min-height:224px;border:1px solid var(--hub-line);border-radius:var(--hub-radius-lg);overflow:hidden;box-shadow:var(--hub-shadow-card)"></div>
+    </section>
+
+    <!-- ═══ 09 VEILS · CANVAS ═══ -->
+    <section style="margin-top:52px">
+      <div style="display:flex;align-items:baseline;gap:14px;margin-bottom:8px">
+        <span class="seg" style="font-size:1.5rem;color:var(--color-faint)">09</span>
+        <span class="label-tape">VEILS · CANVAS</span>
+      </div>
+      <h2 style="font-family:var(--hub-font-serif);font-weight:600;font-size:1.9rem;margin:0 0 18px">Atmosphere overlays</h2>
+      <div style="display:grid;grid-template-columns:1.1fr 1fr;gap:20px;align-items:start">
+        <div id="dc-veils-stage" style="min-height:252px;border:1px solid var(--hub-line);border-radius:var(--hub-radius-lg);overflow:hidden;box-shadow:var(--hub-shadow-card)"></div>
+        <div>
+          <p style="font-family:var(--hub-font-mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--color-faint);margin:0 0 10px">Canvas — the workshop ground</p>
+          <div style="position:relative;height:214px;background:var(--hub-bg-1);border:1px solid var(--hub-line);border-radius:var(--hub-radius-lg);overflow:hidden">
+            <div class="canvas-grid" style="position:absolute;inset:0"></div>
+            <div style="position:relative;display:flex;flex-wrap:wrap;gap:12px;padding:18px;align-items:center">
+              <span class="canvas-cell boot-sweep" style="padding:12px 16px"><span class="jk-lab jk-lab-sm">canvas-cell</span></span>
+              <span class="canvas-cell boot-sweep" style="padding:12px 16px"><span class="jk-lab jk-lab-sm">.boot-sweep</span></span>
+              <span class="jk-pill"><span class="led green sm now-dot"></span>now-dot · live</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ 10 IN CONTEXT — shell · media · states ═══ -->
+    <section style="margin-top:52px">
+      <div style="display:flex;align-items:baseline;gap:14px;margin-bottom:8px">
+        <span class="seg" style="font-size:1.5rem;color:var(--color-faint)">10</span>
+        <span class="label-tape">IN CONTEXT</span>
+      </div>
+      <h2 style="font-family:var(--hub-font-serif);font-weight:600;font-size:1.9rem;margin:0 0 8px">The shell, assembled</h2>
+      <p style="max-width:66ch;margin:0 0 20px;color:var(--color-muted);line-height:1.55">The primitives in situ — a neutral <code style="font-family:var(--hub-font-mono);color:var(--color-ink)">.jk-shell</code> frame holding a media grid, the async triad, and the cards affordances. This is the surface to fork when iterating on an app.</p>
+      <div class="jk-shell" style="max-width:100%">
+        <header class="jk-shell-header">
+          <div class="jk-shell-brand">
+            <a class="jk-shell-wordmark" href="#">BeigeBoard</a>
+            <span class="mono-eyebrow">workshop</span>
+            <span class="led green sm steady"></span>
+          </div>
+          <button class="jk-shell-settings-btn" aria-label="Settings">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="3.2" stroke="currentColor" stroke-width="1.6"/><path d="M12 2.8v2.6M12 18.6v2.6M21.2 12h-2.6M5.4 12H2.8M18.5 5.5l-1.8 1.8M7.3 16.7l-1.8 1.8M18.5 18.5l-1.8-1.8M7.3 7.3 5.5 5.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          </button>
+        </header>
+        <div style="display:grid;grid-template-columns:1.5fr 1fr;gap:22px;padding:22px 24px">
+          <div>
+            <p style="font-family:var(--hub-font-mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--color-faint);margin:0 0 12px">jk-media-grid · cozy</p>
+            <div class="jk-media-grid" data-density="cozy">
+              <div class="jk-media-cover jk-well jk-media-cover-placeholder"><span>♪</span></div>
+              <div class="jk-media-cover jk-well jk-media-cover-placeholder"><span>◈</span></div>
+              <div class="jk-media-cover jk-well jk-media-cover-placeholder"><span>☰</span></div>
+              <div class="jk-media-cover jk-well jk-media-cover-placeholder"><span>◷</span></div>
+              <div class="jk-media-cover jk-well jk-media-cover-placeholder"><span>✦</span></div>
+              <div class="jk-media-cover jk-well jk-media-cover-placeholder"><span>❖</span></div>
+            </div>
+          </div>
+          <div>
+            <p style="font-family:var(--hub-font-mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--color-faint);margin:0 0 12px">AsyncView triad</p>
+            <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px">
+              <div class="jk-well" style="padding:12px 14px"><span class="jk-lab jk-lab-xs">loading</span><p class="jk-async-note" style="margin:7px 0 0">Loading library…</p></div>
+              <div class="jk-well" style="padding:12px 14px"><span class="jk-lab jk-lab-xs">empty</span><p class="jk-async-note" style="margin:7px 0 0">No books yet — add one.</p></div>
+              <div class="jk-well" style="padding:12px 14px"><span class="jk-lab jk-lab-xs">error</span><p class="jk-async-error" style="margin:7px 0 0">Couldn't reach the service.</p></div>
+            </div>
+            <p style="font-family:var(--hub-font-mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--color-faint);margin:0 0 10px">jk-cards-* affordances</p>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <div class="jk-cards-row" style="--hover-bg:color-mix(in srgb,var(--accent-secondary) 12%,transparent);display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:var(--hub-radius-sm);cursor:pointer"><span class="led amber sm steady"></span><span style="flex:1;font-size:.9rem">Week view — hover</span><span class="jk-cards-chip" style="background:var(--accent-secondary);color:var(--color-on-accent);font-family:var(--hub-font-mono);font-size:9px;padding:2px 7px;border-radius:var(--hub-radius-xs)">CHIP</span></div>
+              <div class="jk-cards-row" style="--hover-bg:color-mix(in srgb,var(--accent-secondary) 12%,transparent);display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:var(--hub-radius-sm);cursor:pointer"><span class="led green sm steady"></span><span style="flex:1;font-size:.9rem">Calendar — hover</span><span class="jk-cards-chip" style="background:var(--accent);color:var(--color-on-accent);font-family:var(--hub-font-mono);font-size:9px;padding:2px 7px;border-radius:var(--hub-radius-xs)">CHIP</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <p style="font-family:var(--hub-font-mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--color-faint);margin:22px 0 10px">jk-match-panel · search → candidates → apply</p>
+      <div class="jk-match-panel">
+        <div class="jk-match-head"><span class="jk-lab jk-lab-sm">Fix metadata</span><button class="jk-tbtn jk-tbtn-quiet">Close</button></div>
+        <div class="jk-match-search"><input class="jk-match-input" type="text" value="left hand of darkness" aria-label="Search records"><button class="jk-tbtn">Search</button></div>
+        <p class="muted jk-match-msg">2 candidates.</p>
+        <ul class="jk-match-candidates">
+          <li class="jk-match-candidate"><div class="jk-match-candidate-cover jk-match-candidate-cover-placeholder"></div><div class="jk-match-candidate-info"><div class="jk-match-candidate-title">The Left Hand of Darkness</div><div class="muted jk-match-candidate-meta">Ursula K. Le Guin · 1969 · Ace Books</div></div><button class="jk-tbtn jk-match-candidate-apply">Apply</button></li>
+          <li class="jk-match-candidate"><div class="jk-match-candidate-cover jk-match-candidate-cover-placeholder"></div><div class="jk-match-candidate-info"><div class="jk-match-candidate-title">The Left Hand of Darkness (50th Anniversary)</div><div class="muted jk-match-candidate-meta">Ursula K. Le Guin · 2019 · Ace Books</div></div><button class="jk-tbtn jk-match-candidate-apply">Apply</button></li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ═══ 12 PLAYER ═══ -->
+    <section style="margin-top:52px">
+      <div style="display:flex;align-items:baseline;gap:14px;margin-bottom:8px">
+        <span class="seg" style="font-size:1.5rem;color:var(--color-faint)">12</span>
+        <span class="label-tape">PLAYER</span>
+      </div>
+      <h2 style="font-family:var(--hub-font-serif);font-weight:600;font-size:1.9rem;margin:0 0 8px">The player bar</h2>
+      <p style="max-width:66ch;margin:0 0 20px;color:var(--color-muted);line-height:1.55">A slotted shell — <b style="color:var(--color-ink)">meta · transport · scrubber · actions</b> — solid surface, accent-tinted top rule. The seek control is the same <code style="font-family:var(--hub-font-mono);color:var(--color-ink)">.jk-slider</code> from §06.</p>
+      <section class="player-bar" aria-label="Now playing (sample)" style="position:relative;left:auto;right:auto;bottom:auto;z-index:0">
+        <div class="pb-left"><div class="pb-meta">
+          <div class="pb-cover pb-cover-empty" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="12" r="3.5" fill="none" stroke="currentColor" stroke-width="1.3" opacity="0.7"/><circle cx="12" cy="12" r="0.9" fill="currentColor" opacity="0.7"/></svg></div>
+          <div class="pb-meta-text"><span class="pb-title">The Left Hand of Darkness</span><span class="pb-sub">Ursula K. Le Guin · Ch. 4</span></div>
+        </div></div>
+        <div class="pb-center">
+          <div class="pb-transport">
+            <button class="pb-btn" aria-label="Previous"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 6v12M19 6l-9 6 9 6z" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg></button>
+            <button class="pb-btn pb-btn-primary" aria-label="Play"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg></button>
+            <button class="pb-btn" aria-label="Next"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 6v12M5 6l9 6-9 6z" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg></button>
+          </div>
+          <div class="pb-scrubber">
+            <span class="pb-time" aria-hidden="true">12:04</span>
+            <div class="pb-range-wrap"><input class="jk-slider" type="range" min="0" max="100" value="38" onInput="{{ onSlide }}" style="--jk-slider-fill:38%" aria-label="Sample seek"><div class="pb-scrub-ticks" aria-hidden="true"><span class="pb-scrub-tick" style="left:18%"></span><span class="pb-scrub-tick" style="left:44%"></span><span class="pb-scrub-tick" style="left:71%"></span></div></div>
+            <span class="pb-time" aria-hidden="true">31:47</span>
+          </div>
+        </div>
+        <div class="pb-right">
+          <button class="pb-btn pb-btn-wide"><span class="pb-armed">1.5×</span></button>
+          <button class="pb-btn is-armed" aria-label="Sleep timer"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a7 7 0 1 0 10.5 10.5z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg></button>
+          <button class="pb-btn pb-btn-wide">Queue <span class="pb-count">3</span></button>
+        </div>
+      </section>
+    </section>
+
+    <!-- ═══ 14 MOTION ═══ -->
+    <section style="margin-top:52px">
+      <div style="display:flex;align-items:baseline;gap:14px;margin-bottom:8px">
+        <span class="seg" style="font-size:1.5rem;color:var(--color-faint)">14</span>
+        <span class="label-tape">MOTION</span>
+      </div>
+      <h2 style="font-family:var(--hub-font-serif);font-weight:600;font-size:1.9rem;margin:0 0 8px">Vocabulary</h2>
+      <p style="max-width:66ch;margin:0 0 18px;color:var(--color-muted);line-height:1.55">Entrances land in ~200–400ms; ambient effects are subtle and opacity-only. <b style="color:var(--color-ink)">Hover a tile</b> to replay its entrance.</p>
+      <div id="dc-motion" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">
+        <div class="jk-well view-enter" data-anim="view-enter" style="padding:16px;text-align:center;cursor:pointer"><code style="font-family:var(--hub-font-mono);font-size:11px;color:var(--color-ink)">view-enter</code></div>
+        <div class="jk-well panel-enter" data-anim="panel-enter" style="padding:16px;text-align:center;cursor:pointer"><code style="font-family:var(--hub-font-mono);font-size:11px;color:var(--color-ink)">panel-enter</code></div>
+        <div class="jk-well item-in" data-anim="item-in" style="padding:16px;text-align:center;cursor:pointer"><code style="font-family:var(--hub-font-mono);font-size:11px;color:var(--color-ink)">item-in</code></div>
+        <div class="jk-well modal-in" data-anim="modal-in" style="padding:16px;text-align:center;cursor:pointer"><code style="font-family:var(--hub-font-mono);font-size:11px;color:var(--color-ink)">modal-in</code></div>
+        <div class="jk-well boot-sweep" data-anim="boot-sweep" style="padding:16px;text-align:center;cursor:pointer"><code style="font-family:var(--hub-font-mono);font-size:11px;color:var(--color-ink)">boot-sweep</code></div>
+        <div class="jk-well crt-expand" data-anim="crt-expand" style="padding:16px;text-align:center;cursor:pointer"><code style="font-family:var(--hub-font-mono);font-size:11px;color:var(--color-ink)">crt-expand</code></div>
+        <div class="jk-well intro-title" data-anim="intro-title" style="padding:16px;text-align:center;cursor:pointer"><code style="font-family:var(--hub-font-mono);font-size:11px;color:var(--color-ink)">intro-title</code></div>
+        <div class="jk-well check-pop" data-anim="check-pop" style="padding:16px;text-align:center;cursor:pointer"><code style="font-family:var(--hub-font-mono);font-size:11px;color:var(--color-ink)">check-pop</code></div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center">
+        <span class="jk-pill"><span class="led green sm"></span>led-pulse</span>
+        <span class="jk-pill"><span class="led amber sm now-dot"></span>now-dot</span>
+        <span class="jk-bubble jk-bubble-secondary" style="animation:data-flicker 4s infinite">data-flicker</span>
+        <span class="jk-bubble jk-bubble-secondary" style="animation:blink 1.4s step-end infinite">blink</span>
+      </div>
+    </section>
+
+    <!-- ═══ 15 THE FENCE ═══ -->
+    <section style="margin-top:52px">
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:8px">
+        <span class="seg" style="font-size:1.5rem;color:var(--color-faint)">15</span>
+        <span class="stamp" style="color:var(--color-accent)">THE FENCE</span>
+      </div>
+      <h2 style="font-family:var(--hub-font-serif);font-weight:600;font-size:1.9rem;margin:0 0 8px">Elevate inside these lines</h2>
+      <p style="max-width:66ch;margin:0 0 22px;color:var(--color-muted);line-height:1.55">Push craft on spacing, hierarchy, composition and atmosphere; keep the token names, the two-mode contract and the derivation chain intact.</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:22px">
+        <div class="jk-sheet" style="padding:20px 22px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px"><span class="led green sm steady"></span><span class="jk-lab" style="color:var(--color-ok)">DO</span></div>
+          <ul style="margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:11px;color:var(--color-muted);font-size:.92rem;line-height:1.5">
+            <li>Extend the retro-hardware language as <b style="color:var(--color-ink)">scarce punctuation</b>.</li>
+            <li>Resolve every colour through the <code style="font-family:var(--hub-font-mono);color:var(--color-ink)">--hub-*</code> / <code style="font-family:var(--hub-font-mono);color:var(--color-ink)">--color-*</code> chain.</li>
+            <li>Reuse the shared classes; make <b style="color:var(--color-ink)">both faces</b> hold up.</li>
+            <li>Accent with wells (boundary) &amp; badges (emphasis) — glow in CRT.</li>
+            <li>Fade colours with <code style="font-family:var(--hub-font-mono);color:var(--color-ink)">withAlpha()</code>.</li>
+          </ul>
+        </div>
+        <div class="jk-sheet" style="padding:20px 22px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px"><span class="led red sm"></span><span class="jk-lab" style="color:var(--hub-red)">DON'T</span></div>
+          <ul style="margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:11px;color:var(--color-muted);font-size:.92rem;line-height:1.5">
+            <li>Rename any <code style="font-family:var(--hub-font-mono);color:var(--color-ink)">--hub-*</code> token or hardcode a hex.</li>
+            <li>Use <code style="font-family:var(--hub-font-mono);color:var(--color-ink)">prefers-color-scheme</code> — mode is <code style="font-family:var(--hub-font-mono);color:var(--color-ink)">data-mode</code>.</li>
+            <li>Scatter hardware decoratively — an LED on everything means nothing is live.</li>
+            <li>Add an icon library or flatten the chrome toward SaaS.</li>
+            <li>Restate the derivation or re-set a CRT knob per app.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- foot bus -->
+    <div style="display:flex;align-items:center;gap:12px;margin-top:44px;padding:14px 18px;background:var(--hub-bg-1);border:1px solid var(--hub-line);border-radius:var(--hub-radius-sm);font-family:var(--hub-font-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--color-faint)">
+      <span class="led green sm steady"></span>
+      <span>jkOS DESIGN CANVAS — rendered by hub.css</span>
+      <span style="flex:1"></span>
+      <span>packages/design · DESIGN.md</span>
+    </div>
+  </div>
+
+  <!-- hidden specimen sources for the forced-face iframes -->
+  <div id="dc-spec-hero" hidden>
+    <div class="jk-scanlines"></div>
+    <div class="jk-sheet" style="padding:20px 22px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px"><span class="jk-lab jk-lab-sm">SPECIMEN · SAME MARKUP</span><span class="jk-pill"><span class="led green sm"></span>LIVE</span></div>
+      <h3 style="font-family:var(--hub-font-serif);font-weight:600;font-size:1.5rem;margin:0 0 6px">Two faces, one system</h3>
+      <p style="color:var(--color-muted);margin:0 0 16px;line-height:1.5">Paper presses ink and shadow into kraft stock; the CRT lights phosphor behind glass. Every class here is byte-identical in the other pane — the face flips the physics, not the markup.</p>
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-bottom:16px"><span class="jk-bubble jk-bubble-primary">BADGE</span><span class="jk-bubble jk-bubble-secondary">CHIP</span><span class="jk-press">jk-press</span><span class="seg" style="font-size:1.5rem">18:42</span></div>
+      <div class="jk-well" style="padding:14px 16px"><span class="jk-lab jk-lab-sm">jk-well · boundary</span><div class="bar-track" style="height:10px;margin-top:10px"><div class="bar-fill" style="width:64%"></div></div></div>
+    </div>
+  </div>
+  <div id="dc-spec-glow" hidden>
+    <div style="position:relative;padding:24px;background:var(--hub-screen);border:1px solid var(--hub-screen-line);border-radius:12px;overflow:hidden;min-height:180px">
+      <div class="jk-scanlines"></div>
+      <div style="position:relative;display:flex;flex-wrap:wrap;gap:24px;align-items:center;margin-bottom:22px">
+        <span class="glow" style="font-family:var(--hub-font-mono)">.glow amber</span>
+        <span class="glow-dim" style="font-family:var(--hub-font-mono)">.glow-dim</span>
+        <span class="glow-cyan" style="font-family:var(--hub-font-mono)">.glow-cyan</span>
+        <span class="jk-halo-text" style="font-family:var(--hub-font-seg);font-size:2rem;color:var(--hub-amber)">HALO 08:42</span>
+        <span class="jk-bubble jk-bubble-primary jk-halo">HALO SURFACE</span>
+      </div>
+      <div style="position:relative;display:flex;flex-wrap:wrap;gap:14px;align-items:center">
+        <span class="jk-glow jk-glow-low" style="--jk-glow-color:var(--accent);padding:8px 12px;border:1px solid var(--accent);color:var(--accent);font-family:var(--hub-font-mono);font-size:11px">jk-glow-low</span>
+        <span class="jk-glow jk-glow-mid" style="--jk-glow-color:var(--accent);padding:8px 12px;border:1px solid var(--accent);color:var(--accent);font-family:var(--hub-font-mono);font-size:11px">jk-glow-mid</span>
+        <span class="jk-glow jk-glow-hi" style="--jk-glow-color:var(--accent);padding:8px 12px;border:1px solid var(--accent);color:var(--accent);font-family:var(--hub-font-mono);font-size:11px">jk-glow-hi</span>
+        <span class="jk-glow jk-glow-hi" style="--jk-glow-color:var(--hub-magenta);padding:8px 12px;border:1px solid var(--hub-magenta);color:var(--hub-magenta);font-family:var(--hub-font-mono);font-size:11px">custom colour</span>
+      </div>
+    </div>
+  </div>
+  <div id="dc-spec-veils" hidden>
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px">
+      <div style="position:relative;height:104px;background:var(--hub-screen);border:1px solid var(--hub-screen-line);border-radius:10px;display:flex;align-items:center;justify-content:center"><div class="jk-scanlines"></div><span class="jk-lab jk-lab-sm" style="position:relative">jk-scanlines</span></div>
+      <div style="position:relative;height:104px;background:var(--hub-screen);border:1px solid var(--hub-screen-line);border-radius:10px;display:flex;align-items:center;justify-content:center"><div class="jk-vignette"></div><span class="jk-lab jk-lab-sm" style="position:relative">jk-vignette</span></div>
+      <div style="position:relative;height:104px;background:var(--hub-bg-2);border:1px solid var(--hub-line);border-radius:10px;display:flex;align-items:center;justify-content:center"><div class="jk-scrim"></div><span class="jk-bubble jk-bubble-primary" style="position:relative;z-index:1">jk-scrim</span></div>
+      <div style="position:relative;height:104px;background:var(--hub-bg-2);border:1px solid var(--hub-line);border-radius:10px;display:flex;align-items:center;justify-content:center"><div class="jk-scrim jk-scrim-heavy"></div><span class="jk-bubble jk-bubble-primary" style="position:relative;z-index:1">jk-scrim-heavy</span></div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;accent&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;amber-cyan&quot;,&quot;options&quot;:[&quot;amber-cyan&quot;,&quot;green-violet&quot;,&quot;ice-coral&quot;,&quot;gold-mint&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Theme&quot;},&quot;defaultFace&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;paper&quot;,&quot;options&quot;:[&quot;paper&quot;,&quot;dark&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Theme&quot;},&quot;grain&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Atmosphere&quot;}}">
+class Component extends DCLogic {
+  state = { mode: 'paper', swOn: true, ckOn: true };
+
+  componentDidMount() {
+    const saved = (() => { try { return localStorage.getItem('jkos-canvas-mode'); } catch(e){ return null; } })();
+    const mode = saved || this.props.defaultFace || 'paper';
+    document.documentElement.setAttribute('data-mode', mode);
+    this.setState({ mode });
+    this.applyAccent(this.props.accent || 'amber-cyan');
+    this.applyGrain(this.props.grain !== false);
+    this.tick();
+    this._clock = setInterval(() => this.tick(), 1000);
+    // build forced-face iframes + wiring after the template is in the DOM
+    setTimeout(() => { this.buildFaces(); this.wireDivider(); this.wireMotion(); }, 0);
+  }
+
+  componentDidUpdate(prev) {
+    if (prev.accent !== this.props.accent) this.applyAccent(this.props.accent || 'amber-cyan');
+    if (prev.grain !== this.props.grain) this.applyGrain(this.props.grain !== false);
+  }
+
+  componentWillUnmount() { clearInterval(this._clock); }
+
+  tick() {
+    const el = document.getElementById('dc-clock');
+    if (!el) return;
+    const d = new Date(), p = n => String(n).padStart(2, '0');
+    el.textContent = p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+  }
+
+  applyAccent(id) {
+    const S = { 'amber-cyan':['#ffb000','#4ecdc4'], 'green-violet':['#5cd66a','#c08aff'], 'ice-coral':['#a8d8ff','#ff6b5a'], 'gold-mint':['#ffd000','#5affc1'] };
+    const p = S[id] || S['amber-cyan'];
+    document.documentElement.style.setProperty('--accent-raw', p[0]);
+    document.documentElement.style.setProperty('--accent-2-raw', p[1]);
+    if (this._built) this.buildFaces();
+  }
+
+  applyGrain(on) { document.body.style.backgroundImage = on ? 'var(--hub-grain-image)' : 'none'; }
+
+  setMode(m) {
+    document.documentElement.setAttribute('data-mode', m);
+    try { localStorage.setItem('jkos-canvas-mode', m); } catch(e){}
+    this.setState({ mode: m });
+  }
+  toggleMode() { this.setMode(this.state.mode === 'dark' ? 'paper' : 'dark'); }
+
+  hubHref() { const l = document.querySelector('link[href*="jkos.css"]'); return l ? l.href : 'jkos.css'; }
+  fontsHtml() { const l = document.querySelector('link[href*="fonts.googleapis.com/css2"]'); return l ? l.outerHTML : ''; }
+  specCss() { return "body{margin:0;padding:22px;background-color:var(--hub-bg-0);background-image:var(--hub-grain-image);background-size:160px 160px;background-blend-mode:var(--grain-blend);color:var(--color-ink);font-family:var(--hub-font-sans);line-height:1.5;overflow:hidden;position:relative} :root{--hub-font-serif:'Fraunces',Georgia,serif}"; }
+  stageCss() { return "body{margin:0;padding:20px;background-color:var(--hub-bg-0);background-image:var(--hub-grain-image);background-size:160px 160px;background-blend-mode:var(--grain-blend);color:var(--color-ink);font-family:var(--hub-font-mono);overflow:hidden} :root{--hub-font-serif:'Fraunces',Georgia,serif}"; }
+
+  buildFace(mountId, mode, tplId, extraCss) {
+    const mount = document.getElementById(mountId), tpl = document.getElementById(tplId);
+    if (!mount || !tpl) return;
+    mount.innerHTML = '';
+    const f = document.createElement('iframe');
+    f.title = 'specimen ' + mode; f.setAttribute('tabindex', '-1'); f.setAttribute('aria-hidden', 'true');
+    f.style.cssText = 'width:100%;height:100%;border:0;display:block';
+    f.srcdoc = '<!doctype html><html data-mode="' + mode + '"><head><meta charset="utf-8">'
+      + this.fontsHtml()
+      + '<link rel="stylesheet" href="' + this.hubHref() + '">'
+      + '<style>' + extraCss + '</style></head><body>' + tpl.innerHTML + '</body></html>';
+    mount.appendChild(f);
+  }
+
+  buildFaces() {
+    const spec = this.specCss(), stage = this.stageCss();
+    this.buildFace('dc-hero-paper', 'paper', 'dc-spec-hero', spec);
+    this.buildFace('dc-hero-dark', 'dark', 'dc-spec-hero', spec);
+    this.buildFace('dc-glow-stage', 'dark', 'dc-spec-glow', stage);
+    this.buildFace('dc-veils-stage', 'dark', 'dc-spec-veils', stage);
+    this._built = true;
+  }
+
+  wireDivider() {
+    const r = document.getElementById('dc-hero-range'), s = document.getElementById('dc-hero-split');
+    if (!r || !s) return;
+    const u = () => s.style.setProperty('--dc-split', r.value + '%');
+    r.addEventListener('input', u); u();
+  }
+
+  wireMotion() {
+    const REST = 850;
+    document.querySelectorAll('#dc-motion [data-anim]').forEach(cell => {
+      const anim = cell.dataset.anim; let hovering = false, rest = null;
+      const play = () => { cell.classList.remove(anim); void cell.offsetWidth; cell.classList.add(anim); };
+      cell.addEventListener('animationend', () => { if (!hovering) return; clearTimeout(rest); rest = setTimeout(() => { if (hovering) play(); }, REST); });
+      cell.addEventListener('mouseenter', () => { hovering = true; play(); });
+      cell.addEventListener('mouseleave', () => { hovering = false; clearTimeout(rest); });
+      cell.addEventListener('click', play);
+    });
+  }
+
+  onSlide(e) {
+    const t = e.target, min = Number(t.min) || 0, max = Number(t.max) || 100;
+    const pct = max > min ? ((Number(t.value) - min) / (max - min)) * 100 : 0;
+    t.style.setProperty('--jk-slider-fill', pct + '%');
+  }
+
+  renderVals() {
+    return {
+      darkAria: this.state.mode === 'dark' ? 'true' : 'false',
+      toggleMode: () => this.toggleMode(),
+      swAria: this.state.swOn ? 'true' : 'false',
+      toggleSw: () => this.setState(s => ({ swOn: !s.swOn })),
+      ckAria: this.state.ckOn ? 'true' : 'false',
+      toggleCk: () => this.setState(s => ({ ckOn: !s.ckOn })),
+      onSlide: (e) => this.onSlide(e),
+    };
+  }
+}
+</script>
+</body>
+</html>

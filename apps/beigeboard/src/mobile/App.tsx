@@ -1,7 +1,9 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react'
 import { FONT_HEAD } from '../lib/theme'
 
-import { WeekView as KitWeekView, CalendarView as KitCalendarView } from '@jkos/cards'
+// The phone week/calendar bodies are OURS, not the kit's — @jkos/cards is the
+// design spec and ships one desktop body at every width. See the file headers.
+import { MobileWeekAgenda as KitWeekView, MobileCalendarMonth as KitCalendarView } from './views'
 import { getAccent } from '../lib/seed'
 import { sourceTintOf } from '../lib/theme'
 

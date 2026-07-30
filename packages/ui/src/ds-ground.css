@@ -1,0 +1,37 @@
+/* @jkos/ui — the house GROUND for surfaces that aren't a full jkOS app.
+ *
+ * hub.css defines the token chain but deliberately sets no `body` rule: inside
+ * the suite, each app owns its own ground (see apps/beigeboard/src/app.css,
+ * "The body IS the ground"). A standalone surface that only loads the tokens
+ * therefore renders jkOS components on browser-default white in a default face,
+ * which reads as a different design system entirely.
+ *
+ * This file is that missing ground, and nothing else: the paper fill, the ink,
+ * the mono default face, and the two resets the primitives assume. It is the
+ * `cssEntry` for the claude.ai/design bundle (see .design-sync/config.json), so
+ * every design built from @jkos/ui inherits the suite's ground. Suite apps do
+ * NOT import it — they already set their own, richer ground (grain image,
+ * full-bleed sizing, scrollbars).
+ *
+ * Keep in step with the ground block in apps/beigeboard/src/app.css.
+ */
+
+* { box-sizing: border-box; }
+
+html, body { color-scheme: light; }
+html[data-mode="dark"], :root[data-mode="dark"] { color-scheme: dark; }
+
+/* `html body` rather than a bare `body`: embedding surfaces (the claude.ai/design
+   preview harness among them) inject a late `body { background: #fff }` reset,
+   and a bare selector of equal specificity loses to it on source order — which
+   silently strands every jkOS component on white. The ground is not decoration
+   here; it is the surface the whole accent chain is tuned against. */
+html body {
+  margin: 0;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--hub-font-mono);
+}
+
+button { border-radius: var(--hub-radius-button); font-family: inherit; }
+button:focus, input:focus, select:focus { outline: none; }

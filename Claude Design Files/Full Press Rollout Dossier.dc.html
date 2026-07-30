@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=Big+Shoulders+Display:wght@400;600;700;800&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,400;1,9..144,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="jkos.css">
+<link rel="stylesheet" href="press.css">
+<style>
+  html,body{margin:0;padding:0}
+  body{min-height:100vh;background-color:var(--hub-bg-0);background-image:var(--hub-grain-image);background-size:160px 160px;background-blend-mode:var(--grain-blend);color:var(--color-ink);font-family:var(--hub-font-sans);-webkit-font-smoothing:antialiased}
+  a{color:var(--color-secondary);text-decoration:none}
+  a:hover{color:var(--color-accent)}
+  @keyframes inkDry{0%{opacity:0;transform:translateY(6px);filter:blur(1.2px) brightness(.7)}20%{opacity:1}100%{transform:none;filter:none}}
+  .mo{animation:inkDry .5s cubic-bezier(.2,.7,.25,1) both}
+  @media (prefers-reduced-motion: reduce){.mo{animation:none}*{animation-duration:.01ms !important;transition-duration:.01ms !important}}
+</style>
+<script>(function(){var d=document.documentElement;var m='paper';try{m=localStorage.getItem('jkos-rollout-mode')||'paper';}catch(e){}d.setAttribute('data-mode',m==='dark'?'dark':'paper');})();</script>
+</helmet>
+
+<div class="jk-scanlines" style="position:fixed;inset:0;z-index:60;pointer-events:none"></div>
+<div class="jk-vignette" style="position:fixed;inset:0;z-index:60;pointer-events:none;opacity:.6"></div>
+
+<!-- ═══ RUNNING HEAD ═══ -->
+<div style="position:sticky;top:0;z-index:50;background:var(--hub-bg-0);border-bottom:1px solid var(--hub-line);padding:10px clamp(16px,4vw,48px);display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+  <span class="jk-folio">jkOS <span class="jk-folio-no">Full Press · Rollout</span></span>
+  <span class="mono-eyebrow" style="opacity:.75">work order · waves 21–25</span>
+  <span style="margin-left:auto;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+    <span style="display:flex;align-items:center;gap:8px">
+      <span class="led amber sm steady"></span>
+      <span class="mono-eyebrow"><span id="flag-count">0</span> flagged</span>
+      <button id="flag-reset" class="jk-tbtn jk-tbtn-quiet" type="button">Clear</button>
+    </span>
+    <span style="display:flex;align-items:center;gap:8px;padding:5px 11px;background:linear-gradient(180deg,var(--hub-metal-1),var(--hub-metal-0));border:1px solid var(--hub-line-strong);border-radius:var(--hub-radius-sm);box-shadow:inset 0 1px 0 var(--hub-bevel-light)">
+      <span class="jk-lab jk-lab-xs" style="color:var(--hub-cream-bright);opacity:.75">PAPER</span>
+      <button id="face-toggle" class="jk-switch" type="button" aria-checked="false" aria-label="Toggle reading face"><span class="jk-switch-knob"></span></button>
+      <span class="jk-lab jk-lab-xs" style="color:var(--hub-cream-bright);opacity:.75">DARK</span>
+    </span>
+  </span>
+</div>
+
+<div style="position:relative;z-index:3;max-width:1040px;margin:0 auto;padding:0 clamp(16px,4vw,48px) 90px">
+
+  <!-- ═══ COVER ═══ -->
+  <div style="padding:clamp(34px,6vw,60px) 0 26px">
+    <div class="mo" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+      <span class="mono-eyebrow">jkOS — Implementation Work Order</span>
+      <span class="stamp" style="color:var(--color-accent)">DRAFT · FOR CRITIQUE</span>
+    </div>
+    <hr class="jk-rule-strong mo" style="margin:14px 0 0">
+    <div class="mo jk-press-lg" style="font-family:var(--hub-font-serif);font-weight:700;font-size:clamp(2.3rem,6vw,4rem);line-height:.98;letter-spacing:-.025em;margin:34px 0 0">Rolling the press<br>across the suite.</div>
+    <p class="mo" style="font-family:var(--hub-font-serif);font-style:italic;font-size:1.12rem;color:var(--color-muted);margin:18px 0 0;max-width:52ch">Full Press is a small, surgical layer — <b style="color:var(--color-ink)">press.css</b>, 76 lines — but it re-cuts the voice of nearly every primitive. This is the plan to fold it into the source of truth, re-face the component layer, and carry it into the apps without breaking the fence.</p>
+    <p class="mo" style="margin:20px 0 0;font-size:.92rem;color:var(--color-muted);line-height:1.6;max-width:56ch">Flip <b style="color:var(--color-ink)">Paper / Dark</b> in the running head to check every claim holds in both faces. Flag any task with the mark on its right to queue it for discussion.</p>
+    <div class="mo" style="display:flex;align-items:center;gap:10px;margin:24px 0 0">
+      <span class="led green"></span>
+      <span class="jk-lab jk-lab-xs">Edition 2026</span>
+      <span class="mono-eyebrow" style="margin-left:auto">continues ToDo.md after Wave 20</span>
+    </div>
+  </div>
+
+  <!-- ═══ THE READ — repo model ═══ -->
+  <div style="padding-top:48px">
+    <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap">
+      <span class="seg" style="font-size:1.5rem;color:var(--color-accent)">00</span>
+      <h2 style="font-family:var(--hub-font-serif);font-weight:700;font-size:clamp(1.6rem,3vw,2.3rem);letter-spacing:-.02em;margin:0">The read — how I understand the repo</h2>
+    </div>
+    <hr class="jk-rule-strong" style="margin:10px 0 14px">
+    <p style="max-width:66ch;color:var(--color-muted);line-height:1.6;margin:0 0 22px">Correct me here first — everything downstream depends on this model being right. The suite is a single-source token chain that flows one direction: change a value once, it derives everywhere.</p>
+    <div class="jk-sheet" style="padding:22px 24px;margin-bottom:16px">
+      <span class="jk-folio" style="margin-bottom:16px">The spine <span class="jk-folio-no">one direction</span></span>
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px 8px;margin-top:14px;font-size:.9rem">
+        <span class="jk-bubble jk-bubble-primary jk-bubble-lg">@jkos/design</span>
+        <span style="color:var(--color-faint)">→</span>
+        <span class="jk-bubble jk-bubble-secondary jk-bubble-lg">@jkos/ui</span>
+        <span style="color:var(--color-faint)">→</span>
+        <span class="jk-bubble jk-bubble-secondary jk-bubble-lg">@jkos/cards · @jkos/player</span>
+        <span style="color:var(--color-faint)">→</span>
+        <span class="jk-bubble jk-bubble-secondary jk-bubble-lg">apps</span>
+        <span style="color:var(--color-faint)">→</span>
+        <span class="label-tape">public/jkos-tokens.css (generated)</span>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px">
+      <div class="jk-sheet" style="padding:18px 20px">
+        <span class="jk-lab jk-lab-sm" style="color:var(--color-accent)">Source of truth</span>
+        <p style="margin:8px 0 0;font-size:.88rem;line-height:1.55;color:var(--color-muted)"><b style="color:var(--color-ink)">@jkos/design</b> — <span style="font-family:var(--hub-font-mono);font-size:.82em">hub.css</span> token chain, <span style="font-family:var(--hub-font-mono);font-size:.82em">buildJkOSTheme / applyJkOSTheme</span>, responsive breakpoints, <span style="font-family:var(--hub-font-mono);font-size:.82em">DESIGN.md</span> + the Fence.</p>
+      </div>
+      <div class="jk-sheet" style="padding:18px 20px">
+        <span class="jk-lab jk-lab-sm" style="color:var(--color-accent)">Primitive layer</span>
+        <p style="margin:8px 0 0;font-size:.88rem;line-height:1.55;color:var(--color-muted)"><b style="color:var(--color-ink)">@jkos/ui</b> — React over the shared classes: Bubble, Press, Well, Sheet, Lab, TButton, Pill, MediaGrid, AsyncView, AppShell, MatchPanel, Slider, Switch, Check, VU, veils.</p>
+      </div>
+      <div class="jk-sheet" style="padding:18px 20px">
+        <span class="jk-lab jk-lab-sm" style="color:var(--color-accent)">Kits + apps</span>
+        <p style="margin:8px 0 0;font-size:.88rem;line-height:1.55;color:var(--color-muted)"><b style="color:var(--color-ink)">@jkos/cards</b>, <b style="color:var(--color-ink)">@jkos/player</b>; apps <b style="color:var(--color-ink)">jkauth · papyros · kouros · BeigeBoard · ORDECK</b>. <span style="color:var(--color-ink)">SylibOS is out</span> by standing rule.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ WAVE 21 ═══ -->
+  <div style="padding-top:52px">
+    <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap">
+      <span class="seg" style="font-size:1.5rem;color:var(--color-accent)">21</span>
+      <h2 style="font-family:var(--hub-font-serif);font-weight:700;font-size:clamp(1.6rem,3vw,2.3rem);letter-spacing:-.02em;margin:0">Fold the layer into the source</h2>
+      <span class="mono-eyebrow" style="margin-left:auto">foundation · de-risk before pixels</span>
+    </div>
+    <hr class="jk-rule-strong" style="margin:10px 0 14px">
+    <p style="max-width:66ch;color:var(--color-muted);line-height:1.6;margin:0 0 20px">press.css calls itself "the proposed hub.css diff." Wave 21 makes that literal: merge the values and class faces into the frozen chain, load the fonts the system now assumes, and put the gates in place — so waves 22–25 are pure application.</p>
+    <div data-tasklist style="display:flex;flex-direction:column;gap:10px">
+      <div class="jk-sheet" data-task="21.1" style="padding:16px 18px;display:flex;gap:14px;align-items:flex-start">
+        <span class="jk-bubble jk-bubble-primary" style="flex:none">21.1</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-family:var(--hub-font-serif);font-weight:600;font-size:1.08rem;letter-spacing:-.01em">Merge press.css → hub.css</div>
+          <p style="margin:5px 0 0;font-size:.88rem;line-height:1.55;color:var(--color-muted)">Fold the 76 lines into <span style="font-family:var(--hub-font-mono);font-size:.82em">@jkos/design/tokens/hub.css</span> — values and class faces only, token names frozen (§13.1). Retire the standalone file once merged.</p>
+          <span class="mono-eyebrow" style="display:block;margin-top:7px">fence · no renamed tokens, no new hex</span>
+        </div>
+        <button class="jk-check" type="button" aria-checked="false" data-flag="21.1" aria-label="Flag 21.1 for discussion"><span>✓</span></button>
+      </div>
+      <div class="jk-sheet" data-task="21.2" style="padding:16px 18px;display:flex;gap:14px;align-items:flex-start">
+        <span class="jk-bubble jk-bubble-primary" style="flex:none">21.2</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-family:var(--hub-font-serif);font-weight:600;font-size:1.08rem;letter-spacing:-.01em">Load the assumed fonts suite-wide</div>
+          <p style="margin:5px 0 0;font-size:.88rem;line-height:1.55;color:var(--color-muted)">Promote <b style="color:var(--color-ink)">Fraunces</b> from per-app copy to a primitive input in <span style="font-family:var(--hub-font-mono);font-size:.82em">buildJkOSTheme</span>; flip the <span style="font-family:var(--hub-font-mono);font-size:.82em">--hub-font-serif</span> default. Ensure <b style="color:var(--color-ink)">Big Shoulders</b> loads in dark for the seg verdict (§15.2).</p>
+          <span class="mono-eyebrow" style="display:block;margin-top:7px">risk · always-on webfont weight budget</span>
+        </div>
+        <button class="jk-check" type="button" aria-checked="false" data-flag="21.2" aria-label="Flag 21.2 for discussion"><span>✓</span></button>
+      </div>
+      <div class="jk-sheet" data-task="21.3" style="padding:16px 18px;display:flex;gap:14px;align-items:flex-start">
+        <span class="jk-bubble jk-bubble-primary" style="flex:none">21.3</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-family:var(--hub-font-serif);font-weight:600;font-size:1.08rem;letter-spacing:-.01em">Rewrite the doctrine in DESIGN.md</div>
+          <p style="margin:5px 0 0;font-size:.88rem;line-height:1.55;color:var(--color-muted)">Document the Voice split (print / mono / tube), seg-splits-by-face, folio-vs-tape, the rules ladder, the colophon, and entrance physics. Extend the Fence DO / DON'T.</p>
+          <span class="mono-eyebrow" style="display:block;margin-top:7px">governance · the spec the apps cite</span>
+        </div>
+        <button class="jk-check" type="button" aria-checked="false" data-flag="21.3" aria-label="Flag 21.3 for discussion"><span>✓</span></button>
+      </div>
+      <div class="jk-sheet" data-task="21.4" style="padding:16px 18px;display:flex;gap:14px;align-items:flex-start">
+        <span class="jk-bubble jk-bubble-primary" style="flex:none">21.4</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-family:var(--hub-font-serif);font-weight:600;font-size:1.08rem;letter-spacing:-.01em">Extend the gates</div>
+          <p style="margin:5px 0 0;font-size:.88rem;line-height:1.55;color:var(--color-muted)">Add a face check to CI: <span style="font-family:var(--hub-font-mono);font-size:.82em">.seg</span> font-family flips with <span style="font-family:var(--hub-font-mono);font-size:.82em">data-mode</span>, both faces build, no fresh hardcoded hex. Keep <span style="font-family:var(--hub-font-mono);font-size:.82em">test/responsive.mjs</span> green.</p>
+          <span class="mono-eyebrow" style="display:block;margin-top:7px">gate · catches drift, not taste</span>
+        </div>
+        <button class="jk-check" type="button" aria-checked="false" data-flag="21.4" aria-label="Flag 21.4 for discussion"><span>✓</span></button>
+      </div>
+      <div class="jk-sheet" data-task="21.5" style="padding:16px 18px;display:flex;gap:14px;align-items:flex-start">
+        <span class="jk-bubble jk-bubble-primary" style="flex:none">21.5</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-family:var(--hub-font-serif);font-weight:600;font-size:1.08rem;letter-spacing:-.01em">Regenerate every token mirror</div>
+          <p style="margin:5px 0 0;font-size:.88rem;line-height:1.55;color:var(--color-muted)">Run <span style="font-family:var(--hub-font-mono);font-size:.82em">sync:tokens</span> for each app so <span style="font-family:var(--hub-font-mono);font-size:.82em">public/jkos-tokens.css</span> matches hub.css byte-for-byte; assert parity in CI.</p>
+          <span class="mono-eyebrow" style="display:block;margin-top:7px">exit criterion · one source, N identical mirrors</span>
+        </div>
+        <button class="jk-check" type="button" aria-checked="false" data-flag="21.5" aria-label="Flag 21.5 for discussion"><span>✓</span></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ WAVE 22 ═══ -->
+  <div style="padding-top:52px">
+    <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap">
+      <span class="seg" style="font-size:1.5rem;color:var(--color-accent)">22</span>
+      <h2 style="font-family:var(--hub-font-serif);font-weight:700;font-size:clamp(1.6rem,3vw,2.3rem);letter-spacing:-.02em;margin:0">Re-cut the primitive layer</h2>
+      <span class="mono-eyebrow" style="margin-left:auto">@jkos/ui · the big rehaul</span>
+    </div>
+    <hr class="jk-rule-strong" style="margin:10px 0 14px">
+    <p style="max-width:66ch;color:var(--color-muted);line-height:1.6;margin:0 0 20px">This is where "most primitives get rehauled." Component <em>APIs</em> stay stable — only their faces change — so apps inherit the new voice for free. Each task is one primitive family.</p>
+    <div data-tasklist style="display:flex;flex-direction:column;gap:10px">
+      <div class="jk-sheet" data-task="22.1" style="padding:16px 18px;display:flex;gap:14px;align-items:flex-start">
+        <span class="jk-bubble jk-bubble-primary" style="flex:none">22.1</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-family:var(--hub-font-serif);font-weight:600;font-size:1.08rem;letter-spacing:-.01em">The Voice — labels &amp; text buttons</div>
+          <p style="margin:5px 0 0;font-size:.88rem;line-height:1.55;color:var(--color-muted)">Re-set the <span style="font-family:var(--hub-font-mono);font-size:.82em">.jk-lab</span> ladder and <span style="font-family:var(--hub-font-mono);font-size:.82em">.jk-tbtn</span> in Fraunces. Deliberately keep <span style="font-family:var(--hub-font-mono);font-size:.82em">.mono-eyebrow</span> and <span style="font-family:var(--hub-font-mono);font-size:.82em">.jk-pill</span> in mono — the machine still speaks mono.</p>
+        </div>
+        <button class="jk-check" type="button" aria-checked="false" data-flag="22.1" aria-label="Flag 22.1"><span>✓</span></button>
+      </div>
+      <div class="jk-sheet" data-task="22.2" style="padding:16px 18px;display:flex;gap:14px;align-items:flex-start">
+        <span class="jk-bubble jk-bubble-primary" style="flex:none">22.2</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-family:var(--hub-font-serif);font-weight:600;font-size:1.08rem;letter-spacing:-.01em">Letterpress the chips</div>
+          <p style="margin:5px 0 0;font-size:.88rem;line-height:1.55;color:var(--color-muted)"><span style="font-family:var(--hub-font-mono);font-size:.82em">.jk-bubble</span> becomes serif caps with ink pressed in on paper / halation on the tube — via existing tokens, no new physics. <b style="color:var(--color-ink)">&lt;Bubble&gt;</b> API unchanged.</p>
+        </div>
+        <button class="jk-check" type="button" aria-checked="false" data-flag="22.2" aria-label="Flag 22.2"><span>✓</span></button>
+      </div>
+      <div class="jk-sheet" data-task="22.3" style="padding:16px 18px;display:flex;gap:14px;align-items:flex-start">
+        <span class="jk-bubble jk-bubble-primary" style="flex:none">22.3</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-family:var(--hub-font-serif);font-weight:600;font-size:1.08rem;letter-spacing:-.01em">Ship the rules ladder</div>
+          <p style="margin:5px 0 0;font-size:.88rem;line-height:1.55;color:var(--color-muted)">New <span style="font-family:var(--hub-font-mono);font-size:.82em">.jk-rule / -strong / -double</span> as an <span style="font-family:var(--hub-font-mono);font-size:.82em">&lt;hr&gt;</span> face; add a <b style="color:var(--color-ink)">&lt;Rule weight&gt;</b> component. Hairline for rows, ink for chapter heads, double for contents / colophon.</p>
+        </div>
+        <button class="jk-check" type="button" aria-checked="false" data-flag="22.3" aria-label="Flag 22.3"><span>✓</span></button>
+      </div>
+      <div class="jk-sheet" data-task="22.4" style="padding:16px 18px;display:flex;gap:14px;align-items:flex-start">
+        <span class="jk-bubble jk-bubble-primary" style="flex:none">22.4</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-family:var(--hub-font-serif);font-weight:600;font-size:1.08rem;letter-spacing:-.01em">Print marks — folio vs tape</div>
+          <p style="margin:5px 0 0;font-size:.88rem;line-height:1.55;color:var(--color-muted)">Re-cut <span style="font-family:var(--hub-font-mono);font-size:.82em">.stamp</span> in serif; add <span style="font-family:var(--hub-font-mono);font-size:.82em">.jk-folio / .jk-folio-no</span> + <b style="color:var(--color-ink)">&lt;Folio&gt;</b>. Audit every <span style="font-family:var(--hub-font-mono);font-size:.82em">.label-tape</span> — content names become folios; tape stays machine-chrome only.</p>
+          <span class="mono-eyebrow" style="display:block;margin-top:7px">judgement call · the audit spills into wave 23</span>
+        </div>
+        <button class="jk-check" type="button" aria-checked="false" data-flag="22.4" aria-label="Flag 22.4"><span>✓</span></button>
+      </div>
+      <div class="jk-sheet" data-task="22.5" style="padding:16px 18px;display:flex;gap:14px;align-items:flex-start">
+        <span class="jk-bubble jk-bubble-primary" style="flex:none">22.5</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-family:var(--hub-font-serif);font-weight:600;font-size:1.08rem;letter-spacing:-.01em">The seg verdict — split by face</div>
+          <p style="margin:5px 0 0;font-size:.88rem;line-height:1.55;color:var(--color-muted)"><span style="font-family:var(--hub-font-mono);font-size:.82em">.seg</span> keeps Big Shoulders + glow on the CRT and prints Fraunces lining tabular figures on paper. Confirm the readout stays legible at dense sizes on paper.</p>
+          <span class="mono-eyebrow" style="display:block;margin-top:7px">open · Fraunces figures everywhere, or keep seg where tight?</span>
+        </div>
+        <button class="jk-check" type="button" aria-checked="false" data-flag="22.5" aria-label="Flag 22.5"><span>✓</span></button>
+      </div>
+      <div class="jk-sheet" data-task="22.6" style="padding:16px 18px;display:flex;gap:14px;align-items:flex-start">
+        <span class="jk-bubble jk-bubble-primary" style="flex:none">22.6</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-family:var(--hub-font-serif);font-weight:600;font-size:1.08rem;letter-spacing:-.01em">Off-states carry the idiom</div>
+          <p style="margin:5px 0 0;font-size:.88rem;line-height:1.55;color:var(--color-muted)"><span style="font-family:var(--hub-font-mono);font-size:.82em">.jk-async-note</span> → serif italic; AsyncView copy goes to the print idiom ("Setting type…", NO SIGNAL stamp on error). Retire the two app-local <span style="font-family:var(--hub-font-mono);font-size:.82em">.muted</span> copies + MatchPanel's hardcoded one.</p>
+        </div>
+        <button class="jk-check" type="button" aria-checked="false" data-flag="22.6" aria-label="Flag 22.6"><span>✓</span></button>
+      </div>
+      <div class="jk-sheet" data-task="22.7" style="padding:16px 18px;display:flex;gap:14px;align-items:flex-start">
+        <span class="jk-bubble jk-bubble-primary" style="flex:none">22.7</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-family:var(--hub-font-serif);font-weight:600;font-size:1.08rem;letter-spacing:-.01em">Colophon + player title</div>
+          <p style="margin:5px 0 0;font-size:.88rem;line-height:1.55;color:var(--color-muted)">Add <span style="font-family:var(--hub-font-mono);font-size:.82em">.jk-colophon</span> + <b style="color:var(--color-ink)">&lt;Colophon&gt;</b>; weight <span style="font-family:var(--hub-font-mono);font-size:.82em">.pb-title</span> like a title in @jkos/player.</p>
+        </div>
+        <button class="jk-check" type="button" aria-checked="false" data-flag="22.7" aria-label="Flag 22.7"><span>✓</span></button>
+      </div>
+      <div class="jk-sheet" data-task="22.8" style="padding:16px 18px;display:flex;gap:14px;align-items:flex-start">
+        <span class="jk-bubble jk-bubble-primary" style="flex:none">22.8</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-family:var(--hub-font-serif);font-weight:600;font-size:1.08rem;letter-spacing:-.01em">Parity check the layer</div>
+          <p style="margin:5px 0 0;font-size:.88rem;line-height:1.55;color:var(--color-muted)">Render @jkos/ui against the Canvas + Full Press sheets in both faces; they are the acceptance reference for this wave.</p>
+        </div>
+        <button class="jk-check" type="button" aria-checked="false" data-flag="22.8" aria-label="Flag 22.8"><span>✓</span></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ WAVE 23 ═══ -->
+  <div style="padding-top:52px">
+    <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap">
+      <span class="seg" style="font-size:1.5rem;color:var(--color-accent)">23</span>
+      <h2 style="font-family:var(--hub-font-serif);font-weight:700;font-size:clamp(1.6rem,3vw,2.3rem);letter-spacing:-.02em;margin:0">Roll out per app</h2>
+      <span class="mono-eyebrow" style="margin-left:auto">dependency order · smallest &amp; shared first</span>
+    </div>
+    <hr class="jk-rule-strong" style="margin:10px 0 14px">
+    <p style="max-width:66ch;color:var(--color-muted);line-height:1.6;margin:0 0 12px">Most of each app comes free from wave 22. What remains is per-app judgement: the folio audit, replacing any hand-rolled serif with the primitive, re-setting headings on the editorial grid, and an off-state copy pass — then both-face QA and a fresh token mirror.</p>
+    <div class="jk-well" style="padding:12px 16px;margin-bottom:18px">
+      <span class="jk-lab jk-lab-xs" style="color:var(--color-accent)">Per-app checklist</span>
+      <p style="margin:5px 0 0;font-size:.86rem;line-height:1.5">folio audit · primitive serif · editorial grid · off-state copy · both-face QA · regenerate mirror</p>
+    </div>
+    <div data-tasklist style="display:flex;flex-direction:column;gap:10px">
+      <div class="jk-sheet" data-task="23.1" style="padding:16px 18px;display:flex;gap:14px;align-items:flex-start">
+        <span class="jk-bubble jk-bubble-primary" style="flex:none">23.1</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-family:var(--hub-font-serif);font-weight:600;font-size:1.08rem;letter-spacing:-.01em">jkauth — the letterpress form</div>
+          <p style="margin:5px 0 0;font-size:.88rem;line-height:1.55;color:var(--color-muted)">First: smallest surface, shared by every app, proves the Voice end-to-end. Sign-in as a printed form.</p>
+        </div>
+        <button class="jk-check" type="button" aria-checked="false" data-flag="23.1" aria-label="Flag 23.1"><span>✓</span></button>
+      </div>
+      <div class="jk-sheet" data-task="23.2" style="padding:16px 18px;display:flex;gap:14px;align-items:flex-start">
+        <span class="jk-bubble jk-bubble-primary" style="flex:none">23.2</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-family:var(--hub-font-serif);font-weight:600;font-size:1.08rem;letter-spacing:-.01em">papyros — the biggest consumer</div>
+          <p style="margin:5px 0 0;font-size:.88rem;line-height:1.55;color:var(--color-muted)">Library index as "Contents," book detail, the player-as-colophon, MatchPanel copy. Highest surface area — most of the audit lands here.</p>
+        </div>
+        <button class="jk-check" type="button" aria-checked="false" data-flag="23.2" aria-label="Flag 23.2"><span>✓</span></button>
+      </div>
+      <div class="jk-sheet" data-task="23.3" style="padding:16px 18px;display:flex;gap:14px;align-items:flex-start">
+        <span class="jk-bubble jk-bubble-primary" style="flex:none">23.3</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-family:var(--hub-font-serif);font-weight:600;font-size:1.08rem;letter-spacing:-.01em">kouros — reface to the Voice</div>
+          <p style="margin:5px 0 0;font-size:.88rem;line-height:1.55;color:var(--color-muted)">Voice + folio + off-state pass. Retire its local <span style="font-family:var(--hub-font-mono);font-size:.82em">.muted</span> copy in favour of the primitive.</p>
+        </div>
+        <button class="jk-check" type="button" aria-checked="false" data-flag="23.3" aria-label="Flag 23.3"><span>✓</span></button>
+      </div>
+      <div class="jk-sheet" data-task="23.4" style="padding:16px 18px;display:flex;gap:14px;align-items:flex-start">
+        <span class="jk-bubble jk-bubble-primary" style="flex:none">23.4</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-family:var(--hub-font-serif);font-weight:600;font-size:1.08rem;letter-spacing:-.01em">BeigeBoard — the workshop</div>
+          <p style="margin:5px 0 0;font-size:.88rem;line-height:1.55;color:var(--color-muted)">Shell + calendar. <span style="font-family:var(--hub-font-mono);font-size:.82em">.jk-cards-*</span> stay byte-identical (kit-owned), so this is voice / chrome / folio only — low risk.</p>
+        </div>
+        <button class="jk-check" type="button" aria-checked="false" data-flag="23.4" aria-label="Flag 23.4"><span>✓</span></button>
+      </div>
+      <div class="jk-sheet" data-task="23.5" style="padding:16px 18px;display:flex;gap:14px;align-items:flex-start">
+        <span class="jk-bubble jk-bubble-primary" style="flex:none">23.5</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-family:var(--hub-font-serif);font-weight:600;font-size:1.08rem;letter-spacing:-.01em">ORDECK — dashboard widgets</div>
+          <p style="margin:5px 0 0;font-size:.88rem;line-height:1.55;color:var(--color-muted)">Reface chrome, folio, seg. Keep bespoke <span style="font-family:var(--hub-font-mono);font-size:.82em">reel-spin / ticker</span> motion — those are app-owned, not primitives.</p>
+        </div>
+        <button class="jk-check" type="button" aria-checked="false" data-flag="23.5" aria-label="Flag 23.5"><span>✓</span></button>
+      </div>
+      <div class="jk-sheet" data-task="23.6" style="padding:16px 18px;display:flex;gap:14px;align-items:flex-start;opacity:.72">
+        <span class="jk-bubble jk-bubble-secondary" style="flex:none">23.6</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-family:var(--hub-font-serif);font-weight:600;font-size:1.08rem;letter-spacing:-.01em">SylibOS — out of scope</div>
+          <p style="margin:5px 0 0;font-size:.88rem;line-height:1.55;color:var(--color-muted)">Untouched by standing rule. Recorded here only so the roster is complete and no one migrates it by reflex.</p>
+        </div>
+        <span class="stamp" style="flex:none;color:var(--color-faint)">EXEMPT</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ WAVE 24 ═══ -->
+  <div style="padding-top:52px">
+    <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap">
+      <span class="seg" style="font-size:1.5rem;color:var(--color-accent)">24</span>
+      <h2 style="font-family:var(--hub-font-serif);font-weight:700;font-size:clamp(1.6rem,3vw,2.3rem);letter-spacing:-.02em;margin:0">Motion &amp; atmosphere</h2>
+      <span class="mono-eyebrow" style="margin-left:auto">the entrance physics</span>
+    </div>
+    <hr class="jk-rule-strong" style="margin:10px 0 14px">
+    <p style="max-width:66ch;color:var(--color-muted);line-height:1.6;margin:0 0 20px">Held to its own wave so it lands after the surfaces are stable — motion on a moving target just churns. The signature: ink dries on paper, the tube powers on in dark.</p>
+    <div data-tasklist style="display:flex;flex-direction:column;gap:10px">
+      <div class="jk-sheet" data-task="24.1" style="padding:16px 18px;display:flex;gap:14px;align-items:flex-start">
+        <span class="jk-bubble jk-bubble-primary" style="flex:none">24.1</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-family:var(--hub-font-serif);font-weight:600;font-size:1.08rem;letter-spacing:-.01em">Entrance physics into shared motion</div>
+          <p style="margin:5px 0 0;font-size:.88rem;line-height:1.55;color:var(--color-muted)"><span style="font-family:var(--hub-font-mono);font-size:.82em">inkDry</span> for paper; wire the existing <span style="font-family:var(--hub-font-mono);font-size:.82em">crt-expand</span> family as the dark entrance. Both <span style="font-family:var(--hub-font-mono);font-size:.82em">prefers-reduced-motion</span> gated.</p>
+        </div>
+        <button class="jk-check" type="button" aria-checked="false" data-flag="24.1" aria-label="Flag 24.1"><span>✓</span></button>
+      </div>
+      <div class="jk-sheet" data-task="24.2" style="padding:16px 18px;display:flex;gap:14px;align-items:flex-start">
+        <span class="jk-bubble jk-bubble-primary" style="flex:none">24.2</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-family:var(--hub-font-serif);font-weight:600;font-size:1.08rem;letter-spacing:-.01em">Ambient raking light</div>
+          <p style="margin:5px 0 0;font-size:.88rem;line-height:1.55;color:var(--color-muted)">Tweak-gated, off by default. Grain stays backdrop-only — never on cards or type.</p>
+        </div>
+        <button class="jk-check" type="button" aria-checked="false" data-flag="24.2" aria-label="Flag 24.2"><span>✓</span></button>
+      </div>
+      <div class="jk-sheet" data-task="24.3" style="padding:16px 18px;display:flex;gap:14px;align-items:flex-start">
+        <span class="jk-bubble jk-bubble-primary" style="flex:none">24.3</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-family:var(--hub-font-serif);font-weight:600;font-size:1.08rem;letter-spacing:-.01em">Apply at boundaries, once</div>
+          <p style="margin:5px 0 0;font-size:.88rem;line-height:1.55;color:var(--color-muted)">Per-app: entrances at view / panel / item boundaries; audit for double-animation where a primitive already animates.</p>
+        </div>
+        <button class="jk-check" type="button" aria-checked="false" data-flag="24.3" aria-label="Flag 24.3"><span>✓</span></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ WAVE 25 ═══ -->
+  <div style="padding-top:52px">
+    <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap">
+      <span class="seg" style="font-size:1.5rem;color:var(--color-accent)">25</span>
+      <h2 style="font-family:var(--hub-font-serif);font-weight:700;font-size:clamp(1.6rem,3vw,2.3rem);letter-spacing:-.02em;margin:0">Harden &amp; sign off</h2>
+      <span class="mono-eyebrow" style="margin-left:auto">close the waves</span>
+    </div>
+    <hr class="jk-rule-strong" style="margin:10px 0 14px">
+    <div data-tasklist style="display:flex;flex-direction:column;gap:10px">
+      <div class="jk-sheet" data-task="25.1" style="padding:16px 18px;display:flex;gap:14px;align-items:flex-start">
+        <span class="jk-bubble jk-bubble-primary" style="flex:none">25.1</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-family:var(--hub-font-serif);font-weight:600;font-size:1.08rem;letter-spacing:-.01em">Both-face visual regression</div>
+          <p style="margin:5px 0 0;font-size:.88rem;line-height:1.55;color:var(--color-muted)">Snapshot every app in paper and dark; diff against the wave-22 parity reference.</p>
+        </div>
+        <button class="jk-check" type="button" aria-checked="false" data-flag="25.1" aria-label="Flag 25.1"><span>✓</span></button>
+      </div>
+      <div class="jk-sheet" data-task="25.2" style="padding:16px 18px;display:flex;gap:14px;align-items:flex-start">
+        <span class="jk-bubble jk-bubble-primary" style="flex:none">25.2</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-family:var(--hub-font-serif);font-weight:600;font-size:1.08rem;letter-spacing:-.01em">Accessibility pass</div>
+          <p style="margin:5px 0 0;font-size:.88rem;line-height:1.55;color:var(--color-muted)">Contrast in both faces, reduced-motion honoured, ≥44px tap floors intact after the reface.</p>
+        </div>
+        <button class="jk-check" type="button" aria-checked="false" data-flag="25.2" aria-label="Flag 25.2"><span>✓</span></button>
+      </div>
+      <div class="jk-sheet" data-task="25.3" style="padding:16px 18px;display:flex;gap:14px;align-items:flex-start">
+        <span class="jk-bubble jk-bubble-primary" style="flex:none">25.3</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-family:var(--hub-font-serif);font-weight:600;font-size:1.08rem;letter-spacing:-.01em">Font performance</div>
+          <p style="margin:5px 0 0;font-size:.88rem;line-height:1.55;color:var(--color-muted)">Subset Fraunces weights, settle a FOUT strategy, and confirm Big Shoulders only loads for the dark face.</p>
+        </div>
+        <button class="jk-check" type="button" aria-checked="false" data-flag="25.3" aria-label="Flag 25.3"><span>✓</span></button>
+      </div>
+      <div class="jk-sheet" data-task="25.4" style="padding:16px 18px;display:flex;gap:14px;align-items:flex-start">
+        <span class="jk-bubble jk-bubble-primary" style="flex:none">25.4</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-family:var(--hub-font-serif);font-weight:600;font-size:1.08rem;letter-spacing:-.01em">Docs freeze &amp; cleanup</div>
+          <p style="margin:5px 0 0;font-size:.88rem;line-height:1.55;color:var(--color-muted)">Archive the design sheets as the canonical spec, close the Full Press waves in ToDo.md, and delete the now-merged press.css + retired legacy aliases.</p>
+        </div>
+        <button class="jk-check" type="button" aria-checked="false" data-flag="25.4" aria-label="Flag 25.4"><span>✓</span></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ OPEN QUESTIONS ═══ -->
+  <div style="padding-top:52px">
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:4px">
+      <span class="stamp" style="color:var(--color-accent)">DECIDE BEFORE WAVE 21</span>
+    </div>
+    <h2 style="font-family:var(--hub-font-serif);font-weight:700;font-size:clamp(1.6rem,3vw,2.3rem);letter-spacing:-.02em;margin:6px 0 0">Where I need your call</h2>
+    <hr class="jk-rule-strong" style="margin:10px 0 18px">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px">
+      <div class="jk-well" style="padding:16px 18px">
+        <span class="jk-lab jk-lab-sm" style="color:var(--color-accent)">Q1 · Merge or layer?</span>
+        <p style="margin:8px 0 0;font-size:.9rem;line-height:1.55;color:var(--color-muted)">I assume we fold press.css <em>into</em> hub.css (its own header says "proposed diff"). Confirm — or do you want it kept as a permanent opt-in layer?</p>
+      </div>
+      <div class="jk-well" style="padding:16px 18px">
+        <span class="jk-lab jk-lab-sm" style="color:var(--color-accent)">Q2 · Roster &amp; order</span>
+        <p style="margin:8px 0 0;font-size:.9rem;line-height:1.55;color:var(--color-muted)">Is jkauth → papyros → kouros → BeigeBoard → ORDECK the right sequence this cycle, and is SylibOS still exempt?</p>
+      </div>
+      <div class="jk-well" style="padding:16px 18px">
+        <span class="jk-lab jk-lab-sm" style="color:var(--color-accent)">Q3 · Wave numbers</span>
+        <p style="margin:8px 0 0;font-size:.9rem;line-height:1.55;color:var(--color-muted)">I slotted these as 21–25 after ToDo.md's Wave 20. If your next open number differs, say so and I'll renumber.</p>
+      </div>
+      <div class="jk-well" style="padding:16px 18px">
+        <span class="jk-lab jk-lab-sm" style="color:var(--color-accent)">Q4 · Hand-rolled primitives</span>
+        <p style="margin:8px 0 0;font-size:.9rem;line-height:1.55;color:var(--color-muted)">Do any apps still bypass @jkos/ui with their own primitives? Each one that does expands waves 22–23.</p>
+      </div>
+      <div class="jk-well" style="padding:16px 18px">
+        <span class="jk-lab jk-lab-sm" style="color:var(--color-accent)">Q5 · Fraunces always-on</span>
+        <p style="margin:8px 0 0;font-size:.9rem;line-height:1.55;color:var(--color-muted)">Promoting Fraunces to a primitive means it's always loaded. Licensing + perf budget OK suite-wide?</p>
+      </div>
+      <div class="jk-well" style="padding:16px 18px">
+        <span class="jk-lab jk-lab-sm" style="color:var(--color-accent)">Q6 · Seg on paper</span>
+        <p style="margin:8px 0 0;font-size:.9rem;line-height:1.55;color:var(--color-muted)">Fraunces lining figures everywhere on paper, or keep Big Shoulders in genuinely tight readouts?</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ COLOPHON ═══ -->
+  <div style="padding-top:60px">
+    <hr class="jk-rule-double" style="margin:0 0 34px">
+    <div class="jk-colophon" style="max-width:52ch;margin:0 auto">
+      <span class="jk-lab" style="display:block;margin-bottom:10px">Colophon</span>
+      <p style="margin:0 0 12px"><b>jkOS — Full Press Rollout</b> · a proposed work order.<br>Five waves, one direction: source → primitives → apps → mirrors.<br>Token names, the two-mode contract and the derivation chain stay frozen throughout.</p>
+      <p style="margin:0;font-size:.85rem;color:var(--color-faint)"><em>This dossier is itself set in the system it plans to ship</em> — rendered by hub.css + press.css, correct in both faces. Flip the switch, flag what you want to argue, and I'll cut the next draft.</p>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  componentDidMount() {
+    this._flags = {};
+    try { this._flags = JSON.parse(localStorage.getItem('jkos-rollout-flags') || '{}') || {}; } catch (e) { this._flags = {}; }
+
+    // face toggle
+    const ft = document.getElementById('face-toggle');
+    const applyFace = (mode) => {
+      document.documentElement.setAttribute('data-mode', mode);
+      if (ft) ft.setAttribute('aria-checked', mode === 'dark' ? 'true' : 'false');
+      try { localStorage.setItem('jkos-rollout-mode', mode); } catch (e) {}
+    };
+    let mode = 'paper';
+    try { mode = localStorage.getItem('jkos-rollout-mode') || 'paper'; } catch (e) {}
+    applyFace(mode === 'dark' ? 'dark' : 'paper');
+    if (ft) ft.addEventListener('click', () => {
+      applyFace(document.documentElement.getAttribute('data-mode') === 'dark' ? 'paper' : 'dark');
+    });
+
+    // paint saved flags + wire toggles
+    document.querySelectorAll('[data-flag]').forEach((btn) => {
+      const id = btn.getAttribute('data-flag');
+      this._paintFlag(btn, !!this._flags[id]);
+      btn.addEventListener('click', () => {
+        this._flags[id] = !this._flags[id];
+        this._paintFlag(btn, this._flags[id]);
+        try { localStorage.setItem('jkos-rollout-flags', JSON.stringify(this._flags)); } catch (e) {}
+        this._updateCount();
+      });
+    });
+    this._updateCount();
+
+    // reset all flags
+    const rb = document.getElementById('flag-reset');
+    if (rb) rb.addEventListener('click', () => {
+      this._flags = {};
+      try { localStorage.setItem('jkos-rollout-flags', '{}'); } catch (e) {}
+      document.querySelectorAll('[data-flag]').forEach((b) => this._paintFlag(b, false));
+      this._updateCount();
+    });
+  }
+
+  _paintFlag(btn, on) {
+    btn.setAttribute('aria-checked', on ? 'true' : 'false');
+    const card = btn.closest('[data-task]');
+    if (card) {
+      card.style.background = on ? 'color-mix(in srgb, var(--accent) 9%, var(--hub-bg-2))' : '';
+      card.style.boxShadow = on
+        ? 'var(--hub-shadow-card), inset 0 1px 0 var(--hub-bevel-light), inset 3px 0 0 var(--accent)'
+        : '';
+    }
+  }
+
+  _updateCount() {
+    const n = Object.keys(this._flags).filter((k) => this._flags[k]).length;
+    const el = document.getElementById('flag-count');
+    if (el) el.textContent = String(n);
+  }
+
+  renderVals() { return {}; }
+
+  // wired imperatively in componentDidMount so all copy paints from the first
+  // streamed character; the reset button lives in the sticky head.
+  componentDidUpdate() {}
+}
+Component.prototype._bindReset = null;
+</script>
+</body>
+</html>
