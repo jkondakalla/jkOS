@@ -502,19 +502,16 @@
       <hr class="jk-rule-double" style="margin:12px 0 4px"><span class="mono-eyebrow">jk-rule-double</span>
       <hr class="jk-rule-taper" style="margin:12px 0 4px"><span class="mono-eyebrow">jk-rule-taper</span>
       <p class="dg-caption" style="margin-top:8px">
-        the fourth weight is <b>the inlay</b> — and the one divider in the suite that is not ink.
-        Geometry earns it the slot: it <b>dies into the ground</b> at both ends, where every rule
-        above is cut square. A square cut is right inside something that already has an edge; at the
-        boundaries of the canvas there is no edge, so a square-cut rule terminates in mid-air and the
-        page reads as <i>cropped</i>. Being the only line that ends in points, it is also the only one
-        with a silhouette of its own — so it gets a material: <b>hammered steel let into the sheet</b>
-        on paper (groove shadow, crown catch-light, steel body, lip, then the sheet's catch — a round
-        profile drawn in shading — one band per device pixel — never in <code>border-radius</code>, which would fight the taper),
-        and the <b>same blade lit</b> on the tube, silver rather than cream because this is metal and
-        not type. Flip the face above and watch it change state. Scarcity is the whole point: it is
-        spent on the masthead's edge (§11) and nowhere else — the canvas foot borrows the taper's
-        geometry and stays ink. Inside a bordered container keep <code>.jk-rule</code>: an inlay
-        there is furniture.
+        the fourth weight is <b>the tapered rule</b> — same ink as the three above, and the only one
+        that <b>dies into the ground</b> at both ends instead of being cut square. That is the whole
+        of it. A square cut is right inside something that already has an edge; at the boundaries of
+        the canvas there is no edge, so a square-cut rule terminates in mid-air and the page reads as
+        <i>cropped</i>. This weight was briefly given a <i>material</i> — a hammered-steel bead on
+        paper, a lit silver blade on the tube — on the theory that the one line with its own
+        silhouette had earned one. In place it read as a strip of trim bolted across the page, louder
+        than the masthead it was bounding. Deleted; the taper stayed. It is spent on the masthead's
+        edge (§11) and nowhere else; the canvas foot borrows the same geometry. Inside a bordered
+        container keep <code>.jk-rule</code> — a taper there is fussiness.
       </p>
     </section>
 
@@ -870,16 +867,16 @@
           <code>.jk-sheet</code> — at card scale, not page scale.
         </p>
         <p class="dg-lede">
-          <b>The head's edge is the inlay.</b> <code>.jk-masthead</code> spends no fill and no
+          <b>The head's edge is one hairline.</b> <code>.jk-masthead</code> spends no fill and no
           border: the ground's grain runs unbroken from the first pixel, and the bottom edge is the
-          tapered metal bead of §04, drawn from the same <code>--jk-inlay-*</code> recipe so the two
-          are one object rather than two that drift. It replaced an opaque bar with a square
+          tapered rule of §04, drawn from the same <code>--jk-inlay-*</code> seams so the two are one
+          object rather than two that drift. It replaced an opaque bar with a square
           <code>border-bottom</code>, which was a slab: its fill was the one place in the app where
           the grain stopped, and because the canvas floats on the ground its edges were square cuts
-          in mid-air. One bead, not the ink rule + hairline ladder it was briefly — a second line
-          under a piece of metal reads as two pieces of trim. <code>.jk-canvas-foot</code> takes the
-          same feathered margin in ink, so head and foot bracket the page as a pair by margin rather
-          than by substance.
+          in mid-air. It then overcorrected twice — an ink-rule-plus-hairline ladder, then a metal
+          bead — before landing where it should have started: one feathered hairline, quieter than
+          the type above it. <code>.jk-canvas-foot</code> takes the same feathered margin, so head
+          and foot bracket the page as a pair.
         </p>
         <p class="dg-lede">
           Nav in a masthead is <b>boxed</b> (<code>.jk-masthead-tab</code>, plus

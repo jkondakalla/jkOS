@@ -252,8 +252,13 @@ export function Bar({
 
 /** The print idiom for nothing-here (§15.3): an italic Fraunces line over a mono
  *  sub. The component owns the TREATMENT; the copy is a prop, so each view still
- *  speaks for itself — "A clean week. Nothing set in type yet." is Week's voice,
- *  not the primitive's. */
+ *  speaks for itself.
+ *
+ *  NOT over a drawn grid. The calendar bodies used to float one of these over an
+ *  empty Day/Week/Month ("A clean week. Nothing set in type yet.") and it read as
+ *  debris laid on a surface that already said "empty" by being empty. Removed
+ *  2026-08-12. Use this where nothing is drawn at all — a list pane, a results
+ *  panel — and let structured surfaces speak for themselves. */
 export function EmptyState({
   line,
   sub,

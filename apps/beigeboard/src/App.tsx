@@ -87,28 +87,38 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
   const handleUnauth = () => toAuthPortal()
 
   /* All API calls go through authFetch which handles token refresh */
+  /* Every request carries the client's LOCAL date. The routine engine mints
+     relative to "today" and the server's UTC day is not the user's day — at 17:00
+     in California it is already tomorrow in UTC, which would skip the occurrence
+     on screen. Computed per call, not captured, so a tab left open overnight sends
+     the new date on its next request. A header, not a query param: `GET /api/items`
+     reads any query param as "filtered" and suppresses the seed + materialise. */
+  const bbHeaders = (extra?: Record<string, string>) => ({
+    'X-BB-Today': isoDate(new Date()),
+    ...extra,
+  })
   const api = {
     get: (path: string) =>
-      authFetch(`${apiUrl}${path}`).then(r => {
+      authFetch(`${apiUrl}${path}`, { headers: bbHeaders() }).then(r => {
         if (r.status === 401) { handleUnauth(); throw new Error('Unauthorized') }
         return r.json()
       }),
     post: (path: string, body: any) =>
       authFetch(`${apiUrl}${path}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+        method: 'POST', headers: bbHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(body),
       }).then(r => {
         if (r.status === 401) { handleUnauth(); throw new Error('Unauthorized') }
         return r.json()
       }),
     patch: (path: string, body: any) =>
       authFetch(`${apiUrl}${path}`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+        method: 'PATCH', headers: bbHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(body),
       }).then(r => {
         if (r.status === 401) { handleUnauth(); throw new Error('Unauthorized') }
         return r.json()
       }),
     del: (path: string) =>
-      authFetch(`${apiUrl}${path}`, { method: 'DELETE' }).then(r => {
+      authFetch(`${apiUrl}${path}`, { method: 'DELETE', headers: bbHeaders() }).then(r => {
         if (r.status === 401) { handleUnauth(); throw new Error('Unauthorized') }
         return r.json()
       }),

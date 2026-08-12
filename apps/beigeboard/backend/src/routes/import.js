@@ -8,7 +8,7 @@ const {
   MAX_IMPORT_ITEMS, MAX_IMPORT_DEPTH,
   IMPORT_ALIASES, IMPORT_STRUCT_KEYS, IMPORT_DATE_COLS, IMPORT_TIME_COLS, IMPORT_KIND_ENUM,
   ITEM_COLUMNS, coerceColumn,
-  looksLikeDate, looksLikeTime, importChildren, cleanImportField,
+  looksLikeDate, looksLikeTime, looksLikeCadenceDays, importChildren, cleanImportField,
 } = require('../schema');
 const { validParentId } = require('../items-store');
 const { fail } = require('../util');
@@ -97,6 +97,11 @@ function planImport(doc, userId) {
       if (val == null || val === '') continue;
       if (IMPORT_DATE_COLS.has(c) && !looksLikeDate(val)) errors.push(`${n.path}.${c}: expected YYYY-MM-DD, got ${JSON.stringify(val)}`);
       if (IMPORT_TIME_COLS.has(c) && !looksLikeTime(val)) errors.push(`${n.path}.${c}: expected HH:MM, got ${JSON.stringify(val)}`);
+      // Same door as the direct writes (validateItemWrite): a cadence string drives
+      // the mint loop, so an imported one is checked, not trusted.
+      if (c === 'cadence_days' && !looksLikeCadenceDays(String(val))) {
+        errors.push(`${n.path}.cadence_days: expected comma-separated day offsets 0-6, got ${JSON.stringify(val)}`);
+      }
     }
 
     n.data = data; n.kind = kind;

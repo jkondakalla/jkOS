@@ -39,7 +39,7 @@ import { TimelinePreview } from './TimelinePreview';
 import { CreateDialog, type CreatePending } from './CreateDialog';
 import { Checkbox, Eyebrow, RecLamp, HourLabel, NowLine } from './primitives';
 import { useScrollGutter } from './useScrollGutter';
-import { Press, TButton, Well, EmptyState } from '@jkos/ui';
+import { Press, TButton, Well } from '@jkos/ui';
 import { MO_DELAYS } from '@jkos/design';
 import { deriveDaySections } from './sections';
 
@@ -356,13 +356,7 @@ function DayGrid({
                 animationDelay: `${MO_DELAYS.todayGrid}ms`,
               }}
             >
-              {/* Floats over the grid rather than replacing it, so drag-to-create
-                  still works on an empty day. */}
-              {timed.length === 0 && untimed.length === 0 && (
-                <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', pointerEvents: 'none', zIndex: 3 }}>
-                  <EmptyState line="Nothing set for this day." sub="DRAG ON THE GRID TO SCHEDULE" />
-                </div>
-              )}
+              {/* An empty day says so by being empty — see WeekView. No placard. */}
               <div style={{ display: 'grid', gridTemplateColumns: `${LABEL_W}px 1fr`, height: totalH, position: 'relative' }}>
                 <div style={{ position: 'relative' }}>
                   {HOURS.map((h, i) => (

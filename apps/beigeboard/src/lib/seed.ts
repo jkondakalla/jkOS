@@ -88,6 +88,11 @@ export function getLooseTasks(items: any[]) {
   return items
     .filter((it: any) => {
       if (it.kind !== 'task') return false
+      // A routine's occurrence is never adrift: it is filed under a routine, which
+      // IS its home, and the routines board is where it is accounted for. Without
+      // this the rail would fill with two weeks of "gym" rows every time someone
+      // adds a routine that isn't under a goal.
+      if (isUnderRoutine(it, items)) return false
       return !getAncestors(it, items).some((a: any) => a.kind === 'goal')
     })
     .sort((a: any, b: any) => {
@@ -98,9 +103,31 @@ export function getLooseTasks(items: any[]) {
     })
 }
 
+/**
+ * Under a ROUTINE, and therefore not the goal tree's work.
+ *
+ * A routine may hang under a goal ("read 20 pages a day" under "finish six
+ * books"), and its occurrences are real kind:'task' rows filed beneath it — which
+ * is exactly what makes them work everywhere else in the app for free. It also
+ * means that without this guard they are indistinguishable from the goal's own
+ * leaves, and every rollup that counts leaves would count them.
+ *
+ * That would not be a rounding error, it would make the number a lie: a routine
+ * mints two weeks of occurrences at a time, forever, so a goal with one routine
+ * under it would have a denominator that grows every week and a percentage that
+ * can never reach 100 no matter how much of the actual GOAL is finished.
+ * Breakdown progress and cadence attainment are different measurements; the
+ * routines board owns the second one.
+ */
+export function isUnderRoutine(item: any, items: any[]) {
+  return item.kind === 'routine' || getAncestors(item, items).some((a: any) => a.kind === 'routine')
+}
+
 export function getProgress(item: any, items: any[]) {
   const desc = getDescendants(item, items)
-  const leaves = desc.filter(d => d.kind === 'task' && (!getChildren(d, items).length))
+  const leaves = desc.filter(d => (
+    d.kind === 'task' && !getChildren(d, items).length && !isUnderRoutine(d, items)
+  ))
   if (leaves.length === 0) return { done: 0, total: 0, pct: 0 }
   const done = leaves.filter((l: any) => l.completed).length
   return { done, total: leaves.length, pct: Math.round((done / leaves.length) * 100) }

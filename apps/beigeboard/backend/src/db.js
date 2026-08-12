@@ -294,6 +294,50 @@ const MIGRATIONS = [
               BEGIN UPDATE items SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = NEW.id; END`);
     },
   },
+  {
+    id: 9, name: 'routines',
+    up(d) {
+      /*
+       * ROUTINES — the cadence engine (Documentation/PLANNING_METHOD.md).
+       *
+       * A routine (kind:'routine') declares WHEN a habit repeats; its occurrences
+       * are ordinary kind:'task' rows minted under it. See src/item-fields.js for
+       * what the two columns mean and src/routines.js for the mint rules.
+       */
+      for (const col of ['cadence_days TEXT', 'cadence_count INTEGER']) {
+        try { d.exec(`ALTER TABLE items ADD COLUMN ${col}`); }
+        catch (e) { if (!e.message?.includes('duplicate column')) throw e; }
+      }
+
+      /*
+       * ONE OCCURRENCE PER ROUTINE PER DAY, enforced by the database rather than
+       * by the materializer being careful.
+       *
+       * The materializer is idempotent — it runs on every unfiltered GET /api/items,
+       * so it re-asks "does 2026-08-14 exist for routine 42?" many times a session.
+       * A check-then-insert is a race under concurrent requests (two tabs, or a tab
+       * plus a peer app polling), and losing that race writes a DUPLICATE occurrence
+       * that then shows up twice on the day and double-counts in the streak. So the
+       * uniqueness lives here and the mint uses INSERT OR IGNORE: the loser of the
+       * race writes nothing and neither request errors.
+       *
+       * The key is `ext_ref = 'routine:<routineId>:<YYYY-MM-DD>'` rather than
+       * (parent_id, due_date), for two reasons. (1) A FLOAT occurrence has NO
+       * due_date (it sits on the week bench), so a due_date-based key can't name it
+       * — its ext_ref carries the week instead. (2) ext_ref is already the declared
+       * "back-reference to the creating entity" and is already exposed to peers
+       * through the dataset's ext_ref_prefix filter, so `?ext_ref_prefix=routine:`
+       * gives any app the occurrence list for free.
+       *
+       * Partial (the LIKE guard) so it constrains ONLY routine occurrences: other
+       * apps write their own ext_refs through the weave interop surface and must
+       * stay free to repeat them.
+       */
+      d.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_items_routine_occurrence
+              ON items(user_id, ext_ref)
+              WHERE ext_ref IS NOT NULL AND ext_ref LIKE 'routine:%'`);
+    },
+  },
 ];
 
 function runMigrations() {

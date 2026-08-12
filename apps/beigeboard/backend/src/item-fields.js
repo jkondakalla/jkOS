@@ -28,7 +28,7 @@
 const ITEM_FIELDS = [
   { name: 'id',             shape: 'number',  client: false },
   { name: 'user_id',        shape: 'number',  client: false },
-  { name: 'kind',           shape: 'enum',    client: true,  shapeEnum: ['task', 'event', 'goal', 'milestone'], importEnum: ['task', 'event', 'goal', 'milestone'] },
+  { name: 'kind',           shape: 'enum',    client: true,  shapeEnum: ['task', 'event', 'goal', 'milestone', 'routine'], importEnum: ['task', 'event', 'goal', 'milestone', 'routine'] },
   { name: 'scope',          shape: 'string',  client: true,  cap: 20, importEnum: ['day', 'week', 'month', 'year', 'project'] },
   { name: 'title',          shape: 'string',  client: true,  cap: 500 },
   { name: 'notes',          shape: 'string',  client: true,  cap: 5000 },
@@ -52,6 +52,29 @@ const ITEM_FIELDS = [
   { name: 'status',         shape: 'enum',    client: true,  cap: 20, shapeEnum: ['active', 'parked', 'done'], importEnum: ['active', 'parked', 'done'] },
   { name: 'tags',           shape: 'string',  client: true },   // JSON array on the wire; coerced at insert
   { name: 'ext_ref',        shape: 'string',  client: true,  cap: 200 },
+  // ── Routines (kind:'routine') ──────────────────────────────────────────────
+  // A routine is a CADENCE, not an occurrence. These two columns are the whole
+  // pattern; the occurrences themselves are ordinary kind:'task' rows minted
+  // under the routine by src/routines.js, so every downstream surface (Today,
+  // Week, Calendar, ORDECK widgets, the weave `items` dataset) needs no new
+  // concept to read them. Both are NULL on every other kind.
+  //   cadence_days   CSV of DAY OFFSETS FROM THE WEEK START, e.g. "0,2,4". The
+  //                  suite's week starts Monday (weekStart() in @jkos/cards, and
+  //                  its DOW), so 0=Mon … 6=Sun. Offsets rather than JS getDay()
+  //                  values because every board column and every mint is already
+  //                  computed as addDays(weekStart, n) — storing the number the
+  //                  render and the mint both use removes the one place a Sunday
+  //                  off-by-one could enter.
+  //   cadence_count  the weekly TARGET. NULL → the committed days are the target
+  //                  (cadence_days.length). GREATER than that → the surplus is
+  //                  FLOAT, minted onto the week bench (week_start set, no
+  //                  due_date) so "3× a week, any days" is expressible without a
+  //                  second mechanism. Lower than that mints nothing extra.
+  // Appended here, after the last pre-existing client column and before the two
+  // server-managed timestamps, because ORDER IS CONTRACT (see above): new columns
+  // extend the shape's tail, they don't shift a column a peer already indexes.
+  { name: 'cadence_days',   shape: 'string',  client: true,  cap: 40 },
+  { name: 'cadence_count',  shape: 'number',  client: true,  num: true },
   { name: 'created_at',     shape: 'string',  client: false },
   { name: 'updated_at',     shape: 'string',  client: false },  // trigger-managed
 ];

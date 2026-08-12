@@ -36,7 +36,7 @@ import { TimelinePreview } from './TimelinePreview';
 import { CreateDialog } from './CreateDialog';
 import { ChromeBar, HourLabel, NowLine } from './primitives';
 import { useScrollGutter } from './useScrollGutter';
-import { TButton, EmptyState } from '@jkos/ui';
+import { TButton } from '@jkos/ui';
 import { MO_DELAYS } from '@jkos/design';
 
 export function WeekView({
@@ -533,13 +533,9 @@ export function WeekView({
                 animationDelay: `${MO_DELAYS.weekGrid}ms`,
               }}
             >
-              {/* A clean week still draws its grid — the empty state floats over
-                  it rather than replacing it, so drag-to-create keeps working. */}
-              {!compact && scheduledCount === 0 && (
-                <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', pointerEvents: 'none', zIndex: 3 }}>
-                  <EmptyState line="A clean week. Nothing set in type yet." sub="DROP FROM THE BENCH TO SCHEDULE" />
-                </div>
-              )}
+              {/* An empty week says so by being empty: the drawn grid IS the
+                  message. The floating "a clean week" placard that used to sit
+                  here was earlier-build voice and read as debris over the grid. */}
               <div style={{ display: 'grid', gridTemplateColumns: cols, columnGap: GAP, height: totalH, position: 'relative' }}>
                 <div style={{ position: 'relative' }}>
                   {HOURS.map((h, i) => (

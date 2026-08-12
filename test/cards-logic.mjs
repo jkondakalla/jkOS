@@ -28,9 +28,18 @@ const fail = (msg) => { console.error(`✗ ${msg}`); failed++; };
 const ok = (msg) => console.log(`✓ ${msg}`);
 const check = (cond, msg) => (cond ? ok(msg) : fail(msg));
 
-// Transpile a self-contained .ts module to ESM and import it.
-async function importTs(relPath, outName) {
-  const src = readFileSync(resolve(root, relPath), 'utf8');
+/* Transpile a .ts module to ESM and import it.
+ *
+ * `rewrite` maps a bare import specifier to another module ALREADY emitted into
+ * the same temp dir, so a module that is pure logic but not import-free can still
+ * be tested for real. It is deliberately a per-call map rather than a resolver:
+ * every rewritten edge has to be written down here, which keeps this from quietly
+ * turning into a second module resolver that could disagree with the bundler. */
+async function importTs(relPath, outName, rewrite = {}) {
+  let src = readFileSync(resolve(root, relPath), 'utf8');
+  for (const [from, to] of Object.entries(rewrite)) {
+    src = src.replaceAll(`'${from}'`, `'./${to}'`);
+  }
   const { outputText } = ts.transpileModule(src, {
     compilerOptions: {
       module: ts.ModuleKind.ESNext,
@@ -338,6 +347,92 @@ check(
   !/^\.match-panel\b|^\.match-candidate/m.test(bookDetailCss),
   "book-detail.css no longer defines its own .match-panel/.match-candidate* rules (moved to hub.css's .jk-match-*)",
 );
+
+/* ── Routines: the cadence, the meters, and the streak ───────────────────────
+ * The mint rules are covered end-to-end against a live server
+ * (apps/beigeboard/backend/test/routines.smoke.mjs). What is tested HERE is the
+ * reading side — the pure functions the board renders from — because they encode
+ * three judgement calls that are easy to regress silently and impossible to see
+ * in a screenshot: what a cell state means, what counts toward a week, and
+ * whether today can break a streak. */
+const routines = await importTs(
+  'apps/beigeboard/src/lib/routines.ts', 'routines.mjs',
+  { '@jkos/cards': 'datetime.mjs' },   // the only import; datetime.mjs is emitted above
+);
+const {
+  cadenceDays, weeklyTarget, floatCount, toggleDay,
+  weekCells, attainment, streakOf, getRoutines,
+} = routines;
+
+// The cadence encoding: offsets from Monday, sorted, de-duped, and TOLERANT — it
+// drives a render, so a stray value must never place a cell in column 9.
+check(JSON.stringify(cadenceDays({ cadence_days: '0,2,4' })) === '[0,2,4]', 'cadenceDays parses offsets');
+check(JSON.stringify(cadenceDays({ cadence_days: '4,0,2' })) === '[0,2,4]', 'cadenceDays sorts');
+check(JSON.stringify(cadenceDays({ cadence_days: '2,2' })) === '[2]', 'cadenceDays de-dupes');
+check(JSON.stringify(cadenceDays({ cadence_days: '9,x,3' })) === '[3]', 'cadenceDays drops out-of-range junk');
+check(JSON.stringify(cadenceDays({})) === '[]', 'cadenceDays of an unset routine is empty');
+
+// toggleDay is the frontend's ONLY writer of that string — round-trip it.
+check(toggleDay({ cadence_days: '0,2' }, 4) === '0,2,4', 'toggleDay adds a day in order');
+check(toggleDay({ cadence_days: '0,2,4' }, 2) === '0,4', 'toggleDay removes a committed day');
+check(toggleDay({ cadence_days: '' }, 6) === '6', 'toggleDay seeds an empty cadence');
+
+// The target, and the float that is the surplus over the committed days.
+check(weeklyTarget({ cadence_days: '0,2,4' }) === 3, 'weeklyTarget falls back to the committed days');
+check(weeklyTarget({ cadence_days: '0,2,4', cadence_count: 5 }) === 5, 'weeklyTarget prefers the explicit count');
+check(floatCount({ cadence_days: '0,2', cadence_count: 3 }) === 1, 'floatCount is the surplus over committed days');
+check(floatCount({ cadence_days: '0,2,4', cadence_count: 2 }) === 0, 'floatCount never goes negative');
+
+/* One routine, one week (Mon 2026-08-10 …), read on Wednesday the 12th. */
+const R = { id: 7, kind: 'routine', title: 'Lift', cadence_days: '0,2,4', cadence_count: 4 };
+const occ = (date, completed, extra = {}) => ({
+  id: Math.random(), kind: 'task', parent_id: 7, completed,
+  due_date: date, week_start: '2026-08-10', ext_ref: `routine:7:${date}`, ...extra,
+});
+const items = [
+  R,
+  occ('2026-08-10', true),    // Mon — kept
+  occ('2026-08-12', false),   // Wed — today, still running
+  occ('2026-08-14', false),   // Fri — future
+  { id: 99, kind: 'task', parent_id: 7, completed: false, due_date: '2026-08-13', ext_ref: null },
+];
+const cells = weekCells(R, items, '2026-08-10', '2026-08-12');
+check(cells.length === 7, 'weekCells is always seven cells');
+check(cells[0].state === 'done', 'weekCells: a completed past occurrence is done');
+check(cells[2].state === 'open', "weekCells: today's unticked occurrence is open, not missed");
+check(cells[4].state === 'planned', 'weekCells: a future occurrence is planned');
+check(cells[1].state === 'off', 'weekCells: an uncommitted empty day is off');
+check(cells[3].state === 'off', 'weekCells: a hand-filed task under the routine is NOT an occurrence');
+check(cells[2].isToday && !cells[2].isPast, 'weekCells marks today');
+// A committed day whose occurrence was withdrawn reads as idle, not as missed —
+// it was never scheduled, so nothing was missed.
+const idle = weekCells({ ...R, cadence_days: '0,2,4,5' }, items, '2026-08-10', '2026-08-12');
+check(idle[5].state === 'idle', 'weekCells: committed with nothing minted is idle');
+
+// A past occurrence never ticked IS missed.
+const missed = weekCells(R, [R, occ('2026-08-10', false)], '2026-08-10', '2026-08-12');
+check(missed[0].state === 'missed', 'weekCells: an unticked past occurrence is missed');
+
+// The week meter counts against the TARGET (4), not against the committed days.
+const att = attainment(R, items, '2026-08-10');
+check(att.done === 1 && att.target === 4, `attainment counts ticks over the weekly target (got ${att.done}/${att.target})`);
+check(att.pct === 25, `attainment percent (got ${att.pct})`);
+// A benched float that was done still counts — it is the routine being kept.
+const withFloat = [...items, { id: 55, kind: 'task', parent_id: 7, completed: true, due_date: null, week_start: '2026-08-10', ext_ref: 'routine:7:2026-08-10#0' }];
+check(attainment(R, withFloat, '2026-08-10').done === 2, 'attainment counts a completed float');
+
+/* THE STREAK RULE: an open occurrence TODAY is a day still running, not a day
+   missed. Getting this wrong makes every streak collapse each morning and rebuild
+   each evening, which is the single thing that would make the meter useless. */
+const streakItems = [R, occ('2026-08-10', true), occ('2026-08-11', true), occ('2026-08-12', false)];
+check(streakOf(R, streakItems, '2026-08-12') === 2, "streakOf: today's open occurrence does not break the streak");
+check(streakOf(R, [...streakItems.slice(0, 3), occ('2026-08-12', true)], '2026-08-12') === 3,
+  'streakOf: ticking today extends it');
+check(streakOf(R, [R, occ('2026-08-10', true), occ('2026-08-11', false), occ('2026-08-12', false)], '2026-08-12') === 0,
+  'streakOf: a missed YESTERDAY does break it');
+check(streakOf(R, [R], '2026-08-12') === 0, 'streakOf: no occurrences is no streak');
+
+check(getRoutines(items).length === 1 && getRoutines(items)[0].id === 7, 'getRoutines picks only kind:routine');
 
 if (failed) {
   console.error(`\n✗ cards-logic: ${failed} assertion(s) failed`);

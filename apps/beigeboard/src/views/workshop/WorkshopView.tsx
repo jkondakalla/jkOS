@@ -1,5 +1,23 @@
 /**
- * WorkshopView — the goal forge (Full Press rebuild).
+ * WorkshopView — the planning tab, split by badge into two boards.
+ *
+ *   GOALS    the forge below — a finite tree with a finish line, broken down
+ *            until every leaf is a task you can put on a day.
+ *   ROUTINES the cadence board (./RoutinesBoard) — commitments with no finish
+ *            line, planned by frequency instead of by breakdown.
+ *
+ * They are split rather than merged because the two shapes disagree about what
+ * progress IS. A goal's progress is leaves done over leaves total and it ends at
+ * 100%; a routine's is this week's count against this week's target, and next week
+ * it starts again. Putting a routine in the goal tree would have made every rollup
+ * lie — a "meditate daily" node can never complete, so any goal above it would sit
+ * short of 100% forever. One badge, two boards, one item table underneath.
+ *
+ * A routine may still hang UNDER a goal (parent_id), which is the point of keeping
+ * them in one table: "read 20 pages a day" belongs to "finish six books". It just
+ * doesn't roll up.
+ *
+ * ── The forge (below) ──
  *
  * Two panes, straight from the prototype: a goals RAIL on the left (a card per
  * goal — dot · serif title · .seg % · bar · leaf count; the selected card is a
@@ -19,10 +37,72 @@ import { FONT_HEAD, TASK_COLORS, localDate } from '../../lib/theme'
 import { getChildren, getAncestors, getProgress } from '../../lib/seed'
 import { Press, Well, Bubble, Chip, Check, TButton, Rule, Bar } from '@jkos/ui'
 import { stagger } from '@jkos/design'
+import { RoutinesBoard } from './RoutinesBoard'
+import { getRoutines, cadenceDays, weeklyTarget } from '../../lib/routines'
 
 const MONO = 'var(--hub-font-mono)'
 
-export function WorkshopView({
+export function WorkshopView(props: any) {
+  const { items, readonly, focusedNodeId } = props
+  const [board, setBoard] = useState<'goals' | 'routines'>('goals')
+
+  const goalCount = useMemo(() => items.filter((it: any) => it.kind === 'goal').length, [items])
+  const routineCount = useMemo(() => getRoutines(items).length, [items])
+
+  // A deep-link ("Open in workshop →" from the detail panel) is always a node in
+  // the goal tree, and the effect that acts on it lives in GoalsBoard — which is
+  // unmounted while the routines board is up. Switch back first, or the link would
+  // land on the wrong board and the request would be quietly dropped.
+  useEffect(() => { if (focusedNodeId != null) setBoard('goals') }, [focusedNodeId])
+
+  return (
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+      {/* The badge pair. A boxed current badge, for the reason the masthead's tabs
+          are boxed: the fill IS the face, so it states which board you are on and
+          which mode you are in at once. */}
+      <div className="mo-item" style={{ flex: 'none', display: 'flex', alignItems: 'center', gap: 8, padding: '14px 28px 0' }}>
+        <BoardBadge current={board === 'goals'} onClick={() => setBoard('goals')} label="Goals" count={goalCount} sub="break down" />
+        <BoardBadge current={board === 'routines'} onClick={() => setBoard('routines')} label="Routines" count={routineCount} sub="repeat" />
+      </div>
+      <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
+        {board === 'goals'
+          ? <GoalsBoard {...props} />
+          : <RoutinesBoard {...props} readonly={readonly} />}
+      </div>
+    </div>
+  )
+}
+
+/* A board badge — literally the masthead's nav tab at section scale:
+   `.jk-masthead-tab` + `.jk-well` when current, driven by aria-selected.
+   Reusing the class rather than restyling a box means the two get the same
+   debossed-on-paper / emissive-on-tube fill, the same hover, and the same
+   accessible state, and can't drift apart into two different-looking tabs. */
+function BoardBadge({ current, onClick, label, count, sub }: any) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={current}
+      className={`jk-masthead-tab jk-hit${current ? ' jk-well' : ''}`}
+      onClick={onClick}
+      style={{ display: 'flex', alignItems: 'baseline', gap: 9, padding: '8px 15px' }}
+    >
+      <span style={{
+        fontFamily: FONT_HEAD, fontWeight: 700, fontSize: 14.5, letterSpacing: '-0.01em',
+        color: current ? 'var(--color-ink)' : 'var(--color-muted)',
+      }}>
+        {label}
+      </span>
+      <span className="seg" style={{ fontSize: 12, color: current ? 'var(--color-accent)' : 'var(--color-faint)' }}>
+        {String(count).padStart(2, '0')}
+      </span>
+      <span className="mono-eyebrow">{sub}</span>
+    </button>
+  )
+}
+
+function GoalsBoard({
   items, today, onSelect, onToggle, onAddItem, onUpdateItem,
   focusedNodeId, setFocusedNodeId, readonly,
 }: any) {
@@ -92,7 +172,10 @@ export function WorkshopView({
     // page footer was cut suite-wide; kept as the seam for anything that spans
     // both panes, and because the rail/forge row wants an explicit `flex: 1`
     // parent rather than being the height-100% child itself.
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+    // `flex: 1` because this is now a flex CHILD of the badge switcher above; a
+    // bare height:100% child would size to its content's width and leave the
+    // forge floating in the left third of the page.
+    <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
         {/* ── Goals rail ── */}
         <div style={{ width: 'var(--jk-rail)', flex: 'none', display: 'flex', flexDirection: 'column', borderRight: '1px solid var(--hub-line)', minHeight: 0 }}>
@@ -190,6 +273,11 @@ function Forge({ goal, items, expanded, readonly, onSelect, onToggle, onUpdateIt
   const children = getChildren(goal, items)
   const branches = children.filter((c: any) => c.kind === 'milestone').sort((a: any, b: any) => (a.position ?? 0) - (b.position ?? 0))
   const looseLeaves = children.filter((c: any) => c.kind === 'task')
+  // Routines filed under this goal. Listed but NOT part of the tree or the rollup
+  // (see isUnderRoutine in lib/seed) — without this line a routine attached to a
+  // goal would simply disappear from the goals board, since it is neither a
+  // milestone branch nor a task leaf.
+  const routines = children.filter((c: any) => c.kind === 'routine')
 
   let idx = 0
   const delay = () => stagger(idx++, 120, 40)
@@ -216,6 +304,17 @@ function Forge({ goal, items, expanded, readonly, onSelect, onToggle, onUpdateIt
           <span className="seg" style={{ marginLeft: 'auto', fontSize: 30 }}>{prog.pct}%</span>
         </div>
         <Bar value={prog.pct / 100} tint={tint} height={7} radius={4} style={{ marginTop: 8 }} />
+        {routines.length > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+            <span className="mono-eyebrow">KEPT AS A ROUTINE</span>
+            {routines.map((r: any) => (
+              <Bubble key={r.id} tone="secondary" as="span" style={{ fontSize: 8, padding: '2px 8px', cursor: 'pointer' }} onClick={() => onSelect?.(r)}>
+                {r.title}{cadenceDays(r).length ? ` · ${weeklyTarget(r)}×/WK` : ''}
+              </Bubble>
+            ))}
+            <span className="mono-eyebrow" style={{ color: 'var(--color-faint)' }}>COUNTED ON THE ROUTINES BOARD, NOT IN THIS ROLLUP</span>
+          </div>
+        )}
       </div>
       <Rule style={{ margin: '4px 28px 0' }} />
       <div className="jk-scroll" style={{ flex: 1, minHeight: 0, padding: '14px 28px 20px', display: 'flex', flexDirection: 'column', gap: 7, overflowY: 'auto' }}>

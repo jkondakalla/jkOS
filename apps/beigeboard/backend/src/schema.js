@@ -67,6 +67,27 @@ const looksLikeTime = (v) => {
   const m = v.trim().match(/^(\d{1,2}):(\d{2})$/);
   return !!m && +m[1] <= 23 && +m[2] <= 59;
 };
+/* A routine's `cadence_days` — CSV of day offsets from the week start, "0,2,4"
+   (0=Mon … 6=Sun; see item-fields.js). Validated at the door because this string
+   DRIVES A LOOP: routines.js turns each entry into addDays(weekStart, n) and mints
+   a task there. An out-of-range entry would mint an occurrence outside the week it
+   claims to belong to, and a repeated one would mint the same day twice, so both
+   are rejected rather than normalised. Empty is legal — a routine with a target
+   count but no committed days is the "3× a week, any days" case, all float. */
+const looksLikeCadenceDays = (v) => {
+  if (typeof v !== 'string') return false;
+  const s = v.trim();
+  if (s === '') return true;
+  if (!/^[0-6](,[0-6])*$/.test(s)) return false;
+  const parts = s.split(',');
+  return new Set(parts).size === parts.length;   // no repeated day
+};
+
+/* The weekly target. Capped so a fat-fingered value can't ask the materializer for
+   an unbounded number of float occurrences per week (the mint is horizon-bounded in
+   time, but not in count — this is the count bound). 21 = three a day. */
+const MAX_CADENCE_COUNT = 21;
+
 const importChildren = (raw) => {
   // A NON-EMPTY child array only: an explicit `children: []` (common from an AI that
   // didn't break a leaf down) must read as a leaf → 'task', not as an empty goal.
@@ -161,6 +182,17 @@ function validateItemWrite(raw) {
     if (IMPORT_TIME_COLS.has(k) && v !== '' && !looksLikeTime(String(v))) {
       return `${k} must be a valid HH:MM time`;
     }
+    // The routine cadence — see looksLikeCadenceDays for why these are rejected
+    // rather than clamped.
+    if (k === 'cadence_days' && !looksLikeCadenceDays(String(v))) {
+      return 'cadence_days must be comma-separated day offsets 0-6 with no repeats';
+    }
+    if (k === 'cadence_count') {
+      const n = typeof v === 'number' ? v : parseInt(String(v), 10);
+      if (!Number.isFinite(n) || n < 0 || n > MAX_CADENCE_COUNT) {
+        return `cadence_count must be between 0 and ${MAX_CADENCE_COUNT}`;
+      }
+    }
   }
   return null;
 }
@@ -170,7 +202,7 @@ module.exports = {
   MAX_IMPORT_ITEMS, MAX_IMPORT_DEPTH,
   IMPORT_ALIASES, IMPORT_STRUCT_KEYS, IMPORT_DATE_COLS, IMPORT_TIME_COLS, IMPORT_KIND_ENUM,
   IMPORT_STR_CAP, IMPORT_NUM_COLS, IMPORT_SCOPE_ENUM, IMPORT_STATUS_ENUM,
-  HEX_COLOR_RE, MAX_TAG_COUNT, MAX_TAG_LEN,
-  looksLikeDate, looksLikeTime, importChildren,
+  HEX_COLOR_RE, MAX_TAG_COUNT, MAX_TAG_LEN, MAX_CADENCE_COUNT,
+  looksLikeDate, looksLikeTime, looksLikeCadenceDays, importChildren,
   cleanImportField, validateItemWrite,
 };

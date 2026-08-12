@@ -12,11 +12,11 @@
  * A masthead is type at the top of the sheet with rules under it. So:
  *
  *   · NO fill and NO border (.jk-masthead) — the grain runs unbroken from the
- *     first pixel, and the bottom edge is the INLAY: the suite's one piece of
- *     metal, a tapered bead that dies into the ground at both ends rather than
- *     being cropped (hammered steel let into the sheet on paper, a lit silver
- *     blade on the tube — see --jk-inlay-* in hub.css). It says "the page starts
- *     below this line" without drawing a box to say it.
+ *     first pixel, and the bottom edge is a TAPERED HAIRLINE that dies into the
+ *     ground at both ends rather than being cropped (.jk-rule-taper's recipe,
+ *     --jk-inlay-* in hub.css). It says "the page starts below this line"
+ *     without drawing a box to say it. It was briefly a hammered-metal bead;
+ *     that made the boundary louder than the masthead it bounds.
  *   · The edition reads as a FOLIO MARK (.jk-folio) — the house primitive for
  *     naming content in print, its own running-head rules above and below, count
  *     slot in accent italic. It replaces two bordered chips, i.e. two more rounded
@@ -30,7 +30,7 @@
  *   · No scroll shadow. The old one hung a pure-black `0 2px 24px` drop off the
  *     bar on any inner scroll — a shadow with no face (wrong in both modes) for a
  *     job that doesn't exist: each view scrolls inside its own .jk-scroll pane, so
- *     nothing ever passes under the masthead. The inlay is the boundary.
+ *     nothing ever passes under the masthead. The hairline is the boundary.
  *
  * The Voice (DESIGN.md §5): the wordmark and the folio print in Fraunces; the nav
  * labels and the sources readout keep the mono machine voice.

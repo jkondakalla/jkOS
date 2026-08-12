@@ -33,7 +33,12 @@ const ITEMS_KEY = resourceKey('beigeboard', 'items'); // 'beigeboard.items'
    `items` dataset reads it — declared once (in item-fields) so a capability's
    OUTPUT stud and the dataset's row are provably the same `beigeboard.items`
    shape (no drift). It declares EVERY column a `SELECT *` row through toRow
-   returns, and every `kind` the API emits (goal/milestone included). */
+   returns, and every `kind` the API emits (goal/milestone/routine included).
+
+   A ROUTINE is a pattern row, never a scheduled one — a peer that just wants
+   work to do should read `kind=task` and ignore routines entirely: their
+   occurrences ARE tasks (minted under them by src/routines.js) and carry an
+   `ext_ref` of `routine:<id>:<date>`, so `?ext_ref_prefix=routine:` lists them. */
 
 /* ── What can be DONE to BeigeBoard (the write contract) ─────────────────────── */
 const CAPABILITIES = {
@@ -48,9 +53,16 @@ const CAPABILITIES = {
         { name: 'due_date',       type: 'date',   label: 'Due date' },
         { name: 'scheduled_time', type: 'time',   label: 'Time' },
         { name: 'notes',          type: 'text',   label: 'Notes' },
-        { name: 'kind',           type: 'enum',   label: 'Kind', enum: ['task', 'event'], default: 'task' },
+        { name: 'kind',           type: 'enum',   label: 'Kind', enum: ['task', 'event', 'routine'], default: 'task' },
         { name: 'tags',           type: 'string', label: 'Tags (comma-separated)' },
         { name: 'ext_ref',        type: 'string', label: 'External ref' },
+        // Routine cadence. Declared on the WRITE contract because a peer creating a
+        // kind:'routine' with no cadence would create an inert row — the two fields
+        // are the routine. The occurrences it produces are plain tasks a peer reads
+        // through the `items` dataset like any other, with no routine concept
+        // needed; see src/routines.js.
+        { name: 'cadence_days',   type: 'string', label: 'Routine: days (offsets from Monday, "0,2,4")' },
+        { name: 'cadence_count',  type: 'number', label: 'Routine: times per week' },
       ],
       returns: ITEM_SHAPE,
       invalidates: [ITEMS_KEY], scopes: ['beigeboard:write'],
@@ -84,6 +96,8 @@ const CAPABILITIES = {
         { name: 'notes',          type: 'text',   label: 'Notes' },
         { name: 'accent',         type: 'string', label: 'Accent' },
         { name: 'kind',           type: 'enum',   label: 'Kind', enum: ['task', 'event'] },
+        { name: 'cadence_days',   type: 'string', label: 'Routine: days (offsets from Monday, "0,2,4")' },
+        { name: 'cadence_count',  type: 'number', label: 'Routine: times per week' },
       ],
       returns: ITEM_SHAPE,
       invalidates: [ITEMS_KEY], scopes: ['beigeboard:write'],
@@ -133,7 +147,7 @@ const DATASETS = {
       // list endpoint derives the SQL filter from these via filterSpec(), so what the
       // dataset DECLARES it can be read by is exactly what it filters on (no drift).
       filters: [
-        { name: 'kind',           type: 'enum',   label: 'Kind', enum: ['task', 'event'],                 column: 'kind',       op: 'eq' },
+        { name: 'kind',           type: 'enum',   label: 'Kind', enum: ['task', 'event', 'routine'],      column: 'kind',       op: 'eq' },
         { name: 'scope',          type: 'string', label: 'Scope',                                          column: 'scope',      op: 'eq' },
         { name: 'week_start',     type: 'date',   label: 'Week bench (ISO Monday)',                        column: 'week_start', op: 'eq' },
         { name: 'due_date',       type: 'date',   label: 'Due date',                                       column: 'due_date',   op: 'eq' },

@@ -24,7 +24,7 @@ import {
 import { DOW } from './constants';
 import { TaskChip } from './TaskChip';
 import { Eyebrow, ChromeBar } from './primitives';
-import { TButton, EmptyState } from '@jkos/ui';
+import { TButton } from '@jkos/ui';
 import { MO_DELAYS, MO_RING_STEP, ringOrder } from '@jkos/design';
 
 function shortMonth(iso: string) {
@@ -159,24 +159,22 @@ export function CalendarView({
             <p style={{ fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 12, color: 'var(--color-muted)', margin: '4px 0 0', lineHeight: 1.35 }}>Drag onto a date to schedule</p>
           </div>
           <div style={{ flex: 1, overflowY: 'auto', padding: '8px 10px' }}>
-            {unscheduled.length === 0 ? (
-              <EmptyState line="Nothing left to place." />
-            ) : (
-              unscheduled.map((it) => (
-                <TaskChip
-                  key={it.id}
-                  item={it}
-                  accent={accentOf(it) || 'var(--color-muted)'}
-                  size="md"
-                  showTime
-                  isDragging={drag?.item?.id === it.id}
-                  isSelected={selectedId === it.id}
-                  onSelect={onSelect}
-                  onToggle={onToggle}
-                  onPointerDown={hasDnd ? (e) => beginDragChip(e, it) : undefined}
-                />
-              ))
-            )}
+            {/* Empty rail = empty rail; the count in the header above already
+                says "0", so a placard here is a second voice saying it. */}
+            {unscheduled.map((it) => (
+              <TaskChip
+                key={it.id}
+                item={it}
+                accent={accentOf(it) || 'var(--color-muted)'}
+                size="md"
+                showTime
+                isDragging={drag?.item?.id === it.id}
+                isSelected={selectedId === it.id}
+                onSelect={onSelect}
+                onToggle={onToggle}
+                onPointerDown={hasDnd ? (e) => beginDragChip(e, it) : undefined}
+              />
+            ))}
           </div>
         </aside>
       )}
@@ -229,11 +227,8 @@ export function CalendarView({
             position: 'relative',
           }}
         >
-          {monthItemCount === 0 && (
-            <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', pointerEvents: 'none', zIndex: 4 }}>
-              <EmptyState line="No impressions this month." sub="CLICK A DAY TO OPEN IT" />
-            </div>
-          )}
+          {/* An empty month says so by being empty — the cell grid is the
+              message, and the count already rides in the ChromeBar stats. */}
           {grid.slice(0, weekRows * 7).map((cell) => {
             const cellItems = byDay[cell.iso] || [];
             const isToday = cell.iso === today;
