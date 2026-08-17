@@ -121,4 +121,5 @@ short crossfade between tracks. |
 | [DESIGN.md](DESIGN.md) | Design system — aesthetic identity, token contract, factory, typography, per-app constraints. |
 | [TESTING.md](TESTING.md) | The test system — every test and what it asserts, the gate anatomy, the suite prober, house patterns for new tests. |
 | [PLANNING_METHOD.md](PLANNING_METHOD.md) | The breakdown method the BeigeBoard Workshop embodies — taxonomy, weekly bench, data mapping. |
+- [ROUTINES.md](ROUTINES.md) — the routine primitive: the document format, progression, cadence, the library, and the AI-authoring contract
 | [ToDo.md](ToDo.md) | The working backlog — self-contained planned-but-not-executed work sections. |

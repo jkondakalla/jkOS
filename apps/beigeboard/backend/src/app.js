@@ -52,6 +52,7 @@ app.get('/api/datasets', serveDatasets(DATASETS));
 /* ── Route modules ─────────────────────────────────────────────────────── */
 app.use(require('./routes/calendar'));       // /api/auth/me + OAuth flows + status/sync
 app.use(require('./routes/items'));          // /api/items CRUD
+app.use(require('./routes/routines'));       // /api/routines/* + /api/library/*
 app.use(require('./routes/import').router);  // /api/import
 
 /* ── Static + SPA fallback ─────────────────────────────────────────────── */

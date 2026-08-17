@@ -58,12 +58,37 @@ const A = mkToken({ sub: 501, role: 'admin', scope: ['beigeboard:write'] });
 let pass = 0, fail = 0;
 const ok = (cond, msg) => { if (cond) pass++; else { fail++; console.error('  ✗ ' + msg); } };
 
-/* Every request pins the same "today" so the expected dates are fixed rather than
-   relative to when the suite happens to run. 2026-08-12 is a WEDNESDAY, which is
-   the case RULE 1 is about: a routine born mid-week must not back-fill the week. */
-const TODAY = '2026-08-12';
-const MON = '2026-08-10', TUE = '2026-08-11', WED = '2026-08-12', FRI = '2026-08-14';
-const NEXT_MON = '2026-08-17', NEXT_WED = '2026-08-19', NEXT_FRI = '2026-08-21';
+/* Every request pins the same "today", so the expected dates are fixed relative to
+   each other rather than to when the suite happens to run — but the pin is DERIVED
+   FROM THE CLOCK, not written down.
+ *
+ * It used to be the literal '2026-08-12', and that was a time bomb that went off:
+ * RULE 1 floors the mint at the routine's own creation date, which SQLite stamps in
+ * UTC from the real clock, so once the real date passed the literal, every
+ * occurrence the test expected was refused as "before the routine existed" and the
+ * whole file failed. A pinned "today" therefore has to sit AHEAD of the run, not
+ * behind it.
+ *
+ * Wednesday of NEXT week: always a Wednesday (the mid-week case RULE 1 is about — a
+ * routine born mid-week must not back-fill Monday), and always 5–11 days ahead of
+ * whenever the suite runs, so it clears the creation floor in any timezone. */
+const isoOf = (d) => d.toISOString().slice(0, 10);
+const shift = (iso, n) => {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return isoOf(d);
+};
+const nowIso = isoOf(new Date());
+// This week's Monday (UTC, Monday-start like the rest of the suite), then +9 = next Wednesday.
+const thisMon = shift(nowIso, -((new Date(`${nowIso}T00:00:00Z`).getUTCDay() + 6) % 7));
+const TODAY = shift(thisMon, 9);
+
+const MON = shift(TODAY, -2), TUE = shift(TODAY, -1), WED = TODAY, FRI = shift(TODAY, 2);
+const NEXT_MON = shift(TODAY, 5), NEXT_WED = shift(TODAY, 7), NEXT_FRI = shift(TODAY, 9);
+const SAT = shift(TODAY, 3);                       // the "moved to a decision" day in E
+const WEEK3_MON = shift(TODAY, 12);                // out of the 2-week horizon from TODAY…
+const WEEK4_MON = shift(TODAY, 19);                // …and still out of it a week later
+const NEXT_WEEK = shift(TODAY, 7);                 // a later "today" that rolls the horizon
 
 async function req(method, path, body, { today = TODAY, token = A } = {}) {
   const headers = { 'X-BB-Today': today };
@@ -173,14 +198,14 @@ try {
   const wedOcc = occurrencesOf(rows, rid).find((o) => o.due_date === WED);
   const friOcc = occurrencesOf(rows, rid).find((o) => o.due_date === FRI);
   await req('PATCH', `/api/items/${wedOcc.id}`, { completed: true });      // a record
-  await req('PATCH', `/api/items/${friOcc.id}`, { due_date: '2026-08-15' }); // a decision
+  await req('PATCH', `/api/items/${friOcc.id}`, { due_date: SAT });         // a decision
   await req('PATCH', `/api/items/${rid}`, { cadence_days: '0', cadence_count: 1 });
 
   rows = await list();
   const kept = occurrencesOf(rows, rid);
   ok(kept.some((o) => o.id === wedOcc.id && o.completed),
     'E: a COMPLETED occurrence survives a cadence change — it is a record of something done');
-  ok(kept.some((o) => o.id === friOcc.id && o.due_date === '2026-08-15'),
+  ok(kept.some((o) => o.id === friOcc.id && o.due_date === SAT),
     'E: a MOVED occurrence survives — the user claimed it');
   ok(kept.some((o) => o.due_date === NEXT_MON), 'E: next Monday survives (still in the cadence)');
   ok(!kept.some((o) => o.due_date === NEXT_WED || o.due_date === NEXT_FRI),
@@ -215,11 +240,11 @@ try {
   //     that has just come into range (Mon 24th) and nothing beyond it (the 31st is
   //     still a week out). This is what makes the engine need no cron: the horizon
   //     advances on being looked at.
-  ok(!dates(rows, rid).includes('2026-08-24'), 'I: the third week is out of range before the clock moves');
-  const later = await list({ today: '2026-08-19' });
-  ok(dates(later, rid).includes('2026-08-24'),
+  ok(!dates(rows, rid).includes(WEEK3_MON), 'I: the third week is out of range before the clock moves');
+  const later = await list({ today: NEXT_WEEK });
+  ok(dates(later, rid).includes(WEEK3_MON),
     `I: reading a week later mints the week that came into range (got ${JSON.stringify(dates(later, rid))})`);
-  ok(!dates(later, rid).includes('2026-08-31'),
+  ok(!dates(later, rid).includes(WEEK4_MON),
     'I: and stops at the horizon — it does not run away into the future');
 
   // A malformed header must fall back to the server date, not reach the date maths.

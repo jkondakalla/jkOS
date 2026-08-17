@@ -226,14 +226,87 @@ app in the suite — most HUD widgets read from or write into it.
 
 ### Data model
 
-One SQLite database, one `items` table. Four item kinds:
+One SQLite database, one `items` table. Five item kinds:
 - **goal** — has `done_means`, `target_date`, `status`; owns milestones and tasks
 - **milestone** — ordered checkpoint under a goal
 - **task** — next action; supports one level of subtasks; can be pinned or focused
 - **event** — synced read-only from Google/Outlook/iCloud; shown on the HUD calendar
+- **routine** — a commitment to a rhythm, with no finish line. See below.
 
 Items are hierarchical (`parent_id`) and ordered (`position`). The `ext_ref` column
 records cross-app provenance (`<app>:<id>`) for Weave-created items.
+
+### Routines — the cadence engine and the routine document
+
+> **Full reference: [ROUTINES.md](ROUTINES.md).** This section is the summary; that
+> file is where the vocabulary, the four rules, the endpoints and the known traps
+> live. Read it before touching anything routine-shaped.
+
+A routine is the one kind that is never scheduled, never completed, and never rolls up.
+It is split across two columns groups that answer two different questions, and the split
+is the whole design:
+
+| | column(s) | on | holds |
+|---|---|---|---|
+| **when** | `cadence_days`, `cadence_count` | the routine | the weekly pattern — day offsets from Monday, plus a target count whose surplus *floats* to the week bench |
+| **what** | `spec` | the routine | the **document**: ordered steps, progression *rules*, phases, variant ladders |
+| | `prescription`, `cycle_index` | an occurrence | that document **rendered** at this session's cycle, as concrete numbers |
+| | `performed` | an occurrence | what the user actually did — the only field the engine reads back |
+
+**Occurrences are ordinary `kind:'task'` rows** minted under the routine
+(`ext_ref = 'routine:<id>:<date>'`, unique-indexed). That is the load-bearing decision:
+every downstream surface — Today, Week, Calendar, the ORDECK widgets, the weave `items`
+dataset, any peer — reads a session as a plain task with zero routine awareness. The
+alternative (projecting synthetic items at read time) would have cost a projector in
+every consumer and every write path.
+
+**The routine holds rules; the occurrence holds a snapshot.** A step says
+*"+10 lb once you top 8 reps"*, not *"135 lb"*. At mint the engine evaluates every rule at
+that occurrence's **cycle index** and writes the resulting numbers into `prescription`.
+Rendering forward means "make week 6 harder" is one edit to one rule instead of a rewrite
+of thirty rows; snapshotting means last Tuesday keeps saying 95 lb after the rule has moved
+on, so the log of what you did is measured against the plan you were actually given.
+
+**A cycle is a session you DID, not a week that elapsed** (`advance_on: 'completion'`, the
+default). A past occurrence that was never ticked drops out of the ladder and the ones after
+it keep their rung — being ill for a week must not march the load past what you can lift.
+`advance_on: 'calendar'` opts into the other reading for routines where the date genuinely
+drives (a taper, a medication ramp, a syllabus).
+
+**Three rules govern rewriting** (all in `src/routines.js`, which argues each one at length):
+1. never mint into the past;
+2. a pattern change withdraws only the *untouched future* — completing an occurrence or
+   moving it off its minted date hands it to the user permanently;
+3. the future is a projection and is re-rendered on every reconcile; today is frozen (the
+   day is in progress and may be on screen); the past is a record.
+
+**The library** (`library` table, own `beigeboard.library` resource key) is the vocabulary
+of reusable sub-tasks a step is built from — exercises, recipes, drills, chores,
+discriminated by `collection`. A step writes `{ ref: 'back-squat' }` and inherits the unit,
+rest interval, difficulty ladder and a sane default progression; anything the step states
+itself always wins. It is a separate table, not a sixth item kind, precisely because a
+library entry has no date, no parent and no completion, and must never appear in a tree
+walk or a calendar query.
+
+**Difficulty moves on two axes.** Numbers (six closed progression types: `fixed`, `linear`,
+`double`, `ladder`, `percent`, `autoregulated`) and **variants** — an ordered ladder of
+harder movements (`Knee Push-Up → Push-Up → Decline → Archer`), which is the only way
+bodyweight work can progress. The variant ladder has its own clock (`variant_every`) so a
+step can climb reps every session and movements every six weeks without needing two rules.
+
+**The format is shaped for a mediocre author**, human or AI: one flat document with no
+foreign keys, every field optional with a defensible default, closed vocabularies instead
+of expressions, slugs instead of ids, and validation split into hard **errors**
+(machine-readable `{path, code, message, expected}`, rejected 400) and a **lint** tier
+(accepted, warned — *"no step in this routine ever gets harder"*, which is how an
+AI-authored routine actually fails). `GET /api/routines/vocabulary` serves every legal
+value plus a worked example, derived from the same constants the validator enforces.
+
+The spec lives in `src/routine-spec.js` — zero-dep, pure, no I/O, no `Date` — and is
+mirrored for the browser at `src/lib/routine-spec.ts` (the forge previews an unsaved spec,
+so it cannot ask the server). The mirror is not trusted: `pnpm check:routine` drives both
+implementations through the same matrix of documents × cycles and fails on the first
+disagreement.
 
 Calendar OAuth tokens (Google, Outlook, iCloud) are encrypted at rest with AES-256-GCM
 when `CALENDAR_ENC_KEY` is set. Without it, tokens store plaintext (safe no-op, but set
@@ -261,10 +334,16 @@ src/item-fields.js   THE per-column source of truth (pure data, zero deps) —
                      discovery ITEM_SHAPE, the write whitelist, caps, enums all derive
 src/schema.js        the validation surface (derived from item-fields)
 src/items-store.js   parent cycle-guard, cascade delete, lazy demo seed
+src/routine-spec.js  THE routine document — vocabularies, normalise, validate,
+                     render. Zero deps, pure, no I/O, no Date (so the prober can
+                     require it and the conformance gate can drive it exhaustively)
+src/routines.js      the cadence engine — the mint, the three rewrite rules, the
+                     cycle ladder, and the render-at-mint
+src/library.js       the reusable sub-tasks a step is built from + the starter set
 src/auth.js          weaveAuth gate + optionalAuth + PUBLIC_PATHS
 src/calendar/        provider.js (the CalendarProvider contract + shared writer)
                      + google.js / outlook.js / icloud.js (pure normalize* + fetchWindow)
-src/routes/          items.js · import.js · ai.js · calendar.js
+src/routes/          items.js · routines.js · import.js · calendar.js
 src/app.js           express factory
 ```
 
@@ -275,10 +354,16 @@ offline-`require`-able — the prober reads it without booting anything.
 
 BeigeBoard exposes:
 - `GET /api/capabilities` — what ORDECK (and peers) can *do*: `createItem`, `completeItem`,
-  `updateItem`, `deleteItem`, `importItems`, plus the AI seams `parseTask`/`breakdownGoal`
+  `updateItem`, `deleteItem`, `importItems`, `importRoutine`, `importLibrary`
 - `GET /api/datasets` — what ORDECK can *read*: the `items` dataset with declared filters
-  (kind, completed, date windows, `ext_ref_prefix`, `?since` delta cursor)
+  (kind, completed, date windows, `ext_ref_prefix`, `?since` delta cursor), plus `routines`
+  (each routine with its spec normalised and library refs resolved) and `library`
 - Write routes gated on `beigeboard:write` scope via `@jkos/weave/server`'s `weaveWriteGate`
+
+The routine surface additionally serves `GET /api/routines/vocabulary` (every legal value +
+a worked example — read it before authoring), `GET /api/routines/:id/preview?cycles=N` (the
+next N sessions as concrete numbers, written nowhere), and `POST /api/routines/import`
+(one document → one routine, idempotent by slug, `?dryRun=1` to validate and render only).
 
 ### Shared calendar card kit — `@jkos/cards`
 

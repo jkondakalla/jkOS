@@ -7,7 +7,7 @@ const { all, run, get } = require('../db');
 const { DATASETS } = require('../../discovery');
 const { ITEM_COLUMNS, coerceColumn, validateItemWrite } = require('../schema');
 const { validParentId, cascadeDelete, seedDefaults } = require('../items-store');
-const { materializeRoutines, materializeOne } = require('../routines');
+const { materializeRoutines, materializeOne, materializeForOccurrence, recordRevision } = require('../routines');
 const { toRow, fail } = require('../util');
 const { looksLikeDate } = require('../schema');
 
@@ -31,6 +31,19 @@ function callerToday(req) {
   const h = req.get('X-BB-Today');
   if (h && looksLikeDate(String(h))) return String(h).trim();
   return new Date().toISOString().slice(0, 10);
+}
+
+/* Attach the routine document's LINT to an otherwise-successful write.
+ *
+ * The lint tier (routine-spec.js) is the answer to the way an AI author actually
+ * fails. It rarely emits invalid JSON; it emits a routine with five steps and no
+ * progression on any of them — valid, accepted, and useless. Nothing else in the
+ * system would ever say so, so the write that accepted it says so, in the same
+ * machine-readable shape as an error. Present only when there is something to say,
+ * so the row a normal client reads is unchanged. */
+function withLint(row, details) {
+  const w = details?.warnings;
+  return w && w.length ? { ...row, warnings: w } : row;
 }
 
 /* The weave filter vocabulary for items — which query param maps to which column
@@ -70,8 +83,16 @@ router.get('/api/items', async (req, res) => {
        one day's rows must not trigger a horizon-wide write), never for a guest,
        and never under a service identity. */
     if (!filtered && req.user.role !== 'guest' && !isService) {
-      const { minted, withdrawn } = materializeRoutines(req.user.sub, callerToday(req));
-      if (minted || withdrawn) rows = all(`SELECT * FROM items WHERE ${where} ORDER BY id ASC`, params);
+      /* Re-read on UPDATED as well as minted/withdrawn. The reconcile's third pass
+         (propagate) rewrites rows IN PLACE — the routine's own edits pushed onto
+         the future it still owns, and since migration 10 the re-rendered
+         prescriptions too — without inserting or deleting anything. Gating the
+         re-read on the insert/delete counts alone therefore answered from `rows` as
+         they were BEFORE the reconcile, so a change made on this very request
+         didn't show up until some later unrelated load: tick today's session and
+         tomorrow's numbers stay stale for one round trip. */
+      const { minted, withdrawn, updated } = materializeRoutines(req.user.sub, callerToday(req));
+      if (minted || withdrawn || updated) rows = all(`SELECT * FROM items WHERE ${where} ORDER BY id ASC`, params);
     }
     res.json(rows.map(toRow));
   } catch (e) { fail(res, e); }
@@ -81,8 +102,13 @@ router.post('/api/items', (req, res) => {
   try {
     const raw  = req.body;
     if (!raw?.title?.toString().trim()) return res.status(400).json({ error: 'title is required' });
-    const invalid = validateItemWrite(raw);
-    if (invalid) return res.status(400).json({ error: invalid, code: 'VALIDATION' });
+    /* `details` collects the routine validator's machine-readable output for a
+       `spec` in the body — the errors on rejection so an AI author's next turn can
+       fix itself, and the LINT on acceptance so a valid-but-thin routine ("no step
+       ever gets harder") is told so by the only thing that can tell it. */
+    const details = {};
+    const invalid = validateItemWrite(raw, details);
+    if (invalid) return res.status(400).json({ error: invalid, code: 'VALIDATION', errors: details.errors || [] });
     if (!validParentId(raw.parent_id, req.user.sub)) return res.status(400).json({ error: 'Invalid parent_id' });
     const d    = { user_id: req.user.sub };
     for (const k of Object.keys(raw)) {
@@ -95,8 +121,14 @@ router.post('/api/items', (req, res) => {
     const row  = get('SELECT * FROM items WHERE id = ?', [r.lastInsertRowid]);
     // A new routine gets its horizon immediately, so the board it was created from
     // shows real occurrences without waiting for the next full load.
-    if (row.kind === 'routine') materializeOne(row.id, req.user.sub, callerToday(req));
-    res.status(201).json(toRow(row));
+    if (row.kind === 'routine') {
+      // Every routine starts at revision 1, so `sv` is meaningful from the first
+      // render rather than null until someone happens to edit it.
+      run('UPDATE items SET spec_version = 1 WHERE id = ? AND user_id = ?', [row.id, req.user.sub]);
+      materializeOne(row.id, req.user.sub, callerToday(req));
+      row.spec_version = 1;
+    }
+    res.status(201).json(withLint(toRow(row), details));
   } catch (e) { fail(res, e); }
 });
 
@@ -105,12 +137,22 @@ router.patch('/api/items/:id', (req, res) => {
     const id  = parseInt(req.params.id, 10);
     if (isNaN(id)) return res.status(400).json({ error: 'Invalid id' });
     const raw = req.body;
-    const invalid = validateItemWrite(raw);
-    if (invalid) return res.status(400).json({ error: invalid, code: 'VALIDATION' });
+    const details = {};
+    const invalid = validateItemWrite(raw, details);
+    if (invalid) return res.status(400).json({ error: invalid, code: 'VALIDATION', errors: details.errors || [] });
     const valid = Object.keys(raw).filter(k => ITEM_COLUMNS.has(k));
     if (!valid.length) return res.status(400).json({ error: 'No valid fields to update' });
     if (Object.prototype.hasOwnProperty.call(raw, 'parent_id') && !validParentId(raw.parent_id, req.user.sub, id)) {
       return res.status(400).json({ error: 'Invalid parent_id' });
+    }
+    /* A SPEC EDIT IS AN AUTHORING EVENT. Archive the outgoing document and bump
+       spec_version BEFORE the write, so the version each subsequent prescription
+       stamps as `sv` names the document those sessions actually followed. A no-op
+       when the document is unchanged (a rename is not a revision) and when the row
+       is not a routine. */
+    if (valid.includes('spec')) {
+      const before = get('SELECT * FROM items WHERE id = ? AND user_id = ? AND kind = ?', [id, req.user.sub, 'routine']);
+      if (before) recordRevision(before, req.user.sub, coerceColumn('spec', raw.spec), raw.revision_note || null);
     }
     const sets = valid.map(k => `${k} = ?`).join(', ');
     const vals = valid.map(k => coerceColumn(k, raw[k]));
@@ -121,7 +163,12 @@ router.patch('/api/items/:id', (req, res) => {
     // propagate rules (see routines.js RULE 2) apply to this change, not to
     // whatever the horizon happens to look like at the next read.
     if (row.kind === 'routine') materializeOne(row.id, req.user.sub, callerToday(req));
-    res.json(toRow(row));
+    // Patching an OCCURRENCE — ticking it, above all — is what moves the cycle
+    // ladder (routines.js RULE 3), so the sessions ahead of it are re-rendered on
+    // this same request. Without it you would tick today's session, watch nothing
+    // change, and get tomorrow's new numbers on some later unrelated load.
+    else materializeForOccurrence(row, req.user.sub, callerToday(req));
+    res.json(withLint(toRow(row), details));
   } catch (e) { fail(res, e); }
 });
 

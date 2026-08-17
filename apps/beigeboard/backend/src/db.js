@@ -338,6 +338,189 @@ const MIGRATIONS = [
               WHERE ext_ref IS NOT NULL AND ext_ref LIKE 'routine:%'`);
     },
   },
+  {
+    id: 10, name: 'routine_spec_and_library',
+    up(d) {
+      /*
+       * THE ROUTINE PRIMITIVE — content, progression, and the record of what
+       * actually happened. See src/routine-spec.js for the document itself.
+       *
+       * Migration 9 gave a routine a CADENCE. It still had no CONTENT: every
+       * occurrence it minted was a copy of the routine's title, so "Push Day"
+       * produced fourteen rows called "Push Day" and there was nowhere to say what
+       * a push day consists of, let alone how it gets harder. These four columns
+       * are that missing half, split by WHO OWNS EACH ONE:
+       *
+       *   spec          on the ROUTINE. The document: steps, progression rules,
+       *                 phases, variant ladders. Rules, never numbers.
+       *   prescription  on the OCCURRENCE. The document RENDERED at that
+       *                 occurrence's cycle — concrete numbers, frozen.
+       *   cycle_index   on the OCCURRENCE. Which cycle it rendered at, so the
+       *                 snapshot can be explained and re-derived.
+       *   performed     on the OCCURRENCE. What the user actually did.
+       *
+       * WHY A JSON COLUMN AND NOT TABLES. The alternative was `routine_steps` +
+       * `routine_progressions` + a `routine_log`, and it loses on all three axes
+       * that matter here. (1) The occurrence would stop being ONE ROW, and "an
+       * occurrence is an ordinary task row" is the property migration 9 bought and
+       * that every downstream surface — Today, Week, Calendar, the ORDECK widgets,
+       * the weave `items` dataset — depends on for free. (2) A rendered
+       * prescription is a SNAPSHOT, not live data: it is never queried across
+       * rows, never joined, never aggregated in SQL — it is read whole, with its
+       * row, exactly once per render. That is the shape a blob is for. (3) The
+       * document has to round-trip verbatim to and from an AI author; five tables
+       * would need a serialiser that could disagree with the parser.
+       *
+       * What we give up is querying INTO the document from SQL ("every routine
+       * with a squat in it"). That is a real cost and it is accepted: it is a
+       * search feature over a per-user set of at most a few dozen routines, which
+       * is a scan in JS, not an index.
+       *
+       * All four are NULL on every other kind and on every routine that has not
+       * been given a document — a bare cadence routine keeps working exactly as it
+       * did, which is what makes this migration additive rather than a rewrite.
+       */
+      for (const col of [
+        'spec TEXT', 'prescription TEXT', 'performed TEXT', 'cycle_index INTEGER',
+      ]) {
+        try { d.exec(`ALTER TABLE items ADD COLUMN ${col}`); }
+        catch (e) { if (!e.message?.includes('duplicate column')) throw e; }
+      }
+
+      /*
+       * THE LIBRARY — the organised set of sub-tasks a routine pulls steps from.
+       * Exercises for training, recipes for cooking, pieces for practice: one
+       * mechanism, discriminated by `collection`.
+       *
+       * A SEPARATE TABLE, not `kind:'library'` rows in `items`. A library entry is
+       * not a plan item: it has no date, no parent, no completion, and it must
+       * never appear in a tree walk, a rollup, a calendar query, or the weave
+       * `items` dataset. Giving it a kind would mean every one of those surfaces
+       * grows a filter to exclude it — the exact tax the routine-occurrence design
+       * was built to avoid paying.
+       *
+       * WHY IT EARNS ITS KEEP. It is what makes a routine authorable by something
+       * that does not know anything: an agent reads the library, writes
+       * `{ ref: 'back-squat', sets: 5 }`, and the normaliser fills in the unit, the
+       * load unit, the rest interval, the variant ladder and a sane progression.
+       * The library is the vocabulary; the spec is the sentence.
+       *
+       * `defaults` and `variants` are JSON for the same reason `spec` is — they are
+       * fragments OF a spec, read whole, and a second representation of the same
+       * shape is a second thing to keep in sync.
+       */
+      d.exec(`
+        CREATE TABLE IF NOT EXISTS library (
+          id          INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id     INTEGER NOT NULL,
+          collection  TEXT    NOT NULL DEFAULT 'exercise',
+          slug        TEXT    NOT NULL,
+          title       TEXT    NOT NULL,
+          notes       TEXT,
+          unit        TEXT,
+          load_unit   TEXT,
+          tags        TEXT,
+          variants    TEXT,
+          defaults    TEXT,
+          source      TEXT    DEFAULT 'bb',
+          created_at  TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+          updated_at  TEXT
+        )`);
+
+      /* Identity is (user, collection, slug) — the same key a spec's `ref` names.
+         Unique so that re-importing a library document UPDATES rather than
+         duplicating, which is what makes the import idempotent and therefore safe
+         to hand to a retrying agent. */
+      d.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_library_slug
+              ON library(user_id, collection, slug)`);
+
+      /* Same millisecond-ISO delta discipline the items table settled on in
+         migration 8 — a peer polling the library needs the same strict-`>` cursor
+         to be safe against two writes in one second. */
+      d.exec(`DROP TRIGGER IF EXISTS library_touch_updated`);
+      d.exec(`CREATE TRIGGER library_touch_updated AFTER UPDATE ON library
+              FOR EACH ROW WHEN NEW.updated_at = OLD.updated_at
+              BEGIN UPDATE library SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = NEW.id; END`);
+      d.exec(`DROP TRIGGER IF EXISTS library_stamp_inserted`);
+      d.exec(`CREATE TRIGGER library_stamp_inserted AFTER INSERT ON library
+              FOR EACH ROW WHEN NEW.updated_at IS NULL
+              BEGIN UPDATE library SET updated_at = NEW.created_at WHERE id = NEW.id; END`);
+    },
+  },
+  {
+    id: 11, name: 'routine_cadence_deload_revisions',
+    up(d) {
+      /*
+       * ROUTINE WAVE 2 — the three things migration 10 left unsaid.
+       *
+       *   cadence_rule     WHEN, beyond a weekly grid. Empty (the default, and what
+       *                    every existing routine is) means weekly via
+       *                    cadence_days/cadence_count. Otherwise a tiny positional
+       *                    grammar — `every_n_days:3`, `monthly:15`, `monthly:last`,
+       *                    `rolling:3`, `rrule:FREQ=WEEKLY;...` — parsed by
+       *                    parseCadence() in routine-spec.js. A STRING and not a
+       *                    second JSON document because both an author and a
+       *                    validator have to read it, and a nested object here would
+       *                    be a second thing to keep in sync with `spec`.
+       *
+       *   deload_override  On an OCCURRENCE: "take this one easy". Renders the
+       *                    session at the deload factor regardless of the
+       *                    programme's own deload cadence, AND gives it no rung on
+       *                    the cycle ladder, so taking it easy costs no progress.
+       *                    A per-occurrence column rather than a spec edit because
+       *                    it is a decision about one day, not a change to the plan.
+       *                    NULL = follow the programme; 1 = forced light; 0 = forced
+       *                    normal (an explicit override of a programmed deload).
+       *
+       *   spec_version     On a ROUTINE: which revision its document is on, bumped
+       *                    on every spec write and stamped into each occurrence's
+       *                    prescription as `sv`.
+       *
+       * Additive and NULL-safe throughout: a routine that predates all three keeps
+       * behaving exactly as it did, which is the same property migration 10 held to.
+       */
+      for (const col of ['cadence_rule TEXT', 'deload_override INTEGER', 'spec_version INTEGER']) {
+        try { d.exec(`ALTER TABLE items ADD COLUMN ${col}`); }
+        catch (e) { if (!e.message?.includes('duplicate column')) throw e; }
+      }
+
+      /*
+       * ROUTINE REVISIONS — the history that makes a frozen snapshot legible.
+       *
+       * An occurrence's prescription is deliberately frozen, so last March keeps
+       * saying 5 × 5. What it could not say was WHY — the rule that produced it is
+       * long overwritten, and "5 × 5" with no way back to the document that asked
+       * for it is a number without a reason. Every spec write appends the previous
+       * document here, keyed by the version the snapshots stamp, so
+       * `prescription.sv` → `routine_revisions.version` closes that loop.
+       *
+       * APPEND-ONLY and never rewritten: this is the one table in the app whose
+       * whole value is that it is not current. Pruning is a policy question for
+       * later (it grows one row per spec edit, which is a human-rate event); it is
+       * deliberately not automatic, because silently discarding the reason for a
+       * number is the failure the table exists to prevent.
+       */
+      d.exec(`
+        CREATE TABLE IF NOT EXISTS routine_revisions (
+          id          INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id     INTEGER NOT NULL,
+          routine_id  INTEGER NOT NULL,
+          version     INTEGER NOT NULL,
+          spec        TEXT,
+          summary     TEXT,
+          note        TEXT,
+          created_at  TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+        )`);
+      d.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_routine_revisions_version
+              ON routine_revisions(user_id, routine_id, version)`);
+      d.exec(`CREATE INDEX IF NOT EXISTS idx_routine_revisions_routine
+              ON routine_revisions(routine_id)`);
+
+      /* Existing routines start at version 1 so `sv` is meaningful from the first
+         render rather than null until someone happens to edit them. */
+      d.exec(`UPDATE items SET spec_version = 1 WHERE kind = 'routine' AND spec_version IS NULL`);
+    },
+  },
 ];
 
 function runMigrations() {

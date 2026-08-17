@@ -207,7 +207,14 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
     const next = !item.completed
     setItems(prev => prev.map(it => it.id === id ? { ...it, completed: next } : it))
     setSelected((s: any) => s && s.id === id ? { ...s, completed: next } : s)
-    api.patch(`/api/items/${id}`, { completed: next }).catch((e: any) => {
+    api.patch(`/api/items/${id}`, { completed: next }).then(() => {
+      /* Ticking a routine occurrence is the event that MOVES THE CYCLE LADDER, so
+         the sessions ahead of it were just re-rendered at their new cycles on the
+         server. Those rows are not in this patch and cannot be derived here —
+         refetch. Only for occurrences: an ordinary task tick stays a pure
+         optimistic update with no round trip. */
+      if (String(item.ext_ref || '').startsWith('routine:')) loadItems()
+    }).catch((e: any) => {
       console.error('[onToggle]', e)
       // revert optimistic update
       setItems(prev => prev.map(it => it.id === id ? { ...it, completed: !next } : it))
@@ -252,17 +259,48 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
     }
   }
 
-  const onUpdateItem = (id: number, patch: any) => {
+  /* Returns the server's row, so a caller that needs more than the optimistic echo
+     can have it — the routine forge reads `warnings` off it (the lint tier: "no
+     step in this routine ever gets harder"), which by definition only the server
+     can compute. Still optimistic first: every existing caller ignores the return
+     and must keep feeling instant. */
+  const onUpdateItem = async (id: number, patch: any) => {
     const prev_vals = items.find(it => it.id === id)
     setItems(prev => prev.map(it => it.id === id ? { ...it, ...patch } : it))
     setSelected((s: any) => s && s.id === id ? { ...s, ...patch } : s)
-    api.patch(`/api/items/${id}`, patch).catch((e: any) => {
+    try {
+      const row = await api.patch(`/api/items/${id}`, patch)
+      /* A write that touches a ROUTINE — its cadence, its document — or that ticks
+         one of its OCCURRENCES reconciles the whole horizon server-side: the
+         sessions ahead are re-rendered at their new cycle (routines.js RULE 3), so
+         rows this patch never named have changed. Nothing local can derive that, so
+         refetch. Guarded tightly, because the common case is an ordinary task edit
+         that must not cost a round trip. */
+      const touched = prev_vals || row
+      const isRoutineWrite = touched?.kind === 'routine'
+        || String(touched?.ext_ref || '').startsWith('routine:')
+      if (isRoutineWrite) loadItems()
+      return row
+    } catch (e: any) {
       console.error('[onUpdateItem]', e)
       if (prev_vals) {
         setItems(prev => prev.map(it => it.id === id ? prev_vals : it))
         setSelected((s: any) => s && s.id === id ? prev_vals : s)
       }
-    })
+      return null
+    }
+  }
+
+  /* TAKE THIS SESSION EASY. Its own call rather than a PATCH of `deload_override`
+     because the server does two things that only mean something together: it
+     re-renders the session light AND gives it no rung on the cycle ladder, so the
+     sessions after it shift back. Both land in one request; the refetch then picks
+     up every row that moved, which is more than the one we named. */
+  const onDeload = async (id: number, on: boolean) => {
+    try {
+      await api.post(`/api/items/${id}/deload`, on ? { deload: true } : { clear: true })
+      loadItems()
+    } catch (e) { console.error('[onDeload]', e) }
   }
 
   const onAddTask = (partial: any) => onAddItem({ kind: 'task', scope: 'day', source: 'bb', ...partial })
@@ -318,7 +356,10 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
     items: visibleItems,
     today,
     onSelect: setSelected,
-    onToggle, onDelete, onAddItem, onUpdateItem, onAddTask,
+    onToggle, onDelete, onAddItem, onUpdateItem, onAddTask, onDeload,
+    // The routine forge reads the library through this (the vocabulary its steps
+    // are built from); nothing else in the view tree fetches for itself.
+    api,
     recentlyAdded,
     setView,
     selectedId: selected?.id,
@@ -488,7 +529,7 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
               <DetailPanel
                 event={selected} items={items}
                 onClose={() => setSelected(null)}
-                onToggle={onToggle} onDelete={onDelete} onUpdateItem={onUpdateItem}
+                onToggle={onToggle} onDelete={onDelete} onUpdateItem={onUpdateItem} onDeload={onDeload}
                 setView={setView} setFocusedNodeId={setFocusedNodeId}
               />
             )}

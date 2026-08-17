@@ -25,9 +25,19 @@ const { resourceKey } = require('@jkos/suite-manifest');
 // hand-synced copies (the drift class behind BUG-1/3/7). item-fields.js is pure,
 // zero-dep data, so requiring it keeps this file offline-safe for the prober.
 const { ITEM_SHAPE } = require('./src/item-fields');
+// The library's collection vocabulary comes from the routine spec (ARCH-1 again):
+// the same closed list the validator enforces and the editor's dropdown renders, so
+// a peer cannot be told a collection exists that a write would then reject.
+// routine-spec.js is zero-dep, pure, side-effect-free data + functions, so requiring
+// it keeps this file offline-safe for the prober exactly as item-fields.js does.
+const { COLLECTIONS: LIBRARY_COLLECTIONS } = require('./src/routine-spec');
 
-/** This app's one polled resource. Writers bump it; the `items` dataset reads it. */
-const ITEMS_KEY = resourceKey('beigeboard', 'items'); // 'beigeboard.items'
+/** This app's polled resources. Writers bump them; the datasets read them. */
+const ITEMS_KEY = resourceKey('beigeboard', 'items');     // 'beigeboard.items'
+/* The library is its OWN key, not part of `items`. Editing an exercise must not
+   invalidate every task in every peer's cache, and adding a task must not make a
+   library browser refetch — they change on completely different rhythms. */
+const LIBRARY_KEY = resourceKey('beigeboard', 'library'); // 'beigeboard.library'
 
 /* The shape of ONE items row. createItem/completeItem RESOLVE TO this, and the
    `items` dataset reads it — declared once (in item-fields) so a capability's
@@ -63,6 +73,12 @@ const CAPABILITIES = {
         // needed; see src/routines.js.
         { name: 'cadence_days',   type: 'string', label: 'Routine: days (offsets from Monday, "0,2,4")' },
         { name: 'cadence_count',  type: 'number', label: 'Routine: times per week' },
+        // The routine DOCUMENT — steps and progression rules (src/routine-spec.js).
+        // Declared here for the same reason the cadence is: a peer creating a
+        // routine without it creates a session with no content. Prefer
+        // `importRoutine` below for anything more than a one-line document — it
+        // resolves library refs, is idempotent by slug, and returns the lint.
+        { name: 'spec',           type: 'json',   label: 'Routine: the step document' },
       ],
       returns: ITEM_SHAPE,
       invalidates: [ITEMS_KEY], scopes: ['beigeboard:write'],
@@ -98,10 +114,79 @@ const CAPABILITIES = {
         { name: 'kind',           type: 'enum',   label: 'Kind', enum: ['task', 'event'] },
         { name: 'cadence_days',   type: 'string', label: 'Routine: days (offsets from Monday, "0,2,4")' },
         { name: 'cadence_count',  type: 'number', label: 'Routine: times per week' },
+        { name: 'spec',           type: 'json',   label: 'Routine: the step document' },
+        { name: 'cadence_rule',   type: 'string', label: "Routine: cadence beyond weekly ('every_n_days:3', 'monthly:15', 'rolling:3', 'rrule:…')" },
+        // On an OCCURRENCE, not on the routine: what the user actually did. It is
+        // the one field the progression engine reads BACK — an `autoregulated`
+        // step advances only when the log says the top of its range was met — so a
+        // peer that records real sets is feeding the routine, not just annotating
+        // it. Shape: { steps: { <stepKey>: { done, met, sets: [{value, load}] } } }.
+        { name: 'performed',      type: 'json',   label: 'Occurrence: what was actually done' },
+        { name: 'deload_override', type: 'number', label: 'Occurrence: 1 = take this one easy (prefer POST /items/:id/deload, which also reconciles)' },
       ],
       returns: ITEM_SHAPE,
       invalidates: [ITEMS_KEY], scopes: ['beigeboard:write'],
       doc: 'Patches any subset of an item\'s schedulable fields. Drag reschedule maps to this. Pass id + only the fields to change.',
+    },
+    {
+      /* One document → one routine, created or updated. The AI-facing door, and
+         the reason it exists rather than leaving callers to POST /items with a
+         `spec`: it resolves library `ref`s into complete steps, it is IDEMPOTENT by
+         slug (a retry after a timeout updates rather than duplicating), it accepts
+         `days: ['mon','thu']` as well as the raw Monday-offset encoding, and it
+         returns the LINT — the tier that says "no step in this routine ever gets
+         harder", which is the way an AI-authored routine actually fails. */
+      id: 'importRoutine', label: 'Import a routine (JSON document)', method: 'POST', path: '/routines/import',
+      body: [
+        { name: 'slug',          type: 'string', label: 'Stable id — re-importing the same slug UPDATES' },
+        { name: 'title',         type: 'string', label: 'Title', required: true, max: 500 },
+        { name: 'days',          type: 'json',   label: 'Days — ["mon","thu"] or [0,3]' },
+        { name: 'cadence_count', type: 'number', label: 'Times per week (surplus over `days` floats to the week bench)' },
+        { name: 'time',          type: 'time',   label: 'Time of day' },
+        { name: 'spec',          type: 'json',   label: 'The step document — steps, progression, phases, vars', required: true },
+      ],
+      returns: [
+        { name: 'ok',       type: 'boolean' },
+        { name: 'slug',     type: 'string' },
+        { name: 'created',  type: 'boolean' },
+        { name: 'routine',  type: 'json', label: 'The created/updated routine row' },
+        { name: 'summary',  type: 'string', label: 'The document in one line' },
+        { name: 'warnings', type: 'json', label: 'Lint — accepted, but probably not what you meant' },
+        { name: 'minted',   type: 'number', label: 'Occurrences minted across the horizon' },
+      ],
+      invalidates: [ITEMS_KEY], scopes: ['beigeboard:write'],
+      doc: 'Creates or updates one routine from a JSON document. Idempotent by slug. ?dryRun=1 validates and renders the first four sessions without writing. GET /api/routines/vocabulary returns every legal value plus a worked example — read it first.',
+    },
+    {
+      /* Reusable sub-tasks: exercises, recipes, pieces, chores. A routine step
+         references one with `ref: '<slug>'` and inherits its unit, rest interval,
+         variant ladder and default progression — which is what lets an author who
+         knows nothing about programming a lift still produce a sane one. */
+      id: 'importLibrary', label: 'Import library entries', method: 'POST', path: '/library/import',
+      body: [{ name: 'entries', type: 'json', label: 'Array of { collection, slug, title, unit, variants, defaults }', required: true }],
+      returns: [
+        { name: 'ok',      type: 'boolean' },
+        { name: 'created', type: 'number' },
+        { name: 'updated', type: 'number' },
+        { name: 'failed',  type: 'json' },
+      ],
+      invalidates: [LIBRARY_KEY], scopes: ['beigeboard:write'],
+      doc: 'Bulk upsert by (collection, slug) — safe to resend. Teaches the app a whole domain in one call. GET /api/library/export returns the same document back.',
+    },
+    {
+      /* "Take this one easy." Its own capability rather than a `deload_override`
+         PATCH because it must reconcile in the same breath: a deloaded session
+         spends NO RUNG on the cycle ladder, so the sessions after it shift back and
+         re-render. A peer setting the column alone would leave the ladder wrong. */
+      id: 'deloadSession', label: 'Take this session easy', method: 'POST', path: '/items/:id/deload',
+      body: [
+        { name: 'id',     type: 'number',  label: 'Occurrence id', required: true },
+        { name: 'deload', type: 'boolean', label: 'true = lighter (default) · false = force normal', default: true },
+        { name: 'clear',  type: 'boolean', label: 'Hand the decision back to the programme' },
+      ],
+      returns: ITEM_SHAPE,
+      invalidates: [ITEMS_KEY], scopes: ['beigeboard:write'],
+      doc: 'Renders one session at the deload factor and gives it no rung on the cycle ladder, so taking it easy costs no progress. Refuses the past — a record is not editable.',
     },
     {
       id: 'deleteItem', label: 'Delete', method: 'DELETE', path: '/items/:id',
@@ -157,6 +242,49 @@ const DATASETS = {
       ],
       item: ITEM_SHAPE,
       invalidates: [ITEMS_KEY],
+    },
+    {
+      /* The routine document, resolved. `GET /items` already returns the raw `spec`
+         column; this returns each routine with its spec NORMALISED — library refs
+         resolved into complete steps, defaults filled, the one-line summary
+         computed — which is what a consumer actually wants and what it would
+         otherwise have to reimplement routine-spec.js to get. */
+      id: 'routines', label: 'Routines (with their step documents)', path: '/routines',
+      filters: [],
+      item: [
+        ...ITEM_SHAPE,
+        { name: 'spec',    type: 'json',   label: 'The normalised step document' },
+        { name: 'summary', type: 'string', label: 'The document in one line' },
+        { name: 'cadence', type: 'string', label: 'The cadence in words' },
+        { name: 'metric',  type: 'json',   label: 'What it contributes to its goal: {measure, unit, target, value, pct, window}' },
+      ],
+      invalidates: [ITEMS_KEY],
+    },
+    {
+      /* The reusable sub-tasks routines are built out of. Read this BEFORE
+         authoring a routine: the `slug`s here are what a step's `ref` names, and
+         the entries carry the units, rest intervals and difficulty ladders that
+         make a generated routine sane rather than merely valid. */
+      id: 'library', label: 'Library (exercises, recipes, drills)', path: '/library',
+      filters: [
+        { name: 'collection', type: 'enum',   label: 'Collection', enum: LIBRARY_COLLECTIONS },
+        { name: 'q',          type: 'string', label: 'Search title, slug or tags' },
+      ],
+      item: [
+        { name: 'id',         type: 'number' },
+        { name: 'collection', type: 'enum',   enum: LIBRARY_COLLECTIONS },
+        { name: 'slug',       type: 'string', label: 'What a step\'s `ref` names' },
+        { name: 'title',      type: 'string' },
+        { name: 'notes',      type: 'string' },
+        { name: 'unit',       type: 'string' },
+        { name: 'load_unit',  type: 'string' },
+        { name: 'tags',       type: 'json' },
+        { name: 'variants',   type: 'json',   label: 'The difficulty ladder, easiest → hardest' },
+        { name: 'defaults',   type: 'json',   label: 'Step defaults: sets, target, load, rest, progression' },
+        { name: 'created_at', type: 'string' },
+        { name: 'updated_at', type: 'string' },
+      ],
+      invalidates: [LIBRARY_KEY],
     },
   ],
 };

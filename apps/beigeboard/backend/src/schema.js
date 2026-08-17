@@ -6,6 +6,7 @@
 // ITEM_SHAPE declares — one source, no drift (the class behind BUG-1/3/7).
 const { coerceWeaveColumn } = require('@jkos/weave/server');
 const { ITEM_FIELDS } = require('./item-fields');
+const routineSpec = require('./routine-spec');
 
 const fieldByName = (n) => ITEM_FIELDS.find((f) => f.name === n);
 const importEnumSet = (n) => new Set(fieldByName(n).importEnum);
@@ -20,12 +21,26 @@ const ITEM_COLUMNS = new Set(ITEM_FIELDS.filter((f) => f.client).map((f) => f.na
    POST/PATCH routes hard-reject them (a raw API caller should learn, not lose data). */
 const RESERVED_SOURCE = new Set(['google', 'outlook', 'icloud']);
 
+/* The routine document columns (migration 10). Stored as TEXT, but a caller —
+   especially an AI author, which is the caller these are FOR — naturally sends them
+   as nested JSON rather than as a pre-stringified string. Both are accepted and
+   both land as the same TEXT, because rejecting the object form would make the
+   friendliest way to write the field the wrong one. */
+const JSON_COLUMNS = new Set(['spec', 'prescription', 'performed']);
+
 /* Value coercion for item writes (booleans → 0/1, `tags` → a JSON-array string)
    is the shared weave column rule now — see @jkos/weave/server coerceWeaveColumn,
    which also fixes the malformed-`[…` tags passthrough that used to make toRow's
-   JSON.parse throw and silently drop every tag. Aliased so the write builders
-   read unchanged. */
-const coerceColumn = coerceWeaveColumn;
+   JSON.parse throw and silently drop every tag. Wrapped here only to serialise the
+   JSON columns first: an object reaching better-sqlite3 unstringified throws
+   ("can only bind numbers, strings, bigints, buffers, and null"), which would
+   surface as a 500 on a request that is actually well-formed. */
+function coerceColumn(k, v) {
+  if (JSON_COLUMNS.has(k) && v !== null && v !== undefined && typeof v === 'object') {
+    return JSON.stringify(v);
+  }
+  return coerceWeaveColumn(k, v);
+}
 
 /* ── /import limits + alias vocabulary ─────────────────────────────────── */
 const MAX_IMPORT_ITEMS = 500;
@@ -124,6 +139,30 @@ function cleanImportField(col, v, path, warnings) {
     else i = Math.max(0, i);
     return i;
   }
+  /* The routine document columns — serialised, not stringified. Without this they
+     fall into the text branch below and an object becomes the literal string
+     "[object Object]", which parses back to nothing and silently discards the whole
+     document. `spec` additionally goes through the routine validator, so an import
+     carrying a broken routine warns like every other import problem instead of
+     writing a document the engine will later ignore. */
+  if (JSON_COLUMNS.has(col)) {
+    let text;
+    if (typeof v === 'string') text = v;
+    else { try { text = JSON.stringify(v); } catch { warnings.push(`${path}.${col}: not serialisable — ignored`); return undefined; } }
+    if (text.length > (IMPORT_STR_CAP[col] ?? routineSpec.LIMITS.spec)) {
+      warnings.push(`${path}.${col}: exceeds ${IMPORT_STR_CAP[col]} characters — ignored`);
+      return undefined;
+    }
+    if (col === 'spec') {
+      const v2 = routineSpec.validateSpec(text);
+      if (!v2.ok) {
+        warnings.push(`${path}.spec: ${v2.errors.map((e) => `${e.path || 'spec'} ${e.code}`).join(', ')} — ignored`);
+        return undefined;
+      }
+      for (const w of v2.warnings) warnings.push(`${path}.spec${w.path ? `.${w.path}` : ''}: ${w.message}`);
+    }
+    return text;
+  }
   if (col === 'tags') {                                  // → cleaned array (coerced to JSON at insert)
     const arr = Array.isArray(v) ? v : (typeof v === 'string' ? v.split(',') : []);
     return arr.map(t => String(t).trim().slice(0, MAX_TAG_LEN)).filter(Boolean).slice(0, MAX_TAG_COUNT);
@@ -160,11 +199,37 @@ function cleanImportField(col, v, path, warnings) {
    One source for the caps + date rules: the IMPORT_STR_CAP table and looksLike* above,
    both derived from ./item-fields (ARCH-1) — the same list discovery.js's ITEM_SHAPE
    comes from. Only the keys PRESENT in `raw` are checked (PATCH sends a subset);
-   returns an error string on the first violation, else null. */
-function validateItemWrite(raw) {
+   returns an error string on the first violation, else null.
+
+   `details` is an OUT parameter: pass an object and a rejected `spec` fills in
+   `details.errors` with the routine validator's machine-readable list, and
+   `details.warnings` with the lint tier of an ACCEPTED one. The routes hand both
+   straight back to the caller, because the whole point of the routine document is
+   that a mediocre author gets told precisely what to fix rather than "400". */
+function validateItemWrite(raw, details = null) {
   if (!raw || typeof raw !== 'object') return 'invalid body';
   for (const [k, v] of Object.entries(raw)) {
     if (!ITEM_COLUMNS.has(k) || v == null) continue;   // unknown keys are dropped by the writer; null clears
+    /* The routine document. Validated HERE rather than trusted, because it is the
+       one column that DRIVES A RENDER the user then acts on — a malformed spec
+       would put wrong numbers in front of someone lifting a barbell. Checked before
+       the generic caps below since the object form has no meaningful String()
+       length. */
+    if (JSON_COLUMNS.has(k)) {
+      const text = typeof v === 'string' ? v : (() => { try { return JSON.stringify(v); } catch { return null; } })();
+      if (text === null) return `${k} must be JSON`;
+      if (text.length > (IMPORT_STR_CAP[k] ?? routineSpec.LIMITS.spec)) {
+        return `${k} exceeds the ${IMPORT_STR_CAP[k]}-character limit`;
+      }
+      if (k === 'spec') {
+        const r = routineSpec.validateSpec(text);
+        if (details) { details.errors = r.errors; details.warnings = r.warnings; }
+        if (!r.ok) return r.errors[0] ? `spec: ${r.errors[0].message}` : 'spec is invalid';
+      } else if (text.trim() !== '') {
+        try { JSON.parse(text); } catch { return `${k} must be valid JSON`; }
+      }
+      continue;
+    }
     // Sources owned by calendar sync — a direct write would be wiped by the next sync (BUG-1).
     if (k === 'source' && RESERVED_SOURCE.has(String(v).toLowerCase())) {
       return `source '${v}' is reserved for connected calendars`;
@@ -193,12 +258,29 @@ function validateItemWrite(raw) {
         return `cadence_count must be between 0 and ${MAX_CADENCE_COUNT}`;
       }
     }
+    /* The cadence RULE (migration 11). Checked at the door for the same reason
+       cadence_days is: it drives the mint loop. An unparseable rule silently falls
+       back to weekly inside parseCadence — safe, but silent — and a direct API
+       caller should be told rather than get a schedule they did not ask for.
+       Round-tripping through parse→format is the check: anything that does not
+       survive it was not understood. */
+    if (k === 'cadence_rule' && String(v).trim() !== '') {
+      const parsed = routineSpec.parseCadence(String(v));
+      if (parsed.rrule_error) return `cadence_rule: ${parsed.rrule_error}`;
+      if (routineSpec.formatCadence(parsed) === '') {
+        return `cadence_rule must be one of ${routineSpec.CADENCES.join(' / ')} (e.g. 'every_n_days:3')`;
+      }
+    }
+    if (k === 'deload_override') {
+      const n = typeof v === 'number' ? v : parseInt(String(v), 10);
+      if (!Number.isFinite(n) || n < 0 || n > 1) return 'deload_override must be 0 or 1';
+    }
   }
   return null;
 }
 
 module.exports = {
-  ITEM_COLUMNS, RESERVED_SOURCE, coerceColumn,
+  ITEM_COLUMNS, RESERVED_SOURCE, coerceColumn, JSON_COLUMNS,
   MAX_IMPORT_ITEMS, MAX_IMPORT_DEPTH,
   IMPORT_ALIASES, IMPORT_STRUCT_KEYS, IMPORT_DATE_COLS, IMPORT_TIME_COLS, IMPORT_KIND_ENUM,
   IMPORT_STR_CAP, IMPORT_NUM_COLS, IMPORT_SCOPE_ENUM, IMPORT_STATUS_ENUM,

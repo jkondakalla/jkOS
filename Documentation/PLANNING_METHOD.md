@@ -103,6 +103,82 @@ place with **"make it a checkpoint"** → `PATCH { kind: 'milestone' }` (already
 > `event` is a fourth kind the table also carries (calendar entries), orthogonal to the
 > breakdown ladder. The Workshop deals in goal/milestone/task; events live on the calendar.
 
+## The other half: routines
+
+> This section is the *method*. The **[full technical reference is ROUTINES.md](ROUTINES.md)** —
+> the document format, the progression vocabulary, the cadence rules, the endpoints,
+> and the traps.
+
+The Breakdown Method turns a destination into a finite tree of one-off tasks. A **routine**
+does not fit that shape at all and is not meant to: it has no finish line, no rollup, and it
+is never done. It is a commitment to a rhythm — and the second badge of the Workshop, the
+**cadence board**, is where it lives.
+
+| kind | role | schedulable? | measured by |
+|------|------|-------------|-------------|
+| `routine` | a commitment to a rhythm | **never** — it is a pattern, not a thing to do | adherence + streak, never percent-complete |
+
+A routine is two documents in one row:
+
+1. **The cadence** — `cadence_days` (day offsets from Monday, `"0,2,4"`) and `cadence_count`
+   (the weekly target; any surplus over the committed days becomes a **float** that lands on
+   the week bench for you to place). This is *when*.
+2. **The spec** — an ordered list of **steps**, each carrying a progression *rule* rather
+   than a number. This is *what*, and *how it gets harder*.
+
+Its **occurrences are ordinary tasks** minted under it, so a session appears on Today, on the
+calendar, and in every peer app with no new concept anywhere. What makes it a session rather
+than a copy of a title is the **prescription** — the spec rendered at that occurrence's
+cycle, written onto the row at mint and then frozen.
+
+### The three things a routine gets that a task cannot
+
+- **Progression without a refactor.** "Add 10 lb once you top 8 reps" is one rule on one
+  step. Editing it changes every future session and rewrites no past one. The written-out
+  alternative — thirty rows you maintain by hand — is what makes people abandon a programme.
+- **Two axes of difficulty.** Numbers *and* a **variant ladder** (`Knee Push-Up → Push-Up →
+  Decline → Archer`). Bodyweight work has no load to add; it gets harder by moving up the
+  ladder, and the ladder has its own clock so a step can climb reps weekly and movements
+  quarterly at the same time.
+- **A record to progress against.** `performed` stores what actually happened next to what
+  was prescribed. `autoregulated` progression reads it: hit the top of the range and you earn
+  the next rung; log it short and you hold where you are.
+
+### The rule that makes it honest
+
+**You progress by doing, not by time passing.** A cycle is a session you completed. A past
+occurrence that was never ticked drops out of the ladder entirely, and the sessions after it
+keep their place — so a week off does not silently advance you past what you can actually do.
+(`advance_on: 'calendar'` opts out, for the routines where the date really is the driver: a
+taper, a medication ramp, a syllabus.)
+
+### The library
+
+Steps are pulled from a **library** of reusable sub-tasks — exercises for training, recipes
+for cooking, pieces for practice, all one mechanism discriminated by `collection`. Writing
+`{ ref: 'back-squat' }` inherits the unit, the rest interval, the difficulty ladder and a
+sane default progression; anything the step states itself wins. The library is the vocabulary,
+the spec is the sentence — which is what lets someone who does not know how to programme a
+lift still end up with a reasonable one.
+
+### AI stance, here
+
+The [AI stance](#ai-stance) below is *manual-first*: nobody drafts your goal breakdown for
+you, because then the direction stops being yours. **A routine is the exception, and
+deliberately so.** Nothing about "3 × 5, +10 lb when you top the range" is personal
+direction — it is craft knowledge, it is the part people get wrong, and it is the part an
+assistant is genuinely good at. So the routine document is built to be machine-authored:
+one flat JSON document, every field optional, closed vocabularies instead of expressions,
+slugs instead of ids, idempotent import by slug, and validation split into **errors** (a
+machine-readable list to fix and resubmit) and **lint** (accepted, but told — *"no step in
+this routine ever gets harder"*, which is how a generated routine actually fails).
+
+`GET /api/routines/vocabulary` serves every legal value plus a worked example.
+`POST /api/routines/import` takes the document. `GET /api/routines/:id/preview?cycles=8`
+renders the next eight sessions as numbers — which is the repair tool, because "+10 lb a
+session" is legal, plausible, and has you squatting 400 lb by November, and only rendered
+sessions show you that.
+
 ## The current path
 
 You should only ever be looking at the piece you're working on. The **current path** is the

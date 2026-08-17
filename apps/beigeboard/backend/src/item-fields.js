@@ -75,6 +75,42 @@ const ITEM_FIELDS = [
   // extend the shape's tail, they don't shift a column a peer already indexes.
   { name: 'cadence_days',   shape: 'string',  client: true,  cap: 40 },
   { name: 'cadence_count',  shape: 'number',  client: true,  num: true },
+  // ── The routine document + its rendered output (migration 10) ──────────────
+  // The cadence above says WHEN; these say WHAT, and how it gets harder. The
+  // split is by owner, and it is the whole primitive:
+  //   spec          on the ROUTINE — the document (src/routine-spec.js): steps,
+  //                 progression rules, phases, variant ladders. RULES, not
+  //                 numbers, so "make week 6 harder" is one edit and not thirty.
+  //   prescription  on an OCCURRENCE — that document RENDERED at its cycle, as
+  //                 concrete numbers, written once at mint and then frozen for
+  //                 the past exactly like every other fact on the row.
+  //   cycle_index   on an OCCURRENCE — which cycle produced the snapshot.
+  //   performed     on an OCCURRENCE — what the user actually did. The only
+  //                 field the engine reads BACK, to autoregulate.
+  // All four are JSON-in-TEXT except cycle_index; `shape: 'json'` would be a new
+  // ITEM_SHAPE type every peer would have to learn, and the value is a string on
+  // the wire either way — so they declare as strings and the document contract
+  // lives in routine-spec.js, which peers can require().
+  { name: 'spec',           shape: 'string',  client: true,  cap: 20000 },
+  { name: 'prescription',   shape: 'string',  client: true,  cap: 20000 },
+  { name: 'performed',      shape: 'string',  client: true,  cap: 20000 },
+  { name: 'cycle_index',    shape: 'number',  client: true,  num: true },
+  // ── Wave 2 (migration 11) ──────────────────────────────────────────────────
+  //   cadence_rule     on the ROUTINE — WHEN, beyond the weekly grid. Empty (the
+  //                    default) = weekly via cadence_days/cadence_count. Otherwise
+  //                    a tiny positional grammar parsed by routine-spec.js
+  //                    parseCadence: `every_n_days:3` · `monthly:15` ·
+  //                    `monthly:last` · `rolling:3` · `rrule:FREQ=WEEKLY;…`.
+  //   deload_override  on an OCCURRENCE — "take this one easy". Renders light
+  //                    regardless of the programme's deload cadence AND consumes no
+  //                    rung on the cycle ladder. NULL = follow the programme.
+  //   spec_version     on the ROUTINE — the document revision, bumped on every spec
+  //                    write and stamped into each prescription as `sv`, so a frozen
+  //                    snapshot can be traced back to the rules that produced it
+  //                    (routine_revisions).
+  { name: 'cadence_rule',    shape: 'string',  client: true,  cap: 200 },
+  { name: 'deload_override', shape: 'number',  client: true,  num: true },
+  { name: 'spec_version',    shape: 'number',  client: false },
   { name: 'created_at',     shape: 'string',  client: false },
   { name: 'updated_at',     shape: 'string',  client: false },  // trigger-managed
 ];

@@ -35,9 +35,11 @@ import React, { useMemo, useState } from 'react'
 import { FONT_HEAD, localDate } from '../../lib/theme'
 import {
   getRoutines, cadenceDays, weeklyTarget, floatCount, weekCells, floatsOf,
-  attainment, streakOf, toggleDay, addDays, weekStart,
+  occurrencesOf, attainment, streakOf, toggleDay, addDays, weekStart,
   type Cell,
 } from '../../lib/routines'
+import { normalizeSpec, summarize, metricOf, parseCadence, describeCadence } from '../../lib/routine-spec'
+import { RoutineForge } from './RoutineForge'
 import { Press, Bubble, Chip, TButton, Rule, Bar } from '@jkos/ui'
 import { stagger } from '@jkos/design'
 
@@ -55,9 +57,14 @@ const GRID = 'minmax(215px, 290px) repeat(7, minmax(44px, 1fr)) 178px'
 const GAP = 6
 
 export function RoutinesBoard({
-  items, today, readonly, onSelect, onToggle, onAddItem, onUpdateItem, onDelete,
+  items, today, readonly, api, onSelect, onToggle, onAddItem, onUpdateItem, onDelete,
 }: any) {
   const [cursor, setCursor] = useState(() => weekStart(today))
+  /* The forge replaces this board rather than floating over it. A full pane, not an
+     overlay: the .jk-panel overlay primitive has cost this app two silent
+     "clicking does nothing" bugs, and a document editor is somewhere you GO, not
+     something you peek at over the thing it belongs to. */
+  const [forgeId, setForgeId] = useState<number | null>(null)
   const routines = useMemo(() => getRoutines(items), [items])
   const goals = useMemo(() => items.filter((it: any) => it.kind === 'goal'), [items])
 
@@ -86,6 +93,21 @@ export function RoutinesBoard({
   }
 
   const kept = routines.filter((r: any) => (r.status || 'active') === 'active').length
+
+  const forging = forgeId === null ? null : routines.find((r: any) => r.id === forgeId) || null
+  if (forging) {
+    return (
+      <RoutineForge
+        routine={forging}
+        items={items}
+        today={today}
+        api={api}
+        readonly={readonly}
+        onUpdateItem={onUpdateItem}
+        onClose={() => setForgeId(null)}
+      />
+    )
+  }
 
   return (
     // `flex: 1` — a flex child of the badge switcher in WorkshopView (see the
@@ -152,6 +174,7 @@ export function RoutinesBoard({
             onToggle={onToggle}
             onUpdateItem={onUpdateItem}
             onDelete={onDelete}
+            onForge={() => setForgeId(r.id)}
             onCommitDay={(off: number) => commitDay(r, off)}
           />
         ))}
@@ -170,7 +193,7 @@ export function RoutinesBoard({
 
 function RoutineRow({
   routine, items, goals, wkStart, today, readonly, delay,
-  onSelect, onToggle, onUpdateItem, onDelete, onCommitDay,
+  onSelect, onToggle, onUpdateItem, onDelete, onForge, onCommitDay,
 }: any) {
   const tint = routine.accent || 'var(--color-accent)'
   const parked = (routine.status || 'active') !== 'active'
@@ -180,6 +203,22 @@ function RoutineRow({
   const floats = useMemo(() => floatsOf(routine, items, wkStart), [routine, items, wkStart])
   const goal = goals.find((g: any) => g.id === routine.parent_id) || null
   const target = weeklyTarget(routine)
+  /* The document in one line. A routine with steps says what it is made of; one
+     without says so plainly, because "this routine has no content yet" is the
+     single most useful thing the board can tell you about it. */
+  const spec = useMemo(() => normalizeSpec(routine.spec), [routine.spec])
+  const summary = useMemo(() => summarize(spec), [spec])
+  /* The cadence in words. It used to be readable straight off the seven cells; with
+     every_n_days / monthly / rolling / RRULE in the vocabulary the cells can no
+     longer tell the whole truth, so the row says it. */
+  const cadence = useMemo(() => parseCadence(routine.cadence_rule), [routine.cadence_rule])
+  const offGrid = cadence.type !== 'weekly'
+  /* What this routine contributes to its goal — a MEASUREMENT, never a percentage,
+     because a routine has no total to be a fraction of. */
+  const metric = useMemo(
+    () => metricOf(spec, occurrencesOf(routine, items), today),
+    [spec, routine, items, today],
+  )
 
   /* The record/plan split — see the note at the top of the file. */
   const onCell = (cell: Cell) => {
@@ -267,6 +306,28 @@ function RoutineRow({
             {goals.map((g: any) => <option key={g.id} value={g.id}>{g.title}</option>)}
           </select>
         </div>
+        {/* The document, and the way in to it. A routine with no steps is a title on
+            a schedule — the one thing worth saying about it is that it has nothing
+            in it yet, so the empty state is the prompt. */}
+        {offGrid && (
+          <span className="mono-eyebrow" style={{ color: 'var(--color-accent)' }}>
+            {describeCadence(cadence).toUpperCase()}
+          </span>
+        )}
+        <Press
+          variant="ink"
+          className="jk-hit"
+          onClick={() => onForge?.()}
+          title="Open the forge — what the session is, and how it gets harder"
+          style={{
+            fontFamily: MONO, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase',
+            color: summary ? 'var(--color-muted)' : 'var(--color-accent)',
+            cursor: 'pointer', textAlign: 'left',
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}
+        >
+          {summary || '+ give it steps'}
+        </Press>
       </div>
 
       {/* The seven cells */}
@@ -283,6 +344,14 @@ function RoutineRow({
           </span>
         </div>
         <Bar value={meter.target ? meter.done / meter.target : 0} tint={tint} height={5} radius={3} />
+        {metric && (
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }} title={`Toward this routine's goal, this ${metric.window}`}>
+            <span className="mono-eyebrow" style={{ color: 'var(--color-accent)' }}>
+              {metric.value}/{metric.target} {metric.unit.toUpperCase()}
+            </span>
+            <span className="mono-eyebrow" style={{ marginLeft: 'auto' }}>{metric.pct}%</span>
+          </div>
+        )}
         {!readonly && (
           <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
             <TButton

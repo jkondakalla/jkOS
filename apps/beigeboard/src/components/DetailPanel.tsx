@@ -2,10 +2,11 @@ import React, { useState, useEffect, useRef } from 'react'
 import { FONT_HEAD, FONT_BODY, FONT_NUM, sourceOf, fmtTime, fmtFull, localDate, weekStart, isoDate } from '../lib/theme'
 import { getAncestors, getChildren, getAccent, getProgress } from '../lib/seed'
 import { Eyebrow, Checkbox } from './SharedComponents'
+import { SessionCard } from './SessionCard'
 import { useHudShelf } from '../lib/jkauth'
 import { useBreakpoint, Bar } from '@jkos/ui'
 
-export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdateItem, setView, setFocusedNodeId }: any) {
+export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdateItem, onDeload, setView, setFocusedNodeId }: any) {
   const [titleEditing, setTitleEditing] = useState(false)
   const [titleVal, setTitleVal]         = useState('')
   const titleInputRef = useRef<HTMLInputElement>(null)
@@ -247,6 +248,21 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
               >{pinned ? 'Pinned to HUD' : 'Pin to HUD'}</button>
             </div>
           </Field>
+        )}
+
+        {/* A ROUTINE OCCURRENCE. Placed before the generic breakdown/goal fields
+            because when a task is a session, the session IS the task — its steps
+            are what you came here to read, and everything below is context. Draws
+            nothing at all for an ordinary task: the card returns null when the row
+            carries no prescription, which every non-routine row does. */}
+        {isTask && (
+          <SessionCard
+            occurrence={event}
+            tint={accent}
+            readonly={!onUpdateItem}
+            onUpdateItem={onUpdateItem}
+            onDeload={onDeload}
+          />
         )}
 
         {isGoal && (
