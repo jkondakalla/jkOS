@@ -34,13 +34,17 @@ Two properties fall out, and both are load-bearing:
 | `apps/beigeboard/backend/src/routine-spec.js` | **THE spec.** Vocabularies, normalise, validate, render, cadence maths, analytics. Zero deps, pure, no I/O, no `Date`. The authority. |
 | `apps/beigeboard/backend/src/routines.js` | **The engine.** The mint, the three rewrite rules, the cycle ladder, revisions, the deload override. Touches the DB. |
 | `apps/beigeboard/backend/src/library.js` | The reusable sub-tasks + the starter set. |
-| `apps/beigeboard/backend/src/routes/routines.js` | `/api/routines/*` + `/api/library/*` + the vocabulary endpoint. |
+| `apps/beigeboard/backend/src/routine-prompt.js` | **The authoring prompt**, generated from the vocabulary (§12). |
+| `apps/beigeboard/backend/src/routes/routines.js` | `/api/routines/*` + `/api/library/*` + the vocabulary, prompt and bundle endpoints. |
 | `apps/beigeboard/src/lib/routine-spec.ts` | **The mirror** (browser). Normalise + render + cadence + analytics only — *not* validation. |
 | `apps/beigeboard/src/views/workshop/RoutineForge.tsx` | The visual builder. |
+| `apps/beigeboard/src/views/workshop/LibraryBrowser.tsx` | The shelf — browse, search and edit the library (§7). |
+| `apps/beigeboard/src/views/workshop/RoutineImport.tsx` | The paste pane — a document in, checked and rendered (§12). |
+| `apps/beigeboard/src/views/workshop/parts.tsx` | Field chrome + the progression-rule editor, shared by all three. |
 | `apps/beigeboard/src/components/SessionCard.tsx` | The daily surface: prescription + log. |
 | `apps/beigeboard/src/components/ProgressChart.tsx` | Prescribed vs performed. |
-| `test/routine-spec.mjs` | **`pnpm check:routine`** — the conformance gate. |
-| `apps/beigeboard/backend/test/routine-spec.smoke.mjs` | The HTTP smoke (86 assertions). |
+| `test/routine-spec.mjs` | **`pnpm check:routine`** — the conformance gate (+ the prompt's). |
+| `apps/beigeboard/backend/test/routine-spec.smoke.mjs` | The HTTP smoke (110 assertions). |
 
 **The mirror exists because the forge previews an UNSAVED spec** — there is nothing
 on the server to ask about yet, and a round trip per keystroke is a delay, not a
@@ -181,6 +185,22 @@ The starter set (31 entries) is seeded lazily on first touch. It is also **the
 few-shot prompt** — an agent that has read twenty real entries with their ladders
 writes far better routines than one given a schema.
 
+**The shelf** (`LibraryBrowser.tsx`) is where a human reads and curates it: its own
+board beside Goals and Routines, and the same component in *pick* mode when the
+forge opens it. It is one component in two modes deliberately — a picker that shows
+less than the browser is a picker that gets picked from wrongly, since the ladder and
+the default progression are exactly what you want to see at the moment you choose.
+
+Two things it does that nothing else can. It draws the **ladder in full** rather than
+counting it ("4 RUNGS" tells you a ladder exists; the whole question is whether it is
+the right one). And it says **who uses each entry**, scanned out of the routines
+already in memory — the one question the library cannot answer about itself, and the
+one that decides whether an entry is safe to change.
+
+> ⚠️ **The slug is fixed once an entry exists.** Every `ref` in every routine points
+> at it, and a rename would silently orphan them. The editor locks the field; forking
+> means a new entry.
+
 ## 8. Authoring — the AI contract
 
 The format is shaped around a *mediocre* author, human or machine:
@@ -201,6 +221,7 @@ The format is shaped around a *mediocre* author, human or machine:
 
 ```
 GET  /api/routines/vocabulary        every legal value + a worked example — READ FIRST
+GET  /api/routines/prompt            the same, as INSTRUCTIONS + your library (§12)
 GET  /api/routines                   routines with their specs normalised
 GET  /api/routines/:id               one, + `document` (the round-trip form)
 GET  /api/routines/:id/preview?cycles=12&from=0
@@ -210,6 +231,7 @@ GET  /api/routines/:id/series?measure=load&step=<key>
                                      prescribed vs performed over time
 GET  /api/routines/:id/revisions     which document each past session followed
 POST /api/routines/import[?dryRun=1] one document → one routine, upsert by slug
+POST /api/routines/bundle[?dryRun=1] a library AND the routines that use it (§12)
 POST /api/items/:id/deload           take one session easy (also re-ladders)
 GET  /api/library[/export]           the vocabulary; export → a file
 POST /api/library[/import]           teach it a new domain
@@ -248,14 +270,85 @@ same "silence means you did what you were told" rule autoregulation uses.
    column means adding it there too, or the engine reads `undefined` and the feature
    silently does nothing. (This bit during Wave 2 with `deload_override`.)
 6. **The forge is a full pane, not a `.jk-panel` overlay.** That primitive has caused
-   two silent "clicking does nothing" bugs in this app.
+   two silent "clicking does nothing" bugs in this app. The shelf and the paste pane
+   follow it — all three are early returns from the board, so the forge's *unsaved*
+   document survives a trip to the library (the component never unmounts).
 7. **Migrations are append-only.** Wave 2 is migration 11, not an edit to 10.
+8. **`Documentation/ROUTINE_PROMPT.md` is GENERATED.** Edit `src/routine-prompt.js`
+   and re-run the script (§12) — a hand-edit is reverted by the next regeneration and
+   fails `pnpm check:routine` in the meantime.
+9. **A JSON parse error says three different things in three engines.** Only Firefox
+   gives you a line and column; modern V8 quotes a *snippet* with no position at all.
+   `extractJson` unpicks all three — don't "simplify" it back to `/position (\d+)/`,
+   which silently never matches in Chrome.
 
 ## 11. Verifying
 
 ```bash
-pnpm check:routine                                   # engine ↔ mirror conformance + the rules
+pnpm check:routine                                   # engine ↔ mirror conformance + the rules + the prompt
 pnpm --filter @jkos/beigeboard-backend test          # 7 smokes incl. routines + routine-spec
 pnpm --filter @jkos/beigeboard typecheck             # the mirror + the UI
 pnpm test:contracts                                  # everything
 ```
+
+## 12. Handing it to an AI
+
+The import contract was always shaped for a machine author (§8) and until Wave 3 had
+no door but `curl`. It has three now, and they are the same thing at three widths.
+
+### The bundle
+
+One object carrying a library **and** the routines that use it:
+
+```json
+{ "kind": "jkos.beigeboard.bundle", "library": [ … ], "routines": [ … ] }
+```
+
+`POST /api/routines/bundle[?dryRun=1]`. Two properties are the whole point:
+
+- **Entries land first**, so a routine may `ref` a movement the same paste teaches.
+  That is the case an AI-written programme actually produces, and doing it as two
+  calls put the ordering — and the failure when the second 400s after the first
+  wrote — on the client.
+- **It validates before it writes.** Every routine is prepared against a resolver
+  that can already see the bundle's own pending entries; one bad routine fails the
+  whole call with `routines[i].…` paths and **nothing is written**. A half-applied
+  paste is the outcome the author who caused it is least equipped to unpick.
+
+It is generous about shape in exactly one place (`readBundle`): a bare routine
+document, a bare array, `{entries}` from a library export, and the full bundle all
+mean what they look like. `goal: "Get stronger"` files it under a goal **by title** —
+an author cannot know an integer id — and an unresolved name is a warning, never an
+error.
+
+### The paste pane
+
+Workshop → Routines → **⇪ Paste** (also reachable from the Library board). It
+**unwraps what was actually copied** — a fenced ` ```json ` block, prose either side,
+trailing commas — announcing each repair rather than doing it silently. Then *Check
+it* dry-runs and shows the first four sessions of every routine **as numbers**, which
+is the only way to see that a legal, plausible progression has you squatting 400 lb by
+November. Errors are refusals with a path; warnings mean it was accepted and is
+probably thin. Importing lands you in the forge on the first routine.
+
+### The prompt
+
+`Documentation/ROUTINE_PROMPT.md` — hand it to any assistant and it returns a bundle
+this app accepts. **It is generated, not written**: `src/routine-prompt.js`
+interpolates every closed list from `routine-spec.js`, so it cannot promise something
+the validator refuses.
+
+| Door | Gets you |
+|---|---|
+| `Documentation/ROUTINE_PROMPT.md` | the generic copy, checked in, no server needed |
+| `GET /api/routines/prompt` | the same **plus your library index**, so the agent writes `ref`s that resolve |
+| The paste pane's **⎘ Prompt for an AI** | that one, on the clipboard |
+
+Regenerate the checked-in copy after any change to the vocabulary or the prompt:
+
+```bash
+node apps/beigeboard/backend/scripts/print-prompt.mjs > Documentation/ROUTINE_PROMPT.md
+```
+
+`pnpm check:routine` fails if it has drifted, if any vocabulary value goes
+undescribed, or if the worked example stops validating.

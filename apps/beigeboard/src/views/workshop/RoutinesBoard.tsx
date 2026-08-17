@@ -40,6 +40,7 @@ import {
 } from '../../lib/routines'
 import { normalizeSpec, summarize, metricOf, parseCadence, describeCadence } from '../../lib/routine-spec'
 import { RoutineForge } from './RoutineForge'
+import { RoutineImport } from './RoutineImport'
 import { Press, Bubble, Chip, TButton, Rule, Bar } from '@jkos/ui'
 import { stagger } from '@jkos/design'
 
@@ -57,7 +58,7 @@ const GRID = 'minmax(215px, 290px) repeat(7, minmax(44px, 1fr)) 178px'
 const GAP = 6
 
 export function RoutinesBoard({
-  items, today, readonly, api, onSelect, onToggle, onAddItem, onUpdateItem, onDelete,
+  items, today, readonly, api, onSelect, onToggle, onAddItem, onUpdateItem, onDelete, onReload,
 }: any) {
   const [cursor, setCursor] = useState(() => weekStart(today))
   /* The forge replaces this board rather than floating over it. A full pane, not an
@@ -65,6 +66,10 @@ export function RoutinesBoard({
      "clicking does nothing" bugs, and a document editor is somewhere you GO, not
      something you peek at over the thing it belongs to. */
   const [forgeId, setForgeId] = useState<number | null>(null)
+  /* The other way in: a whole document at once. Same full-pane treatment, for the
+     same reason — and because what it shows you (four rendered sessions per
+     routine) needs the width. */
+  const [pasting, setPasting] = useState(false)
   const routines = useMemo(() => getRoutines(items), [items])
   const goals = useMemo(() => items.filter((it: any) => it.kind === 'goal'), [items])
 
@@ -109,6 +114,27 @@ export function RoutinesBoard({
     )
   }
 
+  if (pasting) {
+    return (
+      <RoutineImport
+        api={api}
+        readonly={readonly}
+        onClose={() => setPasting(false)}
+        /* Straight into the forge on the first routine imported. An import that
+           lands you back on the board leaves you hunting for the row you just made,
+           and the forge is where you would go next anyway — the ladder is the thing
+           you check after a document you did not type yourself. The reload is
+           awaited so the row exists by the time the forge looks for it. */
+        onImported={async (res: any) => {
+          await onReload?.()
+          const first = res?.routines?.[0]?.id
+          setPasting(false)
+          if (first) setForgeId(first)
+        }}
+      />
+    )
+  }
+
   return (
     // `flex: 1` — a flex child of the badge switcher in WorkshopView (see the
     // matching note on the goals board).
@@ -129,6 +155,16 @@ export function RoutinesBoard({
             {String(kept).padStart(2, '0')} ACTIVE · {String(routines.length - kept).padStart(2, '0')} PARKED
           </span>
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+            {!readonly && (
+              <TButton
+                quiet
+                onClick={() => setPasting(true)}
+                title="Paste a routine written elsewhere — JSON in, checked and rendered before anything is written"
+                style={{ cursor: 'pointer' }}
+              >
+                ⇪ Paste
+              </TButton>
+            )}
             <TButton quiet onClick={() => setCursor((c) => addDays(c, -7))}>← Prev</TButton>
             <TButton onClick={() => setCursor(weekStart(today))}>This week</TButton>
             <TButton quiet onClick={() => setCursor((c) => addDays(c, 7))}>Next →</TButton>

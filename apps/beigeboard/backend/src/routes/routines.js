@@ -37,6 +37,7 @@ const { ITEM_COLUMNS, coerceColumn, validateItemWrite, looksLikeDate } = require
 const { validParentId } = require('../items-store');
 const lib = require('../library');
 const spec = require('../routine-spec');
+const { buildPrompt } = require('../routine-prompt');
 const { materializeOne, recordRevision, revisionsOf, setDeloadOverride, HORIZON_WEEKS } = require('../routines');
 const { toRow, fail } = require('../util');
 
@@ -290,6 +291,52 @@ router.get('/api/routines/vocabulary', (_req, res) => {
   });
 });
 
+/**
+ * THE PROMPT — the vocabulary above, written as instructions instead of as data.
+ *
+ * /vocabulary is for a client that is going to render a form. This is for a MODEL
+ * that is going to write a document, and the two want opposite things: the client
+ * wants the lists machine-readable, the model wants them argued for. "`autoregulated`
+ * — the one type that holds you back" produces better routines than
+ * `"autoregulated"` in an array, and neither is a substitute for the other.
+ *
+ * Personalised with the caller's own library, which is the part that cannot be
+ * checked in: an agent that can see `back-squat` writes `ref: 'back-squat'`, and an
+ * agent that cannot writes six fields by hand and gets the ladder wrong.
+ *
+ * Generated from the same constants the validator enforces (src/routine-prompt.js),
+ * so it cannot drift into promising something the door refuses. Declared before
+ * /routines/:id — Express matches in order.
+ */
+router.get('/api/routines/prompt', (req, res) => {
+  try {
+    ensureLibrary(req);
+    const entries = lib.listEntries(req.user.sub, {
+      collection: req.query.collection || null, limit: 500,
+    });
+    /* Only an absolute http(s) origin, and only from the caller — the server sits
+       behind nginx and its own idea of its host is routinely wrong. Absent, the
+       prompt shows bare paths, which are right for same-origin and honest
+       everywhere else. */
+    const asked = String(req.query.origin || '');
+    const origin = /^https?:\/\/[^\s]{1,180}$/.test(asked) ? asked : '';
+    const text = buildPrompt({ library: entries, origin });
+
+    if (req.query.format === 'md' || req.query.format === 'text') {
+      res.type('text/markdown; charset=utf-8').send(text);
+      return;
+    }
+    res.json({
+      spec_version: spec.SPEC_VERSION,
+      library_count: entries.length,
+      /* The endpoint the prompt tells the agent to target. Served alongside the
+         text so a client can wire the button without hardcoding the path. */
+      target: '/api/routines/bundle',
+      text,
+    });
+  } catch (e) { fail(res, e); }
+});
+
 /* ══════════════════════════════════════════════════════════════════════════════
    ROUTINES — read, preview, round-trip
    ══════════════════════════════════════════════════════════════════════════════ */
@@ -510,6 +557,145 @@ router.post('/api/items/:id/deload', (req, res) => {
   } catch (e) { fail(res, e); }
 });
 
+/* ══════════════════════════════════════════════════════════════════════════════
+   THE IMPORT
+
+   Split into PREPARE and COMMIT, which is what lets a bundle of several routines
+   be checked as a unit before any of it is written. Prepare reads (it resolves the
+   library and any named goal) but never writes; commit writes and mints. The
+   single-document route below is just prepare-then-commit on one document.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/** A goal by NAME, because an author cannot know a database id — the same reason
+ *  steps reference the library by slug. Exact title first, then slugified, so
+ *  "Get Stronger" finds "get stronger". Unresolved is deliberately NOT an error:
+ *  a routine filed nowhere still works, and refusing an otherwise-good import over
+ *  a mistyped goal name would be the worst trade in the file. */
+function resolveGoalByName(userId, name) {
+  const wanted = String(name ?? '').trim();
+  if (!wanted) return null;
+  const rows = all("SELECT id, title FROM items WHERE user_id = ? AND kind = 'goal'", [userId]);
+  const lower = wanted.toLowerCase();
+  /* Exact title first, then slugified — so "Get Stronger" finds "get stronger" and
+     "get-stronger" finds both. The slug pass is skipped when the name slugifies to
+     nothing, or two unsluggable titles ("!!!" and "???") would match each other. */
+  const wantedSlug = spec.slugify(wanted, '');
+  const hit = rows.find((r) => String(r.title || '').trim().toLowerCase() === lower)
+    || (wantedSlug ? rows.find((r) => spec.slugify(r.title, '') === wantedSlug) : null);
+  return hit ? hit.id : null;
+}
+
+/**
+ * One document → the row that would be written, or the errors that stop it.
+ *
+ * Returns `{ ok: false, error, errors[] }` — `errors` in the machine-readable
+ * `{path, code, message, expected}` shape so the next turn of an AI author can fix
+ * itself, and `error` as the one-line summary a human sees.
+ */
+function prepareRoutine(userId, doc, resolve) {
+  if (!doc || typeof doc !== 'object' || Array.isArray(doc)) {
+    return {
+      ok: false, error: 'a routine must be a JSON object',
+      errors: [{ path: '', code: 'NOT_AN_OBJECT', message: 'a routine must be a JSON object', expected: 'object' }],
+    };
+  }
+
+  /* The spec is `doc.spec`, or — for the author who wrote the fields at the top
+     level because that is what the shape suggested — the document itself. */
+  const rawSpec = doc.spec !== undefined ? doc.spec
+    : (doc.steps || doc.phases || doc.vars) ? doc : null;
+
+  const check = spec.validateSpec(rawSpec, { resolve });
+  if (!check.ok) return { ok: false, error: 'spec is invalid', errors: check.errors };
+  const { spec: normalized } = spec.normalizeSpec(rawSpec, { resolve });
+  const warnings = [...check.warnings];
+
+  const slug = spec.slugify(doc.slug ?? doc.key ?? doc.title, '');
+  if (!slug) {
+    return {
+      ok: false, error: 'slug or title is required',
+      errors: [{ path: 'slug', code: 'REQUIRED', message: 'slug or title is required', expected: 'a slug, or a title to derive one from' }],
+    };
+  }
+  const title = String(doc.title ?? spec.humanize(slug)).trim().slice(0, 500);
+
+  /* The goal, by id if the caller has one and by NAME otherwise. */
+  let parentId = doc.parent_id ?? doc.goal_id ?? null;
+  const goalName = doc.goal ?? doc.goal_title ?? null;
+  if (parentId == null && goalName != null && goalName !== '') {
+    parentId = resolveGoalByName(userId, goalName);
+    if (parentId == null) {
+      warnings.push({
+        path: 'goal', code: 'GOAL_UNRESOLVED',
+        message: `no goal named '${String(goalName).slice(0, 60)}' — the routine is imported unattached`,
+      });
+    }
+  }
+
+  const fields = {
+    kind: 'routine', scope: 'week', source: 'bb',
+    title,
+    notes: doc.notes == null ? null : String(doc.notes).slice(0, 5000),
+    accent: doc.accent ?? null,
+    status: ['active', 'parked', 'done'].includes(doc.status) ? doc.status : 'active',
+    cadence_days: toCadenceDays(doc.days ?? doc.cadence_days) ?? '',
+    cadence_rule: spec.formatCadence(spec.parseCadence(doc.cadence ?? doc.cadence_rule)) || null,
+    cadence_count: doc.cadence_count ?? doc.times_per_week ?? null,
+    scheduled_time: doc.time ?? doc.scheduled_time ?? null,
+    scheduled_end: doc.end_time ?? doc.scheduled_end ?? null,
+    parent_id: parentId,
+    spec: JSON.stringify(normalized),
+    ext_ref: `routinedoc:${slug}`,
+  };
+  /* Straight through the SAME validator every direct write uses — an import must
+     not be a side door past the caps and enums the API enforces. */
+  const invalid = validateItemWrite(fields);
+  if (invalid) {
+    return { ok: false, error: invalid, errors: [{ path: '', code: 'VALIDATION', message: invalid }] };
+  }
+  if (!validParentId(fields.parent_id, userId)) {
+    return {
+      ok: false, error: 'Invalid parent_id',
+      errors: [{ path: 'goal', code: 'BAD_PARENT', message: 'Invalid parent_id', expected: 'the id or title of one of your goals' }],
+    };
+  }
+
+  const existing = get('SELECT * FROM items WHERE user_id = ? AND ext_ref = ? AND kind = ?',
+    [userId, fields.ext_ref, 'routine']);
+
+  return {
+    ok: true, slug, title, fields, normalized, warnings, existing,
+    action: existing ? 'update' : 'create',
+    summary: spec.summarize(normalized),
+  };
+}
+
+/** Write it, and mint immediately so the very next read shows real, prescribed
+ *  occurrences rather than an empty row the user has to reload to fill. */
+function commitRoutine(userId, prep, today, revisionNote) {
+  let id;
+  if (prep.existing) {
+    // Re-importing a CHANGED document is a revision like any other spec edit, so
+    // the outgoing one is archived and the version bumped before the overwrite.
+    recordRevision(prep.existing, userId, prep.fields.spec, revisionNote || null);
+    const keys = Object.keys(prep.fields).filter((k) => ITEM_COLUMNS.has(k));
+    run(`UPDATE items SET ${keys.map((k) => `${k} = ?`).join(', ')} WHERE id = ? AND user_id = ?`,
+      [...keys.map((k) => coerceColumn(k, prep.fields[k])), prep.existing.id, userId]);
+    id = prep.existing.id;
+  } else {
+    const d = { user_id: userId, ...prep.fields };
+    const keys = Object.keys(d).filter((k) => k === 'user_id' || ITEM_COLUMNS.has(k));
+    const r = run(`INSERT INTO items (${keys.join(', ')}) VALUES (${keys.map(() => '?').join(', ')})`,
+      keys.map((k) => (k === 'user_id' ? d[k] : coerceColumn(k, d[k]))));
+    id = r.lastInsertRowid;
+    run('UPDATE items SET spec_version = 1 WHERE id = ? AND user_id = ?', [id, userId]);
+  }
+
+  const mint = materializeOne(id, userId, today);
+  const row = get('SELECT * FROM items WHERE id = ? AND user_id = ?', [id, userId]);
+  return { id, created: !prep.existing, row, mint };
+}
+
 /**
  * THE IMPORT — one document → one routine, created or updated.
  *
@@ -526,82 +712,218 @@ router.post('/api/routines/import', (req, res) => {
     const doc = req.body && typeof req.body === 'object' ? req.body : null;
     if (!doc) return res.status(400).json({ error: 'body must be a JSON object', code: 'VALIDATION' });
 
-    /* The spec is `doc.spec`, or — for the author who wrote the fields at the top
-       level because that is what the shape suggested — the document itself. */
-    const rawSpec = doc.spec !== undefined ? doc.spec
-      : (doc.steps || doc.phases || doc.vars) ? doc : null;
-
-    const resolve = lib.resolverFor(req.user.sub);
-    const check = spec.validateSpec(rawSpec, { resolve });
-    if (!check.ok) return res.status(400).json({ error: 'spec is invalid', code: 'VALIDATION', errors: check.errors });
-    const { spec: normalized } = spec.normalizeSpec(rawSpec, { resolve });
-
-    const slug = spec.slugify(doc.slug ?? doc.key ?? doc.title, '');
-    if (!slug) return res.status(400).json({ error: 'slug or title is required', code: 'VALIDATION' });
-    const title = String(doc.title ?? spec.humanize(slug)).trim().slice(0, 500);
-
-    const fields = {
-      kind: 'routine', scope: 'week', source: 'bb',
-      title,
-      notes: doc.notes == null ? null : String(doc.notes).slice(0, 5000),
-      accent: doc.accent ?? null,
-      status: ['active', 'parked', 'done'].includes(doc.status) ? doc.status : 'active',
-      cadence_days: toCadenceDays(doc.days ?? doc.cadence_days) ?? '',
-      cadence_rule: spec.formatCadence(spec.parseCadence(doc.cadence ?? doc.cadence_rule)) || null,
-      cadence_count: doc.cadence_count ?? doc.times_per_week ?? null,
-      scheduled_time: doc.time ?? doc.scheduled_time ?? null,
-      scheduled_end: doc.end_time ?? doc.scheduled_end ?? null,
-      parent_id: doc.parent_id ?? doc.goal_id ?? null,
-      spec: JSON.stringify(normalized),
-      ext_ref: `routinedoc:${slug}`,
-    };
-    /* Straight through the SAME validator every direct write uses — an import must
-       not be a side door past the caps and enums the API enforces. */
-    const invalid = validateItemWrite(fields);
-    if (invalid) return res.status(400).json({ error: invalid, code: 'VALIDATION' });
-    if (!validParentId(fields.parent_id, req.user.sub)) return res.status(400).json({ error: 'Invalid parent_id' });
-
-    const existing = get('SELECT * FROM items WHERE user_id = ? AND ext_ref = ? AND kind = ?',
-      [req.user.sub, fields.ext_ref, 'routine']);
+    const prep = prepareRoutine(req.user.sub, doc, lib.resolverFor(req.user.sub));
+    if (!prep.ok) return res.status(400).json({ error: prep.error, code: 'VALIDATION', errors: prep.errors });
 
     if (req.query.dryRun) {
       return res.json({
-        ok: true, dryRun: true, slug,
-        action: existing ? 'update' : 'create',
-        warnings: check.warnings,
-        summary: spec.summarize(normalized),
-        sessions: Array.from({ length: 4 }, (_, i) => spec.renderCycle(normalized, i)),
+        ok: true, dryRun: true, slug: prep.slug,
+        action: prep.action,
+        warnings: prep.warnings,
+        summary: prep.summary,
+        sessions: Array.from({ length: 4 }, (_, i) => spec.renderCycle(prep.normalized, i)),
       });
     }
 
-    let id;
-    if (existing) {
-      // Re-importing a CHANGED document is a revision like any other spec edit, so
-      // the outgoing one is archived and the version bumped before the overwrite.
-      recordRevision(existing, req.user.sub, fields.spec, doc.revision_note || null);
-      const keys = Object.keys(fields).filter((k) => ITEM_COLUMNS.has(k));
-      run(`UPDATE items SET ${keys.map((k) => `${k} = ?`).join(', ')} WHERE id = ? AND user_id = ?`,
-        [...keys.map((k) => coerceColumn(k, fields[k])), existing.id, req.user.sub]);
-      id = existing.id;
-    } else {
-      const d = { user_id: req.user.sub, ...fields };
-      const keys = Object.keys(d).filter((k) => k === 'user_id' || ITEM_COLUMNS.has(k));
-      const r = run(`INSERT INTO items (${keys.join(', ')}) VALUES (${keys.map(() => '?').join(', ')})`,
-        keys.map((k) => (k === 'user_id' ? d[k] : coerceColumn(k, d[k]))));
-      id = r.lastInsertRowid;
-      run('UPDATE items SET spec_version = 1 WHERE id = ? AND user_id = ?', [id, req.user.sub]);
+    const done = commitRoutine(req.user.sub, prep, callerToday(req), doc.revision_note);
+
+    res.status(done.created ? 201 : 200).json({
+      ok: true, slug: prep.slug, created: done.created,
+      routine: toRow(done.row),
+      summary: prep.summary,
+      warnings: prep.warnings,
+      ...done.mint,
+    });
+  } catch (e) { fail(res, e); }
+});
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   THE BUNDLE — one paste, a library and the routines that use it.
+
+   /routines/import takes one routine and /library/import takes entries, and
+   between them sat the case that is actually the common one for a written-by-AI
+   programme: a routine that needs a movement the library does not have yet. Two
+   calls in the right order works, but it puts the ORDER — and the failure mode
+   when the second one 400s after the first one wrote — on the client, and there
+   are now three clients (the paste pane, a peer app, an agent with a shell).
+
+   So: one object, one call, and the ordering is the endpoint's problem.
+
+     { "kind": "jkos.beigeboard.bundle", "library": [ … ], "routines": [ … ] }
+
+   Two properties make it safe to hand to a mediocre author:
+
+     · IT VALIDATES BEFORE IT WRITES. Every routine is prepared — against a
+       resolver that can already see the bundle's own library entries, though none
+       of them are in the table yet — and one bad routine fails the whole call with
+       machine-readable errors, having written nothing. A half-applied paste is the
+       one outcome worth engineering against, because the author who caused it is
+       the least equipped to unpick it.
+     · IT IS IDEMPOTENT THROUGHOUT. Entries upsert by (collection, slug), routines
+       by slug. Resending after a timeout updates; it never doubles.
+
+   `?dryRun=1` prepares everything, renders the first sessions of every routine, and
+   writes nothing — which is what the paste pane shows you before you commit.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/** Every shape an author might reasonably produce, flattened to one pair of lists.
+ *  Generous on purpose and in exactly one place: the alternative is each of the
+ *  three callers guessing, which is how the same paste comes to mean two things. */
+function readBundle(body) {
+  if (Array.isArray(body)) {
+    // A bare array. Library entries have a `collection`; routines have a document.
+    const routines = body.filter((x) => x && typeof x === 'object' && (x.spec || x.steps || x.days || x.cadence));
+    const entries = body.filter((x) => !routines.includes(x));
+    return { entries, routines };
+  }
+  if (!body || typeof body !== 'object') return null;
+
+  const entries = Array.isArray(body.library) ? body.library
+    : Array.isArray(body.entries) ? body.entries : [];
+  let routines = Array.isArray(body.routines) ? body.routines : [];
+
+  // A single routine document sent to the bundle door — accepted rather than
+  // corrected, because it is the same thing said a shorter way. A library export
+  // file (`{ kind, entries }`) has none of these keys and stays a library.
+  if (!routines.length && (body.spec || body.steps || body.days || body.cadence || body.slug)) {
+    routines = [body];
+  }
+  if (body.routine && typeof body.routine === 'object') routines = [body.routine, ...routines];
+  return { entries, routines };
+}
+
+/** A resolver that can already see entries this bundle is about to write. Without
+ *  it, a routine referencing a movement taught in the same paste would validate
+ *  against a library that does not contain it yet — the REF_UNRESOLVED warning
+ *  would fire on every entry the bundle exists to introduce. Pending wins over
+ *  stored, because pending is what the table will hold a moment later. */
+function bundleResolver(userId, entries) {
+  const base = lib.resolverFor(userId);
+  const pending = new Map();
+  for (const raw of entries) {
+    // Through the real cleaner, then back through the row→wire parser, so a
+    // pending entry is the same shape the resolver returns for a stored one.
+    const e = lib.toEntry(lib.cleanEntry(raw));
+    if (!e || !e.slug) continue;
+    pending.set(`${e.collection}:${e.slug}`, e);
+    if (!pending.has(e.slug)) pending.set(e.slug, e);
+  }
+  return (slug, collection) =>
+    (collection ? pending.get(`${collection}:${slug}`) : null)
+    || pending.get(slug)
+    || base(slug, collection);
+}
+
+router.post('/api/routines/bundle', (req, res) => {
+  try {
+    ensureLibrary(req);
+    const parsed = readBundle(req.body);
+    if (!parsed) return res.status(400).json({ error: 'body must be a JSON object or array', code: 'VALIDATION' });
+    const { entries, routines } = parsed;
+
+    if (!entries.length && !routines.length) {
+      return res.status(400).json({
+        error: 'nothing to import — expected `library` entries, `routines`, or both',
+        code: 'VALIDATION',
+      });
+    }
+    if (entries.length > 1000) return res.status(400).json({ error: 'at most 1000 library entries per bundle', code: 'VALIDATION' });
+    if (routines.length > 50) return res.status(400).json({ error: 'at most 50 routines per bundle', code: 'VALIDATION' });
+
+    /* PREPARE EVERYTHING FIRST. Nothing below this line has written a row, so a
+       failure here leaves the account exactly as it was. */
+    const resolve = bundleResolver(req.user.sub, entries);
+    const preps = routines.map((doc) => prepareRoutine(req.user.sub, doc, resolve));
+    const broken = preps
+      .map((p, i) => ({ p, i }))
+      .filter(({ p }) => !p.ok);
+    if (broken.length) {
+      return res.status(400).json({
+        error: broken.length === 1
+          ? `routine ${broken[0].i + 1}: ${broken[0].p.error}`
+          : `${broken.length} of ${routines.length} routines are invalid — nothing was imported`,
+        code: 'VALIDATION',
+        // Paths prefixed with the routine they belong to: with several in one
+        // paste, `steps[2].progression` alone does not say which document to fix.
+        errors: broken.flatMap(({ p, i }) => p.errors.map((e) => ({
+          ...e,
+          path: `routines[${i}]${e.path ? `.${e.path}` : ''}`,
+          routine: routines[i]?.slug || routines[i]?.title || `#${i + 1}`,
+        }))),
+      });
     }
 
-    // Mint immediately, so the very next read shows real, prescribed occurrences.
-    const mint = materializeOne(id, req.user.sub, callerToday(req));
-    const row = get('SELECT * FROM items WHERE id = ? AND user_id = ?', [id, req.user.sub]);
+    /* What the library half will do, computed the same way for both paths so the
+       dry run's promise and the real run's report cannot disagree. */
+    const existingEntries = new Set(
+      lib.listEntries(req.user.sub, { limit: 2000 }).map((e) => `${e.collection}:${e.slug}`),
+    );
+    const entryPlan = entries.map((raw, index) => {
+      const e = lib.cleanEntry(raw);
+      return {
+        index,
+        collection: e.collection, slug: e.slug, title: e.title,
+        // An entry with no slug and no title cannot be keyed, so it is the one
+        // thing the library half can fail at. Reported, never fatal: it does not
+        // stop the routines, which are the payload.
+        action: !e.slug ? 'skipped'
+          : existingEntries.has(`${e.collection}:${e.slug}`) ? 'update' : 'create',
+      };
+    });
+    const entryFailures = entryPlan
+      .filter((e) => e.action === 'skipped')
+      .map((e) => ({ index: e.index, error: 'slug or title is required' }));
 
-    res.status(existing ? 200 : 201).json({
-      ok: true, slug, created: !existing,
-      routine: toRow(row),
-      summary: spec.summarize(normalized),
-      warnings: check.warnings,
-      ...mint,
+    const warningsOf = (p, i) => p.warnings.map((w) => ({
+      ...w, path: `routines[${i}]${w.path ? `.${w.path}` : ''}`, routine: p.slug,
+    }));
+
+    if (req.query.dryRun) {
+      return res.json({
+        ok: true, dryRun: true,
+        library: {
+          created: entryPlan.filter((e) => e.action === 'create').length,
+          updated: entryPlan.filter((e) => e.action === 'update').length,
+          failed: entryFailures,
+          entries: entryPlan,
+        },
+        routines: preps.map((p, i) => ({
+          slug: p.slug, title: p.title, action: p.action,
+          summary: p.summary,
+          warnings: warningsOf(p, i),
+          // The rules AS NUMBERS. The single most useful thing a dry run can
+          // return, and the only one that catches a progression which is legal,
+          // plausible and insane.
+          sessions: Array.from({ length: 4 }, (_, c) => spec.renderCycle(p.normalized, c)),
+        })),
+        warnings: preps.flatMap(warningsOf),
+      });
+    }
+
+    // Library first — a routine in this same bundle may reference an entry it
+    // teaches, and the mint below resolves against the table, not the resolver.
+    const libResult = entries.length
+      ? lib.importEntries(req.user.sub, entries)
+      : { created: 0, updated: 0, failed: [] };
+
+    const today = callerToday(req);
+    const written = preps.map((p, i) => {
+      const done = commitRoutine(req.user.sub, p, today, routines[i]?.revision_note);
+      return {
+        slug: p.slug, title: p.title, action: p.action,
+        id: done.id, created: done.created,
+        summary: p.summary,
+        warnings: warningsOf(p, i),
+        minted: done.mint?.minted ?? 0,
+        routine: toRow(done.row),
+      };
+    });
+
+    res.status(written.some((w) => w.created) || libResult.created ? 201 : 200).json({
+      ok: true,
+      library: { ...libResult, entries: entryPlan },
+      routines: written,
+      warnings: written.flatMap((w) => w.warnings),
     });
   } catch (e) { fail(res, e); }
 });

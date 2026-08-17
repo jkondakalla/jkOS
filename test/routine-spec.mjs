@@ -578,5 +578,58 @@ check(be.stepWasMet({ steps: { x: { done: false } } }, 'x') === false,
 check(be.normalizePerformed('not json') === null && be.normalizePerformed({ steps: { a: true } })?.steps?.a?.done === true,
   'performed: normalises loosely and fails soft');
 
+/* ── 8. The AUTHORING PROMPT ──────────────────────────────────────────────────
+   A third surface that states what is legal, after the validator and the /vocabulary
+   endpoint — and the only one read by something that cannot ask a follow-up
+   question. A prompt that has drifted is the worst of the three failures: it
+   produces confident, well-formed documents that come back 400, and the agent has
+   no way to tell which half is wrong.
+
+   So two things are pinned. Every value of every closed list must APPEAR in the
+   generated text — add a progression type and forget to describe it, and this
+   fails. And the checked-in copy at Documentation/ROUTINE_PROMPT.md must be exactly
+   what the generator produces, the same bargain check:tokens makes with the
+   generated hub.css mirror. */
+const { buildPrompt } = require(resolvePath(root, 'apps/beigeboard/backend/src/routine-prompt.js'));
+const promptText = buildPrompt({});
+
+for (const name of ['UNITS', 'LOAD_UNITS', 'PROGRESSIONS', 'DRIVES', 'ADVANCE_ON', 'BLOCKS', 'COLLECTIONS',
+  'CADENCES', 'MEASURES', 'WINDOWS']) {
+  const missing = be[name].filter((v) => !promptText.includes(`\`${v}\``));
+  check(missing.length === 0,
+    `prompt: every ${name} value is described${missing.length ? ` — missing ${missing.join(', ')}` : ''}`);
+}
+check(
+  promptText.includes('jkos.beigeboard.bundle') && promptText.includes('/api/routines/bundle'),
+  'prompt: states the exact output shape and the endpoint that accepts it',
+);
+check(
+  /one fenced `json` block/i.test(promptText) && promptText.includes('## 10. Before you answer'),
+  'prompt: opens with the deliverable and closes with a checklist — the two parts that move an LLM most',
+);
+
+/* The worked example is the highest-value paragraph in the file, so it is held to
+   the same door every author's document goes through rather than assumed correct. */
+const { EXAMPLE } = require(resolvePath(root, 'apps/beigeboard/backend/src/routine-prompt.js'));
+const exampleDoc = EXAMPLE.routines[0];
+const exampleCheck = be.validateSpec(exampleDoc.spec);
+check(exampleCheck.ok, `prompt: the worked example VALIDATES (${JSON.stringify(exampleCheck.errors?.[0] || '')})`);
+check(
+  EXAMPLE.library.some((e) => e.slug === 'nordic-curl')
+  && exampleDoc.spec.steps.some((s) => s.ref === 'nordic-curl'),
+  'prompt: …and demonstrates the bundle\'s point — teach an entry, then reference it',
+);
+
+const checkedIn = resolvePath(root, 'Documentation/ROUTINE_PROMPT.md');
+let onDisk = null;
+try { onDisk = readFileSync(checkedIn, 'utf8'); } catch { /* reported below */ }
+check(
+  onDisk === promptText,
+  onDisk === null
+    ? 'prompt: Documentation/ROUTINE_PROMPT.md is missing — regenerate it (see below)'
+    : 'prompt: the checked-in copy matches the generator'
+    + (onDisk === promptText ? '' : '\n    regenerate: node apps/beigeboard/backend/scripts/print-prompt.mjs > Documentation/ROUTINE_PROMPT.md'),
+);
+
 console.log(failed ? `\ncheck:routine — ${failed} FAILED` : '\ncheck:routine — all checks passed');
 process.exit(failed ? 1 : 0);

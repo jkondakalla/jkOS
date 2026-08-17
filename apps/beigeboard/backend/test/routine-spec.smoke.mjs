@@ -29,6 +29,11 @@
 //      session stamps the revision it followed
 //   O. WAVE 2 — the goal metric + the prescribed/performed series
 //   P. WAVE 2 — library export round-trips back through import
+//   Q. WAVE 3 — the BUNDLE: one paste carrying a library and the routines that use
+//      it. The ordering (entries first, so a step may `ref` what the same paste
+//      teaches) and the atomicity (one bad routine writes nothing)
+//   R. WAVE 3 — the authoring PROMPT: every closed list covered, personalised with
+//      the caller's own library
 //
 //   node apps/beigeboard/backend/test/routine-spec.smoke.mjs
 
@@ -37,6 +42,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { createRequire } from 'node:module';
 import { generateKeyPairSync, sign as cryptoSign } from 'node:crypto';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -472,6 +478,147 @@ try {
   const back = await req('POST', '/api/library/import', { entries: exported.entries });
   ok(back.status === 200 && back.json.created === 0 && back.json.updated === exported.count,
     `P: re-importing its own export UPDATES and never duplicates (created ${back.json.created})`);
+
+  // ── Q. WAVE 3 — the BUNDLE: a library and the routines that use it, one paste ─
+  //     The case a written-by-AI programme actually produces: a routine that needs
+  //     a movement the library does not have yet. What is being tested is the
+  //     ORDERING and the ATOMICITY, because those are what a client would get
+  //     wrong doing it as two calls.
+  const BUNDLE = {
+    kind: 'jkos.beigeboard.bundle',
+    library: [{
+      collection: 'exercise', slug: 'nordic-curl', title: 'Nordic Curl',
+      unit: 'reps', load_unit: 'bw',
+      variants: ['Band-Assisted Nordic', 'Eccentric-Only Nordic', 'Nordic Curl'],
+      defaults: { sets: 3, target: 5, rest: 120, variant_index: 1 },
+    }],
+    routines: [{
+      slug: 'posterior-chain', title: 'Posterior Chain', days: ['tue'],
+      spec: {
+        intent: 'hamstrings that survive a sprint',
+        steps: [
+          // References an entry that does not exist yet — it is taught by this
+          // same bundle, two keys up.
+          { ref: 'nordic-curl', progression: { type: 'linear', drives: 'target', increment: 1, cap: 8 } },
+        ],
+      },
+    }],
+  };
+
+  const bDry = await req('POST', '/api/routines/bundle?dryRun=1', BUNDLE);
+  ok(bDry.status === 200 && bDry.json?.dryRun === true, `Q: the bundle dry-runs (got ${bDry.status})`);
+  ok(bDry.json?.library?.created === 1 && bDry.json.library.entries[0].action === 'create',
+    'Q: …reporting what the library half would do');
+  ok(bDry.json?.routines?.[0]?.action === 'create' && bDry.json.routines[0].sessions?.length === 4,
+    'Q: …and rendering the routine as NUMBERS before anything is written');
+  ok(!bDry.json.warnings.some((w) => w.code === 'REF_UNRESOLVED'),
+    'Q: a step may `ref` an entry the SAME bundle teaches — the resolver sees the pending entries');
+  ok(!(await req('GET', '/api/library?q=nordic')).json.entries.some((e) => e.slug === 'nordic-curl'),
+    'Q: …and the dry run wrote nothing');
+
+  const bReal = await req('POST', '/api/routines/bundle', BUNDLE);
+  ok(bReal.status === 201 && bReal.json?.library?.created === 1 && bReal.json.routines[0].created === true,
+    `Q: the real import writes both halves (got ${bReal.status})`);
+  const nordic = (await req('GET', '/api/library?q=nordic')).json.entries.find((e) => e.slug === 'nordic-curl');
+  ok(nordic?.variants?.length === 3, 'Q: the entry landed with its ladder intact');
+  const pcId = bReal.json.routines[0].id;
+  const pcRows = await list();
+  ok(occsOf(pcRows, pcId).length > 0, 'Q: …and the routine minted occurrences immediately');
+  const pcStep = rx(occsOf(pcRows, pcId)[0])?.steps?.find((s) => s.key === 'nordic-curl');
+  ok(pcStep?.variant === 'Eccentric-Only Nordic' && pcStep.line === '3 × 5 @ bodyweight',
+    `Q: …prescribed from the entry the same bundle taught — rung, sets and reps all inherited (got ${JSON.stringify(pcStep?.line)} on ${JSON.stringify(pcStep?.variant)})`);
+
+  const bAgain = await req('POST', '/api/routines/bundle', BUNDLE);
+  ok(bAgain.json?.library?.created === 0 && bAgain.json.library.updated === 1
+     && bAgain.json.routines[0].created === false && bAgain.json.routines[0].id === pcId,
+    'Q: resending is idempotent on BOTH halves — an agent that times out and retries duplicates nothing');
+
+  // A goal by NAME. An author cannot know an integer id, so it names the goal.
+  const marathon = (await req('POST', '/api/items', { kind: 'goal', scope: 'year', title: 'Run A Marathon' })).json;
+  const named = await req('POST', '/api/routines/bundle', {
+    routines: [{ slug: 'long-run', title: 'Long Run', days: ['sun'], goal: 'run a marathon',
+      spec: { steps: [{ ref: 'easy-run', target: 12 }] } }],
+  });
+  ok(named.json?.routines?.[0]?.routine?.parent_id === marathon.id,
+    'Q: a routine files itself under a goal BY TITLE, case-insensitively');
+  const orphan = await req('POST', '/api/routines/bundle', {
+    routines: [{ slug: 'orphan-run', title: 'Orphan Run', days: ['sat'], goal: 'a goal that is not there',
+      spec: { steps: [{ ref: 'easy-run' }] } }],
+  });
+  ok(orphan.json?.ok && orphan.json.warnings.some((w) => w.code === 'GOAL_UNRESOLVED'),
+    'Q: …and an unresolved goal name is a WARNING — a mistyped name must not lose the routine');
+
+  // ATOMICITY. One bad document in a paste of several fails the whole call, and
+  // the good one beside it is NOT written — a half-applied paste is the outcome
+  // the author who caused it is least equipped to unpick.
+  const half = await req('POST', '/api/routines/bundle', {
+    routines: [
+      { slug: 'good-one', title: 'Good One', days: ['mon'], spec: { steps: [{ ref: 'plank' }] } },
+      { slug: 'bad-one', title: 'Bad One', days: ['tue'], spec: { steps: 'not an array' } },
+    ],
+  });
+  ok(half.status === 400 && half.json?.errors?.[0]?.path === 'routines[1].steps',
+    `Q: one invalid routine fails the bundle, with the path SAYING WHICH ONE (got ${JSON.stringify(half.json?.errors?.[0])})`);
+  ok(!(await list()).some((r) => r.ext_ref === 'routinedoc:good-one'),
+    'Q: …and its valid neighbour was not written — the bundle validates before it writes');
+
+  // A single routine document, sent straight to the bundle door — the shape
+  // `GET /api/routines/:id` hands back, and therefore the shape a user is most
+  // likely to have on the clipboard.
+  const single = await req('POST', '/api/routines/bundle', {
+    slug: 'evening-walk', title: 'Evening Walk', days: ['wed'],
+    spec: { steps: [{ ref: 'easy-run', target: 2 }] },
+  });
+  ok(single.json?.ok && single.json.routines.length === 1 && single.json.routines[0].slug === 'evening-walk',
+    'Q: a bare routine document is a valid bundle — the same thing said a shorter way');
+
+  // The library export file, sent straight to the bundle door.
+  const asBundle = await req('POST', '/api/routines/bundle', { entries: [
+    { collection: 'recipe', slug: 'ful-medames', title: 'Ful Medames', unit: 'count' },
+  ] });
+  ok(asBundle.json?.ok && asBundle.json.library.created === 1 && asBundle.json.routines.length === 0,
+    'Q: a library-only document is a valid bundle — one door, every shape');
+  ok((await req('POST', '/api/routines/bundle', {})).status === 400,
+    'Q: …but an empty one is refused rather than silently succeeding');
+
+  // ── R. WAVE 3 — the authoring PROMPT ────────────────────────────────────────
+  //     The vocabulary written as instructions. Its whole value is that it cannot
+  //     promise something the validator refuses, so what is tested is coverage:
+  //     every closed list, and the caller's own library.
+  const prompt = (await req('GET', '/api/routines/prompt')).json;
+  ok(typeof prompt?.text === 'string' && prompt.text.length > 3000, 'R: the prompt endpoint serves the text');
+  ok(vocab.progressions.types.every((t) => prompt.text.includes(`\`${t}\``)),
+    'R: …naming every progression type the validator accepts');
+  ok(vocab.cadence.types.every((t) => prompt.text.includes(t)),
+    'R: …every cadence mode');
+  ok(prompt.text.includes('jkos.beigeboard.bundle') && prompt.text.includes('/api/routines/bundle'),
+    'R: …and the exact output shape and endpoint it is asking for');
+  ok(prompt.text.includes('`nordic-curl`') && prompt.text.includes('`back-squat`'),
+    'R: the index is the CALLER\'S library — an agent that can see a slug writes a ref instead of six fields');
+  ok(prompt.target === '/api/routines/bundle', 'R: …and names its own import target, so a client hardcodes nothing');
+  const md = await fetch(`${BASE}/api/routines/prompt?format=md`, { headers: { Authorization: `Bearer ${A}` } });
+  ok(md.headers.get('content-type')?.includes('text/markdown') && (await md.text()).startsWith('# BeigeBoard'),
+    'R: ?format=md serves it as a file you can pipe somewhere');
+
+  /* THE LOOP, CLOSED. check:routine proves the prompt's worked example VALIDATES;
+     this proves it IMPORTS — refs resolving against the starter library, the entry
+     it teaches itself, the multi-rule step, the percent rule against `vars`, and the
+     goal named by title. The document we tell every agent to imitate is the one
+     document that must not merely be legal. */
+  const { EXAMPLE } = createRequire(import.meta.url)(join(BACKEND, 'src/routine-prompt.js'));
+  await req('POST', '/api/items', { kind: 'goal', scope: 'year', title: 'Get stronger' });
+  const worked = await req('POST', '/api/routines/bundle', EXAMPLE);
+  ok(worked.json?.ok === true && worked.json?.routines?.[0]?.slug === 'lower-body',
+    `R: the prompt's worked example IMPORTS (got ${worked.status} ${JSON.stringify(worked.json?.error || '')})`);
+  ok(!worked.json.warnings.some((w) => w.code === 'REF_UNRESOLVED' || w.code === 'GOAL_UNRESOLVED'),
+    `R: …with every ref and its goal resolving (${JSON.stringify(worked.json.warnings.map((w) => w.code))})`);
+  /* The LAST occurrence, not the first: section C already owns the `lower-body`
+     slug, so this is an update — and the sessions already on the board keep the
+     document they were minted against (RULE 3). The future is what re-rendered. */
+  const workedOccs = occsOf(await list(), worked.json.routines[0].id);
+  const lb = rx(workedOccs[workedOccs.length - 1]);
+  ok(lb?.steps?.length === 5 && lb.steps.every((s) => s.line && s.line !== '—'),
+    `R: …and every step of a rendered session carries real numbers (${JSON.stringify(lb?.steps?.map((s) => s.line))})`);
 
   done();
 } catch (e) {

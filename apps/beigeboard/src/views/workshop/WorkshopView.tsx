@@ -38,16 +38,32 @@ import { getChildren, getAncestors, getProgress } from '../../lib/seed'
 import { Press, Well, Bubble, Chip, Check, TButton, Rule, Bar } from '@jkos/ui'
 import { stagger } from '@jkos/design'
 import { RoutinesBoard } from './RoutinesBoard'
+import { LibraryBrowser } from './LibraryBrowser'
+import { RoutineImport } from './RoutineImport'
 import { getRoutines, cadenceDays, weeklyTarget } from '../../lib/routines'
 
 const MONO = 'var(--hub-font-mono)'
 
 export function WorkshopView(props: any) {
-  const { items, readonly, focusedNodeId } = props
-  const [board, setBoard] = useState<'goals' | 'routines'>('goals')
+  const { items, readonly, api, onReload, focusedNodeId } = props
+  const [board, setBoard] = useState<'goals' | 'routines' | 'library'>('goals')
+  /* The paste pane is reachable from two badges (a bundle carries routines AND
+     library entries, so both boards own it), which is why the state that opens it
+     lives up here rather than inside either. */
+  const [pasting, setPasting] = useState(false)
+  const [libCount, setLibCount] = useState<number | null>(null)
 
   const goalCount = useMemo(() => items.filter((it: any) => it.kind === 'goal').length, [items])
   const routineCount = useMemo(() => getRoutines(items).length, [items])
+
+  /* One count, fetched once, purely so the badge can state the size of the shelf.
+     The browser fetches the entries themselves when it opens — a badge is not worth
+     holding a copy of the library in a parent for. */
+  useEffect(() => {
+    let live = true
+    api?.get('/api/library').then((r: any) => { if (live) setLibCount(r?.count ?? r?.entries?.length ?? 0) })
+      .catch(() => { if (live) setLibCount(0) })
+  }, [api])
 
   // A deep-link ("Open in workshop →" from the detail panel) is always a node in
   // the goal tree, and the effect that acts on it lives in GoalsBoard — which is
@@ -61,12 +77,30 @@ export function WorkshopView(props: any) {
           are boxed: the fill IS the face, so it states which board you are on and
           which mode you are in at once. */}
       <div className="mo-item" style={{ flex: 'none', display: 'flex', alignItems: 'center', gap: 8, padding: '14px 28px 0' }}>
-        <BoardBadge current={board === 'goals'} onClick={() => setBoard('goals')} label="Goals" count={goalCount} sub="break down" />
-        <BoardBadge current={board === 'routines'} onClick={() => setBoard('routines')} label="Routines" count={routineCount} sub="repeat" />
+        <BoardBadge current={board === 'goals'} onClick={() => { setBoard('goals'); setPasting(false) }} label="Goals" count={goalCount} sub="break down" />
+        <BoardBadge current={board === 'routines'} onClick={() => { setBoard('routines'); setPasting(false) }} label="Routines" count={routineCount} sub="repeat" />
+        {/* The vocabulary its own board. It was reachable only from inside a
+            routine's forge, which made curating the shelf something you could only
+            do while editing something else. */}
+        <BoardBadge current={board === 'library'} onClick={() => { setBoard('library'); setPasting(false) }} label="Library" count={libCount ?? 0} sub="the parts" />
       </div>
       <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
-        {board === 'goals'
-          ? <GoalsBoard {...props} />
+        {pasting ? (
+          <RoutineImport
+            api={api}
+            readonly={readonly}
+            onClose={() => setPasting(false)}
+            onImported={async () => { await onReload?.(); setPasting(false); setBoard('routines') }}
+          />
+        ) : board === 'goals' ? <GoalsBoard {...props} />
+          : board === 'library' ? (
+            <LibraryBrowser
+              api={api}
+              items={items}
+              readonly={readonly}
+              onPaste={() => setPasting(true)}
+            />
+          )
           : <RoutinesBoard {...props} readonly={readonly} />}
       </div>
     </div>

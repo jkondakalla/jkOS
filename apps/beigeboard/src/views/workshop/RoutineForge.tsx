@@ -47,26 +47,22 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { FONT_HEAD, isoDate } from '../../lib/theme'
 import { Press, Bubble, Rule, TButton, Well, Chip, Bar } from '@jkos/ui'
 import { ProgressChart } from '../../components/ProgressChart'
+import { LibraryBrowser } from './LibraryBrowser'
+/* The field chrome and the rule editor live in ./parts — the library browser and
+   the paste pane are the same kind of dense editor and want the same controls,
+   and importing them out of here would have made those two files and this one
+   import each other. */
+import { MONO, field, numField, RuleRow } from './parts'
 import {
   normalizeSpec, renderCycle, summarize, slugify,
   parseCadence, formatCadence, describeCadence, expandCadence,
   metricOf, seriesFor,
-  UNITS, LOAD_UNITS, PROGRESSIONS, DRIVES, BLOCKS, ADVANCE_ON, CADENCES, MEASURES, WINDOWS,
-  PROGRESSION_LABEL, CADENCE_LABEL, MEASURE_LABEL, LIMITS, MAX_RULES,
+  UNITS, LOAD_UNITS, DRIVES, BLOCKS, ADVANCE_ON, CADENCES, MEASURES, WINDOWS,
+  CADENCE_LABEL, MEASURE_LABEL, LIMITS, MAX_RULES,
   type Spec, type Step, type Progression,
 } from '../../lib/routine-spec'
 
-const MONO = 'var(--hub-font-mono)'
 const DAY_LETTERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
-
-/* Shared field chrome. Declared once because the forge is mostly fields, and a form
-   whose inputs drift in height is the fastest way to make a dense editor unreadable. */
-const field: React.CSSProperties = {
-  fontFamily: MONO, fontSize: 11, color: 'var(--color-ink)',
-  background: 'transparent', border: '1px solid var(--color-line)',
-  borderRadius: 3, padding: '3px 5px', outline: 'none', minWidth: 0,
-}
-const numField: React.CSSProperties = { ...field, width: 58, textAlign: 'right' }
 
 type Tab = 'ladder' | 'history' | 'revisions'
 
@@ -89,6 +85,12 @@ export function RoutineForge({ routine, items, api, today, onUpdateItem, onClose
   const [tab, setTab] = useState<Tab>('ladder')
   const [revisions, setRevisions] = useState<any[] | null>(null)
   const [chartMeasure, setChartMeasure] = useState('load')
+  /* The full shelf, opened over the forge. The inline picker below is faster when
+     you know the name; this is for when you do not — and it is the only place an
+     entry's ladder and default progression can be READ before you commit a step to
+     them. Rendered as an early return, so the forge's unsaved document survives
+     the trip: the component instance never unmounts. */
+  const [browsing, setBrowsing] = useState(false)
 
   useEffect(() => {
     setSpec(normalizeSpec(routine?.spec))
@@ -205,17 +207,24 @@ export function RoutineForge({ routine, items, api, today, onUpdateItem, onClose
 
   const collections = useMemo(() => [...new Set((library || []).map((e) => e.collection))], [library])
 
-  const exportLibrary = () => {
-    // A file, not a fetch. The library becomes something you can keep, diff, hand
-    // to someone else, or paste to an assistant as the vocabulary to write against.
-    api?.get('/api/library/export?mine=1').then((doc: any) => {
-      const blob = new Blob([JSON.stringify(doc, null, 2)], { type: 'application/json' })
-      const a = document.createElement('a')
-      a.href = URL.createObjectURL(blob)
-      a.download = 'jkos-library.json'
-      a.click()
-      URL.revokeObjectURL(a.href)
-    }).catch(() => { /* best effort — the button is a convenience, not a contract */ })
+  /* The shelf, over the forge. Both exits re-read the library, because the browser
+     is a full editor — an entry may have been added, renamed or given a ladder
+     while it was open, and the inline picker resolving against a stale copy is how
+     a step would silently arrive without the defaults it was just given. */
+  const leaveBrowser = () => {
+    setBrowsing(false)
+    api?.get('/api/library').then((r: any) => setLibrary(r?.entries || [])).catch(() => { /* keep what we had */ })
+  }
+  if (browsing) {
+    return (
+      <LibraryBrowser
+        api={api}
+        items={items}
+        readonly={readonly}
+        onPick={(entry: any) => { addStep(entry); leaveBrowser() }}
+        onClose={leaveBrowser}
+      />
+    )
   }
 
   return (
@@ -297,8 +306,11 @@ export function RoutineForge({ routine, items, api, today, onUpdateItem, onClose
                 <TButton quiet onClick={() => addStep()} style={{ padding: '7px 11px', borderStyle: 'dashed', cursor: 'pointer' }}>
                   + Blank step
                 </TButton>
-                <TButton quiet onClick={exportLibrary} title="Download your library as a file you can keep, diff or share" style={{ padding: '7px 11px', cursor: 'pointer', marginLeft: 'auto' }}>
-                  ↓ Export library
+                {/* The quick picker above is for when you know the name. This is for
+                    when you do not — and it is where an entry's ladder, rest and
+                    default progression can be read before a step inherits them. */}
+                <TButton quiet onClick={() => setBrowsing(true)} title="Browse the whole library — read an entry's ladder and defaults before you use it" style={{ padding: '7px 11px', cursor: 'pointer', marginLeft: 'auto' }}>
+                  ⤢ Browse the library
                 </TButton>
               </div>
             )}
@@ -808,7 +820,7 @@ function StepEditor({ step, index, count, vars, readonly, onEdit, onMove, onRemo
         {step.progression.map((p: Progression, ri: number) => (
           <RuleRow
             key={ri}
-            rule={p} step={step} vars={vars} readonly={readonly}
+            rule={p} variants={step.variants} vars={vars} readonly={readonly}
             onSet={(k: string, v: any) => setRule(ri, k, v)}
             onRemove={() => onEdit((s: Step) => { s.progression.splice(ri, 1) })}
           />
@@ -867,96 +879,6 @@ function StepEditor({ step, index, count, vars, readonly, onEdit, onMove, onRemo
         {step.ref && <Bubble tone="secondary" style={{ fontSize: 8, padding: '2px 6px' }}>{step.ref.toUpperCase()}</Bubble>}
       </div>
     </Well>
-  )
-}
-
-/** One progression rule. Only the fields THIS type needs are drawn — a form that
- *  shows every field of every progression at once is the form nobody fills in
- *  correctly. */
-function RuleRow({ rule: p, step, vars, readonly, onSet, onRemove }: any) {
-  return (
-    <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', marginBottom: 4 }}>
-      <span className="mono-eyebrow">HARDER BY</span>
-      <select value={p.type} disabled={readonly} onChange={(e) => onSet('type', e.target.value)} style={field}>
-        {PROGRESSIONS.filter((t) => t !== 'fixed').map((t) => (
-          <option key={t} value={t}>{t} — {PROGRESSION_LABEL[t]}</option>
-        ))}
-      </select>
-
-      {(p.type === 'linear' || p.type === 'ladder') && (
-        <>
-          <span className="mono-eyebrow">MOVING</span>
-          <select value={p.drives} disabled={readonly} onChange={(e) => onSet('drives', e.target.value)} style={field}>
-            {DRIVES.map((d) => (
-              <option key={d} value={d} disabled={d === 'variant' && step.variants.length < 2}>{d}</option>
-            ))}
-          </select>
-        </>
-      )}
-
-      {p.type === 'linear' && (
-        <>
-          <span className="mono-eyebrow">BY</span>
-          <input type="number" step={0.5} value={p.increment ?? 0} disabled={readonly}
-            onChange={(e) => onSet('increment', Number(e.target.value) || 0)} style={numField} />
-          <span className="mono-eyebrow">EVERY</span>
-          <input type="number" min={1} value={p.every ?? 1} disabled={readonly}
-            onChange={(e) => onSet('every', Math.max(1, Number(e.target.value) || 1))} style={numField} />
-          <span className="mono-eyebrow">SESSIONS</span>
-        </>
-      )}
-
-      {(p.type === 'double' || p.type === 'autoregulated') && (
-        <>
-          <span className="mono-eyebrow">REPS</span>
-          <input type="number" value={p.range?.[0] ?? 5} disabled={readonly}
-            onChange={(e) => onSet('range', [Number(e.target.value) || 0, p.range?.[1] ?? 8])} style={numField} />
-          <span className="mono-eyebrow">→</span>
-          <input type="number" value={p.range?.[1] ?? 8} disabled={readonly}
-            onChange={(e) => onSet('range', [p.range?.[0] ?? 5, Number(e.target.value) || 0])} style={numField} />
-          <span className="mono-eyebrow">THEN +</span>
-          <input type="number" step={0.5} value={p.increment ?? 5} disabled={readonly}
-            onChange={(e) => onSet('increment', Number(e.target.value) || 0)} style={numField} />
-          <span className="mono-eyebrow">LOAD</span>
-        </>
-      )}
-
-      {p.type === 'ladder' && (
-        <>
-          <span className="mono-eyebrow">TABLE</span>
-          <input
-            value={(p.values || []).join(', ')} disabled={readonly} placeholder="3, 5, 8, 13"
-            onChange={(e) => onSet('values', e.target.value.split(',').map((v: string) => Number(v.trim())).filter((n: number) => Number.isFinite(n)))}
-            style={{ ...field, width: 140 }}
-          />
-        </>
-      )}
-
-      {p.type === 'percent' && (
-        <>
-          <span className="mono-eyebrow">OF</span>
-          <select value={p.of ?? ''} disabled={readonly} onChange={(e) => onSet('of', e.target.value)} style={field}>
-            <option value="">—</option>
-            {vars.map((v: string) => <option key={v} value={v}>{v}</option>)}
-          </select>
-          <span className="mono-eyebrow">FROM</span>
-          <input type="number" step={0.05} value={p.start ?? 0.6} disabled={readonly}
-            onChange={(e) => onSet('start', Number(e.target.value) || 0)} style={numField} />
-          <span className="mono-eyebrow">+</span>
-          <input type="number" step={0.005} value={p.increment ?? 0.025} disabled={readonly}
-            onChange={(e) => onSet('increment', Number(e.target.value) || 0)} style={numField} />
-        </>
-      )}
-
-      <span className="mono-eyebrow">CAP</span>
-      <input type="number" value={p.cap ?? ''} disabled={readonly} placeholder="none"
-        onChange={(e) => onSet('cap', e.target.value === '' ? null : Number(e.target.value))} style={numField}
-        title="An uncapped count climbs forever — +5s a session is a five-minute plank by next spring" />
-
-      {!readonly && (
-        <TButton quiet onClick={onRemove} style={{ padding: '1px 6px', cursor: 'pointer' }}>×</TButton>
-      )}
-    </div>
   )
 }
 

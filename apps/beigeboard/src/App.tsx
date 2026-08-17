@@ -360,6 +360,11 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
     // The routine forge reads the library through this (the vocabulary its steps
     // are built from); nothing else in the view tree fetches for itself.
     api,
+    /* A refetch the views can ask for. Needed by the paste pane: importing a
+       bundle writes routines AND mints their occurrences server-side, so the rows
+       that changed are not the ones any local state could name. Everything else
+       still goes through the optimistic handlers above. */
+    onReload: loadItems,
     recentlyAdded,
     setView,
     selectedId: selected?.id,
