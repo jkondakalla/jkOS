@@ -24,7 +24,7 @@ import {
 import { DOW } from './constants';
 import { TaskChip } from './TaskChip';
 import { Eyebrow, ChromeBar } from './primitives';
-import { TButton } from '@jkos/ui';
+import { TButton, Field } from '@jkos/ui';
 import { MO_DELAYS, MO_RING_STEP, ringOrder } from '@jkos/design';
 
 function shortMonth(iso: string) {
@@ -333,7 +333,8 @@ export function CalendarView({
                       <span className="mono-eyebrow" style={{ fontSize: 8 }}>+{cellItems.length - 4} MORE</span>
                     )}
                     {quickAdd === cell.iso && (
-                      <input
+                      <Field
+                        size="sm"
                         ref={quickRef}
                         placeholder="New task…"
                         onBlur={() => setQuickAdd(null)}
@@ -346,7 +347,9 @@ export function CalendarView({
                           }
                           if (e.key === 'Escape') setQuickAdd(null);
                         }}
-                        style={{ background: 'transparent', border: '1px solid var(--color-accent)', borderRadius: 'var(--hub-radius-sm)', fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 11, color: 'var(--color-ink)', outline: 'none', padding: '2px 5px', width: '100%', boxSizing: 'border-box' }}
+                        // Accent rim: this field only exists because the cell
+                        // was clicked, so it arrives already claiming the caret.
+                        style={{ borderColor: 'var(--color-accent)', fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 11, width: '100%' }}
                       />
                     )}
                   </div>

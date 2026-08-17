@@ -42,7 +42,7 @@
 import React, { useMemo, useRef, useState } from 'react'
 import { FONT_HEAD } from '../../lib/theme'
 import { Bubble, Rule, TButton, Well, Chip } from '@jkos/ui'
-import { MONO, field } from './parts'
+import { MONO, TextArea } from './parts'
 
 /* ── Getting an object out of whatever was on the clipboard ───────────────── */
 
@@ -283,7 +283,7 @@ export function RoutineImport({ api, readonly, onClose, onImported }: any) {
               </div>
             </div>
 
-            <textarea
+            <TextArea
               ref={areaRef}
               value={text}
               disabled={readonly}
@@ -294,11 +294,11 @@ export function RoutineImport({ api, readonly, onClose, onImported }: any) {
               spellCheck={false}
               placeholder={'Paste here — a bundle, a single routine, or a library export.\nA fenced ```json block from an assistant works as-is.\nOr drop a .json file.'}
               style={{
-                ...field,
-                width: '100%', minHeight: 340, resize: 'vertical',
-                fontSize: 11.5, lineHeight: 1.5, padding: '10px 12px',
-                borderStyle: dragging ? 'dashed' : 'solid',
-                borderColor: dragging ? 'var(--color-accent)' : 'var(--color-line)',
+                width: '100%', minHeight: 340,
+                padding: '10px 12px',
+                // The drop target says so by going dashed — the one border this
+                // field owns rather than inherits.
+                ...(dragging ? { borderStyle: 'dashed', borderColor: 'var(--color-accent)' } : null),
                 whiteSpace: 'pre', overflowWrap: 'normal', overflowX: 'auto',
               }}
             />
@@ -367,9 +367,9 @@ export function RoutineImport({ api, readonly, onClose, onImported }: any) {
                     <TButton quiet onClick={() => setPrompt(null)} style={{ padding: '2px 8px', cursor: 'pointer' }}>×</TButton>
                   </div>
                 </div>
-                <textarea
+                <TextArea
                   readOnly value={prompt} rows={12} onFocus={(e) => e.currentTarget.select()}
-                  style={{ ...field, width: '100%', fontSize: 10.5, lineHeight: 1.5, resize: 'vertical' }}
+                  style={{ width: '100%', lineHeight: 1.5 }}
                 />
               </Well>
             )}

@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import { Lab, Sheet, TButton, cx } from './primitives';
+import { Lab, Sheet, TButton, SearchField, cx } from './primitives';
 
 /* ─────────────────────────────────────────────────────────────────────────────
    @jkos/ui — <MatchPanel> (ToDo.md §3 Wave 20, item 20.4)
@@ -166,12 +166,11 @@ export function MatchPanel<C extends MatchCandidate = MatchCandidate, R = unknow
       </div>
 
       <form className="jk-match-search" onSubmit={onSubmit}>
-        <input
-          type="text"
+        <SearchField
           value={term}
           onChange={(e) => setTerm(e.target.value)}
           placeholder={searchPlaceholder}
-          className="jk-match-input"
+          style={{ flex: 1 }}
           aria-label={searchAriaLabel}
         />
         <TButton type="submit" disabled={status === 'loading'}>

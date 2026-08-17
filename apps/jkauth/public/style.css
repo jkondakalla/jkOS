@@ -82,21 +82,17 @@ body {
 
 form { display: flex; flex-direction: column; gap: 0.6rem; }
 
-input[type="text"],
-input[type="email"],
-input[type="password"] {
+/* The fields are .jk-field now (see the block in the token mirror) — this used
+   to be a per-element dialect that redrew the border, the fill and the focus
+   state by hand and, like the other four in the suite, never reset `appearance`.
+   What is left is only what a SIGN-IN form wants that a dense editor does not:
+   full width, a roomier hit area, and the body sans at reading size. */
+.jk-field {
   width: 100%;
   padding: 0.65rem 0.85rem;
-  border: 1px solid var(--border);
-  border-radius: var(--hub-radius-soft);
-  font-size: 0.95rem;
   font-family: var(--hub-font-sans);
-  color: var(--text);
-  background: var(--bg);
-  outline: none;
-  transition: border-color 0.15s;
+  font-size: 0.95rem;
 }
-input:focus { border-color: var(--accent); }
 
 .btn-primary {
   width: 100%;
@@ -156,7 +152,8 @@ input:focus { border-color: var(--accent); }
   font-size: 0.875rem; color: var(--muted);
   cursor: pointer; user-select: none;
 }
-.remember-row input[type="checkbox"] { width: auto; cursor: pointer; accent-color: var(--accent); }
+/* The box is .jk-field-check now — sizing, cursor and the amber tick all come
+   from the token mirror, so this row has nothing of its own left to say. */
 
 /* ── 2FA + account security pages ── */
 .muted-note { color: var(--muted); font-size: 0.85rem; line-height: 1.5; }

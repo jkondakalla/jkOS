@@ -39,7 +39,7 @@ import { TimelinePreview } from './TimelinePreview';
 import { CreateDialog, type CreatePending } from './CreateDialog';
 import { Checkbox, Eyebrow, RecLamp, HourLabel, NowLine } from './primitives';
 import { useScrollGutter } from './useScrollGutter';
-import { Press, TButton, Well } from '@jkos/ui';
+import { Press, TButton, Well, Field, Fold } from '@jkos/ui';
 import { MO_DELAYS } from '@jkos/design';
 import { deriveDaySections } from './sections';
 
@@ -583,14 +583,15 @@ function DayAgenda({
         )}
 
         {done.length > 0 && (
-          <details style={{ marginTop: 36, opacity: 0.7 }}>
-            <summary style={{ fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'var(--color-muted)', cursor: 'pointer', padding: '4px 0' }}>
-              {done.length} done today
-            </summary>
+          <Fold
+            style={{ marginTop: 36, opacity: 0.7 }}
+            summaryClassName="mono-eyebrow"
+            summary={`${done.length} done today`}
+          >
             <div style={{ marginTop: 10 }}>
               <Strip tasks={done} items={items} accentOf={accentFor} ancestorsOf={ancestorsOf} onSelect={onSelect} onToggle={onToggle} muted />
             </div>
-          </details>
+          </Fold>
         )}
 
         {(onOpenWeek || onOpenWorkshop) && (
@@ -679,7 +680,8 @@ function EmptyDay({ onAdd, today }: { onAdd?: (partial: Partial<CalendarItem>) =
 
       {onAdd && (adding ? (
         <div style={{ display: 'flex', gap: 10, alignItems: 'baseline' }}>
-          <input
+          <Field
+            bare
             autoFocus
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
@@ -688,7 +690,7 @@ function EmptyDay({ onAdd, today }: { onAdd?: (partial: Partial<CalendarItem>) =
               if (e.key === 'Escape') { setAdding(false); setDraft(''); }
             }}
             placeholder="Describe a task…"
-            style={{ flex: 1, background: 'transparent', border: 'none', borderBottom: '1px solid var(--color-line)', fontFamily: FONT_HEAD, fontSize: 22, color: 'var(--color-ink)', outline: 'none', padding: '6px 2px' }}
+            style={{ flex: 1, borderBottom: '1px solid var(--color-line)', fontFamily: FONT_HEAD, fontSize: 22, padding: '6px 2px' }}
           />
           <button onClick={handle} className="jk-cards-btn" style={{ background: 'var(--color-accent)', color: 'var(--color-paper)', border: 'none', fontFamily: FONT_BODY, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', padding: '10px 18px', cursor: 'pointer' }}>
             Add →

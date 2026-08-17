@@ -1,6 +1,7 @@
 import { useRef, useState, useEffect } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { ACCENT_SCHEMES, matchAccentScheme, CUSTOM_SCHEME_ID, withAlpha } from '@jkos/design';
+import { Field, Slider } from './primitives';
 
 /* ─────────────────────────────────────────────────────────────────────────────
    @jkos/ui — the ONE settings drawer for the whole suite.
@@ -336,10 +337,10 @@ function ColorRow({ label, color, onChange }: { label: string; color: string; on
       <span style={{ fontSize: 10, color: TXT_FAINT, width: 62, flexShrink: 0, fontFamily: FONT, letterSpacing: '0.06em' }}>{label}</span>
       <button type="button" onClick={() => ref.current?.click()}
         style={{ width: 30, height: 30, flexShrink: 0, background: color, border: `2px solid ${LINE}`, cursor: 'pointer', boxShadow: `0 0 10px ${withAlpha(color, 0.333)}`, outline: 'none', transition: 'box-shadow 0.15s' }} />
-      <input ref={ref} type="color" value={color} onChange={e => onChange(e.target.value)} style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', width: 0, height: 0 }} />
-      <input type="text" value={draft} onChange={e => handleText(e.target.value)}
+      <Field bare ref={ref} type="color" value={color} onChange={e => onChange(e.target.value)} style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', width: 0, height: 0 }} />
+      <Field type="text" value={draft} onChange={e => handleText(e.target.value)}
         onBlur={() => { if (!/^#[0-9a-fA-F]{6}$/.test(draft)) setDraft(color); }} maxLength={7} spellCheck={false}
-        style={{ flex: 1, background: FIELD, border: `1px solid ${LINE}`, color: /^#[0-9a-fA-F]{6}$/.test(draft) ? TXT : 'var(--hub-red)', padding: '5px 10px', fontFamily: FONT, fontSize: 11, letterSpacing: '0.08em', outline: 'none' }} />
+        style={{ flex: 1, color: /^#[0-9a-fA-F]{6}$/.test(draft) ? undefined : 'var(--hub-red)', padding: '5px 10px', fontSize: 11, letterSpacing: '0.08em' }} />
     </div>
   );
 }
@@ -368,7 +369,7 @@ function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) =>
 function SliderInput({ value, min, max, step, onChange }: { value: number; min: number; max: number; step: number; onChange: (v: number) => void }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingLeft: 10, marginTop: 2 }}>
-      <input type="range" min={min} max={max} step={step} value={value} onChange={e => onChange(parseFloat(e.target.value))} style={{ flex: 1, accentColor: ACCENT, cursor: 'pointer' }} />
+      <Slider min={min} max={max} step={step} value={value} onChange={onChange} style={{ flex: 1 }} />
       <span style={{ fontSize: 10, color: TXT_MUTED, width: 30, textAlign: 'right', fontFamily: FONT, flexShrink: 0 }}>{Math.round(value * 100)}%</span>
     </div>
   );

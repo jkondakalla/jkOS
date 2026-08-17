@@ -18,8 +18,8 @@
 
 * { box-sizing: border-box; }
 
-html, body { color-scheme: light; }
-html[data-mode="dark"], :root[data-mode="dark"] { color-scheme: dark; }
+/* color-scheme is hub.css's, next to the tokens it flips with — see the note
+   there on why it is the only lever over the engine's own popups. */
 
 /* `html body` rather than a bare `body`: embedding surfaces (the claude.ai/design
    preview harness among them) inject a late `body { background: #fff }` reset,

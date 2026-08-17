@@ -619,15 +619,124 @@
     <section class="dg-sec jk-sheet" id="controls">
       <div class="dg-sec-head">
         <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">06</span><span class="label-tape">CONTROLS</span></div>
-        <h2>Toggles, faders &amp; meters</h2>
+        <h2>Fields, toggles, faders &amp; meters</h2>
         <p class="dg-lede">
-          One rule across the set: a neutral, debossed track that fills with the accent
-          (or <code>--jk-tint</code>) as it engages. React:
-          <code>&lt;Switch&gt;</code>, <code>&lt;Check&gt;</code>, <code>&lt;Slider&gt;</code>,
-          <code>&lt;VU&gt;</code> — all controlled, all on real form/aria hosts, so the
+          One rule across the set: a neutral, debossed track or slot that fills with the accent
+          (or <code>--jk-tint</code>) as it engages. Two halves — <b>fields</b> take ink,
+          <b>toggles</b> hold state. React:
+          <code>&lt;Field&gt;</code>, <code>&lt;NumField&gt;</code>, <code>&lt;SelectField&gt;</code>,
+          <code>&lt;TextArea&gt;</code>, <code>&lt;Switch&gt;</code>, <code>&lt;Check&gt;</code>,
+          <code>&lt;Slider&gt;</code>, <code>&lt;VU&gt;</code> — all on real form/aria hosts, so the
           platform keeps the keyboard and the state styling keys off the aria attribute.
         </p>
       </div>
+
+      <p class="dg-caption">jk-field — the write half</p>
+      <p class="dg-lede" style="margin-top:0;margin-bottom:14px">
+        The recess is a <b>token pair, not a shared shadow</b>: paper debosses
+        (<code>--hub-field-recess</code> — shadow off the top lip, light caught at the bottom),
+        the tube drops to unlit <code>--hub-screen</code> with an inner falloff and no bevel at
+        all, then <i>emits</i> on focus. Flip the face above and watch the same markup change
+        physics rather than palette. Every native part is off — <code>appearance: none</code>,
+        the white spin buttons, the OS select arrow, autofill yellow, the search ×.
+      </p>
+      <div class="dg-grid wide">
+        <div class="dg-block jk-well" style="background:var(--hub-bg-1);box-shadow:none">
+          <span class="jk-lab jk-lab-sm">title · text · textarea</span>
+          <input class="jk-field jk-field-title" style="width:100%" value="Calf Raise" aria-label="Title field demo" />
+          <input class="jk-field" style="width:100%" placeholder="legs, accessory" aria-label="Text field demo" />
+          <textarea class="jk-field" rows="2" style="width:100%" placeholder="Form cues, the method, the thing worth remembering." aria-label="Textarea demo"></textarea>
+        </div>
+        <div class="dg-block jk-well" style="background:var(--hub-bg-1);box-shadow:none">
+          <span class="jk-lab jk-lab-sm">number · the house stepper</span>
+          <p class="dg-caption" style="margin:0">carets ghost at rest, ink up on hover/focus</p>
+          <span class="jk-field-num" style="width:78px">
+            <input class="jk-field" type="number" value="12" min="0" aria-label="Number field demo" />
+            <button class="jk-field-step" type="button" tabindex="-1" aria-hidden="true" data-step="up"></button>
+            <button class="jk-field-step" type="button" tabindex="-1" aria-hidden="true" data-step="down"></button>
+          </span>
+          <span class="jk-field-sel" style="width:120px">
+            <select class="jk-field" aria-label="Select field demo">
+              <option>reps</option><option>seconds</option><option>metres</option>
+            </select>
+          </span>
+        </div>
+        <div class="dg-block jk-well" style="background:var(--hub-bg-1);box-shadow:none">
+          <span class="jk-lab jk-lab-sm">dense rung · disabled</span>
+          <p class="dg-caption" style="margin:0">jk-field-sm — the workshop packs a dozen per row</p>
+          <div class="dg-row" style="gap:6px">
+            <span class="jk-field-num" style="width:58px">
+              <input class="jk-field jk-field-sm" type="number" value="3" min="1" aria-label="Dense number demo" />
+              <button class="jk-field-step" type="button" tabindex="-1" aria-hidden="true" data-step="up"></button>
+              <button class="jk-field-step" type="button" tabindex="-1" aria-hidden="true" data-step="down"></button>
+            </span>
+            <span class="jk-lab jk-lab-sm">×</span>
+            <span class="jk-field-num" style="width:58px">
+              <input class="jk-field jk-field-sm" type="number" value="12" aria-label="Dense number demo 2" />
+              <button class="jk-field-step" type="button" tabindex="-1" aria-hidden="true" data-step="up"></button>
+              <button class="jk-field-step" type="button" tabindex="-1" aria-hidden="true" data-step="down"></button>
+            </span>
+            <span class="jk-field-sel" style="flex:1;min-width:70px">
+              <select class="jk-field jk-field-sm" aria-label="Dense select demo">
+                <option>lb</option><option>kg</option>
+              </select>
+            </span>
+          </div>
+          <input class="jk-field jk-field-sm" style="width:100%" value="calf-raise" disabled aria-label="Disabled field demo" />
+          <p class="dg-caption" style="margin:0">disabled drops the recess — a slot you cannot write in should stop looking like one</p>
+        </div>
+      </div>
+
+      <p class="dg-caption">the typed fields — where the browser used to draw its own</p>
+      <p class="dg-lede" style="margin-top:0;margin-bottom:14px">
+        A <code>&lt;input type="time"&gt;</code> is not one box: the engine builds a widget of
+        segments inside it, and the segment under the caret fills with the system
+        <b>highlight</b> colour — Chrome blue, in a drawn card. Each segment is addressed
+        here, and the popups these open (the calendar, the picker list, autofill) are OS
+        windows no selector reaches — <code>color-scheme</code> on <code>:root</code> is the
+        entire lever over those, and it is why that one declaration exists.
+        The dropdown itself is drawn: <code>appearance: base-select</code> moves the picker
+        into the page as <code>::picker(select)</code>, so it is CSS and not a hand-built
+        listbox. Engines without it keep the native list, face-correct.
+      </p>
+      <div class="dg-grid wide">
+        <div class="dg-block jk-well" style="background:var(--hub-bg-1);box-shadow:none">
+          <span class="jk-lab jk-lab-sm">date · time · search</span>
+          <div class="dg-row" style="gap:6px;flex-wrap:wrap">
+            <input class="jk-field jk-field-sm" type="date" value="2026-08-17" aria-label="Date field demo" />
+            <input class="jk-field jk-field-sm" type="time" value="07:30" aria-label="Time field demo" />
+          </div>
+          <input class="jk-field jk-field-sm" type="search" style="width:100%" value="calf raise" aria-label="Search field demo" />
+          <p class="dg-caption" style="margin:0">the segment you are editing takes the accent wash, not the OS highlight</p>
+        </div>
+        <div class="dg-block jk-well" style="background:var(--hub-bg-1);box-shadow:none">
+          <span class="jk-lab jk-lab-sm">file · colour</span>
+          <input class="jk-field jk-field-sm" type="file" style="width:100%" aria-label="File field demo" />
+          <div class="dg-row" style="gap:8px;align-items:center">
+            <input class="jk-field" type="color" value="#ffb000" aria-label="Colour field demo" />
+            <span class="dg-caption" style="margin:0">the OS button becomes a small press; the swatch keeps the field's own frame</span>
+          </div>
+        </div>
+        <div class="dg-block jk-well" style="background:var(--hub-bg-1);box-shadow:none">
+          <span class="jk-lab jk-lab-sm">bare · fold · scroll</span>
+          <p class="dg-caption" style="margin:0">jk-field-bare — the reset without the slot, for edits inside running text</p>
+          <input class="jk-field jk-field-bare" style="width:100%;border-bottom:1px solid var(--hub-line);font-family:var(--hub-font-serif);font-style:italic;font-size:15px;padding:2px 0 5px"
+                 value="A verifiable outcome" aria-label="Bare field demo" />
+          <details class="jk-fold" open>
+            <summary class="jk-lab jk-lab-sm">jk-fold — 3 done today</summary>
+            <p class="dg-caption" style="margin:5px 0 0 11px">the OS disclosure triangle, replaced by the caret the picker turns</p>
+          </details>
+          <label class="dg-row" style="gap:7px;align-items:center;cursor:pointer">
+            <input class="jk-field-check" type="checkbox" checked />
+            <span class="dg-caption" style="margin:0">jk-field-check — a REAL checkbox, for the server-rendered forms &lt;Check&gt; can't reach</span>
+          </label>
+          <div class="jk-scroll-none" style="overflow-x:auto;white-space:nowrap;padding-top:4px">
+            <span class="dg-caption">jk-scroll-none — a tray that scrolls but shows no bar, without re-inventing the three-engine incantation each time</span>
+          </div>
+        </div>
+      </div>
+
+      <p class="dg-caption" style="margin-top:26px">toggles &amp; meters — the state half</p>
       <div class="dg-row" style="gap:28px">
         <div class="dg-row" style="gap:10px">
           <button class="jk-switch" aria-checked="true" id="dg-sw"><span class="jk-switch-knob"></span></button>
@@ -1161,7 +1270,7 @@
           <button class="jk-tbtn jk-tbtn-quiet">Close</button>
         </div>
         <div class="jk-match-search">
-          <input class="jk-match-input" type="text" value="left hand of darkness" aria-label="Search records" />
+          <input class="jk-field" type="search" style="flex:1" value="left hand of darkness" aria-label="Search records" />
           <button class="jk-tbtn">Search</button>
         </div>
         <p class="jk-async-note jk-match-msg">3 candidates.</p>

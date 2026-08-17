@@ -37,11 +37,14 @@ import '../styles/hud.css';
 
 const clampU = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n || lo));
 
-const field: CSSProperties = {
+// This page has no inputs of its own — `field` existed only as the base of
+// ghostBtn, which is a button. Folded in so the input dialect stops being
+// copied forward with each new workshop page.
+const ghostBtn: CSSProperties = {
   background: 'var(--hub-bg-0)', border: '1px solid var(--hub-line)', color: 'var(--hub-cream-bright)',
-  fontFamily: 'var(--hub-font-mono)', fontSize: 12, padding: '5px 8px', borderRadius: 'var(--hub-radius-sm)', minWidth: 0,
+  fontFamily: 'var(--hub-font-mono)', fontSize: 12, padding: '5px 8px',
+  borderRadius: 'var(--hub-radius-sm)', minWidth: 0, cursor: 'pointer',
 };
-const ghostBtn: CSSProperties = { ...field, cursor: 'pointer' };
 
 const initialRoot = (): ENode => ({
   id: newId(),
@@ -403,7 +406,7 @@ export default function WidgetWorkshop() {
               </span>
               <span className="wc-toolhint">tap = select · hold / right-click = add · drag = move · edges = resize</span>
               <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
-                <button onClick={publish} disabled={busy} style={{ ...field, cursor: 'pointer', background: 'var(--hub-amber)', color: 'var(--hub-bg-0)', fontWeight: 600, padding: '7px 14px', border: 'none' }}>
+                <button onClick={publish} disabled={busy} style={{ ...ghostBtn, background: 'var(--hub-amber)', color: 'var(--hub-bg-0)', fontWeight: 600, padding: '7px 14px', border: 'none' }}>
                   {busy ? 'Publishing…' : 'Publish'}
                 </button>
               </span>
@@ -491,7 +494,7 @@ function PublishedList({ published, onEdit, onUnpublish }: {
 
 function Shell({ tab, setTab, children }: { tab: 'build' | 'guide'; setTab: (t: 'build' | 'guide') => void; children: ReactNode }) {
   const tabBtn = (key: 'build' | 'guide'): CSSProperties => ({
-    ...field, cursor: 'pointer', padding: '5px 14px',
+    ...ghostBtn, padding: '5px 14px',
     background: tab === key ? 'var(--hub-amber)' : 'transparent',
     color: tab === key ? 'var(--hub-bg-0)' : 'var(--hub-cream)',
     border: tab === key ? 'none' : '1px solid var(--hub-line)',

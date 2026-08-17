@@ -18,6 +18,7 @@ export {
   Bubble, Press, Chip, Sub, SubLink, Well, Sheet, Lab, TButton, Pill, Bar, EmptyState,
   Rule, Folio, Colophon,
   Switch, Check, Slider, VU, Scanlines, Vignette, Scrim, cx,
+  Field, NumField, SelectField, TextArea, DateField, TimeField, SearchField, Fold,
 } from './primitives';
 export { useBreakpoint } from './useBreakpoint';
 export {

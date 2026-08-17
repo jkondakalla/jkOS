@@ -156,6 +156,13 @@
   --hub-pad-pill:         4px 9px;
   --hub-fs-tbtn:          9px;
   --hub-pad-tbtn:         6px 10px;
+  /* The FIELD scale. `-sm` is the dense-editor rung (the workshop packs a dozen
+     fields into one row and cannot spend the extra 2px); the base is everything
+     else. Both go up on phones with the rest of the mono type. */
+  --hub-fs-field:         12px;
+  --hub-fs-field-sm:      11px;
+  --hub-pad-field:        5px 7px;
+  --hub-pad-field-sm:     3px 5px;
   --hub-fs-lab:           10px;
   --hub-fs-lab-sm:        9px;
   --hub-fs-lab-xs:        8px;
@@ -297,6 +304,63 @@
     inset 0 -1px 1px color-mix(in srgb, #ffffff 55%, transparent),
     0 1px 0 color-mix(in srgb, #ffffff 45%, transparent);
 
+  /* ── The FIELD recess (the .jk-field block below) ─────────────────────────
+     A field is where the user writes, so it has to read as a place that will
+     TAKE ink — and the two faces say that with completely different physics.
+     These four tokens are the whole difference; the class body is shared.
+
+     On paper it is a real deboss: the stock drops to the recessed sheet, a soft
+     shadow falls from the top lip inward, and the bottom lip catches light. The
+     same reading as --hub-accent-press, one rung quieter (a well is a region, a
+     field is a slot).
+
+     The dark block overrides all four with the tube's OWN recipe rather than
+     re-tinting this one — the recess is stated by unlit screen stock and an
+     inner falloff, because a bevel on a CRT is a lie: there is no raking light
+     to catch, only phosphor that is on or off. (Reusing the paper bevel here is
+     exactly what made a dark field read as a light field with the colours swapped.) */
+  --hub-field-face:   var(--hub-bg-0);
+  --hub-field-recess:
+    inset 0 2px 3px color-mix(in srgb, var(--hub-cream-bright) 22%, transparent),
+    inset 0 -1px 0 var(--hub-bevel-light);
+  /* Engaged: on paper the pen presses HARDER — the recess deepens and the rim
+     takes the accent. Nothing emits; the whole state has to be carried by depth
+     and by the rim, which is why both go further here than a dark-mode eye would
+     expect. (Matching the CRT's numbers instead left the paper focus invisible
+     next to its glow — the two faces need different AMOUNTS to read as equal.) */
+  --hub-field-recess-focus:
+    inset 0 3px 5px color-mix(in srgb, var(--hub-cream-bright) 30%, transparent),
+    inset 0 -1px 0 var(--hub-bevel-light),
+    0 0 0 2px color-mix(in srgb, var(--accent) 16%, transparent);
+  --hub-field-face-focus: color-mix(in srgb, var(--accent) 4%, var(--hub-bg-0));
+
+  /* ── The MENU surface (drawn select pickers, .jk-menu) ────────────────────
+     A picker is not part of the sheet — it is a thing that came to rest ON TOP
+     of it, so paper gives it the BADGE move (raised, drop shadow, a lit top
+     lip) rather than the well's deboss. The tube can't cast a shadow onto
+     phosphor, so dark states the same "in front of everything" with an
+     accent-tinted rim and an outward bloom. */
+  --hub-menu-face: var(--hub-bg-4);
+  --hub-menu-line: var(--hub-line-strong);
+  --hub-menu-lift:
+    0 8px 22px color-mix(in srgb, var(--accent-deepen-ink) 22%, transparent),
+    inset 0 1px 0 color-mix(in srgb, #ffffff 55%, transparent);
+
+  /* ── color-scheme: the one declaration the browser itself reads ───────────
+     Everything else in this file dresses OUR markup. This tells the ENGINE
+     which face it is painting, and it is the only lever over chrome we never
+     get a selector for: the select picker's own popup window, the date and
+     time picker calendars, the autofill dropdown, the caret, and the default
+     scrollbars. Without it those all come back white on the tube no matter
+     what the surrounding CSS says — which is exactly how a dark-mode dropdown
+     ends up a blinding white OS list with a blue highlight bar.
+
+     accent-color is its smaller sibling: it tints any native control we have
+     not (or cannot) draw ourselves, so a stray checkbox lands amber instead of
+     Chrome blue. Both are set on :root and inherit everywhere. */
+  color-scheme: light;
+  accent-color: var(--accent);
+
   /* ── Halation ────────────────────────────────────────────────────────────
      The suite-wide emissive accent glow. Halation is a CRT phenomenon: on paper
      an accent presses IN (the debossed stamp above), so these halo tokens are
@@ -400,6 +464,37 @@
      glows in ITS colour; unset, it resolves to the accent — byte-identical to
      the old accent-locked value. */
   --hub-accent-press: 0 0 10px color-mix(in srgb, var(--jk-tint, var(--accent)) 38%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--jk-tint, var(--accent)) 30%, transparent);
+
+  /* THE FIELD, on the tube — its own recipe, not the paper bevel re-tinted.
+     A CRT has no raking light, so nothing bevels: what makes a slot read as a
+     slot here is that it is the DARKEST thing on the screen. The field drops
+     past every --hub-bg rung to --hub-screen (the tube's own unlit stock) and
+     takes a soft inner falloff off the top edge — the way the glass darkens
+     toward a masked area — with no light catch at the bottom at all.
+
+     Engaged, it does what everything on this face does: it EMITS. The rim takes
+     the accent, a halo blooms outward, and the face lifts one rung off black so
+     the caret has something to sit on. Same class, opposite physics. */
+  --hub-field-face:   var(--hub-screen);
+  --hub-field-recess: inset 0 1px 5px rgba(0, 0, 0, 0.55);
+  --hub-field-face-focus: var(--hub-bg-0);
+  --hub-field-recess-focus:
+    inset 0 1px 5px rgba(0, 0, 0, 0.5),
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent),
+    0 0 10px color-mix(in srgb, var(--accent) 26%, transparent);
+
+  /* The menu, on the tube. Phosphor takes no drop shadow, so "in front" is
+     said with an accent rim and an outward bloom instead of a cast shadow. */
+  --hub-menu-face: var(--hub-bg-1);
+  --hub-menu-line: color-mix(in srgb, var(--accent) 28%, var(--hub-line-strong));
+  --hub-menu-lift:
+    0 10px 30px rgba(0, 0, 0, 0.72),
+    0 0 16px color-mix(in srgb, var(--accent) 15%, transparent);
+
+  /* The engine's own half of the face flip — see the note in the light block.
+     accent-color is inherited from :root and needs no dark twin: --accent
+     already re-resolves here. */
+  color-scheme: dark;
 
   /* Halation lights up in CRT: every primary-accent element emits. The text
      halo is tighter than the box halo so accent type stays legible. */
@@ -875,11 +970,57 @@
   to   { opacity: 1; clip-path: inset(0 0 0 0); }
 }
 
-/* Scrollbars */
-::-webkit-scrollbar       { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: var(--hub-bg-1); }
-::-webkit-scrollbar-thumb { background: var(--hub-line-strong); }
-::-webkit-scrollbar-thumb:hover { background: var(--hub-amber-dim); }
+/* ─── Scrollbars ───────────────────────────────────────────────────────────
+ * One gutter for the whole suite, stated twice because the two engines expose
+ * completely different surfaces: Blink/WebKit give ::-webkit-scrollbar-* parts,
+ * Gecko gives the two standard properties and nothing else. Both are set here
+ * so a Firefox user does not get the OS bar over a drawn page.
+ *
+ * The TRACK is transparent on purpose. It used to be --hub-bg-1, which painted
+ * a solid tan channel down the right edge of every scrolling region — a strip
+ * of a different material laid over the grain. The gutter is not an object;
+ * only the thumb is. The thumb is drawn like every other mark in the suite: ink
+ * at low opacity, going amber under the pointer, and it inherits the face
+ * automatically because --hub-line-strong flips.
+ *
+ * ::-webkit-scrollbar-corner matters more than it looks: where a vertical and a
+ * horizontal bar meet, an unstyled corner paints an opaque OS-grey square.
+ *
+ * The two syntaxes are MUTUALLY EXCLUSIVE in Blink, and not in a way either
+ * spec mentions: the moment `scrollbar-color` applies to an element, Chrome
+ * discards every ::-webkit-scrollbar-* rule for it and paints its own themed
+ * bar instead — a bar that comes WITH stepper arrows at both ends and cannot be
+ * told otherwise. Setting both, which is the obvious way to cover both engines,
+ * therefore silently loses the drawn one. So the standard properties are handed
+ * only to engines that have no webkit pseudos to lose.
+ * ───────────────────────────────────────────────────────────────────────── */
+@supports not (selector(::-webkit-scrollbar)) {
+  :root {
+    scrollbar-width: thin;
+    scrollbar-color: var(--hub-line-strong) transparent;
+  }
+}
+::-webkit-scrollbar        { width: 8px; height: 8px; }
+::-webkit-scrollbar-track  { background: transparent; }
+::-webkit-scrollbar-corner { background: transparent; }
+/* Styling ANY scrollbar part opts the whole bar out of the OS overlay style and
+   back into the legacy one — which brings stepper arrows at both ends. They are
+   not part of this system and they cannot be reached any other way. */
+::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+::-webkit-scrollbar-thumb  {
+  background: var(--hub-line-strong);
+  border-radius: 4px;
+  /* The inset border is what keeps an 8px bar reading as a ~4px mark: the thumb
+     box has to be tall enough to grab, the drawn part does not. */
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--hub-amber-dim); background-clip: content-box; }
+
+/* Opt-out, for strips that scroll but must not show a bar (a tray, a chip row).
+   Declared as a class so no app has to re-invent the three-engine incantation. */
+.jk-scroll-none { scrollbar-width: none; -ms-overflow-style: none; }
+.jk-scroll-none::-webkit-scrollbar { display: none; }
 
 /* Selection */
 ::selection {
@@ -1539,6 +1680,489 @@
 }
 :root[data-mode="dark"] .jk-pill { text-shadow: 0 0 8px var(--hub-green-glow); }
 
+/* ─── Fields — the WRITE half of the control set ───────────────────────────
+ * Everything the user types into: text, number, select, textarea, search, date.
+ * The switch/check/slider below are the STATE half — this is the half that
+ * takes ink, and until now the suite had no primitive for it at all. Every app
+ * hand-rolled its own `field` object (five dialects at the last count), and not
+ * one of them reset `appearance` — so under a hand-drawn hairline the browser
+ * kept painting its own chrome: white spin buttons on every number, an OS arrow
+ * on every select, autofill yellow, the search cancel ×. On a warm paper sheet
+ * or an amber tube those blank white boxes are not a small blemish; they are a
+ * different design system showing through.
+ *
+ * The face follows the control doctrine — a neutral recess that engages with the
+ * accent — but the RECESS ITSELF is a token pair, not a shared shadow, because
+ * paper and the tube state depth by opposite means (see --hub-field-face /
+ * --hub-field-recess in both :root blocks). Paper debosses; the CRT goes unlit
+ * and then emits. Same class, one declaration, correct on both faces.
+ *
+ * Host on real form elements so the platform keeps the keyboard, validation and
+ * IME; React wrappers are <Field>, <NumField>, <SelectField>, <TextArea>. */
+.jk-field {
+  appearance: none;
+  -webkit-appearance: none;
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: var(--hub-tap-min);
+  margin: 0;
+  font-family: var(--hub-font-mono);
+  font-size: var(--hub-fs-field);
+  line-height: 1.45;
+  color: var(--color-ink);
+  caret-color: var(--accent);
+  background: var(--hub-field-face);
+  border: 1px solid var(--hub-line);
+  border-radius: var(--hub-radius-xs);
+  box-shadow: var(--hub-field-recess);
+  padding: var(--hub-pad-field);
+  outline: none;
+  transition: background 0.12s, border-color 0.12s, box-shadow 0.12s;
+}
+
+/* The dense rung — a workshop row fits a dozen of these. */
+.jk-field-sm { font-size: var(--hub-fs-field-sm); padding: var(--hub-pad-field-sm); }
+
+/* The TITLE field — one per form, the thing being named. Set in the display
+   serif at content weight, so the name of a thing looks like a name and not
+   like another parameter of it. */
+.jk-field-title {
+  font-family: var(--hub-font-serif);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+/* ── BARE — the reset without the slot ─────────────────────────────────────
+ * Some edits are not slots. Renaming a panel title happens IN the title, on the
+ * accent band; "done means" is an underlined phrase in the running text. Giving
+ * those a debossed tan box would put a control where a piece of writing is.
+ *
+ * But they are still <input>s, and everything the base class strips — the
+ * appearance reset, the spin buttons, autofill yellow, the search ×, the OS
+ * placeholder colour, the caret — applies to them exactly as much. So this
+ * takes the FACE off and keeps the reset, and inherits type and colour from
+ * whatever it is sitting in.
+ *
+ * That split is what lets the gate be absolute: every input in the suite
+ * carries a jk-field class, and the ones that must look like nothing say so.
+ * The states are spelled out rather than left to the base class because
+ * `.jk-field:focus` and `.jk-field:disabled` would otherwise out-specify a bare
+ * `.jk-field-bare` and paint the recess back on the moment it was focused. */
+.jk-field-bare,
+.jk-field-bare:hover,
+.jk-field-bare:focus,
+.jk-field-bare:disabled {
+  min-height: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* Engaged. `:focus` rather than `:focus-visible`: a field being typed into
+   always warrants the state, however the user got there. */
+.jk-field:focus {
+  background: var(--hub-field-face-focus);
+  border-color: color-mix(in srgb, var(--accent) 75%, var(--hub-line));
+  box-shadow: var(--hub-field-recess-focus);
+}
+.jk-field:hover:not(:focus):not(:disabled) { border-color: var(--hub-line-strong); }
+
+/* Firefox dims placeholders on its own; opacity:1 takes the colour back. */
+.jk-field::placeholder { color: var(--color-faint); opacity: 1; }
+
+/* A field you cannot write in must stop looking like a slot: the recess goes
+   flat (nothing to press into) and only the hairline is left to say where the
+   value ends. */
+.jk-field:disabled {
+  background: transparent;
+  box-shadow: none;
+  color: var(--color-muted);
+  border-color: color-mix(in srgb, var(--hub-line) 60%, transparent);
+  cursor: default;
+}
+.jk-field:read-only:not(:disabled) { color: var(--color-muted); }
+
+textarea.jk-field { resize: vertical; }
+
+/* The OS popup is the one part of a <select> nobody can draw; setting the option
+   colours at least keeps it from opening as a stark white sheet on the tube. */
+.jk-field option { background: var(--hub-bg-1); color: var(--color-ink); }
+
+/* ── Native chrome removal ───────────────────────────────────────────────────
+ * Vendor pseudo-elements CANNOT be grouped across engines — one selector an
+ * engine doesn't know drops the whole rule — so each gets its own declaration,
+ * the same rule the slider's track/thumb pairs follow above. */
+
+/* THE WHITE INCREMENT BUTTONS. Chrome/Safari paint these over the field's own
+   background in a colour that answers to nothing in this system; Firefox needs
+   `textfield` to stop reserving the space. Replaced by .jk-field-step below. */
+.jk-field::-webkit-outer-spin-button { appearance: none; -webkit-appearance: none; margin: 0; }
+.jk-field::-webkit-inner-spin-button { appearance: none; -webkit-appearance: none; margin: 0; }
+.jk-field[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+
+/* The search × and its sibling decorations — all OS-drawn, all off-palette. */
+.jk-field::-webkit-search-cancel-button    { appearance: none; -webkit-appearance: none; }
+.jk-field::-webkit-search-decoration       { appearance: none; -webkit-appearance: none; }
+.jk-field::-webkit-search-results-button   { appearance: none; -webkit-appearance: none; }
+
+/* The date/time picker glyph. Held down to a mark rather than removed: it is the
+   affordance that says a calendar exists behind this field, and there is no way
+   to put a drawn one back that still opens the picker on click.
+   No dark-mode filter: `color-scheme` (set on :root) already makes the engine
+   paint this glyph light on the tube. It used to carry `filter: invert(.85)`,
+   which now double-inverts it back to black — the fix and the workaround cancel. */
+.jk-field::-webkit-calendar-picker-indicator {
+  opacity: 0.45;
+  cursor: pointer;
+  transition: opacity 0.12s;
+}
+.jk-field::-webkit-calendar-picker-indicator:hover { opacity: 1; }
+
+/* Autofill yellow. There is no property for the fill — the only lever is a
+   100px inset shadow painted over it, and it must come LAST so the recess (which
+   paints on top of later shadows) still reads. */
+.jk-field:-webkit-autofill,
+.jk-field:-webkit-autofill:hover,
+.jk-field:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--color-ink);
+  caret-color: var(--accent);
+  -webkit-box-shadow: var(--hub-field-recess), inset 0 0 0 100px var(--hub-field-face);
+}
+
+/* ── Select — the field plus a drawn caret ─────────────────────────────────
+ * `appearance: none` takes the OS arrow off, so the wrapper puts a house one
+ * back: an ink chevron, click-transparent, on the same right inset the stepper
+ * uses so a select and a number field line up in a row. */
+.jk-field-sel {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+.jk-field-sel > .jk-field { width: 100%; padding-right: 19px; cursor: pointer; }
+.jk-field-sel::after {
+  content: "";
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  width: 4.5px;
+  height: 4.5px;
+  margin-top: -4px;
+  border-right: 1.5px solid var(--color-faint);
+  border-bottom: 1.5px solid var(--color-faint);
+  transform: rotate(45deg);
+  pointer-events: none;
+  transition: border-color 0.12s;
+}
+.jk-field-sel:hover::after { border-color: var(--color-ink); }
+.jk-field-sel:focus-within::after { border-color: var(--accent); }
+.jk-field-sel:has(> .jk-field:disabled)::after { opacity: 0.45; }
+
+/* ── Number — the field plus the house stepper ─────────────────────────────
+ * Ink only, no fill and no box: stacked carets on a hairline divider, ghosted
+ * at rest so a dense row reads as values rather than as a wall of controls, and
+ * up to full ink the moment the group is hovered or focused. Each caret is a
+ * real <button> driving the input's own stepUp()/stepDown(), so min/max/step
+ * come from the platform exactly as they did from the chrome this replaces. */
+.jk-field-num {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+  min-width: 0;
+}
+.jk-field-num > .jk-field { width: 100%; padding-right: 17px; text-align: right; }
+.jk-field-num::after {
+  content: "";
+  position: absolute;
+  right: 15px;
+  top: 4px;
+  bottom: 4px;
+  width: 1px;
+  background: var(--hub-line);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s;
+}
+.jk-field-num:hover::after,
+.jk-field-num:focus-within::after { opacity: 0.75; }
+
+.jk-field-step {
+  position: absolute;
+  right: 1px;
+  display: flex;
+  justify-content: center;
+  width: 14px;
+  height: calc(50% - 2px);
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-faint);
+  opacity: 0.35;
+  cursor: pointer;
+  transition: opacity 0.12s, color 0.12s;
+}
+.jk-field-step[data-step="up"]   { top: 2px;    align-items: flex-end;   padding-bottom: 1px; }
+.jk-field-step[data-step="down"] { bottom: 2px; align-items: flex-start; padding-top: 1px; }
+/* Drawn, not glyphed: a border triangle needs no font, no SVG child and no
+   inline markup, so a bare `<button class="jk-field-step" data-step="up">` in
+   plain HTML renders the same caret React does. */
+.jk-field-step::before {
+  content: "";
+  display: block;
+  width: 0;
+  height: 0;
+  border-left: 3.5px solid transparent;
+  border-right: 3.5px solid transparent;
+}
+.jk-field-step[data-step="up"]::before   { border-bottom: 4px solid currentColor; }
+.jk-field-step[data-step="down"]::before { border-top:    4px solid currentColor; }
+
+.jk-field-num:hover .jk-field-step,
+.jk-field-num:focus-within .jk-field-step { opacity: 1; }
+.jk-field-step:hover { color: var(--accent); }
+.jk-field-step:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; opacity: 1; }
+/* Nothing to step and nothing to divide when the value is locked. */
+.jk-field-num:has(> .jk-field:disabled) .jk-field-step { display: none; }
+.jk-field-num:has(> .jk-field:disabled)::after { display: none; }
+
+/* ── Date & time — the INLINE face ─────────────────────────────────────────
+ * A `<input type="time">` is not one text box: the engine builds a little
+ * widget of segment spans inside it, and each segment paints itself. Left
+ * alone they carry the OS type ramp and — the loud part — a segment under the
+ * caret fills with the system HIGHLIGHT colour, which is Chrome blue. That is
+ * the `-- : -- --` reading as a foreign control dropped into a drawn card.
+ *
+ * Each segment gets its own rule. Unlike the datetime pseudos-as-a-family
+ * (all Blink/WebKit, all shipped together) the cost of being wrong is the
+ * whole declaration, and the slider block already pays for that lesson twice,
+ * so the house rule wins over the shorter file.
+ *
+ * The picker popup these open is not addressable from CSS in any engine — it
+ * is an OS window. `color-scheme` on :root is what makes it come up dark on
+ * the tube instead of white; there is no other lever, which is the reason that
+ * declaration exists. */
+.jk-field::-webkit-datetime-edit                { padding: 0; }
+.jk-field::-webkit-datetime-edit-fields-wrapper { padding: 0; }
+/* The `:` and `/` between segments: structure, not content — one rung back. */
+.jk-field::-webkit-datetime-edit-text           { padding: 0 1px; color: var(--color-faint); }
+.jk-field::-webkit-datetime-edit-year-field     { padding: 0 1px; border-radius: 2px; }
+.jk-field::-webkit-datetime-edit-month-field    { padding: 0 1px; border-radius: 2px; }
+.jk-field::-webkit-datetime-edit-day-field      { padding: 0 1px; border-radius: 2px; }
+.jk-field::-webkit-datetime-edit-hour-field     { padding: 0 1px; border-radius: 2px; }
+.jk-field::-webkit-datetime-edit-minute-field   { padding: 0 1px; border-radius: 2px; }
+.jk-field::-webkit-datetime-edit-second-field   { padding: 0 1px; border-radius: 2px; }
+.jk-field::-webkit-datetime-edit-ampm-field     { padding: 0 1px; border-radius: 2px; }
+.jk-field::-webkit-datetime-edit-week-field     { padding: 0 1px; border-radius: 2px; }
+
+/* THE BLUE BAR. The segment you are editing is selected text as far as the
+   engine is concerned, so it takes `highlight`/`highlighttext`. Replaced by
+   the same accent wash ::selection uses, so moving the caret across a time
+   field looks like moving it across any other text in the suite. */
+.jk-field::-webkit-datetime-edit-year-field:focus   { background: color-mix(in srgb, var(--accent) 26%, transparent); color: var(--color-ink); }
+.jk-field::-webkit-datetime-edit-month-field:focus  { background: color-mix(in srgb, var(--accent) 26%, transparent); color: var(--color-ink); }
+.jk-field::-webkit-datetime-edit-day-field:focus    { background: color-mix(in srgb, var(--accent) 26%, transparent); color: var(--color-ink); }
+.jk-field::-webkit-datetime-edit-hour-field:focus   { background: color-mix(in srgb, var(--accent) 26%, transparent); color: var(--color-ink); }
+.jk-field::-webkit-datetime-edit-minute-field:focus { background: color-mix(in srgb, var(--accent) 26%, transparent); color: var(--color-ink); }
+.jk-field::-webkit-datetime-edit-second-field:focus { background: color-mix(in srgb, var(--accent) 26%, transparent); color: var(--color-ink); }
+.jk-field::-webkit-datetime-edit-ampm-field:focus   { background: color-mix(in srgb, var(--accent) 26%, transparent); color: var(--color-ink); }
+.jk-field::-webkit-datetime-edit-week-field:focus   { background: color-mix(in srgb, var(--accent) 26%, transparent); color: var(--color-ink); }
+
+/* ── The DRAWN picker ──────────────────────────────────────────────────────
+ * `appearance: none` only ever reached the select's BUTTON. The list it drops
+ * — the thing in the screenshot: white card, OS type, a blue bar on the hovered
+ * row — was an operating-system window the page could not touch, and for most
+ * of the web's life the only way around that was to throw the <select> away and
+ * hand-build a listbox out of divs, inheriting every keyboard, screen-reader,
+ * form-association and mobile-picker behaviour by hand.
+ *
+ * `appearance: base-select` ends that. It moves the picker into the page's own
+ * top layer as real styleable content — ::picker(select) is the popup,
+ * ::picker-icon is the caret, ::checkmark is the selected mark — while the
+ * element stays a plain <select>. So this whole surface is CSS: no listbox
+ * component, no JS, no a11y to re-implement, nothing extra to keep in sync.
+ *
+ * Wrapped in @supports because it is Chromium-only for now. Engines without it
+ * fall through to the `appearance: none` button and the wrapper's drawn caret
+ * above, with a native list that `color-scheme` at least keeps face-correct —
+ * so the fallback is "not drawn", never "wrong colour". */
+@supports (appearance: base-select) {
+  .jk-field-sel > .jk-field {
+    appearance: base-select;
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    padding-right: 7px;   /* ::picker-icon is a real child now, not an inset */
+  }
+  /* The wrapper's ::after caret was standing in for a missing one. Now that the
+     real icon is addressable, drawing both would double it. */
+  .jk-field-sel:has(> .jk-field)::after { display: none; }
+
+  .jk-field-sel > .jk-field::picker-icon {
+    /* The engine ships its own arrow glyph as this pseudo's content. Without
+       clearing it the house chevron draws ON TOP of the OS one and you get two
+       overlapping arrows — which is worse than the plain default. */
+    content: "";
+    width: 4.5px;
+    height: 4.5px;
+    margin-top: -3px;
+    border-right: 1.5px solid var(--color-faint);
+    border-bottom: 1.5px solid var(--color-faint);
+    transform: rotate(45deg);
+    transition: transform 0.14s ease, border-color 0.12s;
+  }
+  .jk-field-sel > .jk-field:hover::picker-icon { border-color: var(--color-ink); }
+  .jk-field-sel > .jk-field:open::picker-icon {
+    border-color: var(--accent);
+    /* Points at the list it opened, the same move the fold marker makes. */
+    transform: rotate(-135deg);
+    margin-top: 2px;
+  }
+
+  /* The popup. Reads as the MENU surface (see --hub-menu-* in both :root
+     blocks): raised on paper, emissive on the tube. */
+  .jk-field-sel > .jk-field::picker(select) {
+    appearance: base-select;
+    box-sizing: border-box;
+    min-width: anchor-size(width);
+    max-height: 15rem;
+    overflow-y: auto;
+    margin-top: 3px;
+    padding: 3px;
+    background: var(--hub-menu-face);
+    border: 1px solid var(--hub-menu-line);
+    border-radius: var(--hub-radius-xs);
+    box-shadow: var(--hub-menu-lift);
+    font-family: var(--hub-font-mono);
+    font-size: var(--hub-fs-field);
+    color: var(--color-ink);
+  }
+
+  .jk-field-sel > .jk-field option {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: var(--hub-tap-min);
+    padding: 5px 7px;
+    border-radius: 2px;
+    background: transparent;
+    color: var(--color-ink);
+    cursor: pointer;
+  }
+  /* One highlight for pointer AND keyboard: :hover is the mouse, :focus is what
+     the arrow keys move. Styling only :hover is how a keyboard user ends up
+     driving an invisible cursor. */
+  .jk-field-sel > .jk-field option:hover,
+  .jk-field-sel > .jk-field option:focus {
+    background: color-mix(in srgb, var(--accent) 15%, transparent);
+    outline: none;
+  }
+  .jk-field-sel > .jk-field option:checked { color: var(--accent); }
+  /* The engine's default is an OS tick. The house mark is the caret the rest of
+     the suite uses for "this one" — held at a fixed width so labels still line
+     up in the column when only one row carries it. */
+  .jk-field-sel > .jk-field option::checkmark {
+    content: "\25B8";
+    width: 6px;
+    color: var(--accent);
+    order: -1;
+  }
+}
+
+/* ── File input ────────────────────────────────────────────────────────────
+ * The button inside a file field is OS chrome with its own border and fill;
+ * ::file-selector-button is the standard handle for it. Dressed as a small
+ * press so "Choose file" is the same object as every other button. */
+.jk-field[type="file"] { padding: 3px; cursor: pointer; }
+.jk-field::file-selector-button {
+  margin-right: 7px;
+  padding: 3px 8px;
+  font-family: var(--hub-font-mono);
+  font-size: var(--hub-fs-field-sm);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-ink);
+  background: var(--hub-bg-2);
+  border: 1px solid var(--hub-line);
+  border-radius: 2px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+.jk-field::file-selector-button:hover { background: var(--hub-bg-3); border-color: var(--hub-line-strong); }
+
+/* ── Colour swatch ─────────────────────────────────────────────────────────
+ * An unstyled `input[type=color]` is an OS button with a chip in it. Reduced to
+ * the chip: the field's own recess is the frame. Each engine names the inner
+ * swatch differently, so — separate rules. */
+.jk-field[type="color"] { width: 34px; padding: 2px; cursor: pointer; }
+.jk-field[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+.jk-field[type="color"]::-webkit-color-swatch { border: 1px solid var(--hub-line); border-radius: 2px; }
+.jk-field[type="color"]::-moz-color-swatch    { border: 1px solid var(--hub-line); border-radius: 2px; }
+
+/* ── Fold — <details>/<summary> ────────────────────────────────────────────
+ * The default disclosure triangle is an OS glyph in an OS colour, and it is
+ * addressed by a different pseudo per engine and per Chrome vintage
+ * (::-webkit-details-marker was dropped for ::marker). Rather than chase that,
+ * `list-style: none` removes whichever one is present and ::before draws the
+ * house caret — the same one the select picker turns. */
+.jk-fold > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+.jk-fold > summary::-webkit-details-marker { display: none; }
+.jk-fold > summary::marker { content: ""; }
+.jk-fold > summary::before {
+  content: "";
+  flex: none;
+  width: 4.5px;
+  height: 4.5px;
+  border-right: 1.5px solid var(--color-faint);
+  border-bottom: 1.5px solid var(--color-faint);
+  transform: rotate(-45deg);
+  transition: transform 0.14s ease, border-color 0.12s;
+}
+.jk-fold > summary:hover::before { border-color: var(--color-ink); }
+.jk-fold[open] > summary::before { transform: rotate(45deg); border-color: var(--accent); }
+
+/* ── Keyboard focus, everywhere else ───────────────────────────────────────
+ * The engine's default focus ring is a two-tone OS outline. This is the house
+ * one, and it is the FLOOR: any control that states focus better (the field's
+ * recess, the slider's thumb ring) overrides it on specificity. `:focus-visible`
+ * and not `:focus`, so a mouse click never paints it. */
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* The field carries its whole focus state in the recess + rim; a ring on top of
+   that is one boundary too many. */
+.jk-field:focus-visible { outline: none; }
+
+/* Native <dialog>'s backdrop is a flat OS black. Same veil as <Scrim>. */
+dialog::backdrop { background: var(--hub-scrim); }
+
+/* ── Check — the REAL checkbox ─────────────────────────────────────────────
+ * <Check> (and .jk-check) is a drawn button that reports state through
+ * aria-checked, which needs React. jkAuth is server-rendered HTML with no
+ * bundler, so its "remember me" is a genuine `input[type=checkbox]` and always
+ * will be. This is the honest treatment for one: keep the engine's box — it has
+ * the keyboard, the label association and the form value already — and take the
+ * two things that make it look foreign. `accent-color` is inherited from :root,
+ * so the tick lands amber rather than Chrome blue without being restated. */
+.jk-field-check {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  flex: none;
+  cursor: pointer;
+}
+.jk-field-check:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
 /* ─── Toggles — switch + checkbox ──────────────────────────────────────────
  * Neutral track/box that fills with the accent (or --jk-tint) when checked and
  * carries the on-accent ink for the mark. Render on a real <button>/<input>
@@ -1831,23 +2455,6 @@
   gap: 0.5rem;
 }
 
-.jk-match-input {
-  flex: 1;
-  min-width: 0;
-  font-family: var(--hub-font-sans);
-  font-size: 0.9rem;
-  padding: 0.5rem 0.7rem;
-  min-height: var(--hub-tap-min);
-  border: 1px solid var(--hub-line);
-  border-radius: var(--hub-radius-sm);
-  background: var(--hub-bg-1);
-  color: var(--hub-cream-bright);
-}
-.jk-match-input:focus {
-  outline: none;
-  border-color: color-mix(in srgb, var(--accent-secondary) 55%, transparent);
-}
-
 .jk-match-msg { margin: 0; padding: 0; }
 
 .jk-match-candidates {
@@ -1943,6 +2550,13 @@
     --hub-pad-pill:      6px 11px;
     --hub-fs-tbtn:       11px;
     --hub-pad-tbtn:      9px 13px;
+    /* 16px is not a style choice: iOS Safari zooms the viewport on focus for any
+       field under it, and a form that jumps the page on every tap is broken. The
+       dense rung gives up its density here rather than its usability. */
+    --hub-fs-field:      16px;
+    --hub-fs-field-sm:   16px;
+    --hub-pad-field:     9px 11px;
+    --hub-pad-field-sm:  7px 9px;
     --hub-fs-lab:        11px;
     --hub-fs-lab-sm:     10px;
     --hub-fs-lab-xs:     9px;

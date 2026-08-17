@@ -45,14 +45,14 @@
  */
 import React, { useEffect, useMemo, useState } from 'react'
 import { FONT_HEAD, isoDate } from '../../lib/theme'
-import { Press, Bubble, Rule, TButton, Well, Chip, Bar } from '@jkos/ui'
+import { Press, Bubble, Rule, TButton, Well, Chip, Bar, Check } from '@jkos/ui'
 import { ProgressChart } from '../../components/ProgressChart'
 import { LibraryBrowser } from './LibraryBrowser'
 /* The field chrome and the rule editor live in ./parts — the library browser and
    the paste pane are the same kind of dense editor and want the same controls,
    and importing them out of here would have made those two files and this one
    import each other. */
-import { MONO, field, numField, RuleRow } from './parts'
+import { MONO, Field, NumField, SelectField, NUM_W, RuleRow } from './parts'
 import {
   normalizeSpec, renderCycle, summarize, slugify,
   parseCadence, formatCadence, describeCadence, expandCadence,
@@ -334,10 +334,10 @@ export function RoutineForge({ routine, items, api, today, onUpdateItem, onClose
                       {String(c).toUpperCase()}
                     </Chip>
                   ))}
-                  <input
-                    value={query} placeholder="search…"
+                  <Field
+                    type="search" value={query} placeholder="search…"
                     onChange={(e) => setQuery(e.target.value)}
-                    style={{ ...field, marginLeft: 'auto', width: 150 }}
+                    style={{ marginLeft: 'auto', width: 150 }}
                   />
                 </div>
                 {library === null && <div className="mono-eyebrow">LOADING…</div>}
@@ -372,7 +372,7 @@ export function RoutineForge({ routine, items, api, today, onUpdateItem, onClose
               <Well style={{ display: 'block', padding: 10, marginTop: 8 }}>
                 <div className="mono-eyebrow" style={{ marginBottom: 6 }}>WHEN IT FIRES</div>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <select
+                  <SelectField
                     value={cadence.type} disabled={readonly}
                     onChange={(e) => {
                       const t = e.target.value
@@ -384,10 +384,9 @@ export function RoutineForge({ routine, items, api, today, onUpdateItem, onClose
                       ))
                       setDirty(true)
                     }}
-                    style={field}
                   >
                     {CADENCES.map((c) => <option key={c} value={c}>{CADENCE_LABEL[c]}</option>)}
-                  </select>
+                  </SelectField>
 
                   {/* Weekly keeps the day toggles — the only mode a weekly grid can
                       actually draw, and the one almost every routine uses. */}
@@ -411,32 +410,31 @@ export function RoutineForge({ routine, items, api, today, onUpdateItem, onClose
 
                   {(cadence.type === 'every_n_days' || cadence.type === 'rolling') && (
                     <>
-                      <input
-                        type="number" min={1} value={cadence.n ?? 3} disabled={readonly}
+                      <NumField
+                        min={1} value={cadence.n ?? 3} disabled={readonly}
                         onChange={(e) => { setCadenceRule(formatCadence({ ...cadence, n: Math.max(1, Number(e.target.value) || 1) })); setDirty(true) }}
-                        style={numField}
+                        wrapperStyle={NUM_W}
                       />
                       <span className="mono-eyebrow">{cadence.type === 'rolling' ? '× PER 7 DAYS' : 'DAYS'}</span>
                     </>
                   )}
 
                   {cadence.type === 'monthly' && (
-                    <select
+                    <SelectField
                       value={String(cadence.day ?? 1)} disabled={readonly}
                       onChange={(e) => { setCadenceRule(formatCadence({ ...cadence, day: e.target.value === 'last' ? 'last' : Number(e.target.value) })); setDirty(true) }}
-                      style={field}
                     >
                       {Array.from({ length: 31 }, (_, i) => <option key={i} value={i + 1}>day {i + 1}</option>)}
                       <option value="last">last day</option>
-                    </select>
+                    </SelectField>
                   )}
 
                   {cadence.type === 'rrule' && (
-                    <input
+                    <Field
                       value={cadence.rrule ?? ''} disabled={readonly}
                       placeholder="FREQ=WEEKLY;INTERVAL=2;BYDAY=TU,TH"
                       onChange={(e) => { setCadenceRule(`rrule:${e.target.value}`); setDirty(true) }}
-                      style={{ ...field, flex: '1 1 260px' }}
+                      style={{ flex: '1 1 260px' }}
                     />
                   )}
                 </div>
@@ -465,31 +463,30 @@ export function RoutineForge({ routine, items, api, today, onUpdateItem, onClose
                 <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center' }}>
                   <label style={{ display: 'inline-flex', gap: 5, alignItems: 'center' }}>
                     <span className="mono-eyebrow">A CYCLE IS</span>
-                    <select
+                    <SelectField
                       value={spec.advance_on} disabled={readonly}
                       onChange={(e) => edit((d) => { d.advance_on = e.target.value })}
-                      style={field}
                       title="completion = a session you DID (missing a week does not advance you) · calendar = a week that elapsed"
                     >
                       {ADVANCE_ON.map((v) => <option key={v} value={v}>{v === 'completion' ? 'a session you did' : 'a week that passed'}</option>)}
-                    </select>
+                    </SelectField>
                   </label>
                   <label style={{ display: 'inline-flex', gap: 5, alignItems: 'center' }}>
                     <span className="mono-eyebrow">DELOAD EVERY</span>
-                    <input
-                      type="number" min={0} max={52} value={spec.deload_every} disabled={readonly}
+                    <NumField
+                      min={0} max={52} value={spec.deload_every} disabled={readonly}
                       onChange={(e) => edit((d) => { d.deload_every = Math.max(0, Math.min(52, Number(e.target.value) || 0)) })}
-                      style={numField}
+                      wrapperStyle={NUM_W}
                       title="Every Nth session is lighter and shorter. 0 = never. You can also take any single session easy from its card."
                     />
                     <span className="mono-eyebrow">{spec.deload_every ? 'SESSIONS' : '(NEVER)'}</span>
                   </label>
                   <label style={{ display: 'inline-flex', gap: 5, alignItems: 'center' }}>
                     <span className="mono-eyebrow">ROUND LOAD TO</span>
-                    <input
-                      type="number" min={0} step={0.5} value={spec.round_load} disabled={readonly}
+                    <NumField
+                      min={0} step={0.5} value={spec.round_load} disabled={readonly}
                       onChange={(e) => edit((d) => { d.round_load = Math.max(0, Number(e.target.value) || 0) })}
-                      style={numField}
+                      wrapperStyle={NUM_W}
                     />
                   </label>
                 </div>
@@ -499,22 +496,22 @@ export function RoutineForge({ routine, items, api, today, onUpdateItem, onClose
                 <div className="mono-eyebrow" style={{ marginBottom: 5 }}>PHASES — EACH SCALES THE WHOLE SESSION</div>
                 {spec.phases.map((p, i) => (
                   <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4, flexWrap: 'wrap' }}>
-                    <input
+                    <Field
                       value={p.name} disabled={readonly}
                       onChange={(e) => edit((d) => { d.phases[i].name = e.target.value })}
-                      style={{ ...field, width: 110 }}
+                      style={{ width: 110 }}
                     />
                     <span className="mono-eyebrow">FOR</span>
-                    <input
-                      type="number" min={1} value={p.cycles} disabled={readonly}
+                    <NumField
+                      min={1} value={p.cycles} disabled={readonly}
                       onChange={(e) => edit((d) => { d.phases[i].cycles = Math.max(1, Number(e.target.value) || 1) })}
-                      style={numField}
+                      wrapperStyle={NUM_W}
                     />
                     <span className="mono-eyebrow">SESSIONS ·</span>
-                    <input
-                      type="number" step={0.05} min={0.1} value={p.intensity} disabled={readonly}
+                    <NumField
+                      step={0.05} min={0.1} value={p.intensity} disabled={readonly}
                       onChange={(e) => edit((d) => { d.phases[i].intensity = Number(e.target.value) || 1 })}
-                      style={numField}
+                      wrapperStyle={NUM_W}
                       title="Multiplies every load in the session"
                     />
                     <span className="mono-eyebrow">× LOAD</span>
@@ -539,10 +536,10 @@ export function RoutineForge({ routine, items, api, today, onUpdateItem, onClose
                 {Object.entries(spec.vars).map(([k, v]) => (
                   <div key={k} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4 }}>
                     <span style={{ fontFamily: MONO, fontSize: 11, minWidth: 120 }}>{k}</span>
-                    <input
-                      type="number" value={v} disabled={readonly}
+                    <NumField
+                      value={v} disabled={readonly}
                       onChange={(e) => edit((d) => { d.vars[k] = Number(e.target.value) || 0 })}
-                      style={numField}
+                      wrapperStyle={NUM_W}
                     />
                     {!readonly && (
                       <TButton quiet onClick={() => edit((d) => { delete d.vars[k] })} style={{ padding: '1px 7px', cursor: 'pointer' }}>×</TButton>
@@ -580,36 +577,33 @@ export function RoutineForge({ routine, items, api, today, onUpdateItem, onClose
                 ) : (
                   <>
                     <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-                      <select
+                      <SelectField
                         value={spec.contributes.measure} disabled={readonly}
                         onChange={(e) => edit((d) => { d.contributes!.measure = e.target.value })}
-                        style={field}
                       >
                         {MEASURES.map((m) => <option key={m} value={m}>{MEASURE_LABEL[m]}</option>)}
-                      </select>
+                      </SelectField>
                       <span className="mono-eyebrow">OF</span>
-                      <select
+                      <SelectField
                         value={spec.contributes.step ?? ''} disabled={readonly}
                         onChange={(e) => edit((d) => { d.contributes!.step = e.target.value || null })}
-                        style={field}
                       >
                         <option value="">the whole session</option>
                         {spec.steps.map((s) => <option key={s.key} value={s.key}>{s.title}</option>)}
-                      </select>
+                      </SelectField>
                       <span className="mono-eyebrow">TOWARD</span>
-                      <input
-                        type="number" min={1} value={spec.contributes.target} disabled={readonly}
+                      <NumField
+                        min={1} value={spec.contributes.target} disabled={readonly}
                         onChange={(e) => edit((d) => { d.contributes!.target = Math.max(1, Number(e.target.value) || 1) })}
-                        style={numField}
+                        wrapperStyle={NUM_W}
                       />
                       <span className="mono-eyebrow">PER</span>
-                      <select
+                      <SelectField
                         value={spec.contributes.window} disabled={readonly}
                         onChange={(e) => edit((d) => { d.contributes!.window = e.target.value })}
-                        style={field}
                       >
                         {WINDOWS.map((w) => <option key={w} value={w}>{w === 'all' ? 'all time' : w}</option>)}
-                      </select>
+                      </SelectField>
                       {!readonly && (
                         <TButton quiet onClick={() => edit((d) => { d.contributes = null })} style={{ padding: '1px 7px', cursor: 'pointer' }}>×</TButton>
                       )}
@@ -695,16 +689,16 @@ export function RoutineForge({ routine, items, api, today, onUpdateItem, onClose
               <>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 3 }}>
                   <span className="mono-eyebrow">PLAN vs DONE</span>
-                  <select
+                  <SelectField
                     value={chartMeasure}
                     onChange={(e) => setChartMeasure(e.target.value)}
-                    style={{ ...field, marginLeft: 'auto' }}
+                    wrapperStyle={{ marginLeft: 'auto' }}
                   >
                     <option value="load">load</option>
                     <option value="target">target</option>
                     <option value="sets">sets</option>
                     <option value="volume">volume</option>
-                  </select>
+                  </SelectField>
                 </div>
                 <div className="mono-eyebrow" style={{ color: 'var(--color-faint)', marginBottom: 8 }}>
                   WHERE THE LINES SEPARATE, THE PROGRAM IS ASKING FOR SOMETHING YOU ARE NOT DOING
@@ -773,14 +767,14 @@ function StepEditor({ step, index, count, vars, readonly, onEdit, onMove, onRemo
     <Well style={{ display: 'block', padding: '8px 10px', marginBottom: 6 }}>
       {/* Line 1 — identity */}
       <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-        <input
-          value={step.title} disabled={readonly}
+        <Field
+          display value={step.title} disabled={readonly}
           onChange={(e) => set('title', e.target.value)}
-          style={{ ...field, flex: '1 1 150px', fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600 }}
+          style={{ flex: '1 1 150px' }}
         />
-        <select value={step.block} disabled={readonly} onChange={(e) => set('block', e.target.value)} style={field}>
+        <SelectField value={step.block} disabled={readonly} onChange={(e) => set('block', e.target.value)}>
           {BLOCKS.map((b) => <option key={b} value={b}>{b}</option>)}
-        </select>
+        </SelectField>
         {!readonly && (
           <>
             <TButton quiet onClick={() => onMove(-1)} disabled={index === 0} style={{ padding: '1px 6px', cursor: 'pointer' }}>↑</TButton>
@@ -792,24 +786,24 @@ function StepEditor({ step, index, count, vars, readonly, onEdit, onMove, onRemo
 
       {/* Line 2 — the dose */}
       <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', marginTop: 5 }}>
-        <input type="number" min={1} value={step.sets} disabled={readonly}
-          onChange={(e) => set('sets', Math.max(1, Number(e.target.value) || 1))} style={numField} title="Sets" />
+        <NumField min={1} value={step.sets} disabled={readonly}
+          onChange={(e) => set('sets', Math.max(1, Number(e.target.value) || 1))} wrapperStyle={NUM_W} title="Sets" />
         <span className="mono-eyebrow">×</span>
-        <input type="number" value={step.target ?? ''} disabled={readonly} placeholder="—"
-          onChange={(e) => set('target', e.target.value === '' ? null : Number(e.target.value))} style={numField} title="Target per set" />
-        <select value={step.unit} disabled={readonly} onChange={(e) => set('unit', e.target.value)} style={field}>
+        <NumField value={step.target ?? ''} disabled={readonly} placeholder="—"
+          onChange={(e) => set('target', e.target.value === '' ? null : Number(e.target.value))} wrapperStyle={NUM_W} title="Target per set" />
+        <SelectField value={step.unit} disabled={readonly} onChange={(e) => set('unit', e.target.value)}>
           {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
-        </select>
+        </SelectField>
         <span className="mono-eyebrow">@</span>
-        <input type="number" step={0.5} value={step.load ?? ''} disabled={readonly} placeholder="—"
-          onChange={(e) => set('load', e.target.value === '' ? null : Number(e.target.value))} style={numField} title="Starting load" />
-        <select value={step.load_unit ?? ''} disabled={readonly} onChange={(e) => set('load_unit', e.target.value || null)} style={field}>
+        <NumField step={0.5} value={step.load ?? ''} disabled={readonly} placeholder="—"
+          onChange={(e) => set('load', e.target.value === '' ? null : Number(e.target.value))} wrapperStyle={NUM_W} title="Starting load" />
+        <SelectField value={step.load_unit ?? ''} disabled={readonly} onChange={(e) => set('load_unit', e.target.value || null)}>
           <option value="">—</option>
           {LOAD_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
-        </select>
+        </SelectField>
         <span className="mono-eyebrow">REST</span>
-        <input type="number" min={0} value={step.rest ?? ''} disabled={readonly} placeholder="—"
-          onChange={(e) => set('rest', e.target.value === '' ? null : Number(e.target.value))} style={numField} />
+        <NumField min={0} value={step.rest ?? ''} disabled={readonly} placeholder="—"
+          onChange={(e) => set('rest', e.target.value === '' ? null : Number(e.target.value))} wrapperStyle={NUM_W} />
       </div>
 
       {/* The rules */}
@@ -846,32 +840,32 @@ function StepEditor({ step, index, count, vars, readonly, onEdit, onMove, onRemo
           names and any richer control would be more chrome than content. */}
       <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', marginTop: 6 }}>
         <span className="mono-eyebrow">LADDER</span>
-        <input
+        <Field
           value={step.variants.join(', ')} disabled={readonly} placeholder="easiest, …, hardest"
           onChange={(e) => onEdit((s: Step) => {
             s.variants = e.target.value.split(',').map((v) => v.trim()).filter(Boolean).slice(0, LIMITS.variants)
             s.variant_index = Math.min(s.variant_index, Math.max(0, s.variants.length - 1))
           })}
-          style={{ ...field, flex: '1 1 200px' }}
+          style={{ flex: '1 1 200px' }}
         />
         {step.variants.length > 1 && (
           <>
             <span className="mono-eyebrow">START AT</span>
-            <select value={step.variant_index} disabled={readonly}
-              onChange={(e) => set('variant_index', Number(e.target.value))} style={field}>
+            <SelectField value={step.variant_index} disabled={readonly}
+              onChange={(e) => set('variant_index', Number(e.target.value))}>
               {step.variants.map((v: string, i: number) => <option key={i} value={i}>{v}</option>)}
-            </select>
+            </SelectField>
             <span className="mono-eyebrow">CLIMB EVERY</span>
-            <input type="number" min={0} value={step.variant_every} disabled={readonly}
-              onChange={(e) => set('variant_every', Math.max(0, Number(e.target.value) || 0))} style={numField}
+            <NumField min={0} value={step.variant_every} disabled={readonly}
+              onChange={(e) => set('variant_every', Math.max(0, Number(e.target.value) || 0))} wrapperStyle={NUM_W}
               title="0 = never climb on a clock" />
             {/* PROMOTE ON CAP — the ladder climbs on an ACHIEVEMENT rather than a
                 clock: hit the load cap, take a harder variation, reset the load.
                 Offered only when there is a ladder to climb. */}
             <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4, cursor: readonly ? 'default' : 'pointer' }}
               title="When a capped load rule tops out, climb the ladder instead of pinning">
-              <input type="checkbox" checked={step.promote_on_cap} disabled={readonly}
-                onChange={(e) => set('promote_on_cap', e.target.checked)} />
+              <Check checked={step.promote_on_cap} disabled={readonly}
+                onChange={(next) => set('promote_on_cap', next)} />
               <span className="mono-eyebrow">CLIMB AT THE CAP</span>
             </label>
           </>
@@ -894,10 +888,10 @@ function NewVar({ onAdd }: any) {
   }
   return (
     <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 4 }}>
-      <input value={name} placeholder="squat_max" onChange={(e) => setName(e.target.value)}
-        onKeyDown={(e) => e.key === 'Enter' && commit()} style={{ ...field, width: 120 }} />
-      <input type="number" value={value} placeholder="225" onChange={(e) => setValue(e.target.value)}
-        onKeyDown={(e) => e.key === 'Enter' && commit()} style={numField} />
+      <Field value={name} placeholder="squat_max" onChange={(e) => setName(e.target.value)}
+        onKeyDown={(e) => e.key === 'Enter' && commit()} style={{ width: 120 }} />
+      <NumField value={value} placeholder="225" onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => e.key === 'Enter' && commit()} wrapperStyle={NUM_W} />
       <TButton quiet onClick={commit} style={{ padding: '2px 8px', cursor: 'pointer' }}>+ number</TButton>
     </div>
   )

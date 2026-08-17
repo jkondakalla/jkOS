@@ -507,9 +507,92 @@ carries the same weight in every view that renders it.
 (green status pill — machine, stays mono) · `.jk-async-note` is set serif-italic (the
 compositor's aside).
 
-**Controls** — one rule across the set: a neutral debossed track that fills with the accent
-(or `--jk-tint`) as it engages; each hosts on a real form/aria element so the platform
-keeps the keyboard, and state styling keys off the aria attribute:
+**Fields — the WRITE half of the control set (2026-08-17):**
+`.jk-field` (input/select/textarea) + `.jk-field-sm` (the dense-editor rung) +
+`.jk-field-title` (the display-serif name field) · `.jk-field-sel` (select wrapper, drawn
+caret) · `.jk-field-num` + `.jk-field-step` (number wrapper + the house stepper) ·
+`.jk-field-bare` (the reset **without** the slot) · `.jk-field-check` (a real
+`input[type=checkbox]`, for server-rendered forms `<Check>` can't reach) · `.jk-fold`
+(`<details>`, house caret for the OS triangle) · `.jk-scroll-none` (a strip that scrolls
+and shows no bar).
+React: `<Field>` (`display` for the serif rung — **not** `title`, which is a real HTML
+attribute these fields carry tooltips in; `bare` for the no-slot variant), `<NumField>`,
+`<SelectField>`, `<TextArea>`, `<DateField>`, `<TimeField>`, `<SearchField>`, `<Fold>`.
+All of them forward refs.
+
+**`bare` is the escape hatch that keeps the rule absolute.** Some edits are not slots —
+renaming a panel title happens *in* the title, on the accent band; "done means" is an
+underlined phrase in running text. A debossed tan box there puts a control where a piece
+of writing is. `.jk-field-bare` takes the face off and keeps the whole reset, so **every**
+input in the suite carries a `jk-field` class and the ones that must look like nothing say
+so. `pnpm check:fields` enforces exactly that, with one exemption — `type="hidden"`,
+matched on the tag rather than the file, because it renders nothing to take paint away
+from.
+
+Until this existed the suite had **no input primitive at all** — five app-local `field`
+style objects, and not one of them reset `appearance`. Under a hand-drawn hairline the
+browser kept painting its own chrome: white spin buttons on every number, an OS arrow on
+every select, autofill yellow, the search ×. On warm paper or an amber tube those blank
+white boxes are not a blemish, they are a different design system showing through. The
+class kills all of it (each vendor pseudo in its **own** rule — one selector an engine
+doesn't know drops the whole thing, same trap as `.jk-slider`'s track/thumb pairs).
+
+**The recess is a token pair, not a shared shadow** — `--hub-field-face` /
+`--hub-field-recess` (+ their `-focus` twins), overridden wholesale in the dark block:
+paper debosses (shadow off the top lip, light caught at the bottom, rim takes the accent
+on focus); the tube drops to unlit `--hub-screen` with an inner falloff, **no bevel at
+all** — there is no raking light on a CRT to catch — and then *emits* on focus. Re-tinting
+the paper bevel for dark is exactly what makes a dark field read as a light field with the
+colours swapped. The two faces also need different *amounts*: paper's focus has to carry
+the whole state on depth and rim, so its numbers run harder than a dark-mode eye expects.
+`:disabled` drops the recess entirely — a slot you cannot write in must stop looking like
+one. Mobile forces `--hub-fs-field` to 16px: below that iOS Safari zooms the viewport on
+focus, and a form that jumps the page on every tap is broken.
+
+The stepper is **ink only** — stacked border-triangle carets on a hairline divider, ghosted
+at rest, full ink on hover/focus of the group — driving the input's own
+`stepUp()`/`stepDown()` so min/max/step behave as the native chrome did. `<NumField>`
+re-dispatches through the prototype value setter, because React tracks the last value it
+wrote on the node and would otherwise swallow the event as a no-op.
+
+**`color-scheme` is the only lever over the engine's own popups (2026-08-17).** Everything
+else in `hub.css` dresses *our* markup. A select's dropdown list, the calendar a date field
+opens, the autofill menu and the caret are OS windows no selector reaches — and without
+`color-scheme` on `:root` they all come back white on the tube however dark the page around
+them is. It lived in `app.css` and `ds-ground.css` and **nowhere else**, so ORDECK and
+jkAuth never had it at all; it now sits with the tokens it flips beside. `accent-color` is
+its smaller sibling — any native control we haven't drawn lands amber, not Chrome blue.
+
+**Date and time fields are not one box.** The engine builds a widget of segment spans
+inside them, each painting itself, and the segment under the caret fills with the system
+*highlight* colour. Every segment is addressed in `hub.css` and the highlight is replaced
+with the accent wash `::selection` uses. Each segment gets its own rule for the usual
+reason.
+
+**The dropdown is drawn, in CSS, with no listbox component.** `appearance: base-select`
+moves the picker into the page's top layer as real styleable content —
+`::picker(select)` is the popup, `::picker-icon` the caret, `option::checkmark` the
+selected mark — while the element stays a plain `<select>`, so the keyboard, screen
+readers, form association and the mobile picker are all still the platform's. It is inside
+`@supports` because it's Chromium-only for now; engines without it fall back to the
+`appearance: none` button, the wrapper's drawn caret and a native list that `color-scheme`
+keeps face-correct. **Clear `::picker-icon`'s `content`** or the house chevron draws on top
+of the OS glyph and you get two overlapping arrows. The popup reads as the MENU surface
+(`--hub-menu-*`, a two-face pair like the recess): raised with a drop shadow on paper,
+accent-rimmed and blooming on the tube, which can't cast a shadow onto phosphor.
+
+**Scrollbars: the two syntaxes are mutually exclusive in Blink.** The obvious way to cover
+both engines — set `scrollbar-width`/`scrollbar-color` *and* the `::-webkit-scrollbar-*`
+parts — silently loses the drawn one: the moment `scrollbar-color` applies, Chrome discards
+every webkit pseudo for that element and paints its own themed bar, **with stepper arrows
+at both ends that nothing can remove**. So the standard properties go behind
+`@supports not (selector(::-webkit-scrollbar))`, handed only to engines with no pseudos to
+lose. Track and corner are transparent (the gutter is not an object, only the thumb is);
+an unstyled corner paints an opaque OS-grey square where two bars meet.
+
+**Controls (state half)** — one rule across the set: a neutral debossed track that fills
+with the accent (or `--jk-tint`) as it engages; each hosts on a real form/aria element so
+the platform keeps the keyboard, and state styling keys off the aria attribute:
 `.jk-switch` + `.jk-switch-knob` (46×26, `aria-checked`) · `.jk-check` (18px box) ·
 `.jk-slider` (the house fader: real `<input type="range">`, milled metal cap on a filling
 channel; the input box is `--hub-tap-min` tall while the track stays 6px; elapsed fill

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { SettingsSection } from '@jkos/ui';
+import { SettingsSection, Field, NumField } from '@jkos/ui';
 import { weatherConfig, saveWeatherConfigLive, type WeatherConfig } from '../../pages/hud/useHudData';
 
 /* ORDECK-only settings: weather location + optional AccuWeather key.
@@ -7,7 +7,6 @@ import { weatherConfig, saveWeatherConfigLive, type WeatherConfig } from '../../
    rest of the tray stays identical to the other apps. */
 
 const FONT = 'var(--hub-font-mono)';
-const TXT = 'var(--color-ink)';
 const TXT_MUTED = 'var(--color-muted)';
 const TXT_FAINT = 'var(--color-faint)';
 const LINE = 'var(--hub-line)';
@@ -32,25 +31,26 @@ export function WeatherSection() {
 
   const rowStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 9 };
   const lbl: React.CSSProperties = { fontSize: 10, color: TXT_FAINT, width: 52, flexShrink: 0, fontFamily: FONT, letterSpacing: '0.06em' };
-  const inp: React.CSSProperties = { flex: 1, background: FIELD, border: `1px solid ${LINE}`, color: TXT, padding: '5px 9px', fontFamily: FONT, fontSize: 11, outline: 'none' };
+  // Layout only — the face is the field primitive's.
+  const inp: React.CSSProperties = { flex: 1, padding: '5px 9px', fontSize: 11 };
 
   return (
     <SettingsSection label="Weather">
       <div style={rowStyle}>
         <span style={lbl}>Label</span>
-        <input type="text" value={cfg.label} onChange={e => patch({ label: e.target.value })} style={inp} spellCheck={false} placeholder="SAN JOSE" />
+        <Field type="text" value={cfg.label} onChange={e => patch({ label: e.target.value })} style={inp} spellCheck={false} placeholder="SAN JOSE" />
       </div>
       <div style={rowStyle}>
         <span style={lbl}>Lat</span>
-        <input type="number" value={cfg.lat} onChange={e => patch({ lat: parseFloat(e.target.value) || 0 })} style={inp} step="0.01" />
+        <NumField value={cfg.lat} onChange={e => patch({ lat: parseFloat(e.target.value) || 0 })} wrapperStyle={{ flex: 1 }} style={inp} step="0.01" />
       </div>
       <div style={rowStyle}>
         <span style={lbl}>Lon</span>
-        <input type="number" value={cfg.lon} onChange={e => patch({ lon: parseFloat(e.target.value) || 0 })} style={inp} step="0.01" />
+        <NumField value={cfg.lon} onChange={e => patch({ lon: parseFloat(e.target.value) || 0 })} wrapperStyle={{ flex: 1 }} style={inp} step="0.01" />
       </div>
       <div style={{ ...rowStyle, marginBottom: 14 }}>
         <span style={lbl}>AW Key</span>
-        <input type="password" value={cfg.accuweatherKey} onChange={e => patch({ accuweatherKey: e.target.value })}
+        <Field type="password" value={cfg.accuweatherKey} onChange={e => patch({ accuweatherKey: e.target.value })}
           style={inp} spellCheck={false} placeholder="AccuWeather API key (optional)" autoComplete="off" />
       </div>
       <div style={{ fontSize: 9, color: TXT_FAINT, fontFamily: FONT, letterSpacing: '0.06em', marginBottom: 10, lineHeight: 1.5 }}>

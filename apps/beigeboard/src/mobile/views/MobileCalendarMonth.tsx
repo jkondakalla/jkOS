@@ -12,7 +12,7 @@
  * outside apps/beigeboard/src/mobile/ may render it.
  */
 import React, { useEffect, useRef, useState } from 'react'
-import { usePointerDrag, DRAG_THRESHOLD_PX, HOLD_MS } from '@jkos/ui'
+import { usePointerDrag, DRAG_THRESHOLD_PX, HOLD_MS, Field } from '@jkos/ui'
 import { withAlpha } from '@jkos/design'
 import {
   mergeResolvers, localDate, isoDate, fmtFull, fmtTime,
@@ -197,7 +197,7 @@ export function MobileCalendarMonth({ items, today, resolvers, onSelect, onToggl
           </div>
 
           {adding && (
-            <input
+            <Field
               ref={addRef}
               placeholder="New task…"
               onBlur={(e) => submitAdd(e.target.value)}
@@ -205,7 +205,9 @@ export function MobileCalendarMonth({ items, today, resolvers, onSelect, onToggl
                 if (e.key === 'Enter') submitAdd((e.target as HTMLInputElement).value);
                 if (e.key === 'Escape') setAdding(false);
               }}
-              style={{ width: '100%', boxSizing: 'border-box', marginBottom: 10, background: 'transparent', border: '1px solid var(--color-accent)', borderRadius: 3, fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 15, color: 'var(--color-ink)', outline: 'none', padding: '8px 10px' }}
+              // Accent border rather than the field's own: this one appears
+              // because you asked for it, so it arrives already claiming focus.
+              style={{ width: '100%', marginBottom: 10, borderColor: 'var(--color-accent)', fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 15, padding: '8px 10px' }}
             />
           )}
 

@@ -24,8 +24,9 @@ button:focus, input:focus, select:focus { outline: none; }
    neutrals, so it needs no per-app token block — it rides the shared defaults. */
 
 /* ── Base typography ──────────────────────────────────────────────────── */
-html, body { color-scheme: light; }
-html[data-mode="dark"] { color-scheme: dark; }
+/* color-scheme moved to hub.css (2026-08-17). It lived here and in ds-ground.css
+   and NOWHERE ELSE, so ORDECK and jkAuth never had it — which is why a dropdown
+   there opened as a white OS list on the tube. It belongs with the face flip. */
 /* The body IS the ground — one grained surface, full bleed, with the app set
    directly on it (buildJkOSTheme paints --hub-grain-image over this colour).
    The shell must therefore stay transparent all the way down to here; nothing
@@ -40,11 +41,8 @@ body { background: var(--color-paper); color: var(--color-ink); }
 .btn-action { transition: background 0.15s, transform 0.1s, border-color 0.15s, color 0.15s; }
 .btn-action:active { transform: translateY(1px); }
 
-/* ── Scrollbars ──────────────────────────────────────────────────────── */
-*::-webkit-scrollbar       { width: 8px; height: 8px; }
-*::-webkit-scrollbar-track { background: transparent; }
-*::-webkit-scrollbar-thumb { background: var(--hub-line-strong); }
-*::-webkit-scrollbar-thumb:hover { background: var(--hub-amber-dim); }
+/* Scrollbars are hub.css's now — this was a near-copy that had drifted a
+   different width from the suite's and covered neither Firefox nor the corner. */
 
 /* The workshop goal well (.bb-goal-well) and its thin track (.bb-prog-track)
    are GONE: the forge now composes @jkos/ui's <Well> and <Bar>, which carry the

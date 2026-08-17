@@ -4,7 +4,9 @@ import { getAncestors, getChildren, getAccent, getProgress } from '../lib/seed'
 import { Eyebrow, Checkbox } from './SharedComponents'
 import { SessionCard } from './SessionCard'
 import { useHudShelf } from '../lib/jkauth'
-import { useBreakpoint, Bar } from '@jkos/ui'
+// The kit's field primitives come in aliased: this file already has a local
+// <Field>, which is a LABEL wrapper, not an input.
+import { useBreakpoint, Bar, Field as JkField, DateField, TimeField } from '@jkos/ui'
 
 export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdateItem, onDeload, setView, setFocusedNodeId }: any) {
   const [titleEditing, setTitleEditing] = useState(false)
@@ -88,7 +90,8 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
           >✕</button>
         </div>
         {titleEditing ? (
-          <input
+          <JkField
+            bare
             ref={titleInputRef}
             value={titleVal}
             onChange={e => setTitleVal(e.target.value)}
@@ -102,12 +105,14 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
               if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
               if (e.key === 'Escape') { setTitleVal(event.title); setTitleEditing(false) }
             }}
+            // `bare` already drops the face, the border and the outline; what
+            // stays here is only what this particular edit adds back — the rule
+            // it is written on, and the display type it has to match.
             style={{
-              background: 'transparent', border: 'none',
               borderBottom: '1px solid var(--color-on-accent-faint)',
               fontFamily: FONT_HEAD, fontWeight: 500,
               fontSize: isGoal ? 26 : 22,
-              color: 'var(--color-on-accent)', outline: 'none',
+              color: 'var(--color-on-accent)',
               padding: '2px 0 6px', width: '100%', letterSpacing: '-0.015em',
             }}
           />
@@ -413,7 +418,8 @@ function GoalFields({ event, onUpdateItem }: any) {
   return (
     <>
       <Field label="Done means">
-        <input
+        <JkField
+          bare
           value={means}
           onChange={e => setMeans(e.target.value)}
           onBlur={() => {
@@ -423,24 +429,18 @@ function GoalFields({ event, onUpdateItem }: any) {
           onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
           placeholder="A verifiable outcome — how will you know?"
           style={{
-            width: '100%', background: 'transparent', border: 'none',
+            width: '100%',
             borderBottom: `1px solid var(--color-line)`,
             fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 14,
-            color: 'var(--color-ink)', outline: 'none', padding: '2px 0 5px',
+            color: 'var(--color-ink)', padding: '2px 0 5px',
           }}
         />
       </Field>
       <Field label="Horizon">
-        <input
-          type="date"
+        <DateField
+          size="sm"
           value={event.target_date || ''}
           onChange={e => onUpdateItem?.(event.id, { target_date: e.target.value || null })}
-          style={{
-            background: 'transparent', border: `1px solid var(--color-line)`,
-            borderRadius: 'var(--hub-radius-sm)',
-            fontFamily: FONT_BODY, fontSize: 11, color: 'var(--color-ink)',
-            padding: '4px 6px', outline: 'none',
-          }}
         />
       </Field>
       <Field label="Standing">
@@ -491,12 +491,6 @@ function WhenField({ event, isTask, isEvent, onUpdateItem }: any) {
     setEditing(false)
   }
 
-  const inputSty: any = {
-    background: 'transparent', border: `1px solid var(--color-line)`,
-    borderRadius: 'var(--hub-radius-sm)',
-    fontFamily: FONT_BODY, fontSize: 11,
-    color: 'var(--color-ink)', padding: '4px 6px', outline: 'none',
-  }
   const benchBtn: React.CSSProperties = {
     background: 'transparent', border: `1px solid var(--color-line)`,
     borderRadius: 'var(--hub-radius-sm)',
@@ -536,20 +530,20 @@ function WhenField({ event, isTask, isEvent, onUpdateItem }: any) {
       {editing ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-            <input type="date" value={date} onChange={e => setDate(e.target.value)} style={{ ...inputSty, flex: 1 }} />
+            <DateField size="sm" value={date} onChange={e => setDate(e.target.value)} style={{ flex: 1 }} />
             {(isAllDayEvent || (!start && !end)) && (
               <>
                 <span style={{ color: 'var(--color-faint)', fontSize: 11 }}>→</span>
-                <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
-                  placeholder="End date" style={{ ...inputSty, flex: 1 }} />
+                <DateField size="sm" value={endDate} onChange={e => setEndDate(e.target.value)}
+                  placeholder="End date" style={{ flex: 1 }} />
               </>
             )}
           </div>
           {!isAllDayEvent && (
             <div style={{ display: 'flex', gap: 6 }}>
-              <input type="time" value={start} onChange={e => setStart(e.target.value)} placeholder="Start" style={{ ...inputSty, flex: 1 }} />
+              <TimeField size="sm" value={start} onChange={e => setStart(e.target.value)} placeholder="Start" style={{ flex: 1 }} />
               <span style={{ color: 'var(--color-muted)', alignSelf: 'center', fontSize: 11 }}>–</span>
-              <input type="time" value={end}   onChange={e => setEnd(e.target.value)}   placeholder="End"   style={{ ...inputSty, flex: 1 }} />
+              <TimeField size="sm" value={end}   onChange={e => setEnd(e.target.value)}   placeholder="End"   style={{ flex: 1 }} />
             </div>
           )}
           <div style={{ display: 'flex', gap: 6, marginTop: 2 }}>

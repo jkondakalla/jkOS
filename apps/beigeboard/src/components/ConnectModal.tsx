@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { FONT_HEAD, FONT_BODY, FONT_NUM, sourceOf } from '../lib/theme'
 import { Eyebrow } from './SharedComponents'
+import { Field } from '@jkos/ui'
 
 export function ConnectModal({ open, onClose, accounts, onConnect, onDisconnect, onSync, apiUrl }: any) {
   const [connecting, setConnecting] = useState<string | null>(null)
@@ -186,24 +187,16 @@ export function ConnectModal({ open, onClose, accounts, onConnect, onDisconnect,
                 Generate one at appleid.apple.com under Sign-In &amp; Security.
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
-                <input
+                <Field
                   type="email" placeholder="Apple ID (e.g. you@icloud.com)"
                   value={icloudUser} onChange={e => setIcloudUser(e.target.value)}
-                  style={{
-                    background: 'var(--color-paper-2)', border: `1px solid var(--color-line)`,
-                    color: 'var(--color-ink)', fontFamily: FONT_BODY, fontSize: 12,
-                    padding: '9px 12px', outline: 'none', width: '100%', boxSizing: 'border-box',
-                  }}
+                  style={{ fontFamily: FONT_BODY, fontSize: 12, padding: '9px 12px', width: '100%' }}
                 />
-                <input
+                <Field
                   type="password" placeholder="App-specific password"
                   value={icloudPass} onChange={e => setIcloudPass(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && handleIcloudSubmit()}
-                  style={{
-                    background: 'var(--color-paper-2)', border: `1px solid var(--color-line)`,
-                    color: 'var(--color-ink)', fontFamily: FONT_BODY, fontSize: 12,
-                    padding: '9px 12px', outline: 'none', width: '100%', boxSizing: 'border-box',
-                  }}
+                  style={{ fontFamily: FONT_BODY, fontSize: 12, padding: '9px 12px', width: '100%' }}
                 />
               </div>
               {icloudErr && (

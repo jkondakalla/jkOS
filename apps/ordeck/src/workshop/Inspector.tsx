@@ -16,6 +16,7 @@ import { useSuiteApps, fetchCapabilities, type AppId, type CapabilityDoc } from 
 import { HUD_SCHEMA, HUD_ITEM_FIELDS } from '../pages/hud/useHudData';
 import type { Binding, CommandRef, Tone, ToneBinding, WidgetNode } from '../hud/types';
 import { catalogEntry, type ENode } from './model';
+import { Field, NumField, SelectField, Check } from '@jkos/ui';
 
 /* ── binding edit model (lit vs data), shared by every field ────────────── */
 
@@ -42,11 +43,16 @@ export function pathSuggestions(src: string): string[] {
 
 /* ── shared field styling (same vocabulary as the old workshop forms) ───── */
 
-const field: CSSProperties = {
+// `field` used to be this file's private input skin. The inputs are <Field>/
+// <NumField>/<SelectField> now; what is left is the LAYOUT the inspector rows
+// want, which the primitives take as-is. ghostBtn is a button and still needs a
+// face of its own, so it states one rather than borrowing an input's.
+const field: CSSProperties = { minWidth: 0 };
+const ghostBtn: CSSProperties = {
   background: 'var(--hub-bg-0)', border: '1px solid var(--hub-line)', color: 'var(--hub-cream-bright)',
-  fontFamily: 'var(--hub-font-mono)', fontSize: 12, padding: '5px 8px', borderRadius: 'var(--hub-radius-sm)', minWidth: 0,
+  fontFamily: 'var(--hub-font-mono)', fontSize: 12, padding: '5px 8px',
+  borderRadius: 'var(--hub-radius-sm)', minWidth: 0, cursor: 'pointer',
 };
-const ghostBtn: CSSProperties = { ...field, cursor: 'pointer' };
 const rowLine: CSSProperties = { display: 'flex', gap: 6, alignItems: 'center', marginTop: 6 };
 const hintStyle: CSSProperties = { fontSize: 11, lineHeight: 1.5, color: 'var(--hub-cream-dim)', margin: '8px 0 0' };
 const tag = (t: string) => (
@@ -59,9 +65,9 @@ function Line({ t, children }: { t: string; children: ReactNode }) {
 
 function Select({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: string[] }) {
   return (
-    <select style={{ ...field, flex: 'none' }} value={value} onChange={(e) => onChange(e.target.value)}>
+    <SelectField wrapperStyle={{ ...field, flex: 'none' }} value={value} onChange={(e) => onChange(e.target.value)}>
       {options.map((o) => <option key={o} value={o}>{o}</option>)}
-    </select>
+    </SelectField>
   );
 }
 
@@ -71,7 +77,7 @@ function Num({ label, value, min, max, onChange }: { label: string; value: numbe
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
       <span style={{ fontFamily: 'var(--hub-font-mono)', fontSize: 10, color: 'var(--hub-cream-faint)' }}>{label}</span>
-      <input type="number" min={min} max={max} value={value} onChange={(e) => onChange(clampN(Number(e.target.value), min, max))} style={{ ...field, width: 48 }} />
+      <NumField min={min} max={max} value={value} onChange={(e) => onChange(clampN(Number(e.target.value), min, max))} wrapperStyle={{ ...field, width: 48 }} />
     </span>
   );
 }
@@ -94,11 +100,11 @@ function BindField({ value, onChange, sources, optional }: {
     <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center', flex: 1, minWidth: 0 }}>
       <Select value={b.mode} onChange={(m) => emit({ ...b, mode: m as EB['mode'] })} options={['lit', 'data']} />
       {b.mode === 'lit' ? (
-        <input style={{ ...field, flex: 1 }} value={b.lit} placeholder="fixed value" onChange={(e) => emit({ ...b, lit: e.target.value })} />
+        <Field style={{ ...field, flex: 1 }} value={b.lit} placeholder="fixed value" onChange={(e) => emit({ ...b, lit: e.target.value })} />
       ) : (
         <>
           <Select value={b.src} onChange={(s) => emit({ ...b, src: s })} options={sources} />
-          <input style={{ ...field, flex: 1 }} list={known ? `pl-${b.src}` : undefined} value={b.path}
+          <Field style={{ ...field, flex: 1 }} list={known ? `pl-${b.src}` : undefined} value={b.path}
             placeholder="field" onChange={(e) => emit({ ...b, path: e.target.value })} />
         </>
       )}
@@ -128,7 +134,7 @@ function ToneField({ value, onChange, sources }: {
       {isData ? (
         <>
           <Select value={(value as { src: string }).src} onChange={(s) => onChange({ src: s, path: (value as { path?: string }).path })} options={sources} />
-          <input style={{ ...field, flex: 1 }} value={(value as { path?: string }).path || ''} placeholder="field"
+          <Field style={{ ...field, flex: 1 }} value={(value as { path?: string }).path || ''} placeholder="field"
             onChange={(e) => onChange({ src: (value as { src: string }).src, ...(e.target.value ? { path: e.target.value } : {}) })} />
         </>
       ) : (
@@ -242,14 +248,14 @@ function CommandEditor({ cmd, sources, allowInputs, onChange }: {
                 </div>
                 {mode === 'lit' && (
                   <div style={rowLine}>
-                    <input style={{ ...field, flex: 1 }} value={typeof b === 'object' ? '' : String(b ?? '')} placeholder="fixed value"
+                    <Field style={{ ...field, flex: 1 }} value={typeof b === 'object' ? '' : String(b ?? '')} placeholder="fixed value"
                       onChange={(e) => setField(f, 'lit', e.target.value)} />
                   </div>
                 )}
                 {mode === 'data' && b && typeof b === 'object' && 'src' in b && (
                   <div style={rowLine}>
                     <Select value={b.src} onChange={(s) => setField(f, 'data', { src: s, ...(b.path ? { path: b.path } : {}) })} options={sources.filter((s) => s !== '$form')} />
-                    <input style={{ ...field, flex: 1 }} list={KNOWN_SUGGEST.includes(b.src) ? `pl-${b.src}` : undefined} value={b.path || ''} placeholder="field"
+                    <Field style={{ ...field, flex: 1 }} list={KNOWN_SUGGEST.includes(b.src) ? `pl-${b.src}` : undefined} value={b.path || ''} placeholder="field"
                       onChange={(e) => setField(f, 'data', { src: b.src, ...(e.target.value ? { path: e.target.value } : {}) })} />
                   </div>
                 )}
@@ -314,14 +320,14 @@ export function Inspector(p: InspectorProps) {
           <span className="hud-eyebrow">WIDGET</span>
           <span className="wc-insp-hint">tap any element to edit it</span>
         </div>
-        <Line t="id"><input style={{ ...field, flex: 1 }} value={idn.id} placeholder="e.g. btc-price" onChange={(e) => p.onIdentity({ id: e.target.value })} /></Line>
-        <Line t="label"><input style={{ ...field, flex: 1 }} value={idn.label} placeholder="Display name" onChange={(e) => p.onIdentity({ label: e.target.value })} /></Line>
+        <Line t="id"><Field style={{ ...field, flex: 1 }} value={idn.id} placeholder="e.g. btc-price" onChange={(e) => p.onIdentity({ id: e.target.value })} /></Line>
+        <Line t="label"><Field style={{ ...field, flex: 1 }} value={idn.label} placeholder="Display name" onChange={(e) => p.onIdentity({ label: e.target.value })} /></Line>
         {p.moleculeOnly ? (
           <p style={hintStyle}>This is a self-contained calendar/weather/clock — it draws itself (the clock sits raw on the background), so eyebrow/source don't apply. Add another element beside it to get a framed card.</p>
         ) : (
           <>
-            <Line t="eyebrow"><input style={{ ...field, flex: 1 }} value={idn.eyebrow} placeholder="Card eyebrow (optional)" onChange={(e) => p.onIdentity({ eyebrow: e.target.value })} /></Line>
-            <Line t="source"><input style={{ ...field, flex: 1 }} value={idn.source} placeholder="Right-side label (optional)" onChange={(e) => p.onIdentity({ source: e.target.value })} /></Line>
+            <Line t="eyebrow"><Field style={{ ...field, flex: 1 }} value={idn.eyebrow} placeholder="Card eyebrow (optional)" onChange={(e) => p.onIdentity({ eyebrow: e.target.value })} /></Line>
+            <Line t="source"><Field style={{ ...field, flex: 1 }} value={idn.source} placeholder="Right-side label (optional)" onChange={(e) => p.onIdentity({ source: e.target.value })} /></Line>
           </>
         )}
         <Line t="size">
@@ -333,10 +339,10 @@ export function Inspector(p: InspectorProps) {
           <Num label="h" value={p.sizing.mh} min={1} max={40} onChange={(n) => p.onSizing({ mh: n })} />
         </Line>
         <Line t="refresh">
-          <select style={{ ...field, flex: 1 }} value={idn.refresh} onChange={(e) => p.onIdentity({ refresh: e.target.value })}>
+          <SelectField wrapperStyle={{ ...field, flex: 1 }} value={idn.refresh} onChange={(e) => p.onIdentity({ refresh: e.target.value })}>
             {REFRESH_PRESETS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             {idn.refresh && !REFRESH_PRESETS.some(([v]) => v === idn.refresh) && <option value={idn.refresh}>{`Every ${idn.refresh}s`}</option>}
-          </select>
+          </SelectField>
         </Line>
         <div style={{ marginTop: 14 }}>
           <span className="hud-eyebrow">DATA SOURCES</span>
@@ -344,9 +350,9 @@ export function Inspector(p: InspectorProps) {
           <button style={{ ...ghostBtn, marginTop: 4 }} onClick={() => p.onIdentity({ fetches: [...idn.fetches, { name: '', url: '', poll: '' }] })}>+ add source</button>
           {idn.fetches.map((f, i) => (
             <div key={i} style={rowLine}>
-              <input style={{ ...field, width: 80 }} value={f.name} placeholder="name" onChange={(e) => p.onIdentity({ fetches: idn.fetches.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)) })} />
-              <input style={{ ...field, flex: 1 }} value={f.url} placeholder="https://api…/data.json" onChange={(e) => p.onIdentity({ fetches: idn.fetches.map((x, j) => (j === i ? { ...x, url: e.target.value } : x)) })} />
-              <input style={{ ...field, width: 52 }} value={f.poll} placeholder="secs" onChange={(e) => p.onIdentity({ fetches: idn.fetches.map((x, j) => (j === i ? { ...x, poll: e.target.value } : x)) })} />
+              <Field style={{ ...field, width: 80 }} value={f.name} placeholder="name" onChange={(e) => p.onIdentity({ fetches: idn.fetches.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)) })} />
+              <Field style={{ ...field, flex: 1 }} value={f.url} placeholder="https://api…/data.json" onChange={(e) => p.onIdentity({ fetches: idn.fetches.map((x, j) => (j === i ? { ...x, url: e.target.value } : x)) })} />
+              <Field style={{ ...field, width: 52 }} value={f.poll} placeholder="secs" onChange={(e) => p.onIdentity({ fetches: idn.fetches.map((x, j) => (j === i ? { ...x, poll: e.target.value } : x)) })} />
               <button style={ghostBtn} onClick={() => p.onIdentity({ fetches: idn.fetches.filter((_, j) => j !== i) })}>×</button>
             </div>
           ))}
@@ -377,7 +383,7 @@ export function Inspector(p: InspectorProps) {
       {n.t === 'text' && (
         <>
           <Line t="style"><Select value={n.variant || 'body'} onChange={(v) => patch({ variant: v })} options={VARIANTS} /></Line>
-          <Line t="grow"><input type="checkbox" checked={!!n.grow} onChange={(e) => patch({ grow: e.target.checked || undefined })} /></Line>
+          <Line t="grow"><Check checked={!!n.grow} onChange={(next) => patch({ grow: next || undefined })} /></Line>
         </>
       )}
       {(n.t === 'metric' || n.t === 'bar' || n.t === 'gauge') && (
@@ -402,7 +408,7 @@ export function Inspector(p: InspectorProps) {
       {n.t === 'sparkline' && (
         <>
           <Line t="from []"><BindField value={n.from} onChange={(b) => patch({ from: b ?? '' })} sources={sources} /></Line>
-          <Line t="field"><input style={{ ...field, flex: 1 }} value={n.path ?? ''} placeholder="number field per element (blank = element itself)" onChange={(e) => patch({ path: e.target.value || undefined })} /></Line>
+          <Line t="field"><Field style={{ ...field, flex: 1 }} value={n.path ?? ''} placeholder="number field per element (blank = element itself)" onChange={(e) => patch({ path: e.target.value || undefined })} /></Line>
           <Line t="height"><Num label="px" value={n.height ?? 28} min={12} max={80} onChange={(v) => patch({ height: v === 28 ? undefined : v })} /></Line>
           <Line t="tone"><ToneField value={n.tone} onChange={(v) => patch({ tone: v })} sources={sources} /></Line>
         </>
@@ -410,7 +416,7 @@ export function Inspector(p: InspectorProps) {
       {(n.t === 'pill' || n.t === 'dot' || n.t === 'keyval' || n.t === 'icon' || n.t === 'button') && (
         <Line t="tone"><ToneField value={n.tone} onChange={(v) => patch({ tone: v })} sources={sources} /></Line>
       )}
-      {n.t === 'dot' && <Line t="pulse"><input type="checkbox" checked={!!n.pulse} onChange={(e) => patch({ pulse: e.target.checked || undefined })} /></Line>}
+      {n.t === 'dot' && <Line t="pulse"><Check checked={!!n.pulse} onChange={(next) => patch({ pulse: next || undefined })} /></Line>}
       {n.t === 'keyval' && (
         <>
           <Line t="label"><BindField value={n.label} onChange={(b) => patch({ label: b ?? '' })} sources={sources} /></Line>
@@ -460,21 +466,21 @@ export function Inspector(p: InspectorProps) {
           {n.t === 'row' && (
             <Line t="align"><Select value={n.align || 'center'} onChange={(v) => patch({ align: v })} options={ALIGN} /></Line>
           )}
-          <Line t="grow"><input type="checkbox" checked={!!n.grow} onChange={(e) => patch({ grow: e.target.checked || undefined })} /></Line>
+          <Line t="grow"><Check checked={!!n.grow} onChange={(next) => patch({ grow: next || undefined })} /></Line>
         </>
       )}
       {n.t === 'input' && (
         <>
-          <Line t="field"><input style={{ ...field, flex: 1 }} value={n.field} onChange={(e) => patch({ field: e.target.value })} /></Line>
+          <Line t="field"><Field style={{ ...field, flex: 1 }} value={n.field} onChange={(e) => patch({ field: e.target.value })} /></Line>
           <Line t="placeholder"><BindField value={n.placeholder} onChange={(b) => patch({ placeholder: b })} sources={sources} optional /></Line>
           <Line t="type"><Select value={n.itype || 'text'} onChange={(v) => patch({ itype: v })} options={ITYPES} /></Line>
         </>
       )}
       {n.t === 'select' && (
         <>
-          <Line t="field"><input style={{ ...field, flex: 1 }} value={n.field} onChange={(e) => patch({ field: e.target.value })} /></Line>
+          <Line t="field"><Field style={{ ...field, flex: 1 }} value={n.field} onChange={(e) => patch({ field: e.target.value })} /></Line>
           <Line t="options">
-            <input style={{ ...field, flex: 1 }} placeholder="comma,separated"
+            <Field style={{ ...field, flex: 1 }} placeholder="comma,separated"
               value={n.options && typeof n.options === 'object' && 'lit' in n.options && Array.isArray(n.options.lit) ? (n.options.lit as unknown[]).join(',') : ''}
               onChange={(e) => patch({ options: { lit: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) } })} />
           </Line>
@@ -483,7 +489,7 @@ export function Inspector(p: InspectorProps) {
       )}
       {n.t === 'toggle' && (
         <>
-          <Line t="field"><input style={{ ...field, flex: 1 }} value={n.field} onChange={(e) => patch({ field: e.target.value })} /></Line>
+          <Line t="field"><Field style={{ ...field, flex: 1 }} value={n.field} onChange={(e) => patch({ field: e.target.value })} /></Line>
           <Line t="label"><BindField value={n.label} onChange={(b) => patch({ label: b })} sources={sources} optional /></Line>
         </>
       )}

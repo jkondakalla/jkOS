@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { VU } from '@jkos/ui'
+import { VU, Field, Check } from '@jkos/ui'
 import { FONT_HEAD, FONT_BODY, FONT_NUM } from '../../lib/theme'
 import { getChildren, getProgress } from '../../lib/seed'
 import { Eyebrow } from '../components/MobileWidgets'
@@ -225,11 +225,9 @@ function Cassette({ goal, items, isOpen, onToggleOpen, onSelect, onToggle, onCre
                       borderRadius: 2,
                     }}
                   >
-                    <input
-                      type="checkbox"
+                    <Check
                       checked={t.completed}
                       onChange={() => onToggle(t.id)}
-                      style={{ cursor: 'pointer' }}
                     />
                     <span style={{ flex: 1, color: t.completed ? 'var(--color-muted)' : 'var(--color-ink)' }}>
                       {t.title}
@@ -339,7 +337,7 @@ function InlineAdd({ onAdd, onClose }: any) {
 
   return (
     <div style={{ display: 'flex', gap: 8 }}>
-      <input
+      <Field
         autoFocus
         value={title}
         onChange={(e) => setTitle(e.target.value)}
@@ -348,17 +346,7 @@ function InlineAdd({ onAdd, onClose }: any) {
           if (e.key === 'Escape') onClose()
         }}
         placeholder="Name…"
-        style={{
-          flex: 1,
-          padding: '6px 8px',
-          fontFamily: FONT_BODY,
-          fontSize: 12,
-          border: `1px solid ${'var(--color-line)'}`,
-          borderRadius: 2,
-          background: 'var(--color-paper)',
-          color: 'var(--color-ink)',
-          outline: 'none',
-        }}
+        style={{ flex: 1, padding: '6px 8px', fontFamily: FONT_BODY, fontSize: 12 }}
       />
       <button
         onClick={() => onAdd(title)}

@@ -42,6 +42,7 @@ import { WeekView, type CalendarItem, type CardResolvers } from '@jkos/cards';
 import type { Binding, CommandRef, DataSource, Tone, ToneBinding, WidgetDef, WidgetNode, WidgetSpec } from './types';
 import { TONE_COLOR } from './tone';
 import { clearHudFocus } from '../lib/shelf';
+import { Field, SelectField, Check } from '@jkos/ui';
 import ErrorBoundary from '../components/ErrorBoundary';
 
 const MO_FULL = ['January', 'February', 'March', 'April', 'May', 'June',
@@ -472,12 +473,9 @@ function FocusBody({ focus }: { focus: FocusState }) {
 interface FormCtxValue { values: Record<string, unknown>; set: (field: string, v: unknown) => void }
 const FormCtx = createContext<FormCtxValue | null>(null);
 
-const fieldStyle: CSSProperties = {
-  width: '100%', boxSizing: 'border-box', background: 'var(--hub-bg-0)',
-  border: '1px solid var(--hub-line)', color: 'var(--hub-cream-bright)',
-  fontFamily: 'var(--hub-font-mono)', fontSize: 12, padding: '7px 9px',
-  borderRadius: 'var(--hub-radius-sm)',
-};
+// Was this file's private input skin; the face now comes from the primitives,
+// so all that is left is the widget-form layout (fill the card's width).
+const fieldStyle: CSSProperties = { width: '100%' };
 const actionStyle = (color: string, on: boolean): CSSProperties => ({
   alignSelf: 'flex-start', cursor: on ? 'pointer' : 'default', background: 'transparent',
   color, fontFamily: 'var(--hub-font-mono)', fontSize: 11, letterSpacing: '0.06em',
@@ -560,7 +558,7 @@ function InputNode({ node, scope }: { node: Extract<WidgetNode, { t: 'input' }>;
   const v = str(ctx?.values[node.field] ?? '');
   const ph = node.placeholder != null ? str(resolve(node.placeholder, scope)) : '';
   return (
-    <input value={v} placeholder={ph} type={node.itype ?? 'text'}
+    <Field value={v} placeholder={ph} type={node.itype ?? 'text'}
       onChange={(e) => ctx?.set(node.field, e.target.value)} style={fieldStyle} />
   );
 }
@@ -575,10 +573,11 @@ function SelectNode({ node, scope }: { node: Extract<WidgetNode, { t: 'select' }
   const v = str(ctx?.values[node.field] ?? '');
   const ph = node.placeholder != null ? str(resolve(node.placeholder, scope)) : '';
   return (
-    <select value={v} onChange={(e) => ctx?.set(node.field, e.target.value)} style={fieldStyle}>
+    <SelectField value={v} onChange={(e) => ctx?.set(node.field, e.target.value)}
+      wrapperStyle={fieldStyle} style={fieldStyle}>
       {ph && <option value="">{ph}</option>}
       {opts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-    </select>
+    </SelectField>
   );
 }
 
@@ -588,7 +587,7 @@ function ToggleNode({ node, scope }: { node: Extract<WidgetNode, { t: 'toggle' }
   const label = node.label != null ? str(resolve(node.label, scope)) : '';
   return (
     <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-      <input type="checkbox" checked={checked} onChange={(e) => ctx?.set(node.field, e.target.checked)} />
+      <Check checked={checked} onChange={(next) => ctx?.set(node.field, next)} />
       {label && <span style={{ fontFamily: 'var(--hub-font-mono)', fontSize: 11, color: 'var(--hub-cream)' }}>{label}</span>}
     </label>
   );

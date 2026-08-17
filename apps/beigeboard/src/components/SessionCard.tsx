@@ -29,7 +29,7 @@
  */
 import React, { useEffect, useRef, useState } from 'react'
 import { FONT_HEAD } from '../lib/theme'
-import { Chip, Press, Bubble, Rule, TButton } from '@jkos/ui'
+import { Chip, Press, Bubble, Rule, TButton, NumField } from '@jkos/ui'
 import {
   prescriptionOf, performedOf, stepStatus, logStep, metFromSets, blankSets,
   type RenderedStep,
@@ -300,21 +300,21 @@ function StepRow({ step, status, tint, readonly, onLog, onRest }: any) {
           {sets.map((st, i) => (
             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span className="mono-eyebrow" style={{ width: 22 }}>{i + 1}</span>
-              <input
-                type="number" inputMode="decimal" value={st.value ?? ''} placeholder={String(step.target ?? '')}
+              <NumField
+                size="sm" inputMode="decimal" value={st.value ?? ''} placeholder={String(step.target ?? '')}
                 onChange={(e) => writeSet(i, 'value', e.target.value)}
                 onBlur={onRest}
-                style={setField} title={step.unit}
+                wrapperStyle={setField} title={step.unit}
               />
               <span className="mono-eyebrow">{step.unit}</span>
               {step.load_unit && step.load_unit !== 'bw' && (
                 <>
                   <span className="mono-eyebrow">@</span>
-                  <input
-                    type="number" inputMode="decimal" step="0.5" value={st.load ?? ''} placeholder={String(step.load ?? '')}
+                  <NumField
+                    size="sm" inputMode="decimal" step="0.5" value={st.load ?? ''} placeholder={String(step.load ?? '')}
                     onChange={(e) => writeSet(i, 'load', e.target.value)}
                     onBlur={onRest}
-                    style={setField}
+                    wrapperStyle={setField}
                   />
                   <span className="mono-eyebrow">{step.load_unit}</span>
                 </>
@@ -334,8 +334,6 @@ function StepRow({ step, status, tint, readonly, onLog, onRest }: any) {
   )
 }
 
-const setField: React.CSSProperties = {
-  fontFamily: MONO, fontSize: 11, width: 54, textAlign: 'right',
-  color: 'var(--color-ink)', background: 'transparent',
-  border: '1px solid var(--color-line)', borderRadius: 3, padding: '2px 4px', outline: 'none',
-}
+/** Width of a per-set entry. On the WRAPPER, not the input — the stepper carets
+ *  are part of the group, the same rule the workshop's NUM_W follows. */
+const setField: React.CSSProperties = { width: 58 }

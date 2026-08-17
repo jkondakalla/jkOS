@@ -8,6 +8,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { FONT_HEAD, FONT_BODY } from './theme';
 import { fmtTime, fmtWeekday } from './datetime';
+import { Field } from '@jkos/ui';
 
 /** What a drag-to-create resolved to: the target day, a time range or all-day. */
 export interface CreatePending {
@@ -41,7 +42,8 @@ export function CreateDialog({ pending, onSubmit, onCancel }: CreateDialogProps)
         <div style={{ fontFamily: FONT_BODY, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'var(--color-accent)', textShadow: 'var(--accent-halo-text)', marginBottom: 10 }}>
           {pending.allDay ? `${fmtWeekday(pending.startDay)} · all‑day event` : `${fmtWeekday(pending.startDay)} · ${fmtTime(pending.scheduled_time)} – ${fmtTime(pending.scheduled_end)}`}
         </div>
-        <input
+        <Field
+          bare
           ref={inputRef}
           value={title}
           onChange={(e) => setTitle(e.target.value)}
@@ -50,7 +52,7 @@ export function CreateDialog({ pending, onSubmit, onCancel }: CreateDialogProps)
             if (e.key === 'Escape') onCancel();
           }}
           placeholder="What needs to happen…"
-          style={{ width: '100%', background: 'transparent', border: 'none', borderBottom: '1px solid var(--color-line)', fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 22, color: 'var(--color-ink)', outline: 'none', padding: '4px 0 10px' }}
+          style={{ width: '100%', borderBottom: '1px solid var(--color-line)', fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 22, padding: '4px 0 10px' }}
         />
         <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
           <button onClick={onCancel} style={{ background: 'transparent', border: '1px solid var(--color-line)', fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--color-muted)', padding: '8px 16px', cursor: 'pointer' }}>

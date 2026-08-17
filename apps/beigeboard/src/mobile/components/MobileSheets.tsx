@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { FONT_HEAD, FONT_BODY, FONT_NUM, sourceOf } from '../../lib/theme'
 import { getAncestors, getChildren, getAccent } from '../../lib/seed'
 import { Eyebrow, SourceDot, Checkbox } from './MobileWidgets'
+import { Field } from '@jkos/ui'
 
 /**
  * Sheets — Detail + Add modal components that slide up from bottom
@@ -147,7 +148,8 @@ export function DetailSheet({
 
         {/* title — tap to rename */}
         {editing && !isEvent ? (
-          <input
+          <Field
+            bare
             autoFocus
             value={title}
             onChange={(e) => setTitle(e.target.value)}
@@ -161,9 +163,6 @@ export function DetailSheet({
             onBlur={commitTitle}
             style={{
               width: '100%',
-              background: 'transparent',
-              border: 'none',
-              outline: 'none',
               borderBottom: `1px solid ${accent}`,
               fontFamily: FONT_HEAD,
               fontWeight: 500,
@@ -269,7 +268,7 @@ export function AddSheet({ date, today, items, onClose, onAdd }: AddSheetProps) 
           New Task
         </h3>
 
-        <input
+        <Field
           autoFocus
           value={title}
           onChange={(e) => setTitle(e.target.value)}
@@ -283,12 +282,7 @@ export function AddSheet({ date, today, items, onClose, onAdd }: AddSheetProps) 
             padding: '10px 12px',
             fontFamily: FONT_BODY,
             fontSize: 14,
-            border: `1px solid ${'var(--color-line)'}`,
-            borderRadius: 4,
-            background: 'var(--color-paper)',
-            color: 'var(--color-ink)',
             marginBottom: 16,
-            outline: 'none',
           }}
         />
 

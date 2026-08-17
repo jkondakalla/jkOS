@@ -454,11 +454,9 @@ html.od-v2 ::selection { background: var(--accent); color: var(--color-accent-co
   display: flex; gap: 12px;
   overflow-x: auto;
   padding: 2px 2px 6px;
-  scrollbar-width: thin;
-  scrollbar-color: var(--hub-line-strong) transparent;
+  /* The bar itself is hub.css's — this used to restate it (and was the only
+     place in the suite that got the Firefox properties right). */
 }
-.hud-tray-strip::-webkit-scrollbar { height: 6px; }
-.hud-tray-strip::-webkit-scrollbar-thumb { background: var(--hub-line-strong); border-radius: 3px; }
 
 .hud-tile {
   flex: none; width: 132px;

@@ -41,7 +41,7 @@ import {
 import { normalizeSpec, summarize, metricOf, parseCadence, describeCadence } from '../../lib/routine-spec'
 import { RoutineForge } from './RoutineForge'
 import { RoutineImport } from './RoutineImport'
-import { Press, Bubble, Chip, TButton, Rule, Bar } from '@jkos/ui'
+import { Press, Bubble, Chip, TButton, Rule, Bar, TimeField, SelectField } from '@jkos/ui'
 import { stagger } from '@jkos/design'
 
 const MONO = 'var(--hub-font-mono)'
@@ -303,16 +303,12 @@ function RoutineRow({
           {parked && <Bubble tone="secondary" style={{ fontSize: 8, padding: '2px 7px' }}>PARKED</Bubble>}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <input
-            type="time"
+          <TimeField
+            size="sm"
             value={routine.scheduled_time || ''}
             disabled={readonly}
             onChange={(e) => onUpdateItem?.(routine.id, { scheduled_time: e.target.value || null })}
-            style={{
-              fontFamily: MONO, fontSize: 10, letterSpacing: '0.06em', color: 'var(--color-muted)',
-              background: 'transparent', border: '1px solid var(--color-line)', borderRadius: 3,
-              padding: '2px 5px', outline: 'none',
-            }}
+            style={{ letterSpacing: '0.06em' }}
           />
           {/* The weekly target. Above the committed days it becomes FLOAT — the
               engine benches the surplus for the week so "3× a week, any days" is
@@ -327,20 +323,20 @@ function RoutineRow({
               {floats.filter((f: any) => !f.completed).length} ON THE BENCH
             </span>
           )}
-          <select
+          <SelectField
+            size="sm"
             value={routine.parent_id ?? ''}
             disabled={readonly}
             onChange={(e) => onUpdateItem?.(routine.id, { parent_id: e.target.value === '' ? null : Number(e.target.value) })}
+            wrapperStyle={{ maxWidth: 150 }}
             style={{
-              fontFamily: MONO, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase',
-              color: goal ? 'var(--color-ink)' : 'var(--color-faint)',
-              background: 'transparent', border: '1px solid var(--color-line)', borderRadius: 3,
-              padding: '2px 4px', maxWidth: 150, outline: 'none',
+              letterSpacing: '0.08em', textTransform: 'uppercase',
+              color: goal ? undefined : 'var(--color-faint)',
             }}
           >
             <option value="">no goal</option>
             {goals.map((g: any) => <option key={g.id} value={g.id}>{g.title}</option>)}
-          </select>
+          </SelectField>
         </div>
         {/* The document, and the way in to it. A routine with no steps is a title on
             a schedule — the one thing worth saying about it is that it has nothing

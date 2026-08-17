@@ -43,7 +43,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { FONT_HEAD } from '../../lib/theme'
 import { Bubble, Rule, TButton, Well, Chip } from '@jkos/ui'
 import { stagger } from '@jkos/design'
-import { MONO, field, numField, textField, RuleRow } from './parts'
+import { MONO, Field, NumField, SelectField, TextArea, NUM_W, RuleRow } from './parts'
 import {
   normalizeSpec, slugify, stepLine,
   UNITS, LOAD_UNITS, COLLECTIONS, LIMITS,
@@ -240,14 +240,14 @@ export function LibraryBrowser({ api, items, readonly, onPick, onClose, onPaste 
               {String(c).toUpperCase()} {String(counts.get(c) || 0).padStart(2, '0')}
             </Chip>
           ))}
-          <input
-            value={query} placeholder="search title, tag, ladder, notes…"
+          <Field
+            type="search" value={query} placeholder="search title, tag, ladder, notes…"
             onChange={(e) => setQuery(e.target.value)}
-            style={{ ...field, marginLeft: 'auto', width: 230, padding: '4px 7px' }}
+            style={{ marginLeft: 'auto', width: 230 }}
           />
-          <select value={sort} onChange={(e) => setSort(e.target.value as Sort)} style={field}>
+          <SelectField value={sort} onChange={(e) => setSort(e.target.value as Sort)}>
             {(Object.keys(SORT_LABEL) as Sort[]).map((s) => <option key={s} value={s}>{SORT_LABEL[s]}</option>)}
-          </select>
+          </SelectField>
         </div>
       </div>
       <Rule style={{ margin: '4px 28px 0' }} />
@@ -415,25 +415,25 @@ function EntryEditor({ draft: e, readonly, saving, error, used, onEdit, onSave, 
       </div>
 
       {/* WHAT IT IS */}
-      <input
-        value={e.title} disabled={readonly} placeholder="Nordic Curl"
+      <Field
+        display value={e.title} disabled={readonly} placeholder="Nordic Curl"
         onChange={(ev) => onEdit((n: any) => { n.title = ev.target.value })}
-        style={{ ...textField, width: '100%', marginBottom: 5 }}
+        style={{ width: '100%', marginBottom: 5 }}
       />
       <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-        <select value={e.collection} disabled={readonly}
-          onChange={(ev) => onEdit((n: any) => { n.collection = ev.target.value })} style={field}>
+        <SelectField value={e.collection} disabled={readonly}
+          onChange={(ev) => onEdit((n: any) => { n.collection = ev.target.value })}>
           {COLLECTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
-        </select>
+        </SelectField>
         {/* The slug is the identity every `ref` in every routine points at, so it is
             fixed once the entry exists. Renaming it would silently orphan the steps
             that reference it — a "duplicate" is the honest way to fork one. */}
-        <input
+        <Field
           value={e.slug} disabled={readonly || !isNew}
           placeholder={slugify(e.title, 'slug')}
           onChange={(ev) => onEdit((n: any) => { n.slug = ev.target.value })}
           title={isNew ? 'The identity a step references. Kebab-case.' : 'Fixed — every step that references this entry points at this slug'}
-          style={{ ...field, flex: '1 1 120px', opacity: isNew ? 1 : 0.65 }}
+          style={{ flex: '1 1 120px' }}
         />
       </div>
 
@@ -442,30 +442,30 @@ function EntryEditor({ draft: e, readonly, saving, error, used, onEdit, onSave, 
       {/* THE DOSE */}
       <div className="mono-eyebrow" style={{ marginBottom: 5 }}>ONE OF IT LOOKS LIKE</div>
       <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-        <input type="number" min={1} value={d.sets ?? ''} disabled={readonly} placeholder="1"
+        <NumField min={1} value={d.sets ?? ''} disabled={readonly} placeholder="1"
           onChange={(ev) => setDefault('sets', ev.target.value === '' ? null : Math.max(1, Number(ev.target.value) || 1))}
-          style={numField} title="Sets" />
+          wrapperStyle={NUM_W} title="Sets" />
         <span className="mono-eyebrow">×</span>
-        <input type="number" value={d.target ?? ''} disabled={readonly} placeholder="—"
+        <NumField value={d.target ?? ''} disabled={readonly} placeholder="—"
           onChange={(ev) => setDefault('target', ev.target.value === '' ? null : Number(ev.target.value))}
-          style={numField} title="Target per set" />
-        <select value={e.unit || 'reps'} disabled={readonly}
-          onChange={(ev) => onEdit((n: any) => { n.unit = ev.target.value })} style={field}>
+          wrapperStyle={NUM_W} title="Target per set" />
+        <SelectField value={e.unit || 'reps'} disabled={readonly}
+          onChange={(ev) => onEdit((n: any) => { n.unit = ev.target.value })}>
           {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
-        </select>
+        </SelectField>
         <span className="mono-eyebrow">@</span>
-        <input type="number" step={0.5} value={d.load ?? ''} disabled={readonly} placeholder="—"
+        <NumField step={0.5} value={d.load ?? ''} disabled={readonly} placeholder="—"
           onChange={(ev) => setDefault('load', ev.target.value === '' ? null : Number(ev.target.value))}
-          style={numField} title="Starting load" />
-        <select value={e.load_unit || ''} disabled={readonly}
-          onChange={(ev) => onEdit((n: any) => { n.load_unit = ev.target.value || null })} style={field}>
+          wrapperStyle={NUM_W} title="Starting load" />
+        <SelectField value={e.load_unit || ''} disabled={readonly}
+          onChange={(ev) => onEdit((n: any) => { n.load_unit = ev.target.value || null })}>
           <option value="">—</option>
           {LOAD_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
-        </select>
+        </SelectField>
         <span className="mono-eyebrow">REST</span>
-        <input type="number" min={0} value={d.rest ?? ''} disabled={readonly} placeholder="—"
+        <NumField min={0} value={d.rest ?? ''} disabled={readonly} placeholder="—"
           onChange={(ev) => setDefault('rest', ev.target.value === '' ? null : Number(ev.target.value))}
-          style={numField} />
+          wrapperStyle={NUM_W} />
       </div>
 
       <Rule style={{ margin: '9px 0' }} />
@@ -474,25 +474,25 @@ function EntryEditor({ draft: e, readonly, saving, error, used, onEdit, onSave, 
       <div className="mono-eyebrow" style={{ marginBottom: 5 }}>
         THE LADDER — EASIEST TO HARDEST
       </div>
-      <input
+      <Field
         value={(e.variants || []).join(', ')} disabled={readonly}
         placeholder="Knee Push-Up, Push-Up, Decline Push-Up, Archer Push-Up"
         onChange={(ev) => onEdit((n: any) => {
           n.variants = ev.target.value.split(',').map((v: string) => v.trim()).filter(Boolean).slice(0, LIMITS.variants)
         })}
-        style={{ ...field, width: '100%' }}
+        style={{ width: '100%' }}
       />
       {e.variants?.length > 1 && (
         <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', marginTop: 5 }}>
           <span className="mono-eyebrow">START AT</span>
-          <select value={d.variant_index ?? 0} disabled={readonly}
-            onChange={(ev) => setDefault('variant_index', Number(ev.target.value))} style={field}>
+          <SelectField value={d.variant_index ?? 0} disabled={readonly}
+            onChange={(ev) => setDefault('variant_index', Number(ev.target.value))}>
             {e.variants.map((v: string, i: number) => <option key={i} value={i}>{v}</option>)}
-          </select>
+          </SelectField>
           <span className="mono-eyebrow">CLIMB EVERY</span>
-          <input type="number" min={0} value={d.variant_every ?? 0} disabled={readonly}
+          <NumField min={0} value={d.variant_every ?? 0} disabled={readonly}
             onChange={(ev) => setDefault('variant_every', Math.max(0, Number(ev.target.value) || 0))}
-            style={numField} title="0 = never climb on a clock" />
+            wrapperStyle={NUM_W} title="0 = never climb on a clock" />
           <span className="mono-eyebrow">SESSIONS</span>
         </div>
       )}
@@ -530,18 +530,18 @@ function EntryEditor({ draft: e, readonly, saving, error, used, onEdit, onSave, 
 
       {/* THE REST */}
       <div className="mono-eyebrow" style={{ marginBottom: 5 }}>TAGS — HOW YOU WILL FIND IT AGAIN</div>
-      <input
+      <Field
         value={(e.tags || []).join(', ')} disabled={readonly} placeholder="push, chest, bodyweight"
         onChange={(ev) => onEdit((n: any) => {
           n.tags = ev.target.value.split(',').map((t: string) => t.trim()).filter(Boolean).slice(0, LIMITS.tags)
         })}
-        style={{ ...field, width: '100%' }}
+        style={{ width: '100%' }}
       />
-      <textarea
+      <TextArea
         value={e.notes || ''} disabled={readonly} rows={3}
         placeholder="Form cues, the method, the thing worth remembering."
         onChange={(ev) => onEdit((n: any) => { n.notes = ev.target.value })}
-        style={{ ...field, width: '100%', marginTop: 6, resize: 'vertical', lineHeight: 1.45 }}
+        style={{ width: '100%', marginTop: 6 }}
       />
 
       {used.length > 0 && (
