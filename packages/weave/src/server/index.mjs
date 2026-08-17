@@ -20,6 +20,7 @@ export const defineConnector = server.defineConnector
 export const defineLibraryScanner = server.defineLibraryScanner
 export const defineMediaRoutes = server.defineMediaRoutes
 export const decidePlayback = server.decidePlayback
+export const serveSpa = server.serveSpa
 export const createTriggerEngine = server.createTriggerEngine
 export const resolveBindings = server.resolveBindings
 export const validateTriggerTypes = server.validateTriggerTypes

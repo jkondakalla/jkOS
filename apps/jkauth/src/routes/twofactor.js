@@ -7,13 +7,12 @@ const express = require('express')
 const { get, run, logEvent } = require('../db')
 const { resolveUser } = require('../tokens')
 const { securityPage, totpSetupPage, recoveryCodesPage, loginPage } = require('../views')
+const { isJsonReq } = require('../util')
 const {
   beginTotpSetup, qrForSecret, verifyTotpCode, generateRecoveryCodes, recoveryCodesRemaining,
 } = require('../twofactor')
 
 const router = express.Router()
-
-const isJsonReq = req => req.headers['content-type']?.includes('application/json')
 
 // Resolve the current user row (fresh from DB) or send a 401 / redirect.
 function requireUser(req, res) {

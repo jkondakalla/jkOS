@@ -14,7 +14,7 @@ const path         = require('path');
 const Database     = require('better-sqlite3');
 const cookieParser = require('cookie-parser');
 const {
-  weaveCors, weaveAuth, weaveWriteGate, healthHandler, serveCapabilities, serveDatasets,
+  weaveCors, weaveAuth, weaveWriteGate, healthHandler, serveCapabilities, serveDatasets, serveSpa,
 } = require('@jkos/weave/server');
 const { resolveIssuer } = require('@jkos/auth-middleware');   // shared issuer default (single source)
 const { CAPABILITIES, DATASETS, PLAYLISTS, HISTORY, RATINGS } = require('./discovery');   // discovery docs + the three collections
@@ -238,13 +238,12 @@ RATINGS.mount(app, db);
 app.use(createMediaRouter({ db, musicDir: MUSIC_DIR, dataDir: DATA_DIR }));
 
 /* ── Static + SPA fallback ─────────────────────────────────────────────── */
+/* serveSpa is the suite's shared rule (see @jkos/weave/server/spa.js): revalidate
+   the entry document, cache hashed assets forever, and 404 a missing asset instead
+   of handing back the HTML shell — which is what turns a redeploy into a blank
+   page under a correct <title>. */
 app.all('/api/*', (_req, res) => res.status(404).json({ error: 'Not found' }));
-app.use(express.static(STATIC_DIR));
-app.get('*', (req, res) => {
-  res.sendFile(path.join(STATIC_DIR, 'index.html'), err => {
-    if (err) res.status(404).json({ error: 'Not found' });
-  });
-});
+serveSpa(app, STATIC_DIR, { express });
 
 /* ── Boot ──────────────────────────────────────────────────────────────── */
 function boot() {

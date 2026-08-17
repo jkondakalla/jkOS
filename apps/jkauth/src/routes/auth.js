@@ -7,7 +7,7 @@ const crypto = require('crypto')
 const { CODES } = require('@jkos/auth-middleware')   // canonical wire codes (single source)
 const { GUEST_PASSWORD, PASSWORD_MAX, REFRESH_COOKIE, SERVICE_CLIENTS, DELEGATION_CLIENTS } = require('../config')
 const { get, run, logEvent } = require('../db')
-const { validateRedirectTo, passwordError, loginBackoffMs } = require('../util')
+const { isJsonReq, validateRedirectTo, passwordError, loginBackoffMs } = require('../util')
 const { loginPage, dashboardPage, twoFactorPage } = require('../views')
 const {
   DUMMY_HASH, sha256, issueTokens, clearTokens, tryRotate, resolveOrRefresh, publicUser,
@@ -19,8 +19,6 @@ const {
 } = require('../twofactor')
 
 const router = express.Router()
-
-const isJsonReq = req => req.headers['content-type']?.includes('application/json')
 
 // GET / → portal when signed in (direct navigation), else login
 router.get('/', (req, res) => {

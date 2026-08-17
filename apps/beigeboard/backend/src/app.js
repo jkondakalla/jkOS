@@ -5,10 +5,9 @@
 // Requiring ./db (transitively, via the route modules and below) opens the DB and
 // runs migrations once, exactly as the previous single-file server did at startup.
 const express = require('express');
-const path = require('path');
 const cookieParser = require('cookie-parser');
 const {
-  weaveCors, weaveWriteGate, healthHandler, serveCapabilities, serveDatasets,
+  weaveCors, weaveWriteGate, healthHandler, serveCapabilities, serveDatasets, serveSpa,
 } = require('@jkos/weave/server');
 const { ALLOWED_ORIGINS, STATIC_DIR } = require('./config');
 const { PUBLIC_PATHS, authMiddleware } = require('./auth');
@@ -56,12 +55,11 @@ app.use(require('./routes/routines'));       // /api/routines/* + /api/library/*
 app.use(require('./routes/import').router);  // /api/import
 
 /* ── Static + SPA fallback ─────────────────────────────────────────────── */
+/* serveSpa is the suite's shared rule (see @jkos/weave/server/spa.js): revalidate
+   the entry document, cache hashed assets forever, and 404 a missing asset instead
+   of handing back the HTML shell — which is what turns a redeploy into a blank
+   page under a correct <title>. */
 app.all('/api/*', (_req, res) => res.status(404).json({ error: 'Not found' }));
-app.use(express.static(STATIC_DIR));
-app.get('*', (req, res) => {
-  res.sendFile(path.join(STATIC_DIR, 'index.html'), err => {
-    if (err) res.status(404).json({ error: 'Not found' });
-  });
-});
+serveSpa(app, STATIC_DIR, { express });
 
 module.exports = app;

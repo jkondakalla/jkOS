@@ -320,6 +320,34 @@ async function run() {
     ok('backoff reset after success', (await E2.req('POST', '/auth/login', { json: { email: 'lock@jkos.net', password: 'nope' }, noJar: true })).status === 401);
   }
 
+  // ── Instance E3: the per-IP credential throttle must never take the sign-in
+  //    PAGE away. app.use() mounts middleware for every method, so the limiter
+  //    used to count GET /auth/login: loading the form burned the budget, and
+  //    once burned the page itself answered with a raw JSON 429 for the rest of
+  //    the window — a locked door with the handle removed. Budget of 1 makes
+  //    "exhausted" one POST away.
+  const E3 = start({ RL_CREDENTIALS: '1', RL_WINDOW_MS: '600000' });
+  if (!await E3.ready()) { console.error('E3 never became healthy:\n' + E3.log); return shutdown(1); }
+  console.log('E3 · credential throttle throttles POSTs, never the login page');
+  await E3.req('POST', '/auth/login', { form: { email: 'nobody@jkos.net', password: 'nope' }, noJar: true });
+  {
+    const throttled = await E3.req('POST', '/auth/login', { form: { email: 'nobody@jkos.net', password: 'nope' }, noJar: true });
+    const body = await throttled.text();
+    ok('POST past the budget → 429 + Retry-After', throttled.status === 429 && !!throttled.headers.get('retry-after'), `${throttled.status}`);
+    ok('throttled form post gets the login FORM back, not JSON',
+      /<form method="POST" action="\/auth\/login"/.test(body) && /Please wait \d+ minutes? and try again/.test(body),
+      body.slice(0, 160));
+    const asJson = await E3.req('POST', '/auth/login', { json: { email: 'nobody@jkos.net', password: 'nope' }, noJar: true });
+    const jj = await asJson.json().catch(() => ({}));
+    ok('throttled JSON caller keeps a JSON body', asJson.status === 429 && jj.code === 'RATE_LIMITED' && jj.retry_after_ms > 0, JSON.stringify(jj));
+    const page = await E3.req('GET', '/auth/login', { noJar: true });
+    const pageHtml = await page.text();
+    ok('GET /auth/login still renders while the POST budget is spent',
+      page.status === 200 && pageHtml.includes('action="/auth/login"'), `${page.status}`);
+    ok('GET /auth/register still renders too',
+      (await E3.req('GET', '/auth/register', { noJar: true })).status === 200);
+  }
+
   // ── Instance F: a 2nd public key published in JWKS — verifies multi-key
   //    rotation output. (U3)
   const F = start({ JKOS_AUTH_PUBLIC_KEY_NEXT: publicKey2, JKOS_AUTH_KID: '1', JKOS_AUTH_KID_NEXT: '2' });

@@ -47,7 +47,12 @@ const REFRESH_GRACE_MS = process.env.REFRESH_GRACE_MS != null
 // All overridable via env (tests raise them so the suite isn't throttled).
 const numEnv = (k, d) => (process.env[k] != null ? Number(process.env[k]) : d)
 const RL_WINDOW_MS = numEnv('RL_WINDOW_MS', 15 * 60 * 1000)
-const RL_CREDENTIALS = numEnv('RL_CREDENTIALS', 10)   // /auth/login · /auth/register · /auth/guest
+// 30 credential POSTs per IP per window, not 10: one address is one HOUSEHOLD
+// (NAT) or one carrier (CGNAT), not one person, and a 15-minute wall after ten
+// mistyped passwords is a lockout in everything but name. The per-account
+// exponential backoff is what actually costs an attacker time — it makes 30
+// attempts against a single account take minutes on its own.
+const RL_CREDENTIALS = numEnv('RL_CREDENTIALS', 30)   // /auth/login · /auth/register · /auth/guest
 const RL_REFRESH = numEnv('RL_REFRESH', 120)          // /auth/refresh
 const RL_GOOGLE = numEnv('RL_GOOGLE', 30)             // /auth/google · /auth/google/callback
 

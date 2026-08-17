@@ -1,6 +1,6 @@
 'use strict'
-// Small shared helpers: HTML escaping, redirect-target allow-listing, and the
-// password length policy.
+// Small shared helpers: HTML escaping, redirect-target allow-listing, the
+// password length policy, and the one "does this caller speak JSON?" test.
 
 const {
   AUTH_ORIGIN, PASSWORD_MIN, PASSWORD_MAX,
@@ -10,6 +10,15 @@ const { getAppOrigins } = require('./db')
 
 function escHtml(s) {
   return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+// Is this a JSON API caller (fetch from an app frontend) or a browser posting a
+// <form>? Every dual-mode responder in jkAuth branches on this, including the
+// rate-limit handler in app.js — which is why it lives here and not beside one
+// of them: a limiter that answered a form post with a raw JSON body would drop
+// the user on a blank page of machine text instead of the sign-in form.
+function isJsonReq(req) {
+  return !!req.headers['content-type']?.includes('application/json')
 }
 
 // Allow redirect_to only when its origin is this service or a registered app —
@@ -62,4 +71,16 @@ function loginBackoffMs(failedAttempts) {
   return Math.min(LOCKOUT_CAP_MS, LOCKOUT_BASE_MS * 2 ** exp)
 }
 
-module.exports = { escHtml, validateRedirectTo, passwordError, loginBackoffMs, deepMerge }
+// How long to tell a throttled human to wait, in words. Seconds while it is
+// still seconds; minutes once it isn't — "wait 847 seconds" reads like a fault,
+// "wait 15 minutes" reads like a queue.
+function waitPhrase(seconds) {
+  const s = Math.max(1, Math.ceil(seconds))
+  if (s < 60) return `${s} second${s === 1 ? '' : 's'}`
+  const m = Math.ceil(s / 60)
+  return `${m} minute${m === 1 ? '' : 's'}`
+}
+
+module.exports = {
+  escHtml, isJsonReq, validateRedirectTo, passwordError, loginBackoffMs, deepMerge, waitPhrase,
+}

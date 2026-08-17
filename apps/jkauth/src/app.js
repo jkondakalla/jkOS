@@ -10,6 +10,8 @@ const path = require('path')
 const rateLimit = require('express-rate-limit')
 const { getAppOrigins } = require('./db')
 const { weaveCors, healthHandler } = require('@jkos/weave/server')
+const { isJsonReq, waitPhrase } = require('./util')
+const { loginPage } = require('./views')
 const {
   RL_WINDOW_MS, RL_CREDENTIALS, RL_REFRESH, RL_GOOGLE,
 } = require('./config')
@@ -28,20 +30,53 @@ app.use(weaveCors(getAppOrigins))
 
 // Rate limiting (S6). Credential endpoints stay tight; refresh is legitimately
 // frequent so it gets headroom; the Google flow is throttled too. All per-IP.
-const mkLimiter = limit => rateLimit({
+//
+// What a limiter does when it TRIPS matters as much as its budget. app.use()
+// mounts middleware for every method, so the credential limiter counted GET
+// /auth/login too — every page render, every bounce through the sign-in screen
+// from a gated origin, every reload. Once the budget went, the default handler
+// answered the login PAGE with a bare JSON error for the rest of the window:
+// the sign-in surface itself was gone, and nothing on screen said "wait". Two
+// rules make it a wait instead of a wall:
+//
+//   · countUnsafeOnly — rendering the form is not an attempt; POSTing a
+//     credential is. Safe methods pass. (Off for the Google flow, whose whole
+//     traffic IS GETs — there the redirect + callback are what needs the cap.)
+//   · a human-shaped 429 — a browser gets the login page back with the wait
+//     spelled out and Retry-After set; a JSON caller keeps its machine body.
+//
+// Brute force stays bounded by the POST budget, and the per-account exponential
+// backoff (loginBackoffMs, routes/auth.js) is the half that tracks the account
+// under attack rather than the address in front of it.
+const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
+const mkLimiter = (limit, { countUnsafeOnly = true, htmlPage = false } = {}) => rateLimit({
   windowMs: RL_WINDOW_MS,
   limit,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Too many attempts, please try again later' },
+  skip: req => countUnsafeOnly && SAFE_METHODS.has(req.method),
+  handler: (req, res) => {
+    const resetAt = req.rateLimit?.resetTime?.getTime?.() ?? Date.now() + RL_WINDOW_MS
+    const retryMs = Math.max(0, resetAt - Date.now())
+    const msg = `Too many attempts. Please wait ${waitPhrase(retryMs / 1000)} and try again.`
+    res.setHeader('Retry-After', String(Math.max(1, Math.ceil(retryMs / 1000))))
+    if (htmlPage && !isJsonReq(req)) {
+      return res.status(429).send(loginPage({
+        error:      msg,
+        redirectTo: req.body?.redirect_to,
+        mode:       req.originalUrl.startsWith('/auth/register') ? 'register' : undefined,
+      }))
+    }
+    res.status(429).json({ error: msg, code: 'RATE_LIMITED', retry_after_ms: retryMs })
+  },
 })
-app.use(['/auth/login', '/auth/register', '/auth/guest'], mkLimiter(RL_CREDENTIALS))
+app.use(['/auth/login', '/auth/register', '/auth/guest'], mkLimiter(RL_CREDENTIALS, { htmlPage: true }))
 app.use('/auth/refresh', mkLimiter(RL_REFRESH))
 // Service-token issuance presents a SECRET (client-credentials), so it belongs on
 // the tight credential budget, not refresh's relaxed one — otherwise the secret is
 // brute-forceable at the refresh rate. Tokens live ~10 min, so issuance is rare.
 app.use('/auth/token', mkLimiter(RL_CREDENTIALS))
-app.use(['/auth/google', '/auth/google/callback'], mkLimiter(RL_GOOGLE))
+app.use(['/auth/google', '/auth/google/callback'], mkLimiter(RL_GOOGLE, { countUnsafeOnly: false }))
 
 // Security headers on every dynamic response (static assets are served above and
 // stay cacheable): clickjacking defence + nosniff + a tight referrer policy +
