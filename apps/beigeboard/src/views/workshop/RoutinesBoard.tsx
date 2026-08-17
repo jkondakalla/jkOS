@@ -35,7 +35,7 @@ import React, { useMemo, useState } from 'react'
 import { FONT_HEAD, localDate } from '../../lib/theme'
 import {
   getRoutines, cadenceDays, weeklyTarget, floatCount, weekCells, floatsOf,
-  occurrencesOf, attainment, streakOf, toggleDay, addDays, weekStart,
+  occurrencesOf, attainment, streakOf, toggleDay, toggleSkip, addDays, weekStart,
   type Cell,
 } from '../../lib/routines'
 import { normalizeSpec, summarize, metricOf, parseCadence, describeCadence } from '../../lib/routine-spec'
@@ -144,7 +144,7 @@ export function RoutinesBoard({
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 14 }}>
           <span className="jk-lab jk-lab-xs" style={{ color: 'var(--color-accent)' }}>THE CADENCE</span>
           <span className="mono-eyebrow">
-            TICK WHAT YOU DID · CLICK AN EMPTY SLOT TO COMMIT THAT WEEKDAY, EVERY WEEK
+            TICK WHAT YOU DID · CLICK AN EMPTY SLOT TO COMMIT THAT WEEKDAY, EVERY WEEK · CLICK A STRUCK SLOT TO PUT IT BACK
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16, marginTop: 12 }}>
@@ -256,11 +256,16 @@ function RoutineRow({
     [spec, routine, items, today],
   )
 
-  /* The record/plan split — see the note at the top of the file. */
+  /* The record/plan split — see the note at the top of the file.
+     A STRUCK-OUT cell is neither: the weekday is already committed, so
+     onCommitDay would un-commit every week to undo one date. It gets the third
+     meaning — put this one session back — which is the only way to undo a delete
+     and therefore has to live on the cell the delete emptied. */
   const onCell = (cell: Cell) => {
     if (readonly) return
     const isRecord = cell.occurrence && (cell.isPast || cell.isToday)
     if (isRecord) onToggle?.(cell.occurrence.id)
+    else if (cell.state === 'skipped') onUpdateItem?.(routine.id, { cadence_skips: toggleSkip(routine, cell.iso) })
     else onCommitDay(cell.offset)
   }
 
@@ -421,10 +426,16 @@ function DayCell({ cell, tint, readonly, onClick }: { cell: Cell; tint: string; 
     missed: 'Missed — click to tick it anyway',
     planned: 'Planned — click to drop this weekday',
     idle: 'Committed, nothing scheduled here',
+    skipped: 'Struck out — click to put this session back',
     off: 'Click to commit this weekday, every week',
   }[cell.state]
 
-  if (cell.state === 'off' || cell.state === 'idle') {
+  if (cell.state === 'off' || cell.state === 'idle' || cell.state === 'skipped') {
+    /* The struck-out cell is the one empty cell that is a DECISION, so it is drawn
+       as a struck mark and not as a dashed absence: solid hairline (the decision
+       is made), the routine's own tint (it is still this routine's day), and the
+       strike itself for what happened to it. */
+    const skipped = cell.state === 'skipped'
     return (
       <div
         className="jk-hit"
@@ -433,7 +444,9 @@ function DayCell({ cell, tint, readonly, onClick }: { cell: Cell; tint: string; 
         style={{
           ...common,
           borderRadius: 'var(--hub-radius-xs)',
-          border: `1px dashed ${cell.state === 'idle' ? 'color-mix(in srgb, var(--jk-tint) 55%, transparent)' : 'var(--color-line)'}`,
+          border: skipped
+            ? '1px solid var(--color-line)'
+            : `1px dashed ${cell.state === 'idle' ? 'color-mix(in srgb, var(--jk-tint) 55%, transparent)' : 'var(--color-line)'}`,
           color: 'var(--color-faint)',
           /* Today is marked by LIGHT, not pigment — the brightest stock, never a
              mid-tone tint (DESIGN doctrine). Held to a WASH of it rather than the
@@ -443,7 +456,7 @@ function DayCell({ cell, tint, readonly, onClick }: { cell: Cell; tint: string; 
           opacity: cell.isPast ? 0.5 : 1,
         }}
       >
-        {cell.state === 'idle' ? '·' : ''}
+        {skipped ? '–' : cell.state === 'idle' ? '·' : ''}
       </div>
     )
   }

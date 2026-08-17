@@ -3,6 +3,7 @@ import './app.css'
 
 import { FONT_BODY, weekStart, isoDate } from './lib/theme'
 import { TODAY_ISO, INITIAL_ACCOUNTS, getDescendants } from './lib/seed'
+import { skipRefOf, toggleSkip } from './lib/routines'
 import { useJkOSPreferences } from './hooks/useJkOSPreferences'
 import { DragProvider } from './providers/DragProvider'
 import { MobileApp } from './mobile'
@@ -229,12 +230,43 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
     // locally so a deleted goal's milestones/tasks don't linger as ghosts (dangling
     // parent_id, 404 on interaction) until the next reload.
     const removed = [target, ...getDescendants(target, items)]
+
+    /* THE TWO ROUTINE RULES, mirrored from the DELETE route (backend routes/items.js).
+       Both exist because a routine is visible in more places than the tree reaches,
+       and a delete that only holds in the view you clicked in is the bug this pairs
+       with: the row goes, and Today or the calendar still shows the session.
+
+       (a) deleting a ROUTINE takes every row it minted, matched on EXT_REF and not
+           on parentage — an occurrence dragged under a goal left the subtree, so
+           getDescendants above cannot see it.
+       (b) deleting an OCCURRENCE strikes its date out of the routine's pattern, so
+           the board draws the cell as struck immediately instead of showing it
+           un-minted until the next load tells us the server agreed. */
+    if (target.kind === 'routine') {
+      const prefix = `routine:${target.id}:`
+      for (const it of items) {
+        if (String(it.ext_ref || '').startsWith(prefix) && !removed.some(r => r.id === it.id)) removed.push(it)
+      }
+    }
+    const skip = String(target.ext_ref || '').startsWith('routine:')
+      ? { routineId: Number(String(target.ext_ref).split(':')[1]), suffix: skipRefOf(target) }
+      : null
+    const routineBefore = skip ? items.find(it => it.id === skip.routineId && it.kind === 'routine') : null
+
     const removedIds = new Set(removed.map((r: any) => r.id))
-    setItems(prev => prev.filter(it => !removedIds.has(it.id)))
+    setItems(prev => prev
+      .filter(it => !removedIds.has(it.id))
+      .map(it => (routineBefore && it.id === routineBefore.id
+        ? { ...it, cadence_skips: toggleSkip(it, skip!.suffix) }
+        : it)))
     setSelected((s: any) => s && removedIds.has(s.id) ? null : s)
     api.del(`/api/items/${id}`).catch((e: any) => {
       console.error('[onDelete]', e)
-      setItems(prev => [...prev, ...removed])   // restore the whole subtree on failure
+      // restore the whole subtree AND the pattern on failure
+      setItems(prev => [
+        ...prev.map(it => (routineBefore && it.id === routineBefore.id ? routineBefore : it)),
+        ...removed,
+      ])
     })
   }
 

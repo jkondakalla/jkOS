@@ -343,6 +343,18 @@
     0 8px 22px color-mix(in srgb, var(--accent-deepen-ink) 22%, transparent),
     inset 0 1px 0 color-mix(in srgb, #ffffff 55%, transparent);
 
+  /* ── The SCROLL GUTTER (the ::-webkit-scrollbar block below) ──────────────
+     A channel and a pill riding in it. On paper the channel is the darker kraft
+     layer — a groove pressed into the cream stock, the same reading a meter's
+     trough has — and the thumb is warm ink on top of it, solid rather than the
+     low-opacity ghost this used to be. The dark block swaps both for the tube's
+     own physics rather than re-tinting these. Kept as tokens because Gecko can
+     only be handed two COLOURS (scrollbar-color) and has to land in the same
+     place the drawn Blink bar does. */
+  --hub-scroll-track:       var(--hub-bg-1);
+  --hub-scroll-thumb:       var(--hub-line-bright);
+  --hub-scroll-thumb-hover: var(--hub-amber-dim);
+
   /* ── color-scheme: the one declaration the browser itself reads ───────────
      Everything else in this file dresses OUR markup. This tells the ENGINE
      which face it is painting, and it is the only lever over chrome we never
@@ -487,6 +499,15 @@
   --hub-menu-lift:
     0 10px 30px rgba(0, 0, 0, 0.72),
     0 0 16px color-mix(in srgb, var(--accent) 15%, transparent);
+
+  /* The gutter, on the tube. The channel is UNLIT STOCK — the darkest layer,
+     the same move --hub-field-recess makes here, because a recess on a CRT is
+     stated by absence of light and not by a bevel there is no lamp to catch.
+     The thumb is the brightest line tone so it reads as lit metal against it;
+     --hub-line-bright would have been too close to the channel to find. */
+  --hub-scroll-track:       var(--hub-bg-0);
+  --hub-scroll-thumb:       var(--hub-metal-2);
+  --hub-scroll-thumb-hover: var(--hub-amber-dim);
 
   /* The engine's own half of the face flip — see the note in the light block.
      accent-color is inherited from :root and needs no dark twin: --accent
@@ -973,15 +994,34 @@
  * Gecko gives the two standard properties and nothing else. Both are set here
  * so a Firefox user does not get the OS bar over a drawn page.
  *
- * The TRACK is transparent on purpose. It used to be --hub-bg-1, which painted
- * a solid tan channel down the right edge of every scrolling region — a strip
- * of a different material laid over the grain. The gutter is not an object;
- * only the thumb is. The thumb is drawn like every other mark in the suite: ink
- * at low opacity, going amber under the pointer, and it inherits the face
- * automatically because --hub-line-strong flips.
+ * BOTH PARTS ARE DRAWN OBJECTS. An earlier pass left the track transparent and
+ * the thumb a low-opacity ink mark, on the reasoning that a gutter is not a
+ * thing. In use it read as the one un-designed strip on the page: a ghost bar
+ * with square-ish ends floating over the grain, with nothing to say where it
+ * could travel to. So the gutter is now a CHANNEL — a solid recessed groove
+ * with fully rounded ends — and the thumb is a solid pill riding in it, the
+ * same relationship a meter has to its trough (.jk-bar) and drawn out of the
+ * same token vocabulary.
+ *
+ * THE TWO FACES, as everywhere else in this file, are a token pair and not a
+ * re-tint: on paper the channel is the darker kraft layer pressed into cream
+ * and the thumb is warm ink; on the tube the channel is UNLIT STOCK (the same
+ * move --hub-field-recess makes — a bevel on a CRT is a lie) and the thumb is
+ * lit metal. Both go amber under the pointer, which is the suite's one
+ * "you can grab this" signal.
+ *
+ * THE GEOMETRY. The bar is 12px so it is a comfortable pointer target; the
+ * drawn parts are 6px, inset by a 3px transparent border with
+ * `background-clip: content-box`. That split is the whole trick — the hit box
+ * has to be big, the mark does not — and it is why the radius is a full pill
+ * (999px) rather than a corner from the --hub-radius scale: at 6px any corner
+ * softer than "round" is indistinguishable from square.
  *
  * ::-webkit-scrollbar-corner matters more than it looks: where a vertical and a
- * horizontal bar meet, an unstyled corner paints an opaque OS-grey square.
+ * horizontal bar meet, an unstyled corner paints an opaque OS-grey square. It
+ * stays TRANSPARENT rather than taking the channel colour — the two channels
+ * have rounded ends, and a filled square between them would square them off
+ * again at exactly the point both are visible.
  *
  * The two syntaxes are MUTUALLY EXCLUSIVE in Blink, and not in a way either
  * spec mentions: the moment `scrollbar-color` applies to an element, Chrome
@@ -989,30 +1029,39 @@
  * bar instead — a bar that comes WITH stepper arrows at both ends and cannot be
  * told otherwise. Setting both, which is the obvious way to cover both engines,
  * therefore silently loses the drawn one. So the standard properties are handed
- * only to engines that have no webkit pseudos to lose.
+ * only to engines that have no webkit pseudos to lose. Gecko cannot round or
+ * inset anything, so there it is the two COLOURS that carry the design — which
+ * is the other reason the track needed a real one.
  * ───────────────────────────────────────────────────────────────────────── */
 @supports not (selector(::-webkit-scrollbar)) {
   :root {
     scrollbar-width: thin;
-    scrollbar-color: var(--hub-line-strong) transparent;
+    scrollbar-color: var(--hub-scroll-thumb) var(--hub-scroll-track);
   }
 }
-::-webkit-scrollbar        { width: 8px; height: 8px; }
-::-webkit-scrollbar-track  { background: transparent; }
+::-webkit-scrollbar        { width: 12px; height: 12px; }
 ::-webkit-scrollbar-corner { background: transparent; }
 /* Styling ANY scrollbar part opts the whole bar out of the OS overlay style and
    back into the legacy one — which brings stepper arrows at both ends. They are
    not part of this system and they cannot be reached any other way. */
 ::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
-::-webkit-scrollbar-thumb  {
-  background: var(--hub-line-strong);
-  border-radius: 4px;
-  /* The inset border is what keeps an 8px bar reading as a ~4px mark: the thumb
-     box has to be tall enough to grab, the drawn part does not. */
-  border: 2px solid transparent;
+::-webkit-scrollbar-track  {
+  background: var(--hub-scroll-track);
+  border-radius: 999px;
+  border: 3px solid transparent;
   background-clip: content-box;
 }
-::-webkit-scrollbar-thumb:hover { background: var(--hub-amber-dim); background-clip: content-box; }
+::-webkit-scrollbar-thumb  {
+  background: var(--hub-scroll-thumb);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+/* background-clip is restated on every state: a bare `background` shorthand in a
+   later rule resets clip to border-box and the mark silently grows to fill the
+   whole 12px gutter. */
+::-webkit-scrollbar-thumb:hover  { background: var(--hub-scroll-thumb-hover); background-clip: content-box; }
+::-webkit-scrollbar-thumb:active { background: var(--accent); background-clip: content-box; }
 
 /* Opt-out, for strips that scroll but must not show a bar (a tray, a chip row).
    Declared as a class so no app has to re-invent the three-engine incantation. */

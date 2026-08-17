@@ -66,6 +66,47 @@ export function toggleDay(routine: any, offset: number): string {
   return next.sort((a, b) => a - b).join(',')
 }
 
+/* ── The skip list ──────────────────────────────────────────────────────────
+ * The exceptions to the pattern (backend migration 12). Deleting one session
+ * writes its ref suffix here, which is what stops the engine minting it straight
+ * back on the next read; clearing the entry restores the session. Same shape as
+ * the cadence above: one parser, one writer, no third copy of the encoding.
+ *
+ * A SUFFIX is the part of an occurrence's ext_ref after `routine:<id>:` — a date
+ * for a dated occurrence, `<weekStart>#<index>` for a float. `skipRefOf` is the
+ * only place the frontend derives one, so a board cell and a deleted row can't
+ * disagree about what they are naming.
+ * ─────────────────────────────────────────────────────────────────────────── */
+
+/** The suffixes this routine has struck out. */
+export function skipsOf(routine: any): Set<string> {
+  const raw = String(routine?.cadence_skips || '').trim()
+  if (!raw) return new Set<string>()
+  return new Set(raw.split(',').map((s) => s.trim()).filter(Boolean))
+}
+
+/** The skip suffix naming one occurrence row, or a bare date for a board cell. */
+export function skipRefOf(occurrenceOrIso: any): string {
+  if (typeof occurrenceOrIso === 'string') return occurrenceOrIso
+  const ref = String(occurrenceOrIso?.ext_ref || '')
+  return ref.startsWith('routine:') ? ref.split(':').slice(2).join(':') : ''
+}
+
+/** Is this date struck out of the routine's pattern? */
+export const isSkipped = (routine: any, iso: string): boolean => skipsOf(routine).has(iso)
+
+/** The skip string with `suffix` flipped — the ONE place the frontend writes this
+ *  encoding. Returns the new value for a PATCH; does not mutate. Sorted, to match
+ *  what the server writes, so an unchanged list is byte-identical and a PATCH that
+ *  restores the last skip leaves the column empty rather than holding a stray
+ *  comma. */
+export function toggleSkip(routine: any, suffix: string): string {
+  const set = skipsOf(routine)
+  if (set.has(suffix)) set.delete(suffix)
+  else set.add(suffix)
+  return [...set].sort().join(',')
+}
+
 /* ── The occurrences ──────────────────────────────────────────────────────── */
 
 /** Rows the engine minted under this routine. Identified by parent_id AND the
@@ -86,11 +127,17 @@ export function floatsOf(routine: any, items: any[], wkStart: string): any[] {
  *   off      nothing committed and nothing minted — an empty slot
  *   idle     the pattern commits this weekday, but no occurrence exists on this
  *            date (the week predates the routine, or it was withdrawn)
+ *   skipped  the pattern commits this weekday and the user STRUCK THIS DATE OUT.
+ *            Distinct from `idle` because it is the one empty cell that is a
+ *            decision rather than an absence: it stays empty on purpose, and it
+ *            is the only place the decision can be undone. Without it a deleted
+ *            session was indistinguishable from one the routine never asked for,
+ *            and clicking the cell would have toggled the whole WEEKDAY off.
  *   planned  an occurrence in the future
  *   open     today's occurrence, not yet ticked — the day is still running
  *   missed   a past occurrence that was never ticked
  *   done     completed */
-export type CellState = 'off' | 'idle' | 'planned' | 'open' | 'missed' | 'done'
+export type CellState = 'off' | 'idle' | 'skipped' | 'planned' | 'open' | 'missed' | 'done'
 
 export interface Cell {
   iso: string
@@ -105,6 +152,7 @@ export interface Cell {
 /** The seven cells of one routine's row, for the week starting `wkStart`. */
 export function weekCells(routine: any, items: any[], wkStart: string, today: string): Cell[] {
   const committed = new Set(cadenceDays(routine))
+  const skips = skipsOf(routine)
   const byDate = new Map<string, any>()
   for (const o of occurrencesOf(routine, items)) if (o.due_date) byDate.set(o.due_date, o)
 
@@ -119,6 +167,11 @@ export function weekCells(routine: any, items: any[], wkStart: string, today: st
       else if (isPast) state = 'missed'
       else if (isToday) state = 'open'
       else state = 'planned'
+    } else if (skips.has(iso)) {
+      /* Struck out beats committed, and it beats `off` too: a date can be skipped
+         after the weekday it sits on has since been un-committed, and the cell
+         still has to offer the way back. */
+      state = 'skipped'
     } else if (committed.has(offset)) {
       state = 'idle'
     }

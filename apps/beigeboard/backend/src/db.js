@@ -521,6 +521,42 @@ const MIGRATIONS = [
       d.exec(`UPDATE items SET spec_version = 1 WHERE kind = 'routine' AND spec_version IS NULL`);
     },
   },
+  {
+    id: 12, name: 'routine_skips',
+    up(d) {
+      /*
+       * THE SKIP LIST — the exception that makes DELETING an occurrence mean
+       * something.
+       *
+       * Occurrences are minted rows, and the mint runs on every unfiltered
+       * GET /api/items. That made deleting one a no-op with a delay: the row
+       * vanished from the view you were looking at, the next read re-derived it
+       * from the routine's rules, and it was back on Today and the Week and the
+       * calendar as if nothing had happened. There was no way to say "not this
+       * one" — the only lever was to un-commit the whole WEEKDAY, which takes out
+       * every future week too.
+       *
+       * So a routine now carries its own exceptions. `cadence_skips` is a CSV of
+       * OCCURRENCE REF SUFFIXES — the part of an occurrence's ext_ref after
+       * `routine:<id>:`, so a dated one is `YYYY-MM-DD` and a float is
+       * `<weekStart>#<index>`. Deleting an occurrence appends its suffix here;
+       * plannedOccurrences() then filters that ref out of the horizon for good.
+       *
+       * ON THE ROUTINE and not on a tombstone row, because a skip is a RULE —
+       * exactly the same kind of fact as the cadence beside it, and exactly what
+       * an RRULE calls EXDATE. The alternative, keeping the deleted row with a
+       * `skipped` flag, would leave it to be filtered out of Today, Week,
+       * Calendar, the ORDECK widgets and the weave `items` dataset separately,
+       * which is the whole class of bug the "an occurrence is an ordinary task
+       * row" bet exists to avoid.
+       *
+       * Additive and NULL-safe: NULL (every existing routine) means no
+       * exceptions, which is exactly today's behaviour.
+       */
+      try { d.exec(`ALTER TABLE items ADD COLUMN cadence_skips TEXT`); }
+      catch (e) { if (!e.message?.includes('duplicate column')) throw e; }
+    },
+  },
 ];
 
 function runMigrations() {

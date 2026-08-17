@@ -168,6 +168,25 @@ const weeksBetween = (a, b) => Math.round(
 const dayRef   = (routineId, date)      => `routine:${routineId}:${date}`;
 const floatRef = (routineId, wkStart, i) => `routine:${routineId}:${wkStart}#${i}`;
 
+/** The routine id an occurrence's ext_ref names, or null. THE REF IS THE
+ *  AUTHORITY, not parent_id: a user may drag an occurrence under a goal, which
+ *  re-parents the row but does not change what minted it. Deleting the routine
+ *  has to reach those too, or they survive as ghosts pointing at a routine that
+ *  no longer exists. */
+function refRoutineId(ref) {
+  const m = /^routine:(\d+):/.exec(String(ref || ''));
+  return m ? parseInt(m[1], 10) : null;
+}
+
+/** The part of an occurrence's ext_ref that identifies WHICH occurrence it is —
+ *  a date for a dated one, `<weekStart>#<index>` for a float. This is the unit
+ *  the skip list stores, because it is the only part that survives the routine id
+ *  being irrelevant (a skip already lives ON that routine). */
+function refSuffix(ref) {
+  const s = String(ref || '');
+  return s.startsWith('routine:') ? s.split(':').slice(2).join(':') : '';
+}
+
 /** The date the engine minted an occurrence ON, read back out of its ext_ref —
  *  null for a float, which never had one. The ref is the mint's own record, so
  *  comparing the row's CURRENT due_date against it is how "has the user moved
@@ -191,6 +210,76 @@ function refMintedDate(ref) {
 function isEngineOwned(occ) {
   if (occ.completed) return false;
   return (occ.due_date || null) === refMintedDate(occ.ext_ref);
+}
+
+/* ── The skip list ────────────────────────────────────────────────────────────
+ *
+ * The exceptions to the pattern — see migration 12 for why they live on the
+ * routine rather than as tombstone rows. `cadence_skips` is a CSV of ref
+ * SUFFIXES; everything below is the read/write vocabulary for it, kept here
+ * beside the mint it steers so the two can't drift.
+ * ───────────────────────────────────────────────────────────────────────────── */
+
+/** The suffixes this routine has struck out, as a Set. Tolerant of a malformed
+ *  entry for the same reason cadenceDays is: this filters a render and a mint,
+ *  and a stray value must fail closed (skip nothing) rather than throw. */
+function skipSet(routine) {
+  const raw = String(routine?.cadence_skips || '').trim();
+  if (!raw) return new Set();
+  return new Set(raw.split(',').map((s) => s.trim()).filter(Boolean));
+}
+
+/** Serialise a skip set back to the column, sorted (so an unchanged list is
+ *  byte-identical and never touches updated_at — peers poll on it) and capped at
+ *  the same 200 the door validates, dropping the OLDEST first: a skip far enough
+ *  in the past that it has fallen out of every horizon can never be re-minted
+ *  anyway, so it is the one that costs nothing to forget. */
+const MAX_SKIPS = 200;
+function formatSkips(set) {
+  const out = [...set].sort();
+  return (out.length > MAX_SKIPS ? out.slice(out.length - MAX_SKIPS) : out).join(',');
+}
+
+/** Strike one occurrence ref out of its routine's pattern. Called by the DELETE
+ *  route BEFORE the row goes, so "delete this session" survives the next mint
+ *  instead of being silently re-derived on the following read. Returns true when
+ *  the routine actually changed. */
+function skipOccurrence(row, userId) {
+  const rid = refRoutineId(row?.ext_ref);
+  const suffix = refSuffix(row?.ext_ref);
+  if (rid == null || !suffix) return false;
+  const routine = get('SELECT id, cadence_skips FROM items WHERE id = ? AND user_id = ? AND kind = ?',
+    [rid, userId, 'routine']);
+  if (!routine) return false;                 // the routine is already gone — nothing to except
+  const set = skipSet(routine);
+  if (set.has(suffix)) return false;
+  set.add(suffix);
+  run('UPDATE items SET cadence_skips = ? WHERE id = ? AND user_id = ?',
+    [formatSkips(set), rid, userId]);
+  return true;
+}
+
+/** Delete every row this routine ever minted, WHEREVER IT NOW SITS.
+ *
+ *  The ordinary cascade walks parent_id, which catches an occurrence that stayed
+ *  under its routine — nearly all of them. It misses the ones the user dragged
+ *  somewhere else: re-parenting an occurrence into a goal moves the row out of the
+ *  subtree while its ext_ref goes on naming a routine that is about to stop
+ *  existing. Those survived the delete as ghosts — a session on the calendar,
+ *  carrying a prescription, belonging to nothing, and never reconciled again
+ *  because the reconcile is keyed on the routine.
+ *
+ *  Matching on the ext_ref instead of the tree is what makes "delete this routine"
+ *  mean the same thing everywhere it is visible. Returns the number of rows
+ *  removed. Call BEFORE the cascade — after it, the routine row is gone and there
+ *  is nothing to name. */
+function purgeRoutineOccurrences(routineId, userId) {
+  const r = run(
+    `DELETE FROM items
+      WHERE user_id = ? AND ext_ref LIKE ? AND id <> ?`,
+    [userId, `routine:${routineId}:%`, routineId],
+  );
+  return r.changes;
 }
 
 /* ── The mint ─────────────────────────────────────────────────────────────── */
@@ -232,12 +321,22 @@ function plannedOccurrences(routine, today) {
   const to = addDays(weekStart(today), HORIZON_WEEKS * 7 - 1);
   const anchor = born || today;
 
+  /* THE SKIP LIST IS APPLIED HERE and nowhere else (migration 12). A struck-out
+     occurrence has to leave the PLAN, not just the table: filtering it at insert
+     time would leave it in `byRef`, so withdrawStale would think the engine still
+     wanted it and the ladder would still count it as a session to come. Dropping
+     it from the plan means every consumer of plannedOccurrences — the mint, the
+     withdrawal, the cycle ladder and the forge's preview — agrees that this date
+     is not part of the routine. */
+  const skips = skipSet(routine);
+
   return expandCadence(cadence, { from: floor, to, anchor, days, floats })
     .map((p) => ({
       ref: p.float ? floatRef(routine.id, p.week, p.index) : dayRef(routine.id, p.date),
       date: p.date,
       week: p.week,
-    }));
+    }))
+    .filter((p) => !skips.has(refSuffix(p.ref)));
 }
 
 /* ── The cycle ladder ─────────────────────────────────────────────────────────
@@ -638,6 +737,9 @@ function materializeForOccurrence(row, userId, today) {
 module.exports = {
   materializeRoutines, materializeOne, materializeForOccurrence,
   recordRevision, revisionsOf, setDeloadOverride,
+  // the delete path (migration 12): strike one occurrence out of the pattern, and
+  // reach every row a deleted routine minted wherever the user moved it to
+  skipOccurrence, purgeRoutineOccurrences, refRoutineId, refSuffix, skipSet,
   // exported for the tests + the frontend's mirror of the same rules
   plannedOccurrences, cadenceDays, floatCount, weeklyTarget, weekStart, addDays,
   cycleLadder, prescriptionFor, orderDate, weeksBetween, isEngineOwned,

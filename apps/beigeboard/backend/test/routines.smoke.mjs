@@ -251,11 +251,62 @@ try {
   const junk = await req('GET', '/api/items', undefined, { today: 'not-a-date' });
   ok(junk.status === 200, `I: a malformed X-BB-Today is ignored, not fatal (got ${junk.status})`);
 
+  // ── J. THE SKIP LIST — deleting one occurrence has to STAY deleted ──────────
+  //     The mint runs on every unfiltered read, so before migration 12 a delete
+  //     was a no-op with a delay: the row left the view in front of you and the
+  //     next read re-derived it from rules that still called for it. The whole
+  //     point of this section is the SECOND read.
+  const jMade = await req('POST', '/api/items', {
+    title: 'Read', kind: 'routine', status: 'active', cadence_days: '0,2,4',
+  });
+  const jid = jMade.json.id;
+  let jRows = await list();
+  const jVictim = occurrencesOf(jRows, jid).find((o) => o.due_date && o.due_date > TODAY);
+  ok(!!jVictim, 'J: a future occurrence to strike out');
+
+  await req('DELETE', `/api/items/${jVictim.id}`);
+  jRows = await list();
+  ok(!dates(jRows, jid).includes(jVictim.due_date),
+    `J: the deleted session is gone after the NEXT read, not re-minted (got ${JSON.stringify(dates(jRows, jid))})`);
+  await list();                                          // and stays gone on the one after
+  jRows = await list();
+  ok(!dates(jRows, jid).includes(jVictim.due_date), 'J: still gone two reads later');
+  ok(String(jRows.find((r) => r.id === jid)?.cadence_skips || '').includes(jVictim.due_date),
+    'J: the exception is recorded ON THE ROUTINE, where the rules live');
+
+  // Its neighbours are untouched — a skip is one date, not the weekday.
+  ok(dates(jRows, jid).length > 0 && !dates(jRows, jid).includes(jVictim.due_date),
+    'J: the rest of the cadence still mints — one exception, not a withdrawal');
+
+  // Un-skip: clearing the entry puts that session back. This is the board's
+  // struck-cell click, and it is the only way to undo a delete.
+  await req('PATCH', `/api/items/${jid}`, { cadence_skips: '' });
+  jRows = await list();
+  ok(dates(jRows, jid).includes(jVictim.due_date), 'J: clearing the exception re-mints the session');
+
+  // Validated at the door like every other value that steers the mint.
+  for (const bad of ['nope', '2026-13-40', `${TODAY},junk`]) {
+    const r = await req('PATCH', `/api/items/${jid}`, { cadence_skips: bad });
+    ok(r.status === 400 && r.json?.code === 'VALIDATION',
+      `J: cadence_skips='${bad}' → 400 VALIDATION (got ${r.status})`);
+  }
+  await req('DELETE', `/api/items/${jid}`);
+
   // ── cascade: deleting the routine takes its occurrences with it ─────────────
+  //     INCLUDING the ones that left the subtree. Re-parenting an occurrence into
+  //     a goal moves the row out of the parent_id tree the cascade walks, while
+  //     its ext_ref goes on naming the routine — so it used to survive the delete
+  //     as a ghost session belonging to nothing.
+  const strayGoal = await req('POST', '/api/items', { title: 'Somewhere else', kind: 'goal', scope: 'quarter' });
+  const stray = occurrencesOf(await list(), rid).find((o) => o.due_date && o.due_date > TODAY);
+  await req('PATCH', `/api/items/${stray.id}`, { parent_id: strayGoal.json.id });
+
   await req('DELETE', `/api/items/${rid}`);
   rows = await list();
   ok(!rows.some((r) => r.id === rid), 'cascade: the routine is gone');
   ok(occurrencesOf(rows, rid).length === 0, 'cascade: its occurrences went with it');
+  ok(!rows.some((r) => String(r.ext_ref || '').startsWith(`routine:${rid}:`)),
+    'cascade: an occurrence dragged out of the subtree goes too — matched on ext_ref, not on parentage');
 } catch (e) {
   console.error('harness error:', e);
   fail++;

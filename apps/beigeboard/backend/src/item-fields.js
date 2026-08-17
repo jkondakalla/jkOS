@@ -111,6 +111,18 @@ const ITEM_FIELDS = [
   { name: 'cadence_rule',    shape: 'string',  client: true,  cap: 200 },
   { name: 'deload_override', shape: 'number',  client: true,  num: true },
   { name: 'spec_version',    shape: 'number',  client: false },
+  // ── The skip list (migration 12) ───────────────────────────────────────────
+  //   cadence_skips  on the ROUTINE — the dates the cadence calls for and the user
+  //                  has struck out. A CSV of occurrence REF SUFFIXES: the part of
+  //                  an occurrence's ext_ref after `routine:<id>:`, so a dated one
+  //                  is `YYYY-MM-DD` and a float is `<weekStart>#<index>`. Written
+  //                  by DELETE /api/items/<occurrence> and cleared by re-planning
+  //                  the cell; plannedOccurrences() filters the horizon through it.
+  //                  Client-writable so the board can un-skip in the same PATCH
+  //                  vocabulary it commits days with — validated at the door
+  //                  (schema.js looksLikeCadenceSkips) exactly like cadence_days,
+  //                  and for the same reason: it steers the mint.
+  { name: 'cadence_skips',   shape: 'string',  client: true,  cap: 4000 },
   { name: 'created_at',     shape: 'string',  client: false },
   { name: 'updated_at',     shape: 'string',  client: false },  // trigger-managed
 ];

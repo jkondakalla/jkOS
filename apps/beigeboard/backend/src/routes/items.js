@@ -7,7 +7,10 @@ const { all, run, get } = require('../db');
 const { DATASETS } = require('../../discovery');
 const { ITEM_COLUMNS, coerceColumn, validateItemWrite } = require('../schema');
 const { validParentId, cascadeDelete, seedDefaults } = require('../items-store');
-const { materializeRoutines, materializeOne, materializeForOccurrence, recordRevision } = require('../routines');
+const {
+  materializeRoutines, materializeOne, materializeForOccurrence, recordRevision,
+  skipOccurrence, purgeRoutineOccurrences,
+} = require('../routines');
 const { toRow, fail } = require('../util');
 const { looksLikeDate } = require('../schema');
 
@@ -172,12 +175,26 @@ router.patch('/api/items/:id', (req, res) => {
   } catch (e) { fail(res, e); }
 });
 
+/* DELETE has to mean the same thing on every surface, and for a ROUTINE that takes
+   two extra steps beyond the tree cascade — see routines.js for both.
+
+     · deleting a ROUTINE also purges every row it ever minted BY EXT_REF, not just
+       the ones still parented to it. An occurrence the user dragged under a goal
+       left the subtree and outlived the cascade, carrying a prescription and a
+       reference to a routine that no longer existed.
+
+     · deleting an OCCURRENCE strikes its ref out of the routine's pattern first.
+       Without that the delete was undone by the next unfiltered read: the row
+       vanished from the view in front of you and the mint put it straight back on
+       Today, the Week and the calendar, because the rules still called for it. */
 router.delete('/api/items/:id', (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) return res.status(400).json({ error: 'Invalid id' });
-    const row = get('SELECT id FROM items WHERE id = ? AND user_id = ?', [id, req.user.sub]);
+    const row = get('SELECT id, kind, ext_ref FROM items WHERE id = ? AND user_id = ?', [id, req.user.sub]);
     if (!row) return res.status(404).json({ error: 'Not found' });
+    if (row.kind === 'routine') purgeRoutineOccurrences(id, req.user.sub);
+    else if (String(row.ext_ref || '').startsWith('routine:')) skipOccurrence(row, req.user.sub);
     cascadeDelete(id, req.user.sub);
     res.json({ ok: true });
   } catch (e) { fail(res, e); }

@@ -55,13 +55,14 @@ fails on the first disagreement. **Change one, change the other, run the gate.**
 ## 3. The columns
 
 Migrations **9** (cadence), **10** (document), **11** (cadence rules, deload,
-revisions). All additive and NULL-safe: a routine that predates any of them keeps
-working unchanged.
+revisions), **12** (the skip list). All additive and NULL-safe: a routine that
+predates any of them keeps working unchanged.
 
 | Column | On | Holds |
 |---|---|---|
 | `cadence_days`, `cadence_count` | routine | the weekly pattern — Monday offsets, plus a target count whose surplus *floats* to the week bench |
 | `cadence_rule` | routine | cadence beyond weekly (§6). Empty = weekly. |
+| `cadence_skips` | routine | **the exceptions** (§4 RULE 5) — a CSV of occurrence ref suffixes the user has struck out |
 | `spec` | routine | **the document** — steps, progression rules, phases, ladders, `contributes` |
 | `spec_version` | routine | the revision number, bumped on every spec write |
 | `prescription` | occurrence | the document **rendered** at this session's cycle. Stamps `sv` = the revision it followed. |
@@ -86,7 +87,7 @@ disagree with the parser.
 **Accepted cost:** you cannot query *into* the document from SQL ("every routine with
 a squat in it"). That is a scan in JS over a few dozen rows, not an index.
 
-## 4. The four rules
+## 4. The five rules
 
 **RULE 1 — never mint into the past.** A routine created on a Friday must not conjure
 Monday's occurrence as already overdue.
@@ -105,6 +106,30 @@ occurrences are re-rendered on *every* reconcile, because the ladder moves under
 **RULE 4 — you progress by doing, not by time passing.** A past occurrence that was
 never ticked drops out of the cycle ladder entirely; the ones after it keep their
 rung. `advance_on: 'calendar'` opts out (a taper, a medication ramp, a syllabus).
+
+**RULE 5 — deleting a session is an exception to the rules, and is recorded as one.**
+Because the mint runs on every unfiltered read, deleting an occurrence used to be a
+no-op with a delay: the row left the view you were looking at and the next read
+re-derived it from rules that still called for it, so it came back on Today, on the
+Week and on the calendar. `DELETE /api/items/<occurrence>` now appends the row's ref
+suffix to its routine's `cadence_skips` **before** deleting it, and
+`plannedOccurrences` filters the horizon through that set — so the date leaves the
+*plan*, not just the table. Everything that reads the plan (the mint, the withdrawal,
+the cycle ladder, the forge preview) then agrees it is not part of the routine.
+> The exception lives **on the routine**, next to the cadence it qualifies — it is the
+> same kind of fact, and it is what an RRULE calls `EXDATE`. A tombstone row would
+> have to be filtered out of Today, Week, Calendar, the ORDECK widgets and the weave
+> `items` dataset separately, which is the whole class of bug the "an occurrence is an
+> ordinary task row" bet exists to avoid.
+
+**Undo** is clearing the entry (`PATCH { cadence_skips }`) — the board draws a struck
+cell for exactly this, because a deleted session is otherwise indistinguishable from a
+day the routine never asked for, and clicking that cell would toggle the whole weekday.
+
+**Deleting the ROUTINE** takes every row it minted, matched on **`ext_ref`, not on
+parentage**: an occurrence the user dragged under a goal has left the `parent_id`
+subtree the cascade walks, and used to survive as a ghost session carrying a
+prescription and pointing at a routine that no longer existed.
 
 ## 5. Progression
 

@@ -98,6 +98,26 @@ const looksLikeCadenceDays = (v) => {
   return new Set(parts).size === parts.length;   // no repeated day
 };
 
+/* The routine's SKIP LIST (migration 12) — a CSV of occurrence ref suffixes, each
+   either a date (`2026-08-26`) or a float slot (`2026-08-24#0`). Validated at the
+   door for the same reason cadence_days is: plannedOccurrences() filters the mint
+   through this set, so a malformed entry is a silently un-honoured exception —
+   the user strikes a session out, nothing happens, and there is nothing on screen
+   to explain it. Entries are de-duplicated rather than rejected (unlike a repeated
+   cadence day, a repeated skip means exactly what one means), and the count is
+   capped: this rides on a routine that lives forever, and an unbounded list would
+   be read and re-parsed on every unfiltered GET. */
+const MAX_CADENCE_SKIPS = 200;
+const SKIP_ENTRY_RE = /^\d{4}-\d{2}-\d{2}(#\d{1,2})?$/;
+const looksLikeCadenceSkips = (v) => {
+  if (typeof v !== 'string') return false;
+  const s = v.trim();
+  if (s === '') return true;
+  const parts = s.split(',');
+  if (parts.length > MAX_CADENCE_SKIPS) return false;
+  return parts.every((p) => SKIP_ENTRY_RE.test(p) && looksLikeDate(p.split('#')[0]));
+};
+
 /* The weekly target. Capped so a fat-fingered value can't ask the materializer for
    an unbounded number of float occurrences per week (the mint is horizon-bounded in
    time, but not in count — this is the count bound). 21 = three a day. */
@@ -252,6 +272,9 @@ function validateItemWrite(raw, details = null) {
     if (k === 'cadence_days' && !looksLikeCadenceDays(String(v))) {
       return 'cadence_days must be comma-separated day offsets 0-6 with no repeats';
     }
+    if (k === 'cadence_skips' && !looksLikeCadenceSkips(String(v))) {
+      return `cadence_skips must be up to ${MAX_CADENCE_SKIPS} comma-separated occurrence refs (YYYY-MM-DD or YYYY-MM-DD#n)`;
+    }
     if (k === 'cadence_count') {
       const n = typeof v === 'number' ? v : parseInt(String(v), 10);
       if (!Number.isFinite(n) || n < 0 || n > MAX_CADENCE_COUNT) {
@@ -284,7 +307,7 @@ module.exports = {
   MAX_IMPORT_ITEMS, MAX_IMPORT_DEPTH,
   IMPORT_ALIASES, IMPORT_STRUCT_KEYS, IMPORT_DATE_COLS, IMPORT_TIME_COLS, IMPORT_KIND_ENUM,
   IMPORT_STR_CAP, IMPORT_NUM_COLS, IMPORT_SCOPE_ENUM, IMPORT_STATUS_ENUM,
-  HEX_COLOR_RE, MAX_TAG_COUNT, MAX_TAG_LEN, MAX_CADENCE_COUNT,
-  looksLikeDate, looksLikeTime, looksLikeCadenceDays, importChildren,
+  HEX_COLOR_RE, MAX_TAG_COUNT, MAX_TAG_LEN, MAX_CADENCE_COUNT, MAX_CADENCE_SKIPS,
+  looksLikeDate, looksLikeTime, looksLikeCadenceDays, looksLikeCadenceSkips, importChildren,
   cleanImportField, validateItemWrite,
 };

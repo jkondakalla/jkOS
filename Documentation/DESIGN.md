@@ -587,8 +587,24 @@ parts — silently loses the drawn one: the moment `scrollbar-color` applies, Ch
 every webkit pseudo for that element and paints its own themed bar, **with stepper arrows
 at both ends that nothing can remove**. So the standard properties go behind
 `@supports not (selector(::-webkit-scrollbar))`, handed only to engines with no pseudos to
-lose. Track and corner are transparent (the gutter is not an object, only the thumb is);
-an unstyled corner paints an opaque OS-grey square where two bars meet.
+lose.
+
+**The gutter is a drawn object, not an absence.** An earlier pass left the track transparent
+and the thumb a low-opacity ink mark, on the reasoning that only the thumb is a thing. It read
+as the one un-designed strip on the page. Both halves are now solid and fully rounded, from a
+two-face token pair (`--hub-scroll-track` / `--hub-scroll-thumb` / `--hub-scroll-thumb-hover`):
+on paper a kraft channel pressed into cream with a warm-ink pill riding in it; on the tube
+unlit stock with lit metal, because a recess on a CRT is stated by absence of light and not by
+a bevel there is no lamp to catch. **The bar is 12px and the drawn parts are 6px** — a 3px
+transparent border plus `background-clip: content-box`, so the hit box is a comfortable
+pointer target while the mark stays fine. Restate `background-clip` on every `:hover`/`:active`
+state: a bare `background` shorthand resets it to `border-box` and the mark silently grows to
+fill the whole gutter. The radius is a full pill (`999px`), not a `--hub-radius` step — at 6px
+anything softer than round is indistinguishable from square. The **corner** stays transparent:
+both channels have rounded ends, and filling the square between them squares them off again at
+exactly the point both are visible. (An *unstyled* corner is the thing to avoid — it paints an
+opaque OS-grey square.) Gecko gets only the two colours, which is the other reason the track
+needed a real one.
 
 **Controls (state half)** — one rule across the set: a neutral debossed track that fills
 with the accent (or `--jk-tint`) as it engages; each hosts on a real form/aria element so
@@ -633,8 +649,9 @@ exactly the way the amber family does. Never inline either hex (§13.3); `<Bar>`
 the meter one can't be retyped. `--hub-shadow-panel-ink` is the shadow ink for a floating
 panel/drawer/modal — direction is the call site's business, the ink is not.
 
-**Global:** scrollbars (6px, line-strong thumb, accent-dim hover) and `::selection`
-(accent-dim ground, bright ink) are styled once — don't restyle per app.
+**Global:** scrollbars (12px bar / 6px drawn channel + pill, `--hub-scroll-*` two-face pair,
+accent-dim hover) and `::selection` (accent-dim ground, bright ink) are styled once — don't
+restyle per app.
 
 ---
 
