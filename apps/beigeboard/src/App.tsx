@@ -43,6 +43,14 @@ injectJkOSTheme({
 const DEFAULT_API_URL  = import.meta.env.VITE_API_URL ?? ''
 const JKOS_AUTH_URL    = import.meta.env.VITE_JKOS_AUTH_URL ?? 'https://auth.jkos.net'
 
+/* Module scope, not a closure in the component: `api` below is memoised, and a
+   per-render redirect helper captured inside it would be the one thing forcing it
+   to be rebuilt. Nothing here is reactive — the URL is a build constant and the
+   redirect reads live `window.location`. */
+const toAuthPortal = () => {
+  window.location.href = `${JKOS_AUTH_URL}/auth/login?redirect_to=${encodeURIComponent(window.location.href)}`
+}
+
 /* Token-refresh-aware fetch is now the suite-shared authFetch (@jkos/auth-client):
    on a 401 (TOKEN_EXPIRED/UNAUTHENTICATED) it silently rotates the remember-me
    refresh cookie and retries, deduping concurrent attempts. One implementation for
@@ -66,10 +74,6 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
     applyJkOSMotion(effects.halation ? 'full' : 'entrance')
   }, [effects.halation])
 
-  const toAuthPortal = () => {
-    window.location.href = `${JKOS_AUTH_URL}/auth/login?redirect_to=${encodeURIComponent(window.location.href)}`
-  }
-
   const checkAuth = async () => {
     try {
       const r = await authFetch(`${apiUrl}/api/auth/me`)
@@ -85,8 +89,6 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
   useEffect(() => { checkAuth() }, [])
   useEffect(() => { if (user === false) toAuthPortal() }, [user])
 
-  const handleUnauth = () => toAuthPortal()
-
   /* All API calls go through authFetch which handles token refresh */
   /* Every request carries the client's LOCAL date. The routine engine mints
      relative to "today" and the server's UTC day is not the user's day — at 17:00
@@ -94,36 +96,37 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
      on screen. Computed per call, not captured, so a tab left open overnight sends
      the new date on its next request. A header, not a query param: `GET /api/items`
      reads any query param as "filtered" and suppresses the seed + materialise. */
-  const bbHeaders = (extra?: Record<string, string>) => ({
-    'X-BB-Today': isoDate(new Date()),
-    ...extra,
-  })
-  const api = {
-    get: (path: string) =>
-      authFetch(`${apiUrl}${path}`, { headers: bbHeaders() }).then(r => {
-        if (r.status === 401) { handleUnauth(); throw new Error('Unauthorized') }
-        return r.json()
-      }),
-    post: (path: string, body: any) =>
-      authFetch(`${apiUrl}${path}`, {
-        method: 'POST', headers: bbHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(body),
-      }).then(r => {
-        if (r.status === 401) { handleUnauth(); throw new Error('Unauthorized') }
-        return r.json()
-      }),
-    patch: (path: string, body: any) =>
-      authFetch(`${apiUrl}${path}`, {
-        method: 'PATCH', headers: bbHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(body),
-      }).then(r => {
-        if (r.status === 401) { handleUnauth(); throw new Error('Unauthorized') }
-        return r.json()
-      }),
-    del: (path: string) =>
-      authFetch(`${apiUrl}${path}`, { method: 'DELETE', headers: bbHeaders() }).then(r => {
-        if (r.status === 401) { handleUnauth(); throw new Error('Unauthorized') }
-        return r.json()
-      }),
-  }
+  /* MEMOISED, and that is load-bearing rather than a micro-optimisation. `api` is
+     passed down and used as an effect DEPENDENCY by everything that fetches once on
+     mount (the workshop's library count, the forge's vocabulary, the library
+     browser). A fresh object literal per render makes React see a new `api` on every
+     re-render, so "fetch once" silently becomes "fetch on every keystroke" — the
+     board was firing bursts of GET /api/library because of exactly this. Nothing
+     inside is reactive except `apiUrl`, so one dep is the whole list. */
+  const api = useMemo(() => {
+    const bbHeaders = (extra?: Record<string, string>) => ({
+      'X-BB-Today': isoDate(new Date()),
+      ...extra,
+    })
+    const unwrap = (r: Response) => {
+      if (r.status === 401) { toAuthPortal(); throw new Error('Unauthorized') }
+      return r.json()
+    }
+    return {
+      get: (path: string) =>
+        authFetch(`${apiUrl}${path}`, { headers: bbHeaders() }).then(unwrap),
+      post: (path: string, body: any) =>
+        authFetch(`${apiUrl}${path}`, {
+          method: 'POST', headers: bbHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(body),
+        }).then(unwrap),
+      patch: (path: string, body: any) =>
+        authFetch(`${apiUrl}${path}`, {
+          method: 'PATCH', headers: bbHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(body),
+        }).then(unwrap),
+      del: (path: string) =>
+        authFetch(`${apiUrl}${path}`, { method: 'DELETE', headers: bbHeaders() }).then(unwrap),
+    }
+  }, [apiUrl])
 
   const handleLogout = async () => {
     try {

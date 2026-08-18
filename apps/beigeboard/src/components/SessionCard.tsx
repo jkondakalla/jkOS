@@ -37,6 +37,11 @@ import {
 
 const MONO = 'var(--hub-font-mono)'
 
+/** How long a set field waits after the last keystroke before it writes. Long
+ *  enough to swallow a held arrow key or a run of stepper clicks, short enough
+ *  that looking away from the screen for a moment has already saved. */
+const WRITE_DEBOUNCE_MS = 400
+
 const BLOCK_LABEL: Record<string, string> = {
   warmup: 'WARM-UP', main: 'MAIN', accessory: 'ACCESSORY', cooldown: 'COOL-DOWN',
 }
@@ -198,18 +203,64 @@ function StepRow({ step, status, tint, readonly, onLog, onRest }: any) {
      stays a single decision. */
   const scoreable = step.target !== null && step.target !== undefined
   const missed = done && status.met === false
-  const sets: any[] = Array.isArray(status.sets) && status.sets.length ? status.sets : blankSets(step)
+  const logged: any[] = Array.isArray(status.sets) && status.sets.length ? status.sets : blankSets(step)
 
-  /* Writing one set writes the WHOLE sheet plus the derived verdict, in one patch.
-     `met` is computed from what was typed rather than asked as a separate question:
-     someone who has just entered six real numbers has already answered it, and
-     asking again is how a log becomes a chore people abandon. */
-  const writeSet = (i: number, field: 'value' | 'load', raw: string) => {
-    if (readonly) return
-    const next = sets.map((s, j) => (j === i ? { ...s, [field]: raw === '' ? null : Number(raw) } : { ...s }))
+  /* THE DRAFT, AND WHY THE WRITE IS DEBOUNCED.
+     A set field is the one surface here you *hold* rather than tap: the arrow keys
+     repeat, the stepper carets get clicked in runs, and a load is dialled in rather
+     than typed once. Sending the patch straight from onChange turned each of those
+     into its own round trip — dozens of PATCHes in a few seconds, each one also
+     costing the routine refetch that ticking an occurrence requires. So the typed
+     value lives locally while the hand is still moving, and only the value the
+     person settled on is written.
+
+     The draft shadows the logged sets while a write is queued and is dropped the
+     moment nothing is pending — at which point the props ARE the truth, including
+     when the truth came from somewhere else entirely (`clear log`, the server's
+     re-render). Nothing here decides what a set means; it only decides when to
+     send. */
+  const [draft, setDraft] = useState<any[] | null>(null)
+  const sets = draft ?? logged
+
+  const pending = useRef<any[] | null>(null)
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+
+  const commit = () => {
+    clearTimeout(timer.current)
+    const next = pending.current
+    if (!next) return
+    pending.current = null
+    /* `met` is computed from what was typed rather than asked as a separate
+       question: someone who has just entered six real numbers has already answered
+       it, and asking again is how a log becomes a chore people abandon. */
     const met = metFromSets(step, next)
     onLog({ sets: next, done: true, ...(met === null ? {} : { met }) })
   }
+  /* The flush has to see the CURRENT props — `onLog` closes over the occurrence's
+     log as it was at render — so unmount goes through a ref rather than capturing
+     the first commit. Without this, closing the sheet mid-edit loses the last
+     number typed, which is the one failure a training log cannot have. */
+  const commitRef = useRef(commit)
+  commitRef.current = commit
+  useEffect(() => () => commitRef.current(), [])
+
+  useEffect(() => {
+    if (draft && !pending.current) setDraft(null)
+  }, [logged, draft])
+
+  /* Writing one set writes the WHOLE sheet plus the derived verdict, in one patch. */
+  const writeSet = (i: number, field: 'value' | 'load', raw: string) => {
+    if (readonly) return
+    const next = sets.map((s, j) => (j === i ? { ...s, [field]: raw === '' ? null : Number(raw) } : { ...s }))
+    setDraft(next)
+    pending.current = next
+    clearTimeout(timer.current)
+    timer.current = setTimeout(() => commitRef.current(), WRITE_DEBOUNCE_MS)
+  }
+
+  /* Leaving the field is a decision, so it writes immediately rather than waiting
+     out the timer — and starts the rest, which is what leaving a set field means. */
+  const settleSet = () => { commitRef.current(); onRest() }
 
   return (
     <div
@@ -303,7 +354,7 @@ function StepRow({ step, status, tint, readonly, onLog, onRest }: any) {
               <NumField
                 size="sm" inputMode="decimal" value={st.value ?? ''} placeholder={String(step.target ?? '')}
                 onChange={(e) => writeSet(i, 'value', e.target.value)}
-                onBlur={onRest}
+                onBlur={settleSet}
                 wrapperStyle={setField} title={step.unit}
               />
               <span className="mono-eyebrow">{step.unit}</span>
@@ -313,7 +364,7 @@ function StepRow({ step, status, tint, readonly, onLog, onRest }: any) {
                   <NumField
                     size="sm" inputMode="decimal" step="0.5" value={st.load ?? ''} placeholder={String(step.load ?? '')}
                     onChange={(e) => writeSet(i, 'load', e.target.value)}
-                    onBlur={onRest}
+                    onBlur={settleSet}
                     wrapperStyle={setField}
                   />
                   <span className="mono-eyebrow">{step.load_unit}</span>
