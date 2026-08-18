@@ -1,8 +1,15 @@
 /**
- * RoutineForge — where a routine's DOCUMENT is written.
+ * RoutineForge — the whole of one standing order.
  *
- * The cadence board answers "how often". This answers "what, and how does it get
- * harder" — the half that makes a routine a routine and not a repeating task.
+ * The CADENCE BAND at the head answers "how often" (./cadence — the seven days
+ * with their record/plan split, the weekly target, the streak, which goal it hangs
+ * under). Everything below answers "what, and how does it get harder" — the half
+ * that makes a routine a routine and not a repeating task.
+ *
+ * The two used to be two screens behind two badges. They are one routine, and the
+ * band writes straight through onUpdateItem while the document below is Save-gated,
+ * because a click on a weekday is a decision about the schedule and should never be
+ * held hostage by an unsaved spec.
  *
  * ─────────────────────────────────────────────────────────────────────────────
  * THE LAYOUT, AND WHY
@@ -38,21 +45,22 @@
  * engine agree is not assumed; it is enforced by `pnpm check:routine`, which drives
  * both through the same matrix. Read the mirror's header before touching either.
  *
- * A FULL PANE, NOT AN OVERLAY. It replaces the board rather than floating over it,
- * deliberately: the .jk-panel overlay primitive has bitten this app twice (see the
- * note in hub.css and DetailPanel), and a document editor is a workspace you go to,
- * not something you peek at over the thing it belongs to.
+ * IT IS THE FORGE PANE ITSELF. There is no board to go back to and no ← exit: the
+ * rail is always beside it, and picking anything else on the rail is the way out.
+ * The one thing that DOES float over it is the library shelf, and that is owned by
+ * WorkshopView so this component never unmounts and an unsaved document survives
+ * the trip.
  */
 import React, { useEffect, useMemo, useState } from 'react'
 import { FONT_HEAD, isoDate } from '../../lib/theme'
 import { Press, Bubble, Rule, TButton, Well, Chip, Bar, Check } from '@jkos/ui'
 import { ProgressChart } from '../../components/ProgressChart'
-import { LibraryBrowser } from './LibraryBrowser'
 /* The field chrome and the rule editor live in ./parts — the library browser and
    the paste pane are the same kind of dense editor and want the same controls,
    and importing them out of here would have made those two files and this one
    import each other. */
 import { MONO, Field, NumField, SelectField, NUM_W, RuleRow } from './parts'
+import { CadenceBand } from './cadence'
 import {
   normalizeSpec, renderCycle, summarize, slugify,
   parseCadence, formatCadence, describeCadence, expandCadence,
@@ -66,7 +74,10 @@ const DAY_LETTERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
 
 type Tab = 'ladder' | 'history' | 'revisions'
 
-export function RoutineForge({ routine, items, api, today, onUpdateItem, onClose, readonly }: any) {
+export function RoutineForge({
+  routine, items, goals, api, today, readonly,
+  onToggle, onUpdateItem, onDelete, onOpenShelf, shelfCount,
+}: any) {
   /* The spec is held NORMALISED in local state, not as the raw column. Normalising
      on every keystroke would fight the user (a half-typed number is not a number);
      normalising once on load and then editing the normalised object means every
@@ -85,12 +96,21 @@ export function RoutineForge({ routine, items, api, today, onUpdateItem, onClose
   const [tab, setTab] = useState<Tab>('ladder')
   const [revisions, setRevisions] = useState<any[] | null>(null)
   const [chartMeasure, setChartMeasure] = useState('load')
-  /* The full shelf, opened over the forge. The inline picker below is faster when
-     you know the name; this is for when you do not — and it is the only place an
-     entry's ladder and default progression can be READ before you commit a step to
-     them. Rendered as an early return, so the forge's unsaved document survives
-     the trip: the component instance never unmounts. */
-  const [browsing, setBrowsing] = useState(false)
+  /* The full shelf is OWNED BY THE WORKSHOP, not by this pane. The inline picker
+     below is faster when you know the name; the shelf is for when you do not — and
+     it is the only place an entry's ladder and default progression can be READ
+     before you commit a step to them. It opens as an overlay over the whole forge
+     (WorkshopView), so this component never unmounts and the unsaved document
+     survives the trip. Handing it an onPick is what makes it a PICKER rather than
+     the browsable shelf; the same surface does both, so the two cannot drift. */
+  const openShelf = () => onOpenShelf?.((entry: any) => {
+    addStep(entry)
+    /* Re-read the local copy the inline picker resolves against: the browser is a
+       full editor, and an entry may have been added, renamed or given a ladder
+       while it was open. Resolving against a stale copy is how a step arrives
+       without the defaults it was just given. */
+    api?.get('/api/library').then((r: any) => setLibrary(r?.entries || [])).catch(() => { /* keep what we had */ })
+  })
 
   useEffect(() => {
     setSpec(normalizeSpec(routine?.spec))
@@ -207,33 +227,13 @@ export function RoutineForge({ routine, items, api, today, onUpdateItem, onClose
 
   const collections = useMemo(() => [...new Set((library || []).map((e) => e.collection))], [library])
 
-  /* The shelf, over the forge. Both exits re-read the library, because the browser
-     is a full editor — an entry may have been added, renamed or given a ladder
-     while it was open, and the inline picker resolving against a stale copy is how
-     a step would silently arrive without the defaults it was just given. */
-  const leaveBrowser = () => {
-    setBrowsing(false)
-    api?.get('/api/library').then((r: any) => setLibrary(r?.entries || [])).catch(() => { /* keep what we had */ })
-  }
-  if (browsing) {
-    return (
-      <LibraryBrowser
-        api={api}
-        items={items}
-        readonly={readonly}
-        onPick={(entry: any) => { addStep(entry); leaveBrowser() }}
-        onClose={leaveBrowser}
-      />
-    )
-  }
-
   return (
     <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       {/* ── Head ── */}
       <div className="mo-item" style={{ flex: 'none', padding: '16px 28px 12px' }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 14 }}>
-          <span className="jk-lab jk-lab-xs" style={{ color: 'var(--color-accent)' }}>THE FORGE</span>
-          <span className="mono-eyebrow">WHAT THE SESSION IS · HOW IT GETS HARDER</span>
+          <span className="jk-lab jk-lab-xs" style={{ color: 'var(--color-accent)' }}>THE FORGE · STANDING ORDER</span>
+          <span className="mono-eyebrow">HOW OFTEN · WHAT THE SESSION IS · HOW IT GETS HARDER</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16, marginTop: 12, flexWrap: 'wrap' }}>
           <span style={{ fontFamily: FONT_HEAD, fontWeight: 700, fontSize: '1.85rem', lineHeight: 1, letterSpacing: '-0.02em' }}>
@@ -249,8 +249,31 @@ export function RoutineForge({ routine, items, api, today, onUpdateItem, onClose
                 {saving ? 'Saving…' : 'Save'}
               </TButton>
             )}
-            <TButton quiet onClick={onClose} style={{ cursor: 'pointer' }}>← Board</TButton>
+            <TButton quiet onClick={openShelf} style={{ cursor: 'pointer' }}>
+              ◧ Library{shelfCount == null ? '' : ` · ${shelfCount}`}
+            </TButton>
           </div>
+        </div>
+
+        {/* ── The cadence, above the document ────────────────────────────────
+            HOW OFTEN and WHAT IT IS were two screens behind two badges until the
+            workshop became one bench; they are one routine, and the band is the
+            half of it that fits in a header. Everything here writes straight
+            through onUpdateItem — no Save — because a click on a weekday is a
+            decision about the schedule, and the Save button below belongs to the
+            DOCUMENT. Pairing them would mean an unsaved spec could hold a cadence
+            change hostage. */}
+        <div style={{ marginTop: 16 }}>
+          <CadenceBand
+            routine={routine}
+            items={items}
+            goals={goals}
+            today={today}
+            readonly={readonly}
+            onToggle={onToggle}
+            onUpdateItem={onUpdateItem}
+            onDelete={onDelete}
+          />
         </div>
       </div>
       <Rule style={{ margin: '4px 28px 0' }} />
@@ -309,7 +332,7 @@ export function RoutineForge({ routine, items, api, today, onUpdateItem, onClose
                 {/* The quick picker above is for when you know the name. This is for
                     when you do not — and it is where an entry's ladder, rest and
                     default progression can be read before a step inherits them. */}
-                <TButton quiet onClick={() => setBrowsing(true)} title="Browse the whole library — read an entry's ladder and defaults before you use it" style={{ padding: '7px 11px', cursor: 'pointer', marginLeft: 'auto' }}>
+                <TButton quiet onClick={openShelf} title="Browse the whole library — read an entry's ladder and defaults before you use it" style={{ padding: '7px 11px', cursor: 'pointer', marginLeft: 'auto' }}>
                   ⤢ Browse the library
                 </TButton>
               </div>

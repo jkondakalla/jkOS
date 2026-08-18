@@ -1326,6 +1326,20 @@
         shove a pane sideways. <code>.jk-divider</code> is <code>.jk-rule</code>'s vertical
         sibling — the hairline that separates clusters inside a bar.
       </p>
+      <p class="dg-note">
+        <strong>The scroll mark</strong> is a hairline, not a gutter: 2px of ink on the stock,
+        no track, no channel, no arrows. It is stated on the bare pseudo-elements so it dresses
+        every scroller in the suite — <code>.jk-scroll</code> carries no bar styling of its own,
+        and a pane that forgot the class still gets the mark. Three rungs, all tokens:
+        <code>--hub-scroll-mark-rest</code> is always painted, because a bar you cannot see is a
+        bar whose position you cannot read; <code>--hub-scroll-mark</code> deepens it while the
+        pointer is inside the pane <em>or</em> the pane is moving; <code>--hub-scroll-mark-hover</code>
+        brightens it with the pointer on the mark itself, and a drag goes full accent. The
+        "moving" half is the one rung CSS cannot reach — a wheel fling past the pane fires no
+        <code>:hover</code> — so <code>installScrollHairline()</code> stamps
+        <code>data-scrolling</code> from one capture-phase listener; <code>injectJkOSTheme()</code>
+        already calls it. Scroll the box below with the pointer outside it to see that rung.
+      </p>
       <div class="dg-panel" style="padding:12px">
         <div class="jk-scroll" style="max-height:96px;display:flex;flex-direction:column;gap:6px">
           <div class="jk-hit" style="padding:9px 11px;border:1px solid var(--hub-line);border-radius:var(--hub-radius-sm);cursor:pointer">jk-hit — hover me, then press</div>

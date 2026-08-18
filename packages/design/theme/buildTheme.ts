@@ -23,6 +23,8 @@
  * or injectJkOSTheme() below.
  */
 
+import { installScrollHairline } from '../utils/scrollHairline';
+
 import { BREAKPOINT_MAX } from '../responsive/breakpoints';
 
 /** Neutral palette — only the keys you set are emitted; the rest fall back to
@@ -182,6 +184,10 @@ export function buildJkOSTheme(config: JkOSThemeConfig = {}): string {
  */
 export function injectJkOSTheme(config: JkOSThemeConfig, id = 'jkos-theme'): void {
   if (typeof document === 'undefined') return;
+  /* The scroll hairline's motion rung, wired from the one call every app in the
+     suite already makes. See utils/scrollHairline.ts for why it is here and not
+     five imports in five App.tsx files. Idempotent. */
+  installScrollHairline(document);
   let el = document.getElementById(id) as HTMLStyleElement | null;
   if (!el) {
     el = document.createElement('style');

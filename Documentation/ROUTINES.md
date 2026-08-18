@@ -37,7 +37,9 @@ Two properties fall out, and both are load-bearing:
 | `apps/beigeboard/backend/src/routine-prompt.js` | **The authoring prompt**, generated from the vocabulary (§12). |
 | `apps/beigeboard/backend/src/routes/routines.js` | `/api/routines/*` + `/api/library/*` + the vocabulary, prompt and bundle endpoints. |
 | `apps/beigeboard/src/lib/routine-spec.ts` | **The mirror** (browser). Normalise + render + cadence + analytics only — *not* validation. |
-| `apps/beigeboard/src/views/workshop/RoutineForge.tsx` | The visual builder. |
+| `apps/beigeboard/src/views/workshop/WorkshopView.tsx` | **The bench** — one rail (goals over standing orders), one forge pane, the shelf as an overlay. |
+| `apps/beigeboard/src/views/workshop/RoutineForge.tsx` | The visual builder — the cadence band over the document. |
+| `apps/beigeboard/src/views/workshop/cadence.tsx` | The cadence half: the rail card, the actionable band, the record/plan cell. |
 | `apps/beigeboard/src/views/workshop/LibraryBrowser.tsx` | The shelf — browse, search and edit the library (§7). |
 | `apps/beigeboard/src/views/workshop/RoutineImport.tsx` | The paste pane — a document in, checked and rendered (§12). |
 | `apps/beigeboard/src/views/workshop/parts.tsx` | Field chrome + the progression-rule editor, shared by all three. |
@@ -348,7 +350,8 @@ error.
 
 ### The paste pane
 
-Workshop → Routines → **⇪ Paste** (also reachable from the Library board). It
+Workshop → **◧ Library** → **⇪ Paste**. (The shelf owns it because a bundle carries
+routines *and* library entries — it is a write to the shelf as much as to the rail.) It
 **unwraps what was actually copied** — a fenced ` ```json ` block, prose either side,
 trailing commas — announcing each repair rather than doing it silently. Then *Check
 it* dry-runs and shows the first four sessions of every routine **as numbers**, which

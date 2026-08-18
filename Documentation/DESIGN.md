@@ -589,22 +589,48 @@ at both ends that nothing can remove**. So the standard properties go behind
 `@supports not (selector(::-webkit-scrollbar))`, handed only to engines with no pseudos to
 lose.
 
-**The gutter is a drawn object, not an absence.** An earlier pass left the track transparent
-and the thumb a low-opacity ink mark, on the reasoning that only the thumb is a thing. It read
-as the one un-designed strip on the page. Both halves are now solid and fully rounded, from a
-two-face token pair (`--hub-scroll-track` / `--hub-scroll-thumb` / `--hub-scroll-thumb-hover`):
-on paper a kraft channel pressed into cream with a warm-ink pill riding in it; on the tube
-unlit stock with lit metal, because a recess on a CRT is stated by absence of light and not by
-a bevel there is no lamp to catch. **The bar is 12px and the drawn parts are 6px** — a 3px
-transparent border plus `background-clip: content-box`, so the hit box is a comfortable
-pointer target while the mark stays fine. Restate `background-clip` on every `:hover`/`:active`
-state: a bare `background` shorthand resets it to `border-box` and the mark silently grows to
-fill the whole gutter. The radius is a full pill (`999px`), not a `--hub-radius` step — at 6px
-anything softer than round is indistinguishable from square. The **corner** stays transparent:
-both channels have rounded ends, and filling the square between them squares them off again at
-exactly the point both are visible. (An *unstyled* corner is the thing to avoid — it paints an
-opaque OS-grey square.) Gecko gets only the two colours, which is the other reason the track
-needed a real one.
+**The scroll bar is a hairline, not a gutter.** It was a drawn channel-and-pill for exactly
+one pass: the reasoning was that a gutter should be a real object like a meter's trough, and
+in use the trough was the loudest thing on a quiet page — a solid recessed strip running the
+full height of every pane, competing with the content it was only there to index. It is now
+**2px of ink laid on the stock**: no track, no channel, no corner square, no arrows. The mark
+says the same two facts (how far down, how much there is) with a rule instead of a rail.
+
+**Three rungs, and the resting one never goes to zero.** `--hub-scroll-mark-rest` is always
+painted, because a bar that is invisible until you touch it hides the one piece of information
+a scrollbar exists to give. `--hub-scroll-mark` deepens it while the pointer is inside the pane
+*or* the pane is moving; `--hub-scroll-mark-hover` brightens it with the pointer on the mark
+itself; a drag goes full `--accent`. Two-face as always, and the faces are not a re-tint: on
+paper the mark mixes `--accent-deepen-ink`, so it reads as a pencil rule on the sheet; on the
+tube it mixes the raw `--accent`, because a neutral 2px mark at these opacities simply
+disappears against unlit stock — which is how the *first* ghost-thumb attempt failed. Set
+`--hub-scroll-mark-rest: transparent` for the fully-hidden face; nothing else changes.
+
+**`[data-scrolling]` is the rung CSS cannot reach.** `:hover` is wrong about a pane that is
+moving with no pointer over it, which is most scrolling that actually happens — a wheel fling
+that carries past the pane, trackpad momentum, PageDown, `scrollIntoView` from a deep link, all
+of touch. `installScrollHairline()` (`@jkos/design`) stamps `data-scrolling` from **one
+capture-phase `scroll` listener** on the document and drops it 850ms after motion stops;
+`scroll` does not bubble, so capture is the only phase where one listener sees every pane.
+`injectJkOSTheme()` already calls it, so no app wires it. It is a `data-` attribute and not a
+class because `className` is React's to own. Pure enhancement — the pointer rungs and the
+resting mark work without it, which is why the static jkAuth pages need nothing.
+
+**The geometry.** The bar is **10px and the mark is 2px** — a 4px transparent border plus
+`background-clip: content-box`, so the hit box stays a comfortable pointer target while the
+mark stays fine. Restate `background-clip` on every state (and prefer `background-color` over
+the shorthand): a bare `background` resets clip to `border-box` and the 2px mark silently grows
+to fill the whole 10px bar. The radius is a full pill (`999px`), not a `--hub-radius` step — at
+2px anything softer than round is indistinguishable from square. The **corner** stays
+transparent; an *unstyled* corner paints an opaque OS-grey square, and `::-webkit-scrollbar-track`
+is explicitly cleared because styling any part opts the bar into the legacy one, which paints
+an OS track unless told otherwise.
+
+**Gecko gets one rung, deliberately.** `scrollbar-color` **inherits** — a `:hover` rule to
+reveal the mark also hands the revealed value to every nested scroller under the hovered
+element, so pointing at anything lights up every bar on the page at once. Gecko can neither
+round nor inset the mark either, so the choreography buys nothing there: it takes the resting
+rung always, and the colour alone carries the design. Blink carries all four.
 
 **Controls (state half)** — one rule across the set: a neutral debossed track that fills
 with the accent (or `--jk-tint`) as it engages; each hosts on a real form/aria element so
@@ -637,7 +663,8 @@ never hand-roll a range with `accent-color`) · `.jk-vu` + `.jk-vu-seg.on` (segm
   `.jk-hit` is the hover response for anything clickable with no button face (a goal card,
   a calendar cell, a caret): it lifts the background to `--hub-bg-4` and takes a 1px press,
   and that is deliberately all. `.jk-scroll` is the scroll region — **vertical only**, so a
-  long title can never shove a pane sideways.
+  long title can never shove a pane sideways. It carries no *bar* styling: the hairline is
+  stated on the bare pseudo-elements, so a pane that forgot the class still gets the mark.
 - `.jk-divider` — `.jk-rule`'s vertical sibling: the 1×14px hairline that separates clusters
   *inside* a bar (header sources | clock | avatar, a folio head, ORDECK's footer strip).
 
@@ -649,9 +676,9 @@ exactly the way the amber family does. Never inline either hex (§13.3); `<Bar>`
 the meter one can't be retyped. `--hub-shadow-panel-ink` is the shadow ink for a floating
 panel/drawer/modal — direction is the call site's business, the ink is not.
 
-**Global:** scrollbars (12px bar / 6px drawn channel + pill, `--hub-scroll-*` two-face pair,
-accent-dim hover) and `::selection` (accent-dim ground, bright ink) are styled once — don't
-restyle per app.
+**Global:** scrollbars (10px bar / 2px hairline mark, `--hub-scroll-mark-*` three-rung
+two-face set, `[data-scrolling]` for the motion rung) and `::selection` (accent-dim ground,
+bright ink) are styled once — don't restyle per app.
 
 ---
 

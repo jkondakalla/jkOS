@@ -1,177 +1,147 @@
 /**
- * WorkshopView — the planning tab, split by badge into two boards.
+ * WorkshopView — the planning tab. ONE BENCH.
  *
- *   GOALS    the forge below — a finite tree with a finish line, broken down
- *            until every leaf is a task you can put on a day.
- *   ROUTINES the cadence board (./RoutinesBoard) — commitments with no finish
- *            line, planned by frequency instead of by breakdown.
+ * The two shapes planning comes in are GOALS (a finite tree with a finish line,
+ * broken down until every leaf is a task you can put on a day) and ROUTINES —
+ * standing orders: commitments with no finish line, planned by frequency instead
+ * of by breakdown. They stay two shapes because they disagree about what progress
+ * IS. A goal's progress is leaves done over leaves total and it ends at 100%; a
+ * routine's is this week's count against this week's target, and next week it
+ * starts again. Putting a routine in the goal tree would make every rollup lie — a
+ * "meditate daily" node can never complete, so any goal above it would sit short of
+ * 100% forever. One item table underneath, two shapes, no rollup between them.
  *
- * They are split rather than merged because the two shapes disagree about what
- * progress IS. A goal's progress is leaves done over leaves total and it ends at
- * 100%; a routine's is this week's count against this week's target, and next week
- * it starts again. Putting a routine in the goal tree would have made every rollup
- * lie — a "meditate daily" node can never complete, so any goal above it would sit
- * short of 100% forever. One badge, two boards, one item table underneath.
+ * THEY USED TO BE TWO BOARDS BEHIND BADGES, plus a third for the library. That is
+ * gone. The badges made the workshop modal — three screens you switched between,
+ * each with its own head, its own scroll and its own idea of what was selected —
+ * and the thing you actually do here crosses all three: you break a goal down,
+ * notice the part you will be doing every week, and file a standing order under it.
+ * Every one of those steps was a badge click and a lost selection.
  *
- * A routine may still hang UNDER a goal (parent_id), which is the point of keeping
- * them in one table: "read 20 pages a day" belongs to "finish six books". It just
- * doesn't roll up.
+ * So: ONE RAIL, one forge. The rail carries goals over standing orders in a single
+ * scroll with a sticky head each; the forge shows whichever one you picked. There
+ * is no mode — the selection IS the mode, and it is visible the whole time.
  *
- * ── The forge (below) ──
+ *   a goal picked     → <Forge> below: the header, the standing orders filed under
+ *                       it, then the expand/collapse tree of milestone branches →
+ *                       task leaves. Leaves roll up to the goal.
+ *   a routine picked  → <RoutineForge>: the cadence band (./cadence — the seven
+ *                       days, the target, the streak) over the document (steps,
+ *                       progression, phases).
  *
- * Two panes, straight from the prototype: a goals RAIL on the left (a card per
- * goal — dot · serif title · .seg % · bar · leaf count; the selected card is a
- * jk-well) and THE FORGE on the right (the selected goal's header — jk-press-lg
- * title, jk-bubble-secondary category, big .seg % — a jk-rule, then an
- * expand/collapse tree of milestone branches → task leaves). Leaves roll up to
- * the goal.
+ * THE LIBRARY IS AN OVERLAY, not the third badge. It is the vocabulary the two
+ * forges are written out of — a shelf you reach INTO while writing something else —
+ * and a shelf that replaces the thing you were writing is a shelf you have to
+ * remember your way back from. It opens over the forge from either side, and the
+ * step-picker inside RoutineForge opens the same one with an onPick attached, so
+ * there is one library surface and not two that can drift.
  *
- * This retires the unlimited-depth drill-down + weekly-bench sidebar (ShopFloor /
- * NodePage / Bench / bits / GoalForge, PLANNING_METHOD.md). The item model maps
- * goal (kind:'goal') → milestone (kind:'milestone') → task (kind:'task'); rollup
- * = descendant leaves done/total. New creation caps at three levels; any deeper
- * existing node surfaces as a (clickable) leaf.
+ * WHY AN ABSOLUTE OVERLAY IS SAFE HERE, given .jk-panel has cost this app two
+ * silent "clicking does nothing" bugs: both of those were CSS GRID — grid places
+ * definite items first, so an explicitly-placed overlay pushed its sibling into an
+ * implicit row and collapsed the content row to 0px. The forge pane is a FLEX
+ * column with one positioned ancestor and an inset:0 child; flex has no such
+ * placement pass, and the overlay is a sibling of nothing it can displace.
+ *
+ * ── The item model ──
+ * goal (kind:'goal') → milestone (kind:'milestone') → task (kind:'task'); rollup =
+ * descendant leaves done/total. New creation caps at three levels; any deeper
+ * existing node surfaces as a (clickable) leaf. A routine (kind:'routine') may hang
+ * UNDER a goal via parent_id — "read 20 pages a day" belongs to "finish six books"
+ * — and is listed on that goal without joining its rollup.
  */
 import React, { useEffect, useMemo, useState } from 'react'
 import { FONT_HEAD, TASK_COLORS, localDate } from '../../lib/theme'
 import { getChildren, getAncestors, getProgress } from '../../lib/seed'
-import { Press, Well, Bubble, Chip, Check, TButton, Rule, Bar } from '@jkos/ui'
+import { Press, Well, Bubble, Chip, Check, TButton, Rule, Bar, Sheet, Scrim } from '@jkos/ui'
 import { stagger } from '@jkos/design'
-import { RoutinesBoard } from './RoutinesBoard'
 import { LibraryBrowser } from './LibraryBrowser'
 import { RoutineImport } from './RoutineImport'
-import { getRoutines, cadenceDays, weeklyTarget } from '../../lib/routines'
+import { RoutineForge } from './RoutineForge'
+import { RoutineCard, WeekStrip } from './cadence'
+import { getRoutines, cadenceDays, weeklyTarget, weekCells, weekStart, streakOf } from '../../lib/routines'
+import { normalizeSpec, summarize } from '../../lib/routine-spec'
 
 const MONO = 'var(--hub-font-mono)'
 
+/** What the rail has selected. `kind` is carried alongside the id rather than
+ *  derived from it because the two shapes live in ONE table — a bare id would have
+ *  to be looked up before the forge could know which pane to render, and during the
+ *  frame after a delete that lookup returns nothing and the pane would flicker to
+ *  the empty state instead of moving on. */
+type Sel = { kind: 'goal' | 'routine'; id: number }
+
 export function WorkshopView(props: any) {
-  const { items, readonly, api, onReload, focusedNodeId } = props
-  const [board, setBoard] = useState<'goals' | 'routines' | 'library'>('goals')
-  /* The paste pane is reachable from two badges (a bundle carries routines AND
-     library entries, so both boards own it), which is why the state that opens it
-     lives up here rather than inside either. */
-  const [pasting, setPasting] = useState(false)
-  const [libCount, setLibCount] = useState<number | null>(null)
+  const {
+    items, today, readonly, api, onReload,
+    onSelect, onToggle, onAddItem, onUpdateItem, onDelete,
+    focusedNodeId, setFocusedNodeId,
+  } = props
 
-  const goalCount = useMemo(() => items.filter((it: any) => it.kind === 'goal').length, [items])
-  const routineCount = useMemo(() => getRoutines(items).length, [items])
-
-  /* One count, fetched once, purely so the badge can state the size of the shelf.
-     The browser fetches the entries themselves when it opens — a badge is not worth
-     holding a copy of the library in a parent for. */
-  useEffect(() => {
-    let live = true
-    api?.get('/api/library').then((r: any) => { if (live) setLibCount(r?.count ?? r?.entries?.length ?? 0) })
-      .catch(() => { if (live) setLibCount(0) })
-  }, [api])
-
-  // A deep-link ("Open in workshop →" from the detail panel) is always a node in
-  // the goal tree, and the effect that acts on it lives in GoalsBoard — which is
-  // unmounted while the routines board is up. Switch back first, or the link would
-  // land on the wrong board and the request would be quietly dropped.
-  useEffect(() => { if (focusedNodeId != null) setBoard('goals') }, [focusedNodeId])
-
-  return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-      {/* The badge pair. A boxed current badge, for the reason the masthead's tabs
-          are boxed: the fill IS the face, so it states which board you are on and
-          which mode you are in at once. */}
-      <div className="mo-item" style={{ flex: 'none', display: 'flex', alignItems: 'center', gap: 8, padding: '14px 28px 0' }}>
-        <BoardBadge current={board === 'goals'} onClick={() => { setBoard('goals'); setPasting(false) }} label="Goals" count={goalCount} sub="break down" />
-        <BoardBadge current={board === 'routines'} onClick={() => { setBoard('routines'); setPasting(false) }} label="Routines" count={routineCount} sub="repeat" />
-        {/* The vocabulary its own board. It was reachable only from inside a
-            routine's forge, which made curating the shelf something you could only
-            do while editing something else. */}
-        <BoardBadge current={board === 'library'} onClick={() => { setBoard('library'); setPasting(false) }} label="Library" count={libCount ?? 0} sub="the parts" />
-      </div>
-      <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
-        {pasting ? (
-          <RoutineImport
-            api={api}
-            readonly={readonly}
-            onClose={() => setPasting(false)}
-            onImported={async () => { await onReload?.(); setPasting(false); setBoard('routines') }}
-          />
-        ) : board === 'goals' ? <GoalsBoard {...props} />
-          : board === 'library' ? (
-            <LibraryBrowser
-              api={api}
-              items={items}
-              readonly={readonly}
-              onPaste={() => setPasting(true)}
-            />
-          )
-          : <RoutinesBoard {...props} readonly={readonly} />}
-      </div>
-    </div>
-  )
-}
-
-/* A board badge — literally the masthead's nav tab at section scale:
-   `.jk-masthead-tab` + `.jk-well` when current, driven by aria-selected.
-   Reusing the class rather than restyling a box means the two get the same
-   debossed-on-paper / emissive-on-tube fill, the same hover, and the same
-   accessible state, and can't drift apart into two different-looking tabs. */
-function BoardBadge({ current, onClick, label, count, sub }: any) {
-  return (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={current}
-      className={`jk-masthead-tab jk-hit${current ? ' jk-well' : ''}`}
-      onClick={onClick}
-      style={{ display: 'flex', alignItems: 'baseline', gap: 9, padding: '8px 15px' }}
-    >
-      <span style={{
-        fontFamily: FONT_HEAD, fontWeight: 700, fontSize: 14.5, letterSpacing: '-0.01em',
-        color: current ? 'var(--color-ink)' : 'var(--color-muted)',
-      }}>
-        {label}
-      </span>
-      <span className="seg" style={{ fontSize: 12, color: current ? 'var(--color-accent)' : 'var(--color-faint)' }}>
-        {String(count).padStart(2, '0')}
-      </span>
-      <span className="mono-eyebrow">{sub}</span>
-    </button>
-  )
-}
-
-function GoalsBoard({
-  items, today, onSelect, onToggle, onAddItem, onUpdateItem,
-  focusedNodeId, setFocusedNodeId, readonly,
-}: any) {
   const goals = useMemo(
     () => items.filter((it: any) => it.kind === 'goal').sort((a: any, b: any) => (a.id - b.id)),
     [items],
   )
-  const active = goals.filter((g: any) => (g.status || 'active') === 'active')
+  const activeGoals = useMemo(() => goals.filter((g: any) => (g.status || 'active') === 'active'), [goals])
+  const routines = useMemo(() => getRoutines(items), [items])
+  const activeRoutines = useMemo(() => routines.filter((r: any) => (r.status || 'active') === 'active'), [routines])
 
-  const [selId, setSelId] = useState<number | null>(null)
+  const [sel, setSel] = useState<Sel | null>(null)
   const [expanded, setExpanded] = useState<Record<number, boolean>>({})
+  /* The shelf. `onPick` is what tells the overlay which of its two jobs it is doing:
+     absent, it is the browsable shelf you curate; present, RoutineForge is waiting
+     for one entry to turn into a step. One state, so the two can never be open at
+     once over each other. */
+  const [shelf, setShelf] = useState<{ onPick?: (entry: any) => void } | null>(null)
+  /* The paste pane rides inside the shelf, because a bundle carries routines AND
+     library entries — it is a write to the shelf as much as to the rail. */
+  const [pasting, setPasting] = useState(false)
+  const [libCount, setLibCount] = useState<number | null>(null)
 
-  // Deep-link from a DetailPanel ("Open in workshop →"): select the node's goal
-  // and open the branch it sits under.
+  /* One count, fetched once, purely so the shelf button can state the size of the
+     shelf. The browser fetches the entries themselves when it opens — a count is not
+     worth holding a copy of the library in a parent for. */
+  useEffect(() => {
+    let live = true
+    api?.get('/api/library').then((r: any) => { if (live) setLibCount(r?.count ?? r?.entries?.length ?? 0) })
+      .catch(() => { if (live) setLibCount(0) })
+    return () => { live = false }
+  }, [api])
+
+  /* Deep-link from a DetailPanel ("Open in workshop →"). It can now land on either
+     shape, which is the whole point of one rail: a routine used to be unreachable
+     from this link because the effect that consumed it lived inside the goals board
+     and the routines board it lived on was a different component. */
   useEffect(() => {
     if (focusedNodeId == null) return
     const node = items.find((i: any) => i.id === focusedNodeId)
     if (node) {
-      const chain = [node, ...getAncestors(node, items)]
-      const goal = chain.find((n: any) => n.kind === 'goal')
-      const branch = chain.find((n: any) => n.kind === 'milestone')
-      if (goal) setSelId(goal.id)
-      if (branch) setExpanded((e) => ({ ...e, [branch.id]: true }))
+      if (node.kind === 'routine') {
+        setSel({ kind: 'routine', id: node.id })
+      } else {
+        const chain = [node, ...getAncestors(node, items)]
+        const goal = chain.find((n: any) => n.kind === 'goal')
+        const branch = chain.find((n: any) => n.kind === 'milestone')
+        if (goal) setSel({ kind: 'goal', id: goal.id })
+        if (branch) setExpanded((e) => ({ ...e, [branch.id]: true }))
+      }
     }
     setFocusedNodeId?.(null)
   }, [focusedNodeId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Keep a valid selection: fall to the first active goal (then any goal).
-  const selGoal = useMemo(() => {
-    if (selId != null) {
-      const g = goals.find((x: any) => x.id === selId)
-      if (g) return g
+  /* Keep a valid selection. A goal falls to the first ACTIVE goal (then any goal)
+     so an empty rail is the only way to see the empty state; a routine that has been
+     deleted falls back to the goal side rather than to the first routine, because
+     "the thing I was looking at is gone" should not silently open a different
+     routine's document under a Save button. */
+  const selected = useMemo(() => {
+    if (sel) {
+      const hit = (sel.kind === 'goal' ? goals : routines).find((x: any) => x.id === sel.id)
+      if (hit) return { kind: sel.kind, node: hit }
     }
-    return active[0] || goals[0] || null
-  }, [selId, goals, active])
+    const g = activeGoals[0] || goals[0]
+    return g ? { kind: 'goal' as const, node: g } : null
+  }, [sel, goals, routines, activeGoals])
 
   const toggleExpand = (id: number) => setExpanded((e) => ({ ...e, [id]: e[id] === false }))
 
@@ -182,13 +152,27 @@ function GoalsBoard({
       kind: 'goal', scope: 'year', status: 'active', source: 'bb',
       title: 'New goal', accent, year: localDate(today).getFullYear(),
     })
-    if (g?.id) setSelId(g.id)
+    if (g?.id) setSel({ kind: 'goal', id: g.id })
+  }
+
+  /* `parent` is how "+ routine" inside a goal's forge differs from "+ New routine"
+     on the rail: the same write, filed under the goal you were looking at. */
+  const addRoutine = async (parentId?: number) => {
+    if (readonly) return
+    const accent = TASK_COLORS[(goals.length + routines.length) % TASK_COLORS.length].hex
+    const r = await onAddItem?.({
+      kind: 'routine', scope: 'week', status: 'active', source: 'bb',
+      title: 'New routine', cadence_days: '', accent,
+      position: routines.length, ...(parentId ? { parent_id: parentId } : {}),
+    })
+    if (r?.id) setSel({ kind: 'routine', id: r.id })
   }
 
   const addBranch = async () => {
-    if (readonly || !selGoal) return
-    const pos = getChildren(selGoal, items).filter((c: any) => c.kind === 'milestone').length
-    const m = await onAddItem?.({ kind: 'milestone', parent_id: selGoal.id, title: 'New milestone', source: 'bb', position: pos })
+    if (readonly || selected?.kind !== 'goal') return
+    const goal = selected.node
+    const pos = getChildren(goal, items).filter((c: any) => c.kind === 'milestone').length
+    const m = await onAddItem?.({ kind: 'milestone', parent_id: goal.id, title: 'New milestone', source: 'bb', position: pos })
     if (m?.id) {
       await onAddItem?.({ kind: 'task', scope: 'day', parent_id: m.id, title: 'First step', source: 'bb' })
       setExpanded((e) => ({ ...e, [m.id]: true }))
@@ -201,68 +185,174 @@ function GoalsBoard({
     setExpanded((e) => ({ ...e, [branchId]: true }))
   }
 
-  return (
-    // Column around the rail + forge row. It carried a pinned foot until the
-    // page footer was cut suite-wide; kept as the seam for anything that spans
-    // both panes, and because the rail/forge row wants an explicit `flex: 1`
-    // parent rather than being the height-100% child itself.
-    // `flex: 1` because this is now a flex CHILD of the badge switcher above; a
-    // bare height:100% child would size to its content's width and leave the
-    // forge floating in the left third of the page.
-    <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-      <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
-        {/* ── Goals rail ── */}
-        <div style={{ width: 'var(--jk-rail)', flex: 'none', display: 'flex', flexDirection: 'column', borderRight: '1px solid var(--hub-line)', minHeight: 0 }}>
-          <div className="mo-item" style={{ flex: 'none', display: 'flex', alignItems: 'baseline', gap: 10, padding: '16px 20px 12px' }}>
-            <span className="label-tape">GOALS</span>
-            <span className="mono-eyebrow" style={{ marginLeft: 'auto' }}>{String(active.length).padStart(2, '0')} ACTIVE</span>
-          </div>
-          <div className="jk-scroll" style={{ flex: 1, minHeight: 0, padding: '0 18px 12px', display: 'flex', flexDirection: 'column', gap: 10, overflowY: 'auto' }}>
-            {goals.map((g: any, i: number) => (
-              <GoalCard
-                key={g.id}
-                goal={g}
-                items={items}
-                selected={selGoal?.id === g.id}
-                delay={stagger(i, 60, 70)}
-                onClick={() => setSelId(g.id)}
-              />
-            ))}
-            {!readonly && (
-              <TButton quiet onClick={addGoal} style={{ padding: 11, borderStyle: 'dashed', cursor: 'pointer' }}>
-                + New goal
-              </TButton>
-            )}
-          </div>
-        </div>
+  /* Both exits re-read the count, because the browser is a full editor — entries may
+     have been added, renamed or given a ladder while it was open. */
+  const closeShelf = () => {
+    setShelf(null)
+    setPasting(false)
+    api?.get('/api/library').then((r: any) => setLibCount(r?.count ?? r?.entries?.length ?? 0)).catch(() => { /* keep what we had */ })
+  }
 
-        {/* ── The forge ── */}
-        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-          {selGoal ? (
-            <Forge
-              goal={selGoal}
+  return (
+    <div style={{ height: '100%', display: 'flex', minHeight: 0 }}>
+      {/* ══ THE RAIL — goals over standing orders, one scroll ══════════════ */}
+      <div style={{
+        width: 'var(--jk-rail)', flex: 'none', display: 'flex', flexDirection: 'column',
+        borderRight: '1px solid var(--hub-line)', minHeight: 0,
+      }}>
+        <div className="jk-scroll" style={{ flex: 1, minHeight: 0, padding: '0 18px 18px', display: 'flex', flexDirection: 'column', gap: 9 }}>
+          {/* The section heads are STICKY and opaque. A single scroll carrying two
+              lists needs to say which one you are in once you are past its head, and
+              they need a ground of their own or the cards run under the text. */}
+          <RailHead label="Goals" meta={`${String(activeGoals.length).padStart(2, '0')} ACTIVE`} />
+          {goals.map((g: any, i: number) => (
+            <GoalCard
+              key={g.id}
+              goal={g}
               items={items}
-              expanded={expanded}
-              readonly={readonly}
-              onSelect={onSelect}
-              onToggle={onToggle}
-              onUpdateItem={onUpdateItem}
-              onToggleExpand={toggleExpand}
-              onAddLeaf={addLeaf}
-              onAddBranch={addBranch}
+              selected={selected?.kind === 'goal' && selected.node.id === g.id}
+              delay={stagger(i, 60, 70)}
+              onClick={() => setSel({ kind: 'goal', id: g.id })}
             />
-          ) : (
-            <div style={{ flex: 1, display: 'grid', placeItems: 'center', padding: 40 }}>
-              <div style={{ textAlign: 'center', maxWidth: 320 }}>
-                <span className="jk-lab jk-lab-xs" style={{ color: 'var(--color-accent)' }}>THE FORGE</span>
-                <p style={{ fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 18, color: 'var(--color-muted)', margin: '12px 0 0', lineHeight: 1.4 }}>
-                  No goals yet. Forge one on the rail, then break it down into milestones and leaves.
-                </p>
-              </div>
-            </div>
+          ))}
+          {!readonly && (
+            <TButton quiet onClick={addGoal} style={{ padding: 11, borderStyle: 'dashed', cursor: 'pointer' }}>
+              + New goal
+            </TButton>
+          )}
+
+          <RailHead
+            label="Standing orders"
+            meta={`${String(activeRoutines.length).padStart(2, '0')} RUNNING`}
+            style={{ paddingTop: 18 }}
+          />
+          {routines.map((r: any, i: number) => (
+            <RoutineCard
+              key={r.id}
+              routine={r}
+              items={items}
+              goals={goals}
+              today={today}
+              selected={selected?.kind === 'routine' && selected.node.id === r.id}
+              delay={stagger(i, 340, 60)}
+              onClick={() => setSel({ kind: 'routine', id: r.id })}
+            />
+          ))}
+          {!readonly && (
+            <TButton quiet onClick={() => addRoutine()} style={{ padding: 11, borderStyle: 'dashed', cursor: 'pointer' }}>
+              + New routine
+            </TButton>
           )}
         </div>
       </div>
+
+      {/* ══ THE FORGE ═════════════════════════════════════════════════════ */}
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0, position: 'relative' }}>
+        {selected?.kind === 'routine' ? (
+          <RoutineForge
+            key={selected.node.id}
+            routine={selected.node}
+            items={items}
+            goals={goals}
+            today={today}
+            api={api}
+            readonly={readonly}
+            onToggle={onToggle}
+            onUpdateItem={onUpdateItem}
+            onDelete={onDelete}
+            onOpenShelf={(onPick?: (entry: any) => void) => setShelf({ onPick })}
+            shelfCount={libCount}
+          />
+        ) : selected?.kind === 'goal' ? (
+          <Forge
+            goal={selected.node}
+            items={items}
+            expanded={expanded}
+            readonly={readonly}
+            today={today}
+            shelfCount={libCount}
+            onSelect={onSelect}
+            onToggle={onToggle}
+            onToggleExpand={toggleExpand}
+            onAddLeaf={addLeaf}
+            onAddBranch={addBranch}
+            onAddRoutine={() => addRoutine(selected.node.id)}
+            onOpenRoutine={(id: number) => setSel({ kind: 'routine', id })}
+            onOpenShelf={() => setShelf({})}
+          />
+        ) : (
+          <div style={{ flex: 1, display: 'grid', placeItems: 'center', padding: 40 }}>
+            <div style={{ textAlign: 'center', maxWidth: 340 }}>
+              <span className="jk-lab jk-lab-xs" style={{ color: 'var(--color-accent)' }}>THE FORGE</span>
+              <p style={{ fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 18, color: 'var(--color-muted)', margin: '12px 0 0', lineHeight: 1.4 }}>
+                Nothing on the bench. Forge a goal on the rail and break it down — or
+                start a standing order, the part you don't re-decide each week.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* ══ THE SHELF — the library, over the forge ══════════════════════ */}
+        {shelf && (
+          <div style={{ position: 'absolute', inset: 0, zIndex: 18, display: 'flex', flexDirection: 'column' }}>
+            <Scrim onClick={closeShelf} style={{ position: 'absolute', inset: 0 }} />
+            <Sheet
+              className="modal-in"
+              style={{
+                position: 'relative', margin: 16, flex: 1, minHeight: 0,
+                borderRadius: 'var(--hub-radius-lg)', display: 'flex', flexDirection: 'column',
+                boxShadow: 'var(--hub-shadow-card)', overflow: 'hidden',
+              }}
+            >
+              {pasting ? (
+                <RoutineImport
+                  api={api}
+                  readonly={readonly}
+                  onClose={() => setPasting(false)}
+                  /* Straight onto the first routine imported. An import that lands you
+                     back on the shelf leaves you hunting the row you just made, and the
+                     forge is where you would go next anyway — the ladder is the thing you
+                     check after a document you did not type yourself. The reload is
+                     awaited so the row exists by the time the rail looks for it. */
+                  onImported={async (res: any) => {
+                    await onReload?.()
+                    const first = res?.routines?.[0]?.id
+                    closeShelf()
+                    if (first) setSel({ kind: 'routine', id: first })
+                  }}
+                />
+              ) : (
+                <LibraryBrowser
+                  api={api}
+                  items={items}
+                  readonly={readonly}
+                  onPick={shelf.onPick ? (entry: any) => { shelf.onPick!(entry); closeShelf() } : undefined}
+                  onPaste={() => setPasting(true)}
+                  onClose={closeShelf}
+                />
+              )}
+            </Sheet>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/* A rail section head. Serif and sticky: the print voice names CONTENT (the
+   .label-tape it replaces is machine chrome, and two lists of user things are not
+   that), and it needs an opaque ground of its own or the cards scroll under it. */
+function RailHead({ label, meta, style }: { label: string; meta: string; style?: React.CSSProperties }) {
+  return (
+    <div className="mo-item" style={{
+      flex: 'none', display: 'flex', alignItems: 'baseline', gap: 10,
+      padding: '16px 2px 4px', position: 'sticky', top: 0, zIndex: 4,
+      background: 'var(--color-paper)', ...style,
+    }}>
+      <Press style={{ fontFamily: FONT_HEAD, fontWeight: 700, fontSize: '1.06rem', letterSpacing: '-0.015em' }}>
+        {label}
+      </Press>
+      <span className="mono-eyebrow" style={{ marginLeft: 'auto' }}>{meta}</span>
     </div>
   )
 }
@@ -301,7 +391,10 @@ function GoalCard({ goal, items, selected, delay, onClick }: any) {
 
 /* ── The forge pane for the selected goal ───────────────────────────────── */
 
-function Forge({ goal, items, expanded, readonly, onSelect, onToggle, onUpdateItem, onToggleExpand, onAddLeaf, onAddBranch }: any) {
+function Forge({
+  goal, items, today, expanded, readonly, shelfCount,
+  onSelect, onToggle, onToggleExpand, onAddLeaf, onAddBranch, onAddRoutine, onOpenRoutine, onOpenShelf,
+}: any) {
   const tint = goal.accent || 'var(--color-accent)'
   const prog = getProgress(goal, items)
   const children = getChildren(goal, items)
@@ -322,6 +415,9 @@ function Forge({ goal, items, expanded, readonly, onSelect, onToggle, onUpdateIt
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 14 }}>
           <span className="jk-lab jk-lab-xs" style={{ color: 'var(--color-accent)' }}>THE FORGE</span>
           <span className="mono-eyebrow">BREAK IT DOWN — LEAVES ROLL UP TO THE GOAL</span>
+          <TButton quiet onClick={onOpenShelf} style={{ marginLeft: 'auto', cursor: 'pointer' }}>
+            ◧ Library{shelfCount == null ? '' : ` · ${shelfCount}`}
+          </TButton>
         </div>
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16, marginTop: 12 }}>
           <Press
@@ -338,19 +434,40 @@ function Forge({ goal, items, expanded, readonly, onSelect, onToggle, onUpdateIt
           <span className="seg" style={{ marginLeft: 'auto', fontSize: 30 }}>{prog.pct}%</span>
         </div>
         <Bar value={prog.pct / 100} tint={tint} height={7} radius={4} style={{ marginTop: 8 }} />
-        {routines.length > 0 && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-            <span className="mono-eyebrow">KEPT AS A ROUTINE</span>
-            {routines.map((r: any) => (
-              <Bubble key={r.id} tone="secondary" as="span" style={{ fontSize: 8, padding: '2px 8px', cursor: 'pointer' }} onClick={() => onSelect?.(r)}>
-                {r.title}{cadenceDays(r).length ? ` · ${weeklyTarget(r)}×/WK` : ''}
-              </Bubble>
-            ))}
-            <span className="mono-eyebrow" style={{ color: 'var(--color-faint)' }}>COUNTED ON THE ROUTINES BOARD, NOT IN THIS ROLLUP</span>
-          </div>
-        )}
       </div>
-      <Rule style={{ margin: '4px 28px 0' }} />
+
+      {/* ── The standing orders filed under this goal ──────────────────────
+          They are listed but NOT part of the tree or the rollup (see
+          isUnderRoutine in lib/seed) — a routine can never complete, so counting
+          one would hold the goal short of 100% forever. Given a band of their own
+          above the rule rather than a strip of chips inside the header, because
+          "what am I doing every week toward this" is a peer of the breakdown and
+          not an annotation on the title. */}
+      {!readonly || routines.length > 0 ? (
+        <div className="mo-item" style={{ flex: 'none', padding: '2px 28px 14px', animationDelay: '80ms' }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 8 }}>
+            <span className="jk-lab jk-lab-xs" style={{ color: 'var(--color-secondary)' }}>STANDING ORDERS</span>
+            <span className="mono-eyebrow">RUN ON THEIR OWN CLOCK — TRACKED APART FROM THE %</span>
+            {!readonly && (
+              <TButton quiet onClick={onAddRoutine} style={{ marginLeft: 'auto', cursor: 'pointer' }}>+ routine</TButton>
+            )}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9 }}>
+            {routines.map((r: any) => (
+              <StandingOrder key={r.id} routine={r} items={items} today={today} onClick={() => onOpenRoutine?.(r.id)} />
+            ))}
+            {routines.length === 0 && (
+              <div style={{ border: '1px dashed var(--hub-line)', borderRadius: 'var(--hub-radius-sm)', padding: '11px 14px', gridColumn: '1 / -1' }}>
+                <span className="jk-async-note" style={{ fontSize: 14, color: 'var(--color-muted)' }}>
+                  Nothing recurring under this goal yet — a standing order is the part you don't re-decide each week.
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : null}
+
+      <Rule style={{ margin: '0 28px' }} />
       <div className="jk-scroll" style={{ flex: 1, minHeight: 0, padding: '14px 28px 20px', display: 'flex', flexDirection: 'column', gap: 7, overflowY: 'auto' }}>
         {looseLeaves.map((leaf: any) => (
           <Leaf key={leaf.id} node={leaf} tint={tint} delay={delay()} readonly={readonly} onSelect={onSelect} onToggle={onToggle} items={items} />
@@ -398,6 +515,44 @@ function Forge({ goal, items, expanded, readonly, onSelect, onToggle, onUpdateIt
         )}
       </div>
     </>
+  )
+}
+
+/* A standing order, as seen from the goal it hangs under. The rail's card without
+   the chrome you already have on the rail: the name, the rhythm, and the week —
+   enough to know whether it is being kept, and a click to go edit it. */
+function StandingOrder({ routine, items, today, onClick }: any) {
+  const tint = routine.accent || 'var(--color-accent)'
+  const wk = useMemo(() => weekStart(today), [today])
+  const cells = useMemo(() => weekCells(routine, items, wk, today), [routine, items, wk, today])
+  const streak = useMemo(() => streakOf(routine, items, today), [routine, items, today])
+  const spec = useMemo(() => normalizeSpec(routine.spec), [routine.spec])
+  return (
+    <div
+      className="jk-hit"
+      onClick={onClick}
+      role="button"
+      style={{
+        border: '1px solid var(--hub-line)', borderRadius: 'var(--hub-radius-sm)',
+        background: 'var(--hub-bg-3)', padding: '11px 14px', cursor: 'pointer',
+        display: 'flex', alignItems: 'center', gap: 12, ['--jk-tint' as string]: tint,
+      }}
+    >
+      <span style={{ width: 8, height: 8, borderRadius: 2, background: tint, flex: 'none' }} />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
+        <span style={{
+          fontFamily: FONT_HEAD, fontWeight: 700, fontSize: 14, letterSpacing: '-0.01em',
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>
+          {routine.title}
+        </span>
+        <span className="mono-eyebrow" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {cadenceDays(routine).length ? `${weeklyTarget(routine)}×/WK` : 'NO CADENCE'} · {(summarize(spec) || 'NO STEPS').toUpperCase()}
+        </span>
+      </div>
+      <WeekStrip cells={cells} tint={tint} height={7} style={{ marginLeft: 'auto', width: 74, flex: 'none' }} />
+      <span className="seg" style={{ fontSize: 15, minWidth: 34, textAlign: 'right', flex: 'none' }}>{streak}</span>
+    </div>
   )
 }
 

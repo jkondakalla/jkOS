@@ -111,8 +111,10 @@ place with **"make it a checkpoint"** → `PATCH { kind: 'milestone' }` (already
 
 The Breakdown Method turns a destination into a finite tree of one-off tasks. A **routine**
 does not fit that shape at all and is not meant to: it has no finish line, no rollup, and it
-is never done. It is a commitment to a rhythm — and the second badge of the Workshop, the
-**cadence board**, is where it lives.
+is never done. It is a commitment to a rhythm — and it lives on the Workshop's one rail, under
+**standing orders**, with its cadence (the seven days, the target, the streak) as a
+band at the head of its forge. There is no separate cadence board and no badge: the
+rail's selection is the mode.
 
 | kind | role | schedulable? | measured by |
 |------|------|-------------|-------------|

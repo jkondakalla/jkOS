@@ -219,7 +219,7 @@ export function LibraryBrowser({ api, items, readonly, onPick, onClose, onPaste 
                 + New entry
               </TButton>
             )}
-            {onClose && <TButton quiet onClick={onClose} style={{ cursor: 'pointer' }}>← Back</TButton>}
+            {onClose && <TButton quiet onClick={onClose} style={{ cursor: 'pointer' }}>✕ Close</TButton>}
           </div>
         </div>
 

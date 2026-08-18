@@ -89,7 +89,7 @@ export function getLooseTasks(items: any[]) {
     .filter((it: any) => {
       if (it.kind !== 'task') return false
       // A routine's occurrence is never adrift: it is filed under a routine, which
-      // IS its home, and the routines board is where it is accounted for. Without
+      // IS its home, and the routine's cadence band is where it is accounted for. Without
       // this the rail would fill with two weeks of "gym" rows every time someone
       // adds a routine that isn't under a goal.
       if (isUnderRoutine(it, items)) return false
@@ -117,7 +117,7 @@ export function getLooseTasks(items: any[]) {
  * under it would have a denominator that grows every week and a percentage that
  * can never reach 100 no matter how much of the actual GOAL is finished.
  * Breakdown progress and cadence attainment are different measurements; the
- * routines board owns the second one.
+ * routine's cadence band (views/workshop/cadence.tsx) owns the second one.
  */
 export function isUnderRoutine(item: any, items: any[]) {
   return item.kind === 'routine' || getAncestors(item, items).some((a: any) => a.kind === 'routine')
