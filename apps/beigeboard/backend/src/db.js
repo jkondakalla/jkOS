@@ -557,6 +557,89 @@ const MIGRATIONS = [
       catch (e) { if (!e.message?.includes('duplicate column')) throw e; }
     },
   },
+  {
+    id: 13, name: 'variance_instrumentation',
+    up(d) {
+      /*
+       * THE TWO FACTS THE SCHEMA COULD NOT ANSWER — and why this migration is
+       * urgent in a way no other one has been (Documentation/ALGORITHMS.md §3).
+       *
+       * A routine holds DECLARED INTENT as progression rules; its occurrences hold
+       * ACTUAL BEHAVIOUR. Those two records diverge invisibly from either side
+       * alone, and reconciling them is the one thing this app can say that nothing
+       * else can. But three of the five statistics that reconciliation needs are
+       * not derivable from anything stored today:
+       *
+       *   skip clustering by DATE   there is no completion timestamp. `updated_at`
+       *                             is trigger-managed and clobbered by every later
+       *                             edit — renaming a task last week rewrites when
+       *                             it looks like it was finished.
+       *   ordering violations       `performed.steps` is an OBJECT. The order the
+       *                             steps were actually done in is not recorded
+       *                             anywhere, in any form.
+       *   drift in start time       `scheduled_time` is the PLAN. There has never
+       *                             been an actual.
+       *
+       * NO CODE CAN BACKFILL ANY OF THIS. It is a calendar dependency running
+       * backwards: every day these columns are not deployed is a day of history the
+       * analysis will never have. Which is why this lands long before anything
+       * reads it — the columns start the clock, and that is deliberately all they
+       * do. (The two per-step fields, `performed.steps[k].at` and `.seq`, are the
+       * other half and live in routine-spec.js, since `performed` is a document,
+       * not a column.)
+       *
+       * DELIBERATELY NOT BACKFILLED. Every row that predates this reads NULL, and
+       * that is the correct answer rather than a gap to be filled: stamping
+       * existing completions from `updated_at` would manufacture a history that
+       * looks real, sorts plausibly, and is wrong — the exact failure the analysis
+       * exists to avoid producing. The analysable span starts here.
+       *
+       * Additive and NULL-safe throughout, exactly as 10–12 were: a routine that
+       * predates this keeps working unchanged.
+       */
+      for (const col of ['started_at TEXT', 'completed_at TEXT']) {
+        try { d.exec(`ALTER TABLE items ADD COLUMN ${col}`); }
+        catch (e) { if (!e.message?.includes('duplicate column')) throw e; }
+      }
+
+      /*
+       * A TRIGGER, NOT A STAMP IN A ROUTE HANDLER. `completed` is written from at
+       * least four paths — PATCH /api/items/:id, /import, the routine engine's
+       * reconcile, and calendar sync — so a stamp in one handler would miss three
+       * and the column would be silently, partially true, which is worse than
+       * empty. The rule belongs to the table.
+       *
+       * Same millisecond-ISO format migration 8 moved the whole *_at family to, so
+       * completed_at and updated_at sort together and two completions in the same
+       * second stay distinguishable.
+       *
+       * ON THE 0→1 EDGE ONLY, and CLEARED on 1→0: un-ticking a task is not a
+       * completion at a slightly later time, it is the retraction of one, and a
+       * stale stamp left behind would be a completion date for something that is
+       * not complete.
+       *
+       * INSERT is deliberately not covered. A row that arrives already completed is
+       * a bulk import of history, and stamping it 'now' would date someone else's
+       * past to today — precisely the fabrication the no-backfill rule above
+       * refuses. Occurrences are always minted completed=0 (routines.js) and reach
+       * 1 through an UPDATE, so the path that matters is fully covered.
+       *
+       * `recursive_triggers` is OFF by default, so the inner UPDATE re-fires
+       * neither of these nor items_touch_updated. That is fine and intended:
+       * items_touch_updated has already fired on the OUTER update that set
+       * completed = 1, so the weave delta cursor has already moved and a peer
+       * polling ?since= sees the row.
+       */
+      d.exec(`DROP TRIGGER IF EXISTS items_stamp_completed`);
+      d.exec(`CREATE TRIGGER items_stamp_completed AFTER UPDATE ON items
+              FOR EACH ROW WHEN NEW.completed = 1 AND OLD.completed = 0
+              BEGIN UPDATE items SET completed_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = NEW.id; END`);
+      d.exec(`DROP TRIGGER IF EXISTS items_clear_completed`);
+      d.exec(`CREATE TRIGGER items_clear_completed AFTER UPDATE ON items
+              FOR EACH ROW WHEN NEW.completed = 0 AND OLD.completed = 1
+              BEGIN UPDATE items SET completed_at = NULL WHERE id = NEW.id; END`);
+    },
+  },
 ];
 
 function runMigrations() {

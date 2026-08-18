@@ -1581,6 +1581,21 @@ function normalizePerformed(raw) {
     steps[key] = {
       done: e.done === undefined ? sets.length > 0 : !!e.done,
       met: e.met === undefined ? null : !!e.met,   // null = "not said" → counts as met
+      /* WHEN, and IN WHAT ORDER (migration 13's other half — the document side).
+         Neither is read by anything here: `stepWasMet` is unchanged and the engine
+         does not care what time you squatted. They are carried because a log is
+         written by the mirror and read back through this function, so a field this
+         normaliser drops is a field that does not survive the round trip — and
+         these two are the only record that will ever exist of the order the steps
+         were actually performed in, versus the order the prescription asked for.
+         `at` is stamped on the done false→true EDGE by the mirror's logStep, not on
+         every patch; see the warning there for why that distinction is the whole
+         value of the field. `seq` is bounded well above LIMITS.steps rather than at
+         it: un-logging and re-logging a step re-issues a higher number, and
+         clamping to 40 would collapse the tail of a fiddly session into ties, which
+         is exactly the ordering information this exists to preserve. */
+      at: str(e.at, 40),
+      seq: int(e.seq, null, 1, 999),
       sets,
       note: str(e.note ?? e.notes, LIMITS.notes),
     };

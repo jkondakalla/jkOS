@@ -469,6 +469,56 @@ check(be.metFromSets({ sets: 1 }, [{ value: 1 }]) === true,
 check(be.metFromSets(rendered, [{ value: 5 }, { value: 3 }]) === fe.metFromSets(rendered, [{ value: 5 }, { value: 3 }]),
   'metFromSets: engine and mirror agree');
 
+/* ── 4f. The variance stamps (migration 13) ───────────────────────────────────
+   `performed.steps` is an OBJECT, so the order a session was actually performed in
+   is not recoverable from it, and there has never been a record of WHEN a step got
+   done. Migration 13 adds both as document fields — written by the mirror's
+   logStep, read back through the engine's normalizePerformed.
+
+   Pinned here rather than in a backend smoke because this is precisely a
+   MIRROR-WRITES / ENGINE-READS contract, which is the class of bug this whole file
+   exists for: a field the mirror stamps and the normaliser silently drops looks
+   exactly like a field that works, right up until the analysis reads nothing. */
+const l1 = fe.logStep(null, 'squat', { done: true, met: true });
+check(typeof l1.steps.squat.at === 'string' && /Z$/.test(l1.steps.squat.at) && l1.steps.squat.seq === 1,
+  'logStep: the first completed step of a session is stamped, and is seq 1');
+
+const l2 = fe.logStep(l1, 'bench', { done: true, met: true });
+check(l2.steps.bench.seq === 2 && l2.steps.squat.seq === 1,
+  'logStep: seq is a POSITION — the second step done is 2, and the first does not move');
+
+/* ⚠️ THE EDGE GUARD, which is the whole value of the field. logStep is called for
+   every edit to a step — a note, a set, a hit/short verdict — and stamping on all
+   of them would make `at` mean "when did you last touch this row", a different fact
+   that is indistinguishable from the real one after the fact. */
+const l3 = fe.logStep(l2, 'squat', { note: 'felt heavy' });
+check(l3.steps.squat.at === l1.steps.squat.at && l3.steps.squat.seq === 1,
+  'logStep: editing a note does NOT re-stamp — `at` is the completion, not the last touch');
+const l4 = fe.logStep(l3, 'squat', { met: false });
+check(l4.steps.squat.at === l1.steps.squat.at,
+  'logStep: marking a done step SHORT does not re-stamp it either');
+
+/* Down the other way: un-ticking is the retraction of a completion, not a
+   completion at a different time — the same rule the completed_at trigger follows. */
+const l5 = fe.logStep(l4, 'squat', { done: false, met: undefined });
+check(l5.steps.squat.at === undefined && l5.steps.squat.seq === undefined,
+  'logStep: un-logging CLEARS the stamps rather than leaving them to date a thing that did not happen');
+const l6 = fe.logStep(l5, 'squat', { done: true, met: true });
+check(l6.steps.squat.seq === 3,
+  'logStep: re-logging issues a FRESH position — it does not reclaim its old place in the order');
+
+/* The round trip. normalizePerformed rebuilds every step entry field by field, so
+   anything it does not name is dropped on the way to the engine. */
+const wire = JSON.parse(JSON.stringify(l6));
+const back = be.normalizePerformed(wire);
+check(back.steps.squat.at === l6.steps.squat.at && back.steps.squat.seq === 3
+   && back.steps.bench.seq === 2,
+  'normalizePerformed: the stamps survive the engine normaliser — mirror writes, engine reads');
+check(be.stepWasMet(back, 'squat') === true && be.stepWasMet(back, 'nothing-logged') === true,
+  'normalizePerformed: the stamps change nothing the engine acts on — stepWasMet is untouched');
+check(be.normalizePerformed({ steps: { a: { done: true, at: 42, seq: 'nonsense' } } }).steps.a.seq === null,
+  'normalizePerformed: a junk seq normalises to null rather than to NaN');
+
 /* ── 5. Lossy-safe: no document, however bad, may throw or emit NaN ───────────
    The load-bearing promise of the whole format — "every field optional, every
    default defensible" — is what lets a weak author produce something plainer

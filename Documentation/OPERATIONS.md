@@ -419,3 +419,13 @@ chown -R 1000:1000 /mnt/Luna/Backends/Production/jkos-auth-data
 4. `docker compose build` from root — the real gate that shared-package resolution works in images.
 5. Log in, change theme → confirm mode + accent apply identically in all frontends; reload persists
    (proves `PATCH /auth/profile` round-trip works).
+
+## Post-deploy checklist
+
+1. `pnpm prove --live https://staging.jkos.net --token <admin jwt>` — health, docshape,
+   directory, admin gate.
+2. `node packages/suite-prober/roundtrip.mjs --live <base> --token <jwt>` — the write path
+   through the real edge.
+3. One-time per instance, not per deploy: `BREAK_GLASS_TOKEN` (§ Break-glass access above) and
+   `CALENDAR_ENC_KEY` (§ .env files above) — both already documented there; confirm they're set
+   before relying on either.

@@ -123,6 +123,28 @@ const ITEM_FIELDS = [
   //                  (schema.js looksLikeCadenceSkips) exactly like cadence_days,
   //                  and for the same reason: it steers the mint.
   { name: 'cadence_skips',   shape: 'string',  client: true,  cap: 4000 },
+  // ── The variance instrumentation (migration 13) ────────────────────────────
+  // Two facts about a session that NOTHING in this schema could answer before,
+  // and that no amount of later code can recover — they only exist if they are
+  // recorded as they happen (Documentation/ALGORITHMS.md §3).
+  //   started_at    on an OCCURRENCE — when the user first touched the session
+  //                 card. `scheduled_time` is the PLAN; this is the actual, and
+  //                 the difference between them is the only way to see a routine
+  //                 that is quietly happening two hours late every time. Written
+  //                 ONCE, by the UI, on first interaction, and never overwritten:
+  //                 a session has one start, and re-stamping it would turn the
+  //                 column into "when did you last look at this".
+  //   completed_at  on ANY item — when `completed` went 0→1, stamped by a TRIGGER
+  //                 (migration 13) because `completed` is written from four
+  //                 different paths. Server-managed, so `client: false`:
+  //                 a caller that could set it could date its own history.
+  // ⚠️ Both are millisecond-ISO UTC ('…T…Z'), matching updated_at since migration
+  // 8, so the whole *_at family sorts together. `scheduled_time` is LOCAL wall
+  // time — any drift statistic MUST convert before subtracting (the same UTC-vs-
+  // local skew that RULE 1 in ROUTINES.md §4 exists to warn about).
+  // Appended at the tail for the reason stated above: ORDER IS CONTRACT.
+  { name: 'started_at',      shape: 'string',  client: true,  cap: 40 },
+  { name: 'completed_at',    shape: 'string',  client: false },
   { name: 'created_at',     shape: 'string',  client: false },
   { name: 'updated_at',     shape: 'string',  client: false },  // trigger-managed
 ];

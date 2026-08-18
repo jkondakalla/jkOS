@@ -57,8 +57,8 @@ fails on the first disagreement. **Change one, change the other, run the gate.**
 ## 3. The columns
 
 Migrations **9** (cadence), **10** (document), **11** (cadence rules, deload,
-revisions), **12** (the skip list). All additive and NULL-safe: a routine that
-predates any of them keeps working unchanged.
+revisions), **12** (the skip list), **13** (the variance instrumentation). All
+additive and NULL-safe: a routine that predates any of them keeps working unchanged.
 
 | Column | On | Holds |
 |---|---|---|
@@ -71,6 +71,14 @@ predates any of them keeps working unchanged.
 | `cycle_index` | occurrence | which cycle produced it |
 | `performed` | occurrence | what the user actually did — the only field the engine reads *back* |
 | `deload_override` | occurrence | 1 = take this one easy · 0 = force normal · NULL = follow the programme |
+| `started_at` | occurrence | when the session was **actually** started — first interaction with the card, written once, never overwritten. `scheduled_time` is the *plan*; this is the only record of the actual. The **one client-writable timestamp in the schema**, so it is validated at the door. |
+| `completed_at` | any item | when `completed` went 0→1, stamped by a **trigger** (`completed` is written from four paths) and cleared on 1→0. Server-managed. Not `updated_at`, which every later edit clobbers. |
+
+`started_at`, `completed_at` and the per-step `performed.steps[k].at` / `.seq` are the
+**variance instrumentation** (migration 13): they answer *when* and *in what order*,
+which nothing else here can, and which no later code can reconstruct — they exist only
+if recorded as they happen. Nothing in the engine reads them; the analysis that will
+is [ALGORITHMS.md §8](ALGORITHMS.md).
 
 Plus two tables: **`library`** (reusable sub-tasks) and **`routine_revisions`**
 (append-only spec history).
@@ -295,7 +303,18 @@ same "silence means you did what you were told" rule autoregulation uses.
    week" — always mid-week, always ahead of the run.
 5. **`occurrencesOf`'s SELECT is an explicit column list.** Adding an occurrence
    column means adding it there too, or the engine reads `undefined` and the feature
-   silently does nothing. (This bit during Wave 2 with `deload_override`.)
+   silently does nothing. (This bit during Wave 2 with `deload_override`.) Note there
+   are **two** functions by that name: this one, in `routines.js`, read by the
+   reconcile passes — and the analytics one in `routes/routines.js`, which is
+   `SELECT *` and needs nothing.
+5b. **The log has ONE author: `logStep`.** A step entry's fields are written there and
+   nowhere else, so a new field lands everywhere at once. `SessionCard`'s "all as
+   prescribed" button used to rebuild `performed.steps` itself and was fixed when
+   migration 13 added `at`/`seq`; it is the place to check first.
+5c. **`logStep` fires on EVERY patch to a step** — notes, sets, a hit/short verdict.
+   `at` is guarded to the `done` false→true edge, or it would silently mean "when did
+   you last touch this row", which is a different fact and indistinguishable from the
+   real one afterwards.
 6. **The forge is a full pane, not a `.jk-panel` overlay.** That primitive has caused
    two silent "clicking does nothing" bugs in this app. The shelf and the paste pane
    follow it — all three are early returns from the board, so the forge's *unsaved*

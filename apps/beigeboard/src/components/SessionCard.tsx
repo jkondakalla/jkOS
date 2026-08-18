@@ -64,12 +64,24 @@ export function SessionCard({ occurrence, tint, readonly, onUpdateItem, onDeload
 
   const performed = performedOf(occurrence)
 
+  /* WHEN THE SESSION ACTUALLY STARTED (migration 13).
+     `scheduled_time` is the plan; this is the only record of the actual, and it
+     exists solely because a routine that quietly happens ninety minutes late every
+     time looks identical to one running on schedule from every other column.
+
+     Written ONCE and never overwritten — a session has one start — and folded into
+     the patch the interaction was already sending rather than fired as its own
+     PATCH: touching a session card must stay one round trip, which is the whole
+     reason the set log is debounced two functions down. */
+  const opening = () => (occurrence.started_at ? null : { started_at: new Date().toISOString() })
+  const write = (patch: any) => onUpdateItem?.(occurrence.id, { ...opening(), ...patch })
+
   /* One write per tap, merged onto whatever is already logged. The merge lives in
      the spec mirror (logStep) rather than here so the log's shape has one author —
      the card never constructs the JSON itself. */
   const log = (key: string, patch: any) => {
     if (readonly) return
-    onUpdateItem?.(occurrence.id, { performed: logStep(performed, key, patch) })
+    write({ performed: logStep(performed, key, patch) })
   }
 
   /* Blocks are a flat tag on each step, already sorted by the render. Grouped here
@@ -157,9 +169,16 @@ export function SessionCard({ occurrence, tint, readonly, onUpdateItem, onDeload
             onClick={() => {
               // "All as prescribed" — the honest fast path, and the one that keeps
               // the log truthful for people who would otherwise log nothing.
-              const patch: any = { v: 1, steps: {} }
-              for (const s of rx.steps) patch.steps[s.key] = { done: true, met: true }
-              onUpdateItem?.(occurrence.id, { performed: { ...(performed || {}), ...patch } })
+              //
+              // Folded through logStep one step at a time rather than assembled
+              // here, because the log has ONE author (see `log` above) and this was
+              // the one place that quietly wasn't going through it: it rebuilt
+              // `steps` wholesale, which both discarded any sets and notes already
+              // typed and — now that logStep stamps them — would have produced the
+              // only completed steps in the app with no `at` and no `seq` on them.
+              let next = performed
+              for (const s of rx.steps) next = logStep(next, s.key, { done: true, met: true })
+              write({ performed: next })
             }}
             style={{ padding: '3px 9px', cursor: 'pointer' }}
           >

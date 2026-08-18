@@ -118,6 +118,22 @@ const looksLikeCadenceSkips = (v) => {
   return parts.every((p) => SKIP_ENTRY_RE.test(p) && looksLikeDate(p.split('#')[0]));
 };
 
+/* `started_at` (migration 13) — a millisecond-ISO UTC instant, the same format the
+   whole *_at family has used since migration 8. The ONLY client-writable timestamp
+   in the schema, so it is the only one that can arrive malformed, and it is
+   validated here for the same reason cadence_days is: it feeds a computation the
+   user never sees the input to. A drift statistic built over 'yesterday evening' or
+   a local-time string with no zone produces a number that is wrong in a way nothing
+   downstream can detect — and a variance finding that is confidently wrong is worse
+   than a missing one (ALGORITHMS.md §8.1). Empty clears. */
+const looksLikeStamp = (v) => {
+  if (typeof v !== 'string') return false;
+  const s = v.trim();
+  if (s === '') return true;
+  const m = s.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2}):(\d{2})(\.\d{1,3})?Z$/);
+  return !!m && looksLikeDate(m[1]) && +m[2] <= 23 && +m[3] <= 59 && +m[4] <= 60;
+};
+
 /* The weekly target. Capped so a fat-fingered value can't ask the materializer for
    an unbounded number of float occurrences per week (the mint is horizon-bounded in
    time, but not in count — this is the count bound). 21 = three a day. */
@@ -294,6 +310,9 @@ function validateItemWrite(raw, details = null) {
         return `cadence_rule must be one of ${routineSpec.CADENCES.join(' / ')} (e.g. 'every_n_days:3')`;
       }
     }
+    if (k === 'started_at' && !looksLikeStamp(String(v))) {
+      return 'started_at must be a millisecond-ISO UTC instant (YYYY-MM-DDTHH:MM:SS.sssZ)';
+    }
     if (k === 'deload_override') {
       const n = typeof v === 'number' ? v : parseInt(String(v), 10);
       if (!Number.isFinite(n) || n < 0 || n > 1) return 'deload_override must be 0 or 1';
@@ -308,6 +327,6 @@ module.exports = {
   IMPORT_ALIASES, IMPORT_STRUCT_KEYS, IMPORT_DATE_COLS, IMPORT_TIME_COLS, IMPORT_KIND_ENUM,
   IMPORT_STR_CAP, IMPORT_NUM_COLS, IMPORT_SCOPE_ENUM, IMPORT_STATUS_ENUM,
   HEX_COLOR_RE, MAX_TAG_COUNT, MAX_TAG_LEN, MAX_CADENCE_COUNT, MAX_CADENCE_SKIPS,
-  looksLikeDate, looksLikeTime, looksLikeCadenceDays, looksLikeCadenceSkips, importChildren,
+  looksLikeDate, looksLikeTime, looksLikeStamp, looksLikeCadenceDays, looksLikeCadenceSkips, importChildren,
   cleanImportField, validateItemWrite,
 };

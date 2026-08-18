@@ -994,13 +994,52 @@ export function stepStatus(performed: any, key: string): { done?: boolean; met?:
 
 /** The patch that records one step, merged onto whatever is already logged.
  *  Returned rather than written so the caller owns the round trip — the same shape
- *  every other edit in this app takes. */
-export function logStep(performed: any, key: string, patch: { done?: boolean; met?: boolean; note?: string }) {
+ *  every other edit in this app takes.
+ *
+ *  IT ALSO STAMPS WHEN AND IN WHAT ORDER (migration 13). `performed.steps` is an
+ *  object, so the order the steps were actually done in is not recoverable from it
+ *  — and the order a session is performed in, versus the order it was prescribed
+ *  in, is one of the few things a training log can say that the plan cannot. So the
+ *  crossing itself is recorded here, at the only place that can see it: this
+ *  function is handed the OLD entry and the new patch in the same breath.
+ *
+ *  ⚠️ ON THE EDGE, NOT ON EVERY PATCH. logStep is called for every edit to a step —
+ *  ticking it, marking it short, typing a set, writing a note. Stamping `at`
+ *  unconditionally would make it "when did you last touch this row", which is a
+ *  different fact, is not the one anything wants, and would be indistinguishable
+ *  from the real one after the fact. Guarded to the done false→true crossing, it
+ *  means "when this got done" and nothing else.
+ *
+ *  And CLEARED on the way back down, for the same reason the completed_at trigger
+ *  clears: un-ticking a step is the retraction of a completion, not a completion at
+ *  a slightly different time, and a stamp left behind would date something that did
+ *  not happen. */
+export function logStep(
+  performed: any,
+  key: string,
+  patch: { done?: boolean; met?: boolean; note?: string; sets?: any[] },
+) {
   const base = isObj(performed) ? performed : { v: SPEC_VERSION, steps: {} }
   const steps = isObj(base.steps) ? base.steps : {}
+  const prev = isObj(steps[key]) ? steps[key] : {}
+  const next: any = { ...prev, ...patch }
+
+  if (patch.done === true && prev.done !== true) {
+    next.at = new Date().toISOString()
+    /* One past the highest issued so far — a POSITION, not a count of steps, so it
+       survives a step being logged, un-logged and logged again (which is a real
+       thing people do mid-session, and which must not renumber the steps around
+       it). The seeded 0 is what makes an empty log — and a log full of entries
+       written before this field existed — start at 1 rather than at -Infinity. */
+    next.seq = 1 + Math.max(0, ...Object.values(steps).map((e: any) => Number(e?.seq) || 0))
+  } else if (patch.done === false && prev.done === true) {
+    next.at = undefined
+    next.seq = undefined
+  }
+
   return {
     ...base,
     v: SPEC_VERSION,
-    steps: { ...steps, [key]: { ...(steps[key] || {}), ...patch } },
+    steps: { ...steps, [key]: next },
   }
 }

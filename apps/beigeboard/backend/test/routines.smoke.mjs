@@ -21,6 +21,11 @@
 //   H. the cadence is validated at the door (bad days / out-of-range count → 400)
 //   I. X-BB-Today is honoured, so the user's local day drives the mint, and a
 //      filtered read never triggers a horizon write
+//   K. migration 13's variance instrumentation — completed_at is stamped by the
+//      TRIGGER on the 0→1 edge, is not moved by a later edit (the whole reason it
+//      is not updated_at), is cleared on retraction and is not client-writable;
+//      started_at is validated at the door; and the per-step at/seq survive the
+//      engine's normaliser
 //
 //   node apps/beigeboard/backend/test/routines.smoke.mjs
 
@@ -291,6 +296,76 @@ try {
       `J: cadence_skips='${bad}' → 400 VALIDATION (got ${r.status})`);
   }
   await req('DELETE', `/api/items/${jid}`);
+
+
+  // ── K. VARIANCE INSTRUMENTATION (migration 13) ─────────────────────────────
+  //     The two facts nothing in this schema could answer, and that no later code
+  //     can recover — they exist only if they are recorded as they happen
+  //     (Documentation/ALGORITHMS.md §3). Tested through HTTP like everything else
+  //     here, because the stamp is a TRIGGER and the point of a trigger is that it
+  //     fires for the routes that forgot about it.
+  const kMade = await req('POST', '/api/items', {
+    title: 'Instrumented', kind: 'routine', status: 'active', cadence_days: '0,2,4',
+  });
+  const kid = kMade.json.id;
+  const kOcc = occurrencesOf(await list(), kid)[0];
+  ok(!!kOcc && kOcc.completed_at === null, 'K: a fresh occurrence has no completion stamp');
+
+  await req('PATCH', `/api/items/${kOcc.id}`, { completed: true });
+  let kRow = (await list()).find((r) => r.id === kOcc.id);
+  ok(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(String(kRow.completed_at)),
+    `K: completing stamps completed_at in the millisecond-ISO the *_at family sorts on (got ${kRow.completed_at})`);
+
+  // A LATER EDIT MUST NOT MOVE IT. This is the entire reason the column exists
+  // rather than the analysis reading updated_at: renaming a task next week would
+  // otherwise silently redate when it was finished, and skip clustering BY DATE
+  // would be computed over the edit history instead of the completion history.
+  const stampedAt = kRow.completed_at;
+  await new Promise((r) => setTimeout(r, 5));
+  await req('PATCH', `/api/items/${kOcc.id}`, { title: 'Instrumented (renamed)' });
+  kRow = (await list()).find((r) => r.id === kOcc.id);
+  ok(kRow.completed_at === stampedAt, 'K: a later edit does NOT move the completion stamp');
+  ok(kRow.updated_at > stampedAt, 'K: …while updated_at does move — the two are different facts');
+
+  // Un-ticking is the RETRACTION of a completion, not a completion at a later
+  // time, so the stamp is cleared rather than left behind.
+  await req('PATCH', `/api/items/${kOcc.id}`, { completed: false });
+  kRow = (await list()).find((r) => r.id === kOcc.id);
+  ok(kRow.completed_at === null, 'K: un-completing CLEARS the stamp');
+  await req('PATCH', `/api/items/${kOcc.id}`, { completed: true });
+  kRow = (await list()).find((r) => r.id === kOcc.id);
+  ok(kRow.completed_at !== null && kRow.completed_at !== stampedAt,
+    'K: re-completing stamps afresh — the second completion is a different event');
+
+  // started_at is the one client-writable timestamp, so it is the one that can
+  // arrive malformed. Hard 400 at the door: a drift statistic over a local-time
+  // string with no zone is wrong in a way nothing downstream can detect.
+  const kStart = new Date().toISOString();
+  ok((await req('PATCH', `/api/items/${kOcc.id}`, { started_at: kStart })).status === 200,
+    'K: a millisecond-ISO started_at is accepted');
+  ok((await list()).find((r) => r.id === kOcc.id)?.started_at === kStart,
+    'K: …and reads back verbatim');
+  for (const bad of ['yesterday evening', '2026-08-18 09:30', '2026-08-18T09:30:00', '2026-13-40T09:30:00.000Z']) {
+    const r = await req('PATCH', `/api/items/${kOcc.id}`, { started_at: bad });
+    ok(r.status === 400 && r.json?.code === 'VALIDATION',
+      `K: started_at='${bad}' → 400 VALIDATION (got ${r.status})`);
+  }
+
+  // completed_at is server-managed (client:false), so a caller cannot date its own
+  // history — the write is DROPPED by the column allowlist, not honoured.
+  await req('PATCH', `/api/items/${kOcc.id}`, { completed_at: '1999-01-01T00:00:00.000Z' });
+  ok((await list()).find((r) => r.id === kOcc.id)?.completed_at !== '1999-01-01T00:00:00.000Z',
+    'K: a client cannot write completed_at — it is the trigger\'s column');
+
+  // The per-step half of the record: `at` and `seq` are written by the mirror and
+  // must SURVIVE the engine's normaliser, which drops every field it does not know.
+  await req('PATCH', `/api/items/${kOcc.id}`, {
+    performed: { v: 1, steps: { squat: { done: true, met: true, at: kStart, seq: 1 } } },
+  });
+  const kPerf = JSON.parse((await list()).find((r) => r.id === kOcc.id)?.performed || '{}');
+  ok(kPerf.steps?.squat?.at === kStart && kPerf.steps?.squat?.seq === 1,
+    'K: performed.steps[k].at and .seq round-trip — the only record of the order steps were done in');
+  await req('DELETE', `/api/items/${kid}`);
 
   // ── cascade: deleting the routine takes its occurrences with it ─────────────
   //     INCLUDING the ones that left the subtree. Re-parenting an occurrence into

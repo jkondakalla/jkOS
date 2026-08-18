@@ -445,6 +445,13 @@ produces the same pure-data spec shape that an AI step will eventually generate.
 The top strip fetches `GET /auth/apps` (the jkAuth registry) to populate the app switcher.
 New apps appear automatically when a row is added to `app_registry` — zero portal code changes.
 
+### Live verification — flagged for Jag
+
+The `bb-week` calendar widget renders read+light on the HUD, code-complete and gated. **Not
+yet confirmed as of 2026-08-18** (needs a running stack, not a checkout): add it from the
+shelf, confirm real BeigeBoard items render, grid-drag doesn't clash with the view's internal
+layout, select is a clean no-op. (Originally ToDo §5.)
+
 ---
 
 ## LazurOS: the AI gateway
@@ -760,6 +767,14 @@ answering offline Range requests as 206 slices of the cached body via lazy `Blob
 (progress/bookmarks with `?since=` reconciliation) is not yet built.
 `manifest.webmanifest` declares a standalone-display installable app (SVG + 192/512 PNG
 icons, theme/background colors).
+
+### Live verification — flagged for Jag
+
+Boot scan, `/health`/`/api/capabilities`/`/api/datasets` shapes, and staging routing are
+already confirmed via direct host access. **Not yet confirmed as of 2026-08-18** (needs a real
+authenticated session — no service token substitutes for "two independent users"): jkAuth login
+→ `Range: bytes=0-1023` → `206`; two users → independent resume; match one thin-metadata book;
+add a bookmark; download a file; install the PWA. (Originally ToDo §2 6.2.)
 
 ---
 
