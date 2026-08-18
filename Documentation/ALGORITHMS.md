@@ -60,8 +60,8 @@ to step 0.** See §3 for why.
 
 | # | Step | Gate to the next |
 |---|---|---|
-| **0** | BeigeBoard variance instrumentation (§3) | ✅ **BUILT 2026-08-18** — gate green. Remaining gate: **deployed**, and a real completion on the live DB writing `completed_at`. Chunked as [ToDo §8.0](ToDo.md) |
-| **M1–M4** | Music through the similarity gate (§4) — **chunked as [ToDo §8.1–8.7](ToDo.md)** | the ten nearest tracks to something you know well are *right* |
+| **0** | BeigeBoard variance instrumentation (§3) | ✅ **BUILT + DEPLOYED 2026-08-18** — migration 13 verified applied on the live staging DB (ledger id 13, both columns, both triggers). Outstanding: one real completion to fire the trigger — the DB has **zero** completed items, so the 0→1 edge has not yet occurred. [ToDo §8.0](ToDo.md) |
+| **M1–M4** | Music through the similarity gate (§4) — **chunked as [ToDo §8.1–8.7](ToDo.md)**. §8.1–§8.3 built 2026-08-18 (`music/`, 131 tests green; M2's picture gate passed) | the ten nearest tracks to something you know well are *right* |
 | **V** | Completion-volume check (§5) | a number, read off the live DB |
 | **L1** | LazurOS minimal bring-up (§6) | a capability round-trips through the staging console |
 | **L2** | Prompt versioning · audit schema · eval harness (§7) | one capability has a reproducible score |
@@ -72,10 +72,14 @@ to step 0.** See §3 for why.
 of work whose value is measured in calendar time, so it goes first and then gets out of the
 way; M1–M4 is the long pole.
 
-> **Step 0 is written and green as of 2026-08-18 — the code half is done and music is
-> unblocked.** It is NOT yet deployed, and undeployed instrumentation logs nothing: the
-> calendar clock this step exists to start does not start until the staging image is rebuilt.
-> That is the one thing still owed here, and it is a deploy, not a task.
+> **Step 0 is deployed as of 2026-08-18 — the clock is running.** Verified against the live
+> staging database, not just the gate: the migration ledger reads `13|variance_instrumentation`,
+> `items` carries `started_at` and `completed_at`, and both triggers exist. One thing is still
+> owed and it is a checkbox tick rather than work — the staging DB holds **zero completed items
+> of any kind**, so the `completed` 0→1 edge has never occurred and the trigger has never fired
+> in production. Completing one real routine step closes it; see [ToDo §8.0](ToDo.md) for the
+> read-back command. ⚠️ **Copy the `-wal` alongside the `.db`** when reading that database — a
+> multi-megabyte WAL holds recent writes, and querying the bare `.db` shows a stale snapshot.
 
 The useful property of this order: **a finished, demonstrable project exists at the end of
 M4**, with none of the deployment surface involved. One complete project beats two
@@ -242,6 +246,14 @@ have no `package.json` and are skipped automatically).
 **Zero jkOS imports through M4.** The isolation is the deliverable, not an accident of
 sequencing — it is what makes a wrong similarity result unambiguous.
 
+> **Built as of 2026-08-18 (ToDo §8.1–§8.3):** `config.py`, `audio.py`, `scan.py`, `index.py`,
+> `mel.py`, `ridge.py`, `README.md`, the two-line `requirements.txt`, and **131** stdlib-`unittest`
+> tests that run with no library mount (audio fixtures are synthesised by the ffmpeg already
+> required). The §8.1 gate passed on a real library FLAC — decoded sample count vs. the
+> container's own duration agreed to **0.0 ms** against a one-frame tolerance — and **M2's gate
+> passed in a browser** on four deliberately unalike tracks. Next is the descriptor baseline
+> (M3's comparison arm, ToDo §8.4).
+
 ### The dependency budget (decided 2026-08-18)
 
 This is a portfolio project, so the dependency list is part of the deliverable.
@@ -292,7 +304,10 @@ path so the join is free later.
 ### M1 — mel extraction over one album
 
 **ffmpeg subprocess → numpy, hand-rolled.** `decode()` shells out to ffmpeg
-(`-f f32le -ac 1 -ar 22050`) and reads the raw stream with `np.frombuffer`; the transform itself
+(`-f f32le -ac 1 -ar 22050`) and reads the raw stream with `np.frombuffer`; measured
+end-to-end 2026-08-18, a 51.8 MB / 234.9 s FLAC decodes in **0.59 s wall — 88 MB/s, exactly
+the CIFS ceiling**, which settles the question of whether decode is worth optimising: it is
+already running at the speed of the wire (Trap 19); the transform itself
 is frame → Hann → `np.fft.rfft` → power → a triangular mel filterbank built in numpy → log. A
 128 × T float32 matrix per track, with **no audio library involved**. Save the matrices, load
 them back, and **inspect the numbers** before building anything on them.
@@ -311,6 +326,24 @@ correctness check disguised as a picture — if the ridgeline does not look like
 
 > Charts in this repo go through the `dataviz` skill — load it before the first plotting call,
 > not after.
+
+**Built 2026-08-18 as `music/ridge.py`; the gate passed.** SVG emitted as text, so the renderer
+is string formatting over the matrix `mel.py` already produces and the two-line dependency budget
+is untouched. Four decisions are load-bearing, and each was a measurement rather than a
+preference:
+
+| Decision | Why |
+|---|---|
+| **One shared absolute level scale across every panel** | The single thing that decides whether the comparison means anything. Per-track normalisation rescales each picture to fill its own frame, so a solo piano track and a brickwalled metalcore track come out looking equally loud — which is exactly the comparison the picture exists to make. It is the **same mistake M3's descriptor z-score warns about**, one step earlier and in pixels. Enforced by API shape, not by discipline: the range belongs to a *sheet*, `Panel` carries none, and the auto-range function takes the whole list. |
+| **A tall plot, panels side by side** | 128 rows is far more than a ridgeline normally carries (10–40 is the form). Below ~9 px of row pitch every row's excursion crosses two neighbours and the panel collapses into a uniform hatch — **a picture that reads as "the transform is broken" when the transform is fine and the picture is merely too small.** The most expensive available misreading of this step, avoided by geometry. |
+| **Reduce the time axis by `max`, not `mean`** | ~10,000 frames against ~450 px. A kick drum is one loud frame in a bucket of quiet ones; the mean deletes it, and with it the beat grid. A full-length render aliases the beat away regardless (~1.5 px between hits), so the check needs **two** renders — full length for the arrangement, a ~16 s window for the grid. |
+| **Sequential colour, one hue, on the frequency axis** | Band index is an *ordered* dimension, so its colour job is sequential — never a rainbow (the named anti-pattern: a multi-hue ramp invents an ordering the eye cannot rank). Ramps for both faces come from the suite's design factory and were validated with the `dataviz` ordinal checks; the checks that are computable from the hexes alone **re-run in the test suite**, so the palette cannot rot. |
+
+The gate itself: SiM (metalcore), Kendrick Lamar (hip-hop), Matt Maltese (solo piano), Bo Burnham
+(spoken-word stand-up), rendered together and read in a browser in both faces. Dense material
+dense in every register; an unmistakable kick grid in the hip-hop bass rows with real silence
+between hits; the ballad near-flat below 200 Hz with slow swells above it; the stand-up cut with
+no bass content at all, sitting in a horizontal speech-formant band. All four §8.3 criteria met.
 
 ### M3 — pretrained embeddings into the vector store
 
@@ -386,6 +419,17 @@ FROM   items WHERE ext_ref LIKE 'routine:%' AND completed = 1;
 
 `completed_at` is NULL for everything predating step 0 — that is expected and is the point:
 the span you can analyse starts when migration 13 deployed, not when the routine was created.
+
+### Read 2026-08-18, immediately after step 0 deployed
+
+**Zero.** The staging database holds **0 rows with `completed = 1`** — not zero routine
+occurrences, zero completed items of any kind — against 3 routine occurrences minted. So the
+answer today is not "thin", it is "none", and `completed_at` is NULL everywhere because the
+trigger has had no edge to fire on rather than because the migration is missing.
+
+This is exactly the expected reading on day zero and it is the reason step 0 went first: the
+span that can be analysed starts now. Re-read this number before scheduling §8, not before
+scheduling L1 or L2, which are unaffected.
 
 **The decision rule.** With only a few weeks of completions across a handful of routines, the
 minimum-observations gate (§8.2) will correctly suppress nearly every finding and the feature
@@ -677,7 +721,8 @@ Consolidated so a cold agent hits none of them.
 19. **The library is on a CIFS mount** (`//192.168.1.108/Luna`), measured **85–96 MB/s** —
     ~380 GB of FLAC is ~75 min of pure single-stream read. **The network filesystem is the
     bottleneck, not the FFT and not the model.** Parallel decode workers feeding a *serial*
-    encoder session; do not give both 16 threads.
+    encoder session; do not give both 16 threads. **Confirmed end-to-end 2026-08-18:** a real
+    51.8 MB decode ran at **88 MB/s**, i.e. at the wire speed — the CPU side of decode is free.
 20. **Paths are hostile** — `again&again`, `Today's Lesson.flac`, `[16B-44.1kHz]`. **Never
     `shell=True`;** argv lists everywhere. This bit during the first probe of the library.
 
@@ -696,7 +741,9 @@ pnpm test:contracts                                  # the full 24-link chain
 
 # Steps M1–M7  (standalone — not on the jkOS gate by design)
 # stdlib unittest, not pytest: pytest is a dependency the budget does not take
-cd music && python -m unittest discover
+cd music && python -m unittest discover     # 59 tests green 2026-08-18 (§8.1)
+# Runs with NO library mount: the audio fixtures are synthesised with ffmpeg, and the
+# library-backed checks skip cleanly when /mnt/Luna is absent.
 
 # Steps L1–L3
 pnpm --filter @jkos/lazuros-backend test

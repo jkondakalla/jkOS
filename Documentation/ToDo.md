@@ -5,7 +5,7 @@
 > date for when he comes back to them, not as active work.
 >
 > **▶ §8 is the active section.** The music vector space, chunked 2026-08-18 — that's the work in
-> front of us. Design record: [ALGORITHMS.md](ALGORITHMS.md). LazurOS bring-up
+> front of us. §8.0–§8.3 are done; **§8.4, the descriptor baseline, is next.** Design record: [ALGORITHMS.md](ALGORITHMS.md). LazurOS bring-up
 > ([LAZUROS_STARTUP.md](LAZUROS_STARTUP.md)) comes *after* §8's gate and is still not tracked
 > here.
 
@@ -17,10 +17,12 @@ checkout can't verify them; each is flagged **"not yet confirmed as of 2026-08-1
 home, and this pass is logged in memory as unverified rather than done.
 
 **As of 2026-08-18:** the suite (five core systems + PapyrOS/KourOS + the `@jkos/player`
-primitive + Full Press design reface) is committed to `staging` through `5ce3a70`, **nothing
-in this backlog is deployed yet**. Next up: **§8, the music vector space** — chunked here as of
-2026-08-18, with [ALGORITHMS.md](ALGORITHMS.md) as its design record. LazurOS bring-up
-([LAZUROS_STARTUP.md](LAZUROS_STARTUP.md)) is still not tracked in this file.
+primitive + Full Press design reface) is committed to `staging` through `5ce3a70` and **has now
+been deployed to staging** — so the whole Routine/Workshop/field-primitive batch, the request-storm
+fix, the login-throttle fix, and **migration 13's variance instrumentation** are live. What that
+does *not* mean is in-browser confirmed: nothing in §7's visual QA has had an eyeball on it.
+Next up: **§8, the music vector space**, with [ALGORITHMS.md](ALGORITHMS.md) as its design record.
+LazurOS bring-up ([LAZUROS_STARTUP.md](LAZUROS_STARTUP.md)) is still not tracked in this file.
 
 Section numbering is stable and cross-referenced by other docs — **§1 = LazurOS, §2 = PapyrOS,
 §3 = the media primitive program, §4 = parked decisions, §5 = smaller items, §7 = Full Press,
@@ -232,17 +234,35 @@ re-proposed:
 
 ---
 
-- [ ] **8.0 Deploy the clock.** *Not music — it's here because it loses value every day.*
-      Migration 13 (variance instrumentation) is built, gate-green, committed through `5ce3a70`,
-      and **never deployed**. Undeployed instrumentation logs nothing. Rebuild the BeigeBoard
-      staging image, then confirm one real completion writes a real `completed_at`. One deploy,
-      not a task. Step V (the completion-volume read, [ALGORITHMS.md §5](ALGORITHMS.md)) is
-      deliberately **not** chunked — it's unreadable until this has been running a while.
-
-- [ ] **8.1 `music/` skeleton — config, decode, index `[FEAT-M]`.** New top-level `music/`,
-      **outside the pnpm workspace**, following the `jkos-deploy/` precedent: own `README.md`,
-      own `requirements.txt`. (`pnpm-workspace.yaml` says in a comment that Python dirs with no
-      `package.json` are skipped — no wiring needed.)
+- [x] **8.0 Deploy the clock — DEPLOYED 2026-08-18, schema verified against the live DB.**
+      *Not music — it was here because it lost value every day.* Migration 13 is applied on
+      staging and **the clock is running**. Verified by reading a copy of the live database
+      (`.db` **plus its `-wal`/`-shm`**, since a 4 MB WAL held writes the `.db` alone would not
+      show): ledger tail reads `13|variance_instrumentation`, `items` carries `started_at` and
+      `completed_at`, and both triggers — `items_stamp_completed`, `items_clear_completed` —
+      exist. Step V (the completion-volume read, [ALGORITHMS.md §5](ALGORITHMS.md)) stays
+      deliberately **not** chunked; it is unreadable until this has been running a while.
+  - ✅ **CONFIRMED LIVE 2026-08-18 22:26Z.** A real completion stamped
+    `completed_at = 2026-08-18T22:26:13.955Z` (millisecond ISO, as migration 8's format
+    requires). One of the two stamped rows is a genuine routine occurrence
+    (`ext_ref = routine:24:2026-08-18`) — the record type §8 actually reads. Two invariants
+    checked on the live DB, not just asserted in the smoke: **0 rows with `completed=1` and a
+    NULL stamp** (no write path bypasses the trigger — the whole reason it is a trigger and not
+    a handler stamp), and **0 rows stamped but not completed** (the clear-edge holds).
+  - ⚠️ **But `started_at` is NULL and no `performed` document carries `at`/`seq`.** Not a
+    defect: those three fields are written only by `SessionCard` interactions, and a completion
+    made by ticking the checkbox never touches one. **Consequence for §8: skip-clustering-by-date
+    is accumulating now, but ordering violations and start-time drift accumulate only when a
+    session is actually worked through the card step by step.** Two of the five statistics
+    depend on usage pattern, not just on the columns existing. Worth knowing before §8's
+    minimum-observations gate is tuned — it may be reading a much thinner series than
+    `completed_at` suggests.
+- [x] **8.1 `music/` skeleton — config, decode, index `[FEAT-M]` — BUILT 2026-08-18,
+      59 tests green, `pnpm test:contracts` still exit 0.** New top-level `music/`, outside the
+      pnpm workspace (confirmed: `pnpm-workspace.yaml` globs only `apps/*`, `apps/*/backend`,
+      `packages/*`), own `README.md`, own two-line `requirements.txt`. Runnable:
+      `cd music && python -m unittest discover`. What was built, and the three judgement calls
+      that were not in the spec:
   - `config.py` — **the single source** for `SR` / `N_FFT` / `HOP` / `N_MELS` / `FMIN` / `FMAX` /
     window. ⚠️ Trap 16: extraction and embedding disagreeing here corrupts the space *silently
     and totally*. Nothing anywhere re-derives these.
@@ -251,30 +271,127 @@ re-proposed:
     string.
   - `scan.py` — walk the library, store the **absolute path** (matches KourOS `tracks.path`,
     which is `UNIQUE`, so M5's join costs nothing later) + `mtime` + size.
-  - `index.py` — stdlib `sqlite3`, `music/index.db`. Three tables: `tracks` (scan + resume
-    ledger), **`local_vectors`** (neural — name matched to `deployment.jag.json`'s embedding slot
-    so LazurOS L3.6 is a lift, not a rewrite), `descriptors` (the baseline arm, kept separate so
-    the port target stays pristine). float32 BLOBs.
+  - `index.py` — stdlib `sqlite3`, `music/index.db`. `tracks` (scan **and** resume ledger —
+    `pending()` is a LEFT JOIN, so progress is the absence of a join partner rather than a
+    counter anyone has to remember to write), **`local_vectors`** (neural — name matched to
+    `deployment.jag.json`'s embedding slot so LazurOS L3.6 is a lift, not a rewrite),
+    `descriptors` (the baseline arm, kept separate so the port target stays pristine), plus
+    `meta` (addition 2 below). float32 BLOBs, with `to_blob()` **refusing float64** — numpy's
+    default dtype would silently write double-width vectors that read back as garbage.
   - `.gitignore`: `music/.cache/`, `music/models/*.onnx`, `music/out/` (`*.db` is already global).
-  - **Gate:** decode one FLAC, assert `len(x)/SR` matches `ffprobe`'s duration within one frame.
+  - **Gate: PASSED.** Decoded sample count vs. `ffprobe`'s container duration agreed to
+    **0.0 ms** on a real 234.9 s library FLAC, against a one-frame (23.2 ms) tolerance.
 
-- [ ] **8.2 M1 — mel extraction, hand-rolled `[opus]`.** `mel.py`: frame → Hann → `np.fft.rfft` →
-      power → mel filterbank → log. 128 × T float32, **numpy only**. The filterbank (hz↔mel,
-      triangular, built once at module level) is written here rather than imported — for this
-      project that's the point, not a compromise.
-  - **Inspect the numbers before anything is built on them.** [ALGORITHMS.md §4](ALGORITHMS.md)
-    is explicit about this.
-  - Tests (stdlib `unittest`): frame-count formula · filterbank rows triangular, non-negative,
-    50% overlap · a 440 Hz sine lands in the mel bin containing 440 Hz **and nowhere else** ·
-    silence → the log floor · bitwise determinism across two runs.
+  **Three deliberate additions beyond the spec above** — each closes a named trap
+  mechanically rather than by remembering it, and each is flagged here rather than slipped in:
 
-- [ ] **8.3 M2 — ridgeline render `[FEAT-M]`.** 128 stacked polylines, one per mel band,
-      vertically offset. **Emitted as SVG text — zero dependencies**, no matplotlib. Load the
-      `dataviz` skill before the first plotting call, not after.
-      A correctness check disguised as a picture: render 3–4 deliberately unalike tracks (dense,
-      sparse acoustic, a spoken-word cut) and confirm they *look* unalike — beat grid visible in
-      percussive material, harmonic stacks in the low bands, quiet intros actually quiet.
-      **If it doesn't look like music, stop and fix 8.2.**
+  1. **`config.signature()` + `config_sig` stamped on every vector row, and `ConfigDriftError`
+     on the write path.** This is Trap 16's mechanical defence. Editing `config.py` at §8.5 and
+     re-running the backfill would otherwise mix vectors computed under two different analysis
+     configurations into one table — no exception, no NaN, just wrong neighbours at M4. Now the
+     second write raises. An *empty* vector store adopts the new config freely, so §8.5's
+     legitimate path (change config to match the encoder, clear, re-run) stays open.
+  2. **A fourth table, `meta`** (§8.1 says three). §8.4 requires the corpus mean/std to live in
+     the index — "z-score across the corpus, not per track" needs one home a new track can
+     normalise against months later — and the config signature needs one too. Both are scalars,
+     not entities. §8.4 would have had to add this anyway.
+  3. **`config.py` carries the convention forks explicitly** — `MEL_SCALE` (htk vs slaney:
+     the hz↔mel formula itself differs), `MEL_NORM`, `POWER`, `CENTER`, `PAD_MODE`, `LOG_MODE`,
+     `LOG_FLOOR`. Each is a place where two reasonable implementations differ, produce different
+     matrices, and neither errors. Defaults are torchaudio's (htk / no norm) because §8.5's
+     likely candidates are torchaudio-preprocessed exports. All are covered by the signature —
+     a test mutates every one in turn and asserts the signature moves, so a parameter added to
+     `config.py` but left out of the significant set fails the suite.
+
+  **Measured during the build, and it changes §8.6's shape:** a 51.8 MB / 234.9 s FLAC decoded
+  in **0.59 s wall = 88 MB/s**, i.e. exactly the CIFS ceiling. Trap 19 confirmed empirically —
+  the decode is network-bound, not CPU-bound, so parallel *readers* are the lever and the model
+  stays serial.
+
+- [x] **8.2 M1 — mel extraction, hand-rolled `[opus]` — BUILT 2026-08-18, 88 tests green.**
+      `mel.py`: frame → Hann → `np.fft.rfft` → power → mel filterbank → log. 128 × T float32,
+      **numpy only**. Both mel conventions (`htk` + `slaney`) implemented, since §8.5 may have to
+      match an encoder; the filterbank is built once but **cached on `config.signature()`**, so a
+      config edit rebuilds rather than silently serving a bank built for the old parameters.
+  - **Numbers inspected on two real tracks** (the §8.2 requirement, not a formality). They read
+    as music: **spectral tilt in the right direction** (low 6.11 > mid 5.04 > high 3.32),
+    **loudest band 3–5 ≈ 64–98 Hz** (the kick/bass region), quietest band 127 ≈ 10.8 kHz (air),
+    **zero non-finite cells**, nothing pinned at the floor, temporal std 2–3 in every register
+    (not a static drone), and low-band autocorrelation finding a real beat — **129 BPM (r=0.60)**
+    on an indie track, 185 BPM (r=0.49) on a punk one. ⚠️ That 185 is probably a **metrical
+    harmonic** of ~92; autocorrelation routinely locks onto a subdivision. Not M1's problem —
+    flagged for §8.4, which does tempo for real.
+  - **Cost: 0.92 s of mel for 235 s of audio** (decode 0.50 s). Extraction is ~4% of a
+    decode-bound budget — the wire stays the constraint (Trap 19).
+  - Tests (stdlib `unittest`, 29 new): frame-count formula agreeing with `config.n_frames` at
+    every length · filterbank rows **non-negative, single-peaked, peak at the middle edge, no
+    empty bands** · **50% overlap proved structurally** (adjacent bands share support, bands two
+    apart share none) · **adjacent ramps sum to exactly 1** (a partition of unity — energy is
+    redistributed, never created) · a 440 Hz sine peaks in a band whose support actually contains
+    440 Hz **and ≥90% of its energy sits within ±2 bands** · silence → the log floor · the time
+    axis is not reversed · **blocked and unblocked computation are bitwise identical** · bitwise
+    determinism across runs.
+  - ⚠️ **Two things found while building, both corrected in the code and worth not re-learning:**
+    **(a)** `np.fft.rfft` **does not preserve single precision** — it upcasts float32 to
+    complex128, so a 20-minute track computed in one shot exceeds a gigabyte of transient. With
+    §8.6 running parallel decode workers that is an OOM waiting to happen, so the transform is
+    computed in **blocks of frames**: peak memory tracks `BLOCK_FRAMES`, not duration.
+    **(b)** **Mel is NOT a log-frequency (constant-Q) axis** — it is roughly linear below ~1 kHz
+    and logarithmic above, so an octave *up high* spans MORE mel than one down low (701 vs 242).
+    The real property is per-hertz: 100 Hz buys ~95 mel at 440 Hz but ~13 mel at 8 kHz. A test
+    pins both facts, because assuming constant-Q would misread every band index downstream.
+
+- [x] **8.3 M2 — ridgeline render `[FEAT-M]` — BUILT 2026-08-18, 131 tests green, GATE PASSED
+      in a browser in both faces.** `ridge.py`: 128 stacked polylines per track, one per mel band,
+      emitted as **SVG text** — no matplotlib, no plotting library, nothing beyond the numpy
+      already required. Palette parameters come from the suite's own design factory (`hub.css`),
+      copied as literal hex since `music/` has zero jkOS imports; the frequency axis is an
+      *ordered* dimension so its colour job is **sequential — one hue, light→dark, never a
+      rainbow**, and both faces' ramps were run through the `dataviz` validator (`--ordinal`)
+      against their own surfaces before anything was drawn.
+  - **THE GATE PASSED.** Four deliberately unalike tracks (SiM metalcore · Kendrick Lamar
+    hip-hop · Matt Maltese solo piano · Bo Burnham spoken-word stand-up), rendered side by side
+    against one shared scale, read as four plainly different pictures — **and the four §8.3
+    criteria were each checked, not just the headline one**: the metalcore panel is dense in
+    every register end to end; the hip-hop panel shows an unmistakable **kick grid** in the bass
+    rows with real silence between hits; the piano ballad is near-flat below 200 Hz with slow
+    swells at 200–800 Hz; the stand-up cut has **no bass content at all** and sits in a
+    horizontal speech-formant band with syllable-rate modulation. Beat grid visible, harmonic
+    structure visible, quiet material actually quiet. Confirmed in a browser on **both faces** —
+    the dark ramp is its own selected set of steps, not a flip.
+  - ⚠️ **The one decision that makes or breaks the check: ONE shared absolute level scale across
+    every panel.** Per-track normalisation rescales each picture to fill its own frame, so a
+    quiet ballad and a brickwalled metalcore track come out looking equally loud — destroying the
+    only comparison the picture exists to make. Same mistake §8.4 warns about for the descriptor
+    z-score, one step earlier and in pixels. **Enforced by API shape:** a range belongs to a
+    *sheet*, `Panel` carries none, and there is no per-panel variant of the auto-range function.
+    Default `(-8, +10)` ln, chosen from measured percentiles across all four tracks (p5 ran −0.9
+    to −7.5, p99 ran 6.9 to 10.8), and it is **config-aware** — a switch to `LOG_MODE='db'` at
+    §8.5 scales it by 10/ln 10, or the whole picture would flat-top with no error.
+  - ⚠️ **THE TRAP THAT NEARLY READ AS "8.2 IS BROKEN": 128 rows is far more than a ridgeline
+    normally carries** (the form is usually 10–40). At 620 px of plot height the row pitch is
+    4.8 px, every row's excursion crosses two neighbours, and the panel collapses into a uniform
+    **hatch** — a picture that looks like the transform is wrong when the transform is fine and
+    the picture is merely too small. Measured floor: **≥ 9 px of pitch** (hence a tall default
+    plot with panels **side by side**, not in a grid), and **overshoot 2.4 row-pitches** for a
+    full-scale band — at 1.4 a hip-hop track reads as ruled paper, past ~3 loud material smears
+    over three rows. A test asserts the shipped defaults clear the shipped floor; the first
+    version of them did not, by 0.1 px, and the test caught it.
+  - ⚠️ **The time axis reduces by `max`, not `mean`.** A four-minute track is ~10,000 frames
+    against ~450 px; a kick drum is one loud frame in a bucket of quiet ones and averaging
+    deletes exactly what the picture exists to show. **And a full-length render aliases the beat
+    away regardless** (~1.5 px between hits) — so the check needs *two* renders: full length for
+    the arrangement, a ~16 s window for the grid. Both are one flag apart.
+  - ⚠️ **Trap 20 has a rendering cousin.** `again&again` written raw into an SVG `<text>` is not
+    an escaping nicety — it is malformed XML and the file will not open at all. A test renders a
+    panel titled with the hostile fixture name and parses the result back.
+  - Tests (43 new): the **`dataviz` ordinal gates re-run every suite run** — one hue, monotone
+    lightness across all 128 steps, the ramp end nearest each surface still clearing 2:1, and the
+    two faces declaring exactly the same token set (a token defined on one face and forgotten on
+    the other is a line that renders as `initial`) · max-vs-mean transient survival · no
+    upsampling of short input · every frame in exactly one bucket · geometry independent of what
+    else is in the sheet · clamping without escaping the box · back-to-front draw order ·
+    determinism.
 
 - [ ] **8.4 The classical descriptor baseline `[FEAT-M]`.** Built **before** the encoder on
       purpose: M4's gate needs a comparison arm, and an arm built after the thing it judges never

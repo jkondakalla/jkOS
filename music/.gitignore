@@ -1,0 +1,15 @@
+# Paths are relative to music/. The index itself needs no rule — the repo root
+# .gitignore already covers *.db, *.db-shm and *.db-wal.
+#
+# NB: git only treats '#' as a comment at the start of a line, so every note here
+# sits on its own line. A trailing comment would become part of the pattern.
+
+# Bounded LRU of mel matrices. Every one is regenerable from the source audio,
+# and the full set would be ~75 GB (ALGORITHMS.md §4).
+.cache/
+
+# Vendored encoder weights (§8.5) — hundreds of MB, fetched not committed.
+models/*.onnx
+
+# Rendered ridgelines (§8.3) and query output.
+out/
