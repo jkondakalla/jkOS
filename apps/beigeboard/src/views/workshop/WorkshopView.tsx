@@ -222,7 +222,7 @@ export function WorkshopView(props: any) {
           )}
 
           <RailHead
-            label="Standing orders"
+            label="Routines"
             meta={`${String(activeRoutines.length).padStart(2, '0')} RUNNING`}
             style={{ paddingTop: 18 }}
           />
@@ -270,7 +270,6 @@ export function WorkshopView(props: any) {
             expanded={expanded}
             readonly={readonly}
             today={today}
-            shelfCount={libCount}
             onSelect={onSelect}
             onToggle={onToggle}
             onToggleExpand={toggleExpand}
@@ -278,7 +277,6 @@ export function WorkshopView(props: any) {
             onAddBranch={addBranch}
             onAddRoutine={() => addRoutine(selected.node.id)}
             onOpenRoutine={(id: number) => setSel({ kind: 'routine', id })}
-            onOpenShelf={() => setShelf({})}
           />
         ) : (
           <div style={{ flex: 1, display: 'grid', placeItems: 'center', padding: 40 }}>
@@ -286,7 +284,7 @@ export function WorkshopView(props: any) {
               <span className="jk-lab jk-lab-xs" style={{ color: 'var(--color-accent)' }}>THE FORGE</span>
               <p style={{ fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 18, color: 'var(--color-muted)', margin: '12px 0 0', lineHeight: 1.4 }}>
                 Nothing on the bench. Forge a goal on the rail and break it down — or
-                start a standing order, the part you don't re-decide each week.
+                start a routine, the part you don't re-decide each week.
               </p>
             </div>
           </div>
@@ -347,7 +345,13 @@ function RailHead({ label, meta, style }: { label: string; meta: string; style?:
     <div className="mo-item" style={{
       flex: 'none', display: 'flex', alignItems: 'baseline', gap: 10,
       padding: '16px 2px 4px', position: 'sticky', top: 0, zIndex: 4,
-      background: 'var(--color-paper)', ...style,
+      /* Opaque, not the flat --color-paper: that painted a bare rectangle where
+         the page's own grain stops (the exact masthead failure .jk-masthead's
+         comment above warns about) — this repeats the same grain paint body
+         gets so the sticky ground reads as MORE of the same sheet. */
+      backgroundColor: 'var(--color-paper)', backgroundImage: 'var(--hub-grain-image)',
+      backgroundSize: '160px 160px', backgroundBlendMode: 'var(--grain-blend)',
+      ...style,
     }}>
       <Press style={{ fontFamily: FONT_HEAD, fontWeight: 700, fontSize: '1.06rem', letterSpacing: '-0.015em' }}>
         {label}
@@ -392,8 +396,8 @@ function GoalCard({ goal, items, selected, delay, onClick }: any) {
 /* ── The forge pane for the selected goal ───────────────────────────────── */
 
 function Forge({
-  goal, items, today, expanded, readonly, shelfCount,
-  onSelect, onToggle, onToggleExpand, onAddLeaf, onAddBranch, onAddRoutine, onOpenRoutine, onOpenShelf,
+  goal, items, today, expanded, readonly,
+  onSelect, onToggle, onToggleExpand, onAddLeaf, onAddBranch, onAddRoutine, onOpenRoutine,
 }: any) {
   const tint = goal.accent || 'var(--color-accent)'
   const prog = getProgress(goal, items)
@@ -415,9 +419,6 @@ function Forge({
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 14 }}>
           <span className="jk-lab jk-lab-xs" style={{ color: 'var(--color-accent)' }}>THE FORGE</span>
           <span className="mono-eyebrow">BREAK IT DOWN — LEAVES ROLL UP TO THE GOAL</span>
-          <TButton quiet onClick={onOpenShelf} style={{ marginLeft: 'auto', cursor: 'pointer' }}>
-            ◧ Library{shelfCount == null ? '' : ` · ${shelfCount}`}
-          </TButton>
         </div>
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16, marginTop: 12 }}>
           <Press
@@ -446,7 +447,7 @@ function Forge({
       {!readonly || routines.length > 0 ? (
         <div className="mo-item" style={{ flex: 'none', padding: '2px 28px 14px', animationDelay: '80ms' }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 8 }}>
-            <span className="jk-lab jk-lab-xs" style={{ color: 'var(--color-secondary)' }}>STANDING ORDERS</span>
+            <span className="jk-lab jk-lab-xs" style={{ color: 'var(--color-secondary)' }}>ROUTINES</span>
             <span className="mono-eyebrow">RUN ON THEIR OWN CLOCK — TRACKED APART FROM THE %</span>
             {!readonly && (
               <TButton quiet onClick={onAddRoutine} style={{ marginLeft: 'auto', cursor: 'pointer' }}>+ routine</TButton>
@@ -459,7 +460,7 @@ function Forge({
             {routines.length === 0 && (
               <div style={{ border: '1px dashed var(--hub-line)', borderRadius: 'var(--hub-radius-sm)', padding: '11px 14px', gridColumn: '1 / -1' }}>
                 <span className="jk-async-note" style={{ fontSize: 14, color: 'var(--color-muted)' }}>
-                  Nothing recurring under this goal yet — a standing order is the part you don't re-decide each week.
+                  Nothing recurring under this goal yet — a routine is the part you don't re-decide each week.
                 </span>
               </div>
             )}

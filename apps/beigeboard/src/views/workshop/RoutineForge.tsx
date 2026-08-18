@@ -72,6 +72,19 @@ import {
 
 const DAY_LETTERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
 
+/* The document's own panels (WHEN IT FIRES, the scaling block, a step) read as
+   the milestone branch row does — a flat hairline card on --hub-bg-3 — not as
+   a .jk-well. A well's --hub-accent-press is an EMPHASIS move (an alert, a
+   picked state) and in dark mode that is a real emissive glow; stacking four
+   of them down one column just to hold form fields turned the whole document
+   into a wall of amber halation. */
+const PANEL: React.CSSProperties = {
+  display: 'block',
+  border: '1px solid var(--hub-line)',
+  borderRadius: 'var(--hub-radius-sm)',
+  background: 'var(--hub-bg-3)',
+}
+
 type Tab = 'ladder' | 'history' | 'revisions'
 
 export function RoutineForge({
@@ -232,7 +245,7 @@ export function RoutineForge({
       {/* ── Head ── */}
       <div className="mo-item" style={{ flex: 'none', padding: '16px 28px 12px' }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 14 }}>
-          <span className="jk-lab jk-lab-xs" style={{ color: 'var(--color-accent)' }}>THE FORGE · STANDING ORDER</span>
+          <span className="jk-lab jk-lab-xs" style={{ color: 'var(--color-accent)' }}>THE FORGE · ROUTINE</span>
           <span className="mono-eyebrow">HOW OFTEN · WHAT THE SESSION IS · HOW IT GETS HARDER</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16, marginTop: 12, flexWrap: 'wrap' }}>
@@ -392,7 +405,7 @@ export function RoutineForge({
               <span className="mono-eyebrow">THE PROGRAM</span>
 
               {/* ── WHEN ───────────────────────────────────────────────────── */}
-              <Well style={{ display: 'block', padding: 10, marginTop: 8 }}>
+              <div style={{ ...PANEL, padding: 10, marginTop: 8 }}>
                 <div className="mono-eyebrow" style={{ marginBottom: 6 }}>WHEN IT FIRES</div>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                   <SelectField
@@ -479,10 +492,10 @@ export function RoutineForge({
                     {cadence.rrule_error.toUpperCase()} — FALLING BACK TO WEEKLY
                   </div>
                 )}
-              </Well>
+              </div>
 
               {/* ── HOW IT SCALES ──────────────────────────────────────────── */}
-              <Well style={{ display: 'block', padding: 10, marginTop: 8 }}>
+              <div style={{ ...PANEL, padding: 10, marginTop: 8 }}>
                 <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center' }}>
                   <label style={{ display: 'inline-flex', gap: 5, alignItems: 'center' }}>
                     <span className="mono-eyebrow">A CYCLE IS</span>
@@ -572,10 +585,10 @@ export function RoutineForge({
                 {!readonly && (
                   <NewVar onAdd={(name: string, value: number) => edit((d) => { d.vars[slugify(name, 'var')] = value })} />
                 )}
-              </Well>
+              </div>
 
               {/* ── WHAT IT FEEDS ──────────────────────────────────────────── */}
-              <Well style={{ display: 'block', padding: 10, marginTop: 8 }}>
+              <div style={{ ...PANEL, padding: 10, marginTop: 8 }}>
                 <div className="mono-eyebrow" style={{ marginBottom: 5 }}>
                   WHAT IT CONTRIBUTES TO ITS GOAL
                 </div>
@@ -642,7 +655,7 @@ export function RoutineForge({
                     )}
                   </>
                 )}
-              </Well>
+              </div>
             </div>
           </div>
 
@@ -787,7 +800,7 @@ function StepEditor({ step, index, count, vars, readonly, onEdit, onMove, onRemo
   const setRule = (ri: number, k: string, v: any) => onEdit((s: Step) => { (s.progression[ri] as any)[k] = v })
 
   return (
-    <Well style={{ display: 'block', padding: '8px 10px', marginBottom: 6 }}>
+    <div style={{ ...PANEL, padding: '8px 10px', marginBottom: 6 }}>
       {/* Line 1 — identity */}
       <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
         <Field
@@ -895,7 +908,7 @@ function StepEditor({ step, index, count, vars, readonly, onEdit, onMove, onRemo
         )}
         {step.ref && <Bubble tone="secondary" style={{ fontSize: 8, padding: '2px 6px' }}>{step.ref.toUpperCase()}</Bubble>}
       </div>
-    </Well>
+    </div>
   )
 }
 
