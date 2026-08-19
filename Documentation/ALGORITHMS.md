@@ -61,7 +61,7 @@ to step 0.** See §3 for why.
 | # | Step | Gate to the next |
 |---|---|---|
 | **0** | BeigeBoard variance instrumentation (§3) | ✅ **BUILT + DEPLOYED 2026-08-18** — migration 13 verified applied on the live staging DB (ledger id 13, both columns, both triggers). Outstanding: one real completion to fire the trigger — the DB has **zero** completed items, so the 0→1 edge has not yet occurred. [ToDo §8.0](ToDo.md) |
-| **M1–M4** | Music through the similarity gate (§4) — **chunked as [ToDo §8.1–8.7](ToDo.md)**. §8.1–§8.3 built 2026-08-18 (`music/`, 131 tests green; M2's picture gate passed) | the ten nearest tracks to something you know well are *right* |
+| **M1–M4** | Music through the similarity gate (§4) — **chunked as [ToDo §8.1–8.7](ToDo.md)**. §8.1–§8.5 built 2026-08-18 (`music/`, 243 tests green; M2's picture gate, §8.4's sanity gate and §8.5's 8/8 verification all passed) | the ten nearest tracks to something you know well are *right* |
 | **V** | Completion-volume check (§5) | a number, read off the live DB |
 | **L1** | LazurOS minimal bring-up (§6) | a capability round-trips through the staging console |
 | **L2** | Prompt versioning · audit schema · eval harness (§7) | one capability has a reproducible score |
@@ -246,13 +246,14 @@ have no `package.json` and are skipped automatically).
 **Zero jkOS imports through M4.** The isolation is the deliverable, not an accident of
 sequencing — it is what makes a wrong similarity result unambiguous.
 
-> **Built as of 2026-08-18 (ToDo §8.1–§8.3):** `config.py`, `audio.py`, `scan.py`, `index.py`,
-> `mel.py`, `ridge.py`, `README.md`, the two-line `requirements.txt`, and **131** stdlib-`unittest`
-> tests that run with no library mount (audio fixtures are synthesised by the ffmpeg already
-> required). The §8.1 gate passed on a real library FLAC — decoded sample count vs. the
-> container's own duration agreed to **0.0 ms** against a one-frame tolerance — and **M2's gate
-> passed in a browser** on four deliberately unalike tracks. Next is the descriptor baseline
-> (M3's comparison arm, ToDo §8.4).
+> **Built as of 2026-08-18 (ToDo §8.1–§8.5):** `config.py`, `audio.py`, `scan.py`, `index.py`,
+> `mel.py`, `ridge.py`, `descriptors.py`, `encoder.py`, `README.md`, `models/README.md`, the
+> two-line `requirements.txt`, and **243** stdlib-`unittest` tests that run with no library mount
+> and no model (audio fixtures are synthesised by the ffmpeg already required; the encoder checks
+> skip cleanly). The §8.1 gate passed on a real library FLAC — decoded sample count vs. the
+> container's own duration agreed to **0.0 ms** against a one-frame tolerance — **M2's gate passed
+> in a browser** on four deliberately unalike tracks, **§8.4's sanity gate passed over 887 real
+> tracks**, and **§8.5's verification passed 8/8**. Next is the backfill (ToDo §8.6).
 
 ### The dependency budget (decided 2026-08-18)
 
@@ -349,8 +350,88 @@ no bass content at all, sitting in a horizontal speech-formant band. All four §
 
 One vector per track, pooled from windowed embeddings. **No training.** At this library size a
 pretrained encoder beats anything trainable on this data by a wide margin, and cosine
-nearest-neighbour needs no model at all. A classical descriptor baseline (MFCC means, spectral
-centroid, tempo) runs alongside for comparison in M4.
+nearest-neighbour needs no model at all. A classical descriptor baseline runs alongside for
+comparison in M4.
+
+**The baseline arm, built 2026-08-18 as `music/descriptors.py` (ToDo §8.4) — built BEFORE the
+encoder on purpose.** M4 is a gate, and a gate needs something to weigh against; an arm built
+after the thing it judges never gets built, and the gate quietly becomes a vibe check. 119
+dimensions over the same STFT `mel.py` already computes, numpy only: MFCC mean/std and their
+first differences (80), chroma mean/std (24), spectral centroid / bandwidth / rolloff /
+flatness / ZCR / log-RMS mean and std (12), tempo (3). Measured over **887 real tracks across
+82 albums and 39 artists**, the three categories form a clean ladder — same album **+0.4288**,
+same artist other album **+0.1802**, different artist **+0.0005** — and 49.2% of nearest
+neighbours share an album against **1.3% by chance**. The gate passes.
+
+Two things are worth carrying forward from building it:
+
+| | |
+|---|---|
+| **The z-score is across the corpus, not per track** | Per-track normalisation makes a bright track and a dark track both read "average brightness for themselves" and every distance collapses toward noise — no error, no NaN. Same mistake M2 guards against in pixels. Enforced by API shape again: there is no function that normalises one vector, `CorpusStats.fit` refuses fewer than 8 rows, and the fit lives in the index so a track added months later lands in the same space. **Vectors are stored RAW**; the fit is applied on the way out, so re-fitting after the library grows is free and total. |
+| **Chroma has an arithmetic floor** | FFT bins are evenly spaced in Hz, semitones in *ratio*, so chroma can only resolve a note above the frequency where a semitone is wider than a bin — 181 Hz at the baseline profile. It is derived, not hardcoded, and it decides the next section. |
+
+**The encoder, chosen and vendored 2026-08-18 as `music/encoder.py` (ToDo §8.5):**
+[`Xenova/larger_clap_music_and_speech`](https://huggingface.co/Xenova/larger_clap_music_and_speech),
+revision pinned to a commit, **512-d**. Chosen over PANNs/CNN14 and MERT for one reason that
+outweighed the rest: it **ships `onnx/audio_model.onnx` already exported**, so no export was
+run — no throwaway PyTorch venv, no opset arguments, and none of the class of failure where
+the export ran but the graph is subtly not the model. `torch` is not installed, not imported,
+not required; `requirements.txt` is still two lines. Provenance, checksum and the
+preprocessing contract live in [`music/models/README.md`](../music/models/README.md).
+
+#### ⚠️ Trap 16 bit here, and the answer was a profile axis rather than a flat swap
+
+CLAP does not want M1's analysis parameters. It wants 48 kHz, 1024-sample windows, 480-sample
+hops, **64 slaney mels** over 50–14000 Hz, and dB compression. M1's rule offered two ways out
+— the model matches these values, or these values change to match the model — and the second
+has a cost that only became visible with the numbers in hand:
+
+> **CLAP's STFT makes the M3 baseline worse.** 1024 samples at 48 kHz is a 46.9 Hz frequency
+> bin against 10.8 Hz at the baseline, which moves the chroma floor above from **181 Hz to
+> 788 Hz — above most of the melodic range** — and 24 of the baseline's 119 dimensions stop
+> measuring harmony. **M4 judges the encoder AGAINST the baseline, and its stop condition is
+> "if the descriptors win, something upstream is broken."** Handicapping the opponent to suit
+> the contender makes that gate easier to pass, which is precisely the wrong direction for the
+> one check the whole project turns on.
+
+So `config.py` holds **complete, named profiles**, one per vector space, each stamped onto its
+own rows by its own signature, with `index.assert_config` enforcing drift **per table** rather
+than per database. This is not the two-configurations corruption Trap 16 names — that is *one*
+space built from two configurations, silently. Each space here has exactly one, declared in one
+module. What is gone is only the assumption that there is exactly one encoder.
+
+Three defences make the arrangement safe rather than merely intended, and each closes a hole
+that was found while building it:
+
+- **`using()` refuses to enter a different profile while one is active.** It swaps module
+  globals, so it is process-wide, not thread-local — and M3b runs parallel decode workers. Two
+  profiles in force at once would let one thread compute under A and another store it under B.
+- **The baseline is frozen at import.** It used to be derived from the live globals, so *inside*
+  the encoder context it returned a profile named "baseline" carrying the encoder's values and
+  the encoder's signature — and the guard above compared two identical signatures and waved the
+  switch through as harmless re-entry.
+- **`embed_windows` refuses to run outside the encoder profile at all.** "Remember to enter the
+  context" is a hope, not a defence, and the failure it prevents has no symptom.
+
+#### Verifying an encoder you cannot diff against a reference
+
+§8.5 asks that a fixed input give a stable output and that the vector be neither all-zero nor
+NaN. Both hold — and both are necessary nowhere near sufficient, because a completely mis-fed
+model returns stable, finite, unit-norm garbage all day. With no reference implementation
+available (that would mean `torch`), three further checks each aim at how the mismatch would
+actually show, and all three passed on the four M2 check-set tracks:
+
+| Check | Why it catches a mis-fed model | Measured |
+|---|---|---|
+| **Spread** | A mis-scaled input drives a network toward a constant output, so unrelated tracks collapse onto one point | max off-diagonal cosine **+0.435** — genuinely spread |
+| **Structure** | Two halves of one track must be closer to each other than any two different tracks | weakest self **+0.940** vs strongest cross **+0.435** |
+| **Sensitivity** | The same audio through the *wrong* mel convention must differ materially, or matching it was untested luck | cosine **+0.491** to the correct vector |
+
+That last row is the one that turns "we matched the convention" from a claim into a
+measurement. **The easy way to get it wrong:** CLAP builds *two* filterbanks and picks between
+them by truncation mode — htk/no-norm for `"fusion"`, slaney/slaney for `"rand_trunc"`. This
+checkpoint declares `rand_trunc`, so it is the slaney pair, which is **not** torchaudio's
+default and not what reaching for a library default gives.
 
 **Persist embeddings only.** The vectors and a metadata index are tens of MB; mels become a
 bounded LRU cache under `music/.cache/` for the tracks actually being inspected or rendered.
@@ -363,7 +444,7 @@ Four decisions worth fixing now because they are expensive to change later:
 |---|---|
 | **Stdlib `sqlite3`**, table named **`local_vectors`** | `deployment.jag.json`'s `embedding` slot already declares `"table": "local_vectors"`. Matching the *name and shape* makes **L3.6 a lift, not a rewrite** — and costs nothing, because `sqlite-vec` itself is a dependency the budget does not take and (per the row below) buys no speed here. Float32 BLOBs, shaped for it. The descriptor baseline lives in a separate `descriptors` table so the port target stays pristine. |
 | Index rows keyed on **absolute path** | Matches `tracks.path` (UNIQUE) in KourOS, so M5's join costs nothing. |
-| Query with brute-force cosine in numpy | ⚠️ The "384-d ≈ 23 MB, fits in L3" figure was derived from `bge-small-en-v1.5` — the **text** model in LazurOS's embedding slot, not an audio encoder. A real one is 512/768/2048-d → **30/47/125 MB**, fixed once the encoder is chosen. Brute force still wins comfortably; reaching for an ANN index is optimising a problem you do not have. The L3 claim does not survive. |
+| Query with brute-force cosine in numpy | ⚠️ The "384-d ≈ 23 MB, fits in L3" figure was derived from `bge-small-en-v1.5` — the **text** model in LazurOS's embedding slot, not an audio encoder. **Settled 2026-08-18: the chosen encoder is 512-d, so the matrix is 15,326 × 512 float32 = 31 MB.** Brute force wins comfortably; reaching for an ANN index is optimising a problem you do not have. The L3 claim does not survive, but it never needed to. |
 | Resumable by construction | State lives in the index, not in memory. A run that dies at track 9,000 restarts at 9,000. |
 
 ### M4 — the gate
@@ -377,6 +458,17 @@ embeddings, something in the embedding path is wrong, because they should not.
 
 Steps M1–M4 are the standalone deliverable and the point at which LazurOS work can begin in
 parallel.
+
+> ⚠️ **Measured at §8.5, and it contradicts M3b's wall-clock estimate.** One 10-second window
+> costs **0.084 s** on this machine with the ONNX session given 8 threads — and threads past 8
+> buy nothing, so the model already saturates the CPU and parallel workers cannot rescue it.
+> **This is the one stage where Trap 19 does not apply: the model is the bottleneck, not the
+> wire.** A four-minute track at 50% overlap is 48 windows ≈ 4.0 s, which over 15,326 tracks is
+> **~17 hours**, not the 1.5–3 h M3b assumes. The lever is a cap on windows per track, evenly
+> spaced so the span still covers the whole track: 12 windows ≈ 4.3 h, 8 windows ≈ 2.9 h, and
+> mean-pooling converges quickly enough that the cost is small. `encoder.MAX_WINDOWS` exists and
+> is left at `None`, so this is a decision M3b makes with the numbers in hand rather than a
+> default nobody chose.
 
 ### What it demonstrates
 

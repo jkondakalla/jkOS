@@ -5,7 +5,8 @@
 > date for when he comes back to them, not as active work.
 >
 > **▶ §8 is the active section.** The music vector space, chunked 2026-08-18 — that's the work in
-> front of us. §8.0–§8.3 are done; **§8.4, the descriptor baseline, is next.** Design record: [ALGORITHMS.md](ALGORITHMS.md). LazurOS bring-up
+> front of us. §8.0–§8.5 are done; **§8.6, the backfill run, is next — and read the throughput
+> note in §8.5 before starting it.** Design record: [ALGORITHMS.md](ALGORITHMS.md). LazurOS bring-up
 > ([LAZUROS_STARTUP.md](LAZUROS_STARTUP.md)) comes *after* §8's gate and is still not tracked
 > here.
 
@@ -393,30 +394,103 @@ re-proposed:
     else is in the sheet · clamping without escaping the box · back-to-front draw order ·
     determinism.
 
-- [ ] **8.4 The classical descriptor baseline `[FEAT-M]`.** Built **before** the encoder on
-      purpose: M4's gate needs a comparison arm, and an arm built after the thing it judges never
-      gets built. From the same STFT/mel, numpy only — MFCC mean+std (DCT-II of log-mel, 20
-      kept), spectral centroid / rolloff / bandwidth / flatness, ZCR, RMS, chroma (12), tempo
-      (autocorrelation of the onset-strength envelope). ~90–160 dims into `descriptors`.
-  - ⚠️ **Z-score across the corpus, not per track** — store the corpus mean/std in the index so a
-    new track normalises identically. Per-track normalisation makes the space meaningless.
-  - Sanity gate that needs no encoder: two tracks from one album should sit closer than two
-    random tracks.
+- [x] **8.4 The classical descriptor baseline `[FEAT-M]` — BUILT 2026-08-18, GATE PASSED over
+      887 real tracks, 243 tests green.** `descriptors.py`: **119 dims** — MFCC mean+std (DCT-II
+      of log-mel, 20 kept) *plus their first differences* (80 together), chroma mean+std (24),
+      spectral centroid / bandwidth / rolloff / flatness / ZCR / log-RMS mean+std (12), tempo (3).
+      numpy only, over the same STFT — a new `mel.iter_blocks` yields frames, linear power and the
+      mel projection from **one** traversal, so the time-domain, linear-spectrum and mel features
+      cannot disagree about where a frame starts and the FFT is paid for once.
+  - **THE GATE PASSED, and all three categories are measured** (887 tracks · 82 albums · 39
+    artists, built at **86.2 MB/s — the CIFS ceiling again**, 0 failures). Mean cosine:
+    **same album +0.4288 · same artist, other album +0.1802 · different artist +0.0005.** A clean
+    monotone ladder ending at essentially zero for unrelated music. Nearest neighbour shares an
+    album **49.2%** against **1.3% by chance** (38×), shares an artist 59.6% against 3.2% (19×).
+  - ⚠️ **The middle row had to be bought.** The album selector spread one album per artist, so
+    "same artist, other album" had **zero pairs** — and its mean was NaN, and `nan > x` is False,
+    so **the gate first reported FAILED on a set whose descriptors were separating album-mates
+    from strangers by +0.47.** Two fixes, both pinned by tests: an unmeasured category no longer
+    fails the verdict, and `--per-artist N` makes the row real. It is the row that matters most —
+    album-mates share a mastering, so clustering them is nearly free, while clustering an artist
+    *across* albums means the descriptors found the band rather than the session.
+  - ⚠️ **Chroma has an arithmetic floor, and it is derived rather than guessed.** FFT bins are
+    evenly spaced in Hz, semitones in *ratio*, so chroma can only resolve a note above the
+    frequency where a semitone is wider than a bin — **181 Hz** at this profile, i.e. *the bass
+    line is invisible and that is arithmetic, not an oversight*. A test pins the derivation so
+    changing `N_FFT` cannot quietly turn it into a lie. **This number decided §8.5's shape.**
+  - ⚠️ **Z-score across the corpus, not per track — enforced by API shape, not discipline.** There
+    is no function that normalises one vector; `CorpusStats.fit` refuses fewer than 8 rows with a
+    message naming the trap, and a test asserts no per-track normaliser exists in the module.
+    **Vectors are stored RAW** and the fit is applied on the way out, so re-fitting after the
+    library grows is free and total rather than freezing one corpus's statistics into every row.
+    A constant dimension gets std 1 rather than inf, and is *recorded* as degenerate — several at
+    once means a feature is broken, not merely uninformative.
+  - **Numbers pinned in closed form, not by eyeballing:** a sine's centroid IS its frequency
+    (443.2 for 440), its ZCR IS 2f/SR (0.0399 for 440, exact), white noise's centroid IS SR/4
+    (5511 vs 5512.5), its bandwidth IS Nyquist/√12 (3182 vs 3182.6), its rolloff IS 0.85·Nyquist.
+    A 440 Hz sine lands in pitch class **9 = A**, and 880 and 1760 land there too.
+  - ⚠️ **The DCT's loudness invariance has a limit, and a test now marks it.** Scaling a signal
+    adds a constant to every log-mel band, which coefficient 0 absorbs exactly — verified to
+    7 decimals (47.052387 against √N·ln 64 = 47.052391). **But only while every band stays above
+    `LOG_FLOOR`:** a pure sine has near-zero energy in most of its 128 bands, so quietening it
+    clamps 55% of them and coefficients 1–19 start moving too. Broadband material — all real
+    music — never gets near it. Worth knowing before anyone concludes MFCCs are unconditionally
+    loudness-invariant and stops z-scoring.
+  - Tempo carries **log2(BPM)** (an octave error is then a constant ±1) with a log-normal prior
+    at 120 BPM to break the metrical-harmonic tie §8.2 hit — *and* `onset_rate` beside it, which
+    counts events and is therefore immune to the octave question. A whole tempo dimension being
+    wrong then costs one dimension of 119 rather than the track's rhythmic character.
 
-- [ ] **8.5 M3a — the encoder, chosen and vendored `[opus]`.** Decision step first: **prefer a
-      model with an already-published ONNX artifact** (HF repos often ship an `onnx/` folder) —
-      that removes the export entirely. Candidates: **CLAP** (512-d, trained on audio paired with
-      text, so a "find tracks matching *rainy 3am guitar*" query comes free), **PANNs/CNN14**
-      (2048-d), **MERT** (768-d, music-specific).
-  - **The commitment:** `requirements.txt` gets `onnxruntime` and **never `torch`**. If an export
-    is unavoidable it runs **once** in a throwaway venv documented in `music/models/README.md`.
-    **If a model won't export cleanly, change models.**
-  - ⚠️ **This is where Trap 16 bites.** The model's expected input (sample rate, window, hop,
-    `n_mels`, log base, normalisation) must match `config.py` — *or* `config.py` changes to match
-    the model. Either way, **one module.** A model expecting 48 kHz/64 mels fed 22.05 kHz/128
-    mels returns confident garbage.
-  - Record `dim`, model id, and revision in the index. Verify a fixed input gives a stable output
-    across runs, and that the vector is neither all-zero nor NaN.
+- [x] **8.5 M3a — the encoder, chosen and vendored `[opus]` — DONE 2026-08-18, verification
+      8/8.** **`Xenova/larger_clap_music_and_speech`**, revision pinned to commit `e9fd5ac1`,
+      **512-d**, sha256 verified. `encoder.py` + `models/README.md`.
+  - **NO EXPORT WAS RUN — that is why this checkpoint won.** It ships `onnx/audio_model.onnx`
+    already exported, which removes the throwaway PyTorch venv, the opset arguments, the
+    dynamic-axis surprises, and the whole class of "the export ran but the graph is subtly not
+    the model". PANNs/CNN14 and MERT would each have required that path. **`torch` is not
+    installed, not imported, not required; `requirements.txt` is still two lines.** 512-d also
+    means §8.7's matrix is 15,326 × 512 float32 = **31 MB** — Trap 18 settled, one matmul.
+  - ⚠️ **TRAP 16 BIT, AND THE FLAT SWAP WAS THE WRONG ANSWER.** CLAP wants 48 kHz / 1024 / hop
+    480 / **64 slaney mels** / 50–14000 Hz / dB. Adopting those globally moves §8.4's chroma
+    floor from **181 Hz to 788 Hz — above most of the melodic range** — killing 24 of the
+    baseline's 119 dims. **M4 judges the encoder against that baseline and stops the world if the
+    descriptors win; handicapping the opponent to suit the contender makes the gate easier to
+    pass, which is exactly backwards.** So `config.py` gained **complete, named profiles**, one
+    per vector space, and `index.assert_config` now enforces drift **per table**. Still one
+    module, still one answer per space — what's gone is only the assumption of one encoder.
+  - ⚠️ **Three holes found while building that guard, each now closed and tested:** `using()`
+    swaps *module globals*, so it is **process-wide, not thread-local** — §8.6's workers could
+    otherwise compute under A and store under B, so entering a *different* profile while one is
+    active raises · **`baseline()` was derived from the live globals**, so inside the encoder
+    context it returned "baseline" carrying the *encoder's* values and signature, and the nesting
+    guard waved the switch through as harmless re-entry (now frozen at import) · `embed_windows`
+    **refuses to run outside the encoder profile at all**, because "remember to enter the
+    context" is a hope, not a defence.
+  - ⚠️ **The slaney fork is the easy way to get this wrong.** CLAP builds *two* filterbanks and
+    picks by truncation mode — htk/no-norm for `"fusion"`, slaney/slaney for `"rand_trunc"`. This
+    checkpoint declares `rand_trunc`, so it is the **slaney** pair: not torchaudio's default, not
+    what a library default gives. Every profile value is transcribed from the checkpoint's own
+    `preprocessor_config.json` and re-asserted against **literals** in the tests.
+  - **VERIFIED 8/8, and stability was the weakest of the checks.** §8.5 asks for a stable output
+    and a non-degenerate vector; both hold — and both are nowhere near sufficient, since a
+    mis-fed model returns stable, finite, unit-norm garbage all day. With no reference
+    implementation available (that would mean `torch`), three more checks each aim at how the
+    mismatch would actually show: **spread** (a mis-scaled input collapses every track onto one
+    point — max off-diagonal cosine **+0.435**, genuinely spread), **structure** (two halves of
+    one track must beat any two different tracks — weakest self **+0.940** vs strongest cross
+    **+0.435**), and **sensitivity** (the same audio through the *wrong* mel convention gives
+    cosine **+0.491** — so matching it was measured, not lucky).
+  - ⚠️ **THROUGHPUT MEASUREMENT THAT CHANGES §8.6.** One 10 s window costs **0.084 s** with the
+    session on 8 threads, and threads past 8 buy nothing — **the model saturates the CPU, so this
+    is the one stage where Trap 19 does not apply and parallel workers cannot rescue it.** A
+    4-minute track at 50% overlap is 48 windows ≈ 4.0 s → **~17 hours** over 15,326 tracks, not
+    §8.6's 1.5–3 h. The lever is `encoder.MAX_WINDOWS`, evenly spaced so the span still covers
+    the whole track: **12 windows ≈ 4.3 h, 8 ≈ 2.9 h.** Left at `None` deliberately — §8.6 should
+    pull it with the numbers in hand, not inherit a default nobody chose.
+  - **Not taken, named so it is not re-derived:** the **text tower** (`onnx/text_model.onnx`,
+    same repo, same revision) is what makes *"find tracks matching rainy 3am guitar"* possible.
+    It needs a byte-level BPE tokenizer built against the `vocab.json`/`merges.txt` beside it —
+    ~70 lines, no new dependency — and it belongs to §8.7's query surface, not here.
 
 - [ ] **8.6 M3b — the backfill run `[FEAT-M]`.** Windowed embeddings at the model's native window
       (~10 s, 50% overlap) → mean-pool → L2-normalise → `local_vectors`. Expect **~1.5–3 h wall

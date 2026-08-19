@@ -171,7 +171,7 @@ class LedgerTest(IndexTestCase):
 
 class ConfigDriftTest(IndexTestCase):
     def test_empty_store_adopts_the_current_config(self):
-        self.assertEqual(index.assert_config(self.conn), config.signature())
+        self.assertEqual(index.assert_config(self.conn, 'local_vectors'), config.signature())
 
     def test_drift_raises_once_vectors_exist(self):
         tid = self.add('/a.flac')
@@ -190,10 +190,60 @@ class ConfigDriftTest(IndexTestCase):
         original = config.SR
         config.SR = 48000
         try:
-            index.assert_config(self.conn)
-            self.assertEqual(index.get_meta(self.conn, 'config_sig'), config.signature())
+            index.assert_config(self.conn, 'local_vectors')
+            self.assertEqual(index.get_meta(self.conn, 'config_sig:local_vectors'),
+                             config.signature())
         finally:
             config.SR = original
+
+    def test_the_two_arms_carry_independent_signatures(self):
+        """⚠️ §8.5's central structural change. The encoder analyses under CLAP's
+        profile and the §8.4 baseline under its own, ON PURPOSE — adopting CLAP's
+        48 kHz / 1024-sample STFT globally would move the baseline's chroma floor
+        from 181 Hz to 788 Hz and weaken the very opponent M4 needs. One shared
+        key would make that legitimate arrangement raise.
+        """
+        tid = self.add('/a.flac')
+        index.put_descriptor(self.conn, tid, self.vec())
+        with config.using(config.ENCODER):
+            index.put_vector(self.conn, tid, self.vec(), model='clap')
+            encoder_sig = config.signature()
+        self.assertNotEqual(encoder_sig, config.signature())
+        self.assertEqual(index.get_meta(self.conn, 'config_sig:descriptors'),
+                         config.signature())
+        self.assertEqual(index.get_meta(self.conn, 'config_sig:local_vectors'), encoder_sig)
+
+    def test_drift_within_one_arm_still_raises_under_profiles(self):
+        """The invariant Trap 16 actually names — every vector in ONE space
+        computed under ONE configuration — must survive the split."""
+        tid = self.add('/a.flac')
+        with config.using(config.ENCODER):
+            index.put_vector(self.conn, tid, self.vec(), model='clap')
+        with self.assertRaises(index.ConfigDriftError):
+            index.put_vector(self.conn, tid, self.vec(), model='other')
+
+    def test_a_pre_profile_index_keeps_its_alarm(self):
+        """An index built before §8.5 stamped one shared `config_sig`. Adopting it
+        per table matters: re-arming against whatever runs next would silently
+        bless exactly the drift the key was written to catch."""
+        tid = self.add('/a.flac')
+        index.put_descriptor(self.conn, tid, self.vec())
+        self.conn.execute("DELETE FROM meta WHERE key LIKE 'config_sig:%'")
+        index.set_meta(self.conn, 'config_sig', 'deadbeef0000')
+        with self.assertRaises(index.ConfigDriftError):
+            index.put_descriptor(self.conn, tid, self.vec())
+        self.assertEqual(index.get_meta(self.conn, 'config_sig:descriptors'), 'deadbeef0000')
+
+    def test_an_empty_table_is_not_captured_by_the_legacy_key(self):
+        """The legacy key is adopted only for a table that actually has rows —
+        an empty one is free to adopt the profile in force, which is what keeps
+        §8.5's 'clear and re-run' path open."""
+        index.set_meta(self.conn, 'config_sig', 'deadbeef0000')
+        self.assertEqual(index.assert_config(self.conn, 'local_vectors'), config.signature())
+
+    def test_unknown_table_is_refused(self):
+        with self.assertRaises(ValueError):
+            index.assert_config(self.conn, 'tracks')
 
     def test_signature_stored_on_every_vector(self):
         tid = self.add('/a.flac')

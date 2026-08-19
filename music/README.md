@@ -57,6 +57,21 @@ python index.py                      # index health
 python ridge.py                      # the check sheet: four unalike tracks, full length
 python ridge.py --seconds 16         # …the same four, 16s from the middle — the beat-grid view
 python ridge.py --seconds 20 <file.flac> --out out/one.svg
+
+python descriptors.py --names        # the 119-dimension layout
+python descriptors.py <file.flac>    # describe one file, readable numbers
+python descriptors.py --scan         # walk the library into `tracks` (~23s for 15,326)
+python descriptors.py --build --albums 60 --per-artist 3
+python descriptors.py --gate         # the §8.4 sanity gate
+```
+
+The encoder needs `onnxruntime`, which this host's PEP 668 Python will not install
+system-wide — hence a contained venv (see [`models/README.md`](models/README.md)):
+
+```bash
+./.venv/bin/python encoder.py --fetch     # 281 MB, pinned commit, checksum verified
+./.venv/bin/python encoder.py --verify    # the §8.5 checks
+./.venv/bin/python -m unittest discover   # the same suite, with the encoder tests live
 ```
 
 Renders land in `out/` (gitignored — every one is regenerable from the audio). Open the SVG in a
@@ -79,9 +94,61 @@ same ffmpeg the project already requires. The library-backed checks skip cleanly
 | `index.py` | `index.db` — `tracks` (scan **and** resume ledger), `local_vectors` (neural), `descriptors` (classical baseline), `meta`. float32 BLOBs. |
 | `mel.py` | **The transform.** frame → Hann → `rfft` → power → triangular mel filterbank → log. 128 × T float32, numpy only. |
 | `ridge.py` | **The picture.** 128 stacked polylines per track, emitted as SVG text. One shared level scale across every panel. |
+| `descriptors.py` | **The baseline arm.** 119 classical dimensions — MFCC + deltas, chroma, spectral shape, ZCR, RMS, tempo — plus the corpus z-score and the §8.4 gate. |
+| `encoder.py` | **The neural arm.** CLAP audio tower via `onnxruntime`, 10 s windows → mean-pool → 512-d. |
 
-Not yet written: the descriptor baseline (§8.4), the encoder (§8.5), the backfill (§8.6),
-`query.py` (§8.7).
+Not yet written: the backfill (§8.6) and `query.py` (§8.7).
+
+### The two arms, and why they analyse differently
+
+`config.py` holds **profiles** — complete, named analysis configurations, one per vector
+space, each stamped onto its own rows by its own signature:
+
+| | baseline (§8.4) | `ENCODER` (§8.5) |
+|---|---|---|
+| | 22050 Hz · 2048 · hop 512 · 128 mels · htk · ln | 48000 Hz · 1024 · hop 480 · 64 mels · slaney · dB |
+| set by | what the descriptors need | what CLAP's `preprocessor_config.json` declares |
+
+This looks like the two-configurations corruption Trap 16 names, and it is the opposite of
+it. The corruption is *one* vector space built from two configurations, silently. Here each
+space has exactly one, declared in one module, stamped per row, and enforced per table by
+`index.assert_config`.
+
+The reason not to simply adopt CLAP's numbers everywhere is arithmetic. A 1024-sample
+window at 48 kHz is a 46.9 Hz frequency bin against the baseline's 10.8 Hz, and chroma can
+only resolve a semitone above the frequency where a semitone is wider than a bin — so
+adopting CLAP's STFT globally moves that floor from **181 Hz to 788 Hz**, above most of
+the melodic range, and 24 of the baseline's 119 dimensions stop measuring harmony.
+**M4 judges the encoder against the baseline, and its stop condition is "if the descriptors
+win, something upstream is broken."** Handicapping the opponent to suit the contender makes
+that gate easier to pass, which is exactly the wrong direction.
+
+### What the descriptor baseline is for
+
+It is M4's comparison arm, and it was built **before** the encoder on purpose: an arm built
+after the thing it judges never gets built, and the gate quietly becomes a vibe check. 119
+dimensions of pre-deep-learning music similarity — MFCC mean/std and their first
+differences (80), chroma mean/std (24), spectral centroid/bandwidth/rolloff/flatness/ZCR/
+log-RMS mean and std (12), and tempo (3).
+
+⚠️ **The z-score is across the corpus, not per track.** Normalising each track against
+itself makes a bright track and a dark track both read "average brightness for themselves"
+and every distance collapses toward noise, with no error to notice. It is the same mistake
+`ridge.py` guards against one step earlier and in pixels. Guarded the same way: by API
+shape. There is no function that normalises one vector; `CorpusStats.fit` refuses fewer
+than 8 rows, and the fit is stored in the index so a track added months later lands in the
+same space.
+
+**Measured 2026-08-18 over 887 tracks (82 albums, 39 artists):**
+
+| mean cosine | |
+|---|---|
+| same album | **+0.4288** |
+| same artist, other album | **+0.1802** |
+| different artist | **+0.0005** |
+
+and 49.2% of nearest neighbours share an album against **1.3% by chance**, 59.6% share an
+artist against 3.2%. The gate passes.
 
 ### What `mel.py` actually computes
 

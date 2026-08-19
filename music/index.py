@@ -154,32 +154,56 @@ def count_vectors(conn):
     )
 
 
-def assert_config(conn):
-    """Refuse to write vectors under a configuration that does not match the ones
-    already stored.
+def assert_config(conn, table):
+    """Refuse to write vectors into `table` under a configuration that does not
+    match the ones already stored THERE.
 
-    The first vector written stamps the signature. Every later write checks it.
-    An empty store adopts whatever config.py currently says — which is what makes
-    §8.5 legal: change config.py to match the chosen encoder, drop the vectors,
-    re-run. What is not legal is changing config.py and adding to the existing
-    set, and that is exactly the edit that has no symptom without this check.
+    The first vector written to a table stamps that table's signature. Every
+    later write to it checks it. An empty table adopts whatever is in force —
+    which is what makes §8.5's legitimate path legal: change the profile, clear
+    the table, re-run. What is not legal is changing the profile and ADDING to an
+    existing set, and that is exactly the edit that has no symptom without this.
+
+    ⚠️ **PER TABLE, not per database** (changed at §8.5). The two arms are two
+    independent vector spaces judged against each other at M4, and they now
+    analyse under different profiles on purpose — CLAP's 48 kHz / 64-mel STFT
+    would move the baseline's chroma floor from 181 Hz to 788 Hz and weaken the
+    very opponent M4 needs (see config.py's profile note). One shared key would
+    make that legitimate arrangement raise, and the obvious way to silence it
+    would be to delete the check. The invariant Trap 16 actually names — every
+    vector in ONE space computed under ONE configuration — is unchanged and now
+    stated where it is true.
     """
+    if table not in VECTOR_TABLES:
+        raise ValueError(f'unknown vector table: {table!r}')
+    key = f'config_sig:{table}'
     current = config.signature()
-    stored = get_meta(conn, 'config_sig')
+    stored = get_meta(conn, key)
+
     if stored is None:
-        set_meta(conn, 'config_sig', current)
+        # Adopt the pre-§8.5 single key for a table that already has rows, so an
+        # index built before profiles existed keeps its alarm rather than
+        # silently re-arming against whatever runs next.
+        legacy = get_meta(conn, 'config_sig')
+        n_here = conn.execute(f'SELECT COUNT(*) AS n FROM {table}').fetchone()['n']
+        stored = legacy if (legacy and n_here) else None
+        if stored is not None:
+            set_meta(conn, key, stored)
+
+    if stored is None:
+        set_meta(conn, key, current)
         return current
     if stored != current:
-        n = count_vectors(conn)
+        n = conn.execute(f'SELECT COUNT(*) AS n FROM {table}').fetchone()['n']
         if n:
             raise ConfigDriftError(
-                f'config.py signature is {current} but {n} stored vector(s) were '
-                f'computed under {stored}. Those vectors are not comparable to '
-                f'anything computed now (ALGORITHMS.md Trap 16). Either restore '
-                f'the old config, or clear the vector tables and re-run the '
-                f'backfill under the new one.'
+                f'the analysis configuration in force is {current} but {n} vector(s) '
+                f'in {table} were computed under {stored}. Those vectors are not '
+                f'comparable to anything computed now (ALGORITHMS.md Trap 16). Either '
+                f'restore the profile they were built under, or clear {table} and '
+                f're-run under the new one.'
             )
-        set_meta(conn, 'config_sig', current)
+        set_meta(conn, key, current)
     return current
 
 
@@ -305,7 +329,7 @@ def put_vector(conn, track_id, vec, model, revision=None):
     §8.5 may well try more than one encoder before M4 settles the question, and
     "which model produced this vector" is then a property of the vector.
     """
-    sig = assert_config(conn)
+    sig = assert_config(conn, 'local_vectors')
     blob = to_blob(vec)
     conn.execute(
         'INSERT INTO local_vectors(track_id, model, revision, dim, vector, config_sig, created_at) '
@@ -324,7 +348,7 @@ def put_descriptor(conn, track_id, vec, version=1):
     the encoder against, and the two must not be able to overwrite each other
     through one careless `table=` argument.
     """
-    sig = assert_config(conn)
+    sig = assert_config(conn, 'descriptors')
     blob = to_blob(vec)
     conn.execute(
         'INSERT INTO descriptors(track_id, version, dim, vector, config_sig, created_at) '
@@ -373,7 +397,8 @@ def stats(conn):
     }
     counts['local_vectors'] = conn.execute('SELECT COUNT(*) AS n FROM local_vectors').fetchone()['n']
     counts['descriptors'] = conn.execute('SELECT COUNT(*) AS n FROM descriptors').fetchone()['n']
-    counts['config_sig'] = get_meta(conn, 'config_sig')
+    for table in VECTOR_TABLES:
+        counts[f'sig:{table}'] = get_meta(conn, f'config_sig:{table}')
     return counts
 
 

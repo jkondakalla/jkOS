@@ -221,23 +221,66 @@ def _power_of(frames_block, window):
     return np.abs(spectrum) ** config.POWER
 
 
+def iter_blocks(x):
+    """Yield `(start, frames_block, power_block)` — the framing and FFT stages,
+    one block of frames at a time.
+
+    THE SINGLE FFT PATH. `melspectrogram` below is one consumer; descriptors.py
+    is the other, and it needs three things from the same pass — the raw frames
+    (for ZCR and RMS, which are time-domain), the LINEAR power spectrum (for the
+    spectral shape descriptors and chroma, which are defined over Hz and not over
+    mel bands), and the mel projection. Computing those from three separate
+    traversals would triple the FFT cost and, worse, give three chances for one
+    of them to be framed differently from the others — which is Trap 16 wearing
+    a different hat.
+
+    Blocked for the reason stated at the top of this file: `np.fft.rfft` upcasts
+    float32 to complex128, so peak memory must track BLOCK_FRAMES rather than
+    track length or §8.6's parallel workers will exhaust the machine on a long
+    track.
+    """
+    frames = frame(x)
+    window = hann_window()
+    for start in range(0, frames.shape[0], BLOCK_FRAMES):
+        block = frames[start:start + BLOCK_FRAMES]
+        yield start, block, _power_of(block, window)
+
+
+def magnitude_of(power):
+    """The MAGNITUDE spectrum, whatever `config.POWER` currently says.
+
+    The classical spectral descriptors (centroid, bandwidth, rolloff) are defined
+    over |Z|, not over |Z|^p. Deriving magnitude here rather than reading
+    `_power_of`'s output directly means those definitions do not silently change
+    meaning if §8.5 flips POWER to 1.0 to match an encoder.
+    """
+    if config.POWER == 1.0:
+        return power
+    if config.POWER == 2.0:
+        return np.sqrt(power)
+    return power ** (1.0 / config.POWER)
+
+
 def melspectrogram(x):
     """LINEAR mel spectrogram: (N_MELS, T) float32, no log applied.
 
     Computed in blocks so peak memory tracks BLOCK_FRAMES, not track length.
     """
-    frames = frame(x)
     fb = mel_filterbank()
-    window = hann_window()
-    out = np.empty((config.N_MELS, frames.shape[0]), dtype=np.float32)
+    out = np.empty((config.N_MELS, config_frames(x)), dtype=np.float32)
 
-    for start in range(0, frames.shape[0], BLOCK_FRAMES):
-        block = frames[start:start + BLOCK_FRAMES]
-        power = _power_of(block, window)            # (block, n_freqs) float64
+    for start, _block, power in iter_blocks(x):
         # The mel projection: (N_MELS, n_freqs) @ (n_freqs, block) → (N_MELS, block)
-        out[:, start:start + block.shape[0]] = (fb @ power.T).astype(np.float32)
+        out[:, start:start + power.shape[0]] = (fb @ power.T).astype(np.float32)
 
     return out
+
+
+def config_frames(x):
+    """Frames `x` will produce — asked of `frame()` itself rather than of
+    `config.n_frames`, so a signal shorter than the pad fallback still sizes its
+    own output correctly."""
+    return frame(x).shape[0]
 
 
 def logmelspectrogram(x):
@@ -249,8 +292,18 @@ def logmelspectrogram(x):
     Values are floored at LOG_FLOOR first, so silence maps to a finite constant
     instead of −inf — which would poison every downstream mean, norm and matmul.
     """
-    mel = melspectrogram(x)
-    floored = np.maximum(mel, np.float32(config.LOG_FLOOR))
+    return apply_log(melspectrogram(x))
+
+
+def apply_log(x):
+    """The configured log compression, floored. The single implementation.
+
+    Shared with descriptors.py, which stores RMS in the log domain for exactly
+    the same reason the mel matrix is compressed here — a linear loudness figure
+    across a corpus is dominated by its own tail. One function, so `LOG_MODE`
+    means one thing everywhere.
+    """
+    floored = np.maximum(np.asarray(x, dtype=np.float32), np.float32(config.LOG_FLOOR))
     if config.LOG_MODE == 'ln':
         return np.log(floored).astype(np.float32)
     if config.LOG_MODE == 'db':

@@ -9,7 +9,12 @@
 .cache/
 
 # Vendored encoder weights (§8.5) — hundreds of MB, fetched not committed.
+# Reproducible byte-for-byte from the pinned commit + checksum in models/README.md.
 models/*.onnx
+
+# The contained venv (§8.5). This host's Python is PEP 668 externally-managed, so
+# onnxruntime cannot be installed system-wide; see models/README.md.
+.venv/
 
 # Rendered ridgelines (§8.3) and query output.
 out/
