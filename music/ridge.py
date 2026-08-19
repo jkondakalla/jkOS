@@ -533,7 +533,16 @@ def render(panels, plot_w=SHEET_PLOT_W, plot_h=PLOT_H, columns=None, value_range
     elif value_range == 'auto':
         value_range = auto_value_range(panels)
     vmin, vmax = value_range
-    n_bands = max(int(p.matrix.shape[0]) for p in panels)
+    bands = {int(p.matrix.shape[0]) for p in panels}
+    if len(bands) != 1:
+        # One sheet is one comparison, so one band count. `max()` over a mixed
+        # set drew the taller panels' extra rows out of the shorter ones' arrays
+        # and died on an index, several hundred lines from the mistake — which
+        # would have been rendering panels computed under two profiles.
+        raise ValueError(
+            f'panels carry different band counts {sorted(bands)} — a sheet is one '
+            f'comparison against one scale, and mixing profiles makes it meaningless')
+    n_bands = bands.pop()
     if plot_h / (n_bands - 1 + OVERSHOOT) < ROW_PITCH_MIN:
         import sys
         print(f'note: {n_bands} rows in {plot_h}px is '
@@ -720,13 +729,31 @@ def _main(argv=None):
 
     value_range = args.value_range
     if value_range and value_range != 'auto':
-        lo, _, hi = value_range.partition(',')
-        value_range = (float(lo), float(hi))
+        lo, comma, hi = value_range.partition(',')
+        try:
+            if not comma:
+                raise ValueError('needs two numbers')
+            value_range = (float(lo), float(hi))
+        except ValueError as exc:
+            raise SystemExit(
+                f"--range wants 'auto' or 'lo,hi' (e.g. '-8,10'), got "
+                f"{args.value_range!r}: {exc}") from None
+        if value_range[1] <= value_range[0]:
+            raise SystemExit(f'--range low must be below high, got {value_range}')
 
     panels = []
     for path in paths:
         print(f'· {os.path.basename(path)}', file=sys.stderr)
-        panels.append(panel_from_file(path, seconds=args.seconds, start=args.start))
+        try:
+            panels.append(panel_from_file(path, seconds=args.seconds, start=args.start))
+        except Exception as exc:
+            # ⚠️ One unreadable file must not cost the whole sheet. The check set
+            # is four tracks and a sheet of three is still a check; a traceback
+            # after decoding two of them is nothing at all. Broad on purpose —
+            # this is a renderer, and every failure here has the same answer.
+            print(f'  skipped: {type(exc).__name__}: {exc}', file=sys.stderr)
+    if not panels:
+        raise SystemExit('nothing could be rendered — every file failed to decode')
 
     columns = args.columns
     width = args.width or (SHEET_PLOT_W if len(panels) > 1 else SOLO_PLOT_W)

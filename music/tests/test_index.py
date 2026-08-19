@@ -7,6 +7,7 @@ float32 round-tripping bit-exactly, `pending()` genuinely reflecting a LEFT JOIN
 mixing two incomparable vector sets in one table.
 """
 import os
+import shutil
 import tempfile
 import unittest
 
@@ -376,6 +377,86 @@ class IngestScanTest(IndexTestCase):
         self.assertEqual(len(index.pending(self.conn, 'local_vectors')), 1)
         self.assertEqual(index.track_by_path(self.conn, self.files[0])['status'],
                          index.OK)
+
+
+class UpsertWithoutAStatTest(unittest.TestCase):
+    """⚠️ `None` means "not observed", never "zero".
+
+    Both stat arguments default to `None` so the call reads as an upsert-by-path
+    — which is exactly how someone asks for a row id. The first version compared
+    those defaults straight against the stored numbers, decided `12345.0 != None`
+    meant the file had changed, reset the row to `pending` and **deleted its
+    vectors**. Hours of encoder time, discarded by a call that looks like a read.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix='music-upsert-')
+        self.conn = index.connect(os.path.join(self.tmp, 'index.db'))
+
+    def tearDown(self):
+        self.conn.close()
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def stocked(self):
+        tid = index.upsert_track(self.conn, '/lib/A/B/01. t.flac', 12345.0, 999)
+        index.put_vector(self.conn, tid, np.zeros(8, dtype=np.float32), model='m')
+        index.mark_ok(self.conn, tid, duration=1.0)
+        self.conn.commit()
+        return tid
+
+    def test_a_bare_upsert_is_a_lookup_and_keeps_the_work(self):
+        tid = self.stocked()
+        self.assertEqual(index.upsert_track(self.conn, '/lib/A/B/01. t.flac'), tid)
+        self.assertIsNotNone(index.get_vector(self.conn, tid))
+        self.assertEqual(index.track_by_path(self.conn, '/lib/A/B/01. t.flac')['status'],
+                         index.OK)
+
+    def test_one_observed_field_is_still_compared(self):
+        """Half a stat is not a reason to ignore the half you have."""
+        tid = self.stocked()
+        index.upsert_track(self.conn, '/lib/A/B/01. t.flac', size=1)
+        self.assertIsNone(index.get_vector(self.conn, tid))
+
+    def test_a_changed_file_still_drops_what_was_computed_from_it(self):
+        tid = self.stocked()
+        index.upsert_track(self.conn, '/lib/A/B/01. t.flac', 99999.0, 999)
+        self.assertIsNone(index.get_vector(self.conn, tid))
+        self.assertEqual(index.track_by_path(self.conn, '/lib/A/B/01. t.flac')['status'],
+                         index.PENDING)
+
+
+    def test_the_db_path_is_read_at_call_time(self):
+        """⚠️ Third instance of the frozen-default defect. `connect(path=DB_PATH)`
+        captured the constant at import, so redirecting `index.DB_PATH` at a
+        scratch copy — the obvious way to exercise the pipeline without touching
+        a real index — did nothing and the run wrote to the real one. It cost a
+        live index five rows before it was noticed."""
+        import inspect
+        self.assertIsNone(inspect.signature(index.connect).parameters['path'].default)
+        elsewhere = os.path.join(self.tmp, 'elsewhere.db')
+        saved, index.DB_PATH = index.DB_PATH, elsewhere
+        try:
+            conn = index.connect()
+            try:
+                index.upsert_track(conn, '/lib/A/B/01. t.flac', 1.0, 1)
+                conn.commit()
+            finally:
+                conn.close()
+        finally:
+            index.DB_PATH = saved
+        self.assertTrue(os.path.exists(elsewhere))
+
+    def test_opening_the_index_twice_does_not_rewrite_it(self):
+        """`connect` used to INSERT and commit the schema version every time,
+        so `control.py` polling every two seconds took a write lock every two
+        seconds against the run it was watching."""
+        self.stocked()
+        before = index.get_meta(self.conn, 'schema_version')
+        second = index.connect(os.path.join(self.tmp, 'index.db'))
+        try:
+            self.assertEqual(index.get_meta(second, 'schema_version'), before)
+        finally:
+            second.close()
 
 
 if __name__ == '__main__':

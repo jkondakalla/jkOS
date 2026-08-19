@@ -362,6 +362,7 @@ const routines = await importTs(
 const {
   cadenceDays, weeklyTarget, floatCount, toggleDay,
   weekCells, attainment, streakOf, getRoutines,
+  firesAtAll, cadencePatch,
 } = routines;
 
 // The cadence encoding: offsets from Monday, sorted, de-duped, and TOLERANT — it
@@ -433,6 +434,34 @@ check(streakOf(R, [R, occ('2026-08-10', true), occ('2026-08-11', false), occ('20
 check(streakOf(R, [R], '2026-08-12') === 0, 'streakOf: no occurrences is no streak');
 
 check(getRoutines(items).length === 1 && getRoutines(items)[0].id === 7, 'getRoutines picks only kind:routine');
+
+/* ── PARKED BY ARITHMETIC ────────────────────────────────────────────────────
+ * Emptying the schedule parks the routine and filling it resumes it, and the two
+ * are the same rule read in two directions. The traps are both about what counts
+ * as "empty": a FLOAT (an explicit count above the committed days) is a real plan
+ * with no weekday in it, and every non-weekly rule fires without weekdays at all.
+ * Parking either of those would silently stop a routine the user never touched. */
+check(firesAtAll({ cadence_days: '0,2' }) === true, 'firesAtAll: committed weekdays fire');
+check(firesAtAll({ cadence_days: '' }) === false, 'firesAtAll: no days and no count fires nothing');
+check(firesAtAll({ cadence_days: '', cadence_count: 3 }) === true,
+  'firesAtAll: a float — "3× a week, any day" — is a plan, not an empty schedule');
+check(firesAtAll({ cadence_days: '', cadence_rule: 'every_n_days:3' }) === true,
+  'firesAtAll: a non-weekly rule needs no weekday');
+
+check(cadencePatch({ cadence_days: '0,2' }, { cadence_days: '' }).status === 'parked',
+  'cadencePatch: dropping the last weekday parks the routine');
+check(cadencePatch({ cadence_days: '', status: 'parked' }, { cadence_days: '3' }).status === 'active',
+  'cadencePatch: committing a weekday resumes it');
+check(cadencePatch({ cadence_days: '0,2', status: 'parked' }, { cadence_days: '0,2,4' }).status === undefined,
+  'cadencePatch: a routine parked BY HAND stays parked — nothing about that edit changed whether it fires');
+check(cadencePatch({ cadence_days: '0,2' }, { cadence_days: '0' }).status === undefined,
+  'cadencePatch: writes status only when the answer flips');
+check(cadencePatch({ cadence_days: '', cadence_count: 3 }, { cadence_count: 0 }).status === 'parked',
+  'cadencePatch: the target stepper parks a float routine on the way to zero');
+check(cadencePatch({ cadence_days: '' }, { cadence_rule: 'monthly:1' }).status === 'active',
+  'cadencePatch: switching to a rule that fires resumes an empty weekly routine');
+check(cadencePatch({ cadence_days: '' }, { cadence_days: '' }).cadence_days === '',
+  'cadencePatch: passes the changes through untouched');
 
 if (failed) {
   console.error(`\n✗ cards-logic: ${failed} assertion(s) failed`);

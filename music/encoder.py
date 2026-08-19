@@ -179,8 +179,19 @@ def session():
         options = onnxruntime.SessionOptions()
         options.intra_op_num_threads = INTRA_OP_THREADS
         options.inter_op_num_threads = 1
-        _SESSION = onnxruntime.InferenceSession(
-            MODEL_PATH, options, providers=['CPUExecutionProvider'])
+        try:
+            _SESSION = onnxruntime.InferenceSession(
+                MODEL_PATH, options, providers=['CPUExecutionProvider'])
+        except Exception as exc:
+            # onnxruntime raises its own exception family for a graph it cannot
+            # parse, and §8.6's per-track catch would happily record "failed" for
+            # all 15,326 tracks rather than say the weights are the problem. The
+            # likely cause is named in the message because it is the likely
+            # cause: a download interrupted before this file was made atomic.
+            raise EncoderError(
+                f'{MODEL_PATH} would not load as an ONNX graph ({exc}). Verify it '
+                f'with `encoder.py --verify`, and re-fetch with '
+                f'`encoder.py --fetch --force` if the checksum is wrong.') from exc
     return _SESSION
 
 
@@ -200,11 +211,21 @@ def windows(x, max_windows=None):
     interlude to 10 seconds would tell the model that 60% of it is silence, which
     is a statement about the padding, not about the music.
     """
-    cap = MAX_WINDOWS if max_windows is None else max_windows
+    cap = MAX_WINDOWS if max_windows is None else int(max_windows)
+    if cap < 0:
+        # 0 is UNCAPPED and documented as such (`--max-windows 0`); a negative
+        # reaches `np.linspace(..., cap)` and dies there with a message about
+        # sample counts, several frames away from anything the caller wrote.
+        raise EncoderError(f'max_windows must be 0 (uncapped) or more, got {cap}')
     x = np.asarray(x, dtype=np.float32)
     size = window_samples()
     if x.size == 0:
         raise EncoderError('cannot window an empty signal')
+    if not np.all(np.isfinite(x)):
+        # A non-finite sample survives the mel, the log and the matmul, and comes
+        # back from the model as 512 NaNs that `pool` rejects with "windows
+        # cancelled to zero" — a true sentence about entirely the wrong thing.
+        raise EncoderError('signal contains non-finite samples')
     if x.size < size:
         repeats = int(np.ceil(size / x.size))
         yield np.tile(x, repeats)[:size]
@@ -367,26 +388,45 @@ def fetch(force=False):
     above: the URL pins a commit, but nothing else would notice a truncated
     download, and a truncated ONNX either fails to load or loads as a different
     graph.
+
+    ⚠️ **DOWNLOADED BESIDE, VERIFIED, THEN RENAMED INTO PLACE.** 281 MB over a
+    home connection is a minute or two of exposure to a Ctrl-C, a dropped Wi-Fi
+    or a full disk, and the first version streamed straight into `MODEL_PATH` —
+    so any of those left a truncated file at exactly the path `available()`
+    checks for existence. The next backfill would then report the encoder as
+    present, fail somewhere inside onnxruntime, and mark the library failed.
+    `os.replace` is atomic within a filesystem, so `MODEL_PATH` either does not
+    exist or is a file that passed its checksum, and there is no third state.
     """
-    import hashlib
     import urllib.request
 
     os.makedirs(MODELS_DIR, exist_ok=True)
     if os.path.exists(MODEL_PATH) and not force:
         return MODEL_PATH, verify_checksum()
-    with urllib.request.urlopen(URL) as response, open(MODEL_PATH, 'wb') as handle:
-        while True:
-            chunk = response.read(1 << 20)
-            if not chunk:
-                break
-            handle.write(chunk)
+
+    partial = MODEL_PATH + '.partial'
+    try:
+        with urllib.request.urlopen(URL) as response, open(partial, 'wb') as handle:
+            while True:
+                chunk = response.read(1 << 20)
+                if not chunk:
+                    break
+                handle.write(chunk)
+        if not verify_checksum(partial):
+            raise EncoderError(
+                f'the download does not match the pinned checksum {SHA256} — it was '
+                f'truncated, or the pin is stale. Left nothing behind; try again.')
+        os.replace(partial, MODEL_PATH)
+    finally:
+        if os.path.exists(partial):
+            os.remove(partial)
     return MODEL_PATH, verify_checksum()
 
 
-def verify_checksum():
+def verify_checksum(path=None):
     import hashlib
     digest = hashlib.sha256()
-    with open(MODEL_PATH, 'rb') as handle:
+    with open(MODEL_PATH if path is None else path, 'rb') as handle:
         for block in iter(lambda: handle.read(1 << 20), b''):
             digest.update(block)
     return digest.hexdigest() == SHA256
@@ -422,11 +462,17 @@ def _main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument('files', nargs='*', help='embed these files')
     parser.add_argument('--fetch', action='store_true', help='download the pinned weights')
+    parser.add_argument('--force', action='store_true',
+                        help='with --fetch: re-download even if the file is there')
     parser.add_argument('--verify', action='store_true', help='run the §8.5 checks')
     args = parser.parse_args(argv)
 
     if args.fetch:
-        path, ok = fetch()
+        try:
+            path, ok = fetch(force=args.force)
+        except (EncoderError, OSError) as exc:
+            print(f'{type(exc).__name__}: {exc}', file=sys.stderr)
+            return 1
         print(f'{path}\nchecksum {"OK" if ok else "MISMATCH"} ({SHA256})')
         return 0 if ok else 1
 
@@ -553,12 +599,24 @@ def embed_windows_unchecked(signal, batch_size=BATCH_WINDOWS):
 
 
 def _embed_each(paths):
+    import sys
+
+    import audio
+
+    bad = 0
     for path in paths:
-        vector, seconds = embed_file(path)
+        try:
+            vector, seconds = embed_file(path)
+        except (EncoderError, audio.DecodeError, OSError) as exc:
+            # Same rule as the batch: one bad argument reports itself and the
+            # rest of the list still gets embedded.
+            print(f'{os.path.basename(path)}  {type(exc).__name__}: {exc}', file=sys.stderr)
+            bad += 1
+            continue
         print(f'{os.path.basename(path)}  {seconds:6.1f}s  '
               f'norm {float(np.linalg.norm(vector)):.4f}  '
               f'range [{vector.min():+.3f}, {vector.max():+.3f}]')
-    return 0
+    return 1 if bad == len(paths) else 0
 
 
 if __name__ == '__main__':

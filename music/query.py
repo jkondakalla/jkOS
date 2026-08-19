@@ -199,6 +199,17 @@ class Arm:
         self.matrix = (matrix / np.where(norms > 0, norms, 1.0)).astype(np.float32)
         self.paths = list(paths)
         self.ids = list(ids)
+        if not (len(self.paths) == len(self.ids) == self.matrix.shape[0]):
+            raise QueryError(
+                f'{name}: {self.matrix.shape[0]} vectors against {len(self.paths)} paths '
+                f'and {len(self.ids)} ids — the three are read positionally by every '
+                f'rate below, so a mismatch would label neighbours with other tracks.')
+        # `nearest()` is O(N²) and three of the four things `gate()` prints ask
+        # for it. Memoised per arm because the matrix is immutable after this
+        # point: at 15,326 × 512 one pass is ~120 GFLOP, and the first version
+        # ran it three times for one report.
+        self._nearest = None
+        self._position = {tid: i for i, tid in enumerate(self.ids)}
 
     def __len__(self):
         return len(self.paths)
@@ -209,9 +220,9 @@ class Arm:
 
     def index_of(self, track_id):
         try:
-            return self.ids.index(track_id)
-        except ValueError:
-            raise QueryError(f'{self.name}: track {track_id} is not in this arm')
+            return self._position[track_id]
+        except KeyError:
+            raise QueryError(f'{self.name}: track {track_id} is not in this arm') from None
 
     def search(self, row, k=DEFAULT_K):
         """Top-`k` neighbours of `row` (an int index or a vector), self excluded.
@@ -221,15 +232,30 @@ class Arm:
         is the one place the naive version would actually cost something.
         """
         if isinstance(row, (int, np.integer)):
-            i, q = int(row), self.matrix[int(row)]
+            i = int(row)
+            if not -len(self) <= i < len(self):
+                raise QueryError(f'{self.name}: row {i} is outside 0…{len(self) - 1}')
+            i, q = i % len(self), self.matrix[i]
         else:
             i, q = -1, np.asarray(row, dtype=np.float32)
+            if q.shape != (self.dim,):
+                raise QueryError(
+                    f'{self.name}: a query vector must be {self.dim}-d, got {q.shape}')
             norm = float(np.linalg.norm(q))
             q = q / norm if norm else q
+        # ⚠️ k is clamped, not trusted. `argpartition(-scores, k - 1)` with k ≤ 0
+        # passes a NEGATIVE kth, which numpy reads from the end and answers
+        # without complaint — so `-k 0` returned an empty list and `-k -3`
+        # returned four arbitrary rows presented as the four nearest.
+        if int(k) < 1:
+            raise QueryError(f'k must be at least 1, got {k}')
         scores = self.matrix @ q
         if i >= 0:
             scores[i] = -np.inf
-        k = min(int(k), len(scores) - (1 if i >= 0 else 0))
+        available = len(scores) - (1 if i >= 0 else 0)
+        if available < 1:
+            return []                       # a one-track arm has no neighbours
+        k = min(int(k), available)
         top = np.argpartition(-scores, k - 1)[:k] if k < len(scores) else np.arange(len(scores))
         top = top[np.argsort(-scores[top])]
         return [(int(j), self.ids[j], self.paths[j], float(scores[j])) for j in top]
@@ -242,12 +268,19 @@ class Arm:
         brute-force-is-fine argument as `search`, one order of magnitude up
         because it is every query at once.
         """
+        if self._nearest is not None:
+            return self._nearest
         n = len(self)
+        if n < 2:
+            raise QueryError(
+                f'{self.name}: {n} track(s) — a nearest neighbour needs a second one')
         out = np.empty(n, dtype=np.int64)
         for start in range(0, n, 512):
             block = self.matrix[start:start + 512] @ self.matrix.T
             np.fill_diagonal(block[:, start:start + block.shape[0]], -np.inf)
             out[start:start + block.shape[0]] = block.argmax(axis=1)
+        out.flags.writeable = False          # memoised and shared: nobody edits it
+        self._nearest = out
         return out
 
 
@@ -459,7 +492,10 @@ def side_by_side(arms, row, k=DEFAULT_K, width=46, stream=None):
     header = '  #  ' + '   '.join(f'{arm.label:<{width}}   cos' for arm in arms)
     print(header, file=out)
     print('  ' + '─' * (len(header) - 2), file=out)
-    for rank in range(k):
+    # `k` is what was asked for; `rows` is what exists. A small arm asked for the
+    # top 20 used to print eleven blank numbered lines, which reads as eleven
+    # neighbours the search could not name rather than as a corpus of nine.
+    for rank in range(max((len(r) for r in results), default=0)):
         cells = []
         for res in results:
             if rank < len(res):
@@ -623,6 +659,9 @@ def _main(argv=None):
     parser.add_argument('--status', action='store_true', help='what each arm holds')
     args = parser.parse_args(argv)
 
+    if args.k < 1:
+        parser.error(f'-k must be at least 1, got {args.k}')
+
     conn = index.connect()
     try:
         if args.status or not (args.hand or args.gate or args.queries):
@@ -665,6 +704,13 @@ def _main(argv=None):
                     for rank, (_j, _tid, path, cos) in enumerate(arm.search(row, args.k), 1):
                         print(f'  {rank:>2} {_marks(arm.paths[row], path, cos)}'
                               f'{short(path, 64)} {cos:+.4f}')
+    except (QueryError, descriptors.DescriptorError, index.ConfigDriftError) as exc:
+        # A typo in a search fragment, an arm nobody has filled yet, a corpus too
+        # small to z-score, a config edit after a backfill: four ordinary states,
+        # each of which used to arrive as a traceback. Every one of these
+        # exceptions already says what to do; printing it is the whole job.
+        print(f'\n{type(exc).__name__}: {exc}', file=sys.stderr)
+        return 1
     finally:
         conn.close()
     return 0

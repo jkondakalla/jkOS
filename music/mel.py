@@ -34,6 +34,8 @@ so per-track memory must not scale with track length. Everything below is
 therefore computed in **blocks of frames**: peak memory is a function of
 BLOCK_FRAMES, not of duration.
 """
+import threading
+
 import numpy as np
 
 import config
@@ -158,19 +160,40 @@ def _build_window():
     return (0.5 - 0.5 * np.cos(2.0 * np.pi * n / config.N_FFT)).astype(np.float32)
 
 
-# Built once, as §8.2 requires — but keyed on the config signature so that
+# Built once, as §8.2 requires — but tied to the config signature so that
 # changing a parameter (a test, or §8.5 matching an encoder) rebuilds rather than
 # silently serving a filterbank for the old configuration. "Built once" and
 # "built for the wrong config" are one edit apart otherwise.
+#
+# ⚠️ **INVALIDATION IS BY SIGNATURE, NOT BY MISS**, and the difference is the
+# whole cache. The first version keyed on `(name, signature)` and cleared the
+# dict on any miss, which meant four different names — filterbank, window, dct,
+# chroma — evicted each other in turn and NOTHING was ever served from cache:
+# measured at 4 rebuilds per `descriptors.describe()` and 24 per encoded track,
+# every track, forever. Worse, `clear()` landing between another thread's
+# `in` check and its subscript is a KeyError in a run that is eight threads wide
+# and three hours long. One signature guard and one lock fix both.
+#
+# The lock is held across the build. Builds are milliseconds and happen once per
+# signature, so the contention is nil, and the alternative — building outside the
+# lock — lets two threads build the same filterbank on the first track of a
+# parallel run for no gain.
 _CACHE = {}
+_CACHE_SIG = None
+_CACHE_LOCK = threading.Lock()
 
 
 def _cached(name, builder):
-    key = (name, config.signature())
-    if key not in _CACHE:
-        _CACHE.clear()
-        _CACHE[key] = builder()
-    return _CACHE[key]
+    """`builder()` once per name per analysis configuration, thread-safely."""
+    global _CACHE_SIG
+    signature = config.signature()
+    with _CACHE_LOCK:
+        if _CACHE_SIG != signature:
+            _CACHE.clear()
+            _CACHE_SIG = signature
+        if name not in _CACHE:
+            _CACHE[name] = builder()
+        return _CACHE[name]
 
 
 def mel_filterbank():

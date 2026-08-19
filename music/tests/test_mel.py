@@ -273,5 +273,54 @@ class SpectrogramTest(unittest.TestCase):
                          mel.logmelspectrogram(x).tobytes())
 
 
+class FilterbankCacheTest(unittest.TestCase):
+    """⚠️ The cache used to be a cache in name only.
+
+    Keyed on `(name, signature)` and cleared on ANY miss, four names —
+    filterbank, window, dct, chroma — evicted each other in rotation, so nothing
+    was ever served from it: 4 rebuilds per `describe()` and 24 per encoded
+    track, every track, forever. And a `clear()` landing between another
+    thread's `in` check and its subscript is a KeyError, in a run that is eight
+    threads wide and three hours long.
+    """
+
+    def setUp(self):
+        mel._CACHE.clear()
+
+    def test_two_different_entries_coexist(self):
+        first = mel.mel_filterbank()
+        window = mel.hann_window()
+        self.assertIs(mel.mel_filterbank(), first)      # the window did not evict it
+        self.assertIs(mel.hann_window(), window)
+
+    def test_a_profile_change_invalidates_everything(self):
+        baseline = mel.mel_filterbank()
+        with config.using(config.ENCODER):
+            encoder_bank = mel.mel_filterbank()
+            self.assertIsNot(encoder_bank, baseline)
+            self.assertEqual(encoder_bank.shape[0], config.N_MELS)
+        self.assertEqual(mel.mel_filterbank().shape[0], config.N_MELS)
+
+    def test_it_is_safe_to_share_between_threads(self):
+        """§8.4 builds with 8 workers and §8.6 with 3 readers, all through this."""
+        import threading
+        errors = []
+
+        def hammer():
+            try:
+                for _ in range(2000):
+                    mel.mel_filterbank()
+                    mel.hann_window()
+            except Exception as exc:                     # pragma: no cover - the bug
+                errors.append(exc)
+
+        threads = [threading.Thread(target=hammer) for _ in range(8)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        self.assertEqual(errors, [])
+
+
 if __name__ == '__main__':
     unittest.main()

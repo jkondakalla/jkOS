@@ -160,8 +160,13 @@ export function WorkshopView(props: any) {
   const addRoutine = async (parentId?: number) => {
     if (readonly) return
     const accent = TASK_COLORS[(goals.length + routines.length) % TASK_COLORS.length].hex
+    /* Born PARKED, with no weekday committed. A routine that asks for nothing is
+       parked by definition (lib/routines `firesAtAll`) and the rail draws it that
+       way, so creating one "active" with an empty schedule would put a routine on
+       the board claiming to run while minting nothing. The first weekday you
+       switch on resumes it, through the same rider. */
     const r = await onAddItem?.({
-      kind: 'routine', scope: 'week', status: 'active', source: 'bb',
+      kind: 'routine', scope: 'week', status: 'parked', source: 'bb',
       title: 'New routine', cadence_days: '', accent,
       position: routines.length, ...(parentId ? { parent_id: parentId } : {}),
     })

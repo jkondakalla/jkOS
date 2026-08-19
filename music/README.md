@@ -61,6 +61,7 @@ python ridge.py --seconds 20 <file.flac> --out out/one.svg
 python descriptors.py --names        # the 119-dimension layout
 python descriptors.py <file.flac>    # describe one file, readable numbers
 python descriptors.py --scan         # walk the library into `tracks` (~23s for 15,326)
+python descriptors.py --scan --root /some/other/shelf
 python descriptors.py --build --albums 60 --per-artist 3
 python descriptors.py --gate         # the §8.4 sanity gate
 ```
@@ -70,6 +71,7 @@ system-wide — hence a contained venv (see [`models/README.md`](models/README.m
 
 ```bash
 ./.venv/bin/python encoder.py --fetch     # 281 MB, pinned commit, checksum verified
+./.venv/bin/python encoder.py --fetch --force   # re-download over what is there
 ./.venv/bin/python encoder.py --verify    # the §8.5 checks
 ./.venv/bin/python -m unittest discover   # the same suite, with the encoder tests live
 
@@ -377,14 +379,69 @@ here is optimising a problem that does not exist.
 
 ---
 
+## When a run goes wrong
+
+"Failures are data" is right for one corrupt FLAC and catastrophic for one dropped mount, and
+the difference is not visible from inside the loop. `/mnt/Luna` is CIFS over a home network;
+when it goes, ffmpeg does not hang — it returns ENOENT in milliseconds — so a thirty-second
+blip in hour two would mark *every remaining track* `failed` in about a minute. And
+`index.pending` excludes failed rows, so the obvious recovery, running it again, would then
+skip all thirteen thousand of them and report a finished library. Silent, total, and wearing
+the face of success.
+
+Both arms therefore stop themselves, and the two causes get different answers:
+
+| what happened | what the run does |
+|---|---|
+| **the shelf is gone** (`scan.library_reachable` says the root is not a directory) | stops immediately and marks **nothing** — the mount is not this track's fault, so the rows stay `pending` and the next run picks them up with no flag to remember |
+| **25 failures in a row** with the shelf present — a full disk, deleted weights, a dead session | stops, and those rows **are** marked `failed` with their error text, because each one genuinely failed. `--failures` reads them; `--retry-failed` is the deliberate second attempt |
+| **one bad file** among good ones | marked `failed`, batch continues. The counter is consecutive, so a merely patchy library still runs to the end |
+
+The backfill reports this as `progress.aborted` and exits **2**; the descriptor build raises
+`DescriptorError`. Neither loses the work already committed — one commit per track, always.
+
+Everything else that can go wrong on an ordinary day — a typo in a search fragment, an arm
+nobody has filled yet, a corpus too small to z-score, a config edit after a backfill — prints
+one line and exits 1. Each of those exceptions already carries a sentence saying what to do,
+and a traceback puts that sentence at the bottom of twelve frames of noise.
+
+---
+
 ## Status
 
 **§8.1–§8.7 complete, and M4's gate has passed** — config, decode, scan, the index, the mel
 transform, the ridgeline, the descriptor baseline, the vendored encoder, the backfill, and the
-query surface. **321 tests green**, and the whole suite still runs with no library mount and no
+query surface. **361 tests green**, and the whole suite still runs with no library mount and no
 weights.
 
-The vector space currently covers **1,506 tracks**, not 15,326: the backfill was stopped
+An integration pass over the whole pipeline followed the gate, and the five findings worth
+naming here are the ones that were **silent**:
+
+- **A default argument is evaluated once, and three of them had captured a module constant.**
+  `audio.decode(path, sr=SR)` over a `from config import SR` pinned the sample rate of
+  whichever profile was in force the first time `audio` was imported — and three call sites
+  import it lazily, one of them inside `with config.using(ENCODER)`. That is Trap 16 arriving
+  through Python's scoping rules rather than through arithmetic: a baseline descriptor computed
+  from a 48 kHz decode, no exception, no NaN. `scan.iter_tracks(root=LIBRARY_ROOT)` had it too,
+  which made moving `config.LIBRARY_ROOT` — the documented way to run without the mount — do
+  nothing at all; and `index.connect(path=DB_PATH)` had it, so redirecting `index.DB_PATH` at a
+  scratch copy silently wrote to the real index. The third one was found the honest way: by a
+  verification run that thought it was using a copy and was not.
+- **The filterbank cache never served a hit.** Keyed on `(name, signature)` and cleared on any
+  miss, its four entries evicted each other in rotation: 4 rebuilds per `describe()`, 24 per
+  encoded track, forever — and a `clear()` between another thread's `in` check and its
+  subscript is a `KeyError` in a run eight threads wide.
+- **`upsert_track(conn, path)` deleted the vectors it was asked about.** Both stat arguments
+  default to `None`, and `None` was compared against the stored numbers, so the obvious way to
+  ask for a row id read as "the file changed" and dropped hours of encoder time.
+- **A dropped mount would have burned the queue** — see *When a run goes wrong* above.
+- **An interrupted `--fetch` left a truncated 281 MB file** where `available()` checks for one,
+  so the next backfill would report the encoder present and fail inside onnxruntime.
+
+The gate was re-run after all of it and reads identically: NN album 40.0 vs 29.0, clean 58.4 vs
+42.6, artist 94.2 vs 85.3, `gap/σ` 1.23 vs 1.21.
+
+The vector space currently covers **1,511 tracks**, not 15,326: the backfill was stopped
 deliberately because this is not the library the space will finally be built over. Nothing about
 that is load-bearing — resuming is `backfill.py` with no arguments, and progress is the absence
 of a join partner rather than a counter.

@@ -123,23 +123,48 @@ def _now():
 
 
 # ── Connection ──────────────────────────────────────────────────────────────────
-def connect(path=DB_PATH):
+# How long a writer will wait for another writer before giving up. The default
+# is 5 s, and the two writers this project actually runs — a backfill committing
+# once per track and `control.py` polling every 2 s — can collide for longer than
+# that on a slow fsync. "database is locked" in hour two of a three-hour run is a
+# failure mode with no upside; waiting is free.
+BUSY_TIMEOUT_MS = 30000
+
+
+def connect(path=None, timeout=BUSY_TIMEOUT_MS / 1000.0):
     """Open (creating if needed) the index, with the schema applied.
+
+    ⚠️ `path=None` means `DB_PATH` AS IT IS AT CALL TIME. It used to be spelled
+    `path=DB_PATH`, which captured the module constant when this file was first
+    imported — so pointing `index.DB_PATH` at a scratch copy, the obvious way to
+    exercise the pipeline without touching a real index, silently did nothing and
+    the run wrote to the real one. Third instance of the same defect in this
+    project (`audio.decode`'s sample rate, `scan.iter_tracks`'s root), which is
+    why all three are now called out where they live.
 
     WAL is on because §8.6 commits per track across a multi-hour run and must be
     Ctrl-C safe at any point; `synchronous=NORMAL` under WAL keeps that cheap
     without risking corruption on process death (only on host power loss, which
     would cost one track). `foreign_keys` is ON so deleting a track takes its
     vectors with it — off is sqlite's default and silently leaves orphans.
+
+    ⚠️ **OPENING IS A READ WHEN THERE IS NOTHING TO WRITE.** `CREATE TABLE IF NOT
+    EXISTS` is cheap but `set_meta` is not free: it is an INSERT and a commit, so
+    the first version took a write lock every time anything opened the index —
+    including `control.py`, which opens it every two seconds while the backfill
+    holds the writer. The schema version only ever changes when this file
+    changes, so it is read first and written only when it differs.
     """
-    conn = sqlite3.connect(path)
+    conn = sqlite3.connect(DB_PATH if path is None else path, timeout=timeout)
     conn.row_factory = sqlite3.Row
     conn.execute('PRAGMA journal_mode=WAL')
     conn.execute('PRAGMA synchronous=NORMAL')
     conn.execute('PRAGMA foreign_keys=ON')
+    conn.execute(f'PRAGMA busy_timeout={int(timeout * 1000)}')
     conn.executescript(SCHEMA)
-    set_meta(conn, 'schema_version', str(SCHEMA_VERSION))
-    conn.commit()
+    if get_meta(conn, 'schema_version') != str(SCHEMA_VERSION):
+        set_meta(conn, 'schema_version', str(SCHEMA_VERSION))
+        conn.commit()
     return conn
 
 
@@ -278,6 +303,14 @@ def upsert_track(conn, path, mtime=None, size=None):
     status, so the resume ledger survives it. A file whose `mtime` or `size`
     moved is reset to `pending` and its vectors dropped: the bytes changed, so
     whatever was computed from them describes a file that no longer exists.
+
+    ⚠️ **`None` MEANS "NOT OBSERVED", NOT "ZERO".** Both arguments default to
+    `None` so this reads as an upsert-by-path, and the first version compared
+    them straight against the stored numbers — so `upsert_track(conn, path)`
+    with no stat, the obvious way to ask "give me the id for this path", saw
+    `12345.0 != None`, decided the file had changed, reset the row to `pending`
+    and **deleted every vector for it**. Hours of encoder time, thrown away by a
+    call that looks like a read. An unobserved stat is now simply not compared.
     """
     row = conn.execute(
         'SELECT id, mtime, size FROM tracks WHERE path=?', (path,)
@@ -289,7 +322,8 @@ def upsert_track(conn, path, mtime=None, size=None):
         )
         return cur.lastrowid
 
-    changed = (row['mtime'] != mtime) or (row['size'] != size)
+    changed = ((mtime is not None and row['mtime'] != mtime)
+               or (size is not None and row['size'] != size))
     if changed:
         conn.execute(
             'UPDATE tracks SET mtime=?, size=?, duration=NULL, status=?, error=NULL, '

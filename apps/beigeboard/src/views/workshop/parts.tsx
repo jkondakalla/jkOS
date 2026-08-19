@@ -47,96 +47,130 @@ export const TextArea = React.forwardRef<HTMLTextAreaElement, React.ComponentPro
  *  up. On the wrapper, not the input — the stepper is part of the group. */
 export const NUM_W: React.CSSProperties = { width: 58 }
 
-/** One progression rule. Only the fields THIS type needs are drawn — a form that
- *  shows every field of every progression at once is the form nobody fills in
- *  correctly. */
+/* A label and the control it names, as ONE thing that wraps. A progression rule
+   is a sentence with six fields in it and it has to reflow on a narrow forge; if
+   every word and box is a separate flex child, the line breaks wherever it likes
+   and you get "… ONCE EVERY 1 SESSIONS STOP AT" on one row with the number it
+   belongs to orphaned on the next. Grouping the pair costs one span and makes the
+   break points the only ones that still read as English. */
+const PAIR: React.CSSProperties = { display: 'inline-flex', gap: 6, alignItems: 'center' }
+function Pair({ children }: { children: React.ReactNode }) {
+  return <span style={PAIR}>{children}</span>
+}
+const Label = ({ children }: { children: React.ReactNode }) => (
+  <span className="mono-eyebrow" style={{ whiteSpace: 'nowrap' }}>{children}</span>
+)
+
+/** One progression rule, written as a sentence: what makes it harder, what moves,
+ *  by how much, how often, and where it stops. Only the fields THIS type needs are
+ *  drawn — a form that shows every field of every progression at once is the form
+ *  nobody fills in correctly. */
 export function RuleRow({ rule: p, variants = [], vars = [], readonly, onSet, onRemove }: any) {
   return (
-    <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', marginBottom: 4 }}>
-      <span className="mono-eyebrow">HARDER BY</span>
-      <SelectField value={p.type} disabled={readonly} onChange={(e) => onSet('type', e.target.value)}>
-        {PROGRESSIONS.filter((t) => t !== 'fixed').map((t) => (
-          <option key={t} value={t}>{t} — {PROGRESSION_LABEL[t]}</option>
-        ))}
-      </SelectField>
+    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 4 }}>
+      <Pair>
+        <Label>GETS HARDER BY</Label>
+        <SelectField value={p.type} disabled={readonly} onChange={(e) => onSet('type', e.target.value)}>
+          {PROGRESSIONS.filter((t) => t !== 'fixed').map((t) => (
+            <option key={t} value={t}>{t} — {PROGRESSION_LABEL[t]}</option>
+          ))}
+        </SelectField>
+      </Pair>
 
       {(p.type === 'linear' || p.type === 'ladder') && (
-        <>
-          <span className="mono-eyebrow">MOVING</span>
+        <Pair>
+          <Label>CHANGING THE</Label>
           <SelectField value={p.drives} disabled={readonly} onChange={(e) => onSet('drives', e.target.value)}>
             {DRIVES.map((d) => (
               <option key={d} value={d} disabled={d === 'variant' && variants.length < 2}>{d}</option>
             ))}
           </SelectField>
-        </>
+        </Pair>
       )}
 
       {p.type === 'linear' && (
         <>
-          <span className="mono-eyebrow">BY</span>
-          <NumField step={0.5} value={p.increment ?? 0} disabled={readonly}
-            onChange={(e) => onSet('increment', Number(e.target.value) || 0)} wrapperStyle={NUM_W} />
-          <span className="mono-eyebrow">EVERY</span>
-          <NumField min={1} value={p.every ?? 1} disabled={readonly}
-            onChange={(e) => onSet('every', Math.max(1, Number(e.target.value) || 1))} wrapperStyle={NUM_W} />
-          <span className="mono-eyebrow">SESSIONS</span>
+          <Pair>
+            <Label>BY</Label>
+            <NumField step={0.5} value={p.increment ?? 0} disabled={readonly}
+              onChange={(e) => onSet('increment', Number(e.target.value) || 0)} wrapperStyle={NUM_W} />
+          </Pair>
+          <Pair>
+            <Label>ONCE EVERY</Label>
+            <NumField min={1} value={p.every ?? 1} disabled={readonly}
+              onChange={(e) => onSet('every', Math.max(1, Number(e.target.value) || 1))} wrapperStyle={NUM_W} />
+            <Label>SESSIONS</Label>
+          </Pair>
         </>
       )}
 
       {(p.type === 'double' || p.type === 'autoregulated') && (
         <>
-          <span className="mono-eyebrow">REPS</span>
-          <NumField value={p.range?.[0] ?? 5} disabled={readonly}
-            onChange={(e) => onSet('range', [Number(e.target.value) || 0, p.range?.[1] ?? 8])} wrapperStyle={NUM_W} />
-          <span className="mono-eyebrow">→</span>
-          <NumField value={p.range?.[1] ?? 8} disabled={readonly}
-            onChange={(e) => onSet('range', [p.range?.[0] ?? 5, Number(e.target.value) || 0])} wrapperStyle={NUM_W} />
-          <span className="mono-eyebrow">THEN +</span>
-          <NumField step={0.5} value={p.increment ?? 5} disabled={readonly}
-            onChange={(e) => onSet('increment', Number(e.target.value) || 0)} wrapperStyle={NUM_W} />
-          <span className="mono-eyebrow">LOAD</span>
+          <Pair>
+            <Label>CLIMBING FROM</Label>
+            <NumField value={p.range?.[0] ?? 5} disabled={readonly}
+              onChange={(e) => onSet('range', [Number(e.target.value) || 0, p.range?.[1] ?? 8])} wrapperStyle={NUM_W} />
+            <Label>TO</Label>
+            <NumField value={p.range?.[1] ?? 8} disabled={readonly}
+              onChange={(e) => onSet('range', [p.range?.[0] ?? 5, Number(e.target.value) || 0])} wrapperStyle={NUM_W} />
+            <Label>REPS</Label>
+          </Pair>
+          <Pair>
+            <Label>THEN BACK TO THE BOTTOM WITH</Label>
+            <NumField step={0.5} value={p.increment ?? 5} disabled={readonly}
+              onChange={(e) => onSet('increment', Number(e.target.value) || 0)} wrapperStyle={NUM_W} />
+            <Label>MORE WEIGHT</Label>
+          </Pair>
         </>
       )}
 
       {p.type === 'ladder' && (
-        <>
-          <span className="mono-eyebrow">TABLE</span>
+        <Pair>
+          <Label>THE RUNGS, IN ORDER</Label>
           <Field
             value={(p.values || []).join(', ')} disabled={readonly} placeholder="3, 5, 8, 13"
             onChange={(e) => onSet('values', e.target.value.split(',').map((v: string) => Number(v.trim())).filter((n: number) => Number.isFinite(n)))}
             style={{ width: 140 }}
           />
-        </>
+        </Pair>
       )}
 
       {p.type === 'percent' && (
         <>
-          <span className="mono-eyebrow">OF</span>
-          {/* A library entry has no `vars` of its own — a percent default only means
-              something once a routine supplies the named number, so the field is a
-              free text key there and a picker inside the forge. */}
-          {vars.length > 0 ? (
-            <SelectField value={p.of ?? ''} disabled={readonly} onChange={(e) => onSet('of', e.target.value)}>
-              <option value="">—</option>
-              {vars.map((v: string) => <option key={v} value={v}>{v}</option>)}
-            </SelectField>
-          ) : (
-            <Field value={p.of ?? ''} disabled={readonly} placeholder="squat_max"
-              onChange={(e) => onSet('of', e.target.value)} style={{ width: 100 }} />
-          )}
-          <span className="mono-eyebrow">FROM</span>
-          <NumField step={0.05} value={p.start ?? 0.6} disabled={readonly}
-            onChange={(e) => onSet('start', Number(e.target.value) || 0)} wrapperStyle={NUM_W} />
-          <span className="mono-eyebrow">+</span>
-          <NumField step={0.005} value={p.increment ?? 0.025} disabled={readonly}
-            onChange={(e) => onSet('increment', Number(e.target.value) || 0)} wrapperStyle={NUM_W} />
+          <Pair>
+            <Label>AS A % OF YOUR</Label>
+            {/* A library entry has no `vars` of its own — a percent default only means
+                something once a routine supplies the named number, so the field is a
+                free text key there and a picker inside the forge. */}
+            {vars.length > 0 ? (
+              <SelectField value={p.of ?? ''} disabled={readonly} onChange={(e) => onSet('of', e.target.value)}>
+                <option value="">—</option>
+                {vars.map((v: string) => <option key={v} value={v}>{v}</option>)}
+              </SelectField>
+            ) : (
+              <Field value={p.of ?? ''} disabled={readonly} placeholder="squat_max"
+                onChange={(e) => onSet('of', e.target.value)} style={{ width: 100 }} />
+            )}
+          </Pair>
+          <Pair>
+            <Label>STARTING AT</Label>
+            <NumField step={0.05} value={p.start ?? 0.6} disabled={readonly}
+              onChange={(e) => onSet('start', Number(e.target.value) || 0)} wrapperStyle={NUM_W} />
+          </Pair>
+          <Pair>
+            <Label>RISING BY</Label>
+            <NumField step={0.005} value={p.increment ?? 0.025} disabled={readonly}
+              onChange={(e) => onSet('increment', Number(e.target.value) || 0)} wrapperStyle={NUM_W} />
+          </Pair>
         </>
       )}
 
-      <span className="mono-eyebrow">CAP</span>
-      <NumField value={p.cap ?? ''} disabled={readonly} placeholder="none"
-        onChange={(e) => onSet('cap', e.target.value === '' ? null : Number(e.target.value))} wrapperStyle={NUM_W}
-        title="An uncapped count climbs forever — +5s a session is a five-minute plank by next spring" />
+      <Pair>
+        <Label>STOP AT</Label>
+        <NumField value={p.cap ?? ''} disabled={readonly} placeholder="no limit"
+          onChange={(e) => onSet('cap', e.target.value === '' ? null : Number(e.target.value))} wrapperStyle={NUM_W}
+          title="Leave this blank and the number climbs forever. At +5 seconds a session, a 30-second plank becomes a five-minute plank inside a year." />
+      </Pair>
 
       {!readonly && onRemove && (
         <TButton quiet onClick={onRemove} style={{ padding: '1px 6px', cursor: 'pointer' }}>×</TButton>

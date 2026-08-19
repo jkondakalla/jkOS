@@ -25,6 +25,7 @@ import backfill
 import config
 import encoder
 import index
+import scan
 
 from . import helpers
 
@@ -301,6 +302,121 @@ class RecipeStampTest(BackfillTestCase):
         self.assertIn('meanpool-l2', stamp)
         self.assertNotEqual(stamp, encoder.recipe(8))
         self.assertIn('maxnone', encoder.recipe(0))
+
+
+class CircuitBreakerTest(BackfillTestCase):
+    """⚠️ "Failures are data" is right for one corrupt FLAC and catastrophic for
+    one dropped mount.
+
+    Over CIFS a vanished share does not hang — ffmpeg returns ENOENT in
+    milliseconds — so a blip in hour two marks *every remaining track* failed in
+    about a minute, and `index.pending` excludes failed rows, so the obvious
+    recovery (run it again) then skips all thirteen thousand of them and reports
+    a finished library. That is a silent, total loss wearing the face of success.
+    These pin both halves of the guard.
+    """
+
+    def queue_missing(self, n):
+        """`n` rows pointing at files that are not there, oldest first."""
+        rows = []
+        for i in range(n):
+            path = os.path.join(self.tmp, f'absent-{i:03d}.flac')
+            index.upsert_track(self.conn, path, 1.0, 1)
+            rows.append(path)
+        self.conn.commit()
+        return rows
+
+    def test_an_unreachable_library_root_stops_the_run_and_marks_nothing(self):
+        """The mount is not this track's fault, so it must not get this track's
+        mark. The rows stay `pending` and the next run needs no flag."""
+        self.queue_missing(40)
+        rows = self.pending()
+        saved, config.LIBRARY_ROOT = config.LIBRARY_ROOT, os.path.join(self.tmp, 'not-mounted')
+        try:
+            progress = backfill.run(self.conn, rows, workers=2, prefetch=2)
+        finally:
+            config.LIBRARY_ROOT = saved
+        self.assertIsNotNone(progress.aborted)
+        self.assertIn('not reachable', progress.aborted)
+        self.assertEqual(progress.failed, 0)
+        self.assertEqual(
+            self.conn.execute('SELECT COUNT(*) AS n FROM tracks WHERE status=?',
+                              (index.FAILED,)).fetchone()['n'], 0)
+        # …and everything it did not reach is still in the queue.
+        self.assertGreater(len(self.pending()), 30)
+
+    def test_a_run_of_failures_with_the_shelf_present_stops_after_the_threshold(self):
+        """A live shelf and dead files is systemic in some other way — a full
+        disk, deleted weights. Those rows DID fail, so they are marked; the run
+        still stops rather than burning the queue."""
+        self.queue_missing(backfill.ABORT_AFTER * 3)
+        saved, config.LIBRARY_ROOT = config.LIBRARY_ROOT, self.tmp   # the shelf IS there
+        try:
+            progress = backfill.run(self.conn, self.pending(), workers=2, prefetch=2)
+        finally:
+            config.LIBRARY_ROOT = saved
+        self.assertIsNotNone(progress.aborted)
+        self.assertIn('in a row', progress.aborted)
+        self.assertEqual(progress.failed, backfill.ABORT_AFTER)
+
+    def test_a_success_resets_the_counter(self):
+        """The threshold counts CONSECUTIVE failures. A library that is merely
+        patchy — a bad file here and there — must run to the end."""
+        self.queue_missing(backfill.ABORT_AFTER - 1)
+        saved, config.LIBRARY_ROOT = config.LIBRARY_ROOT, self.tmp
+        try:
+            progress = backfill.run(self.conn, self.pending(), workers=1, prefetch=1)
+        finally:
+            config.LIBRARY_ROOT = saved
+        self.assertIsNone(progress.aborted)
+        self.assertEqual(progress.done, self.N_TRACKS)
+
+    def test_library_reachable_answers_for_the_root_not_the_track(self):
+        self.assertTrue(scan.library_reachable(self.tmp))
+        self.assertFalse(scan.library_reachable(os.path.join(self.tmp, 'nope')))
+
+
+class LateBindingTest(unittest.TestCase):
+    """⚠️ A default argument is evaluated ONCE, at import.
+
+    `audio.decode(path, sr=SR)` over a `from config import SR` therefore froze
+    the sample rate of whichever profile happened to be in force the first time
+    `audio` was imported — and three call sites import it lazily, inside
+    functions, one of which sits inside `with config.using(ENCODER)`. The result
+    is a baseline descriptor computed from a 48 kHz decode: no exception, no NaN,
+    a confidently wrong vector. Trap 16 arriving through Python's scoping rules
+    rather than through arithmetic.
+    """
+
+    def test_decode_reads_the_rate_in_force_at_call_time(self):
+        with config.using(config.ENCODER):
+            self.assertEqual(config.SR, 48000)
+        # The signature must not have captured anything.
+        import inspect
+        self.assertIsNone(inspect.signature(audio.decode).parameters['sr'].default)
+        self.assertIsNone(inspect.signature(audio.duration_of).parameters['sr'].default)
+
+    def test_duration_of_follows_the_profile(self):
+        samples = np.zeros(48000, dtype=np.float32)
+        self.assertAlmostEqual(audio.duration_of(samples), 48000 / 22050.0, places=6)
+        with config.using(config.ENCODER):
+            self.assertAlmostEqual(audio.duration_of(samples), 1.0, places=6)
+
+    def test_the_scan_root_is_read_at_call_time_too(self):
+        """Same defect, same file family: `iter_tracks(root=LIBRARY_ROOT)` made
+        `config.LIBRARY_ROOT` — the documented way to run without the mount —
+        do nothing at all."""
+        import inspect
+        self.assertIsNone(inspect.signature(scan.iter_tracks).parameters['root'].default)
+        tmp = tempfile.mkdtemp(prefix='music-root-')
+        try:
+            saved, config.LIBRARY_ROOT = config.LIBRARY_ROOT, tmp
+            try:
+                self.assertEqual(scan.scan(), [])          # empty, not the real shelf
+            finally:
+                config.LIBRARY_ROOT = saved
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
 
 
 class ProgressTest(unittest.TestCase):

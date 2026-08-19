@@ -48,6 +48,25 @@ PYTHON = sys.executable if 'venv' in sys.executable else (
 _HISTORY = []
 HISTORY_SECONDS = 300
 
+# Runs this server started, so their exit statuses get collected. `start_new_session`
+# detaches the process GROUP, not the parent–child relationship, so a finished
+# backfill stays a zombie in this process's table until someone waits on it —
+# and `/proc/<pid>` exists for a zombie, which is exactly what `running_pid()`
+# reads. It survives that today only because a zombie's `cmdline` is empty, which
+# is a coincidence to rely on rather than a design. Reaped on every poll instead.
+_CHILDREN = []
+
+
+def _reap():
+    """Collect any finished run, so it stops being a zombie.
+
+    Rebuilt rather than removed from in place: this is a `ThreadingTCPServer`, so
+    two overlapping polls both seeing the same finished child would have the
+    second `remove()` raise on a list the first already emptied.
+    """
+    survivors = [proc for proc in list(_CHILDREN) if proc.poll() is None]
+    _CHILDREN[:] = survivors
+
 
 def running_pid():
     """The live backfill's pid, or None. The pid file is advisory — `/proc` is
@@ -82,6 +101,7 @@ def counts():
 
 
 def status():
+    _reap()
     total, done, failed, recipe = counts()
     now = time.time()
     _HISTORY.append((now, done))
@@ -95,9 +115,10 @@ def status():
         rate = grew / span if span > 0 else 0.0
 
     left = max(total - done - failed, 0)
+    pid = running_pid()                 # asked once: two calls could disagree
     return {
-        'running': running_pid() is not None,
-        'pid': running_pid(),
+        'running': pid is not None,
+        'pid': pid,
         'total': total,
         'done': done,
         'failed': failed,
@@ -142,14 +163,19 @@ def start():
     if running_pid():
         return {'started': False, 'reason': 'already running'}
     os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
-    log = open(LOG_FILE, 'ab')
-    log.write(f'\n=== started {time.strftime("%Y-%m-%d %H:%M:%S")} ===\n'.encode())
-    log.flush()
-    proc = subprocess.Popen(
-        [PYTHON, os.path.join(HERE, 'backfill.py')],
-        cwd=HERE, stdin=subprocess.DEVNULL, stdout=log, stderr=log,
-        start_new_session=True,
-    )
+    # The handle is CLOSED once the child has inherited it. The first version
+    # left it open in the parent, and this server is meant to outlive many runs —
+    # so a panel left up for an afternoon accumulated one leaked file descriptor
+    # per Resume until the process ran out of them.
+    with open(LOG_FILE, 'ab') as log:
+        log.write(f'\n=== started {time.strftime("%Y-%m-%d %H:%M:%S")} ===\n'.encode())
+        log.flush()
+        proc = subprocess.Popen(
+            [PYTHON, os.path.join(HERE, 'backfill.py')],
+            cwd=HERE, stdin=subprocess.DEVNULL, stdout=log, stderr=log,
+            start_new_session=True,
+        )
+    _CHILDREN.append(proc)
     with open(PID_FILE, 'w') as handle:
         handle.write(str(proc.pid))
     return {'started': True, 'pid': proc.pid}
@@ -211,7 +237,10 @@ const $ = id => document.getElementById(id);
 const hms = s => s == null ? '—' :
   `${Math.floor(s/3600)}:${String(Math.floor(s/60)%60).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
 async function tick() {
-  const s = await (await fetch('/api/status')).json();
+  let s;
+  try { s = await (await fetch('/api/status')).json(); }
+  catch (e) { $('word').textContent = 'panel offline'; return; }
+  if (s.error) { $('word').textContent = s.error; return; }
   $('state').className = s.running ? 'on' : '';
   $('word').textContent = s.running ? `running (pid ${s.pid})` : 'stopped';
   $('fill').style.width = s.percent + '%';
@@ -242,9 +271,25 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(payload)
 
+    def _json(self, produce):
+        """Run `produce()` and send its JSON — or the failure, as JSON.
+
+        ⚠️ A panel polling every two seconds must not be able to take the server
+        down, and every call below touches something that can fail from outside
+        this process: the index can be locked by the run it is watching, the log
+        directory can be missing, `os.kill` can race a run that just exited. An
+        unhandled exception in a `ThreadingTCPServer` handler kills that request
+        with an empty reply, the page's `await response.json()` rejects, and the
+        loop stops updating with no sign of why — a dead button on a live run.
+        """
+        try:
+            self._send(json.dumps(produce()))
+        except Exception as exc:
+            self._send(json.dumps({'error': f'{type(exc).__name__}: {exc}'}))
+
     def do_GET(self):
         if self.path.startswith('/api/status'):
-            self._send(json.dumps(status()))
+            self._json(status)
         elif self.path in ('/', '/index.html'):
             self._send(PAGE, 'text/html; charset=utf-8')
         else:
@@ -252,9 +297,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def do_POST(self):
         if self.path.startswith('/api/start'):
-            self._send(json.dumps(start()))
+            self._json(start)
         elif self.path.startswith('/api/stop'):
-            self._send(json.dumps(stop()))
+            self._json(stop)
         else:
             self.send_error(404)
 

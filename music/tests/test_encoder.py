@@ -20,7 +20,12 @@ The forward-pass checks skip cleanly when the weights or the runtime are absent,
 the same way the library-backed checks skip without the mount. Run them with the
 contained venv: `./.venv/bin/python -m unittest discover`.
 """
+import io
+import os
+import shutil
+import tempfile
 import unittest
+import unittest.mock
 
 import numpy as np
 
@@ -341,6 +346,95 @@ class ForwardPassTest(unittest.TestCase):
             one = encoder.embed_features(tensor, batch_size=1)
         self.assertEqual(four.tobytes(), eight.tobytes())
         self.assertEqual(four.tobytes(), one.tobytes())
+
+
+class WindowGuardTest(unittest.TestCase):
+    """The two ways a signal reaches `windows()` already broken, and the one way
+    the cap does."""
+
+    def test_a_negative_cap_is_refused_by_name(self):
+        """⚠️ 0 is UNCAPPED and documented as such (`--max-windows 0`), so a
+        negative is a typo rather than a synonym — and it reached
+        `np.linspace(..., cap)` and died there talking about sample counts,
+        several frames from anything the caller wrote."""
+        signal = np.zeros(48000 * 30, dtype=np.float32)
+        with config.using(config.ENCODER):
+            with self.assertRaises(encoder.EncoderError) as caught:
+                list(encoder.windows(signal, max_windows=-1))
+        self.assertIn('max_windows', str(caught.exception))
+
+    def test_zero_still_means_uncapped(self):
+        signal = np.zeros(48000 * 130, dtype=np.float32)
+        with config.using(config.ENCODER):
+            capped = len(list(encoder.windows(signal)))
+            uncapped = len(list(encoder.windows(signal, max_windows=0)))
+        self.assertEqual(capped, encoder.MAX_WINDOWS)
+        self.assertGreater(uncapped, capped)
+
+    def test_a_non_finite_signal_is_refused_at_the_door(self):
+        """A NaN survives the mel, the log and the matmul and comes back as 512
+        NaNs, which `pool` then rejects with "windows cancelled to zero" — a true
+        sentence about entirely the wrong thing. Named where it happened."""
+        signal = np.zeros(48000 * 30, dtype=np.float32)
+        signal[1000] = np.nan
+        with config.using(config.ENCODER):
+            with self.assertRaises(encoder.EncoderError) as caught:
+                list(encoder.windows(signal))
+        self.assertIn('non-finite', str(caught.exception))
+
+
+class FetchAtomicityTest(unittest.TestCase):
+    """⚠️ 281 MB over a home connection is a minute of exposure to a Ctrl-C.
+
+    The first version streamed straight into `MODEL_PATH`, so any interruption
+    left a truncated file at exactly the path `available()` checks for existence
+    — and the next backfill reported the encoder present, failed inside
+    onnxruntime, and marked the library failed. The file must now be either
+    absent or checksum-clean, with no third state.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix='music-fetch-')
+        self.saved_dir, self.saved_path = encoder.MODELS_DIR, encoder.MODEL_PATH
+        encoder.MODELS_DIR = self.tmp
+        encoder.MODEL_PATH = os.path.join(self.tmp, 'model.onnx')
+
+    def tearDown(self):
+        encoder.MODELS_DIR, encoder.MODEL_PATH = self.saved_dir, self.saved_path
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_an_interrupted_download_leaves_nothing_behind(self):
+        class Torn(io.BytesIO):
+            def read(self, n=-1):
+                raise OSError('connection reset')
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+        with unittest.mock.patch('urllib.request.urlopen', lambda url: Torn()):
+            with self.assertRaises(OSError):
+                encoder.fetch()
+        self.assertFalse(os.path.exists(encoder.MODEL_PATH))
+        self.assertFalse(os.path.exists(encoder.MODEL_PATH + '.partial'))
+        self.assertFalse(encoder.available())
+
+    def test_a_complete_download_with_the_wrong_bytes_is_refused(self):
+        class Wrong(io.BytesIO):
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+        with unittest.mock.patch('urllib.request.urlopen',
+                                 lambda url: Wrong(b'not an onnx graph')):
+            with self.assertRaises(encoder.EncoderError) as caught:
+                encoder.fetch()
+        self.assertIn('checksum', str(caught.exception))
+        self.assertFalse(os.path.exists(encoder.MODEL_PATH))
 
 
 if __name__ == '__main__':

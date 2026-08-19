@@ -25,7 +25,7 @@ import subprocess
 
 import numpy as np
 
-from config import SR
+import config
 
 # ── Binaries ────────────────────────────────────────────────────────────────────
 # Overridable for a machine where these are not on PATH; resolved at call time so
@@ -69,8 +69,19 @@ def _stderr_tail(proc, limit=400):
     return (proc.stderr or b'').decode('utf-8', 'replace').strip()[-limit:]
 
 
-def decode(path, sr=SR, timeout=TIMEOUT_S):
+def decode(path, sr=None, timeout=TIMEOUT_S):
     """Decode any file ffmpeg can read to mono float32 at `sr`.
+
+    ⚠️ `sr=None` means THE RATE IN FORCE AT CALL TIME, read from `config` rather
+    than captured in the signature. This used to be `sr=SR` over a
+    `from config import SR`, and a default argument is evaluated once, when the
+    module is first imported. Import `audio` for the first time from inside
+    `with config.using(config.ENCODER):` — which is a two-line edit away, since
+    three call sites already import it lazily — and every later baseline decode
+    in that process silently runs at 48 kHz while the descriptors analyse it as
+    22.05 kHz. That is Trap 16 exactly: no exception, no NaN, a confident wrong
+    answer. Resolving the profile at the call is the only version of this that
+    cannot be broken from a distance.
 
     Returns a 1-D `np.float32` array of samples. Downmix to mono and the
     resample both happen inside ffmpeg, so nothing in this repo implements
@@ -87,6 +98,7 @@ def decode(path, sr=SR, timeout=TIMEOUT_S):
     Raises `DecodeError` on a missing file, an ffmpeg failure, a truncated
     stream, or silence-length output.
     """
+    sr = config.SR if sr is None else sr
     path = os.fspath(path)
     argv = [
         FFMPEG, '-v', 'error', '-nostdin',
@@ -126,7 +138,8 @@ def probe_duration(path, timeout=TIMEOUT_S):
         FFPROBE, '-v', 'error',
         '-show_entries', 'format=duration',
         '-of', 'default=nw=1:nk=1',
-        path,
+        '-i', path,             # `-i`, not a bare positional: a path beginning
+                                # with `-` would otherwise be read as an option.
     ]
     proc = _run(argv, timeout)
     if proc.returncode != 0:
@@ -138,9 +151,9 @@ def probe_duration(path, timeout=TIMEOUT_S):
         raise DecodeError(f'ffprobe gave no usable duration for {path}: {text!r}') from exc
 
 
-def duration_of(x, sr=SR):
-    """Seconds of audio in a decoded array."""
-    return len(x) / float(sr)
+def duration_of(x, sr=None):
+    """Seconds of audio in a decoded array, at the rate in force (see `decode`)."""
+    return len(x) / float(config.SR if sr is None else sr)
 
 
 if __name__ == '__main__':
@@ -150,6 +163,6 @@ if __name__ == '__main__':
         raise SystemExit('usage: python audio.py <audio-file>')
     target = sys.argv[1]
     samples = decode(target)
-    print(f'{len(samples)} samples @ {SR} Hz = {duration_of(samples):.3f}s '
+    print(f'{len(samples)} samples @ {config.SR} Hz = {duration_of(samples):.3f}s '
           f'(ffprobe says {probe_duration(target):.3f}s), '
           f'peak {float(np.max(np.abs(samples))):.4f}')

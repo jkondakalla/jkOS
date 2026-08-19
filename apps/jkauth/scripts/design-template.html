@@ -613,6 +613,24 @@
         <span class="jk-chip jk-chip-live jk-press-ink" style="padding:5px 12px;font-family:var(--hub-font-serif);font-weight:600;font-size:12px;--jk-tint:var(--hub-cyan)">Base live</span>
         <span class="jk-chip jk-chip-done" style="padding:5px 12px"><span class="jk-press-sm" style="font-family:var(--hub-font-serif);font-weight:600;font-size:12px">Base done · jk-press-sm</span></span>
       </div>
+      <p class="dg-note">
+        <b>A toggle group is <code>.jk-chip-solid</code> against <code>.jk-chip-off</code></b>, never
+        <code>.jk-chip-solid</code> against a bare <code>.jk-chip</code>. The faint base above is a tinted
+        ITEM, and on the CRT face it is emissive — louder, in fact, than the solid chip it would be sitting
+        behind — so a row of weekday switches drawn that way reads as identical amber boxes on the tube while
+        looking perfectly obvious on paper. <code>.jk-chip-off</code> is an ABSENCE: no fill, no tint, no glow,
+        neutral hairline, faint ink. It borrows nothing from either face, so it reads the same in both.
+      </p>
+      <div class="dg-row" style="margin-bottom:6px">
+        <span class="jk-chip jk-chip-solid jk-chip-sm" style="padding:3px 10px;font-family:var(--hub-font-mono);font-size:10px">M</span>
+        <span class="jk-chip jk-chip-off jk-chip-sm" style="padding:3px 10px;font-family:var(--hub-font-mono);font-size:10px">T</span>
+        <span class="jk-chip jk-chip-solid jk-chip-sm" style="padding:3px 10px;font-family:var(--hub-font-mono);font-size:10px">W</span>
+        <span class="jk-chip jk-chip-off jk-chip-sm" style="padding:3px 10px;font-family:var(--hub-font-mono);font-size:10px">T</span>
+        <span class="jk-chip jk-chip-solid jk-chip-sm" style="padding:3px 10px;font-family:var(--hub-font-mono);font-size:10px">F</span>
+        <span class="jk-chip jk-chip-off jk-chip-sm" style="padding:3px 10px;font-family:var(--hub-font-mono);font-size:10px">S</span>
+        <span class="jk-chip jk-chip-off jk-chip-sm" style="padding:3px 10px;font-family:var(--hub-font-mono);font-size:10px">S</span>
+        <span class="mono-eyebrow" style="font-size:8px;align-self:center">jk-chip-solid / jk-chip-off</span>
+      </div>
     </section>
 
     <!-- ══ 06 Controls ══ -->

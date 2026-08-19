@@ -438,5 +438,94 @@ class GateTest(QueryTestCase):
         self.assertIn('not the gate', out.getvalue())
 
 
+class SearchGuardTest(QueryTestCase):
+    """`k` and `row` come off a command line, and `argpartition` accepts nonsense.
+
+    ⚠️ `np.argpartition(-scores, k - 1)` with k ≤ 0 passes a NEGATIVE kth, which
+    numpy reads from the end of the array and answers without complaint — so
+    `-k 0` returned an empty list and `-k -3` returned four arbitrary rows
+    presented as the four nearest. A search that is confidently wrong about its
+    own ordering is the one thing this module exists not to be.
+    """
+
+    def four(self):
+        paths = [f'/lib/A/Al/{i}. t{i}.flac' for i in range(4)]
+        return self.arm([[1, 0, 0], [0.9, 0.1, 0], [0, 1, 0], [0, 0, 1]], paths)
+
+    def test_k_below_one_is_refused(self):
+        arm = self.four()
+        for bad in (0, -1, -3):
+            with self.assertRaises(query.QueryError):
+                arm.search(0, bad)
+
+    def test_k_beyond_the_corpus_is_clamped_not_padded(self):
+        self.assertEqual(len(self.four().search(0, 999)), 3)
+
+    def test_a_row_outside_the_arm_is_refused(self):
+        arm = self.four()
+        with self.assertRaises(query.QueryError):
+            arm.search(9, 2)
+
+    def test_a_query_vector_of_the_wrong_width_is_refused(self):
+        with self.assertRaises(query.QueryError):
+            self.four().search(np.ones(7, dtype=np.float32), 2)
+
+    def test_a_single_track_arm_has_no_neighbours_rather_than_itself(self):
+        arm = self.arm([[1, 0, 0]], ['/lib/A/Al/0. only.flac'])
+        self.assertEqual(arm.search(0, 5), [])
+        with self.assertRaises(query.QueryError):
+            arm.nearest()
+
+    def test_an_arm_whose_labels_do_not_match_its_vectors_is_refused(self):
+        """Paths, ids and rows are read POSITIONALLY by every rate in this
+        module, so a length mismatch does not raise anywhere downstream — it
+        labels each neighbour with a different track."""
+        with self.assertRaises(query.QueryError):
+            query.Arm('local_vectors', np.eye(3, dtype=np.float32),
+                      ['/a/b/1.flac', '/a/b/2.flac'], [1, 2, 3])
+
+    def test_nearest_is_computed_once_per_arm(self):
+        """`gate()` asks three times — two reports and the duplicate audit — and
+        at 15,326 x 512 one pass is ~120 GFLOP."""
+        arm = self.four()
+        first = arm.nearest()
+        self.assertIs(arm.nearest(), first)
+        self.assertFalse(first.flags.writeable)          # shared, so read-only
+
+
+class EmptyAndPartialIndexTest(QueryTestCase):
+    """The states anyone hits in their first ten minutes: nothing built, one arm
+    built, a fragment that matches nothing. Each used to be a traceback."""
+
+    def test_an_unfilled_arm_says_so(self):
+        with self.assertRaises(query.QueryError) as caught:
+            query.load_arm(self.conn, 'local_vectors')
+        self.assertIn('backfill', str(caught.exception))
+
+    def test_a_fragment_that_matches_nothing_names_the_fragment(self):
+        for i in range(4):
+            self.add(f'/lib/A/Al/{i}. t{i}.flac', neural=np.eye(4)[i],
+                     descriptor=np.arange(4) + i)
+        arm = query.load_arm(self.conn, 'local_vectors')
+        with self.assertRaises(query.QueryError) as caught:
+            query._resolve(arm, ['nothing-like-this'])
+        self.assertIn('nothing-like-this', str(caught.exception))
+
+    def test_the_cli_prints_one_line_and_exits_one(self):
+        """A typo in a search fragment is a user event, not a crash."""
+        import contextlib
+        import io as _io
+        saved, index.DB_PATH = index.DB_PATH, os.path.join(self.tmp, 'index.db')
+        err = _io.StringIO()
+        try:
+            with contextlib.redirect_stderr(err):
+                code = query._main(['does-not-exist'])
+        finally:
+            index.DB_PATH = saved
+        self.assertEqual(code, 1)
+        self.assertIn('QueryError', err.getvalue())
+        self.assertNotIn('Traceback', err.getvalue())
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -21,6 +21,7 @@ here produces a perfectly plausible array of 119 floats:
   * and the end-to-end claim the §8.4 gate makes, on synthesised audio: tracks
     from the same "album" sit closer than tracks from different ones.
 """
+import io
 import os
 import shutil
 import tempfile
@@ -725,6 +726,102 @@ class SanityGateTest(unittest.TestCase):
         with self.assertRaises(descriptors.DescriptorError):
             descriptors.similarity_report(np.eye(3, dtype=np.float32),
                                           ['/a/b/1.flac', '/a/b/2.flac', '/a/c/3.flac'])
+
+
+class TooSmallACorpusTest(unittest.TestCase):
+    """⚠️ Fewer than `MIN_FIT_ROWS` rows is the NORMAL state five minutes into a
+    first `--build`, and it used to greet that person with a raw `ValueError`
+    from three frames inside `CorpusStats.fit`.
+
+    The refusal itself is right and stays — a z-score over four tracks is a
+    per-track normalisation in a corpus costume, which is the one thing this
+    module exists to prevent. What changes is the door it arrives through:
+    `fit`'s ValueError is still what an API misuse gets, and a person running the
+    CLI gets a sentence telling them to describe more.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix='music-small-')
+        self.conn = index.connect(os.path.join(self.tmp, 'index.db'))
+
+    def tearDown(self):
+        self.conn.close()
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def fill(self, n):
+        rng = np.random.RandomState(0)
+        for i in range(n):
+            tid = index.upsert_track(self.conn, f'/lib/A/Al/{i:02d}. t{i}.flac', 1.0, 1)
+            index.put_descriptor(self.conn, tid,
+                                 rng.randn(descriptors.DIM).astype(np.float32))
+        self.conn.commit()
+
+    def test_load_normalised_explains_itself(self):
+        self.fill(descriptors.MIN_FIT_ROWS - 1)
+        with self.assertRaises(descriptors.DescriptorError) as caught:
+            descriptors.load_normalised(self.conn)
+        self.assertIn(str(descriptors.MIN_FIT_ROWS), str(caught.exception))
+        self.assertIn('--build', str(caught.exception))
+
+    def test_the_gate_reports_it_as_unrun_not_as_failed(self):
+        self.fill(descriptors.MIN_FIT_ROWS - 1)
+        out = io.StringIO()
+        self.assertFalse(descriptors.gate(self.conn, stream=out))
+        self.assertNotIn('GATE FAILED', out.getvalue())
+        self.assertNotIn('not seeing the audio', out.getvalue())
+
+    def test_fit_itself_still_raises_ValueError_for_an_api_misuse(self):
+        with self.assertRaises(ValueError):
+            descriptors.CorpusStats.fit(np.zeros((2, descriptors.DIM), dtype=np.float32))
+
+    def test_enough_rows_still_fit(self):
+        self.fill(descriptors.MIN_FIT_ROWS)
+        matrix, _paths, _ids, stats = descriptors.load_normalised(self.conn)
+        self.assertEqual(matrix.shape, (descriptors.MIN_FIT_ROWS, descriptors.DIM))
+        self.assertEqual(stats.n_fit, descriptors.MIN_FIT_ROWS)
+
+
+class DescriptorCircuitBreakerTest(unittest.TestCase):
+    """The same guard the neural run carries, over the same shelf and the same
+    shared `tracks.status` — so a dropped mount here poisons BOTH arms' queues.
+    See `backfill.ABORT_AFTER` for the reasoning."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix='music-dcb-')
+        self.conn = index.connect(os.path.join(self.tmp, 'index.db'))
+        self.saved_root = config.LIBRARY_ROOT
+
+    def tearDown(self):
+        config.LIBRARY_ROOT = self.saved_root
+        self.conn.close()
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def queue(self, n):
+        for i in range(n):
+            index.upsert_track(self.conn, os.path.join(self.tmp, f'absent-{i:03d}.flac'),
+                               1.0, 1)
+        self.conn.commit()
+        return index.pending(self.conn, 'descriptors')
+
+    def failed_rows(self):
+        return self.conn.execute('SELECT COUNT(*) AS n FROM tracks WHERE status=?',
+                                 (index.FAILED,)).fetchone()['n']
+
+    def test_an_unreachable_root_stops_without_marking_anything(self):
+        rows = self.queue(40)
+        config.LIBRARY_ROOT = os.path.join(self.tmp, 'not-mounted')
+        with self.assertRaises(descriptors.DescriptorError) as caught:
+            descriptors.build(self.conn, rows, workers=2)
+        self.assertIn('not reachable', str(caught.exception))
+        self.assertEqual(self.failed_rows(), 0)
+
+    def test_a_run_of_failures_stops_after_the_threshold(self):
+        rows = self.queue(descriptors.ABORT_AFTER * 3)
+        config.LIBRARY_ROOT = self.tmp                   # the shelf IS there
+        with self.assertRaises(descriptors.DescriptorError) as caught:
+            descriptors.build(self.conn, rows, workers=2)
+        self.assertIn('in a row', str(caught.exception))
+        self.assertLessEqual(self.failed_rows(), descriptors.ABORT_AFTER)
 
 
 if __name__ == '__main__':

@@ -86,20 +86,27 @@ export function Press<E extends ElementType = 'span'>({
  *  It keeps its ink and loses only its weight, which is what makes a now-line
  *  read as a position in the day rather than a line drawn across it. Don't
  *  choose these per call site — `chipState(item, now)` in @jkos/cards decides,
- *  so a chip carries the same weight in every view that renders it. */
+ *  so a chip carries the same weight in every view that renders it.
+ *
+ *  `off` is for TOGGLE GROUPS and nothing else — a weekday selector, a filter
+ *  rail, a tab strip. Write the pair as `solid={picked} off={!picked}`, never as
+ *  `solid={picked}` alone: the faint base chip is a tinted ITEM, and on the CRT
+ *  face it is emissive, so `solid` on its own is not a legible on/off anywhere
+ *  the tube is lit. See .jk-chip-off in hub.css. */
 export function Chip<E extends ElementType = 'span'>({
   as,
   solid = true,
   live = false,
   spent = false,
   done = false,
+  off = false,
   small = false,
   tint,
   className,
   style,
   children,
   ...rest
-}: PolymorphicProps<E, { solid?: boolean; live?: boolean; spent?: boolean; done?: boolean; small?: boolean; tint?: string }>) {
+}: PolymorphicProps<E, { solid?: boolean; live?: boolean; spent?: boolean; done?: boolean; off?: boolean; small?: boolean; tint?: string }>) {
   const As = (as ?? 'span') as ElementType;
   return (
     <As
@@ -109,6 +116,7 @@ export function Chip<E extends ElementType = 'span'>({
         live && 'jk-chip-live',
         spent && 'jk-chip-spent',
         done && 'jk-chip-done',
+        off && 'jk-chip-off',
         small && 'jk-chip-sm',
         className,
       )}

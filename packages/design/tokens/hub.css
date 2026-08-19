@@ -1052,8 +1052,27 @@
  * page lights up at once. Gecko can neither round nor inset the mark either, so
  * the reveal choreography buys nothing there: it takes the resting rung, always,
  * and the colour alone carries the design. Blink carries all four.
+ *
+ * ⚠ NEVER TEST FOR THE ENGINE WITH `selector(::-webkit-scrollbar)`. It was the
+ * obvious query and it is WRONG, and wrong in the direction that costs you the
+ * whole design: Selectors-4 tells engines to PARSE unknown `-webkit-` prefixed
+ * pseudo-elements as valid rather than throw the rule away, and Gecko obeys —
+ * Firefox 153 answers YES to `selector(::-webkit-scrollbar)` while implementing
+ * none of it. `@supports not (…)` therefore fell FALSE in the one engine the
+ * block exists to serve, Firefox got neither syntax, and every pane in the suite
+ * came up with the raw OS bar. It reads as "we never styled scrollbars at all",
+ * which is exactly how it was reported.
+ *
+ * `::-webkit-scrollbar-thumb` is the query that discriminates, because Gecko's
+ * compat allow-list stops at the bare `::-webkit-scrollbar` — measured, both
+ * engines, 2026-08-19; `pnpm check:scroll` re-measures it in a real Firefox and
+ * a real Chromium so this cannot rot back. It is also the honest question: the
+ * THUMB is the part carrying the mark, so "can this engine paint my thumb" is
+ * the actual condition, not a proxy for it. The `-moz-orient` arm is belt and
+ * braces for a Gecko that one day allow-lists `-thumb` too — it adds only Gecko,
+ * which is already the intended audience, so it can't widen the block wrongly.
  * ───────────────────────────────────────────────────────────────────────── */
-@supports not (selector(::-webkit-scrollbar)) {
+@supports (not (selector(::-webkit-scrollbar-thumb))) or (-moz-orient: inline) {
   :root {
     scrollbar-width: thin;
     scrollbar-color: var(--hub-scroll-mark-rest) transparent;
@@ -1517,6 +1536,7 @@
  *   .jk-chip-live   now / active (brighter fill + ring)
  *   .jk-chip-spent  ENDED, NOT DONE — the chip keeps its ink, loses its weight
  *   .jk-chip-done   struck off — flat, dimmed
+ *   .jk-chip-off    NOT CHOSEN — the unselected half of a toggle group
  *   .jk-chip-sm     dense (calendar cells, tight rails)
  * ───────────────────────────────────────────────────────────────────────── */
 .jk-chip {
@@ -1585,6 +1605,35 @@
   background: color-mix(in srgb, var(--jk-tint, var(--accent)) 7%, var(--hub-bg-2));
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--jk-tint, var(--accent)) 20%, transparent);
 }
+/* NOT CHOSEN — the other half of every toggle group (weekday selectors, filter
+   rails, tabs). It exists because `solid={x === y}` is NOT a legible toggle on
+   the tube: the unselected `.jk-chip` is an EMISSIVE object there (glow 48%,
+   tinted ring) — louder, in fact, than the solid chip it is supposed to sit
+   behind — so on the CRT face a row of seven weekdays read as seven identical
+   amber boxes with no way to tell which were picked. On paper the same pair is
+   obvious, which is exactly why it survived so long.
+
+   The fix is not to tune the two fills closer to some crossing point; it is that
+   NOT CHOSEN is an ABSENCE and must be drawn as one. No fill, no tint, no glow,
+   a neutral hairline and faint ink — which reads the same way on both faces
+   because it borrows nothing from either. That also makes it the only chip rung
+   with no --jk-tint in it: the tint says "this is the routine's day", and an
+   uncommitted day is not.
+
+   Pair with .jk-chip-solid for the chosen half. Do NOT pair it with a bare
+   .jk-chip, which is a tinted ITEM, not a switch that happens to be off. */
+.jk-chip-off {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--hub-line);
+  color: var(--color-faint);
+}
+.jk-chip-off:hover {
+  transform: none;
+  background: var(--hub-bg-4);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--jk-tint, var(--accent)) 45%, var(--hub-line));
+  color: var(--color-ink);
+}
+
 /* a spent solid chip's knockout title + mono meta fall back to faint ink */
 .jk-chip-done .jk-press-rev { color: var(--color-faint); text-shadow: none; }
 .jk-chip-solid .mono-eyebrow { color: rgba(247, 239, 220, 0.78); }
@@ -1621,6 +1670,18 @@
 }
 :root[data-mode="dark"] .jk-chip-solid .mono-eyebrow {
   color: color-mix(in srgb, var(--jk-tint, var(--accent)) 55%, transparent);
+}
+/* NOT CHOSEN stays unlit on the tube — restated because every rule above hands
+   the chip a halation ring, and inheriting one is the whole bug this rung fixes.
+   A chip that is off emits nothing; the light IS the selection. */
+:root[data-mode="dark"] .jk-chip-off,
+:root[data-mode="dark"] .jk-chip-off:hover {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--hub-line);
+}
+:root[data-mode="dark"] .jk-chip-off:hover {
+  background: var(--hub-bg-4);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--jk-tint, var(--accent)) 45%, var(--hub-line));
 }
 
 /* ─── Media grid + cover art (@jkos/ui MediaGrid / CoverArt) ───────────────

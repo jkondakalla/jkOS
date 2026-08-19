@@ -19,7 +19,7 @@ inside a loop.
 """
 import os
 
-from config import AUDIO_EXTS, LIBRARY_ROOT
+import config
 
 
 class Track(tuple):
@@ -39,7 +39,7 @@ class Track(tuple):
         return f'Track({self.path!r}, mtime={self.mtime}, size={self.size})'
 
 
-def iter_tracks(root=LIBRARY_ROOT, exts=AUDIO_EXTS):
+def iter_tracks(root=None, exts=None):
     """Yield a `Track` per audio file under `root`, in a deterministic order.
 
     Sorting `dirnames`/`filenames` in place is what makes the order deterministic:
@@ -50,11 +50,19 @@ def iter_tracks(root=LIBRARY_ROOT, exts=AUDIO_EXTS):
 
     Hidden directories are skipped — `.git`, `@eaDir`-style sidecar folders, and
     the trash directories network shares accumulate.
+
+    ⚠️ `root=None` means `config.LIBRARY_ROOT` AS IT IS AT CALL TIME, not as it
+    was when this module was imported. The first version spelled the default
+    `root=LIBRARY_ROOT` over a name imported from config, and a default argument
+    is evaluated once — so moving `config.LIBRARY_ROOT`, which is the documented
+    way to run this without the Luna mount, changed nothing here and the walk
+    went on reading the old shelf. It is the same defect as the frozen sample
+    rate in `audio.decode`, and both are written down rather than merely fixed.
     """
-    root = os.path.abspath(os.fspath(root))
+    root = os.path.abspath(os.fspath(config.LIBRARY_ROOT if root is None else root))
     if not os.path.isdir(root):
         raise NotADirectoryError(f'library root does not exist: {root}')
-    lowered = tuple(e.lower() for e in exts)
+    lowered = tuple(e.lower() for e in (config.AUDIO_EXTS if exts is None else exts))
 
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = sorted(d for d in dirnames if not d.startswith('.'))
@@ -72,15 +80,36 @@ def iter_tracks(root=LIBRARY_ROOT, exts=AUDIO_EXTS):
             yield Track(full, st.st_mtime, st.st_size)
 
 
-def scan(root=LIBRARY_ROOT, exts=AUDIO_EXTS):
+def scan(root=None, exts=None):
     """`iter_tracks` as a list. Convenience for callers that want a count first."""
     return list(iter_tracks(root, exts))
+
+
+def library_reachable(root=None):
+    """Whether the shelf is still there. One `stat`, and never on a hot path.
+
+    ⚠️ This is the question a long run has to be able to ask, because "failures
+    are data" is right for one corrupt FLAC and catastrophic for one dropped
+    mount: over CIFS a vanished share does not hang, it returns ENOENT in
+    milliseconds, so a blip in hour two of a backfill marks *every remaining
+    track* failed in about a minute — and failed rows are excluded from the next
+    run's queue. Both arms call this before recording a failure (see
+    `backfill.ABORT_AFTER`).
+
+    Deliberately checks the ROOT rather than the track's own directory: an album
+    folder that has genuinely been deleted is a per-file fact and should be
+    recorded as one; a root that has vanished is the mount, and is not.
+    """
+    try:
+        return os.path.isdir(os.fspath(config.LIBRARY_ROOT if root is None else root))
+    except OSError:
+        return False
 
 
 if __name__ == '__main__':
     import sys
 
-    where = sys.argv[1] if len(sys.argv) > 1 else LIBRARY_ROOT
+    where = sys.argv[1] if len(sys.argv) > 1 else config.LIBRARY_ROOT
     found = scan(where)
     total = sum(t.size for t in found)
     artists = {os.path.relpath(t.path, where).split(os.sep)[0] for t in found}

@@ -63,16 +63,13 @@ import { MONO, Field, NumField, SelectField, NUM_W, RuleRow } from './parts'
 import { CadenceBand } from './cadence'
 import {
   normalizeSpec, renderCycle, summarize, slugify,
-  parseCadence, formatCadence, describeCadence, expandCadence,
   metricOf, seriesFor,
-  UNITS, LOAD_UNITS, DRIVES, BLOCKS, ADVANCE_ON, CADENCES, MEASURES, WINDOWS,
-  CADENCE_LABEL, MEASURE_LABEL, LIMITS, MAX_RULES,
+  UNITS, LOAD_UNITS, DRIVES, BLOCKS, ADVANCE_ON, MEASURES, WINDOWS,
+  MEASURE_LABEL, LIMITS, MAX_RULES,
   type Spec, type Step, type Progression,
 } from '../../lib/routine-spec'
 
-const DAY_LETTERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
-
-/* The document's own panels (WHEN IT FIRES, the scaling block, a step) read as
+/* The document's own panels (the scaling block, a step) read as
    the milestone branch row does — a flat hairline card on --hub-bg-3 — not as
    a .jk-well. A well's --hub-accent-press is an EMPHASIS move (an alert, a
    picked state) and in dark mode that is a real emissive glow; stacking four
@@ -96,8 +93,6 @@ export function RoutineForge({
      normalising once on load and then editing the normalised object means every
      field already exists and no edit has to invent one. */
   const [spec, setSpec] = useState<Spec>(() => normalizeSpec(routine?.spec))
-  const [cadenceDays, setCadenceDays] = useState<string>(() => routine?.cadence_days || '')
-  const [cadenceRule, setCadenceRule] = useState<string>(() => routine?.cadence_rule || '')
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
   const [warnings, setWarnings] = useState<any[]>([])
@@ -127,8 +122,6 @@ export function RoutineForge({
 
   useEffect(() => {
     setSpec(normalizeSpec(routine?.spec))
-    setCadenceDays(routine?.cadence_days || '')
-    setCadenceRule(routine?.cadence_rule || '')
     setDirty(false); setWarnings([]); setRevisions(null)
   }, [routine?.id])
 
@@ -163,14 +156,11 @@ export function RoutineForge({
     if (readonly) return
     setSaving(true)
     try {
-      /* One PATCH carries the document AND the cadence, because they are one edit
-         from the user's point of view and two round trips would reconcile the
-         horizon twice — the second against a half-applied routine. */
-      const res = await onUpdateItem?.(routine.id, {
-        spec,
-        cadence_days: cadenceDays,
-        cadence_rule: cadenceRule || null,
-      })
+      /* The document, and only the document. The cadence used to ride along here
+         because a WHEN IT FIRES panel sat in this form; it lives in the band now
+         and writes through on every click, so including a stale copy of it in the
+         Save payload would quietly revert whatever the band had just written. */
+      const res = await onUpdateItem?.(routine.id, { spec })
       setWarnings(Array.isArray(res?.warnings) ? res.warnings : [])
       setRevisions(null)          // the save just made one
       setDirty(false)
@@ -197,27 +187,6 @@ export function RoutineForge({
     () => Array.from({ length: horizon }, (_, i) => renderCycle(spec, i)),
     [spec, horizon],
   )
-
-  /* The cadence, previewed the same way the ladder is: the actual dates the rule
-     produces over the next fortnight. A rule is unreadable and a list of dates is
-     not, which matters most for exactly the modes (every_n_days, RRULE) that cannot
-     be drawn as a weekly row. */
-  const cadence = useMemo(() => parseCadence(cadenceRule), [cadenceRule])
-  const days = useMemo(
-    () => String(cadenceDays || '').split(',').map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6),
-    [cadenceDays],
-  )
-  const cadenceDates = useMemo(() => {
-    const from = today || isoDate(new Date())
-    const to = new Date(`${from}T00:00:00Z`)
-    to.setUTCDate(to.getUTCDate() + 27)
-    return expandCadence(cadence, {
-      from, to: to.toISOString().slice(0, 10),
-      anchor: String(routine?.created_at || from).slice(0, 10),
-      days,
-      floats: Math.max(0, (routine?.cadence_count ?? days.length) - days.length),
-    })
-  }, [cadence, days, today, routine?.created_at, routine?.cadence_count])
 
   /* The occurrences this routine has produced — the input to both the goal metric
      and the history charts. Read off the items already in memory; nothing here
@@ -364,6 +333,7 @@ export function RoutineForge({
                       key={c}
                       className="jk-hit"
                       solid={c === collection}
+                      off={c !== collection}
                       onClick={() => setCollection(c)}
                       style={{ fontFamily: MONO, fontSize: 9.5, padding: '2px 8px', cursor: 'pointer' }}
                     >
@@ -404,132 +374,45 @@ export function RoutineForge({
             <div style={{ marginTop: 22 }}>
               <span className="mono-eyebrow">THE PROGRAM</span>
 
-              {/* ── WHEN ───────────────────────────────────────────────────── */}
-              <div style={{ ...PANEL, padding: 10, marginTop: 8 }}>
-                <div className="mono-eyebrow" style={{ marginBottom: 6 }}>WHEN IT FIRES</div>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <SelectField
-                    value={cadence.type} disabled={readonly}
-                    onChange={(e) => {
-                      const t = e.target.value
-                      setCadenceRule(t === 'weekly' ? '' : formatCadence(
-                        t === 'every_n_days' ? { type: t, n: 3 }
-                        : t === 'rolling' ? { type: t, n: 3 }
-                        : t === 'monthly' ? { type: t, day: 1 }
-                        : { type: 'rrule', rrule: 'FREQ=WEEKLY;BYDAY=MO,TH' },
-                      ))
-                      setDirty(true)
-                    }}
-                  >
-                    {CADENCES.map((c) => <option key={c} value={c}>{CADENCE_LABEL[c]}</option>)}
-                  </SelectField>
-
-                  {/* Weekly keeps the day toggles — the only mode a weekly grid can
-                      actually draw, and the one almost every routine uses. */}
-                  {cadence.type === 'weekly' && (
-                    <span style={{ display: 'inline-flex', gap: 3 }}>
-                      {DAY_LETTERS.map((d, off) => (
-                        <Chip
-                          key={off}
-                          className="jk-hit"
-                          solid={days.includes(off)}
-                          onClick={readonly ? undefined : () => {
-                            const next = days.includes(off) ? days.filter((x) => x !== off) : [...days, off]
-                            setCadenceDays(next.sort((a, b) => a - b).join(','))
-                            setDirty(true)
-                          }}
-                          style={{ fontFamily: MONO, fontSize: 10, width: 24, padding: '2px 0', textAlign: 'center', cursor: 'pointer' }}
-                        >{d}</Chip>
-                      ))}
-                    </span>
-                  )}
-
-                  {(cadence.type === 'every_n_days' || cadence.type === 'rolling') && (
-                    <>
-                      <NumField
-                        min={1} value={cadence.n ?? 3} disabled={readonly}
-                        onChange={(e) => { setCadenceRule(formatCadence({ ...cadence, n: Math.max(1, Number(e.target.value) || 1) })); setDirty(true) }}
-                        wrapperStyle={NUM_W}
-                      />
-                      <span className="mono-eyebrow">{cadence.type === 'rolling' ? '× PER 7 DAYS' : 'DAYS'}</span>
-                    </>
-                  )}
-
-                  {cadence.type === 'monthly' && (
-                    <SelectField
-                      value={String(cadence.day ?? 1)} disabled={readonly}
-                      onChange={(e) => { setCadenceRule(formatCadence({ ...cadence, day: e.target.value === 'last' ? 'last' : Number(e.target.value) })); setDirty(true) }}
-                    >
-                      {Array.from({ length: 31 }, (_, i) => <option key={i} value={i + 1}>day {i + 1}</option>)}
-                      <option value="last">last day</option>
-                    </SelectField>
-                  )}
-
-                  {cadence.type === 'rrule' && (
-                    <Field
-                      value={cadence.rrule ?? ''} disabled={readonly}
-                      placeholder="FREQ=WEEKLY;INTERVAL=2;BYDAY=TU,TH"
-                      onChange={(e) => { setCadenceRule(`rrule:${e.target.value}`); setDirty(true) }}
-                      style={{ flex: '1 1 260px' }}
-                    />
-                  )}
-                </div>
-
-                <div style={{ marginTop: 6, display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-                  <span className="mono-eyebrow" style={{ color: 'var(--color-accent)' }}>
-                    {describeCadence(cadence, days).toUpperCase()}
-                  </span>
-                  {/* The dates the rule actually produces. A rule is unreadable and a
-                      list of dates is not — which matters most for exactly the modes
-                      that cannot be drawn as a weekly row. */}
-                  <span className="mono-eyebrow" style={{ color: 'var(--color-faint)' }}>
-                    NEXT: {cadenceDates.filter((d) => d.date).slice(0, 6).map((d) => d.date!.slice(5)).join('  ') || '—'}
-                    {cadenceDates.some((d) => d.float) ? `  ·  ${cadenceDates.filter((d) => d.float).length} FLOATING` : ''}
-                  </span>
-                </div>
-                {cadence.rrule_error && (
-                  <div className="mono-eyebrow" style={{ marginTop: 4, color: 'var(--color-accent)' }}>
-                    {cadence.rrule_error.toUpperCase()} — FALLING BACK TO WEEKLY
-                  </div>
-                )}
-              </div>
-
               {/* ── HOW IT SCALES ──────────────────────────────────────────── */}
               <div style={{ ...PANEL, padding: 10, marginTop: 8 }}>
                 <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center' }}>
                   <label style={{ display: 'inline-flex', gap: 5, alignItems: 'center' }}>
-                    <span className="mono-eyebrow">A CYCLE IS</span>
+                    <span className="mono-eyebrow">MOVE TO THE NEXT SESSION AFTER</span>
                     <SelectField
                       value={spec.advance_on} disabled={readonly}
                       onChange={(e) => edit((d) => { d.advance_on = e.target.value })}
-                      title="completion = a session you DID (missing a week does not advance you) · calendar = a week that elapsed"
+                      title="Which event steps the numbers forward. Pick a session you finished and skipping a week costs you nothing — you pick up where you left off. Pick a week going by and the numbers climb whether or not you trained."
                     >
-                      {ADVANCE_ON.map((v) => <option key={v} value={v}>{v === 'completion' ? 'a session you did' : 'a week that passed'}</option>)}
+                      {ADVANCE_ON.map((v) => <option key={v} value={v}>{v === 'completion' ? 'a session you finished' : 'a week going by'}</option>)}
                     </SelectField>
                   </label>
                   <label style={{ display: 'inline-flex', gap: 5, alignItems: 'center' }}>
-                    <span className="mono-eyebrow">DELOAD EVERY</span>
+                    <span className="mono-eyebrow">TAKE AN EASIER SESSION EVERY</span>
                     <NumField
                       min={0} max={52} value={spec.deload_every} disabled={readonly}
                       onChange={(e) => edit((d) => { d.deload_every = Math.max(0, Math.min(52, Number(e.target.value) || 0)) })}
                       wrapperStyle={NUM_W}
-                      title="Every Nth session is lighter and shorter. 0 = never. You can also take any single session easy from its card."
+                      title="Every Nth session drops its weights and its sets. Set 0 for never. Any single session can also be made easier from its own card."
                     />
-                    <span className="mono-eyebrow">{spec.deload_every ? 'SESSIONS' : '(NEVER)'}</span>
+                    <span className="mono-eyebrow">{spec.deload_every ? 'SESSIONS' : 'SESSIONS — 0 IS NEVER'}</span>
                   </label>
                   <label style={{ display: 'inline-flex', gap: 5, alignItems: 'center' }}>
-                    <span className="mono-eyebrow">ROUND LOAD TO</span>
+                    <span className="mono-eyebrow">ROUND WEIGHTS TO THE NEAREST</span>
                     <NumField
                       min={0} step={0.5} value={spec.round_load} disabled={readonly}
                       onChange={(e) => edit((d) => { d.round_load = Math.max(0, Number(e.target.value) || 0) })}
                       wrapperStyle={NUM_W}
+                      title="Percentages produce numbers like 137.5. Set this to the smallest jump you can actually load — 5 for a pair of 2.5s. Set 0 to keep the exact number."
                     />
                   </label>
                 </div>
 
                 <Rule style={{ margin: '9px 0' }} />
 
-                <div className="mono-eyebrow" style={{ marginBottom: 5 }}>PHASES — EACH SCALES THE WHOLE SESSION</div>
+                <div className="mono-eyebrow" style={{ marginBottom: 5 }}>
+                  PHASES — RUNS OF SESSIONS THAT MAKE EVERY WEIGHT LIGHTER OR HEAVIER
+                </div>
                 {spec.phases.map((p, i) => (
                   <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4, flexWrap: 'wrap' }}>
                     <Field
@@ -537,20 +420,20 @@ export function RoutineForge({
                       onChange={(e) => edit((d) => { d.phases[i].name = e.target.value })}
                       style={{ width: 110 }}
                     />
-                    <span className="mono-eyebrow">FOR</span>
+                    <span className="mono-eyebrow">LASTS</span>
                     <NumField
                       min={1} value={p.cycles} disabled={readonly}
                       onChange={(e) => edit((d) => { d.phases[i].cycles = Math.max(1, Number(e.target.value) || 1) })}
                       wrapperStyle={NUM_W}
                     />
-                    <span className="mono-eyebrow">SESSIONS ·</span>
+                    <span className="mono-eyebrow">SESSIONS, AT</span>
                     <NumField
                       step={0.05} min={0.1} value={p.intensity} disabled={readonly}
                       onChange={(e) => edit((d) => { d.phases[i].intensity = Number(e.target.value) || 1 })}
                       wrapperStyle={NUM_W}
-                      title="Multiplies every load in the session"
+                      title="Multiplies every weight in the session. 0.9 is a 10% lighter block; 1 changes nothing."
                     />
-                    <span className="mono-eyebrow">× LOAD</span>
+                    <span className="mono-eyebrow">× THE USUAL WEIGHT</span>
                     {!readonly && (
                       <TButton quiet onClick={() => edit((d) => { d.phases.splice(i, 1) })} style={{ padding: '1px 7px', cursor: 'pointer' }}>×</TButton>
                     )}
@@ -567,7 +450,7 @@ export function RoutineForge({
                 <Rule style={{ margin: '9px 0' }} />
 
                 <div className="mono-eyebrow" style={{ marginBottom: 5 }}>
-                  NAMED NUMBERS — WHAT A % PROGRESSION IS A % OF
+                  YOUR NUMBERS — A STEP WRITTEN IN PERCENTAGES TAKES ITS 100% FROM ONE OF THESE
                 </div>
                 {Object.entries(spec.vars).map(([k, v]) => (
                   <div key={k} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4 }}>
@@ -590,7 +473,7 @@ export function RoutineForge({
               {/* ── WHAT IT FEEDS ──────────────────────────────────────────── */}
               <div style={{ ...PANEL, padding: 10, marginTop: 8 }}>
                 <div className="mono-eyebrow" style={{ marginBottom: 5 }}>
-                  WHAT IT CONTRIBUTES TO ITS GOAL
+                  WHAT THIS ROUTINE COUNTS TOWARD ITS GOAL
                 </div>
                 {/* A routine never finishes, so it cannot contribute percent-complete
                     without corrupting the goal's done/total. It contributes a
@@ -598,7 +481,7 @@ export function RoutineForge({
                 {!spec.contributes ? (
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                     <span className="mono-eyebrow" style={{ color: 'var(--color-faint)' }}>
-                      NOTHING YET — A ROUTINE MEASURES, IT DOES NOT COMPLETE
+                      NOTHING COUNTED. A ROUTINE NEVER FINISHES, SO IT ADDS UP A NUMBER INSTEAD OF A PERCENTAGE.
                     </span>
                     {!readonly && (
                       <TButton
@@ -607,7 +490,7 @@ export function RoutineForge({
                           d.contributes = { measure: 'sessions', step: null, target: 12, window: 'month', label: null }
                         })}
                         style={{ padding: '2px 8px', cursor: 'pointer' }}
-                      >+ measure something</TButton>
+                      >+ count something</TButton>
                     )}
                   </div>
                 ) : (
@@ -619,7 +502,7 @@ export function RoutineForge({
                       >
                         {MEASURES.map((m) => <option key={m} value={m}>{MEASURE_LABEL[m]}</option>)}
                       </SelectField>
-                      <span className="mono-eyebrow">OF</span>
+                      <span className="mono-eyebrow">FROM</span>
                       <SelectField
                         value={spec.contributes.step ?? ''} disabled={readonly}
                         onChange={(e) => edit((d) => { d.contributes!.step = e.target.value || null })}
@@ -627,13 +510,13 @@ export function RoutineForge({
                         <option value="">the whole session</option>
                         {spec.steps.map((s) => <option key={s.key} value={s.key}>{s.title}</option>)}
                       </SelectField>
-                      <span className="mono-eyebrow">TOWARD</span>
+                      <span className="mono-eyebrow">ADDING UP TO</span>
                       <NumField
                         min={1} value={spec.contributes.target} disabled={readonly}
                         onChange={(e) => edit((d) => { d.contributes!.target = Math.max(1, Number(e.target.value) || 1) })}
                         wrapperStyle={NUM_W}
                       />
-                      <span className="mono-eyebrow">PER</span>
+                      <span className="mono-eyebrow">EVERY</span>
                       <SelectField
                         value={spec.contributes.window} disabled={readonly}
                         onChange={(e) => edit((d) => { d.contributes!.window = e.target.value })}
@@ -667,6 +550,7 @@ export function RoutineForge({
                   key={t}
                   className="jk-hit"
                   solid={tab === t}
+                  off={tab !== t}
                   onClick={() => setTab(t)}
                   style={{ fontFamily: MONO, fontSize: 9.5, padding: '3px 9px', cursor: 'pointer' }}
                 >{t.toUpperCase()}</Chip>
@@ -737,7 +621,7 @@ export function RoutineForge({
                   </SelectField>
                 </div>
                 <div className="mono-eyebrow" style={{ color: 'var(--color-faint)', marginBottom: 8 }}>
-                  WHERE THE LINES SEPARATE, THE PROGRAM IS ASKING FOR SOMETHING YOU ARE NOT DOING
+                  WHEN THE TWO LINES SPLIT, THE PROGRAM IS ASKING FOR MORE THAN YOU ARE DOING
                 </div>
                 {spec.steps.length === 0 && <div className="mono-eyebrow" style={{ color: 'var(--color-faint)' }}>NO STEPS YET</div>}
                 {spec.steps.map((s) => (
@@ -754,9 +638,9 @@ export function RoutineForge({
 
             {tab === 'revisions' && (
               <>
-                <span className="mono-eyebrow">THE DOCUMENT OVER TIME</span>
+                <span className="mono-eyebrow">EVERY VERSION OF THIS DOCUMENT</span>
                 <div className="mono-eyebrow" style={{ color: 'var(--color-faint)', marginTop: 3, marginBottom: 8 }}>
-                  EVERY SESSION STAMPS THE REVISION IT FOLLOWED — THIS IS WHERE A FROZEN NUMBER EXPLAINS ITSELF
+                  EACH SESSION RECORDS THE VERSION IT WAS BUILT FROM. LOOK HERE WHEN AN OLD SESSION SHOWS A NUMBER TODAY&apos;S RULES WOULD NOT PRODUCE.
                 </div>
                 {revisions === null && <div className="mono-eyebrow">LOADING…</div>}
                 {revisions?.length === 0 && <div className="mono-eyebrow" style={{ color: 'var(--color-faint)' }}>NO HISTORY YET</div>}

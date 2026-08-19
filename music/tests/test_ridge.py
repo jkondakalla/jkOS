@@ -411,5 +411,33 @@ class TestLibrary(unittest.TestCase):
         self.assertEqual(len(band_polygons(root)), config.N_MELS)
 
 
+class SheetInvariantTest(unittest.TestCase):
+    """One sheet is ONE comparison, so one band count and one scale."""
+
+    def panel(self, bands, frames=40, seed=0):
+        rng = np.random.RandomState(seed)
+        return ridge.Panel(rng.randn(bands, frames).astype(np.float32) - 6.0,
+                           f'{bands} bands', seconds=1.0)
+
+    def test_mixed_band_counts_are_refused_with_the_reason(self):
+        """⚠️ `n_bands` was the MAX over the panels, so a shorter panel's rows
+        were indexed past the end of its own array — an IndexError several
+        hundred lines from the actual mistake, which would have been rendering
+        two profiles onto one sheet."""
+        with self.assertRaises(ValueError) as caught:
+            ridge.render([self.panel(128), self.panel(64, seed=1)])
+        self.assertIn('band counts', str(caught.exception))
+
+    def test_one_band_count_renders(self):
+        svg = ridge.render([self.panel(128), self.panel(128, seed=1)])
+        self.assertIn('</svg>', svg)
+
+    def test_a_range_with_no_span_still_renders(self):
+        """`span = (vmax - vmin) or 1.0` — a degenerate range must not divide
+        by zero halfway through a sheet."""
+        svg = ridge.render([self.panel(128)], value_range=(0.0, 0.0))
+        self.assertIn('</svg>', svg)
+
+
 if __name__ == '__main__':
     unittest.main()

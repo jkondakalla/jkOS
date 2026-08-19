@@ -227,14 +227,14 @@ export function LibraryBrowser({ api, items, readonly, onPick, onClose, onPaste 
             short words is a column of whitespace. */}
         <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 12, flexWrap: 'wrap' }}>
           <Chip
-            className="jk-hit" solid={collection === 'all'} onClick={() => setCollection('all')}
+            className="jk-hit" solid={collection === 'all'} off={collection !== 'all'} onClick={() => setCollection('all')}
             style={{ fontFamily: MONO, fontSize: 9.5, padding: '3px 9px', cursor: 'pointer' }}
           >
             ALL {String(total).padStart(2, '0')}
           </Chip>
           {shelves.map((c) => (
             <Chip
-              key={c} className="jk-hit" solid={c === collection} onClick={() => setCollection(c)}
+              key={c} className="jk-hit" solid={c === collection} off={c !== collection} onClick={() => setCollection(c)}
               style={{ fontFamily: MONO, fontSize: 9.5, padding: '3px 9px', cursor: 'pointer' }}
             >
               {String(c).toUpperCase()} {String(counts.get(c) || 0).padStart(2, '0')}

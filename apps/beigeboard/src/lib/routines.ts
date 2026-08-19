@@ -66,6 +66,43 @@ export function toggleDay(routine: any, offset: number): string {
   return next.sort((a, b) => a - b).join(',')
 }
 
+/* ── Parked, by arithmetic ──────────────────────────────────────────────────
+ * A routine that asks for nothing is not "active with an empty schedule" — it is
+ * off, and the board should say so rather than list it beside the ones that are
+ * running. So the two are tied together: emptying the schedule parks the routine,
+ * and giving it a schedule again brings it back.
+ *
+ * FIRING IS NOT THE SAME AS HAVING DAYS. Any non-weekly rule (every_n_days,
+ * monthly, rolling, an RRULE) fires without a single committed weekday, and so
+ * does a weekly routine with an explicit count above its committed days — that
+ * is the FLOAT, and "3× a week, any day you like" is a real plan, not an empty
+ * one. The question that decides it is therefore "does this produce sessions",
+ * which is exactly `weeklyTarget` for the weekly grid and unconditionally true
+ * for every other rule. `firesAtAll` is that question, once.
+ *
+ * RESUMING IS DELIBERATELY NARROW. The rider only writes `status` when the
+ * ANSWER FLIPS, so a routine you parked BY HAND, with days still committed,
+ * stays parked when you toggle another day — nothing about that edit changed
+ * whether it fires. Only the empty→non-empty crossing resumes it, which is the
+ * same crossing that parked it.
+ * ─────────────────────────────────────────────────────────────────────────── */
+
+/** Does this routine ask for any session at all? */
+export function firesAtAll(routine: any): boolean {
+  if (String(routine?.cadence_rule || '').trim()) return true
+  return weeklyTarget(routine) > 0
+}
+
+/** A cadence PATCH with the park/resume rider attached. Every writer of
+ *  `cadence_days`, `cadence_count` or `cadence_rule` goes through this, so the
+ *  status can't be right on one surface and stale on another. */
+export function cadencePatch(routine: any, changes: Record<string, any>): Record<string, any> {
+  const before = firesAtAll(routine)
+  const after = firesAtAll({ ...routine, ...changes })
+  if (before === after) return changes
+  return { ...changes, status: after ? 'active' : 'parked' }
+}
+
 /* ── The skip list ──────────────────────────────────────────────────────────
  * The exceptions to the pattern (backend migration 12). Deleting one session
  * writes its ref suffix here, which is what stops the engine minting it straight

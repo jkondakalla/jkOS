@@ -81,6 +81,7 @@ import audio
 import config
 import encoder
 import index
+import scan
 
 # 3 readers, measured: the CIFS mount plateaus there, and a fourth thread buys
 # nothing but a fourth transient decode buffer.
@@ -95,6 +96,40 @@ PREFETCH = 4
 # track, so a line per track is already unhurried; this only keeps a fast
 # `--limit` run from flickering.
 PROGRESS_EVERY = 0.25
+
+# ⚠️ **THE CIRCUIT BREAKER, AND WHY A THREE-HOUR RUN NEEDS ONE.**
+#
+# "Failures are data" is right for one corrupt FLAC and catastrophic for one
+# dropped mount. `/mnt/Luna` is CIFS over a home network; when it goes, ffmpeg
+# does not hang, it returns ENOENT in milliseconds — so a thirty-second blip in
+# hour two marks *every remaining track* `failed` in about a minute. And
+# `index.pending` excludes failed rows by default, so the obvious recovery — run
+# it again — then quietly skips all thirteen thousand of them and reports a
+# finished library. Silent, total, and indistinguishable from success: the same
+# shape as Trap 16, arriving through operations rather than through arithmetic.
+#
+# Two guards, because the two causes want different answers:
+#
+#   * **The shelf is gone.** Checked directly, on the first failure only, so it
+#     costs one `stat` per failure and nothing at all on a clean run. This is not
+#     a per-file fact and must not be recorded as one, so the row is left
+#     `pending` — untouched, still in the queue — and the run stops.
+#   * **Everything else, systemic.** A dead ONNX session, a full disk, weights
+#     deleted mid-run. There is no way to name those in advance, so the backstop
+#     is arithmetic: `ABORT_AFTER` failures in a row with no success between
+#     them. Those rows ARE marked failed, because each one genuinely failed and
+#     `--retry-failed` is the deliberate second attempt.
+#
+# 25 rather than 5: a whole unreadable album is a plausible ~20 consecutive
+# genuine failures, and a run that stops on a bad album would be its own kind of
+# useless. Nothing in this library has ever needed it — §8.6 ran 1,506 tracks
+# with zero failures — which is exactly why the number can be generous.
+ABORT_AFTER = 25
+
+
+# Lives in scan.py, where the shelf already lives, and is re-exported here
+# because this is the module whose docstring explains why it exists.
+library_reachable = scan.library_reachable
 
 
 
@@ -145,6 +180,10 @@ class Progress:
         self.bytes = 0
         self.seconds = 0.0
         self.started = time.time()
+        # Why the run ended early, or None if it did not. Carried on the result
+        # rather than raised, so a caller still gets the counts for the work that
+        # DID land — and so the CLI can exit non-zero without losing the summary.
+        self.aborted = None
 
     @property
     def elapsed(self):
@@ -178,7 +217,9 @@ def run(conn, rows, workers=DECODE_WORKERS, max_windows=None, prefetch=PREFETCH,
 
     One commit per track (Trap 17). Ctrl-C sets the stop flag, drains the readers
     and returns what was finished — the caller sees a summary rather than a
-    traceback, and the index is consistent either way.
+    traceback, and the index is consistent either way. A systemic failure — the
+    mount gone, the session dead — does the same thing and sets
+    `progress.aborted`; see `ABORT_AFTER` for why that is not optional.
     """
     progress = Progress(len(rows))
     if not rows:
@@ -205,6 +246,7 @@ def run(conn, rows, workers=DECODE_WORKERS, max_windows=None, prefetch=PREFETCH,
             reader.start()
 
         last_report = 0.0
+        consecutive = 0
         try:
             while progress.done + progress.failed < progress.total:
                 try:
@@ -226,10 +268,30 @@ def run(conn, rows, workers=DECODE_WORKERS, max_windows=None, prefetch=PREFETCH,
                     progress.done += 1
                     progress.bytes += row['size'] or 0
                     progress.seconds += seconds or 0.0
+                    consecutive = 0
+                elif not library_reachable():
+                    # Not this track's fault, so it does not get this track's
+                    # mark. The row stays `pending` and the next run picks it up
+                    # with no flag to remember.
+                    progress.aborted = (
+                        f'the library root {config.LIBRARY_ROOT} is not reachable — '
+                        f'stopped before marking {progress.total - progress.done - progress.failed} '
+                        f'more tracks failed for a fault that is not theirs. '
+                        f'Remount and re-run; nothing was lost.')
+                    conn.commit()
+                    break
                 else:
                     index.mark_failed(conn, row['id'], error)
                     progress.failed += 1
+                    consecutive += 1
                 conn.commit()                     # per track — Trap 17
+                if consecutive >= ABORT_AFTER:
+                    progress.aborted = (
+                        f'{consecutive} failures in a row with no success between them — '
+                        f'this is systemic, not {consecutive} bad files. The rows are '
+                        f'marked `failed` with their error text: read them with '
+                        f'`--failures`, and re-run with `--retry-failed` once it is fixed.')
+                    break
                 if report and time.time() - last_report >= PROGRESS_EVERY:
                     last_report = time.time()
                     report(progress)
@@ -327,7 +389,15 @@ def _main(argv=None):
         print(f'\n{progress.done} embedded, {progress.failed} failed, '
               f'{_hms(progress.elapsed)} elapsed', file=sys.stderr)
         print(index.stats(conn), file=sys.stderr)
+        if progress.aborted:
+            print(f'\n⚠️  RUN ABORTED — {progress.aborted}', file=sys.stderr)
+            return 2
         return 0
+    except (index.ConfigDriftError, encoder.EncoderError, audio.DecodeError) as exc:
+        # The project's own exception types, each of which already carries a
+        # sentence explaining what to do. A traceback would bury it.
+        print(f'\n{type(exc).__name__}: {exc}', file=sys.stderr)
+        return 1
     finally:
         conn.close()
 

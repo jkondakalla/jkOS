@@ -33,6 +33,8 @@ mean comparing new rows against new stats and old rows against old ones. Raw in,
 fitted stats in `meta`, normalisation at load. Re-fitting is then free and total.
 """
 import base64
+import os
+import threading
 
 import numpy as np
 
@@ -552,11 +554,25 @@ def load_normalised(conn, refit=False):
     L2 on top of the z-score so that §8.7's `M @ q` IS the cosine similarity, with
     no per-query division. Same contract the neural arm will present, so `query.py`
     can hold both arms in one hand.
+
+    ⚠️ A table holding fewer than `MIN_FIT_ROWS` descriptors and no stored fit
+    raises `DescriptorError`, not `CorpusStats.fit`'s `ValueError`. The refusal
+    itself is right and stays — but it is a normal state for anyone five minutes
+    into their first `--build`, and greeting them with a raw traceback from three
+    frames down reads as a broken program rather than as "describe a few more".
+    `fit`'s ValueError is still what an API misuse gets; this is the same fact
+    arriving through the door a person actually walks through.
     """
     matrix, paths, ids = index.load_matrix(conn, 'descriptors')
     if not len(matrix):
         return matrix, paths, ids, None
     stats = None if refit else CorpusStats.load(conn)
+    if (stats is None or stats.dim != matrix.shape[1]) and len(matrix) < MIN_FIT_ROWS:
+        raise DescriptorError(
+            f'{len(matrix)} descriptor(s) in the index, and the corpus z-score needs '
+            f'at least {MIN_FIT_ROWS} to be a corpus statistic rather than a per-track '
+            f'one (see the warning at the top of this module). Describe more first: '
+            f'`descriptors.py --build --limit 50`.')
     if stats is None or stats.dim != matrix.shape[1]:
         stats = fit_corpus(conn)
     z = stats.apply(matrix)
@@ -611,25 +627,42 @@ def album_of(path):
     is not a second record — splitting it would report a true album-mate as a
     miss for both arms.
     """
-    import os
     parent = os.path.dirname(path)
     return os.path.dirname(parent) if DISC_DIR.match(os.path.basename(parent)) else parent
 
 
 def artist_of(path):
-    import os
     return os.path.dirname(album_of(path))
+
+
+# The same circuit breaker the neural run carries, for the same reason and with
+# the same number — see `backfill.ABORT_AFTER`, which is where the reasoning is
+# written down, and `scan.library_reachable`, which is the check both arms share.
+# This arm reads the same shelf over the same CIFS mount and writes the same
+# `tracks.status`, so a dropped mount here poisons the queue for BOTH arms.
+ABORT_AFTER = 25
 
 
 def build(conn, rows, workers=DEFAULT_WORKERS, progress=None):
     """Describe every track in `rows`, committing one at a time.
 
-    Returns `(n_ok, n_failed)`.
+    Returns `(n_ok, n_failed)`; `build.aborted` is not a thing — a systemic stop
+    raises `DescriptorError` here, because unlike §8.6's three-hour run this one
+    is minutes and has no summary worth preserving past the message.
     """
     import time
     from concurrent.futures import ThreadPoolExecutor
 
+    import scan
+
+    stopping = threading.Event()
+
     def work(row):
+        if stopping.is_set():
+            # Cancelled futures cover most of the queue, but the ones already
+            # running are not cancellable — this keeps them from spending a
+            # network read each on a run that has already decided to stop.
+            return row, None, None, None
         try:
             vector, duration = describe_file(row['path'])
             return row, vector, duration, None
@@ -637,20 +670,42 @@ def build(conn, rows, workers=DEFAULT_WORKERS, progress=None):
             return row, None, None, exc
 
     started, done, failed, bytes_read = time.time(), 0, 0, 0
+    consecutive, abort = 0, None
     with ThreadPoolExecutor(max_workers=max(1, int(workers))) as pool:
         for row, vector, duration, error in pool.map(work, rows):
+            if stopping.is_set():
+                continue                              # drain, do not record
+            if error is None and vector is None:
+                continue                              # skipped by the stop flag
             if error is None:
                 index.put_descriptor(conn, row['id'], vector, version=DESCRIPTOR_VERSION)
                 index.mark_ok(conn, row['id'], duration=duration)
                 done += 1
                 bytes_read += row['size'] or 0
+                consecutive = 0
+            elif not scan.library_reachable():
+                abort = (f'the library root {config.LIBRARY_ROOT} is not reachable — '
+                         f'stopped rather than marking the rest of the queue failed '
+                         f'for a fault that is not theirs. Remount and re-run.')
+                stopping.set()
+                conn.commit()
+                continue
             else:
                 index.mark_failed(conn, row['id'], error)
                 failed += 1
+                consecutive += 1
             conn.commit()                             # per track — Trap 17
+            if consecutive >= ABORT_AFTER:
+                abort = (f'{consecutive} failures in a row with no success between '
+                         f'them — systemic, not {consecutive} bad files. Read them '
+                         f'with `backfill.py --failures`.')
+                stopping.set()
+                continue
             if progress:
                 elapsed = max(time.time() - started, 1e-6)
                 progress(done, failed, len(rows), done / elapsed, bytes_read / elapsed / 1e6)
+    if abort:
+        raise DescriptorError(f'{abort} ({done} described, {failed} failed before the stop)')
     return done, failed
 
 
@@ -777,9 +832,18 @@ def gate(conn, stream=None):
     """Run the §8.4 sanity gate and print the verdict. True if it passes."""
     import sys
     out = stream or sys.stdout
-    matrix, paths, _ids, stats = load_normalised(conn)
+    try:
+        matrix, paths, _ids, stats = load_normalised(conn)
+    except DescriptorError as exc:
+        # Too few rows to fit the corpus. Not a failed gate — an unrun one.
+        print(f'{exc}', file=out)
+        return False
     if not len(matrix):
         print('no descriptors in the index — run --build first', file=out)
+        return False
+    if len(matrix) < 4:
+        print(f'{len(matrix)} descriptors is not enough to compare — run --build first',
+              file=out)
         return False
 
     report = similarity_report(matrix, paths)
@@ -839,6 +903,8 @@ def _main(argv=None):
     import argparse
     import sys
 
+    import audio
+
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument('files', nargs='*', help='describe these files and print the numbers')
     parser.add_argument('--scan', action='store_true', help='walk the library into `tracks`')
@@ -850,6 +916,9 @@ def _main(argv=None):
                              '"same artist, other album" row measurable')
     parser.add_argument('--limit', type=int, default=None)
     parser.add_argument('--artist', default=None, help='path fragment filter')
+    parser.add_argument('--root', default=None,
+                        help='with --scan: walk this directory instead of '
+                             'config.LIBRARY_ROOT')
     parser.add_argument('--encoded', action='store_true',
                         help='with --build: only tracks the neural arm already holds — '
                              '§8.7 reads both arms over ONE population or not at all')
@@ -866,8 +935,17 @@ def _main(argv=None):
         return 0
 
     if args.files:
+        bad = 0
         for path in args.files:
-            vector, duration = describe_file(path)
+            try:
+                vector, duration = describe_file(path)
+            except (DescriptorError, audio.DecodeError, OSError) as exc:
+                # One unreadable file among several is data here too: report it
+                # and describe the rest, rather than abandoning the run on the
+                # first bad argument.
+                print(f'\n{path}\n  {type(exc).__name__}: {exc}', file=sys.stderr)
+                bad += 1
+                continue
             print(f'\n{path}\n  {duration:.1f}s → {vector.size} dims, '
                   f'range [{vector.min():.2f}, {vector.max():.2f}]')
             names = feature_names()
@@ -877,19 +955,30 @@ def _main(argv=None):
                 k = names.index(label)
                 shown = 2.0 ** vector[k] if label == 'tempo_log2bpm' else vector[k]
                 print(f'  {label:<16} {shown:10.3f}' + ('  BPM' if label == 'tempo_log2bpm' else ''))
-        return 0
+        return 1 if bad == len(args.files) else 0
 
     conn = index.connect()
     try:
         if args.scan:
-            import scan
+            # ⚠️ `--artist` is a path FRAGMENT everywhere else in this CLI, and
+            # this branch used to hand it to `scan.scan()` as a directory ROOT —
+            # so `--scan --artist "again&again"` did not narrow the scan, it
+            # raised NotADirectoryError on a relative path. One flag, two
+            # meanings, and the wrong one only visible at the traceback. The
+            # fragment now narrows the walk the same way it narrows the queue,
+            # and `--root` is the separate thing it was being confused with.
             import time
             started = time.time()
-            found = scan.scan(args.artist and args.artist or config.LIBRARY_ROOT)
-            for track in found:
-                index.upsert_track(conn, track.path, track.mtime, track.size)
-            conn.commit()
-            print(f'scanned {len(found)} files in {time.time() - started:.1f}s', file=sys.stderr)
+            found = index.ingest_scan(conn, root=args.root)
+            if args.artist:
+                found = conn.execute(
+                    'SELECT COUNT(*) AS n FROM tracks WHERE path LIKE ?',
+                    (f'%{args.artist}%',)).fetchone()['n']
+                print(f'scanned in {time.time() - started:.1f}s; '
+                      f'{found} row(s) match {args.artist!r}', file=sys.stderr)
+            else:
+                print(f'scanned {found} files in {time.time() - started:.1f}s',
+                      file=sys.stderr)
 
         if args.build:
             if args.albums:
@@ -922,6 +1011,14 @@ def _main(argv=None):
 
         if not (args.scan or args.build or args.refit):
             print(index.stats(conn))
+    except (DescriptorError, audio.DecodeError, index.ConfigDriftError,
+            NotADirectoryError) as exc:
+        # Every one of these already carries a sentence saying what to do about
+        # it. A traceback puts that sentence at the bottom of twelve frames of
+        # noise and reads as a crash — which is what an unmounted share, a
+        # too-small corpus and a config edit all looked like before this.
+        print(f'\n{type(exc).__name__}: {exc}', file=sys.stderr)
+        return 1
     finally:
         conn.close()
     return 0
