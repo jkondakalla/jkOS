@@ -584,21 +584,41 @@ DEFAULT_WORKERS = 8
 MIN_ALBUM_TRACKS = 4
 
 
+# ⚠️ **THE SHELF IS NOT UNIFORMLY THREE LEVELS DEEP, AND §8.7 FOUND OUT THE HARD
+# WAY.** 1,131 of the 15,326 files — 7.4%, every one of them a multi-disc release —
+# sit at `<artist>/<album>/Disc N/<title>.flac`. Read naively, `Disc 1` becomes the
+# ALBUM and the album title becomes the ARTIST, so a deluxe edition is a different
+# band from the record it is a deluxe edition of, and its tracks can never match
+# the rest of that artist's catalogue. The symptom is not an error; it is a
+# same-artist rate quietly a few points low for BOTH arms at once, which is
+# exactly the kind of thing a comparison hides by affecting it evenly.
+#
+# It surfaced from `query.duplicate_audit`: 184 nearest-neighbour pairs sat at
+# cosine 1.00000 while the path claimed they were different songs — `Crash Love`
+# and `Crash Love (Deluxe)/Disc 1`, the identical master filed twice.
+DISC_DIR = __import__('re').compile(r'^(disc|disk|cd|vol|volume)[\s._-]*\d+$', __import__('re').I)
+
+
 def album_of(path):
-    """The album a track belongs to — its parent directory.
+    """The album a track belongs to — its parent directory, disc folders folded in.
 
     The library is `<root>/<artist>/<album>/<NN. title>.flac`, so the directory
     IS the grouping. No tags are read: an ID3 pass would be a second source of
     truth about which tracks belong together, and the gate below would then be
     testing the tags as much as the descriptors.
+
+    A `Disc 2` directory is folded into its parent because disc two of a record
+    is not a second record — splitting it would report a true album-mate as a
+    miss for both arms.
     """
     import os
-    return os.path.dirname(path)
+    parent = os.path.dirname(path)
+    return os.path.dirname(parent) if DISC_DIR.match(os.path.basename(parent)) else parent
 
 
 def artist_of(path):
     import os
-    return os.path.dirname(os.path.dirname(path))
+    return os.path.dirname(album_of(path))
 
 
 def build(conn, rows, workers=DEFAULT_WORKERS, progress=None):
@@ -737,12 +757,12 @@ def similarity_report(matrix, paths, pairs=200000, seed=0):
         # What a coin flip would score, given how the library is shaped. Without
         # it "62% of neighbours share an album" is a number with no scale: on a
         # corpus of four albums it would be unremarkable.
-        'chance_album': _chance(albums),
-        'chance_artist': _chance(artists),
+        'chance_album': chance_rate(albums),
+        'chance_artist': chance_rate(artists),
     }
 
 
-def _chance(labels):
+def chance_rate(labels):
     """The probability that a uniformly-random OTHER track shares your label.
 
     Weighted by group size rather than averaged over groups: a track on a
@@ -830,6 +850,9 @@ def _main(argv=None):
                              '"same artist, other album" row measurable')
     parser.add_argument('--limit', type=int, default=None)
     parser.add_argument('--artist', default=None, help='path fragment filter')
+    parser.add_argument('--encoded', action='store_true',
+                        help='with --build: only tracks the neural arm already holds — '
+                             '§8.7 reads both arms over ONE population or not at all')
     parser.add_argument('--workers', type=int, default=DEFAULT_WORKERS)
     parser.add_argument('--gate', action='store_true', help='run the §8.4 sanity gate')
     parser.add_argument('--refit', action='store_true', help='re-fit the corpus statistics')
@@ -873,7 +896,8 @@ def _main(argv=None):
                 rows = [r for r in select_albums(conn, args.albums, per_artist=args.per_artist)
                         if index.get_vector(conn, r['id'], 'descriptors') is None]
             else:
-                rows = index.pending(conn, 'descriptors', limit=args.limit, artist=args.artist)
+                rows = index.pending(conn, 'descriptors', limit=args.limit, artist=args.artist,
+                                     having='local_vectors' if args.encoded else None)
             if args.limit:
                 rows = rows[:args.limit]
             print(f'{len(rows)} track(s) to describe, {args.workers} workers', file=sys.stderr)

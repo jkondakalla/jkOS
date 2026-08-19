@@ -119,6 +119,16 @@ class ProfileGuardTest(unittest.TestCase):
             encoder.embed_windows(np.zeros(48000, dtype=np.float32))
         self.assertIn('profile', str(caught.exception))
 
+    def test_both_halves_of_the_split_pipeline_refuse_it(self):
+        """§8.6 hands the mel to reader threads and the forward pass to the main
+        thread. One guard on the composed function would leave the half that
+        actually builds the mel unguarded."""
+        for call in (lambda: encoder.window_features(np.zeros(48000, dtype=np.float32)),
+                     lambda: encoder.embed_features(np.zeros((1, 1, 4, 4), np.float32))):
+            with self.assertRaises(encoder.EncoderError) as caught:
+                call()
+            self.assertIn('profile', str(caught.exception))
+
     def test_the_wrong_mel_profile_is_a_real_alternative(self):
         """`verify()` compares against it, so it has to actually differ."""
         self.assertNotEqual(encoder.WRONG_MEL.signature(), config.ENCODER.signature())
@@ -171,24 +181,58 @@ class WindowingTest(unittest.TestCase):
         track are its intro, and an index built from intros would rank tracks by
         how they open."""
         signal = np.arange(self.size * 20, dtype=np.float32)
-        uncapped = [int(w[0]) for w in encoder.windows(signal)]
-        original = encoder.MAX_WINDOWS
-        try:
-            encoder.MAX_WINDOWS = 5
-            capped = [int(w[0]) for w in encoder.windows(signal)]
-        finally:
-            encoder.MAX_WINDOWS = original
+        uncapped = [int(w[0]) for w in encoder.windows(signal, max_windows=0)]
+        capped = [int(w[0]) for w in encoder.windows(signal, max_windows=5)]
         self.assertEqual(len(capped), 5)
         self.assertEqual(capped[0], uncapped[0])
         self.assertEqual(capped[-1], uncapped[-1])
         self.assertEqual(capped, sorted(capped))
         self.assertGreater(min(np.diff(capped)), self.size // 2)
 
-    def test_max_windows_is_off_by_default(self):
-        """§8.6 specifies 10 s at 50% overlap. The cap is a lever that chunk
-        should pull deliberately, with the measured cost in hand — not a default
-        nobody chose."""
-        self.assertIsNone(encoder.MAX_WINDOWS)
+    def test_the_cap_is_an_argument_not_a_global_to_reach_for(self):
+        """§8.6 runs threads. A cap set by mutating a module global would be one
+        more piece of process-wide state for a worker to read mid-change, which
+        is the shape of bug `config.using` already exists to prevent."""
+        signal = np.arange(self.size * 20, dtype=np.float32)
+        self.assertEqual(len(list(encoder.windows(signal, max_windows=3))), 3)
+        self.assertEqual(len(list(encoder.windows(signal))), encoder.MAX_WINDOWS)
+
+    def test_zero_means_uncapped_and_none_means_the_default(self):
+        """`--max-windows 0` has to mean *every window*, not *the default*, or
+        the flag that undoes the cap quietly re-applies it."""
+        signal = np.arange(self.size * 20, dtype=np.float32)
+        self.assertGreater(len(list(encoder.windows(signal, max_windows=0))),
+                           encoder.MAX_WINDOWS)
+        self.assertEqual(len(list(encoder.windows(signal, max_windows=None))),
+                         encoder.MAX_WINDOWS)
+
+    def test_max_windows_is_the_cap_section_8_6_measured(self):
+        """§8.5 left this at None for §8.6 to pull with the numbers in hand. It
+        was pulled at 12: measured over 71 tracks from 8 complete albums, the
+        nearest neighbour agrees with the uncapped answer 87% of the time, the
+        top-5 lists overlap 0.90, and how often the nearest neighbour shares an
+        album — the column that says whether the answer is any good — does not
+        move at all. It buys 3.4x."""
+        self.assertEqual(encoder.MAX_WINDOWS, 12)
+
+    def test_window_features_is_the_batched_form_of_input_features(self):
+        """The tensor that crosses §8.6's queue: (n, 1, frames, mels), assembled
+        in the reader thread so the main thread does nothing but run the model."""
+        signal = np.arange(self.size * 6, dtype=np.float32)
+        tensor = encoder.window_features(signal, max_windows=3)
+        self.assertEqual(tensor.shape,
+                         (3, 1, encoder.expected_frames(), config.N_MELS))
+        self.assertEqual(tensor.dtype, np.dtype('float32'))
+        first = encoder.input_features(next(iter(encoder.windows(signal, max_windows=3))))
+        np.testing.assert_array_equal(tensor[0, 0], first[0])
+
+    def test_embed_features_refuses_a_tensor_of_the_wrong_shape(self):
+        """A mel handed over as (mels, frames), or without the channel axis, must
+        not reach the session — where it would either throw a shape error deep in
+        the runtime or, when the axes happen to match, quietly embed nonsense."""
+        for shape in ((4, 4), (2, 2, 4, 4), (2, 1, 4, 4)):
+            with self.assertRaises(encoder.EncoderError):
+                encoder.embed_features(np.zeros(shape, dtype=np.float32))
 
     def test_input_features_is_frames_by_mels_not_mels_by_frames(self):
         """The graph's axes are (batch, channels, height, width) = (B, 1, frames,
@@ -285,6 +329,18 @@ class ForwardPassTest(unittest.TestCase):
 
     def test_the_weights_are_the_pinned_artifact(self):
         self.assertTrue(encoder.verify_checksum())
+
+    def test_batch_size_does_not_change_the_answer(self):
+        """§8.6 picked batch 4 over 8 on speed alone (0.058 vs 0.066 s/window).
+        That is only a free choice if batching cannot move the vectors — so this
+        pins it, and it is why `recipe()` leaves the batch size out."""
+        with config.using(config.ENCODER):
+            tensor = encoder.window_features(self.signal)
+            four = encoder.embed_features(tensor, batch_size=4)
+            eight = encoder.embed_features(tensor, batch_size=8)
+            one = encoder.embed_features(tensor, batch_size=1)
+        self.assertEqual(four.tobytes(), eight.tobytes())
+        self.assertEqual(four.tobytes(), one.tobytes())
 
 
 if __name__ == '__main__':

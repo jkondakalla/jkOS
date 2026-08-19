@@ -286,5 +286,97 @@ class MatrixTest(IndexTestCase):
                 fn(self.conn, 'items; DROP TABLE tracks')
 
 
+class RecipeDriftTest(IndexTestCase):
+    """§8.6's alarm, one level up from the config signature.
+
+    `config.signature()` fingerprints how a mel is BUILT. It says nothing about
+    which mels a track's vector is the mean of — the window length, the overlap,
+    the cap §8.6 pulled to 12, the pooling rule. Two vectors of one track pooled
+    from 12 windows and from 41 sit at cosine ~0.997, so mixing the two recipes
+    corrupts nothing outright and leaves no symptom at all; it just makes "what
+    is this space" unanswerable later.
+    """
+
+    def test_an_empty_table_adopts_whatever_recipe_runs(self):
+        self.assertEqual(index.assert_recipe(self.conn, 'local_vectors', 'r1'), 'r1')
+        self.assertEqual(index.assert_recipe(self.conn, 'local_vectors', 'r2'), 'r2')
+
+    def test_a_different_recipe_raises_once_vectors_exist(self):
+        tid = self.add('/a.flac')
+        index.put_vector(self.conn, tid, self.vec(), model='m', recipe='max12')
+        with self.assertRaises(index.RecipeDriftError):
+            index.put_vector(self.conn, self.add('/b.flac'), self.vec(),
+                             model='m', recipe='max8')
+
+    def test_the_same_recipe_is_a_no_op(self):
+        for path in ('/a.flac', '/b.flac'):
+            index.put_vector(self.conn, self.add(path), self.vec(),
+                             model='m', recipe='max12')
+        self.assertEqual(index.count_vectors(self.conn), 2)
+
+    def test_clearing_the_table_makes_a_new_recipe_legal(self):
+        """The escape hatch, and the only one: change the recipe, clear the
+        table, re-run. Changing the recipe and ADDING is what raises."""
+        tid = self.add('/a.flac')
+        index.put_vector(self.conn, tid, self.vec(), model='m', recipe='max12')
+        self.conn.execute('DELETE FROM local_vectors')
+        index.put_vector(self.conn, tid, self.vec(), model='m', recipe='max8')
+        self.assertEqual(index.get_meta(self.conn, 'recipe:local_vectors'), 'max8')
+
+    def test_a_write_without_a_recipe_does_not_disturb_the_stamp(self):
+        """§8.4's descriptor path passes no recipe. It must not clear the neural
+        arm's stamp by omission — the check is opt-in, not opt-out."""
+        tid = self.add('/a.flac')
+        index.put_vector(self.conn, tid, self.vec(), model='m', recipe='max12')
+        index.put_vector(self.conn, self.add('/b.flac'), self.vec(), model='m')
+        self.assertEqual(index.get_meta(self.conn, 'recipe:local_vectors'), 'max12')
+
+    def test_it_is_a_config_drift_error(self):
+        """A subclass, so a caller guarding against "these vectors are not
+        comparable" catches both kinds with one except."""
+        self.assertTrue(issubclass(index.RecipeDriftError, index.ConfigDriftError))
+
+    def test_unknown_table_is_refused(self):
+        with self.assertRaises(ValueError):
+            index.assert_recipe(self.conn, 'items; DROP TABLE tracks', 'r')
+
+
+class IngestScanTest(IndexTestCase):
+    """The walk lives here because `tracks` is the scan table AND the ledger, and
+    two callers each filling it their own way is how two subtly different scans
+    end up in one index."""
+
+    def setUp(self):
+        super().setUp()
+        self.library = os.path.join(self.tmp, 'library')
+        os.makedirs(os.path.join(self.library, 'artist', 'album'))
+        self.files = []
+        for name in ('01. a.flac', "02. Today's [16B].flac", '03. b.mp3'):
+            full = os.path.join(self.library, 'artist', 'album', name)
+            with open(full, 'wb') as handle:
+                handle.write(b'not really audio')
+            self.files.append(full)
+
+    def test_walks_the_extensions_it_is_given(self):
+        found = index.ingest_scan(self.conn, root=self.library)
+        self.assertEqual(found, 2)                     # the .mp3 is not an AUDIO_EXT
+        paths = [r['path'] for r in self.conn.execute('SELECT path FROM tracks')]
+        self.assertTrue(any("Today's" in p for p in paths))
+
+    def test_rescanning_preserves_the_ledger(self):
+        """A second scan of an unchanged library must not reset progress — that
+        would silently re-do a finished multi-hour run."""
+        index.ingest_scan(self.conn, root=self.library)
+        row = index.track_by_path(self.conn, self.files[0])
+        index.put_vector(self.conn, row['id'], self.vec(), model='m')
+        index.mark_ok(self.conn, row['id'], duration=1.0)
+        self.conn.commit()
+
+        index.ingest_scan(self.conn, root=self.library)
+        self.assertEqual(len(index.pending(self.conn, 'local_vectors')), 1)
+        self.assertEqual(index.track_by_path(self.conn, self.files[0])['status'],
+                         index.OK)
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -5,8 +5,9 @@
 > date for when he comes back to them, not as active work.
 >
 > **▶ §8 is the active section.** The music vector space, chunked 2026-08-18 — that's the work in
-> front of us. §8.0–§8.5 are done; **§8.6, the backfill run, is next — and read the throughput
-> note in §8.5 before starting it.** Design record: [ALGORITHMS.md](ALGORITHMS.md). LazurOS bring-up
+> front of us. **§8.0–§8.7 are ALL DONE as of 2026-08-19 — M4's gate PASSED**, read over the
+> 1,506 tracks encoded before Jag stopped the backfill (this is not the final library). M5–M7
+> are named at the tail below, unscheduled. Design record: [ALGORITHMS.md](ALGORITHMS.md). LazurOS bring-up
 > ([LAZUROS_STARTUP.md](LAZUROS_STARTUP.md)) comes *after* §8's gate and is still not tracked
 > here.
 
@@ -195,7 +196,9 @@ below: [ALGORITHMS.md §4](ALGORITHMS.md). This section carries the chunks; that
 reasoning, and a second copy of the reasoning is a second thing to keep true.
 
 **Chunks stop dead at §8.7, the M4 similarity gate.** M5–M7 are named at the tail, not planned —
-M4 is a stop-the-world gate and chunking past it is planning on faith.
+M4 is a stop-the-world gate and chunking past it is planning on faith. **§8.7 passed 2026-08-19,
+so that gate is now open** — M5–M7 may be chunked when Jag wants them, and the first question
+either way is which library the space is finally built over.
 
 ### The dependency budget — a hard constraint, not a preference
 
@@ -492,33 +495,119 @@ re-proposed:
     It needs a byte-level BPE tokenizer built against the `vocab.json`/`merges.txt` beside it —
     ~70 lines, no new dependency — and it belongs to §8.7's query surface, not here.
 
-- [ ] **8.6 M3b — the backfill run `[FEAT-M]`.** Windowed embeddings at the model's native window
-      (~10 s, 50% overlap) → mean-pool → L2-normalise → `local_vectors`. Expect **~1.5–3 h wall
-      clock**; progress and throughput to stderr.
-  - ⚠️ **Resumable from the first commit** (Trap 17), not after the first multi-hour run dies.
-    The ledger *is* the index — `tracks` LEFT JOIN `local_vectors`, commit per track, Ctrl-C
-    safe. A run that dies at 9,000 restarts at 9,000.
-  - ⚠️ **CIFS is the bottleneck**, not the FFT and not the model. Parallel decode workers
-    (`subprocess` releases the GIL, so threads are correct here) feeding a **serial** ONNX
-    session with `intra_op_num_threads` set. Do **not** give both the readers and the model 16
-    threads.
-  - `--limit N` and `--artist NAME` flags so a full run is never needed to test something. Design
-    requirement, not convenience.
-  - ⚠️ **Failures are data.** A corrupt or zero-length FLAC marks its row failed and the batch
-    continues. One bad file must not kill a 2-hour run.
+- [x] **8.6 M3b — the backfill run `[FEAT-M]` — BUILT 2026-08-18, `music/backfill.py`, 278 tests
+      green. RUN STOPPED DELIBERATELY AT 1,506 / 15,326 TRACKS, 2026-08-19** — Jag's call: this
+      is not the library the space will finally be built over, so there was no reason to spend
+      3.6 h encoding it. 0 failures over those 1,506. §8.7 was then read over what exists, which
+      is what changed its shape (see below). Re-running is one command and resumes by
+      construction — progress is the absence of a join partner, not a counter.
+  - **The window cap was the decision, and cosine was the wrong way to make it.** §8.5 left
+    `MAX_WINDOWS` at `None` for this chunk to pull with numbers in hand. Cosine against the
+    all-windows pool answers *how far the vector moved*; M4 reads a **ranking**. Measured over
+    71 tracks from 8 complete albums — the closest pairs in the library, so the ranking most
+    easily disturbed:
 
-- [ ] **8.7 M4 — THE GATE `[opus]`.** `query.py`: load the whole matrix into one numpy array,
-      L2-normalised, `M @ q`, top-k. ⚠️ Trap 18: **no ANN index.** 15,326 × 2048 float32 is
-      125 MB and one matmul.
-  - **Both arms side by side** — the same query as two columns, neural and descriptor, with
-    artist/album read off the path.
-  - **The hand check: pick 5–10 tracks you know cold and read the lists.** Do not automate this
-    judgement; it *is* the gate.
-  - Objective proxies *alongside* the hand check, never instead of it: same-album and same-artist
-    neighbour rates. Embeddings should beat descriptors on both.
-  - ⚠️ **STOP CONDITION.** If the descriptors win, something upstream is broken — extraction, a
-    windowing config mismatch, pooling, or normalisation. Fix it. **Nothing past this step on
-    faith**; everything downstream is decoration on a broken foundation.
+    | cap | NN agrees | top-5 overlap | **NN shares an album** | cos to full | wall clock |
+    |---|---|---|---|---|---|
+    | 8 | 0.746 | 0.839 | **0.901** | 0.991 | ~2.2 h |
+    | **12** | **0.873** | **0.899** | **0.887** | **0.997** | **~3.5 h** |
+    | 16 | 0.873 | 0.952 | **0.887** | 0.999 | ~4.7 h |
+    | all (median 41) | 1.000 | 1.000 | **0.887** | 1.000 | ~15 h |
+
+    **The quality column is flat.** The disagreements are tie-breaks: album-mates sit at mean
+    cosine **+0.868** against +0.443 for everything else, so *which* album-mate ranks first
+    flips between two defensible estimates of the same track. **12 chosen** — the smallest cap
+    where agreement plateaus, at 4× the speed. The uncapped pool is not ground truth; it is
+    just the uncapped recipe.
+  - ⚠️ **THE MEL BELONGS TO THE READERS, AND THAT IS A 33% WIN.** It costs 30 ms/window against
+    the model's 58 ms, so computing it on the main thread adds a third to the wall clock while
+    three reader threads sit blocked on the wire. `encoder.py` is now split into
+    `window_features` (parallel) and `embed_features` (serial) — which also means **the only
+    part of the backfill needing the weights is one function**, so stubbing that single seam
+    puts every line of the run under test with no model at all (21 new tests, no onnxruntime).
+  - ⚠️ **WHAT CROSSES THE QUEUE IS A FEATURE TENSOR, NOT A SIGNAL.** The library's longest file
+    is a **two-hour, 545 MB FLAC that decodes to 1.4 GB** of float32; a bounded queue of decoded
+    *signals* with several in flight is the OOM. A tensor is **3.1 MB**, bounded by the cap.
+  - **Every other number measured, not assumed:** decode parallelism plateaus at 3 readers
+    (81 → 107 → **110** → 109 → 112 MB/s at 1/2/3/4/8) · the ONNX thread sweep is
+    0.291/0.162/0.094/**0.058**/0.087 s per window at 1/2/4/8/16, so 8 = the physical core count
+    and the hyperthread pairs past it contend · batch 4 not 8 (0.058 vs 0.066 s/window,
+    **1.12 track/s against 1.05** end to end).
+  - **A second alarm, one level up from Trap 16.** `config.signature()` fingerprints how a mel
+    is *built* and says nothing about **which mels a vector is the mean of**. `index.assert_recipe`
+    stamps `encoder.recipe()` per table and refuses to *add* under a different one. In `meta`,
+    not as a column: `local_vectors` is the shape LazurOS declares, and the port target stays
+    pristine.
+  - ⚠️ **AN EARLY READ AT ~1,000 TRACKS FOUND SOMETHING §8.7 MUST HANDLE: 20% of tracks are in an
+    exact-duplicate group** (a single and its album — AFI alone has four copies of one track),
+    and **22.9% have an exact duplicate as their nearest neighbour**. The naive "NN shares an
+    album" proxy counts every one of those as a MISS while it is the most correct answer
+    possible: 0.349 raw, **0.579** counting a duplicate as a hit, 0.453 over the tracks whose NN
+    is not a duplicate. **§8.7 must not compare the two arms on that raw number, and must not
+    compare them on different track sets** — §8.4's 49.2% was measured over 887 tracks selected
+    as complete spread albums, not over the first N by path. (It also proves the pipeline is
+    exactly deterministic: two *differently encoded* FLACs of one song, 30.6 MB and 31.0 MB,
+    produced bit-identical vectors.)
+  - **`music/control.py` — a Resume/Stop button and a progress bar, and it is scaffolding.**
+    stdlib `http.server`, one file, bound to **127.0.0.1 only** (it starts processes and has
+    no auth). It starts the run detached, so closing the panel does not kill it, and Stop
+    sends SIGINT so the run drains and summarises. **Not in KourOS**, which was the ask: that
+    container mounts `/data` and nothing else — no `MUSIC_DIR`, no python, no ffmpeg, no
+    281 MB graph — and the run lives on the desktop, so a button there would be decoration.
+    The JSON (`/api/status`, `/api/start`, `/api/stop`) is what a KourOS panel would call if
+    the pipeline ever moves onto the host. Nothing imports it; deleting it costs one `rm`.
+  - Also: `--scan`/`--limit`/`--artist`/`--retry-failed`/`--failures`/`--status`; the scan itself
+    moved into `index.ingest_scan` so §8.4 and §8.6 cannot fill `tracks` two subtly different
+    ways; `tracks.status` is shared by both arms, so a failure here also drops the row from the
+    descriptor queue (right for an unreadable file, which is the failure that happens).
+
+- [x] **8.7 M4 — THE GATE `[opus]` — BUILT + PASSED 2026-08-19, `music/query.py`, 321 tests
+      green.** `Arm` (load → L2 → `M @ q` → `argpartition`), `align`, the duplicate-aware
+      proxies, the side-by-side sheet. No ANN index, Trap 18 intact.
+  - **Both arms were brought onto ONE population before anything was measured.** The neural
+    backfill ran in path order and stopped inside artist six; §8.4's descriptors were 887 tracks
+    chosen as complete albums across 39 artists. **The two tables overlapped by 95 rows** — a
+    comparison over those would have been a comparison of two libraries. `index.pending(...,
+    having='local_vectors')` + `descriptors.py --build --encoded` filled the gap: 1,411 tracks,
+    ~9 min at 2.6 track/s, 0 failures. Both arms now hold all 1,506.
+  - **THE GATE PASSED, and the ranking margin is not close:**
+
+    | over 1,506 tracks · 338 albums · 6 artists | NN album | credited | clean | NN artist | gap/σ |
+    |---|---|---|---|---|---|
+    | **neural (CLAP 512-d)** | **40.0%** | **72.2%** | **58.4%** | **94.2%** | **1.23** |
+    | descriptor (119-d) | 29.0% | 62.2% | 42.6% | 85.3% | 1.21 |
+    | *chance* | *0.9%* | — | — | *22.1%* | — |
+
+    The hand check (`--hand`, and it is the gate) agrees: an AFI live track returns six
+    neighbours off the same live album where the baseline breaks the run at rank 2 with a
+    Bowling For Soup song; an Atwood live-session take returns the rest of that session while
+    the baseline returns the studio cut of the same song — both defensible, and the neural list
+    is the coherent one.
+  - ⚠️ **THE FIRST RUN REPORTED THE BASELINE WINNING, AND THE CRITERION WAS THE BUG.** On
+    "album-mates minus strangers" descriptors score +0.4125 against neural's +0.3161. Both
+    numbers are right and the comparison is meaningless: the descriptor space is z-scored and
+    **centred** (strangers at −0.026), CLAP's is a narrow **anisotropic cone** (strangers at
+    +0.475, nothing in the library below +0.03). A raw difference of means measures how *wide*
+    each space is, so the wider space wins by construction. **`gap/σ` divides out offset and
+    scale**, and it agrees with all three ranking measures. Both are printed; only the
+    standardised one is compared.
+  - ⚠️ **1,131 FILES (7.4%) SIT ONE LEVEL DEEPER — `<artist>/<album>/Disc N/<file>` — AND IT WAS
+    SILENTLY COSTING BOTH ARMS.** Read naively, `Disc 1` is the album and **the album title is
+    the artist**, so a deluxe edition is a different band from the record it doubles. No error,
+    no NaN: just a same-artist rate a few points low for *both* arms, which is what a comparison
+    hides by depressing it evenly. Found by a check written to audit something else — 184
+    NN pairs at cosine **1.00000** the path called different songs. Fixed at the single source
+    (`descriptors.album_of`, which `query` imports rather than re-deriving). **Duplicate-audit
+    agreement 47.0% → 98.8%; NN artist 78.0% → 94.2%; "12 artists" → the 6 that exist.**
+  - ⚠️ **The duplicate correction is read off the PATH, never off a cosine.** "Count cosine ≥
+    0.999 as a hit" hands the coarser space free hits from the very measurement meant to judge
+    it. `song_key()` uses the same evidence for both arms, and `duplicate_audit()` checks that
+    heuristic *against* the cosines rather than trusting it — which is what caught the disc bug.
+  - **§8.4's gate re-run under the corrected shelf reader and still PASSES** (2,298 descriptors:
+    album +0.3740, artist +0.1567, stranger −0.0053; NN album 32.9% vs 0.6% chance, NN artist
+    69.9% vs 10.0%). ⚠️ **Not comparable to the published 49.2%** — that was 887 tracks over 39
+    artists, this is 2,298 over 38 with a far denser duplicate population competing for the NN
+    slot. Different population, not a regression.
 
 **After the gate — unscheduled, named not planned.** M5 walking shuffle (also needs the KourOS
 `MUSIC_DIR` mount, §3 — Jag's call) · M6 library map (**PCA via `np.linalg.svd`, not UMAP** —

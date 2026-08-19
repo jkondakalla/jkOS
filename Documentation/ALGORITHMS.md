@@ -447,9 +447,73 @@ Four decisions worth fixing now because they are expensive to change later:
 | Query with brute-force cosine in numpy | ⚠️ The "384-d ≈ 23 MB, fits in L3" figure was derived from `bge-small-en-v1.5` — the **text** model in LazurOS's embedding slot, not an audio encoder. **Settled 2026-08-18: the chosen encoder is 512-d, so the matrix is 15,326 × 512 float32 = 31 MB.** Brute force wins comfortably; reaching for an ANN index is optimising a problem you do not have. The L3 claim does not survive, but it never needed to. |
 | Resumable by construction | State lives in the index, not in memory. A run that dies at track 9,000 restarts at 9,000. |
 
+#### M3b — the backfill run (ToDo §8.6, `music/backfill.py`, 2026-08-18)
+
+    tracks LEFT JOIN local_vectors → decode → 12 windows → mel → CLAP → mean-pool → L2
+                                   → local_vectors, ONE COMMIT PER TRACK
+
+**The window cap was the decision, and cosine was the wrong way to make it.** §8.5 left
+`MAX_WINDOWS` at `None` for this step to pull with numbers in hand. The obvious measure —
+cosine of the capped pool against the all-windows pool — answers *how far the vector moved*,
+and M4 reads a **ranking**, not a vector. So the cap was measured over 71 tracks from 8
+complete albums (the closest pairs in the library, and therefore the ranking most easily
+disturbed) by whether the capped space returns the same neighbours:
+
+| cap | NN agrees with uncapped | top-5 overlap | **NN shares an album** | cos to full pool | wall clock |
+|---|---|---|---|---|---|
+| 6 | 0.662 | 0.789 | **0.915** | 0.983 | ~1.6 h |
+| 8 | 0.746 | 0.839 | **0.901** | 0.991 | ~2.2 h |
+| **12** | **0.873** | **0.899** | **0.887** | **0.997** | **~3.6 h** |
+| 16 | 0.873 | 0.952 | **0.887** | 0.999 | ~4.7 h |
+| all (median 41) | 1.000 | 1.000 | **0.887** | 1.000 | ~15 h |
+
+**The bolded column is the flat one.** How often the nearest neighbour shares an album — the
+only column that says whether the answer is any *good* — does not degrade at any cap. What the
+disagreements are is **tie-breaking**: album-mates sit at mean cosine **+0.868** against
+**+0.443** for everything else, so "which album-mate ranks first" flips between two vectors
+that are both defensible estimates of the same track. The uncapped pool is not ground truth;
+it is simply the uncapped recipe. **12 chosen** — the smallest cap where agreement reaches its
+plateau, at 4× the speed.
+
+**The arrangement, with every number measured on this machine:**
+
+| | |
+|---|---|
+| **The mel belongs to the readers, and that is a 33% win** | It costs **30 ms** per window against the model's **58 ms**. Computing it on the main thread adds a third to the wall clock while three reader threads sit blocked on the network. So `encoder.py` splits into `window_features` (decode-adjacent, numpy, parallel) and `embed_features` (one session, serial) — which also means the ONLY part of the backfill needing the weights is one function, and stubbing that one seam puts every line of the run under test with no model at all. |
+| **Decode parallelism plateaus at 3** | Measured over 24 uncached tracks per setting: 1 worker **81 MB/s**, 2 → 107, 3 → 110, 4 → 109, 8 → 112. The share gives ~35% over a single stream and then nothing. Three readers supply ~4 tracks/s against a model that consumes ~1.4. |
+| ⚠️ **What crosses the queue is a feature tensor, not a signal** | The library's longest file is a **two-hour, 545 MB FLAC that decodes to 1.4 GB** of float32. A bounded queue of decoded *signals* with several of those in flight is an OOM waiting to happen. The tensor is **3.1 MB** and bounded by the cap, so peak memory is a reader's transient decode buffer and nothing else. |
+| **8 model threads, batch 4** | The thread sweep is 0.291 / 0.162 / 0.094 / **0.058** / 0.087 s per window at 1 / 2 / 4 / 8 / 16 — 8 is the physical core count and the hyperthread pairs past it contend. Batch size is nearly noise but not quite: 0.058 at 1 and 4, **0.066 at 8**, so a 12-window track fed as 8+4 is ~7% slower than as 4+4+4. Measured again end to end: **1.05 track/s at batch 8, 1.12 at batch 4.** |
+| **One writer, one commit per track** | The sqlite connection is touched only by the main thread; WAL and `synchronous=NORMAL` make a commit per track cheap. Ctrl-C sets a stop flag, drains the readers and prints a summary — the index is consistent at every instant, and re-running resumes. |
+| **`config.using(config.ENCODER)` wraps the WHOLE run, once** | The profile swaps *module globals*, so it is process-wide rather than thread-local. The readers must be inside one context, not each opening their own — which is exactly why `config.using` allows re-entering the same profile and refuses a different one. |
+
+**A second alarm, one level up from Trap 16.** The config signature fingerprints how a mel is
+*built*; it says nothing about **which mels a track's vector is the mean of** — the window
+length, the overlap, the cap, the pooling rule, the model. Two vectors of one track pooled from
+12 windows and from 41 sit at cosine ~0.997: not the "silent and total" corruption Trap 16
+names, but still two recipes in one space and exactly the kind of difference nobody remembers a
+year later. So `index.assert_recipe` stamps `encoder.recipe()` per table and refuses to *add*
+under a different one, with the same escape hatch as the config alarm — clear the table, re-run.
+It lives in `meta` rather than as a column because `local_vectors` is the shape LazurOS already
+declares, and the port target stays pristine.
+
+**Not taken, so it is not re-derived:** decoding only the seconds the 12 windows need, via
+ffmpeg `-ss`/`-t`. It would be 12 subprocess spawns and 12 network seeks per track against ONE
+whole-file read that already costs 0.38 s and is fully hidden behind the model — and a second
+decode path whose sample alignment would have to be argued rather than observed.
+
 ### M4 — the gate
 
 **Query the ten nearest tracks to something you know well, by hand, and read the list.**
+
+> ⚠️ **Two ways the objective proxy lies, both found while §8.6 ran.** (a) **Exact duplicates**:
+> ~20% of this library is a single that also appears on its album — AFI alone has four copies of
+> one track — and at an early read **22.9% of tracks had an exact duplicate as their nearest
+> neighbour**, which "shares an album" scores as a *miss* while it is the most correct answer
+> possible (0.349 raw, **0.579** counting a duplicate as a hit). (b) **The two arms must be read
+> over the SAME tracks**: §8.4's 49.2% came from 887 tracks chosen as complete albums spread over
+> 39 artists, and a slice of the library by path order is ten artists and a different population.
+> A useful side effect: two *differently encoded* FLACs of one song (30.6 MB and 31.0 MB)
+> produced **bit-identical** vectors, which is the end-to-end determinism check nobody wrote.
 
 If similarity is wrong, the cause is upstream — extraction, pooling, or normalisation — and
 everything downstream is decoration built on a broken foundation. **Do not proceed past this
@@ -459,16 +523,63 @@ embeddings, something in the embedding path is wrong, because they should not.
 Steps M1–M4 are the standalone deliverable and the point at which LazurOS work can begin in
 parallel.
 
-> ⚠️ **Measured at §8.5, and it contradicts M3b's wall-clock estimate.** One 10-second window
-> costs **0.084 s** on this machine with the ONNX session given 8 threads — and threads past 8
-> buy nothing, so the model already saturates the CPU and parallel workers cannot rescue it.
-> **This is the one stage where Trap 19 does not apply: the model is the bottleneck, not the
-> wire.** A four-minute track at 50% overlap is 48 windows ≈ 4.0 s, which over 15,326 tracks is
-> **~17 hours**, not the 1.5–3 h M3b assumes. The lever is a cap on windows per track, evenly
-> spaced so the span still covers the whole track: 12 windows ≈ 4.3 h, 8 windows ≈ 2.9 h, and
-> mean-pooling converges quickly enough that the cost is small. `encoder.MAX_WINDOWS` exists and
-> is left at `None`, so this is a decision M3b makes with the numbers in hand rather than a
-> default nobody chose.
+#### What the gate actually read (2026-08-19, `music/query.py`)
+
+**The backfill was stopped deliberately at 1,506 tracks** — Jag's call, on the grounds that this
+is not the final library — so M4 was read over what had been encoded rather than over 15,326.
+Both arms were first brought onto that same population (`descriptors.py --build --encoded`,
+1,411 tracks in ~9 min at 2.6 track/s), because §8.7's second proxy lie is precisely the one
+that looks like nothing.
+
+| over 1,506 tracks in **both** arms · 338 albums · 6 artists | NN album | credited | clean | NN artist | gap/σ |
+|---|---|---|---|---|---|
+| **neural (CLAP 512-d)** | **40.0%** | **72.2%** | **58.4%** | **94.2%** | **1.23** |
+| descriptor (119-d) | 29.0% | 62.2% | 42.6% | 85.3% | 1.21 |
+| *chance* | *0.9%* | — | — | *22.1%* | — |
+
+The neural arm wins every criterion, decisively on ranking and by a whisker on separation. The
+hand check agrees: an AFI live track returns six neighbours off the same live album where the
+baseline breaks the run at rank 2 with a Bowling For Soup song; an Atwood live-session take
+returns the rest of that session. **Gate passed. M5–M7 are unblocked.**
+
+> ⚠️ **THE RAW COSINE GAP IS NOT A COMPARABLE STATISTIC, AND IT REVERSES THE VERDICT.** The first
+> run of this gate reported the *baseline winning* on "album-mates minus strangers": descriptors
+> +0.4125, neural +0.3161. Both numbers are correct and the comparison is meaningless. The
+> descriptor space is z-scored across the corpus and therefore **centred** — strangers sit at
+> −0.026 and it uses its whole range — while CLAP's space is a narrow **anisotropic cone** in
+> which no two tracks in the library score below +0.03 and strangers average +0.475. Subtracting
+> one mean from another measures how *wide* each space is, not how well either separates music,
+> and the wider space wins by construction. Dividing by the stranger spread removes offset and
+> scale together, and the standardised gap agrees with all three ranking measures. **A gate
+> criterion that is not invariant to the shape of the space is not measuring the arms.**
+
+> ⚠️ **THE SHELF IS NOT UNIFORMLY THREE LEVELS DEEP, AND THE COST WAS INVISIBLE.** 1,131 of the
+> 15,326 files — 7.4%, every one a multi-disc release — sit at `<artist>/<album>/Disc N/<file>`.
+> Read as `<artist>/<album>/<file>`, `Disc 1` becomes the album and **the album title becomes the
+> artist**, so a deluxe edition is a different band from the record it is a deluxe edition of.
+> The symptom is not an error: it is a same-artist rate a few points low for *both* arms at once,
+> which is exactly what a comparison hides by depressing it evenly. It surfaced from a check
+> written to audit something else — 184 nearest-neighbour pairs at cosine **1.00000** that the
+> path claimed were different songs, every one of them `Crash Love` against
+> `Crash Love (Deluxe)/Disc 1`. Folding disc directories into their parent moved the
+> duplicate audit's agreement from **47.0% to 98.8%**, the artist rate from 78.0% to 94.2%, and
+> the encoded population from "12 artists" to the 6 that actually exist.
+
+> ⚠️ **The duplicate correction is read off the PATH, never off a cosine.** "Count a neighbour at
+> cosine ≥ 0.999 as a hit" silently rigs the comparison: a 119-dimension z-scored space puts
+> near-1 pairs within reach of two different masterings far more easily than a 512-d one does, so
+> the coarser arm collects free hits from the measurement meant to judge it. `song_key()` reads
+> the artist directory and the folded filename — the same evidence for both arms — and
+> `duplicate_audit()` then checks that heuristic *against* the cosines instead of trusting it,
+> which is what caught the disc bug above.
+
+> ⚠️ **The wall-clock estimate M3b inherited was wrong, and M3b settled it.** Uncapped, one
+> 10-second window costs 0.058 s of model time and the median track is 41 windows — **~15 hours**
+> over 15,326 tracks, not the 1.5–3 h this step assumed. **This is the one stage where Trap 19
+> does not apply: the model is the bottleneck, not the wire**, so parallel workers cannot rescue
+> it and the only lever is how many windows a track gets. Capped at **12 evenly spaced windows**
+> the run is **~3.6 h** and the neighbour lists do not measurably change — the table under M3b
+> above is the measurement that decided it.
 
 ### What it demonstrates
 
@@ -810,11 +921,15 @@ Consolidated so a cold agent hits none of them.
     module. A model fed the wrong sample rate returns confident garbage.
 17. **M3 must be resumable** from the first commit, not after the first 3-hour run dies.
 18. **Do not reach for an ANN index.** Tens of MB of vectors is a brute-force problem.
-19. **The library is on a CIFS mount** (`//192.168.1.108/Luna`), measured **85–96 MB/s** —
-    ~380 GB of FLAC is ~75 min of pure single-stream read. **The network filesystem is the
-    bottleneck, not the FFT and not the model.** Parallel decode workers feeding a *serial*
+19. **The library is on a CIFS mount** (`//192.168.1.108/Luna`), measured **85–96 MB/s**
+    single-stream and **~110 MB/s with 3 readers** — it plateaus there, so a fourth reader buys
+    nothing. ~380 GB of FLAC is ~75 min of pure read. Parallel decode workers feeding a *serial*
     encoder session; do not give both 16 threads. **Confirmed end-to-end 2026-08-18:** a real
     51.8 MB decode ran at **88 MB/s**, i.e. at the wire speed — the CPU side of decode is free.
+    ⚠️ **But at M3b the model overtakes it** (0.058 s/window against a 0.38 s whole-track read),
+    so from §8.6 on, the readers are the cheap half: give them the **mel** as well as the decode,
+    and hand the serial session a feature tensor rather than a decoded signal — the library's
+    longest file decodes to **1.4 GB**, and a queue of those is the OOM.
 20. **Paths are hostile** — `again&again`, `Today's Lesson.flac`, `[16B-44.1kHz]`. **Never
     `shell=True`;** argv lists everywhere. This bit during the first probe of the library.
 

@@ -68,27 +68,63 @@ URL = f'https://huggingface.co/{MODEL_ID}/resolve/{REVISION}/{MODEL_FILE}'
 WINDOW_SECONDS = 10.0
 OVERLAP = 0.5
 
-# ⚠️ **MEASURED, AND IT CONTRADICTS §8.6's WALL-CLOCK ESTIMATE.** On this machine
-# (Ryzen 7 5800XT, 8c/16t) one window costs **0.084 s** with the session given 8
-# threads — and threads past 8 buy nothing, so the model already saturates the
-# CPU and parallel workers cannot rescue it. A four-minute track at 50% overlap
-# is 48 windows ≈ **4.0 s of model time**, which over 15,326 tracks is
-# **~17 hours**, not the 1.5–3 h §8.6 budgets. Decode is no longer the bottleneck
-# at this stage; the model is (which is the one place Trap 19 does NOT apply).
+# ⚠️ **THE LEVER §8.5 LEFT FOR §8.6 TO PULL, NOW PULLED AT 12 — AND THE NUMBER
+# WAS CHOSEN BY THE ANSWERS IT CHANGES, NOT BY A COSINE.** Uncapped, the median
+# track is 41 windows; at 0.058 s of model time each that is 15 hours over 15,326
+# tracks, against §8.6's 1.5–3 h budget.
 #
-# `MAX_WINDOWS` is the lever, and it is left at None here so this module matches
-# what §8.6 specifies rather than quietly redefining it. Capping at 12 evenly
-# spaced windows still covers the whole track and costs ~4.3 h; at 8, ~2.9 h,
-# which is the stated budget. Mean-pooling converges quickly, so the cost of the
-# cap is small — but it IS a change to the spec, and §8.6 should make it with
-# these numbers in hand rather than inherit it as a default nobody chose.
-MAX_WINDOWS = None
+# The obvious way to pick a cap is cosine against the all-windows pool, and it is
+# the wrong measure: §8.7 reads a RANKING, not a vector. So the cap was measured
+# over 71 tracks from 8 complete albums — the closest pairs in the library and
+# therefore the ranking most easily disturbed — by whether the capped space
+# returns the same neighbours:
+#
+#     cap   NN agrees   top-5 overlap   NN shares an album   cos to full pool
+#       6       0.662           0.789                0.915            0.98301
+#       8       0.746           0.839                0.901            0.99130
+#      12       0.873           0.899                0.887            0.99716
+#      16       0.873           0.952                0.887            0.99882
+#     all       1.000           1.000                0.887            1.00000
+#
+# **The quality column is the flat one.** How often the nearest neighbour shares
+# an album — the only column that says whether the answer is any GOOD — does not
+# degrade at any cap; at 6 it is nominally higher. What the disagreements are is
+# tie-breaking: album-mates sit at mean cosine **+0.868** against +0.443 for
+# everything else, so "which album-mate ranks first" flips between two vectors
+# that are both defensible estimates of the same track. The full pool is not
+# ground truth here; it is simply the uncapped recipe.
+#
+# 12 buys a 3.4× speedup for a top-5 list that agrees 9 times in 10 and no
+# measurable loss of quality. It is the smallest cap where NN agreement reaches
+# its plateau. **It changes the vectors, so it is stamped into the index** — see
+# `recipe()` and `index.assert_recipe`.
+MAX_WINDOWS = 12
 
-# ⚠️ ONE thread for the model, deliberately (Trap 19). §8.6 runs parallel decode
-# workers because the wire is the bottleneck; giving the ONNX session 16 threads
-# as well oversubscribes the machine and makes both halves slower. Overridable
-# for a machine where the model IS the bottleneck, which this one is not.
-INTRA_OP_THREADS = int(os.environ.get('MUSIC_ONNX_THREADS', '4'))
+# ⚠️ **8, MEASURED — AND 16 IS SLOWER THAN 8 ON A 16-THREAD MACHINE.** Trap 19
+# says the wire is the bottleneck and the model should not be given every core;
+# §8.5 measured that at this stage the model is the bottleneck instead. Both are
+# true, and the number that settles it is the sweep (per-window, 1001×64 input):
+#
+#     threads    1       2       4       8      16
+#     s/window   0.291   0.162   0.094   0.058   0.087
+#
+# 8 is the knee — it is the physical core count, and the four hyperthread pairs
+# past it contend rather than add. That leaves half the machine for §8.6's decode
+# readers, which is exactly the split Trap 19 asks for.
+INTRA_OP_THREADS = int(os.environ.get('MUSIC_ONNX_THREADS', '8'))
+
+# Windows per session call. Batching buys fewer Python round trips, and it is
+# ALMOST noise — but not quite, and not in the direction one would guess:
+# 0.058 s/window at batch 1 and at batch 4, **0.066 at batch 8**. A 12-window
+# track fed as 8+4 therefore spends ~7% longer in the model than the same track
+# fed as 4+4+4, which §8.6 measured end to end as 1.05 against 1.12 track/s. So
+# the default is the largest size the runtime still likes, not the largest that
+# fits.
+#
+# It is deliberately NOT part of `recipe()`, and that is checked rather than
+# assumed: the same tensor run at batch 1, 4 and 8 comes back **bit-identical**,
+# so batching is a speed knob and not a property of the vector space.
+BATCH_WINDOWS = 4
 
 
 class EncoderError(RuntimeError):
@@ -149,7 +185,7 @@ def session():
 
 
 # ── Windowing ───────────────────────────────────────────────────────────────────
-def windows(x):
+def windows(x, max_windows=None):
     """Yield 10-second windows of the signal at 50% overlap.
 
     A track is minutes long and the model takes ten seconds, so something has to
@@ -164,6 +200,7 @@ def windows(x):
     interlude to 10 seconds would tell the model that 60% of it is silence, which
     is a statement about the padding, not about the music.
     """
+    cap = MAX_WINDOWS if max_windows is None else max_windows
     x = np.asarray(x, dtype=np.float32)
     size = window_samples()
     if x.size == 0:
@@ -178,11 +215,11 @@ def windows(x):
     # dropped when the length is not a whole number of hops.
     if starts[-1] + size < x.size:
         starts.append(x.size - size)
-    if MAX_WINDOWS and len(starts) > MAX_WINDOWS:
+    if cap and len(starts) > cap:
         # EVENLY SPACED, never the first N: the first N windows of a long track
         # are its intro, and an index built from intros would rank tracks by how
         # they open. Endpoints are kept so the span still covers the whole track.
-        picks = np.linspace(0, len(starts) - 1, MAX_WINDOWS)
+        picks = np.linspace(0, len(starts) - 1, cap)
         starts = [starts[int(round(i))] for i in picks]
     for start in starts:
         yield x[start:start + size]
@@ -203,13 +240,13 @@ def input_features(window):
     return matrix.T[None, :, :].astype(np.float32)       # (1, frames, mels)
 
 
-def embed_windows(signal, batch_size=8):
-    """Every window of `signal` as a (n_windows, DIM) float32 array.
+def _assert_encoder_profile():
+    """⚠️ Refuse to compute outside `config.using(config.ENCODER)`.
 
-    ⚠️ Refuses to run outside `config.using(config.ENCODER)`. The mel this builds
-    is the model's input, so a mel built under any other profile is the exact
-    silent corruption Trap 16 names — and "remember to enter the context" is not
-    a defence, it is a hope.
+    The mel built here IS the model's input, so a mel built under any other
+    profile is the exact silent corruption Trap 16 names — a confident, finite,
+    unit-norm vector that is simply wrong. "Remember to enter the context" is not
+    a defence, it is a hope, so both halves of the pipeline below check.
     """
     if config.signature() != config.ENCODER.signature():
         raise EncoderError(
@@ -217,25 +254,61 @@ def embed_windows(signal, batch_size=8):
             '`with config.using(config.ENCODER):` — a mel built under any other '
             'profile makes this model return confident garbage (Trap 16).'
         )
+
+
+# ⚠️ **THE PIPELINE IS SPLIT IN TWO HERE, AND THE SPLIT IS §8.6's WHOLE SHAPE.**
+# `window_features` is the parallel half — decode-adjacent, numpy, GIL-releasing,
+# and MEASURED at 30 ms per window against the model's 58 ms. Running it on the
+# main thread alongside the session costs 33% of the run's wall clock for nothing;
+# running it in the decode workers costs nothing at all, because they are idle
+# waiting on the wire. `embed_features` is the serial half — one session, one
+# thread of control, 8 intra-op threads.
+#
+# The split is also what bounds memory. A tensor of 12 windows is **3.1 MB**,
+# where the decoded signal it came from can be **1.4 GB** (the library's longest
+# file is a two-hour, 545 MB FLAC). Handing decoded SIGNALS to a bounded queue
+# would put several of those in flight at once; handing over feature tensors
+# cannot.
+def window_features(signal, max_windows=None):
+    """Every window of `signal` as one (n, 1, frames, mels) float32 tensor.
+
+    The model's axes are (batch, channels, height, width), so this is the
+    batched form of `input_features` — ready to hand straight to the session.
+    """
+    _assert_encoder_profile()
+    frames = [input_features(w) for w in windows(signal, max_windows=max_windows)]
+    if not frames:
+        raise EncoderError('no windows to featurise')
+    return np.concatenate(frames, axis=0)[:, None, :, :].astype(np.float32)
+
+
+def _run_batches(tensor, batch_size):
+    """Run the session over a (n, 1, frames, mels) tensor in batches of
+    `BATCH_WINDOWS`, so a long track under `MAX_WINDOWS=None` never builds one
+    enormous activation."""
     runner = session()
     out = []
-    batch = []
-
-    def flush():
-        if not batch:
-            return
-        tensor = np.concatenate(batch, axis=0)[:, None, :, :]      # (B, 1, frames, mels)
-        out.append(runner.run(['audio_embeds'], {'input_features': tensor})[0])
-        batch.clear()
-
-    for window in windows(signal):
-        batch.append(input_features(window))
-        if len(batch) >= batch_size:
-            flush()
-    flush()
+    for start in range(0, len(tensor), max(1, batch_size)):
+        block = tensor[start:start + max(1, batch_size)]
+        out.append(runner.run(['audio_embeds'], {'input_features': block})[0])
     if not out:
         raise EncoderError('no windows produced an embedding')
     return np.concatenate(out, axis=0).astype(np.float32)
+
+
+def embed_features(tensor, batch_size=BATCH_WINDOWS):
+    """A prepared feature tensor → (n_windows, DIM) float32. §8.6's serial half."""
+    _assert_encoder_profile()
+    tensor = np.asarray(tensor, dtype=np.float32)
+    if tensor.ndim != 4 or tensor.shape[1] != 1 or tensor.shape[3] != config.N_MELS:
+        raise EncoderError(
+            f'expected a (n, 1, frames, {config.N_MELS}) tensor, got shape {tensor.shape}')
+    return _run_batches(tensor, batch_size)
+
+
+def embed_windows(signal, batch_size=BATCH_WINDOWS, max_windows=None):
+    """Every window of `signal` as a (n_windows, DIM) float32 array."""
+    return embed_features(window_features(signal, max_windows=max_windows), batch_size)
 
 
 def pool(window_vectors):
@@ -264,10 +337,10 @@ def pool(window_vectors):
     return (pooled / norm).astype(np.float32)
 
 
-def embed(signal):
+def embed(signal, max_windows=None):
     """One decoded signal → one L2-normalised (DIM,) float32 track vector."""
     with config.using(config.ENCODER):
-        vector = pool(embed_windows(signal))
+        vector = pool(embed_windows(signal, max_windows=max_windows))
     if vector.size != DIM:
         raise EncoderError(f'expected {DIM} dimensions, got {vector.size}')
     if not np.all(np.isfinite(vector)):
@@ -275,13 +348,13 @@ def embed(signal):
     return vector
 
 
-def embed_file(path):
+def embed_file(path, max_windows=None):
     """`(vector, duration_seconds)` for one audio file, decoded at the ENCODER
     profile's sample rate — 48 kHz, not the baseline's 22.05 kHz."""
     import audio
     with config.using(config.ENCODER):
         signal = audio.decode(path, sr=config.SR)
-        vector = pool(embed_windows(signal))
+        vector = pool(embed_windows(signal, max_windows=max_windows))
         seconds = audio.duration_of(signal, sr=config.SR)
     return vector, seconds
 
@@ -323,7 +396,23 @@ def provenance():
     """What gets stamped into `local_vectors` — the answer to 'which model made
     this vector', per row, because §8.5 may well try more than one."""
     return {'model': MODEL_ID, 'revision': REVISION, 'dim': DIM,
-            'config_sig': config.ENCODER.signature()}
+            'config_sig': config.ENCODER.signature(), 'recipe': recipe()}
+
+
+def recipe(max_windows=None):
+    """The pooling policy as one short string, for `index.assert_recipe`.
+
+    ⚠️ **`config.signature()` does not cover this, and it changes the vectors.**
+    The profile fingerprints how a mel is built; the window length, the overlap
+    and the cap decide which mels a track's vector is the mean OF. Two vectors
+    pooled from 12 windows and from 41 sit at cosine ~0.997 — not the "silent and
+    total" corruption Trap 16 names, but still two recipes in one space, and the
+    kind of difference nobody remembers a year later. So it is recorded where the
+    vectors are, and drift raises rather than mixes.
+    """
+    cap = MAX_WINDOWS if max_windows is None else max_windows
+    return (f'{MODEL_ID}@{REVISION[:8]}/w{WINDOW_SECONDS:g}s/ov{OVERLAP:g}/'
+            f'max{cap or "none"}/meanpool-l2')
 
 
 def _main(argv=None):
@@ -453,22 +542,14 @@ def verify(paths=None, stream=None):
     return all(checks)
 
 
-def embed_windows_unchecked(signal, batch_size=8):
+def embed_windows_unchecked(signal, batch_size=BATCH_WINDOWS):
     """`embed_windows` without the profile assertion — for `verify()` alone, which
     deliberately runs the model on a WRONG mel to prove it notices. Nothing else
-    may use this, which is why the guard lives on the public function."""
-    runner = session()
-    out, batch = [], []
-    for window in windows(signal):
-        batch.append(input_features(window))
-        if len(batch) >= batch_size:
-            tensor = np.concatenate(batch, axis=0)[:, None, :, :]
-            out.append(runner.run(['audio_embeds'], {'input_features': tensor})[0])
-            batch.clear()
-    if batch:
-        tensor = np.concatenate(batch, axis=0)[:, None, :, :]
-        out.append(runner.run(['audio_embeds'], {'input_features': tensor})[0])
-    return np.concatenate(out, axis=0).astype(np.float32)
+    may use this, which is why the guard lives on the public functions and this
+    one is spelled out in full."""
+    frames = [input_features(w) for w in windows(signal)]
+    tensor = np.concatenate(frames, axis=0)[:, None, :, :].astype(np.float32)
+    return _run_batches(tensor, batch_size)
 
 
 def _embed_each(paths):

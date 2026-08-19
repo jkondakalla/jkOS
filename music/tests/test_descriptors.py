@@ -665,7 +665,7 @@ class SanityGateTest(unittest.TestCase):
         """The baseline has to describe the same population the measurement does:
         a track on a 20-track album has more album-mates to find than one on an EP."""
         labels = np.array(['a'] * 4 + ['b'] * 2)
-        self.assertAlmostEqual(descriptors._chance(labels),
+        self.assertAlmostEqual(descriptors.chance_rate(labels),
                                ((4 * 3) + (2 * 1)) / 6.0 / 5.0, places=6)
 
     def test_an_unmeasured_category_does_not_fail_the_gate(self):

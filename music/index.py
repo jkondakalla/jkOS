@@ -107,6 +107,17 @@ class ConfigDriftError(RuntimeError):
     """
 
 
+class RecipeDriftError(ConfigDriftError):
+    """The same alarm one level up: the analysis profile matches, but the vectors
+    were POOLED differently (§8.6's window cap, the overlap, the model itself).
+
+    A subclass, because it is the same kind of mistake at a smaller amplitude —
+    two vectors of one track pooled from 12 windows and from 41 sit at cosine
+    ~0.997, so mixing them corrupts nothing outright and quietly makes the
+    space's recipe unanswerable a year later.
+    """
+
+
 def _now():
     return time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
 
@@ -207,7 +218,59 @@ def assert_config(conn, table):
     return current
 
 
+def assert_recipe(conn, table, recipe):
+    """Refuse to write vectors into `table` that were pooled by a different
+    recipe than the ones already stored there.
+
+    `assert_config` covers how a mel is BUILT. This covers which mels a track's
+    vector is the mean of — the window length, the overlap, the cap, the pooling
+    rule and the model itself (see `encoder.recipe`). Same shape as the config
+    alarm, and the same escape hatch: an empty table adopts whatever is in force,
+    so "change the recipe, clear the table, re-run" stays legal and "change the
+    recipe and ADD to an existing set" does not.
+    """
+    if table not in VECTOR_TABLES:
+        raise ValueError(f'unknown vector table: {table!r}')
+    key = f'recipe:{table}'
+    stored = get_meta(conn, key)
+    if stored is None or stored == recipe:
+        set_meta(conn, key, recipe)
+        return recipe
+    n = conn.execute(f'SELECT COUNT(*) AS n FROM {table}').fetchone()['n']
+    if n:
+        raise RecipeDriftError(
+            f'{n} vector(s) in {table} were pooled as {stored!r}, but this run '
+            f'would pool as {recipe!r}. Those two sets are not the same space. '
+            f'Either restore the recipe they were built under, or clear {table} '
+            f'and re-run under the new one.'
+        )
+    set_meta(conn, key, recipe)
+    return recipe
+
+
 # ── tracks ──────────────────────────────────────────────────────────────────────
+def ingest_scan(conn, root=None, exts=None, commit=True):
+    """Walk the library into `tracks`. Returns the number of files found.
+
+    Lives here rather than in each CLI because `tracks` is the scan table AND the
+    resume ledger, and two callers (§8.4's build, §8.6's backfill) each needing to
+    fill it is exactly how two subtly different scans end up in one index.
+
+    ⚠️ Trap 19 — this is a `stat` per file across a CIFS mount for ~15,000 files.
+    Seconds, not milliseconds, and never inside a loop.
+    """
+    import scan as scan_module
+
+    found = 0
+    for track in scan_module.iter_tracks(root or config.LIBRARY_ROOT,
+                                         exts or config.AUDIO_EXTS):
+        upsert_track(conn, track.path, track.mtime, track.size)
+        found += 1
+    if commit:
+        conn.commit()
+    return found
+
+
 def upsert_track(conn, path, mtime=None, size=None):
     """Record a scanned file, returning its row id. Idempotent on `path`.
 
@@ -258,7 +321,8 @@ def track_by_path(conn, path):
     return conn.execute('SELECT * FROM tracks WHERE path=?', (path,)).fetchone()
 
 
-def pending(conn, table='local_vectors', limit=None, artist=None, retry_failed=False):
+def pending(conn, table='local_vectors', limit=None, artist=None, retry_failed=False,
+            having=None):
     """Tracks with no row in `table` yet — the resume query.
 
     This is what makes §8.6 resumable by construction rather than by bookkeeping:
@@ -272,13 +336,22 @@ def pending(conn, table='local_vectors', limit=None, artist=None, retry_failed=F
 
     Failed rows are excluded by default so one unreadable file is not retried on
     every subsequent run; `retry_failed=True` is the deliberate second attempt.
+
+    `having` narrows the queue to tracks that ALREADY have a row in another vector
+    table — "describe the tracks the encoder got to". §8.7 compares the two arms and
+    the comparison is only honest over one population, so filling the gap between
+    them is a first-class query rather than something a caller re-derives in SQL.
     """
     if table not in VECTOR_TABLES:
         raise ValueError(f'unknown vector table: {table!r}')
+    if having is not None and having not in VECTOR_TABLES:
+        raise ValueError(f'unknown vector table: {having!r}')
     sql = [
         f'SELECT t.* FROM tracks t LEFT JOIN {table} v ON v.track_id = t.id',
-        'WHERE v.track_id IS NULL',
     ]
+    if having:
+        sql.append(f'JOIN {having} h ON h.track_id = t.id')
+    sql.append('WHERE v.track_id IS NULL')
     args = []
     if not retry_failed:
         sql.append('AND t.status != ?')
@@ -322,14 +395,21 @@ def from_blob(blob):
     return np.frombuffer(blob, dtype='<f4')
 
 
-def put_vector(conn, track_id, vec, model, revision=None):
+def put_vector(conn, track_id, vec, model, revision=None, recipe=None):
     """Store one track's NEURAL vector in `local_vectors`. Idempotent per track.
 
     `model` and `revision` are recorded per row rather than in `meta` because
     §8.5 may well try more than one encoder before M4 settles the question, and
     "which model produced this vector" is then a property of the vector.
+
+    `recipe` (§8.6) is checked, not stored per row: `local_vectors` is the shape
+    `apps/lazuros/deployment.jag.json` already declares, and growing a column
+    onto the port target to record something that is constant across a run would
+    cost more than the `meta` key it lives in instead.
     """
     sig = assert_config(conn, 'local_vectors')
+    if recipe is not None:
+        assert_recipe(conn, 'local_vectors', recipe)
     blob = to_blob(vec)
     conn.execute(
         'INSERT INTO local_vectors(track_id, model, revision, dim, vector, config_sig, created_at) '
@@ -399,6 +479,7 @@ def stats(conn):
     counts['descriptors'] = conn.execute('SELECT COUNT(*) AS n FROM descriptors').fetchone()['n']
     for table in VECTOR_TABLES:
         counts[f'sig:{table}'] = get_meta(conn, f'config_sig:{table}')
+    counts['recipe:local_vectors'] = get_meta(conn, 'recipe:local_vectors')
     return counts
 
 
