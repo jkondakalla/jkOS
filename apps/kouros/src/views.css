@@ -1,0 +1,821 @@
+/* views.css — the screens themselves: Now Playing, the queue, the map, detail
+ * pages, the action sheet, and the suite header's restyle.
+ *
+ * shell.css owns the FRAME (where things sit); glass.css owns the MATERIAL (what
+ * things are made of); this file owns the SCREENS. Same house rule as the rest of
+ * the app: every colour, radius, font and tap floor reads a suite token
+ * (--hub-, --accent, --kr-) — there is no literal hex or radius below.
+ */
+
+/* ── The suite header, adopted as this app's top bar ──────────────────────────
+   @jkos/ui's AppShell renders .jk-shell-header unconditionally. Rather than add a
+   `chromeless` prop to a shared primitive for one app's benefit, KourOS scopes a
+   restyle to its own shell: glass, sticky, and compact enough to sit above a
+   phone's content without a second wordmark underneath it. */
+.kr-shell { min-height: 100dvh; }
+.kr-shell .jk-shell-header {
+  position: sticky;
+  top: 0;
+  z-index: 70;
+  min-height: 46px;
+  padding: 0.4rem var(--kr-gutter);
+  border: 0;
+  background: var(--kr-glass-fill);
+  -webkit-backdrop-filter: blur(var(--kr-blur)) saturate(var(--kr-saturate));
+  backdrop-filter: blur(var(--kr-blur)) saturate(var(--kr-saturate));
+  box-shadow: inset 0 -1px 0 0 var(--kr-glass-rim-dark);
+}
+@media (min-width: 1024px) {
+  /* On desktop the left rail carries the identity, so the top bar shrinks to
+     just the settings affordance and stops competing with it. */
+  .kr-shell .jk-shell-header {
+    margin-left: var(--kr-rail-w);
+    background: transparent;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow: none;
+  }
+}
+
+/* ── Page headings (contextual, never the app's name) ─────────────────────── */
+.kr-pagehead {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 1rem 0 0.35rem;
+}
+.kr-pagehead-title {
+  margin: 0;
+  font-family: var(--hub-font-serif);
+  font-size: 1.75rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.1;
+  color: var(--hub-cream-bright);
+}
+.kr-pagehead-sub {
+  margin: 0.2rem 0 0;
+  font-size: var(--hub-fs-lab-sm);
+  letter-spacing: 0.07em;
+  color: var(--hub-cream-dim);
+}
+.kr-text-link {
+  font-family: var(--hub-font-mono);
+  font-size: var(--hub-fs-lab-sm);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--accent);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.kr-text-link:hover { text-decoration: underline; }
+.kr-hint { padding: 1.5rem 0; text-align: center; }
+
+/* ── Primary button — the one filled control per screen ───────────────────── */
+.kr-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: 40px;
+  padding: 0 1.1rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--color-accent-contrast, #fff);
+  font-family: var(--hub-font-sans);
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.35),
+    0 3px 12px color-mix(in srgb, var(--accent) 38%, transparent);
+  transition: transform 120ms ease, filter 160ms ease;
+}
+.kr-primary:hover:not(:disabled) { filter: brightness(1.06); }
+.kr-primary:active:not(:disabled) { transform: scale(0.97); }
+.kr-primary:disabled { opacity: 0.5; cursor: default; }
+.kr-primary svg { width: 18px; height: 18px; }
+
+.kr-more {
+  display: block;
+  width: 100%;
+  margin: 1.25rem 0;
+  padding: 0.75rem;
+  border: 1px solid var(--hub-line);
+  border-radius: var(--hub-radius-soft);
+  background: transparent;
+  color: var(--hub-cream);
+  font-family: var(--hub-font-mono);
+  font-size: var(--hub-fs-lab-sm);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.kr-more:hover:not(:disabled) { background: var(--hub-bg-2); }
+
+/* ── Segmented control (Browse: albums / artists) ─────────────────────────── */
+.kr-browse-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 0.35rem 0 1rem;
+}
+.kr-segment {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--hub-bg-2);
+  box-shadow: inset 0 1px 3px var(--kr-glass-rim-dark);
+}
+.kr-segment-btn {
+  min-height: 34px;
+  padding: 0 0.9rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--hub-cream-dim);
+  font-family: var(--hub-font-sans);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease;
+}
+.kr-segment-btn.is-on {
+  background: var(--hub-bg-4);
+  color: var(--hub-cream-bright);
+  box-shadow: 0 1px 3px var(--kr-glass-rim-dark), inset 0 1px 0 var(--kr-glass-rim-light);
+}
+.kr-browse-sorts { flex: none; }
+
+/* ── Cards: extra shapes ──────────────────────────────────────────────────── */
+.kr-card-btn { border: 0; background: none; padding: 0; cursor: pointer; text-align: left; width: 100%; }
+.kr-card-round .kr-cover { border-radius: 50%; }
+.kr-card-round .kr-card-title,
+.kr-card-round .kr-card-meta { text-align: center; }
+.kr-card-btn.is-playing .kr-card-title { color: var(--accent); }
+
+/* ── Section "more" link ──────────────────────────────────────────────────── */
+.kr-section-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  color: var(--accent);
+  text-decoration: none;
+}
+.kr-section-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.kr-section-title svg { opacity: 0.75; }
+
+/* ── Track rows: host, menu button, basis marker ──────────────────────────── */
+.kr-track-host {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+.kr-track-host .kr-track { flex: 1; min-width: 0; }
+.kr-track-menu { flex: none; opacity: 0.55; }
+.kr-track-menu:hover { opacity: 1; }
+/* The honesty marker — a metadata guess never reads like an acoustic match. */
+.kr-basis {
+  font-family: var(--hub-font-mono);
+  font-size: var(--hub-fs-lab-xs);
+  letter-spacing: 0.05em;
+  color: var(--hub-cream-faint);
+}
+
+/* ── Detail pages (album / artist) ────────────────────────────────────────── */
+.kr-detail-head {
+  display: grid;
+  grid-template-columns: 128px 1fr;
+  gap: 1rem;
+  align-items: end;
+  padding: 1rem 0 1.25rem;
+}
+.kr-detail-art { width: 100%; }
+.kr-detail-art .kr-cover { box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28), inset 0 0 0 1px var(--hub-line); }
+.kr-detail-art-round .kr-cover { border-radius: 50%; }
+.kr-detail-meta { min-width: 0; }
+.kr-detail-kind {
+  margin: 0;
+  font-size: var(--hub-fs-lab-xs);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--hub-cream-dim);
+}
+.kr-detail-title {
+  margin: 0.2rem 0 0;
+  font-family: var(--hub-font-serif);
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.12;
+  letter-spacing: -0.015em;
+  color: var(--hub-cream-bright);
+}
+.kr-detail-sub {
+  margin: 0.25rem 0 0;
+  font-family: var(--hub-font-sans);
+  font-size: 0.95rem;
+  color: var(--hub-cream);
+}
+.kr-detail-sub a { color: inherit; text-decoration: none; }
+.kr-detail-sub a:hover { text-decoration: underline; }
+.kr-detail-facts { margin: 0.3rem 0 0; font-size: var(--hub-fs-lab-sm); }
+.kr-detail-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.85rem;
+}
+
+@media (min-width: 768px) {
+  .kr-detail-head { grid-template-columns: 200px 1fr; gap: 1.5rem; padding: 1.5rem 0 1.75rem; }
+  .kr-detail-title { font-size: 2.1rem; }
+}
+
+/* ── Runs ─────────────────────────────────────────────────────────────────── */
+.kr-run {
+  display: flex;
+  flex-direction: column;
+  padding: 0.7rem;
+  border-radius: var(--hub-radius-lg);
+}
+/* Four sleeves in a 2×2, so a set reads as a set rather than as one record. */
+.kr-run-art {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
+  border-radius: var(--hub-radius-soft);
+  overflow: hidden;
+}
+.kr-run-art .kr-cover { border-radius: 0; box-shadow: none; }
+.kr-run-body { padding-top: 0.6rem; }
+.kr-run-title {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  font-family: var(--hub-font-serif);
+  font-size: 1.02rem;
+  font-weight: 600;
+  color: var(--kr-glass-ink);
+}
+.kr-run-blurb {
+  margin: 0.15rem 0 0;
+  font-family: var(--hub-font-sans);
+  font-size: 0.8rem;
+  color: var(--kr-glass-ink-dim);
+}
+.kr-run-meta { margin: 0.3rem 0 0; font-size: var(--hub-fs-lab-xs); }
+.kr-run-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+}
+.kr-run-play {
+  flex: 1;
+  min-height: 36px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--color-accent-contrast, #fff);
+  font-family: var(--hub-font-sans);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.3);
+}
+
+/* ── The coverage footer ──────────────────────────────────────────────────── */
+.kr-coverage { margin: 2rem 0 1rem; }
+.kr-coverage-link {
+  display: block;
+  padding: 0.75rem;
+  border-radius: var(--hub-radius-soft);
+  background: var(--hub-bg-2);
+  text-decoration: none;
+}
+.kr-coverage-bar {
+  display: block;
+  height: 3px;
+  margin-top: 0.5rem;
+  border-radius: 999px;
+  background: var(--hub-line);
+  overflow: hidden;
+}
+.kr-coverage-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: inherit;
+}
+
+/* ── Search box ───────────────────────────────────────────────────────────── */
+.kr-searchbox {
+  position: sticky;
+  top: 46px;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 1rem 0 0.5rem;
+  padding: 0.3rem 0.35rem 0.3rem 0.85rem;
+  border-radius: 999px;
+}
+.kr-searchinput {
+  flex: 1;
+  min-width: 0;
+  min-height: 42px;
+  border: 0;
+  background: transparent;
+  color: var(--hub-cream-bright);
+  font-family: var(--hub-font-sans);
+  /* 16px minimum — anything smaller makes iOS Safari zoom the page on focus,
+     which then leaves the layout scaled up after the keyboard closes. */
+  font-size: 16px;
+  outline: none;
+  appearance: none;
+}
+.kr-searchinput::-webkit-search-cancel-button { display: none; }
+.kr-searchinput::placeholder { color: var(--hub-cream-faint); }
+
+/* ── The mini player ──────────────────────────────────────────────────────── */
+.kr-player-scope { display: contents; }
+.kr-mini {
+  position: fixed;
+  left: 0.5rem;
+  right: 0.5rem;
+  bottom: calc(var(--kr-dock) + 0.4rem);
+  z-index: 55;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: var(--kr-mini-h);
+  padding: 0 0.55rem;
+  border-radius: var(--hub-radius-lg);
+  overflow: hidden;
+}
+.kr-mini-open {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  text-decoration: none;
+  color: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+.kr-mini-art { flex: none; width: 46px; }
+.kr-mini-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.kr-mini-title {
+  font-family: var(--hub-font-serif);
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--kr-glass-ink);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.kr-mini-sub {
+  font-family: var(--hub-font-sans);
+  font-size: 0.78rem;
+  color: var(--kr-glass-ink-dim);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.kr-mini-chev { flex: none; opacity: 0.45; }
+.kr-mini-controls { flex: none; display: flex; align-items: center; gap: 0.15rem; }
+/* The progress hairline IS the bar's bottom edge — see MiniPlayer.tsx. */
+.kr-mini-progress {
+  position: absolute;
+  left: 0; bottom: 0;
+  height: 2px;
+  background: var(--accent);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 60%, transparent);
+  transition: width 240ms linear;
+  pointer-events: none;
+}
+.kr-mini-error {
+  position: absolute;
+  left: 0.75rem; right: 0.75rem; bottom: 4px;
+  margin: 0;
+  font-family: var(--hub-font-mono);
+  font-size: var(--hub-fs-lab-xs);
+  color: var(--hub-red);
+}
+@media (min-width: 1024px) {
+  .kr-mini { left: calc(var(--kr-rail-w) + 1rem); right: 1rem; bottom: 1rem; }
+  .kr-mini-next { display: inline-flex; }
+}
+
+/* ── Overlay routes (Now Playing / Queue) ─────────────────────────────────── */
+.kr-app.is-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--hub-bg-0);
+}
+
+/* ── Now Playing ──────────────────────────────────────────────────────────── */
+.kr-now {
+  position: relative;
+  isolation: isolate;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: calc(env(safe-area-inset-top, 0px) + 0.75rem) var(--kr-gutter) calc(env(safe-area-inset-bottom, 0px) + 1.5rem);
+}
+.kr-now-ambient {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  border-radius: 0;
+}
+.kr-now-empty { align-items: center; justify-content: center; }
+.kr-now-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.kr-now-eyebrow {
+  margin: 0;
+  font-family: var(--hub-font-mono);
+  font-size: var(--hub-fs-lab-xs);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--kr-glass-ink-dim);
+}
+.kr-now-queue-label {
+  font-family: var(--hub-font-mono);
+  font-size: var(--hub-fs-lab-xs);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.kr-now-close { position: absolute; top: 1rem; left: 1rem; }
+
+.kr-now-stage {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem 0;
+  min-height: 0;
+}
+.kr-now-art {
+  width: min(78vw, 42vh, 420px);
+}
+.kr-now-art .kr-cover {
+  border-radius: var(--hub-radius-lg);
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.45),
+    0 6px 18px rgba(0, 0, 0, 0.28),
+    inset 0 0 0 1px var(--kr-glass-rim-light);
+}
+
+.kr-now-meta { text-align: center; }
+.kr-now-title {
+  margin: 0;
+  font-family: var(--hub-font-serif);
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.015em;
+  color: var(--kr-glass-ink);
+}
+.kr-now-artist {
+  margin: 0.3rem 0 0;
+  font-family: var(--hub-font-sans);
+  font-size: 0.95rem;
+  color: var(--kr-glass-ink-dim);
+}
+.kr-now-artist a { color: inherit; text-decoration: none; }
+.kr-now-artist a:hover { text-decoration: underline; }
+
+.kr-now-scrub { margin-top: 0.9rem; }
+.kr-now-times {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.3rem;
+  font-family: var(--hub-font-mono);
+  font-size: var(--hub-fs-lab-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--kr-glass-ink-dim);
+}
+
+.kr-now-transport {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 1rem 0 0.35rem;
+  padding: 0 0.5rem;
+}
+.kr-now-skip svg { width: 30px; height: 30px; }
+.kr-now-extra { display: flex; justify-content: center; }
+.kr-now-radio {
+  gap: 0.45rem;
+  padding: 0.5rem 0.9rem;
+  border-radius: 999px;
+  font-family: var(--hub-font-sans);
+  font-size: 0.82rem;
+}
+
+.kr-now-next {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  margin-top: 0.9rem;
+  padding: 0.7rem 0.85rem;
+  border-radius: var(--hub-radius-soft);
+  text-decoration: none;
+  color: inherit;
+  overflow: hidden;
+}
+.kr-now-next-label {
+  flex: none;
+  font-family: var(--hub-font-mono);
+  font-size: var(--hub-fs-lab-xs);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--kr-glass-ink-dim);
+}
+.kr-now-next-list { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
+.kr-now-next-item {
+  font-family: var(--hub-font-serif);
+  font-size: 0.85rem;
+  color: var(--kr-glass-ink);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.kr-now-next-artist { font-family: var(--hub-font-sans); color: var(--kr-glass-ink-dim); }
+
+@media (min-width: 1024px) {
+  .kr-now { max-width: 560px; margin: 0 auto; }
+  .kr-now-title { font-size: 1.9rem; }
+}
+
+/* ── Queue ────────────────────────────────────────────────────────────────── */
+.kr-queue {
+  min-height: 100dvh;
+  padding: 0 var(--kr-gutter) calc(env(safe-area-inset-bottom, 0px) + 2rem);
+}
+.kr-queue-head {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0 calc(var(--kr-gutter) * -1) 0.75rem;
+  padding: calc(env(safe-area-inset-top, 0px) + 0.6rem) var(--kr-gutter) 0.6rem;
+  border-radius: 0;
+}
+.kr-queue-title {
+  margin: 0;
+  font-family: var(--hub-font-serif);
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--kr-glass-ink);
+}
+.kr-queue-headings .kr-mono { margin: 0.1rem 0 0; }
+.kr-queue-empty { padding: 2rem 0; text-align: center; }
+.kr-queue-list { position: relative; }
+.kr-queue-row {
+  /* The drop animation. `transform` only — the compositor can run it without
+     touching layout, which is what keeps a drag at 60fps on a phone. */
+  transition: transform 160ms ease;
+  background: var(--hub-bg-0);
+}
+.kr-queue-row.is-dragging {
+  transition: none;             /* the dragged row must track the finger exactly */
+  z-index: 2;
+  position: relative;
+  box-shadow: var(--kr-glass-shadow);
+  border-radius: var(--hub-radius-soft);
+}
+/* Already-played rows recede rather than disappear — the queue is a record of
+   where you are in it, not only of what is left. */
+.kr-queue-row.is-past { opacity: 0.42; }
+.kr-queue-grip {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  min-height: 44px;
+  border: 0;
+  background: none;
+  color: var(--hub-cream-faint);
+  cursor: grab;
+  /* Without this the browser claims the gesture for scrolling and the drag
+     never starts on touch. It is the single most important line in the queue. */
+  touch-action: none;
+}
+.kr-queue-grip:active { cursor: grabbing; color: var(--accent); }
+.kr-queue-remove { flex: none; opacity: 0.5; }
+.kr-queue-remove:hover { opacity: 1; color: var(--hub-red); }
+@media (min-width: 1024px) {
+  .kr-queue { max-width: 720px; margin: 0 auto; }
+}
+
+/* ── The action sheet ─────────────────────────────────────────────────────── */
+.kr-sheet-host {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.kr-sheet-scrim {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  background: rgba(0, 0, 0, 0.42);
+  cursor: pointer;
+  animation: kr-fade-in 160ms ease-out;
+}
+.kr-sheet {
+  position: relative;
+  width: 100%;
+  max-width: 520px;
+  padding: 0.5rem 0.75rem calc(env(safe-area-inset-bottom, 0px) + 1rem);
+  border-radius: var(--hub-radius-lg) var(--hub-radius-lg) 0 0;
+  animation: kr-sheet-up 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.kr-sheet-grab {
+  width: 36px;
+  height: 4px;
+  margin: 0.35rem auto 0.6rem;
+  border-radius: 999px;
+  background: var(--kr-glass-ink-dim);
+  opacity: 0.35;
+}
+.kr-sheet-head { padding: 0 0.4rem 0.6rem; }
+.kr-sheet-title {
+  margin: 0;
+  font-family: var(--hub-font-serif);
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--kr-glass-ink);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.kr-sheet-sub {
+  margin: 0.1rem 0 0;
+  font-family: var(--hub-font-sans);
+  font-size: 0.82rem;
+  color: var(--kr-glass-ink-dim);
+}
+.kr-sheet-actions { display: flex; flex-direction: column; }
+.kr-action {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  width: 100%;
+  min-height: 50px;
+  padding: 0 0.4rem;
+  border: 0;
+  border-radius: var(--hub-radius-soft);
+  background: none;
+  color: var(--kr-glass-ink);
+  font-family: var(--hub-font-sans);
+  font-size: 0.95rem;
+  text-align: left;
+  cursor: pointer;
+}
+.kr-action:hover { background: var(--kr-glass-fill-thin); }
+.kr-action svg { flex: none; opacity: 0.8; }
+.kr-action-note {
+  margin-left: auto;
+  font-family: var(--hub-font-mono);
+  font-size: var(--hub-fs-lab-xs);
+  letter-spacing: 0.06em;
+  color: var(--kr-glass-ink-dim);
+}
+.kr-sheet-links {
+  display: flex;
+  gap: 1rem;
+  margin-top: 0.5rem;
+  padding: 0.7rem 0.4rem 0;
+  border-top: 1px solid var(--kr-glass-rim-dark);
+}
+.kr-sheet-link {
+  font-family: var(--hub-font-mono);
+  font-size: var(--hub-fs-lab-sm);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--accent);
+  text-decoration: none;
+}
+
+@keyframes kr-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes kr-sheet-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) {
+  .kr-sheet, .kr-sheet-scrim { animation: none; }
+  .kr-queue-row { transition: none; }
+}
+
+/* ── The vibe map ─────────────────────────────────────────────────────────── */
+.kr-map-wrap { margin: 0.5rem 0 0.75rem; }
+.kr-map-field {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  max-height: 62vh;
+  margin: 0 auto;
+  border-radius: var(--hub-radius-lg);
+  background:
+    radial-gradient(circle at 50% 50%, var(--hub-bg-3), var(--hub-bg-1) 78%);
+  box-shadow: inset 0 0 0 1px var(--hub-line), inset 0 2px 12px var(--kr-glass-rim-dark);
+  overflow: hidden;
+  /* The field owns the gesture outright — otherwise dragging the pin scrolls the
+     page on a phone and the map is unusable. */
+  touch-action: none;
+  cursor: crosshair;
+}
+.kr-map-svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.kr-map-dot { opacity: 0.75; }
+.kr-map-dot.is-inferred { opacity: 0.34; }
+/* Eight region hues derived from the accent pair, so the map is coloured by the
+   app's own palette rather than by an imported categorical scale. */
+/* Regions must be TELLABLE APART, which mixing one accent toward black and white
+   does not achieve — every bin lands within a few degrees of the same hue and the
+   map reads as one colour. So the ladder rotates around the wheel from the accent
+   pair instead, keeping the app's own two colours as the first (largest) two
+   regions and spacing the rest. */
+.kr-map-dot-0 { fill: var(--accent); }
+.kr-map-dot-1 { fill: var(--accent-secondary); }
+.kr-map-dot-2 { fill: color-mix(in srgb, var(--accent) 50%, var(--hub-green)); }
+.kr-map-dot-3 { fill: color-mix(in srgb, var(--accent-secondary) 55%, var(--hub-red)); }
+.kr-map-dot-4 { fill: color-mix(in srgb, var(--accent) 45%, var(--hub-magenta)); }
+.kr-map-dot-5 { fill: var(--hub-green); }
+.kr-map-dot-6 { fill: color-mix(in srgb, var(--hub-magenta) 60%, var(--accent-secondary)); }
+.kr-map-dot-7 { fill: color-mix(in srgb, var(--accent-secondary) 45%, var(--hub-green)); }
+
+.kr-map-region {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--kr-glass-fill-deep);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  font-family: var(--hub-font-mono);
+  font-size: var(--hub-fs-lab-xs);
+  letter-spacing: 0.05em;
+  color: var(--kr-glass-ink);
+  white-space: nowrap;
+  pointer-events: none;
+}
+.kr-map-pin {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow:
+    0 0 0 3px var(--kr-glass-fill-deep),
+    0 0 18px color-mix(in srgb, var(--accent) 75%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  pointer-events: none;
+}
+.kr-map-axis {
+  position: absolute;
+  font-family: var(--hub-font-mono);
+  font-size: var(--hub-fs-lab-xs);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--hub-cream-dim);
+  pointer-events: none;
+}
+.kr-map-axis-w { left: 8px; top: 50%; transform: translateY(-50%); }
+.kr-map-axis-e { right: 8px; top: 50%; transform: translateY(-50%); }
+.kr-map-axis-n { top: 8px; left: 50%; transform: translateX(-50%); }
+.kr-map-axis-s { bottom: 8px; left: 50%; transform: translateX(-50%); }
+
+.kr-map-readout {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.7rem 0.85rem;
+  border-radius: var(--hub-radius-soft);
+}
+.kr-map-region-name {
+  margin: 0;
+  font-family: var(--hub-font-serif);
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--kr-glass-ink);
+}
+.kr-map-readout .kr-mono { margin: 0.1rem 0 0; }

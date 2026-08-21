@@ -11,8 +11,31 @@ services:
       PORT: "3011"
       DB_PATH: /data/kouros.db
       STATIC_DIR: /app/dist
+      # The music library, read-only. The scanner walks this on boot and on every
+      # rescanLibrary call; one row per audio file found anywhere beneath it.
+      MUSIC_DIR: /music
+      # The music embedder's index (ToDo §8's music/index.db) — the source of the
+      # CLAP vectors behind similarity, radio, Runs and the vibe map. OPTIONAL:
+      # when the file is absent, every discovery surface degrades to metadata
+      # affinity and says so on the wire, so a missing index is a quieter app,
+      # never a broken one.
+      #
+      # It is NOT in the repo (music/index.db is gitignored — it is 12 MB+ and
+      # rebuilt by a separate Python pipeline), so it has to be COPIED to the
+      # data volume. ⚠️ Copy the -wal sidecar with it: the embedder runs in WAL
+      # mode, and taking the .db alone yields whatever snapshot predated the last
+      # checkpoint — silently fewer vectors than were actually computed.
+      VECTOR_DB_PATH: /data/music-index.db
+      # The directory name the embedder's paths are rooted at. Used to recover an
+      # artist/title key when the index was built against a DIFFERENT library
+      # layout — see backend/src/discover/vectors.js. Matches the last segment of
+      # the real library path on the host (/mnt/Luna/Plex/Music).
+      LIBRARY_ROOT_NAME: Music
     volumes:
       - ${KOUROS_DATA_PATH:-/mnt/Luna/Backends/Production/kouros-data}:/data
+      # The library itself, READ-ONLY — this app scans and streams it, and must
+      # never be able to write to it. Override the host path with MUSIC_PATH.
+      - ${MUSIC_PATH:-/mnt/Luna/Plex/Music}:/music:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:

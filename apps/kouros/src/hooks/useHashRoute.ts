@@ -12,6 +12,15 @@ import { useEffect, useState } from 'react';
 //   '#/search[?q=<term>]'            → Search
 //   '#/playlists'                    → Playlists (the user's own list, 18.6)
 //   '#/playlist/<id>'                → one playlist's tracks (18.6)
+//   '#/browse'                       → the library: albums / artists
+//   '#/map'                          → the vibe map
+//   '#/now'                          → Now Playing, full-screen
+//   '#/queue'                        → the queue / up-next editor
+//
+// Now Playing and the queue are ROUTES, not component state, and that is a
+// mobile decision: expanding the player has to be undoable with the system back
+// gesture. A boolean in the shell would swallow Back and drop the listener out of
+// the app instead of collapsing the sheet.
 //
 // Anything else falls back to Home. `artist`/`album` come from free-text tag
 // values (not database ids, unlike papyros's `/book/<id>`), so they travel
@@ -21,7 +30,9 @@ import { useEffect, useState } from 'react';
 // `playlist/<id>` is a real database id (like papyros's `/book/<id>`), so it
 // stays a plain \d+ match — no encode/decode needed, same as that precedent.
 
-export type View = 'home' | 'artists' | 'artist' | 'album' | 'search' | 'playlists' | 'playlist';
+export type View =
+  | 'home' | 'browse' | 'artists' | 'artist' | 'album' | 'search'
+  | 'playlists' | 'playlist' | 'map' | 'now' | 'queue';
 
 export interface HashRoute {
   view: View;
@@ -64,6 +75,10 @@ function parse(hash: string): HashRoute {
   if (playlistMatch) {
     return { view: 'playlist', artist: null, album: null, query, playlistId: Number(playlistMatch[1]) };
   }
+  if (path === '/browse') return { view: 'browse', artist: null, album: null, query, playlistId: null };
+  if (path === '/map') return { view: 'map', artist: null, album: null, query, playlistId: null };
+  if (path === '/now') return { view: 'now', artist: null, album: null, query, playlistId: null };
+  if (path === '/queue') return { view: 'queue', artist: null, album: null, query, playlistId: null };
   if (path === '/artists') return { view: 'artists', artist: null, album: null, query, playlistId: null };
   if (path === '/search') return { view: 'search', artist: null, album: null, query, playlistId: null };
   if (path === '/playlists') return { view: 'playlists', artist: null, album: null, query, playlistId: null };
@@ -102,4 +117,28 @@ export function playlistsHref(): string {
 
 export function playlistHref(id: number): string {
   return `#/playlist/${id}`;
+}
+
+export function browseHref(): string {
+  return '#/browse';
+}
+
+export function mapHref(): string {
+  return '#/map';
+}
+
+export function nowHref(): string {
+  return '#/now';
+}
+
+export function queueHref(): string {
+  return '#/queue';
+}
+
+/** Leave an overlay route (Now Playing / Queue) the way the system back gesture
+ *  would, so the two never disagree. Falls back to Home when this tab was opened
+ *  directly on the overlay and there is nothing to go back to. */
+export function closeOverlay(): void {
+  if (window.history.length > 1) window.history.back();
+  else window.location.hash = '#/';
 }

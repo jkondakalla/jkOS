@@ -8,7 +8,7 @@ import { usePlaylists } from '../../hooks/usePlaylists';
 import { useTracks } from '../../hooks/useTracks';
 import { playlistsHref } from '../../hooks/useHashRoute';
 import { requestPlay } from '../../player/controller';
-import { formatClock, formatTotalDuration, trackArtist, trackAlbum } from '../library/format';
+import { formatDuration, formatSpan, trackArtist, trackAlbum } from '../library/format';
 import { insertionSlot, reorderTarget, moveItem, type RowSpan } from './reorder';
 import './playlists.css';
 
@@ -148,7 +148,7 @@ export default function PlaylistDetail({ playlistId }: PlaylistDetailProps) {
               {playlist.description && <p className="kr-playlist-desc">{playlist.description}</p>}
               <p className="detail-meta-row">
                 <span>{rows.length} track{rows.length === 1 ? '' : 's'}</span>
-                <span>{formatTotalDuration(rows)}</span>
+                <span>{formatSpan(rows.reduce((s, t) => s + (t.duration || 0), 0))}</span>
               </p>
               <TButton className="play-button" onClick={playAll} disabled={rows.length === 0}>
                 ▶ Play
@@ -185,7 +185,7 @@ export default function PlaylistDetail({ playlistId }: PlaylistDetailProps) {
                         <span className="kr-track-title">{t.title}</span>
                         <span className="kr-track-context">{trackArtist(t)} — {trackAlbum(t)}</span>
                       </span>
-                      <span className="kr-track-time">{formatClock(t.duration)}</span>
+                      <span className="kr-track-time">{formatDuration(t.duration)}</span>
                     </button>
                     <button
                       type="button"

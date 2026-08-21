@@ -30,7 +30,7 @@ import {
 } from '@jkos/player/engine';
 import { useMediaSession, type MediaSessionMetadata } from '@jkos/player/services';
 import {
-  EMPTY_QUEUE, next, prev, reorder, repeat as repeatQueue, shuffle as shuffleQueue,
+  EMPTY_QUEUE, append, insertNext, next, prev, reorder, repeat as repeatQueue, shuffle as shuffleQueue,
   type Queue, type RepeatMode,
 } from '@jkos/player/core';
 import { coverUrl, createHistoryEvent, getTrack, streamUrl, useTrackCache, type Track } from './api';
@@ -69,6 +69,12 @@ export interface PlayerApi {
   playQueueItem(index: number): void;
   removeQueueItem(index: number): void;
   reorderQueue(from: number, to: number): void;
+  /** Insert tracks to play immediately AFTER the current one. */
+  playNext(ids: number[]): void;
+  /** Append tracks to the end of the queue. */
+  addToQueue(ids: number[]): void;
+  /** Replace the queue entirely and start at `startIndex`. */
+  playNow(ids: number[], startIndex?: number): void;
 }
 
 // ── Adapter recipes (./api.ts → the engine's seams) ─────────────────────────────────
@@ -332,6 +338,43 @@ export function usePlayerEngine(): PlayerApi {
 
   const playQueueItem = useCallback((index: number) => playIndex(index, 0), [playIndex]);
 
+  /* ── "Play next" and "Add to queue" ─────────────────────────────────────────
+     The brief asks for these to be two SEPARATE, visible actions rather than one
+     ambiguous "+", so they are two separate calls that differ only in where the
+     ids land: after the cursor, or at the end.
+
+     Both share one non-obvious case. core/queue's insertNext/append set the
+     cursor to 0 when the queue was EMPTY — but a cursor is only a claim about
+     what should be playing; nothing is loaded into the engine until a play
+     request goes through the transport seam. So adding to an empty queue has to
+     ALSO ask for playback, or the user taps "Add to queue" on a silent player and
+     gets a queue that looks right and plays nothing. */
+  const enqueue = useCallback((ids: number[], where: 'next' | 'end') => {
+    if (!ids.length) return;
+    const wasEmpty = queueRef.current!.items.length === 0;
+    let q = queueRef.current!;
+    if (where === 'next') {
+      // Reverse, so the FIRST id given ends up nearest the cursor: inserting
+      // a,b,c one at a time at cursor+1 would otherwise land them c,b,a.
+      for (let i = ids.length - 1; i >= 0; i--) q = insertNext(q, String(ids[i]));
+    } else {
+      for (const id of ids) q = append(q, String(id));
+    }
+    queueRef.current = q;
+    setQueue(q);
+    if (wasEmpty) requestPlay({ trackIds: q.items.map(Number), startIndex: 0 });
+  }, []);
+
+  const playNext = useCallback((ids: number[]) => enqueue(ids, 'next'), [enqueue]);
+  const addToQueue = useCallback((ids: number[]) => enqueue(ids, 'end'), [enqueue]);
+
+  /** Replace the queue outright. Goes through requestPlay like every other play
+   *  path, so the transport seam stays the only writer of queue state. */
+  const playNow = useCallback((ids: number[], startIndex = 0) => {
+    if (!ids.length) return;
+    requestPlay({ trackIds: ids, startIndex });
+  }, []);
+
   // ── MediaSession — metadata + queue-driven prev/next + setPositionState ────────
   const metadata = useMemo<MediaSessionMetadata | null>(() => (track ? {
     title: track.title,
@@ -546,5 +589,8 @@ export function usePlayerEngine(): PlayerApi {
     playQueueItem,
     removeQueueItem,
     reorderQueue,
+    playNext,
+    addToQueue,
+    playNow,
   };
 }

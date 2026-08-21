@@ -22,6 +22,9 @@ const { createScanner } = require('./src/library/scan');            // 18.2: MUS
 const { createLibraryRouter } = require('./src/routes/library');    // 18.2: rescanLibrary route
 const { createTracksRouter } = require('./src/routes/tracks');      // 18.2: filtered `tracks` dataset read
 const { createMediaRouter } = require('./src/media');               // 18.2: stream/cover/download routes
+const { createBrowseRouter } = require('./src/routes/browse');      // server-side album/artist grouping
+const { createDiscoverRouter } = require('./src/routes/discover');  // the similarity engine's HTTP surface
+const { createDiscovery } = require('./src/discover');              // vectors → aligned space → similar/radio/runs/map
 
 /* ── Env ───────────────────────────────────────────────────────────────── */
 const PORT       = process.env.PORT       || 3011;
@@ -39,6 +42,19 @@ const SHELL_URL  = (process.env.SHELL_URL || 'http://localhost:3000').replace(/\
    no extra knob. */
 const MUSIC_DIR = process.env.MUSIC_DIR || path.join(__dirname, 'music');
 const DATA_DIR  = path.dirname(DB_PATH);
+
+/* The music embedder's index (ToDo §8's music/index.db) — the source of the CLAP
+   vectors behind similarity, radio, Runs and the vibe map. OPTIONAL by design: it
+   is produced by a separate Python pipeline on a separate schedule, it is read
+   strictly read-only, and when it is absent (or has not reached a given track yet)
+   every discovery surface degrades to metadata affinity and says so on the wire.
+   Defaults to a file beside the database so the deploy only has to place it there. */
+const VECTOR_DB_PATH = process.env.VECTOR_DB_PATH || path.join(DATA_DIR, 'music-index.db');
+
+/* The directory name the embedder's paths are rooted at, used to recover an
+   artist/title key from an index built against a DIFFERENT library layout — see
+   src/discover/vectors.js's header for why a plain path join is not enough. */
+const LIBRARY_ROOT_NAME = process.env.LIBRARY_ROOT_NAME || path.basename(MUSIC_DIR);
 
 /* Cross-origin allowlist — SHELL_URL plus any ALLOWED_ORIGINS (comma-separated), so a
    second suite app can call KourOS cross-origin. (Under the same-origin edge, peer
@@ -60,7 +76,20 @@ db.pragma('journal_mode = WAL');
 /* Library scanner instance. Safe to construct before runMigrations() runs — its
    statements are prepared lazily inside scanLibrary(), not here — so the boot scan
    (after migrations, inside boot()) can share the one instance with no ordering trap. */
-const scanner = createScanner({ db, musicDir: MUSIC_DIR, dataDir: DATA_DIR });
+const scanner = createScanner({
+  db, musicDir: MUSIC_DIR, dataDir: DATA_DIR,
+  // A completed scan changes the catalog the similarity space is aligned onto, so
+  // drop the built space rather than serving neighbours for a library that no
+  // longer matches. `discovery` is declared just below — this callback only ever
+  // fires long after module load, so the forward reference is safe.
+  onScanComplete: () => discovery.invalidate(),
+});
+
+/* The discovery service. Built lazily on first read (the `tracks` table does not
+   exist yet at this point — migrations run below) and rebuilt whenever a scan
+   changes the catalog, so a rescan that adds an album is reflected without waiting
+   out its TTL. */
+const discovery = createDiscovery({ db, vectorDbPath: VECTOR_DB_PATH, libraryRootName: LIBRARY_ROOT_NAME });
 
 /* ── Migrations ────────────────────────────────────────────────────────────
    `tracks` is a SHARED catalog (no user_id — every user sees the same library) that
@@ -219,6 +248,8 @@ app.get('/api/auth/me', (req, res) => res.json({ user: req.user }));
    Both identity-gated (neither path is in PUBLIC_PATHS above). */
 app.use(createLibraryRouter({ scanLibrary: scanner.scanLibrary }));
 app.use(createTracksRouter({ db }));
+app.use(createBrowseRouter({ db }));                       // /api/albums, /api/artists, /api/library/stats
+app.use(createDiscoverRouter({ discovery, db }));          // /api/discover/*
 
 /* ── Per-user collections ─────────────────────────────────────────────────
    playlists/ratings each wire their own scoped GET/POST/PATCH/DELETE at /api/<id> in

@@ -1,66 +1,112 @@
-import { useMemo } from 'react';
-import { AsyncView, Lab, MediaGrid, TButton, useBreakpoint } from '@jkos/ui';
-import { useTracks } from '../hooks/useTracks';
+import { useEffect, useMemo, useState } from 'react';
+import { AsyncView } from '@jkos/ui';
+import Cover from '../components/Cover';
+import { AlbumCard } from '../components/cards';
+import ActionSheet, { type ActionTarget } from '../components/ActionSheet';
+import { IconPlay } from '@jkos/player/ui';
+import { IconShuffle } from '../player/icons';
 import { requestPlay } from '../player/controller';
-import AlbumTile from './library/AlbumTile';
-import { formatTotalDuration, groupTracksByAlbum, sortAlbumTracks, trackArtist } from './library/format';
-import './detail.css';
+import { listAlbums, listAlbumTracks, radioFrom, type AlbumSummary } from '../api';
+import { formatCount, formatSpan } from './library/format';
 
-interface ArtistProps {
-  artist: string;
-}
+/** One artist: their records, newest first, with a play-everything header. */
+export default function Artist({ artist }: { artist: string }) {
+  const [albums, setAlbums] = useState<AlbumSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [menu, setMenu] = useState<ActionTarget | null>(null);
+  const [busy, setBusy] = useState(false);
 
-/** Artist page (task 18.3): "albums as MediaGrid with CoverArt". Filters the
- *  whole `tracks` catalog down to this artist client-side (see format.ts's
- *  trackArtist() header — the server's `artist` filter is a PREFIX match, the
- *  wrong tool for an exact page like this one), then groups by album. */
-export default function Artist({ artist }: ArtistProps) {
-  const bp = useBreakpoint();
-  const { tracks: allTracks, loading, error } = useTracks();
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    setError(false);
+    listAlbums({ artist, sort: 'year', limit: 200 }).then(
+      (rows) => { if (alive) { setAlbums(rows); setLoading(false); } },
+      () => { if (alive) { setError(true); setLoading(false); } },
+    );
+    return () => { alive = false; };
+  }, [artist]);
 
-  const tracks = useMemo(
-    () => allTracks.filter((t) => trackArtist(t) === artist),
-    [allTracks, artist],
-  );
-  const albums = useMemo(() => groupTracksByAlbum(tracks), [tracks]);
-  const density = bp === 'mobile' ? 'compact' : bp === 'tablet' ? 'cozy' : 'comfortable';
+  const totals = useMemo(() => albums.reduce(
+    (acc, a) => ({ tracks: acc.tracks + a.tracks, duration: acc.duration + a.duration }),
+    { tracks: 0, duration: 0 },
+  ), [albums]);
 
-  function playAll() {
-    // Flatten every album (already tile-sorted newest-year-first) in its own
-    // disc/track order, so "Play all" is a stable, sensible listening order —
-    // not the raw catalog fetch order.
-    const ordered = sortAlbumTracks(albums.flatMap((a) => a.tracks));
-    requestPlay({ trackIds: ordered.map((t) => t.id), startIndex: 0 });
+  /** Play everything by this artist. The track ids are not held here — the browse
+   *  endpoint returns album SUMMARIES — so they are fetched per record on demand.
+   *  Requested in parallel and reassembled in album order, because awaiting them
+   *  one at a time makes "Play" take a visible second on a deep discography. */
+  async function playAll(shuffled: boolean) {
+    if (busy || !albums.length) return;
+    setBusy(true);
+    try {
+      const lists = await Promise.all(albums.map((a) => listAlbumTracks(a.album, a.artist).catch(() => [])));
+      const ids = lists.flat().map((t) => t.id);
+      if (!ids.length) return;
+      if (shuffled) {
+        for (let i = ids.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [ids[i], ids[j]] = [ids[j]!, ids[i]!];
+        }
+      }
+      requestPlay({ trackIds: ids, startIndex: 0 });
+    } finally {
+      setBusy(false);
+    }
   }
+
+  async function startRadio(seedId: number) {
+    try {
+      const r = await radioFrom([seedId], 60);
+      const ids = r.results.map((t) => t.id);
+      if (ids.length) requestPlay({ trackIds: [seedId, ...ids], startIndex: 0 });
+    } catch { /* non-fatal */ }
+  }
+
+  const coverId = albums.find((a) => a.cover_id != null)?.cover_id ?? null;
 
   return (
     <section className="view-detail">
-      <TButton as="a" href="#/artists" quiet className="back-link">&larr; Artists</TButton>
-
       <AsyncView
         loading={loading}
         error={error}
-        errorText="Could not load this artist. Try again shortly."
-        empty={!loading && !error && tracks.length === 0}
-        emptyText="No tracks found for this artist."
+        errorText="Could not load this artist."
+        empty={!loading && !error && albums.length === 0}
+        emptyText="No albums for this artist."
       >
-        <div className="detail-hero detail-hero-simple">
-          <h2 className="detail-title">{artist}</h2>
-          <p className="detail-meta-row">
-            {albums.length} album{albums.length === 1 ? '' : 's'} &middot; {tracks.length} track{tracks.length === 1 ? '' : 's'} &middot; {formatTotalDuration(tracks)}
-          </p>
-          <TButton className="play-button" onClick={playAll} disabled={tracks.length === 0}>
-            ▶ Play all
-          </TButton>
-        </div>
+        <header className="kr-detail-head kr-detail-artist">
+          <div className="kr-detail-art kr-detail-art-round">
+            <Cover id={coverId} has={coverId != null} alt={artist} name={artist} eager />
+          </div>
+          <div className="kr-detail-meta">
+            <p className="kr-detail-kind kr-mono">Artist</p>
+            <h1 className="kr-detail-title">{artist}</h1>
+            <p className="kr-detail-facts kr-mono">
+              {formatCount(albums.length, 'album')} · {formatCount(totals.tracks, 'track')} · {formatSpan(totals.duration)}
+            </p>
+            <div className="kr-detail-actions">
+              <button type="button" className="kr-primary" onClick={() => playAll(false)} disabled={busy}>
+                <IconPlay /> {busy ? 'Loading…' : 'Play'}
+              </button>
+              <button type="button" className="kr-ghost" onClick={() => playAll(true)} disabled={busy} aria-label="Shuffle everything">
+                <IconShuffle />
+              </button>
+            </div>
+          </div>
+        </header>
 
-        <div className="detail-albums">
-          <Lab size="sm">Albums</Lab>
-          <MediaGrid density={density} className="kr-grid">
-            {albums.map((a) => <AlbumTile key={a.album} artist={artist} data={a} />)}
-          </MediaGrid>
-        </div>
+        <section className="kr-section">
+          <div className="kr-section-head">
+            <h2 className="kr-section-title">Albums</h2>
+          </div>
+          <div className="kr-grid">
+            {albums.map((a) => <AlbumCard key={`${a.artist}-${a.album}`} album={a} />)}
+          </div>
+        </section>
       </AsyncView>
+
+      <ActionSheet target={menu} onClose={() => setMenu(null)} onRadio={startRadio} />
     </section>
   );
 }

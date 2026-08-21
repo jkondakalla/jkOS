@@ -186,3 +186,237 @@ export function createHistoryEvent(
 ): Promise<HistoryRow> {
   return apiJson<HistoryRow>('/api/history', { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(row) });
 }
+
+// ─── Browse (server-side grouping — backend/src/routes/browse.js) ─────────────
+// Everything above this line derives albums and artists by pulling the WHOLE
+// `tracks` catalog and grouping it in the browser. That is fine at a few hundred
+// tracks and untenable at the several thousand albums this app targets: a
+// multi-megabyte payload and a full re-group on every mount, on a phone. These
+// call SQLite's own GROUP BY instead and return one row per record.
+
+/** One album, summarised. `cover_id` is the id of a track on the record that
+ *  actually has extracted art — `coverUrl(cover_id)` is the sleeve; null means
+ *  the record has no art at all and the caller should draw a placeholder. */
+export interface AlbumSummary {
+  album: string;
+  artist: string;
+  year: number | null;
+  tracks: number;
+  duration: number;
+  added: string;
+  /** Lowest track id on the record — the "play this album from the top" handle. */
+  anchor_id: number;
+  cover_id: number | null;
+}
+
+export interface ArtistSummary {
+  artist: string;
+  tracks: number;
+  albums: number;
+  duration: number;
+  cover_id: number | null;
+}
+
+export interface LibraryStats {
+  tracks: number;
+  albums: number;
+  artists: number;
+  duration: number;
+}
+
+export type AlbumSort = 'added' | 'title' | 'artist' | 'year';
+
+export function listAlbums(
+  opts: { q?: string; artist?: string; sort?: AlbumSort; limit?: number; offset?: number } = {},
+): Promise<AlbumSummary[]> {
+  const p = new URLSearchParams();
+  if (opts.q) p.set('q', opts.q);
+  if (opts.artist) p.set('artist', opts.artist);
+  if (opts.sort) p.set('sort', opts.sort);
+  if (opts.limit != null) p.set('limit', String(opts.limit));
+  if (opts.offset != null) p.set('offset', String(opts.offset));
+  return apiJson<AlbumSummary[]>(`/api/albums?${p}`);
+}
+
+export function listAlbumTracks(album: string, artist?: string): Promise<Track[]> {
+  const p = new URLSearchParams({ album });
+  if (artist) p.set('artist', artist);
+  return apiJson<Track[]>(`/api/albums/tracks?${p}`);
+}
+
+export function listArtists(
+  opts: { q?: string; sort?: 'name' | 'size'; limit?: number; offset?: number } = {},
+): Promise<ArtistSummary[]> {
+  const p = new URLSearchParams();
+  if (opts.q) p.set('q', opts.q);
+  if (opts.sort) p.set('sort', opts.sort);
+  if (opts.limit != null) p.set('limit', String(opts.limit));
+  if (opts.offset != null) p.set('offset', String(opts.offset));
+  return apiJson<ArtistSummary[]>(`/api/artists?${p}`);
+}
+
+export function libraryStats(): Promise<LibraryStats> {
+  return apiJson<LibraryStats>('/api/library/stats');
+}
+
+// ─── Discovery (backend/src/discover — the embedding seam) ────────────────────
+// ⚠️ EVERY response here carries the BASIS of its answer, and the UI is expected
+// to SHOW it. The embedder (ToDo §8) backfills over hours, so at any moment part
+// of the library has a measured vector, part inherits its album's centroid, and
+// part has nothing and falls back to genre/artist affinity. Rendering all three
+// identically would present a genre guess as an acoustic match — and the first
+// time the listener notices, the feature stops being believed. `basis` and
+// `origin` exist so a row can honestly say "similar" or "same artist".
+
+/** Where one row's vector came from: 'measured' (the embedder computed it),
+ *  'inferred' (it inherited its album's centroid), 'metadata' (no vector — this
+ *  row was ranked by artist/genre/era affinity alone). */
+export type Basis = 'measured' | 'inferred' | 'metadata';
+
+/** A track as the discovery routes return it — catalog scalars plus the ranking
+ *  metadata. Deliberately NOT `Track`: there is no `cover_path` here (the wire
+ *  sends `has_cover`), and there are extra ranking fields. */
+export interface DiscoveredTrack {
+  id: number;
+  title: string;
+  artist: string | null;
+  album: string | null;
+  year: number | null;
+  duration: number;
+  genres: string[];
+  has_cover: boolean;
+  basis?: Basis;
+  score?: number;
+  /** Runs only: position in the set, and its energy percentile. */
+  step?: number;
+  energy?: number | null;
+  /** Time-of-day rail only: how well the track matches the slot's target. */
+  fit?: number;
+}
+
+export interface DiscoveryStats {
+  tracks: number;
+  dim: number;
+  arm: string | null;
+  /** Tracks the embedder actually computed a vector for. */
+  measured: number;
+  /** Tracks that inherited their album's centroid. */
+  inferred: number;
+  covered: number;
+  uncovered: number;
+  coverage: number;
+  features: string[] | null;
+}
+
+export interface SimilarResult {
+  basis: 'embedding' | 'metadata' | 'none';
+  seed_origin?: Basis;
+  results: DiscoveredTrack[];
+}
+
+export interface RunResult {
+  /** The energy shape requested, or 'none' when no readable feature arm was
+   *  loaded and the walk was cohesion-only. */
+  arc: string;
+  results: DiscoveredTrack[];
+}
+
+/** A Home rail's run — a sequenced set with an arc. */
+export interface HomeRun {
+  id: string;
+  title: string;
+  blurb: string;
+  arc: string;
+  seed: { id: number; title: string; artist: string | null };
+  length: number;
+  duration: number;
+  tracks: DiscoveredTrack[];
+}
+
+export interface DeepInArtist {
+  artist: string;
+  weight: number;
+  plays: number;
+  library_tracks: number;
+  anchor_id: number | null;
+}
+
+export interface HomePayload {
+  stats: DiscoveryStats;
+  time_of_day: { slot: string; label: string; basis: 'features' | 'genre'; results: DiscoveredTrack[] };
+  runs: HomeRun[];
+  deep_in: DeepInArtist[];
+  recently_played: DiscoveredTrack[];
+  fresh_albums: Array<{ album: string; artist: string; year: number | null; tracks: number; duration: number; anchor_id: number; added: string }>;
+}
+
+/** A named axis of the vibe map, discovered by correlating the projection against
+ *  the readable descriptor features — `low`/`high` are the pole words to print at
+ *  each end ("calm" → "intense"). Null when no feature arm was available. */
+export interface MapAxis {
+  feature: string;
+  r: number;
+  low: string;
+  high: string;
+}
+
+export interface MapRegion {
+  id: number;
+  label: string;
+  x: number;
+  y: number;
+  count: number;
+}
+
+export interface MapPoint {
+  id: number;
+  x: number;
+  y: number;
+  /** Region id. */
+  r: number;
+  /** 1 = measured, 0 = inferred from its album. */
+  o: 0 | 1;
+}
+
+export interface VibeMap {
+  available: boolean;
+  reason?: string;
+  coverage: DiscoveryStats;
+  axes: { x: MapAxis | null; y: MapAxis | null };
+  regions: MapRegion[];
+  points: MapPoint[];
+  sampled?: boolean;
+  total?: number;
+}
+
+export function discoveryStats(): Promise<DiscoveryStats> {
+  return apiJson<DiscoveryStats>('/api/discover/stats');
+}
+
+export function similarTracks(id: number, k = 24): Promise<SimilarResult> {
+  return apiJson<SimilarResult>(`/api/discover/similar/${id}?k=${k}`);
+}
+
+export function radioFrom(seedIds: number[], k = 60): Promise<SimilarResult> {
+  return apiJson<SimilarResult>(`/api/discover/radio?seed=${seedIds.join(',')}&k=${k}`);
+}
+
+export function buildRun(seedId: number, arc = 'rise', length = 14): Promise<RunResult> {
+  return apiJson<RunResult>(`/api/discover/run?seed=${seedId}&arc=${arc}&length=${length}`);
+}
+
+/** The Home page in one request — five rails, assembled server-side. The local
+ *  HOUR is sent from the browser on purpose: "morning" is a property of where the
+ *  listener is, and the server's clock is UTC in a container. */
+export function fetchHome(hour = new Date().getHours()): Promise<HomePayload> {
+  return apiJson<HomePayload>(`/api/discover/home?hour=${hour}`);
+}
+
+export function fetchVibeMap(): Promise<VibeMap> {
+  return apiJson<VibeMap>('/api/discover/map');
+}
+
+/** What sits under the pin. The map is a unit square: x and y are in [-1, 1]. */
+export function tracksNear(x: number, y: number, k = 40): Promise<{ results: DiscoveredTrack[] }> {
+  return apiJson<{ results: DiscoveredTrack[] }>(`/api/discover/near?x=${x.toFixed(4)}&y=${y.toFixed(4)}&k=${k}`);
+}

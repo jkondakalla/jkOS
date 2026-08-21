@@ -1,0 +1,275 @@
+/* glass.css — KourOS's one deviation from the suite's material language.
+ *
+ * The rest of jkOS is PRINT: ink pressed into paper on the light face, phosphor
+ * emitted from a tube on the dark one. Both are opaque, and both are right for
+ * apps whose content is text the user is reading. This app's content is COVER
+ * ART — a thousand album sleeves, each with its own palette — and an opaque
+ * chrome either fights every one of them or disappears against half of them.
+ *
+ * So KourOS adds one material on top of the suite's two: GLASS. It is deliberately
+ * scoped, per Jag's "restrained — glass only where it does work":
+ *
+ *   the player surfaces   (mini bar, now-playing sheet, queue)
+ *   the navigation        (tab bar, header)
+ *   overlays              (sheets, menus, the map's readouts)
+ *
+ * and NOWHERE else. Library grids, track rows, forms and settings stay on the
+ * suite's ordinary .jk-* primitives, because a page where everything is
+ * translucent is a page with no hierarchy at all.
+ *
+ * ── How the material is built ────────────────────────────────────────────────
+ * Real glass does four things, and each maps to one layer here:
+ *
+ *   refracts   `backdrop-filter: blur() saturate()` — the art behind actually
+ *              bends through the panel, which is why .kr-ambient (a blown-up,
+ *              heavily blurred copy of the current cover) is painted behind the
+ *              player at all: without something to refract, frosted glass is
+ *              just a grey box.
+ *   tints      a translucent fill, warm on the paper face, smoked on the tube
+ *   catches    a specular sheen off the top edge (::before), falling off by ~55%
+ *   rims       a 1px light edge on top and a dark one underneath (inset shadows),
+ *              which is what actually reads as "thickness" rather than "opacity"
+ *
+ * ── Both faces, defined the suite's way ──────────────────────────────────────
+ * Tokens are declared once on :root for the paper face and REDEFINED under
+ * [data-mode="dark"] — inputs change, the rules below never do. Every value is a
+ * token; no rule in this file carries a literal colour, matching the house rule
+ * the rest of the app's stylesheets state in their headers.
+ */
+
+:root {
+  /* The fill. Paper glass is frosted white over warm kraft — acrylic, not water. */
+  --kr-glass-fill:       rgba(255, 252, 244, 0.62);
+  --kr-glass-fill-deep:  rgba(255, 252, 244, 0.82);
+  --kr-glass-fill-thin:  rgba(255, 252, 244, 0.40);
+
+  /* The rim. Light catches the top edge, the underside sits in its own shadow. */
+  --kr-glass-rim-light:  rgba(255, 255, 255, 0.85);
+  --kr-glass-rim-dark:   rgba(120, 88, 44, 0.16);
+
+  /* The specular sheen — the Aero gloss, strongest at the very top edge. */
+  --kr-gloss-hi:         rgba(255, 255, 255, 0.55);
+  --kr-gloss-lo:         rgba(255, 255, 255, 0);
+
+  /* Cast shadow. Glass floats; it needs somewhere to float above. */
+  --kr-glass-shadow:     0 8px 28px rgba(90, 62, 28, 0.16), 0 2px 6px rgba(90, 62, 28, 0.10);
+  --kr-glass-shadow-lg:  0 -10px 44px rgba(90, 62, 28, 0.20);
+
+  /* Refraction strength. Blur is the expensive part of this file — these two are
+     the knobs to turn if a low-end phone struggles, and the ONLY ones. */
+  --kr-blur:             18px;
+  --kr-blur-deep:        30px;
+  --kr-saturate:         1.5;
+
+  /* The ambient bloom behind the player: how far the cover art is blown up and
+     how hard it is blurred before it becomes "the light in the room". */
+  --kr-ambient-blur:     64px;
+  --kr-ambient-scale:    1.6;
+  --kr-ambient-opacity:  0.5;
+
+  /* Text ON glass. The paper face keeps the suite's ink. */
+  --kr-glass-ink:        var(--hub-cream-bright);
+  --kr-glass-ink-dim:    var(--hub-cream);
+
+  /* The glyph ON the orb. NOT --color-accent-contrast: that token flips to black
+     on the dark face, and the orb's fill is a mid-tone accent on BOTH faces (see
+     player/accent.ts's lightness clamp), so flipping makes the glyph muddy in
+     dark mode instead of fixing anything. The orb is one surface with one
+     physics, so it gets one ink. */
+  --kr-orb-ink:          rgba(255, 255, 255, 0.96);
+}
+
+:root[data-mode="dark"] {
+  /* Smoked glass: the tube's own darkness, lifted just enough to separate from it. */
+  --kr-glass-fill:       rgba(38, 34, 28, 0.58);
+  --kr-glass-fill-deep:  rgba(28, 25, 20, 0.80);
+  --kr-glass-fill-thin:  rgba(48, 43, 34, 0.34);
+
+  /* On a dark face the rim is the whole tell — a bright hairline reads as an edge
+     catching light; without it smoked glass is indistinguishable from a dark box. */
+  --kr-glass-rim-light:  rgba(255, 238, 205, 0.16);
+  --kr-glass-rim-dark:   rgba(0, 0, 0, 0.55);
+
+  --kr-gloss-hi:         rgba(255, 240, 210, 0.10);
+  --kr-gloss-lo:         rgba(255, 240, 210, 0);
+
+  --kr-glass-shadow:     0 8px 30px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.45);
+  --kr-glass-shadow-lg:  0 -12px 48px rgba(0, 0, 0, 0.62);
+
+  --kr-saturate:         1.35;
+  --kr-ambient-opacity:  0.62;
+
+  --kr-glass-ink:        var(--hub-cream-bright);
+  --kr-glass-ink-dim:    var(--hub-cream);
+  --kr-orb-ink:          rgba(255, 255, 255, 0.96);
+}
+
+/* ── The base material ─────────────────────────────────────────────────────────
+   One class, three thicknesses. `position: relative` and `isolation` are load-
+   bearing: the sheen is an ::before overlay and must not escape into a parent
+   stacking context. */
+.kr-glass {
+  position: relative;
+  isolation: isolate;
+  background: var(--kr-glass-fill);
+  -webkit-backdrop-filter: blur(var(--kr-blur)) saturate(var(--kr-saturate));
+  backdrop-filter: blur(var(--kr-blur)) saturate(var(--kr-saturate));
+  box-shadow:
+    inset 0 1px 0 0 var(--kr-glass-rim-light),
+    inset 0 -1px 0 0 var(--kr-glass-rim-dark),
+    var(--kr-glass-shadow);
+  color: var(--kr-glass-ink);
+  border-radius: var(--hub-radius-lg);
+}
+
+.kr-glass-deep {
+  background: var(--kr-glass-fill-deep);
+  -webkit-backdrop-filter: blur(var(--kr-blur-deep)) saturate(var(--kr-saturate));
+  backdrop-filter: blur(var(--kr-blur-deep)) saturate(var(--kr-saturate));
+}
+
+.kr-glass-thin {
+  background: var(--kr-glass-fill-thin);
+  -webkit-backdrop-filter: blur(calc(var(--kr-blur) * 0.6)) saturate(var(--kr-saturate));
+  backdrop-filter: blur(calc(var(--kr-blur) * 0.6)) saturate(var(--kr-saturate));
+}
+
+/* The specular sheen. Sits above the fill, below the content, and is inert to the
+   pointer. Height is a percentage so it stays proportional on a 56px bar and on a
+   full-height sheet alike. */
+.kr-gloss::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 55%;
+  pointer-events: none;
+  background: linear-gradient(to bottom, var(--kr-gloss-hi), var(--kr-gloss-lo));
+  border-radius: inherit;
+  z-index: 0;
+}
+.kr-gloss > * { position: relative; z-index: 1; }
+
+/* ── The ambient bloom ─────────────────────────────────────────────────────────
+   A blown-up, heavily blurred copy of the current cover art, painted behind a
+   glass surface so there is something for it to refract. This is the single
+   element that makes the player feel like it is sitting ON the music rather than
+   next to it. `--kr-art` is set inline by the player from the cover URL. */
+.kr-ambient {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: -1;
+  border-radius: inherit;
+}
+.kr-ambient::after {
+  content: "";
+  position: absolute;
+  inset: -25%;
+  background-image: var(--kr-art, none);
+  background-size: cover;
+  background-position: center;
+  filter: blur(var(--kr-ambient-blur)) saturate(1.8);
+  transform: scale(var(--kr-ambient-scale));
+  opacity: var(--kr-ambient-opacity);
+  transition: opacity 420ms ease, background-image 420ms ease;
+}
+
+/* ── Glossy controls ──────────────────────────────────────────────────────────
+   The Aero button: a rounded, lit pill with a hard top highlight. Used for the
+   transport only — everything else in the app uses the suite's .jk-press/.jk-tbtn,
+   because a screen of glossy buttons is a screen with no primary action. */
+.kr-orb {
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  cursor: pointer;
+  color: var(--kr-orb-ink);
+  background:
+    linear-gradient(to bottom,
+      color-mix(in srgb, var(--accent) 92%, #ffffff) 0%,
+      var(--accent) 46%,
+      color-mix(in srgb, var(--accent) 84%, #000000) 100%);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.55),
+    inset 0 -2px 4px 0 rgba(0, 0, 0, 0.18),
+    0 4px 14px color-mix(in srgb, var(--accent) 42%, transparent),
+    0 1px 3px rgba(0, 0, 0, 0.25);
+  border-radius: 50%;
+  transition: transform 140ms ease, box-shadow 200ms ease, filter 200ms ease;
+}
+.kr-orb::before {
+  content: "";
+  position: absolute;
+  inset: 6% 14% auto 14%;
+  height: 38%;
+  border-radius: 50%;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0));
+  pointer-events: none;
+}
+.kr-orb:hover  { filter: brightness(1.06); }
+.kr-orb:active { transform: scale(0.94); }
+.kr-orb:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 70%, #ffffff);
+  outline-offset: 3px;
+}
+.kr-orb-lg { width: 64px; height: 64px; }
+.kr-orb-md { width: 44px; height: 44px; }
+
+/* A quiet glass control — transport secondaries, chips on glass. No fill of its
+   own; it borrows the surface it sits on and only lights up on interaction. */
+.kr-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-width: var(--hub-tap-min);
+  min-height: var(--hub-tap-min);
+  padding: 0.4rem;
+  border: 0;
+  border-radius: var(--hub-radius-soft);
+  background: transparent;
+  color: var(--kr-glass-ink-dim);
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease, transform 120ms ease;
+}
+.kr-ghost:hover  { background: var(--kr-glass-fill-thin); color: var(--kr-glass-ink); }
+.kr-ghost:active { transform: scale(0.92); }
+.kr-ghost[aria-pressed="true"],
+.kr-ghost.is-on  { color: var(--accent); }
+.kr-ghost:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ── Depth ────────────────────────────────────────────────────────────────────
+   Parallax is opt-in per element and driven by a --kr-par variable the component
+   sets from scroll/drag. Kept to translate only — a transform the compositor can
+   run without touching layout. */
+.kr-par {
+  will-change: transform;
+  transform: translate3d(0, calc(var(--kr-par, 0) * 1px), 0);
+}
+
+/* Motion respect: the suite's [data-motion="static"] and the OS setting both
+   flatten the material's animated parts. The glass itself stays — it is a
+   material, not an animation. */
+@media (prefers-reduced-motion: reduce) {
+  .kr-ambient::after,
+  .kr-orb,
+  .kr-ghost { transition: none; }
+  .kr-par { transform: none; }
+}
+:root[data-motion="static"] .kr-ambient::after { transition: none; }
+:root[data-motion="static"] .kr-par { transform: none; }
+
+/* ── The fallback that matters ────────────────────────────────────────────────
+   Firefox shipped backdrop-filter long ago, but it is still disabled behind a
+   pref on some builds, and Safari needs the -webkit- prefix above. Where the
+   filter does not apply, a translucent fill over busy cover art is unreadable —
+   so opacity goes UP to compensate. Tested by toggling the property, not assumed. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .kr-glass      { background: var(--kr-glass-fill-deep); }
+  .kr-glass-thin { background: var(--kr-glass-fill); }
+  .kr-ambient::after { opacity: calc(var(--kr-ambient-opacity) * 0.55); }
+}

@@ -1,0 +1,384 @@
+/* shell.css — KourOS's app frame: where the content, the navigation, the mini
+ * player and the full-screen overlays sit relative to each other.
+ *
+ * MOBILE IS THE GROUND STATE, not a media-query afterthought. The base rules in
+ * this file describe a phone — one column, a fixed bottom stack of mini player
+ * over tab bar, safe-area padding — and the @media block at the foot widens that
+ * into the desktop layout. Written the other way round (desktop base, phone
+ * override) every phone rule has to UNDO something, which is how the suite's
+ * earlier apps ended up with mobile bugs nobody saw on a monitor.
+ *
+ * The bottom stack is the one piece of shared geometry the whole app depends on:
+ * scrollable content must end above it, the Now Playing sheet must slide from
+ * behind it, and both need the same number. That number is --kr-dock, computed
+ * here once and read everywhere.
+ */
+
+/* ── The bottom dock ──────────────────────────────────────────────────────────
+   tab bar + mini player + the phone's own home-indicator inset. `env()` degrades
+   to 0px on anything without a safe area, so this is unconditional. */
+:root {
+  --kr-tabbar-h:   58px;
+  --kr-mini-h:     64px;
+  --kr-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --kr-dock: calc(var(--kr-tabbar-h) + var(--kr-safe-bottom));
+  --kr-dock-full: calc(var(--kr-tabbar-h) + var(--kr-mini-h) + var(--kr-safe-bottom));
+  --kr-gutter: 1rem;
+}
+
+/* ── Frame ──────────────────────────────────────────────────────────────────── */
+.kr-app {
+  min-height: 100dvh;         /* dvh, not vh: mobile browser chrome must not crop the dock */
+  display: flex;
+  flex-direction: column;
+  background: var(--hub-bg-0);
+}
+
+.kr-main {
+  flex: 1;
+  width: 100%;
+  padding: 0 var(--kr-gutter);
+  /* Always reserve the full dock. Reserving only the tab bar and growing when the
+     mini player appears makes the page jump under the reader's thumb the moment
+     playback starts. */
+  padding-bottom: calc(var(--kr-dock-full) + 1.5rem);
+}
+
+/* ── Header ───────────────────────────────────────────────────────────────────
+   Sticky and glass, so cover art scrolls UNDER it rather than past a hard edge.
+   The suite's AppShell header is replaced on mobile by this — see App.tsx. */
+.kr-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.7rem var(--kr-gutter);
+  margin: 0 calc(var(--kr-gutter) * -1) 0.5rem;
+  border-radius: 0;
+}
+.kr-header-title {
+  margin: 0;
+  font-family: var(--hub-font-serif);
+  font-size: 1.4rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--hub-cream-bright);
+}
+.kr-header-sub {
+  font-family: var(--hub-font-mono);
+  font-size: var(--hub-fs-lab-sm);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--hub-cream-dim);
+}
+.kr-header-actions { display: flex; align-items: center; gap: 0.35rem; }
+
+/* ── Tab bar (mobile) / side rail (desktop) ──────────────────────────────────── */
+.kr-tabbar {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  z-index: 60;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  align-items: stretch;
+  height: var(--kr-dock);
+  padding-bottom: var(--kr-safe-bottom);
+  border-radius: 0;
+}
+.kr-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  text-decoration: none;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  color: var(--hub-cream-dim);
+  font-family: var(--hub-font-mono);
+  font-size: 9px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  transition: color 160ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.kr-tab svg { width: 21px; height: 21px; }
+.kr-tab[aria-current="page"] { color: var(--accent); }
+/* The active tab gets a lit dot rather than a fill: on glass, a filled pill
+   fights whatever cover art is behind it, and the dot reads at any backdrop. */
+.kr-tab[aria-current="page"]::after {
+  content: "";
+  width: 4px; height: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 70%, transparent);
+}
+.kr-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; }
+
+/* ── Section scaffolding shared by every view ─────────────────────────────── */
+.kr-section { margin: 1.5rem 0; }
+.kr-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.7rem;
+}
+.kr-section-title {
+  margin: 0;
+  font-family: var(--hub-font-serif);
+  font-size: 1.08rem;
+  font-weight: 600;
+  color: var(--hub-cream-bright);
+}
+.kr-section-note {
+  font-family: var(--hub-font-mono);
+  font-size: var(--hub-fs-lab-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--hub-cream-dim);
+  white-space: nowrap;
+}
+
+/* ── The horizontal rail — Home's primary shape ───────────────────────────────
+   Scroll-snap so a swipe lands on a card edge instead of half a sleeve. The
+   negative margin lets the rail bleed to the screen edge while its first card
+   still lines up with the page gutter. */
+.kr-rail {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: var(--kr-rail-card, 44vw);
+  gap: 0.75rem;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding: 0.15rem var(--kr-gutter) 0.5rem;
+  margin: 0 calc(var(--kr-gutter) * -1);
+}
+/* Hiding the bar is NOT declared here. The suite owns scrollbar styling in one
+   place (hub.css's hairline, stated on the bare pseudo-elements so every
+   scroller in the suite is dressed by it), and `pnpm check:scroll` fails any app
+   that re-declares it — which is what caught this. A rail that wants no visible
+   bar wears .jk-scroll-none, the primitive for exactly that. */
+.kr-rail > * { scroll-snap-align: start; }
+.kr-rail-wide { --kr-rail-card: 78vw; }
+
+/* ── Cover art ────────────────────────────────────────────────────────────────
+   One square, one radius, one placeholder, everywhere. `aspect-ratio` keeps the
+   grid from reflowing as images arrive — the single biggest source of layout
+   jank in a cover grid. */
+.kr-cover {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: var(--hub-radius-soft);
+  background: var(--hub-bg-2);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.16), inset 0 0 0 1px var(--hub-line);
+}
+.kr-cover img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.kr-cover-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%; height: 100%;
+  font-family: var(--hub-font-serif);
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--hub-cream-faint);
+  background: linear-gradient(145deg, var(--hub-bg-3), var(--hub-bg-1));
+}
+
+/* ── Cards ────────────────────────────────────────────────────────────────── */
+.kr-card { display: block; text-decoration: none; color: inherit; min-width: 0; }
+.kr-card-title,
+.kr-card-sub {
+  display: block;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Metadata is SERIF and system state is MONO — the split Jag chose. A title is
+   the work's own name (print); a duration or a count is the machine reporting. */
+.kr-card-title {
+  margin-top: 0.45rem;
+  font-family: var(--hub-font-serif);
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--hub-cream-bright);
+}
+.kr-card-sub {
+  margin-top: 0.12rem;
+  font-family: var(--hub-font-sans);
+  font-size: 0.8rem;
+  color: var(--hub-cream-dim);
+}
+.kr-card-meta {
+  margin-top: 0.15rem;
+  font-family: var(--hub-font-mono);
+  font-size: var(--hub-fs-lab-xs);
+  letter-spacing: 0.07em;
+  color: var(--hub-cream-faint);
+}
+
+/* ── Cover grid (Browse) ──────────────────────────────────────────────────── */
+.kr-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--kr-cols, 2), minmax(0, 1fr));
+  gap: 0.9rem 0.75rem;
+}
+
+/* ── Track rows ───────────────────────────────────────────────────────────── */
+.kr-tracks { list-style: none; margin: 0; padding: 0; }
+.kr-track {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  width: 100%;
+  padding: 0.5rem 0.4rem;
+  border: 0;
+  border-radius: var(--hub-radius-soft);
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  transition: background 140ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.kr-track { min-height: 52px; }
+.kr-track:hover { background: var(--hub-bg-2); }
+.kr-track:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.kr-track-no {
+  flex: none;
+  width: 1.6rem;
+  text-align: right;
+  font-family: var(--hub-font-mono);
+  font-size: 0.75rem;
+  color: var(--hub-cream-faint);
+  font-variant-numeric: tabular-nums;
+}
+.kr-track-art { flex: none; width: 40px; }
+/* A <span> is inline, and so are its children — without this the title and the
+   subtitle render on ONE line and overflow the row instead of stacking. The row's
+   elements are spans (not divs) because the whole row is a <button>, and a <div>
+   inside a button is invalid; so the stacking has to be declared, not inherited. */
+.kr-track-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+}
+.kr-track-title {
+  display: block;
+  font-family: var(--hub-font-serif);
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--hub-cream-bright);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.kr-track-sub {
+  display: block;
+  font-family: var(--hub-font-sans);
+  font-size: 0.78rem;
+  color: var(--hub-cream-dim);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.kr-track-time {
+  flex: none;
+  font-family: var(--hub-font-mono);
+  font-size: 0.75rem;
+  color: var(--hub-cream-faint);
+  font-variant-numeric: tabular-nums;
+}
+/* The currently-playing row. Marked by LIGHT, not by a fill — the suite's
+   marking-by-light rule, and the only treatment that survives on glass. */
+.kr-track.is-playing .kr-track-title { color: var(--accent); }
+.kr-track.is-playing .kr-track-no    { color: var(--accent); }
+
+/* ── Utility ──────────────────────────────────────────────────────────────── */
+.kr-mono {
+  font-family: var(--hub-font-mono);
+  font-size: var(--hub-fs-lab-sm);
+  letter-spacing: 0.07em;
+  color: var(--hub-cream-dim);
+}
+.kr-serif { font-family: var(--hub-font-serif); }
+.kr-row { display: flex; align-items: center; gap: 0.5rem; }
+.kr-spread { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
+.kr-wrap { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.kr-scroll-x { overflow-x: auto; }   /* pair with .jk-scroll-none to hide the bar */
+
+/* ── Tablet ───────────────────────────────────────────────────────────────── */
+@media (min-width: 768px) {
+  :root { --kr-gutter: 1.5rem; }
+  .kr-grid { --kr-cols: 4; }
+  .kr-rail { --kr-rail-card: 30vw; }
+  .kr-rail-wide { --kr-rail-card: 44vw; }
+}
+
+/* ── Desktop ──────────────────────────────────────────────────────────────────
+   The tab bar becomes a left rail and the dock collapses to the player bar only.
+   This is the ONE desktop layout the brief asked for. */
+@media (min-width: 1024px) {
+  :root {
+    --kr-gutter: 2rem;
+    --kr-rail-w: 216px;
+    --kr-dock: 0px;
+    --kr-dock-full: calc(var(--kr-mini-h) + 24px);
+  }
+
+  .kr-app { flex-direction: row; }
+
+  .kr-tabbar {
+    position: fixed;
+    top: 0; bottom: 0; left: 0; right: auto;
+    width: var(--kr-rail-w);
+    height: auto;
+    grid-auto-flow: row;
+    grid-auto-rows: max-content;
+    align-content: start;
+    gap: 0.15rem;
+    padding: 1.1rem 0.6rem;
+  }
+  .kr-tab {
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 0.65rem;
+    padding: 0.6rem 0.7rem;
+    border-radius: var(--hub-radius-soft);
+    font-size: 0.82rem;
+    letter-spacing: 0.04em;
+    text-transform: none;
+    font-family: var(--hub-font-sans);
+  }
+  .kr-tab[aria-current="page"] { background: var(--kr-glass-fill-thin); }
+  .kr-tab[aria-current="page"]::after {
+    margin-left: auto;
+  }
+
+  .kr-main {
+    margin-left: var(--kr-rail-w);
+    max-width: var(--jk-canvas-cap);
+    padding: 0 var(--kr-gutter) calc(var(--kr-dock-full) + 2rem);
+  }
+
+  .kr-grid { --kr-cols: 5; }
+  .kr-rail { --kr-rail-card: 200px; }
+  .kr-rail-wide { --kr-rail-card: 320px; }
+}
+
+@media (min-width: 1500px) {
+  .kr-grid { --kr-cols: 6; }
+}

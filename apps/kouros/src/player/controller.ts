@@ -73,3 +73,64 @@ export function onPosition(l: PositionListener): () => void {
 export function getLastPosition(): PositionUpdate | null {
   return lastPosition;
 }
+
+// ─── Queue edits across the same seam ───────────────────────────────────────────
+// "Play next" and "Add to queue" are actions a LIBRARY view offers (a row's menu,
+// an album header), but only PlayerBar holds the engine — a view calling
+// usePlayerEngine() itself would mount a second <audio> and a second queue. So the
+// same publish/subscribe seam that carries play requests carries queue edits:
+// views emit, PlayerBar subscribes and applies them to the one real queue.
+//
+// `where` is deliberately an explicit enum rather than a boolean. The brief calls
+// for "Play next" and "Add to queue" to read as two distinct, visible actions, and
+// a parameter named `next: boolean` is exactly how those two actions quietly
+// collapse back into one control with a modifier.
+
+export interface EnqueueRequest {
+  trackIds: number[];
+  where: 'next' | 'end';
+}
+
+type EnqueueListener = (req: EnqueueRequest) => void;
+const enqueueListeners = new Set<EnqueueListener>();
+
+/** Ask the player to insert tracks after the current one, or append them. */
+export function requestEnqueue(req: EnqueueRequest): void {
+  for (const l of enqueueListeners) l(req);
+}
+
+/** Subscribe to queue edits (PlayerBar only). Returns the unsubscribe function. */
+export function onEnqueueRequest(l: EnqueueListener): () => void {
+  enqueueListeners.add(l);
+  return () => { enqueueListeners.delete(l); };
+}
+
+// ─── The now-playing broadcast ─────────────────────────────────────────────────
+// Which track is loaded, and whether it is playing — so a library row can mark
+// itself as the current one without a second engine. Position is already carried
+// by the position broadcast above; this is the coarser "what and whether" signal
+// that a track list needs to render its playing state.
+
+export interface NowPlayingState {
+  trackId: number | null;
+  playing: boolean;
+}
+
+type NowListener = (state: NowPlayingState) => void;
+const nowListeners = new Set<NowListener>();
+let lastNow: NowPlayingState = { trackId: null, playing: false };
+
+export function publishNowPlaying(state: NowPlayingState): void {
+  if (state.trackId === lastNow.trackId && state.playing === lastNow.playing) return;
+  lastNow = state;
+  for (const l of nowListeners) l(state);
+}
+
+export function onNowPlaying(l: NowListener): () => void {
+  nowListeners.add(l);
+  return () => { nowListeners.delete(l); };
+}
+
+export function getNowPlaying(): NowPlayingState {
+  return lastNow;
+}
