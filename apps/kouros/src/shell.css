@@ -21,6 +21,13 @@
   --kr-tabbar-h:   58px;
   --kr-mini-h:     64px;
   --kr-safe-bottom: env(safe-area-inset-bottom, 0px);
+  /* The TOP inset matters only once installed. In a browser tab the status bar
+     is the browser's problem; launched from the home screen in `display:
+     standalone` the app owns the full screen and its sticky header would sit
+     UNDER the clock and the notch. Now Playing, Queue and the action sheet
+     already read this — the shell header did not, which is the one surface
+     visible on every screen. Zero everywhere else, so it is unconditional. */
+  --kr-safe-top: env(safe-area-inset-top, 0px);
   --kr-dock: calc(var(--kr-tabbar-h) + var(--kr-safe-bottom));
   --kr-dock-full: calc(var(--kr-tabbar-h) + var(--kr-mini-h) + var(--kr-safe-bottom));
   --kr-gutter: 1rem;
@@ -55,7 +62,10 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  padding: 0.7rem var(--kr-gutter);
+  /* The inset is added to the PADDING, not to `top` — the glass has to extend up
+     behind the status bar, not start below it, or there is a bare strip of page
+     scrolling past above the header. */
+  padding: calc(0.7rem + var(--kr-safe-top)) var(--kr-gutter) 0.7rem;
   margin: 0 calc(var(--kr-gutter) * -1) 0.5rem;
   border-radius: 0;
 }

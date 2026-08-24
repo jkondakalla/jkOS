@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="KourOS">
+  <!-- KourOS app icon: a glossed record — indigo #4b3f8f and amber #dba13c, the
+       accent pair injectJkOSTheme sets in src/App.tsx, on the suite's paper ground.
+       The specular sweep is the app's own glass material stated in one mark.
+       Deliberately geometric (two grooves, a label, a spindle) so it survives
+       being drawn at favicon size. The PNG twins beside this file are generated
+       from the same geometry — keep them in step. -->
+  <defs>
+    <radialGradient id="kr-gloss" cx="0.32" cy="0.22" r="0.78">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.34" />
+      <stop offset="0.55" stop-color="#ffffff" stop-opacity="0.10" />
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0" />
+    </radialGradient>
+    <clipPath id="kr-disc">
+      <circle cx="256" cy="256" r="176" />
+    </clipPath>
+  </defs>
+
+  <rect width="512" height="512" rx="96" fill="#ede2c8" />
+
+  <circle cx="256" cy="256" r="176" fill="#4b3f8f" />
+  <g fill="none" stroke="#342b66" stroke-width="3">
+    <circle cx="256" cy="256" r="151" />
+    <circle cx="256" cy="256" r="123" />
+  </g>
+  <circle cx="256" cy="256" r="60" fill="#dba13c" />
+  <circle cx="256" cy="256" r="15" fill="#ede2c8" />
+
+  <rect width="512" height="512" fill="url(#kr-gloss)" clip-path="url(#kr-disc)" />
+</svg>

@@ -185,6 +185,39 @@ function build(staging) {
  * inside the staging server block, where /_auth_admin_check + @staging_* are defined). */
 const EDGE_APPS = edgeApps()
 
+/* ── Digital Asset Links ───────────────────────────────────────────────────────
+   The file an Android TWA's link verification fetches from
+   https://<origin>/.well-known/assetlinks.json to decide whether the installed
+   app may own that origin's links — i.e. whether it opens WITHOUT a URL bar.
+
+   ⚠️ IT CANNOT BE SHIPPED IN THE APP'S public/ DIRECTORY. serveSpa mounts
+   express.static, whose `dotfiles` default is 'ignore', so `.well-known/` never
+   matches; the `app.get('*')` SPA fallback then answers with index.html at 200.
+   The verifier gets HTML, fails, and says nothing useful — the only symptom is a
+   URL bar that will not go away. Measured against the real server before this
+   existed: `200 text/html`. So it is answered at the EDGE, above the proxy pass.
+
+   Emitted into every generated prod app block AND into jkAuth's hand-tuned block
+   in standalone.conf — jkAuth because sign-in is a full-page redirect to a
+   DIFFERENT ORIGIN, and an unverified hop drops a toolbar over the login screen
+   exactly when the user is typing a password. One source, two emission sites,
+   and `--check` asserts standalone.conf still carries this byte-for-byte. */
+const ASSETLINKS = JSON.parse(readFileSync(join(DIR, 'assetlinks.json'), 'utf8'))
+
+// Minified onto ONE line: nginx's `return` takes a single quoted string, and a
+// multi-line literal would need continuations that the JSON escaping fights.
+// JSON never contains a single quote, so the quoting is unambiguous.
+const ASSETLINKS_BODY = JSON.stringify(ASSETLINKS.targets)
+
+const ASSETLINKS_LOCATION = `# Digital Asset Links — GENERATED from infra/nginx/assetlinks.json; do not hand-edit.
+# Answered at the edge because serveSpa's express.static ignores dotfile paths and
+# the SPA fallback would return index.html at 200 (see gen-nginx-weave.mjs).
+location = /.well-known/assetlinks.json {
+    default_type application/json;
+    add_header Cache-Control "public, max-age=300" always;
+    return 200 '${ASSETLINKS_BODY}';
+}`
+
 const SEC_HEADERS = [
   'add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;',
   'add_header X-Content-Type-Options nosniff always;',
@@ -225,6 +258,8 @@ ${SEC_HEADERS.map(h => '    ' + h).join('\n')}
 
     # Weave same-origin peer proxy (every prod origin reaches every peer).
     include /etc/nginx/weave-proxy.conf;
+
+${ASSETLINKS_LOCATION.split('\n').map(l => l ? '    ' + l : l).join('\n')}
 
     location / {
         set $upstream      http://${a.upstream};
@@ -292,8 +327,41 @@ const targets = [
   { path: OUT_APPS_STAGING, content: buildApps(true),  label: 'apps-generated-staging.conf' },
 ]
 
+/* jkAuth's server block is HAND-TUNED in standalone.conf, so the asset-links
+   location has two emission sites. Two sites is a drift trap, and the house rule
+   for that is one source plus a conformance test — this is the test. It compares
+   the payload, not the whitespace: standalone.conf indents its server blocks four
+   further than the generated files, so a byte compare would fail on formatting
+   alone and teach everyone to ignore it. */
+function checkStandaloneAssetlinks() {
+  const conf = join(DIR, 'standalone.conf')
+  let text = ''
+  try { text = readFileSync(conf, 'utf8') } catch {
+    console.error('✗ standalone.conf is unreadable')
+    return false
+  }
+  const found = [...text.matchAll(/location = \/\.well-known\/assetlinks\.json \{[^}]*?return 200 '([^']*)';/gs)]
+  if (!found.length) {
+    console.error(
+      '✗ standalone.conf has no /.well-known/assetlinks.json location. jkAuth is a ' +
+      'separate ORIGIN in the sign-in redirect; without it a TWA shows a URL bar over ' +
+      'the login screen. Copy the block from apps-generated.conf into the auth.jkos.net server.')
+    return false
+  }
+  const wrong = found.filter(([, body]) => body !== ASSETLINKS_BODY)
+  if (wrong.length) {
+    console.error(
+      `✗ standalone.conf serves asset links that differ from infra/nginx/assetlinks.json\n` +
+      `    expected: ${ASSETLINKS_BODY}\n` +
+      `    found:    ${wrong.map(([, b]) => b).join('\n              ')}`)
+    return false
+  }
+  console.log(`✓ standalone.conf asset links match assetlinks.json (${found.length} origin(s))`)
+  return true
+}
+
 if (process.argv.includes('--check')) {
-  let drift = false
+  let drift = !checkStandaloneAssetlinks()
   for (const t of targets) {
     let current = ''
     try { current = readFileSync(t.path, 'utf8') } catch { /* missing → drift */ }

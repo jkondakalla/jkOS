@@ -1,0 +1,30 @@
+{
+  "_comment": [
+    "Digital Asset Links — THE SOURCE OF TRUTH for which Android apps may claim",
+    "jkOS links, and the file every TWA's link verification fetches from",
+    "https://<origin>/.well-known/assetlinks.json.",
+    "",
+    "This file is not served directly. gen-nginx-weave.mjs EMBEDS the `targets`",
+    "array below into each generated prod server block and into jkAuth's",
+    "hand-tuned block in standalone.conf, so every origin answers with identical",
+    "JSON and the two cannot drift (`pnpm check:nginx` asserts it).",
+    "",
+    "WHY IT IS NOT JUST A FILE IN public/: serveSpa mounts express.static, which",
+    "IGNORES DOTFILE PATHS by default, so `.well-known/` never matches — and the",
+    "`app.get('*')` SPA fallback then answers with index.html at 200. Android's",
+    "verifier receives HTML, fails, and reports nothing useful; the only symptom",
+    "is a browser URL bar that will not go away. Measured on the real server",
+    "before this existed: 200 text/html. It must be answered at the edge.",
+    "",
+    "TO ADD AN APP: run `bubblewrap init`, take the SHA-256 of the signing key it",
+    "prints (or `keytool -list -v -keystore <ks>`), add an entry, regenerate",
+    "(`node infra/nginx/gen-nginx-weave.mjs`), and RESTART nginx — not reload,",
+    "the confs are bind-mounts and a reload will not re-read a replaced inode.",
+    "",
+    "An empty `targets` array is valid JSON and serves correctly; verification",
+    "simply fails until a real fingerprint is added. That is the honest state",
+    "before the keystore exists, and it is preferable to a placeholder that looks",
+    "configured."
+  ],
+  "targets": []
+}

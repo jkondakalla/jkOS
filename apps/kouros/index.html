@@ -2,8 +2,24 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- viewport-fit=cover is what makes env(safe-area-inset-*) return anything
+       other than 0. Without it the shell never learns the notch exists, and the
+       installed app draws its header underneath the status bar. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>KourOS</title>
+  <!-- Installability. Every href here is RELATIVE so vite rewrites it against
+       `base` — prod builds at "/" and staging at "/kouros/", and an absolute
+       path would 404 under the second. `theme-color` is the accent, so the
+       Android status bar and task-switcher card match the app rather than
+       defaulting to white. -->
+  <link rel="manifest" href="manifest.webmanifest" />
+  <meta name="theme-color" content="#4b3f8f" />
+  <meta name="description" content="KourOS is your music library — browse albums and artists, build a queue, and follow the vibe map through the collection." />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="KourOS" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <!-- Typography: IBM Plex Mono/Sans + Fraunces — the serif is the suite default
        (--hub-font-serif, Full Press): labels, chips and text buttons are printed,
        so every app loads it. -->
