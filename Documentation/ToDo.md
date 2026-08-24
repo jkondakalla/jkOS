@@ -609,7 +609,47 @@ re-proposed:
     artists, this is 2,298 over 38 with a far denser duplicate population competing for the NN
     slot. Different population, not a regression.
 
-**After the gate — unscheduled, named not planned.** M5 walking shuffle (also needs the KourOS
-`MUSIC_DIR` mount, §3 — Jag's call) · M6 library map (**PCA via `np.linalg.svd`, not UMAP** —
-`umap-learn` + `numba` breaks the budget) · M7 spectrogram surface (**decoration**, and
-[ALGORITHMS.md §9](ALGORITHMS.md) says so out loud). Detail lives there, not here.
+**After the gate — M5 and M6 are BUILT, in KourOS.** `b3eac39` shipped the consuming half as
+`apps/kouros/backend/src/discover/` — `similar` / radio / **runs (M5)** / **vibe map (M6, PCA-2 by
+power iteration + k-means)** — reading `music/index.db` read-only and reporting the BASIS of every
+answer (`embedding` | `metadata` | `none`) so a sparse backfill reads as coverage, not as a broken
+map. M7 spectrogram surface remains **decoration**, and [ALGORITHMS.md §9](ALGORITHMS.md) says so
+out loud.
+
+- [x] **8.8 The seam, made honest** — 2026-08-24 `ad5f756`. Two defects, both of the class this
+  section exists to refuse: something that cannot error, reporting a plausible number.
+  - ⚠️ **The space was never CENTRED on the reading side.** KourOS ranked on raw cosine over
+    un-centred CLAP — §8.7's own trap, the one that reversed the M4 verdict. Strangers sat at
+    **+0.480 ± 0.219** while the z-scored descriptor arm sat at −0.017, so the two arms were on
+    incompatible scales and `makeRun()` was **broken**: it scored `cohesion × dot` minus
+    `|energy − target|`, and a cosine that barely varies loses to a percentile-ranked energy term
+    spanning [0,1]. A "run" was an energy ramp through unrelated music.
+  - **The fix is §8.4's pattern, applied to the neural arm.** `query.py --fit` fits the corpus
+    geometry and stores it in `meta` as `calib_*:<arm>` — the `<name>:<table>` convention
+    `config_sig:local_vectors` already set, so it generalises to both arms. After centring:
+    neural **−0.0280 ± 0.3054**, descriptor −0.0165 ± 0.2935. Measured over the real 2,376-vector
+    index, in the units the app serves: **same album +2.404, stranger +0.046**, and `makeRun`'s
+    consecutive similarity goes **1.385 → 2.758** when the term is switched on.
+  - ⚠️ **Tier 1 of the join CANNOT HIT IN A CONTAINER, and that is not a bug in tier 1.** The
+    embedder walks the host (`/mnt/Luna/Plex/Music/…`); KourOS reads a bind mount (`/music/…`).
+    Both absolute, both correct, no shared prefix — so the obvious join is dead in deployment
+    while working perfectly on a workstation. **Green in dev, silently 0% in prod.** A
+    root-relative tier is now the primary join; measured on the real index in the container
+    shape: **path 0 · rel 2,376 · content 0 → 100% coverage.**
+  - ⚠️ **1,511 of 2,376 vectors keyed to an artist that does not exist.** The content-key salvage
+    read the first segment BELOW the library root as the artist directory; once the retired rip
+    moved into `Old (Needs to be trimmed)/`, that segment *was* the excluded folder. Now read
+    from the FILE end (album = parent, skipping `Disc N`; artist = its `<Artist> - ` prefix or
+    the directory above), which is root-independent. Measured: 1,511 bogus before, **0 after**.
+  - `discover.smoke.mjs` (26 assertions) roots its fixture index elsewhere on purpose, so the
+    container mismatch is reproduced rather than described; its **negative control** points the
+    seam at another library's index and requires coverage to collapse *and* the server to say so.
+
+- [ ] **8.9 The space over the FINAL library** — blocked on the re-download finishing. §8.6 was
+  stopped at 1,506/15,326 because that was not the library the space would be built over, and it
+  still isn't: 2,376 neural vectors, of which only 865 are the flat layout. Run
+  `backfill.py --scan` → `backfill.py` (~1 h on CUDA now, `02cc790`) →
+  `descriptors.py --build --encoded` → **`query.py --fit`** (the geometry must be refitted over
+  the final corpus — the mean of a half-filled library is the mean of whatever path order
+  reached) → `query.py --gate`. Then ship `index.db` **with its `-wal` sidecar** or you copy a
+  pre-checkpoint snapshot and silently lose vectors.
