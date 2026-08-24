@@ -126,6 +126,74 @@ INTRA_OP_THREADS = int(os.environ.get('MUSIC_ONNX_THREADS', '8'))
 # so batching is a speed knob and not a property of the vector space.
 BATCH_WINDOWS = 4
 
+# ── The execution provider ──────────────────────────────────────────────────────
+# The forward pass is 75% of a track's wall clock (decode 0.45 s, mel ~0.3 s,
+# model 1.35 s, measured over real tracks), so it is the one stage where hardware
+# changes the answer. Measured on this workstation, per 10 s window:
+#
+#     provider     batch 1   batch 4   batch 12   batch 24
+#     CPU (8 thr)   0.070     0.071     0.086      0.098
+#     CUDA (3080)   0.011     0.005     0.004      0.004
+#
+# — 21x at a whole track per batch, which takes the model from 1.03 s/track to
+# 0.05 s and hands the bottleneck back to the CIFS mount, exactly where Trap 19
+# says it belongs.
+#
+# ⚠️ **THE PROVIDER IS NOT PART OF `recipe()`, AND THAT IS A MEASUREMENT, NOT AN
+# ASSUMPTION.** A backend that placed tracks differently would fork the vector
+# space silently — Trap 16 with new hardware — and the 2,283 rows computed on CPU
+# before the GPU existed would be quietly incomparable to everything after them.
+# Checked over real tracks: worst cosine between the CPU and CUDA vector for the
+# same audio is 0.99999982, max element delta 6.5e-05. That is fp32 accumulation
+# order, not a different embedding. `test_encoder.py` holds the check.
+#
+# The negotiation is deliberately a PREFERENCE LIST rather than a flag: a machine
+# without a GPU, without the CUDA wheels, or with a driver too old must run
+# unchanged rather than fail, because CPU is the supported configuration and the
+# GPU is an optimisation this one workstation happens to afford.
+PROVIDER_PREFERENCE = ('CUDAExecutionProvider', 'CPUExecutionProvider')
+
+# Set `MUSIC_ONNX_PROVIDER=CPUExecutionProvider` to pin the CPU path — the way to
+# reproduce a CPU-computed vector on a machine that has a GPU, which is what the
+# equivalence test needs and what a bisect would want.
+PROVIDER_OVERRIDE = os.environ.get('MUSIC_ONNX_PROVIDER') or None
+
+# Batching is a speed knob, not a property of the space (see BATCH_WINDOWS), and
+# the two backends want opposite values: the CPU is fastest at 4 and degrades past
+# it, the GPU keeps improving to a whole track at once. One default cannot serve
+# both, so the size is chosen from the provider actually in force rather than
+# guessed at import.
+BATCH_WINDOWS_CUDA = 12
+
+
+def preferred_providers():
+    """The provider list to hand `InferenceSession`, most wanted first.
+
+    Filtered against what this onnxruntime build actually offers, so requesting
+    CUDA on the CPU-only wheel is not an error — it simply is not in the list.
+    onnxruntime would otherwise warn and silently fall back, and "silently" is
+    the part this project does not accept: `session()` prints what it got.
+    """
+    import onnxruntime
+    if PROVIDER_OVERRIDE:
+        return [PROVIDER_OVERRIDE]
+    available = set(onnxruntime.get_available_providers())
+    chosen = [p for p in PROVIDER_PREFERENCE if p in available]
+    return chosen or ['CPUExecutionProvider']
+
+
+def batch_windows():
+    """`BATCH_WINDOWS`, or the GPU's larger value when the GPU is in force."""
+    return BATCH_WINDOWS_CUDA if active_provider() == 'CUDAExecutionProvider' else BATCH_WINDOWS
+
+
+def active_provider():
+    """The provider the live session is actually using — the one onnxruntime
+    RESOLVED, never the one that was requested. Those differ exactly when the
+    interesting thing has happened (the GPU was asked for and refused), which is
+    why nothing here reads the request."""
+    return session().get_providers()[0]
+
 
 class EncoderError(RuntimeError):
     """The encoder could not produce a vector. §8.6's per-track catch, alongside
@@ -176,12 +244,23 @@ def session():
             ) from exc
         if not os.path.exists(MODEL_PATH):
             raise EncoderError(f'{MODEL_PATH} is missing — run `python encoder.py --fetch`')
+        # ⚠️ The nvidia CUDA/cuDNN wheels install into site-packages but are NOT
+        # on the dynamic loader's path, so `libcublasLt.so` is missing at session
+        # build time and onnxruntime falls back to CPU with a warning buried in
+        # its log — a 21x regression that looks like nothing at all. This call is
+        # what puts them on the path, and it is the whole reason a working
+        # `pip install onnxruntime-gpu[cuda,cudnn]` can still run on the CPU.
+        if hasattr(onnxruntime, 'preload_dlls'):
+            try:
+                onnxruntime.preload_dlls()
+            except Exception:
+                pass            # CPU-only wheel, or no CUDA present: not an error
         options = onnxruntime.SessionOptions()
         options.intra_op_num_threads = INTRA_OP_THREADS
         options.inter_op_num_threads = 1
         try:
             _SESSION = onnxruntime.InferenceSession(
-                MODEL_PATH, options, providers=['CPUExecutionProvider'])
+                MODEL_PATH, options, providers=preferred_providers())
         except Exception as exc:
             # onnxruntime raises its own exception family for a graph it cannot
             # parse, and §8.6's per-track catch would happily record "failed" for
@@ -317,17 +396,26 @@ def _run_batches(tensor, batch_size):
     return np.concatenate(out, axis=0).astype(np.float32)
 
 
-def embed_features(tensor, batch_size=BATCH_WINDOWS):
-    """A prepared feature tensor → (n_windows, DIM) float32. §8.6's serial half."""
+def embed_features(tensor, batch_size=None):
+    """A prepared feature tensor → (n_windows, DIM) float32. §8.6's serial half.
+
+    ⚠️ `batch_size=None` means `batch_windows()` AS RESOLVED AT CALL TIME, not the
+    module constant as it stood at import. Spelling the default `BATCH_WINDOWS`
+    is the same defect as the frozen sample rate in `audio.decode` and the frozen
+    root in `scan.iter_tracks` — a Python default argument is evaluated ONCE — and
+    here it has a specific cost: the CPU's batch of 4 would be baked in before any
+    session exists, so the GPU path would run at a third of its throughput with
+    nothing anywhere to indicate it.
+    """
     _assert_encoder_profile()
     tensor = np.asarray(tensor, dtype=np.float32)
     if tensor.ndim != 4 or tensor.shape[1] != 1 or tensor.shape[3] != config.N_MELS:
         raise EncoderError(
             f'expected a (n, 1, frames, {config.N_MELS}) tensor, got shape {tensor.shape}')
-    return _run_batches(tensor, batch_size)
+    return _run_batches(tensor, batch_windows() if batch_size is None else batch_size)
 
 
-def embed_windows(signal, batch_size=BATCH_WINDOWS, max_windows=None):
+def embed_windows(signal, batch_size=None, max_windows=None):
     """Every window of `signal` as a (n_windows, DIM) float32 array."""
     return embed_features(window_features(signal, max_windows=max_windows), batch_size)
 
@@ -525,6 +613,7 @@ def verify(paths=None, stream=None):
 
     import audio
     import ridge
+    import scan
 
     out = stream or sys.stdout
     paths = paths or ridge.check_set_paths()
@@ -551,6 +640,20 @@ def verify(paths=None, stream=None):
     record('unit norm', abs(float(np.linalg.norm(first)) - 1.0) < 1e-5)
 
     if not paths:
+        # ⚠️ Two very different situations, and they used to print the same line.
+        # No mount is expected anywhere but this workstation. A LIVE mount with a
+        # stale check set means the library was reorganised underneath the gate,
+        # every pinned path filtered itself out, and the three checks that
+        # actually run the encoder on real music stopped running — while `verify`
+        # went on reporting PASS over the five that need no audio. That is a
+        # failure, and it is recorded as one rather than narrated in a skip line.
+        if scan.library_reachable():
+            record('check set resolves', False,
+                   f'{len(ridge.check_set_missing())}/{len(ridge.CHECK_SET)} pinned paths '
+                   f'are missing while the library IS mounted — ridge.CHECK_SET is stale, '
+                   f'so SPREAD, STRUCTURE and SENSITIVITY tested nothing')
+            print('\n  check set is stale — see above', file=out)
+            return False
         print('\n  library not mounted — SPREAD, STRUCTURE and SENSITIVITY skipped', file=out)
         return all(checks)
 
@@ -588,14 +691,14 @@ def verify(paths=None, stream=None):
     return all(checks)
 
 
-def embed_windows_unchecked(signal, batch_size=BATCH_WINDOWS):
+def embed_windows_unchecked(signal, batch_size=None):
     """`embed_windows` without the profile assertion — for `verify()` alone, which
     deliberately runs the model on a WRONG mel to prove it notices. Nothing else
     may use this, which is why the guard lives on the public functions and this
     one is spelled out in full."""
     frames = [input_features(w) for w in windows(signal)]
     tensor = np.concatenate(frames, axis=0)[:, None, :, :].astype(np.float32)
-    return _run_batches(tensor, batch_size)
+    return _run_batches(tensor, batch_windows() if batch_size is None else batch_size)
 
 
 def _embed_each(paths):

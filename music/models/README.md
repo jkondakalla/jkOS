@@ -95,3 +95,67 @@ python3 -m venv --system-site-packages .venv
 The suite runs **either way**. Under the system interpreter the encoder tests skip
 cleanly — the same convention the library-backed tests use for the missing mount — so
 `python -m unittest discover` still needs nothing but numpy and ffmpeg.
+
+## The GPU, which is optional and stays optional
+
+`requirements.txt` is still exactly two lines, and **CPU is the supported
+configuration**. What follows is an opt-in install for one workstation, with the
+same status the ONNX export tooling has: a build tool, never a dependency.
+
+```bash
+cd music
+./.venv/bin/pip install "onnxruntime-gpu[cuda,cudnn]"
+```
+
+⚠️ `onnxruntime` and `onnxruntime-gpu` **cannot coexist** — they install into the same
+`onnxruntime/` package directory, so `pip uninstall onnxruntime` after installing the
+GPU wheel deletes shared files and leaves a module with no `get_available_providers`.
+Install the GPU wheel *over* the CPU one and leave the CPU one alone, or
+`--force-reinstall` to recover.
+
+`encoder.py` negotiates: it asks for `CUDAExecutionProvider` first and falls back to
+`CPUExecutionProvider`, filtered against what the installed runtime actually offers, so
+a machine with no GPU, no CUDA wheels, or an old driver runs unchanged. Pin the CPU path
+with `MUSIC_ONNX_PROVIDER=CPUExecutionProvider` — which is how a CPU-computed vector is
+reproduced on a machine that has a GPU.
+
+**Measured on this workstation** (RTX 3080, Ryzen 7 5800XT), per 10 s window:
+
+| provider | batch 1 | batch 4 | batch 12 | batch 24 |
+|---|---|---|---|---|
+| CPU, 8 threads | 0.070 s | 0.071 s | 0.086 s | 0.098 s |
+| CUDA | 0.011 s | 0.005 s | **0.004 s** | 0.004 s |
+
+The two backends want opposite batch sizes — the CPU degrades past 4, the GPU improves
+to a whole track at once — so `batch_windows()` picks from the provider **in force**
+rather than from a module constant frozen at import.
+
+End to end this takes the model from 75% of a track's wall clock to ~3%, and the
+backfill from ~1 track/s to **2.97 track/s at 85.5 MB/s** — which is the CIFS mount's
+measured ceiling (85–96 MB/s, Trap 19). The bottleneck is now the wire, so adding
+readers past 3 buys nothing and a faster GPU would buy nothing either.
+
+### Two things that are true only because they were measured
+
+**The provider is not part of `recipe()`.** Vectors computed on CPU and on GPU go into
+one table and get compared against each other, so a backend that placed tracks
+differently would fork the vector space silently — Trap 16, reached through hardware.
+Checked over real tracks: worst cosine between the CPU and the CUDA vector for the same
+audio is **0.99999982**, max element delta 6.5e-05. That is fp32 accumulation order, not
+a different embedding. `test_encoder.py::ProviderEquivalenceTest` holds the check, and
+it is what licenses the 2,283 CPU-computed rows already in the index.
+
+**Batching is bitwise-stable on CPU and only cosine-stable on CUDA.** cuBLAS picks
+different reduction strategies by batch dimension, so the bytes move (max delta 2.5e-04)
+while the track does not (pooled cosine 0.9999994 — the fp32 noise floor of the
+measurement itself; the CPU's own bitwise-identical vectors score 0.99999988 against
+themselves). The test asserts **two tiers** rather than one: bitwise on CPU, cosine
+everywhere. Weakening it to cosine everywhere would stop catching a real CPU regression;
+demanding bitwise everywhere would fail on hardware that is behaving correctly.
+
+⚠️ **The nvidia wheels install into `site-packages` but are not on the dynamic loader's
+path.** Without `onnxruntime.preload_dlls()` the CUDA provider fails to load
+`libcublasLt.so`, onnxruntime falls back to CPU with a warning buried in its log, and the
+run takes 3.4 hours instead of one while looking completely normal. `session()` calls it;
+`backfill.py` prints the provider that actually resolved at the top of every run, because
+this failure has no other symptom.

@@ -336,16 +336,43 @@ class ForwardPassTest(unittest.TestCase):
         self.assertTrue(encoder.verify_checksum())
 
     def test_batch_size_does_not_change_the_answer(self):
-        """§8.6 picked batch 4 over 8 on speed alone (0.058 vs 0.066 s/window).
-        That is only a free choice if batching cannot move the vectors — so this
-        pins it, and it is why `recipe()` leaves the batch size out."""
+        """§8.6 picked batch 4 over 8 on speed alone (0.058 vs 0.066 s/window),
+        and the GPU path picks 12 for the same kind of reason. That is only a free
+        choice if batching cannot move the vectors — so this pins it, and it is
+        why `recipe()` leaves the batch size out.
+
+        ⚠️ **THE STRENGTH OF THE GUARANTEE IS BACKEND-DEPENDENT, AND THAT IS
+        MEASURED.** On CPU the result is BITWISE identical at every batch size.
+        On CUDA it is not: cuBLAS selects different reduction strategies by batch
+        dimension, so accumulation order changes and the bytes change with it
+        (max element delta 2.5e-04). What does NOT change is where the track
+        lands — pooled cosine stays at 0.9999994, which is the fp32 noise floor
+        of this very measurement (the CPU's own bitwise-identical vectors score
+        0.99999988 against themselves).
+
+        Asserted as two tiers rather than weakened to one: dropping to cosine
+        everywhere would stop noticing a real CPU regression, and demanding
+        bitwise everywhere would fail on hardware that is behaving correctly.
+        """
+        import numpy as np
+
         with config.using(config.ENCODER):
             tensor = encoder.window_features(self.signal)
-            four = encoder.embed_features(tensor, batch_size=4)
-            eight = encoder.embed_features(tensor, batch_size=8)
-            one = encoder.embed_features(tensor, batch_size=1)
-        self.assertEqual(four.tobytes(), eight.tobytes())
-        self.assertEqual(four.tobytes(), one.tobytes())
+            batches = {b: encoder.embed_features(tensor, batch_size=b)
+                       for b in (1, 4, 8, 12)}
+        ref = batches[4]
+        bitwise_expected = encoder.active_provider() == 'CPUExecutionProvider'
+
+        for b, got in batches.items():
+            if bitwise_expected:
+                self.assertEqual(got.tobytes(), ref.tobytes(),
+                                 f'CPU must be bitwise stable across batch sizes (batch {b})')
+            a, c = encoder.pool(ref), encoder.pool(got)
+            cos = float(a @ c)
+            self.assertGreater(cos, 0.9999,
+                               f'batch {b} moved the track (cosine {cos:.9f}) — batching '
+                               f'would be a property of the vector space, not a speed knob')
+            self.assertLess(np.abs(got - ref).max(), 1e-3, f'batch {b}')
 
 
 class WindowGuardTest(unittest.TestCase):
@@ -439,3 +466,133 @@ class FetchAtomicityTest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class ProviderNegotiationTest(unittest.TestCase):
+    """The provider is chosen at runtime and must never change the answer."""
+
+    def setUp(self):
+        self.saved_override = encoder.PROVIDER_OVERRIDE
+
+    def tearDown(self):
+        encoder.PROVIDER_OVERRIDE = self.saved_override
+
+    def test_cpu_is_always_in_the_preference_list(self):
+        """CPU is the SUPPORTED configuration; the GPU is an optimisation one
+        machine happens to afford. A preference list that could come back without
+        a CPU entry would turn a missing driver into a dead pipeline."""
+        self.assertIn('CPUExecutionProvider', encoder.PROVIDER_PREFERENCE)
+        if encoder.available():
+            encoder.PROVIDER_OVERRIDE = None
+            self.assertIn('CPUExecutionProvider', encoder.preferred_providers())
+
+    def test_preference_order_puts_cuda_first(self):
+        self.assertLess(encoder.PROVIDER_PREFERENCE.index('CUDAExecutionProvider'),
+                        encoder.PROVIDER_PREFERENCE.index('CPUExecutionProvider'))
+
+    @unittest.skipUnless(encoder.available(), 'onnxruntime or the weights are absent')
+    def test_only_available_providers_are_requested(self):
+        """Asking onnxruntime for a provider its build does not carry makes it warn
+        and fall back silently — the one outcome this project will not accept."""
+        import onnxruntime
+        encoder.PROVIDER_OVERRIDE = None
+        available = set(onnxruntime.get_available_providers())
+        self.assertTrue(set(encoder.preferred_providers()) <= available)
+
+    def test_override_pins_one_provider(self):
+        encoder.PROVIDER_OVERRIDE = 'CPUExecutionProvider'
+        self.assertEqual(encoder.preferred_providers(), ['CPUExecutionProvider'])
+
+    def test_batch_size_is_resolved_per_call_not_at_import(self):
+        """The default-argument trap, asserted. `batch_size=BATCH_WINDOWS` in the
+        signature would freeze the CPU's 4 before any session exists, and the GPU
+        would run at a third of its throughput with no symptom."""
+        import inspect
+        for fn in (encoder.embed_features, encoder.embed_windows,
+                   encoder.embed_windows_unchecked):
+            self.assertIsNone(inspect.signature(fn).parameters['batch_size'].default,
+                              f'{fn.__name__} must resolve its batch size at call time')
+
+    @unittest.skipUnless(encoder.available(), 'onnxruntime or the weights are absent')
+    def test_batch_size_matches_the_live_provider(self):
+        self.assertEqual(
+            encoder.batch_windows(),
+            encoder.BATCH_WINDOWS_CUDA if encoder.active_provider() == 'CUDAExecutionProvider'
+            else encoder.BATCH_WINDOWS)
+
+    def test_provider_is_not_part_of_the_recipe(self):
+        """Vectors computed on CPU and on GPU go into ONE table and are compared
+        against each other, so the recipe must not name the backend — otherwise
+        `index.assert_recipe` would reject the 2,283 CPU rows the moment the GPU
+        came online."""
+        for name in ('CUDA', 'CPU', 'Execution', 'provider'):
+            self.assertNotIn(name, encoder.recipe())
+
+
+@unittest.skipUnless(
+    'CUDAExecutionProvider' in __import__('onnxruntime').get_available_providers()
+    if encoder.available() else False,
+    'CUDA execution provider not available')
+class ProviderEquivalenceTest(unittest.TestCase):
+    """The check that licenses mixing CPU- and GPU-computed rows in one table.
+
+    A backend that placed tracks differently would fork the vector space with no
+    error anywhere — Trap 16, reached through hardware instead of config. Cosine
+    rather than element equality: fp32 accumulation order legitimately differs
+    across backends, and what must not differ is WHERE THE TRACK LANDS.
+    """
+
+    def test_cpu_and_cuda_agree_on_the_same_signal(self):
+        import numpy as np
+        import onnxruntime
+
+        rng = np.random.RandomState(20260821)
+        with config.using(config.ENCODER):
+            sig = (0.2 * rng.randn(config.SR * 25)).astype(np.float32)
+            feats = np.stack([encoder.input_features(w) for w in encoder.windows(sig)]
+                             ).astype(np.float32)
+
+        def run(provider):
+            opts = onnxruntime.SessionOptions()
+            opts.intra_op_num_threads = 4
+            sess = onnxruntime.InferenceSession(encoder.MODEL_PATH, opts, providers=[provider])
+            self.assertEqual(sess.get_providers()[0], provider)
+            out = sess.run(['audio_embeds'], {'input_features': feats})[0].mean(axis=0)
+            return out / np.linalg.norm(out)
+
+        cos = float(run('CPUExecutionProvider') @ run('CUDAExecutionProvider'))
+        self.assertGreater(cos, 0.9999,
+                           f'CPU and CUDA disagree (cosine {cos:.9f}) — the two backends '
+                           f'would build one table out of two vector spaces')
+
+
+class CheckSetTest(unittest.TestCase):
+    """`ridge.CHECK_SET` pins four paths into a real library, and the library got
+    reorganised once already — taking SPREAD, STRUCTURE and SENSITIVITY offline
+    while `verify()` still printed PASS. These are the guards on that."""
+
+    def test_check_set_is_four_unalike_tracks(self):
+        import ridge
+        self.assertEqual(len(ridge.CHECK_SET), 4)
+        self.assertEqual(len(set(ridge.CHECK_SET)), 4)
+
+    def test_check_set_entries_are_relative(self):
+        """Absolute paths here would make the set un-relocatable and silently
+        unresolvable under `--root`."""
+        import os
+        import ridge
+        for rel in ridge.CHECK_SET:
+            self.assertFalse(os.path.isabs(rel), rel)
+
+    def test_missing_is_the_complement_of_found(self):
+        import ridge
+        found = len(ridge.check_set_paths())
+        self.assertEqual(found + len(ridge.check_set_missing()), len(ridge.CHECK_SET))
+
+    @unittest.skipUnless(__import__('scan').library_reachable(), 'library not mounted')
+    def test_every_pinned_path_exists_when_the_library_is_mounted(self):
+        """The regression that already happened: a live mount and a stale set."""
+        import ridge
+        self.assertEqual(ridge.check_set_missing(), [],
+                         'ridge.CHECK_SET is stale — verify() would skip its three '
+                         'real checks while still reporting PASS')
