@@ -529,3 +529,143 @@ class EmptyAndPartialIndexTest(QueryTestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+# ── The corpus geometry ─────────────────────────────────────────────────────────
+class CalibrationTest(QueryTestCase):
+    """A cosine is not a similarity until you know where zero is.
+
+    The fixture is a deliberately ANISOTROPIC CONE — every vector shares a large
+    common component, which is the shape CLAP's space actually has (§8.7 measured
+    strangers at +0.480 there, against -0.017 in the centred descriptor space).
+    An assertion written against a nicely centred synthetic space would pass
+    whether or not the code centres anything, so the fixture has to have the
+    defect for the test to be able to see the fix.
+    """
+
+    AXIS = 6.0   # the shared component: large enough that raw cosines all crowd +1
+
+    def cone(self, n=64, dim=16, seed=0):
+        """`n` vectors around one axis, and the artist list that goes with them."""
+        rng = np.random.RandomState(seed)
+        axis = np.zeros(dim, dtype=np.float32)
+        axis[0] = self.AXIS
+        raw = axis + rng.randn(n, dim).astype(np.float32)
+        paths = [f'/m/Music/artist{i % 8}/album/{i:02d}. track {i}.flac' for i in range(n)]
+        return self.arm(raw, paths), paths
+
+    def test_the_fixture_really_is_an_off_centre_cone(self):
+        """Guard the fixture itself: if this stops holding, the tests below stop
+        testing anything, and they would still pass."""
+        arm, _paths = self.cone()
+        i, j = np.triu_indices(len(arm), k=1)
+        raw = np.einsum('ij,ij->i', arm.matrix[i], arm.matrix[j])
+        self.assertGreater(raw.mean(), 0.7,
+                           'the fixture must reproduce CLAP-like crowding to be worth testing')
+        self.assertGreater(raw.min(), 0.0, 'a cone has no negative pairs')
+
+    def test_centring_moves_strangers_to_zero(self):
+        arm, _paths = self.cone()
+        calibration = query.Calibration.fit(arm)
+        self.assertAlmostEqual(calibration.stranger_mean, 0.0, delta=0.05)
+        self.assertGreater(calibration.stranger_spread, 0.1,
+                           'centring should open the space up, not collapse it')
+
+    def test_standardise_puts_an_unrelated_pair_at_zero(self):
+        arm, _paths = self.cone()
+        calibration = query.Calibration.fit(arm)
+        centred = calibration.centre(arm.matrix)
+        i, j = np.triu_indices(len(arm), k=1)
+        artists = np.array([query.artist_of(p) for p in arm.paths])
+        stranger = artists[i] != artists[j]
+        scores = calibration.standardise(
+            np.einsum('ij,ij->i', centred[i[stranger]], centred[j[stranger]]))
+        self.assertAlmostEqual(float(scores.mean()), 0.0, delta=0.1)
+        self.assertAlmostEqual(float(scores.std()), 1.0, delta=0.1)
+
+    def test_a_neighbour_still_outranks_a_stranger_after_centring(self):
+        """Centring must not reorder the thing the space is FOR."""
+        rng = np.random.RandomState(3)
+        dim = 16
+        axis = np.zeros(dim, dtype=np.float32)
+        axis[0] = self.AXIS
+        theme = rng.randn(dim).astype(np.float32)
+        near = [axis + theme + 0.05 * rng.randn(dim).astype(np.float32) for _ in range(2)]
+        far = [axis + rng.randn(dim).astype(np.float32) for _ in range(30)]
+        paths = ([f'/m/Music/twin/album/0{i}. near {i}.flac' for i in range(2)]
+                 + [f'/m/Music/other{i}/album/0{i}. far {i}.flac' for i in range(30)])
+        arm = self.arm(near + far, paths)
+        calibration = query.Calibration.fit(arm)
+        centred = calibration.centre(arm.matrix)
+        self.assertGreater(float(centred[0] @ centred[1]),
+                           float(np.max(centred[0] @ centred[2:].T)),
+                           'the twin must remain the nearest neighbour once centred')
+
+    def test_a_row_on_the_mean_becomes_zeros_not_nan(self):
+        arm, _paths = self.cone()
+        calibration = query.Calibration.fit(arm)
+        centred = calibration.centre(calibration.mean[None, :])
+        self.assertTrue(np.all(np.isfinite(centred)),
+                        'a track at the corpus mean must drop out, not poison the matmul')
+        self.assertEqual(float(np.abs(centred).sum()), 0.0)
+
+    def test_a_round_trip_through_meta_is_exact(self):
+        arm, _paths = self.cone()
+        fitted = query.Calibration.fit(arm)
+        fitted.save(self.conn)
+        loaded = query.Calibration.load(self.conn, 'local_vectors')
+        self.assertIsNotNone(loaded)
+        np.testing.assert_array_equal(loaded.mean, fitted.mean)
+        self.assertEqual(loaded.stranger_mean, fitted.stranger_mean)
+        self.assertEqual(loaded.stranger_spread, fitted.stranger_spread)
+        self.assertEqual(loaded.n_fit, fitted.n_fit)
+
+    def test_an_unfitted_arm_loads_as_none_rather_than_a_default(self):
+        self.assertIsNone(query.Calibration.load(self.conn, 'local_vectors'))
+
+    def test_a_handful_of_tracks_is_refused(self):
+        arm, _paths = self.cone(n=4)
+        with self.assertRaises(query.QueryError) as caught:
+            query.Calibration.fit(arm)
+        self.assertIn('floor', str(caught.exception))
+
+    def test_a_one_artist_corpus_is_refused_rather_than_fitted_on_nan(self):
+        """§8.4's nan-category trap: an unmeasurable statistic must not become a
+        divisor. Every pair here shares an artist, so there is no zero point."""
+        rng = np.random.RandomState(1)
+        vectors = [np.array([self.AXIS, 0, 0, 0], dtype=np.float32)
+                   + rng.randn(4).astype(np.float32) for _ in range(32)]
+        paths = [f'/m/Music/only/album/{i:02d}. t{i}.flac' for i in range(32)]
+        with self.assertRaises(query.QueryError) as caught:
+            query.Calibration.fit(self.arm(vectors, paths))
+        self.assertIn('artist', str(caught.exception))
+
+    def test_a_zero_spread_is_refused_as_a_divisor(self):
+        with self.assertRaises(query.QueryError):
+            query.Calibration('local_vectors', np.zeros(4, dtype=np.float32), 0.0, 0.0)
+
+    def test_staleness_is_detected_from_the_config_signature(self):
+        arm, _paths = self.cone()
+        index.set_meta(self.conn, 'config_sig:local_vectors', 'aaaaaaaaaaaa')
+        query.Calibration.fit(arm).save(self.conn)
+        self.assertFalse(query.Calibration.stale(self.conn, 'local_vectors'))
+        index.set_meta(self.conn, 'config_sig:local_vectors', 'bbbbbbbbbbbb')
+        self.assertTrue(query.Calibration.stale(self.conn, 'local_vectors'))
+
+    def test_both_arms_land_on_a_comparable_scale(self):
+        """The point of the whole exercise: after calibration a stranger scores
+        ~0 and a spread is 1 in EITHER arm, so a consumer that falls back from
+        one to the other does not silently change behaviour."""
+        neural, _p = self.cone(dim=16, seed=0)
+        classical, _p2 = self.cone(dim=8, seed=5)
+        scores = []
+        for arm in (neural, classical):
+            calibration = query.Calibration.fit(arm)
+            centred = calibration.centre(arm.matrix)
+            i, j = np.triu_indices(len(arm), k=1)
+            artists = np.array([query.artist_of(p) for p in arm.paths])
+            stranger = artists[i] != artists[j]
+            scores.append(calibration.standardise(
+                np.einsum('ij,ij->i', centred[i[stranger]], centred[j[stranger]])))
+        self.assertAlmostEqual(float(scores[0].mean()), float(scores[1].mean()), delta=0.15)
+        self.assertAlmostEqual(float(scores[0].std()), float(scores[1].std()), delta=0.15)

@@ -61,6 +61,7 @@ built until it is found. `gate()` prints that in the failing branch rather than
 leaving it in a document, because the person reading a red gate at 1 a.m. is
 reading the terminal.
 """
+import base64
 import os
 import sys
 
@@ -327,6 +328,196 @@ def align(*arms):
         rows = [pos[t] for t in order]
         out.append(Arm(arm.name, arm.matrix[rows], [arm.paths[i] for i in rows], order))
     return out
+
+
+# ── The corpus geometry: what a cosine in this arm MEANS ────────────────────────
+# ⚠️ **A COSINE IS NOT A SIMILARITY UNTIL YOU KNOW WHERE ZERO IS, AND FOR CLAP IT
+# IS NOWHERE NEAR ZERO.** `report()` above already had to learn this the hard way:
+# the descriptor arm is z-scored, so it is centred and strangers sit at -0.017,
+# while CLAP's space is a narrow anisotropic cone in which every pair of tracks in
+# the library scores at least +0.03 and two STRANGERS average +0.480 with a spread
+# of 0.219. The gate handles that by standardising before it compares the arms —
+# but the gate is not the only reader. Anything downstream that ranks, thresholds,
+# blends a cosine with another quantity, or shows a number to a person inherits the
+# raw cone and is wrong in a way that looks plausible: a stranger presents as "0.48
+# similar", every score lands in a compressed 0.4-0.9 band, and a similarity term
+# multiplied against anything else contributes a near-constant.
+#
+# So the geometry is FITTED ONCE, over the corpus, and STORED — exactly as §8.4
+# already does for the descriptor z-score (`descriptors.CorpusStats`). This is that
+# class's twin for a space whose dimensions are already commensurate and whose
+# problem is therefore not scale per dimension but OFFSET and SPREAD overall:
+#
+#   mean            the cone's axis. Subtract it and the space is centred, which is
+#                   the condition under which cosine ordering stops being dominated
+#                   by the one direction every track shares.
+#   stranger_mean   where "unrelated" actually sits AFTER centring — the zero point.
+#   stranger_spread the unit. Dividing by it is what makes a score comparable with
+#                   the other arm, and it is the same divisor `report()` uses.
+#
+# ⚠️ **THE STATISTICS ARE MEASURED IN THE SPACE THE READER WILL USE, NOT THE SPACE
+# THEY WERE LOADED IN.** Centring changes every cosine, so a spread measured on the
+# raw cone and then applied to centred vectors is the wrong divisor — the numbers
+# would look calibrated and be off by the amount centring moved them. `fit` centres
+# and re-normalises FIRST and samples afterwards.
+#
+# A "stranger" is a pair by different artists, read off the path by `artist_of` —
+# the same definition, from the same function, as the gate's. If the two ever
+# disagreed, the divisor would stop matching the statistic it is meant to scale.
+class Calibration:
+    """The fitted offset and scale for one arm, stored in `meta` and read by
+    every consumer that needs a cosine to mean something.
+
+    ⚠️ There is deliberately no way to build one from a handful of tracks:
+    `fit` refuses below `descriptors.MIN_FIT_ROWS`, and a corpus with no
+    cross-artist pair at all is refused outright rather than fitted with a nan
+    divisor — the same nan-category trap §8.4's gate fell into, where an
+    unmeasurable statistic silently became a verdict.
+    """
+
+    def __init__(self, arm, mean, stranger_mean, stranger_spread, n_fit=0, pairs=0):
+        self.arm = str(arm)
+        self.mean = np.asarray(mean, dtype=np.float32)
+        self.stranger_mean = float(stranger_mean)
+        self.stranger_spread = float(stranger_spread)
+        self.n_fit = int(n_fit)
+        self.pairs = int(pairs)
+        if self.mean.ndim != 1 or not self.mean.size:
+            raise QueryError(f'{arm}: the calibration mean must be one 1-D vector, '
+                             f'got shape {self.mean.shape}')
+        if not self.stranger_spread > 0:
+            raise QueryError(
+                f'{arm}: a stranger spread of {self.stranger_spread} cannot be a '
+                f'divisor. Every pair in the corpus scored identically, which means '
+                f'the arm is degenerate — not that the space is tight.')
+
+    @property
+    def dim(self):
+        return int(self.mean.size)
+
+    def centre(self, matrix):
+        """Subtract the axis and re-normalise, so `M @ q` is a CENTRED cosine.
+
+        Returns the matrix the statistics below were actually measured over.
+        A row landing exactly on the mean has no direction left and is returned
+        as zeros rather than as nan — it drops out of every ranking instead of
+        poisoning one.
+        """
+        arr = np.asarray(matrix, dtype=np.float32)
+        if arr.shape[-1] != self.dim:
+            raise QueryError(f'{self.arm}: calibration is {self.dim}-d, got {arr.shape[-1]}')
+        out = arr - self.mean
+        norms = np.linalg.norm(out, axis=-1, keepdims=True)
+        return np.divide(out, np.where(norms > 0, norms, 1.0)).astype(np.float32)
+
+    def standardise(self, cosine):
+        """A centred cosine in stranger units: 0 is unrelated, 1 is one spread above."""
+        return (np.asarray(cosine, dtype=np.float64) - self.stranger_mean) / self.stranger_spread
+
+    @classmethod
+    def fit(cls, arm, pairs=PROXY_PAIRS, seed=0):
+        """Fit over a loaded `Arm`, in the centred space its readers will use."""
+        n = len(arm)
+        if n < descriptors.MIN_FIT_ROWS:
+            raise QueryError(
+                f'refusing to calibrate {arm.name} over {n} track(s); '
+                f'{descriptors.MIN_FIT_ROWS} is the floor. Statistics fitted on a '
+                f'handful of tracks are a per-track normalisation wearing a corpus '
+                f'costume — §8.4 made that refusal mechanical and it carries here.')
+        mean = arm.matrix.mean(axis=0)
+        centred = cls(arm.name, mean, 0.0, 1.0).centre(arm.matrix)
+
+        artists = np.array([artist_of(p) for p in arm.paths])
+        rng = np.random.RandomState(seed)
+        i = rng.randint(0, n, size=pairs)
+        j = rng.randint(0, n, size=pairs)
+        keep = i != j
+        i, j = i[keep], j[keep]
+        stranger = artists[i] != artists[j]
+        if not stranger.any():
+            raise QueryError(
+                f'{arm.name}: every sampled pair shares an artist, so there is no '
+                f'"unrelated" to measure and no zero point to calibrate against. '
+                f'A one-artist corpus cannot be calibrated — build more first.')
+        cosine = np.einsum('ij,ij->i', centred[i[stranger]], centred[j[stranger]])
+        return cls(arm.name, mean, float(cosine.mean()), float(cosine.std()),
+                   n_fit=n, pairs=int(stranger.sum()))
+
+    # ── persistence, in `meta` ──────────────────────────────────────────────────
+    # Keyed `<name>:<table>`, the convention `config_sig:local_vectors` and
+    # `recipe:local_vectors` already established — so this generalises to the
+    # descriptor arm for free, and a reader can normalise EITHER arm the same way
+    # without knowing which one it got. That is the point: §8.7's two arms are on
+    # incompatible scales, and a consumer that silently falls back from one to the
+    # other changes behaviour without changing code.
+    def save(self, conn):
+        index.set_meta(conn, f'calib_mean:{self.arm}', _b64(self.mean))
+        index.set_meta(conn, f'calib_stranger_mean:{self.arm}', repr(self.stranger_mean))
+        index.set_meta(conn, f'calib_stranger_spread:{self.arm}', repr(self.stranger_spread))
+        index.set_meta(conn, f'calib_n_fit:{self.arm}', self.n_fit)
+        index.set_meta(conn, f'calib_pairs:{self.arm}', self.pairs)
+        # The signature the fit was taken against. A backfill that continues after
+        # a config edit leaves a calibration describing a space that no longer
+        # exists, and nothing else would notice.
+        sig = index.get_meta(conn, f'config_sig:{self.arm}')
+        if sig:
+            index.set_meta(conn, f'calib_sig:{self.arm}', sig)
+
+    @classmethod
+    def load(cls, conn, arm):
+        mean = index.get_meta(conn, f'calib_mean:{arm}')
+        centre = index.get_meta(conn, f'calib_stranger_mean:{arm}')
+        spread = index.get_meta(conn, f'calib_stranger_spread:{arm}')
+        if mean is None or centre is None or spread is None:
+            return None
+        return cls(arm, _unb64(mean), float(centre), float(spread),
+                   n_fit=int(index.get_meta(conn, f'calib_n_fit:{arm}', 0)),
+                   pairs=int(index.get_meta(conn, f'calib_pairs:{arm}', 0)))
+
+    @classmethod
+    def stale(cls, conn, arm):
+        """True when the arm has been rebuilt under a different config since the fit."""
+        fitted = index.get_meta(conn, f'calib_sig:{arm}')
+        current = index.get_meta(conn, f'config_sig:{arm}')
+        return bool(fitted and current and fitted != current)
+
+
+def _b64(vec):
+    return base64.b64encode(index.to_blob(np.asarray(vec, dtype=np.float32))).decode('ascii')
+
+
+def _unb64(text):
+    return index.from_blob(base64.b64decode(text.encode('ascii')))
+
+
+def fit_calibration(conn, tables=ARMS, stream=None):
+    """Fit and store the corpus geometry for every arm that holds vectors.
+
+    Run after a backfill: the mean of a half-filled library is the mean of
+    whatever the run reached in path order, which on this shelf is alphabetical
+    by artist. That is a real bias, not a rounding error, and it is why this is
+    a separate step rather than something the backfill does per commit.
+    """
+    out = stream or sys.stdout
+    fitted = []
+    for table in tables:
+        try:
+            arm = load_arm(conn, table)
+        except (QueryError, descriptors.DescriptorError):
+            print(f'  {ARM_LABELS.get(table, table):<22} no vectors — skipped', file=out)
+            continue
+        calibration = Calibration.fit(arm)
+        calibration.save(conn)
+        fitted.append(calibration)
+        print(f'  {ARM_LABELS.get(table, table):<22} {calibration.n_fit:>6} tracks   '
+              f'strangers {calibration.stranger_mean:+.4f} ± {calibration.stranger_spread:.4f}   '
+              f'({calibration.pairs} pairs)', file=out)
+    if not fitted:
+        raise QueryError('no arm holds vectors — run the backfill first')
+    conn.commit()
+    print('  stored in `meta` as calib_*:<arm> — KourOS reads these rather than '
+          'assuming a zero point.', file=out)
+    return fitted
 
 
 # ── The objective proxies ───────────────────────────────────────────────────────
@@ -657,6 +848,9 @@ def _main(argv=None):
     parser.add_argument('--aligned', action='store_true',
                         help='restrict a single-arm search to the shared population')
     parser.add_argument('--status', action='store_true', help='what each arm holds')
+    parser.add_argument('--fit', action='store_true',
+                        help='fit and store the corpus geometry each arm must be read '
+                             'through (run after a backfill)')
     args = parser.parse_args(argv)
 
     if args.k < 1:
@@ -664,13 +858,27 @@ def _main(argv=None):
 
     conn = index.connect()
     try:
-        if args.status or not (args.hand or args.gate or args.queries):
+        if args.fit:
+            print(f'{index.DB_PATH}')
+            fit_calibration(conn)
+            if not (args.hand or args.gate or args.queries or args.status):
+                return 0
+
+        if args.status or not (args.hand or args.gate or args.queries or args.fit):
             stats = index.stats(conn)
             print(f'{index.DB_PATH}')
             for table in ARMS:
                 n = conn.execute(f'SELECT COUNT(*) AS n FROM {table}').fetchone()['n']
+                calibration = Calibration.load(conn, table)
+                if calibration is None:
+                    note = 'UNCALIBRATED — run --fit'
+                elif Calibration.stale(conn, table):
+                    note = 'calibration STALE (config changed since the fit) — run --fit'
+                else:
+                    note = (f'strangers {calibration.stranger_mean:+.4f} '
+                            f'± {calibration.stranger_spread:.4f}')
                 print(f'  {ARM_LABELS[table]:<22} {n:>6} vectors   '
-                      f'sig {stats.get(f"sig:{table}")}')
+                      f'sig {stats.get(f"sig:{table}")}   {note}')
             shared = conn.execute(
                 'SELECT COUNT(*) AS n FROM local_vectors v '
                 'JOIN descriptors d ON d.track_id = v.track_id').fetchone()['n']

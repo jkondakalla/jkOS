@@ -28,6 +28,28 @@ function dot(matrix, dim, i, q) {
   return s;
 }
 
+/** A centred cosine expressed in STRANGER UNITS: 0 is "unrelated", 1 is one
+ *  stranger-spread above that, and a genuine neighbour is comfortably past 1.
+ *
+ *  ⚠️ WITHOUT THIS EVERY SCORE ON THE WIRE IS A LIE THAT LOOKS REASONABLE.
+ *  ToDo §8.7 measured CLAP's raw space as a narrow anisotropic cone: two tracks
+ *  by unrelated artists average +0.480 with a spread of 0.219, and nothing in
+ *  the library scores below +0.03. Served raw, a total stranger arrives at the
+ *  UI as "0.48 similar" and every result crowds a 0.4-0.9 band that has no zero
+ *  and no unit. The descriptor arm, being z-scored, is centred already — so the
+ *  two arms disagree about what a number means, and a fallback from one to the
+ *  other silently changes the scale underneath the same UI.
+ *
+ *  `music/query.py --fit` measures the offset and the spread over the corpus and
+ *  stores them in the embedder index; vectors.js subtracts the mean at load, and
+ *  this divides by the spread. Uncalibrated, it returns the raw cosine unchanged
+ *  and `stats().calibrated` is false — degraded, and saying so. */
+function standardise(space, cos) {
+  const c = space.calibration;
+  if (!c) return cos;
+  return (cos - c.strangerMean) / c.strangerSpread;
+}
+
 function featureOf(space, i, name) {
   if (!space.features) return null;
   const f = FEATURE_NAMES.indexOf(name);
@@ -145,8 +167,9 @@ function similar(space, trackId, { k = 24, perArtist = 2, perAlbum = 2 } = {}) {
   return {
     basis: 'embedding',
     seed_origin: ORIGIN_NAMES[origin[seed]],
+    calibrated: !!space.calibration,
     results: rows.map(([i, s]) => present(space, i, {
-      score: round(s),
+      score: round(standardise(space, s)),
       basis: ORIGIN_NAMES[origin[i]],
     })),
   };
@@ -188,7 +211,8 @@ function radio(space, seedIds, { k = 60, perArtist = 2, perAlbum = 1 } = {}) {
   const rows = diversify(space, scored, { k, perArtist, perAlbum, seenKeys });
   return {
     basis: 'embedding',
-    results: rows.map(([i, s]) => present(space, i, { score: round(s), basis: ORIGIN_NAMES[origin[i]] })),
+    calibrated: !!space.calibration,
+    results: rows.map(([i, s]) => present(space, i, { score: round(standardise(space, s)), basis: ORIGIN_NAMES[origin[i]] })),
   };
 }
 
@@ -198,10 +222,30 @@ function radio(space, seedIds, { k = 60, perArtist = 2, perAlbum = 1 } = {}) {
    ends wherever it started. The arc comes from the READABLE descriptor axis
    (space.features' `energy`), which is why that arm is loaded at all: at step p of
    L the run wants energy ≈ curve(p/L), and each pick maximises
-       cohesion(previous)  ×  w  −  |energy − target|
+       cohesion · z(similarity to previous)  −  energyWeight · z(|energy − target|)
    so consecutive tracks still sound like each other while the SET goes somewhere.
    With no feature arm available this degrades to a plain cohesion walk, reported
-   as `arc: 'none'` rather than pretending to a shape it cannot produce. */
+   as `arc: 'none'` rather than pretending to a shape it cannot produce.
+
+   ⚠️ **THE TWO TERMS MUST BE IN THE SAME UNITS, AND FOR A LONG TIME THEY WERE
+   NOT.** This expression subtracts an energy penalty from a similarity score, so
+   whichever term has the larger spread decides the run and the other becomes
+   decoration. Read raw, a CLAP cosine sits at +0.480 ± 0.219 (§8.7) — it barely
+   varies — while `energy` is PERCENTILE-RANKED by space.js and therefore uniform
+   on [0,1], where |energy − target| ranges across the whole unit interval. The
+   energy curve won every comparison, and `cohesion` was a knob connected to
+   almost nothing: a "run" was an energy ramp through unrelated music.
+
+   Both terms are now standardised to a spread of 1 before being weighed:
+   similarity through `standardise()` (stranger units, σ = 1 by construction),
+   and the energy penalty through UNIFORM_SD, the standard deviation of a uniform
+   distribution on [0,1] — 1/√12 ≈ 0.2887 — which is what percentile-ranking
+   guarantees the feature is. So `cohesion: 1, energyWeight: 1` finally means
+   "weigh these equally", which is what the parameter always claimed. */
+
+/** σ of a uniform distribution on [0,1] = 1/√12. `energy` is percentile-ranked
+ *  in space.js, so this is its spread by construction, not an estimate. */
+const UNIFORM_SD = 1 / Math.sqrt(12);
 const ARCS = {
   rise:      (t) => 0.25 + 0.65 * t,
   wind_down: (t) => 0.85 - 0.7 * t,
@@ -209,7 +253,8 @@ const ARCS = {
   steady:    () => null,          // null ⇒ hold the seed's own energy
 };
 
-function makeRun(space, { seedId, length = 14, arc = 'rise', cohesion = 1.0, perArtist = 2 } = {}) {
+function makeRun(space, { seedId, length = 14, arc = 'rise', cohesion = 1.0,
+                         energyWeight = 1.0, perArtist = 2 } = {}) {
   const seed = space.index.get(seedId);
   if (seed == null || !space.dim) return { arc: 'none', results: [] };
 
@@ -235,8 +280,10 @@ function makeRun(space, { seedId, length = 14, arc = 'rise', cohesion = 1.0, per
       if (usedKeys.has(ck)) continue;
       const a = (space.meta.artist[i] || '').toLowerCase();
       if ((artistCount.get(a) || 0) >= perArtist) continue;
-      let score = cohesion * dot(matrix, dim, i, q);
-      if (target != null) score -= Math.abs(featureOf(space, i, 'energy') - target);
+      let score = cohesion * standardise(space, dot(matrix, dim, i, q));
+      if (target != null) {
+        score -= energyWeight * (Math.abs(featureOf(space, i, 'energy') - target) / UNIFORM_SD);
+      }
       if (score > bestScore) { bestScore = score; best = i; }
     }
     if (best < 0) break;
@@ -248,6 +295,7 @@ function makeRun(space, { seedId, length = 14, arc = 'rise', cohesion = 1.0, per
 
   return {
     arc: haveFeatures ? arc : 'none',
+    calibrated: !!space.calibration,
     results: chosen.map((i, step) => present(space, i, {
       step,
       energy: haveFeatures ? round(featureOf(space, i, 'energy')) : null,
@@ -258,4 +306,4 @@ function makeRun(space, { seedId, length = 14, arc = 'rise', cohesion = 1.0, per
 
 function round(x) { return Math.round(x * 1000) / 1000; }
 
-module.exports = { similar, radio, makeRun, metadataAffinity, diversify, present, contentKeyAt, ARCS, round, dot, featureOf };
+module.exports = { similar, radio, makeRun, metadataAffinity, diversify, present, contentKeyAt, ARCS, round, dot, featureOf, standardise, UNIFORM_SD };

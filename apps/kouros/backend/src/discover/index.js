@@ -21,7 +21,7 @@ const { ORIGIN } = require('./space');
  *  request path is not. */
 const TTL_MS = 5 * 60 * 1000;
 
-function createDiscovery({ db, vectorDbPath, libraryRootName = 'Music' }) {
+function createDiscovery({ db, vectorDbPath, libraryRootName = 'Music', musicDir = null }) {
   let space = null;
   let projection = null;
   let mapCache = null;
@@ -32,15 +32,29 @@ function createDiscovery({ db, vectorDbPath, libraryRootName = 'Music' }) {
     const t0 = Date.now();
     const vectorSpace = openVectorSpace({ vectorDbPath, libraryRootName });
     const featureSpace = openFeatureSpace({ vectorDbPath, libraryRootName });
-    space = buildSpace({ db, vectorSpace, featureSpace });
+    space = buildSpace({ db, vectorSpace, featureSpace, musicDir, libraryRootName });
     projection = null;
     mapCache = null;
     builtAt = Date.now();
+    const st = space.stats;
     console.log(
-      `[kouros discover] space built in ${builtAt - t0}ms — ${space.stats.tracks} tracks, ` +
-      `${space.stats.measured} measured + ${space.stats.inferred} inferred ` +
-      `(${(space.stats.coverage * 100).toFixed(1)}% coverage)`
+      `[kouros discover] space built in ${builtAt - t0}ms — ${st.tracks} tracks, ` +
+      `${st.measured} measured + ${st.inferred} inferred ` +
+      `(${(st.coverage * 100).toFixed(1)}% coverage) ` +
+      `[path ${st.byPath} · rel ${st.byRelPath} · content ${st.byContentKey}]`
     );
+    // ⚠️ The failure this seam exists to make loud. A populated index that
+    // resolves onto NOTHING is indistinguishable, from every surface downstream,
+    // from an embedder that simply has not run yet — and the symptom reads as
+    // "the recommendations are bad", not "the vectors were never consulted".
+    if (vectorSpace.available && !st.measured) {
+      console.error(
+        `[kouros discover] ⚠️ the embedder index holds ${vectorSpace.total} vectors and NOT ONE ` +
+        `resolved onto this catalog. Every discovery surface is about to serve metadata ` +
+        `affinity while reporting an arm. Check that LIBRARY_ROOT_NAME ("${libraryRootName}") ` +
+        `is the last path segment the two databases share, and that MUSIC_DIR ` +
+        `("${musicDir || 'unset'}") is the mount those tracks were scanned from.`);
+    }
     return space;
   }
 

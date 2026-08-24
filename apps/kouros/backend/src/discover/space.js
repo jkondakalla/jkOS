@@ -24,7 +24,8 @@
 //    back to metadata affinity (artist / genre / era) — but the answer says so, so
 //    the UI can label a row "similar" versus "same artist" honestly rather than
 //    implying the embedder had an opinion it never had.
-const { contentKeyFromTags, l2Normalise } = require('./vectors');
+const path = require('path');
+const { contentKeyFromTags, relKeyFromEmbedderPath, l2Normalise } = require('./vectors');
 
 /* ── Interpretable descriptor slices (music/descriptors.py's LAYOUT, N_MFCC=20) ──
    The 119-d descriptor arm is NOT the similarity space here — the neural arm won
@@ -41,6 +42,17 @@ const D_TEMPO    = 116;   // log2(bpm)
 const D_STRENGTH = 117;   // beat strength — how metronomic
 const D_ONSET    = 118;   // onset rate — event density
 
+/** ⚠️ THE COLUMN INDICES ABOVE ARE A CROSS-REPO COUPLING WITH NOTHING HOLDING IT.
+ *  They are positions in `music/descriptors.py`'s LAYOUT, and `music/` deliberately
+ *  shares no code with this repo (ToDo §8: "the isolation is the deliverable"). So
+ *  a change to N_MFCC or to the order of the descriptor blocks would leave this
+ *  file reading the WRONG COLUMN — tempo where flatness used to be — and nothing
+ *  would raise: every value is a plausible float, the map would still draw, the
+ *  runs would still sequence, and the axes would simply mean something else.
+ *  The arm's width is the one witness available on this side of the wire, so it
+ *  is checked, loudly, once per load. */
+const DESCRIPTOR_DIM = 119;
+
 /** The named, 0–1 percentile-ranked features every surface reads. Order is the
  *  wire order; `FEATURE_NAMES[i]` names column i of `space.features`. */
 const FEATURE_NAMES = ['energy', 'brightness', 'fuzz', 'tempo', 'drive', 'density'];
@@ -49,8 +61,11 @@ const NFEAT = FEATURE_NAMES.length;
 
 /** How a row's vector was obtained — reported so the UI never implies a
  *  measurement that did not happen. */
-const ORIGIN = { NONE: 0, PATH: 1, CONTENT: 2, ALBUM: 3 };
-const ORIGIN_NAMES = ['none', 'measured', 'measured', 'inferred'];
+// ⚠️ These are indices into a Uint8Array — integers, contiguous, and ORDERED so
+// that "> NONE" means "has a vector" and ALBUM stays last as the only inferred
+// one. ORIGIN_NAMES is indexed by the value, so the two must stay the same length.
+const ORIGIN = { NONE: 0, PATH: 1, REL: 2, CONTENT: 3, ALBUM: 4 };
+const ORIGIN_NAMES = ['none', 'measured', 'measured', 'measured', 'inferred'];
 
 /** Album identity for propagation + "don't fill a radio station with one record".
  *  Album titles repeat across artists ("Greatest Hits"), so the key is both. */
@@ -84,7 +99,15 @@ function percentileRank(values) {
  * @param {object} [o.featureSpace] a RAW (un-normalised) descriptor arm, for the
  *                                  interpretable columns; omit and features are null
  */
-function buildSpace({ db, vectorSpace, featureSpace = null }) {
+function buildSpace({ db, vectorSpace, featureSpace = null, musicDir = null, libraryRootName = 'Music' }) {
+  if (featureSpace && featureSpace.available && featureSpace.dim !== DESCRIPTOR_DIM) {
+    console.error(
+      `[kouros discover] descriptor arm is ${featureSpace.dim}-d, expected ${DESCRIPTOR_DIM} — ` +
+      `music/descriptors.py's LAYOUT has changed and this file's D_* column indices no longer ` +
+      `point at the features they name. Refusing the readable features rather than reporting ` +
+      `the wrong column as "tempo".`);
+    featureSpace = null;
+  }
   const rows = db.prepare(`
     SELECT id, path, title, artist, album, albumartist, year, genres, duration, cover_path
       FROM tracks
@@ -105,9 +128,24 @@ function buildSpace({ db, vectorSpace, featureSpace = null }) {
     duration: new Float32Array(n), cover: new Uint8Array(n),
   };
 
-  // ── Pass 1: resolve a vector per row, two tiers (see vectors.js's header) ──────
+  // ── Pass 1: resolve a vector per row, three tiers (see vectors.js's header) ───
   const albumRows = new Map();          // albumKey → row indices, for pass 2
-  let nPath = 0, nContent = 0;
+  let nPath = 0, nRel = 0, nContent = 0;
+
+  /** This catalog's root-relative key for a track — the counterpart of
+   *  `relKeyFromEmbedderPath`. Prefers stripping MUSIC_DIR (exact, and correct
+   *  even when the mount is not named after the library); falls back to scanning
+   *  for the root segment when no mount is configured, which is the dev case
+   *  where both processes see the same absolute path anyway. */
+  const relKeyOf = (abs) => {
+    if (musicDir) {
+      const rel = path.relative(musicDir, abs);
+      if (rel && !rel.startsWith('..') && !path.isAbsolute(rel)) {
+        return rel.split(path.sep).join('/').toLowerCase();
+      }
+    }
+    return relKeyFromEmbedderPath(abs, libraryRootName);
+  };
   for (let i = 0; i < n; i++) {
     const r = rows[i];
     ids[i] = r.id;
@@ -127,7 +165,12 @@ function buildSpace({ db, vectorSpace, featureSpace = null }) {
     if (!dim) continue;
     let vec = vectorSpace.byPath.get(r.path);
     if (vec) { origin[i] = ORIGIN.PATH; nPath++; }
-    else {
+    if (!vec) {
+      const rel = relKeyOf(r.path);
+      if (rel) vec = vectorSpace.byRelPath.get(rel);
+      if (vec) { origin[i] = ORIGIN.REL; nRel++; }
+    }
+    if (!vec) {
       const ck = contentKeyFromTags(r.artist, r.title);
       if (ck) vec = vectorSpace.byContentKey.get(ck);
       if (vec) { origin[i] = ORIGIN.CONTENT; nContent++; }
@@ -197,21 +240,36 @@ function buildSpace({ db, vectorSpace, featureSpace = null }) {
     }
   }
 
-  const covered = nPath + nContent + nAlbum;
+  const covered = nPath + nRel + nContent + nAlbum;
+  // The fitted geometry, carried through so a SCORE can be reported in stranger
+  // units instead of as a raw cosine (see vectors.js's loadCalibration, and
+  // ToDo §8.7's note that a raw cosine gap is not comparable between spaces).
+  // Null when the index predates `music/query.py --fit` — reported, not assumed.
+  const calibration = (vectorSpace && vectorSpace.calibration) || null;
   const stats = {
     tracks: n,
     dim,
     arm: vectorSpace && vectorSpace.arm,
-    measured: nPath + nContent,
+    measured: nPath + nRel + nContent,
     inferred: nAlbum,
+    // The tier breakdown, on the wire deliberately: tier 1 reading 0 in a
+    // container is EXPECTED (the two roots differ), while tier 2 reading 0 with
+    // a populated index means the join is broken and every "embedding" surface
+    // is quietly serving album centroids or metadata.
+    byPath: nPath,
+    byRelPath: nRel,
+    byContentKey: nContent,
     covered,
     uncovered: n - covered,
     coverage: n ? covered / n : 0,
     features: features ? FEATURE_NAMES : null,
+    calibrated: !!calibration,
+    strangerMean: calibration ? calibration.strangerMean : null,
+    strangerSpread: calibration ? calibration.strangerSpread : null,
   };
 
   return { n, dim, ids, index, matrix, origin, features, meta, albumRows, stats,
-           FEATURE_NAMES, ORIGIN, ORIGIN_NAMES };
+           calibration, FEATURE_NAMES, ORIGIN, ORIGIN_NAMES };
 }
 
 module.exports = {

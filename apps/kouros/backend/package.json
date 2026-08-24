@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "test": "node test/library.smoke.mjs && node test/playback.smoke.mjs && node test/history.smoke.mjs"
+    "test": "node test/library.smoke.mjs && node test/playback.smoke.mjs && node test/history.smoke.mjs && node test/discover.smoke.mjs"
   },
   "dependencies": {
     "@jkos/auth-middleware": "workspace:*",

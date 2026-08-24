@@ -89,7 +89,7 @@ const scanner = createScanner({
    exist yet at this point — migrations run below) and rebuilt whenever a scan
    changes the catalog, so a rescan that adds an album is reflected without waiting
    out its TTL. */
-const discovery = createDiscovery({ db, vectorDbPath: VECTOR_DB_PATH, libraryRootName: LIBRARY_ROOT_NAME });
+const discovery = createDiscovery({ db, vectorDbPath: VECTOR_DB_PATH, libraryRootName: LIBRARY_ROOT_NAME, musicDir: MUSIC_DIR });
 
 /* ── Migrations ────────────────────────────────────────────────────────────
    `tracks` is a SHARED catalog (no user_id — every user sees the same library) that
