@@ -378,4 +378,18 @@ if (process.argv.includes('--check')) {
     writeFileSync(t.path, t.content)
     console.log(`✓ wrote ${t.path}`)
   }
+  // standalone.conf is HAND-TUNED and is not regenerated — but the asset-links
+  // payload inside it is generated data, and requiring a hand edit every time a
+  // signing fingerprint changes is exactly the friction that lets a stale payload
+  // ship. So this one delimited block is rewritten in place; everything around it
+  // is left alone, and --check still guards the result.
+  const conf = join(DIR, 'standalone.conf')
+  const before = readFileSync(conf, 'utf8')
+  const after = before.replace(
+    /(location = \/\.well-known\/assetlinks\.json \{[^}]*?return 200 ')([^']*)(';)/gs,
+    (_m, head, _body, tail) => head + ASSETLINKS_BODY + tail)
+  if (after !== before) {
+    writeFileSync(conf, after)
+    console.log(`✓ synced asset links into ${conf}`)
+  }
 }

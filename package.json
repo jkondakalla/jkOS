@@ -2,7 +2,7 @@
   "name": "jkos",
   "private": true,
   "version": "1.0.0",
-  "description": "jkOS — self-hosted suite. Hub platform (ordeck, jkauth, beigeboard, lazuros) + pluggable apps (sylibos), sharing @jkos/* packages.",
+  "description": "jkOS \u2014 self-hosted suite. Hub platform (ordeck, jkauth, beigeboard, lazuros) + pluggable apps (sylibos), sharing @jkos/* packages.",
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",
@@ -26,7 +26,8 @@
     "test:cards": "node test/cards-logic.mjs",
     "prove": "node packages/suite-prober/prove.mjs",
     "roundtrip": "node packages/suite-prober/roundtrip.mjs",
-    "new-app": "node scripts/new-app.mjs"
+    "new-app": "node scripts/new-app.mjs",
+    "android:signing": "node scripts/android-signing.mjs"
   },
   "devDependencies": {
     "turbo": "^2.3.3",
