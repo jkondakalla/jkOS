@@ -355,6 +355,12 @@ def track_by_path(conn, path):
     return conn.execute('SELECT * FROM tracks WHERE path=?', (path,)).fetchone()
 
 
+def EXCLUDE_DIRS_SQL():
+    """`config.EXCLUDE_DIRS` as LIKE patterns. One place, so the resume query and
+    the progress count can never disagree about what is in scope."""
+    return [f'%{os.sep}{d}{os.sep}%' for d in config.EXCLUDE_DIRS]
+
+
 def pending(conn, table='local_vectors', limit=None, artist=None, retry_failed=False,
             having=None):
     """Tracks with no row in `table` yet — the resume query.
@@ -370,6 +376,9 @@ def pending(conn, table='local_vectors', limit=None, artist=None, retry_failed=F
 
     Failed rows are excluded by default so one unreadable file is not retried on
     every subsequent run; `retry_failed=True` is the deliberate second attempt.
+
+    Tracks under a `config.EXCLUDE_DIRS` directory are never queued: see the
+    comment at the filter below for why they are excluded rather than deleted.
 
     `having` narrows the queue to tracks that ALREADY have a row in another vector
     table — "describe the tracks the encoder got to". §8.7 compares the two arms and
@@ -393,6 +402,15 @@ def pending(conn, table='local_vectors', limit=None, artist=None, retry_failed=F
     if artist:
         sql.append('AND t.path LIKE ?')
         args.append(f'%{artist}%')
+    # Rows under a retired subtree stay in `tracks` — with whatever vectors they
+    # already earned — but leave the QUEUE. Filtering here rather than deleting
+    # them is what makes `config.EXCLUDE_DIRS` reversible: put the folder back in
+    # scope and the finished work is still there, unrecomputed. Filtering here
+    # rather than in each caller is what stops the two arms disagreeing about
+    # which population they are working through.
+    for pattern in EXCLUDE_DIRS_SQL():
+        sql.append('AND t.path NOT LIKE ?')
+        args.append(pattern)
     sql.append('ORDER BY t.id')
     if limit:
         sql.append('LIMIT ?')
@@ -504,11 +522,28 @@ def load_matrix(conn, table='local_vectors'):
 
 
 def stats(conn):
-    """A one-line health read of the index."""
+    """A one-line health read of the index.
+
+    Counts the IN-SCOPE shelf — rows under a `config.EXCLUDE_DIRS` directory are
+    reported separately as `excluded` rather than folded into `pending`. Folding
+    them in would put 13,023 tracks in a queue that will never be worked, so
+    every progress read and every ETA the run prints would be wrong by a factor
+    of two while looking perfectly plausible.
+    """
+    scope, args = '', []
+    for d in EXCLUDE_DIRS_SQL():
+        scope += ' AND path NOT LIKE ?'
+        args.append(d)
     counts = {
-        s: conn.execute('SELECT COUNT(*) AS n FROM tracks WHERE status=?', (s,)).fetchone()['n']
+        s: conn.execute(
+            f'SELECT COUNT(*) AS n FROM tracks WHERE status=?{scope}', (s, *args)
+        ).fetchone()['n']
         for s in (PENDING, OK, FAILED)
     }
+    if args:
+        counts['excluded'] = conn.execute(
+            'SELECT COUNT(*) AS n FROM tracks WHERE NOT (1=1%s)' % scope, args
+        ).fetchone()['n']
     counts['local_vectors'] = conn.execute('SELECT COUNT(*) AS n FROM local_vectors').fetchone()['n']
     counts['descriptors'] = conn.execute('SELECT COUNT(*) AS n FROM descriptors').fetchone()['n']
     for table in VECTOR_TABLES:

@@ -461,3 +461,61 @@ class UpsertWithoutAStatTest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class PendingExclusionTest(IndexTestCase):
+    """`config.EXCLUDE_DIRS` takes rows out of the QUEUE without taking them out of
+    the index. The distinction is the whole point: excluding a folder must not cost
+    the encoder hours it already spent on it, because "for now" means the decision
+    gets reversed.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.saved = config.EXCLUDE_DIRS
+        config.EXCLUDE_DIRS = ('Retired',)
+
+    def tearDown(self):
+        config.EXCLUDE_DIRS = self.saved
+        super().tearDown()
+
+    def test_excluded_rows_leave_the_queue(self):
+        keep = self.add('/lib/Album/01 a.flac')
+        self.add('/lib/Retired/Artist/02 b.flac')
+        self.assertEqual([r['id'] for r in index.pending(self.conn)], [keep])
+
+    def test_excluded_rows_and_their_vectors_survive(self):
+        gone = self.add('/lib/Retired/Artist/02 b.flac')
+        index.put_vector(self.conn, gone, self.vec(), model='m')
+        self.conn.commit()
+        self.assertEqual(index.count_vectors(self.conn), 1)
+        self.assertIsNotNone(index.get_vector(self.conn, gone))
+        self.assertEqual(index.pending(self.conn), [])
+
+    def test_un_excluding_restores_the_queue(self):
+        tid = self.add('/lib/Retired/Artist/02 b.flac')
+        config.EXCLUDE_DIRS = ()
+        self.assertEqual([r['id'] for r in index.pending(self.conn)], [tid])
+
+    def test_match_is_a_path_SEGMENT_not_a_substring(self):
+        near = self.add('/lib/Retired Plus/03 c.flac')
+        self.assertIn(near, {r['id'] for r in index.pending(self.conn)})
+
+    def test_stats_separates_excluded_from_pending(self):
+        self.add('/lib/Album/01 a.flac')
+        self.add('/lib/Retired/Artist/02 b.flac')
+        self.add('/lib/Retired/Artist/03 c.flac')
+        self.conn.commit()
+        s = index.stats(self.conn)
+        self.assertEqual(s['pending'], 1,
+                         'an unworkable row counted as pending makes every ETA wrong')
+        self.assertEqual(s['excluded'], 2)
+
+    def test_stats_and_pending_agree_on_scope(self):
+        """One source for the LIKE patterns, asserted rather than assumed: a
+        progress bar that disagrees with the queue it is measuring is worse than
+        no progress bar."""
+        for rel in ('Album/01 a.flac', 'Retired/02 b.flac', 'Album/03 c.flac'):
+            self.add('/lib/' + rel)
+        self.conn.commit()
+        self.assertEqual(len(index.pending(self.conn)), index.stats(self.conn)['pending'])

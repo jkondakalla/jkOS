@@ -332,4 +332,67 @@ if (Database) {
   rmSync(tmp, { recursive: true, force: true })
 }
 
+/* ═══ 5 · excludeDirs — re-scoping a library without moving files ════════════════ */
+if (Database) {
+  section('5 · excludeDirs — folder NAMES the walk refuses to enter, at any depth')
+
+  const tmp = mkdtempSync(join(tmpdir(), 'weave-libscan-excl-'))
+  const libDir = join(tmp, 'library')
+  const dataDir = join(tmp, 'data')
+  mkdirSync(dataDir, { recursive: true })
+
+  const probe = JSON.stringify({
+    format: { duration: '100', tags: { artist: 'A', album: 'B' } },
+    streams: [{ codec_type: 'audio', codec_name: 'flac' }],
+    chapters: [],
+  })
+  const track = (...parts) => {
+    const full = join(libDir, ...parts)
+    mkdirSync(dirname(full), { recursive: true })
+    writeFileSync(full, probe)
+    return full
+  }
+  track('Keep', '01.mp3')
+  track('Retired', 'Artist', '02.mp3')
+  track('Nested', 'Retired', '03.mp3')       // the name must match at ANY depth
+  track('Retired Plus', '04.mp3')            // a PREFIX, not the name — must survive
+
+  const mkDb = () => {
+    const db = new Database(':memory:')
+    db.exec(`CREATE TABLE tracks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, path TEXT NOT NULL UNIQUE,
+      files TEXT, duration REAL, chapters TEXT, mtime INTEGER, cover_path TEXT, artist TEXT)`)
+    return db
+  }
+  const scanner = (db, excludeDirs) => defineLibraryScanner({
+    db, table: 'tracks', dir: libDir, dataDir, extensions: ['.mp3'], unit: 'file',
+    columns: ['artist'], mapTags: ({ files }) => ({ artist: files[0].tags.artist || null }),
+    ffprobeBin: FAKE_FFPROBE, extractCover: false, excludeDirs,
+  })
+
+  // The control: no exclusion at all sees every file. Without this the assertions
+  // below would also pass on a walk that had simply stopped finding anything.
+  const dbAll = mkDb()
+  await scanner(dbAll, undefined).scanLibrary()
+  ok('no excludeDirs walks the whole tree (the control)',
+    dbAll.prepare('SELECT COUNT(*) n FROM tracks').get().n === 4)
+  dbAll.close()
+
+  const db = mkDb()
+  await scanner(db, ['Retired']).scanLibrary()
+  const paths = db.prepare('SELECT path FROM tracks ORDER BY path').all().map((r) => r.path)
+
+  ok('an excluded directory is not walked',
+    !paths.some((p) => p.includes(join('Retired', 'Artist'))))
+  ok('the name matches at ANY depth, not only at the root',
+    !paths.some((p) => p.includes(join('Nested', 'Retired'))))
+  ok('the match is an exact NAME, not a prefix — "Retired Plus" survives',
+    paths.some((p) => p.includes('Retired Plus')))
+  ok('nothing else is lost', paths.some((p) => p.includes('Keep')))
+  ok('exactly the two in-scope files remain', paths.length === 2, `got ${paths.length}`)
+
+  db.close()
+  rmSync(tmp, { recursive: true, force: true })
+}
+
 console.log(`\nPASS: ${pass} passed, 0 failed`)

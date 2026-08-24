@@ -21,6 +21,7 @@ each vector, so a config edit after a backfill becomes a LOUD failure at the
 next write instead of a quiet corruption discovered months later at M4.
 """
 import hashlib
+import os
 
 # ── The analysis parameters ─────────────────────────────────────────────────────
 # Chosen for M1 (ALGORITHMS.md §4 "M1 — mel extraction"). Every one of them is a
@@ -70,6 +71,47 @@ DTYPE = 'float32'   # every matrix and every stored vector. Enforced in index.py
 # (Trap 19).
 LIBRARY_ROOT = '/mnt/Luna/Plex/Music'
 AUDIO_EXTS = ('.flac',)   # measured: zero mp3/m4a/wav/ogg in the tree.
+
+# ⚠️ **THE HOST PATH AND THE MOUNT PATH ARE NOT THE SAME STRING.** The value above
+# is correct on the workstation, where `//192.168.1.108/Luna` is mounted at
+# `/mnt/Luna`. On the TrueNAS host itself that same share is the dataset at
+# `/mnt/Luna/Luna`, so the library is `/mnt/Luna/Luna/Plex/Music` there — and
+# `/mnt/Luna/Plex/Music` is an EMPTY directory docker auto-created as a bind
+# source. That is how KourOS came up with a `/music` mount containing nothing:
+# not a missing variable, a variable pointing at a real directory that happened
+# to be empty. A bind mount does not check that its source has content.
+
+# ── Directories the walk refuses to enter ───────────────────────────────────────
+# Matched on the DIRECTORY NAME, at any depth, so one entry retires a whole
+# subtree wherever it sits.
+#
+# `Old (Needs to be trimmed)` is the previous artist-nested rip — 15,326 FLACs,
+# the entire population the index was built against before the library was
+# re-downloaded flat. Its rows are still in `tracks` and its vectors are still in
+# `local_vectors`/`descriptors`: excluding it does not delete anything, it takes
+# those rows out of the resume queue (`index.pending`) and stops the walk
+# re-discovering them. Deleting this line puts all of it back, which is the
+# property "ignore the old folder FOR NOW" actually needs.
+#
+# Deliberately NOT in `_SIGNIFICANT`, for the same reason LIBRARY_ROOT is not:
+# which files you choose to analyse has no bearing on what the numbers mean, and
+# putting it in the signature would invalidate a finished backfill the moment the
+# shelf is re-scoped.
+EXCLUDE_DIRS = ('Old (Needs to be trimmed)',)
+
+
+def is_excluded(path):
+    """Whether `path` lies under any `EXCLUDE_DIRS` directory.
+
+    Splits on the separator rather than testing `in path`: a substring test would
+    also match a FILE whose name happens to contain the folder's name, and — more
+    to the point — an album legitimately named after an excluded folder would be
+    dropped with no error and no count to notice it by.
+    """
+    if not EXCLUDE_DIRS:
+        return False
+    parts = set(os.path.normpath(os.fspath(path)).split(os.sep))
+    return any(d in parts for d in EXCLUDE_DIRS)
 
 
 # ── Derived quantities ──────────────────────────────────────────────────────────

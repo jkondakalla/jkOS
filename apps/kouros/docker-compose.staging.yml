@@ -20,6 +20,11 @@ services:
       # The music library, read-only. The scanner walks this on boot and on every
       # rescanLibrary call; one row per audio file found anywhere beneath it.
       MUSIC_DIR: /music
+      # Folder NAMES the scan refuses to enter, at any depth. `Old (Needs to be
+      # trimmed)` is the previous artist-nested rip, still living inside the
+      # library root — ~15,000 files duplicating the flat re-download beside them.
+      # Keep in step with music/config.py's EXCLUDE_DIRS.
+      MUSIC_EXCLUDE_DIRS: "Old (Needs to be trimmed)"
       # The music embedder's index (ToDo §8's music/index.db) — the source of the
       # CLAP vectors behind similarity, radio, Runs and the vibe map. OPTIONAL:
       # when the file is absent, every discovery surface degrades to metadata
@@ -45,7 +50,20 @@ services:
       - ${KOUROS_DATA_PATH:-/mnt/Luna/Backends/Staging/kouros-data}:/data
       # The library itself, READ-ONLY — this app scans and streams it, and must
       # never be able to write to it. Override the host path with MUSIC_PATH.
-      - ${MUSIC_PATH:-/mnt/Luna/Plex/Music}:/music:ro
+      #
+      # ⚠️ **THIS IS THE HOST'S PATH, NOT THE WORKSTATION'S.** The CIFS share
+      # `//192.168.1.108/Luna` mounts at `/mnt/Luna` on a workstation, but on the
+      # TrueNAS host itself it is the dataset at `/mnt/Luna/Luna` — so the library
+      # is `/mnt/Luna/Luna/Plex/Music` here and the workstation's spelling,
+      # `/mnt/Luna/Plex/Music`, is a DIFFERENT and empty directory.
+      #
+      # That is how KourOS shipped with MUSIC_DIR correctly set and still showed
+      # an empty library: docker AUTO-CREATES a missing bind source as an empty
+      # directory rather than failing, so the wrong path mounted cleanly, the
+      # scanner walked it, found nothing, and reported success. There is no error
+      # anywhere in that chain — which is why the path is spelled out here rather
+      # than left to a default someone reads past.
+      - ${MUSIC_PATH:-/mnt/Luna/Luna/Plex/Music}:/music:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:

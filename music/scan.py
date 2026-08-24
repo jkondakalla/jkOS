@@ -49,7 +49,9 @@ def iter_tracks(root=None, exts=None):
     between a reproducible test and a coin flip.
 
     Hidden directories are skipped — `.git`, `@eaDir`-style sidecar folders, and
-    the trash directories network shares accumulate.
+    the trash directories network shares accumulate. So are any named in
+    `config.EXCLUDE_DIRS`, which is how the retired artist-nested rip stays out
+    of the shelf without being moved or deleted.
 
     ⚠️ `root=None` means `config.LIBRARY_ROOT` AS IT IS AT CALL TIME, not as it
     was when this module was imported. The first version spelled the default
@@ -64,8 +66,15 @@ def iter_tracks(root=None, exts=None):
         raise NotADirectoryError(f'library root does not exist: {root}')
     lowered = tuple(e.lower() for e in (config.AUDIO_EXTS if exts is None else exts))
 
+    excluded = tuple(config.EXCLUDE_DIRS)
+
     for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = sorted(d for d in dirnames if not d.startswith('.'))
+        # Pruned in `dirnames` rather than filtered at the file, so an excluded
+        # subtree is never DESCENDED. Over CIFS that is the difference between
+        # skipping a folder and paying ~15,000 network stats to skip it one file
+        # at a time (Trap 19).
+        dirnames[:] = sorted(d for d in dirnames
+                             if not d.startswith('.') and d not in excluded)
         for name in sorted(filenames):
             if not name.lower().endswith(lowered):
                 continue

@@ -26,6 +26,24 @@ const { extractYear, parseGenres } = require('./tags');
 
 const MUSIC_EXTENSIONS = new Set(['.mp3', '.m4a', '.aac', '.flac', '.ogg', '.opus', '.wav']);
 
+// Folder NAMES the scan refuses to enter, at any depth under MUSIC_DIR. Comma-separated
+// in `MUSIC_EXCLUDE_DIRS`; the default retires the previous artist-nested rip, which
+// still sits inside the library root as `Old (Needs to be trimmed)/` and would otherwise
+// be scanned as ~15,000 duplicate tracks of the flat re-download beside it.
+//
+// A NAME, not a path, so it holds wherever the folder is moved to inside the library —
+// and so this file and the embedder's `config.EXCLUDE_DIRS` can be read against each
+// other. ⚠️ The two are separate lists on purpose (the embedder has zero jkOS imports by
+// design, ALGORITHMS.md §4) — which means they can drift, and the symptom of drift is
+// KourOS listing tracks that have no vectors and quietly falling back to metadata
+// affinity for them. Change one, change the other.
+const DEFAULT_EXCLUDE_DIRS = ['Old (Needs to be trimmed)'];
+
+function excludeDirsFromEnv(raw) {
+  if (raw === undefined) return DEFAULT_EXCLUDE_DIRS;
+  return String(raw).split(',').map((s) => s.trim()).filter(Boolean);
+}
+
 // The `tracks` columns mapTags(ctx) below must return — the brick owns
 // path/files/duration/chapters/mtime/cover_path generically.
 const TRACKS_COLUMNS = ['title', 'artist', 'album', 'albumartist', 'track_no', 'disc_no', 'year', 'genres'];
@@ -57,7 +75,7 @@ function mapTags({ unitName, files }) {
  * not here (server.js constructs the scanner once at module load, before runMigrations()).
  * @param {{ db: import('better-sqlite3').Database, musicDir: string, dataDir: string, concurrency?: number, onScanComplete?: (counts: object) => void }} opts
  */
-function createScanner({ db, musicDir, dataDir, concurrency = 4, onScanComplete } = {}) {
+function createScanner({ db, musicDir, dataDir, concurrency = 4, onScanComplete, excludeDirs } = {}) {
   if (!db) throw new Error('createScanner: db is required');
   if (!musicDir) throw new Error('createScanner: musicDir is required');
   if (!dataDir) throw new Error('createScanner: dataDir is required');
@@ -69,6 +87,7 @@ function createScanner({ db, musicDir, dataDir, concurrency = 4, onScanComplete 
     dataDir,
     extensions: MUSIC_EXTENSIONS,
     unit: 'file',           // one row per audio file — Wave 18's model (17.2's 2nd shape)
+    excludeDirs: excludeDirs || excludeDirsFromEnv(process.env.MUSIC_EXCLUDE_DIRS),
     columns: TRACKS_COLUMNS,
     mapTags,
     concurrency,
@@ -79,4 +98,6 @@ function createScanner({ db, musicDir, dataDir, concurrency = 4, onScanComplete 
 module.exports = {
   createScanner,
   MUSIC_EXTENSIONS,
+  DEFAULT_EXCLUDE_DIRS,
+  excludeDirsFromEnv,
 };

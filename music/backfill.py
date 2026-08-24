@@ -377,8 +377,20 @@ def _main(argv=None):
         max_windows = args.max_windows
         rows = index.pending(conn, 'local_vectors', limit=args.limit,
                              artist=args.artist, retry_failed=args.retry_failed)
+        # ⚠️ The PROVIDER is printed because the failure mode is silence: the CUDA
+        # wheels can be installed correctly and still not load (the nvidia libs
+        # are in site-packages but not on the loader path), in which case
+        # onnxruntime falls back to CPU with a warning nobody reads and the run
+        # takes 3.4 hours instead of ~1. The only way to notice is to be told
+        # which provider actually resolved, at the top of every run.
+        try:
+            provider = encoder.active_provider()
+            hardware = ('%s · batch %d' % (provider.replace('ExecutionProvider', ''),
+                                           encoder.batch_windows()))
+        except Exception:
+            hardware = 'provider unknown'
         print(f'{len(rows)} track(s) to embed · {args.workers} readers · '
-              f'{encoder.INTRA_OP_THREADS} model threads · '
+              f'{encoder.INTRA_OP_THREADS} model threads · {hardware} · '
               f'{encoder.recipe(max_windows)}', file=sys.stderr)
 
         def report(progress):

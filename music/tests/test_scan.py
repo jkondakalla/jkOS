@@ -8,6 +8,7 @@ import shutil
 import tempfile
 import unittest
 
+import config
 import scan
 
 
@@ -82,3 +83,77 @@ class ScanTest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class ExcludeDirsTest(unittest.TestCase):
+    """`config.EXCLUDE_DIRS` — the re-scoping lever, and the one whose failure mode
+    is silence. A walk that fails to exclude produces MORE data, not an error; a
+    walk that over-excludes produces less. Neither raises, so both are asserted."""
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp(prefix='music-exclude-')
+        for rel in ('Keep Me/01 a.flac',
+                    'Retired/Artist/02 b.flac',
+                    'Nested/Retired/03 c.flac',
+                    'Retired Plus/04 d.flac',        # NOT an exact name match
+                    'Keep Me/Retired.flac'):         # a FILE, not a directory
+            full = os.path.join(self.root, rel)
+            os.makedirs(os.path.dirname(full), exist_ok=True)
+            with open(full, 'wb') as fh:
+                fh.write(b'xx')
+        self.saved = config.EXCLUDE_DIRS
+
+    def tearDown(self):
+        config.EXCLUDE_DIRS = self.saved
+        shutil.rmtree(self.root, ignore_errors=True)
+
+    def rels(self):
+        return sorted(os.path.relpath(t.path, self.root).replace(os.sep, '/')
+                      for t in scan.scan(self.root))
+
+    def test_excluded_directory_is_not_walked(self):
+        config.EXCLUDE_DIRS = ('Retired',)
+        found = self.rels()
+        self.assertNotIn('Retired/Artist/02 b.flac', found)
+        self.assertNotIn('Nested/Retired/03 c.flac', found,
+                         'the name must match at ANY depth, not just at the root')
+
+    def test_exclusion_is_an_exact_name_not_a_prefix(self):
+        config.EXCLUDE_DIRS = ('Retired',)
+        found = self.rels()
+        self.assertIn('Retired Plus/04 d.flac', found)
+        self.assertIn('Keep Me/Retired.flac', found,
+                      'a FILE named like an excluded folder must survive')
+
+    def test_nothing_else_is_lost(self):
+        config.EXCLUDE_DIRS = ('Retired',)
+        self.assertIn('Keep Me/01 a.flac', self.rels())
+
+    def test_empty_exclusion_walks_everything(self):
+        config.EXCLUDE_DIRS = ()
+        self.assertEqual(len(self.rels()), 5)
+
+    def test_is_excluded_matches_the_walk(self):
+        """The predicate and the walk are two implementations of one rule, and
+        `index.pending` trusts the predicate while the scan trusts the walk. They
+        must agree, or a track is scanned into the ledger and never queued."""
+        config.EXCLUDE_DIRS = ('Retired',)
+        walked = {t.path for t in scan.scan(self.root)}
+        for dirpath, _dirs, files in os.walk(self.root):
+            for name in files:
+                if not name.endswith('.flac'):
+                    continue
+                full = os.path.join(dirpath, name)
+                self.assertEqual(full in walked, not config.is_excluded(full), full)
+
+    def test_the_live_default_names_the_retired_rip(self):
+        """A regression guard on the value itself: this is the line that decides
+        whether ~15,000 duplicate tracks enter the vector space."""
+        self.assertIn('Old (Needs to be trimmed)', self.saved)
+
+    def test_exclusion_is_not_part_of_the_signature(self):
+        """EXCLUDE_DIRS changes WHICH files are analysed, never what the numbers
+        mean — so re-scoping the shelf must not invalidate a finished backfill."""
+        before = config.signature()
+        config.EXCLUDE_DIRS = ('Retired', 'Something Else')
+        self.assertEqual(config.signature(), before)

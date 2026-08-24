@@ -164,7 +164,7 @@ async function probeFile(filePath, opts = {}) {
  *  where `rel` is POSIX-slashed and relative to `baseDir` (so a per-disc rip like
  *  "Disc 1/track01.mp3" round-trips). Tolerates an unreadable subdirectory (warns,
  *  skips that subtree — one bad folder doesn't abort the whole scan). */
-function collectFilesRecursive(baseDir, matchesExt) {
+function collectFilesRecursive(baseDir, matchesExt, isExcluded = () => false) {
   const out = []
   function walk(dir, relParts) {
     let entries
@@ -176,6 +176,10 @@ function collectFilesRecursive(baseDir, matchesExt) {
     }
     for (const entry of entries) {
       if (entry.isDirectory()) {
+        // Pruned before descending, not filtered at the file: an excluded subtree
+        // is never entered at all, which over a network share is the difference
+        // between skipping a folder and paying one stat per file to skip it.
+        if (isExcluded(entry.name)) continue
         walk(path.join(dir, entry.name), [...relParts, entry.name])
       } else if (entry.isFile() && matchesExt(entry.name)) {
         out.push({ abs: path.join(dir, entry.name), rel: [...relParts, entry.name].join('/') })
@@ -189,23 +193,24 @@ function collectFilesRecursive(baseDir, matchesExt) {
 /** unit: 'dir' — one unit per immediate subdirectory of `dir`, files collected
  *  recursively underneath it. Returns null (hard failure, caller aborts the pass) if
  *  `dir` itself can't be read. */
-function collectDirUnits(dir, matchesExt) {
+function collectDirUnits(dir, matchesExt, isExcluded = () => false) {
   let entries
   try {
-    entries = fs.readdirSync(dir, { withFileTypes: true }).filter((e) => e.isDirectory())
+    entries = fs.readdirSync(dir, { withFileTypes: true })
+      .filter((e) => e.isDirectory() && !isExcluded(e.name))
   } catch (err) {
     console.error(`[libraryScanner] cannot read dir "${dir}": ${err.message}`)
     return null
   }
   return entries.map((e) => {
     const unitPath = path.join(dir, e.name)
-    return { unitPath, unitName: e.name, files: collectFilesRecursive(unitPath, matchesExt) }
+    return { unitPath, unitName: e.name, files: collectFilesRecursive(unitPath, matchesExt, isExcluded) }
   })
 }
 
 /** unit: 'file' — one unit per individual audio file anywhere under `dir` (flat
  *  recursive walk, no grouping). Returns null if `dir` can't be read at all. */
-function collectFileUnits(dir, matchesExt) {
+function collectFileUnits(dir, matchesExt, isExcluded = () => false) {
   let stat
   try {
     stat = fs.statSync(dir)
@@ -217,7 +222,7 @@ function collectFileUnits(dir, matchesExt) {
     console.error(`[libraryScanner] "${dir}" is not a directory`)
     return null
   }
-  const files = collectFilesRecursive(dir, matchesExt)
+  const files = collectFilesRecursive(dir, matchesExt, isExcluded)
   return files.map((f) => ({
     unitPath: f.abs,
     unitName: path.basename(f.abs, path.extname(f.abs)),
@@ -347,13 +352,13 @@ async function buildUnitRow({ unitPath, unitName, files, mtime, concurrency, ffp
 async function scanLibraryOnce(cfg) {
   const {
     db, dir, dataDir, table, columns, mapTags, concurrency, ffprobeBin, ffmpegBin, unit,
-    extractCover, coverExtensions, matchesExt,
+    extractCover, coverExtensions, matchesExt, isExcluded = () => false,
     pathColumn, filesColumn, durationColumn, chaptersColumn, mtimeColumn, coverColumn,
   } = cfg
   const counts = { scanned: 0, upserted: 0, removed: 0, skipped: 0 }
   if (extractCover) ensureCoversDir(dataDir)
 
-  const units = unit === 'file' ? collectFileUnits(dir, matchesExt) : collectDirUnits(dir, matchesExt)
+  const units = unit === 'file' ? collectFileUnits(dir, matchesExt, isExcluded) : collectDirUnits(dir, matchesExt, isExcluded)
   if (units === null) return counts
 
   const existingRows = db.prepare(`SELECT id, ${pathColumn} AS path, ${mtimeColumn} AS mtime FROM ${table}`).all()
@@ -441,6 +446,7 @@ async function scanLibraryOnce(cfg) {
  *   columns: string[],
  *   mapTags: (ctx: { unitPath: string, unitName: string, files: Array<{abs:string, rel:string, tags:object, duration:number|null, chapters:Array, codec:string|null}> }) => Record<string, unknown>,
  *   unit?: 'dir'|'file',
+ *   excludeDirs?: Set<string>|string[],
  *   concurrency?: number,
  *   ffprobeBin?: string,
  *   ffmpegBin?: string,
@@ -468,6 +474,15 @@ function defineLibraryScanner(spec) {
   const matchesExt = (name) => extSet.has(path.extname(name).toLowerCase())
 
   const unit = spec.unit === 'file' ? 'file' : 'dir'
+
+  // Directory NAMES the walk refuses to enter, matched at any depth. Exists so a
+  // library can be re-scoped without moving files: a retired rip sitting inside
+  // the library root is skipped by naming it, and un-skipped by un-naming it.
+  // Matched on the name rather than a path prefix precisely so it does not depend
+  // on where the folder currently sits.
+  const excludeDirs = new Set(Array.from(spec.excludeDirs || []).map(String).filter(Boolean))
+  const isExcluded = excludeDirs.size ? (name) => excludeDirs.has(name) : () => false
+
   const concurrency = spec.concurrency || 4
   const ffprobeBin = spec.ffprobeBin || 'ffprobe'
   const ffmpegBin = spec.ffmpegBin || 'ffmpeg'
@@ -492,7 +507,7 @@ function defineLibraryScanner(spec) {
     if (inFlight) return inFlight
     inFlight = scanLibraryOnce({
       db, dir, dataDir, table, columns, mapTags, concurrency, ffprobeBin, ffmpegBin, unit,
-      extractCover, coverExtensions, matchesExt,
+      extractCover, coverExtensions, matchesExt, isExcluded,
       pathColumn, filesColumn, durationColumn, chaptersColumn, mtimeColumn, coverColumn,
     }).then((counts) => {
       // Post-scan hook (an app wires auto-enrichment + compat pre-generation here).

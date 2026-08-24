@@ -687,18 +687,47 @@ def print_summary(panels, value_range=None, stream=None):
 # unalike" is a real observation rather than a hopeful one. Missing files are
 # skipped, since these paths are one person's library and the module has to stay
 # runnable without it.
+#
+# ⚠️ **REPOINTED 2026-08-21, AND THE REASON IS THE INTERESTING PART.** These are
+# relative paths into one person's library, and that library was re-downloaded
+# into a FLAT album layout — so all four of the original paths stopped existing
+# on the same day. Nothing failed: `check_set_paths` filtered them all out,
+# `verify()` printed "library not mounted" and returned `all(checks)` over the
+# five checks that need no audio, and the three that actually exercise the
+# encoder on real music — SPREAD, STRUCTURE, SENSITIVITY — were skipped with a
+# PASS-shaped summary. A verification gate that quietly stops verifying is worse
+# than one that fails, which is why `check_set_missing()` exists below and why
+# callers are expected to say so out loud.
 CHECK_SET = (
-    'SiM/SiM - PLAYDEAD (2023) [16B-44.1kHz]/01. PLAYDEAD.flac',
-    'Kendrick Lamar/Kendrick Lamar - Not Like Us (2024) [24B-88.2kHz]/01. Not Like Us.flac',
-    'Matt Maltese/Matt Maltese - As the World Caves In  (Acoustic) (2020) [24B-44.1kHz]/'
-    '01. As the World Caves In.flac',
-    'Bo Burnham/Bo Burnham - Words Words Words (2010) [16B-44.1kHz]/15. Traditional Stand-Up.flac',
+    # hardcore: dense, distorted, fast, almost no tonal centre
+    'Converge - All We Love We Leave Behind (2012) [FLAC] [24B-44.1kHz]/'
+    '02. Converge - Trespasses.flac',
+    # rap: speech-forward over a sampled beat
+    'Aesop Rock - Labor Days (2001) [FLAC] [16B-44.1kHz]/02. Aesop Rock - Daylight.flac',
+    # modern classical: sustained strings, no percussion, no beat grid at all
+    'A Winged Victory For The Sullen - A Winged Victory for the Sullen (2011) [FLAC] [16B-44.1kHz]/'
+    '02. A Winged Victory For The Sullen - Requiem for the Static King Part 1.flac',
+    # sparse acoustic: one voice, one guitar, quiet
+    'Elliott Smith - EitherOr (1997) [FLAC] [16B-44.1kHz]/02. Elliott Smith - Alameda.flac',
 )
 
 
 def check_set_paths(root=None):
     root = config.LIBRARY_ROOT if root is None else root
     return [p for p in (os.path.join(root, rel) for rel in CHECK_SET) if os.path.exists(p)]
+
+
+def check_set_missing(root=None):
+    """The check-set entries that are NOT on disk.
+
+    Exists so "the library is not mounted" and "the library was reorganised and
+    every pinned path is stale" stop being the same observation. The first is
+    expected on any other machine; the second means the gate has silently stopped
+    testing anything, and the only way to tell them apart is to notice that the
+    mount is up while the files are gone.
+    """
+    root = config.LIBRARY_ROOT if root is None else root
+    return [rel for rel in CHECK_SET if not os.path.exists(os.path.join(root, rel))]
 
 
 def _main(argv=None):
