@@ -57,6 +57,17 @@ RUN pnpm install --frozen-lockfile --filter @jkos/kouros...
 RUN pnpm --filter @jkos/kouros build
 
 FROM node:20-slim
+# ffmpeg: the library scanner probes EVERY audio file under MUSIC_DIR with ffprobe at
+# runtime (src/library/scan.js → @jkos/weave/libraryScanner). Without it the scan does
+# not merely degrade — it spins a core forever: each probe fails `spawn ffprobe ENOENT`
+# instantly, buildUnitRow returns null so no row is ever written, and the brick's
+# mtime-incremental skip only fires for a unit that ALREADY has a row — so all ~15k
+# files are re-probed and re-fail on every single boot, starving the event loop until
+# /health times out and the container sits `unhealthy` (staging, 2026-08-25).
+# This stage was mirrored from apps/beigeboard/Dockerfile, which has no media and so
+# never carried this line; apps/papyros/Dockerfile — the app that actually shares the
+# scanner brick — is the correct reference and has always installed it.
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=builder /out /app
 COPY --from=builder /repo/apps/kouros/dist /app/dist
