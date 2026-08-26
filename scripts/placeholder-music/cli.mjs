@@ -3,7 +3,7 @@
 //
 //   node scripts/placeholder-music/cli.mjs build     write the library + the embedder index
 //   node scripts/placeholder-music/cli.mjs serve     auth stub + backend + the built app, on :4173
-//   node scripts/placeholder-music/cli.mjs dev       the same, but the app half is vite (HMR), still :4173
+//   node scripts/placeholder-music/cli.mjs dev       the same + `vite build --watch`, still :4173
 //   node scripts/placeholder-music/cli.mjs reindex   rebuild the vector space only (seconds, no re-encode)
 //   node scripts/placeholder-music/cli.mjs seed      re-seed history/playlists only
 //
@@ -183,18 +183,28 @@ async function run({ vite }) {
   console.log(`[auth-stub] ${authUrl} — not an authenticator, a shape`);
 
   const children = [];
-  if (!vite) {
-    // Built once and served by the backend itself, so the app and its API share an
-    // origin and nothing depends on a proxy.
-    console.log('[build] vite build (VITE_JKOS_AUTH_URL → the stub)…');
-    await new Promise((resolve, reject) => {
-      const b = spawn('pnpm', ['--filter', '@jkos/kouros', 'build'], {
-        cwd: REPO, stdio: 'inherit',
-        env: { ...process.env, VITE_JKOS_AUTH_URL: authUrl },
-      });
-      b.on('exit', (c) => (c ? reject(new Error(`vite build exited ${c}`)) : resolve()));
+  // Built once, and served by the backend itself, so the app and its API share an
+  // origin and nothing depends on a proxy.
+  //
+  // ⚠️ THIS IS THE BUILD PIPELINE IN BOTH MODES, AND `vite dev` IS NOT AN OPTION.
+  // The frontend name-imports `CODES` from `packages/auth-middleware/codes.js`,
+  // which is CommonJS. `vite build` handles that via `commonjsOptions.include` in
+  // apps/kouros/vite.config.ts — but `commonjsOptions` is a BUILD option, and in
+  // dev vite serves linked workspace source straight down the ESM pipeline with no
+  // CJS interop. The browser reports
+  //     SyntaxError: ... codes.js does not provide an export named 'CODES'
+  // and renders an empty #root. (Same trap that makes BeigeBoard's `vite dev`
+  // unusable — nothing KourOS-specific about it.) So `dev` is `build --watch`
+  // instead: no HMR, but an edit is rebuilt in about a second and a refresh shows
+  // it, and it runs the pipeline that actually works.
+  console.log('[build] vite build (VITE_JKOS_AUTH_URL → the stub)…');
+  await new Promise((resolve, reject) => {
+    const b = spawn('pnpm', ['--filter', '@jkos/kouros', 'build'], {
+      cwd: REPO, stdio: 'inherit',
+      env: { ...process.env, VITE_JKOS_AUTH_URL: authUrl },
     });
-  }
+    b.on('exit', (c) => (c ? reject(new Error(`vite build exited ${c}`)) : resolve()));
+  });
 
   const backend = startBackend({ STATIC_DIR: path.join(REPO, 'apps/kouros/dist') });
   children.push(backend);
@@ -204,8 +214,13 @@ async function run({ vite }) {
   console.log(`[seed] ${counts.history} plays · ${counts.playlists} playlists over ${counts.tracks} tracks`);
 
   if (vite) {
-    const v = spawn('pnpm', ['--filter', '@jkos/kouros', 'dev', '--', '--port', String(VITE_PORT), '--strictPort'], {
-      cwd: REPO, stdio: 'inherit',
+    // `tsc -b` is skipped here on purpose — `pnpm build` already ran it once above,
+    // and a type error mid-session should not stop the CSS you are looking at from
+    // rebuilding. `pnpm exec` from the app dir, because `pnpm --filter <pkg> <script>
+    // -- <flags>` forwards the `--` ITSELF to vite, whose CLI reads it as
+    // end-of-options and silently ignores everything after it.
+    const v = spawn('pnpm', ['exec', 'vite', 'build', '--watch'], {
+      cwd: path.join(REPO, 'apps', 'kouros'), stdio: 'inherit',
       env: { ...process.env, VITE_JKOS_AUTH_URL: authUrl },
     });
     children.push(v);
@@ -214,14 +229,14 @@ async function run({ vite }) {
   const edge = await startEdge({
     port: EDGE_PORT,
     apiPort: PORT,
-    appPort: vite ? VITE_PORT : PORT,
+    appPort: PORT,
     // The one rule from infra/nginx/weave-proxy.conf that this app cannot run without.
     rewrites: [{ prefix: '/api/kouros/', to: '/api/' }],
   });
 
   console.log(
     `\n  KourOS → http://localhost:${edge.port}/   ` +
-    `(${tracks} tracks, ${vite ? 'vite dev + HMR' : 'built'})\n`);
+    `(${tracks} tracks, ${vite ? 'rebuilding on change — refresh to see edits' : 'built'})\n`);
 
   const shutdown = () => {
     for (const c of children) c.kill('SIGTERM');
