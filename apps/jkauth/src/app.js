@@ -13,7 +13,7 @@ const { weaveCors, healthHandler } = require('@jkos/weave/server')
 const { isJsonReq, waitPhrase } = require('./util')
 const { loginPage } = require('./views')
 const {
-  RL_WINDOW_MS, RL_CREDENTIALS, RL_REFRESH, RL_GOOGLE,
+  RL_WINDOW_MS, RL_CREDENTIALS, RL_REFRESH,
 } = require('./config')
 
 const app = express()
@@ -29,7 +29,7 @@ app.set('trust proxy', 1)
 app.use(weaveCors(getAppOrigins))
 
 // Rate limiting (S6). Credential endpoints stay tight; refresh is legitimately
-// frequent so it gets headroom; the Google flow is throttled too. All per-IP.
+// frequent so it gets headroom. All per-IP.
 //
 // What a limiter does when it TRIPS matters as much as its budget. app.use()
 // mounts middleware for every method, so the credential limiter counted GET
@@ -40,8 +40,8 @@ app.use(weaveCors(getAppOrigins))
 // rules make it a wait instead of a wall:
 //
 //   · countUnsafeOnly — rendering the form is not an attempt; POSTing a
-//     credential is. Safe methods pass. (Off for the Google flow, whose whole
-//     traffic IS GETs — there the redirect + callback are what needs the cap.)
+//     credential is. Safe methods pass. (Kept as an option: a future flow whose
+//     whole traffic is GETs would need every request counted.)
 //   · a human-shaped 429 — a browser gets the login page back with the wait
 //     spelled out and Retry-After set; a JSON caller keeps its machine body.
 //
@@ -76,7 +76,6 @@ app.use('/auth/refresh', mkLimiter(RL_REFRESH))
 // the tight credential budget, not refresh's relaxed one — otherwise the secret is
 // brute-forceable at the refresh rate. Tokens live ~10 min, so issuance is rare.
 app.use('/auth/token', mkLimiter(RL_CREDENTIALS))
-app.use(['/auth/google', '/auth/google/callback'], mkLimiter(RL_GOOGLE, { countUnsafeOnly: false }))
 
 // Security headers on every dynamic response (static assets are served above and
 // stay cacheable): clickjacking defence + nosniff + a tight referrer policy +
@@ -109,7 +108,6 @@ app.use(require('./routes/auth'))
 app.use(require('./routes/twofactor'))
 app.use(require('./routes/profile'))
 app.use(require('./routes/weave'))
-app.use(require('./routes/google'))
 
 app.get('/health', healthHandler('jkauth'))
 

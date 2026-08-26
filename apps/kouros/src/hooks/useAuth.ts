@@ -5,7 +5,7 @@
 //
 // Kept as a re-export so KourOS's call sites still import from './hooks/useAuth'.
 // KourOS only ever runs behind the auth portal, so it never reads
-// `loginWithGoogle` — AuthGuard redirects instead.
+// `signIn` — AuthGuard redirects instead.
 export {
   authContext,
   useAuth,

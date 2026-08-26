@@ -11,7 +11,7 @@ import { Lab } from '@jkos/ui';
 //   - a brief "redirecting" veil (then window.location.href → the auth portal,
 //     preserving the scaffold's redirect_to-preserving behaviour) when signed out
 //   - children once authenticated
-// PapyrOS has no click-to-sign-in LoginPage (ORDECK's Google-SSO panel) — the app
+// PapyrOS has no click-to-sign-in LoginPage (ORDECK's sign-in panel) — the app
 // only ever runs behind the auth portal, so an automatic redirect (the scaffold's
 // original behaviour) stays the UX; this component just gives it a proper mount
 // point + context, in the ORDECK shape, for the rest of Wave 5 to build on.

@@ -28,7 +28,6 @@
   --accent:        var(--color-accent);
   --accent-hover:  var(--color-accent-dim);
   --danger:        var(--color-danger);
-  --google-border: var(--color-line);
 
   /* Radius is a factory INPUT. The bundled apps set it through injectJkOSTheme();
      jkAuth has no bundler, so it supplies the same rounded scale here directly —
@@ -110,25 +109,6 @@ form { display: flex; flex-direction: column; gap: 0.6rem; }
   margin-top: 0.2rem;
 }
 .btn-primary:hover { background: var(--accent-hover); }
-
-.btn-google {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.6rem;
-  width: 100%;
-  padding: 0.65rem;
-  background: var(--surface);
-  color: var(--text);
-  border: 1px solid var(--google-border);
-  border-radius: var(--hub-radius-button);
-  font-size: 0.9rem;
-  font-weight: 500;
-  text-decoration: none;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-.btn-google:hover { background: var(--color-card-2); }
 
 .btn-ghost {
   width: 100%;

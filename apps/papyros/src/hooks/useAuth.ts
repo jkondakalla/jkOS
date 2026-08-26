@@ -3,7 +3,7 @@
 // KourOS then copied this one, making three copies of one state machine.
 //
 // Kept as a re-export so PapyrOS's call sites still import from './hooks/useAuth'.
-// PapyrOS redirects rather than prompting, so it never reads `loginWithGoogle` —
+// PapyrOS redirects rather than prompting, so it never reads `signIn` —
 // AuthGuard owns that decision.
 export {
   authContext,

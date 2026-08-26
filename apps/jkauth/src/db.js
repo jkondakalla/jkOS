@@ -30,6 +30,9 @@ function addColumn(table, column, decl) {
 // reorder. The bodies are written to be safe to re-run (CREATE IF NOT EXISTS /
 // addColumn), so a half-applied DB heals on next boot.
 const MIGRATIONS = [
+  // users.google_id is retained-but-dead as of the 2026-08 reset (Stage C1): Google
+  // OAuth is gone and nothing reads or writes the column, but it is UNIQUE, and
+  // dropping a UNIQUE column in SQLite means rebuilding the table — so it stays.
   ['001_init', () => {
     run(`CREATE TABLE IF NOT EXISTS users (
       id            INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -38,7 +38,7 @@ function provenance(req, redirectTo) {
 
 const redirectFromReq = req => req?.body?.redirect_to || req?.query?.redirect_to || null
 
-// avatar_url is intentionally NOT in the access token: a long Google CDN URL
+// avatar_url is intentionally NOT in the access token: an arbitrary-length URL
 // bloats every cookie/request, and no backend reads it from the token (apps fetch
 // it from /auth/me). Keep this payload minimal. (slim-JWT, U9)
 //
@@ -199,7 +199,7 @@ function resolveUser(req) {
   }
 }
 
-// Short-lived signed token issued when a password (or Google) login passes but a
+// Short-lived signed token issued when a password login passes but a
 // second factor is still required. It is NOT a session — it only authorises the
 // 2FA step. Stateless (no DB row): carries the user id, the remember choice, and
 // the redirect target, and is rejected unless it bears pending_2fa. (U6)

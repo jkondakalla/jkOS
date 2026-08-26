@@ -7,11 +7,15 @@
 // be fixed in two of them.
 //
 // ORDECK's version was a strict SUPERSET of the other two — it alone surfaced
-// `loginWithGoogle` (it renders a click-to-sign-in panel) and the `?error=` query
-// param. So no parameterisation was needed to unify them: this is ORDECK's shape,
-// and the apps that redirect instead of prompting simply never read
-// `loginWithGoogle`. Each app keeps a thin `hooks/useAuth.ts` re-export so its own
-// call sites still say `from '../hooks/useAuth'`.
+// `signIn` (it renders a click-to-sign-in panel) and the `?error=` query param. So
+// no parameterisation was needed to unify them: this is ORDECK's shape, and the
+// apps that redirect instead of prompting simply never read `signIn`. Each app
+// keeps a thin `hooks/useAuth.ts` re-export so its own call sites still say
+// `from '../hooks/useAuth'`.
+//
+// `signIn` was `loginWithGoogle` until the 2026-08 reset removed jkAuth's Google
+// OAuth. It never did anything Google-specific — it has always just bounced the
+// browser to the jkAuth portal, which now prompts for a password.
 //
 // The bootstrap sequence is the load-bearing part: ask who I am → if the access
 // token lapsed, rotate the remember-me refresh cookie and ask again → only then
@@ -32,17 +36,17 @@ export type AuthState =
   | { status: 'unauthenticated'; error?: string };
 
 export interface AuthContextValue {
-  state:           AuthState;
+  state:  AuthState;
   /** Only meaningful for an app that prompts (ORDECK); redirect-style apps ignore it. */
-  loginWithGoogle: () => void;
-  logout:          () => Promise<void>;
+  signIn: () => void;
+  logout: () => Promise<void>;
 }
 
 // Exported so any view — or an ORDECK plugin — can read `user` via useAuth().
 export const authContext = createContext<AuthContextValue>({
-  state:           { status: 'loading' },
-  loginWithGoogle: () => redirectToLogin(),
-  logout:          async () => { /* noop until a provider mounts */ },
+  state:  { status: 'loading' },
+  signIn: () => redirectToLogin(),
+  logout: async () => { /* noop until a provider mounts */ },
 });
 
 export function useAuth(): AuthContextValue {
@@ -82,8 +86,8 @@ export function useAuthProvider(): AuthContextValue {
   // Keep the access token fresh so a long-open tab never 401s mid-session.
   useSessionKeepalive();
 
-  const loginWithGoogle = useCallback(() => redirectToLogin(), []);
+  const signIn = useCallback(() => redirectToLogin(), []);
   const logout = useCallback(() => authLogout(), []);
 
-  return { state, loginWithGoogle, logout };
+  return { state, signIn, logout };
 }

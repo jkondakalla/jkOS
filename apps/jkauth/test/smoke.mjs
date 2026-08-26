@@ -64,7 +64,7 @@ class Server {
         PORTAL_URL: this.base,
         NODE_ENV: 'test',
         // Don't let per-IP rate limits throttle the test's many sequential calls.
-        RL_CREDENTIALS: '1000', RL_REFRESH: '1000', RL_GOOGLE: '1000',
+        RL_CREDENTIALS: '1000', RL_REFRESH: '1000',
         ...extraEnv,
       },
       stdio: ['ignore', 'pipe', 'pipe'],

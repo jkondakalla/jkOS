@@ -62,7 +62,7 @@ const child = spawn(process.execPath, [SERVER], {
     // Two service clients; only 'prober' may act on-behalf-of a user.
     JKOS_SERVICE_CLIENTS: 'prober:probersecret:beigeboard:write,plain:plainsecret:beigeboard:write',
     JKOS_DELEGATION_CLIENTS: 'prober',
-    RL_CREDENTIALS: '1000', RL_REFRESH: '1000', RL_GOOGLE: '1000',
+    RL_CREDENTIALS: '1000', RL_REFRESH: '1000',
   },
   stdio: ['ignore', 'pipe', 'pipe'],
 });

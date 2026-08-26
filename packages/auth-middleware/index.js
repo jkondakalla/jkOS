@@ -41,7 +41,7 @@ function resolveIssuer(issuer) {
 
 // Apply the per-environment cookie suffix (prod '' / staging '_staging') to a base.
 // One place owns "how an env-isolated cookie name is built"; callers pass the base
-// (jkAuth also builds its own jkos_refresh / _oauth_nonce names through this).
+// (jkAuth also builds its own jkos_refresh name through this).
 function cookieName(base) {
   return base + (process.env.JKOS_COOKIE_SUFFIX || '')
 }

@@ -21,10 +21,6 @@ const PUBLIC_KEY = (process.env.JKOS_AUTH_PUBLIC_KEY || '').replace(/\\n/g, '\n'
 // kid, deploy, let caches warm, then promote NEXT to the active signing key.
 const PUBLIC_KEY_NEXT = (process.env.JKOS_AUTH_PUBLIC_KEY_NEXT || '').replace(/\\n/g, '\n')
 
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || ''
-const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || ''
-const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || `http://localhost:${PORT}/auth/google/callback`
-
 const ADMIN_SEED_EMAIL = process.env.ADMIN_SEED_EMAIL || ''
 const ADMIN_SEED_PASSWORD = process.env.ADMIN_SEED_PASSWORD || ''
 const GUEST_PASSWORD = process.env.GUEST_PASSWORD || ''
@@ -54,7 +50,6 @@ const RL_WINDOW_MS = numEnv('RL_WINDOW_MS', 15 * 60 * 1000)
 // attempts against a single account take minutes on its own.
 const RL_CREDENTIALS = numEnv('RL_CREDENTIALS', 30)   // /auth/login · /auth/register · /auth/guest
 const RL_REFRESH = numEnv('RL_REFRESH', 120)          // /auth/refresh
-const RL_GOOGLE = numEnv('RL_GOOGLE', 30)             // /auth/google · /auth/google/callback
 
 // Passwords are SHA-256 pre-hashed before bcrypt (see src/password.js), so the
 // 72-byte bcrypt truncation no longer applies — but we still cap input length to
@@ -78,11 +73,10 @@ const LOCKOUT_CAP_MS = numEnv('LOCKOUT_CAP_MS', 30 * 1000)
 // server reads whichever the browser sends first — defeating env isolation.
 const COOKIE_SUFFIX = process.env.JKOS_COOKIE_SUFFIX || ''
 // Built through the shared cookieName() so the suffix-application rule (and the
-// access-cookie base the verifiers read) live in one place. jkos_refresh /
-// _oauth_nonce are jkAuth-internal bases; jkos_token is the cross-system contract.
+// access-cookie base the verifiers read) live in one place. jkos_refresh is a
+// jkAuth-internal base; jkos_token is the cross-system contract.
 const TOKEN_COOKIE = cookieName(ACCESS_COOKIE_BASE)
 const REFRESH_COOKIE = cookieName('jkos_refresh')
-const OAUTH_NONCE_COOKIE = cookieName('_oauth_nonce')   // env-suffixed too (S8)
 
 const COOKIE_DOMAIN = process.env.COOKIE_DOMAIN || '.jkos.net'
 const COOKIE_OPTS = { httpOnly: true, sameSite: 'lax', secure: true, path: '/', domain: COOKIE_DOMAIN }
@@ -127,13 +121,12 @@ const JWT_KID_NEXT = process.env.JKOS_AUTH_KID_NEXT || '2'   // kid for PUBLIC_K
 module.exports = {
   PORT, DB_PATH, PORTAL_URL, AUTH_ORIGIN,
   PRIVATE_KEY, PUBLIC_KEY, PUBLIC_KEY_NEXT,
-  GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI,
   ADMIN_SEED_EMAIL, ADMIN_SEED_PASSWORD, GUEST_PASSWORD,
   ACCESS_TTL_MS, REFRESH_TTL_MS, REMEMBER_TTL_MS, REFRESH_GRACE_MS,
-  RL_WINDOW_MS, RL_CREDENTIALS, RL_REFRESH, RL_GOOGLE,
+  RL_WINDOW_MS, RL_CREDENTIALS, RL_REFRESH,
   PASSWORD_MIN, PASSWORD_MAX, BCRYPT_COST,
   LOCKOUT_FREE, LOCKOUT_BASE_MS, LOCKOUT_CAP_MS,
-  COOKIE_SUFFIX, TOKEN_COOKIE, REFRESH_COOKIE, OAUTH_NONCE_COOKIE,
+  COOKIE_SUFFIX, TOKEN_COOKIE, REFRESH_COOKIE,
   COOKIE_DOMAIN, COOKIE_OPTS,
   JWT_ISSUER, JWT_KID, JWT_KID_NEXT,
   SERVICE_CLIENTS, DELEGATION_CLIENTS,
