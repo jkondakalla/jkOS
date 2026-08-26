@@ -47,7 +47,8 @@ const matchAll = (html, re) => [...html.matchAll(re)].map(m => m[1]);
 // One server instance with its own port, temp DB, and cookie jar.
 class Server {
   constructor(extraEnv = {}) {
-    this.port = 3100 + Math.floor(Math.random() * 2000);
+    // Band clear of the test-port registry (3980–3996) + discover spares (4083–4085).
+    this.port = 4900 + Math.floor(Math.random() * 500);
     this.base = `http://127.0.0.1:${this.port}`;
     this.tmp = mkdtempSync(join(tmpdir(), 'jkauth-smoke-'));
     this.jar = new Map();

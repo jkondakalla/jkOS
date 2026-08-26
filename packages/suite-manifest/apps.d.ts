@@ -93,3 +93,13 @@ export declare function scopeFor(id: AppId, verb: string): string;
 export declare function registrySeed(): RegistryRow[];
 export declare function manifestApps(): Record<string, ManifestEntry>;
 export declare function peers(): PeerRow[];
+
+/** Apps taking the GENERATED standard nginx edge (see gen-nginx-weave.mjs). */
+export declare function edgeApps(): { id: AppId; name: string; host: string; upstream: string }[];
+
+/** The port registry's test half: `'<app>:<file>' → port`. Service ports live in
+ *  each app row's `upstream`; `portTable()` folds both in and THROWS on any
+ *  duplicate claim (OPS-1: a shared port once ran eight assertions green against
+ *  the wrong app's server). */
+export declare const TEST_PORTS: Readonly<Record<string, number>>;
+export declare function portTable(): { claimant: string; port: number }[];

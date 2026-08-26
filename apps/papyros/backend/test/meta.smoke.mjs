@@ -52,8 +52,15 @@ const FIXTURES_DIR = join(__dirname, 'fixtures', 'library');
 const PRELOAD_PATH = join(__dirname, 'fixtures', 'meta', 'fetch-mock-preload.cjs');
 const { ITUNES_ITEM, FAKE_JPEG_MARKER } = require('./fixtures/meta/fetch-mock-data.cjs');
 
-const PORT = 3992;
+// Claimed in the suite-manifest port registry ('papyros:meta.smoke') — the
+// `port-registry` probe holds this literal to that claim. It used to be 3992,
+// shared with BeigeBoard's routine-spec.smoke — that overlap is exactly OPS-1.
+const PORT = 3996;
 const BASE = `http://127.0.0.1:${PORT}`;
+// The /health payload must name THIS app. A bare 200 once passed eight
+// assertions against a stray server from ANOTHER app on a shared port (OPS-1);
+// the uniform health contract carries the app id precisely so a smoke can tell.
+const SERVICE = 'papyros';
 const ISSUER = 'jkos-auth';
 
 let pass = 0, fail = 0;
@@ -108,7 +115,17 @@ async function req(method, path, body, token) {
 async function waitForHealth(ms = 15000) {
   const deadline = Date.now() + ms;
   while (Date.now() < deadline) {
-    try { if ((await fetch(BASE + '/health')).ok) return true; } catch { /* not up yet */ }
+    if (exited) return false; // the child is gone — polling the port can only find a stranger
+    try {
+      const res = await fetch(BASE + '/health');
+      if (res.ok) {
+        const body = await res.json().catch(() => ({}));
+        if (body.service === SERVICE) return true;
+        console.error(`  ✗ /health answered 200 but service=${JSON.stringify(body.service)} — ` +
+                      `expected '${SERVICE}'. Another server owns this port.`);
+        return false;
+      }
+    } catch { /* not up yet */ }
     await new Promise((r) => setTimeout(r, 150));
   }
   return false;
@@ -164,18 +181,28 @@ const child = spawn('node', ['server.js'], {
   stdio: ['ignore', 'pipe', 'pipe'],
 });
 let serverLog = '';
+let exited = null; // fail fast: a child that dies pre-health must not be polled for
 child.stdout.on('data', (d) => { serverLog += d; });
 child.stderr.on('data', (d) => { serverLog += d; });
+child.on('exit', (code, signal) => { exited = { code, signal }; });
 
 function done() {
   try { child.kill('SIGKILL'); } catch { /* already gone */ }
   try { rmSync(tmp, { recursive: true, force: true }); } catch { /* best effort */ }
+  // The child's own words, on ANY failure — not only when health never came up.
+  if (fail && serverLog) console.error('\n── server log ──\n' + serverLog);
   console.log(`\nmeta.smoke: ${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 }
 
 try {
-  if (!(await waitForHealth())) { console.error('server never became healthy:\n' + serverLog); done(); }
+  if (!(await waitForHealth())) {
+    fail++;
+    console.error('server never became healthy'
+      + (exited ? ` (exited code=${exited.code} signal=${exited.signal})` : '')
+      + ':\n' + serverLog);
+    done();
+  }
   ok(serverLog.includes('[fetch-mock-preload] globalThis.fetch replaced'),
     'preload: fetch-mock-preload.cjs ran before server.js booted (its startup line is in the server log)');
 

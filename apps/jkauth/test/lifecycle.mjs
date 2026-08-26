@@ -43,7 +43,10 @@ const decode = (t) => JSON.parse(Buffer.from(t.split('.')[1], 'base64url').toStr
 
 // ── Boot a jkAuth with service clients + one delegation-enrolled client ──────────
 const tmp = mkdtempSync(join(tmpdir(), 'jkauth-lifecycle-'));
-const port = 3400 + Math.floor(Math.random() * 1500);
+// Random band chosen CLEAR of the suite-manifest test-port registry (3980–3996)
+// and discover.smoke's spares (4083–4085) — a random hit on a claimed port would
+// boot against whatever sits there and flake. See TEST_PORTS in @jkos/suite-manifest.
+const port = 4300 + Math.floor(Math.random() * 500);
 const base = `http://127.0.0.1:${port}`;
 const jar = new Map();
 let serverLog = '';

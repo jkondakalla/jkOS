@@ -197,6 +197,70 @@ function edgeApps() {
   }))
 }
 
+/* ── the port registry ───────────────────────────────────────────────────────── */
+
+/**
+ * Every localhost port a TEST may bind, in one table — the place a new smoke
+ * claims its throwaway port from. Service ports are deliberately NOT re-typed
+ * here: they already live in each app row's `upstream`, and `portTable()` folds
+ * them in, so a test port can never silently shadow a service port either.
+ *
+ * ⚠️ Why this exists (OPS-1): two stray KourOS processes once sat on 3991/3992 —
+ * ports ALSO claimed by BeigeBoard's routines/routine-spec smokes and PapyrOS's
+ * playback/meta smokes — and eight assertions ran green against the wrong app's
+ * server. A duplicate claim here is a STARTUP error (this module is require()'d
+ * at boot by jkAuth and the BeigeBoard backend), and the suite-prober's
+ * `port-registry` probe holds every smoke's `const PORT = <n>` literal to its
+ * claim below, so the table and the files cannot drift apart.
+ */
+const TEST_PORTS = Object.freeze({
+  'kouros:library.smoke': 3980,
+  'kouros:playback.smoke': 3981,
+  'kouros:history.smoke': 3982,
+  // discover.smoke boots FOUR servers; only the base can be held to a row here (the
+  // probe reads one `const PORT` literal per file). The other three live at +100/+101/
+  // +102 — deliberately outside this band, because they used to be +1/+2/+3 and +3 was
+  // 3986, i.e. beigeboard:delta.smoke's port. See that file's header.
+  'kouros:discover.smoke': 3983,
+  'beigeboard:delta.smoke': 3986,
+  'beigeboard:import.smoke': 3987,
+  'beigeboard:items.smoke': 3988,
+  'beigeboard:contract.smoke': 3989,
+  'papyros:library.smoke': 3990,
+  'beigeboard:routines.smoke': 3991,
+  'beigeboard:routine-spec.smoke': 3992,
+  'papyros:history.smoke': 3993,
+  'suite-prober:roundtrip': 3994,
+  'papyros:playback.smoke': 3995,
+  'papyros:meta.smoke': 3996,
+})
+
+/** Every port with its claimant — container service ports (from `upstream`) plus
+ *  the test claims. Throws on a duplicate rather than returning one. */
+function portTable() {
+  const rows = []
+  for (const a of APPS) {
+    if (!a.upstream) continue
+    rows.push({ claimant: `service:${a.id}`, port: Number(a.upstream.split(':').pop()) })
+  }
+  for (const [claimant, port] of Object.entries(TEST_PORTS)) {
+    rows.push({ claimant: `test:${claimant}`, port })
+  }
+  const seen = new Map()
+  for (const { claimant, port } of rows) {
+    if (seen.has(port)) {
+      throw new Error(
+        `port ${port} is claimed by both ${seen.get(port)} and ${claimant} — ` +
+        'every claimant needs its own row in the suite-manifest port registry',
+      )
+    }
+    seen.set(port, claimant)
+  }
+  return rows
+}
+// A duplicate claim refuses to load, everywhere this module is required.
+portTable()
+
 module.exports = {
   APPS,
   APP_IDS,
@@ -210,4 +274,6 @@ module.exports = {
   manifestApps,
   peers,
   edgeApps,
+  TEST_PORTS,
+  portTable,
 }

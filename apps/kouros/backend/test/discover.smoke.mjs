@@ -42,8 +42,21 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const BACKEND = join(__dirname, '..');
 const FIXTURES_DIR = join(__dirname, 'fixtures', 'library');
 
+// Claimed in the suite-manifest port registry ('kouros:discover.smoke') — the
+// `port-registry` probe holds this literal to that claim.
+//
+// ⚠️ This smoke is the one that boots FOUR servers, and the registry can only see
+// the literal above. The other three therefore sit in a band 100 above it, clear of
+// the whole 398x/399x test range — they used to be PORT+1..PORT+3, and PORT+3 was
+// 3986, which is BeigeBoard's delta.smoke claim. That is OPS-1 exactly: a second
+// server on a claimed port, invisible to the table.
 const PORT = 3983;
 const BASE = `http://127.0.0.1:${PORT}`;
+const SPARE_PORTS = [PORT + 100, PORT + 101, PORT + 102];
+// The /health payload must name THIS app. A bare 200 once passed eight
+// assertions against a stray server from ANOTHER app on a shared port (OPS-1);
+// the uniform health contract carries the app id precisely so a smoke can tell.
+const SERVICE = 'kouros';
 
 let pass = 0, fail = 0;
 const ok = (cond, msg) => { if (cond) pass++; else { fail++; console.error('  ✗ ' + msg); } };
@@ -137,13 +150,34 @@ async function boot({ port, dbPath, vectorDbPath, libraryRootName }) {
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let log = '';
+  let exited = null; // fail fast: a child that dies pre-health must not be polled for
   child.stdout.on('data', (d) => { log += d; });
   child.stderr.on('data', (d) => { log += d; });
+  child.on('exit', (code, signal) => { exited = { code, signal }; });
   const base = `http://127.0.0.1:${port}`;
   const deadline = Date.now() + 15000;
+  let healthy = false;
   while (Date.now() < deadline) {
-    try { if ((await fetch(base + '/health')).ok) break; } catch { /* not up */ }
+    if (exited) break; // the child is gone — polling the port can only find a stranger
+    try {
+      const res = await fetch(base + '/health');
+      if (res.ok) {
+        const body = await res.json().catch(() => ({}));
+        if (body.service === SERVICE) { healthy = true; break; }
+        console.error(`  ✗ /health on ${port} answered 200 but service=${JSON.stringify(body.service)} — ` +
+                      `expected '${SERVICE}'. Another server owns this port.`);
+        break;
+      }
+    } catch { /* not up */ }
     await new Promise((r) => setTimeout(r, 150));
+  }
+  const server = { child, base, port, log: () => log, healthy };
+  servers.push(server);
+  if (!healthy) {
+    fail++;
+    console.error(`  ✗ server on ${port} never became healthy`
+      + (exited ? ` (exited code=${exited.code} signal=${exited.signal})` : ''));
+    return server;
   }
   // The boot scan is non-blocking; wait for the catalog before asking about vectors.
   const tracksDeadline = Date.now() + 30000;
@@ -152,13 +186,20 @@ async function boot({ port, dbPath, vectorDbPath, libraryRootName }) {
     if (Array.isArray(r.json) && r.json.length >= TRACKS.length) break;
     await new Promise((r2) => setTimeout(r2, 300));
   }
-  return { child, base, log: () => log };
+  return server;
 }
 
 const servers = [];
 function done() {
   for (const s of servers) { try { s.child.kill('SIGKILL'); } catch { /* gone */ } }
   try { rmSync(tmp, { recursive: true, force: true }); } catch { /* best effort */ }
+  // The children's own words, on ANY failure — not only when health never came up.
+  if (fail) {
+    for (const s of servers) {
+      const text = s.log();
+      if (text) console.error(`\n── server log (${s.port}) ──\n` + text);
+    }
+  }
   console.log(`\ndiscover.smoke: ${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 }
@@ -170,7 +211,7 @@ try {
   const good = await boot({
     port: PORT, dbPath: join(tmp, 'good.db'), vectorDbPath: goodIndex, libraryRootName: 'Music',
   });
-  servers.push(good);
+  if (!good.healthy) done(); // boot() already counted the failure; nothing below can mean anything
 
   const stats = (await req(good.base, 'GET', '/api/discover/stats')).json;
   ok(!!stats, 'stats: served');
@@ -231,10 +272,9 @@ try {
      the fix for the bug where the retired rip's move into `Old (Needs to be
      trimmed)/` made every one of its 1,511 vectors key to a nonexistent artist. */
   const bad = await boot({
-    port: PORT + 1, dbPath: join(tmp, 'bad.db'), vectorDbPath: goodIndex,
+    port: SPARE_PORTS[0], dbPath: join(tmp, 'bad.db'), vectorDbPath: goodIndex,
     libraryRootName: 'NotTheLibraryRoot',
   });
-  servers.push(bad);
   const badStats = (await req(bad.base, 'GET', '/api/discover/stats')).json;
   ok(badStats?.byRelPath === 0,
     `salvage: a wrong LIBRARY_ROOT_NAME kills the relative tier (got ${badStats?.byRelPath})`);
@@ -253,9 +293,8 @@ try {
     'Third Party/Yet Another/02 nothing to do with it.mp3',
   ] });
   const alien = await boot({
-    port: PORT + 3, dbPath: join(tmp, 'alien.db'), vectorDbPath: alienIndex, libraryRootName: 'Music',
+    port: SPARE_PORTS[2], dbPath: join(tmp, 'alien.db'), vectorDbPath: alienIndex, libraryRootName: 'Music',
   });
-  servers.push(alien);
   const alienStats = (await req(alien.base, 'GET', '/api/discover/stats')).json;
   ok(alienStats?.measured === 0,
     `negative control: an index for another library measures nothing (got ${alienStats?.measured})`);
@@ -272,9 +311,8 @@ try {
   const rawIndex = join(tmp, 'music-index-raw.db');
   buildIndex(rawIndex, { calibrate: false });
   const raw = await boot({
-    port: PORT + 2, dbPath: join(tmp, 'raw.db'), vectorDbPath: rawIndex, libraryRootName: 'Music',
+    port: SPARE_PORTS[1], dbPath: join(tmp, 'raw.db'), vectorDbPath: rawIndex, libraryRootName: 'Music',
   });
-  servers.push(raw);
   const rawStats = (await req(raw.base, 'GET', '/api/discover/stats')).json;
   ok(rawStats?.measured === TRACKS.length,
     `uncalibrated: the join still resolves (got ${rawStats?.measured})`);

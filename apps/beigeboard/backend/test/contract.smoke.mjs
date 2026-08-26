@@ -35,8 +35,14 @@ const BACKEND = join(__dirname, '..');
 const require = createRequire(import.meta.url);
 const { CAPABILITIES, DATASETS } = require('../discovery.js');   // the DECLARED contract, as data
 
+// Claimed in the suite-manifest port registry ('beigeboard:contract.smoke') — the
+// `port-registry` probe holds this literal to that claim.
 const PORT = 3989;
 const BASE = `http://127.0.0.1:${PORT}`;
+// The /health payload must name THIS app. A bare 200 once passed eight
+// assertions against a stray server from ANOTHER app on a shared port (OPS-1);
+// the uniform health contract carries the app id precisely so a smoke can tell.
+const SERVICE = 'beigeboard';
 const tmp = mkdtempSync(join(tmpdir(), 'bb-contract-'));
 const DB_PATH = join(tmp, 'test.db');
 
@@ -56,7 +62,17 @@ async function req(method, path, body) {
 async function waitForHealth(ms = 15000) {
   const deadline = Date.now() + ms;
   while (Date.now() < deadline) {
-    try { if ((await fetch(BASE + '/health')).ok) return true; } catch { /* not up yet */ }
+    if (exited) return false; // the child is gone — polling the port can only find a stranger
+    try {
+      const res = await fetch(BASE + '/health');
+      if (res.ok) {
+        const body = await res.json().catch(() => ({}));
+        if (body.service === SERVICE) return true;
+        console.error(`  ✗ /health answered 200 but service=${JSON.stringify(body.service)} — ` +
+                      `expected '${SERVICE}'. Another server owns this port.`);
+        return false;
+      }
+    } catch { /* not up yet */ }
     await new Promise(r => setTimeout(r, 150));
   }
   return false;
@@ -68,12 +84,16 @@ const child = spawn('node', ['server.js'], {
   stdio: ['ignore', 'pipe', 'pipe'],
 });
 let serverLog = '';
+let exited = null; // fail fast: a child that dies pre-health must not be polled for
 child.stdout.on('data', d => { serverLog += d; });
 child.stderr.on('data', d => { serverLog += d; });
+child.on('exit', (code, signal) => { exited = { code, signal }; });
 
 function done() {
   try { child.kill('SIGKILL'); } catch { /* already gone */ }
   try { rmSync(tmp, { recursive: true, force: true }); } catch { /* best effort */ }
+  // The child's own words, on ANY failure — not only when health never came up.
+  if (fail && serverLog) console.error('\n── server log ──\n' + serverLog);
   console.log(`\ncontract.smoke: ${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 }
@@ -89,9 +109,15 @@ function violations(field) {
 }
 
 try {
-  if (!(await waitForHealth())) { console.error('server never became healthy:\n' + serverLog); done(); }
+  if (!(await waitForHealth())) {
+    fail++;
+    console.error('server never became healthy'
+      + (exited ? ` (exited code=${exited.code} signal=${exited.signal})` : '')
+      + ':\n' + serverLog);
+    done();
+  }
 
-  const createCap = CAPABILITIES.capabilities.find(c => c.method === 'POST' && c.path === '/items');
+  const createCap =CAPABILITIES.capabilities.find(c => c.method === 'POST' && c.path === '/items');
   const updateCap = CAPABILITIES.capabilities.find(c => c.id === 'updateItem');
   const itemsDs   = DATASETS.datasets.find(d => d.id === 'items');
   ok(!!createCap, 'discovery declares a POST /items capability');

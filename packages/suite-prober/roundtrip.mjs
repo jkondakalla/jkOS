@@ -65,11 +65,26 @@ async function http(method, url, body) {
 }
 
 /* ── smoke boot (import.smoke house pattern) ──────────────────────────────────── */
-let child = null, tmp = null;
+let child = null, tmp = null, serverLog = '', exited = null;
+// The one server this boots is the BeigeBoard backend, so /health must name that app.
+// A bare 200 once passed eight assertions against a stray server from ANOTHER app on
+// a shared port (OPS-1); the uniform health contract carries the app id so a smoke can
+// tell. `APP` is already 'beigeboard' — the same id the live mode checks the docs for.
+const SERVICE = APP;
 async function waitForHealth(base, ms = 15000) {
   const deadline = Date.now() + ms;
   while (Date.now() < deadline) {
-    try { if ((await fetch(base + '/health')).ok) return true; } catch { /* not up */ }
+    if (exited) return false; // the child is gone — polling the port can only find a stranger
+    try {
+      const res = await fetch(base + '/health');
+      if (res.ok) {
+        const body = await res.json().catch(() => ({}));
+        if (body.service === SERVICE) return true;
+        console.error(`  ✗ /health answered 200 but service=${JSON.stringify(body.service)} — ` +
+                      `expected '${SERVICE}'. Another server owns this port.`);
+        return false;
+      }
+    } catch { /* not up */ }
     await new Promise((r) => setTimeout(r, 150));
   }
   return false;
@@ -78,6 +93,8 @@ async function waitForHealth(base, ms = 15000) {
 function teardown(code) {
   if (child) { try { child.kill('SIGKILL'); } catch { /* gone */ } }
   if (tmp) { try { rmSync(tmp, { recursive: true, force: true }); } catch { /* best effort */ } }
+  // The child's own words, on ANY failure — not only when health never came up.
+  if ((fail || code) && serverLog) console.error('\n── server log ──\n' + serverLog);
   console.log(`\nroundtrip (${liveBase ? 'live' : 'smoke'}): ${pass} passed, ${fail} failed`);
   process.exit(code ?? (fail ? 1 : 0));
 }
@@ -99,7 +116,10 @@ async function main() {
     API = BASE + (seed?.api_base || `/api/${APP}`);
     if (!token) console.error('  ⚠ live mode with no --token/PROBE_TOKEN — writes will 401 unless the edge is open');
   } else {
-    const PORT = 3988;
+    // Claimed in the suite-manifest port registry ('suite-prober:roundtrip') — the
+    // `port-registry` probe holds this literal to that claim. It used to be 3988,
+    // shared with BeigeBoard's items.smoke — that overlap is exactly OPS-1.
+    const PORT = 3994;
     BASE = `http://127.0.0.1:${PORT}`;
     API = BASE + '/api';
     tmp = mkdtempSync(join(tmpdir(), 'bb-roundtrip-'));
@@ -108,8 +128,15 @@ async function main() {
       env: { ...process.env, NODE_ENV: '', PORT: String(PORT), DB_PATH: join(tmp, 'test.db') },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
-    let log = ''; child.stdout.on('data', (d) => { log += d; }); child.stderr.on('data', (d) => { log += d; });
-    if (!(await waitForHealth(BASE))) { console.error('server never healthy:\n' + log); teardown(1); }
+    child.stdout.on('data', (d) => { serverLog += d; });
+    child.stderr.on('data', (d) => { serverLog += d; });
+    child.on('exit', (code, signal) => { exited = { code, signal }; });
+    if (!(await waitForHealth(BASE))) {
+      fail++;
+      console.error('server never became healthy'
+        + (exited ? ` (exited code=${exited.code} signal=${exited.signal})` : ''));
+      teardown(1);
+    }
   }
 
   // ── 1. DISCOVER the contract (only shapes we read, none we assume) ──
