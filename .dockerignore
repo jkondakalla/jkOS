@@ -4,7 +4,6 @@
 **/build
 **/.turbo
 .git
-.git-backups
 **/*.db
 **/*.db-shm
 **/*.db-wal
@@ -19,3 +18,9 @@
 apps/sylibos/Courses
 apps/sylibos/ProcessedCourses
 **/.venv
+
+# The music embedder is deliberately outside the pnpm workspace and copied into
+# NO image, but it holds ~2.8 GB (venv, CLAP export, index, rendered output) that
+# would otherwise ship to the daemon on every root-context build — the same cost
+# the SylibOS block above existed to stop.
+music/
