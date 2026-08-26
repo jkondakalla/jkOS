@@ -1,0 +1,15 @@
+[Unit]
+Description=Run the jkOS encrypted backup daily
+Documentation=file:///media/jag/The%20Forge/jkOS/infra/backup/README.md
+
+[Timer]
+OnCalendar=*-*-* 02:30:00
+# The workstation is not always on at 02:30. Persistent=true runs the job on next
+# boot if the window was missed, which is the difference between a daily backup and
+# a backup that only happens on nights the machine happened to be awake.
+Persistent=true
+RandomizedDelaySec=15m
+Unit=jkos-backup.service
+
+[Install]
+WantedBy=timers.target

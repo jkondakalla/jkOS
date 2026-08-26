@@ -1,0 +1,12 @@
+[Unit]
+Description=jkOS encrypted database backup (pull from NAS)
+Documentation=file:///media/jag/The%20Forge/jkOS/infra/backup/README.md
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/media/jag/The Forge/jkOS/infra/backup/jkos-backup.sh
+# Never let a stalled network hold the timer open indefinitely.
+TimeoutStartSec=2h
+Nice=10
+IOSchedulingClass=idle
