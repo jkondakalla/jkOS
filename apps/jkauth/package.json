@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "test": "node test/smoke.mjs && node test/lifecycle.mjs && node test/multiuser.mjs",
+    "test": "node test/smoke.mjs && node test/lifecycle.mjs && node test/multiuser.mjs && node test/security.mjs",
     "test:contracts": "node test/contracts.mjs",
     "sync:tokens": "node scripts/sync-tokens.mjs",
     "check:tokens": "node scripts/sync-tokens.mjs --check"

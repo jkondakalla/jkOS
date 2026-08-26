@@ -7,7 +7,8 @@
 const Database = require('better-sqlite3')
 const { registrySeed } = require('@jkos/suite-manifest')
 const { DB_PATH, ADMIN_SEED_EMAIL, ADMIN_SEED_PASSWORD, GUEST_PASSWORD } = require('./config')
-const { hashPasswordSync } = require('./password')
+const { hashPasswordSync, verifyPasswordSync } = require('./password')
+const { sealSecret, sealingEnabled } = require('./secretbox')
 
 const db = new Database(DB_PATH)
 db.pragma('journal_mode = WAL')
@@ -229,6 +230,35 @@ const MIGRATIONS = [
     addColumn('widget_registry', 'allowed_roles', 'TEXT')
     addColumn('users', 'prefs_version', 'INTEGER NOT NULL DEFAULT 0')
   }],
+
+  // Session lifecycle (the C2 rework — JK-A2/A3/A5/A10). Sessions become rows
+  // with a full, auditable lifecycle instead of disappearing evidence:
+  //   family_created_at  when the FAMILY was first minted — rotation copies it
+  //                      forward, so the absolute session cap has a clock to
+  //                      measure against (previously inexpressible: nothing
+  //                      recorded when a login began, only when it last rotated).
+  //   last_used_at       stamped on mint and every rotation → a "your devices"
+  //                      view and dormant-session detection.
+  //   revoked_at/_reason logout and reuse-burn now TOMBSTONE ('logout' /
+  //                      'reuse' / 'absolute_timeout') instead of DELETE-ing the
+  //                      rows — revocation used to destroy the very evidence an
+  //                      incident review needs. Tombstones are pruned after
+  //                      SESSION_TOMBSTONE_MS.
+  // The three new timestamps are millisecond ISO-8601 and only ever compared in
+  // JS (parseTs) — never string-compared in SQL against datetime('now'), whose
+  // space-separated format mis-sorts against ISO's 'T' on the final day.
+  // Backfill: existing families get family_created_at from their oldest row.
+  ['017_session_lifecycle', () => {
+    addColumn('sessions', 'family_created_at', 'TEXT')
+    addColumn('sessions', 'last_used_at', 'TEXT')
+    addColumn('sessions', 'revoked_at', 'TEXT')
+    addColumn('sessions', 'revoked_reason', 'TEXT')
+    run(`UPDATE sessions SET family_created_at = COALESCE(
+           (SELECT MIN(s2.created_at) FROM sessions s2 WHERE s2.family_id = sessions.family_id),
+           created_at)
+         WHERE family_created_at IS NULL`)
+    run('CREATE INDEX IF NOT EXISTS idx_sessions_last_used ON sessions(user_id, last_used_at)')
+  }],
 ]
 
 function runMigrations() {
@@ -266,11 +296,37 @@ function seedAdmin() {
 
 function seedGuest() {
   if (!GUEST_PASSWORD) return
-  if (get("SELECT 1 FROM users WHERE email='guest@jkos.net'")) return
+  const existing = get("SELECT * FROM users WHERE email='guest@jkos.net'")
+  if (existing) {
+    // The env var is the source of the guest credential, and POST /auth/guest
+    // actually verifies it now (JK-A1) — so a rotated GUEST_PASSWORD must reach
+    // the stored hash, or the operator changes the variable and nothing changes.
+    if (!verifyPasswordSync(GUEST_PASSWORD, existing.password_hash, existing.hash_algo)) {
+      const { hash, algo } = hashPasswordSync(GUEST_PASSWORD)
+      run('UPDATE users SET password_hash=?, hash_algo=? WHERE id=?', [hash, algo, existing.id])
+      console.log('[boot] guest password re-synced from GUEST_PASSWORD')
+    }
+    return
+  }
   const { hash, algo } = hashPasswordSync(GUEST_PASSWORD)
   run('INSERT INTO users (email, name, password_hash, hash_algo, role) VALUES (?,?,?,?,?)',
     ['guest@jkos.net', 'Guest', hash, algo, 'guest'])
   console.log('[boot] guest user seeded')
+}
+
+// JK-A4, the upgrade half: when the envelope key is configured, sweep any
+// legacy PLAINTEXT TOTP secrets into sealed form. One-shot per row (a sealed
+// row never matches the filter again); with no key, say loudly that plaintext
+// secrets exist rather than silently leaving them.
+function sealPlaintextTotpSecrets() {
+  const rows = all("SELECT id, totp_secret FROM users WHERE totp_secret IS NOT NULL AND totp_secret NOT LIKE 'enc:%'")
+  if (rows.length === 0) return
+  if (!sealingEnabled()) {
+    console.warn(`[boot] ${rows.length} TOTP secret(s) are stored in PLAINTEXT and JKOS_2FA_ENC_KEY is not set — set it to seal them (JK-A4)`)
+    return
+  }
+  for (const r of rows) run('UPDATE users SET totp_secret=? WHERE id=?', [sealSecret(r.totp_secret), r.id])
+  console.log(`[boot] sealed ${rows.length} plaintext TOTP secret(s) (JK-A4)`)
 }
 
 function seedAppRegistry() {
@@ -342,5 +398,6 @@ runMigrations()
 seedAdmin()
 seedGuest()
 seedAppRegistry()
+sealPlaintextTotpSecrets()
 
 module.exports = { db, run, all, get, getAppOrigins, appIdForOrigin, roleClaims, logEvent }

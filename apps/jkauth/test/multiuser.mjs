@@ -112,7 +112,7 @@ try {
   const regB = await api(B, 'POST', '/auth/register', { json: { email: 'b@jkos.net', name: 'Bob', password: 'password123' } });
   ok('B registers → 201 user (second is not admin)', regB.status === 201 && regB.json?.user?.role === 'user', `${regB.status} ${JSON.stringify(regB.json?.user)}`);
   const bId = String(regB.json.user.id);
-  const guest = await api(G, 'POST', '/auth/guest', { json: {} });
+  const guest = await api(G, 'POST', '/auth/guest', { json: { password: 'guestpass123' } });
   ok('guest login → 200', guest.status === 200 && guest.json?.user?.role === 'guest', `${guest.status} ${JSON.stringify(guest.json)}`);
 
   // ── 2. preference isolation — A and B have independent blobs ───────────────────

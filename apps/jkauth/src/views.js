@@ -45,7 +45,9 @@ function loginPage(opts = {}) {
     ${!isRegister ? `<label class="remember-row"><input class="jk-field-check" type="checkbox" name="remember_me" value="1" checked> Remember me for 30 days</label>` : ''}
     <button type="submit" class="btn-primary">${isRegister ? 'Create account' : 'Sign in'}</button>
   </form>
-  ${!isRegister && guestEnabled ? `<form method="POST" action="/auth/guest">${redirectInput}<button type="submit" class="btn-ghost">Continue as guest</button></form>` : ''}
+  ${!isRegister && guestEnabled ? `<form method="POST" action="/auth/guest">${redirectInput}
+    <input class="jk-field" type="password" name="password" placeholder="Guest password" required autocomplete="off">
+    <button type="submit" class="btn-ghost">Continue as guest</button></form>` : ''}
   <p class="toggle">${isRegister
     ? `Already have an account? <a href="/auth/login${redirectTo ? '?redirect_to=' + encodeURIComponent(redirectTo) : ''}">Sign in</a>`
     : `No account? <a href="/auth/register${redirectTo ? '?redirect_to=' + encodeURIComponent(redirectTo) : ''}">Register</a>`

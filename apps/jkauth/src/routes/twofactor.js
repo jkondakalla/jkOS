@@ -11,6 +11,7 @@ const { isJsonReq } = require('../util')
 const {
   beginTotpSetup, qrForSecret, verifyTotpCode, generateRecoveryCodes, recoveryCodesRemaining,
 } = require('../twofactor')
+const { sealSecret, openSecret, sealingEnabled } = require('../secretbox')
 
 const router = express.Router()
 
@@ -43,9 +44,18 @@ router.get('/auth/security', (req, res) => {
 router.post('/auth/2fa/totp/setup', async (req, res) => {
   const u = requireUser(req, res); if (!u) return
   if (u.totp_enabled) return res.send(securityPage(u, secInfo(u), { error: 'Authenticator is already enabled.' }))
+  // JK-A4, fail closed: with no envelope key, refuse enrollment rather than
+  // quietly writing a readable secret in plaintext.
+  if (!sealingEnabled()) {
+    console.error('[totp setup] refused: JKOS_2FA_ENC_KEY is not set (JK-A4)')
+    return res.status(503).send(securityPage(u, secInfo(u), {
+      error: 'Two-factor storage is not configured on this server (JKOS_2FA_ENC_KEY).',
+    }))
+  }
   try {
     const { secret, qr } = await beginTotpSetup(u)
-    run('UPDATE users SET totp_secret=? WHERE id=?', [secret, u.id])
+    // Sealed at rest (JK-A4); the plaintext base32 goes only to the setup page.
+    run('UPDATE users SET totp_secret=? WHERE id=?', [sealSecret(secret), u.id])
     res.send(totpSetupPage({ secret, qr }))
   } catch (e) {
     console.error('[totp setup]', e)
@@ -59,9 +69,11 @@ router.post('/auth/2fa/totp/enable', async (req, res) => {
   if (u.totp_enabled) return res.send(securityPage(u, secInfo(u), { notice: 'Authenticator already enabled.' }))
   if (!u.totp_secret) return res.send(securityPage(u, secInfo(u), { error: 'Start setup first.' }))
   if (!verifyTotpCode(u.totp_secret, req.body.code)) {
-    // Re-render the confirm step with a QR for the SAME stored secret.
+    // Re-render the confirm step with a QR for the SAME stored secret — opened
+    // for display: the stored value is sealed, and `enc:v1:…` is not a thing a
+    // person can type into an authenticator app.
     const qr = await qrForSecret(u.totp_secret, u.email)
-    return res.send(totpSetupPage({ secret: u.totp_secret, qr, error: 'That code was wrong or expired. Try again.' }))
+    return res.send(totpSetupPage({ secret: openSecret(u.totp_secret), qr, error: 'That code was wrong or expired. Try again.' }))
   }
   run('UPDATE users SET totp_enabled=1 WHERE id=?', [u.id])
   const codes = generateRecoveryCodes(u.id)

@@ -42,6 +42,33 @@ const REFRESH_GRACE_MS = process.env.REFRESH_GRACE_MS != null
 // is legitimately frequent (every access-token expiry) so it gets headroom. (S6)
 // All overridable via env (tests raise them so the suite isn't throttled).
 const numEnv = (k, d) => (process.env[k] != null ? Number(process.env[k]) : d)
+
+// Session lifetime policy (JK-A3). Three numbers, three different questions:
+//   · REFRESH_TTL_MS      the IDLE window for a REMEMBERED login — each rotation
+//                          slides it forward 30 days.
+//   · SESSION_TTL_MS       the idle window for an UNREMEMBERED login. "Remember
+//                          me" used to change cookie persistence ONLY — the
+//                          server-side row lived 30 days either way, so closing
+//                          the browser was a client-side courtesy, not a logout.
+//   · SESSION_ABSOLUTE_TTL_MS  the cap no amount of activity extends: rotation
+//                          preserves family_created_at, and a family older than
+//                          this refuses to rotate. Without it a continuously-
+//                          refreshed session never expired at all.
+const SESSION_TTL_MS = numEnv('SESSION_TTL_MS', 24 * 60 * 60 * 1000)
+const SESSION_ABSOLUTE_TTL_MS = numEnv('SESSION_ABSOLUTE_TTL_MS', 90 * 24 * 60 * 60 * 1000)
+
+// How long a revoked session's tombstone is kept before the prune deletes it
+// (JK-A10): long enough that "your devices" and an incident review can see WHAT
+// was revoked and WHY, bounded so the table cannot grow forever.
+const SESSION_TOMBSTONE_MS = numEnv('SESSION_TOMBSTONE_MS', 30 * 24 * 60 * 60 * 1000)
+
+// Envelope key for secrets the server must read back — today the TOTP secret
+// (JK-A4, src/secretbox.js). Any sufficiently random string; the key material is
+// SHA-256 of this value. Unset → 2FA ENROLLMENT is refused (existing plaintext
+// rows still verify, so nobody is locked out — but they stay plaintext until the
+// key lands and the boot sweep seals them).
+const TWOFA_ENC_KEY = process.env.JKOS_2FA_ENC_KEY || ''
+
 const RL_WINDOW_MS = numEnv('RL_WINDOW_MS', 15 * 60 * 1000)
 // 30 credential POSTs per IP per window, not 10: one address is one HOUSEHOLD
 // (NAT) or one carrier (CGNAT), not one person, and a 15-minute wall after ten
@@ -123,6 +150,7 @@ module.exports = {
   PRIVATE_KEY, PUBLIC_KEY, PUBLIC_KEY_NEXT,
   ADMIN_SEED_EMAIL, ADMIN_SEED_PASSWORD, GUEST_PASSWORD,
   ACCESS_TTL_MS, REFRESH_TTL_MS, REMEMBER_TTL_MS, REFRESH_GRACE_MS,
+  SESSION_TTL_MS, SESSION_ABSOLUTE_TTL_MS, SESSION_TOMBSTONE_MS, TWOFA_ENC_KEY,
   RL_WINDOW_MS, RL_CREDENTIALS, RL_REFRESH,
   PASSWORD_MIN, PASSWORD_MAX, BCRYPT_COST,
   LOCKOUT_FREE, LOCKOUT_BASE_MS, LOCKOUT_CAP_MS,

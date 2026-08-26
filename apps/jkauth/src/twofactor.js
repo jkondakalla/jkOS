@@ -9,6 +9,7 @@ const { TOTP, Secret } = require('otpauth')
 const QRCode = require('qrcode')
 const { run, get } = require('./db')
 const { sendOtpEmail } = require('./email')
+const { openSecret } = require('./secretbox')
 
 const TOTP_ISSUER = 'jkOS'
 const OTP_TTL_MS = 10 * 60 * 1000        // email code lifetime
@@ -39,12 +40,19 @@ async function beginTotpSetup(user) {
 }
 
 // QR data URL for an already-stored secret (e.g. re-rendering the setup page
-// after a mistyped code) — does NOT mint a new secret.
-async function qrForSecret(secretBase32, label) {
-  return QRCode.toDataURL(makeTotp(secretBase32, label).toString())
+// after a mistyped code) — does NOT mint a new secret. Accepts the STORED value
+// (sealed or legacy plaintext — JK-A4); openSecret handles both.
+async function qrForSecret(storedSecret, label) {
+  const secret = openSecret(storedSecret)
+  if (!secret) throw new Error('stored TOTP secret could not be opened')
+  return QRCode.toDataURL(makeTotp(secret, label).toString())
 }
 
-function verifyTotpCode(secretBase32, code) {
+// `storedSecret` is the value as it sits in users.totp_secret — sealed
+// (`enc:v1:…`, JK-A4) or legacy plaintext. A sealed secret that cannot be
+// opened (missing/wrong key) verifies as false: fail closed, never bypass.
+function verifyTotpCode(storedSecret, code) {
+  const secretBase32 = openSecret(storedSecret)
   if (!secretBase32 || !code) return false
   const token = String(code).replace(/\s/g, '')
   if (!/^\d{6}$/.test(token)) return false

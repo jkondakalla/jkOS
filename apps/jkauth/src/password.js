@@ -34,7 +34,16 @@ async function verifyPassword(plain, hash, algo) {
   return bcrypt.compare(candidate, hash)
 }
 
+// Sync twin of verifyPassword, for boot-time seeding only (db.js keeps the guest
+// row's hash in step with the GUEST_PASSWORD env var). Never on a request path —
+// the async form exists so bcrypt doesn't block the event loop under load.
+function verifyPasswordSync(plain, hash, algo) {
+  if (!hash) return false
+  const candidate = algo === HASH_ALGO ? sha256hex(plain) : String(plain ?? '')
+  return bcrypt.compareSync(candidate, hash)
+}
+
 // True when a verified login should be transparently upgraded to the current scheme.
 const needsRehash = algo => algo !== HASH_ALGO
 
-module.exports = { HASH_ALGO, sha256hex, hashPassword, hashPasswordSync, verifyPassword, needsRehash }
+module.exports = { HASH_ALGO, sha256hex, hashPassword, hashPasswordSync, verifyPassword, verifyPasswordSync, needsRehash }

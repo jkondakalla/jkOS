@@ -210,14 +210,23 @@ router.post('/auth/login/2fa', async (req, res) => {
 })
 
 // POST /auth/logout (form + JSON) — revoke the whole session family so logging
-// out on one device invalidates every rotation of that login.
+// out on one device invalidates every rotation of that login. Revocation is a
+// TOMBSTONE (revoked_at/revoked_reason), not a DELETE: hard-deleting destroyed
+// the very evidence a "your devices" view or an incident review needs (JK-A10).
+// Tombstones age out via the prune in tokens.js.
 router.post('/auth/logout', (req, res) => {
   const isJson = isJsonReq(req)
   const refresh = req.cookies?.[REFRESH_COOKIE]
   if (refresh) {
+    const now = new Date().toISOString()
     const session = get('SELECT * FROM sessions WHERE token_hash=?', [sha256(refresh)])
-    if (session?.family_id) run('DELETE FROM sessions WHERE family_id=?', [session.family_id])
-    else if (session) run('DELETE FROM sessions WHERE token_hash=?', [sha256(refresh)])
+    if (session?.family_id) {
+      run('UPDATE sessions SET revoked_at=?, revoked_reason=? WHERE family_id=? AND revoked_at IS NULL',
+        [now, 'logout', session.family_id])
+    } else if (session) {
+      run('UPDATE sessions SET revoked_at=?, revoked_reason=? WHERE token_hash=? AND revoked_at IS NULL',
+        [now, 'logout', sha256(refresh)])
+    }
     if (session) logEvent('logout', session.user_id, req)
   }
   clearTokens(res)
@@ -294,8 +303,15 @@ router.post('/auth/token', (req, res) => {
   res.json({ access_token: token, token_type: 'Bearer', expires_in: 600, scope: granted.join(' ') })
 })
 
-// POST /auth/guest — guest login (only when GUEST_PASSWORD is set)
-router.post('/auth/guest', (req, res) => {
+// POST /auth/guest — guest login. ⚠️ JK-A1, the marquee finding of the 2026-08-26
+// audit: GUEST_PASSWORD was hashed, stored on the guest row, and NEVER COMPARED —
+// a credential in configuration and in the database that was absent from the code
+// path, so anyone who could reach the endpoint got a session. The route now
+// verifies the presented password against the stored hash with the same
+// timing-safe shape as /auth/login, and the guest row joins the per-account
+// exponential backoff (it was "exempt from lockout" only because there was no
+// credential for the throttle to count).
+router.post('/auth/guest', async (req, res) => {
   const isJson = isJsonReq(req)
   if (!GUEST_PASSWORD) {
     if (isJson) return res.status(403).json({ error: 'Guest access is not enabled' })
@@ -306,6 +322,33 @@ router.post('/auth/guest', (req, res) => {
     if (isJson) return res.status(500).json({ error: 'Guest account not available' })
     return res.send(loginPage({ error: 'Guest account not available' }))
   }
+
+  const now = Date.now()
+  const lockedUntil = guest.lockout_until ? Date.parse(guest.lockout_until) : 0
+  if (lockedUntil > now) {
+    const retryMs = lockedUntil - now
+    logEvent('login_locked', guest.id, req, { guest: true })
+    res.setHeader('Retry-After', String(Math.ceil(retryMs / 1000)))
+    const msg = 'Too many attempts. Please wait a moment and try again.'
+    if (isJson) return res.status(429).json({ error: msg, code: 'ACCOUNT_LOCKED', retry_after_ms: retryMs })
+    return res.send(loginPage({ error: msg, redirectTo: req.body?.redirect_to }))
+  }
+
+  const password = req.body?.password
+  const tooLong = (password || '').length > PASSWORD_MAX
+  const valid = !tooLong
+    && await verifyPassword(password || '', guest.password_hash ?? DUMMY_HASH, guest.hash_algo)
+    && !!guest.password_hash
+  if (!valid) {
+    const attempts = (guest.failed_attempts || 0) + 1
+    const until = new Date(now + loginBackoffMs(attempts)).toISOString()
+    run('UPDATE users SET failed_attempts=?, lockout_until=? WHERE id=?', [attempts, until, guest.id])
+    logEvent('guest_login_fail', guest.id, req)
+    if (isJson) return res.status(401).json({ error: 'Invalid guest password' })
+    return res.send(loginPage({ error: 'Invalid guest password', redirectTo: req.body?.redirect_to }))
+  }
+  run('UPDATE users SET failed_attempts=0, lockout_until=NULL, last_login=datetime(\'now\') WHERE id=?', [guest.id])
+
   issueTokens(req, res, guest)
   logEvent('guest_login', guest.id, req)
   if (isJson) {

@@ -9,14 +9,28 @@ const {
   PRIVATE_KEY, PUBLIC_KEY, JWT_ISSUER, JWT_KID,
   TOKEN_COOKIE, REFRESH_COOKIE, COOKIE_OPTS,
   ACCESS_TTL_MS, REFRESH_TTL_MS, REMEMBER_TTL_MS, REFRESH_GRACE_MS,
+  SESSION_TTL_MS, SESSION_ABSOLUTE_TTL_MS, SESSION_TOMBSTONE_MS,
 } = require('./config')
-const { run, get, logEvent, roleClaims, appIdForOrigin } = require('./db')
+const { db, run, get, logEvent, roleClaims, appIdForOrigin } = require('./db')
 const { hashPasswordSync } = require('./password')
 
 const sha256 = s => crypto.createHash('sha256').update(s).digest('hex')
 
-// SQLite datetime('now') is space-separated UTC with no zone; make it parseable.
-const sqliteToMs = s => Date.parse(String(s).replace(' ', 'T') + 'Z')
+// Millisecond ISO-8601, the format every timestamp this module WRITES uses.
+const nowIso = () => new Date().toISOString()
+
+// Parse either timestamp format this table has ever held: SQLite's
+// datetime('now') (space-separated UTC, no zone — legacy rows) and millisecond
+// ISO-8601 (every write since the C2 rework). Never string-compare the two in
+// SQL: ' ' < 'T', so on the FINAL day of a session's life an ISO expires_at
+// compared against datetime('now') reads as unexpired for up to a whole extra
+// day (and a legacy row against an ISO bound closes up to a day early — the
+// safe direction, which is why expiry comparisons bind an ISO parameter rather
+// than calling datetime('now')).
+const parseTs = s => {
+  const str = String(s)
+  return Date.parse(str.includes('T') ? str : str.replace(' ', 'T') + 'Z')
+}
 
 // Pre-computed hash used in the login path when the email doesn't exist, so bcrypt
 // always runs and the response time doesn't reveal whether an account exists. Built
@@ -99,23 +113,49 @@ function signService(clientId, scope, { act } = {}) {
 // preserved; omit on a fresh login to start a new family. (S2)
 // `req` is read for token provenance (azp) only — the originating app from the
 // login redirect or the request Origin.
-function issueTokens(req, res, user, remember = true, familyId = null) {
+// The DB half of minting a session row, shaped to run INSIDE a transaction —
+// tryRotate wraps it with the claim so claim-then-issue is atomic (JK-A6: a
+// crash between the two used to leave the only live token consumed and its
+// replacement unborn, which reads as theft and burns every device on the login).
+function writeSessionRow(user, { refreshHash, remember, family, familyCreatedAt, now }) {
+  // JK-A3: "Remember me" used to change cookie persistence only — every session
+  // was 30 days server-side. Now the unremembered idle window is SESSION_TTL_MS.
+  const ttl = remember ? REFRESH_TTL_MS : SESSION_TTL_MS
+  const expiresAt = new Date(Date.now() + ttl).toISOString()
+  // Prune: fully-expired live rows now; revoked tombstones only after
+  // SESSION_TOMBSTONE_MS (they are evidence — JK-A10). The old second prune
+  // deleted ROTATED rows after one hour, which silently shrank reuse detection
+  // to 1h of a 30-day token's life (JK-A2); rotated rows now live until their
+  // own expiry, so a stolen token is flaggable for as long as it would work.
+  run('DELETE FROM sessions WHERE user_id=? AND revoked_at IS NULL AND expires_at < ?', [user.id, now])
+  run('DELETE FROM sessions WHERE user_id=? AND revoked_at IS NOT NULL AND revoked_at < ?',
+    [user.id, new Date(Date.now() - SESSION_TOMBSTONE_MS).toISOString()])
+  run(`INSERT INTO sessions (user_id, token_hash, expires_at, remember_me, family_id,
+                             family_created_at, last_used_at)
+       VALUES (?,?,?,?,?,?,?)`,
+    [user.id, refreshHash, expiresAt, remember ? 1 : 0, family, familyCreatedAt, now])
+  // Cap active (un-rotated, un-revoked) sessions per user at 10. `, id DESC`
+  // is JK-A5: created_at is whole-second, so ten logins in one second tie and
+  // SQLite's tiebreak is unspecified — the cap could delete the session it was
+  // just asked to create, a successful sign-in signed out on the next request.
+  run(`DELETE FROM sessions WHERE user_id = ? AND rotated_at IS NULL AND revoked_at IS NULL AND id NOT IN (
+    SELECT id FROM sessions WHERE user_id = ? AND rotated_at IS NULL AND revoked_at IS NULL
+    ORDER BY created_at DESC, id DESC LIMIT 10
+  )`, [user.id, user.id])
+  return expiresAt
+}
+
+function issueTokens(req, res, user, remember = true, familyId = null, familyCreatedAt = null) {
   const token = signAccess(user, { azp: provenance(req, redirectFromReq(req)) })
   const refresh = crypto.randomBytes(64).toString('hex')
   const refreshHash = sha256(refresh)
   const family = familyId || crypto.randomUUID()
-  const expiresAt = new Date(Date.now() + REFRESH_TTL_MS).toISOString()
-  // Prune fully-expired rows and rotated rows past the reuse-detection window so
-  // the table stays bounded without discarding tokens we still need to flag.
-  run("DELETE FROM sessions WHERE user_id=? AND expires_at < datetime('now')", [user.id])
-  run("DELETE FROM sessions WHERE user_id=? AND rotated_at IS NOT NULL AND rotated_at < datetime('now','-1 hour')", [user.id])
-  run('INSERT INTO sessions (user_id, token_hash, expires_at, remember_me, family_id) VALUES (?,?,?,?,?)',
-    [user.id, refreshHash, expiresAt, remember ? 1 : 0, family])
-  // Cap active (un-rotated) sessions per user at 10 so a busy account isn't
-  // capped out of real devices by its own rotation history.
-  run(`DELETE FROM sessions WHERE user_id = ? AND rotated_at IS NULL AND id NOT IN (
-    SELECT id FROM sessions WHERE user_id = ? AND rotated_at IS NULL ORDER BY created_at DESC LIMIT 10
-  )`, [user.id, user.id])
+  const now = nowIso()
+  // Login-path atomicity (JK-A6's second half): the prune + insert + cap are one
+  // transaction, so a crash mid-issue can't leave a half-minted session.
+  db.transaction(() => {
+    writeSessionRow(user, { refreshHash, remember, family, familyCreatedAt: familyCreatedAt || now, now })
+  })()
   const opts = remember ? { ...COOKIE_OPTS, maxAge: REMEMBER_TTL_MS } : { ...COOKIE_OPTS }
   res.cookie(TOKEN_COOKIE, token, opts)
   res.cookie(REFRESH_COOKIE, refresh, opts)
@@ -135,7 +175,10 @@ function liveSession(req) {
   const refresh = req.cookies?.[REFRESH_COOKIE]
   if (!refresh) return null
   const hash = sha256(refresh)
-  const session = get("SELECT * FROM sessions WHERE token_hash=? AND rotated_at IS NULL AND expires_at > datetime('now')", [hash])
+  // Expiry binds an ISO parameter, never datetime('now') — see parseTs above.
+  const session = get(
+    'SELECT * FROM sessions WHERE token_hash=? AND rotated_at IS NULL AND revoked_at IS NULL AND expires_at > ?',
+    [hash, nowIso()])
   if (!session) return null
   const user = get('SELECT * FROM users WHERE id=?', [session.user_id])
   return user ? { session, user, hash } : null
@@ -150,40 +193,88 @@ function liveSession(req) {
 //   { status: 'expired' }              unknown / expired token; cookies cleared
 //   { status: 'reuse' }                rotated token re-presented → family revoked; cleared
 //   { status: 'race' }                 benign concurrent double-refresh; cookies untouched
+// The claim AND the replacement mint in ONE transaction (JK-A6): between the
+// old code's claim and its issueTokens call sat four unprotected writes — a
+// crash there consumed the only live refresh token with no successor, which
+// the next request could only read as theft. Cookie writes happen after the
+// transaction commits; token material is generated before it (all sync).
+const _rotateTx = db.transaction((hash, refreshHash, now) => {
+  // Only one caller can flip rotated_at NULL→now: wins the race (S9) and is the
+  // gate for reuse detection (S2). rotated_at is now millisecond ISO, so the
+  // grace window is no longer measured against a 1-second clock (JK-A11).
+  const claim = run(
+    'UPDATE sessions SET rotated_at=?, last_used_at=? WHERE token_hash=? AND rotated_at IS NULL AND revoked_at IS NULL AND expires_at > ?',
+    [now, now, hash, now])
+  if (claim.changes !== 1) return { claimed: false }
+
+  const session = get('SELECT * FROM sessions WHERE token_hash=?', [hash])
+  const user = get('SELECT * FROM users WHERE id=?', [session.user_id])
+  if (!user) return { claimed: true, dead: true }
+
+  // The absolute cap (JK-A3): rotation preserves the family clock, so a
+  // continuously-refreshed login still ends. Revoke rather than just refuse —
+  // every other token in the family is equally past the cap.
+  const familyBorn = parseTs(session.family_created_at || session.created_at)
+  if (Date.now() - familyBorn > SESSION_ABSOLUTE_TTL_MS) {
+    run('UPDATE sessions SET revoked_at=?, revoked_reason=? WHERE family_id=? AND revoked_at IS NULL',
+      [now, 'absolute_timeout', session.family_id])
+    return { claimed: true, absolute: true, session }
+  }
+
+  writeSessionRow(user, {
+    refreshHash,
+    remember: !!session.remember_me,
+    family: session.family_id,
+    familyCreatedAt: session.family_created_at || session.created_at,
+    now,
+  })
+  return { claimed: true, session, user }
+})
+
 function tryRotate(req, res) {
   const refresh = req.cookies?.[REFRESH_COOKIE]
   if (!refresh) return { status: 'none' }
   const hash = sha256(refresh)
 
-  // Atomically claim the token: only one caller can flip rotated_at NULL→now.
-  // Wins the race (S9) and is the gate for reuse detection (S2).
-  const claim = run(
-    "UPDATE sessions SET rotated_at=datetime('now') WHERE token_hash=? AND rotated_at IS NULL AND expires_at > datetime('now')",
-    [hash])
+  const newRefresh = crypto.randomBytes(64).toString('hex')
+  const now = nowIso()
+  const result = _rotateTx(hash, sha256(newRefresh), now)
 
-  if (claim.changes === 1) {
-    const session = get('SELECT * FROM sessions WHERE token_hash=?', [hash])
-    const user = get('SELECT * FROM users WHERE id=?', [session.user_id])
-    if (!user) { clearTokens(res); return { status: 'expired' } }
-    issueTokens(req, res, user, !!session.remember_me, session.family_id)
+  if (result.claimed) {
+    if (result.dead) { clearTokens(res); return { status: 'expired' } }
+    if (result.absolute) {
+      clearTokens(res)
+      logEvent('session_absolute_timeout', result.session.user_id, req, { family: result.session.family_id })
+      return { status: 'expired' }
+    }
+    const { session, user } = result
+    const token = signAccess(user, { azp: provenance(req, redirectFromReq(req)) })
+    const opts = session.remember_me ? { ...COOKIE_OPTS, maxAge: REMEMBER_TTL_MS } : { ...COOKIE_OPTS }
+    res.cookie(TOKEN_COOKIE, token, opts)
+    res.cookie(REFRESH_COOKIE, newRefresh, opts)
     return { status: 'ok', user }
   }
 
   // Claim failed — figure out why.
   const session = get('SELECT * FROM sessions WHERE token_hash=?', [hash])
   if (!session) { clearTokens(res); return { status: 'expired' } }
-  if (sqliteToMs(session.expires_at) <= Date.now()) { clearTokens(res); return { status: 'expired' } }
+  if (session.revoked_at) { clearTokens(res); return { status: 'expired' } }
+  if (parseTs(session.expires_at) <= Date.now()) { clearTokens(res); return { status: 'expired' } }
 
   // Token exists, not expired, but the claim failed → it was already rotated.
-  const rotatedAgoMs = Date.now() - sqliteToMs(session.rotated_at)
+  const rotatedAgoMs = Date.now() - parseTs(session.rotated_at)
   if (rotatedAgoMs >= 0 && rotatedAgoMs <= REFRESH_GRACE_MS) {
     // Benign concurrent refresh (two tabs / retry): the winner already minted
     // and Set-Cookie'd a new pair, so DON'T clear cookies — just signal a no-op.
     return { status: 'race' }
   }
 
-  // A token rotated long ago is being presented again → theft. Burn the family.
-  run('DELETE FROM sessions WHERE family_id=?', [session.family_id])
+  // A token rotated long ago is being presented again → theft. Burn the family —
+  // as a TOMBSTONE, not a DELETE: the burned rows ARE the incident evidence
+  // (JK-A10), and keeping them is also what lets reuse detection cover the whole
+  // 30-day token life instead of the old 1-hour prune window (JK-A2).
+  run('UPDATE sessions SET revoked_at=?, revoked_reason=? WHERE family_id=? AND revoked_at IS NULL',
+    [nowIso(), 'reuse', session.family_id])
   clearTokens(res)
   logEvent('refresh_reuse', session.user_id, req, { family: session.family_id })
   return { status: 'reuse' }

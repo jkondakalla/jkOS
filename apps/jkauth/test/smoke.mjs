@@ -251,7 +251,7 @@ async function run() {
   ok('seeded admin logs in (role=admin)', r.status === 200 && j.user?.role === 'admin', JSON.stringify(j.user));
   ok('seeded admin passes require-admin', (await B.req('GET', '/auth/require-admin')).status === 200);
   B.jar.clear();
-  r = await B.req('POST', '/auth/guest', { json: {} }); j = await r.json().catch(() => ({}));
+  r = await B.req('POST', '/auth/guest', { json: { password: 'guestpass123' } }); j = await r.json().catch(() => ({}));
   ok('guest login 200 role=guest', r.status === 200 && j.user?.role === 'guest', JSON.stringify(j.user));
   ok('guest fails require-admin (403)', (await B.req('GET', '/auth/require-admin')).status === 403);
 
@@ -289,7 +289,7 @@ async function run() {
   // suite's one flake — "immediate" is only immediate on an idle machine, and inside
   // a full `test:contracts` chain the two adjacent requests could straddle 500ms, by
   // which point the window had legitimately expired and the retry was no longer
-  // locked. It passed 68/68 in isolation and blipped in the chain (ToDo §5).
+  // locked. It passed 68/68 in isolation and blipped in the chain (git history).
   //
   // Split so each half can only be broken by an absurd delay, never a plausible one:
   //   E1 · window 60s  → an "immediate" retry stays locked unless a whole minute
@@ -360,7 +360,9 @@ async function run() {
   ok('both keys RS256 RSA sig', (j.keys || []).every(k => k.alg === 'RS256' && k.kty === 'RSA' && k.use === 'sig'));
 
   // ── Instance G: TOTP 2FA — setup, enable, challenge on login, recovery code. (U6)
-  const G = start({});
+  // TOTP enrollment requires the sealing key (JK-A4) — the keyless 503 path is
+  // covered in test/security.mjs.
+  const G = start({ JKOS_2FA_ENC_KEY: 'smoke-seal-key' });
   if (!await G.ready()) { console.error('G never became healthy:\n' + G.log); return shutdown(1); }
   console.log('G · TOTP 2FA (U6)');
   await G.req('POST', '/auth/register', { json: { email: 'totp@jkos.net', password: 'password123' } });

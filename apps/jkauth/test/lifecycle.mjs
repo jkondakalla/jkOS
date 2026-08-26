@@ -165,7 +165,7 @@ try {
   ok('GET /auth/me with only an expired token → 401', meExpired.status === 401, `${meExpired.status}`);
 
   // ── 4. guest → READ_ONLY at the write gate ────────────────────────────────────
-  const guestReg = await api('POST', '/auth/guest', { json: {}, noStore: true });
+  const guestReg = await api('POST', '/auth/guest', { json: { password: 'guestpass123' }, noStore: true });
   const guestTok = (guestReg.setCookie.find((c) => c.startsWith('jkos_token=')) || '').split(';')[0].split('=')[1];
   ok('guest login issued a token', !!guestTok && decode(guestTok).role === 'guest', JSON.stringify(guestTok ? decode(guestTok).role : null));
   const guestGate = await driveGate(guestTok, { scope: 'beigeboard:write' });
