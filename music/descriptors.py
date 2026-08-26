@@ -618,10 +618,9 @@ DISC_DIR = __import__('re').compile(r'^(disc|disk|cd|vol|volume)[\s._-]*\d+$', _
 def album_of(path):
     """The album a track belongs to — its parent directory, disc folders folded in.
 
-    The library is `<root>/<artist>/<album>/<NN. title>.flac`, so the directory
-    IS the grouping. No tags are read: an ID3 pass would be a second source of
-    truth about which tracks belong together, and the gate below would then be
-    testing the tags as much as the descriptors.
+    The directory IS the grouping. No tags are read: an ID3 pass would be a
+    second source of truth about which tracks belong together, and the gate below
+    would then be testing the tags as much as the descriptors.
 
     A `Disc 2` directory is folded into its parent because disc two of a record
     is not a second record — splitting it would report a true album-mate as a
@@ -631,8 +630,55 @@ def album_of(path):
     return os.path.dirname(parent) if DISC_DIR.match(os.path.basename(parent)) else parent
 
 
-def artist_of(path):
-    return os.path.dirname(album_of(path))
+# The library root's own directory NAME, matched case-insensitively so the
+# workstation's `…/Plex/Music` and a container's `/music` both answer to it.
+# Compared by name rather than by full path because `artist_of` is handed paths
+# from whichever side is asking, and only the segments BELOW the root are a
+# thing the two agree on (KourOS `src/discover/vectors.js`, ToDo §8.8).
+def _root_name():
+    # Read at CALL time, never captured as a default argument — `config.LIBRARY_ROOT`
+    # is overridable and this module has already been bitten three times by a
+    # default that froze a module constant at import (see `index.connect`).
+    return os.path.basename(os.path.normpath(config.LIBRARY_ROOT))
+
+
+def artist_of(path, root_name=None):
+    """The artist a track belongs to, as a NAME — not a path.
+
+    ⚠️ **THIS USED TO BE `os.path.dirname(album_of(path))`, AND THAT IS ONLY
+    RIGHT FOR A NESTED LIBRARY.** The shelf carries both layouts at once:
+
+        nested  <root>/<Artist>/<Album> (year)/07. Title.flac
+        flat    <root>/<Artist> - <Album> (year) [FLAC]/07. Artist - Title.flac
+
+    For a flat album the parent of the album folder IS THE LIBRARY ROOT, so the
+    old reader answered `/mnt/Luna/Plex/Music` for every one of them — measured
+    on the final library, **10,771 tracks (22.7%) collapsed into a single fake
+    artist**. Nothing errors. The gate's same-artist rate is then computed over a
+    22%-of-the-library bucket, and `query.fit_calibration`'s stranger pool — the
+    spread KourOS divides every served cosine by — silently excludes every pair
+    inside it. A plausible number, from a grouping that means nothing.
+
+    ⚠️ **THE DIRECTORY WINS OVER THE `<Artist> - ` PREFIX, NOT THE OTHER WAY
+    ROUND.** Reading the prefix first is the obvious port of the KourOS content
+    key, and it is wrong here: 494 nested tracks live in album folders whose
+    TITLE contains a hyphen — `Taking Back Sunday/Live From Orensanz (Live From
+    Orensanz, New York, NY - 2009)` — and prefix-first credits them to an artist
+    named after half an album title. A parent directory below the root is an
+    unambiguous statement about the artist; the prefix is a guess that is only
+    needed when there is no such directory.
+
+    Returning a name rather than a path is what lets the two spellings of one
+    artist unify: 125 artists on this shelf have some albums filed flat and some
+    nested, and as paths those are two different artists.
+    """
+    root = (root_name or _root_name()).lower()
+    album = album_of(path)
+    parent = os.path.basename(os.path.dirname(album))
+    if parent and parent.lower() != root:
+        return parent
+    name = os.path.basename(album)
+    return name.split(' - ')[0].strip() if ' - ' in name else name
 
 
 # The same circuit breaker the neural run carries, for the same reason and with

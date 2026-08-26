@@ -142,7 +142,7 @@ def song_key(path):
     the ripper handled an apostrophe.
     """
     title = ''.join(c.lower() for c in title_of(path) if c.isalnum())
-    return (os.path.basename(artist_of(path)).lower(), title)
+    return (artist_of(path).lower(), title)
 
 
 # How much of the column the artist may take before the title starts losing
@@ -165,7 +165,7 @@ def short(path, width=46):
     The artist is capped rather than given half the column, because artist names
     are short and titles are not.
     """
-    artist = os.path.basename(artist_of(path))
+    artist = artist_of(path)
     title = title_of(path)
     if len(artist) > ARTIST_BUDGET:
         artist = artist[:ARTIST_BUDGET - 1] + '…'
@@ -676,7 +676,7 @@ def side_by_side(arms, row, k=DEFAULT_K, width=46, stream=None):
     """
     out = stream or sys.stdout
     query = arms[0].paths[row]
-    print(f'\nQUERY  {os.path.basename(artist_of(query))} · '
+    print(f'\nQUERY  {artist_of(query)} · '
           f'{os.path.basename(album_of(query))} · {title_of(query)}', file=out)
     print(f'       {query}', file=out)
     results = [arm.search(row, k) for arm in arms]

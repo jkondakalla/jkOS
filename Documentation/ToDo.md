@@ -645,11 +645,50 @@ out loud.
     container mismatch is reproduced rather than described; its **negative control** points the
     seam at another library's index and requires coverage to collapse *and* the server to say so.
 
-- [ ] **8.9 The space over the FINAL library** — blocked on the re-download finishing. §8.6 was
-  stopped at 1,506/15,326 because that was not the library the space would be built over, and it
-  still isn't: 2,376 neural vectors, of which only 865 are the flat layout. Run
-  `backfill.py --scan` → `backfill.py` (~1 h on CUDA now, `02cc790`) →
-  `descriptors.py --build --encoded` → **`query.py --fit`** (the geometry must be refitted over
+- [ ] **8.9 The space over the FINAL library** — **UNBLOCKED 2026-08-26, backfill RUNNING.**
+  The library is complete: **47,491 FLACs / 1.9 TB** at `/mnt/Luna/Plex/Music`, three times the
+  15,326 every earlier estimate was sized against. Sequence: `backfill.py --scan` → `backfill.py`
+  → `descriptors.py --build --encoded` → **`query.py --fit`** (the geometry must be refitted over
   the final corpus — the mean of a half-filled library is the mean of whatever path order
-  reached) → `query.py --gate`. Then ship `index.db` **with its `-wal` sidecar** or you copy a
-  pre-checkpoint snapshot and silently lose vectors.
+  reached) → `query.py --gate` → `ship.py`.
+  - **The index was reset to zero first, and that was not a shortcut.** Audited before touching
+    anything: **0 of 27,474 indexed paths still existed on disk.** Not the retired rip alone —
+    *every* row, including the 865 "flat layout" ones §8.6 had banked. Nothing was salvageable,
+    so `tracks` was dropped (cascading 2,376 vectors + 2,303 descriptors) along with
+    `descriptor_mean`/`_std` and every `calib_*`, which were fitted over a corpus that no longer
+    exists. Backup taken first. Re-keying old vectors onto new paths by content was rejected:
+    a mis-keyed vector is silent corruption of exactly the kind this section refuses.
+  - ⚠️ **THE LIBRARY IS NO LONGER FLAT — IT IS MIXED, AND THAT BROKE `artist_of`.** The final
+    shelf is **9,689 flat** (`<Artist> - <Album>/…`), **31,297 artist-nested**
+    (`<Artist>/<Album>/…`) and **6,505 with disc subfolders**. `descriptors.artist_of` was
+    `os.path.dirname(album_of(path))`, which is right only for a nested library: for a flat album
+    the parent of the album folder **is the library root**, so **10,771 tracks (22.7%) collapsed
+    into a single fake artist named `/mnt/Luna/Plex/Music`.** Nothing errors. The gate's
+    same-artist rate would have been computed over a 22%-of-the-library bucket, and — the part
+    that reaches production — `fit_calibration`'s **stranger pool silently excludes every pair
+    inside it**, so `calib_stranger_spread`, the number KourOS divides every served cosine by,
+    would have been fitted on a biased population.
+  - **The fix is directory-first, NOT prefix-first**, and the difference is measured. Reading the
+    `<Artist> - ` prefix first is the obvious port of §8.8's KourOS content key, and it is wrong
+    here: **494 nested tracks** live in album folders whose *title* carries a hyphen
+    (`Taking Back Sunday/Live From Orensanz (… , New York, NY - 2009)`) and get credited to half
+    an album title. A parent directory below the root is unambiguous; the prefix is the fallback
+    when there is none. Result: **1,515 real artists, 0 unresolved**, and the **125 artists filed
+    under both layouts now unify** because the reader returns a NAME, not a path.
+    `vectors.js`'s tier-3 salvage was flipped to the same precedence so the two seams agree.
+  - **`ridge.CHECK_SET` was repointed a second time** — the same four tracks, now one directory
+    deeper. Worth noting that this cost **one loud test failure** rather than the silent
+    PASS-shaped skip it caused in 2026-08-21, because `check_set_missing()` exists now.
+  - **New: `music/ship.py`, the hand-off KourOS had no tool for** (16 tests). `VACUUM INTO` an
+    atomic, fully-checkpointed **single file** — which retires the `-wal` sidecar trap by
+    construction instead of by remembering, and can be taken while the backfill is still running.
+    It then verifies **the copy**, refusing an index with **no fitted geometry** (§8.8), paths
+    that miss the library root segment, mixed dimensions, or no vectors at all. Measured on the
+    live index: the root-relative join covers **47,441/47,441 paths**, so KourOS's tier 2 is
+    100% in the container shape.
+  - ⚠️ **`descriptors.py --build --encoded` is a SECOND full pass over the library** — the two
+    arms decode at different sample rates on purpose (§8.5's profile axis), so it cannot share
+    the neural run's reads. At the measured mount ceiling that is another ~5 h for an arm M4
+    already judged the loser. **Decide before running it** whether the gate needs the baseline
+    over all 47k or over a `select_albums` spread; `align()` intersects the arms anyway, so a
+    representative subset gates identically.

@@ -96,6 +96,22 @@ python query.py "hate me" --arm neural -k 20
 ⚠️ **`--gate` is not the gate.** §8.7's gate is a person reading `--hand` for tracks they know
 cold, and `hand_sheet` deliberately prints no verdict. A test asserts that it never grows one.
 
+Handing the finished space to KourOS, §8.9:
+
+```bash
+python ship.py --check                       # verify the live index, write nothing
+python ship.py --out out/music-index.db      # atomic snapshot, then verify THE COPY
+```
+
+⚠️ **Never `cp index.db`.** The index is WAL with a commit per track, so an arbitrary share of
+it lives in `index.db-wal` — a plain copy is a pre-checkpoint snapshot that opens cleanly and
+reports a *plausible, smaller* count, which reads downstream as "the backfill hasn't got there
+yet". `ship.py` uses `VACUUM INTO`: one fully-checkpointed file, no sidecar for anyone to
+forget, safe to take while the backfill is still running. It also refuses the three other ways
+the hand-off succeeds and is wrong — an index with **no fitted geometry** (§8.8: KourOS would
+rank on the un-centred space), paths that **miss the library root segment** KourOS joins on,
+and mixed dimensions.
+
 The backfill can be stopped at any moment — Ctrl-C, a dropped mount, a power cut — and
 re-running it picks up exactly where it left off. There is no state file to go stale,
 because progress is *the absence of a join partner* (see below).
@@ -137,6 +153,7 @@ same ffmpeg the project already requires. The library-backed checks skip cleanly
 | `encoder.py` | **The neural arm.** CLAP audio tower via `onnxruntime`, 12 windows of 10 s → mean-pool → 512-d. |
 | `backfill.py` | **The run.** Parallel decode+mel readers feeding one serial session, one commit per track, resumable from the first commit. |
 | `query.py` | **The gate, and the search.** `M @ q` over the whole matrix; both arms aligned to one population; the duplicate-aware proxies; the side-by-side sheet a person reads. |
+| `ship.py` | **The hand-off to KourOS.** `VACUUM INTO` an atomic single-file snapshot, then verify *the copy* against the four ways the hand-off succeeds and is still wrong. |
 
 ### The two arms, and why they analyse differently
 

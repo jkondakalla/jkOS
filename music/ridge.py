@@ -688,27 +688,35 @@ def print_summary(panels, value_range=None, stream=None):
 # skipped, since these paths are one person's library and the module has to stay
 # runnable without it.
 #
-# ⚠️ **REPOINTED 2026-08-21, AND THE REASON IS THE INTERESTING PART.** These are
-# relative paths into one person's library, and that library was re-downloaded
-# into a FLAT album layout — so all four of the original paths stopped existing
-# on the same day. Nothing failed: `check_set_paths` filtered them all out,
+# ⚠️ **REPOINTED TWICE NOW — 2026-08-21 and 2026-08-26 — AND THE REASON IS THE
+# INTERESTING PART.** These are relative paths into one person's library, and
+# that library has been reorganised twice: first re-downloaded FLAT
+# (`<Artist> - <Album>/…`), then completed as a MIX of flat and artist-NESTED
+# (`<Artist>/<Album>/…`). Each time, all four paths stopped existing on the same
+# day. The first time nothing failed: `check_set_paths` filtered them all out,
 # `verify()` printed "library not mounted" and returned `all(checks)` over the
 # five checks that need no audio, and the three that actually exercise the
 # encoder on real music — SPREAD, STRUCTURE, SENSITIVITY — were skipped with a
 # PASS-shaped summary. A verification gate that quietly stops verifying is worse
-# than one that fails, which is why `check_set_missing()` exists below and why
-# callers are expected to say so out loud.
+# than one that fails, which is why `check_set_missing()` exists below, why
+# `test_every_pinned_path_exists_when_the_library_is_mounted` fails loudly, and
+# why the second reorganisation cost one test failure instead of a silent gate.
+#
+# The four tracks themselves have not changed across either move — only the
+# prefix has. Repointing is therefore always "find these four songs again", never
+# "pick four new ones", and the SPREAD/STRUCTURE numbers stay comparable run to
+# run.
 CHECK_SET = (
     # hardcore: dense, distorted, fast, almost no tonal centre
-    'Converge - All We Love We Leave Behind (2012) [FLAC] [24B-44.1kHz]/'
+    'Converge/All We Love We Leave Behind (2012) [FLAC] [24B-44.1kHz]/'
     '02. Converge - Trespasses.flac',
     # rap: speech-forward over a sampled beat
-    'Aesop Rock - Labor Days (2001) [FLAC] [16B-44.1kHz]/02. Aesop Rock - Daylight.flac',
+    'Aesop Rock/Labor Days (2001) [FLAC] [16B-44.1kHz]/02. Aesop Rock - Daylight.flac',
     # modern classical: sustained strings, no percussion, no beat grid at all
-    'A Winged Victory For The Sullen - A Winged Victory for the Sullen (2011) [FLAC] [16B-44.1kHz]/'
+    'A Winged Victory For The Sullen/A Winged Victory for the Sullen (2011) [FLAC] [16B-44.1kHz]/'
     '02. A Winged Victory For The Sullen - Requiem for the Static King Part 1.flac',
     # sparse acoustic: one voice, one guitar, quiet
-    'Elliott Smith - EitherOr (1997) [FLAC] [16B-44.1kHz]/02. Elliott Smith - Alameda.flac',
+    'Elliott Smith/EitherOr (1997) [FLAC] [16B-44.1kHz]/02. Elliott Smith - Alameda.flac',
 )
 
 

@@ -133,9 +133,19 @@ function contentKeyFromEmbedderPath(abs, libraryRootName = 'Music') {
   if (albumIdx <= rootIdx) return null;      // the file sits directly in the root
   const album = parts[albumIdx];
 
+  //  ⚠️ **THE DIRECTORY WINS OVER THE " - " PREFIX, NOT THE OTHER WAY ROUND.**
+  //  This read the prefix first until 2026-08-26, which is right only while the
+  //  library is entirely flat. The completed library carries BOTH layouts, and
+  //  494 of its tracks sit in nested album folders whose TITLE contains a hyphen
+  //  — `Taking Back Sunday/Live From Orensanz (Live From Orensanz, New York,
+  //  NY - 2009)/…` — so prefix-first credited them to an artist named after half
+  //  an album title. A parent directory below the root is an unambiguous
+  //  statement about the artist; the prefix is a guess, and it is only needed
+  //  when there is no such directory. Kept identical to `descriptors.artist_of`
+  //  on the Python side, which is the same rule for the same reason.
   let artist = null;
-  if (album.includes(' - ')) artist = album.split(' - ')[0].trim();
-  else if (albumIdx - 1 > rootIdx) artist = parts[albumIdx - 1];
+  if (albumIdx - 1 > rootIdx) artist = parts[albumIdx - 1];
+  else if (album.includes(' - ')) artist = album.split(' - ')[0].trim();
   if (!artist) return null;
 
   let base = path.basename(abs).replace(/\.[a-z0-9]+$/i, '');

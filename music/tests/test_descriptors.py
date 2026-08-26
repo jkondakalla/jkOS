@@ -531,7 +531,40 @@ class IndexRoundTripTest(unittest.TestCase):
     def test_album_and_artist_come_from_the_path(self):
         self.assertEqual(descriptors.album_of('/m/Artist/Album (2019)/01. A.flac'),
                          '/m/Artist/Album (2019)')
-        self.assertEqual(descriptors.artist_of('/m/Artist/Album (2019)/01. A.flac'), '/m/Artist')
+        self.assertEqual(descriptors.artist_of('/m/Artist/Album (2019)/01. A.flac',
+                                               root_name='m'), 'Artist')
+
+    def test_artist_of_reads_a_flat_album_folder(self):
+        """⚠️ The regression that made this a named test: for a FLAT album the
+        parent of the album folder IS the library root, and the old reader
+        (`dirname(album_of(path))`) answered the root itself — 10,771 tracks,
+        22.7% of the real shelf, in one fake artist bucket. No error, and a
+        same-artist rate plus a stranger spread computed over nonsense."""
+        flat = '/m/Bowling For Soup - Drunk Enough To Dance (2002) [FLAC]/03. Bowling For Soup - Girl All The Bad Guys Want.flac'
+        self.assertEqual(descriptors.artist_of(flat, root_name='m'), 'Bowling For Soup')
+        self.assertNotEqual(descriptors.artist_of(flat, root_name='m'), '/m')
+
+    def test_artist_of_prefers_the_directory_over_a_hyphenated_album_title(self):
+        """⚠️ Directory-first, not prefix-first. 494 tracks on the real shelf sit
+        in NESTED album folders whose TITLE carries a hyphen; reading the
+        `<Artist> - ` prefix first credits them to half an album title."""
+        nested = ('/m/Taking Back Sunday/Live From Orensanz (Live From Orensanz, '
+                  'New York, NY - 2009)/02. Cute Without The E.flac')
+        self.assertEqual(descriptors.artist_of(nested, root_name='m'), 'Taking Back Sunday')
+
+    def test_artist_of_unifies_the_two_spellings_of_one_artist(self):
+        """A name, not a path — 125 artists on the shelf have some albums filed
+        flat and some nested, and as paths those are two different artists."""
+        flat = '/m/Max Richter - Sleep (2015) [FLAC]/01. Max Richter - Dream 1.flac'
+        nested = '/m/Max Richter/The Blue Notebooks (2004)/01. On The Nature Of Daylight.flac'
+        self.assertEqual(descriptors.artist_of(flat, root_name='m'),
+                         descriptors.artist_of(nested, root_name='m'))
+
+    def test_artist_of_folds_a_disc_folder_before_reading_the_artist(self):
+        deep = '/m/Artist/Album (2019)/Disc 2/04. B.flac'
+        self.assertEqual(descriptors.artist_of(deep, root_name='m'), 'Artist')
+        flat_disc = '/m/Artist - Album (2019) [FLAC]/CD1/04. B.flac'
+        self.assertEqual(descriptors.artist_of(flat_disc, root_name='m'), 'Artist')
 
     def test_select_albums_spreads_across_the_shelf(self):
         """Not the first N: the tracks table is ordered by path, so the first N
@@ -544,7 +577,7 @@ class IndexRoundTripTest(unittest.TestCase):
         rows = descriptors.select_albums(self.conn, 3)
         artists = {descriptors.artist_of(r['path']) for r in rows}
         self.assertEqual(len(artists), 3)
-        self.assertGreater(len(artists & {'/m/artist00', '/m/artist09'}), 0)
+        self.assertGreater(len(artists & {'artist00', 'artist09'}), 0)
 
     def test_select_albums_skips_albums_below_the_floor(self):
         index.upsert_track(self.conn, '/m/a/single/01.flac', 1.0, 1)
