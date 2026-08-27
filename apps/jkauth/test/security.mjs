@@ -391,6 +391,44 @@ try {
     ok('a token minted for ANOTHER app is rejected here', r2.status === 401, `got ${r2.status}`);
   }
 
+  // ── M · C4/WV-4: the write grant is a LADDER, so a caller can ask for less ─
+  // The finding: `<app>:write` was one indivisible scope, so a client that
+  // needed to create one row had to be handed the right to delete every row.
+  {
+    const { weaveWriteGate } = await import('@jkos/weave/server');
+    const gate = weaveWriteGate({ scope: 'beigeboard:write' });
+    const runGate = (user, method) => new Promise((resolve) => {
+      const res = {
+        statusCode: 200,
+        status(c) { this.statusCode = c; return this; },
+        json() { resolve(this.statusCode); return this; },
+        setHeader() { return this },
+      };
+      gate({ method, user }, res, () => resolve(200));
+    });
+
+    const creator = { role: 'user', sub: '1', scope: ['beigeboard:read', 'beigeboard:create'] };
+    ok('a create-only grant may POST', await runGate(creator, 'POST') === 200);
+    ok('…and is REFUSED a DELETE', await runGate(creator, 'DELETE') === 403);
+    ok('…and is REFUSED a PATCH', await runGate(creator, 'PATCH') === 403);
+
+    // Backward compatibility is the reason the blanket scope survives: every
+    // token minted before the ladder existed carries only `write`.
+    const legacy = { role: 'user', sub: '1', scope: ['beigeboard:read', 'beigeboard:write'] };
+    for (const m of ['POST', 'PATCH', 'DELETE']) {
+      ok(`a legacy blanket write still passes ${m}`, await runGate(legacy, m) === 200);
+    }
+
+    // And a full human login carries the whole ladder — least privilege is not
+    // "the owner may not delete his own rows".
+    const claims = JSON.parse(Buffer.from(
+      jar.get([...jar.keys()].find(k => k.startsWith('jkos_token'))).split('.')[1], 'base64url').toString());
+    for (const verb of ['read', 'write', 'create', 'update', 'delete']) {
+      ok(`a signed-in user's token carries beigeboard:${verb}`,
+        (claims.scope || []).includes(`beigeboard:${verb}`), JSON.stringify(claims.scope));
+    }
+  }
+
   db.close();
 } catch (e) {
   fail++;

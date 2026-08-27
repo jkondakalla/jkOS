@@ -424,7 +424,21 @@ function roleClaims(role) {
     if (!roles.includes(role)) continue
     aud.push(r.id)
     scope.push(`${r.id}:read`)
-    if (role !== 'guest') scope.push(`${r.id}:write`)
+    if (role !== 'guest') {
+      // ⚠️ C4 / WV-4: `write` used to be ONE indivisible grant, so nothing could
+      // ask for less than all of it — a token holding `beigeboard:write` could
+      // delete the entire board, and LazurOS's write-back needed delete rights
+      // to import a single parsed task. It is now a LADDER, and `write` is
+      // retained as the superset so every existing token and every service
+      // client configured before this keeps working unchanged.
+      //
+      // A logged-in HUMAN still gets the whole ladder — least privilege is not
+      // "the owner may not delete his own tasks". The point is that the grant is
+      // now EXPRESSIBLE at a finer grain, which is what lets a service client
+      // (JKOS_SERVICE_CLIENTS) or a capability declare `beigeboard:create` alone
+      // and be held to it by the write gate.
+      scope.push(`${r.id}:write`, `${r.id}:create`, `${r.id}:update`, `${r.id}:delete`)
+    }
     if (role === 'admin') scope.push(`${r.id}:admin`)
   }
   if (role === 'admin') scope.push('suite:admin')

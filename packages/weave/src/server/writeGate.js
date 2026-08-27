@@ -35,8 +35,24 @@ function weaveWriteGate({ scope } = {}) {
     if (u?.typ === 'service' && !u.delegated) {
       return authError(res, 403, CODES.NO_USER_CONTEXT, 'Service tokens cannot write per-user data')
     }
-    if (scope && Array.isArray(u?.scope) && !u.scope.includes(scope)) {
-      return authError(res, 403, CODES.INSUFFICIENT_SCOPE, 'Insufficient scope', { required: [scope] })
+    // Capability scope, at the finest grain the token expresses (C4 / WV-4).
+    //
+    // `<app>:write` used to be the only write grant, so a caller that needed to
+    // CREATE one row had to be handed the right to DELETE every row — nothing
+    // could ask for less. The method now maps to a verb, and EITHER the specific
+    // verb OR the legacy blanket `write` satisfies the gate. That ordering is
+    // what makes this backward compatible: every token minted before the ladder
+    // existed carries `write` and keeps working, while a service client can now
+    // be configured with `beigeboard:create` alone and be held to exactly that.
+    if (scope && Array.isArray(u?.scope)) {
+      const [app] = String(scope).split(':')
+      const verb = { POST: 'create', PATCH: 'update', DELETE: 'delete' }[req.method]
+      const specific = verb ? `${app}:${verb}` : null
+      const held = u.scope.includes(scope) || (specific && u.scope.includes(specific))
+      if (!held) {
+        return authError(res, 403, CODES.INSUFFICIENT_SCOPE, 'Insufficient scope',
+          { required: specific ? [scope, specific] : [scope] })
+      }
     }
     next()
   }
