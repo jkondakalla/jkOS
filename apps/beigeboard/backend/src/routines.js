@@ -81,6 +81,7 @@
  * decide this exactly as they decide the rest.
  */
 const { db, run, all, get } = require('./db');
+const { cascadeDelete } = require('./items-store');
 const {
   normalizeSpec, renderCycle, normalizePerformed, stepWasMet,
   parseCadence, expandCadence, summarize,
@@ -274,12 +275,18 @@ function skipOccurrence(row, userId) {
  *  removed. Call BEFORE the cascade — after it, the routine row is gone and there
  *  is nothing to name. */
 function purgeRoutineOccurrences(routineId, userId) {
-  const r = run(
-    `DELETE FROM items
+  const rows = all(
+    `SELECT id FROM items
       WHERE user_id = ? AND ext_ref LIKE ? AND id <> ?`,
     [userId, `routine:${routineId}:%`, routineId],
   );
-  return r.changes;
+  /* Cascade, never a bare DELETE (BB-12): an occurrence can carry children — a
+   * per-set log, an added checklist — and deleting only the parent row strands
+   * them as parentless ghosts no view can reach. The in-subtree occurrences
+   * would be caught by the caller's own cascade anyway; the STRAYS this
+   * function exists to find (re-parented out of the subtree) would not. */
+  for (const row of rows) cascadeDelete(row.id, userId);
+  return rows.length;
 }
 
 /* ── The mint ─────────────────────────────────────────────────────────────── */
@@ -518,7 +525,8 @@ function withdrawStale(routine, userId, today, keep) {
     if (keep.has(row.ext_ref)) continue;
     if (!isFutureOccurrence(row, today)) continue;
     if (!isEngineOwned(row)) continue;
-    run('DELETE FROM items WHERE id = ? AND user_id = ?', [row.id, userId]);
+    // Cascade (BB-12): a withdrawn occurrence may already carry children.
+    cascadeDelete(row.id, userId);
     n++;
   }
   return n;

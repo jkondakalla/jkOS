@@ -240,6 +240,30 @@ try {
   ok(cbAuthed.status === 200 && /Invalid state/.test(cbAuthedText),
     `K: authed callback w/o state cookie → 200 Invalid state (optionalAuth ran, CSRF held) (got ${cbAuthed.status})`);
 
+  // ── M. started_at is WRITE-ONCE at the table (BB-11, migration 14). The column
+  //    is client-written from the session UI, and an unguarded overwrite turns
+  //    "when the session started" into "when it was last touched" — silently and
+  //    unrepairably. The trigger preserves the first value and lets the rest of
+  //    the PATCH through.
+  const stamp1 = '2026-08-26T10:00:00.000Z';
+  const mkM = await req('POST', '/api/items', { title: 'session', kind: 'task' }, A);
+  ok(mkM.status === 201, `M: create for the write-once check (got ${mkM.status})`);
+  const mId = mkM.json.id;
+  let mp = await req('PATCH', `/api/items/${mId}`, { started_at: stamp1 }, A);
+  ok(mp.status === 200, `M: first started_at write lands (got ${mp.status})`);
+  mp = await req('PATCH', `/api/items/${mId}`, { started_at: '2026-08-26T11:30:00.000Z', title: 'renamed' }, A);
+  const mRow = ((await req('GET', '/api/items', undefined, A)).json || []).find(r => r.id === mId);
+  ok(mRow.started_at === stamp1, `M: a second started_at write is PRESERVED, not applied (got ${mRow.started_at})`);
+  ok(mRow.title === 'renamed', 'M: the rest of that PATCH still applied');
+
+  // ── N. items(parent_id) is indexed (BB-14) — every tree walk was a table scan.
+  {
+    const { default: Database } = await import('better-sqlite3');
+    const idx = new Database(DB_PATH, { readonly: true })
+      .prepare("SELECT 1 FROM sqlite_master WHERE type='index' AND name='idx_items_parent'").get();
+    ok(!!idx, 'N: idx_items_parent exists');
+  }
+
   // ── L. No AI surface. BeigeBoard used to proxy a synchronous Ollama chat call at
   //    /api/ai/*; LazurOS is an async job gateway now, and it writes results back
   //    through /api/items as the acting user. The route is gone, so it must 404 —

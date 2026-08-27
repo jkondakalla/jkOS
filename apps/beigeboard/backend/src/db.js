@@ -640,6 +640,42 @@ const MIGRATIONS = [
               BEGIN UPDATE items SET completed_at = NULL WHERE id = NEW.id; END`);
     },
   },
+  {
+    id: 14, name: 'started_at_write_once_and_parent_index',
+    up(d) {
+      /*
+       * `started_at` becomes WRITE-ONCE at the table (BB-11). Migration 13 gave
+       * it prose — "when the user FIRST touched the session" — and no
+       * enforcement, and the column is client-written from the session UI, so
+       * any later write (a second SessionCard open, a re-import, a future
+       * handler that echoes the whole shape) would silently turn *when the
+       * session started* into *when it was last touched*. The data is
+       * unrecoverable once that happens and nothing downstream can detect it,
+       * which is why this is a TRIGGER and not a route check, exactly like
+       * completed_at's stamp one migration up: the rule belongs to the table,
+       * or the import path stays open.
+       *
+       * PRESERVE, don't abort: the trigger restores OLD.started_at rather than
+       * RAISE(ABORT)-ing, because a PATCH that echoes a stale started_at
+       * alongside a legitimate field change should keep the truth and apply the
+       * rest, not fail wholesale. NULL→value is the one permitted transition;
+       * INSERT is untouched (a row arriving with history is a bulk import,
+       * same reasoning as migration 13's no-backfill rule).
+       */
+      d.exec(`DROP TRIGGER IF EXISTS items_started_write_once`);
+      d.exec(`CREATE TRIGGER items_started_write_once AFTER UPDATE ON items
+              FOR EACH ROW WHEN OLD.started_at IS NOT NULL
+                             AND NEW.started_at IS NOT OLD.started_at
+              BEGIN UPDATE items SET started_at = OLD.started_at WHERE id = NEW.id; END`);
+
+      /*
+       * items(parent_id) finally gets an index (BB-14). Every tree walk —
+       * cascadeDelete's per-node children lookup, subtree tallies, the goal
+       * rollup — filters on parent_id, and each step was a full table scan.
+       */
+      d.exec(`CREATE INDEX IF NOT EXISTS idx_items_parent ON items(parent_id)`);
+    },
+  },
 ];
 
 function runMigrations() {
@@ -650,11 +686,34 @@ function runMigrations() {
   )`);
   const applied = new Set(db.prepare('SELECT id FROM migrations').all().map(r => r.id));
   for (const m of MIGRATIONS) {
-    if (!applied.has(m.id)) {
-      m.up(db);
-      db.prepare('INSERT INTO migrations (id, name) VALUES (?, ?)').run(m.id, m.name);
-      console.log(`[migration] applied: ${m.name}`);
+    if (applied.has(m.id)) continue;
+    /*
+     * Each migration + its marker is ONE transaction (BB-13): a crash mid-body
+     * used to leave a half-applied schema WITH no marker, so the next boot
+     * re-ran the body into the wreckage — a boot loop on whichever statement
+     * wasn't idempotent. Now it's all-or-nothing.
+     *
+     * The runner owns the foreign_keys toggle, because `PRAGMA foreign_keys` is
+     * a silent NO-OP inside a transaction — migration 3's own OFF/ON dance
+     * (a table rebuild) only ever worked because the runner wasn't
+     * transactional. This is SQLite's documented rebuild recipe: FK off,
+     * rebuild inside a transaction, integrity-check, FK back on.
+     */
+    db.pragma('foreign_keys = OFF');
+    try {
+      db.transaction(() => {
+        m.up(db);
+        db.prepare('INSERT INTO migrations (id, name) VALUES (?, ?)').run(m.id, m.name);
+      })();
+      const violations = db.pragma('foreign_key_check');
+      if (violations.length) {
+        throw new Error(`migration ${m.name} left ${violations.length} foreign-key violation(s): `
+          + JSON.stringify(violations.slice(0, 3)));
+      }
+    } finally {
+      db.pragma('foreign_keys = ON');
     }
+    console.log(`[migration] applied: ${m.name}`);
   }
 }
 

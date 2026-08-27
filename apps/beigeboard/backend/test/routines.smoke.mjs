@@ -401,6 +401,10 @@ try {
   const strayGoal = await req('POST', '/api/items', { title: 'Somewhere else', kind: 'goal', scope: 'quarter' });
   const stray = occurrencesOf(await list(), rid).find((o) => o.due_date && o.due_date > TODAY);
   await req('PATCH', `/api/items/${stray.id}`, { parent_id: strayGoal.json.id });
+  // …and the stray carries a CHILD (a per-set log, an added checklist). The purge
+  // used to bare-DELETE the stray row, stranding this child as a parentless ghost
+  // no view can reach (BB-12) — it must cascade instead.
+  const strayChild = await req('POST', '/api/items', { title: 'set log', kind: 'task', parent_id: stray.id });
 
   await req('DELETE', `/api/items/${rid}`);
   rows = await list();
@@ -408,6 +412,10 @@ try {
   ok(occurrencesOf(rows, rid).length === 0, 'cascade: its occurrences went with it');
   ok(!rows.some((r) => String(r.ext_ref || '').startsWith(`routine:${rid}:`)),
     'cascade: an occurrence dragged out of the subtree goes too — matched on ext_ref, not on parentage');
+  ok(!rows.some((r) => r.id === strayChild.json.id),
+    'cascade: the stray\'s CHILD goes too — the purge cascades, it does not bare-DELETE (BB-12)');
+  ok(rows.some((r) => r.id === strayGoal.json.id),
+    'cascade: the goal the stray was dragged into is untouched');
 } catch (e) {
   console.error('harness error:', e);
   fail++;
