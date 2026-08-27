@@ -4,6 +4,7 @@ export * from './defaults';
 export * from './client';
 export * from './theme';
 export * from './useJkOSPreferences';
+export * from './hudPrefs';
 export * from './useHudShelf';
 export * from './useSessionKeepalive';
 export * from './useAuthProvider';

@@ -7,13 +7,13 @@
  * source apps write and invalidates the shelf so useShelfRefs refetches at once.
  */
 
-import { patchProfile } from '@jkos/auth-client';
+import { patchProfile, writeHudPref } from '@jkos/auth-client';
 import { invalidate } from '@jkos/weave';
 
 /** Clear the suite-wide HUD focus (the "END FOCUS" action on the Focus card). */
 export async function clearHudFocus(): Promise<void> {
   try {
-    await patchProfile({ hudFocus: null });
+    await patchProfile(writeHudPref('hudFocus', null));
   } finally {
     invalidate('hud.shelf');
   }

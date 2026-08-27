@@ -57,6 +57,9 @@ const color = await importTs('packages/design/utils/color.ts', 'color.mjs');
 const dt = await importTs('packages/cards/src/datetime.ts', 'datetime.mjs');
 const mediaGrid = await importTs('packages/design/responsive/mediaGrid.ts', 'mediaGrid.mjs');
 const motion = await importTs('packages/design/theme/motion.ts', 'motion.mjs');
+/* XC-5: the ORDECK preference migration — pure by construction (types only), and a
+   data migration whose every failure mode is silent. */
+const hudPrefs = await importTs('packages/auth-client/src/hudPrefs.ts', 'hudPrefs.mjs');
 
 /* ── withAlpha ─────────────────────────────────────────────────────────── */
 const { withAlpha } = color;
@@ -462,6 +465,45 @@ check(cadencePatch({ cadence_days: '' }, { cadence_rule: 'monthly:1' }).status =
   'cadencePatch: switching to a rule that fires resumes an empty weekly routine');
 check(cadencePatch({ cadence_days: '' }, { cadence_days: '' }).cadence_days === '',
   'cadencePatch: passes the changes through untouched');
+
+/* ── XC-5 · ORDECK's preference keys, migrated lazily ─────────────────────────
+   `hud`, `hudPins` and `hudFocus` sat at the TOP LEVEL of the shared preferences
+   blob, where an app-owned key does not belong. They are LIVE USER DATA — someone's
+   dashboard layout — so the move is a read-fallback plus a lazy re-write and NOT a
+   rename: a rename is silent data loss for every user who does not happen to save
+   afterwards, and no server-side migration can run instead, because jkAuth stores
+   the blob opaquely and does not know what a `hud` is. */
+{
+  const { readHudPref, writeHudPref } = hudPrefs;
+
+  // An un-migrated blob still reads — this is the assertion the whole design is for.
+  check(readHudPref({ hud: { v: 1 } }, 'hud')?.v === 1,
+    'XC-5: a LEGACY top-level `hud` is still read — an un-migrated user keeps their dashboard');
+  check(readHudPref({ ordeck: { hud: { v: 2 } } }, 'hud')?.v === 2,
+    'XC-5: a migrated blob reads from the namespaced key');
+  // Both present: the namespaced one wins, or a half-migrated blob would flip back.
+  check(readHudPref({ hud: { v: 1 }, ordeck: { hud: { v: 2 } } }, 'hud')?.v === 2,
+    'XC-5: with both present the NAMESPACED key wins — otherwise a half-migrated blob reverts on every read');
+  check(readHudPref({}, 'hud') === undefined, 'XC-5: an empty blob reads as absent');
+
+  /* ⚠️ `null` on the namespaced key is a REAL VALUE for focus — "nothing is focused"
+     — not "absent". If it fell through to the legacy key, clearing focus would
+     resurrect the old one on the next read, forever. */
+  check(readHudPref({ hudFocus: { app: 'beigeboard', id: '7' }, ordeck: { hudFocus: null } }, 'hudFocus') === null,
+    'XC-5: a namespaced `null` focus means CLEARED — it does not fall through and resurrect the legacy one');
+  // …while an absent namespaced pins list DOES fall through.
+  check(readHudPref({ hudPins: [{ app: 'a', id: '1' }], ordeck: {} }, 'hudPins')?.length === 1,
+    'XC-5: an absent namespaced key still falls back');
+
+  // The write retires the legacy key in the SAME patch — jkAuth deep-merges, so this
+  // is one atomic round trip, and the blob converts itself exactly once.
+  const patch = writeHudPref('hudPins', [{ app: 'a', id: '1' }]);
+  check(patch.ordeck?.hudPins?.length === 1, 'XC-5: a write sets the namespaced key');
+  check(patch.hudPins === null,
+    'XC-5: …and NULLS the legacy one in the same patch — the blob converts itself the first time the user touches it, and converts once');
+  check(writeHudPref('hudFocus', null).ordeck?.hudFocus === null,
+    'XC-5: clearing focus writes an explicit null rather than dropping the key');
+}
 
 if (failed) {
   console.error(`\n✗ cards-logic: ${failed} assertion(s) failed`);

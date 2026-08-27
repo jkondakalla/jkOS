@@ -75,13 +75,21 @@ function transpileTo(srcRel, outName) {
 }
 
 // Stubs for the two non-pure leaf imports (never called on the merge path).
+/* ⚠️ getProfile/patchProfile are stubbed (they are the network); readHudPref and
+   writeHudPref are NOT — the REAL ones are transpiled in below and re-exported here.
+   They are a data migration over live user data whose every failure mode is silent,
+   and a stub would have this check exercising a fiction of them. */
 writeFileSync(join(tmp, 'stub-auth-client.mjs'),
-  'export const getProfile = async () => ({});\nexport const patchProfile = async () => ({});\n');
+  'export const getProfile = async () => ({});\n'
+  + 'export const patchProfile = async () => ({});\n'
+  + "export { readHudPref, writeHudPref } from './hudPrefs.mjs';\n");
 writeFileSync(join(tmp, 'stub-weave.mjs'),
   "export const appOrigin = (id) => 'https://' + id + '.jkos.net';\n");
 // Real suite breakpoints — the same pure source @jkos/design re-exports (kept
 // drift-free by test/responsive.mjs), transpiled rather than hand-inlined.
 transpileTo('packages/design/responsive/breakpoints.ts', 'jkos-design.mjs');
+// XC-5's read-fallback / lazy re-write, real rather than stubbed (see above).
+transpileTo('packages/auth-client/src/hudPrefs.ts', 'hudPrefs.mjs');
 transpileTo('apps/ordeck/src/hud/types.ts', 'types.mjs');
 transpileTo('apps/ordeck/src/hud/engine.ts', 'engine.mjs');
 transpileTo('apps/ordeck/src/hud/state.ts', 'state.mjs');

@@ -191,6 +191,20 @@ Landed 2026-08-26/27 on `staging`, gate green at each commit, **none of it deplo
   ⚠️ Its `normalizeFields` projection dropped every key but name+type, so the check
   could not have SEEN a schema no matter how many were declared — it would have gone
   on reporting the same ten gaps against a fully annotated suite.
+- **XC-5 — ORDECK's preference keys, namespaced.** `hud`/`hudPins`/`hudFocus` live under
+  `preferences.ordeck.*` now, with the top-level keys kept as a READ FALLBACK and nulled
+  on the next write. ⚠️ **A lazy per-user migration, not a rename** — they are live user
+  data (someone's dashboard layout) and a rename is silent data loss for anyone who does
+  not happen to save afterwards; no server-side migration could run instead, because
+  jkAuth stores the blob opaquely and does not know what a `hud` is. The pure part is
+  extracted to `hudPrefs.ts` and driven by `test:cards` AND by `check:hud` (which
+  transpiles the real thing rather than stubbing it) — every failure mode here is silent.
+  ⚠️ The subtle one, pinned: a namespaced `hudFocus: null` means CLEARED and must NOT
+  fall through to the legacy key, or clearing focus would resurrect the old one forever.
+- **The music library is already mounted** — `${MUSIC_PATH:-/mnt/Luna/Luna/Plex/Music}:/music:ro`
+  in both KourOS compose files, with the decoy-path trap spelled out at the bind. ⚠️ One
+  comment in each file cited the WORKSTATION spelling while saying "on the host" — the
+  exact confusion those files exist to prevent. Corrected; the value was never wrong.
 
 ---
 
@@ -216,14 +230,7 @@ Landed 2026-08-26/27 on `staging`, gate green at each commit, **none of it deplo
 
 ✅ **Stage D is COMPLETE (D1–D13, and D3's remainder).**
 
-- **Unsequenced:** mount the music library (`MUSIC_DIR=/mnt/Luna/Luna/Plex/Music` in both compose
-  files — ⚠️ **not** `/mnt/Luna/Plex/Music`, which also exists on the host and is empty);
-  **WV-6** (two hardcoded per-app branches in code documented as app-agnostic); **WV-8**
-  (jkDeploy isn't in `@jkos/suite-manifest`, so "deploy staging" can't be a HUD button);
-  **XC-5** (three apps keep user settings in `localStorage`; the namespacing convention is
-  now written down and `timezone` follows it, but ORDECK's `hud`/`hudPins`/`hudFocus` still sit
-  at the top level where they don't belong — they are LIVE user data, so the move needs a
-  read-fallback and a lazy re-write on next save, not a rename); **XC-6** (`<AppShell>`/`<AsyncView>`
+- **Unsequenced:** **XC-6** (`<AppShell>`/`<AsyncView>`
   reached PapyrOS and KourOS and stopped). *(WV-7 is done — the `@jkos/cards` barrel no longer
   advertises what nothing imports.)*
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { getProfile, authFetch, type HudPin, type HudFocus } from '@jkos/auth-client';
+import { getProfile, authFetch, type HudPin, type HudFocus, readHudPref } from '@jkos/auth-client';
 import { usePolledResource, invalidate, subscribe, apiBase, resourceKey, probeApps, extRef, type SuiteApp } from '@jkos/weave';
 import { isoDate, type CalendarItem } from '@jkos/cards';
 import { TONE_RANK, type Tone } from '../../hud/tone';
@@ -705,7 +705,11 @@ export function useShelfRefs(): ShelfRefs {
   const fetcher = useCallback(async (): Promise<ShelfRefs> => {
     try {
       const p = await getProfile();
-      return { pins: p?.preferences.hudPins ?? [], focus: p?.preferences.hudFocus ?? null };
+      /* XC-5: namespaced first, legacy top-level as the fallback. */
+      return {
+        pins: readHudPref(p?.preferences, 'hudPins') ?? [],
+        focus: readHudPref(p?.preferences, 'hudFocus') ?? null,
+      };
     } catch {
       return { pins: [], focus: null };
     }

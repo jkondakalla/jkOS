@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { getProfile, patchProfile } from './client';
 import type { HudFocus, HudPin, HudRefInput } from './types';
+/* The XC-5 read-fallback / lazy re-write lives in ./hudPrefs — pure, no React, no
+   fetch — because a data migration that silently drops a dashboard is the failure
+   mode here, and `pnpm test:cards` drives it directly. */
+import { readHudPref, writeHudPref } from './hudPrefs';
 
 /**
  * Read + mutate the ORDECK "HUD shelf" — the user's pins (a heterogeneous,
@@ -21,8 +25,8 @@ export function useHudShelf() {
     const load = () => getProfile()
       .then((p) => {
         if (dead || !p) return;
-        setPins(p.preferences.hudPins ?? []);
-        setFocus(p.preferences.hudFocus ?? null);
+        setPins(readHudPref(p.preferences, 'hudPins') ?? []);
+        setFocus(readHudPref(p.preferences, 'hudFocus') ?? null);
       })
       .catch(() => {});
     load();
@@ -44,7 +48,7 @@ export function useHudShelf() {
       ? pins.filter((p) => key(p.app, p.id) !== key(r.app, r.id))
       : [...pins, { ...r, ts: Date.now() }];
     setPins(next);
-    await patchProfile({ hudPins: next });
+    await patchProfile(writeHudPref('hudPins', next));
   }, [pins, isPinned]);
 
   const isFocused = useCallback(
@@ -55,12 +59,12 @@ export function useHudShelf() {
     const r = norm(ref);
     const next: HudFocus | null = isFocused(r.app, r.id) ? null : r;
     setFocus(next);
-    await patchProfile({ hudFocus: next });
+    await patchProfile(writeHudPref('hudFocus', next));
   }, [focus, isFocused]);
 
   const clearFocus = useCallback(async () => {
     setFocus(null);
-    await patchProfile({ hudFocus: null });
+    await patchProfile(writeHudPref('hudFocus', null));
   }, []);
 
   return { pins, focus, isPinned, togglePin, isFocused, toggleFocus, clearFocus };

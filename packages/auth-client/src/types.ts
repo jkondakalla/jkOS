@@ -55,10 +55,10 @@ export type HudFocus = HudRef;
  *      already does this correctly. The app owns and validates its own shape;
  *      nothing else may write it.
  *
- *  ⚠️ `hud`, `hudPins` and `hudFocus` are ORDECK's and predate the rule, so they
- *  sit at the top level where they do not belong. They are LIVE user data —
- *  moving them needs a read-fallback and a lazy re-write, not a rename — which is
- *  why they are marked here rather than quietly relocated. See BACKLOG.md.
+ *  ⚠️ `hud`, `hudPins` and `hudFocus` were ORDECK's and predated the rule. They now
+ *  live under `ordeck.*`, with the top-level keys kept as a READ FALLBACK and
+ *  nulled on the next write — a lazy per-user migration, because they are live user
+ *  data and a rename is silent data loss for anyone who does not save afterwards.
  *
  *  ⚠️ And it is not the whole story: PapyrOS, KourOS and ORDECK each keep some
  *  state in `localStorage` that never reaches here (volume, queue prefs, a
@@ -77,14 +77,42 @@ export interface UserPreferences {
 
   // ── app-owned, keyed by app id ────────────────────────────────────────────
   lazuros?: LazurPreferences;
-  // ORDECK's HUD layout document — an opaque blob from the suite's perspective
-  // (ORDECK owns and validates its own shape). Lives here so the dashboard syncs
-  // across devices via the same per-user store as theme, with no ORDECK backend.
+  /** ORDECK's slice — the HUD layout document, the shelf pins and the focus
+   *  singleton. App-owned, under a key equal to the APP ID, per the convention
+   *  above. Opaque from the suite's perspective: ORDECK owns and validates its own
+   *  shape. Lives here so the dashboard syncs across devices via the same per-user
+   *  store as theme, with no ORDECK backend. */
+  ordeck?: OrdeckPreferences;
+
+  /* ── LEGACY, top-level, being migrated away (XC-5) ─────────────────────────
+   * ⚠️ These three predate the namespacing rule and sit at the top level where they
+   * do not belong. They are LIVE USER DATA — someone's dashboard layout — so the
+   * move is a READ-FALLBACK plus a LAZY RE-WRITE, never a rename: a rename is a
+   * silent data loss for anyone who does not happen to save afterwards.
+   *
+   * Readers prefer `ordeck.*` and fall back to these. Writers write `ordeck.*` AND
+   * null the legacy key in the same patch, so a blob converts itself the first time
+   * the user touches their dashboard and never converts twice.
+   *
+   * ⚠️ Do not delete these fields until the legacy keys are gone from real blobs.
+   * There is no migration that can run for them — jkAuth stores the blob opaquely
+   * and does not know what a `hud` is. */
+  /** @deprecated read `ordeck.hud` */
   hud?:     unknown;
-  // ORDECK "HUD shelf" — pins (a heterogeneous, suite-wide collection) and focus
-  // (a suite-wide singleton). ORDECK-owned, stored here so ANY app can surface
-  // its items on the HUD by {app,id} without ORDECK-specific columns/endpoints.
+  /** @deprecated read `ordeck.hudPins` */
   hudPins?:  HudPin[];
+  /** @deprecated read `ordeck.hudFocus` */
+  hudFocus?: HudFocus | null;
+}
+
+/** ORDECK's own preference slice. Namespaced under the app id (XC-5). */
+export interface OrdeckPreferences {
+  /** The HUD layout document. Opaque to everything but ORDECK. */
+  hud?:      unknown;
+  /** Pins — a heterogeneous, suite-wide collection. Stored here so ANY app can
+   *  surface its items on the HUD by {app,id} with no ORDECK-specific columns. */
+  hudPins?:  HudPin[];
+  /** Focus — a suite-wide singleton. */
   hudFocus?: HudFocus | null;
 }
 

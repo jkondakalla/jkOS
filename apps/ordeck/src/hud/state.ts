@@ -1,14 +1,15 @@
 /**
  * hud/state.ts — load / persist / mutate the HUD document.
  *
- * Persisted per-user in the shared jkAuth preferences blob (`preferences.hud`),
+ * Persisted per-user in the shared jkAuth preferences blob (`preferences.ordeck.hud`,
+ * with the legacy top-level `preferences.hud` still read as a fallback — XC-5),
  * the same cross-app store that holds theme/effects — so the dashboard syncs
  * across devices with no ORDECK backend. The engine, grid, and widgets all
  * consume HudState and never touch storage; only this module knows where it
  * lives. (Legacy localStorage docs are migrated up on first load.)
  */
 
-import { getProfile, patchProfile } from '@jkos/auth-client';
+import { getProfile, patchProfile, readHudPref, writeHudPref } from '@jkos/auth-client';
 import {
   HUD_STATE_VERSION,
   type Breakpoint,
@@ -409,7 +410,9 @@ export async function loadHudState(): Promise<HudState> {
   let profileHud: HudState | null = null;
   try {
     const profile = await getProfile();
-    profileHud = validHud(profile?.preferences?.hud);
+    /* XC-5: the namespaced key, falling back to the legacy top-level one. See
+       useHudShelf's readHudPref for why this is a fallback and not a rename. */
+    profileHud = validHud(readHudPref(profile?.preferences, 'hud'));
   } catch {
     /* offline / signed out — fall through to legacy/defaults */
   }
@@ -441,7 +444,7 @@ let saveTimer: ReturnType<typeof setTimeout> | null = null;
 export function saveHudState(state: HudState): void {
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
-    patchProfile({ hud: state }).catch(() => {
+    patchProfile(writeHudPref('hud', state)).catch(() => {
       /* a failed save is non-fatal — the in-memory HUD is still correct and the
          next mutation retries. */
     });

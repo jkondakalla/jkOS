@@ -39,7 +39,11 @@ services:
       # The directory name the embedder's paths are rooted at. Used to recover an
       # artist/title key when the index was built against a DIFFERENT library
       # layout — see backend/src/discover/vectors.js. Matches the last segment of
-      # the real library path on the host (/mnt/Luna/Plex/Music).
+      # the real library path — `Music` either way, since the workstation spells it
+      # /mnt/Luna/Plex/Music and the HOST spells it /mnt/Luna/Luna/Plex/Music. This
+      # comment used to cite the workstation path while saying "on the host": the
+      # exact confusion the volume note below exists to prevent, in the file that
+      # prevents it. The VALUE was never wrong; the sentence was.
       LIBRARY_ROOT_NAME: Music
     volumes:
       - ${KOUROS_DATA_PATH:-/mnt/Luna/Backends/Production/kouros-data}:/data
