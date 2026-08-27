@@ -62,7 +62,17 @@ export default {
       }
 
       for (const d of docs.datasets || []) {
-        const filters = d.filters || [];
+        const all = d.filters || [];
+        // A `computed: true` filter is a PARAMETER to a computation, not a WHERE
+        // clause: `k` on a similarity search, `arc` on a generated run, `x`/`y`
+        // on a 2-D map. It has no column to map to and never will, so demanding
+        // an enforcement op of it is asking the wrong question — and answering
+        // it with `column: null` produced a page of gaps saying "hand-written
+        // elsewhere" about values that are arguments, not filters. Declaring
+        // them still matters (a consumer must know `k` exists); what does not
+        // apply is the declared-vs-enforced SQL check.
+        const computed = all.filter((f) => f.computed);
+        const filters = all.filter((f) => !f.computed);
         const enforced = filters.filter((f) => f.op).length;
         for (const f of filters) {
           if (!f.op) {
@@ -72,7 +82,14 @@ export default {
         if (filters.length) {
           out.push({
             level: enforced === filters.length ? 'ok' : 'gap',
-            msg: `${app.id}.${d.id}: ${enforced}/${filters.length} filters carry their own enforcement (column/op) — the server derives its filter spec from the declaration (single source, P3)`,
+            msg: `${app.id}.${d.id}: ${enforced}/${filters.length} filters carry their own enforcement (column/op) — the server derives its filter spec from the declaration (single source, P3)`
+               + (computed.length ? ` (+${computed.length} computed parameter${computed.length === 1 ? '' : 's'}, not SQL-backed)` : ''),
+            where: [docs.file],
+          });
+        } else if (computed.length) {
+          out.push({
+            level: 'ok',
+            msg: `${app.id}.${d.id}: ${computed.length} computed parameter${computed.length === 1 ? '' : 's'} and no SQL filters — a computed read, correctly declared`,
             where: [docs.file],
           });
         }

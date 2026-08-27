@@ -87,7 +87,11 @@ class Server {
     this.child.stderr.on('data', d => { this.log += d; });
     this.child.on('exit', (code, signal) => { this.exited = { code, signal }; });
   }
-  async ready(tries = 50) {
+  // 12s, not 5. Nine servers boot in one run and the full gate runs this while
+  // other suites are working the same machine; a cold Node boot plus migrations
+  // plus bcrypt seeding can exceed a 5s budget under that load, and the symptom
+  // is "E3 never became healthy" in the gate while every standalone run passes.
+  async ready(tries = 120) {
     for (let i = 0; i < tries; i++) {
       // Belt to the sequential-port braces (B1 / OPS-1): a bare 200 proves only
       // that SOMETHING is on the port. If a stray server owns it, this says so

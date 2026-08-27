@@ -152,10 +152,120 @@ const TRACKS_DATASET = {
   invalidates: [TRACKS_KEY],
 };
 
+/* ── The discovery surface (XC-7) ──────────────────────────────────────────────
+ *
+ * ⚠️ These seven reads existed and were DECLARED NOWHERE. `src/discover/` is
+ * ~1,700 lines of CLAP-vector similarity search — the consumer of the whole
+ * music vector space — and to anything reading this document it did not exist.
+ * The consequence is the reason RESET promotes this finding: a request like
+ * "play something that matches this routine's energy" was blocked by a missing
+ * DECLARATION, not by a missing model. A GUI, a peer app, or an AI composer can
+ * only reach what is declared here.
+ *
+ * They are datasets rather than capabilities because every one is a READ: they
+ * compute, but they change nothing. `item: TRACK_SHAPE` on the track-returning
+ * ones is what makes the results composable — a caller learns the rows are
+ * `kouros.tracks`, so a result can be fed to anything that takes a track.
+ *
+ * ⚠️ Every one of these DEGRADES rather than failing when the vector index is
+ * absent or thin (no `VECTOR_DB_PATH`, or a backfill that hasn't reached these
+ * rows): the answer falls back to metadata affinity and the response says so in
+ * its `basis`. That is deliberate and it is why `discoveryStats` is declared
+ * too — it is how a consumer tells "no results" from "no index".
+ */
+/* The browse reads. Not part of the vector space — these are plain catalogue
+ * roll-ups over `tracks` — but they were undeclared for the same reason the
+ * discover surface was: nothing forced the question. A peer wanting "this
+ * artist's albums" had to read KourOS's source to learn the route exists. */
+const BROWSE_DATASETS = [
+  {
+    app: 'kouros', id: 'albums', label: 'Albums',
+    path: '/albums',
+    filters: [
+      { name: 'artist', type: 'string', label: 'Artist', computed: true },
+      { name: 'limit', type: 'number', label: 'How many', computed: true },
+      { name: 'offset', type: 'number', label: 'Skip', computed: true },
+    ],
+  },
+  {
+    app: 'kouros', id: 'artists', label: 'Artists',
+    path: '/artists',
+    filters: [
+      { name: 'limit', type: 'number', label: 'How many', computed: true },
+      { name: 'offset', type: 'number', label: 'Skip', computed: true },
+    ],
+  },
+  {
+    app: 'kouros', id: 'libraryStats', label: 'Library totals',
+    path: '/library/stats',
+    filters: [],
+  },
+];
+
+const DISCOVER_DATASETS = [
+  {
+    app: 'kouros', id: 'discoverStats', label: 'Discovery coverage',
+    path: '/discover/stats',
+    // Not a track list: how much of the library the embedder has reached. Every
+    // "why is this rail empty?" question in the UI is answered from here.
+    filters: [],
+  },
+  {
+    app: 'kouros', id: 'discoverSimilar', label: 'Tracks similar to one track',
+    path: '/discover/similar/:id',
+    filters: [{ name: 'k', type: 'number', label: 'How many', computed: true }],
+    item: TRACK_SHAPE,
+  },
+  {
+    app: 'kouros', id: 'discoverRadio', label: 'An endless station around seed tracks',
+    path: '/discover/radio',
+    filters: [
+      { name: 'seed', type: 'string', label: 'Seed track ids (comma-separated)', required: true, computed: true },
+      { name: 'k', type: 'number', label: 'How many', computed: true },
+    ],
+    item: TRACK_SHAPE,
+  },
+  {
+    app: 'kouros', id: 'discoverRun', label: 'A sequenced set with an arc',
+    path: '/discover/run',
+    filters: [
+      { name: 'seed', type: 'number', label: 'Seed track id', required: true, computed: true },
+      { name: 'length', type: 'number', label: 'How many tracks', computed: true },
+      { name: 'arc', type: 'enum', label: 'Shape', enum: ['rise', 'fall', 'flat'], computed: true },
+    ],
+    item: TRACK_SHAPE,
+  },
+  {
+    app: 'kouros', id: 'discoverMap', label: 'The vibe map — every embedded track in 2-D',
+    path: '/discover/map',
+    filters: [],
+  },
+  {
+    app: 'kouros', id: 'discoverNear', label: 'What sits under a point on the vibe map',
+    path: '/discover/near',
+    filters: [
+      { name: 'x', type: 'number', label: 'x, in [-1, 1]', required: true, computed: true },
+      { name: 'y', type: 'number', label: 'y, in [-1, 1]', required: true, computed: true },
+      { name: 'k', type: 'number', label: 'How many', computed: true },
+    ],
+    item: TRACK_SHAPE,
+  },
+  {
+    app: 'kouros', id: 'discoverHome', label: 'The home rails, assembled in one request',
+    path: '/discover/home',
+    // `hour` is the LISTENER's local hour: the server clock is UTC in a
+    // container, and "morning" is a property of where the listener is.
+    filters: [{ name: 'hour', type: 'number', label: "Listener's local hour (0–23)", computed: true }],
+  },
+];
+
 const DATASETS = {
   app: 'kouros',
   version: 1,
-  datasets: [TRACKS_DATASET, PLAYLISTS.dataset, HISTORY.dataset, RATINGS.dataset],
+  datasets: [
+    TRACKS_DATASET, PLAYLISTS.dataset, HISTORY.dataset, RATINGS.dataset,
+    ...BROWSE_DATASETS, ...DISCOVER_DATASETS,
+  ],
 };
 
 module.exports = {

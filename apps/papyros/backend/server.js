@@ -280,7 +280,7 @@ app.get('/api/capabilities', serveCapabilities(CAPABILITIES));
 app.get('/api/datasets', serveDatasets(DATASETS));
 
 /* ── Auth: me ──────────────────────────────────────────────────────────── */
-app.get('/api/auth/me', (req, res) => res.json({ user: req.user }));
+app.get('/api/auth/me', (req, res) => res.json({ user: req.user })); // app-private: echoes the verified identity back to this app's own SPA; jkAuth owns the identity contract
 
 /* ── Library (2.3 write side + 2.4 read side) ─────────────────────────────
    Both identity-gated (neither path is in PUBLIC_PATHS above) — books metadata is

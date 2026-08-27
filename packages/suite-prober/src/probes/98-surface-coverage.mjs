@@ -89,10 +89,22 @@ function declaredPaths(modulePath) {
 // declaring them would be noise in every app's doc.
 const INFRA = [/^\/health/, /^\/api\/(capabilities|datasets)$/, /^\/(capabilities|datasets)$/];
 
-// A declared path is `/items`; the route may be mounted as `/api/items`.
-function normalise(routePath) {
+// A declared path is `/items`; the route is mounted as `/api/items`.
+//
+// ⚠️ Strip ONLY the `/api` prefix, never `/api/<first-segment>`. The apps serve
+// BARE paths and nginx strips the `/api/<app>` edge prefix (see the edge/route
+// agreement probe), so the segment after `/api` is part of the surface, not the
+// app slug. Taking it for a slug made `/api/discover/stats` normalise to
+// `/stats`, which silently failed to match its own declaration — the probe
+// reporting a gap it had manufactured. Both readings are returned so an app that
+// really does mount its own id still matches.
+function candidates(routePath) {
   const p = routePath.replace(/\/+$/, '') || '/';
-  return p.replace(/^\/api\/[a-z-]+(?=\/)/, '').replace(/^\/api(?=\/)/, '');
+  const out = new Set([p]);
+  const noApi = p.replace(/^\/api(?=\/)/, '');
+  out.add(noApi);
+  out.add(noApi.replace(/^\/[a-z-]+(?=\/)/, ''));
+  return [...out].filter(Boolean);
 }
 
 export default {
@@ -120,12 +132,12 @@ export default {
       const undeclared = [];
       let privateCount = 0;
       for (const r of routes) {
-        const p = normalise(r.path);
-        if (INFRA.some(re => re.test(r.path) || re.test(p))) continue;
+        const forms = candidates(r.path);
+        if (INFRA.some(re => re.test(r.path) || forms.some(f => re.test(f)))) continue;
         if (r.private) { privateCount++; continue; }
         // A declared path covers its own sub-paths: `/items` declares
         // `/items/:id`, since the dataset and its item are one surface.
-        const covered = [...declared].some(d => p === d || p.startsWith(d + '/'));
+        const covered = forms.some(p => [...declared].some(d => p === d || p.startsWith(d + '/')));
         if (!covered) undeclared.push(`${r.method} ${r.path}`);
       }
 
