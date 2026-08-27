@@ -29,7 +29,10 @@ function weaveCors(originResolver) {
         res.setHeader('Access-Control-Allow-Origin', origin)
         res.setHeader('Access-Control-Allow-Credentials', 'true')
         res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS')
-        res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        // X-JKOS-TZ is stamped on EVERY suite request by authFetch (D5 / XC-4), so
+        // it must be preflight-allowed or every genuine cross-origin call — an app
+        // frontend hitting jkAuth — starts failing at the OPTIONS.
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-JKOS-TZ')
         res.setHeader('Access-Control-Max-Age', '600')  // cache the preflight (10 min) instead of re-OPTIONS every call
       }
     }

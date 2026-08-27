@@ -79,6 +79,63 @@ function refreshOnce(): Promise<boolean> {
   return refreshing;
 }
 
+/* ── The caller's timezone, stamped on every suite request (D5 / XC-4) ──────
+ *
+ * The suite had four notions of "today" and none of WHERE, so ORDECK and
+ * BeigeBoard could render different days from the same rows and calendar events
+ * were normalised in whatever zone the container happened to run in. The fix is
+ * one header carrying the caller's IANA ZONE — not a computed day, because a day
+ * answers one question and the zone answers every one the server has.
+ *
+ * ⚠️ The literal below is pinned to its reader, `CALLER_ZONE_HEADER` in
+ * @jkos/weave/server, by `pnpm check:today`. It is duplicated rather than imported
+ * because @jkos/weave depends on THIS package — importing back would be a cycle.
+ */
+export const CALLER_ZONE_HEADER = 'X-JKOS-TZ';
+
+/* The user's chosen zone, when they have one. Module-level rather than a hook
+ * argument because authFetch is a plain function called from every app's api
+ * layer, and threading a zone through every call site is exactly the kind of
+ * opt-in that leaves half the suite unzoned. useJkOSPreferences sets it on
+ * hydrate; until then, and for anyone who never set one, the browser answers. */
+let zonePreference: string | null = null;
+
+function usableZone(z: unknown): z is string {
+  if (typeof z !== 'string') return false;
+  const t = z.trim();
+  if (!t || t.length > 64) return false;
+  try { new Intl.DateTimeFormat('en-US', { timeZone: t }); return true; }
+  catch { return false; }
+}
+
+/** Set (or clear, with null) the user's preferred zone. Called by
+ *  useJkOSPreferences when `preferences.timezone` arrives; an invalid value is
+ *  ignored rather than thrown, so a hand-edited blob degrades to the browser
+ *  zone instead of breaking every request the app makes. */
+export function setCallerZone(zone: string | null | undefined): void {
+  zonePreference = usableZone(zone) ? zone.trim() : null;
+}
+
+/** The zone this client speaks for: the user's preference, else the browser's
+ *  resolved zone, else UTC (a non-browser host, or an engine with no ICU data). */
+export function callerZone(): string {
+  if (zonePreference) return zonePreference;
+  try {
+    const z = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (usableZone(z)) return z;
+  } catch { /* fall through */ }
+  return 'UTC';
+}
+
+/* Merge the zone header into whatever the caller passed, WITHOUT clobbering it —
+ * `init.headers` arrives as a plain object, a Headers, or an entries array, and
+ * two of those three would be silently dropped by a spread. */
+function withZoneHeader(init: RequestInit): RequestInit {
+  const h = new Headers(init.headers as HeadersInit | undefined);
+  h.set(CALLER_ZONE_HEADER, callerZone());
+  return { ...init, headers: h };
+}
+
 /**
  * The single refresh-aware fetch for the whole suite. Always sends cookies. On a
  * 401 whose body carries `code: TOKEN_EXPIRED | UNAUTHENTICATED`, it silently
@@ -89,7 +146,7 @@ function refreshOnce(): Promise<boolean> {
  * 30-day session without bouncing the user. (Replaces the per-app copies.)
  */
 export async function authFetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
-  const opts: RequestInit = { credentials: 'include', ...init };
+  const opts: RequestInit = { credentials: 'include', ...withZoneHeader(init) };
   const r = await fetch(input, opts);
   if (r.status !== 401) return r;
 

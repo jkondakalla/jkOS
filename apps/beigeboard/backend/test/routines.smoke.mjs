@@ -19,7 +19,7 @@
 //      the user has claimed
 //   G. parking stops production; resuming restarts it
 //   H. the cadence is validated at the door (bad days / out-of-range count → 400)
-//   I. X-BB-Today is honoured, so the user's local day drives the mint, and a
+//   I. a pinned "today" drives the mint (X-JKOS-TODAY, test-harness only), and a
 //      filtered read never triggers a horizon write
 //   K. migration 13's variance instrumentation — completed_at is stamped by the
 //      TRIGGER on the 0→1 edge, is not moved by a later edit (the whole reason it
@@ -102,7 +102,11 @@ const WEEK4_MON = shift(TODAY, 19);                // …and still out of it a w
 const NEXT_WEEK = shift(TODAY, 7);                 // a later "today" that rolls the horizon
 
 async function req(method, path, body, { today = TODAY, token = A } = {}) {
-  const headers = { 'X-BB-Today': today };
+  /* Pinning "today" is the only way to assert the horizon rolls forward, and since
+     D5 it needs the server's opt-in: X-JKOS-TODAY is read only when the process was
+     started with JKOS_TIME_TRAVEL=1 outside production (see the spawn below and
+     @jkos/weave/server's callerDay.js). In production this header is inert. */
+  const headers = { 'X-JKOS-TODAY': today };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (token) headers['Authorization'] = `Bearer ${token}`;
   const r = await fetch(BASE + path, {
@@ -140,6 +144,7 @@ const child = spawn('node', ['server.js'], {
   cwd: BACKEND,
   env: {
     ...process.env, NODE_ENV: '', PORT: String(PORT), DB_PATH,
+    JKOS_TIME_TRAVEL: '1',
     JKOS_AUTH_PUBLIC_KEY: publicKey, JKOS_AUTH_ISSUER: ISSUER,
   },
   stdio: ['ignore', 'pipe', 'pipe'],
@@ -278,9 +283,10 @@ try {
   ok(!dates(later, rid).includes(WEEK4_MON),
     'I: and stops at the horizon — it does not run away into the future');
 
-  // A malformed header must fall back to the server date, not reach the date maths.
+  // A malformed header must fall back to the server's own answer, not reach the
+  // date maths. Same guarantee as before, now enforced by callerDay's isDay().
   const junk = await req('GET', '/api/items', undefined, { today: 'not-a-date' });
-  ok(junk.status === 200, `I: a malformed X-BB-Today is ignored, not fatal (got ${junk.status})`);
+  ok(junk.status === 200, `I: a malformed X-JKOS-TODAY is ignored, not fatal (got ${junk.status})`);
 
   // ── J. THE SKIP LIST — deleting one occurrence has to STAY deleted ──────────
   //     The mint runs on every unfiltered read, so before migration 12 a delete

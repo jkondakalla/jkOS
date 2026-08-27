@@ -3,6 +3,7 @@
 // validation (ownership + cycle guard), the transactional cascade delete, and the
 // lazy first-run demo seed.
 const { db, run, all, get } = require('./db');
+const { nextDay } = require('./util');
 
 function cascadeDeleteInner(id, userId, seen) {
   if (seen.has(id)) return;   // cycle guard: a self/cyclic parent_id must not recurse forever
@@ -42,12 +43,20 @@ function validParentId(parentId, userId, selfId = null) {
 
 /* ── Seed defaults (lazy, on first item load per user) ─────────────────── */
 /* One example goal shaped by the Breakdown Method: a defined finish line,
-   ordered checkpoints, and the first actions already committed to days. */
-async function seedDefaults(userId) {
-  const now = new Date();
-  const todayStr    = now.toISOString().slice(0, 10);
-  const tomorrowStr = new Date(now.getTime() + 86400000).toISOString().slice(0, 10);
-  const targetStr   = `${now.getFullYear()}-12-31`;
+   ordered checkpoints, and the first actions already committed to days.
+ *
+ * ⚠️ `today` is a REQUIRED argument, not a `new Date()` read (BB-10 / D5). This
+ * used to compute the seed dates from `toISOString()` — the UTC day — so the very
+ * first thing every user west of Greenwich saw, for the whole evening of their
+ * first session, was a task dated tomorrow labelled "today". The caller passes
+ * `callerDay(req)`; the year for the target date comes from that same string
+ * rather than from `getFullYear()`, so all three dates agree on which day it is.
+ *
+ * @param {string} today the caller's local day, YYYY-MM-DD */
+async function seedDefaults(userId, today) {
+  const todayStr    = today;
+  const tomorrowStr = nextDay(today);
+  const targetStr   = `${today.slice(0, 4)}-12-31`;
 
   const ins = (data) => {
     const cols = Object.keys(data).join(', ');

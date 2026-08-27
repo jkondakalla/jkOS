@@ -279,9 +279,10 @@ that code can reopen it.
   timestamp formats sort *incorrectly against each other* as plain strings** (not just
   imprecisely — genuinely out of order), so a `?since=` cursor built on either can silently drop
   same-second writes, and a suite mixing both formats across apps cannot share a cursor even in
-  principle. As of this pass this is still an open cross-app inconsistency (`RESET.md` §"Stage
-  D" item 4, tracked as XC-1) — BeigeBoard's `items` table already migrated to millisecond ISO
-  timestamps for exactly this reason; other collections have not.
+  principle. **Closed 2026-08-27 (XC-1 / D4):** `packages/weave/src/server/wireTime.js` is the one
+  definition, `defineCollection` and all three apps use it, and a `wire-time` prober probe holds it
+  at drift level. The trap is kept because the *mechanism* — two ISO formats sorting out of order
+  as strings — is what bites, and it bites again the moment someone writes a bare `datetime('now')`.
 
 - **A completion/state-transition timestamp written by a route handler has an open bypass any
   other write path (a bulk import, a raw SQL fixup) can walk straight through — a database
@@ -316,6 +317,51 @@ that code can reopen it.
   explicit reachability check before marking anything failed, and a consecutive-failure threshold
   that stops the run (leaving rows `pending`, not `failed`) rather than trusting each failure in
   isolation.
+
+## Dates, clocks & timezones
+
+- **A server that turns an instant into a calendar day has already picked a timezone — the only
+  question is whether it picked one on purpose.** `d.getFullYear()` / `d.getHours()` read the
+  *host's* zone, so the same calendar event normalised on two machines lands on two different days
+  at two different clock times, and the bug is invisible to whoever wrote it because it looks right
+  on their laptop. The defence that's live now: `zonedParts(date, zone)` in
+  `packages/weave/src/server/callerDay.js` takes the zone as an argument, `callerDay(req)` resolves
+  it from the caller, and `pnpm check:today` fails any backend that reads a bare local field.
+
+- **A test that pins `TZ=UTC` "for determinism" is often hiding the bug, not avoiding it.**
+  BeigeBoard's calendar sandbox did exactly that for months; the pin was the only reason its
+  wall-clock assertions passed, and it made the host-zone leak untestable by construction. It now
+  runs under `TZ=Pacific/Marquesas` — **west** of UTC and off the hour, both deliberately: an
+  exclusive-end off-by-one *cancels itself out* east of Greenwich, so a `+12:45` host passes buggy
+  code, and an integer-offset host hides half-hour rounding.
+
+- **Parsing a date as UTC, mutating it with a local setter, and formatting it locally is two zone
+  changes that cancel only at UTC.** `new Date(iso + 'T00:00:00Z')` → `d.setDate(d.getDate() - 1)`
+  → local format lands *two* days back west of Greenwich, not one. This was a live off-by-one in
+  iCloud's exclusive-`DTEND` handling. Calendar arithmetic on a `YYYY-MM-DD` **string** has no such
+  seam — and anchor the intermediate `Date` at **UTC noon**, not midnight, so a DST spring-forward
+  can't shorten the day enough for `+24h` to land back where it started.
+
+- **An all-day event is a floating date, not an instant, and must never be given a zone.** "The
+  10th" is the 10th everywhere. Handing an all-day boundary to a zone conversion is how an event
+  silently moves a day. In one codebase the three calendar providers each need a *different* rule
+  for the same reason: Google's all-day arrives as a bare date string (use it), Microsoft Graph's
+  arrives as a UTC midnight (read it back in UTC), and iCloud's ICS is raw digits (parse, don't
+  convert) — while all three of their *timed* events take the caller's zone.
+
+- **`hour12: false` renders midnight as hour `24` under some ICU versions; `hourCycle: 'h23'` does
+  not.** With `Intl.DateTimeFormat`, specifying `hour12` also *overrides* any `hourCycle` you set
+  alongside it, so pass `hourCycle` alone. The failure writes `24:00` into a time column, where it
+  survives every validator that only checks the shape.
+
+- **A header that lets a client assert what day it is, is a write primitive if anything mints
+  rows relative to "today".** A routine engine minting occurrences against a caller-supplied date
+  will happily write a year of future state. Sending the caller's IANA **zone** instead of a
+  computed **day** bounds the client's influence to ±1 day, answers strictly more questions (a zone
+  gives you the wall clock too, a day doesn't), and is a fact about the caller rather than a value
+  they computed. Where a test genuinely must move the clock, put it behind *two* locks —
+  non-production **and** an explicit opt-in env var — resolved at module load so nothing at request
+  time can flip it.
 
 ## Python & numpy
 

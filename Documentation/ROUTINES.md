@@ -101,9 +101,12 @@ a squat in it"). That is a scan in JS over a few dozen rows, not an index.
 
 **RULE 1 — never mint into the past.** A routine created on a Friday must not conjure
 Monday's occurrence as already overdue.
-> ⚠️ `created_at` is SQLite **UTC**; `today` is the caller's **local** date (the
-> `X-BB-Today` header). They differ by up to a day, so the floor absorbs one day of
-> slack. Remove that and everyone west of UTC silently loses their next day.
+> ⚠️ `created_at` is SQLite **UTC**; `today` is the caller's day **in the caller's
+> zone** — `callerDay(req)` from `@jkos/weave/server`, resolved from the `X-JKOS-TZ`
+> header the suite stamps on every request (D5/XC-4; it was BeigeBoard's own
+> `X-BB-Today` until 2026-08-27). They differ by up to a day, so the floor absorbs
+> one day of slack. Remove that and everyone west of UTC silently loses their next
+> day.
 
 **RULE 2 — editing the pattern rewrites only the untouched future.** Completing an
 occurrence, or moving it off its minted date, hands it to the user permanently

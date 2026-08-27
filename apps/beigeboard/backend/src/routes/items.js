@@ -2,7 +2,7 @@
 // Items CRUD — the core per-user task/event store. GET (with weave filters + lazy
 // first-run seed), POST/PATCH (validated direct writes), DELETE (cascade).
 const express = require('express');
-const { buildItemFilters, filterSpec } = require('@jkos/weave/server');
+const { buildItemFilters, filterSpec, callerDay } = require('@jkos/weave/server');
 const { all, run, get } = require('../db');
 const { DATASETS } = require('../../discovery');
 const { ITEM_COLUMNS, coerceColumn, validateItemWrite } = require('../schema');
@@ -12,29 +12,24 @@ const {
   skipOccurrence, purgeRoutineOccurrences,
 } = require('../routines');
 const { toRow, fail } = require('../util');
-const { looksLikeDate } = require('../schema');
 
 const router = express.Router();
 
-/* The caller's LOCAL date, from the X-BB-Today header, falling back to the
-   server's UTC date.
+/* "Today" comes from `callerDay(req)` in @jkos/weave/server — THE one definition
+ * for the suite (D5 / XC-4). It reads the caller's IANA zone off the X-JKOS-TZ
+ * header that @jkos/auth-client stamps on every request, and falls back to the UTC
+ * day when there isn't one (a peer service has no user and therefore no local day).
  *
- * Routines mint relative to "today", and the server's UTC day is not the user's
- * day: at 17:00 in California it is already tomorrow in UTC, so a UTC floor would
- * skip the occurrence the user is looking at. The client knows its own date
- * (isoDate(new Date()) — the same value the whole frontend calls `today`), so it
- * sends it.
+ * This file used to carry its own `callerToday()` reading a BeigeBoard-specific
+ * `X-BB-Today`, and routes/routines.js carried a second hand-copied version of it.
+ * Routines mint relative to "today" and the server's UTC day is not the user's: at
+ * 17:00 in California it is already tomorrow in UTC, so a UTC floor skips the
+ * occurrence the user is looking at.
  *
- * A HEADER rather than a query param on purpose: `GET /api/items` treats ANY query
- * param as "this is a filtered read" and suppresses the first-run seed and this
- * materialise on that basis. A `?today=` would have silently turned every normal
- * load into a filtered one. Untrusted like any input — a malformed value falls back
- * rather than reaching the date maths. */
-function callerToday(req) {
-  const h = req.get('X-BB-Today');
-  if (h && looksLikeDate(String(h))) return String(h).trim();
-  return new Date().toISOString().slice(0, 10);
-}
+ * ⚠️ Still a HEADER rather than a query param, and that is load-bearing here
+ * specifically: `GET /api/items` treats ANY query param as "this is a filtered
+ * read" and suppresses the first-run seed and the materialise below on that basis.
+ * A `?tz=` would silently turn every normal load into a filtered one. */
 
 /* Attach the routine document's LINT to an otherwise-successful write.
  *
@@ -74,7 +69,7 @@ router.get('/api/items', async (req, res) => {
     // demo rows conjured under its `svc:` sub.
     const isService = req.user.typ === 'service' || String(req.user.sub).startsWith('svc:');
     if (rows.length === 0 && !filtered && req.user.role !== 'guest' && !isService) {
-      await seedDefaults(req.user.sub);
+      await seedDefaults(req.user.sub, callerDay(req));
       rows = all(`SELECT * FROM items WHERE ${where} ORDER BY id ASC`, params);
     }
     /* Keep the routine occurrences current before answering. A write on a read is
@@ -94,7 +89,7 @@ router.get('/api/items', async (req, res) => {
          they were BEFORE the reconcile, so a change made on this very request
          didn't show up until some later unrelated load: tick today's session and
          tomorrow's numbers stay stale for one round trip. */
-      const { minted, withdrawn, updated } = materializeRoutines(req.user.sub, callerToday(req));
+      const { minted, withdrawn, updated } = materializeRoutines(req.user.sub, callerDay(req));
       if (minted || withdrawn || updated) rows = all(`SELECT * FROM items WHERE ${where} ORDER BY id ASC`, params);
     }
     res.json(rows.map(toRow));
@@ -128,7 +123,7 @@ router.post('/api/items', (req, res) => {
       // Every routine starts at revision 1, so `sv` is meaningful from the first
       // render rather than null until someone happens to edit it.
       run('UPDATE items SET spec_version = 1 WHERE id = ? AND user_id = ?', [row.id, req.user.sub]);
-      materializeOne(row.id, req.user.sub, callerToday(req));
+      materializeOne(row.id, req.user.sub, callerDay(req));
       row.spec_version = 1;
     }
     res.status(201).json(withLint(toRow(row), details));
@@ -165,12 +160,12 @@ router.patch('/api/items/:id', (req, res) => {
     // Patching a routine IS the pattern edit: reconcile now so the withdraw +
     // propagate rules (see routines.js RULE 2) apply to this change, not to
     // whatever the horizon happens to look like at the next read.
-    if (row.kind === 'routine') materializeOne(row.id, req.user.sub, callerToday(req));
+    if (row.kind === 'routine') materializeOne(row.id, req.user.sub, callerDay(req));
     // Patching an OCCURRENCE — ticking it, above all — is what moves the cycle
     // ladder (routines.js RULE 3), so the sessions ahead of it are re-rendered on
     // this same request. Without it you would tick today's session, watch nothing
     // change, and get tomorrow's new numbers on some later unrelated load.
-    else materializeForOccurrence(row, req.user.sub, callerToday(req));
+    else materializeForOccurrence(row, req.user.sub, callerDay(req));
     res.json(withLint(toRow(row), details));
   } catch (e) { fail(res, e); }
 });

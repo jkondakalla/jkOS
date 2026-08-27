@@ -9,6 +9,7 @@
 // acoustic match, and the first time that is obvious to the listener the whole
 // feature stops being trusted. Cheaper to be honest on the wire.
 const { Router } = require('express');
+const { callerZone, zonedParts } = require('@jkos/weave/server');
 
 function ids(param) {
   return String(param || '')
@@ -135,10 +136,13 @@ function createDiscoverRouter({ discovery, db }) {
     try {
       const space = discovery.current();
       const history = historyFor(req);
-      // The client sends its own local hour — the server's clock is UTC in a
-      // container and "morning" is a property of where the LISTENER is, not of
-      // where the process runs. Falls back to the server hour when absent.
-      const hour = clamp(req.query.hour, new Date().getHours(), 0, 23);
+      // "Morning" is a property of where the LISTENER is, not of where the process
+      // runs. `?hour=` is the declared explicit override (see discovery.js); the
+      // FALLBACK now comes from the caller's zone rather than from the container's
+      // clock (D5 / XC-4). KourOS had reached the right conclusion here and then
+      // invented its own answer to it — a per-app query param for a question the
+      // whole suite asks — which is exactly the reinvention D5 exists to stop.
+      const hour = clamp(req.query.hour, zonedParts(new Date(), callerZone(req)).hour, 0, 23);
       res.json({
         stats: space.stats,
         time_of_day: home.timeOfDay(space, { hour, k: clamp(req.query.k, 18, 1, 60) }),

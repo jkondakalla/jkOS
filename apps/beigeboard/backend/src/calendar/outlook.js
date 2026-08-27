@@ -4,7 +4,7 @@
 const { MS_CLIENT_ID, MS_CLIENT_SECRET, MS_TOKEN_URL, MS_GRAPH } = require('../config');
 const { run } = require('../db');
 const { encryptSecret, decryptSecret } = require('../crypto');
-const { isoDateStr } = require('../util');
+const { isoDateStr, prevDay } = require('../util');
 const { timedInterval, syncProvider, SYNC_WINDOW_DAYS } = require('./provider');
 
 async function getMsToken(row) {
@@ -38,8 +38,14 @@ async function getMsToken(row) {
 
 /* Pure: Graph `calendarView.value[]` → NormalizedEvent[]. Exported for TEST-8.
    A malformed event (missing start/end or an unparseable date) is skipped, never
-   thrown — so one bad row can't abort the whole sync. */
-function normalizeOutlook(value) {
+   thrown — so one bad row can't abort the whole sync.
+
+   `zone` is the caller's IANA zone and applies ONLY to timed events. Graph is asked
+   for UTC (the `Prefer: outlook.timezone="UTC"` header on the fetch), so an ALL-DAY
+   event's boundaries arrive as UTC midnights and must be read back in UTC — reading
+   them in the caller's zone is precisely how an all-day event slides a day west of
+   Greenwich. Timed events are real instants and take the caller's zone. */
+function normalizeOutlook(value, zone) {
   const out = [];
   for (const ev of (value || [])) {
     if (!ev.start?.dateTime || !ev.end?.dateTime) continue;
@@ -49,12 +55,14 @@ function normalizeOutlook(value) {
     if (isNaN(sd.getTime()) || isNaN(ed.getTime())) continue;
     const base = { title: ev.subject || '(No title)', notes: ev.bodyPreview || null, location: ev.location?.displayName || null };
     if (isAllDay) {
-      const due_date = isoDateStr(sd);
-      const adj = new Date(ed); adj.setDate(adj.getDate() - 1);   // Graph all-day end is exclusive
-      const s = isoDateStr(adj);
+      const due_date = isoDateStr(sd, 'UTC');
+      // Graph all-day end is exclusive. Stepped as a calendar string rather than by
+      // mutating the Date with a LOCAL setDate() — the old version mixed a UTC-read
+      // day with a local-mutated one, which agree only when the container is at UTC.
+      const s = prevDay(isoDateStr(ed, 'UTC'));
       out.push({ ...base, due_date, scheduled_time: null, scheduled_end: null, end_date: s !== due_date ? s : null });
     } else {
-      out.push({ ...base, ...timedInterval(sd, ed) });
+      out.push({ ...base, ...timedInterval(sd, ed, zone) });
     }
   }
   return out;
@@ -62,7 +70,7 @@ function normalizeOutlook(value) {
 
 const outlookProvider = {
   id: 'outlook',
-  async fetchWindow(token, days = SYNC_WINDOW_DAYS) {
+  async fetchWindow(token, days = SYNC_WINDOW_DAYS, zone = null) {
     const now = new Date(), end = new Date(now.getTime() + days * 86400000);
     const url = `${MS_GRAPH}/me/calendarView`
       + `?startDateTime=${now.toISOString()}&endDateTime=${end.toISOString()}`
@@ -70,13 +78,13 @@ const outlookProvider = {
     const r    = await fetch(url, { headers: { Authorization: `Bearer ${token}`, Prefer: 'outlook.timezone="UTC"' } });
     const data = await r.json();
     if (data.error) throw new Error(data.error.message);
-    return normalizeOutlook(data.value);
+    return normalizeOutlook(data.value, zone);
   },
 };
 
-/* Wrapper kept for the routes (unchanged signature). */
-function syncOutlookEvents(token, userId, force = false) {
-  return syncProvider(outlookProvider, token, userId, { force });
+/* Wrapper kept for the routes. `zone` is the caller's (D5); null means UTC. */
+function syncOutlookEvents(token, userId, force = false, zone = null) {
+  return syncProvider(outlookProvider, token, userId, { force, zone });
 }
 
 module.exports = { getMsToken, normalizeOutlook, outlookProvider, syncOutlookEvents };

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { getProfile, patchProfile } from './client';
+import { getProfile, patchProfile, setCallerZone } from './client';
 import { applyTheme, normaliseTheme } from './theme';
 import { DEFAULT_THEME, DEFAULT_EFFECTS, DEFAULT_LAZUROS } from './defaults';
 import type { JkOSTheme, EffectsPreferences, LazurPreferences, JkosUser } from './types';
@@ -30,6 +30,10 @@ export function useJkOSPreferences(opts: UseJkOSPreferencesOptions = {}) {
   const [effects, setEffects] = useState<EffectsPreferences>(DEFAULT_EFFECTS);
   const [lazuros, setLazuros] = useState<LazurPreferences>(DEFAULT_LAZUROS);
   const [user,    setUser]    = useState<JkosUser | null>(null);
+  // The user's chosen IANA zone, or null when they ride the browser's. Read-only
+  // here on purpose: like `lazuros`, the switch lives in ONE place (the jkAuth
+  // portal), so apps observe it and none of them owns it.
+  const [timezone, setTimezone] = useState<string | null>(null);
   const [saving,  setSaving]  = useState(false);
 
   const apply = useCallback((t: JkOSTheme, eff: EffectsPreferences) => {
@@ -63,6 +67,13 @@ export function useJkOSPreferences(opts: UseJkOSPreferencesOptions = {}) {
     if (data.preferences.lazuros) {
       setLazuros(prev => ({ ...prev, ...data.preferences.lazuros }));
     }
+    // D5/XC-4: the zone every request is stamped with. Applied on hydrate rather
+    // than returned-and-forgotten, because the consumer is authFetch (a plain
+    // module function), not a component. Passing undefined CLEARS the override, so
+    // a user who unsets their zone falls back to the browser's on the next pull
+    // rather than staying pinned to the old one for the life of the tab.
+    setCallerZone(data.preferences.timezone);
+    setTimezone(data.preferences.timezone ?? null);
   }, [apply]);
 
   useEffect(() => {
@@ -132,5 +143,5 @@ export function useJkOSPreferences(opts: UseJkOSPreferencesOptions = {}) {
   // No patchLazuros: the AI kill switch is set in ONE place (the jkAuth portal, which
   // PATCHes /auth/profile directly). Apps read `lazuros.enabled` to hide AI surfaces;
   // none of them owns the switch, so none of them writes it.
-  return { theme, effects, lazuros, user, saving, patchTheme, patchEffects };
+  return { theme, effects, lazuros, timezone, user, saving, patchTheme, patchEffects };
 }

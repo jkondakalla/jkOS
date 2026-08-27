@@ -48,6 +48,20 @@ Landed 2026-08-26/27 on `staging`, gate green at each commit, **none of it deplo
 - **E1 — the surface-coverage probe**, which is what made all of the above measurable
   rather than a matter of opinion. It also found two bugs in itself, both cases of a green
   result that had stopped asking the question.
+- **D5 (XC-4) — one definition of "today", and the suite finally knows WHERE.**
+  `callerDay(req)` / `callerZone(req)` / `zonedParts(date, zone)` in
+  `packages/weave/src/server/callerDay.js` are the one reader; `authFetch` stamps
+  the caller's IANA zone as **`X-JKOS-TZ`** on every suite request, so no app opts
+  in; `preferences.timezone` is settable in the jkAuth portal and overrides the
+  browser. Closes **BB-2** (BeigeBoard's two hand-copied `callerToday()` helpers and
+  its app-specific `X-BB-Today` are gone), **BB-10** (`seedDefaults` takes the
+  caller's day — the first-run "today" task used to land on tomorrow west of
+  Greenwich), and **BB-15** (`isoDateStr`/`fmt24` take an explicit zone; the three
+  calendar providers each got the rule their upstream actually needs). A `check:today`
+  gate holds all of it, and it earned its keep on the first run by finding a fourth
+  instance nobody had listed — KourOS's `/discover/home` falling back to
+  `new Date().getHours()`. **JK-A11 was already closed** by Stage C's millisecond
+  `rotated_at`; it is struck from D5's list rather than re-fixed.
 
 ---
 
@@ -71,17 +85,13 @@ Landed 2026-08-26/27 on `staging`, gate green at each commit, **none of it deplo
 
 ## Open — the backend and the fabric (Stage D)
 
-Eight of thirteen items (D1, D2, D3, D4 and D11 are done). Re-verify each before fixing; the audit predates
-this work and BB-3 is marked *Partial*.
+Seven of thirteen items (D1, D2, D3, D4, D5 and D11 are done). Re-verify each before fixing; the audit
+predates this work and BB-3 is marked *Partial*.
 
 - **The seven `json` escape-hatch fields** are what remains of D3, and they are the weakest item
   on this list. A routine `spec` genuinely IS an opaque document, so "type it properly" may be
   the wrong answer — decide whether the hatch is a defect here or an honest description before
   spending effort on it.
-- **D5 · Define "today", once (XC-4).** Four notions coexist and there is no notion of *where*.
-  Add `timezone` to the jkAuth preferences contract, one `callerDay(req)` in
-  `@jkos/weave/server`, and make `isoDateStr`/`fmt24` take an explicit zone. Closes **BB-2**,
-  **BB-10**, **BB-15**, **JK-A11**.
 - **D6 · The activity contract (XC-2).** ⭐ Four per-user append-only ledgers in four schemas,
   none aggregatable — and PapyrOS's and KourOS's `history` tables are field-for-field identical,
   invented independently. **Declare one shape; do not share an implementation.** This is both the
@@ -104,7 +114,10 @@ this work and BB-3 is marked *Partial*.
   faithful exists before you start. **−1,045 lines.**
 - **D10 · Calendar sync onto `defineConnector` (BB-6).** 247 lines of near-identical
   Google/Outlook/iCloud blocks, none declared, no scheduler, and a disconnect that raw-`DELETE`s
-  items bypassing `cascadeDelete`. **After D5**, so providers are rewritten once.
+  items bypassing `cascadeDelete`. **Unblocked — D5 landed**, so the rewrite now inherits
+  zone-correct helpers and a `zone` already threaded through `fetchWindow`. ⚠️ Keep the
+  timed/all-day split: an all-day date is floating and must NOT be zone-converted, which is
+  three different rules across the three providers and is pinned by `calendar.sandbox`'s §H.
 - **D12 · The data-model gap.** No new primitive types — `goal/milestone/task/event/routine` is
   the right cut. Missing is one table and three columns: **`item_deps`** (the one place a column
   won't do — nothing expresses "can't start B until A ships", which is the question a planner
@@ -122,8 +135,10 @@ this work and BB-3 is marked *Partial*.
   files — ⚠️ **not** `/mnt/Luna/Plex/Music`, which also exists on the host and is empty);
   **WV-6** (two hardcoded per-app branches in code documented as app-agnostic); **WV-8**
   (jkDeploy isn't in `@jkos/suite-manifest`, so "deploy staging" can't be a HUD button);
-  **XC-5** (three apps keep user settings in `localStorage`; the prefs blob has no namespacing
-  convention, which matters once `timezone` joins it); **XC-6** (`<AppShell>`/`<AsyncView>`
+  **XC-5** (three apps keep user settings in `localStorage`; the namespacing convention is
+  now written down and `timezone` follows it, but ORDECK's `hud`/`hudPins`/`hudFocus` still sit
+  at the top level where they don't belong — they are LIVE user data, so the move needs a
+  read-fallback and a lazy re-write on next save, not a rename); **XC-6** (`<AppShell>`/`<AsyncView>`
   reached PapyrOS and KourOS and stopped). *(WV-7 is done — the `@jkos/cards` barrel no longer
   advertises what nothing imports.)*
 

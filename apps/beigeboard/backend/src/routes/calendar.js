@@ -10,6 +10,12 @@ const { run, get } = require('../db');
 const { authMiddleware, optionalAuth } = require('../auth');
 const { encryptSecret, decryptSecret, setOAuthState, checkOAuthState } = require('../crypto');
 const { safeJson, fail } = require('../util');
+/* The caller's IANA zone (D5 / BB-15). A calendar event is an INSTANT upstream and
+   a due_date + scheduled_time in our items table, and that conversion has no answer
+   until you say where the user is. Threaded into every sync below; null (a caller
+   with no zone header — an OAuth redirect landing in a fresh tab, a peer service)
+   resolves to UTC inside the normalisers. */
+const { callerZone } = require('@jkos/weave/server');
 const { wantsForce, syncBody } = require('../calendar/replace');
 const { makeOAuth2, syncGoogleEvents } = require('../calendar/google');
 const { getMsToken, syncOutlookEvents } = require('../calendar/outlook');
@@ -69,7 +75,7 @@ router.get('/api/auth/google/callback', optionalAuth(authMiddleware), async (req
         t.refresh_token ? [encryptSecret(t.access_token), t.expiry_date, encryptSecret(t.refresh_token), req.user.sub] : [encryptSecret(t.access_token), t.expiry_date, req.user.sub]);
     });
 
-    try { await syncGoogleEvents(oauth2, req.user.sub); } catch (e) { console.warn('Google calendar sync:', e.message); }
+    try { await syncGoogleEvents(oauth2, req.user.sub, false, callerZone(req)); } catch (e) { console.warn('Google calendar sync:', e.message); }
 
     close({ type: 'google-auth-success', email: req.user.email });
   } catch (e) {
@@ -133,7 +139,7 @@ router.get('/api/auth/outlook/callback', optionalAuth(authMiddleware), async (re
     // The token is saved; a sync blip now must NOT report the connection as failed
     // (the user IS connected — sync retries on the next poll/manual sync). Mirrors
     // the Google callback, whose initial sync is wrapped for the same reason.
-    try { await syncOutlookEvents(t.access_token, req.user.sub); } catch (e) { console.warn('Outlook calendar sync:', e.message); }
+    try { await syncOutlookEvents(t.access_token, req.user.sub, false, callerZone(req)); } catch (e) { console.warn('Outlook calendar sync:', e.message); }
     close({ type: 'outlook-auth-success', email });
   } catch (e) {
     console.error('Outlook callback error:', e);
@@ -167,7 +173,7 @@ router.post('/api/calendar/google/sync', async (req, res) => {
       run(`UPDATE calendar_tokens SET access_token=?, expiry_ms=? ${t.refresh_token?',refresh_token=?':''} WHERE id=?`,
         t.refresh_token ? [encryptSecret(t.access_token), t.expiry_date, encryptSecret(t.refresh_token), row.id] : [encryptSecret(t.access_token), t.expiry_date, row.id]);
     });
-    const result = await syncGoogleEvents(oauth2, req.user.sub, wantsForce(req));
+    const result = await syncGoogleEvents(oauth2, req.user.sub, wantsForce(req), callerZone(req));
     res.json(syncBody(result));
   } catch (e) { fail(res, e); }
 });
@@ -193,7 +199,7 @@ router.post('/api/calendar/outlook/sync', async (req, res) => {
     const row = get('SELECT * FROM calendar_tokens WHERE user_id=? AND provider=?', [req.user.sub, 'outlook']);
     if (!row) return res.status(401).json({ error: 'Not connected' });
     const token = await getMsToken(row);
-    const result = await syncOutlookEvents(token, req.user.sub, wantsForce(req));
+    const result = await syncOutlookEvents(token, req.user.sub, wantsForce(req), callerZone(req));
     res.json(syncBody(result));
   } catch (e) { fail(res, e); }
 });

@@ -89,13 +89,12 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
   useEffect(() => { checkAuth() }, [])
   useEffect(() => { if (user === false) toAuthPortal() }, [user])
 
-  /* All API calls go through authFetch which handles token refresh */
-  /* Every request carries the client's LOCAL date. The routine engine mints
-     relative to "today" and the server's UTC day is not the user's day — at 17:00
-     in California it is already tomorrow in UTC, which would skip the occurrence
-     on screen. Computed per call, not captured, so a tab left open overnight sends
-     the new date on its next request. A header, not a query param: `GET /api/items`
-     reads any query param as "filtered" and suppresses the seed + materialise. */
+  /* All API calls go through authFetch which handles token refresh — and, since
+     D5/XC-4, which stamps the caller's IANA zone onto every request as X-JKOS-TZ.
+     BeigeBoard used to send its own `X-BB-Today` here, a client-computed DAY that
+     only this app sent and only this app's two route files read. The zone is sent
+     for the whole suite now, by one function, so the routine engine and ORDECK
+     cannot disagree about what day it is (BB-2). Nothing to do here but stop. */
   /* MEMOISED, and that is load-bearing rather than a micro-optimisation. `api` is
      passed down and used as an effect DEPENDENCY by everything that fetches once on
      mount (the workshop's library count, the forge's vocabulary, the library
@@ -104,27 +103,24 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
      board was firing bursts of GET /api/library because of exactly this. Nothing
      inside is reactive except `apiUrl`, so one dep is the whole list. */
   const api = useMemo(() => {
-    const bbHeaders = (extra?: Record<string, string>) => ({
-      'X-BB-Today': isoDate(new Date()),
-      ...extra,
-    })
+    const JSON_HEADERS = { 'Content-Type': 'application/json' }
     const unwrap = (r: Response) => {
       if (r.status === 401) { toAuthPortal(); throw new Error('Unauthorized') }
       return r.json()
     }
     return {
       get: (path: string) =>
-        authFetch(`${apiUrl}${path}`, { headers: bbHeaders() }).then(unwrap),
+        authFetch(`${apiUrl}${path}`).then(unwrap),
       post: (path: string, body: any) =>
         authFetch(`${apiUrl}${path}`, {
-          method: 'POST', headers: bbHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(body),
+          method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(body),
         }).then(unwrap),
       patch: (path: string, body: any) =>
         authFetch(`${apiUrl}${path}`, {
-          method: 'PATCH', headers: bbHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(body),
+          method: 'PATCH', headers: JSON_HEADERS, body: JSON.stringify(body),
         }).then(unwrap),
       del: (path: string) =>
-        authFetch(`${apiUrl}${path}`, { method: 'DELETE', headers: bbHeaders() }).then(unwrap),
+        authFetch(`${apiUrl}${path}`, { method: 'DELETE' }).then(unwrap),
     }
   }, [apiUrl])
 

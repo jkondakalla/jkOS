@@ -95,7 +95,11 @@ const WED = TODAY, FRI = shift(TODAY, 2);
 const NEXT_MON = shift(TODAY, 5), NEXT_WED = shift(TODAY, 7), NEXT_FRI = shift(TODAY, 9);
 
 async function req(method, path, body, { today = TODAY, token = A } = {}) {
-  const headers = { 'X-BB-Today': today };
+  /* Pinning "today" is the only way to assert the horizon rolls forward, and since
+     D5 it needs the server's opt-in: X-JKOS-TODAY is read only when the process was
+     started with JKOS_TIME_TRAVEL=1 outside production (see the spawn below and
+     @jkos/weave/server's callerDay.js). In production this header is inert. */
+  const headers = { 'X-JKOS-TODAY': today };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (token) headers['Authorization'] = `Bearer ${token}`;
   const r = await fetch(BASE + path, {
@@ -136,6 +140,7 @@ const child = spawn('node', ['server.js'], {
   cwd: BACKEND,
   env: {
     ...process.env, NODE_ENV: '', PORT: String(PORT), DB_PATH,
+    JKOS_TIME_TRAVEL: '1',
     JKOS_AUTH_PUBLIC_KEY: publicKey, JKOS_AUTH_ISSUER: ISSUER,
   },
   stdio: ['ignore', 'pipe', 'pipe'],

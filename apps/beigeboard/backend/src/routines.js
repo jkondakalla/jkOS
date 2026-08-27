@@ -299,19 +299,20 @@ function plannedOccurrences(routine, today) {
   /* RULE 1: a routine never reaches back before the day it was created.
    *
    * The two dates are in DIFFERENT FRAMES and the slack below is what reconciles
-   * them. `created_at` is stamped by SQLite's datetime('now') — UTC. `today` is the
-   * caller's LOCAL date, off the X-BB-Today header (see routes/items.js on why it
-   * is a header). At 19:00 in Chicago the UTC date has already rolled over, so a
-   * routine created that evening was `born` TOMORROW as far as this comparison is
-   * concerned — and the floor then skipped the user's own next day, silently, for
-   * everyone west of UTC. One day of slack absorbs exactly that skew, which is the
-   * largest it can ever be.
+   * them. `created_at` is stamped in UTC. `today` is the caller's day in the
+   * caller's zone — `callerDay(req)` from @jkos/weave/server (D5). At 19:00 in
+   * Chicago the UTC date has already rolled over, so a routine created that evening
+   * was `born` TOMORROW as far as this comparison is concerned — and the floor then
+   * skipped the user's own next day, silently, for everyone west of UTC. One day of
+   * slack absorbs exactly that skew, which is the largest it can ever be.
    *
-   * The floor is kept rather than dropped because it is also the guard on a
-   * CLIENT-SUPPLIED value: `today` arrives in a header, so without a floor a stale
-   * tab or a wrong clock could ask the engine to mint a year of occurrences into
-   * the past. Pulled back a day, it still refuses that and stops fighting the
-   * timezone. */
+   * ⚠️ The floor is kept rather than dropped, and the reason CHANGED on 2026-08-27
+   * without the conclusion changing. It used to be the guard on a client-supplied
+   * value — `today` arrived as a date in a header, so a stale tab or a wrong clock
+   * could ask for a year of past occurrences. It is now derived server-side from a
+   * ZONE, so a client can move it by at most a day either way. The floor stays
+   * because RULE 1 is a rule about the routine, not a defence: a routine does not
+   * reach back before it existed, whoever is asking. */
   const born = String(routine.created_at || '').slice(0, 10);
   const bornFloor = born ? addDays(born, -1) : '';
   const floor = bornFloor && bornFloor > today ? bornFloor : today;

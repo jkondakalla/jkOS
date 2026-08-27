@@ -5,7 +5,18 @@
 // re-implementing "fetch a window → build item rows → delete-all-then-reinsert".
 // They now share this contract:
 //
-//   Provider = { id, fetchWindow(creds, days) → Promise<NormalizedEvent[]> }
+//   Provider = { id, fetchWindow(creds, days, zone) → Promise<NormalizedEvent[]> }
+//
+// ⚠️ `zone` is the caller's IANA zone (D5 / BB-15) and it is part of the contract,
+// not an option: a TIMED event is an instant, and turning an instant into a
+// due_date + a scheduled_time is a question with no answer until you say where.
+// Until 2026-08-27 the answer was silently "wherever the container runs", so the
+// same event landed on different days in different deployments. `null` resolves to
+// UTC — a stated convention rather than an accident.
+//
+// ALL-DAY events take no zone and must not be given one: "the 27th" is the 27th
+// everywhere, so those paths use the floating string math in util.js. Handing an
+// all-day boundary to a zone is how an event moves a day.
 //
 //   NormalizedEvent = {
 //     title, notes,            // strings (title defaults to '(No title)')
@@ -33,14 +44,15 @@ const SYNC_WINDOW_DAYS = 90;
 /* Shared normalization for a TIMED interval given two JS Dates (google + outlook
    both parse their upstream into Dates and computed this identically). `ed` may be
    null (an event with a start but no end). end_date is set only when the event spans
-   into a different calendar day than it starts. */
-function timedInterval(sd, ed) {
-  const due_date = isoDateStr(sd);
-  const scheduled_time = fmt24(sd);
+   into a different calendar day than it starts — "a different day" being a question
+   about `zone`, which is why it is threaded here rather than defaulted. */
+function timedInterval(sd, ed, zone) {
+  const due_date = isoDateStr(sd, zone);
+  const scheduled_time = fmt24(sd, zone);
   let scheduled_end = null, end_date = null;
   if (ed) {
-    scheduled_end = fmt24(ed);
-    const endStr = isoDateStr(ed);
+    scheduled_end = fmt24(ed, zone);
+    const endStr = isoDateStr(ed, zone);
     if (endStr !== due_date) end_date = endStr;
   }
   return { due_date, scheduled_time, scheduled_end, end_date };
@@ -49,8 +61,8 @@ function timedInterval(sd, ed) {
 /* The one writer. Fetches a provider's window, maps each NormalizedEvent to an
    items row (kind 'event', scope 'day', source = provider.id), and swaps them in
    through the empty-upstream-guarded replace. Returns { synced, skipped, reason? }. */
-async function syncProvider(provider, creds, userId, { force = false, days = SYNC_WINDOW_DAYS } = {}) {
-  const events = await provider.fetchWindow(creds, days);
+async function syncProvider(provider, creds, userId, { force = false, days = SYNC_WINDOW_DAYS, zone = null } = {}) {
+  const events = await provider.fetchWindow(creds, days, zone);
   const rows = events.map((e) => [
     userId, 'event', 'day', e.title, e.notes, provider.id,
     e.due_date, e.scheduled_time, e.scheduled_end, e.location, e.end_date,

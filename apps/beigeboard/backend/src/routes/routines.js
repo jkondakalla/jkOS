@@ -33,10 +33,11 @@
  */
 const express = require('express');
 const { all, get, run } = require('../db');
-const { ITEM_COLUMNS, coerceColumn, validateItemWrite, looksLikeDate } = require('../schema');
+const { ITEM_COLUMNS, coerceColumn, validateItemWrite } = require('../schema');
 const { validParentId } = require('../items-store');
 const lib = require('../library');
 const spec = require('../routine-spec');
+const { callerDay } = require('@jkos/weave/server');
 const { buildPrompt } = require('../routine-prompt');
 const { materializeOne, recordRevision, revisionsOf, setDeloadOverride, HORIZON_WEEKS } = require('../routines');
 const { toRow, fail } = require('../util');
@@ -48,13 +49,10 @@ const router = express.Router();
    an author to get wrong, and `days: ['mon','thu']` removes the question entirely. */
 const DAY_NAMES = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 
-/* Same rule as routes/items.js: the caller's LOCAL date, because the routine engine
-   mints relative to "today" and the server's UTC day is not the user's day. */
-function callerToday(req) {
-  const h = req.get('X-BB-Today');
-  if (h && looksLikeDate(String(h))) return String(h).trim();
-  return new Date().toISOString().slice(0, 10);
-}
+/* "Today" is `callerDay(req)` from @jkos/weave/server, the suite's one definition
+   (D5 / XC-4) — the routine engine mints relative to it and the server's UTC day is
+   not the user's. This file used to carry a hand-copy of routes/items.js's version;
+   they are one function now. */
 
 /* The starter library is seeded on first touch, the same lazy bargain the items
    seed and the routine mint already make. One COUNT when it is already there.
@@ -474,7 +472,7 @@ router.get('/api/routines/:id/metric', (req, res) => {
     const row = get('SELECT * FROM items WHERE id = ? AND user_id = ? AND kind = ?', [id, req.user.sub, 'routine']);
     if (!row) return res.status(404).json({ error: 'Not found' });
     const { spec: s } = spec.normalizeSpec(row.spec, { resolve: lib.resolverFor(req.user.sub) });
-    const metric = spec.metricOf(s, occurrencesOf(id, req.user.sub), callerToday(req));
+    const metric = spec.metricOf(s, occurrencesOf(id, req.user.sub), callerDay(req));
     res.json({ id, title: row.title, goal_id: row.parent_id ?? null, metric });
   } catch (e) { fail(res, e); }
 });
@@ -551,7 +549,7 @@ router.post('/api/items/:id/deload', (req, res) => {
     const asked = req.body?.deload;
     const value = req.body?.clear === true ? null
       : (asked === false || asked === 0 ? 0 : 1);
-    const r = setDeloadOverride(id, req.user.sub, callerToday(req), value);
+    const r = setDeloadOverride(id, req.user.sub, callerDay(req), value);
     if (!r.ok) return res.status(400).json({ error: r.error, code: 'VALIDATION' });
     res.json(toRow(r.row));
   } catch (e) { fail(res, e); }
@@ -725,7 +723,7 @@ router.post('/api/routines/import', (req, res) => {
       });
     }
 
-    const done = commitRoutine(req.user.sub, prep, callerToday(req), doc.revision_note);
+    const done = commitRoutine(req.user.sub, prep, callerDay(req), doc.revision_note);
 
     res.status(done.created ? 201 : 200).json({
       ok: true, slug: prep.slug, created: done.created,
@@ -906,7 +904,7 @@ router.post('/api/routines/bundle', (req, res) => {
       ? lib.importEntries(req.user.sub, entries)
       : { created: 0, updated: 0, failed: [] };
 
-    const today = callerToday(req);
+    const today = callerDay(req);
     const written = preps.map((p, i) => {
       const done = commitRoutine(req.user.sub, p, today, routines[i]?.revision_note);
       return {

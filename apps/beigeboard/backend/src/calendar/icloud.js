@@ -14,7 +14,7 @@
 //     server-side, but we do not expand client-side.)
 // Both are the reasons a future ical.js swap lives behind fetchWindow/normalizeICal.
 const { ICLOUD_CALDAV } = require('../config');
-const { isoDateStr } = require('../util');
+const { prevDay } = require('../util');
 const { syncProvider, SYNC_WINDOW_DAYS } = require('./provider');
 
 function basicAuth(u, p) { return 'Basic ' + Buffer.from(`${u}:${p}`).toString('base64'); }
@@ -78,7 +78,11 @@ function icalText(prop) {
   return prop.val.replace(/\\n/g, '\n').replace(/\\,/g, ',').replace(/\\;/g, ';').replace(/\\\\/g, '\\');
 }
 
-/* Pure: one calendar's raw ICS text → NormalizedEvent[]. Exported for TEST-8. */
+/* Pure: one calendar's raw ICS text → NormalizedEvent[]. Exported for TEST-8.
+   Takes NO zone, and that is the correct signature rather than an omission: this
+   parser reads the digits an ICS literal spells out (TZID params are ignored — see
+   the file header), so every date and time it produces is already floating. There
+   is no instant here to place anywhere. */
 function normalizeICal(icalRaw) {
   const out = [];
   for (const ev of parseVEvents(icalRaw)) {
@@ -86,8 +90,11 @@ function normalizeICal(icalRaw) {
     if (!start) continue;
     let end_date = null;
     if (start.allDay && end) {
-      const ed = new Date(end.iso + 'T00:00:00Z'); ed.setDate(ed.getDate() - 1);   // DTEND is exclusive
-      const s = isoDateStr(ed); if (s !== start.iso) end_date = s;
+      // DTEND is exclusive. ⚠️ This was a genuine off-by-one until 2026-08-27: it
+      // parsed the date as UTC midnight, stepped it back with a LOCAL setDate(), and
+      // formatted it LOCALLY — two zone changes that cancel only at UTC, and land
+      // TWO days back anywhere west of it. Calendar-string math has no such seam.
+      const s = prevDay(end.iso); if (s !== start.iso) end_date = s;
     } else if (!start.allDay && end && end.iso !== start.iso) {
       end_date = end.iso;
     }

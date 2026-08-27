@@ -353,6 +353,18 @@ function dashboardPage(user, nonce = '') {
       each tier picks its own model from the deployment config on the machine that runs it.</p>
     <div class="ai-status" id="ai-status"></div>
   </section>
+
+  <section class="panel">
+    <div class="ai-head">
+      <h2>Timezone</h2>
+    </div>
+    <p class="muted-note">Where you are, for every jkOS app at once. This is what "today" means
+      across the suite &mdash; which day a task is due on, when a routine rolls over, and the
+      wall-clock time a synced calendar event is filed at. Leave it on your device's timezone
+      unless you want a fixed one that travel doesn't change.</p>
+    <select class="jk-field" id="tz-select" aria-label="Timezone"></select>
+    <div class="ai-status" id="tz-status"></div>
+  </section>
 </div>
 
 <script nonce="${nonce}">
@@ -400,6 +412,58 @@ fetch('/auth/profile', { credentials: 'same-origin' })
 
 sw.addEventListener('click', () => { lazuros.enabled = !lazuros.enabled; paint(); save(); });
 sw.addEventListener('keydown', e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); sw.click(); } });
+
+// The timezone — the suite's one answer to WHERE the user is (D5 / XC-4). Owned
+// here for the same reason the AI switch is: it is a SUITE-WIDE preference, so it
+// is set in one place and every app reads it. @jkos/auth-client stamps it onto
+// every request as X-JKOS-TZ; @jkos/weave/server's callerDay() reads it back.
+//
+// Empty value = "follow this device", stored as null rather than as the resolved
+// zone. That distinction is the whole point of the control: a stored zone is a
+// choice that survives travel, and a null is a standing instruction to keep asking
+// the browser. Writing the resolved zone here would silently pin a laptop to the
+// airport it last opened in.
+const tzSel = document.getElementById('tz-select');
+const tzStatus = document.getElementById('tz-status');
+
+function deviceZone() {
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch (e) { return 'UTC'; }
+}
+function zoneList() {
+  // Intl.supportedValuesOf is ES2022; on an engine without it the control still
+  // works, offering the device zone and UTC rather than rendering empty.
+  try { if (typeof Intl.supportedValuesOf === 'function') return Intl.supportedValuesOf('timeZone'); }
+  catch (e) { /* fall through */ }
+  return [deviceZone(), 'UTC'];
+}
+
+// Built with the Option constructor, not innerHTML: these strings are engine data
+// rather than user input, but this file's rule is that nothing is concatenated into
+// markup, and an exception is how the next one gets written.
+tzSel.appendChild(new Option('Use this device (' + deviceZone() + ')', ''));
+for (const z of zoneList()) tzSel.appendChild(new Option(z.replace(/_/g, ' '), z));
+
+function saveTz() {
+  tzStatus.textContent = 'Saving…';
+  fetch('/auth/profile', {
+    method: 'PATCH', credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ preferences: { timezone: tzSel.value || null } }),
+  }).then(r => { tzStatus.textContent = r.ok ? 'Saved' : 'Save failed'; })
+    .catch(() => { tzStatus.textContent = 'Save failed'; });
+}
+
+fetch('/auth/profile', { credentials: 'same-origin' })
+  .then(r => r.ok ? r.json() : null)
+  .then(p => {
+    const tz = p && p.preferences ? p.preferences.timezone : null;
+    // Only select a stored zone the browser actually knows; a stale or hand-edited
+    // id would otherwise leave the control blank and the next save would wipe it.
+    tzSel.value = (tz && [...tzSel.options].some(o => o.value === tz)) ? tz : '';
+  })
+  .catch(() => {});
+
+tzSel.addEventListener('change', saveTz);
 </script>`)
 }
 

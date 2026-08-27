@@ -21,6 +21,7 @@ const { coerceWeaveColumn } = require('./columns')
 const { weaveServerClient, assertServiceClientProvisioned } = require('./serverClient')
 const { defineCollection, backfillWireTime } = require('./collection')
 const { SQL_NOW, sqlConvert, isCanonical: isCanonicalTime, parse: parseWireTime } = require('./wireTime')
+const { callerZone, zonedParts, callerDay } = require('./callerDay')
 const { defineConnector } = require('./connector')
 const { defineLibraryScanner } = require('./libraryScanner')
 const { defineMediaRoutes, decidePlayback } = require('./mediaRoutes')
@@ -49,6 +50,7 @@ module.exports = {
   defineCollection,
   backfillWireTime,
   SQL_NOW, sqlConvert, isCanonicalTime, parseWireTime,
+  callerZone, zonedParts, callerDay,
   defineConnector,
   defineLibraryScanner,
   defineMediaRoutes,
