@@ -453,12 +453,11 @@ ok('triggerWebhook rejects a malformed event (400)', wr.code === 400)
 ok('serverDispatch requires a resolve()', (() => { try { serverDispatch({}); return false } catch { return true } })())
 
 /* ═══ Calendar primitive · updateItem contract + source-hook mapping ══════════ */
-// The @jkos/cards calendar primitive plugs onto a peer's `items` collection via
-// useCalendarSource, whose reschedule path REQUIRES a general `updateItem`
-// capability (completeItem only flips `completed`). These assert the declared
-// contract is wide enough to drive cross-app drag, and that the source hook maps
-// each callback onto the matching capability — the load-bearing seam of the plan.
-section('Calendar · updateItem capability + useCalendarSource mapping')
+// The @jkos/cards calendar primitive plugs onto a peer's `items` collection, and
+// a reschedule REQUIRES a general `updateItem` capability (completeItem only
+// flips `completed`). These assert the declared contract is wide enough to drive
+// a cross-app drag.
+section('Calendar · updateItem capability')
 const ROOT = resolve(HERE, '..', '..', '..')
 const disc = require(join(ROOT, 'apps', 'beigeboard', 'backend', 'discovery.js'))
 const caps = disc.CAPABILITIES.capabilities
@@ -480,27 +479,19 @@ ok('ITEM_SHAPE widened to the full calendar field set', (() => {
   return ['scope', 'parent_id', 'accent', 'source', 'end_date', 'scheduled_end'].every((k) => n.has(k))
 })())
 
-const hookSrc = readFileSync(join(ROOT, 'packages', 'cards', 'src', 'useCalendarSource.ts'), 'utf8')
-const MAPPING = [
-  ['onAddItem', 'createItem'],
-  ['onUpdateItem', 'updateItem'],
-  ['onToggle', 'completeItem'],
-  ['onDelete', 'deleteItem'],
-]
-// Each callback ties to its capability either directly (`command('createItem')`)
-// or through the shared error-handling helper (`run('createItem', …)`) the hook
-// funnels every write through so a rejected command invalidates + surfaces.
-for (const [cb, cap] of MAPPING) {
-  ok(`useCalendarSource maps ${cb} → ${cap}`, new RegExp(`${cb}[\\s\\S]{0,120}(?:command|run)\\(\\s*['"]${cap}['"]`).test(hookSrc))
-}
-// The live-reschedule subscription moved INTO useWeaveList: it derives its default
-// invalidateOn from resourceKey(appId, datasetId), so no caller types a bus key.
-// Guard both halves: the hook derives the default, and useCalendarSource no longer
-// hand-passes a literal (a reintroduced literal would shadow the derivation).
+// ⚠️ Six assertions here used to pin `useCalendarSource`'s callback→capability
+// mapping. The hook was DELETED 2026-08-27 (WV-7): it had no consumer anywhere,
+// inside @jkos/cards or out — its only surviving mentions were comments
+// describing how one would use it. The assertions went with it, deliberately and
+// not reluctantly: a test that pins a seam nothing uses reports health for a
+// thing whose absence nobody would notice, and it is the reason an unused export
+// survives long enough to look supported.
+//
+// What is kept is everything above: the `updateItem` capability contract still
+// has to be wide enough to drive a cross-app reschedule, whoever ends up calling
+// it. And the derivation the hook relied on is asserted directly at its source.
 const clientSrc = readFileSync(join(ROOT, 'packages', 'weave', 'src', 'weaveClient.ts'), 'utf8')
 ok('useWeaveList derives its bus subscription from resourceKey(app, dataset)',
   /invalidateOn:\s*\[resourceKey\(appId,\s*datasetId\)\]/.test(clientSrc))
-ok('useCalendarSource relies on the derived subscription (passes no invalidateOn literal)',
-  !/invalidateOn/.test(hookSrc.replace(/\/\/[^\n]*/g, '')))
 
 console.log(`\nPASS: ${pass} passed, 0 failed${skip ? `, ${skip} skipped` : ''}`)
