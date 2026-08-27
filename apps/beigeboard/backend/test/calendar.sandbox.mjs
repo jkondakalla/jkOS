@@ -49,7 +49,7 @@ const require = createRequire(import.meta.url);
 const { normalizeGoogle }  = require('../src/calendar/google.js');
 const { normalizeOutlook } = require('../src/calendar/outlook.js');
 const { normalizeICal }    = require('../src/calendar/icloud.js');
-const { replaceCalendarSource } = require('../src/calendar/replace.js');
+const { replaceCalendarSource, purgeCalendarSource } = require('../src/calendar/replace.js');
 const { encryptSecret, decryptSecret } = require('../src/crypto.js');
 const { run, all } = require('../src/db.js');
 
@@ -115,7 +115,7 @@ try {
   ok(rr.length === 1, `E: iCloud RRULE is not expanded — one base instance only (got ${rr.length})`);
 
   // ── F. empty-upstream WIPE GUARD (BUG-2), driven through the shared writer ──
-  const insert = (source) => run('INSERT INTO items (user_id,kind,scope,title,source) VALUES (?,?,?,?,?)', [1, 'event', 'day', 'x', source]);
+  const insert = (source) => run('INSERT INTO items (user_id,kind,scope,title,source) VALUES (?,?,?,?,?)', [1, 'event', 'day', 'x', source]).lastInsertRowid;
   const count = (source) => all('SELECT id FROM items WHERE user_id=1 AND source=?', [source]).length;
   insert('google'); insert('google');
   const guard = replaceCalendarSource('google', 1, [], { force: false });
@@ -127,6 +127,37 @@ try {
   ok(wrote.synced === 1 && wrote.skipped === false && count('google') === 1, 'F: a non-empty upstream replaces normally');
   const emptyNoLocal = replaceCalendarSource('outlook', 1, [], { force: false });
   ok(emptyNoLocal.synced === 0 && emptyNoLocal.skipped === false, 'F: empty upstream with NO local rows → synced 0, not "skipped" (nothing to protect)');
+
+  // ── I. THE REPLACE CASCADES (BB-12 / D10) ──────────────────────────────────
+  //    ⚠️ The audit named the DISCONNECT route's raw DELETE. It missed the one that
+  //    mattered more: `replaceCalendarSource` did the same thing, and a disconnect
+  //    happens once while THIS runs on every sync. `items.parent_id` carries no
+  //    foreign key — only `user_id` does — so SQLite cascades nothing, and a note or
+  //    checklist a user nested under a synced calendar event was left parented to a
+  //    row that no longer existed, reachable by no view, every time their calendar
+  //    refreshed.
+  const parentId = insert('icloud');
+  const childId = run(
+    'INSERT INTO items (user_id,kind,scope,title,parent_id) VALUES (?,?,?,?,?)',
+    [1, 'task', 'day', 'my note on that meeting', parentId],
+  ).lastInsertRowid;
+  ok(!!all('SELECT id FROM items WHERE id=?', [childId]).length, 'I: a child nested under a synced event exists');
+
+  //    The child carries NO `source`, so it is not swept by the source filter — it
+  //    can only be reached by walking the tree, which is exactly what was missing.
+  replaceCalendarSource('icloud', 1, [[1, 'event', 'day', 'fresh', null, 'icloud', '2026-07-10', null, null, null, null]], { force: false });
+  ok(!all('SELECT id FROM items WHERE id=?', [childId]).length,
+    'I: ⭐ a re-sync CASCADES — the child goes with its parent instead of being orphaned');
+  ok(!all('SELECT id FROM items WHERE id=?', [parentId]).length, 'I: the old event itself is gone');
+  ok(count('icloud') === 1, `I: and the fresh row replaced it (got ${count('icloud')})`);
+
+  //    The disconnect path takes the same route.
+  const dParent = insert('outlook');
+  run('INSERT INTO items (user_id,kind,scope,title,parent_id) VALUES (?,?,?,?,?)', [1, 'task', 'day', 'child', dParent]);
+  const removed = purgeCalendarSource('outlook', 1);
+  ok(removed >= 1, `I: purgeCalendarSource reports what it removed (got ${removed})`);
+  ok(!all("SELECT id FROM items WHERE parent_id=?", [dParent]).length,
+    'I: disconnecting a provider takes the children too, not just the events');
 
   // ── H. THE CALLER'S ZONE DECIDES, NOT THE HOST'S (BB-15 / D5) ──
   //     Everything above ran with no zone argument, i.e. the UTC default, on a host

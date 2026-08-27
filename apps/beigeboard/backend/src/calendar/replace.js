@@ -2,7 +2,8 @@
 // The shared calendar writer: atomically swap one provider's items for a user, with
 // the empty-upstream wipe guard (BUG-2). All three provider fetchers build validated
 // rows then hand them here.
-const { db, run, get } = require('../db');
+const { db, run, all, get } = require('../db');
+const { cascadeDelete } = require('../items-store');
 
 /* ── Atomic calendar replace — swap one provider's items in a single transaction.
    Rows are built + validated BEFORE this runs, so a mid-sync throw or a concurrent
@@ -11,8 +12,29 @@ const { db, run, get } = require('../db');
 const INSERT_ITEM_SQL = `INSERT INTO items (user_id,kind,scope,title,notes,source,due_date,scheduled_time,scheduled_end,location,end_date)
        VALUES (?,?,?,?,?,?,?,?,?,?,?)`;
 const replaceCalendarSourceTx = db.transaction((source, userId, rows) => {
-  run("DELETE FROM items WHERE source=? AND user_id=?", [source, userId]);
+  /* ⚠️ CASCADE, never a bare DELETE (BB-12 / D10). `items.parent_id` carries NO
+     foreign key — only `user_id` does — so SQLite cascades nothing here and
+     cascadeDelete is the only thing that walks children.
+     ⚠️ And this is the path that mattered most, which the audit did not say: it
+     named the DISCONNECT route's raw DELETE, but a disconnect happens once. THIS
+     runs on EVERY SYNC. A note or a checklist a user nested under a synced calendar
+     event was orphaned — parented to a row that no longer existed, reachable by no
+     view — every single time their calendar refreshed.
+     Nested inside the surrounding transaction: better-sqlite3 turns a transaction
+     function called within another into a SAVEPOINT, so the all-or-nothing property
+     above is unchanged. */
+  const mine = all('SELECT id FROM items WHERE source=? AND user_id=?', [source, userId]);
+  for (const row of mine) cascadeDelete(row.id, userId);
   for (const r of rows) run(INSERT_ITEM_SQL, r);
+});
+
+/** Remove every item a provider owns for one user, children and all — the
+ *  disconnect path. Same cascade rule as the replace above, and exported so the
+ *  three disconnect routes cannot each re-hand-roll the DELETE they used to. */
+const purgeCalendarSource = db.transaction((source, userId) => {
+  const mine = all('SELECT id FROM items WHERE source=? AND user_id=?', [source, userId]);
+  for (const row of mine) cascadeDelete(row.id, userId);
+  return mine.length;
 });
 
 /* Swap a provider's events for one user (delete-all-then-reinsert). Guards a
@@ -40,4 +62,4 @@ function replaceCalendarSource(source, userId, rows, { force = false } = {}) {
 const wantsForce = (req) => req.query.force === '1' || req.query.force === 'true';
 const syncBody = (result) => ({ ok: true, synced: result.synced, skipped: !!result.skipped, ...(result.reason ? { reason: result.reason } : {}) });
 
-module.exports = { INSERT_ITEM_SQL, replaceCalendarSource, wantsForce, syncBody };
+module.exports = { INSERT_ITEM_SQL, replaceCalendarSource, purgeCalendarSource, wantsForce, syncBody };

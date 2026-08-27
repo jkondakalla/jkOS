@@ -16,7 +16,7 @@ const { safeJson, fail } = require('../util');
    with no zone header — an OAuth redirect landing in a fresh tab, a peer service)
    resolves to UTC inside the normalisers. */
 const { callerZone } = require('@jkos/weave/server');
-const { wantsForce, syncBody } = require('../calendar/replace');
+const { wantsForce, syncBody, purgeCalendarSource } = require('../calendar/replace');
 const { makeOAuth2, syncGoogleEvents } = require('../calendar/google');
 const { getMsToken, syncOutlookEvents } = require('../calendar/outlook');
 const { syncICloudEvents } = require('../calendar/icloud');
@@ -147,71 +147,124 @@ router.get('/api/auth/outlook/callback', optionalAuth(authMiddleware), async (re
   }
 });
 
-/* ── Google status / disconnect / sync ─────────────────────────────────── */
-router.get('/api/auth/google/status', (req, res) => {  // app-private: connector state for this app's own settings panel
+/* ══════════════════════════════════════════════════════════════════════════════
+   THE THREE PROVIDERS' HTTP HALF, ONCE (BB-6 / D10)
+   ══════════════════════════════════════════════════════════════════════════════
+
+   `provider.js` unified the FETCH half — one CalendarProvider contract, one shared
+   writer — and said so in its own header. The HTTP half never followed: status,
+   disconnect and sync existed three times each, ~100 lines of bodies differing only
+   in a provider literal and in how credentials are loaded. Nine routes, three
+   distinct ideas.
+
+   ⚠️ NOT `defineConnector`, which is what RESET proposed and which is the wrong
+   instrument — the code wins. That primitive turns "an upstream base + auth + an
+   endpoint→contract mapping" into a server-side PROXY: a caller asks, it forwards,
+   it maps the reply back. Calendar sync does not proxy anything. It fetches a
+   90-day window, normalises three dialects into one shape, and WRITES INTO THE LOCAL
+   ITEMS TABLE through a guarded replace. Forcing it into a proxy factory would mean
+   describing a sync as a read and losing the wipe guard, the zone threading and the
+   cascade — everything that makes it correct.
+
+   ⚠️ EACH ROUTE IS STILL REGISTERED WITH ITS LITERAL PATH, deliberately, rather than
+   in a `for (const p of PROVIDERS)` loop. `98-surface-coverage` censuses mounted
+   routes by parsing their path literals out of source, so a loop would collapse nine
+   visible surfaces into one unparseable `/api/auth/${id}/status` — trading a
+   duplication problem for an invisibility problem, which is the more expensive one.
+   The bodies are shared; the mount points stay legible.
+
+   NO SCHEDULER, still, and that is a decision rather than an omission: this suite has
+   no cron by design (see routines.js on the same bargain). A calendar syncs when the
+   user connects it and when they ask. */
+
+/** How each provider turns a stored `calendar_tokens` row into a completed sync.
+ *  The ONLY thing that genuinely differs between the three. */
+const PROVIDERS = {
+  google: {
+    label: 'Google Calendar',
+    async sync(row, req) {
+      const oauth2 = makeOAuth2();
+      oauth2.setCredentials({
+        access_token: decryptSecret(row.access_token),
+        refresh_token: decryptSecret(row.refresh_token),
+        expiry_date: row.expiry_ms,
+      });
+      /* Google hands back a refreshed access token out-of-band; persist it (and a
+         rotated refresh token when one arrives) or the next sync re-does the dance. */
+      oauth2.on('tokens', (t) => {
+        run(`UPDATE calendar_tokens SET access_token=?, expiry_ms=? ${t.refresh_token ? ',refresh_token=?' : ''} WHERE id=?`,
+          t.refresh_token
+            ? [encryptSecret(t.access_token), t.expiry_date, encryptSecret(t.refresh_token), row.id]
+            : [encryptSecret(t.access_token), t.expiry_date, row.id]);
+      });
+      return syncGoogleEvents(oauth2, req.user.sub, wantsForce(req), callerZone(req));
+    },
+  },
+  outlook: {
+    label: 'Outlook Calendar',
+    async sync(row, req) {
+      const token = await getMsToken(row);
+      return syncOutlookEvents(token, req.user.sub, wantsForce(req), callerZone(req));
+    },
+  },
+  icloud: {
+    label: 'iCloud Calendar',
+    /* No zone: an ICS literal is floating by construction (see icloud.js). */
+    async sync(row, req) {
+      return syncICloudEvents(row.email, decryptSecret(row.access_token), req.user.sub, wantsForce(req));
+    },
+  },
+};
+
+/** Is this provider connected, and as whom. */
+const statusHandler = (provider) => (req, res) => {
   try {
-    const row = get('SELECT email FROM calendar_tokens WHERE user_id=? AND provider=?', [req.user.sub, 'google']);
+    const row = get('SELECT email FROM calendar_tokens WHERE user_id=? AND provider=?', [req.user.sub, provider]);
     res.json({ connected: !!row, email: row?.email || null });
   } catch (e) { fail(res, e); }
-});
+};
 
-router.delete('/api/auth/google', (req, res) => {  // app-private: starts the OAuth consent redirect; the RESULT is the declared connector state
+/** Forget the credentials AND everything this provider put on the board.
+ *  ⚠️ Through `purgeCalendarSource`, which CASCADES. All three of these used to
+ *  raw-`DELETE FROM items WHERE source=…`, and `items.parent_id` carries no foreign
+ *  key — so a note or checklist nested under a synced event was left parented to a
+ *  row that no longer existed, reachable by no view. */
+const disconnectHandler = (provider) => (req, res) => {
   try {
-    run("DELETE FROM calendar_tokens WHERE user_id=? AND provider='google'", [req.user.sub]);
-    run("DELETE FROM items WHERE source='google' AND user_id=?", [req.user.sub]);
-    res.json({ ok: true });
+    run('DELETE FROM calendar_tokens WHERE user_id=? AND provider=?', [req.user.sub, provider]);
+    const removed = purgeCalendarSource(provider, req.user.sub);
+    res.json({ ok: true, removed });
   } catch (e) { fail(res, e); }
-});
+};
 
-router.post('/api/calendar/google/sync', async (req, res) => {
+/** Pull this provider's window and swap it in. */
+const syncHandler = (provider) => async (req, res) => {
   try {
-    const row = get('SELECT * FROM calendar_tokens WHERE user_id=? AND provider=?', [req.user.sub, 'google']);
+    const row = get('SELECT * FROM calendar_tokens WHERE user_id=? AND provider=?', [req.user.sub, provider]);
     if (!row) return res.status(401).json({ error: 'Not connected' });
-    const oauth2 = makeOAuth2();
-    oauth2.setCredentials({ access_token: decryptSecret(row.access_token), refresh_token: decryptSecret(row.refresh_token), expiry_date: row.expiry_ms });
-    oauth2.on('tokens', t => {
-      run(`UPDATE calendar_tokens SET access_token=?, expiry_ms=? ${t.refresh_token?',refresh_token=?':''} WHERE id=?`,
-        t.refresh_token ? [encryptSecret(t.access_token), t.expiry_date, encryptSecret(t.refresh_token), row.id] : [encryptSecret(t.access_token), t.expiry_date, row.id]);
-    });
-    const result = await syncGoogleEvents(oauth2, req.user.sub, wantsForce(req), callerZone(req));
+    const result = await PROVIDERS[provider].sync(row, req);
     res.json(syncBody(result));
-  } catch (e) { fail(res, e); }
-});
+  } catch (e) { fail(res, e, `${PROVIDERS[provider].label} sync failed`); }
+};
 
-/* ── Outlook status / disconnect / sync ────────────────────────────────── */
-router.get('/api/auth/outlook/status', (req, res) => {  // app-private: connector state for this app's own settings panel
-  try {
-    const row = get('SELECT email FROM calendar_tokens WHERE user_id=? AND provider=?', [req.user.sub, 'outlook']);
-    res.json({ connected: !!row, email: row?.email || null });
-  } catch (e) { fail(res, e); }
-});
+/* ── Google ────────────────────────────────────────────────────────────── */
+router.get('/api/auth/google/status', statusHandler('google'));      // app-private: connector state for this app's own settings panel
+router.delete('/api/auth/google', disconnectHandler('google'));      // app-private: forgets credentials this app stores; the RESULT is the declared connector state
+router.post('/api/calendar/google/sync', syncHandler('google'));
 
-router.delete('/api/auth/outlook', (req, res) => {  // app-private: starts the OAuth consent redirect; the RESULT is the declared connector state
-  try {
-    run("DELETE FROM calendar_tokens WHERE user_id=? AND provider='outlook'", [req.user.sub]);
-    run("DELETE FROM items WHERE source='outlook' AND user_id=?", [req.user.sub]);
-    res.json({ ok: true });
-  } catch (e) { fail(res, e); }
-});
+/* ── Outlook ───────────────────────────────────────────────────────────── */
+router.get('/api/auth/outlook/status', statusHandler('outlook'));    // app-private: connector state for this app's own settings panel
+router.delete('/api/auth/outlook', disconnectHandler('outlook'));    // app-private: forgets credentials this app stores; the RESULT is the declared connector state
+router.post('/api/calendar/outlook/sync', syncHandler('outlook'));
 
-router.post('/api/calendar/outlook/sync', async (req, res) => {
-  try {
-    const row = get('SELECT * FROM calendar_tokens WHERE user_id=? AND provider=?', [req.user.sub, 'outlook']);
-    if (!row) return res.status(401).json({ error: 'Not connected' });
-    const token = await getMsToken(row);
-    const result = await syncOutlookEvents(token, req.user.sub, wantsForce(req), callerZone(req));
-    res.json(syncBody(result));
-  } catch (e) { fail(res, e); }
-});
+/* ── iCloud ────────────────────────────────────────────────────────────── */
+router.get('/api/auth/icloud/status', statusHandler('icloud'));      // app-private: connector state for this app's own settings panel
+router.delete('/api/auth/icloud', disconnectHandler('icloud'));      // app-private: forgets credentials this app stores; the RESULT is the declared connector state
+router.post('/api/calendar/icloud/sync', syncHandler('icloud'));
 
-/* ── iCloud status / connect / disconnect / sync ───────────────────────── */
-router.get('/api/auth/icloud/status', (req, res) => {  // app-private: connector state for this app's own settings panel
-  try {
-    const row = get('SELECT email FROM calendar_tokens WHERE user_id=? AND provider=?', [req.user.sub, 'icloud']);
-    res.json({ connected: !!row, email: row?.email || null });
-  } catch (e) { fail(res, e); }
-});
-
+/* iCloud CONNECTS here rather than through an OAuth redirect: it takes an
+   app-specific password, and the credential is only proven good by using it — so the
+   connect IS a sync, and the row is stored only once that succeeds. */
 router.post('/api/auth/icloud', async (req, res) => {  // app-private: stores an app-specific password; the RESULT is the declared connector state
   const { username, appPassword } = req.body || {};
   if (!username || !appPassword) return res.status(400).json({ error: 'username and appPassword required' });
@@ -221,7 +274,7 @@ router.post('/api/auth/icloud', async (req, res) => {  // app-private: stores an
       `INSERT INTO calendar_tokens (user_id,provider,access_token,email)
        VALUES (?,?,?,?)
        ON CONFLICT(user_id,provider) DO UPDATE SET access_token=excluded.access_token, email=excluded.email`,
-      [req.user.sub, 'icloud', encryptSecret(appPassword), username]
+      [req.user.sub, 'icloud', encryptSecret(appPassword), username],
     );
     res.json({ ...syncBody(result), email: username });
   } catch (e) {
@@ -231,23 +284,6 @@ router.post('/api/auth/icloud', async (req, res) => {  // app-private: stores an
     if (e.status === 401) return res.status(401).json({ error: 'iCloud rejected those credentials — check the username and app-specific password.' });
     fail(res, e, 'iCloud sync failed');
   }
-});
-
-router.delete('/api/auth/icloud', (req, res) => {  // app-private: stores an app-specific password; the RESULT is the declared connector state
-  try {
-    run("DELETE FROM calendar_tokens WHERE user_id=? AND provider='icloud'", [req.user.sub]);
-    run("DELETE FROM items WHERE source='icloud' AND user_id=?", [req.user.sub]);
-    res.json({ ok: true });
-  } catch (e) { fail(res, e); }
-});
-
-router.post('/api/calendar/icloud/sync', async (req, res) => {
-  try {
-    const row = get('SELECT * FROM calendar_tokens WHERE user_id=? AND provider=?', [req.user.sub, 'icloud']);
-    if (!row) return res.status(401).json({ error: 'Not connected' });
-    const result = await syncICloudEvents(row.email, decryptSecret(row.access_token), req.user.sub, wantsForce(req));
-    res.json(syncBody(result));
-  } catch (e) { fail(res, e); }
 });
 
 module.exports = router;

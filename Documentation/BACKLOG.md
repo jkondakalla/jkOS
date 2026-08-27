@@ -124,6 +124,23 @@ Landed 2026-08-26/27 on `staging`, gate green at each commit, **none of it deplo
   FACES, so its "agrees" assertions prove the ESM twin hasn't drifted from its
   source — the one duplication that genuinely remains. `logStep` takes `now` as an
   argument so the package keeps its no-clock purity.
+- **D10 (BB-6) — the calendar's HTTP half, unified; and a data bug the audit missed.**
+  `provider.js` had unified the FETCH half and said so; status/disconnect/sync still
+  existed three times each. They are three handler factories now, with all nine
+  routes still registered at their LITERAL paths — a `for (const p of PROVIDERS)`
+  loop would collapse nine visible surfaces into one unparseable
+  `/api/auth/${id}/status` and hide them from `98-surface-coverage`, trading a
+  duplication problem for an invisibility problem.
+  ⚠️ **`defineConnector` was the wrong instrument and the code won.** It turns an
+  upstream + a mapping into a server-side PROXY; calendar sync proxies nothing — it
+  fetches a window, normalises three dialects, and writes into the local items table
+  through a guarded replace.
+  ⚠️ **The orphan bug is worse than recorded.** The audit named the *disconnect*
+  route's raw `DELETE`; `replaceCalendarSource` did the same thing and runs on EVERY
+  SYNC. `items.parent_id` carries no foreign key, so a note nested under a synced
+  event was orphaned every time the calendar refreshed. Both paths cascade now.
+  **No scheduler, still — a decision, not an omission:** this suite has no cron by
+  design.
 
 ---
 
@@ -147,19 +164,12 @@ Landed 2026-08-26/27 on `staging`, gate green at each commit, **none of it deplo
 
 ## Open — the backend and the fabric (Stage D)
 
-Three of thirteen items (D1–D9 and D11 are done). Re-verify each before fixing; the audit predates
-this work.
+Two of thirteen items (D1–D11 are done). Re-verify each before fixing; the audit predates this work.
 
 - **The seven `json` escape-hatch fields** are what remains of D3, and they are the weakest item
   on this list. A routine `spec` genuinely IS an opaque document, so "type it properly" may be
   the wrong answer — decide whether the hatch is a defect here or an honest description before
   spending effort on it.
-- **D10 · Calendar sync onto `defineConnector` (BB-6).** 247 lines of near-identical
-  Google/Outlook/iCloud blocks, none declared, no scheduler, and a disconnect that raw-`DELETE`s
-  items bypassing `cascadeDelete`. **Unblocked — D5 landed**, so the rewrite now inherits
-  zone-correct helpers and a `zone` already threaded through `fetchWindow`. ⚠️ Keep the
-  timed/all-day split: an all-day date is floating and must NOT be zone-converted, which is
-  three different rules across the three providers and is pinned by `calendar.sandbox`'s §H.
 - **D12 · The data-model gap.** No new primitive types — `goal/milestone/task/event/routine` is
   the right cut. Missing is one table and three columns: **`item_deps`** (the one place a column
   won't do — nothing expresses "can't start B until A ships", which is the question a planner
