@@ -24,6 +24,7 @@ const { SQL_NOW, sqlConvert, isCanonical: isCanonicalTime, canonical: canonicalT
 const { callerZone, zonedParts, callerDay } = require('./callerDay')
 const { defineActivity } = require('./activity')
 const { extRef, parseExtRef } = require('../shared/extref')
+const { pageLimit, PAGE_DEFAULT, PAGE_MAX, CURSOR_PARAM } = require('../shared/paging')
 const { defineConnector } = require('./connector')
 const { defineLibraryScanner } = require('./libraryScanner')
 const { defineMediaRoutes, decidePlayback } = require('./mediaRoutes')
@@ -54,6 +55,7 @@ module.exports = {
   SQL_NOW, sqlConvert, isCanonicalTime, canonicalTime, parseWireTime,
   callerZone, zonedParts, callerDay,
   defineActivity, extRef, parseExtRef,
+  pageLimit, PAGE_DEFAULT, PAGE_MAX, CURSOR_PARAM,
   defineConnector,
   defineLibraryScanner,
   defineMediaRoutes,

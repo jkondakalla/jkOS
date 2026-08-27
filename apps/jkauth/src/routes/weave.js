@@ -1,4 +1,5 @@
 'use strict'
+const { pageLimit } = require('@jkos/weave/server')
 // Weave — the suite fabric directory. Everything other apps consume to discover
 // the suite and weave into it: the app registry (/auth/apps), the suite-wide
 // widget registry (/auth/widgets), the audit feed (/auth/events), and the JWKS
@@ -34,7 +35,9 @@ router.get('/auth/apps', (req, res) => {
 router.get('/auth/events', (req, res) => {
   const jwtUser = resolveUser(req)
   if (!jwtUser) return res.status(401).json({ error: 'Not authenticated', code: 'UNAUTHENTICATED' })
-  const limit = Math.min(Number(req.query.limit) || 50, 200)
+  /* The suite's one paging contract (RESET A2c.2) — this was the third hand-rolled
+     clamp, and three that disagree is what makes a cross-app fan-out unmergeable. */
+  const limit = pageLimit(req.query.limit, { fallback: 50, max: 200 })
   // 'events:read:all' is the ADMIN view of the whole suite's trail; everyone
   // else reads their own rows. Ownership is the WHERE clause, not a role.
   const events = can(jwtUser, 'events:read:all')

@@ -10,4 +10,8 @@ export const checkActivityDoc = mod.checkActivityDoc
 export const isValidActivityDoc = mod.isValidActivityDoc
 export const checkExtRefDoc = mod.checkExtRefDoc
 export const extRefFieldDoc = mod.extRefFieldDoc
+export const pageLimit = mod.pageLimit
+export const PAGE_DEFAULT = mod.PAGE_DEFAULT
+export const PAGE_MAX = mod.PAGE_MAX
+export const CURSOR_PARAM = mod.CURSOR_PARAM
 export default mod

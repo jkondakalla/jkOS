@@ -11,7 +11,9 @@
 //     matching trigger, resolving its body and dispatching the DO,
 //   • triggerWebhook(engine)              — an Express handler so a peer can PUSH events,
 //   • serverDispatch({resolve,clientOpts}) — a default dispatch over weaveServerClient that
-//     runs each per-user cross-app DO under the triggering user (G1 delegation).
+//     runs each per-user cross-app DO under the triggering user (G1 delegation), and
+//     always carries the engine's derived `idempotency_key` so a retried DO cannot
+//     double-write (RESET A2c.4).
 // The engine is dispatch-agnostic (inject a mock to test) so the "what fires" logic is
 // pure + provable; serverDispatch is the live wiring. Design-time TS shapes: ../trigger.ts.
 
@@ -114,6 +116,36 @@ function validateTriggerTypes(trigger, { whenReturns = [], whenResolves = null, 
   return issues
 }
 
+/* A stable key for "this trigger, reacting to this event". Same inputs ⇒ same key.
+ *
+ * ⚠️ The payload is folded in through a canonical (key-sorted) JSON so that two
+ * events carrying the same facts in a different key order produce the SAME key —
+ * otherwise a peer that reserialised its payload would defeat the whole mechanism
+ * without changing anything meaningful.
+ *
+ * Not a cryptographic hash: this is a collision-avoidance id, not a secret, and a
+ * dependency-free FNV-1a keeps the trigger engine loadable in a bare checkout — the
+ * property that lets it be tested with an injected dispatcher and no I/O at all. */
+function canonicalJson(v) {
+  if (v === null || typeof v !== 'object') return JSON.stringify(v)
+  if (Array.isArray(v)) return `[${v.map(canonicalJson).join(',')}]`
+  return `{${Object.keys(v).sort().map((k) => `${JSON.stringify(k)}:${canonicalJson(v[k])}`).join(',')}}`
+}
+
+function fnv1a(str) {
+  let h = 0x811c9dc5
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i)
+    h = Math.imul(h, 0x01000193) >>> 0
+  }
+  return h.toString(16).padStart(8, '0')
+}
+
+function idempotencyFor(trigger, app, capability, payload) {
+  const id = trigger.id || `${trigger.when.app}.${trigger.when.capability}->${trigger.do.app}.${trigger.do.capability}`
+  return `trg_${fnv1a(`${id}|${app}.${capability}|${canonicalJson(payload ?? null)}`)}`
+}
+
 /**
  * Build a trigger engine over a set of TriggerDefs and an injectable dispatcher.
  * @param {{ triggers?: import('../trigger').TriggerDef[],
@@ -131,8 +163,20 @@ function createTriggerEngine({ triggers = [], dispatch } = {}) {
     for (const t of matched) {
       const body = resolveBindings(t.do.body, payload)
       const actingUser = t.do.actingUser && t.do.actingUser !== 'event' ? t.do.actingUser : (ctx.actingUser ?? null)
+      /* ⭐ ALWAYS AN IDEMPOTENCY KEY (RESET A2c.4). A trigger's DO is a WRITE fired by
+         an event, and both halves of that sentence can repeat: a webhook redelivers,
+         a dispatch times out and is retried, a peer replays. Without a key the second
+         attempt is a second task on someone's board, and the user has no way to know
+         which of the two is the real one.
+         DERIVED, never random: same trigger + same event ⇒ same key, which is the
+         only property that makes a retry recognisable AS a retry. A random key would
+         make every attempt look new, which is worse than no key at all because it
+         looks like the problem is solved. */
+      const idempotencyKey = ctx.idempotencyKey || idempotencyFor(t, app, capability, payload)
       try {
-        const r = await dispatch(t.do, body, { actingUser, trigger: t, event: { app, capability, payload } })
+        const r = await dispatch(t.do, body, {
+          actingUser, idempotencyKey, trigger: t, event: { app, capability, payload },
+        })
         results.push({ trigger: t.id, ok: r ? r.ok !== false : true, result: r })
       } catch (e) {
         results.push({ trigger: t.id, ok: false, error: e && e.message ? e.message : String(e) })
@@ -188,7 +232,17 @@ function serverDispatch({ resolve, clientOpts = {} } = {}) {
     const method = (cap.method || 'POST').toLowerCase()
     if (method === 'get') return client.get(path)
     if (method === 'delete') return client.delete(path)
-    return client[method](path, body)
+    /* ⭐ THE IDEMPOTENCY KEY RIDES IN THE BODY (RESET A2c.4), under the reserved
+       `idempotency_key` name that write capabilities declare.
+       ⚠️ In the BODY rather than a header on purpose: this suite's write surface is
+       declared as typed body fields, and a capability doc has no vocabulary for
+       headers — a key sent as one would be invisible to the declaration, which is
+       exactly the "undeclared surface" class the whole contract exists to close.
+       Never overwrites a key a caller already bound: an explicit one wins. */
+    const withKey = ctx && ctx.idempotencyKey && body && body.idempotency_key === undefined
+      ? { ...body, idempotency_key: ctx.idempotencyKey }
+      : body
+    return client[method](path, withKey)
   }
 }
 

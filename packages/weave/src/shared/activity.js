@@ -37,13 +37,20 @@
 
 /** Where an app serves its activity, relative to its apiBase. Derived into
  *  `activityPath` by @jkos/suite-manifest — never re-typed by an app. */
+import { MAX_DOC_VERSION, DOC_VERSION_UNSUPPORTED } from './docShape.js'
+import { PAGE_DEFAULT, PAGE_MAX } from './paging.js'
+
 export const ACTIVITY_PATH = '/activity'
 
 /** How many events one app may return in a single answer. A merge across five
  *  apps is a phone rendering a list; an unbounded ledger read is neither useful
  *  nor safe, and a caller that wants more should walk `before`. */
-export const ACTIVITY_MAX_LIMIT = 500
-export const ACTIVITY_DEFAULT_LIMIT = 100
+/* ⚠️ FROM THE ONE PAGING CONTRACT (RESET A2c.2), not two more numbers. Three
+   hand-rolled clamps that disagreed is what made a cross-app fan-out unmergeable in
+   the first place — "give me 100" meaning three different windows, and the merged
+   page silently short. */
+export const ACTIVITY_MAX_LIMIT = PAGE_MAX
+export const ACTIVITY_DEFAULT_LIMIT = PAGE_DEFAULT
 
 /* ── The event ────────────────────────────────────────────────────────────────
  *
@@ -121,6 +128,11 @@ export function checkActivityDoc(doc) {
   if (!doc || typeof doc !== 'object') return 'doc must be an object'
   if (typeof doc.app !== 'string' || !doc.app) return 'doc.app must be a non-empty string'
   if (typeof doc.version !== 'number') return 'doc.version must be a number'
+  /* The same fail-closed rule the other two declarations obey (RESET A2c.3): a
+     consumer that half-understands a contract is worse than one that refuses. */
+  if (doc.version > MAX_DOC_VERSION) {
+    return `${DOC_VERSION_UNSUPPORTED}: doc.version ${doc.version} is newer than this consumer understands (max ${MAX_DOC_VERSION})`
+  }
   if (!Array.isArray(doc.kinds)) return 'doc.kinds must be an array'
   if (!doc.kinds.length) return 'doc.kinds must declare at least one kind — an activity surface with no vocabulary says nothing'
 

@@ -34,6 +34,7 @@
 const { db, run, all, get } = require('./db');
 const { buildItemFilters, filterSpec } = require('@jkos/weave/server');
 const { slugify, humanize, COLLECTIONS, UNITS, LOAD_UNITS, LIMITS } = require('@jkos/routine-spec');
+const { pageLimit } = require('@jkos/weave/server');
 
 /* ── Row ⇄ wire ───────────────────────────────────────────────────────────── */
 
@@ -130,7 +131,9 @@ function listEntries(userId, { collection = null, q = null, limit = 500 } = {}) 
   });
   const rows = all(
     `SELECT * FROM library WHERE ${where} ORDER BY collection ASC, title ASC LIMIT ?`,
-    [...params, Math.min(2000, Math.max(1, parseInt(limit, 10) || 500))],
+    // The suite's one paging contract (RESET A2c.2) — this was a fourth clamp, with
+    // a ceiling (2000) four times the suite maximum.
+    [...params, pageLimit(limit, { fallback: 500 })],
   );
   return rows.map(toEntry);
 }

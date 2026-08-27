@@ -112,12 +112,29 @@ export interface CapabilityDef {
    * fails any capability that returns a bare handle without saying what it resolves to.
    */
   resolves?: BodyField[];
+  /**
+   * ⭐ THE RESERVED IDEMPOTENCY FIELD (RESET A2c.4). A write capability accepts an
+   * optional `idempotency_key` in its body, and the trigger engine ALWAYS sends one.
+   *
+   * ⚠️ Why it matters here specifically: a trigger's DO is a write fired by an event,
+   * and both halves of that sentence can repeat — a webhook redelivers, a dispatch
+   * times out and is retried, a peer replays. Without a key the second attempt is a
+   * second task on someone's board and the user cannot tell which is real.
+   *
+   * The engine's key is DERIVED, never random: same trigger + same event ⇒ same key,
+   * which is the only property that makes a retry recognisable AS one. A random key
+   * makes every attempt look new, which is worse than no key because it looks solved.
+   */
   invalidates?: string[];           // resource keys to refetch after success: ['beigeboard.items']
   roles?: string[];                 // coarse gate (defaults to the app's allowed_roles)
   scopes?: string[];                // fine gate, enforced by the resource app
   ai?: boolean;
   doc?: string;                     // long-form description (a non-flat body or AI hint) — markdown ok
 }
+
+/** The reserved body field every write capability may accept, and that the trigger
+ *  engine always sends. Named once so no app spells it differently. */
+export const IDEMPOTENCY_FIELD = 'idempotency_key';
 
 /** What an app returns from its capabilitiesPath. */
 export interface CapabilityDoc {

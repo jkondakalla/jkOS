@@ -36,6 +36,7 @@ const {
 } = require('../shared/activity')
 const { canonical: canonicalTime } = require('./wireTime')
 const { extRef, checkExtRefDoc, extRefFieldDoc } = require('../shared/extref')
+const { pageLimit, PAGE_DEFAULT, PAGE_MAX, CURSOR_PARAM } = require('../shared/paging')
 
 /* Canonical millisecond ISO — the format `at` is held to, and therefore the format
    the `since`/`until` cursors must speak, since they are compared against it as
@@ -49,11 +50,10 @@ function cursor(v) {
   return CANONICAL_AT.test(s) ? s : null
 }
 
-function limitOf(v) {
-  const n = parseInt(v, 10)
-  if (!Number.isFinite(n) || n <= 0) return ACTIVITY_DEFAULT_LIMIT
-  return Math.min(n, ACTIVITY_MAX_LIMIT)
-}
+/* From the ONE paging contract (RESET A2c.2) rather than a fourth hand-rolled clamp.
+   Three that disagreed is what made a cross-app fan-out unmergeable: "give me 100"
+   meaning three different windows, and the merged page silently short. */
+const limitOf = (v) => pageLimit(v, { fallback: ACTIVITY_DEFAULT_LIMIT, max: ACTIVITY_MAX_LIMIT })
 
 /**
  * Build an app's activity surface.
@@ -128,6 +128,8 @@ function defineActivity({ app, version = 1, kinds, read }) {
 
 module.exports = {
   defineActivity, canonicalTime, extRef, checkActivityDoc, isValidActivityDoc,
+  // RESET A2c.2: the one paging contract, reachable from the same lean subpath.
+  pageLimit, PAGE_DEFAULT, PAGE_MAX, CURSOR_PARAM,
   // BB-5: the ext_ref namespace, reached from the same lean subpath a discovery doc
   // already imports — it declares its schemes right next to its datasets.
   checkExtRefDoc, extRefFieldDoc,

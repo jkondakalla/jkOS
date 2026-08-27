@@ -1,4 +1,5 @@
 'use strict';
+const { pageLimit } = require('@jkos/weave/server');
 // internal.js — the compute-node worker API. Mounted behind the LAZUROS_INTERNAL_TOKEN
 // bearer gate (NOT jkAuth — the worker is a trusted peer, not a user). The worker
 // polls for PENDING jobs, atomically claims one, runs inference, and posts the result.
@@ -15,7 +16,10 @@ const router = Router();
 // IN_PROGRESS jobs on the poll path means a worker crash self-heals on the next poll
 // cycle without a separate timer, and the reaped job re-enters this same list.
 router.get('/jobs', (req, res) => {
-  const limit = Math.min(parseInt(req.query.limit, 10) || 1, 20);
+  /* The one paging contract (RESET A2c.2), NARROWED — which an app may do where its
+     rows are expensive, and a claimed job is: 20 is the cap because a worker taking
+     more than that starves every other worker on the queue. */
+  const limit = pageLimit(req.query.limit, { fallback: 1, max: 20 });
   requeueStaleJobs();
   res.json({ jobs: getPendingJobs(limit) });
 });

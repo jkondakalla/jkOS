@@ -34,10 +34,22 @@ const ALBUM_SELECT = `
    WHERE album IS NOT NULL AND album <> ''
 `;
 
-function clampLimit(v, dflt, max) {
-  const n = Number.parseInt(v, 10);
-  if (!Number.isFinite(n) || n <= 0) return dflt;
-  return Math.min(n, max);
+/* ⚠️ THE SUITE'S ONE PAGING CONTRACT (RESET A2c.2). This file used to hold TWO
+   hand-rolled clamps that disagreed with each other — (120, 600) and (300, 2000) —
+   and jkAuth held a third. Three conventions is not a style problem: it is what makes
+   a cross-app fan-out unmergeable, because "give me 100" means three different
+   windows and a merged page comes back silently short.
+   `pageLimit` caps at PAGE_MAX (500). An app may NARROW that where its rows are
+   expensive; it may not widen it — so the old 600/2000 ceilings are gone. Safe here:
+   the browse UI pages at 120 (src/views/Browse.tsx), a long way under the cap.
+
+   ⚠️ `offset` REMAINS in this file, and the ruling says the suite has none — see the
+   note at /api/albums for why that is a deliberate, bounded exception rather than an
+   oversight. */
+const { pageLimit } = require('@jkos/weave/activity');
+
+function clampLimit(v, dflt) {
+  return pageLimit(v, { fallback: dflt });
 }
 
 function createBrowseRouter({ db }) {
@@ -50,7 +62,19 @@ function createBrowseRouter({ db }) {
      what a person means by "search". */
   router.get('/api/albums', (req, res) => {
     try {
-      const limit = clampLimit(req.query.limit, 120, 600);
+      const limit = clampLimit(req.query.limit, 120);
+      /* ⚠️ OFFSET, WHICH THE SUITE'S PAGING RULING FORBIDS (RESET A2c.2) — kept here
+         deliberately and bounded, not overlooked.
+         The ruling's reason is that an offset is unstable under CONCURRENT WRITES:
+         insert a row mid-page and the caller skips one or sees one twice, silently.
+         That reason is about a delta feed over rows a user is actively editing. This
+         is a GROUPED BROWSE over a music catalog that changes only on a rescan, with
+         a stable ORDER BY — so the instability window is "during a library scan", and
+         the alternative is designing a cursor for grouped-by-album results, which is
+         a real piece of work and not this one.
+         ⚠️ The moment this catalog gains incremental writes (a user-editable tag, a
+         per-track rating that reorders), this becomes the bug the ruling describes.
+         Recorded in BACKLOG.md rather than left as a comment nobody tracks. */
       const offset = Math.max(0, Number.parseInt(req.query.offset, 10) || 0);
       const params = [];
       let where = '';
@@ -116,7 +140,7 @@ function createBrowseRouter({ db }) {
   /* ── Artists ──────────────────────────────────────────────────────────────── */
   router.get('/api/artists', (req, res) => {
     try {
-      const limit = clampLimit(req.query.limit, 300, 2000);
+      const limit = clampLimit(req.query.limit, 300);
       const offset = Math.max(0, Number.parseInt(req.query.offset, 10) || 0);
       const params = [];
       let where = '';

@@ -229,7 +229,7 @@ Landed 2026-08-26/27 on `staging`, gate green at each commit, **none of it deplo
 
 ## Open — the ratchet (Stage E)
 
-Five of six are done (1, 2, 3, 4 and 5), and item 6 is a quarter done (`resolves`, with D13).
+✅ **Stage E is COMPLETE (all six).**
 
    ⚠️ **A refinement worth making:** `98-surface-coverage` lets a declared path cover
    everything BENEATH it, so `/items` silently covered the three new `/items/:id/deps`
@@ -289,9 +289,29 @@ Five of six are done (1, 2, 3, 4 and 5), and item 6 is a quarter done (`resolves
    ⚠️ Still owed, and Jag's: whether anything sensitive was ever committed. That is a
    HISTORY question this scanner deliberately does not ask, because the remedy is a rewrite
    — destructive, coordinates with GitHub. **Investigate and report; do not rewrite.**
-6. **The four contract rules** — a ruling nothing enforces is prose.
-   ✅ `resolves` — `86-async-contract`, landed with D13.
-   ◻ the cursor/limit convention, ◻ the fail-closed version rule, ◻ the per-app status list.
+6. ✅ **The four contract rules — DONE.** A ruling nothing enforces is prose; each is a check
+   now (`check:rulings`, plus `86-async-contract` for the first).
+   · **`resolves`** — landed with D13.
+   · **Pagination** — one `PAGE_DEFAULT`/`PAGE_MAX`, replacing FIVE hand-rolled clamps that
+     disagreed (KourOS had two in one file, plus jkAuth's, BeigeBoard's library at a 2000
+     ceiling, and LazurOS's queue claim). An app may narrow the max, never widen it.
+   · **Versioning** — a doc whose `version` is newer than the consumer understands is refused
+     with `DOC_VERSION_UNSUPPORTED`. An OLDER version still passes: failing closed means
+     refusing the future, not the past.
+   · **Peer-down + idempotency** — the fan-out returns an explicit per-app status list and a
+     `partial` flag, and every trigger DO carries a DERIVED idempotency key (same event ⇒ same
+     key, even reserialised with its keys in another order; a random key would satisfy "has a
+     key" and defeat the whole mechanism).
+   ⚠️ **I broke ruling 4 myself in D6** — `fetchActivity` returned a bare array and mapped a
+   dead peer, a 403 and an unreadable doc all to "contributed nothing", indistinguishable from
+   "did nothing". Failing soft is right; failing soft INVISIBLY is not.
+
+⚠️ **One deliberate, bounded exception to ruling 2:** KourOS's `/api/albums` browse still pages
+by `offset`. The ruling's reason is instability under concurrent writes; that browse is over a
+music catalog that changes only on rescan, with a stable `ORDER BY`, so the window is "during a
+library scan" — and the alternative is designing a cursor for grouped-by-album results. ⚠️ **The
+moment that catalog gains incremental writes** (a user-editable tag, a rating that reorders), it
+becomes exactly the bug the ruling describes. Noted at the call site too.
 
 ⚠️ **Do not build an "is anything consuming this contract?" probe.** An unconsumed contract is
 the correct steady state; the only way to satisfy such a probe would be to invent consumers.
