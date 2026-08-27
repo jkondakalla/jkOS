@@ -45,10 +45,22 @@ const matchHtml = (html, re) => (html.match(re) || [])[1];
 const matchAll = (html, re) => [...html.matchAll(re)].map(m => m[1]);
 
 // One server instance with its own port, temp DB, and cookie jar.
+// ⚠️ SEQUENTIAL, not a fresh random pick per instance. This smoke boots nine
+// servers in one run, and re-rolling `4900 + random(500)` for each is a birthday
+// collision at roughly 7% — which is the OPS-1 class in miniature: the second
+// instance fails to bind, `ready()` polls the port anyway, the FIRST instance
+// answers, and the assertions run against a server configured for a different
+// test. It bit under full-gate load as "jwks returns two keys → ['1']" (instance
+// F reading instance A's JWKS) while passing every standalone run. The base is
+// still randomised once per process so two runs don't tread on each other; the
+// counter is what makes a collision WITHIN a run impossible.
+const PORT_BASE = 4900 + Math.floor(Math.random() * 400);
+let portSeq = 0;
+
 class Server {
   constructor(extraEnv = {}) {
     // Band clear of the test-port registry (3980–3996) + discover spares (4083–4085).
-    this.port = 4900 + Math.floor(Math.random() * 500);
+    this.port = PORT_BASE + (portSeq++);
     this.base = `http://127.0.0.1:${this.port}`;
     this.tmp = mkdtempSync(join(tmpdir(), 'jkauth-smoke-'));
     this.jar = new Map();
@@ -70,12 +82,26 @@ class Server {
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
+    this.exited = null;
     this.child.stdout.on('data', d => { this.log += d; });
     this.child.stderr.on('data', d => { this.log += d; });
+    this.child.on('exit', (code, signal) => { this.exited = { code, signal }; });
   }
   async ready(tries = 50) {
     for (let i = 0; i < tries; i++) {
-      try { if ((await fetch(this.base + '/health')).ok) return true; } catch {}
+      // Belt to the sequential-port braces (B1 / OPS-1): a bare 200 proves only
+      // that SOMETHING is on the port. If a stray server owns it, this says so
+      // instead of letting the assertions run against a stranger.
+      if (this.exited) return false;
+      try {
+        const res = await fetch(this.base + '/health');
+        if (res.ok) {
+          const body = await res.json().catch(() => ({}));
+          if (body.service === 'jkauth') return true;
+          console.error(`  ✗ :${this.port} answered 200 but service=${JSON.stringify(body.service)} — not this jkAuth`);
+          return false;
+        }
+      } catch { /* not up yet */ }
       await new Promise(r => setTimeout(r, 100));
     }
     return false;
@@ -401,14 +427,25 @@ async function run() {
   if (!await H.ready()) { console.error('H never became healthy:\n' + H.log); return shutdown(1); }
   console.log('H · email-OTP 2FA (U6)');
   await H.req('POST', '/auth/register', { json: { email: 'mail2fa@jkos.net', password: 'password123' } });
+  // ⚠️ Email 2FA now requires a CONFIRMED address (JK-A12) — email is the
+  // delivery channel, so enabling it for an unverified mailbox was the finding.
+  ok('enabling email codes UNVERIFIED → 409', (await H.req('POST', '/auth/2fa/email/enable', { form: {} })).status === 409);
+  await H.req('POST', '/auth/verify/send', { form: {} });
+  let vcode = null;
+  for (let i = 0; i < 20 && !vcode; i++) { vcode = matchHtml(H.log, /\[otp-echo\] mail2fa@jkos\.net (\d{6})/); if (!vcode) await sleep(50); }
+  ok('verification code was emailed + echoed', !!vcode, H.log.slice(-200));
+  ok('confirming the address 200', (await H.req('POST', '/auth/verify/confirm', { form: { code: vcode } })).status === 200);
   ok('enable email codes 200', (await H.req('POST', '/auth/2fa/email/enable', { form: {} })).status === 200);
   await H.req('POST', '/auth/logout', { json: {} });
   r = await H.req('POST', '/auth/login', { json: { email: 'mail2fa@jkos.net', password: 'password123' }, noStore: true });
   j = await r.json().catch(() => ({}));
   ok('login with email 2FA → TWO_FACTOR_REQUIRED (email)', r.status === 200 && j.code === 'TWO_FACTOR_REQUIRED' && j.methods?.includes('email'), JSON.stringify(j));
   // Pull the emailed code from the server log (echoed because OTP_TEST_ECHO=1).
+  // Match the LAST echo, not the first — the verification code above is also in
+  // this log, and taking the earliest would replay an already-consumed code.
   let code = null;
-  for (let i = 0; i < 20 && !code; i++) { code = matchHtml(H.log, /\[otp-echo\] mail2fa@jkos\.net (\d{6})/); if (!code) await sleep(50); }
+  const lastEcho = (log) => { const m = [...log.matchAll(/\[otp-echo\] mail2fa@jkos\.net (\d{6})/g)]; return m.length ? m[m.length - 1][1] : null; };
+  for (let i = 0; i < 20 && !code; i++) { const c = lastEcho(H.log); if (c && c !== vcode) code = c; else await sleep(50); }
   ok('email OTP code was generated + echoed', !!code, H.log.slice(-200));
   r = await H.req('POST', '/auth/login/2fa', { json: { pending_token: j.pending_token, code } });
   const hj = await r.json().catch(() => ({}));

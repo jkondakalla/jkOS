@@ -11,7 +11,7 @@ const {
   ACCESS_TTL_MS, REFRESH_TTL_MS, REMEMBER_TTL_MS, REFRESH_GRACE_MS,
   SESSION_TTL_MS, SESSION_ABSOLUTE_TTL_MS, SESSION_TOMBSTONE_MS,
 } = require('./config')
-const { db, run, get, logEvent, roleClaims, appIdForOrigin } = require('./db')
+const { db, run, all, get, logEvent, roleClaims, appIdForOrigin } = require('./db')
 const { hashPasswordSync } = require('./password')
 
 const sha256 = s => crypto.createHash('sha256').update(s).digest('hex')
@@ -331,6 +331,46 @@ function resolveOrRefresh(req, res) {
   return { sub: u.id, email: u.email, name: u.name, avatar_url: u.avatar_url, role: u.role }
 }
 
+/** One row per session FAMILY (= one login), newest use first — the "your
+ *  devices" shape (JK-A10). Rows are rotations of the same login, so reporting
+ *  them raw would show "47 sessions" for one month-old browser; they fold, and
+ *  the timestamps become the family's first-seen and last-used.
+ *
+ *  Lives here rather than in a route because both the JSON surface and the
+ *  server-rendered security page read it, and two hand-written copies of this
+ *  GROUP BY would eventually disagree about what a device is. */
+function sessionFamilies(userId, currentFamily = null) {
+  return all(
+    `SELECT family_id,
+            MIN(COALESCE(family_created_at, created_at)) AS created_at,
+            MAX(COALESCE(last_used_at, created_at))      AS last_used_at,
+            MAX(remember_me)                             AS remember_me,
+            MAX(CASE WHEN revoked_at IS NULL THEN 0 ELSE 1 END) AS revoked,
+            MAX(COALESCE(revoked_reason, ''))            AS revoked_reason,
+            COUNT(*)                                     AS rotations
+       FROM sessions WHERE user_id=? AND family_id IS NOT NULL
+      GROUP BY family_id ORDER BY last_used_at DESC`, [userId],
+  ).map(r => ({
+    family_id: r.family_id,
+    created_at: r.created_at,
+    last_used_at: r.last_used_at,
+    remember_me: !!r.remember_me,
+    revoked: !!r.revoked,
+    revoked_reason: r.revoked_reason || null,
+    rotations: r.rotations,
+    current: r.family_id === currentFamily,
+  }))
+}
+
+/** The family the caller is currently using, or null. Read from the refresh
+ *  cookie: the family lives on the session row, and the access JWT deliberately
+ *  carries no session identity. */
+function currentFamilyOf(req) {
+  const refresh = req?.cookies?.[REFRESH_COOKIE]
+  if (!refresh) return null
+  return get('SELECT family_id FROM sessions WHERE token_hash=?', [sha256(refresh)])?.family_id ?? null
+}
+
 function publicUser(u) {
   return { id: u.id, email: u.email, name: u.name, avatar_url: u.avatar_url, role: u.role }
 }
@@ -338,5 +378,5 @@ function publicUser(u) {
 module.exports = {
   DUMMY_HASH, sha256, signAccess, signService, issueTokens, clearTokens,
   liveSession, tryRotate, resolveUser, resolveOrRefresh, publicUser,
-  signPending, verifyPending, provenance,
+  signPending, verifyPending, provenance, sessionFamilies, currentFamilyOf,
 }

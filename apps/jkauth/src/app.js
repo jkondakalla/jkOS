@@ -76,6 +76,15 @@ app.use('/auth/refresh', mkLimiter(RL_REFRESH))
 // the tight credential budget, not refresh's relaxed one — otherwise the secret is
 // brute-forceable at the refresh rate. Tokens live ~10 min, so issuance is rare.
 app.use('/auth/token', mkLimiter(RL_CREDENTIALS))
+// The C3 account flows are credential surfaces too and belong on the tight
+// budget: /auth/password takes the current password, and the reset pair is an
+// unauthenticated path that mints and consumes codes. `/auth/reset` covers both
+// `/request` and `/confirm` (app.use matches by prefix). `htmlPage` is off —
+// these render their own pages, and the limiter's login-page fallback would be
+// the wrong surface to bounce someone to mid-reset.
+app.use('/auth/password', mkLimiter(RL_CREDENTIALS))
+app.use('/auth/reset', mkLimiter(RL_CREDENTIALS))
+app.use('/auth/verify', mkLimiter(RL_CREDENTIALS))
 
 // Security headers on every dynamic response (static assets are served above and
 // stay cacheable): clickjacking defence + nosniff + a tight referrer policy +
@@ -106,6 +115,7 @@ app.use((req, res, next) => {
 // (app.use matches by path prefix), so the 2FA code-verify endpoint is throttled.
 app.use(require('./routes/auth'))
 app.use(require('./routes/twofactor'))
+app.use(require('./routes/account'))
 app.use(require('./routes/profile'))
 app.use(require('./routes/weave'))
 

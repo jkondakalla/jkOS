@@ -26,9 +26,10 @@ ${body}
 }
 
 function loginPage(opts = {}) {
-  const { error, redirectTo, mode } = opts
+  const { error, notice, redirectTo, mode } = opts
   const redirectInput = redirectTo ? `<input type="hidden" name="redirect_to" value="${escHtml(redirectTo)}">` : ''
-  const errorHtml = error ? `<p class="error">${escHtml(error)}</p>` : ''
+  const errorHtml = (error ? `<p class="error">${escHtml(error)}</p>` : '')
+    + (notice ? `<p class="ok-note">${escHtml(notice)}</p>` : '')
   const guestEnabled = !!GUEST_PASSWORD
   const isRegister = mode === 'register'
 
@@ -52,6 +53,77 @@ function loginPage(opts = {}) {
     ? `Already have an account? <a href="/auth/login${redirectTo ? '?redirect_to=' + encodeURIComponent(redirectTo) : ''}">Sign in</a>`
     : `No account? <a href="/auth/register${redirectTo ? '?redirect_to=' + encodeURIComponent(redirectTo) : ''}">Register</a>`
   }</p>
+  ${!isRegister ? '<p class="toggle"><a href="/auth/forgot">Forgot your password?</a></p>' : ''}
+</div>`)
+}
+
+// Ask for a reset code. The response to a submission is deliberately identical
+// whether or not the address has an account (routes/account.js) — this page just
+// renders whatever it is told, and must never grow a branch on "user exists".
+function forgotPage(opts = {}) {
+  const { error, notice } = opts
+  return layout('Reset your password', `
+<div class="card ink-in">
+  <h1 class="wordmark">jk<span>OS</span></h1>
+  <p class="subtitle">Reset your password</p>
+  ${error ? `<p class="error">${escHtml(error)}</p>` : ''}
+  ${notice ? `<p class="ok-note">${escHtml(notice)}</p>` : ''}
+  <form method="POST" action="/auth/reset/request">
+    <input class="jk-field" type="email" name="email" placeholder="Email" required
+      autocomplete="username" autocapitalize="none" spellcheck="false">
+    <button type="submit" class="btn-primary">Send a reset code</button>
+  </form>
+  <p class="toggle">Already have a code? <a href="/auth/reset">Enter it</a></p>
+  <p class="toggle"><a href="/auth/login">Back to sign in</a></p>
+</div>`)
+}
+
+// Enter the emailed code + a new password.
+function resetPage(opts = {}) {
+  const { error, notice, email } = opts
+  return layout('Choose a new password', `
+<div class="card ink-in">
+  <h1 class="wordmark">jk<span>OS</span></h1>
+  <p class="subtitle">Choose a new password</p>
+  ${error ? `<p class="error">${escHtml(error)}</p>` : ''}
+  ${notice ? `<p class="ok-note">${escHtml(notice)}</p>` : ''}
+  <form method="POST" action="/auth/reset/confirm">
+    <input class="jk-field" type="email" name="email" placeholder="Email" required
+      value="${escHtml(email || '')}" autocomplete="username" autocapitalize="none" spellcheck="false">
+    <input class="jk-field" type="text" name="code" inputmode="numeric" autocomplete="one-time-code"
+      placeholder="6-digit code" required spellcheck="false">
+    <input class="jk-field" type="password" name="new_password" placeholder="New password" required
+      autocomplete="new-password">
+    <button type="submit" class="btn-primary">Set new password</button>
+  </form>
+  <p class="muted-note">Setting a new password signs out every device.</p>
+  <p class="toggle"><a href="/auth/login">Back to sign in</a></p>
+</div>`)
+}
+
+// Confirm the account's email address. Email is the 2FA delivery channel, so
+// this is what stands between a second factor and an address nobody has proved
+// they control (JK-A12).
+function verifyEmailPage(opts = {}) {
+  const { error, notice, email, verified } = opts
+  const body = verified
+    ? `<p class="muted-note"><strong>${escHtml(email || '')}</strong> is confirmed.</p>
+       <p class="toggle"><a href="/auth/security">Back to security</a></p>`
+    : `<p class="muted-note">We'll send a code to <strong>${escHtml(email || '')}</strong>.</p>
+       <form method="POST" action="/auth/verify/send"><button class="btn-ghost">Send me a code</button></form>
+       <form method="POST" action="/auth/verify/confirm">
+         <input class="jk-field" type="text" name="code" inputmode="numeric" autocomplete="one-time-code"
+           placeholder="6-digit code" required spellcheck="false">
+         <button type="submit" class="btn-primary">Confirm address</button>
+       </form>
+       <p class="toggle"><a href="/auth/security">Back to security</a></p>`
+  return layout('Confirm your email', `
+<div class="card ink-in">
+  <h1 class="wordmark">jk<span>OS</span></h1>
+  <p class="subtitle">Confirm your email</p>
+  ${error ? `<p class="error">${escHtml(error)}</p>` : ''}
+  ${notice ? `<p class="ok-note">${escHtml(notice)}</p>` : ''}
+  ${body}
 </div>`)
 }
 
@@ -90,7 +162,7 @@ function twoFactorPage(opts = {}) {
 // Account security page (authenticated) — manage TOTP + email 2FA. Pure forms,
 // so it needs no client JS and stays within the strict CSP. (U6)
 function securityPage(user, info = {}, opts = {}) {
-  const { totpEnabled, emailEnabled, recoveryRemaining } = info
+  const { totpEnabled, emailEnabled, recoveryRemaining, emailVerified, devices = [] } = info
   const { notice, error } = opts
   const noticeHtml = notice ? `<p class="ok-note">${escHtml(notice)}</p>` : ''
   const errorHtml = error ? `<p class="error">${escHtml(error)}</p>` : ''
@@ -101,11 +173,41 @@ function securityPage(user, info = {}, opts = {}) {
     : `<p class="muted-note">Use an authenticator app (Google Authenticator, 1Password, …) for time-based codes.</p>
        <form method="POST" action="/auth/2fa/totp/setup"><button class="btn-primary">Set up authenticator</button></form>`
 
+  // Email 2FA is gated on a CONFIRMED address (JK-A12): the whole point of the
+  // factor is that it reaches somewhere only the account owner can read, and an
+  // unconfirmed address has never been shown to be that.
   const emailBlock = emailEnabled
     ? `<p class="muted-note">Email codes are <strong>on</strong> — sent to ${escHtml(user.email)} at sign-in.</p>
        <form method="POST" action="/auth/2fa/email/disable"><button class="btn-ghost">Turn off email codes</button></form>`
-    : `<p class="muted-note">Get a one-time code by email at each sign-in.</p>
-       <form method="POST" action="/auth/2fa/email/enable"><button class="btn-primary">Turn on email codes</button></form>`
+    : emailVerified
+      ? `<p class="muted-note">Get a one-time code by email at each sign-in.</p>
+         <form method="POST" action="/auth/2fa/email/enable"><button class="btn-primary">Turn on email codes</button></form>`
+      : `<p class="muted-note">Confirm <strong>${escHtml(user.email)}</strong> first — a second factor has to
+         reach an address you've proved you can read.</p>
+         <p class="toggle"><a href="/auth/verify">Confirm this address</a></p>`
+
+  // Rendered on the server, not fetched: the data is already in hand here, it
+  // needs no inline script (so nothing to thread a CSP nonce through), and the
+  // page still works with JS off. A revoke is an ordinary form POST.
+  const fmt = (s) => {
+    const ms = Date.parse(String(s).includes('T') ? s : String(s).replace(' ', 'T') + 'Z')
+    return Number.isFinite(ms) ? new Date(ms).toISOString().replace('T', ' ').slice(0, 16) + ' UTC' : '—'
+  }
+  const devicesBlock = !devices.length
+    ? '<p class="muted-note">No sign-ins on record.</p>'
+    : devices.map((d) => `
+      <div class="sec-device">
+        <p class="muted-note">
+          ${d.current ? '<strong>This device</strong> · ' : ''}${d.revoked
+            ? `signed out (${escHtml(d.revoked_reason || 'revoked')})`
+            : `last used ${escHtml(fmt(d.last_used_at))}`}
+          · started ${escHtml(fmt(d.created_at))}
+          · ${d.rotations} refresh${d.rotations === 1 ? '' : 'es'}${d.remember_me ? ' · remembered' : ''}
+        </p>
+        ${d.revoked || d.current ? '' : `<form method="POST" action="/auth/sessions/revoke">
+          <input type="hidden" name="family_id" value="${escHtml(d.family_id)}">
+          <button class="btn-ghost">Sign out this device</button></form>`}
+      </div>`).join('')
 
   return layout('Security', `
 <div class="card ink-in" style="max-width:460px">
@@ -119,6 +221,22 @@ function securityPage(user, info = {}, opts = {}) {
   <div class="sec-section">
     <h2>Email codes</h2>
     ${emailBlock}
+  </div>
+  <div class="sec-section">
+    <h2>Password</h2>
+    <form method="POST" action="/auth/password">
+      <input class="jk-field" type="password" name="current_password" placeholder="Current password"
+        required autocomplete="current-password">
+      <input class="jk-field" type="password" name="new_password" placeholder="New password"
+        required autocomplete="new-password">
+      <button type="submit" class="btn-primary">Change password</button>
+    </form>
+    <p class="muted-note">Changing it signs out every other device, keeping this one.</p>
+  </div>
+  <div class="sec-section">
+    <h2>Your devices</h2>
+    <p class="muted-note">Each sign-in is one entry, however many times it has refreshed.</p>
+    ${devicesBlock}
   </div>
   <p class="toggle"><a href="/auth/dashboard">Back to portal</a></p>
 </div>`)
@@ -288,4 +406,5 @@ sw.addEventListener('keydown', e => { if (e.key === ' ' || e.key === 'Enter') { 
 module.exports = {
   layout, loginPage, dashboardPage,
   twoFactorPage, securityPage, totpSetupPage, recoveryCodesPage,
+  forgotPage, resetPage, verifyEmailPage,
 }

@@ -42,4 +42,40 @@ async function sendOtpEmail(to, code) {
   return sendEmail({ to, subject, html, text })
 }
 
-module.exports = { sendEmail, sendOtpEmail }
+// One shell for every code-bearing mail, so a new flow can't drift into its own
+// visual language or forget the "you didn't ask for this" line.
+function codeEmail({ heading, lead, code, minutes, ignore }) {
+  const text = `${heading}: ${code}\n\nIt expires in ${minutes} minutes. ${ignore}`
+  const html =
+    `<div style="font-family:system-ui,sans-serif;max-width:420px;margin:0 auto;padding:24px">` +
+    `<h2 style="margin:0 0 8px">${heading}</h2>` +
+    `<p style="color:#555;margin:0 0 16px">${lead}</p>` +
+    `<div style="font-size:30px;font-weight:700;letter-spacing:.18em;padding:14px 0">${code}</div>` +
+    `<p style="color:#888;font-size:13px">It expires in ${minutes} minutes. ${ignore}</p>` +
+    `</div>`
+  return { text, html }
+}
+
+async function sendResetEmail(to, code) {
+  if (process.env.OTP_TEST_ECHO === '1') console.log(`[otp-echo] ${to} ${code}`)
+  const { text, html } = codeEmail({
+    heading: 'jkOS password reset code',
+    lead: 'Enter this code to choose a new password:',
+    code, minutes: 30,
+    ignore: "If you didn't ask to reset your password, ignore this email — nothing has changed.",
+  })
+  return sendEmail({ to, subject: 'Your jkOS password reset code', html, text })
+}
+
+async function sendVerifyEmail(to, code) {
+  if (process.env.OTP_TEST_ECHO === '1') console.log(`[otp-echo] ${to} ${code}`)
+  const { text, html } = codeEmail({
+    heading: 'Confirm your jkOS email',
+    lead: 'Enter this code to confirm this address:',
+    code, minutes: 30,
+    ignore: "If you didn't create a jkOS account, ignore this email.",
+  })
+  return sendEmail({ to, subject: 'Confirm your jkOS email', html, text })
+}
+
+module.exports = { sendEmail, sendOtpEmail, sendResetEmail, sendVerifyEmail }

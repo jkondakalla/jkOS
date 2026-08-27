@@ -259,6 +259,28 @@ const MIGRATIONS = [
          WHERE family_created_at IS NULL`)
     run('CREATE INDEX IF NOT EXISTS idx_sessions_last_used ON sessions(user_id, last_used_at)')
   }],
+
+  // Email verification (JK-A12) + TOTP replay protection (JK-A19).
+  //
+  // `email_verified` exists because EMAIL IS THE 2FA DELIVERY CHANNEL: without
+  // it, email-OTP second factors were being sent to an address nobody had ever
+  // proved they control. Login is deliberately NOT blocked on it — this is a
+  // homelab SSO and locking the owner out of his own suite over an unsent mail
+  // would be a worse failure — but ENABLING email 2FA is, which is the actual
+  // finding.
+  //
+  // Backfill: an account that already has email 2FA on has demonstrably received
+  // mail at that address, so it is grandfathered rather than being switched off
+  // under its owner. Everyone else starts at 0.
+  //
+  // `totp_last_counter` closes JK-A19: a TOTP code was replayable anywhere in
+  // its ±1-step window (~90 s), so an observed code stayed valid. Storing the
+  // last accepted step and refusing anything <= it makes each code single-use.
+  ['018_email_verification_and_totp_replay', () => {
+    addColumn('users', 'email_verified', 'INTEGER NOT NULL DEFAULT 0')
+    addColumn('users', 'totp_last_counter', 'INTEGER')
+    run('UPDATE users SET email_verified=1 WHERE email_2fa_enabled=1')
+  }],
 ]
 
 function runMigrations() {
