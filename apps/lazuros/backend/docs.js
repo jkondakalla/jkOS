@@ -16,6 +16,7 @@
 // against the loaded tier registry at request time (see composability mandate).
 
 const { resourceKey } = require('@jkos/suite-manifest');
+const { defineActivity, canonicalTime, extRef } = require('@jkos/weave/activity'); // D6: the activity contract (lean subpath — this file is imported as DATA by the prober)
 
 /** This app's one polled resource: the async inference job queue. */
 const JOBS_KEY = resourceKey('lazuros', 'jobs'); // 'lazuros.jobs'
@@ -106,4 +107,57 @@ const DATASETS_DOC = {
   }],
 };
 
-module.exports = { CAPABILITIES_DOC, DATASETS_DOC, JOBS_KEY };
+/* ── D6 / XC-2: the ACTIVITY contract ─────────────────────────────────────────────
+   ⚠️ LazurOS's per-user record of what happened is a WORK QUEUE that happens to
+   remember — `jobs`, whose reason to exist is dispatching inference, not logging.
+   The other three ledgers in the suite are a play-history table (twice) and two
+   columns on an items row. Four honest schemas answering four different local needs,
+   which is why XC-2's answer is one declared SHAPE and not one shared table: forcing
+   a queue into a common ledger would mean either a second write on every dispatch or
+   a queue that has to survive a suite-wide migration to change its own columns.
+
+   This is also the half of XC-2 that matters most for §1's action-audit trail. "What
+   did the user ask the AI to do, and did it work" is precisely the question an audit
+   asks, and until now it could only be answered by reading LazurOS's private queue.
+
+   ONE kind, not one per capability: `capability` is data (it varies per deployment
+   and grows with the tier registry), and a `kinds` list is a closed vocabulary a
+   consumer renders a filter from. The capability name rides in `label`.
+
+   `completed` uses all three states honestly — DONE true, FAILED false, and a job
+   still queued or running null, because at read time its outcome is genuinely not
+   yet known. */
+const ACTIVITY = defineActivity({
+  app: 'lazuros',
+  kinds: [{ id: 'ai_job', label: 'Asked LazurOS', verb: 'asked LazurOS to run' }],
+  read(db, userId, { since, until, limit }) {
+    const where = ['user_id = ?'];
+    const params = [String(userId)];
+    if (since) { where.push('created_at > ?'); params.push(since); }
+    if (until) { where.push('created_at < ?'); params.push(until); }
+    const rows = db
+      .prepare(
+        `SELECT id, capability, status, created_at
+           FROM jobs
+          WHERE ${where.join(' AND ')}
+          ORDER BY created_at DESC
+          LIMIT ?`,
+      )
+      .all(...params, limit);
+    return rows.map((r) => ({
+      id: `jobs:${r.id}`,
+      kind: 'ai_job',
+      at: canonicalTime(r.created_at),
+      ref: extRef('lazuros', r.id),
+      label: r.capability || null,
+      /* Null, not `updated_at - created_at`. That difference is the round trip the
+         user WAITED, most of which can be queue time, whereas `ms` means time
+         actually spent on the act in every other app that reports it. One field, one
+         meaning across four apps, is the entire value of having a contract. */
+      ms: null,
+      completed: r.status === 'DONE' ? true : r.status === 'FAILED' ? false : null,
+    }));
+  },
+});
+
+module.exports = { CAPABILITIES_DOC, DATASETS_DOC, JOBS_KEY, ACTIVITY };

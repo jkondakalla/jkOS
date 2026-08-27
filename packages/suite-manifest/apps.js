@@ -18,6 +18,7 @@
 //   healthPath        = '/health/' + id        (when `health`)
 //   capabilitiesPath  = apiBase + '/capabilities'  (when `capabilities`)
 //   datasetsPath      = apiBase + '/datasets'      (when `datasets`)
+//   activityPath      = apiBase + '/activity'      (when `activity`)
 //   resourceKey       = id + '.' + resource    (the invalidation bus key, A5)
 //   scope             = id + ':' + verb        (the capability scope namespace)
 //
@@ -47,7 +48,7 @@ const APPS = [
     id: 'beigeboard', name: 'BeigeBoard', origin: 'https://beigeboard.jkos.net',
     allowedRoles: ['user', 'admin', 'guest'],
     upstream: 'bb-app:3001', health: true, api: true,
-    capabilities: true, datasets: true,
+    capabilities: true, datasets: true, activity: true,
   },
   {
     id: 'sylibos', name: 'SylibOS', origin: 'https://sylibos.jkos.net',
@@ -69,20 +70,21 @@ const APPS = [
     upstream: 'host.docker.internal:8080', kind: 'lazuros',
     health: true, api: true, ai: true,
     capabilities: true, datasets: true, // Weave write+read contracts (LazurOS refactor)
+    activity: true,                     // its `jobs` queue IS a per-user record of what was asked (XC-2 / D6)
     apiBase: '/api/lazuros', healthPath: '/api/lazuros/health', // host-network, bespoke paths
   },
   {
     id: 'papyros', name: 'PapyrOS', origin: 'https://papyros.jkos.net',
     allowedRoles: ['user', 'admin'],
     upstream: 'papyros-app:3010', health: true, api: true,
-    capabilities: true, datasets: true,
+    capabilities: true, datasets: true, activity: true,
     edge: 'standard', // GENERATED nginx server block + staging subpath (gen-nginx-weave.mjs)
   },
   {
     id: 'kouros', name: 'KourOS', origin: 'https://kouros.jkos.net',
     allowedRoles: ['user', 'admin'],
     upstream: 'kouros-app:3011', health: true, api: true,
-    capabilities: true, datasets: true,
+    capabilities: true, datasets: true, activity: true,
     edge: 'standard', // GENERATED nginx server block + staging subpath (gen-nginx-weave.mjs)
   },
   {
@@ -127,6 +129,12 @@ function capabilitiesPathOf(app) {
 function datasetsPathOf(app) {
   return app.datasets ? `${apiBaseOf(app)}/datasets` : null
 }
+/** Edge path serving the app's ActivityDoc — what the user DID here (XC-2 / D6).
+ *  The third of the same kind of declaration: what an app can be told to do, what
+ *  it can be read for, and what it remembers having done. */
+function activityPathOf(app) {
+  return app.activity ? `${apiBaseOf(app)}/activity` : null
+}
 
 /** The invalidation bus key for one of an app's resources, e.g.
  *  resourceKey('beigeboard','items') === 'beigeboard.items' (A5). */
@@ -153,6 +161,7 @@ function registrySeed() {
     health_path: healthPathOf(a),
     capabilities_path: capabilitiesPathOf(a),
     datasets_path: datasetsPathOf(a),
+    activity_path: activityPathOf(a),
     ai: a.ai ? 1 : 0,
   }))
 }
@@ -170,10 +179,12 @@ function manifestApps() {
     const healthPath = healthPathOf(a)
     const capabilitiesPath = capabilitiesPathOf(a)
     const datasetsPath = datasetsPathOf(a)
+    const activityPath = activityPathOf(a)
     if (apiBase) entry.apiBase = apiBase
     if (healthPath) entry.healthPath = healthPath
     if (capabilitiesPath) entry.capabilitiesPath = capabilitiesPath
     if (datasetsPath) entry.datasetsPath = datasetsPath
+    if (activityPath) entry.activityPath = activityPath
     if (a.ai) entry.ai = true
     out[a.id] = entry
   }
@@ -284,6 +295,7 @@ module.exports = {
   healthPathOf,
   capabilitiesPathOf,
   datasetsPathOf,
+  activityPathOf,
   resourceKey,
   scopeFor,
   registrySeed,

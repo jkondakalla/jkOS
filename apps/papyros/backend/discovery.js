@@ -20,6 +20,7 @@
 // here — it doesn't read auth.env or touch fetch until server.js calls `META.mount(app)`.
 const { resourceKey } = require('@jkos/suite-manifest');
 const { defineCollection } = require('@jkos/weave/collection');   // 3.1: the four collections below
+const { defineActivity, canonicalTime, extRef } = require('@jkos/weave/activity'); // D6: the activity contract (lean subpath — this file is imported as DATA by the prober)
 const { defineConnector } = require('@jkos/weave/connector');     // 4.1: META, the iTunes metadata connector below
 
 /** The `books` catalog's invalidation bus key — the scanner (src/library/scan.js)
@@ -164,6 +165,63 @@ const HISTORY = defineCollection({
     { name: 'ms_played',  type: 'number',  label: 'Milliseconds played',           default: 0 },
     { name: 'completed',  type: 'boolean', label: 'Completed' },
   ],
+});
+
+/* ── D6 / XC-2: the ACTIVITY contract ─────────────────────────────────────────────
+   PapyrOS's `history` and KourOS's `history` are FIELD-FOR-FIELD IDENTICAL and were
+   invented independently, months apart, by two people solving the same problem
+   without a shared word for it. That is the finding XC-2 actually names: not that
+   the code is duplicated, but that the suite had no way for an app to say "I keep a
+   record of what the user did", so each app had to make one up.
+
+   ⚠️ The answer is a DECLARED SHAPE, not a shared table. This app keeps its own
+   `history` exactly as it is — its own columns, its own indexes, its own
+   append-only guarantee — and merely answers about ITSELF in the common shape.
+   Weave fans the question out across apps and merges (shared/activity.js). Nothing
+   below is imported by KourOS and nothing here imports KourOS.
+
+   ⚠️ THE JOIN. `item_ref` is TEXT-affinity (see PROGRESS.book_ref's long NOTE
+   above), so `history.item_ref = books.id` compares TEXT '12' against INTEGER 12
+   and never matches. This is the FIRST real SQL join across that boundary in the
+   codebase — the one that NOTE said was coming — so it uses the CAST the note
+   prescribes. Getting this wrong would not error; it would silently label every
+   event `null`, which is why it is called out rather than left to be noticed. */
+const ACTIVITY = defineActivity({
+  app: 'papyros',
+  kinds: [{ id: 'listen', label: 'Listened', verb: 'listened to' }],
+  read(db, userId, { since, until, limit }) {
+    const where = ['h.user_id = ?'];
+    const params = [userId];
+    if (since) { where.push('h.started_at > ?'); params.push(since); }
+    if (until) { where.push('h.started_at < ?'); params.push(until); }
+    const rows = db
+      .prepare(
+        `SELECT h.id, h.item_ref, h.started_at, h.ms_played, h.completed, h.created_at,
+                b.title AS book_title, b.author AS book_author
+           FROM history h
+           LEFT JOIN books b ON b.id = CAST(h.item_ref AS INTEGER)
+          WHERE ${where.join(' AND ')}
+          ORDER BY h.started_at DESC
+          LIMIT ?`,
+      )
+      .all(...params, limit);
+    return rows.map((r) => ({
+      id: `history:${r.id}`,
+      kind: 'listen',
+      // `started_at` is client-supplied (the player stamps it at session start), so
+      // it is normalised rather than trusted: `at` is the cross-app MERGE KEY and
+      // the merge is a string sort, so a non-canonical stamp here would sort
+      // wrongly against every other app's. Falls back to the server's own
+      // `created_at` when the client sent something unparseable.
+      at: canonicalTime(r.started_at) || canonicalTime(r.created_at),
+      ref: extRef('papyros', r.item_ref),
+      label: r.book_title
+        ? (r.book_author ? `${r.book_title} — ${r.book_author}` : r.book_title)
+        : null,
+      ms: r.ms_played ?? null,
+      completed: r.completed == null ? null : !!r.completed,
+    }));
+  },
 });
 
 /* ── 4.1: META — the iTunes metadata connector (the suite's first) ────────────────
@@ -425,5 +483,6 @@ module.exports = {
   CAPABILITIES, DATASETS, BOOKS_KEY, BOOK_SHAPE,
   PROGRESS, BOOKMARKS, CLUBS, CLUB_MEMBERS,   // 3.1: server.js .mount()s each of these
   HISTORY,                                     // 17.4: server.js .mount()s this too (append-only)
+  ACTIVITY,                                    // D6: server.js mounts its handler (what the user DID here)
   META,                                        // 4.1: server.js .mount()s this too (reads only, no CollectionDef .ddl())
 };

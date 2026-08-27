@@ -272,6 +272,52 @@ try {
   ok(aiGone.status === 404, `L: /api/ai/parse-task is gone → 404 (got ${aiGone.status})`);
   const bdGone = await req('POST', '/api/ai/breakdown', { title: 'ship it' }, A);
   ok(bdGone.status === 404, `L: /api/ai/breakdown is gone → 404 (got ${bdGone.status})`);
+
+  // ── O. THE ACTIVITY CONTRACT (D6 / XC-2) ──────────────────────────────────────
+  //    ⚠️ BeigeBoard's ledger is not a ledger table — it is `started_at` and
+  //    `completed_at`, two columns on a wide items row (see src/item-fields.js). So
+  //    unlike papyros's and kouros's, this app's read is a UNION, and ONE ITEM CAN
+  //    PRODUCE TWO EVENTS. That is the part worth testing: an id collision between
+  //    the two legs would make the merged cross-app feed drop one of them silently,
+  //    because de-duplication is by event id.
+  const oStart = '2026-08-26T09:00:00.000Z';
+  const mkO = await req('POST', '/api/items', { title: 'activity subject', kind: 'task' }, A);
+  const oId = mkO.json.id;
+  await req('PATCH', `/api/items/${oId}`, { started_at: oStart }, A);
+  await req('PATCH', `/api/items/${oId}`, { completed: true }, A);
+
+  const anonAct = await req('GET', '/api/activity');
+  ok(anonAct.status === 401, `O: unauthenticated GET /api/activity → 401 (got ${anonAct.status})`);
+
+  const act = (await req('GET', '/api/activity', undefined, A)).json;
+  ok(act?.app === 'beigeboard', `O: the doc names its app (got ${act?.app})`);
+  ok(act?.kinds?.map((k) => k.id).sort().join(',') === 'complete,start',
+    `O: BeigeBoard declares TWO verbs, not one (got ${JSON.stringify(act?.kinds?.map((k) => k.id))})`);
+
+  const { checkActivityDoc } = await import('@jkos/weave/activity');
+  ok(checkActivityDoc(act) === null, `O: the served doc satisfies the shared contract (${checkActivityDoc(act)})`);
+
+  const mine = act.activity.filter((e) => e.ref === `beigeboard:${oId}`);
+  ok(mine.length === 2, `O: one item that was started AND completed yields TWO events (got ${mine.length})`);
+  ok(new Set(mine.map((e) => e.id)).size === 2,
+    `O: the two events carry DISTINCT ids — a collision would silently drop one from the merged feed (got ${JSON.stringify(mine.map((e) => e.id))})`);
+  const started = mine.find((e) => e.kind === 'start');
+  const done = mine.find((e) => e.kind === 'complete');
+  ok(started?.at === oStart, `O: the start event carries the write-once started_at (got ${started?.at})`);
+  ok(done?.completed === true, `O: only the complete event asserts completion (got ${done?.completed})`);
+  ok(started?.completed === null,
+    `O: a start event is null, NOT false — "no notion of finishing", not "did not finish" (got ${started?.completed})`);
+  ok(mine.every((e) => e.ms === null),
+    'O: ms stays null — elapsed wall-clock is not "time actually spent", which is what ms means everywhere else');
+
+  // The union windows BOTH legs. Filtering only one would silently return unbounded
+  // rows from the other, which is the bug this shape invites.
+  const wide = (await req('GET', '/api/activity?since=2026-08-26T08%3A00%3A00.000Z', undefined, A)).json;
+  ok(wide.activity.every((e) => e.at > '2026-08-26T08:00:00.000Z'),
+    'O: ?since= bounds BOTH legs of the union, not just the first');
+
+  const actB = (await req('GET', '/api/activity', undefined, B)).json;
+  ok(!actB.activity.some((e) => e.ref === `beigeboard:${oId}`), "O: A's events never appear in B's feed");
 } catch (e) {
   console.error('harness error:', e);
   fail++;

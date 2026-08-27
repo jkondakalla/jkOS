@@ -18,7 +18,7 @@ const {
   backfillWireTime,   // XC-1: one-time conversion of existing rows to the canonical wire format
 } = require('@jkos/weave/server');
 const { resolveIssuer } = require('@jkos/auth-middleware');   // shared issuer default (single source)
-const { CAPABILITIES, DATASETS, PLAYLISTS, HISTORY, RATINGS } = require('./discovery');   // discovery docs + the three collections
+const { CAPABILITIES, DATASETS, PLAYLISTS, HISTORY, RATINGS, ACTIVITY } = require('./discovery');   // discovery docs + the three collections + the activity surface
 const { createScanner } = require('./src/library/scan');            // 18.2: MUSIC_DIR walker → `tracks` catalog
 const { createLibraryRouter } = require('./src/routes/library');    // 18.2: rescanLibrary route
 const { createTracksRouter } = require('./src/routes/tracks');      // 18.2: filtered `tracks` dataset read
@@ -184,6 +184,14 @@ const MIGRATIONS = [
     id: 5, name: 'canonical_wire_timestamps',
     up(d) { backfillWireTime(d, ['tracks', 'playlists', 'history', 'ratings']); },
   },
+  /* D6: the activity read orders and windows on (user_id, started_at), which had no
+     index — `history` carried only defineCollection's implicit user + updated_at
+     ones. A ledger is the one table that only ever grows, so a full per-user scan
+     here gets slower every day it works. */
+  {
+    id: 6, name: 'index_history_started',
+    up(d) { d.exec('CREATE INDEX IF NOT EXISTS idx_history_user_started ON history(user_id, started_at)'); },
+  },
 ];
 
 function runMigrations() {
@@ -271,6 +279,10 @@ app.use(createDiscoverRouter({ discovery, db }));          // /api/discover/*
 PLAYLISTS.mount(app, db);
 HISTORY.mount(app, db);   // append-only — see discovery.js's HISTORY comment
 RATINGS.mount(app, db);
+/* D6 / XC-2: GET /api/activity — "what did the user DO here", in the ONE declared
+   suite shape. Distinct from HISTORY's list route above, which serves this app's own
+   columns to its own frontend; this answers a question asked of four apps at once. */
+ACTIVITY.mount(app, db);
 
 /* ── Media (stream/cover/download) ─────────────────────────────────────────
    The playback backend: range-aware audio streaming, cover art, whole-track download.

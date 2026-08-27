@@ -14,6 +14,7 @@
 // with no env/DB/network.
 const { resourceKey } = require('@jkos/suite-manifest');
 const { defineCollection } = require('@jkos/weave/collection');
+const { defineActivity, canonicalTime, extRef } = require('@jkos/weave/activity'); // D6: the activity contract (lean subpath — this file is imported as DATA by the prober)
 
 /** The `tracks` catalog's invalidation bus key — the scanner (src/library/scan.js)
  *  bumps every track row it touches, so a peer polling `tracks` refetches on rescan. */
@@ -80,6 +81,58 @@ const RATINGS = defineCollection({
     { name: 'track_ref', type: 'ref',    label: 'Track',  ref: 'kouros.tracks', required: true },
     { name: 'rating',    type: 'number', label: 'Rating', required: true },
   ],
+});
+
+/* ── D6 / XC-2: the ACTIVITY contract ─────────────────────────────────────────────
+   ⚠️ KourOS's `history` above and PapyrOS's `history` are FIELD-FOR-FIELD IDENTICAL,
+   and were invented independently. Read that as the finding rather than as an
+   embarrassment: neither author was careless, the suite simply had no word for "this
+   app keeps a record of what the user did", so each one had to coin a private one.
+
+   ⚠️ The remedy is a DECLARED SHAPE, NOT A SHARED TABLE, and the difference is the
+   whole point. This block imports nothing from PapyrOS and PapyrOS imports nothing
+   from here. KourOS keeps its own ledger, indexes it how it likes, and stays free to
+   purge a user's rows without coordinating a migration with three other apps. What
+   is common is the ANSWER — so ORDECK can ask four apps "what did I do today" and
+   merge, and so the suite has one action-audit trail instead of four private ones.
+
+   The JOIN carries the same CAST caveat PapyrOS's does: `item_ref` is TEXT-affinity
+   (see HISTORY above), so `= tracks.id` would compare TEXT '12' to INTEGER 12 and
+   match nothing — silently labelling every event null rather than erroring. */
+const ACTIVITY = defineActivity({
+  app: 'kouros',
+  kinds: [{ id: 'listen', label: 'Listened', verb: 'listened to' }],
+  read(db, userId, { since, until, limit }) {
+    const where = ['h.user_id = ?'];
+    const params = [userId];
+    if (since) { where.push('h.started_at > ?'); params.push(since); }
+    if (until) { where.push('h.started_at < ?'); params.push(until); }
+    const rows = db
+      .prepare(
+        `SELECT h.id, h.item_ref, h.started_at, h.ms_played, h.completed, h.created_at,
+                t.title AS track_title, t.artist AS track_artist
+           FROM history h
+           LEFT JOIN tracks t ON t.id = CAST(h.item_ref AS INTEGER)
+          WHERE ${where.join(' AND ')}
+          ORDER BY h.started_at DESC
+          LIMIT ?`,
+      )
+      .all(...params, limit);
+    return rows.map((r) => ({
+      id: `history:${r.id}`,
+      kind: 'listen',
+      // Normalised, not trusted: `started_at` is stamped by the player in the
+      // browser, and `at` is the cross-app merge key compared as a STRING. Falls
+      // back to the server's own `created_at` when the client sent junk.
+      at: canonicalTime(r.started_at) || canonicalTime(r.created_at),
+      ref: extRef('kouros', r.item_ref),
+      label: r.track_title
+        ? (r.track_artist ? `${r.track_title} — ${r.track_artist}` : r.track_title)
+        : null,
+      ms: r.ms_played ?? null,
+      completed: r.completed == null ? null : !!r.completed,
+    }));
+  },
 });
 
 /* ── What can be DONE to KourOS (the write contract) ───────────────────────────────
@@ -271,4 +324,5 @@ const DATASETS = {
 module.exports = {
   CAPABILITIES, DATASETS, TRACKS_KEY, TRACK_SHAPE,
   PLAYLISTS, HISTORY, RATINGS,   // server.js .mount()s each of these
+  ACTIVITY,                      // D6: server.js mounts its handler (what the user DID here)
 };

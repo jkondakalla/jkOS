@@ -62,6 +62,19 @@ Landed 2026-08-26/27 on `staging`, gate green at each commit, **none of it deplo
   instance nobody had listed — KourOS's `/discover/home` falling back to
   `new Date().getHours()`. **JK-A11 was already closed** by Stage C's millisecond
   `rotated_at`; it is struck from D5's list rather than re-fixed.
+- **D6 (XC-2) — the activity contract, and Stage E item 4 with it.** ⭐ One declared
+  shape (`packages/weave/src/shared/activity.js`), FOUR independent implementations —
+  PapyrOS's and KourOS's `history` tables, BeigeBoard's `started_at`/`completed_at`
+  columns, LazurOS's `jobs` queue. `defineActivity` supplies the envelope and the
+  validation; each app supplies its own SQL and keeps its own ledger.
+  `fetchActivity` fans the question out and merges. `activityPath` derives from
+  `@jkos/suite-manifest` like the other two contract paths (registry migration 019,
+  and the registry↔manifest parity probe extended to cover it — it was silently
+  comparing `undefined` to `undefined` until the topology projection carried the new
+  field). The `activity-conformance` probe closes **Stage E item 4**: an
+  append-only per-user collection with no declaration is a gap, and an app reaching
+  into another app's source is drift. `extRef` moved to `shared/extref.js` so the
+  CJS backends and the TS frontend share one definition instead of two.
 
 ---
 
@@ -85,17 +98,13 @@ Landed 2026-08-26/27 on `staging`, gate green at each commit, **none of it deplo
 
 ## Open — the backend and the fabric (Stage D)
 
-Seven of thirteen items (D1, D2, D3, D4, D5 and D11 are done). Re-verify each before fixing; the audit
-predates this work and BB-3 is marked *Partial*.
+Six of thirteen items (D1, D2, D3, D4, D5, D6 and D11 are done). Re-verify each before fixing; the
+audit predates this work and BB-3 is marked *Partial*.
 
 - **The seven `json` escape-hatch fields** are what remains of D3, and they are the weakest item
   on this list. A routine `spec` genuinely IS an opaque document, so "type it properly" may be
   the wrong answer — decide whether the hatch is a defect here or an honest description before
   spending effort on it.
-- **D6 · The activity contract (XC-2).** ⭐ Four per-user append-only ledgers in four schemas,
-  none aggregatable — and PapyrOS's and KourOS's `history` tables are field-for-field identical,
-  invented independently. **Declare one shape; do not share an implementation.** This is both the
-  ML corpus for the variance feature and the suite's action-audit trail.
 - **D7 · Routine identity and reachability, as one unit.** Key every occurrence reader on
   `ext_ref` (**BB-3** — the file says *"THE REF IS THE AUTHORITY"* and four of five call sites use
   `parent_id`), resolve the `ext_ref` namespace while identity is open (**BB-5** —
@@ -144,23 +153,29 @@ predates this work and BB-3 is marked *Partial*.
 
 ## Open — the ratchet (Stage E)
 
-Zero of six. Each closes a class rather than an instance, so each should land as its
-corresponding fix completes.
+Three of six are done (1, 4 and 5). Each closes a class rather than an instance, so each lands as
+its corresponding fix completes.
 
-1. **Surface coverage** — census every mounted Express route against the app's declared
-   capability and dataset paths; gap unless explicitly marked `app-private`. RESET calls this the
-   single highest-value item in the plan: `capability-completeness` audits the *typing* of what is
-   declared and never asks whether the declaration covers the code, which is exactly how BB-7
-   walks past a green prober. *Would flag today: BB 30 routes / 8 declared, KourOS 11 undeclared
-   reads, PapyrOS ~6.*
+1. ✅ **Surface coverage — DONE.** `98-surface-coverage` censuses every mounted Express route
+   against the app's declared capability and dataset paths; a gap unless explicitly marked
+   `app-private` at its own source line. RESET called this the single highest-value item in the
+   plan, because `capability-completeness` audits the *typing* of what is declared and never asks
+   whether the declaration covers the code — exactly how BB-7 walked past a green prober.
 2. **Provisioning** — extend env-conformance to the compose files and to the capability level.
    ⚠️ **Also teach it about `numEnv('NAME', default)`**: it scans for literal `process.env.X`, so
    the three `SESSION_*_MS` vars read through that helper are reported as documented-but-unread
    today. A false positive that trains people to ignore the probe.
 3. **Declared column invariants** — machine-readable `writeOnce` / `serverManaged` / `indexed`
    flags in `item-fields.js`, asserted against the actual schema and write path.
-4. **Shared-shape conformance** — does an app with activity-shaped data declare the activity
-   contract? Conformance to a declared shape, **never** code sharing.
+4. ✅ **Shared-shape conformance — DONE (with D6).** `85-activity-conformance` asks whether an
+   app with activity-shaped data declares the activity contract, and holds the rule from both
+   sides: an append-only per-user collection with no declaration is a **gap**; a declaration that
+   is never mounted, or an app reaching into another app's source, is **drift**. Conformance to a
+   declared shape, never code sharing — and the third check is what enforces the "never".
+   ⚠️ Both of its detection rules had to be fixed after they passed a planted violation: the
+   mount scan read only the nominated `docsFile` (BeigeBoard mounts in `src/app.js`), and the
+   cross-app-import check pattern-matched a literal `apps/` instead of RESOLVING the specifier,
+   so a `require('../../papyros/...')` sailed through. Both now bite, verified.
 5. ✅ **Supply chain and secrets — DONE, with one decision owed.** `check:audit` and
    `check:secrets` are in the gate. The secret scan is proved to catch a planted key and
    covers TRACKED files only, which is the right scope (what would be published) and is

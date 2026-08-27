@@ -281,6 +281,21 @@ const MIGRATIONS = [
     addColumn('users', 'totp_last_counter', 'INTEGER')
     run('UPDATE users SET email_verified=1 WHERE email_2fa_enabled=1')
   }],
+
+  // The third integration path (activity_path) — what an app remembers the user
+  // having DONE, alongside what it can be told to do (capabilities_path) and what
+  // it can be read for (datasets_path). XC-2 / D6.
+  //
+  // Backfilled from @jkos/suite-manifest rather than from literals, unlike
+  // migrations 012–014 which predate that single source. A literal here would be a
+  // fourth place the same path is spelled, which is the whole finding those three
+  // migrations exist to have cleaned up.
+  ['019_app_registry_activity', () => {
+    addColumn('app_registry', 'activity_path', 'TEXT')
+    for (const app of registrySeed()) {
+      run('UPDATE app_registry SET activity_path=? WHERE id=?', [app.activity_path, app.id])
+    }
+  }],
 ]
 
 function runMigrations() {
@@ -369,17 +384,18 @@ function sealPlaintextTotpSecrets() {
 }
 
 function seedAppRegistry() {
-  // Integration metadata (api_base/health_path/capabilities_path/datasets_path/ai)
-  // DERIVES from the single source (@jkos/suite-manifest) — the same APPS table the
-  // Weave manifest and nginx peer config build from, so this seed can't drift from
-  // them (ToDo A2). Seeds fresh DBs here; existing DBs are backfilled by migrations
-  // 012–014. Edit an app in @jkos/suite-manifest, not here.
+  // Integration metadata (api_base/health_path/capabilities_path/datasets_path/
+  // activity_path/ai) DERIVES from the single source (@jkos/suite-manifest) — the
+  // same APPS table the Weave manifest and nginx peer config build from, so this
+  // seed can't drift from them (ToDo A2). Seeds fresh DBs here; existing DBs are
+  // backfilled by migrations 012–014 and 019. Edit an app in @jkos/suite-manifest,
+  // not here.
   const defaults = registrySeed()
   for (const app of defaults) {
     if (!get('SELECT 1 FROM app_registry WHERE id=?', [app.id])) {
-      run(`INSERT INTO app_registry (id, name, origin, icon_url, allowed_roles, api_base, health_path, capabilities_path, datasets_path, ai)
-           VALUES (?,?,?,?,?,?,?,?,?,?)`,
-        [app.id, app.name, app.origin, app.icon_url, app.allowed_roles, app.api_base, app.health_path, app.capabilities_path, app.datasets_path, app.ai])
+      run(`INSERT INTO app_registry (id, name, origin, icon_url, allowed_roles, api_base, health_path, capabilities_path, datasets_path, activity_path, ai)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+        [app.id, app.name, app.origin, app.icon_url, app.allowed_roles, app.api_base, app.health_path, app.capabilities_path, app.datasets_path, app.activity_path, app.ai])
     }
   }
 }

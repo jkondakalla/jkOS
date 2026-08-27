@@ -45,6 +45,9 @@ export interface SuiteApp {
   capabilitiesPath?: string;
   /** Edge-proxied path returning the app's DatasetDoc (what can be READ); absent = undeclared. */
   datasetsPath?: string;
+  /** Edge-proxied path returning the app's ActivityDoc (what the user DID here);
+   *  absent = this app keeps no per-user record. XC-2 / D6. */
+  activityPath?: string;
   /** Gated behind the suite-wide LazurOS kill switch. */
   ai?: boolean;
 }

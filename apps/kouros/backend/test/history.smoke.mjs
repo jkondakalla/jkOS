@@ -208,6 +208,47 @@ try {
   ok(!!historyDataset, 'discovery: datasets includes a `history` entry');
   ok(historyDataset?.item?.map((f) => f.name).join(',') === 'id,item_ref,started_at,ms_played,completed,updated_at',
     `discovery: history dataset row shape is exactly id/item_ref/started_at/ms_played/completed/updated_at (got ${JSON.stringify(historyDataset?.item?.map((f) => f.name))})`);
+
+  // ── 7. THE ACTIVITY CONTRACT (D6 / XC-2) ──────────────────────────────────────
+  //     ⚠️ The point of this section is not that KourOS serves activity — it is that
+  //     KourOS and PapyrOS, whose `history` tables are field-for-field identical and
+  //     were invented independently, now answer the SAME QUESTION IN THE SAME SHAPE
+  //     without sharing a line of implementation. The identical assertions live in
+  //     apps/papyros/backend/test/history.smoke.mjs §7 on purpose: two apps proving
+  //     one contract is what the contract is FOR, and one shared test helper would
+  //     quietly become the shared implementation this design refuses.
+  const anonActivity = await req('GET', '/api/activity');
+  ok(anonActivity.status === 401, `activity: unauthenticated GET /api/activity → 401 (got ${anonActivity.status})`);
+
+  const actA = (await req('GET', '/api/activity', undefined, A)).json;
+  ok(actA?.app === 'kouros' && actA?.version === 1, `activity: the doc names its app and version (got ${actA?.app}/${actA?.version})`);
+  ok(Array.isArray(actA?.kinds) && actA.kinds.some((k) => k.id === 'listen'),
+    `activity: the vocabulary is DECLARED, not inferred (got ${JSON.stringify(actA?.kinds)})`);
+  ok(actA?.activity?.length === 2, `activity: A's two sessions surface as two events (got ${actA?.activity?.length})`);
+
+  const { checkActivityDoc } = await import('@jkos/weave/activity');
+  ok(checkActivityDoc(actA) === null, `activity: the served doc satisfies the shared contract (${checkActivityDoc(actA)})`);
+
+  const ev = actA.activity[0];
+  ok(ev.kind === 'listen', `activity: kind is the declared verb (got ${ev.kind})`);
+  ok(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(ev.at),
+    `activity: 'at' is canonical millisecond ISO — the cross-app merge key is a STRING sort (got ${ev.at})`);
+  ok(ev.ref === 'kouros:7', `activity: ref is an ext_ref at this app's own id space (got ${ev.ref})`);
+  ok(ev.id.startsWith('history:'), `activity: event ids are stable and app-local (got ${ev.id})`);
+  ok(actA.activity[0].at >= actA.activity[1].at, 'activity: events come back newest-first');
+
+  const actB = (await req('GET', '/api/activity', undefined, B)).json;
+  ok(actB?.activity?.length === 1, `activity: B sees only their own event (got ${actB?.activity?.length})`);
+  const aIds = new Set(actA.activity.map((e) => e.id));
+  ok(!actB.activity.some((e) => aIds.has(e.id)), "activity: A's events never appear in B's feed");
+
+  const windowed = (await req('GET', `/api/activity?until=${encodeURIComponent(ev.at)}`, undefined, A)).json;
+  ok(windowed?.activity?.length === 1, `activity: ?until= excludes the newest event (got ${windowed?.activity?.length})`);
+  const junkCursor = (await req('GET', '/api/activity?until=2026-08-27%2010%3A00%3A00', undefined, A)).json;
+  ok(junkCursor?.activity?.length === 2,
+    `activity: a non-canonical cursor is ignored, not compared (got ${junkCursor?.activity?.length})`);
+  const capped = (await req('GET', '/api/activity?limit=1', undefined, A)).json;
+  ok(capped?.activity?.length === 1, `activity: ?limit= is honoured (got ${capped?.activity?.length})`);
 } catch (e) {
   console.error('history.smoke crashed:', e);
   fail++;

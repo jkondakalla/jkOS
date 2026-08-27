@@ -18,6 +18,7 @@
 // The invalidation bus key is DERIVED from the app id via resourceKey (ToDo A5), not a
 // free-typed 'beigeboard.items' repeated on each capability + the dataset.
 const { resourceKey } = require('@jkos/suite-manifest');
+const { defineActivity, canonicalTime, extRef } = require('@jkos/weave/activity'); // D6: the activity contract (lean subpath — this file is imported as DATA by the prober)
 // ITEM_SHAPE is DERIVED (ARCH-1) from the one per-column list in src/item-fields —
 // the same source src/schema.js derives ITEM_COLUMNS + the import cleaner tables
 // from. So the row a peer READS (this shape), the columns the server WRITES
@@ -386,4 +387,68 @@ const DATASETS = {
   ],
 };
 
-module.exports = { CAPABILITIES, DATASETS, ITEM_SHAPE };
+/* ── D6 / XC-2: the ACTIVITY contract ─────────────────────────────────────────────
+   ⚠️ BeigeBoard's record of what the user did is NOT a ledger table. It is two
+   columns on a wide `items` row — `started_at` (the moment a session card was first
+   touched, written once by the UI and never overwritten) and `completed_at` (stamped
+   by a trigger when `completed` goes 0→1). See src/item-fields.js for why each is
+   shaped the way it is.
+
+   That difference is exactly why the answer to XC-2 is a DECLARED SHAPE and not a
+   shared table. A common `activity` table would have meant migrating these two
+   columns into it and inventing a row for something that is honestly an attribute of
+   an item — replacing a truthful schema with a uniform one. Instead BeigeBoard keeps
+   its columns and merely ANSWERS in the common shape.
+
+   One item can yield TWO events, so the read is a UNION and the event ids carry the
+   verb (`items:41:start`, `items:41:complete`) — ids must be unique within the app or
+   the merged feed cannot de-duplicate.
+
+   `ms` is null throughout, deliberately. `completed_at - started_at` is available and
+   tempting, but the contract's `ms` means time ACTUALLY spent (papyros and kouros both
+   exclude paused time), and elapsed wall-clock is a different number wearing the same
+   name. A routine session left open overnight would report sixteen hours of training. */
+const ACTIVITY = defineActivity({
+  app: 'beigeboard',
+  kinds: [
+    { id: 'start',    label: 'Started',   verb: 'started' },
+    { id: 'complete', label: 'Completed', verb: 'completed' },
+  ],
+  read(db, userId, { since, until, limit }) {
+    /* Each leg carries a literal `verb` column. Without it the union loses which
+       column a row came from — `at` alone cannot say, because a session started and
+       completed in the same millisecond would be indistinguishable, and both rows
+       carry the same id. The window clause is built once and applied to BOTH legs;
+       filtering only one would silently return unbounded rows from the other. */
+    const leg = (col, verb) => {
+      const where = ['user_id = ?', `${col} IS NOT NULL`];
+      if (since) where.push(`${col} > ?`);
+      if (until) where.push(`${col} < ?`);
+      return `SELECT id, title, ${col} AS at, '${verb}' AS verb FROM items WHERE ${where.join(' AND ')}`;
+    };
+    const args = [userId];
+    if (since) args.push(since);
+    if (until) args.push(until);
+    const rows = db
+      .prepare(
+        `${leg('started_at', 'start')} UNION ALL ${leg('completed_at', 'complete')}`
+        + ' ORDER BY at DESC LIMIT ?',
+      )
+      .all(...args, ...args, limit);
+    return rows.map((r) => ({
+      id: `items:${r.id}:${r.verb}`,
+      kind: r.verb,
+      at: canonicalTime(r.at),
+      ref: extRef('beigeboard', r.id),
+      label: r.title || null,
+      // See the note above: elapsed wall-clock is not "time actually spent".
+      ms: null,
+      // Only a `complete` event asserts completion. A `start` gets null — "this act
+      // has no notion of finishing" — rather than false, which would read as
+      // "started and did not finish" for every session ever begun.
+      completed: r.verb === 'complete' ? true : null,
+    }));
+  },
+});
+
+module.exports = { CAPABILITIES, DATASETS, ITEM_SHAPE, ACTIVITY };

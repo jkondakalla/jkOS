@@ -137,17 +137,27 @@ transport model, the capability/dataset shapes, and onboarding steps). What matt
 **Apps declare, they don't call.** Each backend ships a `discovery.js` at its root (most
 apps; LazurOS names its equivalent `docs.js`) — plain data, zero side effects, safe to
 `require()` with no env, no DB, no network. It lists **capabilities** (what can be done —
-`createItem`, `importRoutine`, …) and **datasets** (what can be read, with declared
-filters). `packages/weave/src/shared/docShape.js`'s `checkDocShape` validates the same
-envelope shape on both the serving side (boot-time throw) and the reading side (evict a
-malformed doc rather than trust it).
+`createItem`, `importRoutine`, …), **datasets** (what can be read, with declared filters),
+and — for the four apps that keep one — **activity** (what the user *did* there).
+`packages/weave/src/shared/docShape.js`'s `checkDocShape` validates the same envelope shape
+on both the serving side (boot-time throw) and the reading side (evict a malformed doc
+rather than trust it); `shared/activity.js` does the same for the third.
+
+**One shape, four implementations.** The activity contract (XC-2) is the clearest statement
+of how this suite shares things: PapyrOS and KourOS had grown *field-for-field identical*
+play-history tables independently, because nothing gave them a common word for it. The fix
+was a declared shape and **not** a shared table — each app keeps its own ledger (two of them
+`history` tables, one a pair of columns on `items`, one a job queue) and merely answers in
+the common shape; `fetchActivity` fans the question out and merges. That makes *"what did I
+do today"* answerable across the suite, and is the same mechanism as the action-audit trail.
+See [WEAVE.md §2a](WEAVE.md).
 
 **Discovery over hardcoding.** Apps register in jkAuth's `app_registry`; ORDECK and every
 peer read that registry rather than embedding per-app knowledge. Adding an app is one DB
-row (and, per §2, one nginx generator run) — *near*-zero portal code changes: two hardcoded
-per-app branches survive in code documented as app-agnostic (LazurOS's write-back target
-table and ORDECK's `if (a.id === 'lazuros')` systems-panel branch — the reset's WV-6), and
-they are the exception that proves where the bar is.
+row (and, per §2, one nginx generator run) and zero portal code changes — the two hardcoded
+per-app branches that used to survive in app-agnostic code (LazurOS's write-back target
+table and ORDECK's `if (a.id === 'lazuros')` systems-panel branch, the reset's WV-6) were
+removed on 2026-08-27.
 
 **Zero cross-app runtime calls is the steady state, not a gap.** Each app is built to own
 its data and be legible to a fresh reader — human or AI — composing against its

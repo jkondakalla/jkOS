@@ -60,6 +60,7 @@ function deriveRegistry(sm) {
     healthPath: r.health_path,
     capabilitiesPath: r.capabilities_path,
     datasetsPath: r.datasets_path,
+    activityPath: r.activity_path,
     allowedRoles: String(r.allowed_roles || '').split(',').map((s) => s.trim()).filter(Boolean),
   }));
 }
@@ -72,6 +73,7 @@ function deriveManifest(sm) {
     healthPath: e.healthPath ?? null,
     capabilitiesPath: e.capabilitiesPath ?? null,
     datasetsPath: e.datasetsPath ?? null,
+    activityPath: e.activityPath ?? null,
     ai: e.ai || undefined,
   }));
 }

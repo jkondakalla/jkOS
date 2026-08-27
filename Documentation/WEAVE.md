@@ -35,7 +35,7 @@ Use the helpers; hand-rolling is exactly what drifted before they existed.
 
 ## 2 · The declaration model
 
-An app publishes two documents about itself. jkAuth's `app_registry` stores only *where*
+An app publishes three documents about itself. jkAuth's `app_registry` stores only *where*
 to find them, never their contents — so a write surface changes with no central edit, and
 a malformed declaration's blast radius stays inside one app.
 
@@ -43,11 +43,61 @@ a malformed declaration's blast radius stays inside one app.
 |---|---|---|---|
 | **CapabilityDoc** | what can be **DONE** to this app | `GET <apiBase>/capabilities` | `weave/src/capability.ts` |
 | **DatasetDoc** | what can be **READ** from it | `GET <apiBase>/datasets` | `weave/src/dataset.ts` |
+| **ActivityDoc** | what the user **DID** here | `GET <apiBase>/activity` | `weave/src/shared/activity.d.ts` |
 
-Both share one envelope — `{ app, version, <list>[] }`, every entry with a string `id` —
-validated by the single rule in `weave/src/shared/docShape.js`. Producer throws at boot
-(`serveCapabilities`/`serveDatasets`); consumer evicts on read
-(`fetchCapabilities`/`fetchDatasets`). One rule, two enforcement points.
+All three share one envelope — `{ app, version, <list>[] }`, every entry with a string `id`.
+The first two are validated by the single rule in `weave/src/shared/docShape.js`; the third
+by `weave/src/shared/activity.js`, which additionally checks the events. Producer throws at
+boot (`serveCapabilities`/`serveDatasets`/`defineActivity`); consumer evicts on read
+(`fetchCapabilities`/`fetchDatasets`/`fetchActivity`). One rule, two enforcement points.
+
+⚠️ **The third is DATA, not a static declaration**, and that difference drives two things.
+Its events change every time the user does anything, so `fetchActivity` **never caches**
+where its two siblings cache for the life of the page. And it can only be validated
+per-request — `defineActivity` checks the *declaration* at boot with an empty event list,
+then checks its own answer before serving it.
+
+### 2a · The activity contract (XC-2)
+
+**⭐ Declare one shape; do not share an implementation.** Four apps keep a per-user record
+of what happened, in four honest schemas: PapyrOS's `history`, KourOS's `history`,
+BeigeBoard's `started_at`/`completed_at` columns on `items`, LazurOS's `jobs` queue.
+
+⚠️ **The first two are field-for-field identical and were invented independently, months
+apart.** Read that as the finding rather than as sloppiness — neither author was careless.
+The suite had no word for *"this app keeps a record of what the user did"*, so each one
+coined a private one and nothing could notice.
+
+The remedy is a **declared shape, not a shared table**. Each app keeps its own ledger, its
+own indexes and its own purge story, and merely *answers* in the common shape; `defineActivity`
+supplies the envelope and the validation, the app supplies the SQL. Weave fans the question
+out and merges (`fetchActivity`). There is no central activity store and there must not be
+one — a common table would have meant migrating BeigeBoard's two columns into a row, i.e.
+replacing a truthful schema with a uniform one, and making every app's local change a
+suite-wide migration.
+
+The event is deliberately small: `id`, `kind` (from the app's own declared closed
+vocabulary), `at`, `ref`, `label`, `ms`, `completed`.
+
+- **`at` is the cross-app merge key and the merge is a STRING sort**, so it is held to the
+  canonical millisecond-ISO format (XC-1) rather than merely parsed. A second-resolution
+  stamp here re-introduces exactly the sort bug `wireTime.js` exists to stop.
+- **`ms` means time ACTUALLY spent**, not elapsed wall-clock — one field, one meaning across
+  four apps, which is the entire value of having a contract. BeigeBoard and LazurOS report
+  `null` rather than a plausible-looking different number.
+- **`completed` is tri-state.** `null` is a real answer — either the act has no notion of
+  finishing (a BeigeBoard `start`) or it has not finished yet (a queued LazurOS job) — and
+  both differ from `false`, which asserts it ran and did not complete.
+- **`kinds` are per-app, never a suite-wide enum.** "Listened" and "trained" are different
+  acts; flattening them into one vocabulary loses both questions.
+
+Two payoffs, and the second is why RESET promotes this above the rest of Stage D: *"what did
+I do today"* becomes answerable across the suite (the ML corpus for the variance feature),
+and **the same mechanism is the suite's action-audit trail**.
+
+The `activity-conformance` prober probe holds the rule from both sides: an app with an
+append-only per-user collection and no declaration is a **gap**; an app that declares one
+without serving it, or that reaches into another app's source, is **drift**.
 
 ⚠️ **`docShape.js` is ESM, not CommonJS.** Vite bundles its named exports for the
 browser; no-bundler Node backends `require()` it through Node's `require(ESM)` interop

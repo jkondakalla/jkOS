@@ -1,6 +1,7 @@
 /**
  * For every app present in BOTH the registry seed and SUITE_APPS, the integration
- * fields (api_base, health_path, capabilities_path, datasets_path) must be byte-equal
+ * fields (api_base, health_path, capabilities_path, datasets_path, activity_path)
+ * must be byte-equal
  * — they are the same fact seen through two derived views. Any mismatch is 'drift':
  * post-A2 both views come from @jkos/suite-manifest builders, so a mismatch means a
  * builder maps a field differently (a real bug), not a hand-sync slip. Equality is
@@ -11,6 +12,7 @@ const FIELDS = [
   ['healthPath', 'health_path'],
   ['capabilitiesPath', 'capabilities_path'],
   ['datasetsPath', 'datasets_path'],
+  ['activityPath', 'activity_path'],
 ];
 
 export default {

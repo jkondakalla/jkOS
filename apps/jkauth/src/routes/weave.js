@@ -24,7 +24,7 @@ router.get('/auth/apps', (req, res) => {
   // The UNAUTHENTICATED code lets authFetch refresh an expired token + retry.
   if (!user) return res.status(401).json({ error: 'Not authenticated', code: 'UNAUTHENTICATED' })
   const apps = all(`SELECT id, name, origin, icon_url, allowed_roles,
-                           api_base, health_path, capabilities_path, datasets_path, ai
+                           api_base, health_path, capabilities_path, datasets_path, activity_path, ai
                     FROM app_registry ORDER BY name`)
   res.json({ apps })
 })

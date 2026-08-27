@@ -215,6 +215,52 @@ try {
   ok(!!historyDataset, 'discovery: datasets includes a `history` entry');
   ok(historyDataset?.item?.map((f) => f.name).join(',') === 'id,item_ref,started_at,ms_played,completed,updated_at',
     `discovery: history dataset row shape is exactly id/item_ref/started_at/ms_played/completed/updated_at (got ${JSON.stringify(historyDataset?.item?.map((f) => f.name))})`);
+
+  // ── 7. THE ACTIVITY CONTRACT (D6 / XC-2) ──────────────────────────────────────────
+  //     The same rows as §2–5, answered in the ONE declared suite shape. Asserted over
+  //     real HTTP rather than by calling ACTIVITY.doc() directly, because the parts
+  //     most likely to break are the mount, the auth gate and the owner scoping —
+  //     none of which a direct call exercises.
+  const anonActivity = await req('GET', '/api/activity');
+  ok(anonActivity.status === 401, `activity: unauthenticated GET /api/activity → 401 (got ${anonActivity.status})`);
+
+  const actA = (await req('GET', '/api/activity', undefined, A)).json;
+  ok(actA?.app === 'papyros' && actA?.version === 1, `activity: the doc names its app and version (got ${actA?.app}/${actA?.version})`);
+  ok(Array.isArray(actA?.kinds) && actA.kinds.some((k) => k.id === 'listen'),
+    `activity: the vocabulary is DECLARED, not inferred (got ${JSON.stringify(actA?.kinds)})`);
+  ok(actA?.activity?.length === 2, `activity: A's two sessions surface as two events (got ${actA?.activity?.length})`);
+
+  // Every event validated against the shared contract — the same rule the producer
+  // applies before serving and the consumer applies before merging.
+  const { checkActivityDoc } = await import('@jkos/weave/activity');
+  ok(checkActivityDoc(actA) === null, `activity: the served doc satisfies the shared contract (${checkActivityDoc(actA)})`);
+
+  const ev = actA.activity[0];
+  ok(ev.kind === 'listen', `activity: kind is the declared verb (got ${ev.kind})`);
+  ok(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(ev.at),
+    `activity: 'at' is canonical millisecond ISO — the cross-app merge key is a STRING sort (got ${ev.at})`);
+  ok(ev.ref === 'papyros:7', `activity: ref is an ext_ref at this app's own id space (got ${ev.ref})`);
+  ok(ev.id.startsWith('history:'), `activity: event ids are stable and app-local (got ${ev.id})`);
+  // Newest first — the merge relies on each app pre-sorting.
+  ok(actA.activity[0].at >= actA.activity[1].at, 'activity: events come back newest-first');
+
+  // The owner scoping of §5, through the new door. A second read path over the same
+  // rows is a second chance to leak them.
+  const actB = (await req('GET', '/api/activity', undefined, B)).json;
+  ok(actB?.activity?.length === 1, `activity: B sees only their own event (got ${actB?.activity?.length})`);
+  const aIds = new Set(actA.activity.map((e) => e.id));
+  ok(!actB.activity.some((e) => aIds.has(e.id)), "activity: A's events never appear in B's feed");
+
+  // The window. `until` is exclusive and both bounds must be canonical — a caller
+  // handing in a legacy whole-second stamp gets it IGNORED rather than silently
+  // compared against a format it sorts wrongly against (XC-1).
+  const windowed = (await req('GET', `/api/activity?until=${encodeURIComponent(ev.at)}`, undefined, A)).json;
+  ok(windowed?.activity?.length === 1, `activity: ?until= excludes the newest event (got ${windowed?.activity?.length})`);
+  const junkCursor = (await req('GET', '/api/activity?until=2026-08-27%2010%3A00%3A00', undefined, A)).json;
+  ok(junkCursor?.activity?.length === 2,
+    `activity: a non-canonical cursor is ignored, not compared (got ${junkCursor?.activity?.length})`);
+  const capped = (await req('GET', '/api/activity?limit=1', undefined, A)).json;
+  ok(capped?.activity?.length === 1, `activity: ?limit= is honoured (got ${capped?.activity?.length})`);
 } catch (e) {
   console.error('history.smoke crashed:', e);
   fail++;

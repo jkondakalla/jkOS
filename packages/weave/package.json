@@ -15,6 +15,10 @@
       "require": "./src/server/collection.js",
       "import": "./src/server/collection.mjs"
     },
+    "./activity": {
+      "require": "./src/server/activity.js",
+      "import": "./src/server/activity.mjs"
+    },
     "./connector": {
       "require": "./src/server/connector.js",
       "import": "./src/server/connector.mjs"

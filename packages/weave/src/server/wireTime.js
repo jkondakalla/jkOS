@@ -49,4 +49,18 @@ function parse(value) {
   return Date.parse(s.includes('T') ? s : s.replace(' ', 'T') + 'Z')
 }
 
-module.exports = { SQL_NOW, sqlConvert, now, isCanonical, parse, CANONICAL_RE }
+/** Coerce either form (or a client-supplied string of unknown provenance) to the
+ *  canonical one; null when it isn't a time at all.
+ *
+ *  Exists so that a value crossing an app boundary can be made safe to SORT
+ *  against other apps' values without every caller re-deriving the parse-then-
+ *  re-emit dance and getting one of the two forms wrong. The activity contract
+ *  (shared/activity.js) is the first caller: its `at` is the cross-app merge key
+ *  and the merge is a STRING sort, so a stamp that merely parses is not enough. */
+function canonical(value) {
+  if (value == null) return null
+  const ms = parse(value)
+  return Number.isFinite(ms) ? new Date(ms).toISOString() : null
+}
+
+module.exports = { SQL_NOW, sqlConvert, now, isCanonical, canonical, parse, CANONICAL_RE }

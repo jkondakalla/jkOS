@@ -71,6 +71,45 @@ try {
   ok('resolveTier(numeric id) → that tier', resolveTier(1, tiers).id === 1);
   ok('resolveTier(unknown) → undefined', resolveTier(99, tiers) === undefined);
 
+  // ── THE ACTIVITY CONTRACT (D6 / XC-2) ────────────────────────────────────────
+  // ⚠️ LazurOS's ledger is a WORK QUEUE that happens to remember — not a play-history
+  // table like papyros's and kouros's, and not two columns on an item like
+  // BeigeBoard's. Four honest schemas, one declared answer. This is also the half of
+  // the contract that carries the suite's AI action-audit trail: "what did the user
+  // ask the AI to do, and did it work."
+  //
+  // In-process (this file boots no server), driving ACTIVITY.doc directly against the
+  // real queue rows created above — the HTTP mount is asserted by the three app
+  // smokes that do boot a server.
+  const { ACTIVITY } = require('../docs');
+  const { checkActivityDoc } = require('@jkos/weave/activity');
+  const db = require('../db');
+
+  const done1 = queue.createJob({ user_id: 'u9', capability: 'summarise', payload: {} });
+  const fail1 = queue.createJob({ user_id: 'u9', capability: 'translate', payload: {} });
+  const open1 = queue.createJob({ user_id: 'u9', capability: 'breakdown', payload: {} });
+  queue.setJobStatus(done1, 'DONE');
+  queue.setJobStatus(fail1, 'FAILED');
+
+  const doc = ACTIVITY.doc(db, 'u9', { since: null, until: null, limit: 50 });
+  ok('activity doc satisfies the shared contract', checkActivityDoc(doc) === null);
+  ok('activity doc names its app', doc.app === 'lazuros');
+  ok('ONE kind, not one per capability (capability is data, kinds are a closed vocabulary)',
+    doc.kinds.length === 1 && doc.kinds[0].id === 'ai_job');
+  ok('all three jobs surface', doc.activity.length === 3);
+
+  const byRef = Object.fromEntries(doc.activity.map((e) => [e.ref, e]));
+  ok('the capability rides in `label`', byRef[`lazuros:${done1}`].label === 'summarise');
+  ok('DONE   → completed true',  byRef[`lazuros:${done1}`].completed === true);
+  ok('FAILED → completed false', byRef[`lazuros:${fail1}`].completed === false);
+  // The tri-state earning its keep: an in-flight job's outcome is genuinely not yet
+  // known, which is a different claim from "it ran and did not finish".
+  ok('PENDING → completed null, NOT false', byRef[`lazuros:${open1}`].completed === null);
+  ok('ms stays null — queue wait is not time spent on the act',
+    doc.activity.every((e) => e.ms === null));
+  ok('another user sees none of it',
+    ACTIVITY.doc(db, 'u-someone-else', { since: null, until: null, limit: 50 }).activity.length === 0);
+
   console.log(`\n✅ ALL PASS: ${pass} assertions`);
 } catch (e) {
   console.error('\n❌ FAIL:', e.message);

@@ -14,7 +14,8 @@ const {
   weaveCors, weaveAuth, weaveWriteGate, healthHandler,
   serveCapabilities, serveDatasets, assertServiceClientProvisioned,
 } = require('@jkos/weave/server');
-const { CAPABILITIES_DOC, DATASETS_DOC } = require('./docs');
+const { CAPABILITIES_DOC, DATASETS_DOC, ACTIVITY } = require('./docs');
+const db = require('./db');
 const { loadDeploymentConfig } = require('./lib/loadDeployment');
 const { composeFromConfig } = require('./lib/composeProviders');
 const { makeHandler } = require('./routes/capability');
@@ -83,6 +84,11 @@ async function computeStatus() {
 app.get('/api/lazuros/health', healthHandler('lazuros', computeStatus));
 app.get('/api/lazuros/capabilities', serveCapabilities(CAPABILITIES_DOC));
 app.get('/api/lazuros/datasets', serveDatasets(DATASETS_DOC));
+/* D6 / XC-2: GET /api/lazuros/activity — what the user asked the AI to do, in the
+   ONE declared suite shape. `basePath` is spelled out because LazurOS is the
+   host-network gateway whose edge paths are bespoke (see @jkos/suite-manifest);
+   every other app takes the '/api' default. */
+ACTIVITY.mount(app, db, { basePath: '/api/lazuros' });
 
 /* ── Test console (authed) ──────────────────────────────────────────────────────
    A static page for DRIVING the gateway by hand: pick a capability, submit it, watch

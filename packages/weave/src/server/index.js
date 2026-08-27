@@ -20,8 +20,10 @@ const { buildItemFilters, filterSpec } = require('./filters')
 const { coerceWeaveColumn } = require('./columns')
 const { weaveServerClient, assertServiceClientProvisioned } = require('./serverClient')
 const { defineCollection, backfillWireTime } = require('./collection')
-const { SQL_NOW, sqlConvert, isCanonical: isCanonicalTime, parse: parseWireTime } = require('./wireTime')
+const { SQL_NOW, sqlConvert, isCanonical: isCanonicalTime, canonical: canonicalTime, parse: parseWireTime } = require('./wireTime')
 const { callerZone, zonedParts, callerDay } = require('./callerDay')
+const { defineActivity } = require('./activity')
+const { extRef, parseExtRef } = require('../shared/extref')
 const { defineConnector } = require('./connector')
 const { defineLibraryScanner } = require('./libraryScanner')
 const { defineMediaRoutes, decidePlayback } = require('./mediaRoutes')
@@ -49,8 +51,9 @@ module.exports = {
   assertServiceClientProvisioned,
   defineCollection,
   backfillWireTime,
-  SQL_NOW, sqlConvert, isCanonicalTime, parseWireTime,
+  SQL_NOW, sqlConvert, isCanonicalTime, canonicalTime, parseWireTime,
   callerZone, zonedParts, callerDay,
+  defineActivity, extRef, parseExtRef,
   defineConnector,
   defineLibraryScanner,
   defineMediaRoutes,

@@ -13,11 +13,9 @@
  * app owns the string; readers split it to know which app to deeplink/query.
  */
 
-/** Build "<app>:<id>". */
-export const extRef = (app: string, id: string | number): string => `${app}:${id}`;
-
-/** Split on the FIRST ':' so ids may themselves contain colons. */
-export function parseExtRef(ref: string): { app: string; id: string } {
-  const i = ref.indexOf(':');
-  return i < 0 ? { app: '', id: ref } : { app: ref.slice(0, i), id: ref.slice(i + 1) };
-}
+/* ⚠️ The implementation moved to ./shared/extref.js so the CJS BACKENDS can use it
+ * too — the activity contract (D6) builds refs server-side, and a TypeScript module
+ * is unreachable from a no-bundler Node app. Re-exported here so every existing
+ * `from '@jkos/weave'` import is unchanged, and so there is still exactly one
+ * definition rather than a frontend copy and a backend copy. */
+export { extRef, parseExtRef } from './shared/extref.js';

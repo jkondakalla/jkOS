@@ -12,6 +12,7 @@ export * from './extref';
 export * from './useSuiteApps';
 export * from './fetchCapabilities';
 export * from './fetchDatasets';
+export * from './fetchActivity';
 export * from './dispatch';
 export * from './weaveClient';
 export * from './connectorPair';

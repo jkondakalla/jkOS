@@ -11,7 +11,8 @@ const {
 } = require('@jkos/weave/server');
 const { ALLOWED_ORIGINS, STATIC_DIR } = require('./config');
 const { PUBLIC_PATHS, authMiddleware } = require('./auth');
-const { CAPABILITIES, DATASETS } = require('../discovery');   // Weave discovery docs, as importable data (A3)
+const { CAPABILITIES, DATASETS, ACTIVITY } = require('../discovery');   // Weave discovery docs, as importable data (A3)
+const { db } = require('./db');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -47,6 +48,10 @@ app.get('/health', healthHandler('beigeboard'));
    Public; the resource routes still enforce auth + scope. See WEAVE.md. */
 app.get('/api/capabilities', serveCapabilities(CAPABILITIES));
 app.get('/api/datasets', serveDatasets(DATASETS));
+/* D6 / XC-2: GET /api/activity — what the user DID here, in the ONE declared suite
+   shape. The third of the same kind of declaration, alongside what this app can be
+   told to do and what it can be read for. */
+ACTIVITY.mount(app, db);
 
 /* ── Route modules ─────────────────────────────────────────────────────── */
 app.use(require('./routes/calendar'));       // /api/auth/me + OAuth flows + status/sync

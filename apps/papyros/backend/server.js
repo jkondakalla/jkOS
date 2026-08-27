@@ -19,7 +19,7 @@ const {
 } = require('@jkos/weave/server');
 const { resolveIssuer } = require('@jkos/auth-middleware');   // shared issuer default (single source)
 const {
-  CAPABILITIES, DATASETS, PROGRESS, BOOKMARKS, CLUBS, CLUB_MEMBERS, HISTORY, META,
+  CAPABILITIES, DATASETS, PROGRESS, BOOKMARKS, CLUBS, CLUB_MEMBERS, HISTORY, META, ACTIVITY,
 } = require('./discovery');   // discovery docs (2.3/2.4) + 3.1's four owner-scoped collections + 17.4's append-only HISTORY + 4.1's META connector
 const { createScanner } = require('./src/library/scan');     // 2.3: AUDIOBOOKS_DIR walker → `books` catalog
 const { createLibraryRouter } = require('./src/routes/library'); // 2.3: rescanLibrary route
@@ -216,6 +216,14 @@ const MIGRATIONS = [
     id: 10, name: 'canonical_wire_timestamps',
     up(d) { backfillWireTime(d, ['books', 'progress', 'bookmarks', 'clubs', 'club_members', 'history']); },
   },
+  /* D6: the activity read orders and windows on (user_id, started_at), which had no
+     index — `history` only carried defineCollection's implicit user + updated_at
+     ones. Without this the merged feed's per-app read is a full scan of that user's
+     whole ledger, and a ledger is the one table that only ever grows. */
+  {
+    id: 11, name: 'index_history_started',
+    up(d) { d.exec('CREATE INDEX IF NOT EXISTS idx_history_user_started ON history(user_id, started_at)'); },
+  },
 ];
 
 function runMigrations() {
@@ -308,6 +316,12 @@ BOOKMARKS.mount(app, db);
 CLUBS.mount(app, db);
 CLUB_MEMBERS.mount(app, db);
 HISTORY.mount(app, db);   // 17.4: GET (list) + POST (create) only — see discovery.js's HISTORY comment
+/* D6 / XC-2: GET /api/activity — "what did the user DO here", in the ONE declared
+   suite shape. Not a second copy of the history list route: that one serves this
+   app's own columns to this app's own frontend, while this one answers a question
+   ORDECK asks four apps at once and merges. The read is papyros's own SQL
+   (discovery.js); weave owns only the envelope and the validation. */
+ACTIVITY.mount(app, db);
 
 /* ── Connectors (4.1) ──────────────────────────────────────────────────────
    META wires GET /api/metadataSearch — it proxies to the iTunes Search API

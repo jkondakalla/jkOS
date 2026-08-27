@@ -30,6 +30,8 @@ export interface AppRow {
   capabilities?: boolean;
   /** Serves a Weave DatasetDoc at apiBase/datasets. */
   datasets?: boolean;
+  /** Serves a Weave ActivityDoc at apiBase/activity — what the user DID here. */
+  activity?: boolean;
   /** Gated by the suite-wide AI kill switch. */
   ai?: boolean;
   /** false = no jkAuth app_registry row (internal gateway). */
@@ -51,6 +53,7 @@ export interface ManifestEntry {
   healthPath?: string;
   capabilitiesPath?: string;
   datasetsPath?: string;
+  activityPath?: string;
   ai?: boolean;
 }
 
@@ -65,6 +68,7 @@ export interface RegistryRow {
   health_path: string | null;
   capabilities_path: string | null;
   datasets_path: string | null;
+  activity_path: string | null;
   ai: 0 | 1;
 }
 
@@ -84,6 +88,7 @@ export declare function apiBaseOf(app: AppRow): string | null;
 export declare function healthPathOf(app: AppRow): string | null;
 export declare function capabilitiesPathOf(app: AppRow): string | null;
 export declare function datasetsPathOf(app: AppRow): string | null;
+export declare function activityPathOf(app: AppRow): string | null;
 
 /** The invalidation bus key, e.g. resourceKey('beigeboard','items') → 'beigeboard.items'. */
 export declare function resourceKey(id: AppId, resource: string): string;
