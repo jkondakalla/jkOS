@@ -47,3 +47,16 @@ body { background: var(--color-paper); color: var(--color-ink); }
 /* The workshop goal well (.bb-goal-well) and its thin track (.bb-prog-track)
    are GONE: the forge now composes @jkos/ui's <Well> and <Bar>, which carry the
    same physics without a BeigeBoard-only copy of them. */
+
+/* XC-6: the shared AsyncView triad, filling BeigeBoard's main region. The
+   hand-rolled version this replaced centred its note in a flex box; `.jk-async-note`
+   is a paragraph, so the region does the centring instead of the note carrying its
+   own layout. Only geometry lives here — every colour and every type choice is the
+   primitive's (hub.css), which is the point of using it. */
+.bb-view-loading {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+}

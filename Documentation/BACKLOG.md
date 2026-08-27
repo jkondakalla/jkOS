@@ -205,6 +205,17 @@ Landed 2026-08-26/27 on `staging`, gate green at each commit, **none of it deplo
   in both KourOS compose files, with the decoy-path trap spelled out at the bind. ⚠️ One
   comment in each file cited the WORKSTATION spelling while saying "on the host" — the
   exact confusion those files exist to prevent. Corrected; the value was never wrong.
+- **XC-6 — `<AsyncView>` reaches BeigeBoard.** Its main region hand-rolled the loading
+  half of the triad *while already wearing `.jk-async-note`*, AsyncView's own class —
+  about as close as a codebase gets to writing the finding down itself. `check:async-view`
+  holds it now.
+  ⚠️ **Two places that look like candidates and are NOT**, decided and recorded rather
+  than left for the next reader: LibraryBrowser's `{error && …}` is an inline banner
+  beside a form that stays on screen, and AsyncView REPLACES its children — using it
+  there would blank the form the user is trying to fix. And ORDECK expresses
+  loading/empty/offline through the WidgetSpec `when` vocabulary; that IS its triad, in
+  the language its widgets are written in, and a React component cannot be imported into
+  a data document. "Adopt it everywhere" was the wrong instinct.
 
 ---
 
@@ -229,10 +240,6 @@ Landed 2026-08-26/27 on `staging`, gate green at each commit, **none of it deplo
 ## Open — the backend and the fabric (Stage D)
 
 ✅ **Stage D is COMPLETE (D1–D13, and D3's remainder).**
-
-- **Unsequenced:** **XC-6** (`<AppShell>`/`<AsyncView>`
-  reached PapyrOS and KourOS and stopped). *(WV-7 is done — the `@jkos/cards` barrel no longer
-  advertises what nothing imports.)*
 
 ## Open — the ratchet (Stage E)
 

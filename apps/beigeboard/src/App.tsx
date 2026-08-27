@@ -33,7 +33,7 @@ import { Artifacts, ScanLines, CinematicIntro } from './components/Overlays'
 import { AppHeader } from './components/AppHeader'
 import { ConnectModal } from './components/ConnectModal'
 import { DetailPanel } from './components/DetailPanel'
-import { SettingsDrawer, useBreakpoint } from '@jkos/ui'
+import { AsyncView, SettingsDrawer, useBreakpoint } from '@jkos/ui'
 import { AUTH_URL, authFetch, useSessionKeepalive } from './lib/jkauth'
 
 import { TodayView } from './views/TodayView'
@@ -567,19 +567,19 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
             // entrance: ink dries on paper, the tube powers on in dark).
             style={{ gridRow: 2, gridColumn: 1, overflow: 'hidden', minHeight: 0, position: 'relative', display: 'flex', flexDirection: 'column' }}
           >
-            {loading ? (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
-                {/* off-states carry the print idiom (DESIGN.md §13.12) */}
-                <span className="jk-async-note" style={{ padding: 0 }}>Setting type…</span>
-              </div>
-            ) : (
-              <>
-                {view === 'today'    && <TodayView    {...viewProps} />}
-                {view === 'week'     && <WeekView     {...viewProps} />}
-                {view === 'calendar' && <CalendarView {...viewProps} />}
-                {view === 'tasks'    && <WorkshopView {...viewProps} />}
-              </>
-            )}
+            {/* XC-6: the shared loading/error/empty triad, not a fourth hand-rolled
+                one. This spot already wore AsyncView's own `.jk-async-note` class
+                while re-implementing its ternary — the component reached PapyrOS and
+                KourOS and stopped here.
+                `loadingText` keeps the print idiom (DESIGN.md §13.12): the house
+                generic is "Loading…", and this board says "Setting type…". That the
+                copy is a prop is why one component can serve both. */}
+            <AsyncView loading={loading} loadingText="Setting type…" className="bb-view-loading">
+              {view === 'today'    && <TodayView    {...viewProps} />}
+              {view === 'week'     && <WeekView     {...viewProps} />}
+              {view === 'calendar' && <CalendarView {...viewProps} />}
+              {view === 'tasks'    && <WorkshopView {...viewProps} />}
+            </AsyncView>
           </main>
 
           {/* THE OVERLAY HOST — the content row's second layer.

@@ -15,8 +15,10 @@
 //      already hold @jkos/ui to).
 //   4. hub.css ships `.jk-async-note` / `.jk-async-error`, token-hygiene clean (no
 //      hardcoded hex — every colour a var()).
-//   5. All three migrated PapyrOS files import AsyncView from '@jkos/ui' and
-//      actually render a `<AsyncView` — not a re-implementation.
+//   5. Every migrated file imports AsyncView from '@jkos/ui' and actually renders a
+//      `<AsyncView` — not a re-implementation. Three PapyrOS views, plus BeigeBoard's
+//      main region (XC-6: the component reached PapyrOS and KourOS and stopped, and
+//      BeigeBoard's hand-rolled half was already wearing AsyncView's own class).
 //   6. The old hand-rolled triads are GONE — the exact ternary/guard shapes that
 //      used to dispatch loading/error/empty can't quietly regrow next to the new
 //      component.
@@ -121,6 +123,13 @@ const CALL_SITES = {
   'apps/papyros/src/offline/OfflineSettings.tsx': {
     retired: [/books\.length === 0 \? \(/],
   },
+  /* XC-6: the component reached PapyrOS and KourOS and STOPPED. BeigeBoard's main
+     region hand-rolled the loading half of the same triad — while already wearing
+     AsyncView's own `.jk-async-note` class, which is about as close to the finding as
+     a codebase can get to writing it down itself. */
+  'apps/beigeboard/src/App.tsx': {
+    retired: [/\{loading \? \(/],
+  },
 };
 for (const [file, { retired }] of Object.entries(CALL_SITES)) {
   const src = read(file);
@@ -142,6 +151,38 @@ for (const [file, { retired }] of Object.entries(CALL_SITES)) {
     } else {
       ok(`${file} has no trace of the retired pattern ${re}`);
     }
+  }
+}
+
+/* ── XC-6: what is NOT a triad, and why ───────────────────────────────────────
+   Two places look like candidates and are not. Written down here rather than left
+   for the next reader to re-decide, because "adopt it everywhere" is the wrong
+   instinct and the reasons are specific:
+
+   · apps/beigeboard/.../LibraryBrowser.tsx renders `{error && …}` as an inline
+     banner NEXT TO a form that stays on screen. AsyncView REPLACES its children with
+     a state; using it here would blank the form the user is trying to fix. It is a
+     field-level error, not a view-level one.
+
+   · ORDECK expresses loading/empty/offline through the WidgetSpec `when` vocabulary
+     — declarative data an AI or the Workshop emits, resolved by the renderer. That
+     IS its triad, in the language its widgets are written in. Importing a React
+     component into a data document is not possible, and making the widget bodies
+     imperative to accommodate one would trade the whole factory for a consistency
+     that only looks like one.
+
+   The check below pins the first: if that inline error ever becomes a view-level
+   replacement, it should come here instead. */
+{
+  const lib = stripComments(read('apps/beigeboard/src/views/workshop/LibraryBrowser.tsx'));
+  const inlineBanner = /\{error && \(/.test(lib);
+  const replaces = /<AsyncView\b/.test(lib);
+  if (inlineBanner && !replaces) {
+    ok("LibraryBrowser's `{error && …}` is an inline banner beside a live form, not a view triad — correctly NOT AsyncView");
+  } else if (replaces) {
+    ok('LibraryBrowser routes through AsyncView (it became a view-level state)');
+  } else {
+    fail("LibraryBrowser's error state changed shape — re-decide whether it is now a view-level triad (see the note above)");
   }
 }
 
