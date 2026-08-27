@@ -562,7 +562,7 @@ that code can reopen it.
   diff — and a plain `grep -r` silently **skips** the file rather than erroring. Because nearly
   every conformance gate in this suite is implemented as a text scanner, a NUL byte is invisible
   to every one of them at once. Always write control characters as escape sequences
-  (`' '`/`\0` in source, never a literal byte); this repo guards against it with a dedicated
+  (`'\u0000'`/`\0` in source, never a literal byte); this repo guards against it with a dedicated
   text-purity scan (`pnpm check:text`) that specifically catches binary-looking tracked files. As
   a reflex: check `git diff`/`git status` for a "binary file" report after any large automated
   edit.
