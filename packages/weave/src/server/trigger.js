@@ -5,7 +5,8 @@
 //   • resolveBindings(template, payload) — turn a DO body of literals + bindings into a
 //     concrete request body by pulling fields out of the event payload (F4's flow),
 //   • validateTriggerTypes(trigger, …)   — check each bound DO field's type matches the
-//     WHEN capability's `returns` field it reads (the typed-stud fit; F4 made enforceable),
+//     WHEN capability's `resolves` (async) or `returns` (sync) field it reads — the
+//     typed-stud fit (F4 made enforceable; WV-5 made it correct for async),
 //   • createTriggerEngine({triggers,dispatch}) — emit(app, cap, payload) fires every
 //     matching trigger, resolving its body and dispatching the DO,
 //   • triggerWebhook(engine)              — an Express handler so a peer can PUSH events,
@@ -16,22 +17,27 @@
 
 const { weaveServerClient } = require('./serverClient')
 
-function isBinding(v) { return v && typeof v === 'object' && !Array.isArray(v) && typeof v.from === 'string' }
-function dig(obj, path) {
-  if (!path) return obj
-  return String(path).split('.').reduce((o, k) => (o == null ? undefined : o[k]), obj)
-}
+/* ⭐ ONE BINDING MODEL (D13). The resolver lives in ../shared/binding.js and is the
+   SAME one ORDECK's WidgetSpec renderer uses. These were two vocabularies for one
+   idea — "point at a value that will exist at run time" — the read half and the write
+   half of a system that never met, and `trigger.ts`'s own header describes itself in
+   the sentence WidgetSpec's docs use.
+   ⚠️ The convergence cost nothing because one form was strictly the other's
+   degenerate case: `{from:'x'}` is `{src:'event', path:'x'}` with the source left
+   implicit, since a trigger only ever had one. Both forms still resolve, identically,
+   so every TriggerDef written before this is unchanged. */
+const { isBinding, normalizeBinding, resolveBody, EVENT_SOURCE } = require('../shared/binding')
 
 /**
- * Resolve a DO body TEMPLATE against an event PAYLOAD: bindings ({from:'field'}) are
- * replaced with the payload value at that (dotted) path; literals pass through.
+ * Resolve a DO body TEMPLATE against an event PAYLOAD. The payload is bound as the
+ * `event` source, so `{from:'field'}` and `{src:'event',path:'field'}` are the same
+ * binding written two ways — and a trigger can now also carry an explicit `{lit}`
+ * and a `fallback`, neither of which the old form could express.
  * @param {Record<string, any>} template
  * @param {Record<string, any>} payload
  */
 function resolveBindings(template, payload) {
-  const out = {}
-  for (const [k, v] of Object.entries(template || {})) out[k] = isBinding(v) ? dig(payload, v.from) : v
-  return out
+  return resolveBody(template, { [EVENT_SOURCE]: payload })
 }
 
 // Two field types are stud-compatible when equal, or both free text, or the target is a
@@ -52,19 +58,53 @@ function typeFits(srcType, dstType) {
  * target, every DO field that doesn't exist, and every required DO field left unbound.
  * @returns {import('../trigger').TriggerTypeIssue[]} empty = the studs fit.
  */
-function validateTriggerTypes(trigger, { whenReturns = [], doBody = [] } = {}) {
+/**
+ * Check that every bound DO field can actually take the WHEN field it reads.
+ *
+ * ⚠️ `whenResolves` WINS OVER `whenReturns`, and that is the whole of WV-5. An async
+ * capability's `returns` is its JOB HANDLE — correct for the HTTP response, useless
+ * for composition. Binding from it type-checks (`string` → `string`) and produces a
+ * task titled `a3f1c8e2-…`: no error, no warning, just a nonsense row. So when the
+ * WHEN capability declares `resolves`, that is the only surface a binding may read,
+ * and a binding that names a `returns` field it no longer exposes is REFUSED rather
+ * than silently allowed through.
+ *
+ * @param {object} trigger
+ * @param {{ whenReturns?: Array, whenResolves?: Array, doBody?: Array }} shapes
+ */
+function validateTriggerTypes(trigger, { whenReturns = [], whenResolves = null, doBody = [] } = {}) {
   const issues = []
-  const whenByName = new Map(whenReturns.map((f) => [f.name, f]))
+  /* An async capability composes on what its WORK produces, never on its handle.
+     `resolves` present ⇒ the capability is asynchronous (there is deliberately no
+     separate `async` flag to disagree with it). */
+  const isAsync = Array.isArray(whenResolves)
+  const whenFields = isAsync ? whenResolves : whenReturns
+  const whenByName = new Map(whenFields.map((f) => [f.name, f]))
   const doByName = new Map(doBody.map((f) => [f.name, f]))
   const body = (trigger.do && trigger.do.body) || {}
   for (const [field, v] of Object.entries(body)) {
     const target = doByName.get(field)
     if (!target) { issues.push({ field, msg: `DO '${trigger.do.capability}' has no body field '${field}'` }); continue }
     if (isBinding(v)) {
-      const src = whenByName.get(String(v.from).split('.')[0])
-      if (!src) { issues.push({ field, msg: `binding from '${v.from}' — WHEN '${trigger.when.capability}' returns no such field` }); continue }
-      if (!String(v.from).includes('.') && !typeFits(src.type, target.type)) {
-        issues.push({ field, msg: `type mismatch: ${trigger.when.capability}.${v.from} is '${src.type}' but ${trigger.do.capability}.${field} expects '${target.type}'` })
+      /* Normalised, so a trigger written in either vocabulary type-checks the same
+         way. A binding at a source other than the event is not the WHEN payload and
+         cannot be type-checked against it — it is left to the renderer that owns
+         that source. */
+      const b = normalizeBinding(v)
+      if (b.src !== EVENT_SOURCE) continue
+      const src = whenByName.get(String(b.path).split('.')[0])
+      if (!src) {
+        issues.push({
+          field,
+          msg: isAsync
+            ? `binding from '${b.path}' — WHEN '${trigger.when.capability}' is ASYNC and resolves no such field `
+              + '(its `returns` is a job handle; bind from what the work produces, not from the handle)'
+            : `binding from '${b.path}' — WHEN '${trigger.when.capability}' returns no such field`,
+        })
+        continue
+      }
+      if (!String(b.path).includes('.') && !typeFits(src.type, target.type)) {
+        issues.push({ field, msg: `type mismatch: ${trigger.when.capability}.${b.path} is '${src.type}' but ${trigger.do.capability}.${field} expects '${target.type}'` })
       }
     }
   }

@@ -23,8 +23,7 @@ import {
   type CSSProperties, type FormEvent, type ReactNode,
 } from 'react';
 import {
-  fetchCapabilities, getCapability, runCommand, suiteApp, subscribe, type CapabilityDoc,
-} from '@jkos/weave';
+  fetchCapabilities, getCapability, runCommand, suiteApp, subscribe, type CapabilityDoc, resolveBinding } from '@jkos/weave';
 import { authFetch } from '@jkos/auth-client';
 import {
   type ClockState,
@@ -76,13 +75,17 @@ export type Scope = Record<string, unknown>;
 const str = (v: unknown): string => (v == null ? '' : String(v));
 const num = (v: unknown): number => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
 
-/** Resolve a binding against the current scope (literal, {lit}, or {src,path}). */
+/** Resolve a binding against the current scope (literal, {lit}, or {src,path}).
+ *
+ *  ⭐ DELEGATES TO @jkos/weave (D13). This function and the trigger engine's
+ *  `resolveBindings` were the two halves of one system that never met — a
+ *  WidgetSpec binds a dataset into a tree of primitives (READ), a TriggerDef binds a
+ *  capability's typed output into another's body (WRITE) — each with its own
+ *  vocabulary for "point at a value that will exist at run time". One model now, and
+ *  this thin wrapper stays only because `resolve(b, scope)` is the argument order
+ *  ~40 call sites in this file are written against. */
 export function resolve(b: Binding, scope: Scope): unknown {
-  if (b === null || typeof b !== 'object') return b;
-  if ('lit' in b) return b.lit;
-  let v: unknown = scope[b.src];
-  if (b.path) for (const k of b.path.split('.')) { if (v == null) break; v = (v as Record<string, unknown>)[k]; }
-  return v ?? b.fallback;
+  return resolveBinding(b, scope);
 }
 
 /** Resolve a tone that may be fixed OR data-bound (→ a CSS colour). Unknown

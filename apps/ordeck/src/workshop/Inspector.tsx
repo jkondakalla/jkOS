@@ -12,7 +12,7 @@
  */
 
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
-import { useSuiteApps, fetchCapabilities, type AppId, type CapabilityDoc } from '@jkos/weave';
+import { useSuiteApps, fetchCapabilities, type AppId, type CapabilityDoc, normalizeBinding } from '@jkos/weave';
 import { HUD_SCHEMA, HUD_ITEM_FIELDS } from '../pages/hud/useHudData';
 import type { Binding, CommandRef, Tone, ToneBinding, WidgetNode } from '../hud/types';
 import { catalogEntry, type ENode } from './model';
@@ -27,7 +27,11 @@ function bindingToEb(b?: Binding): EB {
   if (b == null) return eb('');
   if (typeof b !== 'object') return eb(String(b));
   if ('lit' in b) return eb(b.lit == null ? '' : String(b.lit));
-  return { mode: 'data', lit: '', src: b.src, path: b.path || '' };
+  /* Normalised (D13): the editor speaks the canonical {src,path} form, so a spec
+     carrying weave's `{from:'x'}` sugar opens in the inspector as `event.x` instead
+     of showing an empty source. One binding model means one editor. */
+  const n = normalizeBinding(b);
+  return { mode: 'data', lit: '', src: n?.src ?? '', path: n?.path || '' };
 }
 function ebToBinding(b: EB): Binding {
   return b.mode === 'data' ? { src: b.src, ...(b.path ? { path: b.path } : {}) } : b.lit;

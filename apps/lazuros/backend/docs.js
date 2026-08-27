@@ -21,10 +21,31 @@ const { defineActivity, canonicalTime, extRef } = require('@jkos/weave/activity'
 /** This app's one polled resource: the async inference job queue. */
 const JOBS_KEY = resourceKey('lazuros', 'jobs'); // 'lazuros.jobs'
 
-/* Every capability resolves to the same async-job handle: the queue row id a caller
+/* Every capability ANSWERS with the same async-job handle: the queue row id a caller
    polls the `jobs` dataset for. Declared once (like BB's ITEM_SHAPE) so the five
-   capabilities provably share one output stud. */
+   capabilities provably share one output stud.
+ *
+ * ⚠️ THIS IS `returns`, NOT THE RESULT (WV-5). It is what the HTTP call hands back
+ * immediately, and it is useless for composition: a binding engine reading it sees a
+ * `string` where the real answer lives and will cheerfully type-check a job UUID into
+ * a task title. No error, no warning — just a task called `a3f1c8e2-…`. What the WORK
+ * produces is declared separately, per capability, as `resolves`. */
 const JOB_HANDLE = [{ name: 'job_id', type: 'string' }];
+
+/* ⭐ WHAT THE WORK PRODUCES (WV-5). The presence of `resolves` IS the declaration
+   that a capability is asynchronous — there is deliberately no separate `async: true`,
+   because two fields that must agree are two fields that can disagree.
+ *
+ * Three of the five produce an IMPORT DOCUMENT: the worker's model text is, given
+ * that capability's prompt, a JSON document in BeigeBoard's `importItems` body shape,
+ * and lib/writeback.js parses it as exactly that. So the stud these capabilities
+ * actually offer a binder is `items`/`defaults` — which is what makes
+ * `parse-task → importItems` a composable pair instead of a hand-wired special case
+ * (the WV-6 branch that literal used to be). */
+const IMPORT_DOC = [
+  { name: 'items',    type: 'json', label: 'Items — a nested tree or a flat ref/parent list' },
+  { name: 'defaults', type: 'json', label: 'Field defaults applied to every item' },
+];
 
 /* ── What can be DONE to LazurOS (the write contract) ─────────────────────────
    Canonical Layer-A dialect: `body`/`returns` are arrays of {name,type,…} fields —
@@ -45,7 +66,7 @@ const CAPABILITIES_DOC = {
       body: [
         { name: 'text', type: 'string', label: 'Free text', required: true },
       ],
-      returns: JOB_HANDLE, invalidates: [JOBS_KEY],
+      returns: JOB_HANDLE, resolves: IMPORT_DOC, invalidates: [JOBS_KEY],
     },
     {
       id: 'breakdown-goal', label: 'Break goal into milestones',
@@ -55,7 +76,7 @@ const CAPABILITIES_DOC = {
       body: [
         { name: 'goal_text', type: 'string', label: 'Goal description', required: true },
       ],
-      returns: JOB_HANDLE, invalidates: [JOBS_KEY],
+      returns: JOB_HANDLE, resolves: IMPORT_DOC, invalidates: [JOBS_KEY],
     },
     {
       id: 'parse-document', label: 'Parse document into tasks',
@@ -65,7 +86,7 @@ const CAPABILITIES_DOC = {
       body: [
         { name: 'content', type: 'string', label: 'Document text', required: true },
       ],
-      returns: JOB_HANDLE, invalidates: [JOBS_KEY],
+      returns: JOB_HANDLE, resolves: IMPORT_DOC, invalidates: [JOBS_KEY],
     },
     {
       id: 'widget-generate', label: 'Generate widget spec from description',
@@ -75,7 +96,9 @@ const CAPABILITIES_DOC = {
       body: [
         { name: 'description', type: 'string', label: 'Widget description', required: true },
       ],
-      returns: JOB_HANDLE, invalidates: [JOBS_KEY],
+      returns: JOB_HANDLE,
+      resolves: [{ name: 'spec', type: 'json', label: 'A WidgetSpec document' }],
+      invalidates: [JOBS_KEY],
     },
     {
       id: 'query', label: 'Open-ended assistant query',
@@ -86,7 +109,11 @@ const CAPABILITIES_DOC = {
         { name: 'text', type: 'string', label: 'Query text (or transcript)' },
         { name: 'audio_b64', type: 'string', label: 'Base64 audio (alternative to text)' },
       ],
-      returns: JOB_HANDLE, invalidates: [JOBS_KEY],
+      returns: JOB_HANDLE,
+      /* Open-ended: the answer is prose, and saying so is the point — a binder can
+         wire it into a notes field and must not be offered it as a title. */
+      resolves: [{ name: 'response', type: 'text', label: 'The assistant\'s answer' }],
+      invalidates: [JOBS_KEY],
     },
   ],
 };

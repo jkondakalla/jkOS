@@ -51,11 +51,34 @@ export interface CapabilityDef {
   method: 'POST' | 'PATCH' | 'DELETE';
   path: string;                     // RELATIVE to the app's apiBase: '/items' or '/items/:id'
   body?: BodyField[];               // omit for DELETE
-  returns?: BodyField[];            // the shape this capability RESOLVES TO on success — the
-                                    // primitive's OUTPUT stud, mirror of DatasetDef.item. So a
-                                    // GUI/AI can wire one lego's result into the next's input,
-                                    // not just fire-and-forget. Omit only for a pure side-effect
+  returns?: BodyField[];            // the shape THE CALL ANSWERS WITH — the immediate HTTP
+                                    // response. For a synchronous capability this is also the
+                                    // result, and it is the primitive's OUTPUT stud (mirror of
+                                    // DatasetDef.item), so a GUI/AI can wire one lego's result
+                                    // into the next's input. Omit only for a pure side-effect
                                     // (e.g. DELETE) whose body echo is the request.
+
+  /**
+   * ⭐ ASYNC ONLY (WV-5). What the WORK eventually produces, as distinct from what the
+   * CALL answers with.
+   *
+   * ⚠️ THE BUG THIS EXISTS TO CLOSE. Every LazurOS capability declares
+   * `returns: [{ name:'job_id', type:'string' }]`. That is CORRECT for the HTTP response
+   * — you get a job handle — and useless for composition, because a binding engine
+   * reading `returns` sees a `string` where the real result lives, and will cheerfully
+   * type-check a job UUID into a task title. It would not error. It would create a task
+   * called `a3f1c8e2-…`, and the only symptom is a nonsense row.
+   *
+   * ⚠️ THE PRESENCE OF THIS FIELD IS THE DECLARATION THAT THE CAPABILITY IS ASYNC.
+   * There is deliberately no separate `async: true` — two fields that must agree are two
+   * fields that can disagree, and this suite has paid for that shape before.
+   *
+   * A binder must therefore use `resolves` when it is present and NEVER `returns`, and
+   * the trigger that consumes an async capability fires on the job's COMPLETION, not on
+   * the call. See server/trigger.js's validateTriggerTypes, and `pnpm check:async` which
+   * fails any capability that returns a bare handle without saying what it resolves to.
+   */
+  resolves?: BodyField[];
   invalidates?: string[];           // resource keys to refetch after success: ['beigeboard.items']
   roles?: string[];                 // coarse gate (defaults to the app's allowed_roles)
   scopes?: string[];                // fine gate, enforced by the resource app

@@ -155,6 +155,26 @@ Landed 2026-08-26/27 on `staging`, gate green at each commit, **none of it deplo
   `shapeEnum` (closed on the wire) not `importEnum`, because `scope` deliberately
   declares `shape:'string'` and enforcing its import list broke a legitimate
   `scope:'quarter'` write the declaration permits.
+- **D13 — one binding model, and the async result contract (WV-5 + WV-2).**
+  **WV-5:** `resolves` joins `returns` on `CapabilityDef`. Every LazurOS capability
+  declared `returns: JOB_HANDLE` — right for HTTP, and type information that is
+  actively WRONG for composition: a binder reading it sees a `string` where the result
+  lives and type-checks a job UUID into a task title, producing a task called
+  `a3f1c8e2-…` with no error. `validateTriggerTypes` binds from `resolves` when
+  present and refuses a handle binding; `86-async-contract` fails a bare-handle
+  capability that declares no result — **and fails one that re-declares the handle AS
+  the result**, which would satisfy a naive check while reinstating the exact defect.
+  The presence of `resolves` IS the async declaration — no separate `async:true` to
+  disagree with it. This is Stage E item 6's first rule.
+  **WV-2:** the read half (`WidgetSpec`) and the write half (`TriggerDef`) had two
+  vocabularies for one idea, plus the Workshop editor's third reading. Converged in
+  `packages/weave/src/shared/binding.js` — ⚠️ **not a compromise: one form was
+  strictly the other's degenerate case.** `{from:'x'}` is `{src:'event',path:'x'}`
+  with the source left implicit, while ORDECK's form already carried `{lit}` and
+  `fallback`, which the trigger form could not express. The richer won, the narrower
+  became sugar, and no existing TriggerDef changed. `check:binding` holds it — and
+  asserts `resolve()` DELEGATES rather than pattern-matching the old body, after a
+  first pass sailed past a re-hand-rolled copy that differed only by a cast.
 
 ---
 
@@ -178,19 +198,13 @@ Landed 2026-08-26/27 on `staging`, gate green at each commit, **none of it deplo
 
 ## Open — the backend and the fabric (Stage D)
 
-One of thirteen items (D1–D12 are done — only D13 remains). Re-verify before fixing; the audit
-predates this work.
+✅ **Stage D is COMPLETE (D1–D13).** What remains below is the D3 remainder — the seven `json`
+escape-hatch fields — which is a decision, not a fix.
 
 - **The seven `json` escape-hatch fields** are what remains of D3, and they are the weakest item
   on this list. A routine `spec` genuinely IS an opaque document, so "type it properly" may be
   the wrong answer — decide whether the hatch is a defect here or an honest description before
   spending effort on it.
-- **D13 · The binding vocabulary.** ⚠️ **Do not delete the trigger engine** — it is the *write*
-  half of the widget factory. `WidgetSpec` binds a dataset into a primitive tree (read);
-  `TriggerDef` binds a capability's typed output into another's body (write); ORDECK's Workshop
-  does binding by hand in a third vocabulary. Converge them on one binding model. **WV-5 gates
-  this:** every LazurOS capability declares `returns: JOB_HANDLE`, so `validateTriggerTypes` will
-  cheerfully type-check a job handle into a task title — async needs `resolves`.
 - **Unsequenced:** mount the music library (`MUSIC_DIR=/mnt/Luna/Luna/Plex/Music` in both compose
   files — ⚠️ **not** `/mnt/Luna/Plex/Music`, which also exists on the host and is empty);
   **WV-6** (two hardcoded per-app branches in code documented as app-agnostic); **WV-8**

@@ -93,14 +93,22 @@ export const DEFAULT_MIN_SIZE = { w: 2, h: 2 } as const;
  * tractable later — for now it just keeps the infrastructure expandable.
  * ─────────────────────────────────────────────────────────────────────────── */
 
+import type { Binding as WeaveBinding } from '@jkos/weave';
+
 /** A value resolved at render time: a literal, or a path into a named source
- *  (`fallback` used when the path is missing). */
-export type Binding =
-  | string
-  | number
-  | boolean
-  | { lit: unknown }
-  | { src: string; path?: string; fallback?: unknown };
+ *  (`fallback` used when the path is missing).
+ *
+ *  ⭐ THE MODEL IS SHARED (D13). This is `@jkos/weave`'s binding model, not
+ *  ORDECK's — a WidgetSpec binds a dataset into a tree of primitives (READ) and a
+ *  TriggerDef binds a capability's typed output into another capability's body
+ *  (WRITE), and those were two halves of one system that never met. ORDECK's form
+ *  was the richer of the two (it had `{lit}` and `fallback`; the trigger form had
+ *  neither), so it is the one that survived — and weave's `{from:'x'}` is now sugar
+ *  for `{src:'event', path:'x'}` against it.
+ *
+ *  Re-exported rather than imported-and-aliased so every `Binding` in this app's
+ *  ~40 spec types keeps its name and there is still exactly one definition. */
+export type Binding = string | number | boolean | WeaveBinding;
 
 /** Where a named source's data comes from. `hud` slices are data Ordeck already
  *  pulls (clock/weather/today/study/systems/cal — always in scope); `fetch` is a

@@ -16,11 +16,21 @@
  * server/trigger.js. These are the design-time shapes a Workshop GUI / an AI emits.
  */
 
-/** A DO-body value that pulls from the WHEN event's payload (the source capability's
- *  typed `returns`). `from` is a field name, dotted for nested payloads. */
-export interface Binding {
-  from: string;
-}
+/* ⭐ THE BINDING MODEL IS SHARED (D13). A TriggerDef binds a capability's typed
+ * output into another capability's body (WRITE); a WidgetSpec binds a dataset into a
+ * tree of primitives (READ). Two halves of one system that never met — and one
+ * vocabulary was strictly the other's degenerate case, so converging them cost
+ * nothing: `{from:'x'}` is `{src:'event', path:'x'}` with the source left implicit,
+ * because a trigger only ever had one.
+ *
+ * `{from}` is kept as sugar — every TriggerDef ever written uses it — and normalised
+ * before use. The canonical form additionally offers an explicit `{lit}` (a value
+ * that would otherwise look like a binding) and a `fallback`, neither of which the
+ * trigger vocabulary could express. */
+export type { Binding, SourceBinding, LiteralBinding, EventBinding, Bindable } from './shared/binding.js';
+export { EVENT_SOURCE, isBinding, normalizeBinding, resolveBinding, resolveBody } from './shared/binding.js';
+
+import type { Binding } from './shared/binding.js';
 
 /** One slot of a DO body: a literal, or a Binding to the event payload. */
 export type TriggerValue = string | number | boolean | null | Binding;

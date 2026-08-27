@@ -9,6 +9,7 @@ export * from './collection';
 export * from './connector';
 export * from './trigger';
 export * from './extref';
+export * from './binding';
 export * from './useSuiteApps';
 export * from './fetchCapabilities';
 export * from './fetchDatasets';
