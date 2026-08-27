@@ -152,10 +152,20 @@ corresponding fix completes.
    flags in `item-fields.js`, asserted against the actual schema and write path.
 4. **Shared-shape conformance** — does an app with activity-shaped data declare the activity
    contract? Conformance to a declared shape, **never** code sharing.
-5. **Supply chain and secrets** — `pnpm audit` at an agreed severity floor plus a secret scan,
-   both in the gate; their absence is itself a finding in a security portfolio. Separately, as an
-   investigation: whether anything sensitive was ever committed. ⚠️ **Report, do not rewrite
-   history** — that is destructive, coordinates with GitHub, and is Jag's call.
+5. ✅ **Supply chain and secrets — DONE, with one decision owed.** `check:audit` and
+   `check:secrets` are in the gate. The secret scan is proved to catch a planted key and
+   covers TRACKED files only, which is the right scope (what would be published) and is
+   paired with an assertion that `.gitignore` still excludes `.env`/`*.pem`/`*.key`.
+   ⚠️ **The audit floor is `critical` (currently 0), not `high` — deliberately and
+   temporarily.** 6 packages carry HIGH advisories today (vite, postcss, nanoid,
+   brace-expansion, react-router, pdfjs-dist), every one reached through a build/dev
+   dependency rather than a deployed container. Setting the floor at `high` now would paint
+   the gate red on day one, and a red gate nobody can turn green is one people learn to skip.
+   The count prints loudly on every run. **Raising the floor once those upgrade cleanly is
+   the open decision.**
+   ⚠️ Still owed, and Jag's: whether anything sensitive was ever committed. That is a
+   HISTORY question this scanner deliberately does not ask, because the remedy is a rewrite
+   — destructive, coordinates with GitHub. **Investigate and report; do not rewrite.**
 6. **The four contract rules** — one probe each for `resolves`, the cursor/limit convention, the
    fail-closed version rule, and the per-app status list. A ruling nothing enforces is prose.
 
