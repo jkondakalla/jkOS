@@ -23,16 +23,33 @@
 //   struct     structural key handled by the import walker, not a value cleaner
 //              (parent_id) — client-writable but skipped by the field normaliser
 //
+// ── The DECLARED INVARIANTS (Stage E item 3) ─────────────────────────────────
+// These three were properties the schema HAD and nothing could read. They lived in
+// prose, in a migration body, and in an index nobody was holding — so "is started_at
+// still write-once?" was a question you answered by going and looking, which means it
+// was a question nobody asked. `pnpm check:columns` boots the real database and holds
+// each one against sqlite_master and against the write path.
+//
+//   writeOnce    a TRIGGER refuses to overwrite a non-null value. Declared, not
+//                assumed: the data is unrecoverable once overwritten, so the rule has
+//                to belong to the table — a route check leaves the import path open.
+//   serverManaged  DERIVED from `client: false`, not a second flag to disagree with
+//                it. The column is written by the server (a trigger, a default, the
+//                engine) and refused from a caller.
+//   indexed      a real index exists on this column. An index is not an optimisation
+//                here: `parent_id` carries the whole tree walk and `ext_ref` carries
+//                routine identity, and both were full scans until someone measured.
+//
 // ORDER IS CONTRACT: ITEM_SHAPE is emitted in this order and served to peers — keep
 // id/user_id first and created_at/updated_at last, matching the historical shape.
 const ITEM_FIELDS = [
   { name: 'id',             shape: 'number',  client: false },
-  { name: 'user_id',        shape: 'number',  client: false },
+  { name: 'user_id',        shape: 'number',  client: false , indexed: true },
   { name: 'kind',           shape: 'enum',    client: true,  shapeEnum: ['task', 'event', 'goal', 'milestone', 'routine'], importEnum: ['task', 'event', 'goal', 'milestone', 'routine'] },
   { name: 'scope',          shape: 'string',  client: true,  cap: 20, importEnum: ['day', 'week', 'month', 'year', 'project'] },
   { name: 'title',          shape: 'string',  client: true,  cap: 500 },
   { name: 'notes',          shape: 'string',  client: true,  cap: 5000 },
-  { name: 'parent_id',      shape: 'number',  client: true,  struct: true },
+  { name: 'parent_id',      shape: 'number',  client: true,  struct: true , indexed: true },
   { name: 'accent',         shape: 'string',  client: true,  cap: 40 },
   { name: 'source',         shape: 'string',  client: true,  cap: 40 },
   { name: 'completed',      shape: 'boolean', client: true },
@@ -51,7 +68,7 @@ const ITEM_FIELDS = [
   { name: 'position',       shape: 'number',  client: true,  num: true },
   { name: 'status',         shape: 'enum',    client: true,  cap: 20, shapeEnum: ['active', 'parked', 'done'], importEnum: ['active', 'parked', 'done'] },
   { name: 'tags',           shape: 'string',  client: true },   // JSON array on the wire; coerced at insert
-  { name: 'ext_ref',        shape: 'string',  client: true,  cap: 200 },
+  { name: 'ext_ref',        shape: 'string',  client: true,  cap: 200 , indexed: true },
   // ── Routines (kind:'routine') ──────────────────────────────────────────────
   // A routine is a CADENCE, not an occurrence. These two columns are the whole
   // pattern; the occurrences themselves are ordinary kind:'task' rows minted
@@ -143,7 +160,7 @@ const ITEM_FIELDS = [
   // time — any drift statistic MUST convert before subtracting (the same UTC-vs-
   // local skew that RULE 1 in ROUTINES.md §4 exists to warn about).
   // Appended at the tail for the reason stated above: ORDER IS CONTRACT.
-  { name: 'started_at',      shape: 'string',  client: true,  cap: 40 },
+  { name: 'started_at',      shape: 'string',  client: true,  cap: 40 , writeOnce: true },
   { name: 'completed_at',    shape: 'string',  client: false },
   // ── The planner's missing facts (migration 15 / D12) ───────────────────────
   //   estimate_minutes  what it COSTS. The bench expresses commitment and nothing
@@ -162,7 +179,7 @@ const ITEM_FIELDS = [
   { name: 'defer_until',      shape: 'date',   client: true,  cap: 10 },
   { name: 'mint_kind',        shape: 'enum',   client: true,  cap: 20, shapeEnum: ['task', 'event'], importEnum: ['task', 'event'] },
   { name: 'created_at',     shape: 'string',  client: false },
-  { name: 'updated_at',     shape: 'string',  client: false },  // trigger-managed
+  { name: 'updated_at',     shape: 'string',  client: false , indexed: true },  // trigger-managed
 ];
 
 /* ITEM_SHAPE — the returned row shape, one `{ name, type, enum? }` per column, in

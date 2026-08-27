@@ -229,8 +229,7 @@ Landed 2026-08-26/27 on `staging`, gate green at each commit, **none of it deplo
 
 ## Open — the ratchet (Stage E)
 
-Four of six are done (1, 2, 4 and 5), and item 6 is a quarter done (`resolves`, with D13). Each
-closes a class rather than an instance, so each lands as its corresponding fix completes.
+Five of six are done (1, 2, 3, 4 and 5), and item 6 is a quarter done (`resolves`, with D13).
 
    ⚠️ **A refinement worth making:** `98-surface-coverage` lets a declared path cover
    everything BENEATH it, so `/items` silently covered the three new `/items/:id/deps`
@@ -256,8 +255,17 @@ closes a class rather than an instance, so each lands as its corresponding fix c
    it returned a clean report about the apps it happened to know, which reads exactly like a clean
    report about the suite. The BUG-5 class it exists to catch could have been sitting in either
    one since they were written.
-3. **Declared column invariants** — machine-readable `writeOnce` / `serverManaged` / `indexed`
-   flags in `item-fields.js`, asserted against the actual schema and write path.
+3. ✅ **Declared column invariants — DONE.** `writeOnce` / `indexed` flags in
+   `item-fields.js` (`serverManaged` is DERIVED from `client:false`, not a second flag to
+   disagree with it), held by `check:columns`.
+   ⚠️ It BOOTS THE REAL DATABASE rather than grepping the migrations — a schema is what the
+   engine ended up with, not what a migration meant to do — and it checks `writeOnce`
+   BEHAVIOURALLY, writing twice through the raw DB past every route. Verified: a trigger that
+   still exists but whose `WHEN` clause no longer matches passes a shape check and fails this
+   one, which is exactly the failure a declaration is supposed to make impossible.
+   ⚠️ My first shape assertion demanded `BEFORE UPDATE`; the live guard is `AFTER UPDATE` +
+   a restoring write. Both correct — asserting the shape I assumed would have failed against a
+   schema that was working.
 4. ✅ **Shared-shape conformance — DONE (with D6).** `85-activity-conformance` asks whether an
    app with activity-shaped data declares the activity contract, and holds the rule from both
    sides: an append-only per-user collection with no declaration is a **gap**; a declaration that
