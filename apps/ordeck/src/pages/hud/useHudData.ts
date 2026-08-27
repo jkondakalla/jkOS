@@ -271,19 +271,41 @@ const sysRow = (name: string, status: SysStatus, detail: string): SysRow =>
 // `suite` is the hydrated registry map (from useSuiteApps) — passing it makes the
 // probe set reactive, so an app added to the registry shows up here without a
 // portal code change. Omitted → the current live-or-static manifest.
+/** An up-but-degraded reason from a health payload, or null for plain healthy.
+ *
+ *  The uniform health response is `{ status, service, ...details() }`, so an app
+ *  reports its own degradation by adding a field. Two shapes are understood: a
+ *  generic `degraded` (a string reason, or true), and LazurOS's `compute_online:
+ *  false` — kept because it is the shape LazurOS emits today, named here once
+ *  rather than branched on at the call site. A new app opts in by emitting
+ *  `degraded`, with no change to this file. */
+function degradedReason(body: any): string | null {
+  if (!body || typeof body !== 'object') return null;
+  if (typeof body.degraded === 'string' && body.degraded) return body.degraded;
+  if (body.degraded === true) return 'degraded';
+  if (body.compute_online === false) return 'gpu asleep';
+  return null;
+}
+
 export function useSystems(aiEnabled = true, suite?: Record<string, SuiteApp>): SystemsState {
   const apps = useMemo(() => probeApps(aiEnabled, suite), [aiEnabled, suite]);
 
   const fetcher = useCallback(async (): Promise<SystemsState> => {
     const rows = await Promise.all(apps.map(async (a) => {
       const r = await probe(a.healthPath!);
-      // LazurOS reports compute (GPU) status in its body — asleep is a warn, not down.
-      if (a.id === 'lazuros') {
-        if (!r.ok) return sysRow('lazuros', 'down', 'down');
-        if (r.body && r.body.compute_online === false) return sysRow('lazuros', 'warn', 'gpu asleep');
-        return sysRow('lazuros', 'up', `${r.ms} ms`);
-      }
-      return sysRow(a.id, r.ok ? 'up' : 'down', r.ok ? `${r.ms} ms` : 'down');
+      if (!r.ok) return sysRow(a.id, 'down', 'down');
+      // WV-6: read the degradation from the health BODY, never from the app id.
+      // This was `if (a.id === 'lazuros')` — inside a loop whose own comment two
+      // lines up promises that an app added to the registry shows up here
+      // "without a portal code change". It did show up; it just could not report
+      // anything but up/down, because the one app that says more about itself was
+      // special-cased by name. The health contract already carries whatever an
+      // app's details() adds, so any app can say it is up-but-degraded and this
+      // renders it.
+      const degraded = degradedReason(r.body);
+      return degraded
+        ? sysRow(a.id, 'warn', degraded)
+        : sysRow(a.id, 'up', `${r.ms} ms`);
     }));
     const up = rows.filter(r => r.status === 'up' || r.status === 'warn').length;
     return { rows, up, total: rows.length, summary: `${up} / ${rows.length} UP` };
