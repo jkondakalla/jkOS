@@ -560,6 +560,13 @@ that code can reopen it.
   untracked at that moment. It failed on the very next run, after staging. **Stage first, then
   run the gate**, or a new file's first gate result is meaningless.
 
+- **`new URL('..', import.meta.url).pathname` percent-ENCODES — and this repo's path has a
+  space in it.** `/media/jag/The Forge/jkOS` comes back as `/media/jag/The%20Forge/jkOS`, a
+  directory that does not exist. Hand that to a child process as `cwd` and the spawn fails in
+  whatever way that tool fails — `test/supply-chain.mjs` reported it as "registry unreachable",
+  which sent the search in exactly the wrong direction. **Always `fileURLToPath(import.meta.url)`.**
+  The same space is why every shell invocation in this repo has to quote the path.
+
 ## git & shell
 
 - **`git checkout <file>` over uncommitted work-in-progress discards it — there is no undo.**
