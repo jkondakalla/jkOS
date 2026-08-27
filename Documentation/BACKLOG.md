@@ -41,6 +41,10 @@ Landed 2026-08-26/27 on `staging`, gate green at each commit, **none of it deplo
   browse reads; BeigeBoard's six routine reads plus `routines/bundle`, calendar sync and
   disconnect (BB-7); PapyrOS's single-book detail. BB-9 closed too — the library's filter
   SQL now derives from its declaration via a new `search` op.
+- **D4 (XC-1) — one wire-timestamp format suite-wide.** `packages/weave/src/server/wireTime.js`
+  is the single definition; `defineCollection` and all three apps use it; a `wire-time` probe
+  holds it at drift level. The cursor is portable now, which the incremental-embedding cursor
+  for the music vector space depends on.
 - **E1 — the surface-coverage probe**, which is what made all of the above measurable
   rather than a matter of opinion. It also found two bugs in itself, both cases of a green
   result that had stopped asking the question.
@@ -67,18 +71,13 @@ Landed 2026-08-26/27 on `staging`, gate green at each commit, **none of it deplo
 
 ## Open — the backend and the fabric (Stage D)
 
-Ten of thirteen items (D1, D2 and D3 are done). Re-verify each before fixing; the audit predates
+Nine of thirteen items (D1, D2, D3 and D4 are done). Re-verify each before fixing; the audit predates
 this work and BB-3 is marked *Partial*.
 
 - **The seven `json` escape-hatch fields** are what remains of D3, and they are the weakest item
   on this list. A routine `spec` genuinely IS an opaque document, so "type it properly" may be
   the wrong answer — decide whether the hatch is a defect here or an honest description before
   spending effort on it.
-- **D4 · Wire-format consistency (XC-1).** `defineCollection` stamps whole-second
-  `datetime('now')` in nine collections across three apps, while BeigeBoard's `items` moved to
-  millisecond ISO in migration 8 *because* second resolution loses same-second writes. The two
-  formats also mis-sort against each other as strings, so a cursor is not portable across the
-  suite even in principle. **This is also the incremental-embedding cursor.**
 - **D5 · Define "today", once (XC-4).** Four notions coexist and there is no notion of *where*.
   Add `timezone` to the jkAuth preferences contract, one `callerDay(req)` in
   `@jkos/weave/server`, and make `isoDateStr`/`fmt24` take an explicit zone. Closes **BB-2**,

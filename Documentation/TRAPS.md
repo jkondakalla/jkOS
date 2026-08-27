@@ -544,6 +544,22 @@ that code can reopen it.
   server default. Generate/serve `.well-known/*` paths explicitly rather than relying on a
   generic static-file mount to pick them up.
 
+- **A comment must speak the language of the line it sits on — and this repo mixes three per
+  file.** Backend files embed SQL in JS template literals, so a single line can be JavaScript,
+  SQL, or the boundary between them. All three failed at PARSE time during the 2026-08-27
+  wire-time change: a `// …` comment appended inside a `CREATE TABLE` template literal is a SQL
+  syntax error; the same comment appended *after* the literal closes (`` `); ``) is correct JS
+  and wrong if you meant SQL; and an SQL `-- …` comment that quotes a table name in **backticks**
+  ENDS the enclosing template literal, producing `SyntaxError: missing ) after argument list`
+  pointing at the top of the block rather than at the comment. Rules: `--` inside the literal,
+  `//` outside it, and never a backtick in either.
+
+- **`check:text` scans TRACKED files, so a brand-new file passes the gate until you `git add`
+  it.** `Documentation/TRAPS.md` was written with a raw NUL byte in it — in the passage
+  documenting the NUL-byte trap — and the full gate went green because the file was still
+  untracked at that moment. It failed on the very next run, after staging. **Stage first, then
+  run the gate**, or a new file's first gate result is meaningless.
+
 ## git & shell
 
 - **`git checkout <file>` over uncommitted work-in-progress discards it — there is no undo.**
