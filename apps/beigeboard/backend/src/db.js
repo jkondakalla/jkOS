@@ -676,6 +676,64 @@ const MIGRATIONS = [
       d.exec(`CREATE INDEX IF NOT EXISTS idx_items_parent ON items(parent_id)`);
     },
   },
+
+  {
+    id: 15, name: 'planner_data_model',
+    up(d) {
+      /*
+       * D12 — THE DATA-MODEL GAP. The audit's answer to "does the planner need more
+       * primitive KINDS?" was no, and adding one would be a mistake:
+       * goal/milestone/task/event/routine is the right cut, and "task is the only
+       * schedulable leaf" is exactly why Today, Week, Calendar, ORDECK and the weave
+       * dataset need zero routine awareness. What was missing was never a kind. It
+       * was three facts and one relationship.
+       */
+
+      /* COST. The week bench expresses COMMITMENT — these are the things I said I
+         would do — and nothing anywhere expressed what they cost, so nothing could
+         say the week is overcommitted. That is the single most useful sentence a
+         planner can say and this schema could not form it. Minutes rather than
+         points or t-shirt sizes: it is the unit the calendar half of this app
+         already speaks, so an estimate and a scheduled block are comparable without
+         a conversion nobody agrees on. */
+      d.exec('ALTER TABLE items ADD COLUMN estimate_minutes INTEGER');
+
+      /* NOT YET. Distinct from `due_date` (when it must be done) and from `parked`
+         status (which is about a GOAL being shelved): "do not show me this before
+         Thursday" is a third thing, and without it the only way to get something off
+         today's board is to lie about its date or delete it. */
+      d.exec('ALTER TABLE items ADD COLUMN defer_until TEXT');
+
+      /* BB-16 — WHAT A ROUTINE MINTS. routines.js hardcoded 'task', so a standing
+         weekly MEETING could not be authored natively: the cadence engine would mint
+         it as a task and every calendar surface would file it wrong. One column on
+         the routine row, read by the mint. NULL means 'task', so every existing
+         routine keeps its behaviour without a backfill. */
+      d.exec("ALTER TABLE items ADD COLUMN mint_kind TEXT");
+
+      /* ⭐ THE ONE PLACE A COLUMN WOULD NOT DO. You can express decomposition
+         (parent_id) and ordering (position), and nothing at all expresses "B cannot
+         start until A ships" — which is the question a planner exists to answer. It
+         is a MANY-TO-MANY between rows of the same table, so it is an edge table and
+         could never have been a column.
+         ⚠️ No FK to items(id): `items.parent_id` has none either, and adding one
+         only here would make this the single table whose deletes behave differently
+         from every other. cascadeDelete sweeps the edges instead — see items-store. */
+      d.exec(`
+        CREATE TABLE IF NOT EXISTS item_deps (
+          id         INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id    INTEGER NOT NULL,
+          item_id    INTEGER NOT NULL,
+          depends_on INTEGER NOT NULL,
+          created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+          UNIQUE(user_id, item_id, depends_on)
+        )`);
+      /* Both directions are read: "what blocks this" (the card) and "what does
+         finishing this unblock" (the reason to do it first). */
+      d.exec('CREATE INDEX IF NOT EXISTS idx_item_deps_item ON item_deps(user_id, item_id)');
+      d.exec('CREATE INDEX IF NOT EXISTS idx_item_deps_on ON item_deps(user_id, depends_on)');
+    },
+  },
 ];
 
 function runMigrations() {

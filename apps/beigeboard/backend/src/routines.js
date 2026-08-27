@@ -7,7 +7,8 @@
  * cadence_count — see item-fields.js). It is never itself scheduled, never appears
  * on a day, and is never checked off.
  *
- * Its OCCURRENCES are ordinary `kind:'task'` rows minted under it (parent_id = the
+ * Its OCCURRENCES are ordinary `kind:'task'` (or, since BB-16, `'event'`) rows
+ * minted under it (parent_id = the
  * routine's id). That is the whole design decision, and it is worth stating plainly
  * because the alternative is the obvious one:
  *
@@ -479,6 +480,16 @@ function prescriptionFor(spec, rung, routine) {
   }));
 }
 
+/** What a routine's occurrences ARE (BB-16). `mint_kind` is NULL on every routine
+ *  written before migration 15, and NULL means 'task' — the behaviour the engine
+ *  always had. Validated against the same closed list `item-fields.js` declares, so
+ *  a hand-edited row cannot make the engine mint a `goal`. */
+const MINTABLE = new Set(['task', 'event']);
+function mintKind(routine) {
+  const k = String(routine?.mint_kind || '').trim();
+  return MINTABLE.has(k) ? k : 'task';
+}
+
 /** Mint the missing occurrences for one routine and withdraw the stale ones.
  *  Returns { minted, withdrawn } for the tests and the smoke. */
 function reconcileRoutine(routine, userId, today, resolve) {
@@ -516,9 +527,14 @@ function reconcileRoutine(routine, userId, today, resolve) {
          (user_id, kind, scope, parent_id, title, notes, accent, source,
           completed, due_date, week_start, scheduled_time, scheduled_end, ext_ref,
           cycle_index, prescription)
-       VALUES (?, 'task', 'day', ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, 'day', ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        userId, routine.id, routine.title, routine.notes ?? null,
+        /* BB-16: what this routine mints, not a hardcoded 'task'. A standing weekly
+           MEETING is a routine whose occurrences are events, and until migration 15
+           it could not be authored natively — the engine minted it as a task and
+           every calendar surface filed it wrong. NULL means 'task', so nothing that
+           existed before this column behaves differently. */
+        userId, mintKind(routine), routine.id, routine.title, routine.notes ?? null,
         routine.accent ?? null, routine.source || 'bb',
         p.date, p.week, routine.scheduled_time ?? null, routine.scheduled_end ?? null,
         p.ref,
@@ -845,7 +861,7 @@ function materializeForOccurrence(row, userId, today) {
 module.exports = {
   materializeRoutines, materializeOne, materializeForOccurrence,
   // BB-1: the read-path trigger, day-bounded and identity-blind
-  ensureHorizon, forgetHorizon,
+  ensureHorizon, forgetHorizon, mintKind,
   recordRevision, revisionsOf, setDeloadOverride,
   // the delete path (migration 12): strike one occurrence out of the pattern, and
   // reach every row a deleted routine minted wherever the user moved it to

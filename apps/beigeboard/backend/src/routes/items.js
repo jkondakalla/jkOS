@@ -12,6 +12,7 @@ const {
   skipOccurrence, purgeRoutineOccurrences,
 } = require('../routines');
 const { toRow, fail } = require('../util');
+const { addDep, removeDep, depsOf } = require('../deps');
 
 const router = express.Router();
 
@@ -210,6 +211,47 @@ router.delete('/api/items/:id', (req, res) => {
       forgetHorizon(req.user.sub);
     }
     res.json({ ok: true });
+  } catch (e) { fail(res, e); }
+});
+
+/* ── Dependencies (D12) ───────────────────────────────────────────────────────
+   The edge table's surface. Three routes, all declared (discovery.js) — a table
+   nothing can write is dead weight, and a table written through undeclared routes is
+   the BB-7 class all over again. The graph rules (ownership on both ends, the cycle
+   guard) live in src/deps.js, not here. */
+
+router.get('/api/items/:id/deps', (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) return res.status(400).json({ error: 'Invalid id' });
+    if (!get('SELECT 1 FROM items WHERE id = ? AND user_id = ?', [id, req.user.sub])) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+    res.json(depsOf(req.user.sub, id));
+  } catch (e) { fail(res, e); }
+});
+
+router.post('/api/items/:id/deps', (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const dependsOn = parseInt(req.body?.depends_on, 10);
+    if (isNaN(id) || isNaN(dependsOn)) return res.status(400).json({ error: 'Invalid id', code: 'VALIDATION' });
+    const r = addDep(req.user.sub, id, dependsOn);
+    if (!r.ok) return res.status(r.code === 'NOT_FOUND' ? 404 : 400).json({ error: r.error, code: r.code });
+    res.status(201).json(depsOf(req.user.sub, id));
+  } catch (e) { fail(res, e); }
+});
+
+router.delete('/api/items/:id/deps/:dep', (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const dependsOn = parseInt(req.params.dep, 10);
+    if (isNaN(id) || isNaN(dependsOn)) return res.status(400).json({ error: 'Invalid id' });
+    if (!get('SELECT 1 FROM items WHERE id = ? AND user_id = ?', [id, req.user.sub])) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+    removeDep(req.user.sub, id, dependsOn);
+    res.json(depsOf(req.user.sub, id));
   } catch (e) { fail(res, e); }
 });
 

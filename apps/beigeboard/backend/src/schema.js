@@ -62,6 +62,21 @@ const IMPORT_DATE_COLS   = new Set(ITEM_FIELDS.filter((f) => f.shape === 'date')
 const IMPORT_TIME_COLS   = new Set(ITEM_FIELDS.filter((f) => f.shape === 'time').map((f) => f.name));
 const IMPORT_KIND_ENUM   = importEnumSet('kind');
 
+/* Columns whose vocabulary is CLOSED ON THE WIRE, keyed by column name. Derived
+   from the one field list so a new enum column is enforced the day it is added.
+ *
+ * ⚠️ Keyed on `shapeEnum`, NOT on `importEnum`, and the difference is the whole
+ * point. `shapeEnum` is what ITEM_SHAPE publishes to peers — "this column is one of
+ * these values" — so a write outside it contradicts the app's own declaration.
+ * `scope` deliberately declares `shape:'string'` with an import enum only: it is
+ * OPEN on the wire and normalised on the way in, and rejecting an unlisted scope at
+ * the door would be enforcing a rule the declaration does not make. Enforcing both
+ * lists is what a first pass at this did, and it broke a legitimate `scope:'quarter'`
+ * write that the declaration permits. */
+const WIRE_ENUMS = Object.fromEntries(
+  ITEM_FIELDS.filter((f) => f.shapeEnum).map((f) => [f.name, new Set(f.shapeEnum)]),
+);
+
 // Real calendar dates only. A bare `^\d{4}-\d{2}-\d{2}$` would accept impossible
 // dates (2026-13-45, 2026-02-30); those become `Invalid Date` and poison every
 // view that parses them — and crash the AI endpoint's toISOString() with a 500.
@@ -270,6 +285,19 @@ function validateItemWrite(raw, details = null) {
     if (k === 'source' && RESERVED_SOURCE.has(String(v).toLowerCase())) {
       return `source '${v}' is reserved for connected calendars`;
     }
+    /* ⚠️ CLOSED VOCABULARIES, at the door (D12). Every `importEnum` in
+       item-fields.js was enforced only by the IMPORT cleaner, which warns and drops
+       — so a DIRECT POST/PATCH could write `kind:'garbage'` and have it stored. The
+       comment at the top of this function says direct writes "must obey the SAME
+       field rules the import cleaner enforces"; for enums they did not.
+       Derived from the one field list rather than listed here, so a column that
+       gains a vocabulary is enforced without anyone remembering to come back —
+       which is the whole ARCH-1 bargain this file is built on. See WIRE_ENUMS for
+       why this reads `shapeEnum` and not `importEnum`. */
+    const vocab = WIRE_ENUMS[k];
+    if (vocab && !vocab.has(String(v).toLowerCase())) {
+      return `${k} must be one of: ${[...vocab].join(', ')}`;
+    }
     // String length caps (shared with import — one title cap of 500, etc.).
     const cap = IMPORT_STR_CAP[k];
     if (cap != null && typeof v !== 'object' && String(v).length > cap) {
@@ -326,6 +354,7 @@ module.exports = {
   MAX_IMPORT_ITEMS, MAX_IMPORT_DEPTH,
   IMPORT_ALIASES, IMPORT_STRUCT_KEYS, IMPORT_DATE_COLS, IMPORT_TIME_COLS, IMPORT_KIND_ENUM,
   IMPORT_STR_CAP, IMPORT_NUM_COLS, IMPORT_SCOPE_ENUM, IMPORT_STATUS_ENUM,
+  WIRE_ENUMS,
   HEX_COLOR_RE, MAX_TAG_COUNT, MAX_TAG_LEN, MAX_CADENCE_COUNT, MAX_CADENCE_SKIPS,
   looksLikeDate, looksLikeTime, looksLikeStamp, looksLikeCadenceDays, looksLikeCadenceSkips, importChildren,
   cleanImportField, validateItemWrite,

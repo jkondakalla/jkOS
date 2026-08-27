@@ -116,6 +116,43 @@ const CAPABILITIES = {
       returns: ITEM_SHAPE,
       invalidates: [ITEMS_KEY], scopes: ['beigeboard:write'],
     },
+    /* ── Dependencies (D12) ───────────────────────────────────────────────────
+       ⭐ The one relationship this schema could not express. It already had
+       DECOMPOSITION (`parent_id` — B is part of A) and ORDERING (`position` — B
+       comes after A on a list); it had nothing for BLOCKING — "B cannot start until
+       A ships" — which is the question a planner exists to answer. Decomposition is
+       a tree; blocking is a DAG, and a row can be blocked by several things in
+       different branches at once, so it is an edge table and never could have been
+       a column.
+       Declared because a peer scheduling work needs to know an item is blocked
+       before it offers it as today's next thing — the whole reason the edge is
+       worth storing. */
+    {
+      id: 'addDependency', label: 'Block this until that ships', method: 'POST', path: '/items/:id/deps',
+      body: [
+        { name: 'id',         type: 'number', label: 'The blocked item', required: true },
+        { name: 'depends_on', type: 'number', label: 'The item that must finish first', required: true, ref: 'beigeboard.items' },
+      ],
+      returns: [
+        { name: 'blocked',    type: 'boolean', label: 'Still blocked (any dependency unfinished)' },
+        { name: 'blocked_by', type: 'json',    label: 'The items this one waits on' },
+        { name: 'blocks',     type: 'json',    label: 'The items waiting on this one' },
+      ],
+      invalidates: [ITEMS_KEY], scopes: ['beigeboard:write'],
+    },
+    {
+      id: 'removeDependency', label: 'Unblock', method: 'DELETE', path: '/items/:id/deps/:dep',
+      body: [
+        { name: 'id',  type: 'number', label: 'The blocked item', required: true },
+        { name: 'dep', type: 'number', label: 'The dependency to drop', required: true },
+      ],
+      returns: [
+        { name: 'blocked',    type: 'boolean', label: 'Still blocked' },
+        { name: 'blocked_by', type: 'json',    label: 'The items this one waits on' },
+        { name: 'blocks',     type: 'json',    label: 'The items waiting on this one' },
+      ],
+      invalidates: [ITEMS_KEY], scopes: ['beigeboard:write'],
+    },
     {
       id: 'completeItem', label: 'Mark done', method: 'PATCH', path: '/items/:id',
       body: [
@@ -318,6 +355,26 @@ const DATASETS = {
         { name: 'tags',           type: 'string', label: 'Tags (comma-separated; ANDed)',                  column: 'tags',       op: 'tags' },
       ],
       item: ITEM_SHAPE,
+      invalidates: [ITEMS_KEY],
+    },
+    {
+      /* D12 — what blocks this item, and what finishing it unblocks. BOTH
+         directions, because both are questions a person actually asks: "why can't I
+         start this" and "what does doing this free up" — the second being the
+         reason to do it first.
+         `blocked` is DERIVED on every read, never stored. A stored flag would have
+         to be maintained by every write path that can complete an item, and would
+         be wrong the moment one of them forgot. */
+      id: 'itemDeps', label: 'What blocks this, and what it blocks', path: '/items/:id/deps',
+      filters: [],
+      item: [
+        { name: 'blocked',    type: 'boolean', label: 'Any dependency still unfinished' },
+        { name: 'blocked_by', type: 'json',    label: 'Items this one waits on' },
+        { name: 'blocks',     type: 'json',    label: 'Items waiting on this one' },
+      ],
+      doc: 'One item\'s dependency edges. An item is `blocked` while any item in '
+        + '`blocked_by` is unfinished — decomposition (parent_id) and ordering '
+        + '(position) are separate and unrelated relationships.',
       invalidates: [ITEMS_KEY],
     },
     {

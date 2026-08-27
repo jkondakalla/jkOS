@@ -453,6 +453,39 @@ try {
   ok(!lGone.some((r) => String(r.ext_ref || '').startsWith(`routine:${lRid}:`)),
     'L: deleting the routine reaches every row it minted, wherever the user moved it to');
 
+  // ── M. WHAT A ROUTINE MINTS (BB-16 / D12) ───────────────────────────────────
+  //    routines.js hardcoded `'task'`, so a standing weekly MEETING could not be
+  //    authored natively: the engine minted it as a task and every calendar surface
+  //    filed it wrong. `mint_kind` on the routine row is read by the mint.
+  const mMade = await req('POST', '/api/items', {
+    title: 'Standup', kind: 'routine', status: 'active',
+    cadence_days: '0,2', cadence_count: 2, mint_kind: 'event',
+    scheduled_time: '09:00', scheduled_end: '09:15',
+  });
+  ok(mMade.status === 201, `M: a routine can declare what it mints (got ${mMade.status})`);
+  const mRid = mMade.json.id;
+  const mOccs = occurrencesOf(await list(), mRid);
+  ok(mOccs.length > 0, 'M: it minted a horizon');
+  ok(mOccs.every((o) => o.kind === 'event'),
+    `M: ⭐ its occurrences are EVENTS, not tasks (got ${JSON.stringify([...new Set(mOccs.map((o) => o.kind))])})`);
+  ok(mOccs.every((o) => o.scheduled_time === '09:00'), 'M: and they carry the routine\'s time like any occurrence');
+
+  //    NULL means 'task' — every routine written before the column keeps its
+  //    behaviour with no backfill.
+  const mDefault = await req('POST', '/api/items', {
+    title: 'Lift again', kind: 'routine', status: 'active', cadence_days: '0', cadence_count: 1,
+  });
+  const mDefOccs = occurrencesOf(await list(), mDefault.json.id);
+  ok(mDefOccs.length > 0 && mDefOccs.every((o) => o.kind === 'task'),
+    'M: a routine with no mint_kind still mints tasks — the old behaviour, unchanged');
+
+  //    A hand-edited row cannot make the engine mint a `goal`: the value is checked
+  //    against the same closed list item-fields declares.
+  const mBad = await req('POST', '/api/items', {
+    title: 'Bad', kind: 'routine', status: 'active', cadence_days: '0', cadence_count: 1, mint_kind: 'goal',
+  });
+  ok(mBad.status === 400, `M: an out-of-vocabulary mint_kind is refused at the door (got ${mBad.status})`);
+
   // ── K. VARIANCE INSTRUMENTATION (migration 13) ─────────────────────────────
   //     The two facts nothing in this schema could answer, and that no later code
   //     can recover — they exist only if they are recorded as they happen

@@ -10,6 +10,13 @@ function cascadeDeleteInner(id, userId, seen) {
   seen.add(id);
   const children = all('SELECT id FROM items WHERE parent_id = ? AND user_id = ?', [id, userId]);
   for (const c of children) cascadeDeleteInner(c.id, userId, seen);
+  /* D12: sweep this row's dependency EDGES, both directions. `item_deps` carries no
+     foreign key — deliberately, because `items.parent_id` carries none either and
+     one table whose deletes behave differently from every other is worse than none
+     — so nothing else would remove them. A left-behind edge is not inert: it makes
+     a live item permanently blocked by a row that no longer exists, which is
+     indistinguishable from "still waiting" and impossible to clear from the UI. */
+  run('DELETE FROM item_deps WHERE user_id = ? AND (item_id = ? OR depends_on = ?)', [userId, id, id]);
   run('DELETE FROM items WHERE id = ? AND user_id = ?', [id, userId]);
 }
 const cascadeDelete = db.transaction((id, userId) => cascadeDeleteInner(id, userId, new Set()));

@@ -141,6 +141,20 @@ Landed 2026-08-26/27 on `staging`, gate green at each commit, **none of it deplo
   event was orphaned every time the calendar refreshed. Both paths cascade now.
   **No scheduler, still — a decision, not an omission:** this suite has no cron by
   design.
+- **D12 — the data-model gap.** Migration 15: **`item_deps`** (the one place a column
+  would not do — decomposition is a tree, blocking is a DAG, and a row can be blocked
+  by several things in different branches at once), **`estimate_minutes`**,
+  **`defer_until`**, and **`mint_kind`** (BB-16 — a standing weekly meeting can be
+  authored natively now; NULL means `task`, so nothing that existed changes). The
+  dependency surface is declared, cycle-guarded, ownership-checked on BOTH ends, and
+  swept by `cascadeDelete` — a left-behind edge is not inert, it makes a live item
+  permanently blocked by a row that no longer exists.
+  ⚠️ Along the way: the direct-write validator enforced **no declared vocabulary at
+  all**, despite its own comment promising direct writes obey the same rules as the
+  import cleaner. Closed generically from the one field list — but keyed on
+  `shapeEnum` (closed on the wire) not `importEnum`, because `scope` deliberately
+  declares `shape:'string'` and enforcing its import list broke a legitimate
+  `scope:'quarter'` write the declaration permits.
 
 ---
 
@@ -164,19 +178,13 @@ Landed 2026-08-26/27 on `staging`, gate green at each commit, **none of it deplo
 
 ## Open — the backend and the fabric (Stage D)
 
-Two of thirteen items (D1–D11 are done). Re-verify each before fixing; the audit predates this work.
+One of thirteen items (D1–D12 are done — only D13 remains). Re-verify before fixing; the audit
+predates this work.
 
 - **The seven `json` escape-hatch fields** are what remains of D3, and they are the weakest item
   on this list. A routine `spec` genuinely IS an opaque document, so "type it properly" may be
   the wrong answer — decide whether the hatch is a defect here or an honest description before
   spending effort on it.
-- **D12 · The data-model gap.** No new primitive types — `goal/milestone/task/event/routine` is
-  the right cut. Missing is one table and three columns: **`item_deps`** (the one place a column
-  won't do — nothing expresses "can't start B until A ships", which is the question a planner
-  exists to answer), **`estimate_minutes`** (nothing expresses cost, so nothing can say the week
-  is overcommitted), **`defer_until`**, and a parameterised mint kind (**BB-16** —
-  `routines.js` hardcodes `'task'`, so a standing weekly meeting can't be authored natively).
-  All four land in `item-fields.js`. **After D4–D7**, on a settled schema.
 - **D13 · The binding vocabulary.** ⚠️ **Do not delete the trigger engine** — it is the *write*
   half of the widget factory. `WidgetSpec` binds a dataset into a primitive tree (read);
   `TriggerDef` binds a capability's typed output into another's body (write); ORDECK's Workshop
@@ -198,6 +206,13 @@ Two of thirteen items (D1–D11 are done). Re-verify each before fixing; the aud
 
 Three of six are done (1, 4 and 5). Each closes a class rather than an instance, so each lands as
 its corresponding fix completes.
+
+   ⚠️ **A refinement worth making:** `98-surface-coverage` lets a declared path cover
+   everything BENEATH it, so `/items` silently covered the three new `/items/:id/deps`
+   routes before they were declared. That is a deliberate rule, but it means a nested
+   surface with a completely different shape can be added without declaring it — the
+   BB-7 class, one level down. Consider requiring an explicit declaration for a path
+   that is more than one segment deeper than its cover.
 
 1. ✅ **Surface coverage — DONE.** `98-surface-coverage` censuses every mounted Express route
    against the app's declared capability and dataset paths; a gap unless explicitly marked

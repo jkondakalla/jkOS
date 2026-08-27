@@ -318,6 +318,71 @@ try {
 
   const actB = (await req('GET', '/api/activity', undefined, B)).json;
   ok(!actB.activity.some((e) => e.ref === `beigeboard:${oId}`), "O: A's events never appear in B's feed");
+
+  // ── P. THE DEPENDENCY GRAPH (D12) ─────────────────────────────────────────
+  //    ⭐ The one relationship a column could not express. `parent_id` says B is
+  //    PART OF A; `position` says B comes AFTER A on a list; neither says B CANNOT
+  //    START until A ships — which is the question a planner exists to answer.
+  //    Decomposition is a tree, blocking is a DAG, and a row can be blocked by
+  //    several things in different branches at once.
+  const mkP = async (title) => (await req('POST', '/api/items', { title, kind: 'task' }, A)).json.id;
+  const ship = await mkP('ship the API');
+  const build = await mkP('build the UI');
+  const launch = await mkP('launch');
+
+  const link = await req('POST', `/api/items/${build}/deps`, { depends_on: ship }, A);
+  ok(link.status === 201, `P: an edge can be added (got ${link.status})`);
+  ok(link.json.blocked === true, 'P: the item reads as BLOCKED while its dependency is unfinished');
+  ok(link.json.blocked_by.some((d) => d.id === ship), 'P: …and says what it is waiting on');
+
+  const other = (await req('GET', `/api/items/${ship}/deps`, undefined, A)).json;
+  ok(other.blocks.some((d) => d.id === build),
+    'P: the reverse direction is readable — "what does finishing this unblock" is the reason to do it first');
+  ok(other.blocked === false, 'P: an item with no dependencies is not blocked');
+
+  // `blocked` is DERIVED, never stored — so completing the dependency clears it with
+  // no write to the blocked row at all.
+  await req('PATCH', `/api/items/${ship}`, { completed: true }, A);
+  const cleared = (await req('GET', `/api/items/${build}/deps`, undefined, A)).json;
+  ok(cleared.blocked === false,
+    'P: completing the dependency unblocks it — `blocked` is derived on read, so nothing had to remember to update it');
+
+  // ⚠️ THE CYCLE GUARD. A ring is not a cosmetic problem: "what is ready to start"
+  //    is a walk over these edges, so a cycle either loops forever or quietly
+  //    reports that nothing in the ring can ever start — a deadlock the user cannot
+  //    see, because every individual edge looks sensible.
+  await req('POST', `/api/items/${launch}/deps`, { depends_on: build }, A);
+  const ring = await req('POST', `/api/items/${ship}/deps`, { depends_on: launch }, A);
+  ok(ring.status === 400 && ring.json.code === 'CYCLE',
+    `P: ⭐ an edge that would close a RING is refused (got ${ring.status} ${ring.json?.code})`);
+  const selfDep = await req('POST', `/api/items/${ship}/deps`, { depends_on: ship }, A);
+  ok(selfDep.status === 400 && selfDep.json.code === 'CYCLE', 'P: an item cannot depend on itself');
+
+  // Ownership on BOTH ends — an edge is the one shape here that names a second row.
+  const bItem = (await req('POST', '/api/items', { title: "B's thing", kind: 'task' }, B)).json.id;
+  const cross = await req('POST', `/api/items/${build}/deps`, { depends_on: bItem }, A);
+  ok(cross.status === 404, `P: an edge cannot reach another user's item (got ${cross.status})`);
+
+  // ⚠️ DELETING AN ITEM SWEEPS ITS EDGES. item_deps carries no foreign key — on
+  //    purpose, because items.parent_id carries none either — so nothing else would
+  //    remove them, and a left-behind edge is not inert: it makes a live item
+  //    permanently blocked by a row that no longer exists, which is
+  //    indistinguishable from "still waiting" and impossible to clear from the UI.
+  await req('DELETE', `/api/items/${build}`, undefined, A);
+  const afterDel = (await req('GET', `/api/items/${launch}/deps`, undefined, A)).json;
+  ok(!afterDel.blocked_by.some((d) => d.id === build),
+    'P: ⭐ deleting an item sweeps the edges pointing at it — no permanent phantom block');
+  ok(afterDel.blocked === false, 'P: …so the item that waited on it is free, not stuck forever');
+
+  // ── Q. THE PLANNER'S MISSING FACTS (D12) ──────────────────────────────────
+  const costed = await req('POST', '/api/items', {
+    title: 'a costed task', kind: 'task', estimate_minutes: 90, defer_until: '2026-09-01',
+  }, A);
+  ok(costed.status === 201, `Q: estimate_minutes and defer_until are accepted (got ${costed.status})`);
+  ok(costed.json.estimate_minutes === 90,
+    `Q: estimate_minutes round-trips — the bench expressed commitment and nothing expressed COST, so nothing could say the week is overcommitted (got ${costed.json.estimate_minutes})`);
+  ok(costed.json.defer_until === '2026-09-01',
+    `Q: defer_until round-trips — distinct from due_date (when it must be done) and from parked status (got ${costed.json.defer_until})`);
 } catch (e) {
   console.error('harness error:', e);
   fail++;

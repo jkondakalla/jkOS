@@ -145,6 +145,22 @@ const ITEM_FIELDS = [
   // Appended at the tail for the reason stated above: ORDER IS CONTRACT.
   { name: 'started_at',      shape: 'string',  client: true,  cap: 40 },
   { name: 'completed_at',    shape: 'string',  client: false },
+  // ── The planner's missing facts (migration 15 / D12) ───────────────────────
+  //   estimate_minutes  what it COSTS. The bench expresses commitment and nothing
+  //                     expressed cost, so nothing could say the week is
+  //                     overcommitted — the single most useful sentence a planner
+  //                     can say, and this schema could not form it. Minutes because
+  //                     that is the unit the calendar half already speaks, so an
+  //                     estimate and a scheduled block compare without a conversion.
+  //   defer_until       NOT YET. A third thing, distinct from `due_date` (when it
+  //                     must be done) and from `parked` status (a shelved GOAL):
+  //                     without it the only way off today's board is to lie about a
+  //                     date or delete the row.
+  //   mint_kind         BB-16 — what a ROUTINE mints. NULL on every other kind, and
+  //                     NULL means 'task', so every existing routine is unchanged.
+  { name: 'estimate_minutes', shape: 'number', client: true,  num: true },
+  { name: 'defer_until',      shape: 'date',   client: true,  cap: 10 },
+  { name: 'mint_kind',        shape: 'enum',   client: true,  cap: 20, shapeEnum: ['task', 'event'], importEnum: ['task', 'event'] },
   { name: 'created_at',     shape: 'string',  client: false },
   { name: 'updated_at',     shape: 'string',  client: false },  // trigger-managed
 ];
