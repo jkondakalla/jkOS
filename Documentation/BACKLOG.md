@@ -35,6 +35,15 @@ Landed 2026-08-26/27 on `staging`, gate green at each commit, **none of it deplo
   across five suites.
 - **BeigeBoard D1 + D2** — `started_at` write-once via trigger, the routine purge cascades,
   `items(parent_id)` indexed, migrations atomic with the FK pragma moved out to the runner.
+- **D3 — the declarations are COMPLETE.** All four backends report full surface coverage:
+  **69 mounted routes, every one declared or explicitly marked `app-private` at its own
+  source line.** KourOS's seven `discover/` routes (XC-7, the ML surface) and its three
+  browse reads; BeigeBoard's six routine reads plus `routines/bundle`, calendar sync and
+  disconnect (BB-7); PapyrOS's single-book detail. BB-9 closed too — the library's filter
+  SQL now derives from its declaration via a new `search` op.
+- **E1 — the surface-coverage probe**, which is what made all of the above measurable
+  rather than a matter of opinion. It also found two bugs in itself, both cases of a green
+  result that had stopped asking the question.
 
 ---
 
@@ -58,15 +67,13 @@ Landed 2026-08-26/27 on `staging`, gate green at each commit, **none of it deplo
 
 ## Open — the backend and the fabric (Stage D)
 
-Eleven of thirteen items. Re-verify each before fixing; the audit predates this work and BB-3 is
-marked *Partial*.
+Ten of thirteen items (D1, D2 and D3 are done). Re-verify each before fixing; the audit predates
+this work and BB-3 is marked *Partial*.
 
-- **D3 · Complete the declarations.** ⭐ RESET's highest-value backend work, because it is the
-  only class that actively misinforms the next agent. BeigeBoard serves 30 routes and declares 11
-  surfaces (**BB-7**); KourOS's `discover/` is 1,697 lines behind seven routes and declares none
-  (**XC-7**), which is what blocks *"play something that matches this routine's energy"* — a
-  declaration, not a model; plus the seven `json` escape-hatch gaps the prober already names, and
-  `library`'s two filters that carry no `column`/`op` (**BB-9**).
+- **The seven `json` escape-hatch fields** are what remains of D3, and they are the weakest item
+  on this list. A routine `spec` genuinely IS an opaque document, so "type it properly" may be
+  the wrong answer — decide whether the hatch is a defect here or an honest description before
+  spending effort on it.
 - **D4 · Wire-format consistency (XC-1).** `defineCollection` stamps whole-second
   `datetime('now')` in nine collections across three apps, while BeigeBoard's `items` moved to
   millisecond ISO in migration 8 *because* second resolution loses same-second writes. The two
