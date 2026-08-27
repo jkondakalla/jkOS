@@ -3,7 +3,7 @@
 // portal dashboard (app launcher + account + suite-wide AI controls).
 
 const { GUEST_PASSWORD } = require('./config')
-const { escHtml } = require('./util')
+const { escHtml, jsonForScript } = require('./util')
 
 function layout(title, body) {
   return `<!DOCTYPE html>
@@ -11,7 +11,7 @@ function layout(title, body) {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${title} — jkOS</title>
+<title>${escHtml(title)} — jkOS</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=Fraunces:opsz,ital,wght@9..144,0,400;9..144,0,600;9..144,0,700;9..144,1,400;9..144,1,600&display=swap" rel="stylesheet">
@@ -357,7 +357,7 @@ function dashboardPage(user, nonce = '') {
 
 <script nonce="${nonce}">
 'use strict';
-const ROLE = ${JSON.stringify(user.role || 'user')};
+const ROLE = ${jsonForScript(user.role || 'user')};
 
 // App launcher — registered apps this role may use (exclude jkAuth itself, and
 // origin-less rows like the LazurOS gateway which has no browsable launcher tile).

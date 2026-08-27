@@ -340,6 +340,32 @@ try {
       /entry #1/.test(badLog) && !badLog.includes('sec:ret'), badLog.slice(-200));
   }
 
+  // ── K · C6: the server-rendered HTML escapes what it interpolates ─────────
+  // views.js renders user-controlled values (name, email) into markup, and the
+  // nonce CSP is defence in depth, not a substitute for escaping.
+  {
+    const { escHtml, jsonForScript } = await import('../src/util.js').then(m => m.default ?? m);
+    ok('escHtml neutralises tags, quotes and ampersands',
+      escHtml(`<img src=x onerror='p'>&"`) === '&lt;img src=x onerror=&#39;p&#39;&gt;&amp;&quot;',
+      escHtml(`<img src=x onerror='p'>&"`));
+    ok('escHtml escapes & FIRST (no double-escaping)', escHtml('&lt;') === '&amp;lt;', escHtml('&lt;'));
+    // ⚠️ JSON.stringify alone is NOT safe inside <script>: it leaves `<` alone,
+    // so a value containing `</script>` ends the element.
+    ok('jsonForScript cannot break out of a script block',
+      !jsonForScript('</script><script>alert(1)//').includes('</script>'),
+      jsonForScript('</script><script>alert(1)//'));
+
+    // And the rendered pages actually use them: a registered name full of markup
+    // must come back escaped, not live.
+    jar.clear();
+    const evil = '<img src=x onerror=alert(1)>';
+    await api('POST', '/auth/register', { json: { email: 'evil@x.net', password: 'password-e1', name: evil } });
+    const page = await api('GET', '/auth/dashboard');
+    ok('a markup-laden display name renders escaped on the dashboard',
+      page.text.includes('&lt;img src=x') && !page.text.includes('<img src=x onerror'),
+      page.text.slice(0, 160));
+  }
+
   db.close();
 } catch (e) {
   fail++;

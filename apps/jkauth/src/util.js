@@ -8,8 +8,33 @@ const {
 } = require('./config')
 const { getAppOrigins } = require('./db')
 
+// `&` FIRST — escaping it after the others would double-escape the entities they
+// just produced. The single quote is included even though every attribute in
+// views.js is double-quoted: that is a property of today's markup, not of this
+// function, and a future single-quoted attribute would otherwise be injectable
+// with no visible change here.
 function escHtml(s) {
-  return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+}
+
+// A value embedded in an inline <script> block. ⚠️ `JSON.stringify` alone is NOT
+// safe there: it does not escape `<`, so a string containing `</script>` ends the
+// element and everything after it is parsed as HTML — the classic breakout, and
+// the reason this is a named helper rather than a habit. Escaping `<` and `>` as
+// unicode escapes keeps the value byte-identical to JavaScript while making it
+// inert to the HTML parser. U+2028/U+2029 are escaped too: they are valid JSON
+// but are line terminators in older JS parsers.
+function jsonForScript(value) {
+  return JSON.stringify(value ?? null)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029')
 }
 
 // Is this a JSON API caller (fetch from an app frontend) or a browser posting a
@@ -82,5 +107,6 @@ function waitPhrase(seconds) {
 }
 
 module.exports = {
-  escHtml, isJsonReq, validateRedirectTo, passwordError, loginBackoffMs, deepMerge, waitPhrase,
+  escHtml, jsonForScript, isJsonReq, validateRedirectTo, passwordError, loginBackoffMs,
+  deepMerge, waitPhrase,
 }
