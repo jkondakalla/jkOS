@@ -15,6 +15,7 @@ const Database     = require('better-sqlite3');
 const cookieParser = require('cookie-parser');
 const {
   weaveCors, weaveAuth, weaveWriteGate, healthHandler, serveCapabilities, serveDatasets, serveSpa,
+  backfillWireTime,   // XC-1: one-time conversion of existing rows to the canonical wire format
 } = require('@jkos/weave/server');
 const { resolveIssuer } = require('@jkos/auth-middleware');   // shared issuer default (single source)
 const { CAPABILITIES, DATASETS, PLAYLISTS, HISTORY, RATINGS } = require('./discovery');   // discovery docs + the three collections
@@ -172,6 +173,16 @@ const MIGRATIONS = [
           END;
       `);
     },
+  },
+  /* XC-1: bring every collection's timestamps onto the suite's canonical
+     millisecond-ISO wire format. The whole-second `datetime('now')` default sorts
+     BEFORE an ISO stamp of the same instant as a string (' ' < 'T'), and
+     `?since=` IS a string comparison — so a delta cursor was not portable across
+     the suite. The triggers converge new rows on their own (they are recreated
+     each boot); this converts the rows already written. Idempotent. */
+  {
+    id: 5, name: 'canonical_wire_timestamps',
+    up(d) { backfillWireTime(d, ['tracks', 'playlists', 'history', 'ratings']); },
   },
 ];
 

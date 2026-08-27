@@ -23,6 +23,7 @@
 const { filterSpec, buildItemFilters } = require('./filters')
 const { coerceWeaveColumn } = require('./columns')
 const { resourceKey } = require('@jkos/suite-manifest')
+const { SQL_NOW, sqlConvert } = require('./wireTime')
 
 // A field name is interpolated into SQL (as a column), so it must be a safe
 // identifier — never user input, but validated so a typo'd spec fails loudly at
@@ -206,7 +207,7 @@ function defineCollection(def) {
       'id         INTEGER PRIMARY KEY AUTOINCREMENT',
       ...(scoped ? ['user_id    INTEGER'] : []),
       ...fields.map((f) => `${f.name} ${sqlType(f)}${f.required ? ' NOT NULL' : ''}${f.unique ? ' UNIQUE' : ''}${sqlDefault(f)}`),
-      "created_at TEXT    DEFAULT (datetime('now'))",
+      `created_at TEXT    DEFAULT (${SQL_NOW})`,
       'updated_at TEXT',
     ]
     const idx = [
@@ -223,11 +224,21 @@ function defineCollection(def) {
       DROP TRIGGER IF EXISTS ${id}_stamp_inserted;
       CREATE TRIGGER ${id}_stamp_inserted AFTER INSERT ON ${id}
         FOR EACH ROW WHEN NEW.updated_at IS NULL
-        BEGIN UPDATE ${id} SET updated_at = COALESCE(NEW.created_at, datetime('now')) WHERE id = NEW.id; END;
+        BEGIN UPDATE ${id} SET updated_at = COALESCE(${sqlConvert('NEW.created_at')}, ${SQL_NOW}) WHERE id = NEW.id; END;
+      /* ⚠️ A table CREATEd before the wire-time fix keeps its old whole-second
+         column DEFAULT, and SQLite cannot ALTER a default without rebuilding the
+         table. Triggers, however, are dropped and recreated on every boot — so
+         this one canonicalises created_at on the way in, and an existing
+         deployment converges without a rebuild or a data migration for new rows.
+         Idempotent: re-formatting an already-canonical value is a no-op. */
+      DROP TRIGGER IF EXISTS ${id}_canon_created;
+      CREATE TRIGGER ${id}_canon_created AFTER INSERT ON ${id}
+        FOR EACH ROW WHEN NEW.created_at IS NOT NULL AND NEW.created_at NOT LIKE '____-__-__T__:__:__.___Z'
+        BEGIN UPDATE ${id} SET created_at = ${sqlConvert('NEW.created_at')} WHERE id = NEW.id; END;
       DROP TRIGGER IF EXISTS ${id}_touch_updated;
       CREATE TRIGGER ${id}_touch_updated AFTER UPDATE ON ${id}
         FOR EACH ROW WHEN NEW.updated_at = OLD.updated_at
-        BEGIN UPDATE ${id} SET updated_at = datetime('now') WHERE id = NEW.id; END;
+        BEGIN UPDATE ${id} SET updated_at = ${SQL_NOW} WHERE id = NEW.id; END;
     `
   }
 
@@ -316,4 +327,36 @@ function article(noun) {
   return /^[aeiou]/i.test(String(noun)) ? `an ${noun}` : `a ${noun}`
 }
 
-module.exports = { defineCollection }
+
+/** One-time conversion of a collection's existing rows to the canonical wire
+ *  format (XC-1). Safe to run repeatedly — `strftime` re-formatting an
+ *  already-canonical value returns it unchanged — so an app can call it from a
+ *  migration without needing to know whether it has run before.
+ *
+ *  ⚠️ Run it for EVERY collection the app owns, not only the ones that look
+ *  stale. A cursor is a single ordering across the app's tables; converting some
+ *  leaves exactly the mixed-format sort this exists to remove.
+ */
+function backfillWireTime(db, tableIds) {
+  for (const t of tableIds) {
+    // ⚠️ Ask, don't assume. Not every table in an app's list is a
+    // defineCollection — a scanner-populated catalog like KourOS's `tracks` or
+    // PapyrOS's `books` is hand-rolled and may carry only one of the two columns
+    // (or neither). A migration that throws on a table it was handed is a BOOT
+    // LOOP, which is the trap this codebase already paid for once in papyros
+    // migration 8, and the cost of checking is one PRAGMA.
+    let present
+    try {
+      present = new Set(db.prepare(`PRAGMA table_info(${t})`).all().map((c) => c.name))
+    } catch {
+      continue  // no such table in this deployment — nothing to convert
+    }
+    for (const col of ['created_at', 'updated_at']) {
+      if (!present.has(col)) continue
+      db.exec(`UPDATE ${t} SET ${col} = ${sqlConvert(col)} `
+            + `WHERE ${col} IS NOT NULL AND ${col} NOT LIKE '____-__-__T__:__:__.___Z'`)
+    }
+  }
+}
+
+module.exports = { defineCollection, backfillWireTime }

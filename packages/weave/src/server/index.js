@@ -19,7 +19,8 @@ const { serveCapabilities, serveDatasets } = require('./contracts')
 const { buildItemFilters, filterSpec } = require('./filters')
 const { coerceWeaveColumn } = require('./columns')
 const { weaveServerClient } = require('./serverClient')
-const { defineCollection } = require('./collection')
+const { defineCollection, backfillWireTime } = require('./collection')
+const { SQL_NOW, sqlConvert, isCanonical: isCanonicalTime, parse: parseWireTime } = require('./wireTime')
 const { defineConnector } = require('./connector')
 const { defineLibraryScanner } = require('./libraryScanner')
 const { defineMediaRoutes, decidePlayback } = require('./mediaRoutes')
@@ -45,6 +46,8 @@ module.exports = {
   coerceWeaveColumn,
   weaveServerClient,
   defineCollection,
+  backfillWireTime,
+  SQL_NOW, sqlConvert, isCanonicalTime, parseWireTime,
   defineConnector,
   defineLibraryScanner,
   defineMediaRoutes,

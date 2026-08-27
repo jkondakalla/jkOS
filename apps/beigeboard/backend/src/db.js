@@ -27,7 +27,7 @@ const MIGRATIONS = [
           password_hash TEXT,
           google_id     TEXT    UNIQUE,
           role          TEXT    NOT NULL DEFAULT 'user',
-          created_at    TEXT    NOT NULL DEFAULT (datetime('now')),
+          created_at    TEXT    NOT NULL DEFAULT (datetime('now')),  -- wire-time-legacy: historical migration body; migration 8 converted this column to millisecond ISO
           last_login    TEXT
         );
         CREATE TABLE IF NOT EXISTS sessions (
@@ -35,7 +35,7 @@ const MIGRATIONS = [
           user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
           token_hash  TEXT    NOT NULL,
           expires_at  TEXT    NOT NULL,
-          created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+          created_at  TEXT    NOT NULL DEFAULT (datetime('now'))  -- wire-time-legacy: historical migration body; migration 8 converted this column to millisecond ISO
         );
         CREATE TABLE IF NOT EXISTS calendar_tokens (
           id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -68,7 +68,7 @@ const MIGRATIONS = [
           location       TEXT,
           attendees      INTEGER,
           target         TEXT,
-          created_at     TEXT    DEFAULT (datetime('now'))
+          created_at     TEXT    DEFAULT (datetime('now'))  -- wire-time-legacy: historical migration body; migration 8 converted this column to millisecond ISO
         );
       `);
     },
@@ -130,7 +130,7 @@ const MIGRATIONS = [
         location       TEXT,
         attendees      INTEGER,
         target         TEXT,
-        created_at     TEXT    DEFAULT (datetime('now'))
+        created_at     TEXT    DEFAULT (datetime('now'))  -- wire-time-legacy: historical migration body; migration 8 converted this column to millisecond ISO
       `;
       d.exec(`
         CREATE TABLE items_new (${itemsCols});
@@ -244,7 +244,7 @@ const MIGRATIONS = [
       d.exec(`DROP TRIGGER IF EXISTS items_touch_updated`);
       d.exec(`CREATE TRIGGER items_touch_updated AFTER UPDATE ON items
               FOR EACH ROW WHEN NEW.updated_at = OLD.updated_at
-              BEGIN UPDATE items SET updated_at = datetime('now') WHERE id = NEW.id; END`);
+              BEGIN UPDATE items SET updated_at = datetime('now') WHERE id = NEW.id; END`);  // wire-time-legacy: historical migration body; migration 8 converted this column to millisecond ISO
     },
   },
   {

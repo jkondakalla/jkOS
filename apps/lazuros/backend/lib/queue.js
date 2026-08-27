@@ -7,6 +7,7 @@
 
 const { randomUUID } = require('crypto');
 const db = require('../db');
+const { SQL_NOW, sqlConvert } = require('@jkos/weave/server');
 
 const createJob = ({ user_id, capability, payload, tier_id = null }) => {
   const id = randomUUID();
@@ -17,7 +18,7 @@ const createJob = ({ user_id, capability, payload, tier_id = null }) => {
 };
 
 const setJobStatus = (id, status) =>
-  db.prepare(`UPDATE jobs SET status = ?, updated_at = datetime('now') WHERE id = ?`).run(status, id);
+  db.prepare(`UPDATE jobs SET status = ?, updated_at = ${SQL_NOW} WHERE id = ?`).run(status, id);
 
 const getJob = (id) => db.prepare('SELECT * FROM jobs WHERE id = ?').get(id);
 
@@ -33,14 +34,14 @@ const getPendingJobs = (limit = 1) =>
 // Atomic claim: only the worker that flips a claimable job → IN_PROGRESS wins
 // (changes === 1), so two workers polling the same job can't both run it.
 const claimJob = (id) =>
-  db.prepare(`UPDATE jobs SET status = 'IN_PROGRESS', updated_at = datetime('now')
+  db.prepare(`UPDATE jobs SET status = 'IN_PROGRESS', updated_at = ${SQL_NOW}
               WHERE id = ? AND ${CLAIMABLE}`).run(id).changes === 1;
 
 const setJobResult = (id, { status, result = null, error = null, step_data = null }) => {
   // step_data is a free-form breadcrumb (a string today, e.g. a writeback error). Guard
   // against a future caller handing an object — better-sqlite3 can only bind primitives.
   const stepText = step_data != null && typeof step_data === 'object' ? JSON.stringify(step_data) : step_data;
-  db.prepare(`UPDATE jobs SET status = ?, result = ?, error = ?, step_data = ?, updated_at = datetime('now')
+  db.prepare(`UPDATE jobs SET status = ?, result = ?, error = ?, step_data = ?, updated_at = ${SQL_NOW}
               WHERE id = ?`).run(status, result ? JSON.stringify(result) : null, error, stepText, id);
 };
 
@@ -52,8 +53,8 @@ const requeueStaleJobs = (timeoutSec = 900) => {
   // SQLite datetime modifiers must carry an explicit sign; build it so a negative
   // timeout (cutoff in the future, used by tests) stays a valid '+N seconds'.
   const modifier = `${timeoutSec >= 0 ? '-' : '+'}${Math.abs(timeoutSec)} seconds`;
-  return db.prepare(`UPDATE jobs SET status = 'PENDING', updated_at = datetime('now')
-              WHERE status = 'IN_PROGRESS' AND updated_at < datetime('now', ?)`)
+  return db.prepare(`UPDATE jobs SET status = 'PENDING', updated_at = ${SQL_NOW}
+              WHERE status = 'IN_PROGRESS' AND updated_at < ${sqlConvert("datetime('now', ?)")}`)
     .run(modifier).changes;
 };
 

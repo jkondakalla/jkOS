@@ -15,6 +15,7 @@ const Database     = require('better-sqlite3');
 const cookieParser = require('cookie-parser');
 const {
   weaveCors, weaveAuth, weaveWriteGate, healthHandler, serveCapabilities, serveDatasets, serveSpa,
+  backfillWireTime,   // XC-1: one-time conversion of existing rows to the canonical wire format
 } = require('@jkos/weave/server');
 const { resolveIssuer } = require('@jkos/auth-middleware');   // shared issuer default (single source)
 const {
@@ -209,6 +210,12 @@ const MIGRATIONS = [
   // upsert-on-conflict trigger: history is meant to accumulate one row per session,
   // never collapse duplicates — the opposite intent of progress's resume cursor.
   { id: 9, name: 'create_history', up(d) { d.exec(HISTORY.ddl()); } },
+  /* XC-1: see the same migration in KourOS. Converts rows already written to the
+     canonical millisecond-ISO wire format; the recreated triggers handle new ones. */
+  {
+    id: 10, name: 'canonical_wire_timestamps',
+    up(d) { backfillWireTime(d, ['books', 'progress', 'bookmarks', 'clubs', 'club_members', 'history']); },
+  },
 ];
 
 function runMigrations() {

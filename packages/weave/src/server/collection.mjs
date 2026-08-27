@@ -4,4 +4,5 @@
 import mod from './collection.js'
 
 export const defineCollection = mod.defineCollection
+export const backfillWireTime = mod.backfillWireTime
 export default mod

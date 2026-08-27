@@ -22,8 +22,17 @@ db.exec(`
     step_data  TEXT,
     result     TEXT,
     error      TEXT,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    -- XC-1: the canonical millisecond-ISO wire format. The jobs dataset declares
+    -- a 'since' delta cursor over updated_at (docs.js), and the whole-second
+    -- datetime('now') sorts BEFORE an ISO stamp of the same instant as a string,
+    -- so that cursor would have returned the wrong window against any other
+    -- app's. Changed in the DDL rather than by migration because LazurOS has
+    -- never run against a live database; there are no rows to convert.
+    -- (No backticks in here: this comment lives inside a JS template literal,
+    --  where a backtick would end the string. Same trap as a // comment inside
+    --  SQL -- a comment has to speak the language of the line it sits on.)
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+    updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
   );
   CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
   CREATE INDEX IF NOT EXISTS idx_jobs_user   ON jobs(user_id);
