@@ -357,6 +357,20 @@ const BOOK_SHAPE = [
 
 /* The `books` DatasetDef, kept as its own object (rather than inline in DATASETS.datasets
    below) so it reads the same whether it's the only dataset or, as of 3.1, one of five. */
+/* The single-book detail read. ⚠️ Served since Wave 3 and declared NOWHERE until
+   the surface-coverage probe asked (E1). It carries everything the list row does
+   PLUS the per-file manifest, the chapters and the description that BOOK_SHAPE
+   deliberately leaves out — so a consumer reading only this document concluded
+   that detail did not exist. Its own sibling comment below even points at the
+   route, which is the tell: the knowledge was here, the DECLARATION was not. */
+const BOOK_DATASET = {
+  id: 'book', label: 'One audiobook, in full', path: '/book/:bookId',
+  filters: [],
+  description: 'The list row plus the per-file manifest — including compat_ready, so a player '
+    + 'knows it can start on the Firefox-safe remux instead of discovering a decode failure — '
+    + 'the chapters, and the description.',
+};
+
 const BOOKS_DATASET = {
   id: 'books', label: 'Audiobook library', path: '/books',
   description: 'The shared audiobook catalog the scanner (rescanLibrary) populates. '
@@ -401,7 +415,7 @@ const DATASETS = {
   app: 'papyros',
   version: 1,
   datasets: [
-    BOOKS_DATASET, PROGRESS.dataset, BOOKMARKS.dataset, CLUBS.dataset, CLUB_MEMBERS.dataset,
+    BOOKS_DATASET, BOOK_DATASET, PROGRESS.dataset, BOOKMARKS.dataset, CLUBS.dataset, CLUB_MEMBERS.dataset,
     HISTORY.dataset,   // 17.4: readable (list, owner-scoped) even though it's create-only to write
     ...META.datasets,
   ],

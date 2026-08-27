@@ -84,27 +84,41 @@ function declaredPaths(modulePath) {
   return paths;
 }
 
+/** Does a mounted route path fall under a declared path? A `:param` on either
+ *  side matches exactly one segment on the other, and a declared path also
+ *  covers everything beneath it. */
+function pathMatches(routePath, declaredPath) {
+  const r = routePath.split('/').filter(Boolean);
+  const d = declaredPath.split('/').filter(Boolean);
+  if (r.length < d.length) return false;
+  for (let i = 0; i < d.length; i++) {
+    if (d[i].startsWith(':') || r[i].startsWith(':')) continue;
+    if (d[i] !== r[i]) return false;
+  }
+  return true;
+}
+
 // Routes every backend serves that are infrastructure rather than app surface.
 // Not an allow-list of app routes — these are the same four everywhere and
 // declaring them would be noise in every app's doc.
 const INFRA = [/^\/health/, /^\/api\/(capabilities|datasets)$/, /^\/(capabilities|datasets)$/];
 
-// A declared path is `/items`; the route is mounted as `/api/items`.
+// A declared path is `/items`; the route is mounted as `/api/items`. Strip `/api`, and `/api/<this app's own id>` — LazurOS really does mount its
+// id (its edge paths are bespoke: `/api/lazuros/health`), while the others serve
+// bare paths behind an nginx that strips the prefix.
 //
-// ⚠️ Strip ONLY the `/api` prefix, never `/api/<first-segment>`. The apps serve
-// BARE paths and nginx strips the `/api/<app>` edge prefix (see the edge/route
-// agreement probe), so the segment after `/api` is part of the surface, not the
-// app slug. Taking it for a slug made `/api/discover/stats` normalise to
-// `/stats`, which silently failed to match its own declaration — the probe
-// reporting a gap it had manufactured. Both readings are returned so an app that
-// really does mount its own id still matches.
-function candidates(routePath) {
+// ⚠️ It must be the app's OWN id, never "whatever the first segment is". The
+// general form combined with `:param` wildcarding matched EVERYTHING:
+// `/api/book/:bookId` reduced to `/:bookId`, whose single param segment matches
+// any one-segment declaration, and the probe cheerfully reported all four apps
+// fully covered. A green answer to a question it had stopped asking is the worst
+// failure a conformance probe can have — worse than a red one, which at least
+// gets looked at.
+function candidates(routePath, appId) {
   const p = routePath.replace(/\/+$/, '') || '/';
-  const out = new Set([p]);
-  const noApi = p.replace(/^\/api(?=\/)/, '');
-  out.add(noApi);
-  out.add(noApi.replace(/^\/[a-z-]+(?=\/)/, ''));
-  return [...out].filter(Boolean);
+  const forms = new Set([p, p.replace(/^\/api(?=\/)/, '')]);
+  forms.add(p.replace(new RegExp(`^/api/${appId}(?=/)`), ''));
+  return [...forms].filter(Boolean);
 }
 
 export default {
@@ -132,12 +146,17 @@ export default {
       const undeclared = [];
       let privateCount = 0;
       for (const r of routes) {
-        const forms = candidates(r.path);
+        const forms = candidates(r.path, app);
         if (INFRA.some(re => re.test(r.path) || forms.some(f => re.test(f)))) continue;
         if (r.private) { privateCount++; continue; }
-        // A declared path covers its own sub-paths: `/items` declares
-        // `/items/:id`, since the dataset and its item are one surface.
-        const covered = forms.some(p => [...declared].some(d => p === d || p.startsWith(d + '/')));
+        // A declared path covers its own sub-paths (`/items` declares
+        // `/items/:id` — the dataset and its item are one surface), and a `:param`
+        // segment in EITHER matches one segment on the other side. That second
+        // rule matters where a declaration deliberately generalises what the
+        // routes spell out: `/calendar/:provider/sync` is one capability that
+        // three hand-rolled routes implement, and treating the segments as
+        // literals would report the generalisation as three gaps.
+        const covered = forms.some(p => [...declared].some(d => pathMatches(p, d)));
         if (!covered) undeclared.push(`${r.method} ${r.path}`);
       }
 

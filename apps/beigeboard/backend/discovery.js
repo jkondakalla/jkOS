@@ -218,6 +218,50 @@ const CAPABILITIES = {
     // poll), and its results come back INTO BeigeBoard through `createItem`/`importItems`
     // below via delegated write-back. So an AI parse is a LazurOS capability composed with
     // a BeigeBoard one — not a second, parallel AI surface bolted onto this app.
+
+    /* ── The routine + calendar writes (BB-7) ─────────────────────────────────
+     * Served and undeclared until 2026-08-27. `routines/bundle` in particular is
+     * how a whole authored routine arrives, and it was reachable only by reading
+     * the source — the exact surface an AI author most needs to find. */
+    {
+      id: 'importRoutineBundle', label: 'Import a routine bundle', method: 'POST', path: '/routines/bundle',
+      body: [
+        { name: 'bundle', type: 'json', label: 'A routine document plus the library entries it references', required: true },
+        { name: 'dryRun', type: 'boolean', label: 'Validate and report without writing' },
+      ],
+      returns: [
+        { name: 'routine',  type: 'json',   label: 'The routine as stored' },
+        { name: 'library',  type: 'json',   label: 'Library entries created or matched' },
+        { name: 'warnings', type: 'json',   label: 'Lint — accepted, but worth a look' },
+      ],
+      invalidates: [ITEMS_KEY, LIBRARY_KEY],
+      doc: 'One document carrying a routine AND the library entries its steps reference, so an '
+        + 'author submits a complete unit rather than ordering two imports correctly. dryRun '
+        + 'returns the same report and writes nothing.',
+    },
+    {
+      id: 'syncCalendar', label: 'Pull a connected calendar', method: 'POST', path: '/calendar/:provider/sync',
+      body: [{ name: 'provider', type: 'enum', label: 'Provider', enum: ['google', 'outlook', 'icloud'], required: true }],
+      returns: [
+        { name: 'imported', type: 'number', label: 'Events written' },
+        { name: 'updated',  type: 'number', label: 'Events changed' },
+        { name: 'removed',  type: 'number', label: 'Events withdrawn' },
+      ],
+      invalidates: [ITEMS_KEY],
+      doc: 'Pull-only: reads the connected calendar and reconciles its events into `items`. '
+        + 'Nothing is ever written back to the provider. ⚠️ Declared as one capability over a '
+        + '`:provider` path because the three providers are the same operation — the three '
+        + 'hand-rolled route copies behind it are what RESET Stage D item 10 folds onto '
+        + 'defineConnector.',
+    },
+    {
+      id: 'disconnectCalendar', label: 'Disconnect a calendar', method: 'DELETE', path: '/auth/:provider',
+      body: [{ name: 'provider', type: 'enum', label: 'Provider', enum: ['google', 'outlook', 'icloud'], required: true }],
+      returns: [{ name: 'ok', type: 'boolean' }],
+      invalidates: [ITEMS_KEY],
+      doc: 'Drops the stored credential and the events it owned. ⚠️ The current implementation '
+        + 'raw-DELETEs those items rather than routing through cascadeDelete — Stage D item 10.',
+    },
   ],
 };
 
@@ -285,6 +329,54 @@ const DATASETS = {
         { name: 'updated_at', type: 'string' },
       ],
       invalidates: [LIBRARY_KEY],
+    },
+
+    /* ── The routine reads (BB-7) ──────────────────────────────────────────────
+     *
+     * ⚠️ BeigeBoard served ~40 routes and declared 8 paths. These six were among
+     * the invisible ones: everything about how a routine is PERFORMED — its
+     * metric, its history, what the next occurrence would look like, how the
+     * document has changed — existed only if you read the source. That is the
+     * defect §3 calls the worst class, because it misinforms rather than merely
+     * omitting: a reader trusting the declaration concludes the data isn't there.
+     *
+     * `:id` paths are per-routine reads rather than filtered lists, so their
+     * parameters are `computed` — there is no WHERE clause to map them to. */
+    {
+      id: 'routineMetric', label: "A routine's goal metric", path: '/routines/:id/metric',
+      filters: [],
+      doc: 'What this routine is measured by, and where it currently stands.',
+    },
+    {
+      id: 'routineSeries', label: "A routine's performance series", path: '/routines/:id/series',
+      filters: [{ name: 'weeks', type: 'number', label: 'How many weeks back', computed: true }],
+      doc: 'Prescribed against performed over time — the series the charts read, and the '
+        + 'same shape the variance analysis consumes.',
+    },
+    {
+      id: 'routinePreview', label: 'What the next occurrences would be', path: '/routines/:id/preview',
+      filters: [{ name: 'today', type: 'date', label: "The caller's local day", computed: true }],
+      doc: 'The occurrences the current rules WOULD mint, without minting them — how an '
+        + 'author checks a cadence before committing to it.',
+    },
+    {
+      id: 'routineRevisions', label: "A routine's revision history", path: '/routines/:id/revisions',
+      filters: [],
+      doc: 'Every committed version of the routine document, newest first.',
+    },
+    {
+      id: 'routineVocabulary', label: 'The routine authoring vocabulary', path: '/routines/vocabulary',
+      filters: [],
+      doc: 'Every cadence, progression, unit and field a routine document may use — the '
+        + 'machine-readable half of the authoring contract. A GUI builds its pickers from '
+        + 'this; an AI author validates against it before submitting.',
+    },
+    {
+      id: 'routinePrompt', label: 'The generated routine-authoring prompt', path: '/routines/prompt',
+      filters: [],
+      doc: 'The authoring instructions, GENERATED from the vocabulary above so the prose and '
+        + 'the enum can never disagree (Documentation/ROUTINE_PROMPT.md is this output, '
+        + 'checked in and gated by check:routine).',
     },
   ],
 };

@@ -18,12 +18,12 @@ const { syncICloudEvents } = require('../calendar/icloud');
 const router = express.Router();
 
 /* ── Auth: me ──────────────────────────────────────────────────────────── */
-router.get('/api/auth/me', (req, res) => {
+router.get('/api/auth/me', (req, res) => {  // app-private: echoes the verified identity back to this app's own SPA; jkAuth owns the identity contract
   res.json({ user: req.user });
 });
 
 /* ── Auth: Google Calendar OAuth ───────────────────────────────────────── */
-router.get('/api/auth/google', (req, res) => {
+router.get('/api/auth/google', (req, res) => {  // app-private: starts the OAuth consent redirect; the RESULT is the declared connector state
   if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
     return res.status(501).send('Google credentials not configured.');
   }
@@ -37,7 +37,7 @@ router.get('/api/auth/google', (req, res) => {
   res.redirect(url);
 });
 
-router.get('/api/auth/google/callback', optionalAuth(authMiddleware), async (req, res) => {
+router.get('/api/auth/google/callback', optionalAuth(authMiddleware), async (req, res) => {  // app-private: OAuth redirect target — the browser lands here, it is not a composable surface
   const { code, error } = req.query;
   const close = (msg) => res.send(
     `<script>window.opener?.postMessage(${safeJson(msg)},window.location.origin);window.close();</script>`
@@ -79,7 +79,7 @@ router.get('/api/auth/google/callback', optionalAuth(authMiddleware), async (req
 });
 
 /* ── Auth: Outlook Calendar OAuth ──────────────────────────────────────── */
-router.get('/api/auth/outlook', (req, res) => {
+router.get('/api/auth/outlook', (req, res) => {  // app-private: starts the OAuth consent redirect; the RESULT is the declared connector state
   if (!MS_CLIENT_ID || !MS_CLIENT_SECRET) {
     return res.status(501).send('Microsoft credentials not configured.');
   }
@@ -93,7 +93,7 @@ router.get('/api/auth/outlook', (req, res) => {
   res.redirect(`${MS_AUTH_URL}?${params}`);
 });
 
-router.get('/api/auth/outlook/callback', optionalAuth(authMiddleware), async (req, res) => {
+router.get('/api/auth/outlook/callback', optionalAuth(authMiddleware), async (req, res) => {  // app-private: OAuth redirect target — the browser lands here, it is not a composable surface
   const { code, error } = req.query;
   const close = (msg) => res.send(
     `<script>window.opener?.postMessage(${safeJson(msg)},window.location.origin);window.close();</script>`
@@ -142,14 +142,14 @@ router.get('/api/auth/outlook/callback', optionalAuth(authMiddleware), async (re
 });
 
 /* ── Google status / disconnect / sync ─────────────────────────────────── */
-router.get('/api/auth/google/status', (req, res) => {
+router.get('/api/auth/google/status', (req, res) => {  // app-private: connector state for this app's own settings panel
   try {
     const row = get('SELECT email FROM calendar_tokens WHERE user_id=? AND provider=?', [req.user.sub, 'google']);
     res.json({ connected: !!row, email: row?.email || null });
   } catch (e) { fail(res, e); }
 });
 
-router.delete('/api/auth/google', (req, res) => {
+router.delete('/api/auth/google', (req, res) => {  // app-private: starts the OAuth consent redirect; the RESULT is the declared connector state
   try {
     run("DELETE FROM calendar_tokens WHERE user_id=? AND provider='google'", [req.user.sub]);
     run("DELETE FROM items WHERE source='google' AND user_id=?", [req.user.sub]);
@@ -173,14 +173,14 @@ router.post('/api/calendar/google/sync', async (req, res) => {
 });
 
 /* ── Outlook status / disconnect / sync ────────────────────────────────── */
-router.get('/api/auth/outlook/status', (req, res) => {
+router.get('/api/auth/outlook/status', (req, res) => {  // app-private: connector state for this app's own settings panel
   try {
     const row = get('SELECT email FROM calendar_tokens WHERE user_id=? AND provider=?', [req.user.sub, 'outlook']);
     res.json({ connected: !!row, email: row?.email || null });
   } catch (e) { fail(res, e); }
 });
 
-router.delete('/api/auth/outlook', (req, res) => {
+router.delete('/api/auth/outlook', (req, res) => {  // app-private: starts the OAuth consent redirect; the RESULT is the declared connector state
   try {
     run("DELETE FROM calendar_tokens WHERE user_id=? AND provider='outlook'", [req.user.sub]);
     run("DELETE FROM items WHERE source='outlook' AND user_id=?", [req.user.sub]);
@@ -199,14 +199,14 @@ router.post('/api/calendar/outlook/sync', async (req, res) => {
 });
 
 /* ── iCloud status / connect / disconnect / sync ───────────────────────── */
-router.get('/api/auth/icloud/status', (req, res) => {
+router.get('/api/auth/icloud/status', (req, res) => {  // app-private: connector state for this app's own settings panel
   try {
     const row = get('SELECT email FROM calendar_tokens WHERE user_id=? AND provider=?', [req.user.sub, 'icloud']);
     res.json({ connected: !!row, email: row?.email || null });
   } catch (e) { fail(res, e); }
 });
 
-router.post('/api/auth/icloud', async (req, res) => {
+router.post('/api/auth/icloud', async (req, res) => {  // app-private: stores an app-specific password; the RESULT is the declared connector state
   const { username, appPassword } = req.body || {};
   if (!username || !appPassword) return res.status(400).json({ error: 'username and appPassword required' });
   try {
@@ -227,7 +227,7 @@ router.post('/api/auth/icloud', async (req, res) => {
   }
 });
 
-router.delete('/api/auth/icloud', (req, res) => {
+router.delete('/api/auth/icloud', (req, res) => {  // app-private: stores an app-specific password; the RESULT is the declared connector state
   try {
     run("DELETE FROM calendar_tokens WHERE user_id=? AND provider='icloud'", [req.user.sub]);
     run("DELETE FROM items WHERE source='icloud' AND user_id=?", [req.user.sub]);
