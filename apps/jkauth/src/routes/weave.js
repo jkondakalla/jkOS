@@ -11,6 +11,7 @@ const crypto = require('crypto')
 const { PUBLIC_KEY, PUBLIC_KEY_NEXT, JWT_KID, JWT_KID_NEXT } = require('../config')
 const { all, run, logEvent } = require('../db')
 const { resolveUser } = require('../tokens')
+const { can } = require('../policy')
 
 const router = express.Router()
 
@@ -34,7 +35,9 @@ router.get('/auth/events', (req, res) => {
   const jwtUser = resolveUser(req)
   if (!jwtUser) return res.status(401).json({ error: 'Not authenticated', code: 'UNAUTHENTICATED' })
   const limit = Math.min(Number(req.query.limit) || 50, 200)
-  const events = jwtUser.role === 'admin'
+  // 'events:read:all' is the ADMIN view of the whole suite's trail; everyone
+  // else reads their own rows. Ownership is the WHERE clause, not a role.
+  const events = can(jwtUser, 'events:read:all')
     ? all('SELECT id, user_id, type, ip, ua, meta, created_at FROM auth_events ORDER BY id DESC LIMIT ?', [limit])
     : all('SELECT id, user_id, type, ip, ua, meta, created_at FROM auth_events WHERE user_id=? ORDER BY id DESC LIMIT ?', [jwtUser.sub, limit])
   res.json({ events })
@@ -79,6 +82,10 @@ function normalizeRoles(input) {
 // in the comma list. Admins always see every published widget (so the workshop can
 // manage role-restricted defs it wouldn't otherwise list).
 function roleMaySee(allowedRoles, role) {
+  // Not a policy ACTION: this is per-row visibility of published widgets, and
+  // the admin bypass exists so the workshop can manage role-restricted defs it
+  // would not otherwise see. Kept here rather than in policy.js because it reads
+  // a row's own allowed_roles, which no central table can know.
   if (role === 'admin') return true
   if (!allowedRoles) return true
   return allowedRoles.split(',').map((s) => s.trim()).includes(role)
@@ -108,7 +115,7 @@ router.get('/auth/widgets', (req, res) => {
 router.post('/auth/widgets', (req, res) => {
   const user = resolveUser(req)
   if (!user) return res.status(401).json({ error: 'Not authenticated', code: 'UNAUTHENTICATED' })
-  if (user.role !== 'admin') return res.status(403).json({ error: 'Admin access required' })
+  if (!can(user, 'widgets:publish')) return res.status(403).json({ error: 'Not permitted', code: 'FORBIDDEN', action: 'widgets:publish' })
   const def = req.body
   if (!def || typeof def !== 'object' || typeof def.id !== 'string' || !def.id.trim()) {
     return res.status(400).json({ error: 'Invalid widget: a string id is required' })
@@ -135,7 +142,7 @@ router.post('/auth/widgets', (req, res) => {
 router.delete('/auth/widgets/:id', (req, res) => {
   const user = resolveUser(req)
   if (!user) return res.status(401).json({ error: 'Not authenticated', code: 'UNAUTHENTICATED' })
-  if (user.role !== 'admin') return res.status(403).json({ error: 'Admin access required' })
+  if (!can(user, 'widgets:delete')) return res.status(403).json({ error: 'Not permitted', code: 'FORBIDDEN', action: 'widgets:delete' })
   const widgetId = String(req.params.id).slice(0, 64)
   run('DELETE FROM widget_registry WHERE id=?', [widgetId])
   logEvent('widget_delete', user.sub, req, { id: widgetId })

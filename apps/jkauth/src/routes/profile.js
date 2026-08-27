@@ -8,6 +8,7 @@ const express = require('express')
 const { get, run, logEvent } = require('../db')
 const { deepMerge } = require('../util')
 const { resolveUser, liveSession, clearTokens, publicUser } = require('../tokens')
+const { can } = require('../policy')
 
 const router = express.Router()
 
@@ -18,7 +19,7 @@ const router = express.Router()
 router.get('/auth/require-admin', (req, res) => {
   const user = resolveUser(req) || liveSession(req)?.user
   if (!user) return res.status(401).json({ error: 'Authentication required' })
-  if (user.role !== 'admin') return res.status(403).json({ error: 'Admin access required' })
+  if (!can(user, 'staging:enter')) return res.status(403).json({ error: 'Admin access required', code: 'FORBIDDEN' })
   res.status(200).json({ ok: true })
 })
 

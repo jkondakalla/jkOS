@@ -22,6 +22,7 @@ const { loginPage, forgotPage, resetPage, verifyEmailPage, securityPage } = requ
 const { resolveUser, DUMMY_HASH, sessionFamilies, currentFamilyOf } = require('../tokens')
 const { hashPassword, verifyPassword } = require('../password')
 const { mintOtp, verifyEmailOtp, recoveryCodesRemaining } = require('../twofactor')
+const { can } = require('../policy')
 const { sendResetEmail, sendVerifyEmail } = require('../email')
 
 const router = express.Router()
@@ -116,7 +117,7 @@ router.post('/auth/reset/request', async (req, res) => {
   const email = String(req.body?.email || '').toLowerCase().trim()
   const u = email ? get('SELECT * FROM users WHERE email=?', [email]) : null
 
-  if (u && u.role !== 'guest') {
+  if (u && can(u, 'password:reset')) {
     try {
       const code = mintOtp(u.id, 'password_reset', RESET_TTL_MS)
       if (code) await sendResetEmail(u.email, code)

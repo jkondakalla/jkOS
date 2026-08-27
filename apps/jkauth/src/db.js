@@ -433,10 +433,30 @@ function roleClaims(role) {
   return claims
 }
 
+/** Drop every app_registry-derived cache (JK-A18).
+ *
+ * `_cachedAppOrigins`, `_cachedOriginToId` and `_cachedRoleClaims` are all
+ * process-lifetime and were documented as restart-to-refresh. That is CONSISTENT
+ * today only because nothing mutates app_registry at runtime — the moment
+ * registry CRUD lands (or a migration edits a row after boot), a stale cache is
+ * a correctness bug in the CORS allow-list and in minted token claims, i.e. in
+ * two security surfaces. The invalidator exists now so the caches are safe by
+ * construction rather than by nobody having written the feature yet; call it
+ * from any writer.
+ */
+function invalidateRegistryCaches() {
+  _cachedAppOrigins = null
+  _cachedOriginToId = null
+  _cachedRoleClaims.clear()
+}
+
 runMigrations()
 seedAdmin()
 seedGuest()
 seedAppRegistry()
 sealPlaintextTotpSecrets()
 
-module.exports = { db, run, all, get, getAppOrigins, appIdForOrigin, roleClaims, logEvent }
+module.exports = {
+  db, run, all, get, getAppOrigins, appIdForOrigin, roleClaims, logEvent,
+  invalidateRegistryCaches,
+}
