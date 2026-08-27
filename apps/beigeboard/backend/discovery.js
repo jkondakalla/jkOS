@@ -111,7 +111,7 @@ const CAPABILITIES = {
         // routine without it creates a session with no content. Prefer
         // `importRoutine` below for anything more than a one-line document — it
         // resolves library refs, is idempotent by slug, and returns the lint.
-        { name: 'spec',           type: 'json',   label: 'Routine: the step document' },
+        { name: 'spec',           type: 'json',   label: 'Routine: the step document', schema: 'beigeboard.routineVocabulary' },
       ],
       returns: ITEM_SHAPE,
       invalidates: [ITEMS_KEY], scopes: ['beigeboard:write'],
@@ -135,8 +135,8 @@ const CAPABILITIES = {
       ],
       returns: [
         { name: 'blocked',    type: 'boolean', label: 'Still blocked (any dependency unfinished)' },
-        { name: 'blocked_by', type: 'json',    label: 'The items this one waits on' },
-        { name: 'blocks',     type: 'json',    label: 'The items waiting on this one' },
+        { name: 'blocked_by', type: 'json',    label: 'The items this one waits on', schema: 'beigeboard.items' },
+        { name: 'blocks',     type: 'json',    label: 'The items waiting on this one', schema: 'beigeboard.items' },
       ],
       invalidates: [ITEMS_KEY], scopes: ['beigeboard:write'],
     },
@@ -148,8 +148,8 @@ const CAPABILITIES = {
       ],
       returns: [
         { name: 'blocked',    type: 'boolean', label: 'Still blocked' },
-        { name: 'blocked_by', type: 'json',    label: 'The items this one waits on' },
-        { name: 'blocks',     type: 'json',    label: 'The items waiting on this one' },
+        { name: 'blocked_by', type: 'json',    label: 'The items this one waits on', schema: 'beigeboard.items' },
+        { name: 'blocks',     type: 'json',    label: 'The items waiting on this one', schema: 'beigeboard.items' },
       ],
       invalidates: [ITEMS_KEY], scopes: ['beigeboard:write'],
     },
@@ -184,14 +184,14 @@ const CAPABILITIES = {
         { name: 'kind',           type: 'enum',   label: 'Kind', enum: ['task', 'event'] },
         { name: 'cadence_days',   type: 'string', label: 'Routine: days (offsets from Monday, "0,2,4")' },
         { name: 'cadence_count',  type: 'number', label: 'Routine: times per week' },
-        { name: 'spec',           type: 'json',   label: 'Routine: the step document' },
+        { name: 'spec',           type: 'json',   label: 'Routine: the step document', schema: 'beigeboard.routineVocabulary' },
         { name: 'cadence_rule',   type: 'string', label: "Routine: cadence beyond weekly ('every_n_days:3', 'monthly:15', 'rolling:3', 'rrule:…')" },
         // On an OCCURRENCE, not on the routine: what the user actually did. It is
         // the one field the progression engine reads BACK — an `autoregulated`
         // step advances only when the log says the top of its range was met — so a
         // peer that records real sets is feeding the routine, not just annotating
         // it. Shape: { steps: { <stepKey>: { done, met, sets: [{value, load}] } } }.
-        { name: 'performed',      type: 'json',   label: 'Occurrence: what was actually done' },
+        { name: 'performed',      type: 'json',   label: 'Occurrence: what was actually done' , schema: 'beigeboard.routineVocabulary' },
         { name: 'deload_override', type: 'number', label: 'Occurrence: 1 = take this one easy (prefer POST /items/:id/deload, which also reconciles)' },
       ],
       returns: ITEM_SHAPE,
@@ -210,18 +210,18 @@ const CAPABILITIES = {
       body: [
         { name: 'slug',          type: 'string', label: 'Stable id — re-importing the same slug UPDATES' },
         { name: 'title',         type: 'string', label: 'Title', required: true, max: 500 },
-        { name: 'days',          type: 'json',   label: 'Days — ["mon","thu"] or [0,3]' },
+        { name: 'days',          type: 'json',   label: 'Days — ["mon","thu"] or [0,3]', schema: 'beigeboard.routineVocabulary' },
         { name: 'cadence_count', type: 'number', label: 'Times per week (surplus over `days` floats to the week bench)' },
         { name: 'time',          type: 'time',   label: 'Time of day' },
-        { name: 'spec',          type: 'json',   label: 'The step document — steps, progression, phases, vars', required: true },
+        { name: 'spec',          type: 'json',   label: 'The step document — steps, progression, phases, vars', required: true , schema: 'beigeboard.routineVocabulary' },
       ],
       returns: [
         { name: 'ok',       type: 'boolean' },
         { name: 'slug',     type: 'string' },
         { name: 'created',  type: 'boolean' },
-        { name: 'routine',  type: 'json', label: 'The created/updated routine row' },
+        { name: 'routine',  type: 'json', label: 'The created/updated routine row' , schema: 'beigeboard.routineVocabulary' },
         { name: 'summary',  type: 'string', label: 'The document in one line' },
-        { name: 'warnings', type: 'json', label: 'Lint — accepted, but probably not what you meant' },
+        { name: 'warnings', type: 'json', label: 'Lint — accepted, but probably not what you meant', schema: 'beigeboard.routineVocabulary' },
         { name: 'minted',   type: 'number', label: 'Occurrences minted across the horizon' },
       ],
       invalidates: [ITEMS_KEY], scopes: ['beigeboard:write'],
@@ -233,12 +233,12 @@ const CAPABILITIES = {
          variant ladder and default progression — which is what lets an author who
          knows nothing about programming a lift still produce a sane one. */
       id: 'importLibrary', label: 'Import library entries', method: 'POST', path: '/library/import',
-      body: [{ name: 'entries', type: 'json', label: 'Array of { collection, slug, title, unit, variants, defaults }', required: true }],
+      body: [{ name: 'entries', type: 'json', label: 'Array of { collection, slug, title, unit, variants, defaults }', required: true, schema: 'beigeboard.library' }],
       returns: [
         { name: 'ok',      type: 'boolean' },
         { name: 'created', type: 'number' },
         { name: 'updated', type: 'number' },
-        { name: 'failed',  type: 'json' },
+        { name: 'failed',  type: 'json', label: 'Entries rejected, with the reason', schema: 'beigeboard.library' },
       ],
       invalidates: [LIBRARY_KEY], scopes: ['beigeboard:write'],
       doc: 'Bulk upsert by (collection, slug) — safe to resend. Teaches the app a whole domain in one call. GET /api/library/export returns the same document back.',
@@ -270,14 +270,14 @@ const CAPABILITIES = {
       // declared as JSON; the canonical use is a direct POST (see README → Importing).
       id: 'importItems', label: 'Import (JSON tree)', method: 'POST', path: '/import',
       body: [
-        { name: 'items',    type: 'json', label: 'Items — a nested tree or a flat ref/parent list', required: true },
-        { name: 'defaults', type: 'json', label: 'Field defaults applied to every item (optional)' },
+        { name: 'items',    type: 'json', label: 'Items — a nested tree or a flat ref/parent list', required: true, schema: 'beigeboard.items' },
+        { name: 'defaults', type: 'json', label: 'Field defaults applied to every item (optional)', schema: 'beigeboard.items' },
       ],
       returns: [
         { name: 'ok',       type: 'boolean' },
         { name: 'created',  type: 'number' },
-        { name: 'items',    type: 'json', label: 'The created items (flattened, with ids)' },
-        { name: 'warnings', type: 'json', label: 'Non-fatal per-item notes' },
+        { name: 'items',    type: 'json', label: 'The created items (flattened, with ids)', schema: 'beigeboard.items' },
+        { name: 'warnings', type: 'json', label: 'Non-fatal per-item notes', schema: 'beigeboard.items' },
       ],
       invalidates: [ITEMS_KEY], scopes: ['beigeboard:write'],
       doc: 'Creates a nested goal→milestone→task tree (or a flat list linked by ref/parent) in one transaction. Validated before any write; ?dryRun=1 previews. See README → Importing tasks & goals.',
@@ -296,13 +296,13 @@ const CAPABILITIES = {
     {
       id: 'importRoutineBundle', label: 'Import a routine bundle', method: 'POST', path: '/routines/bundle',
       body: [
-        { name: 'bundle', type: 'json', label: 'A routine document plus the library entries it references', required: true },
+        { name: 'bundle', type: 'json', label: 'A routine document plus the library entries it references', required: true , schema: 'beigeboard.routineVocabulary' },
         { name: 'dryRun', type: 'boolean', label: 'Validate and report without writing' },
       ],
       returns: [
-        { name: 'routine',  type: 'json',   label: 'The routine as stored' },
-        { name: 'library',  type: 'json',   label: 'Library entries created or matched' },
-        { name: 'warnings', type: 'json',   label: 'Lint — accepted, but worth a look' },
+        { name: 'routine',  type: 'json',   label: 'The routine as stored' , schema: 'beigeboard.routineVocabulary' },
+        { name: 'library',  type: 'json',   label: 'Library entries created or matched' , schema: 'beigeboard.library' },
+        { name: 'warnings', type: 'json',   label: 'Lint — accepted, but worth a look', schema: 'beigeboard.routineVocabulary' },
       ],
       invalidates: [ITEMS_KEY, LIBRARY_KEY],
       doc: 'One document carrying a routine AND the library entries its steps reference, so an '
@@ -369,8 +369,8 @@ const DATASETS = {
       filters: [],
       item: [
         { name: 'blocked',    type: 'boolean', label: 'Any dependency still unfinished' },
-        { name: 'blocked_by', type: 'json',    label: 'Items this one waits on' },
-        { name: 'blocks',     type: 'json',    label: 'Items waiting on this one' },
+        { name: 'blocked_by', type: 'json',    label: 'Items this one waits on', schema: 'beigeboard.items' },
+        { name: 'blocks',     type: 'json',    label: 'Items waiting on this one', schema: 'beigeboard.items' },
       ],
       doc: 'One item\'s dependency edges. An item is `blocked` while any item in '
         + '`blocked_by` is unfinished — decomposition (parent_id) and ordering '
@@ -387,10 +387,10 @@ const DATASETS = {
       filters: [],
       item: [
         ...ITEM_SHAPE,
-        { name: 'spec',    type: 'json',   label: 'The normalised step document' },
+        { name: 'spec',    type: 'json',   label: 'The normalised step document' , schema: 'beigeboard.routineVocabulary' },
         { name: 'summary', type: 'string', label: 'The document in one line' },
         { name: 'cadence', type: 'string', label: 'The cadence in words' },
-        { name: 'metric',  type: 'json',   label: 'What it contributes to its goal: {measure, unit, target, value, pct, window}' },
+        { name: 'metric',  type: 'json',   label: 'What it contributes to its goal: {measure, unit, target, value, pct, window}' , schema: 'beigeboard.routineVocabulary' },
       ],
       invalidates: [ITEMS_KEY],
     },
@@ -417,9 +417,9 @@ const DATASETS = {
         { name: 'notes',      type: 'string' },
         { name: 'unit',       type: 'string' },
         { name: 'load_unit',  type: 'string' },
-        { name: 'tags',       type: 'json' },
-        { name: 'variants',   type: 'json',   label: 'The difficulty ladder, easiest → hardest' },
-        { name: 'defaults',   type: 'json',   label: 'Step defaults: sets, target, load, rest, progression' },
+        { name: 'tags',       type: 'json' , schema: 'beigeboard.items' },
+        { name: 'variants',   type: 'json',   label: 'The difficulty ladder, easiest → hardest' , schema: 'beigeboard.library' },
+        { name: 'defaults',   type: 'json',   label: 'Step defaults: sets, target, load, rest, progression' , schema: 'beigeboard.library' },
         { name: 'created_at', type: 'string' },
         { name: 'updated_at', type: 'string' },
       ],

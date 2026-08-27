@@ -43,8 +43,11 @@ const JOB_HANDLE = [{ name: 'job_id', type: 'string' }];
  * `parse-task → importItems` a composable pair instead of a hand-wired special case
  * (the WV-6 branch that literal used to be). */
 const IMPORT_DOC = [
-  { name: 'items',    type: 'json', label: 'Items — a nested tree or a flat ref/parent list' },
-  { name: 'defaults', type: 'json', label: 'Field defaults applied to every item' },
+  /* `schema` names WHERE the shape lives (D3's remainder): these are literally
+     BeigeBoard's `items` rows, which is what makes parse-task → importItems a
+     composable pair rather than a hand-wired special case. */
+  { name: 'items',    type: 'json', label: 'Items — a nested tree or a flat ref/parent list', schema: 'beigeboard.items' },
+  { name: 'defaults', type: 'json', label: 'Field defaults applied to every item', schema: 'beigeboard.items' },
 ];
 
 /* ── What can be DONE to LazurOS (the write contract) ─────────────────────────
@@ -97,7 +100,7 @@ const CAPABILITIES_DOC = {
         { name: 'description', type: 'string', label: 'Widget description', required: true },
       ],
       returns: JOB_HANDLE,
-      resolves: [{ name: 'spec', type: 'json', label: 'A WidgetSpec document' }],
+      resolves: [{ name: 'spec', type: 'json', label: 'A WidgetSpec document', schema: 'Documentation/ARCHITECTURE.md' }],
       invalidates: [JOBS_KEY],
     },
     {

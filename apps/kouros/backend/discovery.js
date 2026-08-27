@@ -180,7 +180,7 @@ const TRACK_SHAPE = [
   { name: 'track_no',    type: 'number' },
   { name: 'disc_no',     type: 'number' },
   { name: 'year',        type: 'number' },
-  { name: 'genres',      type: 'json',   label: 'Genre tags (string[])' },
+  { name: 'genres',      type: 'json',   label: 'Genre tags (string[])' , schema: 'Documentation/ARCHITECTURE.md' },
   { name: 'duration',    type: 'number', label: 'Duration, seconds' },
   { name: 'cover_path',  type: 'string', label: 'Cover image path relative to DATA_DIR (null if none extracted)' },
   { name: 'updated_at',  type: 'string', label: 'Last catalog update (delta cursor for `since`)' },

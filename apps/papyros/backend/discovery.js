@@ -349,7 +349,7 @@ const CAPABILITIES = {
         // that read served, not a re-typed subset, so `type: 'json'` (the documented
         // escape hatch, weave/capability.ts) is the honest shape here rather than
         // flattening it into six top-level body fields a form would have to re-derive.
-        { name: 'candidate', type: 'json', label: 'Chosen metadataSearch candidate row', required: true },
+        { name: 'candidate', type: 'json', label: 'Chosen metadataSearch candidate row', required: true, schema: 'papyros.metadataSearch' },
       ],
       returns: [
         { name: 'updated', type: 'boolean', label: 'Metadata written to the book row' },
@@ -375,11 +375,11 @@ const CAPABILITIES = {
       returns: [
         { name: 'examined', type: 'number', label: 'Books examined this run (bounded by the per-run cap)' },
         {
-          name: 'applied', type: 'json',
+          name: 'applied', type: 'json', schema: 'papyros.books',
           label: 'Books auto-applied via an exact title+author match: [{bookId, title, extRef}]',
         },
         {
-          name: 'review', type: 'json',
+          name: 'review', type: 'json', schema: 'papyros.metadataSearch',
           label: 'Books needing manual review: [{bookId, title, candidates, error?}] — '
             + 'candidates is metadataSearch\'s typed item shape (possibly empty); error:true marks '
             + 'a book whose iTunes search itself failed (network/upstream error), not a failed match.',
@@ -430,7 +430,7 @@ const BOOK_SHAPE = [
   { name: 'series',          type: 'string' },
   { name: 'series_seq',      type: 'number' },
   { name: 'year',            type: 'number' },
-  { name: 'genres',          type: 'json',   label: 'Genre tags (string[])' },
+  { name: 'genres',          type: 'json',   label: 'Genre tags (string[])' , schema: 'Documentation/ARCHITECTURE.md' },
   { name: 'duration',        type: 'number', label: 'Total duration, seconds' },
   { name: 'cover_path',      type: 'string', label: 'Cover image path relative to DATA_DIR (null if none extracted)' },
   { name: 'metadata_source', type: 'enum',   enum: ['embedded', 'itunes', 'manual'] },

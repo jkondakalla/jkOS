@@ -175,6 +175,22 @@ Landed 2026-08-26/27 on `staging`, gate green at each commit, **none of it deplo
   became sugar, and no existing TriggerDef changed. `check:binding` holds it — and
   asserts `resolve()` DELEGATES rather than pattern-matching the old body, after a
   first pass sailed past a re-hand-rolled copy that differed only by a cast.
+- **D3's remainder — the `json` escape hatches, decided.** The question was whether the
+  hatch is a defect or an honest description. ⚠️ **It is both, and treating the ten
+  flagged fields as one thing was the wrong reading.** A `blocked_by` is item rows and
+  a `candidate` is a metadataSearch row — shapes that were known and simply never
+  declared, a real defect. A routine `spec` is forty steps with phases and progression
+  rules, and an import `items` is an arbitrarily nested tree — those cannot be
+  flattened into a `BodyField[]` at all, and pretending otherwise would produce a
+  declaration that lies. The real defect there was that nothing said WHERE the shape
+  lives. So `BodyField.schema` names either the dataset whose rows the document
+  carries or the doc file describing it, all 24 json fields across four apps are
+  annotated, and `capability-completeness` RESOLVES the pointer — a dataset that does
+  not exist is drift, because an unverifiable pointer is the escape hatch again
+  wearing a label.
+  ⚠️ Its `normalizeFields` projection dropped every key but name+type, so the check
+  could not have SEEN a schema no matter how many were declared — it would have gone
+  on reporting the same ten gaps against a fully annotated suite.
 
 ---
 
@@ -198,13 +214,8 @@ Landed 2026-08-26/27 on `staging`, gate green at each commit, **none of it deplo
 
 ## Open — the backend and the fabric (Stage D)
 
-✅ **Stage D is COMPLETE (D1–D13).** What remains below is the D3 remainder — the seven `json`
-escape-hatch fields — which is a decision, not a fix.
+✅ **Stage D is COMPLETE (D1–D13, and D3's remainder).**
 
-- **The seven `json` escape-hatch fields** are what remains of D3, and they are the weakest item
-  on this list. A routine `spec` genuinely IS an opaque document, so "type it properly" may be
-  the wrong answer — decide whether the hatch is a defect here or an honest description before
-  spending effort on it.
 - **Unsequenced:** mount the music library (`MUSIC_DIR=/mnt/Luna/Luna/Plex/Music` in both compose
   files — ⚠️ **not** `/mnt/Luna/Plex/Music`, which also exists on the host and is empty);
   **WV-6** (two hardcoded per-app branches in code documented as app-agnostic); **WV-8**

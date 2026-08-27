@@ -8,8 +8,11 @@
  *
  *   • returns  — a capability declares its OUTPUT stud (typed `returns`), not just its
  *     INPUT, so a GUI/AI can wire one lego's result into the next's input. Missing → gap.
- *   • json     — a `json` body/return field is the opaque ESCAPE HATCH a GUI/AI can't
- *     snap a stud onto. Legal (importItems genuinely needs it) but flagged, not failed.
+ *   • json     — a `json` body/return field is a DOCUMENT. It is a gap only when it
+ *     does not say WHAT document: `schema` names the dataset whose rows it carries or
+ *     the doc where its shape is written, and this probe resolves that pointer (a
+ *     dataset that does not exist, or a file that does not, is drift — an unverifiable
+ *     pointer is the escape hatch again with a reassuring label on it).
  *   • filters  — a dataset's filters carry their OWN enforcement mapping (column/op) so
  *     the server derives its SQL filter from the declaration (single source, P3). A
  *     filter with no op means the enforcement is hand-written elsewhere — a drift surface.
@@ -22,9 +25,29 @@
  *  BeigeBoard) and the map dialect (`fields` array with `id` keys + `returns` as a
  *  name→type object — LazurOS). Both are typed; only the spelling differs. */
 function normalizeFields(v) {
-  if (Array.isArray(v)) return v.map((f) => ({ name: f.name ?? f.id, type: f.type }));
+  /* ⚠️ `schema` is carried through. This projection dropped every key but name+type,
+     so the json check below could never have SEEN a schema pointer no matter how
+     many were declared — it would have gone on reporting the same ten gaps against
+     a fully annotated suite, which is the quietest way for a probe to be wrong. */
+  if (Array.isArray(v)) return v.map((f) => ({ name: f.name ?? f.id, type: f.type, schema: f.schema }));
   if (v && typeof v === 'object') return Object.entries(v).map(([name, type]) => ({ name, type }));
   return [];
+}
+
+/** Is this `schema` pointer resolvable? Returns null when it is, else why not. */
+function badSchemaRef(ref, model) {
+  const s = String(ref || '');
+  if (s.includes('/')) {
+    return existsSync(join(REPO_ROOT, s)) ? null : `no such file '${s}'`;
+  }
+  const [appId, ...rest] = s.split('.');
+  const datasetId = rest.join('.');
+  if (!appId || !datasetId) return "not an '<app>.<dataset>' reference nor a repo file path";
+  const app = model.apps.get(appId);
+  if (!app) return `no app '${appId}' in the suite manifest`;
+  const ids = (app.docs?.datasets || []).map((d) => d.id);
+  if (!ids.length) return `'${appId}' exports no datasets to resolve '${datasetId}' against`;
+  return ids.includes(datasetId) ? null : `'${appId}' declares no dataset '${datasetId}'`;
 }
 
 export default {
@@ -32,6 +55,7 @@ export default {
   title: 'Primitive I/O contract — typed returns, json escapes, single-source filters',
   run(model) {
     const out = [];
+    let declaredDocs = 0;
     for (const app of model.apps.values()) {
       const docs = app.docs;
       // Only inspectable when the docs are exported as data (real objects, not scraped).
@@ -55,9 +79,32 @@ export default {
         } else {
           out.push({ level: 'gap', msg: `${label}: no typed \`returns\` — declares its INPUT but not its OUTPUT, so a GUI/AI can't wire its result into the next lego`, where: [docs.file] });
         }
-        const jsonFields = [...body, ...returns].filter((f) => f.type === 'json').map((f) => f.name);
-        if (jsonFields.length) {
-          out.push({ level: 'gap', msg: `${label}: uses the \`json\` escape hatch (${jsonFields.join(', ')}) — an opaque blob a GUI/AI can't snap a stud onto; not fully lego-typed`, where: [docs.file] });
+        /* ⚠️ A `json` field is NOT automatically a gap (D3's remainder). Treating
+           the seven flagged fields as one defect was the wrong reading — they are
+           two different things:
+             · a LIST OF KNOWN ROWS whose shape was simply never declared (a real
+               defect: `blocked_by` is item rows, `candidate` is a metadataSearch row)
+             · a RECURSIVE DOCUMENT that cannot be flattened into a BodyField[] at all
+               (a routine `spec` is forty steps with phases and progression rules; an
+               import `items` is an arbitrarily nested tree). Here the hatch is an
+               HONEST DESCRIPTION, and the defect was that nothing said WHERE the
+               shape lives.
+           So the question is not "is it json" but "does it say what it is".
+           `schema` names either a dataset ('<app>.<dataset>') or a doc file, and
+           both are checked below — an unverifiable pointer is the same hole with a
+           reassuring label on it. */
+        const jsonFields = [...body, ...returns].filter((f) => f.type === 'json');
+        const undeclared = jsonFields.filter((f) => !f.schema).map((f) => f.name);
+        if (undeclared.length) {
+          out.push({ level: 'gap', msg: `${label}: \`json\` field(s) with no \`schema\` (${undeclared.join(', ')}) — an opaque blob a GUI/AI can't snap a stud onto. Name the dataset whose rows it carries, or the doc where its shape is written.`, where: [docs.file] });
+        }
+        for (const f of jsonFields.filter((x) => x.schema)) {
+          const bad = badSchemaRef(f.schema, model);
+          if (bad) {
+            out.push({ level: 'drift', msg: `${label}.${f.name} declares \`schema: '${f.schema}'\` — ${bad}. A pointer that resolves to nothing is the escape hatch again, wearing a label.`, where: [docs.file] });
+          } else {
+            declaredDocs++;
+          }
         }
       }
 
@@ -94,6 +141,14 @@ export default {
           });
         }
       }
+    }
+    if (declaredDocs) {
+      out.push({
+        level: 'ok',
+        msg: `${declaredDocs} \`json\` document field(s) name a resolvable schema — the escape hatch is now an honest `
+          + 'description (a routine spec IS a document) rather than an undeclared blob, and every pointer resolves',
+        where: ['packages/weave/src/capability.ts'],
+      });
     }
     return out;
   },

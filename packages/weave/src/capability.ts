@@ -21,10 +21,12 @@ export type FieldType =
   | 'date'     // YYYY-MM-DD
   | 'time'     // HH:MM (24h)
   | 'enum'     // one of `enum`
-  | 'json'     // a structured document (nested tree / arbitrary object), not a flat
-               // form field — the typed ESCAPE HATCH. A primitive that uses this for
-               // an input/output is NOT fully lego-ready (a GUI/AI can't snap a stud
-               // onto an opaque blob); the capability-completeness probe flags it.
+  | 'json'     // a structured DOCUMENT (nested tree / arbitrary object), not a flat
+               // form field. ⚠️ Not automatically an escape hatch — see `schema`
+               // below. A `json` field with no `schema` is an opaque blob a GUI/AI
+               // cannot snap a stud onto, and the capability-completeness probe
+               // flags it; one WITH a schema is an honest description of something
+               // that genuinely is a document, and is not a gap.
   | 'ref';     // a reference to another primitive's row — a typed STUD. The target
                // collection is named by `ref` ('<app>.<dataset>'), so a GUI/AI knows
                // this field IS "a task" / "an event" / "a device", not just a string.
@@ -42,6 +44,37 @@ export interface BodyField {
                          // (e.g. 'beigeboard.items') — the typed stud another lego snaps onto
   default?: unknown;     // literal default if the form omits it
   max?: number;          // length cap (string/text)
+
+  /**
+   * ⭐ FOR `type: 'json'` ONLY — what this document IS, and where its shape is
+   * written down (D3's remainder).
+   *
+   * ⚠️ THE DECISION THIS FIELD RECORDS. Seven capabilities were flagged for "using
+   * the json escape hatch", and treating that as one defect was wrong: the flagged
+   * fields are two different things.
+   *
+   *   A LIST OF KNOWN ROWS — `blocked_by` is item rows, `candidate` is a
+   *     metadataSearch row, `warnings` is a fixed {path,code,message} shape. These
+   *     WERE a defect: the shape was known and simply not declared, so a GUI had to
+   *     be told it out of band.
+   *
+   *   A RECURSIVE DOCUMENT — a routine `spec` is forty steps with phases, variants
+   *     and progression rules; an import `items` is an arbitrarily nested tree.
+   *     Flattening either into a `BodyField[]` is not possible, and pretending
+   *     otherwise would produce a declaration that lies. Here the hatch is an HONEST
+   *     DESCRIPTION, and the real defect was that nothing said so or said where the
+   *     shape lives.
+   *
+   * So: name the schema. Either form is checkable, and `capability-completeness`
+   * requires one:
+   *
+   *   '<app>.<dataset>'          the document is that dataset's row shape (or an
+   *                              array/tree of it) — the probe asserts the dataset
+   *                              actually exists in that app's declaration
+   *   'Documentation/FILE.md'    the shape is prose, in a file the probe asserts
+   *                              exists
+   */
+  schema?: string;
 }
 
 /** One action an app can perform on behalf of the caller. */
