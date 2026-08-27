@@ -366,6 +366,31 @@ try {
       page.text.slice(0, 160));
   }
 
+  // ── L · C7: the audience claim is now VERIFIED, not merely minted ─────────
+  // One cookie goes to every *.jkos.net host, so `aud` is the containment that
+  // stops a token minted for one app being spent at another. jkAuth minted it
+  // and — the embarrassing half of JK-A14 — did not check it itself.
+  {
+    const { default: jwt } = await import('jsonwebtoken');
+    // A fresh account: alice has TOTP on by now, so a password login there is a
+    // challenge rather than a session.
+    jar.clear();
+    await api('POST', '/auth/register', { json: { email: 'aud@x.net', password: 'password-u1' } });
+    const good = jar.get([...jar.keys()].find(k => k.startsWith('jkos_token')));
+    const claims = JSON.parse(Buffer.from(good.split('.')[1], 'base64url').toString());
+    ok('the access token carries an aud including jkAuth itself',
+      [].concat(claims.aud || []).includes('auth'), JSON.stringify(claims.aud));
+
+    // A token that is valid in every way EXCEPT its audience must be refused.
+    const foreign = jwt.sign(
+      { sub: String(claims.sub), email: claims.email, role: claims.role, scope: claims.scope },
+      privateKey,
+      { algorithm: 'RS256', issuer: 'jkos-auth', keyid: '1', audience: 'beigeboard', expiresIn: '5m' });
+    const cookieName = [...jar.keys()].find(k => k.startsWith('jkos_token'));
+    const r2 = await api('GET', '/auth/me', { cookie: `${cookieName}=${foreign}`, noStore: true });
+    ok('a token minted for ANOTHER app is rejected here', r2.status === 401, `got ${r2.status}`);
+  }
+
   db.close();
 } catch (e) {
   fail++;

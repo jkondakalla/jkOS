@@ -16,6 +16,11 @@ services:
     environment:
       PORT: "3010"
       DB_PATH: /data/papyros.db
+      # Turns ON audience enforcement (C7 / JK-A14 / WV-3): jkAuth mints `aud` from
+      # app_registry.allowed_roles, and until this was set NOTHING verified it. One
+      # cookie is sent to every *.jkos.net host, so this claim is the containment —
+      # it is what stops a token minted for another app being spent here.
+      JKOS_APP_ID: papyros
       STATIC_DIR: /app/dist
       JKOS_AUTH_URL: https://staging.jkos.net
       SHELL_URL: https://staging.jkos.net

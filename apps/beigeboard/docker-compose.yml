@@ -10,6 +10,11 @@ services:
     environment:
       PORT: "3001"
       DB_PATH: /data/beigeBoard.db
+      # Turns ON audience enforcement (C7 / JK-A14 / WV-3): jkAuth mints `aud` from
+      # app_registry.allowed_roles, and until this was set NOTHING verified it. One
+      # cookie is sent to every *.jkos.net host, so this claim is the containment —
+      # it is what stops a token minted for another app being spent here.
+      JKOS_APP_ID: beigeboard
       STATIC_DIR: /app/dist
       # Encrypts calendar OAuth refresh tokens + iCloud app password at rest (AES-256-GCM).
       # Supply via .env (openssl rand -hex 32). Unset → plaintext (safe no-op). See OPERATIONS.md.

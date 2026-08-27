@@ -280,11 +280,18 @@ function tryRotate(req, res) {
   return { status: 'reuse' }
 }
 
+// jkAuth's own app id in the registry, and therefore its own audience. It sits
+// in every role's `aud` (the auth row allows user/admin/guest), so verifying it
+// here costs nothing and closes the embarrassing half of JK-A14: the service
+// that MINTS the audience claim was itself not checking it.
+const SELF_AUD = 'auth'
+
 function resolveUser(req) {
   const token = req.cookies?.[TOKEN_COOKIE]
   if (!token || !PUBLIC_KEY) return null
   try {
-    return jwt.verify(token, PUBLIC_KEY, { algorithms: ['RS256'], issuer: JWT_ISSUER })
+    return jwt.verify(token, PUBLIC_KEY,
+      { algorithms: ['RS256'], issuer: JWT_ISSUER, audience: SELF_AUD })
   } catch {
     return null
   }

@@ -10,6 +10,11 @@ services:
     environment:
       PORT: "3011"
       DB_PATH: /data/kouros.db
+      # Turns ON audience enforcement (C7 / JK-A14 / WV-3): jkAuth mints `aud` from
+      # app_registry.allowed_roles, and until this was set NOTHING verified it. One
+      # cookie is sent to every *.jkos.net host, so this claim is the containment —
+      # it is what stops a token minted for another app being spent here.
+      JKOS_APP_ID: kouros
       STATIC_DIR: /app/dist
       # The music library, read-only. The scanner walks this on boot and on every
       # rescanLibrary call; one row per audio file found anywhere beneath it.

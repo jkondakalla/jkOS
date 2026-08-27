@@ -37,6 +37,18 @@ function weaveAuth(opts = {}) {
   const jwksUri = opts.jwksUri ?? process.env.JKOS_AUTH_JWKS_URI
   const pass = { issuer: opts.issuer, appId: opts.appId, cookieName: opts.cookieName }
 
+  // ⚠️ Audience enforcement is OPT-IN, and an opt-in containment that nobody
+  // opted into is not a containment (C7 / JK-A14 / WV-3). jkAuth computes and
+  // mints `aud` per role, and until 2026-08-27 no service verified it — while
+  // ONE cookie is sent to every *.jkos.net host, so any app's token was spendable
+  // at any other app. The compose files now set JKOS_APP_ID per service; this
+  // refuses to start without it in production so the claim cannot quietly go
+  // back to being decorative after a config edit.
+  if (!(opts.appId ?? process.env.JKOS_APP_ID) && process.env.NODE_ENV === 'production') {
+    console.error('[weave] FATAL: JKOS_APP_ID is not set in production, so the token audience is not verified. Refusing to start.')
+    process.exit(1)
+  }
+
   if (jwksUri) return withDelegation(jkosAuth({ jwksUri, ...pass }))
   if (pk) return withDelegation(jkosAuth({ publicKey: pk, ...pass }))
 
