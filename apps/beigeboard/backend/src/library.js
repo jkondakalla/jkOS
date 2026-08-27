@@ -32,6 +32,7 @@
  * occurrences-are-just-tasks decision was made to avoid paying. See migration 10.
  */
 const { db, run, all, get } = require('./db');
+const { buildItemFilters, filterSpec } = require('@jkos/weave/server');
 const { slugify, humanize, COLLECTIONS, UNITS, LOAD_UNITS, LIMITS } = require('./routine-spec');
 
 /* ── Row ⇄ wire ───────────────────────────────────────────────────────────── */
@@ -114,18 +115,21 @@ function cleanEntry(raw, { partial = false } = {}) {
 
 /* ── Reads ────────────────────────────────────────────────────────────────── */
 
+/* ⚠️ The WHERE is DERIVED from the dataset declaration, not hand-written here
+   (BB-9). This was the last hand-rolled filter SQL in the suite: `library`
+   declared two filters and enforced them in a bespoke clause, so the document
+   and the query were two sources that had to be kept in step by hand — the exact
+   declared-vs-enforced drift surface every other dataset had already closed.
+   `q` spans three columns, which is why it resisted: the op vocabulary gained a
+   `search` op so the declaration can SAY that instead of a comment saying it. */
 function listEntries(userId, { collection = null, q = null, limit = 500 } = {}) {
-  const where = ['user_id = ?'];
-  const params = [userId];
-  if (collection) { where.push('collection = ?'); params.push(String(collection)); }
-  if (q) {
-    // Title OR tags, so "push" finds both `Push-Up` and everything tagged push.
-    where.push('(title LIKE ? OR slug LIKE ? OR tags LIKE ?)');
-    const like = `%${String(q).slice(0, 60)}%`;
-    params.push(like, like, like);
-  }
+  const { DATASETS } = require('../discovery');
+  const spec = filterSpec(DATASETS.datasets.find((d) => d.id === 'library').filters);
+  const { where, params } = buildItemFilters({ collection, q }, spec, {
+    base: ['user_id = ?'], baseParams: [userId],
+  });
   const rows = all(
-    `SELECT * FROM library WHERE ${where.join(' AND ')} ORDER BY collection ASC, title ASC LIMIT ?`,
+    `SELECT * FROM library WHERE ${where} ORDER BY collection ASC, title ASC LIMIT ?`,
     [...params, Math.min(2000, Math.max(1, parseInt(limit, 10) || 500))],
   );
   return rows.map(toEntry);

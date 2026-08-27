@@ -311,8 +311,13 @@ const DATASETS = {
          make a generated routine sane rather than merely valid. */
       id: 'library', label: 'Library (exercises, recipes, drills)', path: '/library',
       filters: [
-        { name: 'collection', type: 'enum',   label: 'Collection', enum: LIBRARY_COLLECTIONS },
-        { name: 'q',          type: 'string', label: 'Search title, slug or tags' },
+        // BB-9: both filters carry their own enforcement now, so the SQL derives
+        // from the declaration. `q` spans three columns — the reason its WHERE used
+        // to be hand-written — which the `search` op now expresses declaratively.
+        { name: 'collection', type: 'enum',   label: 'Collection', enum: LIBRARY_COLLECTIONS,
+          column: 'collection', op: 'eq' },
+        { name: 'q',          type: 'string', label: 'Search title, slug or tags',
+          op: 'search', columns: ['title', 'slug', 'tags'] },
       ],
       item: [
         { name: 'id',         type: 'number' },

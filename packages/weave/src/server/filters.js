@@ -78,7 +78,11 @@ function coerceFilterValue(type, s) {
  * @returns {Array<{param:string, column:string, op:string, type:string}>}
  */
 function filterSpec(filters = []) {
-  return (filters || []).map((f) => ({ param: f.name, column: f.column || f.name, op: f.op || 'eq', type: f.type }))
+  return (filters || []).map((f) => ({
+    param: f.name, column: f.column || f.name, op: f.op || 'eq', type: f.type,
+    // `search` spans several columns, so it carries the list (see buildItemFilters).
+    columns: f.columns,
+  }))
 }
 
 function buildItemFilters(query, spec, seed = {}) {
@@ -101,6 +105,20 @@ function buildItemFilters(query, spec, seed = {}) {
         break
       }
       case 'prefix': clauses.push(`${f.column} LIKE ? ESCAPE '\\'`); params.push(escLike(s) + '%'); break
+      case 'search': {
+        // A free-text box over SEVERAL columns, OR'd — "push" should find both a
+        // title `Push-Up` and anything tagged push. It exists because that shape
+        // was the last hand-written filter SQL in the suite (BB-9): the library
+        // list declared `q` and enforced it in a bespoke WHERE, which is exactly
+        // the declared-vs-enforced drift surface the op vocabulary removes.
+        // Columns come from the DECLARATION, never from the query, so a caller
+        // cannot name a column to search; the value is bound and LIKE-escaped.
+        const cols = (f.columns && f.columns.length ? f.columns : [f.column])
+        const like = escLike(s.slice(0, 60))
+        clauses.push('(' + cols.map(c => `${c} LIKE ? ESCAPE '\\'`).join(' OR ') + ')')
+        for (let i = 0; i < cols.length; i++) params.push('%' + like + '%')
+        break
+      }
       case 'tags':
         for (const t of s.split(',').map(x => x.trim()).filter(Boolean)) {
           // strip embedded quotes so the JSON-membership match can't be broken out of,
