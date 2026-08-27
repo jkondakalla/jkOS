@@ -118,8 +118,12 @@ is a flat `cert.pem`/`key.pem` under `/mnt/Luna/Backends/ssl`, mounted into ngin
 **Prod/staging isolation** is three env-var facts that must move together: the cookie name
 (`jkos_token` vs `jkos_token_staging`), the JWT issuer (`jkos-auth` vs `jkos-auth-staging`),
 and the staging admin gate — every `staging.jkos.net` location runs `auth_request` against
-**production** jkAuth's `/auth/require-admin`, not staging's own, so staging can never
-grant itself admin by cycling its own auth service. Code defaults are prod values; staging
+**staging** jkAuth's `/auth/require-admin` (`standalone.conf`'s `/_auth_admin_check` sets
+`$auth_upstream` to `staging-jkos-auth:3100`). The isolation comes from the first two facts
+rather than from crossing environments: staging jkAuth reads `jkos_token_staging` and verifies
+issuer `jkos-auth-staging`, so a prod session grants nothing there and vice versa — and a prod
+jkAuth outage does not take `staging.jkos.net/deploy`, the recovery tool, down with it.
+Code defaults are prod values; staging
 overrides live exclusively in `docker-compose.staging.yml`, so a merge into prod is safe
 by construction.
 
