@@ -92,6 +92,23 @@ Landed 2026-08-26/27 on `staging`, gate green at each commit, **none of it deplo
   have seen BB-3 even if it had looked; and section I asserted *"filtered reads never
   mint"* — the defect, written down as a feature. Both inverted, and every new
   assertion verified to FAIL against the pre-fix code.
+- **D8 — invalidations, then ORDECK's read.** **BB-4:** BeigeBoard's frontend now
+  depends on `@jkos/weave` and publishes `invalidate('beigeboard.items')`; its five
+  hand-placed `loadItems()` calls became one subscription, so "which writes need a
+  refetch?" is answered once instead of re-decided per call site.
+  ⚠️ **RESET's stated reason for BB-4 is wrong about the mechanism, and the code
+  wins:** the bus is an in-memory `Map` inside ONE page, and ORDECK (`jkos.net`) and
+  BeigeBoard (`beigeboard.jkos.net`) are two origins and two documents. A write in one
+  can never reach a listener in the other. What publishing buys is local and real —
+  the app that OWNS the resource was the one app never firing the key it declares.
+  **XC-3:** ORDECK's poll uses the declared `since` cursor, merging deltas over a
+  cache. ⚠️ **A delta cannot see a DELETE and no cursor scheme can** — BeigeBoard
+  keeps no tombstones — so completeness comes from a periodic full resync
+  (`RESYNC_EVERY = 3` polls) plus a forced full fetch on any `invalidate` and on tab
+  focus. The honest cost: a row deleted in BeigeBoard's own tab can linger on the
+  dashboard for up to ~3 minutes where it was ~1 before. One constant dials it; `1`
+  restores the old behaviour exactly. The merge is extracted to a pure `bbDelta.ts`
+  and driven by `check:hud` — every way it goes wrong is silent.
 
 ---
 
@@ -115,20 +132,13 @@ Landed 2026-08-26/27 on `staging`, gate green at each commit, **none of it deplo
 
 ## Open — the backend and the fabric (Stage D)
 
-Five of thirteen items (D1, D2, D3, D4, D5, D6, D7 and D11 are done). Re-verify each before fixing;
-the audit predates this work.
+Four of thirteen items (D1, D2, D3, D4, D5, D6, D7, D8 and D11 are done). Re-verify each before
+fixing; the audit predates this work.
 
 - **The seven `json` escape-hatch fields** are what remains of D3, and they are the weakest item
   on this list. A routine `spec` genuinely IS an opaque document, so "type it properly" may be
   the wrong answer — decide whether the hatch is a defect here or an honest description before
   spending effort on it.
-- **D8 · Invalidations, then ORDECK's read.** BeigeBoard's writes never
-  `invalidate('beigeboard.items')` (**BB-4**); it needn't *consume* the fabric but must publish.
-  Then narrow ORDECK's poll (**XC-3** — the whole items table every 60 s, none of the seven
-  filters, never the cursor). ✅ **Unblocked — D7 landed.** ORDECK's unfiltered poll used to be
-  the only thing firing the reconcile, so narrowing it first would have stopped routines minting
-  suite-wide; `ensureHorizon` now fires for any caller through any filter, so the poll can be
-  narrowed safely.
 - **D9 · Extract `routine-spec` to a package (BB-8).** 1,666 backend lines plus a 1,045-line
   frontend mirror of the same engine. The backend file is already pure and zero-dependency, and
   `check:routine` drives both through one matrix — the harness proving the extraction was

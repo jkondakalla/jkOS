@@ -85,10 +85,13 @@ transpileTo('packages/design/responsive/breakpoints.ts', 'jkos-design.mjs');
 transpileTo('apps/ordeck/src/hud/types.ts', 'types.mjs');
 transpileTo('apps/ordeck/src/hud/engine.ts', 'engine.mjs');
 transpileTo('apps/ordeck/src/hud/state.ts', 'state.mjs');
+// XC-3: the BeigeBoard delta merge — pure by construction, no imports at all.
+transpileTo('apps/ordeck/src/pages/hud/bbDelta.ts', 'bbDelta.mjs');
 
 const types = await import(pathToFileURL(join(tmp, 'types.mjs')).href);
 const engine = await import(pathToFileURL(join(tmp, 'engine.mjs')).href);
 const state = await import(pathToFileURL(join(tmp, 'state.mjs')).href);
+const bbDelta = await import(pathToFileURL(join(tmp, 'bbDelta.mjs')).href);
 const { HUD_STATE_VERSION, BREAKPOINTS } = types;
 const { minSize } = engine;
 const { mergePublished, defaultHudState } = state;
@@ -228,6 +231,66 @@ if (args.includes('--live')) {
   const uit = afterUser.layouts.desktop[0];
   if (uit.w === 6 && uit.h === 5) ok('user-sized cell is preserved across a republish (snap exception holds)');
   else fail(`user-sized cell was clobbered: got ${uit.w}×${uit.h}, expected 6×5`);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   XC-3 · the BeigeBoard delta merge
+   ══════════════════════════════════════════════════════════════════════════════
+   ORDECK's dashboard poll re-fetched BeigeBoard's WHOLE items table every 60
+   seconds, using none of the seven filters BeigeBoard declares and never the
+   `since` cursor. It uses the cursor now — and every way THAT goes wrong is silent:
+   a dropped row, a cursor advanced one millisecond too far, a failed delta that
+   blanks the board. None of them throw; all of them look like "a bit stale". */
+{
+  const { emptyCache, shouldResync, mergeDelta } = bbDelta;
+  const row = (id, at, extra = {}) => ({ id, updated_at: at, ...extra });
+
+  // ── the resync rule ──
+  const fresh = emptyCache();
+  if (shouldResync(fresh)) ok('delta: the FIRST fetch is always full — a `?since=` first request would suppress BeigeBoard\'s first-run seed and hand a new account an empty board forever');
+  else fail('delta: the first fetch was not full');
+
+  const warm = { byId: new Map(), cursor: '2026-08-27T10:00:00.000Z', sinceResync: 0 };
+  if (!shouldResync(warm, { every: 3 })) ok('delta: a warm cache polls incrementally');
+  else fail('delta: a warm cache asked for a full fetch');
+  if (shouldResync(warm, { forced: true })) ok('delta: an invalidate FORCES a full fetch — a capability dispatch that deleted a row produces no delta at all');
+  else fail('delta: forced resync was ignored');
+  if (shouldResync({ ...warm, sinceResync: 3 }, { every: 3 })) ok('delta: the resync cadence bounds how stale a delete can look');
+  else fail('delta: the resync cadence did not fire');
+
+  // ── the merge ──
+  const c = emptyCache();
+  mergeDelta(c, [row(1, '2026-08-27T10:00:00.000Z'), row(2, '2026-08-27T10:00:01.000Z')], true);
+  if (c.cursor === '2026-08-27T10:00:01.000Z') ok('delta: the cursor takes the NEWEST stamp the server returned');
+  else fail(`delta: cursor is ${c.cursor}`);
+
+  const merged = mergeDelta(c, [row(2, '2026-08-27T11:00:00.000Z', { title: 'edited' }), row(3, '2026-08-27T11:00:00.000Z')], false);
+  if (merged.length === 3) ok('delta: a delta MERGES over the cache rather than replacing it (rows it did not mention survive)');
+  else fail(`delta: merged length ${merged.length}, expected 3`);
+  if (merged.find((r) => r.id === 2)?.title === 'edited') ok('delta: an updated row replaces its cached copy');
+  else fail('delta: the updated row did not replace its cached copy');
+
+  // ⚠️ The failure this guards: advancing past rows written in the same instant
+  //    would skip them forever, and they never come back — the delta is the only
+  //    thing that would have carried them.
+  const before = c.cursor;
+  mergeDelta(c, [], false);
+  if (c.cursor === before) ok('delta: an EMPTY delta leaves the cursor exactly where it was');
+  else fail(`delta: an empty delta moved the cursor ${before} → ${c.cursor}`);
+
+  //    Nor may it ever go backwards — a row re-sent with an older stamp (a retry, a
+  //    clock-corrected write) must not rewind the window and re-deliver everything.
+  mergeDelta(c, [row(4, '2026-08-27T09:00:00.000Z')], false);
+  if (c.cursor === before) ok('delta: the cursor never moves BACKWARDS');
+  else fail(`delta: cursor rewound to ${c.cursor}`);
+
+  //    A full response REPLACES — this is the only thing that can see a delete,
+  //    because a deleted row simply is not in any delta.
+  const afterFull = mergeDelta(c, [row(1, '2026-08-27T12:00:00.000Z')], true);
+  if (afterFull.length === 1 && afterFull[0].id === 1) ok('delta: a FULL response replaces the cache, which is the only way a delete is ever seen');
+  else fail(`delta: full response left ${afterFull.length} row(s)`);
+  if (c.sinceResync === 0) ok('delta: a full response resets the resync counter');
+  else fail(`delta: sinceResync is ${c.sinceResync} after a full fetch`);
 }
 
 // ── summary ─────────────────────────────────────────────────────────────────

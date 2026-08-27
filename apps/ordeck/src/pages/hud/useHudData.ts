@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { getProfile, authFetch, type HudPin, type HudFocus } from '@jkos/auth-client';
-import { usePolledResource, invalidate, apiBase, resourceKey, probeApps, extRef, type SuiteApp } from '@jkos/weave';
+import { usePolledResource, invalidate, subscribe, apiBase, resourceKey, probeApps, extRef, type SuiteApp } from '@jkos/weave';
 import { isoDate, type CalendarItem } from '@jkos/cards';
 import { TONE_RANK, type Tone } from '../../hud/tone';
+import { emptyCache, shouldResync, mergeDelta, type BbCacheState } from './bbDelta';
 
 /* Data hooks for the room HUD. All service calls are same-origin paths proxied
    by the edge nginx (cookies flow, no CORS); the proxied roots come from the app
@@ -335,6 +336,10 @@ export interface BbItem {
   scheduled_time: string | null;   // hh:mm
   scheduled_end: string | null;    // hh:mm
   completed: boolean;
+  /** The row's `updated_at`, kept ONLY to advance the delta cursor (XC-3). Never
+   *  rendered — the cursor must come from the server's own stamps, never from this
+   *  client's clock, or a few seconds of skew silently skips a row forever. */
+  updated_at: string | null;
 }
 export interface BbItemsState {
   loaded: boolean;
@@ -356,36 +361,113 @@ function normalizeBbItem(i: any): BbItem {
     scheduled_time: hhmm(i.scheduled_time),
     scheduled_end: hhmm(i.scheduled_end),
     completed: !!i.completed,
+    updated_at: i.updated_at ?? null,
   };
 }
 
 const BB_API = apiBase('beigeboard');
 const BB_ITEMS = resourceKey('beigeboard', 'items'); // 'beigeboard.items' — derived, not free-typed
 
-/** Fetch the BeigeBoard item list once and share it; refetches on the 60s poll
- *  and whenever a HUD write fires invalidate('beigeboard.items'). All BeigeBoard-backed
- *  slices select from the value this returns. */
+/* ── XC-3: the poll uses the DELTA CURSOR the dataset declares ────────────────
+ *
+ * ⚠️ This re-fetched the WHOLE items table every 60 seconds, used none of the seven
+ * filters BeigeBoard declares, and never touched the `since` cursor — from the
+ * flagship consumer of a fabric whose whole premise is that an app's declaration can
+ * be composed against. The declaration said "here are seven ways to read me" and its
+ * biggest reader used zero.
+ *
+ * ⚠️ AND IT COULD NOT HAVE BEEN FIXED FIRST. BeigeBoard's GET /items treats ANY query
+ * param as a filtered read, and until D7 a filtered read did not run the routine
+ * reconcile — so this unfiltered poll was the only thing minting occurrences
+ * suite-wide, and adding `?since=` here would have stopped routines appearing for
+ * everyone. `ensureHorizon` (BB-1) fires for any caller through any filter now, which
+ * is what makes this safe. Two defects that were holding each other up.
+ *
+ * ⚠️ A DELTA CANNOT SEE A DELETE, and no cursor scheme can: `?since=` returns rows
+ * whose `updated_at` moved, and a deleted row's simply is not there. BeigeBoard keeps
+ * no tombstones, so completeness has to come from periodically re-asking for
+ * everything. Hence the RESYNC below — and hence the honest cost, stated rather than
+ * buried: A ROW DELETED IN BEIGEBOARD'S OWN TAB CAN LINGER HERE FOR UP TO
+ * RESYNC_EVERY POLLS (it was one poll before). Deletes made from the dashboard are
+ * instant — a capability dispatch fires invalidate, which forces a full fetch — and
+ * returning to the tab forces one too. That leaves exactly one degraded case: two
+ * screens open at once, deleting on the other one. Dial RESYNC_EVERY if that matters
+ * more than the traffic.
+ *
+ * RESYNC_EVERY is the one knob: 1 restores the old always-full behaviour exactly. */
+const RESYNC_EVERY = 3;   // full fetch every 3rd poll (~3 min at the 60s interval)
+
+type BbCache = BbCacheState<BbItem>;
+
+/* ⚠️ AN INVALIDATE ALWAYS FORCES A FULL FETCH, and that is the semantics rather than
+ * a precaution: `invalidate` means "something changed and I cannot tell you what",
+ * which is exactly the case where a delta is the wrong instrument — a capability
+ * dispatch that DELETED a row (weave/dispatch.ts fires the key on every successful
+ * write, including deleteItem) produces no delta at all. Deltas are for the
+ * unprompted periodic poll; a prompt gets the authoritative answer.
+ *
+ * Subscribed at MODULE SCOPE on purpose. usePolledResource also subscribes to this
+ * key, and listeners fire in insertion order — registering here, at import, is what
+ * guarantees the latch is set BEFORE the refetch it applies to, without the hook
+ * having to reason about effect ordering. One listener, one boolean, no teardown. */
+let forceFull = false;
+subscribe([BB_ITEMS], () => { forceFull = true; });
+
+/** Fetch the BeigeBoard item list and share it. All BeigeBoard-backed slices select
+ *  from the value this returns. */
 export function useBbItems(): BbItemsState {
+  /* The merged cache lives in a ref because the fetcher must be STABLE —
+     usePolledResource reads it through a ref and restarting the poll on every
+     merge would defeat the interval entirely. */
+  const cacheRef = useRef<BbCache>(emptyCache<BbItem>());
+
   const fetcher = useCallback(async (): Promise<BbItemsState> => {
+    const cache = cacheRef.current;
+    /* Full whenever there is nothing to delta FROM, and every RESYNC_EVERY polls.
+       ⚠️ The first fetch being full is load-bearing beyond correctness: BeigeBoard's
+       lazy first-run seed is (still, rightly) suppressed on a filtered read, so a
+       brand-new account whose very first request came from here with `?since=` would
+       be handed an empty board and never seeded. */
+    const full = shouldResync(cache, { forced: forceFull, every: RESYNC_EVERY });
+    forceFull = false;
+    const url = full ? `${BB_API}/items` : `${BB_API}/items?since=${encodeURIComponent(cache.cursor!)}`;
     try {
       // authFetch silently refreshes a 15-min-expired access token from the
       // remember-me cookie + retries, so authed:false now means *genuinely* logged
       // out (refresh failed), not merely an expired access token on a live session.
-      const r = await authFetch(`${BB_API}/items`);
+      const r = await authFetch(url);
       if (r.status === 401 || r.status === 403) return { loaded: true, authed: false, offline: false, items: [] };
       if (!r.ok) throw new Error('bb items');
-      const raw = await r.json();
-      return { loaded: true, authed: true, offline: false, items: (raw as any[]).map(normalizeBbItem) };
+      const rows = ((await r.json()) as any[]).map(normalizeBbItem);
+
+      /* The fold, the cursor advance and the resync rule all live in ./bbDelta —
+         pure, no React, no fetch — because they are the part that can be wrong in a
+         way nothing throws for. `pnpm check:hud` drives them directly. */
+      return { loaded: true, authed: true, offline: false, items: mergeDelta(cache, rows, full) };
     } catch {
-      return { loaded: true, authed: true, offline: true, items: [] };
+      /* ⚠️ A failed DELTA must not empty the board. The old fetcher returned an empty
+         list on failure because it had no memory; this one does, and answering with
+         the last good merge is both truer and less alarming than blanking a HUD on
+         one dropped request. The cursor is left where it was, so the next poll
+         re-asks for the same window. */
+      const held = [...cacheRef.current.byId.values()];
+      return { loaded: true, authed: true, offline: true, items: held };
     }
   }, []);
+
   return usePolledResource(
     fetcher,
     { loaded: false, authed: true, offline: false, items: [] },
-    { intervalMs: 60_000, invalidateOn: [BB_ITEMS] },
+    {
+      intervalMs: 60_000,
+      invalidateOn: [BB_ITEMS],
+      /* Coming back to the dashboard forces a fetch, which bounds how stale a
+         cross-tab delete can look in the case a person actually notices. */
+      refetchOnVisible: true,
+    },
   );
 }
+
 
 // ── Today (selector over BeigeBoard items) ───────────────────────────────────
 

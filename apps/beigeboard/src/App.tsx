@@ -1,7 +1,27 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import './app.css'
 
 import { FONT_BODY, weekStart, isoDate } from './lib/theme'
+/* BB-4 / D8: BeigeBoard publishes on the suite's invalidation bus.
+ *
+ * ⚠️ RESET's stated reason for this — "it must publish invalidations, because ORDECK
+ * really does read it" — is WRONG ABOUT THE MECHANISM, and the code wins. The bus is
+ * an in-memory Map inside one page (packages/weave/src/resource.ts). ORDECK is served
+ * from jkos.net and BeigeBoard from beigeboard.jkos.net: two origins, two documents,
+ * two Maps. A write here can never reach a listener there, and ORDECK's freshness
+ * comes from its poll (XC-3), not from this.
+ *
+ * What publishing DOES buy is real and local: this app declares
+ * `invalidates: ['beigeboard.items']` on its capabilities, and until now the app that
+ * OWNS the resource was the one app that never fired it. The five hand-placed
+ * `loadItems()` calls below become one subscription — so "which writes need a
+ * refetch?" is answered once, at the subscription, instead of re-decided at every
+ * call site. The key is DERIVED (resourceKey), never a free-typed literal (A5). */
+import { invalidate, subscribe, resourceKey } from '@jkos/weave'
+
+/* The invalidation bus key for this app's items, DERIVED from the app id (A5) so
+   the writer and any reader cannot disagree on a free-typed literal. */
+const ITEMS_KEY = resourceKey('beigeboard', 'items')
 import { TODAY_ISO, INITIAL_ACCOUNTS, getDescendants } from './lib/seed'
 import { skipRefOf, toggleSkip } from './lib/routines'
 import { useJkOSPreferences } from './hooks/useJkOSPreferences'
@@ -187,6 +207,22 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
 
   useEffect(() => { if (user) loadItems() }, [user])
 
+  /* THE ONE PLACE "a write changed rows we did not name" is answered (BB-4).
+   *
+   * ⚠️ Subscribing is what makes publishing worth anything: without a listener,
+   * invalidate() is a call into an empty Set. The writes below fire the key instead
+   * of calling loadItems() directly, so the decision lives here rather than being
+   * re-made at five call sites — two of which already carried a paragraph agonising
+   * over whether their case qualified.
+   *
+   * ⚠️ NOT every write fires it, deliberately. Ticking an ordinary task is a pure
+   * optimistic update and must not cost a round trip; only a write whose server-side
+   * effects reach rows this client cannot derive (a routine reconcile moving the
+   * cycle ladder, a calendar sync replacing a provider's rows) publishes. */
+  const itemsRef = useRef(loadItems)
+  itemsRef.current = loadItems
+  useEffect(() => subscribe([ITEMS_KEY], () => { void itemsRef.current() }), [])
+
   useEffect(() => {
     if (!user) return
     ;['google', 'outlook', 'icloud'].forEach(id => {
@@ -213,7 +249,7 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
          server. Those rows are not in this patch and cannot be derived here —
          refetch. Only for occurrences: an ordinary task tick stays a pure
          optimistic update with no round trip. */
-      if (String(item.ext_ref || '').startsWith('routine:')) loadItems()
+      if (String(item.ext_ref || '').startsWith('routine:')) invalidate(ITEMS_KEY)
     }).catch((e: any) => {
       console.error('[onToggle]', e)
       // revert optimistic update
@@ -310,7 +346,7 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
       const touched = prev_vals || row
       const isRoutineWrite = touched?.kind === 'routine'
         || String(touched?.ext_ref || '').startsWith('routine:')
-      if (isRoutineWrite) loadItems()
+      if (isRoutineWrite) invalidate(ITEMS_KEY)
       return row
     } catch (e: any) {
       console.error('[onUpdateItem]', e)
@@ -330,7 +366,7 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
   const onDeload = async (id: number, on: boolean) => {
     try {
       await api.post(`/api/items/${id}/deload`, on ? { deload: true } : { clear: true })
-      loadItems()
+      invalidate(ITEMS_KEY)
     } catch (e) { console.error('[onDeload]', e) }
   }
 
@@ -340,7 +376,7 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
     setAccounts(prev => prev.map((a: any) => a.id === provider.id
       ? { ...a, connected: true, visible: true, email: provider.email || a.email }
       : a))
-    loadItems()
+    invalidate(ITEMS_KEY)
   }
 
   const onDisconnect = (id: string) => {
@@ -352,7 +388,7 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
       google: '/api/auth/google', outlook: '/api/auth/outlook', icloud: '/api/auth/icloud',
     }
     if (routes[id]) {
-      api.del(routes[id]).then(loadItems).catch((e: any) => {
+      api.del(routes[id]).then(() => invalidate(ITEMS_KEY)).catch((e: any) => {
         console.error('[onDisconnect]', e)
         if (snapshot) setAccounts(prev => prev.map((a: any) => a.id === id ? snapshot : a))
       })
@@ -363,7 +399,7 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
     const routes: Record<string, string> = {
       google: '/api/calendar/google/sync', outlook: '/api/calendar/outlook/sync', icloud: '/api/calendar/icloud/sync',
     }
-    if (routes[id]) api.post(routes[id], {}).then(loadItems).catch((e: any) => console.error('[onSync]', e))
+    if (routes[id]) api.post(routes[id], {}).then(() => invalidate(ITEMS_KEY)).catch((e: any) => console.error('[onSync]', e))
   }
 
   useEffect(() => {
