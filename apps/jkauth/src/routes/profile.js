@@ -5,7 +5,7 @@
 // /auth/me, /auth/profile (GET/PATCH), /auth/require-admin.
 
 const express = require('express')
-const { get, run } = require('../db')
+const { get, run, logEvent } = require('../db')
 const { deepMerge } = require('../util')
 const { resolveUser, liveSession, clearTokens, publicUser } = require('../tokens')
 
@@ -109,6 +109,15 @@ router.patch('/auth/profile', (req, res) => {
   if (setClauses.length > 0) {
     params.push(jwtUser.sub)
     run(`UPDATE users SET ${setClauses.join(', ')} WHERE id = ?`, params)
+    // JK-A13: the audit log used to cover AUTHENTICATION only, so a change to a
+    // user's own record left no trace at all. Field NAMES are recorded, never
+    // values — this blob holds preferences, not secrets, but an audit trail that
+    // copies payloads is a second place for data to leak from.
+    const fields = []
+    if (typeof name === 'string') fields.push('name')
+    if (avatar_url === null || typeof avatar_url === 'string') fields.push('avatar_url')
+    if (preferences !== null && typeof preferences === 'object') fields.push('preferences')
+    logEvent('profile_update', jwtUser.sub, req, { fields, prefs_version: bumpedVersion })
   }
   res.json({ ok: true, prefs_version: bumpedVersion })
 })

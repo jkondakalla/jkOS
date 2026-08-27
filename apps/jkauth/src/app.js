@@ -22,6 +22,20 @@ app.use(express.urlencoded({ extended: false, limit: '1mb' }))
 app.use(cookieParser())
 app.use(express.static(path.join(__dirname, '..', 'public')))
 app.set('trust proxy', 1)
+// ⚠️ Asserted, not assumed (JK-A9). Every audit record's IP and every per-IP
+// rate limit rests on this matching the real topology: exactly ONE hop (the
+// standalone nginx), so Express takes the rightmost X-Forwarded-For entry — the
+// one nginx appended from $remote_addr — and anything a client prepends is
+// discarded. Set this to `true`, or to a hop count that doesn't match the
+// deployment, and the limiter starts keying on an attacker-chosen value and the
+// audit log starts recording one. It would fail silently, which is exactly the
+// invariant-in-prose class this pass exists to close.
+if (app.get('trust proxy') !== 1) {
+  throw new Error(
+    `trust proxy is ${JSON.stringify(app.get('trust proxy'))}, expected 1 — the audit log's IP and ` +
+    'the per-IP rate limits assume exactly one proxy hop (nginx). Change the topology and this ' +
+    'assertion together, never one alone.')
+}
 
 // CORS — allow registered app origins to call the auth API cross-origin (needed
 // for POST /auth/refresh and POST /auth/logout from app frontends). The shared
@@ -100,6 +114,12 @@ app.use((req, res, next) => {
     "base-uri 'self'",
     "object-src 'none'",
     "frame-ancestors 'none'",
+    // JK-A22. `form-action` is the one that matters here: without it, an
+    // injected form on an auth page could post the credential a person is
+    // typing to another origin, and `default-src` does NOT cover form targets.
+    // It is also the backstop the SameSite=lax CSRF posture leans on (config.js).
+    "form-action 'self'",
+    "connect-src 'self'",
     "img-src 'self' data: https:",
     `style-src 'self' 'nonce-${nonce}'`,
     `script-src 'self' 'nonce-${nonce}'`,

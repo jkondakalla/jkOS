@@ -136,8 +136,19 @@ router.post('/auth/login', async (req, res) => {
     return res.send(loginPage({ error: 'Invalid email or password', redirectTo: redirect_to }))
   }
 
-  // Credentials good → clear the failure backoff and stamp the login.
-  run("UPDATE users SET failed_attempts=0, lockout_until=NULL, last_login=datetime('now') WHERE id=?", [user.id])
+  // Credentials good — but the backoff is cleared only by a COMPLETE login.
+  //
+  // ⚠️ This used to clear failed_attempts unconditionally, right here. With the
+  // second factor now inside the same counter (JK-A7), that would have handed an
+  // attacker who already holds the password a free reset: re-post the password,
+  // counter back to zero, keep guessing the 6-digit code forever. So for a
+  // 2FA account the counter survives this step and is cleared in
+  // POST /auth/login/2fa; only a login that needs no second factor is complete
+  // here. `last_login` is stamped at the same place, for the same reason — it
+  // means "signed in", not "typed the password".
+  if (!twoFactorEnabled(user)) {
+    run("UPDATE users SET failed_attempts=0, lockout_until=NULL, last_login=datetime('now') WHERE id=?", [user.id])
+  }
 
   // Lazy migration: upgrade a legacy bcrypt-on-raw hash to the current
   // SHA-256-prehash scheme now that we hold the plaintext. (U1)
@@ -190,8 +201,32 @@ router.post('/auth/login/2fa', async (req, res) => {
     if (isJson) return res.status(401).json({ error: 'Cannot verify', code: CODES.UNAUTHENTICATED })
     return res.send(loginPage({ error: 'Could not verify — please sign in again' }))
   }
+
+  // ⚠️ The second factor is now inside the per-account throttle (JK-A7). It was
+  // outside it: `login_2fa_fail` was logged but never touched `failed_attempts`,
+  // so the exponential backoff — the half whose own comment says it "tracks the
+  // account under attack rather than the address in front of it" — did not apply
+  // to 2FA at all. Only the per-IP limiter bounded guessing at a 6-digit code,
+  // and an attacker holding a valid password plus a pending token is exactly the
+  // case the account-level backoff exists for.
+  const now2fa = Date.now()
+  const locked2fa = user.lockout_until ? Date.parse(user.lockout_until) : 0
+  if (locked2fa > now2fa) {
+    const retryMs = locked2fa - now2fa
+    logEvent('login_2fa_locked', user.id, req)
+    res.setHeader('Retry-After', String(Math.ceil(retryMs / 1000)))
+    const msg = 'Too many attempts. Please wait a moment and try again.'
+    if (isJson) return res.status(429).json({ error: msg, code: 'ACCOUNT_LOCKED', retry_after_ms: retryMs })
+    return res.send(twoFactorPage({
+      pendingToken: pending_token, methods: enabledMethods(user), redirectTo: pending.rt, error: msg,
+    }))
+  }
+
   const method = verifySecondFactor(user, code)
   if (!method) {
+    const attempts = (user.failed_attempts || 0) + 1
+    run('UPDATE users SET failed_attempts=?, lockout_until=? WHERE id=?',
+      [attempts, new Date(now2fa + loginBackoffMs(attempts)).toISOString(), user.id])
     logEvent('login_2fa_fail', user.id, req)
     if (isJson) return res.status(401).json({ error: 'Invalid code', code: 'TWO_FACTOR_INVALID' })
     return res.send(twoFactorPage({
@@ -199,7 +234,8 @@ router.post('/auth/login/2fa', async (req, res) => {
       redirectTo: pending.rt, error: 'Invalid or expired code',
     }))
   }
-  run("UPDATE users SET last_login=datetime('now') WHERE id=?", [user.id])
+  // A passed second factor clears the backoff, same as a passed password.
+  run("UPDATE users SET failed_attempts=0, lockout_until=NULL, last_login=datetime('now') WHERE id=?", [user.id])
   // Carry the pending redirect target through so token provenance (azp) resolves
   // to the app being entered, not just the request Origin.
   req.body.redirect_to = pending.rt || req.body.redirect_to

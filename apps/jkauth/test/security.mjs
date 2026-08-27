@@ -232,6 +232,56 @@ try {
   ok('2FA login verifies against the SEALED secret', r.status === 200 && r.json?.user?.email === 'alice@x.net',
     `got ${r.status}`);
 
+  // ── H2 · JK-A19: a TOTP code is single-use inside its own window ───────────
+  // Re-uses the enrolled authenticator from H. A code used to stay valid for the
+  // whole ±1-step window (~90 s), so one seen over a shoulder could be replayed.
+  {
+    // The NEXT window's code, not this one's: section H already burned the
+    // current step, and asking for it again here would be testing the replay
+    // guard by accident rather than the happy path. window:1 accepts +1 step.
+    const reuse = totp.generate({ timestamp: Date.now() + 30_000 });
+    jar.clear();
+    let a = await api('POST', '/auth/login', { json: { email: 'alice@x.net', password: 'password-a1' } });
+    a = await api('POST', '/auth/login/2fa', { json: { pending_token: a.json?.pending_token, code: reuse } });
+    ok('a fresh TOTP code completes login', a.status === 200, `got ${a.status}`);
+    jar.clear();
+    let b = await api('POST', '/auth/login', { json: { email: 'alice@x.net', password: 'password-a1' } });
+    b = await api('POST', '/auth/login/2fa', { json: { pending_token: b.json?.pending_token, code: reuse } });
+    ok('REPLAYING that same code is refused', b.status === 401, `got ${b.status}`);
+
+    // ── JK-A7: the refused codes fed the per-account throttle ───────────────
+    // LOCKOUT_FREE=1, so the first failure is free and the SECOND arms the
+    // backoff — the point being that these are 2FA failures, which used to be
+    // counted nowhere at all.
+    db.prepare("UPDATE users SET failed_attempts=0, lockout_until=NULL WHERE email='alice@x.net'").run();
+    let c;
+    for (let i = 0; i < 2; i++) {
+      jar.clear();
+      c = await api('POST', '/auth/login', { json: { email: 'alice@x.net', password: 'password-a1' } });
+      c = await api('POST', '/auth/login/2fa', { json: { pending_token: c.json?.pending_token, code: '000000' } });
+    }
+    ok('wrong 2FA codes increment the ACCOUNT throttle',
+      db.prepare("SELECT failed_attempts AS n FROM users WHERE email='alice@x.net'").get().n >= 2);
+    // …and the lockout those failures armed now bites at the PASSWORD step, with
+    // the correct password: the account is throttled, not merely this endpoint.
+    // Guessing the second factor can no longer be reset by re-authenticating.
+    jar.clear();
+    c = await api('POST', '/auth/login', { json: { email: 'alice@x.net', password: 'password-a1' } });
+    ok('and the account is locked out even with the RIGHT password',
+      c.status === 429 && c.json?.code === 'ACCOUNT_LOCKED', `${c.status} ${JSON.stringify(c.json)}`);
+    db.prepare("UPDATE users SET failed_attempts=0, lockout_until=NULL WHERE email='alice@x.net'").run();
+    jar.clear();
+  }
+
+  // ── H3 · JK-A16: an over-long meta stays PARSEABLE ─────────────────────────
+  {
+    const rows = db.prepare('SELECT meta FROM auth_events WHERE meta IS NOT NULL').all();
+    let parsed = 0;
+    for (const row of rows) { try { JSON.parse(row.meta); parsed++; } catch { /* counted below */ } }
+    ok('every audit record with meta is valid JSON', parsed === rows.length,
+      `${rows.length - parsed} of ${rows.length} unparseable`);
+  }
+
   // ── I · JK-A4, fail closed: no key → no enrollment ─────────────────────────
   {
     const port2 = port + 501, base2 = `http://127.0.0.1:${port2}`;
@@ -262,6 +312,32 @@ try {
     } finally {
       try { c2.kill('SIGKILL'); } catch { /* gone */ }
     }
+  }
+
+  // ── J · JK-A23: a mangled JKOS_SERVICE_CLIENTS refuses to BOOT ─────────────
+  // The parser used to `continue` past a malformed entry, so a secret containing
+  // a ',' or ':' produced a client that either silently did not exist or existed
+  // with the wrong secret and the wrong grant. Both are invisible at runtime.
+  {
+    const bad = spawn(process.execPath, [SERVER], {
+      env: {
+        ...process.env, PORT: String(port + 502), DB_PATH: join(tmp, 'auth3.db'),
+        JKOS_AUTH_PRIVATE_KEY: privateKey, JKOS_AUTH_PUBLIC_KEY: publicKey,
+        COOKIE_DOMAIN: 'localhost', NODE_ENV: 'test',
+        // A secret with a ':' in it — the entry cuts, and the tail parses as scopes.
+        JKOS_SERVICE_CLIENTS: 'lazuros:sec:ret:beigeboard:write',
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let badLog = '';
+    bad.stdout.on('data', d => { badLog += d; }); bad.stderr.on('data', d => { badLog += d; });
+    const code = await new Promise((resolve) => {
+      bad.on('exit', resolve);
+      setTimeout(() => { try { bad.kill('SIGKILL'); } catch { /* gone */ } resolve('timeout'); }, 8000);
+    });
+    ok('a malformed service-client entry refuses to boot', code !== 0 && code !== 'timeout', `exit ${code}`);
+    ok('and it names the position without printing the secret',
+      /entry #1/.test(badLog) && !badLog.includes('sec:ret'), badLog.slice(-200));
   }
 
   db.close();

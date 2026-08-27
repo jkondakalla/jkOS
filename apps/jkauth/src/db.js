@@ -295,12 +295,29 @@ function runMigrations() {
 
 // Append an audit event. Never throws into the request path — auditing must not
 // be able to fail a login/refresh. (S5)
+// Truncate to fit the column while STAYING VALID JSON (JK-A16). The old
+// `JSON.stringify(meta).slice(0, 500)` cut mid-string and produced a record no
+// reader can parse — an audit trail whose entries are unreadable is not an audit
+// trail. Over-long meta is replaced by a marker object plus a clipped head, so
+// the row still parses and still says what it lost.
+const META_MAX = 500
+function packMeta(meta) {
+  if (!meta) return null
+  const full = JSON.stringify(meta)
+  if (full.length <= META_MAX) return full
+  return JSON.stringify({ truncated: true, head: full.slice(0, META_MAX - 40) })
+}
+
 function logEvent(type, userId, req, meta) {
   try {
-    const ip = req?.ip || req?.headers?.['x-forwarded-for'] || null
+    // `req.ip` only (JK-A9). The old `|| req.headers['x-forwarded-for']` fallback
+    // never fired — req.ip always resolves while the socket is live — and reading
+    // the raw header would have been the spoofable path. An audit record with a
+    // missing IP is honest; one with a silently substituted value is not.
+    const ip = req?.ip ?? null
     const ua = (req?.headers?.['user-agent'] || '').slice(0, 300) || null
     run('INSERT INTO auth_events (user_id, type, ip, ua, meta) VALUES (?,?,?,?,?)',
-      [userId ?? null, String(type).slice(0, 64), ip, ua, meta ? JSON.stringify(meta).slice(0, 500) : null])
+      [userId ?? null, String(type).slice(0, 64), ip, ua, packMeta(meta)])
   } catch (e) {
     console.error('[audit]', e.message)
   }

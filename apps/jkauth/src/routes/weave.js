@@ -9,7 +9,7 @@
 const express = require('express')
 const crypto = require('crypto')
 const { PUBLIC_KEY, PUBLIC_KEY_NEXT, JWT_KID, JWT_KID_NEXT } = require('../config')
-const { all, run } = require('../db')
+const { all, run, logEvent } = require('../db')
 const { resolveUser } = require('../tokens')
 
 const router = express.Router()
@@ -125,6 +125,9 @@ router.post('/auth/widgets', (req, res) => {
        ON CONFLICT(id) DO UPDATE SET label=excluded.label, def=excluded.def,
          allowed_roles=excluded.allowed_roles, updated_at=datetime('now')`,
     [id, label, json, allowedRoles, user.sub])
+  // JK-A13: publishing a widget changes EVERY user's HUD suite-wide, and it was
+  // the least-logged action in the service. Admin-only, and now recorded.
+  logEvent('widget_publish', user.sub, req, { id, label, allowed_roles: allowedRoles })
   res.json({ ok: true, id })
 })
 
@@ -133,7 +136,9 @@ router.delete('/auth/widgets/:id', (req, res) => {
   const user = resolveUser(req)
   if (!user) return res.status(401).json({ error: 'Not authenticated', code: 'UNAUTHENTICATED' })
   if (user.role !== 'admin') return res.status(403).json({ error: 'Admin access required' })
-  run('DELETE FROM widget_registry WHERE id=?', [String(req.params.id).slice(0, 64)])
+  const widgetId = String(req.params.id).slice(0, 64)
+  run('DELETE FROM widget_registry WHERE id=?', [widgetId])
+  logEvent('widget_delete', user.sub, req, { id: widgetId })
   res.json({ ok: true })
 })
 
