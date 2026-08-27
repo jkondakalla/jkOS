@@ -85,6 +85,22 @@ const APPS = [
     capabilities: true, datasets: true,
     edge: 'standard', // GENERATED nginx server block + staging subpath (gen-nginx-weave.mjs)
   },
+  {
+    // WV-8: jkDeploy was absent from the directory entirely, so "deploy staging"
+    // could not be a HUD button and the portal had no way to know the deploy
+    // controller exists — a system nobody can see from the system that lists the
+    // systems.
+    //
+    // Deliberately NO `upstream`, `health` or `api`. Those drive the nginx PEER
+    // generation, and jkDeploy is not a peer: it is a FastAPI service in its own
+    // Compose project, reached through a hand-tuned `/deploy/` block in
+    // standalone.conf that strips the prefix, disables buffering for its SSE log
+    // stream, and sits behind the admin gate. Deriving a peer block for it would
+    // fight that. What the row buys is DIRECTORY presence — the launcher and the
+    // registry now know it is there and that only admins may reach it.
+    id: 'jkdeploy', name: 'jkDeploy', origin: 'https://staging.jkos.net/deploy/',
+    allowedRoles: ['admin'],
+  },
 ]
 
 /* ── derivations: id → everything ────────────────────────────────────────────── */
