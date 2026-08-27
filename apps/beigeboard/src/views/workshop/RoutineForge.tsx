@@ -40,7 +40,7 @@
  * fold of the thing you are editing, which defeats the point of live rendering.
  *
  * IT RENDERS LOCALLY, NOT OVER THE WIRE. The ladder is computed by the spec mirror
- * (lib/routine-spec.ts) against the spec being edited — which has not been saved and
+ * (@jkos/routine-spec) against the spec being edited — which has not been saved and
  * therefore does not exist on the server to ask about. That the mirror and the
  * engine agree is not assumed; it is enforced by `pnpm check:routine`, which drives
  * both through the same matrix. Read the mirror's header before touching either.
@@ -67,7 +67,7 @@ import {
   UNITS, LOAD_UNITS, DRIVES, BLOCKS, ADVANCE_ON, MEASURES, WINDOWS,
   MEASURE_LABEL, LIMITS, MAX_RULES,
   type Spec, type Step, type Progression,
-} from '../../lib/routine-spec'
+} from '@jkos/routine-spec'
 
 /* The document's own panels (the scaling block, a step) read as
    the milestone branch row does — a flat hairline card on --hub-bg-3 — not as
@@ -92,7 +92,11 @@ export function RoutineForge({
      on every keystroke would fight the user (a half-typed number is not a number);
      normalising once on load and then editing the normalised object means every
      field already exists and no edit has to invent one. */
-  const [spec, setSpec] = useState<Spec>(() => normalizeSpec(routine?.spec))
+  /* ⚠️ normalizeSpec returns { spec, warnings } (D9). The deleted mirror returned a
+     bare Spec, and the conformance gate normalised that difference away in its own
+     harness — so the two copies had drifted on the calling convention of the most-
+     called function in the engine, and nothing was watching. */
+  const [spec, setSpec] = useState<Spec>(() => normalizeSpec(routine?.spec).spec)
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
   const [warnings, setWarnings] = useState<any[]>([])
@@ -121,7 +125,7 @@ export function RoutineForge({
   })
 
   useEffect(() => {
-    setSpec(normalizeSpec(routine?.spec))
+    setSpec(normalizeSpec(routine?.spec).spec)
     setDirty(false); setWarnings([]); setRevisions(null)
   }, [routine?.id])
 
@@ -176,7 +180,7 @@ export function RoutineForge({
     // library's unit, rest, ladder and default progression already resolved —
     // exactly what the server would have done with the same `ref`.
     const resolve = (slug: string) => (library || []).find((e) => e.slug === slug) || null
-    const one = normalizeSpec({ steps: [raw] }, { resolve }).steps[0]
+    const one = normalizeSpec({ steps: [raw] }, { resolve }).spec.steps[0]
     let key = one.key
     let n = 2
     while (d.steps.some((s) => s.key === key)) key = `${one.key}-${n++}`

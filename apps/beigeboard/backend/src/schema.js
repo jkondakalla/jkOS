@@ -6,7 +6,7 @@
 // ITEM_SHAPE declares — one source, no drift (the class behind BUG-1/3/7).
 const { coerceWeaveColumn } = require('@jkos/weave/server');
 const { ITEM_FIELDS } = require('./item-fields');
-const routineSpec = require('./routine-spec');
+const routineSpec = require('@jkos/routine-spec');
 
 const fieldByName = (n) => ITEM_FIELDS.find((f) => f.name === n);
 const importEnumSet = (n) => new Set(fieldByName(n).importEnum);

@@ -17,7 +17,7 @@
  *
  * WHY "MISSED" IS A SEPARATE TAP FROM "NOT DONE". An unticked step in a session you
  * have not started yet is not the same as one you tried and failed, and the engine
- * treats them differently (routine-spec.js `stepWasMet`: silence means you met it,
+ * treats them differently (@jkos/routine-spec's `stepWasMet`: silence means you met it,
  * because logging every set is a habit people keep for a week and then drop). So
  * the card has to be able to say "done but short" without that being the same
  * gesture as "haven't got there yet".
@@ -33,7 +33,7 @@ import { Chip, Press, Bubble, Rule, TButton, NumField } from '@jkos/ui'
 import {
   prescriptionOf, performedOf, stepStatus, logStep, metFromSets, blankSets,
   type RenderedStep,
-} from '../lib/routine-spec'
+} from '@jkos/routine-spec'
 
 const MONO = 'var(--hub-font-mono)'
 

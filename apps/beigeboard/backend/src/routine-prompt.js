@@ -46,7 +46,7 @@
  *      as something to verify rather than something to avoid. "Check every count
  *      progression has a cap" beats "don't forget caps".
  */
-const spec = require('./routine-spec');
+const spec = require('@jkos/routine-spec');
 
 /** `back-squat` → a one-line index entry an author can scan. Deliberately terse:
  *  the point is to make `ref` cheaper to write than a hand-rolled step, and a

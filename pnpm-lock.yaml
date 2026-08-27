@@ -27,6 +27,9 @@ importers:
       '@jkos/design':
         specifier: workspace:*
         version: link:../../packages/design
+      '@jkos/routine-spec':
+        specifier: workspace:*
+        version: link:../../packages/routine-spec
       '@jkos/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -61,6 +64,9 @@ importers:
       '@jkos/auth-middleware':
         specifier: workspace:*
         version: link:../../../packages/auth-middleware
+      '@jkos/routine-spec':
+        specifier: workspace:*
+        version: link:../../../packages/routine-spec
       '@jkos/suite-manifest':
         specifier: workspace:*
         version: link:../../../packages/suite-manifest
@@ -481,6 +487,8 @@ importers:
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
+
+  packages/routine-spec: {}
 
   packages/suite-manifest: {}
 

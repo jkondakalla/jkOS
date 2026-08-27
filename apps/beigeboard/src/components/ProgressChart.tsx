@@ -38,7 +38,7 @@
  */
 import React, { useMemo, useRef, useState } from 'react'
 import { FONT_HEAD, localDate } from '../lib/theme'
-import type { SeriesPoint } from '../lib/routine-spec'
+import type { SeriesPoint } from '@jkos/routine-spec'
 
 const MONO = 'var(--hub-font-mono)'
 

@@ -47,7 +47,7 @@ import { MONO, Field, NumField, SelectField, TextArea, NUM_W, RuleRow } from './
 import {
   normalizeSpec, slugify, stepLine,
   UNITS, LOAD_UNITS, COLLECTIONS, LIMITS,
-} from '../../lib/routine-spec'
+} from '@jkos/routine-spec'
 
 type Sort = 'title' | 'used' | 'newest'
 

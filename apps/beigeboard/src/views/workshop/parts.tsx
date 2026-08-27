@@ -17,7 +17,7 @@
  */
 import React from 'react'
 import { TButton, Field as UIField, NumField as UINumField, SelectField as UISelectField, TextArea as UITextArea } from '@jkos/ui'
-import { PROGRESSIONS, DRIVES, PROGRESSION_LABEL } from '../../lib/routine-spec'
+import { PROGRESSIONS, DRIVES, PROGRESSION_LABEL } from '@jkos/routine-spec'
 
 export const MONO = 'var(--hub-font-mono)'
 

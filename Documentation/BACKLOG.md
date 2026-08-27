@@ -109,6 +109,21 @@ Landed 2026-08-26/27 on `staging`, gate green at each commit, **none of it deplo
   dashboard for up to ~3 minutes where it was ~1 before. One constant dials it; `1`
   restores the old behaviour exactly. The merge is extracted to a pure `bbDelta.ts`
   and driven by `check:hud` — every way it goes wrong is silent.
+- **D9 (BB-8) — `routine-spec` is a package.** `@jkos/routine-spec`: CommonJS for the
+  no-bundler backend, an ESM twin for Vite, one `.d.ts` for both. The 1,045-line
+  hand-ported TypeScript mirror is **deleted** — net −871 lines including the client
+  half that moved into the package (`prescriptionOf`/`performedOf`/`stepStatus`/
+  `logStep` and the three label maps).
+  ⚠️ **The two copies had already drifted, in a way the conformance gate could not
+  see:** the backend's `normalizeSpec` returned `{spec, warnings}` and the mirror's
+  returned a bare `Spec`. The most-called function in the engine had two calling
+  conventions, and the gate's own harness wrote `be.normalizeSpec(doc).spec` next to
+  `fe.normalizeSpec(doc)` — normalising the difference away in the very line meant to
+  prove there wasn't one. Output conformance cannot see an API divergence.
+  `check:routine` keeps its whole structure; `be`/`fe` now point at the package's two
+  FACES, so its "agrees" assertions prove the ESM twin hasn't drifted from its
+  source — the one duplication that genuinely remains. `logStep` takes `now` as an
+  argument so the package keeps its no-clock purity.
 
 ---
 
@@ -132,17 +147,13 @@ Landed 2026-08-26/27 on `staging`, gate green at each commit, **none of it deplo
 
 ## Open — the backend and the fabric (Stage D)
 
-Four of thirteen items (D1, D2, D3, D4, D5, D6, D7, D8 and D11 are done). Re-verify each before
-fixing; the audit predates this work.
+Three of thirteen items (D1–D9 and D11 are done). Re-verify each before fixing; the audit predates
+this work.
 
 - **The seven `json` escape-hatch fields** are what remains of D3, and they are the weakest item
   on this list. A routine `spec` genuinely IS an opaque document, so "type it properly" may be
   the wrong answer — decide whether the hatch is a defect here or an honest description before
   spending effort on it.
-- **D9 · Extract `routine-spec` to a package (BB-8).** 1,666 backend lines plus a 1,045-line
-  frontend mirror of the same engine. The backend file is already pure and zero-dependency, and
-  `check:routine` drives both through one matrix — the harness proving the extraction was
-  faithful exists before you start. **−1,045 lines.**
 - **D10 · Calendar sync onto `defineConnector` (BB-6).** 247 lines of near-identical
   Google/Outlook/iCloud blocks, none declared, no scheduler, and a disconnect that raw-`DELETE`s
   items bypassing `cascadeDelete`. **Unblocked — D5 landed**, so the rewrite now inherits

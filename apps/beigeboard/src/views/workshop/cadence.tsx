@@ -65,7 +65,7 @@ import {
   normalizeSpec, summarize, metricOf,
   parseCadence, formatCadence, describeCadence, expandCadence,
   CADENCES, CADENCE_LABEL,
-} from '../../lib/routine-spec'
+} from '@jkos/routine-spec'
 import { Bubble, Chip, TButton, Bar, TimeField } from '@jkos/ui'
 import { Field, NumField, SelectField, NUM_W } from './parts'
 
@@ -88,7 +88,7 @@ export function RoutineCard({ routine, items, goals, today, selected, delay, onC
   const streak = useMemo(() => streakOf(routine, items, today), [routine, items, today])
   const cadence = useMemo(() => parseCadence(routine.cadence_rule), [routine.cadence_rule])
   const goal = goals?.find((g: any) => g.id === routine.parent_id) || null
-  const spec = useMemo(() => normalizeSpec(routine.spec), [routine.spec])
+  const spec = useMemo(() => normalizeSpec(routine.spec).spec, [routine.spec])
 
   /* The cadence line: the RULE if there is one worth naming (every_n_days, monthly,
      rolling, RRULE all say things seven cells cannot), otherwise the plain weekly
@@ -179,7 +179,7 @@ export function CadenceBand({
   const meter = useMemo(() => attainment(routine, items, wk), [routine, items, wk])
   const streak = useMemo(() => streakOf(routine, items, today), [routine, items, today])
   const floats = useMemo(() => floatsOf(routine, items, wk), [routine, items, wk])
-  const spec = useMemo(() => normalizeSpec(routine.spec), [routine.spec])
+  const spec = useMemo(() => normalizeSpec(routine.spec).spec, [routine.spec])
   const cadence = useMemo(() => parseCadence(routine.cadence_rule), [routine.cadence_rule])
   const committed = useMemo(() => cadenceDays(routine), [routine.cadence_days])
   const metric = useMemo(
@@ -193,7 +193,7 @@ export function CadenceBand({
   /* The dates the rule actually produces, over the next four weeks. A rule is
      unreadable and a list of dates is not, which matters most for exactly the
      modes that cannot be drawn as a row of seven weekdays. Rendered from the
-     SAVED routine (the mirror in lib/routine-spec, same code the engine's rules
+     SAVED routine (@jkos/routine-spec — literally the same code the engine's rules
      are checked against) — every control in this band writes through immediately,
      so there is no unsaved cadence for it to disagree with. */
   const upcoming = useMemo(() => {

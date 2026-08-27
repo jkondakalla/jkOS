@@ -1,6 +1,28 @@
 'use strict';
 /*
- * routine-spec.js — THE ROUTINE DOCUMENT, and the pure functions over it.
+ * @jkos/routine-spec — THE ROUTINE DOCUMENT, and the pure functions over it.
+ *
+ * ⚠️ THIS FILE USED TO EXIST TWICE (BB-8 / D9). It lived at
+ * apps/beigeboard/backend/src/routine-spec.js, and a 1,045-line TypeScript MIRROR of
+ * the same engine lived at apps/beigeboard/src/lib/routine-spec.ts, ported by hand.
+ * The duplication was argued for honestly — the forge previews a spec the user is
+ * editing and has NOT saved, so there is nothing on the server to ask about yet, and
+ * a round trip per keystroke is not a design — and it was paid for by
+ * `pnpm check:routine`, which drove both through one matrix and failed on the first
+ * disagreement.
+ *
+ * The argument for the duplication was always about the browser needing this code,
+ * never about it needing a SECOND COPY of it. A package answers the same need with
+ * one implementation: CommonJS for the no-bundler Node backend (index.js, this file,
+ * unchanged), an ESM twin for Vite (index.mjs), one .d.ts for both. The mirror is
+ * deleted — 1,045 lines — and check:routine keeps every expectation it pinned,
+ * because those were a real unit test of the engine in their own right and only the
+ * diff half became meaningless.
+ *
+ * ⭐ PURITY IS A CONTRACT HERE, not an accident: no I/O, no DB, no network, no
+ * environment, and no clock. `logStep` is the one function that needs a timestamp
+ * and it TAKES one (see its note). That is what lets a gate transpile this and drive
+ * it directly, and what makes it safe to load in a bare checkout.
  *
  * ─────────────────────────────────────────────────────────────────────────────
  * WHY THIS FILE EXISTS
@@ -1651,6 +1673,130 @@ function blankSets(rendered) {
   }));
 }
 
+/* ══════════════════════════════════════════════════════════════════════════════
+   READING WHAT THE ENGINE ALREADY WROTE, AND LOGGING WHAT HAPPENED
+   ══════════════════════════════════════════════════════════════════════════════
+   Ported from the deleted TypeScript mirror (BB-8). These live with the engine
+   because they are about the SHAPE THE ENGINE WRITES — `prescription` and
+   `performed` — and a reader of those columns that lives somewhere else is the next
+   mirror waiting to happen.
+
+   The daily surfaces never render anything: an occurrence arrives with its
+   prescription already computed, and the first two just unwrap it safely. Tolerant
+   of a malformed column for the same reason every other reader in this app is —
+   this drives a render, and a parse error must show an absence, not a blank screen. */
+
+function prescriptionOf(occurrence) {
+  const raw = occurrence?.prescription;
+  if (!raw) return null;
+  try {
+    const p = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    return p && Array.isArray(p.steps) ? p : null;
+  } catch { return null; }
+}
+
+function performedOf(occurrence) {
+  const raw = occurrence?.performed;
+  if (!raw) return null;
+  try {
+    const p = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    return isObj(p) ? p : null;
+  } catch { return null; }
+}
+
+/** Did the user log this step as done? `undefined` means "not logged either way",
+ *  which is a third state the UI has to draw — an unticked step in a session you
+ *  haven't started is not the same as one you skipped. */
+function stepStatus(performed, key) {
+  const e = performed?.steps?.[key];
+  return isObj(e) ? e : {};
+}
+
+/** The patch that records one step, merged onto whatever is already logged.
+ *  Returned rather than written so the caller owns the round trip — the same shape
+ *  every other edit in this app takes.
+ *
+ *  IT ALSO STAMPS WHEN AND IN WHAT ORDER (migration 13). `performed.steps` is an
+ *  object, so the order the steps were actually done in is not recoverable from it
+ *  — and the order a session is performed in, versus the order it was prescribed
+ *  in, is one of the few things a training log can say that the plan cannot. So the
+ *  crossing itself is recorded here, at the only place that can see it: this
+ *  function is handed the OLD entry and the new patch in the same breath.
+ *
+ *  ⚠️ ON THE EDGE, NOT ON EVERY PATCH. logStep is called for every edit to a step —
+ *  ticking it, marking it short, typing a set, writing a note. Stamping `at`
+ *  unconditionally would make it "when did you last touch this row", which is a
+ *  different fact, is not the one anything wants, and would be indistinguishable
+ *  from the real one after the fact. Guarded to the done false→true crossing, it
+ *  means "when this got done" and nothing else.
+ *
+ *  And CLEARED on the way back down, for the same reason the completed_at trigger
+ *  clears: un-ticking a step is the retraction of a completion, not a completion at
+ *  a slightly different time, and a stamp left behind would date something that did
+ *  not happen.
+ *
+ *  ⚠️ `now` IS AN ARGUMENT (D9). This is the one function in the package that needs
+ *  a clock, and reading one internally would cost the file its purity — the property
+ *  that lets a gate transpile it and drive it directly, and the reason the whole
+ *  engine is testable without a database. The default keeps every existing caller
+ *  unchanged; the parameter is what makes the stamp assertable.
+ *  Canonical millisecond ISO, matching the suite's one wire format (XC-1).
+ *
+ *  @param {string} [now] ISO timestamp to stamp a completion with */
+function logStep(performed, key, patch, now = new Date().toISOString()) {
+  const base = isObj(performed) ? performed : { v: SPEC_VERSION, steps: {} };
+  const steps = isObj(base.steps) ? base.steps : {};
+  const prev = isObj(steps[key]) ? steps[key] : {};
+  const next = { ...prev, ...patch };
+
+  if (patch.done === true && prev.done !== true) {
+    next.at = now;
+    /* One past the highest issued so far — a POSITION, not a count of steps, so it
+       survives a step being logged, un-logged and logged again (which is a real
+       thing people do mid-session, and which must not renumber the steps around
+       it). The seeded 0 is what makes an empty log — and a log full of entries
+       written before this field existed — start at 1 rather than at -Infinity. */
+    next.seq = 1 + Math.max(0, ...Object.values(steps).map((e) => Number(e?.seq) || 0));
+  } else if (patch.done === false && prev.done === true) {
+    next.at = undefined;
+    next.seq = undefined;
+  }
+
+  return { ...base, v: SPEC_VERSION, steps: { ...steps, [key]: next } };
+}
+
+/* ── Human labels for the closed vocabularies ─────────────────────────────────
+   Next to the vocabularies they label, not in a UI file, so a new progression type
+   cannot ship without a name a person can read. */
+
+/** One-line human labels for the cadence modes — the forge's picker. */
+const CADENCE_LABEL = {
+  weekly: 'on chosen weekdays',
+  every_n_days: 'every N days',
+  monthly: 'a day of the month',
+  rolling: 'N times per rolling 7 days',
+  rrule: 'an RFC 5545 rule (advanced)',
+};
+
+/** What a routine can contribute to its goal. */
+const MEASURE_LABEL = {
+  sessions: 'sessions kept',
+  volume: 'sets × target',
+  target: 'the target, summed',
+  load: 'tonnage (load × sets × target)',
+};
+
+/** One-line human labels for the progression types — the editor's dropdown, and
+ *  the only place the vocabulary is described in prose. */
+const PROGRESSION_LABEL = {
+  fixed: 'never changes',
+  linear: 'add a fixed amount each time',
+  double: 'climb the rep range, then add load',
+  ladder: 'follow a written table',
+  percent: 'a creeping % of a stored max',
+  autoregulated: 'advance only when you earn it',
+};
+
 module.exports = {
   SPEC_VERSION, LIMITS, MAX_RULES,
   UNITS, LOAD_UNITS, PROGRESSIONS, DRIVES, ADVANCE_ON, PHASE_REPEAT, BLOCKS, COLLECTIONS,
@@ -1663,4 +1809,8 @@ module.exports = {
   normalizePerformed, stepWasMet, metFromSets, blankSets,
   slugify, humanize, roundTo,
   isoWeekStart, shiftDays, daysBetween,
+  // D9: ported from the deleted TypeScript mirror — reading what the engine wrote,
+  // logging what happened, and the human labels for the closed vocabularies.
+  prescriptionOf, performedOf, stepStatus, logStep,
+  CADENCE_LABEL, MEASURE_LABEL, PROGRESSION_LABEL,
 };

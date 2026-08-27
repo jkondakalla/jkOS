@@ -36,7 +36,7 @@ const { all, get, run } = require('../db');
 const { ITEM_COLUMNS, coerceColumn, validateItemWrite } = require('../schema');
 const { validParentId } = require('../items-store');
 const lib = require('../library');
-const spec = require('../routine-spec');
+const spec = require('@jkos/routine-spec');
 const { callerDay } = require('@jkos/weave/server');
 const { buildPrompt } = require('../routine-prompt');
 const { materializeOne, recordRevision, revisionsOf, setDeloadOverride, HORIZON_WEEKS,

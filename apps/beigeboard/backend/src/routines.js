@@ -85,7 +85,7 @@ const { cascadeDelete } = require('./items-store');
 const {
   normalizeSpec, renderCycle, normalizePerformed, stepWasMet,
   parseCadence, expandCadence, summarize,
-} = require('./routine-spec');
+} = require('@jkos/routine-spec');
 const { resolverFor } = require('./library');
 
 /* How far ahead occurrences exist. Two weeks: enough that the board's "this week /

@@ -60,7 +60,7 @@ import { RoutineImport } from './RoutineImport'
 import { RoutineForge } from './RoutineForge'
 import { RoutineCard, WeekStrip } from './cadence'
 import { getRoutines, cadenceDays, weeklyTarget, weekCells, weekStart, streakOf } from '../../lib/routines'
-import { normalizeSpec, summarize } from '../../lib/routine-spec'
+import { normalizeSpec, summarize } from '@jkos/routine-spec'
 
 const MONO = 'var(--hub-font-mono)'
 
@@ -532,7 +532,7 @@ function StandingOrder({ routine, items, today, onClick }: any) {
   const wk = useMemo(() => weekStart(today), [today])
   const cells = useMemo(() => weekCells(routine, items, wk, today), [routine, items, wk, today])
   const streak = useMemo(() => streakOf(routine, items, today), [routine, items, today])
-  const spec = useMemo(() => normalizeSpec(routine.spec), [routine.spec])
+  const spec = useMemo(() => normalizeSpec(routine.spec).spec, [routine.spec])
   return (
     <div
       className="jk-hit"

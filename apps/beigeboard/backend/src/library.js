@@ -33,7 +33,7 @@
  */
 const { db, run, all, get } = require('./db');
 const { buildItemFilters, filterSpec } = require('@jkos/weave/server');
-const { slugify, humanize, COLLECTIONS, UNITS, LOAD_UNITS, LIMITS } = require('./routine-spec');
+const { slugify, humanize, COLLECTIONS, UNITS, LOAD_UNITS, LIMITS } = require('@jkos/routine-spec');
 
 /* ── Row ⇄ wire ───────────────────────────────────────────────────────────── */
 

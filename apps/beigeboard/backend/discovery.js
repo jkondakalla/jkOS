@@ -63,7 +63,7 @@ if (extRefsErr) throw new Error(`beigeboard ext_ref schemes: ${extRefsErr}`);
 // a peer cannot be told a collection exists that a write would then reject.
 // routine-spec.js is zero-dep, pure, side-effect-free data + functions, so requiring
 // it keeps this file offline-safe for the prober exactly as item-fields.js does.
-const { COLLECTIONS: LIBRARY_COLLECTIONS } = require('./src/routine-spec');
+const { COLLECTIONS: LIBRARY_COLLECTIONS } = require('@jkos/routine-spec');
 
 /** This app's polled resources. Writers bump them; the datasets read them. */
 const ITEMS_KEY = resourceKey('beigeboard', 'items');     // 'beigeboard.items'

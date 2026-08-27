@@ -1,22 +1,32 @@
 // check:routine — the ROUTINE DOCUMENT conformance gate.
 //
-// BeigeBoard's routine spec exists twice: the authoritative CommonJS engine at
-// apps/beigeboard/backend/src/routine-spec.js, which renders the prescription that
-// is WRITTEN ONTO EVERY OCCURRENCE, and the TypeScript mirror at
-// apps/beigeboard/src/lib/routine-spec.ts, which renders the live preview in the
-// forge for a spec the user is editing and has not saved.
+// ⚠️ THE DUPLICATION THIS GATE WAS BUILT TO POLICE IS GONE (BB-8 / D9). BeigeBoard's
+// routine engine used to exist twice: the authoritative CommonJS engine in the
+// backend, and a 1,045-line TypeScript MIRROR of it in the frontend, ported by hand
+// so the forge could preview a spec the user was editing and had not saved. This
+// gate drove both through one matrix and failed on the first disagreement — because
+// a mirror that has quietly drifted is worse than no mirror: the preview would
+// promise one session and the engine would mint another, and the only symptom would
+// be a user who thinks they are meant to squat 135 and finds 145 on the board.
 //
-// The duplication is deliberate and is argued for at the top of the .ts file. THIS
-// is the price of it. A mirror that has quietly drifted is worse than no mirror:
-// the preview would promise one session and the engine would mint another, and the
-// only symptom would be a user who thinks they are meant to squat 135 and finds 145
-// on the board tomorrow. So this does not diff the SOURCE — text is not the
-// contract — it drives BOTH implementations through the same matrix of documents ×
-// cycles and compares what they actually produce.
+// ⚠️ AND IT HAD ALREADY DRIFTED, in a way this gate could not see. The backend's
+// `normalizeSpec` returned `{ spec, warnings }`; the mirror's returned a bare
+// `Spec`. The most-called function in the engine had two calling conventions, and
+// the line below that was supposed to prove otherwise read
+// `be.normalizeSpec(doc).spec` next to `fe.normalizeSpec(doc)` — the harness
+// normalised the difference away in the act of checking for it. Output conformance
+// cannot see an API divergence, and nothing else was looking.
 //
-// It is also a real unit test of the engine in its own right: the EXPECTATIONS
-// block below pins the progression rules themselves, so a change that breaks
-// double progression fails here even if both sides break identically.
+// Both are now one package, @jkos/routine-spec. So this gate keeps its ENTIRE
+// structure and changes only what `be` and `fe` point at: the package's two FACES —
+// index.js (CommonJS, for the no-bundler Node backend) and index.mjs (ESM, for
+// Vite, which cannot name-import a workspace CJS module). Every "agrees" assertion
+// below now proves the twin has not drifted from its source, which is the one
+// duplication that genuinely remains and the one a `.mjs` re-export shim invites.
+//
+// It is also — and this was always the larger half — a real unit test of the engine
+// in its own right: the EXPECTATIONS block pins the progression rules themselves, so
+// a change that breaks double progression fails here regardless of any mirroring.
 //
 // Run:  node test/routine-spec.mjs      (wired as `pnpm check:routine`)
 import assert from 'node:assert/strict';
@@ -37,27 +47,27 @@ const fail = (msg) => { console.error(`✗ ${msg}`); failed++; };
 const ok = (msg) => console.log(`✓ ${msg}`);
 const check = (cond, msg) => (cond ? ok(msg) : fail(msg));
 
-/* Transpile the TS mirror and import the REAL functions — the same trick
-   test/cards-logic.mjs uses, and for the same reason: the repo has no TS test
-   runner on Node 20, and testing a hand-copied JS translation of the mirror would
-   test the copy rather than the file that ships. */
-function importTs(relPath, outName) {
-  const src = readFileSync(resolvePath(root, relPath), 'utf8');
-  const { outputText } = ts.transpileModule(src, {
-    compilerOptions: {
-      module: ts.ModuleKind.ESNext,
-      target: ts.ScriptTarget.ES2020,
-      isolatedModules: true,
-    },
-    fileName: relPath,
-  });
-  const outFile = join(tmp, outName);
-  writeFileSync(outFile, outputText);
-  return import(pathToFileURL(outFile).href);
-}
+/* The package's two faces. `be`/`fe` keep their names because every assertion below
+   is written against them, and because what they MEAN is unchanged: the thing the
+   backend loads, and the thing the browser loads. They are simply the same engine
+   now instead of two. */
+const be = require(resolvePath(root, 'packages/routine-spec/src/index.js'));
+const fe = await import(pathToFileURL(resolvePath(root, 'packages/routine-spec/src/index.mjs')).href);
 
-const be = require(resolvePath(root, 'apps/beigeboard/backend/src/routine-spec.js'));
-const fe = await importTs('apps/beigeboard/src/lib/routine-spec.ts', 'routine-spec.mjs');
+/* ── 0. The twin exposes exactly what its source does ─────────────────────────
+   A `.mjs` re-export shim is hand-written, so a new export added to index.js can
+   silently fail to reach the half of the suite that imports rather than requires —
+   the browser would get `undefined` at a call site that typechecked, because the
+   .d.ts types BOTH faces and knows nothing about the shim. This is the one
+   duplication the package still has, so it is the first thing checked. */
+{
+  const beNames = Object.keys(be).sort();
+  const feNames = Object.keys(fe).filter((n) => n !== 'default').sort();
+  const missing = beNames.filter((n) => !feNames.includes(n));
+  const extra = feNames.filter((n) => !beNames.includes(n));
+  check(!missing.length, `the ESM twin re-exports every name index.js exports${missing.length ? ` — MISSING: ${missing.join(', ')}` : ` (${beNames.length})`}`);
+  check(!extra.length, `the ESM twin exports nothing index.js does not${extra.length ? ` — EXTRA: ${extra.join(', ')}` : ''}`);
+}
 
 /* ── 1. The vocabularies must be the same lists ───────────────────────────────
    Checked first and separately: a dropdown offering a value the validator rejects
@@ -227,7 +237,7 @@ let comparisons = 0;
 let firstMismatch = null;
 for (const [name, doc] of Object.entries(CORPUS)) {
   const beSpec = be.normalizeSpec(doc).spec;
-  const feSpec = fe.normalizeSpec(doc);
+  const feSpec = fe.normalizeSpec(doc).spec;
 
   if (JSON.stringify(beSpec) !== JSON.stringify(feSpec)) {
     firstMismatch = firstMismatch || `normalise '${name}':\n  backend ${JSON.stringify(beSpec)}\n  mirror  ${JSON.stringify(feSpec)}`;
@@ -546,7 +556,7 @@ let hostileOk = true;
 for (const doc of HOSTILE) {
   try {
     const { spec } = be.normalizeSpec(doc);
-    const feSpec = fe.normalizeSpec(doc);
+    const feSpec = fe.normalizeSpec(doc).spec;
     if (JSON.stringify(spec) !== JSON.stringify(feSpec)) {
       hostileOk = false;
       console.error(`  hostile input diverged: ${JSON.stringify(doc)}`);
