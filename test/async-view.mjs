@@ -1,4 +1,4 @@
-// AsyncView conformance (ToDo.md §3 Wave 20, item 20.3) — keeps the loading/
+// AsyncView conformance (git history: Wave 20 item 20.3) — keeps the loading/
 // error/empty triad on ONE component.
 //
 // Three PapyrOS views hand-rolled the same triad three different ways: Library.tsx

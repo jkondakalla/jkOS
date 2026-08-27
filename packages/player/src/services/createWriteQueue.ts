@@ -1,5 +1,5 @@
 // services/createWriteQueue.ts — the offline write queue's RUNTIME (Layer 2,
-// ToDo §3 item 16.5 / PapyrOS §2 7.2). Wraps the pure policies in ./writeQueue.ts
+// git history item 16.5 / PapyrOS §2 7.2). Wraps the pure policies in ./writeQueue.ts
 // with durable persistence (./queueStorage.ts), online/offline listeners, and the
 // serialized replay loop. GENERIC by construction: it never imports from apps/* —
 // an app hands it a small WriteQueueAdapter (how to push a write, how to fetch a

@@ -1,4 +1,4 @@
-// library.smoke.mjs (ToDo §3 18.2) — end-to-end smoke for the library service: boots
+// library.smoke.mjs (git history: item 18.2) — end-to-end smoke for the library service: boots
 // the REAL server.js (throwaway port + temp DB, weave dev-stub auth — same house
 // pattern as apps/papyros/backend/test/library.smoke.mjs), points MUSIC_DIR at the
 // tiny fixture library committed alongside this test (fixtures/library/, regenerable

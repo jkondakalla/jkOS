@@ -23,7 +23,7 @@ Three tables carry the pipeline, plus one that carries its bookkeeping:
                  schema.
   meta           key/value bookkeeping — see the note below.
 
-⚠️ TWO DELIBERATE ADDITIONS beyond the four columns ToDo §8.1 names, both here
+⚠️ TWO DELIBERATE ADDITIONS beyond the four columns ALGORITHMS.md §4 names, both here
 to make a named trap non-silent rather than to be clever:
 
   1. The `meta` table (a fourth table where §8.1 says three). §8.4 requires the

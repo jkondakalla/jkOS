@@ -29,7 +29,7 @@ const BOOKS_KEY = resourceKey('papyros', 'books'); // 'papyros.books'
 
 /* ── 3.1: the four per-user playback + club collections ──────────────────────────
    All FOUR are owner-scoped (`scoped: true` — also the factory default, spelled out
-   here to match the ToDo's contract literally): every row carries a `user_id` column
+   here to match the the reset's contract literally): every row carries a `user_id` column
    set to `req.user.sub` on create, and every GET/PATCH/DELETE is filtered to the
    caller's own rows (see @jkos/weave/collection's `mount()` — `ownerOf(req) =>
    req.user.sub`). That is exactly what per-user playback state needs: my progress,
@@ -215,7 +215,7 @@ const META = defineConnector({
    still `metadata_source:'embedded'` with a missing author, cover, OR description
    (description joined the trigger set 2026-07-09 — embedded rips carry author+cover
    but never a synopsis, so the original trigger was a no-op on a healthy library).
-   Manual-first is suite philosophy (AI-assist via LazurOS is parked, ToDo §2): the
+   Manual-first is suite philosophy (AI-assist via LazurOS is parked, git history): the
    sweep only WRITES (via the same applyCandidate() matchBook uses) when a candidate's
    title AND author both match the book's exactly after conservative normalization
    (case-fold + trim + collapse whitespace + stripping iTunes' trailing

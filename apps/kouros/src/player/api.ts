@@ -1,4 +1,4 @@
-// player/api.ts — KourOS's player-scoped API helpers (ToDo.md §3 Wave 18, item 18.4).
+// player/api.ts — KourOS's player-scoped API helpers (git history: Wave 18 item 18.4).
 // Deliberately separate from a hypothetical top-level ../api.ts (18.3 owns that file;
 // file ownership for this task is apps/kouros/src/player/** only) — everything the
 // player adapter needs to talk to apps/kouros/backend lives here: the `tracks` catalog
@@ -57,7 +57,7 @@ const JSON_HEADERS = { 'Content-Type': 'application/json' };
 // filtered LIST route only — title/artist/album/genre/since, no `id` filter, no
 // GET /api/tracks/:id detail route (unlike papyros's GET /api/book/:id) — `tracks` is
 // hand-rolled, not a defineCollection, and 18.2 never added a single-row read. The
-// player's controller seam only carries `trackIds: number[]` (ToDo.md §3 18.4's
+// player's controller seam only carries `trackIds: number[]` (git history: item 18.4's
 // contract), so the adapter's ItemLoader.load(id) needs a way to resolve a track by id
 // without a dedicated endpoint. For a personal-library-sized catalog, fetching the
 // WHOLE unfiltered list once and caching every row by id is the simplest fix that

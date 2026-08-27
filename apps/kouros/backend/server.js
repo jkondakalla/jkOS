@@ -1,9 +1,9 @@
 'use strict';
-// KourOS backend — ToDo §3 18.2: the real music backend on the shared bricks (Wave 17).
+// KourOS backend — git history: item 18.2: the real music backend on the shared bricks (Wave 17).
 // Wave 18.1 scaffolded the minimal Layer-A template (a single placeholder `items`
 // defineCollection); this replaces it. Follows PapyrOS's proven pattern verbatim:
 // `tracks` is a SHARED, scanner-written catalog (`defineLibraryScanner`, unit:'file' —
-// one row per track, ToDo §3 17.2) with a hand-rolled migration (not a defineCollection
+// one row per track, git history: item 17.2) with a hand-rolled migration (not a defineCollection
 // — same reasoning as papyros's `books`: populated by the scanner, not user CRUD, no
 // owner column); `playlists`/`history`/`ratings` are genuine per-user CRUD via
 // defineCollection. Media playback (range-aware streaming + cover art) comes from
@@ -34,8 +34,7 @@ const SHELL_URL  = (process.env.SHELL_URL || 'http://localhost:3000').replace(/\
 
 /* Library scanner: the folder the boot scan + rescanLibrary walk. NEVER a hardcoded NAS
    path here — unlike papyros's AUDIOBOOKS_DIR, no docker-compose bind mount exists for
-   this yet; the real music library mount is Jag's own deploy-time decision (ToDo §3
-   18.2, flagged in the wave's report). The local-dev default (a sibling `music/`
+   this yet; the real music library mount is Jag's own deploy-time decision (git history: item 18.2, flagged in the wave's report). The local-dev default (a sibling `music/`
    folder that doesn't need to exist — the scanner degrades to a 0-track no-op when it's
    missing) mirrors papyros's AUDIOBOOKS_DIR default exactly. DATA_DIR mirrors papyros
    too: DB_PATH's own directory, so cover art lands at <DATA_DIR>/covers/<id>.jpg with
@@ -43,7 +42,7 @@ const SHELL_URL  = (process.env.SHELL_URL || 'http://localhost:3000').replace(/\
 const MUSIC_DIR = process.env.MUSIC_DIR || path.join(__dirname, 'music');
 const DATA_DIR  = path.dirname(DB_PATH);
 
-/* The music embedder's index (ToDo §8's music/index.db) — the source of the CLAP
+/* The music embedder's index (ALGORITHMS.md §4's music/index.db) — the source of the CLAP
    vectors behind similarity, radio, Runs and the vibe map. OPTIONAL by design: it
    is produced by a separate Python pipeline on a separate schedule, it is read
    strictly read-only, and when it is absent (or has not reached a given track yet)

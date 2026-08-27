@@ -1,7 +1,7 @@
 import { MatchPanel as GenericMatchPanel } from '@jkos/ui';
 import { matchBook, searchMetadata, type Candidate, type MatchResult } from '../../api';
 
-// The "Fix metadata" match flow (task 5.3's brief) — generalized by ToDo.md §3
+// The "Fix metadata" match flow (task 5.3's brief) — generalized by git history
 // item 20.4 into @jkos/ui's <MatchPanel> (packages/ui/src/MatchPanel.tsx), a
 // presentational search→candidates→apply shell fed by an injected {search, apply}
 // pair instead of a hardcoded API import. This file is now a THIN BINDING of that

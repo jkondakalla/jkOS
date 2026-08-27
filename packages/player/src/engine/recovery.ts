@@ -1,5 +1,5 @@
 // packages/player/src/engine/recovery.ts — the PURE compat-recovery ladder decisions
-// (ToDo.md §3 Wave 15, item 15.3). The stateful loop (prepare/poll, reqSeq + reentrancy
+// (git history: Wave 15 item 15.3). The stateful loop (prepare/poll, reqSeq + reentrancy
 // guards, seek-restore) stays in usePlayerEngine.ts; the arithmetic of "which rung, is
 // this error recoverable, have we exhausted the ladder" is factored out here so it can
 // be unit-tested in isolation (test/engine.test.mjs), the house pattern.

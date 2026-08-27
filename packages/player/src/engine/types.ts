@@ -1,9 +1,9 @@
 // packages/player/src/engine/types.ts — the seam contracts for the headless engine
-// (ToDo.md §3 Wave 15, item 15.3).
+// (git history: Wave 15 item 15.3).
 //
 // Every PapyrOS-specific dependency usePlayerEngine.ts hardcoded today becomes an
 // injected seam declared here, so ONE headless engine drives audiobooks, music, and
-// video (Documentation/PLAYER_PARITY.md §3 "Layer 1 — engine"). Nothing here imports
+// video (git history: PLAYER_PARITY.md, retired — "Layer 1 — engine"). Nothing here imports
 // from apps/* — the engine speaks a vocabulary-neutral surface that thin per-app
 // adapters (item 15.4 migrates PapyrOS by writing ONLY those adapters) map onto their
 // own API client + row shapes.

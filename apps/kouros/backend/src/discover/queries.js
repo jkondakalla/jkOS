@@ -7,7 +7,7 @@
 //   vibeMap()   the draggable 2-D map     — PCA-2 + k-means + auto-labelled regions
 //
 // ⚠️ THE DUPLICATE TRAP, WHICH IS A UI BUG HERE AND WAS A MEASUREMENT BUG THERE.
-// ToDo §8.7 found ~20% of this library is a track that also appears on another
+// ALGORITHMS.md §4 found ~20% of this library is a track that also appears on another
 // release, and that at one point 22.9% of tracks had a duplicate as their nearest
 // neighbour. For the GATE that distorted a score. For a "More like this" shelf it
 // is worse: the four most similar tracks to a song are four other copies of that
@@ -32,7 +32,7 @@ function dot(matrix, dim, i, q) {
  *  stranger-spread above that, and a genuine neighbour is comfortably past 1.
  *
  *  ⚠️ WITHOUT THIS EVERY SCORE ON THE WIRE IS A LIE THAT LOOKS REASONABLE.
- *  ToDo §8.7 measured CLAP's raw space as a narrow anisotropic cone: two tracks
+ *  ALGORITHMS.md §4 measured CLAP's raw space as a narrow anisotropic cone: two tracks
  *  by unrelated artists average +0.480 with a spread of 0.219, and nothing in
  *  the library scores below +0.03. Served raw, a total stranger arrives at the
  *  UI as "0.48 similar" and every result crowds a 0.4-0.9 band that has no zero

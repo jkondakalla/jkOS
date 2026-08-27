@@ -4,8 +4,8 @@
 > agent picking up either one, read this file first**, then the runbook it points at.
 > When this disagrees with the code, the code wins — update this.
 
-Related: **[ToDo §8](ToDo.md) is the music backlog** — the M1→M4 chunks, and the active section
-as of 2026-08-18 · [ToDo §1](ToDo.md) is the LazurOS backlog ·
+Related: **ToDo §8 (retired) is the music backlog** — the M1→M4 chunks, and the active section
+as of 2026-08-18 · ToDo §1 (retired) is the LazurOS backlog ·
 [LAZUROS_STARTUP.md](LAZUROS_STARTUP.md) is the bring-up runbook, verified against source ·
 [ROUTINES.md](ROUTINES.md) is the routine primitive the variance feature reads ·
 [ARCHITECTURE.md § LazurOS](ARCHITECTURE.md#lazuros-the-ai-gateway) is the design record.
@@ -60,8 +60,8 @@ to step 0.** See §3 for why.
 
 | # | Step | Gate to the next |
 |---|---|---|
-| **0** | BeigeBoard variance instrumentation (§3) | ✅ **BUILT + DEPLOYED 2026-08-18** — migration 13 verified applied on the live staging DB (ledger id 13, both columns, both triggers). Outstanding: one real completion to fire the trigger — the DB has **zero** completed items, so the 0→1 edge has not yet occurred. [ToDo §8.0](ToDo.md) |
-| **M1–M4** | Music through the similarity gate (§4) — **chunked as [ToDo §8.1–8.7](ToDo.md)**. §8.1–§8.5 built 2026-08-18 (`music/`, 243 tests green; M2's picture gate, §8.4's sanity gate and §8.5's 8/8 verification all passed) | the ten nearest tracks to something you know well are *right* |
+| **0** | BeigeBoard variance instrumentation (§3) | ✅ **BUILT + DEPLOYED 2026-08-18** — migration 13 verified applied on the live staging DB (ledger id 13, both columns, both triggers). Outstanding: one real completion to fire the trigger — the DB has **zero** completed items, so the 0→1 edge has not yet occurred. ToDo §8.0 (retired) |
+| **M1–M4** | Music through the similarity gate (§4) — **chunked as ToDo §8.1–8.7 (retired)**. §8.1–§8.5 built 2026-08-18 (`music/`, 243 tests green; M2's picture gate, §8.4's sanity gate and §8.5's 8/8 verification all passed) | the ten nearest tracks to something you know well are *right* |
 | **V** | Completion-volume check (§5) | a number, read off the live DB |
 | **L1** | LazurOS minimal bring-up (§6) | a capability round-trips through the staging console |
 | **L2** | Prompt versioning · audit schema · eval harness (§7) | one capability has a reproducible score |
@@ -77,7 +77,7 @@ way; M1–M4 is the long pole.
 > `items` carries `started_at` and `completed_at`, and both triggers exist. One thing is still
 > owed and it is a checkbox tick rather than work — the staging DB holds **zero completed items
 > of any kind**, so the `completed` 0→1 edge has never occurred and the trigger has never fired
-> in production. Completing one real routine step closes it; see [ToDo §8.0](ToDo.md) for the
+> in production. Completing one real routine step closes it; see ToDo §8.0 (retired) for the
 > read-back command. ⚠️ **Copy the `-wal` alongside the `.db`** when reading that database — a
 > multi-megabyte WAL holds recent writes, and querying the bare `.db` shows a stale snapshot.
 
@@ -270,7 +270,7 @@ avoided: `librosa`/`soundfile` (ffmpeg decodes a FLAC in 0.13 s) · `sqlite-vec`
 with a table *shaped* for it — see M3) · `pytest` (stdlib `unittest`) · `matplotlib` (SVG emitted
 as text) · `sklearn`/`umap-learn` (`np.linalg.svd`).
 
-The chunk-level breakdown lives in [ToDo §8](ToDo.md); it is not restated here.
+The chunk-level breakdown lives in ToDo §8 (retired); it is not restated here.
 
 ### The representation decision
 
@@ -655,7 +655,7 @@ The variance feature, the eval harness, the audit work, and tool calling need no
 LazurOS bring-up is Ollama plus the State node plus jkAuth enrolment — not seven services.
 
 Recorded here so they are not re-added to the blocker list: they remain in
-[ToDo §1b](ToDo.md) as real work, they are simply not on this path.
+ToDo §1b (retired) as real work, they are simply not on this path.
 
 > ⚠️ Tier 1 in the committed config *is* the web-search tier, so cutting the sidecar means
 > tier 1 has no fulfiller. That is fine for this path — every capability the eval and variance
@@ -864,7 +864,7 @@ to a nearby unplayed track, so consecutive tracks are similar and the set drifts
 variety. This is the feature that justifies the pipeline.
 
 Joins to KourOS's `tracks` by absolute path (§4). The natural consumer is KourOS itself, whose
-`MUSIC_DIR` mount is still an open unblocker in [ToDo §3](ToDo.md) — worth landing before M5,
+`MUSIC_DIR` mount is still an open unblocker in ToDo §3 (retired) — worth landing before M5,
 since it is a compose-file edit and a decision, not code.
 
 **M6 — library map.** UMAP or PCA projection to 2D: where a track sits relative to the rest of

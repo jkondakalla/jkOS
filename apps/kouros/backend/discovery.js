@@ -1,8 +1,8 @@
 'use strict';
-// discovery.js — KourOS's Weave discovery declarations (ToDo §3 18.2 — real backend on
+// discovery.js — KourOS's Weave discovery declarations (git history: item 18.2 — real backend on
 // the shared bricks, replacing 18.1's scaffolded placeholder `items` collection).
 //
-// Follows PapyrOS's proven split (ToDo §3 Wave 17): `tracks` is a SHARED,
+// Follows PapyrOS's proven split (git history: Wave 17): `tracks` is a SHARED,
 // scanner-written catalog — populated by `defineLibraryScanner` (src/library/scan.js),
 // not user CRUD, no `user_id` — so it's a hand-rolled migration + hand-authored dataset
 // (server.js migration 1 + TRACKS_DATASET below), the same shape as papyros's `books`.

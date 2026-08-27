@@ -31,7 +31,7 @@ different model.
 
 ## **No export was run.** That is why this checkpoint was chosen
 
-ToDo §8.5 says to prefer a model with an already-published ONNX artifact, and this one
+ALGORITHMS.md §4 says to prefer a model with an already-published ONNX artifact, and this one
 ships `onnx/audio_model.onnx` directly — so there is no export step, no throwaway PyTorch
 venv, no opset arguments, no dynamic-axis surprises, and none of the class of failure
 where *the export ran but the exported graph is subtly not the model*.

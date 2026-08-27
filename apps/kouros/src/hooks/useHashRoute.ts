@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 
 // useHashRoute — KourOS's hand-rolled hash router (no dependency, matching
 // papyros/ORDECK's precedent — a shared useHashRoute was explicitly Tier-3'd in
-// ToDo.md §3 Wave 20's crib: "two hand-rolled routers doesn't justify it", so a
+// git history: Wave 20's crib: "two hand-rolled routers doesn't justify it", so a
 // third per-app copy is the correct call here too). Five routes:
 //
 //   '#/'                             → Home (recently-added / recently-played)

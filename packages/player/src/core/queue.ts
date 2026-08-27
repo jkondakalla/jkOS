@@ -1,4 +1,4 @@
-// queue.ts — pure Queue reducers (Layer 0, PLAYER_PARITY.md §1/§3). A Queue is an
+// queue.ts — pure Queue reducers (Layer 0, git history — PLAYER_PARITY.md §1/§3, retired). A Queue is an
 // ordered list of opaque item ids (a Timeline id, a track id, whatever the caller
 // hands it — this module never looks inside one) plus a cursor and a policy
 // (shuffle, repeat). No classes, no mutable state: every reducer takes a Queue and

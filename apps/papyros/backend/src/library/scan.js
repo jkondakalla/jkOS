@@ -1,6 +1,6 @@
 'use strict';
 // scan.js (PapyrOS library service, task 2.3) — thin app-specific config on top of the
-// shared `defineLibraryScanner` brick (`@jkos/weave/libraryScanner`, ToDo §3 17.2). The
+// shared `defineLibraryScanner` brick (`@jkos/weave/libraryScanner`, git history: item 17.2). The
 // generic ladder (walk AUDIOBOOKS_DIR → ffprobe pool → mtime-incremental skip → upsert
 // ON CONFLICT(path) → prune vanished rows) now lives in the brick; this file supplies
 // only what's audiobook-specific:

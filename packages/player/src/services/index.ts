@@ -1,5 +1,5 @@
-// packages/player/src/services/index.ts — Layer 2 services barrel (ToDo.md §3 Wave 16;
-// Documentation/PLAYER_PARITY.md §3 "Layer 2 — services"). Built once, all three player
+// packages/player/src/services/index.ts — Layer 2 services barrel (git history: Wave 16;
+// git history: PLAYER_PARITY.md, retired — "Layer 2 — services"). Built once, all three player
 // modes inherit. Each service is its own module; this barrel is the package's
 // `@jkos/player/services` surface.
 

@@ -1,6 +1,6 @@
 'use strict';
 // src/media.js — the playback backend, now a thin adapter over the shared media brick
-// (@jkos/weave/mediaRoutes, ToDo §3 Wave 17, 17.3). Everything generic — range-aware
+// (@jkos/weave/mediaRoutes, git history: Wave 17, 17.3). Everything generic — range-aware
 // streaming, cover art, whole-book download (1 file direct, N zipped store-only), and
 // the compat/transcode DECISION ENGINE with its single-flight + atomic-rename +
 // prepare-only-generation invariants — lives in the brick. This file supplies only the

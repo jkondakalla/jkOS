@@ -4,10 +4,9 @@ Turn a personal music library into a searchable vector space: **mel spectrograms
 pretrained embeddings → similarity search**, and then a shuffle that *walks* the space
 instead of permuting it.
 
-Design record and the reasoning behind every decision here:
-[`Documentation/ALGORITHMS.md §4`](../Documentation/ALGORITHMS.md). The task breakdown is
-[`Documentation/ToDo.md §8`](../Documentation/ToDo.md). This README covers how to run it and
-what the pieces are; it deliberately does not restate either.
+Design record, the reasoning behind every decision, and the task breakdown, all in one
+place: [`Documentation/ALGORITHMS.md §4`](../Documentation/ALGORITHMS.md). This README
+covers how to run it and what the pieces are; it deliberately does not restate that.
 
 This directory is **outside the pnpm workspace** and has **zero jkOS imports**, following the
 [`jkos-deploy/`](../jkos-deploy/) precedent. That isolation is a deliverable, not an accident

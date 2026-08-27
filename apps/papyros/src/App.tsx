@@ -31,7 +31,7 @@ injectJkOSTheme({
   radius: { base: '6px', xs: '3px', sm: '5px', lg: '10px', soft: '7px', button: '6px' },
 })
 
-// AppShell (@jkos/ui, ToDo.md §3 Wave 20 item 20.1) owns the invariant frame —
+// AppShell (@jkos/ui, git history: Wave 20 item 20.1) owns the invariant frame —
 // AuthGuard → header (brand + settings trigger) → SettingsDrawer wiring →
 // useJkOSPreferences — so PapyrOS only supplies its own routed content plus the
 // two injected selectors (usePreferences, useUser) the shell calls from inside

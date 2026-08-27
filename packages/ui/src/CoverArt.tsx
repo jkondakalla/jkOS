@@ -1,4 +1,4 @@
-// CoverArt.tsx — the suite's canonical cover-art primitive (ToDo.md §3 Wave
+// CoverArt.tsx — the suite's canonical cover-art primitive (git history Wave
 // 20, item 20.2): an image with a graceful fallback placeholder on missing
 // or 404'd art. Extracted from papyros's library grid tile (originally
 // apps/papyros/src/views/library/CoverArt.tsx).

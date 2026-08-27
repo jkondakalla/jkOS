@@ -1,5 +1,5 @@
 'use strict';
-// tags.js (KourOS library service, ToDo §3 18.2) — pure ffprobe-tag helpers for the
+// tags.js (KourOS library service, git history: item 18.2) — pure ffprobe-tag helpers for the
 // music scanner. Mirrors the PURE half of papyros's src/library/probe.js
 // (extractYear/parseGenres) — no narrator/series/album==title guard here, since none of
 // that audiobook-specific logic applies to a per-track music catalog. Kept apart from

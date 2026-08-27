@@ -1,5 +1,4 @@
-/* player-ui.css — the @jkos/player UI kit's stylesheet (ToDo.md §3 Wave 16, item
-   16.6). The `player-bar` / `pb-*` rules are lifted VERBATIM from
+/* player-ui.css — the @jkos/player UI kit's stylesheet (git history: Wave 16 item 16.6). The `player-bar` / `pb-*` rules are lifted VERBATIM from
    apps/papyros/src/player/player.css (papyros now keeps only its bespoke rules —
    bookmarks, the mobile More sheet, and its body-class reserve-space rule), so the
    papyros bar renders pixel-identically off this file. Layout + chrome only; every

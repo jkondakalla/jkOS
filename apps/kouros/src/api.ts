@@ -1,5 +1,5 @@
 // api.ts — KourOS's typed API client. One module every view/hook imports instead
-// of hand-rolling fetch calls, mirroring papyros's api.ts (ToDo.md §2 Wave 5.1's
+// of hand-rolling fetch calls, mirroring papyros's api.ts (git history: Wave 5.1's
 // crib) so the wire contract (mirrored from apps/kouros/backend/discovery.js +
 // src/{media,routes/{library,tracks}}.js) lives in one place.
 //
@@ -261,7 +261,7 @@ export function libraryStats(): Promise<LibraryStats> {
 
 // ─── Discovery (backend/src/discover — the embedding seam) ────────────────────
 // ⚠️ EVERY response here carries the BASIS of its answer, and the UI is expected
-// to SHOW it. The embedder (ToDo §8) backfills over hours, so at any moment part
+// to SHOW it. The embedder (ALGORITHMS.md §4) backfills over hours, so at any moment part
 // of the library has a measured vector, part inherits its album's centroid, and
 // part has nothing and falls back to genre/artist affinity. Rendering all three
 // identically would present a genre guess as an acoustic match — and the first

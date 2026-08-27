@@ -1,4 +1,4 @@
-// packages/player/src/engine/rate.ts — pure playback-rate helpers (ToDo.md §3 Wave 15,
+// packages/player/src/engine/rate.ts — pure playback-rate helpers (git history, Wave 15,
 // item 15.3). Lifted verbatim from usePlayerEngine.ts's RATE_PRESETS + readInitialRate
 // + cycleRate rate math, with the one change the generalization forces: localStorage is
 // injected (a StorageLike) instead of referenced as a global, so the read/write is a

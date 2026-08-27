@@ -1,6 +1,6 @@
 // @jkos/player/engine — Layer 1: the headless player engine (a React hook) + its seam
 // contracts. Drives a MediaBackend (../backend) over the timeline math (../core) via
-// per-app injected seams. See Documentation/PLAYER_PARITY.md §3 "Layer 1 — engine".
+// per-app injected seams. See git history: PLAYER_PARITY.md, retired — "Layer 1 — engine".
 export { usePlayerEngine, DEFAULT_MESSAGES, RATE_PRESETS } from './usePlayerEngine';
 export {
   readPersistedRate, persistRate, nextRate, type StorageLike,

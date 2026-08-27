@@ -1,6 +1,6 @@
 'use strict'
 // weave/server/mediaRoutes.js — the MEDIA-ROUTES primitive factory (Layer D, the 4th
-// brick next to defineCollection / defineConnector / triggers; ToDo §3 Wave 17, 17.3).
+// brick next to defineCollection / defineConnector / triggers; git history: Wave 17, 17.3).
 //
 // `defineMediaRoutes(spec)` turns a pure-data media SPEC (how an app maps an id → the
 // file(s) on disk, plus a transcode ladder) into the routes every catalog-backed media

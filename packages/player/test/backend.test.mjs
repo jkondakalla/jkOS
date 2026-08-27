@@ -1,4 +1,4 @@
-// packages/player/test/backend.test.mjs — MediaBackend seam unit test (ToDo.md §3
+// packages/player/test/backend.test.mjs — MediaBackend seam unit test (git history
 // Wave 15, item 15.2).
 //
 // packages/player has no TS runner wired yet (its package.json/tsconfig are being

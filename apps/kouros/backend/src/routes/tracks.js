@@ -1,5 +1,5 @@
 'use strict';
-// routes/tracks.js — the `tracks` dataset (the read contract, ToDo §3 18.2). A filtered
+// routes/tracks.js — the `tracks` dataset (the read contract, git history: item 18.2). A filtered
 // list read over the shared catalog the scanner (src/library/scan.js) populates.
 // Filters DERIVED from the dataset's own declaration (buildItemFilters/filterSpec —
 // single source, P3) — mirrors papyros's src/routes/books.js. Read-only: `tracks` has

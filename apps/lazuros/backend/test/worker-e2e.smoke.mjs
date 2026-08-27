@@ -247,7 +247,7 @@ async function main() {
   ok(con.ok && /LazurOS/.test(conHtml), 'the test console is served at /api/lazuros/console/');
 
   // ═══ Part E — jobs dataset filters: capability (eq) + since (delta cursor over
-  // updated_at, exclusive) + undeclared-param handling (ToDo §1a 1.3, docs.js/jobs.js).
+  // updated_at, exclusive) + undeclared-param handling (git history: item 1.3, docs.js/jobs.js).
   // Seed two rows DIRECTLY into the running node's SQLite file — a second connection
   // alongside the server's (same pattern as library.smoke.mjs), used here to WRITE
   // rows with exactly controlled capability/timestamps instead of racing wall-clock

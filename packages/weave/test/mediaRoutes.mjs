@@ -1,4 +1,4 @@
-// @jkos/weave mediaRoutes tests — the 4th Layer-D brick (defineMediaRoutes, ToDo §3
+// @jkos/weave mediaRoutes tests — the 4th Layer-D brick (defineMediaRoutes, git history
 // Wave 17, 17.3). Two shapes in one file (chained after lego.mjs by `pnpm --filter
 // @jkos/weave test`, which the root `test:contracts` gate runs):
 //

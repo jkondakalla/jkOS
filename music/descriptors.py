@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""M3's COMPARISON ARM — the classical descriptor baseline (ToDo §8.4).
+"""M3's COMPARISON ARM — the classical descriptor baseline (ALGORITHMS.md §4).
 
 Built **before** the encoder on purpose. M4 is a gate, and a gate needs something
 to weigh against: "are these ten neighbours good?" is a question with no failing
@@ -45,7 +45,7 @@ import mel
 DESCRIPTOR_VERSION = 1
 
 # ── The knobs, all in one place ─────────────────────────────────────────────────
-N_MFCC = 20             # DCT-II coefficients kept, per ToDo §8.4.
+N_MFCC = 20             # DCT-II coefficients kept, per ALGORITHMS.md §4.
 ROLLOFF_PERCENT = 0.85  # the classical choice: the frequency below which 85% of
                         # the magnitude sits. Higher reads as "where the top end
                         # stops", lower drifts toward the centroid it duplicates.
@@ -484,7 +484,7 @@ class CorpusStats:
                 f'refusing to fit corpus statistics over {matrix.shape[0]} track(s); '
                 f'{MIN_FIT_ROWS} is the floor. A z-score fitted on a handful of tracks '
                 f'is a per-track normalisation wearing a corpus costume, and that is '
-                f'the one thing this module exists to prevent (ToDo §8.4).'
+                f'the one thing this module exists to prevent (ALGORITHMS.md §4).'
             )
         mean = matrix.mean(axis=0)
         std = matrix.std(axis=0)
@@ -634,7 +634,7 @@ def album_of(path):
 # workstation's `…/Plex/Music` and a container's `/music` both answer to it.
 # Compared by name rather than by full path because `artist_of` is handed paths
 # from whichever side is asking, and only the segments BELOW the root are a
-# thing the two agree on (KourOS `src/discover/vectors.js`, ToDo §8.8).
+# thing the two agree on (KourOS `src/discover/vectors.js`, ALGORITHMS.md §4).
 def _root_name():
     # Read at CALL time, never captured as a default argument — `config.LIBRARY_ROOT`
     # is overridable and this module has already been bitten three times by a
@@ -802,7 +802,7 @@ def select_albums(conn, n_albums, min_tracks=MIN_ALBUM_TRACKS, per_artist=1):
 
 
 # ── The sanity gate ─────────────────────────────────────────────────────────────
-# ToDo §8.4: "two tracks from one album should sit closer than two random tracks."
+# ALGORITHMS.md §4: "two tracks from one album should sit closer than two random tracks."
 # A gate that needs no encoder, which is the point — it says whether the DESCRIPTOR
 # arm is sound before there is anything to compare it against, so a failure at M4
 # cannot be blamed on a baseline nobody ever checked.

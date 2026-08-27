@@ -1,6 +1,6 @@
 'use strict';
-// scan.js (KourOS library service, ToDo §3 18.2) — thin app-specific config on top of
-// the shared `defineLibraryScanner` brick (`@jkos/weave/libraryScanner`, ToDo §3 17.2),
+// scan.js (KourOS library service, git history: item 18.2) — thin app-specific config on top of
+// the shared `defineLibraryScanner` brick (`@jkos/weave/libraryScanner`, git history: item 17.2),
 // exactly the same shape as papyros's src/library/scan.js. What's app-specific here:
 //   - which folder/extensions to scan (MUSIC_DIR, MUSIC_EXTENSIONS) and which table to
 //     write (`tracks`) — `unit: 'file'` (17.2's second unit shape), one row per audio
@@ -10,9 +10,9 @@
 //     tag key ffprobe ACTUALLY reports across every container this app scans (verified
 //     directly: ffmpeg normalizes MP4's `aART` atom, ID3's TPE2 frame, and a FLAC/Ogg
 //     Vorbis-comment `ALBUMARTIST` field all down to one generic `album_artist` tag on
-//     the way out — ToDo §3 18.2's prose names the tag "albumartist", but that's the
+//     the way out — git history: item 18.2's prose names the tag "albumartist", but that's the
 //     Vorbis-comment SPELLING, not ffprobe's normalized key). The `tracks` table COLUMN
-//     is named `albumartist` (no underscore, matching the ToDo's literal wording); this
+//     is named `albumartist` (no underscore, matching the the reset's literal wording); this
 //     mapping is the one place the two names meet. Falls back to `artist` when a file
 //     carries no dedicated album-artist tag (the common case for a standalone single,
 //     not part of a various-artists compilation).

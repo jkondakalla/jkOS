@@ -16,7 +16,7 @@ body {
 /* ── App shell ─────────────────────────────────────────────────────────────── */
 /* The guard/header/drawer frame itself (.jk-shell, .jk-shell-header, .jk-shell-brand,
    .jk-shell-wordmark, .jk-shell-settings-btn) lives in @jkos/design's hub.css,
-   shared via @jkos/ui's <AppShell> (ToDo.md §3 Wave 20 item 20.1) — App.tsx renders
+   shared via @jkos/ui's <AppShell> (git history: Wave 20 item 20.1) — App.tsx renders
    no app-local .app/.app-header/etc. classes. `.app-main` is this app's own width
    policy: grids (Home/Artists) want the wide column, detail/search pages narrow
    themselves back down (views/detail.css's `.view-detail`). */

@@ -1,4 +1,4 @@
-"""M3a under test (ToDo §8.5).
+"""M3a under test (ALGORITHMS.md §4).
 
 Split in two on purpose. The checks that need no weights and no `onnxruntime`
 run everywhere — and they are the ones that matter most, because they cover the

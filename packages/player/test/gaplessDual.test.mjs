@@ -1,5 +1,5 @@
 // packages/player/test/gaplessDual.test.mjs — gaplessDual MediaBackend unit test
-// (ToDo.md §3 Wave 18, item 18.5).
+// (git history: Wave 18 item 18.5).
 //
 // House pattern (test/backend.test.mjs, .claude/skills/new-tester/SKILL.md §3):
 // transpile the REAL src/backend/gaplessDual.ts in-memory (its imports are all

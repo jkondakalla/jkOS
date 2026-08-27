@@ -1,5 +1,5 @@
 // services/writeQueue.ts — the PURE half of the offline write queue (Layer 2,
-// PLAYER_PARITY.md §3 "services"; ToDo §3 item 16.5 / PapyrOS §2 7.2).
+// git history: PLAYER_PARITY.md, retired — "services"; git history item 16.5 / PapyrOS §2 7.2).
 //
 // Everything in this file is a pure function over plain data — no DOM, no network,
 // no IndexedDB, no React — so the queue's three load-bearing policies are unit-

@@ -21,7 +21,7 @@
 //   * a deliberately wrong LIBRARY_ROOT_NAME collapses coverage to zero,
 //     which is what proves these assertions can actually fail.
 //
-// It also covers the calibration (ToDo §8.7's anisotropic-cone trap): a stranger
+// It also covers the calibration (ALGORITHMS.md §4's anisotropic-cone trap): a stranger
 // must score near 0 once the fitted corpus geometry is applied, not near +0.48.
 //
 // Requires `ffprobe` on PATH (the boot scan). SKIPS with exit 0 if absent.
@@ -244,7 +244,7 @@ try {
   ok(/song two/i.test(ranked[0] || ''),
     `similar: the same-album track ranks first (got ${JSON.stringify(ranked)})`);
 
-  // ⚠️ ToDo §8.7's anisotropic-cone trap: read RAW, every one of these vectors
+  // ⚠️ ALGORITHMS.md §4's anisotropic-cone trap: read RAW, every one of these vectors
   // scores ~+0.9 against every other because they share a large component. After
   // centring by the fitted mean, an unrelated track must fall away from the
   // neighbour rather than crowding it.

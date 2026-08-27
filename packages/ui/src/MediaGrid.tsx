@@ -1,4 +1,4 @@
-// MediaGrid.tsx — the suite's responsive cover grid (ToDo.md §3 Wave 20, item
+// MediaGrid.tsx — the suite's responsive cover grid (git history, Wave 20, item
 // 20.2). The 2/3/4-column density ladder used to be hardcoded per app
 // (`.lib-grid[data-density]` in papyros's library.css); it now lives once in
 // the design factory (packages/design/responsive/mediaGrid.ts + the

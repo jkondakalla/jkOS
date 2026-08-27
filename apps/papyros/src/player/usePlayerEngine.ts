@@ -1,5 +1,5 @@
 // usePlayerEngine.ts — PapyrOS's THIN adapter over @jkos/player's headless engine
-// (ToDo.md §3 Wave 15, item 15.4: PapyrOS migrates onto the primitive). All the
+// (git history: Wave 15 item 15.4: PapyrOS migrates onto the primitive). All the
 // position math, the compat-recovery ladder, the progress/bookmark write
 // choreography, and the sleep timer that used to live in this file now live in
 // @jkos/player/engine's usePlayerEngine (Layer 1) — a verbatim generalization of what
@@ -56,7 +56,7 @@ export interface PlayerApi {
   total: number;
   rate: number;
   /** Wave 16.2 pass-through. PapyrOS's audiobook bar renders NO volume control
-   *  (PLAYER_PARITY.md §3: volume belongs to the music preset) — exposed here only so
+   *  (git history: PLAYER_PARITY.md, retired: volume belongs to the music preset) — exposed here only so
    *  the adapter stays a full mirror of the engine surface. */
   volume: number;
   muted: boolean;

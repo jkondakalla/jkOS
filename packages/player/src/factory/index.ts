@@ -1,5 +1,5 @@
-// @jkos/player/factory — Layer 3's createPlayer(spec) factory + presets (ToDo.md
-// §3 Wave 16, item 16.7; Documentation/PLAYER_PARITY.md §3 "Layer 3 — UI kit").
+// @jkos/player/factory — Layer 3's createPlayer(spec) factory + presets (git history
+// §3 Wave 16, item 16.7; git history: PLAYER_PARITY.md, retired — "Layer 3 — UI kit").
 // Kept as its own export subpath, separate from @jkos/player/ui (that barrel is
 // "deliberately factory-free" — see its header comment): this module has zero
 // runtime imports (no React, no @jkos/ui, no @jkos/design), so it composes the

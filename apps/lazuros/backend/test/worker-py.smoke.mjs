@@ -1,4 +1,4 @@
-// worker-py.smoke.mjs — ToDo.md §1a item 1.1: wraps the Python worker smoke
+// worker-py.smoke.mjs — git history item 1.1: wraps the Python worker smoke
 // (apps/lazuros/worker/test/worker.smoke.py, 19 assertions covering the worker's
 // poll → claim → render → infer → post loop: happy path, idle, lost-claim race,
 // unconfigured capability → FAILED, infer-error → FAILED) into the node gate. Before

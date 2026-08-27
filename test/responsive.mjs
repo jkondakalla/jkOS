@@ -172,7 +172,7 @@ for (const file of CARD_VIEWS) {
 }
 
 // ── 7. the media-grid density ladder agrees between JS and hub.css ─────────
-// ToDo.md §3 20.2 moved papyros's hardcoded `.lib-grid[data-density]` 2/3/4-
+// git history: item 20.2 moved papyros's hardcoded `.lib-grid[data-density]` 2/3/4-
 // column ladder into packages/design/responsive/mediaGrid.ts (MEDIA_GRID_
 // COLUMNS) + the `.jk-media-grid[data-density]` rule in tokens/hub.css. Two
 // sources describing the same three numbers is exactly the drift trap this

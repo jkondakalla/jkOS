@@ -1,5 +1,5 @@
 'use strict'
-// weave/server/libraryScanner.js — the LIBRARY SCANNER primitive factory (ToDo §3 17.2).
+// weave/server/libraryScanner.js — the LIBRARY SCANNER primitive factory (git history: item 17.2).
 //
 // Lifted from PapyrOS `backend/src/library/{scan,probe}.js` (Wave 2): a folder of media
 // files → a SQLite catalog, kept in sync on every rescan. The ladder is generic and
@@ -19,7 +19,7 @@
 //
 // Table/DDL ownership stays with the calling app (unlike defineCollection): the scanner
 // only INSERTs/UPDATEs/DELETEs rows in a table the app's own migration already created —
-// see PLAYER_PARITY.md §4. `db`/`table`/`dataDir` are all supplied by the app at
+// see git history: PLAYER_PARITY.md, retired. `db`/`table`/`dataDir` are all supplied by the app at
 // construction, exactly like createScanner() did before this brick existed.
 //
 // Two "unit" shapes, chosen per app via spec.unit:

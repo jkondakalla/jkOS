@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Hand the finished vector space to KourOS (ToDo §8.9, last mile).
+"""Hand the finished vector space to KourOS (ALGORITHMS.md §4, last mile).
 
     music/index.db  ──VACUUM INTO──▶  a single verified file  ──cp──▶  <kouros-data>/music-index.db
 

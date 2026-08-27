@@ -5,7 +5,7 @@ import { SettingsDrawer } from './SettingsDrawer';
 import type { SettingsDrawerProps } from './SettingsDrawer';
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   @jkos/ui — <AppShell> (ToDo.md §3 Wave 20, item 20.1)
+   @jkos/ui — <AppShell> (git history: Wave 20 item 20.1)
 
    The invariant frame every full-shell app hand-wrote four times: an auth guard,
    an identity + settings-trigger header row, the shared SettingsDrawer, and the

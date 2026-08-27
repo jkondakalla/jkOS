@@ -1,4 +1,4 @@
-// scrub.ts — the PURE math under the UI kit (ToDo.md §3 Wave 16, item 16.6). No DOM,
+// scrub.ts — the PURE math under the UI kit (git history: Wave 16 item 16.6). No DOM,
 // no React, no runtime imports (type-only NavPoint) — so test/ui.test.mjs can
 // transpile this one file in isolation, the same house pattern core.test.mjs uses.
 //

@@ -16,7 +16,7 @@ body {
 /* ── App shell ─────────────────────────────────────────────────────────────── */
 /* The guard/header/drawer frame itself (.jk-shell, .jk-shell-header, .jk-shell-brand,
    .jk-shell-wordmark, .jk-shell-settings-btn) now lives in @jkos/design's hub.css,
-   shared via @jkos/ui's <AppShell> (ToDo.md §3 Wave 20 item 20.1) — App.tsx no
+   shared via @jkos/ui's <AppShell> (git history: Wave 20 item 20.1) — App.tsx no
    longer renders app-local .app/.app-header/etc. classes. Only .app-main (the
    library-grid-vs-reading-measure width policy) stays here: it's PapyrOS-specific. */
 

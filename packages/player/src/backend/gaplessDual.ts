@@ -1,8 +1,8 @@
 // packages/player/src/backend/gaplessDual.ts — the SECOND MediaBackend implementation
-// (ToDo.md §3 Wave 18, item 18.5): two internal media elements whose active/standby
+// (git history: Wave 18 item 18.5): two internal media elements whose active/standby
 // roles swap at track boundaries, buying the one thing a single element structurally
 // cannot do — gapless playback and 0–12 s crossfades (the whole reason the seam in
-// 15.2 exists; Documentation/PLAYER_PARITY.md §3 "Layer 0/Layer 1 boundary").
+// 15.2 exists; git history: PLAYER_PARITY.md, retired — "Layer 0/Layer 1 boundary").
 //
 // THE CONTRACT WITH THE ENGINE (usePlayerEngine.ts) IS UNCHANGED: this backend
 // satisfies plain `MediaBackend` byte-for-byte in behavior when nobody calls the
@@ -83,7 +83,7 @@ import type {
 } from './types';
 import type { MediaElementLike } from './htmlMedia';
 
-/** Upper bound on the crossfade, per ToDo.md §3 18.5 ("Crossfade 0–12 s"). */
+/** Upper bound on the crossfade, per git history: item 18.5 ("Crossfade 0–12 s"). */
 export const MAX_CROSSFADE_SEC = 12;
 
 /** How far out the standby element starts preloading the prepared next url. */

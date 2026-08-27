@@ -13,7 +13,7 @@ data; publishing them is a Workshop UI action only.
   user's recent jobs (id/capability/status/timestamp, error line if failed).
 
 Together they cover "publish WidgetSpec docs for `query` (assistant box) + a
-job-status list" per ToDo.md §1.
+job-status list" per git history.
 
 ## What each spec does
 
@@ -163,7 +163,7 @@ already pre-derive a `.tone` field client-side in `useHudData.ts` — give the
 lazuros `jobs` dataset (or a client-side selector) a derived `tone` column so
 `ToneBinding` has something to bind to directly.
 
-**3. ~~`jobs` dataset has no `capability` filter~~ FIXED (ToDo §1a 1.3).**
+**3. ~~`jobs` dataset has no `capability` filter~~ FIXED (git history (item 1.3)).**
 `docs.js` `DATASETS_DOC.jobs.filters` now also declares `capability` (exact
 match, `column: 'capability', op: 'eq'`) and `since` (delta cursor,
 `column: 'updated_at', op: 'gt'`, exclusive — the same convention BeigeBoard's

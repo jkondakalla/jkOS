@@ -1,6 +1,6 @@
 'use strict';
 // src/media.js — the playback backend, app config over the shared media brick
-// (@jkos/weave/mediaRoutes, ToDo §3 17.3 — same brick papyros's src/media.js configures).
+// (@jkos/weave/mediaRoutes, git history: item 17.3 — same brick papyros's src/media.js configures).
 // Music is direct-play ONLY: no `ladder`/`cacheDir` in the spec below — unlike papyros's
 // Firefox-m4b compat remux/re-encode ladder, there is no known browser-compat gap for
 // the container/codec set MUSIC_EXTENSIONS scans (mp3/m4a/aac/flac/ogg/opus/wav all

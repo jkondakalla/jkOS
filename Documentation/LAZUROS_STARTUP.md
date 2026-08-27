@@ -1,7 +1,7 @@
 # LazurOS — Tier 0 / 1 / 2 Bring-Up Guide (Luna + Emily)
 
 How to take LazurOS from "code-complete, Phases 0–6 + 8" to serving live inference across your
-two-node setup. This is the live bring-up (the [ToDo §1](ToDo.md) unblockers plus Phase 5), not
+two-node setup. This is the live bring-up (the ToDo §1 (retired) unblockers plus Phase 5), not
 the later BeigeBoard AI rebuild (§1d).
 
 **Verified against the repo (2026-07-13).** Every field name, port, env var, path, and command
@@ -511,7 +511,7 @@ node packages/suite-prober/roundtrip.mjs --live https://staging.jkos.net --token
 - **BeigeBoard has no AI any more.** Its `/api/ai/*` chat-proxy surface was **deleted**
   (2026-07-13): it called a `POST /api/chat` this LazurOS never served, and `BB_AI_ENABLED` was
   set in no compose file, so it was already dead. Phase 7 is therefore a **build**, not a cutover,
-  and it is not a startup step — see [ToDo §1d](ToDo.md).
+  and it is not a startup step — see ToDo §1d (retired).
 
 ## Known code gaps — CLOSED (ToDo §1a)
 

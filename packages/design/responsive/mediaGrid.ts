@@ -1,5 +1,5 @@
 /**
- * responsive/mediaGrid.ts — the cover-grid density ladder (ToDo.md §3 Wave 20,
+ * responsive/mediaGrid.ts — the cover-grid density ladder (git history, Wave 20,
  * item 20.2).
  *
  * Before this, papyros's `library.css` hardcoded the 2/3/4-column progression

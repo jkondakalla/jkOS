@@ -3,8 +3,8 @@
 // http.createServer (plain node:http ServerResponse, no Express) so the assertions
 // prove the package works against the base surface every jkOS backend's `res` object
 // is built on — the same 200/206/416 + Accept-Ranges/Content-Range contract PapyrOS's
-// backend/src/media.js implemented inline before this package existed (ToDo Section 3
-// Wave 17, 17.1). containPath is exercised directly (pure function, no server needed).
+// backend/src/media.js implemented inline before this package existed (git history,
+// Wave 17 item 17.1). containPath is exercised directly (pure function, no server needed).
 //
 //   node packages/files/test/files.smoke.mjs
 

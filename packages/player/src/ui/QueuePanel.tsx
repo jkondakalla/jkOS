@@ -1,4 +1,4 @@
-// QueuePanel.tsx — the up-next list over core/queue's Queue (ToDo.md §3 Wave 16,
+// QueuePanel.tsx — the up-next list over core/queue's Queue (git history, Wave 16,
 // item 16.6). Renders `queue.items` in CANONICAL order (shuffle only changes how
 // next/prev WALK the queue — see queue.ts's header — so the panel always shows
 // insertion order, cursor row highlighted), with:

@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "jkOS media player primitive. Layer 0 (this package today): pure timeline math + queue reducers, no DOM, no React. Engine (headless hook) / services / UI-kit layers land on top of this — see Documentation/PLAYER_PARITY.md.",
+  "description": "jkOS media player primitive. Layer 0 (this package today): pure timeline math + queue reducers, no DOM, no React. Engine (headless hook) / services / UI-kit layers land on top of this — see git history (PLAYER_PARITY.md, retired).",
   "exports": {
     "./core": "./src/core/index.ts",
     "./backend": "./src/backend/index.ts",

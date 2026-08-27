@@ -1,4 +1,4 @@
-"""M3's baseline arm under test (ToDo §8.4).
+"""M3's baseline arm under test (ALGORITHMS.md §4).
 
 These check the MATH and the ONE STRUCTURAL RULE, because every failure mode
 here produces a perfectly plausible array of 119 floats:
@@ -74,7 +74,7 @@ class LayoutTest(unittest.TestCase):
         self.assertEqual(len(set(names)), len(names))
 
     def test_dimension_count_is_in_the_specified_band(self):
-        """ToDo §8.4 budgets ~90–160 dimensions. Below that the baseline is too
+        """ALGORITHMS.md §4 budgets ~90–160 dimensions. Below that the baseline is too
         weak to be a fair opponent at M4; far above it and the z-score is being
         fitted over more dimensions than the corpus has tracks to constrain."""
         self.assertGreaterEqual(descriptors.DIM, 90)

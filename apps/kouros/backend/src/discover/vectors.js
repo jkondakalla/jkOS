@@ -1,6 +1,6 @@
 'use strict';
 // vectors.js — the seam between KourOS's catalog and the music embedder's index
-// (ToDo §8's `music/index.db`). KourOS never computes an embedding; it READS one,
+// (ALGORITHMS.md §4's `music/index.db`). KourOS never computes an embedding; it READS one,
 // read-only, and degrades to metadata affinity for every track the embedder has
 // not reached yet.
 //
@@ -45,7 +45,7 @@ const fs = require('fs');
 const path = require('path');
 const Database = require('better-sqlite3');
 
-/** The two arms ToDo §8.7 gated against each other. `local_vectors` (CLAP 512-d)
+/** The two arms ALGORITHMS.md §4 gated against each other. `local_vectors` (CLAP 512-d)
  *  won on every criterion and is preferred; `descriptors` (119-d) is the fallback
  *  arm, still far better than metadata affinity. */
 const ARMS = ['local_vectors', 'descriptors'];
@@ -68,7 +68,7 @@ function contentKeyFromTags(artist, title) {
 }
 
 /** A multi-disc subfolder, which sits BETWEEN the album folder and the files.
- *  ToDo §8.7 found this exact shape silently deflating both arms by making a
+ *  ALGORITHMS.md §4 found this exact shape silently deflating both arms by making a
  *  flat album look nested, so it is matched explicitly rather than guessed at
  *  from depth. */
 const DISC_DIR = /^(disc|disk|cd)\s*\d+$/i;
@@ -179,7 +179,7 @@ function l2Normalise(v) {
 
 /* ── the corpus geometry ──────────────────────────────────────────────────────
    ⚠️ A COSINE IS NOT A SIMILARITY UNTIL YOU KNOW WHERE ZERO IS, AND FOR CLAP IT
-   IS NOWHERE NEAR ZERO. This is the same trap ToDo §8.7 logged on the Python
+   IS NOWHERE NEAR ZERO. This is the same trap ALGORITHMS.md §4 logged on the Python
    side — the one that first reported the WRONG WINNER at the gate. CLAP's space
    is a narrow anisotropic cone: every pair of tracks in the library scores at
    least +0.03 and two STRANGERS average +0.480 with a spread of 0.219. The
@@ -287,7 +287,7 @@ function loadArm(db, arm, libraryRootName, normalise = true, calibration = null)
     const rel = relKeyFromEmbedderPath(r.path, libraryRootName);
     if (rel && !byRelPath.has(rel)) byRelPath.set(rel, vec);
     const ck = contentKeyFromEmbedderPath(r.path, libraryRootName);
-    // First writer wins: a duplicate (~20% of this library per ToDo §8.7) maps many
+    // First writer wins: a duplicate (~20% of this library per ALGORITHMS.md §4) maps many
     // paths onto one content key, and any one of them is an equally correct answer.
     if (ck && !byContentKey.has(ck)) byContentKey.set(ck, vec);
   }

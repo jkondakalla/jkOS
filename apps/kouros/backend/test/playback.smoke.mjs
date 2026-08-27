@@ -1,4 +1,4 @@
-// playback.smoke.mjs (ToDo §3 18.2) — the playback + per-user-collection smoke: boots
+// playback.smoke.mjs (git history: item 18.2) — the playback + per-user-collection smoke: boots
 // the REAL server (throwaway port + temp DB, the committed fixture library, a REAL
 // RS256 keypair so forged per-user tokens exercise the actual verify path rather than
 // the weave dev-stub — same pattern as apps/papyros/backend/test/playback.smoke.mjs)

@@ -1,5 +1,5 @@
 // SegmentList.tsx — chapter/marker list with the current row highlighted and
-// click-to-seek (ToDo.md §3 Wave 16, item 16.6). Row anatomy is papyros
+// click-to-seek (git history: Wave 16 item 16.6). Row anatomy is papyros
 // BookDetail's chapter-row generalized: an absolutely-positioned listened-fill wash
 // (width from ./scrub's segmentFraction — chapterFraction promoted), then index /
 // title / duration raised above it. Clicking a row seeks to the segment's start in

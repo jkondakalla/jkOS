@@ -1,6 +1,6 @@
 /**
  * weave/resumeCursor.ts — createResumeCursor, the debounced find-or-create upsert
- * (ToDo.md §3 Wave 16, item 16.4), extracted VERBATIM from
+ * (git history: Wave 16 item 16.4), extracted VERBATIM from
  * packages/player/src/engine/usePlayerEngine.ts's doWrite/scheduleWrite/flushNow —
  * that mechanism was [INVARIANT d], "serialized single-flight writes". Nothing here
  * is media-specific: it is "debounce a write against a per-key row, skip it when

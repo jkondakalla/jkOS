@@ -1,5 +1,5 @@
-// @jkos/player/ui — Layer 3, the kit of parts (ToDo.md §3 Wave 16, item 16.6; see
-// Documentation/PLAYER_PARITY.md §3 "Layer 3 — UI kit"). A slotted <PlayerBar>
+// @jkos/player/ui — Layer 3, the kit of parts (git history: Wave 16 item 16.6; see
+// git history: PLAYER_PARITY.md, retired — "Layer 3 — UI kit"). A slotted <PlayerBar>
 // shell + the stock control library + <Scrubber>/<QueuePanel>/<NowPlaying>/
 // <SegmentList>, all pb-*-classed and token-driven. Item 16.7's createPlayer(spec)
 // factory composes THESE parts into presets — this barrel is deliberately

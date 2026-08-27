@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Lab, Sheet, TButton, SearchField, cx } from './primitives';
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   @jkos/ui — <MatchPanel> (ToDo.md §3 Wave 20, item 20.4)
+   @jkos/ui — <MatchPanel> (git history: Wave 20 item 20.4)
 
    PapyrOS's "Fix metadata" flow (task 5.3) hardcoded ONE search read
    (searchMetadata) + ONE write (matchBook) straight into a component — but the

@@ -1,4 +1,4 @@
-// controls.tsx — the STOCK control library (ToDo.md §3 Wave 16, item 16.6): exactly
+// controls.tsx — the STOCK control library (git history: Wave 16 item 16.6): exactly
 // the control vocabulary papyros's bar renders today, as individual kit parts. Each
 // control consumes a PlayerApi-SHAPED prop — a minimal structural slice of
 // engine/types' PlayerApi (playing/toggle, skip, prevSegment/nextSegment, rate/

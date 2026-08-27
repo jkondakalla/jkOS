@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""M4 — the similarity gate, and the search surface it is read through (ToDo §8.7).
+"""M4 — the similarity gate, and the search surface it is read through (ALGORITHMS.md §4).
 
     load the whole matrix → L2-normalise → `M @ q` → argpartition → top-k
 

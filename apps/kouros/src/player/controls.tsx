@@ -1,5 +1,5 @@
 // player/controls.tsx — the music-only stock controls @jkos/player/ui doesn't ship
-// (ToDo.md §3 Wave 18, item 18.4). musicPlayer()'s factory composition
+// (git history: Wave 18 item 18.4). musicPlayer()'s factory composition
 // (@jkos/player/factory) derives ControlIds 'shuffle' | 'trackPrev' | 'trackNext' |
 // 'repeat' | 'volume' | 'queue' — but @jkos/player/ui's controls.tsx only stocks the
 // audiobook vocabulary (SegmentButton/SkipButton/RateButton/SleepMenu). Per this

@@ -1,4 +1,4 @@
-"""The hand-off to KourOS (ToDo §8.9), which has four ways to succeed and be wrong.
+"""The hand-off to KourOS (ALGORITHMS.md §4), which has four ways to succeed and be wrong.
 
 Every check here corresponds to a condition KourOS reads WITHOUT COMPLAINT. That
 is the whole difficulty: KourOS is built to degrade when the index is thin, and

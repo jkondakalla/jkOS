@@ -2,8 +2,8 @@
 
 **ORDECK is the one-screen portal into your entire digital life, owned entirely by you.**
 
-jkOS is a self-hosted productivity suite running on TrueNAS SCALE. Five **core systems**
-form the backbone:
+jkOS is a self-hosted productivity suite running on TrueNAS SCALE. **Eight systems** make up
+the suite:
 
 | System | What it is |
 |--------|-----------|
@@ -12,18 +12,17 @@ form the backbone:
 | **BeigeBoard** | Tasks, goals, calendars — the primary data app surfaced on the HUD |
 | **Weave** | The integration fabric connecting all apps, read and write |
 | **jkDeploy** | The deploy controller — staging→production in one button |
-
-Three more apps ride the same fabric:
-
-| App | What it is | State |
-|-----|-----------|-------|
-| **LazurOS** | AI gateway — an async job queue routing inference to a tier of compute nodes; powers BeigeBoard's task-parse / goal-breakdown | Built, not yet live — awaiting real runtimes ([ToDo §1](ToDo.md)) |
-| **PapyrOS** | Fully-native multi-user audiobook library — own scanner, catalog, Range-streamed playback, offline caching, per-user resume | **Live on staging** ([ARCHITECTURE § PapyrOS](ARCHITECTURE.md#papyros-the-audiobook-app)) |
-| **KourOS** | Fully-native multi-user music library — the shared `@jkos/player` primitive's second consumer, gapless/crossfade playback, playlists, ratings | Built, staging bring-up pending real `MUSIC_DIR` ([ToDo §3](ToDo.md)) |
+| **LazurOS** | AI gateway — an async job queue routing inference to a tier of compute nodes; powers BeigeBoard's task-parse / goal-breakdown. Registered in the app directory; not yet routed on any deployed edge |
+| **PapyrOS** | Fully-native multi-user audiobook library — own scanner, catalog, Range-streamed playback, offline caching, per-user resume. On staging at `/papyros/` |
+| **KourOS** | Fully-native multi-user music library — the shared `@jkos/player` primitive's second consumer, gapless/crossfade playback, playlists, ratings. On staging at `/kouros/` |
 
 Everything goes through jkAuth SSO. The portal is driven by Weave discovery — adding a
-new app means one registry row, not portal code changes. (A separate study app, **SylibOS**,
-lives in the repo on its own development track and is not part of the suite contract.)
+new app means one registry row, not portal code changes.
+
+Two things in the repo deliberately sit outside that contract: **SylibOS**
+(`apps/sylibos/`), a separate study app on its own development track, and **`music/`**, a
+standalone Python vector-search project with zero jkOS imports and no pnpm workspace
+membership — see its own [README](../music/README.md).
 
 ---
 
@@ -59,7 +58,7 @@ Layout is saved per user in jkAuth preferences — your HUD follows you across d
 | **Pin a task to the HUD** | In BeigeBoard → task detail → **pin**. Mirrors to the **Pinned** widget. |
 | **Focus on one task** | In BeigeBoard → task detail → **focus**. The **Focus** widget shows it; **END FOCUS** clears it. |
 | **Connect a calendar** | BeigeBoard → connect **Google**, **Outlook**, or **iCloud**. Events appear on the HUD calendar. |
-| **Import tasks / goals via JSON** | `POST /api/import` on BeigeBoard (also reachable at `/api/bb/import` from the portal). Add `?dryRun=1` to validate without writing. Body: `{ "items": [ … ] }` — nested or flat, with inferred `kind`, forgiving date formats, and validate-then-write semantics. |
+| **Import tasks / goals via JSON** | `POST /api/import` on BeigeBoard (also reachable at `/api/beigeboard/import` from any other origin, via the Weave peer proxy). Add `?dryRun=1` to validate without writing. Body: `{ "items": [ … ] }` — nested or flat, with inferred `kind`, forgiving date formats, and validate-then-write semantics. |
 | **AI task breakdown** | If LazurOS is enabled, BeigeBoard can parse free-text into tasks and break goals into milestones. |
 
 ### Audiobooks (PapyrOS)
@@ -78,8 +77,8 @@ enriched from the iTunes Search API.
 
 ### Music (KourOS)
 
-Reachable at `staging.jkos.net/kouros/` (staging; prod pending DNS + a real library mount).
-The library is scanned per-file (not per-folder) from a TrueNAS music path.
+Reachable at `staging.jkos.net/kouros/` (staging; prod pending DNS). The library is scanned
+per-file (not per-folder) from a TrueNAS music path.
 
 | Action | How |
 |--------|-----|
@@ -111,15 +110,19 @@ short crossfade between tracks. |
 
 ## Reference docs
 
+Documentation here is a map, not the territory — where a doc and the code disagree, the code
+wins and the doc is stale. [`RESET.md`](RESET.md) is the current mandate: what's being
+rebuilt, why, and in what order. Read it first if you're picking up engineering work.
+
 | File | Read it for |
 |------|-------------|
-| [QUICKSTART.md](QUICKSTART.md) | **A one-screen refresher** — what the suite is, what each system does, where things stand, and the day-to-day commands. Start here after time away. |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | How the systems fit together — mental models, auth/session model, data ownership, Weave fabric, nginx topology, prod/staging isolation. **Start here for any engineering work.** |
-| [PRIMITIVES.md](PRIMITIVES.md) | **The low-level action catalog** — every command, gate, factory call, hook, component, and skill you can use, by category, with how and why. |
+| [RESET.md](RESET.md) | **The current mandate.** What's ceremony vs. still load-bearing, the work ahead stage by stage, and the standing rules of engagement. |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | How the systems fit together — mental models, auth/session model, data ownership, Weave fabric, nginx topology, prod/staging isolation. **Engineering entry point**, alongside WEAVE.md. |
+| [PRIMITIVES.md](PRIMITIVES.md) | **The command/gate catalog** — every command, gate, and skill you can run, by category, with how and why. |
 | [WEAVE.md](WEAVE.md) | The integration contract in full — what an app must implement, transport model, security model, command vocabulary, adding a new app. |
 | [OPERATIONS.md](OPERATIONS.md) | Dev commands, Docker build model, deploy pipeline, cold start from zero, TrueNAS paths, known gotchas. |
 | [DESIGN.md](DESIGN.md) | Design system — aesthetic identity, token contract, factory, typography, per-app constraints. |
 | [TESTING.md](TESTING.md) | The test system — every test and what it asserts, the gate anatomy, the suite prober, house patterns for new tests. |
-| [PLANNING_METHOD.md](PLANNING_METHOD.md) | The breakdown method the BeigeBoard Workshop embodies — taxonomy, weekly bench, data mapping. |
-- [ROUTINES.md](ROUTINES.md) — the routine primitive: the document format, progression, cadence, the library, and the AI-authoring contract
-| [ToDo.md](ToDo.md) | The working backlog — self-contained planned-but-not-executed work sections. |
+| [PLANNING_METHOD.md](PLANNING_METHOD.md) | The breakdown method the BeigeBoard Workshop embodies — taxonomy, weekly bench, data mapping. Informational; ROUTINES.md is authoritative where they touch. |
+| [ROUTINES.md](ROUTINES.md) | The routine primitive: the document format, progression, cadence, the library, and the AI-authoring contract. |
+| [ALGORITHMS.md](ALGORITHMS.md) | The music vector-space design record — mel spectrograms, embeddings, similarity search, calibration. |

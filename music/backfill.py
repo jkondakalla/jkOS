@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""M3b — the backfill run (ToDo §8.6).
+"""M3b — the backfill run (ALGORITHMS.md §4).
 
     tracks LEFT JOIN local_vectors  →  decode → 12 windows → mel → CLAP → mean-pool
                                     →  L2-normalise → local_vectors, one commit per track

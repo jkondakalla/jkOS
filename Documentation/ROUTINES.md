@@ -46,7 +46,7 @@ Two properties fall out, and both are load-bearing:
 | `apps/beigeboard/src/components/SessionCard.tsx` | The daily surface: prescription + log. |
 | `apps/beigeboard/src/components/ProgressChart.tsx` | Prescribed vs performed. |
 | `test/routine-spec.mjs` | **`pnpm check:routine`** — the conformance gate (+ the prompt's). |
-| `apps/beigeboard/backend/test/routine-spec.smoke.mjs` | The HTTP smoke (110 assertions). |
+| `apps/beigeboard/backend/test/routine-spec.smoke.mjs` | The HTTP smoke (113 assertions). |
 
 **The mirror exists because the forge previews an UNSAVED spec** — there is nothing
 on the server to ask about yet, and a round trip per keystroke is a delay, not a
@@ -140,6 +140,10 @@ day the routine never asked for, and clicking that cell would toggle the whole w
 parentage**: an occurrence the user dragged under a goal has left the `parent_id`
 subtree the cascade walks, and used to survive as a ghost session carrying a
 prescription and pointing at a routine that no longer existed.
+
+> ⚠️ **Only this one call site was fixed** — four of five occurrence readers still key
+> on `parent_id`, not `ext_ref`; slated for a full rework in RESET.md Stage D ("Routine
+> identity and reachability").
 
 ## 5. Progression
 
@@ -307,6 +311,9 @@ same "silence means you did what you were told" rule autoregulation uses.
    are **two** functions by that name: this one, in `routines.js`, read by the
    reconcile passes — and the analytics one in `routes/routines.js`, which is
    `SELECT *` and needs nothing.
+   > ⚠️ The reconcile passes this feeds are themselves slated for a rework in
+   > RESET.md Stage D — the mint currently reconciles only on an unfiltered
+   > non-guest human read, off the read path is the target.
 5b. **The log has ONE author: `logStep`.** A step entry's fields are written there and
    nowhere else, so a new field lands everywhere at once. `SessionCard`'s "all as
    prescribed" button used to rebuild `performed.steps` itself and was fixed when

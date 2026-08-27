@@ -1,7 +1,7 @@
 'use strict';
 // probe.js (PapyrOS library service, task 2.2) — the ffprobe-tag → `books`-column
 // mapping (mapTagsToColumns) plus its year/genre helpers. This is the ONE app-specific
-// piece of the library ladder (ToDo §3 17.2): everything else — walking, spawning
+// piece of the library ladder (git history: item 17.2): everything else — walking, spawning
 // ffprobe, parsing its JSON, the concurrency pool, mtime-incremental skip, the
 // ON CONFLICT(path) upsert, pruning vanished rows — moved to the shared brick
 // (`@jkos/weave/libraryScanner`, used by src/library/scan.js). `probeFile` / `parseProbe`

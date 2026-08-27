@@ -1,4 +1,4 @@
-/* player.css — KourOS's bespoke bar styling (ToDo.md §3 Wave 18, item 18.4). The bar
+/* player.css — KourOS's bespoke bar styling (git history: Wave 18 item 18.4). The bar
    shell, stock controls, scrubber, meta block, and popover framework (`player-bar` /
    `pb-*`) come from @jkos/player/ui's player-ui.css (imported by that barrel, pulled
    in transitively via PlayerBar.tsx's import of @jkos/player/ui) — this file only

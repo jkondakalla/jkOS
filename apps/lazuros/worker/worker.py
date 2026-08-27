@@ -132,7 +132,7 @@ def load_json_config(path):
 def build_prompt(capability, payload, prompt_map):
     """Render the capability's prompt template from prompts.json against the job
     payload. The template — never an inline f-string — is the per-deployment content
-    decision (Documentation/ToDo.md §1). A missing template is a config error, not a code path."""
+    decision (git history). A missing template is a config error, not a code path."""
     template = prompt_map.get(capability)
     if not template:
         raise ValueError(

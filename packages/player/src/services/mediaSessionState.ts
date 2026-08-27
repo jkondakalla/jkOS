@@ -1,5 +1,5 @@
-// services/mediaSessionState.ts — the PURE half of the MediaSession service (ToDo.md
-// §3 Wave 16, item 16.3; PLAYER_PARITY.md §3 "Layer 2 — services"). Mirrors the
+// services/mediaSessionState.ts — the PURE half of the MediaSession service (git history
+// §3 Wave 16, item 16.3; git history: PLAYER_PARITY.md, retired — "Layer 2 — services"). Mirrors the
 // engine's rate.ts/volume.ts split: everything here is a pure function over plain
 // data — no DOM, no React — so the two decisions the hook makes before touching
 // navigator.mediaSession (how an app's metadata maps onto a MediaMetadata init, and

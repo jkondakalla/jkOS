@@ -1,10 +1,11 @@
 // player/usePlayerEngine.ts — KourOS's adapter over @jkos/player's headless engine
-// (ToDo.md §3 Wave 18, item 18.4 — consumer #2, "the one that actually proves the
+// (git history: Wave 18 item 18.4 — consumer #2, "the one that actually proves the
 // primitive"). Mirrors apps/papyros/src/player/usePlayerEngine.ts's shape (a thin
 // recipe layer over the package's usePlayerEngine, plus MediaSession + a history
 // session recorder built on the engine's PUBLIC surface) with ONE structural
-// addition papyros never needed: a QUEUE. PLAYER_PARITY.md §1's model is "music =
-// N single-file Timelines + a cursor" — the package's engine drives exactly ONE
+// addition papyros never needed: a QUEUE. The player design record's model (git
+// history, PLAYER_PARITY.md, retired) is "music = N single-file Timelines + a
+// cursor" — the package's engine drives exactly ONE
 // Timeline; everything queue-shaped (shuffle, repeat, prev/next TRACK, reorder) is
 // composed HERE, in app code, over @jkos/player/core/queue's pure reducers. See this
 // wave's handoff report for the full verdict on why (short version: the engine has no
@@ -92,7 +93,7 @@ const itemLoader: ItemLoader<Track> = {
 };
 
 /** KourOS's `tracks` catalog has no server-side progress/resume collection BY DESIGN
- *  (PLAYER_PARITY.md/ToDo.md §3 18.4: "music doesn't resume mid-track"). The engine's
+ *  (git history, item 18.4: "music doesn't resume mid-track"). The engine's
  *  progress choreography (packages/weave's createResumeCursor, [INVARIANT d]) is
  *  still exercised unconditionally — it schedules a write every ~5s of playback and
  *  flushes on pause/hide/ended — so this ProgressStore has to be a REAL (if inert)
@@ -399,7 +400,7 @@ export function usePlayerEngine(): PlayerApi {
   // ── Play-history recording (mirrors apps/papyros/src/player/usePlayerEngine.ts's
   // 17.4 session recorder, INCLUDING the screen-lock/hidden-reopen fix — see that
   // file's long comment for the original bug). One difference, called out in
-  // ToDo.md §3 18.4: papyros's session boundary is play/pause edges WITHIN a book
+  // git history: item 18.4: papyros's session boundary is play/pause edges WITHIN a book
   // (a book can span a whole session); here a TRACK CHANGE is always also a session
   // boundary (each track is its own history row) — the effect below keys off
   // track?.id the same way papyros keys off book?.id, so that fold is automatic. ──

@@ -1,5 +1,5 @@
 // player/accent.ts — the app-side half of musicPlayer()'s `accentFromArt` seam
-// (PLAYER_PARITY.md §3: "a DECLARATIVE flag only... the spec's optional
+// (git history: PLAYER_PARITY.md, retired: "a DECLARATIVE flag only... the spec's optional
 // deriveAccent(coverUrl) hook — supplied by the consuming app — does the actual pixel
 // extraction"). @jkos/player never imports @jkos/design or touches the DOM canvas API;
 // this file is that app-supplied hook. PlayerProvider calls it per track and, on

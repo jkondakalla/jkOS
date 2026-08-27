@@ -75,7 +75,7 @@ function defineConnector(def) {
   // backend that wanted "one upstream call" without an HTTP hop through its own mount()
   // had no callable surface to reach for, so it hand-rolled a second copy of the same
   // upstream query + map (papyros's src/routes/match.js used to, for META's
-  // metadataSearch — see 17.6 in ToDo.md).
+  // metadataSearch — see 17.6 in git history).
   //
   // Throws (never returns a response object) on a missing fetch or an upstream failure
   // — mount()'s route handler is the one place that turns that into an HTTP 502; an

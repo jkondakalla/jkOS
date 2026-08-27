@@ -225,7 +225,7 @@ export function writeIndex({ tracks, out, coverage = 0.78, seed = 0x9e3779b9, al
         const genre = soundCentre.get(t.sound) || soundCentre.get('indie');
         albumCentre.set(key, mix(genre, unit(rng(hash(`album:${key}`))), albumSpread));
       }
-      // Track ≈ album ≈ genre, then pushed onto the shared corpus axis. ToDo §8.7
+      // Track ≈ album ≈ genre, then pushed onto the shared corpus axis. git history.7
       // measured same-album cosine at +0.43 over the real library, which is the
       // number these two spreads are set against. They are also what the VIBE MAP
       // reads: cluster too tightly and the PCA projects fourteen genres into one

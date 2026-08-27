@@ -1,5 +1,5 @@
 // factory.test.mjs — unit tests for @jkos/player/factory's createPlayer(spec) +
-// presets (ToDo.md §3 Wave 16, item 16.7; Documentation/PLAYER_PARITY.md §3
+// presets (git history: Wave 16 item 16.7; git history: PLAYER_PARITY.md, retired
 // "Layer 3 — UI kit"). Covers:
 //   1. resolveSpec's defaults (a bare `{ kind }` gets every capability off,
 //      scrubberMode 'segment', mobileTransport 'full', no unbuilt flag).

@@ -1,4 +1,4 @@
-// NowPlaying.tsx — the title/artist/artwork meta block (ToDo.md §3 Wave 16, item
+// NowPlaying.tsx — the title/artist/artwork meta block (git history, Wave 16, item
 // 16.6). Markup is papyros PlayerBar's `meta` cluster verbatim: art | stacked
 // title-over-subtitle, both ellipsized. `art` is a slot (papyros passes its own
 // CoverThumb — see that file for why it stays bespoke); <CoverArt> below is the

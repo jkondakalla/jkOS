@@ -1,5 +1,5 @@
 /**
- * weave/useResumeCursor.ts — useResumeCursor(collection, key) (ToDo.md §3 Wave 16,
+ * weave/useResumeCursor.ts — useResumeCursor(collection, key) (git history, Wave 16,
  * item 16.4): the React face of createResumeCursor (./resumeCursor.ts), for any app
  * that wants a debounced find-or-create "resume position" over its OWN collection —
  * not just the player.

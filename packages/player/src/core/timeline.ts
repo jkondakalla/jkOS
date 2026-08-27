@@ -3,7 +3,7 @@
 // generalized with a rename only: BookFile → MediaSource, BookChapter → Segment,
 // FileMap → Timeline, EMPTY_MAP → EMPTY_TIMELINE, buildFileMap → buildTimeline,
 // FilePos → SourcePos (fileIndex → sourceIndex; arrayIndex is already generic and
-// keeps its name). See Documentation/PLAYER_PARITY.md §1 for why this promotes
+// keeps its name). See git history: PLAYER_PARITY.md, retired for why this promotes
 // cleanly: PapyrOS's "book" was never book-shaped, it's N sources concatenated into
 // one global timeline with a gap-free list of nav points over it.
 //

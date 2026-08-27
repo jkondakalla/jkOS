@@ -1,4 +1,4 @@
-// player/controller.ts — the ONE seam between views and the player (ToDo.md §3 Wave
+// player/controller.ts — the ONE seam between views and the player (git history Wave
 // 18, item 18.4; mirrors apps/papyros/src/player/controller.ts's precedent). The
 // library UI (18.3) requests playback here; PlayerBar (this wave) subscribes and owns
 // all actual <audio> + queue state. Views never import PlayerBar and PlayerBar never

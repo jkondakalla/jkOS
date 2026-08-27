@@ -1,7 +1,7 @@
 'use strict';
 // @jkos/files — shared file-serving primitives for jkOS media backends.
 //
-// Lifted verbatim from PapyrOS backend/src/media.js (ToDo Section 3 Wave 17, 17.1): the
+// Lifted verbatim from PapyrOS backend/src/media.js (git history, Wave 17 item 17.1): the
 // Range-aware HTTP streaming implementation (there: sendFileRange) and the
 // path-containment resolver (there: resolveContained) that every catalog-backed media
 // backend needs — a scanner-written DB row still gets a defensive containment check on

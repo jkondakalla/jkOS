@@ -1,7 +1,7 @@
 // player/queuePrefs.ts — small pure helpers the adapter (usePlayerEngine.ts) composes
-// around @jkos/player/core's Queue (ToDo.md §3 Wave 18, item 18.4). Two things live
+// around @jkos/player/core's Queue (git history: Wave 18 item 18.4). Two things live
 // here that the primitive itself does NOT provide (see this wave's report for why —
-// PLAYER_PARITY.md §3's queue-composition verdict):
+// git history: PLAYER_PARITY.md, retired's queue-composition verdict):
 //
 //  1. Shuffle/repeat PERSISTENCE. core/queue's reducers are pure state transforms —
 //     by design they never touch localStorage (unlike engine/rate.ts's

@@ -1,6 +1,6 @@
 /**
  * weave/connectorPair.ts — the frontend binding for "a generic UI driven by a
- * connector + capability pair" (ToDo.md §3 Wave 20, item 20.4).
+ * connector + capability pair" (git history: Wave 20 item 20.4).
  *
  * A `defineConnector` read (search candidates) declares a clean Layer-A dataset
  * exactly like a native app's `defineCollection` read does; a write capability

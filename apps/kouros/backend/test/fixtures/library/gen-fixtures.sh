@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# gen-fixtures.sh (ToDo §3 18.2) — regenerates the tiny fixture music library committed
+# gen-fixtures.sh (git history (item 18.2)) — regenerates the tiny fixture music library committed
 # alongside this script. Re-run it any time the fixtures need to change; the outputs are
 # deterministic (same ffmpeg/lavfi inputs → same audio, only encoder-version metadata
 # like `encoder=Lavf...` may drift across ffmpeg versions, which none of the smoke's

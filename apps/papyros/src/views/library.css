@@ -139,8 +139,7 @@
 /* ── Cover grid ────────────────────────────────────────────────────────────── */
 
 /* The grid itself (display/gap/2-3-4-column ladder) is @jkos/ui's <MediaGrid>
-   (packages/design/tokens/hub.css `.jk-media-grid[data-density]`, ToDo.md §3
-   20.2) — `density` still comes from useBreakpoint() here (mobile favours
+   (packages/design/tokens/hub.css `.jk-media-grid[data-density]`, git history: item 20.2) — `density` still comes from useBreakpoint() here (mobile favours
    bigger, easier-to-tap tiles over raw density; desktop trades some size back
    for more covers on screen within the shell's fixed reading-column width).
    `.lib-grid` only carries the spacing this view wants around its own grid. */
@@ -161,7 +160,7 @@
 
 /* Cover art (image + fallback tile) is @jkos/ui's <CoverArt> — `.jk-media-
    cover`/`.jk-media-cover-placeholder` in packages/design/tokens/hub.css
-   (ToDo.md §3 20.2). Audiobook artwork is square (iTunes serves 600x600;
+   (git history: item 20.2). Audiobook artwork is square (iTunes serves 600x600;
    embedded art follows suit), which is why that primitive is square too. */
 
 .lib-card-body {

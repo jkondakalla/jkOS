@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { cx } from './primitives';
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   @jkos/ui — <AsyncView> (ToDo.md §3 Wave 20, item 20.3)
+   @jkos/ui — <AsyncView> (git history: Wave 20 item 20.3)
 
    The loading/error/empty triad, hand-rolled three different ways in PapyrOS:
      - Library.tsx     — a 3-way ternary (loading ? … : error ? … : sorted.length

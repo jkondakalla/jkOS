@@ -267,7 +267,7 @@ check(spillL.lane !== trip.lane, 'touching bars occupy separate lanes');
   check(dayRules.includes('30px'), "the ghost rule sits at the row's half-height");
 }
 
-/* ── media-grid density ladder (ToDo.md §3 20.2) ───────────────────────── */
+/* ── media-grid density ladder (git history: item 20.2) ───────────────────────── */
 const { MEDIA_GRID_COLUMNS } = mediaGrid;
 check(MEDIA_GRID_COLUMNS.compact === 2, 'MEDIA_GRID_COLUMNS.compact is 2 (the original .lib-grid ladder)');
 check(MEDIA_GRID_COLUMNS.cozy === 3, 'MEDIA_GRID_COLUMNS.cozy is 3');
@@ -277,7 +277,7 @@ check(
   'MEDIA_GRID_COLUMNS has exactly the three density tiers (no drift)',
 );
 
-/* ── <MatchPanel> class + wiring parity (ToDo.md §3 20.4) ─────────────────
+/* ── <MatchPanel> class + wiring parity (git history: item 20.4) ─────────────────
  * @jkos/ui's generic <MatchPanel> (packages/ui/src/MatchPanel.tsx) owns a set
  * of `.jk-match-*` classes that must actually be styled in hub.css (moved
  * there, verbatim, from papyros's old `.match-panel`/`.match-candidate*`

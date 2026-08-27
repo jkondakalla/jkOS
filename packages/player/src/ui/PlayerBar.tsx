@@ -1,4 +1,4 @@
-// PlayerBar.tsx — the SLOTTED SHELL (ToDo.md §3 Wave 16, item 16.6). This is the
+// PlayerBar.tsx — the SLOTTED SHELL (git history: Wave 16 item 16.6). This is the
 // reusable LAYOUT lifted from papyros's bar — the control SET stays the app's:
 //
 //   desktop (3 columns)                 mobile (compact rows)

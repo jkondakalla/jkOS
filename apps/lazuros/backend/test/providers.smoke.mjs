@@ -188,7 +188,7 @@ await (async () => {
 })();
 
 // ── Deployment config: the example must not be a trap ──────────────────────────────
-// deployment.example.json is what a self-hoster copies to stand up a node (ToDo §1a
+// deployment.example.json is what a self-hoster copies to stand up a node (git history
 // item 1.2). If it doesn't pass the same schema check loadDeployment.js runs at boot,
 // it's a silent trap for the next person. Path resolved relative to this test file —
 // never a hardcoded repo path.

@@ -1,5 +1,5 @@
 'use strict';
-// routes/library.js — the `rescanLibrary` capability route (ToDo §3 18.2). Mirrors
+// routes/library.js — the `rescanLibrary` capability route (git history: item 18.2). Mirrors
 // papyros's src/routes/library.js verbatim — see that file's header for the full
 // admin-gate rationale: role-based (`req.user.role === 'admin'`), not a raw
 // `kouros:admin` scope-array lookup, so weaveAuth's documented dev fallback (no

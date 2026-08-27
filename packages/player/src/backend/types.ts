@@ -1,4 +1,4 @@
-// packages/player/src/backend/types.ts — the MediaBackend seam (ToDo.md §3 Wave 15,
+// packages/player/src/backend/types.ts — the MediaBackend seam (git history, Wave 15,
 // item 15.2).
 //
 // Extracted from apps/papyros/src/player/usePlayerEngine.ts, which today drives a
@@ -11,7 +11,7 @@
 // Two backends are meant to satisfy this interface without the engine changing:
 // `htmlMedia` (this wave — wraps one HTMLMediaElement, audio OR video, see
 // htmlMedia.ts) and a future `gaplessDual` (two elements, preload-and-swap — Wave 18,
-// see Documentation/PLAYER_PARITY.md §3, Layer 0/Layer 1 boundary). Neither this file
+// see git history: PLAYER_PARITY.md, retired, Layer 0/Layer 1 boundary). Neither this file
 // nor htmlMedia.ts imports from apps/papyros or packages/player/src/core — the seam
 // is self-contained.
 //

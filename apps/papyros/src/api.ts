@@ -1,6 +1,6 @@
 // api.ts — PapyrOS's typed API client. One module every view/component imports
-// instead of hand-rolling fetch calls, so the wire contract (Documentation/ToDo.md
-// §2 Wave 5.1's crib, mirrored from the backend routes below) lives in one place.
+// instead of hand-rolling fetch calls, so the wire contract (git history, Wave 5.1's
+// crib, mirrored from the backend routes below) lives in one place.
 //
 //   books                 → weaveClient('papyros').list('books', filters) — the task
 //                           bullet names weaveClient explicitly, and 'books' is a real
@@ -232,7 +232,7 @@ export function matchAllMissing(): Promise<MatchAllResult> {
 }
 
 // ─── Progress + Bookmarks (owner-scoped CRUD, offline-queued writes) ─────────────
-// Wave 7.2 / ToDo §3 16.5: the WRITE functions below are wrapped by the offline
+// Wave 7.2 / git history: item 16.5: the WRITE functions below are wrapped by the offline
 // write queue (offline/writes.ts → @jkos/player/services). Online they hit the
 // direct authFetch path and behave exactly as before; when a write fails because
 // the network is down it is queued durably (IndexedDB) and replayed on reconnect,

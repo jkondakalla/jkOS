@@ -921,7 +921,7 @@ shell commands. Branch is `staging`; the live page updates after the jkAuth imag
 ## 15. Brief for Claude Design — elevate inside the fence
 
 > **SPENT (2026-07-19).** This brief was answered by **Full Press** — the Rollout Dossier
-> (ToDo.md §7, Waves 22–26) is its successor and the plan of record. The "known
+> (git history, Waves 22–26) is its successor and the plan of record. The "known
 > opportunities" below are resolved by it: the seg face (opportunity 2) became the seg
 > verdict (§5), off-states (3) carry the print idiom, login surfaces (5) land in the
 > per-app wave. Treat §1–§14 as live context and this section as historical.

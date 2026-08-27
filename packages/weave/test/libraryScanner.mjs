@@ -1,10 +1,10 @@
-// @jkos/weave libraryScanner tests — the LIBRARY SCANNER primitive (ToDo §3 17.2).
+// @jkos/weave libraryScanner tests — the LIBRARY SCANNER primitive (git history: item 17.2).
 //
 // Proves the brick (`defineLibraryScanner`, packages/weave/src/server/libraryScanner.js)
 // reproduces PapyrOS's pre-brick scan.js/probe.js ladder exactly — walk → ffprobe pool →
 // mtime-incremental skip → upsert ON CONFLICT(path) → prune vanished rows, single-flight
 // — AND that the spec shape genuinely supports a SECOND consumer with a different tag
-// vocabulary and a different unit shape (the music app, ToDo §3 18.2) with zero brick
+// vocabulary and a different unit shape (the music app, git history: item 18.2) with zero brick
 // changes: only `mapTags`/`columns`/`unit` differ between the two suites below.
 //
 // No real ffprobe/ffmpeg process: `spec.ffprobeBin` points at
@@ -253,7 +253,7 @@ if (Database) {
   mkdirSync(join(libDir, 'Artist', 'Album'), { recursive: true })
   mkdirSync(dataDir, { recursive: true })
 
-  // Music-shaped tags, per the Wave 18.2 line in ToDo.md: artist/album/albumartist/
+  // Music-shaped tags, per the Wave 18.2 line in git history: artist/album/albumartist/
   // track/disc/year/genre — a completely different vocabulary than PapyrOS's
   // title/author/narrator/series/genres, and 'file' unit mode (one row per track, not
   // one row per folder aggregating a multi-file rip).

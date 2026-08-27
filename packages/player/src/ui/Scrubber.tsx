@@ -1,4 +1,4 @@
-// Scrubber.tsx — the segment-aware seek control (ToDo.md §3 Wave 16, item 16.6).
+// Scrubber.tsx — the segment-aware seek control (git history: Wave 16 item 16.6).
 // Generalizes papyros PlayerBar's scrubber: BookDetail's chapterFraction math and
 // the bar's chapter-window bracketing both live in ./scrub's segmentWindow, and
 // this component is only the range input over whichever window that yields:

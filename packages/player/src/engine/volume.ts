@@ -1,4 +1,4 @@
-// packages/player/src/engine/volume.ts — pure volume/mute helpers (ToDo.md §3 Wave 16,
+// packages/player/src/engine/volume.ts — pure volume/mute helpers (git history, Wave 16,
 // item 16.2). Mirrors rate.ts's shape exactly: the read/persist halves are
 // self-contained (StorageLike-injected, no DOM/React — same "extract what's pure, test
 // it in isolation" house pattern as test/core.test.mjs), and the "apply" halves factor

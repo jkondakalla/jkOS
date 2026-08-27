@@ -1,5 +1,5 @@
 // player/icons.tsx — glyphs for the music-only controls @jkos/player/ui doesn't ship
-// (ToDo.md §3 Wave 18, item 18.4 — see this wave's report on the ControlId/stock-part
+// (git history: Wave 18 item 18.4 — see this wave's report on the ControlId/stock-part
 // gap). Same house style as @jkos/player/ui's icons.tsx (currentColor everywhere, the
 // host button's `color` drives them) and papyros PlayerBar.tsx's own bespoke
 // IconBookmark/IconMore precedent — a control the kit doesn't stock gets its glyph

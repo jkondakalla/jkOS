@@ -1,5 +1,5 @@
 // packages/weave/test/resumeCursor.mjs — unit tests for createResumeCursor
-// (src/resumeCursor.ts, ToDo.md §3 Wave 16 item 16.4): the debounced find-or-create
+// (src/resumeCursor.ts, git history: Wave 16 item 16.4): the debounced find-or-create
 // upsert extracted from the player engine's [INVARIANT d]. Every rule here was a real
 // production bug once, which is why each gets its own assertion:
 //   debounce-one-window · fresh-snapshot-at-write · skip-unchanged ·

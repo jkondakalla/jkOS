@@ -7,7 +7,7 @@ export interface UseTracksResult {
   error: boolean;
 }
 
-/** The full `tracks` catalog. ToDo.md §3 18.3 asks Artists to "derive the artist
+/** The full `tracks` catalog. git history: item 18.3 asks Artists to "derive the artist
  *  list client-side from the tracks dataset" — and there IS no server-side
  *  artists/albums endpoint, nor an exact-match artist filter (only a PREFIX one,
  *  wrong tool for grouping — see views/library/format.ts's trackArtist() header)

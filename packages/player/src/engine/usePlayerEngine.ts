@@ -1,4 +1,4 @@
-// packages/player/src/engine/usePlayerEngine.ts — the headless player engine (ToDo.md
+// packages/player/src/engine/usePlayerEngine.ts — the headless player engine (git history
 // §3 Wave 15, item 15.3), generalized VERBATIM from
 // apps/papyros/src/player/usePlayerEngine.ts. Every PapyrOS-specific dependency is now
 // an injected seam (see ./types): the media element is a MediaBackend, the API client

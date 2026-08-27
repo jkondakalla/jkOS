@@ -1,5 +1,5 @@
-// createPlayer.ts — the Layer 3 factory (ToDo.md §3 Wave 16, item 16.7;
-// Documentation/PLAYER_PARITY.md §3 "Layer 3 — UI kit"). Mirrors
+// createPlayer.ts — the Layer 3 factory (git history: Wave 16 item 16.7;
+// git history: PLAYER_PARITY.md, retired — "Layer 3 — UI kit"). Mirrors
 // @jkos/design's buildJkOSTheme(config) and @jkos/cards' cardSurface(opts):
 // a plain spec object goes IN, a plain derived recipe comes OUT — no React, no
 // DOM, no import of @jkos/player/ui's components. This file is deliberately
@@ -14,10 +14,10 @@
 // RateButton, SleepMenu, …) in that order. The factory decides WHICH controls
 // a preset wants and in what order; it never renders them itself, so it never
 // forces a consumer onto any particular JSX shape — papyros keeps its
-// hand-assembled bar (Documentation/PLAYER_PARITY.md: "zero behavior change")
+// hand-assembled bar (git history: PLAYER_PARITY.md, retired: "zero behavior change")
 // while a future consumer can drive its whole transport off this list.
 //
-// The Queue/Timeline split from PLAYER_PARITY.md §1 is what `nav` encodes:
+// The Queue/Timeline split from git history: PLAYER_PARITY.md, retired is what `nav` encodes:
 // audiobook prev/next walks SEGMENTS inside one Timeline (`'segment'`); music/
 // video prev/next walks the QUEUE's items (`'track'`). They are mutually
 // exclusive by construction — a spec asks for one pair or the other, never
@@ -98,7 +98,7 @@ export interface PlayerSpecInput {
   scrubberMode?: ScrubberMode;
   mobileTransport?: MobileTransportMode;
   deriveAccent?: DeriveAccent;
-  /** Declared-but-unbuilt marker (videoPlayer(), Wave 19 — PLAYER_PARITY.md §3
+  /** Declared-but-unbuilt marker (videoPlayer(), Wave 19 — git history: PLAYER_PARITY.md, retired
    *  lists what it still needs: fullscreen, PiP, subtitle/audio-track
    *  pickers, quality picker, hover-thumbnail scrub, skip-intro, next-episode
    *  card, idle-hide chrome — none of that is modeled by PlayerCapabilities
@@ -210,13 +210,13 @@ function deriveActionControls(caps: PlayerCapabilities): ControlId[] {
 
 /** The factory. Spec in, composition out — see the file header. Throws for a
  *  spec flagged `unbuilt` (videoPlayer() today): the spec stays inspectable,
- *  but there is nothing yet to compose (PLAYER_PARITY.md §3, Wave 19). */
+ *  but there is nothing yet to compose (git history: PLAYER_PARITY.md, retired, Wave 19). */
 export function createPlayer(input: PlayerSpecInput): PlayerComposition {
   const spec = resolveSpec(input);
   if (spec.unbuilt) {
     throw new Error(
-      `createPlayer: the '${spec.kind}' preset is declared but unbuilt (ToDo.md §3 Wave 19; ` +
-      'Documentation/PLAYER_PARITY.md §3 "videoPlayer()"). Its spec is still fully inspectable ' +
+      `createPlayer: the '${spec.kind}' preset is declared but unbuilt (git history: Wave 19; ` +
+      'git history: PLAYER_PARITY.md, retired — "videoPlayer()"). Its spec is still fully inspectable ' +
       '(e.g. videoPlayer() returns it directly) — createPlayer() only refuses to compose one.',
     );
   }
@@ -228,18 +228,18 @@ export function createPlayer(input: PlayerSpecInput): PlayerComposition {
 }
 
 // ── Presets ──────────────────────────────────────────────────────────────
-// "Presets differ only in emphasis, not mechanism" (PLAYER_PARITY.md §3):
+// "Presets differ only in emphasis, not mechanism" (git history: PLAYER_PARITY.md, retired):
 // each is just resolveSpec() called with a different capability set. Every
 // preset takes an optional partial override so a consumer can start from the
 // house shape and tune one field (e.g. musicPlayer({ capabilities: { queue:
 // false } }) for a queue-less mini player) without hand-rolling the rest.
 
-/** = today's papyros PlayerBar (PLAYER_PARITY.md §3): ±30s skip, chapter
+/** = today's papyros PlayerBar (git history: PLAYER_PARITY.md, retired): ±30s skip, chapter
  *  prev/next, rate cycling, sleep timer, bookmarks. No volume/shuffle/
  *  repeat/queue — PapyrOS's audiobook bar renders none of those (§2: "No
  *  queue", "No volume control" was true before Wave 16.2 added the engine
  *  surface; the audiobook BAR still doesn't render a volume control by
- *  design — PLAYER_PARITY.md §3 "musicPlayer()" is where volume belongs). */
+ *  design — git history: PLAYER_PARITY.md, retired — "musicPlayer()" is where volume belongs). */
 export function audiobookPlayer(overrides: Partial<PlayerSpecInput> = {}): PlayerSpec {
   return resolveSpec({
     kind: 'audiobook',
@@ -263,7 +263,7 @@ export function audiobookPlayer(overrides: Partial<PlayerSpecInput> = {}): Playe
 }
 
 /** Prev/next track, shuffle, repeat, queue, volume, art-derived accent —
- *  Plexamp floor / Spotify ceiling (PLAYER_PARITY.md §3). No skip (music
+ *  Plexamp floor / Spotify ceiling (git history: PLAYER_PARITY.md, retired). No skip (music
  *  tracks are short; no ±30s idiom), no rate/sleep/bookmarks (audiobook-only
  *  concepts — a track has no "chapters" to sleep-until or bookmark). */
 export function musicPlayer(overrides: Partial<PlayerSpecInput> = {}): PlayerSpec {
@@ -288,7 +288,7 @@ export function musicPlayer(overrides: Partial<PlayerSpecInput> = {}): PlayerSpe
   });
 }
 
-/** Declared, unbuilt (Wave 19 — PLAYER_PARITY.md §3). The capability set
+/** Declared, unbuilt (Wave 19 — git history: PLAYER_PARITY.md, retired). The capability set
  *  below is a reasonable starting shape (queue-driven episodic playback,
  *  volume) but does NOT model video's real cost: fullscreen, PiP, subtitle +
  *  audio-track pickers, quality picker, hover-thumbnail scrub, skip-intro,

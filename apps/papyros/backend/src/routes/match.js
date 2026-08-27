@@ -140,7 +140,7 @@ async function applyCandidate(db, dataDir, doFetch, book, candidate) {
 }
 
 /* ── 4.3: matchAllMissing's conservative exact-match gate ─────────────────────────
-   Manual-first is suite philosophy (ToDo §2, 4.3) — AI-assist via LazurOS is parked, so
+   Manual-first is suite philosophy (git history, 4.3) — AI-assist via LazurOS is parked, so
    this stays deliberately dumb: case-fold + trim + collapse inner whitespace, NOTHING
    fuzzier (no Levenshtein/soundex/subset matching). A near-miss ("Foundation" vs
    "Foundation: A Novel", "J.R.R. Tolkien" vs "JRR Tolkien") is exactly the kind of call

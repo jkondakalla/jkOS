@@ -12,7 +12,7 @@
 //    pass. No index, no approximation, no dependency.
 //
 // 2. ALBUM PROPAGATION, MARKED AS SUCH. The backfill reaches tracks in path order,
-//    so at any moment most of the library has no vector. But ToDo §8.7 measured
+//    so at any moment most of the library has no vector. But ALGORITHMS.md §4 measured
 //    same-album cosine at +0.43 — an album is genuinely a tight cluster — so a
 //    track with no vector of its own inherits its ALBUM's centroid. That takes
 //    coverage from "whatever the backfill reached" to "every album the backfill
@@ -29,7 +29,7 @@ const { contentKeyFromTags, relKeyFromEmbedderPath, l2Normalise } = require('./v
 
 /* ── Interpretable descriptor slices (music/descriptors.py's LAYOUT, N_MFCC=20) ──
    The 119-d descriptor arm is NOT the similarity space here — the neural arm won
-   ToDo §8.7's gate on every criterion — but it is the only READABLE one: these
+   ALGORITHMS.md §4's gate on every criterion — but it is the only READABLE one: these
    nine dimensions are physical quantities, not latent coordinates. They are what
    lets a Run have a real arc ("start calm, build, come down") and a vibe-map axis
    carry a name a person recognises instead of "PC1". Stored RAW (verified: tempo
@@ -44,7 +44,7 @@ const D_ONSET    = 118;   // onset rate — event density
 
 /** ⚠️ THE COLUMN INDICES ABOVE ARE A CROSS-REPO COUPLING WITH NOTHING HOLDING IT.
  *  They are positions in `music/descriptors.py`'s LAYOUT, and `music/` deliberately
- *  shares no code with this repo (ToDo §8: "the isolation is the deliverable"). So
+ *  shares no code with this repo (ALGORITHMS.md §4: "the isolation is the deliverable"). So
  *  a change to N_MFCC or to the order of the descriptor blocks would leave this
  *  file reading the WRONG COLUMN — tempo where flatness used to be — and nothing
  *  would raise: every value is a plausible float, the map would still draw, the
@@ -180,7 +180,7 @@ function buildSpace({ db, vectorSpace, featureSpace = null, musicDir = null, lib
 
   // ── Pass 2: album propagation ────────────────────────────────────────────────
   // A track with no vector of its own takes its album's centroid. Justified by
-  // ToDo §8.7's measured same-album cosine of +0.43, and marked ORIGIN.ALBUM so
+  // ALGORITHMS.md §4's measured same-album cosine of +0.43, and marked ORIGIN.ALBUM so
   // nothing downstream can mistake it for a measurement.
   let nAlbum = 0;
   if (dim) {
@@ -243,7 +243,7 @@ function buildSpace({ db, vectorSpace, featureSpace = null, musicDir = null, lib
   const covered = nPath + nRel + nContent + nAlbum;
   // The fitted geometry, carried through so a SCORE can be reported in stranger
   // units instead of as a raw cosine (see vectors.js's loadCalibration, and
-  // ToDo §8.7's note that a raw cosine gap is not comparable between spaces).
+  // ALGORITHMS.md §4's note that a raw cosine gap is not comparable between spaces).
   // Null when the index predates `music/query.py --fit` — reported, not assumed.
   const calibration = (vectorSpace && vectorSpace.calibration) || null;
   const stats = {

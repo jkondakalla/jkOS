@@ -1,5 +1,5 @@
 // services.test.mjs — unit tests for @jkos/player/services' offline write queue
-// (ToDo §3 item 16.5 / PapyrOS §2 7.2). Two halves:
+// (git history item 16.5 / PapyrOS §2 7.2). Two halves:
 //   1. the PURE policies in src/services/writeQueue.ts — coalescing (repeated
 //      progress ticks collapse to the latest; delete cancels a queued create),
 //      replay ordering (seq is first-queued and survives coalescing), last-write-

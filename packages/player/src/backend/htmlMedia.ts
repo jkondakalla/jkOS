@@ -1,9 +1,9 @@
 // packages/player/src/backend/htmlMedia.ts — the ONE MediaBackend implementation
-// that serves both <audio> and <video> (ToDo.md §3 Wave 15, item 15.2).
+// that serves both <audio> and <video> (git history: Wave 15 item 15.2).
 //
 // HTMLMediaElement's API is identical for <audio> and <video> (play/pause/seek/
 // currentTime/duration/error/events) — that's the whole reason a video player costs
-// almost nothing once this seam exists (Documentation/PLAYER_PARITY.md §3).
+// almost nothing once this seam exists (git history: PLAYER_PARITY.md, retired).
 //
 // Load-bearing invariant carried over from usePlayerEngine.ts (§3 "Load-bearing
 // details to preserve in the extraction"): the caller owns a STABLE-IDENTITY element

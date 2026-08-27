@@ -26,7 +26,7 @@
 //   2. The papyros sentinel specifically still spells itself with an escape, so the
 //      original regression can't quietly return.
 //
-// apps/sylibos/ is EXCLUDED: it is off-limits to every sweep (see ToDo.md's hard
+// apps/sylibos/ is EXCLUDED: it is off-limits to every sweep (see the reset's hard
 // constraints) and carries a known pre-existing offender in src/lib/sliceLecture.ts.
 // Excluding it is the same posture the prober and cards-purity take. Re-scope this
 // list the day sylibos re-enters scope.

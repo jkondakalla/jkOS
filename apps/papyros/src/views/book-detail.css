@@ -132,7 +132,7 @@
 
 /* ── Match panel ("Fix metadata") ─────────────────────────────────────────── */
 /* The panel itself (search box, candidate list, cover/title/meta layout) moved
-   to @jkos/ui's <MatchPanel> (ToDo.md §3 20.4) — its `.jk-match-*` rules now
+   to @jkos/ui's <MatchPanel> (git history: item 20.4) — its `.jk-match-*` rules now
    live in packages/design/tokens/hub.css, lifted verbatim (same properties)
    from this file's old `.match-panel`/`.match-candidate*` rules below, which
    are deleted. Nothing app-specific to override here. */

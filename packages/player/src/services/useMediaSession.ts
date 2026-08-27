@@ -1,9 +1,9 @@
-// services/useMediaSession.ts — the MediaSession service (ToDo.md §3 Wave 16, item
-// 16.3; PLAYER_PARITY.md §3 "Layer 2 — services"). Lifts the engine's inline
+// services/useMediaSession.ts — the MediaSession service (git history, Wave 16, item
+// 16.3; git history: PLAYER_PARITY.md, retired — "Layer 2 — services"). Lifts the engine's inline
 // setMediaSession/setMediaPlayback block out of usePlayerEngine.ts as a standalone
 // hook any consumer composes NEXT TO (not inside) the engine, and adds the one
 // capability the block never had: navigator.mediaSession.setPositionState — the
-// lock-screen scrubber finally tracks the real position (PLAYER_PARITY.md §2 called
+// lock-screen scrubber finally tracks the real position (git history: PLAYER_PARITY.md, retired called
 // this out as the single missing MediaSession piece).
 //
 // Semantics preserved from the inline block, byte-for-byte for papyros:

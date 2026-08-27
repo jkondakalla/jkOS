@@ -25,7 +25,7 @@ services:
       # library root — ~15,000 files duplicating the flat re-download beside them.
       # Keep in step with music/config.py's EXCLUDE_DIRS.
       MUSIC_EXCLUDE_DIRS: "Old (Needs to be trimmed)"
-      # The music embedder's index (ToDo §8's music/index.db) — the source of the
+      # The music embedder's index (ALGORITHMS.md §4's music/index.db) — the source of the
       # CLAP vectors behind similarity, radio, Runs and the vibe map. OPTIONAL:
       # when the file is absent, every discovery surface degrades to metadata
       # affinity and says so on the wire, so a missing index is a quieter app,

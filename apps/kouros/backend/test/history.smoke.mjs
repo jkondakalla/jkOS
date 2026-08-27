@@ -1,4 +1,4 @@
-// history.smoke.mjs (ToDo §3 18.2) — the append-only play-history smoke: boots the REAL
+// history.smoke.mjs (git history: item 18.2) — the append-only play-history smoke: boots the REAL
 // server (throwaway port + temp DB, a REAL RS256 keypair so forged per-user tokens
 // exercise cross-user scoping — same recipe as playback.smoke.mjs) with MUSIC_DIR
 // pointed at an EMPTY temp directory. Unlike library/playback.smoke.mjs this needs no
