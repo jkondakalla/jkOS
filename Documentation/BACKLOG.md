@@ -229,8 +229,8 @@ Landed 2026-08-26/27 on `staging`, gate green at each commit, **none of it deplo
 
 ## Open — the ratchet (Stage E)
 
-Three of six are done (1, 4 and 5). Each closes a class rather than an instance, so each lands as
-its corresponding fix completes.
+Four of six are done (1, 2, 4 and 5), and item 6 is a quarter done (`resolves`, with D13). Each
+closes a class rather than an instance, so each lands as its corresponding fix completes.
 
    ⚠️ **A refinement worth making:** `98-surface-coverage` lets a declared path cover
    everything BENEATH it, so `/items` silently covered the three new `/items/:id/deps`
@@ -244,10 +244,18 @@ its corresponding fix completes.
    `app-private` at its own source line. RESET called this the single highest-value item in the
    plan, because `capability-completeness` audits the *typing* of what is declared and never asks
    whether the declaration covers the code — exactly how BB-7 walked past a green prober.
-2. **Provisioning** — extend env-conformance to the compose files and to the capability level.
-   ⚠️ **Also teach it about `numEnv('NAME', default)`**: it scans for literal `process.env.X`, so
-   the three `SESSION_*_MS` vars read through that helper are reported as documented-but-unread
-   today. A false positive that trains people to ignore the probe.
+2. ✅ **Provisioning — DONE.** `95-env-conformance` now (a) discovers ENV HELPERS rather than
+   scanning only for literal `process.env.X`, (b) covers all five backends, and (c) checks the
+   CAPABILITY level: a capability declaring a scope jkAuth cannot mint is provisioned in code and
+   unprovisioned in reality.
+   ⚠️ The helper fix removed three false positives (`SESSION_*_MS`, read through
+   `numEnv('NAME', default)`) **and revealed seven genuinely undocumented tunables it had been
+   masking** — `BCRYPT_COST`, the three `LOCKOUT_*` knobs and the three `RL_*` rate limits, every
+   one security-relevant and documented nowhere. Now in `.env.example`.
+   ⚠️ **PapyrOS and KourOS were not in the probe's backend list at all** — two whole backends, so
+   it returned a clean report about the apps it happened to know, which reads exactly like a clean
+   report about the suite. The BUG-5 class it exists to catch could have been sitting in either
+   one since they were written.
 3. **Declared column invariants** — machine-readable `writeOnce` / `serverManaged` / `indexed`
    flags in `item-fields.js`, asserted against the actual schema and write path.
 4. ✅ **Shared-shape conformance — DONE (with D6).** `85-activity-conformance` asks whether an
@@ -273,8 +281,9 @@ its corresponding fix completes.
    ⚠️ Still owed, and Jag's: whether anything sensitive was ever committed. That is a
    HISTORY question this scanner deliberately does not ask, because the remedy is a rewrite
    — destructive, coordinates with GitHub. **Investigate and report; do not rewrite.**
-6. **The four contract rules** — one probe each for `resolves`, the cursor/limit convention, the
-   fail-closed version rule, and the per-app status list. A ruling nothing enforces is prose.
+6. **The four contract rules** — a ruling nothing enforces is prose.
+   ✅ `resolves` — `86-async-contract`, landed with D13.
+   ◻ the cursor/limit convention, ◻ the fail-closed version rule, ◻ the per-app status list.
 
 ⚠️ **Do not build an "is anything consuming this contract?" probe.** An unconsumed contract is
 the correct steady state; the only way to satisfy such a probe would be to invent consumers.
