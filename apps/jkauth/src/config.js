@@ -106,6 +106,24 @@ const TOKEN_COOKIE = cookieName(ACCESS_COOKIE_BASE)
 const REFRESH_COOKIE = cookieName('jkos_refresh')
 
 const COOKIE_DOMAIN = process.env.COOKIE_DOMAIN || '.jkos.net'
+// CSRF posture, stated as a DECISION rather than left implicit (JK-A21). There is
+// no synchronizer token in jkAuth, and that is deliberate for this topology:
+//
+//   · sameSite:'lax' means the browser withholds these cookies from every
+//     cross-site POST — which is every state-changing route here, since all of
+//     them are POST/PATCH/DELETE. A cross-site GET does carry them, but no GET in
+//     this service changes state (JK-A20's rotation-on-navigation is the one
+//     wrinkle, and it is not attacker-observable).
+//   · the dual form/JSON routes are all SAME-ORIGIN: the forms are server-rendered
+//     by this service and post back to it, and the JSON callers are the suite's own
+//     app frontends going through weaveCors' registry-backed origin allow-list.
+//   · `secure:true` + `httpOnly:true` keep the pair off plaintext hops and out of
+//     document.cookie; the CSP adds `form-action 'self'` so a page that somehow ran
+//     here could not post the session anywhere else.
+//
+// What that leaves uncovered, honestly: 'lax' is not 'strict', so a top-level
+// cross-site navigation to a GET route arrives authenticated. Revisit with a
+// double-submit token the day a state-changing GET or a cross-site POST exists.
 const COOKIE_OPTS = { httpOnly: true, sameSite: 'lax', secure: true, path: '/', domain: COOKIE_DOMAIN }
 
 // Service-to-service clients (client-credentials grant at POST /auth/token).
@@ -113,17 +131,55 @@ const COOKIE_OPTS = { httpOnly: true, sameSite: 'lax', secure: true, path: '/', 
 // — a comma list of clients, each "<clientId>:<secret>:<pipe-separated scopes>".
 // A client may only ever be granted scopes from its own configured set. Unset →
 // the endpoint refuses (503); no service tokens exist until an operator opts in.
+//
+// JK-A23 — this parser used to fail SILENTLY, in two different directions, because
+// the delimiters are ordinary characters a generated secret can contain:
+//   · a ',' in a secret SPLITS the entry; the leading half has one colon, the old
+//     parser `continue`d past it, and the client simply did not exist — every
+//     POST /auth/token for it 401'd with nothing anywhere saying why.
+//   · a ':' in a secret TRUNCATES it at that colon and the remainder is parsed as
+//     the scope list, so the client existed with the WRONG secret and the WRONG
+//     grant. Also silent.
+// After the cut, nothing can distinguish "a secret containing ':'" from "a secret
+// followed by scopes" — so the check is on the SHAPE that survives it: every scope
+// must read '<app>:<verb>'. A mangled entry's tail never does, which is what turns
+// both halves of the finding into a refusal to boot. Positions are named and
+// contents never are: an entry holds a secret.
+const CLIENT_ID_RE = /^[A-Za-z0-9._-]+$/
+const SCOPE_RE = /^[A-Za-z0-9_-]+:[A-Za-z0-9_-]+$/
 function parseServiceClients(raw) {
   const out = {}
-  for (const entry of String(raw || '').split(',').map(s => s.trim()).filter(Boolean)) {
+  const entries = String(raw || '').split(',').map(s => s.trim()).filter(Boolean)
+  entries.forEach((entry, n) => {
+    const bad = (why) => {
+      throw new Error(
+        `JKOS_SERVICE_CLIENTS entry #${n + 1} of ${entries.length} is malformed: ${why}. ` +
+        `Format is "<id>:<secret>:<scopeA>|<scopeB>"; the id and the secret may contain ` +
+        `neither ':' nor ',' (generate one with \`openssl rand -hex 32\`). The entry itself ` +
+        `is not printed — it holds a secret.`)
+    }
     const i = entry.indexOf(':')
     const j = entry.indexOf(':', i + 1)
-    if (i < 0 || j < 0) continue
+    if (i < 0 || j < 0) {
+      bad('it carries fewer than the two ":" separators an id:secret:scopes entry needs ' +
+          '(a "," inside a secret splits one entry into two, and the leading half looks exactly like this)')
+    }
     const id = entry.slice(0, i)
     const secret = entry.slice(i + 1, j)
     const scopes = entry.slice(j + 1).split('|').map(s => s.trim()).filter(Boolean)
-    if (id && secret) out[id] = { secret, scopes }
-  }
+    if (!id) bad('the client id is empty')
+    if (!CLIENT_ID_RE.test(id)) bad('the client id must be [A-Za-z0-9._-]')
+    if (!secret) bad('the client secret is empty')
+    if (scopes.length === 0) bad('it grants no scopes, so any token minted for it would be useless')
+    for (const s of scopes) {
+      if (!SCOPE_RE.test(s)) {
+        bad('its scope list does not read as "<app>:<verb>" entries — which is exactly ' +
+            'what a ":" inside the SECRET looks like once the entry has been cut')
+      }
+    }
+    if (out[id]) bad('its client id was already defined by an earlier entry')
+    out[id] = { secret, scopes }
+  })
   return out
 }
 const SERVICE_CLIENTS = parseServiceClients(process.env.JKOS_SERVICE_CLIENTS)
