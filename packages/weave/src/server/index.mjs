@@ -15,6 +15,7 @@ export const buildItemFilters = server.buildItemFilters
 export const filterSpec = server.filterSpec
 export const coerceWeaveColumn = server.coerceWeaveColumn
 export const weaveServerClient = server.weaveServerClient
+export const assertServiceClientProvisioned = server.assertServiceClientProvisioned
 export const defineCollection = server.defineCollection
 export const backfillWireTime = server.backfillWireTime
 export const SQL_NOW = server.SQL_NOW

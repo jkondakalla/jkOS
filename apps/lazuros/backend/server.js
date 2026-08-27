@@ -12,7 +12,7 @@ const express = require('express');
 const cookieParser = require('cookie-parser');
 const {
   weaveCors, weaveAuth, weaveWriteGate, healthHandler,
-  serveCapabilities, serveDatasets,
+  serveCapabilities, serveDatasets, assertServiceClientProvisioned,
 } = require('@jkos/weave/server');
 const { CAPABILITIES_DOC, DATASETS_DOC } = require('./docs');
 const { loadDeploymentConfig } = require('./lib/loadDeployment');
@@ -118,6 +118,13 @@ const requireInternalToken = (req, res, next) => {
   next();
 };
 app.use('/internal', requireInternalToken, internalRouter);
+
+// WV-1 / D11: LazurOS writes results back into peer apps AS the requesting user,
+// which needs a provisioned service client. Asserted HERE, at boot, because the
+// alternative is discovering it at the first delegated write — in production,
+// presenting as a job that failed for an unrelated-looking reason. Warns in dev
+// so a checkout without secrets still boots.
+assertServiceClientProvisioned('LazurOS');
 
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => console.log(`[lazuros] listening on ${PORT}, deployment="${deploymentCfg.name || 'unnamed'}"`));

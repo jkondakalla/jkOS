@@ -16,6 +16,34 @@
 // Config (opts or env): JKOS_AUTH_URL, JKOS_SERVICE_CLIENT_ID,
 // JKOS_SERVICE_CLIENT_SECRET. baseUrl may be passed to skip registry discovery.
 
+/** Assert at BOOT that a delegated-write client is actually provisioned (WV-1 /
+ *  D11).
+ *
+ *  ⚠️ Without this the failure is DEFERRED to the first delegated write, in
+ *  production, and presents as a job that failed for an unrelated-looking
+ *  reason. `POST /auth/token` 503s unless jkAuth has JKOS_SERVICE_CLIENTS set,
+ *  and that variable appeared in no compose file — so LazurOS's write-back, the
+ *  whole G1 seam, threw on first call in every deployed environment while every
+ *  test passed, because tests inject a fake client.
+ *
+ *  An app that NEEDS a service client calls this where it starts up. In
+ *  production a missing credential is fatal; elsewhere it warns, so a dev
+ *  checkout still boots without secrets. */
+function assertServiceClientProvisioned(who = 'this app') {
+  const missing = ['JKOS_SERVICE_CLIENT_ID', 'JKOS_SERVICE_CLIENT_SECRET']
+    .filter((k) => !process.env[k])
+  if (!missing.length) return true
+  const msg = `[weave] ${who} performs delegated writes but ${missing.join(' and ')} `
+    + `${missing.length > 1 ? 'are' : 'is'} not set — POST /auth/token would 503 and every `
+    + 'write-back would fail at request time. See Documentation/BACKLOG.md (D11).'
+  if (process.env.NODE_ENV === 'production') {
+    console.error(msg.replace('[weave]', '[weave] FATAL:'))
+    process.exit(1)
+  }
+  console.warn(msg)
+  return false
+}
+
 function weaveServerClient(appId, opts = {}) {
   const authUrl = (opts.authUrl || process.env.JKOS_AUTH_URL || 'https://auth.jkos.net').replace(/\/$/, '')
   const clientId = opts.clientId || process.env.JKOS_SERVICE_CLIENT_ID
@@ -98,4 +126,4 @@ function weaveServerClient(appId, opts = {}) {
   }
 }
 
-module.exports = { weaveServerClient }
+module.exports = { weaveServerClient, assertServiceClientProvisioned }

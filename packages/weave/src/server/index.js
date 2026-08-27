@@ -18,7 +18,7 @@ const { healthHandler } = require('./health')
 const { serveCapabilities, serveDatasets } = require('./contracts')
 const { buildItemFilters, filterSpec } = require('./filters')
 const { coerceWeaveColumn } = require('./columns')
-const { weaveServerClient } = require('./serverClient')
+const { weaveServerClient, assertServiceClientProvisioned } = require('./serverClient')
 const { defineCollection, backfillWireTime } = require('./collection')
 const { SQL_NOW, sqlConvert, isCanonical: isCanonicalTime, parse: parseWireTime } = require('./wireTime')
 const { defineConnector } = require('./connector')
@@ -45,6 +45,7 @@ module.exports = {
   filterSpec,
   coerceWeaveColumn,
   weaveServerClient,
+  assertServiceClientProvisioned,
   defineCollection,
   backfillWireTime,
   SQL_NOW, sqlConvert, isCanonicalTime, parseWireTime,
