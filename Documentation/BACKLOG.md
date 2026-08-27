@@ -24,61 +24,37 @@ Landed 2026-08-26/27 on `staging`, gate green at each commit, **none of it deplo
   fails fast on early child exit, prints the server log on any failure, and exits non-zero when
   the server never booted (it used to exit 0). Ports come from `TEST_PORTS` in
   `@jkos/suite-manifest`, with a `port-registry` probe holding every file's literal to its claim.
-- **jkAuth C1 + C2** — Google OAuth removed entirely; the six high-severity findings fixed as one
-  session-lifecycle rework (migration 017). Guest login verifies its credential, revocations
-  tombstone instead of deleting the evidence, sessions have idle *and* absolute lifetimes, TOTP
-  secrets are sealed at rest, the session cap breaks ties on `id`, and claim-then-issue is one
-  transaction.
+- **jkAuth — Stage C, COMPLETE (C1–C7).** Google OAuth removed; the six
+  high-severity findings fixed as one session-lifecycle rework (migration 017);
+  password change, password reset, email verification and a devices view built
+  (the four absences, migration 018); the medium sweep (JK-A7/A8/A9/A13/A16/A17/
+  A19/A21/A22/A23); the XSS pass over `views.js`; one authorization policy module
+  with a gate proving every route uses it; `aud` verified with `JKOS_APP_ID` in
+  all six compose files; and the write grant split into a create/update/delete
+  ladder so a caller can finally ask for less than full write. 216 assertions
+  across five suites.
 - **BeigeBoard D1 + D2** — `started_at` write-once via trigger, the routine purge cascades,
   `items(parent_id)` indexed, migrations atomic with the FK pragma moved out to the runner.
 
 ---
 
-## Open — jkAuth (Stage C)
+## Open — jkAuth
 
-The largest shortfall. C4+C5 are, in RESET's words, *the architectural centre of an
-access-control portfolio piece.*
+**Stage C is done.** What is left is smaller and was deliberately deferred:
 
-- **C3 · The four absences.** None of these exist at all today, and each is an audit finding in
-  its own right (JK-A12):
-  - **No password change.** `PATCH /auth/profile` accepts `name`, `avatar_url`, `preferences` —
-    not `password`. A credential that cannot be rotated is the finding.
-  - **No password reset.** No forgot-password flow, no reset token. Must answer identically
-    whether the account exists (no enumeration).
-  - **No email verification.** Email is the 2FA delivery channel, so email-OTP currently
-    delivers second factors to an unverified address. Gate *enabling email 2FA* on a verified
-    address rather than blocking login.
-  - **No devices view.** C2 already built `last_used_at` and the revocation tombstones for this;
-    the `GET /auth/sessions` + per-family revoke surface on top is what is missing.
-- **C3 · The medium sweep.** JK-A7 (2FA failures never touch the per-account backoff — only the
-  per-IP limiter bounds them), JK-A8 (recovery codes are 40 bits under a bare SHA-256, and they
-  bypass 2FA entirely, so they are password-equivalent), JK-A13 (profile writes, preference
-  writes and **admin widget publish/delete** are unlogged — the audit log covers authentication
-  only), JK-A16 (`meta` truncated with `slice(0,500)` cuts mid-string and yields invalid JSON —
-  an audit record that cannot be parsed), JK-A17 (`OTP_RESEND_MS` is declared and never used; the
-  30-second policy is hardcoded in SQL), JK-A19 (no TOTP replay protection — a code is reusable
-  inside its ±1-step window), JK-A9 (`logEvent`'s IP fallback is dead code; make it
-  `req?.ip ?? null` and **assert `trust proxy` matches the one-hop topology**, which is the
-  invariant-in-prose class this whole pass exists to close).
-  *Already landed from this group: JK-A21 (CSRF posture recorded as a decision) and JK-A23
-  (`JKOS_SERVICE_CLIENTS` refuses to boot on a mangled entry).*
-- **C4 · Least privilege.** `roleClaims()` emits `<app>:read` + `<app>:write` + `<app>:admin` for
-  every app a role can reach, so anything holding `beigeboard:write` can delete the whole board,
-  and LazurOS needs delete rights to import one parsed task. Let a capability declare its own
-  scope and derive the grantable set from registered capability docs. ⚠️ Runs straight into
-  **JK-A18** (`_cachedRoleClaims` / `_cachedAppOrigins` / `_cachedOriginToId` have no
-  invalidation) — do them together.
-- **C5 · The policy layer.** Keep three roles; extract the enforcement. Authorization is inline
-  string comparisons (`if (user.role !== 'admin')`) scattered across routes, with no single place
-  to read the policy or test it. One policy module, one call shape, every route deriving its
-  check — and a test that proves every route applies it.
-- **C6 · XSS pass over `views.js`.** 292 lines of server-rendered HTML that interpolates
-  user-controlled values (name, email). The nonce CSP is real defence-in-depth but is not a
-  substitute for escaping. Audit every interpolation against `escHtml`.
-- **C7 · Turn on `aud`.** jkAuth computes and mints a per-role audience and **nothing verifies
-  it** — including jkAuth's own `resolveUser`. Verification is opt-in behind `JKOS_APP_ID`, set
-  in no compose file. With one cookie for every `*.jkos.net` host, this claim is the containment.
-  Set it per service in both compose files plus a boot assertion. (WV-3, JK-3.)
+- **JK-A20** — `resolveOrRefresh` rotates the refresh token on a GET navigation.
+  Not exploitable (an attacker can read neither the response nor the cookie), but it is a
+  state change on a safe method. Left alone because the fix touches the silent-refresh path
+  that makes remembered sessions work, and that is not a change to make casually.
+- **Capability-declared scopes.** C4 made the grant EXPRESSIBLE at a finer grain
+  (`<app>:create|update|delete` alongside the legacy blanket `write`), which is what
+  service clients and capability declarations needed. The remaining half is having jkAuth
+  derive the *grantable set* from each app's registered capability doc rather than from the
+  registry row. ⚠️ **There is a real obstacle worth knowing before starting:** jkAuth stores
+  `capabilities_path` but never fetches it, and its container does not carry the other apps'
+  source — so neither an HTTP fetch at boot (the peers may not be up) nor `require()`ing
+  their `discovery.js` (not in the image) works as-is. Deciding *where the doc comes from*
+  is the actual design question, and it is unanswered.
 
 ## Open — the backend and the fabric (Stage D)
 
