@@ -18,4 +18,5 @@
  * is unreachable from a no-bundler Node app. Re-exported here so every existing
  * `from '@jkos/weave'` import is unchanged, and so there is still exactly one
  * definition rather than a frontend copy and a backend copy. */
-export { extRef, parseExtRef } from './shared/extref.js';
+export { extRef, parseExtRef, refScheme, EXT_REF_CLASSES, RESERVED_SCHEMES, checkExtRefDoc, extRefFieldDoc } from './shared/extref.js';
+export type { ExtRefScheme, ExtRefDoc } from './shared/extref.js';

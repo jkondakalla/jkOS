@@ -18,7 +18,7 @@
 // The invalidation bus key is DERIVED from the app id via resourceKey (ToDo A5), not a
 // free-typed 'beigeboard.items' repeated on each capability + the dataset.
 const { resourceKey } = require('@jkos/suite-manifest');
-const { defineActivity, canonicalTime, extRef } = require('@jkos/weave/activity'); // D6: the activity contract (lean subpath — this file is imported as DATA by the prober)
+const { defineActivity, canonicalTime, extRef, checkExtRefDoc, extRefFieldDoc } = require('@jkos/weave/activity'); // D6/D7 (lean subpath — this file is imported as DATA by the prober)
 // ITEM_SHAPE is DERIVED (ARCH-1) from the one per-column list in src/item-fields —
 // the same source src/schema.js derives ITEM_COLUMNS + the import cleaner tables
 // from. So the row a peer READS (this shape), the columns the server WRITES
@@ -26,6 +26,38 @@ const { defineActivity, canonicalTime, extRef } = require('@jkos/weave/activity'
 // hand-synced copies (the drift class behind BUG-1/3/7). item-fields.js is pure,
 // zero-dep data, so requiring it keeps this file offline-safe for the prober.
 const { ITEM_SHAPE } = require('./src/item-fields');
+
+/* ── D7 / BB-5: the EXT_REF SCHEMES this app writes ───────────────────────────────
+   ⚠️ One `ext_ref` column held four incompatible schemes and NOTHING said so —
+   `beigeboard:41` (a suite app's row), `itunes:1234567` (an external catalog, from
+   PapyrOS), and the two below. The audit found three of the four. The finding is
+   stated from the reader's side, which is the right side: an AI author reading the
+   dataset docs could not tell them apart, because the column's meaning lived in four
+   source files and no document.
+
+   Declared here, in the app that WRITES them, and projected into the `ext_ref`
+   field's `doc` string below so the prose a reader sees is GENERATED from this and
+   cannot drift from it. `pnpm check:refs` proves the suite's schemes are globally
+   disjoint and that no source literal writes an undeclared prefix. See
+   packages/weave/src/shared/extref.js for the three classes and for why this is an
+   ALLOCATION rather than a reformat of the stored data. */
+const EXT_REFS = {
+  app: 'beigeboard',
+  version: 1,
+  schemes: [
+    {
+      id: 'routine', class: 'internal', label: "One occurrence the routine engine minted",
+      shape: 'routine:<routineId>:<YYYY-MM-DD>  |  routine:<routineId>:<weekStart>#<n>',
+    },
+    {
+      id: 'routinedoc', class: 'internal', label: 'A routine document, keyed by slug (the import round-trip key)',
+      shape: 'routinedoc:<slug>',
+    },
+  ],
+};
+const extRefsErr = checkExtRefDoc(EXT_REFS);
+if (extRefsErr) throw new Error(`beigeboard ext_ref schemes: ${extRefsErr}`);
+
 // The library's collection vocabulary comes from the routine spec (ARCH-1 again):
 // the same closed list the validator enforces and the editor's dropdown renders, so
 // a peer cannot be told a collection exists that a write would then reject.
@@ -281,7 +313,7 @@ const DATASETS = {
         { name: 'scope',          type: 'string', label: 'Scope',                                          column: 'scope',      op: 'eq' },
         { name: 'week_start',     type: 'date',   label: 'Week bench (ISO Monday)',                        column: 'week_start', op: 'eq' },
         { name: 'due_date',       type: 'date',   label: 'Due date',                                       column: 'due_date',   op: 'eq' },
-        { name: 'ext_ref_prefix', type: 'string', label: 'External-ref prefix (an app\'s own items)',      column: 'ext_ref',    op: 'prefix' },
+        { name: 'ext_ref_prefix', type: 'string', label: 'External-ref prefix (an app\'s own items)',      column: 'ext_ref',    op: 'prefix', doc: extRefFieldDoc(EXT_REFS) },
         { name: 'since',          type: 'string', label: 'Updated since (updated_at delta)',               column: 'updated_at', op: 'gt' },
         { name: 'tags',           type: 'string', label: 'Tags (comma-separated; ANDed)',                  column: 'tags',       op: 'tags' },
       ],
@@ -451,4 +483,4 @@ const ACTIVITY = defineActivity({
   },
 });
 
-module.exports = { CAPABILITIES, DATASETS, ITEM_SHAPE, ACTIVITY };
+module.exports = { CAPABILITIES, DATASETS, ITEM_SHAPE, ACTIVITY, EXT_REFS };

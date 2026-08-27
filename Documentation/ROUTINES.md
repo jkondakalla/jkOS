@@ -121,7 +121,7 @@ never ticked drops out of the cycle ladder entirely; the ones after it keep thei
 rung. `advance_on: 'calendar'` opts out (a taper, a medication ramp, a syllabus).
 
 **RULE 5 — deleting a session is an exception to the rules, and is recorded as one.**
-Because the mint runs on every unfiltered read, deleting an occurrence used to be a
+Because the mint runs on every read, deleting an occurrence used to be a
 no-op with a delay: the row left the view you were looking at and the next read
 re-derived it from rules that still called for it, so it came back on Today, on the
 Week and on the calendar. `DELETE /api/items/<occurrence>` now appends the row's ref
@@ -144,9 +144,13 @@ parentage**: an occurrence the user dragged under a goal has left the `parent_id
 subtree the cascade walks, and used to survive as a ghost session carrying a
 prescription and pointing at a routine that no longer existed.
 
-> ⚠️ **Only this one call site was fixed** — four of five occurrence readers still key
-> on `parent_id`, not `ext_ref`; slated for a full rework in RESET.md Stage D ("Routine
-> identity and reachability").
+> ✅ **Every occurrence reader keys on the ref now (BB-3, 2026-08-27).** Five of the
+> six used to key on `parent_id` while this file's own prose said they must not, so a
+> dragged session fell out of the reconcile's view entirely — never withdrawn, never
+> re-rendered, absent from the tally, and re-INSERTed on every reconcile into an
+> `INSERT OR IGNORE` that swallowed it in silence. The one clause is `OCCURRENCE_OF` +
+> `occurrenceRefPattern(routineId)` in `src/routines.js`, and `pnpm check:refs` fails
+> any reader that hand-writes `parent_id = ?` alongside an `ext_ref LIKE` again.
 
 ## 5. Progression
 
@@ -314,9 +318,14 @@ same "silence means you did what you were told" rule autoregulation uses.
    are **two** functions by that name: this one, in `routines.js`, read by the
    reconcile passes — and the analytics one in `routes/routines.js`, which is
    `SELECT *` and needs nothing.
-   > ⚠️ The reconcile passes this feeds are themselves slated for a rework in
-   > RESET.md Stage D — the mint currently reconciles only on an unfiltered
-   > non-guest human read, off the read path is the target.
+   > ✅ **The reconcile trigger was reworked (BB-1, 2026-08-27).** It used to fire only
+   > on an unfiltered, non-guest, non-service read — so all seven of the `items`
+   > dataset's declared filters switched the cadence engine off, and a peer reading
+   > exactly the way the declaration tells it to was the one caller guaranteed never to
+   > roll the horizon. `ensureHorizon(userId, today)` replaces that gate with a day
+   > marker: ANY caller, through ANY filter, under ANY identity — and real work at most
+   > once per user per calendar day. Writes still reconcile immediately and
+   > unconditionally, so ticking a session still moves the ladder on the same request.
 5b. **The log has ONE author: `logStep`.** A step entry's fields are written there and
    nowhere else, so a new field lands everywhere at once. `SessionCard`'s "all as
    prescribed" button used to rebuild `performed.steps` itself and was fixed when

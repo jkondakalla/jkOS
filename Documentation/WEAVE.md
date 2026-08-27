@@ -57,6 +57,42 @@ where its two siblings cache for the life of the page. And it can only be valida
 per-request — `defineActivity` checks the *declaration* at boot with an empty event list,
 then checks its own answer before serving it.
 
+### 2b · The ext_ref namespace (BB-5)
+
+An `ext_ref` is `"<scheme>:<rest>"` — one opaque string saying "this thing lives at
+scheme X with id Y". ⚠️ **Five incompatible schemes shared that one column and nothing
+said so; the audit found three of the five.** An AI author reading the dataset docs
+could not tell an external catalog id from a suite app's row from an app-private engine
+identity, because the column's meaning lived in five source files and no document.
+
+Three classes, allocated so they cannot collide:
+
+| Class | The scheme is… | Example | Declared where |
+|---|---|---|---|
+| `suite` | a jkOS app id | `beigeboard:41` | `@jkos/suite-manifest` (implicit — never restated) |
+| `external` | a third-party catalog | `itunes:1234567` | the writing app's `EXT_REFS` |
+| `internal` | an app-private engine identity | `routine:24:2026-08-18` | the writing app's `EXT_REFS` |
+
+Plus `RESERVED_SCHEMES` in `weave/src/shared/extref.js` for suite tooling that no app
+owns — `prober:` today, the fifth scheme, which appeared in one file and one comment.
+
+⚠️ **The scheme is the PROVIDER, not the connector.** PapyrOS's connector is `meta` and
+it writes `itunes:` refs. `meta` says which of our doors the data came through;
+`itunes` says whose id it is, and only the second makes the ref resolvable by anyone
+else.
+
+Each app declares its own schemes and projects them into its dataset's `ext_ref` field
+via `extRefFieldDoc(EXT_REFS)`, so the prose a reader sees is *generated* from the
+declaration and cannot drift from it. `pnpm check:refs` proves the allocation is
+disjoint, that no source writes or matches an undeclared prefix, and that no declared
+scheme is stale.
+
+⚠️ **Why an allocation and not a reformat.** Re-prefixing everything as
+`<app>:<scheme>:<id>` would make the first segment always an app id and need no table —
+but it is a data migration of a UNIQUE-INDEXED column the routine engine's idempotency
+depends on, plus `routines.cadence_skips`, which stores ref *suffixes*. It would look
+tidier and tell a reader nothing the declaration does not.
+
 ### 2a · The activity contract (XC-2)
 
 **⭐ Declare one shape; do not share an implementation.** Four apps keep a per-user record

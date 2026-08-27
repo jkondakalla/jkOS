@@ -35,7 +35,7 @@ const {
   checkActivityDoc, isValidActivityDoc,
 } = require('../shared/activity')
 const { canonical: canonicalTime } = require('./wireTime')
-const { extRef } = require('../shared/extref')
+const { extRef, checkExtRefDoc, extRefFieldDoc } = require('../shared/extref')
 
 /* Canonical millisecond ISO — the format `at` is held to, and therefore the format
    the `since`/`until` cursors must speak, since they are compared against it as
@@ -126,4 +126,9 @@ function defineActivity({ app, version = 1, kinds, read }) {
   return { app, version, kinds, path: ACTIVITY_PATH, doc, handler, mount }
 }
 
-module.exports = { defineActivity, canonicalTime, extRef, checkActivityDoc, isValidActivityDoc }
+module.exports = {
+  defineActivity, canonicalTime, extRef, checkActivityDoc, isValidActivityDoc,
+  // BB-5: the ext_ref namespace, reached from the same lean subpath a discovery doc
+  // already imports — it declares its schemes right next to its datasets.
+  checkExtRefDoc, extRefFieldDoc,
+}

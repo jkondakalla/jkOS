@@ -8,7 +8,7 @@ const { DATASETS } = require('../../discovery');
 const { ITEM_COLUMNS, coerceColumn, validateItemWrite } = require('../schema');
 const { validParentId, cascadeDelete, seedDefaults } = require('../items-store');
 const {
-  materializeRoutines, materializeOne, materializeForOccurrence, recordRevision,
+  ensureHorizon, forgetHorizon, materializeOne, materializeForOccurrence, recordRevision,
   skipOccurrence, purgeRoutineOccurrences,
 } = require('../routines');
 const { toRow, fail } = require('../util');
@@ -75,12 +75,16 @@ router.get('/api/items', async (req, res) => {
     /* Keep the routine occurrences current before answering. A write on a read is
        the same bargain the lazy seed above already makes, and it is what makes the
        cadence engine need no scheduler, no cron and no worker: the horizon rolls
-       forward whenever someone looks. Idempotent and cheap — one indexed SELECT
-       when the user owns no routines, which is the common case.
-       Guarded exactly like the seed: never for a filtered read (a peer asking for
-       one day's rows must not trigger a horizon-wide write), never for a guest,
-       and never under a service identity. */
-    if (!filtered && req.user.role !== 'guest' && !isService) {
+       forward whenever someone looks.
+       ⚠️ UNGUARDED BY IDENTITY OR FILTER (BB-1). This used to be gated exactly like
+       the seed — unfiltered, non-guest, non-service — and that gate switched the
+       engine off for every caller reading the way the dataset declaration tells them
+       to, and for every service token including a delegated one. `ensureHorizon`
+       replaces the gate with a day marker: any caller may trigger it, and it does
+       real work at most once per user per calendar day. See routines.js for why the
+       marker is in-process rather than a table.
+       The SEED above keeps its guard — that one is genuinely about who is asking. */
+    {
       /* Re-read on UPDATED as well as minted/withdrawn. The reconcile's third pass
          (propagate) rewrites rows IN PLACE — the routine's own edits pushed onto
          the future it still owns, and since migration 10 the re-rendered
@@ -89,7 +93,7 @@ router.get('/api/items', async (req, res) => {
          they were BEFORE the reconcile, so a change made on this very request
          didn't show up until some later unrelated load: tick today's session and
          tomorrow's numbers stay stale for one round trip. */
-      const { minted, withdrawn, updated } = materializeRoutines(req.user.sub, callerDay(req));
+      const { minted, withdrawn, updated } = ensureHorizon(req.user.sub, callerDay(req));
       if (minted || withdrawn || updated) rows = all(`SELECT * FROM items WHERE ${where} ORDER BY id ASC`, params);
     }
     res.json(rows.map(toRow));
@@ -125,6 +129,12 @@ router.post('/api/items', (req, res) => {
       run('UPDATE items SET spec_version = 1 WHERE id = ? AND user_id = ?', [row.id, req.user.sub]);
       materializeOne(row.id, req.user.sub, callerDay(req));
       row.spec_version = 1;
+      /* WHICH routines exist has changed, so today's horizon marker is stale (BB-1).
+         Without this the day's first read had already marked the day done, and a
+         routine created afterwards would not be swept by a later read until
+         tomorrow. Its own materializeOne above covers it — this covers the ones the
+         sweep would otherwise skip alongside it. */
+      forgetHorizon(req.user.sub);
     }
     res.status(201).json(withLint(toRow(row), details));
   } catch (e) { fail(res, e); }
@@ -191,6 +201,14 @@ router.delete('/api/items/:id', (req, res) => {
     if (row.kind === 'routine') purgeRoutineOccurrences(id, req.user.sub);
     else if (String(row.ext_ref || '').startsWith('routine:')) skipOccurrence(row, req.user.sub);
     cascadeDelete(id, req.user.sub);
+    /* Deleting a routine, or skipping one of its occurrences, changes what the
+       pattern should produce — so today's horizon marker no longer reflects a
+       finished job (BB-1). A skip in particular MUST re-sweep: the point of the skip
+       list is that the mint stops re-deriving that occurrence, and that only takes
+       effect on the next reconcile. */
+    if (row.kind === 'routine' || String(row.ext_ref || '').startsWith('routine:')) {
+      forgetHorizon(req.user.sub);
+    }
     res.json({ ok: true });
   } catch (e) { fail(res, e); }
 });

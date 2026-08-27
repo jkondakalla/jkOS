@@ -39,7 +39,8 @@ const lib = require('../library');
 const spec = require('../routine-spec');
 const { callerDay } = require('@jkos/weave/server');
 const { buildPrompt } = require('../routine-prompt');
-const { materializeOne, recordRevision, revisionsOf, setDeloadOverride, HORIZON_WEEKS } = require('../routines');
+const { materializeOne, recordRevision, revisionsOf, setDeloadOverride, HORIZON_WEEKS,
+        OCCURRENCE_OF, occurrenceRefPattern } = require('../routines');
 const { toRow, fail } = require('../util');
 
 const router = express.Router();
@@ -431,8 +432,8 @@ router.get('/api/routines/:id/preview', (req, res) => {
     if (from === null) {
       const top = get(
         `SELECT MAX(cycle_index) AS c FROM items
-          WHERE user_id = ? AND parent_id = ? AND ext_ref LIKE 'routine:%' AND completed = 1`,
-        [req.user.sub, id],
+          WHERE user_id = ? AND ${OCCURRENCE_OF} AND completed = 1`,
+        [req.user.sub, occurrenceRefPattern(id)],
       );
       from = top && top.c !== null ? top.c + 1 : 0;
     }
@@ -448,12 +449,14 @@ router.get('/api/routines/:id/preview', (req, res) => {
 
 /** The occurrences of one routine, for the analytics below. Kept here rather than
  *  in the engine because it is a READ shape (whole rows, ordered for display), not
- *  the narrow column set the reconcile passes need. */
+ *  the narrow column set the reconcile passes need — but it takes the SAME clause
+ *  (BB-3), so a session dragged out from under its routine still counts toward the
+ *  metric instead of quietly falling out of the tally. */
 const occurrencesOf = (routineId, userId) => all(
   `SELECT * FROM items
-    WHERE user_id = ? AND parent_id = ? AND ext_ref LIKE 'routine:%'
+    WHERE user_id = ? AND ${OCCURRENCE_OF}
     ORDER BY COALESCE(due_date, week_start) ASC, id ASC`,
-  [userId, routineId],
+  [userId, occurrenceRefPattern(routineId)],
 );
 
 /**

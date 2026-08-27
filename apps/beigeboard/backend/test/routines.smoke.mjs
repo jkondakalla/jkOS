@@ -65,6 +65,13 @@ function mkToken(claims) {
   return `${input}.${b64url(cryptoSign('RSA-SHA256', Buffer.from(input), privateKey))}`;
 }
 const A = mkToken({ sub: 501, role: 'admin', scope: ['beigeboard:write'] });
+/* A DELEGATED service token acting for A (G1). applyDelegation rewrites `sub` to
+   `act` but deliberately LEAVES typ:'service', which is precisely why the old
+   identity guard skipped the reconcile for it — see section I3. */
+const DELEGATED = mkToken({ sub: 'svc:trigger', typ: 'service', act: 501, scope: ['beigeboard:write'] });
+/* A plain service token acting for ITSELF — owns no routines, so its reconcile is a
+   no-op, and it must never be seeded. */
+const SVC = mkToken({ sub: 'svc:prober', typ: 'service', scope: ['beigeboard:write'] });
 
 let pass = 0, fail = 0;
 const ok = (cond, msg) => { if (cond) pass++; else { fail++; console.error('  ✗ ' + msg); } };
@@ -116,8 +123,14 @@ async function req(method, path, body, { today = TODAY, token = A } = {}) {
   return { status: r.status, json };
 }
 const list = async (opts) => (await req('GET', '/api/items', undefined, opts)).json || [];
+/* ⚠️ Keyed on the REF, not parent_id — the same rule the engine is held to (BB-3).
+   This helper used to filter on `r.parent_id === id`, which meant the test could not
+   have observed a re-parented occurrence even if it had looked for one: the harness
+   carried the identical bug as the code under test, so section L below would have
+   passed against the broken engine. A test that reimplements the defect cannot see
+   it. */
 const occurrencesOf = (rows, id) => rows
-  .filter((r) => r.parent_id === id && String(r.ext_ref || '').startsWith('routine:'))
+  .filter((r) => String(r.ext_ref || '').startsWith(`routine:${id}:`))
   .sort((a, b) => String(a.ext_ref).localeCompare(String(b.ext_ref)));
 const dates = (rows, id) => occurrencesOf(rows, id).filter((o) => o.due_date).map((o) => o.due_date).sort();
 
@@ -223,12 +236,24 @@ try {
   ok(byPrefix.json.length === occurrencesOf(rows, rid).length,
     'D: ?ext_ref_prefix=routine: lists exactly the occurrences');
 
-  // ── I. a FILTERED read must not trigger a horizon write ─────────────────────
-  //     (the filtered guard is what stops a peer polling one day from writing.)
+  // ── I1. a filtered read is IDEMPOTENT, not disabled (BB-1) ──────────────────
+  //     ⚠️ THIS SECTION ASSERTED THE OPPOSITE until 2026-08-27: "filtered reads
+  //     never mint", written as though the guard were a feature. It was the defect.
+  //     All seven of the items dataset's declared filters switched the cadence
+  //     engine off, so a peer reading exactly the way the declaration tells it to
+  //     was the one caller guaranteed never to roll the horizon — and ORDECK's
+  //     unfiltered dashboard poll was the only thing keeping routines minting
+  //     suite-wide.
+  //
+  //     What must still hold is that a filtered read does no WORK when there is
+  //     none to do — which is now a property of the day marker rather than of who
+  //     is asking. Section I2 below is the other half: on a day the marker has not
+  //     seen, a filtered read DOES roll the horizon.
   const filteredBefore = (await list()).length;
   await req('GET', '/api/items?kind=task');
   await req('GET', `/api/items?due_date=${NEXT_MON}`);
-  ok((await list()).length === filteredBefore, 'I: filtered reads never mint');
+  ok((await list()).length === filteredBefore,
+    'I1: a filtered read on an already-reconciled day mints nothing — bounded, not disabled');
 
   // ── E. RULE 2 — narrowing withdraws only the untouched future ───────────────
   const wedOcc = occurrencesOf(rows, rid).find((o) => o.due_date === WED);
@@ -271,22 +296,61 @@ try {
   ok(occurrencesOf(rows, rid).some((o) => o.due_date === NEXT_MON),
     'G: resuming mints the horizon again');
 
-  // ── I. the horizon rolls forward with the caller's day ──────────────────────
+  // ── I2. the horizon rolls forward with the caller's day — THROUGH A FILTER ──
   //     The horizon is two weeks wide, so reading a week later must mint the week
   //     that has just come into range (Mon 24th) and nothing beyond it (the 31st is
   //     still a week out). This is what makes the engine need no cron: the horizon
   //     advances on being looked at.
-  ok(!dates(rows, rid).includes(WEEK3_MON), 'I: the third week is out of range before the clock moves');
+  //
+  //     ⚠️ THE READ THAT ROLLS IT IS DELIBERATELY FILTERED (BB-1). It used to be an
+  //     unfiltered `list()`, which passed for the wrong reason — the old code only
+  //     ever reconciled on unfiltered reads, so the test proved the horizon rolls
+  //     without ever proving WHO can roll it. `?kind=task` is the shape a peer
+  //     actually polls with, and against the pre-fix engine this mints nothing at
+  //     all. The route re-reads after reconciling, so the filtered response itself
+  //     carries the newly minted rows.
+  ok(!dates(rows, rid).includes(WEEK3_MON), 'I2: the third week is out of range before the clock moves');
+  const laterFiltered = (await req('GET', '/api/items?kind=task', undefined, { today: NEXT_WEEK })).json || [];
+  const laterDates = laterFiltered
+    .filter((r) => String(r.ext_ref || '').startsWith(`routine:${rid}:`))
+    .map((o) => o.due_date).filter(Boolean).sort();
+  ok(laterDates.includes(WEEK3_MON),
+    `I2: ⭐ a FILTERED read a week later mints the week that came into range (got ${JSON.stringify(laterDates)})`);
+  ok(!laterDates.includes(WEEK4_MON),
+    'I2: and stops at the horizon — it does not run away into the future');
   const later = await list({ today: NEXT_WEEK });
-  ok(dates(later, rid).includes(WEEK3_MON),
-    `I: reading a week later mints the week that came into range (got ${JSON.stringify(dates(later, rid))})`);
-  ok(!dates(later, rid).includes(WEEK4_MON),
-    'I: and stops at the horizon — it does not run away into the future');
 
   // A malformed header must fall back to the server's own answer, not reach the
   // date maths. Same guarantee as before, now enforced by callerDay's isDay().
   const junk = await req('GET', '/api/items', undefined, { today: 'not-a-date' });
-  ok(junk.status === 200, `I: a malformed X-JKOS-TODAY is ignored, not fatal (got ${junk.status})`);
+  ok(junk.status === 200, `I2: a malformed X-JKOS-TODAY is ignored, not fatal (got ${junk.status})`);
+
+  // ── I3. a DELEGATED service token rolls its acting user's horizon (BB-1) ────
+  //     ⚠️ The old guard read `typ === 'service' || sub.startsWith('svc:')` and
+  //     skipped. applyDelegation rewrites `sub` to the acting HUMAN but leaves
+  //     typ:'service' on purpose — so a delegated token is a service token acting
+  //     for a person, and the guard saw only the first half. LazurOS writing back on
+  //     a user's behalf therefore never rolled that user's horizon.
+  //     ⚠️ Verified through the DELEGATED response ITSELF, never through a
+  //     follow-up unfiltered read as A — that read would roll the horizon under the
+  //     old code too and the assertion would pass without testing anything. The
+  //     route re-reads after reconciling, so a read that rolled the horizon carries
+  //     the rows it just minted.
+  const farDay = shift(NEXT_WEEK, 7);            // a day no earlier section has used
+  const asDelegate = (await req('GET', '/api/items?kind=task', undefined,
+    { today: farDay, token: DELEGATED })).json || [];
+  const delegateDates = asDelegate
+    .filter((r) => String(r.ext_ref || '').startsWith(`routine:${rid}:`))
+    .map((o) => o.due_date).filter(Boolean).sort();
+  ok(delegateDates.includes(WEEK4_MON),
+    `I3: ⭐ a filtered read under a DELEGATED token rolls the ACTING USER's horizon (got ${JSON.stringify(delegateDates)})`);
+
+  //     A plain service identity owns nothing, so its own reconcile is a harmless
+  //     no-op — and it must still never be SEEDED. That guard was always about who
+  //     is asking, and it stays.
+  const svcRows = (await req('GET', '/api/items', undefined, { token: SVC })).json || [];
+  ok(svcRows.length === 0,
+    `I3: a service identity reading on its OWN behalf gets nothing conjured under svc: (got ${svcRows.length})`);
 
   // ── J. THE SKIP LIST — deleting one occurrence has to STAY deleted ──────────
   //     The mint runs on every unfiltered read, so before migration 12 a delete
@@ -329,6 +393,65 @@ try {
   }
   await req('DELETE', `/api/items/${jid}`);
 
+
+  // ── L. THE REF IS THE AUTHORITY, NOT parent_id (BB-3) ───────────────────────
+  //    routines.js has said "THE REF IS THE AUTHORITY, not parent_id" in prose since
+  //    it was written, while FIVE of its six occurrence readers keyed on parent_id.
+  //    Dragging a session out from under its routine — into a goal, which is the
+  //    whole reason the rule exists — kept its ext_ref but moved it out of every
+  //    reader's view. It then became a ghost: never withdrawn, never re-rendered,
+  //    absent from the tally, and re-INSERTed on every single reconcile forever, an
+  //    insert the unique (user_id, ext_ref) index refuses and INSERT OR IGNORE
+  //    swallows in silence while `minted` honestly reports 0.
+  //
+  //    The move must NOT change due_date: moving an occurrence off its minted date
+  //    is what hands it to the user permanently (isEngineOwned). Re-parenting alone
+  //    does not, so this row stays the engine's — which is exactly what makes it a
+  //    test of the reader rather than of ownership.
+  const lGoal = await req('POST', '/api/items', { title: 'A goal to drag into', kind: 'goal' });
+  const lMade = await req('POST', '/api/items', {
+    title: 'Drag me', kind: 'routine', status: 'active', cadence_days: '0,2', cadence_count: 2,
+  });
+  const lRid = lMade.json.id;
+  let lRows = await list();
+  const strayBefore = occurrencesOf(lRows, lRid).find((o) => o.due_date === NEXT_WED);
+  ok(!!strayBefore, 'L: the routine minted next Wednesday to work with');
+
+  const reparent = await req('PATCH', `/api/items/${strayBefore.id}`, { parent_id: lGoal.json.id });
+  ok(reparent.status === 200, `L: an occurrence can be dragged under a goal (got ${reparent.status})`);
+  lRows = await list();
+  const lStray = lRows.find((r) => r.id === strayBefore.id);
+  ok(lStray?.parent_id === lGoal.json.id, 'L: it really left the routine subtree');
+  ok(lStray?.ext_ref === strayBefore.ext_ref, 'L: and it kept the ref that says what minted it');
+  ok(lStray?.due_date === NEXT_WED, 'L: its date is unchanged, so it is still the engine\'s to move');
+
+  // ⚠️ THE ASSERTION THAT FAILS AGAINST THE OLD CODE. Narrow the cadence so next
+  //    Wednesday is no longer planned. Keyed on the ref the engine withdraws it;
+  //    keyed on parent_id it cannot even see it, and the row survives as a ghost —
+  //    a session on the calendar, carrying a prescription, belonging to nothing.
+  await req('PATCH', `/api/items/${lRid}`, { cadence_days: '0', cadence_count: 1 });
+  lRows = await list();
+  ok(!lRows.some((r) => r.id === strayBefore.id),
+    'L: ⭐ a re-parented occurrence the cadence dropped is WITHDRAWN — the reconcile follows the ref out of the subtree');
+
+  // The same rule on the write path: ticking a dragged session must still move the
+  // ladder. materializeForOccurrence keyed on parent_id AND bailed on a null one,
+  // so an occurrence dragged to the top level moved nothing at all.
+  const lKeep = occurrencesOf(await list(), lRid).find((o) => o.due_date === NEXT_MON);
+  ok(!!lKeep, 'L: next Monday survived the narrowing');
+  await req('PATCH', `/api/items/${lKeep.id}`, { parent_id: null });
+  const tick = await req('PATCH', `/api/items/${lKeep.id}`, { completed: true });
+  ok(tick.status === 200, `L: a top-level dragged occurrence still accepts a tick (got ${tick.status})`);
+  const lAfter = occurrencesOf(await list(), lRid);
+  ok(lAfter.some((o) => o.id === lKeep.id && o.completed),
+    'L: and the engine still recognises it as that routine\'s occurrence afterwards');
+
+  // Deleting the routine reaches the stray too — purgeRoutineOccurrences already
+  // keyed on the ref, and now takes the SAME clause builder as everything else.
+  await req('DELETE', `/api/items/${lRid}`);
+  const lGone = await list();
+  ok(!lGone.some((r) => String(r.ext_ref || '').startsWith(`routine:${lRid}:`)),
+    'L: deleting the routine reaches every row it minted, wherever the user moved it to');
 
   // ── K. VARIANCE INSTRUMENTATION (migration 13) ─────────────────────────────
   //     The two facts nothing in this schema could answer, and that no later code

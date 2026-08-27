@@ -20,8 +20,33 @@
 // here — it doesn't read auth.env or touch fetch until server.js calls `META.mount(app)`.
 const { resourceKey } = require('@jkos/suite-manifest');
 const { defineCollection } = require('@jkos/weave/collection');   // 3.1: the four collections below
-const { defineActivity, canonicalTime, extRef } = require('@jkos/weave/activity'); // D6: the activity contract (lean subpath — this file is imported as DATA by the prober)
+const { defineActivity, canonicalTime, extRef, checkExtRefDoc, extRefFieldDoc } = require('@jkos/weave/activity'); // D6/D7 (lean subpath — this file is imported as DATA by the prober)
 const { defineConnector } = require('@jkos/weave/connector');     // 4.1: META, the iTunes metadata connector below
+
+/* ── D7 / BB-5: the EXT_REF SCHEMES this app writes ───────────────────────────────
+   ⚠️ `itunes:` was a bare literal in src/routes/match.js, declared NOWHERE. That is
+   the finding in miniature: one `ext_ref` column across the suite held four
+   incompatible schemes, and an AI author reading the dataset docs could not tell an
+   external catalog id from a suite app's row from an app-private engine identity.
+
+   ⚠️ THE SCHEME IS THE PROVIDER, NOT THE CONNECTOR. This app's connector is `meta`
+   (defineConnector, below) and it writes `itunes:` refs. Conflating the two is
+   exactly how the prefix came to mean nothing to a reader: `meta` says which of our
+   doors the data came through, `itunes` says whose id it is — and only the second
+   makes the ref resolvable by anyone else. If a second provider is added behind the
+   same connector, it gets its own scheme here, not a share of this one. */
+const EXT_REFS = {
+  app: 'papyros',
+  version: 1,
+  schemes: [
+    {
+      id: 'itunes', class: 'external', label: 'An iTunes Search catalog id (the metadata enrichment key)',
+      shape: 'itunes:<trackId>',
+    },
+  ],
+};
+const extRefsErr = checkExtRefDoc(EXT_REFS);
+if (extRefsErr) throw new Error(`papyros ext_ref schemes: ${extRefsErr}`);
 
 /** The `books` catalog's invalidation bus key — the scanner (src/library/scan.js)
  *  bumps every book row it touches, so a peer polling `books` refetches on rescan.
@@ -409,7 +434,7 @@ const BOOK_SHAPE = [
   { name: 'duration',        type: 'number', label: 'Total duration, seconds' },
   { name: 'cover_path',      type: 'string', label: 'Cover image path relative to DATA_DIR (null if none extracted)' },
   { name: 'metadata_source', type: 'enum',   enum: ['embedded', 'itunes', 'manual'] },
-  { name: 'ext_ref',         type: 'string', label: 'External metadata reference (enrichment lookup key)' },
+  { name: 'ext_ref',         type: 'string', label: 'External metadata reference (enrichment lookup key)', doc: extRefFieldDoc(EXT_REFS) },
   { name: 'updated_at',      type: 'string', label: 'Last catalog update (delta cursor for `since`)' },
 ];
 
@@ -484,5 +509,6 @@ module.exports = {
   PROGRESS, BOOKMARKS, CLUBS, CLUB_MEMBERS,   // 3.1: server.js .mount()s each of these
   HISTORY,                                     // 17.4: server.js .mount()s this too (append-only)
   ACTIVITY,                                    // D6: server.js mounts its handler (what the user DID here)
+  EXT_REFS,                                    // D7/BB-5: the ext_ref schemes this app writes
   META,                                        // 4.1: server.js .mount()s this too (reads only, no CollectionDef .ddl())
 };

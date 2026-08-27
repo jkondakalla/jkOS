@@ -75,6 +75,23 @@ Landed 2026-08-26/27 on `staging`, gate green at each commit, **none of it deplo
   append-only per-user collection with no declaration is a gap, and an app reaching
   into another app's source is drift. `extRef` moved to `shared/extref.js` so the
   CJS backends and the TS frontend share one definition instead of two.
+- **D7 — routine identity and reachability, as one unit.** **BB-3:** the ref is the
+  authority in SQL now, not just in prose — `OCCURRENCE_OF` + `occurrenceRefPattern`
+  is the one clause all six occurrence readers take (five keyed on `parent_id`, so
+  a session dragged under a goal fell out of the reconcile entirely and was
+  re-INSERTed forever into an `INSERT OR IGNORE` that swallowed it). **BB-5:** every
+  `ext_ref` scheme is DECLARED by the app that writes it and projected into that
+  app's dataset doc; enumerating the namespace found **five** schemes, not the three
+  the audit named — `routinedoc:` and the suite-prober's own `prober:`, the latter
+  now a suite-reserved scheme since no app owns it. **BB-1:** the reconcile no longer
+  fires only on an unfiltered non-guest human read. `ensureHorizon` bounds it to once
+  per user per caller-day and lets ANY caller trigger it, including a delegated
+  service token (which keeps `typ:'service'` while acting for a human, so the old
+  guard skipped LazurOS's write-backs entirely). `check:refs` holds all of it.
+  ⚠️ The smoke's own `occurrencesOf` helper keyed on `parent_id` too, so it could not
+  have seen BB-3 even if it had looked; and section I asserted *"filtered reads never
+  mint"* — the defect, written down as a feature. Both inverted, and every new
+  assertion verified to FAIL against the pre-fix code.
 
 ---
 
@@ -98,25 +115,20 @@ Landed 2026-08-26/27 on `staging`, gate green at each commit, **none of it deplo
 
 ## Open — the backend and the fabric (Stage D)
 
-Six of thirteen items (D1, D2, D3, D4, D5, D6 and D11 are done). Re-verify each before fixing; the
-audit predates this work and BB-3 is marked *Partial*.
+Five of thirteen items (D1, D2, D3, D4, D5, D6, D7 and D11 are done). Re-verify each before fixing;
+the audit predates this work.
 
 - **The seven `json` escape-hatch fields** are what remains of D3, and they are the weakest item
   on this list. A routine `spec` genuinely IS an opaque document, so "type it properly" may be
   the wrong answer — decide whether the hatch is a defect here or an honest description before
   spending effort on it.
-- **D7 · Routine identity and reachability, as one unit.** Key every occurrence reader on
-  `ext_ref` (**BB-3** — the file says *"THE REF IS THE AUTHORITY"* and four of five call sites use
-  `parent_id`), resolve the `ext_ref` namespace while identity is open (**BB-5** —
-  `beigeboard:41`, `itunes:1234567` and `routine:24:2026-08-18` share one column), **then** take
-  the reconcile off the read path (**BB-1** — it fires only on an unfiltered non-guest human
-  read, so all seven declared filters disable it). ⚠️ BB-1 alone leaves orphans; BB-3 alone
-  leaves peers on a stale horizon.
-- **D8 · Invalidations, then ORDECK's read.** BeigeBoard has no `@jkos/weave` dependency
-  (**BB-4**) so its writes never `invalidate('beigeboard.items')`; it needn't *consume* the
-  fabric but must publish. Then narrow ORDECK's poll (**XC-3** — the whole items table every
-  60 s, none of the seven filters, never the cursor). ⚠️ **Strictly after D7:** ORDECK's
-  unfiltered poll is currently the only thing firing the reconcile.
+- **D8 · Invalidations, then ORDECK's read.** BeigeBoard's writes never
+  `invalidate('beigeboard.items')` (**BB-4**); it needn't *consume* the fabric but must publish.
+  Then narrow ORDECK's poll (**XC-3** — the whole items table every 60 s, none of the seven
+  filters, never the cursor). ✅ **Unblocked — D7 landed.** ORDECK's unfiltered poll used to be
+  the only thing firing the reconcile, so narrowing it first would have stopped routines minting
+  suite-wide; `ensureHorizon` now fires for any caller through any filter, so the poll can be
+  narrowed safely.
 - **D9 · Extract `routine-spec` to a package (BB-8).** 1,666 backend lines plus a 1,045-line
   frontend mirror of the same engine. The backend file is already pure and zero-dependency, and
   `check:routine` drives both through one matrix — the harness proving the extraction was

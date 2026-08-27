@@ -179,6 +179,36 @@ function refRoutineId(ref) {
   return m ? parseInt(m[1], 10) : null;
 }
 
+/** ⭐ The SQL half of "the ref is the authority" (BB-3), in one place.
+ *
+ *  ⚠️ This file asserted the rule in prose for months while FIVE of its six
+ *  occurrence readers keyed on `parent_id` anyway. The failure was silent and
+ *  compounding: drag one session out from under its routine and into a goal — a
+ *  normal thing to do, and the whole reason the rule exists — and the row keeps its
+ *  ext_ref but leaves the subtree. It then vanishes from the reconcile's view, so
+ *
+ *    · `withdrawStale` can never withdraw it,
+ *    · `cycleLadder` computes without it, so its prescription silently goes stale,
+ *    · the metric stops counting it, and
+ *    · the mint tries to re-create it every single reconcile — an INSERT the unique
+ *      (user_id, ext_ref) index refuses and `INSERT OR IGNORE` swallows, forever,
+ *      with no error and `minted` honestly reporting 0.
+ *
+ *  A prose rule that five call sites contradict is not a rule. This is the clause,
+ *  and every reader takes it — a new reader that hand-writes `parent_id = ?` is
+ *  caught by `pnpm check:refs`.
+ *
+ *  The id is interpolated, not bound, and that is safe BECAUSE it is coerced to an
+ *  integer first — a routine id is `items.id`. The LIKE therefore carries no user
+ *  input and no metacharacters. `routine:24:%` cannot match `routine:240:…`: the
+ *  colon is part of the prefix. */
+const OCCURRENCE_OF = 'ext_ref LIKE ?';
+function occurrenceRefPattern(routineId) {
+  const id = parseInt(routineId, 10);
+  if (!Number.isInteger(id)) return 'routine:\u0000:%';   // matches nothing
+  return `routine:${id}:%`;
+}
+
 /** The part of an occurrence's ext_ref that identifies WHICH occurrence it is —
  *  a date for a dated one, `<weekStart>#<index>` for a float. This is the unit
  *  the skip list stores, because it is the only part that survives the routine id
@@ -278,7 +308,7 @@ function purgeRoutineOccurrences(routineId, userId) {
   const rows = all(
     `SELECT id FROM items
       WHERE user_id = ? AND ext_ref LIKE ? AND id <> ?`,
-    [userId, `routine:${routineId}:%`, routineId],
+    [userId, occurrenceRefPattern(routineId), routineId],
   );
   /* Cascade, never a bare DELETE (BB-12): an occurrence can carry children — a
    * per-set log, an added checklist — and deleting only the parent row strands
@@ -500,14 +530,16 @@ function reconcileRoutine(routine, userId, today, resolve) {
   return { minted, withdrawn, updated };
 }
 
-/** Occurrences of a routine, with just the columns the two reconcile passes read. */
+/** Occurrences of a routine, with just the columns the two reconcile passes read.
+ *  Keyed on the REF (BB-3) — see OCCURRENCE_OF above for what keying on parent_id
+ *  silently cost. */
 const occurrencesOf = (routineId, userId) => all(
   `SELECT id, ext_ref, title, notes, accent, completed, due_date, week_start,
           scheduled_time, scheduled_end, cycle_index, prescription, performed,
           deload_override
      FROM items
-    WHERE user_id = ? AND parent_id = ? AND ext_ref LIKE 'routine:%'`,
-  [userId, routineId],
+    WHERE user_id = ? AND ${OCCURRENCE_OF}`,
+  [userId, occurrenceRefPattern(routineId)],
 );
 
 /* Future only — today itself is never rewritten or withdrawn, because the day is
@@ -600,6 +632,68 @@ const materializeRoutines = db.transaction((userId, today) => {
 
 /** Reconcile one routine by id, for the write paths (POST/PATCH) so the board
  *  reflects an edit on the very next read instead of one round-trip later. */
+/* ══════════════════════════════════════════════════════════════════════════════
+   ENSURING THE HORIZON — the read-path trigger (BB-1)
+   ══════════════════════════════════════════════════════════════════════════════
+
+   ⚠️ THE BUG THIS REPLACES. The reconcile used to fire only on an UNFILTERED,
+   NON-GUEST, NON-SERVICE read of /api/items. Read that list again as a list of
+   things that silently switch the cadence engine off:
+
+     · all SEVEN of the items dataset's declared filters. A peer that reads the way
+       the declaration tells it to — `?kind=task`, `?due_date=…`, `?since=…` — was
+       the one caller guaranteed never to roll the horizon.
+     · every service token. Including a DELEGATED one: applyDelegation rewrites
+       `sub` to the acting human but deliberately leaves `typ:'service'`, so LazurOS
+       writing back on a user's behalf skipped their reconcile entirely.
+     · ORDECK's dashboard poll was therefore the ONLY thing reliably firing it —
+       and narrowing that poll to the filters it should have been using all along
+       (XC-3) would have stopped routines minting suite-wide. Two defects holding
+       each other up.
+
+   ⭐ THE FIX IS NOT "reconcile on every read". The filtered guard was wrong, but the
+   instinct behind it was right: a peer polling one day's rows must not pay for a
+   horizon-wide write. So the guard moves from WHO IS ASKING to WHAT HAS ALREADY BEEN
+   DONE — at most one horizon roll per user per calendar day, on any read, from any
+   identity, through any filter.
+
+   ⚠️ The marker is IN-PROCESS and that is a deliberate choice, not a shortcut. It is
+   an optimisation, never a correctness claim: the reconcile is idempotent (the mint
+   is INSERT OR IGNORE against a unique index), so a restart, a second container, or
+   a cold cache costs one extra idempotent pass and nothing else. A durable marker
+   table would add a write and a migration to make a cache authoritative, and a cache
+   that is authoritative is no longer a cache — it is a thing that can be wrong.
+
+   Time is the only thing this defers. Every WRITE still reconciles immediately and
+   unconditionally (materializeOne / materializeForOccurrence / setDeloadOverride),
+   so ticking a session moves the ladder on that same request. What the day marker
+   bounds is purely the passage-of-time roll, which happens once a day by definition.
+
+   Keyed on the CALLER'S day (D5), so a user in Chicago rolls at their midnight and
+   not at UTC's. */
+const horizonDay = new Map();   // userId → the caller-day we last reconciled for
+
+/** Roll this user's routine horizon if it hasn't been rolled for `today` yet.
+ *  Safe and cheap to call on any read, from any identity, with any filter. */
+function ensureHorizon(userId, today) {
+  if (userId == null) return { routines: 0, minted: 0, withdrawn: 0, updated: 0 };
+  const key = String(userId);
+  if (horizonDay.get(key) === today) return { routines: 0, minted: 0, withdrawn: 0, updated: 0 };
+  const res = materializeRoutines(userId, today);
+  /* Set AFTER the pass, so a throw retries on the next read rather than marking the
+     day done and leaving the horizon short until tomorrow. */
+  horizonDay.set(key, today);
+  return res;
+}
+
+/** Drop the memo for one user (or all), so the next read reconciles again. Called
+ *  by the write paths that change WHICH routines exist — a create or a delete must
+ *  not wait for tomorrow to be reflected in a subsequent filtered read. */
+function forgetHorizon(userId) {
+  if (userId == null) horizonDay.clear();
+  else horizonDay.delete(String(userId));
+}
+
 function materializeOne(routineId, userId, today) {
   const r = get('SELECT * FROM items WHERE id = ? AND user_id = ? AND kind = ?', [routineId, userId, 'routine']);
   if (!r) return { minted: 0, withdrawn: 0 };
@@ -638,8 +732,10 @@ const setDeloadOverride = db.transaction((occId, userId, today, value) => {
 
   run('UPDATE items SET deload_override = ? WHERE id = ? AND user_id = ?', [value, occId, userId]);
 
+  /* The ref, not parent_id (BB-3): deloading a session you dragged under a goal
+     must still reconcile the routine it came from. */
   const routine = get('SELECT * FROM items WHERE id = ? AND user_id = ? AND kind = ?',
-    [row.parent_id, userId, 'routine']);
+    [refRoutineId(row.ext_ref), userId, 'routine']);
   if (!routine) return { ok: true, row: get('SELECT * FROM items WHERE id = ?', [occId]) };
 
   const resolve = resolverFor(userId);
@@ -738,17 +834,24 @@ function revisionsOf(routineId, userId) {
  *  A no-op (one indexed lookup) for any row that isn't an occurrence, which is
  *  almost every row — so the PATCH route can call it unconditionally. */
 function materializeForOccurrence(row, userId, today) {
-  const ref = String(row?.ext_ref || '');
-  if (!ref.startsWith('routine:') || row.parent_id == null) return { minted: 0, withdrawn: 0 };
-  return materializeOne(row.parent_id, userId, today);
+  /* The ref, not parent_id (BB-3). The old guard ALSO bailed when `parent_id` was
+     null, so ticking an occurrence the user had dragged to the top level did not
+     move the ladder at all — the one interaction this function exists to serve. */
+  const routineId = refRoutineId(row?.ext_ref);
+  if (routineId == null) return { minted: 0, withdrawn: 0 };
+  return materializeOne(routineId, userId, today);
 }
 
 module.exports = {
   materializeRoutines, materializeOne, materializeForOccurrence,
+  // BB-1: the read-path trigger, day-bounded and identity-blind
+  ensureHorizon, forgetHorizon,
   recordRevision, revisionsOf, setDeloadOverride,
   // the delete path (migration 12): strike one occurrence out of the pattern, and
   // reach every row a deleted routine minted wherever the user moved it to
   skipOccurrence, purgeRoutineOccurrences, refRoutineId, refSuffix, skipSet,
+  // BB-3: the one SQL clause every occurrence reader takes — see OCCURRENCE_OF
+  OCCURRENCE_OF, occurrenceRefPattern,
   // exported for the tests + the frontend's mirror of the same rules
   plannedOccurrences, cadenceDays, floatCount, weeklyTarget, weekStart, addDays,
   cycleLadder, prescriptionFor, orderDate, weeksBetween, isEngineOwned,

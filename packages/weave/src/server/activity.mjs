@@ -8,4 +8,6 @@ export const canonicalTime = mod.canonicalTime
 export const extRef = mod.extRef
 export const checkActivityDoc = mod.checkActivityDoc
 export const isValidActivityDoc = mod.isValidActivityDoc
+export const checkExtRefDoc = mod.checkExtRefDoc
+export const extRefFieldDoc = mod.extRefFieldDoc
 export default mod
