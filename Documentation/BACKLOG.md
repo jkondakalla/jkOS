@@ -71,7 +71,7 @@ Landed 2026-08-26/27 on `staging`, gate green at each commit, **none of it deplo
 
 ## Open — the backend and the fabric (Stage D)
 
-Nine of thirteen items (D1, D2, D3 and D4 are done). Re-verify each before fixing; the audit predates
+Eight of thirteen items (D1, D2, D3, D4 and D11 are done). Re-verify each before fixing; the audit predates
 this work and BB-3 is marked *Partial*.
 
 - **The seven `json` escape-hatch fields** are what remains of D3, and they are the weakest item
@@ -105,11 +105,6 @@ this work and BB-3 is marked *Partial*.
 - **D10 · Calendar sync onto `defineConnector` (BB-6).** 247 lines of near-identical
   Google/Outlook/iCloud blocks, none declared, no scheduler, and a disconnect that raw-`DELETE`s
   items bypassing `cascadeDelete`. **After D5**, so providers are rewritten once.
-- **D11 · Provisioning (WV-1).** `weaveServerClient()` mints a service token via
-  `POST /auth/token`, which 503s unless `JKOS_SERVICE_CLIENTS` is set — and it is in no compose
-  file, so LazurOS's write-back throws on first call in any deployed environment. Set it,
-  `JKOS_DELEGATION_CLIENTS` and `JKOS_APP_ID` (C7), plus a boot assertion. Generate secrets from
-  a `:`/`,`-free alphabet (the parser now refuses malformed entries loudly).
 - **D12 · The data-model gap.** No new primitive types — `goal/milestone/task/event/routine` is
   the right cut. Missing is one table and three columns: **`item_deps`** (the one place a column
   won't do — nothing expresses "can't start B until A ships", which is the question a planner
@@ -129,9 +124,8 @@ this work and BB-3 is marked *Partial*.
   (jkDeploy isn't in `@jkos/suite-manifest`, so "deploy staging" can't be a HUD button);
   **XC-5** (three apps keep user settings in `localStorage`; the prefs blob has no namespacing
   convention, which matters once `timezone` joins it); **XC-6** (`<AppShell>`/`<AsyncView>`
-  reached PapyrOS and KourOS and stopped); **WV-7** (`useCalendarSource` + 8 more `@jkos/cards`
-  exports have never been called — **delete them**; an unused export is worse than a missing one
-  for a fresh agent, because it looks supported).
+  reached PapyrOS and KourOS and stopped). *(WV-7 is done — the `@jkos/cards` barrel no longer
+  advertises what nothing imports.)*
 
 ## Open — the ratchet (Stage E)
 
@@ -203,6 +197,13 @@ promote the glass tokens into the factory, apply them on the cover primitive. �
   note or move it out of `music/`, which is otherwise the vector-space project.
 
 ## Open — Jag's, not mine
+
+- **Generate the service-client secrets.** `JKOS_SERVICE_CLIENTS` and
+  `JKOS_DELEGATION_CLIENTS` are present-and-empty in `apps/jkauth/.env.example`, and
+  `JKOS_SERVICE_CLIENT_ID`/`_SECRET` in LazurOS's. The code half of D11 is done — LazurOS now
+  refuses to start in production without them — but the values are yours. Use
+  `openssl rand -hex 32`, grant `beigeboard:create` rather than `beigeboard:write`, and mind
+  that an id or secret containing `:` or `,` makes jkAuth refuse to boot (deliberately).
 
 - **The two off-box backup commands** (`infra/backup/README.md`) — one writes the NAS
   `authorized_keys`, one sets a passphrase only he should know. **Before deploying anything that
