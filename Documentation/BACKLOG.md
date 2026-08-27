@@ -300,9 +300,16 @@ Landed 2026-08-26/27 on `staging`, gate green at each commit, **none of it deplo
    the gate red on day one, and a red gate nobody can turn green is one people learn to skip.
    The count prints loudly on every run. **Raising the floor once those upgrade cleanly is
    the open decision.**
-   ⚠️ Still owed, and Jag's: whether anything sensitive was ever committed. That is a
-   HISTORY question this scanner deliberately does not ask, because the remedy is a rewrite
-   — destructive, coordinates with GitHub. **Investigate and report; do not rewrite.**
+   ⚠️ **ANSWERED, and it is a yes.** `music/Downloader/Qobuz.py` carried a real Qobuz
+   account password (`QOBUZ_PASSWORD = "…"`) in tracked source, first committed in `e3c829a`
+   ("whoopsies"). Removed from the working tree and moved to the environment on 2026-08-27,
+   and `check:secrets` extended to catch that shape — it had only ever matched VENDOR-SHAPED
+   tokens (PEM, `AKIA…`, `ghp_…`, `sk-…`), and a plaintext assignment to a `*_PASSWORD`
+   variable matched none of them, so every green run of that scanner was green past it.
+   ⚠️ **Removing it does not remove it from history.** The value is reachable in every clone
+   and on the remote. **It must be rotated at Qobuz — that is the only remedy, and it is
+   Jag's.** History rewriting stays refused per the standing ruling: destructive, coordinates
+   with GitHub, Jag's call.
 6. ✅ **The four contract rules — DONE.** A ruling nothing enforces is prose; each is a check
    now (`check:rulings`, plus `86-async-contract` for the first).
    · **`resolves`** — landed with D13.
@@ -352,13 +359,19 @@ promote the glass tokens into the factory, apply them on the cover primitive. �
 
 ## Open — documentation
 
-- **`TESTING.md` needs its rewrite.** Stage B changed the harness contract — the `service`
-  assertion, the fail-fast on early exit, the port registry — and none of it is described there.
-  Stage E will add probes that also belong in it.
+- ✅ **`TESTING.md` rewritten.** The harness contract now has its own section (the `service`
+  assertion, fail-fast on early child exit, the log-on-failure rule, the port registry, and
+  the 12-second boot budget with the flake it exists for), the six new gates and two new
+  probes are in the inventory, stale assertion counts are corrected, and a new subsection
+  records the four things this session's work proved about writing these — including that a
+  test which reimplements the defect cannot see it, and that a gate with false positives is
+  worse than no gate.
 - **`DESIGN.md` is rewritten against the new factory**, so it waits on Stage F by design.
-- **`music/Downloader/Qobuz.py`** is a 459-line library-acquisition script, tracked in git and
-  documented nowhere. It has nothing to do with the embedder; either give it a one-line README
-  note or move it out of `music/`, which is otherwise the vector-space project.
+- ✅ **`music/Downloader/Qobuz.py` documented** — kept (it is how the library it analyses gets
+  there) but flagged in `music/README.md` as a SIBLING TOOL, not a module of the pipeline.
+  ⚠️ **And it carried a live Qobuz account password hardcoded in tracked source.** Moved to
+  the environment; `check:secrets` grew the rule that would have caught it. **Rotation is
+  Jag's** — see "Open — Jag's, not mine".
 
 ## Open — Jag's, not mine
 

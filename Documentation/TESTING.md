@@ -1,19 +1,49 @@
 # jkOS — Testing Reference
 
 What the suite's test system is, what every test asserts, how to run each layer, and how
-to add a new one. This describes the **shipped** suite (post the 2026-07-06/07 upgrade
-program — history capsule at the bottom). When this doc disagrees with the code, the code
-wins — update this. The quick command catalog is [PRIMITIVES.md](PRIMITIVES.md) §2.
+to add a new one. When this doc disagrees with the code, the code wins — update this. The
+quick command catalog is [PRIMITIVES.md](PRIMITIVES.md) §2.
+
+Current as of **2026-08-27**, after Stage D and Stage E of `RESET.md` — which added six
+root gates (`check:today`, `check:refs`, `check:binding`, `check:columns`, `check:rulings`,
+plus the extended `check:async-view`) and two prober probes, and changed the harness
+contract described in the next section. A history capsule for the 2026-07-06/07 upgrade
+program is at the bottom.
 
 ## The layers (run in this order, stop at the first red)
 
 1. **`pnpm typecheck`** — cheapest signal; a type error means the source doesn't cohere.
+   ⚠️ **NOT part of `test:contracts`** — run it separately after touching any TS.
 2. **`pnpm test:contracts`** — THE gate. Every hard contract in one chain; exit 0 is the
    definition of "green". Run after every meaningful change.
 3. **Per-app tests** — to localize a gate failure (`pnpm --filter @jkos/<pkg> test`).
 4. **`pnpm prove --live <base>`** — post-deploy smoke against a running stack.
 
 The `/suite-health` skill automates this walk and maps failure signatures to known fixes.
+
+## ⚠️ The harness contract (read before writing a smoke)
+
+Four properties every boot-real-server smoke depends on. Each exists because its absence
+cost a real debugging session, and none of them was written down until now.
+
+- **`/health` names the SERVICE, and the smoke asserts WHICH.** A bare 200 proves only
+  that *something* is on the port. A stray server from another app once passed eight
+  assertions on a shared port (OPS-1), so every harness checks `body.service` and says so
+  when a stranger answers.
+- **Fail fast on early child exit.** The wait loop watches for the child's `exit` before
+  polling again — otherwise a server that dies at boot is indistinguishable from one that
+  is slow, and you wait out the whole timeout for a crash you could have printed.
+- **The server log prints on ANY failure.** A red assertion without the server's own
+  output is a guess.
+- **A non-zero exit when the server never booted.** This used to exit 0 — a whole smoke
+  reporting success by never running.
+- **⚠️ Ports come from `TEST_PORTS` in `@jkos/suite-manifest`, not from a literal.** The
+  `port-registry` prober probe holds every file's literal to its claim, so two smokes
+  cannot silently share a port. Claim a new one there first.
+- **⚠️ Boot budget is 12 seconds, not 5.** Nine servers boot in one gate run while other
+  suites work the same machine; a cold Node boot plus migrations plus bcrypt seeding
+  exceeds 5s under that load. The symptom is `"E3 never became healthy"` in the gate while
+  every standalone run passes. If you see it, re-run before believing it.
 
 ## Test inventory
 
@@ -22,7 +52,7 @@ The `/suite-health` skill automates this walk and maps failure signatures to kno
 | File | Assertions | Owns |
 |------|-----------|------|
 | `contracts.mjs` | 30 | Codes vocab node↔python key-for-key parity; issuer/cookie single-source; token shape; the python bridge (numeric-`sub` REJECTED, break-glass gates). Run via `test:contracts` filter. |
-| `smoke.mjs` | 68 | The in-process auth flows: register/login/logout, cookie flags, 2FA, rate limits, registry directory. *(One 429-timing lockout assertion can blip in a long chain — passes in isolation; re-run before treating as real.)* |
+| `smoke.mjs` | 76 | The in-process auth flows: register/login/logout, cookie flags, 2FA, rate limits, registry directory. *(One 429-timing lockout assertion can blip in a long chain — passes in isolation; re-run before treating as real.)* |
 | `lifecycle.mjs` | 24 | The session lifecycle through the REAL verify→write-gate chain: silent refresh + rotation reuse detection, expiry, guest `READ_ONLY`, service `NO_USER_CONTEXT`, on-behalf-of delegation lands as the acting user, python-jose cross-verify of real tokens. |
 | `multiuser.mjs` | 27 | Multi-user contracts: preference isolation, deep-merge preserving sibling slices, the 409-conflict-then-retry race, role-scoped widget visibility, per-user audit scoping, delegated-mint attribution. |
 
@@ -31,16 +61,18 @@ The `/suite-health` skill automates this walk and maps failure signatures to kno
 | File | Assertions | Owns |
 |------|-----------|------|
 | `import.smoke.mjs` | 39 | The import pipeline: nested/flat forms, validate-then-write, `?dryRun=1`. **The house-pattern exemplar** — boot the real server on a throwaway port + temp SQLite DB + dev-stub auth, assert over real HTTP. |
-| `items.smoke.mjs` | 48 | Direct CRUD hardening: user scoping (A can't touch B), parent-cycle rejection, cascade delete, the reserved-source guard (`source:'google'` → 400), cap/date validation parity, service identities don't trigger the demo seed, OAuth-callback public-path behaviour, AI output sanitisation (mock LazurOS booted in-harness). |
+| `items.smoke.mjs` | 71 | Direct CRUD hardening (plus **§O**, the activity contract, and **§P/§Q**, the dependency graph and the planner's missing facts — D6/D12): user scoping (A can't touch B), parent-cycle rejection, cascade delete, the reserved-source guard (`source:'google'` → 400), cap/date validation parity, service identities don't trigger the demo seed, OAuth-callback public-path behaviour, AI output sanitisation (mock LazurOS booted in-harness). |
 | `delta.smoke.mjs` | 14 | The `?since` cursor contract under millisecond `updated_at` stamps (no same-second row loss). |
 | `contract.smoke.mjs` | 14 | Declared == enforced, generically: a real row's keys ⊆ the declared `items` shape; every declared `max`/`date`/`time` constraint actually 400s on POST and PATCH; reserved sources rejected. |
-| `calendar.sandbox.mjs` | 29 | Fixture-driven calendar providers (no HTTP, no accounts): same-event-same-times across google/outlook/icloud, all-day exclusive-end agreement, the empty-upstream wipe guard (skip vs `?force=1`), the iCloud TZID/RRULE limitations PINNED as documented, `CALENDAR_ENC_KEY` encrypt→not-plaintext→decrypt + legacy-plaintext passthrough. |
+| `calendar.sandbox.mjs` | 44 | Fixture-driven calendar providers (no HTTP, no accounts): same-event-same-times across google/outlook/icloud, all-day exclusive-end agreement, the empty-upstream wipe guard (skip vs `?force=1`), the iCloud TZID/RRULE limitations PINNED as documented, `CALENDAR_ENC_KEY` encrypt→not-plaintext→decrypt + legacy-plaintext passthrough. **§H (D5/BB-15):** the CALLER'S zone decides the wall clock, not the host's — ⚠️ this file used to run under `TZ=UTC` "for determinism", and that pin WAS the bug; it now runs under `TZ=Pacific/Marquesas`, chosen because it is WEST of UTC (an exclusive-end off-by-one cancels itself out east of Greenwich, so a `+12:45` host passes buggy code) and off the hour. **§I (D10/BB-12):** a re-sync CASCADES — a note nested under a synced event goes with its parent instead of being orphaned, which the old raw `DELETE` did on EVERY sync. |
+| `routines.smoke.mjs` | 78 | The cadence engine end-to-end. **§L (D7/BB-3):** the ref is the authority — an occurrence dragged out of its routine's subtree is still withdrawn, re-rendered and counted (five of six readers used to key on `parent_id`). **§I1–I3 (D7/BB-1):** a FILTERED read rolls the horizon, and so does a DELEGATED service token — the old guard disabled the engine for both. **§M (D12/BB-16):** a routine declares what it mints, so a standing weekly meeting is an `event`. ⚠️ Pinning "today" needs `JKOS_TIME_TRAVEL=1` on the child (see the harness contract). |
+| `routine-spec.smoke.mjs` | 113 | The routine document over real HTTP — validation, the lint tier, the round trip, the vocabulary. |
 
 ### Weave (`packages/weave/test/`)
 
 | File | Assertions | Owns |
 |------|-----------|------|
-| `weave.mjs` | 39 | docShape envelope, capability/dataset schema, `AppId` d.ts ⇄ runtime parity, manifest derivations. |
+| `weave.mjs` | 62 | docShape envelope, capability/dataset schema, `AppId` d.ts ⇄ runtime parity, manifest derivations. |
 | `lego.mjs` | 108 | The Layer-D bricks: `defineCollection` (ddl/docs/mount coherence), `defineConnector`, trigger engine + typed-stud validation, delegation plumbing. Includes regression coverage for two fixed bugs (2026-07-08, found by PapyrOS's `playback.smoke.mjs`): a `ref` field's numeric value must round-trip as canonical TEXT (`coerceRef()` in `collection.js`), and every affinity-sensitive filter op (`eq`/`gt`, boolean/number/ref-typed fields) must coerce the bound query value to match its column (`coerceFilterValue()` in `filters.js`). Section "D1b" (2026-07-15, git history (item 17.4)) covers `defineCollection`'s `only: [...]` capability/route-selection option — an append-only collection emits ONLY `createX` (no `updateX`/`deleteX`), and live-mounts GET+POST while PATCH/DELETE are proven NOT wired at all (not merely auth-denied), plus a real-SQLite append-not-upsert round trip. |
 
 ### Player (`packages/player/test/`)
@@ -61,7 +93,7 @@ Firefox compat recovery, offline SW) is confirmed manually on staging.
 
 | File | Assertions | Owns |
 |------|-----------|------|
-| `queue.smoke.mjs` | 18 | Job queue lifecycle `PENDING → … → DONE\|FAILED`, owner scoping, atomic claim. |
+| `queue.smoke.mjs` | 28 | Job queue lifecycle `PENDING → … → DONE\|FAILED`, owner scoping, atomic claim. |
 | `providers.smoke.mjs` | 30 | Provider factories (STT/TTS/embedding/webSearch) against a mocked `fetch`; config-driven `baseUrl` contract. |
 | `writeback.smoke.mjs` | 11 | State-node delegated write-back (injected client): import-as-acting-user, review-first `parse-document`, best-effort failure recording. |
 | `worker-e2e.smoke.mjs` | 12 | The full seam: real State node + real `worker.py process_once` (via `python3`) against the live bearer-gated `/internal` API, only Ollama faked; `PENDING_WAKEUP` path; write-back invocation. **Gotcha pinned in its header:** drive the worker via async `spawn`, never `spawnSync` — a sync child freezes the event loop that must answer it. |
@@ -75,7 +107,7 @@ Firefox compat recovery, offline SW) is confirmed manually on staging.
 | `library.smoke.mjs` | 50 | End-to-end: boots the real server against a committed 2-book fixture library (`test/fixtures/library/`, regenerate via its `gen-fixtures.sh`), polls `/api/books` for the non-blocking boot scan to land, then asserts `/health`, `/api/capabilities` + `/api/datasets` doc shape, a single-file book's duration/tags/2 embedded chapters (chapters/files read straight off the sqlite file — `BOOK_SHAPE` deliberately excludes them from the list row), a two-file book's summed duration + sequential (track-tag) file ordering + no synthesized chapters, and the `?title=` prefix filter. **Requires `ffprobe` on PATH** (install `ffmpeg`) — SKIPS cleanly (exit 0, loud warning) if it's absent, same as `jkos-deploy/scripts/selftest.sh`'s docker/openssl skip pattern. |
 | `playback.smoke.mjs` | 58 | The playback backend (task 3.5): boots the real server with a REAL RS256 keypair (forged per-user tokens, not the single-identity dev stub) against the fixture library. Owner-scoped `progress` round-trip as two mock users (A/B never see each other's rows; cross-user PATCH/DELETE 404; a real position-bump PATCH; the `finished` boolean filter, both `true|false` and `1|0` wire forms); range-aware `GET /api/stream/:bookId/:fileIndex` (`Range: bytes=0-1023` → 206 with the true `Content-Range`/`Content-Length`/body-length trio, computed off the actual file size, never hardcoded); `GET /api/cover/:bookId` → 200 against a real folder-level `cover.jpg` added to Fixture Book B (`gen-fixtures.sh`); an unauthenticated media request → 401 (pins 3.4's mount-ordering fix). **Two BUGs this smoke found in `packages/weave/src/server/collection.js`/`filters.js` are now FIXED** (2026-07-08) — this smoke's assertions were flipped to the corrected behavior and now double as their regression coverage (the primitive itself is unit-tested in `packages/weave/test/lego.mjs`): (a) a `type: 'ref'` field (e.g. `book_ref`) now stores/returns its canonical string (`"<id>"`, not `"<id>.0"`) — `collection.js`'s `coerce()` stringifies a numeric ref before binding (`coerceRef()`); (b) `?finished=true|false` (the wire contract `discovery.js`'s own comment documents) now matches correctly — `filters.js`'s `buildItemFilters` type-coerces a bound filter value to its column's affinity (`coerceFilterValue()`), applied consistently across the `eq`/`gt` ops. Also covers the compat pipeline (21 asserts): prepare→poll→ready, `?compat=1` 206s off the variant's own stat, bogus level → 4xx, 404-before-prepare, source-mtime regeneration. Skip gate requires `ffprobe` AND `ffmpeg` on PATH. |
 | `meta.smoke.mjs` | 40 | The metadata-enrichment backend (task 4.4): boots the real server against the fixture library with `globalThis.fetch` replaced *before* `server.js` loads (`fixtures/meta/fetch-mock-preload.cjs` via `NODE_OPTIONS=--require`) so the iTunes connector and match routes hit a canned payload instead of the network — any unrecognized URL throws loudly rather than leaking to the internet. Asserts: the `META` connector maps all 7 declared fields off the canned iTunes item and calls the exact upstream search URL; `matchBook` end-to-end on a scanner-produced fixture book (candidate row taken straight off the real `metadataSearch` response) updates author/description/year/merged-genres/`metadata_source`/`ext_ref` while leaving the scanner's title untouched, writes the real cover file bytes to disk, and requests the 600×600 upsize of the candidate artwork URL; a non-admin `POST /api/match/all` → 403 (admin-gate pin only — the deep batch semantics are covered by dev-time verification). Uses a real RS256 keypair (forged per-user tokens) for the admin-gate check, same recipe as `playback.smoke.mjs`. Same `ffprobe` PATH requirement/skip behavior. |
-| `history.smoke.mjs` | 25 | Play-history (git history (item 17.4)): boots the real server with `AUDIOBOOKS_DIR` pointed at an EMPTY temp dir — no `ffprobe`/`ffmpeg` dependency, never skips (`history.item_ref` is a soft `ref`/TEXT column, no SQL FK, so a fake book id round-trips with no real scanned book needed). Asserts: unauthenticated POST/GET → 401; `POST /api/history` creates a row (201, canonical-string `item_ref`, `ms_played`/`completed` round-trip); a SECOND create for the same book APPENDS a distinct row (no upsert/collapse — the opposite of `progress`'s dedupe); `PATCH`/`DELETE /api/history/:id` → 404 because the routes are never mounted (`defineCollection(..., {only:['create']})`), not merely auth-denied; `GET /api/history` is owner-scoped (a second user's rows never leak, both directions); served `/api/capabilities` carries `createHistory` but neither `updateHistory` nor `deleteHistory`; the `history` dataset's row shape is exactly `id/item_ref/started_at/ms_played/completed/updated_at`. |
+| `history.smoke.mjs` | 40 | Play-history (git history (item 17.4)), plus **§7: the ACTIVITY contract** (D6) — the same rows answered in the one declared suite shape, asserted over real HTTP because the parts most likely to break are the mount, the auth gate and the owner scoping: boots the real server with `AUDIOBOOKS_DIR` pointed at an EMPTY temp dir — no `ffprobe`/`ffmpeg` dependency, never skips (`history.item_ref` is a soft `ref`/TEXT column, no SQL FK, so a fake book id round-trips with no real scanned book needed). Asserts: unauthenticated POST/GET → 401; `POST /api/history` creates a row (201, canonical-string `item_ref`, `ms_played`/`completed` round-trip); a SECOND create for the same book APPENDS a distinct row (no upsert/collapse — the opposite of `progress`'s dedupe); `PATCH`/`DELETE /api/history/:id` → 404 because the routes are never mounted (`defineCollection(..., {only:['create']})`), not merely auth-denied; `GET /api/history` is owner-scoped (a second user's rows never leak, both directions); served `/api/capabilities` carries `createHistory` but neither `updateHistory` nor `deleteHistory`; the `history` dataset's row shape is exactly `id/item_ref/started_at/ms_played/completed/updated_at`. |
 
 ### KourOS backend (`apps/kouros/backend/test/`)
 
@@ -87,7 +119,7 @@ as PapyrOS's suite, retargeted at a per-track music catalog (`unit:'file'` scann
 |------|-----------|------|
 | `library.smoke.mjs` | 50 | End-to-end: boots the real server against a committed 3-track, 2-album fixture library (`test/fixtures/library/`, regenerate via its `gen-fixtures.sh`), polls `/api/tracks` for the non-blocking boot scan to land, then asserts `/health`, `/api/capabilities` (`rescanLibrary` is `kouros:admin`-scoped) + `/api/datasets` doc shape (all four datasets declared), `unit:'file'` scanning producing 3 INDEPENDENT track rows (not 1-per-folder — each track's OWN duration, never summed), the `album_artist`-tag→`albumartist`-column mapping AND its fallback to the plain `artist` tag when a track carries no dedicated album-artist tag, and the `title`/`artist`(prefix)/`album`(exact)/`genre`(tags-op) filters — the artist→album→track hierarchy browse contract, proven live. **Requires `ffprobe` on PATH** — SKIPS cleanly (exit 0, loud warning) if absent. |
 | `playback.smoke.mjs` | 43 | The playback + per-user-collection backend: boots the real server with a REAL RS256 keypair (forged per-user tokens) against the fixture library. Range-aware `GET /api/stream/:trackId/0` (`Range: bytes=0-1023` → 206 with the true `Content-Range`/`Content-Length`/body-length trio off the actual file size; a plain GET → 200 whole-file; an out-of-bounds Range → 416 with `Content-Range: bytes */<total>` — kouros has no compat ladder, so unlike papyros there's no `?compat=` surface here); `GET /api/cover/:trackId` → 200 against a real folder-level `cover.jpg`, 404 for a cover-less track; an unauthenticated media request → 401. `playlists` owner-scoped CRUD round-trip (A/B never see each other's rows; `track_refs` round-trips as a real ordered JS array through the `list:true` JSON-array-TEXT convention; a PATCH reorders it; cross-user PATCH/DELETE → 404; DELETE actually removes the row). `ratings` UNIQUE(user_id, track_ref) + upsert-on-conflict trigger (18.2's day-one hardening, the papyros 17.5 lesson applied up front): a second POST for the same (user, track) is 201 — not a raw-constraint 500 — replaces the value with a NEW autoincrement id (delete-then-insert, not an UPDATE), exactly one row survives per user/track, and a different user's rating on the SAME track is untouched (the trigger's WHERE is scoped to `user_id`, not `track_ref` alone). Same `ffprobe` skip gate as `library.smoke.mjs`. |
-| `history.smoke.mjs` | 25 | Play-history — mirrors papyros's `history.smoke.mjs` almost verbatim (`item_ref` points at `kouros.tracks` instead of `papyros.books`): boots the real server with `MUSIC_DIR` pointed at an EMPTY temp dir, no `ffprobe` dependency, never skips. Same assertions: 401 gate, append-only create (a second create for the same track APPENDS, no collapse — the deliberate opposite of `ratings`' upsert behavior), `PATCH`/`DELETE /api/history/:id` → 404 (routes never mounted), owner-scoped list, and the served discovery docs reflecting the append-only contract. |
+| `history.smoke.mjs` | 40 | Play-history — mirrors papyros's `history.smoke.mjs` almost verbatim, **including its §7 activity block. ⚠️ Deliberately duplicated rather than factored into a shared helper: two apps proving one contract is what the contract is FOR, and the shared helper would quietly become the shared implementation the design refuses.** (`item_ref` points at `kouros.tracks` instead of `papyros.books`): boots the real server with `MUSIC_DIR` pointed at an EMPTY temp dir, no `ffprobe` dependency, never skips. Same assertions: 401 gate, append-only create (a second create for the same track APPENDS, no collapse — the deliberate opposite of `ratings`' upsert behavior), `PATCH`/`DELETE /api/history/:id` → 404 (routes never mounted), owner-scoped list, and the served discovery docs reflecting the append-only contract. |
 
 Chained into `apps/kouros/backend/package.json`'s `test` script and
 `pnpm --filter @jkos/kouros-backend test` in root `test:contracts`, right after
@@ -98,7 +130,7 @@ Chained into `apps/kouros/backend/package.json`'s `test` script and
 | Runner | Owns |
 |--------|------|
 | `pnpm roundtrip` (`suite-prober/roundtrip.mjs`, 23) | The WRITE round-trip: boots the real BB backend, discovers create/update/complete/delete + the items dataset from the served docs (no hardcoded shapes), then create→read-back→`?since` cursor→update→complete→delete→verify-clean. Rows tagged `ext_ref:'prober:<runid>'` + prefix-swept — staging-safe in `--live` mode. |
-| `pnpm test:cards` (`test/cards-logic.mjs`, 49) | The REAL pure functions (`design/utils/color.ts`, `cards/src/datetime.ts`) transpiled in-memory: withAlpha hex/var/clamp, time↔fraction, week/month math, lane packing. |
+| `pnpm test:cards` (`test/cards-logic.mjs`, 154) | The REAL pure functions (`design/utils/color.ts`, `cards/src/datetime.ts`) transpiled in-memory: withAlpha hex/var/clamp, time↔fraction, week/month math, lane packing. |
 | `pnpm check:tokens` | Token mirrors byte-identical + `test/tokens-parity.mjs`: paper/dark accent-derivation SET parity (16 vars, membership by naming convention) + CRT knob ownership pin. |
 | `pnpm check:nginx` | All four generated nginx files (`weave-proxy.conf`, `weave-proxy-staging.conf`, `apps-generated.conf`, `apps-generated-staging.conf`) match the `@jkos/suite-manifest` derivation. |
 | `pnpm check:responsive` (`test/responsive.mjs`) | Breakpoint single-source: `@media` bounds == `BREAKPOINT_MAX`, `MEDIA` derives, tap floor on the right primitives, retired magic numbers stay dead. |
@@ -106,11 +138,16 @@ Chained into `apps/kouros/backend/package.json`'s `test` script and
 | `pnpm check:cards` (`test/cards-purity.mjs`) | Kit purity text-scan (comment-stripped): no app ids, no host CSS classes, no raw alpha-concat in `@jkos/cards`/`@jkos/ui`. |
 | `pnpm check:hud` (`apps/ordeck/scripts/check-hud-doc.mjs`) | HUD doc validity (every placed id has a def, footprints within grid + ≥ `minSize`, shelf resolves) + the REAL `mergePublished` healer is idempotent (merge∘merge byte-identical; `userSized` cells untouched). Also a fleet tool: `<file.json>` or `--live`. |
 | `pnpm check:docker` (`test/dockerfile-inject.mjs`) | Every app Dockerfile that builds a frontend after `COPY . .` re-runs `pnpm install` first — so an injected `packages/*` workspace dep (e.g. `@jkos/weave`) doesn't build against a stale, manifest-only install. Root-caused a real papyros wave-6 deploy break (2026-07-09, TS2307) before this gate existed. |
-| `pnpm check:async-view` (`test/async-view.mjs`) | The loading/error/empty triad stays on ONE `AsyncView` component (three PapyrOS views once hand-rolled it three ways); barrel is the only sanctioned import path. |
+| `pnpm check:async-view` (`test/async-view.mjs`) | The loading/error/empty triad stays on ONE `AsyncView` component (three PapyrOS views once hand-rolled it three ways, and BeigeBoard's main region a fourth — XC-6); barrel is the only sanctioned import path. ⚠️ It also pins two places that must NOT adopt it: an inline error banner beside a form that stays on screen (AsyncView REPLACES its children), and ORDECK, whose widgets express this in the declarative `when` vocabulary a React component cannot enter. |
 | `pnpm check:overlay` (`test/overlay-panel.mjs`) | BeigeBoard's detail panel stays an **overlay** on the app-shell grid, never a member of it — a regression gate for a bug that shipped twice (transform-as-containing-block, then the definite-placement row collapse). |
 | `pnpm check:design` (`test/design-page.mjs`) | `/design` is an honest built snapshot: not STALE (rebuild in memory + diff the committed file) and not INCOMPLETE (every top-level hub.css class is demoed in `design-template.html`). |
 | `pnpm check:text` (`test/text-purity.mjs`) | Every tracked source file is really **text** — no NUL/C0 control bytes. The rest of this table is text scanners, and `git`/`grep` silently skip a file they think is binary, so one raw byte can make a file invisible to the gate policing it. Caught a real NUL in papyros's `format.ts` (2026-07-30). Skips `apps/sylibos/`. |
 | `pnpm check:auth` (`test/auth-single-source.mjs`) | One session state machine for the suite: `@jkos/auth-client`'s `useAuthProvider` owns it, the bootstrap order (`getMe` → `refreshToken` → retry → logged-out) survives, and ORDECK/PapyrOS/KourOS stay thin re-exports instead of the three copies they were. |
+| `pnpm check:today` (`test/today.mjs`, 13) | **One definition of "today", and one of WHERE** (D5/XC-4). The header literal `X-JKOS-TZ` is identical in its reader (`weave/server/callerDay.js`), its sender (`authFetch`) and the CORS allow-list — three files that cannot import each other, since `@jkos/weave` depends on `@jkos/auth-client`. Also: `authFetch` stamps it for everyone (no per-app opt-in), no backend computes a day straight from the clock, no backend reads a wall-clock field in the host's zone, and the dev-only time-travel override keeps BOTH locks. |
+| `pnpm check:refs` (`test/refs.mjs`, 8) | **The `ext_ref` namespace, allocated** (D7/BB-5). Five schemes shared one column and the audit found three; every one is declared now by the app that writes it, globally disjoint, never colliding with an app id or a suite-reserved scheme, projected into the served dataset doc, and never stale. Also carries BB-3's regrowth check: no occurrence reader may hand-write `parent_id = ?` beside an `ext_ref LIKE`. |
+| `pnpm check:binding` (`test/binding.mjs`, 21) | **One binding model, two directions** (D13/WV-2). A WidgetSpec binds a dataset into a primitive tree (read); a TriggerDef binds a capability's output into another's body (write). Asserts the trigger engine and the widget renderer take the SAME resolver, that ORDECK's `Binding` type IS weave's, and that no fourth vocabulary regrows. ⚠️ It asserts `resolve()` DELEGATES (its body is one statement) rather than pattern-matching the old implementation — a first version matched the retired scope-walk literally and a re-hand-rolled copy differing only by a cast walked straight past. |
+| `pnpm check:columns` (`test/columns.mjs`, 12) | **Declared column invariants, against the REAL database** (Stage E3). Boots it, runs every migration, interrogates `sqlite_master` — a schema is what the engine ended up with, not what a migration meant to do. `indexed` ⇒ a real index; `serverManaged` (derived from `client:false`) ⇒ refused at the write door; `writeOnce` ⇒ checked BEHAVIOURALLY by writing twice through the raw DB past every route. ⚠️ That last one matters: a trigger whose `WHEN` clause no longer matches still EXISTS in `sqlite_master` and passes a shape check. |
+| `pnpm check:rulings` (`test/rulings.mjs`, 22) | **The four contract rulings** (Stage E6) — a ruling nothing enforces is prose. `resolves` beats `returns` for an async binder; ONE paging default/max (five hand-rolled clamps disagreed); an unknown declaration version fails CLOSED with a named code (an OLDER one still passes — failing closed means refusing the future, not the past); the activity fan-out returns an explicit per-app status list; every trigger DO carries a DERIVED idempotency key. ⚠️ Sameness is the assertion, not presence — a random key satisfies "has a key" while making every retry look like a new write. |
 | `pnpm prove` (`suite-prober/prove.mjs`) | The prober (below). |
 | `bash jkos-deploy/scripts/selftest.sh` | Deploy-pipeline dry-run: scripts parse + carry the load-bearing steps, every compose file passes `docker compose config`, current nginx conf loads in a throwaway container, break-glass gates hold. Read-only; SKIPs cleanly (exit 0) without docker/openssl. Not in the gate (needs a docker daemon); the auth half is gate-wired via `contracts.mjs`. |
 
@@ -120,11 +157,40 @@ Chained into `apps/kouros/backend/package.json`'s `test` script and
 does (manifest → registry seed → nginx peers → each app's capability/dataset docs) — but
 from the source-of-truth *files*, so it runs in a plain checkout. It asserts the
 cross-system invariants a real new app would rely on: single-source app identity, doc
-shapes, filter enforcement declared==enforced, edge reachability, env/config conformance
-(every secret-shaped `process.env` read is provisioned somewhere), and typecheck coverage
-(every TS package is reachable from `pnpm typecheck` — `turbo run` skips a package with no
-such script and still reports success, so half the workspace once went unchecked while the
-command looked green).
+shapes, filter enforcement declared==enforced, **surface coverage** (every mounted Express
+route is declared or explicitly marked `app-private` at its own source line), edge
+reachability, env/config conformance, and typecheck coverage (every TS package is
+reachable from `pnpm typecheck` — `turbo run` skips a package with no such script and
+still reports success, so half the workspace once went unchecked while the command looked
+green). ~124 `ok` findings, zero drift.
+
+Two probes were added with Stage D/E and are worth naming:
+
+- **`85-activity-conformance`** — does an app with activity-shaped data DECLARE the
+  activity contract (XC-2)? Held from both sides: an append-only per-user collection with
+  no declaration is a `gap` (the shape PapyrOS and KourOS each invented privately); a
+  declaration that is never mounted, or an app reaching into another app's source, is
+  `drift`. ⚠️ That third check is the negative half of "declare one shape, do not share an
+  implementation" — the part no shape validator can express.
+- **`86-async-contract`** — an async capability declares what it RESOLVES to, not only the
+  handle it returns (WV-5). ⚠️ It also fails a capability that re-declares the HANDLE as
+  the result, which satisfies a naive "has `resolves`" check while reinstating exactly the
+  defect: a binder reading `returns` type-checks a job UUID into a task title, creating a
+  task called `a3f1c8e2-…` with no error anywhere.
+
+⚠️ **Two probes were found reporting confidently about things they could not see**, and
+the lesson generalises: when you extend a probe, verify it can FAIL before believing it
+passes.
+- `registry-manifest-fields` compared `activityPath` as `undefined` vs `undefined`,
+  because the topology projection did not carry the new field.
+- `capability-completeness`'s `normalizeFields` dropped every key but `name`+`type`, so its
+  `json` check could not have seen a `schema` pointer no matter how many were declared —
+  it would have gone on reporting the same ten gaps against a fully annotated suite.
+- `env-conformance` scanned for the literal `process.env.X` and so reported three
+  `numEnv('NAME', default)` reads as dead docs — and those false positives were MASKING
+  seven genuinely undocumented security-relevant tunables. It also omitted PapyrOS and
+  KourOS from its backend list entirely: a clean report about the three apps it knew,
+  which reads exactly like a clean report about the suite.
 
 - **Classifications:** `drift` (two sources that must agree, disagreeing — **fails the
   gate**) · `consolidate` (same truth typed twice) · `gap` (missing enforcement) · `info` · `ok`.
@@ -152,6 +218,29 @@ The `/new-tester` skill is the full playbook; the shapes:
 | Boot-real-server smoke | `import.smoke.mjs` | Anything behavioural. Real server, throwaway port, temp DB, dev-stub auth (`sub:1 role:admin` when no key env set), real HTTP, cleanup. |
 | Transpile-pure-logic unit | `test/cards-logic.mjs` | Pure TS modules — transpile in-memory with the repo's own `typescript`, drive the REAL functions. |
 | Text-scan gate | `test/cards-purity.mjs` | Banning a pattern structurally. Comment-strip first; prove the scan catches drift on a scratchpad copy, never via `git checkout`. |
+| Pure-module extraction | `apps/ordeck/src/pages/hud/bbDelta.ts`, `packages/auth-client/src/hudPrefs.ts` | When the risky logic lives inside a React hook. Lift the pure part into a dependency-free module and drive it directly — used where **every failure mode is silent**: a delta cursor advanced one millisecond too far, a preference migration that reads the wrong key and loses a dashboard. |
+
+### ⚠️ Four things this session's work proves about writing these
+
+1. **A test that reimplements the defect cannot see it.** `routines.smoke`'s own
+   `occurrencesOf` helper filtered on `parent_id` — the exact bug it was later asked to
+   catch — so BB-3's regression test would have passed against the broken engine.
+2. **Verify a new assertion FAILS before you believe it passes.** Every regression check
+   added this session was run against the pre-fix code first. Three of them did not fail
+   on the first try, for reasons that had nothing to do with the code under test (a probe
+   projection dropping the field, a check matching a local variable instead of an
+   interface field, a mutation that renamed a trigger without disabling it).
+3. **Assert the PROPERTY, not the shape the old bug happened to have.** `check:columns`
+   first demanded `BEFORE UPDATE` when the live guard is `AFTER UPDATE` + a restoring
+   write — both correct, and the assertion would have failed a working schema.
+   `check:binding` first matched the retired scope-walk literally, which a re-hand-rolled
+   copy differing by a cast walked past. Measure that `resolve()` is a one-statement
+   delegation instead.
+4. **A gate with false positives is worse than no gate.** It does not merely fail to catch
+   things — it teaches whoever reads the report that the section is noise, and the next
+   finding, the real one, gets the same shrug. `check:refs` flagged six test-assertion
+   message prefixes on its first run; `check:rulings` flagged a concurrency lane count as
+   a page limit. Both were narrowed before landing.
 | Prober probe | `src/probes/95-env-conformance.mjs` | Cross-system invariants over the discovered topology. |
 | node↔python bridge | `contracts.mjs` §3 | Anything both runtimes must agree on. |
 

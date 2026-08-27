@@ -138,6 +138,27 @@ same ffmpeg the project already requires. The library-backed checks skip cleanly
 
 ---
 
+## ⚠️ `Downloader/Qobuz.py` is NOT part of this project
+
+459 lines of library ACQUISITION — it logs into Qobuz and downloads FLACs into
+`/mnt/Luna/Plex/Music/`. It has nothing to do with the vector space: it does not import
+`config.py`, does not touch `index.db`, and nothing here imports it. It lives under
+`music/` because that is where the music is, and it was undocumented until 2026-08-27.
+
+It is kept rather than moved because it is how the library it analyses gets there —
+but read it as a **sibling tool**, not a module of this pipeline. Nothing in the
+"Running it" section below involves it.
+
+⚠️ **It carried a real Qobuz account password hardcoded in tracked source** until
+2026-08-27. Credentials come from `QOBUZ_EMAIL` / `QOBUZ_PASSWORD` in the environment
+now, and the script refuses to start without them. **Removing them does not remove
+them from git history** — the old value is reachable in every clone and on the remote,
+so it must be treated as disclosed and **rotated at the provider**. That is the only
+remedy; scrubbing history is destructive, coordinates with GitHub, and is Jag's call.
+`pnpm check:secrets` grew a rule for that exact shape at the same time — it had only
+ever matched vendor-shaped tokens (PEM blocks, `AKIA…`, `ghp_…`), and a plaintext
+assignment to a `*_PASSWORD` variable matched none of them.
+
 ## The modules
 
 | File | What it is |

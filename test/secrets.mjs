@@ -40,6 +40,33 @@ const PATTERNS = [
   { name: 'Resend API key',        re: /\bre_[A-Za-z0-9]{20,}\b/ },
   { name: 'OpenAI/Anthropic key',  re: /\b(?:sk-ant-|sk-)[A-Za-z0-9_-]{24,}\b/ },
   { name: 'private key in JSON',   re: /"private_key"\s*:\s*"-----BEGIN/ },
+  /* ⚠️ A CREDENTIAL ASSIGNED BY NAME. Every rule above matches a VENDOR SHAPE — a
+     PEM header, an `AKIA…`, a `ghp_…`. A real account password has no shape at all,
+     so it matched nothing, and one sat in a tracked file (`music/Downloader/Qobuz.py`,
+     `QOBUZ_PASSWORD = "…"`) through every green run of this scanner until 2026-08-27.
+     "Each is a thing that is a credential or nothing" was true of the rules and not
+     of the threat.
+     The signal here is the NAME, not the value: a variable called `*_PASSWORD` or
+     `*_SECRET` assigned a literal is a credential or a placeholder, and the
+     PLACEHOLDER exemption below already sorts those. Env reads
+     (`os.environ.get(...)`, `process.env.X`) are assignments to the same names and
+     are the FIX, so the value must be a quoted literal for this to fire. */
+  {
+    name: 'credential assigned to a *_PASSWORD/_SECRET/_TOKEN/_KEY name',
+    re: /\b[A-Za-z_][A-Za-z0-9_]*(?:PASSWORD|PASSWD|SECRET|API_?KEY|AUTH_?TOKEN)\b\s*[:=]\s*["'][^"'\n]{6,}["']/i,
+    /* ⚠️ NOT IN TEST FILES, and the exemption is narrow on purpose.
+       Every OTHER rule here still applies to tests — a real `ghp_…` or a PEM block in
+       a fixture is a leak wherever it sits. But a test that exercises a login, a
+       password change or a guest seed NEEDS a literal password: it cannot come from
+       the environment without making the test depend on ambient state, which is the
+       opposite of what a fixture is for. Ten such literals across three jkAuth files
+       are fixtures by construction.
+       Scoping this ONE rule beats renaming them: ten false positives is how a scanner
+       teaches people to skim its output, and the eleventh — the real one — gets the
+       same shrug. This rule exists BECAUSE a real credential hid among rules that
+       were too narrow; making it too broad would hide the next one just as well. */
+    skip: /(^|\/)tests?\/|\.(?:test|smoke|sandbox|spec)\.[cm]?[jt]s$/,
+  },
 ];
 
 // A line that is manifestly an EXAMPLE or a TEST fixture is not a leak. Kept
@@ -74,6 +101,7 @@ for (const rel of files) {
 
   src.split('\n').forEach((line, i) => {
     for (const p of PATTERNS) {
+      if (p.skip && p.skip.test(rel)) continue;
       if (p.re.test(line) && !PLACEHOLDER.test(line)) {
         hits.push(`${rel}:${i + 1}  ${p.name}`);
       }

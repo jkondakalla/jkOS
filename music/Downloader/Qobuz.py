@@ -14,13 +14,31 @@ from typing import Optional, List, Dict, Any, Tuple
 from dataclasses import dataclass
 
 # ==========================================
-# PRODUCTION CONFIGURATION
+# CONFIGURATION
 # ==========================================
-QOBUZ_EMAIL = "jaaggruthos@gmail.com"
-QOBUZ_PASSWORD = "2r59Jw-N75F^C?m"
+# ⚠️ CREDENTIALS COME FROM THE ENVIRONMENT. They were hardcoded here — a real
+# account password, in a file tracked by git — until 2026-08-27.
+#
+#     export QOBUZ_EMAIL='…'
+#     export QOBUZ_PASSWORD='…'
+#
+# ⚠️ REMOVING THEM HERE DOES NOT REMOVE THEM FROM HISTORY. The old value is still
+# reachable in every clone and on the remote, so the credential must be treated as
+# disclosed and ROTATED at the provider. That is the only remedy; scrubbing history
+# is destructive, coordinates with GitHub, and is Jag's call (RESET.md's standing
+# ruling on secrets in history: investigate and report, do not rewrite).
+#
+# `check:secrets` grew a rule for this exact shape at the same time — it had only
+# ever matched VENDOR-SHAPED tokens (PEM blocks, `AKIA…`, `ghp_…`, `sk-…`), and a
+# plaintext assignment to a variable named `*_PASSWORD` matched none of them.
+QOBUZ_EMAIL = os.environ.get("QOBUZ_EMAIL", "")
+QOBUZ_PASSWORD = os.environ.get("QOBUZ_PASSWORD", "")
 
-BATCH_FOLDER = "/media/jag/The Forge/FLAC Downloader/"
-OUTPUT_FOLDER = "/mnt/Luna/Plex/Music/"
+BATCH_FOLDER = os.environ.get("QOBUZ_BATCH_FOLDER", "/media/jag/The Forge/FLAC Downloader/")
+# The WORKSTATION spelling of the library — this script runs on the desktop, not on
+# the TrueNAS host, where the same dataset is /mnt/Luna/Luna/Plex/Music. See
+# apps/kouros/docker-compose.yml for why that difference has its own warning.
+OUTPUT_FOLDER = os.environ.get("QOBUZ_OUTPUT_FOLDER", "/mnt/Luna/Plex/Music/")
 
 # Download Settings
 FORMAT_ID = 27 # 27 = Hi-Res, 7 = 24-bit/<96kHz, 6 = CD, 5 = MP3
@@ -34,6 +52,13 @@ logging.basicConfig(
     datefmt="%H:%M:%S"
 )
 logger = logging.getLogger("RobustDL")
+
+if not QOBUZ_EMAIL or not QOBUZ_PASSWORD:
+    logger.error(
+        "QOBUZ_EMAIL and QOBUZ_PASSWORD must be set in the environment. "
+        "They used to be hardcoded in this file; that value is disclosed and should be rotated."
+    )
+    sys.exit(1)
 
 try:
     import requests
