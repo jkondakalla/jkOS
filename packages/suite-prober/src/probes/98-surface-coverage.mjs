@@ -16,9 +16,12 @@
  *
  * Method: parse each backend's mounted Express routes out of source
  * (`router.get('/items', …)`, `app.post(…)`), normalise them against the app's
- * api base, and diff against the paths its discovery doc declares. Reported, not
- * failed — `gap` — because closing it is Stage D item 3 and a red gate helps
- * nobody until then.
+ * api base, and diff against the paths its discovery doc declares. Reported as a
+ * `gap` rather than failed — the level this probe has always used. ⚠️ Its
+ * original reason ("closing it is Stage D item 3") is spent: Stage D is complete
+ * and all four backends report full coverage. The level stays because the
+ * REMAINING population is routes not yet written, and the first commit of a new
+ * surface should be told about its missing declaration, not blocked by it.
  *
  * An app-private route is legitimate (health, static, an internal hook). Mark it
  * with a trailing `// app-private: why` comment on the route line and this probe
@@ -84,13 +87,40 @@ function declaredPaths(modulePath) {
   return paths;
 }
 
+/**
+ * How far beneath a declared path that declaration is allowed to reach.
+ *
+ * ⚠️ THIS USED TO BE UNBOUNDED, and that is a BB-7 one level down. `/items`
+ * covers `/items/:id` because a dataset and its item genuinely are one surface —
+ * same rows, same shape, and demanding a second declaration for the singular read
+ * would be noise in every app's doc. But unbounded, the same rule made `/items`
+ * cover `/items/:id/deps` too, and the dependency surface is NOT the items
+ * surface: different rows, a different body, its own ownership and cycle rules.
+ * All three of those routes were mounted and answering before anything declared
+ * them, and this probe reported the app fully covered the whole time — the exact
+ * shape of the finding it exists to catch.
+ *
+ * One is the right number rather than zero: at zero, `/items/:id` needs its own
+ * entry in every app, and a probe that demands a declaration per route stops
+ * measuring coverage and starts measuring transcription. At one, a surface that
+ * merely ADDRESSES a declared row is free, and a surface that adds a NOUN of its
+ * own has to say so.
+ *
+ * Verified against a planted violation rather than assumed: a mounted
+ * `/items/:id/notes/:noteId` with nothing declaring it reports as a gap here, and
+ * the same plant read as "all 44 mounted routes are declared" with the depth
+ * unbounded. The bound is what catches it; the rest of the probe never could.
+ */
+const MAX_COVER_DEPTH = 1;
+
 /** Does a mounted route path fall under a declared path? A `:param` on either
- *  side matches exactly one segment on the other, and a declared path also
- *  covers everything beneath it. */
+ *  side matches exactly one segment on the other, and a declared path covers
+ *  what sits at most `MAX_COVER_DEPTH` segments beneath it. */
 function pathMatches(routePath, declaredPath) {
   const r = routePath.split('/').filter(Boolean);
   const d = declaredPath.split('/').filter(Boolean);
   if (r.length < d.length) return false;
+  if (r.length - d.length > MAX_COVER_DEPTH) return false;
   for (let i = 0; i < d.length; i++) {
     if (d[i].startsWith(':') || r[i].startsWith(':')) continue;
     if (d[i] !== r[i]) return false;
