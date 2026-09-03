@@ -20,7 +20,15 @@ const { buildItemFilters, filterSpec } = require('./filters')
 const { coerceWeaveColumn } = require('./columns')
 const { weaveServerClient, assertServiceClientProvisioned } = require('./serverClient')
 const { defineCollection, backfillWireTime } = require('./collection')
-const { SQL_NOW, sqlConvert, isCanonical: isCanonicalTime, canonical: canonicalTime, parse: parseWireTime } = require('./wireTime')
+/* ⚠️ `wireNow` is here because its ABSENCE was load-bearing. Five of wireTime's six
+   helpers reached backends through this barrel and `now()` — the one that produces a
+   canonical instant FROM JS, which is what you bind when comparing against a
+   canonical column — did not. So a backend needing one either hand-rolled it
+   (jkAuth's tokens.js grew its own `nowIso`) or reached for SQLite's `datetime('now')`
+   and got the legacy format back. jkAuth's OTP expiry did the latter, and compared
+   the two formats as strings. A shared module you cannot reach the whole of is a
+   shared module people route around. */
+const { SQL_NOW, sqlConvert, now: wireNow, isCanonical: isCanonicalTime, canonical: canonicalTime, parse: parseWireTime } = require('./wireTime')
 const { callerZone, zonedParts, callerDay } = require('./callerDay')
 const { defineActivity } = require('./activity')
 const { extRef, parseExtRef } = require('../shared/extref')
@@ -52,7 +60,7 @@ module.exports = {
   assertServiceClientProvisioned,
   defineCollection,
   backfillWireTime,
-  SQL_NOW, sqlConvert, isCanonicalTime, canonicalTime, parseWireTime,
+  SQL_NOW, sqlConvert, wireNow, isCanonicalTime, canonicalTime, parseWireTime,
   callerZone, zonedParts, callerDay,
   defineActivity, extRef, parseExtRef,
   pageLimit, PAGE_DEFAULT, PAGE_MAX, CURSOR_PARAM,

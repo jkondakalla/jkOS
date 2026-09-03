@@ -77,7 +77,13 @@ async function runWriteback(job, result, { makeClient = weaveServerClient } = {}
   if (!job.user_id) throw new Error('writeback: job has no user_id to act as');
 
   const doc = parseImportDoc(result);
-  const client = makeClient(target.app, { actingUser: job.user_id });
+  /* ⚠️ The ZONE goes with the acting user, or the peer answers in UTC for a user who
+     is not in UTC. BeigeBoard's import mints routine occurrences relative to
+     `callerDay(req)`, and BB-1 opened that reconcile to service callers — so without
+     this, a write-back east of Greenwich between local and UTC midnight lands the
+     user's occurrence on the wrong day. `job.acting_zone` is the zone of the request
+     that asked for the work; null falls back to UTC exactly as before. */
+  const client = makeClient(target.app, { actingUser: job.user_id, actingZone: job.acting_zone });
   const path = (await declaredPath(client, target.app, target.capability)) || target.fallbackPath;
   const r = await client.post(path, doc);
   if (!r.ok) throw new Error(`writeback to ${target.app}${path} failed: ${r.error || r.status}`);

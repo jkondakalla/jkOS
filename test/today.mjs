@@ -118,24 +118,48 @@ const decomment = (src) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:]
    answer for rendering. The defect being guarded is a SERVER deciding what day it is
    without being told where the user is. */
 const SKIP_DIRS = new Set(['node_modules', 'dist', 'build', '.turbo', 'test', 'sylibos']);
-function sources(dir) {
-  const out = [];
+
+/* ⚠️ A MISSING ROOT IS A FAILURE, NOT AN EMPTY LIST. This swallowed its ENOENT and
+   returned [] — and `apps/lazuros/backend/src` has never existed (LazurOS puts its
+   server at `backend/`, not `backend/src/`). So a whole backend was scanned as zero
+   files and the gate reported "no backend reinvents clock-to-day" about code it had
+   never opened, with a file count that looked plausible because five other roots
+   filled it in.
+   This is the BUG-5 class that `95-env-conformance` was fixed for — a clean report
+   about the apps a probe happens to know reads exactly like a clean report about the
+   suite. The same fix belongs in every scanner that carries a hand-written root list;
+   `99-wire-time`'s SCAN_ROOTS got it at the same time. */
+function sources(pathRel) {
+  const abs = resolve(root, pathRel);
   let ents;
-  try { ents = readdirSync(resolve(root, dir), { withFileTypes: true }); } catch { return out; }
+  try { ents = readdirSync(abs, { withFileTypes: true }); }
+  catch (e) {
+    if (e.code === 'ENOTDIR') return /\.(js|mjs|cjs)$/.test(pathRel) ? [pathRel] : [];
+    fail(`scan root '${pathRel}' does not exist — this gate was reporting on code it never read`);
+    return [];
+  }
+  const out = [];
   for (const ent of ents) {
     if (SKIP_DIRS.has(ent.name)) continue;
-    const p = join(dir, ent.name);
+    const p = join(pathRel, ent.name);
     if (ent.isDirectory()) out.push(...sources(p));
     else if (/\.(js|mjs|cjs)$/.test(ent.name)) out.push(p);
   }
   return out;
 }
+
+/* SERVER source only — the frontend is allowed to ask the clock (see above).
+   ⚠️ The root is each app's WHOLE backend, not its `src/`: `server.js`, `discovery.js`
+   and `docs.js` sit beside `src/`, and those are where the activity reads, the
+   collection mounts and the route registrations live. Naming `backend/src` left seven
+   files unscanned across four apps on top of the LazurOS hole above. */
 const BACKENDS = [
-  'apps/beigeboard/backend/src',
-  'apps/papyros/backend/src',
-  'apps/kouros/backend/src',
-  'apps/lazuros/backend/src',
+  'apps/beigeboard/backend',
+  'apps/papyros/backend',
+  'apps/kouros/backend',
+  'apps/lazuros/backend',
   'apps/jkauth/src',
+  'apps/jkauth/server.js',
   'packages/weave/src/server',
 ];
 const backendFiles = BACKENDS.flatMap(sources);

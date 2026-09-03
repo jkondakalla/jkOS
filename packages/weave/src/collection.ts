@@ -45,6 +45,21 @@ export interface CollectionField {
                                  // the enforced SQL derive from this ONE flag (no drift, P3).
   readOnly?: boolean;      // server-managed: not client-writable, omitted from create/update
                            // bodies, still present in the row shape (e.g. a derived column)
+  /**
+   * ⭐ This field is a WIRE TIMESTAMP the CLIENT supplies (XC-1). The write door
+   * refuses anything that is not an ISO-8601 instant, and what is stored is the
+   * canonical millisecond form — so the column can be compared, ordered and used as
+   * a `?since=` cursor exactly like a server-written `created_at`.
+   *
+   * ⚠️ Set it on any client-stamped time you also FILTER or ORDER on. KourOS's and
+   * PapyrOS's `history.started_at` was declared a plain `string`, so any text could be
+   * stored; their activity read then windowed on that raw column while emitting a
+   * CANONICALISED copy as the cross-app merge key. Filter key and merge key were
+   * different values, and a space-separated stamp sorts BEFORE an ISO cursor of an
+   * earlier instant — so the row silently left the feed for good. Type alone could not
+   * express "a string that is a time", which is why this flag exists.
+   */
+  wire?: boolean;
 }
 
 /** A user-defined collection: a typed table + its derived read/write contract. */

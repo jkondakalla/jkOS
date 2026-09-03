@@ -9,11 +9,16 @@ const { randomUUID } = require('crypto');
 const db = require('../db');
 const { SQL_NOW, sqlConvert } = require('@jkos/weave/server');
 
-const createJob = ({ user_id, capability, payload, tier_id = null }) => {
+/* `acting_zone` is the IANA zone of the request that asked for this work (D5 + G1).
+   It is carried on the JOB because the write-back that commits the result happens
+   long after that request is gone, over a service token that stamps no X-JKOS-TZ of
+   its own — so without this the peer answers "what day is it" in UTC for a user who
+   is not in UTC. Null is legitimate and means the asker had no zone to give. */
+const createJob = ({ user_id, capability, payload, tier_id = null, acting_zone = null }) => {
   const id = randomUUID();
-  db.prepare(`INSERT INTO jobs (id, user_id, capability, tier_id, status, payload)
-              VALUES (?, ?, ?, ?, 'PENDING', ?)`)
-    .run(id, user_id, capability, tier_id, JSON.stringify(payload));
+  db.prepare(`INSERT INTO jobs (id, user_id, capability, tier_id, status, payload, acting_zone)
+              VALUES (?, ?, ?, ?, 'PENDING', ?, ?)`)
+    .run(id, user_id, capability, tier_id, JSON.stringify(payload), acting_zone);
   return id;
 };
 

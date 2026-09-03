@@ -12,8 +12,20 @@
 //   • triggerWebhook(engine)              — an Express handler so a peer can PUSH events,
 //   • serverDispatch({resolve,clientOpts}) — a default dispatch over weaveServerClient that
 //     runs each per-user cross-app DO under the triggering user (G1 delegation), and
-//     always carries the engine's derived `idempotency_key` so a retried DO cannot
-//     double-write (RESET A2c.4).
+//     always carries the engine's derived `idempotency_key` (RESET A2c.4).
+//
+// ⚠️ WHAT THE KEY DOES NOT YET BUY, stated here because the opposite was written down.
+// This header used to claim the key means "a retried DO cannot double-write". It does
+// not, and cannot on its own: idempotency is a property of the RECEIVER. Nothing in
+// the suite reads `idempotency_key` — no capability declares it as a body field, no
+// route looks for it, and there is no store of seen keys — so BeigeBoard's writer
+// simply drops it as an unknown key. The sending half is correct and worth having (the
+// key is derived, so a retry is RECOGNISABLE as one); the deduplicating half is unbuilt
+// and has to be built before any of this protects a write. See Documentation/BACKLOG.md.
+//
+// `check:rulings` exercises only the sending half, against an injected dispatcher —
+// which is exactly why the gap survived: the test proves the key is derived and stable,
+// never that anything acts on it.
 // The engine is dispatch-agnostic (inject a mock to test) so the "what fires" logic is
 // pure + provable; serverDispatch is the live wiring. Design-time TS shapes: ../trigger.ts.
 
@@ -168,6 +180,8 @@ function createTriggerEngine({ triggers = [], dispatch } = {}) {
          a dispatch times out and is retried, a peer replays. Without a key the second
          attempt is a second task on someone's board, and the user has no way to know
          which of the two is the real one.
+         ⚠️ The key is SENT, not yet HONOURED — see this file's header. No receiver
+         dedupes on it today, so the duplicate above is still possible.
          DERIVED, never random: same trigger + same event ⇒ same key, which is the
          only property that makes a retry recognisable AS a retry. A random key would
          make every attempt look new, which is worse than no key at all because it

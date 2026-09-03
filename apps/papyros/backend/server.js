@@ -16,6 +16,7 @@ const cookieParser = require('cookie-parser');
 const {
   weaveCors, weaveAuth, weaveWriteGate, healthHandler, serveCapabilities, serveDatasets, serveSpa,
   backfillWireTime,   // XC-1: one-time conversion of existing rows to the canonical wire format
+  SQL_NOW, sqlConvert,   // XC-1: the canonical stamp, and the both-forms converter
 } = require('@jkos/weave/server');
 const { resolveIssuer } = require('@jkos/auth-middleware');   // shared issuer default (single source)
 const {
@@ -116,21 +117,25 @@ const MIGRATIONS = [
           metadata_source TEXT    CHECK (metadata_source IS NULL OR metadata_source IN ('embedded', 'itunes', 'manual')),
           ext_ref         TEXT,
           mtime           INTEGER,
-          added_at        TEXT    DEFAULT (datetime('now')),
+          added_at        TEXT    DEFAULT (${SQL_NOW}),
           updated_at      TEXT
         );
         CREATE INDEX IF NOT EXISTS idx_books_author  ON books(author);
         CREATE INDEX IF NOT EXISTS idx_books_series  ON books(series);
         CREATE INDEX IF NOT EXISTS idx_books_updated ON books(updated_at);
 
+        -- XC-1: these stamp updated_at, which is this catalog's declared ?since=
+        -- delta cursor, so they must write the canonical millisecond-ISO form.
+        -- See the note above migration 12 for why converting the rows once
+        -- was not enough.
         DROP TRIGGER IF EXISTS books_stamp_added;
         CREATE TRIGGER books_stamp_added AFTER INSERT ON books
           FOR EACH ROW WHEN NEW.updated_at IS NULL
-          BEGIN UPDATE books SET updated_at = COALESCE(NEW.added_at, datetime('now')) WHERE id = NEW.id; END;
+          BEGIN UPDATE books SET updated_at = COALESCE(${sqlConvert('NEW.added_at')}, ${SQL_NOW}) WHERE id = NEW.id; END;
         DROP TRIGGER IF EXISTS books_touch_updated;
         CREATE TRIGGER books_touch_updated AFTER UPDATE ON books
           FOR EACH ROW WHEN NEW.updated_at = OLD.updated_at
-          BEGIN UPDATE books SET updated_at = datetime('now') WHERE id = NEW.id; END;
+          BEGIN UPDATE books SET updated_at = ${SQL_NOW} WHERE id = NEW.id; END;
       `);
     },
   },
@@ -223,6 +228,23 @@ const MIGRATIONS = [
   {
     id: 11, name: 'index_history_started',
     up(d) { d.exec('CREATE INDEX IF NOT EXISTS idx_history_user_started ON history(user_id, started_at)'); },
+  },
+  /* ⚠️ A SECOND conversion, because the first one did not hold. Migration 10
+     canonicalised these columns and recorded that "the triggers converge new rows on
+     their own (they are recreated each boot)". That is exactly backwards: they ARE
+     recreated each boot, from the DDL above, which went on writing SQLite's
+     whole-second `datetime('now')`. So every row stamped since — every rescan, every
+     edit — went straight back to the legacy form, into the column that IS the
+     `?since=` cursor (a peer app pages the catalog with this cursor). `' ' < 'T'`, so a mixed column
+     sorts wrongly as a string and a delta silently returns the wrong window.
+     The triggers are fixed; this converts the rows written in the gap.
+     `backfillWireTime` skips already-canonical values, so it is a no-op on a
+     database that never drifted.
+     ⚠️ The probe that exists to catch this never scanned this file — its SCAN_ROOTS
+     named `backend/src` and this is `backend/server.js`. Both are fixed. */
+  {
+    id: 12, name: 'rebackfill_wire_timestamps',
+    up(d) { backfillWireTime(d, ['books', 'progress', 'bookmarks', 'clubs', 'club_members', 'history'], { history: ['started_at'] }); },
   },
 ];
 

@@ -12,6 +12,7 @@ const {
   SESSION_TTL_MS, SESSION_ABSOLUTE_TTL_MS, SESSION_TOMBSTONE_MS,
 } = require('./config')
 const { db, run, all, get, logEvent, roleClaims, appIdForOrigin } = require('./db')
+const { SQL_NOW, sqlConvert } = require('@jkos/weave/server')
 const { hashPasswordSync } = require('./password')
 
 const sha256 = s => crypto.createHash('sha256').update(s).digest('hex')
@@ -130,9 +131,14 @@ function writeSessionRow(user, { refreshHash, remember, family, familyCreatedAt,
   run('DELETE FROM sessions WHERE user_id=? AND revoked_at IS NULL AND expires_at < ?', [user.id, now])
   run('DELETE FROM sessions WHERE user_id=? AND revoked_at IS NOT NULL AND revoked_at < ?',
     [user.id, new Date(Date.now() - SESSION_TOMBSTONE_MS).toISOString()])
+  /* `created_at` written EXPLICITLY (XC-1). It used to fall to the table DEFAULT,
+     which was SQLite's whole-second `datetime('now')` — so every session row carried
+     one legacy timestamp alongside four ISO ones, and the cap's `ORDER BY created_at`
+     just below compared the two forms as strings. Migration 020 converted the rows
+     that already exist; this stops new ones being written mixed. */
   run(`INSERT INTO sessions (user_id, token_hash, expires_at, remember_me, family_id,
-                             family_created_at, last_used_at)
-       VALUES (?,?,?,?,?,?,?)`,
+                             family_created_at, last_used_at, created_at)
+       VALUES (?,?,?,?,?,?,?,${SQL_NOW})`,
     [user.id, refreshHash, expiresAt, remember ? 1 : 0, family, familyCreatedAt, now])
   // Cap active (un-rotated, un-revoked) sessions per user at 10. `, id DESC`
   // is JK-A5: created_at is whole-second, so ten logins in one second tie and
@@ -348,9 +354,18 @@ function resolveOrRefresh(req, res) {
  *  GROUP BY would eventually disagree about what a device is. */
 function sessionFamilies(userId, currentFamily = null) {
   return all(
+    /* ⚠️ NORMALISED INSIDE THE QUERY, not merely assumed. `MIN`/`MAX`/`ORDER BY` over
+       TEXT are STRING comparisons, and this expression mixes columns from two eras:
+       `created_at` was whole-second `datetime('now')`, the 017 timestamps are ISO, and
+       `' ' < 'T'` — so within one UTC day a legacy value always sorted BELOW an ISO
+       one regardless of the instant, and the devices list showed a session last used
+       at 23:50 underneath one last used at 08:05. Migration 017's own comment claims
+       these are "never string-compared in SQL"; this query is where that stopped being
+       true. Migration 020 converted the stored values, and `sqlConvert` here keeps the
+       answer right for any row that arrives from outside this process. */
     `SELECT family_id,
-            MIN(COALESCE(family_created_at, created_at)) AS created_at,
-            MAX(COALESCE(last_used_at, created_at))      AS last_used_at,
+            MIN(${sqlConvert('COALESCE(family_created_at, created_at)')}) AS created_at,
+            MAX(${sqlConvert('COALESCE(last_used_at, created_at)')})      AS last_used_at,
             MAX(remember_me)                             AS remember_me,
             MAX(CASE WHEN revoked_at IS NULL THEN 0 ELSE 1 END) AS revoked,
             MAX(COALESCE(revoked_reason, ''))            AS revoked_reason,

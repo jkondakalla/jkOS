@@ -6,6 +6,7 @@
 
 const path = require('path');
 const Database = require('better-sqlite3');
+const { SQL_NOW } = require('@jkos/weave/server');
 
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'lazuros.db');
 const db = new Database(DB_PATH);
@@ -26,17 +27,38 @@ db.exec(`
     -- a 'since' delta cursor over updated_at (docs.js), and the whole-second
     -- datetime('now') sorts BEFORE an ISO stamp of the same instant as a string,
     -- so that cursor would have returned the wrong window against any other
-    -- app's. Changed in the DDL rather than by migration because LazurOS has
-    -- never run against a live database; there are no rows to convert.
+    -- app's. Interpolated from SQL_NOW rather than typed out: this expression was
+    -- spelled by hand here while every other backend imported it, which is a fourth
+    -- copy of a value whose entire point is that there is one.
     -- (No backticks in here: this comment lives inside a JS template literal,
     --  where a backtick would end the string. Same trap as a // comment inside
     --  SQL -- a comment has to speak the language of the line it sits on.)
-    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
-    updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+    created_at TEXT NOT NULL DEFAULT (${SQL_NOW}),
+    updated_at TEXT NOT NULL DEFAULT (${SQL_NOW})
   );
   CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
   CREATE INDEX IF NOT EXISTS idx_jobs_user   ON jobs(user_id);
 `);
+
+/* ⭐ D5 + G1: the zone of the request that ASKED for the work.
+ *
+ * A job outlives its request, and its result is committed into a peer app minutes or
+ * hours later by a service token. That write is a per-user write — the token carries
+ * `act` — but it travels over weaveServerClient, which is not a browser and so stamps
+ * no X-JKOS-TZ. `callerDay(req)` then fell back to the UTC day, which is the right
+ * answer for a peer with no user and the wrong one here, where the user is named.
+ * East of Greenwich that means a write-back between local and UTC midnight reconciles
+ * the user's routine horizon against YESTERDAY — BB-10, on the one path D11 opened.
+ *
+ * The zone is captured at ENQUEUE because that is the only moment a browser is on the
+ * other end of the connection. Nullable: a job created by a service caller genuinely
+ * has no zone, and UTC remains the honest fallback for it.
+ *
+ * Added with a guarded ALTER rather than in the CREATE above, because CREATE TABLE IF
+ * NOT EXISTS does nothing to a database that already has the table — the schema would
+ * be right on a fresh checkout and silently absent everywhere the app had ever run. */
+const jobCols = new Set(db.prepare('PRAGMA table_info(jobs)').all().map((c) => c.name));
+if (!jobCols.has('acting_zone')) db.exec('ALTER TABLE jobs ADD COLUMN acting_zone TEXT');
 
 // Status lifecycle: PENDING → (PENDING_WAKEUP) → IN_PROGRESS → DONE | FAILED.
 // tier_id records which tier the job routed to — useful for debugging escalation

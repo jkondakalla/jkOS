@@ -8,6 +8,7 @@ const crypto = require('crypto')
 const { TOTP, Secret } = require('otpauth')
 const QRCode = require('qrcode')
 const { run, get } = require('./db')
+const { SQL_NOW, wireNow } = require('@jkos/weave/server')
 const { sendOtpEmail } = require('./email')
 const { openSecret } = require('./secretbox')
 
@@ -102,7 +103,7 @@ function generateRecoveryCodes(userId, n = RECOVERY_CODE_COUNT) {
     const raw = crypto.randomBytes(RECOVERY_CODE_BYTES).toString('hex')   // 20 hex chars
     const display = `${raw.slice(0, 7)}-${raw.slice(7, 14)}-${raw.slice(14)}`
     codes.push(display)
-    run('INSERT INTO recovery_codes (user_id, code_hash) VALUES (?,?)', [userId, sha256(normCode(display))])
+    run(`INSERT INTO recovery_codes (user_id, code_hash, created_at) VALUES (?,?,${SQL_NOW})`, [userId, sha256(normCode(display))])
   }
   return codes
 }
@@ -111,7 +112,7 @@ function consumeRecoveryCode(userId, code) {
   const row = get('SELECT id FROM recovery_codes WHERE user_id=? AND code_hash=? AND used_at IS NULL',
     [userId, sha256(normCode(code))])
   if (!row) return false
-  run("UPDATE recovery_codes SET used_at=datetime('now') WHERE id=?", [row.id])
+  run(`UPDATE recovery_codes SET used_at=${SQL_NOW} WHERE id=?`, [row.id])
   return true
 }
 
@@ -125,9 +126,14 @@ function canSendEmailOtp(userId, purpose = 'login') {
   // The window DERIVES from OTP_RESEND_MS (JK-A17): the constant used to be
   // declared here and the actual policy hardcoded as '-30 seconds' in the SQL,
   // so there were two sources and only one of them was enforced.
+  /* The cutoff is computed in JS and bound as canonical ISO, matching the column
+     (see the INSERTs below). It used to be `datetime('now', '-N seconds')` against a
+     legacy-defaulted column — self-consistent then, and silently inverted the moment
+     either side moved to ISO. One format on both sides removes the coupling. */
+  const cutoff = new Date(Date.now() - OTP_RESEND_MS).toISOString()
   const recent = get(
-    `SELECT 1 FROM auth_otp WHERE user_id=? AND purpose=? AND created_at > datetime('now', ?) LIMIT 1`,
-    [userId, purpose, `-${Math.ceil(OTP_RESEND_MS / 1000)} seconds`])
+    'SELECT 1 FROM auth_otp WHERE user_id=? AND purpose=? AND created_at > ? LIMIT 1',
+    [userId, purpose, cutoff])
   return !recent
 }
 
@@ -144,9 +150,9 @@ function mintOtp(userId, purpose, ttlMs = OTP_TTL_MS, { force = false } = {}) {
   if (!force && !canSendEmailOtp(userId, purpose)) return null
   const code = String(crypto.randomInt(0, 1_000_000)).padStart(6, '0')
   const expires = new Date(Date.now() + ttlMs).toISOString()
-  run("UPDATE auth_otp SET used_at=datetime('now') WHERE user_id=? AND purpose=? AND used_at IS NULL",
+  run(`UPDATE auth_otp SET used_at=${SQL_NOW} WHERE user_id=? AND purpose=? AND used_at IS NULL`,
     [userId, purpose])
-  run('INSERT INTO auth_otp (user_id, code_hash, purpose, expires_at) VALUES (?,?,?,?)',
+  run(`INSERT INTO auth_otp (user_id, code_hash, purpose, expires_at, created_at) VALUES (?,?,?,?,${SQL_NOW})`,
     [userId, sha256(code), purpose, expires])
   return code
 }
@@ -157,9 +163,9 @@ async function sendEmailOtp(user, purpose = 'login', { force = false } = {}) {
   if (!force && !canSendEmailOtp(user.id, purpose)) return { sent: false, throttled: true }
   const code = String(crypto.randomInt(0, 1_000_000)).padStart(6, '0')
   const expires = new Date(Date.now() + OTP_TTL_MS).toISOString()
-  run("UPDATE auth_otp SET used_at=datetime('now') WHERE user_id=? AND purpose=? AND used_at IS NULL",
+  run(`UPDATE auth_otp SET used_at=${SQL_NOW} WHERE user_id=? AND purpose=? AND used_at IS NULL`,
     [user.id, purpose])
-  run('INSERT INTO auth_otp (user_id, code_hash, purpose, expires_at) VALUES (?,?,?,?)',
+  run(`INSERT INTO auth_otp (user_id, code_hash, purpose, expires_at, created_at) VALUES (?,?,?,?,${SQL_NOW})`,
     [user.id, sha256(code), purpose, expires])
   await sendOtpEmail(user.email, code)
   return { sent: true }
@@ -168,11 +174,21 @@ async function sendEmailOtp(user, purpose = 'login', { force = false } = {}) {
 function verifyEmailOtp(userId, code, purpose = 'login') {
   const token = String(code ?? '').replace(/\s/g, '')
   if (!/^\d{6}$/.test(token)) return false
+  /* ⚠️ THE EXPIRY BINDS AN ISO PARAMETER, NEVER datetime('now') (XC-1).
+     `expires_at` is written from JS as millisecond ISO ("…T00:15:00.000Z"); SQLite's
+     `datetime('now')` renders the space-separated whole-second form ("… 23:00:00").
+     This clause compared the two AS STRINGS, and `' ' (0x20) < 'T' (0x54)` — so for
+     any two instants inside the SAME UTC DAY the ISO value always compared GREATER
+     and the code always read as unexpired. A 10-minute passcode stayed verifiable
+     until UTC midnight: up to ~24 hours, a ~144× window.
+     It covers login 2FA, password reset and email verification, and this file's own
+     note says the cooldown and the throttle ARE the security of a 10^6 code — so the
+     window is the control that was silently removed. */
   const row = get(
-    "SELECT id FROM auth_otp WHERE user_id=? AND purpose=? AND code_hash=? AND used_at IS NULL AND expires_at > datetime('now') ORDER BY id DESC LIMIT 1",
-    [userId, purpose, sha256(token)])
+    'SELECT id FROM auth_otp WHERE user_id=? AND purpose=? AND code_hash=? AND used_at IS NULL AND expires_at > ? ORDER BY id DESC LIMIT 1',
+    [userId, purpose, sha256(token), wireNow()])
   if (!row) return false
-  run("UPDATE auth_otp SET used_at=datetime('now') WHERE id=?", [row.id])
+  run(`UPDATE auth_otp SET used_at=${SQL_NOW} WHERE id=?`, [row.id])
   return true
 }
 

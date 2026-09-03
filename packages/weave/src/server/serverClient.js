@@ -15,6 +15,29 @@
 //
 // Config (opts or env): JKOS_AUTH_URL, JKOS_SERVICE_CLIENT_ID,
 // JKOS_SERVICE_CLIENT_SECRET. baseUrl may be passed to skip registry discovery.
+//
+// ⚠️ `actingZone` GOES WITH `actingUser`, and the pair is why it exists (D5 + G1).
+// authFetch stamps X-JKOS-TZ on every BROWSER request, so `callerDay(req)` answers in
+// the user's own day. This path is not a browser and stamped nothing, so a delegated
+// write — a token whose `act` names a real human — arrived with no zone and
+// `callerDay` fell back to the UTC day. That fallback is right for a peer reading on
+// its OWN behalf (no user, so no local day) and wrong the moment there is an acting
+// user, because then the day IS knowable and the server quietly picks a different one.
+//
+// It is not cosmetic. BB-1 deliberately opened BeigeBoard's routine reconcile to
+// service callers, so a LazurOS write-back rolls that user's horizon — and east of
+// Greenwich, between local midnight and UTC midnight, it rolled it against YESTERDAY
+// and minted an occurrence the user had already lived through. That is BB-10, which
+// D5 closed for browsers and left open on exactly the path D11 had just enabled.
+// It also defeats `ensureHorizon`'s once-per-user-per-day memo: a service caller and
+// a browser caller straddling UTC midnight disagree about "today", so the marker
+// flips back and forth and every read does a full horizon pass.
+//
+// The caller supplies it because the caller is the one who knows: LazurOS captures
+// `callerZone(req)` onto the job at enqueue — the zone of the request that ASKED for
+// the work — and hands it back when the result is committed.
+
+const { CALLER_ZONE_HEADER, isZone } = require('./callerDay')
 
 /** Assert at BOOT that a delegated-write client is actually provisioned (WV-1 /
  *  D11).
@@ -50,6 +73,14 @@ function weaveServerClient(appId, opts = {}) {
   const clientSecret = opts.clientSecret || process.env.JKOS_SERVICE_CLIENT_SECRET
   const scope = opts.scope // optional: clamp the minted token to a subset
   const actingUser = opts.actingUser != null && String(opts.actingUser) !== '' ? String(opts.actingUser) : null
+  /* Validated here rather than trusted: a stored zone can be stale, hand-edited, or
+     from a runtime with different ICU data. An unusable one is DROPPED, which lands
+     back on the UTC fallback — the same answer as before, never a broken header. */
+  const actingZone = isZone(opts.actingZone) ? String(opts.actingZone).trim() : null
+  if (opts.actingZone && !actingZone) {
+    console.warn(`[weave] serverClient(${appId}): ignoring unusable actingZone `
+      + `${JSON.stringify(opts.actingZone)} — falling back to the UTC day`)
+  }
   let baseUrl = opts.baseUrl ? String(opts.baseUrl).replace(/\/$/, '') : null
 
   let token = null
@@ -102,7 +133,12 @@ function weaveServerClient(appId, opts = {}) {
     const base = await resolveBase()
     const send = (tok) => fetch(`${base}${path}`, {
       method,
-      headers: { Authorization: `Bearer ${tok}`, ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}) },
+      headers: {
+        Authorization: `Bearer ${tok}`,
+        ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+        // D5: the acting user's day, not the container's. See the header.
+        ...(actingZone ? { [CALLER_ZONE_HEADER]: actingZone } : {}),
+      },
       body: body !== undefined ? JSON.stringify(body) : undefined,
     })
     let r = await send(await getToken())

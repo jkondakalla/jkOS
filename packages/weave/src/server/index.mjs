@@ -20,6 +20,7 @@ export const defineCollection = server.defineCollection
 export const backfillWireTime = server.backfillWireTime
 export const SQL_NOW = server.SQL_NOW
 export const sqlConvert = server.sqlConvert
+export const wireNow = server.wireNow
 export const isCanonicalTime = server.isCanonicalTime
 export const parseWireTime = server.parseWireTime
 export const canonicalTime = server.canonicalTime

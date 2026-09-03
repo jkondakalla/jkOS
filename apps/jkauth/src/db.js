@@ -8,6 +8,14 @@ const Database = require('better-sqlite3')
 const { registrySeed } = require('@jkos/suite-manifest')
 const { DB_PATH, ADMIN_SEED_EMAIL, ADMIN_SEED_PASSWORD, GUEST_PASSWORD } = require('./config')
 const { hashPasswordSync, verifyPasswordSync } = require('./password')
+/* ⭐ ONE WIRE-TIMESTAMP FORMAT (XC-1). jkAuth was the app the `wire-time` probe never
+   scanned, and it held BOTH: every `created_at`/`updated_at` defaulted to SQLite's
+   whole-second `datetime('now')` while migration 017's three session timestamps were
+   written as millisecond ISO from JS. The two sort against each other incorrectly as
+   strings (`' ' < 'T'`), and 017's own comment asserts they are "never string-compared
+   in SQL" — which `sessionFamilies` then did, and which the OTP expiry did with a
+   security consequence. One format, written the same way everywhere. */
+const { SQL_NOW, sqlConvert } = require('@jkos/weave/server')
 const { sealSecret, sealingEnabled } = require('./secretbox')
 
 const db = new Database(DB_PATH)
@@ -43,7 +51,7 @@ const MIGRATIONS = [
       password_hash TEXT,
       google_id     TEXT UNIQUE,
       role          TEXT NOT NULL DEFAULT 'user',
-      created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+      created_at    TEXT NOT NULL DEFAULT (${SQL_NOW}),
       last_login    TEXT
     )`)
     run(`CREATE TABLE IF NOT EXISTS sessions (
@@ -52,7 +60,7 @@ const MIGRATIONS = [
       token_hash  TEXT NOT NULL,
       app_id      TEXT,
       expires_at  TEXT NOT NULL,
-      created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+      created_at  TEXT NOT NULL DEFAULT (${SQL_NOW})
     )`)
     run(`CREATE TABLE IF NOT EXISTS app_registry (
       id            TEXT PRIMARY KEY,
@@ -90,7 +98,7 @@ const MIGRATIONS = [
       ip         TEXT,
       ua         TEXT,
       meta       TEXT,
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      created_at TEXT NOT NULL DEFAULT (${SQL_NOW})
     )`)
     run(`CREATE INDEX IF NOT EXISTS idx_auth_events_user ON auth_events(user_id)`)
     run(`CREATE INDEX IF NOT EXISTS idx_auth_events_time ON auth_events(created_at)`)
@@ -126,7 +134,7 @@ const MIGRATIONS = [
       user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       code_hash  TEXT NOT NULL,
       used_at    TEXT,
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      created_at TEXT NOT NULL DEFAULT (${SQL_NOW})
     )`)
     run(`CREATE INDEX IF NOT EXISTS idx_recovery_codes_user ON recovery_codes(user_id)`)
   }],
@@ -142,7 +150,7 @@ const MIGRATIONS = [
       purpose    TEXT NOT NULL DEFAULT 'login',
       expires_at TEXT NOT NULL,
       used_at    TEXT,
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      created_at TEXT NOT NULL DEFAULT (${SQL_NOW})
     )`)
     run(`CREATE INDEX IF NOT EXISTS idx_auth_otp_user ON auth_otp(user_id)`)
   }],
@@ -156,8 +164,8 @@ const MIGRATIONS = [
       label       TEXT NOT NULL,
       def         TEXT NOT NULL,
       created_by  INTEGER,
-      created_at  TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+      created_at  TEXT NOT NULL DEFAULT (${SQL_NOW}),
+      updated_at  TEXT NOT NULL DEFAULT (${SQL_NOW})
     )`)
   }],
 
@@ -296,6 +304,40 @@ const MIGRATIONS = [
       run('UPDATE app_registry SET activity_path=? WHERE id=?', [app.activity_path, app.id])
     }
   }],
+
+  /* 020 — ONE WIRE FORMAT INSIDE jkAuth (XC-1, the half the probe never saw).
+   *
+   * ⚠️ THE DEFECT THIS REPAIRS WAS LIVE AND SECURITY-RELEVANT. `auth_otp.expires_at`
+   * is written from JS as millisecond ISO; `verifyEmailOtp` compared it against
+   * SQLite's `datetime('now')`, which renders the space-separated whole-second form.
+   * `' ' (0x20) < 'T' (0x54)`, so for two instants inside the same UTC DAY the ISO
+   * value always compared GREATER: a 10-minute email passcode stayed verifiable until
+   * UTC midnight. That covers login 2FA, password reset and email verification.
+   * The comparison is fixed in twofactor.js; this converts the stored VALUES so the
+   * two eras of rows sort against each other correctly.
+   *
+   * Also repairs `sessions.family_created_at`, which migration 017 backfilled from
+   * `MIN(created_at)` — legacy format — while every family minted since carries ISO.
+   * `sessionFamilies` MIN/MAXes and ORDER BYs those columns as strings, which 017's
+   * own comment says never happens.
+   *
+   * ⚠️ COALESCE, never a bare assignment. `strftime` returns NULL for a value it
+   * cannot parse ('' and junk both), and most of these columns are NOT NULL — so an
+   * unparseable row must be LEFT AS IT IS rather than nulled or made to fail the
+   * constraint. Converting is idempotent (re-formatting a canonical value yields the
+   * same string), so a re-run is a no-op. */
+  ['020_one_wire_format', () => {
+    const conv = (table, ...cols) => {
+      const sets = cols.map((c) => `${c} = COALESCE(${sqlConvert(c)}, ${c})`).join(', ');
+      run(`UPDATE ${table} SET ${sets}`);
+    };
+    conv('users', 'created_at', 'last_login');
+    conv('sessions', 'created_at', 'family_created_at', 'last_used_at', 'rotated_at', 'revoked_at', 'expires_at');
+    conv('auth_events', 'created_at');
+    conv('recovery_codes', 'created_at', 'used_at');
+    conv('auth_otp', 'created_at', 'used_at', 'expires_at');
+    conv('widget_registry', 'created_at', 'updated_at');
+  }],
 ]
 
 function runMigrations() {
@@ -331,7 +373,7 @@ function logEvent(type, userId, req, meta) {
     // missing IP is honest; one with a silently substituted value is not.
     const ip = req?.ip ?? null
     const ua = (req?.headers?.['user-agent'] || '').slice(0, 300) || null
-    run('INSERT INTO auth_events (user_id, type, ip, ua, meta) VALUES (?,?,?,?,?)',
+    run(`INSERT INTO auth_events (user_id, type, ip, ua, meta, created_at) VALUES (?,?,?,?,?,${SQL_NOW})`,
       [userId ?? null, String(type).slice(0, 64), ip, ua, packMeta(meta)])
   } catch (e) {
     console.error('[audit]', e.message)
@@ -343,7 +385,7 @@ function seedAdmin() {
   const email = ADMIN_SEED_EMAIL.toLowerCase()
   if (get('SELECT 1 FROM users WHERE email=?', [email])) return
   const { hash, algo } = hashPasswordSync(ADMIN_SEED_PASSWORD)
-  run('INSERT INTO users (email, name, password_hash, hash_algo, role) VALUES (?,?,?,?,?)',
+  run(`INSERT INTO users (email, name, password_hash, hash_algo, role, created_at) VALUES (?,?,?,?,?,${SQL_NOW})`,
     [email, email.split('@')[0], hash, algo, 'admin'])
   console.log('[boot] admin seeded:', email)
 }
@@ -363,7 +405,7 @@ function seedGuest() {
     return
   }
   const { hash, algo } = hashPasswordSync(GUEST_PASSWORD)
-  run('INSERT INTO users (email, name, password_hash, hash_algo, role) VALUES (?,?,?,?,?)',
+  run(`INSERT INTO users (email, name, password_hash, hash_algo, role, created_at) VALUES (?,?,?,?,?,${SQL_NOW})`,
     ['guest@jkos.net', 'Guest', hash, algo, 'guest'])
   console.log('[boot] guest user seeded')
 }

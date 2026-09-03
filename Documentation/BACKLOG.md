@@ -219,6 +219,105 @@ Landed 2026-08-26/27 on `staging`, gate green at each commit, **none of it deplo
 
 ---
 
+## The post-completion audit — 2026-08-31
+
+**The backlog was reported complete; this is what a deep pass found in the completed work.**
+Gate green at every step. The theme is not that the work was wrong — it is that **three of the
+gates protecting it were reporting on code they never read**, and the defects hid in the gap.
+
+- **⚠️ A LIVE SECURITY DEFECT: email one-time codes never expired.** `verifyEmailOtp` compared
+  `auth_otp.expires_at` — written from JS as millisecond ISO — against SQLite's `datetime('now')`,
+  which renders the space-separated whole-second form. `' ' (0x20) < 'T' (0x54)`, so for two
+  instants **inside the same UTC day** the ISO value always compared GREATER and every code read
+  as unexpired. A 10-minute passcode stayed verifiable until UTC midnight — up to ~24 hours, a
+  ~144× window — across **login 2FA, password reset and email verification**, all three going
+  through that one function. Proved before fixing: against the pre-fix code, a reset code
+  backdated to 00:00:00.001Z of the current day still returned **200**. `twofactor.js` binds an
+  ISO parameter now, and `account.mjs` grew the assertion that was missing — the suite tested a
+  wrong code and a replayed code, never an expired one.
+  ⚠️ **The backdating is to the same UTC day on purpose.** A code expired *yesterday* is refused
+  even by the broken comparison, so the obvious "expire it by an hour" test would have passed
+  against the bug for most of any given day.
+- **⚠️ `wireNow` was missing from the weave barrel, and that absence caused the bug above.** Five
+  of `wireTime`'s six helpers reached backends through `@jkos/weave/server`; `now()` — the one you
+  bind when comparing against a canonical column — did not. So callers either hand-rolled it
+  (tokens.js grew its own `nowIso`) or reached for `datetime('now')` and got the legacy format.
+  **A shared module you cannot reach the whole of is a shared module people route around.**
+- **jkAuth held both wire formats, and migration 017's own comment denied it.** 017 states its
+  timestamps are "never string-compared in SQL"; `sessionFamilies` MIN/MAXes and ORDER BYs them
+  against the legacy-defaulted `created_at`, so the devices list showed a session last used at
+  23:50 *below* one last used at 08:05. Migration **020** converts the stored values (COALESCE,
+  never a bare assignment — `strftime` returns NULL for anything it cannot parse and most of these
+  columns are NOT NULL), every write is canonical, and the query normalises what it reads.
+- **KourOS's and PapyrOS's catalog triggers un-did their own migration, every boot.** Migrations 5
+  and 10 canonicalised `tracks.updated_at` / `books.updated_at` and recorded that "the triggers
+  converge new rows on their own (they are recreated each boot)". Exactly backwards: they ARE
+  recreated each boot, **from DDL that went on writing `datetime('now')`** — so every rescan since
+  wrote the legacy form straight back into the column that IS the `?since=` cursor. Triggers fixed,
+  rows re-converted (migrations 7 and 12).
+- **`history.started_at` is a wire timestamp under a third name.** KourOS and PapyrOS window and
+  order on it raw (`started_at > ?`) while emitting a *canonicalised* copy as the cross-app merge
+  key — filter key and merge key were different values, and a space-separated stamp sorts before
+  an ISO cursor of an **earlier** instant, so the row left the merged feed for good. Declared
+  `string`, so any text could be stored. `defineCollection` gained **`wire: true`**: refused at the
+  door (400, as BeigeBoard already does for its own `started_at`), stored canonical, still indexed.
+- **The delegated write path carried no zone — BB-10, on the path D11 opened.** `authFetch` stamps
+  `X-JKOS-TZ` on every browser request; `weaveServerClient` stamped nothing, so a write-back whose
+  token's `act` names a real human arrived with no zone and `callerDay` fell back to the UTC day.
+  BB-1 had deliberately opened BeigeBoard's routine reconcile to service callers, so east of
+  Greenwich a write-back between local and UTC midnight rolled that user's horizon against
+  *yesterday*. The zone is captured onto the LazurOS job at enqueue — the one moment a browser is
+  on the other end — and handed back at write-back via `actingZone`.
+
+### The gates that were reporting on code they never read
+
+- **`check:today` named `apps/lazuros/backend/src`, which has never existed.** `sources()` swallowed
+  the ENOENT and returned `[]`, so a whole backend was scanned as zero files while five other roots
+  filled the count in. It also scanned `backend/src` and so missed the seven `server.js` /
+  `discovery.js` / `docs.js` files beside it. A missing root is a FAILURE now; 107 files scanned,
+  up from a number that was never the truth.
+- **`99-wire-time` never scanned jkAuth** — the app that actually held both formats — and skipped
+  the same seven files. 100 files now, up from 77. Its line filter also could not tell code from
+  prose (a prefix test misses every continuation line of a block comment), so documenting the
+  defect tripped the gate; violations are matched against blanked-comment source while the
+  `wire-time-legacy` exemption is matched against the raw line, since that marker lives in a
+  comment by design.
+- **⚠️ `check:policy`'s regex matched nothing in the entire service.** It required a leading `.`
+  (`user.role === 'admin'`), and jkAuth's real comparisons are bare — `roleClaims(role)`'s
+  `role !== 'guest'` and weave.js's `role === 'admin'`. So the gate proving "no route re-types a
+  role comparison" passed because it **could not see one**, and its single recorded exception had
+  never fired. That is what a permanently-zero detector looks like from outside. Regex fixed, scope
+  widened from `src/routes/` to the whole service, exceptions pinned to EXACT counts.
+- **`95-env-conformance` had already been fixed for precisely this** (`apps/lazuros/backend`, plus
+  each app's top-level files). The fix landed on one of three siblings. ⚠️ **When a scanner is
+  corrected, correct every scanner built from the same list.**
+
+### Still open, and deliberately not done here
+
+- **`idempotency_key` is write-only, and the docs claimed otherwise.** `IDEMPOTENCY_FIELD` has no
+  importer, no app declares the field, no route reads it, nothing stores seen keys — BeigeBoard's
+  writer drops it as an unknown key. `trigger.js` claimed "a retried DO cannot double-write"; it
+  cannot deliver that, because **idempotency is a property of the receiver**. The claims are
+  corrected in place rather than papered over. The sending half is right and worth keeping (a
+  derived key makes a retry *recognisable*); **dedup at the write door is owed**, and is the thing
+  to build before the trigger engine is ever mounted. Note the engine has no call sites at all
+  today, which is the stated steady state — but it means this gap surfaces on the day it is wired,
+  not before.
+- **jkAuth has two authorization policies.** `policy.js` holds the route actions; `roleClaims()` in
+  `db.js` decides the `aud` and `scope` claims **every token in the suite carries** — a wider
+  decision than any route guard. Folding it in means `policy.js` depending on `db.js` and owning a
+  registry-derived cache: a change to the token-minting path, not one to make at the tail of an
+  audit. Pinned as an exact three-comparison exception so it cannot grow a fourth unnoticed.
+- **BeigeBoard's `/api/items` is the one unpaginated dataset in a suite with a pagination ruling.**
+  ⚠️ **And that absence is currently load-bearing** — it is why `bbDelta`'s merge is safe. Adding a
+  limit while keeping `ORDER BY id ASC` would advance the cursor past unseen rows on the first
+  page-sized delta: silent row loss, the exact failure that module exists to prevent. Page it by
+  the cursor column or not at all.
+- **The Qobuz credential still needs rotating at Qobuz.** Working tree is clean, the value is still
+  reachable in history at `e3c829a`. Unchanged, and Jag's.
+
+---
+
 ## Open — jkAuth
 
 **Stage C is done.** What is left is smaller and was deliberately deferred:

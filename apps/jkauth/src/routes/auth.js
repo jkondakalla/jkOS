@@ -5,6 +5,7 @@
 const express = require('express')
 const crypto = require('crypto')
 const { CODES } = require('@jkos/auth-middleware')   // canonical wire codes (single source)
+const { SQL_NOW } = require('@jkos/weave/server')   // canonical wire timestamp (XC-1)
 const { GUEST_PASSWORD, PASSWORD_MAX, REFRESH_COOKIE, SERVICE_CLIENTS, DELEGATION_CLIENTS } = require('../config')
 const { get, run, logEvent } = require('../db')
 const { isJsonReq, validateRedirectTo, passwordError, loginBackoffMs } = require('../util')
@@ -147,7 +148,7 @@ router.post('/auth/login', async (req, res) => {
   // here. `last_login` is stamped at the same place, for the same reason — it
   // means "signed in", not "typed the password".
   if (!twoFactorEnabled(user)) {
-    run("UPDATE users SET failed_attempts=0, lockout_until=NULL, last_login=datetime('now') WHERE id=?", [user.id])
+    run(`UPDATE users SET failed_attempts=0, lockout_until=NULL, last_login=${SQL_NOW} WHERE id=?`, [user.id])
   }
 
   // Lazy migration: upgrade a legacy bcrypt-on-raw hash to the current
@@ -235,7 +236,7 @@ router.post('/auth/login/2fa', async (req, res) => {
     }))
   }
   // A passed second factor clears the backoff, same as a passed password.
-  run("UPDATE users SET failed_attempts=0, lockout_until=NULL, last_login=datetime('now') WHERE id=?", [user.id])
+  run(`UPDATE users SET failed_attempts=0, lockout_until=NULL, last_login=${SQL_NOW} WHERE id=?`, [user.id])
   // Carry the pending redirect target through so token provenance (azp) resolves
   // to the app being entered, not just the request Origin.
   req.body.redirect_to = pending.rt || req.body.redirect_to
@@ -383,7 +384,7 @@ router.post('/auth/guest', async (req, res) => {
     if (isJson) return res.status(401).json({ error: 'Invalid guest password' })
     return res.send(loginPage({ error: 'Invalid guest password', redirectTo: req.body?.redirect_to }))
   }
-  run('UPDATE users SET failed_attempts=0, lockout_until=NULL, last_login=datetime(\'now\') WHERE id=?', [guest.id])
+  run(`UPDATE users SET failed_attempts=0, lockout_until=NULL, last_login=${SQL_NOW} WHERE id=?`, [guest.id])
 
   issueTokens(req, res, guest)
   logEvent('guest_login', guest.id, req)

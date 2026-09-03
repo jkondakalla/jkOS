@@ -57,7 +57,11 @@ const HISTORY = defineCollection({
   scoped: true, only: ['create'],
   fields: [
     { name: 'item_ref',   type: 'ref',     label: 'Track',                          ref: 'kouros.tracks', required: true },
-    { name: 'started_at', type: 'string',  label: 'Session start (ISO timestamp)', required: true },
+    /* `wire: true` (XC-1): client-stamped, but it is the column the activity read
+       WINDOWS and ORDERS on, so it must be canonical. Declared a plain string, any
+       text could be stored — and a space-separated stamp sorts BEFORE an ISO cursor
+       of an EARLIER instant, so the row silently vanished from the merged feed. */
+    { name: 'started_at', type: 'string',  label: 'Session start (ISO timestamp)', required: true, wire: true },
     { name: 'ms_played',  type: 'number',  label: 'Milliseconds played',           default: 0 },
     { name: 'completed',  type: 'boolean', label: 'Completed' },
   ],

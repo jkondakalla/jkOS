@@ -124,6 +124,12 @@ export interface CapabilityDef {
    * The engine's key is DERIVED, never random: same trigger + same event ⇒ same key,
    * which is the only property that makes a retry recognisable AS one. A random key
    * makes every attempt look new, which is worse than no key because it looks solved.
+   *
+   * ⚠️ NO RECEIVER HONOURS IT YET. This constant has no importer, no app declares the
+   * field, and nothing stores seen keys — so a retried DO still double-writes and the
+   * key is dropped as an unknown body key. Sending a key is the half that is done;
+   * dedup at the write door is the half that is owed. Do not read the presence of this
+   * field as protection.
    */
   invalidates?: string[];           // resource keys to refetch after success: ['beigeboard.items']
   roles?: string[];                 // coarse gate (defaults to the app's allowed_roles)

@@ -15,7 +15,10 @@ const test = (label, fn) => { fn(); n++; };
 function spyClient() {
   const log = [];
   const makeClient = (app, opts) => ({
-    post: async (path, body) => { log.push({ app, actingUser: opts.actingUser, path, body }); return { ok: true, status: 200 }; },
+    post: async (path, body) => {
+      log.push({ app, actingUser: opts.actingUser, actingZone: opts.actingZone, path, body });
+      return { ok: true, status: 200 };
+    },
   });
   return { makeClient, log };
 }
@@ -29,6 +32,36 @@ await (async () => {
   test('targets beigeboard /import', () => { assert.equal(log[0].app, 'beigeboard'); assert.equal(log[0].path, '/import'); });
   test('acts AS the job user (delegation WHO)', () => assert.equal(log[0].actingUser, 'user-42'));
   test('posts the parsed import doc', () => assert.deepEqual(log[0].body, { items: [{ title: 'Buy milk' }] }));
+})();
+
+/* 1b. THE ACTING ZONE TRAVELS WITH THE ACTING USER (D5 + G1).
+ *
+ * ⚠️ Asserted because its absence is silent. A write-back is a per-user write over a
+ * service token, and weaveServerClient — not being a browser — stamped no X-JKOS-TZ,
+ * so `callerDay(req)` on the peer fell back to the UTC day for a user who is not in
+ * UTC. Nothing errors; BeigeBoard's import just mints a routine occurrence on the
+ * wrong day, and BB-1 had deliberately opened that reconcile to service callers. That
+ * is BB-10 — the finding D5 closed for browsers — reappearing on the path D11 opened.
+ *
+ * The zone is captured onto the job at ENQUEUE (queue.js), which is the only moment a
+ * browser is on the other end of the connection. */
+await (async () => {
+  const { makeClient, log } = spyClient();
+  await runWriteback({ id: 'j1b', capability: 'parse-task', user_id: 'u7', acting_zone: 'Asia/Tokyo' },
+    { response: '{"items":[]}' }, { makeClient });
+  test('the job\'s acting_zone reaches the client (D5: the peer answers in the USER\'s day)',
+    () => assert.equal(log[0].actingZone, 'Asia/Tokyo'));
+})();
+
+/* …and a job with no zone still writes back. A job enqueued by a service caller has
+   no browser behind it and therefore no local day; UTC is the honest answer there,
+   and it must degrade to that rather than refuse the write. */
+await (async () => {
+  const { makeClient, log } = spyClient();
+  const out = await runWriteback({ id: 'j1c', capability: 'parse-task', user_id: 'u8' },
+    { response: '{"items":[]}' }, { makeClient });
+  test('a zoneless job still writes back', () => assert.equal(out.written, true));
+  test('…carrying no zone rather than a made-up one', () => assert.equal(log[0].actingZone, undefined));
 })();
 
 // 2. breakdown-goal → also writes back.

@@ -1,5 +1,5 @@
 'use strict'
-const { pageLimit } = require('@jkos/weave/server')
+const { pageLimit, SQL_NOW } = require('@jkos/weave/server')
 // Weave — the suite fabric directory. Everything other apps consume to discover
 // the suite and weave into it: the app registry (/auth/apps), the suite-wide
 // widget registry (/auth/widgets), the audit feed (/auth/events), and the JWKS
@@ -130,10 +130,10 @@ router.post('/auth/widgets', (req, res) => {
   // truth (and what the GET filter reads); the GET re-attaches it for the client.
   const { allowed_roles: _dropped, ...defBody } = def
   const json = JSON.stringify({ ...defBody, id }).slice(0, 20000)
-  run(`INSERT INTO widget_registry (id, label, def, allowed_roles, created_by, updated_at)
-       VALUES (?,?,?,?,?,datetime('now'))
+  run(`INSERT INTO widget_registry (id, label, def, allowed_roles, created_by, created_at, updated_at)
+       VALUES (?,?,?,?,?,${SQL_NOW},${SQL_NOW})
        ON CONFLICT(id) DO UPDATE SET label=excluded.label, def=excluded.def,
-         allowed_roles=excluded.allowed_roles, updated_at=datetime('now')`,
+         allowed_roles=excluded.allowed_roles, updated_at=${SQL_NOW}`,
     [id, label, json, allowedRoles, user.sub])
   // JK-A13: publishing a widget changes EVERY user's HUD suite-wide, and it was
   // the least-logged action in the service. Admin-only, and now recorded.

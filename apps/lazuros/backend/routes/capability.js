@@ -7,6 +7,7 @@
 // sixth capability to docs.js reuses this handler unchanged.
 
 const { createJob, setJobStatus } = require('../lib/queue');
+const { callerZone } = require('@jkos/weave/server');   // D5: WHERE the caller is
 
 /** Resolve a capability's declared targetTier against the loaded tier registry.
  *  'highest'/'lowest' keep capability docs deployment-agnostic (a doc must not know
@@ -36,7 +37,12 @@ function makeHandler(capDef) {
     const backend = providers.computeBackends[tier.computeBackend];
     if (!backend) return res.status(500).json({ error: `tier ${tier.id} references unknown computeBackend "${tier.computeBackend}"` });
 
-    const jobId = createJob({ user_id, capability: capDef.id, payload, tier_id: tier.id });
+    /* The zone travels with the job (D5). This is the one moment a browser is on
+       the other end; the write-back that commits the result is a service call. */
+    const jobId = createJob({
+      user_id, capability: capDef.id, payload, tier_id: tier.id,
+      acting_zone: callerZone(req),
+    });
 
     // If the tier's backend is offline, mark the job PENDING_WAKEUP and best-effort
     // wake it (WoL for a wol-backend; a no-op for an always-on one). The worker picks

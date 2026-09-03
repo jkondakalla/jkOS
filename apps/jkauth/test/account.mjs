@@ -25,6 +25,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import Database from 'better-sqlite3';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SERVER = join(__dirname, '..', 'server.js');
@@ -40,6 +41,7 @@ const ok = (name, cond, extra = '') => { if (cond) { pass++; } else { fail++; co
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 const tmp = mkdtempSync(join(tmpdir(), 'jkauth-account-'));
+const DB_FILE = join(tmp, 'auth.db');
 // Band clear of the test-port registry (3980–3996) + discover spares (4083–4085).
 const port = 6700 + Math.floor(Math.random() * 400);
 const base = `http://127.0.0.1:${port}`;
@@ -48,7 +50,7 @@ let serverLog = '';
 const child = spawn(process.execPath, [SERVER], {
   env: {
     ...process.env,
-    PORT: String(port), DB_PATH: join(tmp, 'auth.db'),
+    PORT: String(port), DB_PATH: DB_FILE,
     JKOS_AUTH_PRIVATE_KEY: privateKey, JKOS_AUTH_PUBLIC_KEY: publicKey,
     COOKIE_DOMAIN: 'localhost', AUTH_ORIGIN: base, PORTAL_URL: base,
     NODE_ENV: 'test', OTP_TEST_ECHO: '1',
@@ -154,6 +156,44 @@ try {
   ok('a reset code was emailed', !!rcode);
   r = await api('a', 'POST', '/auth/reset/confirm', { json: { email: 'ann@x.net', code: '000000', new_password: 'password-a3' } });
   ok('reset with a wrong code → 400', r.status === 400, `got ${r.status}`);
+
+  /* ⚠️ AN EXPIRED CODE IS REFUSED — the assertion this suite did not have, and the
+     reason a real defect lived here unseen. `auth_otp.expires_at` is written from JS
+     as millisecond ISO ("…T00:15:00.000Z"); `verifyEmailOtp` compared it against
+     SQLite's `datetime('now')`, which renders the space-separated whole-second form
+     ("… 23:00:00"). The clause compared the two AS STRINGS and `' ' (0x20) < 'T'
+     (0x54)`, so for two instants inside the same UTC DAY the ISO value always
+     compared GREATER: every code read as unexpired. A 10-minute passcode stayed
+     verifiable until UTC midnight — on login 2FA, password reset and email
+     verification alike, all three going through this one function.
+
+     ⚠️ BACKDATED TO THE FIRST MILLISECOND OF THE CURRENT UTC DAY, and that detail is
+     the whole test. A code expired YESTERDAY is rejected even by the broken
+     comparison (the date component differs and dominates the string sort), so the
+     obvious "expire it by an hour" version of this test would have PASSED against the
+     bug for most of any given day. Same-day is the only window where the defect is
+     visible, so same-day is what this pins. */
+  {
+    const db = new Database(DB_FILE);
+    const row = db.prepare("SELECT id, expires_at FROM auth_otp WHERE purpose='password_reset' AND used_at IS NULL ORDER BY id DESC LIMIT 1").get();
+    ok('the reset code is on record with an expiry', !!row?.expires_at);
+    const startOfUtcDay = new Date().toISOString().slice(0, 10) + 'T00:00:00.001Z';
+    ok('…and the backdated expiry really is in the past (test precondition)',
+      Date.parse(startOfUtcDay) < Date.now(), startOfUtcDay);
+    db.prepare('UPDATE auth_otp SET expires_at=? WHERE id=?').run(startOfUtcDay, row.id);
+    db.close();
+
+    r = await api('a', 'POST', '/auth/reset/confirm', { json: { email: 'ann@x.net', code: rcode, new_password: 'password-a3' } });
+    ok('an EXPIRED reset code → 400, even when it expired earlier the SAME UTC day',
+      r.status === 400, `got ${r.status} ${JSON.stringify(r.json)}`);
+
+    // Put the real expiry back so the acceptance assertions below still mean what
+    // they say — this section must prove the refusal, not disable the flow.
+    const db2 = new Database(DB_FILE);
+    db2.prepare('UPDATE auth_otp SET expires_at=? WHERE id=?').run(row.expires_at, row.id);
+    db2.close();
+  }
+
   r = await api('a', 'POST', '/auth/reset/confirm', { json: { email: 'ann@x.net', code: rcode, new_password: 'password-a3' } });
   ok('reset with the mailed code → 200', r.status === 200, `got ${r.status}`);
   r = await api('a', 'POST', '/auth/reset/confirm', { json: { email: 'ann@x.net', code: rcode, new_password: 'password-a4' } });

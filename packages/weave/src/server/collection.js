@@ -23,7 +23,7 @@
 const { filterSpec, buildItemFilters } = require('./filters')
 const { coerceWeaveColumn } = require('./columns')
 const { resourceKey } = require('@jkos/suite-manifest')
-const { SQL_NOW, sqlConvert } = require('./wireTime')
+const { SQL_NOW, sqlConvert, canonical: canonicalTime, isCanonical } = require('./wireTime')
 
 // A field name is interpolated into SQL (as a column), so it must be a safe
 // identifier — never user input, but validated so a typo'd spec fails loudly at
@@ -188,8 +188,41 @@ function defineCollection(def) {
     if (!f) return v
     if (f.type === 'boolean') return typeof v === 'boolean' ? (v ? 1 : 0) : v
     if (f.type === 'ref') return coerceRef(v)
+    /* A CLIENT-SUPPLIED WIRE TIMESTAMP IS STORED CANONICAL (XC-1). checkWire has
+       already refused anything unparseable, so this only re-renders the form. */
+    if (f.wire) return canonicalTime(v) ?? v
     if (f.list) return coerceWeaveColumn('tags', v)   // reuse the JSON-array rule
     return coerceWeaveColumn(name, v)
+  }
+
+  /* ⭐ `wire: true` — a field the CLIENT supplies that is nonetheless a wire
+   * timestamp, and must therefore obey XC-1 like a server-written one.
+   *
+   * ⚠️ The defect this closes was live in two apps. KourOS's and PapyrOS's
+   * `history.started_at` is stamped by the player in the browser and declared a plain
+   * `string`, so any text at all could be stored — and their activity reads then
+   * WINDOW and ORDER on that raw column (`started_at > ?`, `ORDER BY started_at
+   * DESC`) while EMITTING `canonicalTime(started_at)` as the merge key. Filter key and
+   * merge key were different values. A row written in the space-separated form sorts
+   * BEFORE an ISO cursor of an EARLIER instant (`' ' < 'T'`), so it silently drops out
+   * of the window and never appears in the merged feed again.
+   *
+   * Rejected rather than coerced-to-now: BeigeBoard validates the same-named column at
+   * its door and answers 400 (BUG-3 — a direct caller should learn, not silently lose
+   * data), and inventing a server timestamp for a field whose whole meaning is "when
+   * the client says this happened" would be worse than refusing it.
+   *
+   * Only keys PRESENT are checked, so a PATCH sending a subset is unaffected. */
+  const wireNames = fields.filter((f) => f.wire).map((f) => f.name)
+  function checkWire(raw) {
+    for (const name of wireNames) {
+      const v = raw?.[name]
+      if (v == null || v === '') continue        // absence is the `required` check's business
+      if (canonicalTime(v) == null) {
+        return `${name} must be an ISO-8601 instant (e.g. 2026-08-31T14:05:00.000Z)`
+      }
+    }
+    return null
   }
   function toRow(raw) {
     if (!raw) return null
@@ -273,6 +306,8 @@ function defineCollection(def) {
             const v = raw[name]
             if (v == null || String(v).trim() === '') return res.status(400).json({ error: `${name} is required` })
           }
+          const wireErr = checkWire(raw)
+          if (wireErr) return res.status(400).json({ error: wireErr, code: 'VALIDATION' })
           const d = scoped ? { user_id: ownerOf(req) } : {}
           for (const k of Object.keys(raw)) if (writableNames.has(k)) d[k] = coerce(k, raw[k])
           const keys = Object.keys(d)
@@ -291,6 +326,8 @@ function defineCollection(def) {
           if (isNaN(rowId)) return res.status(400).json({ error: 'Invalid id' })
           const valid = Object.keys(req.body || {}).filter((k) => writableNames.has(k))
           if (!valid.length) return res.status(400).json({ error: 'No valid fields to update' })
+          const wireErr = checkWire(req.body || {})
+          if (wireErr) return res.status(400).json({ error: wireErr, code: 'VALIDATION' })
           const scope = scoped ? ' AND user_id = ?' : ''
           const tail = scoped ? [rowId, ownerOf(req)] : [rowId]
           run(`UPDATE ${id} SET ${valid.map((k) => `${k} = ?`).join(', ')} WHERE id = ?${scope}`,
@@ -337,7 +374,12 @@ function article(noun) {
  *  stale. A cursor is a single ordering across the app's tables; converting some
  *  leaves exactly the mixed-format sort this exists to remove.
  */
-function backfillWireTime(db, tableIds) {
+/* `extra` names non-standard wire columns per table, e.g. `{ history: ['started_at'] }`.
+   ⚠️ Needed because the two-name rule (`created_at`/`updated_at`) is not the whole
+   truth: KourOS's and PapyrOS's `history.started_at` is client-stamped AND is what
+   their activity read windows on, so it is a wire timestamp under a third name. A
+   convention that only recognises two names cannot see the one that broke. */
+function backfillWireTime(db, tableIds, extra = {}) {
   for (const t of tableIds) {
     // ⚠️ Ask, don't assume. Not every table in an app's list is a
     // defineCollection — a scanner-populated catalog like KourOS's `tracks` or
@@ -351,7 +393,7 @@ function backfillWireTime(db, tableIds) {
     } catch {
       continue  // no such table in this deployment — nothing to convert
     }
-    for (const col of ['created_at', 'updated_at']) {
+    for (const col of ['created_at', 'updated_at', ...(extra[t] || [])]) {
       if (!present.has(col)) continue
       db.exec(`UPDATE ${t} SET ${col} = ${sqlConvert(col)} `
             + `WHERE ${col} IS NOT NULL AND ${col} NOT LIKE '____-__-__T__:__:__.___Z'`)
