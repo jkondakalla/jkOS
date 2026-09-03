@@ -344,12 +344,17 @@ gates protecting it were reporting on code they never read**, and the defects hi
 
 ✅ **Stage E is COMPLETE (all six).**
 
-   ⚠️ **A refinement worth making:** `98-surface-coverage` lets a declared path cover
-   everything BENEATH it, so `/items` silently covered the three new `/items/:id/deps`
-   routes before they were declared. That is a deliberate rule, but it means a nested
-   surface with a completely different shape can be added without declaring it — the
-   BB-7 class, one level down. Consider requiring an explicit declaration for a path
-   that is more than one segment deeper than its cover.
+   ✅ **The refinement is DONE (`f7049a4`).** `98-surface-coverage` used to let a declared
+   path cover everything BENEATH it without limit, so `/items` silently covered the three
+   `/items/:id/deps` routes for as long as they went undeclared — the BB-7 class, one level
+   down. `MAX_COVER_DEPTH = 1` now: a surface that merely ADDRESSES a declared row is free,
+   a surface that adds a noun of its own has to say so.
+   ⚠️ **One rather than zero on purpose** — at zero, `/items/:id` needs its own entry in
+   every app and the probe stops measuring coverage and starts measuring transcription.
+   ⚠️ **Verified against a planted violation, not assumed.** A mounted
+   `/items/:id/notes/:noteId` that nothing declares reports as a gap under the bound, and
+   read as *"all 44 mounted routes are declared"* with the bound removed. The bound is what
+   catches it; the rest of the probe never could.
 
 1. ✅ **Surface coverage — DONE.** `98-surface-coverage` censuses every mounted Express route
    against the app's declared capability and dataset paths; a gap unless explicitly marked
@@ -435,6 +440,103 @@ becomes exactly the bug the ruling describes. Noted at the call site too.
 
 ⚠️ **Do not build an "is anything consuming this contract?" probe.** An unconsumed contract is
 the correct steady state; the only way to satisfy such a probe would be to invent consumers.
+
+## Open — the pulsarmap (M7)
+
+**Jag's, 2026-09-03, and a named feature rather than decoration.** Turn a track's mel
+spectrogram into a **lightweight mesh** the browser can pull and draw without lag, and reveal it
+as the song plays: one ridgeline per ~2 s slice, stacking toward the viewer, the *Unknown
+Pleasures* form unrolling in time. `ALGORITHMS.md` §9 M7 carries the reasoning and the arithmetic
+— **including that its own previous ruling ("this is decoration, nothing may depend on it") is
+overruled.** This is the build order.
+
+**Decided with Jag up front, so the blocks below don't re-ask:** a line is a **moment in time**
+(not a frequency band — the classic pulsar form, and it makes the canvas append-only); meshes are
+built **on demand and cached**, not batched across all 47,441 tracks; and the feature is a
+**KourOS view behind a declared read**, not a shared package — other apps can still reach it
+because it is declared, which is the whole point of declaring it.
+
+### The blocks, in dependency order
+
+1. **`music/mesh.py` — the builder.** `(128, T) float32` → `(rows, 128) uint8`. Decimate the time
+   axis by a fixed `FRAMES_PER_ROW` derived from `config.frame_seconds()`, quantise against
+   `ridge.py`'s `VALUE_RANGE_LN`, emit rows + `row_seconds` + the config signature. Imports
+   `mel.py` / `config.py` / `audio.py` and **edits none of them** — read-only use is safe for the
+   paused backfill, an edit is not (RESET.md §0a).
+   ⚠️ **Stamp `config.signature()` into every mesh.** A mesh built under a different `N_MELS` or
+   `HOP` is not comparable to one built before it, and the failure is a picture that is subtly
+   wrong rather than an error. The index already has this exact defence (`assert_config`); the
+   mesh store gets it for the same reason.
+2. **The reduction, measured rather than assumed.** M2 chose `max` over `mean` for the time axis
+   over ~22-frame buckets. This is 86. Render one track four ways — max / mean / p90 / p75 — read
+   them side by side in a browser, and write the answer into §9's table. ⚠️ **`max` may saturate**:
+   nearly every 2 s window of a rock track contains a kick, so the reduction chosen to preserve
+   the beat could be the one that erases it. This is M2's method applied to M2's own conclusion.
+3. **`music/meshes.db` — the sidecar store.** A **separate file**, never a table inside
+   `index.db`. Same `VACUUM INTO` snapshot discipline as `ship.py` and the same four traps, plus
+   the join-key trap: paths are stored absolute and KourOS sees `/music/…`, so the store must
+   carry the **root-relative** form `ship.py --root-name` already reasons about.
+4. **The fill trigger — the one genuinely open design question.** "On demand" is what Jag asked
+   for and the obstacle is real: KourOS is a Node container that has ffmpeg but no numpy, and the
+   mel transform must keep one home. Three paths, and the recommendation is to build (i) first
+   and only then decide whether (ii) is worth a deployed surface:
+   - **(i) A `--pending` fill, run like the backfill** — build meshes for tracks that have
+     actually been played and lack one. Zero new deployed surface, zero new dependency, and it is
+     buildable today. First play has no mesh and **degrades**, which is what every other read on
+     KourOS's discover surface already does; it is there next time.
+   - **(ii) A LAN-only `music/meshd.py`** behind an internal bearer, called by KourOS at request
+     time — the LazurOS `/internal` precedent exactly, stdlib `http.server`, no third
+     dependency. This is what makes "on demand" literally true, and it costs a service.
+   - **(iii) Python + numpy in KourOS's image.** ⚠️ **Rejected.** It moves the transform's runtime
+     into an app container and invites a second copy of the one artifact this project is built on.
+   ⚠️ **What drives (i)'s pending list is undecided** — KourOS's own `history` table, a wanted-list
+   the frontend writes, or simply the top-N most played. Pick when (i) is built; do not design it
+   now.
+5. **The KourOS read, DECLARED.** `/discover/mesh/:id` in `discovery.js`, alongside the seven
+   discover reads XC-7 added. ⚠️ **It cannot ride on an existing declaration**: as of `f7049a4`
+   `98-surface-coverage` bounds a declared path to one segment of cover, so a three-segment
+   discover route has to declare itself. That bound exists precisely so a new surface of a new
+   shape cannot arrive invisibly.
+   ⚠️ **Do not open a binary endpoint for this.** 15 KB of uint8 is ~20 KB base64 inside an
+   ordinary JSON body, and staying JSON keeps the read inside every contract the suite already
+   enforces — pagination, wire time, `defineCollection`, the completeness probe. Revisit only if
+   a decision upstream pushes a single mesh past a few hundred KB.
+6. **Mesh coverage joins `/discover/stats`.** The whole discover surface degrades rather than
+   failing when the index is thin, and `discoveryStats` is how a consumer tells "no results" from
+   "no index". A mesh that is merely not built yet must be distinguishable from one that failed,
+   for the same reason and through the same door.
+7. **`<Pulsarmap/>` — the renderer, in KourOS beside `NowPlaying`.** Canvas 2D, no WebGL and no
+   new dependency. Draw each row as an opaque filled path then stroke it, **painter's algorithm
+   back to front**, onto an offscreen canvas that grows; blit a panned window of it so the newest
+   row sits at a fixed place.
+   ⚠️ **Two constraints that look like polish and are structural.** New rows must arrive IN FRONT,
+   or the canvas stops being append-only and every row costs a full repaint. And the render pitch
+   has a floor: M2 measured that **below ~9 px of row pitch the stack collapses into a uniform
+   hatch** — a picture that reads as "the transform is broken" when it is fine and merely too
+   small. That is why the renderer pans rather than squashing to fit.
+8. **`revealIndex()` — pure, extracted, and gated.** `row = floor(currentTime / rowSeconds)`,
+   plus what to do on seek-backwards (repaint from row 0 offscreen), track change (reset) and
+   pause (nothing). Extract it the way `bbDelta.ts`, `hudPrefs.ts` and `scrub.ts` are extracted
+   and put it under a `check:` gate — **every failure mode here is silent**: a drifting reveal
+   looks like a stylistic choice, not a bug.
+   ⚠️ **Drive it from `currentTime` per animation frame, never a `setInterval`.** A timer
+   desynchronises on buffering, on seek, and on a playback-rate change — and `packages/player`
+   has a rate module, so that last one is not hypothetical.
+9. **Python tests, stdlib `unittest`, in `music/tests/`.** Quantisation round-trips within
+   tolerance; the reduction is the chosen one and not silently `mean`; the value scale is the
+   SHARED one and not per-track (assert two synthetic tracks at different levels produce
+   different mesh means — a per-track normaliser makes them equal, and nothing else does);
+   `row_seconds` derives from `config` rather than being a literal.
+
+### What would make this wrong
+
+- **A second mel implementation.** The mesh, the ridgeline and the vectors must be the same
+  transform, or `VALUE_RANGE_LN` stops being a range anyone measured.
+- **Per-track normalisation**, at any of the three points it could sneak in — the builder, the
+  quantiser, or the renderer's own contrast.
+- **A streaming protocol.** The mesh is ~20 KB; fetch it whole when the track starts and reveal
+  it by index. Streaming a mesh in sync with playback couples network jitter to a visual and buys
+  nothing.
 
 ## Open — the design factory (Stage F)
 

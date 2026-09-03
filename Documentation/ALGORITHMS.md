@@ -870,11 +870,86 @@ since it is a compose-file edit and a decision, not code.
 **M6 — library map.** UMAP or PCA projection to 2D: where a track sits relative to the rest of
 the library, and the path the current shuffle is taking through it.
 
-**M7 — spectrogram surface.** The matrix as a 3D heightmap, time against frequency with energy
-as elevation. Rendering resolution is a **heavy downsample** of the analysis matrix — a
-four-minute track at a 512-sample hop is roughly 1.3 million vertices and a browser will not
-render that. **This is decoration and is documented as such.** It is not analytically
-load-bearing, and nothing may come to depend on it.
+**M7 — the pulsarmap.** The mel matrix as a stack of ridgelines that ACCUMULATES as the track
+plays: one line per ~2 s slice, frequency across the line, energy as elevation, new lines
+arriving in front of the ones already drawn. The Joy Division *Unknown Pleasures* form, revealed
+in time rather than printed at once.
+
+⚠️ **This section used to end "this is decoration and is documented as such; nothing may come to
+depend on it." Overruled by Jag on 2026-09-03 — it is a named feature now.** The downgrade was
+not wrong when written: it was aimed at a 3D heightmap of the *full* matrix, and that thing
+genuinely is unrenderable. What changes is the artifact, not the verdict on the old one. See
+BACKLOG.md → "Open — the pulsarmap (M7)" for the build order; what follows is what is DECIDED
+and why the obvious alternative is wrong in each case.
+
+**The size problem, which is the whole problem.** A four-minute track at `HOP = 512` is
+~10,300 frames × 128 bands ≈ 1.3 M vertices, and ~5 MB of float32. That is the number that made
+this decoration. It survives exactly one decimation and one quantisation:
+
+| | |
+|---|---|
+| **Analysis matrix** | 10,300 × 128 float32 — **5.3 MB** |
+| **Decimate time**, ~86 frames → 1 row (`FRAMES_PER_ROW`, ≈ 2.0 s at 22.05 kHz / hop 512) | 120 × 128 float32 — 61 KB |
+| **Quantise to uint8** over the shared range | 120 × 128 — **15 KB**, ~4 KB gzipped |
+| **On the wire**, base64 inside the ordinary JSON body | ~20 KB |
+
+**Three decisions, each against a plausible alternative:**
+
+- **Fixed seconds-per-row, not a fixed row count.** A fixed row count makes the reveal rate a
+  function of track length: a two-minute interlude would fill in ten times faster than a
+  twenty-minute post-rock track, and the reveal would stop meaning "how far in are we". The cost
+  is that row count varies with duration (a 20-minute track is ~600 rows, 77 KB), and that cost
+  lands on the **renderer**, not the format — see the pitch note below.
+- **Reduce each row by max, not mean — but this is not settled, it is measured.** M2 established
+  that reducing the time axis by `mean` deletes the beat grid, because a kick drum is one loud
+  frame in a bucket of quiet ones. ⚠️ **That measurement was over ~22-frame buckets and does not
+  transfer unexamined to 86.** Over a ~2 s window nearly every bucket of a rock track contains a
+  kick, so `max` may saturate the bass rows and flatten exactly what it was chosen to preserve.
+  **Render one track four ways — max, mean, p90, p75 — and look.** That is M2's own method, and
+  the answer belongs in this table once it exists.
+- **One shared absolute value scale, never per-track.** `ridge.py`'s `VALUE_RANGE_LN = (-8.0, 10.0)`,
+  measured across four deliberately unalike library tracks, is the quantisation range too. ⚠️
+  **Per-track normalisation is the single thing that would make this picture meaningless** — a
+  solo piano track and a brickwalled metalcore track would both fill their frame and read as
+  equally loud. It is the same mistake M2 warns about and M3's descriptor z-score warns about,
+  now a third time and in one byte. 18 ln units over 255 steps is 0.07 ln ≈ 0.31 dB per step,
+  far below anything an eye resolves off a ridgeline.
+
+**Where it is built: `music/`, because the transform has one home.** KourOS's image carries
+ffmpeg (the scanner needs ffprobe), so decoding in the container is possible — but the mel
+transform is not, and re-implementing it in JavaScript would create a second definition of the
+one artifact the whole project is built on. That is Trap 16's shape even though it is not Trap 16
+itself: a wrong JS mel does not corrupt the vector space, it just makes the picture disagree with
+the analysis, and `VALUE_RANGE_LN` stops being a range anyone measured. ⚠️ **Read-only use of
+`mel.py` / `config.py` / `audio.py` is safe for the paused backfill; editing any of them is not**
+(RESET.md §0a). `mesh.py` imports them and changes nothing.
+
+**Where it is stored: a sidecar, never `index.db`.** `index.db` holds 35,460 banked vectors and
+`ship.py`'s `VACUUM INTO` invariant. A mesh table has no business in that file, and the reason is
+not tidiness — it is that every operation on it is one more chance to be the operation that costs
+four hours.
+
+**Where the reveal comes from: `currentTime`, not a timer.** `row = floor(currentTime / rowSeconds)`,
+read per animation frame from the audio element that is actually playing. ⚠️ A `setInterval`
+counting seconds desynchronises on buffering, on seek, and on any playback-rate change — and
+`packages/player` has a rate module, so rate changes are real here.
+
+**Why the reveal direction is load-bearing.** Hidden-line removal is what makes the stack read as
+depth: each line is drawn as an opaque filled path that occludes the lines behind it, painter's
+algorithm, back to front. Combined with "new rows arrive in FRONT", that makes the canvas
+**append-only** — a new row is one path drawn over a canvas that never has to be repainted, so
+the steady-state cost of the reveal is one polyline every two seconds rather than a full redraw
+at 60 Hz. ⚠️ **Reverse the direction and the optimisation is gone**: a row arriving *behind* the
+stack has to be drawn first, which means repainting everything in front of it every time.
+
+**The one number the renderer owns.** M2 measured that below **~9 px of row pitch** every line's
+excursion crosses two neighbours and the stack collapses into a uniform hatch — "a picture that
+reads as *the transform is broken* when the transform is fine and the picture is merely too
+small." At 9 px, a 20-minute track's 600 rows are 5,400 px tall and do not fit anything. So the
+mesh carries rows and a row duration and nothing about pixels; the renderer draws at a fixed
+pitch onto an offscreen canvas that grows, and **pans** it so the newest row sits at a fixed
+place. Constant reveal rate, constant legibility, the whole map still there to scroll back
+through — and the append-only draw survives, which a "squash it all to fit" policy would not.
 
 ---
 
