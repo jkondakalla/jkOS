@@ -322,10 +322,32 @@ gates protecting it were reporting on code they never read**, and the defects hi
 
 **Stage C is done.** What is left is smaller and was deliberately deferred:
 
-- **JK-A20** — `resolveOrRefresh` rotates the refresh token on a GET navigation.
-  Not exploitable (an attacker can read neither the response nor the cookie), but it is a
-  state change on a safe method. Left alone because the fix touches the silent-refresh path
-  that makes remembered sessions work, and that is not a change to make casually.
+- ✅ **JK-A20 — DECIDED, and the half that was actually load-bearing is FIXED.**
+  ⚠️ **The rotation on a GET stays, and the obvious remedy is a security regression
+  wearing a purity fix's clothes.** The finding is true as stated — an RFC-7231 safe
+  method should not change state — but rotation is what makes refresh-token theft
+  DETECTABLE: the thief's rotation invalidates the victim's token, and the victim's next
+  navigation presents a long-rotated token, which `tryRotate` reads as reuse and burns the
+  family over. Mint an access token without rotating and a stolen cookie replayed on page
+  navigations alone would never trip detection, for the refresh token's full 30 days. The
+  finding costs a header-semantics violation an attacker cannot reach; the remedy costs
+  theft detection for every user who only navigates.
+  ⚠️ **What WAS load-bearing is the concurrency consequence, and it was a live bug.**
+  Rotating on a GET means two simultaneous navigations race. `tryRotate` already
+  distinguishes a benign loser (`status:'race'`, cookies deliberately NOT cleared) from a
+  dead session — and `resolveOrRefresh` threw that distinction away with a `!== 'ok'` test,
+  so every status but one became "no user". Two tabs restored onto the portal, a
+  double-clicked link or a prefetch produced **dashboard → login → dashboard** for a user
+  who never stopped being signed in. The loser now renders from the session row and mints
+  NOTHING; only the winner may issue a refresh cookie.
+  ⚠️ Verified against the pre-fix code, which answered the new assertion with
+  `302 → /auth/login`. The suite could not have seen this: it tested rotation over the JSON
+  refresh endpoint and never over a server-rendered navigation, which is the only path
+  `resolveOrRefresh` is on. `security.mjs` is 55 assertions now, and its `api` helper
+  returns raw `Set-Cookie` so "who may mint a cookie" is answerable at all.
+  ⚠️ `REFRESH_GRACE_MS` in that suite went 50 ms → 400 ms: the new assertion needs a real
+  request to complete inside the window, and at 50 ms a scheduling hiccup would read as
+  theft and fail the run. A gate with false positives is worse than no gate.
 - **Capability-declared scopes.** C4 made the grant EXPRESSIBLE at a finer grain
   (`<app>:create|update|delete` alongside the legacy blanket `write`), which is what
   service clients and capability declarations needed. The remaining half is having jkAuth

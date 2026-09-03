@@ -272,7 +272,14 @@ function tryRotate(req, res) {
   if (rotatedAgoMs >= 0 && rotatedAgoMs <= REFRESH_GRACE_MS) {
     // Benign concurrent refresh (two tabs / retry): the winner already minted
     // and Set-Cookie'd a new pair, so DON'T clear cookies — just signal a no-op.
-    return { status: 'race' }
+    //
+    // ⚠️ The SESSION comes back with it, and that is not decoration. This
+    // response cannot see the winner's `Set-Cookie` — it is a different HTTP
+    // response — so a caller that needs to know WHO this is has no cookie left to
+    // read it from and only the session row can answer. Without it,
+    // `resolveOrRefresh` mapped a benign race to "signed out" and bounced a
+    // legitimately signed-in user to the login page. See JK-A20 there.
+    return { status: 'race', session }
   }
 
   // A token rotated long ago is being presented again → theft. Burn the family —
@@ -335,10 +342,52 @@ function verifyPending(token) {
 // bounced to the login page despite holding a valid 30-day session. Safe to
 // Set-Cookie here because these are real top-level navigations (unlike the
 // nginx auth_request gate, which can't deliver Set-Cookie to the browser).
+//
+// ── JK-A20, DECIDED: the rotation on a GET stays. ────────────────────────────
+// The finding is real as stated — this is a state change on a safe method, and
+// RFC 7231 says a GET should not have one. It is not fixed, because the obvious
+// remedy is a SECURITY REGRESSION wearing a purity fix's clothes.
+//
+// Rotation is what makes refresh-token theft DETECTABLE: the thief's rotation
+// invalidates the victim's token, and the victim's next navigation presents a
+// token rotated long ago, which `tryRotate` reads as reuse and burns the family
+// over. Mint an access token here WITHOUT rotating and that stops happening —
+// a stolen cookie replayed on page navigations alone would never trip detection
+// and would keep minting access tokens for the refresh token's full 30 days.
+// The finding costs a header-semantics violation an attacker cannot reach (they
+// can read neither the response nor the cookie); the remedy costs theft
+// detection for every user who only ever navigates. That is a bad trade.
+//
+// ⚠️ What WAS load-bearing here is the concurrency consequence, and that is
+// fixed below: rotating on a GET means two simultaneous navigations race, and
+// this function used to read the benign loser as "signed out".
 function resolveOrRefresh(req, res) {
   const jwtUser = resolveUser(req)
   if (jwtUser) return jwtUser
   const result = tryRotate(req, res)
+
+  /* ⚠️ A BENIGN RACE IS NOT A SIGN-OUT. `tryRotate` already distinguishes the two
+     — it returns 'race' precisely so the caller does NOT clear cookies — and this
+     function then threw the distinction away by testing `!== 'ok'`, so every
+     status but one became "no user" and the route redirected to /auth/login.
+
+     It is reachable on ordinary use, not just under load: two tabs restored onto
+     the portal at once, a double-clicked link, a prefetch. One navigation wins the
+     rotation, the other lands inside REFRESH_GRACE_MS and gets bounced to the login
+     page — then, carrying the winner's fresh cookies, bounces straight back to the
+     dashboard. Dashboard → login → dashboard, for a user who was signed in the
+     whole time.
+
+     The loser mints NOTHING here. Issuing a second access token would race the
+     winner's Set-Cookie for no gain, and the refresh cookie must not be reissued by
+     anyone but the winner. The session row is authority enough to render the page;
+     the winner's response supplies the cookies. */
+  if (result.status === 'race') {
+    const u = get('SELECT * FROM users WHERE id=?', [result.session.user_id])
+    if (!u) return null
+    return { sub: u.id, email: u.email, name: u.name, avatar_url: u.avatar_url, role: u.role }
+  }
+
   if (result.status !== 'ok') return null
   const u = result.user
   return { sub: u.id, email: u.email, name: u.name, avatar_url: u.avatar_url, role: u.role }

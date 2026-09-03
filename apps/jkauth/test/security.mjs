@@ -52,7 +52,12 @@ const port = 6100 + Math.floor(Math.random() * 500);
 const base = `http://127.0.0.1:${port}`;
 
 const GUEST_PW = 'guestpass123';
-const GRACE_MS = 50;          // reuse grace — replays past this are theft
+// Reuse grace — replays past this are theft. ⚠️ 400 rather than 50: section C now
+// asserts a benign race INSIDE the window (JK-A20), and that needs a real request
+// to complete within it. At 50 ms a scheduling hiccup on a loaded machine would
+// read as theft and fail the run, and a gate with false positives is worse than
+// no gate. The only cost is 350 ms more sleeping before the theft replay.
+const GRACE_MS = 400;
 const IDLE_MS = 400;          // unremembered-session idle TTL
 const ABSOLUTE_MS = 1500;     // family absolute cap
 
@@ -102,7 +107,9 @@ async function api(method, path, { json, form, cookie, noStore } = {}) {
   if (!noStore) foldCookies(res);
   const text = await res.text();
   let data = null; try { data = JSON.parse(text); } catch { /* HTML */ }
-  return { status: res.status, json: data, text };
+  // `setCookie` is returned RAW so an assertion can ask what a response issued.
+  // The jar folds cookies away; a test about who may MINT one needs the header.
+  return { status: res.status, json: data, text, setCookie: res.headers.getSetCookie?.() ?? [] };
 }
 async function ready(tries = 60) {
   for (let i = 0; i < tries; i++) {
@@ -158,6 +165,21 @@ try {
   const stolen = jar.get(refreshCookieName());       // the token a thief copied
   r = await api('POST', '/auth/refresh', { json: {} });
   ok('legitimate rotation → ok', r.status === 200 && r.json?.ok === true);
+
+  // JK-A20 — a benign race on a NAVIGATION is not a sign-out. Same replay as the
+  // theft assertion below, but INSIDE the grace window and on a server-rendered
+  // GET, which is the shape two restored tabs or a double-clicked link produce.
+  // The pre-rotation cookie alone: no access token, so the route has to go
+  // through `tryRotate`, lose the claim, and decide what a loss means.
+  // ⚠️ This FAILED against the pre-fix code with a 302 to /auth/login — the
+  // dashboard → login → dashboard bounce, for a user who never stopped being
+  // signed in.
+  r = await api('GET', '/auth/dashboard', { cookie: `${refreshCookieName()}=${stolen}`, noStore: true });
+  ok('losing a rotation race on a GET navigation still renders the portal',
+    r.status === 200, `got ${r.status} → ${r.text.slice(0, 80)}`);
+  ok('the race loser reissues NO cookies — only the winner may mint a refresh token',
+    r.setCookie.length === 0, JSON.stringify(r.setCookie));
+
   await sleep(GRACE_MS + 150);                        // well past the race grace
   r = await api('POST', '/auth/refresh', { json: {}, cookie: `${refreshCookieName()}=${stolen}`, noStore: true });
   ok('rotated token replayed after grace → SESSION_REVOKED', r.status === 401 && r.json?.code === 'SESSION_REVOKED',
