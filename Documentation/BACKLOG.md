@@ -31,8 +31,10 @@ Landed 2026-08-26/27 on `staging`, gate green at each commit, **none of it deplo
   A19/A21/A22/A23); the XSS pass over `views.js`; one authorization policy module
   with a gate proving every route uses it; `aud` verified with `JKOS_APP_ID` in
   all six compose files; and the write grant split into a create/update/delete
-  ladder so a caller can finally ask for less than full write. 216 assertions
-  across five suites.
+  ladder so a caller can finally ask for less than full write. **221 assertions
+  across five suites** (76 + 24 + 27 + 55 + 39, measured 2026-09-08; it was 216
+  before the post-completion audit added the expired-OTP and rotation-race
+  assertions).
 - **BeigeBoard D1 + D2** — `started_at` write-once via trigger, the routine purge cascades,
   `items(parent_id)` indexed, migrations atomic with the FK pragma moved out to the runner.
 - **D3 — the declarations are COMPLETE.** All four backends report full surface coverage:
@@ -318,6 +320,76 @@ gates protecting it were reporting on code they never read**, and the defects hi
 
 ---
 
+## The documentation review — 2026-09-08
+
+**Every doc re-derived from the code, and the finding is that the docs had the same defect
+the gates did.** The 2026-08-31 audit found three probes reporting confidently on file sets
+they never scanned. This found the documentation equivalent: **`TESTING.md`, whose entire job
+is "what does this suite test", was silently missing EIGHT suites** — `security.mjs` (55) and
+`account.mjs` (39), the two Stage C added and the ones holding the session-lifecycle and
+account-recovery work; `discover.smoke.mjs` (26), the only coverage of the music vector seam;
+weave's `libraryScanner.mjs` (53), `mediaRoutes.mjs` (36) and `resumeCursor.mjs`;
+`files.smoke.mjs` (29); and LazurOS's `worker-py.smoke.mjs`. **~290 assertions ran on every
+green gate and appeared in no document.**
+
+⚠️ **A clean report about the things a doc happens to enumerate is indistinguishable, from
+outside, from a clean report about the suite.** That is the same sentence the audit wrote about
+`check:policy`, one layer up.
+
+- ✅ **`check:docs` (`test/docs.mjs`, 85 assertions) — the enforceable version.** It DERIVES the
+  list of suites the gate runs by walking `test:contracts` → each workspace script → the `node
+  <file>` invocations inside it, and fails if one is unlisted in `TESTING.md`. It also holds:
+  every `check:*` has a §2.2 row in `PRIMITIVES.md`, `README.md`'s index links every doc, every
+  repo path the docs cite resolves, and `ROUTINE_PROMPT.md` still matches its generator.
+  ⚠️ **Assertion counts are deliberately NOT pinned, and the line is worth stating:** pin a
+  number when moving it is itself a documentation act (a new gate, a new trap), never when it
+  moves as a side effect of ordinary work (an added assertion). The second kind reddens the gate
+  for reasons nobody wants to think about, and a red gate nobody can turn green is one people
+  learn to skip.
+  ⚠️ **Three of its own checks had to be corrected after they passed a planted violation** —
+  which is the only reason to trust the other five. Its extension regex put `js` before `json`
+  and `ts` before `tsx`, inventing 12 broken references that were fine; its path scan used a
+  lookbehind that skipped every `../apps/…` markdown link, which is exactly how `ALGORITHMS.md`
+  went on citing two files D9 deleted; and its catalog check asked whether a gate was *mentioned
+  anywhere* in `PRIMITIVES.md`, so deleting `check:columns`'s whole §2.2 row sailed past it
+  because the name still appeared in §1's roster. **"Mentioned somewhere" is not a catalog.**
+
+- **`WEAVE.md` asserted a protection that does not exist.** §3.4 read *"every write capability
+  accepts an optional idempotency key, and the trigger engine always sends one, **so a retried
+  DO cannot double-write**."* ⚠️ **It cannot deliver that, because idempotency is a property of
+  the RECEIVER** — the identical claim the audit had already struck from `trigger.js` and left
+  standing in the integration contract, which is the document a new app author reads. Corrected,
+  with the sending half kept (a derived key makes a retry *recognisable*) and the receiving half
+  marked owed. All four contract rulings also still said *"the probe lands in Stage E"*; Stage E
+  is complete and every one is enforced.
+
+- **`ROUTINES.md` and `ALGORITHMS.md` still mapped the pre-D9 world** — `routine-spec` as two
+  hand-kept copies, including a `src/lib/routine-spec.ts` mirror that was deleted.
+
+- **`RESET.md` §2's baseline described a repo that no longer exists** — a dirty tree, OPS-1
+  unfixed, 97 prober `ok`s. ⚠️ **This is the mandate, and it outranks every other doc**, so a
+  cold agent reading it would have gone to "fix" work finished weeks ago. Restructured into §2.0
+  (measured now) over §2.1 (the 2026-08-26 baseline, struck through and kept as the evidence the
+  plan was built on). The document already asked its reader to *"say so if §2's baseline is
+  stale"*; nobody had.
+
+- **Corrected counts:** `PRIMITIVES.md` said *"Fifteen individual conformance gates"* against 24;
+  its §2.1 chain table had 14 stale assertion totals; `ARCHITECTURE.md` and `OPERATIONS.md` both
+  said "fifteen static checks"; `README.md` claimed 78 traps against 87 and its index omitted
+  three docs entirely. `TRAPS.md` pointed at a `weave/server/spa.js` that has always
+  lived under `src/`. ⚠️ Writing THIS entry tripped the new gate: quoting a broken path
+  verbatim is indistinguishable, to a scanner, from making the same mistake again — so the
+  correction is described rather than spelled.
+
+- ⚠️ **`DESIGN.md` is stale by 1,167 lines and now says so.** It opens by promising a design
+  agent *"needs no other source in the repo"*, and its tables snapshot `hub.css` as of
+  2026-07-19 — 13 commits and 1,167 lines ago. Re-syncing them is Stage F work and deliberately
+  not done piecemeal: Stage F renames the tiers, collapses the four accent schemes and retires
+  the pigment names, so refreshing the values first is work done twice and discarded once. The
+  banner now points at `hub.css` as authoritative.
+
+---
+
 ## Open — jkAuth
 
 **Stage C is done.** What is left is smaller and was deliberately deferred:
@@ -590,6 +662,12 @@ promote the glass tokens into the factory, apply them on the cover primitive. �
   test which reimplements the defect cannot see it, and that a gate with false positives is
   worse than no gate.
 - **`DESIGN.md` is rewritten against the new factory**, so it waits on Stage F by design.
+  ⚠️ **Its value tables are measurably stale in the meantime, and that is now stated in the
+  file rather than left for a reader to discover.** Measured 2026-09-08: `hub.css` has gained
+  **1,167 lines across 13 commits** since the 2026-07-19 snapshot the tables copy. The file's
+  own headline promise — that a design agent needs no other source in the repo — does not hold
+  today, and its banner now says so and points at `hub.css` as authoritative. Re-syncing the
+  values before the restructure would be work done twice and discarded once.
 - ✅ **`music/Downloader/Qobuz.py` documented** — kept (it is how the library it analyses gets
   there) but flagged in `music/README.md` as a SIBLING TOOL, not a module of the pipeline.
   ⚠️ **And it carried a live Qobuz account password hardcoded in tracked source.** Moved to

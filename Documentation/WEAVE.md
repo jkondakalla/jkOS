@@ -197,7 +197,11 @@ response, useless for composition. Without this rule `validateTriggerTypes` chee
 type-checks a job handle into a task title, and the binding vocabulary the widget factory
 rests on inherits the hole.
 
-*Decided 2026-08-26; `resolves` is not yet in `capability.ts` and the probe lands in Stage E.*
+✅ **LANDED (D13/WV-5).** `resolves` sits on `CapabilityDef` beside `returns`; `validateTriggerTypes`
+binds from it when present and refuses a handle binding. The PRESENCE of `resolves` is the async
+declaration — there is no separate `async: true` to disagree with it. Held by `86-async-contract`,
+which fails a bare-handle capability that declares no result **and one that re-declares the handle
+AS the result** — the shape that would satisfy a naive check while reinstating the exact defect.
 
 ### 3.2 Pagination — the `since` cursor only
 
@@ -209,15 +213,19 @@ collection's delta triggers on insert *and* update).
 - **`limit` gets one suite-wide default and maximum, in one shared constant.**
 - **Every dataset read accepts both.**
 
-⚠️ Today there are four hand-rolled clamps and no shared constant.
-`apps/kouros/backend/src/routes/browse.js` uses `clampLimit(limit, 120, 600)` **and**
-`clampLimit(limit, 300, 2000)` — *and paginates with `offset`*;
-`apps/jkauth/src/routes/weave.js` `Math.min(limit || 50, 200)`;
-`apps/beigeboard/backend/src/library.js` `Math.min(2000, max(1, limit || 500))`.
+⚠️ **As found:** FIVE hand-rolled clamps that disagreed — KourOS had two in one file, plus
+jkAuth's, BeigeBoard's library at a 2000 ceiling, and LazurOS's queue claim.
 **You cannot merge a fan-out across apps whose pages have inconsistent bounds**, which is
-why this blocks the activity contract rather than being tidy-up.
+why this blocked the activity contract rather than being tidy-up.
 
-*Decided 2026-08-26; the shared constant and the probe land in Stage E.*
+✅ **LANDED (Stage E6).** One `PAGE_DEFAULT`/`PAGE_MAX`; an app may narrow the max, never widen
+it. Held by `check:rulings`.
+
+⚠️ **One deliberate, bounded exception:** KourOS's `/api/albums` browse still pages by `offset`.
+The ruling's reason is instability under concurrent writes, and that browse is over a music
+catalog that changes only on rescan with a stable `ORDER BY` — so the window is "during a library
+scan". **The moment that catalog gains incremental writes** (a user-editable tag, a rating that
+reorders) it becomes exactly the bug the ruling describes. Noted at the call site too.
 
 ### 3.3 Declaration versioning — fail closed
 
@@ -229,23 +237,39 @@ The code belongs in the single vocabulary at `packages/auth-middleware/codes.js`
 (mirrored in jkos-deploy's `jkos_auth.py`; `pnpm test:contracts` asserts the two stay
 key-for-key equal) — `DECLARATION_VERSION_UNSUPPORTED`.
 
-⚠️ Today `docShape.js` checks only `typeof doc.version === 'number'` and **nothing
-anywhere reads the value.**
+⚠️ **As found:** `docShape.js` checked only `typeof doc.version === 'number'` and **nothing
+anywhere read the value.**
 
-*Decided 2026-08-26; the code and the probe land in Stage E.*
+✅ **LANDED (Stage E6).** A doc whose `version` is newer than the consumer understands is refused
+with `DOC_VERSION_UNSUPPORTED`. ⚠️ An **older** version still passes: failing closed means
+refusing the future, not the past. Held by `check:rulings`.
 
 ### 3.4 Peer-down and idempotency
 
 - **A fan-out always returns an explicit per-app status list alongside the merged data.**
   A partial result must be **visibly partial**, never silently short.
 - **Every write capability accepts an optional idempotency key, and the trigger engine
-  always sends one**, so a retried DO cannot double-write.
+  always sends one.** The engine's key is **DERIVED, never random**: the same trigger + the
+  same event yields the same key even reserialised with its keys in another order, which is
+  the only property that makes a retry *recognisable* as one. A random key satisfies "has a
+  key" and defeats the entire mechanism.
 
-⚠️ The current shape is the one this forbids: `weaveClient(app).list()` returns `[]` on
-*any* miss — unknown dataset, non-2xx, thrown fetch — so "the peer is down" and "the peer
-has no rows" are the same value to the caller.
+✅ **The fan-out half LANDED (Stage E6)**, and is held by `check:rulings`. `weaveClient` used to
+return `[]` on *any* miss — unknown dataset, non-2xx, thrown fetch — so "the peer is down" and
+"the peer has no rows" were the same value to the caller. It now returns an explicit per-app
+status list and a `partial` flag.
+⚠️ **I broke this rule myself in D6** and it is worth knowing why: `fetchActivity` returned a
+bare array and mapped a dead peer, a 403 and an unreadable doc all to "contributed nothing",
+indistinguishable from "did nothing". Failing soft is right; failing soft INVISIBLY is not.
 
-*Decided 2026-08-26; the probe lands in Stage E.*
+🔴 **THE IDEMPOTENCY HALF IS STILL OWED, and this section used to claim otherwise.** The line
+above ended *"so a retried DO cannot double-write"*. **It cannot deliver that, because
+idempotency is a property of the RECEIVER.** `IDEMPOTENCY_FIELD` has no importer, no app declares
+the field, no route reads it, and nothing stores seen keys — BeigeBoard's writer drops it as an
+unknown key. The sending half is right and worth keeping: a derived key makes a retry
+*recognisable*. **Dedup at the write door is owed, and is the thing to build before the trigger
+engine is ever mounted** — note the engine has no call sites at all today, which is the stated
+steady state, so this gap surfaces on the day it is wired rather than before.
 
 ---
 
@@ -414,8 +438,8 @@ a hand-written per-app list you must **enlist** in (§4); **owed** means decided
 | 25 | No control bytes in text files | — | `check:text` (**fails**) — auto-discovers, git-wide |
 | 26 | A smoke test in the gate | boot the real server | only if you chain it into `test:contracts` † |
 | 27 | A unique service + test port | `TEST_PORTS` + `portTable()` in `@jkos/suite-manifest` | `portTable()` throws at load on a duplicate; `prove` `port-registry` (**drift**) holds file literals to claims |
-| 28–31 | The four contract rules (§3.1–§3.4) | — | **owed — Stage E**, one probe each |
-| 32 | Declared surface covers the mounted routes | — | **owed — Stage E.** `capability-completeness` audits the *typing* of what is declared and never asks whether the declaration covers the code. Would flag today: BeigeBoard 30 routes / 8 declared paths, KourOS 11 undeclared reads, PapyrOS ~6 |
+| 28–31 | The four contract rules (§3.1–§3.4) | — | ✅ **enforced** — `check:rulings` + `86-async-contract`. ⚠️ Rule 4's *receiver* half (dedup at the write door) is still owed; see §3.4 |
+| 32 | Declared surface covers the mounted routes | mark an exception `// app-private: why` at its own source line | ✅ **enforced** — `prove` `98-surface-coverage`. All four backends report full coverage (69 mounted routes). ⚠️ A declared path covers at most **one** segment beneath it: `/items` covers `/items/:id`, and `/items/:id/deps` must declare itself |
 
 ---
 
@@ -481,8 +505,8 @@ the role gate rather than being rejected mid-session.
 `CapabilityDoc.version` / `DatasetDoc.version` are numbers. **Bump on a breaking field
 change** — a removed field, a renamed field, a type change, a newly-required body field. An
 added optional field is not breaking. A consumer reading a version higher than it knows
-**fails closed** (§3.3); until that code and probe land in Stage E, treat a bump as a
-coordinated change and say so in the commit.
+**fails closed** (§3.3) with `DOC_VERSION_UNSUPPORTED`, and `check:rulings` holds it. Treat a bump
+as a coordinated change and say so in the commit.
 
 Two designed seams stay deferred, with their un-defer triggers: **transport 1 → 3**
 (registry-driven CORS) when a peer genuinely cannot be nginx-proxied; and **runtime

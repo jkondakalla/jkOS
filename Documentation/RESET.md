@@ -277,27 +277,53 @@ pre-declared gate, and a design record kept separately from the backlog.
 
 ---
 
-## 2 · Ground truth, measured 2026-08-26
+## 2 · Ground truth
 
-Verified in this repo today, not inherited:
+### 2.0 · Where this actually stands — measured 2026-09-08
 
-- **`pnpm test:contracts` exits 0.** Every backend smoke, 16 static checks, the round-trip, the
-  prober. The prior audit's blocking finding was two stray KourOS processes on ports 3991/3992;
+⚠️ **Read this before §2.1.** The baseline below it is the *starting* condition this document
+was written against, and every one of its open items has since closed. §"Start here" tells you
+to confirm the gate is green and *"say so if §2's baseline is stale"* — it is, comprehensively,
+and this section is that saying-so. The old text is kept because it is the audit's evidence,
+not because it describes the repo.
+
+- **`pnpm test:contracts` exits 0.** Every backend smoke, **24** static checks, the round-trip,
+  the prober.
+- **`pnpm prove`: 0 drift · 3 gaps · 1 consolidate · 11 info · 124 ok.**
+- **The tree is clean**, and Stages **A, B, C, D and E are COMPLETE.** `BACKLOG.md` is the
+  current list of what is open; it is shorter than this document's stage plan implies.
+- **OPS-1 is FIXED** (Stage B1) — the harness asserts *which* service answered `/health`, fails
+  fast on early child exit, prints the server log on any failure, and exits non-zero when the
+  server never booted. It used to exit 0.
+- ⚠️ **A post-completion audit on 2026-08-31 found a LIVE SECURITY DEFECT inside the finished
+  work** — email one-time codes never expired, a ~144× window across login 2FA, password reset
+  and email verification — plus three gates that were reporting on code they never scanned.
+  Fixed. **Completion is not the same as correctness, and this document's stage checkboxes
+  should not be read as either.**
+- **Shape:** 7 apps (beigeboard, jkauth, kouros, lazuros, ordeck, papyros, sylibos), **11**
+  `packages/@jkos/*` (`routine-spec` was added by D9), plus `music/`, `jkos-deploy/`, `infra/`,
+  `scripts/`, `test/`.
+
+### 2.1 · The starting baseline, measured 2026-08-26 — HISTORICAL
+
+*Every bullet in this subsection was true on 2026-08-26 and is now superseded by §2.0. It is
+retained as the evidence the plan was built on.*
+
+- ~~**`pnpm test:contracts` exits 0.** Every backend smoke, 16 static checks, the round-trip, the
+  prober.~~ The prior audit's blocking finding was two stray KourOS processes on ports 3991/3992;
   **they are gone.** One KourOS server still runs on 3011 against the placeholder library —
   harmless, not on any smoke's port.
-- **`pnpm prove`: 0 drift · 15 gaps · 1 consolidate · 9 info · 97 ok.** Hard contracts hold. Seven
+- ~~**`pnpm prove`: 0 drift · 15 gaps · 1 consolidate · 9 info · 97 ok.**~~ Hard contracts hold. Seven
   of the 15 gaps are literally *"an opaque blob a GUI/AI can't snap a stud onto"* — the prober is
-  already measuring the right axis (§3).
-- **⚠️ OPS-1's mechanism is untouched.** The gate went green because the ports cleared, not because
-  the harness improved. All six harness files still never watch for early child exit, print
-  `serverLog` only *if health fails*, and check only that `/health` returned 200 — never *which
-  service answered*, though the payload contains the name. **A green run has never proved the
-  server under test was the right one.** Fix before trusting any measurement downstream.
-- **The tree is dirty:** 8 modified (`Documentation/ToDo.md`,
-  `apps/kouros/backend/src/discover/vectors.js`, 5 under `music/`,
-  `scripts/placeholder-music/cli.mjs`) + 2 untracked (`music/ship.py`, `music/tests/test_ship.py`).
-- **Shape:** 7 apps (beigeboard, jkauth, kouros, lazuros, ordeck, papyros, sylibos), 10
-  `packages/@jkos/*`, plus `music/`, `jkos-deploy/`, `infra/`, `scripts/`, `test/`.
+  already measuring the right axis (§3). **Now 3 gaps / 124 ok.**
+- ~~**⚠️ OPS-1's mechanism is untouched.**~~ **CLOSED by Stage B1.** As found: the gate went green
+  because the ports cleared, not because the harness improved; all six harness files never
+  watched for early child exit, printed `serverLog` only *if health fails*, and checked only
+  that `/health` returned 200 — never *which service answered*, though the payload contains the
+  name. **A green run had never proved the server under test was the right one.**
+- ~~**The tree is dirty:** 8 modified + 2 untracked.~~ **CLOSED by A1.** Resolved as the first
+  commit of the program, as this document required.
+- ~~**Shape:** … 10 `packages/@jkos/*`~~ — **11 now**, see §2.0.
 - **The music library's recorded numbers are wrong.** Docs say 15,326 FLACs / 89 artist folders.
   Measured on the host: **47,491 FLACs**, 1,976 top-level entries, 4,219 second-level dirs, 6,003
   JPGs. Layout is **mixed** — artist-nested (`100 gecs/`) alongside flat album dirs

@@ -118,7 +118,7 @@ rebuilt, why, and in what order. Read it first if you're picking up engineering 
 |------|-------------|
 | [RESET.md](RESET.md) | **The current mandate.** What's ceremony vs. still load-bearing, the work ahead stage by stage, and the standing rules of engagement. |
 | [BACKLOG.md](BACKLOG.md) | **What is actually open**, re-derived from code — the shorter question RESET.md answers at length. Start here to pick up work. |
-| [TRAPS.md](TRAPS.md) | 78 durable traps — browser engines, Node/pnpm, SQLite, numpy, Docker, this repo's shape. **Check here before debugging something that smells familiar.** |
+| [TRAPS.md](TRAPS.md) | 87 durable traps — browser engines, Node/pnpm, SQLite, numpy, Docker, this repo's shape. **Check here before debugging something that smells familiar.** |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | How the systems fit together — mental models, auth/session model, data ownership, Weave fabric, nginx topology, prod/staging isolation. **Engineering entry point**, alongside WEAVE.md. |
 | [PRIMITIVES.md](PRIMITIVES.md) | **The command/gate catalog** — every command, gate, and skill you can run, by category, with how and why. |
 | [WEAVE.md](WEAVE.md) | The integration contract in full — what an app must implement, transport model, security model, command vocabulary, adding a new app. |
@@ -128,3 +128,6 @@ rebuilt, why, and in what order. Read it first if you're picking up engineering 
 | [PLANNING_METHOD.md](PLANNING_METHOD.md) | The breakdown method the BeigeBoard Workshop embodies — taxonomy, weekly bench, data mapping. Informational; ROUTINES.md is authoritative where they touch. |
 | [ROUTINES.md](ROUTINES.md) | The routine primitive: the document format, progression, cadence, the library, and the AI-authoring contract. |
 | [ALGORITHMS.md](ALGORITHMS.md) | The music vector-space design record — mel spectrograms, embeddings, similarity search, calibration. |
+| [ROUTINES.md → ROUTINE_PROMPT.md](ROUTINE_PROMPT.md) | **Generated, not written** — the authoring prompt `routine-prompt.js` emits from the vocabulary, so it cannot promise something the validator refuses. Hand it to any assistant to get a bundle this suite accepts. Regenerate with `apps/beigeboard/backend/scripts/print-prompt.mjs`; do not edit by hand. |
+| [LAZUROS_STARTUP.md](LAZUROS_STARTUP.md) | Bringing the LazurOS State node up from nothing. ⚠️ **Read before any LazurOS deploy** — it is not in the staging stack, it runs `network_mode: host`, and two bind mounts fail silently if you skip the pre-flight. |
+| [KOUROS_ANDROID.md](KOUROS_ANDROID.md) | Packaging KourOS as an Android app — signing, asset links, and the store-adjacent bits. |

@@ -31,12 +31,12 @@ Two properties fall out, and both are load-bearing:
 
 | File | What it is |
 |---|---|
-| `apps/beigeboard/backend/src/routine-spec.js` | **THE spec.** Vocabularies, normalise, validate, render, cadence maths, analytics. Zero deps, pure, no I/O, no `Date`. The authority. |
+| `packages/routine-spec/src/index.js` | **THE spec, and now a PACKAGE** (`@jkos/routine-spec`, D9). Vocabularies, normalise, validate, render, cadence maths, analytics, plus the client half — `prescriptionOf`/`performedOf`/`stepStatus`/`logStep` and the three label maps. Zero deps, pure, no I/O, no `Date`. The authority. |
+| `packages/routine-spec/src/index.mjs` | **The ESM twin**, so Vite can name-import what the no-bundler Node backend `require`s. ⚠️ **The one duplication that genuinely remains** — `check:routine` asserts the two FACES expose the same names, so a new export cannot reach half the suite. |
 | `apps/beigeboard/backend/src/routines.js` | **The engine.** The mint, the three rewrite rules, the cycle ladder, revisions, the deload override. Touches the DB. |
 | `apps/beigeboard/backend/src/library.js` | The reusable sub-tasks + the starter set. |
 | `apps/beigeboard/backend/src/routine-prompt.js` | **The authoring prompt**, generated from the vocabulary (§12). |
 | `apps/beigeboard/backend/src/routes/routines.js` | `/api/routines/*` + `/api/library/*` + the vocabulary, prompt and bundle endpoints. |
-| `apps/beigeboard/src/lib/routine-spec.ts` | **The mirror** (browser). Normalise + render + cadence + analytics only — *not* validation. |
 | `apps/beigeboard/src/views/workshop/WorkshopView.tsx` | **The bench** — one rail (goals over standing orders), one forge pane, the shelf as an overlay. |
 | `apps/beigeboard/src/views/workshop/RoutineForge.tsx` | The visual builder — the cadence band over the document. |
 | `apps/beigeboard/src/views/workshop/cadence.tsx` | The cadence half: the rail card, the actionable band, the record/plan cell. |
@@ -48,11 +48,22 @@ Two properties fall out, and both are load-bearing:
 | `test/routine-spec.mjs` | **`pnpm check:routine`** — the conformance gate (+ the prompt's). |
 | `apps/beigeboard/backend/test/routine-spec.smoke.mjs` | The HTTP smoke (113 assertions). |
 
-**The mirror exists because the forge previews an UNSAVED spec** — there is nothing
-on the server to ask about yet, and a round trip per keystroke is a delay, not a
-design. The duplication is paid for by `pnpm check:routine`, which drives both
-implementations through the same matrix of documents × cycles (~3150 renders) and
-fails on the first disagreement. **Change one, change the other, run the gate.**
+**There is no mirror any more, and there is nothing to keep in sync.** The forge
+still previews an UNSAVED spec — nothing on the server to ask about yet, and a round
+trip per keystroke is a delay, not a design — but it does that by importing the same
+package the backend does.
+
+⚠️ **The 1,045-line hand-ported TypeScript mirror is DELETED (D9), and it had already
+drifted in a way the conformance gate could not see.** The backend's `normalizeSpec`
+returned `{spec, warnings}`; the mirror's returned a bare `Spec`. The most-called
+function in the engine had two calling conventions, and the gate's own harness wrote
+`be.normalizeSpec(doc).spec` beside `fe.normalizeSpec(doc)` — normalising the
+difference away in the very line meant to prove there wasn't one. **Output conformance
+cannot see an API divergence.**
+
+`pnpm check:routine` keeps its whole structure (the same matrix of documents × cycles,
+~3150 renders, failing on the first disagreement); `be`/`fe` now point at the package's
+two FACES, so what it proves is that the ESM twin has not drifted from its source.
 
 ## 3. The columns
 
@@ -350,9 +361,9 @@ same "silence means you did what you were told" rule autoregulation uses.
 ## 11. Verifying
 
 ```bash
-pnpm check:routine                                   # engine ↔ mirror conformance + the rules + the prompt
+pnpm check:routine                                   # the package's two faces + the rules + the prompt
 pnpm --filter @jkos/beigeboard-backend test          # 7 smokes incl. routines + routine-spec
-pnpm --filter @jkos/beigeboard typecheck             # the mirror + the UI
+pnpm --filter @jkos/beigeboard typecheck             # the forge + the UI (one `.d.ts` serves both faces)
 pnpm test:contracts                                  # everything
 ```
 
@@ -401,7 +412,7 @@ probably thin. Importing lands you in the forge on the first routine.
 
 `Documentation/ROUTINE_PROMPT.md` — hand it to any assistant and it returns a bundle
 this app accepts. **It is generated, not written**: `src/routine-prompt.js`
-interpolates every closed list from `routine-spec.js`, so it cannot promise something
+interpolates every closed list from `@jkos/routine-spec`, so it cannot promise something
 the validator refuses.
 
 | Door | Gets you |

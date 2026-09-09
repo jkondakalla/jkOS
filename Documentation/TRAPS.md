@@ -543,7 +543,7 @@ that code can reopen it.
   request it expected JavaScript from, refuses to execute it as a module, and the page renders
   **blank** — no failed request, no console error pointing at the cause, just a column of
   200-status entries in the access log where a 404 would have been the honest answer. Fix, live
-  in `packages/weave/server/spa.js` (`serveSpa()`, used by BeigeBoard/PapyrOS/KourOS, with a
+  in `packages/weave/src/server/spa.js` (`serveSpa()`, used by BeigeBoard/PapyrOS/KourOS, with a
   twin in `apps/ordeck/nginx.conf`): the entry document is served `Cache-Control: no-cache`
   (always revalidated) while hashed assets get `public, max-age=31536000, immutable`, and a
   missing asset under `/assets/*` returns a **hard 404** rather than ever falling through to the

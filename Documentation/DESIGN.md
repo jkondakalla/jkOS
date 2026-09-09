@@ -7,11 +7,25 @@ the living style guide at **https://staging.jkos.net/design** — the page shows
 (both faces, live mode/accent/corner toggles, every primitive rendered by the real CSS);
 this file gives the *values and the rules*.
 
-> **Snapshot honesty:** the value tables below are a faithful copy of
-> `packages/design/tokens/hub.css` as of 2026-07-19 (**Full Press Waves 22–26** folded in,
-> committed on `staging`). For machines, hub.css remains the source of truth; if this
-> doc and the code ever disagree, the code wins — and this doc should be fixed. §14 lists
-> the regen commands that keep everything else in sync.
+> ## ⚠️ Snapshot honesty — READ THIS FIRST, THE TABLES ARE STALE
+>
+> The value tables below were a faithful copy of `packages/design/tokens/hub.css` as of
+> **2026-07-19** (Full Press Waves 22–26). **They are not one now.** Measured 2026-09-08:
+> hub.css has gained **1,167 lines across 13 commits** since that date — the field
+> primitive, the scroll hairline, the canvas measure, the calendar kit and the motion
+> tokens all landed afterwards.
+>
+> **So the claim at the top of this file — that a design agent needs no other source in the
+> repo — does not hold today.** Read `packages/design/tokens/hub.css` as authoritative and
+> treat everything below as a guide to the SHAPE of the system (the tiers, the naming, the
+> two faces, the rules) rather than a current register of values. Where this doc and the
+> code disagree, the code wins.
+>
+> **Re-syncing the tables is Stage F work and is deliberately not done piecemeal.**
+> `BACKLOG.md` explains why: Stage F is a restructure, not a retune — the tiers get renamed,
+> the four accent schemes collapse, and the pigment names retire. Refreshing 1,167 lines of
+> values against a file that is about to be reorganised would be work done twice and
+> discarded once. §14 lists the regen commands for everything that IS kept in sync.
 
 ---
 

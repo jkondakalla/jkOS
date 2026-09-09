@@ -21,9 +21,9 @@ After editing `packages/*`, run `pnpm install` to re-inject workspace packages i
 Before pushing: `pnpm test:contracts`. One chain covering every hard contract — jkAuth's
 contracts smoke (incl. the node↔python bridge), the jkAuth/weave/player/BeigeBoard/LazurOS/
 files/PapyrOS/KourOS test suites (the weave suite includes the lego tests), the write
-round-trip, fifteen static conformance checks (tokens/nginx/responsive/drag/cards/routine/
-hud/docker/async-view/overlay/design/fields/scroll/text/auth), and the suite prober (fails
-on `drift`). A failure means a cross-system contract has drifted — fix the source of truth,
+round-trip, **24** static conformance checks (tokens/nginx/responsive/drag/cards/routine/
+hud/docker/async-view/overlay/design/fields/scroll/text/today/refs/binding/columns/rulings/
+audit/secrets/policy/auth/docs), and the suite prober (fails on `drift`). A failure means a cross-system contract has drifted — fix the source of truth,
 not the test.
 Full anatomy + per-app runners: [TESTING.md](TESTING.md); command catalog:
 [PRIMITIVES.md](PRIMITIVES.md). Post-deploy:

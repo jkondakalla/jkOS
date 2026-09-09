@@ -171,13 +171,13 @@ silently breaks the weave delta cursor. Use the same format so the two columns s
 
 ### Touch points
 
-- [`routine-spec.js`](../apps/beigeboard/backend/src/routine-spec.js) — `normalizePerformed`
-  carries `at` (ISO string, cap it like the other strings) and `seq` (int) per step. Nothing
-  else in the engine reads them; `stepWasMet` is unchanged.
-- [`src/lib/routine-spec.ts`](../apps/beigeboard/src/lib/routine-spec.ts) — `logStep` stamps
-  them. ⚠️ **`logStep` is called for every patch**, including note edits, so `at` must be
-  guarded to the `done` false→true edge or it becomes "when did you last touch this", which is
-  a different and useless fact.
+- [`@jkos/routine-spec`](../packages/routine-spec/src/index.js) — `normalizePerformed` carries
+  `at` (ISO string, cap it like the other strings) and `seq` (int) per step. Nothing else in the
+  engine reads them; `stepWasMet` is unchanged. **`logStep` lives here too** — since D9 the
+  engine and the client half are one package, so this is one file, not two.
+  ⚠️ **`logStep` is called for every patch**, including note edits, so `at` must be guarded to
+  the `done` false→true edge or it becomes "when did you last touch this", which is a different
+  and useless fact. It takes `now` as an argument, keeping the package's no-clock purity.
 - [`SessionCard.tsx`](../apps/beigeboard/src/components/SessionCard.tsx) — every edit already
   routes through `logStep`, so the per-step stamps are free there. `started_at` is the one new
   write: first interaction with the card, once, never overwritten.
@@ -185,8 +185,11 @@ silently breaks the weave delta cursor. Use the same format so the two columns s
   is an **explicit column list**. A new column not added there reads `undefined` and the
   feature silently does nothing ([ROUTINES.md §10.5](ROUTINES.md); this already bit once, with
   `deload_override`).
-- The mirror does **not** export `normalizePerformed` — only `stepStatus` and `logStep` — so
-  the engine↔mirror conformance surface stays narrow. Run `pnpm check:routine` anyway.
+- ⚠️ **This section was written when a hand-kept TypeScript mirror existed; D9 deleted it**
+  (−871 lines) and `@jkos/routine-spec` is now the single source with a CommonJS face and an
+  ESM twin. The old note here — "the mirror does not export `normalizePerformed`, so the
+  conformance surface stays narrow" — described a duplication that is gone. Run
+  `pnpm check:routine`, which now proves the two FACES agree rather than two implementations.
 
 ### What was actually built (2026-08-18)
 
@@ -197,8 +200,8 @@ Written, gate green, **not deployed**. Six files, all additive:
 | [`backend/src/db.js`](../apps/beigeboard/backend/src/db.js) | **Migration 13 `variance_instrumentation`** — the two columns + `items_stamp_completed` / `items_clear_completed`. Deliberately **not backfilled**: stamping existing completions from `updated_at` would manufacture a history that looks real and is wrong. INSERT is deliberately uncovered too — a row arriving already completed is a bulk import of someone's past, not a completion happening now. |
 | [`backend/src/item-fields.js`](../apps/beigeboard/backend/src/item-fields.js) | `started_at` (`client: true`, cap 40) and `completed_at` (`client: false`) at the tail, before `created_at`/`updated_at`. |
 | [`backend/src/schema.js`](../apps/beigeboard/backend/src/schema.js) | `looksLikeStamp` — `started_at` is the **only client-writable timestamp in the schema**, so it is the only one that can arrive malformed, and it gets a hard 400 at the door like `cadence_days`. |
-| [`backend/src/routine-spec.js`](../apps/beigeboard/backend/src/routine-spec.js) | `normalizePerformed` carries `at` (capped string) and `seq` (int, bounded **1–999, not `LIMITS.steps`** — un-logging and re-logging re-issues a higher number, and clamping at 40 would collapse the tail of a fiddly session into ties). |
-| [`src/lib/routine-spec.ts`](../apps/beigeboard/src/lib/routine-spec.ts) | `logStep` stamps on the `done` false→true edge and **clears on the way back down**, for the same reason the trigger clears. |
+| [`@jkos/routine-spec`](../packages/routine-spec/src/index.js) | `normalizePerformed` carries `at` (capped string) and `seq` (int, bounded **1–999, not `LIMITS.steps`** — un-logging and re-logging re-issues a higher number, and clamping at 40 would collapse the tail of a fiddly session into ties). |
+| [`@jkos/routine-spec`](../packages/routine-spec/src/index.js) | `logStep` stamps on the `done` false→true edge and **clears on the way back down**, for the same reason the trigger clears. ⚠️ Listed as a separate file at the time — it was `src/lib/routine-spec.ts`, the mirror D9 deleted. |
 | [`src/components/SessionCard.tsx`](../apps/beigeboard/src/components/SessionCard.tsx) | `started_at` written once, folded into the patch the interaction was already sending. |
 
 Two things the plan above did not anticipate, both found in the code:
