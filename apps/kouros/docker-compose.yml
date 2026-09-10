@@ -36,6 +36,18 @@ services:
       # mode, and taking the .db alone yields whatever snapshot predated the last
       # checkpoint — silently fewer vectors than were actually computed.
       VECTOR_DB_PATH: /data/music-index.db
+      # The pulsarmap mesh store (ALGORITHMS.md §9's music/meshes.db) — one
+      # decimated, quantised mel matrix per track, revealed as the track plays.
+      # OPTIONAL on exactly the same terms, and a track with no mesh yet answers
+      # `state: 'pending'` rather than failing: that is the steady state during a
+      # fill, not an error.
+      #
+      # ⚠️ A SEPARATE FILE, and shipped separately. `music/index.db` holds the
+      # whole banked vector space and ship.py's snapshot invariant; a mesh table
+      # has no business in it. Produce this one with `python mesh.py --ship`,
+      # which is a `VACUUM INTO` and therefore has NO -wal sidecar to remember —
+      # unlike the copy above, where forgetting it costs vectors silently.
+      MESH_DB_PATH: /data/music-meshes.db
       # The directory name the embedder's paths are rooted at. Used to recover an
       # artist/title key when the index was built against a DIFFERENT library
       # layout — see backend/src/discover/vectors.js. Matches the last segment of

@@ -10,6 +10,7 @@
 // signal (a completed rescan) or when its TTL lapses — never in the middle of
 // serving a request.
 const { openVectorSpace, openFeatureSpace } = require('./vectors');
+const { openMeshStore } = require('./meshes');
 const { buildSpace } = require('./space');
 const queries = require('./queries');
 const mapmod = require('./map');
@@ -21,12 +22,33 @@ const { ORIGIN } = require('./space');
  *  request path is not. */
 const TTL_MS = 5 * 60 * 1000;
 
-function createDiscovery({ db, vectorDbPath, libraryRootName = 'Music', musicDir = null }) {
+function createDiscovery({ db, vectorDbPath, meshDbPath = null, libraryRootName = 'Music',
+                          musicDir = null }) {
   let space = null;
   let projection = null;
   let mapCache = null;
   let builtAt = 0;
   let building = false;
+
+  /* The pulsarmap store, held OPEN across requests rather than snapshotted into
+     memory like the vector space: 47,441 meshes is ~800 MB, so they are read one
+     at a time. It is therefore not part of `build()` and does not go stale — a row
+     is correct the moment it lands.
+
+     The one thing that can change under it is the FILE APPEARING, which is the
+     normal case: the fill runs on its own schedule and the store may not exist at
+     boot. So an unavailable store is retried on the same TTL the space rebuilds
+     on, and an available one is never reopened. */
+  let meshes = null;
+  let meshesOpenedAt = 0;
+
+  function meshStore() {
+    if (meshes && meshes.available) return meshes;
+    if (meshes && Date.now() - meshesOpenedAt <= TTL_MS) return meshes;
+    meshes = openMeshStore({ meshDbPath, libraryRootName, musicDir });
+    meshesOpenedAt = Date.now();
+    return meshes;
+  }
 
   function build() {
     const t0 = Date.now();
@@ -104,9 +126,43 @@ function createDiscovery({ db, vectorDbPath, libraryRootName = 'Music', musicDir
     return mapCache;
   }
 
+  /** One track's pulsarmap, by KourOS track id.
+   *
+   *  ⚠️ Three outcomes, and they are three different answers: `null` when the
+   *  track id is not in the catalog at all, `{ state: 'unavailable' }` when there
+   *  is no mesh store to read, and `{ state: 'pending' }` when the store is there
+   *  and this track is simply not filled yet. A client that cannot tell the last
+   *  two apart shows "coming soon" for a store that will never appear. */
+  function mesh(trackId) {
+    const store = meshStore();
+    let row;
+    try {
+      row = db.prepare('SELECT path FROM tracks WHERE id = ?').get(trackId);
+    } catch (err) {
+      console.warn(`[kouros discover] mesh track lookup failed: ${err.message}`);
+      return null;
+    }
+    if (!row || !row.path) return null;
+    if (!store.available) return { state: 'unavailable', track_id: trackId };
+    const found = store.get(row.path);
+    if (!found) return { state: 'pending', track_id: trackId };
+    return { track_id: trackId, ...found };
+  }
+
+  /** The space's own coverage, plus the mesh store's.
+   *
+   *  ⚠️ Mesh coverage joins this for the reason `discoveryStats` exists at all: a
+   *  mesh that is merely NOT BUILT YET must be distinguishable from one that
+   *  failed, and both from a store that is not there. Three states, reported,
+   *  never inferred from an empty response. */
+  function stats() {
+    return { ...current().stats, meshes: meshStore().stats() };
+  }
+
   return {
     build, invalidate, current,
-    stats: () => current().stats,
+    stats,
+    mesh,
     similar: (id, opts) => queries.similar(current(), id, opts),
     radio: (ids, opts) => queries.radio(current(), ids, opts),
     run: (opts) => queries.makeRun(current(), opts),

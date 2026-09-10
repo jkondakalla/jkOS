@@ -268,6 +268,17 @@ const DISCOVER_DATASETS = [
     filters: [],
   },
   {
+    app: 'kouros', id: 'discoverMesh', label: "One track's pulsarmap",
+    path: '/discover/mesh/:id',
+    // ⚠️ THIS CANNOT RIDE ON `discoverStats` OR ANY OTHER DISCOVER DECLARATION.
+    // `98-surface-coverage` bounds a declared path to ONE segment of cover
+    // (MAX_COVER_DEPTH = 1) precisely so a surface that adds a NOUN of its own
+    // has to say so — and a mesh is a new noun, not another way to address a
+    // track row. Hence its own entry, and deliberately no `item: TRACK_SHAPE`:
+    // the response is one picture, not a list of tracks.
+    filters: [],
+  },
+  {
     app: 'kouros', id: 'discoverSimilar', label: 'Tracks similar to one track',
     path: '/discover/similar/:id',
     filters: [{ name: 'k', type: 'number', label: 'How many', computed: true }],

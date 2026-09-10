@@ -500,6 +500,52 @@
 .kr-now-artist a { color: inherit; text-decoration: none; }
 .kr-now-artist a:hover { text-decoration: underline; }
 
+/* ── The pulsarmap (ALGORITHMS.md §9) ─────────────────────────────────────────
+   The track's mel spectrogram as a stack of ridgelines, revealed as it plays.
+
+   ⚠️ THE THREE TOKENS ARE PLAIN ALIASES OF SUITE TOKENS, AND THAT IS THE WHOLE
+   TRICK. `--hub-bg-0`, `--hub-cream-bright` and `--hub-cream-dim` already flip
+   between the two faces in hub.css — and their two values are exactly the
+   surface/ink/recede triple `music/ridge.py` measured and validated for its own
+   ridgelines on paper and on the tube. So there is no dark block here and no
+   fifth palette in the suite: the same pair of colours draws the same picture in
+   Python and in a canvas.
+
+   They exist as `--kr-pulsar-*` names rather than being read as `--hub-*`
+   directly because a canvas cannot take a CSS custom property — the component
+   resolves these off the element with getComputedStyle, and naming them for the
+   thing they draw is what makes that indirection legible.
+
+   Declared here rather than in glass.css deliberately: a pulsarmap is pixels this
+   app DREW, not a material laid over pixels it did not. */
+:root {
+  --kr-pulsar-surface: var(--hub-bg-0);
+  --kr-pulsar-line:    var(--hub-cream-bright);
+  --kr-pulsar-far:     var(--hub-cream-dim);
+}
+
+.kr-pulsar {
+  position: relative;
+  width: 100%;
+  /* A fixed viewport height, because the canvas PANS rather than fitting. M2
+     measured the stack collapsing into a uniform hatch below ~9 px of row pitch,
+     so the pitch is a constant and the window moves — a 20-minute track's 600
+     rows are 5,471 px and were never going to fit anything. */
+  height: 8.5rem;
+  margin-top: 0.9rem;
+  overflow: hidden;
+  border-radius: var(--hub-radius-sm);
+}
+.kr-pulsar-canvas { display: block; width: 100%; height: 100%; }
+.kr-pulsar.is-idle { display: flex; align-items: center; justify-content: center; }
+.kr-pulsar-note {
+  margin: 0;
+  font-family: var(--hub-font-mono);
+  font-size: var(--hub-fs-lab-xs);
+  color: var(--kr-glass-ink-dim);
+  opacity: 0.7;
+}
+
 .kr-now-scrub { margin-top: 0.9rem; }
 .kr-now-times {
   display: flex;

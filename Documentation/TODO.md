@@ -99,31 +99,41 @@ a shared package.
      costs a service. ⚠️ Decide this against a real (i) run, not in the abstract.
    - **(iii) Python + numpy in KourOS's image — ⚠️ REJECTED.** It moves the transform into an app
      container and invites a second copy of the one artifact this project is built on.
-5. **The KourOS read, DECLARED.** `/discover/mesh/:id` in
-   [`apps/kouros/backend/discovery.js`](../apps/kouros/backend/discovery.js).
-   ⚠️ **It cannot ride on an existing declaration** — `98-surface-coverage` bounds a declared path
-   to one segment of cover (`MAX_COVER_DEPTH = 1`), so a three-segment discover route declares
-   itself. That bound exists precisely so a new surface of a new shape cannot arrive invisibly.
-   ⚠️ **Do not open a binary endpoint.** 15 KB of uint8 is ~20 KB base64 in an ordinary JSON body,
-   and staying JSON keeps the read inside every contract already enforced — pagination, wire time,
-   `defineCollection`, the completeness probe.
-6. **Mesh coverage joins `/discover/stats`.** A mesh that is merely not built yet must be
-   distinguishable from one that failed — same reason `discoveryStats` exists at all.
-7. **`<Pulsarmap/>` — the renderer**, beside `NowPlaying`. Canvas 2D, no WebGL, no new dependency.
-   Opaque filled path then stroke, painter's algorithm back to front, onto a growing offscreen
-   canvas; blit a panned window so the newest row sits at a fixed place.
-   ⚠️ **Two constraints that look like polish and are structural.** New rows must arrive IN FRONT,
-   or the canvas stops being append-only and every row costs a full repaint. And **below ~9 px of
-   row pitch the stack collapses into a uniform hatch** (M2 measured it) — a picture that reads as
-   "the transform is broken" when it is fine and merely too small. That is why it pans rather than
-   squashing to fit.
-8. **`revealIndex()` — pure, extracted, gated.** `row = floor(currentTime / rowSeconds)`, plus
-   seek-backwards (repaint from row 0 offscreen), track change (reset), pause (nothing). Extract
-   it the way `bbDelta.ts` / `hudPrefs.ts` / `scrub.ts` are, and put it under a `check:` gate —
-   **every failure mode here is silent**: a drifting reveal looks like a stylistic choice.
-   ⚠️ **Drive it from `currentTime` per animation frame, never `setInterval`.** A timer
-   desynchronises on buffering, on seek, and on a playback-rate change — and `packages/player`
-   has a rate module, so the last one is not hypothetical.
+5. ✅ **The KourOS read, DECLARED. DONE 2026-09-10.** `GET /api/discover/mesh/:id`, declared as
+   `discoverMesh` in [`apps/kouros/backend/discovery.js`](../apps/kouros/backend/discovery.js)
+   with its own entry (`98-surface-coverage` now reads 18 mounted / 18 declared). JSON with the
+   rows base64 in an ordinary body. ⚠️ **The catalog side of the join is not the embedder side** —
+   the embedder's path carries the library root as a segment, KourOS's is under a mount usually
+   not named after it. `catalogRelKey` now lives in `vectors.js` beside
+   `relKeyFromEmbedderPath` with both consumers on it; reaching for the wrong one resolves every
+   lookup to null and reads as a fill that never ran (caught by the smoke, not by review).
+6. ✅ **Mesh coverage joins `/discover/stats`. DONE 2026-09-10** — `meshes: { available, meshes,
+   failed, recipe, source }`. Four states are kept apart end to end: `ok`, `pending` (200, the
+   steady state during a fill), `failed`, and `unavailable` (no store at all).
+7. ✅ **`<Pulsarmap/>` — the renderer. DONE 2026-09-10.** `apps/kouros/src/components/Pulsarmap.tsx`,
+   rendered above the scrubber in `views/NowPlaying.tsx`. Canvas 2D, no WebGL, no new dependency;
+   opaque fill then stroke, back to front, onto a full-track offscreen canvas with a panned
+   window blitted at an 11 px pitch. Colours resolve `--kr-pulsar-*` off the element at runtime —
+   plain aliases of `--hub-bg-0` / `--hub-cream-bright` / `--hub-cream-dim`, whose two faces are
+   exactly the pair `ridge.py` measured, so there is no fifth palette and no dark block.
+   ⚠️ **The row ramp encodes POSITION IN THE TRACK, not depth in the stack** — forced by the
+   append-only draw (a row is painted once), and the right analogue anyway: `ridge.py` ramps
+   across frequency because a line there is a band, and here a line is a moment.
+   ⚠️ **Not yet seen in a browser.** Typechecked, built, and its geometry rendered from a REAL
+   served mesh (180 rows, the `!!!` hostile path, end to end through a booted server) — but no
+   headless Chromium exists on this box, so the React/canvas wiring itself is unrun.
+8. ✅ **`revealIndex()` — pure, extracted, gated. DONE 2026-09-10.**
+   `apps/kouros/src/components/pulsarmap.ts` + `pnpm check:pulsarmap` (`test/pulsarmap.mjs`,
+   transpile-the-real-module). `planReveal` covers append / repaint-on-seek-backwards /
+   reset-on-track-change, and **pause falls out rather than being special-cased** — a paused
+   element's `currentTime` does not move, so a `paused` flag would be a second source of truth
+   about whether time is passing. The gate asserts a whole track paints each row exactly once
+   after one clear, and scans the module for `setInterval`/`Date.now`/`requestAnimationFrame`.
+   ⚠️ **Driven by `globalPos`, which is the media element's own `currentTime` published on
+   `timeupdate` — never a counter.** That is ~250 ms granular against 2 s rows, so a row can
+   arrive slightly late but can never drift. Making it literally per-frame wants a
+   `livePosition()` on `@jkos/player`'s `PlayerApi`; that is a change to a shared package for a
+   sub-row gain and is Jag's call, not slipped in.
 9. ✅ **Python tests. DONE 2026-09-10** — `music/tests/test_mesh.py`, 48 tests, stdlib
    `unittest`. Quantisation round-trips within half a step and clips at the ends rather than
    rescaling; the reduction is pinned to the measured `p75` and asserted not to be silently

@@ -101,6 +101,35 @@ function relKeyFromEmbedderPath(abs, libraryRootName = 'Music') {
   return parts.slice(i + 1).join('/').toLowerCase();
 }
 
+/** THE SAME KEY, computed from a CATALOG path — the counterpart of
+ *  `relKeyFromEmbedderPath`, and its other half.
+ *
+ *  ⚠️ **THE TWO SIDES OF THIS JOIN ARE NOT THE SAME COMPUTATION**, which is the
+ *  whole reason this lives here beside its partner rather than in whichever
+ *  module needed it first. The embedder's path carries the library root as a
+ *  segment (`…/Plex/Music/…`), so its key is read by scanning for that segment.
+ *  KourOS's path is under a MOUNT that is usually not named after the library at
+ *  all (`/music/…`, or a fixture directory called `library`), so its key is read
+ *  by STRIPPING that mount — exact, and correct even when the mount's name and
+ *  the root's name disagree, which in production they do.
+ *
+ *  Scanning for the root segment is the fallback for when no mount is configured:
+ *  the dev case, where both processes see the same absolute path anyway.
+ *
+ *  Two consumers now — the vector space and the mesh store — and a second copy
+ *  that drifted by a `toLowerCase()` would report 0% coverage on whichever
+ *  surface owned it and look exactly like a pipeline that never ran.
+ */
+function catalogRelKey(abs, { musicDir = null, libraryRootName = 'Music' } = {}) {
+  if (musicDir) {
+    const rel = path.relative(musicDir, abs);
+    if (rel && !rel.startsWith('..') && !path.isAbsolute(rel)) {
+      return rel.split(path.sep).join('/').toLowerCase();
+    }
+  }
+  return relKeyFromEmbedderPath(abs, libraryRootName);
+}
+
 /** The content key recovered from an EMBEDDER path, which carries no tags.
  *  Handles BOTH library layouts, because the library is being re-downloaded from
  *  one into the other and an index may be built against either:
@@ -372,5 +401,5 @@ function openFeatureSpace({ vectorDbPath, libraryRootName = 'Music' } = {}) {
 module.exports = {
   ARMS, norm, contentKeyFromTags, contentKeyFromEmbedderPath,
   decodeVector, l2Normalise, loadCalibration, openVectorSpace, openFeatureSpace,
-  relKeyFromEmbedderPath, lastRootIndex, DISC_DIR,
+  relKeyFromEmbedderPath, catalogRelKey, lastRootIndex, DISC_DIR,
 };

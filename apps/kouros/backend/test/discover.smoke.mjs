@@ -129,13 +129,60 @@ function buildIndex(dbPath, { calibrate = true, tracks = TRACKS } = {}) {
   db.close();
 }
 
+/* ── the synthetic mesh store (ALGORITHMS.md §9) ───────────────────────────────
+   Same shape as `music/mesh.py` writes: a separate file, keyed on the
+   ROOT-RELATIVE lowercased path, never the absolute one. Rooted at the same
+   nonexistent host path as the index above, so the production mismatch is
+   reproduced here too — a store keyed absolutely would resolve nothing and read
+   exactly like a fill that has not run. */
+const MESH_ROWS = 5;
+const MESH_BANDS = 128;
+
+function buildMeshStore(dbPath, { tracks = TRACKS.slice(0, 2), root = EMBEDDER_ROOT,
+                                  failed = [] } = {}) {
+  const Database = require('better-sqlite3');
+  const db = new Database(dbPath);
+  db.exec(`
+    CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);
+    CREATE TABLE meshes(
+      rel_key TEXT PRIMARY KEY, n_rows INTEGER NOT NULL, n_mels INTEGER NOT NULL,
+      row_secs REAL NOT NULL, value_lo REAL NOT NULL, value_hi REAL NOT NULL,
+      reduction TEXT NOT NULL, config_sig TEXT NOT NULL, duration REAL,
+      rows BLOB NOT NULL, created_at TEXT NOT NULL DEFAULT '');
+    CREATE TABLE failures(
+      rel_key TEXT PRIMARY KEY, error TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT '');
+  `);
+  // Everything below the LAST segment named like the library root — the same
+  // rule both sides of the join run, spelled out here rather than imported so the
+  // fixture cannot be made to pass by a bug in the code under test.
+  const rootName = root.split('/').filter(Boolean).pop().toLowerCase();
+  const relKey = (rel) => {
+    const parts = `${root}/${rel}`.split('/').filter(Boolean);
+    const i = parts.map((x) => x.toLowerCase()).lastIndexOf(rootName);
+    return parts.slice(i + 1).join('/').toLowerCase();
+  };
+  const ins = db.prepare(
+    'INSERT INTO meshes(rel_key, n_rows, n_mels, row_secs, value_lo, value_hi, reduction, ' +
+    'config_sig, duration, rows) VALUES(?,?,?,?,?,?,?,?,?,?)');
+  for (const rel of tracks) {
+    const bytes = Buffer.alloc(MESH_ROWS * MESH_BANDS);
+    for (let i = 0; i < bytes.length; i++) bytes[i] = i % 256;
+    ins.run(relKey(rel), MESH_ROWS, MESH_BANDS, 1.996916, -8, 10, 'p75', 'sigtest', 10, bytes);
+  }
+  const insFail = db.prepare('INSERT INTO failures(rel_key, error) VALUES(?,?)');
+  for (const rel of failed) insFail.run(relKey(rel), 'DecodeError: zero-length file');
+  db.prepare('INSERT INTO meta(key,value) VALUES(?,?)').run(
+    'mesh_recipe', 'config=sigtest;mels=128;reduction=p75;row_secs=1.996916;range=-8.0000..10.0000');
+  db.close();
+}
+
 async function req(base, method, path) {
   const r = await fetch(base + path, { method });
   let json = null; try { json = await r.json(); } catch { /* non-JSON */ }
   return { status: r.status, json };
 }
 
-async function boot({ port, dbPath, vectorDbPath, libraryRootName }) {
+async function boot({ port, dbPath, vectorDbPath, meshDbPath, libraryRootName }) {
   const child = spawn('node', ['server.js'], {
     cwd: BACKEND,
     env: {
@@ -145,6 +192,9 @@ async function boot({ port, dbPath, vectorDbPath, libraryRootName }) {
       DB_PATH: dbPath,
       MUSIC_DIR: FIXTURES_DIR,
       VECTOR_DB_PATH: vectorDbPath,
+      // Absent by default, so a server that is not given one exercises the
+      // "there is no store" branch rather than accidentally finding a sibling's.
+      MESH_DB_PATH: meshDbPath || join(tmp, 'no-such-mesh-store.db'),
       LIBRARY_ROOT_NAME: libraryRootName,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -208,8 +258,14 @@ try {
   /* ── 1. the seam, wired the way production wires it ────────────────────────── */
   const goodIndex = join(tmp, 'music-index.db');
   buildIndex(goodIndex);
+  // Meshes for the first two tracks only, and a recorded failure for the third:
+  // "filled", "tried and could not" and "not reached yet" are three states, and
+  // the surface has to keep them apart.
+  const goodMeshes = join(tmp, 'meshes-good.db');
+  buildMeshStore(goodMeshes, { tracks: TRACKS.slice(0, 1), failed: TRACKS.slice(1, 2) });
   const good = await boot({
-    port: PORT, dbPath: join(tmp, 'good.db'), vectorDbPath: goodIndex, libraryRootName: 'Music',
+    port: PORT, dbPath: join(tmp, 'good.db'), vectorDbPath: goodIndex,
+    meshDbPath: goodMeshes, libraryRootName: 'Music',
   });
   if (!good.healthy) done(); // boot() already counted the failure; nothing below can mean anything
 
@@ -320,6 +376,68 @@ try {
   const rawSim = (await req(raw.base, 'GET', `/api/discover/similar/${seed.id}?k=5`)).json;
   ok(rawSim?.basis === 'embedding', 'uncalibrated: still serves an embedding basis');
   ok(rawSim?.calibrated === false, 'uncalibrated: similar() says the scores are raw');
+
+  /* ── 6. the pulsarmap (ALGORITHMS.md §9) ──────────────────────────────────────
+     The mesh store joins on the SAME root-relative key as the vectors, so it
+     inherits the same trap: keyed absolutely it resolves nothing and reads as a
+     fill that never ran. Every assertion below is about a state being reported
+     rather than inferred from an empty response. */
+  ok(stats?.meshes?.available === true,
+    `mesh: stats reports the store is open (got ${JSON.stringify(stats?.meshes?.available)})`);
+  ok(stats?.meshes?.meshes === 1,
+    `mesh: stats counts the stored meshes (got ${stats?.meshes?.meshes})`);
+  ok(stats?.meshes?.failed === 1,
+    `mesh: stats counts the recorded failures separately (got ${stats?.meshes?.failed})`);
+
+  const filled = byTitle.get('song one') || tracks.find((t) => /song one/i.test(t.title || ''));
+  const meshOk = (await req(good.base, 'GET', `/api/discover/mesh/${filled.id}`)).json;
+  ok(meshOk?.state === 'ok', `mesh: a filled track answers ok (got ${JSON.stringify(meshOk?.state)})`);
+  ok(meshOk?.rows === MESH_ROWS && meshOk?.bands === MESH_BANDS,
+    `mesh: ${MESH_ROWS}x${MESH_BANDS} (got ${meshOk?.rows}x${meshOk?.bands})`);
+  ok(Buffer.from(String(meshOk?.data || ''), 'base64').length === MESH_ROWS * MESH_BANDS,
+    'mesh: the base64 body decodes to exactly rows x bands bytes');
+  // ⚠️ The scale is on the wire so the client can dequantise — NOT so it can be
+  // per track. Every mesh in one store carries the same pair; that is what makes
+  // two pictures comparable, and it is the single thing that would silently make
+  // the pulsarmap meaningless.
+  ok(Array.isArray(meshOk?.value_range) && meshOk.value_range[0] === -8 && meshOk.value_range[1] === 10,
+    `mesh: carries the shared value range (got ${JSON.stringify(meshOk?.value_range)})`);
+  ok(meshOk?.reduction === 'p75',
+    `mesh: says which reduction built it (got ${JSON.stringify(meshOk?.reduction)})`);
+  ok(typeof meshOk?.row_seconds === 'number' && meshOk.row_seconds > 1.9 && meshOk.row_seconds < 2.1,
+    `mesh: carries the row duration the reveal is driven by (got ${meshOk?.row_seconds})`);
+
+  const meshFailed = tracks.find((t) => /song two/i.test(t.title || ''));
+  const failedBody = (await req(good.base, 'GET', `/api/discover/mesh/${meshFailed.id}`)).json;
+  ok(failedBody?.state === 'failed',
+    `mesh: a track the fill could not build says so (got ${JSON.stringify(failedBody?.state)})`);
+
+  const meshPending = tracks.find((t) => /solo/i.test(t.title || ''));
+  const pendingRes = await req(good.base, 'GET', `/api/discover/mesh/${meshPending.id}`);
+  ok(pendingRes.status === 200 && pendingRes.json?.state === 'pending',
+    `mesh: a track not reached yet is 200 pending, NOT 404 (got ${pendingRes.status} ` +
+    `${JSON.stringify(pendingRes.json?.state)})`);
+
+  const missing = await req(good.base, 'GET', '/api/discover/mesh/999999');
+  ok(missing.status === 404,
+    `mesh: 404 is reserved for a track that does not exist (got ${missing.status})`);
+
+  // The negative control: a server with no store must say 'unavailable', not
+  // 'pending'. A client that cannot tell those apart shows "coming soon" forever
+  // for a store that will never appear.
+  const noStore = (await req(raw.base, 'GET', `/api/discover/mesh/${filled.id}`)).json;
+  ok(noStore?.state === 'unavailable',
+    `mesh: no store reads as unavailable, not pending (got ${JSON.stringify(noStore?.state)})`);
+  const rawMeshStats = (await req(raw.base, 'GET', '/api/discover/stats')).json;
+  ok(rawMeshStats?.meshes?.available === false,
+    'mesh: stats reports the missing store rather than omitting it');
+
+  // And the join is real: point the root name somewhere else and the same store
+  // resolves nothing. Without this, every assertion above would also pass on a
+  // store that was being matched by luck.
+  const badMesh = (await req(bad.base, 'GET', `/api/discover/mesh/${filled.id}`)).json;
+  ok(badMesh?.state !== 'ok',
+    `mesh: a wrong LIBRARY_ROOT_NAME breaks the join (got ${JSON.stringify(badMesh?.state)})`);
 } catch (err) {
   fail++;
   console.error('  ✗ threw: ' + (err && err.stack || err));

@@ -52,6 +52,15 @@ const DATA_DIR  = path.dirname(DB_PATH);
    Defaults to a file beside the database so the deploy only has to place it there. */
 const VECTOR_DB_PATH = process.env.VECTOR_DB_PATH || path.join(DATA_DIR, 'music-index.db');
 
+/* The pulsarmap mesh store (ALGORITHMS.md §9's music/meshes.db) — one decimated,
+   quantised mel matrix per track, revealed as the track plays. A SEPARATE FILE
+   from the vector index on purpose: that one holds the whole banked vector space
+   and its own snapshot invariant, and a mesh table has no business in it.
+   OPTIONAL on exactly the same terms as VECTOR_DB_PATH — separate pipeline,
+   separate schedule, read strictly read-only, and a track with no mesh yet
+   answers `state: 'pending'` rather than failing. */
+const MESH_DB_PATH = process.env.MESH_DB_PATH || path.join(DATA_DIR, 'music-meshes.db');
+
 /* The directory name the embedder's paths are rooted at, used to recover an
    artist/title key from an index built against a DIFFERENT library layout — see
    src/discover/vectors.js's header for why a plain path join is not enough. */
@@ -90,7 +99,7 @@ const scanner = createScanner({
    exist yet at this point — migrations run below) and rebuilt whenever a scan
    changes the catalog, so a rescan that adds an album is reflected without waiting
    out its TTL. */
-const discovery = createDiscovery({ db, vectorDbPath: VECTOR_DB_PATH, libraryRootName: LIBRARY_ROOT_NAME, musicDir: MUSIC_DIR });
+const discovery = createDiscovery({ db, vectorDbPath: VECTOR_DB_PATH, meshDbPath: MESH_DB_PATH, libraryRootName: LIBRARY_ROOT_NAME, musicDir: MUSIC_DIR });
 
 /* ── Migrations ────────────────────────────────────────────────────────────
    `tracks` is a SHARED catalog (no user_id — every user sees the same library) that

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { IconPause, IconPlay, IconSpinner, Scrubber } from '@jkos/player/ui';
 import Cover from '../components/Cover';
+import Pulsarmap from '../components/Pulsarmap';
 import { IconChevronDown, IconRadio } from '../components/icons';
 import { albumHref, artistHref, closeOverlay, queueHref } from '../hooks/useHashRoute';
 import { usePlayer, nowPlayingArt } from '../player/PlayerProvider';
@@ -129,6 +130,14 @@ export default function NowPlaying() {
           )}
         </p>
       </div>
+
+      {/* The pulsarmap, directly above the scrubber — the two are the same axis at
+          two resolutions, and reading them together is how "how far in are we"
+          becomes "how far in, and through what". ⚠️ `globalPos` is the media
+          element's own currentTime, published on `timeupdate`; NOTHING here
+          counts seconds. A timer desynchronises on buffering, on seek, and on a
+          rate change, and @jkos/player has a rate module. */}
+      <Pulsarmap trackId={track.id} position={p.globalPos} />
 
       <div className="kr-now-scrub">
         <Scrubber

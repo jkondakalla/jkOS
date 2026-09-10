@@ -389,6 +389,36 @@ export interface VibeMap {
   total?: number;
 }
 
+/** One track's pulsarmap (ALGORITHMS.md §9) — the mel matrix decimated to ~2 s
+ *  rows and quantised to one byte, revealed as the track plays.
+ *
+ *  ⚠️ FOUR STATES, and they are four different answers. `ok` has a picture;
+ *  `pending` means the fill has not reached this track (the steady state during a
+ *  fill, and NOT an error); `failed` means it tried and could not; `unavailable`
+ *  means there is no mesh store at all. A client that collapses the last two shows
+ *  "coming soon" forever for a store that will never appear. */
+export interface Pulsarmap {
+  state: 'ok' | 'pending' | 'failed' | 'unavailable';
+  track_id: number;
+  rows?: number;
+  bands?: number;
+  row_seconds?: number;
+  /** The SHARED quantisation range, in log-mel units. On the wire so the client
+   *  can dequantise — never so it can be per track. Every mesh in one store
+   *  carries the same pair, which is what makes two pictures comparable. */
+  value_range?: [number, number];
+  reduction?: string;
+  config_sig?: string;
+  duration?: number | null;
+  /** rows x bands uint8, row-major, base64. ~23 KB for a four-minute track. */
+  data?: string;
+  error?: string;
+}
+
+export function fetchPulsarmap(id: number): Promise<Pulsarmap> {
+  return apiJson<Pulsarmap>(`/api/discover/mesh/${id}`);
+}
+
 export function discoveryStats(): Promise<DiscoveryStats> {
   return apiJson<DiscoveryStats>('/api/discover/stats');
 }

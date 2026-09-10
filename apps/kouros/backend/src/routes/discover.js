@@ -65,6 +65,31 @@ function createDiscoverRouter({ discovery, db }) {
     }
   });
 
+  /* One track's pulsarmap — the mel matrix decimated to ~2 s rows and quantised
+     to one byte, revealed as the track plays (ALGORITHMS.md §9).
+
+     ⚠️ **JSON, NOT A BINARY ENDPOINT.** ~17 KB of uint8 is ~23 KB base64 in an
+     ordinary body, and staying JSON keeps this read inside every contract the
+     suite already enforces. A binary surface would sit outside all of them to
+     save 6 KB.
+
+     ⚠️ **404 IS RESERVED FOR A TRACK THAT DOES NOT EXIST.** A track with no mesh
+     yet answers 200 with `state: 'pending'`, because that is the steady state
+     during a fill and not an error — the same reason every other discovery
+     surface degrades and says so rather than failing. */
+  router.get('/api/discover/mesh/:id', (req, res) => {
+    try {
+      const id = Number.parseInt(req.params.id, 10);
+      if (!Number.isFinite(id)) return res.status(400).json({ error: 'bad id' });
+      const mesh = discovery.mesh(id);
+      if (!mesh) return res.status(404).json({ error: 'No such track' });
+      res.json(mesh);
+    } catch (err) {
+      console.error(`[kouros] mesh failed: ${err.message}`);
+      res.status(500).json({ error: 'Failed to read the pulsarmap' });
+    }
+  });
+
   /* More like this. */
   router.get('/api/discover/similar/:id', (req, res) => {
     try {

@@ -25,7 +25,7 @@
 //    the UI can label a row "similar" versus "same artist" honestly rather than
 //    implying the embedder had an opinion it never had.
 const path = require('path');
-const { contentKeyFromTags, relKeyFromEmbedderPath, l2Normalise } = require('./vectors');
+const { contentKeyFromTags, catalogRelKey, l2Normalise } = require('./vectors');
 
 /* ── Interpretable descriptor slices (music/descriptors.py's LAYOUT, N_MFCC=20) ──
    The 119-d descriptor arm is NOT the similarity space here — the neural arm won
@@ -132,20 +132,11 @@ function buildSpace({ db, vectorSpace, featureSpace = null, musicDir = null, lib
   const albumRows = new Map();          // albumKey → row indices, for pass 2
   let nPath = 0, nRel = 0, nContent = 0;
 
-  /** This catalog's root-relative key for a track — the counterpart of
-   *  `relKeyFromEmbedderPath`. Prefers stripping MUSIC_DIR (exact, and correct
-   *  even when the mount is not named after the library); falls back to scanning
-   *  for the root segment when no mount is configured, which is the dev case
-   *  where both processes see the same absolute path anyway. */
-  const relKeyOf = (abs) => {
-    if (musicDir) {
-      const rel = path.relative(musicDir, abs);
-      if (rel && !rel.startsWith('..') && !path.isAbsolute(rel)) {
-        return rel.split(path.sep).join('/').toLowerCase();
-      }
-    }
-    return relKeyFromEmbedderPath(abs, libraryRootName);
-  };
+  /** This catalog's root-relative key for a track. The rule lives in vectors.js
+   *  beside its embedder-side counterpart, because the two halves of this join
+   *  are DIFFERENT computations that must agree — see `catalogRelKey`. The mesh
+   *  store is its second consumer. */
+  const relKeyOf = (abs) => catalogRelKey(abs, { musicDir, libraryRootName });
   for (let i = 0; i < n; i++) {
     const r = rows[i];
     ids[i] = r.id;
