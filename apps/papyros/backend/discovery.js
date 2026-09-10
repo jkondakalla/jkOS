@@ -80,12 +80,25 @@ const BOOKS_KEY = resourceKey('papyros', 'books'); // 'papyros.books'
  *  affinity makes an `=` comparison between them work by coincidence (TEXT '12' does
  *  NOT numeric-compare equal to INTEGER 12 in a raw join predicate; every actual read
  *  path here goes through the app layer instead — src/routes/books.js's SELECT, this
- *  collection's owner-scoped list, and the frontend's `row.book_ref === bookId`
- *  strict-equal-after-Number()-coercion in usePlayerEngine.ts/writes.ts — never a raw
+ *  collection's owner-scoped list, and the frontend — never a raw
  *  SQL `JOIN progress ON progress.book_ref = books.id`). A real SQL JOIN between them
  *  needs `CAST(progress.book_ref AS INTEGER) = books.id` (or `= CAST(books.id AS TEXT)`)
  *  — there is no such join in this codebase today, but the Wave-8 club "who's caught
  *  up" route (heads-up below, at CLUBS) is the first candidate that would need one.
+ *  ⚠️ THE CLIENT SIDE OF THIS WAS WRONG FOR AS LONG AS IT WAS DOCUMENTED. This note
+ *  used to claim the frontend did a "strict-equal-after-Number()-coercion in
+ *  usePlayerEngine.ts/writes.ts". It did not — there was no coercion anywhere, and the
+ *  claim is precisely why nobody looked: four consumers compared a wire STRING against
+ *  a number with `===` and were silently false forever (Resume + the progress bar never
+ *  rendered, the engine never found an existing row so playback always restarted from
+ *  zero, a book's bookmarks never listed, and the offline queue's `typeof === 'number'`
+ *  dedup key was never registered). None of them threw.
+ *  The coercion is now REAL and lives at one door: `withNumericRefs()` / `refsInList()`
+ *  in apps/papyros/src/api.ts, applied to every path a row arrives by (list, create,
+ *  update, and the reconnect delta). Consumers may compare `book_ref` as a number
+ *  because that function makes the declared type true — do not scatter `Number()` calls
+ *  back through the views, and do not remove it.
+ *
  *  Not fixed here: rebuilding `progress`/`bookmarks`/`clubs`/`club_members` onto an
  *  INTEGER-affinity ref column means changing `sqlType()` (collection.js, out of scope
  *  for this task — sibling agents are mid-edit on packages/weave/src/server/) for

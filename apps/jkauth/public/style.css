@@ -25,7 +25,21 @@
   --border:        var(--color-line);
   --text:          var(--color-ink);
   --muted:         var(--color-muted);
-  --accent:        var(--color-accent);
+  /* ⚠️ NO `--accent` ALIAS HERE, AND THAT IS THE POINT.
+     The obvious line to write is `--accent: var(--color-accent)`, matching its
+     neighbours. It was here, and it silently broke every amber surface on every
+     jkAuth page. The factory chain derives the other way —
+         jkos-tokens.css  --accent:       color-mix(… var(--accent-raw) …)
+                          --hub-amber:    var(--accent)
+                          --color-accent: var(--hub-amber)
+     — so pointing --accent back at --color-accent closes a custom-property
+     CYCLE. Per spec every property in a cycle is invalid at computed-value
+     time, which took out --accent, --color-accent AND --hub-amber together:
+     .btn-primary lost its background and rendered white-on-cream at 1.19:1
+     (the Sign in button, "Change password", the dashboard's app-tile letters,
+     the remember-me checkbox). Nothing errored; the tokens just read empty.
+     jkos-tokens.css already defines --accent correctly — inherit it, don't
+     re-point it. See DESIGN.md §"Aliasing into the factory chain". */
   --accent-hover:  var(--color-accent-dim);
   --danger:        var(--color-danger);
 

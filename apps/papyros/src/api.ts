@@ -158,6 +158,47 @@ async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
   return r.json() as Promise<T>;
 }
 
+/**
+ * Normalise a `ref` stud to a number, at the one door every row comes through.
+ *
+ * ⚠️ `progress.book_ref` / `bookmarks.book_ref` are weave `ref` columns, and a
+ * ref is stored — and therefore SERVED — as TEXT: the wire carries `"13"`, not
+ * `13`. The interfaces above have always declared `book_ref: number`, so the
+ * type said one thing and the payload said another, and every strict comparison
+ * against a real book id was quietly false forever:
+ *
+ *   · BookDetail   `p.book_ref === bookId`      → Resume + the progress bar
+ *                                                  could never appear, for any
+ *                                                  book, ever.
+ *   · usePlayerEngine  `r.book_ref === itemId`  → the engine never found an
+ *                                                  existing row, so playback
+ *                                                  always resumed from zero.
+ *   · usePlayerEngine  `bm.book_ref === itemId` → a book's bookmarks never listed.
+ *   · offline/writes   `typeof r.book_ref === 'number'` → false for every server
+ *                                                  row, so the queue's dedup key
+ *                                                  was never registered.
+ *
+ * Four bugs, one cause, and none of them threw. `discovery.js` already warns
+ * about this affinity mismatch for SQL joins; nothing carried the warning across
+ * to the client. Coercing HERE — rather than at each comparison — is what makes
+ * the declared types true, so a fifth consumer written tomorrow is correct by
+ * default instead of inheriting the trap.
+ */
+function withNumericRefs<T>(row: T): T {
+  const r = row as Record<string, unknown> | null;
+  if (!r || typeof r !== 'object') return row;
+  if (r.book_ref != null && typeof r.book_ref !== 'number') {
+    const n = Number(r.book_ref);
+    if (Number.isFinite(n)) r.book_ref = n;
+  }
+  return row;
+}
+
+/** The list form — `ref`-bearing collections are served as bare arrays. */
+function refsInList<T>(rows: T[]): T[] {
+  return Array.isArray(rows) ? rows.map(withNumericRefs) : rows;
+}
+
 const JSON_HEADERS = { 'Content-Type': 'application/json' };
 
 // ─── Books ──────────────────────────────────────────────────────────────────────
@@ -241,11 +282,11 @@ export function matchAllMissing(): Promise<MatchAllResult> {
 
 export function listProgress(filters?: { finished?: boolean }): Promise<ProgressRow[]> {
   const qs = filters?.finished === undefined ? '' : `?finished=${filters.finished}`;
-  return apiJson<ProgressRow[]>(`/api/progress${qs}`);
+  return apiJson<ProgressRow[]>(`/api/progress${qs}`).then(refsInList);
 }
 
 export function listBookmarks(): Promise<BookmarkRow[]> {
-  return apiJson<BookmarkRow[]>('/api/bookmarks');
+  return apiJson<BookmarkRow[]>('/api/bookmarks').then(refsInList);
 }
 
 // The direct (unqueued) implementations, injected into the queue layer. The
@@ -253,19 +294,21 @@ export function listBookmarks(): Promise<BookmarkRow[]> {
 const offlineWrites = initOfflineWrites({
   listProgress: () => listProgress(),
   createProgress: (row) =>
-    apiJson<ProgressRow>('/api/progress', { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(row) }),
+    apiJson<ProgressRow>('/api/progress', { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(row) }).then(withNumericRefs),
   updateProgress: (id, patch) =>
-    apiJson<ProgressRow>(`/api/progress/${id}`, { method: 'PATCH', headers: JSON_HEADERS, body: JSON.stringify(patch) }),
+    apiJson<ProgressRow>(`/api/progress/${id}`, { method: 'PATCH', headers: JSON_HEADERS, body: JSON.stringify(patch) }).then(withNumericRefs),
   deleteProgress: async (id) => { await apiJson<void>(`/api/progress/${id}`, { method: 'DELETE' }); },
   createBookmark: (row) =>
-    apiJson<BookmarkRow>('/api/bookmarks', { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(row) }),
+    apiJson<BookmarkRow>('/api/bookmarks', { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(row) }).then(withNumericRefs),
   updateBookmark: (id, patch) =>
-    apiJson<BookmarkRow>(`/api/bookmarks/${id}`, { method: 'PATCH', headers: JSON_HEADERS, body: JSON.stringify(patch) }),
+    apiJson<BookmarkRow>(`/api/bookmarks/${id}`, { method: 'PATCH', headers: JSON_HEADERS, body: JSON.stringify(patch) }).then(withNumericRefs),
   deleteBookmark: async (id) => { await apiJson<void>(`/api/bookmarks/${id}`, { method: 'DELETE' }); },
   // The reconnect reconciliation read: every defineCollection dataset declares the
   // universal `since` filter (updated_at delta cursor), owner-scoped, bare-array.
+  // Refs normalised here too — reconciliation compares these rows against queued
+  // ones by book_ref, so a string here would re-break the dedup on reconnect.
   fetchDelta: (collection, since) =>
-    apiJson<Array<Record<string, unknown>>>(`/api/${collection}?since=${encodeURIComponent(since)}`),
+    apiJson<Array<Record<string, unknown>>>(`/api/${collection}?since=${encodeURIComponent(since)}`).then(refsInList),
 });
 
 export function createProgress(row: Partial<Omit<ProgressRow, 'id' | 'updated_at'>>): Promise<ProgressRow> {

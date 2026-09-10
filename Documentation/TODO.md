@@ -180,6 +180,34 @@ is load-bearing for `bbDelta`'s merge. What is open is only whether it is worth 
 **Recommend: move it to §10 as a decided exception** unless BB's item count is actually growing —
 which needs a look at the production database, so it is a read Jag can do and an agent cannot.
 
+### D10 · `--color-accent-contrast` fails AA on the paper face — which of three fixes? — §7
+
+**Measured 2026-09-10** against the live chain on the house default accent, so this does not have
+to be decided in the abstract. `.btn-primary` is 16px/600 — not WCAG "large text", so the bar is
+4.5:1:
+
+| Text on `--color-accent` (paper, `#b27b05`) | Ratio | AA |
+|---|---|---|
+| today: `--color-accent-contrast` = `#ffffff` | **3.67:1** | ✗ |
+| alternative: `--color-ink` = `#1c1408` | **4.96:1** | ✓ |
+
+Paper deepens the raw accent toward ink *and* keeps white on top; the dark face doesn't have the
+problem (it sets `#000000` over the undeepened accent). The token reaches jkAuth, KourOS, ORDECK,
+SylibOS and `@jkos/ui`'s `SettingsDrawer` — and `apps/kouros/src/glass.css` already hand-rolls
+around it, which is a hint the token is under-specified rather than merely mis-set.
+
+Three candidates, cheapest first: **(1)** flip paper's value to the ink ramp — one line, but
+inverts every accent-filled surface at once; **(2)** deepen the paper accent until white clears
+4.5:1 — changes the brand colour; **(3)** **derive it from the resolved accent's luminance**, so
+it stays correct across all five presets *and* a user's custom pair.
+**Recommend (3)** — the accent is user-selectable, so every static answer is wrong for somebody.
+It is real design-pass work, which is why it is a decision and not already done. Full write-up:
+[DESIGN.md §3](DESIGN.md), "Open decision".
+
+*Not blocking:* the separate, far worse bug in the same area — a custom-property cycle that made
+this button **invisible** at 1.19:1 — is **fixed** (`apps/jkauth/public/style.css`). This item is
+only about the remaining 3.67 → 4.5 gap.
+
 ### D9 · Scope for the next run
 
 Confirm, so an agent does not have to guess:
@@ -436,6 +464,19 @@ Then, in the order the reasoning gives (`RESET.md` Stage F):
 - **Name the tiers and make the prefix carry the tier** — 152 tokens, 62 on both faces, 90
   light-only, 0 dark-only. **Only tier 1 gets a dark block.** Today `--hub-*` spans tiers 1 and 3,
   so "does this token need a dark value?" is answerable only by reading the whole file.
+- **Derive the on-accent colour instead of pinning it.** ⚠️ **This is a live AA failure, not a
+  polish item.** `--color-accent-contrast` is `#ffffff` on paper over an accent the paper face
+  deepens to `#b27b05` — **3.67:1**, against AA's 4.5:1 for the 16px/600 `.btn-primary`. Using the
+  ink ramp instead measures **4.96:1**, so a one-line flip closes it *for the house accent* — and
+  breaks the moment someone picks a light one, which they can: the pair is user-chosen. The
+  correct fix is to compute the on-accent colour from the resolved accent's luminance, which is
+  why it belongs to this restructure rather than to a hotfix.
+  ⚠️ Blast radius: jkAuth, KourOS, ORDECK, SylibOS and `@jkos/ui`'s `SettingsDrawer` — and
+  [`apps/kouros/src/glass.css`](../apps/kouros/src/glass.css) already hand-rolls around the token
+  ("NOT `--color-accent-contrast`: that token flips to black…"), which is the tell that it is
+  under-specified rather than merely mis-set. Which of the three routes to take is **D10** in §0b.
+  *Related and already fixed:* the far worse defect in the same chain — a custom-property cycle
+  that made the button **invisible** at 1.19:1 — closed 2026-09-10; see §8's closed table.
 - **Collapse the four accent schemes** (`--accent-raw`, `--hub-amber`, `--color-accent`, `--accent`)
   and **retire the pigment names** — nothing in the token layer should name a colour it might not be.
 - **Reorder by system**, not by the program that added each section: ground → type → colour chain →
@@ -467,6 +508,27 @@ Then, in the order the reasoning gives (`RESET.md` Stage F):
 - ⚠️ **When you close something here, `check:docs` will hold the rest of the documentation to it.**
   It derives the suite list from `test:contracts` rather than trusting a hand-kept list, because
   `TESTING.md` was silently missing eight suites and ~290 assertions.
+- ✅ **The hero-shot pack exists** — published at <https://claude.ai/code/artifact/5e53f12f-cf7d-4e22-b066-4087b47a3e80>, with the 2× originals generated
+  into `Documentation/Images/` (**gitignored** — they are screenshots of real personal data)
+  and the combined handoff artifact linked from it. Every frame is a real signed-in session against
+  a real backend, not a mock, so the pack doubles as evidence of what the apps actually render.
+  It is what turned up the four defects closed on 2026-09-10 (below).
+
+### ✅ Closed 2026-09-10 — found by shooting the apps rather than reading them
+
+Four defects, all live in shipped code, none of which threw. Recorded here because the *class*
+matters more than the four: **every one was invisible to a green gate**, and three were invisible
+to the code as well (a CSS cycle, a lying type, a lying comment).
+
+| | Fix | Where the mechanism is written up |
+|---|---|---|
+| jkAuth's primary buttons invisible at 1.19:1 (custom-property cycle) | `apps/jkauth/public/style.css` — the alias is gone | [DESIGN.md §3](DESIGN.md) · TRAPS.md § CSS |
+| PapyrOS printed raw HTML in 16 of 18 book blurbs | `plainDescription()` — strips, never injects | `views/book-detail/format.ts` |
+| PapyrOS could never offer Resume (a `ref` arrives as `"13"`, compared `===` to `13`) | `withNumericRefs()` at the api boundary — fixed 4 consumers at once | TRAPS.md § SQLite |
+| BeigeBoard's production build was dead while the gate stayed green | `commonjsOptions.include` + **`pnpm check:build`** in the gate | TESTING.md · TRAPS.md § Node |
+
+⚠️ **The last one is the one to remember.** `test:contracts` ran every test, every static check
+and the prober, and never ran `build` — so "green" never meant "shippable". It does now.
 
 ---
 

@@ -289,8 +289,11 @@ to confirm the gate is green and *"say so if §2's baseline is stale"* — it is
 and this section is that saying-so. The old text is kept because it is the audit's evidence,
 not because it describes the repo.
 
-- **`pnpm test:contracts` exits 0.** Every backend smoke, **24** static checks, the round-trip,
-  the prober.
+- **`pnpm test:contracts` exits 0.** Every backend smoke, **25** static checks, the round-trip,
+  the prober. ⚠️ **The 25th is `check:build`, added 2026-09-10, and its absence had been hiding a
+  dead app**: BeigeBoard's production build was broken while every other link in this chain passed,
+  because none of them ran `build`. Until then, "the gate is green" and "the suite can be shipped"
+  were different claims. See TESTING.md.
 - **`pnpm prove`: 0 drift · 3 gaps · 1 consolidate · 11 info · 124 ok.**
 - **The tree is clean**, and Stages **A, B, C, D and E are COMPLETE.** `BACKLOG.md` is the
   current list of what is open; it is shorter than this document's stage plan implies.

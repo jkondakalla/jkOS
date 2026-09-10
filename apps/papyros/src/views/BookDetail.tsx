@@ -8,7 +8,7 @@ import DownloadButton from '../components/DownloadButton';
 import { OfflineBadge, OfflineButton } from '../offline';
 import { getLastPosition, onPosition, requestPlay, type PositionUpdate } from '../player/controller';
 import MatchPanel from './book-detail/MatchPanel';
-import { formatClock, formatHM } from './book-detail/format';
+import { formatClock, formatHM, plainDescription } from './book-detail/format';
 import './book-detail.css';
 
 // Task 5.3: the real detail layout — metadata, chapter/track list, resume, and the
@@ -191,7 +191,10 @@ export default function BookDetail({ bookId }: { bookId: number }) {
             </div>
           )}
 
-          {book.description && <p className="book-description">{book.description}</p>}
+          {/* Flattened, never injected — the blurb is third-party HTML (format.ts). */}
+          {plainDescription(book.description) && (
+            <p className="book-description">{plainDescription(book.description)}</p>
+          )}
 
           <div className="book-provenance">
             <Lab size="xs" sans style={{ opacity: 0.6 }}>{SOURCE_LABELS[book.metadata_source]}</Lab>

@@ -336,13 +336,15 @@ chain — first failure stops the run. It boots and smoke-tests jkAuth (`test:co
 `test`), `@jkos/weave`, `@jkos/player`, BeigeBoard's backend, then `pnpm roundtrip` (a live
 write round-trip across the fabric), then LazurOS's backend, `@jkos/files`, PapyrOS's
 backend, KourOS's backend, and the `@jkos/cards` logic suite. After the behavioral smokes
-it runs **24** static conformance checks — `check:tokens`, `check:nginx`, `check:responsive`,
+it runs **25** static conformance checks — `check:tokens`, `check:nginx`, `check:responsive`,
 `check:drag`, `check:cards`, `check:routine`, `check:hud`, `check:docker`, `check:async-view`,
 `check:overlay`, `check:design`, `check:fields`, `check:scroll`, `check:text`, `check:today`,
 `check:refs`, `check:binding`, `check:columns`, `check:rulings`, `check:audit`,
-`check:secrets`, `check:policy`, `check:auth`, `check:docs`
+`check:secrets`, `check:policy`, `check:auth`, `check:docs`, `check:build`
 — each a small Node script under `test/` or an app's own `scripts/`, asserting one
-suite-wide invariant by re-deriving it from source rather than trusting a doc. It finishes
+suite-wide invariant by re-deriving it from source rather than trusting a doc. The exception
+is `check:build`, which is not a scan at all: it runs `vite build` for all four SPAs, because
+until it existed the gate could be entirely green while an app was unbuildable. It finishes
 with `pnpm prove` (§3). None of this touches `music/`, which runs its own unittest suite
 outside the pnpm workspace (§1) — a green `test:contracts` says nothing about it.
 

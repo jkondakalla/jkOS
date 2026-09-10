@@ -30,6 +30,13 @@ jkos_public.pem
 *.sqlite
 *.sqlite3
 
+# ── Personal / generated artefacts ────────────────────────────────────────────
+# The hero-shot pack: 2x screenshots of the running suite against Jag's OWN data —
+# his library, his calendar, his email on screen. Regenerable, ~30 MB of PNGs, and
+# personal rather than repo. The published handoff is the shareable form; the docs
+# link to that URL, never to this path.
+Documentation/Images/
+
 # ── OS / editor ───────────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db

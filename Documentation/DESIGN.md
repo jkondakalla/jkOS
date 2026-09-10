@@ -21,6 +21,15 @@ this file gives the *values and the rules*.
 > two faces, the rules) rather than a current register of values. Where this doc and the
 > code disagree, the code wins.
 >
+> **Two accurate sources exist in the meantime.** `packages/design/tokens/computed-baseline.json`
+> records what all 152 `:root` tokens *actually compute to* on both faces, measured from a real
+> headless Chromium (`pnpm check:token-identity`) — that is the register the tables below are not.
+> And the **design handoff** at
+> <https://claude.ai/code/artifact/5e53f12f-cf7d-4e22-b066-4087b47a3e80> renders those measured
+> values as swatches alongside seventeen 2× screenshots of the running suite
+> (2× originals are generated into `Documentation/Images/`, which is gitignored — they are
+> screenshots of real personal data). Hand a studio the handoff, not this file's tables.
+>
 > **Re-syncing the tables is Stage F work and is deliberately not done piecemeal.**
 > `BACKLOG.md` explains why: Stage F is a restructure, not a retune — the tiers get renamed,
 > the four accent schemes collapse, and the pigment names retire. Refreshing 1,167 lines of
@@ -178,6 +187,62 @@ Add/retune a preset by editing `ACCENT_SCHEMES` only.
 hex gets hex-concat, anything else (CSS vars!) gets `color-mix(… transparent)`. The old
 `` `${color}66` `` pattern on a var produces invalid CSS the browser silently drops.
 `pnpm check:cards` bans the raw pattern in `@jkos/cards` + `@jkos/ui`.
+
+### Aliasing into the factory chain — the one direction you may not alias
+
+⚠️ **Never point a token that the chain DERIVES FROM at a token the chain derives.** The chain
+above flows one way:
+
+```
+--accent  ──▶  --hub-amber  ──▶  --color-accent
+```
+
+so an alias layer that writes `--accent: var(--color-accent)` closes a **cycle**, and per CSS
+Variables §3 every property in a cycle is invalid at computed-value time. All three names go
+empty *at once*, `background: var(--accent)` falls through to transparent, and nothing errors.
+
+This is not hypothetical: that exact line sat in `apps/jkauth/public/style.css` and made
+`.btn-primary` render white-on-cream at **1.19:1** across every server-rendered jkAuth page — the
+suite's **Sign in button was invisible**, as were "Change password", the dashboard's app-tile
+letters and the custom checkbox tick. It survived because the line looks identical in shape to its
+legitimate neighbours (`--surface: var(--color-card)`, `--text: var(--color-ink)`), which alias
+*downstream* names and are fine.
+
+**The rule:** an app may alias any **component-facing** token (`--color-*`) onto a local name. It
+may **not** re-point a **derivation input** (`--accent`, `--accent-secondary`, `--accent-raw`,
+`--accent-2-raw`) at anything. Those are inherited from the mirror, never redeclared.
+**The tell for a cycle** is several unrelated tokens reading `""` together —
+`getComputedStyle(document.documentElement).getPropertyValue('--accent')` returning empty string
+means invalid, not unset. One empty token is a typo; three is a loop. See TRAPS.md § CSS.
+
+### ⚠️ Open decision — `--color-accent-contrast` fails AA on the paper face
+
+Measured 2026-09-10 against the live token chain, house default accent:
+
+| Text on `--color-accent` (paper, `#b27b05`) | Ratio | AA (normal text, 4.5:1) |
+|---|---|---|
+| `--color-accent-contrast` today = `#ffffff` | **3.67:1** | ✗ fails |
+| `--color-ink` = `#1c1408` | **4.96:1** | ✓ passes |
+
+The paper face deepens the raw accent toward ink (`color-mix(… 64%, --accent-deepen-ink)`), which
+darkens the ground *and* keeps white as the on-accent colour — so paper ends up with the low-
+contrast pairing while the dark face (which sets `--color-accent-contrast: #000000` over the
+undeepened raw accent) is fine. `.btn-primary` is 16px/600, which is **not** WCAG "large text",
+so 3:1 does not apply.
+
+**Not changed unilaterally, because it is a design decision with suite-wide reach.** The token is
+consumed by jkAuth, KourOS, ORDECK, SylibOS and `@jkos/ui`'s `SettingsDrawer`, and
+`apps/kouros/src/glass.css` already hand-rolls around it ("NOT `--color-accent-contrast`: that
+token flips to black…"). Three candidate fixes, in increasing order of correctness:
+
+1. Flip paper's `--color-accent-contrast` to the ink ramp — one line, but inverts every
+   accent-filled surface in the suite at once.
+2. Deepen the paper accent further so white clears 4.5:1 — changes the brand colour.
+3. **Derive it**: pick the on-accent colour automatically from the resolved accent's luminance,
+   so it stays correct for all five presets *and* a user's custom pair. The accent is
+   user-selectable, so any static answer is wrong for someone.
+
+(3) is the real fix and is design-pass work — it belongs to whoever owns Stage F.
 
 ---
 

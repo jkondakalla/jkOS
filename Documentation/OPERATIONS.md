@@ -21,10 +21,15 @@ After editing `packages/*`, run `pnpm install` to re-inject workspace packages i
 Before pushing: `pnpm test:contracts`. One chain covering every hard contract — jkAuth's
 contracts smoke (incl. the node↔python bridge), the jkAuth/weave/player/BeigeBoard/LazurOS/
 files/PapyrOS/KourOS test suites (the weave suite includes the lego tests), the write
-round-trip, **24** static conformance checks (tokens/nginx/responsive/drag/cards/routine/
+round-trip, **25** static conformance checks (tokens/nginx/responsive/drag/cards/routine/
 hud/docker/async-view/overlay/design/fields/scroll/text/today/refs/binding/columns/rulings/
-audit/secrets/policy/auth/docs), and the suite prober (fails on `drift`). A failure means a cross-system contract has drifted — fix the source of truth,
+audit/secrets/policy/auth/docs/**build**), and the suite prober (fails on `drift`). A failure means a cross-system contract has drifted — fix the source of truth,
 not the test.
+
+**`check:build` is the newest link and the one that was missing longest** (added 2026-09-10):
+it runs `vite build` for all four SPAs, because until then the gate could be fully green while an
+app was unbuildable — BeigeBoard's production build had been dead and nothing in the chain looked.
+It costs ~5 s. If it fails, the app cannot be deployed, whatever the rest of the gate says.
 Full anatomy + per-app runners: [TESTING.md](TESTING.md); command catalog:
 [PRIMITIVES.md](PRIMITIVES.md). Post-deploy:
 `pnpm prove --live https://staging.jkos.net` smokes the deployed edge.

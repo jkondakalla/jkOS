@@ -139,6 +139,26 @@ that code can reopen it.
   (arithmetic-averaging 359° and 1° gives 180° — cyan — for two reds; hue is an angle, not a
   scalar), clamped into a usable chrome range.
 
+- **A custom-property CYCLE deletes every token in the loop, silently, and an alias layer is how
+  you build one by accident.** jkAuth aliases the factory's semantic names onto its own local ones
+  (`--surface: var(--color-card)`, `--text: var(--color-ink)`, …). One of those lines read
+  `--accent: var(--color-accent)` — which looks exactly like its neighbours and is the one that
+  cannot be written, because the factory derives in the opposite direction:
+  `--accent` → `--hub-amber` → `--color-accent`, so pointing `--accent` back at `--color-accent`
+  closes the ring. Per CSS Variables §3, every property in a cycle is **invalid at computed-value
+  time** — so `--accent`, `--color-accent` *and* `--hub-amber` all went empty *together*, and
+  `background: var(--accent)` fell through to transparent. `.btn-primary` rendered white-on-cream
+  at **1.19:1**: the suite's own **Sign in button was invisible**, along with "Change password",
+  the dashboard's app-tile letters, and the remember-me checkbox (which reverted to the native
+  blue control). Nothing threw, nothing logged, and the CSS is perfectly well-formed.
+  **The tell is that several *unrelated* tokens read empty at once** — a single missing token
+  takes out one name, a cycle takes out the whole ring. Diagnose with
+  `getComputedStyle(document.documentElement).getPropertyValue('--x')` on each suspect: `""`
+  across the set means a loop, not a typo. Live defence: the alias is gone (that line is now a
+  comment explaining why it must stay gone) and `apps/jkauth/public/style.css` inherits `--accent`
+  from the imported mirror. ⚠️ **Every semantic alias into a derivation chain is a candidate** —
+  before aliasing `--x: var(--y)`, check whether `--y` derives from `--x`.
+
 ## Node, pnpm & the build
 
 - **`inject-workspace-packages=true` (`.npmrc`) means every `@jkos/*` package with a
@@ -154,6 +174,22 @@ that code can reopen it.
   `pnpm install` → confirm the injected copy changed (`grep` your edit under
   `node_modules/.pnpm/@jkos+<pkg>@*/`) → restart any running dev server with `--force` (a running
   Vite keeps its pre-install module graph even after re-injection).
+
+- **A workspace package that ships CJS must be listed in each consumer's
+  `build.commonjsOptions.include`, and forgetting one breaks `vite build` while the whole gate
+  stays green.** `@rollup/plugin-commonjs` only transforms `node_modules` by default, so a
+  workspace CJS file's `module.exports` is invisible to rollup at build time. `@jkos/routine-spec`
+  was missing from BeigeBoard's list, and its ESM twin does `import mod from './index.js'` against
+  the CJS original — so the production build died with
+  `"default" is not exported by packages/routine-spec/src/index.js` **while `pnpm test:contracts`
+  passed**, because the gate ran every test, every static check and the prober and **never ran
+  `build`**. The app could not be built or deployed at all and nothing said so.
+  Two defences are live: the include list is complete, and `pnpm check:build` (in the gate, just
+  before `prove`) builds all four SPAs — ~5 s, and it is verified to go red when the include is
+  removed. The same failure shape awaits the next app that imports a CJS workspace package, so
+  **treat the include list as part of adding a dependency, not as build config**. Sibling trap in
+  the same family: the CJS import must also survive `tsc`, and the four `@jkos/*` packages that
+  ship both faces (`index.js` + `index.mjs`) keep them in sync via `pnpm check:routine`.
 
 - **The ZFS/Docker `ERR_PNPM_EAGAIN` fix is `package-import-method=hardlink`, not concurrency
   limiting.** `copy_file_range` returns spurious `EAGAIN` under overlay-on-ZFS (TrueNAS) and
@@ -252,6 +288,24 @@ that code can reopen it.
   the truth changed from elsewhere (a clear, a server re-render).
 
 ## SQLite & data
+
+- **A weave `type: 'ref'` column is TEXT, so the wire carries `"13"` and every `===` against a
+  real id in the browser is false forever.** `collection.js`'s `sqlType()` only special-cases
+  number and boolean, and `coerceRef()` stores a numeric ref as its canonical string — so
+  `progress.book_ref` is `'13'` against `books.id` `13`. SQLite's affinity hides it server-side;
+  JavaScript does not. In PapyrOS this produced **four bugs from one cause, none of which threw**:
+  Resume and the progress bar could never render (`p.book_ref === bookId`), the player engine never
+  found an existing row so playback always restarted from zero, a book's bookmarks never listed,
+  and the offline queue's `typeof r.book_ref === 'number'` dedup key was never registered. The
+  TypeScript interface declared `book_ref: number`, so **the type actively concealed it** — and the
+  backend's own note *claimed* the frontend coerced with `Number()` when no such coercion existed
+  anywhere, which is why nobody went looking. ⚠️ **A doc asserting that someone else handles it is
+  not a defence; grep for the coercion before believing the comment.** Live defence:
+  `withNumericRefs()` / `refsInList()` in `apps/papyros/src/api.ts` normalise at the one door every
+  row arrives by — list, create, update and the reconnect delta — which makes the declared type
+  true so the next consumer is correct by default. Coerce at the BOUNDARY, never at each
+  comparison. KourOS's `item_ref`/`track_ref` are the same shape and are safe only because nothing
+  client-side compares them yet; the trap is armed there too.
 
 - **Always copy a SQLite database's `-wal` and `-shm` sidecars together with the `.db` file** — a
   live WAL-mode database has uncommitted-to-disk writes sitting in `-wal`, and querying the bare
