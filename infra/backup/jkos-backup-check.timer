@@ -1,0 +1,23 @@
+[Unit]
+Description=Check daily that the jkOS backup is still running
+Documentation=file:///media/jag/The%20Forge/jkOS/infra/backup/README.md
+
+[Timer]
+# ⚠️ A SEPARATE TIMER FROM THE BACKUP, WHICH IS THE ENTIRE POINT. A freshness
+# check that ran as part of the backup could only ever report on backups that
+# ran, and the failure this exists to catch is a backup that STOPPED running —
+# a disabled timer, a revoked linger, a moved unit file. There is no exit code
+# to hook and no new log line; the whole symptom is an absence.
+#
+# Four hours after the backup window, so a run that started at 02:30 and is
+# still going has finished before it is judged.
+OnCalendar=*-*-* 06:30:00
+# Same reasoning as the backup's own timer: the workstation is not always on at
+# 06:30, and a check that only runs on mornings the machine happened to be awake
+# is exactly as unreliable as the thing it is watching.
+Persistent=true
+RandomizedDelaySec=10m
+Unit=jkos-backup-check.service
+
+[Install]
+WantedBy=timers.target

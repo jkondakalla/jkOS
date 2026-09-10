@@ -3,6 +3,15 @@ Description=jkOS encrypted database backup (pull from NAS)
 Documentation=file:///media/jag/The%20Forge/jkOS/infra/backup/README.md
 After=network-online.target
 
+# ⚠️ THE ONLY THING THAT TURNS A FAILED BACKUP INTO SOMETHING A PERSON HEARS.
+# `jkos-backup.sh` fails closed in several places — a missing GPG key, an empty
+# payload, an archive that is not readable OpenPGP — and every one of those
+# refusals used to be written to a file nobody reads. Measured 2026-09-10: the
+# only run this pipeline has ever had refused on the missing GPG key on
+# 2026-08-26, this timer was never installed, and nothing anywhere said so for
+# fifteen days.
+OnFailure=jkos-backup-alert.service
+
 [Service]
 Type=oneshot
 ExecStart=/media/jag/The Forge/jkOS/infra/backup/jkos-backup.sh

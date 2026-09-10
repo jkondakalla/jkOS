@@ -304,9 +304,24 @@ Then, in the order the reasoning gives (`RESET.md` Stage F):
 
 ## 9 · Ops and infra
 
-- **Nothing alerts on backup failure.** `last-run.txt` is written as trivial `key=value` precisely
-  so a HUD widget can read it — the natural home now that the fabric work has landed.
-  ⚠️ **An unwatched backup is a backup that stopped working three months ago.**
+- **Backup alerting — ✅ the local half is DONE 2026-09-10; the HUD half is blocked on a decision.**
+  `infra/backup/jkos-backup-alert.sh`, wired as two units: `jkos-backup-alert.service` on the
+  backup's `OnFailure=` (a run that FAILED), and `jkos-backup-check.timer` on its own schedule
+  (a run that was killed, or **never happened** — no exit code to hook, the symptom is an
+  absence). Journal first, desktop notification second, since a `--user` unit at 02:30 has no
+  session bus. `install.sh` enables both and prints the verdict.
+  ⚠️ **Its first run found there is no backup at all.** The SSH keypair exists and the script ran
+  once by hand on 2026-08-26; it refused correctly on the missing GPG key, the timer was never
+  installed, and nothing has run since. `jkos-backups/` holds a log and a status file and zero
+  archives. **This is §0's "set a passphrase only he should know", still open, now measured.**
+  ⚠️ **Not installed by me** — `systemctl --user enable` changes Jag's machine, and enabling a
+  watcher over a pipeline that cannot yet succeed only teaches him to ignore it. Run
+  `infra/backup/install.sh` after the GPG key exists.
+  **The HUD widget stays open, and the obstacle is real:** the backup runs on the WORKSTATION and
+  every jkOS service runs on the NAS, so no backend in the suite can see `last-run.txt`.
+  ORDECK's `useSystems` already renders an up-but-degraded row from any app's `/health` body, so
+  the rendering half is free — what is undecided is **where the status is published** (a service
+  client posting a line, a file the edge serves, a LAN-only reader). That is Jag's call.
 - **The TWA build**, once the keystore exists (§0): `bubblewrap init` → build + sign → add the
   SHA-256 to `infra/nginx/assetlinks.json` → regenerate nginx → **restart, never reload** (the
   confs are bind-mounts and a reload will not re-read a replaced inode).
