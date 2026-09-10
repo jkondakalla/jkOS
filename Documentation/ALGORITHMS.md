@@ -866,9 +866,11 @@ to a nearby unplayed track, so consecutive tracks are similar and the set drifts
 **temperature parameter** controls step distance — a dial from album coherence to real
 variety. This is the feature that justifies the pipeline.
 
-Joins to KourOS's `tracks` by absolute path (§4). The natural consumer is KourOS itself, whose
-`MUSIC_DIR` mount is still an open unblocker in ToDo §3 (retired) — worth landing before M5,
-since it is a compose-file edit and a decision, not code.
+Joins to KourOS's `tracks` by absolute path (§4). The natural consumer is KourOS itself, and
+its `MUSIC_DIR` mount is **no longer an unblocker** — the library is bind-mounted read-only at
+`/music` in both compose files (`apps/kouros/docker-compose.yml`,
+`apps/kouros/docker-compose.staging.yml`). What M5 still waits on is the shipped index, and
+that is TODO.md §3, not a compose-file edit.
 
 **M6 — library map.** UMAP or PCA projection to 2D: where a track sits relative to the rest of
 the library, and the path the current shuffle is taking through it.
@@ -903,13 +905,32 @@ this decoration. It survives exactly one decimation and one quantisation:
   twenty-minute post-rock track, and the reveal would stop meaning "how far in are we". The cost
   is that row count varies with duration (a 20-minute track is ~600 rows, 77 KB), and that cost
   lands on the **renderer**, not the format — see the pitch note below.
-- **Reduce each row by max, not mean — but this is not settled, it is measured.** M2 established
-  that reducing the time axis by `mean` deletes the beat grid, because a kick drum is one loud
-  frame in a bucket of quiet ones. ⚠️ **That measurement was over ~22-frame buckets and does not
-  transfer unexamined to 86.** Over a ~2 s window nearly every bucket of a rock track contains a
-  kick, so `max` may saturate the bass rows and flatten exactly what it was chosen to preserve.
-  **Render one track four ways — max, mean, p90, p75 — and look.** That is M2's own method, and
-  the answer belongs in this table once it exists.
+- **Reduce each row by `p75`. Measured 2026-09-10, and the presumed answer was wrong.** M2
+  chose `max` because reducing the time axis by `mean` deletes the beat grid — a kick drum is one
+  loud frame in a bucket of quiet ones. That was measured over ~22-frame buckets and, as the
+  warning here anticipated, **it does not transfer to 86.** Rendered four ways across M2's own
+  four reference tracks (`python mesh.py --compare <file>`):
+
+  | reduction | cells at the 255 ceiling | **sub-200 Hz cells at the ceiling** | band-to-band contrast (Δ/σ) |
+  |---|---|---|---|
+  | `max` | 4.8 – 10.7 % | **44 – 70 %** | 0.178 – 0.247 |
+  | `p90` | 1.5 – 4.0 % | 2.6 – 40.5 % | 0.188 – 0.243 |
+  | **`p75`** | **0.8 – 2.4 %** | **0.9 – 27.7 %** | **0.190 – 0.254** |
+  | `mean` | 0.0 – 0.7 % | 0.1 – 8.2 % | 0.131 – 0.208 |
+
+  ⚠️ **`max` saturates the bass, which is the register it was chosen to protect.** Between 44 %
+  and 70 % of the sub-200 Hz cells pin at 255 — flat, carrying nothing. It is not reporting *the
+  bass is loud*, it is reporting *something was loud at some instant in these two seconds*, and
+  the stand-up cut proves it by saturating 44 % of a band the M2 sheet records as having no bass
+  content at all. **Over a 2 s row the beat is below the sampling rate of the picture entirely**
+  (a kick at 120 bpm is four hits per row), so the row axis is a bar-scale envelope and the
+  reduction's job is no longer to catch a transient — it is to describe a window.
+
+  `p75` does that with 3–12× less pinning than `max` **and** more band-to-band contrast on three
+  of the four tracks, contrast being what makes a ridgeline read as a ridgeline rather than a
+  smooth hump. `mean` pins least of all and contrasts least of all, visibly flattening whole rows.
+  Recorded as `mesh.REDUCTION` and stamped into every stored mesh, so a later change cannot mix
+  two kinds of picture in one store.
 - **One shared absolute value scale, never per-track.** `ridge.py`'s `VALUE_RANGE_LN = (-8.0, 10.0)`,
   measured across four deliberately unalike library tracks, is the quantisation range too. ⚠️
   **Per-track normalisation is the single thing that would make this picture meaningless** — a

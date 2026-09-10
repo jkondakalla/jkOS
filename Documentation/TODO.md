@@ -74,35 +74,31 @@ frequency band — it makes the canvas append-only); meshes are built **on deman
 never batched across all 47,441 tracks; and it is a **KourOS view behind a declared read**, not
 a shared package.
 
-1. **`music/mesh.py` — the builder.** `(128, T) float32` → `(rows, 128) uint8`. Decimate time by
-   `FRAMES_PER_ROW` derived from `config.frame_seconds()`, quantise against `ridge.py`'s
-   `VALUE_RANGE_LN`, emit rows + `row_seconds` + the config signature. Imports `mel.py` /
-   `config.py` / `audio.py` and **edits none of them** — read-only use is safe for the paused
-   backfill, an edit is not.
-   ⚠️ **Stamp `config.signature()` into every mesh.** A mesh built under a different `N_MELS` or
-   `HOP` fails as a subtly wrong picture, not as an error. The index already defends this way.
-2. **The reduction, measured rather than assumed.** Render one track four ways — max / mean /
-   p90 / p75 — read them side by side, write the answer into `ALGORITHMS.md` §9's table.
-   ⚠️ **`max` may saturate**: nearly every 2 s window of a rock track contains a kick, so the
-   reduction chosen to preserve the beat could be the one that erases it. This is M2's method
-   applied to M2's own conclusion.
-3. **`music/meshes.db` — the sidecar store.** A **separate file**, never a table inside
-   `index.db`. Same `VACUUM INTO` snapshot discipline as `ship.py`, plus the join-key trap:
-   paths are stored absolute and KourOS sees `/music/…`, so the store carries the
-   **root-relative** form `ship.py --root-name` already reasons about.
-4. **The fill trigger — the one genuinely open design question.** KourOS is a Node container with
-   ffmpeg and no numpy, and the mel transform must keep one home. Build (i) first, then decide
-   whether (ii) earns a deployed surface:
-   - **(i) A `--pending` fill run like the backfill** — meshes for tracks actually played that
-     lack one. No new surface, no new dependency, buildable today; first play degrades, which is
-     what the whole discover surface already does.
+1. ✅ **`music/mesh.py` — the builder. DONE 2026-09-10.** `(128, T) float32` → `(rows, 128)
+   uint8`, 86 frames/row (1.997 s), quantised against `ridge.default_value_range()`, stamped with
+   `config.signature()` and refused by the store if it drifts. `encoder.py` / `mel.py` /
+   `config.py` / `audio.py` are untouched — RESET.md §0a holds.
+2. ✅ **The reduction, measured. DONE 2026-09-10 — and the presumed answer was wrong.** `p75`,
+   not `max`. `max` pins **44–70% of the sub-200 Hz cells** at the ceiling across M2's four
+   reference tracks: it reports "something was loud in these two seconds", not "the bass is
+   loud", which the stand-up cut proves by saturating 44% of a band it has no content in. Over a
+   2 s row the beat is below the picture's own sampling rate, so the reduction's job is to
+   describe a window, not catch a transient. Table and reasoning in `ALGORITHMS.md` §9;
+   `python mesh.py --compare <file>` reproduces it.
+3. ✅ **`music/meshes.db` — the sidecar store. DONE 2026-09-10.** Separate file, `VACUUM INTO`
+   snapshots, root-relative lowercased keys matching `relKeyFromEmbedderPath` in
+   `apps/kouros/backend/src/discover/vectors.js` exactly.
+4. **The fill trigger.** ✅ **(i) is built** — `python mesh.py --pending [N]`, one commit per mesh,
+   failures recorded as data so "not built yet" stays distinguishable from "tried and could not".
+   Its pending list is every indexed track, oldest first: the answer that needs no decision. **A
+   policy goes in front of it when there is one** — KourOS's `history` table, a frontend
+   wanted-list, or top-N most played — and none of the fill code changes when it does.
+   **What is still open is whether (ii) earns a deployed surface:**
    - **(ii) A LAN-only `music/meshd.py`** behind an internal bearer, called at request time — the
      LazurOS `/internal` precedent, stdlib `http.server`. Makes "on demand" literally true, and
-     costs a service.
+     costs a service. ⚠️ Decide this against a real (i) run, not in the abstract.
    - **(iii) Python + numpy in KourOS's image — ⚠️ REJECTED.** It moves the transform into an app
      container and invites a second copy of the one artifact this project is built on.
-   ⚠️ **What drives (i)'s pending list is undecided** — KourOS's `history` table, a frontend
-   wanted-list, or top-N most played. Pick when (i) is built; do not design it now.
 5. **The KourOS read, DECLARED.** `/discover/mesh/:id` in
    [`apps/kouros/backend/discovery.js`](../apps/kouros/backend/discovery.js).
    ⚠️ **It cannot ride on an existing declaration** — `98-surface-coverage` bounds a declared path
@@ -128,11 +124,13 @@ a shared package.
    ⚠️ **Drive it from `currentTime` per animation frame, never `setInterval`.** A timer
    desynchronises on buffering, on seek, and on a playback-rate change — and `packages/player`
    has a rate module, so the last one is not hypothetical.
-9. **Python tests, stdlib `unittest`, in `music/tests/`.** Quantisation round-trips within
-   tolerance; the reduction is the chosen one and not silently `mean`; the value scale is the
-   SHARED one (assert two synthetic tracks at different levels produce different mesh means — a
-   per-track normaliser makes them equal and nothing else does); `row_seconds` derives from
-   `config` rather than being a literal.
+9. ✅ **Python tests. DONE 2026-09-10** — `music/tests/test_mesh.py`, 48 tests, stdlib
+   `unittest`. Quantisation round-trips within half a step and clips at the ends rather than
+   rescaling; the reduction is pinned to the measured `p75` and asserted not to be silently
+   `mean`; the value scale is proved SHARED (two synthetic tracks 9 ln apart must produce meshes
+   40 codes apart — a per-track normaliser makes them equal and nothing else does);
+   `row_seconds` is asserted to MOVE when `config` moves, which a literal cannot do. The store's
+   WAL trap is reproduced rather than described.
 
 **What would make this wrong:** a second mel implementation; per-track normalisation at any of
 the three points it could enter (builder, quantiser, renderer contrast); a streaming protocol
@@ -153,9 +151,6 @@ the three points it could enter (builder, quantiser, renderer contrast); a strea
   consecutive tracks are similar and the set drifts. A **temperature parameter** dials album
   coherence ↔ real variety. This is the feature that justifies the pipeline. Joins KourOS's
   `tracks` by absolute path.
-  ⚠️ `ALGORITHMS.md` §9 still calls the `MUSIC_DIR` mount an open unblocker for M5. **It is
-  closed** — the library is mounted read-only in both KourOS compose files. That line is stale;
-  correct it when M5 is picked up.
 - **M6 — library map.** UMAP or PCA to 2D: where a track sits relative to the library, and the
   path the current shuffle is taking through it.
 
@@ -291,7 +286,6 @@ Then, in the order the reasoning gives (`RESET.md` Stage F):
   tables **waits on Stage F by design** — F renames the tiers, collapses the accent schemes and
   retires the pigment names, so refreshing the values first is work done twice and discarded once.
   Its banner points at `hub.css` as authoritative in the meantime.
-- **`ALGORITHMS.md` §9's stale `MUSIC_DIR` unblocker** — see §3 above.
 - ⚠️ **When you close something here, `check:docs` will hold the rest of the documentation to it.**
   It derives the suite list from `test:contracts` rather than trusting a hand-kept list, because
   `TESTING.md` was silently missing eight suites and ~290 assertions.

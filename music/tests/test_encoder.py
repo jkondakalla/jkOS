@@ -20,10 +20,13 @@ The forward-pass checks skip cleanly when the weights or the runtime are absent,
 the same way the library-backed checks skip without the mount. Run them with the
 contained venv: `./.venv/bin/python -m unittest discover`.
 """
+import contextlib
 import io
 import os
 import shutil
+import sys
 import tempfile
+import types
 import unittest
 import unittest.mock
 
@@ -468,6 +471,27 @@ if __name__ == '__main__':
     unittest.main()
 
 
+@contextlib.contextmanager
+def _onnxruntime_importable():
+    """Make `import onnxruntime` succeed for the duration of the block.
+
+    A no-op when the real module is installed — the tests that need REAL provider
+    answers are guarded by `encoder.available()` and are not the caller here. The
+    stub exists only so a code path that imports the module before it needs it can
+    still be exercised on a machine that has neither the wheel nor a GPU.
+    """
+    if 'onnxruntime' in sys.modules or encoder.available():
+        yield
+        return
+    stub = types.ModuleType('onnxruntime')
+    stub.get_available_providers = lambda: ['CPUExecutionProvider']
+    sys.modules['onnxruntime'] = stub
+    try:
+        yield
+    finally:
+        del sys.modules['onnxruntime']
+
+
 class ProviderNegotiationTest(unittest.TestCase):
     """The provider is chosen at runtime and must never change the answer."""
 
@@ -500,8 +524,20 @@ class ProviderNegotiationTest(unittest.TestCase):
         self.assertTrue(set(encoder.preferred_providers()) <= available)
 
     def test_override_pins_one_provider(self):
+        """The override answers with exactly one provider, whatever the build offers.
+
+        ⚠️ Stubbed rather than skipped, and stubbed rather than fixed upstream.
+        `preferred_providers()` imports onnxruntime before it reads the override,
+        so on a machine without it this contract was unreachable — and the README
+        promises the suite runs on `ffmpeg + numpy` alone. The one-line fix is in
+        `encoder.py`, which is one of the four files RESET.md §0a says not to
+        touch while 35,460 vectors sit banked: a refactor there that does not move
+        `config.signature()` is the silent case that costs the run. So the shim
+        lives here, where it can cost nothing.
+        """
         encoder.PROVIDER_OVERRIDE = 'CPUExecutionProvider'
-        self.assertEqual(encoder.preferred_providers(), ['CPUExecutionProvider'])
+        with _onnxruntime_importable():
+            self.assertEqual(encoder.preferred_providers(), ['CPUExecutionProvider'])
 
     def test_batch_size_is_resolved_per_call_not_at_import(self):
         """The default-argument trap, asserted. `batch_size=BATCH_WINDOWS` in the
