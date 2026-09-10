@@ -51,6 +51,149 @@ These block other work, and they are first for that reason.
 
 ---
 
+## 0b · Decisions Jag owes — the cheapest things to unblock
+
+**These are DECISIONS, not actions.** Everything in §0 above needs Jag's hands; everything here
+needs only his answer, and each one is holding up work an agent could otherwise do alone.
+Assembled 2026-09-10 with the measurements each one turns on, so none of them has to be decided
+in the abstract. **Answer them in place** — this stays the one list.
+
+### D1 · jkAuth: where does the capability doc come from? — §5
+
+The single largest blocked item. C4 made the grant expressible per verb; what is left is jkAuth
+deriving the *grantable set* from each app's capability doc instead of the registry row.
+
+**Measured:** all four peer apps already export their docs as importable modules — the prober's
+`BACKEND_DOCS` imports them today. The only real obstacle is that jkAuth's image does not carry
+their source (`apps/jkauth/Dockerfile` copies peers' `package.json` and nothing else), and jkAuth
+already depends on `@jkos/suite-manifest`.
+
+- **(a) A generated manifest inside `@jkos/suite-manifest`, gated.** ⭐ *Recommended.* A build
+  step emits the combined doc; jkAuth gets it in its image for free. Exact precedent:
+  `apps/jkauth/public/jkos-tokens.css` is a checked-in generated mirror held by `check:tokens`.
+  ⚠️ **Its cost, stated:** the grantable set becomes BUILD-TIME, so an app that changes its
+  capabilities needs jkAuth redeployed to widen a grant. That is arguably correct — a new scope
+  is a deploy-shaped event — but it is a real constraint, not a free win.
+- **(b) `COPY` the four `discovery.js` files into jkAuth's image.** Smallest diff; couples every
+  app's layout to jkAuth's Dockerfile, and nothing gates the coupling.
+- **(c) HTTP fetch at boot, with a cached fallback.** ⚠️ Peers may be down at boot, so this needs
+  a staleness policy and a cold-start answer — two new failure modes for one read.
+
+### D2 · Stage F naming — the tier prefixes, and what replaces the pigments — §7
+
+Step zero is done (`check:token-identity`), so the restructure is now safe to attempt. It cannot
+start without these two names, and everything after them depends on them.
+
+**D2a — the tier prefixes.** `RESET.md` already characterises the three tiers: tier 1 raw
+per-face, tier 2 semantic aliases whose referent moves, tier 3 face-invariant geometry. Undecided
+is what they are CALLED, given the prefix must carry the tier and only tier 1 gets a dark block.
+
+- **(a) Keep the three prefixes that already exist and finish the job** — `--hub-*` = tier 1,
+  `--color-*` = tier 2, `--jk-*` = tier 3. ⭐ *Recommended:* smallest honest diff, and they
+  already roughly map. The work is moving the tier-3 tokens currently spelled `--hub-*`.
+- **(b) Name the job** — `--ink-*` / `--role-*` / `--form-*`. Reads better cold; renames all 152.
+- **(c) Name the number** — `--t1-*` / `--t2-*` / `--t3-*`. Unambiguous, and ugly forever.
+
+**D2b — what replaces the pigment names.** "Nothing in the token layer should name a colour it
+might not be" is decided; the replacement is not.
+⚠️ **Measured blast radius: 927 occurrences across 48 files** (one is `apps/sylibos/`, which is
+off-limits — so a suite-wide rename cannot be a blind sed). ⚠️ **`music/ridge.py` and
+`apps/kouros/src/components/Pulsarmap.tsx` both depend on this pair of faces** — ridge copies the
+VALUES as literals, Pulsarmap aliases the NAMES — so both move with it.
+
+- **(a) Role names** — `--ink-strong|mid|weak|faint`, `--ground-0..3`, `--accent`. ⭐ *Recommended.*
+- **(b) Keep the pigments as tier-1 raws and only forbid them ABOVE tier 1.** Cheapest by far;
+  concedes the stated principle.
+
+### D3 · The 2,731-line jkAuth token mirror — build artifact, or a build step? — §7
+
+Already framed in §7; it becomes live the moment Stage F starts, because every structural change
+is then a change to two files.
+
+- **(a) Keep it a checked-in generated artifact, gated by `check:tokens`.** ⭐ *Recommended:*
+  Stage F is exactly when a build step is most tempting and least necessary — the gate already
+  makes the mirror safe, and giving the one statically-served app a build step during a
+  2,700-line restructure compounds two risks that are individually fine.
+- **(b) Give jkAuth a build step.** One source of truth; jkAuth stops being statically served,
+  which is the property the mirror exists to preserve.
+
+### D4 · `check:audit` — raise the floor when, and may an agent bump versions? — §6
+
+**Measured 2026-09-10: 7 packages carry HIGH advisories** (brace-expansion, browserslist, nanoid,
+pdfjs-dist, postcss, react-router, vite) — up from 6 on 2026-08-27, so the count is drifting the
+wrong way on its own. All are reached through build/dev dependencies, none through a deployed
+container. The real sub-question is the one that unblocks an agent: **may it change versions in
+`pnpm-lock.yaml`?** That touches every app's build.
+
+- **(a) Let an agent attempt the upgrades, and raise the floor to `high` iff they land green.**
+  ⭐ *Recommended* — it is the only option that converges, and it fails safe: if they do not land
+  clean, nothing changes and the floor stays where it is.
+- **(b) Raise the floor now and accept a red gate** until the upgrades land. ⚠️ §6's own warning:
+  a red gate nobody can turn green is one people learn to skip.
+- **(c) Leave both alone; re-read the count on a date.**
+
+### D5 · The pulsarmap fill — what drives it, and may an agent spend the machine time? — §2 block 4
+
+⚠️ **Measured 2026-09-10: 1.48 s/track**, so a full-library fill is **~19.5 hours**
+single-threaded and about **790 MB** of `meshes.db` to ship. That is what makes §2's "built on
+demand and cached, never batched across all 47,441" a real constraint rather than a preference —
+and it contends with the paused backfill for the same CIFS mount (Trap 19 plateaus at 3 readers).
+`--pending` is built and works; what it should be POINTED at is the open question.
+
+- **(a) KourOS's `history` table** — mesh what has actually been played. ⭐ *Recommended:*
+  self-limiting, and it matches the decided "on demand and cached". Needs the fill run to be able
+  to read KourOS's database, which is on the NAS.
+- **(b) Top-N most played, or the N most recently added.** No cross-database read; arbitrary N.
+- **(c) The whole library once** — 19.5 h and 790 MB, then never think about it again.
+- **(d) Build `meshd.py` (block 4-ii) and fill nothing.** Makes "on demand" literally true; costs
+  a LAN-only service.
+
+**And separately: may an agent spend hours of machine time on a fill at all**, or is that a run
+Jag starts himself alongside the backfill?
+
+### D6 · `livePosition()` on `@jkos/player`'s `PlayerApi`? — §2 block 8
+
+Polish, and purely a taste call. Today the reveal is driven by `globalPos` — the media element's
+own `currentTime`, published on `timeupdate` — so it can never drift, but a row can arrive up to
+~250 ms late against a 2 s row. Making it literally per-frame is ~5 additive lines on a shared
+package that PapyrOS and KourOS both use. **Recommend: yes, but last.**
+
+### D7 · Where does the backup status get published? — §9
+
+The local half is built (journal + desktop notification). The HUD half is blocked because the
+backup runs on the **workstation** and every jkOS service runs on the **NAS**, so no backend can
+see `last-run.txt`.
+
+- **(a) Nothing further — the journal and the notification are the answer.** ⭐ *Recommended
+  while there is no backup at all:* the person who needs to know is sitting at the workstation,
+  and every other option adds a surface to watch a pipeline that has never succeeded.
+- **(b) The script POSTs a status line to a suite endpoint** under a service client. ⚠️ Depends
+  on §0's service-client secrets, and adds a declared write surface whose only writer is a shell
+  script.
+- **(c) The workstation copies `last-run.txt` to a path the edge serves**, and ORDECK's
+  `useSystems` reads it. No new credential; a new file the NAS serves and nothing gates.
+
+### D8 · BeigeBoard `/api/items` — page it, or record it as decided? — §6
+
+The constraint is already settled ("page it by the cursor column or not at all") and the absence
+is load-bearing for `bbDelta`'s merge. What is open is only whether it is worth doing.
+**Recommend: move it to §10 as a decided exception** unless BB's item count is actually growing —
+which needs a look at the production database, so it is a read Jag can do and an agent cannot.
+
+### D9 · Scope for the next run
+
+Confirm, so an agent does not have to guess:
+
+- **Is Stage F its main job?** §10 puts the ORDECK redesign and the widget factory in the NEXT
+  run; §7's restructure plus the factory manifest is presumably this one's.
+- **Is LazurOS out of scope?** §4's ladder needs the workstation's GPU and a live Ollama, so an
+  agent cannot start it — but L2 (prompt versioning, audit schema, eval harness) is code and
+  could be built ahead of L1.
+- **May an agent install systemd units / change machine state**, or does everything of that shape
+  stop at "here is the installer, run it"? (§9 assumed the latter.)
+
+---
+
 ## 1 · Deploy state — read this before planning anything
 
 **Everything landed since 2026-08-26 is on `staging` and none of it is deployed.** Stages A–E,
@@ -161,8 +304,14 @@ the three points it could enter (builder, quantiser, renderer contrast); a strea
   consecutive tracks are similar and the set drifts. A **temperature parameter** dials album
   coherence ↔ real variety. This is the feature that justifies the pipeline. Joins KourOS's
   `tracks` by absolute path.
-- **M6 — library map.** UMAP or PCA to 2D: where a track sits relative to the library, and the
-  path the current shuffle is taking through it.
+- **M6 — library map. ⚠️ Mostly already built, and the choice inside it is already made.**
+  KourOS's vibe map (`/discover/map`, `/discover/near`, `src/discover/map.js`) is PCA to 2-D by
+  power iteration, clustered in 2-D, with the axes named from the descriptor arm — which is
+  "where a track sits relative to the library" in full. UMAP was never an option: `music/README.md`
+  refuses it by dependency budget, and `map.js` adds that neither t-SNE nor UMAP gives a STABLE
+  coordinate, so the pin a user drags would not mean the same place tomorrow.
+  **What is genuinely left is only "the path the current shuffle is taking through it" — which
+  needs M5 to exist first.** Do not re-derive the projection.
 
 ---
 
