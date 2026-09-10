@@ -19,12 +19,14 @@ Two evidence bases sit behind it. The backend defect list (Appendix B) comes fro
 
 1. `git status` — the tree is dirty. **A1 is your first commit** and nothing else starts until it's clean.
 2. `pnpm test:contracts` — confirm exit 0. If it isn't, §2's baseline is stale; say so before building on it.
-3. Read §0 (what you may and may not do), §1 (**what this project is for** — it reorders every priority below), and §3 (what you're licensed to ignore).
-4. **Read §0a before you touch anything under `music/`.** A 4-hour backfill is paused at 35,460 of
+3. **[TODO.md](TODO.md) is the single list of what is still open** — this document is the *why*
+   and the stage order; that file is the *what is left*. Close items there, not in a second list.
+4. Read §0 (what you may and may not do), §1 (**what this project is for** — it reorders every priority below), and §3 (what you're licensed to ignore).
+5. **Read §0a before you touch anything under `music/`.** A 4-hour backfill is paused at 35,460 of
    47,441 vectors, and four named files silently invalidate all of it. This is the only piece of
    live, expensive, unrecoverable-by-rerun state in the repo.
-5. Work Stage A→G in order. A and B are prerequisites; C→F are the substance.
-6. Anything marked ⚠️ is a trap someone already paid for. Anything marked ✅ is decided — don't relitigate it.
+6. Work Stage A→G in order. A and B are prerequisites; C→F are the substance.
+7. Anything marked ⚠️ is a trap someone already paid for. Anything marked ✅ is decided — don't relitigate it.
 
 You have broad authority here (§0) and one hard rule: **the gate is green at every commit.**
 

@@ -4,6 +4,10 @@
 strength of a checkbox: every item below was confirmed still-open by reading the source, and
 anything that turned out to be already done was dropped rather than listed as pending.
 
+⚠️ **What is still OPEN now lives in [TODO.md](TODO.md) — one list, so two cannot drift.**
+This file keeps the record of what LANDED and the audits that found defects inside finished
+work; where a section below still names something open, it points there rather than restating it.
+
 `RESET.md` is the mandate and carries the *reasoning* — the stage order, why each item matters,
 and the decisions already settled. This file is the shorter question: what is left. Where the two
 disagree, RESET.md wins on intent and **the code wins on fact**.
@@ -420,15 +424,9 @@ outside, from a clean report about the suite.** That is the same sentence the au
   ⚠️ `REFRESH_GRACE_MS` in that suite went 50 ms → 400 ms: the new assertion needs a real
   request to complete inside the window, and at 50 ms a scheduling hiccup would read as
   theft and fail the run. A gate with false positives is worse than no gate.
-- **Capability-declared scopes.** C4 made the grant EXPRESSIBLE at a finer grain
-  (`<app>:create|update|delete` alongside the legacy blanket `write`), which is what
-  service clients and capability declarations needed. The remaining half is having jkAuth
-  derive the *grantable set* from each app's registered capability doc rather than from the
-  registry row. ⚠️ **There is a real obstacle worth knowing before starting:** jkAuth stores
-  `capabilities_path` but never fetches it, and its container does not carry the other apps'
-  source — so neither an HTTP fetch at boot (the peers may not be up) nor `require()`ing
-  their `discovery.js` (not in the image) works as-is. Deciding *where the doc comes from*
-  is the actual design question, and it is unanswered.
+- **Capability-declared scopes** — the remaining half, and the unanswered design question
+  underneath it (jkAuth stores `capabilities_path` and cannot reach the doc it names). Open;
+  see [TODO.md](TODO.md) §5.
 
 ## Open — the backend and the fabric (Stage D)
 
@@ -537,120 +535,17 @@ the correct steady state; the only way to satisfy such a probe would be to inven
 
 ## Open — the pulsarmap (M7)
 
-**Jag's, 2026-09-03, and a named feature rather than decoration.** Turn a track's mel
-spectrogram into a **lightweight mesh** the browser can pull and draw without lag, and reveal it
-as the song plays: one ridgeline per ~2 s slice, stacking toward the viewer, the *Unknown
-Pleasures* form unrolling in time. `ALGORITHMS.md` §9 M7 carries the reasoning and the arithmetic
-— **including that its own previous ruling ("this is decoration, nothing may depend on it") is
-overruled.** This is the build order.
-
-**Decided with Jag up front, so the blocks below don't re-ask:** a line is a **moment in time**
-(not a frequency band — the classic pulsar form, and it makes the canvas append-only); meshes are
-built **on demand and cached**, not batched across all 47,441 tracks; and the feature is a
-**KourOS view behind a declared read**, not a shared package — other apps can still reach it
-because it is declared, which is the whole point of declaring it.
-
-### The blocks, in dependency order
-
-1. **`music/mesh.py` — the builder.** `(128, T) float32` → `(rows, 128) uint8`. Decimate the time
-   axis by a fixed `FRAMES_PER_ROW` derived from `config.frame_seconds()`, quantise against
-   `ridge.py`'s `VALUE_RANGE_LN`, emit rows + `row_seconds` + the config signature. Imports
-   `mel.py` / `config.py` / `audio.py` and **edits none of them** — read-only use is safe for the
-   paused backfill, an edit is not (RESET.md §0a).
-   ⚠️ **Stamp `config.signature()` into every mesh.** A mesh built under a different `N_MELS` or
-   `HOP` is not comparable to one built before it, and the failure is a picture that is subtly
-   wrong rather than an error. The index already has this exact defence (`assert_config`); the
-   mesh store gets it for the same reason.
-2. **The reduction, measured rather than assumed.** M2 chose `max` over `mean` for the time axis
-   over ~22-frame buckets. This is 86. Render one track four ways — max / mean / p90 / p75 — read
-   them side by side in a browser, and write the answer into §9's table. ⚠️ **`max` may saturate**:
-   nearly every 2 s window of a rock track contains a kick, so the reduction chosen to preserve
-   the beat could be the one that erases it. This is M2's method applied to M2's own conclusion.
-3. **`music/meshes.db` — the sidecar store.** A **separate file**, never a table inside
-   `index.db`. Same `VACUUM INTO` snapshot discipline as `ship.py` and the same four traps, plus
-   the join-key trap: paths are stored absolute and KourOS sees `/music/…`, so the store must
-   carry the **root-relative** form `ship.py --root-name` already reasons about.
-4. **The fill trigger — the one genuinely open design question.** "On demand" is what Jag asked
-   for and the obstacle is real: KourOS is a Node container that has ffmpeg but no numpy, and the
-   mel transform must keep one home. Three paths, and the recommendation is to build (i) first
-   and only then decide whether (ii) is worth a deployed surface:
-   - **(i) A `--pending` fill, run like the backfill** — build meshes for tracks that have
-     actually been played and lack one. Zero new deployed surface, zero new dependency, and it is
-     buildable today. First play has no mesh and **degrades**, which is what every other read on
-     KourOS's discover surface already does; it is there next time.
-   - **(ii) A LAN-only `music/meshd.py`** behind an internal bearer, called by KourOS at request
-     time — the LazurOS `/internal` precedent exactly, stdlib `http.server`, no third
-     dependency. This is what makes "on demand" literally true, and it costs a service.
-   - **(iii) Python + numpy in KourOS's image.** ⚠️ **Rejected.** It moves the transform's runtime
-     into an app container and invites a second copy of the one artifact this project is built on.
-   ⚠️ **What drives (i)'s pending list is undecided** — KourOS's own `history` table, a wanted-list
-   the frontend writes, or simply the top-N most played. Pick when (i) is built; do not design it
-   now.
-5. **The KourOS read, DECLARED.** `/discover/mesh/:id` in `discovery.js`, alongside the seven
-   discover reads XC-7 added. ⚠️ **It cannot ride on an existing declaration**: as of `f7049a4`
-   `98-surface-coverage` bounds a declared path to one segment of cover, so a three-segment
-   discover route has to declare itself. That bound exists precisely so a new surface of a new
-   shape cannot arrive invisibly.
-   ⚠️ **Do not open a binary endpoint for this.** 15 KB of uint8 is ~20 KB base64 inside an
-   ordinary JSON body, and staying JSON keeps the read inside every contract the suite already
-   enforces — pagination, wire time, `defineCollection`, the completeness probe. Revisit only if
-   a decision upstream pushes a single mesh past a few hundred KB.
-6. **Mesh coverage joins `/discover/stats`.** The whole discover surface degrades rather than
-   failing when the index is thin, and `discoveryStats` is how a consumer tells "no results" from
-   "no index". A mesh that is merely not built yet must be distinguishable from one that failed,
-   for the same reason and through the same door.
-7. **`<Pulsarmap/>` — the renderer, in KourOS beside `NowPlaying`.** Canvas 2D, no WebGL and no
-   new dependency. Draw each row as an opaque filled path then stroke it, **painter's algorithm
-   back to front**, onto an offscreen canvas that grows; blit a panned window of it so the newest
-   row sits at a fixed place.
-   ⚠️ **Two constraints that look like polish and are structural.** New rows must arrive IN FRONT,
-   or the canvas stops being append-only and every row costs a full repaint. And the render pitch
-   has a floor: M2 measured that **below ~9 px of row pitch the stack collapses into a uniform
-   hatch** — a picture that reads as "the transform is broken" when it is fine and merely too
-   small. That is why the renderer pans rather than squashing to fit.
-8. **`revealIndex()` — pure, extracted, and gated.** `row = floor(currentTime / rowSeconds)`,
-   plus what to do on seek-backwards (repaint from row 0 offscreen), track change (reset) and
-   pause (nothing). Extract it the way `bbDelta.ts`, `hudPrefs.ts` and `scrub.ts` are extracted
-   and put it under a `check:` gate — **every failure mode here is silent**: a drifting reveal
-   looks like a stylistic choice, not a bug.
-   ⚠️ **Drive it from `currentTime` per animation frame, never a `setInterval`.** A timer
-   desynchronises on buffering, on seek, and on a playback-rate change — and `packages/player`
-   has a rate module, so that last one is not hypothetical.
-9. **Python tests, stdlib `unittest`, in `music/tests/`.** Quantisation round-trips within
-   tolerance; the reduction is the chosen one and not silently `mean`; the value scale is the
-   SHARED one and not per-track (assert two synthetic tracks at different levels produce
-   different mesh means — a per-track normaliser makes them equal, and nothing else does);
-   `row_seconds` derives from `config` rather than being a literal.
-
-### What would make this wrong
-
-- **A second mel implementation.** The mesh, the ridgeline and the vectors must be the same
-  transform, or `VALUE_RANGE_LN` stops being a range anyone measured.
-- **Per-track normalisation**, at any of the three points it could sneak in — the builder, the
-  quantiser, or the renderer's own contrast.
-- **A streaming protocol.** The mesh is ~20 KB; fetch it whole when the track starts and reveal
-  it by index. Streaming a mesh in sync with playback couples network jitter to a visual and buys
-  nothing.
+**Jag's, 2026-09-03 — a named feature rather than decoration.** `ALGORITHMS.md` §9 M7 carries the
+reasoning and the arithmetic, including that its own previous ruling (*"this is decoration, nothing
+may depend on it"*) is overruled. **The nine-block build order, the three decided constraints and
+the three ways it goes wrong are in [TODO.md](TODO.md) §2.**
 
 ## Open — the design factory (Stage F)
 
-Not started. **The visual language is parked for the duration** — restructure, not retune.
-
-The goal is not better CSS: it is **a factory that emits a machine-readable manifest**, the way
-`discovery.js` does for backends, so the next run's widget factory can enumerate what primitives
-exist and what nests in what. Build the byte-identity harness **first, as step zero** — dump every
-token's computed value on both faces from headless Chromium, rebuild, assert identity — because
-every gate in this suite is a text scan and there is no visual regression test. Then: name the
-three tiers and make the prefix carry the tier (only tier 1 gets a dark block), collapse the four
-accent schemes and retire the pigment names, reorder by system rather than by the program that
-added each section, migrate the 26 un-namespaced global classes into `.jk-*`, and decide whether
-jkAuth's 2,731-line generated mirror stays a build artifact or becomes a build step.
-
-**Glass is the imported-asset material** — provenance, not chrome: *glass is for pixels the suite
-didn't author; paper and press are for pixels it drew.* Delete KourOS's ambient decoration,
-promote the glass tokens into the factory, apply them on the cover primitive. ⚠️ **Two
-`CoverArt` implementations exist** — the one in `packages/player` is frozen under a Wave-15
-"zero-behaviour-change" contract that has long since finished. Lift the freeze and converge them.
+Not started. **The visual language is parked for the duration** — restructure, not retune. The
+deliverable is a machine-readable manifest, and the byte-identity harness is step zero because
+every gate in this suite is a text scan. Full list in [TODO.md](TODO.md) §7; the long reasoning
+is `RESET.md` Stage F.
 
 ## Open — documentation
 
@@ -667,7 +562,8 @@ promote the glass tokens into the factory, apply them on the cover primitive. �
   **1,167 lines across 13 commits** since the 2026-07-19 snapshot the tables copy. The file's
   own headline promise — that a design agent needs no other source in the repo — does not hold
   today, and its banner now says so and points at `hub.css` as authoritative. Re-syncing the
-  values before the restructure would be work done twice and discarded once.
+  values before the restructure would be work done twice and discarded once. Tracked in
+  [TODO.md](TODO.md) §8.
 - ✅ **`music/Downloader/Qobuz.py` documented** — kept (it is how the library it analyses gets
   there) but flagged in `music/README.md` as a SIBLING TOOL, not a module of the pipeline.
   ⚠️ **And it carried a live Qobuz account password hardcoded in tracked source.** Moved to
@@ -676,19 +572,7 @@ promote the glass tokens into the factory, apply them on the cover primitive. �
 
 ## Open — Jag's, not mine
 
-- **Generate the service-client secrets.** `JKOS_SERVICE_CLIENTS` and
-  `JKOS_DELEGATION_CLIENTS` are present-and-empty in `apps/jkauth/.env.example`, and
-  `JKOS_SERVICE_CLIENT_ID`/`_SECRET` in LazurOS's. The code half of D11 is done — LazurOS now
-  refuses to start in production without them — but the values are yours. Use
-  `openssl rand -hex 32`, grant `beigeboard:create` rather than `beigeboard:write`, and mind
-  that an id or secret containing `:` or `,` makes jkAuth refuse to boot (deliberately).
-
-- **The two off-box backup commands** (`infra/backup/README.md`) — one writes the NAS
-  `authorized_keys`, one sets a passphrase only he should know. **Before deploying anything that
-  migrates a live database.** For an audit portfolio, recoverability is part of the deliverable.
-- **Nothing alerts on backup failure yet.** `last-run.txt` is trivial `key=value` precisely so a
-  HUD widget can read it.
-- **Deploy / promote** — always a button Jag presses.
-- **Two zero-byte FLACs** need re-downloading; they are not a code defect.
-- **The music backfill** is paused at 35,460/47,441 and resumes with `backfill.py`, no arguments.
-  See `RESET.md` §0a before touching `music/` — four named files silently invalidate all of it.
+The service-client secrets, the two off-box backup commands, the Qobuz rotation, resuming the
+paused backfill, the two zero-byte FLACs, LazurOS's unresolved hardware facts, the Android
+keystore, and deploy/promote itself. **All of it, with the traps, is [TODO.md](TODO.md) §0** —
+and it is first there because several of them block everything else.

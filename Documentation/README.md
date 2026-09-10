@@ -117,7 +117,8 @@ rebuilt, why, and in what order. Read it first if you're picking up engineering 
 | File | Read it for |
 |------|-------------|
 | [RESET.md](RESET.md) | **The current mandate.** What's ceremony vs. still load-bearing, the work ahead stage by stage, and the standing rules of engagement. |
-| [BACKLOG.md](BACKLOG.md) | **What is actually open**, re-derived from code — the shorter question RESET.md answers at length. Start here to pick up work. |
+| [TODO.md](TODO.md) | **Everything still open, in one place** — Jag's blockers, the pulsarmap, the LazurOS ladder, Stage F, the owed halves of the fabric. Close items here, not in a second list. |
+| [BACKLOG.md](BACKLOG.md) | **What landed and why**, re-derived from code — plus the audits that found defects inside finished work. Its open items now live in TODO.md. |
 | [TRAPS.md](TRAPS.md) | 87 durable traps — browser engines, Node/pnpm, SQLite, numpy, Docker, this repo's shape. **Check here before debugging something that smells familiar.** |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | How the systems fit together — mental models, auth/session model, data ownership, Weave fabric, nginx topology, prod/staging isolation. **Engineering entry point**, alongside WEAVE.md. |
 | [PRIMITIVES.md](PRIMITIVES.md) | **The command/gate catalog** — every command, gate, and skill you can run, by category, with how and why. |

@@ -188,7 +188,8 @@ const CITED_AS_ABSENT = new Set([
 const PATH_RE = /(?<![\w/.])((?:\.\.\/)?(?:apps|packages|infra|jkos-deploy)\/[A-Za-z0-9_./-]+\.(?:mjs|tsx|json|js|ts|css|py|conf|yml|md))(?![A-Za-z0-9])/g;
 const { existsSync } = await import('node:fs');
 const docs = ['ALGORITHMS', 'ARCHITECTURE', 'BACKLOG', 'DESIGN', 'OPERATIONS', 'PRIMITIVES',
-  'README', 'RESET', 'ROUTINES', 'TESTING', 'TRAPS', 'WEAVE', 'LAZUROS_STARTUP', 'KOUROS_ANDROID'];
+  'README', 'RESET', 'ROUTINES', 'TESTING', 'TODO', 'TRAPS', 'WEAVE', 'LAZUROS_STARTUP',
+  'KOUROS_ANDROID'];
 let broken = 0;
 for (const d of docs) {
   let text; try { text = read(`Documentation/${d}.md`); } catch { continue; }
