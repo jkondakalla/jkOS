@@ -134,7 +134,12 @@ if (!Database) {
   ok('mount wired all four CRUD routes', ['GET /api/items', 'POST /api/items', 'PATCH /api/items/:id', 'DELETE /api/items/:id'].every((k) => typeof routes[k] === 'function'))
 
   // Tiny req/res doubles.
-  const res = () => { const r = { code: 200, body: undefined, status(c) { this.code = c; return this }, json(b) { this.body = b; return this } }; return r }
+  // `set` is here because the create route can now emit an `Idempotent-Replay`
+  // header (see test/idempotency.mjs). Nothing below sends a key, so it is never
+  // called — but a double that is missing a method the real route calls fails as
+  // a TypeError inside a handler, which surfaces as a 500 rather than as "the
+  // test double is out of date".
+  const res = () => { const r = { code: 200, body: undefined, headers: {}, status(c) { this.code = c; return this }, json(b) { this.body = b; return this }, set(k, v) { this.headers[k] = v; return this } }; return r }
   const call = (key, { user = { sub: 7 }, body = {}, query = {}, params = {} } = {}) => {
     const r = res(); routes[key]({ user, body, query, params }, r); return r
   }
@@ -248,7 +253,12 @@ if (!Database) {
   ok('mount does NOT wire PATCH', routes['PATCH /api/history/:id'] === undefined)
   ok('mount does NOT wire DELETE', routes['DELETE /api/history/:id'] === undefined)
 
-  const res = () => { const r = { code: 200, body: undefined, status(c) { this.code = c; return this }, json(b) { this.body = b; return this } }; return r }
+  // `set` is here because the create route can now emit an `Idempotent-Replay`
+  // header (see test/idempotency.mjs). Nothing below sends a key, so it is never
+  // called — but a double that is missing a method the real route calls fails as
+  // a TypeError inside a handler, which surfaces as a 500 rather than as "the
+  // test double is out of date".
+  const res = () => { const r = { code: 200, body: undefined, headers: {}, status(c) { this.code = c; return this }, json(b) { this.body = b; return this }, set(k, v) { this.headers[k] = v; return this } }; return r }
   const call2 = (key, { user = { sub: 7 }, body = {}, query = {}, params = {} } = {}) => {
     const r = res(); routes[key]({ user, body, query, params }, r); return r
   }

@@ -125,11 +125,15 @@ export interface CapabilityDef {
    * which is the only property that makes a retry recognisable AS one. A random key
    * makes every attempt look new, which is worse than no key because it looks solved.
    *
-   * ⚠️ NO RECEIVER HONOURS IT YET. This constant has no importer, no app declares the
-   * field, and nothing stores seen keys — so a retried DO still double-writes and the
-   * key is dropped as an unknown body key. Sending a key is the half that is done;
-   * dedup at the write door is the half that is owed. Do not read the presence of this
-   * field as protection.
+   * ⭐ THE RECEIVER EXISTS AS OF 2026-09-10. `defineCollection` declares this field on
+   * every `create*` capability and its POST route runs `withIdempotency` — so a
+   * retried DO to any collection door replays the first attempt's response instead
+   * of writing a second row. See server/idempotency.js.
+   *
+   * ⚠️ **THAT COVERS THE COLLECTION DOORS, NOT EVERY WRITE.** A hand-rolled POST that
+   * does not go through `defineCollection` still drops the key as an unknown body
+   * field, and still double-writes. Read the presence of THIS field in a capability's
+   * declared `body` as the protection — not the presence of the constant.
    */
   invalidates?: string[];           // resource keys to refetch after success: ['beigeboard.items']
   roles?: string[];                 // coarse gate (defaults to the app's allowed_roles)
@@ -139,8 +143,13 @@ export interface CapabilityDef {
 }
 
 /** The reserved body field every write capability may accept, and that the trigger
- *  engine always sends. Named once so no app spells it differently. */
-export const IDEMPOTENCY_FIELD = 'idempotency_key';
+ *  engine always sends. Named once so no app spells it differently.
+ *
+ *  ⚠️ RE-EXPORTED, NOT DECLARED. The one declaration lives in `shared/idempotency.js`
+ *  because the server half is CommonJS and cannot import a `.ts` — which is exactly
+ *  how this constant and `trigger.js`'s hardcoded `'idempotency_key'` came to be two
+ *  spellings of one fact, agreeing by coincidence. */
+export { IDEMPOTENCY_FIELD, IDEMPOTENCY_MAX_LEN, idempotencyBodyField } from './shared/idempotency';
 
 /** What an app returns from its capabilitiesPath. */
 export interface CapabilityDoc {

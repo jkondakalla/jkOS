@@ -24,6 +24,8 @@ const { filterSpec, buildItemFilters } = require('./filters')
 const { coerceWeaveColumn } = require('./columns')
 const { resourceKey } = require('@jkos/suite-manifest')
 const { SQL_NOW, sqlConvert, canonical: canonicalTime, isCanonical } = require('./wireTime')
+const { idempotencyBodyField } = require('../shared/idempotency')
+const { DDL: IDEMPOTENCY_DDL, keyOf: idempotencyKeyOf, withIdempotency } = require('./idempotency')
 
 // A field name is interpolated into SQL (as a column), so it must be a safe
 // identifier — never user input, but validated so a typo'd spec fails loudly at
@@ -130,7 +132,13 @@ function defineCollection(def) {
   const capabilities = [
     ops.has('create') && {
       id: `create${Noun}`, label: `Add ${article(label || Noun)}`, method: 'POST', path: `/${id}`,
-      body: writable.map((f) => toBodyField(f)),
+      // ⭐ THE RESERVED IDEMPOTENCY FIELD, DECLARED (RESET A2c.4). The trigger
+      // engine has always SENT one; until this line no capability in the suite
+      // said it accepted one, so a GUI or an AI reading the contract could not
+      // know the door dedups — and the writer below dropped the key as an unknown
+      // body field. Declared here rather than per app so every collection in the
+      // suite gains it at once and none can spell it differently.
+      body: [...writable.map((f) => toBodyField(f)), idempotencyBodyField()],
       returns: item, invalidates: [key], scopes: [writeScope],
     },
     ops.has('update') && {
@@ -236,6 +244,11 @@ function defineCollection(def) {
 
   /* ── storage ──────────────────────────────────────────────────────────── */
   function ddl() {
+    // ⚠️ `CREATE TABLE IF NOT EXISTS`, so an app that mounts six collections gets
+    // ONE dedup table rather than six. It lives with the collection's own DDL
+    // because the write door is what needs it — an app that mounts no collection
+    // has no door to protect and should not carry the table.
+
     const cols = [
       'id         INTEGER PRIMARY KEY AUTOINCREMENT',
       ...(scoped ? ['user_id    INTEGER'] : []),
@@ -248,6 +261,7 @@ function defineCollection(def) {
       `CREATE INDEX IF NOT EXISTS idx_${id}_updated ON ${id}(updated_at);`,
     ]
     return `
+      ${IDEMPOTENCY_DDL}
       CREATE TABLE IF NOT EXISTS ${id} (
         ${cols.join(',\n        ')}
       );
@@ -312,8 +326,35 @@ function defineCollection(def) {
           for (const k of Object.keys(raw)) if (writableNames.has(k)) d[k] = coerce(k, raw[k])
           const keys = Object.keys(d)
           if (!keys.length) return res.status(400).json({ error: 'No valid fields' })
-          const r = run(`INSERT INTO ${id} (${keys.join(', ')}) VALUES (${keys.map(() => '?').join(', ')})`, keys.map((k) => d[k]))
-          res.status(201).json(toRow(get(`SELECT * FROM ${id} WHERE id = ?`, [r.lastInsertRowid])))
+
+          /* ⭐ DEDUP AT THE WRITE DOOR (RESET A2c.4). The trigger engine has always
+             sent a DERIVED key — same trigger + same event ⇒ same key — and until
+             this call nothing in the suite read it: the writer dropped it as an
+             unknown body field and a retried DO wrote a second row. Idempotency is
+             a property of the RECEIVER, and this is the receiver.
+
+             ⚠️ Scoped by (door, USER), never globally: a per-user delegated DO fans
+             one trigger out to N users carrying the SAME key, and a global store
+             would answer user B with user A's row — with a 200 and no error. See
+             ./idempotency.js.
+
+             No key means no dedup, exactly as before; every GUI write arrives
+             without one. */
+          const out = withIdempotency(db, {
+            scope: `${app}.${id}`,
+            userId: ownerOf(req),
+            key: idempotencyKeyOf(raw),
+            write: () => {
+              const r = run(`INSERT INTO ${id} (${keys.join(', ')}) VALUES (${keys.map(() => '?').join(', ')})`, keys.map((k) => d[k]))
+              return { status: 201, body: toRow(get(`SELECT * FROM ${id} WHERE id = ?`, [r.lastInsertRowid])) }
+            },
+          })
+          // The FIRST attempt's status and body, verbatim — not a fresh 201. A
+          // caller that retried and got a new-looking creation has no way to tell
+          // it did not create a second row, which is the confusion the key exists
+          // to remove; the header is how it tells.
+          if (out.replayed) res.set('Idempotent-Replay', 'true')
+          res.status(out.status).json(out.body)
         } catch (e) { fail(res, e) }
       })
     }

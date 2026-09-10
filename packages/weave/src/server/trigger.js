@@ -14,22 +14,30 @@
 //     runs each per-user cross-app DO under the triggering user (G1 delegation), and
 //     always carries the engine's derived `idempotency_key` (RESET A2c.4).
 //
-// ⚠️ WHAT THE KEY DOES NOT YET BUY, stated here because the opposite was written down.
-// This header used to claim the key means "a retried DO cannot double-write". It does
-// not, and cannot on its own: idempotency is a property of the RECEIVER. Nothing in
-// the suite reads `idempotency_key` — no capability declares it as a body field, no
-// route looks for it, and there is no store of seen keys — so BeigeBoard's writer
-// simply drops it as an unknown key. The sending half is correct and worth having (the
-// key is derived, so a retry is RECOGNISABLE as one); the deduplicating half is unbuilt
-// and has to be built before any of this protects a write. See Documentation/BACKLOG.md.
+// ⚠️ WHAT THE KEY BUYS, AND WHERE IT STOPS. This header once claimed the key means
+// "a retried DO cannot double-write". It did not and could not on its own:
+// idempotency is a property of the RECEIVER, and for a long time nothing in the suite
+// read `idempotency_key` — no capability declared it, no route looked for it, no store
+// held seen keys, so the collection writer dropped it as an unknown body field.
 //
-// `check:rulings` exercises only the sending half, against an injected dispatcher —
-// which is exactly why the gap survived: the test proves the key is derived and stable,
-// never that anything acts on it.
+// The receiver was built on 2026-09-10 (./idempotency.js). `defineCollection` now
+// DECLARES the field on every create capability and its POST route replays the first
+// attempt's response for a repeated key, per (door, user). So a retried DO to a
+// collection door is safe.
+//
+// ⚠️ **A HAND-ROLLED POST THAT DOES NOT GO THROUGH `defineCollection` IS STILL NOT.**
+// The protection is the declared field on a specific capability, never the existence
+// of the key. Check the capability's `body` before assuming a door is covered.
+//
+// `check:rulings` exercised only the sending half against an injected dispatcher —
+// which is exactly why the gap survived that long: the test proved the key is derived
+// and stable, never that anything acted on it. The receiver has its own test now
+// (packages/weave/test/idempotency.mjs), which writes twice and counts rows.
 // The engine is dispatch-agnostic (inject a mock to test) so the "what fires" logic is
 // pure + provable; serverDispatch is the live wiring. Design-time TS shapes: ../trigger.ts.
 
 const { weaveServerClient } = require('./serverClient')
+const { IDEMPOTENCY_FIELD } = require('../shared/idempotency')
 
 /* ⭐ ONE BINDING MODEL (D13). The resolver lives in ../shared/binding.js and is the
    SAME one ORDECK's WidgetSpec renderer uses. These were two vocabularies for one
@@ -253,8 +261,8 @@ function serverDispatch({ resolve, clientOpts = {} } = {}) {
        headers — a key sent as one would be invisible to the declaration, which is
        exactly the "undeclared surface" class the whole contract exists to close.
        Never overwrites a key a caller already bound: an explicit one wins. */
-    const withKey = ctx && ctx.idempotencyKey && body && body.idempotency_key === undefined
-      ? { ...body, idempotency_key: ctx.idempotencyKey }
+    const withKey = ctx && ctx.idempotencyKey && body && body[IDEMPOTENCY_FIELD] === undefined
+      ? { ...body, [IDEMPOTENCY_FIELD]: ctx.idempotencyKey }
       : body
     return client[method](path, withKey)
   }

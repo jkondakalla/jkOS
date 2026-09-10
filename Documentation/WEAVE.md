@@ -262,14 +262,38 @@ status list and a `partial` flag.
 bare array and mapped a dead peer, a 403 and an unreadable doc all to "contributed nothing",
 indistinguishable from "did nothing". Failing soft is right; failing soft INVISIBLY is not.
 
-🔴 **THE IDEMPOTENCY HALF IS STILL OWED, and this section used to claim otherwise.** The line
-above ended *"so a retried DO cannot double-write"*. **It cannot deliver that, because
-idempotency is a property of the RECEIVER.** `IDEMPOTENCY_FIELD` has no importer, no app declares
-the field, no route reads it, and nothing stores seen keys — BeigeBoard's writer drops it as an
-unknown key. The sending half is right and worth keeping: a derived key makes a retry
-*recognisable*. **Dedup at the write door is owed, and is the thing to build before the trigger
-engine is ever mounted** — note the engine has no call sites at all today, which is the stated
-steady state, so this gap surfaces on the day it is wired rather than before.
+✅ **THE IDEMPOTENCY HALF LANDED 2026-09-10**, and this section used to claim it already had.
+The line above once ended *"so a retried DO cannot double-write"* — which it could not deliver,
+**because idempotency is a property of the RECEIVER**, and for a long time `IDEMPOTENCY_FIELD`
+had no importer, no app declared the field, no route read it and nothing stored seen keys.
+The sending half was always right and worth keeping: a derived key makes a retry *recognisable*.
+
+`packages/weave/src/server/idempotency.js` is the receiving half. `defineCollection` now
+**declares** the field on every `create*` capability and its POST route runs `withIdempotency`,
+so a repeated key replays the first attempt's status and body with an `Idempotent-Replay: true`
+header instead of writing a second row. One `weave_idempotency` table per app database, brought
+in by the collection DDL.
+
+⚠️ **A KEY IS SCOPED BY (WRITE DOOR, USER), AND THAT IS A SECURITY PROPERTY.** The engine derives
+its key from the trigger and the event, so a per-user delegated DO fans one trigger out to N users
+carrying **the same key**. A globally-keyed store would answer user B's write with user A's row —
+a 200, someone else's data, and no error anywhere.
+
+⚠️ **THE ROW AND THE KEY ARE ONE TRANSACTION.** Insert the row, then fail before recording the
+key, and the retry double-writes anyway: the exact outcome this exists to prevent, reached by a
+shorter path. `withIdempotency` owns the transaction rather than leaving `remember()` as a second
+call a caller can forget.
+
+⚠️ **STILL OPEN: this covers the COLLECTION doors, not every write.** A hand-rolled POST that does
+not go through `defineCollection` drops the key as an unknown body field and still double-writes.
+**The protection is the field appearing in a capability's declared `body`, never the existence of
+the constant** — check the declaration before assuming a door is covered.
+
+⚠️ **Why the gap survived as long as it did is worth more than the fix.** `check:rulings` covered
+the *sending* half against an injected dispatcher and proved the key is derived and stable — never
+that anything acted on it. The new suite (`packages/weave/test/idempotency.mjs`) writes through
+the real generated route into real SQLite and **counts rows**, because a test that only inspected
+responses would pass against a door that wrote twice and answered identically both times.
 
 ---
 

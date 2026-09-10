@@ -34,7 +34,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "node test/weave.mjs && node test/lego.mjs && node test/libraryScanner.mjs && node test/mediaRoutes.mjs && node test/resumeCursor.mjs"
+    "test": "node test/weave.mjs && node test/lego.mjs && node test/idempotency.mjs && node test/libraryScanner.mjs && node test/mediaRoutes.mjs && node test/resumeCursor.mjs"
   },
   "dependencies": {
     "@jkos/auth-client": "workspace:*",

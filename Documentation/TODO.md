@@ -214,13 +214,21 @@ source; do not re-derive it.
 
 ## 6 · Weave and the fabric — the owed halves
 
-- **Dedup at the write door.** `idempotency_key` is write-only today: no importer, no app declares
-  the field, no route reads it, nothing stores seen keys — BeigeBoard's writer drops it as unknown.
-  ⚠️ **Idempotency is a property of the RECEIVER**, which is why the old "a retried DO cannot
-  double-write" claim was struck from both `trigger.js` and `WEAVE.md` §3.4. The sending half is
-  right and kept (a derived key makes a retry *recognisable*). **Build this before the trigger
-  engine is ever mounted** — it has no call sites today, so the gap surfaces on the day it is
-  wired, not before.
+- ✅ **Dedup at the write door — DONE 2026-09-10.** `packages/weave/src/server/idempotency.js`.
+  `defineCollection` declares `idempotency_key` on every `create*` capability and its POST route
+  replays the first attempt's response for a repeated key (`Idempotent-Replay: true`) instead of
+  writing a second row. One `weave_idempotency` table per app database, carried in by the
+  collection DDL. The field name had two spellings — a constant in `capability.ts` and a literal
+  in `trigger.js` — and now has one home in `shared/idempotency.js`.
+  ⚠️ **Scoped by (door, USER), which is a security property**: a per-user delegated DO fans one
+  trigger out to N users carrying the same derived key, and a global store would answer user B
+  with user A's row, with a 200 and no error.
+  ⚠️ **Still open: this covers the COLLECTION doors, not every write.** A hand-rolled POST outside
+  `defineCollection` still drops the key. The protection is the field in a capability's declared
+  `body`, never the existence of the constant.
+  ⚠️ **Why the gap survived is worth more than the fix:** `check:rulings` covered the SENDING half
+  against an injected dispatcher and proved the key is derived — never that anything acted on it.
+  The new suite writes through the real route into real SQLite and **counts rows**.
 - **BeigeBoard's `/api/items` is the one unpaginated dataset in a suite with a pagination ruling.**
   ⚠️ **That absence is currently load-bearing** — it is why `bbDelta`'s merge is safe. Adding a
   limit while keeping `ORDER BY id ASC` advances the cursor past unseen rows on the first
