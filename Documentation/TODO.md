@@ -255,13 +255,24 @@ pure data, requireable with no browser, so the next run's widget factory can enu
 primitives exist and what nests in what. Today nothing can — `hub.css` is a 2,700+ line stylesheet
 and `check:design` only scrapes top-level class names.
 
-**Step zero, before any restructuring: the byte-identity harness.** Dump every token's computed
-value on both faces from headless Chromium, rebuild, assert identity. ⚠️ **Every gate in this suite
-is a text scan and there is no visual regression test** — `check:design` catches *stale* and
-*undemoed*, never *changed*. There is an existing esbuild + headless-Chromium harness pattern to
-copy. **BeigeBoard is the specification, not the test case**: the factory is correct iff it can
-express BB with identical computed values, and anything it cannot express without a bespoke escape
-hatch is a **missing primitive** — almost certainly one ORDECK needs too.
+✅ **Step zero — the byte-identity harness. DONE 2026-09-10.** `pnpm check:token-identity`
+(`test/token-identity.mjs`) serves `hub.css` to a real headless Chromium and pins what all **152**
+`:root` tokens compute to on both faces, in `packages/design/tokens/computed-baseline.json`.
+⚠️ **Every other gate in this suite is a text scan and none of them can tell you a colour
+changed** — rewrite `--hub-amber` from `#ffb000` to `#ffb100` and the whole repo stays green.
+It records the substituted text **and** the used value after `color-mix()` is evaluated, so a mix
+percentage cannot move invisibly either. Measured: 142 of the 152 differ between the faces.
+
+**It is built for the edit Stage F actually is.** A rename that PRESERVES the value passes and is
+reported as `old → new`; a surviving name whose value moved, an orphaned name, or a genuinely new
+token fails and is listed. Accept an intended change with `--update` — the JSON diff is the visual
+review this suite has never had. All four paths were proved by planting each one.
+
+**Still open at this level: BeigeBoard is the specification, not the test case** — the factory is
+correct iff it can express BB with identical computed values, and anything it cannot express
+without a bespoke escape hatch is a **missing primitive**, almost certainly one ORDECK needs too.
+That is a second harness (render BB's DOM, dump every element's computed properties) and it is
+worth building against the factory rather than before it.
 
 Then, in the order the reasoning gives (`RESET.md` Stage F):
 
