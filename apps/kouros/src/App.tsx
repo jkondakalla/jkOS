@@ -4,9 +4,11 @@ import './shell.css'
 import './views.css'
 import { injectJkOSTheme, STORAGE_KEYS } from '@jkos/design'
 import { AUTH_URL, useJkOSPreferences } from '@jkos/auth-client'
-import { AppShell } from '@jkos/ui'
+import { AppShell, useBreakpoint } from '@jkos/ui'
 import AuthGuard from './components/AuthGuard'
 import TabBar from './components/TabBar'
+import Beacon from './shell/Beacon'
+import RuneLayer from './shell/RuneLayer'
 import { useAuth } from './hooks/useAuth'
 import { useHashRoute } from './hooks/useHashRoute'
 import Home from './views/Home'
@@ -72,19 +74,33 @@ function useShellUser() {
  * The routed content.
  *
  * Now Playing and Queue are full-screen OVERLAY routes: they replace the page and
- * hide the tab bar, but they are real history entries, so the phone's back gesture
- * collapses them instead of leaving the app. Everything else is an ordinary page
- * under the tab bar with the mini player docked above it.
+ * hide the navigation, but they are real history entries, so the phone's back
+ * gesture collapses them instead of leaving the app.
+ *
+ * ⚠️ **THE NAVIGATION IS DIFFERENT PER TIER, AND DELIBERATELY SO.** On a phone
+ * there is no tab bar and no mini player: the BEACON is the whole navigation
+ * (shell/Beacon.tsx) and the runes are the transport. Four permanent targets
+ * along the bottom edge cost a strip of a small screen to say what a summoned
+ * menu says on demand — and on a phone that strip is the most valuable real
+ * estate there is. On a desktop none of that applies: there is room for the side
+ * rail, a thumb-height beacon is meaningless next to a pointer, and the mini
+ * player has somewhere to live. So `useBreakpoint()` picks the shape, exactly
+ * where shell.css's own 1024px crossover turns the tab bar into that rail.
  */
 function Content() {
   const route = useHashRoute()
   const overlay = route.view === 'now' || route.view === 'queue'
+  const desktop = useBreakpoint() === 'desktop'
 
   return (
     <PlayerProvider>
       <div className={`kr-app${overlay ? ' is-overlay' : ''}`}>
         {overlay ? (
-          route.view === 'now' ? <NowPlaying /> : <Queue />
+          /* Now Playing is the rune surface: one screen, nothing to scroll, and
+             the only place where every transport verb is about the thing on
+             show. The Queue scrolls, so it is not wrapped — see RuneLayer's
+             header on why those two cannot share a pointer. */
+          route.view === 'now' ? <RuneLayer><NowPlaying /></RuneLayer> : <Queue />
         ) : (
           <>
             <main className="kr-main ink-in">
@@ -107,10 +123,22 @@ function Content() {
               )}
             </main>
 
-            <MiniPlayer />
-            <TabBar active={route.view} />
+            {desktop && (
+              <>
+                <MiniPlayer />
+                <TabBar active={route.view} />
+              </>
+            )}
           </>
         )}
+
+        {/* The beacon rides OUTSIDE the overlay branch, because Queue and the
+            Vibe Map are two of the three destinations it offers — arriving at
+            one only to find no way onward is the trap of replacing a persistent
+            tab bar with a summoned menu. Now Playing is the one exception: it is
+            a state rather than a place, its own surface is the rune layer, and
+            the system back gesture is what collapses it. */}
+        {!desktop && route.view !== 'now' && <Beacon view={route.view} />}
       </div>
     </PlayerProvider>
   )

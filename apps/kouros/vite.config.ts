@@ -6,6 +6,20 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
+      // ⚠️ ORDER MATTERS — vite matches proxy keys in insertion order and '/api'
+      // is a prefix of '/api/papyros', so the peer must come FIRST or every
+      // audiobook request is quietly served by the music backend (which answers
+      // 404, and looks exactly like "PapyrOS is down").
+      //
+      // This mirrors what nginx does in production: `weave-proxy.conf` answers
+      // /api/papyros/* on this origin and rewrites the prefix away before
+      // proxying, which is what lets a KourOS page stream a PapyrOS book
+      // same-origin with the jkos_token cookie. Without the same rewrite here,
+      // the seam works deployed and 404s on a developer's machine.
+      '/api/papyros': {
+        target: 'http://localhost:3010',
+        rewrite: (p) => p.replace(/^\/api\/papyros/, '/api'),
+      },
       '/api': 'http://localhost:3011',
     },
   },

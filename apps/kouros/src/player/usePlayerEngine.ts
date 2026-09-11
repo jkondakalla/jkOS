@@ -26,15 +26,21 @@ import {
 } from '@jkos/player/backend';
 import {
   usePlayerEngine as usePlayerEngineCore,
-  type BookmarkStore, type Id, type ItemLoader, type PlayerEngineConfig, type PlayerUrls, type ProgressStore,
-  type Transport,
+  type BookmarkStore, type Id, type ItemLoader, type NavPoint, type PlayerEngineConfig,
+  type PlayerUrls, type ProgressStore, type Transport,
 } from '@jkos/player/engine';
 import { useMediaSession, type MediaSessionMetadata } from '@jkos/player/services';
 import {
   EMPTY_QUEUE, append, insertNext, next, prev, reorder, repeat as repeatQueue, shuffle as shuffleQueue,
   type Queue, type RepeatMode,
 } from '@jkos/player/core';
-import { coverUrl, createHistoryEvent, getTrack, streamUrl, useTrackCache, type Track } from './api';
+import { createHistoryEvent, useTrackCache, type Track } from './api';
+import {
+  compositionFor, decodeRef, streamUrlFor,
+  unifiedBookmarks, unifiedItemLoader, unifiedProgress, unifiedUrls,
+  type PlayableItem, type UnifiedBookmarkRow, type UnifiedProgressRow,
+} from './sources';
+import type { PlayerComposition } from '@jkos/player/factory';
 import { onPlayRequest, publishPosition as ctrlPublishPosition, requestPlay, type PlayRequest } from './controller';
 import { clampCrossfadeSec, readQueuePrefs, removeAt, sameItems, writeQueuePrefs } from './queuePrefs';
 
@@ -43,6 +49,15 @@ const VOLUME_STORAGE_KEY = 'kouros.player.volume';   // musicPlayer() renders a 
 
 export interface PlayerApi {
   visible: boolean;
+  /** The current item, normalised across both libraries — what any surface that
+   *  does not care whether it is a track or a book should read. */
+  item: PlayableItem | null;
+  /** What that item can do, from @jkos/player's factory. The rune bindings and
+   *  any control list derive from this. Null when nothing is loaded. */
+  composition: PlayerComposition | null;
+  /** The music-shaped view of the current item — **null while a book plays**.
+   *  Only the music-specific views (artist/album links, the Pulsarmap, radio)
+   *  should read it; everything else wants `item`. */
   track: Track | null;
   playing: boolean;
   buffering: boolean;
@@ -67,6 +82,22 @@ export interface PlayerApi {
   setShuffle(on: boolean): void;
   cycleRepeat(): void;
   setCrossfade(sec: number): void;
+  /* ── Segment (chapter) nav ────────────────────────────────────────────────
+     Present for BOTH kinds, and inert for music by construction rather than by
+     a branch: a track carries no segments, so `points` is the engine's
+     one-point-per-source fallback and every call below is a no-op. That is why
+     nothing has to ask "is this a book?" before offering them — the item's own
+     shape answers. */
+  /** Nav points over the current item — chapters for a book, one span for a track. */
+  points: NavPoint[];
+  /** Index into `points` the position currently sits in. */
+  segmentIndex: number;
+  /** The current chapter's name, when it has one. */
+  segmentLabel: string | null;
+  prevSegment(): void;
+  nextSegment(): void;
+  /** Jump to a chapter by index — what the chapter dial turns. */
+  seekSegment(index: number): void;
   playQueueItem(index: number): void;
   removeQueueItem(index: number): void;
   reorderQueue(from: number, to: number): void;
@@ -80,56 +111,16 @@ export interface PlayerApi {
 
 // ── Adapter recipes (./api.ts → the engine's seams) ─────────────────────────────────
 
-const itemLoader: ItemLoader<Track> = {
-  load: (itemId) => getTrack(itemId as number),
-  idOf: (item) => item.id,
-  // A `tracks` row is always exactly one file (18.2's unit:'file' scanning) — one
-  // MediaSource, index 0, its own duration. No `sources`-plural to build.
-  sources: (item) => [{ index: 0, duration: item.duration || 0 }],
-  // Music has no chapters/markers — an empty Segment list makes navPoints() fall back
-  // to "one nav point per source" (packages/player/src/core/timeline.ts), i.e. one
-  // point spanning the whole track. Harmless: nothing here renders segment nav.
-  segments: () => [],
-};
+/* ── The seams, dispatched ───────────────────────────────────────────────────
+   The engine's itemLoader / urls / progress / bookmarks used to be four KourOS
+   specific objects defined right here. They now come from player/sources.ts,
+   which routes each one to the app that OWNS the thing being played — this
+   backend for a track, PapyrOS's over the Weave peer proxy for a book.
 
-/** KourOS's `tracks` catalog has no server-side progress/resume collection BY DESIGN
- *  (git history, item 18.4: "music doesn't resume mid-track"). The engine's
- *  progress choreography (packages/weave's createResumeCursor, [INVARIANT d]) is
- *  still exercised unconditionally — it schedules a write every ~5s of playback and
- *  flushes on pause/hide/ended — so this ProgressStore has to be a REAL (if inert)
- *  implementation of the seam, not an optional/undefined one: `find` always resolves
- *  null (every session therefore starts at position 0, or the caller's explicit
- *  PlayRequest.position), and `create`/`update` are in-memory only — no network, no
- *  localStorage, nothing to persist across a reload. This is the cheapest seam-legal
- *  satisfaction of ProgressStore<TProgress>; see this wave's report for why an
- *  optional-progress engine config was NOT the fix (packages/player is under a
- *  zero-behavior-change contract for papyros — no edits here). */
-interface NoopProgressRow { itemId: Id; position: number; finished: boolean }
-const progress: ProgressStore<NoopProgressRow> = {
-  find: async () => null,
-  create: async (w) => ({ itemId: w.itemId, position: w.position, finished: w.finished }),
-  update: async (_row, w) => ({ itemId: w.itemId, position: w.position, finished: w.finished }),
-  itemIdOf: (row) => row.itemId,
-};
-
-/** musicPlayer()'s capability set has no `bookmarks` — the engine still requires a
- *  BookmarkStore (it's not optional in PlayerEngineConfig), so this is the same
- *  "real but inert" shape as `progress` above: list() always [], create/remove are
- *  never actually invoked (nothing in this bar renders a bookmarks control). */
-interface NoopBookmarkRow { id: Id; position: number }
-const bookmarks: BookmarkStore<NoopBookmarkRow> = {
-  list: async () => [],
-  create: async (w) => ({ id: `${w.itemId}`, position: w.position }),
-  remove: async () => {},
-};
-
-const urls: PlayerUrls = {
-  // `sourceIndex` is always 0 (see itemLoader.sources above); `compatLevel` is never
-  // > 0 — KourOS's backend is direct-play only (src/media.js has no `ladder`), and
-  // this adapter's PlayerEngineConfig omits `compat` entirely, so the engine's
-  // recovery ladder never fires and never asks for a compat URL.
-  stream: (itemId, sourceIndex) => streamUrl(itemId as number, sourceIndex),
-};
+   ⚠️ The dispatch is on the composite REF, not on a mode flag. There is no
+   "audiobook mode" to be in or out of sync with: a queue may hold both kinds at
+   once, and each item is resolved by the source named in its own id. A mode flag
+   is the version of this that works until the first mixed queue. */
 
 function clampIndex(i: number, n: number): number {
   if (n === 0) return -1;
@@ -164,7 +155,10 @@ export function usePlayerEngine(): PlayerApi {
    *  transport.subscribe (below) is the only writer of queueRef/queue, and every
    *  path that changes what's PLAYING goes through it. */
   const playIndex = useCallback((index: number, position?: number) => {
-    const ids = queueRef.current!.items.map(Number);
+    // The queue's items are already refs (strings). Round-tripping them through
+    // Number() here is what would quietly turn 'papyros:7' into NaN the first
+    // time a book joined the queue.
+    const ids = queueRef.current!.items;
     if (index < 0 || index >= ids.length) return;
     requestPlay({ trackIds: ids, startIndex: index, position });
   }, []);
@@ -199,7 +193,21 @@ export function usePlayerEngine(): PlayerApi {
       setQueue(q);
       handler({ itemId: req.trackIds[startIndex], position: req.position });
     }),
-    publishPosition: (update) => ctrlPublishPosition({ trackId: update.itemId as number, position: update.position }),
+    publishPosition: (update) => {
+      // ⚠️ This used to be `update.itemId as number`, and that cast became a LIE
+      // the moment an item id could be a composite ref: the consumers are music
+      // rows comparing `trackId === track.id`, and a string never equals a
+      // number, so every "currently playing" mark would simply stop appearing —
+      // no error, no warning, just a feature quietly gone. It is the same
+      // TEXT-vs-number class that hid four bugs in PapyrOS behind a TypeScript
+      // interface that declared the wrong thing (TRAPS.md § SQLite).
+      const { src, id } = decodeRef(update.itemId);
+      // And a book is not published at all, rather than published as a number:
+      // book 7 and track 7 are different things, and the rows listening here
+      // only know about tracks.
+      if (src !== 'kouros') return;
+      ctrlPublishPosition({ trackId: id, position: update.position });
+    },
   }), []);
 
   // ── The backend (18.5): gaplessDual instead of 15.2's htmlMedia. To the ENGINE it
@@ -211,16 +219,16 @@ export function usePlayerEngine(): PlayerApi {
   // every effect below can read it).
   const backendHandleRef = useRef<MediaBackend | null>(null);
 
-  const config = useMemo<PlayerEngineConfig<Track, NoopProgressRow, NoopBookmarkRow>>(() => ({
+  const config = useMemo<PlayerEngineConfig<PlayableItem, UnifiedProgressRow, UnifiedBookmarkRow>>(() => ({
     backend: () => {
       const b = createGaplessDualBackend({ crossfadeSec: readQueuePrefs().crossfadeSec });
       backendHandleRef.current = b;
       return b;
     },
-    itemLoader,
-    progress,
-    bookmarks,
-    urls,
+    itemLoader: unifiedItemLoader,
+    progress: unifiedProgress,
+    bookmarks: unifiedBookmarks,
+    urls: unifiedUrls,
     transport,
     storageKey: RATE_STORAGE_KEY,
     volumeStorageKey: VOLUME_STORAGE_KEY,
@@ -228,8 +236,24 @@ export function usePlayerEngine(): PlayerApi {
   }), [transport]);
 
   const eng = usePlayerEngineCore(config);
-  const track = eng.item;
+  /** The normalised item — a track or a book, from either library. */
+  const item = eng.item;
   const tracksById = useTrackCache();
+
+  /* ⚠️ `track` is the MUSIC-SHAPED view of the current item, and it is null when
+     a book is playing. The music views (Now Playing's artist/album links, the
+     Pulsarmap, "start a station") are built on fields only a track has, so
+     handing them a normalised item would be a lie the types would not catch.
+     Narrowing here instead means each of those views gets a null it must handle
+     the day the audiobook arm is fed — a visible gap to close, not a silent
+     wrong render. `item` is what everything kind-agnostic should read. */
+  const track: Track | null =
+    item && item.src === 'kouros' ? tracksById.get(item.id) ?? null : null;
+
+  /** What the current item CAN do — `nav: 'track'` for music, `'segment'` for a
+   *  book. The rune grammar is derived from this (shell/runeBindings.ts) rather
+   *  than from a second table that could drift from the player. */
+  const composition: PlayerComposition | null = compositionFor(item?.ref ?? null);
 
   // ── Queue navigation (prev/next TRACK — walks the Queue via core/queue's pure
   // next()/prev(), never the engine's segment nav) ───────────────────────────────
@@ -377,14 +401,17 @@ export function usePlayerEngine(): PlayerApi {
   }, []);
 
   // ── MediaSession — metadata + queue-driven prev/next + setPositionState ────────
-  const metadata = useMemo<MediaSessionMetadata | null>(() => (track ? {
-    title: track.title,
-    artist: track.artist || track.albumartist || '',
-    album: track.album || '',
-    artwork: track.cover_path ? [{ src: coverUrl(track.id), sizes: '512x512', type: 'image/jpeg' }] : [],
-  } : null), [track]);
+  // Built from the NORMALISED item, not the track: the lock screen is the one
+  // surface that is identical for both libraries, and an audiobook's author
+  // belongs on it exactly as much as an artist does.
+  const metadata = useMemo<MediaSessionMetadata | null>(() => (item ? {
+    title: item.title,
+    artist: item.byline,
+    album: item.collection || '',
+    artwork: item.coverUrl ? [{ src: item.coverUrl, sizes: '512x512', type: 'image/jpeg' }] : [],
+  } : null), [item]);
   useMediaSession({
-    enabled: track != null,
+    enabled: item != null,
     metadata,
     handlers: {
       play: eng.toggle,
@@ -434,6 +461,11 @@ export function usePlayerEngine(): PlayerApi {
   }, []);
 
   useEffect(() => {
+    // ⚠️ `track` is null while a BOOK plays, and the null guard below therefore
+    // does real work now: a PapyrOS listen must not land in KourOS's `history`
+    // table. PapyrOS keeps its own ledger, and the suite's activity contract
+    // (D6/XC-2) is what merges the two — writing a book into this table would
+    // double-count it and attribute it to the wrong app.
     const trackId = track?.id ?? null;
     const trackChanged = prevTrackIdRef.current !== null && trackId !== prevTrackIdRef.current;
     if (trackChanged && sessionRef.current) flushSession();   // switched tracks mid-session → close it
@@ -515,8 +547,9 @@ export function usePlayerEngine(): PlayerApi {
     const q0 = queueRef.current!;
     const q1 = next(q0);
     const advanced = q1.cursor !== q0.cursor;
-    const expectedId = advanced ? Number(q1.items[q1.cursor]) : null;
-    const expectedUrl = expectedId != null ? streamUrl(expectedId, 0) : null;
+    const expectedRef = advanced ? q1.items[q1.cursor] : null;
+    const expectedId = expectedRef != null ? decodeRef(expectedRef).id : null;
+    const expectedUrl = expectedRef != null ? streamUrlFor(expectedRef, 0) : null;
 
     flushSession(true);   // close the outgoing track's session as completed (see above)
 
@@ -531,11 +564,11 @@ export function usePlayerEngine(): PlayerApi {
       return;
     }
 
-    sessionRef.current = {
-      trackId: expectedId,
-      startedAt: new Date().toISOString(),
-      playStartedAtMs: Date.now(),
-    };
+    // Same rule as the history effect above: only a KourOS track opens a session
+    // in KourOS's ledger. A gapless swap into a book leaves the session closed.
+    sessionRef.current = expectedRef != null && decodeRef(expectedRef).src === 'kouros'
+      ? { trackId: expectedId!, startedAt: new Date().toISOString(), playStartedAtMs: Date.now() }
+      : null;
     playIndex(q1.cursor, 0);   // leg 3 — the ordinary path; ends in the backend's ack
   }, [flushSession, playIndex]);
 
@@ -556,15 +589,29 @@ export function usePlayerEngine(): PlayerApi {
     let url: string | null = null;
     if (track && q0.items.length > 0 && q0.cursor >= 0 && q0.policy.repeat !== 'one') {
       const q1 = next(q0);
-      if (q1.cursor !== q0.cursor) url = streamUrl(Number(q1.items[q1.cursor]), 0);
+      if (q1.cursor !== q0.cursor) url = streamUrlFor(q1.items[q1.cursor], 0);
     }
     b.prepareNext(url);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [queue, track?.id]);
+  }, [queue, item?.ref]);
+
+  /** Jump straight to a chapter. The engine walks segments one at a time
+   *  (prevSegment/nextSegment); a dial hands over an INDEX, so this seeks to that
+   *  nav point's own position instead of stepping there N times — the difference
+   *  between a dial that lands and one that grinds through every chapter it
+   *  passes, re-buffering at each. */
+  const seekSegment = useCallback((index: number) => {
+    const pts = eng.points;
+    if (!pts.length) return;
+    const i = Math.min(Math.max(index, 0), pts.length - 1);
+    eng.seekTo(pts[i].start);
+  }, [eng.points, eng.seekTo]);
 
   return {
     visible: eng.visible,
-    track: eng.item,
+    item,
+    composition,
+    track,
     playing: eng.playing,
     buffering: eng.buffering,
     error: eng.error,
@@ -587,6 +634,12 @@ export function usePlayerEngine(): PlayerApi {
     setShuffle,
     cycleRepeat,
     setCrossfade,
+    points: eng.points,
+    segmentIndex: eng.currentIndex,
+    segmentLabel: eng.segmentLabel,
+    prevSegment: eng.prevSegment,
+    nextSegment: eng.nextSegment,
+    seekSegment,
     playQueueItem,
     removeQueueItem,
     reorderQueue,

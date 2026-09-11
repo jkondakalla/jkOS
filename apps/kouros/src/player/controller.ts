@@ -14,8 +14,17 @@
 // playIndex()), so the queue the bar renders and the queue the engine is actually
 // playing can never drift apart.
 
+/** One playable thing, as views name it.
+ *
+ *  A bare NUMBER is a KourOS track id — every existing caller passes those and
+ *  keeps working. A STRING is a composite `<source>:<id>` ref
+ *  (player/sources.ts), which is how an audiobook enters the same queue. The
+ *  widening is the whole cost of supporting two libraries here: `@jkos/player`'s
+ *  queue is `string[]` already, so nothing in the package changes. */
+export type PlayableRef = number | string;
+
 export interface PlayRequest {
-  trackIds: number[];
+  trackIds: PlayableRef[];
   /** Index into `trackIds` playback begins at. */
   startIndex: number;
   /** Seconds into that track to start at; omit to start from 0 (KourOS has no

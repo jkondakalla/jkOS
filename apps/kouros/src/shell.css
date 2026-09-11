@@ -15,11 +15,20 @@
  */
 
 /* ── The bottom dock ──────────────────────────────────────────────────────────
-   tab bar + mini player + the phone's own home-indicator inset. `env()` degrades
-   to 0px on anything without a safe area, so this is unconditional. */
+   On a phone this is the BEACON's thumb zone; on a desktop it is the mini player
+   above the side rail. The phone's own home-indicator inset is added on both.
+   `env()` degrades to 0px on anything without a safe area, so this is
+   unconditional.
+
+   ⚠️ The phone has no tab bar and no mini player any more — the beacon replaced
+   both (shell/Beacon.tsx). --kr-tabbar-h survives because the SAME <TabBar>
+   component is the desktop side rail, where it is laid out by width rather than
+   height; on a phone it is not rendered at all. */
 :root {
   --kr-tabbar-h:   58px;
   --kr-mini-h:     64px;
+  /* The beacon's dock: hint line + 44px dot + breathing room, before the inset. */
+  --kr-beacon-dock-h: 104px;
   --kr-safe-bottom: env(safe-area-inset-bottom, 0px);
   /* The TOP inset matters only once installed. In a browser tab the status bar
      is the browser's problem; launched from the home screen in `display:
@@ -28,8 +37,13 @@
      already read this — the shell header did not, which is the one surface
      visible on every screen. Zero everywhere else, so it is unconditional. */
   --kr-safe-top: env(safe-area-inset-top, 0px);
-  --kr-dock: calc(var(--kr-tabbar-h) + var(--kr-safe-bottom));
-  --kr-dock-full: calc(var(--kr-tabbar-h) + var(--kr-mini-h) + var(--kr-safe-bottom));
+  /* One number for "how much of the bottom is spoken for", read by scrollable
+     content, the Now Playing sheet and the action sheet alike. On a phone both
+     forms are the same thing: the beacon is always there and nothing else is, so
+     there is no longer a with-player / without-player difference to reserve for
+     — which also retires the old layout jump when playback started. */
+  --kr-dock: calc(var(--kr-beacon-dock-h) + var(--kr-safe-bottom));
+  --kr-dock-full: var(--kr-dock);
   --kr-gutter: 1rem;
 }
 

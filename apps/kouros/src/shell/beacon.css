@@ -1,0 +1,203 @@
+/* beacon.css — the summoned navigation.
+ *
+ * Tokens only. The mockups for this screen are drawn in bone on near-black with
+ * an amber accent, which is not a new palette — it is the suite's existing DARK
+ * ("tube") face, so every colour below is a --hub-* lookup rather than the hex
+ * the mockup happened to render at. Stage F has the visual language parked; this
+ * is new composition of existing values, not new values.
+ *
+ * ⚠️ The slabs animate in with `both` fill-mode, which the house rule otherwise
+ * warns off (an entrance transform left "in effect" makes the element a
+ * containing block and mispositions `position: fixed` descendants). It is safe
+ * HERE and only here: a slab is a leaf — glyph and label, nothing fixed inside
+ * it — and the fill-mode is what holds its off-screen start through the stagger
+ * delay. Do not copy the pattern onto a container.
+ */
+
+/* ── The dock ────────────────────────────────────────────────────────────────
+   Where the thumb already rests. Sits above the phone's home indicator via the
+   same --kr-safe-bottom the retired tab bar used. */
+.kr-beacon-dock {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.55rem;
+  /* --kr-dock, not --kr-beacon-dock-h: the dock's drawn height and the space
+     scrollable content reserves for it must be the SAME number, or the beacon
+     floats over the last row of every list. shell.css derives one from the
+     other. */
+  height: var(--kr-dock);
+  padding-bottom: calc(var(--kr-safe-bottom) + 0.9rem);
+  pointer-events: none;
+  background: linear-gradient(transparent, var(--hub-bg-0) 46%);
+}
+.kr-beacon-dock.is-open { background: none; }
+
+.kr-beacon-hint {
+  min-height: 12px;
+  font-family: var(--hub-font-mono);
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  color: var(--hub-cream-faint);
+}
+
+/* ── The beacon ──────────────────────────────────────────────────────────────
+   A filled bone dot with a slow breathing ring. --hub-tap-min is the suite's
+   44px floor; the drawn dot is that size, and the dock's padding gives it room. */
+.kr-beacon {
+  position: relative;
+  width: var(--hub-tap-min);
+  height: var(--hub-tap-min);
+  border: 0;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  pointer-events: auto;
+  background: var(--hub-cream);
+  color: var(--hub-bg-0);
+  box-shadow: var(--hub-shadow-card);
+  /* The gesture is a slide, so the browser must not also read it as a pan. */
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.kr-beacon-dock.is-open .kr-beacon { opacity: 0; }
+
+.kr-beacon-glyph { font-family: var(--hub-font-mono); font-size: 13px; }
+
+.kr-beacon-pulse {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px var(--hub-cream-dim);
+  animation: kr-beacon-pulse 2600ms ease-out infinite;
+}
+@keyframes kr-beacon-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.85; }
+  50%      { transform: scale(1.5); opacity: 0; }
+}
+
+/* ── The summoned menu ───────────────────────────────────────────────────────
+   An OVERLAY, never a member of any layout: fixed, so it is out of both flow and
+   grid placement (the rule `pnpm check:overlay` exists to hold elsewhere in the
+   suite). It never takes pointer events — the gesture that opened it still owns
+   the pointer, and a slab that could be clicked would race the slide. */
+.kr-radial {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  pointer-events: none;
+}
+
+.kr-radial-veil {
+  position: absolute;
+  inset: 0;
+  background: var(--hub-bg-0);
+  opacity: 0.82;
+  animation: kr-fade 300ms ease-out both;
+}
+@keyframes kr-fade { from { opacity: 0; } to { opacity: 0.82; } }
+
+.kr-radial-ripple {
+  position: absolute;
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  border: 2px solid var(--hub-cream-dim);
+  animation: kr-ripple 620ms cubic-bezier(0.16, 0.7, 0.3, 1) both;
+}
+@keyframes kr-ripple {
+  from { transform: translate(-50%, -50%) scale(0.3); opacity: 0.55; }
+  to   { transform: translate(-50%, -50%) scale(2.3); opacity: 0; }
+}
+
+.kr-radial-slab {
+  position: absolute;
+  width: 84px;
+  height: 70px;
+  border-radius: var(--hub-radius-xs);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  background: var(--hub-bg-2);
+  color: var(--hub-cream-dim);
+  box-shadow: inset 0 0 0 1px var(--hub-line), var(--hub-shadow-card);
+  animation: kr-slab-in 500ms cubic-bezier(0.14, 0.9, 0.24, 1.06) var(--kr-delay, 0ms) both;
+}
+/* The sector you are already on, so a repeat trip reads as "still here". */
+.kr-radial-slab.is-current { box-shadow: inset 0 0 0 1px var(--hub-line-bright), var(--hub-shadow-card); }
+/* The live sector. Inverted rather than tinted: at arm's length, under a thumb,
+   a fill is legible where a border is not. */
+.kr-radial-slab.is-on {
+  background: var(--hub-cream);
+  color: var(--hub-bg-0);
+  box-shadow: var(--hub-shadow-card);
+}
+@keyframes kr-slab-in {
+  0%   { transform: translate(calc(-50% + var(--kr-fx)), calc(-50% + var(--kr-fy))) scale(0.5); opacity: 0; }
+  55%  { opacity: 1; }
+  100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+}
+
+.kr-radial-glyph { font-family: var(--hub-font-mono); font-size: 16px; }
+.kr-radial-label {
+  font-family: var(--hub-font-mono);
+  font-size: 8.5px;
+  letter-spacing: 0.16em;
+}
+
+/* The hub says what releasing right now would do — the escape hatch, named. */
+.kr-radial-hub {
+  position: absolute;
+  width: 66px;
+  height: 66px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--hub-bg-1);
+  box-shadow: inset 0 0 0 1px var(--hub-line);
+  font-family: var(--hub-font-mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  color: var(--hub-cream);
+  animation: kr-hub-in 280ms cubic-bezier(0.2, 1.3, 0.4, 1) both;
+}
+@keyframes kr-hub-in {
+  from { transform: translate(-50%, -50%) scale(0.25); opacity: 0; }
+  to   { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+}
+
+/* ── Reduced motion ──────────────────────────────────────────────────────────
+   The menu still has to ARRIVE — it is summoned, and an instant appearance with
+   no cue reads as a glitch — so the choreography collapses to a short fade
+   rather than being removed. Nothing translates or scales. */
+@media (prefers-reduced-motion: reduce) {
+  .kr-beacon-pulse { animation: none; }
+  .kr-radial-ripple { display: none; }
+  .kr-radial-slab,
+  .kr-radial-hub {
+    animation: kr-fade-in 120ms ease-out both;
+  }
+  .kr-radial-slab { transform: translate(-50%, -50%); }
+  @keyframes kr-fade-in { from { opacity: 0; } to { opacity: 1; } }
+}
+
+/* ── Desktop ─────────────────────────────────────────────────────────────────
+   The beacon is a thumb idea. Above the tab-bar→rail crossover the side rail is
+   the navigation and this is not rendered at all (App.tsx branches on
+   useBreakpoint), but the dock is also hidden here so a stale mount can never
+   float over the desktop layout. */
+@media (min-width: 1024px) {
+  .kr-beacon-dock { display: none; }
+}

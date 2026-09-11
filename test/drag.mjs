@@ -8,8 +8,11 @@
 //
 //   1. usePointerDrag exists and exports the named activation constants
 //      (DRAG_THRESHOLD_PX / HOLD_MS / HOLD_CANCEL_PX) — the one source of truth.
-//   2. Both drop-layers (the calendar's CalendarDragProvider and ORDECK's
-//      HudGrid) import usePointerDrag from @jkos/ui — neither forks its own.
+//   2. Every gesture surface in the suite imports usePointerDrag from @jkos/ui —
+//      none forks its own. That now includes KourOS's mobile shell: the beacon's
+//      summoned menu and the rune recognizer are the newest place a second
+//      engine would plausibly grow, precisely because a radial menu and a stroke
+//      reader both LOOK like they want bespoke pointer handling.
 //   3. No hand-rolled mouse-drag remains: no `addEventListener('mousedown'…` and
 //      no HTML5 drag-source (`draggable` / `onDragStart`) in the drag surfaces.
 //      A mouse-only engine silently drops touch support — this is that regression.
@@ -36,6 +39,8 @@ const CONSUMERS = {
   'ORDECK HudGrid': 'apps/ordeck/src/hud/HudGrid.tsx',
   'ORDECK workshop canvas': 'apps/ordeck/src/workshop/EditorCanvas.tsx',
   'ORDECK widget tray': 'apps/ordeck/src/hud/WidgetTray.tsx',
+  'KourOS beacon': 'apps/kouros/src/shell/Beacon.tsx',
+  'KourOS rune gestures': 'apps/kouros/src/gestures/useRune.ts',
 };
 // Where a forked drag engine would most plausibly regrow.
 const SURFACES = [
@@ -47,6 +52,10 @@ const SURFACES = [
   'apps/ordeck/src/hud/WidgetTray.tsx',
   'apps/ordeck/src/workshop/EditorCanvas.tsx',
   'apps/beigeboard/src/providers/DragProvider.tsx',
+  'apps/kouros/src/shell/Beacon.tsx',
+  'apps/kouros/src/shell/RuneLayer.tsx',
+  'apps/kouros/src/gestures/useRune.ts',
+  'apps/kouros/src/views/Queue.tsx',
 ];
 
 // ── 1. The primitive exports the activation constants ───────────────────────
@@ -87,6 +96,33 @@ if (/const\s+HOLD_MS\s*=/.test(hud) || /const\s+MOVE_CANCEL_PX\s*=/.test(hud)) {
 } else {
   fail('HudGrid no longer references the shared hold constants — activation may have drifted');
 }
+// The beacon summons on a press-and-hold, which is the SAME activation policy
+// ORDECK's pick-up uses. Re-typing 500/5 here would be the drift this gate
+// exists to stop — and a beacon whose hold threshold quietly diverged from the
+// rest of the suite is the kind of thing only a user notices, as "this app feels
+// different".
+{
+  const beacon = read('apps/kouros/src/shell/Beacon.tsx');
+  if (/const\s+HOLD_MS\s*=/.test(beacon) || /const\s+HOLD_CANCEL_PX\s*=/.test(beacon)) {
+    fail('Beacon redefines HOLD_MS / HOLD_CANCEL_PX locally instead of importing from @jkos/ui');
+  } else if (/\bHOLD_MS\b/.test(beacon) && /\bHOLD_CANCEL_PX\b/.test(beacon)) {
+    ok('Beacon builds its hold activation from HOLD_MS / HOLD_CANCEL_PX (no local redef)');
+  } else {
+    fail('Beacon no longer references the shared hold constants — activation may have drifted');
+  }
+  // ⚠️ The rune layer's activation is `distance`, and that is load-bearing:
+  // `immediate` would mark every tap as a drag and let usePointerDrag swallow
+  // its trailing click, killing every link and button on the surface at once,
+  // with nothing thrown. Hold it to the exported threshold.
+  const rune = read('apps/kouros/src/gestures/useRune.ts');
+  if (/\bDRAG_THRESHOLD_PX\b/.test(rune) && /kind:\s*'distance'/.test(rune)) {
+    ok('useRune activates on DRAG_THRESHOLD_PX — a tap never counts as a stroke, so its click lives');
+  } else {
+    fail('useRune no longer activates on distance/DRAG_THRESHOLD_PX — immediate activation ' +
+         'would let the click-swallow eat every tap on the rune surface');
+  }
+}
+
 // The calendar drop-layer must build its activation on the exported names.
 const cal = read('packages/cards/src/CalendarDragProvider.tsx');
 if (/\bDRAG_THRESHOLD_PX\b/.test(cal) && /\bHOLD_MS\b/.test(cal)) {

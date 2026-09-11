@@ -1,0 +1,99 @@
+/* rune-layer.css — the feedback a drawn command gives back.
+ *
+ * Tokens only (the dark/"tube" face's own values), and every element here is
+ * `pointer-events: none` over a surface whose whole job is to receive a pointer.
+ */
+
+.kr-runes {
+  position: relative;
+  /* The surface claims the gesture; without this the browser reads a stroke as a
+     pan before usePointerDrag can preventDefault it, and the first few runes of
+     every session are eaten by a scroll that goes nowhere. */
+  touch-action: none;
+}
+
+/* ⚠️ The stand-down. When the content overflows its viewport, scrolling matters
+   more than gestures — see RuneLayer's header. Giving touch-action back is the
+   whole fix: the component has already stopped claiming pointers. */
+.kr-runes.is-standing-down { touch-action: auto; }
+
+.kr-runes > .kr-rune-chip,
+.kr-runes > .kr-rune-dial,
+.kr-runes > .kr-rune-toast {
+  position: fixed;
+  z-index: 80;
+  pointer-events: none;
+  font-family: var(--hub-font-mono);
+}
+
+/* The live preview — what a lift right now would fire. */
+.kr-rune-chip {
+  left: 50%;
+  top: 18%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.55rem 0.9rem;
+  border-radius: var(--hub-radius-xs);
+  background: var(--hub-bg-2);
+  box-shadow: inset 0 0 0 1px var(--hub-line);
+  color: var(--hub-cream-dim);
+  font-size: 9.5px;
+  letter-spacing: 0.18em;
+}
+
+/* The open dial — a value, not a command. Bigger than the chip because it is
+   read while the thumb is still moving. */
+.kr-rune-dial {
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 118px;
+  height: 118px;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  text-align: center;
+  background: var(--hub-bg-1);
+  box-shadow: inset 0 0 0 1px var(--hub-line), var(--hub-shadow-card);
+}
+.kr-rune-dial-kind {
+  font-size: 8.5px;
+  letter-spacing: 0.2em;
+  color: var(--hub-cream-dim);
+}
+.kr-rune-dial-value {
+  font-family: var(--hub-font-serif);
+  font-weight: 600;
+  font-size: 21px;
+  line-height: 1;
+  color: var(--hub-cream);
+}
+
+/* The commit. Inverted, because it is the one moment something actually
+   happened. */
+.kr-rune-toast {
+  left: 50%;
+  bottom: calc(var(--kr-dock) + 0.8rem);
+  transform: translateX(-50%);
+  padding: 0.6rem 1rem;
+  border-radius: var(--hub-radius-xs);
+  background: var(--hub-cream);
+  color: var(--hub-bg-0);
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  white-space: nowrap;
+  animation: kr-rune-toast-in 220ms ease-out both;
+}
+@keyframes kr-rune-toast-in {
+  from { opacity: 0; transform: translate(-50%, 12px); }
+  to   { opacity: 1; transform: translate(-50%, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kr-rune-toast { animation: none; transform: translateX(-50%); }
+}

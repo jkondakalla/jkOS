@@ -9,6 +9,7 @@ import { useNowPlaying } from '../hooks/useNowPlaying';
 import { requestPlay } from '../player/controller';
 import { fetchHome, radioFrom, type AlbumSummary, type HomePayload, type HomeRun } from '../api';
 import { formatCount, formatSpan } from './library/format';
+import NowCard from '../shell/NowCard';
 
 /**
  * Home — five rails, one request.
@@ -68,6 +69,13 @@ export default function Home() {
           {stats ? `${stats.tracks.toLocaleString()} tracks in the library` : ''}
         </p>
       </header>
+
+      {/* Above the rails and OUTSIDE the AsyncView: what is playing is already
+          known locally, and gating it on the home payload would blank the one
+          thing on this screen that never needs a request. On a phone this is
+          also the mini player's replacement — the bottom dock is the beacon
+          now. */}
+      <NowCard />
 
       <AsyncView
         loading={loading}

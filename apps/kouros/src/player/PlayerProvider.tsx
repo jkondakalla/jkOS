@@ -1,7 +1,6 @@
 import { createContext, useContext, useEffect, useRef, type ReactNode } from 'react';
 import { usePlayerEngine, type PlayerApi } from './usePlayerEngine';
 import { onEnqueueRequest, publishNowPlaying } from './controller';
-import { coverUrl } from './api';
 import { deriveAccentFromArt } from './accent';
 
 /**
@@ -27,11 +26,15 @@ export function usePlayer(): PlayerApi {
   return api;
 }
 
-/** The current track's cover URL, or undefined. Used for the ambient bloom and
+/** The current item's cover URL, or undefined. Used for the ambient bloom and
  *  the art-derived accent, both of which need it and neither of which should
- *  re-derive the rule. */
+ *  re-derive the rule.
+ *
+ *  Reads `item`, not `track`: a book's jacket drives the bloom exactly as a
+ *  sleeve does, and the URL it needs is on the peer's origin. sources.ts already
+ *  resolved which. */
 export function nowPlayingArt(api: PlayerApi): string | undefined {
-  return api.track?.cover_path ? coverUrl(api.track.id) : undefined;
+  return api.item?.coverUrl ?? undefined;
 }
 
 export function PlayerProvider({ children }: { children: ReactNode }) {
@@ -48,6 +51,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 
   // ── Broadcast what is playing, for library rows to mark themselves ───────────
   useEffect(() => {
+    // Still the numeric KourOS id: the library rows that consume this are music
+    // rows keyed on a track id. A book has no row to mark yet.
     publishNowPlaying({ trackId: api.track?.id ?? null, playing: api.playing });
   }, [api.track?.id, api.playing]);
 
@@ -88,7 +93,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       else el.style.removeProperty('--accent-secondary');
     });
     return () => { cancelled = true; };
-  }, [api.track?.id, api.track?.cover_path]);
+  }, [api.item?.ref, api.item?.coverUrl]);
 
   return (
     <PlayerContext.Provider value={api}>
