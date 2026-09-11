@@ -47,6 +47,12 @@ COPY packages/files packages/files
 COPY packages/auth-client packages/auth-client
 COPY packages/design packages/design
 COPY packages/suite-manifest packages/suite-manifest
+# @jkos/routine-spec is required directly by discovery.js (the closed COLLECTIONS
+# vocabulary) and by routines.js — same trap as the three above: without its source
+# here the /out bundle has the package.json but no src/index.js, and bb-app crash-
+# loops at boot on MODULE_NOT_FOUND. (It broke staging when the spec was extracted
+# to a package in 1626525 and this line did not come with it.)
+COPY packages/routine-spec packages/routine-spec
 COPY apps/beigeboard/backend apps/beigeboard/backend
 RUN pnpm --filter @jkos/beigeboard-backend deploy --prod /out
 
