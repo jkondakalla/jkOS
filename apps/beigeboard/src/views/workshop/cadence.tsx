@@ -164,7 +164,7 @@ export function WeekStrip(
 /* ── The actionable cadence, at the head of the forge ────────────────────── */
 export function CadenceBand({
   routine, items, goals, today, readonly,
-  onToggle, onUpdateItem, onDelete,
+  onToggle, onUpdateItem,
 }: any) {
   const tint = routine.accent || 'var(--color-accent)'
   const parked = (routine.status || 'active') !== 'active'
@@ -427,25 +427,17 @@ export function CadenceBand({
           <option value="">not part of a goal</option>
           {goals?.map((g: any) => <option key={g.id} value={g.id}>{g.title}</option>)}
         </SelectField>
-        {!readonly && (
-          <div style={{ display: 'flex', gap: 6 }}>
-            {/* Park/resume by hand. The same status the empty-schedule rider writes
-                — parking here leaves the schedule intact, so the routine comes back
-                exactly as you left it. */}
-            <TButton
-              quiet
-              title={parked
-                ? 'Start minting sessions from this routine again.'
-                : 'Stop minting sessions. The schedule is kept, and nothing already on the board is removed.'}
-              onClick={() => onUpdateItem?.(routine.id, { status: parked ? 'active' : 'parked' })}
-              style={{ padding: '1px 7px', cursor: 'pointer' }}
-            >
-              {parked ? 'resume' : 'park'}
-            </TButton>
-            <TButton quiet onClick={() => onDelete?.(routine.id)} style={{ padding: '1px 7px', cursor: 'pointer' }}>
-              delete
-            </TButton>
-          </div>
+        {/* PARK AND DELETE USED TO BE HERE, as two 7px-padded words in this corner.
+            They have moved up to the row under the routine's name (RoutineForge),
+            with every other verb that acts on the routine AS A ROUTINE. This panel
+            answers WHEN IT FIRES — a time, a weekly target, which goal it feeds —
+            and the routine's existence was never one of those questions. Delete in
+            particular had no business sitting a few pixels from the target stepper
+            with no confirmation: it takes every session the routine ever minted. */}
+        {parked && (
+          <span className="mono-eyebrow" style={{ color: 'var(--color-faint)' }}>
+            PARKED — MINTING NOTHING
+          </span>
         )}
       </div>
     </div>

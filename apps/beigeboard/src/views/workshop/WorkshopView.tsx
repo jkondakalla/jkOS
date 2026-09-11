@@ -173,6 +173,49 @@ export function WorkshopView(props: any) {
     if (r?.id) setSel({ kind: 'routine', id: r.id })
   }
 
+  /* A FORK OF THE ROUTINE ON THE BENCH — the document, the cadence, the colour and
+     the goal it hangs under, under a new name. The document is the expensive half
+     of a routine (steps, progression, phases, the named numbers) and "the same
+     programme, one variation" is how the second one is nearly always written; with
+     no fork the only route to it was to export the first one's JSON and paste it
+     back through the import pane, which is a round trip through a text format to
+     do a thing the row already knows how to do.
+
+     What is NOT copied is `cadence_skips`: a skip is a dated decision about one of
+     the ORIGINAL's sessions ("I deleted last Tuesday"), and carrying those onto a
+     new routine would strike days out of a week it was never running in.
+
+     Born PARKED, like every new routine — two routines minting the same sessions
+     onto the same week, one of them because a copy quietly went live, is exactly
+     the failure a silent duplicate produces. The first weekday you touch resumes
+     it through the same rider. */
+  const duplicateRoutine = async (src: any) => {
+    if (readonly || !src) return
+    const copy = await onAddItem?.({
+      kind: 'routine', scope: 'week', status: 'parked', source: 'bb',
+      title: copyName(src.title, routines),
+      spec: src.spec ?? null,
+      cadence_days: src.cadence_days || '',
+      cadence_count: src.cadence_count ?? null,
+      cadence_rule: src.cadence_rule ?? null,
+      scheduled_time: src.scheduled_time ?? null,
+      notes: src.notes ?? null,
+      accent: src.accent,
+      position: routines.length,
+      ...(src.parent_id ? { parent_id: src.parent_id } : {}),
+    })
+    if (copy?.id) setSel({ kind: 'routine', id: copy.id })
+  }
+
+  /* The paste pane, opened DIRECTLY. It rides inside the shelf because a bundle
+     writes library entries as well as routines, but that is an implementation fact
+     and it had become the user's problem: importing meant selecting a routine, to
+     reach the forge, to press Library, to press Paste — and with NO routine yet,
+     `onOpenShelf` was wired only into RoutineForge, so a brand-new board could not
+     import a routine at all. Import is how the first one arrives. It belongs next
+     to "+ New routine", where the other way to get one already is. */
+  const openPaste = () => { setShelf({}); setPasting(true) }
+
   const addBranch = async () => {
     if (readonly || selected?.kind !== 'goal') return
     const goal = selected.node
@@ -244,9 +287,24 @@ export function WorkshopView(props: any) {
             />
           ))}
           {!readonly && (
-            <TButton quiet onClick={() => addRoutine()} style={{ padding: 11, borderStyle: 'dashed', cursor: 'pointer' }}>
-              + New routine
-            </TButton>
+            /* THE TWO WAYS A ROUTINE ARRIVES, side by side. One is typed, one is
+               pasted, and the pasted one is the common case for anything written
+               by an assistant — which is the shape this whole format was built
+               around. Hiding it three clicks inside the library made the app's own
+               import contract look like a `curl` feature again. */
+            <div style={{ display: 'flex', gap: 7 }}>
+              <TButton quiet onClick={() => addRoutine()} style={{ flex: 1, padding: 11, borderStyle: 'dashed', cursor: 'pointer' }}>
+                + New routine
+              </TButton>
+              <TButton
+                quiet
+                onClick={openPaste}
+                title="Paste a routine — a bundle, a single document, or a library export. A fenced ```json block from an assistant works as-is."
+                style={{ flex: 'none', padding: '11px 13px', borderStyle: 'dashed', cursor: 'pointer' }}
+              >
+                ⇪ Import
+              </TButton>
+            </div>
           )}
         </div>
       </div>
@@ -266,6 +324,7 @@ export function WorkshopView(props: any) {
             onUpdateItem={onUpdateItem}
             onDelete={onDelete}
             onOpenShelf={(onPick?: (entry: any) => void) => setShelf({ onPick })}
+            onDuplicate={() => duplicateRoutine(selected.node)}
             shelfCount={libCount}
           />
         ) : selected?.kind === 'goal' ? (
@@ -311,7 +370,14 @@ export function WorkshopView(props: any) {
                 <RoutineImport
                   api={api}
                   readonly={readonly}
-                  onClose={() => setPasting(false)}
+                  /* Closing the paste pane closes the SHELF, not just the pane.
+                     It used to fall back to the library browser, which is right
+                     when you arrived through it and wrong now that "⇪ Import" on
+                     the rail opens this pane directly — backing out of an import
+                     you decided against should not land you in a library you never
+                     asked to see. The browser's own ⇪ Paste is one click away if
+                     that is where you were. */
+                  onClose={closeShelf}
                   /* Straight onto the first routine imported. An import that lands you
                      back on the shelf leaves you hunting the row you just made, and the
                      forge is where you would go next anyway — the ladder is the thing you
@@ -605,6 +671,19 @@ function Leaf({ node, tint, delay, readonly, onSelect, onToggle, items, nested }
       {chip}
     </div>
   )
+}
+
+/* "Squats" → "Squats (copy)" → "Squats (copy 2)". Named rather than suffixed with
+   a number alone because the rail sorts routines together and two rows reading
+   "Squats" and "Squats 2" do not say which one is the fork you just made and have
+   not renamed yet. Walks the existing titles so a third fork does not collide with
+   the second. */
+function copyName(title: string, routines: any[]) {
+  const base = String(title || 'Routine').replace(/\s*\(copy(?: \d+)?\)$/, '')
+  const taken = new Set(routines.map((r: any) => r.title))
+  let name = `${base} (copy)`
+  for (let n = 2; taken.has(name); n++) name = `${base} (copy ${n})`
+  return name
 }
 
 function fmtTarget(iso: string) {

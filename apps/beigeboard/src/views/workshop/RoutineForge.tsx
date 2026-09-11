@@ -86,7 +86,7 @@ type Tab = 'ladder' | 'history' | 'revisions'
 
 export function RoutineForge({
   routine, items, goals, api, today, readonly,
-  onToggle, onUpdateItem, onDelete, onOpenShelf, shelfCount,
+  onToggle, onUpdateItem, onDelete, onDuplicate, onOpenShelf, shelfCount,
 }: any) {
   /* The spec is held NORMALISED in local state, not as the raw column. Normalising
      on every keystroke would fight the user (a half-typed number is not a number);
@@ -108,6 +108,22 @@ export function RoutineForge({
   const [tab, setTab] = useState<Tab>('ladder')
   const [revisions, setRevisions] = useState<any[] | null>(null)
   const [chartMeasure, setChartMeasure] = useState('load')
+  /* THE NAME. It was a dead <span> — the one field on a routine with no editor
+     anywhere in the app. Goals reach the DetailPanel's inline rename through the
+     forge title's onSelect; a routine has no DetailPanel route (this pane is not
+     handed onSelect, and an occurrence's panel renames the SESSION, not the
+     standing order), so a routine simply could not be renamed. Renaming is the
+     most ordinary edit there is and it was the only impossible one.
+
+     Inline, on the title itself, with the DetailPanel's idiom (a `bare` field on a
+     rule; Enter commits, Escape reverts, blur commits) so the two renames in the
+     app are one gesture. It writes through onUpdateItem immediately rather than
+     joining the document's Save, for the same reason the cadence band does: a name
+     is not part of the spec, and an unsaved ladder should never hold it hostage. */
+  const [naming, setNaming] = useState(false)
+  const [nameDraft, setNameDraft] = useState('')
+  const nameRef = React.useRef<HTMLInputElement>(null)
+  const [confirmDelete, setConfirmDelete] = useState(false)
   /* The full shelf is OWNED BY THE WORKSHOP, not by this pane. The inline picker
      below is faster when you know the name; the shelf is for when you do not — and
      it is the only place an entry's ladder and default progression can be READ
@@ -127,7 +143,24 @@ export function RoutineForge({
   useEffect(() => {
     setSpec(normalizeSpec(routine?.spec).spec)
     setDirty(false); setWarnings([]); setRevisions(null)
+    /* The head's transient state is per-routine too: an armed delete or a half-typed
+       rename left over from the row you were just on would be pointed at this one. */
+    setNaming(false); setConfirmDelete(false)
   }, [routine?.id])
+
+  useEffect(() => { if (naming) nameRef.current?.select() }, [naming])
+
+  /* An armed delete DISARMS ITSELF. onBlur alone is not enough to rely on: a
+     <button> is not guaranteed to take focus on click in every browser, and a
+     delete that silently stays armed is worse than no confirmation at all — the
+     next click on what now reads as an ordinary button destroys the routine and
+     every session it minted. The timer is the guarantee; the blur below is the
+     courtesy that disarms it the moment you look elsewhere. */
+  useEffect(() => {
+    if (!confirmDelete) return
+    const t = setTimeout(() => setConfirmDelete(false), 4000)
+    return () => clearTimeout(t)
+  }, [confirmDelete])
 
   /* The library is fetched once and kept — it is the vocabulary, it changes rarely,
      and the picker has to feel instant or people will type steps by hand and lose
@@ -171,6 +204,38 @@ export function RoutineForge({
     } finally { setSaving(false) }
   }
 
+  const commitName = () => {
+    const v = nameDraft.trim()
+    // An empty name is a slip, not an instruction: the rail would draw a nameless
+    // row and there would be nothing left to click to fix it.
+    if (v && v !== routine.title) onUpdateItem?.(routine.id, { title: v })
+    setNaming(false)
+  }
+
+  /* EXPORT ONE ROUTINE, as the document the import pane eats. The library already
+     had this (↓ Export, inside the shelf) and a routine — the thing you actually
+     want to keep, diff, hand to someone, or paste to an assistant as "here is my
+     programme, write me a variation" — did not. It is the other half of ⇪ Import,
+     and a format with a door in and no door out is a format you cannot trust.
+
+     `GET /api/routines/:id` already returns `document`, the same shape the import
+     contract accepts, so this is a fetch and a Blob — no new endpoint, and no
+     second definition of what a routine looks like on the wire to drift from the
+     first. Wrapped as a bundle (`{ routines: [...] }`) because that is what the
+     paste pane and /api/routines/bundle both take, so a file exported here can be
+     pasted straight back without being edited by hand. */
+  const exportRoutine = () => {
+    api?.get(`/api/routines/${routine.id}`).then((r: any) => {
+      const doc = r?.document || r
+      const blob = new Blob([JSON.stringify({ routines: [doc] }, null, 2)], { type: 'application/json' })
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob)
+      a.download = `${slugify(routine.title || 'routine') || 'routine'}.json`
+      a.click()
+      URL.revokeObjectURL(a.href)
+    }).catch(() => { /* best effort — the button is a convenience, not a contract */ })
+  }
+
   const addStep = (entry?: any) => edit((d) => {
     if (d.steps.length >= LIMITS.steps) return
     const raw = entry
@@ -200,6 +265,7 @@ export function RoutineForge({
     [items, routine.id],
   )
   const metric = useMemo(() => metricOf(spec, occurrences, today || isoDate(new Date())), [spec, occurrences, today])
+  const parked = (routine.status || 'active') !== 'active'
 
   const shown = useMemo(() => {
     const list = (library || []).filter((e) => e.collection === collection)
@@ -222,9 +288,42 @@ export function RoutineForge({
           <span className="mono-eyebrow">HOW OFTEN · WHAT THE SESSION IS · HOW IT GETS HARDER</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16, marginTop: 12, flexWrap: 'wrap' }}>
-          <span style={{ fontFamily: FONT_HEAD, fontWeight: 700, fontSize: '1.85rem', lineHeight: 1, letterSpacing: '-0.02em' }}>
-            {routine.title}
-          </span>
+          {naming && !readonly ? (
+            <Field
+              bare
+              ref={nameRef}
+              autoFocus
+              value={nameDraft}
+              onChange={(e) => setNameDraft(e.target.value)}
+              onBlur={commitName}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+                if (e.key === 'Escape') { setNameDraft(routine.title); setNaming(false) }
+              }}
+              /* `bare` drops the face, the border and the outline; what is added
+                 back is only what this edit needs — the rule it is written on, and
+                 the display type it has to match so the name does not jump size
+                 between reading it and typing it. */
+              style={{
+                fontFamily: FONT_HEAD, fontWeight: 700, fontSize: '1.85rem', lineHeight: 1,
+                letterSpacing: '-0.02em', padding: 0, minWidth: 240, flex: '0 1 420px',
+                borderBottom: '1px solid var(--color-accent)',
+              }}
+            />
+          ) : (
+            <Press
+              large
+              className={readonly ? undefined : 'jk-hit'}
+              onClick={readonly ? undefined : () => { setNameDraft(routine.title); setNaming(true) }}
+              title={readonly ? undefined : 'Click to rename'}
+              style={{
+                fontFamily: FONT_HEAD, fontWeight: 700, fontSize: '1.85rem', lineHeight: 1,
+                letterSpacing: '-0.02em', cursor: readonly ? 'default' : 'text',
+              }}
+            >
+              {routine.title}
+            </Press>
+          )}
           <span className="mono-eyebrow" style={{ marginBottom: 5 }}>
             {(summarize(spec) || 'NO STEPS YET').toUpperCase()}
           </span>
@@ -240,6 +339,85 @@ export function RoutineForge({
             </TButton>
           </div>
         </div>
+
+        {/* ── THE ROUTINE'S OWN VERBS ─────────────────────────────────────────
+            Everything you do to the routine AS A ROUTINE — fork it, take a copy
+            out, stop it, destroy it — on one visible row directly under its name.
+
+            They were scattered or missing: park and delete sat in the bottom-right
+            corner of the cadence band, which is the panel answering WHEN IT FIRES
+            and had no business holding the routine's existence; duplicate and
+            export did not exist at all. Kept as flat quiet buttons rather than
+            collected behind a ⋯ menu on purpose — this workshop's whole doctrine
+            is that the state is visible and there is no mode (see WorkshopView's
+            header), and a row of four short words costs one line and no click. */}
+        {!readonly && (
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 10, flexWrap: 'wrap' }}>
+            {/* BOTH OF THESE READ THE SAVED ROW — the fork copies the stored `spec`
+                column, and Export is a GET. With an unsaved document on screen they
+                would quietly hand you the PREVIOUS version: a fork that is not the
+                variation you were just typing, or a file that does not match what
+                you are looking at. Neither failure announces itself, and a wrong
+                exported file is discovered much later, so they are held shut until
+                Save rather than allowed to lie. */}
+            <TButton
+              quiet
+              disabled={dirty}
+              onClick={onDuplicate}
+              title={dirty
+                ? 'Save first — a fork copies the saved document, not what is on screen'
+                : 'Fork this routine — same steps, progression and cadence, new name, parked until you start it'}
+              style={{ padding: '2px 9px', cursor: dirty ? 'default' : 'pointer' }}
+            >
+              ⧉ Duplicate
+            </TButton>
+            <TButton
+              quiet
+              disabled={dirty}
+              onClick={exportRoutine}
+              title={dirty
+                ? 'Save first — Export downloads the saved document, not what is on screen'
+                : 'Download this routine as the document the import pane accepts — keep it, diff it, or hand it to an assistant to write a variation'}
+              style={{ padding: '2px 9px', cursor: dirty ? 'default' : 'pointer' }}
+            >
+              ↓ Export
+            </TButton>
+            <TButton
+              quiet
+              title={parked
+                ? 'Start minting sessions from this routine again.'
+                : 'Stop minting sessions. The schedule is kept, and nothing already on the board is removed.'}
+              onClick={() => onUpdateItem?.(routine.id, { status: parked ? 'active' : 'parked' })}
+              style={{ padding: '2px 9px', cursor: 'pointer' }}
+            >
+              {parked ? '▶ Resume' : '❙❙ Park'}
+            </TButton>
+            {/* DELETE ASKS, and it is the only verb here that does. It is not the
+                one row it looks like: the server cascades, and deleting a routine
+                takes EVERY session it ever minted with it (backend routes/items.js
+                — matched on ext_ref, so occurrences that were dragged elsewhere go
+                too). Months of a training log can leave on a mis-click next to
+                Park, and none of it comes back. Two clicks in place rather than a
+                window.confirm: the arming state is visible, Escape-able by
+                clicking anything else, and does not steal the page. */}
+            <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+              {confirmDelete && (
+                <span className="mono-eyebrow" style={{ color: 'var(--color-accent)' }}>
+                  THIS TAKES ITS {occurrences.length} SESSION{occurrences.length === 1 ? '' : 'S'} TOO
+                </span>
+              )}
+              <TButton
+                quiet
+                onClick={() => (confirmDelete ? onDelete?.(routine.id) : setConfirmDelete(true))}
+                onBlur={() => setConfirmDelete(false)}
+                title="Delete this routine and every session it has minted"
+                style={{ padding: '2px 9px', cursor: 'pointer', color: confirmDelete ? 'var(--color-accent)' : undefined }}
+              >
+                {confirmDelete ? '✕ Delete for good?' : '✕ Delete'}
+              </TButton>
+            </span>
+          </div>
+        )}
 
         {/* ── The cadence, above the document ────────────────────────────────
             HOW OFTEN and WHAT IT IS were two screens behind two badges until the
@@ -258,7 +436,6 @@ export function RoutineForge({
             readonly={readonly}
             onToggle={onToggle}
             onUpdateItem={onUpdateItem}
-            onDelete={onDelete}
           />
         </div>
       </div>
