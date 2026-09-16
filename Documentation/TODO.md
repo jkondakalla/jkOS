@@ -319,6 +319,16 @@ a shared package.
    backwards 300→30 s (repaint), a jump forwards 10→200 s, and a track change 3@200→4@20 (reset,
    no residue of the previous track). All four: **0 differing pixels**; a control pair differs by
    14,227, so the comparison is not trivially zero.
+   ⚠️ **2026-09-16 — why staging showed nothing: no mesh store had ever been shipped.**
+   `/mnt/Luna/Backends/Staging/kouros-data/` held no `music-meshes.db` (and no `music-index.db`),
+   so `/api/discover/mesh/:id` answered `unavailable` — nginx logged 200s with a 60-byte body — and
+   the component correctly rendered nothing. Shipped a **95-mesh** store there (both Mick Gordon
+   DOOM albums, 90 tracks built in 141 s, plus the five `!!!` meshes) via `mesh.py --ship`, then an
+   atomic rename; checksums match. KourOS re-opens an unavailable store every 5 min, so no restart.
+   This is a deliberately small fill of what was being played, NOT a fill policy — D5 is still open.
+   ⚠️ A glob over album folders silently matches nothing: `[FLAC] [24B-48kHz]` is a character
+   class. List the directory instead. Stills of the real component on this mesh:
+   `Documentation/Images/kouros-pulsarmap-{paper,dark,dark-long-track}.png` (gitignored).
    ⚠️ **Still unseen: the `NowPlaying` mount itself** — `position` there is `p.globalPos` off a real
    media element, and the harness drove `position` directly. That is a one-line prop, but it is the
    half no scratch harness can reach; it is seen the first time the view is opened on a deploy with
