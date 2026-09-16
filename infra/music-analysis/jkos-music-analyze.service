@@ -1,0 +1,29 @@
+[Unit]
+Description=jkOS music analysis watcher (vectors, descriptors, pulsarmap meshes → KourOS)
+Documentation=file:///media/jag/The%%20Forge/jkOS/infra/music-analysis/README.md
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/media/jag/The Forge/jkOS/music
+# The target and key. Optional (`-`): without it the watcher still analyses and
+# snapshots into music/out/, and says every cycle that delivery is not configured.
+EnvironmentFile=-%h/.config/jkos/music-analysis.env
+# ⚠️ QUOTED, because the repo lives under "The Forge". Unquoted, systemd splits the
+# path at the space and tries to execute /media/jag/The — which is exactly how all
+# three backup units shipped until 2026-09-16 (`systemd-analyze verify` catches it).
+ExecStart="/media/jag/The Forge/jkOS/music/.venv/bin/python" analyze.py --watch
+# SIGTERM drains the stage in flight and commits; 130 is that clean stop, not a crash.
+KillSignal=SIGTERM
+TimeoutStopSec=90
+SuccessExitStatus=130
+# A cycle that fails is logged and retried by the watcher itself. What restarts the
+# unit is a crash — a bug, or `runlock.Busy` while a hand-started run holds the lock.
+Restart=on-failure
+RestartSec=60
+# This is a desktop: new music can wait for a game or a build.
+Nice=10
+IOSchedulingClass=idle
+
+[Install]
+WantedBy=default.target

@@ -81,6 +81,7 @@ import audio
 import config
 import encoder
 import index
+import runlock
 import scan
 
 # 3 readers, measured: the CIFS mount plateaus there, and a fourth thread buys
@@ -396,8 +397,11 @@ def _main(argv=None):
         def report(progress):
             print('\r' + progress.line(), end='', file=sys.stderr, flush=True)
 
-        progress = run(conn, rows, workers=args.workers, max_windows=max_windows,
-                       prefetch=args.prefetch, report=report)
+        # One writer at a time (runlock.py): the watcher, control.py's Resume and a
+        # hand-typed run would otherwise embed the same pending rows twice.
+        with runlock.hold('backfill.py'):
+            progress = run(conn, rows, workers=args.workers, max_windows=max_windows,
+                           prefetch=args.prefetch, report=report)
         print(f'\n{progress.done} embedded, {progress.failed} failed, '
               f'{_hms(progress.elapsed)} elapsed', file=sys.stderr)
         print(index.stats(conn), file=sys.stderr)
@@ -405,7 +409,8 @@ def _main(argv=None):
             print(f'\n⚠️  RUN ABORTED — {progress.aborted}', file=sys.stderr)
             return 2
         return 0
-    except (index.ConfigDriftError, encoder.EncoderError, audio.DecodeError) as exc:
+    except (index.ConfigDriftError, encoder.EncoderError, audio.DecodeError,
+            runlock.Busy) as exc:
         # The project's own exception types, each of which already carries a
         # sentence explaining what to do. A traceback would bury it.
         print(f'\n{type(exc).__name__}: {exc}', file=sys.stderr)

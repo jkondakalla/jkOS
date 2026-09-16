@@ -33,7 +33,7 @@ import { promisify } from 'node:util';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, renameSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 
 const execFileAsync = promisify(execFile);
@@ -45,14 +45,14 @@ const FIXTURES_DIR = join(__dirname, 'fixtures', 'library');
 // Claimed in the suite-manifest port registry ('kouros:discover.smoke') — the
 // `port-registry` probe holds this literal to that claim.
 //
-// ⚠️ This smoke is the one that boots FOUR servers, and the registry can only see
-// the literal above. The other three therefore sit in a band 100 above it, clear of
+// ⚠️ This smoke is the one that boots FIVE servers, and the registry can only see
+// the literal above. The other four therefore sit in a band 100 above it, clear of
 // the whole 398x/399x test range — they used to be PORT+1..PORT+3, and PORT+3 was
 // 3986, which is BeigeBoard's delta.smoke claim. That is OPS-1 exactly: a second
 // server on a claimed port, invisible to the table.
 const PORT = 3983;
 const BASE = `http://127.0.0.1:${PORT}`;
-const SPARE_PORTS = [PORT + 100, PORT + 101, PORT + 102];
+const SPARE_PORTS = [PORT + 100, PORT + 101, PORT + 102, PORT + 103];
 // The /health payload must name THIS app. A bare 200 once passed eight
 // assertions against a stray server from ANOTHER app on a shared port (OPS-1);
 // the uniform health contract carries the app id precisely so a smoke can tell.
@@ -182,15 +182,17 @@ async function req(base, method, path) {
   return { status: r.status, json };
 }
 
-async function boot({ port, dbPath, vectorDbPath, meshDbPath, libraryRootName }) {
+async function boot({ port, dbPath, vectorDbPath, meshDbPath, libraryRootName,
+                      musicDir = FIXTURES_DIR, expectTracks = TRACKS.length, env = {} }) {
   const child = spawn('node', ['server.js'], {
     cwd: BACKEND,
     env: {
       ...process.env,
+      ...env,
       NODE_ENV: '',
       PORT: String(port),
       DB_PATH: dbPath,
-      MUSIC_DIR: FIXTURES_DIR,
+      MUSIC_DIR: musicDir,
       VECTOR_DB_PATH: vectorDbPath,
       // Absent by default, so a server that is not given one exercises the
       // "there is no store" branch rather than accidentally finding a sibling's.
@@ -233,7 +235,7 @@ async function boot({ port, dbPath, vectorDbPath, meshDbPath, libraryRootName })
   const tracksDeadline = Date.now() + 30000;
   while (Date.now() < tracksDeadline) {
     const r = await req(base, 'GET', '/api/tracks');
-    if (Array.isArray(r.json) && r.json.length >= TRACKS.length) break;
+    if (Array.isArray(r.json) && r.json.length >= expectTracks) break;
     await new Promise((r2) => setTimeout(r2, 300));
   }
   return server;
@@ -438,6 +440,75 @@ try {
   const badMesh = (await req(bad.base, 'GET', `/api/discover/mesh/${filled.id}`)).json;
   ok(badMesh?.state !== 'ok',
     `mesh: a wrong LIBRARY_ROOT_NAME breaks the join (got ${JSON.stringify(badMesh?.state)})`);
+
+  /* ── 7. a delivery, picked up by a running server ──────────────────────────────
+     What `music/analyze.py --watch` does to a live KourOS: a new album lands on the
+     shelf, the workstation analyses it, and rsync REPLACES both analysis files
+     (write a temp file, rename over). Three things must then happen with no restart,
+     and before this section none of them did:
+       · the mesh store is reopened — a handle held open forever reads the unlinked
+         inode and serves the old store for the life of the process;
+       · the vector space is rebuilt from the new index;
+       · the catalog is rescanned, because nothing else in KourOS walks MUSIC_DIR —
+         the upload's vectors would arrive and its TRACK would not. */
+  const TTL = 400;
+  const liveLib = join(tmp, 'live-library');
+  const uploaded = TRACKS[2];
+  for (const rel of TRACKS.slice(0, 2)) {
+    mkdirSync(dirname(join(liveLib, rel)), { recursive: true });
+    cpSync(join(FIXTURES_DIR, rel), join(liveLib, rel));
+  }
+  const liveIndex = join(tmp, 'live-index.db');
+  const liveMeshes = join(tmp, 'live-meshes.db');
+  buildIndex(liveIndex, { tracks: TRACKS.slice(0, 2) });
+  buildMeshStore(liveMeshes, { tracks: TRACKS.slice(0, 1) });
+  const live = await boot({
+    port: SPARE_PORTS[3], dbPath: join(tmp, 'live.db'), vectorDbPath: liveIndex,
+    meshDbPath: liveMeshes, libraryRootName: 'Music', musicDir: liveLib, expectTracks: 2,
+    env: { DISCOVER_TTL_MS: String(TTL) },
+  });
+  const before = (await req(live.base, 'GET', '/api/discover/stats')).json;
+  ok(before?.tracks === 2 && before?.measured === 2 && before?.meshes?.meshes === 1,
+    `delivery: starts at 2 tracks, 2 measured, 1 mesh (got ${before?.tracks}/${before?.measured}/${before?.meshes?.meshes})`);
+
+  // An idle TTL is a stat, not a rebuild.
+  const builds = () => (live.log().match(/space built in/g) || []).length;
+  const buildsBefore = builds();
+  await new Promise((r) => setTimeout(r, TTL * 2));
+  await req(live.base, 'GET', '/api/discover/stats');
+  await req(live.base, 'GET', '/api/discover/stats');
+  ok(builds() === buildsBefore,
+    `delivery: a lapsed TTL over an unchanged index does not rebuild (${buildsBefore} → ${builds()})`);
+
+  // The upload, then the delivery — each file built beside its target and renamed over it.
+  mkdirSync(dirname(join(liveLib, uploaded)), { recursive: true });
+  cpSync(join(FIXTURES_DIR, uploaded), join(liveLib, uploaded));
+  buildIndex(`${liveIndex}.next`, { tracks: TRACKS });
+  buildMeshStore(`${liveMeshes}.next`, { tracks: TRACKS });
+  renameSync(`${liveIndex}.next`, liveIndex);
+  renameSync(`${liveMeshes}.next`, liveMeshes);
+  await new Promise((r) => setTimeout(r, TTL * 2));
+
+  let after = null;
+  const deadline = Date.now() + 20000;
+  while (Date.now() < deadline) {
+    after = (await req(live.base, 'GET', '/api/discover/stats')).json;
+    if (after?.tracks === 3 && after?.measured === 3 && after?.meshes?.meshes === 3) break;
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  ok(after?.meshes?.meshes === 3,
+    `delivery: the replaced mesh store is reopened, not read through the old inode (got ${after?.meshes?.meshes})`);
+  ok(after?.tracks === 3,
+    `delivery: the replaced analysis triggers a rescan that catalogs the upload (got ${after?.tracks} tracks)`);
+  ok(after?.measured === 3,
+    `delivery: the upload is MEASURED from the new index, not inferred (got ${after?.measured})`);
+  ok(/rescanning for the music it describes/.test(live.log()),
+    'delivery: the server says why it rescanned');
+  const liveTracks = (await req(live.base, 'GET', '/api/tracks')).json || [];
+  const solo = liveTracks.find((t) => /solo/i.test(t.title || ''));
+  const soloMesh = solo && (await req(live.base, 'GET', `/api/discover/mesh/${solo.id}`)).json;
+  ok(soloMesh?.state === 'ok',
+    `delivery: the upload's pulsarmap is served (got ${JSON.stringify(soloMesh?.state)})`);
 } catch (err) {
   fail++;
   console.error('  ✗ threw: ' + (err && err.stack || err));

@@ -96,6 +96,12 @@ Each is a measurement or a physical fact, not a preference. That is the only tes
 
 ## 0a · The embedding run is PAUSED, not finished — how to not destroy it
 
+> **2026-09-16 — resumed.** Jag asked for the full sequence and the machine time to run it. The
+> vectors resumed with `backfill.py` exactly as below, and `music/analyze.py` now runs everything
+> this section says is owed — descriptors and pulsarmap meshes in one decode, fit, gate, ship —
+> then watches the shelf. `analyze.py --status` is the current state; the table below is the
+> state this section was written against. **The four files below still invalidate everything.**
+
 **Stopped deliberately at 15:11 on 2026-08-26 so this refactor could have the machine.** It is
 resumable to the exact track, and it stays that way only if you leave four files alone. Read this
 before you touch `music/`.
@@ -170,7 +176,9 @@ Everything else in `music/` — `query.py`, `descriptors.py`, `ridge.py`, `ship.
 
 ### What is still owed after the resume
 
-`descriptors.py --build --encoded` → `query.py --fit` → `query.py --gate` → `ship.py`.
+`descriptors.py --build --encoded` → `query.py --fit` → `query.py --gate` → `ship.py` — since
+2026-09-16 one command, `music/analyze.py`, which runs them in order and refuses to ship past a
+failed gate.
 **`--fit` is not optional**: it fits the corpus geometry into `meta`, and KourOS ranks on the
 *centred* space (§8.8). Ship an index that was never fitted and every served cosine is raw —
 strangers at +0.48 instead of −0.03, the two arms on incompatible scales, and `makeRun`

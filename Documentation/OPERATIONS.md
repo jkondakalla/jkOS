@@ -326,6 +326,7 @@ curl -sk https://jkos.net/ -o /dev/null -w "%{http_code}\n"
 | Staging data | `/mnt/Luna/Backends/Staging/<svc>-data/` |
 | SSL certs | `/mnt/Luna/Backends/ssl/cert.pem` + `key.pem` |
 | nginx logs | `/mnt/Luna/Backends/Production/nginx-logs/` |
+| Music analysis (KourOS `/analysis`, both envs, `:ro`) | `/mnt/Luna/jkos-analysis/` — its own dataset, not snapshotted, written only by the rrsync-restricted delivery key. Setup and operation: [infra/music-analysis/README.md](../infra/music-analysis/README.md) |
 
 nginx mounts its config from the **staging checkout**
 (`/mnt/Luna/Webhost/jkOS-staging/infra/nginx/standalone.conf`). Edit that copy when

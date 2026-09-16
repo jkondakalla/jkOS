@@ -41,7 +41,7 @@ const ok = (name, cond, extra = '') => { if (cond) { pass++; } else { fail++; co
 
 // ── Boot ─────────────────────────────────────────────────────────────────────
 const tmp = mkdtempSync(join(tmpdir(), 'jkauth-multiuser-'));
-// Band clear of the test-port registry (3980–3996) + discover spares (4083–4085).
+// Band clear of the test-port registry (3980–3996) + discover spares (4083–4086).
 const port = 5500 + Math.floor(Math.random() * 500);
 const base = `http://127.0.0.1:${port}`;
 let serverLog = '';

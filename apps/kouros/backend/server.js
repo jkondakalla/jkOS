@@ -99,7 +99,23 @@ const scanner = createScanner({
    exist yet at this point — migrations run below) and rebuilt whenever a scan
    changes the catalog, so a rescan that adds an album is reflected without waiting
    out its TTL. */
-const discovery = createDiscovery({ db, vectorDbPath: VECTOR_DB_PATH, meshDbPath: MESH_DB_PATH, libraryRootName: LIBRARY_ROOT_NAME, musicDir: MUSIC_DIR });
+const discovery = createDiscovery({
+  db, vectorDbPath: VECTOR_DB_PATH, meshDbPath: MESH_DB_PATH, libraryRootName: LIBRARY_ROOT_NAME, musicDir: MUSIC_DIR,
+  // How long an analysis file is trusted before its identity is re-read. Only the
+  // smoke sets this; five minutes is the right answer for a person.
+  ttlMs: Number(process.env.DISCOVER_TTL_MS) > 0 ? Number(process.env.DISCOVER_TTL_MS) : undefined,
+  /* An analysis delivery means the workstation's watcher found new music on the
+     shelf — so walk it. The same incremental scan the boot runs (unchanged files
+     are skipped by mtime, a scan in flight is joined), and its onScanComplete above
+     drops the space so the upload's track and its vectors arrive together. Not
+     awaited, exactly like the boot scan: a request must never wait on a walk. */
+  onAnalysisChanged: (what) => {
+    console.log(`[kouros scan] ${what} was replaced — rescanning for the music it describes`);
+    scanner.scanLibrary()
+      .then((counts) => console.log(`[kouros scan] analysis-triggered scan complete: ${JSON.stringify(counts)}`))
+      .catch((err) => console.error(`[kouros scan] analysis-triggered scan failed: ${err.message}`));
+  },
+});
 
 /* ── Migrations ────────────────────────────────────────────────────────────
    `tracks` is a SHARED catalog (no user_id — every user sees the same library) that

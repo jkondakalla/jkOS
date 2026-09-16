@@ -393,6 +393,17 @@ that code can reopen it.
   that stops the run (leaving rows `pending`, not `failed`) rather than trusting each failure in
   isolation.
 
+- **An open SQLite handle survives an atomic rename-replace of its file, and reads the unlinked
+  inode for the life of the process.** `rename(new, served)` is exactly how a safe delivery works
+  (rsync's temp-file-then-rename; `ship.py`'s `.partial` → `os.replace`), and it is invisible to a
+  reader that opened the old file: no error, no stale-file warning, just the previous contents
+  forever. KourOS held its mesh store open "because a row is correct the moment it lands", which is
+  true of rows written INTO the file and false of a file replaced WHOLE — so no delivered mesh would
+  ever have been served until a restart. Same class as the nginx bind-mount inode trap below. Fix:
+  compare the path's identity (inode · size · mtime, and the `-wal`'s) on a TTL and reopen on change
+  (`apps/kouros/backend/src/discover/index.js`, `fileIdentity`); the smoke replaces both files under
+  a live server.
+
 ## Dates, clocks & timezones
 
 - **A server that turns an instant into a calendar day has already picked a timezone — the only
@@ -556,6 +567,13 @@ that code can reopen it.
   probing and again in an SVG renderer, where an unescaped `&` in a path produced XML that failed
   to open at all.
 
+- **A music file that exists is not a file that is finished.** `music/Downloader/Qobuz.py`
+  writes `<name>.flac.part`, renames it to `.flac`, and THEN rewrites it in place to tag it; an SMB
+  copy writes straight to the final name, and some copy tools stamp the *source's* old mtime on a
+  file still being written. Analysed early, a track is marked `failed` and leaves every queue. So
+  `analyze.py` counts a new or changed file only once its mtime is 120 s old **and** its
+  (mtime, size) matched on two consecutive walks — the age rule alone passes the old-mtime copy.
+
 ## Docker, deploy & infra
 
 - **A single-*file* Docker bind mount pins to the file's original inode, and `git reset --hard`
@@ -687,6 +705,14 @@ that code can reopen it.
   whatever way that tool fails — `test/supply-chain.mjs` reported it as "registry unreachable",
   which sent the search in exactly the wrong direction. **Always `fileURLToPath(import.meta.url)`.**
   The same space is why every shell invocation in this repo has to quote the path.
+
+- **systemd splits an unquoted `ExecStart=` path at a space, and `%` in any unit value is a
+  specifier.** `ExecStart=/media/jag/The Forge/jkOS/…` runs `/media/jag/The` with `Forge/jkOS/…` as
+  its argument; `Documentation=file:///…/The%20Forge/…` fails as "Invalid slot". Every backup unit
+  carried both until 2026-09-16 — including the failure-alert unit — and nothing noticed because
+  they had never been installed. Quote the path (`ExecStart="/media/jag/The Forge/…" args`), write
+  `%%20`, and run `systemd-analyze --user verify <unit>` on any unit before shipping it; it names
+  both defects in one line each and needs nothing installed.
 
 ## git & shell
 

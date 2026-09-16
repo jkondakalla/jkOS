@@ -234,9 +234,13 @@ host-dataset spelling mismatch that mounts cleanly empty rather than failing). T
 is `@jkos/player`'s second consumer, with its own queue/shuffle/repeat preferences
 persisted to `localStorage` (`kouros.player.queue`, `kouros.player.rate`) — see §5 for why
 that matters. A separate discovery layer (`backend/src/discover/`) serves similarity/radio/
-vibe-map results sourced from `music/`'s offline-computed vector index, mounted in as
-`VECTOR_DB_PATH`; when that file is absent every discovery surface degrades to metadata
-affinity rather than breaking.
+vibe-map results sourced from `music/`'s offline-computed vector index and pulsarmap
+meshes, read from a read-only `/analysis` mount (`VECTOR_DB_PATH`, `MESH_DB_PATH`); when a
+file is absent every discovery surface degrades to metadata affinity rather than breaking.
+Those files are built on the workstation by `music/analyze.py --watch` and delivered by a
+write-only rrsync key ([infra/music-analysis/README.md](../infra/music-analysis/README.md)).
+KourOS re-reads their identity on its discovery TTL, and a replaced file means new music: it
+reloads and **rescans the library**, so an upload's track arrives with its analysis.
 
 **LazurOS** (`apps/lazuros`, host network, port 8080) is the suite's AI gateway — an
 always-on Node "State node" plus a Python worker on the compute node. Every capability call

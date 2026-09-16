@@ -516,6 +516,41 @@ def stats(conn):
     }
 
 
+def check(conn):
+    """Every way a mesh store can be wrong on arrival — the counterpart of
+    `ship.check`, run against the SNAPSHOT rather than the live store. Returns
+    `stats()`; raises `MeshError` on a store KourOS would read without complaint.
+
+    KourOS's reader is built to degrade (a missing row is `pending`), so each of
+    these would reach the pulsarmap as a picture that is quietly wrong rather
+    than as an error: rows built under two recipes, a BLOB whose length disagrees
+    with its declared shape (a wrapped time axis), or a torn file.
+    """
+    problems = []
+    s = stats(conn)
+    if not s['meshes']:
+        problems.append('the store holds no meshes')
+    if s['meshes'] and not s['recipe']:
+        problems.append('no `mesh_recipe` in meta — nothing says what these pictures are')
+    kinds = conn.execute(
+        'SELECT COUNT(*) AS n FROM (SELECT DISTINCT n_mels, row_secs, value_lo, value_hi, '
+        'reduction, config_sig FROM meshes)').fetchone()['n']
+    if kinds > 1:
+        problems.append(f'rows were built under {kinds} different recipes — pictures of '
+                        f'different things in one store (ALGORITHMS.md §9)')
+    torn = conn.execute(
+        'SELECT COUNT(*) AS n FROM meshes WHERE LENGTH(rows) != n_rows * n_mels').fetchone()['n']
+    if torn:
+        problems.append(f'{torn} mesh(es) store a BLOB whose length is not rows × bands')
+    verdict = conn.execute('PRAGMA quick_check').fetchone()[0]
+    if verdict != 'ok':
+        problems.append(f'PRAGMA quick_check: {verdict}')
+    if problems:
+        raise MeshError('this mesh store would be read without complaint and draw wrongly:\n  - '
+                        + '\n  - '.join(problems))
+    return s
+
+
 def snapshot(src, dest):
     """A single fully-checkpointed file, atomically, from a live store.
 
@@ -684,7 +719,13 @@ def _main(argv=None):
             limit = args.pending or None
             todo = pending(idx, store, args.root_name, limit)
             print(f'{len(todo)} pending')
-            built, failed = fill(idx, store, args.root_name, limit, args.reduction)
+            import runlock
+            try:
+                with runlock.hold('mesh.py --pending'):
+                    built, failed = fill(idx, store, args.root_name, limit, args.reduction)
+            except runlock.Busy as exc:
+                print(f'Busy: {exc}', file=sys.stderr)
+                return 1
             print(f'built {built}, failed {failed}')
         s = stats(store)
         total = idx.execute('SELECT COUNT(*) AS n FROM tracks').fetchone()['n']

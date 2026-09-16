@@ -9,6 +9,14 @@
 // view of the library", knows when it was built, and rebuilds on an explicit
 // signal (a completed rescan) or when its TTL lapses — never in the middle of
 // serving a request.
+//
+// ⚠️ **A LAPSED TTL IS A QUESTION, NOT A REBUILD.** The analysis files are replaced
+// whole by `music/analyze.py`'s delivery (rsync writes a temp file and renames it),
+// so "has it changed" is a `stat`, and the answer is almost always no. Reloading
+// 47,000 vectors to find that out blocked the event loop every five minutes for
+// nothing — and reading a REPLACED file needs the opposite: a mesh store held open
+// forever keeps reading the unlinked inode, and never serves a single new mesh.
+const fs = require('fs');
 const { openVectorSpace, openFeatureSpace } = require('./vectors');
 const { openMeshStore } = require('./meshes');
 const { buildSpace } = require('./space');
@@ -22,36 +30,90 @@ const { ORIGIN } = require('./space');
  *  request path is not. */
 const TTL_MS = 5 * 60 * 1000;
 
+/** A source file's identity — inode, size and mtime of the file AND its `-wal`, or
+ *  null when the file is not there.
+ *
+ *  ⚠️ The `-wal` half is not decoration. In dev, VECTOR_DB_PATH can point straight at
+ *  the embedder's live `index.db`, where a backfill commits into `index.db-wal` and
+ *  leaves the main file's stat untouched for hours; an identity of the main file
+ *  alone would call that index unchanged while it gained thousands of vectors. */
+function fileIdentity(p) {
+  if (!p) return null;
+  const one = (f) => {
+    try { const s = fs.statSync(f); return `${s.ino}:${s.size}:${s.mtimeMs}`; } catch { return '-'; }
+  };
+  const main = one(p);
+  return main === '-' ? null : `${main}|${one(`${p}-wal`)}`;
+}
+
+/**
+ * @param {object} opts
+ * @param {number} [opts.ttlMs] how long a source is trusted before its identity is re-read
+ * @param {(what: string) => void} [opts.onAnalysisChanged] called when a delivered
+ *   analysis file is replaced (or first appears) under a running server — see below
+ */
 function createDiscovery({ db, vectorDbPath, meshDbPath = null, libraryRootName = 'Music',
-                          musicDir = null }) {
+                          musicDir = null, ttlMs = TTL_MS, onAnalysisChanged = null }) {
   let space = null;
   let projection = null;
   let mapCache = null;
   let builtAt = 0;
   let building = false;
+  // `undefined` = never looked; `null` = looked, no file. The difference is what
+  // keeps the first build at boot from reading as "the analysis changed".
+  let builtFrom;
+  let lastNotified = 0;
+
+  /* ⚠️ **NEW ANALYSIS MEANS NEW MUSIC, SO IT IS ALSO THE SIGNAL TO RESCAN.** The
+     watcher on the workstation analyses a file only once it has landed on the
+     shelf, and delivers only when it analysed something — so a replaced analysis
+     file is the one event that reliably says the catalog is behind. Without this,
+     an upload's vectors and mesh would arrive and its TRACK would not: nothing in
+     KourOS walks MUSIC_DIR except the boot scan and an admin's rescan.
+     Read-driven like the TTL itself (no timer — the suite has no scheduler), and
+     debounced to one TTL, because one delivery replaces two files. */
+  function sourceChanged(what, before, after) {
+    console.log(`[kouros discover] ${what} changed on disk — reloading`);
+    if (before === undefined || after === null || typeof onAnalysisChanged !== 'function') return;
+    if (Date.now() - lastNotified < ttlMs) return;
+    lastNotified = Date.now();
+    try { onAnalysisChanged(what); } catch (err) {
+      console.warn(`[kouros discover] onAnalysisChanged failed: ${err.message}`);
+    }
+  }
 
   /* The pulsarmap store, held OPEN across requests rather than snapshotted into
      memory like the vector space: 47,441 meshes is ~800 MB, so they are read one
-     at a time. It is therefore not part of `build()` and does not go stale — a row
-     is correct the moment it lands.
+     at a time. A row is correct the moment it lands.
 
-     The one thing that can change under it is the FILE APPEARING, which is the
-     normal case: the fill runs on its own schedule and the store may not exist at
-     boot. So an unavailable store is retried on the same TTL the space rebuilds
-     on, and an available one is never reopened. */
+     Two things can change under it, and both are normal: the file APPEARING (the
+     store may not exist at boot), and the file being REPLACED by a delivery. Both
+     are answered on the same TTL the space uses — an unavailable store is retried,
+     an available one has its identity re-read and is reopened only if it moved. */
   let meshes = null;
   let meshesOpenedAt = 0;
+  let meshIdentity;
 
   function meshStore() {
-    if (meshes && meshes.available) return meshes;
-    if (meshes && Date.now() - meshesOpenedAt <= TTL_MS) return meshes;
+    const now = Date.now();
+    if (meshes && now - meshesOpenedAt <= ttlMs) return meshes;
+    const id = fileIdentity(meshDbPath);
+    if (meshes && id === meshIdentity) { meshesOpenedAt = now; return meshes; }
+    if (meshes) {
+      if (meshes.available || id !== null) sourceChanged('mesh store', meshIdentity, id);
+      try { meshes.close(); } catch { /* already closed */ }
+    }
+    meshIdentity = id;
     meshes = openMeshStore({ meshDbPath, libraryRootName, musicDir });
-    meshesOpenedAt = Date.now();
+    meshesOpenedAt = now;
     return meshes;
   }
 
   function build() {
     const t0 = Date.now();
+    // Read BEFORE opening, so a replacement that lands mid-build is seen next time
+    // rather than recorded as the file this space was built from.
+    builtFrom = fileIdentity(vectorDbPath);
     const vectorSpace = openVectorSpace({ vectorDbPath, libraryRootName });
     const featureSpace = openFeatureSpace({ vectorDbPath, libraryRootName });
     space = buildSpace({ db, vectorSpace, featureSpace, musicDir, libraryRootName });
@@ -80,10 +142,19 @@ function createDiscovery({ db, vectorDbPath, meshDbPath = null, libraryRootName 
     return space;
   }
 
-  /** The current space, rebuilt if stale. Guarded against re-entry so two
-   *  concurrent requests cannot both pay for a rebuild. */
+  /** The current space, rebuilt if its source changed. Guarded against re-entry
+   *  so two concurrent requests cannot both pay for a rebuild. */
   function current() {
-    if (!space || (Date.now() - builtAt > TTL_MS && !building)) {
+    if (space && !building && Date.now() - builtAt > ttlMs) {
+      const id = fileIdentity(vectorDbPath);
+      if (id === builtFrom) {
+        builtAt = Date.now();                // unchanged — trust it for another TTL
+      } else {
+        sourceChanged('vector index', builtFrom, id);
+        space = null;
+      }
+    }
+    if (!space && !building) {
       building = true;
       try { build(); } finally { building = false; }
     }
@@ -176,4 +247,4 @@ function createDiscovery({ db, vectorDbPath, meshDbPath = null, libraryRootName 
   };
 }
 
-module.exports = { createDiscovery, TTL_MS };
+module.exports = { createDiscovery, TTL_MS, fileIdentity };

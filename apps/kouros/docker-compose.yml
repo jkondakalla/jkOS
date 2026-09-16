@@ -24,30 +24,20 @@ services:
       # library root — ~15,000 files duplicating the flat re-download beside them.
       # Keep in step with music/config.py's EXCLUDE_DIRS.
       MUSIC_EXCLUDE_DIRS: "Old (Needs to be trimmed)"
-      # The music embedder's index (ALGORITHMS.md §4's music/index.db) — the source of the
-      # CLAP vectors behind similarity, radio, Runs and the vibe map. OPTIONAL:
-      # when the file is absent, every discovery surface degrades to metadata
-      # affinity and says so on the wire, so a missing index is a quieter app,
-      # never a broken one.
+      # The music analysis (ALGORITHMS.md §4 and §9) — the CLAP vectors and
+      # descriptors behind similarity, radio, Runs and the vibe map, and the
+      # pulsarmap meshes. Both OPTIONAL: an absent index degrades every discovery
+      # surface to metadata affinity and says so on the wire, and a track with no
+      # mesh answers `state: 'pending'`. A quieter app, never a broken one.
       #
-      # It is NOT in the repo (music/index.db is gitignored — it is 12 MB+ and
-      # rebuilt by a separate Python pipeline), so it has to be COPIED to the
-      # data volume. ⚠️ Copy the -wal sidecar with it: the embedder runs in WAL
-      # mode, and taking the .db alone yields whatever snapshot predated the last
-      # checkpoint — silently fewer vectors than were actually computed.
-      VECTOR_DB_PATH: /data/music-index.db
-      # The pulsarmap mesh store (ALGORITHMS.md §9's music/meshes.db) — one
-      # decimated, quantised mel matrix per track, revealed as the track plays.
-      # OPTIONAL on exactly the same terms, and a track with no mesh yet answers
-      # `state: 'pending'` rather than failing: that is the steady state during a
-      # fill, not an error.
-      #
-      # ⚠️ A SEPARATE FILE, and shipped separately. `music/index.db` holds the
-      # whole banked vector space and ship.py's snapshot invariant; a mesh table
-      # has no business in it. Produce this one with `python mesh.py --ship`,
-      # which is a `VACUUM INTO` and therefore has NO -wal sidecar to remember —
-      # unlike the copy above, where forgetting it costs vectors silently.
-      MESH_DB_PATH: /data/music-meshes.db
+      # Produced on the workstation by `music/analyze.py` and DELIVERED here by its
+      # restricted push key (infra/music-analysis/README.md): two single-file
+      # `VACUUM INTO` snapshots with no -wal sidecar, verified before they leave,
+      # replaced by rename so this app never opens a torn file. KourOS notices a
+      # replacement within its discovery TTL, reloads, and rescans the library for
+      # the music the new analysis describes — no restart, no copy by hand.
+      VECTOR_DB_PATH: /analysis/music-index.db
+      MESH_DB_PATH: /analysis/music-meshes.db
       # The directory name the embedder's paths are rooted at. Used to recover an
       # artist/title key when the index was built against a DIFFERENT library
       # layout — see backend/src/discover/vectors.js. Matches the last segment of
@@ -75,6 +65,20 @@ services:
       # anywhere in that chain — which is why the path is spelled out here rather
       # than left to a default someone reads past.
       - ${MUSIC_PATH:-/mnt/Luna/Luna/Plex/Music}:/music:ro
+      # The analysis, READ-ONLY, shared by production and staging — it describes
+      # one library, so there is one copy. Its own dataset (`Luna/jkos-analysis`)
+      # for two reasons, both measured: `Luna/Backends` is snapshotted hourly and
+      # kept 30 days, which would pin ~1 GB per delivery for a month of a file that
+      # is regenerable by definition; and the delivery key's rrsync restriction
+      # is confined here, a dataset that holds no application database at all.
+      #
+      # ⚠️ Create it BEFORE deploying (runbook, step 1). Docker auto-creates a
+      # missing bind source as an empty ROOT-owned directory, which mounts cleanly,
+      # serves nothing, and refuses the delivery key's writes.
+      #
+      # ⚠️ HOST path. The workstation mounts the `Luna/Luna` SMB share at /mnt/Luna,
+      # so `/mnt/Luna/jkos-analysis` there is a different (nonexistent) directory.
+      - ${MUSIC_ANALYSIS_PATH:-/mnt/Luna/jkos-analysis}:/analysis:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:

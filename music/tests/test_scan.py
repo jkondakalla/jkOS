@@ -157,3 +157,99 @@ class ExcludeDirsTest(unittest.TestCase):
         before = config.signature()
         config.EXCLUDE_DIRS = ('Retired', 'Something Else')
         self.assertEqual(config.signature(), before)
+
+
+class CachedShelfTest(unittest.TestCase):
+    """`scan.CachedShelf` — the watcher's cheap re-walk. Two claims, both of which
+    fail silently if wrong: a full walk finds exactly what `iter_tracks` finds (or
+    the watcher and a person's run disagree about the shelf), and a cheap walk
+    still finds every upload (or new music is never analysed and nothing says so)."""
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp(prefix='music-shelf-')
+        self.saved = config.EXCLUDE_DIRS
+        config.EXCLUDE_DIRS = ('Retired',)
+        for rel in ('AFI/Black Sails/01 strength.flac', 'AFI/Black Sails/Disc 2/01 x.flac',
+                    "again&again/Today's Lesson.flac", 'Zed/album/cover.jpg',
+                    '.hidden/secret.flac', 'Retired/Old/01 dup.flac'):
+            self.make(rel)
+        os.symlink(os.path.join(self.root, 'AFI'), os.path.join(self.root, 'Linked'))
+        self.shelf = scan.CachedShelf(self.root)
+
+    def tearDown(self):
+        config.EXCLUDE_DIRS = self.saved
+        shutil.rmtree(self.root, ignore_errors=True)
+
+    def make(self, rel, content=b'flac'):
+        full = os.path.join(self.root, rel)
+        os.makedirs(os.path.dirname(full), exist_ok=True)
+        with open(full, 'wb') as handle:
+            handle.write(content)
+        return full
+
+    def paths(self, **kw):
+        return [t.path for t in self.shelf.walk(**kw)]
+
+    def bump(self, directory):
+        """Move a directory's mtime explicitly — a test must not depend on the
+        filesystem's timestamp granularity to prove a change is seen."""
+        st = os.stat(directory)
+        os.utime(directory, ns=(st.st_atime_ns, st.st_mtime_ns + 1_000_000_000))
+
+    def test_a_full_walk_is_iter_tracks(self):
+        self.assertEqual(list(self.shelf.walk(full=True)), list(scan.iter_tracks(self.root)))
+
+    def test_an_unchanged_shelf_lists_nothing(self):
+        first = self.paths()
+        self.assertGreater(self.shelf.listed, 0)
+        self.assertEqual(self.paths(), first)
+        self.assertEqual(self.shelf.listed, 0)
+
+    def test_a_track_added_to_an_existing_album_is_found(self):
+        self.paths()
+        new = self.make('AFI/Black Sails/02 new.flac')
+        self.bump(os.path.dirname(new))
+        self.assertIn(new, self.paths())
+        self.assertEqual(self.shelf.listed, 1)
+
+    def test_a_new_album_is_found_through_its_parent(self):
+        self.paths()
+        new = self.make('AFI/Sing the Sorrow/01 miseria.flac')
+        self.bump(os.path.join(self.root, 'AFI'))
+        self.assertIn(new, self.paths())
+        self.assertEqual(self.shelf.listed, 2)           # the artist, then the new album
+
+    def test_a_rewrite_in_place_is_invisible_until_rechecked_or_full(self):
+        """⚠️ The blind spot, pinned so it is a known property rather than a surprise:
+        the Qobuz downloader tags a file after renaming it into place."""
+        path = os.path.join(self.root, 'AFI/Black Sails/01 strength.flac')
+        self.paths()
+        with open(path, 'ab') as handle:
+            handle.write(b' tagged')
+        size = os.path.getsize(path)
+        sizes = lambda tracks: {t.path: t.size for t in tracks}
+        self.assertNotEqual(sizes(self.shelf.walk())[path], size)
+        self.assertEqual(sizes(self.shelf.walk(recheck={path}))[path], size)
+        self.assertEqual(sizes(self.shelf.walk(full=True))[path], size)
+
+    def test_a_rechecked_file_that_vanished_is_dropped_and_stays_dropped(self):
+        """The directory's mtime is put BACK, so only the re-`stat` can notice — and
+        the walk after that must not trip over what the re-`stat` removed."""
+        path = os.path.join(self.root, 'AFI/Black Sails/01 strength.flac')
+        album = os.path.dirname(path)
+        self.paths()
+        st = os.stat(album)
+        os.remove(path)
+        os.utime(album, ns=(st.st_atime_ns, st.st_mtime_ns))
+        self.assertNotIn(path, self.paths(recheck={path}))
+        self.assertNotIn(path, self.paths(recheck={path}))
+
+    def test_a_removed_album_leaves_the_walk(self):
+        self.paths()
+        shutil.rmtree(os.path.join(self.root, 'AFI', 'Black Sails', 'Disc 2'))
+        self.bump(os.path.join(self.root, 'AFI', 'Black Sails'))
+        self.assertNotIn(os.path.join(self.root, 'AFI/Black Sails/Disc 2/01 x.flac'), self.paths())
+
+    def test_an_unreachable_root_raises_like_iter_tracks(self):
+        with self.assertRaises(NotADirectoryError):
+            list(scan.CachedShelf(os.path.join(self.root, 'nope')).walk())

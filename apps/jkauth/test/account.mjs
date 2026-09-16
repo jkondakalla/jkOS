@@ -42,7 +42,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 const tmp = mkdtempSync(join(tmpdir(), 'jkauth-account-'));
 const DB_FILE = join(tmp, 'auth.db');
-// Band clear of the test-port registry (3980–3996) + discover spares (4083–4085).
+// Band clear of the test-port registry (3980–3996) + discover spares (4083–4086).
 const port = 6700 + Math.floor(Math.random() * 400);
 const base = `http://127.0.0.1:${port}`;
 

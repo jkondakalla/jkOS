@@ -347,14 +347,24 @@ def tempo(env):
 
 
 # ── The one pass ────────────────────────────────────────────────────────────────
-def describe_parts(x):
-    """Every named block of the descriptor, from ONE traversal of the signal.
+def _one_pass(x):
+    """Every named block of the descriptor AND the log-mel it was built from, from
+    ONE traversal of the signal. `(parts, logmel)`.
 
     The loop below is the whole reason `mel.iter_blocks` exists: the time-domain
     features want the raw frames, the shape features and chroma want the linear
     magnitude spectrum, and MFCC and the onset envelope want the mel projection.
     All three come out of the same framing and the same FFT, so they cannot
     disagree about where a frame starts, and the FFT is paid for once.
+
+    The log-mel is handed back rather than dropped because the pulsarmap mesh is
+    built from exactly this matrix (`mesh.build` takes the baseline log-mel), so
+    `analyze.py` gets both artifacts from one decode and one FFT instead of
+    reading every file over the mount twice. ⚠️ It must stay the SAME matrix
+    `mel.logmelspectrogram` returns — same filterbank, same float32 cast before
+    the log — or a mesh built here and one built by `mesh.py --pending` are two
+    different pictures under one recipe. `test_descriptors.py` holds them
+    bit-identical.
     """
     x = np.asarray(x, dtype=np.float32)
     freqs = mel.fft_frequencies().astype(np.float64)
@@ -392,13 +402,19 @@ def describe_parts(x):
     deltas = (np.diff(coefficients, axis=1) if coefficients.shape[1] > 1
               else np.zeros((N_MFCC, 1), dtype=np.float32))
 
-    return {
+    parts = {
         'mfcc_mean': coefficients.mean(axis=1), 'mfcc_std': coefficients.std(axis=1),
         'dmfcc_mean': deltas.mean(axis=1), 'dmfcc_std': deltas.std(axis=1),
         'chroma_mean': chroma_t.mean(axis=1), 'chroma_std': chroma_t.std(axis=1),
         'shape_mean': shape.mean(axis=1), 'shape_std': shape.std(axis=1),
         'tempo': np.asarray(tempo(onset_envelope(logmel))),
     }
+    return parts, logmel
+
+
+def describe_parts(x):
+    """Every named block of the descriptor, from ONE traversal of the signal."""
+    return _one_pass(x)[0]
 
 
 def describe(x):
@@ -407,7 +423,22 @@ def describe(x):
     RAW — unnormalised, by the rule at the top of this file. `CorpusStats` is
     what makes these comparable, and it is applied on the way out of the index.
     """
-    parts = describe_parts(x)
+    return _assemble(describe_parts(x))
+
+
+def describe_with_logmel(x):
+    """`(vector, logmel)` — the descriptor and the baseline log-mel, one pass.
+
+    For `analyze.py`'s baseline stage, which stores the first and builds the
+    pulsarmap mesh from the second. See `_one_pass` for why the two must be the
+    matrix `mel.logmelspectrogram` would have returned.
+    """
+    parts, logmel = _one_pass(x)
+    return _assemble(parts), logmel
+
+
+def _assemble(parts):
+    """The named blocks → the (DIM,) vector, in `LAYOUT` order, checked."""
     if tuple(parts) != tuple(name for name, _ in LAYOUT):
         raise AssertionError(
             f'describe_parts built {tuple(parts)} but LAYOUT declares '
@@ -950,6 +981,7 @@ def _main(argv=None):
     import sys
 
     import audio
+    import runlock
 
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument('files', nargs='*', help='describe these files and print the numbers')
@@ -1041,7 +1073,8 @@ def _main(argv=None):
                 print(f'\r  {done + failed}/{total}  {rate:5.2f} track/s  '
                       f'{mb_s:6.1f} MB/s  {failed} failed', end='', file=sys.stderr)
 
-            done, failed = build(conn, rows, workers=args.workers, progress=report)
+            with runlock.hold('descriptors.py --build'):
+                done, failed = build(conn, rows, workers=args.workers, progress=report)
             print(f'\n{done} described, {failed} failed', file=sys.stderr)
             if done:
                 stats = fit_corpus(conn)
@@ -1058,7 +1091,7 @@ def _main(argv=None):
         if not (args.scan or args.build or args.refit):
             print(index.stats(conn))
     except (DescriptorError, audio.DecodeError, index.ConfigDriftError,
-            NotADirectoryError) as exc:
+            NotADirectoryError, runlock.Busy) as exc:
         # Every one of these already carries a sentence saying what to do about
         # it. A traceback puts that sentence at the bottom of twelve frames of
         # noise and reads as a crash — which is what an unmounted share, a

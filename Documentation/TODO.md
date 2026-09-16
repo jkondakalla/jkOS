@@ -37,9 +37,15 @@ These block other work, and they are first for that reason.
   2026-08-27 but is reachable in history at `e3c829a` in every clone and on the remote.
   ⚠️ **Rotation is the only remedy** — history rewriting stays refused (destructive, coordinates
   with GitHub, Jag's call).
-- **Resume the music backfill** — paused at **35,460 / 47,441**. `backfill.py`, no arguments.
-  ⚠️ **Read `RESET.md` §0a before touching `music/`** — four named files silently invalidate
-  every vector banked so far, with no error.
+- ✅ **The music backfill — RESUMED 2026-09-16** (Jag: "build and start full run"), and the whole
+  owed sequence with it: `music/analyze.py` runs vectors → descriptors + meshes → fit → gate →
+  ship. ⚠️ **Read `RESET.md` §0a before touching `music/`** — the four named files still silently
+  invalidate every banked vector.
+- **Music analysis delivery — steps 1 and 3 of
+  [`infra/music-analysis/README.md`](../infra/music-analysis/README.md)**: create the
+  `Luna/jkos-analysis` dataset (⚠️ **before** the next deploy, or Docker creates it root-owned),
+  then authorise the delivery key under `rrsync -wo -no-del`. Step 2 (`install.sh`) starts the
+  watcher on the workstation. Until then the watcher's snapshots stop at `music/out/`.
 - **Two zero-byte FLACs** need re-downloading. Not a code defect.
 - **LazurOS's two unresolved hardware facts.** `TODO_EMILY_MAC` and `TODO_EMILY_IP` in
   [`apps/lazuros/deployment.jag.json`](../apps/lazuros/deployment.jag.json). The WoL backend
@@ -153,6 +159,13 @@ container. The real sub-question is the one that unblocks an agent: **may it cha
 
 ### D5 · The pulsarmap fill — what drives it, and may an agent spend the machine time? — §2 block 4
 
+✅ **ANSWERED 2026-09-16 — (c), and the cost that made (c) expensive is gone.** Jag: "prep the full
+KourOS analyze sequence, include meshes for the pulsar map", and yes to spending the machine time.
+Meshes are built for the whole library as a stage of `music/analyze.py`, **in the same decode and
+FFT as the descriptors** (`descriptors.describe_with_logmel`, held bit-identical to
+`mel.logmelspectrogram`), so the 19.5 h measured below was the cost of reading every file a second
+time, and is not paid. After the full run, the watcher meshes what lands on the shelf.
+
 ⚠️ **Measured 2026-09-10: 1.48 s/track**, so a full-library fill is **~19.5 hours**
 single-threaded and about **790 MB** of `meshes.db` to ship. That is what makes §2's "built on
 demand and cached, never batched across all 47,441" a real constraint rather than a preference —
@@ -262,9 +275,10 @@ lightweight mesh the browser pulls and reveals as the song plays: one ridgeline 
 stacking toward the viewer. Reasoning and arithmetic in `ALGORITHMS.md` §9.
 
 **Decided up front, so the blocks below don't re-ask:** a line is a **moment in time** (not a
-frequency band — it makes the canvas append-only); meshes are built **on demand and cached**,
-never batched across all 47,441 tracks; and it is a **KourOS view behind a declared read**, not
-a shared package.
+frequency band — it makes the canvas append-only); and it is a **KourOS view behind a declared
+read**, not a shared package. ~~Meshes are built on demand and cached, never batched across all
+47,441 tracks~~ — **superseded 2026-09-16 by Jag (D5)**: the full analysis sequence meshes the
+whole library, in the descriptor pass's decode.
 
 1. ✅ **`music/mesh.py` — the builder. DONE 2026-09-10.** `(128, T) float32` → `(rows, 128)
    uint8`, 86 frames/row (1.997 s), quantised against `ridge.default_value_range()`, stamped with
@@ -285,7 +299,11 @@ a shared package.
    Its pending list is every indexed track, oldest first: the answer that needs no decision. **A
    policy goes in front of it when there is one** — KourOS's `history` table, a frontend
    wanted-list, or top-N most played — and none of the fill code changes when it does.
-   **What is still open is whether (ii) earns a deployed surface:**
+   ✅ **Closed 2026-09-16 without (ii).** The fill is a stage of `music/analyze.py` (whole
+   library, sharing the descriptor decode — D5), and "on demand" became "on arrival": the
+   watcher meshes what lands on the shelf and delivers it, and KourOS reopens a replaced store
+   within its TTL. `meshd.py` would have bought request-time builds for tracks the watcher has
+   not reached, which after the full run is none. The options as they stood:
    - **(ii) A LAN-only `music/meshd.py`** behind an internal bearer, called at request time — the
      LazurOS `/internal` precedent, stdlib `http.server`. Makes "on demand" literally true, and
      costs a service. ⚠️ Decide this against a real (i) run, not in the abstract.
@@ -325,7 +343,7 @@ a shared package.
    the component correctly rendered nothing. Shipped a **95-mesh** store there (both Mick Gordon
    DOOM albums, 90 tracks built in 141 s, plus the five `!!!` meshes) via `mesh.py --ship`, then an
    atomic rename; checksums match. KourOS re-opens an unavailable store every 5 min, so no restart.
-   This is a deliberately small fill of what was being played, NOT a fill policy — D5 is still open.
+   This is a deliberately small fill of what was being played, NOT a fill policy. *(D5 was answered later the same day — the whole library, via `music/analyze.py`; after the next deploy KourOS reads meshes from `/analysis`, not this file.)*
    ⚠️ A glob over album folders silently matches nothing: `[FLAC] [24B-48kHz]` is a character
    class. List the directory instead. Stills of the real component on this mesh:
    `Documentation/Images/kouros-pulsarmap-{paper,dark,dark-long-track}.png` (gitignored).
@@ -365,7 +383,10 @@ the three points it could enter (builder, quantiser, renderer contrast); a strea
 
 ## 3 · Music — the rest of the vector space
 
-- **What the resumed backfill still owes**, in order:
+- ✅ **What the resumed backfill owed is ONE command now — `music/analyze.py`** (2026-09-16):
+  scan → vectors → baseline (descriptors + meshes, one decode) → fit → gate → ship → deliver.
+  Every stage resumable, the gate refuses the ship, the snapshots are verified from the copy.
+  `analyze.py --status` reads where each stage stands. The chain it replaces, for the record:
   `descriptors.py --build --encoded` → `query.py --fit` → `query.py --gate` → `ship.py`.
   ⚠️ **`--fit` is not optional.** It fits the corpus geometry into `meta`, and KourOS ranks on the
   *centred* space. Ship an unfitted index and every served cosine is raw — strangers at +0.48
@@ -615,6 +636,12 @@ and the prober, and never ran `build` — so "green" never meant "shippable". It
   ORDECK's `useSystems` already renders an up-but-degraded row from any app's `/health` body, so
   the rendering half is free — what is undecided is **where the status is published** (a service
   client posting a line, a file the edge serves, a LAN-only reader). That is Jag's call.
+- ✅ **Every backup unit's `ExecStart` was broken — FIXED 2026-09-16.** Found writing the music
+  watcher's unit from them as a template: `ExecStart=/media/jag/The Forge/…` unquoted, so systemd
+  split the path at the space and would have tried to execute `/media/jag/The`, on every run of
+  all three services — **including `jkos-backup-alert.service`, the unit whose whole job is to say
+  a backup failed.** And `%20` in `Documentation=` is a unit specifier. Never observed, because the
+  units were never installed. Quoted, `%%`-escaped, and `systemd-analyze --user verify` exits 0.
 - **The TWA build**, once the keystore exists (§0): `bubblewrap init` → build + sign → add the
   SHA-256 to `infra/nginx/assetlinks.json` → regenerate nginx → **restart, never reload** (the
   confs are bind-mounts and a reload will not re-read a replaced inode).

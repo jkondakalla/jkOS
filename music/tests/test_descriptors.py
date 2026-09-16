@@ -341,6 +341,31 @@ class OnePassTest(unittest.TestCase):
         x = sine(440.0, 2.0)
         self.assertEqual(descriptors.describe(x).tobytes(), descriptors.describe(x).tobytes())
 
+    def test_the_shared_logmel_is_the_pipeline_logmel_bit_for_bit(self):
+        """⚠️ `analyze.py` builds the pulsarmap mesh from the log-mel this pass
+        hands back, and `mesh.py --pending` builds it from
+        `mel.logmelspectrogram`. The store's recipe check cannot tell those two
+        apart — same signature, same reduction, same range — so if they ever
+        differed by a float32 cast, one store would hold two kinds of picture and
+        nothing would say so. Equal, not close: the claim is that they are the
+        same matrix. Long enough to cross an FFT block seam."""
+        x = sine(440.0, 3.0) + noise(3.0, 0.05)
+        original = mel.BLOCK_FRAMES
+        try:
+            mel.BLOCK_FRAMES = 13               # several ragged seams in 3 s
+            _vector, logmel = descriptors.describe_with_logmel(x)
+            reference = mel.logmelspectrogram(x)
+        finally:
+            mel.BLOCK_FRAMES = original
+        self.assertEqual(logmel.dtype, reference.dtype)
+        np.testing.assert_array_equal(logmel, reference)
+
+    def test_the_shared_pass_returns_the_same_descriptor(self):
+        """The mesh rides along; it must not change the vector it rides on."""
+        x = sine(330.0, 2.0) + noise(2.0, 0.05)
+        vector, _logmel = descriptors.describe_with_logmel(x)
+        self.assertEqual(vector.tobytes(), descriptors.describe(x).tobytes())
+
     def test_magnitude_is_independent_of_the_power_setting(self):
         """`magnitude_of` exists so the classical definitions keep their meaning
         if §8.5 flips config.POWER to match an encoder."""

@@ -94,6 +94,94 @@ def scan(root=None, exts=None):
     return list(iter_tracks(root, exts))
 
 
+class CachedShelf:
+    """The shelf re-walked cheaply: a directory whose mtime has not moved is not
+    listed again, and its files are answered from the last listing.
+
+    WHY. `analyze.py --watch` asks "did anything land?" every few minutes, and the
+    honest answer costs a full walk — measured 2026-09-16 at **184 s just to list
+    7,770 directories** under a running backfill, before a single file `stat`
+    (Trap 19). Adding, removing or renaming an entry moves its DIRECTORY's mtime on
+    ZFS, and CIFS reports it, so one `stat` per directory finds every upload: a new
+    album moves its parent's mtime, a new track moves its album's. Measured over the
+    real shelf the same afternoon: **a full walk 145 s, the re-walk 7.6 s** (7,764
+    directories stat'ed, none re-listed), and the full walk found exactly the 47,693
+    files `iter_tracks` did.
+
+    ⚠️ **THE BLIND SPOT, BY CONSTRUCTION: A FILE REWRITTEN IN PLACE.** Writing to a
+    file does not touch its directory, so a retag or an overwrite-copy onto an
+    existing name is invisible here until `full=True`. Two consequences the caller
+    owns: files still SETTLING must be passed back as `recheck` (they are re-`stat`ed
+    whatever their directory says — the Qobuz downloader tags after its rename), and
+    a full walk must still happen on some schedule. `analyze.py` does one on the
+    watcher's first cycle and daily.
+
+    Same pruning rules as `iter_tracks` — hidden and `EXCLUDE_DIRS` subtrees are
+    never entered, symlinked directories are not followed, order is sorted — and a
+    test holds a full walk here equal to `iter_tracks`.
+    """
+
+    def __init__(self, root=None, exts=None):
+        self.root, self.exts = root, exts
+        self._dirs = {}              # dir → (mtime, (subdir, …), (Track, …))
+        self.listed = 0              # directories actually listed by the last walk
+
+    def walk(self, full=False, recheck=()):
+        root = os.path.abspath(os.fspath(config.LIBRARY_ROOT if self.root is None else self.root))
+        if not os.path.isdir(root):
+            raise NotADirectoryError(f'library root does not exist: {root}')
+        lowered = tuple(e.lower() for e in (config.AUDIO_EXTS if self.exts is None else self.exts))
+        excluded = tuple(config.EXCLUDE_DIRS)
+        recheck = set(recheck)
+        visited = {}
+        self.listed = 0
+        stack = [root]
+        while stack:
+            directory = stack.pop()
+            try:
+                mtime = os.stat(directory).st_mtime
+            except OSError:
+                continue                 # vanished mid-walk: failures are data (§8.6)
+            cached = None if full else self._dirs.get(directory)
+            if cached is None or cached[0] != mtime:
+                cached = self._list(directory, mtime, lowered, excluded)
+            elif recheck:
+                fresh = (self._restat(t) if t.path in recheck else t for t in cached[2])
+                cached = (cached[0], cached[1], tuple(t for t in fresh if t is not None))
+            visited[directory] = cached
+            yield from cached[2]
+            stack.extend(reversed(cached[1]))
+        self._dirs = visited             # a directory that disappeared leaves the cache
+
+    def _list(self, directory, mtime, lowered, excluded):
+        self.listed += 1
+        subdirs, tracks = [], []
+        try:
+            entries = sorted(os.scandir(directory), key=lambda e: e.name)
+        except OSError:
+            return (mtime, (), ())
+        for entry in entries:
+            try:
+                if entry.is_dir():
+                    if (not entry.is_symlink() and not entry.name.startswith('.')
+                            and entry.name not in excluded):
+                        subdirs.append(entry.path)
+                elif entry.name.lower().endswith(lowered):
+                    st = os.stat(entry.path)
+                    tracks.append(Track(entry.path, st.st_mtime, st.st_size))
+            except OSError:
+                continue
+        return (mtime, tuple(subdirs), tuple(tracks))
+
+    @staticmethod
+    def _restat(track):
+        try:
+            st = os.stat(track.path)
+        except OSError:
+            return None                  # gone since the listing
+        return Track(track.path, st.st_mtime, st.st_size)
+
+
 def library_reachable(root=None):
     """Whether the shelf is still there. One `stat`, and never on a hot path.
 

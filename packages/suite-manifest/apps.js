@@ -238,9 +238,9 @@ const TEST_PORTS = Object.freeze({
   'kouros:library.smoke': 3980,
   'kouros:playback.smoke': 3981,
   'kouros:history.smoke': 3982,
-  // discover.smoke boots FOUR servers; only the base can be held to a row here (the
-  // probe reads one `const PORT` literal per file). The other three live at +100/+101/
-  // +102 — deliberately outside this band, because they used to be +1/+2/+3 and +3 was
+  // discover.smoke boots FIVE servers; only the base can be held to a row here (the
+  // probe reads one `const PORT` literal per file). The other four live at +100…+103
+  // — deliberately outside this band, because they used to be +1/+2/+3 and +3 was
   // 3986, i.e. beigeboard:delta.smoke's port. See that file's header.
   'kouros:discover.smoke': 3983,
   'beigeboard:delta.smoke': 3986,

@@ -21,3 +21,6 @@ out/
 
 # The backfill's pid file, written by control.py. Machine state, not source.
 .backfill.pid
+
+# The analysis lock (runlock.py) — held with flock, released by the kernel.
+.analysis.lock

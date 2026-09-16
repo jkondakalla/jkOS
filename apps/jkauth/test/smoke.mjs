@@ -59,7 +59,7 @@ let portSeq = 0;
 
 class Server {
   constructor(extraEnv = {}) {
-    // Band clear of the test-port registry (3980–3996) + discover spares (4083–4085).
+    // Band clear of the test-port registry (3980–3996) + discover spares (4083–4086).
     this.port = PORT_BASE + (portSeq++);
     this.base = `http://127.0.0.1:${this.port}`;
     this.tmp = mkdtempSync(join(tmpdir(), 'jkauth-smoke-'));
