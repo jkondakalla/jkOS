@@ -284,10 +284,46 @@ key, and the retry double-writes anyway: the exact outcome this exists to preven
 shorter path. `withIdempotency` owns the transaction rather than leaving `remember()` as a second
 call a caller can forget.
 
-⚠️ **STILL OPEN: this covers the COLLECTION doors, not every write.** A hand-rolled POST that does
-not go through `defineCollection` drops the key as an unknown body field and still double-writes.
-**The protection is the field appearing in a capability's declared `body`, never the existence of
-the constant** — check the declaration before assuming a door is covered.
+✅ **THE HAND-ROLLED DOORS LANDED 2026-09-16.** The collection doors were only half of it: a POST
+that does not go through `defineCollection` dropped the key as an unknown body field and still
+double-wrote. `withIdempotency` and `IDEMPOTENCY_DDL` are now exported from `@jkos/weave/server`
+(and `idempotencyBodyField` from the lean `@jkos/weave/activity`, so a discovery doc can declare
+it), and the doors that are never idempotent by construction use them:
+
+- **BeigeBoard `createItem` and `importItems`.** Validation and `?dryRun=1` stay *outside* the
+  wrapper — a preview writes nothing and a rejected plan is not a first attempt, so neither may
+  consume the key. The import strips the key before reading the document's shape, or the
+  single-item form carries it into the item as an unknown field.
+- **LazurOS's five job doors.** Each one enqueues work; a repeated key hands back the first job's
+  handle, and a replay neither probes nor wakes the backend. The key never reaches the stored
+  payload.
+- ⚠️ **LazurOS's write-back sends `lazuros:writeback:<job id>`.** A job can legitimately finish
+  *twice* — the reaper requeues one that outran its timeout while the first worker is still
+  running, and both post DONE — and each DONE used to import the whole tree into BeigeBoard again.
+  The job id is the identity of the result, so it is the key; the model's own output can never
+  choose it.
+
+Doors that are idempotent by construction do not declare it — a PATCH, a DELETE, the routine
+imports (idempotent by slug), a deload (sets an override), a rescan. **The protection is the field
+appearing in a capability's declared `body`, never the existence of the constant**, and
+`check:rulings` now holds that for every `create*` door, every async door, and every door the
+LazurOS write-back targets (derived from its routing table, not listed).
+
+⚠️ **A present key that cannot be honoured is refused, not ignored.** An over-long or non-string
+key used to read as "no key", so the write landed with no dedup and a 201 — the outcome the key
+exists to prevent, with the key in hand. The field declares `max: 200`; BeigeBoard's contract
+smoke violates every declared cap and caught that nothing enforced this one. Every door now
+answers `idempotencyKeyError` with 400 VALIDATION. Absent, null and blank are still "no key".
+
+⚠️ **The engine's key is 128 bits.** It was a 32-bit FNV-1a, harmless while nothing read it. Once
+a door answers a matching key with the *first* write's response, a collision is a write that
+silently never happens — ~1% odds by ten thousand writes to one door for one user. It is a
+SHA-256 prefix now (`node:crypto`, still no dependency), and `check:rulings` pins the width.
+
+⚠️ **Retention was declared and never enforced.** `prune()` had no call sites anywhere, so the
+30-day ceiling in `idempotency.js` was a function a test called and production never did.
+`withIdempotency` now sweeps on the first keyed write per database handle and then at most once a
+day — no scheduler, the work rides the traffic that creates the need for it.
 
 ⚠️ **Why the gap survived as long as it did is worth more than the fix.** `check:rulings` covered
 the *sending* half against an injected dispatcher and proved the key is derived and stable — never
@@ -462,7 +498,7 @@ a hand-written per-app list you must **enlist** in (§4); **owed** means decided
 | 25 | No control bytes in text files | — | `check:text` (**fails**) — auto-discovers, git-wide |
 | 26 | A smoke test in the gate | boot the real server | only if you chain it into `test:contracts` † |
 | 27 | A unique service + test port | `TEST_PORTS` + `portTable()` in `@jkos/suite-manifest` | `portTable()` throws at load on a duplicate; `prove` `port-registry` (**drift**) holds file literals to claims |
-| 28–31 | The four contract rules (§3.1–§3.4) | — | ✅ **enforced** — `check:rulings` + `86-async-contract`. ⚠️ Rule 4's *receiver* half (dedup at the write door) is still owed; see §3.4 |
+| 28–31 | The four contract rules (§3.1–§3.4) | — | ✅ **enforced** — `check:rulings` + `86-async-contract`. Rule 4's *receiver* half is declared on every non-idempotent door and held by `check:rulings`; each door's own smoke writes twice and counts rows (§3.4) |
 | 32 | Declared surface covers the mounted routes | mark an exception `// app-private: why` at its own source line | ✅ **enforced** — `prove` `98-surface-coverage`. All four backends report full coverage (69 mounted routes). ⚠️ A declared path covers at most **one** segment beneath it: `/items` covers `/items/:id`, and `/items/:id/deps` must declare itself |
 
 ---

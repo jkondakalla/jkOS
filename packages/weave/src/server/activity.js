@@ -37,6 +37,7 @@ const {
 const { canonical: canonicalTime } = require('./wireTime')
 const { extRef, checkExtRefDoc, extRefFieldDoc } = require('../shared/extref')
 const { pageLimit, PAGE_DEFAULT, PAGE_MAX, CURSOR_PARAM } = require('../shared/paging')
+const { idempotencyBodyField } = require('../shared/idempotency')
 
 /* Canonical millisecond ISO — the format `at` is held to, and therefore the format
    the `since`/`until` cursors must speak, since they are compared against it as
@@ -133,4 +134,9 @@ module.exports = {
   // BB-5: the ext_ref namespace, reached from the same lean subpath a discovery doc
   // already imports — it declares its schemes right next to its datasets.
   checkExtRefDoc, extRefFieldDoc,
+  // RESET A2c.4: a HAND-ROLLED write door declares the reserved idempotency field
+  // from its discovery doc, which is data — so the declaration helper rides the
+  // lean subpath too. The receiver (withIdempotency) needs a db and stays in the
+  // server barrel.
+  idempotencyBodyField,
 }

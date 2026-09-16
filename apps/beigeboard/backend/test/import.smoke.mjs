@@ -38,7 +38,7 @@ async function req(method, path, body) {
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   let json = null; try { json = await r.json(); } catch { /* non-JSON */ }
-  return { status: r.status, json };
+  return { status: r.status, json, replay: r.headers.get('idempotent-replay') };
 }
 const list = async (qs = '') => (await req('GET', '/api/items' + qs)).json || [];
 
@@ -230,6 +230,41 @@ try {
   ok(I4.status === 201 && I4.json?.created === 1, `I4: created 1 (got ${I4.status} ${I4.json?.created})`);
   const nk = (await list('?tags=nokids'))[0];
   ok(nk?.kind === 'task', `I4: empty children → task, not goal (got ${nk?.kind})`);
+
+  // ── J. DEDUP AT THE WRITE DOOR (RESET A2c.4) ──
+  // This is the door LazurOS's write-back commits through, and a job can finish
+  // TWICE (the reaper requeues one that outran its timeout while the first worker is
+  // still going; both post DONE). Each DONE used to import the whole tree again.
+  // ⚠️ Counted in ROWS, not compared in responses.
+  const J0 = (await list()).length;
+  const tree = { items: [{ title: 'j-goal', children: [{ title: 'j-kid' }] }], idempotency_key: 'lazuros:writeback:job-1' };
+  const J1 = await req('POST', '/api/import', tree);
+  const J2 = await req('POST', '/api/import', tree);
+  ok(J1.status === 201 && J1.json?.created === 2, `J1: the first import creates the tree (got ${J1.status} ${J1.json?.created})`);
+  ok((await list()).length === J0 + 2, `J1: a repeated key imports ONCE — 2 rows, not 4 (got +${(await list()).length - J0})`);
+  ok(J2.status === 201 && J2.replay === 'true' && J2.json?.items?.[0]?.id === J1.json?.items?.[0]?.id,
+    `J1: the retry replays the first answer, ids and all (got ${J2.status}, replay=${J2.replay})`);
+
+  // The key is a property of the REQUEST. Left in the document, the single-item form
+  // would carry it into the item as an "ignored unknown field" on every write-back.
+  const J3 = await req('POST', '/api/import', { title: 'j-solo', idempotency_key: 'lazuros:writeback:job-2' });
+  ok(J3.status === 201 && J3.json?.created === 1, `J3: the single-item form still works with a key (got ${J3.status} ${JSON.stringify(J3.json)})`);
+  ok(!(J3.json?.warnings || []).some((w) => /idempotency/.test(w)),
+    `J3: the key is not mistaken for an item field (warnings ${JSON.stringify(J3.json?.warnings)})`);
+
+  // A preview writes nothing, so it must not consume the key — or the real import
+  // that follows a dry run would be refused as a replay of a write that never happened.
+  const J4 = { items: [{ title: 'j-previewed' }], idempotency_key: 'lazuros:writeback:job-3' };
+  await req('POST', '/api/import?dryRun=1', J4);
+  const J5 = await req('POST', '/api/import', J4);
+  ok(J5.status === 201 && J5.replay === null && J5.json?.created === 1,
+    `J4: a dryRun does not consume the key (got ${J5.status}, replay=${J5.replay})`);
+
+  // Nor does a rejected plan: the corrected document must still land.
+  const J6 = await req('POST', '/api/import', { items: [{ notitle: true }], idempotency_key: 'lazuros:writeback:job-4' });
+  const J7 = await req('POST', '/api/import', { items: [{ title: 'j-corrected' }], idempotency_key: 'lazuros:writeback:job-4' });
+  ok(J6.status === 400 && J7.status === 201 && J7.replay === null,
+    `J6: a REJECTED plan does not consume the key (got ${J6.status} then ${J7.status}, replay=${J7.replay})`);
 } catch (e) {
   console.error('harness error:', e);
   fail++;

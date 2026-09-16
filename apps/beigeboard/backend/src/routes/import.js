@@ -3,6 +3,7 @@
 // a single transaction. Validate-then-write; ?dryRun=1 previews. See README →
 // "Importing tasks & goals (JSON)".
 const express = require('express');
+const { withIdempotency, idempotencyKeyOf, idempotencyKeyError, IDEMPOTENCY_FIELD } = require('@jkos/weave/server');
 const { db, run } = require('../db');
 const {
   MAX_IMPORT_ITEMS, MAX_IMPORT_DEPTH,
@@ -154,6 +155,18 @@ function planImport(doc, userId) {
 router.post('/api/import', (req, res) => {
   try {
     let doc = req.body;
+    /* The idempotency key is read, then REMOVED, before anything looks at the shape.
+       ⚠️ Left in, it changes what the document means: `{ title, idempotency_key }` is
+       the single-item form, and the key would ride into that item as an "ignored
+       unknown field" warning on every write-back LazurOS makes. It is a property of
+       the REQUEST, not of any item in it. */
+    const keyErr = idempotencyKeyError(doc);   // present but unusable → refused, never a silent no-dedup
+    if (keyErr) return res.status(400).json({ ok: false, error: keyErr, code: 'VALIDATION' });
+    const idempotencyKey = idempotencyKeyOf(doc);
+    if (doc && typeof doc === 'object' && !Array.isArray(doc) && IDEMPOTENCY_FIELD in doc) {
+      const { [IDEMPOTENCY_FIELD]: _key, ...rest } = doc;
+      doc = rest;
+    }
     // accept a double-encoded items/defaults (a command form may send JSON strings)
     if (doc && typeof doc === 'object' && typeof doc.items === 'string') {
       try { const p = JSON.parse(doc.items); doc = { ...doc, items: p }; } catch { /* leave as-is → shape error below */ }
@@ -199,12 +212,28 @@ router.post('/api/import', (req, res) => {
       for (const c of plan.childrenOf[i]) insertNode(c, r.lastInsertRowid);
     };
 
-    const tx = db.transaction(() => {
-      for (const i of plan.roots) insertNode(i, plan.nodes[i].dbParentId);
+    /* ⭐ DEDUP AT THE WRITE DOOR (RESET A2c.4). This is the door LazurOS's write-back
+       commits a parsed task or a broken-down goal through, and a job can legitimately
+       finish TWICE: the reaper requeues one that ran past its timeout while the first
+       worker is still going, and both then post DONE. Without this each DONE imported
+       the whole tree again. The write-back now sends a key derived from the job id, so
+       the second import replays the first one's answer instead.
+       ⚠️ AFTER the dry-run branch and after validation, never before: a preview writes
+       nothing and a rejected plan is not a first attempt, so neither may consume the
+       key — or the real import that follows a preview would be refused as a replay. */
+    const result = withIdempotency(db, {
+      scope: 'beigeboard.import',
+      userId: req.user.sub,
+      key: idempotencyKey,
+      write: () => {
+        db.transaction(() => {
+          for (const i of plan.roots) insertNode(i, plan.nodes[i].dbParentId);
+        })();
+        return { status: 201, body: { ok: true, created: out.length, items: out, warnings: plan.warnings } };
+      },
     });
-    tx();
-
-    res.status(201).json({ ok: true, created: out.length, items: out, warnings: plan.warnings });
+    if (result.replayed) res.set('Idempotent-Replay', 'true');
+    res.status(result.status).json(result.body);
   } catch (e) { fail(res, e); }
 });
 

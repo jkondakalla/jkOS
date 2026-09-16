@@ -66,6 +66,25 @@ function prune(db, days = RETENTION_DAYS) {
   return db.prepare(`DELETE FROM ${TABLE} WHERE created_at < ?`).run(cutoff).changes
 }
 
+/* ⚠️ `prune` HAD NO CALL SITES. RETENTION_DAYS above said the table "cannot grow
+   without bound", and nothing anywhere ran the delete that makes that true — a
+   ceiling declared and never enforced, which is this suite's commonest defect in
+   its commonest disguise. The retention now happens where the rows are made: the
+   first keyed write on a handle prunes, and then at most once a day per handle.
+   Same bargain as BeigeBoard's routine horizon — no scheduler and no cron (a
+   standing decision), the work rides the traffic that creates the need for it.
+   Keyed by the db HANDLE rather than a module flag, so two app databases in one
+   process (the test suites do this) each get pruned. */
+const PRUNE_EVERY_MS = 86400_000
+const lastPruned = new WeakMap()
+
+function pruneIfDue(db, nowMs = Date.now()) {
+  const last = lastPruned.get(db)
+  if (last != null && nowMs - last < PRUNE_EVERY_MS) return 0
+  lastPruned.set(db, nowMs)
+  return prune(db)
+}
+
 /**
  * Run `write()` at most once per (scope, user, key).
  *
@@ -79,6 +98,10 @@ function prune(db, days = RETENTION_DAYS) {
  */
 function withIdempotency(db, { scope, userId, key, write }) {
   if (!key) return { ...write(), replayed: false }
+  // Before the lookup, so a key past retention reads as new NOW rather than
+  // whenever some later write happens to sweep it — the ceiling is then the
+  // documented one, not "30 days or more".
+  pruneIfDue(db)
 
   const owner = userId == null ? '' : String(userId)
   const seen = db.prepare(
@@ -116,4 +139,4 @@ function withIdempotency(db, { scope, userId, key, write }) {
   return { ...result, replayed: false }
 }
 
-module.exports = { DDL, TABLE, RETENTION_DAYS, keyOf: idempotencyKeyOf, prune, withIdempotency }
+module.exports = { DDL, TABLE, RETENTION_DAYS, PRUNE_EVERY_MS, keyOf: idempotencyKeyOf, prune, pruneIfDue, withIdempotency }

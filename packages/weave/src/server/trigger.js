@@ -37,6 +37,7 @@
 // pure + provable; serverDispatch is the live wiring. Design-time TS shapes: ../trigger.ts.
 
 const { weaveServerClient } = require('./serverClient')
+const { createHash } = require('node:crypto')
 const { IDEMPOTENCY_FIELD } = require('../shared/idempotency')
 
 /* ⭐ ONE BINDING MODEL (D13). The resolver lives in ../shared/binding.js and is the
@@ -143,27 +144,30 @@ function validateTriggerTypes(trigger, { whenReturns = [], whenResolves = null, 
  * otherwise a peer that reserialised its payload would defeat the whole mechanism
  * without changing anything meaningful.
  *
- * Not a cryptographic hash: this is a collision-avoidance id, not a secret, and a
- * dependency-free FNV-1a keeps the trigger engine loadable in a bare checkout — the
- * property that lets it be tested with an injected dispatcher and no I/O at all. */
+ * ⚠️ **128 BITS, BECAUSE A COLLISION IS NOW A LOST WRITE.** This was a 32-bit FNV-1a,
+ * chosen when nothing read the key — a collision then cost nothing. Once the receiving
+ * doors existed (2026-09-10, 2026-09-16), two DIFFERENT events hashing alike meant the
+ * second write was answered with the first's stored response and never happened: no
+ * error, a 201, one task missing. At 32 bits that is a ~1% chance by about ten thousand
+ * trigger writes to one door for one user inside the 30-day retention — not a number
+ * to leave standing under a key whose entire job is to be unambiguous.
+ * `node:crypto` is a Node built-in, so the engine still loads in a bare checkout with
+ * no dependency and no I/O; the old reason for FNV was never about a package. */
 function canonicalJson(v) {
   if (v === null || typeof v !== 'object') return JSON.stringify(v)
   if (Array.isArray(v)) return `[${v.map(canonicalJson).join(',')}]`
   return `{${Object.keys(v).sort().map((k) => `${JSON.stringify(k)}:${canonicalJson(v[k])}`).join(',')}}`
 }
 
-function fnv1a(str) {
-  let h = 0x811c9dc5
-  for (let i = 0; i < str.length; i++) {
-    h ^= str.charCodeAt(i)
-    h = Math.imul(h, 0x01000193) >>> 0
-  }
-  return h.toString(16).padStart(8, '0')
+/** 128 bits of SHA-256, hex — 32 chars, so `trg_` + digest stays far inside the
+ *  200-char ceiling a door enforces. */
+function digest128(str) {
+  return createHash('sha256').update(str, 'utf8').digest('hex').slice(0, 32)
 }
 
 function idempotencyFor(trigger, app, capability, payload) {
   const id = trigger.id || `${trigger.when.app}.${trigger.when.capability}->${trigger.do.app}.${trigger.do.capability}`
-  return `trg_${fnv1a(`${id}|${app}.${capability}|${canonicalJson(payload ?? null)}`)}`
+  return `trg_${digest128(`${id}|${app}.${capability}|${canonicalJson(payload ?? null)}`)}`
 }
 
 /**

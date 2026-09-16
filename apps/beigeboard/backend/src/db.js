@@ -4,6 +4,7 @@
 // run/all/get helpers. Mirrors jkAuth's src/db.js.
 const Database = require('better-sqlite3');
 const { DB_PATH } = require('./config');
+const { IDEMPOTENCY_DDL } = require('@jkos/weave/server');
 
 const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
@@ -778,5 +779,13 @@ function runMigrations() {
 // Run migrations once, at require time — the DB is ready before any route or the
 // listen() call touches it (the monolith did this in boot() before app.listen).
 runMigrations();
+
+/* The write-door dedup store (RESET A2c.4) — WEAVE's table, not BeigeBoard's, which
+ * is why it is not a numbered migration above. A migration freezes a schema at the
+ * moment it ran; this one belongs to @jkos/weave, and every app that mounts a
+ * `defineCollection` re-applies the same `CREATE … IF NOT EXISTS` on every boot. BB
+ * mounts none, and its createItem/importItems doors are hand-rolled, so it applies
+ * the shared DDL itself — the one definition, not a copy of it. */
+db.exec(IDEMPOTENCY_DDL);
 
 module.exports = { db, run, all, get, MIGRATIONS, runMigrations };

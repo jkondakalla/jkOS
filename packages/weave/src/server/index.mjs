@@ -44,6 +44,12 @@ export const resolveBindings = server.resolveBindings
 export const validateTriggerTypes = server.validateTriggerTypes
 export const triggerWebhook = server.triggerWebhook
 export const serverDispatch = server.serverDispatch
+export const withIdempotency = server.withIdempotency
+export const IDEMPOTENCY_DDL = server.IDEMPOTENCY_DDL
+export const IDEMPOTENCY_FIELD = server.IDEMPOTENCY_FIELD
+export const idempotencyKeyOf = server.idempotencyKeyOf
+export const idempotencyKeyError = server.idempotencyKeyError
+export const idempotencyBodyField = server.idempotencyBodyField
 export const CODES = server.CODES
 export const authError = server.authError
 export default server

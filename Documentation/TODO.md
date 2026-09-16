@@ -400,9 +400,15 @@ source; do not re-derive it.
   ⚠️ **Scoped by (door, USER), which is a security property**: a per-user delegated DO fans one
   trigger out to N users carrying the same derived key, and a global store would answer user B
   with user A's row, with a 200 and no error.
-  ⚠️ **Still open: this covers the COLLECTION doors, not every write.** A hand-rolled POST outside
-  `defineCollection` still drops the key. The protection is the field in a capability's declared
-  `body`, never the existence of the constant.
+  ✅ **The hand-rolled doors — DONE 2026-09-16.** BeigeBoard's `createItem` and `importItems`, and
+  LazurOS's five job doors, now dedup too; `check:rulings` holds the declaration on every `create*`,
+  every async door and every write-back target. ⚠️ **It closed a live double-write:** a LazurOS job
+  that outran the reaper's timeout finished twice and imported its tree into BeigeBoard twice.
+  The write-back now keys on the job id. Three more defects in the shipped half, found on the way:
+  `prune()` had **no call sites** (the 30-day retention was never enforced — the write path sweeps
+  now); an over-long key was **silently ignored** rather than refused, despite a declared `max`;
+  and the engine's key was a **32-bit** hash, which became a lost-write risk the moment a door
+  honoured it (128-bit now). Details in `WEAVE.md` §3.4.
   ⚠️ **Why the gap survived is worth more than the fix:** `check:rulings` covered the SENDING half
   against an injected dispatcher and proved the key is derived — never that anything acted on it.
   The new suite writes through the real route into real SQLite and **counts rows**.

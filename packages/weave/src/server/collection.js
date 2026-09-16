@@ -24,7 +24,7 @@ const { filterSpec, buildItemFilters } = require('./filters')
 const { coerceWeaveColumn } = require('./columns')
 const { resourceKey } = require('@jkos/suite-manifest')
 const { SQL_NOW, sqlConvert, canonical: canonicalTime, isCanonical } = require('./wireTime')
-const { idempotencyBodyField } = require('../shared/idempotency')
+const { idempotencyBodyField, idempotencyKeyError } = require('../shared/idempotency')
 const { DDL: IDEMPOTENCY_DDL, keyOf: idempotencyKeyOf, withIdempotency } = require('./idempotency')
 
 // A field name is interpolated into SQL (as a column), so it must be a safe
@@ -322,6 +322,10 @@ function defineCollection(def) {
           }
           const wireErr = checkWire(raw)
           if (wireErr) return res.status(400).json({ error: wireErr, code: 'VALIDATION' })
+          // A key that is present but cannot be honoured is refused, never silently
+          // treated as absent — that would be a write without dedup, key in hand.
+          const keyErr = idempotencyKeyError(raw)
+          if (keyErr) return res.status(400).json({ error: keyErr, code: 'VALIDATION' })
           const d = scoped ? { user_id: ownerOf(req) } : {}
           for (const k of Object.keys(raw)) if (writableNames.has(k)) d[k] = coerce(k, raw[k])
           const keys = Object.keys(d)

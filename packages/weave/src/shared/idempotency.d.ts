@@ -6,8 +6,12 @@
 export const IDEMPOTENCY_FIELD: 'idempotency_key';
 /** The longest key a door will honour — it becomes half a primary key. */
 export const IDEMPOTENCY_MAX_LEN: number;
-/** The key in `body`, or null. Blank, over-long and non-string all read as absent:
- *  no key means no dedup, never an error. */
+/** The key in `body`, or null. Absent or blank means no dedup, never an error.
+ *  Over-long and non-string also read as null here — a door refuses those first,
+ *  via `idempotencyKeyError`. */
 export function idempotencyKeyOf(body: unknown): string | null;
+/** Why a PRESENT key cannot be honoured (non-string, over the declared max), or null.
+ *  A door answers 400 VALIDATION rather than writing without dedup. */
+export function idempotencyKeyError(body: unknown): string | null;
 /** The optional body field a write capability declares. */
 export function idempotencyBodyField(): { name: string; type: 'string'; label: string; max: number };

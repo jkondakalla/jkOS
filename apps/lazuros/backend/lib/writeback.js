@@ -13,7 +13,7 @@
 //
 // review-first: parse-document is intentionally NOT here — its result is stored on the
 // job for human review, never auto-written. query/widget-generate also don't write back.
-const { weaveServerClient } = require('@jkos/weave/server');
+const { weaveServerClient, IDEMPOTENCY_FIELD } = require('@jkos/weave/server');
 
 // WV-6: the target is named by APP + CAPABILITY ID, and the PATH is resolved
 // from that peer's served capability doc at call time.
@@ -69,6 +69,30 @@ function parseImportDoc(result) {
   }
 }
 
+/* ⭐ THE WRITE-BACK'S IDEMPOTENCY KEY (RESET A2c.4) — derived from the JOB, never random.
+ *
+ * ⚠️ A job can legitimately finish TWICE. The reaper (queue.js requeueStaleJobs) hands a
+ * job that has been IN_PROGRESS past its timeout back to the queue, and a slow inference
+ * does not know it was reaped: the first worker finishes, a second worker finishes, and
+ * both post DONE. Each DONE ran this function, and each imported the whole tree into
+ * BeigeBoard — a parsed task twice, a broken-down goal's milestones twice — with two
+ * 201s and nothing anywhere to say so.
+ *
+ * The job id is the identity of "this result", so it is the key: every write-back of one
+ * job is recognisably the same write, and BeigeBoard's import door replays the first.
+ * A random key would satisfy "has a key" and defeat the mechanism entirely. */
+const writebackKey = (job) => `lazuros:writeback:${job.id}`;
+
+/** The document with the key on it. A bare array is the import's list form, which has no
+ *  top level to carry a field, so it is wrapped into the `{ items }` form it already means.
+ *  Anything else that is not an object goes as-is: the peer rejects it, and a key on a
+ *  write that cannot succeed protects nothing. */
+function withWritebackKey(doc, job) {
+  if (Array.isArray(doc)) return { items: doc, [IDEMPOTENCY_FIELD]: writebackKey(job) };
+  if (doc && typeof doc === 'object') return { ...doc, [IDEMPOTENCY_FIELD]: writebackKey(job) };
+  return doc;
+}
+
 // Returns { skipped } for non-write capabilities, else { written, app, status }.
 // Throws only on an actual write failure (caller decides whether that fails the job).
 async function runWriteback(job, result, { makeClient = weaveServerClient } = {}) {
@@ -76,7 +100,11 @@ async function runWriteback(job, result, { makeClient = weaveServerClient } = {}
   if (!target) return { skipped: true };
   if (!job.user_id) throw new Error('writeback: job has no user_id to act as');
 
-  const doc = parseImportDoc(result);
+  if (job.id == null) throw new Error('writeback: job has no id to derive an idempotency key from');
+
+  /* The key OVERWRITES anything the model put there. The model's text chooses what is
+     written; it must never choose which earlier write this one is "the same as". */
+  const doc = withWritebackKey(parseImportDoc(result), job);
   /* ⚠️ The ZONE goes with the acting user, or the peer answers in UTC for a user who
      is not in UTC. BeigeBoard's import mints routine occurrences relative to
      `callerDay(req)`, and BB-1 opened that reconcile to service callers — so without
@@ -90,4 +118,4 @@ async function runWriteback(job, result, { makeClient = weaveServerClient } = {}
   return { written: true, app: target.app, status: r.status };
 }
 
-module.exports = { runWriteback, parseImportDoc, WRITEBACK };
+module.exports = { runWriteback, parseImportDoc, writebackKey, WRITEBACK };

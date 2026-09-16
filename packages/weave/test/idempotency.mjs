@@ -24,8 +24,8 @@ import { dirname, join } from 'node:path'
 const HERE = dirname(fileURLToPath(import.meta.url))
 const require = createRequire(import.meta.url)
 const { defineCollection } = require('../src/server/collection.js')
-const { IDEMPOTENCY_FIELD, idempotencyKeyOf, IDEMPOTENCY_MAX_LEN } = require('../src/shared/idempotency.js')
-const { withIdempotency, prune, TABLE, DDL } = require('../src/server/idempotency.js')
+const { IDEMPOTENCY_FIELD, idempotencyKeyOf, idempotencyKeyError, IDEMPOTENCY_MAX_LEN } = require('../src/shared/idempotency.js')
+const { withIdempotency, prune, pruneIfDue, PRUNE_EVERY_MS, TABLE, DDL } = require('../src/server/idempotency.js')
 
 let pass = 0
 const ok = (label, cond, detail = '') => { assert.ok(cond, `${label} ${detail}`); pass++; console.log(`  ✓ ${label}`) }
@@ -131,6 +131,24 @@ if (!Database) {
   ok('two writes with NO key both land — the field is optional and unchanged behaviour',
     rows(7) === 4, `(got ${rows(7)})`)
 
+  // ⚠️ A KEY THAT IS THERE BUT CANNOT BE HONOURED IS REFUSED. It used to fall through
+  // the reader as "no key", so an over-long key wrote with NO dedup and a 201 — the
+  // outcome the key exists to prevent, with the key in hand. BeigeBoard's contract
+  // smoke caught it: the field declares `max`, and nothing enforced it.
+  section('idempotency · a present-but-unusable key is refused, not ignored')
+  const beforeBad = rows(7)
+  const tooLong = post({ title: 'long key', [IDEMPOTENCY_FIELD]: 'k'.repeat(IDEMPOTENCY_MAX_LEN + 1) })
+  ok('an over-long key → 400 VALIDATION', tooLong.code === 400 && tooLong.body.code === 'VALIDATION', `(got ${tooLong.code})`)
+  const notString = post({ title: 'object key', [IDEMPOTENCY_FIELD]: { a: 1 } })
+  ok('a non-string key → 400 VALIDATION', notString.code === 400 && notString.body.code === 'VALIDATION', `(got ${notString.code})`)
+  ok('…and neither wrote a row', rows(7) === beforeBad, `(got ${rows(7)} vs ${beforeBad})`)
+  const blank = post({ title: 'blank key', [IDEMPOTENCY_FIELD]: '   ' })
+  ok('a BLANK key is "no key", not a broken one — it writes', blank.code === 201 && rows(7) === beforeBad + 1)
+  ok('idempotencyKeyError is null for absent / null / valid keys',
+    idempotencyKeyError({}) === null && idempotencyKeyError({ [IDEMPOTENCY_FIELD]: null }) === null
+      && idempotencyKeyError({ [IDEMPOTENCY_FIELD]: 'trg_abc' }) === null && idempotencyKeyError(null) === null)
+  ok('…and a key of exactly the ceiling is accepted', idempotencyKeyError({ [IDEMPOTENCY_FIELD]: 'k'.repeat(IDEMPOTENCY_MAX_LEN) }) === null)
+
   // ⚠️ ONE TRANSACTION. Insert the row, then fail before recording the key, and the
   // retry double-writes anyway — the exact outcome this exists to prevent, reached
   // by a shorter path. A rollback must take BOTH.
@@ -192,6 +210,42 @@ if (!Database) {
   const removed = prune(db, 30)
   ok('prune drops keys past the retention window', removed >= 1, `(removed ${removed})`)
   ok('…and leaves the recent ones', !!db.prepare(`SELECT 1 FROM ${TABLE} WHERE key = ?`).get('trig:1:evt:10'))
+
+  // ⚠️ AND IT MUST ACTUALLY RUN. `prune` had no call sites anywhere in the suite, so
+  // the retention above was a function a test called and production never did — the
+  // table grew for ever while the header promised it could not. What is asserted
+  // here is that an ordinary keyed WRITE sweeps, with nobody calling prune at all.
+  section('idempotency · retention is enforced by the write path, not by a caller')
+  const fresh = new Database(':memory:')
+  fresh.exec(DDL)
+  const plant = (key) => fresh.prepare(
+    `INSERT INTO ${TABLE} (scope, user_id, key, status, body, created_at) VALUES ('demo.x', '7', ?, 201, 'null', ?)`
+  ).run(key, new Date(Date.now() - 400 * 86400_000).toISOString())
+  const has = (key) => !!fresh.prepare(`SELECT 1 FROM ${TABLE} WHERE key = ?`).get(key)
+  const keyed = (key) => withIdempotency(fresh, { scope: 'demo.x', userId: 7, key, write: () => ({ status: 201, body: null }) })
+
+  plant('ancient-1')
+  keyed('today-1')
+  ok('the first keyed write on a handle sweeps expired keys — no caller runs prune', !has('ancient-1'))
+  ok('…and records its own', has('today-1'))
+
+  plant('ancient-2')
+  keyed('today-2')
+  ok('…but at most once a day per handle, not a DELETE on every write', has('ancient-2'))
+  ok('a sweep is due again once the interval has passed',
+    pruneIfDue(fresh, Date.now() + PRUNE_EVERY_MS + 1) === 1 && !has('ancient-2'))
+
+  // An expired key reads as NEW — which only holds once the sweep has happened, so
+  // it is asserted through the write path rather than by calling prune first.
+  const again = new Database(':memory:')
+  again.exec(DDL)
+  again.prepare(
+    `INSERT INTO ${TABLE} (scope, user_id, key, status, body, created_at) VALUES ('demo.x', '7', 'late', 201, '"old"', ?)`
+  ).run(new Date(Date.now() - 400 * 86400_000).toISOString())
+  let wrote = 0
+  const late = withIdempotency(again, { scope: 'demo.x', userId: 7, key: 'late', write: () => { wrote++; return { status: 201, body: 'new' } } })
+  ok('a redelivery past retention is a NEW write, not a replay of a 400-day-old answer',
+    wrote === 1 && !late.replayed && late.body === 'new')
 
   ok('the DDL is idempotent itself (IF NOT EXISTS)', (() => {
     db.exec(DDL); db.exec(DDL); return true

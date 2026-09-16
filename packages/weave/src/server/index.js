@@ -38,6 +38,14 @@ const { defineLibraryScanner } = require('./libraryScanner')
 const { defineMediaRoutes, decidePlayback } = require('./mediaRoutes')
 const { serveSpa } = require('./spa')
 const { createTriggerEngine, resolveBindings, validateTriggerTypes, triggerWebhook, serverDispatch } = require('./trigger')
+/* ⚠️ The RECEIVER, exported because `defineCollection` is not the only write door.
+   Until this line it was reachable only from inside collection.js, so a hand-rolled
+   POST — BeigeBoard's createItem and importItems, LazurOS's job doors — had no way to
+   honour the key the trigger engine sends except by re-implementing the store. The
+   same shape as `wireNow` above: a shared module you cannot reach is one people
+   route around. */
+const { withIdempotency, DDL: IDEMPOTENCY_DDL } = require('./idempotency')
+const { IDEMPOTENCY_FIELD, idempotencyKeyOf, idempotencyKeyError, idempotencyBodyField } = require('../shared/idempotency')
 // Re-export the canonical error-code vocabulary + envelope helper so backends that
 // already weave in @jkos/weave/server (jkAuth, BeigeBoard) get one source for the
 // `code` field without a second auth-middleware import. Single source lives in
@@ -74,6 +82,7 @@ module.exports = {
   validateTriggerTypes,
   triggerWebhook,
   serverDispatch,
+  withIdempotency, IDEMPOTENCY_DDL, IDEMPOTENCY_FIELD, idempotencyKeyOf, idempotencyKeyError, idempotencyBodyField,
   CODES,
   authError,
 }

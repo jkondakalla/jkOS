@@ -16,7 +16,7 @@
 // against the loaded tier registry at request time (see composability mandate).
 
 const { resourceKey } = require('@jkos/suite-manifest');
-const { defineActivity, canonicalTime, extRef } = require('@jkos/weave/activity'); // D6: the activity contract (lean subpath — this file is imported as DATA by the prober)
+const { defineActivity, canonicalTime, extRef, idempotencyBodyField } = require('@jkos/weave/activity'); // D6: the activity contract (lean subpath — this file is imported as DATA by the prober)
 
 /** This app's one polled resource: the async inference job queue. */
 const JOBS_KEY = resourceKey('lazuros', 'jobs'); // 'lazuros.jobs'
@@ -31,6 +31,13 @@ const JOBS_KEY = resourceKey('lazuros', 'jobs'); // 'lazuros.jobs'
  * a task title. No error, no warning — just a task called `a3f1c8e2-…`. What the WORK
  * produces is declared separately, per capability, as `resolves`. */
 const JOB_HANDLE = [{ name: 'job_id', type: 'string' }];
+
+/* ⭐ THE RESERVED IDEMPOTENCY FIELD (RESET A2c.4), on every capability — each one
+   ENQUEUES WORK, and a retried trigger DO must not run the model twice. A repeated key
+   answers with the first job's handle (routes/capability.js). Never a prompt input:
+   the handler strips it before the payload is stored, so no `prompts.json` template may
+   reference it. */
+const IDEMPOTENCY = idempotencyBodyField();
 
 /* ⭐ WHAT THE WORK PRODUCES (WV-5). The presence of `resolves` IS the declaration
    that a capability is asynchronous — there is deliberately no separate `async: true`,
@@ -68,6 +75,7 @@ const CAPABILITIES_DOC = {
       requestShape: 'structured', targetTier: 'highest',
       body: [
         { name: 'text', type: 'string', label: 'Free text', required: true },
+        IDEMPOTENCY,
       ],
       returns: JOB_HANDLE, resolves: IMPORT_DOC, invalidates: [JOBS_KEY],
     },
@@ -78,6 +86,7 @@ const CAPABILITIES_DOC = {
       requestShape: 'structured', targetTier: 'highest',
       body: [
         { name: 'goal_text', type: 'string', label: 'Goal description', required: true },
+        IDEMPOTENCY,
       ],
       returns: JOB_HANDLE, resolves: IMPORT_DOC, invalidates: [JOBS_KEY],
     },
@@ -88,6 +97,7 @@ const CAPABILITIES_DOC = {
       requestShape: 'structured', targetTier: 'highest',
       body: [
         { name: 'content', type: 'string', label: 'Document text', required: true },
+        IDEMPOTENCY,
       ],
       returns: JOB_HANDLE, resolves: IMPORT_DOC, invalidates: [JOBS_KEY],
     },
@@ -98,6 +108,7 @@ const CAPABILITIES_DOC = {
       requestShape: 'structured', targetTier: 'highest',
       body: [
         { name: 'description', type: 'string', label: 'Widget description', required: true },
+        IDEMPOTENCY,
       ],
       returns: JOB_HANDLE,
       resolves: [{ name: 'spec', type: 'json', label: 'A WidgetSpec document', schema: 'Documentation/ARCHITECTURE.md' }],
@@ -111,6 +122,7 @@ const CAPABILITIES_DOC = {
       body: [
         { name: 'text', type: 'string', label: 'Query text (or transcript)' },
         { name: 'audio_b64', type: 'string', label: 'Base64 audio (alternative to text)' },
+        IDEMPOTENCY,
       ],
       returns: JOB_HANDLE,
       /* Open-ended: the answer is prose, and saying so is the point — a binder can

@@ -6,7 +6,7 @@
 
 const path = require('path');
 const Database = require('better-sqlite3');
-const { SQL_NOW } = require('@jkos/weave/server');
+const { SQL_NOW, IDEMPOTENCY_DDL } = require('@jkos/weave/server');
 
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'lazuros.db');
 const db = new Database(DB_PATH);
@@ -59,6 +59,11 @@ db.exec(`
  * be right on a fresh checkout and silently absent everywhere the app had ever run. */
 const jobCols = new Set(db.prepare('PRAGMA table_info(jobs)').all().map((c) => c.name));
 if (!jobCols.has('acting_zone')) db.exec('ALTER TABLE jobs ADD COLUMN acting_zone TEXT');
+
+/* The write-door dedup store (RESET A2c.4) — @jkos/weave's table, applied from its one
+ * definition. Every capability here ENQUEUES WORK, and a retried trigger DO that enqueued
+ * twice would run the model twice and write its result back twice. See routes/capability.js. */
+db.exec(IDEMPOTENCY_DDL);
 
 // Status lifecycle: PENDING → (PENDING_WAKEUP) → IN_PROGRESS → DONE | FAILED.
 // tier_id records which tier the job routed to — useful for debugging escalation

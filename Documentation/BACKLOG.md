@@ -309,6 +309,8 @@ gates protecting it were reporting on code they never read**, and the defects hi
   to build before the trigger engine is ever mounted. Note the engine has no call sites at all
   today, which is the stated steady state — but it means this gap surfaces on the day it is wired,
   not before.
+  ✅ **Closed** — the collection doors 2026-09-10, the hand-rolled doors (BeigeBoard, LazurOS, and
+  LazurOS's write-back) 2026-09-16. `WEAVE.md` §3.4.
 - **jkAuth has two authorization policies.** `policy.js` holds the route actions; `roleClaims()` in
   `db.js` decides the `aud` and `scope` claims **every token in the suite carries** — a wider
   decision than any route guard. Folding it in means `policy.js` depending on `db.js` and owning a

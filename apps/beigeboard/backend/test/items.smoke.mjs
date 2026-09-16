@@ -68,7 +68,7 @@ async function req(method, path, body, token) {
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   let json = null; try { json = await r.json(); } catch { /* non-JSON */ }
-  return { status: r.status, json };
+  return { status: r.status, json, replay: r.headers.get('idempotent-replay') };
 }
 const list = async (token, qs = '') => (await req('GET', '/api/items' + qs, undefined, token)).json || [];
 
@@ -383,6 +383,42 @@ try {
     `Q: estimate_minutes round-trips — the bench expressed commitment and nothing expressed COST, so nothing could say the week is overcommitted (got ${costed.json.estimate_minutes})`);
   ok(costed.json.defer_until === '2026-09-01',
     `Q: defer_until round-trips — distinct from due_date (when it must be done) and from parked status (got ${costed.json.defer_until})`);
+
+  // ── R. DEDUP AT THE WRITE DOOR (RESET A2c.4) ─────────────────────────────────
+  // createItem is HAND-ROLLED, so the protection defineCollection gives every
+  // generated create never reached it: the key arrived as an unknown body field, was
+  // dropped, and a retried DO added the task twice with two identical-looking 201s.
+  // ⚠️ Asserted by COUNTING ROWS. A test that only compared responses would pass
+  // against a door that wrote twice and answered the same way both times.
+  const tagged = async (token) => (await list(token, '?tags=idem-r')).length;
+  const r1 = await req('POST', '/api/items', { title: 'from a trigger', tags: 'idem-r', idempotency_key: 'trig:7:evt:1' }, A);
+  const r2 = await req('POST', '/api/items', { title: 'from a trigger', tags: 'idem-r', idempotency_key: 'trig:7:evt:1' }, A);
+  ok(r1.status === 201 && r2.status === 201, `R: both attempts answer 201 (got ${r1.status}, ${r2.status})`);
+  ok(await tagged(A) === 1, `R: a retried create writes ONE row, not two (got ${await tagged(A)})`);
+  ok(r2.json?.id === r1.json?.id, `R: the retry hands back the FIRST row (got ${r1.json?.id} vs ${r2.json?.id})`);
+  ok(r2.replay === 'true' && r1.replay === null,
+    `R: only the retry says Idempotent-Replay (got first=${r1.replay}, retry=${r2.replay})`);
+
+  // ⚠️ THE SECURITY PROPERTY, through BeigeBoard's real door. A delegated DO fans one
+  // trigger out to N users carrying the SAME derived key; keyed globally, user B would
+  // be handed user A's task with a 201 and no error.
+  const rb = await req('POST', '/api/items', { title: 'B\'s own', tags: 'idem-r', idempotency_key: 'trig:7:evt:1' }, B);
+  ok(rb.status === 201 && rb.replay === null && rb.json?.id !== r1.json?.id,
+    `R: the same key from ANOTHER user writes that user's own row (got ${rb.status}, replay=${rb.replay}, id ${rb.json?.id})`);
+  ok(await tagged(B) === 1 && rb.json?.title === "B's own",
+    `R: …and B sees B's row, never A's (got ${await tagged(B)} rows, title ${JSON.stringify(rb.json?.title)})`);
+
+  await req('POST', '/api/items', { title: 'hand-made', tags: 'idem-r' }, A);
+  await req('POST', '/api/items', { title: 'hand-made', tags: 'idem-r' }, A);
+  ok(await tagged(A) === 3, `R: with NO key both writes land — every GUI write is keyless and unchanged (got ${await tagged(A)})`);
+
+  // A rejected write is not a first attempt. Remembering the 400 would refuse the
+  // corrected retry for thirty days.
+  const bad = await req('POST', '/api/items', { tags: 'idem-r', idempotency_key: 'trig:7:evt:2' }, A);
+  const fixed = await req('POST', '/api/items', { title: 'now with a title', tags: 'idem-r', idempotency_key: 'trig:7:evt:2' }, A);
+  ok(bad.status === 400 && fixed.status === 201 && fixed.replay === null,
+    `R: a REJECTED write does not consume its key — the corrected retry writes (got ${bad.status} then ${fixed.status}, replay=${fixed.replay})`);
+  ok(await tagged(A) === 4, `R: …exactly once (got ${await tagged(A)})`);
 } catch (e) {
   console.error('harness error:', e);
   fail++;

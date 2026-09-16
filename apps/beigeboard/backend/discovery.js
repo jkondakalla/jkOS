@@ -18,7 +18,7 @@
 // The invalidation bus key is DERIVED from the app id via resourceKey (ToDo A5), not a
 // free-typed 'beigeboard.items' repeated on each capability + the dataset.
 const { resourceKey } = require('@jkos/suite-manifest');
-const { defineActivity, canonicalTime, extRef, checkExtRefDoc, extRefFieldDoc } = require('@jkos/weave/activity'); // D6/D7 (lean subpath — this file is imported as DATA by the prober)
+const { defineActivity, canonicalTime, extRef, checkExtRefDoc, extRefFieldDoc, idempotencyBodyField } = require('@jkos/weave/activity'); // D6/D7 (lean subpath — this file is imported as DATA by the prober)
 // ITEM_SHAPE is DERIVED (ARCH-1) from the one per-column list in src/item-fields —
 // the same source src/schema.js derives ITEM_COLUMNS + the import cleaner tables
 // from. So the row a peer READS (this shape), the columns the server WRITES
@@ -112,6 +112,10 @@ const CAPABILITIES = {
         // `importRoutine` below for anything more than a one-line document — it
         // resolves library refs, is idempotent by slug, and returns the lint.
         { name: 'spec',           type: 'json',   label: 'Routine: the step document', schema: 'beigeboard.routineVocabulary' },
+        // RESET A2c.4 — a repeated key replays the first create instead of adding a
+        // second row. Declared, because the declaration IS the protection: a caller
+        // reading this doc cannot otherwise know the door dedups.
+        idempotencyBodyField(),
       ],
       returns: ITEM_SHAPE,
       invalidates: [ITEMS_KEY], scopes: ['beigeboard:write'],
@@ -272,6 +276,9 @@ const CAPABILITIES = {
       body: [
         { name: 'items',    type: 'json', label: 'Items — a nested tree or a flat ref/parent list', required: true, schema: 'beigeboard.items' },
         { name: 'defaults', type: 'json', label: 'Field defaults applied to every item (optional)', schema: 'beigeboard.items' },
+        // RESET A2c.4 — LazurOS's write-back sends one derived from the job id, so a
+        // job that finishes twice imports once. Ignored by ?dryRun=1.
+        idempotencyBodyField(),
       ],
       returns: [
         { name: 'ok',       type: 'boolean' },

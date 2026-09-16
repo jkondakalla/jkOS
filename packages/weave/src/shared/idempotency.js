@@ -25,9 +25,11 @@ export const IDEMPOTENCY_MAX_LEN = 200
  * ⚠️ **AN ABSENT KEY MEANS NO DEDUP, NOT AN ERROR.** The field is optional by
  * declaration: every hand-made write from a GUI arrives without one, and a door
  * that rejected those would break every app in the suite to protect a path with
- * no call sites yet. A blank, over-long or non-string key reads as absent for the
- * same reason — the alternative is a store keyed on `"[object Object]"`, silently
- * collapsing unrelated writes into one.
+ * no call sites yet. A blank key is absent too.
+ *
+ * An over-long or non-string key also reads as null HERE — the alternative is a
+ * store keyed on `"[object Object]"`, silently collapsing unrelated writes into one —
+ * but a door must not stop at this reader. See `idempotencyKeyError` below.
  */
 export function idempotencyKeyOf(body) {
   const v = body && body[IDEMPOTENCY_FIELD]
@@ -35,6 +37,28 @@ export function idempotencyKeyOf(body) {
   const trimmed = v.trim()
   if (!trimmed || trimmed.length > IDEMPOTENCY_MAX_LEN) return null
   return trimmed
+}
+
+/**
+ * Why a PRESENT key is unusable, or null.
+ *
+ * ⚠️ **A KEY THAT IS THERE BUT CANNOT BE HONOURED IS REFUSED, NOT IGNORED.** This
+ * used to fall through the reader above as "no key", so a caller who sent a 300-char
+ * key got a write with no dedup and a 201 — the one outcome the key exists to
+ * prevent, reached with the key in hand and nothing to say so. The field DECLARES
+ * `max`, and BeigeBoard's contract smoke (which violates every declared cap and
+ * expects a 400) is what caught that the cap was declared and never enforced.
+ * Absent, null and blank stay fine: those are "no key", not a broken one.
+ */
+export function idempotencyKeyError(body) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return null
+  const v = body[IDEMPOTENCY_FIELD]
+  if (v == null) return null
+  if (typeof v !== 'string') return `${IDEMPOTENCY_FIELD} must be a string`
+  if (v.trim().length > IDEMPOTENCY_MAX_LEN) {
+    return `${IDEMPOTENCY_FIELD} exceeds the ${IDEMPOTENCY_MAX_LEN}-character limit`
+  }
+  return null
 }
 
 /** The optional body field a write capability declares, so a GUI or an AI can SEE

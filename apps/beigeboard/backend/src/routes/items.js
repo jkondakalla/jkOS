@@ -2,8 +2,8 @@
 // Items CRUD — the core per-user task/event store. GET (with weave filters + lazy
 // first-run seed), POST/PATCH (validated direct writes), DELETE (cascade).
 const express = require('express');
-const { buildItemFilters, filterSpec, callerDay } = require('@jkos/weave/server');
-const { all, run, get } = require('../db');
+const { buildItemFilters, filterSpec, callerDay, withIdempotency, idempotencyKeyOf, idempotencyKeyError } = require('@jkos/weave/server');
+const { db, all, run, get } = require('../db');
 const { DATASETS } = require('../../discovery');
 const { ITEM_COLUMNS, coerceColumn, validateItemWrite } = require('../schema');
 const { validParentId, cascadeDelete, seedDefaults } = require('../items-store');
@@ -112,6 +112,8 @@ router.post('/api/items', (req, res) => {
     const details = {};
     const invalid = validateItemWrite(raw, details);
     if (invalid) return res.status(400).json({ error: invalid, code: 'VALIDATION', errors: details.errors || [] });
+    const keyErr = idempotencyKeyError(raw);   // present but unusable → refused, never a silent no-dedup
+    if (keyErr) return res.status(400).json({ error: keyErr, code: 'VALIDATION' });
     if (!validParentId(raw.parent_id, req.user.sub)) return res.status(400).json({ error: 'Invalid parent_id' });
     const d    = { user_id: req.user.sub };
     for (const k of Object.keys(raw)) {
@@ -120,24 +122,41 @@ router.post('/api/items', (req, res) => {
     const keys = Object.keys(d);
     const cols = keys.join(', ');
     const phs  = keys.map(() => '?').join(', ');
-    const r    = run(`INSERT INTO items (${cols}) VALUES (${phs})`, keys.map(k => d[k]));
-    const row  = get('SELECT * FROM items WHERE id = ?', [r.lastInsertRowid]);
-    // A new routine gets its horizon immediately, so the board it was created from
-    // shows real occurrences without waiting for the next full load.
-    if (row.kind === 'routine') {
-      // Every routine starts at revision 1, so `sv` is meaningful from the first
-      // render rather than null until someone happens to edit it.
-      run('UPDATE items SET spec_version = 1 WHERE id = ? AND user_id = ?', [row.id, req.user.sub]);
-      materializeOne(row.id, req.user.sub, callerDay(req));
-      row.spec_version = 1;
-      /* WHICH routines exist has changed, so today's horizon marker is stale (BB-1).
-         Without this the day's first read had already marked the day done, and a
-         routine created afterwards would not be swept by a later read until
-         tomorrow. Its own materializeOne above covers it — this covers the ones the
-         sweep would otherwise skip alongside it. */
-      forgetHorizon(req.user.sub);
-    }
-    res.status(201).json(withLint(toRow(row), details));
+    /* ⭐ DEDUP AT THE WRITE DOOR (RESET A2c.4). This door is hand-rolled, so the
+       protection `defineCollection` gives every generated create had to be put here
+       by hand — until it was, a retried trigger DO or a re-delivered write-back
+       created the task twice, with two 201s and no error anywhere.
+       ⚠️ Validation stays OUTSIDE: a rejected write is not a first attempt worth
+       replaying, and remembering a 400 would refuse the corrected retry forever.
+       The routine mint runs INSIDE, so a crash between the row and its occurrences
+       rolls back both and the key with them. */
+    const out = withIdempotency(db, {
+      scope: 'beigeboard.items',
+      userId: req.user.sub,
+      key: idempotencyKeyOf(raw),
+      write: () => {
+        const r   = run(`INSERT INTO items (${cols}) VALUES (${phs})`, keys.map(k => d[k]));
+        const row = get('SELECT * FROM items WHERE id = ?', [r.lastInsertRowid]);
+        // A new routine gets its horizon immediately, so the board it was created from
+        // shows real occurrences without waiting for the next full load.
+        if (row.kind === 'routine') {
+          // Every routine starts at revision 1, so `sv` is meaningful from the first
+          // render rather than null until someone happens to edit it.
+          run('UPDATE items SET spec_version = 1 WHERE id = ? AND user_id = ?', [row.id, req.user.sub]);
+          materializeOne(row.id, req.user.sub, callerDay(req));
+          row.spec_version = 1;
+          /* WHICH routines exist has changed, so today's horizon marker is stale (BB-1).
+             Without this the day's first read had already marked the day done, and a
+             routine created afterwards would not be swept by a later read until
+             tomorrow. Its own materializeOne above covers it — this covers the ones the
+             sweep would otherwise skip alongside it. */
+          forgetHorizon(req.user.sub);
+        }
+        return { status: 201, body: withLint(toRow(row), details) };
+      },
+    });
+    if (out.replayed) res.set('Idempotent-Replay', 'true');
+    res.status(out.status).json(out.body);
   } catch (e) { fail(res, e); }
 });
 

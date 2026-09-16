@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { runWriteback } = require('../lib/writeback');
+const { runWriteback, writebackKey } = require('../lib/writeback');
 
 let n = 0;
 const test = (label, fn) => { fn(); n++; };
@@ -31,7 +31,8 @@ await (async () => {
   test('parse-task writes back', () => assert.deepEqual(out, { written: true, app: 'beigeboard', status: 200 }));
   test('targets beigeboard /import', () => { assert.equal(log[0].app, 'beigeboard'); assert.equal(log[0].path, '/import'); });
   test('acts AS the job user (delegation WHO)', () => assert.equal(log[0].actingUser, 'user-42'));
-  test('posts the parsed import doc', () => assert.deepEqual(log[0].body, { items: [{ title: 'Buy milk' }] }));
+  test('posts the parsed import doc, keyed by its job', () =>
+    assert.deepEqual(log[0].body, { items: [{ title: 'Buy milk' }], idempotency_key: 'lazuros:writeback:j1' }));
 })();
 
 /* 1b. THE ACTING ZONE TRAVELS WITH THE ACTING USER (D5 + G1).
@@ -92,7 +93,8 @@ await (async () => {
 await (async () => {
   const { makeClient, log } = spyClient();
   await runWriteback({ id: 'j5', capability: 'parse-task', user_id: 'u' }, { items: [{ title: 'x' }] }, { makeClient });
-  test('structured result posts directly', () => assert.deepEqual(log[0].body, { items: [{ title: 'x' }] }));
+  test('structured result posts directly', () =>
+    assert.deepEqual(log[0].body, { items: [{ title: 'x' }], idempotency_key: 'lazuros:writeback:j5' }));
 })();
 
 // 6. non-JSON model response → a clear write-back fault, not a silent pass.
@@ -111,6 +113,53 @@ await (async () => {
     () => runWriteback({ id: 'j7', capability: 'parse-task' }, { response: '{}' }, { makeClient }),
     /no user_id/);
   test('no user_id rejects', () => {});
+})();
+
+/* 8. ⭐ THE KEY (RESET A2c.4). A job can legitimately finish TWICE — the reaper requeues
+ * one that outran its timeout while the first worker is still running, and both post
+ * DONE. Each DONE runs the write-back, and each used to import the tree again. BeigeBoard's
+ * import door now dedups on the key, so what matters HERE is that the key is the same for
+ * both runs of one job and different for any other job. */
+await (async () => {
+  const { makeClient, log } = spyClient();
+  const job = { id: 'job-reaped', capability: 'parse-task', user_id: 'u9' };
+  await runWriteback(job, { response: '{"items":[{"title":"once"}]}' }, { makeClient });
+  await runWriteback(job, { response: '{"items":[{"title":"once"}]}' }, { makeClient });
+  await runWriteback({ ...job, id: 'job-other' }, { response: '{"items":[{"title":"once"}]}' }, { makeClient });
+  test('both write-backs of ONE job carry the SAME key — a second DONE is recognisably a retry', () =>
+    assert.equal(log[0].body.idempotency_key, log[1].body.idempotency_key));
+  test('…derived from the job id, not random (a random key defeats the mechanism)', () =>
+    assert.equal(log[0].body.idempotency_key, writebackKey(job)));
+  test('a DIFFERENT job carries a different key — two real results are two real imports', () =>
+    assert.notEqual(log[2].body.idempotency_key, log[0].body.idempotency_key));
+})();
+
+// 9. The model chooses WHAT is written, never which earlier write this one is "the same as".
+await (async () => {
+  const { makeClient, log } = spyClient();
+  await runWriteback({ id: 'j9', capability: 'parse-task', user_id: 'u' },
+    { response: '{"items":[{"title":"x"}],"idempotency_key":"someone-elses-job"}' }, { makeClient });
+  test('a key in the MODEL\'s output is overwritten by the job\'s', () =>
+    assert.equal(log[0].body.idempotency_key, 'lazuros:writeback:j9'));
+})();
+
+// 10. The bare-array list form has no top level to carry a field, so it is wrapped into
+//     the `{ items }` form it already means rather than sent unkeyed.
+await (async () => {
+  const { makeClient, log } = spyClient();
+  await runWriteback({ id: 'j10', capability: 'parse-task', user_id: 'u' },
+    { response: '[{"title":"a"},{"title":"b"}]' }, { makeClient });
+  test('a bare array is wrapped as { items } and keyed', () =>
+    assert.deepEqual(log[0].body, { items: [{ title: 'a' }, { title: 'b' }], idempotency_key: 'lazuros:writeback:j10' }));
+})();
+
+// 11. No id, no key to derive — refuse rather than send an unkeyed write that dedups nothing.
+await (async () => {
+  const { makeClient, log } = spyClient();
+  await assert.rejects(
+    () => runWriteback({ capability: 'parse-task', user_id: 'u' }, { response: '{"items":[]}' }, { makeClient }),
+    /no id/);
+  test('a job with no id is refused before any write', () => assert.equal(log.length, 0));
 })();
 
 console.log(`✅ ALL PASS: ${n} assertions (writeback.smoke)`);

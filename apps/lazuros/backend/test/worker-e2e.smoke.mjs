@@ -183,6 +183,38 @@ async function main() {
   const run2 = await run('python3', [driver], driverEnv);
   ok(run2.stdout.trim() === '', 'process_once with an empty queue claims nothing');
 
+  // ═══ Part A2 — dedup at the job door (RESET A2c.4) ══════════════════════════
+  // Every capability ENQUEUES WORK. A retried trigger DO that enqueued twice ran the
+  // model twice and, for parse-task/breakdown-goal, imported the result twice.
+  // ⚠️ Counted in JOBS, through the real route — not inferred from matching responses.
+  const queryJobs = async () => ((await jsonReq(node.base, 'GET', '/api/lazuros/jobs?capability=query')).json || []).length;
+  const beforeKeyed = await queryJobs();
+  const k1 = await fetch(`${node.base}/api/lazuros/query`, { method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ text: 'dedup me', idempotency_key: 'trig:3:evt:1' }) });
+  const k2 = await fetch(`${node.base}/api/lazuros/query`, { method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ text: 'dedup me', idempotency_key: 'trig:3:evt:1' }) });
+  const [k1j, k2j] = [await k1.json(), await k2.json()];
+  ok(k1.status === 202 && k2.status === 202, 'a repeated key still answers 202');
+  ok(await queryJobs() === beforeKeyed + 1, `a repeated key enqueues ONE job, not two (got +${(await queryJobs()) - beforeKeyed})`);
+  ok(k2j.job_id === k1j.job_id, 'the retry hands back the FIRST job\'s handle');
+  ok(k2.headers.get('idempotent-replay') === 'true' && k1.headers.get('idempotent-replay') === null,
+    'only the retry says Idempotent-Replay');
+  // The key is the request's, not the work's: the worker renders format(**payload), and a
+  // stored key would make two identical jobs look different.
+  const peek = new Database(node.dbPath, { readonly: true });
+  const keyedRow = peek.prepare('SELECT payload FROM jobs WHERE id = ?').get(k1j.job_id);
+  peek.close();
+  ok(keyedRow && !('idempotency_key' in JSON.parse(keyedRow.payload)) && JSON.parse(keyedRow.payload).text === 'dedup me',
+    'the key never reaches the stored payload');
+  await jsonReq(node.base, 'POST', '/api/lazuros/query', { text: 'dedup me' });
+  await jsonReq(node.base, 'POST', '/api/lazuros/query', { text: 'dedup me' });
+  ok(await queryJobs() === beforeKeyed + 3, 'with NO key both requests enqueue — every hand-made request is unchanged');
+  // A key that is present but cannot be honoured is REFUSED, before any work is queued —
+  // never silently treated as absent, which would enqueue with the key in hand and no dedup.
+  const longKey = await jsonReq(node.base, 'POST', '/api/lazuros/query', { text: 'dedup me', idempotency_key: 'k'.repeat(201) });
+  ok(longKey.status === 400 && longKey.json?.code === 'VALIDATION' && await queryJobs() === beforeKeyed + 3,
+    `an over-long key → 400 VALIDATION and no job (got ${longKey.status})`);
+
   // ═══ Part B — offline tier → PENDING_WAKEUP ════════════════════════════════
   const wolNode = await bootNode(OFFLINE_WOL, 'b');
   const enqW = await jsonReq(wolNode.base, 'POST', '/api/lazuros/query', { text: 'wake up' });
@@ -204,7 +236,7 @@ async function main() {
     post: async (path, doc) => { calls.push({ app, opts, path, doc }); return { ok: true, status: 200 }; },
   });
   const wb = await runWriteback(
-    { capability: 'parse-task', user_id: 'u42' },
+    { id: 'e2e-wb-1', capability: 'parse-task', user_id: 'u42' },
     { response: JSON.stringify({ items: [{ title: 'From AI' }] }) },
     { makeClient: fakeClient },
   );

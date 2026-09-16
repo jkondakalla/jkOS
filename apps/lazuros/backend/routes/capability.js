@@ -6,8 +6,12 @@
 // ComputeBackend.probe()/wake() contract, never a hardcoded "ping Emily". Adding a
 // sixth capability to docs.js reuses this handler unchanged.
 
+const db = require('../db');
 const { createJob, setJobStatus } = require('../lib/queue');
-const { callerZone } = require('@jkos/weave/server');   // D5: WHERE the caller is
+const {
+  callerZone,                                            // D5: WHERE the caller is
+  withIdempotency, idempotencyKeyOf, idempotencyKeyError, IDEMPOTENCY_FIELD,  // A2c.4: dedup at the write door
+} = require('@jkos/weave/server');
 
 /** Resolve a capability's declared targetTier against the loaded tier registry.
  *  'highest'/'lowest' keep capability docs deployment-agnostic (a doc must not know
@@ -29,7 +33,13 @@ function makeHandler(capDef) {
     // an input the server discards); a stray body user_id is still stripped here.
     if (req.user?.sub == null) return res.status(401).json({ error: 'UNAUTHENTICATED' });
     const user_id = String(req.user.sub);
-    const { user_id: _ignoredBodyUser, ...payload } = req.body || {};
+    // A key that is present but cannot be honoured is refused before any work is queued.
+    const keyErr = idempotencyKeyError(req.body);
+    if (keyErr) return res.status(400).json({ error: keyErr, code: 'VALIDATION' });
+    /* The idempotency key is a property of the REQUEST, not of the work, so it never
+       reaches the payload: the worker renders `template.format(**payload)`, and a job
+       row carrying the key would make two otherwise-identical jobs look different. */
+    const { user_id: _ignoredBodyUser, [IDEMPOTENCY_FIELD]: _key, ...payload } = req.body || {};
 
     const tier = resolveTier(capDef.targetTier, deploymentCfg.tiers);
     if (!tier) return res.status(500).json({ error: `no tier resolves "${capDef.targetTier}"` });
@@ -37,12 +47,35 @@ function makeHandler(capDef) {
     const backend = providers.computeBackends[tier.computeBackend];
     if (!backend) return res.status(500).json({ error: `tier ${tier.id} references unknown computeBackend "${tier.computeBackend}"` });
 
-    /* The zone travels with the job (D5). This is the one moment a browser is on
-       the other end; the write-back that commits the result is a service call. */
-    const jobId = createJob({
-      user_id, capability: capDef.id, payload, tier_id: tier.id,
-      acting_zone: callerZone(req),
+    /* ⭐ DEDUP AT THE WRITE DOOR (RESET A2c.4). Every capability here enqueues work,
+       and work here is expensive and WRITES: a retried trigger DO that enqueued twice
+       ran the model twice and — for parse-task and breakdown-goal — imported the result
+       into BeigeBoard twice. A repeated key now hands back the FIRST job's handle.
+       Scoped per capability and per user; see @jkos/weave/server's idempotency.js for
+       why the user is in the key. The zone travels with the job (D5) — this is the one
+       moment a browser is on the other end; the write-back is a service call. */
+    const enq = withIdempotency(db, {
+      scope: `lazuros.${capDef.id}`,
+      userId: user_id,
+      key: idempotencyKeyOf(req.body),
+      write: () => ({
+        status: 202,
+        body: {
+          job_id: createJob({
+            user_id, capability: capDef.id, payload, tier_id: tier.id,
+            acting_zone: callerZone(req),
+          }),
+        },
+      }),
     });
+    /* A replay neither probes nor wakes. The first attempt already did both, and the
+       job it created is whatever state it has reached since — possibly DONE. Marking
+       it PENDING_WAKEUP now would pull a finished job back into the claimable set. */
+    if (enq.replayed) {
+      res.set('Idempotent-Replay', 'true');
+      return res.status(enq.status).json(enq.body);
+    }
+    const jobId = enq.body.job_id;
 
     // If the tier's backend is offline, mark the job PENDING_WAKEUP and best-effort
     // wake it (WoL for a wol-backend; a no-op for an always-on one). The worker picks

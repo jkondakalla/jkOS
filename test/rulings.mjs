@@ -163,8 +163,60 @@ const trigger = require(resolve(root, 'packages/weave/src/server/trigger.js'));
   check(seen[0].key === seen[1].key,
     'the SAME event produces the SAME key — even reserialised with its keys in another order, which a peer will do');
   check(seen[0].key !== seen[2].key, 'a different event produces a different key');
+  /* ⚠️ AND IT IS WIDE ENOUGH THAT "DIFFERENT" HOLDS. A receiving door answers a matching
+     key with the FIRST write's stored response, so a collision is a write that silently
+     never happens. The key was a 32-bit FNV-1a until 2026-09-16 — ~1% odds by ten thousand
+     writes to one door for one user. 128 bits is the floor; this pins the width, because
+     a narrower hash passes every sameness check above. */
+  const digestHex = String(seen[0].key).replace(/^trg_/, '');
+  check(/^[0-9a-f]+$/.test(digestHex) && digestHex.length * 4 >= 128,
+    `the key carries at least 128 bits (got ${digestHex.length * 4}) — a collision is a lost write, not a cosmetic clash`);
   /* ⚠️ A random key would satisfy "has a key" and defeat the entire mechanism, by
      making every retry look like a new write. That is why sameness is the assertion. */
+
+  /* ── …and the RECEIVING half, declared where a caller can see it. ──────────────
+     Everything above proves the SENDER. For a long time that was all this ruling
+     checked, and the receiving half did not exist: no capability declared the field and
+     no door read it, so "a retried DO cannot double-write" was prose with a green tick
+     beside it. `defineCollection` closed it for generated doors (2026-09-10); the
+     hand-rolled ones — BeigeBoard's createItem and importItems, LazurOS's job doors —
+     stayed open until 2026-09-16.
+     ⚠️ This checks the DECLARATION, and only for doors that are never idempotent by
+     construction. It cannot see a route honour the key; each app's smoke writes twice
+     and COUNTS ROWS for that. What it stops is the cheaper regression: a new hand-rolled
+     create, or a new async job door, that nobody remembered to key. */
+  const { BACKEND_DOCS } = await import(resolve(root, 'packages/suite-prober/src/sources.mjs'));
+  const IDEM = 'idempotency_key';
+  const declares = (cap) => (cap.body || []).some((f) => f && f.name === IDEM);
+  const caps = [];
+  for (const b of BACKEND_DOCS) {
+    const mod = require(resolve(root, b.module));
+    const doc = mod.CAPABILITIES || mod.CAPABILITIES_DOC;
+    for (const c of (doc && doc.capabilities) || []) caps.push({ app: b.app, ...c });
+  }
+  check(caps.length > 20, `the capability docs were actually read (${caps.length} capabilities across ${BACKEND_DOCS.length} backends)`);
+
+  const creates = caps.filter((c) => c.method === 'POST' && /^create[A-Z]/.test(c.id));
+  const unkeyedCreates = creates.filter((c) => !declares(c)).map((c) => `${c.app}.${c.id}`);
+  check(creates.length > 0 && unkeyedCreates.length === 0,
+    `every create* door declares ${IDEM} — a create is never idempotent by construction (${creates.length} checked${unkeyedCreates.length ? `; UNKEYED: ${unkeyedCreates.join(', ')}` : ''})`);
+
+  // An async door ENQUEUES WORK: a retried enqueue runs the model twice and writes its result twice.
+  const asyncDoors = caps.filter((c) => Array.isArray(c.resolves));
+  const unkeyedAsync = asyncDoors.filter((c) => !declares(c)).map((c) => `${c.app}.${c.id}`);
+  check(asyncDoors.length > 0 && unkeyedAsync.length === 0,
+    `every async (resolves-declaring) door declares ${IDEM} (${asyncDoors.length} checked${unkeyedAsync.length ? `; UNKEYED: ${unkeyedAsync.join(', ')}` : ''})`);
+
+  /* The write-back's targets, DERIVED from its own routing table rather than listed —
+     a job can finish twice (the reaper requeues one that outran its timeout), so the door
+     a result lands in must dedup, and a new routing entry must not escape this check. */
+  const { WRITEBACK } = require(resolve(root, 'apps/lazuros/backend/lib/writeback.js'));
+  const targets = Object.values(WRITEBACK);
+  const unkeyedTargets = [...new Set(targets
+    .filter((t) => !caps.some((c) => c.app === t.app && c.id === t.capability && declares(c)))
+    .map((t) => `${t.app}.${t.capability}`))];
+  check(targets.length > 0 && unkeyedTargets.length === 0,
+    `every door LazurOS writes a job result into declares ${IDEM} (${[...new Set(targets.map((t) => `${t.app}.${t.capability}`))].join(', ')}${unkeyedTargets.length ? `; UNKEYED: ${unkeyedTargets.join(', ')}` : ''})`);
 }
 
 if (failed) {
