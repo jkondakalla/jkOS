@@ -36,8 +36,8 @@ let failed = 0;
 const fail = (msg) => { console.error(`✗ ${msg}`); failed++; };
 const ok = (msg) => console.log(`✓ ${msg}`);
 
-// Per project convention these two are out of scope for suite-wide sweeps.
-const SKIP_DIRS = new Set(['node_modules', 'dist', 'build', '.turbo', 'sylibos', 'lazuros']);
+// LazurOS has no browser form surface of its own to hold to `.jk-field`.
+const SKIP_DIRS = new Set(['node_modules', 'dist', 'build', '.turbo', 'lazuros']);
 
 function sources(dir, exts) {
   const out = [];

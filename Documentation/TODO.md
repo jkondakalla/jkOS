@@ -47,6 +47,13 @@ These block other work, and they are first for that reason.
 - **The Android keystore.** `infra/nginx/assetlinks.json` carries `"targets": []` — honest, and
   link verification simply fails until a real SHA-256 fingerprint is added. Needs JDK 17 + the
   Android SDK and a keystore **that must not be lost**. (`KOUROS_ANDROID.md`)
+- **Retire SylibOS on the NAS.** Removed from the repo 2026-09-16 (Jag: "It is dead"), and the repo
+  is the only thing that changed. Still live until you retire them: the `sylibos-frontend` /
+  `sylibos-api` containers (prod) and `staging-sylibos-*` (staging) — `docker compose` without
+  `--remove-orphans` leaves them running after the include is gone; the data directories
+  `/mnt/Luna/Backends/{Production,Staging}/sylibos-data`; and the `sylibos.jkos.net` DNS record.
+  ⚠️ **Deploying `staging` removes their nginx routes and jkAuth's registry row (migration 021)** —
+  so the containers become unreachable, not stopped. Whether to keep the data directory is yours.
 - **Deploy / promote — always a button Jag presses.**
 
 ---
@@ -102,8 +109,9 @@ is what they are CALLED, given the prefix must carry the tier and only tier 1 ge
 
 **D2b — what replaces the pigment names.** "Nothing in the token layer should name a colour it
 might not be" is decided; the replacement is not.
-⚠️ **Measured blast radius: 927 occurrences across 48 files** (one is `apps/sylibos/`, which is
-off-limits — so a suite-wide rename cannot be a blind sed). ⚠️ **`music/ridge.py` and
+⚠️ **Measured blast radius: 927 occurrences across 48 files** on 2026-09-10 — one of which was
+`apps/sylibos/`, since removed (2026-09-16), so re-measure before the rename rather than trusting
+the number. ⚠️ **`music/ridge.py` and
 `apps/kouros/src/components/Pulsarmap.tsx` both depend on this pair of faces** — ridge copies the
 VALUES as literals, Pulsarmap aliases the NAMES — so both move with it.
 
@@ -206,7 +214,7 @@ to be decided in the abstract. `.btn-primary` is 16px/600 — not WCAG "large te
 
 Paper deepens the raw accent toward ink *and* keeps white on top; the dark face doesn't have the
 problem (it sets `#000000` over the undeepened accent). The token reaches jkAuth, KourOS, ORDECK,
-SylibOS and `@jkos/ui`'s `SettingsDrawer` — and `apps/kouros/src/glass.css` already hand-rolls
+and `@jkos/ui`'s `SettingsDrawer` — and `apps/kouros/src/glass.css` already hand-rolls
 around it, which is a hint the token is under-specified rather than merely mis-set.
 
 Three candidates, cheapest first: **(1)** flip paper's value to the ink ramp — one line, but
@@ -503,7 +511,7 @@ Then, in the order the reasoning gives (`RESET.md` Stage F):
   breaks the moment someone picks a light one, which they can: the pair is user-chosen. The
   correct fix is to compute the on-accent colour from the resolved accent's luminance, which is
   why it belongs to this restructure rather than to a hotfix.
-  ⚠️ Blast radius: jkAuth, KourOS, ORDECK, SylibOS and `@jkos/ui`'s `SettingsDrawer` — and
+  ⚠️ Blast radius: jkAuth, KourOS, ORDECK and `@jkos/ui`'s `SettingsDrawer` — and
   [`apps/kouros/src/glass.css`](../apps/kouros/src/glass.css) already hand-rolls around the token
   ("NOT `--color-accent-contrast`: that token flips to black…"), which is the tell that it is
   under-specified rather than merely mis-set. Which of the three routes to take is **D10** in §0b.
@@ -607,7 +615,8 @@ and the prober, and never ran `build` — so "green" never meant "shippable". It
 
 - **No scheduler / no cron in this suite** — a decision, not an omission.
 - **History rewriting is refused.** Destructive, coordinates with GitHub, Jag's call.
-- **`apps/sylibos/` is off-limits**, including in suite-wide sweeps — its own development track.
+- **SylibOS is gone — removed from the repo 2026-09-16** (Jag: "It is dead"). Do not resurrect it from
+  history as part of any sweep; the leave-alone rule that used to stand here died with it.
 - **The ORDECK redesign and its widget factory are the NEXT run's**, not this one's. This run
   hands off complete declarations, a settled binding vocabulary, and a readable factory manifest.
 - **No third party touches the backups.** The off-box copy lands on Jag's own workstation, pull-only.

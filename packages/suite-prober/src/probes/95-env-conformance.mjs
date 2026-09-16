@@ -25,8 +25,6 @@
  * Also checks the CAPABILITY level: a capability declaring a scope jkAuth cannot mint
  * is provisioned in code and unprovisioned in reality — it fails at the write gate, at
  * the first call, in production.
- *
- * sylibos is intentionally excluded (off-limits; its backend/Dockerfile is its own).
  */
 
 import { readFileSync, readdirSync, existsSync, statSync } from 'node:fs';

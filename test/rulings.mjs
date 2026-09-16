@@ -80,7 +80,7 @@ const trigger = require(resolve(root, 'packages/weave/src/server/trigger.js'));
      nothing to do with paging. A false positive here would be self-defeating: this
      probe exists to make one convention stick, and it cannot do that while telling
      people to ignore two of its three findings. */
-  const SKIP = new Set(['node_modules', 'dist', 'build', '.turbo', 'sylibos']);
+  const SKIP = new Set(['node_modules', 'dist', 'build', '.turbo']);
   const files = [];
   const walk = (dir) => {
     const abs = resolve(root, dir);

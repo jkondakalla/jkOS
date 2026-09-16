@@ -717,66 +717,6 @@ export function useShelfRefs(): ShelfRefs {
   return usePolledResource(fetcher, { pins: [], focus: null }, { intervalMs: 60_000, refetchOnVisible: true, invalidateOn: ['hud.shelf'] });
 }
 
-// ── Study (SylibOS summary) ──────────────────────────────────────────────────
-
-export interface StudyState {
-  loaded: boolean;
-  available: boolean;
-  streak: number;
-  nextLesson: string | null;
-  courseTitle: string | null;
-  todayDone: number;
-  dailyGoal: number;
-  // ── derived (presentation-ready) ──
-  headline: string;        // next lesson → course → "All caught up"
-  subLine: string;         // "2 / 4 today · Course"
-  showStreak: boolean;     // available with a streak to brag about
-  unavailable: boolean;    // SylibOS offline / still loading
-  offlineLabel: string;
-}
-
-interface StudyBase {
-  loaded: boolean; available: boolean; streak: number;
-  nextLesson: string | null; courseTitle: string | null; todayDone: number; dailyGoal: number;
-}
-
-function viewStudy(d: StudyBase): StudyState {
-  const course = d.courseTitle && d.nextLesson ? ` · ${d.courseTitle}` : '';
-  return {
-    ...d,
-    headline: d.nextLesson ?? d.courseTitle ?? 'All caught up',
-    subLine: `${d.todayDone} / ${d.dailyGoal} today${course}`,
-    showStreak: d.available && d.streak > 0,
-    unavailable: !d.available,
-    offlineLabel: d.loaded ? 'SYLIBOS OFFLINE — OPEN →' : 'LOADING…',
-  };
-}
-
-const SYLIB_API = apiBase('sylibos');
-const STUDY_OFFLINE: StudyBase = { loaded: true, available: false, streak: 0, nextLesson: null, courseTitle: null, todayDone: 0, dailyGoal: 0 };
-
-export function useStudy(): StudyState {
-  const initial = viewStudy({ ...STUDY_OFFLINE, loaded: false });
-  const fetcher = useCallback(async (): Promise<StudyState> => {
-    try {
-      const r = await authFetch(`${SYLIB_API}/summary`);
-      if (!r.ok) throw new Error('sylib summary');
-      const d = await r.json();
-      return viewStudy({
-        loaded: true, available: true,
-        streak: d.streak ?? 0,
-        nextLesson: d.nextLesson?.title ?? null,
-        courseTitle: d.activeCourse?.title ?? null,
-        todayDone: d.todayDone ?? 0,
-        dailyGoal: d.dailyGoal ?? 0,
-      });
-    } catch {
-      return viewStudy(STUDY_OFFLINE);
-    }
-  }, []);
-  return usePolledResource(fetcher, initial, { intervalMs: 5 * 60_000 });
-}
-
 // ── Notifications (DERIVED — one feed over slices already in scope) ──────────
 
 /** A single normalized alert. `icon` is a key in the registry's ICON set; `tone`
@@ -802,7 +742,6 @@ export interface NotificationsState {
 export interface NotifSource {
   today: TodayState;
   systems: { rows: SysRow[] };
-  study: StudyState;
   now: string;   // current HH:MM — passed in (not read from the clock) so the feed is pure + memoisable
 }
 /** A pure mapper from the live slices to zero or more alerts. */
@@ -826,17 +765,10 @@ const todayNotifications: NotificationProducer = ({ today, now }) => {
   );
 };
 
-// SylibOS — behind on the daily study goal.
-const studyNotifications: NotificationProducer = ({ study }) =>
-  (study.available && study.dailyGoal > 0 && study.todayDone < study.dailyGoal && study.headline)
-    ? [{ id: 'study', icon: 'book', tone: 'muted', text: study.headline, detail: `${study.todayDone} / ${study.dailyGoal} today` }]
-    : [];
-
 /** The registered producers — one per contributing app/source. */
 const NOTIFICATION_PRODUCERS: NotificationProducer[] = [
   systemsNotifications,
   todayNotifications,
-  studyNotifications,
 ];
 
 /**
@@ -885,7 +817,6 @@ export const HUD_SCHEMA: Record<string, SliceSchema> = {
   clock:         { scalars: ['hm', 'ss', 'dateLine', 'utcShort', 'jday', 'utcLine', 'iso'] },
   weather:       { scalars: ['temp', 'feels', 'desc', 'hi', 'lo', 'label', 'offline', 'loaded', 'ready', 'statusLabel', 'icon', 'descLine', 'hiLabel', 'loLabel'], arrays: ['slots'] },
   systems:       { scalars: ['up', 'total', 'summary'], arrays: ['rows'] },
-  study:         { scalars: ['streak', 'headline', 'subLine', 'nextLesson', 'courseTitle', 'todayDone', 'dailyGoal', 'available', 'showStreak', 'unavailable', 'offlineLabel'] },
   cal:           { scalars: ['year', 'month'], arrays: ['days'] },
   today:         { scalars: ['authed', 'progressLabel', 'progress', 'doneCount', 'emptyLabel', 'signedOut', 'showOffline', 'showTasks', 'showEmpty', 'canAdd'], arrays: ['tasks'] },
   notifications: { scalars: ['summary', 'count', 'empty'], arrays: ['items'] },

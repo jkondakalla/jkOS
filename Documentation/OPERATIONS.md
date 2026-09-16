@@ -181,7 +181,7 @@ an inode at container-create time. That has two consequences:
 ## Staging
 
 Path-routed under `staging.jkos.net` on the `nginx-staging-proxy` network. Root (`/`) →
-staging ORDECK. Bespoke paths: `/auth/`, `/beigeboard/`, `/sylib/`, `/deploy/`; the
+staging ORDECK. Bespoke paths: `/auth/`, `/beigeboard/`, `/deploy/`; the
 generated `apps-generated-staging.conf` adds `/papyros/` and `/kouros/`.
 
 The shell is built with `VITE_JKOS_AUTH_URL=https://staging.jkos.net` (same-origin auth).
@@ -345,7 +345,7 @@ reference.
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | beigeboard only | Calendar sync. **jkAuth no longer has a Google surface** — its OAuth login was removed in the 2026-08-26 reset (Stage C1), so these vars are gone from `apps/jkauth/.env`. |
 | `JKOS_2FA_ENC_KEY` | `apps/jkauth/.env` | Envelope key sealing TOTP secrets at rest (AES-256-GCM). Generate: `openssl rand -hex 32`. **Unset → TOTP enrolment is refused** rather than writing a readable secret; existing plaintext secrets still verify and are sealed at the first boot that has the key. Losing it makes every enrolled authenticator invalid — treat it like the signing key. |
 | `SESSION_TTL_MS` / `SESSION_ABSOLUTE_TTL_MS` / `SESSION_TOMBSTONE_MS` | `apps/jkauth/.env` | Optional. Idle window for an unremembered login (24 h), the absolute cap no activity extends (90 d), and how long revoked-session evidence is kept (30 d). |
-| `LAZUROS_INTERNAL_TOKEN` | lazuros + each compute-node worker | Bearer for the State node's `/internal` worker API (LAN-only, not edge-exposed). **Not** shared with BeigeBoard — BB holds no LazurOS keys. There is no `LAZUROS_TOKEN` (that var survives only in out-of-scope `apps/sylibos`). |
+| `LAZUROS_INTERNAL_TOKEN` | lazuros + each compute-node worker | Bearer for the State node's `/internal` worker API (LAN-only, not edge-exposed). **Not** shared with BeigeBoard — BB holds no LazurOS keys. There is no `LAZUROS_TOKEN` (its last reader, SylibOS, was removed 2026-09-16). |
 | `CALENDAR_ENC_KEY` | `apps/beigeboard/.env` | 64 hex chars → AES-256-GCM encryption of calendar OAuth tokens at rest. Generate: `openssl rand -hex 32`. |
 | `JKOS_SERVICE_CLIENTS` | `apps/jkauth/.env` | `"id:secret:scopeA\|scopeB,..."` — enables `POST /auth/token` (client-credentials). Unset → endpoint disabled. |
 

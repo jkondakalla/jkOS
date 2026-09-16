@@ -33,8 +33,6 @@ export default defineConfig({
         changeOrigin: true,
         rewrite:     (path: string) => path.replace(/^\/api\/beigeboard/, ''),
       },
-      '/api/sylibos':  { target: 'http://localhost:8004', changeOrigin: true,
-                         rewrite: (path: string) => path.replace(/^\/api\/sylibos/, '') },
     },
   },
   build: {

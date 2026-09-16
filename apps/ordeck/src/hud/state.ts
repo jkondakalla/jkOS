@@ -35,7 +35,6 @@ export const WIDGET_EDIT_KEY = 'ordeck-widget-edit';
 /** "Open the app" links in the built-in specs come from the app manifest, so a
  *  domain change is one edit in @jkos/weave, not scattered across widget specs. */
 const BB_URL = appOrigin('beigeboard');
-const SYLIB_URL = appOrigin('sylibos');
 
 /** The v5 built-in catalog — 10 widgets, culled + redesigned for information
  *  density (waste no allotted space; absorb one-number cards into their parent).
@@ -169,7 +168,7 @@ const DEFAULT_WIDGETS: Record<string, WidgetDef> = {
     },
   },
   // One feed for the whole suite: down systems, the task happening now, overdue
-  // items, study reminders — derived (see deriveNotifications), not stored.
+  // items — derived (see deriveNotifications), not stored.
   // Single-line rows: icon · text · detail.
   notifications: {
     id: 'notifications', label: 'Alerts',
@@ -182,26 +181,6 @@ const DEFAULT_WIDGETS: Record<string, WidgetDef> = {
           { t: 'text', text: { src: '$', path: 'text' }, variant: 'mono', grow: true },
           { t: 'text', text: { src: '$', path: 'detail' }, variant: 'sub' },
         ] } },
-    },
-  },
-  study: {
-    id: 'study', label: 'Study',
-    sizing: { desktop: { w: 3, h: 3 }, mobile: { w: 2, h: 3 } },
-    spec: {
-      frame: { eyebrow: 'STUDY', source: 'SYLIBOS', href: { lit: SYLIB_URL } },
-      body: { t: 'stack', gap: 8, children: [
-        { t: 'when', cond: { src: 'study', path: 'available' }, then:
-          { t: 'row', justify: 'space-between', children: [
-            { t: 'stack', gap: 2, grow: true, children: [
-              { t: 'text', text: { src: 'study', path: 'headline' }, variant: 'title' },
-              { t: 'text', text: { src: 'study', path: 'subLine' }, variant: 'sub' },
-            ] },
-            { t: 'when', cond: { src: 'study', path: 'showStreak' }, then:
-              { t: 'metric', value: { src: 'study', path: 'streak' }, unit: 'STREAK', size: 22 } },
-          ] } },
-        { t: 'when', cond: { src: 'study', path: 'unavailable' }, then:
-          { t: 'text', text: { src: 'study', path: 'offlineLabel' }, variant: 'sub' } },
-      ] },
     },
   },
   // The single "now working on" task pushed from BeigeBoard. Interactive (it can
@@ -243,7 +222,7 @@ const DEFAULT_WIDGETS: Record<string, WidgetDef> = {
 };
 
 /** Default desktop arrangement (12-col) — every column lands flush at 13 rows:
- *  left 3+4+6, centre 13, right 5+5+3. Mobile is derived by the engine (reflow
+ *  left 3+4+6, centre 13, right 5+8. Mobile is derived by the engine (reflow
  *  → strict 2-col stack) unless the user pins an explicit mobile layout. */
 const DEFAULT_DESKTOP: GridItem[] = [
   { i: 'clock',         x: 0, y: 0,  w: 4, h: 3 },
@@ -251,8 +230,10 @@ const DEFAULT_DESKTOP: GridItem[] = [
   { i: 'calendar',      x: 0, y: 7,  w: 4, h: 6 },
   { i: 'today',         x: 4, y: 0,  w: 5, h: 13 },
   { i: 'systems',       x: 9, y: 0,  w: 3, h: 5 },
-  { i: 'notifications', x: 9, y: 5,  w: 3, h: 5 },
-  { i: 'study',         x: 9, y: 10, w: 3, h: 3 },
+  // h:8, not the def's 5: the Study card (SylibOS) held the bottom three rows of this
+  // column until SylibOS was removed on 2026-09-16, and Alerts takes the space so the
+  // column still lands flush at 13.
+  { i: 'notifications', x: 9, y: 5,  w: 3, h: 8 },
 ];
 
 export function defaultHudState(): HudState {
@@ -262,6 +243,46 @@ export function defaultHudState(): HudState {
     layouts: { desktop: structuredClone(DEFAULT_DESKTOP) },
     shelf: [],
   };
+}
+
+/**
+ * Built-in widgets that no longer exist, and why each went. A stored doc keeps a
+ * built-in's def and its placement for ever — `mergePublished`'s hygiene only drops a
+ * def that is unplaced — so without this a retired card stays on the HUD, bound to a
+ * slice nothing provides: an empty frame linking to a dead origin.
+ *
+ * Matched by id AND by what it binds, never by id alone: an admin may publish a new
+ * widget under a freed-up id, and that one must survive.
+ */
+const RETIRED_BUILTINS: { id: string; slice: string }[] = [
+  // SylibOS was removed from the suite 2026-09-16; `study` was its summary card.
+  { id: 'study', slice: 'study' },
+];
+
+function bindsSlice(v: unknown, slice: string): boolean {
+  if (!v || typeof v !== 'object') return false;
+  if (Array.isArray(v)) return v.some((x) => bindsSlice(x, slice));
+  const o = v as Record<string, unknown>;
+  if (o.src === slice) return true;
+  return Object.values(o).some((x) => bindsSlice(x, slice));
+}
+
+/** Strip retired built-ins from a loaded doc — def, every tier's placement, and the
+ *  shelf. Returns the SAME object when there is nothing to strip, so a caller can
+ *  tell whether to persist the repair. */
+export function withoutRetired(state: HudState): HudState {
+  const gone = RETIRED_BUILTINS
+    .filter(({ id, slice }) => state.widgets[id] && bindsSlice(state.widgets[id], slice))
+    .map(({ id }) => id);
+  if (!gone.length) return state;
+  const drop = new Set(gone);
+  const widgets = { ...state.widgets };
+  for (const id of gone) delete widgets[id];
+  const layouts: BreakpointLayouts = {};
+  for (const [name, items] of Object.entries(state.layouts ?? {}) as [BreakpointName, GridItem[]][]) {
+    if (items) layouts[name] = items.filter((it) => !drop.has(it.i));
+  }
+  return { ...state, widgets, layouts, shelf: (state.shelf ?? []).filter((id) => !drop.has(id)) };
 }
 
 /** Accept a value as a HudState only if it matches the current schema version. */
@@ -417,8 +438,14 @@ export async function loadHudState(): Promise<HudState> {
     /* offline / signed out — fall through to legacy/defaults */
   }
   if (profileHud) {
-    const doc = withBuiltins(profileHud);
-    if (hasPlacedCards(doc)) return doc;
+    const pruned = withoutRetired(profileHud);
+    const doc = withBuiltins(pruned);
+    if (hasPlacedCards(doc)) {
+      // A retired card was stripped: persist it, or every load strips it again and a
+      // save from another tab writes the dead card back.
+      if (pruned !== profileHud) saveHudState(doc);
+      return doc;
+    }
     // A stored doc whose layout places nothing would blank the HUD a beat after
     // the defaults paint. Re-seed the built-in layout AND persist the repair, so
     // the bad doc self-heals instead of overriding the working HUD on every load.
@@ -429,7 +456,7 @@ export async function loadHudState(): Promise<HudState> {
 
   const legacy = readLegacy();
   if (legacy) {
-    const merged = withBuiltins(legacy);
+    const merged = withBuiltins(withoutRetired(legacy));
     saveHudState(merged);                        // migrate device → prefs
     try { localStorage.removeItem(LEGACY_STORAGE_KEY); } catch { /* ignore */ }
     return merged;

@@ -25,8 +25,7 @@ jkOS/
 │   ├── beigeboard/       tasks/goals/routines SPA + Node backend
 │   ├── papyros/          audiobook SPA + Node backend
 │   ├── kouros/            music SPA + Node backend
-│   ├── lazuros/           AI gateway: Node "State node" + Python worker/ + providers/
-│   └── sylibos/           study app — SEPARATE TRACK, off the suite contract, off-limits
+│   └── lazuros/           AI gateway: Node "State node" + Python worker/ + providers/
 ├── packages/@jkos/
 │   ├── auth-middleware   Express JWT verify — the one place every backend checks a token
 │   ├── auth-client       frontend auth + preferences hook, theme appliers
@@ -51,9 +50,8 @@ patterns, nothing else. `music/` is Python and is **not matched by any of them**
 purpose: it keeps the two-line dependency budget (`numpy` + `onnxruntime`, no `torch`,
 no fallback) honest and Python off the node gate entirely. It runs its own test suite
 (`./.venv/bin/python -m unittest discover`) that `pnpm test:contracts` never touches.
-`sylibos` sits inside the workspace glob but is a deliberately separate track — different
-toolchain (React 19 + Tailwind v4 vs. the suite's React 18 + plain CSS) — and is excluded
-from suite-wide sweeps by convention, not by tooling.
+SylibOS, a study app on its own toolchain (React 19 + Tailwind v4) and off the suite
+contract, was **removed from the repo on 2026-09-16** — Jag: "It is dead". Git history has it.
 
 Shared `@jkos/*` packages are **source-only** — no build step. Consumers' Vite/tsc compile
 them straight from `src/` via `exports`. Every Docker image builds from the **repo root
@@ -77,7 +75,6 @@ standalone-nginx
     ├── beigeboard.jkos.net   → bb-app:3001
     ├── papyros.jkos.net      → papyros-app:3010    (generated, apps-generated.conf)
     ├── kouros.jkos.net       → kouros-app:3011      (generated, apps-generated.conf)
-    ├── sylibos.jkos.net      → (separate track)
     └── staging.jkos.net      → path-routed, admin-gated
             /          → staging-ordeck-shell:80
             /auth/     → staging-jkos-auth:3100
@@ -101,7 +98,7 @@ Reloading nginx after a deploy serves the stale inode; **restart, don't reload.*
 **Adding a "standard" app** (SPA at root, one upstream) is `pnpm new-app <id>`: it writes
 one row to `@jkos/suite-manifest`, and `infra/nginx/gen-nginx-weave.mjs` regenerates the
 server block (`apps-generated*.conf`) and the peer-proxy routes from it. A bespoke origin
-(the portal, jkAuth, sylibos) is hand-written in `standalone.conf` instead. `--check`
+(the portal, jkAuth) is hand-written in `standalone.conf` instead. `--check`
 guards that the generated files match; it runs in `pnpm test:contracts`.
 
 **Same-origin peer proxy.** Every server block includes `weave-proxy.conf`, adding
@@ -268,9 +265,9 @@ target checkout, `docker compose up --build -d`, verify every container is actua
 checkout to `origin/<PROD_BRANCH>` (default `staging`) — there is no merge step and no push
 credential on the server, so it ships exactly the commit already tested on staging.
 
-**SylibOS** (`apps/sylibos`) is a separate development track (React 19 + Tailwind v4) with
-its own toolchain, deliberately off the suite contract. Do not edit it in a suite-wide
-sweep; nothing in this document describes its internals.
+**SylibOS** was removed on 2026-09-16 (see the monorepo shape above). Its production and
+staging containers, its data directory on the NAS and its DNS record outlive the repo until
+retired by hand — TODO.md §0.
 
 ---
 

@@ -12,7 +12,7 @@
  *   • molecules  time / calendar / weather   (self-contained cards, like gauge)
  *
  * The six v2 cards that used a bespoke `component` escape hatch are now expressed
- * entirely as specs (see hud/state.ts) — clock/today/systems/study compose from
+ * entirely as specs (see hud/state.ts) — clock/today/systems compose from
  * atoms + structure; weather/calendar are molecules. The escape hatch mechanism
  * stays (COMPONENT_REGISTRY) for anything a future card truly can't express, but
  * ships empty. The deprecated Module-Federation remote path is gone.
@@ -30,7 +30,6 @@ import {
   type WeatherState,
   type SystemsState,
   type TodayState,
-  type StudyState,
   type MonthCalState,
   type CalDay,
   type NotificationsState,
@@ -49,14 +48,13 @@ const MO_FULL = ['January', 'February', 'March', 'April', 'May', 'June',
 const DAY_ABBR = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
 /** Everything a widget renderer can read. RoomHUD assembles this once from its
- *  data hooks; built-in hud slices (clock/weather/today/study/systems/cal) are
+ *  data hooks; built-in hud slices (clock/weather/today/systems/cal) are
  *  always in a spec's binding scope, alongside `authUrl`. */
 export interface WidgetCtx {
   clock: ClockState;
   weather: WeatherState;
   systems: SystemsState;
   today: TodayState;
-  study: StudyState;
   cal: MonthCalState;
   /** Full BeigeBoard item list (CalendarItem shape) for the @jkos/cards widgets. */
   items: CalendarItem[];
@@ -737,7 +735,7 @@ const COMPONENT_SLICES: Record<string, (keyof WidgetCtx)[]> = {
  * memoised upstream (useHudContext) to keep its reference stable between real
  * changes, which is what makes this comparison meaningful. */
 const SLICE_KEYS = new Set<string>([
-  'clock', 'weather', 'systems', 'today', 'study', 'cal', 'items', 'todayIso', 'notifications', 'focus', 'pinned', 'authUrl',
+  'clock', 'weather', 'systems', 'today', 'cal', 'items', 'todayIso', 'notifications', 'focus', 'pinned', 'authUrl',
 ]);
 const sliceCache = new WeakMap<object, Set<string>>();
 

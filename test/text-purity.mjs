@@ -26,11 +26,6 @@
 //   2. The papyros sentinel specifically still spells itself with an escape, so the
 //      original regression can't quietly return.
 //
-// apps/sylibos/ is EXCLUDED: it is off-limits to every sweep (see the reset's hard
-// constraints) and carries a known pre-existing offender in src/lib/sliceLecture.ts.
-// Excluding it is the same posture the prober and cards-purity take. Re-scope this
-// list the day sylibos re-enters scope.
-//
 // Run:  node test/text-purity.mjs   (wired as `pnpm check:text`, folded into
 //                                    `pnpm test:contracts`)
 import { readFileSync } from 'node:fs';
@@ -48,7 +43,6 @@ const ok = (msg) => console.log(`✓ ${msg}`);
 // Extensions we assert are text. Deliberately explicit — a new binary asset type
 // should not silently opt itself into the scan.
 const TEXT_EXT = /\.(ts|tsx|js|jsx|mjs|cjs|json|css|html|md|py|yml|yaml|sh|conf|sql|example)$/i;
-const SKIP = [/^apps\/sylibos\//];
 
 /** Tab (0x09), LF (0x0a), FF (0x0c), CR (0x0d) are the only controls text may hold. */
 const isAllowedControl = (c) => c === 0x09 || c === 0x0a || c === 0x0c || c === 0x0d;
@@ -57,8 +51,7 @@ const isControl = (c) => (c < 0x20 && !isAllowedControl(c)) || c === 0x7f;
 const tracked = execSync('git ls-files -z', { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28 })
   .split('\0')
   .filter(Boolean)
-  .filter((f) => TEXT_EXT.test(f))
-  .filter((f) => !SKIP.some((re) => re.test(f)));
+  .filter((f) => TEXT_EXT.test(f));
 
 // ── 1. No control bytes in any tracked text file ────────────────────────────
 let scanned = 0;
@@ -79,7 +72,7 @@ for (const rel of tracked) {
     `Write the character as an escape (e.g. \\u0000) instead of a raw byte.`,
   );
 }
-if (!failed) ok(`no control bytes in ${scanned} tracked text files (sylibos excluded)`);
+if (!failed) ok(`no control bytes in ${scanned} tracked text files`);
 
 // ── 2. The papyros sentinel stays an escape, not a raw byte ─────────────────
 const SENTINEL = 'apps/papyros/src/views/library/format.ts';

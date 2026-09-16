@@ -67,7 +67,6 @@ export type HudFocus = HudRef;
  */
 export interface UserPreferences {
   // ── suite-wide ────────────────────────────────────────────────────────────
-  scheme?:  string;   // SylibOS preset id
   theme?:   JkOSTheme;
   effects?: EffectsPreferences;
   /** IANA zone (e.g. 'America/Chicago'). The suite has no notion of WHERE the

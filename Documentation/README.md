@@ -19,8 +19,7 @@ the suite:
 Everything goes through jkAuth SSO. The portal is driven by Weave discovery — adding a
 new app means one registry row, not portal code changes.
 
-Two things in the repo deliberately sit outside that contract: **SylibOS**
-(`apps/sylibos/`), a separate study app on its own development track, and **`music/`**, a
+One thing in the repo deliberately sits outside that contract: **`music/`**, a
 standalone Python vector-search project with zero jkOS imports and no pnpm workspace
 membership — see its own [README](../music/README.md).
 

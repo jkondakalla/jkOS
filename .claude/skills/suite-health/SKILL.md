@@ -1,6 +1,6 @@
 ---
 name: suite-health
-description: Diagnose the health of the jkOS suite — run the gates and probers in order, then map any failure to its known cause and fix. Use when asked to check suite health, triage a red gate / failing CI, verify the suite before/after a deploy, or investigate "is everything wired up / deployed correctly". Covers jkAuth, BeigeBoard, Weave, ORDECK, jkDeploy (skips sylibos).
+description: Diagnose the health of the jkOS suite — run the gates and probers in order, then map any failure to its known cause and fix. Use when asked to check suite health, triage a red gate / failing CI, verify the suite before/after a deploy, or investigate "is everything wired up / deployed correctly". Covers jkAuth, BeigeBoard, Weave, ORDECK, jkDeploy.
 ---
 
 # jkOS suite-health
@@ -11,7 +11,6 @@ fix it, re-run from there**. Then use the decision table to turn a failure *sign
 into a *fix*. This encodes tribal knowledge that otherwise lives in session notes.
 
 Repo root: `/media/jag/The Forge/jkOS` (the path has a space — quote it). Branch `staging`.
-**Off-limits:** `apps/sylibos/` — never edit, even in a sweep.
 
 ## Run order
 

@@ -6,7 +6,7 @@ import { Field, Slider } from './primitives';
 /* ─────────────────────────────────────────────────────────────────────────────
    @jkos/ui — the ONE settings drawer for the whole suite.
 
-   Every app (ORDECK, BeigeBoard, SylibOS) mounts this exact component so the
+   Every app (ORDECK, BeigeBoard, PapyrOS, KourOS) mounts this exact component so the
    settings tray is identical everywhere. It is fully mode-aware: it paints from
    the shared --hub-* and --color-* tokens, so it is warm paper in light mode and a
    dark phosphor panel in dark mode — never a hardcoded dark glass.

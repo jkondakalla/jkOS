@@ -301,6 +301,45 @@ if (args.includes('--live')) {
   else fail(`delta: sinceResync is ${c.sinceResync} after a full fetch`);
 }
 
+// ── retired built-ins — a dead app's card must leave stored docs ────────────
+// SylibOS was removed 2026-09-16 and its `study` card with it. A stored doc keeps a
+// built-in's def and placement for ever (mergePublished only drops an UNPLACED def),
+// so without withoutRetired the card stays on every existing HUD: an empty frame bound
+// to a slice nothing provides, linking to a dead origin. Built as it was stored.
+{
+  const { withoutRetired } = state;
+  const studyDef = {
+    id: 'study', label: 'Study', sizing: { desktop: { w: 3, h: 3 }, mobile: { w: 2, h: 3 } },
+    spec: { frame: { eyebrow: 'STUDY', source: 'SYLIBOS', href: { lit: 'https://sylibos.jkos.net' } },
+      body: { t: 'when', cond: { src: 'study', path: 'available' }, then: { t: 'text', text: { src: 'study', path: 'headline' } } } },
+  };
+  const stored = defaultHudState();
+  stored.widgets.study = structuredClone(studyDef);
+  stored.layouts.desktop.push({ i: 'study', x: 9, y: 13, w: 3, h: 3 });
+  stored.layouts.mobile = [{ i: 'clock', x: 0, y: 0, w: 2, h: 3 }, { i: 'study', x: 0, y: 3, w: 2, h: 3 }];
+  stored.shelf = ['study'];
+
+  const healed = withoutRetired(structuredClone(stored));
+  const placed = Object.values(healed.layouts).flat().some((it) => it.i === 'study');
+  if (!healed.widgets.study && !placed && !healed.shelf.includes('study')) ok('retired: a stored SylibOS `study` card is stripped — def, every tier, and the shelf');
+  else fail(`retired: study survived (def=${!!healed.widgets.study}, placed=${placed}, shelf=${healed.shelf.includes('study')})`);
+  if (healed.layouts.mobile?.some((it) => it.i === 'clock') && healed.widgets.clock) ok('retired: …and nothing else in the doc is touched');
+  else fail('retired: stripping study removed an unrelated card');
+
+  const clean = defaultHudState();
+  if (withoutRetired(clean) === clean) ok('retired: a doc with nothing to strip comes back as the SAME object — the caller persists only a real repair');
+  else fail('retired: a clean doc was copied, so every load would re-save the HUD');
+
+  // Matched by what it binds, never by id alone: a new widget published under the
+  // freed-up id must survive.
+  const reused = defaultHudState();
+  reused.widgets.study = { id: 'study', label: 'Study plan', spec: { body: { t: 'text', text: { src: 'today', path: 'progressLabel' } } } };
+  reused.layouts.desktop.push({ i: 'study', x: 9, y: 13, w: 3, h: 3 });
+  const kept = withoutRetired(reused);
+  if (kept.widgets.study && kept.layouts.desktop.some((it) => it.i === 'study')) ok('retired: a DIFFERENT widget reusing the id `study` is kept');
+  else fail('retired: a new widget under the freed id was stripped');
+}
+
 // ── summary ─────────────────────────────────────────────────────────────────
 if (failed) {
   console.error(`\n✗ check-hud-doc: ${failed} check(s) failed`);

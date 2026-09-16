@@ -105,7 +105,7 @@ const b = await import(resolve(root, 'packages/weave/src/shared/binding.js'));
 /* ── 3. no fourth vocabulary ─────────────────────────────────────────────────
    The regrowth shape: a hand-rolled `{from:` reader, or a fresh `Binding` type. */
 {
-  const SKIP = new Set(['node_modules', 'dist', 'build', '.turbo', 'sylibos']);
+  const SKIP = new Set(['node_modules', 'dist', 'build', '.turbo']);
   const files = [];
   const walk = (dir) => {
     const abs = resolve(root, dir);

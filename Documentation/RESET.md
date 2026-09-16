@@ -60,9 +60,11 @@ mislead. Stage A is the pass that makes them stop.
 
 ### You may not, without asking Jag first
 
-1. **`apps/sylibos/`.** Off-limits, including in suite-wide sweeps. Separate track, different
+1. ~~**`apps/sylibos/`.** Off-limits, including in suite-wide sweeps. Separate track, different
    toolchain (React 19 + Tailwind v4 vs. the suite's React 18 + plain CSS), deliberately outside
-   the suite contract. Leave it byte-identical.
+   the suite contract. Leave it byte-identical.~~ **Lifted 2026-09-16: Jag removed SylibOS
+   entirely ("It is dead").** The app, its compose/nginx/registry wiring and every gate
+   exclusion made for it are gone; git history has the code.
 2. **Add a third line to `music/requirements.txt`.** It is `numpy` + `onnxruntime`, nothing else.
    `torch` is excluded **with no fallback** — if a model won't export cleanly to ONNX, change
    models. Export tooling may live in a throwaway venv; it's a build tool, never a dependency.
@@ -305,7 +307,8 @@ not because it describes the repo.
   and email verification — plus three gates that were reporting on code they never scanned.
   Fixed. **Completion is not the same as correctness, and this document's stage checkboxes
   should not be read as either.**
-- **Shape:** 7 apps (beigeboard, jkauth, kouros, lazuros, ordeck, papyros, sylibos), **11**
+- **Shape:** 7 apps (beigeboard, jkauth, kouros, lazuros, ordeck, papyros, sylibos — **6** since
+  SylibOS was removed 2026-09-16), **11**
   `packages/@jkos/*` (`routine-spec` was added by D9), plus `music/`, `jkos-deploy/`, `infra/`,
   `scripts/`, `test/`.
 
@@ -603,7 +606,7 @@ over engine popups. Each cost a debugging session.
 Three memory facts carry forward verbatim, because they're standing instructions and not project
 state: **don't wait for approval between waves of unblocked work**; **throwaway verification
 scripts stay in the scratchpad — ask before promoting one to a committed test**; and
-**`apps/sylibos/` is off-limits**.
+~~**`apps/sylibos/` is off-limits**~~ (lifted 2026-09-16 — SylibOS was removed).
 
 **A4 · The filesystem.**
 

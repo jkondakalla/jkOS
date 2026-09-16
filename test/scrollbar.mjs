@@ -77,8 +77,7 @@ if (/scrollbar-width:\s*thin/.test(hub) && /scrollbar-color:/.test(hub)) {
 }
 
 /* No app may re-declare the bar. One look for the suite, or the two drift and
-   only one of them gets fixed the next time this comes up. sylibos is excluded
-   by standing instruction (it is not touched in any session). The generated
+   only one of them gets fixed the next time this comes up. The generated
    mirrors of hub.css are excluded because they ARE hub.css. */
 const MIRRORS = [
   'apps/jkauth/public/jkos-tokens.css',
@@ -91,7 +90,6 @@ try {
   const out = execFileSync('git', ['grep', '-l', '-E', '::-webkit-scrollbar|scrollbar-color|scrollbar-width', '--', '*.css', '*.html', '*.tsx', '*.ts'], { cwd: ROOT, encoding: 'utf8' });
   strays = out.split('\n').filter(Boolean).filter((f) => (
     !f.startsWith('packages/design/')
-    && !f.startsWith('apps/sylibos/')
     && !MIRRORS.includes(f)
     && f !== 'test/scrollbar.mjs'
   ));

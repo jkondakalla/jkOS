@@ -3,13 +3,11 @@
 # Start prod services first (they join jkos-internal as external):
 #   cd jkAuth      && docker compose up -d --build
 #   cd BeigeBoard  && docker compose up -d --build
-#   cd SylibOS     && docker compose up -d --build
 #   cd infra/nginx && docker compose up -d
 #
 # Staging services join nginx-staging-proxy (created here) when brought up:
 #   cd jkAuth      && docker compose -f docker-compose.staging.yml up -d --build
 #   cd BeigeBoard  && docker compose -f docker-compose.staging.yml up -d --build
-#   cd SylibOS     && docker compose -f docker-compose.staging.yml up -d --build
 
 services:
   standalone-nginx:

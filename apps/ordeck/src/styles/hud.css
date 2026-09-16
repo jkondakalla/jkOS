@@ -905,47 +905,6 @@ html.od-v2 ::selection { background: var(--accent); color: var(--color-accent-co
 }
 .hud-sys.warn .hud-sys-val { color: var(--hub-warn); }
 
-/* ── Study / generic info card ─────────────────────────────────────────── */
-
-.hud-info { flex: none; padding: 15px 18px; }
-.hud-info-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
-.hud-info-title {
-  margin: 0;
-  font-family: var(--hub-font-serif);   /* Fraunces — editorial content headline */
-  font-size: 17px; font-weight: 600;
-  letter-spacing: -0.01em;
-  color: var(--hub-cream-bright);
-  line-height: 1.3;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.hud-info-sub {
-  margin: 5px 0 0;
-  font-family: var(--hub-font-mono);
-  font-size: 11px;
-  color: var(--hub-cream-dim);
-}
-.hud-study-row { display: flex; align-items: center; gap: 14px; }
-.hud-study-main { min-width: 0; flex: 1; }
-.hud-streak {
-  flex: none;
-  display: flex; flex-direction: column;
-  align-items: center; gap: 2px;
-  padding: 7px 11px;
-  border-radius: var(--hub-radius);
-  background: var(--hub-warn-soft);
-}
-.hud-streak b {
-  font-family: var(--hub-font-mono);
-  font-size: 17px; font-weight: 700;
-  line-height: 1;
-  color: var(--hub-warn);
-}
-.hud-streak span {
-  font-family: var(--hub-font-mono);
-  font-size: 8px; letter-spacing: 0.14em;
-  color: var(--hub-warn);
-}
-
 a.hud-card { display: block; transition: box-shadow 0.2s, transform 0.2s; }
 a.hud-card:hover { box-shadow: var(--od-shadow-lift); transform: translateY(-1px); }
 

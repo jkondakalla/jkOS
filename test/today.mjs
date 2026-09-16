@@ -117,7 +117,7 @@ const decomment = (src) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:]
    browser's zone actually lives, and @jkos/cards' isoDate() is the correct local-tz
    answer for rendering. The defect being guarded is a SERVER deciding what day it is
    without being told where the user is. */
-const SKIP_DIRS = new Set(['node_modules', 'dist', 'build', '.turbo', 'test', 'sylibos']);
+const SKIP_DIRS = new Set(['node_modules', 'dist', 'build', '.turbo', 'test']);
 
 /* ⚠️ A MISSING ROOT IS A FAILURE, NOT AN EMPTY LIST. This swallowed its ENOENT and
    returned [] — and `apps/lazuros/backend/src` has never existed (LazurOS puts its

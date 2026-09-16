@@ -18,7 +18,7 @@
  * `SQL_NOW` from `@jkos/weave/server/wireTime`, never a bare `datetime('now')`.
  * This scans source for the legacy form in a timestamp assignment.
  *
- * sylibos is excluded (off-limits). A legacy `datetime('now')` used for anything
+ * A legacy `datetime('now')` used for anything
  * that is NOT a wire timestamp — a lockout deadline, an OTP window, a "used_at"
  * marker nothing paginates on — is fine and is not flagged: the column names are
  * the scope.

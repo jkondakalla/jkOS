@@ -9,7 +9,7 @@
 //      array. A bare requireScope('papyros:admin') would 403 that stub even though it
 //      IS the admin identity, breaking local/dev use of this route.
 //   2. It's the suite's existing admin-gate precedent — apps/lazuros/backend/routes/
-//      jobs.js and apps/sylibos/backend both gate on req.user.role, not a scope array.
+//      jobs.js gates on req.user.role, not a scope array.
 // role and scope agree for every REAL token (jkAuth grants papyros:admin exactly when
 // role === 'admin'), so this is the same check, just resilient to the dev stub.
 

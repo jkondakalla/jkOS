@@ -1,8 +1,8 @@
-# jkOS workspace members. The Python pieces (the sylibos worker, the lazuros compute-node
-# worker) have no package.json and are skipped by pnpm automatically.
+# jkOS workspace members. The Python pieces (the lazuros compute-node worker, music/) have
+# no package.json and are skipped by pnpm automatically.
 packages:
-  - "apps/*"          # ordeck (shell), beigeboard, sylibos, jkauth frontends/services
-  - "apps/*/backend"  # beigeboard + sylibos + lazuros node backends
+  - "apps/*"          # ordeck (shell), beigeboard, papyros, kouros, jkauth frontends/services
+  - "apps/*/backend"  # beigeboard, lazuros, papyros, kouros node backends
   - "packages/*"      # @jkos/{design,auth-client,auth-middleware,ui,weave,cards,...}
 
 # ⚠️ SECURITY FLOORS, NOT PINS. Each selector matches ONLY a range with a known HIGH advisory,

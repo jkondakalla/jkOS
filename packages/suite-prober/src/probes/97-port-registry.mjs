@@ -16,8 +16,6 @@
  *                a port-binding smoke with no registry row
  *   consolidate  a registry claim no file carries any more (a dead row)
  *   ok           the table and the files agree
- *
- * sylibos is intentionally excluded (off-limits).
  */
 
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
@@ -32,7 +30,6 @@ function portClaimingFiles() {
   const files = [];
   const appsDir = join(REPO_ROOT, 'apps');
   for (const app of readdirSync(appsDir)) {
-    if (app === 'sylibos') continue;
     const testDir = join(appsDir, app, 'backend', 'test');
     if (!existsSync(testDir)) continue;
     for (const f of readdirSync(testDir)) {

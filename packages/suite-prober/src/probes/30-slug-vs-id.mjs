@@ -2,9 +2,9 @@
  * THE central finding (mostly closed by ToDo A1/A2). An app's edge slug — the token in
  * /api/<slug>, /health/<slug>, and the <slug>.<resource> invalidation key — should be
  * its canonical id. Post-A2 every slug DERIVES from the id in @jkos/suite-manifest, so
- * BeigeBoard is now `beigeboard` everywhere; SylibOS is the lone holdout (edge slug
- * `sylib` ≠ id `sylibos`), pinned because it's off-limits until migrated. This probe:
- *   (a) reports every app whose slug != id (now only the un-migrated SylibOS), and
+ * BeigeBoard is now `beigeboard` everywhere. The last holdout, SylibOS (edge slug `sylib`
+ * ≠ id `sylibos`), left with the app on 2026-09-16, so every app now reports `ok`. This probe:
+ *   (a) reports every app whose slug != id (none today), and
  *   (b) fails ('drift') if the slug DISAGREES across the registry, the manifest, and the
  *       nginx peer — impossible now that all three derive from one source, but the guard
  *       stays for the day a hand override reintroduces a split.

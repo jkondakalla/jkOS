@@ -11,16 +11,14 @@
 **/__pycache__
 *.tsbuildinfo
 
-# SylibOS regenerable data + Python venv. Gigabytes of OCW content and build
-# output, gitignored, copied into NO image — but the root build context is the
-# repo root, so every service build was taring + shipping these to the daemon.
-# This was the dominant build-time cost (context: ~2.6 GB → ~3 MB).
-apps/sylibos/Courses
-apps/sylibos/ProcessedCourses
+# Python venvs — gitignored, copied into NO image, but the build context is the repo
+# root, so without this every service build tars them to the daemon. (This block once
+# also excluded SylibOS's gigabytes of course data — the dominant build-time cost,
+# ~2.6 GB → ~3 MB — until SylibOS was removed on 2026-09-16.)
 **/.venv
 
 # The music embedder is deliberately outside the pnpm workspace and copied into
 # NO image, but it holds ~2.8 GB (venv, CLAP export, index, rendered output) that
 # would otherwise ship to the daemon on every root-context build — the same cost
-# the SylibOS block above existed to stop.
+# the venv block above exists to stop.
 music/

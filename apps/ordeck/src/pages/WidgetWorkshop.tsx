@@ -536,7 +536,7 @@ function Guide() {
       </GuideCard>
 
       <GuideCard title="Data sources & paths">
-        <Def k="HUD slices">Always available: <code>clock, weather, systems, today, study, cal</code>. Pick one as a field's source and enter a path (e.g. <code>systems</code> → <code>up</code>).</Def>
+        <Def k="HUD slices">Always available: <code>clock, weather, systems, today, cal</code>. Pick one as a field's source and enter a path (e.g. <code>systems</code> → <code>up</code>).</Def>
         <Def k="Add source">Point at any JSON endpoint (widget properties → data sources): a <b>name</b>, the <b>URL</b>, and a <b>refresh</b> in seconds (blank = fetch once). The endpoint must permit browser/CORS access.</Def>
         <Def k="path">Dot-walks the JSON: <code>price</code> → <code>{'{price: 42}'}</code>; <code>data.v</code> → <code>{'{data:{v:9}}'}</code>; <code>items.0.name</code> → first array element.</Def>
         <Def k="fixed vs data">Every field is either <b>lit</b> (a fixed value you type) or <b>data</b> (pulled live from a source + path).</Def>

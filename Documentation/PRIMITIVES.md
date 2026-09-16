@@ -7,7 +7,7 @@ a third of `@jkos/cards`' own exports had no consumers left in any app, so the c
 already wrong. Read the package's own `src/index.ts` for its current surface.)
 
 Everything runs from the repo root `/media/jag/The Forge/jkOS` (the path has a space —
-quote it). Branch `staging`. `apps/sylibos/` is off-limits. (`services/` is gone — the two
+quote it). Branch `staging`. (`services/` is gone — the two
 Python sidecars in it were deleted 2026-07-13 with the rest of the archaic LazurOS surface.)
 
 ---
@@ -89,7 +89,7 @@ The Python half needs `python3` + `python-jose` (pinned `<3.6.0`).
 | `pnpm check:policy` | `test/policy.mjs` — no route re-types a role comparison; jkAuth's authorization lives in one policy module. ⚠️ **This gate's regex once matched nothing in the entire service** (it required a leading `.` and the real comparisons are bare), so it passed because it could not see a single case. That is what a permanently-zero detector looks like from outside. Exceptions are pinned to EXACT counts now. |
 | `pnpm check:secrets` | `test/secrets.mjs` — no secret material in TRACKED files (what would be published), paired with an assertion that `.gitignore` still excludes `.env`/`*.pem`/`*.key`. ⚠️ It only ever matched VENDOR-SHAPED tokens until a real Qobuz account password sat in tracked source as a plain `*_PASSWORD =` assignment; that shape is caught now. |
 | `pnpm check:audit` | `test/supply-chain.mjs` — dependency advisories. ⚠️ **The floor is `critical`, not `high`, deliberately and temporarily**: six packages carry HIGH advisories today, every one reached through a build/dev dependency rather than a deployed container. The count prints loudly on every run; raising the floor once they upgrade cleanly is an open decision. |
-| `pnpm check:build` | `vite build` for ORDECK / BeigeBoard / PapyrOS / KourOS (~5 s). ⚠️ **Added because the gate could be entirely green while an app was unbuildable.** BeigeBoard's production build was dead — `@jkos/routine-spec` missing from `commonjsOptions.include`, so rollup could not synthesize its CJS default export — and every other link in the chain passed, because none of them ran `build`. Verified to go red when the include is removed. SylibOS excluded (separate track). |
+| `pnpm check:build` | `vite build` for ORDECK / BeigeBoard / PapyrOS / KourOS (~5 s). ⚠️ **Added because the gate could be entirely green while an app was unbuildable.** BeigeBoard's production build was dead — `@jkos/routine-spec` missing from `commonjsOptions.include`, so rollup could not synthesize its CJS default export — and every other link in the chain passed, because none of them ran `build`. Verified to go red when the include is removed. |
 | `pnpm check:docs` | `test/docs.mjs` — **the docs inventory covers the gate.** Every test file the chain actually runs is named in TESTING.md, every `check:*` script is named here, and every repo path the docs cite resolves. ⚠️ **Counts are deliberately NOT pinned** — that would redden the gate on every added assertion. A whole suite going unmentioned is the defect that hides, and it had: eight suites and ~170 assertions ran on every green gate while appearing in no document. |
 
 ### 2.3 The prober — live and write modes

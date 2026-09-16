@@ -6,7 +6,7 @@
  * key() already uses for HUD pins/focus. One convention serves three needs:
  *   • HUD pins/focus references (a HudRef's identity)
  *   • cross-app item ownership (e.g. a BeigeBoard item's `ext_ref` column marking
- *     it as created by a SylibOS lesson)
+ *     it as created by a LazurOS job)
  *   • capability targets
  *
  * No central join table, no referential integrity — deliberately. The writing

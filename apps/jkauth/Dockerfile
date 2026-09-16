@@ -23,8 +23,6 @@ COPY apps/jkauth/package.json          apps/jkauth/
 COPY apps/beigeboard/package.json      apps/beigeboard/
 COPY apps/beigeboard/backend/package.json apps/beigeboard/backend/
 COPY apps/ordeck/package.json          apps/ordeck/
-COPY apps/sylibos/package.json         apps/sylibos/
-COPY apps/sylibos/backend/package.json apps/sylibos/backend/
 COPY packages/auth-client/package.json     packages/auth-client/
 COPY packages/auth-middleware/package.json packages/auth-middleware/
 COPY packages/design/package.json         packages/design/

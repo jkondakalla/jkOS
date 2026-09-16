@@ -19,8 +19,6 @@
  *
  * Reports, never fails (level `gap`), matching 95-env-conformance: a missing script is a
  * missing enforcement, not two sources that MUST agree disagreeing.
- *
- * sylibos is intentionally excluded (off-limits; its own React 19 + Tailwind toolchain).
  */
 
 import { readFileSync, readdirSync, existsSync, statSync } from 'node:fs';
@@ -46,7 +44,6 @@ function workspacePackages() {
     const base = join(REPO_ROOT, group);
     if (!existsSync(base)) continue;
     for (const name of readdirSync(base).sort()) {
-      if (name === 'sylibos') continue;                       // off-limits
       const dir = join(base, name);
       let st; try { st = statSync(dir); } catch { continue; }
       if (!st.isDirectory()) continue;
@@ -97,7 +94,7 @@ export default {
     if (!out.length) {
       out.push({
         level: 'ok',
-        msg: `all ${covered} TypeScript package(s) define a \`typecheck\` script — \`pnpm typecheck\` covers the workspace (sylibos excluded).`,
+        msg: `all ${covered} TypeScript package(s) define a \`typecheck\` script — \`pnpm typecheck\` covers the workspace.`,
         where: ['package.json', 'turbo.json'],
       });
     }

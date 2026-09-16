@@ -338,6 +338,23 @@ const MIGRATIONS = [
     conv('auth_otp', 'created_at', 'used_at', 'expires_at');
     conv('widget_registry', 'created_at', 'updated_at');
   }],
+
+  /* 021 — SylibOS RETIRED (Jag, 2026-09-16: "remove SylibOS entirely. It is dead").
+   *
+   * Removing its row from @jkos/suite-manifest stops a FRESH database seeding it, and
+   * nothing else: `seedAppRegistry` only inserts missing rows, so every deployed jkAuth
+   * would keep the row for ever. That row is not inert. `roleClaims()` mints the `aud`
+   * and `scope` claims every token in the suite carries from app_registry, and the CORS
+   * origin list derives from it too — so a dead app would keep appearing in every
+   * token and keep https://sylibos.jkos.net an allowed credentialed origin. Deleted
+   * here, by id. Migration 012's `UPDATE … WHERE id='sylibos'` is history and stays: on
+   * a fresh database it matches nothing.
+   *
+   * Nothing references app_registry(id) by foreign key; `sessions.app_id` is a free-text
+   * note of where a login began and is left as the record it is. */
+  ['021_retire_sylibos', () => {
+    run("DELETE FROM app_registry WHERE id = 'sylibos'")
+  }],
 ]
 
 function runMigrations() {

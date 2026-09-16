@@ -2,7 +2,7 @@
   "name": "jkos",
   "private": true,
   "version": "1.0.0",
-  "description": "jkOS \u2014 self-hosted suite. Hub platform (ordeck, jkauth, beigeboard, lazuros) + pluggable apps (sylibos), sharing @jkos/* packages.",
+  "description": "jkOS \u2014 self-hosted suite. ORDECK, jkAuth, BeigeBoard, LazurOS, PapyrOS and KourOS, sharing @jkos/* packages.",
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",

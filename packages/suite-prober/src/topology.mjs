@@ -78,7 +78,7 @@ function deriveManifest(sm) {
   }));
 }
 
-/** nginx peer-proxy rows, from peers(). `slug` is the edge token (SylibOS keeps `sylib`). */
+/** nginx peer-proxy rows, from peers(). `slug` is the edge token (derived from apiBase, so a pinned one keeps its own). */
 function deriveNginxPeers(sm) {
   return sm.peers().map((p) => ({
     slug: p.slug, // NOTE: nginx keys peers by SLUG (= id once an app is canonicalized)

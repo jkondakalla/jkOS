@@ -87,7 +87,6 @@ const files = execFileSync('git', ['ls-files'], { cwd: REPO_ROOT, encoding: 'utf
 
 let scanned = 0;
 for (const rel of files) {
-  if (rel.startsWith('apps/sylibos/')) continue;          // off-limits, separate track
   if (DESCRIBES_SECRETS.some((re) => re.test(rel))) continue;
   const abs = join(REPO_ROOT, rel);
   let st;

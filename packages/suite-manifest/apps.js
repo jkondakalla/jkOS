@@ -22,10 +22,10 @@
 //   resourceKey       = id + '.' + resource    (the invalidation bus key, A5)
 //   scope             = id + ':' + verb        (the capability scope namespace)
 //
-// Per-app override seam: an app whose edge slug ≠ id pins `apiBase`/`healthPath` so
-// derivation can't rename its paths. SylibOS is the only such app today (edge slug
-// `sylib`, un-migrated and OFF-LIMITS until Jag includes it — ToDo A1 constraints);
-// LazurOS is a host-network AI gateway with bespoke `/api/lazuros/health`.
+// Per-app override seam: an app whose edge paths cannot derive from its id pins
+// `apiBase`/`healthPath`. LazurOS is the only such app: a host-network AI gateway with
+// a bespoke `/api/lazuros/health`. (SylibOS was the other — edge slug `sylib` ≠ id —
+// until it was removed from the suite on 2026-09-16.)
 //
 // Zero deps, CJS, no build step: require()'d by jkAuth + the beigeboard backend,
 // imported (via CJS interop) by the nginx generator + prober (ESM) and manifest.ts
@@ -49,12 +49,6 @@ const APPS = [
     allowedRoles: ['user', 'admin', 'guest'],
     upstream: 'bb-app:3001', health: true, api: true,
     capabilities: true, datasets: true, activity: true,
-  },
-  {
-    id: 'sylibos', name: 'SylibOS', origin: 'https://sylibos.jkos.net',
-    allowedRoles: ['user', 'admin'],
-    upstream: 'sylibos-api:8004', health: true, api: true,
-    apiBase: '/api/sylib', // OFF-LIMITS un-migrated edge slug — pinned, do NOT derive (ToDo A1)
   },
   {
     id: 'ordeck', name: 'ORDECK', origin: 'https://jkos.net',
@@ -192,7 +186,7 @@ function manifestApps() {
 }
 
 /** nginx peer-proxy rows (every app with a container upstream). `slug` is the edge
- *  token (derived from apiBase, so SylibOS keeps `sylib`); `kind` flags the LazurOS
+ *  token (derived from apiBase, so a pinned apiBase keeps its own); `kind` flags the LazurOS
  *  host-network special case the generator block-handles. */
 function peers() {
   return APPS.filter((a) => a.upstream).map((a) => {
@@ -211,7 +205,7 @@ function peers() {
 /** Apps that take a GENERATED standard edge: a prod origin server block (SPA served at
  *  root, proxied to one upstream) + an admin-gated `/<id>/` subpath on staging. Opt in
  *  with `edge: 'standard'` (the scaffolder sets it). The hand-tuned origins — the ORDECK
- *  portal, the staging shell, SylibOS, jkAuth, BeigeBoard — set NO `edge` and keep their
+ *  portal, the staging shell, jkAuth, BeigeBoard — set NO `edge` and keep their
  *  bespoke blocks in standalone.conf, so the generator never rewrites them. Consumed by
  *  infra/nginx/gen-nginx-weave.mjs (apps-generated{,-staging}.conf). `host` is the origin
  *  hostname; `upstream` is the prod container:port (staging derives `staging-` itself). */

@@ -289,7 +289,7 @@ function TasksGlyph() {
   );
 }
 
-/** Study & other stat cards: one hero number with supporting lines. */
+/** Stat cards: one hero number with supporting lines. */
 function MetricGlyph() {
   return (
     <G>

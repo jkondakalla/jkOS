@@ -48,8 +48,7 @@ const ok = (msg) => console.log(`✓ ${msg}`);
 const { APP_IDS } = require(resolve(root, 'packages/suite-manifest/apps.js'));
 const { checkExtRefDoc, RESERVED_SCHEMES } = await import(resolve(root, 'packages/weave/src/shared/extref.js'));
 
-/* The apps that declare ext_ref schemes. Per project convention sylibos is out of
-   scope for suite-wide sweeps. */
+/* The apps that declare ext_ref schemes. */
 const DECL_MODULES = [
   ['beigeboard', 'apps/beigeboard/backend/discovery.js'],
   ['papyros',    'apps/papyros/backend/discovery.js'],
@@ -100,7 +99,7 @@ ok(`${declared.size} ext_ref scheme(s) declared across ${DECL_MODULES.length} ap
 }
 
 /* ── the source scan ────────────────────────────────────────────────────────── */
-const SKIP_DIRS = new Set(['node_modules', 'dist', 'build', '.turbo', 'sylibos']);
+const SKIP_DIRS = new Set(['node_modules', 'dist', 'build', '.turbo']);
 function sources(dir, exts) {
   const out = [];
   const abs = resolve(root, dir);

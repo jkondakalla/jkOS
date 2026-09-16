@@ -29,10 +29,8 @@ the registry deliberately never stores.
 
 ## Overrides
 
-An app whose edge slug ≠ id pins `apiBase`/`healthPath` so derivation can't rename
-its paths:
+An app whose edge paths cannot derive from its id pins `apiBase`/`healthPath`:
 
-- **`sylibos`** — edge slug `sylib`, un-migrated and **off-limits** (pins `apiBase`).
 - **`lazuros`** — host-network AI gateway with bespoke `/api/lazuros/health`
   (`registry: false`, `kind: 'lazuros'`).
 

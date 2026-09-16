@@ -75,7 +75,7 @@ const HEADER = `# weave-proxy.conf — the shared same-origin peer-proxy include
 # /health/<peer> locations that let a browser on ANY suite origin reach ANY peer's
 # API same-origin, so the jkos_token cookie flows with no CORS surface. \`include\`d
 # into EVERY prod app server block in standalone.conf (the portal, BeigeBoard,
-# jkAuth, SylibOS). Each location is self-contained (it \`set $hud\` itself), so it
+# jkAuth). Each location is self-contained (it \`set $hud\` itself), so it
 # transplants into any server block; each backend still enforces its own JWT — these
 # are deliberately NOT auth_request-gated. Staging gets its own admin-gated twin
 # (weave-proxy-staging.conf), generated from the SAME table.
@@ -178,7 +178,7 @@ function build(staging) {
  * The OTHER hand-written nginx step a new app needed: a prod origin server block (and a
  * staging admin-gated subpath). Generated for apps that opt in with edge:'standard' in
  * @jkos/suite-manifest — an SPA served at root, proxied to one upstream. The hand-tuned
- * origins (ORDECK portal, jkAuth, BeigeBoard, SylibOS, the staging shell) set no edge and
+ * origins (ORDECK portal, jkAuth, BeigeBoard, the staging shell) set no edge and
  * keep their bespoke blocks in standalone.conf, so this never rewrites them. Both files
  * are empty (header only) until the first edge:'standard' app — included unconditionally
  * by standalone.conf (apps-generated.conf at http{} level, apps-generated-staging.conf
@@ -298,7 +298,7 @@ const HEADER_APPS = `# apps-generated.conf — GENERATED standard prod origin se
 # hand-edit; run the script. One <listen 80 redirect> + <listen 443 SPA-at-root> server
 # block per app that opts in with edge:'standard' (the scaffolder sets it). \`include\`d at
 # the http{} level in standalone.conf. The hand-tuned origins (portal, jkAuth, BeigeBoard,
-# SylibOS, staging) set no edge and keep their bespoke blocks. Empty until the first one.
+# staging) set no edge and keep their bespoke blocks. Empty until the first one.
 #   node infra/nginx/gen-nginx-weave.mjs           # write
 #   node infra/nginx/gen-nginx-weave.mjs --check    # CI: assert in sync
 # Adding an app = \`pnpm new-app <id>\`, then RESTART nginx (NOT reload — bind-mount).`

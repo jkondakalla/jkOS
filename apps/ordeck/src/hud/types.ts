@@ -111,7 +111,7 @@ import type { Binding as WeaveBinding } from '@jkos/weave';
 export type Binding = string | number | boolean | WeaveBinding;
 
 /** Where a named source's data comes from. `hud` slices are data Ordeck already
- *  pulls (clock/weather/today/study/systems/cal — always in scope); `fetch` is a
+ *  pulls (clock/weather/today/systems/cal — always in scope); `fetch` is a
  *  generic client-polled endpoint, the no-deploy path for brand-new widgets. */
 export type DataSource =
   | { from: 'hud'; key: string }

@@ -231,7 +231,7 @@ undeepened raw accent) is fine. `.btn-primary` is 16px/600, which is **not** WCA
 so 3:1 does not apply.
 
 **Not changed unilaterally, because it is a design decision with suite-wide reach.** The token is
-consumed by jkAuth, KourOS, ORDECK, SylibOS and `@jkos/ui`'s `SettingsDrawer`, and
+consumed by jkAuth, KourOS, ORDECK and `@jkos/ui`'s `SettingsDrawer`, and
 `apps/kouros/src/glass.css` already hand-rolls around it ("NOT `--color-accent-contrast`: that
 token flips to black…"). Three candidate fixes, in increasing order of correctness:
 
@@ -319,7 +319,7 @@ glow (`:root:not([data-mode="dark"]) .seg`). One class, mode-correct.
 layout): BeigeBoard, ORDECK, PapyrOS, KourOS and jkAuth all load Plex Mono + Plex Sans +
 **Fraunces** (wght 400/600/**700** + italics — 700 is required by the chips/folio/stamps).
 jkos-deploy's console deliberately loads Mono only — it is machine chrome end to end.
-SylibOS loads Fraunces + Hanken Grotesk (off-limits). **Big Shoulders** is loaded only by
+**Big Shoulders** is loaded only by
 surfaces that actually render `.seg` — today that is the design page and **BeigeBoard**
 (its masthead clock became the app's one `.seg` readout in the 2026-07-19 editorial pass);
 if an app grows a phosphor readout, add the font to that app's `index.html`.
@@ -841,7 +841,6 @@ theme → `applyTheme` (`@jkos/auth-client`) calls `applyJkOSMode` + `applyJkOST
 | **PapyrOS** (audiobooks) | React 18, plain CSS | Fraunces | `accent: { #9a4b2c, #5c8a72 }`, `radius: { base 6, xs 3, sm 5, lg 10, soft 7, button 6 }` | First `@jkos/player` consumer; offline cache + SW media |
 | **KourOS** (music) | React 18, plain CSS | Fraunces (suite default) | `accent: { #4b3f8f, #dba13c }`, `radius: { base 5, xs 3, sm 4, lg 8, soft 6, button 5 }` | Second player consumer — deliberately different shape; loads Fraunces since Full Press (the primitives are printed) |
 | **jkAuth** (login/portal) + **jkos-deploy** (console) | static HTML/JS | — | none (hub defaults) | Render a generated **mirror** of hub.css (`jkos-tokens.css`) — regen commands in §14 |
-| **SylibOS** (reading) | React 19, **Tailwind v4 CSS-first** | Fraunces (+ Hanken Grotesk sans) | `@theme` block in `src/index.css`; no `tailwind.config.js` | `dark:` variant keyed to `[data-mode="dark"]`; Tailwind colour utilities remapped onto `var(--hub-*)`. **Off-limits for edits** (owner's standing rule) — described here for coherence only |
 
 Observations a design pass should know: no app currently passes custom **neutrals** — every
 app runs the two hub palettes and differentiates via accent defaults, radius scale and the
@@ -956,7 +955,7 @@ Do not cross these in any design pass:
 9. **CRT knobs are hub-owned** — the `@jkos/ui` paper-vignette flatten is the only
    sanctioned override.
 10. **`withAlpha()` for fades** — never hex-concat on a var.
-11. **SylibOS is not edited** — describe-only in this doc.
+11. *(Retired: "SylibOS is not edited" — SylibOS was removed from the suite 2026-09-16.)*
 12. **The Voice holds (Full Press):** content is named in **print** (`.jk-folio`);
     `.label-tape` is for **machine** chrome only. The machine speaks mono — never re-face
     `.mono-eyebrow` or `.jk-pill` into the serif, and never take Big Shoulders off the

@@ -13,7 +13,7 @@ import { AUTH_URL } from '@jkos/auth-client';
 import { useSuiteApps } from '@jkos/weave';
 import { type WidgetCtx } from '../../hud/registry';
 import {
-  useClock, useWeather, useSystems, useStudy, useBbItems, useShelfRefs,
+  useClock, useWeather, useSystems, useBbItems, useShelfRefs,
   selectToday, selectMonth, selectCalendarItems, selectFocus, selectPinned, deriveNotifications,
 } from './useHudData';
 
@@ -23,7 +23,6 @@ export function useHudContext(aiEnabled = true): WidgetCtx {
   const clock = useClock();              // ticks every second → this hook re-runs every second
   const weather = useWeather();
   const systems = useSystems(aiEnabled, suite);
-  const study = useStudy();
 
   const bb = useBbItems();
   const refs = useShelfRefs();          // pins + focus from the suite-wide HUD shelf
@@ -42,11 +41,11 @@ export function useHudContext(aiEnabled = true): WidgetCtx {
   const pinned = useMemo(() => selectPinned(refs.pins, bb), [refs.pins, bb]);
 
   const notifications = useMemo(
-    () => deriveNotifications({ today, systems, study, now: clock.hm }),
-    [today, systems, study, clock.hm],
+    () => deriveNotifications({ today, systems, now: clock.hm }),
+    [today, systems, clock.hm],
   );
 
   // todayIso is a plain string (changes only at midnight), so the card memo gate
   // compares it by value — the calendar widgets needn't depend on the per-second clock.
-  return { clock, weather, systems, today, study, cal, items, todayIso: clock.iso, notifications, focus, pinned, authUrl: AUTH_URL };
+  return { clock, weather, systems, today, cal, items, todayIso: clock.iso, notifications, focus, pinned, authUrl: AUTH_URL };
 }
