@@ -508,17 +508,16 @@ Then, in the order the reasoning gives (`RESET.md` Stage F):
 - **Name the tiers and make the prefix carry the tier** — 152 tokens, 62 on both faces, 90
   light-only, 0 dark-only. **Only tier 1 gets a dark block.** Today `--hub-*` spans tiers 1 and 3,
   so "does this token need a dark value?" is answerable only by reading the whole file.
-- **Derive the on-accent colour instead of pinning it.** ⚠️ **This is a live AA failure, not a
-  polish item.** `--color-accent-contrast` is `#ffffff` on paper over an accent the paper face
-  deepens to `#b27b05` — **3.67:1**, against AA's 4.5:1 for the 16px/600 `.btn-primary`. Using the
-  ink ramp instead measures **4.96:1**, so a one-line flip closes it *for the house accent* — and
-  breaks the moment someone picks a light one, which they can: the pair is user-chosen. The
-  correct fix is to compute the on-accent colour from the resolved accent's luminance, which is
-  why it belongs to this restructure rather than to a hotfix.
-  ⚠️ Blast radius: jkAuth, KourOS, ORDECK and `@jkos/ui`'s `SettingsDrawer` — and
-  [`apps/kouros/src/glass.css`](../apps/kouros/src/glass.css) already hand-rolls around the token
-  ("NOT `--color-accent-contrast`: that token flips to black…"), which is the tell that it is
-  under-specified rather than merely mis-set. Which of the three routes to take is **D10** in §0b.
+- ✅ **The on-accent colour is DERIVED, not pinned — DONE 2026-09-16** (D10 answered: (3)).
+  `--color-accent-contrast` is black or white by the accent's exact WCAG relative luminance,
+  computed in CSS (`color(from var(--color-accent) srgb-linear …)` exposes the linear channels;
+  the switch sits at Y = 0.17913, where the two contrasts are equal), for both faces, behind an
+  `@supports` with a per-face literal fallback. **Measured in Chromium across all four presets
+  and six custom accents on both faces (20 cases):** before, every preset FAILED AA on paper
+  (3.07–3.77:1) and a dark custom deep blue got black text at 2.03:1; after, every case gets the
+  best contrast black-or-white can give, and all 20 pass AA (lowest 5.30:1). The paper face's
+  primary buttons now read black on the accent, not white. `check:token-identity` recorded the
+  change (`--update`, 4 lines of baseline).
   *Related and already fixed:* the far worse defect in the same chain — a custom-property cycle
   that made the button **invisible** at 1.19:1 — closed 2026-09-10; see §8's closed table.
 - **Collapse the four accent schemes** (`--accent-raw`, `--hub-amber`, `--color-accent`, `--accent`)

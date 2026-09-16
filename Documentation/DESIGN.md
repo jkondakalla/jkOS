@@ -215,12 +215,35 @@ may **not** re-point a **derivation input** (`--accent`, `--accent-secondary`, `
 `getComputedStyle(document.documentElement).getPropertyValue('--accent')` returning empty string
 means invalid, not unset. One empty token is a typo; three is a loop. See TRAPS.md § CSS.
 
-### ⚠️ Open decision — `--color-accent-contrast` fails AA on the paper face
+### ✅ Decided and built 2026-09-16 — `--color-accent-contrast` is derived from the accent
 
-Measured 2026-09-10 against the live token chain, house default accent:
+It was a pinned literal per face: `#ffffff` on paper, `#000000` on the tube. Measured 2026-09-10,
+white on the house paper accent (`#b27b05`) was **3.67:1** — an AA failure on the 16px/600
+`.btn-primary`, which is not "large text". Three fixes were on the table (flip paper to the ink
+ramp; deepen the paper accent; derive it), and **Jag chose to derive it (D10)**, because the accent
+is user-selectable and every static answer is wrong for somebody.
 
-| Text on `--color-accent` (paper, `#b27b05`) | Ratio | AA (normal text, 4.5:1) |
+**The rule.** Text on an accent fill is black or white, chosen by the accent's WCAG 2 relative
+luminance, computed exactly in CSS: `color(from var(--color-accent) srgb-linear …)` exposes the
+LINEAR channels, so `Y = 0.2126 r + 0.7152 g + 0.0722 b` is available per channel, and
+`clamp(0, (0.17913 − Y) × 100000, 1)` switches at the luminance where black and white give equal
+contrast. It is declared once for both faces in an `@supports` block after the dark face; each
+face block keeps a literal fallback (`#000000`, right for the house accent on both).
+
+| Accent (face) | Before | After |
 |---|---|---|
+| All four presets, paper | white, **3.07–3.77:1** ✗ | black, **5.56–6.84:1** ✓ |
+| All four presets, dark | black, 11.28–14.27:1 ✓ | unchanged |
+| Custom deep blue `#1e3a8a`, dark | black, **2.03:1** ✗ | white, **10.36:1** ✓ |
+| Custom white `#ffffff`, paper | white, **2.22:1** ✗ | black, **9.47:1** ✓ |
+
+Twenty cases measured in headless Chromium (four presets and six custom accents, both faces);
+every one now gets the best contrast black-or-white can give, and the lowest is 5.30:1. ⚠️ The
+visible change is on paper: primary buttons, selected segments and the settings drawer's active
+states read **black** on the accent, not white. `apps/kouros/src/glass.css`'s orb ink still
+deliberately does not use this token — the orb's fill is not `--color-accent`.
+
+---|---|---|
 | `--color-accent-contrast` today = `#ffffff` | **3.67:1** | ✗ fails |
 | `--color-ink` = `#1c1408` | **4.96:1** | ✓ passes |
 

@@ -279,7 +279,12 @@
   --color-accent-glow:    var(--hub-amber-glow);
   --color-accent-soft:    color-mix(in srgb, var(--hub-amber) 12%, var(--hub-bg-2));
   --color-accent-ink:     color-mix(in srgb, var(--hub-amber) 80%, #000000);
-  --color-accent-contrast: #ffffff;
+  /* On-accent text. The value that ships is DERIVED from the accent's luminance —
+     see the @supports block after the dark face. This literal is only the fallback
+     for an engine without relative colour syntax, and it is the answer that is
+     right for the house accent on paper: #000 on #b27b05 is 5.73:1. It was #ffffff
+     until 2026-09-16 — 3.67:1, an AA failure on every primary button (D10). */
+  --color-accent-contrast: #000000;
   --color-secondary:      var(--hub-cyan);
   --color-secondary-dim:  var(--hub-cyan-dim);
   --color-secondary-glow: var(--hub-cyan-glow);
@@ -551,6 +556,37 @@
 
   /* No dark override for the tapered rule: --jk-inlay-face is --color-ink,
      which already flips to cream here. One rule, both faces. */
+}
+
+/* ─── On-accent text, DERIVED from the accent (D10, 2026-09-16) ──────────────
+ *
+ * Text on an accent fill is black or white, chosen by the accent's WCAG relative
+ * luminance — computed exactly: `srgb-linear` exposes the LINEAR channels, and
+ * Y = 0.2126 r + 0.7152 g + 0.0722 b is the WCAG 2 definition. At Y = 0.17913 black
+ * and white give the SAME contrast ((Y+0.05)/0.05 = 1.05/(Y+0.05)); above it black
+ * wins, below it white does. So this always picks the higher of the two, which is
+ * the most any static pair can do for a colour it has not seen.
+ *
+ * ⚠️ WHY DERIVED AND NOT PINNED. The accent is user-selectable — five presets and a
+ * custom pair — so every literal was wrong for somebody. The pinned #ffffff on paper
+ * measured 3.67:1 against the house accent (AA wants 4.5:1 for the 16px/600
+ * .btn-primary), and flipping it to ink would have broken the first user who picked a
+ * dark custom accent. Ties are impossible in practice: the × 100000 turns the step
+ * into a hard switch inside a 0.00001 band of luminance.
+ *
+ * `clamp(0, (T − Y) × 100000, 1)` is 1 (white) when Y < T and 0 (black) when Y > T,
+ * written once per channel because relative colour syntax has no variables.
+ * Declared for BOTH faces here rather than in each block: the rule is face-invariant
+ * and only the accent it reads differs — --color-accent is already per-face.
+ * Engines without relative colour syntax keep each block's literal fallback. */
+@supports (color: color(from red srgb-linear r g b)) {
+  :root,
+  :root[data-mode="dark"] {
+    --color-accent-contrast: color(from var(--color-accent) srgb-linear
+      clamp(0, (0.17913 - (0.2126 * r + 0.7152 * g + 0.0722 * b)) * 100000, 1)
+      clamp(0, (0.17913 - (0.2126 * r + 0.7152 * g + 0.0722 * b)) * 100000, 1)
+      clamp(0, (0.17913 - (0.2126 * r + 0.7152 * g + 0.0722 * b)) * 100000, 1));
+  }
 }
 
 /* ─── Shared CSS component classes ─────────────────────────────────────── */

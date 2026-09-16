@@ -51,8 +51,8 @@
       "used": "color(srgb 0.834612 0.71469 0.460871)"
     },
     "--color-accent-contrast": {
-      "value": "#ffffff",
-      "used": "rgb(255, 255, 255)"
+      "value": "color(from color-mix(in srgb, #ffb000   64%, #2a1c0e) srgb-linear\n      clamp(0, (0.17913 - (0.2126 * r + 0.7152 * g + 0.0722 * b)) * 100000, 1)\n      clamp(0, (0.17913 - (0.2126 * r + 0.7152 * g + 0.0722 * b)) * 100000, 1)\n      clamp(0, (0.17913 - (0.2126 * r + 0.7152 * g + 0.0722 * b)) * 100000, 1))",
+      "used": "color(srgb-linear 0 0 0)"
     },
     "--color-accent-deep": {
       "value": "color-mix(in srgb, color-mix(in srgb, #ffb000   64%, #2a1c0e) 20%, #f5ead4)",
@@ -661,8 +661,8 @@
       "used": "color(srgb 1 0.829608 0.45)"
     },
     "--color-accent-contrast": {
-      "value": "#000000",
-      "used": "rgb(0, 0, 0)"
+      "value": "color(from #ffb000 srgb-linear\n      clamp(0, (0.17913 - (0.2126 * r + 0.7152 * g + 0.0722 * b)) * 100000, 1)\n      clamp(0, (0.17913 - (0.2126 * r + 0.7152 * g + 0.0722 * b)) * 100000, 1)\n      clamp(0, (0.17913 - (0.2126 * r + 0.7152 * g + 0.0722 * b)) * 100000, 1))",
+      "used": "color(srgb-linear 0 0 0)"
     },
     "--color-accent-deep": {
       "value": "color-mix(in srgb, #ffb000 26%, #000000)",
