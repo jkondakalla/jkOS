@@ -4,3 +4,29 @@ packages:
   - "apps/*"          # ordeck (shell), beigeboard, sylibos, jkauth frontends/services
   - "apps/*/backend"  # beigeboard + sylibos + lazuros node backends
   - "packages/*"      # @jkos/{design,auth-client,auth-middleware,ui,weave,cards,...}
+
+# ⚠️ SECURITY FLOORS, NOT PINS. Each selector matches ONLY a range with a known HIGH advisory,
+# so it can never hold a future upgrade back — it only refuses to resolve a vulnerable version.
+# Every floor is inside its parents' declared ranges; none forces a version a parent refuses.
+#
+# ⚠️ WHY OVERRIDES AND NOT `pnpm update --depth Infinity`: the update does not re-resolve a
+# deep transitive whose parent already allows the fix, AND it rewrites unrelated importers —
+# it flipped `@jkos/ui` / `@jkos/auth-client` in four apps from `link:` to injected `file:`
+# copies (2026-09-16), a silent change to how every frontend sees its workspace packages.
+# An override plus a plain `pnpm install` moves only what it names.
+#
+# Delete an entry once nothing in the lock resolves into its range (`pnpm why -r <pkg>`);
+# `pnpm check:audit` is what notices if one goes too early.
+overrides:
+  # Path traversal in source-map auto-loading (HIGH, <=8.5.17) and its follow-up (MODERATE,
+  # <=8.5.22). Build-time: every Vite app → postcss.
+  "postcss@<8.5.23": "^8.5.23"
+  # Generators that loop forever on a negative / zero size (HIGH). Build-time: postcss → nanoid.
+  "nanoid@>=3.0.0 <3.3.18": "^3.3.18"
+  # Unbounded cache growth and a prototype write via untrusted queries (HIGH). Build-time:
+  # @vitejs/plugin-react → @babel/core → browserslist.
+  "browserslist@<4.28.7": "^4.28.7"
+  # CVE family: DoS via exponential / unbounded brace expansion (patched 2.1.4). Reached at
+  # RUNTIME, not only at build time: BeigeBoard's backend → googleapis → gaxios → rimraf →
+  # glob → minimatch → brace-expansion, which ships in its deployed container.
+  "brace-expansion@>=2.0.0 <2.1.4": "^2.1.4"
