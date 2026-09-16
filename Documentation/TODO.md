@@ -290,9 +290,22 @@ a shared package.
    ⚠️ **The row ramp encodes POSITION IN THE TRACK, not depth in the stack** — forced by the
    append-only draw (a row is painted once), and the right analogue anyway: `ridge.py` ramps
    across frequency because a line there is a band, and here a line is a moment.
-   ⚠️ **Not yet seen in a browser.** Typechecked, built, and its geometry rendered from a REAL
-   served mesh (180 rows, the `!!!` hostile path, end to end through a booted server) — but no
-   headless Chromium exists on this box, so the React/canvas wiring itself is unrun.
+   ✅ **Seen in a real browser, 2026-09-16.** The real component, bundled with only `../api`
+   stubbed, fed the five REAL meshes in `music/meshes.db` in headless Chromium: first paint at
+   0 s, mid-track and end-of-track opens, both faces (tokens resolve per face off the element).
+   Every reveal plan was driven through React and **pixel-compared against a direct render of the
+   same final state** — a live 0→30 s play (120 position updates, the append path), a seek
+   backwards 300→30 s (repaint), a jump forwards 10→200 s, and a track change 3@200→4@20 (reset,
+   no residue of the previous track). All four: **0 differing pixels**; a control pair differs by
+   14,227, so the comparison is not trivially zero.
+   ⚠️ **Still unseen: the `NowPlaying` mount itself** — `position` there is `p.globalPos` off a real
+   media element, and the harness drove `position` directly. That is a one-line prop, but it is the
+   half no scratch harness can reach; it is seen the first time the view is opened on a deploy with
+   a mesh store mounted.
+   ⚠️ *Harness trap, not a repo defect:* esbuild resolves `./pulsarmap` case-insensitively and picks
+   `Pulsarmap.tsx` (its default order tries `.tsx` first); Vite and `tsc` try `.ts` first and are
+   fine. A pixel count taken inside the page also races the component's `requestAnimationFrame`
+   under `--virtual-time-budget` and reads blank — trust the screenshot, not an in-page counter.
 8. ✅ **`revealIndex()` — pure, extracted, gated. DONE 2026-09-10.**
    `apps/kouros/src/components/pulsarmap.ts` + `pnpm check:pulsarmap` (`test/pulsarmap.mjs`,
    transpile-the-real-module). `planReveal` covers append / repaint-on-seek-backwards /

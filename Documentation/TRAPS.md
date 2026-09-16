@@ -191,6 +191,20 @@ that code can reopen it.
   the same family: the CJS import must also survive `tsc`, and the four `@jkos/*` packages that
   ship both faces (`index.js` + `index.mjs`) keep them in sync via `pnpm check:routine`.
 
+- **esbuild resolves an extensionless import case-INSENSITIVELY, even on ext4 — so a bare
+  esbuild harness over KourOS's components bundles the wrong file.** `components/Pulsarmap.tsx`
+  imports `./pulsarmap`, meaning `pulsarmap.ts`. esbuild's default `resolveExtensions` tries `.tsx`
+  before `.ts`, and its directory lookup folds case, so it matches `Pulsarmap.tsx` — the component
+  importing itself, which fails as `No matching export … for import "canvasHeight"`. Pin the
+  `.ts`-first order *and* an explicit `onResolve` for the one name, because the entry's own
+  `…/Pulsarmap` import then folds the other way (`Cannot read file: …/Pulsarmap.ts`). **Vite and
+  `tsc` try `.ts` first and are unaffected**, so the app builds and the gate is green — this only
+  bites a scratch harness, which is exactly where nobody expects the bundler to be the bug. Seen
+  2026-09-16 rendering the pulsarmap in headless Chromium. Sibling trap from the same session: a
+  pixel count taken *inside* the page races the component's `requestAnimationFrame` under
+  `--virtual-time-budget` and reads a blank canvas that the screenshot shows fully drawn — measure
+  the screenshot, never an in-page counter.
+
 - **The ZFS/Docker `ERR_PNPM_EAGAIN` fix is `package-import-method=hardlink`, not concurrency
   limiting.** `copy_file_range` returns spurious `EAGAIN` under overlay-on-ZFS (TrueNAS) and
   pnpm's default copy-based store import dies mid-install; hardlink imports use `link()` and
