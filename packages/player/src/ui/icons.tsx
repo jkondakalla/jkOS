@@ -50,7 +50,7 @@ export function IconGrip() {
     </svg>
   );
 }
-/** Neutral artwork placeholder for <CoverArt> with no (or a 404'd) image. */
+/** Neutral artwork glyph — a `fallback` for @jkos/ui's `<CoverArt variant="thumb">` when a track has no (or a 404'd) image. */
 export function IconArtwork() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">

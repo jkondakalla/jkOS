@@ -3,15 +3,14 @@
 // or 404'd art. Extracted from papyros's library grid tile (originally
 // apps/papyros/src/views/library/CoverArt.tsx).
 //
-// NOTE on the sibling in packages/player: `packages/player/src/ui/
-// NowPlaying.tsx` already exports its OWN `CoverArt` (the player bar's
-// artwork thumb). That one stays put — packages/player/src/ui/ is under a
-// zero-behaviour-change contract for the Wave-15 migration and is off
-// limits here. The two happen to share the same shape (src/alt/fallback,
-// reset-on-src-change) by design, not by copy-paste accident; see this
-// task's report for how they should converge later (the player-kit one is
-// the candidate to re-point at this one, not the other way around — THIS
-// is the suite-level primitive going forward).
+// ONE PRIMITIVE, TWO SIZES. `@jkos/player/ui` used to export its own
+// `CoverArt` for the player bar's artwork thumb, frozen under the Wave-15
+// migration's zero-behaviour-change contract with a note that it should
+// re-point here. That migration finished long ago; the copy had no consumers
+// left, and PapyrOS's player bar hand-rolled a THIRD one (`CoverThumb`) that
+// never reset its failure flag — so a book whose cover 404'd blanked the NEXT
+// book's good cover until the bar remounted. Both are gone; `variant="thumb"`
+// is that bar's artwork now (RESET Stage F).
 import { useEffect, useState, type ReactNode } from 'react';
 import { cx } from './primitives';
 
@@ -28,6 +27,11 @@ export interface CoverArtProps {
    *  empty tinted tile when omitted. */
   fallback?: ReactNode;
   className?: string;
+  /** `tile` (default): a full-width square for a grid — `.jk-media-cover`, lazy-
+   *  loaded because a grid mounts hundreds. `thumb`: the 48px framed artwork of a
+   *  player bar — `.jk-media-thumb`, loaded eagerly because there is one and it
+   *  is always on screen. */
+  variant?: 'tile' | 'thumb';
 }
 
 /** Image + graceful fallback tile. `failed` resets whenever `src` changes,
@@ -38,16 +42,23 @@ export interface CoverArtProps {
  *  id (a fresh mount already starts at `failed = false`), which is exactly
  *  papyros's usage — so adopting it here is zero-behaviour-change for the
  *  library grid specifically, while being the right default going forward. */
-export function CoverArt({ src, alt, fallback, className }: CoverArtProps) {
+export function CoverArt({ src, alt, fallback, className, variant = 'tile' }: CoverArtProps) {
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     setFailed(false);
   }, [src]);
 
+  const thumb = variant === 'thumb';
+
   if (!src || failed) {
     return (
-      <div className={cx('jk-well', 'jk-media-cover', 'jk-media-cover-placeholder', className)} aria-hidden="true">
+      <div
+        className={thumb
+          ? cx('jk-media-thumb', 'jk-media-thumb-placeholder', className)
+          : cx('jk-well', 'jk-media-cover', 'jk-media-cover-placeholder', className)}
+        aria-hidden="true"
+      >
         {fallback}
       </div>
     );
@@ -55,10 +66,10 @@ export function CoverArt({ src, alt, fallback, className }: CoverArtProps) {
 
   return (
     <img
-      className={cx('jk-media-cover', className)}
+      className={cx(thumb ? 'jk-media-thumb' : 'jk-media-cover', className)}
       src={src}
       alt={alt}
-      loading="lazy"
+      loading={thumb ? undefined : 'lazy'}
       onError={() => setFailed(true)}
     />
   );

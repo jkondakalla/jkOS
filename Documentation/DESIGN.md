@@ -773,8 +773,8 @@ accent-tinted top rule (an earlier translucent+blur version dissolved into the p
 Seeking goes through the same `.jk-slider` as §8. Full Press weights `.pb-title` like a
 title (Fraunces 600, −0.01em) — the bar's one serif line reads as one.
 
-Class families: `.player-bar`, `.pb-left/center/right`, `.pb-meta`, `.pb-cover`
-(+ `-empty`), `.pb-title` / `.pb-sub`, `.pb-transport`, `.pb-btn` (+ `-primary`, `-wide`,
+Class families: `.player-bar`, `.pb-left/center/right`, `.pb-meta` (artwork is `hub.css`'s
+`.jk-media-thumb` via `<CoverArt variant="thumb">` — it was `.pb-cover`), `.pb-title` / `.pb-sub`, `.pb-transport`, `.pb-btn` (+ `-primary`, `-wide`,
 `.is-armed`, `.pb-armed`, `.pb-count`), `.pb-scrubber` / `.pb-time` / `.pb-range-wrap` /
 `.pb-scrub-ticks`/`-tick`, `.pb-queue` rows (`.pb-q-row` + `.is-current` /
 `.is-drop-target` / `.is-dragging`, `.pb-q-handle/-item/-index/-title/-remove`),
@@ -815,8 +815,8 @@ Class families: `.player-bar`, `.pb-left/center/right`, `.pb-meta`, `.pb-cover`
   release — the split a seek control needs), `<VU value segments tint>`.
 - Veils: `<Scanlines>`, `<Vignette>`, `<Scrim heavy>`.
 - Structural: `<AppShell>` (guard → header → `SettingsDrawer` → preferences wiring; brand,
-  wordmark, settings button), `<MediaGrid density>`, `<CoverArt src alt>` (falsy `src` →
-  immediate fallback tile), `<MatchPanel>`, `<AsyncView loading error empty>`,
+  wordmark, settings button), `<MediaGrid density>`, `<CoverArt src alt variant>` (falsy `src` →
+  immediate fallback; `variant` `tile` for a grid, `thumb` for a player bar), `<MatchPanel>`, `<AsyncView loading error empty>`,
   `<WidgetShell>` (ORDECK widget frame), `<JkOSTheme config>` (declarative
   `injectJkOSTheme`), `<SettingsDrawer>` (THE settings tray — every app mounts it; extras
   go in its `extra` slot; its AI section is gated on the jkAuth `lazuros.enabled` kill

@@ -80,21 +80,8 @@
   min-width: 0;
   flex: 1 1 0;
 }
-.pb-cover {
-  flex: none;
-  width: 48px;
-  height: 48px;
-  border-radius: var(--hub-radius-sm);
-  object-fit: cover;
-  background: var(--hub-bg-1);
-  border: 1px solid var(--hub-line);
-}
-.pb-cover-empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--hub-cream-faint);
-}
+/* The artwork thumb is not styled here any more: it is `<CoverArt variant="thumb">`
+   from @jkos/ui, styled by `.jk-media-thumb` in hub.css (it was `.pb-cover`). */
 .pb-meta-text {
   display: flex;
   flex-direction: column;

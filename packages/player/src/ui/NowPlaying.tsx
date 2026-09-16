@@ -1,13 +1,13 @@
 // NowPlaying.tsx — the title/artist/artwork meta block (git history, Wave 16, item
 // 16.6). Markup is papyros PlayerBar's `meta` cluster verbatim: art | stacked
-// title-over-subtitle, both ellipsized. `art` is a slot (papyros passes its own
-// CoverThumb — see that file for why it stays bespoke); <CoverArt> below is the
-// stock artwork part for kit-first consumers.
-import { useEffect, useState, type ReactNode } from 'react';
-import { IconArtwork } from './icons';
+// title-over-subtitle, both ellipsized. `art` is a slot — pass `<CoverArt
+// variant="thumb">` from @jkos/ui. This kit used to ship its own CoverArt for that
+// slot; it was deleted when the Wave-15 freeze was lifted, because the suite's one
+// cover primitive lives in @jkos/ui and two copies of it had already become three.
+import type { ReactNode } from 'react';
 
 export interface NowPlayingProps {
-  /** Artwork slot (e.g. <CoverArt/>). Renders nothing when omitted. */
+  /** Artwork slot — `<CoverArt variant="thumb">` from @jkos/ui. Renders nothing when omitted. */
   art?: ReactNode;
   title: ReactNode;
   /** Renders the title as an <a href> (papyros links to the item's detail view). */
@@ -30,21 +30,4 @@ export function NowPlaying({ art, title, titleHref, titleTip, subtitle }: NowPla
       </div>
     </div>
   );
-}
-
-/** Stock artwork thumb: image with a glyph fallback on missing/404'd art. Unlike
- *  papyros's original CoverThumb, the failure flag RESETS when `src` changes, so a
- *  dead cover on one item can't ghost the next item's good one — which is why
- *  papyros (zero-behavior-change migration) keeps its own for now. */
-export function CoverArt({ src, alt, fallback }: {
-  src?: string;
-  alt: string;
-  fallback?: ReactNode;
-}) {
-  const [failed, setFailed] = useState(false);
-  useEffect(() => { setFailed(false); }, [src]);
-  if (!src || failed) {
-    return <div className="pb-cover pb-cover-empty" aria-hidden="true">{fallback ?? <IconArtwork />}</div>;
-  }
-  return <img className="pb-cover" src={src} alt={alt} onError={() => setFailed(true)} />;
 }

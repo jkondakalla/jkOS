@@ -21,7 +21,7 @@ export type {
 } from './controls';
 export { Scrubber } from './Scrubber';
 export type { ScrubberProps } from './Scrubber';
-export { NowPlaying, CoverArt } from './NowPlaying';
+export { NowPlaying } from './NowPlaying';
 export type { NowPlayingProps } from './NowPlaying';
 export { QueuePanel } from './QueuePanel';
 export type { QueuePanelProps } from './QueuePanel';

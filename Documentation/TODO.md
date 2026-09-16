@@ -511,10 +511,20 @@ Then, in the order the reasoning gives (`RESET.md` Stage F):
   [`apps/kouros/src/glass.css`](../apps/kouros/src/glass.css) (275 lines, 27 raw `rgba`/`hsl`
   literals, all chrome), promote the glass tokens into the factory, apply them on the cover
   primitive — PapyrOS's jackets and ORDECK then get it free.
-  ⚠️ **Two `CoverArt` implementations exist.** The one in
-  [`packages/player/src/ui/NowPlaying.tsx`](../packages/player/src/ui/NowPlaying.tsx) is frozen
-  under a Wave-15 "zero-behaviour-change" contract that finished long ago, and its own comment says
-  it should re-point at the `@jkos/ui` one. **Lift the freeze and converge them.**
+  ✅ **The two named `CoverArt`s — converged 2026-09-16.** The player kit's copy had **no consumers**
+  and is deleted; PapyrOS's player bar hand-rolled a third (`CoverThumb`) and now renders
+  `<CoverArt variant="thumb">` from `@jkos/ui`. `.pb-cover` moved into `hub.css` as
+  `.jk-media-thumb` — **all 627 computed properties identical on both faces**, measured in Chromium
+  against the old stylesheet. One real fix rode along: `CoverThumb` never reset its failure flag,
+  so a book whose cover 404'd blanked every later book's cover until the bar remounted.
+  ⚠️ **Three more cover implementations exist, and glass cannot land on "the cover primitive" until
+  they use it:** [`apps/kouros/src/components/Cover.tsx`](../apps/kouros/src/components/Cover.tsx)
+  (11 call sites; a wrapper `div.kr-cover` around the `img`, a letter fallback, `eager` and
+  `decoding="async"`, and descendant CSS in `views.css` that assumes that DOM), and PapyrOS's
+  BookDetail hero (inline, with a cache-busting `?v=`). Converging KourOS's changes its DOM and the
+  selectors that style it, so it wants the BeigeBoard-style computed-style harness this section
+  already calls for — not a blind swap. That is also where `eager`/`decoding` and a letter
+  fallback become props of the one primitive rather than a second component.
 
 ---
 

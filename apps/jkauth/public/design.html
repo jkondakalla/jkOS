@@ -1743,6 +1743,30 @@
 }
 .jk-media-cover-placeholder span { font-size: 1.7rem; letter-spacing: 0.04em; }
 
+/* Cover THUMB — the same imported-asset primitive at thumbnail scale: `<CoverArt
+   variant="thumb">` in @jkos/ui. Moved here verbatim from @jkos/player's
+   `.pb-cover`/`.pb-cover-empty` when the player kit's own CoverArt was deleted in
+   favour of this one (RESET Stage F, "lift the freeze and converge them") — so a
+   player bar's artwork and a library tile are ONE primitive at two sizes, and a
+   material applied to covers reaches both from one place. Values unchanged: this
+   was a move, not a retune. Deliberately NOT a `.jk-well` like the tile's
+   placeholder — a 48px thumb in a bar reads as a bordered frame, not an inset. */
+.jk-media-thumb {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--hub-radius-sm);
+  object-fit: cover;
+  background: var(--hub-bg-1);
+  border: 1px solid var(--hub-line);
+}
+.jk-media-thumb-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--hub-cream-faint);
+}
+
 /* ─── Async state text (@jkos/ui <AsyncView>) ──────────────────────────────
  * git history: Wave 20 item 20.3: the loading/error/empty triad's single state
  * paragraph, unified out of three hand-rolled versions (papyros's local
@@ -2838,21 +2862,8 @@ button.jk-pill,   a.jk-pill,
   min-width: 0;
   flex: 1 1 0;
 }
-.pb-cover {
-  flex: none;
-  width: 48px;
-  height: 48px;
-  border-radius: var(--hub-radius-sm);
-  object-fit: cover;
-  background: var(--hub-bg-1);
-  border: 1px solid var(--hub-line);
-}
-.pb-cover-empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--hub-cream-faint);
-}
+/* The artwork thumb is not styled here any more: it is `<CoverArt variant="thumb">`
+   from @jkos/ui, styled by `.jk-media-thumb` in hub.css (it was `.pb-cover`). */
 .pb-meta-text {
   display: flex;
   flex-direction: column;
@@ -4321,7 +4332,7 @@ button.jk-pill,   a.jk-pill,
         <section class="player-bar" aria-label="Now playing (sample)">
           <div class="pb-left">
             <div class="pb-meta">
-              <div class="pb-cover pb-cover-empty" aria-hidden="true">
+              <div class="jk-media-thumb jk-media-thumb-placeholder" aria-hidden="true">
                 <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
                   <rect x="4" y="4" width="16" height="16" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5" />
                   <circle cx="12" cy="12" r="3.5" fill="none" stroke="currentColor" stroke-width="1.3" opacity="0.7" />

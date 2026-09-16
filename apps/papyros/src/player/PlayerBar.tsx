@@ -8,11 +8,11 @@
 // (play/pause, ±30s, prev/next chapter, rate, sleep menu, scrubber, meta block) now
 // come from @jkos/player/ui — markup/classes byte-identical to what this file
 // rendered bespoke before the migration. What stays papyros-owned here: the
-// bookmarks menu, the mobile More sheet (both audiobook-specific), the CoverThumb
-// (the kit's CoverArt heals its 404-glyph on the next item — a behavior change this
-// zero-change migration must not take), and the reserve-space body class.
+// bookmarks menu, the mobile More sheet (both audiobook-specific), and the
+// reserve-space body class. The artwork is the suite's cover primitive at thumb
+// size — see the note above the NowPlaying call.
 import { useEffect, useState } from 'react';
-import { useBreakpoint, cx } from '@jkos/ui';
+import { useBreakpoint, cx, CoverArt } from '@jkos/ui';
 import {
   PlayerBar as PlayerBarShell, Transport, PlayerScrim,
   PlayPauseButton, SkipButton, SegmentButton, RateButton, SleepMenu,
@@ -135,7 +135,20 @@ export default function PlayerBar() {
 
   const meta = (
     <NowPlaying
-      art={<CoverThumb bookId={book.id} hasCover={!!book.cover_path} title={book.title} />}
+      /* The suite's ONE cover primitive, at thumb size. This used to be a bespoke
+         `CoverThumb` kept verbatim through the Wave-15 zero-behaviour-change migration,
+         and the behaviour it preserved was a bug: its failure flag never reset, so a
+         book whose cover 404'd left the bar showing the glyph for every book played
+         after it until the bar remounted. `CoverArt` resets on `src` change.
+         A falsy `src` skips the request entirely when the scanner found no art. */
+      art={
+        <CoverArt
+          variant="thumb"
+          src={book.cover_path ? coverUrl(book.id) : null}
+          alt={`Cover of ${book.title}`}
+          fallback={<IconBook />}
+        />
+      }
       title={book.title}
       titleHref={`#/book/${book.id}`}
       subtitle={`${book.author || 'Unknown author'}${p.chapterLabel ? ` · ${p.chapterLabel}` : ''}`}
@@ -230,24 +243,6 @@ export default function PlayerBar() {
         mobileActions={moreMenu}
       />
     </>
-  );
-}
-
-// ─── Cover thumbnail (guards the coverUrl 404 → glyph fallback) ──────────────
-// Stays papyros-bespoke (not the kit's CoverArt): its `failed` flag deliberately
-// never resets on book change, matching pre-migration behavior exactly.
-function CoverThumb({ bookId, hasCover, title }: { bookId: number; hasCover: boolean; title: string }) {
-  const [failed, setFailed] = useState(false);
-  if (!hasCover || failed) {
-    return <div className="pb-cover pb-cover-empty" aria-hidden="true"><IconBook /></div>;
-  }
-  return (
-    <img
-      className="pb-cover"
-      src={coverUrl(bookId)}
-      alt={`Cover of ${title}`}
-      onError={() => setFailed(true)}
-    />
   );
 }
 
