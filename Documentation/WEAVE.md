@@ -479,7 +479,7 @@ a hand-written per-app list you must **enlist** in (§4); **owed** means decided
 | 3 | Edge reachability | `edge:'standard'` → generated nginx | `check:nginx` (**fails**) + `nginx-coverage` (**drift**) |
 | 4 | Identity | `weaveAuth(opts)` | **no gate** — runtime only (`exit(1)` in prod with no key) |
 | 5 | Write authorization | `weaveWriteGate({scope})` | app smoke tests only |
-| 6 | Scope namespace `<id>:verb` | `scopeFor(id, verb)` | `prove` `scope-identifier` (**drift**) |
+| 6 | Scope namespace `<id>:verb`, declared on every write capability | `scopeFor(id, verb)`; `scope`/`scopes` on each non-GET capability, then `node packages/suite-manifest/scripts/gen-scopes.mjs` | `prove` `scope-identifier` (**drift**) + `check:scopes` (**fails** on an undeclared write scope or a stale jkAuth copy) |
 | 7 | Cross-origin | `weaveCors(resolver)` | **unenforced** |
 | 8 | Liveness | `healthHandler(service)` | `prove --live` `live-health` (**drift**, live only) |
 | 9–10 | Capability + dataset declarations | `serveCapabilities`/`serveDatasets` | `docShape` throws at boot; `live-docshape` (**drift**, live) |
@@ -553,8 +553,11 @@ compose files, with a boot assertion, is **Stage C7 / D11**. Until then do not w
 "each app verifies its own id" anywhere — it does not.
 
 **The token.** `jkos_token` (RS256) carries `azp` (which app the session was minted
-through — provenance, logged in `auth_events`), `aud` (above), and `scope` (role-derived;
-capabilities declare `scopes`, the resource app checks `token.scope ⊇ required`). The scope
+through — provenance, logged in `auth_events`), `aud` (above), and `scope` (role-derived and
+DECLARATION-derived: capabilities declare `scopes`, jkAuth grants `<id>:read` plus only what an
+app declares — with the create/update/delete ladder under a declared `write` — and the resource
+app checks `token.scope ⊇ required`. A new scope needs `gen-scopes.mjs` rerun and jkAuth
+redeployed). The scope
 check enforces only when `scope` is present, so tokens minted before Weave fall through to
 the role gate rather than being rejected mid-session.
 

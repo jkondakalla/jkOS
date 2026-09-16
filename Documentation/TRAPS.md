@@ -174,6 +174,13 @@ that code can reopen it.
   `pnpm install` → confirm the injected copy changed (`grep` your edit under
   `node_modules/.pnpm/@jkos+<pkg>@*/`) → restart any running dev server with `--force` (a running
   Vite keeps its pre-install module graph even after re-injection).
+  ⚠️ **The sharper half (2026-09-16): an IN-PLACE edit does reach the copy — a hardlink shares the
+  inode — but a NEWLY ADDED file does not.** So the dangerous edit is an existing module gaining a
+  `require('./new-file')`: every consumer instantly sees the new require and cannot resolve its
+  target. `@jkos/suite-manifest/apps.js` requiring a new `scopes.generated.js` broke PapyrOS's and
+  KourOS's `vite build` exactly this way, caught by `check:build`. Fix was structural (the new
+  logic moved to its own `./scopes` subpath, so the browser-bundled module requires nothing new);
+  `pnpm install` alone would have hidden it locally and left the trap armed.
 
 - **A workspace package that ships CJS must be listed in each consumer's
   `build.commonjsOptions.include`, and forgetting one breaks `vite build` while the whole gate

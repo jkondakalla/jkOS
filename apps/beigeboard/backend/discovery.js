@@ -311,7 +311,7 @@ const CAPABILITIES = {
         { name: 'library',  type: 'json',   label: 'Library entries created or matched' , schema: 'beigeboard.library' },
         { name: 'warnings', type: 'json',   label: 'Lint — accepted, but worth a look', schema: 'beigeboard.routineVocabulary' },
       ],
-      invalidates: [ITEMS_KEY, LIBRARY_KEY],
+      invalidates: [ITEMS_KEY, LIBRARY_KEY], scopes: ['beigeboard:write'],
       doc: 'One document carrying a routine AND the library entries its steps reference, so an '
         + 'author submits a complete unit rather than ordering two imports correctly. dryRun '
         + 'returns the same report and writes nothing.',
@@ -324,7 +324,7 @@ const CAPABILITIES = {
         { name: 'updated',  type: 'number', label: 'Events changed' },
         { name: 'removed',  type: 'number', label: 'Events withdrawn' },
       ],
-      invalidates: [ITEMS_KEY],
+      invalidates: [ITEMS_KEY], scopes: ['beigeboard:write'],
       doc: 'Pull-only: reads the connected calendar and reconciles its events into `items`. '
         + 'Nothing is ever written back to the provider. ⚠️ Declared as one capability over a '
         + '`:provider` path because the three providers are the same operation — the three '
@@ -335,7 +335,7 @@ const CAPABILITIES = {
       id: 'disconnectCalendar', label: 'Disconnect a calendar', method: 'DELETE', path: '/auth/:provider',
       body: [{ name: 'provider', type: 'enum', label: 'Provider', enum: ['google', 'outlook', 'icloud'], required: true }],
       returns: [{ name: 'ok', type: 'boolean' }],
-      invalidates: [ITEMS_KEY],
+      invalidates: [ITEMS_KEY], scopes: ['beigeboard:write'],
       doc: 'Drops the stored credential and the events it owned. ⚠️ The current implementation '
         + 'raw-DELETEs those items rather than routing through cascadeDelete — Stage D item 10.',
     },

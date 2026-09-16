@@ -6,6 +6,7 @@
 
 const Database = require('better-sqlite3')
 const { registrySeed } = require('@jkos/suite-manifest')
+const { grantableScopes, WRITE_LADDER } = require('@jkos/suite-manifest/scopes')
 const { DB_PATH, ADMIN_SEED_EMAIL, ADMIN_SEED_PASSWORD, GUEST_PASSWORD } = require('./config')
 const { hashPasswordSync, verifyPasswordSync } = require('./password')
 /* ⭐ ONE WIRE-TIMESTAMP FORMAT (XC-1). jkAuth was the app the `wire-time` probe never
@@ -484,11 +485,22 @@ function appIdForOrigin(origin) {
 // Registry-derived token claims for a role, cached per role. `aud` is the set of
 // app ids the role may access (allowed_roles ⊇ role) — each app verifies its own
 // id ∈ aud, giving real audience enforcement without breaking the single shared
-// SSO cookie. `scope` is the named-scope grant derived from the same set:
-// <app>:read for every reachable app, +<app>:write for non-guests, +<app>:admin
-// for admins, plus a suite-wide suite:admin. Capabilities declare required scopes
-// and the resource app checks token.scope ⊇ required. Cached because app_registry
-// only changes on restart (same contract as the other caches above).
+// SSO cookie. `scope` is the named-scope grant for the same set, and it is DERIVED
+// FROM WHAT EACH APP'S CAPABILITY DOC DECLARES (D1): <app>:read for every reachable
+// app, the write ladder only where the app declares a write, <app>:admin only where
+// it declares an admin surface, plus the suite-wide suite:admin. Capabilities declare
+// required scopes and the resource app checks token.scope ⊇ required. Cached because
+// app_registry only changes on restart (same contract as the other caches above).
+//
+// ⚠️ D1 (2026-09-16). This used to mint the whole ladder — read, write, create,
+// update, delete, admin — for EVERY app the role could reach, including apps that
+// declare no writes and no admin surface at all (ordeck, staging, auth, jkdeploy). No
+// route checked those names, which is exactly the problem: a grant nothing declares is
+// authority waiting for the first route that trusts the name. jkAuth has no peer
+// source in its image and never fetched `capabilities_path`, so the declarations
+// reach it as a GENERATED file in @jkos/suite-manifest (scopes.generated.js, held
+// fresh by `pnpm check:scopes`). A new scope is therefore a jkAuth redeploy — the
+// cost Jag accepted when choosing this over a boot-time fetch.
 const _cachedRoleClaims = new Map()
 function roleClaims(role) {
   if (_cachedRoleClaims.has(role)) return _cachedRoleClaims.get(role)
@@ -498,23 +510,20 @@ function roleClaims(role) {
     const roles = String(r.allowed_roles || '').split(',').map(s => s.trim())
     if (!roles.includes(role)) continue
     aud.push(r.id)
+    const grantable = grantableScopes(r.id)
     scope.push(`${r.id}:read`)
     if (role !== 'guest') {
-      // ⚠️ C4 / WV-4: `write` used to be ONE indivisible grant, so nothing could
-      // ask for less than all of it — a token holding `beigeboard:write` could
-      // delete the entire board, and LazurOS's write-back needed delete rights
-      // to import a single parsed task. It is now a LADDER, and `write` is
-      // retained as the superset so every existing token and every service
-      // client configured before this keeps working unchanged.
-      //
-      // A logged-in HUMAN still gets the whole ladder — least privilege is not
-      // "the owner may not delete his own tasks". The point is that the grant is
-      // now EXPRESSIBLE at a finer grain, which is what lets a service client
-      // (JKOS_SERVICE_CLIENTS) or a capability declare `beigeboard:create` alone
-      // and be held to it by the write gate.
-      scope.push(`${r.id}:write`, `${r.id}:create`, `${r.id}:update`, `${r.id}:delete`)
+      // The write grant is a LADDER (C4 / WV-4): `write` is the superset, retained so
+      // every token and service client configured before the ladder keeps working,
+      // and `create`/`update`/`delete` are each grantable alone — so a service client
+      // can hold `beigeboard:create` and be held to exactly that by the write gate.
+      // A logged-in HUMAN still gets the whole ladder for an app that declares
+      // writes: least privilege is not "the owner may not delete his own tasks".
+      for (const verb of ['write', ...WRITE_LADDER]) {
+        if (grantable.includes(`${r.id}:${verb}`)) scope.push(`${r.id}:${verb}`)
+      }
     }
-    if (role === 'admin') scope.push(`${r.id}:admin`)
+    if (role === 'admin' && grantable.includes(`${r.id}:admin`)) scope.push(`${r.id}:admin`)
   }
   if (role === 'admin') scope.push('suite:admin')
   const claims = { aud, scope }

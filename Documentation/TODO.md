@@ -406,15 +406,18 @@ source; do not re-derive it.
 
 ## 5 · jkAuth
 
-- **Capability-declared scopes — the remaining half.** C4 made the grant expressible at a finer
-  grain (`<app>:create|update|delete` beside the legacy blanket `write`). What is left is having
-  jkAuth derive the *grantable set* from each app's registered capability doc rather than from
-  the registry row.
-  ⚠️ **A real obstacle, worth knowing before starting:** jkAuth stores `capabilities_path` and
-  never fetches it, and its container does not carry the other apps' source — so neither an HTTP
-  fetch at boot (peers may be down) nor `require()`ing their `discovery.js` (not in the image)
-  works as-is. **Deciding where the doc comes from is the actual design question, and it is
-  unanswered.**
+- ✅ **Capability-declared scopes — DONE 2026-09-16** (D1 answered: a generated manifest). The
+  scopes each capability doc declares are generated into
+  `packages/suite-manifest/scopes.generated.js` (`pnpm check:scopes` holds it fresh), and
+  `grantableScopes(id)` derives the grant: `<id>:read`, what the app declares, and the
+  create/update/delete ladder beneath a declared `<id>:write`. jkAuth's `roleClaims` mints only
+  that — so `ordeck:delete`, `auth:admin`, `beigeboard:admin` and the rest of the undeclared
+  ladder are no longer in anyone's token — and a service client configured with an undeclared
+  scope (a typo, or a grant for an app with no writes) **refuses to boot**, naming the scope
+  unless it could be a secret fragment.
+  ⚠️ **Cost, accepted in D1:** a new scope is a jkAuth redeploy. ⚠️ **Found on the way:** three
+  BeigeBoard write capabilities declared no scope at all; they declare `beigeboard:write` now,
+  and the gate refuses the next one.
 - **Two authorization policies.** `policy.js` holds the route actions; `roleClaims()` in `db.js`
   decides the `aud` and `scope` claims **every token in the suite carries** — a wider decision
   than any route guard. Folding it in means `policy.js` depending on `db.js` and owning a

@@ -23,7 +23,7 @@
 // knobs via env), drives it over real HTTP, and inspects the sessions table
 // directly to assert what the wire cannot show (tombstones, sealed secrets).
 
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { generateKeyPairSync } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -449,6 +449,65 @@ try {
       ok(`a signed-in user's token carries beigeboard:${verb}`,
         (claims.scope || []).includes(`beigeboard:${verb}`), JSON.stringify(claims.scope));
     }
+  }
+
+  // ── N · D1: the grant is DERIVED from what capability docs declare ────────
+  // jkAuth used to mint read/write/create/update/delete/admin for EVERY registry
+  // app a role could reach — `ordeck:delete`, `auth:admin` — scopes nothing declares
+  // and nothing checks. It now grants only what @jkos/suite-manifest's generated
+  // copy of the capability docs says each app declares.
+  {
+    jar.clear();
+    await api('POST', '/auth/register', { json: { email: 'grant@x.net', password: 'password-g1' } });
+    const userScope = JSON.parse(Buffer.from(
+      jar.get([...jar.keys()].find(k => k.startsWith('jkos_token'))).split('.')[1], 'base64url').toString()).scope || [];
+    ok('a user still carries the full ladder for an app that DECLARES writes (beigeboard)',
+      ['read', 'write', 'create', 'update', 'delete'].every((v) => userScope.includes(`beigeboard:${v}`)), JSON.stringify(userScope));
+    ok('…but no write scope for an app that declares none (ordeck, auth)',
+      !userScope.some((s) => /^(ordeck|auth):(write|create|update|delete)$/.test(s)), JSON.stringify(userScope));
+    ok('…while reads of every reachable app survive (ordeck:read)', userScope.includes('ordeck:read'), JSON.stringify(userScope));
+
+    // Admin claims through the REAL roleClaims over a freshly seeded registry.
+    const adminDb = join(tmp, 'grant-admin.db');
+    const probe = spawnSync(process.execPath, ['-e',
+      "process.stdout.write(JSON.stringify(require('./src/db.js').roleClaims('admin')))"],
+      { cwd: join(__dirname, '..'), env: { ...process.env, DB_PATH: adminDb, NODE_ENV: 'test' }, encoding: 'utf8' });
+    const adminScope = (() => { try { return JSON.parse(probe.stdout.trim().split('\n').pop()).scope; } catch { return []; } })();
+    ok('an admin gets <app>:admin where the app DECLARES an admin surface (papyros, kouros)',
+      adminScope.includes('papyros:admin') && adminScope.includes('kouros:admin'), probe.stdout + probe.stderr);
+    ok('…and NOT for apps that declare none (beigeboard, lazuros, ordeck, auth, jkdeploy)',
+      !adminScope.some((s) => /^(beigeboard|lazuros|ordeck|auth|jkdeploy|staging):admin$/.test(s)), JSON.stringify(adminScope));
+    ok('…and suite:admin is unchanged', adminScope.includes('suite:admin'), JSON.stringify(adminScope));
+
+    // A service client configured with a scope nothing declares refuses to BOOT.
+    const bootWith = async (clients, n) => {
+      const c = spawn(process.execPath, [SERVER], {
+        env: { ...process.env, PORT: String(port + 510 + n), DB_PATH: join(tmp, `grant-boot-${n}.db`),
+          JKOS_AUTH_PRIVATE_KEY: privateKey, JKOS_AUTH_PUBLIC_KEY: publicKey,
+          COOKIE_DOMAIN: 'localhost', NODE_ENV: 'test', JKOS_SERVICE_CLIENTS: clients },
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      let log = '';
+      c.stdout.on('data', d => { log += d; }); c.stderr.on('data', d => { log += d; });
+      const code = await new Promise((resolve) => {
+        c.on('exit', resolve);
+        setTimeout(() => { try { c.kill('SIGKILL'); } catch { /* gone */ } resolve('timeout'); }, 8000);
+      });
+      return { code, log };
+    };
+    const typo = await bootWith('lazuros:0123456789abcdef:beigeboard:wirte', 1);
+    ok('a typo\'d verb (beigeboard:wirte) refuses to boot, naming the scope',
+      typo.code !== 0 && typo.code !== 'timeout' && typo.log.includes("'beigeboard:wirte' is not grantable"), typo.log.slice(-300));
+    const undeclared = await bootWith('lazuros:0123456789abcdef:ordeck:write', 2);
+    ok('a scope for an app that declares no writes (ordeck:write) refuses to boot',
+      undeclared.code !== 0 && undeclared.code !== 'timeout' && undeclared.log.includes("'ordeck:write' is not grantable"), undeclared.log.slice(-300));
+    // ⚠️ A secret containing ':' with no scopes after it cuts into a tail that passes
+    // the <app>:<verb> shape — and that tail IS part of the secret.
+    const leaky = await bootWith('lazuros:pp:qq:rr', 3);
+    ok('an unknown-app scope refuses to boot WITHOUT printing it (it may be a secret fragment)',
+      leaky.code !== 0 && leaky.code !== 'timeout' && !leaky.log.includes('qq:rr') && /scope #1 names no suite app/.test(leaky.log), leaky.log.slice(-300));
+    const fine = await bootWith('lazuros:0123456789abcdef:beigeboard:create', 4);
+    ok('a declared-ladder scope (beigeboard:create) boots', fine.code === 'timeout', `exit ${fine.code}: ${fine.log.slice(-200)}`);
   }
 
   db.close();

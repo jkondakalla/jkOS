@@ -10,6 +10,11 @@
       "types": "./apps.d.ts",
       "require": "./apps.js",
       "import": "./apps.js"
+    },
+    "./scopes": {
+      "types": "./scopes.d.ts",
+      "require": "./scopes.js",
+      "import": "./scopes.js"
     }
   }
 }

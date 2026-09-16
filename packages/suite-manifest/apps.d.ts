@@ -95,6 +95,7 @@ export declare function resourceKey(id: AppId, resource: string): string;
 /** The capability scope, e.g. scopeFor('beigeboard','write') → 'beigeboard:write'. */
 export declare function scopeFor(id: AppId, verb: string): string;
 
+
 export declare function registrySeed(): RegistryRow[];
 export declare function manifestApps(): Record<string, ManifestEntry>;
 export declare function peers(): PeerRow[];

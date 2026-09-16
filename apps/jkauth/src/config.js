@@ -6,6 +6,8 @@
 // @jkos/auth-middleware so jkAuth (the PRODUCER) and the verifiers share one source
 // instead of independently re-typing 'jkos-auth' / 'jkos_token'.
 const { resolveIssuer, cookieName, ACCESS_COOKIE_BASE } = require('@jkos/auth-middleware')
+const { APPS } = require('@jkos/suite-manifest')
+const { grantableScopes, isGrantableScope } = require('@jkos/suite-manifest/scopes')
 
 const PORT = process.env.PORT || 3100
 const DB_PATH = process.env.DB_PATH || './jkos-auth.db'
@@ -171,12 +173,27 @@ function parseServiceClients(raw) {
     if (!CLIENT_ID_RE.test(id)) bad('the client id must be [A-Za-z0-9._-]')
     if (!secret) bad('the client secret is empty')
     if (scopes.length === 0) bad('it grants no scopes, so any token minted for it would be useless')
-    for (const s of scopes) {
+    scopes.forEach((s, k) => {
       if (!SCOPE_RE.test(s)) {
         bad('its scope list does not read as "<app>:<verb>" entries — which is exactly ' +
             'what a ":" inside the SECRET looks like once the entry has been cut')
       }
-    }
+      /* D1: a client may only be configured with a scope some capability DECLARES (or
+         the read / write-ladder a declaration implies). A typo'd verb, or a grant for an
+         app that declares no writes, used to mint a token carrying authority nothing
+         enforces — silently, until the first route that trusted the name.
+         ⚠️ The scope is printed only when its app part names a suite app. A secret
+         containing ':' with no scopes after it cuts into a tail that CAN pass SCOPE_RE
+         ("id:p:q:r" → scope "q:r"), and that tail is part of the secret. */
+      if (!isGrantableScope(s)) {
+        const [app] = s.split(':')
+        const known = APPS.some((a) => a.id === app && a.registry !== false)
+        bad(known
+          ? `its scope '${s}' is not grantable — ${app} declares ${grantableScopes(app).join(', ')} ` +
+            '(a scope is grantable only if a capability declares it; see @jkos/suite-manifest scopes.generated.js)'
+          : `its scope #${k + 1} names no suite app, so no capability can declare it`)
+      }
+    })
     if (out[id]) bad('its client id was already defined by an earlier entry')
     out[id] = { secret, scopes }
   })
