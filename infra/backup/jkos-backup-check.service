@@ -1,7 +1,7 @@
 [Unit]
 Description=jkOS backup freshness check
-Documentation=file:///media/jag/The%20Forge/jkOS/infra/backup/README.md
+Documentation=file:///media/jag/The%%20Forge/jkOS/infra/backup/README.md
 
 [Service]
 Type=oneshot
-ExecStart=/media/jag/The Forge/jkOS/infra/backup/jkos-backup-alert.sh --check
+ExecStart="/media/jag/The Forge/jkOS/infra/backup/jkos-backup-alert.sh" --check

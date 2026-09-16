@@ -1,6 +1,6 @@
 [Unit]
 Description=Run the jkOS encrypted backup daily
-Documentation=file:///media/jag/The%20Forge/jkOS/infra/backup/README.md
+Documentation=file:///media/jag/The%%20Forge/jkOS/infra/backup/README.md
 
 [Timer]
 OnCalendar=*-*-* 02:30:00

@@ -1,10 +1,10 @@
 [Unit]
 Description=jkOS backup FAILED — alert
-Documentation=file:///media/jag/The%20Forge/jkOS/infra/backup/README.md
+Documentation=file:///media/jag/The%%20Forge/jkOS/infra/backup/README.md
 
 [Service]
 Type=oneshot
-ExecStart=/media/jag/The Forge/jkOS/infra/backup/jkos-backup-alert.sh --failed
+ExecStart="/media/jag/The Forge/jkOS/infra/backup/jkos-backup-alert.sh" --failed
 # ⚠️ NOT `SuccessExitStatus=1`. --failed exits 1 on purpose, so this unit is
 # itself recorded as failed and `systemctl --user --failed` shows the alert
 # alongside the backup that caused it. An alerter that exits 0 having announced a

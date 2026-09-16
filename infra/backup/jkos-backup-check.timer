@@ -1,6 +1,6 @@
 [Unit]
 Description=Check daily that the jkOS backup is still running
-Documentation=file:///media/jag/The%20Forge/jkOS/infra/backup/README.md
+Documentation=file:///media/jag/The%%20Forge/jkOS/infra/backup/README.md
 
 [Timer]
 # ⚠️ A SEPARATE TIMER FROM THE BACKUP, WHICH IS THE ENTIRE POINT. A freshness
