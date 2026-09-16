@@ -455,11 +455,12 @@ source; do not re-derive it.
   noted at the call site. ⚠️ **Its un-defer trigger: the moment that catalog gains incremental
   writes** (a user-editable tag, a rating that reorders), it becomes exactly the bug the ruling
   describes.
-- **Raise the `check:audit` floor from `critical` to `high`.** 6 packages carry HIGH advisories
-  (vite, postcss, nanoid, brace-expansion, react-router, pdfjs-dist), every one reached through a
-  build/dev dependency rather than a deployed container. ⚠️ Raising it before they upgrade cleanly
-  paints the gate red on day one, **and a red gate nobody can turn green is one people learn to
-  skip.** The count prints loudly on every run. **The decision is when, not whether.**
+- ✅ **`check:audit` floor raised from `critical` to `high` — DONE 2026-09-16** (D4). 7 packages
+  carried HIGH advisories; 0 do now. ORDECK moved to vite 6; postcss, nanoid, browserslist and
+  brace-expansion got range-scoped floors in `pnpm-workspace.yaml`; the last three were reachable
+  only through SylibOS, which was removed. ⚠️ **Still open, below the floor:** `qs` (MODERATE — a
+  DoS reachable at runtime through Express in every backend). Its fix is a minor past a parent's
+  declared range, which D4 did not license; it wants the Express upgrade, not a floor.
 - **Two designed seams stay deferred, with their triggers** (`WEAVE.md` §7): **transport 1 → 3**
   (registry-driven CORS) when a peer genuinely cannot be nginx-proxied — every peer is proxied
   today; and **runtime `app_registry` CRUD**, plus a `_cachedAppOrigins` bust and dynamic nginx

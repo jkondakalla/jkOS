@@ -498,6 +498,9 @@ outside, from a clean report about the suite.** That is the same sentence the au
    the gate red on day one, and a red gate nobody can turn green is one people learn to skip.
    The count prints loudly on every run. **Raising the floor once those upgrade cleanly is
    the open decision.**
+   ✅ **Decided and done 2026-09-16 (D4): the floor is `high`.** And the "every one reached
+   through a build/dev dependency" above was wrong for `brace-expansion`, which reached
+   BeigeBoard's deployed backend. See TODO.md §6.
    ⚠️ **ANSWERED, and it is a yes.** `music/Downloader/Qobuz.py` carried a real Qobuz
    account password (`QOBUZ_PASSWORD = "…"`) in tracked source, first committed in `e3c829a`
    ("whoopsies"). Removed from the working tree and moved to the environment on 2026-08-27,

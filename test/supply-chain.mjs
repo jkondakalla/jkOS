@@ -6,18 +6,18 @@
 // ABSENCE is itself a finding in a security-focused portfolio — which is the
 // whole reason this exists rather than "we run pnpm audit sometimes".
 //
-// ⚠️ THE FLOOR IS `critical`, AND THAT IS A DELIBERATE, TEMPORARY CHOICE.
-// On 2026-08-27 the tree carried 0 critical and 13 HIGH advisories — vite,
-// postcss, nanoid, brace-expansion, react-router, pdfjs-dist — every one of them
-// reached through a build/dev dependency rather than anything that runs in a
-// deployed container. Setting the floor at `high` today would paint the gate red
-// on day one, and a red gate nobody can turn green is a gate people learn to
-// skip.
+// THE FLOOR IS `high` (raised 2026-09-16, D4 in TODO.md). It was `critical` for three
+// weeks, deliberately: 13 HIGH advisories existed on 2026-08-27, and a floor nobody could
+// turn green on day one is one people learn to skip. It went up the day it could land
+// green — ORDECK to vite 6, range-scoped security floors in pnpm-workspace.yaml for four
+// transitives, and SylibOS (the only path to the last three) removed.
 //
-// So the floor is `critical` and the highs are REPORTED LOUDLY on every run. That
-// is the honest version: the mechanism is in the gate, the number is in your
-// face, and raising the floor is a decision to make once the upgrades land — not
-// a thing that quietly never happens because the check was silent.
+// ⚠️ The old comment here said every HIGH was build/dev-only. One was not:
+// brace-expansion reached BeigeBoard's deployed backend through googleapis → gaxios →
+// rimraf → glob → minimatch. "Reached only at build time" is a claim to re-derive with
+// `pnpm why -r <pkg>` per advisory, never to carry forward.
+//
+// Moderates and lows are REPORTED LOUDLY on every run and do not fail it.
 
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -30,7 +30,7 @@ import { dirname, join } from 'node:path';
 // spawn failure looks like from in here.
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
-const FLOOR = 'critical';
+const FLOOR = 'high';
 
 let pass = 0, fail = 0;
 const ok = (cond, msg) => { if (cond) { pass++; } else { fail++; console.error('  ✗ ' + msg); } };
@@ -69,15 +69,17 @@ console.log('  dependency advisories, by severity, unique packages:');
 for (const s of ['critical', 'high', 'moderate', 'low']) console.log(`    ${line(s)}`);
 
 ok(count('critical') === 0,
-  `${count('critical')} CRITICAL advisory package(s) — the gate floor. `
+  `${count('critical')} CRITICAL advisory package(s) — above the gate's floor (${FLOOR}). `
   + `Upgrade or justify each: ${[...(bySeverity.critical || [])].join(', ')}`);
 
-if (count('high')) {
-  console.log(`\n  ⚠️  ${count('high')} package(s) carry HIGH advisories and are ABOVE the gate's `
-    + `floor (${FLOOR}) — they do not fail this run.\n`
-    + '      They are all reached through build/dev dependencies as of 2026-08-27, not through a\n'
-    + '      deployed container. Raising the floor to `high` is the goal and is a decision to make\n'
-    + '      once these upgrade cleanly; see Documentation/BACKLOG.md.');
+ok(count('high') === 0,
+  `${count('high')} HIGH advisory package(s) — at the gate's floor (${FLOOR}). `
+  + `Upgrade each (an in-range lock refresh, or a range-scoped floor in pnpm-workspace.yaml `
+  + `that matches ONLY the vulnerable versions): ${[...(bySeverity.high || [])].join(', ')}`);
+
+if (count('moderate') || count('low')) {
+  console.log(`\n  ⚠️  ${count('moderate')} moderate / ${count('low')} low advisory package(s) are below the `
+    + `gate's floor (${FLOOR}) and do not fail this run — see the list above.`);
 }
 
 console.log(`\nsupply-chain: ${pass} passed, ${fail} failed (floor: ${FLOOR})`);
