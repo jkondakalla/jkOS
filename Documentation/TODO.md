@@ -60,6 +60,9 @@ in the abstract. **Answer them in place** — this stays the one list.
 
 ### D1 · jkAuth: where does the capability doc come from? — §5
 
+✅ **ANSWERED 2026-09-16 — (a), the generated manifest in `@jkos/suite-manifest`, gated.** The
+build-time cost below is accepted: a new scope is a deploy-shaped event.
+
 The single largest blocked item. C4 made the grant expressible per verb; what is left is jkAuth
 deriving the *grantable set* from each app's capability doc instead of the registry row.
 
@@ -80,6 +83,9 @@ already depends on `@jkos/suite-manifest`.
   a staleness policy and a cold-start answer — two new failure modes for one read.
 
 ### D2 · Stage F naming — the tier prefixes, and what replaces the pigments — §7
+
+✅ **ANSWERED 2026-09-16 — D2a (a) keep `--hub-*` / `--color-*` / `--jk-*` as tiers 1 / 2 / 3, and
+D2b (a) role names (`--ink-*`, `--ground-*`, `--accent`).** Stage F is licensed to start.
 
 Step zero is done (`check:token-identity`), so the restructure is now safe to attempt. It cannot
 start without these two names, and everything after them depends on them.
@@ -107,6 +113,8 @@ VALUES as literals, Pulsarmap aliases the NAMES — so both move with it.
 
 ### D3 · The 2,731-line jkAuth token mirror — build artifact, or a build step? — §7
 
+✅ **ANSWERED 2026-09-16 — (a), it stays a checked-in generated artifact gated by `check:tokens`.**
+
 Already framed in §7; it becomes live the moment Stage F starts, because every structural change
 is then a change to two files.
 
@@ -118,6 +126,9 @@ is then a change to two files.
   which is the property the mirror exists to preserve.
 
 ### D4 · `check:audit` — raise the floor when, and may an agent bump versions? — §6
+
+✅ **ANSWERED 2026-09-16 — (a).** An agent may change versions in `pnpm-lock.yaml` to clear the HIGH
+advisories, and raises the floor to `high` only if the upgrades land green.
 
 **Measured 2026-09-10: 7 packages carry HIGH advisories** (brace-expansion, browserslist, nanoid,
 pdfjs-dist, postcss, react-router, vite) — up from 6 on 2026-08-27, so the count is drifting the
@@ -181,6 +192,8 @@ is load-bearing for `bbDelta`'s merge. What is open is only whether it is worth 
 which needs a look at the production database, so it is a read Jag can do and an agent cannot.
 
 ### D10 · `--color-accent-contrast` fails AA on the paper face — which of three fixes? — §7
+
+✅ **ANSWERED 2026-09-16 — (3), derive it from the resolved accent's luminance.**
 
 **Measured 2026-09-10** against the live chain on the house default accent, so this does not have
 to be decided in the abstract. `.btn-primary` is 16px/600 — not WCAG "large text", so the bar is
