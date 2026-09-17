@@ -88,6 +88,41 @@ export function sizeCanvas(canvas: HTMLCanvasElement, scale = 1): boolean {
   return true;
 }
 
+/** Give the context back NOW rather than when the canvas is garbage-collected.
+ *
+ *  ⚠️ Deleting programs and textures does not release the context itself, and browsers
+ *  cap live contexts (Chromium ~16; iOS Safari fewer). Now Playing and the Map view each
+ *  make one per mount, so going back and forth between them 24 times in headless
+ *  Chromium printed "Too many active WebGL contexts. Oldest context will be lost" —
+ *  and the oldest one can be the view on screen. Call AFTER removing the context-loss
+ *  listeners, or the deliberate loss reads as a GPU reset. */
+export function releaseContext(gl: WebGL2RenderingContext | null): void {
+  if (!gl || gl.isContextLost()) return;
+  gl.getExtension('WEBGL_lose_context')?.loseContext();
+}
+
+const pendingRelease = new WeakMap<HTMLCanvasElement, ReturnType<typeof setTimeout>>();
+
+/** Release a canvas's context on the NEXT tick, unless the same canvas mounts again
+ *  first (`claimCanvas`).
+ *
+ *  ⚠️ React's StrictMode (KourOS's main.tsx, dev builds) runs every effect's cleanup and
+ *  then the effect again ON THE SAME ELEMENT. `getContext` on that canvas then returns
+ *  the context the cleanup just lost, every program fails to compile, and the view
+ *  falls back to 2-D — in development only, where nobody would think to suspect the
+ *  release. Deferred by a tick, the remount cancels it; a real unmount lets it run. */
+export function releaseContextSoon(canvas: HTMLCanvasElement | null, gl: WebGL2RenderingContext | null): void {
+  if (!canvas || !gl) return;
+  claimCanvas(canvas);
+  pendingRelease.set(canvas, setTimeout(() => { pendingRelease.delete(canvas); releaseContext(gl); }, 0));
+}
+
+/** Cancel a pending release — call before `getContext` on a canvas being (re)mounted. */
+export function claimCanvas(canvas: HTMLCanvasElement): void {
+  const t = pendingRelease.get(canvas);
+  if (t !== undefined) { clearTimeout(t); pendingRelease.delete(canvas); }
+}
+
 export function watchContext(canvas: HTMLCanvasElement, onLost: () => void, onRestored: () => void): () => void {
   const lost = (e: Event) => { e.preventDefault(); onLost(); };
   const restored = () => onRestored();

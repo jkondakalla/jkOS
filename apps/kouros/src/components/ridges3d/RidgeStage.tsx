@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { usePointerDrag, DRAG_THRESHOLD_PX } from '@jkos/ui';
 import {
-  devicePixelRatioCapped, prefersReducedMotion, sizeCanvas, tokenColor, watchContext,
+  claimCanvas, devicePixelRatioCapped, prefersReducedMotion, releaseContextSoon, sizeCanvas, tokenColor, watchContext,
   watchVisibility,
 } from '../webgl/context';
 import {
@@ -144,6 +144,7 @@ export default function RidgeStage({
   const build = useCallback((): boolean => {
     const canvas = canvasRef.current;
     if (!canvas) return false;
+    claimCanvas(canvas);
     const gl = canvas.getContext('webgl2', { antialias: true, alpha: false, depth: true,
                                              powerPreference: 'low-power' });
     if (!gl) return false;
@@ -197,6 +198,8 @@ export default function RidgeStage({
       frameRef.current = null;
       rendererRef.current?.dispose();
       rendererRef.current = null;
+      releaseContextSoon(canvas, glRef.current);
+      glRef.current = null;
     };
     // Mount-only: the mesh and the position arrive through refs and the effects below.
     // eslint-disable-next-line react-hooks/exhaustive-deps

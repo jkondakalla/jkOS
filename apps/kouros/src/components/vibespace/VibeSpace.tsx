@@ -4,7 +4,7 @@ import {
 } from 'react';
 import { usePointerDrag, DRAG_THRESHOLD_PX } from '@jkos/ui';
 import {
-  devicePixelRatioCapped, prefersReducedMotion, sizeCanvas, tokenColor, watchContext,
+  claimCanvas, devicePixelRatioCapped, prefersReducedMotion, releaseContextSoon, sizeCanvas, tokenColor, watchContext,
   watchVisibility, type RGB,
 } from '../webgl/context';
 import {
@@ -81,6 +81,7 @@ export default function VibeSpace({
   const hostRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rendererRef = useRef<VibeRenderer | null>(null);
+  const glRef = useRef<WebGL2RenderingContext | null>(null);
   const fieldRef = useRef<SliceSource | null>(null);
   const paletteRef = useRef<Palette | null>(null);
   const frameRef = useRef<number | null>(null);
@@ -244,8 +245,10 @@ export default function VibeSpace({
   const build = useCallback((): boolean => {
     const canvas = canvasRef.current;
     if (!canvas) return false;
+    claimCanvas(canvas);
     const gl = canvas.getContext('webgl2', { antialias: false, alpha: false, depth: false, premultipliedAlpha: true });
     if (!gl) return false;
+    glRef.current = gl;
     try {
       const r = new VibeRenderer(gl);
       r.setPoints(live.current.map);
@@ -295,6 +298,8 @@ export default function VibeSpace({
       frameRef.current = null;
       rendererRef.current?.dispose();
       rendererRef.current = null;
+      releaseContextSoon(canvas, glRef.current);
+      glRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
