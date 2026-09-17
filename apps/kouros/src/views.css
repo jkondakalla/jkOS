@@ -537,6 +537,13 @@
   border-radius: var(--hub-radius-sm);
 }
 .kr-pulsar-canvas { display: block; width: 100%; height: 100%; }
+/* The 3-D stack (components/ridges3d). Taller than the 2-D strip: perspective spends
+   height on depth, and the rows need it to stay legible. It owns its pointer — a
+   drag orbits — so the browser must not read the same drag as a scroll. */
+.kr-pulsar.is-3d { height: 10.5rem; }
+.kr-pulsar-3d { touch-action: none; cursor: grab; }
+.kr-pulsar-3d:active { cursor: grabbing; }
+.kr-pulsar-3d:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .kr-pulsar.is-idle { display: flex; align-items: center; justify-content: center; }
 .kr-pulsar-note {
   margin: 0;

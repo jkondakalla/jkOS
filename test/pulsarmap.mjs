@@ -32,8 +32,11 @@ const fail = (msg) => { console.error(`✗ ${msg}`); failed++; };
 const ok = (msg) => console.log(`✓ ${msg}`);
 const check = (cond, msg) => (cond ? ok(msg) : fail(msg));
 
-async function importTs(relPath, outName) {
-  const src = readFileSync(resolve(root, relPath), 'utf8');
+async function importTs(relPath, outName, rewrite = {}) {
+  let src = readFileSync(resolve(root, relPath), 'utf8');
+  for (const [from, to] of Object.entries(rewrite)) {
+    src = src.split(`'${from}'`).join(`'${to}'`);
+  }
   const { outputText } = ts.transpileModule(src, {
     compilerOptions: {
       module: ts.ModuleKind.ESNext,
@@ -244,6 +247,182 @@ check(rowBaseline(0, 12, 40) === 40 && rowBaseline(3, 12, 40) === 76,
   }
   check(!/^import\s/m.test(src) || /^import type\s/m.test(src),
     'purity: no runtime imports, so this gate can transpile the one file in isolation');
+}
+
+/* ══ The 3-D pulsarmap (components/ridges3d) ═══════════════════════════════════
+   The same mesh, stood up in space. What can go silently wrong there: a texture
+   layout that wraps a long track into the wrong texels (a plausible picture of the
+   wrong rows), a shader whose (row, band) arithmetic drifts from the TypeScript the
+   tests read, a camera that follows a row other than the newest, a spring that
+   overshoots, an orbit that dives under the floor — and a per-track normaliser
+   slipped into the one place no store-side test can see. */
+const motion = await importTs('apps/kouros/src/components/webgl/motion.ts', 'motion.mjs');
+const stage = await importTs('apps/kouros/src/components/ridges3d/stage.ts', 'stage.mjs', {
+  '../pulsarmap': './pulsarmap.mjs', '../webgl/motion': './motion.mjs',
+});
+const {
+  textureLayout, texelOf, packTexture, cellOf, visibleWindow, followPose, orbitFromDrag, shouldCut,
+  rowZ, rowHeight, rampOf, PITCH, AMPLITUDE, VISIBLE_ROWS, LOOK_BEHIND, MIN_PITCH, MAX_PITCH, MAX_YAW,
+  CUT_ROWS,
+} = stage;
+const glSrc = readFileSync(resolve(root, 'apps/kouros/src/components/ridges3d/gl.ts'), 'utf8');
+
+/* ── the texture layout ───────────────────────────────────────────────────── */
+for (const rows of [10, 600, 2500]) {
+  const bands = 128;
+  const layout = textureLayout(rows, bands, 2048);
+  check(layout.width <= 2048 && layout.height <= 2048,
+    `textureLayout: ${rows} rows fit a 2048 texture (${layout.width}×${layout.height})`);
+  const bytes = new Uint8Array(rows * bands);
+  for (let i = 0; i < bytes.length; i++) bytes[i] = (i * 2654435761) % 251;   // no two neighbours alike
+  const tex = packTexture(bytes, layout);
+  let bad = 0;
+  const seen = new Set();
+  for (let r = 0; r < rows; r++) {
+    for (let b = 0; b < bands; b++) {
+      const [x, y] = texelOf(r, b, layout);
+      const key = y * layout.width + x;
+      if (seen.has(key) || x >= layout.width || y >= layout.height || tex[key] !== bytes[r * bands + b]) bad++;
+      seen.add(key);
+    }
+  }
+  check(bad === 0,
+    `textureLayout: every one of ${rows}×${bands} cells round-trips through its own texel` +
+    (rows > 2048 ? ' — including across the WRAP into a second column' : ''));
+}
+{
+  let threw = false;
+  try { packTexture(new Uint8Array(5), textureLayout(3, 4)); } catch { threw = true; }
+  check(threw, 'packTexture: a length that does not match the declared shape throws, as toRows does');
+}
+
+/* ── the shader and the TypeScript agree ─────────────────────────────────── */
+{
+  const src = glSrc.replace(/\/\/.*$/gm, '');
+  check(/int row = u_rowStart \+ gl_InstanceID \/ u_segments;/.test(src),
+    'shader: row = u_rowStart + gl_InstanceID / u_segments — the expression cellOf mirrors');
+  check(/int band = gl_InstanceID % u_segments;/.test(src),
+    'shader: band = gl_InstanceID % u_segments — the expression cellOf mirrors');
+  check(/int column = row \/ u_rowsPerColumn;/.test(src) &&
+        /ivec2\(band \+ column \* u_bands, row - column \* u_rowsPerColumn\)/.test(src),
+    'shader: heightAt reads the texel texelOf computes, wrap included');
+  const segments = 7, rowStart = 13;
+  let mismatches = 0;
+  for (let id = 0; id < segments * 9; id++) {
+    const { row, band } = cellOf(id, rowStart, segments);
+    // GLSL integer division truncates; for these non-negative ids it is floor.
+    if (row !== rowStart + Math.trunc(id / segments) || band !== id % segments) mismatches++;
+  }
+  check(mismatches === 0, 'cellOf: agrees with the shader\'s integer arithmetic on every instance');
+  const cells = new Set();
+  for (let id = 0; id < segments * 9; id++) {
+    const { row, band } = cellOf(id, rowStart, segments);
+    cells.add(`${row}:${band}`);
+  }
+  check(cells.size === segments * 9, 'cellOf: no two instances draw the same segment');
+
+  // ⚠️ THE FOURTH PLACE A PER-TRACK NORMALISER COULD ENTER.
+  const shader = src.slice(src.indexOf('RIDGE_VERTEX'), src.indexOf('RIDGE_FRAGMENT'));
+  const heightFn = shader.slice(shader.indexOf('float heightAt'), shader.indexOf('vec3 cell('));
+  check(/texelFetch\(u_mesh, texel, 0\)\.r \* AMPLITUDE;/.test(heightFn) && !/(max|min|clamp)\(/.test(heightFn)
+        && !/u_(max|min|peak|gain|scale)/i.test(shader),
+    'shader: a height is the byte over the fixed span × AMPLITUDE — no max/min/gain, nothing per track');
+  check(rowHeight(255) === AMPLITUDE && rowHeight(0) === 0 && rowHeight(51) < rowHeight(204),
+    'rowHeight: bytes over the fixed 0…255 span, the one definition the shader mirrors');
+}
+
+/* ── the reveal window ────────────────────────────────────────────────────── */
+{
+  check(visibleWindow(0, ROW_SECONDS, 100).end === 1 && visibleWindow(0, ROW_SECONDS, 100).start === 0,
+    'visibleWindow: row 0 is drawn from t = 0');
+  const mid = visibleWindow(120, ROW_SECONDS, 600);
+  const newest = revealIndex(120, ROW_SECONDS, 600);
+  check(mid.end === newest + 1 && mid.end - mid.start === VISIBLE_ROWS,
+    'visibleWindow: always contains the newest row, and at most VISIBLE_ROWS of them');
+  const late = visibleWindow(1e6, ROW_SECONDS, 600);
+  check(late.end === 600 && late.start === 600 - VISIBLE_ROWS,
+    'visibleWindow: clamps at the end of the track — no rows past the mesh');
+  check(visibleWindow(NaN, ROW_SECONDS, 600).end === 1,
+    'visibleWindow: an element with no metadata yet (NaN) is t = 0, not an empty picture');
+  let everyRow = true;
+  for (let t = 0; t < 600 * ROW_SECONDS; t += 0.37) {
+    const w = visibleWindow(t, ROW_SECONDS, 600);
+    if (!(w.start <= revealIndex(t, ROW_SECONDS, 600) && revealIndex(t, ROW_SECONDS, 600) < w.end)) everyRow = false;
+  }
+  check(everyRow, 'visibleWindow: over a whole 20-minute track, the newest row is inside the window at every frame');
+}
+
+/* ── the camera ───────────────────────────────────────────────────────────── */
+{
+  const w = visibleWindow(64, ROW_SECONDS, 600);
+  const pose = followPose(w);
+  check(pose.focusZ === rowZ(w.end - 1) && pose.target[2] === pose.focusZ - LOOK_BEHIND,
+    'followPose: follows EXACTLY the newest revealed row, aiming behind it');
+  check(pose.yaw === 0, 'followPose: the follow view is not orbited');
+  check(shouldCut(rowZ(10), rowZ(11)) === false && shouldCut(rowZ(10), rowZ(10 + CUT_ROWS + 1)) === true,
+    'shouldCut: one row of playback glides; a seek cuts');
+  check(rowZ(5) > rowZ(4), 'rowZ: the newer row is nearer the camera, as new rows arrive in front in 2-D');
+
+  let pitchOk = true, yawOk = true;
+  for (const dx of [-5000, -300, -1, 0, 1, 300, 5000]) {
+    for (const dy of [-5000, -300, -1, 0, 1, 300, 5000]) {
+      const o = orbitFromDrag({ yaw: 0, pitch: 20 * Math.PI / 180 }, dx, dy);
+      if (!(o.pitch >= MIN_PITCH && o.pitch <= MAX_PITCH)) pitchOk = false;
+      if (!(Math.abs(o.yaw) <= MAX_YAW)) yawOk = false;
+    }
+  }
+  check(pitchOk, 'orbitFromDrag: pitch never leaves [8°, 70°] for any drag — never under the floor');
+  check(yawOk, 'orbitFromDrag: yaw is bounded, so the stack never turns edge-on');
+  check(rampOf(0, 600) === 0 && rampOf(599, 600) === 1 && rampOf(0, 1) === 1,
+    'rampOf: the ramp encodes POSITION IN THE TRACK, as in 2-D');
+}
+
+/* ── the spring ───────────────────────────────────────────────────────────── */
+{
+  const { springStep, springSettled } = motion;
+  let s = { x: 0, v: 0 };
+  let overshoot = false;
+  let settledBy = null;
+  for (let t = 0; t < 2; t += 1 / 60) {
+    s = springStep(s, 1, 10, 1 / 60);
+    if (s.x > 1 + 1e-9) overshoot = true;
+    if (settledBy == null && springSettled(s, 1, 1e-3)) settledBy = t;
+  }
+  check(!overshoot, 'springStep: critically damped from rest — never overshoots');
+  check(settledBy != null && settledBy < 1, `springStep: settled within 1e-3 by 1 s (at ${settledBy?.toFixed(2)} s)`);
+  // ⚠️ Solved, not stepped: the path is the same at any frame rate.
+  let a = { x: 0, v: 0 }, b = { x: 0, v: 0 };
+  for (let i = 0; i < 30; i++) a = springStep(a, 1, 10, 1 / 30);
+  for (let i = 0; i < 144; i++) b = springStep(b, 1, 10, 1 / 144);
+  check(Math.abs(a.x - b.x) < 1e-9, 'springStep: 30 fps and 144 fps land in the same place after one second');
+}
+
+/* ── the matrices ─────────────────────────────────────────────────────────── */
+{
+  const { perspective, lookAt, multiply, invert, toScreen, orbitEye, identity } = motion;
+  const eye = orbitEye([0, 0, 0], 0, 0, 3);
+  check(Math.abs(eye[2] - 3) < 1e-12 && Math.abs(eye[0]) < 1e-12, 'orbitEye: yaw 0 looks along −z from +z');
+  const vp = multiply(perspective(Math.PI / 3, 1, 0.1, 100), lookAt(eye, [0, 0, 0], [0, 1, 0]));
+  const centre = toScreen(vp, [0, 0, 0], 200, 100);
+  check(centre && Math.abs(centre.x - 100) < 1e-4 && Math.abs(centre.y - 50) < 1e-4,
+    'lookAt + perspective: the target lands at the centre of the viewport');
+  const up = toScreen(vp, [0, 0.5, 0], 200, 100);
+  check(up && up.y < 50, 'toScreen: +y is UP the screen (smaller CSS y)');
+  const inv = invert(vp);
+  const round = inv && multiply(vp, inv);
+  const I = identity();
+  check(!!round && round.every((v, i) => Math.abs(v - I[i]) < 1e-4), 'invert: M · M⁻¹ = I');
+  check(toScreen(vp, [0, 0, 10], 200, 100) === null, 'toScreen: a point behind the camera is null, not a mirror image');
+}
+
+/* ── purity, for the new pure modules too ──────────────────────────────────── */
+for (const rel of ['apps/kouros/src/components/ridges3d/stage.ts', 'apps/kouros/src/components/webgl/motion.ts']) {
+  const src = readFileSync(resolve(root, rel), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const clocks = ['setInterval', 'setTimeout', 'Date.now', 'performance.now', 'requestAnimationFrame']
+    .filter((b) => src.includes(b));
+  check(!clocks.length, `purity: ${rel.split('/').pop()} holds no clock (${clocks.join(', ') || 'none'})`);
+  check(!/\b(document|window)\./.test(src), `purity: ${rel.split('/').pop()} touches no DOM`);
 }
 
 if (failed) {

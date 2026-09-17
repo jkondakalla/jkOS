@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { fetchPulsarmap, type Pulsarmap as PulsarmapData } from '../api';
+import RidgeStage from './ridges3d/RidgeStage';
+import { hasWebGL2 } from './webgl/context';
 import {
   canvasHeight, decodeMesh, emptyReveal, panOffset, planReveal, rowBaseline,
   rowPitch, rowPoints, toRows, type RevealState,
@@ -36,6 +38,12 @@ import {
  *
  * All the arithmetic lives in `./pulsarmap.ts`, pure and gated
  * (`pnpm check:pulsarmap`), because every failure mode in it is silent.
+ *
+ * ⚠️ **3-D FIRST, 2-D AS THE FALLBACK (Jag, 2026-09-16).** With WebGL2 the same mesh
+ * is drawn as real geometry by `./ridges3d/RidgeStage` — a camera that follows the
+ * playhead and orbits on a drag. The Canvas 2D path below is what draws when WebGL2
+ * is absent or its context cannot be made, and it is kept whole rather than
+ * approximated: the fallback is the feature as it shipped, not a degraded sketch.
  */
 
 /** Excursion, in px, of a full-scale (255) value above its own row's baseline.
@@ -48,6 +56,8 @@ const PITCH = rowPitch(11);
 const ANCHOR_FRACTION = 0.82;
 
 interface Ready {
+  /** The whole mesh, row-major — what the 3-D renderer uploads as one texture. */
+  bytes: Uint8Array;
   rows: Uint8Array[];
   count: number;
   bands: number;
@@ -112,6 +122,9 @@ export default function Pulsarmap({
   const viewRef = useRef<HTMLCanvasElement | null>(null);
   const offRef = useRef<HTMLCanvasElement | null>(null);
   const stateRef = useRef<RevealState>(emptyReveal());
+  // Decided once per mount; a renderer that fails later (no context, a shader the
+  // driver refuses) flips this and the 2-D path takes over for good.
+  const [use3d, setUse3d] = useState(() => hasWebGL2());
   const frameRef = useRef<number | null>(null);
 
   // ── The fetch. One request per track, aborted when the track changes ─────────
@@ -131,8 +144,10 @@ export default function Pulsarmap({
   const ready = useMemo<Ready | null>(() => {
     if (!data || data.state !== 'ok' || !data.data || !data.rows || !data.bands) return null;
     try {
+      const bytes = decodeMesh(data.data);
       return {
-        rows: toRows(decodeMesh(data.data), data.rows, data.bands),
+        bytes,
+        rows: toRows(bytes, data.rows, data.bands),
         count: data.rows,
         bands: data.bands,
         // ⚠️ FROM THE MESH, never a constant. The builder derives it from the
@@ -247,6 +262,22 @@ export default function Pulsarmap({
         <p className="kr-pulsar-note">
           {data.state === 'failed' ? 'No pulsarmap for this track.' : 'Pulsarmap not built yet.'}
         </p>
+      </div>
+    );
+  }
+
+  if (use3d && trackId != null) {
+    return (
+      <div ref={hostRef} className={`kr-pulsar is-3d${className ? ' ' + className : ''}`}>
+        <RidgeStage
+          trackId={trackId}
+          bytes={ready.bytes}
+          rows={ready.count}
+          bands={ready.bands}
+          rowSeconds={ready.rowSeconds}
+          position={position}
+          onUnsupported={() => setUse3d(false)}
+        />
       </div>
     );
   }

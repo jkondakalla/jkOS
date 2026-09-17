@@ -41,6 +41,7 @@ const CONSUMERS = {
   'ORDECK widget tray': 'apps/ordeck/src/hud/WidgetTray.tsx',
   'KourOS beacon': 'apps/kouros/src/shell/Beacon.tsx',
   'KourOS rune gestures': 'apps/kouros/src/gestures/useRune.ts',
+  'KourOS 3-D pulsarmap orbit': 'apps/kouros/src/components/ridges3d/RidgeStage.tsx',
 };
 // Where a forked drag engine would most plausibly regrow.
 const SURFACES = [
@@ -56,6 +57,7 @@ const SURFACES = [
   'apps/kouros/src/shell/RuneLayer.tsx',
   'apps/kouros/src/gestures/useRune.ts',
   'apps/kouros/src/views/Queue.tsx',
+  'apps/kouros/src/components/ridges3d/RidgeStage.tsx',
 ];
 
 // ── 1. The primitive exports the activation constants ───────────────────────

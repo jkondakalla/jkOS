@@ -143,7 +143,7 @@ export default function RuneLayer({ children }: { children: ReactNode }) {
   /** Anything that owns its own pointer. `closest` rather than a target test,
    *  because the press usually lands on a child of the control (an <svg> inside
    *  a <button>, the thumb inside the scrubber). */
-  const OWN_POINTER = 'button, a, input, select, textarea, [role="slider"], .pb-scrubber';
+  const OWN_POINTER = 'button, a, input, select, textarea, [role="slider"], .pb-scrubber, [data-owns-pointer]';
 
   const onPointerDown = useCallback((e: ReactPointerEvent) => {
     if (scrolls) return;
