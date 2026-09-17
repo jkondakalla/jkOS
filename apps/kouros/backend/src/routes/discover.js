@@ -130,8 +130,10 @@ function createDiscoverRouter({ discovery, db }) {
     }
   });
 
-  /* The vibe map: every embedded track's 2-D position, the labelled regions, and
-     what the two axes turned out to mean. Cached in the service. */
+  /* The vibe space: every covered track's place in the 3-D cloud and along the
+     energy rail, packed; the labelled regions; what the rail and the colour mean.
+     Cached in the service, and `available: false` with a reason when the index
+     carries no verified basis. */
   router.get('/api/discover/map', (_req, res) => {
     try {
       res.json(discovery.map());
@@ -141,13 +143,17 @@ function createDiscoverRouter({ discovery, db }) {
     }
   });
 
-  /* What sits under the pin. The map is a unit square, so x/y are in [-1, 1]. */
+  /* What sits near a point in the vibe space. x/y/z are display units in the unit
+     cube, [-1, 1]; w is the energy percentile, [0, 1]. All four are required: a
+     point with no energy is a line through the cloud, not a place. */
   router.get('/api/discover/near', (req, res) => {
     try {
-      const x = num(req.query.x, NaN);
-      const y = num(req.query.y, NaN);
-      if (!Number.isFinite(x) || !Number.isFinite(y)) return res.status(400).json({ error: 'x and y are required' });
-      res.json({ results: discovery.nearPoint(x, y, { k: clamp(req.query.k, 40, 1, 120) }) });
+      const point = { x: num(req.query.x, NaN), y: num(req.query.y, NaN),
+                      z: num(req.query.z, NaN), w: num(req.query.w, NaN) };
+      if (!Object.values(point).every(Number.isFinite)) {
+        return res.status(400).json({ error: 'x, y, z and w are required' });
+      }
+      res.json({ results: discovery.nearPoint(point, { k: clamp(req.query.k, 40, 1, 120) }) });
     } catch (err) {
       console.error(`[kouros] near failed: ${err.message}`);
       res.status(500).json({ error: 'Failed to read the map' });

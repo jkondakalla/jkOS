@@ -237,6 +237,9 @@ function buildSpace({ db, vectorSpace, featureSpace = null, musicDir = null, lib
   // ALGORITHMS.md §4's note that a raw cosine gap is not comparable between spaces).
   // Null when the index predates `music/query.py --fit` — reported, not assumed.
   const calibration = (vectorSpace && vectorSpace.calibration) || null;
+  // The vibe space's basis (vectors.js `loadMapBasis`) — already verified against
+  // its golden tracks, or refused with a reason the map reports verbatim.
+  const map = (vectorSpace && vectorSpace.map) || { available: false, reason: 'no embedder index' };
   const stats = {
     tracks: n,
     dim,
@@ -257,10 +260,12 @@ function buildSpace({ db, vectorSpace, featureSpace = null, musicDir = null, lib
     calibrated: !!calibration,
     strangerMean: calibration ? calibration.strangerMean : null,
     strangerSpread: calibration ? calibration.strangerSpread : null,
+    map: { available: !!map.available, held: !!map.held, reason: map.available ? null : map.reason,
+           mode: map.available ? (map.stats && map.stats.mode) || null : null },
   };
 
   return { n, dim, ids, index, matrix, origin, features, meta, albumRows, stats,
-           calibration, FEATURE_NAMES, ORIGIN, ORIGIN_NAMES };
+           calibration, map, FEATURE_NAMES, ORIGIN, ORIGIN_NAMES };
 }
 
 module.exports = {

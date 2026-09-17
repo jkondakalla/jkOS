@@ -1,34 +1,41 @@
 'use strict';
-// map.js — the 2-D vibe map: where every track sits, what the regions are called,
-// and what the two axes MEAN.
+// map.js — the vibe space: every track's place in a 3-D cloud, its position along
+// the ENERGY rail you swipe through, what the regions are called, and what sits
+// near a point.
 //
-// Three decisions worth stating, because the obvious alternative is wrong in each:
+// Four decisions worth stating, because the obvious alternative is wrong in each:
 //
-// 1. PROJECT WITH PCA, VIA POWER ITERATION. A 512×512 covariance matrix costs
-//    n·dim² ≈ 4×10⁹ operations to form — minutes of JavaScript for a map nobody
-//    is waiting on. Power iteration never forms it: each sweep is two passes of
-//    n·dim (≈8M), so ten sweeps per component is milliseconds. Same top
-//    components, three orders of magnitude cheaper. (t-SNE/UMAP would give
-//    prettier clusters and are not options here — both are iterative, neither is
-//    a dependency this project will take, and neither gives a STABLE coordinate:
-//    the pin the user drags has to mean the same place tomorrow.)
+// 1. THE PROJECTION IS FITTED IN `music/`, NOT HERE. `music/mapbasis.py` fits four
+//    orthonormal directions once, in the calibrated space — an energy probe `u`
+//    and the top three principal axes of what is left once `u` is removed — and
+//    stores them in the index beside the calibration. This file only PROJECTS.
+//    The JavaScript PCA it replaced ran on every space rebuild (twice), drifted as
+//    tracks were added, and had no provenance; a stored basis means a track that
+//    arrives next month lands in the same place the library already knows.
+//    vectors.js refuses a basis that does not reproduce the fit's golden tracks.
 //
-// 2. CLUSTER IN 2-D, NOT IN 512-D. Clustering the embeddings and then projecting
-//    produces regions that interleave on screen — a "neighbourhood" whose members
-//    are scattered across the map is a lie the user can see. The map's job is
-//    spatial, so the clustering that labels it must be spatial too.
+// 2. THE 4TH AXIS HAS A NAME, AND THE CLOUD DOES NOT REPEAT IT. Because `u` is
+//    removed before the spatial axes are found, the 3-D cloud shows everything
+//    about the sound EXCEPT energy, and the swipe shows energy. (UMAP/t-SNE were
+//    never options: no stable coordinate, and no ordered axis to swipe through.)
 //
-// 3. NAME THE AXES FROM THE READABLE ARM. A principal component is a direction,
-//    not a word. Correlating each axis against the descriptor features (energy,
-//    brightness, fuzz, tempo …) and naming it after its strongest correlate turns
-//    "PC1" into "calm → intense", which is the difference between a scatter plot
-//    and a map you can navigate. When no feature arm is loaded the axes are
-//    honestly left unnamed.
-const { NFEAT, FEATURE_NAMES, ORIGIN, ORIGIN_NAMES } = require('./space');
-const { present, round } = require('./queries');
+// 3. CLUSTER IN THE MAP'S OWN SPACE. Regions are k-means over the raw 4-D
+//    coordinates, so a region is a place you can scrub to — clustering in 512-d
+//    and projecting would scatter one "neighbourhood" across the cloud, a lie the
+//    user can see. MEASURED tracks only: an inferred row is an album centroid, and
+//    an album of twelve stacked on one point would out-vote a real cluster.
+//
+// 4. THE WIRE IS PACKED, NOT A LIST OF OBJECTS. 47,000 tracks as `{id,x,y,z,w}`
+//    JSON is ~2.5 MB; as little-endian typed arrays in base64 it is ~0.6 MB and
+//    compresses well because the ids are sorted. Base64 inside an ordinary JSON
+//    body keeps it inside every contract the suite enforces — the pulsarmap mesh
+//    precedent.
+const { NFEAT, FEATURE_NAMES, ORIGIN } = require('./space');
+const { present, round, diversify } = require('./queries');
+const { projectVector } = require('./vectors');
 
-/** Deterministic PRNG — the map must be identical across restarts, or a user's
- *  remembered "top-left is the loud corner" silently stops being true. */
+/** Deterministic PRNG — the regions must be identical across restarts, or a user's
+ *  remembered "the loud corner is up there" silently stops being true. */
 function mulberry32(seed) {
   return function () {
     seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
@@ -38,113 +45,134 @@ function mulberry32(seed) {
   };
 }
 
+/** Snap stops along the energy rail, as percentiles — equal-population by
+ *  construction, because the rail itself is a percentile. */
+const STOPS = [0.1, 0.3, 0.5, 0.7, 0.9];
+const ANCHOR_POLES = { energy: ['calm', 'intense'] };
+/** Below this there is nothing to cluster. The old floor was 8, for a PCA's sake —
+ *  there is no PCA here any more, and a three-track library's map is small, not wrong. */
+const MIN_MEASURED = 3;
+const INFERRED = 1;          // flags bit 0
+const NO_TONE = 2;           // flags bit 1 — no readable brightness for this row
+
+/* ── the energy percentile, through the fit's quantile table ──────────────────
+   The rail is shown as a PERCENTILE so every stretch of the swipe passes through
+   the same number of tracks. The table is the fit's, not this catalog's: a track
+   added later is placed on the scale the library was measured on. */
+function wPercentile(wq, w) {
+  const n = wq.length;
+  if (!(w > wq[0])) return 0;
+  if (!(w < wq[n - 1])) return 1;
+  let lo = 0, hi = n - 1;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (wq[mid] <= w) lo = mid; else hi = mid;
+  }
+  const span = wq[hi] - wq[lo];
+  const t = span > 0 ? (w - wq[lo]) / span : 0;
+  return (lo + t) / (n - 1);
+}
+
+function wRaw(wq, p) {
+  const n = wq.length;
+  const x = Math.max(0, Math.min(1, Number(p) || 0)) * (n - 1);
+  const i = Math.min(n - 2, Math.floor(x));
+  return wq[i] + (wq[i + 1] - wq[i]) * (x - i);
+}
+
 /**
- * Top-`k` principal components of the rows listed in `rowsIdx`, by power
- * iteration with Gram-Schmidt deflation against the components already found.
- * Returns { mean, components: Float32Array[] }.
+ * Every covered row's coordinates through the stored basis, sorted by track id.
+ * Computed once per space build and shared by the map and every `near` query.
  */
-function principalComponents(matrix, dim, rowsIdx, k = 2, sweeps = 24, rand = mulberry32(7)) {
-  const m = rowsIdx.length;
-  const mean = new Float32Array(dim);
-  for (const i of rowsIdx) {
-    const off = i * dim;
-    for (let d = 0; d < dim; d++) mean[d] += matrix[off + d];
+function buildProjection(space) {
+  const map = space.map;
+  if (!space.dim) return { available: false, reason: 'no embedded tracks yet' };
+  if (!map || !map.available) {
+    return { available: false, held: !!(map && map.held),
+             reason: (map && map.reason) || 'no vibe space basis' };
   }
-  for (let d = 0; d < dim; d++) mean[d] /= m;
-
-  const components = [];
-  const scratch = new Float32Array(m);
-
-  for (let c = 0; c < k; c++) {
-    let v = new Float32Array(dim);
-    for (let d = 0; d < dim; d++) v[d] = rand() * 2 - 1;
-    orthogonalise(v, components);
-    normalise(v);
-
-    for (let s = 0; s < sweeps; s++) {
-      // scratch = Xc · v        (one pass, n·dim)
-      for (let r = 0; r < m; r++) {
-        const off = rowsIdx[r] * dim;
-        let acc = 0;
-        for (let d = 0; d < dim; d++) acc += (matrix[off + d] - mean[d]) * v[d];
-        scratch[r] = acc;
-      }
-      // v' = Xcᵀ · scratch      (second pass, n·dim) — together one power sweep
-      const next = new Float32Array(dim);
-      for (let r = 0; r < m; r++) {
-        const off = rowsIdx[r] * dim;
-        const w = scratch[r];
-        if (w === 0) continue;
-        for (let d = 0; d < dim; d++) next[d] += (matrix[off + d] - mean[d]) * w;
-      }
-      orthogonalise(next, components);
-      if (!normalise(next)) break;
-      v = next;
-    }
-    components.push(v);
+  if (map.dim !== space.dim) {
+    return { available: false, reason: `the basis is ${map.dim}-d and the space is ${space.dim}-d` };
   }
-  return { mean, components };
+  const rows = [];
+  for (let i = 0; i < space.n; i++) if (space.origin[i] !== ORIGIN.NONE) rows.push(i);
+  rows.sort((a, b) => space.ids[a] - space.ids[b]);
+  const m = rows.length;
+  const rowsIdx = Int32Array.from(rows);
+  const raw = new Float64Array(m * 4);
+  const xyz = new Float32Array(m * 3);
+  const wp = new Float32Array(m);
+  const inferred = new Uint8Array(m);
+  const vec = new Float32Array(space.dim);
+  const c = new Float64Array(4);
+  let measured = 0;
+  for (let r = 0; r < m; r++) {
+    const i = rowsIdx[r];
+    const off = i * space.dim;
+    for (let d = 0; d < space.dim; d++) vec[d] = space.matrix[off + d];
+    projectVector(map, vec, c);
+    raw.set(c, r * 4);
+    for (let k = 0; k < 3; k++) xyz[r * 3 + k] = Math.max(-1, Math.min(1, c[k] / map.radius));
+    wp[r] = wPercentile(map.wq, c[3]);
+    inferred[r] = space.origin[i] === ORIGIN.ALBUM ? 1 : 0;
+    if (!inferred[r]) measured++;
+  }
+  return { available: true, map, rowsIdx, raw, xyz, wp, inferred, measured };
 }
 
-function orthogonalise(v, basis) {
-  for (const b of basis) {
-    let p = 0;
-    for (let d = 0; d < v.length; d++) p += v[d] * b[d];
-    for (let d = 0; d < v.length; d++) v[d] -= p * b[d];
-  }
-}
-
-function normalise(v) {
-  let s = 0;
-  for (let d = 0; d < v.length; d++) s += v[d] * v[d];
-  const n = Math.sqrt(s);
-  if (!(n > 1e-12)) return false;
-  for (let d = 0; d < v.length; d++) v[d] /= n;
-  return true;
-}
-
-/** k-means++ seeded Lloyd's algorithm over 2-D points. Small, deterministic,
- *  and enough: the input is already a 2-D projection, not raw audio. */
-function kmeans2d(xs, ys, k, iters = 30, rand = mulberry32(11)) {
-  const n = xs.length;
+/** k-means++ seeded Lloyd's algorithm over `n` points of `dims` coordinates
+ *  (row-major). Small, deterministic, and dimension-free. */
+function kmeans(coords, dims, k, iters = 40, rand = mulberry32(11)) {
+  const n = Math.floor(coords.length / dims);
   k = Math.max(1, Math.min(k, n));
-  const cx = new Float64Array(k);
-  const cy = new Float64Array(k);
-
-  // k-means++ init — spread the first centres out, so a region is never seeded twice.
-  let first = Math.floor(rand() * n);
-  cx[0] = xs[first]; cy[0] = ys[first];
-  const d2 = new Float64Array(n).fill(Infinity);
+  const centres = new Float64Array(k * dims);
+  const dist2 = (i, c) => {
+    let s = 0;
+    for (let d = 0; d < dims; d++) {
+      const x = coords[i * dims + d] - centres[c * dims + d];
+      s += x * x;
+    }
+    return s;
+  };
+  const first = Math.floor(rand() * n);
+  for (let d = 0; d < dims; d++) centres[d] = coords[first * dims + d];
+  // k-means++: spread the seeds, so a region is never seeded twice.
+  const best = new Float64Array(n).fill(Infinity);
   for (let c = 1; c < k; c++) {
     let total = 0;
     for (let i = 0; i < n; i++) {
-      const dx = xs[i] - cx[c - 1], dy = ys[i] - cy[c - 1];
-      d2[i] = Math.min(d2[i], dx * dx + dy * dy);
-      total += d2[i];
+      best[i] = Math.min(best[i], dist2(i, c - 1));
+      total += best[i];
     }
     let target = rand() * total, pick = n - 1;
-    for (let i = 0; i < n; i++) { target -= d2[i]; if (target <= 0) { pick = i; break; } }
-    cx[c] = xs[pick]; cy[c] = ys[pick];
+    for (let i = 0; i < n; i++) { target -= best[i]; if (target <= 0) { pick = i; break; } }
+    for (let d = 0; d < dims; d++) centres[c * dims + d] = coords[pick * dims + d];
   }
-
-  const assign = new Int32Array(n);
+  const assign = new Int32Array(n).fill(-1);
   for (let it = 0; it < iters; it++) {
     let moved = 0;
     for (let i = 0; i < n; i++) {
-      let best = 0, bd = Infinity;
+      let b = 0, bd = Infinity;
       for (let c = 0; c < k; c++) {
-        const dx = xs[i] - cx[c], dy = ys[i] - cy[c];
-        const d = dx * dx + dy * dy;
-        if (d < bd) { bd = d; best = c; }
+        const dd = dist2(i, c);
+        if (dd < bd) { bd = dd; b = c; }
       }
-      if (assign[i] !== best) { assign[i] = best; moved++; }
+      if (assign[i] !== b) { assign[i] = b; moved++; }
     }
-    const sx = new Float64Array(k), sy = new Float64Array(k), cnt = new Int32Array(k);
-    for (let i = 0; i < n; i++) { sx[assign[i]] += xs[i]; sy[assign[i]] += ys[i]; cnt[assign[i]]++; }
-    for (let c = 0; c < k; c++) if (cnt[c]) { cx[c] = sx[c] / cnt[c]; cy[c] = sy[c] / cnt[c]; }
+    const sum = new Float64Array(k * dims);
+    const count = new Int32Array(k);
+    for (let i = 0; i < n; i++) {
+      const c = assign[i];
+      count[c]++;
+      for (let d = 0; d < dims; d++) sum[c * dims + d] += coords[i * dims + d];
+    }
+    for (let c = 0; c < k; c++) {
+      if (!count[c]) continue;
+      for (let d = 0; d < dims; d++) centres[c * dims + d] = sum[c * dims + d] / count[c];
+    }
     if (!moved) break;
   }
-  return { assign, cx, cy, k };
+  return { assign, centres, k, dims };
 }
 
 /* ── labelling ────────────────────────────────────────────────────────────────
@@ -153,10 +181,13 @@ function kmeans2d(xs, ys, k, iters = 30, rand = mulberry32(11)) {
    library is the commonest genre in the library. So each candidate genre is
    scored by lift — its share inside the region over its share of the whole
    library — with a small-count floor so one stray tag on a three-track region
-   cannot name it. A feature qualifier ("fast", "fuzzy", "calm") is appended from
-   the readable arm when the region is genuinely extreme on that axis. */
+   cannot name it. A feature qualifier ("fast", "fuzzy") is appended from the
+   readable arm when the region is genuinely extreme on that axis.
+
+   ⚠️ ENERGY IS NEVER A QUALIFIER HERE. The rail already states it, and a label
+   that says "loud" while you are scrubbed to "calm" is two instruments disagreeing
+   about one number. */
 const QUALIFIERS = [
-  { feature: 'energy',     high: 'loud',    low: 'quiet' },
   { feature: 'tempo',      high: 'fast',    low: 'slow' },
   { feature: 'fuzz',       high: 'fuzzy',   low: 'clean' },
   { feature: 'brightness', high: 'bright',  low: 'dark' },
@@ -207,155 +238,132 @@ function labelRegion(space, members, globalGenreShare) {
   return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
-/** Pearson correlation of one axis against one feature column, over `rowsIdx`. */
-function correlate(space, rowsIdx, coords, featureIdx) {
-  const n = rowsIdx.length;
-  let sx = 0, sy = 0;
-  for (let r = 0; r < n; r++) { sx += coords[r]; sy += space.features[rowsIdx[r] * NFEAT + featureIdx]; }
-  const mx = sx / n, my = sy / n;
-  let num = 0, dx2 = 0, dy2 = 0;
-  for (let r = 0; r < n; r++) {
-    const a = coords[r] - mx;
-    const b = space.features[rowsIdx[r] * NFEAT + featureIdx] - my;
-    num += a * b; dx2 += a * a; dy2 += b * b;
-  }
-  const den = Math.sqrt(dx2 * dy2);
-  return den > 1e-12 ? num / den : 0;
-}
-
-const AXIS_POLES = {
-  energy:     ['calm', 'intense'],
-  tempo:      ['slow', 'fast'],
-  fuzz:       ['clean', 'fuzzy'],
-  brightness: ['dark', 'bright'],
-  drive:      ['loose', 'driving'],
-  density:    ['sparse', 'busy'],
-};
-
-function nameAxis(space, rowsIdx, coords) {
-  if (!space.features) return null;
-  let bestF = -1, bestR = 0;
-  for (let f = 0; f < NFEAT; f++) {
-    const r = correlate(space, rowsIdx, coords, f);
-    if (Math.abs(r) > Math.abs(bestR)) { bestR = r; bestF = f; }
-  }
-  if (bestF < 0 || Math.abs(bestR) < 0.15) return null;
-  const poles = AXIS_POLES[FEATURE_NAMES[bestF]] || [FEATURE_NAMES[bestF], FEATURE_NAMES[bestF]];
-  const [low, high] = bestR >= 0 ? poles : [poles[1], poles[0]];
-  return { feature: FEATURE_NAMES[bestF], r: round(bestR), low, high };
-}
+function b64(buffer) { return buffer.toString('base64'); }
 
 /**
- * The whole map. Coordinates are normalised to [-1, 1] on both axes so the
- * client can treat the map as a unit square regardless of library size.
+ * The whole vibe space payload. `projection` is `buildProjection(space)`.
+ *
+ *   packed.ids    Int32LE × n       sorted ascending
+ *   packed.xyz    Int16LE × 3n      display units × 32767, the unit cube
+ *   packed.w      Uint16LE × n      energy percentile × 65535
+ *   packed.tone   Uint8 × n         brightness percentile × 255
+ *   packed.flags  Uint8 × n         bit 0 inferred · bit 1 no tone
  */
-function vibeMap(space, { regions = 12, sample = 4000 } = {}) {
-  const rowsIdx = [];
-  for (let i = 0; i < space.n; i++) if (space.origin[i] !== ORIGIN.NONE) rowsIdx.push(i);
-
-  if (rowsIdx.length < 8 || !space.dim) {
-    return {
-      available: false,
-      reason: rowsIdx.length ? 'not enough embedded tracks to project' : 'no embedded tracks yet',
-      coverage: space.stats,
-      points: [], regions: [], axes: { x: null, y: null },
-    };
+function vibeMap(space, projection, { regions = 24 } = {}) {
+  const coverage = space.stats;
+  if (!projection || !projection.available) {
+    return { available: false, held: !!(projection && projection.held),
+             reason: (projection && projection.reason) || 'no projection', coverage, total: 0 };
+  }
+  const { map, rowsIdx, raw, xyz, wp, inferred, measured } = projection;
+  const n = rowsIdx.length;
+  if (measured < MIN_MEASURED) {
+    return { available: false, reason: measured ? 'not enough measured tracks to map' : 'no measured tracks yet',
+             coverage, total: n };
   }
 
-  const { mean, components } = principalComponents(space.matrix, space.dim, rowsIdx, 2);
-  const [pc1, pc2] = components;
-  const m = rowsIdx.length;
-  const xs = new Float64Array(m);
-  const ys = new Float64Array(m);
-  for (let r = 0; r < m; r++) {
-    const off = rowsIdx[r] * space.dim;
-    let x = 0, y = 0;
-    for (let d = 0; d < space.dim; d++) {
-      const v = space.matrix[off + d] - mean[d];
-      x += v * pc1[d];
-      y += v * pc2[d];
-    }
-    xs[r] = x; ys[r] = y;
+  // Regions over MEASURED rows only (decision 3).
+  const measuredRows = new Int32Array(measured);
+  const coords = new Float64Array(measured * 4);
+  for (let r = 0, j = 0; r < n; r++) {
+    if (inferred[r]) continue;
+    measuredRows[j] = r;
+    for (let d = 0; d < 4; d++) coords[j * 4 + d] = raw[r * 4 + d];
+    j++;
   }
+  const { assign, centres, k } = kmeans(coords, 4, Math.min(regions, Math.max(2, Math.floor(measured / 12))));
 
-  // Normalise to [-1,1] on a ROBUST span (2nd–98th percentile), then clamp: a
-  // handful of outliers must not squash the whole library into the middle pixel.
-  scaleToUnit(xs);
-  scaleToUnit(ys);
-
-  const { assign, cx, cy, k } = kmeans2d(xs, ys, Math.min(regions, Math.max(2, Math.floor(m / 12))));
-
-  // Global genre shares, for the lift-based labelling above.
   const globalGenreShare = new Map();
-  for (const i of rowsIdx) {
-    for (const g of space.meta.genres[i]) {
+  for (let j = 0; j < measured; j++) {
+    for (const g of space.meta.genres[rowsIdx[measuredRows[j]]]) {
       const key = String(g).trim();
       if (key) globalGenreShare.set(key, (globalGenreShare.get(key) || 0) + 1);
     }
   }
-  for (const [g, c] of globalGenreShare) globalGenreShare.set(g, c / rowsIdx.length);
-
+  for (const [g, c] of globalGenreShare) globalGenreShare.set(g, c / measured);
   const byRegion = Array.from({ length: k }, () => []);
-  for (let r = 0; r < m; r++) byRegion[assign[r]].push(rowsIdx[r]);
-
-  const regionsOut = byRegion.map((members, c) => ({
-    id: c,
-    label: members.length ? labelRegion(space, members, globalGenreShare) : 'Empty',
-    x: round(cx[c]),
-    y: round(cy[c]),
-    count: members.length,
-  })).filter((r) => r.count > 0);
-
-  // The point list is what the client draws. A library of thousands does not need
-  // every dot to be interactive, so beyond `sample` it is thinned deterministically
-  // (every nth row) — the SHAPE of the cloud survives, the payload stays small.
-  const stride = m > sample ? Math.ceil(m / sample) : 1;
-  const points = [];
-  for (let r = 0; r < m; r += stride) {
-    const i = rowsIdx[r];
-    points.push({
-      id: space.ids[i],
-      x: round(xs[r]),
-      y: round(ys[r]),
-      r: assign[r],
-      o: ORIGIN_NAMES[space.origin[i]] === 'inferred' ? 0 : 1,
+  for (let j = 0; j < measured; j++) byRegion[assign[j]].push(rowsIdx[measuredRows[j]]);
+  const regionsOut = [];
+  for (let c = 0; c < k; c++) {
+    const members = byRegion[c];
+    if (!members.length) continue;
+    regionsOut.push({
+      id: c,
+      label: labelRegion(space, members, globalGenreShare),
+      x: round(Math.max(-1, Math.min(1, centres[c * 4] / map.radius))),
+      y: round(Math.max(-1, Math.min(1, centres[c * 4 + 1] / map.radius))),
+      z: round(Math.max(-1, Math.min(1, centres[c * 4 + 2] / map.radius))),
+      w: round(wPercentile(map.wq, centres[c * 4 + 3])),
+      count: members.length,
     });
   }
 
+  const ids = Buffer.alloc(n * 4);
+  const xyzBuf = Buffer.alloc(n * 6);
+  const wBuf = Buffer.alloc(n * 2);
+  const tone = Buffer.alloc(n);
+  const flags = Buffer.alloc(n);
+  const brightness = FEATURE_NAMES.indexOf('brightness');
+  for (let r = 0; r < n; r++) {
+    const i = rowsIdx[r];
+    ids.writeInt32LE(space.ids[i], r * 4);
+    for (let d = 0; d < 3; d++) xyzBuf.writeInt16LE(Math.round(xyz[r * 3 + d] * 32767), r * 6 + d * 2);
+    wBuf.writeUInt16LE(Math.round(wp[r] * 65535), r * 2);
+    let f = inferred[r] ? INFERRED : 0;
+    if (space.features && brightness >= 0) {
+      tone[r] = Math.round(Math.max(0, Math.min(1, space.features[i * NFEAT + brightness])) * 255);
+    } else {
+      tone[r] = 128;
+      f |= NO_TONE;
+    }
+    flags[r] = f;
+  }
+
+  const stats = map.stats || {};
+  const [low, high] = ANCHOR_POLES[map.anchor] || [map.anchor, map.anchor];
   return {
     available: true,
-    coverage: space.stats,
-    axes: { x: nameAxis(space, rowsIdx, xs), y: nameAxis(space, rowsIdx, ys) },
+    coverage,
+    total: n,
+    measured,
+    anchor: { feature: map.anchor, low, high,
+              spearman: Number.isFinite(stats.spearman_heldout) ? round(stats.spearman_heldout) : null },
+    colour: { feature: 'brightness', low: 'dark', high: 'bright', available: !!space.features },
+    axes: Array.isArray(stats.axes) ? stats.axes.slice(0, 3) : [null, null, null],
+    stops: STOPS,
     regions: regionsOut,
-    points,
-    sampled: stride > 1,
-    total: m,
+    basis: { mode: stats.mode || null, nFit: stats.n_fit || null, calib: map.calib,
+             fittedAt: stats.fitted_at || null },
+    packed: { n, ids: b64(ids), xyz: b64(xyzBuf), w: b64(wBuf), tone: b64(tone), flags: b64(flags) },
   };
 }
 
-function scaleToUnit(arr) {
-  const sorted = Float64Array.from(arr).sort();
-  const lo = sorted[Math.floor(sorted.length * 0.02)];
-  const hi = sorted[Math.floor(sorted.length * 0.98)];
-  const span = (hi - lo) || 1;
-  for (let i = 0; i < arr.length; i++) {
-    arr[i] = Math.max(-1, Math.min(1, ((arr[i] - lo) / span) * 2 - 1));
-  }
-}
-
-/** Nearest tracks to a point on the map — what the draggable pin asks for.
- *  Requires the projection, so it is computed and cached alongside it. */
-function nearPoint(space, projection, x, y, { k = 40, perArtist = 2 } = {}) {
-  const { rowsIdx, xs, ys } = projection;
-  const scored = [];
+/** Nearest tracks to a point in the vibe space — what a tap or a pin asks for.
+ *  `x, y, z` are display units in [-1, 1]; `w` is the energy percentile in
+ *  [0, 1]. Distance is 4-D Euclidean on the RAW coordinates, so it is a true
+ *  projection distance: display units are scaled back by the radius, and the
+ *  percentile back through the quantile table. */
+function nearPoint(space, projection, point, { k = 40, perArtist = 2 } = {}) {
+  if (!projection || !projection.available) return [];
+  const { map, rowsIdx, raw } = projection;
+  const clampUnit = (v) => Math.max(-1, Math.min(1, Number(v) || 0));
+  const target = [clampUnit(point.x) * map.radius, clampUnit(point.y) * map.radius,
+                  clampUnit(point.z) * map.radius, wRaw(map.wq, point.w)];
+  const scored = new Array(rowsIdx.length);
   for (let r = 0; r < rowsIdx.length; r++) {
-    const dx = xs[r] - x, dy = ys[r] - y;
-    scored.push([rowsIdx[r], -(dx * dx + dy * dy)]);
+    let s = 0;
+    for (let d = 0; d < 4; d++) {
+      const x = raw[r * 4 + d] - target[d];
+      s += x * x;
+    }
+    scored[r] = [rowsIdx[r], -s];
   }
   scored.sort((a, b) => b[1] - a[1]);
-  const { diversify } = require('./queries');
   const rows = diversify(space, scored, { k, perArtist, perAlbum: 1 });
-  return rows.map(([i, s]) => present(space, i, { distance: round(Math.sqrt(-s)) }));
+  return rows.map(([i, s]) => present(space, i, { distance: round(Math.sqrt(-s) / map.radius) }));
 }
 
-module.exports = { vibeMap, principalComponents, kmeans2d, nearPoint, scaleToUnit, mulberry32 };
+module.exports = {
+  vibeMap, buildProjection, nearPoint, kmeans, labelRegion, mulberry32,
+  wPercentile, wRaw, STOPS,
+};

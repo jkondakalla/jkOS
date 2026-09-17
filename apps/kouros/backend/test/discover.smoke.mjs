@@ -24,6 +24,11 @@
 // It also covers the calibration (ALGORITHMS.md §4's anisotropic-cone trap): a stranger
 // must score near 0 once the fitted corpus geometry is applied, not near +0.48.
 //
+// And the vibe space's basis (music/mapbasis.py → vectors.js `loadMapBasis`): the
+// fixture carries a basis whose golden coordinates are computed HERE, independently,
+// and the served packed coordinates must decode to exactly those numbers — then a
+// stale, a disagreeing and a held basis must each be refused and say why.
+//
 // Requires `ffprobe` on PATH (the boot scan). SKIPS with exit 0 if absent.
 //
 //   node apps/kouros/backend/test/discover.smoke.mjs
@@ -34,6 +39,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { cpSync, mkdirSync, mkdtempSync, renameSync, rmSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 
 const execFileAsync = promisify(execFile);
@@ -82,7 +88,56 @@ const TRACKS = [
 ];
 const DIM = 16;
 
-function buildIndex(dbPath, { calibrate = true, tracks = TRACKS } = {}) {
+/* ── the vibe space basis, computed independently of the code under test ────────
+   The same arithmetic as `music/mapbasis.py` and `vectors.js`, spelled out: centre
+   each vector by the calibration mean and re-normalise in float32 (loadArm's order),
+   then c = (v − μ)·Bᵀ in float64. The basis is four coordinate axes of the fixture's
+   16-d space, which is enough for every number below to be checkable by hand. */
+const BASIS_DIMS = [0, 1, 3, 8];
+const QUANTILES = 1001;
+
+function quantiles(values, n) {
+  const sorted = [...values].sort((a, b) => a - b);
+  const out = new Float32Array(n);
+  for (let j = 0; j < n; j++) {
+    const x = (j / (n - 1)) * (sorted.length - 1);
+    const i = Math.min(sorted.length - 2, Math.floor(x));
+    out[j] = sorted.length > 1 ? sorted[i] + (sorted[i + 1] - sorted[i]) * (x - i) : sorted[0];
+  }
+  return out;
+}
+
+function fitFixtureBasis(vectors, mean) {
+  const centred = vectors.map((v) => {
+    const c = new Float32Array(DIM);
+    for (let d = 0; d < DIM; d++) c[d] = v[d] - mean[d];
+    let s = 0;
+    for (let d = 0; d < DIM; d++) s += c[d] * c[d];
+    const n = Math.sqrt(s);
+    for (let d = 0; d < DIM; d++) c[d] /= n;
+    return c;
+  });
+  const mu = new Float32Array(DIM);
+  for (let d = 0; d < DIM; d++) {
+    let s = 0;
+    for (const c of centred) s += c[d];
+    mu[d] = s / centred.length;
+  }
+  const basis = new Float32Array(4 * DIM);
+  BASIS_DIMS.forEach((dim, k) => { basis[k * DIM + dim] = 1; });
+  const coords = centred.map((c) => BASIS_DIMS.map((_dim, k) => {
+    let s = 0;
+    for (let d = 0; d < DIM; d++) s += (c[d] - mu[d]) * basis[k * DIM + d];
+    return s;
+  }));
+  const radius = Math.max(...coords.map((c) => Math.hypot(c[0], c[1], c[2])));
+  const wq = quantiles(coords.map((c) => c[3]), QUANTILES);
+  return { mu, basis, coords, radius, wq };
+}
+
+const b64f = (arr) => Buffer.from(arr.buffer, arr.byteOffset, arr.byteLength).toString('base64');
+
+function buildIndex(dbPath, { calibrate = true, tracks = TRACKS, mapped = calibrate, tamper = null } = {}) {
   const Database = require('better-sqlite3');
   const db = new Database(dbPath);
   db.exec(`
@@ -125,8 +180,34 @@ function buildIndex(dbPath, { calibrate = true, tracks = TRACKS } = {}) {
     set.run('calib_stranger_spread:local_vectors', '0.5');
     set.run('calib_n_fit:local_vectors', String(rows.length));
     set.run('calib_sig:local_vectors', 'sigtest');
+    const meanText = Buffer.from(mean.buffer.slice(0)).toString('base64');
+    const calib = createHash('sha256').update(meanText, 'ascii').digest('hex').slice(0, 16);
+    const fit = fitFixtureBasis(vectors, mean);
+    const golden = rows.map((rel, i) => ({ path: `${EMBEDDER_ROOT}/${rel}`, coords: [...fit.coords[i]] }));
+    if (tamper === 'golden') golden[0].coords[3] += 1e-2;
+    if (tamper === 'golden-within-tolerance') golden[0].coords[3] += 5e-5;
+    if (mapped) {
+      set.run('map_basis:local_vectors', b64f(fit.basis));
+      set.run('map_mean:local_vectors', b64f(fit.mu));
+      set.run('map_radius:local_vectors', String(fit.radius));
+      set.run('map_wq:local_vectors', b64f(fit.wq));
+      set.run('map_anchor:local_vectors', 'energy');
+      set.run('map_stats:local_vectors', JSON.stringify({
+        mode: 'primary', n_fit: rows.length, spearman_heldout: 0.9, fitted_at: '2026-09-16T00:00:00',
+        axes: [{ feature: 'brightness', r: 0.5, low: 'dark', high: 'bright' }, null, null] }));
+      set.run('map_calib:local_vectors', tamper === 'stale' ? 'deadbeefdeadbeef' : calib);
+      set.run('map_golden:local_vectors', JSON.stringify(golden));
+    }
+    if (tamper === 'held' || tamper === 'held-old') {
+      set.run('map_held:local_vectors', JSON.stringify({
+        calib: tamper === 'held' ? calib : '0000000000000000', kind: 'gate',
+        reason: 'G2 failed on both', at: '2026-09-16T00:00:00' }));
+    }
+    db.close();
+    return { fit, golden };
   }
   db.close();
+  return null;
 }
 
 /* ── the synthetic mesh store (ALGORITHMS.md §9) ───────────────────────────────
@@ -322,6 +403,90 @@ try {
   const run = (await req(good.base, 'GET', `/api/discover/run?seed=${seed.id}&length=3`)).json;
   ok(Array.isArray(run?.results) && run.results.length > 1, 'run: sequences more than the seed');
 
+  /* ── 2b. the vibe space — the served coordinates ARE the fitted ones ─────────── */
+  ok(stats?.map?.available === true,
+    `vibe space: the basis was verified against its golden tracks (got ${JSON.stringify(stats?.map)})`);
+  const vmap = (await req(good.base, 'GET', '/api/discover/map')).json;
+  ok(vmap?.available === true, `vibe space: served (got ${JSON.stringify(vmap?.reason)})`);
+  ok(vmap?.anchor?.feature === 'energy' && vmap?.anchor?.low === 'calm' && vmap?.anchor?.high === 'intense',
+    `vibe space: the rail is named calm → intense (got ${JSON.stringify(vmap?.anchor)})`);
+  ok(JSON.stringify(vmap?.stops) === JSON.stringify([0.1, 0.3, 0.5, 0.7, 0.9]),
+    'vibe space: the snap stops are the equal-population percentiles');
+  ok(vmap?.packed?.n === TRACKS.length, `vibe space: packs every covered track (got ${vmap?.packed?.n})`);
+  const unpack = (b64) => Buffer.from(String(b64 || ''), 'base64');
+  const pIds = unpack(vmap?.packed?.ids);
+  const pXyz = unpack(vmap?.packed?.xyz);
+  const pW = unpack(vmap?.packed?.w);
+  const pFlags = unpack(vmap?.packed?.flags);
+  const packedIds = Array.from({ length: pIds.length / 4 }, (_, r) => pIds.readInt32LE(r * 4));
+  ok(packedIds.length === TRACKS.length && packedIds.every((id, r) => r === 0 || id > packedIds[r - 1]),
+    `vibe space: ids are sorted ascending (got ${JSON.stringify(packedIds)})`);
+  // Expected display coordinates, from the fixture's own fit.
+  const goodFit = buildIndex(join(tmp, 'scratch-expected.db'));
+  const expected = new Map(TRACKS.map((rel, i) => [rel, goodFit.fit.coords[i]]));
+  const pctOf = (w) => {
+    const wq = goodFit.fit.wq;
+    if (!(w > wq[0])) return 0;
+    if (!(w < wq[QUANTILES - 1])) return 1;
+    let lo = 0; while (lo < QUANTILES - 2 && wq[lo + 1] <= w) lo++;
+    const span = wq[lo + 1] - wq[lo];
+    return (lo + (span > 0 ? (w - wq[lo]) / span : 0)) / (QUANTILES - 1);
+  };
+  let worst = 0;
+  for (const t of tracks) {
+    const r = packedIds.indexOf(t.id);
+    const rel = TRACKS.find((p) => p.toLowerCase().includes(String(t.title).toLowerCase()));
+    const c = rel && expected.get(rel);
+    if (r < 0 || !c) { worst = Infinity; continue; }
+    for (let k = 0; k < 3; k++) {
+      const want = Math.max(-1, Math.min(1, c[k] / goodFit.fit.radius));
+      worst = Math.max(worst, Math.abs(pXyz.readInt16LE(r * 6 + k * 2) / 32767 - want));
+    }
+    worst = Math.max(worst, Math.abs(pW.readUInt16LE(r * 2) / 65535 - pctOf(c[3])));
+  }
+  ok(worst <= 2 / 32767,
+    `vibe space: every packed coordinate decodes to the independently computed projection (worst ${worst})`);
+  ok([...pFlags].every((f) => (f & 1) === 0), 'vibe space: every row is flagged measured, none inferred');
+  ok(Array.isArray(vmap?.regions) && vmap.regions.length > 0 &&
+     vmap.regions.every((g) => [g.x, g.y, g.z].every((v) => v >= -1 && v <= 1) && g.w >= 0 && g.w <= 1),
+    `vibe space: regions sit inside the cube and on the rail (got ${JSON.stringify(vmap?.regions)})`);
+
+  // Near: the point where "song one" sits must answer "song one" first.
+  const one = tracks.find((t) => /song one/i.test(t.title || ''));
+  const r1 = packedIds.indexOf(one.id);
+  const q = `x=${pXyz.readInt16LE(r1 * 6) / 32767}&y=${pXyz.readInt16LE(r1 * 6 + 2) / 32767}` +
+            `&z=${pXyz.readInt16LE(r1 * 6 + 4) / 32767}&w=${pW.readUInt16LE(r1 * 2) / 65535}`;
+  const nearRes = (await req(good.base, 'GET', `/api/discover/near?${q}&k=3`)).json;
+  ok(nearRes?.results?.[0]?.id === one.id && nearRes.results[0].distance < 0.01,
+    `near: the point a track sits at answers that track first (got ${JSON.stringify(nearRes?.results?.[0])})`);
+  const noW = await req(good.base, 'GET', '/api/discover/near?x=0&y=0&z=0');
+  ok(noW.status === 400, `near: a point with no energy is refused, not guessed (got ${noW.status})`);
+
+  /* ── 2c. a basis this side cannot reproduce is REFUSED, and says why ─────────
+     Read straight through vectors.js on tampered copies — booting a server per
+     case would test the same function five seconds at a time. */
+  const { openVectorSpace } = require(join(BACKEND, 'src', 'discover', 'vectors.js'));
+  const mapOf = (tamper, opts = {}) => {
+    const p = join(tmp, `map-${tamper}.db`);
+    buildIndex(p, { tamper, ...opts });
+    return openVectorSpace({ vectorDbPath: p, libraryRootName: 'Music' }).map;
+  };
+  const stale = mapOf('stale');
+  ok(stale?.available === false && /different calibration/.test(stale?.reason || ''),
+    `refused: a basis from another calibration (got ${JSON.stringify(stale)})`);
+  const disagree = mapOf('golden');
+  ok(disagree?.available === false && /golden coordinates disagree/.test(disagree?.reason || ''),
+    `refused: golden coordinates this side does not reproduce (got ${JSON.stringify(disagree?.reason)})`);
+  const within = mapOf('golden-within-tolerance');
+  ok(within?.available === true,
+    `accepted: a golden difference inside 1e-4 — the tolerance is real, not zero (got ${JSON.stringify(within?.reason)})`);
+  const heldMap = mapOf('held', { mapped: false });
+  ok(heldMap?.available === false && heldMap?.held === true && /G2 failed on both/.test(heldMap?.reason || ''),
+    `held: a recorded hold for this calibration is reported as held (got ${JSON.stringify(heldMap)})`);
+  const oldHold = mapOf('held-old', { mapped: false });
+  ok(oldHold?.available === false && !oldHold?.held,
+    `held: a hold from an older calibration is not a hold (got ${JSON.stringify(oldHold)})`);
+
   /* ── 3. the salvage tier, on its own ───────────────────────────────────────────
      Break the root-relative tier by pointing LIBRARY_ROOT_NAME at a segment that
      appears in neither path. Tier 2 must go to zero — and tier 3 must pick the
@@ -378,6 +543,9 @@ try {
   const rawSim = (await req(raw.base, 'GET', `/api/discover/similar/${seed.id}?k=5`)).json;
   ok(rawSim?.basis === 'embedding', 'uncalibrated: still serves an embedding basis');
   ok(rawSim?.calibrated === false, 'uncalibrated: similar() says the scores are raw');
+  const rawMap = (await req(raw.base, 'GET', '/api/discover/map')).json;
+  ok(rawMap?.available === false && typeof rawMap?.reason === 'string' && rawMap.reason.length > 0,
+    `uncalibrated: the vibe space is unavailable and says why (got ${JSON.stringify(rawMap)})`);
 
   /* ── 6. the pulsarmap (ALGORITHMS.md §9) ──────────────────────────────────────
      The mesh store joins on the SAME root-relative key as the vectors, so it

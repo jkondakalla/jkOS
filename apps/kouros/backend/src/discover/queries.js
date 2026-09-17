@@ -4,7 +4,7 @@
 //   similar()   "more like this"          — cosine, deduped, artist-capped
 //   radio()     an endless station        — cosine to a seed CENTROID, diversified
 //   makeRun()   a sequenced set with an arc — cohesion × a target energy curve
-//   vibeMap()   the draggable 2-D map     — PCA-2 + k-means + auto-labelled regions
+//   (map.js)    the vibe space            — a stored 4-D basis + k-means + auto-labelled regions
 //
 // ⚠️ THE DUPLICATE TRAP, WHICH IS A UI BUG HERE AND WAS A MEASUREMENT BUG THERE.
 // ALGORITHMS.md §4 found ~20% of this library is a track that also appears on another

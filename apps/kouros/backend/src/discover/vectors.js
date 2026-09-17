@@ -41,6 +41,7 @@
 //
 // Coverage is REPORTED, never assumed — `stats()` is served on the wire so a
 // sparse vibe map reads as "the backfill is at 12%" instead of "the map is broken".
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const Database = require('better-sqlite3');
@@ -266,6 +267,126 @@ function loadCalibration(db, arm) {
   return { mean: vec, strangerMean: centre, strangerSpread: spread, nFit };
 }
 
+/* ── the vibe space's basis ────────────────────────────────────────────────────
+   Four orthonormal directions — three spatial axes and an ENERGY rail — fitted by
+   `music/mapbasis.py` in the calibrated space and stored beside the calibration,
+   keyed `map_*:<arm>`. KourOS projects every track through it; it never fits one.
+
+   ⚠️ **AGREEMENT IS ENFORCED, NOT ASSUMED.** A basis is a 4 × 512 matrix of floats
+   crossing a language boundary, and every way it can arrive wrong still projects
+   without complaint: a basis from before a calibration refit (the space it
+   describes no longer exists), a byte-order slip, a centring applied in a
+   different order on this side. Each produces a map that draws, clusters and
+   labels itself — around coordinates that mean nothing. So the fit stores five
+   GOLDEN tracks with the 4-D coordinates Python computed for them, and this
+   projects the same tracks through the same bytes and refuses the basis if any
+   coordinate differs by more than 1e-4. The map then says "unavailable" and why.
+
+   A HELD basis (`map_held:<arm>`, for this calibration) is a recorded decision —
+   the pre-declared gate failed, or the descriptors it needs are not built — and
+   is reported as held, never as missing. */
+const MAP_QUANTILES = 1001;
+const MAP_GOLDEN_TOLERANCE = 1e-4;
+
+/** sha256 of the stored `calib_mean` text, first 16 hex — mapbasis.calibration_hash. */
+function calibrationHash(meanText) {
+  return meanText ? crypto.createHash('sha256').update(meanText, 'ascii').digest('hex').slice(0, 16) : null;
+}
+
+function decodeFloat32(b64) {
+  const buf = Buffer.from(String(b64 || ''), 'base64');
+  if (!buf.length || buf.length % 4) return null;
+  const out = new Float32Array(buf.length / 4);
+  for (let i = 0; i < out.length; i++) out[i] = buf.readFloatLE(i * 4);
+  return out;
+}
+
+/** Raw 4-D coordinates of one L2-normalised, centred vector: (v − μ)·Bᵀ, in float64
+ *  over the stored float32 values — the arithmetic `Basis.project` does. */
+function projectVector(map, vec, out = new Float64Array(4)) {
+  const { basis, mean, dim } = map;
+  for (let k = 0; k < 4; k++) {
+    const off = k * dim;
+    let s = 0;
+    for (let d = 0; d < dim; d++) s += (vec[d] - mean[d]) * basis[off + d];
+    out[k] = s;
+  }
+  return out;
+}
+
+function loadMapBasis(db, arm, loaded, calibration) {
+  const keys = ['basis', 'mean', 'radius', 'wq', 'anchor', 'stats', 'calib', 'golden', 'held']
+    .map((k) => `map_${k}:${arm}`);
+  const raw = {};
+  let meanText = null;
+  try {
+    for (const { key, value } of db.prepare(
+      `SELECT key, value FROM meta WHERE key IN (${keys.map(() => '?').join(', ')}, ?)`,
+    ).all(...keys, `calib_mean:${arm}`)) {
+      if (key === `calib_mean:${arm}`) meanText = value;
+      else raw[key.slice(4, key.indexOf(':'))] = value;
+    }
+  } catch {
+    return { available: false, reason: 'the index has no meta table' };
+  }
+  const currentCalib = calibrationHash(meanText);
+  const refuse = (reason) => {
+    console.warn(`[kouros vectors] vibe space basis for "${arm}" refused — ${reason}`);
+    return { available: false, reason };
+  };
+
+  if (raw.held) {
+    try {
+      const hold = JSON.parse(raw.held);
+      if (hold.calib === currentCalib) {
+        return { available: false, held: true, reason: `held by the analysis: ${hold.reason}` };
+      }
+    } catch { /* an unreadable hold is no hold */ }
+  }
+  if (!raw.basis || !raw.mean) {
+    return { available: false, reason: 'the index carries no vibe space basis yet (music/mapbasis.py --fit)' };
+  }
+  if (!calibration) return refuse('the arm is uncalibrated, and the basis lives in the calibrated space');
+  if (raw.calib !== currentCalib) {
+    return refuse('the basis was fitted in a different calibration — re-run music/mapbasis.py --fit');
+  }
+  const mean = decodeFloat32(raw.mean);
+  const basis = decodeFloat32(raw.basis);
+  const wq = decodeFloat32(raw.wq);
+  const radius = Number(raw.radius);
+  const dim = loaded.dim;
+  if (!mean || mean.length !== dim || !basis || basis.length !== 4 * dim) {
+    return refuse(`the basis is not 4 × ${dim} (mean ${mean && mean.length}, basis ${basis && basis.length})`);
+  }
+  if (!wq || wq.length !== MAP_QUANTILES) return refuse('the energy quantile table is malformed');
+  if (!(radius > 0)) return refuse(`display radius ${raw.radius} cannot be a divisor`);
+  let stats = {};
+  let golden = [];
+  try {
+    stats = JSON.parse(raw.stats || '{}');
+    golden = JSON.parse(raw.golden || '[]');
+  } catch (err) {
+    return refuse(`the basis metadata is not JSON (${err.message})`);
+  }
+  const map = { available: true, arm, dim, basis, mean, radius, wq, stats,
+                anchor: raw.anchor || 'energy', calib: currentCalib };
+
+  if (!Array.isArray(golden) || !golden.length) return refuse('the basis carries no golden tracks to verify against');
+  let worst = 0;
+  for (const g of golden) {
+    const vec = loaded.byPath.get(g.path);
+    if (!vec) return refuse(`golden track "${g.path}" is not in this index`);
+    const c = projectVector(map, vec);
+    for (let k = 0; k < 4; k++) worst = Math.max(worst, Math.abs(c[k] - Number(g.coords[k])));
+  }
+  if (!(worst <= MAP_GOLDEN_TOLERANCE)) {
+    return refuse(`golden coordinates disagree by ${worst.toExponential(2)} (tolerance ${MAP_GOLDEN_TOLERANCE}) — ` +
+                  'this side does not reproduce the fit');
+  }
+  map.goldenError = worst;
+  return map;
+}
+
 /**
  * Read one arm out of the embedder index into memory.
  *
@@ -332,6 +453,7 @@ function loadArm(db, arm, libraryRootName, normalise = true, calibration = null)
 function openVectorSpace({ vectorDbPath, libraryRootName = 'Music' } = {}) {
   const empty = {
     available: false, arm: null, dim: 0, total: 0, degenerate: 0, calibration: null,
+    map: { available: false, reason: 'no embedder index' },
     byPath: new Map(), byRelPath: new Map(), byContentKey: new Map(), source: vectorDbPath || null,
   };
   if (!vectorDbPath) return empty;
@@ -352,6 +474,7 @@ function openVectorSpace({ vectorDbPath, libraryRootName = 'Music' } = {}) {
       const calibration = loadCalibration(db, arm);
       const loaded = loadArm(db, arm, libraryRootName, true, calibration);
       if (loaded) {
+        const map = loadMapBasis(db, arm, loaded, calibration);
         console.log(
           `[kouros vectors] ${loaded.total} × ${loaded.dim}-d from "${arm}" (${vectorDbPath}) — ` +
           (calibration
@@ -359,7 +482,11 @@ function openVectorSpace({ vectorDbPath, libraryRootName = 'Music' } = {}) {
               `${calibration.strangerMean.toFixed(4)} ± ${calibration.strangerSpread.toFixed(4)}`
             : 'UNCALIBRATED (run `music/query.py --fit`) — scores are raw cosines')
         );
-        return { available: true, source: vectorDbPath, calibration, ...loaded };
+        if (map.available) {
+          console.log(`[kouros vectors] vibe space basis: ${map.stats.mode || 'fitted'} over ` +
+                      `${map.stats.n_fit} tracks, golden agreement ${map.goldenError.toExponential(1)}`);
+        }
+        return { available: true, source: vectorDbPath, calibration, map, ...loaded };
       }
     }
     console.warn(`[kouros vectors] "${vectorDbPath}" has no populated arm yet — metadata affinity only`);
@@ -401,5 +528,6 @@ function openFeatureSpace({ vectorDbPath, libraryRootName = 'Music' } = {}) {
 module.exports = {
   ARMS, norm, contentKeyFromTags, contentKeyFromEmbedderPath,
   decodeVector, l2Normalise, loadCalibration, openVectorSpace, openFeatureSpace,
+  loadMapBasis, projectVector, calibrationHash, MAP_QUANTILES, MAP_GOLDEN_TOLERANCE,
   relKeyFromEmbedderPath, catalogRelKey, lastRootIndex, DISC_DIR,
 };

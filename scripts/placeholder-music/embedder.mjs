@@ -23,10 +23,17 @@
 //    "similar tracks" returns things that actually sound alike — because the same
 //    profile drove the synthesis in audio.mjs.
 //
+// 4. A VIBE SPACE BASIS. The real one is fitted by `music/mapbasis.py`; this file
+//    cannot run that, but it KNOWS the four directions it planted the genres on, so
+//    it stores those (energy as the rail) with the golden tracks KourOS verifies
+//    against, computed by the same arithmetic. Marked `mode: 'placeholder'` — a
+//    design fixture's basis, never passed off as a fitted one.
+//
 // 3. PARTIAL COVERAGE. Real backfill is a percentage, not a state. Three albums are
 //    left with no vectors at all so the metadata-fallback badge has somewhere to
 //    appear, and album propagation (a track inheriting its album's centroid, marked
 //    INFERRED) has something to do.
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
@@ -131,6 +138,7 @@ function genreManifold(rand) {
   });
 
   const out = new Map();
+  out.axes = Object.fromEntries(MANIFOLD_AXES.map(([name], a) => [name, basis[a]]));
   sounds.forEach((s, i) => {
     const v = new Float32Array(DIM);
     for (let a = 0; a < basis.length; a++) {
@@ -210,6 +218,8 @@ export function writeIndex({ tracks, out, coverage = 0.78, seed = 0x9e3779b9, al
     `INSERT INTO descriptors (track_id, version, dim, vector, config_sig, created_at) VALUES (?, ?, ?, ?, ?, ?)`);
 
   const vectors = [];
+  const paths = [];
+  const logrms = [];
   db.transaction(() => {
     for (const t of tracks) {
       const st = fs.existsSync(t.path) ? fs.statSync(t.path) : { mtimeMs: Date.now(), size: 0 };
@@ -236,8 +246,11 @@ export function writeIndex({ tracks, out, coverage = 0.78, seed = 0x9e3779b9, al
       v = norm(v);
 
       insVec.run(id, 'placeholder/kouros-design-fixture', 'v1', DIM, blob(v), 'f0f0placeholder', now);
-      insDesc.run(id, 1, DESC_DIM, blob(descriptorRow(t.sound, rand)), 'd0d0placeholder', now);
+      const desc = descriptorRow(t.sound, rand);
+      insDesc.run(id, 1, DESC_DIM, blob(desc), 'd0d0placeholder', now);
       vectors.push(v);
+      paths.push(t.path);
+      logrms.push(desc[D.LOGRMS]);
     }
   })();
 
@@ -267,8 +280,12 @@ export function writeIndex({ tracks, out, coverage = 0.78, seed = 0x9e3779b9, al
   const cMean = cos.reduce((s, x) => s + x, 0) / (cos.length || 1);
   const cSpread = Math.sqrt(cos.reduce((s, x) => s + (x - cMean) ** 2, 0) / (cos.length || 1));
 
+  const map = placeholderBasis({ centred, paths, logrms, axes: soundCentre.axes,
+                                  meanText: blob(mean).toString('base64') });
+
   const meta = db.prepare(`INSERT INTO meta (key, value) VALUES (?, ?)`);
   db.transaction(() => {
+    for (const [key, value] of Object.entries(map.meta)) meta.run(`${key}:local_vectors`, value);
     meta.run('schema_version', '1');
     meta.run('config_sig:local_vectors', 'f0f0placeholder');
     meta.run('recipe:local_vectors', 'placeholder/kouros-design-fixture@v1/genre-clustered');
@@ -295,5 +312,82 @@ export function writeIndex({ tracks, out, coverage = 0.78, seed = 0x9e3779b9, al
     uncoveredAlbums: [...uncovered],
     strangerMean: cMean,
     strangerSpread: cSpread,
+    map: map.summary,
+  };
+}
+
+/* ── the vibe space basis, from the planted manifold ────────────────────────────
+   The arithmetic KourOS's `loadMapBasis` checks, done the same way: coordinates of
+   each CENTRED, re-normalised vector (as `loadArm` builds it) are (v − μ)·Bᵀ in
+   float64 over float32 values; the radius is the p98 of |xyz|; the rail's table is
+   1,001 quantiles with numpy's linear interpolation. */
+function ranksOf(values) {
+  const order = values.map((v, i) => [v, i]).sort((a, b) => a[0] - b[0]);
+  const out = new Float64Array(values.length);
+  order.forEach(([, i], r) => { out[i] = r; });
+  return out;
+}
+
+function spearman(a, b) {
+  const ra = ranksOf(a), rb = ranksOf(b);
+  const n = ra.length, m = (n - 1) / 2;
+  let num = 0, da = 0, db = 0;
+  for (let i = 0; i < n; i++) {
+    num += (ra[i] - m) * (rb[i] - m); da += (ra[i] - m) ** 2; db += (rb[i] - m) ** 2;
+  }
+  return da && db ? num / Math.sqrt(da * db) : 0;
+}
+
+function placeholderBasis({ centred, paths, logrms, axes, meanText }) {
+  const order = ['brightness', 'tempo', 'fuzz', 'energy'];
+  const basis = new Float32Array(4 * DIM);
+  order.forEach((name, k) => basis.set(axes[name], k * DIM));
+  const mu = new Float32Array(DIM);
+  for (let d = 0; d < DIM; d++) {
+    let s = 0;
+    for (const c of centred) s += c[d];
+    mu[d] = s / (centred.length || 1);
+  }
+  const coords = centred.map((c) => {
+    const out = [0, 0, 0, 0];
+    for (let k = 0; k < 4; k++) {
+      let s = 0;
+      for (let d = 0; d < DIM; d++) s += (c[d] - mu[d]) * basis[k * DIM + d];
+      out[k] = s;
+    }
+    return out;
+  });
+  const quantile = (sorted, q) => {
+    const x = q * (sorted.length - 1);
+    const i = Math.min(sorted.length - 2, Math.floor(x));
+    return sorted.length > 1 ? sorted[i] + (sorted[i + 1] - sorted[i]) * (x - i) : sorted[0];
+  };
+  const norms = coords.map((c) => Math.hypot(c[0], c[1], c[2])).sort((a, b) => a - b);
+  const radius = quantile(norms, 0.98);
+  const ws = coords.map((c) => c[3]).sort((a, b) => a - b);
+  const wq = new Float32Array(1001);
+  for (let j = 0; j < 1001; j++) wq[j] = quantile(ws, j / 1000);
+  const rail = spearman(coords.map((c) => c[3]), logrms);
+  const golden = [0, 1, 2, 3, 4].map((g) => Math.floor((g * coords.length) / 5))
+    .map((i) => ({ path: paths[i], coords: coords[i] }));
+  const poles = { brightness: ['dark', 'bright'], tempo: ['slow', 'fast'], fuzz: ['clean', 'fuzzy'] };
+  const b64 = (arr) => Buffer.from(arr.buffer, arr.byteOffset, arr.byteLength).toString('base64');
+  const stats = {
+    mode: 'placeholder', n_fit: coords.length, spearman_heldout: rail,
+    axes: order.slice(0, 3).map((f) => ({ feature: f, r: null, low: poles[f][0], high: poles[f][1] })),
+    fitted_at: new Date().toISOString().slice(0, 19),
+  };
+  return {
+    meta: {
+      map_basis: b64(basis),
+      map_mean: b64(mu),
+      map_radius: String(radius),
+      map_wq: b64(wq),
+      map_anchor: 'energy',
+      map_stats: JSON.stringify(stats),
+      map_calib: createHash('sha256').update(meanText, 'ascii').digest('hex').slice(0, 16),
+      map_golden: JSON.stringify(golden),
+    },
+    summary: { mode: 'placeholder', radius, railSpearman: rail },
   };
 }

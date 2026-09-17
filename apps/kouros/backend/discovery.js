@@ -304,16 +304,18 @@ const DISCOVER_DATASETS = [
     item: TRACK_SHAPE,
   },
   {
-    app: 'kouros', id: 'discoverMap', label: 'The vibe map — every embedded track in 2-D',
+    app: 'kouros', id: 'discoverMap', label: 'The vibe space — every covered track in 3-D, along an energy rail',
     path: '/discover/map',
     filters: [],
   },
   {
-    app: 'kouros', id: 'discoverNear', label: 'What sits under a point on the vibe map',
+    app: 'kouros', id: 'discoverNear', label: 'What sits near a point in the vibe space',
     path: '/discover/near',
     filters: [
       { name: 'x', type: 'number', label: 'x, in [-1, 1]', required: true, computed: true },
       { name: 'y', type: 'number', label: 'y, in [-1, 1]', required: true, computed: true },
+      { name: 'z', type: 'number', label: 'z, in [-1, 1]', required: true, computed: true },
+      { name: 'w', type: 'number', label: 'Energy percentile, in [0, 1]', required: true, computed: true },
       { name: 'k', type: 'number', label: 'How many', computed: true },
     ],
     item: TRACK_SHAPE,
