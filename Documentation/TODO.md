@@ -402,9 +402,17 @@ whole library, in the descriptor pass's decode.
     no-normaliser scan, clamps, the solved spring). Seen in headless Chromium on five REAL meshes:
     live play, seek back, jump forward and track change each 0 px from a direct render; orbit and
     return pixel-identical; the fallback draws. Stills: `Documentation/Images/kouros-pulsarmap-3d-*.png`
-    (gitignored). ⚠️ **Still unseen: a real phone** — frame cost on a mid-range GPU, and whether the
-    orbit drag and Now Playing's own gestures coexist under a thumb (the rune layer now treats
-    `[data-owns-pointer]` as a control; that is asserted by selector, not felt).
+    (gitignored). **Seen in the real Now Playing overlay too** (placeholder library, meshes built by
+    `mesh.py`'s own builder, real playback in headless Chromium): the stack grows as the media clock
+    moves (2 → 9 s), a paused track draws nothing new, and at a size where the rune layer is live a
+    right flick ON the pulsar orbits it without skipping while the same flick on the title IS
+    "next track" — the `[data-owns-pointer]` guard, proven both ways. Still: `…-3d-now-playing.png`.
+    ⚠️ **Still unseen: a real phone** — frame cost on a mid-range GPU, and the feel under a thumb.
+    ⚠️ **Found on the way, not caused by this and not fixed: Now Playing does not fit one screen on
+    ANY common phone size**, so the rune layer always stands down on a phone. Measured on the
+    placeholder library: 390×844 overflows by 165 px, 375×667 by 318, 412×915 by 91, 360×740 by 246.
+    The 3-D strip is 32 px taller than the 2-D one and flips none of those (each still overflows
+    without it). The runes are built and gated; on a phone they are currently unreachable.
 
 **What would make this wrong:** a second mel implementation; per-track normalisation at any of
 the four points it could enter (builder, quantiser, renderer contrast, the 3-D shader's
