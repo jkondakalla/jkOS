@@ -872,8 +872,96 @@ its `MUSIC_DIR` mount is **no longer an unblocker** — the library is bind-moun
 `apps/kouros/docker-compose.staging.yml`). What M5 still waits on is the shipped index, and
 that is TODO.md §3, not a compose-file edit.
 
-**M6 — library map.** UMAP or PCA projection to 2D: where a track sits relative to the rest of
-the library, and the path the current shuffle is taking through it.
+**M6 — the vibe space. BUILT 2026-09-16** (Jag's decisions that day, replacing the 2-D PCA
+map). The library as a 3-D volumetric cloud you swipe through a 4th dimension, ENERGY, calm →
+intense. The code is `music/mapbasis.py` (the fit), `apps/kouros/backend/src/discover/map.js`
+(the projection and the wire) and `apps/kouros/src/components/vibespace/` (the cloud).
+
+**The projection: an energy probe plus residual PCA, fitted once, stored in `meta`.** Over the
+calibrated neural vectors (centred on `calib_mean`, re-normalised — exactly what KourOS loads):
+`u` is a ridge regression onto the energy percentile rank (descriptor `logrms_mean`); `e1…e3`
+are the top eigenvectors of the covariance with `u` projected out. `B = [e1, e2, e3, u]` is
+orthonormal, so every map distance is a true projection distance. The cloud therefore shows
+everything about the sound EXCEPT energy, and the swipe shows energy. Rejected, and why:
+- **Plain PCA-4** — PC4 is the weakest axis, unnamed, and its order and sign flip as the
+  library grows; a swipe through it would mean something different next month.
+- **Energy as a raw descriptor column** — energy is not orthogonal to the rest of the sound,
+  so it leaks into x/y/z and the slices drift ACROSS the cloud instead of cutting through it.
+- **UMAP / t-SNE** — the dependency budget, no stable coordinate (a pin must mean the same place
+  tomorrow), and no ordered 4th axis to swipe.
+- **Runtime JavaScript PCA** (what the 2-D map did) — seconds per rebuild, run twice, drifting
+  as tracks were added, with no provenance.
+
+**Stored, keyed, verified.** `map_*:<arm>` beside `calib_*`, keyed by `map_calib` = sha256 of
+`calib_mean` — a basis from before a calibration refit is STALE and refused, on both sides.
+KourOS projects five golden tracks through the stored bytes and refuses the basis if any
+coordinate differs from Python's by more than 1e-4 (measured cross-language on a 512-d synthetic
+fit: 2.3e-8). Display units: xyz ÷ the p98 radius, clamped to the unit cube; w as a percentile
+through a 1,001-point quantile table, so every stretch of the swipe passes through the same
+number of tracks. "Near" is 4-D Euclidean on the raw coordinates.
+
+**Two rules from the plan, measured wrong on the synthetic shelf and replaced before the first
+real fit:**
+- λ chosen as the argmax of held-out Spearman hopped grid points on a 90% refit and swung `u`
+  by cos 0.91 → the LARGEST λ within 0.01 of the best (the one-standard-error rule's shape).
+- An unnamed axis oriented by "largest loading positive" turned inside out (cos −0.998) when two
+  loadings traded places → oriented by the sign of Σ loading³, which is continuous in the axis.
+
+**The gate, pre-declared (thresholds confirmed by Jag before the first real fit).** It is part
+of the fit, because the watcher refits unattended:
+
+| # | Criterion | Threshold |
+|---|---|---|
+| G1 | recall@10 of the 512-d cosine neighbours inside the 4-D space, vs the same for PCA-4 (1,000 seeded queries) | ≥ 0.85× |
+| G2 | held-out Spearman(w, energy) | ≥ 0.6 |
+| G3 | median within-album IQR of the w percentile (albums ≥ 6 tracks) | ≤ 0.25 |
+| G4 | refit on a seeded 90%: signed cos to the full fit | e1, u ≥ 0.95 · e2, e3 ≥ 0.90 |
+| G5 | KourOS reproduces the golden coordinates | ≤ 1e-4 (enforced at load; smoke-tested) |
+| G6 | `/discover/map` at 47,693 tracks, gzipped | ≤ 400 KB |
+| G7 | continuity — see below | ≤ 0.02 |
+
+Failure policy, fixed in advance: G1 fails but the anchored-rotation fallback (exactly PCA-4's
+subspace, 4th axis = the probe's projection into it) passes → ship the fallback. Otherwise the
+arm is HELD: `map_held:<arm>` records why, the rest of the index still ships, KourOS says
+"held", and the rail decision goes back to Jag. Never an unnamed rail.
+
+⚠️ **G6 failed as first built and was fixed before shipping:** Int16 xyz, Uint16 w and absolute
+ids measured 529 KB gzipped at library size. The columns are incompressible by construction (w is
+a uniform percentile), so the fix was quantisation to what a phone shows: id deltas, xyz as
+11/11/10 bits in one Uint32 (~0.75 px even flown in), w in 12 bits, tone and flags sharing a
+byte. `discover.smoke` drives the real encoder at 47,693 tracks and asserts the bound.
+
+⚠️ **G7 was restated, and why — for Jag to confirm.** As first declared it read "max voxel change
+between the interpolated fields at w and w + 1/256 ≤ 2% of ρ_ref". Measured, that is a property
+of the DATA: the EXACT continuous field (each track's kernel centred at w itself) changes 7.05%
+of ρ_ref per 1/256 on the gate's fixture, because cluster cores sit at ~3× ρ_ref. No faithful
+renderer can pass it. What G7 exists to prove is that SLICING adds nothing — that the cloud
+drawn at any w is the true field at w, so a swipe morphs rather than stepping or pulsing. It is
+held as that: the opacity mixed from the two slices either side stays within 0.02 of the exact
+field's opacity, at every slice-interval midpoint and the quarter points of every fourth.
+Measuring it that way showed the plan's own claim was optimistic: at 32 slices (σ_w/2 apart) the
+linear mix bowed 0.0193 off the true field (9.9% of ρ_ref in raw density) between slice centres
+— a pulse on a fast swipe. At 48 slices it is 0.0073. `check:vibespace` measures it on the
+production settings every run.
+
+**The cloud.** Density is one Gaussian per MEASURED track, in space (trilinear splat + separable
+blur, σ 1.25 voxels on a 48³ grid) and in w (σ_w 0.06), at 48 slices, built in a Web Worker.
+⚠️ **ONE tone map for every slice**, α = 1 − exp(−ρ/ρ_ref) with ρ_ref the p99 over all slices —
+the house's third instance of "never normalise per unit" after M2's value range and M7's shared
+mesh scale: a sparse calm corner must look sparse, not blaze like the dense middle. ⚠️ Inferred
+album centroids never feed the density — an album of uncovered tracks stacked on one point would
+be a hot spot the size of an album. Colour is the density-weighted mean BRIGHTNESS through a
+sequential ramp: one hue (the sleeve accent's, in OKLCH), ordered by lightness, anchor flipped
+per face — never a rainbow over an ordered quantity. Rendering is hand-rolled WebGL2: a
+raymarched volume at a reduced render scale mixing the two slices, particles whose size and
+alpha are their glint exp(−(Δw/0.04)²), region labels as DOM. No library: three.js is ~600 KB
+against a frontend with no 3-D dependency, and the math used is a perspective, a lookAt and a
+multiply.
+
+**Still owed:** the G1–G4 numbers from the first real fit (recorded here when
+`music/analyze.py` reaches it), a look on a real phone (frame rate during a scrub, whether the
+render scale settles), and "the path the current shuffle is taking through it" — M5's walk,
+drawn as a ribbon through the cloud, which needs M5.
 
 **M7 — the pulsarmap.** The mel matrix as a stack of ridgelines that ACCUMULATES as the track
 plays: one line per ~2 s slice, frequency across the line, energy as elevation, new lines
@@ -965,6 +1053,28 @@ algorithm, back to front. Combined with "new rows arrive in FRONT", that makes t
 the steady-state cost of the reveal is one polyline every two seconds rather than a full redraw
 at 60 Hz. ⚠️ **Reverse the direction and the optimisation is gone**: a row arriving *behind* the
 stack has to be drawn first, which means repainting everything in front of it every time.
+
+**In 3-D, too (2026-09-16, Jag: "a 3-D visual of the pulsar map").** The same mesh, stood up as
+real geometry — `apps/kouros/src/components/ridges3d/` — replacing the 2-D strip, which survives
+whole as the no-WebGL2 fallback. Decided that day: **ridgelines, not a lit terrain** (the line IS
+the form); **replace, not toggle** (two renderers maintained forever); **the camera follows the
+playhead, a drag orbits, a release springs home** (a whole-track orbit loses "how far in are we").
+What carries over unchanged is everything above: the reveal is `rowsRevealed(currentTime)`, the
+value scale is shared, the ramp is position-in-track, new rows arrive in FRONT. What 3-D changes:
+- **The painter's algorithm becomes a depth buffer.** Each segment draws a curtain from its ridge
+  to the floor in the surface colour, pushed back with polygon offset, then its line — exactly the
+  fill-then-stroke occlusion the 2-D renderer fakes, now true from any angle.
+- **The append-only optimisation is gone, and nothing is lost by it.** The mesh is one R8 texture
+  (wrapped into columns past WebGL2's guaranteed 2,048 rows) and every vertex is derived in the
+  shader from `gl_InstanceID`; a frame is two instanced draws over at most 44 rows, and a seek
+  changes a uniform. A paused, settled view draws nothing at all.
+- **Lines are screen-space quads**, because `gl.lineWidth` is one device pixel almost everywhere.
+- ⚠️ **A fourth place per-track normalisation could enter** — the shader. `check:pulsarmap` scans
+  `heightAt` for max/min/clamp/gain. (That scan was vacuous for its first commit: a raw backspace
+  byte stood where `\b` belonged. `check:text` caught the byte.)
+
+The old verdict against a 3-D heightmap stands for what it was aimed at: the FULL matrix is
+1.3 M vertices. The decimated mesh is ~5,600 visible segments.
 
 **The one number the renderer owns.** M2 measured that below **~9 px of row pitch** every line's
 excursion crosses two neighbours and the stack collapses into a uniform hatch — "a picture that

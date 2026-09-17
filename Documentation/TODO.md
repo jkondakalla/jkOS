@@ -242,6 +242,25 @@ It is real design-pass work, which is why it is a decision and not already done.
 this button **invisible** at 1.19:1 — is **fixed** (`apps/jkauth/public/style.css`). This item is
 only about the remaining 3.67 → 4.5 gap.
 
+### D12 · The vibe space's gate: G7 restated, two fit rules replaced — confirm? — §3
+
+Jag confirmed the pre-declared thresholds on 2026-09-16 and then left the run unattended, so three
+things measured wrong after that were changed rather than waited on. Each is argued with its
+numbers in `ALGORITHMS.md` §9 M6:
+
+- **G7 restated.** As worded ("voxel change per 1/256 of the rail ≤ 2% of ρ_ref") it measured the
+  data — the exact continuous field itself changes 7.05% — so it is now held as what it was for:
+  the opacity mixed from two slices stays within 0.02 of the exact field. That measurement showed
+  32 slices bowing 0.0193 off between slice centres; the field is now 48 slices (0.0073).
+- **λ** is the largest penalty within 0.01 of the best held-out Spearman, not the argmax (the
+  argmax swung `u` by cos 0.91 on a 90% refit).
+- **An unnamed axis** is oriented by the sign of Σ loading³, not its largest loading (which turned
+  e3 inside out, cos −0.998, when two loadings traded places).
+
+- **(a) Confirm all three.** ⭐ *Recommended* — each is the same intent, measured.
+- **(b) Send G7 back** to a different continuity criterion (it is the only one with a threshold
+  that changed meaning).
+
 ### D9 · Scope for the next run
 
 Confirm, so an agent does not have to guess:
@@ -375,9 +394,21 @@ whole library, in the descriptor pass's decode.
    `row_seconds` is asserted to MOVE when `config` moves, which a literal cannot do. The store's
    WAL trap is reproduced rather than described.
 
+10. ✅ **The pulsarmap in 3-D. DONE 2026-09-16** (Jag: 3-D ridgelines, replacing the 2-D strip,
+    camera following the playhead). `apps/kouros/src/components/ridges3d/` — one R8 texture, no
+    vertex buffers, curtains + screen-space lines, a follow camera a drag orbits and a release
+    springs home; the 2-D renderer stays whole as the no-WebGL2 fallback. `check:pulsarmap` grew by
+    30 assertions (texture wrap round-trip, the shader's arithmetic scanned against `cellOf`, the
+    no-normaliser scan, clamps, the solved spring). Seen in headless Chromium on five REAL meshes:
+    live play, seek back, jump forward and track change each 0 px from a direct render; orbit and
+    return pixel-identical; the fallback draws. Stills: `Documentation/Images/kouros-pulsarmap-3d-*.png`
+    (gitignored). ⚠️ **Still unseen: a real phone** — frame cost on a mid-range GPU, and whether the
+    orbit drag and Now Playing's own gestures coexist under a thumb (the rune layer now treats
+    `[data-owns-pointer]` as a control; that is asserted by selector, not felt).
+
 **What would make this wrong:** a second mel implementation; per-track normalisation at any of
-the three points it could enter (builder, quantiser, renderer contrast); a streaming protocol
-(the mesh is ~20 KB — fetch it whole, reveal by index).
+the four points it could enter (builder, quantiser, renderer contrast, the 3-D shader's
+`heightAt`); a streaming protocol (the mesh is ~20 KB — fetch it whole, reveal by index).
 
 ---
 
@@ -397,14 +428,29 @@ the three points it could enter (builder, quantiser, renderer contrast); a strea
   consecutive tracks are similar and the set drifts. A **temperature parameter** dials album
   coherence ↔ real variety. This is the feature that justifies the pipeline. Joins KourOS's
   `tracks` by absolute path.
-- **M6 — library map. ⚠️ Mostly already built, and the choice inside it is already made.**
-  KourOS's vibe map (`/discover/map`, `/discover/near`, `src/discover/map.js`) is PCA to 2-D by
-  power iteration, clustered in 2-D, with the axes named from the descriptor arm — which is
-  "where a track sits relative to the library" in full. UMAP was never an option: `music/README.md`
-  refuses it by dependency budget, and `map.js` adds that neither t-SNE nor UMAP gives a STABLE
-  coordinate, so the pin a user drags would not mean the same place tomorrow.
-  **What is genuinely left is only "the path the current shuffle is taking through it" — which
-  needs M5 to exist first.** Do not re-derive the projection.
+- ✅ **M6 — the vibe space. BUILT 2026-09-16.** Jag overrode "do not re-derive the projection" that
+  day: the 2-D PCA map is replaced by a 3-D volumetric cloud swiped through ENERGY. The fit is
+  `music/mapbasis.py` (energy probe + residual PCA, gated, stored in `meta`, held on failure), the
+  projection and packed wire are `backend/src/discover/map.js` (basis verified at load against five
+  golden tracks), the cloud is `src/components/vibespace/` (`check:vibespace`). Decision record and
+  every measured number: `ALGORITHMS.md` §9 M6. Still owed:
+  - **The G1–G4 numbers from the first real fit**, recorded in ALGORITHMS.md when `analyze.py`
+    reaches its fit stage. ⚠️ The run started at 20:48 on 2026-09-16 imported its stages BEFORE
+    `mapbasis.py` existed, so its own fit does not fit the basis: `mapbasis.py --fit` then
+    `analyze.py --stages gate,ship` afterwards.
+  - **A real phone**: frame rate during a scrub, whether the adaptive render scale settles, and
+    how the density worker's build time (1.5 s on the workstation for the gate's 3,000-track
+    fixture) scales to 47,000 tracks on a phone CPU.
+  - **The path the current shuffle is taking through it** — M5's walk as a ribbon through the
+    cloud. Needs M5.
+  - ⚠️ **Found on the way, not fixed: KourOS's DESCRIPTOR-arm fallback centres raw descriptors by a
+    mean fitted in the z-scored space.** `vectors.js` `loadArm` subtracts `calib_mean:descriptors`
+    from the RAW 119-d blobs, but `query.fit_calibration` fitted that mean over
+    `descriptors.load_normalised` (z-scored, then L2). Raw centroid and rolloff values in the
+    thousands of Hz then dominate the L2, so similarity on that arm is mostly spectral centroid.
+    Reached only when an index has descriptors and no neural vectors, which no shipped index does —
+    but it is wrong, silent, and exactly why `mapbasis.ARMS` maps the neural arm alone. The fix is
+    to z-score with `descriptor_mean`/`descriptor_std` before centring, on the KourOS side.
 
 ---
 

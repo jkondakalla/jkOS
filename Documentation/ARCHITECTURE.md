@@ -234,7 +234,8 @@ host-dataset spelling mismatch that mounts cleanly empty rather than failing). T
 is `@jkos/player`'s second consumer, with its own queue/shuffle/repeat preferences
 persisted to `localStorage` (`kouros.player.queue`, `kouros.player.rate`) — see §5 for why
 that matters. A separate discovery layer (`backend/src/discover/`) serves similarity/radio/
-vibe-map results sourced from `music/`'s offline-computed vector index and pulsarmap
+vibe-space results sourced from `music/`'s offline-computed vector index, its stored 4-D map basis
+(`music/mapbasis.py`, verified at load against five golden tracks), and pulsarmap
 meshes, read from a read-only `/analysis` mount (`VECTOR_DB_PATH`, `MESH_DB_PATH`); when a
 file is absent every discovery surface degrades to metadata affinity rather than breaking.
 Those files are built on the workstation by `music/analyze.py --watch` and delivered by a

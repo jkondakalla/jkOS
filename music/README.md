@@ -25,8 +25,9 @@ onnxruntime>=1.17,<2.0
 ```
 
 Plus the `ffmpeg` binary. That covers *everything*: decode, STFT, mel filterbank, MFCC,
-descriptors, the SQLite index, cosine search, and PCA. Only the encoder forward pass needs
-the second line.
+descriptors, the SQLite index, cosine search, and the vibe space's basis — a ridge probe and a
+principal-axis decomposition by `np.linalg.eigh` (`mapbasis.py`). Only the encoder forward pass
+needs the second line.
 
 This is a portfolio project, so the dependency list is part of what is being shown. Four
 things are therefore **deliberately not taken**, each replaced rather than merely avoided:
@@ -36,7 +37,7 @@ things are therefore **deliberately not taken**, each replaced rather than merel
 | `librosa` / `soundfile` / `torchaudio` | ffmpeg → `np.frombuffer`. Measured below: the decode is network-bound, not CPU-bound, so the library would buy nothing. |
 | **`torch`** | ⚠️ **No fallback, by decision.** If a model will not export cleanly to ONNX, *change models*. Export tooling may run once in a throwaway venv — that is a build tool, never a dependency. |
 | `sqlite-vec` | stdlib `sqlite3`, with a table *shaped* for it. It is a port target, not a speed need. |
-| `pytest` · `matplotlib` · `sklearn` · `umap-learn` | `unittest` · SVG emitted as text · `np.linalg.svd` |
+| `pytest` · `matplotlib` · `sklearn` · `umap-learn` | `unittest` · SVG emitted as text · `np.linalg.eigh` + `np.linalg.solve` |
 
 ---
 
@@ -112,6 +113,22 @@ calibration it judged, and a failed one refuses every later ship. The watcher ru
 [`infra/music-analysis/README.md`](../infra/music-analysis/README.md). One writer at a time —
 `runlock.py` makes `backfill.py`, `descriptors.py --build`, `mesh.py --pending` and `analyze.py`
 refuse to start beside each other, naming the holder.
+
+**The vibe space's basis** — the four directions KourOS draws the library through (ALGORITHMS.md
+§9, M6): an energy probe and three principal axes of what is left, fitted in the calibration and
+stored beside it. `query.py --fit` and `analyze.py`'s fit stage refit it with the calibration;
+this is it on its own:
+
+```bash
+./.venv/bin/python mapbasis.py --status   # what is stored: primary / fallback / HELD, and G1–G4
+./.venv/bin/python mapbasis.py --gate     # refit in memory and print the gate, store nothing
+./.venv/bin/python mapbasis.py --fit      # fit, gate and store — or hold, with the reason
+```
+
+⚠️ **The gate is part of the fit.** A basis that fails its pre-declared thresholds is not stored:
+the anchored-rotation fallback (exactly PCA-4's subspace) is tried, and if that fails too the arm
+is **held** — `map_held:<arm>` records why, `ship.py` ships everything else and says so, and
+KourOS shows the map as held rather than drawing an unnamed rail.
 
 The pieces by hand — handing the finished space to KourOS, §8.9:
 
