@@ -36,6 +36,7 @@ import analyze
 import config
 import encoder
 import index
+import mapbasis
 import mesh
 import query
 import runlock
@@ -404,6 +405,11 @@ class SequenceTest(AnalyzeTestCase):
             self.assertEqual(conn.execute('SELECT COUNT(*) FROM descriptors').fetchone()[0], 8)
             self.assertEqual(mesh.stats(store)['meshes'], 8)
             self.assertIsNotNone(query.Calibration.load(conn, 'local_vectors'))
+            # Eight tracks cannot carry an energy probe: the map basis is HELD as a
+            # prerequisite — recorded, not missing — and the rest still ships. The
+            # idle cycle below then proves a standing hold does not refit (and so
+            # does not re-ship) every five minutes.
+            self.assertEqual(mapbasis.held(conn, 'local_vectors')['kind'], 'prerequisite')
 
             for name in (analyze.INDEX_SNAPSHOT, analyze.MESH_SNAPSHOT):
                 self.assertTrue(os.path.exists(os.path.join(nas, name)), name)

@@ -859,8 +859,12 @@ def _main(argv=None):
     conn = index.connect()
     try:
         if args.fit:
+            import mapbasis             # here, not at the top: mapbasis imports this module
             print(f'{index.DB_PATH}')
             fit_calibration(conn)
+            # The vibe space's basis lives in the calibration just fitted, so it is
+            # refitted with it — a basis from the previous calibration is stale.
+            mapbasis.fit_all(conn)
             if not (args.hand or args.gate or args.queries or args.status):
                 return 0
 
@@ -888,7 +892,10 @@ def _main(argv=None):
                 return 0
 
         if args.gate:
+            import mapbasis
             ok = gate(conn)
+            print('\nvibe space basis (mapbasis.py — G1–G4, pre-declared)')
+            mapbasis.report(conn)
             if not (args.hand or args.queries):
                 return 0 if ok else 1
 

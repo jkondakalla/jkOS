@@ -61,6 +61,7 @@ import config
 import descriptors
 import encoder
 import index
+import mapbasis
 import mesh
 import query
 import runlock
@@ -526,6 +527,8 @@ def stage_fit(conn, force=False, growth=REFIT_GROWTH):
     descriptor arm through the previous fit's statistics."""
     reason = 'forced by a full run' if force else needs_fit(conn, growth)
     if reason is None:
+        if stage_map(conn):
+            return True
         say('fit       current')
         return False
     say(f'fit       {reason}')
@@ -536,6 +539,30 @@ def stage_fit(conn, force=False, growth=REFIT_GROWTH):
         query.fit_calibration(conn, stream=_LineStream('          '))
     except (query.QueryError, descriptors.DescriptorError) as exc:
         raise AnalysisError(f'fit refused: {exc}') from exc
+    stage_map(conn, force=True)
+    return True
+
+
+def stage_map(conn, force=False):
+    """The vibe space's basis, in the calibration just fitted (mapbasis.py).
+
+    ⚠️ **A FAILED MAP GATE DOES NOT STOP THE SHIP.** The basis is HELD — recorded in
+    `meta` with the reason, reported by `--status` and by `ship.check`, and read by
+    KourOS as "the map is held" — and the vectors, descriptors and meshes still
+    ship. Jag, 2026-09-16: never an unnamed rail, and never a whole index withheld
+    over one view of it."""
+    stale = [a for a in mapbasis.ARMS if _count(conn, a) and
+             (force or mapbasis.needs_fit(conn, a) is not None)]
+    if not stale:
+        return False
+    for arm in stale:
+        say(f'fit       map basis for {arm}')
+        try:
+            result = mapbasis.fit(conn, arm, stream=_LineStream('          '))
+        except (mapbasis.MapError, query.QueryError, descriptors.DescriptorError) as exc:
+            raise AnalysisError(f'map fit could not run: {exc}') from exc
+        if result['mode'] == 'held':
+            say(f'⚠️ fit     {arm} map basis HELD — {result["reason"]}')
     return True
 
 
@@ -937,6 +964,22 @@ def status(opts, out=None):
             stamp = None
         reason = needs_fit(conn)
         print(f'fit        {"current" if reason is None else reason}', file=out)
+        for arm in mapbasis.ARMS:
+            if not _count(conn, arm):
+                continue
+            basis = mapbasis.Basis.load(conn, arm)
+            hold = mapbasis.held(conn, arm)
+            owed = mapbasis.needs_fit(conn, arm)
+            if hold is not None:
+                line = f'HELD ({hold["kind"]}) — {hold["reason"]}'
+            elif owed is not None:
+                line = owed
+            elif basis is not None:
+                line = (f'{basis.stats.get("mode")} basis, current · held-out Spearman '
+                        f'{basis.stats.get("spearman_heldout") or 0:+.3f}')
+            else:
+                line = 'owed after the calibration'
+            print(f'map        {line}', file=out)
         verdict = gate_verdict(conn)
         print('gate       ' + ('no verdict for this calibration' if verdict is None else
                                f'{"PASSED" if verdict["passed"] else "FAILED"} at {verdict["at"]}'),

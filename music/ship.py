@@ -38,6 +38,13 @@ tier 1 cannot hit in a container by construction, and coverage is 0% — reporte
 honestly by KourOS as "metadata basis", which reads as bad embeddings rather than
 as an index that was never consulted.
 
+⚠️ **5. A MAP BASIS THAT IS MISSING OR STALE.** The vibe space's four axes are fitted
+into `meta` as `map_*:<arm>` (mapbasis.py) against ONE calibration. Ship a basis
+from before a refit and KourOS's golden check refuses it, so the map reads
+"unavailable" on an index that is otherwise perfect; ship none at all and the same.
+A HELD basis (`map_held:<arm>`: the pre-declared gate failed, or descriptors are
+not built yet) is a recorded decision, not a gap — it ships, loudly.
+
 ⚠️ **4. MIXED DIMENSIONS OR A DRIFTED CONFIG.** `load_matrix` refuses to stack
 mixed dims, so this one does at least fail — but it fails inside KourOS at
 request time, on the host, rather than here where it can still be fixed.
@@ -95,6 +102,34 @@ def survey(conn):
     return out
 
 
+def map_states(conn, armed):
+    """Per mapped arm: `current`, `held`, `stale`, `missing`, or `uncalibrated` (the
+    calibration check above owns that one)."""
+    import mapbasis                     # lazily: it imports query, which is heavier
+    out = {}
+    for table in mapbasis.ARMS:
+        if table not in armed:
+            continue
+        if index.get_meta(conn, f'calib_mean:{table}') is None:
+            out[table] = {'state': 'uncalibrated', 'detail': 'no calibration to map in'}
+            continue
+        basis = mapbasis.Basis.load(conn, table)
+        hold = mapbasis.held(conn, table)
+        if basis is not None and not mapbasis.stale(conn, table):
+            stats = basis.stats
+            out[table] = {'state': 'current', 'detail': (
+                f'{stats.get("mode")} basis over {stats.get("n_fit")} tracks, held-out '
+                f'Spearman {stats.get("spearman_heldout") or 0:+.3f}')}
+        elif hold is not None:
+            out[table] = {'state': 'held', 'detail': f'⚠️ HELD ({hold["kind"]}): {hold["reason"]}'}
+        elif basis is not None:
+            out[table] = {'state': 'stale', 'detail': 'the map basis was fitted in a different '
+                                                      'calibration'}
+        else:
+            out[table] = {'state': 'missing', 'detail': 'no map basis has been fitted'}
+    return out
+
+
 def root_coverage(conn, root_name):
     """How many `tracks.path` rows carry `root_name` as a path SEGMENT.
 
@@ -118,7 +153,8 @@ def root_coverage(conn, root_name):
     return hit, total, sample
 
 
-def check(conn, root_name=DEFAULT_ROOT_NAME, require_calibration=True, stream=None):
+def check(conn, root_name=DEFAULT_ROOT_NAME, require_calibration=True, stream=None,
+          require_map=True):
     """Every way the copy can be wrong on arrival. Returns the survey; raises on a
     condition KourOS would read without complaint."""
     out = stream or sys.stdout
@@ -147,6 +183,14 @@ def check(conn, root_name=DEFAULT_ROOT_NAME, require_calibration=True, stream=No
                             f'un-centred space and `makeRun` would degenerate (§8.8). '
                             f'Run `python query.py --fit` first.')
 
+    maps = map_states(conn, armed)
+    if require_map:
+        for table, state in maps.items():
+            if state['state'] in ('missing', 'stale'):
+                problems.append(f'{table}: {state["detail"]} — KourOS would show the vibe map as '
+                                f'unavailable. Run `python mapbasis.py --fit` (or ship with '
+                                f'--allow-unmapped).')
+
     hit, total, sample = root_coverage(conn, root_name)
     if total and hit != total:
         problems.append(
@@ -162,6 +206,8 @@ def check(conn, root_name=DEFAULT_ROOT_NAME, require_calibration=True, stream=No
         if arm['n']:
             print(f'{"":18}  coverage {100 * arm["n"] / max(1, data["tracks"]):.1f}% of tracks',
                   file=out)
+    for table, state in maps.items():
+        print(f'{table + " map":18}: {state["state"]} — {state["detail"]}', file=out)
     print(f'root segment {root_name!r}: {hit}/{total} paths', file=out)
 
     if problems:
@@ -209,6 +255,8 @@ def _main(argv=None):
                              f"(default {DEFAULT_ROOT_NAME!r}, from its /music mount)")
     parser.add_argument('--allow-uncalibrated', action='store_true',
                         help='ship anyway with no fitted geometry — §8.8 says do not')
+    parser.add_argument('--allow-unmapped', action='store_true',
+                        help='ship with no current vibe-space basis — the map reads unavailable')
     parser.add_argument('--db', default=None, help='source index (default music/index.db)')
     args = parser.parse_args(argv)
 
@@ -219,7 +267,8 @@ def _main(argv=None):
 
     print(f'source  {src}')
     try:
-        check(_open_ro(src), args.root_name, not args.allow_uncalibrated)
+        check(_open_ro(src), args.root_name, not args.allow_uncalibrated,
+              require_map=not args.allow_unmapped)
     except ShipError as exc:
         print(f'\nREFUSED — {exc}', file=sys.stderr)
         return 1
@@ -236,7 +285,8 @@ def _main(argv=None):
     # that what lands on the far side is what was measured, and a snapshot that
     # silently dropped rows would otherwise be reported using the source's counts.
     print()
-    after = check(_open_ro(dest), args.root_name, not args.allow_uncalibrated)
+    after = check(_open_ro(dest), args.root_name, not args.allow_uncalibrated,
+                  require_map=not args.allow_unmapped)
     size = os.path.getsize(dest)
     print(f'\n{size / 1e6:.1f} MB, no sidecar — this one file is the whole index.')
     print('place it where KourOS\'s VECTOR_DB_PATH points (both compose files say '

@@ -20,6 +20,7 @@ import unittest
 import numpy as np
 
 import index
+import mapbasis
 import ship
 
 
@@ -33,7 +34,7 @@ class ShipTestCase(unittest.TestCase):
         self.conn.close()
         shutil.rmtree(self.tmp, ignore_errors=True)
 
-    def seed(self, n=6, root='/mnt/Luna/Plex/Music', calibrate=True, dim=8):
+    def seed(self, n=6, root='/mnt/Luna/Plex/Music', calibrate=True, dim=8, mapped=True):
         ids = []
         for i in range(n):
             track = index.upsert_track(
@@ -44,8 +45,18 @@ class ShipTestCase(unittest.TestCase):
         if calibrate:
             index.set_meta(self.conn, 'calib_mean:local_vectors', 'AAAA')
             index.set_meta(self.conn, 'calib_stranger_spread:local_vectors', '0.3')
+            if mapped:
+                self.map_basis(dim)
         self.conn.commit()
         return ids
+
+    def map_basis(self, dim=8):
+        basis = mapbasis.Basis('local_vectors', np.eye(4, dim), np.zeros(dim), 1.0,
+                               np.linspace(-1, 1, mapbasis.QUANTILES), {'mode': 'primary'},
+                               mapbasis.calibration_hash(self.conn, 'local_vectors'), [])
+        basis.save(self.conn)
+        self.conn.commit()
+        return basis
 
     def out(self, name='music-index.db'):
         return os.path.join(self.tmp, 'out', name)
@@ -176,6 +187,39 @@ class ShipTestCase(unittest.TestCase):
     def test_an_empty_index_is_refused(self):
         with self.assertRaises(ship.ShipError):
             ship.check(ship._open_ro(self.db), 'music', stream=io.StringIO())
+
+    # ── the vibe space's basis ────────────────────────────────────────────────
+
+    def test_an_index_with_no_map_basis_is_refused_unless_allowed(self):
+        self.seed(mapped=False)
+        with self.assertRaises(ship.ShipError) as caught:
+            ship.check(ship._open_ro(self.db), 'music', stream=io.StringIO())
+        self.assertIn('no map basis', str(caught.exception))
+        self.assertIn('mapbasis.py --fit', str(caught.exception))
+        ship.check(ship._open_ro(self.db), 'music', stream=io.StringIO(), require_map=False)
+
+    def test_a_map_basis_from_an_older_calibration_is_refused(self):
+        self.seed()
+        index.set_meta(self.conn, 'calib_mean:local_vectors', 'BBBB')     # a refit
+        self.conn.commit()
+        with self.assertRaises(ship.ShipError) as caught:
+            ship.check(ship._open_ro(self.db), 'music', stream=io.StringIO())
+        self.assertIn('different calibration', str(caught.exception))
+
+    def test_a_held_basis_ships_and_says_so(self):
+        self.seed(mapped=False)
+        mapbasis._hold(self.conn, 'local_vectors',
+                       mapbasis.calibration_hash(self.conn, 'local_vectors'), 'gate',
+                       'G2 failed on both', [], io.StringIO())
+        out = io.StringIO()
+        ship.check(ship._open_ro(self.db), 'music', stream=out)
+        self.assertIn('HELD (gate): G2 failed on both', out.getvalue())
+
+    def test_a_current_basis_ships_and_is_reported(self):
+        self.seed()
+        out = io.StringIO()
+        ship.check(ship._open_ro(self.db), 'music', stream=out)
+        self.assertIn('local_vectors map : current', out.getvalue())
 
     # ── the copy is verified from the COPY ────────────────────────────────────
 
