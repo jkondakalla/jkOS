@@ -150,30 +150,36 @@ function gaussianKernel(sigma: number): Float32Array {
 }
 
 /** Separable Gaussian blur of a G³ field in place, clamping at the edges (zero padding
- *  would darken the cube's faces, which are exactly where the extremes of a library sit). */
+ *  would darken the cube's faces, which are exactly where the extremes of a library sit).
+ *
+ *  ⚠️ Line by line through a padded copy, not tap by tap with a clamp: the blur is ~90% of
+ *  the density worker's time (48 slices × 2 fields × 3 passes), and the clamp-per-tap form
+ *  took 1.4 s on the real library on a desktop — several seconds on a phone. */
 export function blur3d(field: Float32Array, grid: number, sigma: number, scratch = new Float32Array(field.length)): void {
   const k = gaussianKernel(sigma);
   const r = (k.length - 1) / 2;
   const G = grid;
-  const pass = (src: Float32Array, dst: Float32Array, axis: 0 | 1 | 2) => {
-    for (let z = 0; z < G; z++) {
-      for (let y = 0; y < G; y++) {
-        for (let x = 0; x < G; x++) {
-          let s = 0;
-          for (let t = -r; t <= r; t++) {
-            const xx = axis === 0 ? clamp(x + t, 0, G - 1) : x;
-            const yy = axis === 1 ? clamp(y + t, 0, G - 1) : y;
-            const zz = axis === 2 ? clamp(z + t, 0, G - 1) : z;
-            s += src[(zz * G + yy) * G + xx] * k[t + r];
-          }
-          dst[(z * G + y) * G + x] = s;
+  const line = new Float32Array(G + 2 * r);
+  const pass = (src: Float32Array, dst: Float32Array, stride: number, outer: number, inner: number) => {
+    // `stride` walks the blurred axis; `outer` × `inner` enumerate the lines' starts.
+    for (let o = 0; o < G; o++) {
+      for (let i = 0; i < G; i++) {
+        const base = o * outer + i * inner;
+        for (let t = 0; t < G; t++) line[t + r] = src[base + t * stride];
+        const first = line[r], last = line[r + G - 1];
+        for (let t = 0; t < r; t++) { line[t] = first; line[G + r + t] = last; }
+        for (let t = 0; t < G; t++) {
+          let acc = 0;
+          for (let q = 0; q < k.length; q++) acc += line[t + q] * k[q];
+          dst[base + t * stride] = acc;
         }
       }
     }
   };
-  pass(field, scratch, 0);
-  pass(scratch, field, 1);
-  pass(field, scratch, 2);
+  // index = (z·G + y)·G + x
+  pass(field, scratch, 1, G * G, G);          // along x: lines start at (z, y)
+  pass(scratch, field, G, G * G, 1);          // along y: lines start at (z, x)
+  pass(field, scratch, G * G, G, 1);          // along z: lines start at (y, x)
   field.set(scratch);
 }
 

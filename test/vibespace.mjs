@@ -166,6 +166,15 @@ const SMALL = { grid: 24, slices: 48, sigmaW: 0.06, sigmaVoxels: 0.625 };
   check(Math.abs(sum - 5) < 1e-3, `blur3d: an interior impulse keeps its mass (${sum.toFixed(5)})`);
   check(field[(12 * G + 12) * G + 13] > 0 && field[(12 * G + 12) * G + 13] < field[(12 * G + 12) * G + 12],
     'blur3d: spreads to neighbours, peak stays at the centre');
+  // Off-centre, so a pass that blurred one axis twice and another never cannot hide:
+  // every axis must spread the impulse equally.
+  const off = new Float32Array(G ** 3);
+  const at = (x, y, z) => (z * G + y) * G + x;
+  off[at(5, 12, 19)] = 1;
+  g.blur3d(off, G, 1.25);
+  const nx = off[at(6, 12, 19)], ny = off[at(5, 13, 19)], nz = off[at(5, 12, 20)];
+  check(nx > 0.01 && Math.abs(nx - ny) < 1e-6 && Math.abs(ny - nz) < 1e-6 && off[at(5, 12, 19)] > nx,
+    `blur3d: x, y and z each spread an off-centre impulse equally (${nx.toFixed(5)} / ${ny.toFixed(5)} / ${nz.toFixed(5)})`);
 }
 {
   // ⚠️ ONE TONE MAP FOR EVERY SLICE. A sparse cluster (20 tracks, calm) and a dense one
