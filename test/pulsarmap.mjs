@@ -324,7 +324,7 @@ for (const rows of [10, 600, 2500]) {
   // ⚠️ THE FOURTH PLACE A PER-TRACK NORMALISER COULD ENTER.
   const shader = src.slice(src.indexOf('RIDGE_VERTEX'), src.indexOf('RIDGE_FRAGMENT'));
   const heightFn = shader.slice(shader.indexOf('float heightAt'), shader.indexOf('vec3 cell('));
-  check(/texelFetch\(u_mesh, texel, 0\)\.r \* AMPLITUDE;/.test(heightFn) && !/(max|min|clamp)\(/.test(heightFn)
+  check(/texelFetch\(u_mesh, texel, 0\)\.r \* AMPLITUDE;/.test(heightFn) && !/\b(max|min|clamp)\(/.test(heightFn)
         && !/u_(max|min|peak|gain|scale)/i.test(shader),
     'shader: a height is the byte over the fixed span × AMPLITUDE — no max/min/gain, nothing per track');
   check(rowHeight(255) === AMPLITUDE && rowHeight(0) === 0 && rowHeight(51) < rowHeight(204),
