@@ -43,7 +43,7 @@ export function startAuthStub({ port = 3010, origins = ['http://localhost:5173',
       res.setHeader('Access-Control-Allow-Credentials', 'true');
       res.setHeader('Vary', 'Origin');
     }
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-JkOS-Tz');
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,OPTIONS');
     if (req.method === 'OPTIONS') { res.writeHead(204).end(); return; }
 

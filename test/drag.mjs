@@ -42,6 +42,7 @@ const CONSUMERS = {
   'KourOS beacon': 'apps/kouros/src/shell/Beacon.tsx',
   'KourOS rune gestures': 'apps/kouros/src/gestures/useRune.ts',
   'KourOS 3-D pulsarmap orbit': 'apps/kouros/src/components/ridges3d/RidgeStage.tsx',
+  'KourOS vibe space': 'apps/kouros/src/components/vibespace/VibeSpace.tsx',
 };
 // Where a forked drag engine would most plausibly regrow.
 const SURFACES = [
@@ -58,6 +59,8 @@ const SURFACES = [
   'apps/kouros/src/gestures/useRune.ts',
   'apps/kouros/src/views/Queue.tsx',
   'apps/kouros/src/components/ridges3d/RidgeStage.tsx',
+  'apps/kouros/src/components/vibespace/VibeSpace.tsx',
+  'apps/kouros/src/views/VibeMap.tsx',
 ];
 
 // ── 1. The primitive exports the activation constants ───────────────────────

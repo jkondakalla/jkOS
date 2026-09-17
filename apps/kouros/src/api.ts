@@ -350,43 +350,52 @@ export interface HomePayload {
   fresh_albums: Array<{ album: string; artist: string; year: number | null; tracks: number; duration: number; anchor_id: number; added: string }>;
 }
 
-/** A named axis of the vibe map, discovered by correlating the projection against
- *  the readable descriptor features — `low`/`high` are the pole words to print at
- *  each end ("calm" → "intense"). Null when no feature arm was available. */
+/** A named axis of the vibe space — the readable feature the fit found it correlates
+ *  with, and the pole words ("dark" → "bright"). Null when no feature explains it. */
 export interface MapAxis {
   feature: string;
-  r: number;
+  r: number | null;
   low: string;
   high: string;
 }
 
+/** A labelled region of the vibe space: k-means in the map's own 4-D space. x/y/z are
+ *  display units in the unit cube; w is the energy percentile. */
 export interface MapRegion {
   id: number;
   label: string;
   x: number;
   y: number;
+  z: number;
+  w: number;
   count: number;
 }
 
-export interface MapPoint {
-  id: number;
-  x: number;
-  y: number;
-  /** Region id. */
-  r: number;
-  /** 1 = measured, 0 = inferred from its album. */
-  o: 0 | 1;
-}
+/** A point in the vibe space. */
+export interface VibePoint { x: number; y: number; z: number; w: number }
 
+/**
+ * The vibe space (ALGORITHMS.md §9, M6). Every covered track, PACKED — little-endian
+ * typed arrays in base64, decoded by `components/vibespace/geometry.ts` `decodeMap`.
+ *
+ * ⚠️ `available: false` carries a `reason` that is the server's own words: no basis
+ * fitted yet, a basis HELD by the analysis gate (`held: true`), or one refused because
+ * this side could not reproduce its golden tracks. The view prints it; it never guesses.
+ */
 export interface VibeMap {
   available: boolean;
+  held?: boolean;
   reason?: string;
   coverage: DiscoveryStats;
-  axes: { x: MapAxis | null; y: MapAxis | null };
-  regions: MapRegion[];
-  points: MapPoint[];
-  sampled?: boolean;
-  total?: number;
+  total: number;
+  measured?: number;
+  anchor?: { feature: string; low: string; high: string; spearman: number | null };
+  colour?: { feature: string; low: string; high: string; available: boolean };
+  axes?: Array<MapAxis | null>;
+  stops?: number[];
+  regions?: MapRegion[];
+  basis?: { mode: string | null; nFit: number | null; calib: string; fittedAt: string | null };
+  packed?: { n: number; ids: string; xyz: string; w: string; tone: string; flags: string };
 }
 
 /** One track's pulsarmap (ALGORITHMS.md §9) — the mel matrix decimated to ~2 s
@@ -446,7 +455,10 @@ export function fetchVibeMap(): Promise<VibeMap> {
   return apiJson<VibeMap>('/api/discover/map');
 }
 
-/** What sits under the pin. The map is a unit square: x and y are in [-1, 1]. */
-export function tracksNear(x: number, y: number, k = 40): Promise<{ results: DiscoveredTrack[] }> {
-  return apiJson<{ results: DiscoveredTrack[] }>(`/api/discover/near?x=${x.toFixed(4)}&y=${y.toFixed(4)}&k=${k}`);
+/** What sits near a point in the vibe space: x, y, z in [-1, 1], w an energy
+ *  percentile in [0, 1]. All four are required — a point with no energy is a line. */
+export function tracksNear(p: VibePoint, k = 40): Promise<{ results: DiscoveredTrack[] }> {
+  const f = (v: number) => v.toFixed(4);
+  return apiJson<{ results: DiscoveredTrack[] }>(
+    `/api/discover/near?x=${f(p.x)}&y=${f(p.y)}&z=${f(p.z)}&w=${f(p.w)}&k=${k}`);
 }

@@ -777,84 +777,162 @@
   .kr-queue-row { transition: none; }
 }
 
-/* ── The vibe map ─────────────────────────────────────────────────────────── */
-.kr-map-wrap { margin: 0.5rem 0 0.75rem; }
-.kr-map-field {
+/* ── The vibe space (components/vibespace, ALGORITHMS.md §9 M6) ────────────────
+   The library as a cloud you move through energy. The canvas draws the cloud and
+   the glints; everything readable — region names, the energy rail, the colour
+   legend, the chips — is DOM over it, so it takes the suite's type and tokens and
+   stays crisp at any render scale.
+
+   ⚠️ The surface and ring are named for what they draw, as `--kr-pulsar-*` are: a
+   canvas cannot take a custom property, so VibeSpace resolves these off the element. */
+:root {
+  --kr-vs-surface: var(--hub-bg-0);
+  --kr-vs-ring:    var(--hub-cream-bright);
+}
+
+.kr-vs {
   position: relative;
   width: 100%;
-  aspect-ratio: 1;
-  max-height: 62vh;
-  margin: 0 auto;
+  /* Portrait first: the cube is fitted to the narrower field of view (geometry.ts
+     fitDistance), so a tall field spends its height on the cloud, not on margin. */
+  height: min(68vh, 132vw, 640px);
+  min-height: 320px;
+  margin: 0.5rem 0 0.75rem;
   border-radius: var(--hub-radius-lg);
-  background:
-    radial-gradient(circle at 50% 50%, var(--hub-bg-3), var(--hub-bg-1) 78%);
-  box-shadow: inset 0 0 0 1px var(--hub-line), inset 0 2px 12px var(--kr-glass-rim-dark);
   overflow: hidden;
-  /* The field owns the gesture outright — otherwise dragging the pin scrolls the
-     page on a phone and the map is unusable. */
-  touch-action: none;
-  cursor: crosshair;
+  box-shadow: inset 0 0 0 1px var(--hub-line);
+  outline: none;
 }
-.kr-map-svg { position: absolute; inset: 0; width: 100%; height: 100%; }
-.kr-map-dot { opacity: 0.75; }
-.kr-map-dot.is-inferred { opacity: 0.34; }
-/* Eight region hues derived from the accent pair, so the map is coloured by the
-   app's own palette rather than by an imported categorical scale. */
-/* Regions must be TELLABLE APART, which mixing one accent toward black and white
-   does not achieve — every bin lands within a few degrees of the same hue and the
-   map reads as one colour. So the ladder rotates around the wheel from the accent
-   pair instead, keeping the app's own two colours as the first (largest) two
-   regions and spacing the rest. */
-.kr-map-dot-0 { fill: var(--accent); }
-.kr-map-dot-1 { fill: var(--accent-secondary); }
-.kr-map-dot-2 { fill: color-mix(in srgb, var(--accent) 50%, var(--hub-green)); }
-.kr-map-dot-3 { fill: color-mix(in srgb, var(--accent-secondary) 55%, var(--hub-red)); }
-.kr-map-dot-4 { fill: color-mix(in srgb, var(--accent) 45%, var(--hub-magenta)); }
-.kr-map-dot-5 { fill: var(--hub-green); }
-.kr-map-dot-6 { fill: color-mix(in srgb, var(--hub-magenta) 60%, var(--accent-secondary)); }
-.kr-map-dot-7 { fill: color-mix(in srgb, var(--accent-secondary) 45%, var(--hub-green)); }
-
-.kr-map-region {
+.kr-vs:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }
+.kr-vs-canvas {
   position: absolute;
-  transform: translate(-50%, -50%);
-  padding: 2px 7px;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  /* The field owns the gesture outright — a vertical drag is an energy scrub, not a
+     page scroll. The page still scrolls from everywhere outside the field. */
+  touch-action: none;
+  cursor: grab;
+}
+.kr-vs-canvas:active { cursor: grabbing; }
+
+.kr-vs-labels { position: absolute; inset: 0; pointer-events: none; }
+.kr-vs-label {
+  position: absolute;
+  left: 0;
+  top: 0;
+  padding: 2px 8px;
   border-radius: 999px;
+  white-space: nowrap;
   background: var(--kr-glass-fill-deep);
   -webkit-backdrop-filter: blur(6px);
   backdrop-filter: blur(6px);
   font-family: var(--hub-font-mono);
   font-size: var(--hub-fs-lab-xs);
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
   color: var(--kr-glass-ink);
-  white-space: nowrap;
+  will-change: transform, opacity;
+}
+
+/* The energy rail: the one axis on screen with a name, because it is the one you move. */
+.kr-vs-rail {
+  position: absolute;
+  top: 0.75rem;
+  bottom: 3rem;
+  right: 0.55rem;
+  width: 3.1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
   pointer-events: none;
 }
-.kr-map-pin {
-  position: absolute;
-  width: 22px;
-  height: 22px;
-  transform: translate(-50%, -50%);
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow:
-    0 0 0 3px var(--kr-glass-fill-deep),
-    0 0 18px color-mix(in srgb, var(--accent) 75%, transparent),
-    inset 0 1px 0 rgba(255, 255, 255, 0.5);
-  pointer-events: none;
-}
-.kr-map-axis {
-  position: absolute;
+.kr-vs-rail-cap {
   font-family: var(--hub-font-mono);
   font-size: var(--hub-fs-lab-xs);
-  letter-spacing: 0.14em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--hub-cream-dim);
+  color: var(--kr-glass-ink-dim);
+}
+.kr-vs-rail-track {
+  position: relative;
+  flex: 1;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--hub-line);
+}
+.kr-vs-rail-stop, .kr-vs-rail-playing, .kr-vs-rail-thumb {
+  position: absolute;
+  left: 50%;
+  top: calc((1 - var(--vs-at, var(--vs-w, 0.5))) * 100%);
+  transform: translate(-50%, -50%);
+}
+.kr-vs-rail-stop { width: 8px; height: 2px; background: var(--kr-glass-ink-dim); }
+.kr-vs-rail-playing { width: 12px; height: 2px; background: var(--accent); }
+.kr-vs-rail-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--kr-vs-ring);
+  box-shadow: 0 0 0 2px var(--kr-vs-surface);
+}
+
+.kr-vs-legend {
+  position: absolute;
+  left: 0.75rem;
+  bottom: 0.7rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: var(--hub-font-mono);
+  font-size: var(--hub-fs-lab-xs);
+  color: var(--kr-glass-ink-dim);
   pointer-events: none;
 }
-.kr-map-axis-w { left: 8px; top: 50%; transform: translateY(-50%); }
-.kr-map-axis-e { right: 8px; top: 50%; transform: translateY(-50%); }
-.kr-map-axis-n { top: 8px; left: 50%; transform: translateX(-50%); }
-.kr-map-axis-s { bottom: 8px; left: 50%; transform: translateX(-50%); }
+.kr-vs-legend-ramp { width: 4.5rem; height: 6px; border-radius: 3px; }
+
+.kr-vs-chips {
+  position: absolute;
+  left: 0.6rem;
+  top: 0.6rem;
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+.kr-vs-chip {
+  padding: 4px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--kr-glass-fill-deep);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  color: var(--kr-glass-ink);
+  font-family: var(--hub-font-mono);
+  font-size: var(--hub-fs-lab-xs);
+  letter-spacing: 0.05em;
+  cursor: pointer;
+}
+
+.kr-vs-fallback { margin: 0.5rem 0 0.75rem; }
+.kr-vs-region-list { list-style: none; margin: 0.5rem 0 0; padding: 0; display: grid; gap: 0.25rem; }
+.kr-vs-region-list button {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+  text-align: left;
+}
+.kr-vs-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
 
 .kr-map-readout {
   display: flex;
