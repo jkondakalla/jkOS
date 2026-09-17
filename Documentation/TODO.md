@@ -451,14 +451,15 @@ the four points it could enter (builder, quantiser, renderer contrast, the 3-D s
     fixture) scales to 47,000 tracks on a phone CPU.
   - **The path the current shuffle is taking through it** — M5's walk as a ribbon through the
     cloud. Needs M5.
-  - ⚠️ **Found on the way, not fixed: KourOS's DESCRIPTOR-arm fallback centres raw descriptors by a
-    mean fitted in the z-scored space.** `vectors.js` `loadArm` subtracts `calib_mean:descriptors`
-    from the RAW 119-d blobs, but `query.fit_calibration` fitted that mean over
-    `descriptors.load_normalised` (z-scored, then L2). Raw centroid and rolloff values in the
-    thousands of Hz then dominate the L2, so similarity on that arm is mostly spectral centroid.
-    Reached only when an index has descriptors and no neural vectors, which no shipped index does —
-    but it is wrong, silent, and exactly why `mapbasis.ARMS` maps the neural arm alone. The fix is
-    to z-score with `descriptor_mean`/`descriptor_std` before centring, on the KourOS side.
+  - ✅ **Found on the way and FIXED 2026-09-16: KourOS's descriptor-arm fallback read the wrong
+    space.** `vectors.js` `loadArm` L2-normalised the RAW 119-d blobs and centred them by
+    `calib_mean:descriptors`, which `query.fit_calibration` fits in the z-scored space — so on that
+    arm every cosine was, in effect, spectral centroid and rolloff. It now z-scores by
+    `descriptor_mean`/`descriptor_std`, L2s, then centres, and refuses the calibration when the
+    stats are missing. Cross-checked against `query.load_arm` + `Calibration.centre` on the REAL
+    descriptors: 3e-8. `discover.smoke` §2c′ holds it (a mutation removing the z-score fails it).
+    Reached only by an index with descriptors and no neural vectors; `mapbasis.ARMS` still maps
+    the neural arm alone.
 
 ---
 

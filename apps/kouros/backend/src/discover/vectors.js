@@ -387,6 +387,28 @@ function loadMapBasis(db, arm, loaded, calibration) {
   return map;
 }
 
+/* ── the descriptor arm's own normaliser ──────────────────────────────────────
+   ⚠️ **THE DESCRIPTOR ARM IS A Z-SCORED SPACE, AND THE BLOBS ARE RAW.** Its 119
+   columns are physical quantities — a spectral centroid is thousands of Hz, a chroma
+   bin at most 1 — and `music/descriptors.py` defines the similarity space as the
+   corpus z-score, then L2 (`load_normalised`). The calibration for this arm was fitted
+   IN that space. Until 2026-09-16 this file L2-normalised the raw blobs and centred them
+   by that z-space mean, so on this arm every cosine was, in effect, a comparison of
+   spectral centroid and rolloff with 117 dimensions along for the ride. Nothing
+   errored. It is reached only when an index carries descriptors and no neural vectors,
+   which is exactly when nobody is looking. */
+function loadDescriptorStats(db) {
+  try {
+    const get = (key) => db.prepare('SELECT value FROM meta WHERE key = ?').get(key)?.value;
+    const mean = decodeFloat32(get('descriptor_mean'));
+    const std = decodeFloat32(get('descriptor_std'));
+    if (!mean || !std || mean.length !== std.length) return null;
+    return { mean, std };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Read one arm out of the embedder index into memory.
  *
@@ -398,7 +420,7 @@ function loadMapBasis(db, arm, loaded, calibration) {
  * @returns {{ arm: string, dim: number, byPath: Map<string, Float32Array>,
  *             byContentKey: Map<string, Float32Array>, total: number, degenerate: number } | null}
  */
-function loadArm(db, arm, libraryRootName, normalise = true, calibration = null) {
+function loadArm(db, arm, libraryRootName, normalise = true, calibration = null, zscore = null) {
   let rows;
   try {
     rows = db.prepare(`
@@ -419,6 +441,12 @@ function loadArm(db, arm, libraryRootName, normalise = true, calibration = null)
   for (const r of rows) {
     const vec = decodeVector(r.vector, r.dim);
     if (!vec) continue;
+    // The descriptor arm's space is the z-score, then L2 — BEFORE the calibration's
+    // centring, which was fitted in that space (see loadDescriptorStats).
+    if (normalise && zscore && zscore.mean.length === r.dim) {
+      for (let d = 0; d < r.dim; d++) vec[d] = (vec[d] - zscore.mean[d]) / zscore.std[d];
+      if (!l2Normalise(vec)) { degenerate++; continue; }
+    }
     // The similarity arm is L2-normalised so a dot product IS the cosine. The
     // FEATURE arm must not be: its columns are physical quantities (Hz, dB,
     // log2 BPM) and normalising would erase exactly the scale that makes them
@@ -471,8 +499,17 @@ function openVectorSpace({ vectorDbPath, libraryRootName = 'Music' } = {}) {
   }
   try {
     for (const arm of ARMS) {
-      const calibration = loadCalibration(db, arm);
-      const loaded = loadArm(db, arm, libraryRootName, true, calibration);
+      let calibration = loadCalibration(db, arm);
+      let zscore = null;
+      if (arm === 'descriptors') {
+        zscore = loadDescriptorStats(db);
+        if (!zscore && calibration) {
+          console.warn('[kouros vectors] the descriptor arm has a calibration but no corpus z-score ' +
+                       '(descriptor_mean/std) — refusing the calibration rather than centring raw values by a z-space mean');
+          calibration = null;
+        }
+      }
+      const loaded = loadArm(db, arm, libraryRootName, true, calibration, zscore);
       if (loaded) {
         const map = loadMapBasis(db, arm, loaded, calibration);
         console.log(
@@ -529,5 +566,6 @@ module.exports = {
   ARMS, norm, contentKeyFromTags, contentKeyFromEmbedderPath,
   decodeVector, l2Normalise, loadCalibration, openVectorSpace, openFeatureSpace,
   loadMapBasis, projectVector, calibrationHash, MAP_QUANTILES, MAP_GOLDEN_TOLERANCE,
+  loadArm, loadDescriptorStats,
   relKeyFromEmbedderPath, catalogRelKey, lastRootIndex, DISC_DIR,
 };

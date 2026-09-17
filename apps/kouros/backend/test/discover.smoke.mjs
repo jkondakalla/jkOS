@@ -496,6 +496,63 @@ try {
   ok(oldHold?.available === false && !oldHold?.held,
     `held: a hold from an older calibration is not a hold (got ${JSON.stringify(oldHold)})`);
 
+  /* ── 2c′. the DESCRIPTOR arm is read in its own space ─────────────────────────
+     An index with descriptors and no neural vectors: KourOS must z-score the raw blobs
+     by the corpus stats, L2, then centre by the calibration fitted in that space — the
+     Python definition (descriptors.load_normalised → query.Calibration.centre). Until
+     2026-09-16 it skipped the z-score, and a 3,000-Hz centroid column decided every
+     cosine. Computed here independently of vectors.js. */
+  {
+    const Database = require('better-sqlite3');
+    const { openVectorSpace } = require(join(BACKEND, 'src', 'discover', 'vectors.js'));
+    const f32 = (arr) => Buffer.from(new Float32Array(arr).buffer).toString('base64');
+    const build = (withStats) => {
+      const p = join(tmp, `descriptors-${withStats ? 'stats' : 'nostats'}.db`);
+      const db = new Database(p);
+      db.exec(`CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);
+        CREATE TABLE tracks(id INTEGER PRIMARY KEY, path TEXT NOT NULL UNIQUE, mtime REAL, size INTEGER,
+          duration REAL, status TEXT NOT NULL DEFAULT 'ok', error TEXT, updated_at TEXT NOT NULL DEFAULT '');
+        CREATE TABLE descriptors(track_id INTEGER PRIMARY KEY, version INTEGER NOT NULL, dim INTEGER NOT NULL,
+          vector BLOB NOT NULL, config_sig TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT '');`);
+      // Column 0 is a centroid in Hz; column 1 is what actually tells the tracks apart.
+      const raw = [[3000, 0.9, 1], [3100, 0.85, 1.1], [2900, 0.1, 0.9]];
+      const mean = [0, 1, 2].map((d) => raw.reduce((a, r) => a + r[d], 0) / raw.length);
+      const std = [0, 1, 2].map((d) => Math.sqrt(raw.reduce((a, r) => a + (r[d] - mean[d]) ** 2, 0) / raw.length));
+      const zl2 = raw.map((r) => { const z = r.map((v, d) => (v - mean[d]) / std[d]); const n = Math.hypot(...z); return z.map((v) => v / n); });
+      const cmean = [0, 1, 2].map((d) => zl2.reduce((a, r) => a + r[d], 0) / zl2.length);
+      raw.forEach((r, i) => {
+        db.prepare('INSERT INTO tracks(id, path) VALUES(?, ?)').run(i + 1, `${EMBEDDER_ROOT}/${TRACKS[i]}`);
+        db.prepare('INSERT INTO descriptors(track_id, version, dim, vector, config_sig) VALUES(?,?,?,?,?)')
+          .run(i + 1, 1, 3, Buffer.from(new Float32Array(r).buffer), 'dsig');
+      });
+      const set = db.prepare('INSERT INTO meta(key, value) VALUES(?, ?)');
+      if (withStats) { set.run('descriptor_mean', f32(mean)); set.run('descriptor_std', f32(std)); }
+      set.run('calib_mean:descriptors', f32(cmean));
+      set.run('calib_stranger_mean:descriptors', '0');
+      set.run('calib_stranger_spread:descriptors', '0.5');
+      set.run('config_sig:descriptors', 'dsig');
+      db.close();
+      const expected = zl2.map((r) => { const c = r.map((v, d) => v - cmean[d]); const n = Math.hypot(...c); return c.map((v) => v / n); });
+      return { p, expected };
+    };
+    const good = build(true);
+    const space = openVectorSpace({ vectorDbPath: good.p, libraryRootName: 'Music' });
+    let worst = 0;
+    good.expected.forEach((e, i) => {
+      const got = space.byPath.get(`${EMBEDDER_ROOT}/${TRACKS[i]}`);
+      e.forEach((v, d) => { worst = Math.max(worst, Math.abs((got ? got[d] : NaN) - v)); });
+    });
+    ok(space.arm === 'descriptors' && worst < 1e-5,
+      `descriptor arm: z-scored, L2'd, then centred — as Python defines it (worst ${worst})`);
+    const dot = (a, b) => a.reduce((s, v, d) => s + v * b[d], 0);
+    const [v1, v2, v3] = TRACKS.map((t) => space.byPath.get(`${EMBEDDER_ROOT}/${t}`));
+    ok(dot(v1, v2) > dot(v1, v3),
+      'descriptor arm: the tracks that differ in the informative column are apart, not twinned by their centroids');
+    const bare = openVectorSpace({ vectorDbPath: build(false).p, libraryRootName: 'Music' });
+    ok(bare.arm === 'descriptors' && bare.calibration === null,
+      'descriptor arm: with no corpus z-score, the calibration is refused rather than applied to raw values');
+  }
+
   /* ── 2d. G6 — the payload at library size ──────────────────────────────────────
      The real encoder (map.js `vibeMap`), driven over a synthetic space the size of the
      library: 47,693 clustered tracks, 5% inferred, readable features. The JSON body,
