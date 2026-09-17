@@ -87,7 +87,10 @@ void main() {
                                     sin(p.x * 3.3 + u_time * 0.19));
     }
     vec2 s = mix(texture(u_lo, uvw).rg, texture(u_hi, uvw).rg, u_mix);
-    float a = 1.0 - exp(-u_opacity * s.r * dt / voxel);
+    // Opacity follows density SQUARED: the haze between clusters thins and the cores
+    // keep their weight, so a library that fills the cube still shows its structure
+    // instead of a silhouette. (Linear, a 47,000-track cloud was an opaque slab.)
+    float a = 1.0 - exp(-u_opacity * s.r * s.r * dt / voxel);
     vec3 ink = texture(u_ramp, vec2(s.g, 0.5)).rgb;
     acc += (1.0 - alpha) * a * ink;
     alpha += (1.0 - alpha) * a;
@@ -114,6 +117,7 @@ uniform mat4 u_viewProj;
 uniform float u_w0;
 uniform float u_dpr;
 uniform float u_height;               // drawing-buffer px
+uniform float u_gain;                 // glint gain for this library's size
 out float v_alpha;
 out float v_tone;
 out float v_ring;
@@ -135,8 +139,8 @@ void main() {
   }
   if (glint < 0.02 || clip.w <= 0.0) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); gl_PointSize = 0.0; v_alpha = 0.0; return; }
   float perspective = clamp(4.0 / clip.w, 0.5, 2.5);
-  gl_PointSize = mix(1.5, 6.0, glint) * u_dpr * perspective;
-  v_alpha = glint * (inferred > 0.5 ? 0.45 : 1.0);
+  gl_PointSize = mix(1.2, 5.0, glint) * mix(0.7, 1.0, u_gain) * u_dpr * perspective;
+  v_alpha = glint * u_gain * (inferred > 0.5 ? 0.45 : 1.0);
   gl_Position = clip;
 }
 `;
@@ -163,6 +167,17 @@ void main() {
   color = vec4(ink * a, a);            // premultiplied
 }
 `;
+
+/** Volume opacity per voxel of path, applied to density squared (see the shader). */
+export const VOLUME_OPACITY = 1.1;
+
+/** How bright one glint is, given how many tracks share a slice. About an eighth of a
+ *  library glints at any swipe position; ~600 at full brightness reads as stars, and
+ *  thousands at full brightness ADD to white on the tube and erase the colour. So the
+ *  gain falls with the square root of the crowd, floored so a glint never vanishes. */
+export function glintGain(n: number): number {
+  return Math.min(1, Math.max(0.16, Math.sqrt(600 / Math.max(1, n * 0.12))));
+}
 
 export interface VibeFrame {
   viewProj: Float32Array;
@@ -195,6 +210,7 @@ export class VibeRenderer {
   private uv: Record<string, WebGLUniformLocation | null>;
   private uc: Record<string, WebGLUniformLocation | null>;
   private up: Record<string, WebGLUniformLocation | null>;
+  private gain = 1;
   private empty: WebGLVertexArrayObject | null;
   private pointVao: WebGLVertexArrayObject | null;
   private pointBuf: WebGLBuffer | null;
@@ -217,7 +233,7 @@ export class VibeRenderer {
     this.points = compileProgram(gl, POINT_VERTEX, POINT_FRAGMENT);
     this.uv = uniforms(gl, this.volume, ['u_lo', 'u_hi', 'u_ramp', 'u_mix', 'u_inverse', 'u_time', 'u_warp', 'u_opacity', 'u_steps'] as const);
     this.uc = uniforms(gl, this.composite, ['u_volume', 'u_cloud'] as const);
-    this.up = uniforms(gl, this.points, ['u_viewProj', 'u_w0', 'u_dpr', 'u_height', 'u_ramp', 'u_ringInk'] as const);
+    this.up = uniforms(gl, this.points, ['u_viewProj', 'u_w0', 'u_dpr', 'u_height', 'u_ramp', 'u_ringInk', 'u_gain'] as const);
     this.empty = gl.createVertexArray();
 
     const vertexArray = (buf: WebGLBuffer | null) => {
@@ -267,6 +283,7 @@ export class VibeRenderer {
     gl.bindBuffer(gl.ARRAY_BUFFER, this.pointBuf);
     gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
     this.count = map.n;
+    this.gain = glintGain(map.n);
   }
 
   setRamp(rgb: Uint8Array): void {
@@ -353,7 +370,7 @@ export class VibeRenderer {
       gl.uniformMatrix4fv(this.uv.u_inverse, false, f.inverse);
       gl.uniform1f(this.uv.u_time, f.time);
       gl.uniform1f(this.uv.u_warp, f.warp);
-      gl.uniform1f(this.uv.u_opacity, 0.9);
+      gl.uniform1f(this.uv.u_opacity, VOLUME_OPACITY);
       gl.uniform1i(this.uv.u_steps, 64);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);
@@ -384,6 +401,7 @@ export class VibeRenderer {
     gl.uniform1f(this.up.u_dpr, f.dpr);
     gl.uniform1f(this.up.u_height, f.height);
     gl.uniform3fv(this.up.u_ringInk, f.ringInk);
+    gl.uniform1f(this.up.u_gain, this.gain);
     // Light added to paper is invisible, so glints ADD on the tube and sit OVER on paper.
     if (f.face === 'dark') gl.blendFunc(gl.ONE, gl.ONE);
     if (this.count) {
