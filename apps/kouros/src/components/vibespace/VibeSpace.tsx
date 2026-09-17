@@ -56,6 +56,11 @@ export interface VibeSpaceProps {
 
 const LABEL_POOL = 8;
 const IDLE_FPS_MS = 1000 / 30;
+/** A tap that hits no glint picks the densest voxel along its ray — but only a voxel at
+ *  least this opaque (of 255). Below it the tap was on empty space: nothing is pinned,
+ *  and a double-tap there flies OUT. Without the floor every ray through the faintest
+ *  haze pinned something and "double-tap empty space" could never happen. */
+const PICK_ALPHA_FLOOR = 18;
 
 interface Palette { surface: RGB; ringInk: RGB; face: 'dark' | 'paper'; ramp: Uint8Array }
 
@@ -329,6 +334,18 @@ export default function VibeSpace({
 
   useEffect(() => { kick(); }, [pin, nowPlayingId, regions, kick]);
 
+  // The view seeds a pin before anyone has touched the cloud; open the swipe at that
+  // pin's energy, so the first readout and the first picture describe the same place.
+  // Once a person has moved the rail, a pin never moves it.
+  const touched = useRef(false);
+  useEffect(() => {
+    if (touched.current || !pin) return;
+    touched.current = true;
+    st.current.w = { x: pin.w, v: 0 };
+    st.current.wGoal = pin.w;
+    kick();
+  }, [pin, kick]);
+
   // ── picking ─────────────────────────────────────────────────────────────────
   const pickAt = useCallback((x: number, y: number): VibePoint | null => {
     const canvas = canvasRef.current;
@@ -354,7 +371,8 @@ export default function VibeSpace({
     const { lo, hi, f } = sliceMix(s.w.x, field.slices);
     const p = pickDensest(origin, dir, (q) => {
       const v = voxelOf(q, field.grid) * 2;
-      return field.textures[lo][v] * (1 - f) + field.textures[hi][v] * f;
+      const a = field.textures[lo][v] * (1 - f) + field.textures[hi][v] * f;
+      return a >= PICK_ALPHA_FLOOR ? a : 0;
     });
     return p && field ? { x: p[0], y: p[1], z: p[2], w: s.w.x } : null;
   }, []);
@@ -369,6 +387,7 @@ export default function VibeSpace({
   // ── gestures ────────────────────────────────────────────────────────────────
   const drag = usePointerDrag();
   const onPointerDown = (e: ReactPointerEvent<HTMLCanvasElement>) => {
+    touched.current = true;
     const s = st.current;
     const rect = e.currentTarget.getBoundingClientRect();
     const height = rect.height;
@@ -425,6 +444,7 @@ export default function VibeSpace({
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    touched.current = true;
     const s = st.current;
     const L = live.current;
     switch (e.key) {
