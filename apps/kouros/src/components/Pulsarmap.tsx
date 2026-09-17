@@ -247,7 +247,10 @@ export default function Pulsarmap({
       if (frameRef.current != null) cancelAnimationFrame(frameRef.current);
       frameRef.current = null;
     };
-  }, [ready, position, trackId]);
+    // ⚠️ `use3d` too: when the 3-D stage gives up, the 2-D canvas mounts with the same
+    // mesh, position and track — and on a paused track nothing else would ever
+    // re-run this draw, leaving the fallback blank.
+  }, [ready, position, trackId, use3d]);
 
   if (trackId == null) return null;
 

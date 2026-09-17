@@ -538,8 +538,38 @@ def _construct(kind, cov, u):
     return construct_primary(cov, u) if kind == 'primary' else construct_fallback(cov, u)
 
 
+def described_floor(subsample=True):
+    """How many described tracks a fit needs. With G4 it is the probe's floor over the
+    90% refit's share, so the refit can ALWAYS fit its own probe — see `g4_rows`."""
+    return int(np.ceil(MIN_PROBE_ROWS / G4_SUBSAMPLE)) if subsample else MIN_PROBE_ROWS
+
+
+def g4_rows(fs, seed=SEED):
+    """The 90% refit's rows, STRATIFIED: 90% of the described tracks and 90% of the rest.
+
+    ⚠️ A plain 90% of all rows can leave the refit with fewer described tracks than its
+    probe needs even when the full fit had enough — 64 to 71 described tracks raised
+    inside G4, and the arm was HELD as a missing prerequisite over a gate that never ran.
+    Stratified, the refit holds round(0.9 × described) of them, which `described_floor`
+    guarantees is enough."""
+    rng = np.random.RandomState(seed + 2)
+    described = np.isfinite(fs.features[ANCHOR])
+    rows = []
+    for group in (np.flatnonzero(described), np.flatnonzero(~described)):
+        if group.size:
+            rows.append(rng.choice(group, size=int(round(group.size * G4_SUBSAMPLE)), replace=False))
+    return np.sort(np.concatenate(rows)) if rows else np.array([], int)
+
+
 def build(fs, kind='primary', seed=SEED, truth=None, queries=None, subsample=True):
     """Fit one construction and measure G1–G4 on it. Returns (Basis, gate dict, truth)."""
+    have = int(np.isfinite(fs.features[ANCHOR]).sum())
+    if have < described_floor(subsample):
+        raise MapError(
+            f'{have} of {len(fs)} tracks have a descriptor, and the energy probe needs '
+            f'{described_floor(subsample)} (its floor of {MIN_PROBE_ROWS}, kept through the 90% '
+            f'stability refit). Build them first: `python analyze.py --stages baseline` '
+            f'(or `python descriptors.py --build --encoded`).')
     mu = np.asarray(fs.X, dtype=np.float64).mean(axis=0)
     cov = covariance(fs.X, mu)
     pr = probe(fs, mu, seed)
@@ -579,9 +609,8 @@ def build(fs, kind='primary', seed=SEED, truth=None, queries=None, subsample=Tru
 
     g4 = None
     if subsample:
-        rows = np.sort(np.random.RandomState(seed + 2).choice(
-            n, size=int(round(n * G4_SUBSAMPLE)), replace=False))
-        sub, _g, _t = build(fs.subset(rows), kind, seed, subsample=False, queries=np.array([], int))
+        sub, _g, _t = build(fs.subset(g4_rows(fs, seed)), kind, seed, subsample=False,
+                            queries=np.array([], int))
         cos = [float(np.dot(sub.basis[i].astype(np.float64), B[i])) for i in range(4)]
         g4 = cos
 

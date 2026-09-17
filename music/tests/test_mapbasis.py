@@ -310,6 +310,32 @@ class HoldTest(MapTestCase):
         self.assertEqual((result['mode'], result['kind']), ('held', 'prerequisite'))
         self.assertIn('analyze.py --stages baseline', result['reason'])
 
+    def test_the_stability_refit_can_always_fit_its_own_probe(self):
+        # 320 tracks; 72 described (every 4th of the first 288) — the floor exactly. A plain
+        # 90% sample of all rows could leave the refit under 64 and hold the arm.
+        shelf = self.shelf()
+        described = {path for i, (path, _v, _d) in enumerate(shelf.rows) if i % 4 == 0 and i < 288}
+        self.conn.execute('DELETE FROM descriptors WHERE track_id IN (SELECT id FROM tracks WHERE path NOT IN (%s))'
+                          % ','.join('?' * len(described)), sorted(described))
+        self.conn.commit()
+        fs = mapbasis.load_fit_set(self.conn)
+        self.assertEqual(int(np.isfinite(fs.features['energy']).sum()), 72)
+        rows = mapbasis.g4_rows(fs)
+        self.assertGreaterEqual(int(np.isfinite(fs.features['energy'][rows]).sum()), mapbasis.MIN_PROBE_ROWS)
+        result = mapbasis.fit(self.conn, stream=self.out)
+        self.assertNotEqual(result.get('kind'), 'prerequisite', self.out.getvalue())
+        self.assertIsNotNone(result['gate'][0]['G4'])
+
+    def test_one_below_the_floor_is_a_prerequisite_hold_that_names_the_floor(self):
+        shelf = self.shelf()
+        keep = [path for i, (path, _v, _d) in enumerate(shelf.rows) if i % 4 == 0 and i < 284]
+        self.conn.execute('DELETE FROM descriptors WHERE track_id IN (SELECT id FROM tracks WHERE path NOT IN (%s))'
+                          % ','.join('?' * len(keep)), keep)
+        self.conn.commit()
+        result = mapbasis.fit(self.conn, stream=self.out)
+        self.assertEqual((result['mode'], result['kind']), ('held', 'prerequisite'))
+        self.assertIn('needs 72', result['reason'])
+
     def test_a_prerequisite_hold_lapses_when_descriptors_arrive(self):
         shelf, _ = self.fitted(descriptor_every=16)
         self.assertIsNotNone(mapbasis.held(self.conn, 'local_vectors'))
