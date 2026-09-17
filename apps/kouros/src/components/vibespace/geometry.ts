@@ -38,13 +38,17 @@ import {
 } from '../webgl/motion';
 
 /* ── the wire payload ────────────────────────────────────────────────────────── */
+/** The wire's packing — backend/src/discover/map.js `vibeMap` is the one encoder. */
 export interface PackedMap {
   n: number;
+  /** Int32LE deltas from the previous id (the first is absolute). */
   ids: string;
+  /** Uint32LE: x 11 bits << 21 | y 11 bits << 10 | z 10 bits. */
   xyz: string;
+  /** Uint16LE: energy percentile × 4095. */
   w: string;
-  tone: string;
-  flags: string;
+  /** Uint8: tone × 63 << 2 | flags. */
+  tf: string;
 }
 
 export interface DecodedMap {
@@ -78,23 +82,28 @@ export function decodeMap(p: PackedMap): DecodedMap {
   const ids = bytesOf(p.ids);
   const xyz = bytesOf(p.xyz);
   const w = bytesOf(p.w);
-  const tone = bytesOf(p.tone);
-  const flags = bytesOf(p.flags);
-  if (ids.byteLength !== n * 4 || xyz.byteLength !== n * 6 || w.byteLength !== n * 2
-      || tone.byteLength !== n || flags.byteLength !== n) {
+  const tf = bytesOf(p.tf);
+  if (ids.byteLength !== n * 4 || xyz.byteLength !== n * 4 || w.byteLength !== n * 2 || tf.byteLength !== n) {
     throw new Error(`vibespace: packed columns do not match n=${n} ` +
-      `(ids ${ids.byteLength}, xyz ${xyz.byteLength}, w ${w.byteLength}, tone ${tone.byteLength}, flags ${flags.byteLength})`);
+      `(ids ${ids.byteLength}, xyz ${xyz.byteLength}, w ${w.byteLength}, tf ${tf.byteLength})`);
   }
   const out: DecodedMap = {
     n, ids: new Int32Array(n), xyz: new Float32Array(n * 3), w: new Float32Array(n),
     tone: new Float32Array(n), flags: new Uint8Array(n),
   };
+  const unq = (v: number, bits: number) => (v / ((1 << bits) - 1)) * 2 - 1;
+  let id = 0;
   for (let i = 0; i < n; i++) {
-    out.ids[i] = ids.getInt32(i * 4, true);
-    for (let k = 0; k < 3; k++) out.xyz[i * 3 + k] = xyz.getInt16(i * 6 + k * 2, true) / 32767;
-    out.w[i] = w.getUint16(i * 2, true) / 65535;
-    out.tone[i] = tone.getUint8(i) / 255;
-    out.flags[i] = flags.getUint8(i);
+    id += ids.getInt32(i * 4, true);
+    out.ids[i] = id;
+    const word = xyz.getUint32(i * 4, true);
+    out.xyz[i * 3] = unq(Math.floor(word / 2 ** 21) & 0x7ff, 11);
+    out.xyz[i * 3 + 1] = unq((word >>> 10) & 0x7ff, 11);
+    out.xyz[i * 3 + 2] = unq(word & 0x3ff, 10);
+    out.w[i] = w.getUint16(i * 2, true) / 4095;
+    const t = tf.getUint8(i);
+    out.tone[i] = (t >> 2) / 63;
+    out.flags[i] = t & 3;
   }
   return out;
 }

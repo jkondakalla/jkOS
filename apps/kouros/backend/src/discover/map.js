@@ -26,10 +26,13 @@
 //    an album of twelve stacked on one point would out-vote a real cluster.
 //
 // 4. THE WIRE IS PACKED, NOT A LIST OF OBJECTS. 47,000 tracks as `{id,x,y,z,w}`
-//    JSON is ~2.5 MB; as little-endian typed arrays in base64 it is ~0.6 MB and
-//    compresses well because the ids are sorted. Base64 inside an ordinary JSON
-//    body keeps it inside every contract the suite enforces — the pulsarmap mesh
-//    precedent.
+//    JSON is ~2.5 MB. Packed as little-endian columns in base64 — inside an ordinary
+//    JSON body, so inside every contract the suite enforces (the pulsarmap mesh
+//    precedent) — and quantised to what a phone can show: ids as deltas (sorted, so
+//    nearly all 1), xyz as 11/11/10 bits in one Uint32 (~0.75 px even flown in), w as
+//    12 bits, tone and flags sharing a byte. Measured at 47,693 tracks: 329 KB
+//    gzipped against the 400 KB gate (G6). The first packing — Int16 xyz, Uint16 w,
+//    separate tone and flags — was 529 KB.
 const { NFEAT, FEATURE_NAMES, ORIGIN } = require('./space');
 const { present, round, diversify } = require('./queries');
 const { projectVector } = require('./vectors');
@@ -54,6 +57,11 @@ const ANCHOR_POLES = { energy: ['calm', 'intense'] };
 const MIN_MEASURED = 3;
 const INFERRED = 1;          // flags bit 0
 const NO_TONE = 2;           // flags bit 1 — no readable brightness for this row
+const W_STEPS = 4095;        // w: 12 bits
+const TONE_STEPS = 63;       // tone: 6 bits, above the two flag bits
+
+/** A display coordinate in [−1, 1] → an unsigned integer of `bits`. */
+const quant = (v, bits) => Math.round(((Math.max(-1, Math.min(1, v)) + 1) / 2) * ((1 << bits) - 1));
 
 /* ── the energy percentile, through the fit's quantile table ──────────────────
    The rail is shown as a PERCENTILE so every stretch of the swipe passes through
@@ -243,11 +251,13 @@ function b64(buffer) { return buffer.toString('base64'); }
 /**
  * The whole vibe space payload. `projection` is `buildProjection(space)`.
  *
- *   packed.ids    Int32LE × n       sorted ascending
- *   packed.xyz    Int16LE × 3n      display units × 32767, the unit cube
- *   packed.w      Uint16LE × n      energy percentile × 65535
- *   packed.tone   Uint8 × n         brightness percentile × 255
- *   packed.flags  Uint8 × n         bit 0 inferred · bit 1 no tone
+ *   packed.ids   Int32LE × n    DELTAS from the previous id (the first is absolute);
+ *                               ids are sorted ascending, so nearly every delta is 1
+ *   packed.xyz   Uint32LE × n   x (11 bits) << 21 | y (11 bits) << 10 | z (10 bits),
+ *                               each (v + 1) / 2 × (2^bits − 1) over the unit cube
+ *   packed.w     Uint16LE × n   energy percentile × 4095
+ *   packed.tf    Uint8 × n      tone (brightness percentile × 63) << 2 | flags
+ *                               (bit 0 inferred · bit 1 no tone)
  */
 function vibeMap(space, projection, { regions = 24 } = {}) {
   const coverage = space.stats;
@@ -299,24 +309,27 @@ function vibeMap(space, projection, { regions = 24 } = {}) {
   }
 
   const ids = Buffer.alloc(n * 4);
-  const xyzBuf = Buffer.alloc(n * 6);
+  const xyzBuf = Buffer.alloc(n * 4);
   const wBuf = Buffer.alloc(n * 2);
-  const tone = Buffer.alloc(n);
-  const flags = Buffer.alloc(n);
+  const tf = Buffer.alloc(n);
   const brightness = FEATURE_NAMES.indexOf('brightness');
+  let prevId = 0;
   for (let r = 0; r < n; r++) {
     const i = rowsIdx[r];
-    ids.writeInt32LE(space.ids[i], r * 4);
-    for (let d = 0; d < 3; d++) xyzBuf.writeInt16LE(Math.round(xyz[r * 3 + d] * 32767), r * 6 + d * 2);
-    wBuf.writeUInt16LE(Math.round(wp[r] * 65535), r * 2);
+    ids.writeInt32LE(space.ids[i] - prevId, r * 4);
+    prevId = space.ids[i];
+    const word = (quant(xyz[r * 3], 11) * 2 ** 21) + (quant(xyz[r * 3 + 1], 11) << 10) + quant(xyz[r * 3 + 2], 10);
+    xyzBuf.writeUInt32LE(word, r * 4);
+    wBuf.writeUInt16LE(Math.round(wp[r] * W_STEPS), r * 2);
     let f = inferred[r] ? INFERRED : 0;
+    let tone;
     if (space.features && brightness >= 0) {
-      tone[r] = Math.round(Math.max(0, Math.min(1, space.features[i * NFEAT + brightness])) * 255);
+      tone = Math.round(Math.max(0, Math.min(1, space.features[i * NFEAT + brightness])) * TONE_STEPS);
     } else {
-      tone[r] = 128;
+      tone = Math.round(TONE_STEPS / 2);
       f |= NO_TONE;
     }
-    flags[r] = f;
+    tf[r] = (tone << 2) | f;
   }
 
   const stats = map.stats || {};
@@ -334,7 +347,7 @@ function vibeMap(space, projection, { regions = 24 } = {}) {
     regions: regionsOut,
     basis: { mode: stats.mode || null, nFit: stats.n_fit || null, calib: map.calib,
              fittedAt: stats.fitted_at || null },
-    packed: { n, ids: b64(ids), xyz: b64(xyzBuf), w: b64(wBuf), tone: b64(tone), flags: b64(flags) },
+    packed: { n, ids: b64(ids), xyz: b64(xyzBuf), w: b64(wBuf), tf: b64(tf) },
   };
 }
 

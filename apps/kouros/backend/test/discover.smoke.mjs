@@ -413,12 +413,21 @@ try {
   ok(JSON.stringify(vmap?.stops) === JSON.stringify([0.1, 0.3, 0.5, 0.7, 0.9]),
     'vibe space: the snap stops are the equal-population percentiles');
   ok(vmap?.packed?.n === TRACKS.length, `vibe space: packs every covered track (got ${vmap?.packed?.n})`);
+  // Decoded here by hand from the documented layout (map.js `vibeMap`), not through the
+  // client's decoder — the smoke must not pass by sharing a bug with it.
   const unpack = (b64) => Buffer.from(String(b64 || ''), 'base64');
   const pIds = unpack(vmap?.packed?.ids);
   const pXyz = unpack(vmap?.packed?.xyz);
   const pW = unpack(vmap?.packed?.w);
-  const pFlags = unpack(vmap?.packed?.flags);
-  const packedIds = Array.from({ length: pIds.length / 4 }, (_, r) => pIds.readInt32LE(r * 4));
+  const pTf = unpack(vmap?.packed?.tf);
+  let runningId = 0;
+  const packedIds = Array.from({ length: pIds.length / 4 }, (_, r) => (runningId += pIds.readInt32LE(r * 4)));
+  const axis = (r, k) => {
+    const word = pXyz.readUInt32LE(r * 4);
+    const [bits, v] = k === 0 ? [11, Math.floor(word / 2 ** 21) & 0x7ff] : k === 1 ? [11, (word >>> 10) & 0x7ff] : [10, word & 0x3ff];
+    return (v / (2 ** bits - 1)) * 2 - 1;
+  };
+  const wOf = (r) => pW.readUInt16LE(r * 2) / 4095;
   ok(packedIds.length === TRACKS.length && packedIds.every((id, r) => r === 0 || id > packedIds[r - 1]),
     `vibe space: ids are sorted ascending (got ${JSON.stringify(packedIds)})`);
   // Expected display coordinates, from the fixture's own fit.
@@ -440,13 +449,14 @@ try {
     if (r < 0 || !c) { worst = Infinity; continue; }
     for (let k = 0; k < 3; k++) {
       const want = Math.max(-1, Math.min(1, c[k] / goodFit.fit.radius));
-      worst = Math.max(worst, Math.abs(pXyz.readInt16LE(r * 6 + k * 2) / 32767 - want));
+      worst = Math.max(worst, Math.abs(axis(r, k) - want));
     }
-    worst = Math.max(worst, Math.abs(pW.readUInt16LE(r * 2) / 65535 - pctOf(c[3])));
+    worst = Math.max(worst, Math.abs(wOf(r) - pctOf(c[3])));
   }
-  ok(worst <= 2 / 32767,
+  // One quantisation step of the coarsest field: z's 10 bits span 2 units in 1023.
+  ok(worst <= 1 / 1023 + 1e-6,
     `vibe space: every packed coordinate decodes to the independently computed projection (worst ${worst})`);
-  ok([...pFlags].every((f) => (f & 1) === 0), 'vibe space: every row is flagged measured, none inferred');
+  ok([...pTf].every((t) => (t & 1) === 0), 'vibe space: every row is flagged measured, none inferred');
   ok(Array.isArray(vmap?.regions) && vmap.regions.length > 0 &&
      vmap.regions.every((g) => [g.x, g.y, g.z].every((v) => v >= -1 && v <= 1) && g.w >= 0 && g.w <= 1),
     `vibe space: regions sit inside the cube and on the rail (got ${JSON.stringify(vmap?.regions)})`);
@@ -454,8 +464,7 @@ try {
   // Near: the point where "song one" sits must answer "song one" first.
   const one = tracks.find((t) => /song one/i.test(t.title || ''));
   const r1 = packedIds.indexOf(one.id);
-  const q = `x=${pXyz.readInt16LE(r1 * 6) / 32767}&y=${pXyz.readInt16LE(r1 * 6 + 2) / 32767}` +
-            `&z=${pXyz.readInt16LE(r1 * 6 + 4) / 32767}&w=${pW.readUInt16LE(r1 * 2) / 65535}`;
+  const q = `x=${axis(r1, 0)}&y=${axis(r1, 1)}&z=${axis(r1, 2)}&w=${wOf(r1)}`;
   const nearRes = (await req(good.base, 'GET', `/api/discover/near?${q}&k=3`)).json;
   ok(nearRes?.results?.[0]?.id === one.id && nearRes.results[0].distance < 0.01,
     `near: the point a track sits at answers that track first (got ${JSON.stringify(nearRes?.results?.[0])})`);
@@ -486,6 +495,54 @@ try {
   const oldHold = mapOf('held-old', { mapped: false });
   ok(oldHold?.available === false && !oldHold?.held,
     `held: a hold from an older calibration is not a hold (got ${JSON.stringify(oldHold)})`);
+
+  /* ── 2d. G6 — the payload at library size ──────────────────────────────────────
+     The real encoder (map.js `vibeMap`), driven over a synthetic space the size of the
+     library: 47,693 clustered tracks, 5% inferred, readable features. The JSON body,
+     gzipped as the edge serves it (infra/nginx gzip_types application/json), must stay
+     ≤ 400 KB. The first packing measured 529 KB; nothing else would have said so until a
+     phone on a slow network sat waiting for a map. */
+  {
+    const zlib = require('zlib');
+    const mapmod = require(join(BACKEND, 'src', 'discover', 'map.js'));
+    const { NFEAT, ORIGIN } = require(join(BACKEND, 'src', 'discover', 'space.js'));
+    const N = 47693;
+    let sd = 11;
+    const rnd = () => { sd |= 0; sd = (sd + 0x6D2B79F5) | 0; let t = Math.imul(sd ^ (sd >>> 15), 1 | sd);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    const gauss = () => Math.sqrt(-2 * Math.log(Math.max(1e-9, rnd()))) * Math.cos(2 * Math.PI * rnd());
+    const centres = Array.from({ length: 40 }, () => [gauss() * 0.5, gauss() * 0.5, gauss() * 0.5]);
+    const ids = new Int32Array(N), origin = new Uint8Array(N), features = new Float32Array(N * NFEAT);
+    const rowsIdx = new Int32Array(N), raw = new Float64Array(N * 4), xyz = new Float32Array(N * 3);
+    const wp = new Float32Array(N), inferred = new Uint8Array(N);
+    const genres = [], artist = [];
+    let id = 0, measured = 0;
+    for (let i = 0; i < N; i++) {
+      id += 1 + (rnd() < 0.08 ? Math.floor(rnd() * 4) : 0);
+      ids[i] = id; rowsIdx[i] = i;
+      inferred[i] = rnd() < 0.05 ? 1 : 0;
+      origin[i] = inferred[i] ? ORIGIN.ALBUM : ORIGIN.REL;
+      if (!inferred[i]) measured++;
+      const c = centres[i % centres.length];
+      for (let k = 0; k < 3; k++) {
+        raw[i * 4 + k] = c[k] + gauss() * 0.2;
+        xyz[i * 3 + k] = Math.max(-1, Math.min(1, raw[i * 4 + k]));
+      }
+      wp[i] = rnd(); raw[i * 4 + 3] = wp[i];
+      for (let f = 0; f < NFEAT; f++) features[i * NFEAT + f] = rnd();
+      genres.push([['Rock', 'Jazz', 'Ambient', 'Punk'][i % 4]]);
+      artist.push(`Artist ${i % 900}`);
+    }
+    const wq = new Float32Array(1001).map((_, j) => j / 1000);
+    const fakeSpace = { n: N, ids, origin, features, stats: { tracks: N }, meta: { genres, artist } };
+    const projection = { available: true, rowsIdx, raw, xyz, wp, inferred, measured,
+      map: { radius: 1, wq, anchor: 'energy', calib: 'x', stats: { mode: 'primary', spearman_heldout: 0.7, axes: [null, null, null] } } };
+    const payload = mapmod.vibeMap(fakeSpace, projection);
+    const body = JSON.stringify(payload);
+    const gz = zlib.gzipSync(body, { level: 6 }).length;
+    ok(payload.available && payload.packed.n === N && gz <= 400 * 1024,
+      `G6: /discover/map at ${N.toLocaleString()} tracks is ${(gz / 1024).toFixed(0)} KB gzipped (≤ 400 KB; ${(body.length / 1024).toFixed(0)} KB raw)`);
+  }
 
   /* ── 3. the salvage tier, on its own ───────────────────────────────────────────
      Break the root-relative tier by pointing LIBRARY_ROOT_NAME at a segment that

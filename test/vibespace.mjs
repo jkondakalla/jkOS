@@ -64,17 +64,18 @@ function mulberry32(seed) {
    cannot be made to pass by sharing a bug with an encoder it imports. */
 function pack(rows) {
   const n = rows.length;
-  const ids = Buffer.alloc(n * 4), xyz = Buffer.alloc(n * 6), w = Buffer.alloc(n * 2);
-  const tone = Buffer.alloc(n), flags = Buffer.alloc(n);
+  const ids = Buffer.alloc(n * 4), xyz = Buffer.alloc(n * 4), w = Buffer.alloc(n * 2), tf = Buffer.alloc(n);
+  const q = (v, bits) => Math.round(((v + 1) / 2) * (2 ** bits - 1));
+  let prev = 0;
   rows.forEach((r, i) => {
-    ids.writeInt32LE(r.id, i * 4);
-    r.xyz.forEach((v, k) => xyz.writeInt16LE(Math.round(v * 32767), i * 6 + k * 2));
-    w.writeUInt16LE(Math.round(r.w * 65535), i * 2);
-    tone[i] = Math.round(r.tone * 255);
-    flags[i] = r.flags || 0;
+    ids.writeInt32LE(r.id - prev, i * 4);
+    prev = r.id;
+    xyz.writeUInt32LE(q(r.xyz[0], 11) * 2 ** 21 + q(r.xyz[1], 11) * 2 ** 10 + q(r.xyz[2], 10), i * 4);
+    w.writeUInt16LE(Math.round(r.w * 4095), i * 2);
+    tf[i] = (Math.round(r.tone * 63) << 2) | (r.flags || 0);
   });
   const b = (x) => x.toString('base64');
-  return { n, ids: b(ids), xyz: b(xyz), w: b(w), tone: b(tone), flags: b(flags) };
+  return { n, ids: b(ids), xyz: b(xyz), w: b(w), tf: b(tf) };
 }
 
 /* ── decodeMap ────────────────────────────────────────────────────────────── */
@@ -85,10 +86,13 @@ function pack(rows) {
     { id: 40000, xyz: [0, 0, 0], w: 0.5, tone: 0.5, flags: 2 },
   ];
   const d = g.decodeMap(pack(rows));
-  check(d.n === 3 && d.ids[2] === 40000, 'decodeMap: ids are little-endian Int32');
-  check(Math.abs(d.xyz[0] + 1) < 1e-4 && Math.abs(d.xyz[1] - 0.5) < 1e-4 && Math.abs(d.xyz[5] + 0.125) < 1e-4,
-    'decodeMap: xyz are little-endian Int16 over 32767, in order');
-  check(d.w[0] === 0 && d.w[1] === 1 && Math.abs(d.w[2] - 0.5) < 1e-4, 'decodeMap: w is a Uint16 percentile');
+  check(d.n === 3 && d.ids[0] === 3 && d.ids[1] === 17 && d.ids[2] === 40000,
+    'decodeMap: ids are rebuilt from little-endian deltas, in order');
+  check(Math.abs(d.xyz[0] + 1) < 1e-9 && Math.abs(d.xyz[1] - 0.5) < 1 / 2047 && Math.abs(d.xyz[5] + 0.125) < 1 / 1023
+        && Math.abs(d.xyz[3] - 1) < 1e-9,
+    'decodeMap: xyz are 11/11/10-bit fields of one Uint32, in order, within a quantisation step');
+  check(d.w[0] === 0 && d.w[1] === 1 && Math.abs(d.w[2] - 0.5) < 1 / 4095, 'decodeMap: w is a 12-bit percentile');
+  check(Math.abs(d.tone[0] - 0.2) < 1 / 63 && d.tone[1] === 1, 'decodeMap: tone shares its byte with the flags');
   check(d.flags[1] === g.FLAG_INFERRED && d.flags[2] === g.FLAG_NO_TONE, 'decodeMap: flags survive');
   const bad = pack(rows);
   bad.n = 4;
