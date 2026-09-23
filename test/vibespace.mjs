@@ -10,8 +10,9 @@
 // frame looks fine. None of these throw. So they are asserted, and continuity (G7) is
 // MEASURED on the production settings rather than claimed.
 //
-// geometry.ts imports motion.ts; both are transpiled in-memory with the repo's own
-// `typescript` and the REAL functions are driven — the house pattern.
+// geometry.ts imports @jkos/scene/math; both are transpiled in-memory with the repo's
+// own `typescript` (packages/scene/test/transpile.mjs) and the REAL functions are
+// driven — the house pattern.
 //
 // Run:  node test/vibespace.mjs   (wired as `pnpm check:vibespace`, folded into
 //                                   `pnpm test:contracts`).
@@ -20,6 +21,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, resolve, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createRequire } from 'node:module';
+import { transpileSceneMath } from '../packages/scene/test/transpile.mjs';
 
 const require = createRequire(import.meta.url);
 const ts = require('typescript');
@@ -47,8 +49,8 @@ async function importTs(relPath, outName, rewrite = {}) {
 }
 
 const GEOMETRY = 'apps/kouros/src/components/vibespace/geometry.ts';
-const motion = await importTs('apps/kouros/src/components/webgl/motion.ts', 'motion.mjs');
-const g = await importTs(GEOMETRY, 'geometry.mjs', { '../webgl/motion': './motion.mjs' });
+const motion = await import(transpileSceneMath(join(tmp, 'scene')));
+const g = await importTs(GEOMETRY, 'geometry.mjs', { '@jkos/scene/math': './scene/index.mjs' });
 
 /* A seeded PRNG, so every fixture below is the same library every run. */
 function mulberry32(seed) {

@@ -11,7 +11,7 @@ import {
 } from '../api';
 import VibeSpace from '../components/vibespace/VibeSpace';
 import { decodeMap, energyWord, type DecodedMap } from '../components/vibespace/geometry';
-import { hasWebGL2 } from '../components/webgl/context';
+import { hasWebGL2 } from '@jkos/scene/gl';
 
 /** How long the pin must be still before the neighbour list is refetched. */
 const SETTLE_MS = 160;

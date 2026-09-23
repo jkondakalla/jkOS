@@ -35,7 +35,7 @@
 import {
   DEG, clamp, invert, lerp, lookAt, multiply, orbitEye, perspective, springStep,
   type Mat4, type Spring, type Vec3,
-} from '../webgl/motion';
+} from '@jkos/scene/math';
 
 /* ── the wire payload ────────────────────────────────────────────────────────── */
 /** The wire's packing — backend/src/discover/map.js `vibeMap` is the one encoder. */

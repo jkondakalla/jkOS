@@ -5,11 +5,11 @@ import {
 import { usePointerDrag, DRAG_THRESHOLD_PX } from '@jkos/ui';
 import {
   claimCanvas, devicePixelRatioCapped, prefersReducedMotion, releaseContextSoon, sizeCanvas, tokenColor, watchContext,
-  watchVisibility, type RGB,
-} from '../webgl/context';
+  watchVisibility,
+} from '@jkos/scene/gl';
 import {
-  DEG, angleDelta, clamp, screenRay, springSettled, springStep, toScreen, type Spring, type Vec3,
-} from '../webgl/motion';
+  DEG, angleDelta, clamp, screenRay, springSettled, springStep, toScreen, type RGB, type Spring, type Vec3,
+} from '@jkos/scene/math';
 import {
   CAMERA, W_OMEGA, brightnessRamp, classifyTap, coast, fitDistance, glint, indexOfId, labelAlpha,
   lockAxis, nextStop, pickDensest, pickParticle, projectedStop, scrubTo, sliceMix, spaceView,

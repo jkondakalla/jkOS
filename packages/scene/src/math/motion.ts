@@ -1,7 +1,7 @@
-// motion.ts — the PURE math both hand-rolled WebGL views share: column-major 4×4
+// motion.ts — the PURE math every @jkos/scene view shares: column-major 4×4
 // matrices, a few vec3 helpers, an orbit camera, and a critically damped spring.
-// No DOM, no clock, no runtime imports — test/pulsarmap.mjs and test/vibespace.mjs
-// transpile it and drive the real functions.
+// No DOM, no clock, no runtime imports — test/scene.test.mjs transpiles it and drives
+// the real functions (and KourOS's check:pulsarmap / check:vibespace import it too).
 //
 // ⚠️ **NO LIBRARY, ON PURPOSE.** gl-matrix or three.js would be the usual answer, and
 // both are dependencies against a frontend that has none for this — three.js alone

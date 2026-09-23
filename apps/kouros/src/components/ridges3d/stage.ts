@@ -24,7 +24,7 @@
 // plausible picture of the wrong rows.
 
 import { rowsRevealed } from '../pulsarmap';
-import { clamp, DEG, type Vec3 } from '../webgl/motion';
+import { clamp, DEG, type Vec3 } from '@jkos/scene/math';
 
 /** World units. The line spans x ∈ [−HALF_WIDTH, HALF_WIDTH]. */
 export const HALF_WIDTH = 1;

@@ -3,10 +3,10 @@ import { usePointerDrag, DRAG_THRESHOLD_PX } from '@jkos/ui';
 import {
   claimCanvas, devicePixelRatioCapped, prefersReducedMotion, releaseContextSoon, sizeCanvas, tokenColor, watchContext,
   watchVisibility,
-} from '../webgl/context';
+} from '@jkos/scene/gl';
 import {
   DEG, clamp, lookAt, multiply, orbitEye, perspective, springSettled, springStep, type Spring,
-} from '../webgl/motion';
+} from '@jkos/scene/math';
 import { RidgeRenderer, type RidgeColors } from './gl';
 import {
   FOLLOW_DISTANCE, FOLLOW_OMEGA, FOLLOW_PITCH, FOV, LOOK_BEHIND, MAX_PITCH, MAX_YAW, MIN_PITCH,

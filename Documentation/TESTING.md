@@ -150,6 +150,12 @@ Chained into `apps/kouros/backend/package.json`'s `test` script and
 |------|-----------|------|
 | `files.smoke.mjs` | 29 | The Range-stream + path-containment contract against a real `http.createServer` — 200/206/416, `Accept-Ranges`/`Content-Range`, and the containment guard that stops a crafted path escaping the served root. **This is the base surface every media backend is built on**, which is why it is tested once here rather than five times downstream. |
 
+### @jkos/scene (`packages/scene/test/`)
+
+| File | Assertions | Owns |
+|------|-----------|------|
+| `scene.test.mjs` | 27 | The 3-D primitive's pure layer (`src/math/`), transpiled by `transpile.mjs` — the helper KourOS's `check:pulsarmap` / `check:vibespace` also load it through. The spring is SOLVED (never overshoots from rest, settled by 1 s, 30 fps and 144 fps land in the same place), the matrices agree with each other (lookAt + perspective centre the target, `invert` round-trips and refuses a singular matrix, `toScreen` never mirrors a point behind the camera), `parseColor` reads every form Chromium reports. Plus the layering scans: nothing in `math/` has a clock, a DOM reference or an import outside its own layer (a Web Worker loads it), and `gl/` imports no React. |
+
 ### Cross-system (root `test/` + `packages/suite-prober/` + scripts)
 
 | Runner | Owns |

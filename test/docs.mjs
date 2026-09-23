@@ -48,7 +48,7 @@ const ok = (name, cond, extra = '') => {
 const root = pkg('package.json');
 const WORKSPACES = ['apps/jkauth', 'apps/beigeboard/backend', 'apps/lazuros/backend',
   'apps/papyros/backend', 'apps/kouros/backend', 'packages/weave', 'packages/player',
-  'packages/files', 'packages/routine-spec'];
+  'packages/files', 'packages/routine-spec', 'packages/scene'];
 
 const byName = new Map();
 for (const dir of WORKSPACES) {

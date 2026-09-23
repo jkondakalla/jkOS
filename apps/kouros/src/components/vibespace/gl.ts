@@ -17,7 +17,8 @@
 // textures are re-uploaded only when the swipe crosses a slice centre (48³ × 2 bytes,
 // ~0.2 MB), and nothing here allocates per frame.
 
-import { compileProgram, uniforms, type RGB } from '../webgl/context';
+import { compileProgram, uniforms } from '@jkos/scene/gl';
+import type { RGB } from '@jkos/scene/math';
 import { FLAG_INFERRED, FLAG_NO_TONE, sliceMix, type DecodedMap } from './geometry';
 
 const TRIANGLE = `#version 300 es

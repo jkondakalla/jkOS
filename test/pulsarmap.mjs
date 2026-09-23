@@ -20,6 +20,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, resolve, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createRequire } from 'node:module';
+import { transpileSceneMath } from '../packages/scene/test/transpile.mjs';
 
 const require = createRequire(import.meta.url);
 const ts = require('typescript');
@@ -256,9 +257,10 @@ check(rowBaseline(0, 12, 40) === 40 && rowBaseline(3, 12, 40) === 76,
    tests read, a camera that follows a row other than the newest, a spring that
    overshoots, an orbit that dives under the floor — and a per-track normaliser
    slipped into the one place no store-side test can see. */
-const motion = await importTs('apps/kouros/src/components/webgl/motion.ts', 'motion.mjs');
+// stage.ts imports @jkos/scene/math; that layer is transpiled beside it.
+transpileSceneMath(join(tmp, 'scene'));
 const stage = await importTs('apps/kouros/src/components/ridges3d/stage.ts', 'stage.mjs', {
-  '../pulsarmap': './pulsarmap.mjs', '../webgl/motion': './motion.mjs',
+  '../pulsarmap': './pulsarmap.mjs', '@jkos/scene/math': './scene/index.mjs',
 });
 const {
   textureLayout, texelOf, packTexture, cellOf, visibleWindow, followPose, orbitFromDrag, shouldCut,
@@ -377,46 +379,11 @@ for (const rows of [10, 600, 2500]) {
     'rampOf: the ramp encodes POSITION IN THE TRACK, as in 2-D');
 }
 
-/* ── the spring ───────────────────────────────────────────────────────────── */
-{
-  const { springStep, springSettled } = motion;
-  let s = { x: 0, v: 0 };
-  let overshoot = false;
-  let settledBy = null;
-  for (let t = 0; t < 2; t += 1 / 60) {
-    s = springStep(s, 1, 10, 1 / 60);
-    if (s.x > 1 + 1e-9) overshoot = true;
-    if (settledBy == null && springSettled(s, 1, 1e-3)) settledBy = t;
-  }
-  check(!overshoot, 'springStep: critically damped from rest — never overshoots');
-  check(settledBy != null && settledBy < 1, `springStep: settled within 1e-3 by 1 s (at ${settledBy?.toFixed(2)} s)`);
-  // ⚠️ Solved, not stepped: the path is the same at any frame rate.
-  let a = { x: 0, v: 0 }, b = { x: 0, v: 0 };
-  for (let i = 0; i < 30; i++) a = springStep(a, 1, 10, 1 / 30);
-  for (let i = 0; i < 144; i++) b = springStep(b, 1, 10, 1 / 144);
-  check(Math.abs(a.x - b.x) < 1e-9, 'springStep: 30 fps and 144 fps land in the same place after one second');
-}
-
-/* ── the matrices ─────────────────────────────────────────────────────────── */
-{
-  const { perspective, lookAt, multiply, invert, toScreen, orbitEye, identity } = motion;
-  const eye = orbitEye([0, 0, 0], 0, 0, 3);
-  check(Math.abs(eye[2] - 3) < 1e-12 && Math.abs(eye[0]) < 1e-12, 'orbitEye: yaw 0 looks along −z from +z');
-  const vp = multiply(perspective(Math.PI / 3, 1, 0.1, 100), lookAt(eye, [0, 0, 0], [0, 1, 0]));
-  const centre = toScreen(vp, [0, 0, 0], 200, 100);
-  check(centre && Math.abs(centre.x - 100) < 1e-4 && Math.abs(centre.y - 50) < 1e-4,
-    'lookAt + perspective: the target lands at the centre of the viewport');
-  const up = toScreen(vp, [0, 0.5, 0], 200, 100);
-  check(up && up.y < 50, 'toScreen: +y is UP the screen (smaller CSS y)');
-  const inv = invert(vp);
-  const round = inv && multiply(vp, inv);
-  const I = identity();
-  check(!!round && round.every((v, i) => Math.abs(v - I[i]) < 1e-4), 'invert: M · M⁻¹ = I');
-  check(toScreen(vp, [0, 0, 10], 200, 100) === null, 'toScreen: a point behind the camera is null, not a mirror image');
-}
+/* The spring, the matrices and the orbit eye are @jkos/scene's now, and are held by
+   its own test (packages/scene/test/scene.test.mjs) — every view shares them. */
 
 /* ── purity, for the new pure modules too ──────────────────────────────────── */
-for (const rel of ['apps/kouros/src/components/ridges3d/stage.ts', 'apps/kouros/src/components/webgl/motion.ts']) {
+for (const rel of ['apps/kouros/src/components/ridges3d/stage.ts']) {
   const src = readFileSync(resolve(root, rel), 'utf8')
     .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
   const clocks = ['setInterval', 'setTimeout', 'Date.now', 'performance.now', 'requestAnimationFrame']

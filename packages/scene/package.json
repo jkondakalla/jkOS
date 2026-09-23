@@ -1,0 +1,26 @@
+{
+  "name": "@jkos/scene",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "jkOS 3-D view primitive — hand-rolled WebGL2, no library. Layered like @jkos/player: /math (pure, worker-safe: mat4, solved springs, the orbit rig, gesture and picking math), /gl (WebGL2 + DOM plumbing: context lifecycle, programs, tokens), /react (useScene, useOrbitControls). A view brings its own shaders and renderer; this owns everything around them.",
+  "exports": {
+    "./math": "./src/math/index.ts",
+    "./gl": "./src/gl/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node test/scene.test.mjs"
+  },
+  "dependencies": {
+    "@jkos/ui": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.3",
+    "typescript": "^5.7.2"
+  }
+}

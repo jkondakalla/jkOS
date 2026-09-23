@@ -1,6 +1,9 @@
-// context.ts — the DOM half both WebGL views share: feature detection, program
+// context.ts — the DOM half every @jkos/scene view shares: feature detection, program
 // compile/link with the log surfaced, device-pixel sizing, context loss, colour
-// tokens read off the element, and the motion preference.
+// tokens read off the element, and the motion preference. `useScene` (../react) is
+// the one caller that should need most of it; a view that bypasses the hook
+// re-learns every trap below (check:scene holds `getContext('webgl…')` to this
+// package).
 //
 // ⚠️ **A LOST CONTEXT IS A NORMAL EVENT ON A PHONE, NOT A CRASH.** Backgrounding the
 // PWA, a GPU reset, or another tab hogging memory can all take the context away,
@@ -13,8 +16,10 @@
 // already substituted, whatever the face declares — not an rgb triple. So a probe
 // element is given the token as its `color` and the browser resolves it; the parse
 // below accepts both `rgb()` and `color(srgb …)`, which is what Chromium reports for
-// a `color-mix`. Copying hex values here would fork the palette the moment a face
-// changed.
+// a `color-mix` (`parseColor`, in ../math/color.ts because it is pure). Copying hex
+// values here would fork the palette the moment a face changed.
+
+import { parseColor, type RGB } from '../math/color';
 
 let webgl2: boolean | null = null;
 
@@ -132,20 +137,6 @@ export function watchContext(canvas: HTMLCanvasElement, onLost: () => void, onRe
     canvas.removeEventListener('webglcontextlost', lost);
     canvas.removeEventListener('webglcontextrestored', restored);
   };
-}
-
-export type RGB = [number, number, number];
-
-/** Parse what `getComputedStyle(el).color` reports into 0–1 channels. */
-export function parseColor(text: string): RGB | null {
-  const t = text.trim();
-  let m = /^rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)/i.exec(t);
-  if (m) return [Number(m[1]) / 255, Number(m[2]) / 255, Number(m[3]) / 255];
-  m = /^color\(\s*srgb\s+([\d.e+-]+)\s+([\d.e+-]+)\s+([\d.e+-]+)/i.exec(t);
-  if (m) return [Number(m[1]), Number(m[2]), Number(m[3])].map((v) => Math.min(1, Math.max(0, v))) as RGB;
-  m = /^#([0-9a-f]{6})$/i.exec(t);
-  if (m) return [0, 2, 4].map((i) => parseInt(m![1].slice(i, i + 2), 16) / 255) as RGB;
-  return null;
 }
 
 /** Resolve a CSS custom property on `el` to an RGB triple, through the browser. */

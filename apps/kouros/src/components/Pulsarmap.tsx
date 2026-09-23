@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { fetchPulsarmap, type Pulsarmap as PulsarmapData } from '../api';
 import RidgeStage from './ridges3d/RidgeStage';
-import { hasWebGL2 } from './webgl/context';
+import { hasWebGL2 } from '@jkos/scene/gl';
 import {
   canvasHeight, decodeMesh, emptyReveal, panOffset, planReveal, rowBaseline,
   rowPitch, rowPoints, toRows, type RevealState,

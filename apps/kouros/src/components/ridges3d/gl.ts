@@ -13,7 +13,8 @@
 //      SPACE, LINE_WIDTH_PX wide at any distance and any DPR. Depth-tested against
 //      the curtains, never written.
 
-import { compileProgram, uniforms, type RGB } from '../webgl/context';
+import { compileProgram, uniforms } from '@jkos/scene/gl';
+import type { RGB } from '@jkos/scene/math';
 import {
   AMPLITUDE, FLOOR_Y, FOG_FAR, FOG_NEAR, HALF_WIDTH, LINE_WIDTH_PX, PITCH,
   packTexture, textureLayout, type RowWindow, type TextureLayout,
