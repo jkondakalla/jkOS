@@ -1071,15 +1071,23 @@ four hours.
 **Where the reveal comes from: `currentTime`, not a timer.** `row = floor(currentTime / rowSeconds)`,
 read per animation frame from the audio element that is actually playing. ⚠️ A `setInterval`
 counting seconds desynchronises on buffering, on seek, and on any playback-rate change — and
-`packages/player` has a rate module, so rate changes are real here.
+`packages/player` has a rate module, so rate changes are real here. **Per frame is literal since
+2026-09-23:** at ~10.8 rows a second the player's ~4 Hz `timeupdate` would move the picture in
+250 ms jumps, so `@jkos/player` grew `livePosition()` — the element's own `currentTime`, mapped to
+the timeline, read at the caller's frame rate — and both renderers position every frame of a
+playing track by it. Measured on real playback (placeholder library, headless Chromium): 24 frames
+in 2 s each with a new focus, never backwards, against 6 `timeupdate`s; paused, no frame at all.
 
 **Why the reveal direction is load-bearing.** Hidden-line removal is what makes the stack read as
 depth: each line is drawn as an opaque filled path that occludes the lines behind it, painter's
-algorithm, back to front. Combined with "new rows arrive in FRONT", that makes the canvas
-**append-only** — a new row is one path drawn over a canvas that never has to be repainted, so
-the steady-state cost of the reveal is one polyline every two seconds rather than a full redraw
-at 60 Hz. ⚠️ **Reverse the direction and the optimisation is gone**: a row arriving *behind* the
-stack has to be drawn first, which means repainting everything in front of it every time.
+algorithm, back to front, and new rows arrive in FRONT. At 2 s rows that also made the 2-D canvas
+**append-only** — one polyline every two seconds onto a whole-track canvas. ⚠️ **That optimisation
+is gone, deliberately (2026-09-23).** At ~10.8 rows a second a four-minute track is 2,584 rows —
+23,000 CSS px of canvas at a 9 px pitch, past every browser's canvas limit on a phone — and the
+stack moves every frame anyway. Both renderers are now stateless per frame: the stack's position
+is `scrollRow(currentTime)` (continuous, `floor` of it IS `revealIndex`), and each frame draws
+only the rows in view. A seek, a track change and a pause need no special case, and a live run
+and a direct render at the same time are the same picture (0 px, both renderers).
 
 **In 3-D, too (2026-09-16, Jag: "a 3-D visual of the pulsar map").** The same mesh, stood up as
 real geometry — `apps/kouros/src/components/ridges3d/` — replacing the 2-D strip, which survives
@@ -1092,9 +1100,15 @@ value scale is shared, the ramp is position-in-track, new rows arrive in FRONT. 
   to the floor in the surface colour, pushed back with polygon offset, then its line — exactly the
   fill-then-stroke occlusion the 2-D renderer fakes, now true from any angle.
 - **The append-only optimisation is gone, and nothing is lost by it.** The mesh is one R8 texture
-  (wrapped into columns past WebGL2's guaranteed 2,048 rows) and every vertex is derived in the
-  shader from `gl_InstanceID`; a frame is two instanced draws over at most 44 rows, and a seek
-  changes a uniform. A paused, settled view draws nothing at all.
+  (wrapped into columns past the texture limit — `@jkos/scene`'s `textureLayout`; at 0.093 s rows a
+  four-minute track is two columns at the guaranteed 2,048) and every vertex is derived in the
+  shader from `gl_InstanceID`; a frame is two instanced draws over at most 44 rows. A paused,
+  settled view draws nothing at all.
+- **The camera rides the playhead exactly** (2026-09-23). At 2 s rows the focus sprang forward a
+  row at a time and a seek cut; now the focus is `rowZ(scrollRow(t))`, continuous, so the stack
+  streams back at the track's own rate — a row arrives at the front the instant its time begins —
+  and a row leaving the 44-row window has already faded fully into the fog (`check:pulsarmap`
+  asserts both, over a whole 20-minute track).
 - **Lines are screen-space quads**, because `gl.lineWidth` is one device pixel almost everywhere.
 - ⚠️ **A fourth place per-track normalisation could enter** — the shader. `check:pulsarmap` scans
   `heightAt` for max/min/clamp/gain. (That scan was vacuous for its first commit: a raw backspace
@@ -1106,11 +1120,10 @@ The old verdict against a 3-D heightmap stands for what it was aimed at: the FUL
 **The one number the renderer owns.** M2 measured that below **~9 px of row pitch** every line's
 excursion crosses two neighbours and the stack collapses into a uniform hatch — "a picture that
 reads as *the transform is broken* when the transform is fine and the picture is merely too
-small." At 9 px, a 20-minute track's 600 rows are 5,400 px tall and do not fit anything. So the
-mesh carries rows and a row duration and nothing about pixels; the renderer draws at a fixed
-pitch onto an offscreen canvas that grows, and **pans** it so the newest row sits at a fixed
-place. Constant reveal rate, constant legibility, the whole map still there to scroll back
-through — and the append-only draw survives, which a "squash it all to fit" policy would not.
+small." So the mesh carries rows and a row duration and nothing about pixels, and the 2-D
+fallback draws at that fixed pitch and **scrolls**: at ~10.8 rows a second the strip flows ~97 px
+a second and holds the last ~1.4 s of music, the newest row at a fixed anchor. Constant reveal
+rate, constant legibility — never "squash it all to fit".
 
 ---
 

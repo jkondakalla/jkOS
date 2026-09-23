@@ -2,22 +2,25 @@ import { useEffect, useRef } from 'react';
 import { tokenColor } from '@jkos/scene/gl';
 import { DEG, createRig, cutRig, rigView, stepRig } from '@jkos/scene/math';
 import { useOrbitControls, useScene } from '@jkos/scene/react';
+import { scrollRow } from '../pulsarmap';
 import { RidgeRenderer, type RidgeColors } from './gl';
 import {
-  FOLLOW_DISTANCE, FOLLOW_OMEGA, FOLLOW_PITCH, FOV, LOOK_BEHIND, ORBIT, RETURN_OMEGA, TARGET_Y, followPose,
-  shouldCut, visibleWindow,
+  FOLLOW_DISTANCE, FOLLOW_PITCH, FOV, LOOK_BEHIND, ORBIT, RETURN_OMEGA, TARGET_Y, followPose, visibleWindow,
 } from './stage';
 
 /**
  * The pulsarmap in 3-D (ALGORITHMS.md §9, TODO.md §2): the same ridgelines, stood up
- * in space, with a camera that FOLLOWS THE PLAYHEAD — the newest row rises in front
- * and glides the stack back — and that a drag orbits and a release springs home.
+ * in space, FLOWING — ~10.8 rows a second arrive at the front and the stack streams
+ * back at the track's own rate, a visualizer of the music from the music's own
+ * analysis. A drag orbits it and a release springs home.
  *
- * ⚠️ **THE REVEAL IS STILL `currentTime`, NEVER A TIMER.** `position` is the media
- * element's own time, published by the player. The only clock under this view is
- * rAF's (@jkos/scene's `useScene`), and it drives the CAMERA's springs — presentation,
- * never which rows exist. A paused track does not move `position`, so nothing new is
- * revealed and, once the springs settle, no frame is drawn at all.
+ * ⚠️ **THE REVEAL IS STILL `currentTime`, NEVER A TIMER — READ EVERY FRAME.** While
+ * the track plays, each frame reads the media element's own time through
+ * `livePosition` (@jkos/player); the ~4 Hz `position` prop alone would move the
+ * picture in 250 ms jumps, three rows at a time. rAF's clock (@jkos/scene's
+ * `useScene`) drives only the orbit's springs — presentation, never which rows exist
+ * or where the stack stands. Paused, the time does not move, and once the springs
+ * settle no frame is drawn at all.
  *
  * ⚠️ **IT OWNS ITS POINTER.** `data-owns-pointer` tells Now Playing's rune layer that
  * a stroke starting here is an orbit, not a transport gesture — the same guard the
@@ -43,31 +46,35 @@ export interface RidgeStageProps {
   bands: number;
   /** From the mesh, never a constant — see pulsarmap.ts `revealIndex`. */
   rowSeconds: number;
+  /** The player's published position (~4 Hz) — the fallback clock, and the kick. */
   position: number;
+  /** The media element's time, read at call time — what every frame of a PLAYING
+   *  track is positioned by. */
+  livePosition?: () => number;
+  playing?: boolean;
   /** WebGL2 is not available, or the context could not be made: draw in 2-D. */
   onUnsupported: () => void;
 }
 
 export default function RidgeStage({
-  trackId, bytes, rows, bands, rowSeconds, position, onUnsupported,
+  trackId, bytes, rows, bands, rowSeconds, position, livePosition, playing, onUnsupported,
 }: RidgeStageProps) {
   const colorsRef = useRef<RidgeColors>(COLOR_FALLBACK);
 
   // What the loop reads — refs, so a new position is one assignment, not a re-render
   // of anything but this component's props.
-  const liveRef = useRef({ position, rowSeconds, rows, trackId });
-  liveRef.current = { position, rowSeconds, rows, trackId };
+  const liveRef = useRef({ position, livePosition, playing, rowSeconds, rows, trackId });
+  liveRef.current = { position, livePosition, playing, rowSeconds, rows, trackId };
   const meshRef = useRef({ bytes, rows, bands });
   meshRef.current = { bytes, rows, bands };
 
-  // The follow pose is the rig's HOME. Its target rides the newest row — a glide for a
-  // row of playback, a cut for a seek or a new track — and yaw and pitch spring back
-  // to it whenever no hand holds them.
+  // The follow pose is the rig's HOME. Its target rides the playhead EXACTLY (cut
+  // every frame — a spring would only lag the music), and yaw and pitch spring back to
+  // it whenever no hand holds them.
   const rig = useRef(createRig(
     { target: [0, TARGET_Y, -LOOK_BEHIND], yaw: 0, pitch: FOLLOW_PITCH, distance: FOLLOW_DISTANCE },
-    { omega: { target: FOLLOW_OMEGA, yaw: RETURN_OMEGA, pitch: RETURN_OMEGA } },
+    { omega: { yaw: RETURN_OMEGA, pitch: RETURN_OMEGA } },
   )).current;
-  const cutNext = useRef(true);
 
   const scene = useScene<RidgeRenderer>({
     name: 'kouros pulsarmap',
@@ -89,22 +96,21 @@ export default function RidgeStage({
     onUnsupported,
     frame: ({ renderer, canvas, dt, reduced, aspect, dpr }) => {
       const live = liveRef.current;
-      const win = visibleWindow(live.position, live.rowSeconds, live.rows);
-      const pose = followPose(win);
+      const t = live.livePosition ? live.livePosition() : live.position;
+      const win = visibleWindow(t, live.rowSeconds, live.rows);
+      const pose = followPose(scrollRow(t, live.rowSeconds, live.rows));
       rig.targetGoal = pose.target;
-      if (cutNext.current || shouldCut(rig.target[2].x + LOOK_BEHIND, pose.focusZ)) {
-        cutNext.current = false;
-        cutRig(rig, 'target');
-      }
+      cutRig(rig, 'target');
       const moving = stepRig(rig, dt, reduced);
       const view = rigView(rig, aspect, LENS);
-      renderer.draw({ viewProj: view.viewProj, window: win, focusZ: rig.target[2].x + LOOK_BEHIND,
+      renderer.draw({ viewProj: view.viewProj, window: win, focusZ: pose.focusZ,
                       width: canvas.width, height: canvas.height, dpr }, colorsRef.current);
-      return moving;
+      // A playing track flows every frame; paused, only a spring can still move.
+      return moving || (!!live.playing && !!live.livePosition);
     },
   });
 
-  // ── A new track: one texture upload, and the camera CUTS to it ────────────────
+  // ── A new track: one texture upload ─────────────────────────────────────────────
   const firstMesh = useRef(true);
   useEffect(() => {
     if (firstMesh.current) { firstMesh.current = false; return; }
@@ -115,12 +121,11 @@ export default function RidgeStage({
     } catch (err) {
       console.warn(`[kouros pulsarmap] mesh refused: ${(err as Error).message}`);
     }
-    cutNext.current = true;
     scene.kick();
   }, [bytes, rows, bands, scene]);
 
-  // ── Time moved (or paused, which moves nothing and draws nothing) ────────────
-  useEffect(() => { scene.kick(); }, [position, rowSeconds, trackId, scene]);
+  // ── Time moved, or play began (a pause moves nothing and draws nothing) ───────
+  useEffect(() => { scene.kick(); }, [position, playing, rowSeconds, trackId, scene]);
 
   const orbit = useOrbitControls(rig, scene.kick, { ...ORBIT, keyYaw: 12 * DEG, keyPitch: 6 * DEG });
 
@@ -132,7 +137,8 @@ export default function RidgeStage({
       tabIndex={0}
       role="application"
       aria-roledescription="3-D spectrogram"
-      aria-label={`Spectrogram of this track, revealed as it plays — ${rows} slices of about two seconds. ` +
+      aria-label={`Spectrogram of this track, flowing as it plays — ${rows} slices of ` +
+                  `${Math.round(rowSeconds * 1000)} ms each. ` +
                   'Drag, or use the arrow keys, to look around; Escape returns to following the music.'}
       onPointerDown={orbit.onPointerDown}
       onKeyDown={orbit.onKeyDown}

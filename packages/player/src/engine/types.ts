@@ -221,6 +221,7 @@ export interface PlayerApi<TItem, TBookmark> {
   /** Human-readable playback failure, null when fine. Cleared on the next successful
    *  play or load. Without it a MediaError / rejected play() is invisible. */
   error: string | null;
+  /** Seconds across the whole timeline, published on `timeupdate` (~4 Hz). */
   globalPos: number;
   total: number;
   rate: number;
@@ -234,6 +235,11 @@ export interface PlayerApi<TItem, TBookmark> {
   sleepMode: SleepMode;
   sleepRemainingMs: number | null;
   toggle(): void;
+  /** The media element's `currentTime` as a global position, read at call time —
+   *  for a view that moves every animation frame (KourOS's pulsarmap), where
+   *  `globalPos`'s ~4 Hz steps would show. Still the element's own time, never a
+   *  counter. Stable identity; cheap enough to call per frame. */
+  livePosition(): number;
   seekTo(globalSec: number): void;
   skip(deltaSec: number): void;
   prevSegment(): void;

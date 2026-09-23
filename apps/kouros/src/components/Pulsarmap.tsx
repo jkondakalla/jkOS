@@ -3,33 +3,26 @@ import { fetchPulsarmap, type Pulsarmap as PulsarmapData } from '../api';
 import RidgeStage from './ridges3d/RidgeStage';
 import { hasWebGL2 } from '@jkos/scene/gl';
 import {
-  canvasHeight, decodeMesh, emptyReveal, panOffset, planReveal, rowBaseline,
-  rowPitch, rowPoints, toRows, type RevealState,
+  decodeMesh, rowPitch, rowPoints, scrollRow, stripBaseline, stripWindow, toRows,
 } from './pulsarmap';
 
 /**
  * The pulsarmap (ALGORITHMS.md §9) — a track's mel spectrogram as a stack of
- * ridgelines that ACCUMULATES as the song plays. One line per ~2 s slice,
- * frequency across the line, energy as elevation, new lines arriving IN FRONT of
- * the ones already drawn. The Joy Division *Unknown Pleasures* form, revealed in
- * time rather than printed at once.
+ * ridgelines that FLOWS as the song plays: one line per ~93 ms slice (~10.8 a
+ * second), frequency across the line, energy as elevation, each new line arriving IN
+ * FRONT of the ones before it. The Joy Division *Unknown Pleasures* form as a
+ * visualizer — from the music's own analysis, fetched whole per track, never a
+ * spectrum computed in the browser.
  *
- * ⚠️ **NEW ROWS ARRIVE IN FRONT, AND THAT IS NOT A LOOK.** Each row is an opaque
- * filled path that occludes the rows behind it — painter's algorithm, back to
- * front — which is what makes the stack read as depth. Combined with "in front",
- * it makes the canvas APPEND-ONLY: a reveal is one polyline drawn onto a canvas
- * that never has to be repainted, so the steady-state cost is one path every two
- * seconds rather than a full redraw at 60 Hz. Reverse the direction and a new row
- * has to be drawn BEHIND everything, which means repainting all of it every time.
+ * ⚠️ **A LINE EVERY ~93 ms, NOT EVERY 2 s (Jag, 2026-09-23).** Two-second rows came
+ * "every second or two … way too sparse to be anything useful". The mesh is built at
+ * 0.093 s now (music/mesh.py), so a kick drum is its own line, and the stack moves
+ * continuously: its scroll is `scrollRow(currentTime)`, read from the media element
+ * EVERY FRAME through `livePosition` while the track plays.
  *
- * ⚠️ **IT PANS, IT DOES NOT SQUASH.** M2 measured that below ~9 px of row pitch
- * every line's excursion crosses two neighbours and the stack collapses into a
- * uniform hatch — a picture that reads as "the transform is broken" when the
- * transform is fine and the picture is merely too small. A 20-minute track is
- * ~600 rows, which at a legible pitch is 5,471 px and fits nothing. So the whole
- * track is drawn onto an offscreen canvas at a constant pitch and a window of it
- * is blitted, positioned so the newest row sits at a fixed place. Constant reveal
- * rate, constant legibility, the whole map still there to scroll back through.
+ * ⚠️ **NEW ROWS ARRIVE IN FRONT.** Each row is an opaque filled path that occludes
+ * the rows behind it — painter's algorithm, back to front — which is what makes the
+ * stack read as depth.
  *
  * ⚠️ **THE COLOURS COME FROM THE DESIGN FACTORY, READ AT RUNTIME.** A canvas
  * cannot take a CSS custom property, so the tokens are resolved off the element
@@ -40,17 +33,18 @@ import {
  * (`pnpm check:pulsarmap`), because every failure mode in it is silent.
  *
  * ⚠️ **3-D FIRST, 2-D AS THE FALLBACK (Jag, 2026-09-16).** With WebGL2 the same mesh
- * is drawn as real geometry by `./ridges3d/RidgeStage` — a camera that follows the
- * playhead and orbits on a drag. The Canvas 2D path below is what draws when WebGL2
- * is absent or its context cannot be made, and it is kept whole rather than
- * approximated: the fallback is the feature as it shipped, not a degraded sketch.
+ * is drawn as real geometry by `./ridges3d/RidgeStage`, flowing past a camera that a
+ * drag orbits. The Canvas 2D path below draws when WebGL2 is absent or its context
+ * cannot be made — the same flow, a window of rows redrawn each frame.
  */
 
 /** Excursion, in px, of a full-scale (255) value above its own row's baseline.
  *  Larger than the pitch on purpose: lines MUST overlap, or there is nothing for
  *  the hidden-line removal to remove and the stack reads as a bar chart. */
-const AMPLITUDE = 34;
-const PITCH = rowPitch(11);
+const AMPLITUDE = 30;
+/** At the legibility floor: at ~10.8 rows a second the strip scrolls ~97 px/s and
+ *  holds the last ~1.4 s of music. */
+const PITCH = rowPitch(9);
 /** Where the newest row sits in the viewport — near the bottom, with just enough
  *  room below for its own excursion. */
 const ANCHOR_FRACTION = 0.82;
@@ -76,11 +70,9 @@ function tokens(el: HTMLElement) {
 
 /** Interpolate between two hex colours — the row ramp, one step per row.
  *
- *  ⚠️ THE RAMP ENCODES POSITION IN THE TRACK, NOT DEPTH IN THE STACK, and that is
- *  forced by the append-only draw: a row is painted ONCE and never repainted, so
- *  its colour cannot depend on how old it has since become. "Recede as newer rows
- *  arrive" would mean repainting the whole stack every two seconds, which is the
- *  one cost this renderer is built to avoid.
+ *  ⚠️ THE RAMP ENCODES POSITION IN THE TRACK, NOT DEPTH IN THE STACK — as it
+ *  always has (it was forced by the old append-only draw, and the 3-D renderer keeps
+ *  it and carries depth with fog), so both renderers colour a row the same way.
  *
  *  It is also the right analogue rather than a consolation. `music/ridge.py` ramps
  *  its lines across FREQUENCY because there a line is a band; here a line is a
@@ -107,21 +99,25 @@ function mix(a: string, b: string, t: number): string {
 }
 
 export default function Pulsarmap({
-  trackId, position, className,
+  trackId, position, livePosition, playing, className,
 }: {
   trackId: number | null;
   /** Seconds into the track, from the player engine — which reads it off the
-   *  media element. ⚠️ **NEVER A TIMER.** A `setInterval` counting seconds
-   *  desynchronises on buffering, on seek, and on a playback-rate change, and
-   *  `@jkos/player` has a rate module, so the last one is real here. */
+   *  media element on `timeupdate` (~4 Hz). ⚠️ **NEVER A TIMER.** A `setInterval`
+   *  counting seconds desynchronises on buffering, on seek, and on a playback-rate
+   *  change, and `@jkos/player` has a rate module, so the last one is real here. */
   position: number;
+  /** The same clock read NOW (`@jkos/player`'s `livePosition()`) — what positions
+   *  every frame of a playing track, so ~10.8 rows a second flow rather than jump. */
+  livePosition?: () => number;
+  playing?: boolean;
   className?: string;
 }) {
   const [data, setData] = useState<PulsarmapData | null>(null);
   const hostRef = useRef<HTMLDivElement | null>(null);
   const viewRef = useRef<HTMLCanvasElement | null>(null);
-  const offRef = useRef<HTMLCanvasElement | null>(null);
-  const stateRef = useRef<RevealState>(emptyReveal());
+  const liveRef = useRef({ position, livePosition, playing });
+  liveRef.current = { position, livePosition, playing };
   // Decided once per mount; a renderer that fails later (no context, a shader the
   // driver refuses) flips this and the 2-D path takes over for good.
   const [use3d, setUse3d] = useState(() => hasWebGL2());
@@ -151,8 +147,8 @@ export default function Pulsarmap({
         count: data.rows,
         bands: data.bands,
         // ⚠️ FROM THE MESH, never a constant. The builder derives it from the
-        // analysis hop (1.9969 s at the baseline, not the 2.0 s target) and the
-        // 3 ms difference is a whole row of drift by minute ten.
+        // analysis hop (0.09288 s at the baseline, not the 0.1 s target) and the
+        // 7 ms difference is a whole row of drift every ~1.4 s.
         rowSeconds: data.row_seconds || 0,
       };
     } catch {
@@ -160,88 +156,65 @@ export default function Pulsarmap({
     }
   }, [data]);
 
-  // ── The draw ────────────────────────────────────────────────────────────────
+  // ── The 2-D draw: a window of rows, redrawn each frame while the track plays ──
   useEffect(() => {
     const host = hostRef.current;
     const view = viewRef.current;
-    if (!host || !view || !ready) { stateRef.current = emptyReveal(); return; }
-
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
-    const width = view.clientWidth || 320;
-    const height = view.clientHeight || 240;
+    if (use3d || !host || !view || !ready) return;
     const palette = tokens(host);
-
-    // The offscreen canvas is the WHOLE TRACK — it is what makes the reveal
-    // append-only. Rebuilt only when the mesh or the width changes.
-    let off = offRef.current;
-    const fullHeight = canvasHeight(ready.count, PITCH, AMPLITUDE);
-    if (!off || off.width !== Math.round(width * dpr) || off.height !== Math.round(fullHeight * dpr)) {
-      off = document.createElement('canvas');
-      off.width = Math.round(width * dpr);
-      off.height = Math.round(fullHeight * dpr);
-      offRef.current = off;
-      stateRef.current = emptyReveal();      // a resized canvas has painted nothing
-    }
-    view.width = Math.round(width * dpr);
-    view.height = Math.round(height * dpr);
-
-    const octx = off.getContext('2d');
-    const vctx = view.getContext('2d');
-    if (!octx || !vctx) return;
 
     function paint() {
       frameRef.current = null;
-      const o = offRef.current;
-      if (!o || !octx || !vctx || !ready) return;
+      if (!view || !ready) return;
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      const width = view.clientWidth || 320;
+      const height = view.clientHeight || 136;
+      const w = Math.round(width * dpr), h = Math.round(height * dpr);
+      if (view.width !== w) view.width = w;
+      if (view.height !== h) view.height = h;
+      const ctx = view.getContext('2d');
+      if (!ctx) return;
 
-      const plan = planReveal(stateRef.current, {
-        trackId, currentTime: position, rowSeconds: ready.rowSeconds, rows: ready.count,
-      });
-      stateRef.current = plan.next;
+      const live = liveRef.current;
+      const t = live.livePosition ? live.livePosition() : live.position;
+      const scroll = scrollRow(t, ready.rowSeconds, ready.count);
+      const anchor = height * ANCHOR_FRACTION;
+      const win = stripWindow(scroll, PITCH, anchor);
 
       // Clear in DEVICE pixels under the identity transform, then scale for the
       // drawing: `clearRect` under the dpr transform would be measuring the
       // canvas's device dimensions in CSS units.
-      if (plan.clear) {
-        octx.setTransform(1, 0, 0, 1, 0, 0);
-        octx.clearRect(0, 0, o.width, o.height);
-      }
-      octx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      for (let r = plan.from; r < plan.to; r++) {
-        const baseline = rowBaseline(r, PITCH, AMPLITUDE);
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, w, h);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      for (let r = win.from; r < win.to; r++) {
+        const baseline = stripBaseline(r, scroll, PITCH, anchor);
         const pts = rowPoints(ready.rows[r], baseline, width, AMPLITUDE);
-        octx.beginPath();
-        octx.moveTo(pts[0], pts[1]);
-        for (let i = 2; i < pts.length; i += 2) octx.lineTo(pts[i], pts[i + 1]);
+        ctx.beginPath();
+        ctx.moveTo(pts[0], pts[1]);
+        for (let i = 2; i < pts.length; i += 2) ctx.lineTo(pts[i], pts[i + 1]);
         // ⚠️ FILL FIRST, in the surface colour. This is the hidden-line removal:
         // an opaque body under each line is what lets a row occlude the rows
         // behind it, and without it the stack is a transparent tangle rather than
         // a depth cue.
-        octx.lineTo(width, baseline + PITCH);
-        octx.lineTo(0, baseline + PITCH);
-        octx.closePath();
-        octx.fillStyle = palette.surface;
-        octx.fill();
-        octx.beginPath();
-        octx.moveTo(pts[0], pts[1]);
-        for (let i = 2; i < pts.length; i += 2) octx.lineTo(pts[i], pts[i + 1]);
-        octx.strokeStyle = mix(palette.far, palette.line, ready.count > 1 ? r / (ready.count - 1) : 1);
-        octx.lineWidth = 1;
-        octx.stroke();
+        ctx.lineTo(width, baseline + PITCH);
+        ctx.lineTo(0, baseline + PITCH);
+        ctx.closePath();
+        ctx.fillStyle = palette.surface;
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(pts[0], pts[1]);
+        for (let i = 2; i < pts.length; i += 2) ctx.lineTo(pts[i], pts[i + 1]);
+        ctx.strokeStyle = mix(palette.far, palette.line, ready.count > 1 ? r / (ready.count - 1) : 1);
+        ctx.lineWidth = 1;
+        ctx.stroke();
       }
-
-      // Blit the window. The newest row sits at a fixed place, so the picture
-      // steps up by one pitch every ~2 s rather than rescaling to fit.
-      const anchor = height * ANCHOR_FRACTION;
-      const offsetY = panOffset(plan.next.painted, ready.count, PITCH, AMPLITUDE, height, anchor);
-      vctx.setTransform(1, 0, 0, 1, 0, 0);
-      vctx.clearRect(0, 0, view.width, view.height);
-      vctx.drawImage(o, 0, Math.round(offsetY * dpr), view.width, view.height,
-                     0, 0, view.width, view.height);
+      // A playing track flows every frame; paused, one frame is the picture.
+      if (live.playing && live.livePosition) frameRef.current = requestAnimationFrame(paint);
     }
 
-    // rAF rather than painting inside the React commit: the draw touches a canvas
-    // and a blit, and doing that in the commit phase interleaves it with layout.
+    // rAF rather than painting inside the React commit: the draw touches a canvas,
+    // and doing that in the commit phase interleaves it with layout.
     if (frameRef.current == null) frameRef.current = requestAnimationFrame(paint);
     return () => {
       if (frameRef.current != null) cancelAnimationFrame(frameRef.current);
@@ -250,7 +223,7 @@ export default function Pulsarmap({
     // ⚠️ `use3d` too: when the 3-D stage gives up, the 2-D canvas mounts with the same
     // mesh, position and track — and on a paused track nothing else would ever
     // re-run this draw, leaving the fallback blank.
-  }, [ready, position, trackId, use3d]);
+  }, [ready, position, playing, trackId, use3d]);
 
   if (trackId == null) return null;
 
@@ -279,6 +252,8 @@ export default function Pulsarmap({
           bands={ready.bands}
           rowSeconds={ready.rowSeconds}
           position={position}
+          livePosition={livePosition}
+          playing={playing}
           onUnsupported={() => setUse3d(false)}
         />
       </div>
@@ -291,7 +266,8 @@ export default function Pulsarmap({
         ref={viewRef}
         className="kr-pulsar-canvas"
         role="img"
-        aria-label={`Spectrogram of this track, revealed as it plays — ${ready.count} slices of about two seconds`}
+        aria-label={`Spectrogram of this track, flowing as it plays — ${ready.count} slices of ` +
+                    `${Math.round(ready.rowSeconds * 1000)} ms each`}
       />
     </div>
   );

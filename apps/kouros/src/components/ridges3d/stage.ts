@@ -65,11 +65,8 @@ export const FOG_FAR = 0.95 * VISIBLE_ROWS * PITCH;
 /** Line half-width in CSS px. `gl.lineWidth` is 1 device pixel almost everywhere,
  *  which at DPR 3 is invisible — so lines are screen-space quads. */
 export const LINE_WIDTH_PX = 1.25;
-/** Rad/s. ~0.45 s to settle: a new row every 2 s glides in rather than stepping. */
-export const FOLLOW_OMEGA = 10;
+/** Rad/s — how an orbit springs home on release. */
 export const RETURN_OMEGA = 7;
-/** A jump of more rows than this is a SEEK, not playback, and cuts. */
-export const CUT_ROWS = 8;
 
 export const rowZ = (row: number): number => row * PITCH;
 export const rowHeight = (byte: number): number => (byte / 255) * AMPLITUDE;
@@ -107,7 +104,7 @@ export function visibleWindow(currentTime: number, rowSeconds: number, rows: num
 
 /* ── the camera ──────────────────────────────────────────────────────────────── */
 export interface Pose {
-  /** z of the newest revealed row — what the camera follows. */
+  /** z of the playhead — the continuous scroll, in world units. */
   focusZ: number;
   target: Vec3;
   yaw: number;
@@ -115,9 +112,18 @@ export interface Pose {
   distance: number;
 }
 
-/** The follow pose for a window: aimed behind the newest row, level, not orbited. */
-export function followPose(win: RowWindow): Pose {
-  const focusZ = rowZ(Math.max(0, win.end - 1));
+/**
+ * The follow pose at `scroll` (pulsarmap.ts `scrollRow`): aimed behind the playhead,
+ * level, not orbited.
+ *
+ * ⚠️ **THE CAMERA RIDES THE PLAYHEAD EXACTLY — NO SPRING.** At 2 s rows the focus
+ * sprang one pitch forward per row, and a seek cut. At ~10.8 rows a second the focus
+ * is continuous in time, so the stack flows past at the track's own rate: a row
+ * arrives at the front the instant its time begins and recedes one pitch per row of
+ * music after. A spring here would only lag the music.
+ */
+export function followPose(scroll: number): Pose {
+  const focusZ = rowZ(Math.max(0, scroll));
   return { focusZ, target: [0, TARGET_Y, focusZ - LOOK_BEHIND], yaw: 0, pitch: FOLLOW_PITCH,
            distance: FOLLOW_DISTANCE };
 }
@@ -128,11 +134,6 @@ export function followPose(win: RowWindow): Pose {
 export const ORBIT: OrbitDragLimits = {
   yawPerPx: YAW_PER_PX, pitchPerPx: PITCH_PER_PX, minPitch: MIN_PITCH, maxPitch: MAX_PITCH, maxYaw: MAX_YAW,
 };
-
-/** Whether the focus should CUT rather than glide to a new newest row. */
-export function shouldCut(fromZ: number, toZ: number): boolean {
-  return Math.abs(toZ - fromZ) > CUT_ROWS * PITCH;
-}
 
 /** The ramp position of a row: POSITION IN THE TRACK, as in 2-D (far → line). */
 export function rampOf(row: number, rows: number): number {

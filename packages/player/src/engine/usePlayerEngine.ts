@@ -207,6 +207,22 @@ export function usePlayerEngine<
       reqSeqRef.current += 1;
     }
 
+    // ---- The media element's own time, read NOW ------------------------------
+    // `globalPos` is published on `timeupdate` (~4 Hz): right for a clock label, too
+    // coarse for a picture that moves every frame. This reads the same backend
+    // `currentTime` `onTime` does, mapped the same way, at the CALLER's frame rate —
+    // still the element's own time, never a counter: a view that extrapolated between
+    // timeupdates with a clock of its own would drift on buffering and on a rate
+    // change. While a load or a seek is still settling (no source yet, or an offset
+    // waiting for metadata) the element's time is not the track's, so the last known
+    // position stands.
+    function livePosition(): number {
+      const backend = backendRef.current;
+      if (!backend || !hasLoadedRef.current || pendingSeekRef.current != null) return globalPosRef.current;
+      const t = backend.currentTime;
+      return Number.isFinite(t) ? toGlobal(timelineRef.current, arrayIndexRef.current, t) : globalPosRef.current;
+    }
+
     // ---- Seek in GLOBAL seconds (same source → seek, else swap) ------------
     function seekTo(globalSec: number): void {
       const timeline = timelineRef.current;
@@ -528,7 +544,7 @@ export function usePlayerEngine<
     return {
       dispatch, handleRequest, flushNow,
       controls: {
-        toggle, seekTo, skip, prevSegment, nextSegment, cycleRate,
+        toggle, seekTo, skip, prevSegment, nextSegment, cycleRate, livePosition,
         setVolume, setMuted, toggleMute,
         setSleep, addBookmarkHere, jumpBookmark, removeBookmark,
       },

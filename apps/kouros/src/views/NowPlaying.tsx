@@ -137,7 +137,7 @@ export default function NowPlaying() {
           element's own currentTime, published on `timeupdate`; NOTHING here
           counts seconds. A timer desynchronises on buffering, on seek, and on a
           rate change, and @jkos/player has a rate module. */}
-      <Pulsarmap trackId={track.id} position={p.globalPos} />
+      <Pulsarmap trackId={track.id} position={p.globalPos} livePosition={p.livePosition} playing={p.playing} />
 
       <div className="kr-now-scrub">
         <Scrubber

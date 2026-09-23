@@ -23,10 +23,9 @@
  *  reads as *the transform is broken* when the transform is fine and the picture
  *  is merely too small."
  *
- *  ⚠️ This is why the canvas PANS instead of squashing to fit. A 20-minute track
- *  is ~600 rows, which at this pitch is 5,400 px and fits nothing; scaling those
- *  600 rows into a 400 px panel is a 0.7 px pitch and an unreadable smear. So the
- *  pitch is a constant and the viewport moves. */
+ *  ⚠️ This is why the strip SCROLLS instead of squashing to fit. A 20-minute track
+ *  is ~12,900 rows; scaling them into a 136 px strip is a 0.01 px pitch and an
+ *  unreadable smear. So the pitch is a constant and the rows flow past. */
 export const MIN_ROW_PITCH = 9;
 
 /** Rows the stack is drawn at. Clamped up to `MIN_ROW_PITCH`, so a caller that
@@ -42,9 +41,9 @@ export function rowPitch(requested: number): number {
  *   row = floor(currentTime / rowSeconds)
  *
  * ⚠️ `rowSeconds` comes FROM THE MESH, never from a constant here. The builder
- * derives it from `config.frame_seconds()` — 1.9969 s at the baseline, not the
- * 2.0 s target — and the 3 ms difference is one whole row of drift by minute ten.
- * A literal `2` in this file would be right for about nine minutes.
+ * derives it from `config.frame_seconds()` — 0.09288 s at the baseline, not the
+ * 0.1 s target — and the 7 ms difference is a whole row of drift every ~1.4 s. A
+ * literal `0.1` in this file would be wrong before the first chorus.
  *
  * A non-finite time is treated as 0 rather than as an error: an `<audio>` element
  * reports `NaN` for `currentTime` before metadata loads, which is a normal frame
@@ -57,129 +56,74 @@ export function revealIndex(currentTime: number, rowSeconds: number, rows: numbe
   return Math.min(rows - 1, Math.floor(t / rowSeconds));
 }
 
-/** How many rows should be on the canvas at `currentTime` — `revealIndex` + 1, so
- *  row 0 is present from t = 0 rather than appearing 2 s in. */
+/** How many rows have arrived at `currentTime` — `revealIndex` + 1, so row 0 is
+ *  present from t = 0 rather than appearing a row in. */
 export function rowsRevealed(currentTime: number, rowSeconds: number, rows: number): number {
   return revealIndex(currentTime, rowSeconds, rows) + 1;
 }
 
-/** What the renderer has already painted. `trackId` is part of it because a track
- *  change is not a seek — the canvas is thrown away rather than repainted. */
-export interface RevealState {
-  trackId: string | number | null;
-  /** Rows already painted onto the offscreen canvas. */
-  painted: number;
-}
-
-export interface RevealFrame {
-  trackId: string | number | null;
-  currentTime: number;
-  rowSeconds: number;
-  rows: number;
-}
-
 /**
- * What to draw this animation frame.
+ * Where the stack has scrolled to at `currentTime`, in ROWS — continuous, so the
+ * picture flows at the track's own rate rather than stepping a row at a time.
  *
- *  - `idle`    nothing changed. **This is the pause case**, and it falls out
- *              rather than being special-cased: a paused element's `currentTime`
- *              does not move, so the target does not move. A `paused` flag here
- *              would be a second source of truth about whether time is passing.
- *  - `append`  draw rows [from, to) onto the existing canvas. ⚠️ **THE STEADY
- *              STATE, AND THE WHOLE OPTIMISATION.** Each row is an opaque filled
- *              path that occludes the ones behind it, drawn in front, so the
- *              canvas is append-only: the cost of a reveal is one polyline every
- *              two seconds rather than a full redraw at 60 Hz. Reverse the
- *              direction and a new row has to be drawn BEHIND the stack, which
- *              means repainting everything in front of it every time.
- *  - `repaint` a seek BACKWARDS. The canvas cannot un-draw, so it is cleared and
- *              rows [0, to) are redrawn offscreen.
- *  - `reset`   a different track. Clear and start again, and the previous mesh is
- *              no longer the picture.
+ *   scroll = min(rows − 1, currentTime / rowSeconds)
+ *
+ * Row `r` arrives exactly when `scroll` reaches `r` (`floor(scroll)` IS
+ * `revealIndex`), sits at the front at that instant, and recedes one pitch per row
+ * of music after it. Both renderers are positioned by this one number: the 2-D
+ * strip's baselines (`stripBaseline`) and the 3-D camera's focus (ridges3d
+ * `followPose`).
+ *
+ * ⚠️ **STILL `currentTime`, AND NOW EVERY FRAME.** At ~10.8 rows a second (0.093 s
+ * rows, Jag 2026-09-23) the player's ~4 Hz `timeupdate` would move the picture in
+ * visible 250 ms jumps, so the caller reads the element's own time each animation
+ * frame (`@jkos/player`'s `livePosition()`). A clock of the renderer's own,
+ * extrapolating between updates, is the thing this file exists to refuse.
+ *
+ * −1 for a mesh with no rows or a non-positive row duration; NaN (no metadata yet)
+ * or a negative time is row 0.
  */
-export type RevealAction = 'idle' | 'append' | 'repaint' | 'reset';
-
-export interface RevealPlan {
-  action: RevealAction;
-  /** First row index to draw, inclusive. */
-  from: number;
-  /** One past the last row to draw. `from === to` means draw nothing. */
-  to: number;
-  /** Whether the canvas must be cleared before drawing. */
-  clear: boolean;
-  /** The state to carry into the next frame. */
-  next: RevealState;
+export function scrollRow(currentTime: number, rowSeconds: number, rows: number): number {
+  if (!Number.isFinite(rows) || rows <= 0) return -1;
+  if (!Number.isFinite(rowSeconds) || rowSeconds <= 0) return -1;
+  const t = Number.isFinite(currentTime) && currentTime > 0 ? currentTime : 0;
+  return Math.min(rows - 1, t / rowSeconds);
 }
 
-export function planReveal(state: RevealState, frame: RevealFrame): RevealPlan {
-  const target = rowsRevealed(frame.currentTime, frame.rowSeconds, frame.rows);
-
-  if (state.trackId !== frame.trackId) {
-    return {
-      action: 'reset', from: 0, to: target, clear: true,
-      next: { trackId: frame.trackId, painted: target },
-    };
-  }
-  if (target > state.painted) {
-    return {
-      action: 'append', from: state.painted, to: target, clear: false,
-      next: { trackId: frame.trackId, painted: target },
-    };
-  }
-  if (target < state.painted) {
-    return {
-      action: 'repaint', from: 0, to: target, clear: true,
-      next: { trackId: frame.trackId, painted: target },
-    };
-  }
-  return { action: 'idle', from: target, to: target, clear: false, next: state };
-}
-
-/** A fresh state — nothing painted, no track. */
-export function emptyReveal(): RevealState {
-  return { trackId: null, painted: 0 };
-}
-
-/* ── Geometry ────────────────────────────────────────────────────────────────
+/* ── The 2-D strip ───────────────────────────────────────────────────────────
    The mesh carries rows and a row duration and NOTHING about pixels, so every
-   number below belongs to the renderer. Row 0 is the oldest and sits at the back
-   (top); the newest row is nearest the viewer (bottom). */
+   number below belongs to the renderer. Newer rows sit lower (in front), older
+   rows higher (behind); the stack scrolls UP as the track plays.
 
-/** Height of the offscreen canvas for a whole track: one pitch per row, plus the
- *  amplitude the first row's excursion needs above its own baseline. */
-export function canvasHeight(rows: number, pitch: number, amplitude: number): number {
-  const n = Math.max(0, Math.floor(rows));
-  return amplitude + Math.max(0, n - 1) * pitch + amplitude;
+   ⚠️ **A WINDOW, REDRAWN EVERY FRAME — NOT A FULL-TRACK CANVAS ANY MORE.** At 2 s
+   rows the strip was one offscreen canvas holding the whole track, appended to a
+   row at a time. At ~10.8 rows a second a four-minute track is 2,584 rows — at a
+   9 px pitch, 23,000 CSS px of canvas, past every browser's limit on a phone — and
+   the stack has to move every frame anyway. So each frame draws only the rows in
+   view, back to front, and the picture is a pure function of the time: nothing is
+   carried between frames, so a seek, a track change and a pause need no special
+   case at all. */
+
+export interface StripWindow {
+  /** First row to draw, inclusive — the oldest one still reaching into view. */
+  from: number;
+  /** One past the newest revealed row. `from === to` draws nothing. */
+  to: number;
 }
 
-/** The y of row `index`'s baseline on that canvas. */
-export function rowBaseline(index: number, pitch: number, amplitude: number): number {
-  return amplitude + Math.max(0, index) * pitch;
+/** The y of row `index`'s baseline when the stack has scrolled to `scroll`: the row
+ *  arriving now sits at `anchorY`, and every row of music since lifts it one pitch. */
+export function stripBaseline(index: number, scroll: number, pitch: number, anchorY: number): number {
+  return anchorY - (scroll - index) * pitch;
 }
 
-/**
- * How far to scroll the offscreen canvas so the newest revealed row sits at
- * `anchorY` in a viewport `viewportHeight` tall.
- *
- * ⚠️ **CLAMPED AT BOTH ENDS, AND BOTH ENDS MATTER.** Early in a track the stack
- * is shorter than the viewport, so the offset must not go negative and drag the
- * picture off the top. Late in a track the offset must not scroll past the
- * canvas, which would show blank space below the newest row — the frame in which
- * the picture appears to have stopped. Neither would throw.
- */
-export function panOffset(
-  revealed: number,
-  rows: number,
-  pitch: number,
-  amplitude: number,
-  viewportHeight: number,
-  anchorY: number,
-): number {
-  const height = canvasHeight(rows, pitch, amplitude);
-  const newest = rowBaseline(Math.max(0, revealed - 1), pitch, amplitude);
-  const raw = newest - anchorY;
-  const max = Math.max(0, height - viewportHeight);
-  return Math.max(0, Math.min(raw, max));
+/** The rows to draw at `scroll`: every revealed row whose filled body (baseline down
+ *  to baseline + pitch) still reaches the top edge, oldest first. */
+export function stripWindow(scroll: number, pitch: number, anchorY: number): StripWindow {
+  if (!(scroll >= 0)) return { from: 0, to: 0 };
+  const to = Math.floor(scroll) + 1;
+  const from = Math.max(0, Math.floor(scroll - (anchorY + pitch) / pitch));
+  return { from, to };
 }
 
 /**

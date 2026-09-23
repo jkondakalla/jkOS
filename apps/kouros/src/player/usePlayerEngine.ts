@@ -63,6 +63,9 @@ export interface PlayerApi {
   buffering: boolean;
   error: string | null;
   globalPos: number;
+  /** The media element's own time, read at call time — for a view that moves every
+   *  frame (the pulsarmap). `globalPos` is the same clock published at ~4 Hz. */
+  livePosition(): number;
   total: number;
   volume: number;
   muted: boolean;
@@ -616,6 +619,7 @@ export function usePlayerEngine(): PlayerApi {
     buffering: eng.buffering,
     error: eng.error,
     globalPos: eng.globalPos,
+    livePosition: eng.livePosition,
     total: eng.total,
     volume: eng.volume,
     muted: eng.muted,
