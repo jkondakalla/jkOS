@@ -53,15 +53,16 @@ class DerivationTest(unittest.TestCase):
     row duration that is right by coincidence drifts a whole row out by minute ten
     the moment `HOP` or `SR` changes — and the picture stays plausible."""
 
-    def test_frames_per_row_lands_on_the_documented_86(self):
-        """The arithmetic ALGORITHMS.md §9's size table is built on."""
-        self.assertEqual(mesh.frames_per_row(), 86)
-        self.assertAlmostEqual(mesh.row_seconds(), 1.9969, places=3)
+    def test_frames_per_row_lands_on_the_documented_4(self):
+        """The arithmetic ALGORITHMS.md §9's size table is built on: 4 frames,
+        ~93 ms, ~10.8 rows a second (Jag, 2026-09-23 — 2 s rows were too sparse)."""
+        self.assertEqual(mesh.frames_per_row(), 4)
+        self.assertAlmostEqual(mesh.row_seconds(), 0.09288, places=5)
 
     def test_row_seconds_is_derived_and_not_the_target(self):
         """⚠️ `ROW_SECONDS` is a TARGET; what ships is `frames_per_row()` frames'
-        worth. They differ by 3 ms at the baseline, which is one whole row of
-        reveal drift by minute ten."""
+        worth. They differ by 7 ms at the baseline — 7% of a row, which is a
+        whole row of reveal drift every ~1.4 s."""
         self.assertNotEqual(mesh.row_seconds(), mesh.ROW_SECONDS)
         self.assertAlmostEqual(mesh.row_seconds(),
                                mesh.frames_per_row() * config.frame_seconds())
@@ -73,8 +74,8 @@ class DerivationTest(unittest.TestCase):
         with config.using(config.ENCODER):
             self.assertEqual(mesh.frames_per_row(),
                              max(1, round(mesh.ROW_SECONDS / config.frame_seconds())))
-            self.assertNotEqual(mesh.frames_per_row(), 86)
-        self.assertEqual(mesh.frames_per_row(), 86)
+            self.assertNotEqual(mesh.frames_per_row(), 4)
+        self.assertEqual(mesh.frames_per_row(), 4)
 
     def test_frames_per_row_is_never_zero(self):
         """A configuration whose frame is longer than a row gets one frame per
@@ -175,10 +176,14 @@ class ReductionTest(unittest.TestCase):
         self.assertIn(mesh.REDUCTION, mesh.REDUCTIONS)
 
     def test_the_default_is_not_silently_mean(self):
-        """A row of one loud frame among quiet ones: `mean` and `p75` disagree by
-        a lot, so this fails loudly if the default ever falls through to `mean`."""
+        """A row of a loud frame and a softer one among quiet ones: `mean` and `p75`
+        disagree by a lot, so this fails loudly if the default ever falls through to
+        `mean`. ⚠️ Two unequal frames, not one: at 4 frames a row, `p75` of ONE loud
+        frame among three quiet ones interpolates to exactly the mean (−2.25 both),
+        and the test passed only by coincidence of the old 86."""
         matrix = np.full((config.N_MELS, mesh.frames_per_row()), -6.0, dtype=np.float32)
         matrix[:, 0] = 9.0
+        matrix[:, 1] = 3.0
         default = mesh.build(matrix).rows
         as_mean = mesh.build(matrix, 'mean').rows
         self.assertFalse(np.array_equal(default, as_mean))
@@ -229,11 +234,11 @@ class ShapeTest(unittest.TestCase):
             mesh.build(np.empty((config.N_MELS, 0), dtype=np.float32))
 
     def test_the_size_claim_in_the_docs_holds(self):
-        """ALGORITHMS.md §9: a four-minute track is ~120 rows × 128 = 15 KB."""
+        """ALGORITHMS.md §9: a four-minute track is ~2,580 rows × 128 = 330 KB."""
         four_minutes = int(240.0 / config.frame_seconds())
         m = mesh.build(synthetic_logmel(four_minutes))
-        self.assertEqual(m.n_rows, 121)
-        self.assertLess(m.rows.nbytes, 16 * 1024)
+        self.assertEqual(m.n_rows, 2584)
+        self.assertLess(m.rows.nbytes, 330 * 1024)
 
     def test_a_config_change_changes_the_band_count(self):
         """A mesh built under the encoder profile is 64 bands wide, and the store
@@ -458,11 +463,11 @@ class LiveTrackTest(unittest.TestCase):
             m = mesh.from_file(path)
             self.assertEqual(m.n_mels, config.N_MELS)
             # Derived, not a literal: 6 s is 259 frames once CENTER's half-window
-            # pad is counted, which is four rows of 86 and not the three a
-            # duration/row_seconds division would predict.
+            # pad is counted, which is 65 rows of 4 (the last one short) and not
+            # the 64 a duration/row_seconds division would predict.
             expected = -(-config.n_frames(int(6.0 * config.SR)) // mesh.frames_per_row())
             self.assertEqual(m.n_rows, expected)
-            self.assertEqual(m.n_rows, 4)
+            self.assertEqual(m.n_rows, 65)
             self.assertAlmostEqual(m.duration, 6.0, places=1)
             # A 440 Hz sine puts its energy in one band and near the floor
             # everywhere else — a mesh that came out flat is not describing it.

@@ -208,7 +208,7 @@ assignment to a `*_PASSWORD` variable matched none of them.
 | `encoder.py` | **The neural arm.** CLAP audio tower via `onnxruntime`, 12 windows of 10 s → mean-pool → 512-d. |
 | `backfill.py` | **The run.** Parallel decode+mel readers feeding one serial session, one commit per track, resumable from the first commit. |
 | `query.py` | **The gate, and the search.** `M @ q` over the whole matrix; both arms aligned to one population; the duplicate-aware proxies; the side-by-side sheet a person reads. |
-| `mesh.py` | **The pulsarmap.** A log-mel reduced to ~2 s rows of one byte per band, the sidecar `meshes.db` it lives in, and `check()` for a shipped snapshot. |
+| `mesh.py` | **The pulsarmap.** A log-mel reduced to ~93 ms rows (4 frames, ~10.8 a second) of one byte per band, the sidecar `meshes.db` it lives in, and `check()` for a shipped snapshot. |
 | `analyze.py` | **The sequence.** Every stage above in order, the guards between them (settled files only, an invalidation ceiling, the gate before the ship), the verified hand-off, and `--watch`. |
 | `runlock.py` | **One writer.** A `flock` every run that writes the stores takes, so the watcher and a hand-started run cannot embed the same tracks twice. |
 | `ship.py` | **The hand-off to KourOS.** `VACUUM INTO` an atomic single-file snapshot, then verify *the copy* against the four ways the hand-off succeeds and is still wrong. |

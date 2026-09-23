@@ -964,8 +964,8 @@ render scale settles), and "the path the current shuffle is taking through it" �
 drawn as a ribbon through the cloud, which needs M5.
 
 **M7 — the pulsarmap.** The mel matrix as a stack of ridgelines that ACCUMULATES as the track
-plays: one line per ~2 s slice, frequency across the line, energy as elevation, new lines
-arriving in front of the ones already drawn. The Joy Division *Unknown Pleasures* form, revealed
+plays: one line per ~93 ms slice (~10.8 a second), frequency across the line, energy as
+elevation, new lines arriving in front of the ones already drawn. The Joy Division *Unknown Pleasures* form, revealed
 in time rather than printed at once.
 
 ⚠️ **This section used to end "this is decoration and is documented as such; nothing may come to
@@ -982,17 +982,29 @@ this decoration. It survives exactly one decimation and one quantisation:
 | | |
 |---|---|
 | **Analysis matrix** | 10,300 × 128 float32 — **5.3 MB** |
-| **Decimate time**, ~86 frames → 1 row (`FRAMES_PER_ROW`, ≈ 2.0 s at 22.05 kHz / hop 512) | 120 × 128 float32 — 61 KB |
-| **Quantise to uint8** over the shared range | 120 × 128 — **15 KB**, ~4 KB gzipped |
-| **On the wire**, base64 inside the ordinary JSON body | ~20 KB |
+| **Decimate time**, 4 frames → 1 row (`frames_per_row()`, ≈ 0.093 s at 22.05 kHz / hop 512) | 2,584 × 128 float32 — 1.3 MB |
+| **Quantise to uint8** over the shared range | 2,584 × 128 — **330 KB**, ~280 KB gzipped |
+| **On the wire**, base64 inside the ordinary JSON body | ~440 KB, **~310 KB gzipped** |
+
+⚠️ **The row was 2 s until 2026-09-23 (86 frames, 15 KB a track). Jag: "a frame every second or
+two … way too sparse to be anything useful. The pulsar frames should flow onto the screen at a
+pretty consistent rate so that it can actually be a visualizer for the music."** Two-second rows
+were a bar-scale envelope — below the beat by construction (see the `p75` bullet). At 0.093 s a
+kick drum is its own row and the ridges arrive at a steady ~10.8 a second. Jag chose it over
+~5 rows/s and over halving the bands, knowing the store grows from ~0.7 GiB to ~15 GiB for the
+library. Still the music's own analysis, fetched whole per track: **no spectrum is computed in
+the browser** (a Web Audio analyser would be a second mel implementation, would reroute the media
+element through an AudioContext that a locked phone suspends, and would disagree with the stored
+picture). The 2 s store was set aside as `music/meshes-2s.db`; the recipe (`row_secs` in
+`mesh_recipe`) keeps the two from ever mixing.
 
 **Three decisions, each against a plausible alternative:**
 
 - **Fixed seconds-per-row, not a fixed row count.** A fixed row count makes the reveal rate a
   function of track length: a two-minute interlude would fill in ten times faster than a
   twenty-minute post-rock track, and the reveal would stop meaning "how far in are we". The cost
-  is that row count varies with duration (a 20-minute track is ~600 rows, 77 KB), and that cost
-  lands on the **renderer**, not the format — see the pitch note below.
+  is that row count varies with duration (a 20-minute track is ~12,900 rows, 1.6 MB), and that
+  cost lands on the **renderer**, not the format — see the pitch note below.
 - **Reduce each row by `p75`. Measured 2026-09-10, and the presumed answer was wrong.** M2
   chose `max` because reducing the time axis by `mean` deletes the beat grid — a kick drum is one
   loud frame in a bucket of quiet ones. That was measured over ~22-frame buckets and, as the
@@ -1019,6 +1031,21 @@ this decoration. It survives exactly one decimation and one quantisation:
   smooth hump. `mean` pins least of all and contrasts least of all, visibly flattening whole rows.
   Recorded as `mesh.REDUCTION` and stamped into every stored mesh, so a later change cannot mix
   two kinds of picture in one store.
+
+  **Re-measured at 4 frames a row, 2026-09-23 — `p75` still.** The argument above is about 86
+  frames, so it was run again at 0.093 s on one track each from the same four artists (SiM,
+  Kendrick Lamar, Matt Maltese, Bo Burnham), lowest 16 bands as the sub-200 Hz register:
+
+  | reduction | cells at the ceiling | sub-200 Hz at the ceiling | row-to-row Δ (the beat) | band-to-band Δ |
+  |---|---|---|---|---|
+  | `max` | 0.6 – 2.5 % | 0.2 – 16.5 % | 13.2 – 18.8 | 9.8 – 12.6 |
+  | `p90` | 0.4 – 2.2 % | 0.1 – 15.1 % | 13.2 – 18.9 | 9.6 – 12.5 |
+  | **`p75`** | **0.3 – 1.9 %** | **0.1 – 13.4 %** | **13.6 – 19.4** | 9.7 – 12.7 |
+  | `mean` | 0.1 – 1.4 % | 0.0 – 10.4 % | 12.2 – 17.3 | 9.4 – 12.5 |
+
+  Over four frames the candidates converge (`max` pinned 45–55 % of the bass at 2 s; 12–17 % here),
+  and `p75` carries the most row-to-row change of the four on every track — the beat, which is now
+  inside the picture's sampling rate — with pinning within two points of `p90`.
 - **One shared absolute value scale, never per-track.** `ridge.py`'s `VALUE_RANGE_LN = (-8.0, 10.0)`,
   measured across four deliberately unalike library tracks, is the quantisation range too. ⚠️
   **Per-track normalisation is the single thing that would make this picture meaningless** — a

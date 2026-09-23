@@ -7,11 +7,11 @@ can hold, plus the sidecar store it lives in.
 
 A four-minute track is ~10,300 frames × 128 bands — 1.3 M vertices, 5.3 MB of
 float32. That number is what made this decoration for a year (ALGORITHMS.md §9).
-It survives exactly one decimation and one quantisation: ~86 frames become one
-row (~2.0 s at 22.05 kHz / hop 512), and 18 ln units of level become one byte.
-120 × 128 uint8 is **15 KB**, ~20 KB base64 inside an ordinary JSON body — small
-enough that the read stays JSON and therefore stays inside every contract the
-suite already enforces.
+It survives exactly one decimation and one quantisation: 4 frames become one row
+(~93 ms at 22.05 kHz / hop 512 — ~10.8 rows a second, fast enough to show the
+beat), and 18 ln units of level become one byte. 2,580 × 128 uint8 is **330 KB**,
+~440 KB base64 inside an ordinary JSON body — still one fetch per track, and still
+inside every contract the suite already enforces.
 
 ⚠️ **READ-ONLY USE OF THE PIPELINE.** This module imports `config`, `mel`,
 `audio` and `ridge` and edits none of them. The backfill is paused mid-run
@@ -66,10 +66,16 @@ SCHEMA_VERSION = 1
 # interlude would fill in ten times faster than a twenty-minute post-rock track
 # and "how far along the stack are we" would stop meaning "how far into the song
 # are we". The cost is that row count varies with duration (a 20-minute track is
-# ~600 rows, 77 KB), and that cost lands on the renderer — which pans a fixed row
-# pitch rather than squashing to fit, because below ~9 px of pitch M2 measured
-# that the stack collapses into a uniform hatch.
-ROW_SECONDS = 2.0
+# ~12,900 rows, 1.6 MB), and that cost lands on the renderer — which draws a
+# window of recent rows at a fixed pitch rather than squashing to fit.
+#
+# ⚠️ **0.1 s, NOT 2 s — JAG, 2026-09-23.** Two-second rows arrived one every two
+# seconds, "way too sparse to be anything useful": the picture was a bar-scale
+# envelope, below the beat. At ~10.8 rows a second the ridges flow onto the screen
+# at a steady rate and a kick drum is its own row — a visualizer of the music, from
+# the music's own analysis (no second spectrum in the browser). The store's recipe
+# carries `row_secs`, so 2 s and 0.1 s meshes can never mix in one store.
+ROW_SECONDS = 0.1
 
 
 def frames_per_row():
@@ -103,8 +109,14 @@ def row_seconds():
 
 
 # ── The reduction ───────────────────────────────────────────────────────────────
-# How ~86 frames become one. Every candidate is implemented rather than one being
-# chosen in prose, because M2 established the method: render it and look.
+# How a row's frames become one. Every candidate is implemented rather than one
+# being chosen in prose, because M2 established the method: render it and look.
+#
+# ⚠️ **RE-MEASURED AT 4 FRAMES A ROW, 2026-09-23: `p75` STILL.** At 0.1 s the four
+# candidates converge — `max` pins 12–17% of the sub-200 Hz cells instead of 45–55%
+# — and `p75` carries the most row-to-row change (the beat) of all four on SiM,
+# Kendrick Lamar, Matt Maltese and Bo Burnham, with pinning within 2 points of
+# `p90`. ALGORITHMS.md §9 has the table. The 2026-09-10 reasoning below was at 86.
 #
 # ⚠️ **MEASURED 2026-09-10, AND THE PRESUMED ANSWER WAS WRONG.** M2 chose `max`
 # because `mean` deletes the beat over ~22-frame buckets, where a kick drum is one
@@ -650,7 +662,7 @@ def _compare(path, out):
 
     Ceiling occupancy is the number that decides it. `max` was the presumed
     answer *because* `mean` deletes the beat — but the warning against it is that
-    over a ~2 s window nearly every bucket contains a kick, so the reduction
+    over a ~2 s window (the 2026-09-10 row) nearly every bucket contains a kick, so the reduction
     chosen to preserve the beat may be the one that erases it by pinning the bass
     rows to 255. That is measurable and does not need an eye; contrast between
     adjacent rows is what an eye adds, and it is printed too.
@@ -666,7 +678,7 @@ def _compare(path, out):
         rows = quantise(reduce_rows(matrix, name)).astype(np.float32)
         ceiling = 100.0 * float((rows >= QUANT_MAX).mean())
         floor = 100.0 * float((rows <= 0).mean())
-        # Row-to-row change is the beat: how much one 2 s slice differs from the
+        # Row-to-row change is the beat: how much one slice differs from the
         # next. Band-to-band change is the shape within a slice — the thing that
         # makes a ridgeline read as a ridgeline rather than a smooth hump.
         row_delta = float(np.abs(np.diff(rows, axis=0)).mean()) if rows.shape[0] > 1 else 0.0
