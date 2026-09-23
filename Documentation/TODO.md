@@ -485,6 +485,12 @@ the four points it could enter (builder, quantiser, renderer contrast, the 3-D s
     then stopped cleanly at 12:36 and restarted at 12:39 on the 0.1 s mesh recipe (§2 item 11). This
     pass does the remaining ~23,000 descriptors and all 47,691 meshes, then fit (calibration AND
     map basis) → gate → ship; ~6 h. Then: G1–G4 into ALGORITHMS.md §9 M6, and the stores to staging.
+  - ⚠️ **A flaky gate assertion, seen 2026-09-23 and not fixed:** `discover.smoke`'s "a lapsed TTL
+    over an unchanged index does not rebuild" failed once (1 → 2 builds) inside `pnpm
+    test:contracts` while `analyze.py` held every core, and passed alone and on the gate's rerun.
+    Likely a race, not a defect: it counts `space built in` log lines across a 400 ms TTL, and a
+    boot scan that finishes late under load legitimately rebuilds inside that window. Fix by
+    waiting for the boot scan to settle (or keying on the build's cause) before taking the count.
   - **A real phone**: frame rate during a scrub, whether the adaptive render scale settles, and
     how the density worker's build time (1.5 s on the workstation for the gate's 3,000-track
     fixture) scales to 47,000 tracks on a phone CPU.
