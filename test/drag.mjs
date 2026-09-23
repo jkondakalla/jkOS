@@ -41,7 +41,8 @@ const CONSUMERS = {
   'ORDECK widget tray': 'apps/ordeck/src/hud/WidgetTray.tsx',
   'KourOS beacon': 'apps/kouros/src/shell/Beacon.tsx',
   'KourOS rune gestures': 'apps/kouros/src/gestures/useRune.ts',
-  'KourOS 3-D pulsarmap orbit': 'apps/kouros/src/components/ridges3d/RidgeStage.tsx',
+  // The 3-D pulsarmap's orbit — and any 3-D view's — is @jkos/scene's orbit controls.
+  '@jkos/scene orbit controls': 'packages/scene/src/react/useOrbitControls.ts',
   'KourOS vibe space': 'apps/kouros/src/components/vibespace/VibeSpace.tsx',
 };
 // Where a forked drag engine would most plausibly regrow.
@@ -59,6 +60,7 @@ const SURFACES = [
   'apps/kouros/src/gestures/useRune.ts',
   'apps/kouros/src/views/Queue.tsx',
   'apps/kouros/src/components/ridges3d/RidgeStage.tsx',
+  'packages/scene/src/react/useOrbitControls.ts',
   'apps/kouros/src/components/vibespace/VibeSpace.tsx',
   'apps/kouros/src/views/VibeMap.tsx',
 ];

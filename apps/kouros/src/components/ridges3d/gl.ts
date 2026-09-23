@@ -1,6 +1,6 @@
 // gl.ts — the 3-D pulsarmap's two draws, hand-rolled WebGL2.
 //
-// The mesh is ONE R8 texture (see stage.ts `textureLayout`) and there are no vertex
+// The mesh is ONE R8 texture (@jkos/scene `textureLayout`) and there are no vertex
 // buffers at all: every vertex is derived in the shader from `gl_InstanceID` (which
 // row and band) and `gl_VertexID` (which corner of the quad). A new track is one
 // `texImage2D`; a seek changes a uniform.
@@ -14,15 +14,16 @@
 //      the curtains, never written.
 
 import { compileProgram, uniforms } from '@jkos/scene/gl';
-import type { RGB } from '@jkos/scene/math';
+import { MATRIX_TEXEL_GLSL, packTexture, textureLayout, type RGB, type TextureLayout } from '@jkos/scene/math';
 import {
-  AMPLITUDE, FLOOR_Y, FOG_FAR, FOG_NEAR, HALF_WIDTH, LINE_WIDTH_PX, PITCH,
-  packTexture, textureLayout, type RowWindow, type TextureLayout,
+  AMPLITUDE, FLOOR_Y, FOG_FAR, FOG_NEAR, HALF_WIDTH, LINE_WIDTH_PX, PITCH, type RowWindow,
 } from './stage';
 
-/* ⚠️ The (row, band) and texel arithmetic below is mirrored by `cellOf` and
-   `texelOf` in stage.ts, and test/pulsarmap.mjs scans this source for these exact
-   expressions. Change one side and the gate says so. */
+/* ⚠️ The (row, band) arithmetic below is mirrored by `cellOf` in stage.ts, and
+   test/pulsarmap.mjs scans this source for these exact expressions. The texel a
+   (row, band) lives in is `matrixTexel` — @jkos/scene's `texelOf`, in GLSL, pasted in
+   from the one definition rather than written twice. Change one side and a gate says
+   so. */
 export const RIDGE_VERTEX = `#version 300 es
 precision highp float;
 precision highp int;
@@ -49,9 +50,10 @@ const float FLOOR_Y = ${FLOOR_Y.toFixed(6)};
 const float FOG_NEAR = ${FOG_NEAR.toFixed(6)};
 const float FOG_FAR = ${FOG_FAR.toFixed(6)};
 
+${MATRIX_TEXEL_GLSL}
+
 float heightAt(int row, int band) {
-  int column = row / u_rowsPerColumn;
-  ivec2 texel = ivec2(band + column * u_bands, row - column * u_rowsPerColumn);
+  ivec2 texel = matrixTexel(row, band, u_bands, u_rowsPerColumn);
   // Bytes over the fixed 0…255 span — NEVER rescaled per track.
   return texelFetch(u_mesh, texel, 0).r * AMPLITUDE;
 }
@@ -182,7 +184,7 @@ export class RidgeRenderer {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     if (!layout || frame.window.end <= frame.window.start) return;
 
-    const segments = layout.bands - 1;
+    const segments = layout.cols - 1;
     const count = (frame.window.end - frame.window.start) * segments;
     gl.useProgram(this.program);
     gl.bindVertexArray(this.vao);
@@ -191,7 +193,7 @@ export class RidgeRenderer {
     gl.uniform1i(u.u_mesh, 0);
     gl.uniform1i(u.u_rowStart, frame.window.start);
     gl.uniform1i(u.u_segments, segments);
-    gl.uniform1i(u.u_bands, layout.bands);
+    gl.uniform1i(u.u_bands, layout.cols);
     gl.uniform1i(u.u_rowsPerColumn, layout.rowsPerColumn);
     gl.uniform1i(u.u_rows, layout.rows);
     gl.uniformMatrix4fv(u.u_viewProj, false, frame.viewProj);

@@ -1,6 +1,8 @@
 // stage.ts — the PURE geometry and camera under the 3-D pulsarmap (ALGORITHMS.md §9).
-// No DOM, no GL, no clock: test/pulsarmap.mjs transpiles it (with the two pure
-// modules it imports) and drives the real functions.
+// No DOM, no GL, no clock: test/pulsarmap.mjs transpiles it (with pulsarmap.ts and
+// @jkos/scene/math, which it imports) and drives the real functions. The generic half
+// — the mesh as a wrapped texture, the orbit rig, the spring — is @jkos/scene's; what
+// is here is what makes it THIS picture.
 //
 // The picture is the 2-D pulsarmap's, stood up in space: one ridgeline per ~2 s row,
 // frequency across the line, energy as height, time receding into depth. What 3-D
@@ -21,10 +23,11 @@
 // ⚠️ **THE SHADER DERIVES (row, band) FROM `gl_InstanceID`, AND `cellOf` IS THE SAME
 // ARITHMETIC IN TYPESCRIPT.** The gate reads the shader source for the expressions
 // and checks `cellOf` against every instance of a mesh. An off-by-one there draws a
-// plausible picture of the wrong rows.
+// plausible picture of the wrong rows. (The texel a row lands in is the package's
+// `texelOf` / `matrixTexel`, held by its own test.)
 
 import { rowsRevealed } from '../pulsarmap';
-import { clamp, DEG, type Vec3 } from '@jkos/scene/math';
+import { clamp, DEG, type OrbitDragLimits, type Vec3 } from '@jkos/scene/math';
 
 /** World units. The line spans x ∈ [−HALF_WIDTH, HALF_WIDTH]. */
 export const HALF_WIDTH = 1;
@@ -74,51 +77,10 @@ export function bandX(band: number, bands: number): number {
   return bands > 1 ? -HALF_WIDTH + (2 * HALF_WIDTH * band) / (bands - 1) : 0;
 }
 
-/* ── the mesh as a texture ───────────────────────────────────────────────────── */
-export interface TextureLayout {
-  width: number;
-  height: number;
-  columns: number;
-  rowsPerColumn: number;
-  bands: number;
-  rows: number;
-}
-
-/**
- * Where a mesh of `rows × bands` goes in one R8 texture no side of which exceeds
- * `maxSize`. WebGL2 guarantees 2048, which is ~68 minutes of 2 s rows — so a longer
- * track WRAPS into columns of `bands` texels, each holding `rowsPerColumn` rows.
- */
-export function textureLayout(rows: number, bands: number, maxSize = 2048): TextureLayout {
-  if (!(rows > 0) || !(bands > 0)) throw new Error(`ridges3d: empty mesh ${rows}x${bands}`);
-  const columns = Math.ceil(rows / maxSize);
-  const width = bands * columns;
-  if (width > maxSize) throw new Error(`ridges3d: ${rows} rows cannot fit a ${maxSize} texture`);
-  const rowsPerColumn = Math.ceil(rows / columns);
-  return { width, height: rowsPerColumn, columns, rowsPerColumn, bands, rows };
-}
-
-/** The texel holding (row, band). The shader's `heightAt` is this, in GLSL. */
-export function texelOf(row: number, band: number, layout: TextureLayout): [number, number] {
-  const column = Math.floor(row / layout.rowsPerColumn);
-  return [band + column * layout.bands, row - column * layout.rowsPerColumn];
-}
-
-/** Row-major mesh bytes → the texture's own row-major memory. Unused texels are 0. */
-export function packTexture(bytes: Uint8Array, layout: TextureLayout): Uint8Array {
-  const { rows, bands, width } = layout;
-  if (bytes.length !== rows * bands) {
-    throw new Error(`ridges3d: ${bytes.length} bytes for a declared ${rows}x${bands}`);
-  }
-  const out = new Uint8Array(layout.width * layout.height);
-  for (let r = 0; r < rows; r++) {
-    for (let b = 0; b < bands; b++) {
-      const [x, y] = texelOf(r, b, layout);
-      out[y * width + x] = bytes[r * bands + b];
-    }
-  }
-  return out;
-}
+/* ── the mesh on the GPU ─────────────────────────────────────────────────────── */
+// The mesh is ONE R8 texture, laid out by @jkos/scene's `textureLayout` (rows × bands,
+// wrapped into columns past the texture limit — a 20-minute track is 600 rows, a
+// 70-minute one wraps).
 
 /** One instance per (row, segment). The shader computes
  *    row  = u_rowStart + gl_InstanceID / u_segments
@@ -160,16 +122,12 @@ export function followPose(win: RowWindow): Pose {
            distance: FOLLOW_DISTANCE };
 }
 
-/** A drag's orbit, from the angles the drag started at. Pitch is clamped so the eye
- *  can never go under the floor or over the top; yaw so the stack never turns
- *  edge-on and reads as a single line. */
-export function orbitFromDrag(start: { yaw: number; pitch: number }, dx: number, dy: number):
-  { yaw: number; pitch: number } {
-  return {
-    yaw: clamp(start.yaw - dx * YAW_PER_PX, -MAX_YAW, MAX_YAW),
-    pitch: clamp(start.pitch + dy * PITCH_PER_PX, MIN_PITCH, MAX_PITCH),
-  };
-}
+/** How a drag orbits the stack (@jkos/scene `orbitDrag`): pitch clamped so the eye can
+ *  never go under the floor or over the top, yaw so the stack never turns edge-on and
+ *  reads as a single line. */
+export const ORBIT: OrbitDragLimits = {
+  yawPerPx: YAW_PER_PX, pitchPerPx: PITCH_PER_PX, minPitch: MIN_PITCH, maxPitch: MAX_PITCH, maxYaw: MAX_YAW,
+};
 
 /** Whether the focus should CUT rather than glide to a new newest row. */
 export function shouldCut(fromZ: number, toZ: number): boolean {

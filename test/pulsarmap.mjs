@@ -258,44 +258,23 @@ check(rowBaseline(0, 12, 40) === 40 && rowBaseline(3, 12, 40) === 76,
    overshoots, an orbit that dives under the floor — and a per-track normaliser
    slipped into the one place no store-side test can see. */
 // stage.ts imports @jkos/scene/math; that layer is transpiled beside it.
-transpileSceneMath(join(tmp, 'scene'));
+const scene = await import(transpileSceneMath(join(tmp, 'scene')));
 const stage = await importTs('apps/kouros/src/components/ridges3d/stage.ts', 'stage.mjs', {
   '../pulsarmap': './pulsarmap.mjs', '@jkos/scene/math': './scene/index.mjs',
 });
 const {
-  textureLayout, texelOf, packTexture, cellOf, visibleWindow, followPose, orbitFromDrag, shouldCut,
-  rowZ, rowHeight, rampOf, PITCH, AMPLITUDE, VISIBLE_ROWS, LOOK_BEHIND, MIN_PITCH, MAX_PITCH, MAX_YAW,
-  CUT_ROWS,
+  cellOf, visibleWindow, followPose, shouldCut, rowZ, rowHeight, rampOf, ORBIT, AMPLITUDE, VISIBLE_ROWS,
+  LOOK_BEHIND, MIN_PITCH, MAX_PITCH, MAX_YAW, CUT_ROWS,
 } = stage;
 const glSrc = readFileSync(resolve(root, 'apps/kouros/src/components/ridges3d/gl.ts'), 'utf8');
 
-/* ── the texture layout ───────────────────────────────────────────────────── */
-for (const rows of [10, 600, 2500]) {
-  const bands = 128;
-  const layout = textureLayout(rows, bands, 2048);
-  check(layout.width <= 2048 && layout.height <= 2048,
-    `textureLayout: ${rows} rows fit a 2048 texture (${layout.width}×${layout.height})`);
-  const bytes = new Uint8Array(rows * bands);
-  for (let i = 0; i < bytes.length; i++) bytes[i] = (i * 2654435761) % 251;   // no two neighbours alike
-  const tex = packTexture(bytes, layout);
-  let bad = 0;
-  const seen = new Set();
-  for (let r = 0; r < rows; r++) {
-    for (let b = 0; b < bands; b++) {
-      const [x, y] = texelOf(r, b, layout);
-      const key = y * layout.width + x;
-      if (seen.has(key) || x >= layout.width || y >= layout.height || tex[key] !== bytes[r * bands + b]) bad++;
-      seen.add(key);
-    }
-  }
-  check(bad === 0,
-    `textureLayout: every one of ${rows}×${bands} cells round-trips through its own texel` +
-    (rows > 2048 ? ' — including across the WRAP into a second column' : ''));
-}
+/* The mesh's texture layout (rows × bands wrapped past the texture limit) is
+   @jkos/scene's `textureLayout` / `texelOf` / `packTexture`, round-tripped for 10, 600
+   and 2,500 rows of 128 bands by packages/scene/test/scene.test.mjs. */
 {
-  let threw = false;
-  try { packTexture(new Uint8Array(5), textureLayout(3, 4)); } catch { threw = true; }
-  check(threw, 'packTexture: a length that does not match the declared shape throws, as toRows does');
+  const layout = scene.textureLayout(600, 128, 2048);
+  check(layout.columns === 1 && layout.cols === 128,
+    'textureLayout: a 20-minute track (600 rows of 128 bands) is one column — no wrap on an ordinary track');
 }
 
 /* ── the shader and the TypeScript agree ─────────────────────────────────── */
@@ -305,9 +284,9 @@ for (const rows of [10, 600, 2500]) {
     'shader: row = u_rowStart + gl_InstanceID / u_segments — the expression cellOf mirrors');
   check(/int band = gl_InstanceID % u_segments;/.test(src),
     'shader: band = gl_InstanceID % u_segments — the expression cellOf mirrors');
-  check(/int column = row \/ u_rowsPerColumn;/.test(src) &&
-        /ivec2\(band \+ column \* u_bands, row - column \* u_rowsPerColumn\)/.test(src),
-    'shader: heightAt reads the texel texelOf computes, wrap included');
+  check(/\$\{MATRIX_TEXEL_GLSL\}/.test(src) &&
+        /ivec2 texel = matrixTexel\(row, band, u_bands, u_rowsPerColumn\);/.test(src),
+    'shader: heightAt reads the texel @jkos/scene\'s texelOf computes (its GLSL, pasted in), wrap included');
   const segments = 7, rowStart = 13;
   let mismatches = 0;
   for (let id = 0; id < segments * 9; id++) {
@@ -368,13 +347,13 @@ for (const rows of [10, 600, 2500]) {
   let pitchOk = true, yawOk = true;
   for (const dx of [-5000, -300, -1, 0, 1, 300, 5000]) {
     for (const dy of [-5000, -300, -1, 0, 1, 300, 5000]) {
-      const o = orbitFromDrag({ yaw: 0, pitch: 20 * Math.PI / 180 }, dx, dy);
+      const o = scene.orbitDrag({ yaw: 0, pitch: 20 * Math.PI / 180 }, dx, dy, ORBIT);
       if (!(o.pitch >= MIN_PITCH && o.pitch <= MAX_PITCH)) pitchOk = false;
       if (!(Math.abs(o.yaw) <= MAX_YAW)) yawOk = false;
     }
   }
-  check(pitchOk, 'orbitFromDrag: pitch never leaves [8°, 70°] for any drag — never under the floor');
-  check(yawOk, 'orbitFromDrag: yaw is bounded, so the stack never turns edge-on');
+  check(pitchOk, 'ORBIT: pitch never leaves [8°, 70°] for any drag — never under the floor');
+  check(yawOk, 'ORBIT: yaw is bounded, so the stack never turns edge-on');
   check(rampOf(0, 600) === 0 && rampOf(599, 600) === 1 && rampOf(0, 1) === 1,
     'rampOf: the ramp encodes POSITION IN THE TRACK, as in 2-D');
 }

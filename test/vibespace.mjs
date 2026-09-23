@@ -49,7 +49,7 @@ async function importTs(relPath, outName, rewrite = {}) {
 }
 
 const GEOMETRY = 'apps/kouros/src/components/vibespace/geometry.ts';
-const motion = await import(transpileSceneMath(join(tmp, 'scene')));
+const scene = await import(transpileSceneMath(join(tmp, 'scene')));
 const g = await importTs(GEOMETRY, 'geometry.mjs', { '@jkos/scene/math': './scene/index.mjs' });
 
 /* A seeded PRNG, so every fixture below is the same library every run. */
@@ -260,15 +260,9 @@ check(g.energyWord(0) === 'calm' && g.energyWord(0.5) === 'steady' && g.energyWo
   'energyWord: calm … intense, the rail read aloud');
 
 /* ── gestures ─────────────────────────────────────────────────────────────── */
-check(g.lockAxis(3, 4) === null && g.lockAxis(9, 2) === 'spin' && g.lockAxis(2, -9) === 'scrub',
-  'lockAxis: nothing before 8 px, then sideways spins and up/down scrubs');
 check(g.scrubTo(0.5, -100, 400) === 0.75 && g.scrubTo(0.5, 100, 400) === 0.25 && g.scrubTo(0.9, -1000, 400) === 1,
   'scrubTo: dragging UP is more intense, a field height is the whole rail, clamped');
 {
-  const still = [{ t: 0, v: 0.52 }, { t: 40, v: 0.52 }, { t: 80, v: 0.52 }];
-  const flick = [{ t: 0, v: 0.3 }, { t: 30, v: 0.36 }, { t: 60, v: 0.42 }];
-  check(Math.abs(g.velocityOf(still)) < 1e-9 && Math.abs(g.velocityOf(flick) - 2) < 1e-6,
-    'velocityOf: a least-squares slope per second from the caller\'s timestamps');
   const stops = [0.1, 0.3, 0.5, 0.7, 0.9];
   check(g.projectedStop(0.52, 0, stops) === 0.5 && g.projectedStop(0.42, 2, stops) === 0.9,
     'projectedStop: a still release settles on the nearest stop, a flick travels');
@@ -277,42 +271,16 @@ check(g.scrubTo(0.5, -100, 400) === 0.75 && g.scrubTo(0.5, 100, 400) === 0.25 &&
   let s = { x: 0.42, v: 2 }, over = 0;
   for (let i = 0; i < 120; i++) { s = g.wStep(s, 0.9, 1 / 60); over = Math.max(over, s.x - 0.9); }
   check(Math.abs(s.x - 0.9) < 1e-3 && over < 0.05, `wStep: a flick lands on its stop (overshoot ${over.toFixed(4)})`);
-  check(g.coast(1, 3.2, 1) < 0.05 && g.coast(1, 3.2, 0) === 1, 'coast: spin decays with friction, no snap');
 }
 
 /* ── picking ──────────────────────────────────────────────────────────────── */
 {
-  const screen = new Float32Array([100, 100, 110, 100, 300, 300, NaN, NaN]);
-  const glints = new Float32Array([0.9, 0.3, 1, 1]);
-  check(g.pickParticle(screen, glints, 108, 101) === 0,
-    'pickParticle: a dim particle (glint 0.3) cannot be picked even when nearer');
-  check(g.pickParticle(screen, glints, 200, 200) === -1, 'pickParticle: nothing within 22 px is nothing');
-  check(g.pickParticle(screen, glints, 0, 0, 1e6) !== 3, 'pickParticle: a point behind the camera is never picked');
-  const hit = g.rayBox([0, 0, 5], [0, 0, -1]);
-  check(hit && Math.abs(hit[0] - 4) < 1e-9 && Math.abs(hit[1] - 6) < 1e-9, 'rayBox: enters at 4, leaves at 6');
-  check(g.rayBox([0, 3, 5], [0, 0, -1]) === null, 'rayBox: a ray passing above the cube misses');
   const densest = g.pickDensest([0, 0, 5], [0, 0, -1], (p) => Math.exp(-((p[2] - 0.4) ** 2) * 50));
   check(densest && Math.abs(densest[2] - 0.4) < 0.05, 'pickDensest: finds the density peak along the ray');
 }
 
-/* ── taps ─────────────────────────────────────────────────────────────────── */
-{
-  const a = g.classifyTap(null, { t: 0, x: 10, y: 10 });
-  const b = g.classifyTap(a.last, { t: 250, x: 18, y: 14 });
-  const c = g.classifyTap(b.last, { t: 400, x: 18, y: 14 });
-  const late = g.classifyTap(a.last, { t: 301, x: 10, y: 10 });
-  const far = g.classifyTap(a.last, { t: 100, x: 40, y: 10 });
-  check(!a.double && b.double && !c.double, 'classifyTap: a second tap within 300 ms and 12 px is a double, and consumes the pair');
-  check(!late.double && !far.double, 'classifyTap: too late or too far is two single taps');
-}
-
-/* ── labels ───────────────────────────────────────────────────────────────── */
-{
-  const boxes = Array.from({ length: 20 }, (_, i) => ({ id: i, x: (i % 5) * 100, y: Math.floor(i / 5) * 40, width: 80, height: 20, alpha: 1 - i / 40 }));
-  boxes.push({ id: 99, x: 5, y: 2, width: 80, height: 20, alpha: 0.2 });
-  const kept = g.thinLabels(boxes);
-  check(kept.length === 8 && !kept.includes(99), 'thinLabels: at most 8, and an overlapping fainter label yields');
-}
+/* The axis lock, velocity, the coast, the nearest-glint pick, the ray through the
+   cube, the double-tap and label thinning are @jkos/scene's, held by its own test. */
 
 /* ── the colour ramp (dataviz: sequential — one hue, lightness-ordered) ─────── */
 {
@@ -322,7 +290,7 @@ check(g.scrubTo(0.5, -100, 400) === 0.75 && g.scrubTo(0.5, 100, 400) === 0.25 &&
       const ramp = g.brightnessRamp(accent, face);
       const L = [], H = [];
       for (let i = 0; i < 256; i++) {
-        const [l, c, h] = g.srgbToOklch([ramp[i * 3] / 255, ramp[i * 3 + 1] / 255, ramp[i * 3 + 2] / 255]);
+        const [l, c, h] = scene.srgbToOklch([ramp[i * 3] / 255, ramp[i * 3 + 1] / 255, ramp[i * 3 + 2] / 255]);
         L.push(l);
         if (c > 0.03) H.push(h);
       }
@@ -337,7 +305,7 @@ check(g.scrubTo(0.5, -100, 400) === 0.75 && g.scrubTo(0.5, 100, 400) === 0.25 &&
       // --hub-bg-0 per face): the first paper ramp began at L 0.80 on a 0.91 page and a
       // dark-timbre glint vanished into it.
       const surface = face === 'dark' ? [0x11, 0x10, 0x0d] : [0xed, 0xe2, 0xc8];
-      const [Ls] = g.srgbToOklch(surface.map((v) => v / 255));
+      const [Ls] = scene.srgbToOklch(surface.map((v) => v / 255));
       check(Math.abs(L[0] - Ls) >= 0.2,
         `brightnessRamp(${name}, ${face}): its faint end stands ${Math.abs(L[0] - Ls).toFixed(2)} of L off the surface (≥ 0.2)`);
     }
@@ -347,7 +315,7 @@ check(g.scrubTo(0.5, -100, 400) === 0.75 && g.scrubTo(0.5, 100, 400) === 0.25 &&
 /* ── the camera keeps the library in a portrait frame ─────────────────────── */
 {
   const aspect = 390 / 520;
-  const d = g.fitDistance(aspect);
+  const d = g.frameDistance(aspect);
   let inside = true;
   for (let deg = 0; deg < 360; deg += 15) {
     const view = g.spaceView(deg * Math.PI / 180, [0, 0, 0], d, aspect);
@@ -356,15 +324,15 @@ check(g.scrubTo(0.5, -100, 400) === 0.75 && g.scrubTo(0.5, 100, 400) === 0.25 &&
     for (let t = 0; t < 180; t += 15) for (let p = 0; p < 360; p += 15) {
       const th = t * Math.PI / 180, ph = p * Math.PI / 180;
       const q = [Math.sin(th) * Math.cos(ph), Math.cos(th), Math.sin(th) * Math.sin(ph)];
-      const s = motion.toScreen(view.viewProj, q, 390, 520);
+      const s = scene.toScreen(view.viewProj, q, 390, 520);
       if (!s || s.x < 0 || s.x > 390 || s.y < 0 || s.y > 520) inside = false;
     }
   }
-  check(inside, `fitDistance: the unit sphere (98% of tracks) stays in a 390×520 portrait frame at every yaw (distance ${d.toFixed(2)})`);
+  check(inside, `frameDistance: the unit sphere (98% of tracks) stays in a 390×520 portrait frame at every yaw (distance ${d.toFixed(2)})`);
   const vHalf = g.CAMERA.fov / 2, hHalf = Math.atan(Math.tan(vHalf) * aspect);
   const corners = Math.sqrt(3) / Math.sin(Math.min(vHalf, hHalf));
   check(d < corners * 0.7,
-    `fitDistance: and no further than that needs (${d.toFixed(2)} vs ${corners.toFixed(2)} to frame the empty corners)`);
+    `frameDistance: and no further than that needs (${d.toFixed(2)} vs ${corners.toFixed(2)} to frame the empty corners)`);
 }
 
 /* ── purity ───────────────────────────────────────────────────────────────── */

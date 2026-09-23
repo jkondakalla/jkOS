@@ -5,7 +5,8 @@
 // The library is a 3-D cloud you swipe through a 4th dimension — ENERGY, calm →
 // intense. Every track is a point (x, y, z) in the unit cube and a percentile w on the
 // rail; the server fitted and projected them (music/mapbasis.py, backend map.js).
-// What lives here is everything the client does with those numbers.
+// What lives here is everything the client does with those numbers; what any 3-D view
+// would do (the camera rig, gesture arithmetic, picking, OKLCH) is @jkos/scene's.
 //
 // ⚠️ **THE CLOUD IS THE TRACKS, AND IT IS CONTINUOUS IN ALL FOUR DIMENSIONS.** Density
 // is a sum of one Gaussian per MEASURED track — in space (a trilinear splat, then a
@@ -33,8 +34,8 @@
 // an album. They are drawn as dimmer particles and nothing else.
 
 import {
-  DEG, clamp, invert, lerp, lookAt, multiply, orbitEye, perspective, springStep,
-  type Mat4, type Spring, type Vec3,
+  DEG, clamp, fitDistance, lerp, oklchToSrgb, orbitView, rayBox, springStep, srgbToOklch,
+  type RGB, type Spring, type Vec3, type View,
 } from '@jkos/scene/math';
 
 /* ── the wire payload ────────────────────────────────────────────────────────── */
@@ -320,13 +321,14 @@ export const CAMERA = {
   spinFriction: 3.2,
 } as const;
 
-export interface SpaceView { viewProj: Mat4; inverse: Mat4 | null; eye: Vec3 }
+/** The lens the cloud is seen through (@jkos/scene `Lens`). */
+export const LENS = { fov: CAMERA.fov, near: 0.05, far: 40 } as const;
 
+/** The view from `yaw` about `target` — the rig's view (`rigView`), for a caller
+ *  that has no rig: the gate's framing check. */
 export function spaceView(yaw: number, target: Vec3, distance: number, aspect: number,
-                          pitch: number = CAMERA.pitch): SpaceView {
-  const eye = orbitEye(target, yaw, pitch, distance);
-  const viewProj = multiply(perspective(CAMERA.fov, aspect, 0.05, 40), lookAt(eye, target, [0, 1, 0]));
-  return { viewProj, inverse: invert(viewProj), eye };
+                          pitch: number = CAMERA.pitch): View {
+  return orbitView(target, yaw, pitch, distance, aspect, LENS);
 }
 
 /** Display radius the framing holds in view. The server scales xyz by the p98 of the
@@ -335,44 +337,17 @@ export function spaceView(yaw: number, target: Vec3, distance: number, aspect: n
  *  fitted the corners and spent a third of a phone screen on empty margin. */
 export const FRAME_RADIUS = 1.12;
 
-/** The distance at which a sphere of FRAME_RADIUS just fits the narrower of the two
- *  fields of view — what keeps a portrait phone from cropping the cloud at any yaw. */
-export function fitDistance(aspect: number, margin = 1.04): number {
-  const vHalf = CAMERA.fov / 2;
-  const hHalf = Math.atan(Math.tan(vHalf) * aspect);
-  return (FRAME_RADIUS * margin) / Math.sin(Math.min(vHalf, hHalf));
+/** The distance at which FRAME_RADIUS (with a 4% margin) just fits the narrower of
+ *  the two fields of view — what keeps a portrait phone from cropping the cloud at any
+ *  yaw. */
+export function frameDistance(aspect: number, margin = 1.04): number {
+  return fitDistance(aspect, FRAME_RADIUS * margin, CAMERA.fov);
 }
 
-/* ── gestures ────────────────────────────────────────────────────────────────── */
-export const LOCK_PX = 8;
-
-/** Which gesture a drag is, once it has travelled far enough to say: sideways spins
- *  the cloud, up/down scrubs energy. Locked for the rest of the drag. */
-export function lockAxis(dx: number, dy: number, threshold = LOCK_PX): 'spin' | 'scrub' | null {
-  if (Math.hypot(dx, dy) < threshold) return null;
-  return Math.abs(dx) > Math.abs(dy) ? 'spin' : 'scrub';
-}
-
+/* ── gestures (the axis lock, velocity and taps are @jkos/scene's) ──────────────── */
 /** A scrub: dragging UP means more intense; a full field height is the whole rail. */
 export function scrubTo(w0Start: number, dy: number, fieldHeight: number): number {
   return clamp(w0Start - dy / Math.max(1, fieldHeight), 0, 1);
-}
-
-export interface Sample { t: number; v: number }
-
-/** Velocity (units / s) over the last `windowMs` of timestamped samples — a
- *  least-squares slope, so one jittery sample cannot throw the coast. Timestamps are
- *  the caller's (`event.timeStamp`); this module holds no clock. */
-export function velocityOf(samples: readonly Sample[], windowMs = 90): number {
-  if (samples.length < 2) return 0;
-  const end = samples[samples.length - 1].t;
-  const recent = samples.filter((s) => end - s.t <= windowMs);
-  if (recent.length < 2) return 0;
-  const mt = recent.reduce((a, s) => a + s.t, 0) / recent.length;
-  const mv = recent.reduce((a, s) => a + s.v, 0) / recent.length;
-  let num = 0, den = 0;
-  for (const s of recent) { num += (s.t - mt) * (s.v - mv); den += (s.t - mt) ** 2; }
-  return den > 0 ? (num / den) * 1000 : 0;
 }
 
 export const STOP_HORIZON = 0.28;
@@ -400,41 +375,7 @@ export const W_OMEGA = 9;
 /** One frame of the energy spring toward a stop. */
 export const wStep = (s: Spring, target: number, dt: number): Spring => springStep(s, target, W_OMEGA, dt);
 
-/** Spin's coast: friction, no snap. */
-export const coast = (v: number, friction: number, dt: number): number => v * Math.exp(-friction * dt);
-
-/* ── picking ─────────────────────────────────────────────────────────────────── */
-/** The nearest glinting particle within `radius` CSS px of (x, y), or −1. `screen` is
- *  (x, y) per point with NaN for a point behind the camera. */
-export function pickParticle(screen: Float32Array, glints: Float32Array, x: number, y: number,
-                             radius = 22, minGlint = 0.5): number {
-  let best = -1, bd = radius * radius;
-  for (let i = 0; i < glints.length; i++) {
-    if (!(glints[i] >= minGlint)) continue;
-    const dx = screen[i * 2] - x, dy = screen[i * 2 + 1] - y;
-    const d = dx * dx + dy * dy;
-    if (d <= bd) { bd = d; best = i; }
-  }
-  return best;
-}
-
-/** Entry and exit distances of a ray through the cube [−1, 1]³, or null for a miss. */
-export function rayBox(origin: Vec3, dir: Vec3): [number, number] | null {
-  let t0 = -Infinity, t1 = Infinity;
-  for (let k = 0; k < 3; k++) {
-    if (Math.abs(dir[k]) < 1e-12) {
-      if (origin[k] < -1 || origin[k] > 1) return null;
-      continue;
-    }
-    let a = (-1 - origin[k]) / dir[k], b = (1 - origin[k]) / dir[k];
-    if (a > b) [a, b] = [b, a];
-    t0 = Math.max(t0, a);
-    t1 = Math.min(t1, b);
-  }
-  if (t1 < Math.max(0, t0)) return null;
-  return [Math.max(0, t0), t1];
-}
-
+/* ── picking (the nearest glint is @jkos/scene's `pickNearest`) ──────────────── */
 /** The densest point along a ray through the cube, for a tap that hit no particle. */
 export function pickDensest(origin: Vec3, dir: Vec3, sample: (p: Vec3) => number, steps = 64): Vec3 | null {
   const hit = rayBox(origin, dir);
@@ -455,75 +396,7 @@ export function voxelOf(p: Vec3, grid: number): number {
   return (i(p[2]) * grid + i(p[1])) * grid + i(p[0]);
 }
 
-/* ── taps ────────────────────────────────────────────────────────────────────── */
-export interface Tap { t: number; x: number; y: number }
-
-/** Every tap acts at once (it picks); a second tap within 300 ms and 12 px is ALSO a
- *  double-tap. The first is never delayed to wait and see — a tap that answers
- *  300 ms late reads as a slow app. A double-tap consumes the pair. */
-export function classifyTap(prev: Tap | null, next: Tap, maxMs = 300, maxPx = 12):
-  { double: boolean; last: Tap | null } {
-  const double = !!prev && next.t - prev.t <= maxMs && Math.hypot(next.x - prev.x, next.y - prev.y) <= maxPx;
-  return { double, last: double ? null : next };
-}
-
-/* ── labels ──────────────────────────────────────────────────────────────────── */
-export interface LabelBox { id: number; x: number; y: number; width: number; height: number; alpha: number }
-
-/** At most `max` labels, most visible first, none overlapping another. */
-export function thinLabels(boxes: readonly LabelBox[], max = 8, minAlpha = 0.08): number[] {
-  const kept: LabelBox[] = [];
-  for (const b of [...boxes].filter((b) => b.alpha >= minAlpha).sort((a, c) => c.alpha - a.alpha)) {
-    if (kept.length >= max) break;
-    const clash = kept.some((k) => Math.abs(k.x - b.x) * 2 < k.width + b.width && Math.abs(k.y - b.y) * 2 < k.height + b.height);
-    if (!clash) kept.push(b);
-  }
-  return kept.map((k) => k.id);
-}
-
 /* ── the colour ramp: one hue, ordered by lightness (dataviz: sequential) ─────── */
-export type RGB = [number, number, number];
-
-const toLinear = (c: number) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
-const toGamma = (c: number) => (c <= 0.0031308 ? 12.92 * c : 1.055 * c ** (1 / 2.4) - 0.055);
-
-export function srgbToOklch([r, g, b]: RGB): [number, number, number] {
-  const R = toLinear(r), G = toLinear(g), B = toLinear(b);
-  const l = Math.cbrt(0.4122214708 * R + 0.5363325363 * G + 0.0514459929 * B);
-  const m = Math.cbrt(0.2119034982 * R + 0.6806995451 * G + 0.1073969566 * B);
-  const s = Math.cbrt(0.0883024619 * R + 0.2817188376 * G + 0.6299787005 * B);
-  const L = 0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s;
-  const a = 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s;
-  const bb = 0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s;
-  return [L, Math.hypot(a, bb), Math.atan2(bb, a)];
-}
-
-function oklchToLinear(L: number, C: number, h: number): RGB {
-  const a = C * Math.cos(h), b = C * Math.sin(h);
-  const l = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3;
-  const m = (L - 0.1055613458 * a - 0.0638541728 * b) ** 3;
-  const s = (L - 0.0894841775 * a - 1.291485548 * b) ** 3;
-  return [
-    4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
-    -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
-    -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s,
-  ];
-}
-
-/** OKLCH → sRGB, pulling chroma in (hue and lightness held) until it is in gamut. */
-export function oklchToSrgb(L: number, C: number, h: number): RGB {
-  const inGamut = (c: RGB) => c.every((v) => v >= -1e-6 && v <= 1 + 1e-6);
-  let lo = 0, hi = C, rgb = oklchToLinear(L, C, h);
-  if (!inGamut(rgb)) {
-    for (let i = 0; i < 24; i++) {
-      const mid = (lo + hi) / 2;
-      if (inGamut(oklchToLinear(L, mid, h))) lo = mid; else hi = mid;
-    }
-    rgb = oklchToLinear(L, lo, h);
-  }
-  return rgb.map((v) => toGamma(clamp(v, 0, 1))) as RGB;
-}
-
 /** The brightness ramp, 256 steps × RGB, from the sleeve accent's hue.
  *
  *  ⚠️ ONE HUE, ORDERED BY LIGHTNESS, and the anchor FLIPS with the face: on the dark

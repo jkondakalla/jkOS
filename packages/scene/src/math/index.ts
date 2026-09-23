@@ -2,4 +2,8 @@
 // runtime imports outside this directory, so a Web Worker and a node gate can load
 // it. test/scene.test.mjs holds that, and drives every function below.
 export * from './motion';
+export * from './rig';
+export * from './gesture';
+export * from './pick';
+export * from './texture';
 export * from './color';

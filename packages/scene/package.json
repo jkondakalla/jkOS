@@ -6,7 +6,8 @@
   "description": "jkOS 3-D view primitive — hand-rolled WebGL2, no library. Layered like @jkos/player: /math (pure, worker-safe: mat4, solved springs, the orbit rig, gesture and picking math), /gl (WebGL2 + DOM plumbing: context lifecycle, programs, tokens), /react (useScene, useOrbitControls). A view brings its own shaders and renderer; this owns everything around them.",
   "exports": {
     "./math": "./src/math/index.ts",
-    "./gl": "./src/gl/index.ts"
+    "./gl": "./src/gl/index.ts",
+    "./react": "./src/react/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
