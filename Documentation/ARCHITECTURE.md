@@ -34,6 +34,7 @@ jkOS/
 │   ├── ui                widget shell, primitives, useBreakpoint, usePointerDrag
 │   ├── cards              shared calendar card kit (Week/Calendar views)
 │   ├── player             media primitive: timeline/queue math, MediaBackend, headless engine
+│   ├── scene              3-D view primitive: WebGL2 lifecycle (useScene), orbit rig, pure math
 │   ├── files              Range-stream + path-containment primitive
 │   ├── suite-manifest    the app directory's one source row per app
 │   └── suite-prober      conformance instrument (prove + roundtrip)

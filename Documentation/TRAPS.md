@@ -159,6 +159,47 @@ that code can reopen it.
   from the imported mirror. ⚠️ **Every semantic alias into a derivation chain is a candidate** —
   before aliasing `--x: var(--y)`, check whether `--y` derives from `--x`.
 
+- **WebGL contexts are a capped, shared resource, and deleting everything you made does not give
+  one back.** Chromium keeps ~16 live contexts (iOS Safari fewer); past the cap it prints "Too many
+  active WebGL contexts. Oldest context will be lost" — and the oldest can be the view on screen.
+  `deleteProgram`/`deleteTexture` release objects, not the context: only
+  `WEBGL_lose_context.loseContext()` does. Seen 2026-09-16 going back and forth between KourOS's
+  Now Playing and Map views 24 times. Live defence: `@jkos/scene`'s `useScene` releases on unmount,
+  and `pnpm check:scene` fails any `getContext('webgl…')` outside `packages/scene/src`.
+
+- **…and releasing it IMMEDIATELY on unmount breaks React StrictMode, in development only.**
+  StrictMode runs an effect's cleanup and then the effect again on the SAME element; `getContext`
+  on that canvas then hands back the context the cleanup just lost, every program fails to
+  compile, and the view falls back to 2-D — only in `vite dev`, where nobody suspects the release.
+  Defence: `releaseContextSoon` defers the release a tick and `claimCanvas` cancels it on a remount
+  (`packages/scene/src/gl/context.ts`).
+
+- **A lost WebGL context is a normal event on a phone, and the browser only offers it back if the
+  `webglcontextlost` handler calls `preventDefault()`.** Backgrounding a PWA or a GPU reset takes
+  it; every GL object is gone and the view must rebuild from its OWN data (`useScene` calls the
+  view's `create` again — which is why a view uploads its data inside `create`).
+
+- **`gl.lineWidth` is one device pixel on almost every platform** — at DPR 3 a "line" is
+  invisible. Lines of a chosen width are screen-space quads extruded in the vertex shader
+  (`apps/kouros/src/components/ridges3d/gl.ts`).
+
+- **A uniform shared by both shader stages must be declared at the SAME precision in both, or the
+  program fails to LINK** — and GLSL ES defaults `int` to different precisions per stage, so an
+  `int` uniform needs `precision highp int;` in the fragment shader too. Seen in headless Chromium
+  as a link error; the 2-D fallback then drew, as designed, which is why it looked like nothing.
+
+- **`timeupdate` fires at ~4 Hz — too coarse for anything drawn per frame.** A picture positioned
+  by the player's published position moves in 250 ms jumps (three rows at a time, for the
+  pulsarmap at ~10.8 rows/s). Extrapolating between updates with a clock of your own drifts on
+  buffering and on a rate change. Read the element's own time each frame instead:
+  `@jkos/player`'s `livePosition()`.
+
+- **In a headless pixel comparison, CSS effects are not deterministic between runs — WebGL is.**
+  Two runs of the SAME build differed by ~600 px on `backdrop-filter` label boxes and by one level
+  on a CSS gradient, while every WebGL pixel matched. Compare a 3-D view with its HTML overlays
+  hidden (`visibility: hidden` on the overlay layer), compare the overlays as DOM state, and run an
+  A/A pass before believing an A/B difference. Seen 2026-09-23 proving the `@jkos/scene` refactor.
+
 ## Node, pnpm & the build
 
 - **`inject-workspace-packages=true` (`.npmrc`) means every `@jkos/*` package with a

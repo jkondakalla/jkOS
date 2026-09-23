@@ -429,6 +429,16 @@ prober, a workshop GUI or an AI composer can `require()` it offline.
   to `SCAN_ROOTS` in `test/fields.mjs`** — that gate scans eight named roots, not the repo.
 - **The loading/error/empty triad goes through `<AsyncView>`** from `@jkos/ui`, never a
   fourth hand-rolled ternary. `test/async-view.mjs` names PapyrOS files only; add yours.
+- **A 3-D view renders through `@jkos/scene`** — never a hand-made `getContext('webgl2')`.
+  `useScene` (`/react`) owns the canvas's life: context loss and restore, visibility, resize,
+  theme re-reads, a frame loop that runs only while something moves, and giving the context
+  back on unmount (browsers cap live contexts; the oldest dies — and an immediate release
+  breaks StrictMode in dev). The view brings a renderer (`create`) and a draw (`frame`);
+  `/math` has the orbit rig, the solved spring, picking and a matrix-as-texture layout, pure
+  and worker-safe; `useOrbitControls` binds drag and arrow keys through `@jkos/ui`'s one
+  gesture engine. No three.js, on purpose — the whole of what a view needs is in the package.
+  **Add your component to `VIEWS` in `test/scene.mjs`**, which otherwise fails it as an
+  unlisted WebGL component. KourOS's `ridges3d/RidgeStage.tsx` is the small worked example.
 - **Call `injectJkOSTheme({})`** before React hydrates, setting `data-mode` from the cached
   preference first so there is no flash. The template does both.
 - **Define a `typecheck` script.** `pnpm typecheck` is `turbo run typecheck`, which
@@ -500,6 +510,7 @@ a hand-written per-app list you must **enlist** in (§4); **owed** means decided
 | 27 | A unique service + test port | `TEST_PORTS` + `portTable()` in `@jkos/suite-manifest` | `portTable()` throws at load on a duplicate; `prove` `port-registry` (**drift**) holds file literals to claims |
 | 28–31 | The four contract rules (§3.1–§3.4) | — | ✅ **enforced** — `check:rulings` + `86-async-contract`. Rule 4's *receiver* half is declared on every non-idempotent door and held by `check:rulings`; each door's own smoke writes twice and counts rows (§3.4) |
 | 32 | Declared surface covers the mounted routes | mark an exception `// app-private: why` at its own source line | ✅ **enforced** — `prove` `98-surface-coverage`. All four backends report full coverage (69 mounted routes). ⚠️ A declared path covers at most **one** segment beneath it: `/items` covers `/items/:id`, and `/items/:id/deps` must declare itself |
+| 33 | A 3-D view on the one engine | `useScene` from `@jkos/scene/react`, no `getContext('webgl…')` of its own | `check:scene` (**fails**) † — and it fails a WebGL component it does not know |
 
 ---
 

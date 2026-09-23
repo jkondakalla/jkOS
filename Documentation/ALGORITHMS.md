@@ -931,7 +931,7 @@ a uniform percentile), so the fix was quantisation to what a phone shows: id del
 11/11/10 bits in one Uint32 (~0.75 px even flown in), w in 12 bits, tone and flags sharing a
 byte. `discover.smoke` drives the real encoder at 47,693 tracks and asserts the bound.
 
-⚠️ **G7 was restated, and why — for Jag to confirm.** As first declared it read "max voxel change
+⚠️ **G7 was restated, and why — confirmed by Jag 2026-09-23 (TODO D12, with the λ and sign rules).** As first declared it read "max voxel change
 between the interpolated fields at w and w + 1/256 ≤ 2% of ρ_ref". Measured, that is a property
 of the DATA: the EXACT continuous field (each track's kernel centred at w itself) changes 7.05%
 of ρ_ref per 1/256 on the gate's fixture, because cluster cores sit at ~3× ρ_ref. No faithful

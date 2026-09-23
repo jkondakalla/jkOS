@@ -185,7 +185,12 @@ Jag starts himself alongside the backfill?
 
 ### D6 · `livePosition()` on `@jkos/player`'s `PlayerApi`? — §2 block 8
 
-Polish, and purely a taste call. Today the reveal is driven by `globalPos` — the media element's
+✅ **ANSWERED 2026-09-23 — yes, and BUILT, because it stopped being polish.** Jag: two-second rows
+were "way too sparse … the pulsar frames should flow onto the screen at a pretty consistent rate so
+that it can actually be a visualizer for the music." The mesh went to 0.093 s rows (~10.8 a second),
+where `timeupdate`'s 250 ms is three rows, so `livePosition()` shipped with the flow (§2 item 11).
+
+*As it stood:* Polish, and purely a taste call. Today the reveal is driven by `globalPos` — the media element's
 own `currentTime`, published on `timeupdate` — so it can never drift, but a row can arrive up to
 ~250 ms late against a 2 s row. Making it literally per-frame is ~5 additive lines on a shared
 package that PapyrOS and KourOS both use. **Recommend: yes, but last.**
@@ -243,6 +248,10 @@ this button **invisible** at 1.19:1 — is **fixed** (`apps/jkauth/public/style.
 only about the remaining 3.67 → 4.5 gap.
 
 ### D12 · The vibe space's gate: G7 restated, two fit rules replaced — confirm? — §3
+
+✅ **ANSWERED 2026-09-23 — (a), all three confirmed by Jag.** G7 is slice-mix fidelity (≤ 0.02 of
+the exact field, 48 slices); λ is the largest penalty within 0.01 of the best held-out Spearman; an
+unnamed axis is oriented by the sign of Σ loading³.
 
 Jag confirmed the pre-declared thresholds on 2026-09-16 and then left the run unattended, so three
 things measured wrong after that were changed rather than waited on. Each is argued with its
@@ -414,6 +423,30 @@ whole library, in the descriptor pass's decode.
     The 3-D strip is 32 px taller than the 2-D one and flips none of those (each still overflows
     without it). The runes are built and gated; on a phone they are currently unreachable.
 
+11. ✅ **The pulsarmap FLOWS — a visualizer. DONE 2026-09-23** (Jag: "a frame every second or two …
+    way too sparse to be anything useful"; chose ~10.8 rows/s at 128 bands, and to stop the running
+    analysis and restart it on the new recipe). `mesh.ROW_SECONDS` is 0.1 (4 frames, 0.09288 s
+    derived); the reduction was re-measured at 4 frames and stays `p75` (ALGORITHMS.md §9). The
+    renderers are stateless per frame: the stack's position is `scrollRow(currentTime)`, read EVERY
+    frame through `@jkos/player`'s new `livePosition()` (D6); the 3-D camera rides the playhead
+    exactly; the 2-D fallback's whole-track canvas became a window redrawn per frame (at this rate
+    a four-minute track would have been ~23,000 CSS px of canvas). Seen on REAL playback in Now
+    Playing: 24 frames in 2 s each with a new focus, against 6 `timeupdate`s; paused, zero frames.
+    Stills: `Documentation/Images/kouros-pulsarmap-flow-*.png` (gitignored).
+    ⚠️ **Cost:** ~330 KB a four-minute track (~310 KB gzipped on the wire, was 20 KB) and ~15 GiB for
+    the library store; the 2 s store is kept as `music/meshes-2s.db`. Phones with only WebGL2's
+    guaranteed 2,048 texture size fall back to 2-D for tracks over ~50 minutes (`RidgeRenderer`
+    asks for up to 4,096, which holds 3.4 h).
+    ⚠️ **Still unseen: a real phone** — 60 fps with ~44 × 127 × 2 quads a frame on a mid-range GPU
+    (headless swiftshader managed ~12 fps with the whole overlay), and whether the flow reads well
+    under a thumb.
+12. ✅ **The 3-D renderer is a suite primitive — `@jkos/scene`. DONE 2026-09-23** (Jag: "it should
+    become a primitive so that other weave components can use the 3d renderer"). `useScene` (the
+    canvas's life), an orbit rig and `useOrbitControls`, and pure math (`/math`: springs, picking,
+    a matrix as a wrapped texture, OKLCH). Both KourOS views are on it, proven pixel-identical to
+    the code before (99 headless shots, 0 px); `check:scene` holds every WebGL view to it. How to
+    use it: `WEAVE.md` §4 Step 4 and obligation 33.
+
 **What would make this wrong:** a second mel implementation; per-track normalisation at any of
 the four points it could enter (builder, quantiser, renderer contrast, the 3-D shader's
 `heightAt`); a streaming protocol (the mesh is ~20 KB — fetch it whole, reveal by index).
@@ -446,6 +479,12 @@ the four points it could enter (builder, quantiser, renderer contrast, the 3-D s
     reaches its fit stage. ⚠️ The run started at 20:48 on 2026-09-16 imported its stages BEFORE
     `mapbasis.py` existed, so its own fit does not fit the basis: `mapbasis.py --fit` then
     `analyze.py --stages gate,ship` afterwards.
+  - The renderer is on `@jkos/scene` since 2026-09-23 (§2 item 12) — behaviour pixel-identical.
+  - ⚠️ **The real fit is still owed — the 2026-09-16 run never reached it.** It aborted at 00:15 on
+    2026-09-17 when `/mnt/Luna/Plex/Music` dropped (20,384 descriptors in); resumed 2026-09-23 12:02,
+    then stopped cleanly at 12:36 and restarted at 12:39 on the 0.1 s mesh recipe (§2 item 11). This
+    pass does the remaining ~23,000 descriptors and all 47,691 meshes, then fit (calibration AND
+    map basis) → gate → ship; ~6 h. Then: G1–G4 into ALGORITHMS.md §9 M6, and the stores to staging.
   - **A real phone**: frame rate during a scrub, whether the adaptive render scale settles, and
     how the density worker's build time (1.5 s on the workstation for the gate's 3,000-track
     fixture) scales to 47,000 tracks on a phone CPU.
