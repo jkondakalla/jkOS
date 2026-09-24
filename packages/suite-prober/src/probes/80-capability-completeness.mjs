@@ -20,6 +20,16 @@
  * All findings are gap/ok (never drift): these are completeness opportunities a new app
  * trips on, not contradictions between sources that already claim to agree.
  */
+
+/* ⚠️ These imports were MISSING, and the file-path half of the `schema` check below
+   (D3: "the dataset whose rows it carries, or the doc where its shape is written") had
+   never once run: every capability's `json` pointer named a dataset, so the branch
+   calling `existsSync(join(REPO_ROOT, …))` was never reached, and the first pointer at
+   a file (KourOS's session capabilities, 2026-09-24) threw a ReferenceError that took
+   the whole prove run down instead of reporting a finding. */
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { REPO_ROOT } from '../topology.mjs';
 /** Normalize a capability's declared I/O across the two doc dialects in the suite:
  *  the Layer-A canonical shape (`body`/`returns` as arrays of {name,type} fields —
  *  BeigeBoard) and the map dialect (`fields` array with `id` keys + `returns` as a

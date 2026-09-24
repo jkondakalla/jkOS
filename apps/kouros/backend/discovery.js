@@ -14,7 +14,8 @@
 // with no env/DB/network.
 const { resourceKey } = require('@jkos/suite-manifest');
 const { defineCollection } = require('@jkos/weave/collection');
-const { defineActivity, canonicalTime, extRef, checkExtRefDoc, extRefFieldDoc } = require('@jkos/weave/activity'); // D6/D7: the activity contract + ext_ref schemes (lean subpath — this file is imported as DATA by the prober)
+const { defineActivity, canonicalTime, extRef, checkExtRefDoc, extRefFieldDoc, idempotencyBodyField } = require('@jkos/weave/activity'); // D6/D7: the activity contract + ext_ref schemes (lean subpath — this file is imported as DATA by the prober)
+const { COMMAND_OPS } = require('./src/session/validate');   // pure data + pure functions — safe to require as DATA
 const { defineConnector } = require('@jkos/weave/connector');   // META, the iTunes audiobook metadata connector below
 
 /** The `tracks` catalog's invalidation bus key — the scanner (src/library/scan.js)
@@ -279,6 +280,119 @@ const META = defineConnector({
     filters: [{ name: 'term', type: 'string', label: 'Search term', column: 'term', op: 'eq' }] }],
 });
 
+/* ── The listening session ("Connect", 2026-09-23) ─────────────────────────────────
+   Jag: every KourOS instance signed in as one listener shows the same session, any of
+   them can be the OUTPUT, and every other is a remote for it. ONE session per
+   listener, so the read is a single document, not a list (no `item`). The server
+   RELAYS commands and never plays: the session is always what the output last
+   reported (src/session/routes.js's header). The live SSE stream that carries it to
+   each instance is app-private — nothing outside KourOS binds a stream.
+   `from` and a device's `id` are client-generated UUIDs that name a device only
+   WITHIN its listener (the table's key is (user_id, device_id)). */
+const SESSION_KEY = resourceKey('kouros', 'session'); // 'kouros.session'
+const SESSION_SCHEMA = 'apps/kouros/backend/src/session/store.js';   // toSession()/toDevice() are the shapes
+const QUEUE_SCHEMA = 'packages/player/src/core/queue.ts';            // @jkos/player's Queue, exactly
+const DEVICE_ID_FIELD = { name: 'deviceId', type: 'string', label: 'This device\'s id (a UUID it generated)', required: true };
+
+const SESSION_DATASET = {
+  id: 'session', label: 'The listening session', path: '/session',
+  filters: [],
+  description: 'The listener\'s one session — what is playing (item_ref), where (position_ms, '
+    + 'reported_at, playing, rate), the queue it came from, and which device is the output — '
+    + 'plus every device they have signed in from, each marked online or not, and serverNow '
+    + 'so a remote can extrapolate a playing position without trusting its own clock.',
+  invalidates: [SESSION_KEY],
+};
+
+const SESSION_CAPABILITIES = [
+  {
+    // Idempotent by construction: the same deviceId upserts the same row.
+    id: 'registerSessionDevice', label: 'Register this device for the listening session', method: 'POST', path: '/session/devices',
+    body: [
+      DEVICE_ID_FIELD,
+      { name: 'name', type: 'string', label: 'Display name (kept if already renamed)', required: true, max: 60 },
+      { name: 'kind', type: 'enum', enum: ['desktop', 'phone', 'tablet', 'speaker'], label: 'What sort of device', required: true },
+      { name: 'platform', type: 'string', label: 'Platform line, e.g. "Chrome on Android"', max: 60 },
+    ],
+    returns: [{ name: 'device', type: 'json', label: 'The device row, with online', schema: SESSION_SCHEMA }],
+    invalidates: [SESSION_KEY], scopes: ['kouros:write'],
+    doc: 'Registers (or refreshes) the calling device. A device must be registered before it can '
+      + 'open the session stream or be named as a command\'s sender. Re-registering never '
+      + 'overwrites a name the listener chose. Devices unseen for 90 days are forgotten here.',
+  },
+  {
+    id: 'renameSessionDevice', label: 'Rename a device', method: 'PATCH', path: '/session/devices/:id',
+    body: [
+      { name: 'id', type: 'string', label: 'Device id', required: true },
+      { name: 'name', type: 'string', label: 'New name', required: true, max: 60 },
+    ],
+    returns: [{ name: 'ok', type: 'boolean' }],
+    invalidates: [SESSION_KEY], scopes: ['kouros:write'],
+  },
+  {
+    id: 'forgetSessionDevice', label: 'Forget an offline device', method: 'DELETE', path: '/session/devices/:id',
+    body: [{ name: 'id', type: 'string', label: 'Device id', required: true }],
+    returns: [{ name: 'ok', type: 'boolean' }],
+    invalidates: [SESSION_KEY], scopes: ['kouros:write'],
+    doc: 'Refused (409 DEVICE_ONLINE) while the device holds an open stream — it would simply '
+      + 're-register. Forgetting the output leaves the session with none, paused.',
+  },
+  {
+    // Idempotent by construction: a report REPLACES the session's facts.
+    id: 'reportSessionState', label: 'Report what the output is doing', method: 'POST', path: '/session/state',
+    body: [
+      DEVICE_ID_FIELD,
+      { name: 'queue', type: 'json', label: 'The queue, exactly as the player holds it', required: true, schema: QUEUE_SCHEMA },
+      { name: 'item_ref', type: 'string', label: 'The item playing: a track id, kouros:<id> or book:<id>' },
+      { name: 'context', type: 'string', label: 'Where the queue was played FROM — a KourOS route (src/playContext.js)' },
+      { name: 'position_ms', type: 'number', label: 'Position in the item, milliseconds', required: true },
+      { name: 'playing', type: 'boolean', label: 'Playing (not paused)', required: true },
+      { name: 'rate', type: 'number', label: 'Playback rate, 0.5–3', required: true },
+      { name: 'volume', type: 'number', label: 'This device\'s volume, 0–1' },
+      { name: 'muted', type: 'boolean', label: 'This device is muted' },
+      { name: 'error', type: 'string', label: 'A short error code, e.g. autoplay-blocked', max: 64 },
+    ],
+    returns: [{ name: 'session', type: 'json', label: 'The session as stored (rev bumped)', schema: SESSION_SCHEMA }],
+    invalidates: [SESSION_KEY], scopes: ['kouros:write'],
+    doc: 'Only the OUTPUT reports (anything else is 409 NOT_ACTIVE — become the output by '
+      + 'transferSession first), so two devices can never both be playing the session. The '
+      + 'server stamps the report\'s time itself; a client clock is never trusted.',
+  },
+  {
+    id: 'sendSessionCommand', label: 'Send a command to the output', method: 'POST', path: '/session/commands',
+    body: [
+      { name: 'op', type: 'enum', label: 'What to do', required: true, enum: COMMAND_OPS },
+      { name: 'args', type: 'json', label: 'The op\'s arguments (validate.js\'s COMMANDS)', schema: 'apps/kouros/backend/src/session/validate.js' },
+      { name: 'from', type: 'string', label: 'The sending device\'s id — omitted when not sent from a device (a routine)' },
+      idempotencyBodyField(),
+    ],
+    returns: [
+      { name: 'relayed', type: 'boolean', label: 'Delivered to the target device' },
+      { name: 'target', type: 'string', label: 'The device it went to' },
+      { name: 'id', type: 'string', label: 'The relayed command\'s id (the idempotency key, when one was sent)' },
+    ],
+    invalidates: [SESSION_KEY], scopes: ['kouros:write'],
+    doc: 'Relays one command to the output device — or, for `volume`, to the device it names — '
+      + 'which applies it through its own player and reports the state it lands in. The server '
+      + 'never plays. 409 NO_ACTIVE_DEVICE when no such device is online: the caller then takes '
+      + 'the output itself (transferSession), the way the device you touch becomes the one '
+      + 'playing. A repeated idempotency_key relays once and replays the first reply.',
+  },
+  {
+    // Idempotent by construction: it SETS the output.
+    id: 'transferSession', label: 'Move playback to another device', method: 'POST', path: '/session/transfer',
+    body: [
+      { name: 'to', type: 'string', label: 'The device to become the output', required: true },
+      { name: 'play', type: 'boolean', label: 'Play there (default: keep the current play/pause state)' },
+    ],
+    returns: [{ name: 'session', type: 'json', label: 'The session with its new output', schema: SESSION_SCHEMA }],
+    invalidates: [SESSION_KEY], scopes: ['kouros:write'],
+    doc: 'Makes an ONLINE device the output. The old output is told to release (pause, drop its '
+      + 'audio); the new one to take over at the position the music has reached now — '
+      + 'extrapolated from the last report, so a hand-off loses at most that report\'s staleness.',
+  },
+];
+
 /* ── What can be DONE to KourOS (the write contract) ───────────────────────────────
    rescanLibrary walks MUSIC_DIR and (re)catalogs tracks via src/library/scan.js.
    Admin-scoped (scopes: ['kouros:admin']), same precedent as papyros's rescanLibrary —
@@ -355,6 +469,7 @@ const CAPABILITIES = {
     ...PROGRESS.capabilities,
     ...BOOKMARKS.capabilities,
     ...BOOK_HISTORY.capabilities,   // createBookHistory only — append-only like HISTORY
+    ...SESSION_CAPABILITIES,
   ],
 };
 
@@ -573,11 +688,12 @@ const DATASETS = {
     ...BROWSE_DATASETS, ...DISCOVER_DATASETS,
     BOOKS_DATASET, BOOK_DATASET, PROGRESS.dataset, BOOKMARKS.dataset, BOOK_HISTORY.dataset,
     ...META.datasets,
+    SESSION_DATASET,
   ],
 };
 
 module.exports = {
-  CAPABILITIES, DATASETS, TRACKS_KEY, TRACK_SHAPE, BOOKS_KEY, BOOK_SHAPE,
+  CAPABILITIES, DATASETS, TRACKS_KEY, TRACK_SHAPE, BOOKS_KEY, BOOK_SHAPE, SESSION_KEY,
   PLAYLISTS, HISTORY, RATINGS,              // server.js .mount()s each of these
   PROGRESS, BOOKMARKS, BOOK_HISTORY,        // …and these (audiobooks, since the PapyrOS fold)
   META,                                     // server.js .mount()s this too (reads only, no .ddl())

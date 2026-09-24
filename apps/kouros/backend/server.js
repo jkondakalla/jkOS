@@ -36,6 +36,10 @@ const { createBookScanner } = require('./src/books/scan');               // AUDI
 const { createBooksRouter } = require('./src/books/list');               // filtered `books` dataset read
 const { createBookMediaRouter, prepareAllCompat } = require('./src/books/media');   // /api/books/stream|cover|download + /api/book/:id
 const { createMatchRouter, runEnrichmentSweep } = require('./src/books/match');     // matchBook / matchAllMissing + the enrichment sweep
+// The listening session — one session per listener across every KourOS instance (2026-09-23).
+const { createSessionStore, SESSION_DDL, DEVICES_DDL } = require('./src/session/store');
+const { createSessionRouter } = require('./src/session/routes');
+const { createHub } = require('./src/session/hub');
 
 /* ── Env ───────────────────────────────────────────────────────────────── */
 const PORT       = process.env.PORT       || 3011;
@@ -65,6 +69,13 @@ const BOOKS_DATA_DIR = path.join(DATA_DIR, 'books');
    touches the live iTunes API or races a 404-before-prepare assertion). */
 const BOOKS_AUTO_ENRICH = process.env.KOUROS_BOOKS_AUTO_ENRICH === '1';
 const BOOKS_AUTO_COMPAT = process.env.KOUROS_BOOKS_AUTO_COMPAT === '1';
+
+/* How long the listening session's OUTPUT may be unreachable while "playing" before it
+   is recorded paused (src/session/routes.js's OFFLINE_GRACE_MS). Only the smoke sets
+   this — it cannot wait out the real grace; eight seconds is the right answer for a
+   person. */
+const SESSION_OFFLINE_GRACE_MS = Number(process.env.KOUROS_SESSION_OFFLINE_GRACE_MS) > 0
+  ? Number(process.env.KOUROS_SESSION_OFFLINE_GRACE_MS) : undefined;
 
 /* The music embedder's index (ALGORITHMS.md §4's music/index.db) — the source of the CLAP
    vectors behind similarity, radio, Runs and the vibe map. OPTIONAL by design: it
@@ -384,6 +395,13 @@ const MIGRATIONS = [
       d.exec('CREATE INDEX IF NOT EXISTS idx_history_user_context ON history(user_id, context, started_at)');
     },
   },
+  /* ── The listening session ("Connect", 2026-09-23) ─────────────────────────────
+     One row per listener — what is playing, where, the queue, the output device —
+     and the devices that listener has signed in from. Both are additive; the DDL
+     lives beside the queries that read it (src/session/store.js). Whether a device is
+     ONLINE is never stored: that is the in-memory hub's live answer. */
+  { id: 13, name: 'create_listening_session', up(d) { d.exec(SESSION_DDL); } },
+  { id: 14, name: 'create_devices',           up(d) { d.exec(DEVICES_DDL); } },
 ];
 
 function runMigrations() {
@@ -498,6 +516,17 @@ BOOK_HISTORY.mount(app, db);
 META.mount(app);
 app.use(createMatchRouter({ db, dataDir: BOOKS_DATA_DIR }));
 
+/* ── The listening session ("Connect") ──────────────────────────────────────────
+   GET /api/session (+ its SSE stream) and the write doors every instance uses to be a
+   remote or the output. Identity-gated and write-gated like every route above — the
+   stream is a GET, so a guest may hold one, but a guest cannot register the device a
+   stream requires (POST). ⚠️ The hub is IN MEMORY: correct only because this is one
+   process (src/session/hub.js's header; said again in the boot log below). */
+const sessionHub = createHub();
+app.use(createSessionRouter({
+  db, store: createSessionStore(db), hub: sessionHub, offlineGraceMs: SESSION_OFFLINE_GRACE_MS,
+}));
+
 /* ── Media (stream/cover/download) ─────────────────────────────────────────
    The playback backend: range-aware audio streaming, cover art, whole-track download.
    Same identity-gated + write-gate-cleared slot as library/tracks/collections above,
@@ -521,6 +550,7 @@ function boot() {
   // has to start listening + kick off the background scan.
   app.listen(PORT, () => {
     console.log(`KourOS running on :${PORT}`);
+    console.log('[kouros session] the listening-session hub is in-memory — correct only while KourOS runs as ONE process (src/session/hub.js)');
     // Non-blocking background scan: listen() must not wait on walking (possibly a
     // large) MUSIC_DIR. Not awaited on purpose — .catch keeps a scan failure (missing
     // mount, no ffprobe, …) from becoming an unhandled rejection that could take the

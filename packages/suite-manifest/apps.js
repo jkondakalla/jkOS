@@ -245,6 +245,8 @@ const TEST_PORTS = Object.freeze({
   'kouros:import-papyros.smoke': 3999,
   // PapyrOS's freed ports (it folded into KourOS 2026-09-23) now carry KourOS's own.
   'kouros:home.smoke': 3990,
+  // The listening session — two listeners, three devices each, over raw SSE.
+  'kouros:session.smoke': 3993,
   'beigeboard:delta.smoke': 3986,
   'beigeboard:import.smoke': 3987,
   'beigeboard:items.smoke': 3988,

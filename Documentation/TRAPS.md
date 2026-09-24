@@ -861,3 +861,24 @@ that code can reopen it.
   special-cases LazurOS to **preserve** the `/api/lazuros` prefix rather than strip it — verify
   this convention (documented directly in the generator's own comments) before assuming a new
   peer app follows the same stripping rule every other one does.
+
+- **KourOS's listening session is live only because KourOS is ONE process.** Who is connected
+  (which devices hold an open SSE stream, and so which one a command can reach) lives in an
+  in-memory `Map` in `apps/kouros/backend/src/session/hub.js` — correct because every KourOS
+  environment is one Node process in one container with one `app.listen`. Run it as two (a
+  cluster, a second replica behind nginx) and nothing errors: each process's hub sees half the
+  streams, so a command posted to process 1 for an output streaming from process 2 answers 409
+  `NO_ACTIVE_DEVICE`, and presence flickers by which process a reconnect lands on. The session
+  itself is in SQLite and survives; the relay does not. That deployment change must bring a
+  shared bus with it. The boot log says so on every start (`[kouros session] … correct only
+  while KourOS runs as ONE process`).
+
+- **`@jkos/player`'s `Queue.policy.shuffleOrder` is NOT kept in step while shuffle is off**, despite
+  its own type doc saying "Empty while shuffle is off". `shuffle(q, false)` leaves the last order in
+  place, and the structural reducers only resync it while shuffle is ON (`resyncShuffle`,
+  KourOS's `removeAt`). So shuffle-on over five items → off → remove one is a perfectly working
+  player holding four items and a five-long order with an index past the end. Anything that
+  VALIDATES a reported queue must judge the order only while shuffle is on — KourOS's session
+  validator once refused it, which would have 400'd every state report of that player until shuffle
+  came back on (`apps/kouros/backend/src/session/validate.js`; `session.smoke.mjs` drives exactly
+  that queue).

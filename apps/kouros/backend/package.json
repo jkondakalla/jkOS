@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "test": "node test/library.smoke.mjs && node test/playback.smoke.mjs && node test/history.smoke.mjs && node test/discover.smoke.mjs && node test/home.smoke.mjs && node test/books.probe.smoke.mjs && node test/books.library.smoke.mjs && node test/books.history.smoke.mjs && node test/books.playback.smoke.mjs && node test/books.meta.smoke.mjs && node test/import-papyros.smoke.mjs"
+    "test": "node test/library.smoke.mjs && node test/playback.smoke.mjs && node test/history.smoke.mjs && node test/discover.smoke.mjs && node test/home.smoke.mjs && node test/session.smoke.mjs && node test/books.probe.smoke.mjs && node test/books.library.smoke.mjs && node test/books.history.smoke.mjs && node test/books.playback.smoke.mjs && node test/books.meta.smoke.mjs && node test/import-papyros.smoke.mjs"
   },
   "dependencies": {
     "@jkos/auth-middleware": "workspace:*",
