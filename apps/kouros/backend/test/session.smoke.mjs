@@ -10,7 +10,8 @@
 //     shuffle-off + remove (the player really produces one; refusing it would 400
 //     every report of a working player), drops that order, and still refuses a
 //     broken permutation while shuffle is ON; livePositionMs extrapolates only
-//     while playing, at the rate.
+//     while playing, at the rate, and never past the watchdog window; a router that
+//     boots with a session left playing arms the watchdog itself.
 //   · the stream — 401 without a token, 404 for an unregistered device, the SSE
 //     headers that keep nginx and Cloudflare from buffering it, `hello` carrying the
 //     snapshot, presence as `devices` events, and `reauth` then close AT the token's
@@ -87,6 +88,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   ok(livePositionMs(s, t + 2000) === 13_000, 'livePositionMs extrapolates at the rate while playing');
   ok(livePositionMs({ ...s, playing: false }, t + 2000) === 10_000, 'livePositionMs holds still while paused');
   ok(livePositionMs(s, t - 5000) === 10_000, 'livePositionMs never runs backwards on a clock behind the report');
+  ok(livePositionMs(s, t + 3_600_000, 4000) === 16_000,
+    'livePositionMs extrapolates at most the watchdog window — a report an hour old hands over +4 s, not +1.5 h');
 
   // Migration 15 on a table migration 13 built BEFORE the sleep columns existed.
   const Database = require('better-sqlite3');
@@ -98,6 +101,23 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const cols = old.prepare('PRAGMA table_info(listening_session)').all().map((c) => c.name);
   ok(cols.includes('sleep_mode') && cols.includes('sleep_remaining_ms'), 'migration 15 adds the sleep columns to an older table, idempotently');
   old.close();
+
+  // A restart (every deploy) with a session left PLAYING and its output silent: the
+  // boot must arm the watchdog itself, since no write or closing stream ever will.
+  const { createSessionStore, SESSION_DDL, DEVICES_DDL } = require('../src/session/store.js');
+  const { createSessionRouter } = require('../src/session/routes.js');
+  const { createHub } = require('../src/session/hub.js');
+  const booted = new Database(':memory:');
+  booted.exec(SESSION_DDL); booted.exec(DEVICES_DDL);
+  const bootStore = createSessionStore(booted);
+  bootStore.write(901, { active_device: randomUUID(), item_ref: '1', position_ms: 42_000, playing: true,
+    queue: { items: ['1'], cursor: 0, policy: { shuffle: false, repeat: 'off', shuffleSeed: 1, shuffleOrder: [] } } });
+  createSessionRouter({ db: booted, store: bootStore, hub: createHub(), reportStaleMs: 150 });
+  await sleep(400);
+  const after = bootStore.session(901);
+  ok(after.playing === false && after.position_ms === 42_000,
+    `a session left playing across a restart is paused by the boot's watchdog, where it last reported (got playing=${after.playing} at ${after.position_ms})`);
+  booted.close();
 }
 
 /* ── 2. The real server ────────────────────────────────────────────────────────── */

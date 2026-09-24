@@ -87,6 +87,7 @@ const DEVICE_TTL_DAYS = 90;
 function createSessionStore(db) {
   const q = {
     get: db.prepare('SELECT * FROM listening_session WHERE user_id = ?'),
+    playing: db.prepare('SELECT user_id FROM listening_session WHERE playing = 1'),
     upsert: db.prepare(`
       INSERT INTO listening_session (user_id, rev, active_device, queue, context, item_ref, position_ms, playing, rate,
                                      sleep_mode, sleep_remaining_ms)
@@ -144,6 +145,11 @@ function createSessionStore(db) {
 
     session(userId) {
       return toSession(q.get.get(userId));
+    },
+
+    /** Every listener whose session says it is playing — what a boot must re-watch. */
+    playingUsers() {
+      return q.playing.all().map((r) => r.user_id);
     },
 
     /** Replace the session's facts; returns the new session (rev bumped). */

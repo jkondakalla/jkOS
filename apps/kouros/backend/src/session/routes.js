@@ -76,10 +76,15 @@ class NoTarget extends Error {
 
 /** The position a playing session has reached NOW, extrapolated from its last
  *  report. The server's own answer — used to hand a transfer's new output a start
- *  point; clients do the same arithmetic for their scrubbers. */
-function livePositionMs(s, now = Date.now()) {
+ *  point; clients do the same arithmetic for their scrubbers.
+ *  ⚠️ CAPPED AT `maxSinceMs` of extrapolation. A playing report older than the
+ *  watchdog is not evidence the music went on — the output is presumed gone — and
+ *  an uncapped hand-off from one (a session left "playing" across a restart) started
+ *  the new output hours past the anchor: past the end of a track, or at the end of a
+ *  book, saved as finished. */
+function livePositionMs(s, now = Date.now(), maxSinceMs = REPORT_STALE_MS) {
   if (!s.playing || !s.reported_at) return s.position_ms;
-  const since = Math.max(0, now - Date.parse(s.reported_at));
+  const since = Math.min(maxSinceMs, Math.max(0, now - Date.parse(s.reported_at)));
   return Math.round(s.position_ms + since * (s.rate || 1));
 }
 
@@ -137,7 +142,7 @@ function createSessionRouter({ db, store, hub, offlineGraceMs = OFFLINE_GRACE_MS
       if (Date.parse(now.reported_at) > closedAt) return;
       // Its sleep timer went with it — nothing is counting down any more.
       publishSession(userId, commit(userId, {
-        ...now, position_ms: livePositionMs(now, closedAt), playing: false, sleep_mode: null, sleep_remaining_ms: null,
+        ...now, position_ms: livePositionMs(now, closedAt, reportStaleMs), playing: false, sleep_mode: null, sleep_remaining_ms: null,
       }));
     }, offlineGraceMs);
     timer.unref();
@@ -183,6 +188,15 @@ function createSessionRouter({ db, store, hub, offlineGraceMs = OFFLINE_GRACE_MS
     watchReports(userId);
     return next;
   }
+
+  /* ⚠️ THE TIMERS ABOVE LIVE IN MEMORY, AND A RESTART (every deploy) FORGETS THEM.
+     They are armed only by a write or a closing stream, so a session that was playing
+     when the process went down — its output silent since — was never watched again:
+     `playing` for good, every remote's scrubber running on. So a boot arms the
+     watchdog for every playing session: an output that reconnects and reports within
+     it carries on untouched, and one that does not is recorded paused where it last
+     reported. */
+  for (const userId of store.playingUsers()) watchReports(userId);
 
   router.get('/api/session', (req, res) => {
     res.json(snapshot(uid(req)));
@@ -392,7 +406,7 @@ function createSessionRouter({ db, store, hub, offlineGraceMs = OFFLINE_GRACE_MS
     // starts there, so a hand-off loses at most the report's staleness.
     // A sleep timer lived on the OLD output; the new one has none armed until it says so.
     const next = commit(userId, {
-      ...s, active_device: to, position_ms: livePositionMs(s), playing, sleep_mode: null, sleep_remaining_ms: null,
+      ...s, active_device: to, position_ms: livePositionMs(s, Date.now(), reportStaleMs), playing, sleep_mode: null, sleep_remaining_ms: null,
     });
     // The server's own commands carry the same {id, from, op, args} shape a relayed
     // one does (from: null — no device sent them), so an output has one handler.
