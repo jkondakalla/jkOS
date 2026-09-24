@@ -20,7 +20,7 @@
 //   5. GET /api/history lists only the caller's own rows (owner-scoped).
 //   6. The served discovery docs reflect the append-only contract: capabilities
 //      carries createHistory but neither updateHistory nor deleteHistory; the
-//      `history` dataset's row shape is exactly id/item_ref/started_at/ms_played/
+//      `history` dataset's row shape is exactly id/item_ref/started_at/ms_played/context/
 //      completed/updated_at.
 //
 //   node apps/kouros/backend/test/history.smoke.mjs
@@ -72,6 +72,8 @@ function mkToken(claims) {
 }
 const A = mkToken({ sub: 601, role: 'admin', scope: ['kouros:write'] });
 const B = mkToken({ sub: 602, role: 'admin', scope: ['kouros:write'] });
+// Its own listener, so the context checks never touch A's activity counts below.
+const C = mkToken({ sub: 603, role: 'admin', scope: ['kouros:write'] });
 
 async function req(method, path, body, token) {
   const headers = {};
@@ -182,6 +184,21 @@ try {
   const stillThere = await listHistory(A);
   ok(stillThere.length === 2, 'history: both rows survive the PATCH/DELETE attempts unchanged');
 
+  // ── 4b. `context` — where a listen was played FROM, checked at the door ────────
+  //     (src/playContext.js). Absent is fine (the rows above); a KourOS route is
+  //     stored as given; anything else is a 400 rather than a row the "Recently
+  //     played" rail would have to step around forever.
+  const withCtx = await req('POST', '/api/history',
+    { item_ref: 7, started_at: '2026-07-15T11:30:00.000Z', ms_played: 1000, context: 'album/Some%20Artist/Some%20Album' }, C);
+  ok(withCtx.status === 201 && withCtx.json?.context === 'album/Some%20Artist/Some%20Album',
+    `history: a route-shaped context is stored as given (got ${withCtx.status} ${JSON.stringify(withCtx.json?.context)})`);
+  for (const bad of ['javascript:alert(1)', 'album/only-one-part', 'playlist/abc', 'x'.repeat(700), 42]) {
+    const r = await req('POST', '/api/history',
+      { item_ref: 7, started_at: '2026-07-15T11:31:00.000Z', ms_played: 1000, context: bad }, C);
+    ok(r.status === 400, `history: context ${JSON.stringify(String(bad).slice(0, 24))} is refused at the door → 400 (got ${r.status})`);
+  }
+  ok((await listHistory(C)).length === 1, 'history: the refused posts wrote nothing');
+
   // ── 5. owner-scoped list — a second user's rows never leak ────────────────────
   const bList1 = await listHistory(B);
   ok(bList1.length === 0, `history: B's list is empty before B records anything (got ${bList1.length})`);
@@ -206,8 +223,8 @@ try {
   const dsets = (await req('GET', '/api/datasets')).json;
   const historyDataset = (dsets?.datasets || []).find((d) => d.id === 'history');
   ok(!!historyDataset, 'discovery: datasets includes a `history` entry');
-  ok(historyDataset?.item?.map((f) => f.name).join(',') === 'id,item_ref,started_at,ms_played,completed,updated_at',
-    `discovery: history dataset row shape is exactly id/item_ref/started_at/ms_played/completed/updated_at (got ${JSON.stringify(historyDataset?.item?.map((f) => f.name))})`);
+  ok(historyDataset?.item?.map((f) => f.name).join(',') === 'id,item_ref,started_at,ms_played,completed,context,updated_at',
+    `discovery: history dataset row shape is exactly id/item_ref/started_at/ms_played/completed/context/updated_at (got ${JSON.stringify(historyDataset?.item?.map((f) => f.name))})`);
 
   // ── 7. THE ACTIVITY CONTRACT (D6 / XC-2) ──────────────────────────────────────
   //     ⚠️ The point of this section is not that KourOS serves activity — it is that

@@ -7,8 +7,7 @@ import { albumHref, artistHref, closeOverlay, queueHref } from '../hooks/useHash
 import { usePlayer, nowPlayingArt } from '../player/PlayerProvider';
 import { IconNext, IconPrev } from '@jkos/player/ui';
 import { IconRepeat, IconRepeatOne, IconShuffle } from '../player/icons';
-import { radioFrom } from '../api';
-import { requestPlay } from '../player/controller';
+import { startStation } from '../player/station';
 import NowPlayingBook from './NowPlayingBook';
 
 /**
@@ -86,11 +85,7 @@ export default function NowPlaying() {
   async function startRadio() {
     setRadioBusy(true);
     try {
-      const r = await radioFrom([track.id], 60);
-      const ids = r.results.map((t) => t.id);
-      if (ids.length) requestPlay({ trackIds: [track.id, ...ids], startIndex: 0 });
-    } catch {
-      /* non-fatal: the transport keeps playing whatever it already had */
+      await startStation(track.id);   // non-fatal: a failed build leaves the transport as it was
     } finally {
       setRadioBusy(false);
     }

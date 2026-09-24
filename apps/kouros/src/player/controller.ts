@@ -27,9 +27,13 @@ export interface PlayRequest {
   trackIds: PlayableRef[];
   /** Index into `trackIds` playback begins at. */
   startIndex: number;
-  /** Seconds into that track to start at; omit to start from 0 (KourOS has no
-   *  server-side resume — see usePlayerEngine.ts's ProgressStore note). */
+  /** Seconds into that item to start at. Omitted: a track starts at 0, a book
+   *  resumes from its saved progress (sources.ts's progress store). */
   position?: number;
+  /** Where this list was played FROM — an album, playlist, artist, station or
+   *  book route (player/context.ts). Omitted for an ad-hoc list (search results,
+   *  a map region), which is not a place "Recently played" can send you back to. */
+  context?: string;
 }
 
 type Listener = (req: PlayRequest) => void;

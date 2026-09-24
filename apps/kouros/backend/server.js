@@ -30,6 +30,7 @@ const { createMediaRouter } = require('./src/media');               // 18.2: str
 const { createBrowseRouter } = require('./src/routes/browse');      // server-side album/artist grouping
 const { createDiscoverRouter } = require('./src/routes/discover');  // the similarity engine's HTTP surface
 const { createDiscovery } = require('./src/discover');              // vectors → aligned space → similar/radio/runs/map
+const { isPlayContext } = require('./src/playContext');             // where a listen was played FROM
 // Audiobooks — PapyrOS's backend, folded in (2026-09-23; see discovery.js's books block).
 const { createBookScanner } = require('./src/books/scan');               // AUDIOBOOKS_DIR walker → `books` catalog
 const { createBooksRouter } = require('./src/books/list');               // filtered `books` dataset read
@@ -370,6 +371,19 @@ const MIGRATIONS = [
       d.exec('CREATE INDEX IF NOT EXISTS idx_book_history_user_started ON book_history(user_id, started_at)');
     },
   },
+  /* Where a listen was played FROM (discovery.js's HISTORY.context) — what the
+     "Recently played" rail groups by. A fresh database already has the column
+     (migration 3 builds from the current HISTORY.ddl()), so this only ALTERs a table
+     that predates it. Additive and nullable: every existing row is an ad-hoc listen. */
+  {
+    id: 12,
+    name: 'history_context',
+    up(d) {
+      const has = d.prepare('PRAGMA table_info(history)').all().some((c) => c.name === 'context');
+      if (!has) d.exec('ALTER TABLE history ADD COLUMN context TEXT');
+      d.exec('CREATE INDEX IF NOT EXISTS idx_history_user_context ON history(user_id, context, started_at)');
+    },
+  },
 ];
 
 function runMigrations() {
@@ -455,6 +469,16 @@ app.use(createDiscoverRouter({ discovery, db }));          // /api/discover/*
    .mount() below wires GET (list) + POST (create) only; there is no PATCH/DELETE
    route for it at all. */
 PLAYLISTS.mount(app, db);
+/* `context` is client-supplied and defineCollection has no per-field grammar, so it
+   is checked HERE, at the door: a 400 to a direct caller rather than a row the
+   rails would have to step around forever (src/playContext.js). */
+app.use('/api/history', (req, res, next) => {
+  const ctx = req.method === 'POST' && req.body ? req.body.context : undefined;
+  if (ctx != null && !isPlayContext(ctx)) {
+    return res.status(400).json({ error: 'context must be a KourOS route: album/<artist>/<album>, playlist/<id>, artist/<artist>, station/<track id> or book/<id>' });
+  }
+  next();
+});
 HISTORY.mount(app, db);   // append-only — see discovery.js's HISTORY comment
 RATINGS.mount(app, db);
 /* D6 / XC-2: GET /api/activity — "what did the user DO here", in the ONE declared

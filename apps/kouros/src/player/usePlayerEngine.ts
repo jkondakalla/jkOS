@@ -74,6 +74,8 @@ export interface PlayerApi {
   volume: number;
   muted: boolean;
   queue: Queue;
+  /** Where the queue was played FROM (player/context.ts), or null for an ad-hoc list. */
+  context: string | null;
   shuffle: boolean;
   repeat: RepeatMode;
   /** Crossfade seconds (0 = gapless) — the 18.5 knob, persisted with shuffle/repeat. */
@@ -163,6 +165,11 @@ export function usePlayerEngine(): PlayerApi {
     queueRef.current = { ...EMPTY_QUEUE, policy: { ...EMPTY_QUEUE.policy, shuffle: prefs.shuffle, repeat: prefs.repeat } };
   }
   const [queue, setQueue] = useState<Queue>(queueRef.current);
+  /** Where the live queue came from — replaced with every NEW list, kept across a
+   *  cursor move within the same one (a skip is still "playing the album"). The
+   *  history recorder stamps it on each track listen; Home groups by it. */
+  const contextRef = useRef<string | null>(null);
+  const [context, setContext] = useState<string | null>(null);
 
   // ── Crossfade knob (18.5) — same persistence register as shuffle/repeat
   // (queuePrefs.ts); crossfadeRef mirrors the state so the stable ([]-dep) shuffle/
@@ -202,9 +209,13 @@ export function usePlayerEngine(): PlayerApi {
       let q: Queue;
       if (sameItems(prevQ.items, ids)) {
         // Same track list (internal nav / a queue-row tap) — keep the existing
-        // policy AND shuffleOrder verbatim; only the cursor moves.
+        // policy AND shuffleOrder verbatim; only the cursor moves. The context
+        // stays too, unless the request names one (the same album re-played from
+        // its own page says so explicitly).
         q = { ...prevQ, cursor: startIndex };
+        if (req.context !== undefined) contextRef.current = req.context || null;
       } else {
+        contextRef.current = req.context || null;
         // A genuinely new list (a library view asked to play an album/playlist) —
         // rebuild, but carry the USER's standing shuffle/repeat settings forward
         // (they're a player-wide preference, not per-queue) with a fresh shuffle
@@ -214,6 +225,7 @@ export function usePlayerEngine(): PlayerApi {
       }
       queueRef.current = q;
       setQueue(q);
+      setContext(contextRef.current);
       handler({ itemId: req.trackIds[startIndex], position: req.position });
     }),
     publishPosition: (update) => {
@@ -474,7 +486,7 @@ export function usePlayerEngine(): PlayerApi {
   // `history`, a book's in `book_history` (backend/discovery.js's BOOK_HISTORY for
   // why they are two tables) — the session carries its source so the flush can
   // never write a book into the track ledger or the reverse.
-  interface HistorySession { src: SourceId; id: number; startedAt: string; playStartedAtMs: number }
+  interface HistorySession { src: SourceId; id: number; context: string | null; startedAt: string; playStartedAtMs: number }
   const sessionRef = useRef<HistorySession | null>(null);
   const prevRefRef = useRef<string | null>(null);
   const prevPlayingForHistoryRef = useRef(false);
@@ -500,13 +512,14 @@ export function usePlayerEngine(): PlayerApi {
     const pos = globalPosRef.current;
     const completed = forcedCompleted === true || (total > 0 && pos >= total - 1);
     const row = { item_ref: session.id, started_at: session.startedAt, ms_played: msPlayed, completed };
-    (session.src === 'book' ? createBookHistoryEvent(row) : createHistoryEvent(row))
+    // A book listen IS its book; only a track carries where it was played from.
+    (session.src === 'book' ? createBookHistoryEvent(row) : createHistoryEvent({ ...row, context: session.context }))
       .catch((err) => console.warn('[kouros] failed to record history event', err));
   }, []);
 
   const openSession = (ref: string): HistorySession => {
     const { src, id } = decodeRef(ref);
-    return { src, id, startedAt: new Date().toISOString(), playStartedAtMs: Date.now() };
+    return { src, id, context: contextRef.current, startedAt: new Date().toISOString(), playStartedAtMs: Date.now() };
   };
 
   useEffect(() => {
@@ -657,6 +670,7 @@ export function usePlayerEngine(): PlayerApi {
     volume: eng.volume,
     muted: eng.muted,
     queue,
+    context,
     shuffle: queue.policy.shuffle,
     repeat: queue.policy.repeat,
     crossfadeSec,

@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
+import { albumContext } from '../player/context';
+import { startStation } from '../player/station';
 import { AsyncView } from '@jkos/ui';
 import Cover from '../components/Cover';
 import TrackRow from '../components/TrackRow';
@@ -9,7 +11,7 @@ import { IconShuffle } from '../player/icons';
 import { artistHref } from '../hooks/useHashRoute';
 import { useNowPlaying } from '../hooks/useNowPlaying';
 import { requestPlay } from '../player/controller';
-import { listAlbumTracks, radioFrom, similarTracks, type SimilarResult, type Track } from '../api';
+import { listAlbumTracks, similarTracks, type SimilarResult, type Track } from '../api';
 import { formatCount, formatSpan } from './library/format';
 
 interface AlbumProps {
@@ -20,6 +22,8 @@ interface AlbumProps {
 /** One record: sleeve, track list, and — where the embedder has reached it — what
  *  else in the library sounds like it. */
 export default function Album({ artist, album }: AlbumProps) {
+  /** Every play of this record says it came from here (player/context.ts). */
+  const context = albumContext(artist, album);
   const [tracks, setTracks] = useState<Track[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -67,16 +71,9 @@ export default function Album({ artist, album }: AlbumProps) {
       const j = Math.floor(Math.random() * (i + 1));
       [order[i], order[j]] = [order[j]!, order[i]!];
     }
-    requestPlay({ trackIds: order, startIndex: 0 });
+    requestPlay({ trackIds: order, startIndex: 0, context });
   }
 
-  async function startRadio(seedId: number) {
-    try {
-      const r = await radioFrom([seedId], 60);
-      const more = r.results.map((t) => t.id);
-      if (more.length) requestPlay({ trackIds: [seedId, ...more], startIndex: 0 });
-    } catch { /* non-fatal */ }
-  }
 
   return (
     <section className="view-detail">
@@ -104,7 +101,7 @@ export default function Album({ artist, album }: AlbumProps) {
               <button
                 type="button"
                 className="kr-primary"
-                onClick={() => requestPlay({ trackIds: ids, startIndex: 0 })}
+                onClick={() => requestPlay({ trackIds: ids, startIndex: 0, context })}
               >
                 <IconPlay /> Play
               </button>
@@ -121,6 +118,7 @@ export default function Album({ artist, album }: AlbumProps) {
                   artist,
                   album,
                   seedId: ids[0],
+                  context,
                 })}
                 aria-label="More actions"
               >
@@ -138,7 +136,7 @@ export default function Album({ artist, album }: AlbumProps) {
               numbered
               art={false}
               playing={now.trackId === t.id}
-              onPlay={() => requestPlay({ trackIds: ids, startIndex: i })}
+              onPlay={() => requestPlay({ trackIds: ids, startIndex: i, context })}
               onMenu={setMenu}
             />
           ))}
@@ -173,7 +171,7 @@ export default function Album({ artist, album }: AlbumProps) {
         )}
       </AsyncView>
 
-      <ActionSheet target={menu} onClose={() => setMenu(null)} onRadio={startRadio} />
+      <ActionSheet target={menu} onClose={() => setMenu(null)} onRadio={startStation} />
     </section>
   );
 }

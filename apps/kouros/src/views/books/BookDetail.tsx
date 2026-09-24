@@ -8,6 +8,7 @@ import DownloadButton from './DownloadButton';
 import { OfflineBadge, OfflineButton } from '../../books/offline';
 import { getLastPosition, onPosition, requestPlay, type PositionUpdate } from '../../player/controller';
 import { encodeRef } from '../../player/sources';
+import { bookContext } from '../../player/context';
 import MatchPanel from './book-detail/MatchPanel';
 import { formatClock, formatHM, plainDescription } from './book-detail/format';
 import './book-detail.css';
@@ -105,7 +106,7 @@ export default function BookDetail({ bookId }: { bookId: number }) {
    *  would find the progress row itself, but a FINISHED book must start over rather
    *  than resume at its last second. */
   const playAt = (position: number) => {
-    requestPlay({ trackIds: [encodeRef('book', bookId)], startIndex: 0, position });
+    requestPlay({ trackIds: [encodeRef('book', bookId)], startIndex: 0, position, context: bookContext(bookId) });
   };
   const handlePlay = () => playAt(canResume && row ? row.position : 0);
 

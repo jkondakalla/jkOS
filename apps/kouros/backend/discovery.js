@@ -130,6 +130,11 @@ const HISTORY = defineCollection({
     { name: 'started_at', type: 'string',  label: 'Session start (ISO timestamp)', required: true, wire: true },
     { name: 'ms_played',  type: 'number',  label: 'Milliseconds played',           default: 0 },
     { name: 'completed',  type: 'boolean', label: 'Completed' },
+    /* Where the listen was played FROM — the KourOS route of its album, playlist,
+       artist or station (src/playContext.js for the grammar; server.js refuses
+       anything else with a 400). Null for an ad-hoc list (search results, a map
+       region), which is deliberately not a "recently played" place. */
+    { name: 'context',    type: 'string',  label: 'Played from (a KourOS route: album/…, playlist/…, artist/…, station/…)' },
   ],
 });
 

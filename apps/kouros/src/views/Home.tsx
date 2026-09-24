@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
+import { startStation } from '../player/station';
 import { AsyncView } from '@jkos/ui';
-import { AlbumCard, TrackCard } from '../components/cards';
+import { AlbumCard, ContinueBookCard, RecentCard, TrackCard } from '../components/cards';
 import Cover from '../components/Cover';
 import ActionSheet, { type ActionTarget } from '../components/ActionSheet';
 import { IconArc, IconChevron, IconClock } from '../components/icons';
 import { artistHref, browseHref, mapHref } from '../hooks/useHashRoute';
 import { useNowPlaying } from '../hooks/useNowPlaying';
 import { requestPlay } from '../player/controller';
-import { fetchHome, radioFrom, type AlbumSummary, type HomePayload, type HomeRun } from '../api';
+import { fetchHome, type AlbumSummary, type HomePayload, type HomeRun } from '../api';
 import { formatCount, formatSpan } from './library/format';
 import NowCard from '../shell/NowCard';
 
@@ -49,13 +50,6 @@ export default function Home() {
     return () => { alive = false; };
   }, []);
 
-  async function startRadio(seedId: number) {
-    try {
-      const r = await radioFrom([seedId], 60);
-      const ids = r.results.map((t) => t.id);
-      if (ids.length) requestPlay({ trackIds: [seedId, ...ids], startIndex: 0 });
-    } catch { /* non-fatal */ }
-  }
 
   const stats = data?.stats;
 
@@ -86,6 +80,36 @@ export default function Home() {
       >
         {data && (
           <>
+            {/* ── Continue listening ──────────────────────────────────────────
+                Audiobooks only (Jag, 2026-09-23: long-term resume is a book's).
+                Whatever is playing NOW is the NowCard above; this is every book
+                left part-way, on any device. */}
+            {data.continue_books.length > 0 && (
+              <section className="kr-section">
+                <div className="kr-section-head">
+                  <h2 className="kr-section-title">Continue listening</h2>
+                  <span className="kr-section-note">audiobooks</span>
+                </div>
+                <div className="kr-rail jk-scroll-none">
+                  {data.continue_books.map((b) => <ContinueBookCard key={b.id} book={b} />)}
+                </div>
+              </section>
+            )}
+
+            {/* ── Recently played ──────────────────────────────────────────────
+                Places, not tracks — albums, playlists, artists, stations, books
+                you played FROM, newest first (backend/src/discover/recent.js). */}
+            {data.recent.length > 0 && (
+              <section className="kr-section">
+                <div className="kr-section-head">
+                  <h2 className="kr-section-title">Recently played</h2>
+                </div>
+                <div className="kr-rail jk-scroll-none">
+                  {data.recent.map((r) => <RecentCard key={r.route} item={r} />)}
+                </div>
+              </section>
+            )}
+
             {/* ── Runs ─────────────────────────────────────────────────────── */}
             {data.runs.length > 0 && (
               <section className="kr-section">
@@ -154,32 +178,6 @@ export default function Home() {
               </section>
             )}
 
-            {/* ── Recently played ──────────────────────────────────────────── */}
-            {data.recently_played.length > 0 && (
-              <section className="kr-section">
-                <div className="kr-section-head">
-                  <h2 className="kr-section-title">Pick up where you left off</h2>
-                </div>
-                <div className="kr-rail jk-scroll-none">
-                  {data.recently_played.map((t, i) => (
-                    <TrackCard
-                      key={t.id}
-                      id={t.id}
-                      title={t.title}
-                      artist={t.artist}
-                      album={t.album}
-                      hasCover={t.has_cover}
-                      playing={now.trackId === t.id}
-                      onPlay={() => requestPlay({
-                        trackIds: data.recently_played.map((x) => x.id),
-                        startIndex: i,
-                      })}
-                    />
-                  ))}
-                </div>
-              </section>
-            )}
-
             {/* ── Fresh albums ─────────────────────────────────────────────── */}
             {data.fresh_albums.length > 0 && (
               <section className="kr-section">
@@ -231,7 +229,7 @@ export default function Home() {
         )}
       </AsyncView>
 
-      <ActionSheet target={menu} onClose={() => setMenu(null)} onRadio={startRadio} />
+      <ActionSheet target={menu} onClose={() => setMenu(null)} onRadio={startStation} />
     </section>
   );
 }

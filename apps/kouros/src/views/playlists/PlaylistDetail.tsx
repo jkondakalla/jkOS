@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { playlistContext } from '../../player/context';
 import {
   AsyncView, Lab, TButton, cx,
   usePointerDrag, DRAG_THRESHOLD_PX, HOLD_MS, HOLD_CANCEL_PX,
@@ -66,10 +67,10 @@ export default function PlaylistDetail({ playlistId }: PlaylistDetailProps) {
   const notFound = !loading && !error && !playlist;
 
   function playAll() {
-    requestPlay({ trackIds: resolvedIds, startIndex: 0 });
+    requestPlay({ trackIds: resolvedIds, startIndex: 0, context: playlistContext(playlistId) });
   }
   function playFrom(index: number) {
-    requestPlay({ trackIds: resolvedIds, startIndex: index });
+    requestPlay({ trackIds: resolvedIds, startIndex: index, context: playlistContext(playlistId) });
   }
 
   const [saveError, setSaveError] = useState<string | null>(null);

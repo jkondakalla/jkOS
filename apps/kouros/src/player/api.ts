@@ -140,7 +140,11 @@ export function coverUrl(id: number): string {
 // createHistoryEvent — a failed POST is swallowed with a console.warn by the caller,
 // never surfaced to playback UI.
 export function createHistoryEvent(
-  row: { item_ref: number; started_at: string; ms_played: number; completed: boolean },
+  row: {
+    item_ref: number; started_at: string; ms_played: number; completed: boolean;
+    /** Where it was played FROM (player/context.ts) — null for an ad-hoc list. */
+    context?: string | null;
+  },
 ): Promise<HistoryRow> {
   return apiJson<HistoryRow>('/api/history', { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(row) });
 }

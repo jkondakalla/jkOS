@@ -366,8 +366,12 @@ that code can reopen it.
   `withNumericRefs()` / `refsInList()` in `apps/kouros/src/books/api.ts` (PapyrOS's, carried over
   when it folded into KourOS) normalise at the one door every row arrives by — list, create, update
   and the reconnect delta — which makes the declared type true so the next consumer is correct by
-  default. Coerce at the BOUNDARY, never at each comparison. KourOS's `item_ref`/`track_ref` are
-  the same shape; the trap is armed there too.
+  default. Coerce at the BOUNDARY, never at each comparison. ⚠️ **The SERVER trips it too:**
+  KourOS's Home rails looked `history.item_ref` (`'234'`, or `'234.0'` from a raw-SQL seed that
+  bound a double) up in a Map keyed by INTEGER track ids, so "Deep in", the history-seeded Runs
+  and the old track-level "Recently played" were empty for every listener from the day they
+  shipped — `trackIndexOf()` in `apps/kouros/backend/src/discover/home.js` now coerces at the one
+  read every rail goes through, and `home.smoke.mjs` fails without it.
 
 - **Always copy a SQLite database's `-wal` and `-shm` sidecars together with the `.db` file** — a
   live WAL-mode database has uncommitted-to-disk writes sitting in `-wal`, and querying the bare

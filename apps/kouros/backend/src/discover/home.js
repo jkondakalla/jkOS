@@ -106,6 +106,20 @@ function timeOfDay(space, { hour, k = 18 } = {}) {
   return { slot: key, label: slot.label, basis: 'genre', results: rows.map(([i, s]) => present(space, i, { fit: round(s) })) };
 }
 
+/** A history row's track, as an index into the space — or undefined.
+ *
+ *  ⚠️ THE KEY IS A NUMBER AND THE REF IS NOT. `space.index` is keyed by the INTEGER
+ *  `tracks.id`, while `history.item_ref` is a weave `ref` column — TEXT affinity —
+ *  so it arrives as `'234'` (or `'234.0'`, from a raw-SQL seed that bound a double).
+ *  A Map lookup does not coerce: every `index.get(h.item_ref)` missed, and "Deep in",
+ *  the history-seeded Runs and the old track-level "Recently played" were empty for
+ *  every listener from the day they shipped, with no error anywhere (TRAPS.md §
+ *  SQLite). Coerced HERE, at the one read every rail goes through. */
+function trackIndexOf(space, ref) {
+  const id = Number(ref);
+  return Number.isFinite(id) ? space.index.get(id) : undefined;
+}
+
 /* ── artists you're deep in ───────────────────────────────────────────────────
    Recency-weighted play counts. A play from this morning should outweigh one
    from three weeks ago, so each play contributes exp(-age/halfLife) rather than
@@ -117,7 +131,7 @@ function deepIn(space, history, { k = 8, halfLifeDays = 10, now = Date.now() } =
   const HALF = halfLifeDays * 864e5;
 
   for (const h of history) {
-    const i = space.index.get(h.item_ref);
+    const i = trackIndexOf(space, h.item_ref);
     if (i == null) continue;
     const artist = space.meta.artist[i];
     if (!artist) continue;
@@ -165,7 +179,7 @@ function runs(space, history, { count = 3, length = 14 } = {}) {
   const seeds = [];
   const seen = new Set();
   for (const h of history) {
-    const i = space.index.get(h.item_ref);
+    const i = trackIndexOf(space, h.item_ref);
     if (i == null || space.origin[i] === ORIGIN.NONE) continue;
     const key = (space.meta.artist[i] || '').toLowerCase();
     if (seen.has(key)) continue;
@@ -208,22 +222,6 @@ function runs(space, history, { count = 3, length = 14 } = {}) {
 
 /* ── the plain rails ──────────────────────────────────────────────────────── */
 
-/** Most recent play per track, newest first — history arrives newest-first from
- *  the append-only collection, so first-seen IS most-recent. */
-function recentlyPlayed(space, history, { k = 18 } = {}) {
-  const seen = new Set();
-  const out = [];
-  for (const h of history) {
-    if (seen.has(h.item_ref)) continue;
-    seen.add(h.item_ref);
-    const i = space.index.get(h.item_ref);
-    if (i == null) continue;
-    out.push(present(space, i, { played_at: h.started_at || h.updated_at }));
-    if (out.length >= k) break;
-  }
-  return out;
-}
-
 /** Newest ALBUMS rather than newest tracks: a freshly-added record would
  *  otherwise fill the whole rail with its own twelve tracks. */
 function freshAlbums(db, space, { k = 18 } = {}) {
@@ -247,4 +245,4 @@ function freshAlbums(db, space, { k = 18 } = {}) {
   }));
 }
 
-module.exports = { timeOfDay, deepIn, runs, recentlyPlayed, freshAlbums, slotForHour, SLOTS };
+module.exports = { timeOfDay, deepIn, runs, freshAlbums, slotForHour, SLOTS, trackIndexOf };

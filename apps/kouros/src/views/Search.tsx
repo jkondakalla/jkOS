@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { startStation } from '../player/station';
 import { AsyncView } from '@jkos/ui';
 import { AlbumCard, ArtistCard } from '../components/cards';
 import TrackRow from '../components/TrackRow';
@@ -6,7 +7,7 @@ import ActionSheet, { type ActionTarget } from '../components/ActionSheet';
 import { useNowPlaying } from '../hooks/useNowPlaying';
 import { requestPlay } from '../player/controller';
 import {
-  listAlbums, listArtists, listTracks, radioFrom,
+  listAlbums, listArtists, listTracks,
   type AlbumSummary, type ArtistSummary, type Track,
 } from '../api';
 
@@ -71,13 +72,6 @@ export default function Search({ initialQuery }: SearchProps) {
     return () => { alive = false; };
   }, [term]);
 
-  async function startRadio(seedId: number) {
-    try {
-      const r = await radioFrom([seedId], 60);
-      const ids = r.results.map((x) => x.id);
-      if (ids.length) requestPlay({ trackIds: [seedId, ...ids], startIndex: 0 });
-    } catch { /* non-fatal */ }
-  }
 
   const total = tracks.length + albums.length + artists.length;
 
@@ -151,7 +145,7 @@ export default function Search({ initialQuery }: SearchProps) {
         </AsyncView>
       )}
 
-      <ActionSheet target={menu} onClose={() => setMenu(null)} onRadio={startRadio} />
+      <ActionSheet target={menu} onClose={() => setMenu(null)} onRadio={startStation} />
     </section>
   );
 }

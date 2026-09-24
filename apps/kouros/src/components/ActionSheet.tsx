@@ -14,6 +14,9 @@ export interface ActionTarget {
   album?: string | null;
   /** Seed for "Start a station". Defaults to the first track. */
   seedId?: number;
+  /** Where "Play now" plays FROM (player/context.ts) — an album header's menu is its
+   *  album; a single row's menu has none. */
+  context?: string;
 }
 
 interface ActionSheetProps {
@@ -74,7 +77,7 @@ export default function ActionSheet({ target, onClose, onRadio }: ActionSheetPro
           <button
             type="button"
             className="kr-action"
-            onClick={() => act(() => requestPlay({ trackIds, startIndex: 0 }))}
+            onClick={() => act(() => requestPlay({ trackIds, startIndex: 0, context: target.context }))}
           >
             <IconPlay />
             <span>Play now</span>

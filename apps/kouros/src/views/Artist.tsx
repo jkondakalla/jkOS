@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
+import { artistContext } from '../player/context';
+import { startStation } from '../player/station';
 import { AsyncView } from '@jkos/ui';
 import Cover from '../components/Cover';
 import { AlbumCard } from '../components/cards';
@@ -6,7 +8,7 @@ import ActionSheet, { type ActionTarget } from '../components/ActionSheet';
 import { IconPlay } from '@jkos/player/ui';
 import { IconShuffle } from '../player/icons';
 import { requestPlay } from '../player/controller';
-import { listAlbums, listAlbumTracks, radioFrom, type AlbumSummary } from '../api';
+import { listAlbums, listAlbumTracks, type AlbumSummary } from '../api';
 import { formatCount, formatSpan } from './library/format';
 
 /** One artist: their records, newest first, with a play-everything header. */
@@ -50,19 +52,12 @@ export default function Artist({ artist }: { artist: string }) {
           [ids[i], ids[j]] = [ids[j]!, ids[i]!];
         }
       }
-      requestPlay({ trackIds: ids, startIndex: 0 });
+      requestPlay({ trackIds: ids, startIndex: 0, context: artistContext(artist) });
     } finally {
       setBusy(false);
     }
   }
 
-  async function startRadio(seedId: number) {
-    try {
-      const r = await radioFrom([seedId], 60);
-      const ids = r.results.map((t) => t.id);
-      if (ids.length) requestPlay({ trackIds: [seedId, ...ids], startIndex: 0 });
-    } catch { /* non-fatal */ }
-  }
 
   const coverId = albums.find((a) => a.cover_id != null)?.cover_id ?? null;
 
@@ -106,7 +101,7 @@ export default function Artist({ artist }: { artist: string }) {
         </section>
       </AsyncView>
 
-      <ActionSheet target={menu} onClose={() => setMenu(null)} onRadio={startRadio} />
+      <ActionSheet target={menu} onClose={() => setMenu(null)} onRadio={startStation} />
     </section>
   );
 }

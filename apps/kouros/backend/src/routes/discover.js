@@ -36,6 +36,7 @@ function num(v, dflt) {
 function createDiscoverRouter({ discovery, db }) {
   const router = Router();
   const home = require('../discover/home');
+  const recent = require('../discover/recent');
 
   /** This user's play history, newest first — the input to every personalised
    *  rail. Read directly rather than over the collection route: this is the same
@@ -179,7 +180,13 @@ function createDiscoverRouter({ discovery, db }) {
         time_of_day: home.timeOfDay(space, { hour, k: clamp(req.query.k, 18, 1, 60) }),
         runs: home.runs(space, history, { count: 3, length: 14 }),
         deep_in: home.deepIn(space, history, { k: 8 }),
-        recently_played: home.recentlyPlayed(space, history, { k: 18 }),
+        // Where you played FROM — albums, playlists, artists, stations, books — one
+        // tile each, newest first (discover/recent.js). Replaced a per-TRACK rail
+        // that had been empty for every listener since it shipped (home.js's
+        // trackIndexOf).
+        recent: recent.recentContexts(db, req.user && req.user.sub, { k: 14 }),
+        // Unfinished audiobooks with a saved position — long-term resume is a book's.
+        continue_books: recent.continueBooks(db, req.user && req.user.sub, { k: 12 }),
         fresh_albums: home.freshAlbums(db, space, { k: 18 }),
       });
     } catch (err) {

@@ -162,6 +162,17 @@
 .kr-card-round .kr-card-title,
 .kr-card-round .kr-card-meta { text-align: center; }
 .kr-card-btn.is-playing .kr-card-title { color: var(--accent); }
+/* "Continue listening": how far into the book, as a hairline under the jacket —
+   the same "how far in" answer the mini player's bottom edge gives, at card size. */
+.kr-card-progress {
+  display: block;
+  height: 3px;
+  margin-top: 0.35rem;
+  border-radius: 999px;
+  background: var(--hub-cream-faint);
+  overflow: hidden;
+}
+.kr-card-progress > span { display: block; height: 100%; background: var(--accent); }
 
 /* ── Section "more" link ──────────────────────────────────────────────────── */
 .kr-section-more {

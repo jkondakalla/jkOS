@@ -168,24 +168,11 @@ export async function deletePlaylist(id: number): Promise<void> {
   await apiJson<{ ok: boolean }>(`/api/playlists/${id}`, { method: 'DELETE' });
 }
 
-// ─── Play history (17.4-style — append-only; plain authFetch, NOT offline-queued) ─
-// `listHistory` powers Home's "Recently played" section (resolve `item_ref`
-// against the `tracks` list, dedupe to most-recent-per-track — see
-// views/Home.tsx). `createHistoryEvent` has no caller in this wave (18.3 is
-// read-only library UI) — it's provided here, matching papyros's api.ts /
-// usePlayerEngine.ts precedent, so 18.4's queue engine can record a listening
-// stretch with a plain import instead of needing to touch this file itself
-// (api.ts is 18.3's, not 18.4's, per this wave's file-ownership split).
-
-export function listHistory(): Promise<HistoryRow[]> {
-  return apiJson<HistoryRow[]>('/api/history');
-}
-
-export function createHistoryEvent(
-  row: { item_ref: number; started_at: string; ms_played: number; completed: boolean },
-): Promise<HistoryRow> {
-  return apiJson<HistoryRow>('/api/history', { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(row) });
-}
+// ─── Play history ─────────────────────────────────────────────────────────────
+// Written by the player's session recorder through player/api.ts's
+// createHistoryEvent (the only caller there ever was — a second, unused copy lived
+// here until 2026-09-23). Read server-side only, by Home's rails
+// (backend/src/discover/recent.js, home.js).
 
 // ─── Browse (server-side grouping — backend/src/routes/browse.js) ─────────────
 // Everything above this line derives albums and artists by pulling the WHOLE
@@ -333,6 +320,31 @@ export interface HomeRun {
   tracks: DiscoveredTrack[];
 }
 
+/** One "Recently played" tile (backend/src/discover/recent.js). `route` IS the
+ *  context — the KourOS route of the thing, so the tile links there as `#/<route>`. */
+export interface RecentContext {
+  kind: 'album' | 'playlist' | 'artist' | 'station' | 'book';
+  route: string;
+  title: string;
+  subtitle: string;
+  /** Whose art: a track's (by track id) or a book's (by book id). Null when none. */
+  cover: { kind: 'track' | 'book'; id: number } | null;
+  /** A station's seed track — a station has no page, so its tile replays it. */
+  seed?: number;
+  played_at: string;
+}
+
+/** A "Continue listening" audiobook. */
+export interface ContinueBook {
+  id: number;
+  title: string;
+  author: string | null;
+  has_cover: boolean;
+  duration: number;
+  position: number;
+  played_at: string;
+}
+
 export interface DeepInArtist {
   artist: string;
   weight: number;
@@ -346,7 +358,10 @@ export interface HomePayload {
   time_of_day: { slot: string; label: string; basis: 'features' | 'genre'; results: DiscoveredTrack[] };
   runs: HomeRun[];
   deep_in: DeepInArtist[];
-  recently_played: DiscoveredTrack[];
+  /** Where you played FROM, newest first — one tile per context. */
+  recent: RecentContext[];
+  /** Unfinished audiobooks with a saved position, most recently touched first. */
+  continue_books: ContinueBook[];
   fresh_albums: Array<{ album: string; artist: string; year: number | null; tracks: number; duration: number; anchor_id: number; added: string }>;
 }
 
