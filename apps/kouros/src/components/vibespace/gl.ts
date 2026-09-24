@@ -31,6 +31,15 @@ void main() {
 }
 `;
 
+/** How far in from each face of the display cube the volume fades out, in half-widths.
+ *  ⚠️ THE CUBE IS NOT THE CLOUD'S EDGE. Display units are xyz / R (the p98 radius),
+ *  clamped to the cube, so the outermost ~2% of a library piles onto its faces — and a
+ *  dense cluster that reaches a face was sliced flat by the ray's clip, a straight edge
+ *  across the real library at mid energy (seen 2026-09-23). Fading opacity over the
+ *  last ~4 voxels dissolves the cloud into the dark instead. Presentation only: the
+ *  particles, a pin, and every "near" answer keep the server's coordinates. */
+export const EDGE_FADE = 0.16;
+
 export const VOLUME_FRAGMENT = `#version 300 es
 precision highp float;
 precision highp int;
@@ -92,6 +101,9 @@ void main() {
     // keep their weight, so a library that fills the cube still shows its structure
     // instead of a silhouette. (Linear, a 47,000-track cloud was an opaque slab.)
     float a = 1.0 - exp(-u_opacity * s.r * s.r * dt / voxel);
+    // Dissolve toward the cube's faces rather than end at them (EDGE_FADE).
+    float face = 1.0 - max(max(abs(p.x), abs(p.y)), abs(p.z));
+    a *= smoothstep(0.0, ${EDGE_FADE.toFixed(3)}, face);
     vec3 ink = texture(u_ramp, vec2(s.g, 0.5)).rgb;
     acc += (1.0 - alpha) * a * ink;
     alpha += (1.0 - alpha) * a;
