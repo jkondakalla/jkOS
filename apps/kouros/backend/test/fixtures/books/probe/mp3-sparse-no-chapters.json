@@ -1,0 +1,25 @@
+{
+  "streams": [
+    {
+      "index": 0,
+      "codec_name": "mp3",
+      "codec_long_name": "MP3 (MPEG audio layer 3)",
+      "codec_type": "audio",
+      "sample_rate": "44100",
+      "channels": 2,
+      "tags": { "encoder": "LAME3.100" }
+    }
+  ],
+  "chapters": [],
+  "format": {
+    "filename": "/audiobooks/Unknown Book/track01.mp3",
+    "nb_streams": 1,
+    "format_name": "mp3",
+    "duration": "1830.500000",
+    "size": "29456123",
+    "bit_rate": "128000",
+    "tags": {
+      "title": "Track 01"
+    }
+  }
+}

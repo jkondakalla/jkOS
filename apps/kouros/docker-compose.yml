@@ -47,6 +47,15 @@ services:
       # exact confusion the volume note below exists to prevent, in the file that
       # prevents it. The VALUE was never wrong; the sentence was.
       LIBRARY_ROOT_NAME: Music
+      # The audiobook library — PapyrOS's, since PapyrOS folded into KourOS
+      # (2026-09-23). One book per immediate subfolder, walked AFTER the music on
+      # boot and on every rescanLibrary.
+      AUDIOBOOKS_DIR: /audiobooks
+      # After every book scan: enrich sparse tags from iTunes (src/books/match.js),
+      # and pre-generate the Firefox-safe lossless remux of every book file
+      # (src/books/media.js). PapyrOS ran both as PAPYROS_AUTO_ENRICH/_COMPAT.
+      KOUROS_BOOKS_AUTO_ENRICH: "1"
+      KOUROS_BOOKS_AUTO_COMPAT: "1"
     volumes:
       - ${KOUROS_DATA_PATH:-/mnt/Luna/Backends/Production/kouros-data}:/data
       # The library itself, READ-ONLY — this app scans and streams it, and must
@@ -79,6 +88,10 @@ services:
       # ⚠️ HOST path. The workstation mounts the `Luna/Luna` SMB share at /mnt/Luna,
       # so `/mnt/Luna/jkos-analysis` there is a different (nonexistent) directory.
       - ${MUSIC_ANALYSIS_PATH:-/mnt/Luna/jkos-analysis}:/analysis:ro
+      # The audiobooks, READ-ONLY — PapyrOS's mount, unchanged. The same HOST-path
+      # warning as the music above applies: `/mnt/Luna/Luna/...` on the NAS.
+      # Override with AUDIOBOOKS_PATH.
+      - ${AUDIOBOOKS_PATH:-/mnt/Luna/Luna/Plex/Audiobooks}:/audiobooks:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:

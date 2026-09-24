@@ -14,11 +14,77 @@
 // with no env/DB/network.
 const { resourceKey } = require('@jkos/suite-manifest');
 const { defineCollection } = require('@jkos/weave/collection');
-const { defineActivity, canonicalTime, extRef } = require('@jkos/weave/activity'); // D6: the activity contract (lean subpath — this file is imported as DATA by the prober)
+const { defineActivity, canonicalTime, extRef, checkExtRefDoc, extRefFieldDoc } = require('@jkos/weave/activity'); // D6/D7: the activity contract + ext_ref schemes (lean subpath — this file is imported as DATA by the prober)
+const { defineConnector } = require('@jkos/weave/connector');   // META, the iTunes audiobook metadata connector below
 
 /** The `tracks` catalog's invalidation bus key — the scanner (src/library/scan.js)
  *  bumps every track row it touches, so a peer polling `tracks` refetches on rescan. */
 const TRACKS_KEY = resourceKey('kouros', 'tracks'); // 'kouros.tracks'
+
+/* ── Audiobooks — PapyrOS, folded in (2026-09-23) ──────────────────────────────────
+   Jag: "PapyrOS should be folded inside of KourOS entirely. The split was arbitrary."
+   Everything below the `books` key was PapyrOS's own declaration, carried over with
+   its app id changed and nothing else: the shared `books` catalog (hand-rolled
+   migration + scanner, books/scan.js), the per-user `progress` and `bookmarks`
+   collections, the listening ledger, the iTunes META connector and the two match
+   capabilities. PapyrOS's `clubs`/`club_members` did NOT come over — no frontend ever
+   read or wrote them, and the rows stay in papyros.db, which nothing deletes. */
+
+/** The `books` catalog's invalidation bus key — the book scanner bumps every row it
+ *  touches, so a peer polling `books` refetches on rescan. */
+const BOOKS_KEY = resourceKey('kouros', 'books'); // 'kouros.books'
+
+/* ── D7 / BB-5: the EXT_REF SCHEMES this app writes ───────────────────────────────
+   `itunes:` is written by books/match.js onto `books.ext_ref`. ⚠️ THE SCHEME IS THE
+   PROVIDER, NOT THE CONNECTOR: the connector is `meta`, the id is iTunes'. See
+   packages/weave/src/shared/extref.js for the three classes and why. */
+const EXT_REFS = {
+  app: 'kouros',
+  version: 1,
+  schemes: [
+    {
+      id: 'itunes', class: 'external', label: 'An iTunes Search catalog id (the audiobook metadata enrichment key)',
+      shape: 'itunes:<trackId>',
+    },
+  ],
+};
+const extRefsErr = checkExtRefDoc(EXT_REFS);
+if (extRefsErr) throw new Error(`kouros ext_ref schemes: ${extRefsErr}`);
+
+/** A listener's long-term position in one book — the audiobook's resume point, which
+ *  outlives the listening session (a session holds whatever is playing NOW; this holds
+ *  where every book was left). `finished` is filterable so a "continue listening" shelf
+ *  reads `GET /api/progress?finished=false`. `noun: 'Progress'`: the factory's
+ *  singularizer would otherwise strip the trailing `s` into `Progres`.
+ *
+ *  ⚠️ `book_ref` is TEXT-affinity (a weave `ref` column stores `'12'`, not `12`), so a
+ *  raw SQL join needs `CAST(book_ref AS INTEGER)` and a client comparing it to a
+ *  number must coerce at ONE door — PapyrOS lost four features to that for months
+ *  (TRAPS.md § SQLite). UNIQUE(user_id, book_ref) + an upsert trigger ship with the
+ *  table (server.js), from day one. */
+const PROGRESS = defineCollection({
+  app: 'kouros', id: 'progress', label: 'Audiobook progress', noun: 'Progress',
+  scoped: true,
+  fields: [
+    { name: 'book_ref',    type: 'ref',     label: 'Book',                    ref: 'kouros.books', required: true },
+    { name: 'position',    type: 'number',  label: 'Position (seconds)',      default: 0 },
+    { name: 'duration',    type: 'number',  label: 'Duration (seconds)' },
+    { name: 'finished',    type: 'boolean', label: 'Finished',                filter: 'eq' },
+    { name: 'last_played', type: 'string',  label: 'Last played (ISO timestamp)' },
+  ],
+});
+
+/** A named position in a book. Same TEXT-affinity `book_ref` caveat as PROGRESS. */
+const BOOKMARKS = defineCollection({
+  app: 'kouros', id: 'bookmarks', label: 'Bookmarks',
+  scoped: true,
+  fields: [
+    { name: 'book_ref', type: 'ref',    label: 'Book',               ref: 'kouros.books', required: true },
+    { name: 'position', type: 'number', label: 'Position (seconds)', required: true },
+    { name: 'title',    type: 'string', label: 'Title',              max: 200 },
+    { name: 'note',     type: 'text',   label: 'Note' },
+  ],
+});
 
 /* ── playlists / history / ratings — genuine per-user CRUD ────────────────────────── */
 
@@ -67,6 +133,24 @@ const HISTORY = defineCollection({
   ],
 });
 
+/** The audiobook listening ledger — `history`'s twin, one row per listening stretch of a
+ *  BOOK. ⚠️ A SEPARATE TABLE ON PURPOSE, not a `kind` column on `history`: a `ref` field
+ *  names ONE target (`kouros.tracks` there, `kouros.books` here), and a ref that could
+ *  point at either table is a declaration that lies to every reader — `check:refs` and
+ *  every GUI/AI composer snap a ref to the table it names. The activity read below
+ *  answers for both ledgers in one list. Carried over from PapyrOS's `history` field for
+ *  field, so the importer (scripts/import-papyros.js) copies rows across unchanged. */
+const BOOK_HISTORY = defineCollection({
+  app: 'kouros', id: 'book_history', label: 'Audiobook listening history',
+  scoped: true, only: ['create'],
+  fields: [
+    { name: 'item_ref',   type: 'ref',     label: 'Book',                          ref: 'kouros.books', required: true },
+    { name: 'started_at', type: 'string',  label: 'Session start (ISO timestamp)', required: true, wire: true },
+    { name: 'ms_played',  type: 'number',  label: 'Milliseconds played',           default: 0 },
+    { name: 'completed',  type: 'boolean', label: 'Completed' },
+  ],
+});
+
 /** A listener's rating for a track. UNIQUE(user_id, track_ref) + an upsert-on-conflict
  *  BEFORE INSERT trigger are added in server.js's migration ALONGSIDE the base ddl() —
  *  from DAY ONE, not retrofitted. The papyros 17.5 lesson: `progress` shipped without a
@@ -88,55 +172,106 @@ const RATINGS = defineCollection({
 });
 
 /* ── D6 / XC-2: the ACTIVITY contract ─────────────────────────────────────────────
-   ⚠️ KourOS's `history` above and PapyrOS's `history` are FIELD-FOR-FIELD IDENTICAL,
-   and were invented independently. Read that as the finding rather than as an
+   ⚠️ KourOS's `history` and PapyrOS's `history` were FIELD-FOR-FIELD IDENTICAL, and
+   were invented independently. Read that as the finding rather than as an
    embarrassment: neither author was careless, the suite simply had no word for "this
    app keeps a record of what the user did", so each one had to coin a private one.
+   (Since the fold, PapyrOS's ledger lives here as `book_history`.)
 
    ⚠️ The remedy is a DECLARED SHAPE, NOT A SHARED TABLE, and the difference is the
-   whole point. This block imports nothing from PapyrOS and PapyrOS imports nothing
-   from here. KourOS keeps its own ledger, indexes it how it likes, and stays free to
-   purge a user's rows without coordinating a migration with three other apps. What
-   is common is the ANSWER — so ORDECK can ask four apps "what did I do today" and
-   merge, and so the suite has one action-audit trail instead of four private ones.
+   whole point. KourOS keeps its own ledgers, indexes them how it likes, and stays
+   free to purge a user's rows without coordinating a migration with other apps.
+   What is common is the ANSWER — so ORDECK can ask every app "what did I do today"
+   and merge, and so the suite has one action-audit trail instead of private ones.
 
-   The JOIN carries the same CAST caveat PapyrOS's does: `item_ref` is TEXT-affinity
-   (see HISTORY above), so `= tracks.id` would compare TEXT '12' to INTEGER 12 and
-   match nothing — silently labelling every event null rather than erroring. */
+   The JOINs carry the CAST caveat: `item_ref` is TEXT-affinity (see HISTORY above),
+   so `= tracks.id` would compare TEXT '12' to INTEGER 12 and match nothing —
+   silently labelling every event null rather than erroring. */
 const ACTIVITY = defineActivity({
   app: 'kouros',
-  kinds: [{ id: 'listen', label: 'Listened', verb: 'listened to' }],
+  kinds: [
+    { id: 'listen', label: 'Listened', verb: 'listened to' },
+    // Audiobooks since the PapyrOS fold. A separate KIND rather than more `listen`
+    // rows, because a reader merging the suite's feed renders "listened to Dune" and
+    // "listened to a track" differently, and the kind is the only thing it can key on.
+    { id: 'book', label: 'Listened to a book', verb: 'listened to' },
+  ],
   read(db, userId, { since, until, limit }) {
-    const where = ['h.user_id = ?'];
-    const params = [userId];
-    if (since) { where.push('h.started_at > ?'); params.push(since); }
-    if (until) { where.push('h.started_at < ?'); params.push(until); }
+    /* ONE list over TWO ledgers (see BOOK_HISTORY for why they are two). Each arm
+       windows on its own `started_at` and the UNION is ordered and limited once, so
+       `limit` bounds the merged answer, not each half. */
+    const arm = (alias) => {
+      const where = [`${alias}.user_id = ?`];
+      const params = [userId];
+      if (since) { where.push(`${alias}.started_at > ?`); params.push(since); }
+      if (until) { where.push(`${alias}.started_at < ?`); params.push(until); }
+      return { where: where.join(' AND '), params };
+    };
+    const t = arm('h');
+    const b = arm('bh');
     const rows = db
       .prepare(
-        `SELECT h.id, h.item_ref, h.started_at, h.ms_played, h.completed, h.created_at,
-                t.title AS track_title, t.artist AS track_artist
-           FROM history h
-           LEFT JOIN tracks t ON t.id = CAST(h.item_ref AS INTEGER)
-          WHERE ${where.join(' AND ')}
-          ORDER BY h.started_at DESC
-          LIMIT ?`,
+        `SELECT * FROM (
+           SELECT 'listen' AS kind, h.id, h.item_ref, h.started_at, h.ms_played, h.completed, h.created_at,
+                  tr.title AS item_title, tr.artist AS item_byline
+             FROM history h
+             LEFT JOIN tracks tr ON tr.id = CAST(h.item_ref AS INTEGER)
+            WHERE ${t.where}
+           UNION ALL
+           SELECT 'book' AS kind, bh.id, bh.item_ref, bh.started_at, bh.ms_played, bh.completed, bh.created_at,
+                  bk.title AS item_title, bk.author AS item_byline
+             FROM book_history bh
+             LEFT JOIN books bk ON bk.id = CAST(bh.item_ref AS INTEGER)
+            WHERE ${b.where}
+         )
+         ORDER BY started_at DESC
+         LIMIT ?`,
       )
-      .all(...params, limit);
+      .all(...t.params, ...b.params, limit);
     return rows.map((r) => ({
-      id: `history:${r.id}`,
-      kind: 'listen',
+      id: r.kind === 'book' ? `book_history:${r.id}` : `history:${r.id}`,
+      kind: r.kind,
       // Normalised, not trusted: `started_at` is stamped by the player in the
       // browser, and `at` is the cross-app merge key compared as a STRING. Falls
       // back to the server's own `created_at` when the client sent junk.
       at: canonicalTime(r.started_at) || canonicalTime(r.created_at),
-      ref: extRef('kouros', r.item_ref),
-      label: r.track_title
-        ? (r.track_artist ? `${r.track_title} — ${r.track_artist}` : r.track_title)
+      // A track keeps the `kouros:<id>` it always had; a book is `kouros:book:<id>`.
+      // An ext_ref's local id is the owning app's to shape (extref.js splits on the
+      // FIRST ':'), and a bare number would name track 12 and book 12 identically.
+      ref: r.kind === 'book' ? extRef('kouros', `book:${r.item_ref}`) : extRef('kouros', r.item_ref),
+      label: r.item_title
+        ? (r.item_byline ? `${r.item_title} — ${r.item_byline}` : r.item_title)
         : null,
       ms: r.ms_played ?? null,
       completed: r.completed == null ? null : !!r.completed,
     }));
   },
+});
+
+/* ── META — the iTunes audiobook metadata connector (PapyrOS 4.1, folded in) ────────
+   A book folder with sparse tags has nothing better than its folder name; iTunes Search
+   is the ONE sanctioned external call (free, no key). `defineConnector` makes it a typed
+   read — `GET /api/metadataSearch?term=` — that serves candidate rows in this app's own
+   shape, and `matchBook` below writes a chosen one onto a book. */
+const META = defineConnector({
+  app: 'kouros', id: 'meta', label: 'Audiobook metadata',
+  base: 'https://itunes.apple.com', auth: { kind: 'none' },   // free, no key
+  reads: [{ id: 'metadataSearch', label: 'Audiobook metadata candidates',
+    upstream: { path: '/search', query: { media: 'audiobook', entity: 'audiobook', limit: '5' } },
+    collection: 'results',
+    map: { id: 'collectionId', title: 'collectionName', author: 'artistName',
+           cover: 'artworkUrl100', description: 'description', year: 'releaseDate',
+           genre: 'primaryGenreName' },
+    item: [
+      { name: 'id',          type: 'number', label: 'iTunes collection id' },
+      { name: 'title',       type: 'string', label: 'Title' },
+      { name: 'author',      type: 'string', label: 'Author (artist)' },
+      { name: 'cover',       type: 'string', label: 'Cover artwork URL' },
+      { name: 'description', type: 'string', label: 'Description' },
+      { name: 'year',        type: 'string', label: 'Release date (ISO timestamp)' },
+      { name: 'genre',       type: 'string', label: 'Genre' },
+    ],
+    filters: [{ name: 'term', type: 'string', label: 'Search term', column: 'term', op: 'eq' }] }],
 });
 
 /* ── What can be DONE to KourOS (the write contract) ───────────────────────────────
@@ -150,22 +285,71 @@ const CAPABILITIES = {
   version: 1,
   capabilities: [
     {
-      id: 'rescanLibrary', label: 'Rescan music library', method: 'POST', path: '/library/rescan',
+      id: 'rescanLibrary', label: 'Rescan music + audiobook library', method: 'POST', path: '/library/rescan',
+      body: [],
+      // Summed over BOTH walks — a track file and a book folder are each one unit.
+      returns: [
+        { name: 'scanned',  type: 'number', label: 'Track files + book folders examined' },
+        { name: 'upserted', type: 'number', label: 'Tracks + books inserted or updated' },
+        { name: 'removed',  type: 'number', label: 'Tracks + books removed (file/folder no longer exists)' },
+        { name: 'skipped',  type: 'number', label: 'Tracks + books skipped (unchanged since last scan)' },
+      ],
+      invalidates: [TRACKS_KEY, BOOKS_KEY], scopes: ['kouros:admin'],
+      doc: 'Walks MUSIC_DIR (one track per audio file) and AUDIOBOOKS_DIR (one book per folder) '
+        + 'and (re)catalogs both: probes new/changed audio, extracts cover art (embedded, else a '
+        + 'folder-level cover.*), removes rows whose file/folder vanished. A scan already in '
+        + 'flight is joined, not duplicated.',
+    },
+    {
+      // A REGULAR-USER capability: any listener may fix the metadata of a book they are
+      // looking at. weaveWriteGate still requires `kouros:write` of a service caller.
+      id: 'matchBook', label: 'Match book metadata (iTunes)', method: 'POST', path: '/match',
+      body: [
+        { name: 'bookId', type: 'ref', label: 'Book', ref: 'kouros.books', required: true },
+        // One whole row off `metadataSearch`, round-tripped — hence `json` with a schema.
+        { name: 'candidate', type: 'json', label: 'Chosen metadataSearch candidate row', required: true, schema: 'kouros.metadataSearch' },
+      ],
+      returns: [
+        { name: 'updated', type: 'boolean', label: 'Metadata written to the book row' },
+        { name: 'cover', type: 'enum', enum: ['updated', 'failed'], label: 'Artwork download outcome' },
+      ],
+      invalidates: [BOOKS_KEY], scopes: ['kouros:write'],
+      doc: 'Applies a chosen iTunes metadata candidate to a book: writes author/description/'
+        + 'year/genres (merged) + metadata_source:\'itunes\' + ext_ref:\'itunes:<candidate.id>\', '
+        + 'and best-effort downloads a 600x600 cover (upsized from the candidate\'s 100x100 '
+        + 'artworkUrl100). Title and series are left untouched. A failed artwork download does '
+        + 'not fail the match: metadata still writes and the response reports cover:\'failed\'.',
+    },
+    {
+      // ADMIN: it writes books other than the one the caller is looking at.
+      id: 'matchAllMissing', label: 'Match all missing audiobook metadata (iTunes, admin sweep)', method: 'POST', path: '/match/all',
       body: [],
       returns: [
-        { name: 'scanned',  type: 'number', label: 'Track files examined' },
-        { name: 'upserted', type: 'number', label: 'Tracks inserted or updated' },
-        { name: 'removed',  type: 'number', label: 'Tracks removed (file no longer exists)' },
-        { name: 'skipped',  type: 'number', label: 'Tracks skipped (file unchanged since last scan)' },
+        { name: 'examined', type: 'number', label: 'Books examined this run (bounded by the per-run cap)' },
+        {
+          name: 'applied', type: 'json', schema: 'kouros.books',
+          label: 'Books auto-applied: [{bookId, title, extRef, via}]',
+        },
+        {
+          name: 'review', type: 'json', schema: 'kouros.metadataSearch',
+          label: 'Books needing manual review: [{bookId, title, candidates, error?}] — '
+            + 'candidates is metadataSearch\'s typed item shape (possibly empty); error:true marks '
+            + 'a book whose iTunes search itself failed, not a failed match.',
+        },
+        { name: 'truncated', type: 'boolean', label: 'True when more candidate books remain beyond this run\'s cap' },
       ],
-      invalidates: [TRACKS_KEY], scopes: ['kouros:admin'],
-      doc: 'Walks MUSIC_DIR and (re)catalogs tracks: probes new/changed audio files, extracts '
-        + 'cover art (embedded, else a folder-level cover.*), removes rows whose file vanished. '
-        + 'A scan already in flight is joined, not duplicated.',
+      invalidates: [BOOKS_KEY], scopes: ['kouros:admin'],
+      doc: 'Sweeps every book still metadata_source:\'embedded\' with a missing author, cover or '
+        + 'description, searches iTunes for each (title + author), filters knockoff "summary" '
+        + 'listings, and applies the best of: exact title+author → exact author → title → first '
+        + 'candidate. Sequential, ~250ms apart, capped at 50 books per run (`truncated` flags more).',
     },
     ...PLAYLISTS.capabilities,
     ...HISTORY.capabilities,   // 17.4-style: createHistory only — see HISTORY's comment above
     ...RATINGS.capabilities,
+    ...PROGRESS.capabilities,
+    ...BOOKMARKS.capabilities,
+    ...BOOK_HISTORY.capabilities,   // createBookHistory only — append-only like HISTORY
   ],
 };
 
@@ -207,6 +391,53 @@ const TRACKS_DATASET = {
   ],
   item: TRACK_SHAPE,
   invalidates: [TRACKS_KEY],
+};
+
+/* ── The audiobook catalog's read contract (PapyrOS's, folded in) ─────────────────
+   A list row is SCALAR METADATA ONLY — no per-file manifest, no chapters, no path, no
+   description (all detail-only weight, served by GET /api/book/:bookId). books/list.js
+   derives its SELECT from BOOK_SHAPE, so the declared row and the queried columns are
+   one array. */
+const BOOK_SHAPE = [
+  { name: 'id',              type: 'number' },
+  { name: 'title',           type: 'string' },
+  { name: 'subtitle',        type: 'string' },
+  { name: 'author',          type: 'string' },
+  { name: 'narrator',        type: 'string' },
+  { name: 'series',          type: 'string' },
+  { name: 'series_seq',      type: 'number' },
+  { name: 'year',            type: 'number' },
+  { name: 'genres',          type: 'json',   label: 'Genre tags (string[])' , schema: 'Documentation/ARCHITECTURE.md' },
+  { name: 'duration',        type: 'number', label: 'Total duration, seconds' },
+  { name: 'cover_path',      type: 'string', label: 'Cover image path relative to the books data dir (null if none extracted)' },
+  { name: 'metadata_source', type: 'enum',   enum: ['embedded', 'itunes', 'manual'] },
+  { name: 'ext_ref',         type: 'string', label: 'External metadata reference (enrichment lookup key)', doc: extRefFieldDoc(EXT_REFS) },
+  { name: 'updated_at',      type: 'string', label: 'Last catalog update (delta cursor for `since`)' },
+];
+
+const BOOK_DATASET = {
+  id: 'book', label: 'One audiobook, in full', path: '/book/:bookId',
+  filters: [],
+  description: 'The list row plus the per-file manifest — including compat_ready, so a player '
+    + 'knows it can start on the Firefox-safe remux instead of discovering a decode failure — '
+    + 'the chapters, and the description.',
+};
+
+const BOOKS_DATASET = {
+  id: 'books', label: 'Audiobook library', path: '/books',
+  description: 'The shared audiobook catalog the book scanner (rescanLibrary) populates. '
+    + 'List rows carry scalar metadata only — per-file/chapter detail is GET /api/book/:bookId.',
+  // `genre` uses the `tags` op: `genres` is a JSON-array TEXT column, so `eq` would
+  // compare the whole serialised array to one string and never match.
+  filters: [
+    { name: 'title',  type: 'string', label: 'Title prefix',                          column: 'title',      op: 'prefix' },
+    { name: 'author', type: 'string', label: 'Author prefix',                          column: 'author',     op: 'prefix' },
+    { name: 'series', type: 'string', label: 'Series (exact)',                         column: 'series',     op: 'eq' },
+    { name: 'genre',  type: 'string', label: 'Genre (exact tag match)',                column: 'genres',     op: 'tags' },
+    { name: 'since',  type: 'string', label: 'Updated since (updated_at delta cursor)', column: 'updated_at', op: 'gt' },
+  ],
+  item: BOOK_SHAPE,
+  invalidates: [BOOKS_KEY],
 };
 
 /* ── The discovery surface (XC-7) ──────────────────────────────────────────────
@@ -335,11 +566,16 @@ const DATASETS = {
   datasets: [
     TRACKS_DATASET, PLAYLISTS.dataset, HISTORY.dataset, RATINGS.dataset,
     ...BROWSE_DATASETS, ...DISCOVER_DATASETS,
+    BOOKS_DATASET, BOOK_DATASET, PROGRESS.dataset, BOOKMARKS.dataset, BOOK_HISTORY.dataset,
+    ...META.datasets,
   ],
 };
 
 module.exports = {
-  CAPABILITIES, DATASETS, TRACKS_KEY, TRACK_SHAPE,
-  PLAYLISTS, HISTORY, RATINGS,   // server.js .mount()s each of these
-  ACTIVITY,                      // D6: server.js mounts its handler (what the user DID here)
+  CAPABILITIES, DATASETS, TRACKS_KEY, TRACK_SHAPE, BOOKS_KEY, BOOK_SHAPE,
+  PLAYLISTS, HISTORY, RATINGS,              // server.js .mount()s each of these
+  PROGRESS, BOOKMARKS, BOOK_HISTORY,        // …and these (audiobooks, since the PapyrOS fold)
+  META,                                     // server.js .mount()s this too (reads only, no .ddl())
+  ACTIVITY,                                 // D6: server.js mounts its handler (what the user DID here)
+  EXT_REFS,                                 // D7/BB-5: the ext_ref schemes this app writes
 };

@@ -19,7 +19,10 @@ const {
   SQL_NOW, sqlConvert,   // XC-1: the canonical stamp, and the both-forms converter
 } = require('@jkos/weave/server');
 const { resolveIssuer } = require('@jkos/auth-middleware');   // shared issuer default (single source)
-const { CAPABILITIES, DATASETS, PLAYLISTS, HISTORY, RATINGS, ACTIVITY } = require('./discovery');   // discovery docs + the three collections + the activity surface
+const {
+  CAPABILITIES, DATASETS, PLAYLISTS, HISTORY, RATINGS, ACTIVITY,
+  PROGRESS, BOOKMARKS, BOOK_HISTORY, META,
+} = require('./discovery');   // discovery docs + the collections + the activity surface + the audiobook half
 const { createScanner } = require('./src/library/scan');            // 18.2: MUSIC_DIR walker → `tracks` catalog
 const { createLibraryRouter } = require('./src/routes/library');    // 18.2: rescanLibrary route
 const { createTracksRouter } = require('./src/routes/tracks');      // 18.2: filtered `tracks` dataset read
@@ -27,6 +30,11 @@ const { createMediaRouter } = require('./src/media');               // 18.2: str
 const { createBrowseRouter } = require('./src/routes/browse');      // server-side album/artist grouping
 const { createDiscoverRouter } = require('./src/routes/discover');  // the similarity engine's HTTP surface
 const { createDiscovery } = require('./src/discover');              // vectors → aligned space → similar/radio/runs/map
+// Audiobooks — PapyrOS's backend, folded in (2026-09-23; see discovery.js's books block).
+const { createBookScanner } = require('./src/books/scan');               // AUDIOBOOKS_DIR walker → `books` catalog
+const { createBooksRouter } = require('./src/books/list');               // filtered `books` dataset read
+const { createBookMediaRouter, prepareAllCompat } = require('./src/books/media');   // /api/books/stream|cover|download + /api/book/:id
+const { createMatchRouter, runEnrichmentSweep } = require('./src/books/match');     // matchBook / matchAllMissing + the enrichment sweep
 
 /* ── Env ───────────────────────────────────────────────────────────────── */
 const PORT       = process.env.PORT       || 3011;
@@ -43,6 +51,19 @@ const SHELL_URL  = (process.env.SHELL_URL || 'http://localhost:3000').replace(/\
    no extra knob. */
 const MUSIC_DIR = process.env.MUSIC_DIR || path.join(__dirname, 'music');
 const DATA_DIR  = path.dirname(DB_PATH);
+
+/* The audiobook library (PapyrOS's AUDIOBOOKS_DIR, folded in). Same missing-folder
+   degradation as MUSIC_DIR: an absent root scans to zero books, it does not fail boot.
+   ⚠️ BOOKS_DATA_DIR is a SUBDIRECTORY of DATA_DIR, not DATA_DIR: the scanner brick
+   writes covers to `<dataDir>/covers/<id>.jpg` and tracks already own that path —
+   book 12 and track 12 would overwrite each other's art (see src/books/scan.js). The
+   compat remux cache lives under it too. */
+const AUDIOBOOKS_DIR = process.env.AUDIOBOOKS_DIR || path.join(__dirname, 'audiobooks');
+const BOOKS_DATA_DIR = path.join(DATA_DIR, 'books');
+/* Post-book-scan sweeps, compose-only (the smokes never set them, so a test boot never
+   touches the live iTunes API or races a 404-before-prepare assertion). */
+const BOOKS_AUTO_ENRICH = process.env.KOUROS_BOOKS_AUTO_ENRICH === '1';
+const BOOKS_AUTO_COMPAT = process.env.KOUROS_BOOKS_AUTO_COMPAT === '1';
 
 /* The music embedder's index (ALGORITHMS.md §4's music/index.db) — the source of the CLAP
    vectors behind similarity, radio, Runs and the vibe map. OPTIONAL by design: it
@@ -94,6 +115,37 @@ const scanner = createScanner({
   // fires long after module load, so the forward reference is safe.
   onScanComplete: () => discovery.invalidate(),
 });
+
+/* The audiobook scanner, beside the music one. Its completion hook runs PapyrOS's two
+   optional sweeps; both are fire-and-forget — a sweep failing must never change what a
+   scan reports. */
+function onBookScanComplete() {
+  if (BOOKS_AUTO_ENRICH) {
+    runEnrichmentSweep({ db, dataDir: BOOKS_DATA_DIR, doFetch: globalThis.fetch })
+      .then((r) => console.log(`[kouros books] auto-enrich: applied ${r.applied.length}/${r.examined}${r.truncated ? ' (truncated — next scan continues)' : ''}`))
+      .catch((err) => console.warn(`[kouros books] auto-enrich failed: ${err.message}`));
+  }
+  if (BOOKS_AUTO_COMPAT) {
+    prepareAllCompat({ db })
+      .then((r) => console.log(`[kouros books] auto-compat: ${r.made} generated, ${r.fresh} already fresh${r.failed ? `, ${r.failed} FAILED` : ''}`))
+      .catch((err) => console.warn(`[kouros books] auto-compat failed: ${err.message}`));
+  }
+}
+const bookScanner = createBookScanner({
+  db, audiobooksDir: AUDIOBOOKS_DIR, dataDir: BOOKS_DATA_DIR, onScanComplete: onBookScanComplete,
+});
+
+/** One rescan over BOTH roots, counts summed — the shape `rescanLibrary` declares.
+ *  Sequential, not parallel: both walks spawn ffprobe pools against the same NAS. The
+ *  analysis-delivery hook below still rescans MUSIC ONLY — a new analysis file
+ *  describes music, and walking every book folder for it would be wasted I/O. */
+async function scanEverything() {
+  const music = await scanner.scanLibrary();
+  const books = await bookScanner.scanLibrary();
+  const sum = {};
+  for (const k of ['scanned', 'upserted', 'removed', 'skipped']) sum[k] = (music[k] || 0) + (books[k] || 0);
+  return sum;
+}
 
 /* The discovery service. Built lazily on first read (the `tracks` table does not
    exist yet at this point — migrations run below) and rebuilt whenever a scan
@@ -239,6 +291,85 @@ const MIGRATIONS = [
     id: 7, name: 'rebackfill_wire_timestamps',
     up(d) { backfillWireTime(d, ['tracks', 'playlists', 'history', 'ratings'], { history: ['started_at'] }); },
   },
+  /* ── Audiobooks: PapyrOS folded in (2026-09-23) ────────────────────────────────
+     The `books` catalog exactly as PapyrOS built it — its migration 1, with migration
+     6's `description` column folded into the CREATE (a fresh table needs no ALTER) and
+     the canonical-stamp triggers PapyrOS only reached at its migration 12. Every column
+     keeps its name and meaning, so scripts/import-papyros.js copies rows unchanged. */
+  {
+    id: 8,
+    name: 'create_books',
+    up(d) {
+      d.exec(`
+        CREATE TABLE IF NOT EXISTS books (
+          id              INTEGER PRIMARY KEY AUTOINCREMENT,
+          path            TEXT    NOT NULL UNIQUE,
+          title           TEXT,
+          subtitle        TEXT,
+          author          TEXT,
+          narrator        TEXT,
+          series          TEXT,
+          series_seq      REAL,
+          year            INTEGER,
+          genres          TEXT    DEFAULT '[]',
+          duration        REAL,
+          files           TEXT    DEFAULT '[]',
+          chapters        TEXT    DEFAULT '[]',
+          cover_path      TEXT,
+          metadata_source TEXT    CHECK (metadata_source IS NULL OR metadata_source IN ('embedded', 'itunes', 'manual')),
+          ext_ref         TEXT,
+          description     TEXT,
+          mtime           INTEGER,
+          added_at        TEXT    DEFAULT (${SQL_NOW}),
+          updated_at      TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_books_author  ON books(author);
+        CREATE INDEX IF NOT EXISTS idx_books_series  ON books(series);
+        CREATE INDEX IF NOT EXISTS idx_books_updated ON books(updated_at);
+
+        DROP TRIGGER IF EXISTS books_stamp_added;
+        CREATE TRIGGER books_stamp_added AFTER INSERT ON books
+          FOR EACH ROW WHEN NEW.updated_at IS NULL
+          BEGIN UPDATE books SET updated_at = COALESCE(${sqlConvert('NEW.added_at')}, ${SQL_NOW}) WHERE id = NEW.id; END;
+        DROP TRIGGER IF EXISTS books_touch_updated;
+        CREATE TRIGGER books_touch_updated AFTER UPDATE ON books
+          FOR EACH ROW WHEN NEW.updated_at = OLD.updated_at
+          BEGIN UPDATE books SET updated_at = ${SQL_NOW} WHERE id = NEW.id; END;
+      `);
+    },
+  },
+  /* `progress`: one row per (user, book), enforced from DAY ONE — the UNIQUE index and
+     the upsert-on-conflict trigger PapyrOS only gained at its migration 8, after a race
+     had already written duplicates (see RATINGS in migration 4 for the same lesson). */
+  {
+    id: 9,
+    name: 'create_progress',
+    up(d) {
+      d.exec(PROGRESS.ddl());
+      d.exec(`
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_progress_user_book ON progress(user_id, book_ref);
+        DROP TRIGGER IF EXISTS progress_upsert_on_conflict;
+        CREATE TRIGGER progress_upsert_on_conflict BEFORE INSERT ON progress
+          FOR EACH ROW WHEN EXISTS (
+            SELECT 1 FROM progress WHERE user_id = NEW.user_id AND book_ref = NEW.book_ref
+          )
+          BEGIN
+            DELETE FROM progress WHERE user_id = NEW.user_id AND book_ref = NEW.book_ref;
+          END;
+      `);
+    },
+  },
+  { id: 10, name: 'create_bookmarks', up(d) { d.exec(BOOKMARKS.ddl()); } },
+  /* The audiobook ledger, with the (user_id, started_at) index `history` only gained at
+     migration 6 — the activity read windows and orders on it. */
+  {
+    id: 11,
+    name: 'create_book_history',
+    up(d) {
+      d.exec(BOOK_HISTORY.ddl());
+      d.exec('CREATE INDEX IF NOT EXISTS idx_book_history_user_started ON book_history(user_id, started_at)');
+    },
+  },
 ];
 
 function runMigrations() {
@@ -311,7 +442,7 @@ app.get('/api/auth/me', (req, res) => res.json({ user: req.user })); // app-priv
 
 /* ── Library (write side: rescan / read side: tracks) ─────────────────────
    Both identity-gated (neither path is in PUBLIC_PATHS above). */
-app.use(createLibraryRouter({ scanLibrary: scanner.scanLibrary }));
+app.use(createLibraryRouter({ scanLibrary: scanEverything }));   // music AND audiobooks
 app.use(createTracksRouter({ db }));
 app.use(createBrowseRouter({ db }));                       // /api/albums, /api/artists, /api/library/stats
 app.use(createDiscoverRouter({ discovery, db }));          // /api/discover/*
@@ -331,11 +462,26 @@ RATINGS.mount(app, db);
    columns to its own frontend; this answers a question asked of four apps at once. */
 ACTIVITY.mount(app, db);
 
+/* ── Audiobooks (PapyrOS, folded in) ────────────────────────────────────────
+   The catalog read, the per-user progress/bookmarks/ledger, the iTunes META read and
+   the two match capabilities — same identity-gated + write-gate-cleared slot as every
+   route above. `progress` and `bookmarks` are full CRUD; `book_history` is append-only
+   (`only: ['create']`, like `history`). */
+app.use(createBooksRouter({ db }));
+PROGRESS.mount(app, db);
+BOOKMARKS.mount(app, db);
+BOOK_HISTORY.mount(app, db);
+META.mount(app);
+app.use(createMatchRouter({ db, dataDir: BOOKS_DATA_DIR }));
+
 /* ── Media (stream/cover/download) ─────────────────────────────────────────
    The playback backend: range-aware audio streaming, cover art, whole-track download.
    Same identity-gated + write-gate-cleared slot as library/tracks/collections above,
    still before the /api/* 404 catch-all and the SPA fallback. */
 app.use(createMediaRouter({ db, musicDir: MUSIC_DIR, dataDir: DATA_DIR }));
+/* The book half of the same brick, under /api/books/* so it cannot shadow a track's
+   /api/stream|cover|download (src/books/media.js's header), plus GET /api/book/:bookId. */
+app.use(createBookMediaRouter({ db, audiobooksDir: AUDIOBOOKS_DIR, dataDir: BOOKS_DATA_DIR }));
 
 /* ── Static + SPA fallback ─────────────────────────────────────────────── */
 /* serveSpa is the suite's shared rule (see @jkos/weave/server/spa.js): revalidate
@@ -358,7 +504,15 @@ function boot() {
     console.log(`[kouros scan] boot scan starting (${MUSIC_DIR})`);
     scanner.scanLibrary()
       .then((counts) => console.log(`[kouros scan] boot scan complete: ${JSON.stringify(counts)}`))
-      .catch((err) => console.error(`[kouros scan] boot scan failed: ${err.message}`));
+      .catch((err) => console.error(`[kouros scan] boot scan failed: ${err.message}`))
+      // Books AFTER music, not beside it: both walks run ffprobe pools against the
+      // same NAS, and the music scan is the one a fresh boot is waiting on.
+      .then(() => {
+        console.log(`[kouros books] boot scan starting (${AUDIOBOOKS_DIR})`);
+        return bookScanner.scanLibrary();
+      })
+      .then((counts) => console.log(`[kouros books] boot scan complete: ${JSON.stringify(counts)}`))
+      .catch((err) => console.error(`[kouros books] boot scan failed: ${err.message}`));
   });
 }
 

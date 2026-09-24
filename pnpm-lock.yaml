@@ -185,6 +185,9 @@ importers:
       '@jkos/weave':
         specifier: workspace:*
         version: link:../../../packages/weave
+      archiver:
+        specifier: ^7.0.1
+        version: 7.0.1
       better-sqlite3:
         specifier: ^11.5.0
         version: 11.10.0

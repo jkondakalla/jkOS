@@ -243,6 +243,11 @@ const TEST_PORTS = Object.freeze({
   // — deliberately outside this band, because they used to be +1/+2/+3 and +3 was
   // 3986, i.e. beigeboard:delta.smoke's port. See that file's header.
   'kouros:discover.smoke': 3983,
+  // The audiobook half, since PapyrOS folded into KourOS (2026-09-23).
+  'kouros:books.library.smoke': 3984,
+  'kouros:books.history.smoke': 3985,
+  'kouros:books.playback.smoke': 3997,
+  'kouros:books.meta.smoke': 3998,
   'beigeboard:delta.smoke': 3986,
   'beigeboard:import.smoke': 3987,
   'beigeboard:items.smoke': 3988,

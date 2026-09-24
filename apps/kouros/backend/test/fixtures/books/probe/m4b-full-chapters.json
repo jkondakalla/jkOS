@@ -1,0 +1,68 @@
+{
+  "streams": [
+    {
+      "index": 0,
+      "codec_name": "aac",
+      "codec_long_name": "AAC (Advanced Audio Coding)",
+      "codec_type": "audio",
+      "sample_rate": "44100",
+      "channels": 2,
+      "tags": { "language": "eng" }
+    },
+    {
+      "index": 1,
+      "codec_name": "mjpeg",
+      "codec_long_name": "Motion JPEG",
+      "codec_type": "video",
+      "tags": { "comment": "Cover (front)" }
+    }
+  ],
+  "chapters": [
+    {
+      "id": 0,
+      "time_base": "1/1000",
+      "start": 0,
+      "start_time": "0.000000",
+      "end": 620000,
+      "end_time": "620.000000",
+      "tags": { "title": "Chapter 1" }
+    },
+    {
+      "id": 1,
+      "time_base": "1/1000",
+      "start": 620000,
+      "start_time": "620.000000",
+      "end": 1330000,
+      "end_time": "1330.000000",
+      "tags": { "title": "Chapter 2" }
+    },
+    {
+      "id": 2,
+      "time_base": "1/1000",
+      "start": 1330000,
+      "start_time": "1330.000000",
+      "end": 2015500,
+      "end_time": "2015.500000",
+      "tags": { "title": "Chapter 3" }
+    }
+  ],
+  "format": {
+    "filename": "/audiobooks/The Fellowship of the Ring/book.m4b",
+    "nb_streams": 2,
+    "format_name": "mov,mp4,m4a,3gp,3g2,mj2",
+    "duration": "39650.123000",
+    "size": "634829201",
+    "bit_rate": "128000",
+    "tags": {
+      "major_brand": "M4A ",
+      "minor_version": "0",
+      "title": "The Fellowship of the Ring",
+      "artist": "J.R.R. Tolkien",
+      "album_artist": "J.R.R. Tolkien",
+      "composer": "Rob Inglis",
+      "album": "The Lord of the Rings",
+      "date": "1954",
+      "genre": "Fantasy; Fiction; Adventure"
+    }
+  }
+}
