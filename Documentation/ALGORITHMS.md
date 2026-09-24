@@ -925,6 +925,27 @@ subspace, 4th axis = the probe's projection into it) passes → ship the fallbac
 arm is HELD: `map_held:<arm>` records why, the rest of the index still ships, KourOS says
 "held", and the rail decision goes back to Jag. Never an unnamed rail.
 
+**The first real fit — 2026-09-23 19:00, all 47,691 measured tracks (`music/out/analyze.log`).**
+The policy decided it: the FALLBACK ships.
+
+| | G1 recall@10 vs PCA-4 (≥ 0.85×) | G2 Spearman(w, energy) (≥ 0.6) | G3 album IQR of w (≤ 0.25) | G4 90% refit cos e1 · e2 · e3 · u |
+|---|---|---|---|---|
+| primary (probe + residual PCA) | 0.044 vs 0.077 = **0.571× — FAIL** | +0.949 | 0.147 (3,074 albums) | +1.000 · +1.000 · +0.999 · +0.999 |
+| **fallback (anchored rotation)** | 0.077 vs 0.077 = **1.000×** | **+0.791** | **0.111** | +1.000 · +1.000 · +1.000 · +1.000 |
+
+  And downstream, measured on the shipped index through KourOS's own discovery service: **G5** —
+  the Python-fitted basis reproduces the golden coordinates to **2.9e-8**; **G6** — the map for
+  all 47,691 tracks is **320 KB gzipped** (686 KB raw), built in 2.1 s. The display radius R is
+  0.8143.
+
+  ⚠️ **What the fallback trades.** The primary rail is the purer name (+0.949 against energy) but
+  its space is not PCA-4's, and keeping 4.4% of each track's ten nearest neighbours against PCA-4's
+  7.7% fails G1 by the margin the 3,080-track preview predicted (0.68× there). The fallback keeps
+  PCA-4's neighbourhoods EXACTLY and still names its rail well (+0.791), with tighter albums.
+  Either way a 4-D map keeps well under a tenth of the 512-d neighbourhoods — which is why every
+  "near" answer is computed in 4-D from the server's coordinates, and why the vibe space is a map
+  to wander, not the similarity engine.
+
 ⚠️ **G6 failed as first built and was fixed before shipping:** Int16 xyz, Uint16 w and absolute
 ids measured 529 KB gzipped at library size. The columns are incompressible by construction (w is
 a uniform percentile), so the fix was quantisation to what a phone shows: id deltas, xyz as
@@ -958,8 +979,7 @@ alpha are their glint exp(−(Δw/0.04)²), region labels as DOM. No library: th
 against a frontend with no 3-D dependency, and the math used is a perspective, a lookAt and a
 multiply.
 
-**Still owed:** the G1–G4 numbers from the first real fit (recorded here when
-`music/analyze.py` reaches it), a look on a real phone (frame rate during a scrub, whether the
+**Still owed:** a look on a real phone (frame rate during a scrub, whether the
 render scale settles), and "the path the current shuffle is taking through it" — M5's walk,
 drawn as a ribbon through the cloud, which needs M5.
 

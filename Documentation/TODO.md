@@ -480,11 +480,22 @@ the four points it could enter (builder, quantiser, renderer contrast, the 3-D s
     `mapbasis.py` existed, so its own fit does not fit the basis: `mapbasis.py --fit` then
     `analyze.py --stages gate,ship` afterwards.
   - The renderer is on `@jkos/scene` since 2026-09-23 (§2 item 12) — behaviour pixel-identical.
-  - ⚠️ **The real fit is still owed — the 2026-09-16 run never reached it.** It aborted at 00:15 on
-    2026-09-17 when `/mnt/Luna/Plex/Music` dropped (20,384 descriptors in); resumed 2026-09-23 12:02,
-    then stopped cleanly at 12:36 and restarted at 12:39 on the 0.1 s mesh recipe (§2 item 11). This
-    pass does the remaining ~23,000 descriptors and all 47,691 meshes, then fit (calibration AND
-    map basis) → gate → ship; ~6 h. Then: G1–G4 into ALGORITHMS.md §9 M6, and the stores to staging.
+  - ✅ **The real fit — DONE 2026-09-23 19:18.** After the 2026-09-16 run aborted on a dropped
+    mount and a restart on the 0.1 s mesh recipe, `analyze.py` fitted, gated and shipped the whole
+    library (6 h 39 m): **the FALLBACK basis ships** by the pre-declared policy — the primary fails
+    G1 (0.571×); the fallback passes G1 1.000×, G2 +0.791, G3 0.111, G4 ≥ 0.9999. Downstream on the
+    shipped index: G5 golden agreement 2.9e-8, G6 320 KB gzipped. Table in ALGORITHMS.md §9 M6.
+    Seen on the real map in headless Chromium at w0 0.1 / 0.5 / 0.9, both faces — which showed the
+    cloud sliced flat at a cube face, fixed the same day (`EDGE_FADE`, presentation only).
+  - ⚠️ **Staging has the new INDEX, not the new MESHES — deliberately.** 2026-09-23 the shipped
+    `music-index.db` went to `/mnt/Luna/Backends/Staging/kouros-data` (sha256 matched on both ends,
+    atomic rename). The 0.1 s `music-meshes.db` (16 GB) did NOT: staging runs `b8f44e0`, whose 2-D
+    renderer paints the whole track on one canvas — ~57,000 device px at 0.1 s rows, past the
+    browser's limit, so it would have blanked the pulsarmap that works there today on 95 old
+    meshes. The new meshes belong with the deploy of the new code, whose compose reads
+    `/analysis/…` — which needs Jag's `Luna/jkos-analysis` dataset and delivery key
+    (`infra/music-analysis/README.md`); until then the new code on staging would see no stores at
+    all. Both snapshots are in `music/out/`.
   - ⚠️ **A flaky gate assertion, seen 2026-09-23 and not fixed:** `discover.smoke`'s "a lapsed TTL
     over an unchanged index does not rebuild" failed once (1 → 2 builds) inside `pnpm
     test:contracts` while `analyze.py` held every core, and passed alone and on the gate's rerun.
