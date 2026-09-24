@@ -56,6 +56,8 @@ const REPORT_COALESCE_MS = 150;
 const SEEK_JUMP_SEC = 1.5;
 /** After this tab claims the output itself, the takeover echo is ignored this long. */
 const SELF_CLAIM_MS = 5_000;
+/** The longest reports wait for the engine to load an item it was just handed. */
+const LOAD_HOLD_MS = 10_000;
 
 const sameItem = (a: string | null | undefined, b: string | null | undefined) => {
   if (a == null || b == null) return a == null && b == null;
@@ -117,6 +119,27 @@ export function useSessionPlayer(): { api: PlayerApi; local: LocalPlayerApi; inf
   const modeRef = useRef(mode); modeRef.current = mode;
   const selfClaimUntil = useRef(0);
 
+  /* ⚠️ AN ENGINE THAT WAS JUST HANDED AN ITEM HAS NOT LOADED IT YET. adopt() installs
+     the queue at once, but the item arrives with a network round trip — until then
+     the engine says "no item, position 0". A report in that window (a reloaded
+     output claims its lock in milliseconds and reports 150 ms later; a takeover or a
+     "Play here" reports straight after) erased the session's item and second on
+     every remote — and for good, if the load failed or the tab closed first. So
+     every adopt goes through here, and reports hold until the engine holds an item
+     other than the one it had (or errors, or LOAD_HOLD_MS passes). */
+  const loading = useRef<{ from: string | null; until: number } | null>(null);
+  const adoptInto = useCallback((L: LocalPlayerApi, a: Parameters<LocalPlayerApi['adopt']>[0]) => {
+    if (a.queue.items.length > 0 && a.queue.cursor >= 0) {
+      loading.current = { from: L.item?.ref ?? null, until: Date.now() + LOAD_HOLD_MS };
+    }
+    L.adopt(a);
+  }, []);
+  const holding = () => {
+    const l = loading.current;
+    if (l && Date.now() >= l.until) loading.current = null;
+    return loading.current;
+  };
+
   /* ── Reporting (mode local) ────────────────────────────────────────────────────── */
   const buildReport = useCallback((): StateReport => {
     const L = localRef.current;
@@ -139,12 +162,29 @@ export function useSessionPlayer(): { api: PlayerApi; local: LocalPlayerApi; inf
   const reportTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reportNow = useCallback(() => {
     if (reportTimer.current) { clearTimeout(reportTimer.current); reportTimer.current = null; }
+    const held = holding();
+    if (held) {
+      // Reported when the item lands (below), or when the hold runs out.
+      reportTimer.current = setTimeout(() => { reportTimer.current = null; if (modeRef.current === 'local') reportNow(); }, held.until - Date.now());
+      return;
+    }
     void reportSessionState(buildReport());
   }, [buildReport]);
   const scheduleReport = useCallback(() => {
     if (reportTimer.current) return;
     reportTimer.current = setTimeout(() => { reportTimer.current = null; if (modeRef.current === 'local') reportNow(); }, REPORT_COALESCE_MS);
   }, [reportNow]);
+
+  // The handed item landed (or failed): the hold is over, and the truth goes out.
+  useEffect(() => {
+    const l = loading.current;
+    if (!l) return;
+    const ref = local.item?.ref ?? null;
+    if (!local.error && (ref === null || ref === l.from)) return;
+    loading.current = null;
+    if (reportTimer.current) { clearTimeout(reportTimer.current); reportTimer.current = null; }
+    if (modeRef.current === 'local') scheduleReport();
+  }, [local.item?.ref, local.error]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Every edge a remote would see.
   useEffect(() => {
@@ -175,6 +215,8 @@ export function useSessionPlayer(): { api: PlayerApi; local: LocalPlayerApi; inf
   useEffect(() => {
     const onHide = () => {
       if (modeRef.current !== 'local') return;
+      // Mid-load there is nothing true to say; the server's grace pauses the session.
+      if (holding()) return;
       void reportSessionState({ ...buildReport(), playing: false }, { keepalive: true });
     };
     window.addEventListener('pagehide', onHide);
@@ -256,7 +298,7 @@ export function useSessionPlayer(): { api: PlayerApi; local: LocalPlayerApi; inf
     if (cued.current === key) return;
     cued.current = key;
     cuedRef.current = canonicalRef(s.item_ref);
-    local.adopt({ queue: s.queue, context: s.context, position: extrapolateMs(s, serverNow()) / 1000, autoplay: false });
+    adoptInto(local, { queue: s.queue, context: s.context, position: extrapolateMs(s, serverNow()) / 1000, autoplay: false });
   }, [mode, s?.rev, local.item?.ref, local.playing]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Commands, at the output ───────────────────────────────────────────────────── */
@@ -303,7 +345,7 @@ export function useSessionPlayer(): { api: PlayerApi; local: LocalPlayerApi; inf
       L.seekTo(at);
       if (play) L.play(); else L.pause();
     } else {
-      L.adopt({ queue: next.queue, context: next.context, position: at, autoplay: play });
+      adoptInto(L, { queue: next.queue, context: next.context, position: at, autoplay: play });
     }
     scheduleReport();
   }
@@ -312,7 +354,7 @@ export function useSessionPlayer(): { api: PlayerApi; local: LocalPlayerApi; inf
     switch (op) {
       case 'play':
         if (!L.item && sess?.item_ref) {
-          L.adopt({ queue: sess.queue, context: sess.context, position: sess.position_ms / 1000, autoplay: true });
+          adoptInto(L, { queue: sess.queue, context: sess.context, position: sess.position_ms / 1000, autoplay: true });
         } else L.play();
         break;
       case 'pause': L.pause(); break;
@@ -379,7 +421,7 @@ export function useSessionPlayer(): { api: PlayerApi; local: LocalPlayerApi; inf
     if (sess && sess.item_ref && sess.queue.items.length && sess.queue.cursor >= 0) {
       const at = extrapolateMs(sess, serverNow()) / 1000;
       if (L.item && sameItem(L.item.ref, sess.item_ref)) { L.seekTo(at); L.play(); }
-      else L.adopt({ queue: sess.queue, context: sess.context, position: at, autoplay: true });
+      else adoptInto(L, { queue: sess.queue, context: sess.context, position: at, autoplay: true });
     }
     void claimHere();
   }, [claimHere]);
