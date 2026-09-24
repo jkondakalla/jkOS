@@ -262,7 +262,14 @@ function createSessionRouter({ db, store, hub, offlineGraceMs = OFFLINE_GRACE_MS
     const kind = V.deviceKind(b.kind);
     if (!deviceId || !name || !kind) return bad(res, 'deviceId (UUID), name (1–60 chars) and kind (desktop|phone|tablet|speaker) are required');
     const platform = b.platform == null ? null : V.deviceName(b.platform);
+    // Optional: a device that is NOT the output has no state report to carry its
+    // volume, so it says it here — at boot, and whenever it changes — and the
+    // picker's fader for it is the truth rather than whatever it was last seen at.
+    const volume = b.volume == null ? null : V.volume(b.volume);
+    if (b.volume != null && volume == null) return bad(res, 'volume must be between 0 and 1');
+    if (b.muted != null && typeof b.muted !== 'boolean') return bad(res, 'muted must be a boolean');
     const row = store.register(uid(req), { deviceId, name, kind, platform });
+    if (volume != null || b.muted != null) store.touch(uid(req), deviceId, { volume, muted: b.muted ?? null });
     publishDevices(uid(req));
     res.status(201).json({ device: store.devices(uid(req), hub.online(uid(req))).find((d) => d.id === row.device_id) });
   });

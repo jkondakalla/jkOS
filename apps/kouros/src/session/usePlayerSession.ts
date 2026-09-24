@@ -36,7 +36,7 @@ import { usePlayerEngine, type LocalPlayerApi, type PlayerApi } from '../player/
 import { decodeRef, encodeRef } from '../player/sources';
 import { requestLocalEnqueue, requestLocalPlay, setPlayRouter } from '../player/controller';
 import {
-  getSessionSnapshot, onSessionCommand, reportSessionState, sendSessionCommand, serverNow, startSession,
+  announceSessionVolume, getSessionSnapshot, onSessionCommand, reportSessionState, sendSessionCommand, serverNow, startSession,
   subscribeSession, transferSession, type ListeningSession, type SessionCommand, type SessionDevice,
   type SessionSnapshot, type StateReport,
 } from './client';
@@ -180,6 +180,15 @@ export function useSessionPlayer(): { api: PlayerApi; local: LocalPlayerApi; inf
     window.addEventListener('pagehide', onHide);
     return () => window.removeEventListener('pagehide', onHide);
   }, [buildReport]);
+
+  // Not the output: nothing reports this device's volume, so it announces it — once
+  // it is live, and on every change (the picker, a remote's fader, this screen's).
+  const live = snapshot.status === 'live';
+  useEffect(() => {
+    if (!live || mode === 'local' || mode === 'solo') return;
+    const t = setTimeout(() => void announceSessionVolume(local.volume, local.muted), 400);
+    return () => clearTimeout(t);
+  }, [live, mode === 'local', local.volume, local.muted]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Claiming the output ───────────────────────────────────────────────────────── */
   const claimHere = useCallback(async () => {

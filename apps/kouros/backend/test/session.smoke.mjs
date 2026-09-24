@@ -269,6 +269,10 @@ try {
   ok((await reg(A, 'not-a-uuid', 'X')).status === 400, 'a device id that is not a UUID → 400');
   ok((await reg(A, randomUUID(), 'X', 'toaster')).status === 400, 'an unknown device kind → 400');
   ok((await reg(A, randomUUID(), 'x'.repeat(61))).status === 400, 'a 61-character name → 400');
+  const vol3 = await req('POST', '/api/session/devices', { deviceId: A3, name: 'Tablet', kind: 'tablet', volume: 0.4, muted: true }, A);
+  ok(vol3.status === 201 && vol3.json.device.volume === 0.4 && vol3.json.device.muted === true,
+    'a device that is not the output announces its own volume through registration');
+  ok((await req('POST', '/api/session/devices', { deviceId: A3, name: 'Tablet', kind: 'tablet', volume: 7 }, A)).status === 400, 'a volume out of range → 400');
 
   const noReg = stream(A, randomUUID()); await noReg.ready;
   ok(noReg.status === 404 && noReg.body && noReg.body.code === 'UNKNOWN_DEVICE', `a stream for an unregistered device → 404 UNKNOWN_DEVICE (got ${noReg.status})`);

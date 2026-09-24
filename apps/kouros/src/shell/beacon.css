@@ -39,6 +39,17 @@
 }
 .kr-beacon-dock.is-open { background: none; }
 
+/* "Playing on …" in the hint's slot (Beacon.tsx). The dock ignores the pointer, so
+   the strip opts back in; its 44px tap floor comes from padding the negative margin
+   cancels, so it does not grow the dock past --kr-beacon-dock-h. */
+.kr-beacon-on {
+  pointer-events: auto;
+  max-width: calc(100vw - 2rem);
+  padding: 12px 16px;
+  margin: -12px 0;
+}
+.kr-beacon-on span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 .kr-beacon-hint {
   min-height: 12px;
   font-family: var(--hub-font-mono);

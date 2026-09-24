@@ -9,7 +9,8 @@ import { useBreakpoint } from '@jkos/ui';
 import Cover from '../components/Cover';
 import { IconChevronDown } from '../components/icons';
 import { bookHref, closeOverlay } from '../hooks/useHashRoute';
-import { usePlayer, nowPlayingArt } from '../player/PlayerProvider';
+import { usePlayer, nowPlayingArt, usePlayerSession } from '../player/PlayerProvider';
+import PlayingOn, { DevicesButton } from '../player/PlayingOn';
 import { BOOK_SKIP_SEC } from '../player/usePlayerEngine';
 import './books/now-book.css';
 
@@ -42,6 +43,7 @@ const SLEEP_OPTIONS: { mode: SleepMode; label: string }[] = [
  */
 export default function NowPlayingBook() {
   const p = usePlayer();
+  const remote = usePlayerSession().mode === 'remote';   // the audio is on another device
   const mobile = useBreakpoint() === 'mobile';
   const [menu, setMenu] = useState<'sleep' | 'bookmarks' | null>(null);
   const item = p.item;
@@ -65,9 +67,11 @@ export default function NowPlayingBook() {
         <button type="button" className="kr-ghost" onClick={closeOverlay} aria-label="Close now playing">
           <IconChevronDown />
         </button>
-        <p className="kr-now-eyebrow">
-          {chapters > 1 && p.segmentIndex >= 0 ? `Chapter ${p.segmentIndex + 1} of ${chapters}` : 'Audiobook'}
-        </p>
+        {remote ? <PlayingOn className="kr-now-on" /> : (
+          <p className="kr-now-eyebrow">
+            {chapters > 1 && p.segmentIndex >= 0 ? `Chapter ${p.segmentIndex + 1} of ${chapters}` : 'Audiobook'}
+          </p>
+        )}
         <a className="kr-ghost" href={bookHref(item.id)} aria-label="Open this book">
           <span className="kr-now-queue-label">Book</span>
         </a>
@@ -123,6 +127,7 @@ export default function NowPlayingBook() {
 
       {menu && <PlayerScrim onDismiss={() => setMenu(null)} />}
       <div className="kr-book-extras">
+        <DevicesButton />
         <RateButton api={p} />
         <SleepMenu
           api={p}

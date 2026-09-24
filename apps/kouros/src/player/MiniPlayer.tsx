@@ -3,6 +3,7 @@ import Cover from '../components/Cover';
 import { IconChevron } from '../components/icons';
 import { nowHref } from '../hooks/useHashRoute';
 import { usePlayer, nowPlayingArt } from './PlayerProvider';
+import PlayingOn, { DevicesButton } from './PlayingOn';
 
 /**
  * The persistent mini bar: glass, docked above the tab bar, tap to expand.
@@ -56,6 +57,7 @@ export default function MiniPlayer() {
       </a>
 
       <div className="kr-mini-controls">
+        <DevicesButton className="kr-mini-devices" />
         <button
           type="button"
           className="kr-orb kr-orb-md"
@@ -75,7 +77,7 @@ export default function MiniPlayer() {
       </div>
 
       <div className="kr-mini-progress" style={{ width: `${pct}%` }} aria-hidden="true" />
-      {p.error && <p className="kr-mini-error">{p.error}</p>}
+      {p.error ? <p className="kr-mini-error">{p.error}</p> : <PlayingOn className="kr-mini-on" />}
     </div>
   );
 }

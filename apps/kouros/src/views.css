@@ -787,6 +787,120 @@
   text-decoration: none;
 }
 
+/* ── The device picker + "Playing on …" (the listening session) ────────────────
+   Same sheet as the action sheet; each device is a row whose face is the button
+   that moves playback there, with its own volume fader beneath (volume is per
+   device). The output row carries the accent — the one place the colour means
+   "the sound is coming out HERE". */
+/* A listener can have many devices: the sheet scrolls rather than pushing its top —
+   this device, first — off the screen (the action sheet never needed to). */
+.kr-devices-sheet { max-height: calc(100dvh - 2.5rem); overflow-y: auto; overscroll-behavior: contain; }
+.kr-devices { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.15rem; }
+.kr-device {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  column-gap: 0.4rem;
+  padding: 0.2rem 0.4rem 0.45rem;
+  border-radius: var(--hub-radius-soft);
+}
+.kr-device.is-output { background: var(--kr-glass-fill-thin); }
+.kr-device.is-offline { opacity: 0.55; }
+.kr-device-pick {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-width: 0;
+  min-height: 48px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--kr-glass-ink);
+  text-align: left;
+  cursor: pointer;
+}
+.kr-device-pick:disabled { cursor: default; }
+.kr-device-pick svg { flex: none; opacity: 0.85; }
+/* The accent marks WHERE the sound is — on the glyph, not the words: an accent is a
+   mid-tone by construction (player/accent.ts), and small text in it on the pale face
+   of the output row does not read. */
+.kr-device.is-output .kr-device-pick svg { color: var(--accent); opacity: 1; }
+.kr-device.is-output .kr-device-note { color: var(--kr-glass-ink); }
+.kr-device-body { min-width: 0; display: flex; flex-direction: column; }
+.kr-device-name {
+  font-family: var(--hub-font-sans);
+  font-size: 0.95rem;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.kr-device-note {
+  font-family: var(--hub-font-mono);
+  font-size: var(--hub-fs-lab-xs);
+  letter-spacing: 0.05em;
+  color: var(--kr-glass-ink-dim);
+}
+.kr-device-rename { grid-column: 1; min-width: 0; }
+.kr-device-tools { display: flex; gap: 0.5rem; }
+.kr-device-tool {
+  padding: 0.35rem 0.2rem;
+  border: 0;
+  background: none;
+  font-family: var(--hub-font-mono);
+  font-size: var(--hub-fs-lab-xs);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--kr-glass-ink-dim);
+  cursor: pointer;
+}
+.kr-device-tool:hover { color: var(--kr-glass-ink); }
+.kr-device-volume { grid-column: 1 / -1; width: 100%; }
+.kr-devices-label {
+  margin: 0.9rem 0.4rem 0.3rem;
+  font-family: var(--hub-font-mono);
+  font-size: var(--hub-fs-lab-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--kr-glass-ink-dim);
+}
+.kr-devices-more {
+  margin: 0.3rem 0.4rem 0;
+  padding: 0.5rem 0;
+  border: 0;
+  background: none;
+  font-family: var(--hub-font-mono);
+  font-size: var(--hub-fs-lab-xs);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--kr-glass-ink-dim);
+  cursor: pointer;
+}
+.kr-devices-hint {
+  margin: 0.6rem 0.4rem 0;
+  font-family: var(--hub-font-sans);
+  font-size: 0.82rem;
+  color: var(--kr-glass-ink-dim);
+}
+.kr-playing-on {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: var(--hub-font-mono);
+  font-size: var(--hub-fs-lab-xs);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--kr-glass-ink);
+  cursor: pointer;
+}
+.kr-playing-on svg { flex: none; color: var(--accent); }
+.kr-playing-on b { font-weight: 700; }
+/* In the mini bar it takes the error line's slot — see MiniPlayer.tsx. */
+.kr-mini-on { position: absolute; left: 0.75rem; bottom: 4px; max-width: calc(100% - 1.5rem); }
+.kr-mini-on span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kr-now-on { min-width: 0; }
+.kr-devices-button.is-remote { color: var(--accent); }
+
 @keyframes kr-fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes kr-sheet-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
 @media (prefers-reduced-motion: reduce) {

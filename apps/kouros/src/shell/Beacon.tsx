@@ -4,6 +4,8 @@ import { usePointerDrag, HOLD_MS, HOLD_CANCEL_PX } from '@jkos/ui';
 import { fanAngles, sectorAt } from '../gestures/radial';
 import { DESTINATIONS, activeDestination } from './destinations';
 import RadialNav from './RadialNav';
+import PlayingOn from '../player/PlayingOn';
+import { usePlayerSession } from '../player/PlayerProvider';
 import type { View } from '../hooks/useHashRoute';
 import './beacon.css';
 
@@ -44,6 +46,7 @@ interface Press {
 
 export default function Beacon({ view }: BeaconProps) {
   const { begin } = usePointerDrag();
+  const { mode } = usePlayerSession();
   const [press, setPress] = useState<Press | null>(null);
   const [selected, setSelected] = useState(-1);
   // Read in `onEnd`, where a state value would be the one captured when the
@@ -89,7 +92,12 @@ export default function Beacon({ view }: BeaconProps) {
       {open && <RadialNav x={press.x} y={press.y} selected={selected} current={current} />}
 
       <div className={`kr-beacon-dock${open ? ' is-open' : ''}`}>
-        <span className="kr-beacon-hint">{open ? '' : 'HOLD TO NAVIGATE'}</span>
+        {/* While the music is coming out of ANOTHER device, the hint's slot says
+            where — on a phone the beacon is the only chrome that is always there,
+            so this is the one place that can (the mini bar is desktop-only). */}
+        {!open && mode === 'remote'
+          ? <PlayingOn className="kr-beacon-on" />
+          : <span className="kr-beacon-hint">{open ? '' : 'HOLD TO NAVIGATE'}</span>}
         <button
           type="button"
           className="kr-beacon"

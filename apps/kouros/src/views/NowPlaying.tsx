@@ -4,7 +4,8 @@ import Cover from '../components/Cover';
 import Pulsarmap from '../components/Pulsarmap';
 import { IconChevronDown, IconRadio } from '../components/icons';
 import { albumHref, artistHref, closeOverlay, queueHref } from '../hooks/useHashRoute';
-import { usePlayer, nowPlayingArt } from '../player/PlayerProvider';
+import { usePlayer, nowPlayingArt, usePlayerSession } from '../player/PlayerProvider';
+import PlayingOn, { DevicesButton } from '../player/PlayingOn';
 import { IconNext, IconPrev } from '@jkos/player/ui';
 import { IconRepeat, IconRepeatOne, IconShuffle } from '../player/icons';
 import { startStation } from '../player/station';
@@ -25,6 +26,7 @@ import NowPlayingBook from './NowPlayingBook';
  */
 export default function NowPlaying() {
   const p = usePlayer();
+  const remote = usePlayerSession().mode === 'remote';   // the audio is on another device
   const [radioBusy, setRadioBusy] = useState(false);
   const stageRef = useRef<HTMLDivElement | null>(null);
 
@@ -103,11 +105,13 @@ export default function NowPlaying() {
         <button type="button" className="kr-ghost" onClick={closeOverlay} aria-label="Close now playing">
           <IconChevronDown />
         </button>
-        <p className="kr-now-eyebrow">
-          {p.queue.items.length > 1
-            ? `${p.queue.cursor + 1} of ${p.queue.items.length}`
-            : 'Now playing'}
-        </p>
+        {remote ? <PlayingOn className="kr-now-on" /> : (
+          <p className="kr-now-eyebrow">
+            {p.queue.items.length > 1
+              ? `${p.queue.cursor + 1} of ${p.queue.items.length}`
+              : 'Now playing'}
+          </p>
+        )}
         <a className="kr-ghost" href={queueHref()} aria-label="Open queue">
           <span className="kr-now-queue-label">Queue</span>
         </a>
@@ -189,6 +193,7 @@ export default function NowPlaying() {
       </div>
 
       <div className="kr-now-extra">
+        <DevicesButton />
         <button type="button" className="kr-ghost kr-now-radio" onClick={startRadio} disabled={radioBusy}>
           <IconRadio />
           <span>{radioBusy ? 'Building station…' : 'Start a station from this'}</span>

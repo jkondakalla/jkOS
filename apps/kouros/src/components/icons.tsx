@@ -173,3 +173,28 @@ export function IconClock({ size = 20 }: GlyphProps = {}) {
     </svg>
   );
 }
+
+/** The device picker's button — a screen and a speaker: "where the sound comes out". */
+export function IconDevices({ size = 20 }: GlyphProps = {}) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="2.5" y="5" width="11" height="8.5" rx="1.2" {...S} />
+      <path d="M5.5 17h5M8 13.5V17" {...S} />
+      <rect x="15.5" y="4" width="6" height="15.5" rx="1.4" {...S} />
+      <circle cx="18.5" cy="14.8" r="2" {...S} />
+      <circle cx="18.5" cy="8.2" r="0.7" {...S} />
+    </svg>
+  );
+}
+
+/** One device in the picker, by kind. */
+export function IconDeviceKind({ kind, size = 22 }: GlyphProps & { kind: 'desktop' | 'phone' | 'tablet' | 'speaker' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
+      {kind === 'phone' && <><rect x="7" y="3" width="10" height="18" rx="2" {...S} /><path d="M11 18h2" {...S} /></>}
+      {kind === 'tablet' && <><rect x="4.5" y="3" width="15" height="18" rx="2" {...S} /><path d="M11 18h2" {...S} /></>}
+      {kind === 'desktop' && <><rect x="3" y="4.5" width="18" height="12" rx="1.5" {...S} /><path d="M8.5 20h7M12 16.5V20" {...S} /></>}
+      {kind === 'speaker' && <><rect x="6" y="3" width="12" height="18" rx="2" {...S} /><circle cx="12" cy="14" r="3" {...S} /><circle cx="12" cy="7.5" r="0.8" {...S} /></>}
+    </svg>
+  );
+}

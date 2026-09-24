@@ -208,6 +208,15 @@ export async function transferSession(to: string, play?: boolean): Promise<boole
   }
 }
 
+/** A device that is NOT the output says what its volume is (the output's reports
+ *  carry its own) — so the picker shows every device's fader truthfully. */
+export async function announceSessionVolume(volume: number, muted: boolean): Promise<void> {
+  const me = current().me;
+  try {
+    await call('POST', '/api/session/devices', { deviceId: me.id, name: me.name, kind: me.kind, platform: me.platform, volume, muted });
+  } catch { /* the next change, or the next boot, says it again */ }
+}
+
 export async function renameSessionDevice(id: string, name: string): Promise<boolean> {
   try { return (await call('PATCH', `/api/session/devices/${id}`, { name })).ok; } catch { return false; }
 }

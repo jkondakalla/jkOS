@@ -1,5 +1,5 @@
 import { nowHref } from '../hooks/useHashRoute';
-import { usePlayer } from '../player/PlayerProvider';
+import { usePlayer, usePlayerSession } from '../player/PlayerProvider';
 import './now-card.css';
 
 /**
@@ -28,8 +28,11 @@ import './now-card.css';
  */
 export default function NowCard() {
   const p = usePlayer();
+  const { mode, output } = usePlayerSession();
   const item = p.item;
   if (!item || !p.composition) return null;
+  // The card is one link, so it cannot carry the strip's button — the state says it.
+  const where = mode === 'remote' && output ? ` ON ${output.name.toUpperCase()}` : '';
 
   const book = p.composition.spec.kind === 'audiobook';
   const remain = Math.max(0, p.total - p.globalPos);
@@ -46,7 +49,7 @@ export default function NowCard() {
       <div className="kr-nowcard-body">
         <div className="kr-nowcard-kind">
           <span className="kr-nowcard-pill">{book ? 'AUDIOBOOK' : 'MUSIC'}</span>
-          <span className="kr-nowcard-state">{p.playing ? 'PLAYING' : 'PAUSED'}</span>
+          <span className="kr-nowcard-state">{p.playing ? 'PLAYING' : 'PAUSED'}{where}</span>
         </div>
 
         <span className="kr-nowcard-title">{item.title}</span>

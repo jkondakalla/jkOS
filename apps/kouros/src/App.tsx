@@ -26,6 +26,7 @@ import BookDetail from './views/books/BookDetail'
 import { OfflineSettings } from './books/offline'
 import { PlayerProvider } from './player/PlayerProvider'
 import MiniPlayer from './player/MiniPlayer'
+import DevicePicker from './components/DevicePicker'
 
 // Set the mode before React hydrates to prevent a flash. Read the user's last-known
 // preference (written by the design utils), fall back to paper.
@@ -148,6 +149,8 @@ function Content() {
             a state rather than a place, its own surface is the rune layer, and
             the system back gesture is what collapses it. */}
         {!desktop && route.view !== 'now' && <Beacon view={route.view} />}
+        {/* The one device picker — every speaker button opens this (DevicePicker's seam). */}
+        <DevicePicker />
       </div>
     </PlayerProvider>
   )

@@ -313,6 +313,8 @@ const SESSION_CAPABILITIES = [
       { name: 'name', type: 'string', label: 'Display name (kept if already renamed)', required: true, max: 60 },
       { name: 'kind', type: 'enum', enum: ['desktop', 'phone', 'tablet', 'speaker'], label: 'What sort of device', required: true },
       { name: 'platform', type: 'string', label: 'Platform line, e.g. "Chrome on Android"', max: 60 },
+      { name: 'volume', type: 'number', label: 'This device\'s volume, 0–1 (a device that is not the output has no report to carry it)' },
+      { name: 'muted', type: 'boolean', label: 'This device is muted' },
     ],
     returns: [{ name: 'device', type: 'json', label: 'The device row, with online', schema: SESSION_SCHEMA }],
     invalidates: [SESSION_KEY], scopes: ['kouros:write'],
