@@ -31,7 +31,7 @@ this file gives the *values and the rules*.
 > screenshots of real personal data). Hand a studio the handoff, not this file's tables.
 >
 > **Re-syncing the tables is Stage F work and is deliberately not done piecemeal.**
-> `BACKLOG.md` explains why: Stage F is a restructure, not a retune — the tiers get renamed,
+> Why: Stage F (`Documentation/TODO.md` §6) is a restructure, not a retune — the tiers get renamed,
 > the four accent schemes collapse, and the pigment names retire. Refreshing 1,167 lines of
 > values against a file that is about to be reorganised would be work done twice and
 > discarded once. §14 lists the regen commands for everything that IS kept in sync.

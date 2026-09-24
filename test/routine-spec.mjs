@@ -647,7 +647,7 @@ check(be.normalizePerformed('not json') === null && be.normalizePerformed({ step
 
    So two things are pinned. Every value of every closed list must APPEAR in the
    generated text — add a progression type and forget to describe it, and this
-   fails. And the checked-in copy at Documentation/ROUTINE_PROMPT.md must be exactly
+   fails. And the checked-in copy at Documentation/agents/ROUTINE_PROMPT.md must be exactly
    what the generator produces, the same bargain check:tokens makes with the
    generated hub.css mirror. */
 const { buildPrompt } = require(resolvePath(root, 'apps/beigeboard/backend/src/routine-prompt.js'));
@@ -680,15 +680,15 @@ check(
   'prompt: …and demonstrates the bundle\'s point — teach an entry, then reference it',
 );
 
-const checkedIn = resolvePath(root, 'Documentation/ROUTINE_PROMPT.md');
+const checkedIn = resolvePath(root, 'Documentation/agents/ROUTINE_PROMPT.md');
 let onDisk = null;
 try { onDisk = readFileSync(checkedIn, 'utf8'); } catch { /* reported below */ }
 check(
   onDisk === promptText,
   onDisk === null
-    ? 'prompt: Documentation/ROUTINE_PROMPT.md is missing — regenerate it (see below)'
+    ? 'prompt: Documentation/agents/ROUTINE_PROMPT.md is missing — regenerate it (see below)'
     : 'prompt: the checked-in copy matches the generator'
-    + (onDisk === promptText ? '' : '\n    regenerate: node apps/beigeboard/backend/scripts/print-prompt.mjs > Documentation/ROUTINE_PROMPT.md'),
+    + (onDisk === promptText ? '' : '\n    regenerate: node apps/beigeboard/backend/scripts/print-prompt.mjs > Documentation/agents/ROUTINE_PROMPT.md'),
 );
 
 console.log(failed ? `\ncheck:routine — ${failed} FAILED` : '\ncheck:routine — all checks passed');

@@ -384,7 +384,7 @@ try {
   ok(costed.json.defer_until === '2026-09-01',
     `Q: defer_until round-trips — distinct from due_date (when it must be done) and from parked status (got ${costed.json.defer_until})`);
 
-  // ── R. DEDUP AT THE WRITE DOOR (RESET A2c.4) ─────────────────────────────────
+  // ── R. DEDUP AT THE WRITE DOOR (WEAVE.md §3.4) ─────────────────────────────────
   // createItem is HAND-ROLLED, so the protection defineCollection gives every
   // generated create never reached it: the key arrived as an unknown body field, was
   // dropped, and a retried DO added the task twice with two identical-looking 201s.

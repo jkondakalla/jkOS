@@ -32,7 +32,7 @@ const JOBS_KEY = resourceKey('lazuros', 'jobs'); // 'lazuros.jobs'
  * produces is declared separately, per capability, as `resolves`. */
 const JOB_HANDLE = [{ name: 'job_id', type: 'string' }];
 
-/* ⭐ THE RESERVED IDEMPOTENCY FIELD (RESET A2c.4), on every capability — each one
+/* ⭐ THE RESERVED IDEMPOTENCY FIELD (WEAVE.md §3.4), on every capability — each one
    ENQUEUES WORK, and a retried trigger DO must not run the model twice. A repeated key
    answers with the first job's handle (routes/capability.js). Never a prompt input:
    the handler strips it before the payload is stored, so no `prompts.json` template may

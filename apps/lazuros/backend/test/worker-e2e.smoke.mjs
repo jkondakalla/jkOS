@@ -183,7 +183,7 @@ async function main() {
   const run2 = await run('python3', [driver], driverEnv);
   ok(run2.stdout.trim() === '', 'process_once with an empty queue claims nothing');
 
-  // ═══ Part A2 — dedup at the job door (RESET A2c.4) ══════════════════════════
+  // ═══ Part A2 — dedup at the job door (WEAVE.md §3.4) ══════════════════════════
   // Every capability ENQUEUES WORK. A retried trigger DO that enqueued twice ran the
   // model twice and, for parse-task/breakdown-goal, imported the result twice.
   // ⚠️ Counted in JOBS, through the real route — not inferred from matching responses.

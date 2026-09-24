@@ -41,7 +41,7 @@ anchored-rotation fallback is tried, and if that fails too the arm is HELD —
 "held" out loud. Never an unnamed rail. (Jag, 2026-09-16.)
 
 numpy only. Reads `index.db`'s vectors and descriptors; writes only `map_*` meta
-keys. Imports none of the four files that invalidate the index (RESET.md §0a).
+keys. Imports none of the four files that invalidate the index (CLAUDE.md).
 """
 import argparse
 import base64

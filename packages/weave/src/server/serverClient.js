@@ -58,7 +58,7 @@ function assertServiceClientProvisioned(who = 'this app') {
   if (!missing.length) return true
   const msg = `[weave] ${who} performs delegated writes but ${missing.join(' and ')} `
     + `${missing.length > 1 ? 'are' : 'is'} not set — POST /auth/token would 503 and every `
-    + 'write-back would fail at request time. See Documentation/BACKLOG.md (D11).'
+    + 'write-back would fail at request time. See Documentation/TODO.md (service-client secrets).'
   if (process.env.NODE_ENV === 'production') {
     console.error(msg.replace('[weave]', '[weave] FATAL:'))
     process.exit(1)

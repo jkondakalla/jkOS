@@ -12,7 +12,7 @@
 //   • triggerWebhook(engine)              — an Express handler so a peer can PUSH events,
 //   • serverDispatch({resolve,clientOpts}) — a default dispatch over weaveServerClient that
 //     runs each per-user cross-app DO under the triggering user (G1 delegation), and
-//     always carries the engine's derived `idempotency_key` (RESET A2c.4).
+//     always carries the engine's derived `idempotency_key` (WEAVE.md §3.4).
 //
 // ⚠️ WHAT THE KEY BUYS, AND WHERE IT STOPS. This header once claimed the key means
 // "a retried DO cannot double-write". It did not and could not on its own:
@@ -187,7 +187,7 @@ function createTriggerEngine({ triggers = [], dispatch } = {}) {
     for (const t of matched) {
       const body = resolveBindings(t.do.body, payload)
       const actingUser = t.do.actingUser && t.do.actingUser !== 'event' ? t.do.actingUser : (ctx.actingUser ?? null)
-      /* ⭐ ALWAYS AN IDEMPOTENCY KEY (RESET A2c.4). A trigger's DO is a WRITE fired by
+      /* ⭐ ALWAYS AN IDEMPOTENCY KEY (WEAVE.md §3.4). A trigger's DO is a WRITE fired by
          an event, and both halves of that sentence can repeat: a webhook redelivers,
          a dispatch times out and is retried, a peer replays. Without a key the second
          attempt is a second task on someone's board, and the user has no way to know
@@ -258,7 +258,7 @@ function serverDispatch({ resolve, clientOpts = {} } = {}) {
     const method = (cap.method || 'POST').toLowerCase()
     if (method === 'get') return client.get(path)
     if (method === 'delete') return client.delete(path)
-    /* ⭐ THE IDEMPOTENCY KEY RIDES IN THE BODY (RESET A2c.4), under the reserved
+    /* ⭐ THE IDEMPOTENCY KEY RIDES IN THE BODY (WEAVE.md §3.4), under the reserved
        `idempotency_key` name that write capabilities declare.
        ⚠️ In the BODY rather than a header on purpose: this suite's write surface is
        declared as typed body fields, and a capability doc has no vocabulary for

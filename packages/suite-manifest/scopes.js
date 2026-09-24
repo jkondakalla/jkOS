@@ -1,6 +1,6 @@
 'use strict'
 // suite-manifest/scopes.js — what jkAuth may GRANT, derived from what capability docs
-// DECLARE (TODO §0b D1, RESET C4). Reached as `@jkos/suite-manifest/scopes`.
+// DECLARE. Reached as `@jkos/suite-manifest/scopes`.
 //
 // ⚠️ A SEPARATE ENTRY, NOT A SECTION OF apps.js, AND THAT IS LOAD-BEARING. apps.js is
 // bundled into every SPA (Weave's manifest.ts imports it through CJS interop), and the

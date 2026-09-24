@@ -9,7 +9,7 @@ import {
 } from './stage';
 
 /**
- * The pulsarmap in 3-D (ALGORITHMS.md §9, TODO.md §2): the same ridgelines, stood up
+ * The pulsarmap in 3-D (ALGORITHMS.md §9): the same ridgelines, stood up
  * in space, FLOWING — ~10.8 rows a second arrive at the front and the stack streams
  * back at the track's own rate, a visualizer of the music from the music's own
  * analysis. A drag orbits it and a release springs home.

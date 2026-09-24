@@ -69,9 +69,9 @@ export interface UserPreferences {
   // ── suite-wide ────────────────────────────────────────────────────────────
   theme?:   JkOSTheme;
   effects?: EffectsPreferences;
-  /** IANA zone (e.g. 'America/Chicago'). The suite has no notion of WHERE the
-   *  user is, so "today" is currently four different answers across four files
-   *  — see BACKLOG.md's D5. This is where the one answer belongs. */
+  /** IANA zone (e.g. 'America/Chicago'). The suite's one answer to WHERE the
+   *  user is: it overrides the browser's zone in the `X-JKOS-TZ` header that
+   *  `callerDay` in `@jkos/weave/server` reads. */
   timezone?: string;
 
   // ── app-owned, keyed by app id ────────────────────────────────────────────

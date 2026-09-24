@@ -9,7 +9,7 @@
  * fraction of them, and every probe was happy because everything it could see
  * was well-formed. The routes it could not see were invisible, not wrong.
  *
- * Under RESET §3 this is the highest-value class in the plan, because an app
+ * This is the highest-value class of defect here, because an app
  * that serves a surface it does not declare hands the NEXT agent — human or AI —
  * a map with roads missing. Zero cross-app traffic is the correct steady state;
  * an incomplete declaration is not.

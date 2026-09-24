@@ -25,7 +25,7 @@ from dataclasses import dataclass
 # ⚠️ REMOVING THEM HERE DOES NOT REMOVE THEM FROM HISTORY. The old value is still
 # reachable in every clone and on the remote, so the credential must be treated as
 # disclosed and ROTATED at the provider. That is the only remedy; scrubbing history
-# is destructive, coordinates with GitHub, and is Jag's call (RESET.md's standing
+# is destructive, coordinates with GitHub, and is Jag's call (CLAUDE.md's standing
 # ruling on secrets in history: investigate and report, do not rewrite).
 #
 # `check:secrets` grew a rule for this exact shape at the same time — it had only

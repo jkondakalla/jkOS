@@ -4,12 +4,12 @@
 // The prompt lives in src/routine-prompt.js, generated from the same constants the
 // validator enforces. GET /api/routines/prompt serves it personalised with the
 // caller's library; this prints the generic copy, which is what is checked in at
-// Documentation/ROUTINE_PROMPT.md so a fresh agent working in the repo can read it
+// Documentation/agents/ROUTINE_PROMPT.md so a fresh agent working in the repo can read it
 // without a running server.
 //
 // Regenerate after ANY change to the vocabulary or the prompt:
 //
-//   node apps/beigeboard/backend/scripts/print-prompt.mjs > Documentation/ROUTINE_PROMPT.md
+//   node apps/beigeboard/backend/scripts/print-prompt.mjs > Documentation/agents/ROUTINE_PROMPT.md
 //
 // `pnpm check:routine` fails if the checked-in file has drifted from this output.
 //

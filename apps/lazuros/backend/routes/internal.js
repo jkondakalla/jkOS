@@ -16,7 +16,7 @@ const router = Router();
 // IN_PROGRESS jobs on the poll path means a worker crash self-heals on the next poll
 // cycle without a separate timer, and the reaped job re-enters this same list.
 router.get('/jobs', (req, res) => {
-  /* The one paging contract (RESET A2c.2), NARROWED — which an app may do where its
+  /* The one paging contract (WEAVE.md §3.2), NARROWED — which an app may do where its
      rows are expensive, and a claimed job is: 20 is the cap because a worker taking
      more than that starves every other worker on the queue. */
   const limit = pageLimit(req.query.limit, { fallback: 1, max: 20 });

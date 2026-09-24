@@ -6,9 +6,9 @@
 
 Related: **ToDo §8 (retired) is the music backlog** — the M1→M4 chunks, and the active section
 as of 2026-08-18 · ToDo §1 (retired) is the LazurOS backlog ·
-[LAZUROS_STARTUP.md](LAZUROS_STARTUP.md) is the bring-up runbook, verified against source ·
+[LAZUROS_STARTUP.md](../LAZUROS_STARTUP.md) is the bring-up runbook, verified against source ·
 [ROUTINES.md](ROUTINES.md) is the routine primitive the variance feature reads ·
-[ARCHITECTURE.md § LazurOS](ARCHITECTURE.md#lazuros-the-ai-gateway) is the design record.
+[ARCHITECTURE.md § LazurOS](../ARCHITECTURE.md#lazuros-the-ai-gateway) is the design record.
 
 This file carries **what to do**. It deliberately does not restate the runbook, the routine
 document format, or the provider contract — each has a home already, and a second copy is a
@@ -125,7 +125,7 @@ Every day without the columns is history the feature will never have.
 
 ### The change
 
-**Migration 13** in [`apps/beigeboard/backend/src/db.js`](../apps/beigeboard/backend/src/db.js).
+**Migration 13** in [`apps/beigeboard/backend/src/db.js`](../../apps/beigeboard/backend/src/db.js).
 `MIGRATIONS` currently ends at id 12 — **append, never edit an existing one**
 ([ROUTINES.md §10.7](ROUTINES.md)). Additive and NULL-safe throughout, exactly as 10–12 were:
 a routine that predates it keeps working unchanged.
@@ -138,7 +138,7 @@ a routine that predates it keeps working unchanged.
 | `performed.steps[k].seq` | `normalizePerformed` | `logStep`, `1 + max(existing seq)` |
 
 **Both columns go at the tail of `ITEM_FIELDS`, after `cadence_skips` and before
-`created_at`/`updated_at`.** [`item-fields.js`](../apps/beigeboard/backend/src/item-fields.js)
+`created_at`/`updated_at`.** [`item-fields.js`](../../apps/beigeboard/backend/src/item-fields.js)
 says it out loud: **ORDER IS CONTRACT** — `ITEM_SHAPE` is emitted in declaration order and
 served to peers, so new columns extend the tail and never shift a column a peer already
 indexes.
@@ -171,17 +171,17 @@ silently breaks the weave delta cursor. Use the same format so the two columns s
 
 ### Touch points
 
-- [`@jkos/routine-spec`](../packages/routine-spec/src/index.js) — `normalizePerformed` carries
+- [`@jkos/routine-spec`](../../packages/routine-spec/src/index.js) — `normalizePerformed` carries
   `at` (ISO string, cap it like the other strings) and `seq` (int) per step. Nothing else in the
   engine reads them; `stepWasMet` is unchanged. **`logStep` lives here too** — since D9 the
   engine and the client half are one package, so this is one file, not two.
   ⚠️ **`logStep` is called for every patch**, including note edits, so `at` must be guarded to
   the `done` false→true edge or it becomes "when did you last touch this", which is a different
   and useless fact. It takes `now` as an argument, keeping the package's no-clock purity.
-- [`SessionCard.tsx`](../apps/beigeboard/src/components/SessionCard.tsx) — every edit already
+- [`SessionCard.tsx`](../../apps/beigeboard/src/components/SessionCard.tsx) — every edit already
   routes through `logStep`, so the per-step stamps are free there. `started_at` is the one new
   write: first interaction with the card, once, never overwritten.
-- ⚠️ [`routines.js`](../apps/beigeboard/backend/src/routines.js) — `occurrencesOf`'s `SELECT`
+- ⚠️ [`routines.js`](../../apps/beigeboard/backend/src/routines.js) — `occurrencesOf`'s `SELECT`
   is an **explicit column list**. A new column not added there reads `undefined` and the
   feature silently does nothing ([ROUTINES.md §10.5](ROUTINES.md); this already bit once, with
   `deload_override`).
@@ -197,12 +197,12 @@ Written, gate green, **not deployed**. Six files, all additive:
 
 | File | Change |
 |---|---|
-| [`backend/src/db.js`](../apps/beigeboard/backend/src/db.js) | **Migration 13 `variance_instrumentation`** — the two columns + `items_stamp_completed` / `items_clear_completed`. Deliberately **not backfilled**: stamping existing completions from `updated_at` would manufacture a history that looks real and is wrong. INSERT is deliberately uncovered too — a row arriving already completed is a bulk import of someone's past, not a completion happening now. |
-| [`backend/src/item-fields.js`](../apps/beigeboard/backend/src/item-fields.js) | `started_at` (`client: true`, cap 40) and `completed_at` (`client: false`) at the tail, before `created_at`/`updated_at`. |
-| [`backend/src/schema.js`](../apps/beigeboard/backend/src/schema.js) | `looksLikeStamp` — `started_at` is the **only client-writable timestamp in the schema**, so it is the only one that can arrive malformed, and it gets a hard 400 at the door like `cadence_days`. |
-| [`@jkos/routine-spec`](../packages/routine-spec/src/index.js) | `normalizePerformed` carries `at` (capped string) and `seq` (int, bounded **1–999, not `LIMITS.steps`** — un-logging and re-logging re-issues a higher number, and clamping at 40 would collapse the tail of a fiddly session into ties). |
-| [`@jkos/routine-spec`](../packages/routine-spec/src/index.js) | `logStep` stamps on the `done` false→true edge and **clears on the way back down**, for the same reason the trigger clears. ⚠️ Listed as a separate file at the time — it was `src/lib/routine-spec.ts`, the mirror D9 deleted. |
-| [`src/components/SessionCard.tsx`](../apps/beigeboard/src/components/SessionCard.tsx) | `started_at` written once, folded into the patch the interaction was already sending. |
+| [`backend/src/db.js`](../../apps/beigeboard/backend/src/db.js) | **Migration 13 `variance_instrumentation`** — the two columns + `items_stamp_completed` / `items_clear_completed`. Deliberately **not backfilled**: stamping existing completions from `updated_at` would manufacture a history that looks real and is wrong. INSERT is deliberately uncovered too — a row arriving already completed is a bulk import of someone's past, not a completion happening now. |
+| [`backend/src/item-fields.js`](../../apps/beigeboard/backend/src/item-fields.js) | `started_at` (`client: true`, cap 40) and `completed_at` (`client: false`) at the tail, before `created_at`/`updated_at`. |
+| [`backend/src/schema.js`](../../apps/beigeboard/backend/src/schema.js) | `looksLikeStamp` — `started_at` is the **only client-writable timestamp in the schema**, so it is the only one that can arrive malformed, and it gets a hard 400 at the door like `cadence_days`. |
+| [`@jkos/routine-spec`](../../packages/routine-spec/src/index.js) | `normalizePerformed` carries `at` (capped string) and `seq` (int, bounded **1–999, not `LIMITS.steps`** — un-logging and re-logging re-issues a higher number, and clamping at 40 would collapse the tail of a fiddly session into ties). |
+| [`@jkos/routine-spec`](../../packages/routine-spec/src/index.js) | `logStep` stamps on the `done` false→true edge and **clears on the way back down**, for the same reason the trigger clears. ⚠️ Listed as a separate file at the time — it was `src/lib/routine-spec.ts`, the mirror D9 deleted. |
+| [`src/components/SessionCard.tsx`](../../apps/beigeboard/src/components/SessionCard.tsx) | `started_at` written once, folded into the patch the interaction was already sending. |
 
 Two things the plan above did not anticipate, both found in the code:
 
@@ -213,18 +213,18 @@ Two things the plan above did not anticipate, both found in the code:
   exactly one place to be added; check that button if you add one.**
 - **The `occurrencesOf` trap does not bite here, and the doc had it half right.** There are
   *two* functions by that name. The narrow explicit-column one in
-  [`routines.js`](../apps/beigeboard/backend/src/routines.js) is read by the **reconcile
+  [`routines.js`](../../apps/beigeboard/backend/src/routines.js) is read by the **reconcile
   passes only**, and they do not touch these columns. The **analytics** one — in
-  [`routes/routines.js`](../apps/beigeboard/backend/src/routes/routines.js), which is what
+  [`routes/routines.js`](../../apps/beigeboard/backend/src/routes/routines.js), which is what
   `metricOf` and `seriesFor` are handed and therefore what §8 will build on — is `SELECT *`
   and picks the new columns up for free. Neither was changed. The trap is still real for any
   column the *engine* must read; it is not real for the analysis.
 
 Coverage: 14 assertions in
-[`routines.smoke.mjs`](../apps/beigeboard/backend/test/routines.smoke.mjs) §K (the trigger
+[`routines.smoke.mjs`](../../apps/beigeboard/backend/test/routines.smoke.mjs) §K (the trigger
 fires through HTTP; a later edit does **not** move the stamp — the whole reason it is not
 `updated_at`; retraction clears; a client cannot write it) and 9 in
-[`test/routine-spec.mjs`](../test/routine-spec.mjs) §4f (the edge guard, and that the stamps
+[`test/routine-spec.mjs`](../../test/routine-spec.mjs) §4f (the edge guard, and that the stamps
 survive the engine normaliser — a mirror-writes/engine-reads contract, which is the exact
 class of bug that gate exists for).
 
@@ -241,9 +241,9 @@ the failure mode §8.2 exists to prevent.
 
 ### Where it lives
 
-A new top-level **`music/`**, following the [`jkos-deploy/`](../jkos-deploy/) precedent: its
+A new top-level **`music/`**, following the [`jkos-deploy/`](../../jkos-deploy/) precedent: its
 own `requirements.txt`, its own `README.md`, **outside the pnpm workspace**
-([`pnpm-workspace.yaml`](../pnpm-workspace.yaml) already records that the repo's Python pieces
+([`pnpm-workspace.yaml`](../../pnpm-workspace.yaml) already records that the repo's Python pieces
 have no `package.json` and are skipped automatically).
 
 **Zero jkOS imports through M4.** The isolation is the deliverable, not an accident of
@@ -300,7 +300,7 @@ the original scoping assumed, and it changes two things:
 - **Full-resolution mels are not storable.** ~5 MB per track × 15 k ≈ **75 GB**. See M3.
 
 KourOS already catalogs the same tree into a `tracks` table keyed on absolute `path`
-(UNIQUE) — see [`apps/kouros/backend/server.js`](../apps/kouros/backend/server.js), migration
+(UNIQUE) — see [`apps/kouros/backend/server.js`](../../apps/kouros/backend/server.js), migration
 `create_tracks`. **That is the join key for M5**, not a dependency for M1–M4: this project
 walks the directory itself so it stays standalone, and keys its own index on the same absolute
 path so the join is free later.
@@ -380,7 +380,7 @@ outweighed the rest: it **ships `onnx/audio_model.onnx` already exported**, so n
 run — no throwaway PyTorch venv, no opset arguments, and none of the class of failure where
 the export ran but the graph is subtly not the model. `torch` is not installed, not imported,
 not required; `requirements.txt` is still two lines. Provenance, checksum and the
-preprocessing contract live in [`music/models/README.md`](../music/models/README.md).
+preprocessing contract live in [`music/models/README.md`](../../music/models/README.md).
 
 #### ⚠️ Trap 16 bit here, and the answer was a profile axis rather than a flat swap
 
@@ -647,7 +647,7 @@ L2 are unaffected and proceed regardless.
 
 ## 6. Step L1 — LazurOS minimal bring-up
 
-**Do not re-derive this.** [LAZUROS_STARTUP.md](LAZUROS_STARTUP.md) is verified against source
+**Do not re-derive this.** [LAZUROS_STARTUP.md](../LAZUROS_STARTUP.md) is verified against source
 — every field name, port, env var, path, and command was read from the actual files — and it
 is the runbook. This section is a **trim and an ordering**, not a replacement.
 
@@ -669,7 +669,7 @@ ToDo §1b (retired) as real work, they are simply not on this path.
 
 1. **`prompts.json` + `models.json` authored** (per worker node). The top unblocker: no worker
    starts without them. ⚠️ **Placeholders are not free** — they must match the capability's
-   declared body fields in [`backend/docs.js`](../apps/lazuros/backend/docs.js) exactly:
+   declared body fields in [`backend/docs.js`](../../apps/lazuros/backend/docs.js) exactly:
    `parse-task`→`{text}` · `breakdown-goal`→`{goal_text}` · `parse-document`→`{content}` ·
    `widget-generate`→`{description}` · `query`→`{text}`. `worker.py` renders
    `template.format(**payload)`, so a wrong name is a `KeyError` at render time and the job
@@ -720,18 +720,18 @@ score moved because the model changed, the prompt changed, or the fixtures did.
 ### 7.2 The audit schema
 
 The `jobs` table today is `id, user_id, capability, tier_id, status, payload, step_data,
-result, error, created_at, updated_at` ([`db.js`](../apps/lazuros/backend/db.js)). **Every
+result, error, created_at, updated_at` ([`db.js`](../../apps/lazuros/backend/db.js)). **Every
 audit field is absent** — this is a build, not a read path over existing rows.
 
 New migration adding: `prompt_version`, `model`, `node`, `tokens_in`, `tokens_out`,
 `cost_usd`, `latency_ms`.
 
-- **The write point is `setJobResult`** in [`lib/queue.js`](../apps/lazuros/backend/lib/queue.js)
+- **The write point is `setJobResult`** in [`lib/queue.js`](../../apps/lazuros/backend/lib/queue.js)
   — one function. Every mutation there already bumps `updated_at`, and **that bump *is* the
   weave invalidation signal** (there is no imperative `invalidate()`), so the new columns ride
   the existing polled-resource contract for free.
 - **Declare the new columns as filters on the `jobs` dataset** in
-  [`docs.js`](../apps/lazuros/backend/docs.js). The read path is then a peer-visible contract
+  [`docs.js`](../../apps/lazuros/backend/docs.js). The read path is then a peer-visible contract
   that the prober checks, not a bespoke query that drifts.
 - ⚠️ `db.js` currently creates the schema with a bare `CREATE TABLE IF NOT EXISTS` on require
   — there is no migration ledger like BeigeBoard's. Adding one is part of this step; do not
@@ -800,7 +800,7 @@ skipped step to optional. Merge steps always done together.
 
 Output is **`jkos.beigeboard.bundle` v1** — the format that already exists. Applied by the
 existing importer at `POST /api/routines/bundle`
-([`routes/routines.js`](../apps/beigeboard/backend/src/routes/routines.js)), which is already
+([`routes/routines.js`](../../apps/beigeboard/backend/src/routes/routines.js)), which is already
 idempotent by slug, validates the whole bundle before writing anything, and never half-applies.
 **Nothing new is built on the BeigeBoard side.** `?dryRun=1` produces the diff.
 
@@ -833,7 +833,7 @@ before it names a revision is a bug.
 
 Semantic dedup of the reusable sub-task library via embeddings — **ported from M3**, not built
 fresh. Target is the `library` table
-([`library.js`](../apps/beigeboard/backend/src/library.js)), keyed `(user, collection, slug)`.
+([`library.js`](../../apps/beigeboard/backend/src/library.js)), keyed `(user, collection, slug)`.
 
 > ⚠️ **The slug is fixed once an entry exists.** Every `ref` in every routine points at it. A
 > merge proposal must rewrite the referring routines and retire the loser; it must **never**
@@ -870,7 +870,7 @@ Joins to KourOS's `tracks` by absolute path (§4). The natural consumer is KourO
 its `MUSIC_DIR` mount is **no longer an unblocker** — the library is bind-mounted read-only at
 `/music` in both compose files (`apps/kouros/docker-compose.yml`,
 `apps/kouros/docker-compose.staging.yml`). What M5 still waits on is the shipped index, and
-that is TODO.md §3, not a compose-file edit.
+not a compose-file edit.
 
 **M6 — the vibe space. BUILT 2026-09-16** (Jag's decisions that day, replacing the 2-D PCA
 map). The library as a 3-D volumetric cloud you swipe through a 4th dimension, ENERGY, calm →
@@ -952,7 +952,7 @@ a uniform percentile), so the fix was quantisation to what a phone shows: id del
 11/11/10 bits in one Uint32 (~0.75 px even flown in), w in 12 bits, tone and flags sharing a
 byte. `discover.smoke` drives the real encoder at 47,693 tracks and asserts the bound.
 
-⚠️ **G7 was restated, and why — confirmed by Jag 2026-09-23 (TODO D12, with the λ and sign rules).** As first declared it read "max voxel change
+⚠️ **G7 was restated, and why — confirmed by Jag 2026-09-23 (with the λ and sign rules).** As first declared it read "max voxel change
 between the interpolated fields at w and w + 1/256 ≤ 2% of ρ_ref". Measured, that is a property
 of the DATA: the EXACT continuous field (each track's kernel centred at w itself) changes 7.05%
 of ρ_ref per 1/256 on the gate's fixture, because cluster cores sit at ~3× ρ_ref. No faithful
@@ -991,8 +991,7 @@ in time rather than printed at once.
 ⚠️ **This section used to end "this is decoration and is documented as such; nothing may come to
 depend on it." Overruled by Jag on 2026-09-03 — it is a named feature now.** The downgrade was
 not wrong when written: it was aimed at a 3D heightmap of the *full* matrix, and that thing
-genuinely is unrenderable. What changes is the artifact, not the verdict on the old one. See
-BACKLOG.md → "Open — the pulsarmap (M7)" for the build order; what follows is what is DECIDED
+genuinely is unrenderable. What changes is the artifact, not the verdict on the old one. What follows is what is DECIDED
 and why the obvious alternative is wrong in each case.
 
 **The size problem, which is the whole problem.** A four-minute track at `HOP = 512` is
@@ -1081,7 +1080,7 @@ one artifact the whole project is built on. That is Trap 16's shape even though 
 itself: a wrong JS mel does not corrupt the vector space, it just makes the picture disagree with
 the analysis, and `VALUE_RANGE_LN` stops being a range anyone measured. ⚠️ **Read-only use of
 `mel.py` / `config.py` / `audio.py` is safe for the paused backfill; editing any of them is not**
-(RESET.md §0a). `mesh.py` imports them and changes nothing.
+(`CLAUDE.md`, the four files). `mesh.py` imports them and changes nothing.
 
 **Where it is stored: a sidecar, never `index.db`.** `index.db` holds 35,460 banked vectors and
 `ship.py`'s `VACUUM INTO` invariant. A mesh table has no business in that file, and the reason is

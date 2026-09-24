@@ -60,7 +60,7 @@ db.exec(`
 const jobCols = new Set(db.prepare('PRAGMA table_info(jobs)').all().map((c) => c.name));
 if (!jobCols.has('acting_zone')) db.exec('ALTER TABLE jobs ADD COLUMN acting_zone TEXT');
 
-/* The write-door dedup store (RESET A2c.4) — @jkos/weave's table, applied from its one
+/* The write-door dedup store (WEAVE.md §3.4) — @jkos/weave's table, applied from its one
  * definition. Every capability here ENQUEUES WORK, and a retried trigger DO that enqueued
  * twice would run the model twice and write its result back twice. See routes/capability.js. */
 db.exec(IDEMPOTENCY_DDL);

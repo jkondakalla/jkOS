@@ -47,7 +47,7 @@ function makeHandler(capDef) {
     const backend = providers.computeBackends[tier.computeBackend];
     if (!backend) return res.status(500).json({ error: `tier ${tier.id} references unknown computeBackend "${tier.computeBackend}"` });
 
-    /* ⭐ DEDUP AT THE WRITE DOOR (RESET A2c.4). Every capability here enqueues work,
+    /* ⭐ DEDUP AT THE WRITE DOOR (WEAVE.md §3.4). Every capability here enqueues work,
        and work here is expensive and WRITES: a retried trigger DO that enqueued twice
        ran the model twice and — for parse-task and breakdown-goal — imported the result
        into BeigeBoard twice. A repeated key now hands back the FIRST job's handle.

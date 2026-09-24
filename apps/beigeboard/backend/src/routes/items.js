@@ -122,7 +122,7 @@ router.post('/api/items', (req, res) => {
     const keys = Object.keys(d);
     const cols = keys.join(', ');
     const phs  = keys.map(() => '?').join(', ');
-    /* ⭐ DEDUP AT THE WRITE DOOR (RESET A2c.4). This door is hand-rolled, so the
+    /* ⭐ DEDUP AT THE WRITE DOOR (WEAVE.md §3.4). This door is hand-rolled, so the
        protection `defineCollection` gives every generated create had to be put here
        by hand — until it was, a retried trigger DO or a re-delivered write-back
        created the task twice, with two 201s and no error anywhere.

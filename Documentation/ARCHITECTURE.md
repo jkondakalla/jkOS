@@ -10,8 +10,8 @@ contract that lets any of them be reached without the others knowing their inter
 This is the engineering entry point — read this before touching any app. It states what
 the code actually does, not what a design doc once proposed; where a claim below can't
 be traced to a specific file, it isn't in here. For the integration contract itself, see
-[WEAVE.md](WEAVE.md) — this document only summarizes it. For running and deploying, see
-[OPERATIONS.md](OPERATIONS.md). For test anatomy, see [TESTING.md](TESTING.md).
+[WEAVE.md](agents/WEAVE.md) — this document only summarizes it. For running and deploying, see
+[OPERATIONS.md](OPERATIONS.md). For test anatomy, see [TESTING.md](agents/TESTING.md).
 
 ---
 
@@ -50,8 +50,6 @@ patterns, nothing else. `music/` is Python and is **not matched by any of them**
 purpose: it keeps the two-line dependency budget (`numpy` + `onnxruntime`, no `torch`,
 no fallback) honest and Python off the node gate entirely. It runs its own test suite
 (`./.venv/bin/python -m unittest discover`) that `pnpm test:contracts` never touches.
-SylibOS, a study app on its own toolchain (React 19 + Tailwind v4) and off the suite
-contract, was **removed from the repo on 2026-09-16** — Jag: "It is dead". Git history has it.
 
 Shared `@jkos/*` packages are **source-only** — no build step. Consumers' Vite/tsc compile
 them straight from `src/` via `exports`. Every Docker image builds from the **repo root
@@ -126,7 +124,7 @@ by construction.
 
 ## 3 · The fabric, in one page
 
-Full contract: [WEAVE.md](WEAVE.md) (being rewritten alongside this doc — read it for the
+Full contract: [WEAVE.md](agents/WEAVE.md) (read it for the
 transport model, the capability/dataset shapes, and onboarding steps). What matters here:
 
 **Apps declare, they don't call.** Each backend ships a `discovery.js` at its root (most
@@ -145,14 +143,11 @@ was a declared shape and **not** a shared table — each app keeps its own ledge
 `history` and `book_history` — PapyrOS's, since the fold — BeigeBoard's pair of columns on
 `items`, LazurOS's job queue) and merely answers in the common shape; `fetchActivity` fans the question out and merges. That makes *"what did I
 do today"* answerable across the suite, and is the same mechanism as the action-audit trail.
-See [WEAVE.md §2a](WEAVE.md).
+See [WEAVE.md §2a](agents/WEAVE.md).
 
 **Discovery over hardcoding.** Apps register in jkAuth's `app_registry`; ORDECK and every
 peer read that registry rather than embedding per-app knowledge. Adding an app is one DB
-row (and, per §2, one nginx generator run) and zero portal code changes — the two hardcoded
-per-app branches that used to survive in app-agnostic code (LazurOS's write-back target
-table and ORDECK's `if (a.id === 'lazuros')` systems-panel branch, the reset's WV-6) were
-removed on 2026-08-27.
+row (and, per §2, one nginx generator run) and zero portal code changes.
 
 **Zero cross-app runtime calls is the steady state, not a gap.** Each app is built to own
 its data and be legible to a fresh reader — human or AI — composing against its
@@ -197,7 +192,7 @@ values it stores there.
 
 **BeigeBoard** (`apps/beigeboard`, port 3001) is the primary data app — goals, tasks,
 milestones, calendar-synced events, and routines (a commitment to a rhythm — see
-[ROUTINES.md](ROUTINES.md) for the cadence engine, the spec document, and the mint rules).
+[ROUTINES.md](agents/ROUTINES.md) for the cadence engine, the spec document, and the mint rules).
 Node/Express backend, one SQLite database (WAL), one `items` table holding all five kinds
 (`task`/`event`/`goal`/`milestone`/`routine` — a routine's occurrences are themselves
 ordinary `task` rows) plus a separate `library` table for reusable sub-tasks a routine step
@@ -281,10 +276,6 @@ target checkout, `docker compose up --build -d`, verify every container is actua
 checkout to `origin/<PROD_BRANCH>` (default `staging`) — there is no merge step and no push
 credential on the server, so it ships exactly the commit already tested on staging.
 
-**SylibOS** was removed on 2026-09-16 (see the monorepo shape above). Its production and
-staging containers, its data directory on the NAS and its DNS record outlive the repo until
-retired by hand — TODO.md §0.
-
 ---
 
 ## 5 · The data layer
@@ -340,8 +331,7 @@ consumes a **generated mirror** of `hub.css` rather than importing the package d
 regenerates it. `pnpm check:design` re-derives the `/design` reference page's inlined CSS
 and fails if it's stale.
 
-This section is deliberately short — the reset's Stage F restructures the factory, and a
-longer description here would just be more surface to go stale before that lands.
+This section is deliberately short — Stage F ([TODO.md](TODO.md) §6) restructures the factory.
 
 ---
 
@@ -352,14 +342,9 @@ chain — first failure stops the run. It boots and smoke-tests jkAuth (`test:co
 `test`), `@jkos/weave`, `@jkos/player`, BeigeBoard's backend, then `pnpm roundtrip` (a live
 write round-trip across the fabric), then LazurOS's backend, `@jkos/files`, KourOS's
 backend (music, audiobooks and the PapyrOS importer), and the `@jkos/cards` logic suite. After the behavioral smokes
-it runs **25** static conformance checks — `check:tokens`, `check:nginx`, `check:responsive`,
-`check:drag`, `check:cards`, `check:routine`, `check:hud`, `check:docker`, `check:async-view`,
-`check:overlay`, `check:design`, `check:fields`, `check:scroll`, `check:text`, `check:today`,
-`check:refs`, `check:binding`, `check:columns`, `check:rulings`, `check:audit`,
-`check:secrets`, `check:policy`, `check:auth`, `check:docs`, `check:build`
-— each a small Node script under `test/` or an app's own `scripts/`, asserting one
+it runs every `check:*` conformance gate (catalogued in [agents/TESTING.md](agents/TESTING.md)) — each a small Node script under `test/` or an app's own `scripts/`, asserting one
 suite-wide invariant by re-deriving it from source rather than trusting a doc. The exception
-is `check:build`, which is not a scan at all: it runs `vite build` for all four SPAs, because
+is `check:build`, which is not a scan at all: it runs `vite build` for every SPA, because
 until it existed the gate could be entirely green while an app was unbuildable. It finishes
 with `pnpm prove` (§3). None of this touches `music/`, which runs its own unittest suite
 outside the pnpm workspace (§1) — a green `test:contracts` says nothing about it.
@@ -372,18 +357,18 @@ and disagree — fails the run; the rest are logged as opportunities. `--live <u
 `--token`) turns on liveness-only probes against a deployed stack instead of the checked-out
 files, for a post-deploy smoke.
 
-Full anatomy of both: [TESTING.md](TESTING.md).
+Full anatomy of both: [TESTING.md](agents/TESTING.md).
 
 ---
 
 ## 8 · Where to go next
 
-- **Testing** — harness structure, how to add a smoke/probe/gate: [TESTING.md](TESTING.md).
+- **Testing** — harness structure, how to add a smoke/probe/gate: [TESTING.md](agents/TESTING.md).
 - **Operations** — running locally, deploying, rotating keys, backups:
   [OPERATIONS.md](OPERATIONS.md).
 - **The integration contract** — what an app implements to weave in, the transport and
-  security model: [WEAVE.md](WEAVE.md).
+  security model: [WEAVE.md](agents/WEAVE.md).
 - **Routines** — the cadence engine, the spec document, the mint rules:
-  [ROUTINES.md](ROUTINES.md).
+  [ROUTINES.md](agents/ROUTINES.md).
 - **The music/LazurOS design record** — why the vector space and the AI gateway are built
-  the way they are: [ALGORITHMS.md](ALGORITHMS.md).
+  the way they are: [ALGORITHMS.md](agents/ALGORITHMS.md).

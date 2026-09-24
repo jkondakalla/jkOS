@@ -19,7 +19,7 @@
  * WHAT IS CHECKED, AND WHAT DELIBERATELY IS NOT:
  *
  *   ✅ Every test file the gate actually RUNS is named in TESTING.md.
- *   ✅ Every `check:*` script in the root package.json is named in PRIMITIVES.md.
+ *   ✅ Every `check:*` script in the root package.json has a row in TESTING.md's gate table.
  *   ❌ Assertion COUNTS are not pinned, on purpose.
  *
  * ⚠️ Pinning counts would paint the gate red on every added assertion — the
@@ -78,11 +78,10 @@ for (const key of Object.keys(root.scripts)) {
 }
 
 // ── 1 · TESTING.md names every suite the gate runs ───────────────────────────
-const testing = read('Documentation/TESTING.md');
+const testing = read('Documentation/agents/TESTING.md');
 
-// Only the per-app SUITES belong in TESTING.md's inventory tables; the `check:*`
-// scripts are catalogued by name there and by command in PRIMITIVES.md, so they
-// are held by check 2 instead of being demanded twice in two shapes.
+// Only the per-app SUITES are held by this check; the `check:*` scripts are held
+// by check 2 against the gate table, rather than being demanded twice in two shapes.
 const suites = [...runFiles].filter(f => /\/test\//.test(f) && !f.startsWith('test/'));
 
 for (const f of suites.sort()) {
@@ -91,27 +90,28 @@ for (const f of suites.sort()) {
     '— a suite that runs on every green gate and appears in no document');
 }
 
-// ── 2 · PRIMITIVES.md names every check:* command ────────────────────────────
-const primitives = read('Documentation/PRIMITIVES.md');
+// ── 2 · TESTING.md's gate table has a row for every check:* command ──────────
+// (This catalog lived in a separate PRIMITIVES.md until 2026-09-24.)
 const checks = Object.keys(root.scripts).filter(k => k.startsWith('check:'));
-// ⚠️ The §2.2 ROW is what is required, not a mention anywhere in the file.
-// A first pass asserted `primitives.includes(c)` and a planted deletion of
-// `check:columns`'s row sailed past it — the name still appeared in §1's
+// ⚠️ A table ROW is what is required, not a mention anywhere in the file.
+// A first pass asserted `includes(c)` and a planted deletion of
+// `check:columns`'s row sailed past it — the name still appeared in a
 // one-line roster, so the check reported clean while the table that says what
 // the gate ASSERTS had lost its entry. "Mentioned somewhere" is not a catalog.
+const esc = x => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 for (const c of checks.sort()) {
-  ok(`PRIMITIVES.md §2.2 has a row for ${c}`, primitives.includes(`\`pnpm ${c}\` |`),
-    '— a gate the suite runs that its own command catalog does not describe');
+  ok(`TESTING.md has a gate-table row for ${c}`,
+    new RegExp(`^\\| \`pnpm ${esc(c)}\``, 'm').test(testing),
+    '— a gate the suite runs that its own catalog does not describe');
 }
 
-// ⚠️ The COUNT is asserted, not just the membership. PRIMITIVES.md said
+// ⚠️ The COUNT is asserted, not just the membership. The catalog once said
 // "Fifteen individual conformance gates" while the suite ran 23 — a sentence
 // that was true when written and became false eight gates later, with every one
 // of those eight still findable elsewhere in the file. Membership alone cannot
 // catch a stale summary; this can.
-ok(`PRIMITIVES.md's gate count matches the ${checks.length} check:* scripts`,
-  new RegExp(`\\b${checks.length}\\b[^.\\n]{0,60}conformance gates`, 'i').test(primitives)
-  || primitives.includes(`${checks.length} individual conformance gates`),
+ok(`TESTING.md's gate count matches the ${checks.length} check:* scripts`,
+  new RegExp(`\\b${checks.length}\\b[^.\\n]{0,60}conformance gates`, 'i').test(testing),
   `— expected the catalog to say ${checks.length}`);
 
 // ── 2b · Generated docs match their generator ────────────────────────────────
@@ -132,19 +132,22 @@ ok(`PRIMITIVES.md's gate count matches the ${checks.length} check:* scripts`,
   }
   if (generated !== null) {
     ok('ROUTINE_PROMPT.md matches `print-prompt.mjs` output',
-      generated === read('Documentation/ROUTINE_PROMPT.md'),
+      generated === read('Documentation/agents/ROUTINE_PROMPT.md'),
       '— regenerate it; do not hand-edit generated output');
   }
 }
 
 // ── 3 · README.md's index lists every doc ────────────────────────────────────
 // The same defect as TESTING.md's missing suites, one level up: the index that
-// tells a cold reader which file to open was missing KOUROS_ANDROID.md,
-// LAZUROS_STARTUP.md and ROUTINE_PROMPT.md. A doc nothing points at is a doc
-// nobody opens.
+// tells a cold reader which file to open was once missing three docs entirely.
+// A doc nothing points at is a doc nobody opens. Covers Documentation/ and its
+// agents/ folder; a doc in agents/ is linked as `(agents/X.md)`.
 const readme = read('Documentation/README.md');
 const { readdirSync } = await import('node:fs');
-for (const f of readdirSync(join(ROOT, 'Documentation')).filter(f => f.endsWith('.md') && f !== 'README.md').sort()) {
+const DOC_DIRS = ['', 'agents/'];
+const docFiles = DOC_DIRS.flatMap(dir =>
+  readdirSync(join(ROOT, 'Documentation', dir)).filter(f => f.endsWith('.md')).map(f => dir + f));
+for (const f of docFiles.filter(f => f !== 'README.md').sort()) {
   ok(`README.md's index links ${f}`, readme.includes(`(${f})`),
     '— a reference doc the index does not point at');
 }
@@ -157,7 +160,7 @@ for (const f of readdirSync(join(ROOT, 'Documentation')).filter(f => f.endsWith(
 // nobody wants to think about. Adding a trap — or a `check:*` gate — IS the
 // documentation act; being told to update the headline in the same commit is
 // the point, not friction.
-const trapCount = (read('Documentation/TRAPS.md').match(/^- \*\*/gm) ?? []).length;
+const trapCount = (read('Documentation/agents/TRAPS.md').match(/^- \*\*/gm) ?? []).length;
 ok(`README.md's trap count matches TRAPS.md's ${trapCount} entries`,
   new RegExp(`\\b${trapCount} durable traps\\b`).test(readme),
   `— README says something other than ${trapCount}`);
@@ -181,23 +184,20 @@ const CITED_AS_ABSENT = new Set([
 // `package.json` to a `package.js` that does not exist, and `ts` before `tsx`
 // does the same to every component. Longest extension first. My first pass had
 // it the obvious way round and invented 12 broken references that were fine.
-// ⚠️ The `\.\.\/` alternative is not cosmetic. Docs link peers as `../apps/x.js`
-// (relative to Documentation/), and a lookbehind that merely rejects a preceding
+// ⚠️ The `\.\.\/` prefix is not cosmetic. Docs link peers as `../apps/x.js`
+// (relative to Documentation/, `../../` from agents/), and a lookbehind that merely rejects a preceding
 // `/` skips every one of them — which is exactly how ALGORITHMS.md went on
 // pointing at two files D9 had deleted while this check reported clean.
-const PATH_RE = /(?<![\w/.])((?:\.\.\/)?(?:apps|packages|infra|jkos-deploy)\/[A-Za-z0-9_./-]+\.(?:mjs|tsx|json|js|ts|css|py|conf|yml|md))(?![A-Za-z0-9])/g;
+const PATH_RE = /(?<![\w/.])((?:\.\.\/)*(?:apps|packages|infra|jkos-deploy)\/[A-Za-z0-9_./-]+\.(?:mjs|tsx|json|js|ts|css|py|conf|yml|md))(?![A-Za-z0-9])/g;
 const { existsSync } = await import('node:fs');
-const docs = ['ALGORITHMS', 'ARCHITECTURE', 'BACKLOG', 'DESIGN', 'OPERATIONS', 'PRIMITIVES',
-  'README', 'RESET', 'ROUTINES', 'TESTING', 'TODO', 'TRAPS', 'WEAVE', 'LAZUROS_STARTUP',
-  'KOUROS_ANDROID'];
 let broken = 0;
-for (const d of docs) {
-  let text; try { text = read(`Documentation/${d}.md`); } catch { continue; }
+for (const d of docFiles) {
+  const text = read(`Documentation/${d}`);
   for (const m of text.matchAll(PATH_RE)) {
-    // A `../` link is written from Documentation/, so it resolves to the repo root.
-    const p = m[1].replace(/^\.\.\//, '');
+    // A `../` link is written from inside Documentation/, so it resolves to the repo root.
+    const p = m[1].replace(/^(?:\.\.\/)+/, '');
     if (PLANNED.has(p) || CITED_AS_ABSENT.has(p)) continue;
-    if (!existsSync(join(ROOT, p))) { broken++; console.error(`  ✗ ${d}.md cites a path that does not exist: ${m[1]}`); }
+    if (!existsSync(join(ROOT, p))) { broken++; console.error(`  ✗ ${d} cites a path that does not exist: ${m[1]}`); }
   }
 }
 ok('every repo path the docs cite resolves', broken === 0, `— ${broken} broken reference(s)`);

@@ -127,7 +127,7 @@ vocabulary), `at`, `ref`, `label`, `ms`, `completed`.
 - **`kinds` are per-app, never a suite-wide enum.** "Listened" and "trained" are different
   acts; flattening them into one vocabulary loses both questions.
 
-Two payoffs, and the second is why RESET promotes this above the rest of Stage D: *"what did
+Two payoffs, and the second is why it matters most here: *"what did
 I do today"* becomes answerable across the suite (the ML corpus for the variance feature),
 and **the same mechanism is the suite's action-audit trail**.
 
@@ -610,4 +610,4 @@ the origin list and the per-role claims are process-lifetime caches.
 ---
 
 *See also: `ARCHITECTURE.md` (system level) · `TESTING.md` (`pnpm test:contracts` in full) ·
-`RESET.md` (the stage plan the owed items refer to) · `packages/suite-prober/README.md`.*
+`packages/suite-prober/README.md`.*

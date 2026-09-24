@@ -1,4 +1,4 @@
-// The four contract rules (RESET A2c / Stage E item 6).
+// The four contract rules (WEAVE.md §3).
 //
 // ⚠️ A RULING NOTHING ENFORCES IS PROSE. Four holes in the weave contract were
 // settled in RESET as decisions; a decision that lives only in a document is a

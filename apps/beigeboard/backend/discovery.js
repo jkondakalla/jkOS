@@ -112,7 +112,7 @@ const CAPABILITIES = {
         // `importRoutine` below for anything more than a one-line document — it
         // resolves library refs, is idempotent by slug, and returns the lint.
         { name: 'spec',           type: 'json',   label: 'Routine: the step document', schema: 'beigeboard.routineVocabulary' },
-        // RESET A2c.4 — a repeated key replays the first create instead of adding a
+        // WEAVE.md §3.4 — a repeated key replays the first create instead of adding a
         // second row. Declared, because the declaration IS the protection: a caller
         // reading this doc cannot otherwise know the door dedups.
         idempotencyBodyField(),
@@ -276,7 +276,7 @@ const CAPABILITIES = {
       body: [
         { name: 'items',    type: 'json', label: 'Items — a nested tree or a flat ref/parent list', required: true, schema: 'beigeboard.items' },
         { name: 'defaults', type: 'json', label: 'Field defaults applied to every item (optional)', schema: 'beigeboard.items' },
-        // RESET A2c.4 — LazurOS's write-back sends one derived from the job id, so a
+        // WEAVE.md §3.4 — LazurOS's write-back sends one derived from the job id, so a
         // job that finishes twice imports once. Ignored by ?dryRun=1.
         idempotencyBodyField(),
       ],
@@ -477,7 +477,7 @@ const DATASETS = {
       id: 'routinePrompt', label: 'The generated routine-authoring prompt', path: '/routines/prompt',
       filters: [],
       doc: 'The authoring instructions, GENERATED from the vocabulary above so the prose and '
-        + 'the enum can never disagree (Documentation/ROUTINE_PROMPT.md is this output, '
+        + 'the enum can never disagree (Documentation/agents/ROUTINE_PROMPT.md is this output, '
         + 'checked in and gated by check:routine).',
     },
   ],

@@ -1,4 +1,4 @@
-// paging.js — the suite's ONE pagination contract (RESET A2c.2 / Stage E item 6).
+// paging.js — the suite's ONE pagination contract (WEAVE.md §3.2).
 //
 // ⭐ THE CURSOR, NOT AN OFFSET. `?since=<canonical ms ISO>` is the only pagination
 // primitive. There is deliberately no `offset`, and that is a correctness decision

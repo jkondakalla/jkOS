@@ -16,7 +16,7 @@
 //
 // ⚠️ It does NOT scan git HISTORY. Whether anything sensitive was ever committed
 // is a separate investigation whose remedy (a history rewrite) is destructive,
-// coordinates with GitHub, and is Jag's call — see Documentation/BACKLOG.md.
+// coordinates with GitHub, and is Jag's call — see CLAUDE.md.
 
 import { execFileSync } from 'node:child_process';
 import { readFileSync, statSync } from 'node:fs';

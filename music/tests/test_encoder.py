@@ -530,7 +530,7 @@ class ProviderNegotiationTest(unittest.TestCase):
         `preferred_providers()` imports onnxruntime before it reads the override,
         so on a machine without it this contract was unreachable — and the README
         promises the suite runs on `ffmpeg + numpy` alone. The one-line fix is in
-        `encoder.py`, which is one of the four files RESET.md §0a says not to
+        `encoder.py`, which is one of the four files CLAUDE.md says not to
         touch while 35,460 vectors sit banked: a refactor there that does not move
         `config.signature()` is the silent case that costs the run. So the shim
         lives here, where it can cost nothing.

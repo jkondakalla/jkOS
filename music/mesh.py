@@ -15,7 +15,7 @@ inside every contract the suite already enforces.
 
 ⚠️ **READ-ONLY USE OF THE PIPELINE.** This module imports `config`, `mel`,
 `audio` and `ridge` and edits none of them. The backfill is paused mid-run
-(RESET.md §0a) and an edit to any of those four silently invalidates the 35,460
+(CLAUDE.md) and an edit to any of those four silently invalidates the 35,460
 vectors already banked. Nothing here writes to `index.db` either — the store
 below is its own file for the same reason `ship.py` refuses to be a `cp`.
 
@@ -349,7 +349,7 @@ def rel_key(abs_path, root_name=DEFAULT_ROOT_NAME):
 # ── The store ───────────────────────────────────────────────────────────────────
 # A SEPARATE FILE, never a table inside `index.db`. Not tidiness: `index.db` holds
 # 35,460 banked vectors and `ship.py`'s snapshot invariant, and every operation on
-# it is one more chance to be the operation that costs four hours (RESET.md §0a).
+# it is one more chance to be the operation that costs four hours (CLAUDE.md).
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (
   key   TEXT PRIMARY KEY,
@@ -598,8 +598,8 @@ def pending(index_conn, store_conn, root_name=DEFAULT_ROOT_NAME, limit=None,
     """Tracks in the index that have no mesh yet, as `(abs_path, rel_key)` pairs.
 
     ⚠️ **WHAT THE PENDING LIST SHOULD BE DRIVEN BY IS AN OPEN QUESTION** — KourOS's
-    `history` table, a frontend wanted-list, or top-N most played (TODO.md §2,
-    block 4). This is the answer that needs no decision and no new surface: every
+    `history` table, a frontend wanted-list, or top-N most played (the full run in
+    `analyze.py` now meshes the whole library instead). This is the answer that needs no decision and no new surface: every
     indexed track, oldest first. It is the fill run, not the policy; a policy goes
     in front of it when there is one, and none of the code below changes.
 

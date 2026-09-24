@@ -28,8 +28,8 @@ lucky.
 and no reads outside the snapshot tree. It carries no passphrase on purpose — a passphrase breaks
 unattended backup, and what the key grants is read access to data that leaves here encrypted.
 
-**Encrypted at rest, and it fails closed.** The archive contains password hashes, **plaintext
-TOTP secrets** (jkAuth stores seeds unencrypted — RESET.md **JK-A4**) and the suite's **TLS
+**Encrypted at rest, and it fails closed.** The archive contains password hashes, **TOTP
+secrets** and the suite's **TLS
 private key**. This drive is unencrypted ext4, so a stolen or discarded disk would otherwise hand
 over every user's second factor. If the GPG key is missing the script **refuses to run** rather
 than writing that in the clear.

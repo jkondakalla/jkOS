@@ -2,7 +2,7 @@
 
 **ORDECK is the one-screen portal into your entire digital life, owned entirely by you.**
 
-jkOS is a self-hosted productivity suite running on TrueNAS SCALE. **Eight systems** make up
+jkOS is a self-hosted productivity suite running on TrueNAS SCALE. **Seven systems** make up
 the suite:
 
 | System | What it is |
@@ -13,7 +13,7 @@ the suite:
 | **Weave** | The integration fabric connecting all apps, read and write |
 | **jkDeploy** | The deploy controller — staging→production in one button |
 | **LazurOS** | AI gateway — an async job queue routing inference to a tier of compute nodes; powers BeigeBoard's task-parse / goal-breakdown. Registered in the app directory; not yet routed on any deployed edge |
-| **KourOS** | Fully-native multi-user music AND audiobook library — own scanners and catalogs, one `@jkos/player` for both (gapless/crossfade for music; chapters, speed, sleep, bookmarks, offline and per-user resume for books), playlists, ratings. PapyrOS folded into it on 2026-09-23. On staging at `/kouros/` |
+| **KourOS** | Multi-user music AND audiobook library — own scanners and catalogs, one `@jkos/player` for both (gapless/crossfade for music; chapters, speed, sleep, bookmarks, offline and per-user resume for books), playlists, ratings, and one listening session across all your devices. On staging at `/kouros/` |
 
 Everything goes through jkAuth SSO. The portal is driven by Weave discovery — adding a
 new app means one registry row, not portal code changes.
@@ -62,8 +62,7 @@ Layout is saved per user in jkAuth preferences — your HUD follows you across d
 ### Audiobooks (in KourOS)
 
 KourOS's **Books** tab (on a phone: Library → **Audiobooks**) — `staging.jkos.net/kouros/#/books`
-on staging; prod pending DNS. PapyrOS was this, as its own app, until it folded into KourOS
-on 2026-09-23. The library is scanned from a TrueNAS folder — one subfolder per book — with
+on staging; prod pending DNS. The library is scanned from a TrueNAS folder — one subfolder per book — with
 metadata read from embedded tags and enriched from the iTunes Search API.
 
 | Action | How |
@@ -81,8 +80,7 @@ per-file (not per-folder) from a TrueNAS music path.
 
 | Action | How |
 |--------|-----|
-| **Browse & play** | Library grid (artist/album/track views) → **Play**. Gapless playback with a
-short crossfade between tracks. |
+| **Browse & play** | Library grid (artist/album/track views) → **Play**. Gapless playback with a short crossfade between tracks. |
 | **Queue** | Shuffle, repeat, reorder by drag; volume and now-playing art-derived accent color. |
 | **Playlists** | Create, reorder via drag, rate tracks. |
 
@@ -107,28 +105,29 @@ short crossfade between tracks. |
 
 ---
 
-## Reference docs
+## The docs
 
-Documentation here is a map, not the territory — where a doc and the code disagree, the code
-wins and the doc is stale. [`RESET.md`](RESET.md) is the current mandate: what's being
-rebuilt, why, and in what order. Read it first if you're picking up engineering work.
+Documentation is a map, not the territory — where a doc and the code disagree, the code wins.
 
 | File | Read it for |
 |------|-------------|
-| [RESET.md](RESET.md) | **The current mandate.** What's ceremony vs. still load-bearing, the work ahead stage by stage, and the standing rules of engagement. |
-| [TODO.md](TODO.md) | **Everything still open, in one place** — Jag's blockers, the pulsarmap, the LazurOS ladder, Stage F, the owed halves of the fabric. Close items here, not in a second list. |
-| [BACKLOG.md](BACKLOG.md) | **What landed and why**, re-derived from code — plus the audits that found defects inside finished work. Its open items now live in TODO.md. |
-| [The design handoff](https://claude.ai/code/artifact/5e53f12f-cf7d-4e22-b066-4087b47a3e80) | **Published, not in the repo.** The design system and 17 hero shots of the running suite in one page — measured token swatches for both faces, the accent derivation, the fence, and the open contrast decision. Every frame is a real signed-in session against a real backend. The 2× originals are generated into `Documentation/Images/`, which is gitignored: they are screenshots of Jag's own data. |
-| [TRAPS.md](TRAPS.md) | 106 durable traps — browser engines and WebGL, Node/pnpm, SQLite, numpy, Docker, this repo's shape. **Check here before debugging something that smells familiar.** |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | How the systems fit together — mental models, auth/session model, data ownership, Weave fabric, nginx topology, prod/staging isolation. **Engineering entry point**, alongside WEAVE.md. |
-| [PRIMITIVES.md](PRIMITIVES.md) | **The command/gate catalog** — every command, gate, and skill you can run, by category, with how and why. |
-| [WEAVE.md](WEAVE.md) | The integration contract in full — what an app must implement, transport model, security model, command vocabulary, adding a new app. |
-| [OPERATIONS.md](OPERATIONS.md) | Dev commands, Docker build model, deploy pipeline, cold start from zero, TrueNAS paths, known gotchas. |
-| [DESIGN.md](DESIGN.md) | Design system — aesthetic identity, token contract, factory, typography, per-app constraints. |
-| [TESTING.md](TESTING.md) | The test system — every test and what it asserts, the gate anatomy, the suite prober, house patterns for new tests. |
-| [PLANNING_METHOD.md](PLANNING_METHOD.md) | The breakdown method the BeigeBoard Workshop embodies — taxonomy, weekly bench, data mapping. Informational; ROUTINES.md is authoritative where they touch. |
-| [ROUTINES.md](ROUTINES.md) | The routine primitive: the document format, progression, cadence, the library, and the AI-authoring contract. |
-| [ALGORITHMS.md](ALGORITHMS.md) | The music vector-space design record — mel spectrograms, embeddings, similarity search, calibration. |
-| [ROUTINES.md → ROUTINE_PROMPT.md](ROUTINE_PROMPT.md) | **Generated, not written** — the authoring prompt `routine-prompt.js` emits from the vocabulary, so it cannot promise something the validator refuses. Hand it to any assistant to get a bundle this suite accepts. Regenerate with `apps/beigeboard/backend/scripts/print-prompt.mjs`; do not edit by hand. |
-| [LAZUROS_STARTUP.md](LAZUROS_STARTUP.md) | Bringing the LazurOS State node up from nothing. ⚠️ **Read before any LazurOS deploy** — it is not in the staging stack, it runs `network_mode: host`, and two bind mounts fail silently if you skip the pre-flight. |
-| [KOUROS_ANDROID.md](KOUROS_ANDROID.md) | Packaging KourOS as an Android app — signing, asset links, and the store-adjacent bits. |
+| [TODO.md](TODO.md) | **Everything still open, in one place** — what only you can do first, then the decisions you owe, then the engineering backlog. Close an item by deleting it. |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | How the systems fit together — shape, runtime topology, the Weave fabric, each app, the data layer, the gate. |
+| [OPERATIONS.md](OPERATIONS.md) | Running and deploying it — dev commands, Docker, the deploy controller, nginx, cold start from zero, TrueNAS paths, secrets, the KourOS Android build. |
+| [LAZUROS_STARTUP.md](LAZUROS_STARTUP.md) | Bringing LazurOS up on real hardware, phase by phase. ⚠️ **Read before any LazurOS deploy** — it isn't in the staging stack and two bind mounts fail silently if you skip the pre-flight. |
+| [The design handoff](https://claude.ai/code/artifact/5e53f12f-cf7d-4e22-b066-4087b47a3e80) | **Published, not in the repo.** The design system and 17 hero shots of the running suite. The 2× originals are generated into `Documentation/Images/`, which is gitignored (they're screenshots of your own data). |
+
+### For agents — `agents/`
+
+Engineering references, written for whoever is changing the code. Agents also get
+[`CLAUDE.md`](../CLAUDE.md) at the repo root automatically: the standing rules.
+
+| File | What it holds |
+|------|---------------|
+| [agents/TRAPS.md](agents/TRAPS.md) | 106 durable traps — browser engines and WebGL, Node/pnpm, SQLite, numpy, Docker, this repo's shape. |
+| [agents/TESTING.md](agents/TESTING.md) | Every command, gate and test suite, what each asserts, and how to add one. |
+| [agents/WEAVE.md](agents/WEAVE.md) | The integration contract — what an app must implement, the rulings, the checklist for a new app. |
+| [agents/DESIGN.md](agents/DESIGN.md) | The design system — tokens, the accent chain, class catalog, per-app constraints. |
+| [agents/ALGORITHMS.md](agents/ALGORITHMS.md) | The music vector space and LazurOS design record — measurements, gates, traps. |
+| [agents/ROUTINES.md](agents/ROUTINES.md) | BeigeBoard's routine primitive — the document, progression, cadence, the AI-authoring contract. |
+| [agents/ROUTINE_PROMPT.md](agents/ROUTINE_PROMPT.md) | **Generated** — the routine-authoring prompt to hand any assistant. Regenerate with `apps/beigeboard/backend/scripts/print-prompt.mjs`; never edit by hand. |

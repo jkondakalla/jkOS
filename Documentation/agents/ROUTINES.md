@@ -4,8 +4,7 @@
 > touching anything routine-shaped, read this file first.** When it disagrees with
 > the code, the code wins — update this.
 
-Related: [PLANNING_METHOD.md](PLANNING_METHOD.md) is the *method* (how routines sit
-beside the goal-breakdown ladder). [ARCHITECTURE.md](ARCHITECTURE.md#routines--the-cadence-engine-and-the-routine-document)
+Related: [ARCHITECTURE.md](../ARCHITECTURE.md#routines--the-cadence-engine-and-the-routine-document)
 is the *summary*. **This is the reference.**
 
 ---

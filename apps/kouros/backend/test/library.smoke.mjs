@@ -20,7 +20,7 @@
 //     browse contract (18.2's design constraint: derived at read time, no extra tables).
 //
 // Requires `ffprobe` on PATH. If ffprobe is missing this smoke SKIPS with exit 0 and a
-// loud message — see the note in Documentation/TESTING.md.
+// loud message — see the note in Documentation/agents/TESTING.md.
 //
 //   node apps/kouros/backend/test/library.smoke.mjs
 
@@ -55,7 +55,7 @@ try {
   await execFileAsync('ffprobe', ['-version']);
 } catch {
   console.warn('⚠ SKIPPED library.smoke: `ffprobe` is not on PATH.');
-  console.warn('  Install ffmpeg (which provides ffprobe) to run this smoke — see Documentation/TESTING.md.');
+  console.warn('  Install ffmpeg (which provides ffprobe) to run this smoke — see Documentation/agents/TESTING.md.');
   process.exit(0);
 }
 

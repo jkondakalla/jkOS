@@ -131,7 +131,7 @@ function listEntries(userId, { collection = null, q = null, limit = 500 } = {}) 
   });
   const rows = all(
     `SELECT * FROM library WHERE ${where} ORDER BY collection ASC, title ASC LIMIT ?`,
-    // The suite's one paging contract (RESET A2c.2) — this was a fourth clamp, with
+    // The suite's one paging contract (WEAVE.md §3.2) — this was a fourth clamp, with
     // a ceiling (2000) four times the suite maximum.
     [...params, pageLimit(limit, { fallback: 500 })],
   );

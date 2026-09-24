@@ -231,7 +231,7 @@ try {
   const nk = (await list('?tags=nokids'))[0];
   ok(nk?.kind === 'task', `I4: empty children → task, not goal (got ${nk?.kind})`);
 
-  // ── J. DEDUP AT THE WRITE DOOR (RESET A2c.4) ──
+  // ── J. DEDUP AT THE WRITE DOOR (WEAVE.md §3.4) ──
   // This is the door LazurOS's write-back commits through, and a job can finish
   // TWICE (the reaper requeues one that outran its timeout while the first worker is
   // still going; both post DONE). Each DONE used to import the whole tree again.

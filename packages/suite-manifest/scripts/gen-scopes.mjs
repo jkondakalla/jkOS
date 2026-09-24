@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * gen-scopes — the scopes each app DECLARES, generated from its capability doc into
- * @jkos/suite-manifest, so jkAuth can derive what it may GRANT (TODO §0b D1, RESET C4).
+ * @jkos/suite-manifest, so jkAuth can derive what it may GRANT.
  *
  * WHY A GENERATED FILE. jkAuth mints every token's `scope` claim and never read an
  * app's capability doc: `capabilities_path` sat in its registry unfetched, and its

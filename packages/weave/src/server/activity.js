@@ -51,7 +51,7 @@ function cursor(v) {
   return CANONICAL_AT.test(s) ? s : null
 }
 
-/* From the ONE paging contract (RESET A2c.2) rather than a fourth hand-rolled clamp.
+/* From the ONE paging contract (WEAVE.md §3.2) rather than a fourth hand-rolled clamp.
    Three that disagreed is what made a cross-app fan-out unmergeable: "give me 100"
    meaning three different windows, and the merged page silently short. */
 const limitOf = (v) => pageLimit(v, { fallback: ACTIVITY_DEFAULT_LIMIT, max: ACTIVITY_MAX_LIMIT })
@@ -129,12 +129,12 @@ function defineActivity({ app, version = 1, kinds, read }) {
 
 module.exports = {
   defineActivity, canonicalTime, extRef, checkActivityDoc, isValidActivityDoc,
-  // RESET A2c.2: the one paging contract, reachable from the same lean subpath.
+  // WEAVE.md §3.2: the one paging contract, reachable from the same lean subpath.
   pageLimit, PAGE_DEFAULT, PAGE_MAX, CURSOR_PARAM,
   // BB-5: the ext_ref namespace, reached from the same lean subpath a discovery doc
   // already imports — it declares its schemes right next to its datasets.
   checkExtRefDoc, extRefFieldDoc,
-  // RESET A2c.4: a HAND-ROLLED write door declares the reserved idempotency field
+  // WEAVE.md §3.4: a HAND-ROLLED write door declares the reserved idempotency field
   // from its discovery doc, which is data — so the declaration helper rides the
   // lean subpath too. The receiver (withIdempotency) needs a db and stays in the
   // server barrel.

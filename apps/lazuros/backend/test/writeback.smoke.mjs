@@ -115,7 +115,7 @@ await (async () => {
   test('no user_id rejects', () => {});
 })();
 
-/* 8. ⭐ THE KEY (RESET A2c.4). A job can legitimately finish TWICE — the reaper requeues
+/* 8. ⭐ THE KEY (WEAVE.md §3.4). A job can legitimately finish TWICE — the reaper requeues
  * one that outran its timeout while the first worker is still running, and both post
  * DONE. Each DONE runs the write-back, and each used to import the tree again. BeigeBoard's
  * import door now dedups on the key, so what matters HERE is that the key is the same for

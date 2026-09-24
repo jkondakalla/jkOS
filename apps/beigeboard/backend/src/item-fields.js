@@ -143,7 +143,7 @@ const ITEM_FIELDS = [
   // ── The variance instrumentation (migration 13) ────────────────────────────
   // Two facts about a session that NOTHING in this schema could answer before,
   // and that no amount of later code can recover — they only exist if they are
-  // recorded as they happen (Documentation/ALGORITHMS.md §3).
+  // recorded as they happen (Documentation/agents/ALGORITHMS.md §3).
   //   started_at    on an OCCURRENCE — when the user first touched the session
   //                 card. `scheduled_time` is the PLAN; this is the actual, and
   //                 the difference between them is the only way to see a routine

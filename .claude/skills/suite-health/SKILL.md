@@ -58,9 +58,9 @@ Run from the repo root. Stop and fix at the first failure; don't push past a red
 
 ## Reference docs
 
-- `Documentation/TESTING.md` — the full test inventory (what every test asserts), the gate
+- `Documentation/agents/TESTING.md` — the full test inventory (what every test asserts), the gate
   anatomy, the prober's operating model, house patterns for new tests
-- `Documentation/PRIMITIVES.md` — the command catalog: every gate/check/prober invocation
+- `Documentation/agents/TESTING.md` (Commands) — the command catalog: every gate/check/prober invocation
   with flags, plus the cross-cutting gotchas table
 - `Documentation/OPERATIONS.md` — nginx topology, restart-not-reload, key lifecycle,
   deploy flow, break-glass access

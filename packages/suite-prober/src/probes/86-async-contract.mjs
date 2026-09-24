@@ -1,5 +1,5 @@
 /**
- * The async result contract — `resolves` (WV-5, Stage E item 6's first rule).
+ * The async result contract — `resolves` (WV-5, WEAVE.md §3.1).
  *
  * ⚠️ THE DEFECT, stated as the audit found it: every LazurOS capability declared
  * `returns: [{ name:'job_id', type:'string' }]`. That is CORRECT for the HTTP

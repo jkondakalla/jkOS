@@ -1,6 +1,6 @@
 'use strict'
 // weave/server/idempotency.js — DEDUP AT THE WRITE DOOR. The owed half of
-// RESET A2c.4 (Documentation/WEAVE.md §3.4, TODO.md §6).
+// Documentation/agents/WEAVE.md §3.4.
 //
 // ⚠️ **IDEMPOTENCY IS A PROPERTY OF THE RECEIVER.** The trigger engine has always
 // sent a DERIVED `idempotency_key` — same trigger + same event ⇒ same key, which

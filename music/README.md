@@ -5,7 +5,7 @@ pretrained embeddings → similarity search**, and then a shuffle that *walks* t
 instead of permuting it.
 
 Design record, the reasoning behind every decision, and the task breakdown, all in one
-place: [`Documentation/ALGORITHMS.md §4`](../Documentation/ALGORITHMS.md). This README
+place: [`Documentation/agents/ALGORITHMS.md §4`](../Documentation/agents/ALGORITHMS.md). This README
 covers how to run it and what the pieces are; it deliberately does not restate that.
 
 This directory is **outside the pnpm workspace** and has **zero jkOS imports**, following the
@@ -432,7 +432,7 @@ sub-task library deduplication a lift rather than a rewrite later.
 
 ## Traps
 
-Full list in [`ALGORITHMS.md §10`](../Documentation/ALGORITHMS.md). The three that shape the
+Full list in [`ALGORITHMS.md §10`](../Documentation/agents/ALGORITHMS.md). The three that shape the
 code in this directory:
 
 **⚠️ 16 — the windowing config lives in one module.** Extraction and the encoder disagreeing

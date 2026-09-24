@@ -4,35 +4,30 @@ Build, run, deploy, cold start. Host: TrueNAS SCALE (ZFS pool `Luna`), dev machi
 
 ## Local development
 
+Everything runs from the repo root `/media/jag/The Forge/jkOS` — the path has a space, so quote it.
+
 ```bash
 pnpm install                        # one workspace install (root)
 pnpm dev                            # turbo run dev (all apps)
 pnpm build                          # turbo run build
-pnpm --filter @jkos/<app> build     # one app (ordeck | beigeboard)
+pnpm typecheck                      # cheapest whole-suite signal; run first
+pnpm --filter @jkos/<app> build     # one app
 pnpm --filter @jkos/<app> dev
 ```
 
-Per-app typecheck: ORDECK `tsc --noEmit`; BeigeBoard `tsc -b`.
 Frontends read `VITE_JKOS_AUTH_URL` (default `https://auth.jkos.net`; dev proxies to `:3100`).
-After editing `packages/*`, run `pnpm install` to re-inject workspace packages into consumers.
+After editing `packages/*`, run `pnpm install` — pnpm copies workspace packages into consumers,
+which keep the stale copy until you do. ORDECK's `vite dev` is broken (a CJS `codes.js` import
+chain); check ORDECK with `build` + `preview` instead. After any `hub.css` change, regenerate the
+token mirrors: `pnpm --filter @jkos/jkauth sync:tokens` and `node jkos-deploy/scripts/sync-tokens.mjs`.
 
 ## Contract gate
 
-Before pushing: `pnpm test:contracts`. One chain covering every hard contract — jkAuth's
-contracts smoke (incl. the node↔python bridge), the jkAuth/weave/player/BeigeBoard/LazurOS/
-files/KourOS test suites (the weave suite includes the lego tests), the write
-round-trip, **25** static conformance checks (tokens/nginx/responsive/drag/cards/routine/
-hud/docker/async-view/overlay/design/fields/scroll/text/today/refs/binding/columns/rulings/
-audit/secrets/policy/auth/docs/**build**), and the suite prober (fails on `drift`). A failure means a cross-system contract has drifted — fix the source of truth,
-not the test.
-
-**`check:build` is the newest link and the one that was missing longest** (added 2026-09-10):
-it runs `vite build` for all four SPAs, because until then the gate could be fully green while an
-app was unbuildable — BeigeBoard's production build had been dead and nothing in the chain looked.
-It costs ~5 s. If it fails, the app cannot be deployed, whatever the rest of the gate says.
-Full anatomy + per-app runners: [TESTING.md](TESTING.md); command catalog:
-[PRIMITIVES.md](PRIMITIVES.md). Post-deploy:
-`pnpm prove --live https://staging.jkos.net` smokes the deployed edge.
+Before pushing: `pnpm test:contracts` — every backend smoke, the write round-trip, every
+`check:*` conformance gate (including a real `vite build` of each SPA) and the suite prober.
+Exit 0 = green. A failure means a cross-system contract has drifted: fix the source of truth,
+not the test. Every command, gate and suite is catalogued in [agents/TESTING.md](agents/TESTING.md).
+Post-deploy, `pnpm prove --live https://staging.jkos.net --token <admin jwt>` smokes the edge.
 
 ## Docker build model
 
@@ -63,7 +58,7 @@ Root `docker-compose.yml` (`include:` each `apps/<svc>/docker-compose.yml`) is p
 
 KourOS bind-mounts two libraries read-only and needs `ffmpeg` in its image (the Dockerfile
 installs it): the audiobooks at `/mnt/Luna/Luna/Plex/Audiobooks` (override with
-`AUDIOBOOKS_PATH` — PapyrOS's mount until it folded into KourOS on 2026-09-23) and the music
+`AUDIOBOOKS_PATH`) and the music
 at `/mnt/Luna/Luna/Plex/Music` by default (override with `MUSIC_PATH`) — the same nested-`Luna/Luna` trap: the host's
 top-level `/mnt/Luna/Plex/Music` is a *different, empty* directory, and Docker auto-creates a
 missing bind source rather than failing, so the wrong path mounts cleanly and the scan finds
@@ -86,8 +81,7 @@ Both run through `infra/scripts/lib-deploy.sh`. The shared routine:
 4. `verify_containers` — waits 5s, inspects every container; fails if any is not `running`.
 5. nginx step: **staging only** (`MANAGE_NGINX=1`) and only when `infra/nginx` changed —
    validates config in a throwaway container, then `reload_nginx` (see § Nginx config below;
-   as of commit `4cba7f8` this self-heals a missing bind-mount by recreating the container
-   instead of a bare restart, before falling back to `docker restart standalone-nginx`).
+   it recreates the container if a bind-mount is missing, else restarts it).
    **Prod deploy always skips nginx** (`MANAGE_NGINX=0`) — standalone-nginx mounts its config
    from the staging checkout; a prod deploy must not restart it with unvalidated config.
 
@@ -95,6 +89,8 @@ Both run through `infra/scripts/lib-deploy.sh`. The shared routine:
 `jkos-deploy/docker-compose.yml` means "Promote to Production" ships exactly what staging ran.
 Flip to `main` to restore a merge-gated flow. The controller cannot redeploy itself — it runs
 as an isolated Compose project; rebuild it manually from the TrueNAS host.
+`bash jkos-deploy/scripts/selftest.sh` is a read-only dry run of the recovery path (scripts
+parse, compose configs validate, nginx conf loads, break-glass gates hold).
 
 ### Break-glass access (prod-jkAuth outage)
 
@@ -159,22 +155,12 @@ an inode at container-create time. That has two consequences:
   `docker-compose.yml`, adding any new bind-mount, then starts it — the one operation that
   can add a mount `restart` cannot.
 
-- `reload_nginx()` in `infra/scripts/lib-deploy.sh` (the deploy pipeline's nginx step, used
-  by both the "Deploy Staging" and staging-owned nginx changes) now **self-heals exactly
-  this** as of commit `4cba7f8`: before touching the running container it diffs every
-  `include` path `standalone.conf` declares against what the live `standalone-nginx`
-  container actually has mounted; if anything is missing it recreates the container via
-  `docker compose up -d` against `infra/nginx/docker-compose.yml` (re-verifying afterward),
-  and only falls back to a plain `docker restart standalone-nginx` when nothing was missing.
-  So the deploy pipeline no longer needs a human to notice and recreate manually — but a
-  manual, ad-hoc `docker restart standalone-nginx` run outside the pipeline still carries the
-  full risk above and should be treated as unsafe whenever the mounted conf set might have
-  drifted.
-
-  **This happened for real on 2026-07-09**: the live `standalone-nginx` container predated
-  the `apps-generated*.conf` bind-mounts, so `/papyros` silently fell through to the ORDECK
-  portal's `location /` instead of PapyrOS's subpath — a routing/mount-drift bug, not a
-  code bug, and the reason `reload_nginx`'s self-heal exists.
+- `reload_nginx()` in `infra/scripts/lib-deploy.sh` (the deploy pipeline's nginx step)
+  **self-heals exactly this**: it diffs every `include` path `standalone.conf` declares
+  against what the live container has mounted, recreates via `docker compose up -d` if
+  anything is missing, and only falls back to a plain restart when nothing was. A manual,
+  ad-hoc `docker restart standalone-nginx` outside the pipeline still carries the full risk
+  above — treat it as unsafe whenever the mounted conf set might have drifted.
 
 ## Staging
 
@@ -193,6 +179,81 @@ expected staging behaviour, not a regression. Re-run with `--token <admin jwt>` 
 
 ---
 
+## KourOS on Android (the TWA)
+
+KourOS ships to Android as a **Trusted Web Activity**: a signed `.apk` whose whole UI is Chrome
+rendering `https://kouros.jkos.net` with the browser chrome removed. It won over a plain PWA
+(not a file you can hand someone) and Capacitor (its `capacitor://localhost` origin breaks the
+`.jkos.net` cookie, the CORS-free peer proxy, and jkAuth's cookie-only user tokens). A TWA
+runs at the real origin, so auth needs **zero changes**.
+
+The chrome only disappears if Chrome can verify the app and the origin belong to the same owner:
+the app's `asset_statements` claims the origin, and the origin's
+`/.well-known/assetlinks.json` names the package and its signing key's SHA-256. If either is
+missing or they disagree, the app still works but shows a URL bar forever, with no error
+anywhere. **Every TWA problem is this problem.** Today `infra/nginx/assetlinks.json` carries
+`"targets": []` until the keystore exists.
+
+### The four traps
+
+1. **`.well-known/` can't ship in `public/`.** `express.static` ignores dotfiles and the SPA
+   fallback answers `index.html` with a 200, so Android's verifier gets HTML. The file is served
+   **at the edge** instead, generated into every prod server block from
+   `infra/nginx/assetlinks.json` by `gen-nginx-weave.mjs`.
+2. **`auth.jkos.net` needs asset links too.** Sign-in redirects to a different origin, and an
+   unverified hop puts a URL bar over the password screen. jkAuth's block is hand-written in
+   `standalone.conf`, so the location exists twice; `pnpm check:nginx` keeps the two identical.
+   Bubblewrap also needs `"additional_trusted_origins": ["https://auth.jkos.net"]` at `init`.
+3. **The DNS record must be orange-cloud (proxied, Full (Strict)).** The origin serves a
+   Cloudflare Origin Certificate, which is not publicly trusted; grey-cloud exposes it and
+   Android refuses the TWA outright. Check from off-LAN:
+   ```bash
+   echo | openssl s_client -connect kouros.jkos.net:443 -servername kouros.jkos.net 2>/dev/null \
+     | openssl x509 -noout -issuer     # must be Let's Encrypt, NOT Cloudflare Origin CA
+   ```
+4. **Keep the keystore.** Lose it and you can never ship an upgrade to the same app. Back it up
+   somewhere that is not this repo; it is deliberately not committed.
+
+### The build
+
+Needs JDK 17 and the Android SDK. Nothing enters the repo except the fingerprint.
+
+```bash
+npx @bubblewrap/cli init --manifest https://kouros.jkos.net/manifest.webmanifest
+#   host kouros.jkos.net, plus the additional trusted origin from trap 2
+npx @bubblewrap/cli build
+keytool -list -v -keystore android.keystore -alias android | grep 'SHA256:'
+```
+
+Put the fingerprint into `infra/nginx/assetlinks.json`:
+
+```json
+{ "targets": [ {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": { "namespace": "android_app", "package_name": "net.jkos.kouros",
+                "sha256_cert_fingerprints": ["AA:BB:…"] } } ] }
+```
+
+Then `node infra/nginx/gen-nginx-weave.mjs && pnpm check:nginx`, deploy staging (it owns the
+nginx config), and **restart nginx, never reload**. Install with
+`adb install app-release-signed.apk` or copy the APK to the phone.
+
+### Verifying
+
+```bash
+# JSON, not HTML — on BOTH origins
+curl -s -o /dev/null -w '%{http_code} %{content_type}\n' https://kouros.jkos.net/.well-known/assetlinks.json
+curl -s -o /dev/null -w '%{http_code} %{content_type}\n' https://auth.jkos.net/.well-known/assetlinks.json
+```
+
+Then on the phone, **with Wi-Fi off**: it opens full-screen with no URL bar, including through the
+login redirect; sign-in survives a cold start; the lock screen shows artwork, transport and a
+moving scrubber; Android back from Now Playing collapses the sheet; airplane mode still opens the
+shell. If the URL bar is there, it's trap 1, 2, 3 or 4, in that order of likelihood —
+`adb logcat | grep -i digitalasset` usually names which.
+
+---
+
 ## Cold start (from zero)
 
 ### Prerequisites
@@ -206,7 +267,8 @@ expected staging behaviour, not a regression. Re-run with `--token <admin jwt>` 
 | `beigeboard.jkos.net` |
 | `staging.jkos.net` |
 
-Use DNS-only (grey cloud) for Cloudflare origin-cert TLS, or Full (Strict) with proxying.
+Use proxied (orange cloud) with Full (Strict) — the origin's Cloudflare Origin Certificate
+isn't publicly trusted, and the KourOS Android app refuses a grey-cloud origin (§ KourOS on Android).
 
 **SSL** — Cloudflare origin cert (wildcard `*.jkos.net` + apex):
 
@@ -340,10 +402,10 @@ reference.
 |----------|-------|-------|
 | `JKOS_AUTH_PRIVATE_KEY` | `apps/jkauth/.env` only | RS256 private key, inline `\n`. Never in any other app. |
 | `JKOS_AUTH_PUBLIC_KEY` | every backend + jkauth | Required by `@jkos/auth-middleware`. |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | beigeboard only | Calendar sync. **jkAuth no longer has a Google surface** — its OAuth login was removed in the 2026-08-26 reset (Stage C1), so these vars are gone from `apps/jkauth/.env`. |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | beigeboard only | Calendar sync only. jkAuth has no Google surface. |
 | `JKOS_2FA_ENC_KEY` | `apps/jkauth/.env` | Envelope key sealing TOTP secrets at rest (AES-256-GCM). Generate: `openssl rand -hex 32`. **Unset → TOTP enrolment is refused** rather than writing a readable secret; existing plaintext secrets still verify and are sealed at the first boot that has the key. Losing it makes every enrolled authenticator invalid — treat it like the signing key. |
 | `SESSION_TTL_MS` / `SESSION_ABSOLUTE_TTL_MS` / `SESSION_TOMBSTONE_MS` | `apps/jkauth/.env` | Optional. Idle window for an unremembered login (24 h), the absolute cap no activity extends (90 d), and how long revoked-session evidence is kept (30 d). |
-| `LAZUROS_INTERNAL_TOKEN` | lazuros + each compute-node worker | Bearer for the State node's `/internal` worker API (LAN-only, not edge-exposed). **Not** shared with BeigeBoard — BB holds no LazurOS keys. There is no `LAZUROS_TOKEN` (its last reader, SylibOS, was removed 2026-09-16). |
+| `LAZUROS_INTERNAL_TOKEN` | lazuros + each compute-node worker | Bearer for the State node's `/internal` worker API (LAN-only, not edge-exposed). **Not** shared with BeigeBoard — BB holds no LazurOS keys. |
 | `CALENDAR_ENC_KEY` | `apps/beigeboard/.env` | 64 hex chars → AES-256-GCM encryption of calendar OAuth tokens at rest. Generate: `openssl rand -hex 32`. |
 | `JKOS_SERVICE_CLIENTS` | `apps/jkauth/.env` | `"id:secret:scopeA\|scopeB,..."` — enables `POST /auth/token` (client-credentials). Unset → endpoint disabled. |
 
@@ -379,14 +441,9 @@ for every location block.
 
 ### nginx config bind-mount inode pinning
 
-`standalone.conf` and its four generated includes are file bind mounts. `git reset --hard`
-replaces the inode; `nginx -s reload` re-reads the old (stale) inode — never relied on. A
-bare `docker restart standalone-nginx` refreshes already-mounted inodes but **cannot add a
-new bind-mount**, so it's only safe when the mounted conf set hasn't changed; otherwise
-RECREATE (`cd infra/nginx && docker compose up -d`). Full anatomy, the self-healing
-`reload_nginx()`, and the 2026-07-09 incident it fixed: § Nginx config above. The deploy
-controller runs this automatically on staging deploys where `infra/nginx` changed; prod
-deploys skip nginx entirely.
+Never `nginx -s reload`; restart only when the mounted conf set is unchanged, otherwise
+recreate. Full anatomy: § Nginx config above. Prod deploys skip nginx entirely, so a new
+peer is inert in prod until a manual recreate.
 
 ### git on TrueNAS — mode-bit / lock failures
 

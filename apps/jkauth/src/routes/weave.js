@@ -35,7 +35,7 @@ router.get('/auth/apps', (req, res) => {
 router.get('/auth/events', (req, res) => {
   const jwtUser = resolveUser(req)
   if (!jwtUser) return res.status(401).json({ error: 'Not authenticated', code: 'UNAUTHENTICATED' })
-  /* The suite's one paging contract (RESET A2c.2) — this was the third hand-rolled
+  /* The suite's one paging contract (WEAVE.md §3.2) — this was the third hand-rolled
      clamp, and three that disagree is what makes a cross-app fan-out unmergeable. */
   const limit = pageLimit(req.query.limit, { fallback: 50, max: 200 })
   // 'events:read:all' is the ADMIN view of the whole suite's trail; everyone

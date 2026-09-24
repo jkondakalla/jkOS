@@ -178,7 +178,7 @@ const MIGRATIONS = [
     id: 5, name: 'goal_engine',
     up(d) {
       /*
-       * The Breakdown Method (Documentation/PLANNING_METHOD.md). Goals carry a
+       * The Breakdown Method. Goals carry a
        * definition of done + horizon; the old month/week calendar buckets become
        * ordered milestones flattened directly under their goal.
        */
@@ -299,7 +299,7 @@ const MIGRATIONS = [
     id: 9, name: 'routines',
     up(d) {
       /*
-       * ROUTINES — the cadence engine (Documentation/PLANNING_METHOD.md).
+       * ROUTINES — the cadence engine (Documentation/agents/ROUTINES.md).
        *
        * A routine (kind:'routine') declares WHEN a habit repeats; its occurrences
        * are ordinary kind:'task' rows minted under it. See src/item-fields.js for
@@ -563,7 +563,7 @@ const MIGRATIONS = [
     up(d) {
       /*
        * THE TWO FACTS THE SCHEMA COULD NOT ANSWER — and why this migration is
-       * urgent in a way no other one has been (Documentation/ALGORITHMS.md §3).
+       * urgent in a way no other one has been (Documentation/agents/ALGORITHMS.md §3).
        *
        * A routine holds DECLARED INTENT as progression rules; its occurrences hold
        * ACTUAL BEHAVIOUR. Those two records diverge invisibly from either side
@@ -780,7 +780,7 @@ function runMigrations() {
 // listen() call touches it (the monolith did this in boot() before app.listen).
 runMigrations();
 
-/* The write-door dedup store (RESET A2c.4) — WEAVE's table, not BeigeBoard's, which
+/* The write-door dedup store (WEAVE.md §3.4) — WEAVE's table, not BeigeBoard's, which
  * is why it is not a numbered migration above. A migration freezes a schema at the
  * moment it ran; this one belongs to @jkos/weave, and every app that mounts a
  * `defineCollection` re-applies the same `CREATE … IF NOT EXISTS` on every boot. BB

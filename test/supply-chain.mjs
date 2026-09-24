@@ -6,7 +6,7 @@
 // ABSENCE is itself a finding in a security-focused portfolio — which is the
 // whole reason this exists rather than "we run pnpm audit sometimes".
 //
-// THE FLOOR IS `high` (raised 2026-09-16, D4 in TODO.md). It was `critical` for three
+// THE FLOOR IS `high` (raised 2026-09-16). It was `critical` for three
 // weeks, deliberately: 13 HIGH advisories existed on 2026-08-27, and a floor nobody could
 // turn green on day one is one people learn to skip. It went up the day it could land
 // green — ORDECK to vite 6, range-scoped security floors in pnpm-workspace.yaml for four

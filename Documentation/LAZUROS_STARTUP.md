@@ -1,8 +1,7 @@
 # LazurOS — Tier 0 / 1 / 2 Bring-Up Guide (Luna + Emily)
 
-How to take LazurOS from "code-complete, Phases 0–6 + 8" to serving live inference across your
-two-node setup. This is the live bring-up (the ToDo §1 (retired) unblockers plus Phase 5), not
-the later BeigeBoard AI rebuild (§1d).
+How to take LazurOS from code-complete to serving live inference across your two-node setup
+(step L1 of the ladder in [TODO.md](TODO.md) §5). Not the later BeigeBoard AI rebuild.
 
 **Verified against the repo (2026-07-13).** Every field name, port, env var, path, and command
 below was read from the actual source — `deployment.jag.json`, `backend/server.js`,
@@ -69,7 +68,7 @@ token strong and the LAN trusted.
 
 ---
 
-## Prerequisites (the ToDo §1b unblockers)
+## Prerequisites
 
 The first two block everything — no worker will even start without them.
 
@@ -193,8 +192,7 @@ Each node ships **only the capability slice it serves**: Luna's `models.json` / 
 carry the tier-0 capabilities, Emily's carry the heavy ones. A capability present in one node's
 map and absent from the other's is normal.
 
-Emily does **not** need the `docker` group. That ToDo item was only ever about building lazuros
-images on Emily during dev. The tier-2 worker is plain Python plus Ollama.
+Emily does **not** need the `docker` group — the tier-2 worker is plain Python plus Ollama.
 
 ---
 
@@ -211,9 +209,8 @@ cd "/media/jag/The Forge/jkOS/apps/lazuros"
 cp deployment.jag.json deployment.json     # gitignored, bind-mounted :ro
 ```
 
-> **Use `deployment.jag.json`, not `deployment.example.json`.** The example config is **not yet
-> asserted to validate** against `validateDeploymentConfig` (ToDo §1.2 is exactly that gap), so
-> it can waste your time. The `.jag.json` file is the real one.
+> **Use `deployment.jag.json`, not `deployment.example.json`.** Both validate under test, but the
+> `.jag.json` file carries your real topology.
 
 Real committed shape (top level):
 
@@ -439,7 +436,7 @@ inline.
 
 It talks to the server over the **same public HTTP contract any peer app uses**, so a green run
 there is evidence about the real path. **This is the surface to prove Phase 5 on, before any app
-depends on the gateway** (and before the §1d BeigeBoard AI build).
+depends on the gateway**.
 
 Note it is **staging-only** — there is no `/LazurOS` location in the prod conf.
 
@@ -500,7 +497,7 @@ node packages/suite-prober/roundtrip.mjs --live https://staging.jkos.net --token
   works for Luna's own worker. `LAZUROS_INTERNAL_TOKEN` is required — the worker hard-exits without it.
 - **`/internal` is LAN-only, not edge-exposed.** Only the bearer protects it.
 - **`deployment.jag.json` already exists** — fill three blanks, copy to `deployment.json`. Don't
-  rewrite from scratch, and don't start from `deployment.example.json` (not yet gate-validated).
+  rewrite from scratch.
 - **Embeddings ride Luna's Ollama** (`/api/embeddings` on 11434) — just `ollama pull
   bge-small-en-v1.5`. No separate embedding server.
 - **RX 560 = Vulkan, not ROCm** (infra choice, unenforced by code). **RTX 3080 = CUDA, native.**
@@ -510,13 +507,5 @@ node packages/suite-prober/roundtrip.mjs --live https://staging.jkos.net --token
   peer block. (Phase E.6)
 - **BeigeBoard has no AI any more.** Its `/api/ai/*` chat-proxy surface was **deleted**
   (2026-07-13): it called a `POST /api/chat` this LazurOS never served, and `BB_AI_ENABLED` was
-  set in no compose file, so it was already dead. Phase 7 is therefore a **build**, not a cutover,
-  and it is not a startup step — see ToDo §1d (retired).
-
-## Known code gaps — CLOSED (ToDo §1a)
-
-All four gaps this section used to list are fixed and gate-wired: `worker.smoke.py` rides the
-node gate (`backend/test/worker-py.smoke.mjs`, only skips when `python3` itself is absent); both
-`deployment.example.json` and `deployment.jag.json` validate under test; the `jobs` dataset
-declares and enforces `capability` + `since`; `worker.py`'s dangling `LAZUROS.md` citations were
-repointed at [ARCHITECTURE.md § LazurOS](ARCHITECTURE.md). None of this blocks bring-up.
+  set in no compose file, so it was already dead. Rebuilding BeigeBoard's AI on LazurOS is
+  therefore a **build**, not a cutover, and not a startup step.

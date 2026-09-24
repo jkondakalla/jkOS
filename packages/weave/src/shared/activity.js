@@ -45,7 +45,7 @@ export const ACTIVITY_PATH = '/activity'
 /** How many events one app may return in a single answer. A merge across five
  *  apps is a phone rendering a list; an unbounded ledger read is neither useful
  *  nor safe, and a caller that wants more should walk `before`. */
-/* ⚠️ FROM THE ONE PAGING CONTRACT (RESET A2c.2), not two more numbers. Three
+/* ⚠️ FROM THE ONE PAGING CONTRACT (WEAVE.md §3.2), not two more numbers. Three
    hand-rolled clamps that disagreed is what made a cross-app fan-out unmergeable in
    the first place — "give me 100" meaning three different windows, and the merged
    page silently short. */
@@ -128,7 +128,7 @@ export function checkActivityDoc(doc) {
   if (!doc || typeof doc !== 'object') return 'doc must be an object'
   if (typeof doc.app !== 'string' || !doc.app) return 'doc.app must be a non-empty string'
   if (typeof doc.version !== 'number') return 'doc.version must be a number'
-  /* The same fail-closed rule the other two declarations obey (RESET A2c.3): a
+  /* The same fail-closed rule the other two declarations obey (WEAVE.md §3.3): a
      consumer that half-understands a contract is worse than one that refuses. */
   if (doc.version > MAX_DOC_VERSION) {
     return `${DOC_VERSION_UNSUPPORTED}: doc.version ${doc.version} is newer than this consumer understands (max ${MAX_DOC_VERSION})`

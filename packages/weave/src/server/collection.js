@@ -132,7 +132,7 @@ function defineCollection(def) {
   const capabilities = [
     ops.has('create') && {
       id: `create${Noun}`, label: `Add ${article(label || Noun)}`, method: 'POST', path: `/${id}`,
-      // ⭐ THE RESERVED IDEMPOTENCY FIELD, DECLARED (RESET A2c.4). The trigger
+      // ⭐ THE RESERVED IDEMPOTENCY FIELD, DECLARED (WEAVE.md §3.4). The trigger
       // engine has always SENT one; until this line no capability in the suite
       // said it accepted one, so a GUI or an AI reading the contract could not
       // know the door dedups — and the writer below dropped the key as an unknown
@@ -331,7 +331,7 @@ function defineCollection(def) {
           const keys = Object.keys(d)
           if (!keys.length) return res.status(400).json({ error: 'No valid fields' })
 
-          /* ⭐ DEDUP AT THE WRITE DOOR (RESET A2c.4). The trigger engine has always
+          /* ⭐ DEDUP AT THE WRITE DOOR (WEAVE.md §3.4). The trigger engine has always
              sent a DERIVED key — same trigger + same event ⇒ same key — and until
              this call nothing in the suite read it: the writer dropped it as an
              unknown body field and a retried DO wrote a second row. Idempotency is

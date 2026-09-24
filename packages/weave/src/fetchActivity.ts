@@ -79,7 +79,7 @@ export async function fetchAppActivity(
        malformed row would poison a merged sort — the merge is a string compare on
        `at`, so a non-canonical stamp does not throw, it silently lands in the wrong
        place in the feed, which is far worse than an app that goes quiet.
-       ⚠️ This is also where the fail-closed VERSION rule lands (RESET A2c.3): a doc
+       ⚠️ This is also where the fail-closed VERSION rule lands (WEAVE.md §3.3): a doc
        whose `version` is newer than this consumer understands is refused outright
        rather than half-read, and reports as `malformed` so the caller can say so. */
     return isValidActivityDoc(doc) ? { doc, status: 'ok' } : { doc: null, status: 'malformed' };
@@ -102,7 +102,7 @@ export interface ActivityFeed {
  * The merged cross-app feed, newest first. Asks every app that declares an activity
  * surface, in parallel, and merges.
  *
- * ⭐ RETURNS AN EXPLICIT PER-APP STATUS LIST (RESET A2c.4). A partial result must be
+ * ⭐ RETURNS AN EXPLICIT PER-APP STATUS LIST (WEAVE.md §3.4). A partial result must be
  * VISIBLY partial, never silently short.
  *
  * ⚠️ This is a ruling the first version of this function broke. It returned a bare

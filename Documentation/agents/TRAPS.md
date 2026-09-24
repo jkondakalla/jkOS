@@ -3,8 +3,7 @@
 A trap is a fact about an engine, a library, a filesystem, a runtime, or this repo's shape that
 cost real debugging time and will cost it again if forgotten. This is not project history — it's
 what survives from 59 memory files after everything about *when* something shipped or *who*
-decided what was stripped out. `Documentation/RESET.md` is where decisions live; this is where
-scar tissue lives.
+decided what was stripped out. Decisions live in `CLAUDE.md` and `Documentation/TODO.md`; this is where scar tissue lives.
 
 Every claim below that names a file, function, flag, or command was re-checked against the repo
 on 2026-08-26 (branch `staging` @ `1e278fb`). Where a fix has already landed, the trap is written
@@ -851,7 +850,7 @@ that code can reopen it.
 
 - **`music/` lives outside the pnpm workspace on purpose.** `pnpm-workspace.yaml` globs only
   `apps/*`, `apps/*/backend`, and `packages/*` — `music/` matches none of them, has its own
-  `requirements.txt` (hard-capped at `numpy` + `onnxruntime`, nothing else — see `RESET.md` §0),
+  `requirements.txt` (hard-capped at `numpy` + `onnxruntime`, nothing else — see `CLAUDE.md`),
   and runs its own `unittest`-based test suite independent of `pnpm test:contracts`. **A green
   `pnpm test:contracts` says nothing about whether `music/`'s own tests pass.** Run
   `./.venv/bin/python -m unittest discover` inside `music/` to check it.

@@ -501,7 +501,7 @@ function WhenField({ event, isTask, isEvent, onUpdateItem }: any) {
   const isMultiDay = event.end_date && event.end_date !== event.due_date
 
   // The weekly bench: a task committed to this week but no day yet (week_start set,
-  // no due_date). See PLANNING_METHOD.md → the weekly bench.
+  // no due_date).
   const benched   = isTask && event.week_start && !event.due_date
   const weekLabel = event.week_start
     ? localDate(event.week_start).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })

@@ -1,5 +1,5 @@
-// @jkos/weave idempotency tests — DEDUP AT THE WRITE DOOR (RESET A2c.4, the owed
-// half; Documentation/WEAVE.md §3.4).
+// @jkos/weave idempotency tests — DEDUP AT THE WRITE DOOR (WEAVE.md §3.4, the owed
+// half; Documentation/agents/WEAVE.md §3.4).
 //
 // ⚠️ WHY THIS FILE EXISTS AND WHAT MADE IT NECESSARY. The trigger engine has always
 // sent a DERIVED `idempotency_key`, and the suite's docs claimed for a long time

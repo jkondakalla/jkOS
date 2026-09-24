@@ -78,7 +78,7 @@ try {
   await execFileAsync('ffmpeg', ['-version']);
 } catch {
   console.warn('⚠ SKIPPED playback.smoke: `ffprobe`/`ffmpeg` is not on PATH.');
-  console.warn('  Install ffmpeg (which provides both) to run this smoke — see Documentation/TESTING.md.');
+  console.warn('  Install ffmpeg (which provides both) to run this smoke — see Documentation/agents/TESTING.md.');
   process.exit(0);
 }
 

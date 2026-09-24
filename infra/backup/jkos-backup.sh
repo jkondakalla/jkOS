@@ -21,8 +21,7 @@
 #    the key grants is already read-only access to data that leaves here encrypted.
 #
 #  · THE ARCHIVE IS ENCRYPTED AT REST, and this script FAILS CLOSED if it cannot encrypt.
-#    The payload contains password hashes, PLAINTEXT TOTP SECRETS (jkAuth stores the seed
-#    unencrypted — see RESET.md JK-A4) and the suite's TLS private key. This drive is
+#    The payload contains password hashes, TOTP SECRETS and the suite's TLS private key. This drive is
 #    unencrypted ext4, so an unencrypted backup here would mean a stolen or discarded disk
 #    hands over every user's second factor. Refusing to run beats writing that in the clear.
 #

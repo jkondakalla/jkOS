@@ -1,5 +1,4 @@
-// pulsarmap.mjs — the pure math under the pulsarmap renderer (ALGORITHMS.md §9,
-// TODO.md §2 block 8).
+// pulsarmap.mjs — the pure math under the pulsarmap renderer (ALGORITHMS.md §9).
 //
 // ⚠️ WHY THIS GATE EXISTS. Every failure mode in `pulsarmap.ts` is SILENT. A
 // reveal driven off a rounded row duration drifts 3 ms per row and is a whole row

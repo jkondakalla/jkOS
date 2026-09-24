@@ -64,7 +64,7 @@ surface with no nginx peer to route it (probe `90-nginx-coverage`).
 file sync) — and now this prober too. The prober is the cross-system half of that gate:
 besides failing on `drift`, it surfaces duplicated truth and unenforced coupling that no
 single per-system test owns because it spans systems (reported as `consolidate`/`gap`,
-non-failing). Suite-level framing lives in [Documentation/TESTING.md](../../Documentation/TESTING.md).
+non-failing). Suite-level framing lives in [Documentation/agents/TESTING.md](../../Documentation/agents/TESTING.md).
 
 ## How it is built to expand (nothing is hard-coded)
 

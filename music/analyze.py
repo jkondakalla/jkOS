@@ -18,7 +18,7 @@ already owns it (`backfill.run`, `descriptors`, `mesh`, `query`, `ship`). This f
 owns the ORDER, the guards between stages, and the hand-off.
 
 ⚠️ **READ-ONLY USE OF THE FOUR FILES** (`config.py` · `mel.py` · `encoder.py` ·
-`audio.py`, RESET.md §0a). They are imported, never edited, and nothing below
+`audio.py`, CLAUDE.md). They are imported, never edited, and nothing below
 re-derives a parameter they define.
 
 ⚠️ **EVERY STAGE IS RESUMABLE BY CONSTRUCTION, SO THE SEQUENCE IS TOO.** Each work

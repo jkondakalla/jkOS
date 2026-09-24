@@ -212,7 +212,7 @@ router.post('/api/import', (req, res) => {
       for (const c of plan.childrenOf[i]) insertNode(c, r.lastInsertRowid);
     };
 
-    /* ⭐ DEDUP AT THE WRITE DOOR (RESET A2c.4). This is the door LazurOS's write-back
+    /* ⭐ DEDUP AT THE WRITE DOOR (WEAVE.md §3.4). This is the door LazurOS's write-back
        commits a parsed task or a broken-down goal through, and a job can legitimately
        finish TWICE: the reaper requeues one that ran past its timeout while the first
        worker is still going, and both then post DONE. Without this each DONE imported

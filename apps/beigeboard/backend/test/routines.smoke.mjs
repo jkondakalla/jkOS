@@ -489,7 +489,7 @@ try {
   // ── K. VARIANCE INSTRUMENTATION (migration 13) ─────────────────────────────
   //     The two facts nothing in this schema could answer, and that no later code
   //     can recover — they exist only if they are recorded as they happen
-  //     (Documentation/ALGORITHMS.md §3). Tested through HTTP like everything else
+  //     (Documentation/agents/ALGORITHMS.md §3). Tested through HTTP like everything else
   //     here, because the stamp is a TRIGGER and the point of a trigger is that it
   //     fires for the routes that forgot about it.
   const kMade = await req('POST', '/api/items', {

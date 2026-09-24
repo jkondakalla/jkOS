@@ -1,4 +1,4 @@
-// idempotency.js — the reserved idempotency field, named ONCE (RESET A2c.4).
+// idempotency.js — the reserved idempotency field, named ONCE (WEAVE.md §3.4).
 //
 // ⚠️ THIS FILE EXISTS BECAUSE THE NAME HAD TWO SPELLINGS. `capability.ts` declared
 // `IDEMPOTENCY_FIELD = 'idempotency_key'` for design-time consumers while

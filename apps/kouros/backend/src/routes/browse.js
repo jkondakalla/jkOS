@@ -34,7 +34,7 @@ const ALBUM_SELECT = `
    WHERE album IS NOT NULL AND album <> ''
 `;
 
-/* ⚠️ THE SUITE'S ONE PAGING CONTRACT (RESET A2c.2). This file used to hold TWO
+/* ⚠️ THE SUITE'S ONE PAGING CONTRACT (WEAVE.md §3.2). This file used to hold TWO
    hand-rolled clamps that disagreed with each other — (120, 600) and (300, 2000) —
    and jkAuth held a third. Three conventions is not a style problem: it is what makes
    a cross-app fan-out unmergeable, because "give me 100" means three different
@@ -63,7 +63,7 @@ function createBrowseRouter({ db }) {
   router.get('/api/albums', (req, res) => {
     try {
       const limit = clampLimit(req.query.limit, 120);
-      /* ⚠️ OFFSET, WHICH THE SUITE'S PAGING RULING FORBIDS (RESET A2c.2) — kept here
+      /* ⚠️ OFFSET, WHICH THE SUITE'S PAGING RULING FORBIDS (WEAVE.md §3.2) — kept here
          deliberately and bounded, not overlooked.
          The ruling's reason is that an offset is unstable under CONCURRENT WRITES:
          insert a row mid-page and the caller skips one or sees one twice, silently.
@@ -74,7 +74,7 @@ function createBrowseRouter({ db }) {
          a real piece of work and not this one.
          ⚠️ The moment this catalog gains incremental writes (a user-editable tag, a
          per-track rating that reorders), this becomes the bug the ruling describes.
-         Recorded in BACKLOG.md rather than left as a comment nobody tracks. */
+         Recorded in Documentation/TODO.md rather than left as a comment nobody tracks. */
       const offset = Math.max(0, Number.parseInt(req.query.offset, 10) || 0);
       const params = [];
       let where = '';

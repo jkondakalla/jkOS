@@ -25,7 +25,7 @@
  *                                          spliced in, so the agent writes `ref`s
  *                                          that actually resolve.
  *   · The paste pane's "Copy prompt"    — the same call, onto the clipboard.
- *   · Documentation/ROUTINE_PROMPT.md   — the generic copy, checked in, generated
+ *   · Documentation/agents/ROUTINE_PROMPT.md   — the generic copy, checked in, generated
  *                                          by scripts/print-prompt.mjs.
  *
  * ─────────────────────────────────────────────────────────────────────────────

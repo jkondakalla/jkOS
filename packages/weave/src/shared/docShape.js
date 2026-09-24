@@ -14,7 +14,7 @@
 // name-import a workspace CJS module. The authoritative TS shapes live in
 // ../capability.ts and ../dataset.ts; the .d.ts twin types this guard.
 
-/* ⭐ THE HIGHEST DECLARATION VERSION THIS CODE UNDERSTANDS (RESET A2c.3).
+/* ⭐ THE HIGHEST DECLARATION VERSION THIS CODE UNDERSTANDS (WEAVE.md §3.3).
  *
  * ⚠️ `version` was declared and not actionable: this file checked `typeof
  * doc.version === 'number'` and the docs said "bump on a breaking field change", and

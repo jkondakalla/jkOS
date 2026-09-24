@@ -113,7 +113,7 @@ export interface CapabilityDef {
    */
   resolves?: BodyField[];
   /**
-   * ⭐ THE RESERVED IDEMPOTENCY FIELD (RESET A2c.4). A write capability accepts an
+   * ⭐ THE RESERVED IDEMPOTENCY FIELD (WEAVE.md §3.4). A write capability accepts an
    * optional `idempotency_key` in its body, and the trigger engine ALWAYS sends one.
    *
    * ⚠️ Why it matters here specifically: a trigger's DO is a write fired by an event,

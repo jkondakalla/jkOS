@@ -69,7 +69,7 @@ function parseImportDoc(result) {
   }
 }
 
-/* ⭐ THE WRITE-BACK'S IDEMPOTENCY KEY (RESET A2c.4) — derived from the JOB, never random.
+/* ⭐ THE WRITE-BACK'S IDEMPOTENCY KEY (WEAVE.md §3.4) — derived from the JOB, never random.
  *
  * ⚠️ A job can legitimately finish TWICE. The reaper (queue.js requeueStaleJobs) hands a
  * job that has been IN_PROGRESS past its timeout back to the queue, and a slow inference
