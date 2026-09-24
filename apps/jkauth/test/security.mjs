@@ -31,6 +31,8 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import Database from 'better-sqlite3';
 import { TOTP, Secret } from 'otpauth';
+import { createRequire } from 'node:module';
+const { APP_IDS } = createRequire(import.meta.url)('@jkos/suite-manifest');
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SERVER = join(__dirname, '..', 'server.js');
@@ -472,13 +474,16 @@ try {
     const probe = spawnSync(process.execPath, ['-e',
       "process.stdout.write(JSON.stringify(require('./src/db.js').roleClaims('admin')))"],
       { cwd: join(__dirname, '..'), env: { ...process.env, DB_PATH: adminDb, NODE_ENV: 'test' }, encoding: 'utf8' });
-    const adminScope = (() => { try { return JSON.parse(probe.stdout.trim().split('\n').pop()).scope; } catch { return []; } })();
+    const adminClaims = (() => { try { return JSON.parse(probe.stdout.trim().split('\n').pop()); } catch { return {}; } })();
+    const adminScope = adminClaims.scope || [];
     ok('an admin gets <app>:admin where the app DECLARES an admin surface (kouros)',
       adminScope.includes('kouros:admin'), probe.stdout + probe.stderr);
-    // PapyrOS folded into KourOS (2026-09-23, migration 022): a retired app must not
-    // go on appearing in every token's scope.
-    ok('…and nothing for a retired app (papyros, sylibos)',
-      !adminScope.some((s) => /^(papyros|sylibos):/.test(s)), JSON.stringify(adminScope));
+    // A retired app must not go on appearing in every token: each audience and scope
+    // names an app the manifest declares (`suite:` is the one suite-wide prefix).
+    const declared = new Set(APP_IDS);
+    ok('…and every audience and scope names a DECLARED app — nothing for a retired one',
+      adminScope.length > 0 && adminScope.every((s) => declared.has(s.split(':')[0]) || s.startsWith('suite:'))
+        && (adminClaims.aud || []).every((a) => declared.has(a)), JSON.stringify(adminClaims));
     ok('…and NOT for apps that declare none (beigeboard, lazuros, ordeck, auth, jkdeploy)',
       !adminScope.some((s) => /^(beigeboard|lazuros|ordeck|auth|jkdeploy|staging):admin$/.test(s)), JSON.stringify(adminScope));
     ok('…and suite:admin is unchanged', adminScope.includes('suite:admin'), JSON.stringify(adminScope));

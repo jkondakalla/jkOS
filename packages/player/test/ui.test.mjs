@@ -129,7 +129,9 @@ check(!/#[0-9a-fA-F]{3,8}\b/.test(decls), 'player-ui.css: no hardcoded hex colou
 const fontDecls = [...decls.matchAll(/font-family:\s*([^;]+);/g)].map((m) => m[1]);
 check(fontDecls.length > 0 && fontDecls.every((v) => v.includes('var(--hub-font-')),
   'player-ui.css: every font-family reads a --hub-font token');
-check(!/papyros/i.test(decls), 'player-ui.css: no app-specific selectors leaked into the kit sheet');
+const classes = [...decls.matchAll(/(?<![\w-])\.([a-zA-Z][\w-]*)/g)].map((m) => m[1]);
+const foreign = [...new Set(classes.filter((c) => !/^(pb-|player-|jk-)/.test(c)))];
+check(foreign.length === 0, `player-ui.css: every class is the kit's own (pb-/player-) or a suite primitive (jk-) — no app selectors leaked (${foreign.join(', ')})`);
 check(/\.player-bar\s*\{/.test(decls) && /\.pb-btn\s*\{/.test(decls) && /\.pb-scrubber\s*\{/.test(decls),
   'player-ui.css: ships the shell, button, and scrubber rules the kit components class against');
 
