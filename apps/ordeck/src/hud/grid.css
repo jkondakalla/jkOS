@@ -106,10 +106,14 @@
    diagonal chevron, pinned tight into the curve (6px) so it reads as an edge
    handle rather than a floating button. Larger touch target than its glyph via
    padding; brightens on hover/press. pointer-events stay on — this one IS the
-   gesture surface (unlike the display-only pin). */
+   gesture surface (unlike the display-only pin). width:auto / flex:none opt it
+   out of the `.hud-cell > *` card stretch — without them it spans the whole
+   bottom edge and the chevron centres there instead of in the corner. */
 .hud-cell > .hud-cell-resize {
   position: absolute;
   inset: auto 6px 6px auto;
+  width: auto;
+  flex: none;
   z-index: 10;
   display: inline-flex;
   align-items: center;

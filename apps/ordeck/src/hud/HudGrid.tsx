@@ -242,23 +242,31 @@ export const HudGrid = forwardRef<HudGridHandle, HudGridProps>(function HudGrid(
   }
 
   /** Drag the bottom-right grip to resize a card in place. The top-left cell is
-   *  the anchor (captured once, stable — the doc isn't committed mid-gesture);
-   *  w/h follow the pointer, snapped to whole grid units and clamped to the
-   *  card's legibility minimum (minSize) and the grid's right edge. On release
-   *  the new footprint commits through onLayoutChange, flagged `userSized` so the
-   *  published-registry merge won't snap it back to the author default. */
+   *  the anchor (captured once, stable — the doc isn't committed mid-gesture).
+   *  Like a move's grab offset, the pointer's offset from the card's bottom-right
+   *  corner is captured at press, so the corner tracks the pointer RELATIVE to
+   *  where the grip was grabbed — a press without travel keeps the footprint
+   *  exactly. w/h snap to whole grid units, clamped to the card's legibility
+   *  minimum (minSize) and the grid's right edge. On release the new footprint
+   *  commits through onLayoutChange, flagged `userSized` so the published-registry
+   *  merge won't snap it back to the author default. */
   function onResizePointerDown(e: ReactPointerEvent, item: GridItem) {
     e.stopPropagation();                       // never start a move drag from the grip
     const start = baseItems.find((i) => i.i === item.i);
     if (!start) return;
     const def = state.widgets[item.i];
     const min = minSize(def, cols);
+    const r0 = areaRef.current?.getBoundingClientRect();
+    const slot = rectOf(start);
+    const offX = r0 ? e.clientX - r0.left - (slot.left + slot.width) : 0;
+    const offY = r0 ? e.clientY - r0.top - (slot.top + slot.height) : 0;
     const track = (clientX: number, clientY: number) => {
       const r = areaRef.current?.getBoundingClientRect();
-      const px = (r ? clientX - r.left : clientX) - start.x * stepX;
-      const py = (r ? clientY - r.top : clientY) - start.y * stepY;
-      const w = Math.max(min.w, Math.min(cols - start.x, Math.round(px / stepX)));
-      const h = Math.max(min.h, Math.round(py / stepY));
+      // The card's dragged-to size in px; a w-unit card spans w·step − gap.
+      const widthPx = (r ? clientX - r.left : clientX) - offX - slot.left;
+      const heightPx = (r ? clientY - r.top : clientY) - offY - slot.top;
+      const w = Math.max(min.w, Math.min(cols - start.x, Math.round((widthPx + gap) / stepX)));
+      const h = Math.max(min.h, Math.round((heightPx + gap) / stepY));
       setResize({ id: item.i, w, h });
     };
 
