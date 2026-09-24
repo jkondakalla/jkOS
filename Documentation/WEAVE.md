@@ -541,6 +541,24 @@ chokepoint inside `weaveAuth` and rewrites the effective subject to the acting u
 `act` sits inside the RS256 signature — the trust chain is the client secret plus jkAuth's
 allow-list.
 
+**A live channel (SSE).** The suite has two: jkDeploy's log stream and KourOS's listening
+session (`apps/kouros/backend/src/session/routes.js` + `apps/kouros/src/session/client.ts`,
+the fuller of the two). What a new one must do, each learned the hard way:
+- **Down by SSE, up by POST — no WebSocket dependency.** Writes stay POST/PATCH/DELETE so the
+  write gate and the scope apply (never PUT). The stream route carries `// app-private:`; the
+  document it streams is declared as a dataset, the doors as capabilities.
+- **Read it with `fetch`, through `authFetch` — never `EventSource`**, which cannot see a status
+  code: a 401 on open is invisible to it and it reconnects into the same 401 for ever, where
+  `authFetch` refreshes once, deduped across tabs.
+- **The server ends the stream at the token's `exp`** with an event saying so; a channel checked
+  once at open must not outlive its credential.
+- **`X-Accel-Buffering: no` + `Cache-Control: no-cache, no-transform`, and a comment ping under
+  the edge's 60 s read timeout** — no nginx change needed.
+- **A reconnect starts from a snapshot**, not a replay, with jittered backoff.
+- **An open socket is not presence.** A client that loses signal closes nothing; if liveness
+  matters, it needs an application heartbeat (TRAPS.md). And a hub of connections held in memory
+  is correct only for a single process — say so where it is built.
+
 ### Provisioning — ⚠️ set nowhere today
 
 | Variable | Where | Effect |

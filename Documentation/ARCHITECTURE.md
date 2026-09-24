@@ -227,9 +227,24 @@ track (`rateApplies`). The library bind-mounts are environment knobs; the compos
 documents at length why the obvious host path (`/mnt/Luna/Plex/Music`) is wrong on the
 TrueNAS host itself (the real data is under `/mnt/Luna/Luna/Plex/Music` — a CIFS-share vs.
 host-dataset spelling mismatch that mounts cleanly empty rather than failing). The player
-is `@jkos/player`'s second consumer, with its own queue/shuffle/repeat preferences
-persisted to `localStorage` (`kouros.player.queue`, `kouros.player.rate`) — see §5 for why
-that matters. A separate discovery layer (`backend/src/discover/`) serves similarity/radio/
+is `@jkos/player`'s second consumer.
+
+**One listening session per listener, across every device** (since 2026-09-24; Jag's
+Spotify-Connect brief). Every KourOS instance signed in as one user shows the same session —
+what is playing, where it has got to, the queue — and any of them can be the OUTPUT while the
+rest are remotes for it. The server RELAYS and never plays: a command goes to the output, which
+applies it through its own player and reports the state it lands in (`POST /api/session/state`),
+so the session is always what the output says is true and queue logic lives in one place.
+Down: one SSE stream per tab (`GET /api/session/events`), read with `fetch` through `authFetch`
+so an expired token refreshes rather than loops, and closed by the server at the token's `exp`.
+Up: plain POSTs, the command door on the suite's `withIdempotency`. Each tab is `local`,
+`remote`, `idle` (the session's item cued at its second) or `solo` (no session — the old app)
+by one pure decision (`src/session/route.ts`); a Web Lock makes one browser one device, and a
+remote's scrubber is extrapolated on the SERVER's clock. The device you touch plays: a claim
+starts the audio inside the press and transfers after, which is what browser autoplay rules
+(and iOS's) require. An output that vanishes is recorded paused — at the second its stream
+closed, or, when it goes silent without closing anything, 45 s after its last report. ⚠️ The
+hub of who is connected is in memory: **KourOS is one process**, and must stay one. A separate discovery layer (`backend/src/discover/`) serves similarity/radio/
 vibe-space results sourced from `music/`'s offline-computed vector index, its stored 4-D map basis
 (`music/mapbasis.py`, verified at load against five golden tracks), and pulsarmap
 meshes, read from a read-only `/analysis` mount (`VECTOR_DB_PATH`, `MESH_DB_PATH`); when a
@@ -300,8 +315,11 @@ hand-typed lists that can disagree.
 ⚠️ **`localStorage` is not dead** despite the theme/preferences model in §4: **KourOS and
 ORDECK each persist real per-app state client-side that never touches jkAuth.** KourOS
 persists volume/mute through `@jkos/player`'s `persistVolume` and the audiobook playback
-rate under `kouros.player.rate` (applied to books only — `rateApplies`). It separately persists queue
-shuffle/repeat/crossfade prefs under `kouros.player.queue`; ORDECK persists its weather
+rate under `kouros.player.rate` (applied to books only — `rateApplies`) — per DEVICE on
+purpose (Jag, 2026-09-23), as is crossfade under `kouros.player.queue`. Shuffle and repeat are
+kept there too but only SEED a fresh tab: the queue and its policy now follow the listener
+through the listening session (§ KourOS above), and `kouros.device.id` names the device to it;
+ORDECK persists its weather
 widget's location/API-key config under a dedicated key. None of this round-trips through
 `PATCH /auth/profile`, so it does not follow the user across devices the way theme mode and
 HUD layout do. (BeigeBoard's only `localStorage` touch is a pre-hydration read of the

@@ -223,6 +223,36 @@ Landed 2026-08-26/27 on `staging`, gate green at each commit, **none of it deplo
   the language its widgets are written in, and a React component cannot be imported into
   a data document. "Adopt it everywhere" was the wrong instinct.
 
+### Landed 2026-09-23/24 — KourOS: PapyrOS folded in, and one listening session across devices
+
+Jag, 2026-09-23: "PapyrOS should be folded inside of KourOS entirely. The split was arbitrary" —
+and every KourOS instance should be a remote for one session, Spotify-Connect style. On
+`staging`, gate green at every commit, **not deployed**; the data carry and retirement on the
+NAS are TODO §0.
+
+- **The fold** — KourOS serves the audiobooks (`c2bed55`: catalog, scanner, media + compat
+  ladder, progress, bookmarks, its own `book_history` ledger, the iTunes connector);
+  `scripts/import-papyros.js` carries PapyrOS's per-user state by book PATH (`05c0b33`); one
+  player for both kinds (`40c1976`); PapyrOS retired from the repo, jkAuth migration 022
+  (`56f4fdb`).
+- **Recently played by PLACE, continue listening for books** (`412cb47`) — and Home's "Deep in"
+  and history-seeded rails, EMPTY for every listener since they shipped (a TEXT `item_ref`
+  looked up in an INTEGER-keyed map).
+- **The listening session's server** (`133c2ba`) — SSE down, POSTs up, the server relays and
+  never plays; a stream ends at its token's `exp`; five defects in the half-written code fixed
+  and pinned, including a validator that would have 400'd every report of a player whose
+  shuffle had been turned off, and a prober probe with no imports.
+- **The session in the app** (`85b2c34`) — local / remote / idle / solo from one pure decision;
+  the router at the controller seam; the engine's autoplay cue and idempotent `play()`/`pause()`;
+  the report watchdog. Found in a real browser: a device that handed playback off played it
+  again and took it back (a toggle guarded by stale rendered state), two Web Lock traps, and a
+  dev proxy that kept every closed tab "online".
+- **The device picker** (`9a18891`) — every device, the output marked, per-device volume, rename,
+  forget; "Playing on …" on the mini bar, Now Playing, the Now card and — on a phone — the
+  beacon, which is the only chrome a phone always shows.
+
+Owed, and what only use will show: TODO §3a.
+
 ---
 
 ## The post-completion audit — 2026-08-31

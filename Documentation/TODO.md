@@ -58,6 +58,8 @@ These block other work, and they are first for that reason.
   `sylibos-api` containers (prod) and `staging-sylibos-*` (staging) — `docker compose` without
   `--remove-orphans` leaves them running after the include is gone; the data directories
   `/mnt/Luna/Backends/{Production,Staging}/sylibos-data`; and the `sylibos.jkos.net` DNS record.
+  ⚠️ **Deploying `staging` removes their nginx routes and jkAuth's registry row (migration 021)** —
+  so the containers become unreachable, not stopped. Whether to keep the data directory is yours.
 - **Carry PapyrOS into KourOS on the NAS** (Jag, 2026-09-23: "PapyrOS should be folded inside of
   KourOS entirely"). The repo half is done: KourOS serves the audiobooks, jkAuth migration 022
   deletes PapyrOS's registry row, and `apps/papyros` is gone. What only you can do, **per
@@ -79,8 +81,26 @@ These block other work, and they are first for that reason.
      `papyros.jkos.net` DNS record. Keep `papyros-data` until you are satisfied — nothing in the
      repo deletes it. Offline downloads made in PapyrOS stay on its origin; download again in
      KourOS.
-  ⚠️ **Deploying `staging` removes their nginx routes and jkAuth's registry row (migration 021)** —
-  so the containers become unreachable, not stopped. Whether to keep the data directory is yours.
+  ⚠️ **Deploying `staging` removes PapyrOS's nginx routes and jkAuth's registry row (migration
+  022)** — the container becomes unreachable, not stopped, which is why step 2 still works.
+- **Try the listening session on staging** (Jag, 2026-09-23: every KourOS instance a remote, any
+  one the output). **Nothing to configure** — migrations 13–15 are additive, no new env (the two
+  `KOUROS_SESSION_*` knobs are smoke-only), and no nginx change (the stream sends
+  `X-Accel-Buffering: no` and pings every 20 s, inside both 60 s read timeouts). What only a
+  real device can show, after the deploy:
+  1. **The phone as the output, screen locked.** Play on the phone (the TWA), lock it, and from
+     the desktop pause, skip, seek and change its volume in the picker. It SHOULD hold: the
+     stream is recycled at every token expiry through a refresh, which also keeps the cookie
+     fresh for the next track's audio request — reasoned, not yet seen on a locked phone.
+  2. **"Tap play on …".** Move playback to a device nobody has touched since it loaded (the
+     picker, from another device). A browser that refuses to start audio by itself makes the
+     other devices say so rather than sit silent — headless Chromium autoplays, so this path has
+     only been reasoned, not seen.
+  3. **Through Cloudflare.** Every browser check ran on the workstation; the real edge streams
+     `text/event-stream` in principle, and staging is where that is confirmed.
+  ⚠️ **KourOS must stay ONE container.** Who is connected lives in memory
+  (`apps/kouros/backend/src/session/hub.js`, TRAPS.md); a second replica would split the devices
+  between processes and route commands to nowhere.
 - **Deploy / promote — always a button Jag presses.**
 
 ---
@@ -315,6 +335,10 @@ KourOS and PapyrOS** — which is why the backup commands above are not housekee
 Also pending, and unrelated to the branch: **production DNS for KourOS** (which now carries the
 audiobooks too). Reachable on staging only (`staging.jkos.net/kouros/`).
 
+**Since 2026-09-23 the unlanded set also holds the PapyrOS fold and the listening session**
+(`c2bed55` … `9a18891`) — KourOS migrations 8–15, jkAuth migration 022, and the
+PapyrOS data carry that only Jag can run (§0).
+
 ---
 
 ## 2 · The pulsarmap (M7)
@@ -539,6 +563,30 @@ the four points it could enter (builder, quantiser, renderer contrast, the 3-D s
     descriptors: 3e-8. `discover.smoke` §2c′ holds it (a mutation removing the z-score fails it).
     Reached only by an index with descriptors and no neural vectors; `mapbasis.ARMS` still maps
     the neural arm alone.
+
+---
+
+## 3a · KourOS — the listening session, what is owed
+
+Built 2026-09-23/24 (BACKLOG.md "Landed 2026-09-23/24"). What is deliberately NOT done, and what
+only shows up with use:
+
+- **A headless speaker.** Jag, 2026-09-23: outputs are KourOS instances for now, but the protocol
+  must admit an always-on "speaker" (NAS or Pi + mpv). It does: a device may register `kind:
+  'speaker'`, a command's `from` is optional, and a delegated service token writes as the
+  listener with no protocol change. The daemon itself — register, hold the stream, apply commands
+  through mpv, report state — is not built.
+- **A silent REMOTE's presence lags.** Only the OUTPUT has a heartbeat (its reports — a playing
+  session with none for 45 s is paused and the device dropped). A remote that walks out of signal
+  stays "online" in the picker until nginx's `send_timeout` closes its stream (about a minute),
+  and a transfer to it is caught by the same watchdog 45 s later. A light ping from every device
+  would close this; not needed yet.
+- **Not yet driven in a browser:** the Queue view as a remote (reorder and remove are relayed
+  commands — built, typed, not clicked), and iOS Safari at all (no device on hand; the claim path
+  starts audio inside the gesture precisely for iOS's rules).
+- **Private windows are a new device every time** (their `localStorage` dies with them). Unseen
+  devices are forgotten after 90 days on the next registration; the picker shows the four most
+  recently seen and folds the rest behind "Show N more".
 
 ---
 
@@ -796,6 +844,13 @@ and the prober, and never ran `build` — so "green" never meant "shippable". It
 - **No third party touches the backups.** The off-box copy lands on Jag's own workstation, pull-only.
 - **Python + numpy in KourOS's image: rejected** (§2, block 4).
 - **An "is anything consuming this contract?" probe: do not build it** (§6).
+- **KourOS runs as ONE process.** The listening session's hub is in memory by design — correct for
+  a single container, stated in the hub, the boot log and TRAPS.md. Scaling KourOS out means a
+  shared bus first, not a second replica.
+- **Session routing is Spotify's** (Jag, 2026-09-23): anything played from any device plays on
+  the current output; moving it is an explicit pick. Volume and crossfade are per device; queue,
+  shuffle and repeat are the session's. Long-term resume is for audiobooks only — music has no
+  per-album memory.
 
 ---
 
