@@ -26,8 +26,7 @@ import {
 } from '@jkos/player/backend';
 import {
   usePlayerEngine as usePlayerEngineCore,
-  type BookmarkStore, type Id, type ItemLoader, type NavPoint, type PlayerEngineConfig,
-  type PlayerUrls, type ProgressStore, type Transport,
+  type NavPoint, type PlayerEngineConfig, type SleepMode, type Transport,
 } from '@jkos/player/engine';
 import { useMediaSession, type MediaSessionMetadata } from '@jkos/player/services';
 import {
@@ -35,16 +34,21 @@ import {
   type Queue, type RepeatMode,
 } from '@jkos/player/core';
 import { createHistoryEvent, useTrackCache, type Track } from './api';
+import { createBookHistoryEvent } from '../books/api';
 import {
-  compositionFor, decodeRef, streamUrlFor,
-  unifiedBookmarks, unifiedItemLoader, unifiedProgress, unifiedUrls,
-  type PlayableItem, type UnifiedBookmarkRow, type UnifiedProgressRow,
+  compositionFor, decodeRef, rateAppliesTo, streamUrlFor,
+  unifiedBookmarks, unifiedCompat, unifiedItemLoader, unifiedProgress, unifiedUrls,
+  type PlayableItem, type SourceId, type UnifiedBookmarkRow, type UnifiedProgressRow,
 } from './sources';
 import type { PlayerComposition } from '@jkos/player/factory';
 import { onPlayRequest, publishPosition as ctrlPublishPosition, requestPlay, type PlayRequest } from './controller';
 import { clampCrossfadeSec, readQueuePrefs, removeAt, sameItems, writeQueuePrefs } from './queuePrefs';
 
-const RATE_STORAGE_KEY = 'kouros.player.rate';       // unused (no rate control on the music bar) but PlayerEngineConfig.storageKey is required
+/** The audiobook listening rate. ONE key for one engine — `rateAppliesTo` (sources.ts)
+ *  keeps it off music, so a 1.5× book habit never speeds up a song. */
+const RATE_STORAGE_KEY = 'kouros.player.rate';
+/** The ±skip a book's transport and lock screen take — PapyrOS's 30 s. */
+export const BOOK_SKIP_SEC = 30;
 const VOLUME_STORAGE_KEY = 'kouros.player.volume';   // musicPlayer() renders a volume control — this is what persists it
 
 export interface PlayerApi {
@@ -101,6 +105,22 @@ export interface PlayerApi {
   nextSegment(): void;
   /** Jump to a chapter by index — what the chapter dial turns. */
   seekSegment(index: number): void;
+  /* ── The audiobook verbs ──────────────────────────────────────────────────
+     Present for BOTH kinds, like segment nav: inert for music by construction
+     (the rate does not apply to a track, a track has no bookmarks), so a surface
+     offers them by reading `composition`, never by asking "is this a book?". */
+  /** The rate the element is running at — always 1 for a track. */
+  rate: number;
+  cycleRate(): void;
+  /** Jump by ±seconds along the item's timeline. */
+  skip(deltaSec: number): void;
+  bookmarks: UnifiedBookmarkRow[];
+  addBookmarkHere(): void;
+  jumpBookmark(pos: number): void;
+  removeBookmark(id: UnifiedBookmarkRow['id']): void;
+  sleepMode: SleepMode;
+  sleepRemainingMs: number | null;
+  setSleep(mode: SleepMode): void;
   playQueueItem(index: number): void;
   removeQueueItem(index: number): void;
   reorderQueue(from: number, to: number): void;
@@ -205,11 +225,12 @@ export function usePlayerEngine(): PlayerApi {
       // TEXT-vs-number class that hid four bugs in PapyrOS behind a TypeScript
       // interface that declared the wrong thing (TRAPS.md § SQLite).
       const { src, id } = decodeRef(update.itemId);
-      // And a book is not published at all, rather than published as a number:
-      // book 7 and track 7 are different things, and the rows listening here
-      // only know about tracks.
-      if (src !== 'kouros') return;
-      ctrlPublishPosition({ trackId: id, position: update.position });
+      // Book 7 and track 7 are different things: each is published under its own
+      // field, so a track row and a book's chapter list can never mistake one for
+      // the other.
+      ctrlPublishPosition(src === 'book'
+        ? { trackId: null, bookId: id, position: update.position }
+        : { trackId: id, bookId: null, position: update.position });
     },
   }), []);
 
@@ -235,7 +256,10 @@ export function usePlayerEngine(): PlayerApi {
     transport,
     storageKey: RATE_STORAGE_KEY,
     volumeStorageKey: VOLUME_STORAGE_KEY,
-    // compat: omitted — direct-play only backend, no recovery ladder to configure.
+    // Books carry PapyrOS's Firefox-m4b remux ladder; a track prepares nothing and
+    // the ladder stops at once (sources.ts's unifiedCompat).
+    compat: unifiedCompat,
+    rateApplies: rateAppliesTo,
   }), [transport]);
 
   const eng = usePlayerEngineCore(config);
@@ -413,10 +437,22 @@ export function usePlayerEngine(): PlayerApi {
     album: item.collection || '',
     artwork: item.coverUrl ? [{ src: item.coverUrl, sizes: '512x512', type: 'image/jpeg' }] : [],
   } : null), [item]);
+  // The lock screen's arrows mean what the item's NAV means: tracks for music,
+  // chapters for a book (plus ±30 s, the audiobook's own gesture) — the same
+  // composition-derived retarget the rune grammar makes.
+  const isBookNow = item?.kind === 'book';
   useMediaSession({
     enabled: item != null,
     metadata,
-    handlers: {
+    handlers: isBookNow ? {
+      play: eng.toggle,
+      pause: eng.toggle,
+      seekbackward: () => eng.skip(-BOOK_SKIP_SEC),
+      seekforward: () => eng.skip(BOOK_SKIP_SEC),
+      previoustrack: eng.prevSegment,
+      nexttrack: eng.nextSegment,
+      seekto: eng.seekTo,
+    } : {
       play: eng.toggle,
       pause: eng.toggle,
       previoustrack: trackPrev,
@@ -434,9 +470,13 @@ export function usePlayerEngine(): PlayerApi {
   // (a book can span a whole session); here a TRACK CHANGE is always also a session
   // boundary (each track is its own history row) — the effect below keys off
   // track?.id the same way papyros keys off book?.id, so that fold is automatic. ──
-  interface HistorySession { trackId: number; startedAt: string; playStartedAtMs: number }
+  // ⚠️ SINCE THE PAPYROS FOLD, A SESSION NAMES ITS LEDGER. A track's stretch lands in
+  // `history`, a book's in `book_history` (backend/discovery.js's BOOK_HISTORY for
+  // why they are two tables) — the session carries its source so the flush can
+  // never write a book into the track ledger or the reverse.
+  interface HistorySession { src: SourceId; id: number; startedAt: string; playStartedAtMs: number }
   const sessionRef = useRef<HistorySession | null>(null);
-  const prevTrackIdRef = useRef<number | null>(null);
+  const prevRefRef = useRef<string | null>(null);
   const prevPlayingForHistoryRef = useRef(false);
   const totalRef = useRef(eng.total);
   const globalPosRef = useRef(eng.globalPos);
@@ -459,31 +499,31 @@ export function usePlayerEngine(): PlayerApi {
     const total = totalRef.current;
     const pos = globalPosRef.current;
     const completed = forcedCompleted === true || (total > 0 && pos >= total - 1);
-    createHistoryEvent({ item_ref: session.trackId, started_at: session.startedAt, ms_played: msPlayed, completed })
+    const row = { item_ref: session.id, started_at: session.startedAt, ms_played: msPlayed, completed };
+    (session.src === 'book' ? createBookHistoryEvent(row) : createHistoryEvent(row))
       .catch((err) => console.warn('[kouros] failed to record history event', err));
   }, []);
 
+  const openSession = (ref: string): HistorySession => {
+    const { src, id } = decodeRef(ref);
+    return { src, id, startedAt: new Date().toISOString(), playStartedAtMs: Date.now() };
+  };
+
   useEffect(() => {
-    // ⚠️ `track` is null while a BOOK plays, and the null guard below therefore
-    // does real work now: a PapyrOS listen must not land in KourOS's `history`
-    // table. PapyrOS keeps its own ledger, and the suite's activity contract
-    // (D6/XC-2) is what merges the two — writing a book into this table would
-    // double-count it and attribute it to the wrong app.
-    const trackId = track?.id ?? null;
-    const trackChanged = prevTrackIdRef.current !== null && trackId !== prevTrackIdRef.current;
-    if (trackChanged && sessionRef.current) flushSession();   // switched tracks mid-session → close it
+    const ref = item?.ref ?? null;
+    const changed = prevRefRef.current !== null && ref !== prevRefRef.current;
+    if (changed && sessionRef.current) flushSession();   // switched items mid-session → close it
 
     if (eng.playing) {
-      if (trackId !== null && (!sessionRef.current || trackChanged)) {
-        sessionRef.current = { trackId, startedAt: new Date().toISOString(), playStartedAtMs: Date.now() };
-      }
+      if (ref !== null && (!sessionRef.current || changed)) sessionRef.current = openSession(ref);
     } else if (prevPlayingForHistoryRef.current) {
       flushSession();   // playing → paused edge
     }
 
-    prevTrackIdRef.current = trackId;
+    prevRefRef.current = ref;
     prevPlayingForHistoryRef.current = eng.playing;
-  }, [eng.playing, track?.id, flushSession]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eng.playing, item?.ref, flushSession]);
 
   // Page hidden/unload — the SAME fix papyros's 17.4 needed (2026-07-15 integration
   // fix, replicated verbatim per this wave's brief): audio keeps playing while
@@ -496,12 +536,8 @@ export function usePlayerEngine(): PlayerApi {
     const onVis = () => {
       if (document.visibilityState !== 'hidden') return;
       flushSession();
-      if (prevPlayingForHistoryRef.current && prevTrackIdRef.current !== null) {
-        sessionRef.current = {
-          trackId: prevTrackIdRef.current,
-          startedAt: new Date().toISOString(),
-          playStartedAtMs: Date.now(),
-        };
+      if (prevPlayingForHistoryRef.current && prevRefRef.current !== null) {
+        sessionRef.current = openSession(prevRefRef.current);
       }
     };
     // Wrapped (not bound raw) so the listener's Event argument can never reach
@@ -567,11 +603,8 @@ export function usePlayerEngine(): PlayerApi {
       return;
     }
 
-    // Same rule as the history effect above: only a KourOS track opens a session
-    // in KourOS's ledger. A gapless swap into a book leaves the session closed.
-    sessionRef.current = expectedRef != null && decodeRef(expectedRef).src === 'kouros'
-      ? { trackId: expectedId!, startedAt: new Date().toISOString(), playStartedAtMs: Date.now() }
-      : null;
+    // Seed the incoming item's session (its own ledger, by its ref).
+    sessionRef.current = expectedRef != null ? openSession(expectedRef) : null;
     playIndex(q1.cursor, 0);   // leg 3 — the ordinary path; ends in the backend's ack
   }, [flushSession, playIndex]);
 
@@ -638,6 +671,16 @@ export function usePlayerEngine(): PlayerApi {
     setShuffle,
     cycleRepeat,
     setCrossfade,
+    rate: eng.rate,
+    cycleRate: eng.cycleRate,
+    skip: eng.skip,
+    bookmarks: eng.bookmarks,
+    addBookmarkHere: eng.addBookmarkHere,
+    jumpBookmark: eng.jumpBookmark,
+    removeBookmark: eng.removeBookmark,
+    sleepMode: eng.sleepMode,
+    sleepRemainingMs: eng.sleepRemainingMs,
+    setSleep: eng.setSleep,
     points: eng.points,
     segmentIndex: eng.currentIndex,
     segmentLabel: eng.segmentLabel,

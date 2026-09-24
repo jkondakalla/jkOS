@@ -27,12 +27,14 @@ import { useEffect, useState } from 'react';
 // %-encoded — always build a link via artistHref/albumHref/searchHref below,
 // never hand-format the hash string (the encoding is load-bearing: a name
 // containing '/' would otherwise split across the ALBUM_RE/ARTIST_RE segments).
-// `playlist/<id>` is a real database id (like papyros's `/book/<id>`), so it
-// stays a plain \d+ match — no encode/decode needed, same as that precedent.
+// `playlist/<id>` and `book/<id>` are real database ids, so they stay plain \d+
+// matches — no encode/decode needed.
 
 export type View =
   | 'home' | 'browse' | 'artists' | 'artist' | 'album' | 'search'
-  | 'playlists' | 'playlist' | 'map' | 'now' | 'queue';
+  | 'playlists' | 'playlist' | 'map' | 'now' | 'queue'
+  /** Audiobooks — PapyrOS's library and detail, folded into KourOS 2026-09-23. */
+  | 'books' | 'book';
 
 export interface HashRoute {
   view: View;
@@ -45,11 +47,14 @@ export interface HashRoute {
   query: string;
   /** The `playlists.id` — set for 'playlist' only. */
   playlistId: number | null;
+  /** The `books.id` — set for 'book' only. */
+  bookId: number | null;
 }
 
 const ALBUM_RE = /^\/album\/([^/]+)\/([^/]+)$/;
 const ARTIST_RE = /^\/artist\/([^/]+)$/;
 const PLAYLIST_RE = /^\/playlist\/(\d+)$/;
+const BOOK_RE = /^\/book\/(\d+)$/;
 
 function parse(hash: string): HashRoute {
   const raw = hash.replace(/^#/, '') || '/';
@@ -65,24 +70,30 @@ function parse(hash: string): HashRoute {
       album: decodeURIComponent(albumMatch[2]!),
       query,
       playlistId: null,
+      bookId: null,
     };
   }
   const artistMatch = path.match(ARTIST_RE);
   if (artistMatch) {
-    return { view: 'artist', artist: decodeURIComponent(artistMatch[1]!), album: null, query, playlistId: null };
+    return { view: 'artist', artist: decodeURIComponent(artistMatch[1]!), album: null, query, playlistId: null, bookId: null };
   }
   const playlistMatch = path.match(PLAYLIST_RE);
   if (playlistMatch) {
-    return { view: 'playlist', artist: null, album: null, query, playlistId: Number(playlistMatch[1]) };
+    return { view: 'playlist', artist: null, album: null, query, playlistId: Number(playlistMatch[1]), bookId: null };
   }
-  if (path === '/browse') return { view: 'browse', artist: null, album: null, query, playlistId: null };
-  if (path === '/map') return { view: 'map', artist: null, album: null, query, playlistId: null };
-  if (path === '/now') return { view: 'now', artist: null, album: null, query, playlistId: null };
-  if (path === '/queue') return { view: 'queue', artist: null, album: null, query, playlistId: null };
-  if (path === '/artists') return { view: 'artists', artist: null, album: null, query, playlistId: null };
-  if (path === '/search') return { view: 'search', artist: null, album: null, query, playlistId: null };
-  if (path === '/playlists') return { view: 'playlists', artist: null, album: null, query, playlistId: null };
-  return { view: 'home', artist: null, album: null, query, playlistId: null };
+  const bookMatch = path.match(BOOK_RE);
+  if (bookMatch) {
+    return { view: 'book', artist: null, album: null, query, playlistId: null, bookId: Number(bookMatch[1]) };
+  }
+  if (path === '/books') return { view: 'books', artist: null, album: null, query, playlistId: null, bookId: null };
+  if (path === '/browse') return { view: 'browse', artist: null, album: null, query, playlistId: null, bookId: null };
+  if (path === '/map') return { view: 'map', artist: null, album: null, query, playlistId: null, bookId: null };
+  if (path === '/now') return { view: 'now', artist: null, album: null, query, playlistId: null, bookId: null };
+  if (path === '/queue') return { view: 'queue', artist: null, album: null, query, playlistId: null, bookId: null };
+  if (path === '/artists') return { view: 'artists', artist: null, album: null, query, playlistId: null, bookId: null };
+  if (path === '/search') return { view: 'search', artist: null, album: null, query, playlistId: null, bookId: null };
+  if (path === '/playlists') return { view: 'playlists', artist: null, album: null, query, playlistId: null, bookId: null };
+  return { view: 'home', artist: null, album: null, query, playlistId: null, bookId: null };
 }
 
 export function useHashRoute(): HashRoute {
@@ -117,6 +128,14 @@ export function playlistsHref(): string {
 
 export function playlistHref(id: number): string {
   return `#/playlist/${id}`;
+}
+
+export function booksHref(): string {
+  return '#/books';
+}
+
+export function bookHref(id: number): string {
+  return `#/book/${id}`;
 }
 
 export function browseHref(): string {

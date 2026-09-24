@@ -38,7 +38,7 @@ export const DESTINATIONS: readonly Destination[] = [
     href: '#/',
     label: 'HOME',
     glyph: '◉',
-    covers: ['artist', 'album', 'browse', 'artists', 'playlists', 'playlist', 'search', 'now'],
+    covers: ['artist', 'album', 'browse', 'artists', 'playlists', 'playlist', 'search', 'now', 'books', 'book'],
   },
   { view: 'queue', href: '#/queue', label: 'QUEUE', glyph: '≡' },
   { view: 'map', href: '#/map', label: 'VIBE MAP', glyph: '✲' },

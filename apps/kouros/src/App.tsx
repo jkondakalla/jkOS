@@ -21,6 +21,9 @@ import NowPlaying from './views/NowPlaying'
 import Queue from './views/Queue'
 import Playlists from './views/playlists/Playlists'
 import PlaylistDetail from './views/playlists/PlaylistDetail'
+import BooksLibrary from './views/books/Library'
+import BookDetail from './views/books/BookDetail'
+import { OfflineSettings } from './books/offline'
 import { PlayerProvider } from './player/PlayerProvider'
 import MiniPlayer from './player/MiniPlayer'
 
@@ -51,7 +54,7 @@ export default function App() {
       useUser={useShellUser}
       authUrl={AUTH_URL}
       brand="KourOS"
-      tagline="Music"
+      tagline="Music & audiobooks"
       /* The suite header is KEPT and restyled as this app's glass top bar (see
          views.css's `.kr-shell .jk-shell-header`) rather than suppressed. It
          already carries the brand and the settings trigger, and adding a
@@ -59,6 +62,8 @@ export default function App() {
          trade than one scoped stylesheet rule. The per-view headers below it are
          therefore CONTEXTUAL only — they never repeat the app's name. */
       className="kr-shell"
+      /* Downloaded audiobooks — PapyrOS's storage panel, which came with the fold. */
+      settingsExtra={<OfflineSettings />}
     >
       <Content />
     </AppShell>
@@ -114,6 +119,10 @@ function Content() {
                 <PlaylistDetail playlistId={route.playlistId} />
               ) : route.view === 'playlists' ? (
                 <Playlists />
+              ) : route.view === 'book' && route.bookId != null ? (
+                <BookDetail bookId={route.bookId} />
+              ) : route.view === 'books' ? (
+                <BooksLibrary />
               ) : route.view === 'search' ? (
                 <Search initialQuery={route.query} />
               ) : route.view === 'map' ? (

@@ -1,0 +1,105 @@
+/* now-book.css — Now Playing's audiobook face (views/NowPlayingBook.tsx).
+ *
+ * Everything shared with a track's Now Playing (the glass, the stage, the scrubber
+ * row, the transport row) is views.css's `.kr-now-*`; this file holds only what a
+ * BOOK adds — the chapter line, the time-left line, and the rate / sleep /
+ * bookmarks row that used to be PapyrOS's player bar. Tokens only (--hub-, --kr-,
+ * --accent): no literal colour or radius. */
+
+/* A jacket is portrait-ish and its title is the art — no crop into a square. */
+.kr-now-art-book .kr-cover img { object-fit: contain; }
+
+.kr-book-chapter {
+  margin: 0.35rem 0 0;
+  font-size: var(--hub-fs-lab-xs);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--kr-glass-ink-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kr-book-left {
+  margin: 0.3rem 0 0;
+  text-align: center;
+  font-size: var(--hub-fs-lab-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--kr-glass-ink-dim);
+}
+
+.kr-book-extras {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+}
+
+.kr-book-marks { position: relative; }
+.kr-book-marks-btn {
+  padding: 0.45rem 0.8rem;
+  border-radius: 999px;
+  font-family: var(--hub-font-mono);
+  font-size: var(--hub-fs-lab-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.kr-book-marks-panel {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 0.5rem);
+  z-index: 3;
+  width: min(20rem, 86vw);
+  max-height: 50vh;
+  overflow-y: auto;
+  padding: 0.5rem;
+  border-radius: var(--hub-radius-soft);
+}
+/* On a phone the list rises from the bottom edge like the sleep menu's sheet. */
+.kr-book-marks-panel.is-sheet {
+  position: fixed;
+  left: var(--kr-gutter);
+  right: var(--kr-gutter);
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 1rem);
+  width: auto;
+}
+.kr-book-marks-add {
+  display: block;
+  width: 100%;
+  padding: 0.6rem 0.5rem;
+  border: 0;
+  border-radius: var(--hub-radius-sm);
+  background: transparent;
+  color: var(--accent);
+  font-family: var(--hub-font-mono);
+  font-size: var(--hub-fs-lab-sm);
+  text-align: left;
+  cursor: pointer;
+}
+.kr-book-marks-empty {
+  margin: 0;
+  padding: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--kr-glass-ink-dim);
+}
+.kr-book-marks-list { list-style: none; margin: 0; padding: 0; }
+.kr-book-marks-row { display: flex; align-items: center; gap: 0.25rem; }
+.kr-book-marks-jump {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: 0.6rem;
+  align-items: baseline;
+  padding: 0.55rem 0.5rem;
+  border: 0;
+  border-radius: var(--hub-radius-sm);
+  background: transparent;
+  color: var(--kr-glass-ink);
+  font-family: var(--hub-font-sans);
+  font-size: 0.88rem;
+  text-align: left;
+  cursor: pointer;
+}
+.kr-book-marks-jump:hover { background: var(--kr-glass-rim-light); }
+.kr-book-marks-jump > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

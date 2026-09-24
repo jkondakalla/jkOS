@@ -55,9 +55,14 @@ export function onPlayRequest(l: Listener): () => void {
 // advances so nav still feels instant.
 
 export interface PositionUpdate {
-  trackId: number;
-  /** Position in seconds within the CURRENT track (music timelines are one file —
-   *  there is no cross-file global offset to reconcile here, unlike papyros). */
+  /** The track playing, or null while a book plays. */
+  trackId: number | null;
+  /** The audiobook playing, or null while a track plays. Two fields rather than one
+   *  `id`, because track 7 and book 7 are different things and a view comparing a
+   *  bare number would mark the wrong one (sources.ts's ref note). */
+  bookId: number | null;
+  /** Seconds along the item's WHOLE timeline — a track is one file; a book's files
+   *  are concatenated, so this is the book-global position a chapter list reads. */
   position: number;
 }
 

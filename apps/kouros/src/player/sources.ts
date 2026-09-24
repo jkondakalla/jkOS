@@ -1,44 +1,42 @@
-// sources.ts — the seam that lets ONE player play two libraries.
+// sources.ts — the seam that lets ONE player play both halves of the library.
 //
-// KourOS serves music and PapyrOS serves audiobooks. They are separate apps with
-// separate databases and separate scanners, and that is deliberate — the suite's
-// rule is that each app owns its own data (RESET.md §3). What they share is a
-// SHAPE: both mount the same `@jkos/weave/mediaRoutes` brick, so
-// `/api/stream/:id/:fileIndex`, `/api/cover/:id` and `/api/download/:id` are
-// byte-identical contracts on both backends, differing only in which file they
-// resolve. That is what makes a single player over both a thin thing rather than
-// a merge.
-//
-// The transport is already solved too: `kouros.jkos.net` includes the Weave
-// peer-proxy, so `/api/papyros/*` is reachable SAME-ORIGIN from this app with the
-// `jkos_token` cookie riding along. No CORS surface, no second login, nothing to
-// change in jkAuth — see Documentation/KOUROS_ANDROID.md for why that property is
-// the one the whole mobile story rests on.
+// KourOS plays music and, since PapyrOS folded into it (2026-09-23), audiobooks. They
+// are one app with one backend now, but they are still two catalogs with two shapes:
+// a `tracks` row is one file with no chapters, a `books` row is N files with chapters,
+// a resume point, bookmarks and a compat ladder. What they share is a SHAPE — both
+// mount the same `@jkos/weave/mediaRoutes` brick, the book half under /api/books/*
+// (backend/src/books/media.js says why) — which is what keeps one player over both a
+// thin thing rather than a merge.
 //
 // ⭐ **THE REF IS THE WHOLE TRICK.** `@jkos/player/core`'s queue is `string[]`
-// already, so a queue can hold `['kouros:12', 'papyros:7']` with NO change to the
+// already, so a queue can hold `['kouros:12', 'book:7']` with NO change to the
 // package — shuffle, repeat, reorder and the cursor all work on it unmodified.
-// And a bare `'12'` decodes to KourOS, so every existing call site that passes a
-// numeric track id keeps working untouched while the second source is added.
+// And a bare `'12'` decodes to a TRACK, so every existing call site that passes a
+// numeric track id keeps working untouched.
 //
-// ⚠️ **THE PAPYROS ARM IS BUILT AND NOT YET FED.** Wiring
-// `weaveClient('papyros')` into `loadItem` was deliberately left out of this pass
-// (see the plan's scope). It is one function, and until it lands the audiobook
-// half resolves nothing — which is why `listen()` returns an empty list rather
-// than throwing, and why the reading lane simply does not render. The SEAM is
-// what this file delivers; the fetch is the next thing to add, and it touches
-// nothing else.
+// ⚠️ And the trap the book half carries: a weave `type:'ref'` column is TEXT, so
+// the wire says `book_ref: "13"` where the TypeScript says `number`. That concealed
+// FOUR silent bugs in PapyrOS for months. The coercion lives at ONE door —
+// books/api.ts's `withNumericRefs()` — and every book row below arrives through it.
 
 import {
   audiobookPlayer, createPlayer, musicPlayer,
   type PlayerComposition,
 } from '@jkos/player/factory';
-import type { BookmarkStore, Id, ItemLoader, ProgressStore, Segment } from '@jkos/player/engine';
+import { authFetch } from '@jkos/auth-client';
+import type {
+  BookmarkStore, CompatPolicy, CompatPrepareOutcome, CompatPrepareRequest, Id, ItemLoader, ProgressStore, Segment,
+} from '@jkos/player/engine';
 import { coverUrl as kourosCover, getTrack, streamUrl as kourosStream } from './api';
 import type { Track } from '../api';
+import {
+  coverUrl as bookCover, createBookmark, createProgress, deleteBookmark, getBook, listBookmarks, listProgress,
+  streamUrl as bookStream, updateProgress, type BookDetail,
+} from '../books/api';
 
-/** The apps a playable thing can come from. */
-export type SourceId = 'kouros' | 'papyros';
+/** The catalogs a playable thing can come from. `kouros` is a track (the name
+ *  predates the fold, and every persisted ref already says it); `book` an audiobook. */
+export type SourceId = 'kouros' | 'book';
 
 /** A decoded reference to one playable thing. */
 export interface SourceRef {
@@ -46,9 +44,9 @@ export interface SourceRef {
   id: number;
 }
 
-/** The source a bare id belongs to. KourOS, because every id already in a
- *  persisted queue, a history row or a `requestPlay` call is one of its track
- *  ids — changing what an unprefixed ref means would silently repoint them. */
+/** The source a bare id belongs to: a track, because every id already in a history
+ *  row or a `requestPlay` call is a track id — changing what an unprefixed ref means
+ *  would silently repoint them. */
 const DEFAULT_SOURCE: SourceId = 'kouros';
 
 export function encodeRef(src: SourceId, id: number): string {
@@ -64,7 +62,7 @@ export function decodeRef(ref: Id): SourceRef {
   if (colon < 0) return { src: DEFAULT_SOURCE, id: Number(s) };
   const head = s.slice(0, colon);
   const id = Number(s.slice(colon + 1));
-  return { src: head === 'papyros' ? 'papyros' : DEFAULT_SOURCE, id };
+  return { src: head === 'book' ? 'book' : DEFAULT_SOURCE, id };
 }
 
 /**
@@ -93,8 +91,10 @@ export interface PlayableItem {
   /** Chapters for a book; empty for a track. Drives the engine's nav points, and
    *  therefore the chapter dial. */
   segments: Segment[];
-  /** The concatenated files. One for a track; N for a book. */
-  files: { index: number; duration: number }[];
+  /** The concatenated files. One for a track; N for a book. `compatReady` is a book
+   *  file whose Firefox-safe remux already exists server-side — the compat policy
+   *  below starts it there instead of discovering a decode failure first. */
+  files: { index: number; duration: number; compatReady?: boolean }[];
 }
 
 /** What a source has to provide. Every seam the engine needs, plus the player
@@ -102,9 +102,6 @@ export interface PlayableItem {
  *  restating the music/audiobook distinction (see shell/runeBindings.ts). */
 export interface PlayableSource {
   id: SourceId;
-  /** The edge-proxied API root. Empty for this app's own backend; `/api/papyros`
-   *  for the peer — the exact path the Weave proxy answers on. */
-  apiBase: string;
   composition: PlayerComposition;
   load(id: number): Promise<PlayableItem>;
   /** Everything this source can offer a library lane. */
@@ -134,38 +131,36 @@ function trackToItem(t: Track): PlayableItem {
 
 const kourosSource: PlayableSource = {
   id: 'kouros',
-  apiBase: '',
   composition: createPlayer(musicPlayer()),
   load: async (id) => trackToItem(await getTrack(id)),
   listen: async () => [],
 };
 
-/* ── PapyrOS: audiobooks, over the peer proxy ───────────────────────────────── */
+/* ── Audiobooks ──────────────────────────────────────────────────────────────── */
 
-/** ⚠️ The peer path, and the one thing to get right when this arm is fed.
- *  `/api/papyros/stream/12/0` is rewritten by nginx to `/api/stream/12/0` before
- *  it reaches PapyrOS, so the paths below are PapyrOS's own routes with this
- *  prefix — not a second API to design. */
-const PAPYROS_BASE = '/api/papyros';
+function bookToItem(b: BookDetail): PlayableItem {
+  const files = [...b.files].sort((x, y) => x.index - y.index);
+  return {
+    ref: encodeRef('book', b.id),
+    src: 'book',
+    id: b.id,
+    kind: 'book',
+    title: b.title,
+    byline: [b.author || 'Unknown author', b.narrator ? `read by ${b.narrator}` : null].filter(Boolean).join(' · '),
+    collection: b.series,
+    duration: b.duration || 0,
+    coverUrl: b.cover_path ? bookCover(b.id) : null,
+    // Chapters drive the engine's nav points — and therefore the chapter dial, the
+    // segment-mode scrubber and the "end of chapter" sleep timer.
+    segments: b.chapters.map((c) => ({ start: c.start, end: c.end, title: c.title })),
+    files: files.map((f) => ({ index: f.index, duration: f.duration, compatReady: !!f.compat_ready })),
+  };
+}
 
-const papyrosSource: PlayableSource = {
-  id: 'papyros',
-  apiBase: PAPYROS_BASE,
+const bookSource: PlayableSource = {
+  id: 'book',
   composition: createPlayer(audiobookPlayer()),
-  load: async (id) => {
-    // ⚠️ NOT YET FED — see the file header. When it is, this is
-    // `weaveClient('papyros')` / a plain authFetch of `${PAPYROS_BASE}/book/${id}`,
-    // mapped through the same shape `trackToItem` produces.
-    //
-    // ⚠️ And the trap waiting there: a weave `type:'ref'` column is TEXT, so
-    // PapyrOS's wire carries `"13"` where its own TypeScript declares
-    // `book_ref: number`. That concealed FOUR silent bugs in PapyrOS itself —
-    // resume never rendered, the engine always restarted from zero, bookmarks
-    // never listed. Coerce at this boundary, the way
-    // `apps/papyros/src/api.ts`'s `withNumericRefs()` does, and not at any of
-    // the four places that would each have to remember.
-    throw new Error(`papyros source is declared but not yet fed (book ${id})`);
-  },
+  load: async (id) => bookToItem(await getBook(id)),
   listen: async () => [],
 };
 
@@ -173,23 +168,23 @@ const papyrosSource: PlayableSource = {
 
 export const SOURCES: Record<SourceId, PlayableSource> = {
   kouros: kourosSource,
-  papyros: papyrosSource,
+  book: bookSource,
 };
 
 export function sourceOf(ref: Id): PlayableSource {
   return SOURCES[decodeRef(ref).src];
 }
 
-/** Stream URL for one file of one item, dispatched to the owning app. */
+/** Stream URL for one file of one item, dispatched on the ref. */
 export function streamUrlFor(ref: Id, fileIndex = 0): string {
   const { src, id } = decodeRef(ref);
-  return src === 'kouros' ? kourosStream(id, fileIndex) : `${PAPYROS_BASE}/stream/${id}/${fileIndex}`;
+  return src === 'kouros' ? kourosStream(id, fileIndex) : bookStream(id, fileIndex);
 }
 
 /** Cover URL for an item, dispatched the same way. */
 export function coverUrlFor(ref: Id): string {
   const { src, id } = decodeRef(ref);
-  return src === 'kouros' ? kourosCover(id) : `${PAPYROS_BASE}/cover/${id}`;
+  return src === 'kouros' ? kourosCover(id) : bookCover(id);
 }
 
 /** The player composition for whatever is loaded — `nav: 'track'` for music,
@@ -212,36 +207,110 @@ export const unifiedItemLoader: ItemLoader<PlayableItem> = {
 };
 
 export const unifiedUrls = {
-  stream: (itemId: Id, sourceIndex: number) => streamUrlFor(itemId, sourceIndex),
+  /** A compat level > 0 selects a book file's remux/re-encode variant (the brick's
+   *  `?compat=N`). A track never gets one — music is direct-play only. */
+  stream: (itemId: Id, sourceIndex: number, compatLevel = 0) =>
+    compatLevel > 0 && decodeRef(itemId).src === 'book'
+      ? `${streamUrlFor(itemId, sourceIndex)}?compat=${compatLevel}`
+      : streamUrlFor(itemId, sourceIndex),
 };
 
-/* The progress and bookmark stores.
+/** PapyrOS's compat ladder, for books only: some .m4b rips carry a `moov` Firefox
+ *  rejects, and the server remuxes them (backend/src/books/media.js). A track
+ *  prepares nothing — 'unavailable' stops the engine's ladder at once. */
+async function prepareCompat(req: CompatPrepareRequest): Promise<CompatPrepareOutcome> {
+  if (decodeRef(req.itemId).src !== 'book') return 'unavailable';
+  try {
+    const res = await authFetch(`${streamUrlFor(req.itemId, req.sourceIndex)}/prepare`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ level: req.level }),
+    });
+    if (res.ok) {
+      const body = await res.json().catch(() => null);
+      return body?.ready ? 'ready' : 'pending';
+    }
+    if (res.status >= 400 && res.status < 500) return 'unavailable';
+    return 'pending';
+  } catch {
+    return 'pending';
+  }
+}
+
+export const unifiedCompat: CompatPolicy<PlayableItem> = {
+  maxLevel: 2,
+  initialLevel: (item, sourceIndex) =>
+    (item.kind === 'book' && item.files.find((f) => f.index === sourceIndex)?.compatReady ? 1 : 0),
+  prepare: prepareCompat,
+};
+
+/** Whether the persisted playback rate applies: books yes, music never — one engine
+ *  has one rate, and a 1.5× audiobook habit must not speed up a song. */
+export const rateAppliesTo = (item: PlayableItem): boolean => item.kind === 'book';
+
+/* The progress and bookmark stores, dispatched on the ref.
  *
- * ⚠️ Both are REAL implementations of an inert seam, not `undefined`. The engine
- * runs its progress choreography unconditionally — a write scheduled every ~5 s
- * of playback, flushed on pause/hide/ended — so a missing store is a crash, not a
- * no-op. Music genuinely has nowhere to resume to (a track is not a place you
- * come back to mid-way), which is why KourOS shipped these inert in the first
- * place.
- *
- * When the PapyrOS arm is fed these become the dispatching pair: a book's
- * position is a real server-side `progress` row on PapyrOS, and resuming one is
- * the single most load-bearing thing an audiobook player does. The shape below
- * is already keyed on the composite ref, so that change is an implementation
- * swap rather than a re-plumb. */
-export interface UnifiedProgressRow { itemId: Id; position: number; finished: boolean }
+ * ⚠️ Both are REAL implementations for both kinds, not `undefined`: the engine runs
+ * its progress choreography unconditionally — a write scheduled every ~5 s of
+ * playback, flushed on pause/hide/ended — so a missing store is a crash. A TRACK's
+ * are inert on purpose: a song is not a place you come back to mid-way (Jag,
+ * 2026-09-23: long-term resume is for audiobooks). A BOOK's are the load-bearing
+ * thing an audiobook player does — the server-side `progress` row, one per
+ * (listener, book), which every device reads, so a book paused on the phone resumes
+ * on the desktop. */
+export interface UnifiedProgressRow {
+  itemId: Id;
+  position: number;
+  finished: boolean;
+  /** The server row's id, for a book; null for the inert track rows. */
+  rowId: number | null;
+}
+
+const isBook = (itemId: Id) => decodeRef(itemId).src === 'book';
 
 export const unifiedProgress: ProgressStore<UnifiedProgressRow> = {
-  find: async () => null,
-  create: async (w) => ({ itemId: w.itemId, position: w.position, finished: w.finished }),
-  update: async (_row, w) => ({ itemId: w.itemId, position: w.position, finished: w.finished }),
+  find: async (itemId) => {
+    if (!isBook(itemId)) return null;
+    const { id } = decodeRef(itemId);
+    const row = (await listProgress()).find((r) => r.book_ref === id);
+    return row ? { itemId, position: row.position, finished: row.finished, rowId: row.id } : null;
+  },
+  create: async (w) => {
+    if (!isBook(w.itemId)) return { itemId: w.itemId, position: w.position, finished: w.finished, rowId: null };
+    const row = await createProgress({
+      book_ref: decodeRef(w.itemId).id, position: w.position, duration: w.duration,
+      last_played: w.playedAt, finished: w.finished,
+    });
+    return { itemId: w.itemId, position: row.position, finished: row.finished, rowId: row.id };
+  },
+  update: async (prev, w) => {
+    if (!isBook(w.itemId) || prev.rowId == null) return { ...prev, position: w.position, finished: w.finished };
+    const row = await updateProgress(prev.rowId, {
+      book_ref: decodeRef(w.itemId).id, position: w.position, duration: w.duration,
+      last_played: w.playedAt, finished: w.finished,
+    });
+    return { itemId: w.itemId, position: row.position, finished: row.finished, rowId: row.id };
+  },
   itemIdOf: (row) => row.itemId,
 };
 
-export interface UnifiedBookmarkRow { id: Id; position: number }
+export interface UnifiedBookmarkRow { id: Id; position: number; title: string | null }
 
 export const unifiedBookmarks: BookmarkStore<UnifiedBookmarkRow> = {
-  list: async () => [],
-  create: async (w) => ({ id: `${w.itemId}`, position: w.position }),
-  remove: async () => {},
+  list: async (itemId) => {
+    if (!isBook(itemId)) return [];
+    const { id } = decodeRef(itemId);
+    return (await listBookmarks())
+      .filter((bm) => bm.book_ref === id)
+      .map((bm) => ({ id: bm.id, position: bm.position, title: bm.title }));
+  },
+  create: async (w) => {
+    if (!isBook(w.itemId)) return { id: `${w.itemId}`, position: w.position, title: w.title };
+    const bm = await createBookmark({ book_ref: decodeRef(w.itemId).id, position: w.position, title: w.title });
+    return { id: bm.id, position: bm.position, title: bm.title };
+  },
+  remove: async (id) => {
+    // A track has no bookmarks to remove; a book's are numeric server ids.
+    if (typeof id === 'number') await deleteBookmark(id);
+  },
 };

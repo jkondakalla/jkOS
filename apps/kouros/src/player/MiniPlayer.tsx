@@ -21,11 +21,20 @@ import { usePlayer, nowPlayingArt } from './PlayerProvider';
  */
 export default function MiniPlayer() {
   const p = usePlayer();
-  if (!p.visible || !p.track) return null;
+  const item = p.item;
+  if (!p.visible || !item) return null;
 
+  // A track reads through `track` (album art by track id, the artist line); a book
+  // through the normalised `item` (its jacket URL, author · the chapter). The next
+  // button follows the item's NAV — the next track, or the next chapter.
   const track = p.track;
+  const book = item.kind === 'book';
   const art = nowPlayingArt(p);
   const pct = p.total > 0 ? Math.min(100, (p.globalPos / p.total) * 100) : 0;
+  const title = track?.title ?? item.title;
+  const sub = track
+    ? track.artist || track.albumartist || 'Unknown artist'
+    : [item.byline, p.segmentLabel].filter(Boolean).join(' · ');
 
   return (
     <div className="kr-mini kr-glass kr-gloss">
@@ -33,13 +42,15 @@ export default function MiniPlayer() {
           glass, so the bar refracts the record it is playing. */}
       <div className="kr-ambient" style={art ? { ['--kr-art' as string]: `url("${art}")` } : undefined} />
 
-      <a className="kr-mini-open" href={nowHref()} aria-label={`Open ${track.title}`}>
+      <a className="kr-mini-open" href={nowHref()} aria-label={`Open ${title}`}>
         <span className="kr-mini-art">
-          <Cover id={track.id} has={!!track.cover_path} alt="" name={track.album || track.title} />
+          {track
+            ? <Cover id={track.id} has={!!track.cover_path} alt="" name={track.album || track.title} />
+            : <Cover src={item.coverUrl} alt="" name={item.title} />}
         </span>
         <span className="kr-mini-body">
-          <span className="kr-mini-title">{track.title}</span>
-          <span className="kr-mini-sub">{track.artist || track.albumartist || 'Unknown artist'}</span>
+          <span className="kr-mini-title">{title}</span>
+          <span className="kr-mini-sub">{sub}</span>
         </span>
         <span className="kr-mini-chev" aria-hidden="true"><IconChevron dir="up" size={18} /></span>
       </a>
@@ -53,7 +64,12 @@ export default function MiniPlayer() {
         >
           {p.buffering ? <IconSpinner /> : p.playing ? <IconPause /> : <IconPlay />}
         </button>
-        <button type="button" className="kr-ghost kr-mini-next" onClick={p.trackNext} aria-label="Next track">
+        <button
+          type="button"
+          className="kr-ghost kr-mini-next"
+          onClick={book ? p.nextSegment : p.trackNext}
+          aria-label={book ? 'Next chapter' : 'Next track'}
+        >
           <IconNext />
         </button>
       </div>

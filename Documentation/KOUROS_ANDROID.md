@@ -159,7 +159,9 @@ If the URL bar is there, it is trap 1, 2, 3 or 4 — in that order of likelihood
 
 ## Related
 
-- `apps/kouros/public/` — manifest, icons, `sw.js` (app-shell only; it never
-  touches `/api/`, because audio is Range-served and a naive worker breaks 206).
+- `apps/kouros/public/` — manifest, icons, `sw.js` (the app shell; it never
+  touches `/api/` — audio is Range-served and a naive worker breaks 206 — except a
+  DOWNLOADED audiobook's media, network-first, served from its own cache only when
+  the fetch itself fails, Range sliced from the stored whole body).
 - `infra/nginx/assetlinks.json` — the source of truth, with the full rationale.
 - `Documentation/OPERATIONS.md` — DNS, deploy and the nginx restart rule.

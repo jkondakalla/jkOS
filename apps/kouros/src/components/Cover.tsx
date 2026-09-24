@@ -14,6 +14,10 @@ interface CoverProps {
   className?: string;
   /** Loaded eagerly and at high priority. The Now Playing hero only. */
   eager?: boolean;
+  /** A ready-made art URL, in place of a track id — an audiobook's jacket lives on
+   *  its own route (/api/books/cover), which a TRACK id cannot address. `null`
+   *  means "no art" and shows the fallback, like `has={false}`. */
+  src?: string | null;
 }
 
 /** One square of album art, with the app's single fallback treatment.
@@ -22,16 +26,17 @@ interface CoverProps {
  *  decorative: a browse grid at this library's scale mounts hundreds of these at
  *  once, and decoding them synchronously on the main thread is exactly what makes
  *  a cover grid stutter under a thumb. */
-export default function Cover({ id, has = true, alt, name, className, eager }: CoverProps) {
+export default function Cover({ id, has = true, alt, name, className, eager, src }: CoverProps) {
   const [failed, setFailed] = useState(false);
-  const showImage = id != null && has && !failed;
+  const url = src !== undefined ? src : id != null ? coverUrl(id) : null;
+  const showImage = url != null && has && !failed;
   const letter = (name || alt || '?').trim().charAt(0).toUpperCase() || '?';
 
   return (
     <div className={`kr-cover${className ? ` ${className}` : ''}`}>
       {showImage ? (
         <img
-          src={coverUrl(id)}
+          src={url!}
           alt={alt}
           loading={eager ? 'eager' : 'lazy'}
           decoding="async"

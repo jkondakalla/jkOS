@@ -203,6 +203,13 @@ export interface PlayerEngineConfig<
   volumeStorageKey?: string;
   /** Compat-recovery policy. Omit for apps without a server-side compat pipeline. */
   compat?: CompatPolicy<TItem>;
+  /** Whether the persisted playback rate applies to this item. Omit and it applies
+   *  to everything (PapyrOS's behaviour, and every app with one kind of item). An
+   *  app that plays BOTH audiobooks and music returns false for music: a 1.5× habit
+   *  for books must not speed up a song, and one engine means one rate. For an item
+   *  it does not apply to, the element runs at 1×, `rate` reports 1, and
+   *  `cycleRate` is a no-op — the persisted rate is left alone. */
+  rateApplies?: (item: TItem) => boolean;
   /** Copy overrides; unset keys fall back to DEFAULT_MESSAGES. */
   messages?: Partial<PlayerMessages>;
 }

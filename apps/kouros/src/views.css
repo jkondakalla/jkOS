@@ -70,6 +70,12 @@
   white-space: nowrap;
 }
 .kr-text-link:hover { text-decoration: underline; }
+/* More than one text link at a page head's end (Browse: Audiobooks · Playlists). */
+.kr-pagehead-links {
+  display: flex;
+  gap: 1rem;
+  align-items: baseline;
+}
 .kr-hint { padding: 1.5rem 0; text-align: center; }
 
 /* ── Primary button — the one filled control per screen ───────────────────── */

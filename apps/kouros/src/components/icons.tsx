@@ -32,6 +32,17 @@ export function IconLibrary({ size = 22 }: GlyphProps = {}) {
   );
 }
 
+/** Audiobooks — a closed book, spine on the left. */
+export function IconBook({ size = 22 }: GlyphProps = {}) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M6 3.8h11.5a1 1 0 0 1 1 1v14.4a1 1 0 0 1-1 1H6.8A2.3 2.3 0 0 1 4.5 17.9V6.1A2.3 2.3 0 0 1 6.8 3.8z" {...S} />
+      <path d="M4.5 17.6a2.3 2.3 0 0 1 2.3-2.3h11.7" {...S} />
+      <path d="M9 7.8h6" {...S} />
+    </svg>
+  );
+}
+
 export function IconSearch({ size = 22 }: GlyphProps = {}) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">

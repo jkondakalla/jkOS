@@ -68,7 +68,14 @@ function fakeStore(initial = {}) {
 /* ══════════════════════════════════════════════════════════════════════ *
  * rate.ts
  * ══════════════════════════════════════════════════════════════════════ */
-const { RATE_PRESETS, readPersistedRate, persistRate, nextRate } = rate;
+const { RATE_PRESETS, readPersistedRate, persistRate, nextRate, effectiveRate } = rate;
+
+/* ── effectiveRate (config.rateApplies) ────────────────────────────────── */
+// One engine playing books AND music (KourOS) has one persisted rate; a track must
+// not inherit a 1.5× audiobook habit, and the habit must survive the track.
+check(effectiveRate(1.5, true) === 1.5, 'effectiveRate: an item the rate applies to runs at the persisted rate');
+check(effectiveRate(1.5, false) === 1, 'effectiveRate: an item it does not apply to runs at 1×');
+check(effectiveRate(0.75, false) === 1, 'effectiveRate: a SLOW preset is not applied either — 1× means 1×');
 
 check(deepEq([...RATE_PRESETS], [0.75, 1, 1.25, 1.5, 1.75, 2, 2.5]), 'RATE_PRESETS is the 7 canonical presets in cycle order');
 

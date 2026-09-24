@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AsyncView, Chip } from '@jkos/ui';
 import { AlbumCard, ArtistCard } from '../components/cards';
-import { playlistsHref } from '../hooks/useHashRoute';
+import { booksHref, playlistsHref } from '../hooks/useHashRoute';
 import {
   listAlbums, listArtists, libraryStats,
   type AlbumSort, type AlbumSummary, type ArtistSummary, type LibraryStats,
@@ -82,7 +82,13 @@ export default function Browse() {
               : ' '}
           </p>
         </div>
-        <a className="kr-text-link" href={playlistsHref()}>Playlists</a>
+        {/* The phone's only door to the audiobooks: no tab bar there, and the
+            corner rune that opens this page is the library rune (destinations.ts
+            is the reachability argument). */}
+        <nav className="kr-pagehead-links" aria-label="More of the library">
+          <a className="kr-text-link" href={booksHref()}>Audiobooks</a>
+          <a className="kr-text-link" href={playlistsHref()}>Playlists</a>
+        </nav>
       </header>
 
       <div className="kr-browse-controls">

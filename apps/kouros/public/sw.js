@@ -15,13 +15,19 @@
  *
  * ⚠️ THREE RULES THIS FILE MUST NOT BREAK.
  *
- * 1. NEVER TOUCH /api/. Audio is Range-served (206 + Content-Range) by
- *    @jkos/weave/mediaRoutes, and a service worker that intercepts a Range
- *    request without reproducing those semantics exactly will break seeking, or
- *    cache a partial body and serve it as if it were whole. Covers and streams
- *    both pass through untouched. KourOS streams by design — offline downloads
- *    are a separate feature with a separate cache, not something to fall into
- *    by accident here.
+ * 1. NEVER TOUCH /api/ — with ONE exception, and it is online-first. Audio is
+ *    Range-served (206 + Content-Range) by @jkos/weave/mediaRoutes, and a service
+ *    worker that intercepts a Range request without reproducing those semantics
+ *    exactly will break seeking, or cache a partial body and serve it as if it
+ *    were whole. Music passes through untouched, always.
+ *
+ *    The exception is the DOWNLOADED AUDIOBOOK (PapyrOS's offline feature, which
+ *    came with the fold on 2026-09-23): /api/books/stream|cover and /api/book/
+ *    go to the network FIRST, and only when that fetch itself REJECTS (no
+ *    network) is the book media cache consulted. This worker never WRITES that
+ *    cache — the in-app download pipeline (src/books/offline/store.ts) is its only
+ *    writer — so a partial body can never get in, and a Range request offline is
+ *    answered by slicing the stored whole body (serveBookMedia below).
  *
  * 2. NEVER RESURRECT A HASHED ASSET THAT THE SERVER 404s. serveSpa
  *    (packages/weave/src/server/spa.js) deliberately answers a MISSING
@@ -80,8 +86,14 @@ self.addEventListener('fetch', (event) => {
   // the browser's own handling.
   if (url.origin !== self.location.origin) return
 
-  // RULE 1: the API is never touched — audio Range semantics above all.
-  if (url.pathname.includes('/api/')) return
+  // RULE 1: the API is never touched — audio Range semantics above all — except a
+  // downloaded book's media, which falls back to its cache only when OFFLINE.
+  if (url.pathname.includes('/api/')) {
+    if (/\/api\/(books\/stream|books\/cover|book)\//.test(url.pathname)) {
+      event.respondWith(serveBookMedia(request))
+    }
+    return
+  }
 
   // Full-page navigations: fresh from the network, cached shell when offline so
   // the SPA can boot and route client-side from there.
@@ -125,5 +137,59 @@ async function networkFirstAsset(request) {
     const cached = await cache.match(request)
     if (cached) return cached
     throw err
+  }
+}
+
+/* ── Downloaded audiobooks, when offline (PapyrOS's Wave 7.3 router, folded in) ──
+ * Online-first: a healthy network is a transparent pass-through. Offline, serve from
+ * the cache the download pipeline populated. MUST match src/books/offline/
+ * constants.ts's MEDIA_CACHE — the two files cannot import each other (this one is a
+ * plain public/ script), so the name is duplicated by contract; change BOTH or
+ * neither.
+ *
+ * Range handling: the pipeline stores each audio file as ONE full-body 200 keyed by
+ * its bare stream URL. A Range request offline is answered by slicing that body —
+ * Blob.slice() is lazy (disk-backed), so a 400 MB audiobook never materialises in
+ * memory. `ignoreSearch` lets a `?compat=N` request fall back to the cached
+ * original. */
+const BOOK_MEDIA_CACHE = 'kouros-books-media-v1'
+
+async function serveBookMedia(request) {
+  try {
+    return await fetch(request)
+  } catch (err) {
+    const cache = await caches.open(BOOK_MEDIA_CACHE)
+    const cached = await cache.match(request.url, { ignoreSearch: true })
+    if (!cached) throw err
+
+    const rangeHeader = request.headers.get('range')
+    if (!rangeHeader) return cached
+
+    const blob = await cached.blob()
+    const total = blob.size
+    const m = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader.trim())
+    if (!m || (m[1] === '' && m[2] === '')) {
+      return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${total}` } })
+    }
+    let start, end
+    if (m[1] === '') {
+      start = Math.max(0, total - Number.parseInt(m[2], 10))
+      end = total - 1
+    } else {
+      start = Number.parseInt(m[1], 10)
+      end = m[2] === '' ? total - 1 : Math.min(Number.parseInt(m[2], 10), total - 1)
+    }
+    if (Number.isNaN(start) || Number.isNaN(end) || start > end || start >= total) {
+      return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${total}` } })
+    }
+    return new Response(blob.slice(start, end + 1), {
+      status: 206,
+      headers: {
+        'Content-Type': cached.headers.get('Content-Type') || 'application/octet-stream',
+        'Content-Length': String(end - start + 1),
+        'Content-Range': `bytes ${start}-${end}/${total}`,
+        'Accept-Ranges': 'bytes',
+      },
+    })
   }
 }

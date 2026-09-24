@@ -9,6 +9,7 @@ import { IconNext, IconPrev } from '@jkos/player/ui';
 import { IconRepeat, IconRepeatOne, IconShuffle } from '../player/icons';
 import { radioFrom } from '../api';
 import { requestPlay } from '../player/controller';
+import NowPlayingBook from './NowPlayingBook';
 
 /**
  * Now Playing — the hero screen.
@@ -59,6 +60,11 @@ export default function NowPlaying() {
     }
     return out;
   }, [p.queue, p.tracksById]);
+
+  // An audiobook has its own face — chapters, ±30 s, rate, sleep, bookmarks — and
+  // none of a track's (the pulsarmap, radio, shuffle/repeat). Chosen by the item's
+  // KIND, which is what the rest of the player derives its controls from too.
+  if (p.item?.kind === 'book') return <NowPlayingBook />;
 
   if (!p.track) {
     return (

@@ -32,7 +32,7 @@ import {
   type NavPoint, type Timeline,
 } from '../core/timeline';
 import type { BackendError, MediaBackend } from '../backend/types';
-import { readPersistedRate, persistRate, nextRate } from './rate';
+import { readPersistedRate, persistRate, nextRate, effectiveRate } from './rate';
 import { readInitialVolume, readInitialMuted, applyVolume, applyMuted } from './volume';
 import {
   DEFAULT_RECOVERABLE_KINDS, canEscalate, compatKey, effectiveStartLevel,
@@ -71,7 +71,7 @@ export function usePlayerEngine<
   TProgress extends ProgressRowLike,
   TBookmark extends BookmarkRowLike,
 >(config: PlayerEngineConfig<TItem, TProgress, TBookmark>): PlayerApi<TItem, TBookmark> {
-  const { itemLoader, progress, bookmarks: bookmarkStore, urls, transport, compat, storageKey, volumeStorageKey } = config;
+  const { itemLoader, progress, bookmarks: bookmarkStore, urls, transport, compat, storageKey, volumeStorageKey, rateApplies } = config;
   const messages: PlayerMessages = { ...DEFAULT_MESSAGES, ...config.messages };
   const recoverableKinds = compat?.recoverableKinds ?? DEFAULT_RECOVERABLE_KINDS;
   const pollInterval = compat?.pollIntervalMs ?? COMPAT_POLL_INTERVAL_MS;
@@ -102,6 +102,12 @@ export function usePlayerEngine<
   const pointsRef = useRef<NavPoint[]>([]);
   const arrayIndexRef = useRef(0);           // current playlist cursor
   const rateRef = useRef(rate);
+  /** The rate the element should run at for the LIVE item (config.rateApplies). Read
+   *  through refs like every handler, so the stable closures below never go stale. */
+  const appliedRate = (): number => {
+    const it = itemRef.current;
+    return effectiveRate(rateRef.current, !it || !rateApplies || rateApplies(it));
+  };
   const volumeRef = useRef(volume);
   const mutedRef = useRef(muted);
   const pendingSeekRef = useRef<number | null>(null);   // in-source offset to apply on loadedmetadata
@@ -195,7 +201,7 @@ export function usePlayerEngine<
       const initial = compat ? compat.initialLevel(it, source.index) : 0;
       const level = effectiveStartLevel(compatLevelRef.current.get(compatKey(itemId, source.index)) ?? 0, initial);
       backend.load({ url: urls.stream(itemId, source.index, level) });
-      backend.setRate(rateRef.current);   // some backends reset rate on src change; onLoaded reapplies too
+      backend.setRate(appliedRate());   // some backends reset rate on src change; onLoaded reapplies too
       hasLoadedRef.current = true;
       const g = toGlobal(timeline, arrayIndex, offset);
       globalPosRef.current = g;
@@ -271,6 +277,8 @@ export function usePlayerEngine<
     }
 
     function cycleRate(): void {
+      // An item the rate does not apply to has no rate to cycle (config.rateApplies).
+      if (itemRef.current && rateApplies && !rateApplies(itemRef.current)) return;
       const next = nextRate(rateRef.current);
       rateRef.current = next;
       backendRef.current?.setRate(next);
@@ -424,7 +432,7 @@ export function usePlayerEngine<
         try { backend.seek(Math.min(pendingSeekRef.current, dur)); } catch { /* ignore */ }
         pendingSeekRef.current = null;
       }
-      backend.setRate(rateRef.current);
+      backend.setRate(appliedRate());
       backend.setVolume(volumeRef.current);   // some backends reset volume/muted on src change, like rate
       backend.setMuted(mutedRef.current);
       if (wantPlayRef.current) void backend.play().catch(playFailed);
@@ -554,7 +562,7 @@ export function usePlayerEngine<
   // ── Wire the stable backend + global listeners (once) — [INVARIANT a] ─────
   useEffect(() => {
     const backend = typeof config.backend === 'function' ? config.backend() : config.backend;
-    backend.setRate(rateRef.current);
+    backend.setRate(appliedRate());
     backend.setVolume(volumeRef.current);   // apply the persisted (or default) volume/mute once at mount
     backend.setMuted(mutedRef.current);
     backendRef.current = backend;
@@ -585,7 +593,8 @@ export function usePlayerEngine<
   const segmentLabel = currentIndex >= 0 ? points[currentIndex]?.title ?? null : null;
 
   return {
-    visible, item, playing, buffering, error, globalPos, total: rtl.total, rate,
+    visible, item, playing, buffering, error, globalPos, total: rtl.total,
+    rate: effectiveRate(rate, !item || !rateApplies || rateApplies(item)),
     volume, muted,
     points, currentIndex, segmentLabel, bookmarks, sleepMode, sleepRemainingMs,
     ...eng.controls,

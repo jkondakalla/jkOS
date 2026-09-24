@@ -1,13 +1,15 @@
 import type { View } from '../hooks/useHashRoute';
-import { IconHome, IconLibrary, IconMap, IconSearch } from './icons';
+import { IconBook, IconHome, IconLibrary, IconMap, IconSearch } from './icons';
 
 interface TabBarProps {
   active: View;
 }
 
-/** The four destinations. Four, not seven: a phone tab bar with more than five
- *  targets makes each one too small to hit reliably, and Playlists / Artists are
- *  reachable one level in from Browse rather than competing for a slot here. */
+/** The five destinations — the ceiling: a bar with more than five targets makes
+ *  each one too small to hit reliably, and Playlists / Artists are reachable one
+ *  level in from Browse rather than competing for a slot here. Books earned the
+ *  fifth when PapyrOS folded in (2026-09-23): an audiobook shelf is a library of
+ *  its own, not a filter on the music one. */
 const TABS: Array<{
   view: View;
   href: string;
@@ -21,6 +23,7 @@ const TABS: Array<{
     view: 'browse', href: '#/browse', label: 'Library', icon: IconLibrary,
     covers: ['artists', 'artist', 'album', 'playlists', 'playlist'],
   },
+  { view: 'books', href: '#/books', label: 'Books', icon: IconBook, covers: ['book'] },
   { view: 'search', href: '#/search', label: 'Search', icon: IconSearch },
   { view: 'map', href: '#/map', label: 'Map', icon: IconMap },
 ];
