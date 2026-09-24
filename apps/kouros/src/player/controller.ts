@@ -34,18 +34,54 @@ export interface PlayRequest {
    *  book route (player/context.ts). Omitted for an ad-hoc list (search results,
    *  a map region), which is not a place "Recently played" can send you back to. */
   context?: string;
+  /** `false` CUES the queue — loaded and positioned, left paused. Only the
+   *  listening session uses it (a device opening on the session's item). */
+  autoplay?: boolean;
 }
+
+// ─── The router — WHERE a view's request plays (2026-09-24) ──────────────────────
+// Since the listening session, "play this album" does not always mean THIS tab's
+// audio: with another device as the output, it plays THERE (Spotify's routing — Jag,
+// 2026-09-23). So a view's request goes through a router the session installs
+// (session/usePlayerSession.ts), and the router decides: this tab's engine, or a
+// command to the output. Every call site stays `requestPlay(...)` and knows none of
+// it.
+//
+// ⚠️ THE ENGINE'S OWN NAVIGATION NEVER GOES THROUGH THE ROUTER. Next track, a queue
+// row, the end-of-track advance, a gapless swap's ack — those are the local engine
+// moving its own queue, and routing them would send the output's auto-advance back
+// to itself as a command. They use `requestLocalPlay`, which is the channel the
+// engine's transport listens on. Without a router installed (no session: an old
+// backend, a guest), a request simply plays here — exactly the pre-session app.
 
 type Listener = (req: PlayRequest) => void;
 const listeners = new Set<Listener>();
 
-/** Ask the player to play a queue (optionally starting mid-track). */
+export interface PlayRouter {
+  play(req: PlayRequest): void;
+  enqueue(req: EnqueueRequest): void;
+}
+let router: PlayRouter | null = null;
+
+/** Install the session's router. Returns the uninstall function. */
+export function setPlayRouter(r: PlayRouter): () => void {
+  router = r;
+  return () => { if (router === r) router = null; };
+}
+
+/** A VIEW asks for a queue to play (optionally mid-track) — wherever the output is. */
 export function requestPlay(req: PlayRequest): void {
+  if (router) router.play(req);
+  else requestLocalPlay(req);
+}
+
+/** THIS tab's engine plays a queue. The engine's own nav, and the router's local arm. */
+export function requestLocalPlay(req: PlayRequest): void {
   for (const l of listeners) l(req);
 }
 
-/** Subscribe to play requests (PlayerBar). Returns the unsubscribe function. */
-export function onPlayRequest(l: Listener): () => void {
+/** The engine's transport subscribes here. Returns the unsubscribe function. */
+export function onLocalPlayRequest(l: Listener): () => void {
   listeners.add(l);
   return () => { listeners.delete(l); };
 }
@@ -112,12 +148,19 @@ export interface EnqueueRequest {
 type EnqueueListener = (req: EnqueueRequest) => void;
 const enqueueListeners = new Set<EnqueueListener>();
 
-/** Ask the player to insert tracks after the current one, or append them. */
+/** A VIEW asks for tracks after the current one, or at the end — routed like
+ *  requestPlay: to this tab's queue, or to the output's. */
 export function requestEnqueue(req: EnqueueRequest): void {
+  if (router) router.enqueue(req);
+  else requestLocalEnqueue(req);
+}
+
+/** THIS tab's queue takes the edit. */
+export function requestLocalEnqueue(req: EnqueueRequest): void {
   for (const l of enqueueListeners) l(req);
 }
 
-/** Subscribe to queue edits (PlayerBar only). Returns the unsubscribe function. */
+/** Subscribe to local queue edits (PlayerProvider only). Returns the unsubscribe function. */
 export function onEnqueueRequest(l: EnqueueListener): () => void {
   enqueueListeners.add(l);
   return () => { enqueueListeners.delete(l); };

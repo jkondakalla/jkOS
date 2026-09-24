@@ -48,6 +48,12 @@ export function startEdge({ port, apiPort, appPort, rewrites = [], apiPrefixes =
       res.writeHead(502, { 'Content-Type': 'text/plain' });
       res.end(`edge: ${target.port} unreachable (${err.code})`);
     });
+    // ⚠️ A browser that goes away must take its upstream request WITH it — what
+    // nginx does by default (proxy_ignore_client_abort off). Without this every closed
+    // tab left its listening-session stream open on the backend for ever, so the
+    // device it belonged to stayed "online", and the next tab to open routed its play
+    // button to a device that no longer existed.
+    res.on('close', () => { if (!res.writableFinished) proxied.destroy(); });
     req.pipe(proxied);
   });
 

@@ -33,6 +33,13 @@ export interface EngineRequest {
   itemId: Id;
   /** Global seconds across the whole timeline; omit to resume from saved progress. */
   position?: number;
+  /** `false` CUES the item: loaded, positioned, shown — and left paused. It never
+   *  STARTS playback, and it does not stop what is already playing (that is a pause,
+   *  not a cue). Default true: a request is "play this". The case it exists for is
+   *  KourOS's listening session, where every device opens on the session's item
+   *  paused at the second it was left, and only the device you press play on
+   *  plays it. */
+  autoplay?: boolean;
 }
 
 export interface PositionBroadcast {
@@ -242,6 +249,11 @@ export interface PlayerApi<TItem, TBookmark> {
   sleepMode: SleepMode;
   sleepRemainingMs: number | null;
   toggle(): void;
+  /** Start playback — a no-op when already playing. Unlike a guarded toggle(), safe
+   *  to call on a stale idea of whether it is playing. */
+  play(): void;
+  /** Stop playback, and cancel a load's pending autoplay — a no-op when stopped. */
+  pause(): void;
   /** The media element's `currentTime` as a global position, read at call time —
    *  for a view that moves every animation frame (KourOS's pulsarmap), where
    *  `globalPos`'s ~4 Hz steps would show. Still the element's own time, never a

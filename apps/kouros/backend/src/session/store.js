@@ -40,6 +40,8 @@ const SESSION_DDL = `
     position_ms   INTEGER NOT NULL DEFAULT 0,
     playing       INTEGER NOT NULL DEFAULT 0,
     rate          REAL    NOT NULL DEFAULT 1,
+    sleep_mode    TEXT,                             -- the output's sleep timer; NULL = off
+    sleep_remaining_ms INTEGER,                     -- at reported_at; NULL for 'segment'
     reported_at   TEXT    DEFAULT (${SQL_NOW}),
     updated_at    TEXT    DEFAULT (${SQL_NOW})
   );
@@ -69,6 +71,15 @@ const DEVICES_DDL = `
   );
 `;
 
+/** Migration 15's body: the sleep columns, on a table migration 13 built before them.
+ *  A fresh database already has them (SESSION_DDL), so this only ALTERs an older one —
+ *  migration 12's precedent. */
+function addSleepColumns(db) {
+  const cols = new Set(db.prepare('PRAGMA table_info(listening_session)').all().map((c) => c.name));
+  if (!cols.has('sleep_mode')) db.exec('ALTER TABLE listening_session ADD COLUMN sleep_mode TEXT');
+  if (!cols.has('sleep_remaining_ms')) db.exec('ALTER TABLE listening_session ADD COLUMN sleep_remaining_ms INTEGER');
+}
+
 /** A device unseen this long is forgotten on the next registration (the suite has no
  *  scheduler — a prune rides a write). */
 const DEVICE_TTL_DAYS = 90;
@@ -77,11 +88,14 @@ function createSessionStore(db) {
   const q = {
     get: db.prepare('SELECT * FROM listening_session WHERE user_id = ?'),
     upsert: db.prepare(`
-      INSERT INTO listening_session (user_id, rev, active_device, queue, context, item_ref, position_ms, playing, rate)
-      VALUES (@user_id, 1, @active_device, @queue, @context, @item_ref, @position_ms, @playing, @rate)
+      INSERT INTO listening_session (user_id, rev, active_device, queue, context, item_ref, position_ms, playing, rate,
+                                     sleep_mode, sleep_remaining_ms)
+      VALUES (@user_id, 1, @active_device, @queue, @context, @item_ref, @position_ms, @playing, @rate,
+              @sleep_mode, @sleep_remaining_ms)
       ON CONFLICT(user_id) DO UPDATE SET
         rev = rev + 1, active_device = @active_device, queue = @queue, context = @context,
-        item_ref = @item_ref, position_ms = @position_ms, playing = @playing, rate = @rate`),
+        item_ref = @item_ref, position_ms = @position_ms, playing = @playing, rate = @rate,
+        sleep_mode = @sleep_mode, sleep_remaining_ms = @sleep_remaining_ms`),
     devices: db.prepare('SELECT * FROM devices WHERE user_id = ? ORDER BY last_seen_at DESC'),
     device: db.prepare('SELECT * FROM devices WHERE user_id = ? AND device_id = ?'),
     register: db.prepare(`
@@ -104,14 +118,16 @@ function createSessionStore(db) {
     if (!row) {
       return {
         rev: 0, active_device: null, queue: EMPTY_QUEUE, context: null, item_ref: null,
-        position_ms: 0, playing: false, rate: 1, reported_at: null,
+        position_ms: 0, playing: false, rate: 1, sleep_mode: null, sleep_remaining_ms: null, reported_at: null,
       };
     }
     let queue = EMPTY_QUEUE;
     try { queue = JSON.parse(row.queue); } catch { /* validated on the way in; never expected */ }
     return {
       rev: row.rev, active_device: row.active_device, queue, context: row.context, item_ref: row.item_ref,
-      position_ms: row.position_ms, playing: !!row.playing, rate: row.rate, reported_at: row.reported_at,
+      position_ms: row.position_ms, playing: !!row.playing, rate: row.rate,
+      sleep_mode: row.sleep_mode ?? null, sleep_remaining_ms: row.sleep_remaining_ms ?? null,
+      reported_at: row.reported_at,
     };
   }
 
@@ -141,6 +157,8 @@ function createSessionStore(db) {
         position_ms: Math.max(0, Math.round(s.position_ms ?? 0)),
         playing: s.playing ? 1 : 0,
         rate: s.rate ?? 1,
+        sleep_mode: s.sleep_mode ?? null,
+        sleep_remaining_ms: s.sleep_remaining_ms == null ? null : Math.max(0, Math.round(s.sleep_remaining_ms)),
       });
       return toSession(q.get.get(userId));
     },
@@ -175,4 +193,4 @@ function createSessionStore(db) {
   };
 }
 
-module.exports = { createSessionStore, SESSION_DDL, DEVICES_DDL, EMPTY_QUEUE, DEVICE_TTL_DAYS };
+module.exports = { createSessionStore, SESSION_DDL, DEVICES_DDL, addSleepColumns, EMPTY_QUEUE, DEVICE_TTL_DAYS };

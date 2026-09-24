@@ -37,7 +37,7 @@ const { createBooksRouter } = require('./src/books/list');               // filt
 const { createBookMediaRouter, prepareAllCompat } = require('./src/books/media');   // /api/books/stream|cover|download + /api/book/:id
 const { createMatchRouter, runEnrichmentSweep } = require('./src/books/match');     // matchBook / matchAllMissing + the enrichment sweep
 // The listening session — one session per listener across every KourOS instance (2026-09-23).
-const { createSessionStore, SESSION_DDL, DEVICES_DDL } = require('./src/session/store');
+const { createSessionStore, SESSION_DDL, DEVICES_DDL, addSleepColumns } = require('./src/session/store');
 const { createSessionRouter } = require('./src/session/routes');
 const { createHub } = require('./src/session/hub');
 
@@ -76,6 +76,10 @@ const BOOKS_AUTO_COMPAT = process.env.KOUROS_BOOKS_AUTO_COMPAT === '1';
    person. */
 const SESSION_OFFLINE_GRACE_MS = Number(process.env.KOUROS_SESSION_OFFLINE_GRACE_MS) > 0
   ? Number(process.env.KOUROS_SESSION_OFFLINE_GRACE_MS) : undefined;
+/* …and how long a PLAYING session may go without a report before its output is
+   presumed gone (REPORT_STALE_MS there). Smoke-only, like the grace. */
+const SESSION_REPORT_STALE_MS = Number(process.env.KOUROS_SESSION_STALE_MS) > 0
+  ? Number(process.env.KOUROS_SESSION_STALE_MS) : undefined;
 
 /* The music embedder's index (ALGORITHMS.md §4's music/index.db) — the source of the CLAP
    vectors behind similarity, radio, Runs and the vibe map. OPTIONAL by design: it
@@ -402,6 +406,9 @@ const MIGRATIONS = [
      ONLINE is never stored: that is the in-memory hub's live answer. */
   { id: 13, name: 'create_listening_session', up(d) { d.exec(SESSION_DDL); } },
   { id: 14, name: 'create_devices',           up(d) { d.exec(DEVICES_DDL); } },
+  /* The output's sleep timer, so a remote shows it counting down rather than "off".
+     Additive; a fresh database already has the columns (migration 12's precedent). */
+  { id: 15, name: 'session_sleep',            up(d) { addSleepColumns(d); } },
 ];
 
 function runMigrations() {
@@ -524,7 +531,8 @@ app.use(createMatchRouter({ db, dataDir: BOOKS_DATA_DIR }));
    process (src/session/hub.js's header; said again in the boot log below). */
 const sessionHub = createHub();
 app.use(createSessionRouter({
-  db, store: createSessionStore(db), hub: sessionHub, offlineGraceMs: SESSION_OFFLINE_GRACE_MS,
+  db, store: createSessionStore(db), hub: sessionHub,
+  offlineGraceMs: SESSION_OFFLINE_GRACE_MS, reportStaleMs: SESSION_REPORT_STALE_MS,
 }));
 
 /* ── Media (stream/cover/download) ─────────────────────────────────────────

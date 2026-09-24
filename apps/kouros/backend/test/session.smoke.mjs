@@ -52,6 +52,9 @@ const SERVICE = 'kouros';
 const ISSUER = 'jkos-auth';
 /** The server's offline grace, shortened so the smoke can wait it out. */
 const GRACE_MS = 600;
+/** The report watchdog, shortened too — but longer than any stretch below in which
+ *  a session is playing between two reports, so it only bites where it is meant to. */
+const STALE_MS = 4000;
 
 let pass = 0, fail = 0;
 const ok = (cond, msg) => { if (cond) pass++; else { fail++; console.error('  ✗ ' + msg); } };
@@ -84,6 +87,17 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   ok(livePositionMs(s, t + 2000) === 13_000, 'livePositionMs extrapolates at the rate while playing');
   ok(livePositionMs({ ...s, playing: false }, t + 2000) === 10_000, 'livePositionMs holds still while paused');
   ok(livePositionMs(s, t - 5000) === 10_000, 'livePositionMs never runs backwards on a clock behind the report');
+
+  // Migration 15 on a table migration 13 built BEFORE the sleep columns existed.
+  const Database = require('better-sqlite3');
+  const { addSleepColumns } = require('../src/session/store.js');
+  const old = new Database(':memory:');
+  old.exec('CREATE TABLE listening_session (user_id INTEGER PRIMARY KEY, rev INTEGER, queue TEXT NOT NULL)');
+  addSleepColumns(old);
+  addSleepColumns(old);   // idempotent — a second boot, or a fresh DB that already has them
+  const cols = old.prepare('PRAGMA table_info(listening_session)').all().map((c) => c.name);
+  ok(cols.includes('sleep_mode') && cols.includes('sleep_remaining_ms'), 'migration 15 adds the sleep columns to an older table, idempotently');
+  old.close();
 }
 
 /* ── 2. The real server ────────────────────────────────────────────────────────── */
@@ -110,6 +124,7 @@ function mkToken(claims, ttlSec = 900) {
 const A = mkToken({ sub: 801, role: 'user', scope: ['kouros:write'] });
 const B = mkToken({ sub: 802, role: 'user', scope: ['kouros:write'] });
 const C = mkToken({ sub: 803, role: 'user', scope: ['kouros:write'] });
+const D = mkToken({ sub: 804, role: 'user', scope: ['kouros:write'] });
 
 async function req(method, path, body, token) {
   const headers = {};
@@ -180,6 +195,7 @@ const child = spawn('node', ['server.js'], {
     MUSIC_DIR, AUDIOBOOKS_DIR: BOOKS_DIR,
     JKOS_AUTH_PUBLIC_KEY: publicKey, JKOS_AUTH_ISSUER: ISSUER,
     KOUROS_SESSION_OFFLINE_GRACE_MS: String(GRACE_MS),
+    KOUROS_SESSION_STALE_MS: String(STALE_MS),
   },
   stdio: ['ignore', 'pipe', 'pipe'],
 });
@@ -321,6 +337,12 @@ try {
   ok((await rep(A, A1, { context: 'javascript:alert(1)' })).status === 400, 'a context that is not a KourOS route → 400');
   ok((await rep(A, A1, { queue: queueOf(Array.from({ length: 5001 }, (_, i) => String(i))) })).status === 400, 'a 5001-item queue → 400');
   ok((await rep(A, A1, { rate: 9 })).status === 400, 'a rate out of range → 400');
+  const slept = await rep(A, A1, { position_ms: 32_000, sleep_mode: '30', sleep_remaining_ms: 1_700_000 });
+  ok(slept.status === 200 && slept.json.session.sleep_mode === '30' && slept.json.session.sleep_remaining_ms === 1_700_000,
+    "the output's sleep timer is carried, so a remote can show it counting down");
+  ok((await rep(A, A1, { sleep_mode: 'forever' })).status === 400, 'an unknown sleep_mode → 400');
+  ok((await rep(A, A1, { sleep_mode: 'segment', sleep_remaining_ms: 5 })).status === 400, "'segment' (end of chapter) carries no remaining time → 400");
+  ok((await rep(A, A1, { sleep_mode: 'off' })).json?.session.sleep_mode === null, "'off' is stored as no timer");
   const sessNow = (await req('GET', '/api/session', undefined, A)).json;
   ok(sessNow.devices.find((d) => d.id === A1).volume === 0.8, "the output's reported volume is kept on its device row");
 
@@ -369,7 +391,7 @@ try {
   ok(bSameKey.status === 202 && bSameKey.headers.get('idempotent-replay') !== 'true', "A's key replays nothing for B (keys are scoped per listener)");
 
   /* ── Transfer between devices ── */
-  await rep(A, A1, { position_ms: 60_000, playing: true });
+  await rep(A, A1, { position_ms: 60_000, playing: true, sleep_mode: '15', sleep_remaining_ms: 900_000 });
   await sleep(250);
   const move = await req('POST', '/api/session/transfer', { to: A2 }, A);
   ok(move.status === 200 && move.json.session.active_device === A2, 'transfer A1 → A2');
@@ -378,6 +400,7 @@ try {
   const handed = over && over.data.args.session.position_ms;
   ok(handed >= 60_200 && handed < 62_000, `the new output takes over where the music HAS got to, not where it was reported (${handed} ms)`);
   ok(over && over.data.args.play === true, 'a playing session keeps playing across the hand-off');
+  ok(over && over.data.args.session.sleep_mode === null, "a sleep timer does not follow a transfer — it ran on the old output");
 
   /* ── The anchor moves on EVERY report ── */
   const same1 = (await rep(A, A2, { position_ms: 90_000, playing: true })).json.session;
@@ -439,6 +462,22 @@ try {
   ok(reauth && reauth.data.reason === 'token-expiry', 'the stream says `reauth` at the token\'s exp');
   await sleep(200);
   ok(sB2.ended, '…and closes');
+
+  /* ── An output that goes SILENT without closing anything ── */
+  // A phone out of signal: its stream is still "open", it simply stops reporting.
+  const D1 = randomUUID(), D2 = randomUUID();
+  await reg(D, D1, 'D phone', 'phone'); await reg(D, D2, 'D desk');
+  const sD1 = stream(D, D1), sD2 = stream(D, D2);
+  await Promise.all([sD1.ready, sD2.ready]);
+  await req('POST', '/api/session/transfer', { to: D1, play: true }, D);
+  await rep(D, D1, { position_ms: 70_000, playing: true });
+  const tSilent = Date.now();
+  const stopped = await sD2.take(isSession((x) => x.playing === false), STALE_MS + 3000);
+  ok(!!stopped && Date.now() - tSilent >= STALE_MS - 200, `a playing output that stops REPORTING is presumed gone after the watchdog (${Date.now() - tSilent} ms)`);
+  ok(stopped && stopped.data.session.position_ms === 70_000, '…paused at the last position it REPORTED, not a guess past it');
+  await sleep(200);
+  ok(sD1.ended, "…and its zombie stream is dropped, so presence stops claiming it");
+  ok(!!(await sD2.take((e) => e.event === 'devices' && e.data.devices.find((d) => d.id === D1)?.online === false)), '…which every other device hears');
 
   /* ── Limits ── */
   const Cs = Array.from({ length: 21 }, () => randomUUID());

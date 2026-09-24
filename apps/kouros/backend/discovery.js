@@ -351,6 +351,8 @@ const SESSION_CAPABILITIES = [
       { name: 'volume', type: 'number', label: 'This device\'s volume, 0–1' },
       { name: 'muted', type: 'boolean', label: 'This device is muted' },
       { name: 'error', type: 'string', label: 'A short error code, e.g. autoplay-blocked', max: 64 },
+      { name: 'sleep_mode', type: 'enum', enum: ['off', '15', '30', '45', '60', 'segment'], label: 'The output\'s sleep timer' },
+      { name: 'sleep_remaining_ms', type: 'number', label: 'Time left on a timed sleep_mode, milliseconds' },
     ],
     returns: [{ name: 'session', type: 'json', label: 'The session as stored (rev bumped)', schema: SESSION_SCHEMA }],
     invalidates: [SESSION_KEY], scopes: ['kouros:write'],

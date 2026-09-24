@@ -16,7 +16,7 @@
 const MAX_STREAMS_PER_USER = 20;
 
 function createHub() {
-  /** userId → Map<connId, { deviceId, write(event, data) }> */
+  /** userId → Map<connId, { deviceId, write(event, data), close() }> */
   const users = new Map();
   let seq = 0;
 
@@ -29,13 +29,24 @@ function createHub() {
   return {
     MAX_STREAMS_PER_USER,
 
-    /** Register a stream; returns its id, or null when the user is at the cap. */
-    add(userId, deviceId, write) {
+    /** Register a stream; returns its id, or null when the user is at the cap.
+     *  `close` ends it from the server's side (drop, below). */
+    add(userId, deviceId, write, close) {
       const m = conns(userId);
       if (m.size >= MAX_STREAMS_PER_USER) return null;
       const id = `c${++seq}`;
-      m.set(id, { deviceId, write });
+      m.set(id, { deviceId, write, close });
       return id;
+    },
+
+    /** End every stream of one device — for a device the server has concluded is
+     *  gone although its sockets have not said so (routes.js's report watchdog). */
+    drop(userId, deviceId) {
+      const m = users.get(String(userId));
+      if (!m) return 0;
+      const doomed = [...m.values()].filter((c) => c.deviceId === deviceId);
+      for (const c of doomed) c.close();
+      return doomed.length;
     },
 
     remove(userId, connId) {

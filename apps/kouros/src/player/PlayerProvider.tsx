@@ -1,7 +1,8 @@
 import { createContext, useContext, useEffect, useRef, type ReactNode } from 'react';
-import { usePlayerEngine, type PlayerApi } from './usePlayerEngine';
+import type { PlayerApi } from './usePlayerEngine';
 import { onEnqueueRequest, publishNowPlaying } from './controller';
 import { deriveAccentFromArt } from './accent';
+import { useSessionPlayer, type PlayerSessionInfo } from '../session/usePlayerSession';
 
 /**
  * The ONE player instance, lifted to context.
@@ -19,11 +20,21 @@ import { deriveAccentFromArt } from './accent';
  * player's own surfaces, the seam is for everything else.
  */
 const PlayerContext = createContext<PlayerApi | null>(null);
+const SessionContext = createContext<PlayerSessionInfo | null>(null);
 
 export function usePlayer(): PlayerApi {
   const api = useContext(PlayerContext);
   if (!api) throw new Error('usePlayer() outside <PlayerProvider>');
   return api;
+}
+
+/** Where the music is: this tab, or another device (the listening session) — for the
+ *  device picker and the "Playing on …" strip. Every other surface reads usePlayer(),
+ *  which is the same PlayerApi wherever the audio is. */
+export function usePlayerSession(): PlayerSessionInfo {
+  const info = useContext(SessionContext);
+  if (!info) throw new Error('usePlayerSession() outside <PlayerProvider>');
+  return info;
 }
 
 /** The current item's cover URL, or undefined. Used for the ambient bloom and
@@ -38,16 +49,22 @@ export function nowPlayingArt(api: PlayerApi): string | undefined {
 }
 
 export function PlayerProvider({ children }: { children: ReactNode }) {
-  const api = usePlayerEngine();
+  /* Since the listening session (2026-09-24) the ONE engine lives inside
+     useSessionPlayer, which hands back the PlayerApi every surface reads: this
+     engine while this tab is the output (or nothing plays anywhere), or the other
+     device's session — with every verb a command to it — while it is. */
+  const { api, local, info } = useSessionPlayer();
 
   // ── Queue edits arriving from library views over the controller seam ─────────
   // Subscribed here rather than in a UI component so a queue edit lands whether or
   // not the mini bar happens to be rendered (it renders nothing before the first
-  // play request, and "Add to queue" on a silent player must still work).
+  // play request, and "Add to queue" on a silent player must still work). This is
+  // the LOCAL channel — the session's router has already sent a remote output's
+  // edits to it as commands — so it is always this tab's engine.
   useEffect(() => onEnqueueRequest(({ trackIds, where }) => {
-    if (where === 'next') api.playNext(trackIds);
-    else api.addToQueue(trackIds);
-  }), [api.playNext, api.addToQueue]);
+    if (where === 'next') local.playNext(trackIds);
+    else local.addToQueue(trackIds);
+  }), [local.playNext, local.addToQueue]);
 
   // ── Broadcast what is playing, for library rows to mark themselves ───────────
   useEffect(() => {
@@ -97,9 +114,11 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 
   return (
     <PlayerContext.Provider value={api}>
-      {/* `display: contents` — the wrapper carries custom properties only and must
-          not introduce a box of its own into the app's layout. */}
-      <div ref={scopeRef} className="kr-player-scope">{children}</div>
+      <SessionContext.Provider value={info}>
+        {/* `display: contents` — the wrapper carries custom properties only and must
+            not introduce a box of its own into the app's layout. */}
+        <div ref={scopeRef} className="kr-player-scope">{children}</div>
+      </SessionContext.Provider>
     </PlayerContext.Provider>
   );
 }

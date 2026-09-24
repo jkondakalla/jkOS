@@ -272,8 +272,28 @@ export function usePlayerEngine<
     function toggle(): void {
       const backend = backendRef.current;
       if (!backend || !itemRef.current) return;
-      if (backend.paused) { wantPlayRef.current = true; void backend.play().catch(playFailed); }
-      else backend.pause();
+      if (backend.paused) play();
+      else pause();
+    }
+
+    /* ⚠️ play() and pause() are IDEMPOTENT, and toggle() is not. A caller that guards
+       a toggle with the rendered `playing` flag reads a value one render stale: the
+       element pauses synchronously, `playing` flips only when its 'pause' event
+       re-renders — so two "stop if playing" steps in one tick (a remote's release
+       command, then the effect that sees the session moved) toggled it straight back
+       ON. These ask the ELEMENT, which is never stale. */
+    function play(): void {
+      const backend = backendRef.current;
+      if (!backend || !itemRef.current || !backend.paused) return;
+      wantPlayRef.current = true;
+      void backend.play().catch(playFailed);
+    }
+    function pause(): void {
+      // Also cancels a load still in flight that was going to start playing when it
+      // landed — "stop" means stop, not "stop, unless a track is still buffering".
+      wantPlayRef.current = false;
+      const backend = backendRef.current;
+      if (backend && !backend.paused) backend.pause();
     }
 
     function cycleRate(): void {
@@ -512,8 +532,10 @@ export function usePlayerEngine<
       setVisible(true);
       const backend = backendRef.current;
       // Same item already loaded → seek (never reload); a bare request just plays.
+      const autoplay = req.autoplay !== false;
       if (itemRef.current && itemLoader.idOf(itemRef.current) === req.itemId && timelineRef.current.total > 0) {
         if (req.position != null) seekTo(req.position);
+        if (!autoplay) return;                  // a cue positions; it never starts playback
         wantPlayRef.current = true;
         if (backend && backend.paused) void backend.play().catch(playFailed);
         return;
@@ -546,13 +568,13 @@ export function usePlayerEngine<
       setItem(loaded);
       setSleep('off');                          // a fresh item cancels any armed timer
       const { arrayIndex, offset } = locate(timeline, start);
-      loadFile(arrayIndex, offset, true);
+      loadFile(arrayIndex, offset, autoplay);
     }
 
     return {
       dispatch, handleRequest, flushNow,
       controls: {
-        toggle, seekTo, skip, prevSegment, nextSegment, cycleRate, livePosition,
+        toggle, play, pause, seekTo, skip, prevSegment, nextSegment, cycleRate, livePosition,
         setVolume, setMuted, toggleMute,
         setSleep, addBookmarkHere, jumpBookmark, removeBookmark,
       },

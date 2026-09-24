@@ -41,7 +41,7 @@ import {
   type PlayableItem, type SourceId, type UnifiedBookmarkRow, type UnifiedProgressRow,
 } from './sources';
 import type { PlayerComposition } from '@jkos/player/factory';
-import { onPlayRequest, publishPosition as ctrlPublishPosition, requestPlay, type PlayRequest } from './controller';
+import { onLocalPlayRequest, publishPosition as ctrlPublishPosition, requestLocalPlay, type PlayRequest } from './controller';
 import { clampCrossfadeSec, readQueuePrefs, removeAt, sameItems, writeQueuePrefs } from './queuePrefs';
 
 /** The audiobook listening rate. ONE key for one engine — `rateAppliesTo` (sources.ts)
@@ -90,6 +90,8 @@ export interface PlayerApi {
   toggleMute(): void;
   setShuffle(on: boolean): void;
   cycleRepeat(): void;
+  /** Set the repeat mode outright — what a remote's `repeat` command names. */
+  setRepeat(mode: RepeatMode): void;
   setCrossfade(sec: number): void;
   /* ── Segment (chapter) nav ────────────────────────────────────────────────
      Present for BOTH kinds, and inert for music by construction rather than by
@@ -152,7 +154,29 @@ function clampIndex(i: number, n: number): number {
   return Math.min(Math.max(i, 0), n - 1);
 }
 
-export function usePlayerEngine(): PlayerApi {
+/** What only THIS tab's engine can do — the listening session drives it, no surface does. */
+export interface LocalPlayerApi extends PlayerApi {
+  /** Idempotent start/stop — what the session calls, because it acts on a command or
+   *  an edge in the same tick the rendered `playing` has not caught up with, and a
+   *  toggle guarded by a stale flag flips the wrong way (the engine's own note). */
+  play(): void;
+  pause(): void;
+  /** Load a session's queue VERBATIM — items, cursor, shuffle order, repeat — and
+   *  its current item at `position` seconds, playing or cued. A plain requestPlay
+   *  would rebuild the policy from this tab's own preference and re-roll the shuffle,
+   *  and a hand-off must continue the SAME walk, not start a new one. */
+  adopt(a: { queue: Queue; context: string | null; position: number; autoplay: boolean }): void;
+}
+
+export interface EngineOptions {
+  /** Own the lock screen / media keys. False while this tab is a REMOTE for another
+   *  device: a controller has no audio to own them with, and a play pressed there
+   *  would start THIS tab's copy of a session playing somewhere else. */
+  mediaSession?: boolean;
+}
+
+export function usePlayerEngine(opts: EngineOptions = {}): LocalPlayerApi {
+  const mediaSessionOn = opts.mediaSession !== false;
   // ── Queue state — the layer @jkos/player/engine does not have (see file header).
   // `queueRef` is the authoritative live value (read inside the stable `transport`
   // closure below, same refs-in-listeners shape the package engine itself uses);
@@ -178,8 +202,8 @@ export function usePlayerEngine(): PlayerApi {
   const crossfadeRef = useRef(crossfadeSec);
 
   /** The ONE place a track (or a different position in the current one) is asked to
-   *  start playing — always through controller.ts's requestPlay, exactly like a
-   *  library view (18.3) would. trackPrev/trackNext, a <QueuePanel> row tap, and the
+   *  start playing — always through controller.ts's requestLocalPlay, the channel a
+   *  library view's request also lands on when this tab is the output. trackPrev/trackNext, a <QueuePanel> row tap, and the
    *  end-of-track auto-advance below all fund through this, so "what the queue
    *  believes is playing" and "what the engine is actually playing" can never drift:
    *  transport.subscribe (below) is the only writer of queueRef/queue, and every
@@ -190,7 +214,7 @@ export function usePlayerEngine(): PlayerApi {
     // time a book joined the queue.
     const ids = queueRef.current!.items;
     if (index < 0 || index >= ids.length) return;
-    requestPlay({ trackIds: ids, startIndex: index, position });
+    requestLocalPlay({ trackIds: ids, startIndex: index, position });
   }, []);
 
   // ── Transport seam — built once. Bridges controller.ts's QUEUE-shaped PlayRequest
@@ -200,7 +224,7 @@ export function usePlayerEngine(): PlayerApi {
   // skip: core/queue's header is explicit that only a structural change should
   // resync it, never a cursor move). ─────────────────────────────────────────────
   const transport: Transport = useMemo(() => ({
-    subscribe: (handler) => onPlayRequest((req: PlayRequest) => {
+    subscribe: (handler) => onLocalPlayRequest((req: PlayRequest) => {
       const ids = req.trackIds.map(String);
       const startIndex = clampIndex(req.startIndex, ids.length);
       if (startIndex < 0) return;   // an empty queue request — nothing to play
@@ -226,7 +250,7 @@ export function usePlayerEngine(): PlayerApi {
       queueRef.current = q;
       setQueue(q);
       setContext(contextRef.current);
-      handler({ itemId: req.trackIds[startIndex], position: req.position });
+      handler({ itemId: req.trackIds[startIndex], position: req.position, autoplay: req.autoplay });
     }),
     publishPosition: (update) => {
       // ⚠️ This used to be `update.itemId as number`, and that cast became a LIE
@@ -364,6 +388,25 @@ export function usePlayerEngine(): PlayerApi {
     writeQueuePrefs({ shuffle: q.policy.shuffle, repeat: q.policy.repeat, crossfadeSec: crossfadeRef.current });
   }, []);
 
+  const setRepeat = useCallback((mode: RepeatMode) => {
+    const q = repeatQueue(queueRef.current!, mode);
+    queueRef.current = q;
+    setQueue(q);
+    writeQueuePrefs({ shuffle: q.policy.shuffle, repeat: q.policy.repeat, crossfadeSec: crossfadeRef.current });
+  }, []);
+
+  const adopt = useCallback((a: { queue: Queue; context: string | null; position: number; autoplay: boolean }) => {
+    const q = a.queue;
+    if (q.items.length === 0 || q.cursor < 0) return;
+    // Installed BEFORE the request, so the transport's sameItems() branch sees the
+    // same list and keeps this policy verbatim, moving only the cursor.
+    queueRef.current = { items: [...q.items], cursor: q.cursor, policy: { ...q.policy, shuffleOrder: [...q.policy.shuffleOrder] } };
+    contextRef.current = a.context;
+    setQueue(queueRef.current);
+    setContext(a.context);
+    requestLocalPlay({ trackIds: q.items, startIndex: q.cursor, position: a.position, autoplay: a.autoplay });
+  }, []);
+
   const cycleRepeat = useCallback(() => {
     const order: RepeatMode[] = ['off', 'all', 'one'];
     const modeNext = order[(order.indexOf(queueRef.current!.policy.repeat) + 1) % order.length];
@@ -426,17 +469,18 @@ export function usePlayerEngine(): PlayerApi {
     }
     queueRef.current = q;
     setQueue(q);
-    if (wasEmpty) requestPlay({ trackIds: q.items.map(Number), startIndex: 0 });
+    // The items are refs already — Number() would turn a 'book:7' into NaN (playIndex's note).
+    if (wasEmpty) requestLocalPlay({ trackIds: q.items, startIndex: 0 });
   }, []);
 
   const playNext = useCallback((ids: number[]) => enqueue(ids, 'next'), [enqueue]);
   const addToQueue = useCallback((ids: number[]) => enqueue(ids, 'end'), [enqueue]);
 
-  /** Replace the queue outright. Goes through requestPlay like every other play
+  /** Replace the queue outright. Goes through requestLocalPlay like every other play
    *  path, so the transport seam stays the only writer of queue state. */
   const playNow = useCallback((ids: number[], startIndex = 0) => {
     if (!ids.length) return;
-    requestPlay({ trackIds: ids, startIndex });
+    requestLocalPlay({ trackIds: ids, startIndex });
   }, []);
 
   // ── MediaSession — metadata + queue-driven prev/next + setPositionState ────────
@@ -454,7 +498,7 @@ export function usePlayerEngine(): PlayerApi {
   // composition-derived retarget the rune grammar makes.
   const isBookNow = item?.kind === 'book';
   useMediaSession({
-    enabled: item != null,
+    enabled: item != null && mediaSessionOn,
     metadata,
     handlers: isBookNow ? {
       play: eng.toggle,
@@ -684,6 +728,7 @@ export function usePlayerEngine(): PlayerApi {
     toggleMute: eng.toggleMute,
     setShuffle,
     cycleRepeat,
+    setRepeat,
     setCrossfade,
     rate: eng.rate,
     cycleRate: eng.cycleRate,
@@ -707,5 +752,8 @@ export function usePlayerEngine(): PlayerApi {
     playNext,
     addToQueue,
     playNow,
+    adopt,
+    play: eng.play,
+    pause: eng.pause,
   };
 }

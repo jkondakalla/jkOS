@@ -20,6 +20,8 @@ const KINDS = new Set(['desktop', 'phone', 'tablet', 'speaker']);
  *  grammar of src/player/sources.ts's encodeRef/decodeRef, and nothing else. */
 const REF = /^(?:(?:kouros|book):)?\d{1,12}$/;
 const REPEAT = new Set(['off', 'all', 'one']);
+/** @jkos/player's SleepMode, less 'off' (absent = off): minutes, or end of chapter. */
+const SLEEP = new Set(['15', '30', '45', '60', 'segment']);
 const MAX_QUEUE = 5000;
 const MAX_NAME = 60;
 const MAX_POSITION_MS = 7 * 24 * 3600 * 1000;   // a week: longer than any audiobook
@@ -122,10 +124,21 @@ function stateReport(b) {
   if (b.muted != null && !isBool(b.muted)) return { error: 'muted must be a boolean' };
   const err = b.error == null ? null : (typeof b.error === 'string' && b.error.length <= 64 ? b.error : undefined);
   if (err === undefined) return { error: 'error must be a short code' };
+  /* The sleep timer runs ON the output, so without this a remote would show "off"
+     while a 30-minute timer counted down on the laptop across the room. Remaining is
+     anchored at reported_at exactly like the position; 'segment' (end of chapter) has
+     no clock, so no remaining. */
+  const sleepMode = b.sleep_mode == null || b.sleep_mode === 'off' ? null : b.sleep_mode;
+  if (sleepMode != null && !SLEEP.has(sleepMode)) return { error: 'sleep_mode must be off, 15, 30, 45, 60 or segment' };
+  const sleepMs = b.sleep_remaining_ms == null ? null : positionMs(b.sleep_remaining_ms);
+  if (b.sleep_remaining_ms != null && (sleepMs == null || sleepMode == null || sleepMode === 'segment')) {
+    return { error: 'sleep_remaining_ms is whole milliseconds, and only for a timed sleep_mode' };
+  }
   return {
     ok: {
       queue: q, item_ref: item, context: b.context || null, position_ms: pos, playing: b.playing, rate: r,
       volume: vol, muted: b.muted == null ? null : b.muted, error: err,
+      sleep_mode: sleepMode, sleep_remaining_ms: sleepMs,
     },
   };
 }

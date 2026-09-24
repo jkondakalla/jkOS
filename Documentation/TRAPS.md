@@ -200,6 +200,19 @@ that code can reopen it.
   hidden (`visibility: hidden` on the overlay layer), compare the overlays as DOM state, and run an
   A/A pass before believing an A/B difference. Seen 2026-09-23 proving the `@jkos/scene` refactor.
 
+- **Web Locks have no "released" event, and a request that LOSES still runs its cleanup.** Two
+  traps in one API, both found building KourOS's per-browser output lock
+  (`apps/kouros/src/session/outputLock.ts`). (1) A tab that must take over when the tab holding
+  a lock goes away cannot ask "is it held?" once and trust the answer: a closing tab's last
+  network request lands before its document — and its lock — is gone, so the query still says
+  "held", and nothing prompts a second look. The event IS a queued `navigator.locks.request()`
+  (no `ifAvailable`), granted the moment the holder lets go; withdraw it with an `AbortSignal`.
+  (2) A `request(…, { ifAvailable: true })` that finds the lock taken gets `null`, returns — and
+  its promise's `finally` runs exactly like the winner's. Cleanup written there ("the lock is
+  gone") ran for the LOSING request and marked a tab that still held the lock as not holding it;
+  the tab then read its own lock as another tab's and paused itself. Only the request whose
+  callback was granted the lock may clear state.
+
 ## Node, pnpm & the build
 
 - **`inject-workspace-packages=true` (`.npmrc`) means every `@jkos/*` package with a
@@ -759,6 +772,20 @@ that code can reopen it.
   `%%20`, and run `systemd-analyze --user verify <unit>` on any unit before shipping it; it names
   both defects in one line each and needs nothing installed.
 
+- **An open SSE socket is not a heartbeat.** A client that walks out of signal, or a laptop that
+  sleeps, closes nothing: its TCP connection just stops answering, and the server's stream
+  stays "open" — writes buffer into the kernel until retransmission gives up, many minutes on
+  Linux. Behind nginx it is noticed at `send_timeout` (60 s); behind a proxy that does not
+  propagate a client abort to its upstream, never. `scripts/placeholder-music/edge.mjs` was such a
+  proxy (it piped the upstream response and never destroyed the upstream request on the
+  client's `close`), so every closed tab left a KourOS listening-session stream open and a
+  device "online" for ever — the next tab routed its play button to a device that no longer
+  existed. nginx does the right thing by default (`proxy_ignore_client_abort off`); a
+  hand-rolled proxy must do it by hand. And presence that MATTERS needs an application
+  heartbeat: KourOS's playing output reports every 15 s, and a session that goes 45 s without a
+  report is presumed abandoned (`apps/kouros/backend/src/session/routes.js`, the report
+  watchdog).
+
 ## git & shell
 
 - **`git checkout <file>` over uncommitted work-in-progress discards it — there is no undo.**
@@ -882,3 +909,12 @@ that code can reopen it.
   validator once refused it, which would have 400'd every state report of that player until shuffle
   came back on (`apps/kouros/backend/src/session/validate.js`; `session.smoke.mjs` drives exactly
   that queue).
+
+- **A toggle guarded by React's rendered `playing` flips the WRONG way when two steps run in one
+  tick.** The media element pauses synchronously; `playing` flips only when its `pause` event
+  re-renders. So "if (playing) toggle()" twice before that render — KourOS's `release` command,
+  then the effect that saw the session move to another device — paused and then PLAYED again,
+  and the device that had just handed the music off started it back up and reclaimed it.
+  `@jkos/player`'s engine now has idempotent `play()` / `pause()` that ask the element, which
+  is never stale (`packages/player/src/engine/usePlayerEngine.ts`); `toggle()` is for a button
+  press, where exactly one step runs.

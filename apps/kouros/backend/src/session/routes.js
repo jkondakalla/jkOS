@@ -46,6 +46,10 @@ const MAX_STREAM_MS = 15 * 60_000;
  *  mid-song reads as "paused at 2:14" everywhere within seconds, not "playing" for
  *  ever. */
 const OFFLINE_GRACE_MS = 8_000;
+/** How long a PLAYING session may go without a report from its output before the
+ *  output is presumed gone. The client reports at least every 15 s while playing
+ *  (src/session/usePlayerSession.ts's HEARTBEAT_MS), so this is three missed. */
+const REPORT_STALE_MS = 45_000;
 
 /** Per-listener token bucket for the write doors — a remote held on a "volume up"
  *  key, or a misbehaving client, must not be able to flood every device. */
@@ -79,11 +83,13 @@ function livePositionMs(s, now = Date.now()) {
   return Math.round(s.position_ms + since * (s.rate || 1));
 }
 
-function createSessionRouter({ db, store, hub, offlineGraceMs = OFFLINE_GRACE_MS }) {
+function createSessionRouter({ db, store, hub, offlineGraceMs = OFFLINE_GRACE_MS, reportStaleMs = REPORT_STALE_MS }) {
   const router = Router();
   const limited = createLimiter();
   /** userId → the pending "the output went away" timer (below). */
   const gone = new Map();
+  /** userId → the report watchdog (below). */
+  const stale = new Map();
 
   const uid = (req) => req.user && req.user.sub;
   const snapshot = (userId) => ({
@@ -129,10 +135,53 @@ function createSessionRouter({ db, store, hub, offlineGraceMs = OFFLINE_GRACE_MS
       // Still REPORTING since its stream dropped (its POSTs get through, its stream
       // does not): it is alive and playing, and saying otherwise would be the lie.
       if (Date.parse(now.reported_at) > closedAt) return;
-      publishSession(userId, store.write(userId, { ...now, position_ms: livePositionMs(now, closedAt), playing: false }));
+      // Its sleep timer went with it — nothing is counting down any more.
+      publishSession(userId, commit(userId, {
+        ...now, position_ms: livePositionMs(now, closedAt), playing: false, sleep_mode: null, sleep_remaining_ms: null,
+      }));
     }, offlineGraceMs);
     timer.unref();
     gone.set(String(userId), timer);
+  }
+
+  /* ⚠️ A SOCKET IS NOT A HEARTBEAT. The grace above starts when the output's stream
+     CLOSES — and a phone that walks out of signal, or a laptop that sleeps, closes
+     nothing: its TCP connection just stops answering, and the stream stays "open"
+     until something times it out (nginx's send_timeout, a minute; a proxy that does
+     not propagate aborts, never — the dev edge did exactly that). Meanwhile the
+     session says "playing" and every remote's scrubber runs on.
+     So the output's REPORTS are its heartbeat: while the session is playing, one
+     must arrive every reportStaleMs, or the output is presumed gone — the session is
+     recorded paused at the last position it REPORTED (the moment it stopped is not
+     known; re-hearing a few seconds of an audiobook is harmless, skipping them is
+     not), and its streams are dropped so presence stops claiming it. A device that
+     was alive after all reconnects and reports, and the session resumes. Re-armed by
+     every write that leaves the session playing (commit, below). */
+  function watchReports(userId) {
+    const k = String(userId);
+    clearTimeout(stale.get(k));
+    stale.delete(k);
+    const s = store.session(userId);
+    if (!s.playing || !s.active_device) return;
+    const device = s.active_device;
+    const anchor = s.reported_at;
+    const timer = setTimeout(() => {
+      stale.delete(k);
+      const now = store.session(userId);
+      if (!now.playing || now.active_device !== device || now.reported_at !== anchor) return;
+      publishSession(userId, store.write(userId, { ...now, playing: false, sleep_mode: null, sleep_remaining_ms: null }));
+      hub.drop(userId, device);
+    }, reportStaleMs);
+    timer.unref();
+    stale.set(k, timer);
+  }
+
+  /** Every write to the session goes through here, so the watchdog can never be
+   *  left armed for a session that stopped, or unarmed for one that started. */
+  function commit(userId, facts) {
+    const next = store.write(userId, facts);
+    watchReports(userId);
+    return next;
   }
 
   router.get('/api/session', (req, res) => {
@@ -155,7 +204,7 @@ function createSessionRouter({ db, store, hub, offlineGraceMs = OFFLINE_GRACE_MS
       if (!open) return;
       res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
     };
-    const connId = hub.add(userId, deviceId, write);
+    const connId = hub.add(userId, deviceId, write, () => close());   // close() is hoisted, below
     if (!connId) return res.status(429).json({ error: 'Too many open streams for this listener', code: 'TOO_MANY_STREAMS' });
 
     res.status(200).set({
@@ -238,7 +287,7 @@ function createSessionRouter({ db, store, hub, offlineGraceMs = OFFLINE_GRACE_MS
     if (hub.online(userId).has(deviceId)) return conflict(res, 'DEVICE_ONLINE', 'That device is online — close it first');
     if (!store.remove(userId, deviceId)) return res.status(404).json({ error: 'No such device' });
     const s = store.session(userId);
-    if (s.active_device === deviceId) publishSession(userId, store.write(userId, { ...s, active_device: null, playing: false }));
+    if (s.active_device === deviceId) publishSession(userId, commit(userId, { ...s, active_device: null, playing: false }));
     publishDevices(userId);
     res.json({ ok: true });
   });
@@ -260,9 +309,10 @@ function createSessionRouter({ db, store, hub, offlineGraceMs = OFFLINE_GRACE_MS
     }
     const st = r.ok;
     store.touch(userId, deviceId, { volume: st.volume, muted: st.muted });
-    const next = store.write(userId, {
+    const next = commit(userId, {
       active_device: deviceId, queue: st.queue, context: st.context, item_ref: st.item_ref,
       position_ms: st.position_ms, playing: st.playing, rate: st.rate,
+      sleep_mode: st.sleep_mode, sleep_remaining_ms: st.sleep_remaining_ms,
     });
     publishSession(userId, st.error ? { ...next, error: st.error } : next);
     if (st.volume != null || st.muted != null) publishDevices(userId);
@@ -333,7 +383,10 @@ function createSessionRouter({ db, store, hub, offlineGraceMs = OFFLINE_GRACE_MS
     const playing = b.play == null ? s.playing : b.play;
     // Where the music HAS got to, not where it was last reported — the new output
     // starts there, so a hand-off loses at most the report's staleness.
-    const next = store.write(userId, { ...s, active_device: to, position_ms: livePositionMs(s), playing });
+    // A sleep timer lived on the OLD output; the new one has none armed until it says so.
+    const next = commit(userId, {
+      ...s, active_device: to, position_ms: livePositionMs(s), playing, sleep_mode: null, sleep_remaining_ms: null,
+    });
     // The server's own commands carry the same {id, from, op, args} shape a relayed
     // one does (from: null — no device sent them), so an output has one handler.
     if (from && from !== to) hub.sendTo(userId, from, 'command', { id: randomUUID(), from: null, op: 'release', args: {} });
