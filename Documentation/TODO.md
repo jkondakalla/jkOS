@@ -517,12 +517,14 @@ the four points it could enter (builder, quantiser, renderer contrast, the 3-D s
     `/analysis/…` — which needs Jag's `Luna/jkos-analysis` dataset and delivery key
     (`infra/music-analysis/README.md`); until then the new code on staging would see no stores at
     all. Both snapshots are in `music/out/`.
-  - ⚠️ **A flaky gate assertion, seen 2026-09-23 and not fixed:** `discover.smoke`'s "a lapsed TTL
-    over an unchanged index does not rebuild" failed once (1 → 2 builds) inside `pnpm
-    test:contracts` while `analyze.py` held every core, and passed alone and on the gate's rerun.
-    Likely a race, not a defect: it counts `space built in` log lines across a 400 ms TTL, and a
-    boot scan that finishes late under load legitimately rebuilds inside that window. Fix by
-    waiting for the boot scan to settle (or keying on the build's cause) before taking the count.
+  - ✅ **Fixed 2026-09-24 — the flaky `discover.smoke` assertion** ("a lapsed TTL over an
+    unchanged index does not rebuild", 1 → 2 builds). It failed a second time in a gate run, and
+    that run's log showed the cause guessed here: `[kouros scan] boot scan complete` landed AFTER
+    the first space build, and a finished scan invalidates the space — a legitimate rebuild
+    inside the window being counted. `expectTracks` only proved the catalog had its rows. The
+    smoke now waits for the scan to say it is done and lets one read absorb the rebuild before it
+    counts. ⚠️ Not reproduced on demand (three runs each, old and fixed, under 16 busy cores, all
+    passed) — the evidence is that log, and the fix removes the ordering it shows.
   - **A real phone**: frame rate during a scrub, whether the adaptive render scale settles, and
     how the density worker's build time (1.5 s on the workstation for the gate's 3,000-track
     fixture) scales to 47,000 tracks on a phone CPU.

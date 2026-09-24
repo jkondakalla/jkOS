@@ -755,6 +755,17 @@ try {
 
   // An idle TTL is a stat, not a rebuild.
   const builds = () => (live.log().match(/space built in/g) || []).length;
+  // ⚠️ SETTLE FIRST. `expectTracks` says the catalog HAS its rows, not that the boot
+  // scan has FINISHED — and its completion invalidates the space (a catalog change),
+  // so the next read legitimately rebuilds. Under a loaded gate that completion landed
+  // inside the window below and failed it (1 → 2), twice, while every lone run passed.
+  // So: wait for the scan to say it is done, let one read absorb the rebuild it asked
+  // for, and only then count.
+  const settleBy = Date.now() + 20000;
+  while (!/\[kouros scan\] boot scan complete/.test(live.log()) && Date.now() < settleBy) {
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  await req(live.base, 'GET', '/api/discover/stats');
   const buildsBefore = builds();
   await new Promise((r) => setTimeout(r, TTL * 2));
   await req(live.base, 'GET', '/api/discover/stats');
