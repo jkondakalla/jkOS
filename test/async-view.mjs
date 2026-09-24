@@ -112,15 +112,17 @@ if (!errorBlock) {
 }
 
 /* ── 5 & 6. the three PapyrOS call sites actually migrated ──────────────────── */
+// (PapyrOS folded into KourOS on 2026-09-23; the three views moved with it and are
+// held here at their new paths — the triad must not grow back after a move.)
 const CALL_SITES = {
-  'apps/papyros/src/views/Library.tsx': {
+  'apps/kouros/src/views/books/Library.tsx': {
     // The old 3-way ternary head that used to dispatch loading/error/empty.
     retired: [/\{\s*loading\s*\?\s*\(/],
   },
-  'apps/papyros/src/views/BookDetail.tsx': {
+  'apps/kouros/src/views/books/BookDetail.tsx': {
     retired: [/\{error\s*&&\s*<p className="muted">/, /\{!error\s*&&\s*!book\s*&&/],
   },
-  'apps/papyros/src/offline/OfflineSettings.tsx': {
+  'apps/kouros/src/books/offline/OfflineSettings.tsx': {
     retired: [/books\.length === 0 \? \(/],
   },
   /* XC-6: the component reached PapyrOS and KourOS and STOPPED. BeigeBoard's main
@@ -188,7 +190,7 @@ for (const [file, { retired }] of Object.entries(CALL_SITES)) {
 
 // The dead .offline-empty rule must not quietly come back (OfflineSettings no
 // longer references its own bespoke empty-state class — it uses AsyncView's).
-const offlineCss = read('apps/papyros/src/offline/offline.css');
+const offlineCss = read('apps/kouros/src/books/offline/offline.css');
 if (/\.offline-empty\b/.test(offlineCss)) {
   fail('offline.css still defines .offline-empty — dead now that OfflineSettings uses <AsyncView>');
 } else {

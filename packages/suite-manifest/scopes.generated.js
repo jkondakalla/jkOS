@@ -7,5 +7,4 @@ module.exports = Object.freeze({
   beigeboard: Object.freeze(["beigeboard:write"]),
   kouros: Object.freeze(["kouros:admin","kouros:write"]),
   lazuros: Object.freeze(["lazuros:write"]),
-  papyros: Object.freeze(["papyros:admin","papyros:write"]),
 })

@@ -5,7 +5,7 @@
  * subdomain, "/kouros/sw.js" under the staging subpath), so its registration
  * scope is that same directory. EVERY path below is relative — never a leading
  * "/" — which is the one property that lets one file serve both deploy shapes.
- * (Same reasoning as apps/papyros/public/sw.js, which this follows.)
+ * (Same reasoning as PapyrOS's worker, which this followed and has since absorbed.)
  *
  * WHAT IT IS FOR: making the installed app open instantly and fail honestly.
  * Launched from the home screen with no signal, a TWA with no service worker

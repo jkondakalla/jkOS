@@ -16,5 +16,4 @@ include:
   - path: apps/jkauth/docker-compose.yml
   - path: apps/beigeboard/docker-compose.yml
   - path: apps/ordeck/docker-compose.yml
-  - path: apps/papyros/docker-compose.yml
   - path: apps/kouros/docker-compose.yml

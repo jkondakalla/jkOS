@@ -35,7 +35,6 @@ const PRIMITIVE = 'packages/auth-client/src/useAuthProvider.ts';
 const BARREL = 'packages/auth-client/src/index.ts';
 const CONSUMERS = {
   ORDECK:  'apps/ordeck/src/hooks/useAuth.ts',
-  PapyrOS: 'apps/papyros/src/hooks/useAuth.ts',
   KourOS:  'apps/kouros/src/hooks/useAuth.ts',
 };
 

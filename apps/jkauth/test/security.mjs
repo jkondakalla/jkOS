@@ -473,8 +473,12 @@ try {
       "process.stdout.write(JSON.stringify(require('./src/db.js').roleClaims('admin')))"],
       { cwd: join(__dirname, '..'), env: { ...process.env, DB_PATH: adminDb, NODE_ENV: 'test' }, encoding: 'utf8' });
     const adminScope = (() => { try { return JSON.parse(probe.stdout.trim().split('\n').pop()).scope; } catch { return []; } })();
-    ok('an admin gets <app>:admin where the app DECLARES an admin surface (papyros, kouros)',
-      adminScope.includes('papyros:admin') && adminScope.includes('kouros:admin'), probe.stdout + probe.stderr);
+    ok('an admin gets <app>:admin where the app DECLARES an admin surface (kouros)',
+      adminScope.includes('kouros:admin'), probe.stdout + probe.stderr);
+    // PapyrOS folded into KourOS (2026-09-23, migration 022): a retired app must not
+    // go on appearing in every token's scope.
+    ok('…and nothing for a retired app (papyros, sylibos)',
+      !adminScope.some((s) => /^(papyros|sylibos):/.test(s)), JSON.stringify(adminScope));
     ok('…and NOT for apps that declare none (beigeboard, lazuros, ordeck, auth, jkdeploy)',
       !adminScope.some((s) => /^(beigeboard|lazuros|ordeck|auth|jkdeploy|staging):admin$/.test(s)), JSON.stringify(adminScope));
     ok('…and suite:admin is unchanged', adminScope.includes('suite:admin'), JSON.stringify(adminScope));

@@ -286,9 +286,10 @@ check(
  * there, verbatim, from papyros's old `.match-panel`/`.match-candidate*`
  * rules) — the same "component classes vs. hub.css drift" class of bug 20.2's
  * media-grid check above guards against. Plus a few structural invariants:
- * papyros's binding stays THIN (imports the generic panel rather than
+ * the audiobook binding stays THIN (imports the generic panel rather than
  * re-implementing it) and its old bespoke CSS rules are actually gone, not
- * just unreferenced. */
+ * just unreferenced. (That binding is PapyrOS's, which folded into KourOS on
+ * 2026-09-23 — it now lives at apps/kouros/src/views/books/.) */
 const matchPanelSrc = readFileSync(resolve(root, 'packages/ui/src/MatchPanel.tsx'), 'utf8');
 const hubCss = readFileSync(resolve(root, 'packages/design/tokens/hub.css'), 'utf8');
 
@@ -319,8 +320,7 @@ check(
   'MatchPanel.tsx does not import @jkos/weave or @jkos/auth-client (stays transport-agnostic)',
 );
 
-// The panel is exported from the @jkos/ui barrel (so a consumer besides papyros
-// can actually reach it).
+// The panel is exported from the @jkos/ui barrel (so any app can reach it).
 const uiIndex = readFileSync(resolve(root, 'packages/ui/src/index.ts'), 'utf8');
 check(/export\s*\{\s*MatchPanel\s*\}\s*from\s*['"]\.\/MatchPanel['"]/.test(uiIndex),
   '@jkos/ui barrel exports MatchPanel');
@@ -331,21 +331,21 @@ check(/MatchCandidate/.test(uiIndex) && /MatchPanelProps/.test(uiIndex),
 const weaveIndex = readFileSync(resolve(root, 'packages/weave/src/index.ts'), 'utf8');
 check(/export \* from '\.\/connectorPair'/.test(weaveIndex), '@jkos/weave barrel exports connectorPair');
 
-// papyros's own binding stays a THIN wrapper (imports the generic panel; doesn't
+// The audiobook binding stays a THIN wrapper (imports the generic panel; doesn't
 // re-implement the search/candidate-list/apply flow itself).
-const papyrosBinding = readFileSync(
-  resolve(root, 'apps/papyros/src/views/book-detail/MatchPanel.tsx'), 'utf8',
+const bookBinding = readFileSync(
+  resolve(root, 'apps/kouros/src/views/books/book-detail/MatchPanel.tsx'), 'utf8',
 );
-check(/import\s*\{\s*MatchPanel as GenericMatchPanel\s*\}\s*from\s*['"]@jkos\/ui['"]/.test(papyrosBinding),
-  "papyros's MatchPanel.tsx binds @jkos/ui's generic <MatchPanel> rather than re-implementing it");
-const papyrosBindingLines = papyrosBinding.split('\n').length;
-check(papyrosBindingLines <= 60,
-  `papyros's MatchPanel.tsx stays a thin binding (${papyrosBindingLines} lines, expected <= 60 — a `
+check(/import\s*\{\s*MatchPanel as GenericMatchPanel\s*\}\s*from\s*['"]@jkos\/ui['"]/.test(bookBinding),
+  "the audiobook MatchPanel.tsx binds @jkos/ui's generic <MatchPanel> rather than re-implementing it");
+const bookBindingLines = bookBinding.split('\n').length;
+check(bookBindingLines <= 60,
+  `the audiobook MatchPanel.tsx stays a thin binding (${bookBindingLines} lines, expected <= 60 — a `
   + 'much bigger file would mean the search/apply flow got re-implemented locally again)');
 
 // The old bespoke `.match-panel`/`.match-candidate*` rules are actually deleted
-// from papyros's book-detail.css, not just shadowed by hub.css's new classes.
-const bookDetailCss = readFileSync(resolve(root, 'apps/papyros/src/views/book-detail.css'), 'utf8');
+// from the audiobook book-detail.css, not just shadowed by hub.css's new classes.
+const bookDetailCss = readFileSync(resolve(root, 'apps/kouros/src/views/books/book-detail.css'), 'utf8');
 check(
   !/^\.match-panel\b|^\.match-candidate/m.test(bookDetailCss),
   "book-detail.css no longer defines its own .match-panel/.match-candidate* rules (moved to hub.css's .jk-match-*)",

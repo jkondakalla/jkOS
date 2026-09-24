@@ -47,7 +47,7 @@ const ok = (name, cond, extra = '') => {
 // re-typed: a list maintained by hand here would rot exactly like the doc did.
 const root = pkg('package.json');
 const WORKSPACES = ['apps/jkauth', 'apps/beigeboard/backend', 'apps/lazuros/backend',
-  'apps/papyros/backend', 'apps/kouros/backend', 'packages/weave', 'packages/player',
+  'apps/kouros/backend', 'packages/weave', 'packages/player',
   'packages/files', 'packages/routine-spec', 'packages/scene'];
 
 const byName = new Map();

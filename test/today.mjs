@@ -155,7 +155,6 @@ function sources(pathRel) {
    files unscanned across four apps on top of the LazurOS hole above. */
 const BACKENDS = [
   'apps/beigeboard/backend',
-  'apps/papyros/backend',
   'apps/kouros/backend',
   'apps/lazuros/backend',
   'apps/jkauth/src',

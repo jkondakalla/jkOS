@@ -8,7 +8,7 @@
 // owner column); `playlists`/`history`/`ratings` are genuine per-user CRUD via
 // defineCollection. Media playback (range-aware streaming + cover art) comes from
 // `defineMediaRoutes` (17.3) — direct-play only, no compat ladder (see src/media.js's
-// header for why). apps/papyros/backend/server.js is the fuller reference this mirrors.
+// header for why). Since 2026-09-23 it also serves the audiobooks PapyrOS used to (src/books/).
 const express      = require('express');
 const path         = require('path');
 const Database     = require('better-sqlite3');

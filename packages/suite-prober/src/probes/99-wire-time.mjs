@@ -102,7 +102,6 @@ function jsFilesUnder(dir, { root = false } = {}) {
 const SCAN_ROOTS = [
   'apps/beigeboard/backend',
   'apps/kouros/backend',
-  'apps/papyros/backend',
   'apps/lazuros/backend',
   'apps/jkauth/src',
   'apps/jkauth/server.js',

@@ -63,18 +63,12 @@ const BACKENDS = [
      coverage probe: a clean report about the apps it happens to know, which reads
      exactly like a clean report about the suite. The BUG-5 class it was built for
      (`CALENDAR_ENC_KEY` read by code and provisioned nowhere) could have been sitting
-     in either one for as long as they have existed. */
-  {
-    app: 'papyros',
-    srcRoots: ['apps/papyros/backend/src', 'apps/papyros/backend/server.js', 'apps/papyros/backend/discovery.js'],
-    envExample: 'apps/papyros/.env.example',
-    composes: ['apps/papyros/docker-compose.yml', 'apps/papyros/docker-compose.staging.yml'],
-    selfPrefix: 'PAPYROS_',
-    orphanDockerfile: null,
-  },
+     in either one for as long as they have existed. (PapyrOS has since folded into
+     KourOS, 2026-09-23 — its audiobook half is under kouros's backend/src/books/.) */
   {
     app: 'kouros',
-    srcRoots: ['apps/kouros/backend/src', 'apps/kouros/backend/server.js', 'apps/kouros/backend/discovery.js'],
+    // scripts/ too: the one-shot PapyrOS importer runs in the same container.
+    srcRoots: ['apps/kouros/backend/src', 'apps/kouros/backend/server.js', 'apps/kouros/backend/discovery.js', 'apps/kouros/backend/scripts'],
     envExample: 'apps/kouros/.env.example',
     composes: ['apps/kouros/docker-compose.yml', 'apps/kouros/docker-compose.staging.yml'],
     selfPrefix: 'KOUROS_',

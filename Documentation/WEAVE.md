@@ -428,7 +428,8 @@ prober, a workshop GUI or an AI composer can `require()` it offline.
   every hand-drawn hairline the engine kept painting its own control. **Add `apps/<id>/src`
   to `SCAN_ROOTS` in `test/fields.mjs`** — that gate scans eight named roots, not the repo.
 - **The loading/error/empty triad goes through `<AsyncView>`** from `@jkos/ui`, never a
-  fourth hand-rolled ternary. `test/async-view.mjs` names PapyrOS files only; add yours.
+  fourth hand-rolled ternary. `test/async-view.mjs` names the (ex-PapyrOS) audiobook views and
+  BeigeBoard's main region; add yours.
 - **A 3-D view renders through `@jkos/scene`** — never a hand-made `getContext('webgl2')`.
   `useScene` (`/react`) owns the canvas's life: context loss and restore, visibility, resize,
   theme re-reads, a frame loop that runs only while something moves, and giving the context

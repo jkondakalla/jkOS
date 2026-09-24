@@ -2,8 +2,8 @@
 
 Self-hosted suite on TrueNAS SCALE: one pnpm + Turbo monorepo, one nginx front door,
 one identity provider. **ORDECK** is the portal — a widget HUD reading live data from
-every other app. **jkAuth** is the SSO and app directory. **BeigeBoard**, **PapyrOS**,
-**KourOS** and **LazurOS** are full peers on the same fabric, each owning its own data
+every other app. **jkAuth** is the SSO and app directory. **BeigeBoard**, **KourOS**
+(music and audiobooks) and **LazurOS** are full peers on the same fabric, each owning its own data
 and its own SQLite database. **jkDeploy** is the delivery pipeline. **Weave** is the
 contract that lets any of them be reached without the others knowing their internals.
 
@@ -23,8 +23,7 @@ jkOS/
 │   ├── ordeck/          static SPA (Vite+React), no backend — nginx serves it
 │   ├── jkauth/           SSO + app directory, Node/Express, SSR login views
 │   ├── beigeboard/       tasks/goals/routines SPA + Node backend
-│   ├── papyros/          audiobook SPA + Node backend
-│   ├── kouros/            music SPA + Node backend
+│   ├── kouros/            music + audiobook SPA + Node backend (PapyrOS folded in 2026-09-23)
 │   └── lazuros/           AI gateway: Node "State node" + Python worker/ + providers/
 ├── packages/@jkos/
 │   ├── auth-middleware   Express JWT verify — the one place every backend checks a token
@@ -74,13 +73,11 @@ standalone-nginx
     ├── jkos.net              → ordeck-shell:80
     ├── auth.jkos.net         → jkos-auth:3100
     ├── beigeboard.jkos.net   → bb-app:3001
-    ├── papyros.jkos.net      → papyros-app:3010    (generated, apps-generated.conf)
     ├── kouros.jkos.net       → kouros-app:3011      (generated, apps-generated.conf)
     └── staging.jkos.net      → path-routed, admin-gated
             /          → staging-ordeck-shell:80
             /auth/     → staging-jkos-auth:3100
             /beigeboard/ → staging-bb-app:3001
-            /papyros/  → staging-papyros-app:3010   (apps-generated-staging.conf)
             /kouros/   → staging-kouros-app:3011    (apps-generated-staging.conf)
             /deploy/   → jkos-deploy:8000
 ```
@@ -141,12 +138,12 @@ and — for the four apps that keep one — **activity** (what the user *did* th
 on both the serving side (boot-time throw) and the reading side (evict a malformed doc
 rather than trust it); `shared/activity.js` does the same for the third.
 
-**One shape, four implementations.** The activity contract (XC-2) is the clearest statement
+**One shape, several implementations.** The activity contract (XC-2) is the clearest statement
 of how this suite shares things: PapyrOS and KourOS had grown *field-for-field identical*
 play-history tables independently, because nothing gave them a common word for it. The fix
-was a declared shape and **not** a shared table — each app keeps its own ledger (two of them
-`history` tables, one a pair of columns on `items`, one a job queue) and merely answers in
-the common shape; `fetchActivity` fans the question out and merges. That makes *"what did I
+was a declared shape and **not** a shared table — each app keeps its own ledger (KourOS's
+`history` and `book_history` — PapyrOS's, since the fold — BeigeBoard's pair of columns on
+`items`, LazurOS's job queue) and merely answers in the common shape; `fetchActivity` fans the question out and merges. That makes *"what did I
 do today"* answerable across the suite, and is the same mechanism as the action-audit trail.
 See [WEAVE.md §2a](WEAVE.md).
 
@@ -212,23 +209,21 @@ AES-256-GCM-encrypted at rest when `CALENDAR_ENC_KEY` is set (plaintext otherwis
 safe no-op, not a default to ship with). Its Week/Calendar tabs are thin wrappers over the
 shared `@jkos/cards` kit.
 
-**PapyrOS** (`apps/papyros`, port 3010) is a fully-native multi-user audiobook library —
-its own scanner, catalog, and Range-streamed playback backend; not a client of any external
-media server. One SQLite database split on a scope boundary: `books` is a hand-rolled,
-scanner-populated shared catalog (no `user_id` — every user sees the same library);
-`progress`/`bookmarks`/`clubs`/`club_members`/`history` are genuine per-user
-`defineCollection`s. The scanner and the streaming routes are both thin app config over
-shared Weave "bricks" (`defineLibraryScanner`, `defineMediaRoutes` — see §5). Metadata
+**KourOS** (`apps/kouros`, port 3011) is the suite's listening app — music AND, since
+PapyrOS folded into it on 2026-09-23, audiobooks. Fully native: its own scanners, catalogs
+and Range-streamed playback, not a client of any external media server. One SQLite
+database split on a scope boundary: `tracks` and `books` are scanner-populated shared
+catalogs (no `user_id`) — two instances of the same `defineLibraryScanner` brick over two
+roots, `unit: 'file'` under `MUSIC_DIR` (one row per audio file) and `unit: 'dir'` under
+`AUDIOBOOKS_DIR` (one row per book folder); `playlists`/`history`/`ratings` and
+`progress`/`bookmarks`/`book_history` are per-user `defineCollection`s. Music streams
+direct-play only; books carry the Firefox-m4b compat-remux ladder, under `/api/books/*` so
+book 12 and track 12 never share a URL (`backend/src/books/media.js`). Audiobook metadata
 enrichment calls the iTunes Search API (`defineConnector`, keyless) — the only external
-network call the app makes. The player is a thin adapter over `@jkos/player` (consumer #1).
-
-**KourOS** (`apps/kouros`, port 3011) is the music-library counterpart, built on the same
-bricks with zero brick changes — proof the scanner/media-routes abstraction generalizes.
-One SQLite database: `tracks` is the scanner-populated shared catalog (`unit: 'file'`, one
-row per audio file, versus PapyrOS's `unit: 'dir'`); `playlists`/`history`/`ratings` are
-`defineCollection`s. Streaming is direct-play only — no compat-remux ladder, unlike
-PapyrOS's Firefox m4b workaround. `MUSIC_DIR` and the library bind-mount are environment
-knobs with no hardcoded NAS path (unlike PapyrOS's `AUDIOBOOKS_DIR`); the compose file
+network call the app makes. ONE `@jkos/player` engine plays both kinds; the item's kind
+picks the controls (chapters, rate, sleep and bookmarks for a book; queue, shuffle, repeat
+and crossfade for music — `src/player/sources.ts`), and the persisted rate never reaches a
+track (`rateApplies`). The library bind-mounts are environment knobs; the compose file
 documents at length why the obvious host path (`/mnt/Luna/Plex/Music`) is wrong on the
 TrueNAS host itself (the real data is under `/mnt/Luna/Luna/Plex/Music` — a CIFS-share vs.
 host-dataset spelling mismatch that mounts cleanly empty rather than failing). The player
@@ -279,21 +274,22 @@ retired by hand — TODO.md §0.
 
 ## 5 · The data layer
 
-Every backend (jkAuth, BeigeBoard, PapyrOS, KourOS, LazurOS) runs SQLite in WAL mode,
+Every backend (jkAuth, BeigeBoard, KourOS, LazurOS) runs SQLite in WAL mode,
 opened directly in-process (`better-sqlite3`) with a hand-rolled migration ladder that runs
 on require/boot — no separate migration tool. Two shapes recur across apps:
 
 - **Scanner-populated shared catalogs** (`books`, `tracks`) — hand-rolled migrations with
   no `user_id`, because the row's owner is the filesystem scan, not a user.
-- **Per-user CRUD collections** (`progress`, `bookmarks`, `clubs`, `history`, `playlists`,
-  `ratings`, BeigeBoard's `items`) — built from `@jkos/weave/collection`'s
+- **Per-user CRUD collections** (`progress`, `bookmarks`, `history`, `book_history`,
+  `playlists`, `ratings`, BeigeBoard's `items`) — built from `@jkos/weave/collection`'s
   `defineCollection`, a single spec that derives the table DDL, the CRUD routes, and the
   served capability/dataset docs together, so they cannot drift from each other. An
   `only: ['create']` option (used by every `history` table) removes update/delete routes
   entirely rather than merely denying them at runtime.
 
-`@jkos/weave/server` also exports two higher-level bricks that PapyrOS and KourOS both
-build their backends on with **zero brick-level changes between them** — `defineLibraryScanner`
+`@jkos/weave/server` also exports two higher-level bricks that KourOS's music and audiobook
+halves (once two apps, PapyrOS and KourOS) both build on with **zero brick-level changes
+between them** — `defineLibraryScanner`
 (folder walk → ffprobe pool → mtime-incremental skip → upsert → prune, parameterized by
 `unit: 'dir' | 'file'`) and `defineMediaRoutes` (Range-stream/cover/download, built on
 `@jkos/files`' `rangeStream`/`containPath`). Common plumbing — `weaveAuth`, `weaveWriteGate`,
@@ -301,11 +297,10 @@ build their backends on with **zero brick-level changes between them** — `defi
 package so declared dataset filters and enforced query filters are the same code, not two
 hand-typed lists that can disagree.
 
-⚠️ **`localStorage` is not dead** despite the theme/preferences model in §4: **PapyrOS,
-KourOS, and ORDECK each persist real per-app state client-side that never touches jkAuth.**
-PapyrOS and KourOS both persist volume/mute through `@jkos/player`'s `persistVolume`
-(keyed per app; PapyrOS also persists playback rate — KourOS wires the same
-`storageKey` but exposes no rate control to write it). KourOS separately persists queue
+⚠️ **`localStorage` is not dead** despite the theme/preferences model in §4: **KourOS and
+ORDECK each persist real per-app state client-side that never touches jkAuth.** KourOS
+persists volume/mute through `@jkos/player`'s `persistVolume` and the audiobook playback
+rate under `kouros.player.rate` (applied to books only — `rateApplies`). It separately persists queue
 shuffle/repeat/crossfade prefs under `kouros.player.queue`; ORDECK persists its weather
 widget's location/API-key config under a dedicated key. None of this round-trips through
 `PATCH /auth/profile`, so it does not follow the user across devices the way theme mode and
@@ -337,8 +332,8 @@ longer description here would just be more surface to go stale before that lands
 `pnpm test:contracts` is the suite-wide gate (root `package.json`), and it's a straight
 chain — first failure stops the run. It boots and smoke-tests jkAuth (`test:contracts` +
 `test`), `@jkos/weave`, `@jkos/player`, BeigeBoard's backend, then `pnpm roundtrip` (a live
-write round-trip across the fabric), then LazurOS's backend, `@jkos/files`, PapyrOS's
-backend, KourOS's backend, and the `@jkos/cards` logic suite. After the behavioral smokes
+write round-trip across the fabric), then LazurOS's backend, `@jkos/files`, KourOS's
+backend (music, audiobooks and the PapyrOS importer), and the `@jkos/cards` logic suite. After the behavioral smokes
 it runs **25** static conformance checks — `check:tokens`, `check:nginx`, `check:responsive`,
 `check:drag`, `check:cards`, `check:routine`, `check:hud`, `check:docker`, `check:async-view`,
 `check:overlay`, `check:design`, `check:fields`, `check:scroll`, `check:text`, `check:today`,

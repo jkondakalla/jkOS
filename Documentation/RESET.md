@@ -316,7 +316,7 @@ not because it describes the repo.
   Fixed. **Completion is not the same as correctness, and this document's stage checkboxes
   should not be read as either.**
 - **Shape:** 7 apps (beigeboard, jkauth, kouros, lazuros, ordeck, papyros, sylibos — **6** since
-  SylibOS was removed 2026-09-16), **11**
+  SylibOS was removed 2026-09-16, **5** since PapyrOS folded into KourOS 2026-09-23), **11**
   `packages/@jkos/*` (`routine-spec` was added by D9), plus `music/`, `jkos-deploy/`, `infra/`,
   `scripts/`, `test/`.
 
@@ -434,7 +434,7 @@ Each line is a licence: you need not preserve the left column.
 | **`[FEAT-P]` · `[FEAT-M]` · `[opus]` · `[PARKED]`** | Routing hints for a previous agent split | Drop it. |
 | **"§1–§7 PARKED — don't pick anything up on your own initiative"** | A freeze while the music work ran | A backlog nobody may touch is not a backlog. Stage A re-derives what's open from code; what doesn't survive was never real work. |
 | **"`Documentation/` is the source of truth"** — stated two lines above "when a doc disagrees with code, the code wins" | Aspiration | **The code is the source of truth. A doc is a map, and a map that hasn't been re-walked is a rumour.** |
-| **"Suite scope = five systems"** | True in June | **Eight**: BeigeBoard · jkAuth · jkDeploy · ORDECK · Weave · LazurOS · PapyrOS · KourOS. |
+| **"Suite scope = five systems"** | True in June | **Eight**: BeigeBoard · jkAuth · jkDeploy · ORDECK · Weave · LazurOS · PapyrOS · KourOS. (**Seven** since 2026-09-23: PapyrOS folded into KourOS.) |
 | **Wave-log docs as reference** — `BEIGEBOARD_PARITY.md` (47 KB), `BEIGEBOARD_FULL_PRESS.md` (16 KB), `PLAYER_PARITY.md` (17 KB) | Working notes from finished programs | History. Git has it. |
 | **Judging Weave by how much traffic it carries** | The prior audit's framing | ⭐ **Weave is a dev-time contract boundary, not a runtime message bus.** See below. |
 | **Docs asserting invariants the code violates** — ARCHITECTURE.md's "there is no per-app preferences store" (three apps use `localStorage`); WEAVE.md's "each app verifies its own id" (`JKOS_APP_ID` set nowhere) | Written when true, never re-walked | **An invariant in prose is not an invariant.** Delete the unenforced claims; make the enforceable ones probes (Stage E). |

@@ -16,7 +16,8 @@
 //
 // The live wire behaviour (Range 206/416, ?compat single-flight, prepare→poll→ready,
 // mtime regeneration, the exact headers) is proven end-to-end by the REAL server smoke
-// apps/papyros/backend/test/playback.smoke.mjs, which rides the migrated brick unchanged.
+// apps/kouros/backend/test/books.playback.smoke.mjs (PapyrOS's, carried over when it
+// folded into KourOS), which rides the brick with the compat ladder.
 //
 // Run: node packages/weave/test/mediaRoutes.mjs
 

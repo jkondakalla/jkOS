@@ -12,7 +12,7 @@
 // invisible to the gate that is supposed to police it, and a real violation inside
 // it would pass forever.
 //
-// This is not hypothetical: apps/papyros/src/views/library/format.ts shipped a raw
+// This is not hypothetical: PapyrOS's views/library/format.ts shipped a raw
 // 0x00 inside the STANDALONE_KEY sentinel (`'<NUL>standalone'`). The intent was
 // sound — a series-name that can never collide — but written as a literal byte
 // rather than the `\u0000` ESCAPE, which has the identical runtime value while
@@ -74,8 +74,9 @@ for (const rel of tracked) {
 }
 if (!failed) ok(`no control bytes in ${scanned} tracked text files`);
 
-// ── 2. The papyros sentinel stays an escape, not a raw byte ─────────────────
-const SENTINEL = 'apps/papyros/src/views/library/format.ts';
+// ── 2. The audiobook shelf's sentinel stays an escape, not a raw byte ───────
+// (PapyrOS's file; it moved into KourOS with the fold on 2026-09-23.)
+const SENTINEL = 'apps/kouros/src/views/books/library/format.ts';
 const sentinelSrc = readFileSync(resolve(root, SENTINEL), 'utf8');
 if (!/STANDALONE_KEY\s*=/.test(sentinelSrc)) {
   ok(`${SENTINEL} no longer defines STANDALONE_KEY — sentinel pin retired`);

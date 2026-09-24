@@ -58,6 +58,27 @@ These block other work, and they are first for that reason.
   `sylibos-api` containers (prod) and `staging-sylibos-*` (staging) — `docker compose` without
   `--remove-orphans` leaves them running after the include is gone; the data directories
   `/mnt/Luna/Backends/{Production,Staging}/sylibos-data`; and the `sylibos.jkos.net` DNS record.
+- **Carry PapyrOS into KourOS on the NAS** (Jag, 2026-09-23: "PapyrOS should be folded inside of
+  KourOS entirely"). The repo half is done: KourOS serves the audiobooks, jkAuth migration 022
+  deletes PapyrOS's registry row, and `apps/papyros` is gone. What only you can do, **per
+  environment, staging first** — ⚠️ after the backup commands above:
+  1. **Deploy.** KourOS migrates (books tables) and scans `/audiobooks`; PapyrOS stops being
+     routed but its container keeps running (no `--remove-orphans`) — which is what makes step 2
+     easy.
+  2. **Snapshot PapyrOS** — never the live file (its newest writes are in the `-wal`):
+     `docker exec staging-papyros-app node -e "require('better-sqlite3')('/data/papyros.db').exec(\"VACUUM INTO '/data/papyros.snapshot.db'\")"`,
+     then copy `papyros.snapshot.db` and the `covers/` folder from `…/Staging/papyros-data/` into
+     `…/Staging/kouros-data/import/`.
+  3. **Dry run, read it, then apply:**
+     `docker exec staging-kouros-app node scripts/import-papyros.js --from /data/import/papyros.snapshot.db --covers /data/import/covers`
+     — then the same with `--apply`. Books match by folder path; a newer KourOS progress row is
+     never overwritten; a second `--apply` is a no-op
+     ([the script's header](../apps/kouros/backend/scripts/import-papyros.js)).
+  4. **Check** a book you were mid-way through shows *Resume* in KourOS → Books.
+  5. **Retire:** `docker rm -f staging-papyros-app` (prod: `papyros-app`), and the
+     `papyros.jkos.net` DNS record. Keep `papyros-data` until you are satisfied — nothing in the
+     repo deletes it. Offline downloads made in PapyrOS stay on its origin; download again in
+     KourOS.
   ⚠️ **Deploying `staging` removes their nginx routes and jkAuth's registry row (migration 021)** —
   so the containers become unreachable, not stopped. Whether to keep the data directory is yours.
 - **Deploy / promote — always a button Jag presses.**
@@ -291,8 +312,8 @@ the post-completion audit fixes (including the expired-OTP security fix), and th
 re-derivation. That unlanded set includes **database migrations across jkAuth, BeigeBoard,
 KourOS and PapyrOS** — which is why the backup commands above are not housekeeping.
 
-Also pending, and unrelated to the branch: **production DNS for PapyrOS and KourOS.** Both are
-reachable on staging only (`staging.jkos.net/papyros/`, `/kouros/`).
+Also pending, and unrelated to the branch: **production DNS for KourOS** (which now carries the
+audiobooks too). Reachable on staging only (`staging.jkos.net/kouros/`).
 
 ---
 
@@ -758,7 +779,7 @@ and the prober, and never ran `build` — so "green" never meant "shippable". It
   confs are bind-mounts and a reload will not re-read a replaced inode).
   ⚠️ The only signal that matters is **no URL bar**, checked with Wi-Fi off. If it is there, it is
   trap 1, 2, 3 or 4 in that order of likelihood.
-- **Production DNS for PapyrOS and KourOS** (§1).
+- **Production DNS for KourOS** (§1).
 
 ---
 

@@ -68,13 +68,6 @@ const APPS = [
     apiBase: '/api/lazuros', healthPath: '/api/lazuros/health', // host-network, bespoke paths
   },
   {
-    id: 'papyros', name: 'PapyrOS', origin: 'https://papyros.jkos.net',
-    allowedRoles: ['user', 'admin'],
-    upstream: 'papyros-app:3010', health: true, api: true,
-    capabilities: true, datasets: true, activity: true,
-    edge: 'standard', // GENERATED nginx server block + staging subpath (gen-nginx-weave.mjs)
-  },
-  {
     id: 'kouros', name: 'KourOS', origin: 'https://kouros.jkos.net',
     allowedRoles: ['user', 'admin'],
     upstream: 'kouros-app:3011', health: true, api: true,
@@ -254,13 +247,9 @@ const TEST_PORTS = Object.freeze({
   'beigeboard:import.smoke': 3987,
   'beigeboard:items.smoke': 3988,
   'beigeboard:contract.smoke': 3989,
-  'papyros:library.smoke': 3990,
   'beigeboard:routines.smoke': 3991,
   'beigeboard:routine-spec.smoke': 3992,
-  'papyros:history.smoke': 3993,
   'suite-prober:roundtrip': 3994,
-  'papyros:playback.smoke': 3995,
-  'papyros:meta.smoke': 3996,
 })
 
 /** Every port with its claimant — container service ports (from `upstream`) plus

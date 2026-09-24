@@ -20,7 +20,7 @@ After editing `packages/*`, run `pnpm install` to re-inject workspace packages i
 
 Before pushing: `pnpm test:contracts`. One chain covering every hard contract — jkAuth's
 contracts smoke (incl. the node↔python bridge), the jkAuth/weave/player/BeigeBoard/LazurOS/
-files/PapyrOS/KourOS test suites (the weave suite includes the lego tests), the write
+files/KourOS test suites (the weave suite includes the lego tests), the write
 round-trip, **25** static conformance checks (tokens/nginx/responsive/drag/cards/routine/
 hud/docker/async-view/overlay/design/fields/scroll/text/today/refs/binding/columns/rulings/
 audit/secrets/policy/auth/docs/**build**), and the suite prober (fails on `drift`). A failure means a cross-system contract has drifted — fix the source of truth,
@@ -57,16 +57,14 @@ Root `docker-compose.yml` (`include:` each `apps/<svc>/docker-compose.yml`) is p
 | ordeck-shell | jkos-internal | 80 | jkos.net |
 | jkos-auth | jkos-internal | 3100 | auth.jkos.net |
 | bb-app | jkos-internal | 3001 | beigeboard.jkos.net |
-| papyros-app | jkos-internal | 3010 | papyros.jkos.net (prod pending DNS); `/papyros/` on staging |
 | kouros-app | jkos-internal | 3011 | kouros.jkos.net (prod pending DNS); `/kouros/` on staging |
 | lazuros | host | 8080 | internal |
 | staging-* + jkos-deploy | nginx-staging-proxy | — | staging.jkos.net |
 
-PapyrOS additionally bind-mounts the read-only audiobook library
-(`/mnt/Luna/Luna/Plex/Audiobooks` on the host — note the nested `Luna/Luna`; the pool-root
-path silently mounts empty) and needs `ffmpeg` in its image (the Dockerfile installs it).
-KourOS bind-mounts the music library read-only the same way, at `/mnt/Luna/Luna/Plex/Music`
-by default (override with `MUSIC_PATH`) — the same nested-`Luna/Luna` trap: the host's
+KourOS bind-mounts two libraries read-only and needs `ffmpeg` in its image (the Dockerfile
+installs it): the audiobooks at `/mnt/Luna/Luna/Plex/Audiobooks` (override with
+`AUDIOBOOKS_PATH` — PapyrOS's mount until it folded into KourOS on 2026-09-23) and the music
+at `/mnt/Luna/Luna/Plex/Music` by default (override with `MUSIC_PATH`) — the same nested-`Luna/Luna` trap: the host's
 top-level `/mnt/Luna/Plex/Music` is a *different, empty* directory, and Docker auto-creates a
 missing bind source rather than failing, so the wrong path mounts cleanly and the scan finds
 zero files with no error anywhere. LazurOS runs `network_mode: host` to broadcast
@@ -182,7 +180,7 @@ an inode at container-create time. That has two consequences:
 
 Path-routed under `staging.jkos.net` on the `nginx-staging-proxy` network. Root (`/`) →
 staging ORDECK. Bespoke paths: `/auth/`, `/beigeboard/`, `/deploy/`; the
-generated `apps-generated-staging.conf` adds `/papyros/` and `/kouros/`.
+generated `apps-generated-staging.conf` adds `/kouros/`.
 
 The shell is built with `VITE_JKOS_AUTH_URL=https://staging.jkos.net` (same-origin auth).
 Admin gate: every location runs `auth_request` → prod `jkos-auth /auth/require-admin`. Prod
@@ -227,11 +225,10 @@ done
 mkdir -p /mnt/Luna/Backends/Production/nginx-logs
 ```
 
-The five core services above are the from-zero baseline. **Additional apps** (PapyrOS,
-LazurOS, KourOS) get their `<id>-data` dir created on first deploy — `lib-deploy.sh` self-heals
-a missing per-app data dir and `.env`. PapyrOS also needs the read-only audiobook library
-mounted (`AUDIOBOOKS_DIR`, see its `docker-compose*.yml`); KourOS's compose files now bind
-the real library and set `MUSIC_DIR`/`MUSIC_PATH` by default (see § Compose / ports above for
+The five core services above are the from-zero baseline. **Additional apps** (LazurOS,
+KourOS) get their `<id>-data` dir created on first deploy — `lib-deploy.sh` self-heals
+a missing per-app data dir and `.env`. KourOS's compose files bind both libraries and set
+`MUSIC_DIR`/`AUDIOBOOKS_DIR` by default (see § Compose / ports above for
 the nested-`Luna/Luna` trap); LazurOS needs a mounted `deployment.json` before it can serve
 (copy `deployment.example.json` or `deployment.jag.json` and point
 `LAZUROS_DEPLOYMENT_CONFIG` at it — see [LAZUROS_STARTUP.md](LAZUROS_STARTUP.md)).
@@ -266,7 +263,7 @@ Copy `.env.example` → `.env` in each app. Key required vars:
 | jkAuth | `apps/jkauth/.env` | `JKOS_AUTH_PRIVATE_KEY`, `JKOS_AUTH_PUBLIC_KEY`, `COOKIE_DOMAIN`, `AUTH_ORIGIN`, `PORTAL_URL`, `ADMIN_SEED_EMAIL/PASSWORD`, `GUEST_PASSWORD` (now an actually-verified credential), `JKOS_2FA_ENC_KEY` (required before anyone can enrol TOTP) |
 | BeigeBoard | `apps/beigeboard/.env` | `JKOS_AUTH_PUBLIC_KEY`, `GOOGLE_CLIENT_ID/SECRET/REDIRECT_URI`, `CALENDAR_ENC_KEY` (no AI keys — BB does not call a model; LazurOS writes INTO it) |
 | ORDECK | `apps/ordeck/.env` | build-time `VITE_JKOS_AUTH_URL` (prod default baked in) |
-| PapyrOS | `apps/papyros/.env` | `JKOS_AUTH_PUBLIC_KEY`, `AUDIOBOOKS_DIR` (`/audiobooks` in-container), `PAPYROS_AUTO_ENRICH`/`PAPYROS_AUTO_COMPAT` toggles |
+| KourOS | `apps/kouros/.env` | `JKOS_AUTH_PUBLIC_KEY`; compose sets `MUSIC_DIR`/`AUDIOBOOKS_DIR` (`/music`, `/audiobooks` in-container), `VECTOR_DB_PATH`/`MESH_DB_PATH` (the `/analysis` mount), and the `KOUROS_BOOKS_AUTO_ENRICH`/`KOUROS_BOOKS_AUTO_COMPAT` toggles (PapyrOS's, since the fold) |
 | LazurOS | `apps/lazuros/.env` | `JKOS_AUTH_PUBLIC_KEY`, `LAZUROS_INTERNAL_TOKEN`, `LAZUROS_DEPLOYMENT_CONFIG` (the mounted `deployment.json`), `JKOS_SERVICE_CLIENT_ID/SECRET` for delegated write-back. **Not a stack service** — host-network compose project of its own; see [LAZUROS_STARTUP.md](LAZUROS_STARTUP.md) |
 
 Staging reads the same `.env` files; staging-specific overrides come from

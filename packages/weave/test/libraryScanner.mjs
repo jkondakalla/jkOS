@@ -11,11 +11,11 @@
 // test/fixtures/fake-ffprobe.cjs, a stub that echoes the "audio file"'s own contents
 // (a hand-authored ffprobe-JSON text fixture) back to stdout — the REAL, unmodified
 // probeFile()/parseProbe() parse that exactly as they would genuine ffprobe output. This
-// is what PapyrOS's real end-to-end coverage already is (apps/papyros/backend/test/
-// library.smoke.mjs, which boots the real server against real ffprobe/ffmpeg and a real
-// fixture library) — this suite instead drives the brick in isolation, hermetically, so
-// it runs with no external binary and covers the parts papyros's zero-behavior-change
-// refactor doesn't exercise (a second tag vocabulary, 'file' unit mode, a custom
+// is what the real end-to-end coverage already is (apps/kouros/backend/test/
+// library.smoke.mjs and books.library.smoke.mjs, which boot the real server against real
+// ffprobe/ffmpeg and real fixture libraries) — this suite instead drives the brick in
+// isolation, hermetically, so it runs with no external binary and covers the parts the
+// original zero-behavior-change refactor didn't exercise (a second tag vocabulary, 'file' unit mode, a custom
 // extractCover hook, single-flight, prune).
 //
 // Run: node test/libraryScanner.mjs   (chained after lego.mjs by `pnpm --filter @jkos/weave test`)

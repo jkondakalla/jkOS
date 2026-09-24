@@ -8,7 +8,7 @@
 # Requires `ffmpeg` on PATH (not just `ffprobe` — probe.js/scan.js only need ffprobe at
 # runtime, but generating these fixtures needs the encoder too).
 #
-#   bash apps/papyros/backend/test/fixtures/library/gen-fixtures.sh
+#   bash apps/kouros/backend/test/fixtures/books/library/gen-fixtures.sh
 #
 # Produces:
 #   Fixture Book A/book.m4b   — ONE file, embedded chapters (2×1s) + full tag set, via an

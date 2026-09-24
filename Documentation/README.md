@@ -13,8 +13,7 @@ the suite:
 | **Weave** | The integration fabric connecting all apps, read and write |
 | **jkDeploy** | The deploy controller — staging→production in one button |
 | **LazurOS** | AI gateway — an async job queue routing inference to a tier of compute nodes; powers BeigeBoard's task-parse / goal-breakdown. Registered in the app directory; not yet routed on any deployed edge |
-| **PapyrOS** | Fully-native multi-user audiobook library — own scanner, catalog, Range-streamed playback, offline caching, per-user resume. On staging at `/papyros/` |
-| **KourOS** | Fully-native multi-user music library — the shared `@jkos/player` primitive's second consumer, gapless/crossfade playback, playlists, ratings. On staging at `/kouros/` |
+| **KourOS** | Fully-native multi-user music AND audiobook library — own scanners and catalogs, one `@jkos/player` for both (gapless/crossfade for music; chapters, speed, sleep, bookmarks, offline and per-user resume for books), playlists, ratings. PapyrOS folded into it on 2026-09-23. On staging at `/kouros/` |
 
 Everything goes through jkAuth SSO. The portal is driven by Weave discovery — adding a
 new app means one registry row, not portal code changes.
@@ -60,15 +59,16 @@ Layout is saved per user in jkAuth preferences — your HUD follows you across d
 | **Import tasks / goals via JSON** | `POST /api/import` on BeigeBoard (also reachable at `/api/beigeboard/import` from any other origin, via the Weave peer proxy). Add `?dryRun=1` to validate without writing. Body: `{ "items": [ … ] }` — nested or flat, with inferred `kind`, forgiving date formats, and validate-then-write semantics. |
 | **AI task breakdown** | If LazurOS is enabled, BeigeBoard can parse free-text into tasks and break goals into milestones. |
 
-### Audiobooks (PapyrOS)
+### Audiobooks (in KourOS)
 
-Reachable at `staging.jkos.net/papyros/` (staging; prod pending DNS). The library is scanned
-from a TrueNAS folder — one subfolder per book — with metadata read from embedded tags and
-enriched from the iTunes Search API.
+KourOS's **Books** tab (on a phone: Library → **Audiobooks**) — `staging.jkos.net/kouros/#/books`
+on staging; prod pending DNS. PapyrOS was this, as its own app, until it folded into KourOS
+on 2026-09-23. The library is scanned from a TrueNAS folder — one subfolder per book — with
+metadata read from embedded tags and enriched from the iTunes Search API.
 
 | Action | How |
 |--------|-----|
-| **Browse & play** | Cover grid → open a book → **Play**. One persistent player bar streams across a book's files as a single timeline; speed, sleep timer, chapter skip. |
+| **Browse & play** | Cover grid → open a book → **Play**. The same player as the music streams a book's files as one timeline; Now Playing shows chapters, ±30 s, speed, sleep timer and bookmarks. |
 | **Resume anywhere** | Progress saves per user (debounced) — pick up on any device where you're signed in. |
 | **Fix metadata** | Book detail → **Fix metadata** → search → pick a candidate. Admins can also **Rescan** the library and batch-**Match metadata**. |
 | **Listen offline** | Book detail → make **available offline** (caches audio + cover); the service worker serves it when the network is down. |

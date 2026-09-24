@@ -51,7 +51,6 @@ const { checkExtRefDoc, RESERVED_SCHEMES } = await import(resolve(root, 'package
 /* The apps that declare ext_ref schemes. */
 const DECL_MODULES = [
   ['beigeboard', 'apps/beigeboard/backend/discovery.js'],
-  ['papyros',    'apps/papyros/backend/discovery.js'],
   ['kouros',     'apps/kouros/backend/discovery.js'],
   ['lazuros',    'apps/lazuros/backend/docs.js'],
 ];
@@ -74,7 +73,7 @@ ok(`${declared.size} ext_ref scheme(s) declared across ${DECL_MODULES.length} ap
 {
   /* One column holds every scheme, so scheme ids must be globally unique AND must
      never collide with an app id — an `itunes` app would silently reinterpret every
-     PapyrOS metadata ref as "a row owned by the itunes app". */
+     audiobook metadata ref as "a row owned by the itunes app". */
   const clash = [...declared.keys()].filter((id) => APP_IDS.includes(id) || id in RESERVED_SCHEMES);
   if (clash.length) {
     fail(`scheme(s) collide with a jkOS app id or a suite-reserved scheme: ${clash.join(', ')} — an app id ALWAYS wins, so every ref with that prefix would be re-read as "a row owned by that app"`);
@@ -90,27 +89,11 @@ ok(`${declared.size} ext_ref scheme(s) declared across ${DECL_MODULES.length} ap
     try { doc = require(resolve(root, rel)).EXT_REFS; } catch { continue; }
     for (const sch of doc?.schemes || []) counts.set(sch.id, [...(counts.get(sch.id) || []), app]);
   }
-  /* ⚠️ ONE TRANSITIONAL HANDOVER, and it is built to expire. PapyrOS is folding into
-     KourOS (Jag, 2026-09-23): KourOS already serves the audiobooks and writes the
-     `itunes:` refs PapyrOS wrote, while apps/papyros still exists until its retirement
-     commit. For those commits BOTH apps honestly claim the scheme. The entry names the
-     app handing over; the moment that app leaves the manifest this check FAILS until
-     the entry is deleted — so the exception cannot outlive the thing it excuses. */
-  const HANDOVERS = { itunes: { from: 'papyros', to: 'kouros' } };
-  for (const [id, h] of Object.entries(HANDOVERS)) {
-    if (!APP_IDS.includes(h.from)) {
-      fail(`ext_ref handover '${id}' (${h.from} → ${h.to}) names an app that is no longer in the manifest — delete it from HANDOVERS`);
-    }
-  }
-  const handedOver = ([id, apps]) => {
-    const h = HANDOVERS[id];
-    return h && apps.length === 2 && apps.includes(h.from) && apps.includes(h.to);
-  };
-  const dupes = [...counts].filter(([, apps]) => apps.length > 1).filter((d) => !handedOver(d));
+  const dupes = [...counts].filter(([, apps]) => apps.length > 1);
   if (dupes.length) {
     fail(`scheme(s) claimed by more than one app: ${dupes.map(([id, apps]) => `${id} (${apps.join(', ')})`).join('; ')}`);
   } else {
-    ok('every scheme is claimed by exactly one app (or is mid-handover between exactly two)');
+    ok('every scheme is claimed by exactly one app');
   }
 }
 

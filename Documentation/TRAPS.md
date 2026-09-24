@@ -363,11 +363,11 @@ that code can reopen it.
   backend's own note *claimed* the frontend coerced with `Number()` when no such coercion existed
   anywhere, which is why nobody went looking. ⚠️ **A doc asserting that someone else handles it is
   not a defence; grep for the coercion before believing the comment.** Live defence:
-  `withNumericRefs()` / `refsInList()` in `apps/papyros/src/api.ts` normalise at the one door every
-  row arrives by — list, create, update and the reconnect delta — which makes the declared type
-  true so the next consumer is correct by default. Coerce at the BOUNDARY, never at each
-  comparison. KourOS's `item_ref`/`track_ref` are the same shape and are safe only because nothing
-  client-side compares them yet; the trap is armed there too.
+  `withNumericRefs()` / `refsInList()` in `apps/kouros/src/books/api.ts` (PapyrOS's, carried over
+  when it folded into KourOS) normalise at the one door every row arrives by — list, create, update
+  and the reconnect delta — which makes the declared type true so the next consumer is correct by
+  default. Coerce at the BOUNDARY, never at each comparison. KourOS's `item_ref`/`track_ref` are
+  the same shape; the trap is armed there too.
 
 - **Always copy a SQLite database's `-wal` and `-shm` sidecars together with the `.db` file** — a
   live WAL-mode database has uncommitted-to-disk writes sitting in `-wal`, and querying the bare
