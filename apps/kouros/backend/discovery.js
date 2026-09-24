@@ -2,14 +2,14 @@
 // discovery.js — KourOS's Weave discovery declarations (git history: item 18.2 — real backend on
 // the shared bricks, replacing 18.1's scaffolded placeholder `items` collection).
 //
-// Follows PapyrOS's proven split (git history: Wave 17): `tracks` is a SHARED,
+// The proven split (git history: Wave 17): `tracks` is a SHARED,
 // scanner-written catalog — populated by `defineLibraryScanner` (src/library/scan.js),
 // not user CRUD, no `user_id` — so it's a hand-rolled migration + hand-authored dataset
-// (server.js migration 1 + TRACKS_DATASET below), the same shape as papyros's `books`.
+// (server.js migration 1 + TRACKS_DATASET below), the same shape as `books`.
 // `playlists` / `history` / `ratings` are genuine per-user CRUD, so each is ONE
 // `defineCollection` (Layer D / F3) — table DDL, CRUD routes, and the served
-// capability/dataset docs all derive from the same spec, exactly like papyros's
-// progress/bookmarks/clubs/club_members/history. Kept as pure data + zero side
+// capability/dataset docs all derive from the same spec, exactly like the audiobook
+// progress/bookmarks/book_history. Kept as pure data + zero side
 // effects — safe for the suite-prober, a workshop GUI, or an AI composer to require()
 // with no env/DB/network.
 const { resourceKey } = require('@jkos/suite-manifest');
@@ -22,14 +22,11 @@ const { defineConnector } = require('@jkos/weave/connector');   // META, the iTu
  *  bumps every track row it touches, so a peer polling `tracks` refetches on rescan. */
 const TRACKS_KEY = resourceKey('kouros', 'tracks'); // 'kouros.tracks'
 
-/* ── Audiobooks — PapyrOS, folded in (2026-09-23) ──────────────────────────────────
-   Jag: "PapyrOS should be folded inside of KourOS entirely. The split was arbitrary."
-   Everything below the `books` key was PapyrOS's own declaration, carried over with
-   its app id changed and nothing else: the shared `books` catalog (hand-rolled
+/* ── Audiobooks ─────────────────────────────────────────────────────────────────────
+   Everything below the `books` key: the shared `books` catalog (hand-rolled
    migration + scanner, books/scan.js), the per-user `progress` and `bookmarks`
    collections, the listening ledger, the iTunes META connector and the two match
-   capabilities. PapyrOS's `clubs`/`club_members` did NOT come over — no frontend ever
-   read or wrote them, and the rows stay in papyros.db, which nothing deletes. */
+   capabilities. */
 
 /** The `books` catalog's invalidation bus key — the book scanner bumps every row it
  *  touches, so a peer polling `books` refetches on rescan. */
@@ -60,7 +57,7 @@ if (extRefsErr) throw new Error(`kouros ext_ref schemes: ${extRefsErr}`);
  *
  *  ⚠️ `book_ref` is TEXT-affinity (a weave `ref` column stores `'12'`, not `12`), so a
  *  raw SQL join needs `CAST(book_ref AS INTEGER)` and a client comparing it to a
- *  number must coerce at ONE door — PapyrOS lost four features to that for months
+ *  number must coerce at ONE door — the audiobook half lost four features to that for months
  *  (TRAPS.md § SQLite). UNIQUE(user_id, book_ref) + an upsert trigger ship with the
  *  table (server.js), from day one. */
 const PROGRESS = defineCollection({
@@ -110,10 +107,10 @@ const PLAYLISTS = defineCollection({
   ],
 });
 
-/* ── history — append-only play events, same `only` knob as papyros's 17.4 ────────
+/* ── history — append-only play events, the `only` knob of 17.4 ────────────────────
    One row per LISTENING STRETCH (not per timeupdate tick). `item_ref` is a typed `ref`
-   stud at the shared `tracks` catalog — same soft TEXT-affinity convention as papyros's
-   PROGRESS.book_ref (see that file's long NOTE; unchanged here for the same reason: no
+   stud at the shared `tracks` catalog — same soft TEXT-affinity convention as
+   PROGRESS.book_ref (see its NOTE above; unchanged here for the same reason: no
    SQL JOIN in this codebase needs INTEGER affinity, every real read goes through the
    app layer). `only: ['create']` means defineCollection emits ONLY createHistory and
    mounts ONLY GET (list) + POST (create) — there is no updateHistory/deleteHistory
@@ -144,8 +141,7 @@ const HISTORY = defineCollection({
  *  names ONE target (`kouros.tracks` there, `kouros.books` here), and a ref that could
  *  point at either table is a declaration that lies to every reader — `check:refs` and
  *  every GUI/AI composer snap a ref to the table it names. The activity read below
- *  answers for both ledgers in one list. Carried over from PapyrOS's `history` field for
- *  field, so the importer (scripts/import-papyros.js) copies rows across unchanged. */
+ *  answers for both ledgers in one list. */
 const BOOK_HISTORY = defineCollection({
   app: 'kouros', id: 'book_history', label: 'Audiobook listening history',
   scoped: true, only: ['create'],
@@ -159,11 +155,11 @@ const BOOK_HISTORY = defineCollection({
 
 /** A listener's rating for a track. UNIQUE(user_id, track_ref) + an upsert-on-conflict
  *  BEFORE INSERT trigger are added in server.js's migration ALONGSIDE the base ddl() —
- *  from DAY ONE, not retrofitted. The papyros 17.5 lesson: `progress` shipped without a
+ *  from DAY ONE, not retrofitted. The 17.5 lesson: `progress` shipped without a
  *  server-side UNIQUE(user_id, book_ref) for several waves, one-row-per-user-per-book
  *  was a CLIENT convention only, and a race between two POSTs (e.g. two tabs' first
  *  action on the same row) could create duplicates — the fix needed a dedupe-then-ALTER
- *  migration (papyros migration 8) specifically BECAUSE live rows already existed and
+ *  migration specifically BECAUSE live rows already existed and
  *  might already violate the constraint (a migration that dies on existing rows is a
  *  boot-loop trap). `ratings` never ships without the constraint, so there is nothing
  *  to dedupe and no reason to defer it — see server.js's `ratings_upsert_on_conflict`
@@ -178,11 +174,11 @@ const RATINGS = defineCollection({
 });
 
 /* ── D6 / XC-2: the ACTIVITY contract ─────────────────────────────────────────────
-   ⚠️ KourOS's `history` and PapyrOS's `history` were FIELD-FOR-FIELD IDENTICAL, and
+   ⚠️ KourOS's `history` and a second app's were FIELD-FOR-FIELD IDENTICAL, and
    were invented independently. Read that as the finding rather than as an
    embarrassment: neither author was careless, the suite simply had no word for "this
    app keeps a record of what the user did", so each one had to coin a private one.
-   (Since the fold, PapyrOS's ledger lives here as `book_history`.)
+   (That second ledger lives here now, as `book_history`.)
 
    ⚠️ The remedy is a DECLARED SHAPE, NOT A SHARED TABLE, and the difference is the
    whole point. KourOS keeps its own ledgers, indexes them how it likes, and stays
@@ -197,7 +193,7 @@ const ACTIVITY = defineActivity({
   app: 'kouros',
   kinds: [
     { id: 'listen', label: 'Listened', verb: 'listened to' },
-    // Audiobooks since the PapyrOS fold. A separate KIND rather than more `listen`
+    // Audiobooks. A separate KIND rather than more `listen`
     // rows, because a reader merging the suite's feed renders "listened to Dune" and
     // "listened to a track" differently, and the kind is the only thing it can key on.
     { id: 'book', label: 'Listened to a book', verb: 'listened to' },
@@ -254,7 +250,7 @@ const ACTIVITY = defineActivity({
   },
 });
 
-/* ── META — the iTunes audiobook metadata connector (PapyrOS 4.1, folded in) ────────
+/* ── META — the iTunes audiobook metadata connector (4.1) ───────────────────────────
    A book folder with sparse tags has nothing better than its folder name; iTunes Search
    is the ONE sanctioned external call (free, no key). `defineConnector` makes it a typed
    read — `GET /api/metadataSearch?term=` — that serves candidate rows in this app's own
@@ -399,7 +395,7 @@ const SESSION_CAPABILITIES = [
 
 /* ── What can be DONE to KourOS (the write contract) ───────────────────────────────
    rescanLibrary walks MUSIC_DIR and (re)catalogs tracks via src/library/scan.js.
-   Admin-scoped (scopes: ['kouros:admin']), same precedent as papyros's rescanLibrary —
+   Admin-scoped (scopes: ['kouros:admin']) —
    src/routes/library.js enforces the EQUIVALENT req.user.role === 'admin' check (the
    suite's existing admin-gate idiom, resilient to weaveAuth's no-key dev stub, which
    carries a role but no scope array). */
@@ -498,7 +494,7 @@ const TRACK_SHAPE = [
   { name: 'updated_at',  type: 'string', label: 'Last catalog update (delta cursor for `since`)' },
 ];
 
-/* The `tracks` DatasetDef — mirrors papyros's BOOKS_DATASET shape/filter style
+/* The `tracks` DatasetDef — mirrors the BOOKS dataset's shape/filter style
    (title/author/series/genre/since → title/artist/album/genre/since here). Each filter
    carries its own column/op so src/routes/tracks.js's buildItemFilters enforces
    EXACTLY what this doc declares (P3, no drift). */
@@ -517,7 +513,7 @@ const TRACKS_DATASET = {
   invalidates: [TRACKS_KEY],
 };
 
-/* ── The audiobook catalog's read contract (PapyrOS's, folded in) ─────────────────
+/* ── The audiobook catalog's read contract ───────────────────────────────────────────
    A list row is SCALAR METADATA ONLY — no per-file manifest, no chapters, no path, no
    description (all detail-only weight, served by GET /api/book/:bookId). books/list.js
    derives its SELECT from BOOK_SHAPE, so the declared row and the queried columns are
@@ -699,7 +695,7 @@ const DATASETS = {
 module.exports = {
   CAPABILITIES, DATASETS, TRACKS_KEY, TRACK_SHAPE, BOOKS_KEY, BOOK_SHAPE, SESSION_KEY,
   PLAYLISTS, HISTORY, RATINGS,              // server.js .mount()s each of these
-  PROGRESS, BOOKMARKS, BOOK_HISTORY,        // …and these (audiobooks, since the PapyrOS fold)
+  PROGRESS, BOOKMARKS, BOOK_HISTORY,        // …and these (audiobooks)
   META,                                     // server.js .mount()s this too (reads only, no .ddl())
   ACTIVITY,                                 // D6: server.js mounts its handler (what the user DID here)
   EXT_REFS,                                 // D7/BB-5: the ext_ref schemes this app writes

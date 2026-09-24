@@ -1,7 +1,7 @@
 // AsyncView conformance (git history: Wave 20 item 20.3) — keeps the loading/
 // error/empty triad on ONE component.
 //
-// Three PapyrOS views hand-rolled the same triad three different ways: Library.tsx
+// Three audiobook views hand-rolled the same triad three different ways: Library.tsx
 // (a 3-way ternary), BookDetail.tsx (two independent `&&` guards), OfflineSettings.tsx
 // (an empty-only ternary through its own bespoke `.offline-empty` class). Nothing in
 // the build stops a future view from hand-rolling a fourth variant, so this asserts:
@@ -16,8 +16,8 @@
 //   4. hub.css ships `.jk-async-note` / `.jk-async-error`, token-hygiene clean (no
 //      hardcoded hex — every colour a var()).
 //   5. Every migrated file imports AsyncView from '@jkos/ui' and actually renders a
-//      `<AsyncView` — not a re-implementation. Three PapyrOS views, plus BeigeBoard's
-//      main region (XC-6: the component reached PapyrOS and KourOS and stopped, and
+//      `<AsyncView` — not a re-implementation. Three audiobook views, plus BeigeBoard's
+//      main region (XC-6: the component reached KourOS and stopped, and
 //      BeigeBoard's hand-rolled half was already wearing AsyncView's own class).
 //   6. The old hand-rolled triads are GONE — the exact ternary/guard shapes that
 //      used to dispatch loading/error/empty can't quietly regrow next to the new
@@ -111,9 +111,8 @@ if (!errorBlock) {
   ok('hub.css ships .jk-async-error, tinted from --hub-red, hex-free');
 }
 
-/* ── 5 & 6. the three PapyrOS call sites actually migrated ──────────────────── */
-// (PapyrOS folded into KourOS on 2026-09-23; the three views moved with it and are
-// held here at their new paths — the triad must not grow back after a move.)
+/* ── 5 & 6. the three audiobook call sites actually migrated ────────────────── */
+// (Held at their current paths — the triad must not grow back after a move.)
 const CALL_SITES = {
   'apps/kouros/src/views/books/Library.tsx': {
     // The old 3-way ternary head that used to dispatch loading/error/empty.
@@ -125,7 +124,7 @@ const CALL_SITES = {
   'apps/kouros/src/books/offline/OfflineSettings.tsx': {
     retired: [/books\.length === 0 \? \(/],
   },
-  /* XC-6: the component reached PapyrOS and KourOS and STOPPED. BeigeBoard's main
+  /* XC-6: the component reached KourOS and STOPPED. BeigeBoard's main
      region hand-rolled the loading half of the same triad — while already wearing
      AsyncView's own `.jk-async-note` class, which is about as close to the finding as
      a codebase can get to writing it down itself. */

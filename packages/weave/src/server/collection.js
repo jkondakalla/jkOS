@@ -101,7 +101,7 @@ function defineCollection(def) {
   const Noun = def.noun || pascal(singular(id))
 
   // Which write capabilities/routes to emit — default all three (unchanged behavior
-  // for every existing caller). 17.4 (papyros `history`, an append-only play-event
+  // for every existing caller). 17.4 (a `history`, an append-only play-event
   // log) needed a collection that is genuinely never mutable after creation — no
   // update, no delete, ever — which the generic mount() below couldn't express
   // before this: it always wired all four CRUD routes. Smallest additive knob
@@ -206,8 +206,8 @@ function defineCollection(def) {
   /* ⭐ `wire: true` — a field the CLIENT supplies that is nonetheless a wire
    * timestamp, and must therefore obey XC-1 like a server-written one.
    *
-   * ⚠️ The defect this closes was live in two apps. KourOS's and PapyrOS's
-   * `history.started_at` is stamped by the player in the browser and declared a plain
+   * ⚠️ The defect this closes was live in two apps. KourOS's two ledgers'
+   * `started_at` is stamped by the player in the browser and declared a plain
    * `string`, so any text at all could be stored — and their activity reads then
    * WINDOW and ORDER on that raw column (`started_at > ?`, `ORDER BY started_at
    * DESC`) while EMITTING `canonicalTime(started_at)` as the merge key. Filter key and
@@ -421,17 +421,17 @@ function article(noun) {
  */
 /* `extra` names non-standard wire columns per table, e.g. `{ history: ['started_at'] }`.
    ⚠️ Needed because the two-name rule (`created_at`/`updated_at`) is not the whole
-   truth: KourOS's and PapyrOS's `history.started_at` is client-stamped AND is what
+   truth: KourOS's ledgers' `started_at` is client-stamped AND is what
    their activity read windows on, so it is a wire timestamp under a third name. A
    convention that only recognises two names cannot see the one that broke. */
 function backfillWireTime(db, tableIds, extra = {}) {
   for (const t of tableIds) {
     // ⚠️ Ask, don't assume. Not every table in an app's list is a
     // defineCollection — a scanner-populated catalog like KourOS's `tracks` or
-    // PapyrOS's `books` is hand-rolled and may carry only one of the two columns
+    // `books` is hand-rolled and may carry only one of the two columns
     // (or neither). A migration that throws on a table it was handed is a BOOT
-    // LOOP, which is the trap this codebase already paid for once in papyros
-    // migration 8, and the cost of checking is one PRAGMA.
+    // LOOP, which is the trap this codebase already paid for once in a
+    // progress migration, and the cost of checking is one PRAGMA.
     let present
     try {
       present = new Set(db.prepare(`PRAGMA table_info(${t})`).all().map((c) => c.name))

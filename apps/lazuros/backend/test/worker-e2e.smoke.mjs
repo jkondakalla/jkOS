@@ -304,7 +304,7 @@ async function main() {
   ok(Array.isArray(byNewCap.json) && byNewCap.json.length === 1 && byNewCap.json[0].id === 'e2e-cap-new',
     '?capability= narrows to a DIFFERENT capability independently');
 
-  // since: delta cursor over updated_at — matches the BB items / PapyrOS books
+  // since: delta cursor over updated_at — matches the BB items / KourOS books
   // convention (`gt`, exclusive): a row strictly after the cursor is IN, a row exactly
   // ON the cursor is OUT.
   const sinceMid = await jsonReq(node.base, 'GET', `/api/lazuros/jobs?since=${encodeURIComponent('2050-01-01 00:00:00')}`);

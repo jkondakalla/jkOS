@@ -8,7 +8,7 @@
 //                      backend mechanism (driven against a scripted fake backend).
 //
 // The hook itself is a stateful React hook with a MediaBackend and network seams; its
-// full behavior is proven by item 15.4's PapyrOS migration + the wave gate, NOT by a
+// full behavior is proven by item 15.4's migration + the wave gate, NOT by a
 // jsdom harness (the repo has none). So this covers exactly the self-contained logic —
 // the house pattern (transpile the real .ts in-memory, import the REAL functions, drive
 // them; copied from test/core.test.mjs + test/cards-logic.mjs). All three modules are
@@ -94,8 +94,8 @@ check(readPersistedRate('k', fakeStore({ k: '0.75' })) === 0.75, 'readPersistedR
 /* ── persistRate ───────────────────────────────────────────────────────── */
 {
   const s = fakeStore();
-  persistRate('papyros.player.rate', 1.75, s);
-  check(s._map.get('papyros.player.rate') === '1.75', 'persistRate writes String(rate) under the given key');
+  persistRate('app.player.rate', 1.75, s);
+  check(s._map.get('app.player.rate') === '1.75', 'persistRate writes String(rate) under the given key');
 }
 {
   const throwing = { getItem() { return null; }, setItem() { throw new Error('private mode'); } };
@@ -128,7 +128,7 @@ const {
 
 /* ── compatKey ─────────────────────────────────────────────────────────── */
 check(compatKey(5, 2) === '5:2', 'compatKey formats a numeric item id');
-check(compatKey('abc', 0) === 'abc:0', 'compatKey formats a string item id (generalized beyond papyros numbers)');
+check(compatKey('abc', 0) === 'abc:0', 'compatKey formats a string item id (generalized beyond numeric ids)');
 
 /* ── isRecoverableKind ─────────────────────────────────────────────────── */
 check(deepEq([...DEFAULT_RECOVERABLE_KINDS], ['decode', 'src-unsupported']), 'DEFAULT_RECOVERABLE_KINDS is decode + src-unsupported (was MediaError code 3/4)');
@@ -199,10 +199,10 @@ check(readPersistedVolume('v', fakeStore({ v: '0' })) === 0, "readPersistedVolum
 /* ── persistVolume ─────────────────────────────────────────────────────── */
 {
   const s = fakeStore();
-  persistVolume('papyros.player.volume', 0.6, s);
-  check(s._map.get('papyros.player.volume') === '0.6', 'persistVolume writes String(volume) under the given key');
-  persistVolume('papyros.player.volume', 3, s);
-  check(s._map.get('papyros.player.volume') === '1', 'persistVolume clamps before writing');
+  persistVolume('app.player.volume', 0.6, s);
+  check(s._map.get('app.player.volume') === '0.6', 'persistVolume writes String(volume) under the given key');
+  persistVolume('app.player.volume', 3, s);
+  check(s._map.get('app.player.volume') === '1', 'persistVolume clamps before writing');
 }
 {
   const throwing = { getItem() { return null; }, setItem() { throw new Error('private mode'); } };
@@ -214,12 +214,12 @@ check(readPersistedVolume('v', fakeStore({ v: '0' })) === 0, "readPersistedVolum
 /* ── readPersistedMuted / persistMuted (under `<key>.muted`) ───────────── */
 {
   const s = fakeStore();
-  persistMuted('papyros.player.volume', true, s);
-  check(s._map.get('papyros.player.volume.muted') === '1', "persistMuted writes '1' under `<key>.muted`");
-  check(readPersistedMuted('papyros.player.volume', s) === true, 'readPersistedMuted round-trips true');
-  persistMuted('papyros.player.volume', false, s);
-  check(s._map.get('papyros.player.volume.muted') === '0', "persistMuted writes '0' for unmuted");
-  check(readPersistedMuted('papyros.player.volume', s) === false, 'readPersistedMuted round-trips false');
+  persistMuted('app.player.volume', true, s);
+  check(s._map.get('app.player.volume.muted') === '1', "persistMuted writes '1' under `<key>.muted`");
+  check(readPersistedMuted('app.player.volume', s) === true, 'readPersistedMuted round-trips true');
+  persistMuted('app.player.volume', false, s);
+  check(s._map.get('app.player.volume.muted') === '0', "persistMuted writes '0' for unmuted");
+  check(readPersistedMuted('app.player.volume', s) === false, 'readPersistedMuted round-trips false');
 }
 check(readPersistedMuted('v', fakeStore({})) === false, 'readPersistedMuted defaults a missing key to false');
 check(readPersistedMuted('v', fakeStore({ 'v.muted': 'garbage' })) === false, 'readPersistedMuted treats a non-flag value as unmuted');
@@ -242,10 +242,10 @@ check(readInitialMuted('v', fakeStore({ 'v.muted': '1' })) === true, 'readInitia
 {
   const b = fakeBackend();
   const s = fakeStore();
-  const returned = applyVolume(b, 0.7, 'papyros.player.volume', s);
+  const returned = applyVolume(b, 0.7, 'app.player.volume', s);
   check(deepEq(b._calls.setVolume, [0.7]), 'applyVolume calls backend.setVolume with the level');
   check(returned === 0.7, 'applyVolume returns the applied level');
-  check(s._map.get('papyros.player.volume') === '0.7', 'applyVolume persists under the configured key');
+  check(s._map.get('app.player.volume') === '0.7', 'applyVolume persists under the configured key');
 }
 {
   const b = fakeBackend();
@@ -273,13 +273,13 @@ check(readInitialMuted('v', fakeStore({ 'v.muted': '1' })) === true, 'readInitia
 {
   const b = fakeBackend();
   const s = fakeStore();
-  applyMuted(b, true, 'papyros.player.volume', s);
+  applyMuted(b, true, 'app.player.volume', s);
   check(deepEq(b._calls.setMuted, [true]), 'applyMuted calls backend.setMuted');
-  check(s._map.get('papyros.player.volume.muted') === '1', 'applyMuted persists under `<key>.muted`');
+  check(s._map.get('app.player.volume.muted') === '1', 'applyMuted persists under `<key>.muted`');
   // toggleMute is the engine negating its mutedRef and re-calling the same mechanism.
-  applyMuted(b, !true, 'papyros.player.volume', s);
+  applyMuted(b, !true, 'app.player.volume', s);
   check(deepEq(b._calls.setMuted, [true, false]), 'toggling (negate + re-apply) drives backend.setMuted with the flipped flag');
-  check(s._map.get('papyros.player.volume.muted') === '0', 'the toggled flag persists too');
+  check(s._map.get('app.player.volume.muted') === '0', 'the toggled flag persists too');
 }
 {
   const b = fakeBackend();

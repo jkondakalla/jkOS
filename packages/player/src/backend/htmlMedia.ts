@@ -13,7 +13,7 @@
 // callers that don't need to own one (or for tests running outside a DOM, which never
 // hit that path at all).
 //
-// No React, no papyros imports, no `packages/player/src/core` imports. Depends ONLY
+// No React, no app imports, no `packages/player/src/core` imports. Depends ONLY
 // on the element's interface (MediaElementLike below) — never on `document`/`window`
 // — except inside the opt-in create-default-element path, so a scripted fake element
 // can drive this in plain Node (see test/backend.test.mjs).

@@ -5,8 +5,7 @@ import { authContext, useAuthProvider } from '../hooks/useAuth';
 import { Lab } from '@jkos/ui';
 
 // ─── AuthGuard ────────────────────────────────────────────────────────────────
-// Mirrors apps/papyros/src/components/AuthGuard.tsx verbatim (itself ORDECK-
-// style): owns the auth lifecycle, provides AuthContext so any view can read
+// ORDECK-style: owns the auth lifecycle, provides AuthContext so any view can read
 // `user` via useAuth(), and renders:
 //   - a loading veil while the session check is in flight
 //   - a brief "redirecting" veil (then window.location.href → the auth portal,

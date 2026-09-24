@@ -1,7 +1,6 @@
 'use strict';
-// routes/library.js — the `rescanLibrary` capability route (git history: item 18.2). Mirrors
-// papyros's src/routes/library.js verbatim — see that file's header for the full
-// admin-gate rationale: role-based (`req.user.role === 'admin'`), not a raw
+// routes/library.js — the `rescanLibrary` capability route (git history: item 18.2). The admin
+// gate is role-based (`req.user.role === 'admin'`), not a raw
 // `kouros:admin` scope-array lookup, so weaveAuth's documented dev fallback (no
 // JKOS_AUTH_PUBLIC_KEY/JWKS_URI configured) still passes locally, and it matches the
 // suite's existing admin-gate precedent (apps/lazuros/backend/routes/jobs.js).

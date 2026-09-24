@@ -7,15 +7,13 @@
 // the house test pattern (test/factory.test.mjs), exactly like core/queue.ts
 // and core/timeline.ts do.
 //
-// What "composition out" means here: an app (papyros today via a hand-written
-// bar, the music app in Wave 18) reads PlayerComposition.transportControls /
+// What "composition out" means here: an app (KourOS, for both kinds) reads PlayerComposition.transportControls /
 // .actionControls — ordered ControlId lists — and mounts the matching REAL
 // parts from @jkos/player/ui (PlayPauseButton, SkipButton, SegmentButton,
 // RateButton, SleepMenu, …) in that order. The factory decides WHICH controls
 // a preset wants and in what order; it never renders them itself, so it never
-// forces a consumer onto any particular JSX shape — papyros keeps its
-// hand-assembled bar (git history: PLAYER_PARITY.md, retired: "zero behavior change")
-// while a future consumer can drive its whole transport off this list.
+// forces a consumer onto any particular JSX shape — a consumer may hand-assemble
+// its bar, or drive its whole transport off this list.
 //
 // The Queue/Timeline split from git history: PLAYER_PARITY.md, retired is what `nav` encodes:
 // audiobook prev/next walks SEGMENTS inside one Timeline (`'segment'`); music/
@@ -31,12 +29,12 @@ export type PlayerKind = 'audiobook' | 'music' | 'video';
 export type NavCapability = 'segment' | 'track' | false;
 
 /** Scrubber shape — see @jkos/player/ui's <Scrubber mode>. 'segment' brackets
- *  just the current chapter (papyros today); 'timeline' spans the whole item
+ *  just the current chapter (a book); 'timeline' spans the whole item
  *  with segment-boundary ticks (a music/video bar's shape). */
 export type ScrubberMode = 'segment' | 'timeline';
 
 /** Mobile transport density. 'compact' collapses extras into a More sheet
- *  (papyros's audiobook bar today, app-owned); 'full' mirrors the desktop
+ *  (an audiobook bar, app-owned); 'full' mirrors the desktop
  *  control set 1:1 (a music/video bar's shape — nothing left to collapse). */
 export type MobileTransportMode = 'compact' | 'full';
 
@@ -139,8 +137,8 @@ export type ControlId =
 
 /** The factory's output: the resolved spec plus the two ordered control
  *  lists derived from it. `transportControls` is the <PlayerBar transport>
- *  center cluster (mirrors papyros's `.pb-transport` row); `actionControls`
- *  is the `actions` slot (papyros's rate/sleep/bookmarks cluster). Both are
+ *  center cluster (the `.pb-transport` row); `actionControls`
+ *  is the `actions` slot (a book's rate/sleep/bookmarks cluster). Both are
  *  PURE data — an app renders the real parts, this only decides which ones
  *  and in what order. */
 export interface PlayerComposition {
@@ -234,9 +232,9 @@ export function createPlayer(input: PlayerSpecInput): PlayerComposition {
 // house shape and tune one field (e.g. musicPlayer({ capabilities: { queue:
 // false } }) for a queue-less mini player) without hand-rolling the rest.
 
-/** = today's papyros PlayerBar (git history: PLAYER_PARITY.md, retired): ±30s skip, chapter
+/** = the audiobook bar (git history: PLAYER_PARITY.md, retired): ±30s skip, chapter
  *  prev/next, rate cycling, sleep timer, bookmarks. No volume/shuffle/
- *  repeat/queue — PapyrOS's audiobook bar renders none of those (§2: "No
+ *  repeat/queue — the audiobook bar renders none of those (§2: "No
  *  queue", "No volume control" was true before Wave 16.2 added the engine
  *  surface; the audiobook BAR still doesn't render a volume control by
  *  design — git history: PLAYER_PARITY.md, retired — "musicPlayer()" is where volume belongs). */

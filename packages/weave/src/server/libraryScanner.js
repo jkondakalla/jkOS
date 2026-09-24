@@ -1,7 +1,7 @@
 'use strict'
 // weave/server/libraryScanner.js — the LIBRARY SCANNER primitive factory (git history: item 17.2).
 //
-// Lifted from PapyrOS `backend/src/library/{scan,probe}.js` (Wave 2): a folder of media
+// Lifted from the audiobook `library/{scan,probe}.js` (Wave 2): a folder of media
 // files → a SQLite catalog, kept in sync on every rescan. The ladder is generic and
 // lives here in full:
 //   walk (a directory of "units", each a file or a folder of files) → ffprobe pool
@@ -10,8 +10,8 @@
 //   ON CONFLICT(path) (insert new units, update changed ones) → prune rows whose unit
 //   vanished from disk.
 // The ONE app-specific piece is `mapTags(ctx)` — turning a unit's probed tags into that
-// app's own catalog columns (PapyrOS: title/author/narrator/series/year/genres; the
-// music app: artist/album/albumartist/track/disc/year/genre — same ctx shape, a
+// app's own catalog columns (books: title/author/narrator/series/year/genres;
+// music: artist/album/albumartist/track/disc/year/genre — same ctx shape, a
 // different mapTags, zero brick changes). `parseProbe` is kept pure (no I/O) and
 // exported so it can be unit-tested against hand-authored ffprobe JSON with no process
 // spawned at all; the impure half (`probeFile`) spawns ffprobe (spawn, never spawnSync)
@@ -26,7 +26,7 @@
 //   'dir'  (default) — one row per immediate subdirectory of `dir`, recursively walked
 //          for audio files underneath (per-disc subfolders round-trip); multiple files
 //          aggregate into ONE row (files[] + summed duration; chapters trusted only from
-//          a genuinely single-file unit). This is PapyrOS's book-folder model, verbatim.
+//          a genuinely single-file unit). This is the book-folder model, verbatim.
 //   'file' — one row per individual audio file anywhere under `dir` (flat recursive
 //          walk, no grouping). The natural shape for a per-track catalog (Wave 18).
 // Both share the exact same probe/upsert/prune ladder below — only unit *discovery*

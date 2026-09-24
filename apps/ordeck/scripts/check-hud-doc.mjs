@@ -302,7 +302,7 @@ if (args.includes('--live')) {
 }
 
 // ── retired built-ins — a dead app's card must leave stored docs ────────────
-// SylibOS was removed 2026-09-16 and its `study` card with it. A stored doc keeps a
+// A retired app's `study` card left with it. A stored doc keeps a
 // built-in's def and placement for ever (mergePublished only drops an UNPLACED def),
 // so without withoutRetired the card stays on every existing HUD: an empty frame bound
 // to a slice nothing provides, linking to a dead origin. Built as it was stored.
@@ -310,7 +310,7 @@ if (args.includes('--live')) {
   const { withoutRetired } = state;
   const studyDef = {
     id: 'study', label: 'Study', sizing: { desktop: { w: 3, h: 3 }, mobile: { w: 2, h: 3 } },
-    spec: { frame: { eyebrow: 'STUDY', source: 'SYLIBOS', href: { lit: 'https://sylibos.jkos.net' } },
+    spec: { frame: { eyebrow: 'STUDY', source: 'RETIRED', href: { lit: 'https://retired.invalid' } },
       body: { t: 'when', cond: { src: 'study', path: 'available' }, then: { t: 'text', text: { src: 'study', path: 'headline' } } } },
   };
   const stored = defaultHudState();
@@ -321,7 +321,7 @@ if (args.includes('--live')) {
 
   const healed = withoutRetired(structuredClone(stored));
   const placed = Object.values(healed.layouts).flat().some((it) => it.i === 'study');
-  if (!healed.widgets.study && !placed && !healed.shelf.includes('study')) ok('retired: a stored SylibOS `study` card is stripped — def, every tier, and the shelf');
+  if (!healed.widgets.study && !placed && !healed.shelf.includes('study')) ok('retired: a stored `study` card is stripped — def, every tier, and the shelf');
   else fail(`retired: study survived (def=${!!healed.widgets.study}, placed=${placed}, shelf=${healed.shelf.includes('study')})`);
   if (healed.layouts.mobile?.some((it) => it.i === 'clock') && healed.widgets.clock) ok('retired: …and nothing else in the doc is touched');
   else fail('retired: stripping study removed an unrelated card');

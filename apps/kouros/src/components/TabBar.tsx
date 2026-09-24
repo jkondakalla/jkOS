@@ -8,7 +8,7 @@ interface TabBarProps {
 /** The five destinations — the ceiling: a bar with more than five targets makes
  *  each one too small to hit reliably, and Playlists / Artists are reachable one
  *  level in from Browse rather than competing for a slot here. Books earned the
- *  fifth when PapyrOS folded in (2026-09-23): an audiobook shelf is a library of
+ *  fifth: an audiobook shelf is a library of
  *  its own, not a filter on the music one. */
 const TABS: Array<{
   view: View;

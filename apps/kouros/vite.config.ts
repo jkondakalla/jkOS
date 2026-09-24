@@ -6,8 +6,7 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      // One backend: the audiobooks are this app's own since PapyrOS folded in
-      // (2026-09-23), so the `/api/papyros` peer route this used to need is gone.
+      // One backend: music and audiobooks alike.
       '/api': 'http://localhost:3011',
     },
   },

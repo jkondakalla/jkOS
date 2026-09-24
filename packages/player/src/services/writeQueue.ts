@@ -1,5 +1,5 @@
 // services/writeQueue.ts — the PURE half of the offline write queue (Layer 2,
-// git history: PLAYER_PARITY.md, retired — "services"; git history item 16.5 / PapyrOS §2 7.2).
+// git history: PLAYER_PARITY.md, retired — "services"; git history item 16.5 / §2 7.2).
 //
 // Everything in this file is a pure function over plain data — no DOM, no network,
 // no IndexedDB, no React — so the queue's three load-bearing policies are unit-
@@ -23,10 +23,10 @@
 // persistence + online/offline listeners + the serialized flush loop).
 
 /** How a queued write should be applied to the server on replay.
- *  - 'upsert'  full desired state for a record with a natural key (papyros
+ *  - 'upsert'  full desired state for a record with a natural key (book
  *              progress: one row per (user, book) keyed by book_ref) — the adapter
  *              finds-or-creates on push.
- *  - 'create'  a brand-new record keyed by a CLIENT temp key (papyros bookmarks) —
+ *  - 'create'  a brand-new record keyed by a CLIENT temp key (book bookmarks) —
  *              no server counterpart can exist, so LWW never drops it.
  *  - 'update'  a partial patch to an existing server record (keyed by server id).
  *  - 'delete'  remove an existing server record (keyed by server id). */
@@ -37,7 +37,7 @@ export interface WriteIntent<P = Record<string, unknown>> {
   /** Collection id — matches the backend collection ('progress', 'bookmarks'). */
   collection: string;
   /** Record identity WITHIN the collection — the coalescing key. Conventions used
-   *  by the papyros adapter: 'ref:<naturalKey>' (upsert), 'id:<serverId>'
+   *  by the book adapter: 'ref:<naturalKey>' (upsert), 'id:<serverId>'
    *  (update/delete), 'tmp:<clientKey>' (create). Opaque to this module. */
   key: string;
   op: WriteOp;

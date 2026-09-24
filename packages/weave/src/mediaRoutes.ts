@@ -7,7 +7,7 @@
  * transcode pipeline — declared as one pure-data SPEC. The one piece worth promoting is
  * the PLAYBACK DECISION ENGINE (`decidePlayback`): client capabilities in, a
  * `{ rung, rendition, reason }` out — Jellyfin's direct-play → direct-stream → transcode
- * ladder, which video (Wave 19) inherits. papyros's Firefox-m4b ladder is that engine
+ * ladder, which video (Wave 19) inherits. The audiobooks' Firefox-m4b ladder is that engine
  * wearing an audiobook disguise; its rules become app-SUPPLIED ladder config, not brick
  * literals.
  *

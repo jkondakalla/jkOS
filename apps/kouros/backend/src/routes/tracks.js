@@ -2,7 +2,7 @@
 // routes/tracks.js — the `tracks` dataset (the read contract, git history: item 18.2). A filtered
 // list read over the shared catalog the scanner (src/library/scan.js) populates.
 // Filters DERIVED from the dataset's own declaration (buildItemFilters/filterSpec —
-// single source, P3) — mirrors papyros's src/routes/books.js. Read-only: `tracks` has
+// single source, P3) — mirrors src/books/list.js. Read-only: `tracks` has
 // no per-user owner column (shared catalog, like `books`), so unlike playlists/
 // history/ratings there is no owner-pin base clause and no seed.
 

@@ -1,5 +1,4 @@
-// books.probe.smoke.mjs — PapyrOS's probe.smoke, carried over when PapyrOS folded
-// into KourOS (2026-09-23); routes under /api/books/*, tokens scoped kouros:*.
+// books.probe.smoke.mjs — routes under /api/books/*, tokens scoped kouros:*.
 // Originally (task 2.2) — unit tests for the pure half of
 // backend/src/library/probe.js: parseProbe() and the ffprobe-tag → `books`-column
 // mapping (mapTagsToColumns), plus their normalizeTags/extractYear/parseGenres
@@ -8,8 +7,7 @@
 // hand-authored ffprobe JSON fixtures. No `ffprobe` exec, no network, no DB.
 //
 // Run standalone:  node apps/kouros/backend/test/books.probe.smoke.mjs
-// (task 2.5 chains this into the papyros backend `test` script / the gate — not
-// wired here.)
+// Chained into the backend `test` script (package.json).
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';

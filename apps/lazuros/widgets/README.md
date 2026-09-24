@@ -167,7 +167,7 @@ lazuros `jobs` dataset (or a client-side selector) a derived `tone` column so
 `docs.js` `DATASETS_DOC.jobs.filters` now also declares `capability` (exact
 match, `column: 'capability', op: 'eq'`) and `since` (delta cursor,
 `column: 'updated_at', op: 'gt'`, exclusive — the same convention BeigeBoard's
-`items` and PapyrOS's `books` use), both enforced in `routes/jobs.js` via
+`items` and KourOS's `books` use), both enforced in `routes/jobs.js` via
 `@jkos/weave/server`'s `buildItemFilters`/`filterSpec` (declared == enforced,
 no drift). `lazuros-jobs` as shipped still lists all of the user's recent
 jobs (its spec's `sources.jobs.url` is a fixed `/api/lazuros/jobs` literal,

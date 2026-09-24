@@ -1,5 +1,5 @@
 // core.test.mjs — unit tests for @jkos/player/core (Wave 15, item 15.1). Covers:
-//   1. the timeline math lifted VERBATIM from apps/papyros/src/player/position.ts
+//   1. the timeline math lifted VERBATIM from the audiobook player's position.ts
 //      (renamed BookFile→MediaSource, BookChapter→Segment, FileMap→Timeline) — the
 //      float-boundary edge cases the original module's comments call out by name.
 //   2. every pure Queue reducer (next/prev/shuffle/repeat/reorder/insertNext/append),

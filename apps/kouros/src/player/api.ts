@@ -55,7 +55,7 @@ const JSON_HEADERS = { 'Content-Type': 'application/json' };
 // ─── Track catalog + a tiny id-keyed cache ──────────────────────────────────────────
 // The backend's `tracks` dataset (apps/kouros/backend/src/routes/tracks.js) is a
 // filtered LIST route only — title/artist/album/genre/since, no `id` filter, no
-// GET /api/tracks/:id detail route (unlike papyros's GET /api/book/:id) — `tracks` is
+// GET /api/tracks/:id detail route (unlike GET /api/book/:id) — `tracks` is
 // hand-rolled, not a defineCollection, and 18.2 never added a single-row read. The
 // player's controller seam only carries `trackIds: number[]` (git history: item 18.4's
 // contract), so the adapter's ItemLoader.load(id) needs a way to resolve a track by id
@@ -90,7 +90,7 @@ export function listTracks(): Promise<Track[]> {
  *  whole-catalog re-fetch. Throws if the id genuinely isn't in the catalog after that
  *  refetch (the engine's itemLoader.load() lets that rejection propagate — its
  *  handleRequest already treats a thrown load() as "abandon this request", the same
- *  path papyros's getBook(404) takes). */
+ *  path getBook(404) takes). */
 export async function getTrack(id: number): Promise<Track> {
   const hit = cache.get(id);
   if (hit) return hit;
@@ -122,7 +122,7 @@ export function useTrackCache(): ReadonlyMap<number, Track> {
 /** Range-aware audio stream URL. `fileIndex` is always 0 — a `tracks` row is always
  *  exactly one file (unit:'file' scanning; src/media.js's resolveFile returns a
  *  single-entry files array) — but the parameter stays explicit so this reads
- *  identically to papyros's streamUrl(id, fileIndex) rather than hiding the URL shape. */
+ *  identically to the books' streamUrl(id, fileIndex) rather than hiding the URL shape. */
 export function streamUrl(id: number, fileIndex = 0): string {
   return `${API}/api/stream/${id}/${fileIndex}`;
 }
@@ -134,9 +134,9 @@ export function coverUrl(id: number): string {
 }
 
 // ─── Play history (17.4-style — append-only, plain authFetch) ──────────────────────
-// One row per LISTENING SESSION. Here (unlike papyros's multi-file books) a session
+// One row per LISTENING SESSION. Here (unlike multi-file books) a session
 // boundary IS a track change: each track is its own history row (see
-// usePlayerEngine.ts's session recorder). Best-effort telemetry, same as papyros's
+// usePlayerEngine.ts's session recorder). Best-effort telemetry, same as the books'
 // createHistoryEvent — a failed POST is swallowed with a console.warn by the caller,
 // never surfaced to playback UI.
 export function createHistoryEvent(

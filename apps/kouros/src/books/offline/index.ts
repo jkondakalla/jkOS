@@ -1,7 +1,5 @@
-// books/offline/ — offline audiobooks: the media cache (PapyrOS Wave 7.1) + the offline write
-// queue (7.2), carried over when PapyrOS folded into KourOS (2026-09-23). Storage names
-// are KourOS's own (constants.ts) — PapyrOS's downloads lived on papyros.jkos.net's origin,
-// which KourOS cannot read, so a book downloaded there is downloaded again here.
+// books/offline/ — offline audiobooks: the media cache (Wave 7.1) + the offline write
+// queue (7.2). Storage names are in constants.ts.
 // One place the rest of the app imports from (public/sw.js mirrors the cache name).
 //
 // Public surface:

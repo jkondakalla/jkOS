@@ -1,10 +1,10 @@
 // timeline.ts — the pure timeline math for the player. Lifted VERBATIM (algorithm,
-// edge cases, and comment intent unchanged) from apps/papyros/src/player/position.ts,
+// edge cases, and comment intent unchanged) from the audiobook player's position.ts,
 // generalized with a rename only: BookFile → MediaSource, BookChapter → Segment,
 // FileMap → Timeline, EMPTY_MAP → EMPTY_TIMELINE, buildFileMap → buildTimeline,
 // FilePos → SourcePos (fileIndex → sourceIndex; arrayIndex is already generic and
 // keeps its name). See git history: PLAYER_PARITY.md, retired for why this promotes
-// cleanly: PapyrOS's "book" was never book-shaped, it's N sources concatenated into
+// cleanly: an audiobook "book" was never book-shaped, it's N sources concatenated into
 // one global timeline with a gap-free list of nav points over it.
 //
 // The whole player speaks ONE number: `globalPos`, a second offset across the WHOLE

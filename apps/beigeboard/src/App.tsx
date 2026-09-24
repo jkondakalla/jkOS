@@ -569,8 +569,8 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
           >
             {/* XC-6: the shared loading/error/empty triad, not a fourth hand-rolled
                 one. This spot already wore AsyncView's own `.jk-async-note` class
-                while re-implementing its ternary — the component reached PapyrOS and
-                KourOS and stopped here.
+                while re-implementing its ternary — the component reached KourOS
+                and stopped here.
                 `loadingText` keeps the print idiom (DESIGN.md §13.12): the house
                 generic is "Loading…", and this board says "Setting type…". That the
                 copy is a prop is why one component can serve both. */}

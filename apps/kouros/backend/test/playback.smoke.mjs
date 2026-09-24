@@ -1,7 +1,7 @@
 // playback.smoke.mjs (git history: item 18.2) — the playback + per-user-collection smoke: boots
 // the REAL server (throwaway port + temp DB, the committed fixture library, a REAL
 // RS256 keypair so forged per-user tokens exercise the actual verify path rather than
-// the weave dev-stub — same pattern as apps/papyros/backend/test/playback.smoke.mjs)
+// the weave dev-stub — same pattern as books.playback.smoke.mjs)
 // and asserts:
 //
 //   • unauthenticated media request → 401 (the media router sits behind the identity
@@ -12,10 +12,10 @@
 //     hardcoded), a plain GET → 200 whole-file, and an out-of-bounds Range → 416 with
 //     `Content-Range: bytes */<total>` (no ladder is configured for kouros — see
 //     src/media.js's header — so there is no `?compat=` surface to test here, unlike
-//     papyros).
+//     the audiobooks).
 //   • cover art (GET /api/cover/:trackId) → 200 once the scanner has picked up the
 //     real folder-level cover.jpg on Album Two's track, and 404 for a track with none
-//     (Album One's tracks are deliberately cover-less, mirroring papyros's fixture
+//     (Album One's tracks are deliberately cover-less, mirroring the book fixture's
 //     asymmetry).
 //   • `playlists` owner-scoped CRUD round-trip (18.2's defineCollection contract): A
 //     creates a playlist with an ordered `track_refs` array, only A sees it; B's list
@@ -24,7 +24,7 @@
 //     columns.js's coerceWeaveColumn / collection.js's toRow()); cross-user
 //     PATCH/DELETE → 404; DELETE removes it.
 //   • `ratings` UNIQUE(user_id, track_ref) + upsert-on-conflict trigger (18.2's
-//     day-one hardening, the papyros 17.5 lesson applied up front): a SECOND POST for
+//     day-one hardening, the 17.5 lesson applied up front): a SECOND POST for
 //     the same (user, track) does NOT 500 on a raw constraint violation and does NOT
 //     duplicate — it replaces the existing rating in place (one row survives, carrying
 //     the new value); a different user's rating on the SAME track is untouched by that
@@ -76,7 +76,7 @@ const tmp = mkdtempSync(join(tmpdir(), 'kouros-playback-'));
 const DB_PATH = join(tmp, 'test.db');
 
 // ── Forge suite tokens: RS256 over a throwaway keypair the server is told to trust —
-//    same recipe as papyros's playback.smoke.mjs, needed here because the dev-stub
+//    same recipe as books.playback.smoke.mjs, needed here because the dev-stub
 //    auth only ever injects ONE identity (sub:1), which can't exercise cross-user
 //    scoping.
 const { publicKey, privateKey } = generateKeyPairSync('rsa', {
@@ -145,7 +145,7 @@ async function waitForTracks(token, count, ms = 30000) {
 
 /** Poll GET /api/tracks?album=<Album Two> until cover_path lands — extractCover() runs
  *  AFTER a track's row is upserted, so a track can briefly be visible with cover_path
- *  still null (same window papyros's waitForCover guards). */
+ *  still null (same window books.playback's cover wait guards). */
 async function waitForCover(token, ms = 15000) {
   const deadline = Date.now() + ms;
   let row = null;
@@ -296,7 +296,7 @@ try {
     ok(Array.isArray(reorder.json?.track_refs) && reorder.json.track_refs[0] === solo.id && reorder.json.track_refs[1] === song1.id,
       `playlists: reordered track_refs round-trips (got ${JSON.stringify(reorder.json?.track_refs)})`);
 
-    // Cross-user PATCH/DELETE → 404, same owner-scoping contract as papyros's progress.
+    // Cross-user PATCH/DELETE → 404, same owner-scoping contract as `progress`.
     const bPatchA = await req('PATCH', `/api/playlists/${createA.json.id}`, { name: 'Hijacked' }, B);
     ok(bPatchA.status === 404, `playlists: B PATCH of A's playlist → 404 (got ${bPatchA.status})`);
     const bDeleteA = await req('DELETE', `/api/playlists/${createA.json.id}`, undefined, B);

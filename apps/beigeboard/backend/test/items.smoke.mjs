@@ -276,7 +276,7 @@ try {
   // ── O. THE ACTIVITY CONTRACT (D6 / XC-2) ──────────────────────────────────────
   //    ⚠️ BeigeBoard's ledger is not a ledger table — it is `started_at` and
   //    `completed_at`, two columns on a wide items row (see src/item-fields.js). So
-  //    unlike papyros's and kouros's, this app's read is a UNION, and ONE ITEM CAN
+  //    unlike KourOS's ledgers, this app's read is a UNION, and ONE ITEM CAN
   //    PRODUCE TWO EVENTS. That is the part worth testing: an id collision between
   //    the two legs would make the merged cross-app feed drop one of them silently,
   //    because de-duplication is by event id.

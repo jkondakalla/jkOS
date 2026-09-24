@@ -3,7 +3,7 @@
  * Everything shared with a track's Now Playing (the glass, the stage, the scrubber
  * row, the transport row) is views.css's `.kr-now-*`; this file holds only what a
  * BOOK adds — the chapter line, the time-left line, and the rate / sleep /
- * bookmarks row that used to be PapyrOS's player bar. Tokens only (--hub-, --kr-,
+ * bookmarks row. Tokens only (--hub-, --kr-,
  * --accent): no literal colour or radius. */
 
 /* A jacket is portrait-ish and its title is the art — no crop into a square. */

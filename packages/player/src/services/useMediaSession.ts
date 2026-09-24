@@ -6,14 +6,14 @@
 // lock-screen scrubber finally tracks the real position (git history: PLAYER_PARITY.md, retired called
 // this out as the single missing MediaSession piece).
 //
-// Semantics preserved from the inline block, byte-for-byte for papyros:
-//   - nothing installs until `enabled` (papyros: an item is loaded — the block only
+// Semantics preserved from the inline block, byte-for-byte for the first consumer:
+//   - nothing installs until `enabled` (an item is loaded — the block only
 //     ever ran as setMediaSession(loaded) inside handleRequest);
 //   - the action set is exactly the seven the block installed (MEDIA_SESSION_ACTIONS),
 //     with the block's `details.seekTime` type guard owned here;
 //   - metadata feature-detects window.MediaMetadata and re-applies per item — the
 //     metadata effect keys on the `metadata` reference, so pass a per-item-stable
-//     object (papyros: useMemo'd on the loaded book);
+//     object (e.g. useMemo'd on the loaded book);
 //   - playbackState is pushed only on a `playing` TRANSITION (the block set it inside
 //     the play/pause/ended handlers, never at load), so a fresh mount/enable writes
 //     nothing until playback actually starts or stops;
@@ -48,7 +48,7 @@ export interface MediaSessionHandlers {
 }
 
 export interface UseMediaSessionConfig {
-  /** Gate: nothing installs until true (papyros: an item is loaded). */
+  /** Gate: nothing installs until true (e.g. an item is loaded). */
   enabled: boolean;
   /** Now-playing metadata, or null to leave ms.metadata untouched (the engine's old
    *  nowPlaying-omitted path: action handlers still wire, metadata is skipped). */

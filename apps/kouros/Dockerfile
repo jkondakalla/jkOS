@@ -65,8 +65,7 @@ FROM node:20-slim
 # files are re-probed and re-fail on every single boot, starving the event loop until
 # /health times out and the container sits `unhealthy` (staging, 2026-08-25).
 # This stage was mirrored from apps/beigeboard/Dockerfile, which has no media and so
-# never carried this line; apps/papyros/Dockerfile — the app that actually shares the
-# scanner brick — is the correct reference and has always installed it.
+# never carried this line.
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=builder /out /app

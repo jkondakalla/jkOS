@@ -49,8 +49,7 @@ export function nextRate(current: number): number {
 
 /** The rate the media element should actually run at. `applies` is false for an item
  *  the app has said plays at unit speed regardless of the listener's preset — a music
- *  track in a player whose rate preset is an audiobook habit (KourOS, since PapyrOS
- *  folded into it). The PERSISTED rate is untouched: the next item it applies to picks
+ *  track in a player whose rate preset is an audiobook habit (KourOS). The PERSISTED rate is untouched: the next item it applies to picks
  *  it straight back up. */
 export function effectiveRate(rate: number, applies: boolean): number {
   return applies ? rate : 1;

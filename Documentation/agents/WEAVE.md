@@ -23,8 +23,8 @@ Three consequences, each of which gets assumed backwards:
 - **A defect is anything that hands a fresh agent wrong or incomplete information.** An
   app serving 30 routes and declaring 8 is broken *even if all 30 work*: the other 22 are
   invisible to everyone who comes after.
-- **Two apps with identical tables are not a call for shared code.** PapyrOS and KourOS
-  have field-for-field identical `history` tables, invented independently. The fix is a
+- **Two apps with identical tables are not a call for shared code.** Two apps once
+  had field-for-field identical `history` tables, invented independently. The fix is a
   **common declared shape** Weave can fan a query over and merge — independent
   implementation, consistent outputs. Each app stays authoritative about itself.
 
@@ -76,7 +76,7 @@ Three classes, allocated so they cannot collide:
 Plus `RESERVED_SCHEMES` in `weave/src/shared/extref.js` for suite tooling that no app
 owns — `prober:` today, the fifth scheme, which appeared in one file and one comment.
 
-⚠️ **The scheme is the PROVIDER, not the connector.** PapyrOS's connector is `meta` and
+⚠️ **The scheme is the PROVIDER, not the connector.** KourOS's audiobook connector is `meta` and
 it writes `itunes:` refs. `meta` says which of our doors the data came through;
 `itunes` says whose id it is, and only the second makes the ref resolvable by anyone
 else.
@@ -95,8 +95,8 @@ tidier and tell a reader nothing the declaration does not.
 
 ### 2a · The activity contract (XC-2)
 
-**⭐ Declare one shape; do not share an implementation.** Four apps keep a per-user record
-of what happened, in four honest schemas: PapyrOS's `history`, KourOS's `history`,
+**⭐ Declare one shape; do not share an implementation.** Three apps keep a per-user record
+of what happened, in four honest schemas: KourOS's `history` and `book_history`,
 BeigeBoard's `started_at`/`completed_at` columns on `items`, LazurOS's `jobs` queue.
 
 ⚠️ **The first two are field-for-field identical and were invented independently, months
@@ -401,7 +401,7 @@ no coverage and never joins the gate.
 single-source registry covering service *and* test ports. `portTable()` throws at load on
 a duplicate claim, and the prober's `port-registry` probe holds every smoke's
 `const PORT = <n>` literal to its claim, so the table and the files cannot drift. It
-exists because three holes once lined up to run eight BeigeBoard/PapyrOS assertions green
+exists because three holes once lined up to run eight BeigeBoard and audiobook assertions green
 **against a KourOS server** (3991/3992 were each claimed twice). And assert
 `body.service === '<your id>'` in your harness's `waitForHealth()` — the uniform health
 payload already carries the app id, and the check that would have caught this is one field
@@ -428,7 +428,7 @@ prober, a workshop GUI or an AI composer can `require()` it offline.
   every hand-drawn hairline the engine kept painting its own control. **Add `apps/<id>/src`
   to `SCAN_ROOTS` in `test/fields.mjs`** — that gate scans eight named roots, not the repo.
 - **The loading/error/empty triad goes through `<AsyncView>`** from `@jkos/ui`, never a
-  fourth hand-rolled ternary. `test/async-view.mjs` names the (ex-PapyrOS) audiobook views and
+  fourth hand-rolled ternary. `test/async-view.mjs` names the audiobook views and
   BeigeBoard's main region; add yours.
 - **A 3-D view renders through `@jkos/scene`** — never a hand-made `getContext('webgl2')`.
   `useScene` (`/react`) owns the canvas's life: context loss and restore, visibility, resize,

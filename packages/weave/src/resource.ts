@@ -10,7 +10,7 @@
  * The invalidation bus replaces per-feature `*_CHANGED` window events with dotted
  * keys ('<app>.<resource>', e.g. 'beigeboard.items', 'weather.config'): a writer calls
  * invalidate('beigeboard.items') and only the resources subscribed to that key refetch
- * — so a PapyrOS write can't needlessly reload every BeigeBoard hook.
+ * — so a KourOS write can't needlessly reload every BeigeBoard hook.
  */
 
 import { useEffect, useRef, useState } from 'react';

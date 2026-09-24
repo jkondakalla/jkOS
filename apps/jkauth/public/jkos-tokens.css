@@ -803,7 +803,7 @@
    calendar cell, a caret, a disclosure row) — it lifts the background and takes
    a 1px press, nothing more. .jk-scroll is the scroll region: vertical only,
    never horizontal, so a long title can't shove a pane sideways. Both live here
-   rather than in an app.css because BeigeBoard, ORDECK and PapyrOS each want
+   rather than in an app.css because BeigeBoard, ORDECK and KourOS each want
    them and only one of them ships a stylesheet the kit can see.
 
    .jk-scroll carries NO scrollbar styling of its own. The hairline at the foot
@@ -1725,7 +1725,7 @@
 
 /* ─── Media grid + cover art (@jkos/ui MediaGrid / CoverArt) ───────────────
  * The suite's responsive cover grid + its image/fallback tile — lifted out
- * of papyros's library.css (git history: item 20.2) so the column ladder and cover
+ * of the book library's library.css (git history: item 20.2) so the column ladder and cover
  * styling live once, not re-hardcoded per app. Density keys off the ladder
  * tokens declared with --hub-tap-min above (kept in sync with
  * packages/design/responsive/mediaGrid.ts by test/responsive.mjs). ───────── */
@@ -1751,8 +1751,8 @@
 /* `display: flex` is load-bearing: .jk-media-cover above sets `display: block`,
    and at equal specificity the later rule wins — so without this the centering
    pair below was inert and every fallback glyph in the suite sat in the tile's
-   top-left corner. (Inherited from `.lib-cover-placeholder`, which leaned on a
-   papyros-local flex rule that didn't come along with the lift.) */
+   top-left corner. (Inherited from `.lib-cover-placeholder`, which leaned on an
+   app-local flex rule that didn't come along with the lift.) */
 .jk-media-cover-placeholder {
   display: flex;
   align-items: center;
@@ -1787,7 +1787,7 @@
 
 /* ─── Async state text (@jkos/ui <AsyncView>) ──────────────────────────────
  * git history: Wave 20 item 20.3: the loading/error/empty triad's single state
- * paragraph, unified out of three hand-rolled versions (papyros's local
+ * paragraph, unified out of three hand-rolled versions (the book views' local
  * `.muted` in Library.tsx/BookDetail.tsx, `.offline-empty` in
  * OfflineSettings.tsx). Neutral/muted by default like the retired `.muted`;
  * `.jk-async-error` blends toward the danger hue (same color-mix ratio as
@@ -2645,9 +2645,9 @@ dialog::backdrop { background: var(--hub-scrim); }
 
 /* ─── Match panel — search→candidates→apply (@jkos/ui <MatchPanel>) ────────
  * git history: Wave 20 item 20.4: lifted verbatim (same properties, `.match-*`
- * renamed `.jk-match-*`) out of papyros's book-detail.css — the "Fix metadata"
+ * renamed `.jk-match-*`) out of book-detail.css — the "Fix metadata"
  * panel was the ONLY consumer, so a hand-copy per future consumer would repeat
- * papyros's original single-app mistake (20.1's brief). Reads the same --hub-
+ * the original single-app mistake (20.1's brief). Reads the same --hub-
  * tokens every other component class here does; no new tokens introduced. ── */
 .jk-match-panel {
   align-self: stretch;

@@ -2,8 +2,8 @@
 // a re-implementation of the Range contract. rangeStream is exercised over a real
 // http.createServer (plain node:http ServerResponse, no Express) so the assertions
 // prove the package works against the base surface every jkOS backend's `res` object
-// is built on — the same 200/206/416 + Accept-Ranges/Content-Range contract PapyrOS's
-// backend/src/media.js implemented inline before this package existed (git history,
+// is built on — the same 200/206/416 + Accept-Ranges/Content-Range contract the
+// audiobook media.js implemented inline before this package existed (git history,
 // Wave 17 item 17.1). containPath is exercised directly (pure function, no server needed).
 //
 //   node packages/files/test/files.smoke.mjs
@@ -130,7 +130,7 @@ try {
 
   // A missing file: rangeStream's internal statSync throws synchronously (it does not
   // swallow the error) — the caller is expected to stat/404 first, exactly like
-  // PapyrOS's media.js routes do.
+  // the book media routes do.
   {
     const res = await fetch(BASE + '/boom');
     ok(res.status === 599, `rangeStream propagates a stat failure to the caller instead of swallowing it (got ${res.status})`);

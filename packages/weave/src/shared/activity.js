@@ -1,11 +1,11 @@
 // activity.js — THE declared shape of "what the user did" (XC-2 / D6).
 //
 // WHY THIS EXISTS
-// Four apps keep a per-user, append-only record of what someone did, in four
+// Three apps keep a per-user, append-only record of what someone did, in four
 // schemas, none of them aggregatable:
 //
-//   · papyros `history`  — item_ref, started_at, ms_played, completed
-//   · kouros  `history`  — item_ref, started_at, ms_played, completed
+//   · kouros  `history`       — item_ref, started_at, ms_played, completed
+//   · kouros  `book_history`  — item_ref, started_at, ms_played, completed
 //   · beigeboard `items` — started_at / completed_at, two columns on a wide table
 //   · lazuros `jobs`     — capability, status, created_at, updated_at
 //
@@ -17,7 +17,7 @@
 // ⭐ THE RULE: DECLARE ONE SHAPE; DO NOT SHARE AN IMPLEMENTATION.
 // This file is a vocabulary and a validator. It is not a table, not a base class,
 // and not a place to put a query. Each app stays authoritative about its own
-// ledger — papyros's play events are papyros's business, and its `history` table
+// ledger — kouros's play events are kouros's business, and its `history` table
 // keeps exactly the columns it wants — and answers about ITSELF in this shape.
 // Weave fans the question out and merges the answers (fetchActivity.ts).
 //
@@ -74,9 +74,9 @@ export const ACTIVITY_DEFAULT_LIMIT = PAGE_DEFAULT
  *             means this inherits that resolution rather than forking a fifth
  *             convention.
  *   label     a human string for `ref`, because a merged feed cannot deeplink into
- *             four apps to render a list, and "papyros:book:88" is not a sentence.
+ *             four apps to render a list, and "kouros:book:88" is not a sentence.
  *   ms        how long the act actually took, when that is meaningful. NOT
- *             wall-clock duration — papyros and kouros both mean "time actually
+ *             wall-clock duration — kouros's two ledgers both mean "time actually
  *             played", excluding paused time, and that distinction is the whole
  *             value of the number.
  *   completed did it finish. Tri-state on purpose, and `null` is a real answer

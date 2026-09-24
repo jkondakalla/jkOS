@@ -1,8 +1,7 @@
 // The suite's ONE auth-gate hook: "who am I, and what do I do if the answer is nobody".
 //
-// This started as apps/ordeck/src/hooks/useAuth.ts. PapyrOS copied it, then KourOS
-// copied PapyrOS — its header said "mirrors apps/papyros/src/hooks/useAuth.ts
-// verbatim", which was true: the two were byte-identical apart from their comments.
+// This started as apps/ordeck/src/hooks/useAuth.ts, and two apps copied it —
+// byte-identical apart from their comments.
 // Three copies of a token-refresh state machine is three places for a session bug to
 // be fixed in two of them.
 //
@@ -55,7 +54,7 @@ export function useAuth(): AuthContextValue {
 
 /**
  * Owns the identity check only. What to DO about `unauthenticated` is the host
- * AuthGuard's call — ORDECK renders a sign-in panel, PapyrOS/KourOS redirect to the
+ * AuthGuard's call — ORDECK renders a sign-in panel, KourOS redirects to the
  * portal — which is why this hook never navigates on its own.
  */
 export function useAuthProvider(): AuthContextValue {

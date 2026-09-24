@@ -3,9 +3,9 @@
 // "Layer 3 — UI kit"). Covers:
 //   1. resolveSpec's defaults (a bare `{ kind }` gets every capability off,
 //      scrubberMode 'segment', mobileTransport 'full', no unbuilt flag).
-//   2. audiobookPlayer()'s spec == today's papyros PlayerBar's capability set
+//   2. audiobookPlayer()'s spec == the audiobook bar's capability set
 //      (±30s skip, segment nav, rate/sleep/bookmarks on, volume/shuffle/repeat/
-//      queue off) — the exact set apps/papyros/src/player/PlayerBar.tsx renders,
+//      queue off) — the exact set the audiobook bar renders,
 //      cross-checked against @jkos/player/engine/types' PlayerApi surface.
 //   3. musicPlayer()'s spec (track nav, shuffle/repeat/queue/volume/accentFromArt
 //      on, no skip/rate/sleep/bookmarks) and videoPlayer()'s (unbuilt: true).
@@ -74,11 +74,11 @@ check(deepEq(bare.capabilities, {
   volume: false, shuffle: false, repeat: false, queue: false, accentFromArt: false,
 }), 'resolveSpec: a bare { kind } gets every capability off');
 
-/* ── audiobookPlayer() == today's papyros bar ────────────────────────────── */
+/* ── audiobookPlayer() == the audiobook bar ─────────────────────────────── */
 const book = audiobookPlayer();
 check(book.kind === 'audiobook', 'audiobookPlayer: kind is "audiobook"');
 check(book.scrubberMode === 'segment', 'audiobookPlayer: scrubberMode is "segment" (chapter-window, PlayerBar.tsx today)');
-check(book.mobileTransport === 'compact', 'audiobookPlayer: mobileTransport is "compact" (papyros collapses into a More sheet)');
+check(book.mobileTransport === 'compact', 'audiobookPlayer: mobileTransport is "compact" (collapses into a More sheet)');
 check(book.unbuilt === undefined, 'audiobookPlayer: not unbuilt');
 check(deepEq(book.capabilities, {
   skipSeconds: 30, nav: 'segment', rate: true, sleep: true, bookmarks: true,

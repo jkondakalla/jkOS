@@ -51,8 +51,8 @@ export interface CollectionField {
    * canonical millisecond form — so the column can be compared, ordered and used as
    * a `?since=` cursor exactly like a server-written `created_at`.
    *
-   * ⚠️ Set it on any client-stamped time you also FILTER or ORDER on. KourOS's and
-   * PapyrOS's `history.started_at` was declared a plain `string`, so any text could be
+   * ⚠️ Set it on any client-stamped time you also FILTER or ORDER on. KourOS's two
+   * ledgers' `started_at` was declared a plain `string`, so any text could be
    * stored; their activity read then windowed on that raw column while emitting a
    * CANONICALISED copy as the cross-app merge key. Filter key and merge key were
    * different values, and a space-separated stamp sorts BEFORE an ISO cursor of an

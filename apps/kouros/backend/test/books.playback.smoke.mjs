@@ -1,5 +1,4 @@
-// books.playback.smoke.mjs — PapyrOS's playback.smoke, carried over when PapyrOS folded
-// into KourOS (2026-09-23); routes under /api/books/*, tokens scoped kouros:*.
+// books.playback.smoke.mjs — routes under /api/books/*, tokens scoped kouros:*.
 // Originally (task 3.5) — the playback backend smoke: boots the REAL server
 // (throwaway port + temp DB, the committed fixture library, a REAL RS256 keypair so
 // forged per-user tokens exercise the actual verify path rather than the weave

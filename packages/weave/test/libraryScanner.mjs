@@ -1,7 +1,7 @@
 // @jkos/weave libraryScanner tests — the LIBRARY SCANNER primitive (git history: item 17.2).
 //
 // Proves the brick (`defineLibraryScanner`, packages/weave/src/server/libraryScanner.js)
-// reproduces PapyrOS's pre-brick scan.js/probe.js ladder exactly — walk → ffprobe pool →
+// reproduces the pre-brick scan.js/probe.js ladder exactly — walk → ffprobe pool →
 // mtime-incremental skip → upsert ON CONFLICT(path) → prune vanished rows, single-flight
 // — AND that the spec shape genuinely supports a SECOND consumer with a different tag
 // vocabulary and a different unit shape (the music app, git history: item 18.2) with zero brick
@@ -112,7 +112,7 @@ ok('throws when extractCover is enabled without dataDir', true)
 ok('does NOT throw when extractCover:false and dataDir is omitted',
   !!defineLibraryScanner({ ...baseSpec, extractCover: false }))
 
-/* ═══ 3 · 'dir' unit mode — the PapyrOS shape, a different tag vocabulary ═════════ */
+/* ═══ 3 · 'dir' unit mode — the book shape, a different tag vocabulary ════════════ */
 if (!Database) {
   console.log('\n⚠ SKIPPING 3/4 (better-sqlite3 not resolvable from a backend workspace)')
 } else {
@@ -157,7 +157,7 @@ if (!Database) {
     )
   `)
 
-  // A DELIBERATELY different tag vocabulary/column set than PapyrOS's `books`
+  // A DELIBERATELY different tag vocabulary/column set than KourOS's `books`
   // (title/author/narrator/series/year/genres) — proves mapTags/columns is the only
   // app-specific surface, exactly as 17.2 requires.
   let mapTagsCalls = 0
@@ -254,7 +254,7 @@ if (Database) {
   mkdirSync(dataDir, { recursive: true })
 
   // Music-shaped tags, per the Wave 18.2 line in git history: artist/album/albumartist/
-  // track/disc/year/genre — a completely different vocabulary than PapyrOS's
+  // track/disc/year/genre — a completely different vocabulary than the books'
   // title/author/narrator/series/genres, and 'file' unit mode (one row per track, not
   // one row per folder aggregating a multi-file rip).
   writeFileSync(join(libDir, 'Artist', 'Album', '01 song.mp3'), JSON.stringify({

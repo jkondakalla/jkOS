@@ -47,8 +47,8 @@ export function parseExtRef(ref) {
                  from app X, local id Y". Implicit — never declared per app,
                  because the app directory already declares it.
      'external'  the scheme is a third-party catalog. "this is provider X's id Y".
-                 The provider, NOT the connector that fetched it: papyros's
-                 connector is `meta` and writes `itunes:` refs, and conflating the
+                 The provider, NOT the connector that fetched it: KourOS's
+                 book connector is `meta` and writes `itunes:` refs, and conflating the
                  two is how the prefix ended up meaning nothing to a reader.
      'internal'  an app-private engine identity. Opaque to every other app, and
                  that opacity is the point — `routine:24:2026-08-18` encodes the

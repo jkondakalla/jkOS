@@ -1,32 +1,32 @@
 // packages/player/src/engine/types.ts — the seam contracts for the headless engine
 // (git history: Wave 15 item 15.3).
 //
-// Every PapyrOS-specific dependency usePlayerEngine.ts hardcoded today becomes an
+// Every app-specific dependency the original engine hardcoded becomes an
 // injected seam declared here, so ONE headless engine drives audiobooks, music, and
 // video (git history: PLAYER_PARITY.md, retired — "Layer 1 — engine"). Nothing here imports
 // from apps/* — the engine speaks a vocabulary-neutral surface that thin per-app
-// adapters (item 15.4 migrates PapyrOS by writing ONLY those adapters) map onto their
+// adapters (item 15.4 migrated the first app by writing ONLY those adapters) map onto their
 // own API client + row shapes.
 //
 // The one required generalization the task calls out explicitly: the sleep timer's
-// end-of-'chapter' mode is 'segment' here (a PapyrOS wrapper may relabel it 'chapter'
+// end-of-'chapter' mode is 'segment' here (an audiobook wrapper may relabel it 'chapter'
 // for its own UI copy).
 import type { MediaBackend, BackendErrorKind } from '../backend/types';
 import type { MediaSource, Segment, NavPoint } from '../core/timeline';
 
-/** Item and row ids. PapyrOS uses numbers (⊂ this union) unchanged; a music/video app
+/** Item and row ids. Books use numbers (⊂ this union) unchanged; a music/video app
  *  is free to key on strings. The engine only ever compares ids with `===` and
  *  interpolates them into a compat cache key, both of which are value-type agnostic. */
 export type Id = string | number;
 
 /** Sleep-timer modes. `'segment'` is the generalized end-of-'chapter' mode (the task's
- *  one mandated rename); a PapyrOS wrapper can re-expose it as `'chapter'` for its UI. */
+ *  one mandated rename); an audiobook wrapper can re-expose it as `'chapter'` for its UI. */
 export type SleepMode = 'off' | '15' | '30' | '45' | '60' | 'segment';
 
-// ── Transport seam — was apps/papyros/src/player/controller.ts ──────────────────────
-// The engine can't import PapyrOS's module-singleton controller, so its two directions
+// ── Transport seam — was an app's player/controller.ts ─────────────────────────────
+// The engine can't import an app's module-singleton controller, so its two directions
 // (a view asks the engine to play; the engine broadcasts its live position back out)
-// become an injected pub/sub seam. Vocabulary-neutral `itemId`/`position`; PapyrOS's
+// become an injected pub/sub seam. Vocabulary-neutral `itemId`/`position`; an
 // adapter maps them onto controller.ts's `{ bookId, globalPos }` in ~2 lines each.
 
 export interface EngineRequest {
@@ -49,9 +49,9 @@ export interface PositionBroadcast {
 }
 
 export interface Transport {
-  /** Subscribe to play requests. Returns the unsubscribe fn. (papyros: onPlayRequest) */
+  /** Subscribe to play requests. Returns the unsubscribe fn. (books: onPlayRequest) */
   subscribe(handler: (req: EngineRequest) => void): () => void;
-  /** Broadcast the engine's live position. (papyros: publishPosition) */
+  /** Broadcast the engine's live position. (books: publishPosition) */
   publishPosition(update: PositionBroadcast): void;
 }
 
@@ -61,20 +61,20 @@ export interface Transport {
 // or a film satisfy the seam without sharing a single field name.
 
 export interface ItemLoader<TItem> {
-  /** Load one item's detail. (papyros: getBook) */
+  /** Load one item's detail. (books: getBook) */
   load(itemId: Id): Promise<TItem>;
-  /** The item's id — the axis progress/bookmarks/urls/compat all key on. (papyros: item.id) */
+  /** The item's id — the axis progress/bookmarks/urls/compat all key on. (books: item.id) */
   idOf(item: TItem): Id;
   /** The concatenated playback sources, in any order (buildTimeline sorts by .index).
-   *  Only `.index`/`.duration` are read; richer objects pass through. (papyros: item.files) */
+   *  Only `.index`/`.duration` are read; richer objects pass through. (books: item.files) */
   sources(item: TItem): MediaSource[];
-  /** The named spans over the global timeline (chapters, markers, …). (papyros: item.chapters) */
+  /** The named spans over the global timeline (chapters, markers, …). (books: item.chapters) */
   segments(item: TItem): Segment[];
 }
 
 // ── ProgressStore seam — was ../api listProgress/createProgress/updateProgress ──────
 // The engine reads only `position`/`finished` off a row (generic playback concepts);
-// every app-specific field name (papyros's `book_ref`, `last_played`, the row `id`)
+// every app-specific field name (the books' `book_ref`, `last_played`, the row `id`)
 // stays inside the adapter, which owns create/update and the id readers.
 
 /** The two fields the engine reads off a saved row to resume. */
@@ -89,18 +89,18 @@ export interface ProgressWrite {
   position: number;
   duration: number;
   finished: boolean;
-  /** ISO timestamp of this write. (papyros column: last_played) */
+  /** ISO timestamp of this write. (books column: last_played) */
   playedAt: string;
 }
 
 export interface ProgressStore<TProgress extends ProgressRowLike> {
-  /** This listener's saved row for the item, or null. (papyros: listProgress().find(book_ref)) */
+  /** This listener's saved row for the item, or null. (books: listProgress().find(book_ref)) */
   find(itemId: Id): Promise<TProgress | null>;
   create(write: ProgressWrite): Promise<TProgress>;
-  /** Update the given row. The adapter owns the row's own id. (papyros: updateProgress(row.id, …)) */
+  /** Update the given row. The adapter owns the row's own id. (books: updateProgress(row.id, …)) */
   update(row: TProgress, write: ProgressWrite): Promise<TProgress>;
   /** The item a returned row belongs to — the serialized-write late-write guard
-   *  compares this against the live item. (papyros: row.book_ref) */
+   *  compares this against the live item. (books: row.book_ref) */
   itemIdOf(row: TProgress): Id;
 }
 
@@ -119,7 +119,7 @@ export interface BookmarkWrite {
 }
 
 export interface BookmarkStore<TBookmark extends BookmarkRowLike> {
-  /** Bookmarks for one item (adapter filters). (papyros: listBookmarks().filter(book_ref)) */
+  /** Bookmarks for one item (adapter filters). (books: listBookmarks().filter(book_ref)) */
   list(itemId: Id): Promise<TBookmark[]>;
   create(write: BookmarkWrite): Promise<TBookmark>;
   remove(id: Id): Promise<void>;
@@ -133,7 +133,7 @@ export interface BookmarkStore<TBookmark extends BookmarkRowLike> {
 
 export interface PlayerUrls {
   /** Stream URL for one source at a compat level. Level 0 is the plain URL; a higher
-   *  level selects a compat variant (papyros appends `?compat=<n>`). Called on EVERY
+   *  level selects a compat variant (the books adapter appends `?compat=<n>`). Called on EVERY
    *  load, so the compat-level parameter lives here, not only in the recovery ladder. */
   stream(itemId: Id, sourceIndex: number, compatLevel: number): string;
 }
@@ -157,22 +157,22 @@ export interface CompatPrepareRequest {
 }
 
 export interface CompatPolicy<TItem> {
-  /** The highest rung. Recovery stops escalating at (>=) this. (papyros: 2) */
+  /** The highest rung. Recovery stops escalating at (>=) this. (books: 2) */
   maxLevel: number;
   /** The rung a source should START on, before any failure — lets an app open a
-   *  pre-generated variant directly. (papyros: files[idx].compat_ready ? 1 : 0) */
+   *  pre-generated variant directly. (books: files[idx].compat_ready ? 1 : 0) */
   initialLevel(item: TItem, sourceIndex: number): number;
   /** Build the requested rung and report readiness — called once per poll tick by the
-   *  engine's bounded, reqSeq-guarded loop. (papyros: POST <streamUrl>/prepare → {ready}) */
+   *  engine's bounded, reqSeq-guarded loop. (books: POST <streamUrl>/prepare → {ready}) */
   prepare(req: CompatPrepareRequest): Promise<CompatPrepareOutcome>;
   /** Backend error kinds that trigger the ladder. Default: decode + src-unsupported. */
   recoverableKinds?: readonly BackendErrorKind[];
-  /** Poll cadence / bound. Defaults: 2000ms / 120000ms (papyros's constants). */
+  /** Poll cadence / bound. Defaults: 2000ms / 120000ms (the audiobook player's constants). */
   pollIntervalMs?: number;
   pollTimeoutMs?: number;
 }
 
-// ── User-facing copy (defaults reproduce PapyrOS's exact strings) ───────────────────
+// ── User-facing copy (defaults reproduce the original player's exact strings)
 
 export interface PlayerMessages {
   autoplayBlocked: string;
@@ -201,17 +201,17 @@ export interface PlayerEngineConfig<
   bookmarks: BookmarkStore<TBookmark>;
   urls: PlayerUrls;
   transport: Transport;
-  /** localStorage key for the persisted playback rate. (papyros: 'papyros.player.rate') */
+  /** localStorage key for the persisted playback rate. (KourOS: 'kouros.player.rate') */
   storageKey: string;
   /** localStorage key for the persisted volume + mute (muted stores under
    *  `<key>.muted` — see ./volume). OPTIONAL, unlike the rate key: omit it and
    *  volume/mute are session-only (tracked + applied, never written to storage).
-   *  (papyros: 'papyros.player.volume') */
+   *  (KourOS: 'kouros.player.volume') */
   volumeStorageKey?: string;
   /** Compat-recovery policy. Omit for apps without a server-side compat pipeline. */
   compat?: CompatPolicy<TItem>;
   /** Whether the persisted playback rate applies to this item. Omit and it applies
-   *  to everything (PapyrOS's behaviour, and every app with one kind of item). An
+   *  to everything (every app with one kind of item). An
    *  app that plays BOTH audiobooks and music returns false for music: a 1.5× habit
    *  for books must not speed up a song, and one engine means one rate. For an item
    *  it does not apply to, the element runs at 1×, `rate` reports 1, and
@@ -222,10 +222,10 @@ export interface PlayerEngineConfig<
 }
 
 // ── The returned surface ────────────────────────────────────────────────────────────
-// Field-for-field what PapyrOS's PlayerApi exposed, generalized: `item` (was `book`),
+// Field-for-field what the original PlayerApi exposed, generalized: `item` (was `book`),
 // `segmentLabel` (was `chapterLabel`), `prevSegment`/`nextSegment` (were prev/next
-// Chapter), and `sleepMode` speaks 'segment'. A PapyrOS wrapper re-maps these names so
-// PlayerBar.tsx renders unchanged.
+// Chapter), and `sleepMode` speaks 'segment'. An audiobook wrapper may re-map these names
+// for its own UI copy.
 
 export interface PlayerApi<TItem, TBookmark> {
   visible: boolean;

@@ -1,11 +1,11 @@
 // controls.tsx — the STOCK control library (git history: Wave 16 item 16.6): exactly
-// the control vocabulary papyros's bar renders today, as individual kit parts. Each
+// the control vocabulary the audiobook bar renders, as individual kit parts. Each
 // control consumes a PlayerApi-SHAPED prop — a minimal structural slice of
 // engine/types' PlayerApi (playing/toggle, skip, prevSegment/nextSegment, rate/
 // cycleRate, sleepMode/setSleep) — so the engine's returned surface satisfies every
-// `api` prop directly, and an adapter with renamed methods (papyros's prevChapter)
+// `api` prop directly, and an adapter with renamed methods (e.g. prevChapter)
 // bridges with a one-line object literal. Markup + classes are byte-identical to the
-// papyros originals: swapping one of these in IS the zero-visual-change migration.
+// originals: swapping one of these in IS the zero-visual-change migration.
 //
 // Deliberately NOT dependencies here: engine/** (these are shape-typed, so the
 // concurrent engine work — e.g. volume/mute — can land without touching this file).
@@ -17,7 +17,7 @@ import { IconMoon, IconNext, IconPause, IconPlay, IconPrev, IconSkipArrow, IconS
 
 /* ── Layout wrappers ────────────────────────────────────────────────────────── */
 
-/** The transport button cluster — papyros's `.pb-transport` div (`compact` is the
+/** The transport button cluster — the `.pb-transport` div (`compact` is the
  *  mobile row's tighter spacing). */
 export function Transport({ compact = false, children }: { compact?: boolean; children: ReactNode }) {
   return <div className={cx('pb-transport', compact && 'pb-transport-compact')}>{children}</div>;
@@ -80,7 +80,7 @@ export interface SegmentNavApi {
   nextSegment(): void;
 }
 
-/** Previous/next segment (papyros labels it "chapter" via the `label` override). */
+/** Previous/next segment (a book labels it "chapter" via the `label` override). */
 export function SegmentButton({ api, dir, label }: {
   api: SegmentNavApi;
   dir: 'prev' | 'next';
@@ -112,7 +112,7 @@ export function RateButton({ api, label = 'Playback speed' }: { api: RateApi; la
 
 /* ── Sleep timer menu ───────────────────────────────────────────────────────── */
 
-/** Generic over the app's mode vocabulary: the engine speaks 'segment', papyros's
+/** Generic over the app's mode vocabulary: the engine speaks 'segment', a book
  *  adapter relabels it 'chapter' — the menu never interprets a mode beyond
  *  `!== offMode` (armed) and equality (the active row). */
 export interface SleepApi<M extends string = string> {
@@ -128,7 +128,7 @@ export interface SleepMenuProps<M extends string> {
   offMode?: M;
   /** Button tooltip/aria + popover heading. */
   label?: string;
-  /** Armed badge text. Default reproduces papyros's sleepLabel: 'CH' for the
+  /** Armed badge text. Default reproduces the original sleepLabel: 'CH' for the
    *  end-of-segment mode, else the remaining time as a clock. */
   armedLabel?: (mode: M, remainingMs: number | null) => string;
   /** Controlled open state (the bar coordinates its menus); omit both to let the
@@ -140,7 +140,7 @@ export interface SleepMenuProps<M extends string> {
 }
 
 function defaultArmedLabel(mode: string, remainingMs: number | null): string {
-  // papyros's sleepLabel verbatim, plus the engine's generalized mode name.
+  // The original sleepLabel verbatim, plus the engine's generalized mode name.
   if (mode === 'chapter' || mode === 'segment') return 'CH';
   if (remainingMs != null) return fmtClock(remainingMs / 1000);
   return '';

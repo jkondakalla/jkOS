@@ -1,5 +1,4 @@
-// books.history.smoke.mjs — PapyrOS's history.smoke, carried over when PapyrOS folded
-// into KourOS (2026-09-23); routes under /api/books/*, tokens scoped kouros:*.
+// books.history.smoke.mjs — routes under /api/books/*, tokens scoped kouros:*.
 // Originally (task 17.4) — the append-only play-history smoke: boots the REAL
 // server (throwaway port + temp DB, a REAL RS256 keypair so forged per-user tokens
 // exercise cross-user scoping — same recipe as playback.smoke.mjs) with

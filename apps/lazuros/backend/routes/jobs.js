@@ -5,7 +5,7 @@
 // one user's via ?user_id. The declared filters (job_id/status/user_id/capability/
 // since) come from docs.js DATASETS_DOC — job_id/status/capability/since are plain
 // eq/gt filters enforced generically via @jkos/weave/server's buildItemFilters
-// (declared == enforced, the same seam BeigeBoard's items.js and PapyrOS's books.js
+// (declared == enforced, the same seam BeigeBoard's items.js and KourOS's books/list.js
 // use); `user_id` is excluded from that generic spec because it isn't a plain eq
 // filter HERE — it's the owner pin (see ownerPin below), not a caller-narrowable
 // column, so its enforcement stays bespoke while it stays declared for the GUI/docs.

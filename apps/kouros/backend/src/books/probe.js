@@ -1,7 +1,6 @@
 'use strict';
 // books/probe.js — the ffprobe-tag → `books`-column mapping (mapTagsToColumns) plus
-// its year/genre helpers. Came over verbatim when PapyrOS folded into KourOS
-// (2026-09-23); music's own tag glue is src/library/tags.js, and the two stay separate
+// its year/genre helpers. Music's own tag glue is src/library/tags.js, and the two stay separate
 // on purpose — a book's `album` tag means SERIES and its `composer` means NARRATOR,
 // which is exactly wrong for a track. This is the ONE app-specific
 // piece of the library ladder (git history: item 17.2): everything else — walking, spawning

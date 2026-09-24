@@ -1,5 +1,5 @@
 'use strict';
-// books/list.js — the `books` dataset (PapyrOS task 2.4, folded into KourOS 2026-09-23). A filtered list
+// books/list.js — the `books` dataset (task 2.4). A filtered list
 // read over the shared catalog the book scanner (books/scan.js) populates. Filters
 // are DERIVED from the dataset's own declaration (buildItemFilters/filterSpec — single
 // source, P3) so what discovery.js DECLARES this dataset can be read by is exactly what

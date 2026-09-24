@@ -8,7 +8,7 @@
 // The impure half — the React hook that owns the navigator/window guards and the
 // effect wiring — is ./useMediaSession.ts.
 
-/** One artwork entry, MediaImage-shaped (papyros: the 512x512 JPEG cover). */
+/** One artwork entry, MediaImage-shaped (a book: the 512x512 JPEG cover). */
 export interface MediaSessionArtwork {
   src: string;
   sizes?: string;
@@ -26,7 +26,7 @@ export interface MediaSessionMetadata {
   artwork?: MediaSessionArtwork[];
 }
 
-/** A live position sample for setPositionState (papyros: globalPos / total / rate —
+/** A live position sample for setPositionState (a book: globalPos / total / rate —
  *  the whole-timeline axis, NOT the currently loaded file's). */
 export interface MediaSessionPosition {
   position: number;

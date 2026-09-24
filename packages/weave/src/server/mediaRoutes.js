@@ -11,9 +11,9 @@
 //   the PLAYBACK DECISION ENGINE (decidePlayback, exported separately + pure): client
 //   capabilities in → { rung: 'direct'|'remux'|'reencode', rendition, reason } out.
 //   Rung 0 direct-play → rung 1 remux (`-c copy`) → rung 2 re-encode. This is precisely
-//   Jellyfin's direct-play → direct-stream → transcode ladder; papyros's Firefox-m4b
+//   Jellyfin's direct-play → direct-stream → transcode ladder; the audiobooks' Firefox-m4b
 //   compat ladder is that engine wearing an audiobook disguise, and video (Wave 19)
-//   inherits rungs 0–2 of it. The papyros rules become papyros-SUPPLIED ladder config,
+//   inherits rungs 0–2 of it. The book rules become app-SUPPLIED ladder config,
 //   never brick literals.
 //
 // Sits on @jkos/files (17.1) for the Range logic — rangeStream is NOT reimplemented
@@ -23,7 +23,7 @@
 // (mime, cover resolution, download naming, cache dir, ffmpeg binary, the archiver, the
 // ladder) is injectable config.
 //
-// Invariants preserved verbatim from apps/papyros/backend/src/media.js — each was a real
+// Invariants preserved verbatim from the audiobook media.js — each was a real
 // production bug once:
 //   • freshness = exists && size>0 && mtime ≥ source          (isFresh)
 //   • generation ONLY on POST …/prepare, NEVER on the GET read path
@@ -44,7 +44,7 @@ const { rangeStream } = require('@jkos/files')
 /* ═══ The playback decision engine (pure — no fs, no ffmpeg, no network) ═══════════
    Exported standalone so it is testable in isolation. Two modes over one ladder:
 
-     • requestedLevel != null — the client asked for a specific rung (papyros's wire:
+     • requestedLevel != null — the client asked for a specific rung (the books' wire:
        the player tries direct, catches the decode failure, then asks for level 1, then
        2). The engine resolves that level → its rung, or reports it unknown.
 
@@ -150,7 +150,7 @@ function defineMediaRoutes(spec = {}) {
   const hasLadder = ladder.length > 0
   const cacheDir = spec.cacheDir || null
   const ffmpeg = spec.ffmpeg || 'ffmpeg'
-  const archiverFactory = spec.archiver || null   // injected (papyros passes require('archiver'))
+  const archiverFactory = spec.archiver || null   // injected (kouros's books pass require('archiver'))
   const routes = {
     stream: (spec.routes && spec.routes.stream) || '/api/stream',
     cover: (spec.routes && spec.routes.cover) || '/api/cover',

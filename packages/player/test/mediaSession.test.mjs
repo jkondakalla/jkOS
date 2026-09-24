@@ -8,7 +8,7 @@
 //                          every case the spec would THROW on becomes unreachable.
 //
 // The hook itself (services/useMediaSession.ts) is navigator/window wiring behind
-// feature guards; its behavior is proven by the papyros composition + the wave gate,
+// feature guards; its behavior is proven by the KourOS composition + the wave gate,
 // NOT by a jsdom harness (the repo has none) — the same split as test/engine.test.mjs
 // vs the engine hook. House pattern: transpile the real .ts in-memory, import the
 // REAL functions, drive them (copied from test/engine.test.mjs).
@@ -67,7 +67,7 @@ check(
   const art = [{ src: '/api/books/5/cover', sizes: '512x512', type: 'image/jpeg' }];
   const init = toMetadataInit({ title: 'Dune', artist: 'Frank Herbert', album: 'Dune Saga', artwork: art });
   check(deepEq(init, { title: 'Dune', artist: 'Frank Herbert', album: 'Dune Saga', artwork: art }), 'toMetadataInit passes a full metadata object through unchanged');
-  check(init.artwork[0].sizes === '512x512' && init.artwork[0].type === 'image/jpeg', "artwork entries pass through untouched (papyros's 512x512 JPEG shape)");
+  check(init.artwork[0].sizes === '512x512' && init.artwork[0].type === 'image/jpeg', "artwork entries pass through untouched (a book's 512x512 JPEG shape)");
 }
 check(toMetadataInit({ title: 'T' }).artist === '', "toMetadataInit defaults a missing artist to '' (the inline block's ?? '')");
 check(toMetadataInit({ title: 'T' }).album === '', "toMetadataInit defaults a missing album to ''");
@@ -138,7 +138,7 @@ check(
 );
 check(
   toPositionState({ position: 5, duration: 100, playbackRate: 2.5 }).playbackRate === 2.5,
-  "toPositionState preserves papyros's fastest preset (2.5) unchanged",
+  "toPositionState preserves the fastest preset (2.5) unchanged",
 );
 
 /* ── summary ──────────────────────────────────────────────────────────── */

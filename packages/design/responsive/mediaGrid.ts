@@ -2,7 +2,7 @@
  * responsive/mediaGrid.ts — the cover-grid density ladder (git history, Wave 20,
  * item 20.2).
  *
- * Before this, papyros's `library.css` hardcoded the 2/3/4-column progression
+ * Before this, the book library's `library.css` hardcoded the 2/3/4-column progression
  * directly on `.lib-grid[data-density="…"]`. It lives here instead, next to
  * the breakpoint source (`breakpoints.ts`, same directory), so any future
  * media grid (the eventual music app) reads the SAME ladder rather than
@@ -21,7 +21,7 @@
  * one place to read it, and so it's cheap to assert against in tests.
  */
 
-/** Density tiers — matches papyros's original `data-density` values exactly
+/** Density tiers — matches the original `data-density` values exactly
  *  (`compact` / `cozy` / `comfortable`), preserved verbatim in the migration
  *  off `library.css` so the rendered grid is pixel-identical. */
 export type MediaGridDensity = 'compact' | 'cozy' | 'comfortable';

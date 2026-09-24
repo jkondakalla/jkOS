@@ -230,8 +230,8 @@ const DEFAULT_DESKTOP: GridItem[] = [
   { i: 'calendar',      x: 0, y: 7,  w: 4, h: 6 },
   { i: 'today',         x: 4, y: 0,  w: 5, h: 13 },
   { i: 'systems',       x: 9, y: 0,  w: 3, h: 5 },
-  // h:8, not the def's 5: the Study card (SylibOS) held the bottom three rows of this
-  // column until SylibOS was removed on 2026-09-16, and Alerts takes the space so the
+  // h:8, not the def's 5: the retired Study card held the bottom three rows of this
+  // column, and Alerts takes the space so the
   // column still lands flush at 13.
   { i: 'notifications', x: 9, y: 5,  w: 3, h: 8 },
 ];
@@ -255,7 +255,7 @@ export function defaultHudState(): HudState {
  * widget under a freed-up id, and that one must survive.
  */
 const RETIRED_BUILTINS: { id: string; slice: string }[] = [
-  // SylibOS was removed from the suite 2026-09-16; `study` was its summary card.
+  // `study` was a retired app's summary card.
   { id: 'study', slice: 'study' },
 ];
 

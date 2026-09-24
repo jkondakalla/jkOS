@@ -1,6 +1,6 @@
 'use strict';
-// books/match.js — the `matchBook` capability (PapyrOS task 4.2, folded into KourOS
-// 2026-09-23): POST /api/match takes a
+// books/match.js — the `matchBook` capability (task 4.2):
+// POST /api/match takes a
 // bookId + one candidate row off GET /api/metadataSearch (4.1's META connector,
 // discovery.js) and applies it to that book's `books` row. Factory style matches
 // routes/library.js and books/list.js — createMatchRouter takes its deps at the edge

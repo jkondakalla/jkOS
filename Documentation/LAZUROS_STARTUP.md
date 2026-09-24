@@ -361,7 +361,7 @@ PORTAL_URL=https://jkos.net
 AUTH_ORIGIN=https://auth.jkos.net
 ```
 
-> **There is no `LAZUROS_TOKEN`.** Older docs (and SylibOS, removed 2026-09-16) name a
+> **There is no `LAZUROS_TOKEN`.** Older docs name a
 > shared `LAZUROS_TOKEN` bearer "also set in BeigeBoard's `.env`". **The rebuilt LazurOS reads no
 > such variable**, and BeigeBoard's AI surface was deleted on 2026-07-13 — BB holds no LazurOS
 > keys at all. The only token is `LAZUROS_INTERNAL_TOKEN`, and it is State-node ↔ worker only.

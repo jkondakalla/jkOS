@@ -9,15 +9,14 @@
 //      pure function, so it is provable in isolation.
 //
 //   2. a TEXT-SCAN gate over the brick source pinning the invariants each of which was a
-//      real papyros production bug: NO `spawnSync` (a sync ffmpeg blocks the event loop),
+//      real production bug: NO `spawnSync` (a sync ffmpeg blocks the event loop),
 //      `spawn` called exactly once, the GET stream READ handler NEVER generates
 //      (generation is POST …/prepare's job only), atomic `rename` on exit 0, and the
 //      freshness rule `exists && size>0 && mtime ≥ source`.
 //
 // The live wire behaviour (Range 206/416, ?compat single-flight, prepare→poll→ready,
 // mtime regeneration, the exact headers) is proven end-to-end by the REAL server smoke
-// apps/kouros/backend/test/books.playback.smoke.mjs (PapyrOS's, carried over when it
-// folded into KourOS), which rides the brick with the compat ladder.
+// apps/kouros/backend/test/books.playback.smoke.mjs, which rides the brick with the compat ladder.
 //
 // Run: node packages/weave/test/mediaRoutes.mjs
 
@@ -42,7 +41,7 @@ const stripComments = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\
 /* ═══ 1 · the decision engine (pure) ═══════════════════════════════════════════════ */
 section('1 · decidePlayback — client capabilities in → rung out')
 
-// A papyros-flavoured ladder, but the RULES are config (satisfies predicates), never
+// An audiobook-flavoured ladder, but the RULES are config (satisfies predicates), never
 // brick literals: rung 0 direct → rung 1 faststart-remux → rung 2 universal re-encode.
 const remuxArgs = (src, out) => ['-y', '-i', src, '-map', '0:a:0', '-c', 'copy', '-f', 'mp4', out]
 const reencodeArgs = (src, out) => ['-y', '-i', src, '-c:a', 'aac', out]
@@ -73,7 +72,7 @@ ok(ancient.rendition === ladder[2], 'the reencode decision carries the rung 2 re
 // Escalation is monotone: each less-capable client lands on a rung >= the previous.
 ok(chrome.level <= firefox.level && firefox.level <= ancient.level, 'the ladder escalates monotonically direct → remux → reencode')
 
-// requestedLevel mode (papyros's wire — the player asks for an explicit rung).
+// requestedLevel mode (the books' wire — the player asks for an explicit rung).
 const req1 = decidePlayback({ ladder, requestedLevel: 1 })
 ok(req1.rung === 'remux' && req1.rendition === ladder[1] && /request/i.test(req1.reason), 'requestedLevel:1 resolves to that rung (reason names the request)')
 const req0 = decidePlayback({ ladder, requestedLevel: 0 })

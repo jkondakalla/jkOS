@@ -1,7 +1,7 @@
 'use strict';
 // src/media.js — the playback backend, app config over the shared media brick
-// (@jkos/weave/mediaRoutes, git history: item 17.3 — same brick papyros's src/media.js configures).
-// Music is direct-play ONLY: no `ladder`/`cacheDir` in the spec below — unlike papyros's
+// (@jkos/weave/mediaRoutes, git history: item 17.3 — same brick src/books/media.js configures).
+// Music is direct-play ONLY: no `ladder`/`cacheDir` in the spec below — unlike the audiobooks'
 // Firefox-m4b compat remux/re-encode ladder, there is no known browser-compat gap for
 // the container/codec set MUSIC_EXTENSIONS scans (mp3/m4a/aac/flac/ogg/opus/wav all
 // direct-play natively in every evergreen browser). Per
@@ -9,11 +9,11 @@
 // omitted, which skips mounting `POST .../prepare` entirely (no cacheDir requirement,
 // no compat surface to test) — the brick only REQUIRES a ladder+cacheDir pair when one
 // is actually supplied. If a real container-compat gap shows up later, this is where a
-// ladder gets added — same shape as papyros's, zero brick changes.
+// ladder gets added — same shape as the audiobooks', zero brick changes.
 //
 // A `tracks` row is always exactly ONE file (unit:'file' scanning, src/library/scan.js)
 // — `resolveFile` below returns a single-entry `files` array, `fileIndex` is always 0.
-// This keeps the wire identical to papyros's `/api/stream/:id/:fileIndex` shape (the
+// This keeps the wire identical to the audiobooks' `/stream/:id/:fileIndex` shape (the
 // player's PlayerUrls seam doesn't need to know it's always index 0) without ever
 // exercising the brick's multi-file zip-download path (so this app needs no `archiver`
 // dependency — that branch is simply never reached).
@@ -21,7 +21,7 @@
 // Path resolution: `tracks.path` is ALREADY an absolute path under MUSIC_DIR (the
 // scanner's 'file'-unit mode writes `unitPath = the file's own absolute path` — see
 // packages/weave/src/server/libraryScanner.js's `collectFileUnits`), so — unlike
-// papyros, which joins a book's folder + a per-file relative path — containment-
+// the audiobooks, which join a book's folder + a per-file relative path — containment-
 // checking the row's `path` directly against MUSIC_DIR is the whole resolution.
 
 const path = require('node:path');

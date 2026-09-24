@@ -3,7 +3,7 @@
  * files agree with it.
  *
  * The failure this exists to catch is OPS-1: BeigeBoard's routines/routine-spec
- * smokes and PapyrOS's playback/meta smokes each shared a port (3991/3992), and two
+ * smokes and the audiobook playback/meta smokes each shared a port (3991/3992), and two
  * stray processes on those ports once ran eight assertions green against the WRONG
  * app's server. The registry (`TEST_PORTS` in @jkos/suite-manifest/apps.js) is the
  * single source a new smoke claims from; `portTable()` already refuses to load on a

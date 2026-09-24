@@ -12,7 +12,7 @@
 //
 // The fix (beigeboard/ordeck already carry it) is a second `pnpm install`
 // AFTER `COPY . .` and BEFORE the frontend build: it re-injects from the now-present
-// source (the store is warm, so it only re-hardlinks — seconds). papyros shipped
+// source (the store is warm, so it only re-hardlinks — seconds). An app shipped
 // without it and its wave-6 deploy failed exactly this way. This asserts the
 // invariant so it cannot silently regrow — in any app Dockerfile OR the new-app
 // template that seeds them:
@@ -34,7 +34,7 @@
 // Each Dockerfile lists those copies by hand, which silently rots the moment a shared
 // package gains a new workspace dep: 2026-07-16 @jkos/weave gained @jkos/files (its
 // server/mediaRoutes.js requires it at module load), no Dockerfile learned about it,
-// and bb-app + papyros + kouros all crash-looped on deploy — while this gate stayed
+// and three app containers crash-looped on deploy — while this gate stayed
 // green, because check 1 only polices the re-install.
 //
 // The invariant asserted here is CLOSURE, which needs no per-app knowledge and works

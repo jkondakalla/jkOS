@@ -2,8 +2,7 @@
  * Capability scopes namespace on the CANONICAL id ('beigeboard:write'). Post-A1/A2 the
  * proxy path, health path, and invalidation key derive from that same id, so scope and
  * edge identity now coincide for a canonicalized app (BeigeBoard) — this probe reports
- * `ok`. It still flags the split for any app whose edge slug ≠ id (none since SylibOS was
- * removed on 2026-09-16): there, scope namespaces on the id while the edge/bus use the slug, so
+ * `ok`. It still flags the split for any app whose edge slug ≠ id (none today): there, scope namespaces on the id while the edge/bus use the slug, so
  * a new author would have to get two identifiers right.
  */
 export default {

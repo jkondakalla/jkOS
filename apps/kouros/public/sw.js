@@ -5,7 +5,6 @@
  * subdomain, "/kouros/sw.js" under the staging subpath), so its registration
  * scope is that same directory. EVERY path below is relative — never a leading
  * "/" — which is the one property that lets one file serve both deploy shapes.
- * (Same reasoning as PapyrOS's worker, which this followed and has since absorbed.)
  *
  * WHAT IT IS FOR: making the installed app open instantly and fail honestly.
  * Launched from the home screen with no signal, a TWA with no service worker
@@ -21,8 +20,8 @@
  *    exactly will break seeking, or cache a partial body and serve it as if it
  *    were whole. Music passes through untouched, always.
  *
- *    The exception is the DOWNLOADED AUDIOBOOK (PapyrOS's offline feature, which
- *    came with the fold on 2026-09-23): /api/books/stream|cover and /api/book/
+ *    The exception is the DOWNLOADED AUDIOBOOK:
+ *    /api/books/stream|cover and /api/book/
  *    go to the network FIRST, and only when that fetch itself REJECTS (no
  *    network) is the book media cache consulted. This worker never WRITES that
  *    cache — the in-app download pipeline (src/books/offline/store.ts) is its only
@@ -140,7 +139,7 @@ async function networkFirstAsset(request) {
   }
 }
 
-/* ── Downloaded audiobooks, when offline (PapyrOS's Wave 7.3 router, folded in) ──
+/* ── Downloaded audiobooks, when offline (the Wave 7.3 router) ────────────────────
  * Online-first: a healthy network is a transparent pass-through. Offline, serve from
  * the cache the download pipeline populated. MUST match src/books/offline/
  * constants.ts's MEDIA_CACHE — the two files cannot import each other (this one is a

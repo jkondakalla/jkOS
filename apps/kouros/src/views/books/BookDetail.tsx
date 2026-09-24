@@ -14,7 +14,7 @@ import { formatClock, formatHM, plainDescription } from './book-detail/format';
 import './book-detail.css';
 
 // One audiobook: metadata, chapter/track list, resume, offline, and the "Fix metadata"
-// match flow — PapyrOS's BookDetail (task 5.3), folded into KourOS 2026-09-23.
+// match flow (task 5.3).
 // Playback goes through player/controller.ts's requestPlay like every other view: a
 // book is a ONE-ITEM queue (`book:<id>`), and this view never touches <audio>.
 

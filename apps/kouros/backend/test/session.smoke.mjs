@@ -80,7 +80,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     'a shuffle order that is not a permutation is refused while shuffle is on');
   ok(typeof V.queue({ items: ['1'], cursor: -1, policy: { shuffle: false, repeat: 'off', shuffleSeed: 1, shuffleOrder: [] } }) === 'string',
     'cursor -1 on a non-empty queue is refused (the empty-queue invariant)');
-  ok(typeof V.queue({ items: ['papyros:1'], cursor: 0, policy: { shuffle: false, repeat: 'off', shuffleSeed: 1, shuffleOrder: [] } }) === 'string',
+  ok(typeof V.queue({ items: ['nope:1'], cursor: 0, policy: { shuffle: false, repeat: 'off', shuffleSeed: 1, shuffleOrder: [] } }) === 'string',
     'a ref outside the grammar is refused');
 
   const t = Date.parse('2026-09-24T00:00:00.000Z');

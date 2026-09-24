@@ -1,20 +1,20 @@
 'use strict';
 // @jkos/files — shared file-serving primitives for jkOS media backends.
 //
-// Lifted verbatim from PapyrOS backend/src/media.js (git history, Wave 17 item 17.1): the
+// Lifted verbatim from the audiobook backend's media.js (git history, Wave 17 item 17.1): the
 // Range-aware HTTP streaming implementation (there: sendFileRange) and the
 // path-containment resolver (there: resolveContained) that every catalog-backed media
 // backend needs — a scanner-written DB row still gets a defensive containment check on
 // the path that actually reaches the filesystem, and a player's Range request still
-// gets the exact 200/206/416 contract every real media server implements. PapyrOS is
-// the first consumer (its media.js is now a thin caller); the parking-unblocked
+// gets the exact 200/206/416 contract every real media server implements. The audiobook
+// half was the first consumer (its media.js is now a thin caller); the parking-unblocked
 // VaultOS music backend is the second, which is exactly the seam this package exists
 // to prove. 17.3's defineMediaRoutes sits on top of this next — keep this surface
 // generic, no app-specific naming (mime lookup, book/file id resolution, etc. all stay
 // in the calling app).
 //
-// Plain CJS, no dual ESM twin: every current/expected consumer (papyros, the future
-// music backend) is a plain-JS, no-bundler Node backend that already `require()`s
+// Plain CJS, no dual ESM twin: every consumer (KourOS's music and
+// audiobook halves) is a plain-JS, no-bundler Node backend that already `require()`s
 // @jkos/auth-middleware the same way — an .mjs twin (see @jkos/weave/server) earns its
 // keep only once a `type:module` backend actually needs one, which costs nothing to add
 // later and nothing to skip now.

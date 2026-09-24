@@ -1,7 +1,6 @@
 /* player-ui.css — the @jkos/player UI kit's stylesheet (git history: Wave 16 item 16.6). The `player-bar` / `pb-*` rules are lifted VERBATIM from
-   apps/papyros/src/player/player.css (papyros now keeps only its bespoke rules —
-   bookmarks, the mobile More sheet, and its body-class reserve-space rule), so the
-   papyros bar renders pixel-identically off this file. Layout + chrome only; every
+   the audiobook bar's stylesheet; an app keeps only its bespoke rules (e.g. a
+   body-class reserve-space rule). Layout + chrome only; every
    colour, radius, font and tap-floor reads a suite --hub- / --accent token — no
    hardcoded hex or radius/font literals. Imported once, from this package's ui
    barrel (src/ui/index.ts); the consuming app's bundler ships it. */
@@ -191,7 +190,7 @@
    the one control in the suite that wasn't house hardware. */
 
 /* Whole-timeline mode only: a positioned wrap so segment-boundary ticks can overlay
-   the slider. Segment mode renders the bare input (papyros's exact markup). */
+   the slider. Segment mode renders the bare input (the original markup). */
 .pb-range-wrap {
   position: relative;
   flex: 1 1 auto;
@@ -367,7 +366,7 @@
 .pb-q-remove:hover { color: var(--hub-red, var(--accent)); }
 
 /* ── <SegmentList> — chapter/marker list, current row highlighted ─────────────
-   Row anatomy mirrors papyros BookDetail's chapter-row (fill wash painted first +
+   Row anatomy mirrors BookDetail's chapter-row (fill wash painted first +
    absolutely positioned, content z-raised above it) so both surfaces read alike. */
 .pb-seglist {
   list-style: none;

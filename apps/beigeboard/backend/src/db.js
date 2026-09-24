@@ -229,7 +229,7 @@ const MIGRATIONS = [
        * Suite-fabric (Weave) interop surface so other apps can OWN and TRACK
        * BeigeBoard items they create, and poll cheaply:
        *   ext_ref    "<app>:<localId>" back-reference to the creating app's entity
-       *   tags       JSON array for cross-app filtering (e.g. ["study","sylib:6.042"])
+       *   tags       JSON array for cross-app filtering (e.g. ["study","course:6.042"])
        *   updated_at bumped on every row UPDATE so consumers can poll ?since=
        */
       for (const col of ['ext_ref TEXT', "tags TEXT DEFAULT '[]'", 'updated_at TEXT']) {

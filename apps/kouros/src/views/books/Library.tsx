@@ -10,8 +10,7 @@ import './library.css';
 
 const SEARCH_DEBOUNCE_MS = 300;
 
-// The audiobook shelf — PapyrOS's library browser (task 5.2), folded into KourOS
-// 2026-09-23: cover grid, server-driven search/filter over the `books` dataset's
+// The audiobook shelf (task 5.2): cover grid, server-driven search/filter over the `books` dataset's
 // title/author/series/genre filters (backend/discovery.js BOOKS_DATASET — title/author
 // are PREFIX matches, series is exact), series grouping, and a client-side sort.
 export default function BooksLibrary() {

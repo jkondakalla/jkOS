@@ -1,13 +1,12 @@
 // CoverArt.tsx — the suite's canonical cover-art primitive (git history Wave
 // 20, item 20.2): an image with a graceful fallback placeholder on missing
-// or 404'd art. Extracted from papyros's library grid tile (originally
-// apps/papyros/src/views/library/CoverArt.tsx).
+// or 404'd art. Extracted from the book library's grid tile.
 //
 // ONE PRIMITIVE, TWO SIZES. `@jkos/player/ui` used to export its own
 // `CoverArt` for the player bar's artwork thumb, frozen under the Wave-15
 // migration's zero-behaviour-change contract with a note that it should
 // re-point here. That migration finished long ago; the copy had no consumers
-// left, and PapyrOS's player bar hand-rolled a THIRD one (`CoverThumb`) that
+// left, and the audiobook player bar hand-rolled a THIRD one (`CoverThumb`) that
 // never reset its failure flag — so a book whose cover 404'd blanked the NEXT
 // book's good cover until the bar remounted. Both are gone; `variant="thumb"`
 // is that bar's artwork now (RESET Stage F).
@@ -17,10 +16,10 @@ import { cx } from './primitives';
 export interface CoverArtProps {
   /** Image URL. Omit (or falsy) to render the fallback immediately, skipping
    *  the network round-trip entirely — the caller decides whether "no art"
-   *  is worth a request at all (e.g. papyros only passes a URL once its
+   *  is worth a request at all (e.g. the book shelf only passes a URL once its
    *  scanner has actually found/matched cover art for the item). */
   src?: string | null;
-  /** Alt text for the `<img>`. Pass `""` for decorative covers (papyros's
+  /** Alt text for the `<img>`. Pass `""` for decorative covers (the book
    *  grid tiles are — the tile's own text does the describing). */
   alt: string;
   /** Rendered inside the fallback tile (e.g. initials, an icon). Renders an
@@ -40,7 +39,7 @@ export interface CoverArtProps {
  *  REUSED across changing items (a now-playing bar advancing tracks without
  *  remounting). It has no observable effect for a grid tile keyed per-item
  *  id (a fresh mount already starts at `failed = false`), which is exactly
- *  papyros's usage — so adopting it here is zero-behaviour-change for the
+ *  the book grid's usage — so adopting it here is zero-behaviour-change for the
  *  library grid specifically, while being the right default going forward. */
 export function CoverArt({ src, alt, fallback, className, variant = 'tile' }: CoverArtProps) {
   const [failed, setFailed] = useState(false);

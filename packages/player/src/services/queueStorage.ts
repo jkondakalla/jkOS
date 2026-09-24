@@ -3,8 +3,8 @@
 // Two implementations of one tiny interface:
 //   - idbQueueStorage(dbName)  — IndexedDB, one 'writes' object store keyed by
 //     `${collection}|${key}` (so coalescing is a plain overwrite-put). The DB is
-//     the QUEUE'S OWN (an app passes its own name, e.g. papyros's
-//     'papyros-write-queue') — deliberately NOT a new store inside an app's
+//     the QUEUE'S OWN (an app passes its own name, e.g. KourOS's
+//     'kouros-books-write-queue') — deliberately NOT a new store inside an app's
 //     existing offline DB, so adopting the queue never forces a version bump /
 //     onupgradeneeded migration on an app's live cache bookkeeping.
 //   - memoryQueueStorage()     — a Map; the SSR / private-mode / test fallback.

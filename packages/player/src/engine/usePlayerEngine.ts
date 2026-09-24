@@ -1,6 +1,6 @@
 // packages/player/src/engine/usePlayerEngine.ts — the headless player engine (git history
 // §3 Wave 15, item 15.3), generalized VERBATIM from
-// apps/papyros/src/player/usePlayerEngine.ts. Every PapyrOS-specific dependency is now
+// the first app's engine. Every app-specific dependency is now
 // an injected seam (see ./types): the media element is a MediaBackend, the API client
 // is ItemLoader/ProgressStore/BookmarkStore/PlayerUrls, the controller is a Transport,
 // the compat pipeline is a CompatPolicy, the rate key is config.storageKey.
@@ -21,7 +21,7 @@
 //   (e) recoveringRef reentrancy     — the compat recovery can't re-enter itself
 //   (f) NotAllowedError autoplay path — autoplay veto ⇒ paused-but-loaded, surfaced
 //
-// Design (unchanged from PapyrOS): authoritative data lives in refs (no stale closures
+// Design (unchanged from the original): authoritative data lives in refs (no stale closures
 // inside backend event handlers); a thin useState layer mirrors only what a bar renders;
 // the whole imperative API is built ONCE via a lazy ref init closing over the stable
 // refs + setState, so every handler identity is stable for the mount's lifetime.
@@ -53,7 +53,7 @@ const PREV_RESTART_SEC = 3;   // >3s into a segment, "prev" restarts it (the sta
 const COMPAT_POLL_INTERVAL_MS = 2000;
 const COMPAT_POLL_TIMEOUT_MS = 120_000;
 
-/** PapyrOS's exact user-facing copy, so an adapter that supplies no `messages` gets
+/** The original player's exact user-facing copy, so an adapter that supplies no `messages` gets
  *  byte-identical strings (zero behavior change is the wave's bar). */
 export const DEFAULT_MESSAGES: PlayerMessages = {
   autoplayBlocked: 'Autoplay blocked — press play to start.',

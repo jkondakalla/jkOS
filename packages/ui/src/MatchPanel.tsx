@@ -4,7 +4,7 @@ import { Lab, Sheet, TButton, SearchField, cx } from './primitives';
 /* ─────────────────────────────────────────────────────────────────────────────
    @jkos/ui — <MatchPanel> (git history: Wave 20 item 20.4)
 
-   PapyrOS's "Fix metadata" flow (task 5.3) hardcoded ONE search read
+   The audiobook "Fix metadata" flow (task 5.3) hardcoded ONE search read
    (searchMetadata) + ONE write (matchBook) straight into a component — but the
    SHAPE underneath is exactly a connector read (candidates for a search term) +
    a write capability (apply one candidate), the same lego pair `defineConnector`
@@ -24,14 +24,14 @@ import { Lab, Sheet, TButton, SearchField, cx } from './primitives';
      - `apply(candidate)` performs the write and resolves with whatever the
        caller's capability returns (or rejects/throws on failure). The result is
        handed to `onApplied`/`resultNote` so a caller can surface capability-
-       specific outcomes (e.g. papyros's "cover art download failed" note)
+       specific outcomes (e.g. a "cover art download failed" note)
        without this component knowing what a "cover" is.
 
    A thin weave-binding helper that turns a peer's declared read + capability
    into exactly this `{search, apply}` pair lives in `@jkos/weave` as
    `connectorPair()` (packages/weave/src/connectorPair.ts) — NOT here, same
-   reasoning as AppShell's injected hooks. PapyrOS's own binding
-   (apps/papyros/src/views/book-detail/MatchPanel.tsx) doesn't use it: its
+   reasoning as AppShell's injected hooks. KourOS's own binding
+   (apps/kouros/src/views/books/book-detail/MatchPanel.tsx) doesn't use it: its
    searchMetadata/matchBook calls are same-app, direct-fetch, THROW-on-failure
    functions already, and swapping them for weaveClient's silent-[]-on-miss
    contract would change behavior — see that file's header comment. `connectorPair`
@@ -39,7 +39,7 @@ import { Lab, Sheet, TButton, SearchField, cx } from './primitives';
    ───────────────────────────────────────────────────────────────────────────── */
 
 /** The generic candidate row shape this panel renders. Derived from what
- *  papyros's original panel actually rendered (META's `metadataSearch` item,
+ *  the original panel actually rendered (META's `metadataSearch` item,
  *  discovery.js) — only `id`/`title` are load-bearing (key + apply target);
  *  everything else is optional so a leaner connector read still renders fine
  *  (no cover → the placeholder tile; no description → no blurb paragraph). */
@@ -77,7 +77,7 @@ export interface MatchPanelProps<C extends MatchCandidate = MatchCandidate, R = 
   onApplied?: (candidate: C, result: R) => void;
   onClose: () => void;
   /** Extra inline content appended to the "Applied "<title>"." message, derived
-   *  from the apply result (e.g. papyros's cover-art-download-failed note).
+   *  from the apply result (e.g. a cover-art-download-failed note).
    *  Return null/undefined for no extra note. */
   resultNote?: (result: R) => ReactNode;
   /** Truncates a candidate's description to this many characters. */
@@ -131,9 +131,9 @@ export function MatchPanel<C extends MatchCandidate = MatchCandidate, R = unknow
   };
 
   // Search once on open, using the prefilled term — mirrors the original
-  // (papyros 5.3) "search term → candidates" pipeline, not an extra click to
+  // (5.3) "search term → candidates" pipeline, not an extra click to
   // see the obvious first result. Mounted/unmounted by the CALLER's own toggle
-  // (papyros's matchOpen), so this one-shot effect needs no re-fire guard.
+  // (e.g. a matchOpen flag), so this one-shot effect needs no re-fire guard.
   useEffect(() => {
     runSearch(initialTerm);
     // eslint-disable-next-line react-hooks/exhaustive-deps

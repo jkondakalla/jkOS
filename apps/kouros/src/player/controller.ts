@@ -1,12 +1,12 @@
 // player/controller.ts — the ONE seam between views and the player (git history Wave
-// 18, item 18.4; mirrors apps/papyros/src/player/controller.ts's precedent). The
+// 18, item 18.4). The
 // library UI (18.3) requests playback here; PlayerBar (this wave) subscribes and owns
 // all actual <audio> + queue state. Views never import PlayerBar and PlayerBar never
 // imports views, so 18.3 and 18.4 can land in either order without touching each
 // other's files. No buffering: PlayerBar is mounted persistently, so a listener is
 // always registered by the time any view can emit.
 //
-// Unlike papyros's single-item PlayRequest ({ bookId, position }), KourOS plays a
+// Not a single-item request ({ bookId, position }): KourOS plays a
 // QUEUE — `trackIds` is the whole list (an album, a playlist, a search result page,
 // …) and `startIndex` is where playback begins within it. Every request — an initial
 // "play this album", a <QueuePanel> row tap, next/prev track, or the engine's own
@@ -90,8 +90,8 @@ export function onLocalPlayRequest(l: Listener): () => void {
 // The other direction across the same seam: the engine adapter pushes its live
 // position out so views (a track row's progress fill, a "currently playing" badge)
 // can render it without a second usePlayerEngine() instance — PlayerBar owns the only
-// <audio>. Throttled to ~1/s from 'timeupdate' by the underlying @jkos/player/engine
-// (same mechanism as papyros), published immediately on seeks/track loads/queue
+// <audio>. Throttled to ~1/s from 'timeupdate' by the underlying @jkos/player/engine,
+// published immediately on seeks/track loads/queue
 // advances so nav still feels instant.
 
 export interface PositionUpdate {

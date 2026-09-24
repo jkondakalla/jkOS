@@ -35,27 +35,32 @@ Roughly in order: the first one gates every deploy.
   [`apps/lazuros/deployment.jag.json`](../apps/lazuros/deployment.jag.json).
 - **The Android keystore, then the TWA build.** Needs JDK 17 + the Android SDK, and a keystore that
   **must not be lost**. Steps in [OPERATIONS.md § KourOS on Android](OPERATIONS.md#kouros-on-android-the-twa).
-- **Retire SylibOS on the NAS.** The repo removal (2026-09-16) changed only the repo. Still live: the
-  `sylibos-frontend` / `sylibos-api` containers (prod) and `staging-sylibos-*` (staging), the
-  data dirs `/mnt/Luna/Backends/{Production,Staging}/sylibos-data`, and the `sylibos.jkos.net` DNS
-  record. Deploying `staging` removes their nginx routes and registry row (jkAuth migration 021), so
-  the containers become unreachable, not stopped.
-- **Carry PapyrOS into KourOS on the NAS**: per environment, staging first, after the backup:
-  1. **Deploy.** KourOS migrates and scans `/audiobooks`. PapyrOS stops being routed (jkAuth
-     migration 022), but its container keeps running, which is what makes step 2 work.
-  2. **Snapshot PapyrOS**, never the live file (its newest writes are in the `-wal`):
+- **Give `truenas_admin` docker back — durably.** The NAS rebooted 2026-09-23 and the Post-Init
+  script (`usermod -aG docker truenas_admin`, `initshutdownscript` id 1) runs but does not stick:
+  `getent group docker` is empty afterwards, so no agent can reach a container. Run
+  `sudo usermod -aG docker truenas_admin` now; for the next boot, the script likely needs to
+  wait for the docker service before it runs (it is racing the middleware's `/etc/group` rewrite).
+- **Retire the two folded/removed apps on the NAS, after the deploy.** The audiobook data exists
+  on staging only (production never had a data dir for it). An agent can do 1–4 once docker
+  works; 5 is yours.
+  1. **Snapshot the audiobook app's DB**, never the live file (its data is still all in the `-wal`):
      `docker exec staging-papyros-app node -e "require('better-sqlite3')('/data/papyros.db').exec(\"VACUUM INTO '/data/papyros.snapshot.db'\")"`,
      then copy `papyros.snapshot.db` and `covers/` from `…/Staging/papyros-data/` into
      `…/Staging/kouros-data/import/`.
-  3. **Dry run, read it, then apply:**
+  2. **Dry run, read it, then apply:**
      `docker exec staging-kouros-app node scripts/import-papyros.js --from /data/import/papyros.snapshot.db --covers /data/import/covers`,
-     then the same with `--apply`. It matches books by folder path, never overwrites newer KourOS
-     progress, and a second `--apply` is a no-op
-     ([the script's header](../apps/kouros/backend/scripts/import-papyros.js)).
-  4. **Check** a book you were mid-way through shows *Resume* in KourOS → Books.
-  5. **Retire:** `docker rm -f staging-papyros-app` (prod: `papyros-app`) and the `papyros.jkos.net`
-     DNS record. Keep `papyros-data` until you're satisfied. Offline downloads made in PapyrOS stay
-     on its origin; download again in KourOS.
+     then the same with `--apply`. It matches books by folder path (both apps mount `/audiobooks`
+     from the same host path), never overwrites newer KourOS progress, and a second `--apply` is a
+     no-op ([the script's header](../apps/kouros/backend/scripts/import-papyros.js)).
+  3. **Check** a book you were mid-way through shows *Resume* in KourOS → Books.
+  4. **Remove the containers:** `staging-papyros-app`, `sylibos-frontend`/`sylibos-api` and
+     `staging-sylibos-*`. The deploy already unroutes them (jkAuth migrations 021/022).
+  5. **Yours:** the `papyros.jkos.net` and `sylibos.jkos.net` DNS records, and the data dirs
+     (`…/Staging/papyros-data`, `…/{Production,Staging}/sylibos-data`) once you're satisfied.
+     Offline downloads made in the old audiobook app stay on its origin; download again in KourOS.
+  6. **Then delete the importer** (`import-papyros.js`, its smoke, the schema fixture, its test-port
+     claim and its `package.json` chain entry) and this item — the last names left in the repo
+     apart from the SQL literals in jkAuth migrations 012/021/022, which stay as the record.
 - **Try the listening session on staging, after the deploy.** Nothing to configure (additive
   migrations, no new env, no nginx change). Only a real device can show:
   1. **The phone as the output, screen locked.** Play on the phone (the TWA), lock it, then pause,
@@ -64,6 +69,8 @@ Roughly in order: the first one gates every deploy.
      that refuses to autoplay should make the other devices say so (headless Chromium autoplays,
      so this path has never been seen).
   3. **Through Cloudflare.** Confirm the real edge streams `text/event-stream`.
+  4. **Reload the output tab mid-song.** The other devices should keep showing the song and its
+     second throughout, never a blank "nothing playing" (fixed 2026-09-24, not browser-driven).
 - **Production DNS for KourOS.** It's reachable on staging only (`staging.jkos.net/kouros/`).
 - **Deploy / promote** is always your button.
 
@@ -98,7 +105,7 @@ Each one blocks work an agent could otherwise do alone. Answer in place.
 ## 3 · What's on staging and not deployed
 
 **Everything since 2026-08-26.** Stages A–E of the reset program, the security fixes (including
-the email-OTP expiry fix), the PapyrOS fold and the listening session. That includes
+the email-OTP expiry fix), the audiobook fold and the listening session. That includes
 **migrations across jkAuth (through 022), BeigeBoard and KourOS (8–15)**, which is why the
 backup comes first.
 
@@ -216,7 +223,7 @@ generated file held by `check:tokens`.
 - **No scheduler / no cron in this suite.** A decision, not an omission.
 - **Git history is never rewritten.** Destructive, and it coordinates with GitHub.
 - **No third party touches the backups.** The off-box copy is pulled onto your workstation.
-- **SylibOS and PapyrOS are gone.** Don't resurrect either from history.
+- **Retired apps stay retired.** Don't resurrect one from history.
 - **The ORDECK redesign and its widget factory come after Stage F.** Stage F hands them the
   manifest.
 - **No Python/numpy in KourOS's image.** The analysis stays in `music/`; one copy of the transform.

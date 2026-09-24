@@ -43,8 +43,8 @@ export interface RuneVerbs {
   duration?: number;
   /** Step the playback rate. ⚠️ A STEP, not a set: `PlayerApi` exposes
    *  `cycleRate()` and no `setRate(n)`, so the speed dial advances through the
-   *  presets rather than sweeping. Adding `setRate` is a change to a package
-   *  PapyrOS and KourOS share, and that is Jag's call, not this feature's. */
+   *  presets rather than sweeping. Adding `setRate` is a change to a shared
+   *  package, and that is Jag's call, not this feature's. */
   cycleRate?: () => void;
   /** Jump to a chapter by index, and where we are among them. */
   seekSegment?: (index: number) => void;

@@ -1,7 +1,7 @@
 'use strict';
 // books/media.js — the audiobook playback backend, a thin adapter over the shared media
-// brick (@jkos/weave/mediaRoutes, git history: Wave 17, 17.3). Came over from PapyrOS when
-// it folded into KourOS (2026-09-23); music's is src/media.js, over the same brick.
+// brick (@jkos/weave/mediaRoutes, git history: Wave 17, 17.3). Music's is src/media.js, over
+// the same brick.
 //
 // ⚠️ THE ROUTES ARE PREFIXED `/api/books/…`. Both configs of the brick default to
 // `/api/stream/:id/:fileIndex`, `/api/cover/:id` and `/api/download/:id`, and in one
@@ -159,7 +159,7 @@ function createBookMediaRouter({ db, audiobooksDir, dataDir }) {
 
   const router = Router();
   // Brick routes: GET /api/books/stream/:id/:fileIndex (+ ?compat=N), POST .../prepare,
-  // GET /api/books/cover/:id, GET /api/books/download/:id — PapyrOS's status/headers,
+  // GET /api/books/cover/:id, GET /api/books/download/:id — the brick's status/headers,
   // under the prefix (file header).
   media.mount(router);
 

@@ -1,5 +1,5 @@
 // books/offline/writes.ts — the offline WRITE QUEUE wiring for audiobook progress and
-// bookmarks (PapyrOS Wave 7.2 / git history item 16.5, folded into KourOS 2026-09-23).
+// bookmarks (Wave 7.2 / git history item 16.5).
 // The generic queue lives in @jkos/player/services (createWriteQueue — coalescing,
 // durable IndexedDB persistence, ?since= reconciliation with last-write-wins on
 // updated_at, serialized replay); this module is consumer #1:

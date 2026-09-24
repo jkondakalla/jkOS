@@ -48,7 +48,7 @@ cd "$(dirname "${BASH_SOURCE[0]}")"
 
 A_DIR="Fixture Book A"
 B_DIR="Fixture Book B"
-META="$(mktemp -t papyros-fixture-meta-XXXXXX.txt)"
+META="$(mktemp -t book-fixture-meta-XXXXXX.txt)"
 trap 'rm -f "$META"' EXIT
 
 cat > "$META" <<'EOF'

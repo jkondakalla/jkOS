@@ -14,7 +14,7 @@ import PlayingOn, { DevicesButton } from '../player/PlayingOn';
 import { BOOK_SKIP_SEC } from '../player/usePlayerEngine';
 import './books/now-book.css';
 
-/** PapyrOS's sleep options, in the engine's vocabulary ('segment' = end of chapter). */
+/** The sleep options, in the engine's vocabulary ('segment' = end of chapter). */
 const SLEEP_OPTIONS: { mode: SleepMode; label: string }[] = [
   { mode: 'off', label: 'Off' },
   { mode: '15', label: '15 min' },
@@ -32,11 +32,10 @@ const SLEEP_OPTIONS: { mode: SleepMode; label: string }[] = [
  * steered by, which are not a music player's:
  *
  *   · the scrubber is the CURRENT CHAPTER's window, not the whole book: a 19-hour
- *     timeline under a thumb moves a minute per pixel (PapyrOS, Jag 2026-07-09);
+ *     timeline under a thumb moves a minute per pixel (Jag 2026-07-09);
  *   · the transport is chapter ⇤ · −30 s · play · +30 s · chapter ⇥ — the ±30 s is
  *     the audiobook gesture ("what did they just say?"), not a track skip;
- *   · rate, the sleep timer (incl. "end of chapter") and bookmarks, which were
- *     PapyrOS's player bar, live here.
+ *   · rate, the sleep timer (incl. "end of chapter") and bookmarks live here.
  *
  * Every control reads the ONE player (usePlayer); the rate is the book's own and
  * never reaches music (sources.ts's rateAppliesTo).

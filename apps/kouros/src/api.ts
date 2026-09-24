@@ -1,6 +1,5 @@
 // api.ts — KourOS's typed API client. One module every view/hook imports instead
-// of hand-rolling fetch calls, mirroring papyros's api.ts (git history: Wave 5.1's
-// crib) so the wire contract (mirrored from apps/kouros/backend/discovery.js +
+// of hand-rolling fetch calls (git history: Wave 5.1's crib), so the wire contract (mirrored from apps/kouros/backend/discovery.js +
 // src/{media,routes/{library,tracks}}.js) lives in one place.
 //
 //   tracks                 → weaveClient('kouros').list('tracks', filters) — a real
@@ -9,7 +8,6 @@
 //                            dataset contract). Local dev's vite proxy only maps
 //                            bare `/api`, not `/api/kouros`, so this path is
 //                            exercised at build+preview / prod, not `pnpm dev` —
-//                            same verify-via-build note as papyros's api.ts.
 //   everything else        → plain authFetch against this app's own unprefixed
 //                            /api/* routes (src/media.js, src/routes/library.js,
 //                            @jkos/weave/server's defineCollection mount for
@@ -49,7 +47,7 @@ export interface RescanCounts {
   skipped: number;
 }
 
-/** GET/POST /api/history — one row per LISTENING STRETCH (mirrors papyros's
+/** GET/POST /api/history — one row per LISTENING STRETCH (the
  *  17.4 `history`, apps/kouros/backend/discovery.js's HISTORY collection —
  *  `only: ['create']` server-side, so there is no PATCH/DELETE for this row
  *  shape at all, append-only). List rows come back newest-first (the generic
@@ -112,7 +110,7 @@ export function coverUrl(id: number): string {
 /** Range-aware audio stream URL for one track. A `tracks` row is always exactly
  *  one file (unit:'file' scanning — src/media.js's header), so `fileIndex` is
  *  always 0; kept as a real path segment (not baked into the function name) so
- *  the wire shape matches papyros's `/api/stream/:id/:fileIndex` verbatim for
+ *  the wire shape matches the audiobooks' `/stream/:id/:fileIndex` for
  *  18.4's player seam. */
 export function streamUrl(id: number): string {
   return `${API}/api/stream/${id}/0`;

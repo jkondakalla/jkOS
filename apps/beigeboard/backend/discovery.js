@@ -30,7 +30,7 @@ const { ITEM_SHAPE } = require('./src/item-fields');
 /* ── D7 / BB-5: the EXT_REF SCHEMES this app writes ───────────────────────────────
    ⚠️ One `ext_ref` column held four incompatible schemes and NOTHING said so —
    `beigeboard:41` (a suite app's row), `itunes:1234567` (an external catalog, from
-   PapyrOS), and the two below. The audit found three of the four. The finding is
+   KourOS's audiobook metadata), and the two below. The audit found three of the four. The finding is
    stated from the reader's side, which is the right side: an AI author reading the
    dataset docs could not tell them apart, because the column's meaning lived in four
    source files and no document.
@@ -501,7 +501,7 @@ const DATASETS = {
    the merged feed cannot de-duplicate.
 
    `ms` is null throughout, deliberately. `completed_at - started_at` is available and
-   tempting, but the contract's `ms` means time ACTUALLY spent (papyros and kouros both
+   tempting, but the contract's `ms` means time ACTUALLY spent (KourOS's ledgers both
    exclude paused time), and elapsed wall-clock is a different number wearing the same
    name. A routine session left open overnight would report sixteen hours of training. */
 const ACTIVITY = defineActivity({

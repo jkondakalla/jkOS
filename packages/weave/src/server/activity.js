@@ -10,7 +10,7 @@
 //
 // The split matters more than it looks. `defineCollection` is the opposite bargain:
 // it owns the table, the DDL and the routes, which is right for a generic per-user
-// CRUD list. A ledger is not that. papyros's `history` means "a listening stretch",
+// CRUD list. A ledger is not that. kouros's `history` means "a listening stretch",
 // beigeboard's `started_at`/`completed_at` are two columns on a wide items table,
 // and lazuros's `jobs` is a work queue that happens to remember. Forcing those into
 // one table would be inventing a fifth schema to replace four honest ones. Forcing

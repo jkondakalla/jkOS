@@ -10,7 +10,7 @@
 // weeks, deliberately: 13 HIGH advisories existed on 2026-08-27, and a floor nobody could
 // turn green on day one is one people learn to skip. It went up the day it could land
 // green — ORDECK to vite 6, range-scoped security floors in pnpm-workspace.yaml for four
-// transitives, and SylibOS (the only path to the last three) removed.
+// transitives, and the app that was the only path to the last three removed.
 //
 // ⚠️ The old comment here said every HIGH was build/dev-only. One was not:
 // brace-expansion reached BeigeBoard's deployed backend through googleapis → gaxios →

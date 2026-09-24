@@ -56,8 +56,8 @@
   width: 100%;
 }
 /* ⚠️ In the column the flex BASIS is a height: `.lib-search`'s `1 1 200px` below
-   made the search box 200px TALL on a phone, a blank band above the toggles. It was
-   PapyrOS's bug too; it surfaced when this view moved into KourOS. */
+   made the search box 200px TALL on a phone, a blank band above the toggles. It surfaced
+   when this view moved into KourOS. */
 .lib-toolbar[data-bp="mobile"] .lib-search {
   flex: none;
 }

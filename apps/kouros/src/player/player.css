@@ -4,7 +4,7 @@
    in transitively via PlayerBar.tsx's import of @jkos/player/ui) — this file only
    adds what's genuinely KourOS-specific: the reserve-space body rule and the two
    music-only controls (./controls.tsx's <VolumeControl>) the kit has no styling for.
-   Same header rule as papyros's: every colour, radius, font and tap-floor reads a
+   The suite's header rule: every colour, radius, font and tap-floor reads a
    suite --hub- / --accent token — no hardcoded hex or radius literal. Imported once,
    from PlayerBar.tsx. */
 

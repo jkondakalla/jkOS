@@ -1,6 +1,5 @@
-// books/api.ts — the audiobook half of KourOS's typed API client. PapyrOS's
-// src/api.ts, carried over when PapyrOS folded into KourOS (2026-09-23): the wire
-// shapes are unchanged, the URLs are this backend's own —
+// books/api.ts — the audiobook half of KourOS's typed API client. The
+// URLs are this backend's own —
 //
 //   /api/books                       the catalog (a declared dataset; bare-array rows)
 //   /api/book/:id                    one book in full (files + chapters + description)
@@ -190,8 +189,8 @@ const JSON_HEADERS = { 'Content-Type': 'application/json' };
 // ─── Books ──────────────────────────────────────────────────────────────────────
 
 /** The `books` catalog (bare-array rows). A plain read of this app's own route —
- *  PapyrOS went through weaveClient('papyros'), which from inside KourOS would be a
- *  discovery round trip to reach a route one process away. */
+ *  never weaveClient, which would be a discovery round trip to reach a route one
+ *  process away. */
 export function listBooks(filters?: BookFilters): Promise<Book[]> {
   const qs = new URLSearchParams();
   for (const [k, v] of Object.entries(filters ?? {})) if (v) qs.set(k, v);

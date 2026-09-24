@@ -15,7 +15,7 @@
 //     `reorder`/`insertNext`/`append` but NO removal reducer, even though
 //     @jkos/player/ui's <QueuePanel> takes an `onRemove` prop expecting one. This is
 //     a real gap (flagged in the wave report, not fixed here per the file-ownership
-//     rule — packages/player is under a zero-behavior-change contract for papyros).
+//     rule — packages/player was under a zero-behavior-change contract then).
 //     `removeAt` below mirrors `reorder`'s cursor-preservation shape (the only public
 //     reducer that already has to reason about "an index vanished/shifted under the
 //     cursor") and re-normalizes shuffleOrder via the PUBLIC `shuffle()` reducer

@@ -1,8 +1,8 @@
 # jkOS workspace members. The Python pieces (the lazuros compute-node worker, music/) have
 # no package.json and are skipped by pnpm automatically.
 packages:
-  - "apps/*"          # ordeck (shell), beigeboard, papyros, kouros, jkauth frontends/services
-  - "apps/*/backend"  # beigeboard, lazuros, papyros, kouros node backends
+  - "apps/*"          # ordeck (shell), beigeboard, kouros, jkauth frontends/services
+  - "apps/*/backend"  # beigeboard, lazuros, kouros node backends
   - "packages/*"      # @jkos/{design,auth-client,auth-middleware,ui,weave,cards,...}
 
 # ⚠️ SECURITY FLOORS, NOT PINS. Each selector matches ONLY a range with a known HIGH advisory,

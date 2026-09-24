@@ -4,7 +4,7 @@ import { cx } from './primitives';
 /* ─────────────────────────────────────────────────────────────────────────────
    @jkos/ui — <AsyncView> (git history: Wave 20 item 20.3)
 
-   The loading/error/empty triad, hand-rolled three different ways in PapyrOS:
+   The loading/error/empty triad, hand-rolled three different ways in the audiobook views:
      - Library.tsx     — a 3-way ternary (loading ? … : error ? … : sorted.length
                           === 0 ? … : <the real grid>), ALL through a local
                           `.muted` paragraph class.

@@ -12,9 +12,7 @@
 *.tsbuildinfo
 
 # Python venvs — gitignored, copied into NO image, but the build context is the repo
-# root, so without this every service build tars them to the daemon. (This block once
-# also excluded SylibOS's gigabytes of course data — the dominant build-time cost,
-# ~2.6 GB → ~3 MB — until SylibOS was removed on 2026-09-16.)
+# root, so without this every service build tars them to the daemon.
 **/.venv
 
 # The music embedder is deliberately outside the pnpm workspace and copied into

@@ -17,7 +17,7 @@
  * decoupling rule <AppShell> established at 20.1 (a UI package never imports
  * @jkos/weave or @jkos/auth-client).
  *
- * PapyrOS's OWN "Fix metadata" binding (apps/papyros/src/views/book-detail/
+ * KourOS's OWN "Fix metadata" binding (apps/kouros/src/views/books/book-detail/
  * MatchPanel.tsx) does NOT route through this: its searchMetadata/matchBook calls
  * are same-app direct fetches that THROW on a non-2xx response (apiJson), which is
  * what lets that panel tell "search failed" apart from "no results" — swapping to
@@ -31,11 +31,11 @@ import type { CommandResult } from './dispatch';
 
 export interface ConnectorPairOptions<C = Record<string, unknown>> {
   /** Name of the read's search filter (defaults to 'term' — the convention every
-   *  connector read in the suite uses today, e.g. papyros's META.metadataSearch). */
+   *  connector read in the suite uses today, e.g. KourOS's META.metadataSearch). */
   termParam?: string;
   /** Builds the capability's request body from the chosen candidate row. Defaults
    *  to `{ candidate }` — a write capability fed the whole connector-read row
-   *  under that one key (the `matchBook` precedent, apps/papyros/backend/
+   *  under that one key (the `matchBook` precedent, apps/kouros/backend/
    *  discovery.js). Override to merge in extra context the capability's body
    *  also needs (e.g. which record the candidate applies to). */
   buildBody?: (candidate: C) => Record<string, unknown>;
@@ -50,7 +50,7 @@ export interface ConnectorPairOptions<C = Record<string, unknown>> {
  * `search` resolves the read's rows (or `[]` on any discovery/network miss — the
  * documented `weaveClient.list` behaviour). `apply` resolves with the
  * capability's returned `data` on success and THROWS on failure (`!result.ok`),
- * matching the contract a direct fetch-based `apply` already has (e.g. papyros's
+ * matching the contract a direct fetch-based `apply` already has (e.g. KourOS's
  * own `matchBook`) — so a `<MatchPanel>` fed either implementation behaves the
  * same.
  */

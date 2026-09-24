@@ -1,13 +1,13 @@
 // Scrubber.tsx — the segment-aware seek control (git history: Wave 16 item 16.6).
-// Generalizes papyros PlayerBar's scrubber: BookDetail's chapterFraction math and
+// Generalizes the audiobook bar's scrubber: BookDetail's chapterFraction math and
 // the bar's chapter-window bracketing both live in ./scrub's segmentWindow, and
 // this component is only the range input over whichever window that yields:
-//   • mode 'segment' (default, papyros's behavior): the CURRENT segment's timeline —
+//   • mode 'segment' (default, the audiobook behavior): the CURRENT segment's timeline —
 //     min/max/value are segment-relative, crossing segments is prev/next's job.
 //   • mode 'timeline': the whole [0, total] span, with the segment boundaries drawn
 //     as ticks over the track (a music/video bar's shape).
 // Either way the drag state is held here in GLOBAL seconds (seekTo's unit) and only
-// committed on release — identical event set to the papyros original (pointer/mouse/
+// committed on release — identical event set to the original (pointer/mouse/
 // touch/key up), so a keyboard nudge seeks exactly once, on keyup.
 import { useState } from 'react';
 import { Slider } from '@jkos/ui';
@@ -45,7 +45,7 @@ export function Scrubber({
   ariaLabel = 'Seek position',
   formatTime = fmtClock,
 }: ScrubberProps) {
-  // Uncommitted drag value, GLOBAL seconds — papyros's `scrub` state, moved inside.
+  // Uncommitted drag value, GLOBAL seconds — the original `scrub` state, moved inside.
   const [scrub, setScrub] = useState<number | null>(null);
 
   const displayPos = scrub != null ? scrub : Math.min(position, total || position);

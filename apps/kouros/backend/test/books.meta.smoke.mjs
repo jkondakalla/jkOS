@@ -1,5 +1,4 @@
-// books.meta.smoke.mjs — PapyrOS's meta.smoke, carried over when PapyrOS folded
-// into KourOS (2026-09-23); routes under /api/books/*, tokens scoped kouros:*.
+// books.meta.smoke.mjs — routes under /api/books/*, tokens scoped kouros:*.
 // Originally (task 4.4) — Wave 4's metadata-enrichment smoke: boots the REAL server
 // (throwaway port + temp DB, a REAL RS256 keypair so forged tokens can prove the
 // matchAllMissing admin gate — same recipe as playback.smoke.mjs) against the committed

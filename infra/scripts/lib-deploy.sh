@@ -52,7 +52,7 @@ run() {
 # gitignored by design — so a checkout freshly cloned/reset onto a NEW app (one that
 # never had a human SSH in and create its .env) has no such file, and `docker compose
 # up -d` refuses the ENTIRE stack with exit 14 ("env file ... not found"). Worse, that
-# only surfaces AFTER the full (multi-minute) image build. Papyros's first staging
+# only surfaces AFTER the full (multi-minute) image build. An app's first staging
 # sync hit exactly this (2026-07-09) — this makes it self-heal instead, for any
 # app, present or future: scaffold a blank .env from the app's own .env.example
 # (every app ships one) so a first deploy succeeds with safe defaults/no-ops, and

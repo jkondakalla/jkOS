@@ -1,8 +1,7 @@
 // packages/player/src/backend/types.ts — the MediaBackend seam (git history, Wave 15,
 // item 15.2).
 //
-// Extracted from apps/papyros/src/player/usePlayerEngine.ts, which today drives a
-// single HTMLAudioElement directly. Everything the engine touches on that element —
+// Extracted from an app's engine that drove a single HTMLAudioElement directly. Everything the engine touches on that element —
 // commands, transport state, and its two error channels (a rejected `play()` promise,
 // and the element's `error` DOM event) — is expressed here, DOM-vocabulary-neutral
 // where that's cheap: the event names below ARE the DOM event names the engine
@@ -12,7 +11,7 @@
 // `htmlMedia` (this wave — wraps one HTMLMediaElement, audio OR video, see
 // htmlMedia.ts) and a future `gaplessDual` (two elements, preload-and-swap — Wave 18,
 // see git history: PLAYER_PARITY.md, retired, Layer 0/Layer 1 boundary). Neither this file
-// nor htmlMedia.ts imports from apps/papyros or packages/player/src/core — the seam
+// nor htmlMedia.ts imports from apps/* or packages/player/src/core — the seam
 // is self-contained.
 //
 // What deliberately STAYS OUT of this seam (app / engine policy, not backend policy):
@@ -114,7 +113,7 @@ export interface MediaBackend {
   play(): Promise<void>;
   pause(): void;
   /** Seek within the CURRENTLY LOADED source, in seconds. Cross-source seeking (e.g.
-   *  papyros's global-timeline seek across file boundaries) is engine policy: call
+   *  an audiobook's global-timeline seek across file boundaries) is engine policy: call
    *  load() on the target source, then seek() once 'loadedmetadata' fires. */
   seek(seconds: number): void;
   setRate(rate: number): void;

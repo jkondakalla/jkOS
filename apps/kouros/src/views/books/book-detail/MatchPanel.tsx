@@ -5,7 +5,7 @@ import { matchBook, searchMetadata, type Candidate, type MatchResult } from '../
 // item 20.4 into @jkos/ui's <MatchPanel> (packages/ui/src/MatchPanel.tsx), a
 // presentational search→candidates→apply shell fed by an injected {search, apply}
 // pair instead of a hardcoded API import. This file is now a THIN BINDING of that
-// generic panel to papyros's own EXISTING searchMetadata/matchBook calls (api.ts)
+// generic panel to the EXISTING searchMetadata/matchBook calls (books/api.ts)
 // — same requests on the wire, same UX, zero visual change (20.4's brief).
 //
 // Deliberately NOT routed through @jkos/weave's connectorPair() helper

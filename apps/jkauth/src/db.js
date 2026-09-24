@@ -340,32 +340,14 @@ const MIGRATIONS = [
     conv('widget_registry', 'created_at', 'updated_at');
   }],
 
-  /* 021 — SylibOS RETIRED (Jag, 2026-09-16: "remove SylibOS entirely. It is dead").
-   *
-   * Removing its row from @jkos/suite-manifest stops a FRESH database seeding it, and
-   * nothing else: `seedAppRegistry` only inserts missing rows, so every deployed jkAuth
-   * would keep the row for ever. That row is not inert. `roleClaims()` mints the `aud`
-   * and `scope` claims every token in the suite carries from app_registry, and the CORS
-   * origin list derives from it too — so a dead app would keep appearing in every
-   * token and keep https://sylibos.jkos.net an allowed credentialed origin. Deleted
-   * here, by id. Migration 012's `UPDATE … WHERE id='sylibos'` is history and stays: on
-   * a fresh database it matches nothing.
-   *
-   * Nothing references app_registry(id) by foreign key; `sessions.app_id` is a free-text
-   * note of where a login began and is left as the record it is. */
+  /* 021, 022 — RETIRED APPS, deleted by id. Dropping an app from @jkos/suite-manifest
+   * only stops a FRESH database seeding it: `seedAppRegistry` never deletes, and
+   * `roleClaims()` mints every token's `aud`/`scope` from app_registry (the CORS origin
+   * list derives from it too), so a deployed row would keep a dead app in every token
+   * and its origin credentialed. Nothing references app_registry(id) by foreign key. */
   ['021_retire_sylibos', () => {
     run("DELETE FROM app_registry WHERE id = 'sylibos'")
   }],
-
-  /* 022 — PapyrOS RETIRED: folded into KourOS (Jag, 2026-09-23: "PapyrOS should be
-   * folded inside of KourOS entirely. The split was arbitrary and not necessary").
-   * KourOS now serves the audiobooks, their progress, bookmarks and ledger.
-   *
-   * Same reasoning as 021, and the same hazard: the manifest row is gone, but
-   * `seedAppRegistry` never deletes, so every deployed jkAuth would keep the row —
-   * minting `papyros:*` scopes and a `papyros` audience into every token, and keeping
-   * https://papyros.jkos.net an allowed credentialed origin — for an app that no longer
-   * exists. Deleted by id. Nothing references app_registry(id) by foreign key. */
   ['022_retire_papyros', () => {
     run("DELETE FROM app_registry WHERE id = 'papyros'")
   }],

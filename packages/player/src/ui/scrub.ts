@@ -2,7 +2,7 @@
 // no React, no runtime imports (type-only NavPoint) — so test/ui.test.mjs can
 // transpile this one file in isolation, the same house pattern core.test.mjs uses.
 //
-// Two generalizations lifted from real papyros code, algorithm unchanged:
+// Two generalizations lifted from real audiobook code, algorithm unchanged:
 //   • segmentFraction — BookDetail.tsx's `chapterFraction` verbatim (the chapter-row
 //     loading-bar fill). <SegmentList> uses it per row; any caller can.
 //   • segmentWindow — PlayerBar.tsx's chapter-bracketing math (chStart/chLen/chPos,
@@ -51,7 +51,7 @@ export function segmentWindow(
   return { start, length, pos };
 }
 
-/** '1×' / '1.25×' — the rate button's face, verbatim from papyros's formatRate. */
+/** '1×' / '1.25×' — the rate button's face, verbatim from the original formatRate. */
 export function formatRate(r: number): string {
   return `${Number.isInteger(r) ? r : r.toString()}×`;
 }

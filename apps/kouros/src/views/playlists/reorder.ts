@@ -2,7 +2,7 @@
 // list (git history: Wave 18 item 18.6). A deliberate small LOCAL copy of the same
 // two functions `@jkos/player/ui`'s <QueuePanel> already ships (packages/player/src/
 // ui/scrub.ts's `insertionSlot`/`reorderTarget`) rather than an import from that
-// package: packages/player/src/ui is under papyros's zero-behaviour-change contract
+// package: packages/player/src/ui was under a zero-behaviour-change contract
 // (18.4's file-ownership note) and this is an unrelated app feature (playlist track
 // order, not the playback queue) — importing the player kit here would wire a real
 // runtime dependency between two features that don't otherwise touch. The algorithm

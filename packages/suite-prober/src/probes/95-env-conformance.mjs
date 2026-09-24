@@ -58,16 +58,15 @@ const BACKENDS = [
     selfPrefix: 'LAZUROS_',
     orphanDockerfile: null,
   },
-  /* ⚠️ PapyrOS and KourOS were not in this list at all — two whole backends, and the
+  /* ⚠️ KourOS's backends were not in this list at all — two whole backends, and the
      probe reported nothing about either. That is the quietest possible failure for a
      coverage probe: a clean report about the apps it happens to know, which reads
      exactly like a clean report about the suite. The BUG-5 class it was built for
      (`CALENDAR_ENC_KEY` read by code and provisioned nowhere) could have been sitting
-     in either one for as long as they have existed. (PapyrOS has since folded into
-     KourOS, 2026-09-23 — its audiobook half is under kouros's backend/src/books/.) */
+     in either one for as long as they have existed. (Both halves are KourOS's now.) */
   {
     app: 'kouros',
-    // scripts/ too: the one-shot PapyrOS importer runs in the same container.
+    // scripts/ too: a one-shot script runs in the same container.
     srcRoots: ['apps/kouros/backend/src', 'apps/kouros/backend/server.js', 'apps/kouros/backend/discovery.js', 'apps/kouros/backend/scripts'],
     envExample: 'apps/kouros/.env.example',
     composes: ['apps/kouros/docker-compose.yml', 'apps/kouros/docker-compose.staging.yml'],

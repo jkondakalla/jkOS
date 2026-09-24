@@ -23,7 +23,7 @@ jkOS/
 │   ├── ordeck/          static SPA (Vite+React), no backend — nginx serves it
 │   ├── jkauth/           SSO + app directory, Node/Express, SSR login views
 │   ├── beigeboard/       tasks/goals/routines SPA + Node backend
-│   ├── kouros/            music + audiobook SPA + Node backend (PapyrOS folded in 2026-09-23)
+│   ├── kouros/            music + audiobook SPA + Node backend
 │   └── lazuros/           AI gateway: Node "State node" + Python worker/ + providers/
 ├── packages/@jkos/
 │   ├── auth-middleware   Express JWT verify — the one place every backend checks a token
@@ -137,10 +137,10 @@ on both the serving side (boot-time throw) and the reading side (evict a malform
 rather than trust it); `shared/activity.js` does the same for the third.
 
 **One shape, several implementations.** The activity contract (XC-2) is the clearest statement
-of how this suite shares things: PapyrOS and KourOS had grown *field-for-field identical*
+of how this suite shares things: two apps had grown *field-for-field identical*
 play-history tables independently, because nothing gave them a common word for it. The fix
 was a declared shape and **not** a shared table — each app keeps its own ledger (KourOS's
-`history` and `book_history` — PapyrOS's, since the fold — BeigeBoard's pair of columns on
+`history` and `book_history`, BeigeBoard's pair of columns on
 `items`, LazurOS's job queue) and merely answers in the common shape; `fetchActivity` fans the question out and merges. That makes *"what did I
 do today"* answerable across the suite, and is the same mechanism as the action-audit trail.
 See [WEAVE.md §2a](agents/WEAVE.md).
@@ -204,8 +204,8 @@ AES-256-GCM-encrypted at rest when `CALENDAR_ENC_KEY` is set (plaintext otherwis
 safe no-op, not a default to ship with). Its Week/Calendar tabs are thin wrappers over the
 shared `@jkos/cards` kit.
 
-**KourOS** (`apps/kouros`, port 3011) is the suite's listening app — music AND, since
-PapyrOS folded into it on 2026-09-23, audiobooks. Fully native: its own scanners, catalogs
+**KourOS** (`apps/kouros`, port 3011) is the suite's listening app — music and
+audiobooks. Fully native: its own scanners, catalogs
 and Range-streamed playback, not a client of any external media server. One SQLite
 database split on a scope boundary: `tracks` and `books` are scanner-populated shared
 catalogs (no `user_id`) — two instances of the same `defineLibraryScanner` brick over two
@@ -294,7 +294,7 @@ on require/boot — no separate migration tool. Two shapes recur across apps:
   entirely rather than merely denying them at runtime.
 
 `@jkos/weave/server` also exports two higher-level bricks that KourOS's music and audiobook
-halves (once two apps, PapyrOS and KourOS) both build on with **zero brick-level changes
+halves both build on with **zero brick-level changes
 between them** — `defineLibraryScanner`
 (folder walk → ffprobe pool → mtime-incremental skip → upsert → prune, parameterized by
 `unit: 'dir' | 'file'`) and `defineMediaRoutes` (Range-stream/cover/download, built on
@@ -341,7 +341,7 @@ This section is deliberately short — Stage F ([TODO.md](TODO.md) §6) restruct
 chain — first failure stops the run. It boots and smoke-tests jkAuth (`test:contracts` +
 `test`), `@jkos/weave`, `@jkos/player`, BeigeBoard's backend, then `pnpm roundtrip` (a live
 write round-trip across the fabric), then LazurOS's backend, `@jkos/files`, KourOS's
-backend (music, audiobooks and the PapyrOS importer), and the `@jkos/cards` logic suite. After the behavioral smokes
+backend (music and audiobooks), and the `@jkos/cards` logic suite. After the behavioral smokes
 it runs every `check:*` conformance gate (catalogued in [agents/TESTING.md](agents/TESTING.md)) — each a small Node script under `test/` or an app's own `scripts/`, asserting one
 suite-wide invariant by re-deriving it from source rather than trusting a doc. The exception
 is `check:build`, which is not a scan at all: it runs `vite build` for every SPA, because

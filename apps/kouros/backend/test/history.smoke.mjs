@@ -3,12 +3,12 @@
 // exercise cross-user scoping — same recipe as playback.smoke.mjs) with MUSIC_DIR
 // pointed at an EMPTY temp directory. Unlike library/playback.smoke.mjs this needs no
 // ffprobe/ffmpeg and never SKIPs: `history.item_ref` is a soft `ref` stud (TEXT column,
-// no SQL FK — same convention as papyros's `progress.book_ref`, see that app's
-// discovery.js for the long NOTE this mirrors), so a fake track id round-trips through
+// no SQL FK — same convention as `progress.book_ref`, see
+// discovery.js for the NOTE this mirrors), so a fake track id round-trips through
 // the collection with no real scanned track required. The boot scan runs against the
 // empty dir and completes as a no-op (0 tracks), which is all this smoke needs.
 //
-// Asserts (defineCollection(..., { only: ['create'] }), same contract as papyros's
+// Asserts (defineCollection(..., { only: ['create'] }), same contract as the
 // 17.4 history — packages/weave/src/server/collection.js):
 //   1. unauthenticated POST/GET /api/history → 401.
 //   2. POST creates a row (201), append-only fields round-trip (item_ref canonical
@@ -228,10 +228,10 @@ try {
 
   // ── 7. THE ACTIVITY CONTRACT (D6 / XC-2) ──────────────────────────────────────
   //     ⚠️ The point of this section is not that KourOS serves activity — it is that
-  //     KourOS and PapyrOS, whose `history` tables are field-for-field identical and
-  //     were invented independently, now answer the SAME QUESTION IN THE SAME SHAPE
-  //     without sharing a line of implementation. The identical assertions live in
-  //     apps/papyros/backend/test/history.smoke.mjs §7 on purpose: two apps proving
+  //     KourOS's two ledgers, `history` and `book_history`, which were invented
+  //     independently, answer the SAME QUESTION IN THE SAME SHAPE without sharing a
+  //     line of implementation. The matching assertions live in
+  //     books.history.smoke.mjs on purpose: two ledgers proving
   //     one contract is what the contract is FOR, and one shared test helper would
   //     quietly become the shared implementation this design refuses.
   const anonActivity = await req('GET', '/api/activity');

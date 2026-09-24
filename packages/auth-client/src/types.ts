@@ -60,7 +60,7 @@ export type HudFocus = HudRef;
  *  nulled on the next write — a lazy per-user migration, because they are live user
  *  data and a rename is silent data loss for anyone who does not save afterwards.
  *
- *  ⚠️ And it is not the whole story: PapyrOS, KourOS and ORDECK each keep some
+ *  ⚠️ And it is not the whole story: KourOS and ORDECK each keep some
  *  state in `localStorage` that never reaches here (volume, queue prefs, a
  *  weather widget's config), so it does not follow the user across devices. That
  *  is a real asymmetry, documented in ARCHITECTURE.md rather than pretended away.

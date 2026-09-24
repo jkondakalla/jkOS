@@ -1,5 +1,4 @@
-// books.library.smoke.mjs — PapyrOS's library.smoke, carried over when PapyrOS folded
-// into KourOS (2026-09-23); routes under /api/books/*, tokens scoped kouros:*.
+// books.library.smoke.mjs — routes under /api/books/*, tokens scoped kouros:*.
 // Originally (task 2.5) — end-to-end smoke for the library service: boots the
 // REAL server.js (throwaway port + temp DB, weave dev-stub auth — same house pattern as
 // apps/beigeboard/backend/test/import.smoke.mjs), points AUDIOBOOKS_DIR at the tiny

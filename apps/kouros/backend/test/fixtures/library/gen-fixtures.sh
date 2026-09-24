@@ -3,8 +3,7 @@
 # alongside this script. Re-run it any time the fixtures need to change; the outputs are
 # deterministic (same ffmpeg/lavfi inputs → same audio, only encoder-version metadata
 # like `encoder=Lavf...` may drift across ffmpeg versions, which none of the smoke's
-# assertions depend on). Mirrors apps/papyros/backend/test/fixtures/library/
-# gen-fixtures.sh's approach (a few KB of sine tones + a tiny cover, safe to commit).
+# assertions depend on). Mirrors ../books/library/gen-fixtures.sh's approach (a few KB of sine tones + a tiny cover, safe to commit).
 #
 # Requires `ffmpeg` on PATH.
 #

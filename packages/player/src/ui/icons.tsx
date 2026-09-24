@@ -1,7 +1,7 @@
-// icons.tsx — the kit's inline glyphs, lifted verbatim from papyros PlayerBar.tsx
+// icons.tsx — the kit's inline glyphs, lifted verbatim from the audiobook bar
 // (currentColor everywhere; the host button's `color` drives them — no hardcoded
 // stroke/fill colours). Exported so an app's bespoke controls can compose the same
-// glyphs its stock neighbours render (papyros's bookmark rows reuse IconClose).
+// glyphs its stock neighbours render (bookmark rows reuse IconClose).
 
 export function IconPlay() {
   return <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor" /></svg>;
@@ -18,7 +18,7 @@ export function IconSpinner() {
   );
 }
 /** Circular skip arrow with the second count in its bowl — mirrored for back vs
- *  forward. papyros's IconSkip generalized only in the number it prints (was a
+ *  forward. The original IconSkip, generalized only in the number it prints (was a
  *  hardcoded "30"; identical output for seconds === 30). */
 export function IconSkipArrow({ dir, seconds }: { dir: 'back' | 'fwd'; seconds: number }) {
   return (

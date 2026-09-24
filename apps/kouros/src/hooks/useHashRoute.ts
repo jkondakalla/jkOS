@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 
 // useHashRoute — KourOS's hand-rolled hash router (no dependency, matching
-// papyros/ORDECK's precedent — a shared useHashRoute was explicitly Tier-3'd in
+// ORDECK's precedent — a shared useHashRoute was explicitly Tier-3'd in
 // git history: Wave 20's crib: "two hand-rolled routers doesn't justify it", so a
 // third per-app copy is the correct call here too). Five routes:
 //
@@ -23,7 +23,7 @@ import { useEffect, useState } from 'react';
 // the app instead of collapsing the sheet.
 //
 // Anything else falls back to Home. `artist`/`album` come from free-text tag
-// values (not database ids, unlike papyros's `/book/<id>`), so they travel
+// values (not database ids, unlike `/book/<id>`), so they travel
 // %-encoded — always build a link via artistHref/albumHref/searchHref below,
 // never hand-format the hash string (the encoding is load-bearing: a name
 // containing '/' would otherwise split across the ALBUM_RE/ARTIST_RE segments).
@@ -33,7 +33,7 @@ import { useEffect, useState } from 'react';
 export type View =
   | 'home' | 'browse' | 'artists' | 'artist' | 'album' | 'search'
   | 'playlists' | 'playlist' | 'map' | 'now' | 'queue'
-  /** Audiobooks — PapyrOS's library and detail, folded into KourOS 2026-09-23. */
+  /** Audiobooks — the shelf and a book's detail. */
   | 'books' | 'book';
 
 export interface HashRoute {

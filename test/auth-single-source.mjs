@@ -1,7 +1,7 @@
 // Auth single-source — one session state machine for the whole suite.
 //
 // ORDECK wrote the auth gate (identity check → refresh-cookie rotation → declare
-// logged-out). PapyrOS copied the file; KourOS then copied PapyrOS's, its header
+// logged-out). Two apps copied the file, one header
 // admitting it mirrored the original "verbatim" — which it did, byte for byte apart
 // from the comments. Three copies of a token-refresh sequence is three places for a
 // session bug to be fixed in two of them, and the bug class is nasty: drop the

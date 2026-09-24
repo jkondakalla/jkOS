@@ -91,8 +91,8 @@ export interface Connector {
    * `req.query`); `opts` mirrors `mount()`'s (`fetch`/`base`/`token`/`headers`).
    *
    * Lets a route handler in the connector's OWN app reuse the connector's upstream call
-   * in-process instead of hand-rolling a second copy of it (the trap papyros's
-   * src/routes/match.js used to fall into for META's `metadataSearch`). Throws — never
+   * in-process instead of hand-rolling a second copy of it (the trap the audiobook
+   * match route used to fall into for META's `metadataSearch`). Throws — never
    * resolves null/undefined — on an unknown read id, a missing fetch, or an upstream
    * failure; turning that into an HTTP response stays `mount()`'s job.
    */

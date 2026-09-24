@@ -1,14 +1,14 @@
 'use strict';
 // KourOS backend — git history: item 18.2: the real music backend on the shared bricks (Wave 17).
 // Wave 18.1 scaffolded the minimal Layer-A template (a single placeholder `items`
-// defineCollection); this replaces it. Follows PapyrOS's proven pattern verbatim:
+// defineCollection); this replaces it:
 // `tracks` is a SHARED, scanner-written catalog (`defineLibraryScanner`, unit:'file' —
 // one row per track, git history: item 17.2) with a hand-rolled migration (not a defineCollection
-// — same reasoning as papyros's `books`: populated by the scanner, not user CRUD, no
+// — same reasoning as `books`: populated by the scanner, not user CRUD, no
 // owner column); `playlists`/`history`/`ratings` are genuine per-user CRUD via
 // defineCollection. Media playback (range-aware streaming + cover art) comes from
 // `defineMediaRoutes` (17.3) — direct-play only, no compat ladder (see src/media.js's
-// header for why). Since 2026-09-23 it also serves the audiobooks PapyrOS used to (src/books/).
+// header for why). It also serves the audiobooks (src/books/).
 const express      = require('express');
 const path         = require('path');
 const Database     = require('better-sqlite3');
@@ -31,7 +31,7 @@ const { createBrowseRouter } = require('./src/routes/browse');      // server-si
 const { createDiscoverRouter } = require('./src/routes/discover');  // the similarity engine's HTTP surface
 const { createDiscovery } = require('./src/discover');              // vectors → aligned space → similar/radio/runs/map
 const { isPlayContext } = require('./src/playContext');             // where a listen was played FROM
-// Audiobooks — PapyrOS's backend, folded in (2026-09-23; see discovery.js's books block).
+// Audiobooks (see discovery.js's books block).
 const { createBookScanner } = require('./src/books/scan');               // AUDIOBOOKS_DIR walker → `books` catalog
 const { createBooksRouter } = require('./src/books/list');               // filtered `books` dataset read
 const { createBookMediaRouter, prepareAllCompat } = require('./src/books/media');   // /api/books/stream|cover|download + /api/book/:id
@@ -48,16 +48,15 @@ const STATIC_DIR = process.env.STATIC_DIR || path.join(__dirname, '..', 'dist');
 const SHELL_URL  = (process.env.SHELL_URL || 'http://localhost:3000').replace(/\/$/, '');
 
 /* Library scanner: the folder the boot scan + rescanLibrary walk. NEVER a hardcoded NAS
-   path here — unlike papyros's AUDIOBOOKS_DIR, no docker-compose bind mount exists for
-   this yet; the real music library mount is Jag's own deploy-time decision (git history: item 18.2, flagged in the wave's report). The local-dev default (a sibling `music/`
-   folder that doesn't need to exist — the scanner degrades to a 0-track no-op when it's
-   missing) mirrors papyros's AUDIOBOOKS_DIR default exactly. DATA_DIR mirrors papyros
-   too: DB_PATH's own directory, so cover art lands at <DATA_DIR>/covers/<id>.jpg with
+   path here — compose binds the real library to /music. The local-dev default (a
+   sibling `music/` folder that doesn't need to exist — the scanner degrades to a
+   0-track no-op when it's missing) matches AUDIOBOOKS_DIR's. DATA_DIR is DB_PATH's own
+   directory, so cover art lands at <DATA_DIR>/covers/<id>.jpg with
    no extra knob. */
 const MUSIC_DIR = process.env.MUSIC_DIR || path.join(__dirname, 'music');
 const DATA_DIR  = path.dirname(DB_PATH);
 
-/* The audiobook library (PapyrOS's AUDIOBOOKS_DIR, folded in). Same missing-folder
+/* The audiobook library. Same missing-folder
    degradation as MUSIC_DIR: an absent root scans to zero books, it does not fail boot.
    ⚠️ BOOKS_DATA_DIR is a SUBDIRECTORY of DATA_DIR, not DATA_DIR: the scanner brick
    writes covers to `<dataDir>/covers/<id>.jpg` and tracks already own that path —
@@ -132,7 +131,7 @@ const scanner = createScanner({
   onScanComplete: () => discovery.invalidate(),
 });
 
-/* The audiobook scanner, beside the music one. Its completion hook runs PapyrOS's two
+/* The audiobook scanner, beside the music one. Its completion hook runs the two
    optional sweeps; both are fire-and-forget — a sweep failing must never change what a
    scan reports. */
 function onBookScanComplete() {
@@ -189,8 +188,8 @@ const discovery = createDiscovery({
    `tracks` is a SHARED catalog (no user_id — every user sees the same library) that
    the scanner (src/library/scan.js) populates by walking MUSIC_DIR and running
    ffprobe; there is no user-facing create/update/delete, so this is a plain
-   hand-rolled migration rather than a defineCollection — same shape as papyros's
-   `books` (server.js migration 1 there). `files`/`chapters` are the brick's own JSON-
+   hand-rolled migration rather than a defineCollection — same shape as
+   `books` (migration 8). `files`/`chapters` are the brick's own JSON-
    array TEXT columns (files: always one entry, {index:0,path,duration,codec} — a
    'file'-unit row is always exactly one track; chapters: always [], music files carry
    none). The updated_at stamp/touch triggers mirror @jkos/weave/collection's
@@ -245,9 +244,9 @@ const MIGRATIONS = [
   { id: 3, name: 'create_history',   up(d) { d.exec(HISTORY.ddl()); } },
   /* `ratings`: the collection's generic ddl() PLUS a composite UNIQUE(user_id,
      track_ref) index and an upsert-on-conflict BEFORE INSERT trigger, in the SAME
-     migration — from day one, not retrofitted (the papyros 17.5 lesson; see
+     migration — from day one, not retrofitted (the 17.5 lesson; see
      discovery.js's RATINGS comment for why a fresh table needs no dedupe step the
-     way papyros's live `progress` table did). The trigger deletes the caller's
+     way a live `progress` table once did). The trigger deletes the caller's
      existing (user_id, track_ref) row immediately before an INSERT that would
      collide with the unique index, so a second "rate this track" POST — whether the
      client's own find-else-POST replay or a genuine two-tab race — updates the
@@ -307,11 +306,9 @@ const MIGRATIONS = [
     id: 7, name: 'rebackfill_wire_timestamps',
     up(d) { backfillWireTime(d, ['tracks', 'playlists', 'history', 'ratings'], { history: ['started_at'] }); },
   },
-  /* ── Audiobooks: PapyrOS folded in (2026-09-23) ────────────────────────────────
-     The `books` catalog exactly as PapyrOS built it — its migration 1, with migration
-     6's `description` column folded into the CREATE (a fresh table needs no ALTER) and
-     the canonical-stamp triggers PapyrOS only reached at its migration 12. Every column
-     keeps its name and meaning, so scripts/import-papyros.js copies rows unchanged. */
+  /* ── Audiobooks ─────────────────────────────────────────────────────────────────
+     The `books` catalog, with its `description` column and canonical-stamp triggers
+     in the CREATE from the start. */
   {
     id: 8,
     name: 'create_books',
@@ -355,7 +352,7 @@ const MIGRATIONS = [
     },
   },
   /* `progress`: one row per (user, book), enforced from DAY ONE — the UNIQUE index and
-     the upsert-on-conflict trigger PapyrOS only gained at its migration 8, after a race
+     the upsert-on-conflict trigger an earlier `progress` only gained after a race
      had already written duplicates (see RATINGS in migration 4 for the same lesson). */
   {
     id: 9,
@@ -427,8 +424,8 @@ function runMigrations() {
 
 /* Run migrations NOW, before any route is registered below — src/media.js's router
    prepares its `tracks` SELECT at construction time, so mounting it before the table
-   exists would throw SQLITE_ERROR "no such table: tracks" at boot. Matches papyros
-   server.js's 3.4 fix (see that file's comment) and apps/beigeboard/backend/src/db.js's
+   exists would throw SQLITE_ERROR "no such table: tracks" at boot. Matches
+   apps/beigeboard/backend/src/db.js's
    require-time runMigrations() — the DB is ready before any route or listen() touches it. */
 runMigrations();
 
@@ -511,7 +508,7 @@ RATINGS.mount(app, db);
    columns to its own frontend; this answers a question asked of four apps at once. */
 ACTIVITY.mount(app, db);
 
-/* ── Audiobooks (PapyrOS, folded in) ────────────────────────────────────────
+/* ── Audiobooks ─────────────────────────────────────────────────────────────
    The catalog read, the per-user progress/bookmarks/ledger, the iTunes META read and
    the two match capabilities — same identity-gated + write-gate-cleared slot as every
    route above. `progress` and `bookmarks` are full CRUD; `book_history` is append-only

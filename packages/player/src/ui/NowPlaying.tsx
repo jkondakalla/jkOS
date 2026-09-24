@@ -1,5 +1,5 @@
 // NowPlaying.tsx — the title/artist/artwork meta block (git history, Wave 16, item
-// 16.6). Markup is papyros PlayerBar's `meta` cluster verbatim: art | stacked
+// 16.6). Markup is the audiobook bar's `meta` cluster verbatim: art | stacked
 // title-over-subtitle, both ellipsized. `art` is a slot — pass `<CoverArt
 // variant="thumb">` from @jkos/ui. This kit used to ship its own CoverArt for that
 // slot; it was deleted when the Wave-15 freeze was lifted, because the suite's one
@@ -10,7 +10,7 @@ export interface NowPlayingProps {
   /** Artwork slot — `<CoverArt variant="thumb">` from @jkos/ui. Renders nothing when omitted. */
   art?: ReactNode;
   title: ReactNode;
-  /** Renders the title as an <a href> (papyros links to the item's detail view). */
+  /** Renders the title as an <a href> (e.g. to the item's detail view). */
   titleHref?: string;
   /** The title element's `title` tooltip; defaults to `title` when it's a string. */
   titleTip?: string;

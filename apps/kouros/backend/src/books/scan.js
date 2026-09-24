@@ -1,8 +1,7 @@
 'use strict';
 // books/scan.js — the audiobook half of KourOS's library, a thin app-specific config on
 // top of the shared `defineLibraryScanner` brick (`@jkos/weave/libraryScanner`, git
-// history: item 17.2). It came over from PapyrOS when that app folded into KourOS
-// (2026-09-23) and runs BESIDE src/library/scan.js over a second root: music is
+// history: item 17.2). It runs BESIDE src/library/scan.js over a second root: music is
 // `unit: 'file'` under MUSIC_DIR, books are `unit: 'dir'` under AUDIOBOOKS_DIR. The
 // generic ladder (walk AUDIOBOOKS_DIR → ffprobe pool → mtime-incremental skip → upsert
 // ON CONFLICT(path) → prune vanished rows) now lives in the brick; this file supplies

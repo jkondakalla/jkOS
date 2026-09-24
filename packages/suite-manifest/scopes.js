@@ -5,7 +5,7 @@
 // ⚠️ A SEPARATE ENTRY, NOT A SECTION OF apps.js, AND THAT IS LOAD-BEARING. apps.js is
 // bundled into every SPA (Weave's manifest.ts imports it through CJS interop), and the
 // first cut of this lived there and required ./scopes.generated.js — which broke
-// PapyrOS's and KourOS's production builds: an injected workspace copy does not carry a
+// two apps' production builds: an injected workspace copy does not carry a
 // newly added file until `pnpm install` re-syncs it (TRAPS.md), and `check:build` went
 // red. The grant is jkAuth's concern alone, so it has its own entry and apps.js keeps
 // requiring nothing.

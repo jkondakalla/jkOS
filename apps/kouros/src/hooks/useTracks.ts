@@ -16,7 +16,7 @@ export interface UseTracksResult {
  *  `listTracks` with real server-side filters instead.
  *
  *  `reloadKey` lets a caller force a refetch (Home bumps it after an admin
- *  rescan, the same `reloadKey` idiom papyros's Library.tsx uses). */
+ *  rescan, the same `reloadKey` idiom books/Library.tsx uses). */
 export function useTracks(reloadKey = 0): UseTracksResult {
   const [tracks, setTracks] = useState<Track[]>([]);
   const [loading, setLoading] = useState(true);

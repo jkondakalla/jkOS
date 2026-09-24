@@ -1,7 +1,7 @@
 // sources.ts — the seam that lets ONE player play both halves of the library.
 //
-// KourOS plays music and, since PapyrOS folded into it (2026-09-23), audiobooks. They
-// are one app with one backend now, but they are still two catalogs with two shapes:
+// KourOS plays music and audiobooks. They are one app with one backend, but they
+// are still two catalogs with two shapes:
 // a `tracks` row is one file with no chapters, a `books` row is N files with chapters,
 // a resume point, bookmarks and a compat ladder. What they share is a SHAPE — both
 // mount the same `@jkos/weave/mediaRoutes` brick, the book half under /api/books/*
@@ -16,7 +16,7 @@
 //
 // ⚠️ And the trap the book half carries: a weave `type:'ref'` column is TEXT, so
 // the wire says `book_ref: "13"` where the TypeScript says `number`. That concealed
-// FOUR silent bugs in PapyrOS for months. The coercion lives at ONE door —
+// FOUR silent bugs for months. The coercion lives at ONE door —
 // books/api.ts's `withNumericRefs()` — and every book row below arrives through it.
 
 import {
@@ -215,7 +215,7 @@ export const unifiedUrls = {
       : streamUrlFor(itemId, sourceIndex),
 };
 
-/** PapyrOS's compat ladder, for books only: some .m4b rips carry a `moov` Firefox
+/** The compat ladder, for books only: some .m4b rips carry a `moov` Firefox
  *  rejects, and the server remuxes them (backend/src/books/media.js). A track
  *  prepares nothing — 'unavailable' stops the engine's ladder at once. */
 async function prepareCompat(req: CompatPrepareRequest): Promise<CompatPrepareOutcome> {

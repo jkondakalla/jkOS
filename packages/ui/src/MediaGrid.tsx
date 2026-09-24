@@ -1,6 +1,6 @@
 // MediaGrid.tsx — the suite's responsive cover grid (git history, Wave 20, item
 // 20.2). The 2/3/4-column density ladder used to be hardcoded per app
-// (`.lib-grid[data-density]` in papyros's library.css); it now lives once in
+// (`.lib-grid[data-density]` in the book library.css); it now lives once in
 // the design factory (packages/design/responsive/mediaGrid.ts + the
 // `.jk-media-grid` rule in tokens/hub.css) and MediaGrid just wires the
 // `data-density` attribute the CSS keys off.
@@ -15,7 +15,7 @@ export interface MediaGridProps extends Omit<HTMLAttributes<HTMLDivElement>, 'ch
    *  `'cozy'` (3), or `'comfortable'` (4); see MEDIA_GRID_COLUMNS in
    *  @jkos/design. MediaGrid never guesses a density from the viewport
    *  itself — the caller picks the tier (typically from `useBreakpoint()`,
-   *  as papyros's Library view does), so a density can be pinned
+   *  as the book Library view does), so a density can be pinned
    *  independent of the live breakpoint if a future consumer wants that. */
   density: MediaGridDensity;
   children?: ReactNode;

@@ -1,11 +1,11 @@
 // services/createWriteQueue.ts — the offline write queue's RUNTIME (Layer 2,
-// git history item 16.5 / PapyrOS §2 7.2). Wraps the pure policies in ./writeQueue.ts
+// git history item 16.5 / §2 7.2). Wraps the pure policies in ./writeQueue.ts
 // with durable persistence (./queueStorage.ts), online/offline listeners, and the
 // serialized replay loop. GENERIC by construction: it never imports from apps/* —
 // an app hands it a small WriteQueueAdapter (how to push a write, how to fetch a
 // collection's ?since= delta, how to read record identity + updated_at off a
-// server row) and this module owns everything else. Papyros is consumer #1
-// (apps/papyros/src/offline/writes.ts); the music and video players inherit it.
+// server row) and this module owns everything else. The audiobook half is
+// consumer #1 (apps/kouros/src/books/offline/writes.ts).
 //
 // Replay contract (each clause pinned by test/services.test.mjs):
 //   - Serialized: one flush at a time, one push in flight, first-queued order.
@@ -42,7 +42,7 @@ export interface WriteQueueAdapter {
    *  suite dataset contract. */
   fetchSince(collection: string, sinceMs: number): Promise<unknown[]>;
   /** Every queue key this server row answers to (matched against
-   *  QueuedWrite.key — e.g. a papyros progress row is both 'ref:<book_ref>' and
+   *  QueuedWrite.key — e.g. a book progress row is both 'ref:<book_ref>' and
    *  'id:<id>'). Temp ('tmp:') keys never match a server row, by construction. */
   keysOf(collection: string, row: unknown): string[];
   /** The row's updated_at as epoch ms (parseServerTimestamp does the format

@@ -283,13 +283,12 @@ check(
 /* ── <MatchPanel> class + wiring parity (git history: item 20.4) ─────────────────
  * @jkos/ui's generic <MatchPanel> (packages/ui/src/MatchPanel.tsx) owns a set
  * of `.jk-match-*` classes that must actually be styled in hub.css (moved
- * there, verbatim, from papyros's old `.match-panel`/`.match-candidate*`
+ * there, verbatim, from the old `.match-panel`/`.match-candidate*`
  * rules) — the same "component classes vs. hub.css drift" class of bug 20.2's
  * media-grid check above guards against. Plus a few structural invariants:
  * the audiobook binding stays THIN (imports the generic panel rather than
  * re-implementing it) and its old bespoke CSS rules are actually gone, not
- * just unreferenced. (That binding is PapyrOS's, which folded into KourOS on
- * 2026-09-23 — it now lives at apps/kouros/src/views/books/.) */
+ * just unreferenced. (The binding lives at apps/kouros/src/views/books/.) */
 const matchPanelSrc = readFileSync(resolve(root, 'packages/ui/src/MatchPanel.tsx'), 'utf8');
 const hubCss = readFileSync(resolve(root, 'packages/design/tokens/hub.css'), 'utf8');
 

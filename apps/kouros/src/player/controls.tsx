@@ -3,8 +3,8 @@
 // (@jkos/player/factory) derives ControlIds 'shuffle' | 'trackPrev' | 'trackNext' |
 // 'repeat' | 'volume' | 'queue' — but @jkos/player/ui's controls.tsx only stocks the
 // audiobook vocabulary (SegmentButton/SkipButton/RateButton/SleepMenu). Per this
-// wave's ownership rule (packages/player is under papyros's zero-behavior-change
-// contract — no edits), every one of those six control ids gets its REAL part built
+// wave's ownership rule (packages/player was under a zero-behavior-change
+// contract then — no edits), every one of those six control ids gets its REAL part built
 // here, in app code, reusing the kit's `pb-*` CSS classes (player-ui.css ships with
 // @jkos/player/ui, already imported by PlayerBar.tsx) so they read as first-class
 // siblings of PlayPauseButton, not bolted-on. See this wave's report for the verdict
@@ -118,7 +118,7 @@ export function CrossfadeControl({ seconds, onChange }: { seconds: number; onCha
 }
 
 /* ── Queue opener + panel (wraps the kit's <QueuePanel> in the pb-menu/pb-popover
-   framework, same shape as papyros PlayerBar's bookmarksBtn) ──────────────────── */
+   framework, same shape as a bookmarks button) ──────────────────── */
 
 export function QueueMenu({
   queue, tracksById, open, onOpenChange, onPlayItem, onRemove, onReorder, mobile,

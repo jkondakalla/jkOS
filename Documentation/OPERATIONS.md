@@ -325,7 +325,7 @@ Copy `.env.example` → `.env` in each app. Key required vars:
 | jkAuth | `apps/jkauth/.env` | `JKOS_AUTH_PRIVATE_KEY`, `JKOS_AUTH_PUBLIC_KEY`, `COOKIE_DOMAIN`, `AUTH_ORIGIN`, `PORTAL_URL`, `ADMIN_SEED_EMAIL/PASSWORD`, `GUEST_PASSWORD` (now an actually-verified credential), `JKOS_2FA_ENC_KEY` (required before anyone can enrol TOTP) |
 | BeigeBoard | `apps/beigeboard/.env` | `JKOS_AUTH_PUBLIC_KEY`, `GOOGLE_CLIENT_ID/SECRET/REDIRECT_URI`, `CALENDAR_ENC_KEY` (no AI keys — BB does not call a model; LazurOS writes INTO it) |
 | ORDECK | `apps/ordeck/.env` | build-time `VITE_JKOS_AUTH_URL` (prod default baked in) |
-| KourOS | `apps/kouros/.env` | `JKOS_AUTH_PUBLIC_KEY`; compose sets `MUSIC_DIR`/`AUDIOBOOKS_DIR` (`/music`, `/audiobooks` in-container), `VECTOR_DB_PATH`/`MESH_DB_PATH` (the `/analysis` mount), and the `KOUROS_BOOKS_AUTO_ENRICH`/`KOUROS_BOOKS_AUTO_COMPAT` toggles (PapyrOS's, since the fold) |
+| KourOS | `apps/kouros/.env` | `JKOS_AUTH_PUBLIC_KEY`; compose sets `MUSIC_DIR`/`AUDIOBOOKS_DIR` (`/music`, `/audiobooks` in-container), `VECTOR_DB_PATH`/`MESH_DB_PATH` (the `/analysis` mount), and the `KOUROS_BOOKS_AUTO_ENRICH`/`KOUROS_BOOKS_AUTO_COMPAT` toggles |
 | LazurOS | `apps/lazuros/.env` | `JKOS_AUTH_PUBLIC_KEY`, `LAZUROS_INTERNAL_TOKEN`, `LAZUROS_DEPLOYMENT_CONFIG` (the mounted `deployment.json`), `JKOS_SERVICE_CLIENT_ID/SECRET` for delegated write-back. **Not a stack service** — host-network compose project of its own; see [LAZUROS_STARTUP.md](LAZUROS_STARTUP.md) |
 
 Staging reads the same `.env` files; staging-specific overrides come from

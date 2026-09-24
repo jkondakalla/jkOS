@@ -5,7 +5,7 @@
  * contract? Conformance to a declared shape — NEVER code sharing.
  *
  * The finding this exists to prevent from recurring is precise and already happened
- * once: PapyrOS's `history` and KourOS's `history` are field-for-field identical and
+ * once: two apps' `history` tables were field-for-field identical and
  * were invented independently, months apart. Neither author was careless. The suite
  * simply had no word for "this app keeps a per-user record of what happened", so each
  * one coined a private one, and nothing anywhere could notice.
@@ -18,7 +18,7 @@
  * Three checks:
  *
  *   1. REGROWTH. A `defineCollection({ scoped: true, only: ['create'] })` IS an
- *      append-only per-user ledger — that is exactly the shape papyros and kouros
+ *      append-only per-user ledger — that is exactly the shape two apps
  *      both reached for. An app with one and no ACTIVITY declaration is the finding,
  *      happening again.
  *
@@ -30,7 +30,7 @@
  *
  *   3. ⭐ NO SHARED IMPLEMENTATION. The rule is "declare one shape, do not share an
  *      implementation", and this is its negative half — the part a shape validator
- *      cannot check. If papyros's discovery doc ever imports from apps/kouros/, the
+ *      cannot check. If one app's discovery doc ever imports from apps/kouros/, the
  *      contract has quietly become the thing it was built to replace. Reported as
  *      DRIFT rather than a gap: every other check here is an opportunity, but this
  *      one is the design being violated.
@@ -107,7 +107,7 @@ export default {
         out.push({
           level: 'gap',
           msg: `'${entry.app}' has an append-only per-user collection (only:['create']) but declares no ACTIVITY — `
-            + 'that is the exact shape papyros and kouros each invented privately (XC-2). Declare it with defineActivity.',
+            + 'that is the exact shape two apps once each invented privately (XC-2). Declare it with defineActivity.',
           where,
         });
         continue;
@@ -141,7 +141,7 @@ export default {
 
       // ── 3. the rule's negative half: no shared implementation ─────────────────
       /* ⚠️ RESOLVE the specifier, don't pattern-match it. A cross-app reach is far
-         more likely to be written `require('../../papyros/backend/discovery')` than
+         more likely to be written `require('../../beigeboard/backend/discovery')` than
          with a literal `apps/` in the string — the first version of this check
          matched only the latter and sailed straight past a planted violation. */
       const ownDir = resolve(REPO_ROOT, 'apps', entry.app);

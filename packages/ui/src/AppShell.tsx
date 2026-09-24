@@ -9,7 +9,7 @@ import type { SettingsDrawerProps } from './SettingsDrawer';
 
    The invariant frame every full-shell app hand-wrote four times: an auth guard,
    an identity + settings-trigger header row, the shared SettingsDrawer, and the
-   useJkOSPreferences wiring that feeds it. PapyrOS shipped with no settings
+   useJkOSPreferences wiring that feeds it. An app once shipped with no settings
    drawer because its copy was a hand-copy that dropped a step — a shell
    primitive makes that omission structurally impossible.
 
@@ -21,7 +21,7 @@ import type { SettingsDrawerProps } from './SettingsDrawer';
    Two pieces are INJECTED rather than imported, so @jkos/ui stays decoupled
    from @jkos/auth-client (the same structural-typing contract SettingsDrawer
    already uses for its `theme`/`effects`/`user` props):
-     - `guard`          — the app's own AuthGuard component (ORDECK/PapyrOS-style:
+     - `guard`          — the app's own AuthGuard component (ORDECK-style:
                            renders a veil while loading, redirects/login when
                            signed out, `children` once authenticated).
      - `usePreferences` — the app's `useJkOSPreferences` import. AppShell calls it
@@ -35,7 +35,7 @@ import type { SettingsDrawerProps } from './SettingsDrawer';
    resolved identity (not the preferences hook's `user`) for the drawer's
    Account row, because it paints on first render, ahead of the preferences
    hook's /auth/profile round-trip — and that identity lives in a context
-   (e.g. papyros's `authContext`) that only exists BELOW `guard` in the tree.
+   (e.g. an `authContext`) that only exists BELOW `guard` in the tree.
    A plain `user` prop would have to be computed by the caller of <AppShell>,
    which sits ABOVE `guard` and so can't read that context; a selector hook
    called from inside AppShellBody (already a descendant of `guard`) can.
@@ -80,7 +80,7 @@ export interface AppShellProps {
   useUser: () => SettingsDrawerProps['user'];
   /** jkAuth origin, passed straight through to SettingsDrawer. */
   authUrl: string;
-  /** App wordmark / brand content, e.g. "PapyrOS". */
+  /** App wordmark / brand content, e.g. "KourOS". */
   brand: ReactNode;
   /** href for the brand link. Defaults to '#/' (the hash-router home route). */
   brandHref?: string;
@@ -163,7 +163,7 @@ function AppShellBody({
 }
 
 /** currentColor gear — the button's `color` drives it (same idiom as PlayerBar's
- *  glyphs). Lifted verbatim from PapyrOS's IconGear, the shell's proving consumer. */
+ *  glyphs). Lifted verbatim from the shell's first consumer's IconGear. */
 function GearIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">

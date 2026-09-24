@@ -1,9 +1,9 @@
 // player/usePlayerEngine.ts — KourOS's adapter over @jkos/player's headless engine
 // (git history: Wave 18 item 18.4 — consumer #2, "the one that actually proves the
-// primitive"). Mirrors apps/papyros/src/player/usePlayerEngine.ts's shape (a thin
-// recipe layer over the package's usePlayerEngine, plus MediaSession + a history
-// session recorder built on the engine's PUBLIC surface) with ONE structural
-// addition papyros never needed: a QUEUE. The player design record's model (git
+// primitive"). Its shape is a thin
+// recipe layer over the package's usePlayerEngine (plus MediaSession + a history
+// session recorder built on the engine's PUBLIC surface), with ONE structural
+// addition a single-book player never needed: a QUEUE. The player design record's model (git
 // history, PLAYER_PARITY.md, retired) is "music = N single-file Timelines + a
 // cursor" — the package's engine drives exactly ONE
 // Timeline; everything queue-shaped (shuffle, repeat, prev/next TRACK, reorder) is
@@ -12,8 +12,8 @@
 // "ended, and there is nothing more to load" callback — onEnded either advances
 // within the current item's sources or goes silent — so the queue layer has to
 // observe the engine's PUBLIC playing/globalPos/total surface for the natural-end
-// edge, the same "observe public state, don't reach inside" technique papyros's own
-// history recorder already uses for its session boundaries).
+// edge, the same "observe public state, don't reach inside" technique the
+// history recorder uses for its session boundaries).
 //
 // 18.5 layers the gaplessDual backend under the same engine: prepared boundaries swap
 // backend-internally (gapless or crossfaded) and advance the queue through the SWAP
@@ -47,7 +47,7 @@ import { clampCrossfadeSec, readQueuePrefs, removeAt, sameItems, writeQueuePrefs
 /** The audiobook listening rate. ONE key for one engine — `rateAppliesTo` (sources.ts)
  *  keeps it off music, so a 1.5× book habit never speeds up a song. */
 const RATE_STORAGE_KEY = 'kouros.player.rate';
-/** The ±skip a book's transport and lock screen take — PapyrOS's 30 s. */
+/** The ±skip a book's transport and lock screen take. */
 export const BOOK_SKIP_SEC = 30;
 const VOLUME_STORAGE_KEY = 'kouros.player.volume';   // musicPlayer() renders a volume control — this is what persists it
 
@@ -141,8 +141,8 @@ export interface PlayerApi {
 /* ── The seams, dispatched ───────────────────────────────────────────────────
    The engine's itemLoader / urls / progress / bookmarks used to be four KourOS
    specific objects defined right here. They now come from player/sources.ts,
-   which routes each one to the app that OWNS the thing being played — this
-   backend for a track, PapyrOS's over the Weave peer proxy for a book.
+   which routes each one to the catalog that OWNS the thing being played —
+   tracks or books, both on this backend.
 
    ⚠️ The dispatch is on the composite REF, not on a mode flag. There is no
    "audiobook mode" to be in or out of sync with: a queue may hold both kinds at
@@ -210,7 +210,7 @@ export function usePlayerEngine(opts: EngineOptions = {}): LocalPlayerApi {
    *  path that changes what's PLAYING goes through it. */
   const playIndex = useCallback((index: number, position?: number) => {
     // The queue's items are already refs (strings). Round-tripping them through
-    // Number() here is what would quietly turn 'papyros:7' into NaN the first
+    // Number() here is what would quietly turn 'book:7' into NaN the first
     // time a book joined the queue.
     const ids = queueRef.current!.items;
     if (index < 0 || index >= ids.length) return;
@@ -258,7 +258,7 @@ export function usePlayerEngine(opts: EngineOptions = {}): LocalPlayerApi {
       // rows comparing `trackId === track.id`, and a string never equals a
       // number, so every "currently playing" mark would simply stop appearing —
       // no error, no warning, just a feature quietly gone. It is the same
-      // TEXT-vs-number class that hid four bugs in PapyrOS behind a TypeScript
+      // TEXT-vs-number class that once hid four bugs behind a TypeScript
       // interface that declared the wrong thing (TRAPS.md § SQLite).
       const { src, id } = decodeRef(update.itemId);
       // Book 7 and track 7 are different things: each is published under its own
@@ -292,7 +292,7 @@ export function usePlayerEngine(opts: EngineOptions = {}): LocalPlayerApi {
     transport,
     storageKey: RATE_STORAGE_KEY,
     volumeStorageKey: VOLUME_STORAGE_KEY,
-    // Books carry PapyrOS's Firefox-m4b remux ladder; a track prepares nothing and
+    // Books carry the Firefox-m4b remux ladder; a track prepares nothing and
     // the ladder stops at once (sources.ts's unifiedCompat).
     compat: unifiedCompat,
     rateApplies: rateAppliesTo,
@@ -519,14 +519,12 @@ export function usePlayerEngine(opts: EngineOptions = {}): LocalPlayerApi {
     position: { position: eng.globalPos, duration: eng.total, playbackRate: eng.rate },
   });
 
-  // ── Play-history recording (mirrors apps/papyros/src/player/usePlayerEngine.ts's
-  // 17.4 session recorder, INCLUDING the screen-lock/hidden-reopen fix — see that
-  // file's long comment for the original bug). One difference, called out in
-  // git history: item 18.4: papyros's session boundary is play/pause edges WITHIN a book
-  // (a book can span a whole session); here a TRACK CHANGE is always also a session
-  // boundary (each track is its own history row) — the effect below keys off
-  // track?.id the same way papyros keys off book?.id, so that fold is automatic. ──
-  // ⚠️ SINCE THE PAPYROS FOLD, A SESSION NAMES ITS LEDGER. A track's stretch lands in
+  // ── Play-history recording (the 17.4 session recorder, INCLUDING the
+  // screen-lock/hidden-reopen fix below). A book's session boundary is play/pause
+  // edges WITHIN the book (a book can span a whole session); a TRACK CHANGE is always
+  // also a session boundary (each track is its own history row) — the effect below
+  // keys off the item's ref, so both fold in automatically. ──
+  // ⚠️ A SESSION NAMES ITS LEDGER. A track's stretch lands in
   // `history`, a book's in `book_history` (backend/discovery.js's BOOK_HISTORY for
   // why they are two tables) — the session carries its source so the flush can
   // never write a book into the track ledger or the reverse.
@@ -582,13 +580,13 @@ export function usePlayerEngine(opts: EngineOptions = {}): LocalPlayerApi {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eng.playing, item?.ref, flushSession]);
 
-  // Page hidden/unload — the SAME fix papyros's 17.4 needed (2026-07-15 integration
-  // fix, replicated verbatim per this wave's brief): audio keeps playing while
+  // Page hidden/unload — the 17.4 fix (2026-07-15 integration
+  // fix): audio keeps playing while
   // hidden/backgrounded, and the open edge above is paused→playing, which a tab that
   // stays playing under a screen lock never fires again. Flush-then-reopen banks
   // everything up to the lock (in case the tab is killed while hidden) without
   // losing the rest of a long screen-locked listen — it just splits into one row per
-  // hide, same as papyros.
+  // hide.
   useEffect(() => {
     const onVis = () => {
       if (document.visibilityState !== 'hidden') return;

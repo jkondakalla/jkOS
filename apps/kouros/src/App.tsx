@@ -63,7 +63,7 @@ export default function App() {
          trade than one scoped stylesheet rule. The per-view headers below it are
          therefore CONTEXTUAL only — they never repeat the app's name. */
       className="kr-shell"
-      /* Downloaded audiobooks — PapyrOS's storage panel, which came with the fold. */
+      /* Downloaded audiobooks — the storage panel. */
       settingsExtra={<OfflineSettings />}
     >
       <Content />

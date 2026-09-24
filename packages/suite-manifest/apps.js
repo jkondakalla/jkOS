@@ -24,8 +24,7 @@
 //
 // Per-app override seam: an app whose edge paths cannot derive from its id pins
 // `apiBase`/`healthPath`. LazurOS is the only such app: a host-network AI gateway with
-// a bespoke `/api/lazuros/health`. (SylibOS was the other — edge slug `sylib` ≠ id —
-// until it was removed from the suite on 2026-09-16.)
+// a bespoke `/api/lazuros/health`.
 //
 // Zero deps, CJS, no build step: require()'d by jkAuth + the beigeboard backend,
 // imported (via CJS interop) by the nginx generator + prober (ESM) and manifest.ts
@@ -220,7 +219,7 @@ function edgeApps() {
  * them in, so a test port can never silently shadow a service port either.
  *
  * ⚠️ Why this exists (OPS-1): two stray KourOS processes once sat on 3991/3992 —
- * ports ALSO claimed by BeigeBoard's routines/routine-spec smokes and PapyrOS's
+ * ports ALSO claimed by BeigeBoard's routines/routine-spec smokes and the audiobook
  * playback/meta smokes — and eight assertions ran green against the wrong app's
  * server. A duplicate claim here is a STARTUP error (this module is require()'d
  * at boot by jkAuth and the BeigeBoard backend), and the suite-prober's
@@ -236,14 +235,13 @@ const TEST_PORTS = Object.freeze({
   // — deliberately outside this band, because they used to be +1/+2/+3 and +3 was
   // 3986, i.e. beigeboard:delta.smoke's port. See that file's header.
   'kouros:discover.smoke': 3983,
-  // The audiobook half, since PapyrOS folded into KourOS (2026-09-23).
+  // The audiobook half.
   'kouros:books.library.smoke': 3984,
   'kouros:books.history.smoke': 3985,
   'kouros:books.playback.smoke': 3997,
   'kouros:books.meta.smoke': 3998,
   // Boots the server only long enough to migrate the database the importer writes into.
   'kouros:import-papyros.smoke': 3999,
-  // PapyrOS's freed ports (it folded into KourOS 2026-09-23) now carry KourOS's own.
   'kouros:home.smoke': 3990,
   // The listening session — two listeners, three devices each, over raw SSE.
   'kouros:session.smoke': 3993,

@@ -230,8 +230,8 @@ that code can reopen it.
   ⚠️ **The sharper half (2026-09-16): an IN-PLACE edit does reach the copy — a hardlink shares the
   inode — but a NEWLY ADDED file does not.** So the dangerous edit is an existing module gaining a
   `require('./new-file')`: every consumer instantly sees the new require and cannot resolve its
-  target. `@jkos/suite-manifest/apps.js` requiring a new `scopes.generated.js` broke PapyrOS's and
-  KourOS's `vite build` exactly this way, caught by `check:build`. Fix was structural (the new
+  target. `@jkos/suite-manifest/apps.js` requiring a new `scopes.generated.js` broke two apps'
+  `vite build` exactly this way, caught by `check:build`. Fix was structural (the new
   logic moved to its own `./scopes` subpath, so the browser-bundled module requires nothing new);
   `pnpm install` alone would have hidden it locally and left the trap armed.
 
@@ -367,7 +367,7 @@ that code can reopen it.
   real id in the browser is false forever.** `collection.js`'s `sqlType()` only special-cases
   number and boolean, and `coerceRef()` stores a numeric ref as its canonical string — so
   `progress.book_ref` is `'13'` against `books.id` `13`. SQLite's affinity hides it server-side;
-  JavaScript does not. In PapyrOS this produced **four bugs from one cause, none of which threw**:
+  JavaScript does not. In the audiobook app this produced **four bugs from one cause, none of which threw**:
   Resume and the progress bar could never render (`p.book_ref === bookId`), the player engine never
   found an existing row so playback always restarted from zero, a book's bookmarks never listed,
   and the offline queue's `typeof r.book_ref === 'number'` dedup key was never registered. The
@@ -375,8 +375,7 @@ that code can reopen it.
   backend's own note *claimed* the frontend coerced with `Number()` when no such coercion existed
   anywhere, which is why nobody went looking. ⚠️ **A doc asserting that someone else handles it is
   not a defence; grep for the coercion before believing the comment.** Live defence:
-  `withNumericRefs()` / `refsInList()` in `apps/kouros/src/books/api.ts` (PapyrOS's, carried over
-  when it folded into KourOS) normalise at the one door every row arrives by — list, create, update
+  `withNumericRefs()` / `refsInList()` in `apps/kouros/src/books/api.ts` normalise at the one door every row arrives by — list, create, update
   and the reconnect delta — which makes the declared type true so the next consumer is correct by
   default. Coerce at the BOUNDARY, never at each comparison. ⚠️ **The SERVER trips it too:**
   KourOS's Home rails looked `history.item_ref` (`'234'`, or `'234.0'` from a raw-SQL seed that
@@ -693,7 +692,7 @@ that code can reopen it.
   request it expected JavaScript from, refuses to execute it as a module, and the page renders
   **blank** — no failed request, no console error pointing at the cause, just a column of
   200-status entries in the access log where a 404 would have been the honest answer. Fix, live
-  in `packages/weave/src/server/spa.js` (`serveSpa()`, used by BeigeBoard/PapyrOS/KourOS, with a
+  in `packages/weave/src/server/spa.js` (`serveSpa()`, used by BeigeBoard/KourOS, with a
   twin in `apps/ordeck/nginx.conf`): the entry document is served `Cache-Control: no-cache`
   (always revalidated) while hashed assets get `public, max-age=31536000, immutable`, and a
   missing asset under `/assets/*` returns a **hard 404** rather than ever falling through to the

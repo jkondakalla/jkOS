@@ -73,7 +73,7 @@ try {
 
   // ── THE ACTIVITY CONTRACT (D6 / XC-2) ────────────────────────────────────────
   // ⚠️ LazurOS's ledger is a WORK QUEUE that happens to remember — not a play-history
-  // table like papyros's and kouros's, and not two columns on an item like
+  // table like kouros's two, and not two columns on an item like
   // BeigeBoard's. Four honest schemas, one declared answer. This is also the half of
   // the contract that carries the suite's AI action-audit trail: "what did the user
   // ask the AI to do, and did it work."

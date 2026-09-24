@@ -1,6 +1,6 @@
 // library.smoke.mjs (git history: item 18.2) — end-to-end smoke for the library service: boots
 // the REAL server.js (throwaway port + temp DB, weave dev-stub auth — same house
-// pattern as apps/papyros/backend/test/library.smoke.mjs), points MUSIC_DIR at the
+// pattern as books.library.smoke.mjs), points MUSIC_DIR at the
 // tiny fixture library committed alongside this test (fixtures/library/, regenerable
 // via gen-fixtures.sh), and asserts the boot scan actually produces real `tracks` rows:
 //
@@ -12,7 +12,7 @@
 //     hermetic test; this is the real-server end-to-end confirmation).
 //   Album One's two tracks: title/artist/album/albumartist/track_no/disc_no/year/
 //     genres all mapped from real ffprobe tags, each track's OWN duration (not summed
-//     — unlike a papyros multi-file BOOK, these are independent catalog rows).
+//     — unlike a multi-file BOOK, these are independent catalog rows).
 //   Album Two's one track: no `album_artist` tag in the fixture (gen-fixtures.sh) —
 //     scan.js's mapTags falls back to the `artist` tag, proven end-to-end here.
 //   GET /api/tracks?artist=<prefix> / ?album=<exact> / ?genre=<tag> / ?title=<prefix>
