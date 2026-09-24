@@ -248,6 +248,8 @@ const TEST_PORTS = Object.freeze({
   'kouros:books.history.smoke': 3985,
   'kouros:books.playback.smoke': 3997,
   'kouros:books.meta.smoke': 3998,
+  // Boots the server only long enough to migrate the database the importer writes into.
+  'kouros:import-papyros.smoke': 3999,
   'beigeboard:delta.smoke': 3986,
   'beigeboard:import.smoke': 3987,
   'beigeboard:items.smoke': 3988,
