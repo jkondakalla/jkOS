@@ -33,8 +33,24 @@ Roughly in order: the first one gates every deploy.
   `Geese - Getting Killed (2025)/11. Long Island City Here I Come.flac`.
 - **LazurOS's two hardware facts:** `TODO_EMILY_MAC` and `TODO_EMILY_IP` in
   [`apps/lazuros/deployment.jag.json`](../apps/lazuros/deployment.jag.json).
-- **The Android keystore, then the TWA build.** Needs JDK 17 + the Android SDK, and a keystore that
-  **must not be lost**. Steps in [OPERATIONS.md § KourOS on Android](OPERATIONS.md#kouros-on-android-the-twa).
+- **The native apps: the release key, then install.** Everything is built and verified except the
+  parts that need you. Steps in [OPERATIONS.md § Native apps](OPERATIONS.md#native-apps-android--desktop).
+  1. **An Android toolchain.** `node native/android/toolchain.mjs install ~/Android/jkos --adb` (no
+     sudo, one directory), or give `jag` Docker access (§2 has the decision).
+  2. **`pnpm android:signing`**: create the one release key for jkOS, KourOS and jkOS Home. You
+     choose the password. ⚠️ **Back up `~/.jkos/android-release.keystore` off this machine**: losing
+     it means no app can ever be upgraded in place.
+  3. **Asset links to the edge**: `node infra/nginx/gen-nginx-weave.mjs`, commit, deploy, restart
+     nginx. Until then the TWAs open under a URL bar.
+  4. **Install.** Staging APKs (`pnpm android:build`) work today, with a URL bar. KourOS's release app
+     also needs the production DNS record below.
+  5. **Desktop**: `sudo apt install ./native/desktop/out/jkos/jkos-jkos_0.1.0_amd64.deb` (and the
+     KourOS one) after `pnpm dist` (Node ≥ 22.12, see OPERATIONS). The `.deb` installs an AppArmor
+     profile; that's the sudo.
+  6. **Try them on real hardware**: none has run on a phone, a tablet or an installed `.deb` yet.
+     The TWAs' URL bar, KourOS's lock-screen controls through Chrome, jkOS Home as the default home
+     (the corner hold, the offline screen with Wi-Fi off, rotation), and the desktop app's KDE
+     media keys (Chromium's MPRIS bridge, expected but unseen).
 - **Give `truenas_admin` docker back — durably.** The NAS rebooted 2026-09-23 and the Post-Init
   script (`usermod -aG docker truenas_admin`, `initshutdownscript` id 1) runs but does not stick:
   `getent group docker` is empty afterwards, so no agent can reach a container. Run
@@ -93,6 +109,12 @@ Each one blocks work an agent could otherwise do alone. Answer in place.
   it's why ORDECK's `bbDelta` merge is safe. Adding a limit while keeping `ORDER BY id ASC` silently
   drops rows. **Page it by the cursor column or not at all.** Worth doing only if the production
   item count is actually growing, which is a read you can do and an agent can't.
+- **Docker for the Android build, or not?** `jag` isn't in the `docker` group on Emily, and that group
+  is root-equivalent. `native/android/build.mjs` supports both paths with the same pinned toolchain.
+  - **(a) The local toolchain** (`toolchain.mjs install ~/Android/jkos`). No sudo, nothing outside
+    one directory, and it includes `adb` for installing. ⭐ *Recommended.*
+  - (b) Add `jag` to `docker`. The Docker path is written but has **never run** (no access), so its
+    first run is its test.
 - **Scope for the next agent run:**
   - Is Stage F (§6) its main job?
   - Is LazurOS in scope? L1 needs the workstation GPU and a live Ollama, but L2 is plain code and
@@ -197,12 +219,26 @@ generated file held by `check:tokens`.
   (11 call sites, a wrapper div + letter fallback that `views.css` styles by descendant) and the
   inline hero in [`apps/kouros/src/views/books/BookDetail.tsx`](../apps/kouros/src/views/books/BookDetail.tsx).
   That changes DOM, so do it behind the computed-style harness, not as a blind swap.
+- **Draw the jkOS mark.** `apps/ordeck/public/icon.svg` / `icon-maskable.svg` (and their PNGs) are a
+  placeholder dial. They're what the jkOS and jkOS Home apps and ORDECK's PWA install show, derived at
+  build time, so redrawing them re-skins every shell.
 - **Then re-sync [DESIGN.md](agents/DESIGN.md).** Its value tables are stale by 1,100+ lines of
   `hub.css`, on purpose: refreshing them before the restructure is work done twice.
 
 ---
 
 ## 7 · Smaller open items
+
+- **Node 20 is end-of-life (2026-04-30)** and every app image is `node:20-slim`, as is the dev
+  runtime. Found building the desktop app: every supported Electron needs Node ≥ 22.12, which is
+  why `native/desktop` sits outside the workspace. Moving the suite to Node 22 or 24 LTS is a
+  dependency-and-image change across every backend, so it's a deploy-gated job, not a drive-by.
+- **jkOS Home, not built yet:** file upload (`<input type=file>` does nothing), downloads,
+  keep-screen-on, and a real lock (device-owner lock-task mode). The bridge answers only `info`;
+  ORDECK doesn't call it yet. Add messages as a feature needs them ([NATIVE.md § The bridge](agents/NATIVE.md)).
+- **`pnpm start` for the desktop app crashes on Emily** (Ubuntu 24.04 blocks the unpackaged
+  binary's sandbox). Test through the installed `.deb`, or give `node_modules/electron`'s binary
+  an AppArmor profile. Never `--no-sandbox`.
 
 - **jkAuth has two authorization policies.** `policy.js` holds route actions; `roleClaims()` in
   `db.js` decides the `aud`/`scope` claims every token carries. Folding it in touches the

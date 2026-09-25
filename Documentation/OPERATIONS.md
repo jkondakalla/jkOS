@@ -179,77 +179,125 @@ expected staging behaviour, not a regression. Re-run with `--token <admin jwt>` 
 
 ---
 
-## KourOS on Android (the TWA)
+## Native apps (Android + desktop)
 
-KourOS ships to Android as a **Trusted Web Activity**: a signed `.apk` whose whole UI is Chrome
-rendering `https://kouros.jkos.net` with the browser chrome removed. It won over a plain PWA
-(not a file you can hand someone) and Capacitor (its `capacitor://localhost` origin breaks the
-`.jkos.net` cookie, the CORS-free peer proxy, and jkAuth's cookie-only user tokens). A TWA
-runs at the real origin, so auth needs **zero changes**.
+Three Android apps and two Linux desktop apps, all declared in `native/shells.js`. Every one
+loads the live site at its real origin, so auth needs **zero changes**. How they're built and
+why they're shaped this way is in [agents/NATIVE.md](agents/NATIVE.md); this is the runbook.
 
-The chrome only disappears if Chrome can verify the app and the origin belong to the same owner:
-the app's `asset_statements` claims the origin, and the origin's
+| App | Package | What it's for |
+|---|---|---|
+| **jkOS** | `net.jkos.app` | The suite on your phone (Android) or desktop (Linux). Long-press the Android icon for KourOS / BeigeBoard shortcuts. |
+| **KourOS** | `net.jkos.kouros` | Music and audiobooks as their own app (Plexamp to jkOS's Plex). |
+| **jkOS Home** | `net.jkos.home` | ORDECK as the home screen of a dedicated tablet or phone. |
+
+A **staging build** (`pnpm android:build`) is named "… (staging)", opens `staging.jkos.net`,
+and installs beside the real app. A **release build** opens production.
+
+### Android: the TWA handshake
+
+jkOS and KourOS are **Trusted Web Activities**: Chrome renders the origin with its URL bar
+removed. The bar only disappears if Chrome can verify the app and the origin belong to the same
+owner. The app's `asset_statements` claims the origin, and the origin's
 `/.well-known/assetlinks.json` names the package and its signing key's SHA-256. If either is
 missing or they disagree, the app still works but shows a URL bar forever, with no error
-anywhere. **Every TWA problem is this problem.** Today `infra/nginx/assetlinks.json` carries
-`"targets": []` until the keystore exists.
+anywhere. **Every TWA problem is this problem.** Until the release key exists,
+`infra/nginx/assetlinks.json` carries `"targets": []`.
 
-### The four traps
+The four traps:
 
 1. **`.well-known/` can't ship in `public/`.** `express.static` ignores dotfiles and the SPA
    fallback answers `index.html` with a 200, so Android's verifier gets HTML. The file is served
-   **at the edge** instead, generated into every prod server block from
-   `infra/nginx/assetlinks.json` by `gen-nginx-weave.mjs`.
-2. **`auth.jkos.net` needs asset links too.** Sign-in redirects to a different origin, and an
-   unverified hop puts a URL bar over the password screen. jkAuth's block is hand-written in
-   `standalone.conf`, so the location exists twice; `pnpm check:nginx` keeps the two identical.
-   Bubblewrap also needs `"additional_trusted_origins": ["https://auth.jkos.net"]` at `init`.
+   **at the edge** instead, from `infra/nginx/assetlinks.json`: generated into every generated
+   prod block, and synced into the hand-written blocks for `jkos.net`, `beigeboard.jkos.net` and
+   `auth.jkos.net`.
+2. **Every origin a TWA trusts needs asset links, not just its start origin.** Sign-in is a
+   redirect to `auth.jkos.net`, and the jkOS app keeps BeigeBoard and KourOS full-screen too. An
+   unverified hop puts a URL bar over that page (over the password screen, for jkAuth).
+   `pnpm check:nginx` fails if any origin a TWA trusts (derived from `native/shells.js`) serves
+   no asset links.
 3. **The DNS record must be orange-cloud (proxied, Full (Strict)).** The origin serves a
-   Cloudflare Origin Certificate, which is not publicly trusted; grey-cloud exposes it and
+   Cloudflare Origin Certificate, which is not publicly trusted. Grey-cloud exposes it and
    Android refuses the TWA outright. Check from off-LAN:
    ```bash
    echo | openssl s_client -connect kouros.jkos.net:443 -servername kouros.jkos.net 2>/dev/null \
      | openssl x509 -noout -issuer     # must be Let's Encrypt, NOT Cloudflare Origin CA
    ```
-4. **Keep the keystore.** Lose it and you can never ship an upgrade to the same app. Back it up
-   somewhere that is not this repo; it is deliberately not committed.
+4. **Keep the keystore.** One key signs all three apps. Lose it and you can never ship an
+   upgrade to any of them. Back it up somewhere that isn't this machine; it's deliberately not
+   in the repo.
 
-### The build
-
-Needs JDK 17 and the Android SDK. Nothing enters the repo except the fingerprint.
+### Android: first release
 
 ```bash
-npx @bubblewrap/cli init --manifest https://kouros.jkos.net/manifest.webmanifest
-#   host kouros.jkos.net, plus the additional trusted origin from trap 2
-npx @bubblewrap/cli build
-keytool -list -v -keystore android.keystore -alias android | grep 'SHA256:'
+# 0. The build toolchain, once. Either give this account Docker, or (no sudo):
+node native/android/toolchain.mjs install ~/Android/jkos --adb
+eval "$(node native/android/toolchain.mjs env ~/Android/jkos)"
+
+# 1. The release key (asks for a password: yours, recorded in your password manager).
+#    Writes net.jkos.app + net.jkos.kouros with its fingerprint into assetlinks.json.
+pnpm android:signing
+
+# 2. Put the asset links on every origin, then deploy staging (it owns the nginx config)
+#    and RESTART nginx, never reload (bind-mounted confs).
+node infra/nginx/gen-nginx-weave.mjs && pnpm check:nginx
+
+# 3. Build signed release APKs → native/android/out/*-release.apk
+export JKOS_ANDROID_KEYSTORE=~/.jkos/android-release.keystore
+read -rs JKOS_ANDROID_KEYSTORE_PASSWORD && export JKOS_ANDROID_KEYSTORE_PASSWORD
+pnpm android:build -- assembleRelease
+
+# 4. Install (USB debugging on), or copy the APK to the phone.
+adb install native/android/out/jkos-0.1.0-release.apk
 ```
 
-Put the fingerprint into `infra/nginx/assetlinks.json`:
+A staging build needs no key: `pnpm android:build`, then
+`adb install native/android/out/jkos-0.1.0-staging.apk`. It shows a URL bar (staging serves no
+asset links), and that's expected.
 
-```json
-{ "targets": [ {
-    "relation": ["delegate_permission/common.handle_all_urls"],
-    "target": { "namespace": "android_app", "package_name": "net.jkos.kouros",
-                "sha256_cert_fingerprints": ["AA:BB:…"] } } ] }
+### Android: jkOS Home on a panel device
+
+Install `home-*.apk`, press Home, and choose **jkOS Home**, then **Always**. To get out: **hold
+the top-left corner for 2 seconds**. That opens the drawer, which lists **Android settings**
+and **Choose home app** first. If ORDECK is unreachable, the launcher shows an offline screen
+and retries every 30 s; the corner hold still works there. For an always-on panel, turn on
+*Developer options → Stay awake* while it's charging.
+
+### Linux desktop
+
+Needs Node ≥ 22.12 for Electron's tooling (the suite itself stays on Node 20):
+
+```bash
+cd native/desktop
+export PATH="$HOME/.nvm/versions/node/v24.16.0/bin:$PATH"
+pnpm install --ignore-workspace
+pnpm dist                                    # → out/jkos/*.deb, out/kouros/*.deb
+sudo apt install ./out/jkos/jkos-jkos_0.1.0_amd64.deb
 ```
 
-Then `node infra/nginx/gen-nginx-weave.mjs && pnpm check:nginx`, deploy staging (it owns the
-nginx config), and **restart nginx, never reload**. Install with
-`adb install app-release-signed.apk` or copy the APK to the phone.
+The `.deb` installs an AppArmor profile so Chromium's sandbox can run on Ubuntu 24.04+. That's
+why there's no AppImage, and why `pnpm start` from the source tree crashes on this machine.
+**Never add `--no-sandbox`.** A packaged app opens production. It keeps its own profile under
+`~/.config/net.jkos.app/`, with cookies encrypted by the OS keyring.
 
 ### Verifying
 
 ```bash
-# JSON, not HTML — on BOTH origins
-curl -s -o /dev/null -w '%{http_code} %{content_type}\n' https://kouros.jkos.net/.well-known/assetlinks.json
-curl -s -o /dev/null -w '%{http_code} %{content_type}\n' https://auth.jkos.net/.well-known/assetlinks.json
+# JSON, not HTML, on every origin a TWA trusts
+for h in jkos.net auth.jkos.net beigeboard.jkos.net kouros.jkos.net; do
+  curl -s -o /dev/null -w "$h %{http_code} %{content_type}\n" https://$h/.well-known/assetlinks.json
+done
 ```
 
-Then on the phone, **with Wi-Fi off**: it opens full-screen with no URL bar, including through the
-login redirect; sign-in survives a cold start; the lock screen shows artwork, transport and a
-moving scrubber; Android back from Now Playing collapses the sheet; airplane mode still opens the
-shell. If the URL bar is there, it's trap 1, 2, 3 or 4, in that order of likelihood —
+Then on the phone, **with Wi-Fi off**, check that each app:
+
+- opens full-screen with no URL bar, including through the login redirect,
+- keeps you signed in across a cold start,
+- for KourOS, shows artwork, transport and a moving scrubber on the lock screen,
+- collapses Now Playing on Android back,
+- still opens its shell in airplane mode.
+
+If the URL bar is there, it's trap 1, 2, 3 or 4, in that order of likelihood;
 `adb logcat | grep -i digitalasset` usually names which.
 
 ---
@@ -268,7 +316,7 @@ shell. If the URL bar is there, it's trap 1, 2, 3 or 4, in that order of likelih
 | `staging.jkos.net` |
 
 Use proxied (orange cloud) with Full (Strict) — the origin's Cloudflare Origin Certificate
-isn't publicly trusted, and the KourOS Android app refuses a grey-cloud origin (§ KourOS on Android).
+isn't publicly trusted, and the Android TWAs refuse a grey-cloud origin (§ Native apps).
 
 **SSL** — Cloudflare origin cert (wildcard `*.jkos.net` + apex):
 

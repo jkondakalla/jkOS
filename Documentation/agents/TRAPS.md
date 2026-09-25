@@ -824,6 +824,58 @@ that code can reopen it.
   itself and matches nothing — the ignore silently fails with no warning from git. Keep every note
   on its own line in a `.gitignore`.
 
+## Native shells (Android, Electron)
+
+Every trap here was hit building `native/` on 2026-09-24; see [NATIVE.md](NATIVE.md).
+
+- **On Ubuntu 24.04+ an unpackaged Electron dies with SIGSEGV at its first window, and says
+  nothing useful.** The kernel sets `kernel.apparmor_restrict_unprivileged_userns=1`, so
+  Chromium's sandbox can only start with an AppArmor profile that grants the binary user
+  namespaces (or a setuid-root `chrome-sandbox`). `node_modules/electron` has neither, and
+  neither can an AppImage. The `.deb` electron-builder makes installs the profile in its
+  postinst. That's why `native/desktop` ships `.deb` only and `pnpm start` crashes on Emily.
+  **The fix is never `--no-sandbox`**: that switches off the renderer sandbox for a window on the
+  open web. `check:native` fails on any `no-sandbox` in the desktop package.
+
+- **Anything launched from VS Code's terminal inherits `ELECTRON_RUN_AS_NODE=1`.** VS Code is
+  itself Electron and exports it. An Electron binary started from there runs as plain Node: the
+  first `require('electron')` fails with `Cannot find module 'electron'`, and the stack says
+  "Node.js v24…". Run it with `env -u ELECTRON_RUN_AS_NODE`. A packaged jkOS app is immune: its
+  `runAsNode` fuse is off, so the binary ignores the variable.
+
+- **Electron can't show a normal window headless; it can render offscreen.** With
+  `--ozone-platform=headless` (or `--headless`), `new BrowserWindow()` segfaults even on
+  `about:blank`. `webPreferences.offscreen: true` works, and `BrowserWindow.getAllWindows()`
+  then returns **none** of them, so keep your own reference. Also, piped stdout from Electron's
+  main process is block-buffered: a run killed by `timeout` loses every line. Log with
+  `appendFileSync`.
+
+- **pnpm ignores `ignore-workspace=true` in a sub-package's `.npmrc`.** It finds the workspace
+  root before it reads the package's own config, so `pnpm install` inside `native/desktop` runs
+  a **root** install (on whatever Node is first on `PATH`). Pass `--ignore-workspace` on the
+  command line, every time.
+
+- **Every supported Electron major (42–44) needs Node ≥ 22.12 just to `npm install`.** The suite
+  runs Node 20, which went end-of-life on 2026-04-30. That mismatch is why `native/desktop` sits
+  outside the workspace with its own lockfile, and why `check:audit` now audits every tracked
+  `pnpm-lock.yaml` rather than only the root one.
+
+- **aapt silently deletes an unescaped `"` from a string resource.** JSON in `strings.xml` (a
+  TWA's `asset_statements`) must be written `\"` or it reaches the device as unparseable text:
+  the TWA fails verification and shows a URL bar, with no build error. `gen-native.mjs`
+  escapes it (`androidString()`); don't hand-write one.
+
+- **`android:allowBackup="false"` does not stop Android 12+'s device-to-device transfer.** Only
+  `dataExtractionRules` with a `<device-transfer>` exclusion does. A WebView's cookie jar lives
+  under the data root, so without it a live session can be copied to a new phone.
+  `check:native` holds both `<cloud-backup>` and `<device-transfer>` in each app.
+
+- **A Gradle `google()` repository without a content filter is a dependency-confusion hole.**
+  Gradle asks every repository for every coordinate, so a same-named artifact on the second one
+  can win. `native/android/settings.gradle.kts` filters Google's repo to Google/AndroidX groups.
+  `gradle/verification-metadata.xml` then pins every artifact's sha256; after bumping a version,
+  regenerate it (NATIVE.md § 5) and read the diff.
+
 ## This repo's shape
 
 - **A JWT `sub` claim must be a string, and this suite's tokens weren't always one.**

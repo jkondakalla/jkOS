@@ -38,9 +38,12 @@ jkOS/
 │   ├── suite-manifest    the app directory's one source row per app
 │   └── suite-prober      conformance instrument (prove + roundtrip)
 ├── music/                Python, numpy+onnxruntime only — OUTSIDE the pnpm workspace
+├── native/                the installable shells: shells.js (one row per app) + generator
+│   ├── android/           Gradle: TWAs (jkOS, KourOS) + the jkOS Home launcher
+│   └── desktop/           Electron (Linux .deb) — OUTSIDE the pnpm workspace, own lockfile
 ├── infra/nginx/          standalone.conf + generated peer-proxy + compose
 ├── jkos-deploy/          FastAPI deploy controller, own Compose project
-├── scripts/               new-app scaffolder, android-signing, templates
+├── scripts/               new-app scaffolder, placeholder-music generator, templates
 ├── test/                  root-level static conformance gates (the `check:*` family)
 └── pnpm-workspace.yaml   turbo.json  docker-compose.yml  docker-compose.staging.yml
 ```
@@ -119,6 +122,12 @@ jkAuth outage does not take `staging.jkos.net/deploy`, the recovery tool, down w
 Code defaults are prod values; staging
 overrides live exclusively in `docker-compose.staging.yml`, so a merge into prod is safe
 by construction.
+
+**Native shells** (`native/`, see [NATIVE.md](agents/NATIVE.md)) are installable apps on the
+same topology, not a second one: each loads its start app **at its real origin** (a debug
+build, at `staging.jkos.net`), so the cookie, the issuer and the peer proxy above apply
+unchanged. Their origin lists derive from `@jkos/suite-manifest`, and every origin an Android
+TWA trusts must serve `/.well-known/assetlinks.json` from the edge (`pnpm check:nginx`).
 
 ---
 

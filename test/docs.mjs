@@ -188,7 +188,7 @@ const CITED_AS_ABSENT = new Set([
 // (relative to Documentation/, `../../` from agents/), and a lookbehind that merely rejects a preceding
 // `/` skips every one of them — which is exactly how ALGORITHMS.md went on
 // pointing at two files D9 had deleted while this check reported clean.
-const PATH_RE = /(?<![\w/.])((?:\.\.\/)*(?:apps|packages|infra|jkos-deploy)\/[A-Za-z0-9_./-]+\.(?:mjs|tsx|json|js|ts|css|py|conf|yml|md))(?![A-Za-z0-9])/g;
+const PATH_RE = /(?<![\w/.])((?:\.\.\/)*(?:apps|packages|infra|jkos-deploy|native)\/[A-Za-z0-9_./-]+\.(?:mjs|tsx|json|js|ts|css|py|conf|yml|md))(?![A-Za-z0-9])/g;
 const { existsSync } = await import('node:fs');
 let broken = 0;
 for (const d of docFiles) {

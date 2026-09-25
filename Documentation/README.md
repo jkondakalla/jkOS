@@ -84,6 +84,16 @@ per-file (not per-folder) from a TrueNAS music path.
 | **Queue** | Shuffle, repeat, reorder by drag; volume and now-playing art-derived accent color. |
 | **Playlists** | Create, reorder via drag, rate tracks. |
 
+### On your phone and desktop
+
+| App | What it is |
+|-----|-----------|
+| **jkOS** (Android, Linux) | The whole suite as an app. On Android, long-press the icon for straight-to-KourOS / BeigeBoard shortcuts. |
+| **KourOS** (Android, Linux) | Music and audiobooks as their own app, with lock-screen controls on Android. |
+| **jkOS Home** (Android) | ORDECK as the home screen of a tablet or spare phone. **Hold the top-left corner for 2 seconds** for the device's own apps and settings. |
+
+Building, signing and installing them: [OPERATIONS.md § Native apps](OPERATIONS.md#native-apps-android--desktop).
+
 ### Account & sign-in
 
 | Action | How |
@@ -113,7 +123,7 @@ Documentation is a map, not the territory — where a doc and the code disagree,
 |------|-------------|
 | [TODO.md](TODO.md) | **Everything still open, in one place** — what only you can do first, then the decisions you owe, then the engineering backlog. Close an item by deleting it. |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | How the systems fit together — shape, runtime topology, the Weave fabric, each app, the data layer, the gate. |
-| [OPERATIONS.md](OPERATIONS.md) | Running and deploying it — dev commands, Docker, the deploy controller, nginx, cold start from zero, TrueNAS paths, secrets, the KourOS Android build. |
+| [OPERATIONS.md](OPERATIONS.md) | Running and deploying it — dev commands, Docker, the deploy controller, nginx, cold start from zero, TrueNAS paths, secrets, the Android and desktop apps. |
 | [LAZUROS_STARTUP.md](LAZUROS_STARTUP.md) | Bringing LazurOS up on real hardware, phase by phase. ⚠️ **Read before any LazurOS deploy** — it isn't in the staging stack and two bind mounts fail silently if you skip the pre-flight. |
 | [The design handoff](https://claude.ai/code/artifact/5e53f12f-cf7d-4e22-b066-4087b47a3e80) | **Published, not in the repo.** The design system and 17 hero shots of the running suite. The 2× originals are generated into `Documentation/Images/`, which is gitignored (they're screenshots of your own data). |
 
@@ -124,10 +134,11 @@ Engineering references, written for whoever is changing the code. Agents also ge
 
 | File | What it holds |
 |------|---------------|
-| [agents/TRAPS.md](agents/TRAPS.md) | 106 durable traps — browser engines and WebGL, Node/pnpm, SQLite, numpy, Docker, this repo's shape. |
+| [agents/TRAPS.md](agents/TRAPS.md) | 114 durable traps — browser engines and WebGL, Node/pnpm, SQLite, numpy, Docker, the native shells, this repo's shape. |
 | [agents/TESTING.md](agents/TESTING.md) | Every command, gate and test suite, what each asserts, and how to add one. |
 | [agents/WEAVE.md](agents/WEAVE.md) | The integration contract — what an app must implement, the rulings, the checklist for a new app. |
 | [agents/DESIGN.md](agents/DESIGN.md) | The design system — tokens, the accent chain, class catalog, per-app constraints. |
 | [agents/ALGORITHMS.md](agents/ALGORITHMS.md) | The music vector space and LazurOS design record — measurements, gates, traps. |
+| [agents/NATIVE.md](agents/NATIVE.md) | The native shells — the Android apps (jkOS, KourOS, jkOS Home) and the Linux desktop apps: what derives from what, the trust model, the launcher's bridge, building, what holds it. |
 | [agents/ROUTINES.md](agents/ROUTINES.md) | BeigeBoard's routine primitive — the document, progression, cadence, the AI-authoring contract. |
 | [agents/ROUTINE_PROMPT.md](agents/ROUTINE_PROMPT.md) | **Generated** — the routine-authoring prompt to hand any assistant. Regenerate with `apps/beigeboard/backend/scripts/print-prompt.mjs`; never edit by hand. |
