@@ -1,53 +1,17 @@
 // packages/player/test/backend.test.mjs — MediaBackend seam unit test (git history
 // Wave 15, item 15.2).
 //
-// packages/player has no TS runner wired yet (its package.json/tsconfig are being
-// scaffolded by another agent in parallel), so this follows the TEST-9 house pattern
-// (test/cards-logic.mjs, .claude/skills/new-tester/SKILL.md §3): transpile the REAL
-// .ts module in-memory with the repo's own `typescript` dep (ts.transpileModule
-// strips types; htmlMedia.ts's only import is `import type {...} from './types'`,
-// fully erased by the compiler, so nothing else needs transpiling) and drive the
-// REAL createHtmlMediaBackend() against a scripted FAKE element — never a
-// re-implementation of the mapping being tested.
+// The house pattern (test/lib/unit.mjs): transpile the REAL .ts module in-memory
+// (htmlMedia.ts's only import is `import type {...} from './types'`, fully erased by the
+// compiler, so nothing else needs transpiling) and drive the REAL
+// createHtmlMediaBackend() against a scripted FAKE element — never a re-implementation
+// of the mapping being tested.
 //
-// Standalone: `node "packages/player/test/backend.test.mjs"` (repo path has a space
-// — quote it). Not yet wired into `pnpm test:contracts` — that's the scaffolding
-// agent's package.json/root-gate to own once packages/player exists as a real
-// package; wire it there at integration time.
-import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
-import { fileURLToPath, pathToFileURL } from 'node:url';
-import { dirname, resolve, join } from 'node:path';
-import { tmpdir } from 'node:os';
-import { createRequire } from 'node:module';
+// Run:  node "packages/player/test/backend.test.mjs"   (auto-enumerated by
+//       scripts/run-tests.mjs → `pnpm --filter @jkos/player test`, in the gate)
+import { unit } from '../../../test/lib/unit.mjs';
 
-const require = createRequire(import.meta.url);
-const ts = require('typescript');
-const here = dirname(fileURLToPath(import.meta.url));
-const root = resolve(here, '..');   // packages/player
-const tmp = mkdtempSync(join(tmpdir(), 'jkos-player-backend-'));
-
-process.on('exit', () => rmSync(tmp, { recursive: true, force: true }));
-let failed = 0;
-const fail = (msg) => { console.error(`✗ ${msg}`); failed++; };
-const ok = (msg) => console.log(`✓ ${msg}`);
-const check = (cond, msg) => (cond ? ok(msg) : fail(msg));
-
-// Transpile a self-contained .ts module to ESM and import it (mirrors
-// test/cards-logic.mjs's importTs()).
-async function importTs(relPath, outName) {
-  const src = readFileSync(resolve(root, relPath), 'utf8');
-  const { outputText } = ts.transpileModule(src, {
-    compilerOptions: {
-      module: ts.ModuleKind.ESNext,
-      target: ts.ScriptTarget.ES2020,
-      isolatedModules: true,
-    },
-    fileName: relPath,
-  });
-  const outFile = join(tmp, outName);
-  writeFileSync(outFile, outputText);
-  return import(pathToFileURL(outFile).href);
-}
+const { check, importTs, done } = unit('backend', { root: new URL('..', import.meta.url) });
 
 // Sanity precondition: this run must have no DOM global, or the "never touches
 // document" checks below wouldn't actually prove anything.
@@ -296,9 +260,4 @@ function createFakeElement() {
   check(seenAfterDispose.length === 0, 'events fired after dispose() are not forwarded');
 }
 
-/* ── summary ──────────────────────────────────────────────────────────────────────── */
-if (failed) {
-  console.error(`\n✗ backend: ${failed} assertion(s) failed`);
-  process.exit(1);
-}
-console.log('\n✓ backend: all assertions passed');
+done();

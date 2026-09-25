@@ -10,46 +10,20 @@
 //
 // Node has no TS runner here, so this transpiles the ONE self-contained pure module
 // in-memory with the repo's own `typescript` dep (scrub.ts's only import is
-// type-only, erased by transpileModule) and imports the REAL functions — the house
-// pattern, copied from test/core.test.mjs.
+// type-only, erased by the transpile) and imports the REAL functions — the house
+// pattern, test/lib/unit.mjs.
 //
 // Run:  node packages/player/test/ui.test.mjs
 //       (auto-enumerated by packages/player/scripts/run-tests.mjs → `pnpm --filter
 //        @jkos/player test`, chained into the root `pnpm test:contracts`)
-import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
-import { fileURLToPath, pathToFileURL } from 'node:url';
-import { dirname, resolve, join } from 'node:path';
-import { tmpdir } from 'node:os';
-import { createRequire } from 'node:module';
+import { readFileSync } from 'node:fs';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { unit } from '../../../test/lib/unit.mjs';
 
-const require = createRequire(import.meta.url);
-const ts = require('typescript');
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');
-const tmp = mkdtempSync(join(tmpdir(), 'jkos-player-ui-'));
-
-process.on('exit', () => rmSync(tmp, { recursive: true, force: true }));
-let failed = 0;
-const fail = (msg) => { console.error(`✗ ${msg}`); failed++; };
-const ok = (msg) => console.log(`✓ ${msg}`);
-const check = (cond, msg) => (cond ? ok(msg) : fail(msg));
-const deepEq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
-
-// Transpile a self-contained .ts module to ESM and import it.
-async function importTs(relPath, outName) {
-  const src = readFileSync(resolve(root, relPath), 'utf8');
-  const { outputText } = ts.transpileModule(src, {
-    compilerOptions: {
-      module: ts.ModuleKind.ESNext,
-      target: ts.ScriptTarget.ES2020,
-      isolatedModules: true,
-    },
-    fileName: relPath,
-  });
-  const outFile = join(tmp, outName);
-  writeFileSync(outFile, outputText);
-  return import(pathToFileURL(outFile).href);
-}
+const { check, deepEq, importTs, done } = unit('ui.test.mjs', { root: new URL('..', import.meta.url) });
 
 const { segmentFraction, segmentWindow, formatRate, insertionSlot, reorderTarget } =
   await importTs('src/ui/scrub.ts', 'scrub.mjs');
@@ -137,9 +111,4 @@ check(/\.player-bar\s*\{/.test(decls) && /\.pb-btn\s*\{/.test(decls) && /\.pb-sc
   'player-ui.css: ships the shell, button, and scrubber rules the kit components class against');
 
 /* ── summary ───────────────────────────────────────────────────────────────── */
-console.log('─'.repeat(40));
-if (failed) {
-  console.error(`✗ ui.test.mjs: ${failed} assertion(s) failed`);
-  process.exit(1);
-}
-console.log('✓ ui.test.mjs: all assertions passed');
+done();

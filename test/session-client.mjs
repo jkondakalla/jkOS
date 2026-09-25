@@ -19,34 +19,9 @@
 //
 // Run:  node test/session-client.mjs   (wired as `pnpm check:session`, folded into
 //                                        `pnpm test:contracts`).
-import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
-import { fileURLToPath, pathToFileURL } from 'node:url';
-import { dirname, resolve, join } from 'node:path';
-import { tmpdir } from 'node:os';
-import { createRequire } from 'node:module';
+import { unit } from './lib/unit.mjs';
 
-const require = createRequire(import.meta.url);
-const ts = require('typescript');
-const here = dirname(fileURLToPath(import.meta.url));
-const root = resolve(here, '..');
-const tmp = mkdtempSync(join(tmpdir(), 'jkos-session-client-'));
-
-process.on('exit', () => rmSync(tmp, { recursive: true, force: true }));
-let failed = 0;
-const fail = (msg) => { console.error(`✗ ${msg}`); failed++; };
-const ok = (msg) => console.log(`✓ ${msg}`);
-const check = (cond, msg) => (cond ? ok(msg) : fail(msg));
-
-async function importTs(relPath, outName) {
-  const src = readFileSync(resolve(root, relPath), 'utf8');
-  const { outputText } = ts.transpileModule(src, {
-    compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2020, isolatedModules: true },
-    fileName: relPath,
-  });
-  const outFile = join(tmp, outName);
-  writeFileSync(outFile, outputText);
-  return import(pathToFileURL(outFile).href);
-}
+const { check, importTs, done } = unit('session-client');
 
 const S = 'apps/kouros/src/session/';
 const sse = await importTs(`${S}sse.ts`, 'sse.mjs');
@@ -166,5 +141,4 @@ const device = await importTs(`${S}device.ts`, 'device.mjs');
   check(defaultDeviceName('x'.repeat(200)).length <= 60, 'a default name fits the server\'s 60-character limit');
 }
 
-console.log(failed ? `\nsession-client: ${failed} FAILED` : '\nsession-client: all passed');
-process.exit(failed ? 1 : 0);
+done();

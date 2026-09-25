@@ -15,47 +15,15 @@
 //
 // Node has no TS runner here, so this transpiles the modules in-memory with the
 // repo's own `typescript` dep and imports the REAL functions — the house pattern,
-// copied from test/core.test.mjs (createWriteQueue's relative imports are
+// test/lib/unit.mjs (createWriteQueue's relative imports are
 // rewritten to the transpiled .mjs names).
 //
 // Run:  node packages/player/test/services.test.mjs
 //       (auto-enumerated by packages/player/scripts/run-tests.mjs →
 //        `pnpm --filter @jkos/player test`, chained into `pnpm test:contracts`)
-import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
-import { fileURLToPath, pathToFileURL } from 'node:url';
-import { dirname, resolve, join } from 'node:path';
-import { tmpdir } from 'node:os';
-import { createRequire } from 'node:module';
+import { unit } from '../../../test/lib/unit.mjs';
 
-const require = createRequire(import.meta.url);
-const ts = require('typescript');
-const here = dirname(fileURLToPath(import.meta.url));
-const root = resolve(here, '..');
-const tmp = mkdtempSync(join(tmpdir(), 'jkos-player-services-'));
-
-process.on('exit', () => rmSync(tmp, { recursive: true, force: true }));
-let failed = 0;
-const fail = (msg) => { console.error(`✗ ${msg}`); failed++; };
-const ok = (msg) => console.log(`✓ ${msg}`);
-const check = (cond, msg) => (cond ? ok(msg) : fail(msg));
-const deepEq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
-
-async function importTs(relPath, outName, rewrites = {}) {
-  const src = readFileSync(resolve(root, relPath), 'utf8');
-  const { outputText } = ts.transpileModule(src, {
-    compilerOptions: {
-      module: ts.ModuleKind.ESNext,
-      target: ts.ScriptTarget.ES2020,
-      isolatedModules: true,
-    },
-    fileName: relPath,
-  });
-  let out = outputText;
-  for (const [from, to] of Object.entries(rewrites)) out = out.replaceAll(`'${from}'`, `'${to}'`);
-  const outFile = join(tmp, outName);
-  writeFileSync(outFile, out);
-  return import(pathToFileURL(outFile).href);
-}
+const { check, deepEq, importTs, tmp, done } = unit('player/services', { root: new URL('..', import.meta.url) });
 
 const wq = await importTs('src/services/writeQueue.ts', 'writeQueue.mjs');
 const storageMod = await importTs('src/services/queueStorage.ts', 'queueStorage.mjs');
@@ -325,8 +293,4 @@ const httpErr = new Error('POST /api/progress failed: 500');
 check(isOfflineFetchError(httpErr) === false, 'isOfflineFetchError: an HTTP-status error is a server verdict, not offline');
 check(permanentWriteError('nope').permanent === true, 'permanentWriteError marks the error for drop-not-retry');
 
-if (failed) {
-  console.error(`\n✗ player/services: ${failed} assertion(s) failed`);
-  process.exit(1);
-}
-console.log('\n✓ player/services: all assertions passed');
+done();

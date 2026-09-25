@@ -3,16 +3,16 @@
 // pattern: the REAL sources, no build step, no bundler) into `outDir`, with each
 // relative import rewritten to its `.mjs`. Returns the URL of the layer's index.
 //
+// The compile step is test/lib/unit.mjs's `transpile`, so the options match every unit test.
+//
 // Used by this package's own test and by any gate that drives a module importing
 // '@jkos/scene/math' — KourOS's check:pulsarmap and check:vibespace rewrite that
 // specifier to the returned URL.
 import { readFileSync, readdirSync, writeFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, resolve, join } from 'node:path';
-import { createRequire } from 'node:module';
+import { transpile } from '../../../test/lib/unit.mjs';
 
-const require = createRequire(import.meta.url);
-const ts = require('typescript');
 const here = dirname(fileURLToPath(import.meta.url));
 
 export const MATH_DIR = resolve(here, '..', 'src', 'math');
@@ -28,11 +28,7 @@ export function transpileSceneMath(outDir) {
   mkdirSync(outDir, { recursive: true });
   for (const { file, src } of mathSources()) {
     const rewritten = src.replace(/(from\s+['"])(\.\/[\w-]+)(['"])/g, '$1$2.mjs$3');
-    const { outputText } = ts.transpileModule(rewritten, {
-      compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2020, isolatedModules: true },
-      fileName: file,
-    });
-    writeFileSync(join(outDir, file.replace(/\.ts$/, '.mjs')), outputText);
+    writeFileSync(join(outDir, file.replace(/\.ts$/, '.mjs')), transpile(rewritten, file));
   }
   return pathToFileURL(join(outDir, 'index.mjs')).href;
 }

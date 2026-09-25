@@ -7,47 +7,16 @@
 //      never re-rolls it) and the repeat-mode edges.
 //
 // Node has no TS runner here, so this transpiles the two self-contained pure
-// modules in-memory with the repo's own `typescript` dep (ts.transpileModule strips
-// types; both modules are self-contained TS with no runtime imports) and imports
-// the REAL functions — the house pattern, copied from test/cards-logic.mjs.
+// modules in-memory with the repo's own `typescript` dep (both modules are
+// self-contained TS with no runtime imports) and imports the REAL functions — the
+// house pattern, test/lib/unit.mjs.
 //
 // Run:  node packages/player/test/core.test.mjs
 //       (wired via packages/player/scripts/run-tests.mjs → `pnpm --filter @jkos/player test`,
 //        chained into the root `pnpm test:contracts`)
-import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
-import { fileURLToPath, pathToFileURL } from 'node:url';
-import { dirname, resolve, join } from 'node:path';
-import { tmpdir } from 'node:os';
-import { createRequire } from 'node:module';
+import { unit } from '../../../test/lib/unit.mjs';
 
-const require = createRequire(import.meta.url);
-const ts = require('typescript');
-const here = dirname(fileURLToPath(import.meta.url));
-const root = resolve(here, '..');
-const tmp = mkdtempSync(join(tmpdir(), 'jkos-player-core-'));
-
-process.on('exit', () => rmSync(tmp, { recursive: true, force: true }));
-let failed = 0;
-const fail = (msg) => { console.error(`✗ ${msg}`); failed++; };
-const ok = (msg) => console.log(`✓ ${msg}`);
-const check = (cond, msg) => (cond ? ok(msg) : fail(msg));
-const deepEq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
-
-// Transpile a self-contained .ts module to ESM and import it.
-async function importTs(relPath, outName) {
-  const src = readFileSync(resolve(root, relPath), 'utf8');
-  const { outputText } = ts.transpileModule(src, {
-    compilerOptions: {
-      module: ts.ModuleKind.ESNext,
-      target: ts.ScriptTarget.ES2020,
-      isolatedModules: true,
-    },
-    fileName: relPath,
-  });
-  const outFile = join(tmp, outName);
-  writeFileSync(outFile, outputText);
-  return import(pathToFileURL(outFile).href);
-}
+const { check, deepEq, importTs, done } = unit('player/core', { root: new URL('..', import.meta.url) });
 
 const timeline = await importTs('src/core/timeline.ts', 'timeline.mjs');
 const queueMod = await importTs('src/core/queue.ts', 'queue.mjs');
@@ -267,8 +236,4 @@ check(aq2.cursor === 0, 'append never moves the cursor');
 check(repeat(rq, 'all').policy.repeat === 'all', 'repeat() sets the policy mode');
 check(deepEq(repeat(rq, 'all').items, rq.items) && repeat(rq, 'all').cursor === rq.cursor, 'repeat() does not touch items/cursor');
 
-if (failed) {
-  console.error(`\n✗ player/core: ${failed} assertion(s) failed`);
-  process.exit(1);
-}
-console.log('\n✓ player/core: all assertions passed');
+done();

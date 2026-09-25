@@ -11,7 +11,7 @@
 //
 // It runs the actual ORDECK code — no re-implementation that could drift. The HUD
 // state graph (types → engine → state) is pure TypeScript, so this transpiles it
-// in-memory with the repo's own `typescript` dep (the TEST-9 house pattern),
+// in-memory with the repo's own `typescript` dep (the house pattern, test/lib/unit.mjs),
 // stubbing only the two non-pure leaf imports it never exercises here
 // (@jkos/auth-client's network profile fns, @jkos/weave's appOrigin) and feeding
 // the REAL suite breakpoints. No new dependency; ORDECK's broken vite dev is not
@@ -32,22 +32,12 @@
 // NOTE: "no flex:none card root" is a CSS-render invariant (hud.css § "a card root
 // must never opt out with flex:none"), not representable in the doc JSON, so it is
 // pinned by that stylesheet comment + the grid CSS, not here.
-import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
-import { fileURLToPath, pathToFileURL } from 'node:url';
-import { dirname, resolve, join } from 'node:path';
-import { tmpdir } from 'node:os';
-import { createRequire } from 'node:module';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
+import { resolve, join } from 'node:path';
+import { unit } from '../../../test/lib/unit.mjs';
 
-const require = createRequire(import.meta.url);
-const ts = require('typescript');
-const here = dirname(fileURLToPath(import.meta.url));
-const repo = resolve(here, '../../..');
-const tmp = mkdtempSync(join(tmpdir(), 'jkos-hud-doc-'));
-
-process.on('exit', () => rmSync(tmp, { recursive: true, force: true }));
-let failed = 0;
-const fail = (msg) => { console.error(`✗ ${msg}`); failed++; };
-const ok = (msg) => console.log(`✓ ${msg}`);
+const { tmp, ok, fail, emitTs, done } = unit('check-hud-doc');
 
 // ── In-memory transpile of the pure HUD-state graph ─────────────────────────
 // Rewrite the graph's bare import specifiers to the temp-dir siblings / stubs,
@@ -59,21 +49,7 @@ const REWRITES = {
   '@jkos/auth-client': './stub-auth-client.mjs',
   '@jkos/weave': './stub-weave.mjs',
 };
-function transpileTo(srcRel, outName) {
-  let src = readFileSync(resolve(repo, srcRel), 'utf8');
-  for (const [from, to] of Object.entries(REWRITES)) {
-    src = src.replaceAll(`'${from}'`, `'${to}'`);
-  }
-  const { outputText } = ts.transpileModule(src, {
-    compilerOptions: {
-      module: ts.ModuleKind.ESNext,
-      target: ts.ScriptTarget.ES2022,
-      isolatedModules: true,
-    },
-    fileName: srcRel,
-  });
-  writeFileSync(join(tmp, outName), outputText);
-}
+const transpileTo = (srcRel, outName) => emitTs(srcRel, outName, REWRITES);
 
 // Stubs for the two non-pure leaf imports (never called on the merge path).
 /* ⚠️ getProfile/patchProfile are stubbed (they are the network); readHudPref and
@@ -341,9 +317,4 @@ if (args.includes('--live')) {
   else fail('retired: a new widget under the freed id was stripped');
 }
 
-// ── summary ─────────────────────────────────────────────────────────────────
-if (failed) {
-  console.error(`\n✗ check-hud-doc: ${failed} check(s) failed`);
-  process.exit(1);
-}
-console.log('\n✓ check-hud-doc: HUD document invariants + merge idempotency hold');
+done();

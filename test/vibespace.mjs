@@ -17,38 +17,15 @@
 //
 // Run:  node test/vibespace.mjs   (wired as `pnpm check:vibespace`, folded into
 //                                   `pnpm test:contracts`).
-import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
-import { fileURLToPath, pathToFileURL } from 'node:url';
-import { dirname, resolve, join } from 'node:path';
-import { tmpdir } from 'node:os';
-import { createRequire } from 'node:module';
+import { readFileSync } from 'node:fs';
+import { resolve, join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { unit } from './lib/unit.mjs';
 import { transpileSceneMath } from '../packages/scene/test/transpile.mjs';
 
-const require = createRequire(import.meta.url);
-const ts = require('typescript');
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');
-const tmp = mkdtempSync(join(tmpdir(), 'jkos-vibespace-'));
-
-process.on('exit', () => rmSync(tmp, { recursive: true, force: true }));
-let failed = 0;
-const fail = (msg) => { console.error(`✗ ${msg}`); failed++; };
-const ok = (msg) => console.log(`✓ ${msg}`);
-const check = (cond, msg) => (cond ? ok(msg) : fail(msg));
-
-async function importTs(relPath, outName, rewrite = {}) {
-  let src = readFileSync(resolve(root, relPath), 'utf8');
-  for (const [from, to] of Object.entries(rewrite)) {
-    src = src.split(`'${from}'`).join(`'${to}'`);
-  }
-  const { outputText } = ts.transpileModule(src, {
-    compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2020, isolatedModules: true },
-    fileName: relPath,
-  });
-  const outFile = join(tmp, outName);
-  writeFileSync(outFile, outputText);
-  return import(pathToFileURL(outFile).href);
-}
+const { check, importTs, tmp, done } = unit('vibespace');
 
 const GEOMETRY = 'apps/kouros/src/components/vibespace/geometry.ts';
 const scene = await import(transpileSceneMath(join(tmp, 'scene')));
@@ -388,8 +365,4 @@ check(g.scrubTo(0.5, -100, 400) === 0.75 && g.scrubTo(0.5, 100, 400) === 0.25 &&
   check(!/\b(document|window)\./.test(src), 'purity: geometry.ts touches no DOM, so the density worker can run it');
 }
 
-if (failed) {
-  console.error(`\n✗ vibespace: ${failed} assertion(s) failed`);
-  process.exit(1);
-}
-console.log('\n✓ vibespace: all assertions passed');
+done();

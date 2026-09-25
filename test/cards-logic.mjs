@@ -4,54 +4,20 @@
 //
 // The kit is authored in TypeScript and the suite has no TS test runner on Node 20,
 // so this transpiles the two self-contained pure modules in-memory with the
-// `typescript` compiler the repo already depends on (ts.transpileModule strips the
+// `typescript` compiler the repo already depends on (transpileModule strips the
 // type annotations — the modules import only `type`s, so they stand alone), writes
 // the JS to a temp file, and imports the REAL functions. No new dependency.
 //
 // Run:  node test/cards-logic.mjs   (wired as `pnpm test:cards`, folded into
 //                                     `pnpm test:contracts`).
-import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
-import { fileURLToPath, pathToFileURL } from 'node:url';
-import { dirname, resolve, join } from 'node:path';
-import { tmpdir } from 'node:os';
-import { createRequire } from 'node:module';
+import { readFileSync } from 'node:fs';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { unit } from './lib/unit.mjs';
 
-const require = createRequire(import.meta.url);
-const ts = require('typescript');
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');
-const tmp = mkdtempSync(join(tmpdir(), 'jkos-cards-logic-'));
-
-process.on('exit', () => rmSync(tmp, { recursive: true, force: true }));
-let failed = 0;
-const fail = (msg) => { console.error(`✗ ${msg}`); failed++; };
-const ok = (msg) => console.log(`✓ ${msg}`);
-const check = (cond, msg) => (cond ? ok(msg) : fail(msg));
-
-/* Transpile a .ts module to ESM and import it.
- *
- * `rewrite` maps a bare import specifier to another module ALREADY emitted into
- * the same temp dir, so a module that is pure logic but not import-free can still
- * be tested for real. It is deliberately a per-call map rather than a resolver:
- * every rewritten edge has to be written down here, which keeps this from quietly
- * turning into a second module resolver that could disagree with the bundler. */
-async function importTs(relPath, outName, rewrite = {}) {
-  let src = readFileSync(resolve(root, relPath), 'utf8');
-  for (const [from, to] of Object.entries(rewrite)) {
-    src = src.replaceAll(`'${from}'`, `'./${to}'`);
-  }
-  const { outputText } = ts.transpileModule(src, {
-    compilerOptions: {
-      module: ts.ModuleKind.ESNext,
-      target: ts.ScriptTarget.ES2020,
-      isolatedModules: true,
-    },
-    fileName: relPath,
-  });
-  const outFile = join(tmp, outName);
-  writeFileSync(outFile, outputText);
-  return import(pathToFileURL(outFile).href);
-}
+const { check, importTs, done } = unit('cards-logic');
 
 const color = await importTs('packages/design/utils/color.ts', 'color.mjs');
 const dt = await importTs('packages/cards/src/datetime.ts', 'datetime.mjs');
@@ -359,7 +325,7 @@ check(
  * whether today can break a streak. */
 const routines = await importTs(
   'apps/beigeboard/src/lib/routines.ts', 'routines.mjs',
-  { '@jkos/cards': 'datetime.mjs' },   // the only import; datetime.mjs is emitted above
+  { '@jkos/cards': './datetime.mjs' },   // the only import; datetime.mjs is emitted above
 );
 const {
   cadenceDays, weeklyTarget, floatCount, toggleDay,
@@ -504,8 +470,4 @@ check(cadencePatch({ cadence_days: '' }, { cadence_days: '' }).cadence_days === 
     'XC-5: clearing focus writes an explicit null rather than dropping the key');
 }
 
-if (failed) {
-  console.error(`\n✗ cards-logic: ${failed} assertion(s) failed`);
-  process.exit(1);
-}
-console.log('\n✓ cards-logic: all assertions passed');
+done();

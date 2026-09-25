@@ -11,46 +11,16 @@
 // full behavior is proven by item 15.4's migration + the wave gate, NOT by a
 // jsdom harness (the repo has none). So this covers exactly the self-contained logic —
 // the house pattern (transpile the real .ts in-memory, import the REAL functions, drive
-// them; copied from test/core.test.mjs + test/cards-logic.mjs). All three modules are
+// them; test/lib/unit.mjs). All three modules are
 // self-contained: recovery.ts has no imports; volume.ts's imports are type-only
 // (erased by the transpile); rate.ts's only global reference
 // (localStorage) is `??`-guarded and never reached when a store is passed.
 //
 // Run:  node "packages/player/test/engine.test.mjs"   (wired via scripts/run-tests.mjs
 //       → `pnpm --filter @jkos/player test` → root `pnpm test:contracts`).
-import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
-import { fileURLToPath, pathToFileURL } from 'node:url';
-import { dirname, resolve, join } from 'node:path';
-import { tmpdir } from 'node:os';
-import { createRequire } from 'node:module';
+import { unit } from '../../../test/lib/unit.mjs';
 
-const require = createRequire(import.meta.url);
-const ts = require('typescript');
-const here = dirname(fileURLToPath(import.meta.url));
-const root = resolve(here, '..');
-const tmp = mkdtempSync(join(tmpdir(), 'jkos-player-engine-'));
-
-process.on('exit', () => rmSync(tmp, { recursive: true, force: true }));
-let failed = 0;
-const fail = (msg) => { console.error(`✗ ${msg}`); failed++; };
-const ok = (msg) => console.log(`✓ ${msg}`);
-const check = (cond, msg) => (cond ? ok(msg) : fail(msg));
-const deepEq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
-
-async function importTs(relPath, outName) {
-  const src = readFileSync(resolve(root, relPath), 'utf8');
-  const { outputText } = ts.transpileModule(src, {
-    compilerOptions: {
-      module: ts.ModuleKind.ESNext,
-      target: ts.ScriptTarget.ES2020,
-      isolatedModules: true,
-    },
-    fileName: relPath,
-  });
-  const outFile = join(tmp, outName);
-  writeFileSync(outFile, outputText);
-  return import(pathToFileURL(outFile).href);
-}
+const { check, deepEq, importTs, done } = unit('player/engine', { root: new URL('..', import.meta.url) });
 
 const rate = await importTs('src/engine/rate.ts', 'rate.mjs');
 const recovery = await importTs('src/engine/recovery.ts', 'recovery.mjs');
@@ -295,9 +265,4 @@ check(readInitialMuted('v', fakeStore({ 'v.muted': '1' })) === true, 'readInitia
   check(threw === false, 'applyMuted with no backend mounted is a safe no-op');
 }
 
-/* ── summary ──────────────────────────────────────────────────────────── */
-if (failed) {
-  console.error(`\n✗ player/engine: ${failed} assertion(s) failed`);
-  process.exit(1);
-}
-console.log('\n✓ player/engine: all assertions passed');
+done();

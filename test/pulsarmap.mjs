@@ -10,46 +10,19 @@
 //
 // The module is authored in TypeScript with no runtime imports, so this
 // transpiles it in-memory with the repo's own `typescript` dep and drives the
-// REAL functions — the house pattern, copied from test/cards-logic.mjs.
+// REAL functions — the house pattern, test/lib/unit.mjs.
 //
 // Run:  node test/pulsarmap.mjs   (wired as `pnpm check:pulsarmap`, folded into
 //                                   `pnpm test:contracts`).
-import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
-import { fileURLToPath, pathToFileURL } from 'node:url';
-import { dirname, resolve, join } from 'node:path';
-import { tmpdir } from 'node:os';
-import { createRequire } from 'node:module';
+import { readFileSync } from 'node:fs';
+import { resolve, join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { unit } from './lib/unit.mjs';
 import { transpileSceneMath } from '../packages/scene/test/transpile.mjs';
 
-const require = createRequire(import.meta.url);
-const ts = require('typescript');
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');
-const tmp = mkdtempSync(join(tmpdir(), 'jkos-pulsarmap-'));
-
-process.on('exit', () => rmSync(tmp, { recursive: true, force: true }));
-let failed = 0;
-const fail = (msg) => { console.error(`✗ ${msg}`); failed++; };
-const ok = (msg) => console.log(`✓ ${msg}`);
-const check = (cond, msg) => (cond ? ok(msg) : fail(msg));
-
-async function importTs(relPath, outName, rewrite = {}) {
-  let src = readFileSync(resolve(root, relPath), 'utf8');
-  for (const [from, to] of Object.entries(rewrite)) {
-    src = src.split(`'${from}'`).join(`'${to}'`);
-  }
-  const { outputText } = ts.transpileModule(src, {
-    compilerOptions: {
-      module: ts.ModuleKind.ESNext,
-      target: ts.ScriptTarget.ES2020,
-      isolatedModules: true,
-    },
-    fileName: relPath,
-  });
-  const outFile = join(tmp, outName);
-  writeFileSync(outFile, outputText);
-  return import(pathToFileURL(outFile).href);
-}
+const { check, importTs, tmp, done } = unit('pulsarmap');
 
 const pm = await importTs('apps/kouros/src/components/pulsarmap.ts', 'pulsarmap.mjs');
 const {
@@ -356,8 +329,4 @@ for (const rel of ['apps/kouros/src/components/ridges3d/stage.ts']) {
   check(!/\b(document|window)\./.test(src), `purity: ${rel.split('/').pop()} touches no DOM`);
 }
 
-if (failed) {
-  console.error(`\n✗ pulsarmap: ${failed} assertion(s) failed`);
-  process.exit(1);
-}
-console.log('\n✓ pulsarmap: all assertions passed');
+done();

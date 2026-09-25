@@ -8,43 +8,16 @@
 //   swallowed failures retry · invalidateLastWritten (the seek idiom) · dispose.
 //
 // House pattern: transpile the REAL .ts in-memory and drive the real function
-// (copied from test/cards-logic.mjs / packages/player/test/engine.test.mjs).
+// (test/lib/unit.mjs).
 // resumeCursor.ts is import-free (pure setTimeout logic), so no stubs are needed.
 //
 // Run:  node "packages/weave/test/resumeCursor.mjs"   (chained into
 //       `pnpm --filter @jkos/weave test` → root `pnpm test:contracts`).
-import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
-import { fileURLToPath, pathToFileURL } from 'node:url';
-import { dirname, resolve, join } from 'node:path';
-import { tmpdir } from 'node:os';
-import { createRequire } from 'node:module';
+import { rmSync } from 'node:fs';
+import { unit } from '../../../test/lib/unit.mjs';
 
-const require = createRequire(import.meta.url);
-const ts = require('typescript');
-const here = dirname(fileURLToPath(import.meta.url));
-const root = resolve(here, '..');
-const tmp = mkdtempSync(join(tmpdir(), 'jkos-weave-resumecursor-'));
-
-let failed = 0;
-const fail = (msg) => { console.error(`✗ ${msg}`); failed++; };
-const ok = (msg) => console.log(`✓ ${msg}`);
-const check = (cond, msg) => (cond ? ok(msg) : fail(msg));
+const { check, importTs, tmp, done } = unit('weave resumeCursor', { root: new URL('..', import.meta.url) });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-async function importTs(relPath, outName) {
-  const src = readFileSync(resolve(root, relPath), 'utf8');
-  const { outputText } = ts.transpileModule(src, {
-    compilerOptions: {
-      module: ts.ModuleKind.ESNext,
-      target: ts.ScriptTarget.ES2020,
-      isolatedModules: true,
-    },
-    fileName: relPath,
-  });
-  const outFile = join(tmp, outName);
-  writeFileSync(outFile, outputText);
-  return import(pathToFileURL(outFile).href);
-}
 
 const { createResumeCursor } = await importTs('src/resumeCursor.ts', 'resumeCursor.mjs');
 check(typeof createResumeCursor === 'function', 'createResumeCursor transpiles and exports');
@@ -258,9 +231,4 @@ const DEBOUNCE = 25;   // short real-timer window; every wait leaves a 2x+ margi
 
 /* ══════════════════════════════════════════════════════════════════════ */
 rmSync(tmp, { recursive: true, force: true });
-console.log(`\n${'='.repeat(40)}`);
-if (failed) {
-  console.error(`✗ weave resumeCursor: ${failed} assertion(s) failed`);
-  process.exit(1);
-}
-console.log('✓ weave resumeCursor: all assertions passed');
+done();

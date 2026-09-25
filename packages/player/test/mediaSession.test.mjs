@@ -11,43 +11,13 @@
 // feature guards; its behavior is proven by the KourOS composition + the wave gate,
 // NOT by a jsdom harness (the repo has none) — the same split as test/engine.test.mjs
 // vs the engine hook. House pattern: transpile the real .ts in-memory, import the
-// REAL functions, drive them (copied from test/engine.test.mjs).
+// REAL functions, drive them (test/lib/unit.mjs).
 //
 // Run:  node "packages/player/test/mediaSession.test.mjs"   (auto-enumerated by
 //       scripts/run-tests.mjs → `pnpm --filter @jkos/player test` → root gate).
-import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
-import { fileURLToPath, pathToFileURL } from 'node:url';
-import { dirname, resolve, join } from 'node:path';
-import { tmpdir } from 'node:os';
-import { createRequire } from 'node:module';
+import { unit } from '../../../test/lib/unit.mjs';
 
-const require = createRequire(import.meta.url);
-const ts = require('typescript');
-const here = dirname(fileURLToPath(import.meta.url));
-const root = resolve(here, '..');
-const tmp = mkdtempSync(join(tmpdir(), 'jkos-player-mediasession-'));
-
-process.on('exit', () => rmSync(tmp, { recursive: true, force: true }));
-let failed = 0;
-const fail = (msg) => { console.error(`✗ ${msg}`); failed++; };
-const ok = (msg) => console.log(`✓ ${msg}`);
-const check = (cond, msg) => (cond ? ok(msg) : fail(msg));
-const deepEq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
-
-async function importTs(relPath, outName) {
-  const src = readFileSync(resolve(root, relPath), 'utf8');
-  const { outputText } = ts.transpileModule(src, {
-    compilerOptions: {
-      module: ts.ModuleKind.ESNext,
-      target: ts.ScriptTarget.ES2020,
-      isolatedModules: true,
-    },
-    fileName: relPath,
-  });
-  const outFile = join(tmp, outName);
-  writeFileSync(outFile, outputText);
-  return import(pathToFileURL(outFile).href);
-}
+const { check, deepEq, importTs, done } = unit('player/mediaSession', { root: new URL('..', import.meta.url) });
 
 const {
   MEDIA_SESSION_ACTIONS, toMetadataInit, toPositionState,
@@ -142,9 +112,4 @@ check(
   "toPositionState preserves the fastest preset (2.5) unchanged",
 );
 
-/* ── summary ──────────────────────────────────────────────────────────── */
-if (failed) {
-  console.error(`\n✗ player/mediaSession: ${failed} assertion(s) failed`);
-  process.exit(1);
-}
-console.log('\n✓ player/mediaSession: all assertions passed');
+done();

@@ -64,11 +64,22 @@ Non-negotiables:
 ## 3 · House pattern — transpile a pure TS module
 
 Node has no TS runner here, so transpile the module in-memory with the repo's own `typescript`
-dep and import the emitted JS — driving the REAL function. Copy `importTs()` from
-[test/cards-logic.mjs](../../../test/cards-logic.mjs). For a small dependency graph (a module that
-imports a couple of siblings + one or two external packages), copy the specifier-rewrite + stub
-approach in [apps/ordeck/scripts/check-hud-doc.mjs](../../../apps/ordeck/scripts/check-hud-doc.mjs)
-(rewrite bare imports to temp-dir siblings/stubs, stub only the non-pure leaves). No new dep, no
+dep and import the emitted JS — driving the REAL function. **Use
+[test/lib/unit.mjs](../../../test/lib/unit.mjs); don't copy a preamble** (fifteen copies had drifted
+in compile target before it existed):
+
+```js
+import { unit } from '../test/lib/unit.mjs';          // path relative to your test
+const { check, deepEq, importTs, done } = unit('my-thing');   // { root } for a package-relative path
+const m = await importTs('packages/x/src/thing.ts', 'thing.mjs');
+check(m.f(1) === 2, 'f(1) is 2');
+done();                                                // exits 1 if anything failed
+```
+
+Exemplar: [test/cards-logic.mjs](../../../test/cards-logic.mjs). For a small dependency graph (a
+module that imports a couple of siblings + one or two external packages), pass `importTs`/`emitTs`
+a rewrite map, as [apps/ordeck/scripts/check-hud-doc.mjs](../../../apps/ordeck/scripts/check-hud-doc.mjs)
+does (rewrite each import specifier to a temp-dir sibling or stub, stub only the non-pure leaves). No new dep, no
 bundler, and **remember `pnpm install` after editing `packages/*`** or dev consumers won't see it.
 
 ## 4 · House pattern — text-scan gate

@@ -18,27 +18,18 @@
 //
 // The module is authored in TypeScript with no runtime imports, so this
 // transpiles it in-memory with the repo's own `typescript` dep and drives the
-// REAL functions — the house pattern, copied from test/pulsarmap.mjs.
+// REAL functions — the house pattern, test/lib/unit.mjs.
 //
 // Run:  node test/runes.mjs   (wired as `pnpm check:runes`, folded into
 //                               `pnpm test:contracts`).
-import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
-import { fileURLToPath, pathToFileURL } from 'node:url';
-import { dirname, resolve, join } from 'node:path';
-import { tmpdir } from 'node:os';
-import { createRequire } from 'node:module';
+import { readFileSync } from 'node:fs';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { unit } from './lib/unit.mjs';
 
-const require = createRequire(import.meta.url);
-const ts = require('typescript');
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');
-const tmp = mkdtempSync(join(tmpdir(), 'jkos-runes-'));
-
-process.on('exit', () => rmSync(tmp, { recursive: true, force: true }));
-let failed = 0;
-const fail = (msg) => { console.error(`✗ ${msg}`); failed++; };
-const ok = (msg) => console.log(`✓ ${msg}`);
-const check = (cond, msg) => (cond ? ok(msg) : fail(msg));
+const { check, importTs, done } = unit('runes');
 
 const MODULE = 'apps/kouros/src/gestures/rune.ts';
 const RADIAL = 'apps/kouros/src/gestures/radial.ts';
@@ -46,24 +37,6 @@ const BINDINGS = 'apps/kouros/src/shell/runeBindings.ts';
 // The real factory, not a stand-in: the whole claim under test is that the rune
 // table is DERIVED from what createPlayer() says an item can do.
 const FACTORY = 'packages/player/src/factory/createPlayer.ts';
-
-async function importTs(relPath, outName, rewrite = {}) {
-  let src = readFileSync(resolve(root, relPath), 'utf8');
-  for (const [from, to] of Object.entries(rewrite)) {
-    src = src.split(`'${from}'`).join(`'${to}'`);
-  }
-  const { outputText } = ts.transpileModule(src, {
-    compilerOptions: {
-      module: ts.ModuleKind.ESNext,
-      target: ts.ScriptTarget.ES2020,
-      isolatedModules: true,
-    },
-    fileName: relPath,
-  });
-  const outFile = join(tmp, outName);
-  writeFileSync(outFile, outputText);
-  return import(pathToFileURL(outFile).href);
-}
 
 const rn = await importTs(MODULE, 'rune.mjs');
 const rd = await importTs(RADIAL, 'radial.mjs');
@@ -541,8 +514,4 @@ for (const [dir, bx, by] of [['r', 200, 0], ['l', -200, 0], ['d', 0, 200], ['u',
   }
 }
 
-if (failed) {
-  console.error(`\n✗ runes: ${failed} assertion(s) failed`);
-  process.exit(1);
-}
-console.log('\n✓ runes: all assertions passed');
+done();

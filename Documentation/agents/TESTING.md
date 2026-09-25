@@ -310,7 +310,7 @@ The `/new-tester` skill is the full playbook; the shapes:
 | Shape | Exemplar | When |
 |-------|----------|------|
 | Boot-real-server smoke | `import.smoke.mjs` | Anything behavioural. Real server, throwaway port, temp DB, dev-stub auth (`sub:1 role:admin` when no key env set), real HTTP, cleanup. |
-| Transpile-pure-logic unit | `test/cards-logic.mjs` | Pure TS modules — transpile in-memory with the repo's own `typescript`, drive the REAL functions. |
+| Transpile-pure-logic unit | `test/cards-logic.mjs`, on [`test/lib/unit.mjs`](../../test/lib/unit.mjs) | Pure TS modules — transpile in-memory with the repo's own `typescript` (target ES2022, as the apps build), drive the REAL functions. `unit(name)` gives `check`/`importTs`/`emitTs`/`done` and a temp dir it removes; every unit test in the gate uses it rather than a copy. |
 | Text-scan gate | `test/cards-purity.mjs` | Banning a pattern structurally. Comment-strip first; prove the scan catches drift on a scratchpad copy, never via `git checkout`. |
 | Pure-module extraction | `apps/ordeck/src/pages/hud/bbDelta.ts`, `packages/auth-client/src/hudPrefs.ts` | When the risky logic lives inside a React hook. Lift the pure part into a dependency-free module and drive it directly — used where **every failure mode is silent**: a delta cursor advanced one millisecond too far, a preference migration that reads the wrong key and loses a dashboard. |
 | Prober probe | `src/probes/95-env-conformance.mjs` | Cross-system invariants over the discovered topology. |
