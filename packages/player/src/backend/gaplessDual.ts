@@ -71,17 +71,16 @@
 //
 // Like htmlMedia.ts: no React, no core imports, no `document`/`window` outside the
 // opt-in create-default-elements path — a pair of scripted fake elements can drive
-// this in plain Node (see test/gaplessDual.test.mjs). All imports are type-only, so
-// the house transpile-one-file test pattern works unchanged.
+// this in plain Node (see test/gaplessDual.test.mjs). Its one runtime import is
+// ./errors (pure), which the test emits beside it.
 import type {
-  BackendError,
-  BackendErrorKind,
   BackendEvent,
   BackendEventListener,
   MediaBackend,
   MediaSourceDescriptor,
 } from './types';
 import type { MediaElementLike } from './htmlMedia';
+import { classifyMediaErrorCode, classifyPlayRejection, toBackendError } from './errors';
 
 /** Upper bound on the crossfade, per git history: item 18.5 ("Crossfade 0–12 s"). */
 export const MAX_CROSSFADE_SEC = 12;
@@ -140,40 +139,6 @@ export interface GaplessDualOptions {
   /** Injectable interval seam so the ramp is testable without wall-clock time;
    *  defaults to the global setInterval/clearInterval. */
   timers?: GaplessDualTimers;
-}
-
-// ── Error classification — duplicated from htmlMedia.ts (module-private there; this
-// file must stay import-free beyond types for the transpile-one-file test pattern).
-// Same MediaError.code and DOMException.name → BackendErrorKind vocabulary.
-function classifyMediaErrorCode(code: number): BackendErrorKind {
-  switch (code) {
-    case 1: return 'aborted';
-    case 2: return 'network';
-    case 3: return 'decode';
-    case 4: return 'src-unsupported';
-    default: return 'unknown';
-  }
-}
-
-function classifyPlayRejection(err: unknown): BackendErrorKind {
-  const name = err && typeof err === 'object' && 'name' in err
-    ? (err as { name?: unknown }).name
-    : undefined;
-  if (name === 'AbortError') return 'aborted';
-  if (name === 'NotAllowedError') return 'autoplay-blocked';
-  if (name === 'NotSupportedError') return 'src-unsupported';
-  return 'unknown';
-}
-
-function messageOf(err: unknown): string {
-  if (err && typeof err === 'object' && 'message' in err && typeof (err as { message?: unknown }).message === 'string') {
-    return (err as { message: string }).message;
-  }
-  return String(err);
-}
-
-function toBackendError(kind: BackendErrorKind, err: unknown): BackendError {
-  return { kind, code: null, message: messageOf(err) };
 }
 
 function clampCrossfade(sec: number): number {

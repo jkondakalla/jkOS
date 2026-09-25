@@ -2,8 +2,8 @@
 // (git history: Wave 18 item 18.5).
 //
 // House pattern (test/backend.test.mjs, .claude/skills/new-tester/SKILL.md §3):
-// transpile the REAL src/backend/gaplessDual.ts in-memory (its imports are all
-// `import type`, fully erased) and drive the REAL createGaplessDualBackend() against
+// transpile the REAL src/backend/gaplessDual.ts in-memory (its one runtime import,
+// ./errors, is emitted beside it; the rest are `import type`, erased) and drive the REAL createGaplessDualBackend() against
 // two scripted FAKE elements + a fake interval seam — never a re-implementation of
 // the logic under test. No DOM.
 //
@@ -25,13 +25,14 @@
 // @jkos/player test` → root `pnpm test:contracts`.
 import { unit } from '../../../test/lib/unit.mjs';
 
-const { check, importTs, done } = unit('gaplessDual', { root: new URL('..', import.meta.url) });
+const { check, emitTs, importTs, done } = unit('gaplessDual', { root: new URL('..', import.meta.url) });
 const approx = (a, b, eps = 1e-9) => Math.abs(a - b) < eps;
 
 check(typeof document === 'undefined', 'precondition: no `document` global in this test run');
 
+emitTs('src/backend/errors.ts', 'errors.mjs');
 const { createGaplessDualBackend, isGaplessBackend, MAX_CROSSFADE_SEC } =
-  await importTs('src/backend/gaplessDual.ts', 'gaplessDual.mjs');
+  await importTs('src/backend/gaplessDual.ts', 'gaplessDual.mjs', { './errors': './errors.mjs' });
 
 // ── Fakes ────────────────────────────────────────────────────────────────────────
 // Same MediaElementLike scripting as test/backend.test.mjs, plus a name for

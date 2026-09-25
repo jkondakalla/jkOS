@@ -2,8 +2,8 @@
 // Wave 15, item 15.2).
 //
 // The house pattern (test/lib/unit.mjs): transpile the REAL .ts module in-memory
-// (htmlMedia.ts's only import is `import type {...} from './types'`, fully erased by the
-// compiler, so nothing else needs transpiling) and drive the REAL
+// (htmlMedia.ts's one runtime import is ./errors, emitted beside it; its `import type`s
+// are erased by the compiler) and drive the REAL
 // createHtmlMediaBackend() against a scripted FAKE element — never a re-implementation
 // of the mapping being tested.
 //
@@ -11,13 +11,14 @@
 //       scripts/run-tests.mjs → `pnpm --filter @jkos/player test`, in the gate)
 import { unit } from '../../../test/lib/unit.mjs';
 
-const { check, importTs, done } = unit('backend', { root: new URL('..', import.meta.url) });
+const { check, emitTs, importTs, done } = unit('backend', { root: new URL('..', import.meta.url) });
 
 // Sanity precondition: this run must have no DOM global, or the "never touches
 // document" checks below wouldn't actually prove anything.
 check(typeof document === 'undefined', 'precondition: no `document` global in this test run');
 
-const { createHtmlMediaBackend } = await importTs('src/backend/htmlMedia.ts', 'htmlMedia.mjs');
+emitTs('src/backend/errors.ts', 'errors.mjs');
+const { createHtmlMediaBackend } = await importTs('src/backend/htmlMedia.ts', 'htmlMedia.mjs', { './errors': './errors.mjs' });
 
 // ── Fake element ─────────────────────────────────────────────────────────────────
 // Scripts exactly the MediaElementLike surface htmlMedia.ts depends on: settable

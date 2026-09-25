@@ -13,18 +13,18 @@
 // callers that don't need to own one (or for tests running outside a DOM, which never
 // hit that path at all).
 //
-// No React, no app imports, no `packages/player/src/core` imports. Depends ONLY
-// on the element's interface (MediaElementLike below) — never on `document`/`window`
+// No React, no app imports, no `packages/player/src/core` imports; its one runtime import
+// is ./errors (pure). Depends ONLY on the element's interface (MediaElementLike below) —
+// never on `document`/`window`
 // — except inside the opt-in create-default-element path, so a scripted fake element
 // can drive this in plain Node (see test/backend.test.mjs).
 import type {
-  BackendError,
-  BackendErrorKind,
   BackendEvent,
   BackendEventListener,
   MediaBackend,
   MediaSourceDescriptor,
 } from './types';
+import { classifyMediaErrorCode, classifyPlayRejection, toBackendError } from './errors';
 
 /** The minimal HTMLMediaElement surface this backend needs — deliberately narrow so
  *  a plain scripted object (no DOM) can satisfy it in tests. `currentSrc` is
@@ -45,44 +45,6 @@ export interface MediaElementLike {
   load(): void;
   addEventListener(type: string, listener: (ev?: unknown) => void): void;
   removeEventListener(type: string, listener: (ev?: unknown) => void): void;
-}
-
-// MediaError.code (1 aborted · 2 network · 3 decode · 4 src-not-supported) — same
-// mapping usePlayerEngine.ts's onError used inline; centralized here so it feeds
-// BOTH error channels (see classifyPlayRejection below).
-function classifyMediaErrorCode(code: number): BackendErrorKind {
-  switch (code) {
-    case 1: return 'aborted';
-    case 2: return 'network';
-    case 3: return 'decode';
-    case 4: return 'src-unsupported';
-    default: return 'unknown';
-  }
-}
-
-// A rejected play() promise's DOMException.name — same three names
-// usePlayerEngine.ts's playFailed() branched on (AbortError / NotAllowedError /
-// NotSupportedError), mapped onto the SAME BackendErrorKind vocabulary the DOM
-// 'error' event uses so the engine's recovery policy has one vocabulary, not two.
-function classifyPlayRejection(err: unknown): BackendErrorKind {
-  const name = err && typeof err === 'object' && 'name' in err
-    ? (err as { name?: unknown }).name
-    : undefined;
-  if (name === 'AbortError') return 'aborted';
-  if (name === 'NotAllowedError') return 'autoplay-blocked';
-  if (name === 'NotSupportedError') return 'src-unsupported';
-  return 'unknown';
-}
-
-function messageOf(err: unknown): string {
-  if (err && typeof err === 'object' && 'message' in err && typeof (err as { message?: unknown }).message === 'string') {
-    return (err as { message: string }).message;
-  }
-  return String(err);
-}
-
-function toBackendError(kind: BackendErrorKind, err: unknown): BackendError {
-  return { kind, code: null, message: messageOf(err) };
 }
 
 function createDefaultElement(): MediaElementLike {
