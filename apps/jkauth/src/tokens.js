@@ -8,7 +8,7 @@ const jwt = require('jsonwebtoken')
 const {
   PRIVATE_KEY, PUBLIC_KEY, JWT_ISSUER, JWT_KID,
   TOKEN_COOKIE, REFRESH_COOKIE, COOKIE_OPTS,
-  ACCESS_TTL_MS, REFRESH_TTL_MS, REMEMBER_TTL_MS, REFRESH_GRACE_MS,
+  ACCESS_TTL_MS, SERVICE_TTL_MS, PENDING_2FA_TTL_MS, REFRESH_TTL_MS, REMEMBER_TTL_MS, REFRESH_GRACE_MS,
   SESSION_TTL_MS, SESSION_ABSOLUTE_TTL_MS, SESSION_TOMBSTONE_MS,
 } = require('./config')
 const { db, run, all, get, logEvent, roleClaims, appIdForOrigin } = require('./db')
@@ -75,7 +75,7 @@ function signAccess(user, { azp = null } = {}) {
   const payload = { sub: String(user.id), email: user.email, name: user.name, role: user.role, scope }
   if (azp) payload.azp = azp
   return jwt.sign(payload, PRIVATE_KEY,
-    { algorithm: 'RS256', expiresIn: '15m', issuer: JWT_ISSUER, keyid: JWT_KID, audience: aud })
+    { algorithm: 'RS256', expiresIn: ACCESS_TTL_MS / 1000, issuer: JWT_ISSUER, keyid: JWT_KID, audience: aud })
 }
 
 // Service-to-service token (client-credentials grant, POST /auth/token). No human
@@ -95,7 +95,7 @@ function signService(clientId, scope, { act } = {}) {
   const payload = { typ: 'service', azp: clientId, scope }
   if (act != null && String(act) !== '') payload.act = String(act)
   return jwt.sign(payload, PRIVATE_KEY,
-    { algorithm: 'RS256', expiresIn: '10m', issuer: JWT_ISSUER, keyid: JWT_KID,
+    { algorithm: 'RS256', expiresIn: SERVICE_TTL_MS / 1000, issuer: JWT_ISSUER, keyid: JWT_KID,
       subject: `svc:${clientId}`, audience: aud })
 }
 
@@ -320,7 +320,7 @@ function signPending(userId, remember, redirectTo) {
     // String(userId) for the same RFC-7519 / strict-verifier reason as signAccess.
     { sub: String(userId), pending_2fa: true, remember: !!remember, rt: redirectTo || '' },
     PRIVATE_KEY,
-    { algorithm: 'RS256', expiresIn: '5m', issuer: JWT_ISSUER, keyid: JWT_KID }
+    { algorithm: 'RS256', expiresIn: PENDING_2FA_TTL_MS / 1000, issuer: JWT_ISSUER, keyid: JWT_KID }
   )
 }
 

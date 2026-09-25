@@ -6,7 +6,7 @@ const express = require('express')
 const crypto = require('crypto')
 const { CODES } = require('@jkos/auth-middleware')   // canonical wire codes (single source)
 const { SQL_NOW } = require('@jkos/weave/server')   // canonical wire timestamp (XC-1)
-const { GUEST_PASSWORD, PASSWORD_MAX, REFRESH_COOKIE, SERVICE_CLIENTS, DELEGATION_CLIENTS } = require('../config')
+const { GUEST_PASSWORD, PASSWORD_MAX, REFRESH_COOKIE, SERVICE_CLIENTS, DELEGATION_CLIENTS, SERVICE_TTL_MS } = require('../config')
 const { get, run, logEvent } = require('../db')
 const { isJsonReq, validateRedirectTo, passwordError, loginBackoffMs } = require('../util')
 const { loginPage, dashboardPage, twoFactorPage } = require('../views')
@@ -337,7 +337,7 @@ router.post('/auth/token', (req, res) => {
   }
   const token = signService(client_id, granted, { act })
   logEvent('service_token', null, req, { client_id, scopes: granted, ...(act ? { act } : {}) })
-  res.json({ access_token: token, token_type: 'Bearer', expires_in: 600, scope: granted.join(' ') })
+  res.json({ access_token: token, token_type: 'Bearer', expires_in: SERVICE_TTL_MS / 1000, scope: granted.join(' ') })
 })
 
 // POST /auth/guest — guest login. ⚠️ JK-A1, the marquee finding of the 2026-08-26

@@ -24,6 +24,7 @@ import { dirname, join } from 'node:path';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { weaveAuth, weaveWriteGate, verifyToken, CODES } from '@jkos/weave/server';
+import { createRequire } from 'node:module';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SERVER = join(__dirname, '..', 'server.js');
@@ -40,6 +41,9 @@ const { privateKey, publicKey } = generateKeyPairSync('rsa', {
 let pass = 0, fail = 0;
 const ok = (name, cond, extra = '') => { if (cond) { pass++; } else { fail++; console.error(`  ✗ ${name}  ${extra}`); } };
 const decode = (t) => JSON.parse(Buffer.from(t.split('.')[1], 'base64url').toString());
+// The lifetimes the tokens must carry — read from config, never re-typed here, for the same
+// reason the server must not re-type them.
+const { ACCESS_TTL_MS, SERVICE_TTL_MS } = createRequire(import.meta.url)('../src/config.js');
 
 // ── Boot a jkAuth with service clients + one delegation-enrolled client ──────────
 const tmp = mkdtempSync(join(tmpdir(), 'jkauth-lifecycle-'));
@@ -140,6 +144,7 @@ try {
   const userTok = jar.get('jkos_token');
   const uc = decode(userTok);
   ok('access sub is a string (RFC 7519, the numeric-sub trap)', typeof uc.sub === 'string', JSON.stringify(uc.sub));
+  ok('access token lives exactly ACCESS_TTL_MS (config is the only source)', uc.exp - uc.iat === ACCESS_TTL_MS / 1000, `${uc.exp - uc.iat}s`);
   ok('node weave verifier accepts the real access token', (() => { try { return verifyToken(userTok, { publicKey, issuer: ISSUER }).sub === uc.sub; } catch { return false; } })());
   const userId = uc.sub;
 
@@ -182,6 +187,11 @@ try {
   const sc = decode(svcTok);
   ok('service token is typ:service, sub svc:<id>, no human sub, carries scope', sc.typ === 'service' && sc.sub === 'svc:prober' && !sc.email && Array.isArray(sc.scope) && sc.scope.includes('beigeboard:write'), JSON.stringify(sc));
   ok('a NORMAL service token carries no act claim', sc.act === undefined);
+  // RFC 6749 §5.1: expires_in is the client's only notice of when to re-mint. It once came
+  // from a literal beside a different literal in the signer — equal only by coincidence.
+  ok('expires_in states the token\'s REAL lifetime (= exp − iat = SERVICE_TTL_MS)',
+    svc.json.expires_in === sc.exp - sc.iat && sc.exp - sc.iat === SERVICE_TTL_MS / 1000,
+    `expires_in ${svc.json.expires_in}, exp−iat ${sc.exp - sc.iat}`);
   const svcGate = await driveGate(svcTok, { scope: 'beigeboard:write' });
   ok('service write → blocked NO_USER_CONTEXT', svcGate.blocked && svcGate.code === CODES.NO_USER_CONTEXT, JSON.stringify(svcGate));
 

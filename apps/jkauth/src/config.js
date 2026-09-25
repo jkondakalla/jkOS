@@ -27,7 +27,13 @@ const ADMIN_SEED_EMAIL = process.env.ADMIN_SEED_EMAIL || ''
 const ADMIN_SEED_PASSWORD = process.env.ADMIN_SEED_PASSWORD || ''
 const GUEST_PASSWORD = process.env.GUEST_PASSWORD || ''
 
-const ACCESS_TTL_MS = 15 * 60 * 1000
+// Signed-token lifetimes — the ONE place each is set. The JWT `exp` (tokens.js) and anything
+// that tells a client the lifetime (the client-credentials reply's `expires_in`) derive from
+// these. They were once re-typed as '15m' / '10m' / 600 literals beside the signing calls, so
+// editing this line would have changed nothing a verifier ever saw.
+const ACCESS_TTL_MS = 15 * 60 * 1000          // a user's access token (jkos_token)
+const SERVICE_TTL_MS = 10 * 60 * 1000         // a client-credentials service token
+const PENDING_2FA_TTL_MS = 5 * 60 * 1000      // the password-passed, second-factor-pending ticket
 const REFRESH_TTL_MS = 30 * 24 * 60 * 60 * 1000
 const REMEMBER_TTL_MS = 30 * 24 * 60 * 60 * 1000   // same as REFRESH_TTL_MS — explicit alias
 
@@ -222,7 +228,7 @@ module.exports = {
   PORT, DB_PATH, PORTAL_URL, AUTH_ORIGIN,
   PRIVATE_KEY, PUBLIC_KEY, PUBLIC_KEY_NEXT,
   ADMIN_SEED_EMAIL, ADMIN_SEED_PASSWORD, GUEST_PASSWORD,
-  ACCESS_TTL_MS, REFRESH_TTL_MS, REMEMBER_TTL_MS, REFRESH_GRACE_MS,
+  ACCESS_TTL_MS, SERVICE_TTL_MS, PENDING_2FA_TTL_MS, REFRESH_TTL_MS, REMEMBER_TTL_MS, REFRESH_GRACE_MS,
   SESSION_TTL_MS, SESSION_ABSOLUTE_TTL_MS, SESSION_TOMBSTONE_MS, TWOFA_ENC_KEY,
   RL_WINDOW_MS, RL_CREDENTIALS, RL_REFRESH,
   PASSWORD_MIN, PASSWORD_MAX, BCRYPT_COST,
