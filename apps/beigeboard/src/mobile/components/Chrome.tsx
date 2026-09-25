@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 /**
  * Chrome — mode-aware atmosphere with film grain, scanlines, halation vignette

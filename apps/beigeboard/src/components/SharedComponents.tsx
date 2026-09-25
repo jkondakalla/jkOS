@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { VU } from '@jkos/ui'
 import { FONT_BODY, FONT_NUM } from '../lib/theme'
 

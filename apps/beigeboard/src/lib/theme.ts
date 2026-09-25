@@ -12,7 +12,6 @@ export {
   isoDate, localDate, addDays, weekStart,
   fmtTime, timeToFrac, fmtHourLabel, fmtWeekday, fmtFull,
 } from '@jkos/cards'
-import { localDate } from '@jkos/cards'
 
 export const TASK_COLORS = [
   { id: 'rust',  label: 'Rust',  hex: '#B05040' },

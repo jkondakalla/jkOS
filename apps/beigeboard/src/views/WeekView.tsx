@@ -3,7 +3,6 @@
  * the same component powers ORDECK widgets); this wrapper injects BeigeBoard's
  * concrete wiring: the DragProvider adapter and the accent/source resolvers.
  */
-import React from 'react'
 import { Calendar } from '@jkos/cards'
 import { useDrag } from '../providers/DragProvider'
 import { getAccent } from '../lib/seed'

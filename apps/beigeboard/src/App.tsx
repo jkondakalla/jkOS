@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import './app.css'
 
 import { FONT_BODY, weekStart, isoDate } from './lib/theme'

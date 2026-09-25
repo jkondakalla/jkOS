@@ -17,11 +17,11 @@
  * measure is gone (it read as a distraction below the day rather than as an
  * anchor under it), and the canvas keeps the bottom margin itself.
  */
-import React, { useMemo } from 'react'
+import { useMemo } from 'react'
 import { Calendar } from '@jkos/cards'
 import { Sheet, Chip, Press, Check, Bar } from '@jkos/ui'
 import { MO_DELAYS } from '@jkos/design'
-import { FONT_HEAD, weekStart, sourceOf, sourceTintOf, localDate } from '../lib/theme'
+import { FONT_HEAD, weekStart, sourceOf, sourceTintOf } from '../lib/theme'
 import { getAccent, getProgress, getLooseTasks } from '../lib/seed'
 import { useDrag } from '../providers/DragProvider'
 

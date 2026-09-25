@@ -13,7 +13,6 @@
  * Restyling this to the Full Press language is still owed; until then nothing
  * outside apps/beigeboard/src/mobile/ may render it.
  */
-import React from 'react'
 import {
   mergeResolvers, weekStart, addDays, localDate, fmtTime,
   Eyebrow, RecLamp, Checkbox, FONT_HEAD, FONT_BODY, FONT_NUM,

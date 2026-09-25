@@ -35,7 +35,7 @@
  * The Voice (DESIGN.md §5): the wordmark and the folio print in Fraunces; the nav
  * labels and the sources readout keep the mono machine voice.
  */
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { FONT_HEAD, localDate, sourceOf } from '../lib/theme'
 import { Press } from '@jkos/ui'
 import { TimeReadout } from './SharedComponents'

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { FONT_HEAD, FONT_BODY, FONT_NUM, sourceOf } from '../lib/theme'
 import { Eyebrow } from './SharedComponents'
 import { Field } from '@jkos/ui'

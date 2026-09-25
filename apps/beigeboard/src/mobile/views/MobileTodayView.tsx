@@ -1,7 +1,6 @@
-import React, { useState } from 'react'
 import { VU } from '@jkos/ui'
 import { FONT_HEAD, FONT_BODY, FONT_NUM, localDate, fmtTime, getGreeting } from '../../lib/theme'
-import { getAccent, getAncestors } from '../../lib/seed'
+import { getAccent } from '../../lib/seed'
 import { Eyebrow, RecLamp, Checkbox } from '../components/MobileWidgets'
 
 /**

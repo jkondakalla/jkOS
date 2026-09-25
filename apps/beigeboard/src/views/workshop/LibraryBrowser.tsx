@@ -39,7 +39,7 @@
  * `used by` is computed from the items already in memory, not fetched: the routines
  * are on the board, and a count that lags the thing it counts is worse than none.
  */
-import React, { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { FONT_HEAD } from '../../lib/theme'
 import { Bubble, Rule, TButton, Well, Chip } from '@jkos/ui'
 import { stagger } from '@jkos/design'

@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
-import { FONT_HEAD, FONT_BODY, FONT_NUM, sourceOf } from '../../lib/theme'
-import { getAncestors, getChildren, getAccent } from '../../lib/seed'
-import { Eyebrow, SourceDot, Checkbox } from './MobileWidgets'
+import { FONT_HEAD, FONT_BODY, sourceOf } from '../../lib/theme'
+import { getAncestors, getAccent } from '../../lib/seed'
+import { Eyebrow, SourceDot } from './MobileWidgets'
 import { Field } from '@jkos/ui'
 
 /**
@@ -59,22 +59,16 @@ export interface DetailSheetProps {
   item: any
   items: any[]
   onClose: () => void
-  onToggle: (id: number) => void
   onDelete: (id: number) => void
   onUpdate: (id: number, patch: any) => void
-  onCreate: (partial: any) => any
-  onSelect: (item: any) => void
 }
 
 export function DetailSheet({
   item,
   items,
   onClose,
-  onToggle,
   onDelete,
   onUpdate,
-  onCreate,
-  onSelect,
 }: DetailSheetProps) {
   const isEvent = item.kind === 'event'
   const accent = isEvent
@@ -82,29 +76,15 @@ export function DetailSheet({
     : getAccent(item, items) || 'var(--color-accent)'
   const ancestors = getAncestors(item, items).slice().reverse()
   const src = sourceOf(item.source)
-  const subtasks = getChildren(item, items).filter((k: any) => k.kind === 'task')
 
   const [editing, setEditing] = useState(false)
   const [title, setTitle] = useState(item.title)
-  const [moving, setMoving] = useState(false)
-  const [addingSub, setAddingSub] = useState(false)
-  const [subDraft, setSubDraft] = useState('')
 
   const commitTitle = () => {
     const t = title.trim()
     if (t && t !== item.title) onUpdate(item.id, { title: t })
     setEditing(false)
   }
-
-  const addSub = () => {
-    const t = subDraft.trim()
-    if (t) {
-      onCreate({ kind: 'task', title: t, parent_id: item.id })
-      setSubDraft('')
-    }
-  }
-
-  const targets = items.filter((g: any) => g.kind === 'goal' && g.id !== item.id)
 
   return (
     <Sheet onClose={onClose}>
@@ -232,13 +212,11 @@ export function DetailSheet({
 
 export interface AddSheetProps {
   date: string
-  today: string
-  items: any[]
   onClose: () => void
   onAdd: (partial: any) => any
 }
 
-export function AddSheet({ date, today, items, onClose, onAdd }: AddSheetProps) {
+export function AddSheet({ date, onClose, onAdd }: AddSheetProps) {
   const [title, setTitle] = useState('')
 
   const handleAdd = () => {

@@ -10,20 +10,16 @@ import { Eyebrow } from '../components/MobileWidgets'
 
 export interface MobileTasksViewProps {
   items: any[]
-  today: string
   onSelect: (item: any) => void
   onToggle: (id: number) => void
   onCreate: (partial: any) => any
-  onUpdate: (id: number, patch: any) => void
 }
 
 export function MobileTasksView({
   items,
-  today,
   onSelect,
   onToggle,
   onCreate,
-  onUpdate,
 }: MobileTasksViewProps) {
   const goals = items.filter((it: any) => it.kind === 'goal' && !it.parent_id)
   const [open, setOpen] = useState(() => (goals[0] ? { [goals[0].id]: true } : {}))
@@ -107,7 +103,6 @@ export function MobileTasksView({
               onSelect={onSelect}
               onToggle={onToggle}
               onCreate={onCreate}
-              onUpdate={onUpdate}
             />
           ))}
         </div>
@@ -117,7 +112,7 @@ export function MobileTasksView({
   )
 }
 
-function Cassette({ goal, items, isOpen, onToggleOpen, onSelect, onToggle, onCreate, onUpdate }: any) {
+function Cassette({ goal, items, isOpen, onToggleOpen, onSelect, onToggle, onCreate }: any) {
   const accent = goal.accent || 'var(--color-accent)'
   const prog = getProgress(goal, items)
   const kids = getChildren(goal, items)

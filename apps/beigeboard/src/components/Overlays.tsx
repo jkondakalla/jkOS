@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { STORAGE_KEYS } from '@jkos/design'
 import { FONT_HEAD, isoDate, localDate } from '../lib/theme'
 

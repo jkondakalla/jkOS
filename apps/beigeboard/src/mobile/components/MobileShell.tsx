@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { FONT_HEAD, localDate } from '../../lib/theme'
-import { RecLamp, Eyebrow } from './MobileWidgets'
 import { Press, Lab } from '@jkos/ui'
 
 /**
@@ -99,8 +98,6 @@ export function MobileHeader({ today }: MobileHeaderProps) {
 export interface BottomNavProps {
   view: string
   setView: (id: string) => void
-  onAdd: () => void
-  variant: 'transport' | 'linear' | string
 }
 
 const VIEWS = [
@@ -110,7 +107,7 @@ const VIEWS = [
   { id: 'tasks', label: 'Tasks', glyph: '⛁' },
 ]
 
-export function MobileBottomNav({ view, setView, onAdd, variant }: BottomNavProps) {
+export function MobileBottomNav({ view, setView }: BottomNavProps) {
 
   return (
     <nav
@@ -125,7 +122,7 @@ export function MobileBottomNav({ view, setView, onAdd, variant }: BottomNavProp
         height: 44,
       }}
     >
-      {VIEWS.map((v, idx) => {
+      {VIEWS.map((v) => {
         const isActive = v.id === view
         return (
           <button

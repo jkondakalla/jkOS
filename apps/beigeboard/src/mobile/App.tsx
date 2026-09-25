@@ -1,5 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react'
-import { FONT_HEAD } from '../lib/theme'
+import { useState, useRef } from 'react'
 
 // The phone week/calendar bodies are OURS, not the kit's — @jkos/cards is the
 // design spec and ships one desktop body at every width. See the file headers.
@@ -24,7 +23,6 @@ export interface MobileAppProps {
   onItemAdd: (partial: any) => any
   onItemUpdate: (id: number, patch: any) => void
   chromeIntensity?: 'off' | 'subtle' | 'full'
-  navVariant?: 'transport' | 'linear'
 }
 
 export function MobileApp({
@@ -35,7 +33,6 @@ export function MobileApp({
   onItemAdd,
   onItemUpdate,
   chromeIntensity = 'full',
-  navVariant = 'transport',
 }: MobileAppProps) {
 
   const [view, setView] = useState('today')
@@ -141,34 +138,27 @@ export function MobileApp({
         {view === 'tasks' && (
           <MobileTasksView
             items={items}
-            today={today}
             onSelect={handleSelect}
             onToggle={handleToggle}
             onCreate={onItemAdd}
-            onUpdate={onItemUpdate}
           />
         )}
       </main>
 
-      <MobileBottomNav view={view} setView={setView} onAdd={() => setAdding(true)} variant={navVariant} />
+      <MobileBottomNav view={view} setView={setView} />
 
       {selected && (
         <DetailSheet
           item={selected}
           items={items}
           onClose={() => setSelected(null)}
-          onToggle={handleToggle}
           onDelete={onItemDelete}
           onUpdate={onItemUpdate}
-          onCreate={onItemAdd}
-          onSelect={handleSelect}
         />
       )}
       {adding && (
         <AddSheet
           date={typeof adding === 'string' ? adding : today}
-          today={today}
-          items={items}
           onClose={() => setAdding(false)}
           onAdd={onItemAdd}
         />

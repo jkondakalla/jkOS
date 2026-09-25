@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react'
-import { FONT_HEAD, FONT_BODY, FONT_NUM } from '../../lib/theme'
+import { useState } from 'react'
+import { FONT_BODY } from '../../lib/theme'
 
 /**
  * Mobile-optimized widget library for compact phone interface
