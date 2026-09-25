@@ -72,7 +72,9 @@ The `/suite-health` skill automates this walk and maps failure signatures to kno
 The properties every boot-real-server smoke depends on. Each exists because its absence
 cost a real debugging session. The first four are held by [`test/lib/smoke.mjs`](../../test/lib/smoke.mjs)
 (`smoke()` → `boot`/`ok`/`crashed`/`done`, and `forgeTokens()`), which the backend smokes share
-rather than copy; the copies had drifted, and one smoke reported green after a crash.
+rather than copy; the copies had drifted, and one smoke reported green after a crash. jkAuth's
+suites keep their own tallies and use its `startServer()` for the boot half. Two of them accepted any
+200 from `/health` on a random port until 2026-09-25.
 
 - **`/health` names the SERVICE, and the smoke asserts WHICH.** A bare 200 proves only
   that *something* is on the port. A stray server from another app once passed eight
@@ -89,6 +91,11 @@ rather than copy; the copies had drifted, and one smoke reported green after a c
 - **⚠️ Ports come from `TEST_PORTS` in `@jkos/suite-manifest`, not from a literal.** The
   `port-registry` prober probe holds every file's literal to its claim, so two smokes
   cannot silently share a port. Claim a new one there first.
+- **⚠️ Never a Fetch-spec "bad port".** Node's `fetch()` refuses 5060/5061, 6000, 6566,
+  6665–6669 and the rest of the spec's list with `bad port` before touching the network, so a
+  server bound to one waits out its whole boot budget as "never became healthy". jkAuth's smoke
+  drew 4900–5299 plus a sequence and landed on SIP's 5060 about one run in thirty.
+  `startServer()` refuses a bad port up front; draw random ports with `testPort(lo, span)`.
 - **⚠️ A temp directory you make, you remove** — `process.on('exit', () => rmSync(tmp, {
   recursive: true, force: true }))` right after the `mkdtempSync`, which also runs when the
   test fails. Seventeen gate tests once left a directory in /tmp on every run (one holding

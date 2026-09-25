@@ -32,6 +32,7 @@ import { tmpdir } from 'node:os';
 import Database from 'better-sqlite3';
 import { TOTP, Secret } from 'otpauth';
 import { createRequire } from 'node:module';
+import { startServer, testPort } from '../../../test/lib/smoke.mjs';
 const { APP_IDS } = createRequire(import.meta.url)('@jkos/suite-manifest');
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -50,7 +51,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 const tmp = mkdtempSync(join(tmpdir(), 'jkauth-security-'));
 const DB_PATH = join(tmp, 'auth.db');
 // Band clear of the test-port registry (3980–3996) + discover spares (4083–4086).
-const port = 6100 + Math.floor(Math.random() * 500);
+const port = testPort(6100, 500);
 const base = `http://127.0.0.1:${port}`;
 
 const GUEST_PW = 'guestpass123';
@@ -63,11 +64,8 @@ const GRACE_MS = 400;
 const IDLE_MS = 400;          // unremembered-session idle TTL
 const ABSOLUTE_MS = 1500;     // family absolute cap
 
-let serverLog = '';
-const child = spawn(process.execPath, [SERVER], {
-  env: {
-    ...process.env,
-    PORT: String(port), DB_PATH,
+const server = startServer({ port, service: 'jkauth', args: [SERVER], env: {
+    DB_PATH,
     JKOS_AUTH_PRIVATE_KEY: privateKey, JKOS_AUTH_PUBLIC_KEY: publicKey,
     COOKIE_DOMAIN: 'localhost', AUTH_ORIGIN: base, PORTAL_URL: base,
     NODE_ENV: 'test',
@@ -79,13 +77,7 @@ const child = spawn(process.execPath, [SERVER], {
     // 2nd failure → 60s lockout, so the backoff assert is deterministic.
     LOCKOUT_FREE: '1', LOCKOUT_BASE_MS: '60000',
     RL_CREDENTIALS: '10000', RL_REFRESH: '10000',
-  },
-  stdio: ['ignore', 'pipe', 'pipe'],
-});
-child.stdout.on('data', d => { serverLog += d; });
-child.stderr.on('data', d => { serverLog += d; });
-let exited = null;
-child.on('exit', (code, signal) => { exited = { code, signal }; });
+} });
 
 // One cookie jar; `cookie:` overrides it for replay tests.
 const jar = new Map();
@@ -113,30 +105,19 @@ async function api(method, path, { json, form, cookie, noStore } = {}) {
   // The jar folds cookies away; a test about who may MINT one needs the header.
   return { status: res.status, json: data, text, setCookie: res.headers.getSetCookie?.() ?? [] };
 }
-async function ready(tries = 60) {
-  for (let i = 0; i < tries; i++) {
-    if (exited) return false;
-    try {
-      const r = await fetch(base + '/health');
-      if (r.ok && (await r.json()).service === 'jkauth') return true;
-    } catch { /* not up */ }
-    await sleep(100);
-  }
-  return false;
-}
 function done() {
-  try { child.kill('SIGKILL'); } catch { /* gone */ }
+  server.stop();
   try { rmSync(tmp, { recursive: true, force: true }); } catch { /* best effort */ }
-  if (fail && serverLog) console.error('\n── server log ──\n' + serverLog);
+  if (fail && server.log()) console.error('\n── server log ──\n' + server.log());
   console.log(`\nsecurity: ${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 }
 
 try {
-  if (!(await ready())) {
+  const up = await server.ready();
+  if (!up.ok) {
     fail++;
-    console.error('server never became healthy'
-      + (exited ? ` (exited code=${exited.code} signal=${exited.signal})` : '') + ':\n' + serverLog);
+    console.error(`jkAuth never became healthy — ${up.why}:\n` + server.log());
     done();
   }
   const db = new Database(DB_PATH);
@@ -308,9 +289,9 @@ try {
 
   // ── I · JK-A4, fail closed: no key → no enrollment ─────────────────────────
   {
-    const port2 = port + 501, base2 = `http://127.0.0.1:${port2}`;
+    const port2 = testPort(6601, 500), base2 = `http://127.0.0.1:${port2}`;
     let log2 = '';
-    const env2 = { ...child.spawnargs && process.env, PORT: String(port2), DB_PATH: join(tmp, 'auth2.db'),
+    const env2 = { ...process.env, PORT: String(port2), DB_PATH: join(tmp, 'auth2.db'),
       JKOS_AUTH_PRIVATE_KEY: privateKey, JKOS_AUTH_PUBLIC_KEY: publicKey,
       COOKIE_DOMAIN: 'localhost', AUTH_ORIGIN: base2, PORTAL_URL: base2, NODE_ENV: 'test',
       RL_CREDENTIALS: '10000' };

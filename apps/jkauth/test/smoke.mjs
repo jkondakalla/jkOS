@@ -11,13 +11,13 @@
 // This is the regression net for the jkauth refactor + upgrade: behaviour must be
 // identical before and after a change. Add a case here before touching a contract.
 
-import { spawn } from 'node:child_process';
 import { generateKeyPairSync } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { TOTP, Secret } from 'otpauth';
+import { startServer, FETCH_BAD_PORTS } from '../../../test/lib/smoke.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SERVER = join(__dirname, '..', 'server.js');
@@ -60,15 +60,11 @@ let portSeq = 0;
 class Server {
   constructor(extraEnv = {}) {
     // Band clear of the test-port registry (3980–3996) + discover spares (4083–4086).
-    this.port = PORT_BASE + (portSeq++);
+    do { this.port = PORT_BASE + (portSeq++); } while (FETCH_BAD_PORTS.has(this.port));
     this.base = `http://127.0.0.1:${this.port}`;
     this.tmp = mkdtempSync(join(tmpdir(), 'jkauth-smoke-'));
     this.jar = new Map();
-    this.log = '';
-    this.child = spawn(process.execPath, [SERVER], {
-      env: {
-        ...process.env,
-        PORT: String(this.port),
+    this.server = startServer({ port: this.port, service: 'jkauth', args: [SERVER], timeoutMs: 12000, env: {
         DB_PATH: join(this.tmp, 'auth.db'),
         JKOS_AUTH_PRIVATE_KEY: privateKey,
         JKOS_AUTH_PUBLIC_KEY: publicKey,
@@ -79,36 +75,19 @@ class Server {
         // Don't let per-IP rate limits throttle the test's many sequential calls.
         RL_CREDENTIALS: '1000', RL_REFRESH: '1000',
         ...extraEnv,
-      },
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-    this.exited = null;
-    this.child.stdout.on('data', d => { this.log += d; });
-    this.child.stderr.on('data', d => { this.log += d; });
-    this.child.on('exit', (code, signal) => { this.exited = { code, signal }; });
+    } });
   }
+  get log() { return this.server.log(); }
   // 12s, not 5. Nine servers boot in one run and the full gate runs this while
   // other suites are working the same machine; a cold Node boot plus migrations
   // plus bcrypt seeding can exceed a 5s budget under that load, and the symptom
   // is "E3 never became healthy" in the gate while every standalone run passes.
-  async ready(tries = 120) {
-    for (let i = 0; i < tries; i++) {
-      // Belt to the sequential-port braces (B1 / OPS-1): a bare 200 proves only
-      // that SOMETHING is on the port. If a stray server owns it, this says so
-      // instead of letting the assertions run against a stranger.
-      if (this.exited) return false;
-      try {
-        const res = await fetch(this.base + '/health');
-        if (res.ok) {
-          const body = await res.json().catch(() => ({}));
-          if (body.service === 'jkauth') return true;
-          console.error(`  ✗ :${this.port} answered 200 but service=${JSON.stringify(body.service)} — not this jkAuth`);
-          return false;
-        }
-      } catch { /* not up yet */ }
-      await new Promise(r => setTimeout(r, 100));
-    }
-    return false;
+  // startServer() also refuses a stranger on the port (B1 / OPS-1) and stops waiting the
+  // moment the child exits.
+  async ready() {
+    const up = await this.server.ready();
+    if (!up.ok) console.error(`  ✗ :${this.port} ${up.why}`);
+    return up.ok;
   }
   _setCookies(res) {
     for (const c of res.headers.getSetCookie?.() ?? []) {
@@ -136,7 +115,7 @@ class Server {
     return res;
   }
   stop() {
-    try { this.child.kill('SIGKILL'); } catch {}
+    this.server.stop();
     try { rmSync(this.tmp, { recursive: true, force: true }); } catch {}
   }
 }

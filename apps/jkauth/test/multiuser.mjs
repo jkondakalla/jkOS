@@ -20,12 +20,12 @@
 // apps/beigeboard/backend/test/items.smoke.mjs (TEST-4); this file owns the jkAuth
 // half of the multi-user contract.
 
-import { spawn } from 'node:child_process';
 import { generateKeyPairSync } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { startServer, testPort } from '../../../test/lib/smoke.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SERVER = join(__dirname, '..', 'server.js');
@@ -42,13 +42,9 @@ const ok = (name, cond, extra = '') => { if (cond) { pass++; } else { fail++; co
 // ── Boot ─────────────────────────────────────────────────────────────────────
 const tmp = mkdtempSync(join(tmpdir(), 'jkauth-multiuser-'));
 // Band clear of the test-port registry (3980–3996) + discover spares (4083–4086).
-const port = 5500 + Math.floor(Math.random() * 500);
+const port = testPort(5500, 500);
 const base = `http://127.0.0.1:${port}`;
-let serverLog = '';
-const child = spawn(process.execPath, [SERVER], {
-  env: {
-    ...process.env,
-    PORT: String(port),
+const server = startServer({ port, service: 'jkauth', args: [SERVER], env: {
     DB_PATH: join(tmp, 'auth.db'),
     JKOS_AUTH_PRIVATE_KEY: privateKey,
     JKOS_AUTH_PUBLIC_KEY: publicKey,
@@ -60,11 +56,7 @@ const child = spawn(process.execPath, [SERVER], {
     JKOS_SERVICE_CLIENTS: 'prober:probersecret:beigeboard:write',
     JKOS_DELEGATION_CLIENTS: 'prober',
     RL_CREDENTIALS: '1000', RL_REFRESH: '1000',
-  },
-  stdio: ['ignore', 'pipe', 'pipe'],
-});
-child.stdout.on('data', (d) => { serverLog += d; });
-child.stderr.on('data', (d) => { serverLog += d; });
+} });
 
 // A per-client cookie jar so A / B / guest hold independent sessions.
 function newJar() { return new Map(); }
@@ -86,22 +78,16 @@ async function api(jar, method, path, { json } = {}) {
   let data = null; try { data = await res.json(); } catch { /* non-JSON */ }
   return { status: res.status, json: data };
 }
-async function ready(tries = 60) {
-  for (let i = 0; i < tries; i++) {
-    try { if ((await fetch(base + '/health')).ok) return true; } catch { /* not up */ }
-    await new Promise((r) => setTimeout(r, 100));
-  }
-  return false;
-}
 function done(code) {
-  try { child.kill('SIGKILL'); } catch { /* gone */ }
+  server.stop();
   try { rmSync(tmp, { recursive: true, force: true }); } catch { /* best effort */ }
   console.log(`\nmultiuser: ${pass} passed, ${fail} failed`);
   process.exit(code ?? (fail ? 1 : 0));
 }
 
 try {
-  if (!(await ready())) { console.error('jkAuth never became healthy:\n' + serverLog); done(1); }
+  const up = await server.ready();
+  if (!up.ok) { console.error(`jkAuth never became healthy — ${up.why}:\n` + server.log()); done(1); }
 
   const A = newJar(), B = newJar(), G = newJar();
 

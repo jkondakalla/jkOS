@@ -16,7 +16,7 @@
 // service-token mint → NO_USER_CONTEXT at the gate · on-behalf-of delegation → the
 // write lands as the acting user · a non-delegation client cannot delegate.
 
-import { spawn, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { generateKeyPairSync } from 'node:crypto';
 import jwt from 'jsonwebtoken';
 import { fileURLToPath } from 'node:url';
@@ -25,6 +25,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { weaveAuth, weaveWriteGate, verifyToken, CODES } from '@jkos/weave/server';
 import { createRequire } from 'node:module';
+import { startServer, testPort } from '../../../test/lib/smoke.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SERVER = join(__dirname, '..', 'server.js');
@@ -50,14 +51,10 @@ const tmp = mkdtempSync(join(tmpdir(), 'jkauth-lifecycle-'));
 // Random band chosen CLEAR of the suite-manifest test-port registry (3980–3996)
 // and discover.smoke's spares (4083–4086) — a random hit on a claimed port would
 // boot against whatever sits there and flake. See TEST_PORTS in @jkos/suite-manifest.
-const port = 4300 + Math.floor(Math.random() * 500);
+const port = testPort(4300, 500);
 const base = `http://127.0.0.1:${port}`;
 const jar = new Map();
-let serverLog = '';
-const child = spawn(process.execPath, [SERVER], {
-  env: {
-    ...process.env,
-    PORT: String(port),
+const server = startServer({ port, service: 'jkauth', args: [SERVER], env: {
     DB_PATH: join(tmp, 'auth.db'),
     JKOS_AUTH_PRIVATE_KEY: privateKey,
     JKOS_AUTH_PUBLIC_KEY: publicKey,
@@ -70,11 +67,7 @@ const child = spawn(process.execPath, [SERVER], {
     JKOS_SERVICE_CLIENTS: 'prober:probersecret:beigeboard:write,plain:plainsecret:beigeboard:write',
     JKOS_DELEGATION_CLIENTS: 'prober',
     RL_CREDENTIALS: '1000', RL_REFRESH: '1000',
-  },
-  stdio: ['ignore', 'pipe', 'pipe'],
-});
-child.stdout.on('data', (d) => { serverLog += d; });
-child.stderr.on('data', (d) => { serverLog += d; });
+} });
 
 function foldCookies(res) {
   for (const c of res.headers.getSetCookie?.() ?? []) {
@@ -97,15 +90,8 @@ async function api(method, path, { json, cookie, noStore } = {}) {
   let data = null; try { data = await res.json(); } catch { /* non-JSON */ }
   return { status: res.status, json: data, setCookie };
 }
-async function ready(tries = 60) {
-  for (let i = 0; i < tries; i++) {
-    try { if ((await fetch(base + '/health')).ok) return true; } catch { /* not up */ }
-    await new Promise((r) => setTimeout(r, 100));
-  }
-  return false;
-}
 function done(code) {
-  try { child.kill('SIGKILL'); } catch { /* gone */ }
+  server.stop();
   try { rmSync(tmp, { recursive: true, force: true }); } catch { /* best effort */ }
   console.log(`\nlifecycle: ${pass} passed, ${fail} failed`);
   process.exit(code ?? (fail ? 1 : 0));
@@ -132,7 +118,8 @@ function driveGate(token, { scope } = {}) {
 }
 
 try {
-  if (!(await ready())) { console.error('jkAuth never became healthy:\n' + serverLog); done(1); }
+  const up = await server.ready();
+  if (!up.ok) { console.error(`jkAuth never became healthy — ${up.why}:\n` + server.log()); done(1); }
 
   // ── 1. register → cookie flags + string-sub RS256 access token ────────────────
   const reg = await api('POST', '/auth/register', { json: { email: 'root@jkos.net', name: 'Root', password: 'password123' } });

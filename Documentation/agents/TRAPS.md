@@ -222,6 +222,14 @@ that code can reopen it.
 
 ## Node, pnpm & the build
 
+- **Node's `fetch()` refuses the Fetch spec's "bad ports" (5060, 5061, 6000, 6566, 6665–6669,
+  10080 and ~75 more below 1024) with `TypeError: fetch failed`, cause `bad port`, without ever
+  opening a socket.** A test server that picks a random port and lands on one boots fine, logs
+  "listening", and is never reached: the symptom is "never became healthy" with the listening line
+  right there in the log. jkAuth's smoke hit 5060 roughly one gate run in thirty, and it read as
+  load. `test/lib/smoke.mjs` holds the list (checked against Node 20 for every port up to 11000),
+  `startServer()` refuses one, and `testPort()` never returns one.
+
 - **`inject-workspace-packages=true` (`.npmrc`) means every `@jkos/*` package with a
   `peerDependencies` entry is a hardlinked *copy* under `node_modules/.pnpm/`, not a symlink.**
   Editing a file under `packages/*/src` is invisible to every consumer — `tsc`, `vite build`, a

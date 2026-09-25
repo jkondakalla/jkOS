@@ -19,13 +19,13 @@
 // Boots the REAL server on a throwaway port + temp DB with OTP_TEST_ECHO=1 so the
 // mailed codes are readable from the server log.
 
-import { spawn } from 'node:child_process';
 import { generateKeyPairSync } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import Database from 'better-sqlite3';
+import { startServer, testPort } from '../../../test/lib/smoke.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SERVER = join(__dirname, '..', 'server.js');
@@ -43,26 +43,17 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 const tmp = mkdtempSync(join(tmpdir(), 'jkauth-account-'));
 const DB_FILE = join(tmp, 'auth.db');
 // Band clear of the test-port registry (3980–3996) + discover spares (4083–4086).
-const port = 6700 + Math.floor(Math.random() * 400);
+const port = testPort(6700, 400);
 const base = `http://127.0.0.1:${port}`;
 
-let serverLog = '';
-const child = spawn(process.execPath, [SERVER], {
-  env: {
-    ...process.env,
-    PORT: String(port), DB_PATH: DB_FILE,
+const server = startServer({ port, service: 'jkauth', args: [SERVER], env: {
+    DB_PATH: DB_FILE,
     JKOS_AUTH_PRIVATE_KEY: privateKey, JKOS_AUTH_PUBLIC_KEY: publicKey,
     COOKIE_DOMAIN: 'localhost', AUTH_ORIGIN: base, PORTAL_URL: base,
     NODE_ENV: 'test', OTP_TEST_ECHO: '1',
     JKOS_2FA_ENC_KEY: 'account-test-seal-key',
     RL_CREDENTIALS: '10000', RL_REFRESH: '10000',
-  },
-  stdio: ['ignore', 'pipe', 'pipe'],
-});
-child.stdout.on('data', d => { serverLog += d; });
-child.stderr.on('data', d => { serverLog += d; });
-let exited = null;
-child.on('exit', (code, signal) => { exited = { code, signal }; });
+} });
 
 // Two independent cookie jars so "this device" and "another device" are real.
 const jars = { a: new Map(), b: new Map() };
@@ -92,33 +83,25 @@ async function api(who, method, path, { json, form } = {}) {
 async function codeFor(email, tries = 25) {
   const re = new RegExp(`\\[otp-echo\\] ${email.replace(/[.@]/g, '\\$&')} (\\d{6})`, 'g');
   for (let i = 0; i < tries; i++) {
-    const m = [...serverLog.matchAll(re)];
+    const m = [...server.log().matchAll(re)];
     if (m.length) return m[m.length - 1][1];
     await sleep(50);
   }
   return null;
 }
-async function ready(tries = 60) {
-  for (let i = 0; i < tries; i++) {
-    if (exited) return false;
-    try { const r = await fetch(base + '/health'); if (r.ok && (await r.json()).service === 'jkauth') return true; } catch { /* not up */ }
-    await sleep(100);
-  }
-  return false;
-}
 function done() {
-  try { child.kill('SIGKILL'); } catch { /* gone */ }
+  server.stop();
   try { rmSync(tmp, { recursive: true, force: true }); } catch { /* best effort */ }
-  if (fail && serverLog) console.error('\n── server log ──\n' + serverLog);
+  if (fail && server.log()) console.error('\n── server log ──\n' + server.log());
   console.log(`\naccount: ${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 }
 
 try {
-  if (!(await ready())) {
+  const up = await server.ready();
+  if (!up.ok) {
     fail++;
-    console.error('server never became healthy'
-      + (exited ? ` (exited code=${exited.code} signal=${exited.signal})` : '') + ':\n' + serverLog);
+    console.error(`jkAuth never became healthy — ${up.why}:\n` + server.log());
     done();
   }
 
