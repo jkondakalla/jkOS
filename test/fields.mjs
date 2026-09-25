@@ -25,6 +25,7 @@
 //   4. a vendor pseudo-element rule that groups selectors ACROSS engines, which
 //      silently drops the whole declaration on both
 //   5. a primitive that exists in primitives.tsx but never reaches the barrel
+//   6. an inline `outline: 'none'`, which switches off the suite's one focus ring
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve, join } from 'node:path';
@@ -52,6 +53,11 @@ function sources(dir, exts) {
   return out;
 }
 
+// ⚠️ KourOS (apps/kouros/src) is NOT in this list, and that is a named exemption, not an
+// oversight any more: its six inputs/selects and its search reset are drawn in the glass
+// material, and converging them onto .jk-field is a VISUAL change — Stage F's work, parked
+// with the rest of the visual language (TODO §6). Until then this gate's "every input in
+// the suite" means every input outside KourOS. Section 6 (the focus ring) does scan it.
 const SCAN_ROOTS = ['apps/beigeboard/src', 'apps/ordeck/src', 'apps/jkauth/src',
                     'apps/jkauth/public', 'packages/ui/src', 'packages/cards/src',
                     'packages/design/tokens', 'jkos-deploy'];
@@ -213,6 +219,20 @@ const hub = readFileSync(resolve(root, 'packages/design/tokens/hub.css'), 'utf8'
   } else {
     ok('every field primitive forwards its ref');
   }
+}
+
+// ── 6. The focus ring is hub.css's, and nothing inline turns it off ─────────
+// hub.css draws ONE keyboard focus ring for the whole suite (`:focus-visible`, the
+// accent at 2px). An inline `outline: 'none'` outranks any stylesheet, so the control
+// it sits on goes blind to a keyboard user — and it looks fine to everyone with a
+// mouse, which is why seven of them (the settings drawer's swatches, switches, mode
+// buttons and close button; ORDECK's weather Save) shipped. Fields that draw their own
+// focus do it in hub.css (`.jk-field:focus-visible`), never inline.
+{
+  const tsx = SCAN_ROOTS.concat(['packages', 'apps/kouros/src']).flatMap((d) => sources(d, ['.tsx', '.jsx']));
+  const blind = tsx.filter((p) => /\boutline:\s*['"]none['"]/.test(readFileSync(resolve(root, p), 'utf8')));
+  if (blind.length) fail(`inline outline:'none' removes the suite focus ring in: ${blind.join(', ')}`);
+  else ok(`no inline outline:'none' in ${tsx.length} component files — every control keeps hub.css's focus ring`);
 }
 
 console.log(failed

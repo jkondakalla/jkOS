@@ -131,8 +131,8 @@ export function SettingsDrawer({
           <span style={{ fontSize: 9, letterSpacing: '0.2em', color: TXT_MUTED, fontFamily: FONT, textTransform: 'uppercase' }}>
             jkOS Suite{saving && <span style={{ color: ACCENT, marginLeft: 10 }}>· Saving</span>}
           </span>
-          <button type="button" onClick={onClose}
-            style={{ background: 'transparent', border: 'none', color: TXT_FAINT, cursor: 'pointer', fontSize: 18, padding: '0 2px', lineHeight: 1, transition: 'color 0.12s', outline: 'none' }}
+          <button type="button" onClick={onClose} aria-label="Close settings"
+            style={{ background: 'transparent', border: 'none', color: TXT_FAINT, cursor: 'pointer', fontSize: 18, padding: '0 2px', lineHeight: 1, transition: 'color 0.12s' }}
             onMouseEnter={e => (e.currentTarget.style.color = TXT)}
             onMouseLeave={e => (e.currentTarget.style.color = TXT_FAINT)}
           >×</button>
@@ -173,7 +173,7 @@ export function SettingsDrawer({
                 color: theme.mode === m ? CONTRAST : TXT_MUTED,
                 fontFamily: FONT, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase',
                 cursor: 'pointer', transition: 'all 0.14s',
-                boxShadow: theme.mode === m ? PRESS : 'none', outline: 'none',
+                boxShadow: theme.mode === m ? PRESS : 'none',
               }}>
                 {m === 'system' ? 'Auto' : m === 'light' ? 'Light' : 'Dark'}
               </button>
@@ -214,7 +214,7 @@ export function SettingsDrawer({
                 border: '1px solid color-mix(in srgb, var(--hub-red) 35%, transparent)',
                 background: 'transparent', color: 'color-mix(in srgb, var(--hub-red) 75%, var(--color-ink))',
                 fontSize: 10, letterSpacing: '0.1em', cursor: 'pointer',
-                fontFamily: FONT, transition: 'all 0.12s', outline: 'none',
+                fontFamily: FONT, transition: 'all 0.12s',
               }}
               onMouseEnter={e => {
                 (e.currentTarget as HTMLElement).style.borderColor = 'var(--hub-red)';
@@ -283,7 +283,7 @@ function AccentChooser({ theme, patchTheme }: { theme: Theme; patchTheme: (p: Pa
     border: `1px solid ${active ? ACCENT : LINE}`,
     boxShadow: active ? PRESS : 'none',
     cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
-    transition: 'all 0.12s', outline: 'none',
+    transition: 'all 0.12s',
   });
 
   return (
@@ -335,10 +335,10 @@ function ColorRow({ label, color, onChange }: { label: string; color: string; on
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
       <span style={{ fontSize: 10, color: TXT_FAINT, width: 62, flexShrink: 0, fontFamily: FONT, letterSpacing: '0.06em' }}>{label}</span>
-      <button type="button" onClick={() => ref.current?.click()}
-        style={{ width: 30, height: 30, flexShrink: 0, background: color, border: `2px solid ${LINE}`, cursor: 'pointer', boxShadow: `0 0 10px ${withAlpha(color, 0.333)}`, outline: 'none', transition: 'box-shadow 0.15s' }} />
-      <Field bare ref={ref} type="color" value={color} onChange={e => onChange(e.target.value)} style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', width: 0, height: 0 }} />
-      <Field type="text" value={draft} onChange={e => handleText(e.target.value)}
+      <button type="button" onClick={() => ref.current?.click()} aria-label={`${label} accent colour — open the picker`}
+        style={{ width: 30, height: 30, flexShrink: 0, background: color, border: `2px solid ${LINE}`, cursor: 'pointer', boxShadow: `0 0 10px ${withAlpha(color, 0.333)}`, transition: 'box-shadow 0.15s' }} />
+      <Field bare ref={ref} type="color" value={color} aria-label={`${label} accent colour`} tabIndex={-1} onChange={e => onChange(e.target.value)} style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', width: 0, height: 0 }} />
+      <Field type="text" value={draft} onChange={e => handleText(e.target.value)} aria-label={`${label} accent colour, as hex`}
         onBlur={() => { if (!/^#[0-9a-fA-F]{6}$/.test(draft)) setDraft(color); }} maxLength={7} spellCheck={false}
         style={{ flex: 1, color: /^#[0-9a-fA-F]{6}$/.test(draft) ? undefined : 'var(--hub-red)', padding: '5px 10px', fontSize: 11, letterSpacing: '0.08em' }} />
     </div>
@@ -350,17 +350,17 @@ function EffectRow({ label, value, onToggle, children }: { label: string; value:
     <div style={{ marginBottom: 10 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: children ? 7 : 0 }}>
         <span style={{ fontSize: 11, color: value ? TXT : TXT_FAINT, fontFamily: FONT, letterSpacing: '0.04em' }}>{label}</span>
-        <Toggle value={value} onChange={onToggle} />
+        <Toggle label={label} value={value} onChange={onToggle} />
       </div>
       {children}
     </div>
   );
 }
 
-function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
+function Toggle({ label, value, onChange }: { label: string; value: boolean; onChange: (v: boolean) => void }) {
   return (
-    <button type="button" onClick={() => onChange(!value)} aria-pressed={value}
-      style={{ width: 36, height: 20, position: 'relative', cursor: 'pointer', flexShrink: 0, background: value ? ACCENT : LINE, border: `1px solid ${value ? ACCENT : LINE}`, borderRadius: 10, padding: 0, transition: 'all 0.18s', outline: 'none' }}>
+    <button type="button" onClick={() => onChange(!value)} aria-pressed={value} aria-label={label}
+      style={{ width: 36, height: 20, position: 'relative', cursor: 'pointer', flexShrink: 0, background: value ? ACCENT : LINE, border: `1px solid ${value ? ACCENT : LINE}`, borderRadius: 10, padding: 0, transition: 'all 0.18s' }}>
       <span style={{ position: 'absolute', top: 2, left: value ? 16 : 2, width: 14, height: 14, background: value ? CONTRAST : TXT_MUTED, borderRadius: '50%', transition: 'left 0.18s cubic-bezier(0.4, 0.2, 0.2, 1)' }} />
     </button>
   );

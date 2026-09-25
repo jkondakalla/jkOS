@@ -219,6 +219,10 @@ generated file held by `check:tokens`.
   (11 call sites, a wrapper div + letter fallback that `views.css` styles by descendant) and the
   inline hero in [`apps/kouros/src/views/books/BookDetail.tsx`](../apps/kouros/src/views/books/BookDetail.tsx).
   That changes DOM, so do it behind the computed-style harness, not as a blind swap.
+- **Bring KourOS's inputs onto `.jk-field`.** Six raw `<input>`/`<select>`s (search, the audiobook
+  library toolbar, the playlist picker and playlists page) and a local `appearance` reset in
+  `views.css` are drawn in the glass material. `check:fields` names KourOS as its one exemption
+  until this lands, so remove it from that list in the same commit.
 - **Draw the jkOS mark.** `apps/ordeck/public/icon.svg` / `icon-maskable.svg` (and their PNGs) are a
   placeholder dial. They're what the jkOS and jkOS Home apps and ORDECK's PWA install show, derived at
   build time, so redrawing them re-skins every shell.

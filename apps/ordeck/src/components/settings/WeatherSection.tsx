@@ -62,7 +62,7 @@ export function WeatherSection() {
         padding: '7px 14px', border: `1px solid ${LINE}`,
         background: saved ? 'color-mix(in srgb, var(--hub-green) 15%, transparent)' : FIELD,
         color: saved ? 'var(--hub-green)' : TXT_MUTED,
-        fontFamily: FONT, fontSize: 9.5, letterSpacing: '0.1em', cursor: 'pointer', transition: 'all 0.2s', outline: 'none',
+        fontFamily: FONT, fontSize: 9.5, letterSpacing: '0.1em', cursor: 'pointer', transition: 'all 0.2s',
       }}>
         {saved ? 'SAVED ✓' : 'SAVE LOCATION'}
       </button>
