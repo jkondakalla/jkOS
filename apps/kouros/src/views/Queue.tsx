@@ -42,6 +42,11 @@ export default function Queue() {
   // The live drag: which index was picked up, and where it currently sits.
   const [drag, setDrag] = useState<{ from: number; to: number; dy: number } | null>(null);
   const rowHRef = useRef(FALLBACK_ROW_H);
+  // Where the live drag would drop, readable at release. The reorder is a SIDE EFFECT (and a
+  // listening-session command relayed to every device), so it must not run inside a state
+  // updater: React may call an updater twice — StrictMode always does in development — and
+  // one drag then reordered the queue twice.
+  const dropRef = useRef(0);
 
   const items = p.queue.items;
   const cursor = p.queue.cursor;
@@ -54,17 +59,16 @@ export default function Queue() {
     begin(e, {
       // No hold delay: the handle is unambiguous, so waiting only adds latency.
       activation: { kind: 'immediate' },
-      onActivate: () => setDrag({ from: index, to: index, dy: 0 }),
+      onActivate: () => { dropRef.current = index; setDrag({ from: index, to: index, dy: 0 }); },
       onMove: (ctx) => {
         const offset = Math.round(ctx.dy / rowHRef.current);
         const to = Math.max(0, Math.min(items.length - 1, index + offset));
+        dropRef.current = to;
         setDrag({ from: index, to, dy: ctx.dy });
       },
       onEnd: (_ctx, dragged) => {
-        setDrag((cur) => {
-          if (dragged && cur && cur.to !== cur.from) p.reorderQueue(cur.from, cur.to);
-          return null;
-        });
+        setDrag(null);
+        if (dragged && dropRef.current !== index) p.reorderQueue(index, dropRef.current);
       },
     });
   }, [begin, items.length, p.reorderQueue]);
