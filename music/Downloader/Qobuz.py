@@ -4,7 +4,6 @@ import re
 import sys
 import glob
 import time
-import shutil
 import logging
 import unicodedata
 import hashlib
@@ -68,7 +67,6 @@ except ImportError:
 
 try:
     from mutagen.flac import FLAC, Picture
-    from mutagen.id3 import ID3, TIT2, TPE1, TALB, TRCK, TPOS, TDRC, APIC, error as ID3Error
     MUTAGEN_AVAILABLE = True
 except ImportError:
     logger.warning("Missing dependency: mutagen. Tagging disabled. Run `pip install mutagen`")

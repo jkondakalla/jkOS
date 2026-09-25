@@ -61,7 +61,6 @@ import os
 import sqlite3
 import sys
 
-import config
 import index
 
 #: Where the copy is going on the far side, and the name KourOS derives its
