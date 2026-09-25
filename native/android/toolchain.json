@@ -1,0 +1,31 @@
+{
+  "_comment": [
+    "THE Android build toolchain, pinned. One source for both places a build can run:",
+    "  • the Docker image (native/android/Dockerfile runs toolchain.mjs inside itself), and",
+    "  • a local SDK (`node native/android/toolchain.mjs install ~/Android/jkos`).",
+    "Both install exactly these bytes, so moving from Docker to a local SDK changes nothing",
+    "about the build. Gradle reads compileSdk and buildTools from here too, so the SDK the",
+    "installer lays down and the SDK the build asks for cannot disagree.",
+    "",
+    "Every archive is verified against its sha256 before it is unpacked. The two checksums",
+    "were cross-checked on 2026-09-24 against the publisher's own listing: the JDK against",
+    "api.adoptium.net, the command-line tools against BOTH developer.android.com/studio",
+    "(sha256) and Google's repository2-3.xml (sha1 040d3996…). sdkmanager verifies the",
+    "platform and build-tools packages itself against that same repository manifest.",
+    "",
+    "Gradle itself is pinned (with its sha256) in gradle/wrapper/gradle-wrapper.properties,",
+    "and every Maven artifact in gradle/verification-metadata.xml."
+  ],
+  "jdk": {
+    "version": "21.0.12.1+1",
+    "url": "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jdk_x64_linux_hotspot_21.0.12.1_1.tar.gz",
+    "sha256": "ce79869e1307ed8ee1e2baa86a412b1eb5b75d10a01006d788a6f968bcfaee94"
+  },
+  "cmdlineTools": {
+    "version": "15859902",
+    "url": "https://dl.google.com/android/repository/commandlinetools-linux-15859902_latest.zip",
+    "sha256": "4e4c464f145a7512b57d088ac6c278c03c9eea610886b35a5e0804e74eedf583"
+  },
+  "compileSdk": 36,
+  "buildTools": "36.0.0"
+}

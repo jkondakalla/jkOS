@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fixed strings. The shell's name, start URL and origins are generated per build type into
+     src/debug|release/res/values/shell.xml (native/gen-native.mjs). -->
+<resources>
+    <string name="offline_title">Can’t reach jkOS</string>
+    <string name="offline_detail">Trying again every 30 seconds.</string>
+    <string name="offline_retry">Try now</string>
+    <string name="refused">Only jkOS opens here</string>
+    <string name="refused_debug">Refused (not a jkOS origin): %1$s</string>
+    <string name="drawer_settings">Android settings</string>
+    <string name="drawer_home_app">Choose home app</string>
+</resources>

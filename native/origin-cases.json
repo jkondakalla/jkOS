@@ -1,0 +1,48 @@
+{
+  "_comment": [
+    "The navigation policy every native shell with its own code implements, as test vectors.",
+    "",
+    "Two implementations answer 'may this shell show this URL?': the Android home launcher",
+    "(OriginPolicy.kt, JVM unit test) and the desktop shell (policy.js, test/native.mjs). They",
+    "are deliberately NOT one shared implementation — they run in different languages on",
+    "different platforms — so they are held to one DECLARED behaviour instead: both must",
+    "return `allow` for every case below, or their own test fails.",
+    "",
+    "The rule: https only, no userinfo, the default port only, and the origin (scheme + host,",
+    "case-insensitive) exactly equal to a listed origin. No suffix, prefix or pattern match.",
+    "",
+    "Inputs are what a real engine hands the policy: a canonical URL (Chromium has already",
+    "normalised it) or something plainly not a web URL. Parser-disagreement inputs (a",
+    "backslash in the authority) are left out on purpose — Chromium never emits them, and the",
+    "two parsers may legitimately differ on them as long as neither allows a foreign host."
+  ],
+  "origins": ["https://jkos.net", "https://auth.jkos.net"],
+  "cases": [
+    { "url": "https://jkos.net/", "allow": true, "why": "a listed origin" },
+    { "url": "https://jkos.net", "allow": true, "why": "no path at all" },
+    { "url": "https://jkos.net/hud?w=kouros#now", "allow": true, "why": "path, query and fragment are not the origin" },
+    { "url": "https://auth.jkos.net/login?next=https%3A%2F%2Fevil.example", "allow": true, "why": "the sign-in hop; a query naming another host changes nothing" },
+    { "url": "HTTPS://JKOS.NET/", "allow": true, "why": "scheme and host compare case-insensitively" },
+    { "url": "https://jkos.net:443/", "allow": true, "why": "an explicit default port is the default port" },
+
+    { "url": "http://jkos.net/", "allow": false, "why": "cleartext: the right host over the wrong scheme" },
+    { "url": "https://jkos.net:8443/", "allow": false, "why": "a non-default port is a different origin" },
+    { "url": "https://beigeboard.jkos.net/", "allow": false, "why": "a sibling subdomain that is not listed" },
+    { "url": "https://jkos.net.evil.example/", "allow": false, "why": "a listed origin as a PREFIX of a foreign host" },
+    { "url": "https://evil-jkos.net/", "allow": false, "why": "a listed host as a SUFFIX of a foreign host" },
+    { "url": "https://evil.example/?u=https://jkos.net", "allow": false, "why": "a listed origin inside the query" },
+    { "url": "https://evil.example/#https://jkos.net", "allow": false, "why": "a listed origin inside the fragment" },
+    { "url": "https://jkos.net@evil.example/", "allow": false, "why": "userinfo: the host is evil.example" },
+    { "url": "https://user:pass@jkos.net/", "allow": false, "why": "any userinfo at all, even on a listed host" },
+    { "url": "https://jkos.net./", "allow": false, "why": "a trailing-dot FQDN is not the listed origin string" },
+    { "url": "javascript:alert(1)", "allow": false, "why": "script URL" },
+    { "url": "file:///etc/passwd", "allow": false, "why": "local file" },
+    { "url": "content://com.android.contacts/contacts", "allow": false, "why": "Android content provider" },
+    { "url": "intent://scan/#Intent;scheme=zxing;end", "allow": false, "why": "Android intent URL" },
+    { "url": "data:text/html,<h1>hi</h1>", "allow": false, "why": "data URL" },
+    { "url": "blob:https://jkos.net/0d3c7b52-1a5e-4d8e-9b0e-2f1b5c6e7a90", "allow": false, "why": "a blob URL is not a navigation to its origin" },
+    { "url": "about:blank", "allow": false, "why": "not a web origin" },
+    { "url": "not a url", "allow": false, "why": "garbage fails closed" },
+    { "url": "", "allow": false, "why": "empty fails closed" }
+  ]
+}

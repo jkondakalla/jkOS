@@ -20,3 +20,8 @@
 # would otherwise ship to the daemon on every root-context build — the same cost
 # the venv block above exists to stop.
 music/
+
+# The native shells build in their own image (native/android/Dockerfile) or on the desktop,
+# never inside an app image. Keep their Gradle caches and outputs off the daemon.
+native/android/
+native/desktop/out/

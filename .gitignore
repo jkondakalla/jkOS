@@ -42,3 +42,19 @@ Documentation/Images/
 Thumbs.db
 *.swp
 *.swo
+
+# ── Native shells (native/) ───────────────────────────────────────────────────
+# Gradle's own state and the collected APKs. `.gradle-home/` and `.android-home/` are
+# the Gradle cache and the DEBUG signing key when built through native/android/build.mjs:
+# kept beside the project so a Docker build and a local-SDK build sign staging APKs with the
+# same key (an APK signed by a different key cannot install over the last one).
+native/android/.gradle/
+native/android/.gradle-home/
+native/android/.android-home/
+native/android/.kotlin/
+native/android/out/
+native/android/local.properties
+native/desktop/out/
+# Signing keys never enter the repo. The release keystore lives in ~/.jkos/ (signing.mjs).
+*.keystore
+*.jks

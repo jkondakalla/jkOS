@@ -1,0 +1,5 @@
+# The build image (Dockerfile) needs exactly the toolchain installer and its pin — never the
+# project, and above all never .gradle-home/ (gigabytes of cache).
+*
+!toolchain.json
+!toolchain.mjs

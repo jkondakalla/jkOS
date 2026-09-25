@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  jkOS Home — ORDECK as the device's home screen (Android's HOME intent).
+
+  Least privilege, by line:
+   • INTERNET is the only permission.
+   • <queries> names exactly the MAIN/LAUNCHER intent — the apps a launcher may list — not
+     QUERY_ALL_PACKAGES, which would let it enumerate every package on the device.
+   • allowBackup="false" + dataExtractionRules: the WebView's cookie jar holds a live jkOS
+     session and must never be copied off the device (cloud backup OR device transfer).
+   • networkSecurityConfig: https only, system CAs only — no user-installed CA can
+     intercept the launcher's traffic.
+  check:native asserts each of these against this file.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
+
+    <application
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.JkosHome">
+
+        <!-- configChanges: a rotation or a keyboard must not tear down the WebView (and with
+             it the page's state) the way an activity restart would. -->
+        <activity
+            android:name=".HomeActivity"
+            android:clearTaskOnLaunch="true"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:stateNotNeeded="true"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.HOME" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <!-- Also an ordinary app icon, so it can be opened (and chosen as home)
+                     before it is the home screen. -->
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".DrawerActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"
+            android:excludeFromRecents="true"
+            android:exported="false" />
+    </application>
+</manifest>

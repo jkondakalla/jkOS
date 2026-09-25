@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="offline_ink">#ede2c8</color>
+    <color name="offline_ink_dim">#a39a86</color>
+
+    <style name="Theme.JkosHome" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/shell_bar</item>
+    </style>
+</resources>

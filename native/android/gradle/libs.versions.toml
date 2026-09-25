@@ -1,0 +1,20 @@
+# Every Android dependency and its version, in one place. A bump here must be followed by
+# regenerating gradle/verification-metadata.xml (see NATIVE.md), or the build refuses the new
+# artifact — which is the point of the metadata.
+[versions]
+agp = "9.4.1"
+androidbrowserhelper = "2.7.3"
+activity = "1.13.0"
+webkit = "1.17.1"
+junit = "4.13.2"
+json = "20260814"
+
+[libraries]
+androidbrowserhelper = { module = "com.google.androidbrowserhelper:androidbrowserhelper", version.ref = "androidbrowserhelper" }
+androidx-activity = { module = "androidx.activity:activity", version.ref = "activity" }
+androidx-webkit = { module = "androidx.webkit:webkit", version.ref = "webkit" }
+junit = { module = "junit:junit", version.ref = "junit" }
+json = { module = "org.json:json", version.ref = "json" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
