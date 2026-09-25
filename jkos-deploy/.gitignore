@@ -1,9 +1,0 @@
-.env
-.env.local
-.env.*.local
-*.pem
-*.key
-__pycache__/
-*.pyc
-*.pyo
-.DS_Store

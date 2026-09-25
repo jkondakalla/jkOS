@@ -1,3 +1,6 @@
+# The one .gitignore for the workspace (music/ keeps its own, for paths under music/).
+# Patterns without a slash match at any depth, so an app needs no file of its own.
+
 # ── Dependencies / build artifacts ───────────────────────────────────────────
 node_modules/
 dist/
@@ -29,6 +32,11 @@ jkos_public.pem
 *.db-wal
 *.sqlite
 *.sqlite3
+
+# ── Per-deployment config ─────────────────────────────────────────────────────
+# LazurOS's filled-in deployment config (real WoL MAC / node IPs), copied from the committed
+# deployment.example.json / deployment.jag.json and bind-mounted at runtime.
+apps/lazuros/deployment.json
 
 # ── Personal / generated artefacts ────────────────────────────────────────────
 # The hero-shot pack: 2x screenshots of the running suite against Jag's OWN data —

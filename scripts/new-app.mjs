@@ -92,7 +92,6 @@ const FILES = [
   ['Dockerfile',                  'Dockerfile'],
   ['docker-compose.yml',          'docker-compose.yml'],
   ['docker-compose.staging.yml',  'docker-compose.staging.yml'],
-  ['gitignore',                   '.gitignore'],
 ]
 
 console.log(`\n${C.cyn}Scaffolding ${C.off}${NAME} ${C.dim}(id '${id}', port ${PORT})${C.off}\n`)

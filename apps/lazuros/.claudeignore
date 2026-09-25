@@ -1,8 +1,0 @@
-node_modules/
-dist/
-build/
-__pycache__/
-*.db
-*.db-shm
-*.db-wal
-.env
