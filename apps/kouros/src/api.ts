@@ -13,10 +13,8 @@
 //                            @jkos/weave/server's defineCollection mount for
 //                            history). Simpler than round-tripping through weave
 //                            discovery for routes this app already owns.
-import { authFetch } from '@jkos/auth-client';
 import { weaveClient, type ListFilters } from '@jkos/weave';
-
-const API = (import.meta as any).env?.VITE_API_URL ?? '';
+import { API, JSON_HEADERS, apiJson } from './http';
 
 // ─── Wire types (mirrors discovery.js's TRACK_SHAPE + HISTORY fields) ─────────────
 
@@ -72,21 +70,6 @@ export interface TrackFilters {
   genre?: string;
 }
 
-// ─── Shared fetch helper ───────────────────────────────────────────────────────────
-
-async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const r = await authFetch(`${API}${path}`, init);
-  if (!r.ok) {
-    const err = new Error(`${init?.method ?? 'GET'} ${path} failed: ${r.status}`) as Error & { status: number };
-    err.status = r.status;
-    throw err;
-  }
-  if (r.status === 204) return undefined as T;
-  return r.json() as Promise<T>;
-}
-
-const JSON_HEADERS = { 'Content-Type': 'application/json' };
-
 // ─── Tracks ─────────────────────────────────────────────────────────────────────
 
 /** The `tracks` catalog, via the weave dataset contract (bare-array rows). Falls
@@ -109,11 +92,10 @@ export function coverUrl(id: number): string {
 
 /** Range-aware audio stream URL for one track. A `tracks` row is always exactly
  *  one file (unit:'file' scanning — src/media.js's header), so `fileIndex` is
- *  always 0; kept as a real path segment (not baked into the function name) so
- *  the wire shape matches the audiobooks' `/stream/:id/:fileIndex` for
- *  18.4's player seam. */
-export function streamUrl(id: number): string {
-  return `${API}/api/stream/${id}/0`;
+ *  always 0; it stays an explicit parameter so this reads identically to the
+ *  audiobooks' `streamUrl(id, fileIndex)` (the player's sources.ts calls both). */
+export function streamUrl(id: number, fileIndex = 0): string {
+  return `${API}/api/stream/${id}/${fileIndex}`;
 }
 
 /** Whole-track download URL. */
@@ -168,7 +150,7 @@ export async function deletePlaylist(id: number): Promise<void> {
 
 // ─── Play history ─────────────────────────────────────────────────────────────
 // Written by the player's session recorder through player/api.ts's
-// createHistoryEvent (the only caller there ever was — a second, unused copy lived
+// createHistoryEvent (typed on HistoryRow above) (the only caller there ever was — a second, unused copy lived
 // here until 2026-09-23). Read server-side only, by Home's rails
 // (backend/src/discover/recent.js, home.js).
 

@@ -12,7 +12,7 @@
 import { cx, Slider } from '@jkos/ui';
 import type { Queue, RepeatMode } from '@jkos/player/core';
 import { QueuePanel, IconPrev, IconNext } from '@jkos/player/ui';
-import type { Track } from './api';
+import type { Track } from '../api';
 import { IconQueue, IconRepeat, IconRepeatOne, IconShuffle, IconVolume, IconVolumeMute } from './icons';
 
 /* ── Shuffle toggle ────────────────────────────────────────────────────────────── */

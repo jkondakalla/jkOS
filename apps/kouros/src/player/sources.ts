@@ -27,7 +27,8 @@ import { authFetch } from '@jkos/auth-client';
 import type {
   BookmarkStore, CompatPolicy, CompatPrepareOutcome, CompatPrepareRequest, Id, ItemLoader, ProgressStore, Segment,
 } from '@jkos/player/engine';
-import { coverUrl as kourosCover, getTrack, streamUrl as kourosStream } from './api';
+import { coverUrl as kourosCover, streamUrl as kourosStream } from '../api';
+import { getTrack } from './api';
 import type { Track } from '../api';
 import {
   coverUrl as bookCover, createBookmark, createProgress, deleteBookmark, getBook, listBookmarks, listProgress,

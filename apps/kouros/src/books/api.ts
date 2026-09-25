@@ -8,13 +8,12 @@
 //   /api/progress, /api/bookmarks    owner-scoped CRUD, offline-queued (./offline)
 //   /api/book_history                the append-only book ledger
 //   /api/metadataSearch, /api/match  the iTunes connector + matchBook
-import { authFetch } from '@jkos/auth-client';
 // Deliberately './offline/writes' (not './offline') — the offline barrel re-exports
 // constants.ts, which imports THIS module for its URL builders; writes.ts imports
 // nothing from here at runtime (type-only), so this edge keeps the graph acyclic.
 import { initOfflineWrites } from './offline/writes';
+import { API, JSON_HEADERS, apiJson } from '../http';
 
-const API = (import.meta as any).env?.VITE_API_URL ?? '';
 
 // ─── Wire types (Wave 5.1 crib — the shape every Wave-5 view/component shares) ────
 
@@ -127,22 +126,6 @@ export interface BookFilters {
   genre?: string;
 }
 
-// ─── Shared fetch helper ───────────────────────────────────────────────────────────
-
-async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const r = await authFetch(`${API}${path}`, init);
-  if (!r.ok) {
-    // `.status` rides along (message unchanged) so the offline write queue can
-    // tell a server VERDICT (4xx → drop the queued write) from a transport
-    // failure (fetch throws TypeError → keep it queued). See offline/writes.ts.
-    const err = new Error(`${init?.method ?? 'GET'} ${path} failed: ${r.status}`) as Error & { status: number };
-    err.status = r.status;
-    throw err;
-  }
-  if (r.status === 204) return undefined as T;
-  return r.json() as Promise<T>;
-}
-
 /**
  * Normalise a `ref` stud to a number, at the one door every row comes through.
  *
@@ -184,7 +167,6 @@ function refsInList<T>(rows: T[]): T[] {
   return Array.isArray(rows) ? rows.map(withNumericRefs) : rows;
 }
 
-const JSON_HEADERS = { 'Content-Type': 'application/json' };
 
 // ─── Books ──────────────────────────────────────────────────────────────────────
 

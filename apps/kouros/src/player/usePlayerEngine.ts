@@ -33,7 +33,8 @@ import {
   EMPTY_QUEUE, append, insertNext, next, prev, reorder, repeat as repeatQueue, shuffle as shuffleQueue,
   type Queue, type RepeatMode,
 } from '@jkos/player/core';
-import { createHistoryEvent, useTrackCache, type Track } from './api';
+import type { Track } from '../api';
+import { createHistoryEvent, useTrackCache } from './api';
 import { createBookHistoryEvent } from '../books/api';
 import {
   compositionFor, decodeRef, rateAppliesTo, streamUrlFor,
