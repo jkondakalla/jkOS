@@ -134,7 +134,7 @@ Engineering references, written for whoever is changing the code. Agents also ge
 
 | File | What it holds |
 |------|---------------|
-| [agents/TRAPS.md](agents/TRAPS.md) | 114 durable traps — browser engines and WebGL, Node/pnpm, SQLite, numpy, Docker, the native shells, this repo's shape. |
+| [agents/TRAPS.md](agents/TRAPS.md) | 115 durable traps — browser engines and WebGL, Node/pnpm, SQLite, numpy, Docker, the native shells, this repo's shape. |
 | [agents/TESTING.md](agents/TESTING.md) | Every command, gate and test suite, what each asserts, and how to add one. |
 | [agents/WEAVE.md](agents/WEAVE.md) | The integration contract — what an app must implement, the rulings, the checklist for a new app. |
 | [agents/DESIGN.md](agents/DESIGN.md) | The design system — tokens, the accent chain, class catalog, per-app constraints. |

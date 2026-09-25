@@ -212,6 +212,14 @@ that code can reopen it.
   the tab then read its own lock as another tab's and paused itself. Only the request whose
   callback was granted the lock may clear state.
 
+- **`100cqh` resolves to 0 inside a flex column that has only a `min-height`.** A size
+  container (`container-type: size`) that gets its height from `flex: 1` has no definite
+  block size when its column is sized by `min-height: 100dvh`, so every `cqh` inside it is
+  0 — `cqw` still works, nothing errors, and the element sized by it simply vanishes. The
+  column needs a definite `height`. Live: KourOS's Now Playing (`.kr-now` is `height:
+  100dvh` so the cover can take the stage's leftover height — `views.css`, and the comment
+  there). Measured with a probe element: `width: 100cqh` → `0px`, `width: 100cqw` → `358px`.
+
 ## Node, pnpm & the build
 
 - **`inject-workspace-packages=true` (`.npmrc`) means every `@jkos/*` package with a

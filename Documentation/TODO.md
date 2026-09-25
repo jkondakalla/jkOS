@@ -145,9 +145,9 @@ deploy of the new code, which reads `/analysis/…` and so needs the `Luna/jkos-
   set drifts. A temperature parameter trades album coherence against variety. This is the
   feature that justifies the whole vector pipeline. Joins KourOS's `tracks` by absolute path.
   Then draw its path as a ribbon through the vibe space.
-- **Now Playing doesn't fit one screen on any common phone** (390×844 overflows by 165 px,
-  375×667 by 318, 412×915 by 91, 360×740 by 246), so the rune gesture layer always stands down on
-  a phone. The runes are built and gated but unreachable there.
+- **Try the runes on a real phone.** Now Playing fits one screen at every common size since
+  2026-09-25 (measured headless: 0 px overflow from 375×667 to 1920×1080, music and books), so
+  the rune layer is live on a phone for the first time. It has never met a thumb.
 - **Check on a real phone:** the 3-D pulsarmap's frame rate (~44 × 127 × 2 quads a frame; headless
   swiftshader managed ~12 fps) and its feel under a thumb; the vibe space's scrub frame rate, whether
   the adaptive render scale settles, and how the density worker (1.5 s for 3,000 tracks on the
