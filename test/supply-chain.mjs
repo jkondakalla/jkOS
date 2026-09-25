@@ -35,10 +35,20 @@ const FLOOR = 'high';
 let pass = 0, fail = 0;
 const ok = (cond, msg) => { if (cond) { pass++; } else { fail++; console.error('  ✗ ' + msg); } };
 
-function auditJson() {
+/* ⚠️ EVERY TRACKED LOCKFILE, not just the root one. native/desktop sits OUTSIDE the pnpm
+   workspace on purpose (Electron needs Node >= 22.12; the suite runs 20) and keeps its own
+   pnpm-lock.yaml — which a root-only `pnpm audit` never sees. The list is derived from git,
+   not typed, so the next out-of-workspace package cannot quietly escape the floor either. */
+const LOCKFILES = execFileSync('git', ['ls-files', '--', 'pnpm-lock.yaml', '*/pnpm-lock.yaml'], {
+  cwd: REPO_ROOT, encoding: 'utf8',
+}).split('\n').filter(Boolean);
+
+function auditJson(lockfile) {
+  const dir = join(REPO_ROOT, dirname(lockfile));
+  const args = ['audit', '--json', ...(lockfile === 'pnpm-lock.yaml' ? [] : ['--ignore-workspace'])];
   try {
-    const out = execFileSync('pnpm', ['audit', '--json'], {
-      cwd: REPO_ROOT,
+    const out = execFileSync('pnpm', args, {
+      cwd: dir,
       encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, timeout: 240_000,
     });
     return JSON.parse(out);
@@ -50,36 +60,44 @@ function auditJson() {
   }
 }
 
-const report = auditJson();
-if (!report) {
-  console.error('  ✗ could not run `pnpm audit` (offline? registry unreachable?)');
-  console.log('\nsupply-chain: skipped — the registry could not be reached');
-  process.exit(0);   // never fail the gate on a network condition
+ok(LOCKFILES.includes('pnpm-lock.yaml'), 'the root pnpm-lock.yaml is not tracked — nothing to audit');
+
+const reports = [];
+for (const lockfile of LOCKFILES) {
+  const report = auditJson(lockfile);
+  if (!report) {
+    console.error(`  ✗ could not run \`pnpm audit\` for ${lockfile} (offline? registry unreachable?)`);
+    console.log('\nsupply-chain: skipped — the registry could not be reached');
+    process.exit(0);   // never fail the gate on a network condition
+  }
+  reports.push([lockfile, report]);
 }
 
-const advisories = Object.values(report.advisories || {});
-const bySeverity = {};
-for (const a of advisories) {
-  (bySeverity[a.severity] = bySeverity[a.severity] || new Set()).add(a.module_name);
-}
-const count = (s) => (bySeverity[s] ? bySeverity[s].size : 0);
-const line = (s) => `${s}: ${count(s)}${count(s) ? ` (${[...bySeverity[s]].sort().join(', ')})` : ''}`;
+for (const [lockfile, report] of reports) {
+  const advisories = Object.values(report.advisories || {});
+  const bySeverity = {};
+  for (const a of advisories) {
+    (bySeverity[a.severity] = bySeverity[a.severity] || new Set()).add(a.module_name);
+  }
+  const count = (s) => (bySeverity[s] ? bySeverity[s].size : 0);
+  const line = (s) => `${s}: ${count(s)}${count(s) ? ` (${[...bySeverity[s]].sort().join(', ')})` : ''}`;
 
-console.log('  dependency advisories, by severity, unique packages:');
-for (const s of ['critical', 'high', 'moderate', 'low']) console.log(`    ${line(s)}`);
+  console.log(`  ${lockfile} — dependency advisories, by severity, unique packages:`);
+  for (const s of ['critical', 'high', 'moderate', 'low']) console.log(`    ${line(s)}`);
 
-ok(count('critical') === 0,
-  `${count('critical')} CRITICAL advisory package(s) — above the gate's floor (${FLOOR}). `
-  + `Upgrade or justify each: ${[...(bySeverity.critical || [])].join(', ')}`);
+  ok(count('critical') === 0,
+    `${lockfile}: ${count('critical')} CRITICAL advisory package(s) — above the gate's floor (${FLOOR}). `
+    + `Upgrade or justify each: ${[...(bySeverity.critical || [])].join(', ')}`);
 
-ok(count('high') === 0,
-  `${count('high')} HIGH advisory package(s) — at the gate's floor (${FLOOR}). `
-  + `Upgrade each (an in-range lock refresh, or a range-scoped floor in pnpm-workspace.yaml `
-  + `that matches ONLY the vulnerable versions): ${[...(bySeverity.high || [])].join(', ')}`);
+  ok(count('high') === 0,
+    `${lockfile}: ${count('high')} HIGH advisory package(s) — at the gate's floor (${FLOOR}). `
+    + `Upgrade each (an in-range lock refresh, or a range-scoped floor in pnpm-workspace.yaml `
+    + `that matches ONLY the vulnerable versions): ${[...(bySeverity.high || [])].join(', ')}`);
 
-if (count('moderate') || count('low')) {
-  console.log(`\n  ⚠️  ${count('moderate')} moderate / ${count('low')} low advisory package(s) are below the `
-    + `gate's floor (${FLOOR}) and do not fail this run — see the list above.`);
+  if (count('moderate') || count('low')) {
+    console.log(`\n  ⚠️  ${count('moderate')} moderate / ${count('low')} low advisory package(s) are below the `
+      + `gate's floor (${FLOOR}) and do not fail this run — see the list above.`);
+  }
 }
 
 console.log(`\nsupply-chain: ${pass} passed, ${fail} failed (floor: ${FLOOR})`);

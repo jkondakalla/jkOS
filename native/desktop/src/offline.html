@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- Shown by main.js when the portal cannot be reached. Local, script-light, and allowed to
+     do exactly one thing: navigate back to the start URL — through the same navigation guard
+     as every other navigation. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+<title>Can’t reach jkOS</title>
+<style>
+  :root { color-scheme: dark; }
+  html, body { height: 100%; margin: 0; }
+  body { display: grid; place-items: center; background: #11100d; color: #ede2c8;
+         font: 16px/1.5 system-ui, sans-serif; text-align: center; }
+  p { color: #a39a86; margin: 8px 0 24px; }
+  button { font: inherit; padding: 8px 20px; border-radius: 9px; border: 1px solid #4f4b41;
+           background: #1a1814; color: inherit; cursor: pointer; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Can’t reach jkOS</h1>
+  <p>Trying again every 30 seconds.</p>
+  <button id="retry" type="button">Try now</button>
+</main>
+<script>
+  const target = new URLSearchParams(location.search).get('url')
+  const go = () => { if (target) location.href = target }
+  document.getElementById('retry').addEventListener('click', go)
+  setInterval(go, 30000)
+</script>
+</body>
+</html>

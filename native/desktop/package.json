@@ -1,0 +1,27 @@
+{
+  "name": "@jkos/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "jkOS and KourOS as Linux desktop apps: a hardened Electron window on the live site. OUTSIDE the pnpm workspace on purpose (Electron needs Node >= 22.12; the suite runs 20) — install with `pnpm install --ignore-workspace`. See Documentation/agents/NATIVE.md.",
+  "main": "src/main.js",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "packageManager": "pnpm@10.33.4",
+  "scripts": {
+    "start": "node node_modules/electron/install.js && electron .",
+    "start:kouros": "node node_modules/electron/install.js && JKOS_SHELL=kouros electron .",
+    "dist": "node scripts/dist.mjs"
+  },
+  "devDependencies": {
+    "electron": "44.4.5",
+    "electron-builder": "26.15.3"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [],
+    "ignoredBuiltDependencies": [
+      "electron",
+      "electron-winstaller"
+    ]
+  }
+}
