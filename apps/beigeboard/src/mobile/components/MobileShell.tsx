@@ -111,6 +111,7 @@ export function MobileBottomNav({ view, setView }: BottomNavProps) {
 
   return (
     <nav
+      aria-label="BeigeBoard"
       style={{
         flexShrink: 0,
         display: 'flex',
@@ -128,6 +129,7 @@ export function MobileBottomNav({ view, setView }: BottomNavProps) {
           <button
             key={v.id}
             onClick={() => setView(v.id)}
+            aria-current={isActive ? 'page' : undefined}
             style={{
               flex: 1,
               height: '100%',
@@ -155,8 +157,10 @@ export function MobileBottomNav({ view, setView }: BottomNavProps) {
             >
               {v.glyph}
             </span>
-            <span style={{ fontSize: 7, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-              {v.label.slice(0, 2)}
+            {/* The whole word, at the suite's tab-label size (KourOS's .kr-tab): it was cut to
+                two letters at 7px — "TO", "WE", "CA", "TA" — below any legible floor. */}
+            <span style={{ fontSize: 9, fontWeight: 600, letterSpacing: '0.09em', textTransform: 'uppercase' }}>
+              {v.label}
             </span>
           </button>
         )
