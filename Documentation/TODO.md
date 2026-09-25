@@ -229,6 +229,10 @@ generated file held by `check:tokens`.
   library toolbar, the playlist picker and playlists page) and a local `appearance` reset in
   `views.css` are drawn in the glass material. `check:fields` names KourOS as its one exemption
   until this lands, so remove it from that list in the same commit.
+- **Fold the time-grid JSX that `DayView.tsx` and `WeekView.tsx` share** in `@jkos/cards`: about
+  150 identical lines (the now-line, the block layer, the create flow), the largest copy left in
+  the source (measured 2026-09-25). It changes DOM, so it goes behind the computed-style harness
+  too.
 - **Draw the jkOS mark.** `apps/ordeck/public/icon.svg` / `icon-maskable.svg` (and their PNGs) are a
   placeholder dial. They're what the jkOS and jkOS Home apps and ORDECK's PWA install show, derived at
   build time, so redrawing them re-skins every shell.
@@ -243,6 +247,12 @@ generated file held by `check:tokens`.
   runtime. Found building the desktop app: every supported Electron needs Node ≥ 22.12, which is
   why `native/desktop` sits outside the workspace. Moving the suite to Node 22 or 24 LTS is a
   dependency-and-image change across every backend, so it's a deploy-gated job, not a drive-by.
+- **Each app's prod and staging compose files are mostly the same file.** KourOS's pair
+  shares 95 of ~102 lines; the others 9–25. A shared base (`extends:`) would stop a variable
+  landing in one and not the other, but it changes the deploy path. Prove it by diffing
+  `docker compose config` before and after **under Compose v2.32.3** (what jkos-deploy runs, not
+  Emily's v5), and teach `95-env-conformance`'s compose list and `check:docker` the base file in
+  the same change. Deploy-gated, like the Node move.
 - **jkOS Home, not built yet:** file upload (`<input type=file>` does nothing), downloads,
   keep-screen-on, and a real lock (device-owner lock-task mode). The bridge answers only `info`;
   ORDECK doesn't call it yet. Add messages as a feature needs them ([NATIVE.md § The bridge](agents/NATIVE.md)).
