@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="jkOS">
+  <!-- jkOS app icon — a PLACEHOLDER mark until Stage F settles the visual language: a dial on
+       the suite's dark ground (hub-bg-0, dark face), its ring paper at 28 % over that ground
+       (pre-mixed: a renderer that ignores stroke-opacity must still draw the same icon) and
+       a 240° sweep in amber. Deliberately geometric so it survives favicon size.
+       icon-192.png / icon-512.png are rendered from this file and icon-maskable-512.png from
+       icon-maskable.svg (same geometry, shrunk into the maskable safe zone) — keep them in
+       step: `convert -background none icon.svg -resize 512x512 -depth 8 icon-512.png`. -->
+  <rect width="512" height="512" rx="96" fill="#11100d" />
+  <circle cx="256" cy="256" r="150" fill="none" stroke="#4f4b41" stroke-width="28" />
+  <path d="M 256 106 A 150 150 0 1 1 126.1 331" fill="none" stroke="#dba13c" stroke-width="28" stroke-linecap="round" />
+  <circle cx="256" cy="256" r="34" fill="#ede2c8" />
+</svg>

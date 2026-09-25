@@ -1,8 +1,16 @@
 {
-  "name": "jkHUB",
-  "short_name": "jkHUB",
+  "name": "jkOS",
+  "short_name": "jkOS",
+  "description": "ORDECK — the jkOS control surface: every app in the suite, live, on one screen.",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#0f0f0f",
   "theme_color": "#0f0f0f",
-  "icons": []
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
 }

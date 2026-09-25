@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="jkOS">
+  <!-- icon.svg's geometry, full-bleed and shrunk so every mark sits inside a 156 px radius —
+       inside BOTH the web maskable safe zone (40 %) and Android's adaptive-icon safe circle
+       (66 of 108 dp ≈ 61 % diameter). The Android shells use the PNG rendered from this. -->
+  <rect width="512" height="512" fill="#11100d" />
+  <circle cx="256" cy="256" r="118" fill="none" stroke="#4f4b41" stroke-width="22" />
+  <path d="M 256 138 A 118 118 0 1 1 153.8 315" fill="none" stroke="#dba13c" stroke-width="22" stroke-linecap="round" />
+  <circle cx="256" cy="256" r="27" fill="#ede2c8" />
+</svg>
