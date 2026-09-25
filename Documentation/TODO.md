@@ -244,6 +244,10 @@ generated file held by `check:tokens`.
   binary's sandbox). Test through the installed `.deb`, or give `node_modules/electron`'s binary
   an AppArmor profile. Never `--no-sandbox`.
 
+- **BeigeBoard's mobile detail sheet shows a title, breadcrumbs and Delete — nothing else.** The
+  desktop DetailPanel has status, notes, schedule, subtasks, "on ORDECK" and more; the mobile sheet
+  had scaffolding for subtasks/move-to-goal that never rendered (retired 2026-09-25). Completion
+  works from every mobile list; parity is a feature, not a fix.
 - **jkAuth has two authorization policies.** `policy.js` holds route actions; `roleClaims()` in
   `db.js` decides the `aud`/`scope` claims every token carries. Folding it in touches the
   token-minting path. It's pinned as an exact three-comparison exception so it can't grow.
