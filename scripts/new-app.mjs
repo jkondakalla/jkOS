@@ -92,7 +92,6 @@ const FILES = [
   ['Dockerfile',                  'Dockerfile'],
   ['docker-compose.yml',          'docker-compose.yml'],
   ['docker-compose.staging.yml',  'docker-compose.staging.yml'],
-  ['dockerignore',                '.dockerignore'],
   ['gitignore',                   '.gitignore'],
 ]
 

@@ -1,0 +1,8 @@
+# The build context is this directory (docker-compose.yml: `build: .`) and the Dockerfile
+# runs `COPY . .`, so anything here that is not excluded ships in the image. Without this
+# file the host's .env (BREAK_GLASS_TOKEN included) was baked into a layer. check:docker
+# holds the .env rule.
+**/.env
+**/__pycache__
+**/*.pyc
+scripts/

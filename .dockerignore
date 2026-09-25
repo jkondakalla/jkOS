@@ -1,4 +1,7 @@
-# Build context is the repo root for all JS app images. Keep it lean.
+# Build context is the repo root for all JS app images, so this is the ONLY ignore file
+# those builds read: Docker takes .dockerignore from the context root (or a
+# <Dockerfile>.dockerignore beside the Dockerfile), never a .dockerignore beside it.
+# check:docker holds the .env rule and fails on an ignore file nothing reads. Keep it lean.
 **/node_modules
 **/dist
 **/build

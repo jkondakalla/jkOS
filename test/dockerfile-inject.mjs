@@ -170,10 +170,93 @@ for (const [label, path] of targets) {
   }
 }
 
+// ── Check 3: the .dockerignore Docker actually READS keeps .env out ──────────
+// Docker reads exactly one ignore file per build: `<Dockerfile>.dockerignore` beside the
+// Dockerfile if it exists, else `.dockerignore` at the root of the build CONTEXT — never a
+// `.dockerignore` that merely sits beside the Dockerfile. Every app builds with
+// `context: ../..`, so apps/<id>/.dockerignore files (which listed .env and *.db) were read by
+// nothing while looking like the control. And jkos-deploy builds `.` with `COPY . .` and had
+// no ignore file at all, so the host's jkos-deploy/.env — BREAK_GLASS_TOKEN included — went
+// into an image layer (found 2026-09-25). Both halves are derived from the compose files:
+//
+//   A build whose Dockerfile copies the whole context must be read an ignore file that
+//   excludes `**/.env`; and a .dockerignore beside a Dockerfile built from another context
+//   is dead config, so it fails rather than reassures.
+//
+// The new-app template's compose paths are relative to apps/<id>/, not to the template, so
+// the template is covered once scaffolded; it ships no .dockerignore of its own.
+const tracked = (await import('node:child_process'))
+  .execFileSync('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8' })
+  .split('\0').filter(Boolean);
+const composeFiles = tracked.filter((f) =>
+  /(^|\/)docker-compose[^/]*\.ya?ml$/.test(f) && !f.startsWith('scripts/templates/'));
+
+/** Every `build:` in a compose file → { context, dockerfile } as repo-relative paths. */
+function buildsIn(file) {
+  const dir = dirname(resolve(root, file));
+  const lines = readFileSync(resolve(root, file), 'utf8').split('\n');
+  const builds = [];
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(/^(\s*)build:\s*(\S+)?\s*(#.*)?$/);
+    if (!m) continue;
+    let context = m[2] ?? '.';
+    let dockerfile = 'Dockerfile';
+    if (!m[2]) {
+      for (let j = i + 1; j < lines.length; j++) {
+        const indent = lines[j].match(/^(\s*)/)[1].length;
+        if (lines[j].trim() && !lines[j].trim().startsWith('#') && indent <= m[1].length) break;
+        const kv = lines[j].match(/^\s*(context|dockerfile):\s*(\S+)/);
+        if (kv) kv[1] === 'context' ? (context = kv[2]) : (dockerfile = kv[2]);
+      }
+    }
+    const ctx = resolve(dir, context);
+    builds.push({ file, context: ctx, dockerfile: resolve(ctx, dockerfile) });
+  }
+  return builds;
+}
+
+const rel = (p) => p.slice(root.length + 1) || '.';
+const COPIES_CONTEXT = /^(COPY|ADD)\s+(--\S+\s+)*\.\/?\s+\S+/;
+const builds = composeFiles.flatMap(buildsIn);
+
+for (const b of builds) {
+  const copiesAll = readFileSync(b.dockerfile, 'utf8').split('\n').some((l) => COPIES_CONTEXT.test(l.trim()));
+  if (!copiesAll) {
+    ok(`${b.file} — ${rel(b.dockerfile)} copies nothing wholesale from ${rel(b.context)}/ (exempt)`);
+    continue;
+  }
+  const beside = `${b.dockerfile}.dockerignore`;
+  const read = existsSync(beside) ? beside : resolve(b.context, '.dockerignore');
+  const rules = existsSync(read) ? readFileSync(read, 'utf8').split('\n').map((l) => l.trim()) : [];
+  if (rules.includes('**/.env')) {
+    ok(`${b.file} — the ignore file Docker reads (${rel(read)}) keeps **/.env out of ${rel(b.dockerfile)}'s image`);
+  } else {
+    fail(
+      `${b.file} — ${rel(b.dockerfile)} copies all of ${rel(b.context)}/ but ` +
+      (existsSync(read) ? `${rel(read)} has no '**/.env' rule` : `no ${rel(read)} exists`) +
+      ` → a host .env is baked into the image. Add '**/.env' to ${rel(read)}.`,
+    );
+  }
+}
+
+for (const f of tracked.filter((t) => t.endsWith('.dockerignore'))) {
+  const dir = dirname(resolve(root, f));
+  const deadFor = builds.filter((b) => dirname(b.dockerfile) === dir && b.context !== dir
+    && !resolve(root, f).startsWith(b.dockerfile));
+  if (deadFor.length) {
+    fail(
+      `${f} is never read: ${deadFor.map((b) => b.file).join(', ')} build ${rel(dir)}/Dockerfile ` +
+      `from ${rel(deadFor[0].context)}/, and Docker reads the context root's .dockerignore. ` +
+      `Delete it; the rules that apply live in ${rel(resolve(deadFor[0].context, '.dockerignore'))}.`,
+    );
+  }
+}
+
 console.log('');
 if (failed) {
   console.error(`Dockerfile inject-sync: ${failed} failure(s).`);
   process.exit(1);
 }
-console.log('Dockerfile inject-sync: images re-inject before the frontend build, and every');
-console.log('deploy bundle copies its workspace deps\' source.');
+console.log('Dockerfile inject-sync: images re-inject before the frontend build, every');
+console.log('deploy bundle copies its workspace deps\' source, and every image build reads');
+console.log('an ignore file that keeps .env out.');

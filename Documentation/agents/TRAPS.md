@@ -640,6 +640,14 @@ that code can reopen it.
 
 ## Docker, deploy & infra
 
+- **Docker reads the `.dockerignore` at the root of the build *context*, not the one beside the
+  Dockerfile.** (BuildKit also honours `<Dockerfile>.dockerignore` beside it; nothing else.) Every
+  app here builds with `context: ../..`, so `apps/<id>/.dockerignore` files listing `.env` and
+  `*.db` were read by nothing for months while looking like the control; the root file did the
+  work. The opposite case is the dangerous one: a service built from its own directory with
+  `COPY . .` and no ignore file ships the host's `.env` in a layer. That was `jkos-deploy` until
+  2026-09-25. `check:docker` now derives every context from the compose files and holds both.
+
 - **A single-*file* Docker bind mount pins to the file's original inode, and `git reset --hard`
   swaps the inode — so `nginx -s reload` (which re-opens the same mount) silently keeps serving
   the *old* config content even though the file on disk is new and `nginx -t` against the on-disk

@@ -21,6 +21,12 @@ Roughly in order: the first one gates every deploy.
   in LazurOS's. `openssl rand -hex 32`; grant `beigeboard:create`, not `beigeboard:write`.
   ⚠️ An id or secret containing `:` or `,` makes jkAuth refuse to boot, deliberately. LazurOS
   refuses to start in production without them.
+- **Rebuild jkos-deploy, and rotate `BREAK_GLASS_TOKEN` if it was ever set.** Until 2026-09-25
+  its image was built with `COPY . .` and no `.dockerignore`, so the host's `jkos-deploy/.env`
+  sits in a layer of every image built so far. The next build leaves it out (`check:docker` holds
+  that). Old images keep it until pruned: `docker image ls jkos-deploy*`, then remove the old
+  ones. Anyone who could read an image could already reach the docker socket, so rotate the token
+  and move on; it's not an incident.
 - **Rotate the Qobuz password at Qobuz.** It's out of the working tree, but still in git history at
   `e3c829a` in every clone and on the remote. Rotation is the only fix (history rewriting stays refused).
 - **Set up music-analysis delivery**, steps 1 and 3 of
