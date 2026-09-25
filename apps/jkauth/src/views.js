@@ -380,10 +380,27 @@ fetch('/auth/apps', { credentials: 'same-origin' })
     const list = (apps || []).filter(a =>
       a.id !== 'auth' && a.origin && (a.allowed_roles || '').split(',').map(s => s.trim()).includes(ROLE));
     if (!list.length) { el.innerHTML = '<div class="muted-note">No apps available for your account.</div>'; return; }
-    el.innerHTML = list.map(a => {
-      const ic = (a.name || '?').trim()[0].toUpperCase();
-      return '<a class="app" href="' + a.origin + '"><span class="ic">' + ic + '</span><span class="nm">' + a.name + '</span></a>';
-    }).join('');
+    // Built as nodes, never as an HTML string: a registry row's name and origin are DATA on
+    // the identity provider's own origin, so they go in as textContent, and only a real
+    // http(s) origin becomes a link (never javascript: or data:). The server-rendered half
+    // of this page escapes the same way (escHtml / jsonForScript).
+    el.replaceChildren(...list.map(a => {
+      const link = document.createElement('a');
+      link.className = 'app';
+      try {
+        const u = new URL(a.origin);
+        if (u.protocol === 'https:' || u.protocol === 'http:') link.href = u.href;
+      } catch (_) { /* not a URL — the tile renders unlinked */ }
+      const name = String(a.name || a.id || '').trim();
+      const ic = document.createElement('span');
+      ic.className = 'ic';
+      ic.textContent = (name[0] || '?').toUpperCase();
+      const nm = document.createElement('span');
+      nm.className = 'nm';
+      nm.textContent = name;
+      link.append(ic, nm);
+      return link;
+    }));
   })
   .catch(() => { document.getElementById('apps').innerHTML = '<div class="muted-note">Could not load apps.</div>'; });
 

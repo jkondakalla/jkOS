@@ -388,6 +388,15 @@ try {
     ok('a markup-laden display name renders escaped on the dashboard',
       page.text.includes('&lt;img src=x') && !page.text.includes('<img src=x onerror'),
       page.text.slice(0, 160));
+    // The CLIENT half of the same page: its script fills the app launcher from
+    // /auth/apps. It once concatenated each registry row's name and origin into
+    // innerHTML — an HTML sink for data on the identity provider's own origin. Held
+    // generally, not to that one line: every innerHTML the page's script assigns must
+    // be a constant string literal; anything built from data goes in as nodes.
+    const sinks = [...page.text.matchAll(/\.innerHTML\s*=\s*([^;]+);/g)].map((m) => m[1].trim());
+    const dynamic = sinks.filter((rhs) => !/^'[^'\\]*'$/.test(rhs));
+    ok('the dashboard script assigns innerHTML only constant strings (data goes in as nodes)',
+      sinks.length > 0 && dynamic.length === 0, JSON.stringify(dynamic));
   }
 
   // ── L · C7: the audience claim is now VERIFIED, not merely minted ─────────
