@@ -36,14 +36,13 @@
 //
 //   node apps/kouros/backend/test/books.meta.smoke.mjs
 
-import { spawn, execFile } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { generateKeyPairSync, sign as cryptoSign } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { smoke, forgeTokens } from '../../../../test/lib/smoke.mjs';
 
 const execFileAsync = promisify(execFile);
 const require = createRequire(import.meta.url);
@@ -64,8 +63,7 @@ const BASE = `http://127.0.0.1:${PORT}`;
 const SERVICE = 'kouros';
 const ISSUER = 'jkos-auth';
 
-let pass = 0, fail = 0;
-const ok = (cond, msg) => { if (cond) pass++; else { fail++; console.error('  ✗ ' + msg); } };
+const { tmp, ok, boot, crashed, done, log } = smoke('books.meta.smoke');
 
 // ── ffprobe availability gate — SKIP (exit 0) rather than fail if it's missing ──────
 try {
@@ -76,7 +74,6 @@ try {
   process.exit(0);
 }
 
-const tmp = mkdtempSync(join(tmpdir(), 'kouros-books-meta-'));
 const DB_PATH = join(tmp, 'test.db');           // DATA_DIR (server.js) === dirname(DB_PATH) === tmp
 const FETCH_MOCK_LOG = join(tmp, 'fetch-log.ndjson');
 
@@ -84,20 +81,7 @@ const FETCH_MOCK_LOG = join(tmp, 'fetch-log.ndjson');
 //    same recipe as playback.smoke.mjs, needed here because the dev-stub auth only ever
 //    injects ONE identity (role:'admin'), which can't exercise the matchAllMissing
 //    non-admin 403 gate.
-const { publicKey, privateKey } = generateKeyPairSync('rsa', {
-  modulusLength: 2048,
-  publicKeyEncoding: { type: 'spki', format: 'pem' },
-  privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
-});
-const b64url = (buf) => Buffer.from(buf).toString('base64url');
-function mkToken(claims) {
-  const header = b64url(JSON.stringify({ alg: 'RS256', typ: 'JWT', kid: '1' }));
-  const now = Math.floor(Date.now() / 1000);
-  const payload = b64url(JSON.stringify({ iss: ISSUER, iat: now, exp: now + 900, ...claims }));
-  const input = `${header}.${payload}`;
-  const sig = b64url(cryptoSign('RSA-SHA256', Buffer.from(input), privateKey));
-  return `${input}.${sig}`;
-}
+const { publicKey, mkToken } = forgeTokens({ issuer: ISSUER });
 const ADMIN = mkToken({ sub: 401, role: 'admin', scope: ['kouros:admin', 'kouros:write'] });
 const USER = mkToken({ sub: 402, role: 'user', scope: ['kouros:write'] });
 
@@ -111,25 +95,6 @@ async function req(method, path, body, token) {
   });
   let json = null; try { json = await r.json(); } catch { /* non-JSON */ }
   return { status: r.status, json };
-}
-
-async function waitForHealth(ms = 15000) {
-  const deadline = Date.now() + ms;
-  while (Date.now() < deadline) {
-    if (exited) return false; // the child is gone — polling the port can only find a stranger
-    try {
-      const res = await fetch(BASE + '/health');
-      if (res.ok) {
-        const body = await res.json().catch(() => ({}));
-        if (body.service === SERVICE) return true;
-        console.error(`  ✗ /health answered 200 but service=${JSON.stringify(body.service)} — ` +
-                      `expected '${SERVICE}'. Another server owns this port.`);
-        return false;
-      }
-    } catch { /* not up yet */ }
-    await new Promise((r) => setTimeout(r, 150));
-  }
-  return false;
 }
 
 /** Poll GET /api/books (authenticated) until at least `count` rows appear (the boot scan
@@ -161,12 +126,8 @@ function readFetchLog() {
   }
 }
 
-const child = spawn('node', ['server.js'], {
-  cwd: BACKEND,
-  env: {
-    ...process.env,
-    NODE_ENV: '',
-    PORT: String(PORT),
+try {
+  await boot({ cwd: BACKEND, port: PORT, service: SERVICE, env: {
     DB_PATH,
     // The book half only: an absent music root scans to zero tracks, fast.
     MUSIC_DIR: join(tmp, 'no-music'),
@@ -180,33 +141,8 @@ const child = spawn('node', ['server.js'], {
     // (no shell involved: the string reaches the child's env verbatim, then the CHILD
     // node binary parses it, respecting the quotes) before relying on it here.
     NODE_OPTIONS: `--require "${PRELOAD_PATH}"`,
-  },
-  stdio: ['ignore', 'pipe', 'pipe'],
-});
-let serverLog = '';
-let exited = null; // fail fast: a child that dies pre-health must not be polled for
-child.stdout.on('data', (d) => { serverLog += d; });
-child.stderr.on('data', (d) => { serverLog += d; });
-child.on('exit', (code, signal) => { exited = { code, signal }; });
-
-function done() {
-  try { child.kill('SIGKILL'); } catch { /* already gone */ }
-  try { rmSync(tmp, { recursive: true, force: true }); } catch { /* best effort */ }
-  // The child's own words, on ANY failure — not only when health never came up.
-  if (fail && serverLog) console.error('\n── server log ──\n' + serverLog);
-  console.log(`\nmeta.smoke: ${pass} passed, ${fail} failed`);
-  process.exit(fail ? 1 : 0);
-}
-
-try {
-  if (!(await waitForHealth())) {
-    fail++;
-    console.error('server never became healthy'
-      + (exited ? ` (exited code=${exited.code} signal=${exited.signal})` : '')
-      + ':\n' + serverLog);
-    done();
-  }
-  ok(serverLog.includes('[fetch-mock-preload] globalThis.fetch replaced'),
+  } });
+  ok(log().includes('[fetch-mock-preload] globalThis.fetch replaced'),
     'preload: fetch-mock-preload.cjs ran before server.js booted (its startup line is in the server log)');
 
   const books = await waitForBooks(ADMIN, 2);
@@ -321,8 +257,7 @@ try {
   const matchAllRes = await req('POST', '/api/match/all', {}, USER);
   ok(matchAllRes.status === 403, `match/all: non-admin → 403 (got ${matchAllRes.status} ${JSON.stringify(matchAllRes.json)})`);
 } catch (e) {
-  console.error('meta.smoke crashed:', e);
-  fail++;
+  crashed(e);
 } finally {
   done();
 }

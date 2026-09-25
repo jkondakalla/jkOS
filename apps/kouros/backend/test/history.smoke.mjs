@@ -25,12 +25,10 @@
 //
 //   node apps/kouros/backend/test/history.smoke.mjs
 
-import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { generateKeyPairSync, sign as cryptoSign } from 'node:crypto';
+import { mkdirSync } from 'node:fs';
+import { smoke, forgeTokens } from '../../../../test/lib/smoke.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const BACKEND = join(__dirname, '..');
@@ -45,10 +43,8 @@ const BASE = `http://127.0.0.1:${PORT}`;
 const SERVICE = 'kouros';
 const ISSUER = 'jkos-auth';
 
-let pass = 0, fail = 0;
-const ok = (cond, msg) => { if (cond) pass++; else { fail++; console.error('  ✗ ' + msg); } };
+const { tmp, ok, boot, crashed, done } = smoke('history.smoke');
 
-const tmp = mkdtempSync(join(tmpdir(), 'kouros-history-'));
 const DB_PATH = join(tmp, 'test.db');
 // Empty on purpose — see file header: no fixture library, no ffprobe needed. The boot
 // scan runs against this and completes as a 0-track no-op.
@@ -56,20 +52,7 @@ const MUSIC_DIR = join(tmp, 'empty-music');
 mkdirSync(MUSIC_DIR, { recursive: true });
 
 // ── Forge suite tokens: RS256 over a throwaway keypair the server is told to trust ──
-const { publicKey, privateKey } = generateKeyPairSync('rsa', {
-  modulusLength: 2048,
-  publicKeyEncoding: { type: 'spki', format: 'pem' },
-  privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
-});
-const b64url = (buf) => Buffer.from(buf).toString('base64url');
-function mkToken(claims) {
-  const header = b64url(JSON.stringify({ alg: 'RS256', typ: 'JWT', kid: '1' }));
-  const now = Math.floor(Date.now() / 1000);
-  const payload = b64url(JSON.stringify({ iss: ISSUER, iat: now, exp: now + 900, ...claims }));
-  const input = `${header}.${payload}`;
-  const sig = b64url(cryptoSign('RSA-SHA256', Buffer.from(input), privateKey));
-  return `${input}.${sig}`;
-}
+const { publicKey, mkToken } = forgeTokens({ issuer: ISSUER });
 const A = mkToken({ sub: 601, role: 'admin', scope: ['kouros:write'] });
 const B = mkToken({ sub: 602, role: 'admin', scope: ['kouros:write'] });
 // Its own listener, so the context checks never touch A's activity counts below.
@@ -88,61 +71,13 @@ async function req(method, path, body, token) {
 }
 const listHistory = async (token) => (await req('GET', '/api/history', undefined, token)).json || [];
 
-async function waitForHealth(ms = 15000) {
-  const deadline = Date.now() + ms;
-  while (Date.now() < deadline) {
-    if (exited) return false; // the child is gone — polling the port can only find a stranger
-    try {
-      const res = await fetch(BASE + '/health');
-      if (res.ok) {
-        const body = await res.json().catch(() => ({}));
-        if (body.service === SERVICE) return true;
-        console.error(`  ✗ /health answered 200 but service=${JSON.stringify(body.service)} — ` +
-                      `expected '${SERVICE}'. Another server owns this port.`);
-        return false;
-      }
-    } catch { /* not up yet */ }
-    await new Promise((r) => setTimeout(r, 150));
-  }
-  return false;
-}
-
-const child = spawn('node', ['server.js'], {
-  cwd: BACKEND,
-  env: {
-    ...process.env,
-    NODE_ENV: '',
-    PORT: String(PORT),
+try {
+  await boot({ cwd: BACKEND, port: PORT, service: SERVICE, env: {
     DB_PATH,
     MUSIC_DIR,
     JKOS_AUTH_PUBLIC_KEY: publicKey,
     JKOS_AUTH_ISSUER: ISSUER,
-  },
-  stdio: ['ignore', 'pipe', 'pipe'],
-});
-let serverLog = '';
-let exited = null; // fail fast: a child that dies pre-health must not be polled for
-child.stdout.on('data', (d) => { serverLog += d; });
-child.stderr.on('data', (d) => { serverLog += d; });
-child.on('exit', (code, signal) => { exited = { code, signal }; });
-
-function done() {
-  try { child.kill('SIGKILL'); } catch { /* already gone */ }
-  try { rmSync(tmp, { recursive: true, force: true }); } catch { /* best effort */ }
-  // The child's own words, on ANY failure — not only when health never came up.
-  if (fail && serverLog) console.error('\n── server log ──\n' + serverLog);
-  console.log(`\nhistory.smoke: ${pass} passed, ${fail} failed`);
-  process.exit(fail ? 1 : 0);
-}
-
-try {
-  if (!(await waitForHealth())) {
-    fail++;
-    console.error('server never became healthy'
-      + (exited ? ` (exited code=${exited.code} signal=${exited.signal})` : '')
-      + ':\n' + serverLog);
-    done();
-  }
+  } });
 
   // ── 1. unauthenticated → 401 ────────────────────────────────────────────────────
   const anonPost = await req('POST', '/api/history', { item_ref: 1, started_at: new Date().toISOString(), ms_played: 1000 });
@@ -267,8 +202,7 @@ try {
   const capped = (await req('GET', '/api/activity?limit=1', undefined, A)).json;
   ok(capped?.activity?.length === 1, `activity: ?limit= is honoured (got ${capped?.activity?.length})`);
 } catch (e) {
-  console.error('history.smoke crashed:', e);
-  fail++;
+  crashed(e);
 } finally {
   done();
 }

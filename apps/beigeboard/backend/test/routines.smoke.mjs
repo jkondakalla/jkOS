@@ -32,9 +32,7 @@
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { generateKeyPairSync, sign as cryptoSign } from 'node:crypto';
+import { smoke, forgeTokens } from '../../../../test/lib/smoke.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const BACKEND = join(__dirname, '..');
@@ -48,22 +46,10 @@ const BASE = `http://127.0.0.1:${PORT}`;
 const SERVICE = 'beigeboard';
 const ISSUER = 'jkos-auth';
 
-const tmp = mkdtempSync(join(tmpdir(), 'bb-routines-'));
+const { tmp, ok, boot, crashed, done } = smoke('routines.smoke');
 const DB_PATH = join(tmp, 'test.db');
 
-const { publicKey, privateKey } = generateKeyPairSync('rsa', {
-  modulusLength: 2048,
-  publicKeyEncoding: { type: 'spki', format: 'pem' },
-  privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
-});
-const b64url = (buf) => Buffer.from(buf).toString('base64url');
-function mkToken(claims) {
-  const header = b64url(JSON.stringify({ alg: 'RS256', typ: 'JWT', kid: '1' }));
-  const now = Math.floor(Date.now() / 1000);
-  const payload = b64url(JSON.stringify({ iss: ISSUER, iat: now, exp: now + 900, ...claims }));
-  const input = `${header}.${payload}`;
-  return `${input}.${b64url(cryptoSign('RSA-SHA256', Buffer.from(input), privateKey))}`;
-}
+const { publicKey, mkToken } = forgeTokens({ issuer: ISSUER });
 const A = mkToken({ sub: 501, role: 'admin', scope: ['beigeboard:write'] });
 /* A DELEGATED service token acting for A (G1). applyDelegation rewrites `sub` to
    `act` but deliberately LEAVES typ:'service', which is precisely why the old
@@ -72,9 +58,6 @@ const DELEGATED = mkToken({ sub: 'svc:trigger', typ: 'service', act: 501, scope:
 /* A plain service token acting for ITSELF — owns no routines, so its reconcile is a
    no-op, and it must never be seeded. */
 const SVC = mkToken({ sub: 'svc:prober', typ: 'service', scope: ['beigeboard:write'] });
-
-let pass = 0, fail = 0;
-const ok = (cond, msg) => { if (cond) pass++; else { fail++; console.error('  ✗ ' + msg); } };
 
 /* Every request pins the same "today", so the expected dates are fixed relative to
    each other rather than to when the suite happens to run — but the pin is DERIVED
@@ -134,57 +117,12 @@ const occurrencesOf = (rows, id) => rows
   .sort((a, b) => String(a.ext_ref).localeCompare(String(b.ext_ref)));
 const dates = (rows, id) => occurrencesOf(rows, id).filter((o) => o.due_date).map((o) => o.due_date).sort();
 
-async function waitForHealth(ms = 15000) {
-  const deadline = Date.now() + ms;
-  while (Date.now() < deadline) {
-    if (exited) return false; // the child is gone — polling the port can only find a stranger
-    try {
-      const res = await fetch(BASE + '/health');
-      if (res.ok) {
-        const body = await res.json().catch(() => ({}));
-        if (body.service === SERVICE) return true;
-        console.error(`  ✗ /health answered 200 but service=${JSON.stringify(body.service)} — ` +
-                      `expected '${SERVICE}'. Another server owns this port.`);
-        return false;
-      }
-    } catch { /* not up yet */ }
-    await new Promise((r) => setTimeout(r, 150));
-  }
-  return false;
-}
-
-const child = spawn('node', ['server.js'], {
-  cwd: BACKEND,
-  env: {
-    ...process.env, NODE_ENV: '', PORT: String(PORT), DB_PATH,
+try {
+  await boot({ cwd: BACKEND, port: PORT, service: SERVICE, env: {
+    DB_PATH,
     JKOS_TIME_TRAVEL: '1',
     JKOS_AUTH_PUBLIC_KEY: publicKey, JKOS_AUTH_ISSUER: ISSUER,
-  },
-  stdio: ['ignore', 'pipe', 'pipe'],
-});
-let serverLog = '';
-let exited = null; // fail fast: a child that dies pre-health must not be polled for
-child.stdout.on('data', (d) => { serverLog += d; });
-child.stderr.on('data', (d) => { serverLog += d; });
-child.on('exit', (code, signal) => { exited = { code, signal }; });
-
-function done() {
-  try { child.kill('SIGKILL'); } catch { /* already gone */ }
-  try { rmSync(tmp, { recursive: true, force: true }); } catch { /* best effort */ }
-  // The child's own words, on ANY failure — not only when health never came up.
-  if (fail && serverLog) console.error('\n── server log ──\n' + serverLog);
-  console.log(`\nroutines.smoke: ${pass} passed, ${fail} failed`);
-  process.exit(fail ? 1 : 0);
-}
-
-try {
-  if (!(await waitForHealth())) {
-    fail++;
-    console.error('server never became healthy'
-      + (exited ? ` (exited code=${exited.code} signal=${exited.signal})` : '')
-      + ':\n' + serverLog);
-    done();
-  }
+  } });
 
   // ── H. the cadence is validated at the door ─────────────────────────────────
   for (const bad of ['7', '0,0', '-1', 'mon', '0,9']) {
@@ -393,7 +331,6 @@ try {
   }
   await req('DELETE', `/api/items/${jid}`);
 
-
   // ── L. THE REF IS THE AUTHORITY, NOT parent_id (BB-3) ───────────────────────
   //    routines.js has said "THE REF IS THE AUTHORITY, not parent_id" in prose since
   //    it was written, while FIVE of its six occurrence readers keyed on parent_id.
@@ -579,8 +516,7 @@ try {
   ok(rows.some((r) => r.id === strayGoal.json.id),
     'cascade: the goal the stray was dragged into is untouched');
 } catch (e) {
-  console.error('harness error:', e);
-  fail++;
+  crashed(e);
 } finally {
   done();
 }

@@ -33,13 +33,12 @@
 //
 //   node apps/kouros/backend/test/session.smoke.mjs
 
-import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { generateKeyPairSync, sign as cryptoSign, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
+import { smoke, forgeTokens } from '../../../../test/lib/smoke.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const BACKEND = join(__dirname, '..');
@@ -57,8 +56,7 @@ const GRACE_MS = 600;
  *  a session is playing between two reports, so it only bites where it is meant to. */
 const STALE_MS = 4000;
 
-let pass = 0, fail = 0;
-const ok = (cond, msg) => { if (cond) pass++; else { fail++; console.error('  ✗ ' + msg); } };
+const { tmp, ok, boot, crashed, done, exited } = smoke('session.smoke');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /* ── 1. Pure — no server ───────────────────────────────────────────────────────── */
@@ -121,26 +119,13 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 }
 
 /* ── 2. The real server ────────────────────────────────────────────────────────── */
-const tmp = mkdtempSync(join(tmpdir(), 'kouros-session-'));
 const DB_PATH = join(tmp, 'test.db');
 const MUSIC_DIR = join(tmp, 'empty-music');
 const BOOKS_DIR = join(tmp, 'empty-books');
 mkdirSync(MUSIC_DIR, { recursive: true });
 mkdirSync(BOOKS_DIR, { recursive: true });
 
-const { publicKey, privateKey } = generateKeyPairSync('rsa', {
-  modulusLength: 2048,
-  publicKeyEncoding: { type: 'spki', format: 'pem' },
-  privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
-});
-const b64url = (buf) => Buffer.from(buf).toString('base64url');
-function mkToken(claims, ttlSec = 900) {
-  const header = b64url(JSON.stringify({ alg: 'RS256', typ: 'JWT', kid: '1' }));
-  const now = Math.floor(Date.now() / 1000);
-  const payload = b64url(JSON.stringify({ iss: ISSUER, iat: now, exp: now + ttlSec, ...claims }));
-  const input = `${header}.${payload}`;
-  return `${input}.${b64url(cryptoSign('RSA-SHA256', Buffer.from(input), privateKey))}`;
-}
+const { publicKey, mkToken } = forgeTokens({ issuer: ISSUER });
 const A = mkToken({ sub: 801, role: 'user', scope: ['kouros:write'] });
 const B = mkToken({ sub: 802, role: 'user', scope: ['kouros:write'] });
 const C = mkToken({ sub: 803, role: 'user', scope: ['kouros:write'] });
@@ -208,27 +193,11 @@ function openStream(token, deviceId) {
 const isCmd = (op) => (e) => e.event === 'command' && e.data.op === op;
 const isSession = (pred = () => true) => (e) => e.event === 'session' && pred(e.data.session);
 
-const child = spawn('node', ['server.js'], {
-  cwd: BACKEND,
-  env: {
-    ...process.env, NODE_ENV: '', PORT: String(PORT), DB_PATH,
-    MUSIC_DIR, AUDIOBOOKS_DIR: BOOKS_DIR,
-    JKOS_AUTH_PUBLIC_KEY: publicKey, JKOS_AUTH_ISSUER: ISSUER,
-    KOUROS_SESSION_OFFLINE_GRACE_MS: String(GRACE_MS),
-    KOUROS_SESSION_STALE_MS: String(STALE_MS),
-  },
-  stdio: ['ignore', 'pipe', 'pipe'],
-});
-let serverLog = '';
-let exited = null;
-child.stdout.on('data', (d) => { serverLog += d; });
-child.stderr.on('data', (d) => { serverLog += d; });
-child.on('exit', (code) => { exited = code; });
 
 async function waitFor(fn, ms = 20000) {
   const deadline = Date.now() + ms;
   while (Date.now() < deadline) {
-    if (exited !== null) return false;
+    if (exited()) return false;
     try { if (await fn()) return true; } catch { /* not yet */ }
     await sleep(200);
   }
@@ -236,13 +205,10 @@ async function waitFor(fn, ms = 20000) {
 }
 
 const streams = [];
-function done() {
+/** Close the event streams this smoke opened, then the shared teardown. */
+function finish() {
   for (const s of streams) s.close();
-  child.kill('SIGTERM');
-  rmSync(tmp, { recursive: true, force: true });
-  if (fail) console.error(`\n── server log ──\n${serverLog}`);
-  console.log(`\nsession.smoke: ${pass} passed, ${fail} failed`);
-  process.exitCode = fail ? 1 : 0;
+  done();
 }
 const stream = (token, id) => { const s = openStream(token, id); streams.push(s); return s; };
 
@@ -251,14 +217,12 @@ const queueOf = (items, cursor = 0, policy = {}) => ({
 });
 
 try {
-  const up = await waitFor(async () => {
-    const r = await fetch(BASE + '/health');
-    if (!r.ok) return false;
-    const body = await r.json();
-    if (body.service !== SERVICE) throw new Error(`port ${PORT} answered as ${body.service}`);
-    return true;
-  });
-  if (!up) throw new Error('server never became healthy');
+  await boot({ cwd: BACKEND, port: PORT, service: SERVICE, env: {
+    DB_PATH, MUSIC_DIR, AUDIOBOOKS_DIR: BOOKS_DIR,
+    JKOS_AUTH_PUBLIC_KEY: publicKey, JKOS_AUTH_ISSUER: ISSUER,
+    KOUROS_SESSION_OFFLINE_GRACE_MS: String(GRACE_MS),
+    KOUROS_SESSION_STALE_MS: String(STALE_MS),
+  } });
 
   /* ── The declared contract ── */
   const caps = (await req('GET', '/api/capabilities')).json;
@@ -518,8 +482,7 @@ try {
   ok(limited > 0, `a burst of 80 session writes is rate-limited per listener (${limited} × 429)`);
   ok((await reg(A, randomUUID(), 'A still fine')).status === 201, "…and one listener's burst does not limit another");
 } catch (err) {
-  fail++;
-  console.error('  ✗ threw: ' + (err && err.stack || err));
+  crashed(err);
 } finally {
-  done();
+  finish();
 }

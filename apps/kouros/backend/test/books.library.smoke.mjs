@@ -27,13 +27,12 @@
 //
 //   node apps/kouros/backend/test/books.library.smoke.mjs
 
-import { spawn, execFile } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { smoke } from '../../../../test/lib/smoke.mjs';
 
 const execFileAsync = promisify(execFile);
 const require = createRequire(import.meta.url);
@@ -50,8 +49,7 @@ const BASE = `http://127.0.0.1:${PORT}`;
 // the uniform health contract carries the app id precisely so a smoke can tell.
 const SERVICE = 'kouros';
 
-let pass = 0, fail = 0;
-const ok = (cond, msg) => { if (cond) pass++; else { fail++; console.error('  ✗ ' + msg); } };
+const { tmp, ok, boot, crashed, done } = smoke('books.library.smoke');
 
 // ── ffprobe availability gate — SKIP (exit 0) rather than fail if it's missing ──────
 try {
@@ -62,32 +60,12 @@ try {
   process.exit(0);
 }
 
-const tmp = mkdtempSync(join(tmpdir(), 'kouros-books-library-'));
 const DB_PATH = join(tmp, 'test.db');
 
 async function req(method, path) {
   const r = await fetch(BASE + path, { method });
   let json = null; try { json = await r.json(); } catch { /* non-JSON */ }
   return { status: r.status, json };
-}
-
-async function waitForHealth(ms = 15000) {
-  const deadline = Date.now() + ms;
-  while (Date.now() < deadline) {
-    if (exited) return false; // the child is gone — polling the port can only find a stranger
-    try {
-      const res = await fetch(BASE + '/health');
-      if (res.ok) {
-        const body = await res.json().catch(() => ({}));
-        if (body.service === SERVICE) return true;
-        console.error(`  ✗ /health answered 200 but service=${JSON.stringify(body.service)} — ` +
-                      `expected '${SERVICE}'. Another server owns this port.`);
-        return false;
-      }
-    } catch { /* not up yet */ }
-    await new Promise((r) => setTimeout(r, 150));
-  }
-  return false;
 }
 
 /** Poll GET /api/books until at least `count` rows appear (the boot scan is
@@ -116,42 +94,13 @@ function assertDocShape(doc, listKey, label) {
   ok(entries.every((e) => typeof e?.id === 'string' && e.id.length > 0), `${label}: every ${listKey} entry has a string id`);
 }
 
-const child = spawn('node', ['server.js'], {
-  cwd: BACKEND,
-  env: {
-    ...process.env,
-    NODE_ENV: '',
-    PORT: String(PORT),
+try {
+  await boot({ cwd: BACKEND, port: PORT, service: SERVICE, env: {
     DB_PATH,
     // The book half only: an absent music root scans to zero tracks, fast.
     MUSIC_DIR: join(tmp, 'no-music'),
     AUDIOBOOKS_DIR: FIXTURES_DIR,
-  },
-  stdio: ['ignore', 'pipe', 'pipe'],
-});
-let serverLog = '';
-let exited = null; // fail fast: a child that dies pre-health must not be polled for
-child.stdout.on('data', (d) => { serverLog += d; });
-child.stderr.on('data', (d) => { serverLog += d; });
-child.on('exit', (code, signal) => { exited = { code, signal }; });
-
-function done() {
-  try { child.kill('SIGKILL'); } catch { /* already gone */ }
-  try { rmSync(tmp, { recursive: true, force: true }); } catch { /* best effort */ }
-  // The child's own words, on ANY failure — not only when health never came up.
-  if (fail && serverLog) console.error('\n── server log ──\n' + serverLog);
-  console.log(`\nlibrary.smoke: ${pass} passed, ${fail} failed`);
-  process.exit(fail ? 1 : 0);
-}
-
-try {
-  if (!(await waitForHealth())) {
-    fail++;
-    console.error('server never became healthy'
-      + (exited ? ` (exited code=${exited.code} signal=${exited.signal})` : '')
-      + ':\n' + serverLog);
-    done();
-  }
+  } });
 
   // ── /health ──────────────────────────────────────────────────────────────────
   const health = await req('GET', '/health');
@@ -270,8 +219,7 @@ try {
   ok(Array.isArray(genrePrefixOnly.json) && genrePrefixOnly.json.length === 0,
     `filter: genre=Fantas (strict prefix, not a full tag) matches nothing (got ${genrePrefixOnly.json?.length})`);
 } catch (e) {
-  console.error('library.smoke crashed:', e);
-  fail++;
+  crashed(e);
 } finally {
   done();
 }

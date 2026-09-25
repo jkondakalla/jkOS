@@ -37,13 +37,12 @@
 //
 //   node apps/kouros/backend/test/playback.smoke.mjs
 
-import { spawn, execFile } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { mkdtempSync, rmSync, statSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { generateKeyPairSync, sign as cryptoSign } from 'node:crypto';
+import { statSync } from 'node:fs';
+import { smoke, forgeTokens } from '../../../../test/lib/smoke.mjs';
 
 const execFileAsync = promisify(execFile);
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -60,8 +59,7 @@ const BASE = `http://127.0.0.1:${PORT}`;
 const SERVICE = 'kouros';
 const ISSUER = 'jkos-auth';
 
-let pass = 0, fail = 0;
-const ok = (cond, msg) => { if (cond) pass++; else { fail++; console.error('  ✗ ' + msg); } };
+const { tmp, ok, boot, crashed, done } = smoke('playback.smoke');
 
 // ── ffprobe availability gate — SKIP (exit 0) rather than fail if it's missing ──────
 try {
@@ -72,27 +70,13 @@ try {
   process.exit(0);
 }
 
-const tmp = mkdtempSync(join(tmpdir(), 'kouros-playback-'));
 const DB_PATH = join(tmp, 'test.db');
 
 // ── Forge suite tokens: RS256 over a throwaway keypair the server is told to trust —
 //    same recipe as books.playback.smoke.mjs, needed here because the dev-stub
 //    auth only ever injects ONE identity (sub:1), which can't exercise cross-user
 //    scoping.
-const { publicKey, privateKey } = generateKeyPairSync('rsa', {
-  modulusLength: 2048,
-  publicKeyEncoding: { type: 'spki', format: 'pem' },
-  privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
-});
-const b64url = (buf) => Buffer.from(buf).toString('base64url');
-function mkToken(claims) {
-  const header = b64url(JSON.stringify({ alg: 'RS256', typ: 'JWT', kid: '1' }));
-  const now = Math.floor(Date.now() / 1000);
-  const payload = b64url(JSON.stringify({ iss: ISSUER, iat: now, exp: now + 900, ...claims }));
-  const input = `${header}.${payload}`;
-  const sig = b64url(cryptoSign('RSA-SHA256', Buffer.from(input), privateKey));
-  return `${input}.${sig}`;
-}
+const { publicKey, mkToken } = forgeTokens({ issuer: ISSUER });
 const A = mkToken({ sub: 501, role: 'admin', scope: ['kouros:write'] });
 const B = mkToken({ sub: 502, role: 'admin', scope: ['kouros:write'] });
 
@@ -109,25 +93,6 @@ async function req(method, path, body, token) {
 }
 const listPlaylists = async (token) => (await req('GET', '/api/playlists', undefined, token)).json || [];
 const listRatings = async (token) => (await req('GET', '/api/ratings', undefined, token)).json || [];
-
-async function waitForHealth(ms = 15000) {
-  const deadline = Date.now() + ms;
-  while (Date.now() < deadline) {
-    if (exited) return false; // the child is gone — polling the port can only find a stranger
-    try {
-      const res = await fetch(BASE + '/health');
-      if (res.ok) {
-        const body = await res.json().catch(() => ({}));
-        if (body.service === SERVICE) return true;
-        console.error(`  ✗ /health answered 200 but service=${JSON.stringify(body.service)} — ` +
-                      `expected '${SERVICE}'. Another server owns this port.`);
-        return false;
-      }
-    } catch { /* not up yet */ }
-    await new Promise((r) => setTimeout(r, 150));
-  }
-  return false;
-}
 
 /** Poll GET /api/tracks (authenticated, gated same as everything under /api) until at
  *  least `count` rows appear (the boot scan is non-blocking) or the timeout elapses. */
@@ -158,42 +123,13 @@ async function waitForCover(token, ms = 15000) {
   return row;
 }
 
-const child = spawn('node', ['server.js'], {
-  cwd: BACKEND,
-  env: {
-    ...process.env,
-    NODE_ENV: '',
-    PORT: String(PORT),
+try {
+  await boot({ cwd: BACKEND, port: PORT, service: SERVICE, env: {
     DB_PATH,
     MUSIC_DIR: FIXTURES_DIR,
     JKOS_AUTH_PUBLIC_KEY: publicKey,
     JKOS_AUTH_ISSUER: ISSUER,
-  },
-  stdio: ['ignore', 'pipe', 'pipe'],
-});
-let serverLog = '';
-let exited = null; // fail fast: a child that dies pre-health must not be polled for
-child.stdout.on('data', (d) => { serverLog += d; });
-child.stderr.on('data', (d) => { serverLog += d; });
-child.on('exit', (code, signal) => { exited = { code, signal }; });
-
-function done() {
-  try { child.kill('SIGKILL'); } catch { /* already gone */ }
-  try { rmSync(tmp, { recursive: true, force: true }); } catch { /* best effort */ }
-  // The child's own words, on ANY failure — not only when health never came up.
-  if (fail && serverLog) console.error('\n── server log ──\n' + serverLog);
-  console.log(`\nplayback.smoke: ${pass} passed, ${fail} failed`);
-  process.exit(fail ? 1 : 0);
-}
-
-try {
-  if (!(await waitForHealth())) {
-    fail++;
-    console.error('server never became healthy'
-      + (exited ? ` (exited code=${exited.code} signal=${exited.signal})` : '')
-      + ':\n' + serverLog);
-    done();
-  }
+  } });
 
   // ── unauthenticated media request → 401 ─────────────────────────────────────────
   const anonStream = await fetch(BASE + '/api/stream/1/0');
@@ -341,8 +277,7 @@ try {
     ok(bRatings.length === 1 && bRatings[0]?.rating === 1, `ratings: B sees exactly their own rating (got ${JSON.stringify(bRatings)})`);
   }
 } catch (e) {
-  console.error('playback.smoke crashed:', e);
-  fail++;
+  crashed(e);
 } finally {
   done();
 }

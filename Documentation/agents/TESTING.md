@@ -69,8 +69,10 @@ The `/suite-health` skill automates this walk and maps failure signatures to kno
 
 ## ⚠️ The harness contract (read before writing a smoke)
 
-Four properties every boot-real-server smoke depends on. Each exists because its absence
-cost a real debugging session, and none of them was written down until now.
+The properties every boot-real-server smoke depends on. Each exists because its absence
+cost a real debugging session. The first four are held by [`test/lib/smoke.mjs`](../../test/lib/smoke.mjs)
+(`smoke()` → `boot`/`ok`/`crashed`/`done`, and `forgeTokens()`), which the backend smokes share
+rather than copy; the copies had drifted, and one smoke reported green after a crash.
 
 - **`/health` names the SERVICE, and the smoke asserts WHICH.** A bare 200 proves only
   that *something* is on the port. A stray server from another app once passed eight
@@ -81,8 +83,9 @@ cost a real debugging session, and none of them was written down until now.
   is slow, and you wait out the whole timeout for a crash you could have printed.
 - **The server log prints on ANY failure.** A red assertion without the server's own
   output is a guess.
-- **A non-zero exit when the server never booted.** This used to exit 0 — a whole smoke
-  reporting success by never running.
+- **A non-zero exit when the server never booted, when the body crashed, or when nothing was
+  asserted.** Each used to exit 0 somewhere: a whole smoke reporting success by never running,
+  and `routine-spec.smoke`'s `catch` logging "harness error" and exiting green (fixed 2026-09-25).
 - **⚠️ Ports come from `TEST_PORTS` in `@jkos/suite-manifest`, not from a literal.** The
   `port-registry` prober probe holds every file's literal to its claim, so two smokes
   cannot silently share a port. Claim a new one there first.
@@ -309,7 +312,7 @@ The `/new-tester` skill is the full playbook; the shapes:
 
 | Shape | Exemplar | When |
 |-------|----------|------|
-| Boot-real-server smoke | `import.smoke.mjs` | Anything behavioural. Real server, throwaway port, temp DB, dev-stub auth (`sub:1 role:admin` when no key env set), real HTTP, cleanup. |
+| Boot-real-server smoke | `import.smoke.mjs`, on [`test/lib/smoke.mjs`](../../test/lib/smoke.mjs) | Anything behavioural. Real server, throwaway port, temp DB, dev-stub auth (`sub:1 role:admin` when no key env set), real HTTP, cleanup. |
 | Transpile-pure-logic unit | `test/cards-logic.mjs`, on [`test/lib/unit.mjs`](../../test/lib/unit.mjs) | Pure TS modules — transpile in-memory with the repo's own `typescript` (target ES2022, as the apps build), drive the REAL functions. `unit(name)` gives `check`/`importTs`/`emitTs`/`done` and a temp dir it removes; every unit test in the gate uses it rather than a copy. |
 | Text-scan gate | `test/cards-purity.mjs` | Banning a pattern structurally. Comment-strip first; prove the scan catches drift on a scratchpad copy, never via `git checkout`. |
 | Pure-module extraction | `apps/ordeck/src/pages/hud/bbDelta.ts`, `packages/auth-client/src/hudPrefs.ts` | When the risky logic lives inside a React hook. Lift the pure part into a dependency-free module and drive it directly — used where **every failure mode is silent**: a delta cursor advanced one millisecond too far, a preference migration that reads the wrong key and loses a dashboard. |

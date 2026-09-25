@@ -29,24 +29,24 @@ it checks passes forever while the real code rots.
 ## 2 · House pattern — boot-real-server smoke
 
 The load-bearing shape. Boot the actual server on a throwaway port against a temp SQLite DB with
-weave's dev-stub auth, assert over real HTTP, tear down. Skeleton:
+weave's dev-stub auth, assert over real HTTP, tear down. **Use
+[test/lib/smoke.mjs](../../../test/lib/smoke.mjs)** — it holds the harness contract (TESTING.md) so
+you don't copy it. Skeleton:
 
 ```js
-import { spawn } from 'node:child_process';
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { smoke } from '../../../../test/lib/smoke.mjs';
 
-const tmp = mkdtempSync(join(tmpdir(), 'jkos-<name>-'));
+const PORT = 39xx;                      // claim it in TEST_PORTS first; port-registry holds this literal
+const BASE = `http://127.0.0.1:${PORT}`;
+const { tmp, ok, boot, crashed, done } = smoke('<name>.smoke');
 const DB_PATH = join(tmp, 'test.db');
-let pass = 0, fail = 0;
-const ok = (cond, msg) => { cond ? pass++ : (fail++, console.error('  ✗ ' + msg)); };
 
-// Boot: NO JKOS_AUTH_* env → weave injects the dev-stub user { sub:1, role:'admin' }.
-const proc = spawn('node', ['server.js'], { cwd: BACKEND, env: { ...process.env, PORT, DB_PATH }, stdio: [...] });
-// waitForHealth() polls GET /health until 200 (copy import.smoke's helper).
-// …assert with fetch()…
-// finally: proc.kill('SIGKILL'); rmSync(tmp, { recursive: true, force: true });
+try {
+  // NO JKOS_AUTH_* env → weave injects the dev-stub user { sub:1, role:'admin' }.
+  await boot({ cwd: BACKEND, port: PORT, service: '<app id>', env: { DB_PATH } });
+  // …assert with fetch() and ok(cond, msg)…
+} catch (e) { crashed(e); } finally { done(); }   // exits 1 on a failure, a crash, or no assertions
 ```
 
 Non-negotiables:
@@ -55,7 +55,8 @@ Non-negotiables:
   part of the contract.
 - **Dev-stub auth**: leave `JKOS_AUTH_PUBLIC_KEY`/`JKOS_AUTH_JWKS_URI` unset → `sub:1, role:'admin'`.
   The write-gate lets an admin through with no `scope` claim, so writes work. Need a service/guest
-  identity or a real signed token? Forge RS256 tokens like [items.smoke.mjs](../../../apps/beigeboard/backend/test/items.smoke.mjs).
+  identity or a real signed token? `forgeTokens()` from the same module gives a keypair and
+  `mkToken(claims)`; pass its `publicKey` as `JKOS_AUTH_PUBLIC_KEY` (see [items.smoke.mjs](../../../apps/beigeboard/backend/test/items.smoke.mjs)).
 - **Event-loop trap**: if your test runs an in-process fake HTTP server (a stub Ollama/peer) AND
   drives a child that calls it, spawn the child **async** (`spawn` + await close), never `spawnSync`
   — a sync child blocks the loop so the in-process server can't answer, and you deadlock. (This is

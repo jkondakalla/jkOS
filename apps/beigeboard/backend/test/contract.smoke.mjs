@@ -23,12 +23,10 @@
 //
 //   node apps/beigeboard/backend/test/contract.smoke.mjs
 
-import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { smoke } from '../../../../test/lib/smoke.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const BACKEND = join(__dirname, '..');
@@ -43,11 +41,8 @@ const BASE = `http://127.0.0.1:${PORT}`;
 // assertions against a stray server from ANOTHER app on a shared port (OPS-1);
 // the uniform health contract carries the app id precisely so a smoke can tell.
 const SERVICE = 'beigeboard';
-const tmp = mkdtempSync(join(tmpdir(), 'bb-contract-'));
+const { tmp, ok, boot, crashed, done } = smoke('contract.smoke');
 const DB_PATH = join(tmp, 'test.db');
-
-let pass = 0, fail = 0;
-const ok = (cond, msg) => { if (cond) pass++; else { fail++; console.error('  ✗ ' + msg); } };
 
 async function req(method, path, body) {
   const r = await fetch(BASE + path, {
@@ -57,45 +52,6 @@ async function req(method, path, body) {
   });
   let json = null; try { json = await r.json(); } catch { /* non-JSON */ }
   return { status: r.status, json };
-}
-
-async function waitForHealth(ms = 15000) {
-  const deadline = Date.now() + ms;
-  while (Date.now() < deadline) {
-    if (exited) return false; // the child is gone — polling the port can only find a stranger
-    try {
-      const res = await fetch(BASE + '/health');
-      if (res.ok) {
-        const body = await res.json().catch(() => ({}));
-        if (body.service === SERVICE) return true;
-        console.error(`  ✗ /health answered 200 but service=${JSON.stringify(body.service)} — ` +
-                      `expected '${SERVICE}'. Another server owns this port.`);
-        return false;
-      }
-    } catch { /* not up yet */ }
-    await new Promise(r => setTimeout(r, 150));
-  }
-  return false;
-}
-
-const child = spawn('node', ['server.js'], {
-  cwd: BACKEND,
-  env: { ...process.env, NODE_ENV: '', PORT: String(PORT), DB_PATH },
-  stdio: ['ignore', 'pipe', 'pipe'],
-});
-let serverLog = '';
-let exited = null; // fail fast: a child that dies pre-health must not be polled for
-child.stdout.on('data', d => { serverLog += d; });
-child.stderr.on('data', d => { serverLog += d; });
-child.on('exit', (code, signal) => { exited = { code, signal }; });
-
-function done() {
-  try { child.kill('SIGKILL'); } catch { /* already gone */ }
-  try { rmSync(tmp, { recursive: true, force: true }); } catch { /* best effort */ }
-  // The child's own words, on ANY failure — not only when health never came up.
-  if (fail && serverLog) console.error('\n── server log ──\n' + serverLog);
-  console.log(`\ncontract.smoke: ${pass} passed, ${fail} failed`);
-  process.exit(fail ? 1 : 0);
 }
 
 // A violating value per declared, mechanically-checkable constraint. Returns a list
@@ -109,13 +65,7 @@ function violations(field) {
 }
 
 try {
-  if (!(await waitForHealth())) {
-    fail++;
-    console.error('server never became healthy'
-      + (exited ? ` (exited code=${exited.code} signal=${exited.signal})` : '')
-      + ':\n' + serverLog);
-    done();
-  }
+  await boot({ cwd: BACKEND, port: PORT, service: SERVICE, env: { DB_PATH } });
 
   const createCap =CAPABILITIES.capabilities.find(c => c.method === 'POST' && c.path === '/items');
   const updateCap = CAPABILITIES.capabilities.find(c => c.id === 'updateItem');
@@ -169,8 +119,7 @@ try {
   const good = await req('POST', '/api/items', { ...baseline, due_date: '2026-07-07', scheduled_time: '09:30' });
   ok(good.status === 201, `control: valid due_date + scheduled_time → 201 (got ${good.status})`);
 } catch (e) {
-  console.error('contract.smoke crashed:', e);
-  fail++;
+  crashed(e);
 } finally {
   done();
 }

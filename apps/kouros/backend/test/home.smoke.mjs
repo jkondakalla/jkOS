@@ -23,12 +23,10 @@
 //
 //   node apps/kouros/backend/test/home.smoke.mjs
 
-import { spawn, execFile } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { generateKeyPairSync, sign as cryptoSign } from 'node:crypto';
+import { smoke, forgeTokens } from '../../../../test/lib/smoke.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const BACKEND = join(__dirname, '..');
@@ -42,8 +40,7 @@ const BASE = `http://127.0.0.1:${PORT}`;
 const SERVICE = 'kouros';
 const ISSUER = 'jkos-auth';
 
-let pass = 0, fail = 0;
-const ok = (cond, msg) => { if (cond) pass++; else { fail++; console.error('  ✗ ' + msg); } };
+const { tmp, ok, boot, crashed, done, exited } = smoke('home.smoke');
 
 // ffprobe is required to scan the fixtures; skip loudly without it, like library.smoke.
 const hasFfprobe = await new Promise((r) => execFile('ffprobe', ['-version'], (err) => r(!err)));
@@ -52,22 +49,9 @@ if (!hasFfprobe) {
   process.exit(0);
 }
 
-const tmp = mkdtempSync(join(tmpdir(), 'kouros-home-'));
 const DB_PATH = join(tmp, 'test.db');
 
-const { publicKey, privateKey } = generateKeyPairSync('rsa', {
-  modulusLength: 2048,
-  publicKeyEncoding: { type: 'spki', format: 'pem' },
-  privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
-});
-const b64url = (buf) => Buffer.from(buf).toString('base64url');
-function mkToken(claims) {
-  const header = b64url(JSON.stringify({ alg: 'RS256', typ: 'JWT', kid: '1' }));
-  const now = Math.floor(Date.now() / 1000);
-  const payload = b64url(JSON.stringify({ iss: ISSUER, iat: now, exp: now + 900, ...claims }));
-  const input = `${header}.${payload}`;
-  return `${input}.${b64url(cryptoSign('RSA-SHA256', Buffer.from(input), privateKey))}`;
-}
+const { publicKey, mkToken } = forgeTokens({ issuer: ISSUER });
 const A = mkToken({ sub: 701, role: 'user', scope: ['kouros:write'] });
 const B = mkToken({ sub: 702, role: 'user', scope: ['kouros:write'] });
 
@@ -80,48 +64,22 @@ async function req(method, path, body, token) {
   return { status: r.status, json };
 }
 
-const child = spawn('node', ['server.js'], {
-  cwd: BACKEND,
-  env: {
-    ...process.env, NODE_ENV: '', PORT: String(PORT), DB_PATH,
-    MUSIC_DIR: MUSIC, AUDIOBOOKS_DIR: BOOKS,
-    JKOS_AUTH_PUBLIC_KEY: publicKey, JKOS_AUTH_ISSUER: ISSUER,
-  },
-  stdio: ['ignore', 'pipe', 'pipe'],
-});
-let serverLog = '';
-let exited = null;
-child.stdout.on('data', (d) => { serverLog += d; });
-child.stderr.on('data', (d) => { serverLog += d; });
-child.on('exit', (code) => { exited = code; });
 
 async function waitFor(fn, ms = 20000) {
   const deadline = Date.now() + ms;
   while (Date.now() < deadline) {
-    if (exited !== null) return false;
+    if (exited()) return false;
     try { if (await fn()) return true; } catch { /* not yet */ }
     await new Promise((r) => setTimeout(r, 200));
   }
   return false;
 }
 
-function done() {
-  child.kill('SIGTERM');
-  rmSync(tmp, { recursive: true, force: true });
-  if (fail) console.error(`\n── server log ──\n${serverLog}`);
-  console.log(`\nhome.smoke: ${pass} passed, ${fail} failed`);
-  process.exitCode = fail ? 1 : 0;
-}
-
 try {
-  const up = await waitFor(async () => {
-    const r = await fetch(BASE + '/health');
-    if (!r.ok) return false;
-    const body = await r.json();
-    if (body.service !== SERVICE) throw new Error(`port ${PORT} answered as ${body.service}`);
-    return true;
-  });
-  if (!up) throw new Error('server never became healthy');
+  await boot({ cwd: BACKEND, port: PORT, service: SERVICE, env: {
+    DB_PATH, MUSIC_DIR: MUSIC, AUDIOBOOKS_DIR: BOOKS,
+    JKOS_AUTH_PUBLIC_KEY: publicKey, JKOS_AUTH_ISSUER: ISSUER,
+  } });
 
   // Both boot scans are non-blocking — wait for all 3 tracks and both books.
   let tracks = [], books = [];
@@ -191,8 +149,7 @@ try {
   ok(!recentB.some((r) => r.title === 'Road'), "owner scoping: A's playlist name never reaches B");
   ok((homeB?.continue_books || []).length === 0, 'continue_books: B has none');
 } catch (e) {
-  console.error('home.smoke crashed:', e);
-  fail++;
+  crashed(e);
 } finally {
   done();
 }
