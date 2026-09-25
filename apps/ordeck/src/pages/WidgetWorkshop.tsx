@@ -17,8 +17,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { authFetch } from '@jkos/auth-client';
-import { AUTH_URL, useJkOSPreferences } from '../hooks/useJkOSPreferences';
+import { AUTH_URL, authFetch, useJkOSPreferences } from '@jkos/auth-client';
 import { useBreakpoint } from '@jkos/ui';
 import { useHudContext } from './hud/useHudContext';
 import { renderWidget, useDataSources, type Scope } from '../hud/registry';

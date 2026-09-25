@@ -8,9 +8,8 @@
 // ORDECK's version was a strict SUPERSET of the other two — it alone surfaced
 // `signIn` (it renders a click-to-sign-in panel) and the `?error=` query param. So
 // no parameterisation was needed to unify them: this is ORDECK's shape, and the
-// apps that redirect instead of prompting simply never read `signIn`. Each app
-// keeps a thin `hooks/useAuth.ts` re-export so its own call sites still say
-// `from '../hooks/useAuth'`.
+// apps that redirect instead of prompting simply never read `signIn`. Apps import it
+// from '@jkos/auth-client' directly; check:auth fails any app file that re-declares it.
 //
 // `signIn` was `loginWithGoogle` until the 2026-08 reset removed jkAuth's Google
 // OAuth. It never did anything Google-specific — it has always just bounced the

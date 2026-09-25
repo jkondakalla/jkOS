@@ -14,8 +14,9 @@
 //   1. @jkos/auth-client owns the primitive and exports it through the barrel.
 //   2. The bootstrap ORDER survives in the one shared copy: getMe → refreshToken →
 //      getMe again → only then 'unauthenticated'. This is the step a rewrite drops.
-//   3. Each app's hooks/useAuth stays a THIN re-export — it must not re-declare the
-//      state machine (no useState/useEffect/createContext of its own).
+//   3. No app source file re-declares the state machine: every app imports the gate
+//      straight from @jkos/auth-client, and none defines useAuth/useAuthProvider, makes
+//      an auth context, or drives getMe/refreshToken itself.
 //   4. Logout is one function that always redirects, and no app hand-rolls its own.
 //
 // Run:  node test/auth-single-source.mjs   (wired as `pnpm check:auth`, folded into
@@ -34,10 +35,6 @@ const ok = (msg) => console.log(`✓ ${msg}`);
 
 const PRIMITIVE = 'packages/auth-client/src/useAuthProvider.ts';
 const BARREL = 'packages/auth-client/src/index.ts';
-const CONSUMERS = {
-  ORDECK:  'apps/ordeck/src/hooks/useAuth.ts',
-  KourOS:  'apps/kouros/src/hooks/useAuth.ts',
-};
 
 // ── 1. The primitive exists and is exported through the barrel ──────────────
 const prim = read(PRIMITIVE);
@@ -71,21 +68,32 @@ if (iFetch >= 0 && iRefresh > iFetch && iUnauth > iRefresh) {
 }
 
 // ── 3. No app re-declares the state machine ─────────────────────────────────
-for (const [app, path] of Object.entries(CONSUMERS)) {
-  const src = read(path);
-  const body = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
-
-  if (!/from\s+['"]@jkos\/auth-client['"]/.test(body)) {
-    fail(`${app} (${path}) does not source its auth from @jkos/auth-client — it forked the gate again`);
-    continue;
-  }
-  const forked = ['useState', 'useEffect', 'createContext'].filter((h) => new RegExp(`\\b${h}\\s*[(<]`).test(body));
-  if (forked.length) {
-    fail(`${app} (${path}) re-declares the state machine locally (${forked.join(', ')}) instead of re-exporting`);
-  } else {
-    ok(`${app}'s hooks/useAuth is a thin re-export (${body.trim().split('\n').length} lines of code)`);
+// Until 2026-09-25 each app kept a hooks/useAuth re-export and this check read those two
+// files — so a fork written in ANY other file passed. The re-exports are gone (apps import
+// from @jkos/auth-client), and the scan is every tracked source file under apps/*/src.
+const { execFileSync } = await import('node:child_process');
+const appSources = execFileSync('git', ['ls-files', '-z', '--', 'apps/*/src/*.ts', 'apps/*/src/*.tsx'],
+  { cwd: root, encoding: 'utf8' }).split('\0').filter(Boolean);
+if (appSources.length < 50) fail(`the app-source scan found ${appSources.length} files — the scan is blind, not clean`);
+const FORKS = [
+  [/\bfunction\s+useAuth(Provider)?\b|\b(const|let)\s+useAuth(Provider)?\s*=/, 'defines its own useAuth/useAuthProvider'],
+  [/\bcreateContext\s*<[^>]*Auth/, 'creates its own auth context'],
+  [/\b(getMe|refreshToken)\s*\(/, 'drives the bootstrap primitives (getMe/refreshToken) itself'],
+];
+let forks = 0;
+for (const path of appSources) {
+  const body = read(path).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  for (const [re, what] of FORKS) {
+    if (re.test(body)) { forks++; fail(`${path} ${what} — the gate lives in @jkos/auth-client; import it`); }
   }
 }
+const guards = appSources.filter((p) => /\/AuthGuard\.tsx$/.test(p));
+for (const g of guards) {
+  if (!/import\s*\{[^}]*\buseAuthProvider\b[^}]*\}\s*from\s*['"]@jkos\/auth-client['"]/.test(read(g))) {
+    forks++; fail(`${g} does not take useAuthProvider from @jkos/auth-client`);
+  }
+}
+if (!forks) ok(`no app re-declares the auth gate (${appSources.length} app source files scanned; ${guards.length} AuthGuards import it from @jkos/auth-client)`);
 
 // ── 4. Logout is one function, and it always leaves ─────────────────────────
 // It was three: @jkos/auth-client's logout(), which nothing called and which awaited the
@@ -102,7 +110,6 @@ for (const [app, path] of Object.entries(CONSUMERS)) {
   } else {
     fail('auth-client logout() must wrap its POST in try/catch and redirect AFTER it — a failed request must not strand the user signed in');
   }
-  const { execFileSync } = await import('node:child_process');
   // git grep exits 1 on no match — that is an empty list here, not an error.
   const grep = (...args) => { try { return execFileSync('git', ['grep', ...args], { cwd: root, encoding: 'utf8' }); } catch (e) { if (e.status === 1) return ''; throw e; } };
   const all = grep('-l', '/auth/logout', '--', ':(glob)apps/*/src/**', ':(glob)packages/*/src/**').split('\n').filter(Boolean);
@@ -118,4 +125,4 @@ if (failed) {
   console.error(`\n✗ auth single-source: ${failed} check(s) failed`);
   process.exit(1);
 }
-console.log('\n✓ auth single-source: one session state machine, three thin re-exports');
+console.log('\n✓ auth single-source: one session state machine, imported by every app that gates on it');

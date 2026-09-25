@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
-import { authContext, useAuthProvider } from '../hooks/useAuth';
+import { authContext, useAuthProvider } from '@jkos/auth-client';
 import LoginPage from '../pages/LoginPage';
-import { Led } from './hardware';
+import { Led } from './Led';
 
 // ─── AuthGuard ────────────────────────────────────────────────────────────────
 

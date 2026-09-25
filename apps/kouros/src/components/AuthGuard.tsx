@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react';
 import { useEffect } from 'react';
-import { redirectToLogin } from '@jkos/auth-client';
-import { authContext, useAuthProvider } from '../hooks/useAuth';
+import { authContext, redirectToLogin, useAuthProvider } from '@jkos/auth-client';
 import { Lab } from '@jkos/ui';
 
 // ─── AuthGuard ────────────────────────────────────────────────────────────────

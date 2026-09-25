@@ -418,11 +418,11 @@ prober, a workshop GUI or an AI composer can `require()` it offline.
 
 ### Step 4 — frontend conformance
 
-- **`useAuth` is a thin re-export** of `@jkos/auth-client`'s `useAuthProvider` — no local
-  `useState`/`useEffect`/`createContext`. Three apps held byte-identical copies of the
-  refresh sequence; drop the middle `refreshToken` step in one and that app silently signs
-  out every returning user whose access token lapsed while the tab was shut. **Add
-  `apps/<id>/src/hooks/useAuth.ts` to the table in `test/auth-single-source.mjs`.**
+- **Import the auth gate from `@jkos/auth-client`** (`useAuthProvider`, `useAuth`,
+  `authContext`), never a local copy or re-export. Three apps held byte-identical copies of
+  the refresh sequence; drop the middle `refreshToken` step in one and that app silently
+  signs out every returning user whose access token lapsed while the tab was shut.
+  `check:auth` scans every file under `apps/*/src`, so a new app is covered without registering.
 - **Every rendered input goes through `.jk-field`** (`type="hidden"` is the only
   exemption). Five app-local dialects existed and **not one reset `appearance`**, so under
   every hand-drawn hairline the engine kept painting its own control. **Add `apps/<id>/src`
@@ -499,7 +499,7 @@ a hand-written per-app list you must **enlist** in (§4); **owed** means decided
 | 15 | Discovery docs importable as data | `discovery.js` exports + a `BACKEND_DOCS` row | `sot-machine-readability` (**consolidate — advisory**) † |
 | 16 | Discovered write round-trip works | the published contract drives the test | `pnpm roundtrip` (**fails**) — BeigeBoard only |
 | 17 | Error codes from one vocabulary | `CODES`/`authError` | jkAuth `test:contracts` node↔python parity (**fails**) |
-| 18 | `useAuth` is a thin re-export | `@jkos/auth-client` | `check:auth` (**fails**) † |
+| 18 | The auth gate comes from `@jkos/auth-client` | `useAuthProvider` | `check:auth` (**fails**) — scans every app source file |
 | 19 | Inputs through `.jk-field` | `@jkos/ui` + `hub.css` | `check:fields` (**fails**) † |
 | 20 | Loading/error/empty via `<AsyncView>` | `@jkos/ui` | `check:async-view` (**fails**) † |
 | 21 | Design-factory tokens | `injectJkOSTheme()` | `check:tokens`, `check:responsive`, `check:design` (**fail**) |
@@ -507,7 +507,7 @@ a hand-written per-app list you must **enlist** in (§4); **owed** means decided
 | 23 | Image builds; deploy bundle closed | root-context Dockerfile | `check:docker` (**fails**) — auto-discovers |
 | 24 | Env reads provisioned | `.env.example` + both compose files | `env-conformance` (**gap — advisory**) † |
 | 25 | No control bytes in text files | — | `check:text` (**fails**) — auto-discovers, git-wide |
-| 26 | A smoke test in the gate | boot the real server | only if the backend's `test` script runs it (`test/gate.mjs` runs every package `test`) † |
+| 26 | A smoke test in the gate | boot the real server | only if the backend's `test` script runs it (`test/gate.mjs` runs every package `test`) |
 | 27 | A unique service + test port | `TEST_PORTS` + `portTable()` in `@jkos/suite-manifest` | `portTable()` throws at load on a duplicate; `prove` `port-registry` (**drift**) holds file literals to claims |
 | 28–31 | The four contract rules (§3.1–§3.4) | — | ✅ **enforced** — `check:rulings` + `86-async-contract`. Rule 4's *receiver* half is declared on every non-idempotent door and held by `check:rulings`; each door's own smoke writes twice and counts rows (§3.4) |
 | 32 | Declared surface covers the mounted routes | mark an exception `// app-private: why` at its own source line | ✅ **enforced** — `prove` `98-surface-coverage`. All four backends report full coverage (69 mounted routes). ⚠️ A declared path covers at most **one** segment beneath it: `/items` covers `/items/:id`, and `/items/:id/deps` must declare itself |

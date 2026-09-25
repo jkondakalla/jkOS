@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react';
 import { useEffect, useState } from 'react';
-import { Led } from '../components/hardware';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '@jkos/auth-client';
+import { Led } from '../components/Led';
 
 // ─── LoginPage ────────────────────────────────────────────────────────────────
 

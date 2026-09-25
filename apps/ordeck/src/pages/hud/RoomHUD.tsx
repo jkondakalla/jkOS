@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { SettingsDrawer } from '@jkos/ui';
-import { authFetch } from '@jkos/auth-client';
-import { useJkOSPreferences, AUTH_URL } from '../../hooks/useJkOSPreferences';
+import { AUTH_URL, authFetch, useJkOSPreferences } from '@jkos/auth-client';
 import { WeatherSection } from '../../components/settings/WeatherSection';
 import { useApps } from './useHudData';
 import { useHudContext } from './useHudContext';

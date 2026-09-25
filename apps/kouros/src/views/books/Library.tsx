@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { AsyncView, Lab, MediaGrid, TButton, useBreakpoint } from '@jkos/ui';
 import { listBooks, matchAllMissing, type Book, type BookFilters } from '../../books/api';
 import { rescanLibrary } from '../../api';   // ONE rescan walks music AND books (backend/server.js)
-import { useAuth } from '../../hooks/useAuth';
+import { useAuth } from '@jkos/auth-client';
 import BookCard from './library/BookCard';
 import LibraryToolbar, { type GroupMode, type SearchField } from './library/LibraryToolbar';
 import { groupBySeries, sortBooks, STANDALONE_KEY, type SortMode } from './library/format';

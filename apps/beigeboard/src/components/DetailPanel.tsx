@@ -3,7 +3,7 @@ import { FONT_HEAD, FONT_BODY, FONT_NUM, sourceOf, fmtTime, fmtFull, localDate, 
 import { getAncestors, getChildren, getAccent, getProgress } from '../lib/seed'
 import { Eyebrow, Checkbox } from './SharedComponents'
 import { SessionCard } from './SessionCard'
-import { useHudShelf } from '../lib/jkauth'
+import { useHudShelf } from '@jkos/auth-client'
 // The kit's field primitives come in aliased: this file already has a local
 // <Field>, which is a LABEL wrapper, not an input.
 import { useBreakpoint, Bar, Field as JkField, DateField, TimeField } from '@jkos/ui'
