@@ -81,6 +81,11 @@ cost a real debugging session, and none of them was written down until now.
 - **⚠️ Ports come from `TEST_PORTS` in `@jkos/suite-manifest`, not from a literal.** The
   `port-registry` prober probe holds every file's literal to its claim, so two smokes
   cannot silently share a port. Claim a new one there first.
+- **⚠️ A temp directory you make, you remove** — `process.on('exit', () => rmSync(tmp, {
+  recursive: true, force: true }))` right after the `mkdtempSync`, which also runs when the
+  test fails. Seventeen gate tests once left a directory in /tmp on every run (one holding
+  a signed token); the `temp-dirs` prober probe now fails the gate on a test that makes one
+  and never removes it.
 - **⚠️ Boot budget is 12 seconds, not 5.** Nine servers boot in one gate run while other
   suites work the same machine; a cold Node boot plus migrations plus bcrypt seeding
   exceeds 5s under that load. The symptom is `"E3 never became healthy"` in the gate while

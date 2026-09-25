@@ -22,7 +22,7 @@
 //
 // Run:  node test/runes.mjs   (wired as `pnpm check:runes`, folded into
 //                               `pnpm test:contracts`).
-import { readFileSync, writeFileSync, mkdtempSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, resolve, join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -34,6 +34,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');
 const tmp = mkdtempSync(join(tmpdir(), 'jkos-runes-'));
 
+process.on('exit', () => rmSync(tmp, { recursive: true, force: true }));
 let failed = 0;
 const fail = (msg) => { console.error(`✗ ${msg}`); failed++; };
 const ok = (msg) => console.log(`✓ ${msg}`);

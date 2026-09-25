@@ -20,7 +20,7 @@ import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
 import jwt from 'jsonwebtoken'
 import { spawnSync } from 'node:child_process'
-import { writeFileSync, mkdtempSync } from 'node:fs'
+import { writeFileSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -109,6 +109,7 @@ if (probe.status !== 0) {
   }
 } else {
   const dir = mkdtempSync(join(tmpdir(), 'jkos-contracts-'))
+  process.on('exit', () => rmSync(dir, { recursive: true, force: true }))
   const tokFile = join(dir, 'token.txt'); writeFileSync(tokFile, token)
   const numFile = join(dir, 'numeric.txt'); writeFileSync(numFile, numericToken)
   const keyFile = join(dir, 'pub.pem'); writeFileSync(keyFile, publicKey)

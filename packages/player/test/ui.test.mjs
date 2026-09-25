@@ -16,7 +16,7 @@
 // Run:  node packages/player/test/ui.test.mjs
 //       (auto-enumerated by packages/player/scripts/run-tests.mjs → `pnpm --filter
 //        @jkos/player test`, chained into the root `pnpm test:contracts`)
-import { readFileSync, writeFileSync, mkdtempSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, resolve, join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -28,6 +28,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');
 const tmp = mkdtempSync(join(tmpdir(), 'jkos-player-ui-'));
 
+process.on('exit', () => rmSync(tmp, { recursive: true, force: true }));
 let failed = 0;
 const fail = (msg) => { console.error(`✗ ${msg}`); failed++; };
 const ok = (msg) => console.log(`✓ ${msg}`);

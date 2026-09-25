@@ -29,18 +29,14 @@
 // a change that breaks double progression fails here regardless of any mirroring.
 //
 // Run:  node test/routine-spec.mjs      (wired as `pnpm check:routine`)
-import assert from 'node:assert/strict';
-import { readFileSync, writeFileSync, mkdtempSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { dirname, resolve as resolvePath, join } from 'node:path';
-import { tmpdir } from 'node:os';
+import { dirname, resolve as resolvePath } from 'node:path';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const ts = require('typescript');
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolvePath(here, '..');
-const tmp = mkdtempSync(join(tmpdir(), 'jkos-routine-spec-'));
 
 let failed = 0;
 const fail = (msg) => { console.error(`✗ ${msg}`); failed++; };

@@ -11,7 +11,7 @@
 // Run:  node test/cards-logic.mjs   (wired as `pnpm test:cards`, folded into
 //                                     `pnpm test:contracts`).
 import assert from 'node:assert/strict';
-import { readFileSync, writeFileSync, mkdtempSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, resolve, join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -23,6 +23,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');
 const tmp = mkdtempSync(join(tmpdir(), 'jkos-cards-logic-'));
 
+process.on('exit', () => rmSync(tmp, { recursive: true, force: true }));
 let failed = 0;
 const fail = (msg) => { console.error(`✗ ${msg}`); failed++; };
 const ok = (msg) => console.log(`✓ ${msg}`);

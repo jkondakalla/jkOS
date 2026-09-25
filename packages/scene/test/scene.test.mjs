@@ -14,7 +14,7 @@
 //
 // Run:  node packages/scene/test/scene.test.mjs   (wired as `pnpm --filter @jkos/scene
 //        test`, chained into the root `pnpm test:contracts`).
-import { readFileSync, readdirSync, mkdtempSync } from 'node:fs';
+import { readFileSync, readdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve, join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -24,6 +24,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const pkg = resolve(here, '..');
 const tmp = mkdtempSync(join(tmpdir(), 'jkos-scene-'));
 
+process.on('exit', () => rmSync(tmp, { recursive: true, force: true }));
 let failed = 0;
 const fail = (msg) => { console.error(`✗ ${msg}`); failed++; };
 const ok = (msg) => console.log(`✓ ${msg}`);

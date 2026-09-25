@@ -23,7 +23,7 @@
 // Standalone: node "packages/player/test/gaplessDual.test.mjs"  (path has a space —
 // quote it). Wired automatically via scripts/run-tests.mjs → `pnpm --filter
 // @jkos/player test` → root `pnpm test:contracts`.
-import { readFileSync, writeFileSync, mkdtempSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, resolve, join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -35,6 +35,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');   // packages/player
 const tmp = mkdtempSync(join(tmpdir(), 'jkos-player-gapless-'));
 
+process.on('exit', () => rmSync(tmp, { recursive: true, force: true }));
 let failed = 0;
 const fail = (msg) => { console.error(`✗ ${msg}`); failed++; };
 const ok = (msg) => console.log(`✓ ${msg}`);
