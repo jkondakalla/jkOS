@@ -165,8 +165,13 @@ export function redirectToLogin(): void {
   window.location.href = `${AUTH_URL}/auth/login?redirect_to=${encodeURIComponent(window.location.href)}`;
 }
 
-/** POST /auth/logout, then send the user to the login page. */
+/** POST /auth/logout, then send the user to the login page — ALWAYS. The redirect must not
+ *  depend on the POST: when it was awaited bare, a network failure rejected before the
+ *  redirect and "Log out" silently did nothing. Server-side revocation is best effort from
+ *  here; the login page is where a still-live session would show itself. */
 export async function logout(): Promise<void> {
-  await fetch(`${AUTH_URL}/auth/logout`, { method: 'POST', credentials: 'include' });
+  try {
+    await fetch(`${AUTH_URL}/auth/logout`, { method: 'POST', credentials: 'include' });
+  } catch { /* the redirect below still happens */ }
   window.location.href = `${AUTH_URL}/auth/login`;
 }

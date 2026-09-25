@@ -16,6 +16,7 @@
 //      getMe again → only then 'unauthenticated'. This is the step a rewrite drops.
 //   3. Each app's hooks/useAuth stays a THIN re-export — it must not re-declare the
 //      state machine (no useState/useEffect/createContext of its own).
+//   4. Logout is one function that always redirects, and no app hand-rolls its own.
 //
 // Run:  node test/auth-single-source.mjs   (wired as `pnpm check:auth`, folded into
 //                                           `pnpm test:contracts`)
@@ -84,6 +85,33 @@ for (const [app, path] of Object.entries(CONSUMERS)) {
   } else {
     ok(`${app}'s hooks/useAuth is a thin re-export (${body.trim().split('\n').length} lines of code)`);
   }
+}
+
+// ── 4. Logout is one function, and it always leaves ─────────────────────────
+// It was three: @jkos/auth-client's logout(), which nothing called and which awaited the
+// POST bare (a network failure rejected before the redirect, so "Log out" did nothing),
+// and two hand-rolled copies. BeigeBoard's is gone; the SettingsDrawer in @jkos/ui keeps
+// its own because @jkos/ui cannot depend on @jkos/auth-client (it is the one exemption).
+{
+  const client = read('packages/auth-client/src/client.ts');
+  const fn = (/export async function logout\(\)[^{]*\{([\s\S]*?)\n\}/.exec(client) || [])[1] || '';
+  const guarded = /try\s*\{[^}]*fetch\([^)]*\/auth\/logout[\s\S]*?\}\s*catch\b/.test(fn);
+  const after = fn.slice(fn.lastIndexOf('catch'));
+  if (guarded && /window\.location\.href\s*=/.test(after)) {
+    ok('auth-client logout() redirects whether or not the POST succeeds');
+  } else {
+    fail('auth-client logout() must wrap its POST in try/catch and redirect AFTER it — a failed request must not strand the user signed in');
+  }
+  const { execFileSync } = await import('node:child_process');
+  // git grep exits 1 on no match — that is an empty list here, not an error.
+  const grep = (...args) => { try { return execFileSync('git', ['grep', ...args], { cwd: root, encoding: 'utf8' }); } catch (e) { if (e.status === 1) return ''; throw e; } };
+  const all = grep('-l', '/auth/logout', '--', ':(glob)apps/*/src/**', ':(glob)packages/*/src/**').split('\n').filter(Boolean);
+  if (!all.includes('packages/auth-client/src/client.ts')) fail('the logout scan cannot see auth-client itself — the scan is blind, not clean');
+  // Frontends only: jkAuth is the server that SERVES the route, and the prober lists it.
+  const hits = all.filter((p) => !p.startsWith('apps/jkauth/') && !p.startsWith('packages/suite-prober/'))
+    .filter((p) => p !== 'packages/auth-client/src/client.ts' && p !== 'packages/ui/src/SettingsDrawer.tsx');
+  if (hits.length) fail(`hand-rolled POST /auth/logout outside @jkos/auth-client: ${hits.join(', ')} — call logout()`);
+  else ok('no app hand-rolls POST /auth/logout (auth-client logout(), plus the ui drawer that cannot import it)');
 }
 
 if (failed) {

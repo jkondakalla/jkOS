@@ -34,7 +34,7 @@ import { AppHeader } from './components/AppHeader'
 import { ConnectModal } from './components/ConnectModal'
 import { DetailPanel } from './components/DetailPanel'
 import { AsyncView, SettingsDrawer, useBreakpoint } from '@jkos/ui'
-import { AUTH_URL, authFetch, useSessionKeepalive } from './lib/jkauth'
+import { AUTH_URL, authFetch, useSessionKeepalive, redirectToLogin, logout } from './lib/jkauth'
 
 import { TodayView } from './views/TodayView'
 import { WeekView } from './views/WeekView'
@@ -61,15 +61,6 @@ injectJkOSTheme({
 })
 
 const DEFAULT_API_URL  = import.meta.env.VITE_API_URL ?? ''
-const JKOS_AUTH_URL    = import.meta.env.VITE_JKOS_AUTH_URL ?? 'https://auth.jkos.net'
-
-/* Module scope, not a closure in the component: `api` below is memoised, and a
-   per-render redirect helper captured inside it would be the one thing forcing it
-   to be rebuilt. Nothing here is reactive — the URL is a build constant and the
-   redirect reads live `window.location`. */
-const toAuthPortal = () => {
-  window.location.href = `${JKOS_AUTH_URL}/auth/login?redirect_to=${encodeURIComponent(window.location.href)}`
-}
 
 /* Token-refresh-aware fetch is now the suite-shared authFetch (@jkos/auth-client):
    on a 401 (TOKEN_EXPIRED/UNAUTHENTICATED) it silently rotates the remember-me
@@ -107,7 +98,7 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
   }
 
   useEffect(() => { checkAuth() }, [])
-  useEffect(() => { if (user === false) toAuthPortal() }, [user])
+  useEffect(() => { if (user === false) redirectToLogin() }, [user])
 
   /* All API calls go through authFetch which handles token refresh — and, since
      D5/XC-4, which stamps the caller's IANA zone onto every request as X-JKOS-TZ.
@@ -125,7 +116,7 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
   const api = useMemo(() => {
     const JSON_HEADERS = { 'Content-Type': 'application/json' }
     const unwrap = (r: Response) => {
-      if (r.status === 401) { toAuthPortal(); throw new Error('Unauthorized') }
+      if (r.status === 401) { redirectToLogin(); throw new Error('Unauthorized') }
       return r.json()
     }
     return {
@@ -143,13 +134,6 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
         authFetch(`${apiUrl}${path}`, { method: 'DELETE' }).then(unwrap),
     }
   }, [apiUrl])
-
-  const handleLogout = async () => {
-    try {
-      await fetch(`${JKOS_AUTH_URL}/auth/logout`, { method: 'POST', credentials: 'include' })
-    } catch { /* best effort */ }
-    window.location.href = `${JKOS_AUTH_URL}/auth/login`
-  }
 
   // Phone gets the dedicated mobile tree; tablet rides the desktop layout (the
   // canonical mobile tier is ≤767px, so this preserves the old 768px crossover).
@@ -547,7 +531,7 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
               today={today}
               accounts={accounts}
               onConnectClick={() => setShowConnect(true)}
-              onLogout={handleLogout}
+              onLogout={logout}
               onOpenSettings={() => setSettingsOpen(true)}
               user={user}
             />
