@@ -346,11 +346,11 @@ This section is deliberately short — Stage F ([TODO.md](TODO.md) §6) restruct
 
 ## 7 · The gate
 
-`pnpm test:contracts` is the suite-wide gate (root `package.json`), and it's a straight
-chain — first failure stops the run. It boots and smoke-tests jkAuth (`test:contracts` +
-`test`), `@jkos/weave`, `@jkos/player`, BeigeBoard's backend, then `pnpm roundtrip` (a live
-write round-trip across the fabric), then LazurOS's backend, `@jkos/files`, KourOS's
-backend (music and audiobooks), and the `@jkos/cards` logic suite. After the behavioral smokes
+`pnpm test:contracts` is the suite-wide gate, run by [`test/gate.mjs`](../test/gate.mjs): the
+first failure stops the run. Its steps are derived rather than listed. It runs every workspace
+package's `test` scripts (jkAuth's smokes and contracts, `@jkos/auth-middleware`, `@jkos/weave`,
+`@jkos/player`, `@jkos/scene`, `@jkos/files`, and the BeigeBoard, LazurOS and KourOS backends),
+then `pnpm roundtrip` (a live write round-trip across the fabric). After the behavioral smokes
 it runs every `check:*` conformance gate (catalogued in [agents/TESTING.md](agents/TESTING.md)) — each a small Node script under `test/` or an app's own `scripts/`, asserting one
 suite-wide invariant by re-deriving it from source rather than trusting a doc. The exception
 is `check:build`, which is not a scan at all: it runs `vite build` for every SPA, because

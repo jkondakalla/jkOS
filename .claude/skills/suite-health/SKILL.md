@@ -20,10 +20,10 @@ Run from the repo root. Stop and fix at the first failure; don't push past a red
    Cheapest signal; a type error means the source doesn't cohere. Fix before anything else.
 
 2. **The gate** — `pnpm test:contracts`
-   The one command that chains everything: jkAuth contracts + smoke + lifecycle, weave +
-   lego, BeigeBoard backend smokes, **the write round-trip** (`pnpm roundtrip`), LazurOS
-   backend, `check:tokens`, `check:nginx`, `check:responsive`, `check:drag`, and `pnpm
-   prove`. Exit 0 = every hard contract holds. This is the definition of "green".
+   The one command that runs everything: every workspace package's `test` scripts (jkAuth,
+   weave, player, the backends, …), **the write round-trip** (`pnpm roundtrip`), every root
+   `check:*`, and `pnpm prove` — derived by `test/gate.mjs` (`--list` prints the steps), which
+   names the failing step. Exit 0 = every hard contract holds. This is the definition of "green".
 
 3. **Individual suspects** (only if you want to localise a gate failure) — run just the
    failing link, e.g.:

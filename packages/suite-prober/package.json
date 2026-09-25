@@ -5,8 +5,7 @@
   "type": "module",
   "description": "The synthetic sixth consumer — a read-only, data-driven harness that acts as an app touching every pathway in all five jkOS systems, then asserts the cross-system invariants a new app relies on. Research instrument: it discovers and reports, it never writes to the suite.",
   "scripts": {
-    "prove": "node prove.mjs",
-    "test": "node prove.mjs"
+    "prove": "node prove.mjs"
   },
   "engines": {
     "node": ">=18"

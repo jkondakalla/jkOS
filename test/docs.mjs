@@ -31,6 +31,7 @@
 import { readFileSync } from 'node:fs';
 import { join, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { gateSteps, workspaceDirs } from './gate.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = p => readFileSync(join(ROOT, p), 'utf8');
@@ -42,38 +43,26 @@ const ok = (name, cond, extra = '') => {
 };
 
 // ── Which test files does the gate actually run? ─────────────────────────────
-// Follow root `test:contracts` → each `pnpm --filter <pkg> <script>` → that
-// package's own script → the `node <file>` invocations inside it. Derived, never
-// re-typed: a list maintained by hand here would rot exactly like the doc did.
+// test/gate.mjs derives the gate's steps; follow each to the package.json script it
+// runs → the `node <file>` invocations inside it, and one level further through a
+// `pnpm --filter <pkg> <script>` inside a root script (check:tokens → jkAuth's).
+// Derived, never re-typed: a list maintained by hand here would rot exactly like the
+// doc did — and this one did, missing @jkos/auth-middleware until 2026-09-25.
 const root = pkg('package.json');
-const WORKSPACES = ['apps/jkauth', 'apps/beigeboard/backend', 'apps/lazuros/backend',
-  'apps/kouros/backend', 'packages/weave', 'packages/player',
-  'packages/files', 'packages/routine-spec', 'packages/scene'];
-
-const byName = new Map();
-for (const dir of WORKSPACES) {
-  try { byName.set(pkg(join(dir, 'package.json')).name, dir); } catch { /* absent */ }
-}
+const byName = new Map(workspaceDirs().map((dir) => [pkg(join(dir, 'package.json')).name, dir]));
 
 /** `node test/x.mjs && node test/y.mjs` → ['test/x.mjs','test/y.mjs'] */
 const nodeFiles = script => [...String(script ?? '').matchAll(/node\s+([\w./-]+\.(?:mjs|js|py))/g)].map(m => m[1]);
+const under = (dir, f) => (dir === '.' ? f : `${dir}/${f}`);
 
 const runFiles = new Set();          // repo-relative paths of every test file the gate runs
-const chain = root.scripts['test:contracts'];
-
-for (const m of chain.matchAll(/pnpm --filter (\S+) ([\w:]+)/g)) {
-  const [, name, script] = m;
-  const dir = byName.get(name);
-  if (!dir) { ok(`workspace ${name} is known to this check`, false, '— add it to WORKSPACES'); continue; }
-  const sub = pkg(join(dir, 'package.json')).scripts?.[script];
-  ok(`${name} defines the '${script}' script the gate calls`, !!sub);
-  for (const f of nodeFiles(sub)) runFiles.add(`${dir}/${f}`);
-}
-// Root-level `node …` links in the chain itself (roundtrip, test:cards, check:*).
-for (const f of nodeFiles(chain)) runFiles.add(f);
-for (const key of Object.keys(root.scripts)) {
-  if (key.startsWith('check:') || key === 'test:cards' || key === 'prove' || key === 'roundtrip') {
-    for (const f of nodeFiles(root.scripts[key])) runFiles.add(f);
+for (const { dir, script, label } of gateSteps()) {
+  ok(`the gate step '${label}' names a script that exists`, typeof script === 'string');
+  for (const f of nodeFiles(script)) runFiles.add(under(dir, f));
+  for (const [, name, key] of String(script ?? '').matchAll(/pnpm --filter (\S+) ([\w:]+)/g)) {
+    const sub = byName.has(name) ? pkg(join(byName.get(name), 'package.json')).scripts?.[key] : undefined;
+    ok(`${name} defines the '${key}' script ${label} calls`, !!sub);
+    for (const f of nodeFiles(sub)) runFiles.add(under(byName.get(name), f));
   }
 }
 

@@ -1,6 +1,6 @@
 ---
 name: new-tester
-description: Author a new jkOS suite test (smoke, contract gate, or prober probe) in the house pattern and wire it into the gate. Use when asked to add a test / smoke / probe / conformance check for a backend, package, or contract, or when a new feature needs coverage that keeps the suite's testing style uniform. Covers the boot-real-server smoke, the text-scan gate, the transpile-pure-logic unit test, and the prober probe — with the checklist to chain each into `pnpm test:contracts`.
+description: Author a new jkOS suite test (smoke, contract gate, or prober probe) in the house pattern and wire it into the gate. Use when asked to add a test / smoke / probe / conformance check for a backend, package, or contract, or when a new feature needs coverage that keeps the suite's testing style uniform. Covers the boot-real-server smoke, the text-scan gate, the transpile-pure-logic unit test, and the prober probe — with the checklist to get each into `pnpm test:contracts`.
 ---
 
 # jkOS new-tester
@@ -91,13 +91,16 @@ mutate a file to the bad state and confirm it fails — but do it on a **scratch
 
 ## 6 · Wire it into the gate — the step everyone forgets
 
-A test that isn't chained runs never. Pick the right hook:
+A test that no script runs, runs never. The gate ([test/gate.mjs](../../../test/gate.mjs)) derives
+its steps, so the hook is a script NAME, never an edit to a list:
 
-- **Backend smoke** → add to that package's `test` script (`apps/<app>/backend/package.json`). The
-  root gate already runs `pnpm --filter @jkos/<app>-backend test`.
-- **Root gate scan / unit test** → add a `check:<x>`/`test:<x>` script in the **root**
-  [package.json](../../../package.json) and append it to the `test:contracts` chain (that's how
-  `check:hud`, `check:cards`, `test:cards`, `check:tokens` are wired).
+- **Backend smoke / package test** → add it to that package's `test` script
+  (`apps/<app>/backend/package.json`, `packages/<pkg>/package.json`). Every workspace package's
+  `test` and `test:*` scripts are in the gate by construction.
+- **Root gate scan / unit test** → add a `check:<x>` (or `test:<x>`) script to the **root**
+  [package.json](../../../package.json). Every root `check:*` and `test:*` is in the gate, in
+  package.json order; keep `check:build` last. Then give it a row in TESTING.md's gate table
+  (`check:docs` fails until you do).
 - **Prober probe** → drop `NN-*.mjs` in `packages/suite-prober/src/probes/`; `pnpm prove` discovers
   it. Add a pathway/row so `--live` mode exercises it too if it has a live counterpart.
 - **Cross-runtime** → extend the existing python bridge in `contracts.mjs` (guarded by its
@@ -113,6 +116,6 @@ silently skipped is worse than none.
 - [ ] Exercises the REAL code (booted server / transpiled module / scanned source).
 - [ ] Hermetic: throwaway port + temp DB/dir, cleaned in `finally`; no real services.
 - [ ] Exits non-zero on failure; has a WHY comment + run command.
-- [ ] Chained into `test:contracts` (or the relevant package `test` / `pnpm prove`).
+- [ ] Reachable from the gate: a package `test` script, a root `check:*`, or a probe (`node test/gate.mjs --list` shows it).
 - [ ] `pnpm test:contracts` green, and the new test's ✓ lines show in the output.
 - [ ] If it pairs a fix, the test FAILED before the fix (write it first).

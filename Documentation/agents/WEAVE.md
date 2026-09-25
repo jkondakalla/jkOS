@@ -390,12 +390,12 @@ source. Do the same.
 `getAppOrigins()` and `roleClaims()` cache for the process lifetime: **a registry change
 needs a jkAuth restart**, not just a redeploy of your app.
 
-### Step 2 — a smoke test, chained into the gate
+### Step 2 — a smoke test, in the gate
 
 Write `apps/<id>/backend/test/*.smoke.mjs` that boots the **real** server on a throwaway
-port with a temp SQLite DB, then **add `&& pnpm --filter @jkos/<id>-backend test` to the
-root `test:contracts` script.** Nothing does this for you; an app that skips it ships with
-no coverage and never joins the gate.
+port with a temp SQLite DB, and **run it from the backend's `test` script.** The gate
+(`test/gate.mjs`) runs every workspace package's `test`, so that script is the whole hook; a
+backend with no `test` script ships with no coverage and never joins the gate.
 
 ⚠️ **Claim your port in `TEST_PORTS`** (`packages/suite-manifest/apps.js`) — the
 single-source registry covering service *and* test ports. `portTable()` throws at load on
@@ -507,7 +507,7 @@ a hand-written per-app list you must **enlist** in (§4); **owed** means decided
 | 23 | Image builds; deploy bundle closed | root-context Dockerfile | `check:docker` (**fails**) — auto-discovers |
 | 24 | Env reads provisioned | `.env.example` + both compose files | `env-conformance` (**gap — advisory**) † |
 | 25 | No control bytes in text files | — | `check:text` (**fails**) — auto-discovers, git-wide |
-| 26 | A smoke test in the gate | boot the real server | only if you chain it into `test:contracts` † |
+| 26 | A smoke test in the gate | boot the real server | only if the backend's `test` script runs it (`test/gate.mjs` runs every package `test`) † |
 | 27 | A unique service + test port | `TEST_PORTS` + `portTable()` in `@jkos/suite-manifest` | `portTable()` throws at load on a duplicate; `prove` `port-registry` (**drift**) holds file literals to claims |
 | 28–31 | The four contract rules (§3.1–§3.4) | — | ✅ **enforced** — `check:rulings` + `86-async-contract`. Rule 4's *receiver* half is declared on every non-idempotent door and held by `check:rulings`; each door's own smoke writes twice and counts rows (§3.4) |
 | 32 | Declared surface covers the mounted routes | mark an exception `// app-private: why` at its own source line | ✅ **enforced** — `prove` `98-surface-coverage`. All four backends report full coverage (69 mounted routes). ⚠️ A declared path covers at most **one** segment beneath it: `/items` covers `/items/:id`, and `/items/:id/deps` must declare itself |

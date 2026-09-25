@@ -14,7 +14,7 @@ Everything runs from the repo root `/media/jag/The Forge/jkOS` (quote it — the
 | `pnpm install` | One workspace install. **Also required after editing any `packages/*` source** — pnpm copies workspace packages into `.pnpm`, so consumers won't see your edit until you re-run it. |
 | `pnpm typecheck` | `turbo run typecheck` — cheapest whole-suite signal. **Not** part of the gate; run it after touching any TS. |
 | `pnpm build` / `pnpm dev` | `turbo run build` / `dev`. `pnpm --filter @jkos/<app> build` for one. ORDECK's `vite dev` is broken (CJS `codes.js`); verify it with `build` + `preview`. |
-| `pnpm test:contracts` | **The gate.** Every backend smoke, the round-trip, every `check:*`, the prober. Exit 0 = green. |
+| `pnpm test:contracts` | **The gate.** Every package's `test`/`test:*`, the round-trip, every root `test:*`/`check:*`, the prober. Exit 0 = green. `node test/gate.mjs --list` prints the steps. |
 | `pnpm prove` | The suite prober — read-only cross-system conformance report (below). |
 | `pnpm roundtrip` | The write round-trip — boots the real BeigeBoard backend and drives create→read→update→complete→delete through discovered docs. |
 | `pnpm test:cards` | Pure-logic unit tests for `@jkos/design` colour + `@jkos/cards` datetime math. |
@@ -55,8 +55,13 @@ playbook for adding a test and wiring it into the gate).
 
 1. **`pnpm typecheck`** — cheapest signal; a type error means the source doesn't cohere.
    ⚠️ **NOT part of `test:contracts`** — run it separately after touching any TS.
-2. **`pnpm test:contracts`** — THE gate. Every hard contract in one chain; exit 0 is the
-   definition of "green". Run after every meaningful change.
+2. **`pnpm test:contracts`** — THE gate; exit 0 is the definition of "green". Run after
+   every meaningful change. Its steps are **derived, not listed**: [`test/gate.mjs`](../../test/gate.mjs)
+   runs every workspace package's `test` and `test:*` scripts, then `roundtrip`, then every root
+   `test:*` and `check:*` script in package.json order (`check:build` last), then `prove`, and
+   stops at the first red. A package joins the gate by having a `test` script; a root check by
+   being named `check:*`. (It was a hand-typed `&&` chain until 2026-09-25, and
+   `@jkos/auth-middleware`'s JWKS suite was the test nobody had added to it.)
 3. **Per-app tests** — to localize a gate failure (`pnpm --filter @jkos/<pkg> test`).
 4. **`pnpm prove --live <base>`** — post-deploy smoke against a running stack.
 
@@ -116,11 +121,17 @@ cost a real debugging session, and none of them was written down until now.
 | `routines.smoke.mjs` | 78 | The cadence engine end-to-end. **§L (D7/BB-3):** the ref is the authority — an occurrence dragged out of its routine's subtree is still withdrawn, re-rendered and counted (five of six readers used to key on `parent_id`). **§I1–I3 (D7/BB-1):** a FILTERED read rolls the horizon, and so does a DELEGATED service token — the old guard disabled the engine for both. **§M (D12/BB-16):** a routine declares what it mints, so a standing weekly meeting is an `event`. ⚠️ Pinning "today" needs `JKOS_TIME_TRAVEL=1` on the child (see the harness contract). |
 | `routine-spec.smoke.mjs` | 113 | The routine document over real HTTP — validation, the lint tier, the round trip, the vocabulary. |
 
+### @jkos/auth-middleware (`packages/auth-middleware/test/`)
+
+| File | Assertions | Owns |
+|------|-----------|------|
+| `jwks.mjs` | 11 | The one JWT verifier every Node backend uses: verify-by-`kid` against an in-process JWKS endpoint, an unknown `kid` refetches (key rotation), expiry, the static-key path and a foreign signer refused. Plus: `import` sees every export `require` does (there is no `.mjs` twin). In no gate until 2026-09-25. |
+
 ### Weave (`packages/weave/test/`)
 
 | File | Assertions | Owns |
 |------|-----------|------|
-| `weave.mjs` | 62 | docShape envelope, capability/dataset schema, `AppId` d.ts ⇄ runtime parity, manifest derivations. |
+| `weave.mjs` | 62 | `import` of every CJS face in `exports` sees every name `require` does (no `.mjs` twins), docShape envelope, capability/dataset schema, `AppId` d.ts ⇄ runtime parity, manifest derivations. |
 | `lego.mjs` | 108 | The Layer-D bricks: `defineCollection` (ddl/docs/mount coherence), `defineConnector`, trigger engine + typed-stud validation, delegation plumbing. Includes regression coverage for two fixed bugs (2026-07-08, found by the audiobook `playback.smoke.mjs`): a `ref` field's numeric value must round-trip as canonical TEXT (`coerceRef()` in `collection.js`), and every affinity-sensitive filter op (`eq`/`gt`, boolean/number/ref-typed fields) must coerce the bound query value to match its column (`coerceFilterValue()` in `filters.js`). Section "D1b" (2026-07-15, git history (item 17.4)) covers `defineCollection`'s `only: [...]` capability/route-selection option — an append-only collection emits ONLY `createX` (no `updateX`/`deleteX`), and live-mounts GET+POST while PATCH/DELETE are proven NOT wired at all (not merely auth-denied), plus a real-SQLite append-not-upsert round trip. |
 | `idempotency.mjs` | 42 | **Dedup at the write door**. The trigger engine always sent a derived `idempotency_key`, and the docs claimed that meant a retried DO could not double-write — it did not, because idempotency is a property of the RECEIVER and nothing read the key. ⚠️ **The reason that survived is the shape of the test that covered it:** `check:rulings` exercises the SENDING half against an injected dispatcher and proves the key is derived and stable, never that anything acts on it. So every assertion here writes through the REAL generated route into REAL SQLite and then **counts rows** — a test that only inspected responses would pass against a door that wrote twice and answered identically both times. Covers: the key reader (blank / non-string / over-long all mean NO DEDUP rather than an error, because every hand-made GUI write arrives without one); the field being DECLARED on `create*` and deliberately not on `update*`; a retry creating one row and replaying the first response with `Idempotent-Replay: true`; **the same key from a different user writing that user's own row** (a per-user delegated DO fans one trigger out to N users carrying the same key, and a global store would answer B with A's row — a 200 and no error anywhere); atomicity (a write that throws rolls back its row AND its key, so a genuine retry can still write); the same key at a different door; unscoped collections deduping across users; a present-but-unusable key (over-long, non-string) refused with 400 rather than writing undeduplicated; and retention — ⚠️ asserted through the WRITE path, with nobody calling `prune`, because `prune` had no call sites and the 30-day ceiling was never enforced. |
 | `libraryScanner.mjs` | 53 | The shared media-library scanner behind KourOS's music and audiobook catalogs: walk, tag-extract, aggregate, and the incremental re-scan path. |
