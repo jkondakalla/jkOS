@@ -935,8 +935,9 @@ The policy decided it: the FALLBACK ships.
 
   And downstream, measured on the shipped index through KourOS's own discovery service: **G5** —
   the Python-fitted basis reproduces the golden coordinates to **2.9e-8**; **G6** — the map for
-  all 47,691 tracks is **320 KB gzipped** (686 KB raw), built in 2.1 s. The display radius R is
-  0.8143.
+  all 47,691 tracks is **320 KB gzipped** (686 KB raw), built in 2.1 s — measured while a tone
+  byte still rode the wire; retiring it took the smoke's 47,693-track payload from 328 to 288 KB.
+  The display radius R is 0.8143.
 
   ⚠️ **What the fallback trades.** The primary rail is the purer name (+0.949 against energy) but
   its space is not PCA-4's, and keeping 4.4% of each track's ten nearest neighbours against PCA-4's
@@ -950,7 +951,9 @@ The policy decided it: the FALLBACK ships.
 ids measured 529 KB gzipped at library size. The columns are incompressible by construction (w is
 a uniform percentile), so the fix was quantisation to what a phone shows: id deltas, xyz as
 11/11/10 bits in one Uint32 (~0.75 px even flown in), w in 12 bits, tone and flags sharing a
-byte. `discover.smoke` drives the real encoder at 47,693 tracks and asserts the bound.
+byte. (Tone — brightness, for the old colouring — left the wire on 2026-09-25 when the colour
+became the place's own; the byte is flags alone.) `discover.smoke` drives the real encoder at
+47,693 tracks and asserts the bound.
 
 ⚠️ **G7 was restated, and why — confirmed by Jag 2026-09-23 (with the λ and sign rules).** As first declared it read "max voxel change
 between the interpolated fields at w and w + 1/256 ≤ 2% of ρ_ref". Measured, that is a property

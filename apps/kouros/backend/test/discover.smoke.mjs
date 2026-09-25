@@ -418,7 +418,7 @@ try {
   const pIds = unpack(vmap?.packed?.ids);
   const pXyz = unpack(vmap?.packed?.xyz);
   const pW = unpack(vmap?.packed?.w);
-  const pTf = unpack(vmap?.packed?.tf);
+  const pFlags = unpack(vmap?.packed?.flags);
   let runningId = 0;
   const packedIds = Array.from({ length: pIds.length / 4 }, (_, r) => (runningId += pIds.readInt32LE(r * 4)));
   const axis = (r, k) => {
@@ -455,7 +455,8 @@ try {
   // One quantisation step of the coarsest field: z's 10 bits span 2 units in 1023.
   ok(worst <= 1 / 1023 + 1e-6,
     `vibe space: every packed coordinate decodes to the independently computed projection (worst ${worst})`);
-  ok([...pTf].every((t) => (t & 1) === 0), 'vibe space: every row is flagged measured, none inferred');
+  ok(pFlags.length === TRACKS.length && [...pFlags].every((f) => f === 0),
+    'vibe space: every row is flagged measured, none inferred');
   ok(Array.isArray(vmap?.regions) && vmap.regions.length > 0 &&
      vmap.regions.every((g) => [g.x, g.y, g.z].every((v) => v >= -1 && v <= 1) && g.w >= 0 && g.w <= 1),
     `vibe space: regions sit inside the cube and on the rail (got ${JSON.stringify(vmap?.regions)})`);

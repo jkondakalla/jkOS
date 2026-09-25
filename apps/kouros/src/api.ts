@@ -407,7 +407,7 @@ export interface VibeMap {
   stops?: number[];
   regions?: MapRegion[];
   basis?: { mode: string | null; nFit: number | null; calib: string; fittedAt: string | null };
-  packed?: { n: number; ids: string; xyz: string; w: string; tf: string };
+  packed?: { n: number; ids: string; xyz: string; w: string; flags: string };
 }
 
 /** One track's pulsarmap (ALGORITHMS.md §9) — the mel matrix decimated to ~2 s

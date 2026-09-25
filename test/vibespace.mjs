@@ -68,7 +68,7 @@ function mulberry32(seed) {
    cannot be made to pass by sharing a bug with an encoder it imports. */
 function pack(rows) {
   const n = rows.length;
-  const ids = Buffer.alloc(n * 4), xyz = Buffer.alloc(n * 4), w = Buffer.alloc(n * 2), tf = Buffer.alloc(n);
+  const ids = Buffer.alloc(n * 4), xyz = Buffer.alloc(n * 4), w = Buffer.alloc(n * 2), flags = Buffer.alloc(n);
   const q = (v, bits) => Math.round(((v + 1) / 2) * (2 ** bits - 1));
   let prev = 0;
   rows.forEach((r, i) => {
@@ -76,18 +76,18 @@ function pack(rows) {
     prev = r.id;
     xyz.writeUInt32LE(q(r.xyz[0], 11) * 2 ** 21 + q(r.xyz[1], 11) * 2 ** 10 + q(r.xyz[2], 10), i * 4);
     w.writeUInt16LE(Math.round(r.w * 4095), i * 2);
-    tf[i] = (Math.round(r.tone * 63) << 2) | (r.flags || 0);
+    flags[i] = r.flags || 0;
   });
   const b = (x) => x.toString('base64');
-  return { n, ids: b(ids), xyz: b(xyz), w: b(w), tf: b(tf) };
+  return { n, ids: b(ids), xyz: b(xyz), w: b(w), flags: b(flags) };
 }
 
 /* ── decodeMap ────────────────────────────────────────────────────────────── */
 {
   const rows = [
-    { id: 3, xyz: [-1, 0.5, 0.25], w: 0, tone: 0.2 },
-    { id: 17, xyz: [1, -0.5, -0.125], w: 1, tone: 1, flags: 1 },
-    { id: 40000, xyz: [0, 0, 0], w: 0.5, tone: 0.5, flags: 2 },
+    { id: 3, xyz: [-1, 0.5, 0.25], w: 0 },
+    { id: 17, xyz: [1, -0.5, -0.125], w: 1, flags: 1 },
+    { id: 40000, xyz: [0, 0, 0], w: 0.5 },
   ];
   const d = g.decodeMap(pack(rows));
   check(d.n === 3 && d.ids[0] === 3 && d.ids[1] === 17 && d.ids[2] === 40000,
@@ -96,8 +96,7 @@ function pack(rows) {
         && Math.abs(d.xyz[3] - 1) < 1e-9,
     'decodeMap: xyz are 11/11/10-bit fields of one Uint32, in order, within a quantisation step');
   check(d.w[0] === 0 && d.w[1] === 1 && Math.abs(d.w[2] - 0.5) < 1 / 4095, 'decodeMap: w is a 12-bit percentile');
-  check(Math.abs(d.tone[0] - 0.2) < 1 / 63 && d.tone[1] === 1, 'decodeMap: tone shares its byte with the flags');
-  check(d.flags[1] === g.FLAG_INFERRED && d.flags[2] === g.FLAG_NO_TONE, 'decodeMap: flags survive');
+  check(d.flags[0] === 0 && d.flags[1] === g.FLAG_INFERRED && d.flags[2] === 0, 'decodeMap: flags survive');
   const bad = pack(rows);
   bad.n = 4;
   let threw = false;
@@ -119,7 +118,6 @@ function library({ n = 3000, seed = 7, inferredShare = 0 } = {}) {
       id: i + 1,
       xyz: [0, 1, 2].map((k) => Math.max(-1, Math.min(1, c[k] + gauss() * 0.18))),
       w: Math.max(0, Math.min(1, c[3] + gauss() * 0.12)),
-      tone: rand(),
       flags: rand() < inferredShare ? 1 : 0,
     });
   }
@@ -151,9 +149,9 @@ const SMALL = { grid: 24, slices: 48, sigmaW: 0.06, sigmaVoxels: 0.625 };
   const withInferred = g.decodeMap(pack([
     ...Array.from({ length: measured.n }, (_, i) => ({
       id: i + 1, xyz: [measured.xyz[i * 3], measured.xyz[i * 3 + 1], measured.xyz[i * 3 + 2]],
-      w: measured.w[i], tone: measured.tone[i], flags: 0,
+      w: measured.w[i], flags: 0,
     })),
-    ...Array.from({ length: 400 }, (_, i) => ({ id: 10000 + i, xyz: [0.9, 0.9, 0.9], w: 0.5, tone: 0.5, flags: 1 })),
+    ...Array.from({ length: 400 }, (_, i) => ({ id: 10000 + i, xyz: [0.9, 0.9, 0.9], w: 0.5, flags: 1 })),
   ]));
   const a = g.densitySlices(measured, SMALL), b = g.densitySlices(withInferred, SMALL);
   let same = a.rhoRef === b.rhoRef;
@@ -187,8 +185,8 @@ const SMALL = { grid: 24, slices: 48, sigmaW: 0.06, sigmaVoxels: 0.625 };
   const rows = [];
   const rand = mulberry32(11);
   const gauss = () => Math.sqrt(-2 * Math.log(Math.max(1e-9, rand()))) * Math.cos(2 * Math.PI * rand());
-  for (let i = 0; i < 20; i++) rows.push({ id: i + 1, xyz: [gauss() * 0.1 - 0.5, gauss() * 0.1, gauss() * 0.1], w: 0.1, tone: 0.2 });
-  for (let i = 0; i < 2000; i++) rows.push({ id: 100 + i, xyz: [gauss() * 0.1 + 0.5, gauss() * 0.1, gauss() * 0.1], w: 0.9, tone: 0.8 });
+  for (let i = 0; i < 20; i++) rows.push({ id: i + 1, xyz: [gauss() * 0.1 - 0.5, gauss() * 0.1, gauss() * 0.1], w: 0.1 });
+  for (let i = 0; i < 2000; i++) rows.push({ id: 100 + i, xyz: [gauss() * 0.1 + 0.5, gauss() * 0.1, gauss() * 0.1], w: 0.9 });
   const map = g.decodeMap(pack(rows.sort((x, y) => x.id - y.id)));
   const f = g.densitySlices(map, SMALL);
   const peakAlpha = (w) => {

@@ -48,8 +48,8 @@ export interface PackedMap {
   xyz: string;
   /** Uint16LE: energy percentile × 4095. */
   w: string;
-  /** Uint8: tone × 63 << 2 | flags. */
-  tf: string;
+  /** Uint8: flags (bit 0 inferred). */
+  flags: string;
 }
 
 export interface DecodedMap {
@@ -60,13 +60,10 @@ export interface DecodedMap {
   xyz: Float32Array;
   /** Energy percentile, [0, 1]. */
   w: Float32Array;
-  /** Brightness percentile, [0, 1] (0.5 where unknown — see flags). */
-  tone: Float32Array;
   flags: Uint8Array;
 }
 
 export const FLAG_INFERRED = 1;
-export const FLAG_NO_TONE = 2;
 
 function bytesOf(b64: string): DataView {
   const bin = atob(b64);
@@ -83,14 +80,13 @@ export function decodeMap(p: PackedMap): DecodedMap {
   const ids = bytesOf(p.ids);
   const xyz = bytesOf(p.xyz);
   const w = bytesOf(p.w);
-  const tf = bytesOf(p.tf);
-  if (ids.byteLength !== n * 4 || xyz.byteLength !== n * 4 || w.byteLength !== n * 2 || tf.byteLength !== n) {
+  const flags = bytesOf(p.flags);
+  if (ids.byteLength !== n * 4 || xyz.byteLength !== n * 4 || w.byteLength !== n * 2 || flags.byteLength !== n) {
     throw new Error(`vibespace: packed columns do not match n=${n} ` +
-      `(ids ${ids.byteLength}, xyz ${xyz.byteLength}, w ${w.byteLength}, tf ${tf.byteLength})`);
+      `(ids ${ids.byteLength}, xyz ${xyz.byteLength}, w ${w.byteLength}, flags ${flags.byteLength})`);
   }
   const out: DecodedMap = {
-    n, ids: new Int32Array(n), xyz: new Float32Array(n * 3), w: new Float32Array(n),
-    tone: new Float32Array(n), flags: new Uint8Array(n),
+    n, ids: new Int32Array(n), xyz: new Float32Array(n * 3), w: new Float32Array(n), flags: new Uint8Array(n),
   };
   const unq = (v: number, bits: number) => (v / ((1 << bits) - 1)) * 2 - 1;
   let id = 0;
@@ -102,9 +98,7 @@ export function decodeMap(p: PackedMap): DecodedMap {
     out.xyz[i * 3 + 1] = unq((word >>> 10) & 0x7ff, 11);
     out.xyz[i * 3 + 2] = unq(word & 0x3ff, 10);
     out.w[i] = w.getUint16(i * 2, true) / 4095;
-    const t = tf.getUint8(i);
-    out.tone[i] = (t >> 2) / 63;
-    out.flags[i] = t & 3;
+    out.flags[i] = flags.getUint8(i);
   }
   return out;
 }
