@@ -1002,8 +1002,7 @@ Do not cross these in any design pass:
 **After ANY hub.css change, regenerate all three derived artifacts** (they are committed):
 
 ```bash
-pnpm --filter @jkos/jkauth sync:tokens        # jkAuth static mirror
-node jkos-deploy/scripts/sync-tokens.mjs      # jkos-deploy static mirror
+pnpm sync:tokens                              # jkAuth + jkos-deploy static mirrors
 node apps/jkauth/scripts/build-design-page.mjs  # staging.jkos.net/design snapshot
 ```
 

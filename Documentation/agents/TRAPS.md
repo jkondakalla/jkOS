@@ -925,10 +925,9 @@ Every trap here was hit building `native/` on 2026-09-24; see [NATIVE.md](NATIVE
   `./.venv/bin/python -m unittest discover` inside `music/` to check it.
 
 - **A `hub.css` edit is not "done" until two generated token mirrors *and* the `/design`
-  reference page are regenerated** — `pnpm --filter @jkos/jkauth sync:tokens` (jkAuth is
+  reference page are regenerated** — `pnpm sync:tokens` writes both mirrors (jkAuth is
   static-served with no bundler, so it `@import`s a committed copy of hub.css rather than
-  building from the source package), `node jkos-deploy/scripts/sync-tokens.mjs` (same reason,
-  different consumer), and `node apps/jkauth/scripts/build-design-page.mjs` (splices the current
+  building from the source package; jkos-deploy's console is the same case), and `node apps/jkauth/scripts/build-design-page.mjs` (splices the current
   hub.css verbatim into the live style-guide page at `/design`). `pnpm check:design` fails a
   build if a hub.css class isn't demoed on that page, which catches *missing* documentation — it
   does not catch a mirror that's gone stale relative to the real hub.css.

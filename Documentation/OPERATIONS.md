@@ -19,7 +19,7 @@ Frontends read `VITE_JKOS_AUTH_URL` (default `https://auth.jkos.net`; dev proxie
 After editing `packages/*`, run `pnpm install` — pnpm copies workspace packages into consumers,
 which keep the stale copy until you do. ORDECK's `vite dev` is broken (a CJS `codes.js` import
 chain); check ORDECK with `build` + `preview` instead. After any `hub.css` change, regenerate the
-token mirrors: `pnpm --filter @jkos/jkauth sync:tokens` and `node jkos-deploy/scripts/sync-tokens.mjs`.
+token mirrors: `pnpm sync:tokens` (jkAuth's and jkos-deploy's).
 
 ## Contract gate
 

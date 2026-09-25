@@ -45,7 +45,7 @@ const ok = (name, cond, extra = '') => {
 // ── Which test files does the gate actually run? ─────────────────────────────
 // test/gate.mjs derives the gate's steps; follow each to the package.json script it
 // runs → the `node <file>` invocations inside it, and one level further through a
-// `pnpm --filter <pkg> <script>` inside a root script (check:tokens → jkAuth's).
+// `pnpm --filter <pkg> <script>` inside a root script.
 // Derived, never re-typed: a list maintained by hand here would rot exactly like the
 // doc did — and this one did, missing @jkos/auth-middleware until 2026-09-25.
 const root = pkg('package.json');

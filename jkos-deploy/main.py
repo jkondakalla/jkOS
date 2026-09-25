@@ -235,7 +235,7 @@ async def root():
 
 @app.get("/jkos-tokens.css")
 async def tokens_css():
-    # Committed mirror of @jkos/design/tokens/hub.css (see scripts/sync-tokens.mjs) —
+    # Committed mirror of @jkos/design/tokens/hub.css (see the repo's scripts/sync-tokens.mjs) —
     # the console styles itself from the suite token chain like every other app.
     return FileResponse("/app/static/jkos-tokens.css", media_type="text/css")
 

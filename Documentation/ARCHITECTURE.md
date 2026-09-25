@@ -335,9 +335,9 @@ per-app theme (accent pair, neutrals, radius, fonts, responsive breakpoints) and
 `hub.css` is the token sheet every app's CSS is built against — mode (paper/dark) and
 motion axes are runtime attributes on `<html>`, not separate stylesheets. Because jkAuth is
 static-served rather than bundled through the same Vite pipeline as the React apps, it
-consumes a **generated mirror** of `hub.css` rather than importing the package directly;
-`pnpm check:tokens` asserts the mirror and the source haven't drifted, and `sync-tokens.mjs`
-regenerates it. `pnpm check:design` re-derives the `/design` reference page's inlined CSS
+consumes a **generated mirror** of `hub.css` rather than importing the package directly (so
+does jkos-deploy's console); `pnpm check:tokens` asserts the mirrors and the source haven't
+drifted, and `pnpm sync:tokens` regenerates both. `pnpm check:design` re-derives the `/design` reference page's inlined CSS
 and fails if it's stale.
 
 This section is deliberately short — Stage F ([TODO.md](TODO.md) §6) restructures the factory.
