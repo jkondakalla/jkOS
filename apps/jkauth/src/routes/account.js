@@ -15,8 +15,8 @@
 // dual contract the rest of jkAuth honours.
 
 const express = require('express')
-const { PASSWORD_MAX, REFRESH_COOKIE } = require('../config')
-const { get, all, run, logEvent } = require('../db')
+const { PASSWORD_MAX } = require('../config')
+const { get, run, logEvent } = require('../db')
 const { isJsonReq, passwordError } = require('../util')
 const { loginPage, forgotPage, resetPage, verifyEmailPage, securityPage } = require('../views')
 const { resolveUser, DUMMY_HASH, sessionFamilies, currentFamilyOf } = require('../tokens')

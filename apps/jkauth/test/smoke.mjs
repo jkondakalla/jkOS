@@ -159,7 +159,6 @@ async function run() {
   ok('register 201', r.status === 201, `got ${r.status}`);
   ok('first user is admin', j.user?.role === 'admin', JSON.stringify(j.user));
   ok('token + refresh cookies set', A.jar.has('jkos_token') && A.jar.has('jkos_refresh'));
-  const adminJar = new Map(A.jar);
 
   console.log('A · hardening (headers · jwt kid · password max)');
   {
@@ -252,7 +251,7 @@ async function run() {
   ok('right password 200', r.status === 200 && j.user?.email === 'a@jkos.net' && A.jar.has('jkos_token'));
 
   console.log('A · register validation + role assignment');
-  const A2 = new Map(A.jar); A.jar.clear();
+  A.jar.clear();
   r = await A.req('POST', '/auth/register', { json: { email: 'b@jkos.net', name: 'Bob', password: 'password123' } });
   j = await r.json().catch(() => ({}));
   ok('second user role=user', j.user?.role === 'user', JSON.stringify(j.user));

@@ -92,7 +92,7 @@ const nowIso = isoOf(new Date());
 const thisMon = shift(nowIso, -((new Date(`${nowIso}T00:00:00Z`).getUTCDay() + 6) % 7));
 const TODAY = shift(thisMon, 9);                 // a Wednesday, 5–11 days out
 const WED = TODAY, FRI = shift(TODAY, 2);
-const NEXT_MON = shift(TODAY, 5), NEXT_WED = shift(TODAY, 7), NEXT_FRI = shift(TODAY, 9);
+const NEXT_MON = shift(TODAY, 5), NEXT_WED = shift(TODAY, 7);
 
 async function req(method, path, body, { today = TODAY, token = A } = {}) {
   /* Pinning "today" is the only way to assert the horizon rolls forward, and since

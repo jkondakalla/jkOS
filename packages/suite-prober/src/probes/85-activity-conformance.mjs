@@ -37,7 +37,7 @@
  */
 
 import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
-import { join, dirname, resolve, relative, sep } from 'node:path';
+import { join, dirname, resolve, relative } from 'node:path';
 import { createRequire } from 'node:module';
 import { REPO_ROOT } from '../topology.mjs';
 import { BACKEND_DOCS } from '../sources.mjs';

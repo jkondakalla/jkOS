@@ -26,8 +26,7 @@
 //   node apps/beigeboard/backend/test/calendar.sandbox.mjs
 
 import { createRequire } from 'node:module';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 
@@ -44,7 +43,6 @@ process.env.DB_PATH = join(tmp, 'test.db');
 process.env.CALENDAR_ENC_KEY = 'a'.repeat(64); // 64 hex → AES-256 key
 process.env.NODE_ENV = '';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
 const { normalizeGoogle }  = require('../src/calendar/google.js');
 const { normalizeOutlook } = require('../src/calendar/outlook.js');

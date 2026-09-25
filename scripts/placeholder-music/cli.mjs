@@ -50,7 +50,6 @@ const DATA = path.resolve(args.data || path.join(HOME, 'data'));
 const ROOT_NAME = args['root-name'] || path.basename(LIB);
 const PORT = Number(args.port || 3011);
 const AUTH_PORT = Number(args['auth-port'] || 3010);
-const VITE_PORT = Number(args['vite-port'] || 5173);
 const EDGE_PORT = Number(args['edge-port'] || 4173);
 
 /** The manifest `reindex` needs, recovered from the SCANNED catalog when

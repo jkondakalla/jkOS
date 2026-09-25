@@ -57,7 +57,6 @@ const FIXTURES_DIR = join(__dirname, 'fixtures', 'library');
 // 3986, which is BeigeBoard's delta.smoke claim. That is OPS-1 exactly: a second
 // server on a claimed port, invisible to the table.
 const PORT = 3983;
-const BASE = `http://127.0.0.1:${PORT}`;
 const SPARE_PORTS = [PORT + 100, PORT + 101, PORT + 102, PORT + 103];
 // The /health payload must name THIS app. A bare 200 once passed eight
 // assertions against a stray server from ANOTHER app on a shared port (OPS-1);

@@ -24,7 +24,6 @@
 //    back to metadata affinity (artist / genre / era) — but the answer says so, so
 //    the UI can label a row "similar" versus "same artist" honestly rather than
 //    implying the embedder had an opinion it never had.
-const path = require('path');
 const { contentKeyFromTags, catalogRelKey, l2Normalise } = require('./vectors');
 
 /* ── Interpretable descriptor slices (music/descriptors.py's LAYOUT, N_MFCC=20) ──

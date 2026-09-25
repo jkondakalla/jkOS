@@ -24,7 +24,7 @@ import assert from 'node:assert/strict'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, utimesSync, statSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, utimesSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 
 const HERE = dirname(fileURLToPath(import.meta.url))

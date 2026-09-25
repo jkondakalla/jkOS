@@ -10,7 +10,6 @@
 //
 // Run:  node test/cards-logic.mjs   (wired as `pnpm test:cards`, folded into
 //                                     `pnpm test:contracts`).
-import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, resolve, join } from 'node:path';

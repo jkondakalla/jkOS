@@ -318,7 +318,7 @@ try {
     `I2: ⭐ a FILTERED read a week later mints the week that came into range (got ${JSON.stringify(laterDates)})`);
   ok(!laterDates.includes(WEEK4_MON),
     'I2: and stops at the horizon — it does not run away into the future');
-  const later = await list({ today: NEXT_WEEK });
+  await list({ today: NEXT_WEEK }); // the read itself rolls the horizon forward
 
   // A malformed header must fall back to the server's own answer, not reach the
   // date maths. Same guarantee as before, now enforced by callerDay's isDay().

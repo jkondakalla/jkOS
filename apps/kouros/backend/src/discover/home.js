@@ -17,7 +17,7 @@
 // fewer opinions, and every rail states its own basis so the UI never implies
 // otherwise.
 const { NFEAT, FEATURE_NAMES, ORIGIN } = require('./space');
-const { present, diversify, round, contentKeyAt } = require('./queries');
+const { present, diversify, round } = require('./queries');
 const { makeRun } = require('./queries');
 
 /* ── time of day ──────────────────────────────────────────────────────────────

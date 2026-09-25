@@ -23,7 +23,7 @@
 const { filterSpec, buildItemFilters } = require('./filters')
 const { coerceWeaveColumn } = require('./columns')
 const { resourceKey } = require('@jkos/suite-manifest')
-const { SQL_NOW, sqlConvert, canonical: canonicalTime, isCanonical } = require('./wireTime')
+const { SQL_NOW, sqlConvert, canonical: canonicalTime } = require('./wireTime')
 const { idempotencyBodyField, idempotencyKeyError } = require('../shared/idempotency')
 const { DDL: IDEMPOTENCY_DDL, keyOf: idempotencyKeyOf, withIdempotency } = require('./idempotency')
 

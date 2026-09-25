@@ -34,7 +34,7 @@
 //
 // Run:  node test/native.mjs        (wired as `pnpm check:native`, folded into
 //                                    `pnpm test:contracts`)
-import { readFileSync, readdirSync, existsSync, statSync } from 'node:fs';
+import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve, join } from 'node:path';

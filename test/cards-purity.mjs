@@ -18,7 +18,7 @@
 //                                     `pnpm test:contracts`).
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { dirname, resolve, join, relative } from 'node:path';
+import { dirname, resolve, join } from 'node:path';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');

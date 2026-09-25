@@ -41,7 +41,6 @@
 
 import { spawn, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { mkdtempSync, rmSync, statSync, utimesSync } from 'node:fs';
@@ -49,7 +48,6 @@ import { tmpdir } from 'node:os';
 import { generateKeyPairSync, sign as cryptoSign } from 'node:crypto';
 
 const execFileAsync = promisify(execFile);
-const require = createRequire(import.meta.url);
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const BACKEND = join(__dirname, '..');
 const FIXTURES_DIR = join(__dirname, 'fixtures', 'books', 'library');
