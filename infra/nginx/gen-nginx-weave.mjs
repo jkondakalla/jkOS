@@ -36,6 +36,7 @@ import { dirname, join } from 'node:path'
 // from (ToDo A2). Relative path, not the bare specifier — this script is run from the
 // repo root (`node infra/nginx/...`), where @jkos/* is not resolvable. CJS via interop.
 import { peers, edgeApps } from '../../packages/suite-manifest/apps.js'
+import { androidShells, shellConfig } from '../../native/shells.js'
 
 const DIR = dirname(fileURLToPath(import.meta.url))
 const OUT = join(DIR, 'weave-proxy.conf')
@@ -357,6 +358,50 @@ function checkStandaloneAssetlinks() {
     return false
   }
   console.log(`✓ standalone.conf asset links match assetlinks.json (${found.length} origin(s))`)
+  return checkTwaCoverage(text)
+}
+
+/* Every origin an Android TWA TRUSTS must serve the asset links. A TWA verifies each origin
+   it keeps full-screen, one by one, and an origin that answers 404 (or index.html) simply
+   gets a URL bar — no error, anywhere. The set of trusted origins is not typed here: it is
+   native/shells.js's (every TWA shell's release origins), so a shell or app that widens it
+   is held to it. A generated edge:'standard' block always carries the location; a
+   hand-tuned block in standalone.conf must be shown to. */
+function serverBlocks(text) {
+  const blocks = []
+  for (const m of text.matchAll(/\bserver\s*\{/g)) {
+    let depth = 0
+    for (let i = m.index + m[0].length - 1; i < text.length; i++) {
+      if (text[i] === '{') depth++
+      else if (text[i] === '}' && --depth === 0) { blocks.push(text.slice(m.index, i + 1)); break }
+    }
+  }
+  return blocks.map((body) => ({
+    body,
+    names: (/\bserver_name\s+([^;]+);/.exec(body)?.[1] || '').trim().split(/\s+/),
+    tls: /\blisten\s+443\b/.test(body),
+  }))
+}
+
+function checkTwaCoverage(text) {
+  const generated = new Set(EDGE_APPS.map((a) => a.host))
+  const blocks = serverBlocks(text).filter((b) => b.tls)
+  const hosts = new Set(androidShells().filter((s) => s.android === 'twa')
+    .flatMap((s) => shellConfig(s, 'release').origins.map((o) => new URL(o).host)))
+  const missing = []
+  for (const host of hosts) {
+    if (generated.has(host)) continue
+    const block = blocks.find((b) => b.names.includes(host))
+    if (!block || !/location = \/\.well-known\/assetlinks\.json \{/.test(block.body)) missing.push(host)
+  }
+  if (missing.length) {
+    console.error(
+      `✗ ${missing.join(', ')} ${missing.length > 1 ? 'are origins' : 'is an origin'} an Android TWA trusts ` +
+      '(native/shells.js) but whose 443 server block serves no /.well-known/assetlinks.json. The app ' +
+      'would open that origin under a URL bar. Copy the location block from the auth.jkos.net server.')
+    return false
+  }
+  console.log(`✓ every origin an Android TWA trusts serves asset links (${hosts.size}: ${[...hosts].join(', ')})`)
   return true
 }
 
