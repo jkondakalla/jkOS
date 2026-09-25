@@ -1,4 +1,4 @@
 {
-  "//": "Scope marker: the weave package is type:module (its frontend half is ESM/TS for Vite), but the backend half is CommonJS so the no-bundler Node backends require() it like @jkos/auth-middleware. This makes .js here CJS; index.mjs stays ESM. Not a workspace package (pnpm globs packages/*, not nested dirs).",
+  "//": "Scope marker: the weave package is type:module (its frontend half is ESM/TS for Vite), but the backend half is CommonJS so the no-bundler Node backends require() it like @jkos/auth-middleware. This makes .js here CJS. An ESM caller imports the same files: Node reads their named exports itself (test/weave.mjs holds that). Not a workspace package (pnpm globs packages/*, not nested dirs).",
   "type": "commonjs"
 }

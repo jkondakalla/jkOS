@@ -13,11 +13,8 @@
 // generic, no app-specific naming (mime lookup, book/file id resolution, etc. all stay
 // in the calling app).
 //
-// Plain CJS, no dual ESM twin: every consumer (KourOS's music and
-// audiobook halves) is a plain-JS, no-bundler Node backend that already `require()`s
-// @jkos/auth-middleware the same way — an .mjs twin (see @jkos/weave/server) earns its
-// keep only once a `type:module` backend actually needs one, which costs nothing to add
-// later and nothing to skip now.
+// Plain CJS, and an ESM caller needs no twin: Node reads the named exports of a literal
+// `module.exports = { … }` itself (packages/weave/test/weave.mjs holds that for weave).
 
 const fs = require('node:fs');
 const path = require('node:path');

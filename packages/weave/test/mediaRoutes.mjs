@@ -165,13 +165,6 @@ ok(/renameSync\s*\(/.test(src) && /\.tmp/.test(src), 'atomic rename via a .tmp s
 ok(/code\s*!==\s*0/.test(src), 'rename is gated on ffmpeg exit code 0')
 ok(/size\s*>\s*0/.test(src) && /mtimeMs\s*>=/.test(src), 'freshness rule = exists && size>0 && mtime ≥ source')
 
-/* ═══ 4 · ESM twin parity ═════════════════════════════════════════════════════════ */
-section('4 · mediaRoutes.mjs re-exports the CJS impl (no drift)')
-const mjs = readFileSync(join(HERE, '..', 'src', 'server', 'mediaRoutes.mjs'), 'utf8')
-ok(/from '\.\/mediaRoutes\.js'/.test(mjs), 'the .mjs twin re-exports ./mediaRoutes.js (single implementation)')
-ok(/export const defineMediaRoutes/.test(mjs) && /export const decidePlayback/.test(mjs),
-  'the .mjs twin exports both the factory and the decision engine')
-
 /* ═══ summary ═════════════════════════════════════════════════════════════════════ */
 console.log(`\nmediaRoutes: ${pass} passed, ${fail} failed`)
 process.exit(fail ? 1 : 0)

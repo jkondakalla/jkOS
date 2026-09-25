@@ -2,7 +2,7 @@
 //
 //   node packages/auth-middleware/test/jwks.mjs
 //
-// Stands up a tiny in-process JWKS endpoint, then drives the middleware through:
+// First, that `import` sees every export `require` does. Then it stands up a tiny in-process JWKS endpoint, then drives the middleware through:
 // verify-by-kid, unknown-kid refetch (rotation), expiry, and the static-key path.
 // No network, no secrets. Exit 0 = all green.
 
@@ -16,6 +16,16 @@ const { jkosAuth } = require('../index.js');
 
 let pass = 0, fail = 0;
 const ok = (name, cond, extra = '') => { if (cond) { pass++; console.log(`  ✓ ${name}`); } else { fail++; console.log(`  ✗ ${name}  ${extra}`); } };
+
+// An ESM caller imports index.js itself (there is no hand-kept index.mjs twin): Node reads
+// its named exports statically, and this holds that it still can — a module.exports it
+// can't read would give `import` callers a smaller API than `require` callers.
+{
+  const cjs = require('@jkos/auth-middleware');
+  const esm = await import('@jkos/auth-middleware');
+  const missing = Object.keys(cjs).filter((k) => esm[k] !== cjs[k]);
+  ok('import() exposes every name require() does, as the same reference', missing.length === 0, `missing: ${missing}`);
+}
 
 const ISSUER = 'jkos-auth-test';
 const mkKey = () => generateKeyPairSync('rsa', {

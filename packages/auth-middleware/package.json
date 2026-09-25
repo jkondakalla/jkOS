@@ -8,10 +8,7 @@
     "test": "node test/jwks.mjs"
   },
   "exports": {
-    ".": {
-      "require": "./index.js",
-      "import": "./index.mjs"
-    },
+    ".": "./index.js",
     "./codes": {
       "types": "./codes.d.ts",
       "require": "./codes.js",

@@ -256,8 +256,10 @@ that code can reopen it.
   before `prove`) builds all four SPAs — ~5 s, and it is verified to go red when the include is
   removed. The same failure shape awaits the next app that imports a CJS workspace package, so
   **treat the include list as part of adding a dependency, not as build config**. Sibling trap in
-  the same family: the CJS import must also survive `tsc`, and the four `@jkos/*` packages that
-  ship both faces (`index.js` + `index.mjs`) keep them in sync via `pnpm check:routine`.
+  the same family: the CJS import must also survive `tsc`. Only `@jkos/routine-spec` ships two
+  faces (`index.js` + an `index.mjs` for Vite), held in sync by `pnpm check:routine`. A package only
+  Node imports needs no `.mjs` twin at all: Node reads a CJS file's named exports itself, as long as
+  `module.exports` is a literal it can read statically (the weave and auth-middleware tests hold that).
 
 - **esbuild resolves an extensionless import case-INSENSITIVELY, even on ext4 — so a bare
   esbuild harness over KourOS's components bundles the wrong file.** `components/Pulsarmap.tsx`
