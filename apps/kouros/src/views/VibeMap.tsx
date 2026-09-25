@@ -140,8 +140,7 @@ export default function VibeMap() {
                 regions={regions}
                 stops={stops}
                 anchor={{ low: data.anchor?.low ?? 'calm', high: data.anchor?.high ?? 'intense' }}
-                colour={{ low: data.colour?.low ?? 'dark', high: data.colour?.high ?? 'bright',
-                          available: !!data.colour?.available }}
+                axes={data.axes ?? []}
                 nowPlayingId={now.trackId ?? null}
                 pin={pin}
                 onPin={pinAt}

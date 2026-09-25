@@ -341,7 +341,6 @@ function vibeMap(space, projection, { regions = 24 } = {}) {
     measured,
     anchor: { feature: map.anchor, low, high,
               spearman: Number.isFinite(stats.spearman_heldout) ? round(stats.spearman_heldout) : null },
-    colour: { feature: 'brightness', low: 'dark', high: 'bright', available: !!space.features },
     axes: Array.isArray(stats.axes) ? stats.axes.slice(0, 3) : [null, null, null],
     stops: STOPS,
     regions: regionsOut,

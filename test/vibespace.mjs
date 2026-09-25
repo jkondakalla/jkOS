@@ -7,7 +7,8 @@
 // tracks of a library blaze as brightly as its thousand loud ones; inferred album
 // centroids stacked into the density invent a hot spot the size of an album; a slice
 // spacing too coarse for its kernel makes the cloud STEP as you swipe while every still
-// frame looks fine. None of these throw. So they are asserted, and continuity (G7) is
+// frame looks fine; a colour wheel with a seam paints two neighbouring tracks opposite
+// colours. None of these throw. So they are asserted, and continuity (G7) is
 // MEASURED on the production settings rather than claimed.
 //
 // geometry.ts imports @jkos/scene/math; both are transpiled in-memory with the repo's
@@ -193,18 +194,12 @@ const SMALL = { grid: 24, slices: 48, sigmaW: 0.06, sigmaVoxels: 0.625 };
   const peakAlpha = (w) => {
     const { lo } = g.sliceMix(w, SMALL.slices);
     let m = 0;
-    for (let v = 0; v < f.textures[lo].length; v += 2) m = Math.max(m, f.textures[lo][v]);
+    for (let v = 0; v < f.textures[lo].length; v++) m = Math.max(m, f.textures[lo][v]);
     return m;
   };
   const sparse = peakAlpha(0.1), dense = peakAlpha(0.9);
   check(dense > 200 && sparse < dense * 0.35,
     `tone map: shared across slices — the sparse calm cluster peaks at α ${sparse}, the dense intense one at ${dense}`);
-  // The tone channel is the density-weighted MEAN tone, not a sum.
-  const { lo } = g.sliceMix(0.9, SMALL.slices);
-  let best = 0, at = 0;
-  for (let v = 0; v < f.textures[lo].length; v += 2) if (f.textures[lo][v] > best) { best = f.textures[lo][v]; at = v; }
-  check(Math.abs(f.textures[lo][at + 1] - 0.8 * 255) <= 2,
-    `tone: the dense cluster's colour is its mean brightness (${f.textures[lo][at + 1]} ≈ ${0.8 * 255})`);
   check(g.toneMap(0, 1) === 0 && g.toneMap(1, 1) > g.toneMap(0.5, 1) && g.toneMap(1e9, 1) <= 1,
     'toneMap: 0 at empty, monotone, bounded by 1');
 }
@@ -225,10 +220,10 @@ const SMALL = { grid: 24, slices: 48, sigmaW: 0.06, sigmaVoxels: 0.625 };
   const f = g.densitySlices(map, g.DENSITY);
   const ms = Date.now() - t0;
   const O = g.DENSITY, G3 = O.grid ** 3, S = O.slices;
-  const d = new Float32Array(G3), t = new Float32Array(G3), scratch = new Float32Array(G3);
+  const d = new Float32Array(G3), scratch = new Float32Array(G3);
   let worst = 0, at = 0, dataChange = 0;
   const exactAlpha = (w) => {
-    g.splatAt(map, w, O, d, t);
+    g.splatAt(map, w, O, d);
     g.blur3d(d, O.grid, O.sigmaVoxels, scratch);
     return Float32Array.from(d, (rho) => g.toneMap(rho, f.rhoRef));
   };
@@ -250,7 +245,7 @@ const SMALL = { grid: 24, slices: 48, sigmaW: 0.06, sigmaVoxels: 0.625 };
     `G7: the slice mix IS the continuous field — worst opacity error ${worst.toFixed(4)} (≤ 0.02, at w = ${at.toFixed(3)}); ` +
     `for scale, the data's own change per 1/256 near the middle is ${dataChange.toFixed(4)}; ` +
     `${S} slices × ${O.grid}³ built in ${ms} ms`);
-  check(f.textures.length === S && f.textures[0].length === 2 * G3, `densitySlices: ${S} RG8 slices of ${O.grid}³`);
+  check(f.textures.length === S && f.textures[0].length === G3, `densitySlices: ${S} R8 slices of ${O.grid}³ — opacity only; colour is the place's`);
   check(S * 0.06 >= 2.5, 'densitySlices: slices at most a third of σ_w apart — the spacing G7 was measured at');
 }
 
@@ -283,34 +278,85 @@ check(g.scrubTo(0.5, -100, 400) === 0.75 && g.scrubTo(0.5, 100, 400) === 0.25 &&
 /* The axis lock, velocity, the coast, the nearest-glint pick, the ray through the
    cube, the double-tap and label thinning are @jkos/scene's, held by its own test. */
 
-/* ── the colour ramp (dataviz: sequential — one hue, lightness-ordered) ─────── */
+/* ── the colour: every place its own (geometry.ts styleColour) ───────────────
+   The request the colour answers is "similar tracks look similar, and the colours
+   shift as you move through the map". The first half is a BOUND, so it is measured:
+   on the colours actually drawn (after the gamut pull), neighbours δ apart are never
+   more than styleLipschitz·δ apart in OKLab — which is also what "no seam round the
+   wheel" means. The second half needs the wheel to be a wheel: the whole hue circle,
+   in order, with the library's own spread of places telling apart at a glance. */
 {
-  const accents = { amber: [1, 0.69, 0], teal: [0.31, 0.8, 0.77], slate: [0.45, 0.47, 0.5] };
-  for (const [name, accent] of Object.entries(accents)) {
-    for (const face of ['dark', 'paper']) {
-      const ramp = g.brightnessRamp(accent, face);
-      const L = [], H = [];
-      for (let i = 0; i < 256; i++) {
-        const [l, c, h] = scene.srgbToOklch([ramp[i * 3] / 255, ramp[i * 3 + 1] / 255, ramp[i * 3 + 2] / 255]);
-        L.push(l);
-        if (c > 0.03) H.push(h);
+  const lab = (rgb) => { const [L, C, h] = scene.srgbToOklch(rgb); return [L, C * Math.cos(h), C * Math.sin(h)]; };
+  const dE = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
+  // hub.css --hub-bg-0 per face — the ground every glint and the haze are drawn on.
+  const surfaces = { dark: [0x11, 0x10, 0x0d], paper: [0xed, 0xe2, 0xc8] };
+  for (const face of ['dark', 'paper']) {
+    // Neighbours, everywhere in the plane: steps of δ along x and z on a 201² grid.
+    const bound = g.styleLipschitz(face), delta = 0.002;
+    let steepest = 0, where = '';
+    for (let i = 0; i <= 200; i++) for (let j = 0; j <= 200; j++) {
+      const x = -1 + i / 100, z = -1 + j / 100;
+      const here = lab(g.styleColour(x, z, face));
+      for (const [dx, dz] of [[delta, 0], [0, delta]]) {
+        const r = dE(here, lab(g.styleColour(x + dx, z + dz, face))) / delta;
+        if (r > steepest) { steepest = r; where = `(${x.toFixed(2)}, ${z.toFixed(2)})`; }
       }
-      const dir = face === 'dark' ? 1 : -1;
-      let monotone = true;
-      for (let i = 8; i < 256; i += 8) if ((L[i] - L[i - 8]) * dir <= 0) monotone = false;
-      const hueSpread = H.length ? Math.max(...H) - Math.min(...H) : 0;
-      check(monotone && Math.abs(L[255] - L[0]) > 0.4,
-        `brightnessRamp(${name}, ${face}): lightness ${dir > 0 ? 'rises' : 'falls'} monotonically across ${Math.abs(L[255] - L[0]).toFixed(2)} of L`);
-      check(hueSpread < 0.12, `brightnessRamp(${name}, ${face}): ONE hue (spread ${hueSpread.toFixed(3)} rad) — never a rainbow`);
-      // The faint end must still separate from the surface it is drawn on (hub.css
-      // --hub-bg-0 per face): the first paper ramp began at L 0.80 on a 0.91 page and a
-      // dark-timbre glint vanished into it.
-      const surface = face === 'dark' ? [0x11, 0x10, 0x0d] : [0xed, 0xe2, 0xc8];
-      const [Ls] = scene.srgbToOklch(surface.map((v) => v / 255));
-      check(Math.abs(L[0] - Ls) >= 0.2,
-        `brightnessRamp(${name}, ${face}): its faint end stands ${Math.abs(L[0] - Ls).toFixed(2)} of L off the surface (≥ 0.2)`);
     }
+    check(steepest <= bound * 1.001,
+      `styleColour(${face}): similar places, similar colours — neighbours δ apart differ by ≤ ${bound.toFixed(3)}·δ ` +
+      `in OKLab (steepest ${steepest.toFixed(3)} at ${where}), with no seam anywhere in the plane`);
+
+    // A wheel: round a ring at the library's median radius (0.55 measured on the real
+    // fit), the hue turns ONE full circle, always the same way.
+    let turned = 0, backwards = 0;
+    let prev = scene.srgbToOklch(g.styleColour(0.55, 0, face))[2];
+    for (let k = 1; k <= 720; k++) {
+      const t = (k / 720) * 2 * Math.PI;
+      const h = scene.srgbToOklch(g.styleColour(0.55 * Math.cos(t), 0.55 * Math.sin(t), face))[2];
+      let dh = h - prev;
+      while (dh > Math.PI) dh -= 2 * Math.PI;
+      while (dh < -Math.PI) dh += 2 * Math.PI;
+      if (dh <= 0) backwards++;
+      turned += dh;
+      prev = h;
+    }
+    check(Math.abs(turned - 2 * Math.PI) < 1e-6 && backwards === 0,
+      `styleColour(${face}): going round the cloud goes round the hue circle once, in order (${(turned / Math.PI).toFixed(3)}π)`);
+
+    // Places the key names are told apart: the four poles at the median radius.
+    const poles = [[0.55, 0], [0, 0.55], [-0.55, 0], [0, -0.55]].map(([x, z]) => lab(g.styleColour(x, z, face)));
+    let closest = Infinity;
+    for (let a = 0; a < 4; a++) for (let b = a + 1; b < 4; b++) closest = Math.min(closest, dE(poles[a], poles[b]));
+    check(closest >= 0.1,
+      `styleColour(${face}): the four poles at the median radius stand ≥ 0.10 apart in OKLab (closest ${closest.toFixed(3)})`);
+
+    // Every colour it can draw stands off the ground it is drawn on (the first paper
+    // brightness ramp began at L 0.80 on a 0.91 page and its glints vanished).
+    const lut = g.styleLut(face);
+    const [Ls] = scene.srgbToOklch(surfaces[face].map((v) => v / 255));
+    let nearest = Infinity;
+    for (let v = 0; v < lut.length; v += 3) {
+      nearest = Math.min(nearest, Math.abs(scene.srgbToOklch([lut[v] / 255, lut[v + 1] / 255, lut[v + 2] / 255])[0] - Ls));
+    }
+    check(nearest >= 0.2, `styleLut(${face}): every place colour stands ${nearest.toFixed(2)} of L off the surface (≥ 0.2)`);
+
+    // The texture both passes sample IS the function: bilinear between node-aligned
+    // texels, as the shader addresses it, within 3/255 of the exact colour anywhere.
+    const rand = mulberry32(face === 'dark' ? 5 : 6);
+    let off = 0;
+    for (let k = 0; k < 20000; k++) {
+      const x = rand() * 2 - 1, z = rand() * 2 - 1;
+      const exact = g.styleColour(x, z, face), drawn = g.sampleStyleLut(lut, x, z);
+      for (let c = 0; c < 3; c++) off = Math.max(off, Math.abs(exact[c] - drawn[c]));
+    }
+    check(off <= 3 / 255, `styleLut(${face}): what the GPU samples is within ${(off * 255).toFixed(2)}/255 of styleColour (≤ 3)`);
   }
+  // Both passes read the one lookup, addressed as sampleStyleLut spells it out.
+  const glSrc = readFileSync(resolve(root, 'apps/kouros/src/components/vibespace/gl.ts'), 'utf8');
+  check(/\(STYLE\.lut - 1\) \/ STYLE\.lut/.test(glSrc) && /0\.5 \/ STYLE\.lut/.test(glSrc)
+        && glSrc.includes('vec3 ink = styleInk(uvw.xz);') && glSrc.includes('v_ink = styleInk(a_xyz.xz * 0.5 + 0.5);')
+        && !/u_ramp|v_tone/.test(glSrc),
+    'gl.ts: the volume and the particles both colour a place through styleInk, node-aligned — no second colour source');
 }
 
 /* ── the camera keeps the library in a portrait frame ─────────────────────── */

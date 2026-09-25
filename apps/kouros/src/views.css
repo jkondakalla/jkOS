@@ -935,8 +935,12 @@
 /* ── The vibe space (components/vibespace, ALGORITHMS.md §9 M6) ────────────────
    The library as a cloud you move through energy. The canvas draws the cloud and
    the glints; everything readable — region names, the energy rail, the colour
-   legend, the chips — is DOM over it, so it takes the suite's type and tokens and
+   key, the chips — is DOM over it, so it takes the suite's type and tokens and
    stays crisp at any render scale.
+
+   ⚠️ The place colours (geometry.ts styleColour) are the one set of literal colours
+   here, and they are DATA, not chrome: they arrive as inline gradients and
+   `--vs-dot`, computed from where a region sits, never from a token.
 
    ⚠️ The surface and ring are named for what they draw, as `--kr-pulsar-*` are: a
    canvas cannot take a custom property, so VibeSpace resolves these off the element. */
@@ -989,6 +993,17 @@
   color: var(--kr-glass-ink);
   will-change: transform, opacity;
 }
+/* A region's own colour beside its name, so a colour in the cloud has a name. */
+.kr-vs-label::before {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 6px;
+  border-radius: 50%;
+  vertical-align: 0.05em;
+  background-color: var(--vs-dot, transparent);
+}
 
 /* The energy rail: the one axis on screen with a name, because it is the one you move. */
 .kr-vs-rail {
@@ -1033,18 +1048,21 @@
   box-shadow: 0 0 0 2px var(--kr-vs-surface);
 }
 
+/* The colour key: one bar per axis the colour follows (x and z), named by the fit. */
 .kr-vs-legend {
   position: absolute;
   left: 0.75rem;
   bottom: 0.7rem;
   display: flex;
-  align-items: center;
-  gap: 0.4rem;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.3rem;
   font-family: var(--hub-font-mono);
   font-size: var(--hub-fs-lab-xs);
   color: var(--kr-glass-ink-dim);
   pointer-events: none;
 }
+.kr-vs-legend-row { display: flex; align-items: center; gap: 0.4rem; }
 .kr-vs-legend-ramp { width: 4.5rem; height: 6px; border-radius: 3px; }
 
 .kr-vs-chips {

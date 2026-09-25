@@ -4,22 +4,36 @@
 //      scale. Each pixel's ray is clipped to the cube and marched front to back (≤ 64
 //      steps, out at α > 0.97), sampling the TWO density slices either side of the
 //      swipe position and mixing them by `u_mix` (geometry.ts `sliceMix`). Emission
-//      takes its colour from the brightness ramp. A slow domain warp (≤ 1 voxel) makes
-//      the cloud breathe; it moves no particle and changes no answer, and it is off
-//      under reduced motion.
+//      takes the colour of the PLACE it is drawn at (geometry.ts `styleColour`). A
+//      slow domain warp (≤ 1 voxel) makes the cloud breathe; it moves no particle and
+//      changes no answer, and it is off under reduced motion.
 //   2. COMPOSITE — that buffer, premultiplied, over the surface colour, upscaled.
 //   3. PARTICLES — every track as a point whose size and alpha are its GLINT
-//      (exp(−(Δw/0.04)²)), inferred rows dimmer; then the pin and the now-playing
-//      track as rings. Additive on the dark tube, ordinary "over" on paper — light
-//      added to paper is invisible.
+//      (exp(−(Δw/0.04)²)), inferred rows dimmer, coloured by its place exactly as the
+//      volume is; then the pin and the now-playing track as rings. Additive on the
+//      dark tube, ordinary "over" on paper — light added to paper is invisible.
 //
 // ⚠️ A swipe writes uniforms, not buffers: the points are uploaded once, the two slice
-// textures are re-uploaded only when the swipe crosses a slice centre (48³ × 2 bytes,
-// ~0.2 MB), and nothing here allocates per frame.
+// textures are re-uploaded only when the swipe crosses a slice centre (48³ bytes,
+// ~0.1 MB), and nothing here allocates per frame.
+//
+// ⚠️ ONE COLOUR, ONE TEXTURE. `styleColour` is baked once per face into a 2-D lookup
+// (`styleLut`) and the volume and the particles both read it through `styleInk` below,
+// so a glint and the haze around it cannot disagree about what colour a place is.
 
 import { compileProgram, uniforms } from '@jkos/scene/gl';
 import type { RGB } from '@jkos/scene/math';
-import { FLAG_INFERRED, FLAG_NO_TONE, sliceMix, type DecodedMap } from './geometry';
+import { FLAG_INFERRED, STYLE, sliceMix, type DecodedMap } from './geometry';
+
+/** A place's colour from the lookup: `uv` is the place's (x, z) in [0, 1]², addressed
+ *  node-aligned (STYLE.lut) — `sampleStyleLut` in geometry.ts is this line, spelled out
+ *  for the gate. */
+const STYLE_INK = `
+uniform sampler2D u_style;
+vec3 styleInk(vec2 uv) {
+  return texture(u_style, clamp(uv, 0.0, 1.0) * ${((STYLE.lut - 1) / STYLE.lut).toFixed(6)} + ${(0.5 / STYLE.lut).toFixed(6)}).rgb;
+}
+`;
 
 const TRIANGLE = `#version 300 es
 precision highp float;
@@ -47,7 +61,6 @@ precision highp sampler3D;
 
 uniform sampler3D u_lo;
 uniform sampler3D u_hi;
-uniform sampler2D u_ramp;
 uniform float u_mix;
 uniform mat4 u_inverse;
 uniform float u_time;
@@ -57,7 +70,7 @@ uniform int u_steps;
 
 in vec2 v_uv;
 out vec4 color;
-
+${STYLE_INK}
 vec3 unproject(vec2 ndc, float z) {
   vec4 p = u_inverse * vec4(ndc, z, 1.0);
   return p.xyz / p.w;
@@ -96,15 +109,15 @@ void main() {
                                     sin(p.z * 2.7 + u_time * 0.17),
                                     sin(p.x * 3.3 + u_time * 0.19));
     }
-    vec2 s = mix(texture(u_lo, uvw).rg, texture(u_hi, uvw).rg, u_mix);
+    float s = mix(texture(u_lo, uvw).r, texture(u_hi, uvw).r, u_mix);
     // Opacity follows density SQUARED: the haze between clusters thins and the cores
     // keep their weight, so a library that fills the cube still shows its structure
     // instead of a silhouette. (Linear, a 47,000-track cloud was an opaque slab.)
-    float a = 1.0 - exp(-u_opacity * s.r * s.r * dt / voxel);
+    float a = 1.0 - exp(-u_opacity * s * s * dt / voxel);
     // Dissolve toward the cube's faces rather than end at them (EDGE_FADE).
     float face = 1.0 - max(max(abs(p.x), abs(p.y)), abs(p.z));
     a *= smoothstep(0.0, ${EDGE_FADE.toFixed(3)}, face);
-    vec3 ink = texture(u_ramp, vec2(s.g, 0.5)).rgb;
+    vec3 ink = styleInk(uvw.xz);
     acc += (1.0 - alpha) * a * ink;
     alpha += (1.0 - alpha) * a;
     t += dt;
@@ -125,25 +138,26 @@ void main() { color = texture(u_volume, v_uv) * u_cloud; }
 const POINT_VERTEX = `#version 300 es
 precision highp float;
 layout(location = 0) in vec3 a_xyz;
-layout(location = 1) in vec3 a_wtf;   // w, tone, flags
+layout(location = 1) in vec2 a_wf;    // w, flags
 uniform mat4 u_viewProj;
 uniform float u_w0;
 uniform float u_dpr;
 uniform float u_height;               // drawing-buffer px
 uniform float u_gain;                 // glint gain for this library's size
 out float v_alpha;
-out float v_tone;
+out vec3 v_ink;
 out float v_ring;
+${STYLE_INK}
 void main() {
-  float flags = a_wtf.z;
+  float flags = a_wf.y;
   float ring = mod(floor(flags / 4.0), 2.0);          // bit 2: a marker ring
   float inferred = mod(flags, 2.0);                   // bit 0
-  float dw = a_wtf.x - u_w0;
+  float dw = a_wf.x - u_w0;
   float glint = exp(-(dw / 0.04) * (dw / 0.04));
   float label = exp(-(dw / 0.1) * (dw / 0.1));
   vec4 clip = u_viewProj * vec4(a_xyz, 1.0);
   v_ring = ring;
-  v_tone = a_wtf.y;
+  v_ink = styleInk(a_xyz.xz * 0.5 + 0.5);
   if (ring > 0.5) {
     v_alpha = max(0.35, label);
     gl_PointSize = 18.0 * u_dpr;
@@ -160,10 +174,9 @@ void main() {
 
 const POINT_FRAGMENT = `#version 300 es
 precision highp float;
-uniform sampler2D u_ramp;
 uniform vec3 u_ringInk;
 in float v_alpha;
-in float v_tone;
+in vec3 v_ink;
 in float v_ring;
 out vec4 color;
 void main() {
@@ -175,11 +188,13 @@ void main() {
     return;
   }
   float disc = 1.0 - smoothstep(0.35, 1.0, r);
-  vec3 ink = texture(u_ramp, vec2(v_tone, 0.5)).rgb;
   float a = disc * v_alpha;
-  color = vec4(ink * a, a);            // premultiplied
+  color = vec4(v_ink * a, a);          // premultiplied
 }
 `;
+
+/** Floats per point: x, y, z, w, flags. */
+const STRIDE = 5;
 
 /** Volume opacity per voxel of path, applied to density squared (see the shader). */
 export const VOLUME_OPACITY = 1.1;
@@ -229,9 +244,9 @@ export class VibeRenderer {
   private pointBuf: WebGLBuffer | null;
   private markerVao: WebGLVertexArrayObject | null;
   private markerBuf: WebGLBuffer | null;
-  private markerData = new Float32Array(6 * 4);
+  private markerData = new Float32Array(STRIDE * 4);
   private count = 0;
-  private ramp: WebGLTexture | null;
+  private style: WebGLTexture | null;
   private slices: [WebGLTexture | null, WebGLTexture | null];
   private loaded: [number, number] = [-1, -1];
   private source: SliceSource | null = null;
@@ -244,9 +259,9 @@ export class VibeRenderer {
     this.volume = compileProgram(gl, TRIANGLE, VOLUME_FRAGMENT);
     this.composite = compileProgram(gl, TRIANGLE, COMPOSITE_FRAGMENT);
     this.points = compileProgram(gl, POINT_VERTEX, POINT_FRAGMENT);
-    this.uv = uniforms(gl, this.volume, ['u_lo', 'u_hi', 'u_ramp', 'u_mix', 'u_inverse', 'u_time', 'u_warp', 'u_opacity', 'u_steps'] as const);
+    this.uv = uniforms(gl, this.volume, ['u_lo', 'u_hi', 'u_style', 'u_mix', 'u_inverse', 'u_time', 'u_warp', 'u_opacity', 'u_steps'] as const);
     this.uc = uniforms(gl, this.composite, ['u_volume', 'u_cloud'] as const);
-    this.up = uniforms(gl, this.points, ['u_viewProj', 'u_w0', 'u_dpr', 'u_height', 'u_ramp', 'u_ringInk', 'u_gain'] as const);
+    this.up = uniforms(gl, this.points, ['u_viewProj', 'u_w0', 'u_dpr', 'u_height', 'u_style', 'u_ringInk', 'u_gain'] as const);
     this.empty = gl.createVertexArray();
 
     const vertexArray = (buf: WebGLBuffer | null) => {
@@ -254,9 +269,9 @@ export class VibeRenderer {
       gl.bindVertexArray(vao);
       gl.bindBuffer(gl.ARRAY_BUFFER, buf);
       gl.enableVertexAttribArray(0);
-      gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 24, 0);
+      gl.vertexAttribPointer(0, 3, gl.FLOAT, false, STRIDE * 4, 0);
       gl.enableVertexAttribArray(1);
-      gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 24, 12);
+      gl.vertexAttribPointer(1, 2, gl.FLOAT, false, STRIDE * 4, 12);
       gl.bindVertexArray(null);
       return vao;
     };
@@ -267,7 +282,7 @@ export class VibeRenderer {
     gl.bufferData(gl.ARRAY_BUFFER, this.markerData.byteLength, gl.DYNAMIC_DRAW);
     this.markerVao = vertexArray(this.markerBuf);
 
-    this.ramp = gl.createTexture();
+    this.style = gl.createTexture();
     const slice = () => {
       const t = gl.createTexture();
       gl.bindTexture(gl.TEXTURE_3D, t);
@@ -281,17 +296,16 @@ export class VibeRenderer {
     this.fboTex = gl.createTexture();
   }
 
-  /** Upload every track once: xyz, then (w, tone, flags). */
+  /** Upload every track once: xyz, then (w, flags). */
   setPoints(map: DecodedMap): void {
     const { gl } = this;
-    const data = new Float32Array(map.n * 6);
+    const data = new Float32Array(map.n * STRIDE);
     for (let i = 0; i < map.n; i++) {
-      data[i * 6] = map.xyz[i * 3];
-      data[i * 6 + 1] = map.xyz[i * 3 + 1];
-      data[i * 6 + 2] = map.xyz[i * 3 + 2];
-      data[i * 6 + 3] = map.w[i];
-      data[i * 6 + 4] = map.flags[i] & FLAG_NO_TONE ? 0.5 : map.tone[i];
-      data[i * 6 + 5] = map.flags[i] & FLAG_INFERRED ? 1 : 0;
+      data[i * STRIDE] = map.xyz[i * 3];
+      data[i * STRIDE + 1] = map.xyz[i * 3 + 1];
+      data[i * STRIDE + 2] = map.xyz[i * 3 + 2];
+      data[i * STRIDE + 3] = map.w[i];
+      data[i * STRIDE + 4] = map.flags[i] & FLAG_INFERRED ? 1 : 0;
     }
     gl.bindBuffer(gl.ARRAY_BUFFER, this.pointBuf);
     gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
@@ -299,11 +313,12 @@ export class VibeRenderer {
     this.gain = glintGain(map.n);
   }
 
-  setRamp(rgb: Uint8Array): void {
+  /** The place colours for this face — geometry.ts `styleLut`, STYLE.lut². */
+  setStyle(rgb: Uint8Array): void {
     const { gl } = this;
-    gl.bindTexture(gl.TEXTURE_2D, this.ramp);
+    gl.bindTexture(gl.TEXTURE_2D, this.style);
     gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB8, rgb.length / 3, 1, 0, gl.RGB, gl.UNSIGNED_BYTE, rgb);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB8, STYLE.lut, STYLE.lut, 0, gl.RGB, gl.UNSIGNED_BYTE, rgb);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -333,7 +348,7 @@ export class VibeRenderer {
     for (const k of [0, 1] as const) {
       if (this.loaded[k] === want[k]) continue;
       gl.bindTexture(gl.TEXTURE_3D, this.slices[k]);
-      gl.texImage3D(gl.TEXTURE_3D, 0, gl.RG8, source.grid, source.grid, source.grid, 0, gl.RG, gl.UNSIGNED_BYTE,
+      gl.texImage3D(gl.TEXTURE_3D, 0, gl.R8, source.grid, source.grid, source.grid, 0, gl.RED, gl.UNSIGNED_BYTE,
                     source.textures[want[k]]);
       this.loaded[k] = want[k];
     }
@@ -375,10 +390,10 @@ export class VibeRenderer {
       gl.bindVertexArray(this.empty);
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_3D, this.slices[0]);
       gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_3D, this.slices[1]);
-      gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, this.ramp);
+      gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, this.style);
       gl.uniform1i(this.uv.u_lo, 0);
       gl.uniform1i(this.uv.u_hi, 1);
-      gl.uniform1i(this.uv.u_ramp, 2);
+      gl.uniform1i(this.uv.u_style, 2);
       gl.uniform1f(this.uv.u_mix, mixF);
       gl.uniformMatrix4fv(this.uv.u_inverse, false, f.inverse);
       gl.uniform1f(this.uv.u_time, f.time);
@@ -407,8 +422,8 @@ export class VibeRenderer {
 
     gl.useProgram(this.points);
     gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, this.ramp);
-    gl.uniform1i(this.up.u_ramp, 0);
+    gl.bindTexture(gl.TEXTURE_2D, this.style);
+    gl.uniform1i(this.up.u_style, 0);
     gl.uniformMatrix4fv(this.up.u_viewProj, false, f.viewProj);
     gl.uniform1f(this.up.u_w0, f.w0);
     gl.uniform1f(this.up.u_dpr, f.dpr);
@@ -425,10 +440,10 @@ export class VibeRenderer {
     const markers = f.markers.slice(0, 4);
     if (markers.length) {
       markers.forEach((m, i) => {
-        this.markerData.set([m.xyz[0], m.xyz[1], m.xyz[2], m.w, 0.5, 4], i * 6);
+        this.markerData.set([m.xyz[0], m.xyz[1], m.xyz[2], m.w, 4], i * STRIDE);
       });
       gl.bindBuffer(gl.ARRAY_BUFFER, this.markerBuf);
-      gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.markerData, 0, markers.length * 6);
+      gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.markerData, 0, markers.length * STRIDE);
       gl.bindVertexArray(this.markerVao);
       gl.drawArrays(gl.POINTS, 0, markers.length);
     }
@@ -438,7 +453,7 @@ export class VibeRenderer {
   dispose(): void {
     const { gl } = this;
     if (gl.isContextLost()) return;
-    for (const t of [this.ramp, this.fboTex, ...this.slices]) if (t) gl.deleteTexture(t);
+    for (const t of [this.style, this.fboTex, ...this.slices]) if (t) gl.deleteTexture(t);
     for (const b of [this.pointBuf, this.markerBuf]) if (b) gl.deleteBuffer(b);
     for (const v of [this.empty, this.pointVao, this.markerVao]) if (v) gl.deleteVertexArray(v);
     if (this.fbo) gl.deleteFramebuffer(this.fbo);

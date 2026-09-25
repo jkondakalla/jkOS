@@ -34,7 +34,7 @@
 // an album. They are drawn as dimmer particles and nothing else.
 
 import {
-  DEG, clamp, fitDistance, lerp, oklchToSrgb, orbitView, rayBox, springStep, srgbToOklch,
+  DEG, clamp, fitDistance, lerp, oklchToSrgb, orbitView, rayBox, springStep,
   type RGB, type Spring, type Vec3, type View,
 } from '@jkos/scene/math';
 
@@ -185,22 +185,19 @@ export function blur3d(field: Float32Array, grid: number, sigma: number, scratch
 }
 
 /** Splat every MEASURED point into slice `j`. */
-export function splatSlice(map: DecodedMap, j: number, opts: DensityOptions,
-                           density: Float32Array, toneSum: Float32Array): void {
-  splatAt(map, sliceW(j, opts.slices), opts, density, toneSum);
+export function splatSlice(map: DecodedMap, j: number, opts: DensityOptions, density: Float32Array): void {
+  splatAt(map, sliceW(j, opts.slices), opts, density);
 }
 
 /** Splat every MEASURED point at an arbitrary `wj`: a Gaussian in w, trilinear in
- *  space. `toneSum` accumulates weight × tone, for the density-weighted mean colour.
- *  At a slice centre this IS the slice; anywhere else it is the exact continuous field
- *  the gate holds the slice mix to. */
-export function splatAt(map: DecodedMap, wj: number, opts: DensityOptions,
-                        density: Float32Array, toneSum: Float32Array): void {
+ *  space. At a slice centre this IS the slice; anywhere else it is the exact
+ *  continuous field the gate holds the slice mix to. (No colour rides along: a
+ *  voxel's colour is its place's, `styleColour`.) */
+export function splatAt(map: DecodedMap, wj: number, opts: DensityOptions, density: Float32Array): void {
   const G = opts.grid;
   const inv2s2 = 1 / (2 * opts.sigmaW * opts.sigmaW);
   const cutoff = 3.5 * opts.sigmaW;
   density.fill(0);
-  toneSum.fill(0);
   for (let i = 0; i < map.n; i++) {
     if (map.flags[i] & FLAG_INFERRED) continue;
     const dw = map.w[i] - wj;
@@ -211,13 +208,11 @@ export function splatAt(map: DecodedMap, wj: number, opts: DensityOptions,
     const fz = clamp((map.xyz[i * 3 + 2] + 1) * 0.5 * G - 0.5, 0, G - 1);
     const x0 = Math.min(G - 2, Math.floor(fx)), y0 = Math.min(G - 2, Math.floor(fy)), z0 = Math.min(G - 2, Math.floor(fz));
     const tx = fx - x0, ty = fy - y0, tz = fz - z0;
-    const tone = map.tone[i];
     for (let c = 0; c < 8; c++) {
       const dx = c & 1, dy = (c >> 1) & 1, dz = (c >> 2) & 1;
       const cw = wt * (dx ? tx : 1 - tx) * (dy ? ty : 1 - ty) * (dz ? tz : 1 - tz);
       const v = ((z0 + dz) * G + (y0 + dy)) * G + (x0 + dx);
       density[v] += cw;
-      toneSum[v] += cw * tone;
     }
   }
 }
@@ -254,7 +249,7 @@ export interface DensityField {
   grid: number;
   slices: number;
   rhoRef: number;
-  /** Per slice, RG8: R = α through the shared tone map, G = density-weighted mean tone. */
+  /** Per slice, R8: α through the shared tone map. */
   textures: Uint8Array[];
   /** Per slice, the blurred raw density — kept for picking and for the gate. */
   density: Float32Array[];
@@ -263,34 +258,26 @@ export interface DensityField {
 export function densitySlices(map: DecodedMap, opts: DensityOptions = DENSITY): DensityField {
   const G3 = opts.grid ** 3;
   const density: Float32Array[] = [];
-  const tones: Float32Array[] = [];
   const scratch = new Float32Array(G3);
   for (let j = 0; j < opts.slices; j++) {
     const d = new Float32Array(G3);
-    const t = new Float32Array(G3);
-    splatSlice(map, j, opts, d, t);
+    splatSlice(map, j, opts, d);
     blur3d(d, opts.grid, opts.sigmaVoxels, scratch);
-    blur3d(t, opts.grid, opts.sigmaVoxels, scratch);
-    for (let v = 0; v < G3; v++) t[v] = d[v] > 1e-6 ? t[v] / d[v] : 0.5;
     density.push(d);
-    tones.push(t);
   }
   const rhoRef = rhoReference(density);
-  const textures = density.map((d, j) => quantizeSlice(d, tones[j], rhoRef));
+  const textures = density.map((d) => quantizeSlice(d, rhoRef));
   return { grid: opts.grid, slices: opts.slices, rhoRef, textures, density };
 }
 
-export function quantizeSlice(density: Float32Array, tone: Float32Array, rhoRef: number): Uint8Array {
-  const out = new Uint8Array(density.length * 2);
-  for (let v = 0; v < density.length; v++) {
-    out[v * 2] = Math.round(toneMap(density[v], rhoRef) * 255);
-    out[v * 2 + 1] = Math.round(clamp(tone[v], 0, 1) * 255);
-  }
+export function quantizeSlice(density: Float32Array, rhoRef: number): Uint8Array {
+  const out = new Uint8Array(density.length);
+  for (let v = 0; v < density.length; v++) out[v] = Math.round(toneMap(density[v], rhoRef) * 255);
   return out;
 }
 
 /** The opacity the renderer draws at `w`: the two slices' tone-mapped α, mixed
- *  linearly — what the shader does with its two RG8 textures, minus the quantisation. */
+ *  linearly — what the shader does with its two R8 textures, minus the quantisation. */
 export function alphaAt(field: { density: Float32Array[]; slices: number; rhoRef: number },
                         w: number, voxel: number): number {
   const { lo, hi, f } = sliceMix(w, field.slices);
@@ -396,25 +383,99 @@ export function voxelOf(p: Vec3, grid: number): number {
   return (i(p[2]) * grid + i(p[1])) * grid + i(p[0]);
 }
 
-/* ── the colour ramp: one hue, ordered by lightness (dataviz: sequential) ─────── */
-/** The brightness ramp, 256 steps × RGB, from the sleeve accent's hue.
+/* ── the colour: every place has its own (a hue wheel over the style plane) ──── */
+/** How a place in the cloud is coloured. ALGORITHMS.md §9, M6.
  *
- *  ⚠️ ONE HUE, ORDERED BY LIGHTNESS, and the anchor FLIPS with the face: on the dark
- *  tube a bright timbre is lighter; on paper it is darker — magnitude reads as ink on
- *  a light ground. Never a rainbow: brightness is an ordered quantity, and a hue walk
- *  would invent categories in it. */
-export function brightnessRamp(accent: RGB, face: 'paper' | 'dark', steps = 256): Uint8Array {
-  const [, accentC, h] = srgbToOklch(accent);
-  const C = clamp(accentC, 0.04, 0.14);
-  // ⚠️ The LIGHT end on paper is held well below the paper's own lightness (~0.91):
-  // the first cut started at 0.80 and a dark-timbre glint vanished into the page.
-  const [L0, L1] = face === 'dark' ? [0.42, 0.93] : [0.7, 0.28];
-  const out = new Uint8Array(steps * 3);
-  for (let i = 0; i < steps; i++) {
-    const t = i / (steps - 1);
-    const chroma = face === 'dark' ? C * (1 - 0.55 * t) : C * (0.55 + 0.45 * t);
-    const rgb = oklchToSrgb(lerp(L0, L1, t), chroma, h);
-    for (let k = 0; k < 3; k++) out[i * 3 + k] = Math.round(rgb[k] * 255);
+ *  The colour is a function of x and z ONLY — the two axes a spin carries round the
+ *  screen. y needs no colour (the pitch never moves, so it is always "up"), and energy
+ *  has its own instrument, the rail: a colour that also said "intense" would be two
+ *  instruments disagreeing about one number (map.js refuses energy as a label word
+ *  for the same reason). The (x, z) plane maps to OKLab's (a, b) plane by a rotation,
+ *  so the angle round the cloud is the hue and the distance out from its middle is the
+ *  chroma, pulled up by tanh so the dense middle of a library is coloured rather than
+ *  grey. Lightness is one value per face.
+ *
+ *  ⚠️ SIMILAR PLACES, SIMILAR COLOURS — AS A BOUND, NOT A HOPE. The map is Lipschitz:
+ *  two tracks δ apart in display units are at most `styleLipschitz(face)`·δ apart in
+ *  OKLab, everywhere, with no seam round the wheel. `check:vibespace` measures it on
+ *  the colours actually drawn — after the gamut pull, which the bound's derivation
+ *  does not cover. The middle of the cloud is near-neutral by the same continuity:
+ *  the library's average sound has no one character.
+ *  A hue taken from an angle through the ORIGIN (h = atan2 with a floor on chroma)
+ *  would not be: at the middle of the cloud, two neighbours would be opposite colours.
+ *
+ *  ⚠️ NOT THE SLEEVE ACCENT, AND NOT A RAMP. A place keeps its colour whatever is
+ *  playing — "the teal corner is ambient" must stay true, as the regions stay put
+ *  across restarts (map.js mulberry32). And this is not the "one hue, ordered by
+ *  lightness" rule for magnitudes: no quantity here is ordered, and colour never
+ *  carries anything alone — the particle is drawn AT its place, and the key names the
+ *  two axes. */
+export const STYLE = {
+  /** OKLCH hue at the +x pole; the wheel turns toward +z. With the fit's current
+   *  axes: busy → rose, bright → yellow, sparse → cyan, dark → violet. */
+  hue0: 20 * DEG,
+  /** Chroma rises as tanh(gain·ρ)/tanh(gain) — steepest at the middle, where the
+   *  library is densest, and flat past ρ ≈ 1 where the clamped outliers pile up. */
+  gain: 1.8,
+  chroma: { dark: 0.13, paper: 0.12 },
+  /** Held well off each face's surface (hub.css --hub-bg-0: L 0.16 dark, 0.91 paper). */
+  lightness: { dark: 0.78, paper: 0.62 },
+  /** The lookup texture is lut × lut, NODE-aligned: node i sits at −1 + 2i/(lut − 1).
+   *  128, not 64: where the gamut pull puts a crease in the paper face's teal, 64
+   *  texels drew 3.9/255 off the function; 128 draw 2.0 (the gate holds ≤ 3). */
+  lut: 128,
+} as const;
+
+export type Face = 'paper' | 'dark';
+
+/** A place's colour, as (L, a, b) in OKLab before the gamut is applied. */
+function styleLab(x: number, z: number, face: Face): [number, number, number] {
+  const rho = Math.hypot(x, z);
+  const lift = rho > 0 ? Math.tanh(STYLE.gain * rho) / (Math.tanh(STYLE.gain) * rho) : STYLE.gain / Math.tanh(STYLE.gain);
+  const k = STYLE.chroma[face] * lift;
+  const c = Math.cos(STYLE.hue0), s = Math.sin(STYLE.hue0);
+  return [STYLE.lightness[face], k * (x * c - z * s), k * (x * s + z * c)];
+}
+
+/** The colour of the place at (x, z), sRGB 0–1. Chroma past sRGB's gamut is pulled in
+ *  with hue and lightness held (`oklchToSrgb`), never clipped channel by channel. */
+export function styleColour(x: number, z: number, face: Face): RGB {
+  const [L, a, b] = styleLab(clamp(x, -1, 1), clamp(z, -1, 1), face);
+  return oklchToSrgb(L, Math.hypot(a, b), Math.atan2(b, a));
+}
+
+/** The steepest the colour can change per display unit, in OKLab, before the gamut
+ *  pull: at the middle, where tanh is steepest (d/dρ of tanh(gρ)/tanh(g) is g/tanh(g)
+ *  there, and the tangential stretch tanh(gρ)/(ρ·tanh(g)) never exceeds it). */
+export const styleLipschitz = (face: Face): number => STYLE.chroma[face] * STYLE.gain / Math.tanh(STYLE.gain);
+
+/** `styleColour` baked to the texture both passes sample, `size`² × RGB8, row z,
+ *  column x, node-aligned (STYLE.lut). */
+export function styleLut(face: Face, size: number = STYLE.lut): Uint8Array {
+  const out = new Uint8Array(size * size * 3);
+  for (let j = 0; j < size; j++) {
+    for (let i = 0; i < size; i++) {
+      const rgb = styleColour(-1 + (2 * i) / (size - 1), -1 + (2 * j) / (size - 1), face);
+      for (let k = 0; k < 3; k++) out[(j * size + i) * 3 + k] = Math.round(rgb[k] * 255);
+    }
   }
   return out;
+}
+
+/** The colour a GPU draws at (x, z) from `styleLut`: the shader's own addressing (a
+ *  node-aligned coordinate, then bilinear filtering), spelled out so the gate can hold
+ *  the texture to the function it was baked from. */
+export function sampleStyleLut(lut: Uint8Array, x: number, z: number, size: number = STYLE.lut): RGB {
+  const fx = (clamp(x, -1, 1) + 1) * 0.5 * (size - 1), fz = (clamp(z, -1, 1) + 1) * 0.5 * (size - 1);
+  const i0 = Math.min(size - 2, Math.floor(fx)), j0 = Math.min(size - 2, Math.floor(fz));
+  const tx = fx - i0, tz = fz - j0;
+  const at = (i: number, j: number, k: number) => lut[(j * size + i) * 3 + k] / 255;
+  return [0, 1, 2].map((k) => lerp(lerp(at(i0, j0, k), at(i0 + 1, j0, k), tx),
+                                   lerp(at(i0, j0 + 1, k), at(i0 + 1, j0 + 1, k), tx), tz)) as RGB;
+}
+
+/** The same colour as CSS, for the DOM that names places (labels, the key). */
+export function styleCss(x: number, z: number, face: Face): string {
+  const [r, g, b] = styleColour(x, z, face);
+  return `rgb(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)})`;
 }

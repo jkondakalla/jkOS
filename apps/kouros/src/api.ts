@@ -403,7 +403,6 @@ export interface VibeMap {
   total: number;
   measured?: number;
   anchor?: { feature: string; low: string; high: string; spearman: number | null };
-  colour?: { feature: string; low: string; high: string; available: boolean };
   axes?: Array<MapAxis | null>;
   stops?: number[];
   regions?: MapRegion[];

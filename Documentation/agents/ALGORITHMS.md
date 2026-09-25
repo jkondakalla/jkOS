@@ -971,9 +971,19 @@ blur, σ 1.25 voxels on a 48³ grid) and in w (σ_w 0.06), at 48 slices, built i
 the house's third instance of "never normalise per unit" after M2's value range and M7's shared
 mesh scale: a sparse calm corner must look sparse, not blaze like the dense middle. ⚠️ Inferred
 album centroids never feed the density — an album of uncovered tracks stacked on one point would
-be a hot spot the size of an album. Colour is the density-weighted mean BRIGHTNESS through a
-sequential ramp: one hue (the sleeve accent's, in OKLCH), ordered by lightness, anchor flipped
-per face — never a rainbow over an ordered quantity. Rendering is hand-rolled WebGL2: a
+be a hot spot the size of an album. **Colour is the place's own** (2026-09-25, at Jag's request —
+it replaced a one-hue ramp over mean brightness): a function of x and z only, mapped by a
+rotation onto OKLab's (a, b) plane — the hue is the angle round the cloud, so the colours sweep
+as a spin turns it; chroma rises as tanh(1.8ρ)/tanh(1.8) out from the middle; lightness is one
+value per face (0.78 dark, 0.62 paper). y is left out because the pitch never moves (y is always
+"up"), and energy because the rail already says it. ⚠️ Similar tracks get similar colours as a
+*bound*: neighbours δ apart are ≤ 0.25·δ apart in OKLab, with no seam — a hue taken from an angle
+with a chroma floor would paint two tracks at the middle opposite colours (planted against the
+gate, that design measured 42·δ and failed it). Not the sleeve accent: a place keeps its colour whatever is playing. This
+is not a rainbow over an ordered quantity — nothing here is ordered, the colour is redundant
+with the position it is drawn at, and a key names the two axes. The field is baked into one
+128² lookup that the volume and the particles both sample, and each region label carries its
+colour as a dot. Rendering is hand-rolled WebGL2: a
 raymarched volume at a reduced render scale mixing the two slices, particles whose size and
 alpha are their glint exp(−(Δw/0.04)²), region labels as DOM. No library: three.js is ~600 KB
 against a frontend with no 3-D dependency, and the math used is a perspective, a lookAt and a

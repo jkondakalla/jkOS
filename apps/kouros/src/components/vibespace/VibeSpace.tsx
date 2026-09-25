@@ -10,8 +10,8 @@ import {
 } from '@jkos/scene/math';
 import { useScene } from '@jkos/scene/react';
 import {
-  CAMERA, LENS, W_OMEGA, brightnessRamp, frameDistance, glint, indexOfId, labelAlpha, nextStop, pickDensest,
-  projectedStop, scrubTo, sliceMix, voxelOf, type DecodedMap,
+  CAMERA, LENS, W_OMEGA, frameDistance, glint, indexOfId, labelAlpha, nextStop, pickDensest,
+  projectedStop, scrubTo, sliceMix, styleCss, styleLut, voxelOf, type DecodedMap, type Face,
 } from './geometry';
 import { VibeRenderer, type SliceSource } from './gl';
 
@@ -19,7 +19,9 @@ import { VibeRenderer, type SliceSource } from './gl';
  * The vibe space (ALGORITHMS.md §9, M6): the library as a volumetric cloud you move
  * through a 4th dimension. Drag UP/DOWN to move through energy — calm → intense — and
  * SIDEWAYS to spin; release and energy settles on a stop; tap to pin a place; double-tap
- * to fly in.
+ * to fly in. Every place has its own colour (geometry.ts `styleColour`): the hue wheel
+ * lies in the plane a spin turns, so the colours sweep round as the cloud does, and
+ * neighbours — similar-sounding tracks — are always near in colour.
  *
  * ⚠️ **ONE POINTER, ONE ENGINE.** Every gesture here is `usePointerDrag` (check:drag),
  * and a drag LOCKS to an axis after 8 px, so a slightly diagonal scrub never spins.
@@ -38,12 +40,17 @@ export interface VibePoint { x: number; y: number; z: number; w: number }
 
 export interface VibeRegionLabel { id: number; label: string; x: number; y: number; z: number; w: number; count: number }
 
+/** What a spatial axis means, from the fit (map.js `axes`); null where no readable
+ *  feature explains it. */
+export interface VibeAxis { low: string; high: string }
+
 export interface VibeSpaceProps {
   map: DecodedMap;
   regions: VibeRegionLabel[];
   stops: number[];
   anchor: { low: string; high: string };
-  colour: { low: string; high: string; available: boolean };
+  /** The x, y and z axes. The colour key names x and z — the two the colour follows. */
+  axes: Array<VibeAxis | null>;
   nowPlayingId: number | null;
   pin: VibePoint | null;
   onPin: (p: VibePoint) => void;
@@ -63,32 +70,44 @@ const PICK_ALPHA_FLOOR = 18;
 /** The energy and cloud springs arrive within this; the camera rig uses it too. */
 const EPS = 1e-5;
 
-interface Palette { surface: RGB; ringInk: RGB; face: 'dark' | 'paper'; ramp: Uint8Array }
+interface Palette { surface: RGB; ringInk: RGB; face: Face; style: Uint8Array }
 
+/** The face's surface and ring, and the place colours. ⚠️ No accent: a place keeps its
+ *  colour whatever sleeve is playing (geometry.ts STYLE). */
 function readPalette(el: HTMLElement): Palette {
   const face = document.documentElement.getAttribute('data-mode') === 'dark' ? 'dark' : 'paper';
-  const accent = tokenColor(el, '--accent', [1, 0.69, 0]);
   return {
     face,
     surface: tokenColor(el, '--kr-vs-surface', face === 'dark' ? [0.067, 0.063, 0.051] : [0.93, 0.886, 0.784]),
     ringInk: tokenColor(el, '--kr-vs-ring', face === 'dark' ? [0.94, 0.9, 0.79] : [0.11, 0.08, 0.03]),
-    ramp: brightnessRamp(accent, face),
+    style: styleLut(face),
   };
 }
 
+/** A key bar: the colour along one axis through the middle, as a CSS gradient. */
+function keyRamp(axis: 'x' | 'z', face: Face): string {
+  const stops = [-1, -0.5, -0.25, 0, 0.25, 0.5, 1]
+    .map((t) => `${axis === 'x' ? styleCss(t, 0, face) : styleCss(0, t, face)} ${((t + 1) * 50).toFixed(1)}%`);
+  return `linear-gradient(90deg, ${stops.join(', ')})`;
+}
+
 export default function VibeSpace({
-  map, regions, stops, anchor, colour, nowPlayingId, pin, onPin, onEnergy, onPlay, onUnsupported,
+  map, regions, stops, anchor, axes, nowPlayingId, pin, onPin, onEnergy, onPlay, onUnsupported,
 }: VibeSpaceProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const fieldRef = useRef<SliceSource | null>(null);
   const paletteRef = useRef<Palette | null>(null);
   const labelRefs = useRef<Array<HTMLSpanElement | null>>([]);
   const thumbRef = useRef<HTMLSpanElement | null>(null);
-  const [legend, setLegend] = useState<string>('');
+  const [face, setFace] = useState<Face | null>(null);
   const [flown, setFlown] = useState(false);
 
-  const live = useRef({ map, regions, stops, pin, nowPlayingId, onPin, onEnergy, onPlay });
-  live.current = { map, regions, stops, pin, nowPlayingId, onPin, onEnergy, onPlay };
+  // Each region's colour, for the dot its label carries — the name of a colour.
+  const dots = useMemo(() => new Map(face ? regions.map((r) => [r.id, styleCss(r.x, r.z, face)]) : []),
+                       [regions, face]);
+
+  const live = useRef({ map, regions, dots, stops, pin, nowPlayingId, onPin, onEnergy, onPlay });
+  live.current = { map, regions, dots, stops, pin, nowPlayingId, onPin, onEnergy, onPlay };
 
   // The camera: a free yaw that coasts after a spin, a target and a distance that fly.
   // Pitch never moves. The distance is framed on the first frame, when the aspect is
@@ -127,19 +146,15 @@ export default function VibeSpace({
     create: (gl) => {
       const r = new VibeRenderer(gl);
       r.setPoints(live.current.map);
-      if (paletteRef.current) r.setRamp(paletteRef.current.ramp);
+      if (paletteRef.current) r.setStyle(paletteRef.current.style);
       if (fieldRef.current) r.setField(fieldRef.current);
       return r;
     },
     onTheme: (el) => {
       const p = readPalette(el);
       paletteRef.current = p;
-      scene.renderer()?.setRamp(p.ramp);
-      const stop = (t: number) => {
-        const i = Math.round(t * 255) * 3;
-        return `rgb(${p.ramp[i]}, ${p.ramp[i + 1]}, ${p.ramp[i + 2]})`;
-      };
-      setLegend(`linear-gradient(90deg, ${[0, 0.25, 0.5, 0.75, 1].map(stop).join(', ')})`);
+      scene.renderer()?.setStyle(p.style);
+      setFace(p.face);
     },
     onUnsupported,
     frame: ({ renderer, canvas, now, dt, reduced, aspect, dpr }) => {
@@ -193,12 +208,12 @@ export default function VibeSpace({
       // Labels: projected, faded through energy, thinned where they would collide.
       const cssW = canvas.clientWidth, cssH = canvas.clientHeight;
       const boxes = [];
-      const at = new Map<number, { x: number; y: number; alpha: number; label: string }>();
+      const at = new Map<number, { x: number; y: number; alpha: number; label: string; dot: string }>();
       for (const r of L.regions) {
         const p = toScreen(view.viewProj, [r.x, r.y, r.z], cssW, cssH);
         if (!p) continue;
         const alpha = labelAlpha(r.w - s.w.x);
-        at.set(r.id, { x: p.x, y: p.y, alpha, label: r.label });
+        at.set(r.id, { x: p.x, y: p.y, alpha, label: r.label, dot: L.dots.get(r.id) ?? '' });
         boxes.push({ id: r.id, x: p.x, y: p.y, width: r.label.length * 6.6 + 16, height: 22, alpha });
       }
       const keep = thinLabels(boxes, LABEL_POOL);
@@ -208,6 +223,7 @@ export default function VibeSpace({
         const info = i < keep.length ? at.get(keep[i]) : undefined;
         if (!info) { el.style.opacity = '0'; continue; }
         if (el.textContent !== info.label) el.textContent = info.label;
+        if (el.style.getPropertyValue('--vs-dot') !== info.dot) el.style.setProperty('--vs-dot', info.dot);
         el.style.transform = `translate(${info.x.toFixed(1)}px, ${info.y.toFixed(1)}px) translate(-50%, -50%)`;
         el.style.opacity = info.alpha.toFixed(3);
       }
@@ -255,7 +271,7 @@ export default function VibeSpace({
     return () => worker?.terminate();
   }, [map, kick, scene]);
 
-  useEffect(() => { kick(); }, [pin, nowPlayingId, regions, kick]);
+  useEffect(() => { kick(); }, [pin, nowPlayingId, regions, dots, kick]);
 
   // The view seeds a pin before anyone has touched the cloud; open the swipe at that
   // pin's energy, so the first readout and the first picture describe the same place.
@@ -293,7 +309,7 @@ export default function VibeSpace({
     const { origin, dir } = screenRay(view.inverse, x, y, W, H);
     const { lo, hi, f } = sliceMix(s.w.x, field.slices);
     const p = pickDensest(origin, dir, (q) => {
-      const v = voxelOf(q, field.grid) * 2;
+      const v = voxelOf(q, field.grid);
       const a = field.textures[lo][v] * (1 - f) + field.textures[hi][v] * f;
       return a >= PICK_ALPHA_FLOOR ? a : 0;
     });
@@ -432,11 +448,15 @@ export default function VibeSpace({
         </span>
         <span className="kr-vs-rail-cap">{anchor.low}</span>
       </div>
-      {colour.available && (
+      {face && (axes[0] || axes[2]) && (
         <div className="kr-vs-legend" aria-hidden="true">
-          <span>{colour.low}</span>
-          <span className="kr-vs-legend-ramp" style={{ background: legend }} />
-          <span>{colour.high}</span>
+          {([['x', axes[0]], ['z', axes[2]]] as const).map(([axis, a]) => a && (
+            <span key={axis} className="kr-vs-legend-row">
+              <span>{a.low}</span>
+              <span className="kr-vs-legend-ramp" style={{ backgroundImage: keyRamp(axis, face) }} />
+              <span>{a.high}</span>
+            </span>
+          ))}
         </div>
       )}
       <div className="kr-vs-chips">
