@@ -21,11 +21,11 @@
 // JKOS_ANDROID_KEYSTORE_PASSWORD. Docker receives the password by NAME (`-e VAR`), so it never
 // appears on a command line or in `ps`. Without them, release APKs come out explicitly unsigned.
 //
-// Every APK the run produced is copied to native/android/out/ as <shell>-<version>-<env>.apk.
+// native/android/out/ mirrors every APK Gradle holds, as <shell>-<version>-<env>.apk.
 
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -65,7 +65,6 @@ const shared = {
   GRADLE_USER_HOME: join(HERE, '.gradle-home'),
   ANDROID_USER_HOME: join(HERE, '.android-home'),
 }
-const started = Date.now()
 let status
 
 if (mode === 'local') {
@@ -110,7 +109,9 @@ if (mode === 'local') {
 if (status !== 0) die(`gradle ${gradleArgs.join(' ')} failed (exit ${status})`)
 
 // ── collect ───────────────────────────────────────────────────────────────────
-// AGP names outputs <module>-[<flavor>-]<buildType>[-unsigned].apk.
+// AGP names outputs <module>-[<flavor>-]<buildType>[-unsigned].apk. out/ MIRRORS every APK
+// Gradle currently holds — not only the ones this run wrote. An up-to-date task writes
+// nothing, so a "newer than this run" filter left out/ holding an APK from an older tree.
 const shellOf = (module, flavor) => module === 'home' ? SHELLS.home.id : flavor
 const found = []
 const walk = (d) => {
@@ -118,7 +119,7 @@ const walk = (d) => {
   for (const e of readdirSync(d, { withFileTypes: true })) {
     const p = join(d, e.name)
     if (e.isDirectory()) walk(p)
-    else if (e.name.endsWith('.apk') && statSync(p).mtimeMs >= started - 1000) found.push(p)
+    else if (e.name.endsWith('.apk')) found.push(p)
   }
 }
 for (const module of ['twa', 'home']) walk(join(HERE, module, 'build', 'outputs', 'apk'))
