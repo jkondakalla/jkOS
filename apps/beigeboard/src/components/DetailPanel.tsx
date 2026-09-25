@@ -464,13 +464,20 @@ function WhenField({ event, isTask, isEvent, onUpdateItem }: any) {
   const [start,   setStart]   = useState(event.scheduled_time || '')
   const [end,     setEnd]     = useState(event.scheduled_end  || '')
 
-  useEffect(() => {
+  // The form is loaded from the item when editing STARTS — not once per item id. The item
+  // can change under an open panel (dragged to another day on the calendar), and a form
+  // loaded at mount then showed the old date and wrote it back on Save, undoing the drag.
+  // Loading at the start also makes Cancel discard: re-opening shows the item, not the
+  // abandoned edit.
+  const startEditing = () => {
     setDate(event.due_date       || '')
     setEndDate(event.end_date    || '')
     setStart(event.scheduled_time || '')
     setEnd(event.scheduled_end   || '')
-    setEditing(false)
-  }, [event.id])
+    setEditing(true)
+  }
+
+  useEffect(() => { setEditing(false) }, [event.id])
 
   const save = () => {
     const updates: any = {
@@ -519,7 +526,7 @@ function WhenField({ event, isTask, isEvent, onUpdateItem }: any) {
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 6 }}>
         <Eyebrow>When</Eyebrow>
         {canEdit && !editing && (
-          <button onClick={() => setEditing(true)} className="jk-sub-link" style={{
+          <button onClick={startEditing} className="jk-sub-link" style={{
             background: 'none', border: 'none',
             fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 11,
             cursor: 'pointer', padding: 0,
@@ -571,7 +578,7 @@ function WhenField({ event, isTask, isEvent, onUpdateItem }: any) {
           </div>
         </div>
       ) : (event.due_date || event.scheduled_time) ? (
-        <div onClick={() => canEdit && setEditing(true)} style={{ cursor: canEdit ? 'pointer' : 'default' }}>
+        <div onClick={() => canEdit && startEditing()} style={{ cursor: canEdit ? 'pointer' : 'default' }}>
           {event.due_date && (
             <div style={{ fontFamily: FONT_HEAD, fontSize: 15, color: 'var(--color-ink)', lineHeight: 1.4 }}>
               {isMultiDay
@@ -602,14 +609,14 @@ function WhenField({ event, isTask, isEvent, onUpdateItem }: any) {
           </div>
           {canEdit && (
             <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-              <button onClick={() => setEditing(true)} style={benchBtn}>Pick a day</button>
+              <button onClick={startEditing} style={benchBtn}>Pick a day</button>
               <button onClick={unbench} style={benchBtn}>Off the bench</button>
             </div>
           )}
         </div>
       ) : canEdit ? (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          <button onClick={() => setEditing(true)} style={{
+          <button onClick={startEditing} style={{
             flex: '1 1 auto', background: 'transparent', border: `1px dashed var(--color-line)`,
             fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 13,
             color: 'var(--color-muted)', cursor: 'pointer', padding: '8px 12px', textAlign: 'left',
