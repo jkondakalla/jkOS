@@ -91,7 +91,7 @@ export function LibraryBrowser({ api, items, readonly, onPick, onClose, onPaste 
     for (const it of items || []) {
       if (it.kind !== 'routine') continue
       let spec
-      try { spec = normalizeSpec(it.spec) } catch { continue }
+      try { spec = normalizeSpec(it.spec).spec } catch { continue }
       for (const s of spec.steps) {
         if (!s.ref) continue
         if (!map.has(s.ref)) map.set(s.ref, [])

@@ -332,7 +332,7 @@ function VUMeter({ pct = 0, color, label }: any) {
   )
 }
 
-function InlineAdd({ onAdd, onClose }: any) {
+function InlineAdd({ onAdd, onClose }: { onAdd: (title: string) => void; onClose: () => void }) {
   const [title, setTitle] = React.useState('')
 
   return (
