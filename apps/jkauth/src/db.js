@@ -27,10 +27,10 @@ const run = (sql, p = []) => db.prepare(sql).run(...p)
 const all = (sql, p = []) => db.prepare(sql).all(...p)
 const get = (sql, p = []) => db.prepare(sql).get(...p)
 
-/** The largest serialized widget def the registry stores, in characters. The
- *  publish route refuses above it (413) and migration 023's trigger enforces it at
- *  the table, so a def the GET could not serve is never stored. */
-const WIDGET_DEF_MAX = 20000
+/** The largest serialized widget def the registry stores, in characters — the widget
+ *  vocabulary's own limit (@jkos/widgets LIMITS), so the validator, the publish route
+ *  (413) and migration 023's trigger hold one number. */
+const { WIDGET_DEF_MAX } = require('@jkos/widgets').LIMITS
 
 // Idempotent column-add: ALTER only when the column is absent. Lets each
 // migration self-heal a DB that recorded its marker without the column (the

@@ -12,6 +12,7 @@ const crypto = require('crypto')
 const { PUBLIC_KEY, PUBLIC_KEY_NEXT, JWT_KID, JWT_KID_NEXT } = require('../config')
 const { all, run, logEvent, WIDGET_DEF_MAX } = require('../db')
 const { resolveUser } = require('../tokens')
+const { validateWidget } = require('@jkos/widgets')
 const { can } = require('../policy')
 
 const router = express.Router()
@@ -124,16 +125,11 @@ router.post('/auth/widgets', (req, res) => {
   if (!user) return res.status(401).json({ error: 'Not authenticated', code: 'UNAUTHENTICATED' })
   if (!can(user, 'widgets:publish')) return res.status(403).json({ error: 'Not permitted', code: 'FORBIDDEN', action: 'widgets:publish' })
   const def = req.body
-  if (!def || typeof def !== 'object' || typeof def.id !== 'string' || !def.id.trim()) {
-    return res.status(400).json({ error: 'Invalid widget: a string id is required' })
-  }
-  const id = def.id.trim().slice(0, 64)
-  const label = String(def.label || id).slice(0, 100)
-  const allowedRoles = normalizeRoles(def.allowed_roles)
+  const id = def && typeof def === 'object' && typeof def.id === 'string' ? def.id.slice(0, 64) : null
   // Keep allowed_roles out of the stored def blob — the column is the source of
   // truth (and what the GET filter reads); the GET re-attaches it for the client.
-  const { allowed_roles: _dropped, ...defBody } = def
-  const json = JSON.stringify({ ...defBody, id })
+  const { allowed_roles: _dropped, ...defBody } = def && typeof def === 'object' ? def : {}
+  const json = JSON.stringify(defBody)
   // Refused, never cut: a truncated def is invalid JSON the GET would silently drop
   // after this route had answered ok (migration 023 holds the same rule at the table).
   if (json.length > WIDGET_DEF_MAX) {
@@ -143,6 +139,20 @@ router.post('/auth/widgets', (req, res) => {
       code: 'WIDGET_TOO_LARGE', max: WIDGET_DEF_MAX,
     })
   }
+  /* A publish reaches EVERY user's HUD, so what the renderer will be asked to draw is
+     checked here, against the one vocabulary (@jkos/widgets): known node kinds and
+     props, placement, footprint, and no href a browser would run. The same validator
+     holds the widget files the gate checks, so "passes the gate" and "publishable"
+     cannot disagree. Every problem comes back with a JSON Pointer into the def. */
+  const problems = validateWidget(def)
+  if (problems.length) {
+    logEvent('widget_publish_rejected', user.sub, req, {
+      id, reason: 'invalid', problems: problems.slice(0, 5).map((p) => `${p.path} ${p.code}`),
+    })
+    return res.status(400).json({ error: 'Invalid widget definition', code: 'INVALID_WIDGET', problems })
+  }
+  const label = String(def.label || id)
+  const allowedRoles = normalizeRoles(def.allowed_roles)
   run(`INSERT INTO widget_registry (id, label, def, allowed_roles, created_by, created_at, updated_at)
        VALUES (?,?,?,?,?,${SQL_NOW},${SQL_NOW})
        ON CONFLICT(id) DO UPDATE SET label=excluded.label, def=excluded.def,

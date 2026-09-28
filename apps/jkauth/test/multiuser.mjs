@@ -140,9 +140,16 @@ try {
   ok('versionless patch did not drop earlier slices', (await api(A, 'GET', '/auth/profile')).json?.preferences?.effects?.grain === true);
 
   // ── 5. ROLE-SCOPED WIDGETS (ARCH-7.1) ──────────────────────────────────────────
-  const pubOpen = await api(A, 'POST', '/auth/widgets', { json: { id: 'w-open', label: 'Open', kind: 'metric' } });
+  // A real WidgetDef — the publish route validates against @jkos/widgets now, so the
+  // `{ id, label, kind: 'metric' }` these used to publish (not a widget at all) is refused.
+  const widget = (id, label, extra = {}) => ({
+    id, label, sizing: { desktop: { w: 3, h: 3 }, mobile: { w: 2, h: 3 } },
+    spec: { frame: { eyebrow: label.toUpperCase() }, body: { t: 'metric', value: { src: 'systems', path: 'up' } } },
+    ...extra,
+  });
+  const pubOpen = await api(A, 'POST', '/auth/widgets', { json: widget('w-open', 'Open') });
   ok('admin publishes an all-roles widget → ok', pubOpen.status === 200 && pubOpen.json?.ok, JSON.stringify(pubOpen.json));
-  const pubAdmin = await api(A, 'POST', '/auth/widgets', { json: { id: 'w-admin', label: 'Admin Only', kind: 'metric', allowed_roles: ['admin'] } });
+  const pubAdmin = await api(A, 'POST', '/auth/widgets', { json: widget('w-admin', 'Admin Only', { allowed_roles: ['admin'] }) });
   ok('admin publishes an admin-only widget → ok', pubAdmin.status === 200 && pubAdmin.json?.ok, JSON.stringify(pubAdmin.json));
 
   const idsFor = (r) => (r.json?.widgets || []).map((w) => w.id).sort();
@@ -154,9 +161,20 @@ try {
   ok('guest sees only the all-roles widget', JSON.stringify(idsFor(wG)) === JSON.stringify(['w-open']), JSON.stringify(idsFor(wG)));
   const adminDef = (wA.json.widgets || []).find((w) => w.id === 'w-admin');
   ok('allowed_roles round-trips to the admin workshop view', Array.isArray(adminDef?.allowed_roles) && adminDef.allowed_roles.includes('admin'), JSON.stringify(adminDef?.allowed_roles));
-  const pubByUser = await api(B, 'POST', '/auth/widgets', { json: { id: 'w-sneaky', label: 'Nope' } });
+  const pubByUser = await api(B, 'POST', '/auth/widgets', { json: widget('w-sneaky', 'Nope') });
   ok('a non-admin cannot publish → 403', pubByUser.status === 403, `${pubByUser.status}`);
   ok('the rejected publish did not land (still 2 widgets for admin)', (await api(A, 'GET', '/auth/widgets')).json.widgets.length === 2);
+
+  // ── 5a. PUBLISH VALIDATES — a def reaches every HUD, so the renderer's vocabulary
+  //        is checked at the door, with a JSON Pointer to each problem ────────────────
+  const notAWidget = await api(A, 'POST', '/auth/widgets', { json: { id: 'w-junk', label: 'Junk', kind: 'metric' } });
+  ok('a def that is not a widget is refused (400 INVALID_WIDGET)', notAWidget.status === 400 && notAWidget.json?.code === 'INVALID_WIDGET', `${notAWidget.status} ${JSON.stringify(notAWidget.json)}`);
+  ok('…naming each problem by JSON Pointer', (notAWidget.json?.problems || []).some((p) => p.path === '/kind' && p.code === 'unknown-prop'), JSON.stringify(notAWidget.json?.problems));
+  const jsHref = await api(A, 'POST', '/auth/widgets', { json: widget('w-js', 'JS', { spec: { body: { t: 'link', text: 'Open', href: 'javascript:alert(document.cookie)' } } }) });
+  ok('a javascript: href is refused at publish', jsHref.status === 400 && (jsHref.json?.problems || []).some((p) => p.path === '/spec/body/href' && p.code === 'bad-url'), JSON.stringify(jsHref.json));
+  ok('neither refused def landed', !idsFor(await api(A, 'GET', '/auth/widgets')).some((i) => i === 'w-junk' || i === 'w-js'));
+  const invalidEv = ((await api(A, 'GET', '/auth/events')).json?.events || []).find((e) => e.type === 'widget_publish_rejected' && JSON.parse(e.meta || '{}').id === 'w-js');
+  ok('the refusal is in the audit trail, with the problem', !!invalidEv && JSON.stringify(JSON.parse(invalidEv.meta).problems).includes('/spec/body/href bad-url'), JSON.stringify(invalidEv));
 
   // ── 5b. REGISTRY INTEGRITY — a def the GET could not serve is never stored ─────
   /* The route used to store `JSON.stringify(def).slice(0, 20000)`: an oversized def
