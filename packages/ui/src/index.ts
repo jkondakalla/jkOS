@@ -1,6 +1,5 @@
 // @jkos/ui — shared design tokens and React components
 // Import tokens directly: import '@jkos/ui/tokens.css'
-export { WidgetShell } from './WidgetShell';
 export { AppShell } from './AppShell';
 export type { AppShellProps, AppShellPreferences, AppShellPreferencesOptions } from './AppShell';
 export { CoverArt } from './CoverArt';

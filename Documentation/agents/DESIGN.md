@@ -840,7 +840,7 @@ Class families: `.player-bar`, `.pb-left/center/right`, `.pb-meta` (artwork is `
 - Structural: `<AppShell>` (guard → header → `SettingsDrawer` → preferences wiring; brand,
   wordmark, settings button), `<MediaGrid density>`, `<CoverArt src alt variant>` (falsy `src` →
   immediate fallback; `variant` `tile` for a grid, `thumb` for a player bar), `<MatchPanel>`, `<AsyncView loading error empty>`,
-  `<WidgetShell>` (ORDECK widget frame), `<JkOSTheme config>` (declarative
+  `<JkOSTheme config>` (declarative
   `injectJkOSTheme`), `<SettingsDrawer>` (THE settings tray — every app mounts it; extras
   go in its `extra` slot; its AI section is gated on the jkAuth `lazuros.enabled` kill
   switch).
