@@ -23,13 +23,12 @@
 // Run:  node test/widgets.mjs      (wired as `pnpm check:widgets`, folded into
 //                                   `pnpm test:contracts`)
 import { execFileSync } from 'node:child_process';
-import { readdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { unit, REPO_ROOT } from './lib/unit.mjs';
+import { shippedWidgets, WIDGETS_URL as WIDGETS } from '../scripts/widget/catalog.mjs';
 
-const { tmp, check, emitTs, importTs, done } = unit('widgets');
-const WIDGETS = pathToFileURL(join(REPO_ROOT, 'packages/widgets/src/index.js')).href;
+const { check, importTs, done } = unit('widgets');
 const { validateWidget } = await import(WIDGETS);
 const read = (rel) => readFileSync(join(REPO_ROOT, rel), 'utf8');
 const fmt = (errs) => errs.map((e) => `${e.path} ${e.code}${e.fix ? ` (${e.fix})` : ''}`).join('; ');
@@ -43,44 +42,22 @@ try {
 }
 
 // ── 2. every widget the suite ships is valid ────────────────────────────────
-// ORDECK's built-in catalog: the real state.ts graph, the network leaves stubbed (as
-// check:hud does) and the widget package by URL — never a copy of the defaults.
-writeFileSync(join(tmp, 'stub-auth-client.mjs'),
-  'export const getProfile = async () => ({});\nexport const patchProfile = async () => ({});\n'
-  + 'export const readHudPref = () => null;\nexport const writeHudPref = () => ({});\n');
-writeFileSync(join(tmp, 'stub-weave.mjs'), "export const appOrigin = (id) => 'https://' + id + '.jkos.net';\n");
-const RW = {
-  './types': './types.mjs', './engine': './engine.mjs', '@jkos/design': './jkos-design.mjs',
-  '@jkos/auth-client': './stub-auth-client.mjs', '@jkos/weave': './stub-weave.mjs', '@jkos/widgets': WIDGETS,
-};
-emitTs('packages/design/responsive/breakpoints.ts', 'jkos-design.mjs', RW);
-emitTs('apps/ordeck/src/hud/types.ts', 'types.mjs', RW);
-emitTs('apps/ordeck/src/hud/engine.ts', 'engine.mjs', RW);
-const state = await importTs('apps/ordeck/src/hud/state.ts', 'state.mjs', RW);
-const builtins = Object.values(state.defaultHudState().widgets);
-check(builtins.length > 0, `ORDECK's built-in catalog loads (${builtins.length} widgets)`);
-
-const shipped = builtins.map((d) => ({ where: `built-in '${d.id}'`, def: d }));
-const APPS = join(REPO_ROOT, 'apps');
-for (const app of readdirSync(APPS)) {
-  const dir = join(APPS, app, 'widgets');
-  if (!existsSync(dir)) continue;
-  for (const f of readdirSync(dir).filter((n) => n.endsWith('.json'))) {
-    const rel = `apps/${app}/widgets/${f}`;
-    let def;
-    try { def = JSON.parse(read(rel)); } catch (e) { check(false, `${rel} is JSON — ${e.message}`); continue; }
-    shipped.push({ where: rel, def });
-    check(def.id === f.replace(/\.json$/, ''), `${rel}: the file is named for its widget id`);
-  }
+// ORDECK's built-ins (the REAL defaultHudState(), transpiled) and every app widget
+// file — read by scripts/widget/catalog.mjs, the same list the CLI and render gate use.
+const shipped = await shippedWidgets();
+check(shipped.some((w) => w.where.startsWith('built-in')), `ORDECK's built-in catalog loads (${shipped.filter((w) => w.where.startsWith('built-in')).length} widgets)`);
+for (const w of shipped) {
+  if (!w.def) { check(false, `${w.where} is JSON — ${w.error}`); continue; }
+  if (w.file) check(w.def.id === w.where.split('/').pop().replace(/\.json$/, ''), `${w.where}: the file is named for its widget id`);
 }
-for (const { where, def } of shipped) {
+for (const { where, def } of shipped.filter((w) => w.def)) {
   const errs = validateWidget(def);
   check(errs.length === 0, `${where} is a valid widget${errs.length ? ` — ${fmt(errs)}` : ''}`);
 }
 
 // ── 3. the Workshop edits losslessly ────────────────────────────────────────
 const model = await importTs('apps/ordeck/src/workshop/model.ts', 'model.mjs', { '@jkos/widgets': WIDGETS });
-for (const { where, def } of shipped) {
+for (const { where, def } of shipped.filter((w) => w.def)) {
   if (!def.spec) continue;
   const back = model.enToNode(model.nodeToEn(def.spec.body));
   check(JSON.stringify(back) === JSON.stringify(def.spec.body), `${where} round-trips through the Workshop tree byte-for-byte`);

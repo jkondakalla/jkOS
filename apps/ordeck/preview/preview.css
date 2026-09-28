@@ -1,0 +1,13 @@
+/* The contact sheet's own layout — namespaced .wp-*, never restyling a HUD class. */
+html.od-v2 body { overflow: auto; }
+.wp-sheet { display: flex; flex-direction: column; gap: 22px; padding: 22px 26px 28px; width: max-content; }
+.wp-head { display: flex; align-items: baseline; gap: 14px; }
+.wp-row { display: flex; align-items: flex-start; gap: 18px; }
+.wp-tier { flex: none; width: 70px; padding-top: 18px; line-height: 1.6; }
+.wp-cell { flex: none; display: flex; flex-direction: column; gap: 6px; }
+.wp-label { opacity: 0.7; }
+
+/* A camera wants the settled picture: no transition caught halfway (the body's
+   background eases 0.4 s between faces, and a capture caught it grey), no pulse
+   caught mid-beat. */
+html.od-v2 *, html.od-v2 *::before, html.od-v2 *::after { transition: none !important; animation: none !important; }

@@ -3,9 +3,16 @@
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
-      "@jkos/ui": ["../../packages/ui/src/index.ts"],
-      "@jkos/ui/*": ["../../packages/ui/src/*"]
+      "@jkos/ui": [
+        "../../packages/ui/src/index.ts"
+      ],
+      "@jkos/ui/*": [
+        "../../packages/ui/src/*"
+      ]
     }
   },
-  "include": ["src"]
+  "include": [
+    "src",
+    "preview"
+  ]
 }

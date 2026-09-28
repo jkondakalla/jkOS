@@ -35,7 +35,7 @@ export default class ErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.error) {
       return (
-        <div className="hud-card" style={{
+        <div className="hud-card" data-widget-fault="" style={{
           height: '100%',
           display: 'flex', flexDirection: 'column',
           alignItems: 'center', justifyContent: 'center',

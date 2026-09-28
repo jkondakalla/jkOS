@@ -42,6 +42,11 @@ export function useClock(): ClockState {
     const iv = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(iv);
   }, []);
+  return clockState(now);
+}
+
+/** The clock slice at one instant — pure, so a preview can pin the time. */
+export function clockState(now: Date): ClockState {
   const utcShort = `${pad(now.getUTCHours())}:${pad(now.getUTCMinutes())}`;
   const jday = String(Math.ceil((now.getTime() - new Date(now.getFullYear(), 0, 0).getTime()) / 86400000)).padStart(3, '0');
   return {
@@ -135,7 +140,7 @@ async function acuLocationKey(cfg: WeatherConfig): Promise<string> {
   return key;
 }
 
-type WeatherBase = {
+export type WeatherBase = {
   loaded: boolean; offline: boolean; label: string; source: 'accuweather' | 'open-meteo';
   temp: number; feels: number; desc: string; hi: number; lo: number; slots: WeatherSlot[];
 };
@@ -153,7 +158,7 @@ function weatherIcon(desc: string): string {
 }
 
 /** Add the derived presentation fields the weather spec binds to. */
-function viewWeather(base: WeatherBase): WeatherState {
+export function viewWeather(base: WeatherBase): WeatherState {
   return {
     ...base,
     ready: base.loaded && !base.offline,
@@ -264,8 +269,14 @@ async function probe(path: string): Promise<{ ok: boolean; ms: number; body: any
   }
 }
 
-const sysRow = (name: string, status: SysStatus, detail: string): SysRow =>
+export const sysRow = (name: string, status: SysStatus, detail: string): SysRow =>
   ({ name, status, detail, tone: SYS_TONE[status] });
+
+/** The systems slice from probed rows — pure, so a preview renders the real shape. */
+export function viewSystems(rows: SysRow[]): SystemsState {
+  const up = rows.filter(r => r.status === 'up' || r.status === 'warn').length;
+  return { rows, up, total: rows.length, summary: `${up} / ${rows.length} UP` };
+}
 
 // The probe set comes from the app manifest; aiEnabled drops the LazurOS row so
 // the suite-wide kill switch leaves no "lazuros" mention in the systems panel.
@@ -308,14 +319,10 @@ export function useSystems(aiEnabled = true, suite?: Record<string, SuiteApp>): 
         ? sysRow(a.id, 'warn', degraded)
         : sysRow(a.id, 'up', `${r.ms} ms`);
     }));
-    const up = rows.filter(r => r.status === 'up' || r.status === 'warn').length;
-    return { rows, up, total: rows.length, summary: `${up} / ${rows.length} UP` };
+    return viewSystems(rows);
   }, [apps]);
 
-  const initial: SystemsState = {
-    rows: apps.map(a => sysRow(a.id, 'probing', '—')),
-    up: 0, total: apps.length, summary: `0 / ${apps.length} UP`,
-  };
+  const initial: SystemsState = viewSystems(apps.map(a => sysRow(a.id, 'probing', '—')));
   return usePolledResource(fetcher, initial, { intervalMs: 30_000 });
 }
 
