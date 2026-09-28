@@ -1,0 +1,6 @@
+/** Visit every node in a body, depth-first, parents first. `path` is a JSON Pointer below the body. */
+export function walkNodes(node: unknown, visit: (node: { t: string } & Record<string, unknown>, path: string) => void, path?: string): void;
+
+/** Every data source a value depends on (`{src}` bindings + molecule reads).
+ *  `commands: false` (the default) skips `cmd` subtrees — they resolve at submit time. */
+export function sourcesOf(value: unknown, opts?: { commands?: boolean }): Set<string>;

@@ -28,6 +28,7 @@ COPY packages/auth-middleware/package.json packages/auth-middleware/
 COPY packages/design/package.json         packages/design/
 COPY packages/ui/package.json             packages/ui/
 COPY packages/weave/package.json          packages/weave/
+COPY packages/widgets/package.json        packages/widgets/
 
 # ── Step 2: install (cached until lockfile or any package.json changes) ────
 RUN pnpm install --frozen-lockfile --filter @jkos/jkauth...

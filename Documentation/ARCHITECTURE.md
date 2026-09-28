@@ -30,7 +30,8 @@ jkOS/
 │   ├── auth-client       frontend auth + preferences hook, theme appliers
 │   ├── weave             fabric: manifest, resource bus, capability/dataset types, dispatch
 │   ├── design            hub.css tokens + theme factory + responsive breakpoints
-│   ├── ui                widget shell, primitives, useBreakpoint, usePointerDrag
+│   ├── ui                primitives, useBreakpoint, usePointerDrag
+│   ├── widgets            ORDECK's widget vocabulary as data: manifest, validator, walker
 │   ├── cards              shared calendar card kit (Week/Calendar views)
 │   ├── player             media primitive: timeline/queue math, MediaBackend, headless engine
 │   ├── scene              3-D view primitive: WebGL2 lifecycle (useScene), orbit rig, pure math

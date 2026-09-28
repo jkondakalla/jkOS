@@ -122,51 +122,14 @@ export type DataSource =
  *  bound value isn't a known tone. */
 export type ToneBinding = Tone | { lit: unknown } | { src: string; path?: string; fallback?: unknown };
 
-/** The composable display vocabulary. Each variant is one registered primitive.
- *  `list` repeats its `item` template over a bound array, exposing the current
- *  element as the `$` source inside the template. `when` shows `then`/`else` by a
- *  condition's truthiness — the conditional building block for offline/empty
- *  states. `time`, `calendar`, and `weather` are higher-level "molecule"
- *  primitives (self-contained cards) the same way `gauge` is. */
-export type WidgetNode =
-  /** `justify` distributes children along the column (e.g. space-between pins
-   *  the last child to the card's bottom edge — no dead space in tall cells). */
-  | { t: 'stack'; gap?: number; grow?: boolean; justify?: string; children: WidgetNode[] }
-  | { t: 'row'; gap?: number; justify?: string; align?: string; grow?: boolean; children: WidgetNode[] }
-  | { t: 'label'; text: Binding; size?: 'md' | 'sm' | 'xs' }
-  | { t: 'text'; text: Binding; variant?: 'title' | 'body' | 'sub' | 'mono'; grow?: boolean }
-  /** `size` = the number's font-size in px (default 30) — small inline stats vs hero. */
-  | { t: 'metric'; value: Binding; unit?: Binding; sub?: Binding; size?: number }
-  | { t: 'bar'; value: Binding; max?: Binding }
-  | { t: 'pill'; text: Binding; tone?: ToneBinding }
-  | { t: 'dot'; tone?: ToneBinding; pulse?: boolean }
-  | { t: 'keyval'; label: Binding; value: Binding; tone?: ToneBinding }
-  /** `size` = the ring's outer diameter in px (default 76). */
-  | { t: 'gauge'; value: Binding; max?: Binding; label?: Binding; size?: number }
-  | { t: 'divider'; label?: Binding }
-  | { t: 'link'; text: Binding; href: Binding }
-  | { t: 'icon'; name: Binding; tone?: ToneBinding; size?: number }
-  | { t: 'time'; value: Binding; seconds?: Binding; sub?: Binding; sub2?: Binding }
-  | { t: 'when'; cond: Binding; then: WidgetNode; else?: WidgetNode }
-  | { t: 'calendar' }
-  | { t: 'weather' }
-  /** `cols` wraps a column list into an N-column grid (dense fact lists). */
-  | { t: 'list'; from: Binding; item: WidgetNode; empty?: Binding; dir?: 'col' | 'row'; cols?: number }
-  /** Tiny inline trend line over a bound array; `path` plucks a field per element
-   *  (e.g. weather.slots → temp). Scales itself to the data's min/max. */
-  | { t: 'sparkline'; from: Binding; path?: string; height?: number; tone?: ToneBinding }
-  /* ── Write / interactive vocabulary (the command family) ──────────────────
-   * `form` owns a mutable `$form` source its `input`/`select`/`toggle` children
-   * write into, and a submit that runs `cmd`. `button` is a standalone action.
-   * All writes go through one capability-driven dispatcher (see registry useCommand);
-   * still pure data, so the workshop composes them and an AI can emit them. */
-  | { t: 'form'; cmd: CommandRef; submit: Binding; children: WidgetNode[] }
-  | { t: 'input'; field: string; placeholder?: Binding; itype?: 'text' | 'number' | 'date' | 'time' }
-  | { t: 'select'; field: string; options: Binding; placeholder?: Binding }
-  | { t: 'toggle'; field: string; label?: Binding }
-  | { t: 'button'; text: Binding; cmd: CommandRef; tone?: ToneBinding };
-
-export type Tone = 'ok' | 'warn' | 'danger' | 'muted' | 'accent';
+/** The composable display vocabulary — one variant per node kind — is GENERATED from
+ *  @jkos/widgets' manifest (packages/widgets/src/manifest.js → ./nodes.gen.ts), with
+ *  Tone and IconName. Add or change a primitive there, run `pnpm widgets:gen`, and tsc
+ *  points at every renderer that must follow. `list` repeats its `item` over a bound
+ *  array with the element as `$`; `when` shows `then`/`else` by truthiness; the write
+ *  family (form/input/select/toggle/button) dispatches through registry useCommand. */
+import type { WidgetNode, Tone, ComponentName } from './nodes.gen';
+export type { WidgetNode, Tone, IconName, ComponentName } from './nodes.gen';
 
 /** A widget's reference to a declared cross-app command (a CapabilityDef in an
  *  app's CapabilityDoc, discovered via @jkos/weave fetchCapabilities). `body` maps
@@ -207,7 +170,7 @@ export interface WidgetDef {
   /** Compose the widget from primitives + data bindings. */
   spec?: WidgetSpec;
   /** Render a bespoke React component registered under this key. */
-  component?: string;
+  component?: ComponentName;
   /** AI-backed widgets honor the suite-wide LazurOS kill switch. */
   ai?: boolean;
   /** Manual refresh override (ms). The card normally re-renders only when a slice

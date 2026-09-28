@@ -103,6 +103,9 @@ importers:
       '@jkos/weave':
         specifier: workspace:*
         version: link:../../packages/weave
+      '@jkos/widgets':
+        specifier: workspace:*
+        version: link:../../packages/widgets
       bcryptjs:
         specifier: ^2.4.3
         version: 2.4.3
@@ -233,6 +236,9 @@ importers:
       '@jkos/weave':
         specifier: workspace:*
         version: file:packages/weave(react@18.3.1)
+      '@jkos/widgets':
+        specifier: workspace:*
+        version: link:../../packages/widgets
       react:
         specifier: ^18.3.1
         version: 18.3.1
@@ -401,6 +407,8 @@ importers:
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
+
+  packages/widgets: {}
 
 packages:
 

@@ -13,6 +13,7 @@
     "@jkos/auth-middleware": "workspace:*",
     "@jkos/suite-manifest": "workspace:*",
     "@jkos/weave": "workspace:*",
+    "@jkos/widgets": "workspace:*",
     "bcryptjs": "^2.4.3",
     "better-sqlite3": "^11.5.0",
     "cookie-parser": "^1.4.7",

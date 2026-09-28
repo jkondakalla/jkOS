@@ -23,6 +23,7 @@ import {
 import { layoutForBreakpoint, placeAtBottom } from './engine';
 import { BREAKPOINTS } from './types';
 import { appOrigin } from '@jkos/weave';
+import { sourcesOf } from '@jkos/widgets';
 
 /** Legacy per-device key — read once to migrate existing layouts into prefs. */
 const LEGACY_STORAGE_KEY = 'ordeck-hud-v4';
@@ -259,20 +260,13 @@ const RETIRED_BUILTINS: { id: string; slice: string }[] = [
   { id: 'study', slice: 'study' },
 ];
 
-function bindsSlice(v: unknown, slice: string): boolean {
-  if (!v || typeof v !== 'object') return false;
-  if (Array.isArray(v)) return v.some((x) => bindsSlice(x, slice));
-  const o = v as Record<string, unknown>;
-  if (o.src === slice) return true;
-  return Object.values(o).some((x) => bindsSlice(x, slice));
-}
-
 /** Strip retired built-ins from a loaded doc — def, every tier's placement, and the
  *  shelf. Returns the SAME object when there is nothing to strip, so a caller can
  *  tell whether to persist the repair. */
 export function withoutRetired(state: HudState): HudState {
   const gone = RETIRED_BUILTINS
-    .filter(({ id, slice }) => state.widgets[id] && bindsSlice(state.widgets[id], slice))
+    // `commands: true` — a binding anywhere counts, a command body included.
+    .filter(({ id, slice }) => state.widgets[id] && sourcesOf(state.widgets[id], { commands: true }).has(slice))
     .map(({ id }) => id);
   if (!gone.length) return state;
   const drop = new Set(gone);

@@ -37,9 +37,9 @@ import {
   type PinnedState,
 } from '../pages/hud/useHudData';
 import { WeekView, type CalendarItem, type CardResolvers } from '@jkos/cards';
-import type { Binding, CommandRef, DataSource, Tone, ToneBinding, WidgetDef, WidgetNode, WidgetSpec } from './types';
+import type { Binding, CommandRef, ComponentName, DataSource, IconName, Tone, ToneBinding, WidgetDef, WidgetNode, WidgetSpec } from './types';
 import { TONE_COLOR } from './tone';
-import { safeHref } from './safeHref';
+import { safeHref, sourcesOf } from '@jkos/widgets';
 import { clearHudFocus } from '../lib/shelf';
 import { Field, SelectField, Check } from '@jkos/ui';
 import ErrorBoundary from '../components/ErrorBoundary';
@@ -115,8 +115,9 @@ function textStyle(variant?: 'title' | 'body' | 'sub' | 'mono'): CSSProperties {
   return { fontSize: 12, color: 'var(--hub-cream)' };
 }
 
-/** Curated line-icon set (inherits stroke colour + size). `dot` is the fallback. */
-const ICONS: Record<string, ReactNode> = {
+/** Curated line-icon set (inherits stroke colour + size). `dot` is the fallback. Keyed
+ *  by the manifest's ICON_NAMES (IconName), so a name the validator accepts always draws. */
+const ICONS: Record<IconName, ReactNode> = {
   sun: <><circle cx="12" cy="12" r="4.5" /><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3L7 7M17 17l1.7 1.7M5.3 18.7L7 17M17 7l1.7-1.7" /></>,
   moon: <path d="M20 14.5A8 8 0 119.5 4 6.5 6.5 0 0020 14.5z" />,
   cloud: <path d="M17.5 19a4.5 4.5 0 000-9 6 6 0 00-11.6 1.5A4 4 0 006 19z" />,
@@ -234,7 +235,7 @@ const PRIMITIVES: Primitives = {
     const color = n.tone != null ? toneColor(n.tone, scope, 'accent') : 'var(--hub-amber)';
     return (
       <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flex: 'none' }}>
-        {ICONS[name] ?? ICONS.dot}
+        {ICONS[name as IconName] ?? ICONS.dot}
       </svg>
     );
   },
@@ -700,7 +701,7 @@ const ordeckResolvers: Partial<CardResolvers> = {
   sourceColorOf: () => 'var(--color-accent)',
 };
 
-const COMPONENT_REGISTRY: Record<string, (ctx: WidgetCtx) => ReactNode> = {
+const COMPONENT_REGISTRY: Record<ComponentName, (ctx: WidgetCtx) => ReactNode> = {
   focus: (ctx) => <FocusBody focus={ctx.focus} />,
   // The shared @jkos/cards Week view, read+light (no DragAdapter → no internal
   // drag to clash with the HUD grid). The one kit view that earns its footprint
@@ -722,7 +723,7 @@ const COMPONENT_REGISTRY: Record<string, (ctx: WidgetCtx) => ReactNode> = {
 };
 /** Which ctx slices a bespoke component reads (a spec's are collected from its
  *  bindings; a component's can't be, so they're declared here). */
-const COMPONENT_SLICES: Record<string, (keyof WidgetCtx)[]> = {
+const COMPONENT_SLICES: Record<ComponentName, (keyof WidgetCtx)[]> = {
   focus: ['focus'],      // reads ctx.focus
   'bb-week': ['items', 'todayIso'],
 };
@@ -740,34 +741,18 @@ const SLICE_KEYS = new Set<string>([
 ]);
 const sliceCache = new WeakMap<object, Set<string>>();
 
-// Molecule primitives that read a slice straight from scope (no `{src}` binding),
-// so collectSrcs can't see the dependency in their bindings — declare it here.
-const NODE_SLICE: Record<string, string> = { weather: 'weather', calendar: 'cal' };
-
-/** Deep-collect every slice a value depends on: `{ src }` bindings anywhere, plus
- *  the implicit slice of any molecule node (weather/calendar). `cmd` subtrees are
- *  skipped — a command's body bindings resolve at SUBMIT time against the scope
- *  of that render, not on screen, so they're not display dependencies (else a
- *  form defaulting due_date to clock.iso would re-render its card every second;
- *  the slice polls keep the submit-time scope fresh to within a tick). */
-function collectSrcs(v: unknown, acc: Set<string>): void {
-  if (!v || typeof v !== 'object') return;
-  if (Array.isArray(v)) { for (const e of v) collectSrcs(e, acc); return; }
-  const obj = v as Record<string, unknown>;
-  if (typeof obj.src === 'string') acc.add(obj.src);
-  if (typeof obj.t === 'string' && NODE_SLICE[obj.t]) acc.add(NODE_SLICE[obj.t]);
-  for (const k in obj) { if (k !== 'cmd') collectSrcs(obj[k], acc); }
-}
-
 /** The ctx slices a widget reads — cached per def (spec object identity), so it's
  *  recomputed only when the def actually changes (workshop edit / published merge). */
 function usedSlices(def: WidgetDef): Set<string> {
   const key: object = def.spec ?? def;
   const cached = sliceCache.get(key);
   if (cached) return cached;
-  const acc = new Set<string>();
-  if (def.spec) collectSrcs(def.spec, acc);
-  else if (def.component) for (const k of COMPONENT_SLICES[def.component] ?? []) acc.add(k);
+  // One walker (@jkos/widgets sourcesOf): every `{src}` binding plus each molecule's
+  // manifest-declared slice. `cmd` subtrees are skipped — a command's body bindings
+  // resolve at SUBMIT time, so they are not display dependencies (else a form
+  // defaulting due_date to clock.iso would re-render its card every second).
+  const acc = def.spec ? sourcesOf(def.spec) : new Set<string>();
+  if (!def.spec && def.component) for (const k of COMPONENT_SLICES[def.component] ?? []) acc.add(k);
   // Drop non-ctx sources ($ list element, $form, fetch-source names) — they're
   // never on ctx, so they'd never (correctly) trigger a re-render anyway.
   for (const k of [...acc]) if (!SLICE_KEYS.has(k)) acc.delete(k);
@@ -819,7 +804,8 @@ function unknownWidget(name: string): ReactNode {
 function renderWidgetBody(def: WidgetDef, ctx: WidgetCtx): ReactNode {
   if (def.spec) return <SpecWidget spec={def.spec} ctx={ctx} />;
   if (def.component) {
-    const Component = COMPONENT_REGISTRY[def.component];
+    // A published def's `component` is data from the wire, so it may name nothing.
+    const Component = COMPONENT_REGISTRY[def.component] as ((ctx: WidgetCtx) => ReactNode) | undefined;
     return Component ? Component(ctx) : unknownWidget(def.component);
   }
   return unknownWidget(def.id);

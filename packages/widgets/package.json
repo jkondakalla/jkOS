@@ -1,0 +1,13 @@
+{
+  "name": "@jkos/widgets",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The ORDECK widget vocabulary as data: the manifest every node kind is declared in, the validator jkAuth and the gate hold a widget to, the one tree walker, and the href gate. No React, no dependencies — requireable by a Node backend.",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "scripts": {
+    "test": "node test/widgets.mjs"
+  }
+}

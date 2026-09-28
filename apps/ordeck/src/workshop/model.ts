@@ -14,12 +14,16 @@
  * (clone-on-path), so undo/redo is snapshot-cheap.
  */
 
-import type { AppId } from '@jkos/weave';
+import { KINDS, NODES, childProps } from '@jkos/widgets';
 import type { WidgetNode } from '../hud/types';
 
 export type NodeT = WidgetNode['t'];
 export type SlotName = 'item' | 'then' | 'else';
-const SLOT_NAMES: SlotName[] = ['item', 'then', 'else'];
+/* Where children live is the manifest's to say: a kind's `nodes` prop is its ordered
+   kids (stack/row/form → `children`), each `node` prop a named single-child slot. */
+const SLOT_NAMES = [...new Set(KINDS.flatMap((t) => childProps(t).filter((c) => !c.many).map((c) => c.name)))] as SlotName[];
+/** The one ordered-children prop of `t`, if it has one. */
+const kidsProp = (t: string): string | undefined => childProps(t).find((c) => c.many)?.name;
 
 let seq = 0;
 export const newId = (): string => `e${++seq}x${Math.random().toString(36).slice(2, 6)}`;
@@ -35,31 +39,37 @@ export interface ENode {
   slots?: Partial<Record<SlotName, ENode>>;
 }
 
-export const isKidContainer = (t: NodeT): boolean => t === 'stack' || t === 'row' || t === 'form';
+export const isKidContainer = (t: NodeT): boolean => kidsProp(t) !== undefined;
 
 /* ── spec ⇄ editor tree (lossless both ways) ────────────────────────────── */
 
+type Loose = Record<string, unknown>;
+
 export function nodeToEn(n: WidgetNode): ENode {
   const en: ENode = { id: newId(), node: n };
-  if (n.t === 'stack' || n.t === 'row' || n.t === 'form') en.kids = n.children.map(nodeToEn);
-  else if (n.t === 'list') en.slots = { item: nodeToEn(n.item) };
-  else if (n.t === 'when') en.slots = { then: nodeToEn(n.then), ...(n.else ? { else: nodeToEn(n.else) } : {}) };
+  const node = n as unknown as Loose;
+  const slotProps = childProps(n.t).filter((c) => !c.many);
+  const kids = kidsProp(n.t);
+  if (kids) en.kids = ((node[kids] as WidgetNode[] | undefined) ?? []).map(nodeToEn);
+  if (slotProps.length) {
+    en.slots = {};
+    for (const { name } of slotProps) {
+      if (node[name]) en.slots[name as SlotName] = nodeToEn(node[name] as WidgetNode);
+    }
+  }
   return en;
 }
 
 export function enToNode(en: ENode): WidgetNode {
-  const n = en.node;
-  if (n.t === 'stack' || n.t === 'row' || n.t === 'form') {
-    return { ...n, children: (en.kids ?? []).map(enToNode) };
+  const out = { ...(en.node as unknown as Loose) };
+  const kids = kidsProp(en.node.t);
+  if (kids) out[kids] = (en.kids ?? []).map(enToNode);
+  for (const { name, required } of childProps(en.node.t).filter((c) => !c.many)) {
+    const slot = en.slots?.[name as SlotName];
+    if (slot) out[name] = enToNode(slot);
+    else if (!required) delete out[name];   // an optional slot (when.else) that was removed
   }
-  if (n.t === 'list') return { ...n, item: en.slots?.item ? enToNode(en.slots.item) : n.item };
-  if (n.t === 'when') {
-    const out: Extract<WidgetNode, { t: 'when' }> = { ...n, then: en.slots?.then ? enToNode(en.slots.then) : n.then };
-    if (en.slots?.else) out.else = enToNode(en.slots.else);
-    else delete out.else;
-    return out;
-  }
-  return n;
+  return out as unknown as WidgetNode;
 }
 
 export const emptyStack = (): ENode => ({ id: newId(), node: { t: 'stack', gap: 8, children: [] }, kids: [] });
@@ -145,7 +155,7 @@ export function rewrite(root: ENode, id: string, fn: (en: ENode) => ENode | null
         if (r === c) continue;
         slots = { ...slots };
         if (r) slots[name] = r;
-        else if (name === 'else') delete slots[name];
+        else if (!childProps(en.node.t).find((c) => c.name === name)?.required) delete slots[name];
         else slots[name] = emptyStack();
         changed = true;
       }
@@ -240,15 +250,16 @@ export function wrapEn(root: ENode, id: string, kind: 'row' | 'stack' | 'when'):
 
 /* ── compatibility (what the context menu offers where) ─────────────────── */
 
-/** Can a `t` node be inserted as a child of `parent`? Controls only make sense
- *  inside a form's $form scope; forms don't nest; molecules are self-contained
- *  cards so they only sit directly on the root stack. */
+/** Can a `t` node be inserted as a child of `parent`? The manifest's placement rule:
+ *  controls only make sense inside a form's $form scope; forms don't nest; molecules
+ *  are self-contained cards, so they only sit directly on the root stack. */
 export function canInsert(root: ENode, parent: ENode, t: NodeT): boolean {
   if (!isKidContainer(parent.node.t)) return false;
+  const place = NODES[t]?.placement ?? {};
   const inForm = parent.node.t === 'form' || hasFormAncestor(root, parent.id);
-  if (t === 'form') return !inForm;
-  if (t === 'input' || t === 'select' || t === 'toggle') return inForm;
-  if (t === 'calendar' || t === 'weather') return parent.id === root.id;
+  if (place.form === 'outside' && inForm) return false;
+  if (place.form === 'inside' && !inForm) return false;
+  if (place.root && parent.id !== root.id) return false;
   return true;
 }
 
@@ -260,75 +271,18 @@ export function allowedTypes(root: ENode, parent: ENode): NodeT[] {
 
 export interface CatalogEntry { t: NodeT; label: string; hint: string }
 
-export const CATALOG: CatalogEntry[] = [
-  { t: 'metric', label: 'Metric', hint: 'big number + unit' },
-  { t: 'gauge', label: 'Gauge', hint: 'circular % ring' },
-  { t: 'bar', label: 'Progress bar', hint: 'value vs max' },
-  { t: 'sparkline', label: 'Sparkline', hint: 'tiny trend line over an array' },
-  { t: 'keyval', label: 'Key / value', hint: 'name left, value right' },
-  { t: 'list', label: 'List', hint: 'repeat a template over an array' },
-  { t: 'pill', label: 'Status pill', hint: 'small coloured badge' },
-  { t: 'dot', label: 'Status dot', hint: 'coloured indicator' },
-  { t: 'text', label: 'Text', hint: 'heading or body line' },
-  { t: 'label', label: 'Eyebrow label', hint: 'small uppercase caption' },
-  { t: 'icon', label: 'Icon', hint: 'a line glyph (sun, check, book…)' },
-  { t: 'divider', label: 'Divider', hint: 'rule, optional caption' },
-  { t: 'link', label: 'Link button', hint: 'opens a URL' },
-  { t: 'time', label: 'Big clock', hint: 'large time + meta lines' },
-  { t: 'row', label: 'Row', hint: 'lay children side by side' },
-  { t: 'stack', label: 'Stack', hint: 'group children vertically' },
-  { t: 'when', label: 'Condition', hint: 'show a branch only when true' },
-  { t: 'calendar', label: 'Calendar', hint: 'month grid (cal slice)' },
-  { t: 'weather', label: 'Weather', hint: 'full weather card' },
-  { t: 'form', label: 'Action form', hint: 'inputs that submit a command' },
-  { t: 'button', label: 'Action button', hint: 'one tap runs a command' },
-  { t: 'input', label: 'Form input', hint: 'text/number/date field' },
-  { t: 'select', label: 'Form select', hint: 'pick from options' },
-  { t: 'toggle', label: 'Form toggle', hint: 'on/off checkbox' },
-];
+/** Every kind, in the manifest's catalog order, with the Workshop's name for it. */
+export const CATALOG: CatalogEntry[] = KINDS.map((t) => ({ t: t as NodeT, label: NODES[t].label, hint: NODES[t].hint }));
 
 export const catalogEntry = (t: NodeT): CatalogEntry =>
   CATALOG.find((c) => c.t === t) ?? { t, label: t, hint: '' };
 
-/** A CommandRef must carry an AppId; a freshly-dropped form/button hasn't picked
- *  one yet. The empty id renders soft-disabled (fetchCapabilities('') → null),
- *  and the inspector is where the real app gets chosen. */
-const NO_APP = '' as AppId;
-
+/** A fresh node of kind `t`: the manifest's example, with editor ids. A form/button's
+ *  example carries an empty app id — it renders soft-disabled (fetchCapabilities('')
+ *  → null) until the inspector picks the real app, and the validator refuses to
+ *  publish it before then. */
 export function newNode(t: NodeT): ENode {
-  const leaf = (node: WidgetNode): ENode => ({ id: newId(), node });
-  switch (t) {
-    case 'label': return leaf({ t, text: 'LABEL', size: 'md' });
-    case 'text': return leaf({ t, text: 'Heading', variant: 'title' });
-    case 'metric': return leaf({ t, value: { src: 'systems', path: 'up' }, unit: '' });
-    case 'bar': return leaf({ t, value: { src: 'systems', path: 'up' }, max: { src: 'systems', path: 'total' } });
-    case 'gauge': return leaf({ t, value: { src: 'systems', path: 'up' }, max: { src: 'systems', path: 'total' } });
-    case 'sparkline': return leaf({ t, from: { src: 'weather', path: 'slots' }, path: 'temp' });
-    case 'pill': return leaf({ t, text: 'OK', tone: 'ok' });
-    case 'dot': return leaf({ t, tone: 'ok' });
-    case 'keyval': return leaf({ t, label: 'Name', value: 'Value', tone: 'muted' });
-    case 'divider': return leaf({ t });
-    case 'link': return leaf({ t, text: 'Open', href: 'https://' });
-    case 'icon': return leaf({ t, name: 'sun', tone: 'accent' });
-    case 'time': return leaf({ t, value: { src: 'clock', path: 'hm' }, seconds: { src: 'clock', path: 'ss' }, sub: { src: 'clock', path: 'dateLine' }, sub2: { src: 'clock', path: 'utcLine' } });
-    case 'calendar': return leaf({ t });
-    case 'weather': return leaf({ t });
-    case 'list': {
-      const item: WidgetNode = { t: 'keyval', label: { src: '$', path: 'name' }, value: { src: '$', path: 'detail' } };
-      return { id: newId(), node: { t, from: { src: 'systems', path: 'rows' }, empty: 'NOTHING', item }, slots: { item: nodeToEn(item) } };
-    }
-    case 'stack': return { id: newId(), node: { t, gap: 8, children: [] }, kids: [] };
-    case 'row': return { id: newId(), node: { t, gap: 8, children: [] }, kids: [] };
-    case 'when': {
-      const then = emptyStack();
-      return { id: newId(), node: { t, cond: { src: 'today', path: 'showTasks' }, then: then.node }, slots: { then } };
-    }
-    case 'form': return { id: newId(), node: { t, cmd: { app: NO_APP, capability: '' }, submit: 'SUBMIT', children: [] }, kids: [] };
-    case 'button': return leaf({ t, text: 'GO', cmd: { app: NO_APP, capability: '' } });
-    case 'input': return leaf({ t, field: 'value', placeholder: 'Value…' });
-    case 'select': return leaf({ t, field: 'choice', options: { lit: ['A', 'B'] }, placeholder: 'Pick…' });
-    case 'toggle': return leaf({ t, field: 'flag', label: 'Flag' });
-  }
+  return nodeToEn(structuredClone(NODES[t].example) as unknown as WidgetNode);
 }
 
 /* ── display helpers ────────────────────────────────────────────────────── */

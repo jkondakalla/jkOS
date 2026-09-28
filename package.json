@@ -49,6 +49,7 @@
     "android:signing": "node native/android/signing.mjs",
     "android:build": "node native/android/build.mjs",
     "native:gen": "node native/gen-native.mjs",
+    "widgets:gen": "node packages/widgets/scripts/gen.mjs",
     "sync:tokens": "node scripts/sync-tokens.mjs"
   },
   "devDependencies": {

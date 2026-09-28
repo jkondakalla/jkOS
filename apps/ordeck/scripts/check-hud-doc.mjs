@@ -48,6 +48,9 @@ const REWRITES = {
   '@jkos/design': './jkos-design.mjs',
   '@jkos/auth-client': './stub-auth-client.mjs',
   '@jkos/weave': './stub-weave.mjs',
+  // The widget vocabulary is plain JS with no imports of its own — the REAL package,
+  // by absolute URL, never a stub (state.ts asks it which slices a def binds).
+  '@jkos/widgets': pathToFileURL(resolve(import.meta.dirname, '../../../packages/widgets/src/index.js')).href,
 };
 const transpileTo = (srcRel, outName) => emitTs(srcRel, outName, REWRITES);
 

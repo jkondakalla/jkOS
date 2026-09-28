@@ -16,6 +16,7 @@
 
 import { memo, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { usePointerDrag, DRAG_THRESHOLD_PX, HOLD_MS, HOLD_CANCEL_PX } from '@jkos/ui';
+import { sourcesOf, walkNodes } from '@jkos/widgets';
 import type { WidgetDef, WidgetNode, WidgetSpec } from './types';
 
 interface WidgetTrayProps {
@@ -53,35 +54,21 @@ interface SpecScan {
   leadDot: boolean;
 }
 
-function scanNode(n: WidgetNode, s: SpecScan, inItem: boolean): void {
-  (inItem ? s.itemTypes : s.types).add(n.t);
-  switch (n.t) {
-    case 'stack': case 'row': case 'form':
-      for (const c of n.children) scanNode(c, s, inItem);
-      break;
-    case 'when':
-      scanNode(n.then, s, inItem);
-      if (n.else) scanNode(n.else, s, inItem);
-      break;
-    case 'list':
-      if (n.item.t === 'row' && n.item.children[0]?.t === 'dot') s.leadDot = true;
-      scanNode(n.item, s, true);
-      break;
-  }
-}
-
-function scanSrcs(v: unknown, srcs: Set<string>): void {
-  if (!v || typeof v !== 'object') return;
-  if (Array.isArray(v)) { for (const e of v) scanSrcs(e, srcs); return; }
-  const o = v as Record<string, unknown>;
-  if (typeof o.src === 'string') srcs.add(o.src);
-  for (const k in o) if (k !== 'cmd') scanSrcs(o[k], srcs);
+/** One pass with the shared walker (@jkos/widgets): a node below a list's `item` slot
+ *  counts as item content; slices come from the same sourcesOf the renderer uses,
+ *  which skips `cmd` subtrees. */
+function scanSpec(spec: WidgetSpec): SpecScan {
+  const s: SpecScan = { types: new Set(), itemTypes: new Set(), srcs: sourcesOf(spec), leadDot: false };
+  walkNodes(spec.body, (n, path) => {
+    (/(^|\/)item(\/|$)/.test(path) ? s.itemTypes : s.types).add(n.t);
+    const node = n as WidgetNode;
+    if (node.t === 'list' && node.item.t === 'row' && node.item.children[0]?.t === 'dot') s.leadDot = true;
+  });
+  return s;
 }
 
 function specHero(spec: WidgetSpec): WidgetHero {
-  const s: SpecScan = { types: new Set(), itemTypes: new Set(), srcs: new Set(), leadDot: false };
-  scanNode(spec.body, s, false);
-  scanSrcs(spec, s.srcs);
+  const s = scanSpec(spec);
 
   if (s.types.has('time')) return 'clock';
   if (s.types.has('calendar')) return 'calendar';
