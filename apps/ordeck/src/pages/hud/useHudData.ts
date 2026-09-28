@@ -787,22 +787,19 @@ export function deriveNotifications(src: NotifSource): NotificationsState {
   };
 }
 
-// ── Apps (jkAuth registry, for the top-strip popover) ────────────────────────
+// ── Apps (the top-strip launcher popover) ─────────────────────────────────────
 
 export interface HudApp { id: string; name: string; origin: string }
 
-export function useApps(authUrl: string): HudApp[] {
-  const fetcher = useCallback(async (): Promise<HudApp[]> => {
-    try {
-      const r = await authFetch(`${authUrl}/auth/apps`);
-      if (!r.ok) throw new Error('auth apps');
-      const d = await r.json();
-      return Array.isArray(d) ? d : d.apps ?? [];
-    } catch {
-      return [];
-    }
-  }, [authUrl]);
-  return usePolledResource(fetcher, [], {});
+/** The launcher's apps, derived from the suite directory the page already hydrates
+ *  (useSuiteApps) — this used to be a second, independent GET /auth/apps. Only apps
+ *  with a browsable origin are launchable: LazurOS, an internal gateway, has none
+ *  (its registry origin is '') and used to list as a link to the current page. */
+export function launchableApps(suite: Record<string, SuiteApp>): HudApp[] {
+  return Object.values(suite)
+    .filter((a): a is SuiteApp & { origin: string } => !!a.origin)
+    .map((a) => ({ id: a.id, name: a.label, origin: a.origin }))
+    .sort((x, y) => x.name.localeCompare(y.name));
 }
 
 // ── Slice schema (the bindable surface, for the workshop) ─────────────────────

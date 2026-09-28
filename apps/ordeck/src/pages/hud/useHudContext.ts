@@ -10,16 +10,17 @@
 
 import { useMemo } from 'react';
 import { AUTH_URL } from '@jkos/auth-client';
-import { useSuiteApps } from '@jkos/weave';
+import type { SuiteApp } from '@jkos/weave';
 import { type WidgetCtx } from '../../hud/registry';
 import {
   useClock, useWeather, useSystems, useBbItems, useShelfRefs,
   selectToday, selectMonth, selectCalendarItems, selectFocus, selectPinned, deriveNotifications,
 } from './useHudData';
 
-/** `aiEnabled` (the LazurOS kill switch) gates the systems panel's LazurOS row. */
-export function useHudContext(aiEnabled = true): WidgetCtx {
-  const suite = useSuiteApps();          // hydrate the manifest from jkAuth's registry
+/** `aiEnabled` (the LazurOS kill switch) gates the systems panel's LazurOS row.
+ *  `suite` is the page's one hydrated directory (useSuiteApps) — passed in rather than
+ *  fetched here, so a page that also needs it (RoomHUD's launcher) makes one request. */
+export function useHudContext(aiEnabled: boolean, suite: Record<string, SuiteApp>): WidgetCtx {
   const clock = useClock();              // ticks every second → this hook re-runs every second
   const weather = useWeather();
   const systems = useSystems(aiEnabled, suite);

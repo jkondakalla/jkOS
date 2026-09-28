@@ -19,6 +19,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { AUTH_URL, authFetch, useJkOSPreferences } from '@jkos/auth-client';
 import { useBreakpoint } from '@jkos/ui';
+import { useSuiteApps } from '@jkos/weave';
 import { useHudContext } from './hud/useHudContext';
 import { renderWidget, useDataSources, type Scope } from '../hud/registry';
 import type { WidgetDef, WidgetNode } from '../hud/types';
@@ -58,7 +59,7 @@ export default function WidgetWorkshop() {
   const isAdmin = user?.role === 'admin';
 
   // The canvas renders against the real HUD context, so edits show real values.
-  const ctx = useHudContext(true);
+  const ctx = useHudContext(true, useSuiteApps());
   const bp = useBreakpoint();
   const isDesktop = bp === 'desktop';
 

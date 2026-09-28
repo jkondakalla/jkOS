@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { SettingsDrawer } from '@jkos/ui';
 import { AUTH_URL, authFetch, useJkOSPreferences } from '@jkos/auth-client';
 import { WeatherSection } from '../../components/settings/WeatherSection';
-import { useApps } from './useHudData';
+import { useSuiteApps } from '@jkos/weave';
+import { launchableApps } from './useHudData';
 import { useHudContext } from './useHudContext';
 import { HudGrid, type HudGridHandle } from '../../hud/HudGrid';
 import { WidgetTray } from '../../hud/WidgetTray';
@@ -30,8 +31,9 @@ export default function RoomHUD() {
     useJkOSPreferences();
 
   // All widget slices in one context (single BeigeBoard fetch shared across them).
-  const ctx  = useHudContext(lazuros.enabled);
-  const apps = useApps(AUTH_URL);
+  const suite = useSuiteApps();          // the suite directory, hydrated once for the page
+  const ctx  = useHudContext(lazuros.enabled, suite);
+  const apps = useMemo(() => launchableApps(suite), [suite]);
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [appsOpen, setAppsOpen]         = useState(false);
