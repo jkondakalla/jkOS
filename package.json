@@ -25,6 +25,7 @@
     "check:today": "node test/today.mjs",
     "check:refs": "node test/refs.mjs",
     "check:binding": "node test/binding.mjs",
+    "check:widgets": "node test/widgets.mjs",
     "check:pulsarmap": "node test/pulsarmap.mjs",
     "check:vibespace": "node test/vibespace.mjs",
     "check:session": "node test/session-client.mjs",

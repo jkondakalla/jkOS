@@ -39,6 +39,7 @@ import {
 import { WeekView, type CalendarItem, type CardResolvers } from '@jkos/cards';
 import type { Binding, CommandRef, DataSource, Tone, ToneBinding, WidgetDef, WidgetNode, WidgetSpec } from './types';
 import { TONE_COLOR } from './tone';
+import { safeHref } from './safeHref';
 import { clearHudFocus } from '../lib/shelf';
 import { Field, SelectField, Check } from '@jkos/ui';
 import ErrorBoundary from '../components/ErrorBoundary';
@@ -223,7 +224,7 @@ const PRIMITIVES: Primitives = {
     );
   },
   link: (n, scope) => (
-    <a href={str(resolve(n.href, scope))} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'var(--hub-font-mono)', fontSize: 11, letterSpacing: '0.06em', color: 'var(--hub-amber)', textDecoration: 'none', border: '1px solid color-mix(in srgb, var(--hub-amber) 40%, transparent)', borderRadius: 'var(--hub-radius-sm)', padding: '7px 12px' }}>
+    <a href={safeHref(resolve(n.href, scope))} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'var(--hub-font-mono)', fontSize: 11, letterSpacing: '0.06em', color: 'var(--hub-amber)', textDecoration: 'none', border: '1px solid color-mix(in srgb, var(--hub-amber) 40%, transparent)', borderRadius: 'var(--hub-radius-sm)', padding: '7px 12px' }}>
       {str(resolve(n.text, scope))} →
     </a>
   ),
@@ -445,7 +446,7 @@ function FocusBody({ focus }: { focus: FocusState }) {
       {head}
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 6 }}>
         {focus.deeplink
-          ? <a href={focus.deeplink} style={{ ...titleStyle, textDecorationLine: focus.done ? 'line-through' : 'none' }}>{focus.title}</a>
+          ? <a href={safeHref(focus.deeplink)} style={{ ...titleStyle, textDecorationLine: focus.done ? 'line-through' : 'none' }}>{focus.title}</a>
           : <span style={titleStyle}>{focus.title}</span>}
         <span style={{ fontFamily: 'var(--hub-font-mono)', fontSize: 11, letterSpacing: '0.06em', color: 'var(--hub-cream-dim)' }}>
           {focus.done ? 'DONE' : 'NOW'} · {focus.timeLabel}{focus.tag ? ` · ${focus.tag.toUpperCase()}` : ''}
@@ -676,7 +677,7 @@ function SpecWidget({ spec, ctx }: { spec: WidgetSpec; ctx: WidgetCtx }) {
 
   const eyebrow = f.eyebrow != null ? str(resolve(f.eyebrow, scope)) : '';
   const source = f.source != null ? str(resolve(f.source, scope)) : '';
-  const href = f.href != null ? str(resolve(f.href, scope)) : '';
+  const href = f.href != null ? safeHref(resolve(f.href, scope)) : undefined;
 
   const head = <CardHead eyebrow={eyebrow} source={source} />;
 
