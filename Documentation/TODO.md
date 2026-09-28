@@ -29,11 +29,15 @@ Roughly in order: the first one gates every deploy.
   and move on; it's not an incident.
 - **Rotate the Qobuz password at Qobuz.** It's out of the working tree, but still in git history at
   `e3c829a` in every clone and on the remote. Rotation is the only fix (history rewriting stays refused).
-- **Set up music-analysis delivery**, steps 1 and 3 of
+- **Set up music-analysis delivery. Until you do, staging's KourOS reads "0 tracks analysed".**
+  The 2026-09-25 staging deploy points KourOS at `/analysis/music-index.db`, and it ran before the
+  dataset existed, so Docker made `/mnt/Luna/jkos-analysis` an empty root-owned *plain directory*
+  (verified 2026-09-28). The analysis itself is finished and shipped in `music/out/`. Steps 1–3 of
   [`infra/music-analysis/README.md`](../infra/music-analysis/README.md): create the
-  `Luna/jkos-analysis` dataset (⚠️ **before** the next deploy, or Docker creates it root-owned), then
-  authorise the delivery key under `rrsync -wo -no-del`. Step 2 (`install.sh`) starts the watcher.
-  Until then the watcher's snapshots stop at `music/out/`.
+  `Luna/jkos-analysis` dataset + `setperm` (it mounts over the empty directory), run `install.sh`,
+  authorise the key under `rrsync -wo -no-del`. The first cycle delivers the existing snapshots.
+  ⚠️ Then **restart the KourOS container**: the running one bind-mounted the plain directory and
+  does not see a dataset mounted over it afterwards.
 - **Re-download two zero-byte FLACs:**
   `Dodheimsgard - Black Medium Current (2023)/08. Abyss Perihelion Transit.flac` and
   `Geese - Getting Killed (2025)/11. Long Island City Here I Come.flac`.
@@ -137,11 +141,10 @@ the email-OTP expiry fix), the audiobook fold and the listening session. That in
 **migrations across jkAuth (through 022), BeigeBoard and KourOS (8–15)**, which is why the
 backup comes first.
 
-**Music data on staging:** the new `music-index.db` (full library, 2026-09-23) is in
-`/mnt/Luna/Backends/Staging/kouros-data`. The new 0.1 s `music-meshes.db` (16 GB) deliberately is
-**not**: the old code staging runs would blank the pulsarmap on it. The new meshes go with the
-deploy of the new code, which reads `/analysis/…` and so needs the `Luna/jkos-analysis` dataset
-(§1). Both snapshots are in `music/out/`.
+**Music data on staging:** none that staging reads. Its KourOS now reads `/analysis/…`, which is
+empty until delivery is set up (§1). The hand-copied `music-index.db` (2026-09-23) and the old 2 s
+`music-meshes.db` in `/mnt/Luna/Backends/Staging/kouros-data` are no longer read; removing them is
+yours. Both current snapshots are in `music/out/`.
 
 ---
 

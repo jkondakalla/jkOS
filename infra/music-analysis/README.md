@@ -34,7 +34,10 @@ a re-delivery. It cannot reach a user's data, which is the property the confinem
 
 **1 · Create the dataset on the NAS, before deploying.** ⚠️ Order matters: a deploy first
 makes Docker auto-create `/mnt/Luna/jkos-analysis` as an empty *root-owned plain directory*,
-which mounts cleanly, serves nothing, and refuses the key's writes.
+which mounts cleanly, serves nothing, and refuses the key's writes. **If that already happened**,
+the commands below still work (the dataset mounts over the empty directory), but restart KourOS
+afterwards: a running container bind-mounted the plain directory, and a mount made over it on
+the host later does not reach the container.
 
 ```bash
 ssh truenas_admin@192.168.1.108 'midclt call pool.dataset.create "{\"name\": \"Luna/jkos-analysis\"}"'
