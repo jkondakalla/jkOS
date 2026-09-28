@@ -196,7 +196,9 @@ Reasoning: [ALGORITHMS.md §5–§8](agents/ALGORITHMS.md).
 
 ## 6 · Stage F — the design factory
 
-**Not started.** The goal is a **machine-readable manifest** of the design primitives: pure data,
+**Not started.** The widget factory no longer waits on it (overruled 2026-09-28, §7); the
+token rename sweeps the widget stylesheet like any other.
+The goal is a **machine-readable manifest** of the design primitives: pure data,
 requireable with no browser, the way `discovery.js` is for backends. Today nothing can enumerate
 what `hub.css` (2,700+ lines) offers. ⚠️ **The visual language is parked for the duration.** This
 is a restructure, not a retune; `pnpm check:token-identity` pins every token's computed value on
@@ -244,7 +246,57 @@ generated file held by `check:tokens`.
 
 ---
 
-## 7 · Smaller open items
+## 7 · Widget factory v2 — make widgets trivial for agents
+
+The goal: an agent building a feature in app Y writes one `apps/Y/widgets/<id>.json`, binds it
+to Y's *declared* data, runs `pnpm widget check` + `pnpm widget shot`, looks at the PNGs, and
+commits. Polish comes from the patterns, not the author. Decided with you 2026-09-28: widget
+files are compiled into ORDECK at build time; the Workshop stays (derived from the manifest);
+LazurOS `widget-generate` is enabled but wired later (§5).
+
+**Done 2026-09-28:** registry integrity (migration 023, 413 not truncation), relative declared
+paths (LazurOS's Ask widget could never have reached its route), `safeHref`, `@jkos/widgets`
+(manifest, validator, one walker, generated `WidgetNode` union; jkAuth validates every publish),
+and the render harness (`pnpm widget list|check|shot`, `check:widget-render`). Remaining, in order:
+
+- **Data binds to declarations.** The source discriminator `from` → `kind` (it collides with
+  weave's `{from}` binding). `{kind:'dataset', app, dataset, params}` through `fetchDatasets`,
+  auto-subscribing the dataset's `invalidates`, with a fetch that reports offline/401/empty
+  instead of `[]`. `DatasetDef.cardinality` for one-document datasets (KourOS `session`,
+  `libraryStats`). Same-origin `fetch` refused: a widget reads only what an app declares.
+  `fmt`/`map`/`{eq,in,not}` in weave's one binding model. `$result` on form/button, and
+  following an async job through a common declared `jobs` shape (probe 86). One declared shape
+  per HUD slice, replacing the hand-kept `HUD_SCHEMA`/`HUD_ITEM_FIELDS` (already drifted). `ai`
+  derived from the bound app. Validator tier 2 against each app's discovery doc, and each
+  app's smoke proving a bound dataset's declared `item` matches the rows it returns.
+- **Frame, patterns, the visual pass.** The frame owns loading/offline/signed-out/empty
+  (through `AsyncView`); patterns `stat`/`rows`/`media`/`ask`/`facts`/`feed`/`meter`; molecules
+  declared in the manifest (retiring the `component` hatch); one `widgets.css` (no inline pixel
+  styles, `--color-accent` not `--hub-amber`, container-query density); delete `CardFrame`.
+  ⚠️ **You review before/after contact sheets before any built-in migrates.** Drive
+  `test/widget-render.baseline.json` to empty — today's 49 findings include the clock's seconds
+  colliding at mobile width and Weather/Today/Systems spilling at the smallest footprint.
+- **Catalog from files.** `apps/<app>/widgets/*.json` compiled into ORDECK; the ten built-ins
+  as pattern JSON in `apps/ordeck/widgets/`; stored HUD docs reference catalog widgets by id
+  (no version bump — the old `withBuiltins` re-adds, so a rollback is safe).
+- **The Workshop, derived:** a generic prop editor from the manifest, a JSON tab with live
+  errors, a gallery of every widget in every state.
+- **The agent path and first consumers:** `pnpm widget new`, a `new-widget` skill,
+  `Documentation/agents/WIDGETS.md`; LazurOS query/jobs rewritten (declare `jobs.item`, delete
+  the README's localStorage publish hack); KourOS now-playing (declare `session`'s shape) and
+  recently played; then a cold agent given only the skill builds one, and its friction is fixed.
+- **Docs:** an ARCHITECTURE widget-factory section; point `widget-generate`'s `resolves.schema`
+  at WIDGETS.md (it names ARCHITECTURE.md, which describes no WidgetSpec).
+
+Found on the way, not in scope: the AccuWeather key sits in `localStorage` and request URLs
+(ORDECK has no backend to host a `defineConnector`); ORDECK's `BbItem` is hand-typed rather
+than BeigeBoard's `ITEM_SHAPE`; `doc`/`description` and `scope`/`scopes` are spelled both ways
+across apps (the prober misses LazurOS's scopes); WEAVE.md §3 says `weaveClient` returns a
+per-app status list, and it does not.
+
+---
+
+## 8 · Smaller open items
 
 - **Node 20 is end-of-life (2026-04-30)** and every app image is `node:20-slim`, as is the dev
   runtime. Found building the desktop app: every supported Electron needs Node ≥ 22.12, which is
@@ -281,14 +333,12 @@ generated file held by `check:tokens`.
 
 ---
 
-## 8 · Standing decisions — don't re-propose these
+## 9 · Standing decisions — don't re-propose these
 
 - **No scheduler / no cron in this suite.** A decision, not an omission.
 - **Git history is never rewritten.** Destructive, and it coordinates with GitHub.
 - **No third party touches the backups.** The off-box copy is pulled onto your workstation.
 - **Retired apps stay retired.** Don't resurrect one from history.
-- **The ORDECK redesign and its widget factory come after Stage F.** Stage F hands them the
-  manifest.
 - **No Python/numpy in KourOS's image.** The analysis stays in `music/`; one copy of the transform.
 - **No "is anything consuming this contract?" probe.** An unconsumed contract is the correct
   steady state. The only way to satisfy such a probe is to invent consumers.
