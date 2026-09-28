@@ -121,6 +121,9 @@ function loadBackendDocs() {
         ])],
         capabilities: caps,
         datasets: dsets,
+        // The prefix the app's own route table carries (LazurOS's ROUTE_PREFIX), or
+        // null for the bare-path apps. Declared paths are relative either way.
+        routePrefix: mod.ROUTE_PREFIX ?? null,
       };
     }
     // Fallback: scrape the inline consts (an app that hasn't exported its docs yet).
@@ -140,6 +143,7 @@ function loadBackendDocs() {
       )],
       capabilities: null,
       datasets: null,
+      routePrefix: undefined, // unknown for a scraped doc
     };
   });
 }

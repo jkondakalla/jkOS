@@ -48,6 +48,11 @@ ok('missing app rejected', !!checkDocShape({ version: 1, datasets: [] }, 'datase
 ok('non-numeric version rejected', !!checkDocShape({ app: 'x', version: '1', datasets: [] }, 'datasets'))
 ok('non-array list rejected', !!checkDocShape({ app: 'x', version: 1, datasets: {} }, 'datasets'))
 ok('entry without string id rejected', !!checkDocShape({ app: 'x', version: 1, datasets: [{ name: 'no-id' }] }, 'datasets'))
+// Paths are relative to apiBase — consumers build `${apiBase}${path}`, so a declared
+// '/api/lazuros/query' became '/api/lazuros/api/lazuros/query' at the edge.
+ok('relative entry path passes', checkDocShape({ app: 'x', version: 1, capabilities: [{ id: 'a', method: 'POST', path: '/items/:id' }] }, 'capabilities') === null)
+ok('entry path repeating the edge prefix rejected', /edge prefix/.test(checkDocShape({ app: 'x', version: 1, capabilities: [{ id: 'a', method: 'POST', path: '/api/x/a' }] }, 'capabilities') || ''))
+ok('entry path without a leading slash rejected', !!checkDocShape({ app: 'x', version: 1, datasets: [{ id: 'd', path: 'items' }] }, 'datasets'))
 
 // the producer (serve handlers) throws on a bad doc, returns a handler on a good one
 assert.throws(() => serveDatasets({ app: 'x', version: 1, datasets: [{}] }), /needs a string id/)

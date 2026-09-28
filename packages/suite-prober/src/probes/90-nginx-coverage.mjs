@@ -40,14 +40,15 @@ function edgePrefixFor(conf, apiBase) {
 }
 
 /** Does this app's backend serve its routes at their FULL edge paths?
- *  The tell is the capability doc: BeigeBoard declares `/items` (bare — the app's own
- *  route table knows nothing of `/api/beigeboard`), while LazurOS declares
- *  `/api/lazuros/parse-task` (prefixed — its Express routes carry the edge prefix).
- *  Only apps in the second group may have the prefix preserved by nginx. */
+ *  Declared paths are relative to apiBase for every app (checkDocShape refuses one
+ *  that repeats the edge prefix), so they no longer say how the route table is
+ *  mounted. The app says it instead: a docs module exporting ROUTE_PREFIX (LazurOS —
+ *  its server mounts every declared path under it) serves full paths; one without it
+ *  (BeigeBoard, KourOS) serves bare ones. Only the first may have nginx preserve the
+ *  prefix. null = a scraped doc, nothing to infer from. */
 function declaresPrefixedPaths(app, apiBase) {
-  const caps = app.docs?.capabilities || [];
-  if (!caps.length || !apiBase) return null; // nothing to infer from
-  return caps.every((c) => typeof c.path === 'string' && c.path.startsWith(apiBase + '/'));
+  if (!app.docs?.exported || !apiBase) return null;
+  return app.docs.routePrefix === apiBase;
 }
 
 export default {
@@ -94,7 +95,7 @@ export default {
             const [serves, does] = prefixed ? ['FULL edge', 'STRIPS'] : ['BARE', 'PRESERVES'];
             out.push({
               level: 'drift',
-              msg: `'${app.id}' serves ${serves} paths (its capability doc declares '${prefixed ? apiBase + '/…' : 'paths without ' + apiBase}'), but the nginx block ${does} '${apiBase}' (proxy_pass ${edge.pp}) — every advertised path 404s at the edge`,
+              msg: `'${app.id}' serves ${serves} paths (its docs module ${prefixed ? `exports ROUTE_PREFIX '${apiBase}'` : 'exports no ROUTE_PREFIX'}), but the nginx block ${does} '${apiBase}' (proxy_pass ${edge.pp}) — every advertised path 404s at the edge`,
               where: ['infra/nginx/gen-nginx-weave.mjs', CONF, app.docs?.file].filter(Boolean),
             });
           } else {

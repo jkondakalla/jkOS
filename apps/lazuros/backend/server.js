@@ -14,7 +14,7 @@ const {
   weaveCors, weaveAuth, weaveWriteGate, healthHandler,
   serveCapabilities, serveDatasets, assertServiceClientProvisioned,
 } = require('@jkos/weave/server');
-const { CAPABILITIES_DOC, DATASETS_DOC, ACTIVITY } = require('./docs');
+const { CAPABILITIES_DOC, DATASETS_DOC, ACTIVITY, ROUTE_PREFIX } = require('./docs');
 const db = require('./db');
 const { loadDeploymentConfig } = require('./lib/loadDeployment');
 const { composeFromConfig } = require('./lib/composeProviders');
@@ -109,9 +109,10 @@ app.use('/api/lazuros/jobs', jobsRouter);
    Adding a sixth capability to docs.js auto-gets a route; the only per-capability
    logic is the `targetTier`/`scope` it already declares. makeHandler creates the job
    and probe/wakes the resolved tier's ComputeBackend. Full paths keep these under the
-   weaveAuth prefix gate above; weaveWriteGate enforces the write scope. */
+   weaveAuth prefix gate above; weaveWriteGate enforces the write scope. The declared
+   path is relative to apiBase (docs.js ROUTE_PREFIX says why the prefix goes back on). */
 for (const cap of CAPABILITIES_DOC.capabilities) {
-  app.post(cap.path, weaveWriteGate({ scope: cap.scope }), makeHandler(cap));
+  app.post(ROUTE_PREFIX + cap.path, weaveWriteGate({ scope: cap.scope }), makeHandler(cap));
 }
 
 /* ── Internal worker API — bearer-token gated, no jkAuth ─────────────────────────

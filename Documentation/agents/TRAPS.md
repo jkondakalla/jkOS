@@ -962,7 +962,11 @@ Every trap here was hit building `native/` on 2026-09-24; see [NATIVE.md](NATIVE
   rule that works for every other app 404s every LazurOS route. `infra/nginx/gen-nginx-weave.mjs`
   special-cases LazurOS to **preserve** the `/api/lazuros` prefix rather than strip it — verify
   this convention (documented directly in the generator's own comments) before assuming a new
-  peer app follows the same stripping rule every other one does.
+  peer app follows the same stripping rule every other one does. ⚠️ Its **declared** paths are
+  still relative (`/query`, not `/api/lazuros/query`) like every app's: `docs.js` exports
+  `ROUTE_PREFIX` and `server.js` mounts each declared path under it. Declaring the full path
+  made every consumer (`runCommand`, the console, an ORDECK widget) POST
+  `/api/lazuros/api/lazuros/query`; `checkDocShape` now refuses a path starting `/api/`.
 
 - **KourOS's listening session is live only because KourOS is ONE process.** Who is connected
   (which devices hold an open SSE stream, and so which one a command can reach) lives in an

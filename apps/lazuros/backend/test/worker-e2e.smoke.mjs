@@ -246,15 +246,32 @@ async function main() {
   const skip = await runWriteback({ capability: 'query', user_id: 'u42' }, { response: '{}' }, { makeClient: fakeClient });
   ok(skip.skipped === true && calls.length === 1, 'a non-write capability (query) skips write-back');
 
-  // ═══ Part D — the edge contract: routes live at their FULL declared paths ═══
+  // ═══ Part D — the edge contract: routes live at apiBase + the declared path ═══
   // LazurOS is the one peer whose Express routes carry the '/api/lazuros' prefix, so its
   // nginx block must NOT strip it (the others' do strip). That disagreement is invisible
   // to every in-process test — the server was fine, the conf was fine, and the edge 404'd
-  // everything — so pin BOTH halves: the prober checks the conf against these declared
-  // paths, and here we prove the server really only answers on them.
-  const { CAPABILITIES_DOC } = require('../docs');
+  // everything — so pin BOTH halves: the prober checks the conf against ROUTE_PREFIX, and
+  // here we prove the server really only answers under it.
+  //
+  // The declared paths are RELATIVE (the Weave contract). They used to be declared as
+  // '/api/lazuros/query', and this block asserted that — pinning the defect: every
+  // consumer builds `${apiBase}${path}`, so the ORDECK widget, runCommand and the
+  // console would all have POSTed '/api/lazuros/api/lazuros/query'. What a consumer
+  // builds must be exactly what the server answers on.
+  const { CAPABILITIES_DOC, ROUTE_PREFIX } = require('../docs');
+  const { apiBaseOf, APPS } = require('@jkos/suite-manifest');
+  const apiBase = apiBaseOf(APPS.find((a) => a.id === 'lazuros'));
+  ok(ROUTE_PREFIX === apiBase, `the route prefix is the manifest's apiBase (${ROUTE_PREFIX})`);
   for (const cap of CAPABILITIES_DOC.capabilities) {
-    ok(cap.path.startsWith('/api/lazuros/'), `capability '${cap.id}' declares its full edge path (${cap.path})`);
+    ok(!cap.path.startsWith('/api/'), `capability '${cap.id}' declares a path relative to apiBase (${cap.path})`);
+    // An empty body is refused by validation (4xx) — anything but 404 means the route
+    // a consumer would build is really mounted.
+    const post = (url) => fetch(url, { method: cap.method, headers: { 'content-type': 'application/json' }, body: '{}' });
+    const r = await post(`${node.base}${apiBase}${cap.path}`);
+    ok(r.status !== 404, `a consumer's URL for '${cap.id}' (${apiBase}${cap.path}) reaches a route — ${r.status}`);
+    // Negative control: the doubled URL the old absolute declaration produced is dead,
+    // so the check above can tell a mounted route from an unmounted one.
+    ok((await post(`${node.base}${apiBase}${apiBase}${cap.path}`)).status === 404, `the doubled URL for '${cap.id}' 404s`);
   }
   const stripped = await fetch(`${node.base}/health`);          // what a prefix-stripping edge would send
   ok(stripped.status === 404, 'the STRIPPED path (/health) 404s — proof the routes are not mounted bare, so nginx must preserve the prefix');

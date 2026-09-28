@@ -56,6 +56,20 @@ export function checkDocShape(doc, listKey) {
     if (!entry || typeof entry.id !== 'string' || !entry.id) {
       return `every ${listKey} entry needs a string id`
     }
+    /* A declared path is RELATIVE to the app's apiBase (capability.ts / dataset.ts):
+       every consumer builds `${apiBase}${path}` (runCommand, weaveClient, the widget
+       factory). A path that repeats the edge prefix — LazurOS declared
+       '/api/lazuros/query' — doubles it to '/api/lazuros/api/lazuros/query' and 404s
+       at the edge while passing every local test, which hit the route directly. Every
+       apiBase in the suite sits under '/api/', so that prefix is the tell. */
+    if (entry.path !== undefined) {
+      if (typeof entry.path !== 'string' || !entry.path.startsWith('/')) {
+        return `${listKey} entry '${entry.id}' path must be a string starting with '/'`
+      }
+      if (entry.path.startsWith('/api/')) {
+        return `${listKey} entry '${entry.id}' path '${entry.path}' repeats the edge prefix — declare it relative to the app's apiBase`
+      }
+    }
   }
   return null
 }

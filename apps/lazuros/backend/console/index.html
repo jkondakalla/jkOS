@@ -182,9 +182,9 @@ async function submit() {
   $('run').disabled = true;
   msg('submitting…');
   try {
-    // cap.path is the FULL edge path from the doc (/api/lazuros/<id>) — the same path
-    // nginx and the server agree on, so this is a real end-to-end call.
-    const r = await fetch(cap.path, {
+    // cap.path is relative to apiBase (the Weave contract), so it is joined onto API —
+    // the same `${apiBase}${path}` every consumer builds, making this a real end-to-end call.
+    const r = await fetch(API + cap.path, {
       method: cap.method || 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },

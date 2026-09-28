@@ -15,8 +15,18 @@
 // must not hardcode how many tiers a deployment has. The route handler resolves these
 // against the loaded tier registry at request time (see composability mandate).
 
-const { resourceKey } = require('@jkos/suite-manifest');
+const { resourceKey, apiBaseOf, APPS } = require('@jkos/suite-manifest');
 const { defineActivity, canonicalTime, extRef, idempotencyBodyField } = require('@jkos/weave/activity'); // D6: the activity contract (lean subpath — this file is imported as DATA by the prober)
+
+/* ⭐ WHERE THIS APP'S ROUTES LIVE. Every `path` below is RELATIVE to LazurOS's apiBase
+   — the contract (capability.ts / dataset.ts), because every consumer builds
+   `${apiBase}${path}`. These used to be declared absolute ('/api/lazuros/query'), which
+   a consumer doubled into '/api/lazuros/api/lazuros/query'; checkDocShape now refuses
+   that. LazurOS is still the one backend whose Express routes CARRY the edge prefix
+   (host-network; nginx preserves /api/lazuros — gen-nginx-weave's lazurosBlock), so
+   server.js mounts each declared path under ROUTE_PREFIX, and the suite-prober reads
+   ROUTE_PREFIX — not the paths — to check that the edge and the route table agree. */
+const ROUTE_PREFIX = apiBaseOf(APPS.find((a) => a.id === 'lazuros'));
 
 /** This app's one polled resource: the async inference job queue. */
 const JOBS_KEY = resourceKey('lazuros', 'jobs'); // 'lazuros.jobs'
@@ -71,7 +81,7 @@ const CAPABILITIES_DOC = {
     {
       id: 'parse-task', label: 'Parse task from text',
       description: 'Parse free-form text into a structured BeigeBoard task.',
-      method: 'POST', path: '/api/lazuros/parse-task', scope: 'lazuros:write',
+      method: 'POST', path: '/parse-task', scope: 'lazuros:write',
       requestShape: 'structured', targetTier: 'highest',
       body: [
         { name: 'text', type: 'string', label: 'Free text', required: true },
@@ -82,7 +92,7 @@ const CAPABILITIES_DOC = {
     {
       id: 'breakdown-goal', label: 'Break goal into milestones',
       description: 'Parse a goal description and return a milestone list for BeigeBoard.',
-      method: 'POST', path: '/api/lazuros/breakdown-goal', scope: 'lazuros:write',
+      method: 'POST', path: '/breakdown-goal', scope: 'lazuros:write',
       requestShape: 'structured', targetTier: 'highest',
       body: [
         { name: 'goal_text', type: 'string', label: 'Goal description', required: true },
@@ -93,7 +103,7 @@ const CAPABILITIES_DOC = {
     {
       id: 'parse-document', label: 'Parse document into tasks',
       description: 'Extract tasks/goals from document text. Returns job_id; result requires review before BeigeBoard write.',
-      method: 'POST', path: '/api/lazuros/parse-document', scope: 'lazuros:write',
+      method: 'POST', path: '/parse-document', scope: 'lazuros:write',
       requestShape: 'structured', targetTier: 'highest',
       body: [
         { name: 'content', type: 'string', label: 'Document text', required: true },
@@ -104,7 +114,7 @@ const CAPABILITIES_DOC = {
     {
       id: 'widget-generate', label: 'Generate widget spec from description',
       description: 'Produce a WidgetSpec JSON from a natural language description.',
-      method: 'POST', path: '/api/lazuros/widget-generate', scope: 'lazuros:write',
+      method: 'POST', path: '/widget-generate', scope: 'lazuros:write',
       requestShape: 'structured', targetTier: 'highest',
       body: [
         { name: 'description', type: 'string', label: 'Widget description', required: true },
@@ -117,7 +127,7 @@ const CAPABILITIES_DOC = {
     {
       id: 'query', label: 'Open-ended assistant query',
       description: 'Voice or text query of unknown intent. Enters at the lowest configured tier and escalates per the tier registry.',
-      method: 'POST', path: '/api/lazuros/query', scope: 'lazuros:write',
+      method: 'POST', path: '/query', scope: 'lazuros:write',
       requestShape: 'open-ended', targetTier: 'lowest',
       body: [
         { name: 'text', type: 'string', label: 'Query text (or transcript)' },
@@ -138,7 +148,7 @@ const DATASETS_DOC = {
   app: 'lazuros', version: 1,
   datasets: [{
     id: 'jobs', label: 'AI Jobs', description: 'Async inference job queue.',
-    path: '/api/lazuros/jobs', invalidates: [JOBS_KEY],
+    path: '/jobs', invalidates: [JOBS_KEY],
     filters: [
       { name: 'job_id', column: 'id', op: 'eq', type: 'string' },
       { name: 'status', column: 'status', op: 'eq', type: 'string' },
@@ -202,4 +212,4 @@ const ACTIVITY = defineActivity({
   },
 });
 
-module.exports = { CAPABILITIES_DOC, DATASETS_DOC, JOBS_KEY, ACTIVITY };
+module.exports = { CAPABILITIES_DOC, DATASETS_DOC, JOBS_KEY, ACTIVITY, ROUTE_PREFIX };
