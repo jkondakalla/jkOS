@@ -10,7 +10,7 @@ const { pageLimit, SQL_NOW } = require('@jkos/weave/server')
 const express = require('express')
 const crypto = require('crypto')
 const { PUBLIC_KEY, PUBLIC_KEY_NEXT, JWT_KID, JWT_KID_NEXT } = require('../config')
-const { all, run, logEvent } = require('../db')
+const { all, run, logEvent, WIDGET_DEF_MAX } = require('../db')
 const { resolveUser } = require('../tokens')
 const { can } = require('../policy')
 
@@ -102,12 +102,16 @@ router.get('/auth/widgets', (req, res) => {
   const user = resolveUser(req)
   if (!user) return res.status(401).json({ error: 'Not authenticated', code: 'UNAUTHENTICATED' })
   const widgets = []
-  for (const r of all('SELECT def, allowed_roles FROM widget_registry ORDER BY label')) {
+  for (const r of all('SELECT id, def, allowed_roles FROM widget_registry ORDER BY label')) {
     if (!roleMaySee(r.allowed_roles, user.role)) continue
     try {
       const def = JSON.parse(r.def)
       widgets.push(r.allowed_roles ? { ...def, allowed_roles: r.allowed_roles.split(',') } : def)
-    } catch { /* skip a corrupt row */ }
+    } catch {
+      // Migration 023 makes a new corrupt row impossible; one stored before it is
+      // still skipped, but said out loud rather than dropped in silence.
+      console.error(`[widgets] skipping unparseable widget_registry row '${r.id}'`)
+    }
   }
   res.json({ widgets })
 })
@@ -129,7 +133,16 @@ router.post('/auth/widgets', (req, res) => {
   // Keep allowed_roles out of the stored def blob — the column is the source of
   // truth (and what the GET filter reads); the GET re-attaches it for the client.
   const { allowed_roles: _dropped, ...defBody } = def
-  const json = JSON.stringify({ ...defBody, id }).slice(0, 20000)
+  const json = JSON.stringify({ ...defBody, id })
+  // Refused, never cut: a truncated def is invalid JSON the GET would silently drop
+  // after this route had answered ok (migration 023 holds the same rule at the table).
+  if (json.length > WIDGET_DEF_MAX) {
+    logEvent('widget_publish_rejected', user.sub, req, { id, reason: 'too_large', length: json.length })
+    return res.status(413).json({
+      error: `Widget definition is ${json.length} characters; the limit is ${WIDGET_DEF_MAX}`,
+      code: 'WIDGET_TOO_LARGE', max: WIDGET_DEF_MAX,
+    })
+  }
   run(`INSERT INTO widget_registry (id, label, def, allowed_roles, created_by, created_at, updated_at)
        VALUES (?,?,?,?,?,${SQL_NOW},${SQL_NOW})
        ON CONFLICT(id) DO UPDATE SET label=excluded.label, def=excluded.def,

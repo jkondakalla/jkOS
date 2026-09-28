@@ -138,7 +138,7 @@ Each one blocks work an agent could otherwise do alone. Answer in place.
 
 **Everything since 2026-08-26.** Stages A–E of the reset program, the security fixes (including
 the email-OTP expiry fix), the audiobook fold and the listening session. That includes
-**migrations across jkAuth (through 022), BeigeBoard and KourOS (8–15)**, which is why the
+**migrations across jkAuth (through 023), BeigeBoard and KourOS (8–15)**, which is why the
 backup comes first.
 
 **Music data on staging:** none that staging reads. Its KourOS now reads `/analysis/…`, which is

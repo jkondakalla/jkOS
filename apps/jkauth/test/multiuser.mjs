@@ -24,6 +24,7 @@ import { generateKeyPairSync } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { mkdtempSync, rmSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { startServer, testPort } from '../../../test/lib/smoke.mjs';
 
@@ -156,6 +157,36 @@ try {
   const pubByUser = await api(B, 'POST', '/auth/widgets', { json: { id: 'w-sneaky', label: 'Nope' } });
   ok('a non-admin cannot publish → 403', pubByUser.status === 403, `${pubByUser.status}`);
   ok('the rejected publish did not land (still 2 widgets for admin)', (await api(A, 'GET', '/auth/widgets')).json.widgets.length === 2);
+
+  // ── 5b. REGISTRY INTEGRITY — a def the GET could not serve is never stored ─────
+  /* The route used to store `JSON.stringify(def).slice(0, 20000)`: an oversized def
+     was cut into invalid JSON, the POST still answered ok, and the GET's parse-guard
+     dropped the row without a word — "published" and gone. Now the route refuses it
+     (413) and the TABLE refuses anything the route might miss. */
+  const big = await api(A, 'POST', '/auth/widgets', { json: { id: 'w-big', label: 'Big', pad: 'x'.repeat(25_000) } });
+  ok('an oversized def is refused (413 WIDGET_TOO_LARGE), not truncated', big.status === 413 && big.json?.code === 'WIDGET_TOO_LARGE', `${big.status} ${JSON.stringify(big.json)}`);
+  ok('the refused def is not listed', !idsFor(await api(A, 'GET', '/auth/widgets')).includes('w-big'));
+  const rejectedEv = ((await api(A, 'GET', '/auth/events')).json?.events || []).find((e) => e.type === 'widget_publish_rejected');
+  ok('the refusal is in the audit trail', !!rejectedEv && JSON.parse(rejectedEv.meta || '{}').id === 'w-big', JSON.stringify(rejectedEv));
+
+  const Database = createRequire(join(__dirname, '..', 'package.json'))('better-sqlite3');
+  const raw = new Database(join(tmp, 'auth.db'));
+  const refuses = (sql, params) => { try { raw.prepare(sql).run(...params); return false; } catch { return true; } };
+  const INS = 'INSERT INTO widget_registry (id, label, def) VALUES (?,?,?)';
+  ok('the table refuses a def that is not JSON', refuses(INS, ['w-junk', 'Junk', '{"id":"w-junk",']));
+  ok('the table refuses a def that is not an object', refuses(INS, ['w-arr', 'Arr', '["w-arr"]']));
+  ok('the table refuses a def whose id is not the row id', refuses(INS, ['w-one', 'One', '{"id":"w-two"}']));
+  ok('the table refuses an oversized def', refuses(INS, ['w-huge', 'Huge', JSON.stringify({ id: 'w-huge', pad: 'x'.repeat(25_000) })]));
+  ok('the table refuses corrupting a stored def by UPDATE', refuses('UPDATE widget_registry SET def=? WHERE id=?', ['{"id":"w-open"', 'w-open']));
+  ok('the table still takes a well-formed def', !refuses(INS, ['w-fine', 'Fine', '{"id":"w-fine"}']));
+  // The limit is baked into the trigger at migration time — it must be the route's.
+  const max = big.json?.max;
+  const edge = (n) => { const head = '{"id":"w-edge","pad":"'; return head + 'x'.repeat(n - head.length - 2) + '"}'; };
+  ok('the table takes a def of exactly the route\'s limit', Number.isInteger(max) && !refuses(INS, ['w-edge', 'Edge', edge(max)]), String(max));
+  raw.prepare('DELETE FROM widget_registry WHERE id=?').run('w-edge');
+  ok('the table refuses one character past it', refuses(INS, ['w-edge', 'Edge', edge(max + 1)]));
+  raw.prepare('DELETE FROM widget_registry WHERE id=?').run('w-fine');
+  raw.close();
 
   // ── 6. audit scoping + delegated-write attribution ─────────────────────────────
   const del = await api(null, 'POST', '/auth/token', { json: { client_id: 'prober', client_secret: 'probersecret', scope: 'beigeboard:write', on_behalf_of: aId } });

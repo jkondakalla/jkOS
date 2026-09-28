@@ -27,6 +27,11 @@ const run = (sql, p = []) => db.prepare(sql).run(...p)
 const all = (sql, p = []) => db.prepare(sql).all(...p)
 const get = (sql, p = []) => db.prepare(sql).get(...p)
 
+/** The largest serialized widget def the registry stores, in characters. The
+ *  publish route refuses above it (413) and migration 023's trigger enforces it at
+ *  the table, so a def the GET could not serve is never stored. */
+const WIDGET_DEF_MAX = 20000
+
 // Idempotent column-add: ALTER only when the column is absent. Lets each
 // migration self-heal a DB that recorded its marker without the column (the
 // symptom of an earlier ordering bug) and is a no-op once present.
@@ -351,6 +356,28 @@ const MIGRATIONS = [
   ['022_retire_papyros', () => {
     run("DELETE FROM app_registry WHERE id = 'papyros'")
   }],
+
+  /* 023 — THE REGISTRY REFUSES A DEF IT COULD NOT SERVE. The publish route stored
+   * `JSON.stringify(def).slice(0, 20000)`: an oversized def became invalid JSON, the
+   * POST still answered ok, and GET /auth/widgets' parse-guard dropped the row
+   * without a word. The route now refuses it (413), and the rule lives HERE too so
+   * no other writer (an import, a hand fix, the next route) can store a row the
+   * reader will throw away: valid JSON, an object, carrying the row's own id (GET
+   * keys the HUD by def.id and DELETE by row id — a mismatch is an undeletable
+   * widget), and within WIDGET_DEF_MAX. The limit is baked into the trigger at
+   * migration time; changing the constant needs a migration that re-creates both
+   * (multiuser.mjs asserts the live trigger and the constant agree). */
+  ['023_widget_def_integrity', () => {
+    const guard = `WHEN NOT json_valid(NEW.def)
+                     OR json_type(NEW.def) IS NOT 'object'
+                     OR json_extract(NEW.def, '$.id') IS NOT NEW.id
+                     OR length(NEW.def) > ${WIDGET_DEF_MAX}
+                   BEGIN SELECT RAISE(ABORT, 'widget_registry.def must be a JSON object carrying its row id, at most ${WIDGET_DEF_MAX} characters'); END`
+    run('DROP TRIGGER IF EXISTS widget_registry_def_insert')
+    run('DROP TRIGGER IF EXISTS widget_registry_def_update')
+    run(`CREATE TRIGGER widget_registry_def_insert BEFORE INSERT ON widget_registry FOR EACH ROW ${guard}`)
+    run(`CREATE TRIGGER widget_registry_def_update BEFORE UPDATE ON widget_registry FOR EACH ROW ${guard}`)
+  }],
 ]
 
 function runMigrations() {
@@ -551,5 +578,5 @@ sealPlaintextTotpSecrets()
 
 module.exports = {
   db, run, all, get, getAppOrigins, appIdForOrigin, roleClaims, logEvent,
-  invalidateRegistryCaches,
+  invalidateRegistryCaches, WIDGET_DEF_MAX,
 }
