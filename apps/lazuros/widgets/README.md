@@ -29,16 +29,18 @@ the user to check the Jobs widget for the answer (see "Dialect gap" below for
 why the result can't be shown inline).
 
 ### `lazuros-jobs` — LazurOS Jobs
-A card with one `sources.jobs = {from:"fetch", url:"/api/lazuros/jobs",
-poll:8}` — a same-origin, cookie-authenticated poll every 8s (ORDECK's
-generic "no-deploy" fetch-source path; `useDataSources` in `hud/registry.tsx`
-already refetches on tab-visibility too). The `jobs` dataset endpoint
-(`apps/lazuros/backend/routes/jobs.js`) is owner-scoped server-side (a
-non-admin only ever sees their own rows, newest 50), so no client-side
-filtering by user is needed. The body is a `list` bound to that source
-showing, per job: a status pill (text = the raw status string — see gap
-below), the capability id, the created-at timestamp, and — only when
-present — the error string.
+One source, `jobs = { kind: "dataset", app: "lazuros", dataset: "jobs", poll: 8 }`: the
+jobs dataset LazurOS DECLARES (`backend/docs.js`), found through its DatasetDoc and
+refreshed whenever a capability invalidates `lazuros.jobs`. The endpoint is owner-scoped
+server-side (a non-admin only ever sees their own rows, newest 50). Each row: a status
+pill whose tone is the status mapped onto tones (`map`, falling back to `muted`), the
+capability, how long ago it was created (`fmt: "ago"`), and — only when present — the
+error. `lazuros-jobs.fixtures.json` is what the preview draws, and the gate holds it to
+the dataset's declared row.
+
+(It was a same-origin `fetch` of `/api/lazuros/jobs` — a read of an undeclared shape with
+the viewer's cookie. A widget reads only what an app declares now, and that fetch is
+refused by the validator, by jkAuth at publish, and by the renderer.)
 
 Both specs were sized against the existing v5 catalog's density (weather/
 systems footprints): `lazuros-query` 4×4 desktop / 2×4 mobile,
@@ -145,23 +147,10 @@ accept a `Binding` (or a `{tmpl}` string with `{$result.job_id}`
 interpolation) instead of a fixed literal string, so a sibling/child node
 could poll `/api/lazuros/jobs?job_id={$result.job_id}`.
 
-**2. No per-row derived tone / equality primitive.**
-`ToneBinding` only resolves an *exact* match against the fixed `Tone` enum
-(`ok|warn|danger|muted|accent`) — `{src:'$', path:'status'}` on a raw job row
-resolves to `"PENDING"`/`"DONE"`/`"FAILED"`/etc., none of which are `Tone`
-values, so it would silently fall back to the tone's default rather than
-color-coding by status. `lazuros-jobs` sidesteps this by using a `pill` with
-an explicit `tone:"muted"` and relying on the **status text itself** (still
-fully legible, just not color-coded) rather than shipping a widget that
-falsely tints every row the same fallback color. `Binding`/`cond` also has no
-equality operator, so a status→tone mapping can't be built from nested
-`when` branches either (`when.cond` is bare truthiness, not `a === b`).
-&nbsp;&nbsp;*Smallest enabling ORDECK change:* either (a) add an `{eq:[Binding,
-Binding]}` (or `{oneOf:[Binding, val[]]}`) `cond`/`Binding` form so a chain of
-`when`s can derive a tone, or (b) — matching how BeigeBoard-backed hud slices
-already pre-derive a `.tone` field client-side in `useHudData.ts` — give the
-lazuros `jobs` dataset (or a client-side selector) a derived `tone` column so
-`ToneBinding` has something to bind to directly.
+**2. ~~No per-row derived tone / equality primitive.~~ CLOSED (2026-09-29).** A binding
+can map a value (`{ src, path, map: { DONE: "ok" }, fallback: "muted" }`), format it
+(`fmt`), and compare (`{ eq }`, `{ in }`, `{ not }`) — @jkos/weave's one binding model;
+`lazuros-jobs` colours its rows with it.
 
 **3. ~~`jobs` dataset has no `capability` filter~~ FIXED (git history (item 1.3)).**
 `docs.js` `DATASETS_DOC.jobs.filters` now also declares `capability` (exact

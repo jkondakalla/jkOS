@@ -99,10 +99,17 @@ const isLiteral = (v) => typeof v === 'string' || typeof v === 'number' || typeo
 
 /**
  * Validate a widget def. Returns [] when it is valid.
+ *
+ * `ctx.suiteHosts` — the suite's hostnames (from @jkos/suite-manifest's origins). A
+ * `fetch` source to one of them, or to a subdomain, is refused: suite data is read
+ * through a DECLARED dataset. jkAuth passes them; without them only relative and
+ * non-https URLs are refused (the renderer refuses the rest again at run time).
+ *
  * @param {unknown} def
+ * @param {{ suiteHosts?: string[] }} [ctx]
  * @returns {{path: string, code: string, message: string, fix?: string}[]}
  */
-export function validateWidget(def) {
+export function validateWidget(def, ctx = {}) {
   const out = []
   const err = (path, code, message, fix) => out.push(fix ? { path, code, message, fix } : { path, code, message })
 
@@ -143,7 +150,7 @@ export function validateWidget(def) {
   if (hasComponent && !COMPONENTS.includes(def.component)) {
     err('/component', 'unknown-component', `no bespoke component named ${JSON.stringify(def.component)}`, `one of: ${COMPONENTS.join(', ')}`)
   }
-  if (hasSpec) checkSpec(def.spec, err)
+  if (hasSpec) checkSpec(def.spec, err, ctx)
   return out
 }
 
@@ -174,7 +181,7 @@ function checkSizing(sizing, err) {
   }
 }
 
-function checkSpec(spec, err) {
+function checkSpec(spec, err, ctx) {
   if (!isObj(spec)) { err('/spec', 'bad-type', 'spec must be an object { frame?, sources?, body }'); return }
   for (const k of Object.keys(spec)) if (!SPEC_KEYS.includes(k)) unknownKey(err, '/spec', k, SPEC_KEYS)
 
@@ -185,7 +192,7 @@ function checkSpec(spec, err) {
 
   if (spec.sources !== undefined) {
     if (!isObj(spec.sources)) err('/spec/sources', 'bad-type', 'sources must be an object of name → source')
-    else for (const [name, s] of Object.entries(spec.sources)) checkSource(name, s, `/spec/sources/${esc(name)}`, err)
+    else for (const [name, s] of Object.entries(spec.sources)) checkSource(name, s, `/spec/sources/${esc(name)}`, err, ctx)
   }
 
   if (spec.body === undefined) { err('/spec/body', 'missing-prop', 'spec.body is required'); return }
@@ -193,23 +200,69 @@ function checkSpec(spec, err) {
   checkNode(spec.body, '/spec/body', 0, { inForm: false, atRoot: true }, counter, err)
 }
 
-function checkSource(name, s, path, err) {
+const SOURCE_KEYS_BY_KIND = {
+  dataset: ['kind', 'app', 'dataset', 'params', 'poll'],
+  fetch: ['kind', 'url', 'poll'],
+}
+const APP_ID = /^[a-z][a-z0-9-]{0,39}$/
+
+/** Is `host` one of the suite's, or under one? (`www.` aside.) */
+function suiteHost(host, suiteHosts = []) {
+  return suiteHosts.some((h) => {
+    const bare = String(h).replace(/^www\./, '')
+    return host === h || host === bare || host.endsWith(`.${bare}`)
+  })
+}
+
+function checkSource(name, s, path, err, ctx = {}) {
   if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) err(path, 'bad-name', `source name ${JSON.stringify(name)} must be an identifier`)
   if (!isObj(s)) { err(path, 'bad-type', 'a source must be an object'); return }
-  if (s.from === 'hud') {
-    if (typeof s.key !== 'string') err(`${path}/key`, 'bad-type', 'a hud source names its slice in `key`')
+  /* `from` was the discriminator, and it is also the binding model's `{from}` sugar — two
+     meanings of one word in one document. The old same-origin fetch it mostly named is
+     refused now, so the fix points at a declared dataset. */
+  if (s.kind === undefined && 'from' in s) {
+    err(`${path}/from`, 'renamed', 'a source says what it is with `kind` — `from` is the binding model\'s word',
+      s.from === 'fetch' ? 'a suite endpoint is { "kind": "dataset", "app", "dataset" }; an external one is { "kind": "fetch", "url": "https://…" }' : '{ "kind": "dataset", "app", "dataset" }')
     return
   }
-  if (s.from !== 'fetch') { err(`${path}/from`, 'bad-source', `unknown source kind ${JSON.stringify(s.from)}`, "one of: 'fetch', 'hud'"); return }
-  for (const k of Object.keys(s)) {
-    if (!['from', 'url', 'poll', 'invalidateOn'].includes(k)) unknownKey(err, path, k, ['from', 'url', 'poll', 'invalidateOn'])
+  if (s.kind === 'hud') {
+    err(`${path}/kind`, 'bad-source', 'HUD slices are always in scope — bind { "src": "<slice>" } directly; no source is needed')
+    return
   }
-  if (typeof s.url !== 'string' || !safeHref(s.url) || /^mailto:/i.test(s.url.trim())) {
-    err(`${path}/url`, 'bad-url', 'a fetch source url must be http(s) or relative')
+  const allowed = SOURCE_KEYS_BY_KIND[s.kind]
+  if (!allowed) {
+    const near = typeof s.kind === 'string' ? nearest(s.kind, Object.keys(SOURCE_KEYS_BY_KIND)) : null
+    err(`${path}/kind`, 'bad-source', `unknown source kind ${JSON.stringify(s.kind)}`, near ? `did you mean ${JSON.stringify(near)}?` : "one of: 'dataset', 'fetch'")
+    return
   }
+  for (const k of Object.keys(s)) if (!allowed.includes(k)) unknownKey(err, path, k, allowed)
   if (s.poll !== undefined && !(Number.isFinite(s.poll) && s.poll > 0)) err(`${path}/poll`, 'bad-type', 'poll is a number of seconds > 0')
-  if (s.invalidateOn !== undefined && !(Array.isArray(s.invalidateOn) && s.invalidateOn.every((k) => typeof k === 'string'))) {
-    err(`${path}/invalidateOn`, 'bad-type', 'invalidateOn is an array of resource keys')
+
+  if (s.kind === 'dataset') {
+    if (typeof s.app !== 'string' || !APP_ID.test(s.app)) err(`${path}/app`, 'missing-prop', 'a dataset source names its app by id (e.g. "lazuros")')
+    if (typeof s.dataset !== 'string' || !s.dataset) err(`${path}/dataset`, 'missing-prop', 'a dataset source names the dataset its app declares (e.g. "jobs")')
+    if (s.params !== undefined) {
+      if (!isObj(s.params)) err(`${path}/params`, 'bad-type', 'params maps a declared filter or path parameter to a value or a binding')
+      else for (const [k, b] of Object.entries(s.params)) {
+        if (isLiteral(b) || b === null) continue
+        const why = bindingProblem(b)
+        if (why) err(at(`${path}/params`, k), 'bad-binding', why)
+      }
+    }
+    return
+  }
+
+  // kind: 'fetch' — an EXTERNAL public endpoint only.
+  let u = null
+  try { u = typeof s.url === 'string' ? new URL(s.url) : null } catch { u = null }
+  if (!u) {
+    err(`${path}/url`, 'bad-url', 'a fetch source is an absolute https URL to an external public endpoint — a relative one is this origin',
+      'suite data is { "kind": "dataset", "app", "dataset" }: a widget reads only what an app declares')
+  } else if (u.protocol !== 'https:') {
+    err(`${path}/url`, 'bad-url', 'a fetch source must be https')
+  } else if (suiteHost(u.hostname, ctx.suiteHosts)) {
+    err(`${path}/url`, 'suite-url', `${u.hostname} is part of this suite — a widget reads only what an app declares`,
+      'bind its dataset: { "kind": "dataset", "app", "dataset" }')
   }
 }
 

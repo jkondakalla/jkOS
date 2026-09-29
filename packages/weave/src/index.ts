@@ -13,6 +13,7 @@ export * from './binding';
 export * from './useSuiteApps';
 export * from './fetchCapabilities';
 export * from './fetchDatasets';
+export * from './readDataset';
 export * from './fetchActivity';
 export * from './dispatch';
 export * from './weaveClient';

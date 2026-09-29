@@ -1,0 +1,64 @@
+{
+  "ready": {
+    "jobs": [
+      {
+        "id": "7f1c2a9e-4b1d-4c55-9a51-0d3a9c2f1e01",
+        "user_id": "1",
+        "capability": "query",
+        "tier_id": 0,
+        "status": "IN_PROGRESS",
+        "step_data": null,
+        "result": null,
+        "model": null,
+        "error": null,
+        "created_at": "2026-09-28T14:40:52.000Z",
+        "updated_at": "2026-09-28T14:41:05.000Z"
+      },
+      {
+        "id": "0b6e5d41-8f2a-4a7e-b3c9-2c8d1e4f5a02",
+        "user_id": "1",
+        "capability": "parse-task",
+        "tier_id": 1,
+        "status": "DONE",
+        "step_data": null,
+        "result": {
+          "items": [
+            {
+              "title": "Draft the audit scoping memo"
+            }
+          ]
+        },
+        "model": "qwen2.5:7b",
+        "error": null,
+        "created_at": "2026-09-28T14:12:30.000Z",
+        "updated_at": "2026-09-28T14:12:41.000Z"
+      },
+      {
+        "id": "c3d9f0a7-2e5b-4d18-a6f4-9b7e1c0d8a03",
+        "user_id": "1",
+        "capability": "breakdown-goal",
+        "tier_id": 1,
+        "status": "FAILED",
+        "step_data": null,
+        "result": null,
+        "model": "qwen2.5:7b",
+        "error": "the model's answer was not a JSON document; 'breakdown-goal' resolves to { items, defaults }",
+        "created_at": "2026-09-28T12:02:11.000Z",
+        "updated_at": "2026-09-28T12:02:40.000Z"
+      },
+      {
+        "id": "e8a4b2c6-9d3f-4f71-8e25-5c1a7b9d0e04",
+        "user_id": "1",
+        "capability": "query",
+        "tier_id": 0,
+        "status": "PENDING_WAKEUP",
+        "step_data": null,
+        "result": null,
+        "model": null,
+        "error": null,
+        "created_at": "2026-09-27T09:15:00.000Z",
+        "updated_at": "2026-09-27T09:15:00.000Z"
+      }
+    ]
+  }
+}

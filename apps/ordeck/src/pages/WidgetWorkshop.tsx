@@ -21,7 +21,8 @@ import { AUTH_URL, authFetch, useJkOSPreferences } from '@jkos/auth-client';
 import { useBreakpoint } from '@jkos/ui';
 import { useSuiteApps } from '@jkos/weave';
 import { useHudContext } from './hud/useHudContext';
-import { renderWidget, useDataSources, type Scope } from '../hud/registry';
+import { renderWidget, type Scope } from '../hud/registry';
+import { useDataSources, type DataSource } from '../hud/sources';
 import type { WidgetDef, WidgetNode } from '../hud/types';
 import { WIDGET_EDIT_KEY } from '../hud/state';
 import ErrorBoundary from '../components/ErrorBoundary';
@@ -64,7 +65,7 @@ export default function WidgetWorkshop() {
   const isDesktop = bp === 'desktop';
 
   const [tab, setTab] = useState<'build' | 'guide'>('build');
-  const [identity, setIdentity] = useState<IdentityState>({ id: '', label: '', eyebrow: '', source: '', refresh: '', fetches: [] });
+  const [identity, setIdentity] = useState<IdentityState>({ id: '', label: '', eyebrow: '', source: '', refresh: '', fetches: [], declared: {} });
   const [sizing, setSizing] = useState<SizingState>({ dw: 3, dh: 5, mw: 2, mh: 4 });
   const [root, setRoot] = useState<ENode>(initialRoot);
   const [sel, setSel] = useState<string | null>(null);
@@ -136,8 +137,10 @@ export default function WidgetWorkshop() {
         : b && typeof b === 'object' && 'lit' in b && typeof (b as { lit: unknown }).lit === 'string' ? (b as { lit: string }).lit
           : '';
     const fetches: FetchRow[] = [];
+    const declared: Record<string, DataSource> = {};
     for (const [name, s] of Object.entries(def.spec.sources || {})) {
-      if (s?.from === 'fetch') fetches.push({ name, url: s.url, poll: s.poll != null ? String(s.poll) : '' });
+      if (s?.kind === 'fetch') fetches.push({ name, url: s.url, poll: s.poll != null ? String(s.poll) : '' });
+      else if (s) declared[name] = s;
     }
     setIdentity({
       id: def.id || '',
@@ -146,6 +149,7 @@ export default function WidgetWorkshop() {
       source: frameText(def.spec.frame?.source),
       refresh: def.refreshMs ? String(def.refreshMs / 1000) : '',
       fetches,
+      declared,
     });
     setSizing({
       dw: def.sizing?.desktop?.w ?? 3, dh: def.sizing?.desktop?.h ?? 5,
@@ -180,16 +184,16 @@ export default function WidgetWorkshop() {
   /* ── the spec (single source: the ENode tree + identity/sizing) ────────── */
 
   const sources = useMemo(
-    () => [...HUD_SOURCES, ...identity.fetches.map((f) => f.name).filter(Boolean), '$'],
-    [identity.fetches],
+    () => [...HUD_SOURCES, ...Object.keys(identity.declared), ...identity.fetches.map((f) => f.name).filter(Boolean), '$'],
+    [identity.fetches, identity.declared],
   );
 
   // Stable sources object so editing the body doesn't refetch live endpoints.
   const sourcesObj = useMemo(() => {
-    const m: Record<string, { from: 'fetch'; url: string; poll?: number }> = {};
-    for (const f of identity.fetches) if (f.name && f.url) m[f.name] = { from: 'fetch', url: f.url, poll: f.poll ? Number(f.poll) : undefined };
+    const m: Record<string, DataSource> = { ...identity.declared };
+    for (const f of identity.fetches) if (f.name && f.url) m[f.name] = { kind: 'fetch', url: f.url, ...(f.poll ? { poll: Number(f.poll) } : {}) };
     return Object.keys(m).length ? m : undefined;
-  }, [identity.fetches]);
+  }, [identity.fetches, identity.declared]);
 
   const kids = root.kids ?? [];
   const lone = kids.length === 1 ? kids[0] : null;
@@ -220,9 +224,10 @@ export default function WidgetWorkshop() {
     };
   }, [identity, sizing, root, sourcesObj, lone, onlyMolecule]);
 
-  // Canvas binding scope = the live HUD slices + any declared fetch sources.
-  const fetched = useDataSources(sourcesObj);
-  const scope: Scope = { ...(ctx as unknown as Scope), ...fetched };
+  // Canvas binding scope = the live HUD slices + the spec's sources, as the HUD reads them.
+  const base: Scope = { ...(ctx as unknown as Scope), $now: ctx.clock.now };
+  const fetched = useDataSources(sourcesObj, base);
+  const scope: Scope = { ...base, ...fetched.data, $sources: fetched.status };
 
   /* ── canvas callbacks ──────────────────────────────────────────────────── */
 
@@ -537,7 +542,8 @@ function Guide() {
 
       <GuideCard title="Data sources & paths">
         <Def k="HUD slices">Always available: <code>clock, weather, systems, today, cal</code>. Pick one as a field's source and enter a path (e.g. <code>systems</code> → <code>up</code>).</Def>
-        <Def k="Add source">Point at any JSON endpoint (widget properties → data sources): a <b>name</b>, the <b>URL</b>, and a <b>refresh</b> in seconds (blank = fetch once). The endpoint must permit browser/CORS access.</Def>
+        <Def k="Suite data">A dataset an app declares — <code>{'{ kind: "dataset", app, dataset, params }'}</code>. Its path, filters and shape come from the app's declaration, and a write anywhere in the suite refreshes it. Each source reports a state (<code>$sources.name.state</code>: ready, empty, loading, signed-out, offline…).</Def>
+        <Def k="Add source">An EXTERNAL public https endpoint (widget properties → data sources): a <b>name</b>, the <b>URL</b>, and a <b>refresh</b> in seconds (blank = fetch once). No cookies are sent, the endpoint must permit browser/CORS access, and a suite URL is refused — bind its dataset instead.</Def>
         <Def k="path">Dot-walks the JSON: <code>price</code> → <code>{'{price: 42}'}</code>; <code>data.v</code> → <code>{'{data:{v:9}}'}</code>; <code>items.0.name</code> → first array element.</Def>
         <Def k="fixed vs data">Every field is either <b>lit</b> (a fixed value you type) or <b>data</b> (pulled live from a source + path).</Def>
         <Def k="$ (list item)">Inside a List's item template, fields use the <code>$</code> source — the current array element. e.g. for <code>systems.rows</code>, <code>$</code> → <code>name</code> / <code>detail</code>.</Def>

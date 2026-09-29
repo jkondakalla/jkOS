@@ -9,7 +9,7 @@
   "spec": {
     "frame": { "eyebrow": "LAZUROS", "source": "JOBS" },
     "sources": {
-      "jobs": { "from": "fetch", "url": "/api/lazuros/jobs", "poll": 8 }
+      "jobs": { "kind": "dataset", "app": "lazuros", "dataset": "jobs", "poll": 8 }
     },
     "body": {
       "t": "list",
@@ -24,15 +24,19 @@
             "gap": 8,
             "justify": "space-between",
             "children": [
-              { "t": "pill", "text": { "src": "$", "path": "status" }, "tone": "muted" },
+              {
+                "t": "pill",
+                "text": { "src": "$", "path": "status", "map": { "IN_PROGRESS": "RUNNING", "PENDING_WAKEUP": "WAKING" } },
+                "tone": { "src": "$", "path": "status", "map": { "DONE": "ok", "FAILED": "danger", "IN_PROGRESS": "accent", "PENDING_WAKEUP": "warn" }, "fallback": "muted" }
+              },
               { "t": "text", "text": { "src": "$", "path": "capability" }, "variant": "mono", "grow": true },
-              { "t": "text", "text": { "src": "$", "path": "created_at" }, "variant": "sub" }
+              { "t": "text", "text": { "src": "$", "path": "created_at", "fmt": "ago" }, "variant": "sub" }
             ]
           },
           {
             "t": "when",
             "cond": { "src": "$", "path": "error" },
-            "then": { "t": "text", "text": { "src": "$", "path": "error" }, "variant": "sub" }
+            "then": { "t": "text", "text": { "src": "$", "path": "error" }, "variant": "sub", "grow": true }
           }
         ]
       }

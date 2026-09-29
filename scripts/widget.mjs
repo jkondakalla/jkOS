@@ -18,10 +18,12 @@
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
-import { shippedWidgets, WIDGETS_URL } from './widget/catalog.mjs';
+import { shippedWidgets, suiteHosts, WIDGETS_URL } from './widget/catalog.mjs';
 import { renderWidgets } from './widget/render.mjs';
 
-const { validateWidget } = await import(WIDGETS_URL);
+const { validateWidget: validate } = await import(WIDGETS_URL);
+const CTX = { suiteHosts: suiteHosts() };
+const validateWidget = (def) => validate(def, CTX);
 const [cmd, ...rest] = process.argv.slice(2);
 
 const flags = {};

@@ -14,7 +14,7 @@
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { useSuiteApps, fetchCapabilities, type AppId, type CapabilityDoc, normalizeBinding, isCondition } from '@jkos/weave';
 import { HUD_SCHEMA, HUD_ITEM_FIELDS } from '../pages/hud/useHudData';
-import type { Binding, CommandRef, Tone, ToneBinding, WidgetNode } from '../hud/types';
+import type { Binding, CommandRef, DataSource, Tone, ToneBinding, WidgetNode } from '../hud/types';
 import { catalogEntry, type ENode } from './model';
 import { Field, NumField, SelectField, Check } from '@jkos/ui';
 
@@ -296,6 +296,9 @@ export interface FetchRow { name: string; url: string; poll: string }
 export interface IdentityState {
   id: string; label: string; eyebrow: string; source: string; refresh: string;
   fetches: FetchRow[];
+  /** Dataset sources, carried through an edit whole. This panel edits external fetch
+   *  rows only; dropping the rest on load is how a republish used to lose them. */
+  declared: Record<string, DataSource>;
 }
 export interface SizingState { dw: number; dh: number; mw: number; mh: number }
 
@@ -368,7 +371,13 @@ export function Inspector(p: InspectorProps) {
         </Line>
         <div style={{ marginTop: 14 }}>
           <span className="hud-eyebrow">DATA SOURCES</span>
-          <p style={hintStyle}>HUD slices ({HUD_SOURCES.join(', ')}) are always available. Add any JSON endpoint here, then bind fields to it (data → name → path).</p>
+          <p style={hintStyle}>HUD slices ({HUD_SOURCES.join(', ')}) are always available. Suite data is a dataset an app declares — <code>{'{ kind: "dataset", app, dataset }'}</code>. Below: an EXTERNAL public https endpoint (no cookies are sent; a suite URL is refused).</p>
+          {Object.entries(idn.declared).map(([name, s]) => (
+            <div key={name} style={{ ...rowLine, fontFamily: 'var(--hub-font-mono)', fontSize: 11, color: 'var(--hub-cream-dim)' }}>
+              <span style={{ color: 'var(--hub-cream)' }}>{name}</span>
+              <span>{s.kind === 'dataset' ? `${s.app}.${s.dataset}${s.params ? ` ${JSON.stringify(s.params)}` : ''}` : s.kind}</span>
+            </div>
+          ))}
           <button style={{ ...ghostBtn, marginTop: 4 }} onClick={() => p.onIdentity({ fetches: [...idn.fetches, { name: '', url: '', poll: '' }] })}>+ add source</button>
           {idn.fetches.map((f, i) => (
             <div key={i} style={rowLine}>

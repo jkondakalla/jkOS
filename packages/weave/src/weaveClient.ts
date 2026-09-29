@@ -17,23 +17,14 @@
  */
 
 import { useCallback } from 'react';
-import { authFetch } from '@jkos/auth-client';
-import { apiBase, suiteApp, resourceKey, type AppId } from './manifest';
+import { suiteApp, resourceKey, type AppId } from './manifest';
 import { usePolledResource, type PolledOptions } from './resource';
 import { fetchCapabilities, getCapability } from './fetchCapabilities';
-import { fetchDatasets, getDataset } from './fetchDatasets';
+import { fetchDatasets } from './fetchDatasets';
+import { readDataset, type DatasetRead } from './readDataset';
 import { runCommand, type CommandResult } from './dispatch';
 
 export type ListFilters = Record<string, string | number | boolean | undefined | null>;
-
-/** Build a `?a=1&b=2` query string, dropping empty values. */
-function toQuery(filters?: ListFilters): string {
-  if (!filters) return '';
-  const pairs = Object.entries(filters)
-    .filter(([, v]) => v != null && v !== '')
-    .map(([k, v]) => [k, String(v)] as [string, string]);
-  return pairs.length ? '?' + new URLSearchParams(pairs).toString() : '';
-}
 
 /** Imperative, discovery-driven peer client. Cheap to construct (no hooks). */
 export function weaveClient(appId: AppId) {
@@ -43,22 +34,16 @@ export function weaveClient(appId: AppId) {
     /** The peer's DatasetDoc (cached). */
     datasets: (force?: boolean) => fetchDatasets(appId, force),
 
-    /** One-shot read of a declared dataset. Resolves the dataset's path via
-     *  discovery, then edge-proxied fetches it. Returns [] on any miss. */
+    /** One read of a declared dataset, with its STATE — ready, empty, signed-out,
+     *  offline, unavailable… (readDataset). What to call when "nothing" and "could
+     *  not tell" must look different, which on a screen is always. */
+    read: (datasetId: string, params?: ListFilters): Promise<DatasetRead> => readDataset(appId, datasetId, params),
+
+    /** The rows of a declared list dataset, or [] — for a caller that genuinely draws
+     *  every failure the same way. Anything shown to a person wants `read`. */
     async list<T = unknown>(datasetId: string, filters?: ListFilters): Promise<T[]> {
-      const ds = getDataset(await fetchDatasets(appId), datasetId);
-      if (!ds) return [];
-      try {
-        // authFetch: a 15-min-expired access token is silently refreshed + retried
-        // from the remember-me cookie, so a polled peer read never flips to "signed
-        // out" while a valid 30-day session is live.
-        const r = await authFetch(`${apiBase(appId)}${ds.path}${toQuery(filters)}`);
-        if (!r.ok) return [];
-        const data = await r.json();
-        return Array.isArray(data) ? (data as T[]) : [];
-      } catch {
-        return [];
-      }
+      const r = await readDataset(appId, datasetId, filters);
+      return Array.isArray(r.data) ? (r.data as T[]) : [];
     },
 
     /** Run a declared capability: discover it, then dispatch + invalidate. */

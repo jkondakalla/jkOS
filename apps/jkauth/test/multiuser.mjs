@@ -172,7 +172,16 @@ try {
   ok('…naming each problem by JSON Pointer', (notAWidget.json?.problems || []).some((p) => p.path === '/kind' && p.code === 'unknown-prop'), JSON.stringify(notAWidget.json?.problems));
   const jsHref = await api(A, 'POST', '/auth/widgets', { json: widget('w-js', 'JS', { spec: { body: { t: 'link', text: 'Open', href: 'javascript:alert(document.cookie)' } } }) });
   ok('a javascript: href is refused at publish', jsHref.status === 400 && (jsHref.json?.problems || []).some((p) => p.path === '/spec/body/href' && p.code === 'bad-url'), JSON.stringify(jsHref.json));
-  ok('neither refused def landed', !idsFor(await api(A, 'GET', '/auth/widgets')).some((i) => i === 'w-junk' || i === 'w-js'));
+  /* A widget reads only what an app DECLARES: a fetch at a suite host is a read of any
+     same-site path with the viewer's session, around every dataset declaration. */
+  const suiteFetch = await api(A, 'POST', '/auth/widgets', { json: widget('w-sf', 'SF', { spec: {
+    sources: { items: { kind: 'fetch', url: 'https://beigeboard.jkos.net/api/beigeboard/items' } },
+    body: { t: 'list', from: { src: 'items' }, item: { t: 'text', text: { src: '$', path: 'title' } } } } }) });
+  ok('a fetch source at a suite host is refused at publish', suiteFetch.status === 400 && (suiteFetch.json?.problems || []).some((p) => p.path === '/spec/sources/items/url' && p.code === 'suite-url'), JSON.stringify(suiteFetch.json));
+  const relFetch = await api(A, 'POST', '/auth/widgets', { json: widget('w-rf', 'RF', { spec: {
+    sources: { jobs: { kind: 'fetch', url: '/api/lazuros/jobs' } }, body: { t: 'text', text: 'x' } } }) });
+  ok('…and so is a relative one (this origin)', relFetch.status === 400 && (relFetch.json?.problems || []).some((p) => p.path === '/spec/sources/jobs/url' && p.code === 'bad-url'), JSON.stringify(relFetch.json));
+  ok('neither refused def landed', !idsFor(await api(A, 'GET', '/auth/widgets')).some((i) => ['w-junk', 'w-js', 'w-sf', 'w-rf'].includes(i)));
   const invalidEv = ((await api(A, 'GET', '/auth/events')).json?.events || []).find((e) => e.type === 'widget_publish_rejected' && JSON.parse(e.meta || '{}').id === 'w-js');
   ok('the refusal is in the audit trail, with the problem', !!invalidEv && JSON.stringify(JSON.parse(invalidEv.meta).problems).includes('/spec/body/href bad-url'), JSON.stringify(invalidEv));
 

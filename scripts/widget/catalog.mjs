@@ -23,6 +23,13 @@ import { BACKEND_DOCS } from '../../packages/suite-prober/src/sources.mjs';
 export { REPO_ROOT };
 export const WIDGETS_URL = pathToFileURL(join(REPO_ROOT, 'packages/widgets/src/index.js')).href;
 
+/** Every host the suite answers on — what jkAuth passes the validator at publish, so a
+ *  file the gate passes is one jkAuth would accept (validateWidget's ctx.suiteHosts). */
+export function suiteHosts() {
+  const { APPS } = createRequire(join(REPO_ROOT, 'package.json'))(join(REPO_ROOT, 'packages/suite-manifest/apps.js'));
+  return [...new Set(APPS.filter((a) => a.origin).map((a) => new URL(a.origin).hostname))];
+}
+
 /** ORDECK's built-in defs, from the real defaultHudState(). */
 export async function builtinDefs() {
   const tmp = mkdtempSync(join(tmpdir(), 'jkos-widget-catalog-'));

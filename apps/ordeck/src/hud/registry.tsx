@@ -19,12 +19,11 @@
  */
 
 import {
-  Fragment, createContext, memo, useCallback, useContext, useEffect, useMemo, useState,
+  Fragment, createContext, memo, useCallback, useContext, useEffect, useState,
   type CSSProperties, type FormEvent, type ReactNode,
 } from 'react';
 import {
-  fetchCapabilities, getCapability, runCommand, suiteApp, subscribe, type CapabilityDoc, resolveBinding, truthy } from '@jkos/weave';
-import { authFetch } from '@jkos/auth-client';
+  fetchCapabilities, getCapability, runCommand, suiteApp, type CapabilityDoc, resolveBinding, truthy } from '@jkos/weave';
 import {
   type ClockState,
   type WeatherState,
@@ -37,7 +36,8 @@ import {
   type PinnedState,
 } from '../pages/hud/useHudData';
 import { WeekView, type CalendarItem, type CardResolvers } from '@jkos/cards';
-import type { Binding, CommandRef, ComponentName, DataSource, IconName, Tone, ToneBinding, WidgetDef, WidgetNode, WidgetSpec } from './types';
+import type { Binding, CommandRef, ComponentName, IconName, Tone, ToneBinding, WidgetDef, WidgetNode, WidgetSpec } from './types';
+import { useDataSources } from './sources';
 import { TONE_COLOR } from './tone';
 import { safeHref, sourcesOf } from '@jkos/widgets';
 import { clearHudFocus } from '../lib/shelf';
@@ -606,66 +606,13 @@ function ButtonNode({ node, scope }: { node: Extract<WidgetNode, { t: 'button' }
   );
 }
 
-/** Poll any `fetch` data sources a spec declares and expose them by name. This
- *  is the no-deploy path: a spec with a fetch source + bindings is a brand-new
- *  widget needing zero new code. `hud` sources are already in ctx scope.
- *
- *  Each source fetches, polls (`poll` seconds), refetches when the tab becomes
- *  visible, and — via `invalidateOn` — joins the shared weave invalidation bus, so
- *  a peer write (`invalidate('beigeboard.items')`) refreshes the widget instead of it
- *  drifting until the next poll. A failed fetch keeps the last good value (the
- *  widget never blanks on a transient blip). */
-/** A relative URL, or an absolute one on the current origin — i.e. an edge-proxied
- *  peer endpoint that carries the jkOS session cookie (vs. an external public API). */
-function isSameOrigin(url: string): boolean {
-  try { return new URL(url, window.location.href).origin === window.location.origin; }
-  catch { return false; }
-}
-
-export function useDataSources(sources?: Record<string, DataSource>): Scope {
-  const fetchList = useMemo(
-    () => Object.entries(sources ?? {}).filter(
-      (e): e is [string, Extract<DataSource, { from: 'fetch' }>] => e[1].from === 'fetch',
-    ),
-    [sources],
-  );
-  const [data, setData] = useState<Scope>({});
-  useEffect(() => {
-    if (fetchList.length === 0) return;
-    let dead = false;
-    const timers: ReturnType<typeof setInterval>[] = [];
-    const unsubs: Array<() => void> = [];
-    const loaders: Array<() => void> = [];
-    for (const [name, s] of fetchList) {
-      // Same-origin (edge-proxied peer) sources go through authFetch so an expired
-      // access token is silently refreshed + retried; external/public URLs use a
-      // plain fetch (no cookies — credentials:'include' would break their CORS).
-      const get = () => (isSameOrigin(s.url) ? authFetch(s.url) : fetch(s.url));
-      const load = () => get()
-        .then((r) => (r.ok ? r.json() : Promise.reject(new Error('fetch failed'))))
-        .then((j) => { if (!dead) setData((d) => ({ ...d, [name]: j })); })
-        .catch(() => { /* keep last good value — soft-fail like usePolledResource */ });
-      loaders.push(load);
-      load();
-      if (s.poll) timers.push(setInterval(load, s.poll * 1000));
-      if (s.invalidateOn?.length) unsubs.push(subscribe(s.invalidateOn, load));
-    }
-    const onVisible = () => { if (document.visibilityState === 'visible') loaders.forEach((l) => l()); };
-    document.addEventListener('visibilitychange', onVisible);
-    return () => {
-      dead = true;
-      timers.forEach(clearInterval);
-      unsubs.forEach((u) => u());
-      document.removeEventListener('visibilitychange', onVisible);
-    };
-  }, [fetchList]);
-  return data;
-}
-
 function SpecWidget({ spec, ctx }: { spec: WidgetSpec; ctx: WidgetCtx }) {
-  const fetched = useDataSources(spec.sources);
   // `$now` is the clock's instant: what `fmt: 'ago'` measures against.
-  const scope: Scope = { ...(ctx as unknown as Scope), ...fetched, $now: ctx.clock.now };
+  const base: Scope = { ...(ctx as unknown as Scope), $now: ctx.clock.now };
+  // Each declared source by name, and `$sources.<name>.state` beside it — ready, empty,
+  // loading, signed-out, offline… (./sources.ts), so a card can tell "nothing" from "down".
+  const { data, status } = useDataSources(spec.sources, base);
+  const scope: Scope = { ...base, ...data, $sources: status };
   const body = renderNode(spec.body, scope);
   const f = spec.frame;
 

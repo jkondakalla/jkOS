@@ -110,12 +110,11 @@ import type { Binding as WeaveBinding } from '@jkos/weave';
  *  ~40 spec types keeps its name and there is still exactly one definition. */
 export type Binding = string | number | boolean | WeaveBinding;
 
-/** Where a named source's data comes from. `hud` slices are data Ordeck already
- *  pulls (clock/weather/today/systems/cal — always in scope); `fetch` is a
- *  generic client-polled endpoint, the no-deploy path for brand-new widgets. */
-export type DataSource =
-  | { from: 'hud'; key: string }
-  | { from: 'fetch'; url: string; poll?: number; invalidateOn?: string[] };
+/** Where a named source's data comes from — a dataset an app DECLARES, or an external
+ *  public URL — and the state each reports. See ./sources.ts. (HUD slices need no
+ *  source: they are always in scope.) */
+export type { DataSource, SourceState, SourceStatus } from './sources';
+import type { DataSource } from './sources';
 
 /** A tone can be a fixed key OR bound to data (a list item's `$.tone`, or a status
  *  mapped onto tones: `{ src: '$', path: 'status', map: { DONE: 'ok' }, fallback: 'muted' }`),

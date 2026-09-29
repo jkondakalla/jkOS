@@ -79,7 +79,23 @@ for (let i = 0; i < LIMITS.MAX_DEPTH + 2; i++) deep = { t: 'stack', children: [d
 ok(problems(def(deep)).some((p) => p.code === 'too-deep'), 'a tree nested past the depth limit is refused')
 const wide = { t: 'stack', children: Array.from({ length: LIMITS.MAX_NODES + 5 }, () => ({ t: 'divider' })) }
 ok(problems(def(wide)).filter((p) => p.code === 'too-many-nodes').length === 1, 'a tree with too many nodes is refused, once')
-ok(has(def({ t: 'text', text: 'x' }, { spec: { body: { t: 'text', text: 'x' }, sources: { feed: { from: 'fetch', url: 'javascript:alert(1)' } } } }), '/spec/sources/feed/url', 'bad-url'), 'a fetch source with a non-http url is refused')
+const withSources = (sources, ctx) => validateWidget({ id: 'probe', label: 'Probe', sizing, spec: { body: { t: 'text', text: 'x' }, sources } }, ctx)
+const srcHas = (sources, path, code, ctx) => withSources(sources, ctx).some((p) => p.path === path && p.code === code)
+ok(srcHas({ feed: { kind: 'fetch', url: 'javascript:alert(1)' } }, '/spec/sources/feed/url', 'bad-url'), 'a fetch source with a non-http url is refused')
+ok(srcHas({ jobs: { kind: 'fetch', url: '/api/lazuros/jobs' } }, '/spec/sources/jobs/url', 'bad-url'), 'a RELATIVE fetch (this origin) is refused — a widget reads only what an app declares')
+ok(srcHas({ feed: { kind: 'fetch', url: 'http://api.example.com/x.json' } }, '/spec/sources/feed/url', 'bad-url'), 'a plain-http fetch is refused')
+const HOSTS = { suiteHosts: ['jkos.net', 'staging.jkos.net'] }
+ok(srcHas({ items: { kind: 'fetch', url: 'https://beigeboard.jkos.net/api/items' } }, '/spec/sources/items/url', 'suite-url', HOSTS), 'a fetch to a suite subdomain is refused, given the suite hosts')
+ok(srcHas({ items: { kind: 'fetch', url: 'https://jkos.net/api/beigeboard/items' } }, '/spec/sources/items/url', 'suite-url', HOSTS), '…and to the apex')
+ok(withSources({ wx: { kind: 'fetch', url: 'https://api.open-meteo.com/v1/forecast', poll: 900 } }, HOSTS).length === 0, 'an external public https fetch passes')
+ok(withSources({ jobs: { kind: 'dataset', app: 'lazuros', dataset: 'jobs', params: { job_id: { src: '$result', path: 'job_id' }, status: 'DONE' }, poll: 8 } }).length === 0, 'a dataset source with bound params passes')
+ok(srcHas({ jobs: { from: 'fetch', url: '/api/lazuros/jobs' } }, '/spec/sources/jobs/from', 'renamed'), 'the old `from` discriminator is refused, naming `kind`')
+ok(withSources({ jobs: { from: 'fetch', url: '/api/x' } })[0]?.fix?.includes('"kind": "dataset"'), '…pointing a suite endpoint at a dataset')
+ok(srcHas({ t: { kind: 'hud', key: 'today' } }, '/spec/sources/t/kind', 'bad-source'), 'a hud source is refused — slices are always in scope')
+ok(withSources({ d: { kind: 'datset', app: 'x', dataset: 'y' } }).some((p) => p.fix === 'did you mean "dataset"?'), 'a typo\'d kind names the intended one')
+ok(srcHas({ d: { kind: 'dataset', dataset: 'jobs' } }, '/spec/sources/d/app', 'missing-prop'), 'a dataset source without its app is refused')
+ok(srcHas({ d: { kind: 'dataset', app: 'lazuros', dataset: 'jobs', url: '/x' } }, '/spec/sources/d/url', 'unknown-prop'), 'a key another kind uses is refused')
+ok(srcHas({ d: { kind: 'dataset', app: 'lazuros', dataset: 'jobs', params: { job_id: { src: '' } } } }, '/spec/sources/d/params/job_id', 'bad-binding'), 'a malformed param binding is refused')
 ok(problems('nope').length === 1 && problems('nope')[0].code === 'not-an-object', 'a non-object is refused outright')
 
 // ── 3. the walker ────────────────────────────────────────────────────────────

@@ -13,6 +13,12 @@ const { PUBLIC_KEY, PUBLIC_KEY_NEXT, JWT_KID, JWT_KID_NEXT } = require('../confi
 const { all, run, logEvent, WIDGET_DEF_MAX } = require('../db')
 const { resolveUser } = require('../tokens')
 const { validateWidget } = require('@jkos/widgets')
+const { APPS } = require('@jkos/suite-manifest')
+
+/* Every host the suite answers on, from the one app directory. A widget's `fetch`
+   source to one of them is refused at publish: suite data is read through a DECLARED
+   dataset (@jkos/widgets validate.js), never an arbitrary same-site URL. */
+const SUITE_HOSTS = [...new Set(APPS.filter((a) => a.origin).map((a) => new URL(a.origin).hostname))]
 const { can } = require('../policy')
 
 const router = express.Router()
@@ -144,7 +150,7 @@ router.post('/auth/widgets', (req, res) => {
      props, placement, footprint, and no href a browser would run. The same validator
      holds the widget files the gate checks, so "passes the gate" and "publishable"
      cannot disagree. Every problem comes back with a JSON Pointer into the def. */
-  const problems = validateWidget(def)
+  const problems = validateWidget(def, { suiteHosts: SUITE_HOSTS })
   if (problems.length) {
     logEvent('widget_publish_rejected', user.sub, req, {
       id, reason: 'invalid', problems: problems.slice(0, 5).map((p) => `${p.path} ${p.code}`),

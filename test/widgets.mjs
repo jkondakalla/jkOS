@@ -19,6 +19,10 @@
 //      and React 18 renders `javascript:` with only a dev-mode warning. Every dynamic
 //      href in the widget renderer passes through safeHref (whose behaviour the
 //      package test pins).
+//   6. SOURCES SAY WHAT HAPPENED. weave's readDataset (the REAL module, transpiled over
+//      stubbed network) maps every way a read can go to a named state — never the bare
+//      `[]` that made "signed out" and "no rows" one value — and ORDECK's source runtime
+//      refuses a relative, plain-http or suite URL before it is ever requested.
 //
 // Run:  node test/widgets.mjs      (wired as `pnpm check:widgets`, folded into
 //                                   `pnpm test:contracts`)
@@ -26,7 +30,7 @@ import { execFileSync } from 'node:child_process';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { unit, REPO_ROOT } from './lib/unit.mjs';
-import { shippedWidgets, WIDGETS_URL as WIDGETS } from '../scripts/widget/catalog.mjs';
+import { shippedWidgets, suiteHosts, appDocs, WIDGETS_URL as WIDGETS } from '../scripts/widget/catalog.mjs';
 
 const { check, importTs, done } = unit('widgets');
 const { validateWidget } = await import(WIDGETS);
@@ -50,9 +54,30 @@ for (const w of shipped) {
   if (!w.def) { check(false, `${w.where} is JSON — ${w.error}`); continue; }
   if (w.file) check(w.def.id === w.where.split('/').pop().replace(/\.json$/, ''), `${w.where}: the file is named for its widget id`);
 }
+const CTX = { suiteHosts: suiteHosts() };
 for (const { where, def } of shipped.filter((w) => w.def)) {
-  const errs = validateWidget(def);
+  const errs = validateWidget(def, CTX);
   check(errs.length === 0, `${where} is a valid widget${errs.length ? ` — ${fmt(errs)}` : ''}`);
+}
+
+// A widget's fixtures are what its preview draws; for a dataset source they must be
+// what that dataset DECLARES it answers, or the preview shows rows the app never sends.
+{
+  const { checkDatasetAnswer } = await import(new URL('../packages/weave/src/shared/datasetShape.js', import.meta.url).href);
+  const docs = appDocs();
+  for (const w of shipped.filter((x) => x.def && x.fixtures)) {
+    for (const [state, byName] of Object.entries(w.fixtures)) {
+      for (const [name, value] of Object.entries(byName ?? {})) {
+        const s = w.def.spec?.sources?.[name];
+        if (!s) { check(false, `${w.where}: fixtures.${state}.${name} names no source of the widget`); continue; }
+        if (s.kind !== 'dataset') continue;
+        const ds = docs[s.app]?.datasets?.datasets?.find((d) => d.id === s.dataset);
+        if (!ds) { check(false, `${w.where}: source '${name}' reads ${s.app}.${s.dataset}, which ${s.app} does not declare`); continue; }
+        const problems = checkDatasetAnswer(ds, value);
+        check(problems.length === 0, `${w.where}: fixtures.${state}.${name} is what ${s.app}.${s.dataset} declares it answers${problems.length ? ` — ${problems.join('; ')}` : ''}`);
+      }
+    }
+  }
 }
 
 // ── 3. the Workshop edits losslessly ────────────────────────────────────────
@@ -79,6 +104,88 @@ for (const f of readdirSync(HUD).filter((n) => n.endsWith('.tsx'))) {
     const ok = /^\s*safeHref\(/.test(expr) || /^\s*href\s*$/.test(expr) && /const href = [^;]*safeHref\(/.test(src);
     check(ok, `hud/${f}: href={${expr.trim()}} passes through safeHref`);
   }
+}
+
+// ── 6. sources say what happened ────────────────────────────────────────────
+{
+  const { tmp, emitTs } = unit('widget-sources');
+  const { writeFileSync } = await import('node:fs');
+  const { pathToFileURL } = await import('node:url');
+  const SHAPE = pathToFileURL(join(REPO_ROOT, 'packages/weave/src/shared/datasetShape.js')).href;
+  // Stubs: the network is whatever the case says; discovery answers one app's doc.
+  writeFileSync(join(tmp, 'net.mjs'), `
+    export const net = { answer: null, doc: null, hasPath: true };
+    export const authFetch = async (url) => { net.url = url; if (net.answer instanceof Error) throw net.answer; return net.answer; };
+    export const apiBase = (id) => '/api/' + id;
+    export const suiteApp = (id) => (net.hasPath ? { id, datasetsPath: '/api/' + id + '/datasets' } : { id });
+    export const fetchDatasets = async () => net.doc;
+    export const getDataset = (doc, id) => doc?.datasets.find((d) => d.id === id) ?? null;
+  `);
+  const net = (await import(pathToFileURL(join(tmp, 'net.mjs')).href)).net;
+  const rd = await import(pathToFileURL(emitTs('packages/weave/src/readDataset.ts', 'readDataset.mjs', {
+    '@jkos/auth-client': './net.mjs', './manifest': './net.mjs', './fetchDatasets': './net.mjs', './shared/datasetShape.js': SHAPE,
+  })).href);
+  const resp = (status, body) => ({ status, ok: status >= 200 && status < 300, json: async () => (body instanceof Error ? Promise.reject(body) : body) });
+  net.doc = { app: 'x', version: 1, datasets: [
+    { id: 'jobs', path: '/jobs', filters: [{ name: 'job_id' }, { name: 'status' }] },
+    { id: 'one', path: '/things/:id', cardinality: 'one' },
+  ] };
+  const cases = [
+    ['a list with rows is ready', 'jobs', {}, resp(200, [{ id: 1 }]), 'ready'],
+    ['a list with none is EMPTY (not ready, not a failure)', 'jobs', {}, resp(200, []), 'empty'],
+    ['401 is signed-out', 'jobs', {}, resp(401, {}), 'signed-out'],
+    ['403 is forbidden', 'jobs', {}, resp(403, {}), 'forbidden'],
+    ['a 5xx is offline', 'jobs', {}, resp(503, {}), 'offline'],
+    ['a network error is offline', 'jobs', {}, new Error('ECONNREFUSED'), 'offline'],
+    ['a list declared and an object answered is unavailable — the declaration lies', 'jobs', {}, resp(200, { jobs: [] }), 'unavailable'],
+    ['non-JSON is unavailable', 'jobs', {}, resp(200, new Error('bad json')), 'unavailable'],
+    ['one document is ready', 'one', { id: 3 }, resp(200, { a: 1 }), 'ready'],
+    ['one document that is null is empty', 'one', { id: 3 }, resp(200, null), 'empty'],
+    ['one document declared and a list answered is unavailable', 'one', { id: 3 }, resp(200, []), 'unavailable'],
+    ['a path parameter with no value is idle — nothing is asked', 'one', {}, resp(200, { a: 1 }), 'idle'],
+    ['a dataset the app does not declare is unavailable', 'ghost', {}, resp(200, []), 'unavailable'],
+  ];
+  for (const [msg, id, params, answer, want] of cases) {
+    net.answer = answer; net.url = null;
+    const r = await rd.readDataset('x', id, params);
+    check(r.state === want, `readDataset: ${msg} (got ${r.state}${r.error ? ` — ${r.error}` : ''})`);
+    if (want === 'idle') check(net.url === null, 'readDataset: …and an idle read sends no request');
+  }
+  net.doc = null;
+  check((await rd.readDataset('x', 'jobs')).state === 'offline', 'readDataset: an app whose declarations cannot be read is offline');
+  net.hasPath = false;
+  check((await rd.readDataset('x', 'jobs')).state === 'unavailable', 'readDataset: an app that declares no datasets is unavailable');
+  const jobs = { id: 'jobs', path: '/jobs', filters: [{ name: 'job_id' }, { name: 'status' }] };
+  check(rd.datasetUrl(jobs, { job_id: 'a b', typo_id: 1, status: '' }) === '/jobs?job_id=a+b', 'datasetUrl: declared filters only, empty ones dropped (an undeclared one would hide a typo)');
+  check(rd.datasetUrl({ id: 'r', path: '/routines/:id/series', filters: [{ name: 'weeks' }] }, { id: '7/x', weeks: 4 }) === '/routines/7%2Fx/series?weeks=4', 'datasetUrl: a path parameter is filled and encoded, not repeated as a query');
+
+  // ORDECK's runtime: the refusal, before any request.
+  writeFileSync(join(tmp, 'react.mjs'), 'export const createContext = (v) => ({ Provider: null, v }); export const useContext = () => null; export const useEffect = () => {}; export const useMemo = (f) => f(); export const useState = (v) => [v, () => {}];');
+  writeFileSync(join(tmp, 'weave.mjs'), `
+    import { resolveBinding } from ${JSON.stringify(pathToFileURL(join(REPO_ROOT, 'packages/weave/src/shared/binding.js')).href)};
+    export { resolveBinding };
+    export const reads = [];
+    export const readDataset = async (app, dataset, params) => { reads.push({ app, dataset, params }); return { state: 'ready', data: [], def: { invalidates: ['lazuros.jobs'] } }; };
+    export const subscribe = () => () => {};
+    export const suiteApps = () => ({ beigeboard: { origin: 'https://beigeboard.jkos.net' }, ordeck: { origin: 'https://jkos.net' } });
+  `);
+  const src = await import(pathToFileURL(emitTs('apps/ordeck/src/hud/sources.ts', 'sources.mjs', { react: './react.mjs', '@jkos/weave': './weave.mjs' })).href);
+  const weaveStub = await import(pathToFileURL(join(tmp, 'weave.mjs')).href);
+  const ORIGINS = ['https://jkos.net', 'https://beigeboard.jkos.net'];
+  check(src.refusedUrl('/api/lazuros/jobs', ORIGINS) !== null, 'refusedUrl: a relative URL (this origin) is refused');
+  check(src.refusedUrl('http://api.example.com/x', ORIGINS) !== null, 'refusedUrl: plain http is refused');
+  check(/part of this suite/.test(src.refusedUrl('https://beigeboard.jkos.net/api/items', ORIGINS) ?? ''), 'refusedUrl: a suite subdomain is refused');
+  check(/part of this suite/.test(src.refusedUrl('https://kouros.jkos.net/api/tracks', ORIGINS) ?? ''), 'refusedUrl: …and any other subdomain of the suite domain');
+  check(src.refusedUrl('https://api.open-meteo.com/v1/forecast', ORIGINS) === null, 'refusedUrl: an external public https URL may be fetched');
+  let fetched = 0;
+  globalThis.fetch = async () => { fetched++; return resp(200, []); };
+  const refused = await src.liveReader('items', { kind: 'fetch', url: 'https://beigeboard.jkos.net/api/items' }, {});
+  check(refused.state === 'refused' && fetched === 0, 'liveReader: a suite fetch is REFUSED and never requested');
+  const viaDecl = await src.liveReader('jobs', { kind: 'dataset', app: 'lazuros', dataset: 'jobs' }, { job_id: 'j1' });
+  check(weaveStub.reads.at(-1)?.dataset === 'jobs' && weaveStub.reads.at(-1)?.params.job_id === 'j1' && viaDecl.invalidates?.[0] === 'lazuros.jobs',
+    "liveReader: a dataset is read through its declaration, and hands back the dataset's invalidation keys to subscribe");
+  check(JSON.stringify(src.resolveParams({ job_id: { src: '$result', path: 'job_id' }, status: 'DONE', gone: { src: 'x' } }, { $result: { job_id: 'j9' } }))
+    === JSON.stringify({ job_id: 'j9', status: 'DONE', gone: null }), 'resolveParams: bindings resolve against the scope; a missing one is null (the read goes idle)');
 }
 
 done();
