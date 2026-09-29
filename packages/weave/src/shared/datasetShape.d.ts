@@ -6,7 +6,7 @@ export type Cardinality = 'many' | 'one';
 export const CARDINALITIES: readonly Cardinality[];
 
 /** The slice of a BodyField the check reads. */
-export interface ShapeField { name: string; type: string; enum?: string[]; of?: string; item?: ShapeField[] }
+export interface ShapeField { name: string; type: string; enum?: string[]; of?: string; item?: ShapeField[]; optional?: boolean }
 
 /** A def's cardinality with the default ('many') applied. */
 export function cardinalityOf(def: { cardinality?: Cardinality } | null | undefined): Cardinality;

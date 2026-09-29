@@ -120,7 +120,10 @@ function checkFields(label, item, docs, what, out, maxRows) {
       if (!byName.has(k)) once(`extra:${k}`, `'${label}' answers the field '${k}', which its \`item\` does not declare`)
     }
     for (const f of item) {
-      if (!(f.name in doc)) { once(`missing:${f.name}`, `'${label}' declares the field '${f.name}' and ${where} does not carry it`); continue }
+      if (!(f.name in doc)) {
+        if (!f.optional) once(`missing:${f.name}`, `'${label}' declares the field '${f.name}' and ${where} does not carry it`)
+        continue
+      }
       const v = doc[f.name]
       if (!fits(f, v)) {
         once(`type:${f.name}`, `'${label}'.${f.name} is declared '${f.type}'${f.of ? ` of '${f.of}'` : ''}${f.enum ? ` (${f.enum.join('|')})` : ''} and ${where} holds ${kind(v)}`)

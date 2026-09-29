@@ -81,7 +81,10 @@ ok('dataset exposes the opted-in filters + the universal since cursor, each with
     f.find((x) => x.name === 'priority').op === 'gt' && f.find((x) => x.name === 'parent_ref').op === 'eq' &&
     f.find((x) => x.name === 'since').column === 'updated_at' && f.find((x) => x.name === 'since').op === 'gt'
 })())
-ok('row shape = id + fields + updated_at', items.item.map((f) => f.name).join(',') === 'id,title,notes,done,priority,tags,ext_ref,parent_ref,updated_at')
+ok('row shape = id + owner + fields + created_at + updated_at (every column a row answers)',
+  items.item.map((f) => f.name).join(',') === 'id,user_id,title,notes,done,priority,tags,ext_ref,parent_ref,created_at,updated_at')
+ok('a list field is a json list of its type in the row (toRow answers an array)',
+  items.item.find((f) => f.name === 'tags')?.type === 'json' && items.item.find((f) => f.name === 'tags')?.of === 'string')
 
 // DDL derives the table, indexes and the weave delta triggers.
 const ddl = items.ddl()

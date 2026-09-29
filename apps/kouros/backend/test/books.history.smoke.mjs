@@ -27,7 +27,7 @@
 //   6. The served discovery docs (/api/capabilities, /api/datasets) reflect the
 //      append-only contract: capabilities carries createBookHistory but NEITHER
 //      updateBookHistory NOR deleteBookHistory; the `book_history` dataset's row shape is
-//      exactly id/item_ref/started_at/ms_played/completed/updated_at.
+//      exactly id/user_id/item_ref/started_at/ms_played/completed/created_at/updated_at.
 //
 //   node apps/kouros/backend/test/books.history.smoke.mjs
 
@@ -151,8 +151,8 @@ try {
   const dsets = (await req('GET', '/api/datasets')).json;
   const historyDataset = (dsets?.datasets || []).find((d) => d.id === 'book_history');
   ok(!!historyDataset, 'discovery: datasets includes a `book_history` entry');
-  ok(historyDataset?.item?.map((f) => f.name).join(',') === 'id,item_ref,started_at,ms_played,completed,updated_at',
-    `discovery: history dataset row shape is exactly id/item_ref/started_at/ms_played/completed/updated_at (got ${JSON.stringify(historyDataset?.item?.map((f) => f.name))})`);
+  ok(historyDataset?.item?.map((f) => f.name).join(',') === 'id,user_id,item_ref,started_at,ms_played,completed,created_at,updated_at',
+    `discovery: history dataset row shape is exactly id/user_id/item_ref/started_at/ms_played/completed/created_at/updated_at (got ${JSON.stringify(historyDataset?.item?.map((f) => f.name))})`);
 
   // ── 7. THE ACTIVITY CONTRACT (D6 / XC-2) ──────────────────────────────────────────
   //     The same rows as §2–5, answered in the ONE declared suite shape. Asserted over

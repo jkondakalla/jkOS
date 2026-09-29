@@ -92,6 +92,12 @@ export interface BodyField {
    */
   of?: FieldType;
   item?: BodyField[];
+
+  /** FOR A ROW OR DOCUMENT FIELD (`returns`, a dataset's `item`): the answer may leave
+   *  it out — a document whose fields depend on its state (a mesh still 'pending'
+   *  answers only { state, track_id }). Unmarked means always present, which each
+   *  app's smoke holds. (`required` is the request-body word and stays that.) */
+  optional?: boolean;
 }
 
 /** One action an app can perform on behalf of the caller. */

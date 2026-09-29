@@ -20,8 +20,8 @@
 //   5. GET /api/history lists only the caller's own rows (owner-scoped).
 //   6. The served discovery docs reflect the append-only contract: capabilities
 //      carries createHistory but neither updateHistory nor deleteHistory; the
-//      `history` dataset's row shape is exactly id/item_ref/started_at/ms_played/context/
-//      completed/updated_at.
+//      `history` dataset's row shape is exactly id/user_id/item_ref/started_at/ms_played/context/
+//      completed/created_at/updated_at.
 //
 //   node apps/kouros/backend/test/history.smoke.mjs
 
@@ -158,8 +158,8 @@ try {
   const dsets = (await req('GET', '/api/datasets')).json;
   const historyDataset = (dsets?.datasets || []).find((d) => d.id === 'history');
   ok(!!historyDataset, 'discovery: datasets includes a `history` entry');
-  ok(historyDataset?.item?.map((f) => f.name).join(',') === 'id,item_ref,started_at,ms_played,completed,context,updated_at',
-    `discovery: history dataset row shape is exactly id/item_ref/started_at/ms_played/completed/context/updated_at (got ${JSON.stringify(historyDataset?.item?.map((f) => f.name))})`);
+  ok(historyDataset?.item?.map((f) => f.name).join(',') === 'id,user_id,item_ref,started_at,ms_played,completed,context,created_at,updated_at',
+    `discovery: history dataset row shape is exactly id/user_id/item_ref/started_at/ms_played/completed/context/created_at/updated_at (got ${JSON.stringify(historyDataset?.item?.map((f) => f.name))})`);
 
   // ── 7. THE ACTIVITY CONTRACT (D6 / XC-2) ──────────────────────────────────────
   //     ⚠️ The point of this section is not that KourOS serves activity — it is that

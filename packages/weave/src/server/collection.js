@@ -68,10 +68,14 @@ function toBodyField(field, { required = field.required } = {}) {
   return b
 }
 
-// The row shape: id + every field (typed, carrying its ref/enum stud) + updated_at.
-// Capabilities `returns` this and the dataset's `item` IS this — one shape, no drift.
+// The row shape: every column a row answers — id, the owner (when scoped), every field
+// (typed, carrying its ref/enum stud), created_at, updated_at. Capabilities `returns`
+// this and the dataset's `item` IS this — one shape, no drift. A `list: true` field is
+// stored as JSON text and answered as an array (toRow), so its row type is a json list
+// of the field's type, not the type itself.
 function toRowField(field) {
-  const f = { name: field.name, type: field.type }
+  const f = field.list ? { name: field.name, type: 'json', of: field.type } : { name: field.name, type: field.type }
+  if (field.label) f.label = field.label
   if (field.ref) f.ref = field.ref
   if (field.enum) f.enum = field.enum
   return f
@@ -122,9 +126,14 @@ function defineCollection(def) {
   const byName = new Map(fields.map((f) => [f.name, f]))
 
   /* ── the Layer-A contract (pure data) ─────────────────────────────────── */
+  /* ⚠️ user_id and created_at were answered on every row and declared on none: the
+     smoke sweep (test/lib/smoke.mjs checkDeclaredDatasets) found them on all six of
+     KourOS's collections. */
   const item = [
     { name: 'id', type: 'number' },
+    ...(scoped ? [{ name: 'user_id', type: 'number', label: 'Owner' }] : []),
     ...fields.map(toRowField),
+    { name: 'created_at', type: 'string' },
     { name: 'updated_at', type: 'string' },
   ]
   const idField = { name: 'id', type: 'number', label: `${Noun} id`, required: true }

@@ -41,12 +41,14 @@ import { dirname, join } from 'node:path';
 import { cpSync, mkdirSync, mkdtempSync, renameSync, rmSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
+import { checkDeclaredDatasets } from '../../../../test/lib/smoke.mjs';
 
 const execFileAsync = promisify(execFile);
 const require = createRequire(import.meta.url);
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const BACKEND = join(__dirname, '..');
 const FIXTURES_DIR = join(__dirname, 'fixtures', 'library');
+const BOOKS_DIR = join(__dirname, 'fixtures', 'books', 'library');
 
 // Claimed in the suite-manifest port registry ('kouros:discover.smoke') — the
 // `port-registry` probe holds this literal to that claim.
@@ -747,7 +749,9 @@ try {
   const live = await boot({
     port: SPARE_PORTS[3], dbPath: join(tmp, 'live.db'), vectorDbPath: liveIndex,
     meshDbPath: liveMeshes, libraryRootName: 'Music', musicDir: liveLib, expectTracks: 2,
-    env: { DISCOVER_TTL_MS: String(TTL) },
+    // The audiobook fixtures too, for section 8's sweep — they are their own catalog
+    // (`books`), and never enter the music space.
+    env: { DISCOVER_TTL_MS: String(TTL), AUDIOBOOKS_DIR: BOOKS_DIR },
   });
   const before = (await req(live.base, 'GET', '/api/discover/stats')).json;
   ok(before?.tracks === 2 && before?.measured === 2 && before?.meshes?.meshes === 1,
@@ -802,6 +806,38 @@ try {
   const soloMesh = solo && (await req(live.base, 'GET', `/api/discover/mesh/${solo.id}`)).json;
   ok(soloMesh?.state === 'ok',
     `delivery: the upload's pulsarmap is served (got ${JSON.stringify(soloMesh?.state)})`);
+
+  /* ── 8. every dataset KourOS DECLARES answers what it declares ────────────────
+     The server above ends holding the whole fixture catalog, a fitted index, a mesh
+     for every track and the audiobook fixtures — the real rows a widget, weaveClient
+     or an AI composer reads against discovery.js. One row in each per-user
+     collection first, so no list is proven only by its brackets. */
+  const post = async (path, body) => {
+    const r = await fetch(live.base + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    return { status: r.status, json: await r.json().catch(() => null) };
+  };
+  let books = [];
+  for (const until = Date.now() + 20000; Date.now() < until && books.length < 2; await new Promise((r) => setTimeout(r, 250))) {
+    books = (await req(live.base, 'GET', '/api/books')).json || [];
+  }
+  const track = liveTracks[0];
+  const at = new Date().toISOString();
+  const seeded = await Promise.all([
+    post('/api/playlists', { name: 'Sweep', track_refs: String(track.id) }),
+    post('/api/history', { item_ref: track.id, started_at: at, ms_played: 1000, completed: false, context: `station/${track.id}` }),
+    post('/api/ratings', { track_ref: track.id, rating: 4 }),
+    post('/api/progress', { book_ref: books[0]?.id, position: 5, duration: 120, finished: false }),
+    post('/api/bookmarks', { book_ref: books[0]?.id, position: 5, title: 'Here' }),
+    post('/api/book_history', { item_ref: books[0]?.id, started_at: at, ms_played: 1000, completed: false }),
+  ]);
+  ok(seeded.every((r) => r.status === 201), `sweep: one row seeded in each per-user collection (got ${seeded.map((r) => r.status)})`);
+  const { DATASETS } = require('../discovery.js');
+  await checkDeclaredDatasets({
+    ok, doc: DATASETS, base: `${live.base}/api`,
+    params: { id: track.id, bookId: books[0]?.id },
+    query: { discoverRadio: { seed: String(track.id) }, discoverRun: { seed: String(track.id) }, discoverNear: { x: '0', y: '0', z: '0', w: '0' } },
+    skip: { metadataSearch: 'answers from the iTunes Search API — the network, not this server' },
+  });
 } catch (err) {
   fail++;
   console.error('  ✗ threw: ' + (err && err.stack || err));

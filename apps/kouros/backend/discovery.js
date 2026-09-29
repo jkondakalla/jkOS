@@ -292,7 +292,22 @@ const DEVICE_ID_FIELD = { name: 'deviceId', type: 'string', label: 'This device\
 
 const SESSION_DATASET = {
   id: 'session', label: 'The listening session', path: '/session',
+  cardinality: 'one',
   filters: [],
+  item: [
+    { name: 'session',   type: 'json', label: 'What is playing, where, from which queue, on which device', schema: SESSION_SCHEMA },
+    { name: 'devices',   type: 'json', label: 'Every device the listener has signed in from', item: [
+      { name: 'id',           type: 'string', label: 'The device\'s own UUID' },
+      { name: 'name',         type: 'string' },
+      { name: 'kind',         type: 'string' },
+      { name: 'platform',     type: 'string' },
+      { name: 'volume',       type: 'number' },
+      { name: 'muted',        type: 'boolean' },
+      { name: 'last_seen_at', type: 'string' },
+      { name: 'online',       type: 'boolean' },
+    ] },
+    { name: 'serverNow', type: 'string', label: 'The server clock, so a remote can extrapolate a playing position' },
+  ],
   description: 'The listener\'s one session — what is playing (item_ref), where (position_ms, '
     + 'reported_at, playing, rate), the queue it came from, and which device is the output — '
     + 'plus every device they have signed in from, each marked online or not, and serverNow '
@@ -488,7 +503,7 @@ const TRACK_SHAPE = [
   { name: 'track_no',    type: 'number' },
   { name: 'disc_no',     type: 'number' },
   { name: 'year',        type: 'number' },
-  { name: 'genres',      type: 'json',   label: 'Genre tags (string[])' , schema: 'Documentation/ARCHITECTURE.md' },
+  { name: 'genres',      type: 'json',   label: 'Genre tags', of: 'string' },
   { name: 'duration',    type: 'number', label: 'Duration, seconds' },
   { name: 'cover_path',  type: 'string', label: 'Cover image path relative to DATA_DIR (null if none extracted)' },
   { name: 'updated_at',  type: 'string', label: 'Last catalog update (delta cursor for `since`)' },
@@ -527,7 +542,7 @@ const BOOK_SHAPE = [
   { name: 'series',          type: 'string' },
   { name: 'series_seq',      type: 'number' },
   { name: 'year',            type: 'number' },
-  { name: 'genres',          type: 'json',   label: 'Genre tags (string[])' , schema: 'Documentation/ARCHITECTURE.md' },
+  { name: 'genres',          type: 'json',   label: 'Genre tags', of: 'string' },
   { name: 'duration',        type: 'number', label: 'Total duration, seconds' },
   { name: 'cover_path',      type: 'string', label: 'Cover image path relative to the books data dir (null if none extracted)' },
   { name: 'metadata_source', type: 'enum',   enum: ['embedded', 'itunes', 'manual'] },
@@ -537,7 +552,23 @@ const BOOK_SHAPE = [
 
 const BOOK_DATASET = {
   id: 'book', label: 'One audiobook, in full', path: '/book/:bookId',
+  cardinality: 'one',
   filters: [],
+  item: [
+    ...BOOK_SHAPE,
+    { name: 'description', type: 'text' },
+    { name: 'files', type: 'json', label: 'The per-file manifest, in play order', item: [
+      { name: 'index',        type: 'number' },
+      { name: 'duration',     type: 'number', label: 'Seconds' },
+      { name: 'codec',        type: 'string' },
+      { name: 'compat_ready', type: 'boolean', label: 'A Firefox-safe remux is already on disk' },
+    ] },
+    { name: 'chapters', type: 'json', label: 'Chapters across the whole book', item: [
+      { name: 'start', type: 'number', label: 'Seconds from the start of the book' },
+      { name: 'end',   type: 'number' },
+      { name: 'title', type: 'string' },
+    ] },
+  ],
   description: 'The list row plus the per-file manifest — including compat_ready, so a player '
     + 'knows it can start on the Firefox-safe remux instead of discovering a decode failure — '
     + 'the chapters, and the description.',
@@ -594,6 +625,16 @@ const BROWSE_DATASETS = [
       { name: 'limit', type: 'number', label: 'How many', computed: true },
       { name: 'offset', type: 'number', label: 'Skip', computed: true },
     ],
+    item: [
+      { name: 'album',     type: 'string' },
+      { name: 'artist',    type: 'string' },
+      { name: 'year',      type: 'number' },
+      { name: 'tracks',    type: 'number' },
+      { name: 'duration',  type: 'number', label: 'Seconds' },
+      { name: 'added',     type: 'string', label: 'When its newest track entered the catalog' },
+      { name: 'anchor_id', type: 'ref', ref: 'kouros.tracks', label: 'A track on it (what its cover and a play start from)' },
+      { name: 'cover_id',  type: 'ref', ref: 'kouros.tracks', label: 'The track whose cover stands for the album (null if none)' },
+    ],
   },
   {
     app: 'kouros', id: 'artists', label: 'Artists',
@@ -602,13 +643,49 @@ const BROWSE_DATASETS = [
       { name: 'limit', type: 'number', label: 'How many', computed: true },
       { name: 'offset', type: 'number', label: 'Skip', computed: true },
     ],
+    item: [
+      { name: 'artist',   type: 'string' },
+      { name: 'tracks',   type: 'number' },
+      { name: 'albums',   type: 'number' },
+      { name: 'duration', type: 'number', label: 'Seconds' },
+      { name: 'cover_id', type: 'ref', ref: 'kouros.tracks', label: 'The track whose cover stands for the artist (null if none)' },
+    ],
   },
   {
     app: 'kouros', id: 'libraryStats', label: 'Library totals',
     path: '/library/stats',
+    cardinality: 'one',
     filters: [],
+    item: [
+      { name: 'tracks',   type: 'number' },
+      { name: 'albums',   type: 'number' },
+      { name: 'artists',  type: 'number' },
+      { name: 'duration', type: 'number', label: 'Seconds, the whole library' },
+    ],
   },
 ];
+
+/* ── The discovery reads answer DOCUMENTS ─────────────────────────────────────────
+   similar/radio/run/near answer { basis, results } — which basis ranked them, and
+   whether the space is calibrated, beside the rows — and declared a bare TRACK row,
+   so a reader trusting the declaration read the envelope as no tracks. They declare
+   cardinality 'one' now, with the rows inline in `results`. A hit is not a catalog
+   row: it carries the ranking (score / step / distance) and a has_cover flag, and
+   none of the catalog's file-level columns. */
+const HIT = [
+  { name: 'id',        type: 'number' },
+  { name: 'title',     type: 'string' },
+  { name: 'artist',    type: 'string' },
+  { name: 'album',     type: 'string' },
+  { name: 'year',      type: 'number' },
+  { name: 'duration',  type: 'number', label: 'Seconds' },
+  { name: 'genres',    type: 'json',   of: 'string' },
+  { name: 'has_cover', type: 'boolean' },
+];
+const ALGORITHMS = 'Documentation/agents/ALGORITHMS.md';
+/* Present only once a space exists: a seed the space has never seen answers
+   { basis: 'none', results: [] } and nothing else. */
+const CALIBRATED = { name: 'calibrated', type: 'boolean', label: 'Scores are over the fitted geometry (§4)', optional: true };
 
 const DISCOVER_DATASETS = [
   {
@@ -616,7 +693,27 @@ const DISCOVER_DATASETS = [
     path: '/discover/stats',
     // Not a track list: how much of the library the embedder has reached. Every
     // "why is this rail empty?" question in the UI is answered from here.
+    cardinality: 'one',
     filters: [],
+    item: [
+      { name: 'tracks',         type: 'number', label: 'Catalog rows' },
+      { name: 'dim',            type: 'number', label: 'Vector dimensions (0: no space yet)' },
+      { name: 'arm',            type: 'string', label: 'Which embedding arm the space was built from' },
+      { name: 'measured',       type: 'number', label: 'Tracks with their own vector' },
+      { name: 'inferred',       type: 'number', label: 'Tracks placed from their neighbours' },
+      { name: 'byPath',         type: 'number', label: 'Resolved on the exact path' },
+      { name: 'byRelPath',      type: 'number', label: 'Resolved on the root-relative path' },
+      { name: 'byContentKey',   type: 'number', label: 'Resolved on the artist/album/title key' },
+      { name: 'covered',        type: 'number' },
+      { name: 'uncovered',      type: 'number' },
+      { name: 'coverage',       type: 'number', label: 'covered / tracks, 0..1' },
+      { name: 'features',       type: 'json',   label: 'The descriptor features, when the index carries them', schema: ALGORITHMS },
+      { name: 'calibrated',     type: 'boolean' },
+      { name: 'strangerMean',   type: 'number', label: 'Mean score between unrelated tracks (§4)' },
+      { name: 'strangerSpread', type: 'number' },
+      { name: 'map',            type: 'json',   label: 'The vibe space basis: {available, held, reason, mode}', schema: ALGORITHMS },
+      { name: 'meshes',         type: 'json',   label: 'The pulsarmap store: {available, meshes, failed, recipe, source}', schema: ALGORITHMS },
+    ],
   },
   {
     app: 'kouros', id: 'discoverMesh', label: "One track's pulsarmap",
@@ -627,13 +724,36 @@ const DISCOVER_DATASETS = [
     // has to say so — and a mesh is a new noun, not another way to address a
     // track row. Hence its own entry, and deliberately no `item: TRACK_SHAPE`:
     // the response is one picture, not a list of tracks.
+    cardinality: 'one',
     filters: [],
+    /* 'ok' carries the picture; 'pending' (not reached yet), 'failed' (tried and could
+       not) and 'unavailable' (no store) carry only the state and the track. */
+    item: [
+      { name: 'track_id',    type: 'number' },
+      { name: 'state',       type: 'enum', enum: ['ok', 'pending', 'failed', 'unavailable'] },
+      { name: 'key',         type: 'string', optional: true },
+      { name: 'error',       type: 'string', optional: true },
+      { name: 'rows',        type: 'number', optional: true },
+      { name: 'bands',       type: 'number', optional: true },
+      { name: 'row_seconds', type: 'number', optional: true },
+      { name: 'value_range', type: 'json', of: 'number', optional: true },
+      { name: 'reduction',   type: 'string', optional: true },
+      { name: 'config_sig',  type: 'string', optional: true },
+      { name: 'duration',    type: 'number', optional: true },
+      { name: 'data',        type: 'string', label: 'rows × bands bytes, base64', optional: true },
+    ],
   },
   {
     app: 'kouros', id: 'discoverSimilar', label: 'Tracks similar to one track',
     path: '/discover/similar/:id',
+    cardinality: 'one',
     filters: [{ name: 'k', type: 'number', label: 'How many', computed: true }],
-    item: TRACK_SHAPE,
+    item: [
+      { name: 'basis',       type: 'string', label: 'What ranked them: the embedding, metadata, or none' },
+      { name: 'seed_origin', type: 'string', label: 'Whether the seed was measured or inferred', optional: true },
+      CALIBRATED,
+      { name: 'results', type: 'json', item: [...HIT, { name: 'score', type: 'number' }, { name: 'basis', type: 'string' }] },
+    ],
   },
   {
     app: 'kouros', id: 'discoverRadio', label: 'An endless station around seed tracks',
@@ -642,7 +762,12 @@ const DISCOVER_DATASETS = [
       { name: 'seed', type: 'string', label: 'Seed track ids (comma-separated)', required: true, computed: true },
       { name: 'k', type: 'number', label: 'How many', computed: true },
     ],
-    item: TRACK_SHAPE,
+    cardinality: 'one',
+    item: [
+      { name: 'basis', type: 'string', label: 'What ranked them: the embedding, metadata, or none' },
+      CALIBRATED,
+      { name: 'results', type: 'json', item: [...HIT, { name: 'score', type: 'number' }, { name: 'basis', type: 'string' }] },
+    ],
   },
   {
     app: 'kouros', id: 'discoverRun', label: 'A sequenced set with an arc',
@@ -652,12 +777,43 @@ const DISCOVER_DATASETS = [
       { name: 'length', type: 'number', label: 'How many tracks', computed: true },
       { name: 'arc', type: 'enum', label: 'Shape', enum: ['rise', 'fall', 'flat'], computed: true },
     ],
-    item: TRACK_SHAPE,
+    cardinality: 'one',
+    item: [
+      { name: 'arc', type: 'string', label: 'The shape it was sequenced to (none: no space)' },
+      CALIBRATED,
+      { name: 'results', type: 'json', label: 'In play order', item: [
+        ...HIT,
+        { name: 'step',   type: 'number' },
+        { name: 'energy', type: 'number', label: 'Energy percentile at this step (null without descriptors)' },
+        { name: 'basis',  type: 'string' },
+      ] },
+    ],
   },
   {
     app: 'kouros', id: 'discoverMap', label: 'The vibe space — every covered track in 3-D, along an energy rail',
     path: '/discover/map',
+    cardinality: 'one',
     filters: [],
+    /* Unavailable (no space, a held basis, too few measured tracks) answers
+       { available: false, reason, held? } and nothing else. */
+    item: [
+      { name: 'available', type: 'boolean' },
+      { name: 'reason',    type: 'string',  optional: true },
+      { name: 'held',      type: 'boolean', optional: true },
+      { name: 'coverage',  type: 'json',    label: 'discoverStats, as the map saw it', schema: 'kouros.discoverStats', optional: true },
+      { name: 'total',     type: 'number',  optional: true },
+      { name: 'measured',  type: 'number',  optional: true },
+      { name: 'anchor',    type: 'json',    label: 'The energy rail: {feature, low, high, spearman}', schema: ALGORITHMS, optional: true },
+      { name: 'axes',      type: 'json',    label: 'What x/y/z mean: [{feature, r, low, high}]', schema: ALGORITHMS, optional: true },
+      { name: 'stops',     type: 'json',    of: 'number', optional: true },
+      { name: 'regions',   type: 'json',    label: 'Labelled neighbourhoods', optional: true, item: [
+        { name: 'id', type: 'number' }, { name: 'label', type: 'string' },
+        { name: 'x', type: 'number' }, { name: 'y', type: 'number' }, { name: 'z', type: 'number' }, { name: 'w', type: 'number' },
+        { name: 'count', type: 'number' },
+      ] },
+      { name: 'basis',     type: 'json',    label: 'The fitted basis: {mode, nFit, calib, fittedAt}', schema: ALGORITHMS, optional: true },
+      { name: 'packed',    type: 'json',    label: 'Every covered track, base64-packed: {n, ids, xyz, w, flags}', schema: ALGORITHMS, optional: true },
+    ],
   },
   {
     app: 'kouros', id: 'discoverNear', label: 'What sits near a point in the vibe space',
@@ -669,7 +825,10 @@ const DISCOVER_DATASETS = [
       { name: 'w', type: 'number', label: 'Energy percentile, in [0, 1]', required: true, computed: true },
       { name: 'k', type: 'number', label: 'How many', computed: true },
     ],
-    item: TRACK_SHAPE,
+    cardinality: 'one',
+    item: [
+      { name: 'results', type: 'json', label: 'Nearest first', item: [...HIT, { name: 'distance', type: 'number' }] },
+    ],
   },
   {
     app: 'kouros', id: 'discoverHome', label: 'The home rails, assembled in one request',
@@ -677,6 +836,32 @@ const DISCOVER_DATASETS = [
     // `hour` is the LISTENER's local hour: the server clock is UTC in a
     // container, and "morning" is a property of where the listener is.
     filters: [{ name: 'hour', type: 'number', label: "Listener's local hour (0–23)", computed: true }],
+    cardinality: 'one',
+    item: [
+      { name: 'stats',          type: 'json', label: 'discoverStats, once, for the whole page', schema: 'kouros.discoverStats' },
+      { name: 'time_of_day',    type: 'json', label: 'The rail for this hour: {slot, label, basis, results}', schema: ALGORITHMS },
+      { name: 'runs',           type: 'json', label: 'Sequenced sets from recent listening', schema: ALGORITHMS },
+      { name: 'deep_in',        type: 'json', label: 'What the listener keeps returning to', schema: ALGORITHMS },
+      { name: 'recent',         type: 'json', label: 'Recently played, by context', item: [
+        { name: 'kind', type: 'enum', enum: ['album', 'artist', 'playlist', 'station', 'book'] },
+        { name: 'title', type: 'string' }, { name: 'subtitle', type: 'string' },
+        { name: 'cover', type: 'json', label: 'The art to show (null: none)', item: [
+          { name: 'kind', type: 'enum', enum: ['track', 'book'] }, { name: 'id', type: 'number' },
+        ] },
+        { name: 'seed', type: 'ref', ref: 'kouros.tracks', label: "A station's seed track", optional: true },
+        { name: 'route', type: 'string' }, { name: 'played_at', type: 'string' },
+      ] },
+      { name: 'continue_books', type: 'json', label: 'Unfinished audiobooks', item: [
+        { name: 'id', type: 'number' }, { name: 'title', type: 'string' }, { name: 'author', type: 'string' },
+        { name: 'has_cover', type: 'boolean' }, { name: 'duration', type: 'number' }, { name: 'position', type: 'number' },
+        { name: 'played_at', type: 'string' },
+      ] },
+      { name: 'fresh_albums',   type: 'json', label: 'Albums newest to the catalog', item: [
+        { name: 'album', type: 'string' }, { name: 'artist', type: 'string' }, { name: 'year', type: 'number' },
+        { name: 'tracks', type: 'number' }, { name: 'duration', type: 'number' },
+        { name: 'anchor_id', type: 'ref', ref: 'kouros.tracks' }, { name: 'added', type: 'string' },
+      ] },
+    ],
   },
 ];
 
