@@ -168,3 +168,52 @@ export function useDataSources(
 
   return { data, status };
 }
+
+/** The one state a card with sources is in. */
+export type CardState =
+  | { kind: 'ready'; stale?: { app: string } }
+  | { kind: 'loading' }
+  | { kind: 'empty' }
+  | { kind: 'signed-out' }
+  | { kind: 'forbidden'; error?: string }
+  | { kind: 'offline'; app: string }
+  | { kind: 'unavailable'; error?: string };
+
+/**
+ * Fold each source's state into the card's — what the FRAME draws, so no widget author
+ * has to (and none can forget): a signed-out viewer is asked to sign in, a down app is
+ * named, a first read shows loading, and only when every source answered nothing is the
+ * card empty. In that order, because it is the order a person needs them in:
+ *
+ *   signed-out   any source — nothing else can be read until they sign in
+ *   forbidden    any source, with nothing to show
+ *   unavailable  any source (undeclared, a lying answer, a refused URL)
+ *   offline      a source with no data yet; one that had data stays READY, marked stale
+ *   loading      a source with no answer yet
+ *   empty        every source answered, and answered nothing
+ *   ready        otherwise (an `idle` source — a parameter not known yet — is the body's
+ *                business: it has asked for nothing)
+ */
+export function cardState(
+  sources: Record<string, DataSource> | undefined,
+  status: Record<string, SourceStatus>,
+  data: Record<string, unknown>,
+): CardState {
+  const names = Object.keys(sources ?? {});
+  if (!names.length) return { kind: 'ready' };
+  const st = (n: string): SourceState => status[n]?.state ?? 'loading';
+  const has = (n: string) => n in data;
+  const appOf = (n: string) => { const s = sources![n]; return s.kind === 'dataset' ? s.app : new URL(s.url, 'https://x').hostname; };
+
+  if (names.some((n) => st(n) === 'signed-out')) return { kind: 'signed-out' };
+  const forbidden = names.find((n) => st(n) === 'forbidden' && !has(n));
+  if (forbidden) return { kind: 'forbidden', error: status[forbidden]?.error };
+  const broken = names.find((n) => st(n) === 'unavailable' || st(n) === 'refused');
+  if (broken) return { kind: 'unavailable', error: status[broken]?.error };
+  const down = names.find((n) => st(n) === 'offline' && !has(n));
+  if (down) return { kind: 'offline', app: appOf(down) };
+  if (names.some((n) => st(n) === 'loading' && !has(n))) return { kind: 'loading' };
+  if (names.every((n) => st(n) === 'empty')) return { kind: 'empty' };
+  const stale = names.find((n) => st(n) === 'offline');
+  return stale ? { kind: 'ready', stale: { app: appOf(stale) } } : { kind: 'ready' };
+}

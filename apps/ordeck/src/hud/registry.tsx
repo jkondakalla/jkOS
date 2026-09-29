@@ -37,12 +37,13 @@ import {
 } from '../pages/hud/useHudData';
 import { WeekView, type CalendarItem, type CardResolvers } from '@jkos/cards';
 import type { Binding, CommandRef, ComponentName, IconName, Tone, ToneBinding, WidgetDef, WidgetNode, WidgetSpec } from './types';
-import { useDataSources } from './sources';
+import { useDataSources, cardState, type CardState } from './sources';
+import './widgets.css';
 import { TONE_COLOR } from './tone';
 import { safeHref, sourcesOf } from '@jkos/widgets';
 import { usesAi } from './ai';
 import { clearHudFocus } from '../lib/shelf';
-import { Field, SelectField, Check } from '@jkos/ui';
+import { Field, SelectField, Check, AsyncView } from '@jkos/ui';
 import ErrorBoundary from '../components/ErrorBoundary';
 
 const MO_FULL = ['January', 'February', 'March', 'April', 'May', 'June',
@@ -310,13 +311,39 @@ export function renderNode(node: WidgetNode, scope: Scope): ReactNode {
 /** The eyebrow + right-aligned source row at the top of a card. One definition
  *  for the spec frame and every bespoke card, instead of the same inline div
  *  copy-pasted per component. Renders nothing when both captions are empty. */
-function CardHead({ eyebrow, source }: { eyebrow?: string; source?: string }) {
-  if (!eyebrow && !source) return null;
+function CardHead({ eyebrow, source, stale }: { eyebrow?: string; source?: string; stale?: string }) {
+  if (!eyebrow && !source && !stale) return null;
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
       {eyebrow && <span className="hud-eyebrow">{eyebrow}</span>}
-      {source && <span className="hud-eyebrow-src" style={{ marginLeft: 'auto' }}>{source}</span>}
+      {(source || stale) && (
+        <span className="hud-eyebrow-src" style={{ marginLeft: 'auto' }}>
+          {source}{stale && <span className="hud-widget-stale">{source ? ' · ' : ''}{stale}</span>}
+        </span>
+      )}
     </div>
+  );
+}
+
+/** What the frame draws instead of the body, for every state but ready. The copy is the
+ *  suite's (AsyncView's italic off-state note); only the empty line is the author's. */
+function stateView(state: CardState, emptyText: string, authUrl: string): ReactNode {
+  const appName = (id: string) => suiteApp(id as Parameters<typeof suiteApp>[0])?.label ?? id;
+  // A fault reads in the error ink; being signed out is not a fault, so it takes the
+  // neutral note, with the way in beside it.
+  const fault =
+    state.kind === 'offline' ? `${appName(state.app)} is offline.`
+    : state.kind === 'forbidden' ? 'Not available to your account.'
+    : state.kind === 'unavailable' ? <span title={state.error}>Unavailable.</span>
+    : null;
+  const neutral = state.kind === 'signed-out'
+    ? <>Sign in to see this.<a href={safeHref(authUrl)}>SIGN IN →</a></>
+    : emptyText;
+  return (
+    <AsyncView className="hud-widget-state" loading={state.kind === 'loading'} error={fault != null}
+      empty={state.kind === 'empty' || state.kind === 'signed-out'} errorText={fault} emptyText={neutral}>
+      {null}
+    </AsyncView>
   );
 }
 
@@ -668,18 +695,27 @@ function SpecWidget({ spec, ctx }: { spec: WidgetSpec; ctx: WidgetCtx }) {
   // loading, signed-out, offline… (./sources.ts), so a card can tell "nothing" from "down".
   const { data, status } = useDataSources(spec.sources, base);
   const scope: Scope = { ...base, ...data, $sources: status };
-  const body = renderNode(spec.body, scope);
+  // The FRAME owns the states — loading, offline, signed-out, forbidden, unavailable,
+  // empty — so no author draws them and none can forget one (sources.ts cardState).
+  const state = cardState(spec.sources, status, data);
   const f = spec.frame;
+  const emptyText = f?.empty != null ? str(resolve(f.empty, scope)) : 'Nothing here yet.';
+  const body = state.kind === 'ready' ? renderNode(spec.body, scope) : stateView(state, emptyText, ctx.authUrl);
 
   // No frame: the body is a self-contained card (a molecule, or chrome:false
-  // raw content). Render it bare so it fills the grid cell directly.
-  if (!f) return <>{body}</>;
+  // raw content). Render it bare so it fills the grid cell directly — unless it is
+  // standing in for a state, which gets a card to stand in.
+  if (!f) {
+    return state.kind === 'ready' ? <>{body}</>
+      : <div className="hud-card" style={{ padding: 14, display: 'flex', flexDirection: 'column', height: '100%' }}>{body}</div>;
+  }
 
   const eyebrow = f.eyebrow != null ? str(resolve(f.eyebrow, scope)) : '';
   const source = f.source != null ? str(resolve(f.source, scope)) : '';
   const href = f.href != null ? safeHref(resolve(f.href, scope)) : undefined;
+  const stale = state.kind === 'ready' && state.stale ? 'OFFLINE' : undefined;
 
-  const head = <CardHead eyebrow={eyebrow} source={source} />;
+  const head = <CardHead eyebrow={eyebrow} source={source} stale={stale} />;
 
   const inner = <>{head}{body}</>;
   const cls = f.chrome === false ? 'hud-spec-raw' : 'hud-card';

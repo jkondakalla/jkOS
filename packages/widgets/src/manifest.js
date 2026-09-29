@@ -290,6 +290,7 @@ export const FRAME = {
   source: { type: 'binding' },
   href: { type: 'binding', href: true },
   chrome: { type: 'boolean', doc: 'bordered card surface (default true); false for raw-on-background' },
+  empty: { type: 'binding', doc: "what the card says when every source answered nothing (default 'Nothing here yet.') — the frame draws loading, offline and signed-out itself" },
 }
 
 /** The node kinds, in catalog order. */

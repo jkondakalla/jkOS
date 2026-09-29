@@ -150,6 +150,8 @@ export interface WidgetFrame {
   href?: Binding;
   /** Bordered card surface (default true). Set false for raw-on-background (clock). */
   chrome?: boolean;
+  /** The empty state's copy, when every source answered nothing. */
+  empty?: Binding;
 }
 
 export interface WidgetSpec {

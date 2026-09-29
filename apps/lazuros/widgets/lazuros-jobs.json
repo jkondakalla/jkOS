@@ -2,19 +2,38 @@
   "id": "lazuros-jobs",
   "label": "LazurOS Jobs",
   "sizing": {
-    "desktop": { "w": 4, "h": 6 },
-    "mobile": { "w": 2, "h": 5 },
-    "min": { "w": 3, "h": 4 }
+    "desktop": {
+      "w": 4,
+      "h": 6
+    },
+    "mobile": {
+      "w": 2,
+      "h": 5
+    },
+    "min": {
+      "w": 3,
+      "h": 4
+    }
   },
   "spec": {
-    "frame": { "eyebrow": "LAZUROS", "source": "JOBS" },
+    "frame": {
+      "eyebrow": "LAZUROS",
+      "source": "JOBS",
+      "empty": "No jobs yet — ask LazurOS something."
+    },
     "sources": {
-      "jobs": { "kind": "dataset", "app": "lazuros", "dataset": "jobs", "poll": 8 }
+      "jobs": {
+        "kind": "dataset",
+        "app": "lazuros",
+        "dataset": "jobs",
+        "poll": 8
+      }
     },
     "body": {
       "t": "list",
-      "from": { "src": "jobs" },
-      "empty": "NO JOBS YET",
+      "from": {
+        "src": "jobs"
+      },
       "item": {
         "t": "stack",
         "gap": 2,
@@ -26,17 +45,61 @@
             "children": [
               {
                 "t": "pill",
-                "text": { "src": "$", "path": "status", "map": { "IN_PROGRESS": "RUNNING", "PENDING_WAKEUP": "WAKING" } },
-                "tone": { "src": "$", "path": "status", "map": { "DONE": "ok", "FAILED": "danger", "IN_PROGRESS": "accent", "PENDING_WAKEUP": "warn" }, "fallback": "muted" }
+                "text": {
+                  "src": "$",
+                  "path": "status",
+                  "map": {
+                    "IN_PROGRESS": "RUNNING",
+                    "PENDING_WAKEUP": "WAKING"
+                  }
+                },
+                "tone": {
+                  "src": "$",
+                  "path": "status",
+                  "map": {
+                    "DONE": "ok",
+                    "FAILED": "danger",
+                    "IN_PROGRESS": "accent",
+                    "PENDING_WAKEUP": "warn"
+                  },
+                  "fallback": "muted"
+                }
               },
-              { "t": "text", "text": { "src": "$", "path": "capability" }, "variant": "mono", "grow": true },
-              { "t": "text", "text": { "src": "$", "path": "created_at", "fmt": "ago" }, "variant": "sub" }
+              {
+                "t": "text",
+                "text": {
+                  "src": "$",
+                  "path": "capability"
+                },
+                "variant": "mono",
+                "grow": true
+              },
+              {
+                "t": "text",
+                "text": {
+                  "src": "$",
+                  "path": "created_at",
+                  "fmt": "ago"
+                },
+                "variant": "sub"
+              }
             ]
           },
           {
             "t": "when",
-            "cond": { "src": "$", "path": "error" },
-            "then": { "t": "text", "text": { "src": "$", "path": "error" }, "variant": "sub", "grow": true }
+            "cond": {
+              "src": "$",
+              "path": "error"
+            },
+            "then": {
+              "t": "text",
+              "text": {
+                "src": "$",
+                "path": "error"
+              },
+              "variant": "sub",
+              "grow": true
+            }
           }
         ]
       }

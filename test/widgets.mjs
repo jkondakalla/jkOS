@@ -198,6 +198,20 @@ for (const f of readdirSync(HUD).filter((n) => n.endsWith('.tsx'))) {
     "liveReader: a dataset is read through its declaration, and hands back the dataset's invalidation keys to subscribe");
   check(JSON.stringify(src.resolveParams({ job_id: { src: '$result', path: 'job_id' }, status: 'DONE', gone: { src: 'x' } }, { $result: { job_id: 'j9' } }))
     === JSON.stringify({ job_id: 'j9', status: 'DONE', gone: null }), 'resolveParams: bindings resolve against the scope; a missing one is null (the read goes idle)');
+
+  // The frame's state: what a card shows instead of its body. The ORDER is the contract.
+  const TWO = { a: { kind: 'dataset', app: 'lazuros', dataset: 'jobs' }, b: { kind: 'dataset', app: 'kouros', dataset: 'tracks' } };
+  const cs = (a, b, data = {}) => src.cardState(TWO, { a: { state: a }, b: { state: b } }, data).kind;
+  check(src.cardState(undefined, {}, {}).kind === 'ready', 'cardState: a widget with no sources is ready (its slices carry their own flags)');
+  check(cs('signed-out', 'ready', { b: [1] }) === 'signed-out', 'cardState: signed-out wins over data — nothing else can be read until they sign in');
+  check(cs('forbidden', 'loading') === 'forbidden', 'cardState: forbidden, with nothing to show');
+  check(cs('unavailable', 'ready', { b: [1] }) === 'unavailable' && cs('refused', 'ready', { b: [1] }) === 'unavailable', 'cardState: an undeclared or refused source is unavailable');
+  check(src.cardState(TWO, { a: { state: 'offline' }, b: { state: 'loading' } }, {}).app === 'lazuros', 'cardState: a down source with no data names its app');
+  check(cs('loading', 'ready', { b: [1] }) === 'loading', 'cardState: loading while any source has no first answer');
+  check(cs('empty', 'empty', { a: [], b: [] }) === 'empty' && cs('empty', 'ready', { a: [], b: [1] }) === 'ready', 'cardState: empty only when EVERY source answered nothing');
+  const stale = src.cardState(TWO, { a: { state: 'offline' }, b: { state: 'ready' } }, { a: [1], b: [1] });
+  check(stale.kind === 'ready' && stale.stale?.app === 'lazuros', 'cardState: a source that had data and then went offline keeps it, marked stale');
+  check(cs('idle', 'ready', { b: [1] }) === 'ready', "cardState: an idle source (a parameter not known yet) is the body's business");
 }
 
 // ── 7. an async command is followed to its answer ───────────────────────────
