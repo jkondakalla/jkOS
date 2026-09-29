@@ -238,7 +238,7 @@
 .hud-p-rows, .hud-p-feed {
   display: grid; align-content: start; flex: 1 1 auto; min-height: 0;
   grid-template-columns: [mark] auto [lead] auto [main] minmax(0, 1fr) [end] auto;
-  overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin;
+  overflow-y: auto; overscroll-behavior: contain;
 }
 .hud-p-row, .hud-p-event {
   grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; align-items: center;
