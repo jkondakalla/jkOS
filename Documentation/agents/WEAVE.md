@@ -291,10 +291,14 @@ refusing the future, not the past. Held by `check:rulings`.
   the only property that makes a retry *recognisable* as one. A random key satisfies "has a
   key" and defeats the entire mechanism.
 
-✅ **The fan-out half LANDED (Stage E6)**, and is held by `check:rulings`. `weaveClient` used to
-return `[]` on *any* miss — unknown dataset, non-2xx, thrown fetch — so "the peer is down" and
-"the peer has no rows" were the same value to the caller. It now returns an explicit per-app
-status list and a `partial` flag.
+✅ **The fan-out half LANDED (Stage E6)**, and is held by `check:rulings`: `fetchActivity` returns
+an explicit per-app status list and a `partial` flag. ⚠️ **This line used to say `weaveClient` did,
+and it did not** — `weaveClient.list` kept answering `[]` on *any* miss (unknown dataset, non-2xx,
+thrown fetch), so "the peer is down" and "the peer has no rows" were one value. Since 2026-09-29
+there is one read, `readDataset` (`weaveClient(app).read`), which answers a STATE beside the data —
+`ready`, `empty`, `idle`, `signed-out`, `forbidden`, `offline`, `unavailable` — and `list` is built
+on it for the callers that genuinely draw every failure alike. Anything shown to a person reads
+`read`; the widget renderer does (`check:widgets` pins each state).
 ⚠️ **I broke this rule myself in D6** and it is worth knowing why: `fetchActivity` returned a
 bare array and mapped a dead peer, a 403 and an unreadable doc all to "contributed nothing",
 indistinguishable from "did nothing". Failing soft is right; failing soft INVISIBLY is not.

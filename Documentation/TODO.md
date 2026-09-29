@@ -257,22 +257,18 @@ LazurOS `widget-generate` is enabled but wired later (§5).
 **Done 2026-09-28:** registry integrity (migration 023, 413 not truncation), relative declared
 paths (LazurOS's Ask widget could never have reached its route), `safeHref`, `@jkos/widgets`
 (manifest, validator, one walker, generated `WidgetNode` union; jkAuth validates every publish),
-and the render harness (`pnpm widget list|check|shot`, `check:widget-render`). Remaining, in order:
+and the render harness (`pnpm widget list|check|shot`, `check:widget-render`). **Done
+2026-09-29:** data binds to declarations — sources by `kind` (a `dataset` read through its
+declaration with a reported state; same-origin `fetch` refused by the renderer, the validator
+and jkAuth), `cardinality` and every app's smoke sweeping its datasets (27 mismatches found and
+fixed), `map`/`fmt`/`eq`/`in`/`not`, `$result` with async jobs followed through a common jobs
+shape (probe 86), declared HUD slices, `ai` derived and enforced where a widget renders, and a
+second validation tier. Remaining, in order:
 
-- **Data binds to declarations.** The source discriminator `from` → `kind` (it collides with
-  weave's `{from}` binding). `{kind:'dataset', app, dataset, params}` through `fetchDatasets`,
-  auto-subscribing the dataset's `invalidates`, with a fetch that reports offline/401/empty
-  instead of `[]`. `DatasetDef.cardinality` for one-document datasets (KourOS `session`,
-  `libraryStats`). Same-origin `fetch` refused: a widget reads only what an app declares.
-  `fmt`/`map`/`{eq,in,not}` in weave's one binding model. `$result` on form/button, and
-  following an async job through a common declared `jobs` shape (probe 86). One declared shape
-  per HUD slice, replacing the hand-kept `HUD_SCHEMA`/`HUD_ITEM_FIELDS` (already drifted). `ai`
-  derived from the bound app. Validator tier 2 against each app's discovery doc, and each
-  app's smoke proving a bound dataset's declared `item` matches the rows it returns.
 - **Frame, patterns, the visual pass.** The frame owns loading/offline/signed-out/empty
   (through `AsyncView`); patterns `stat`/`rows`/`media`/`ask`/`facts`/`feed`/`meter`; molecules
   declared in the manifest (retiring the `component` hatch); one `widgets.css` (no inline pixel
-  styles, `--color-accent` not `--hub-amber`, container-query density); delete `CardFrame`.
+  styles, `--color-accent` not `--hub-amber`, container-query density).
   ⚠️ **You review before/after contact sheets before any built-in migrates.** Drive
   `test/widget-render.baseline.json` to empty — today's 49 findings include the clock's seconds
   colliding at mobile width and Weather/Today/Systems spilling at the smallest footprint.
@@ -291,8 +287,7 @@ and the render harness (`pnpm widget list|check|shot`, `check:widget-render`). R
 Found on the way, not in scope: the AccuWeather key sits in `localStorage` and request URLs
 (ORDECK has no backend to host a `defineConnector`); ORDECK's `BbItem` is hand-typed rather
 than BeigeBoard's `ITEM_SHAPE`; `doc`/`description` and `scope`/`scopes` are spelled both ways
-across apps (the prober misses LazurOS's scopes); WEAVE.md §3 says `weaveClient` returns a
-per-app status list, and it does not.
+across apps (the prober misses LazurOS's scopes).
 
 ---
 
