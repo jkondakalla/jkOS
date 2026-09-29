@@ -23,6 +23,7 @@
  * fires on load, before React has anything).
  */
 
+import './clock';   // FIRST: the page's Date is pinned before anything reads it
 import { StrictMode } from 'react';
 import ReactDOM from 'react-dom/client';
 import { injectJkOSTheme, applyJkOSMode, applyJkOSMotion, applyJkOSTheme, ACCENT_SCHEMES } from '@jkos/design';

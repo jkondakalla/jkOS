@@ -13,6 +13,7 @@
  */
 
 import type { HudFocus, HudPin } from '@jkos/auth-client';
+import { PINNED_MS } from './clock';
 import type { WidgetCtx } from '../src/hud/registry';
 import {
   clockState, viewWeather, viewSystems, sysRow, selectToday, selectMonth, selectCalendarItems,
@@ -22,9 +23,10 @@ import {
 export type PreviewState = 'ready' | 'empty' | 'offline' | 'signed-out' | 'loading';
 export const PREVIEW_STATES: PreviewState[] = ['ready', 'empty', 'offline', 'signed-out', 'loading'];
 
-/** The clock is pinned, so every preview of a clock reads the same. The selectors
- *  date "today" from the real calendar, so the sample items are dated from it too. */
-const PINNED = new Date(2026, 8, 28, 9, 41, 27);
+/** The clock is pinned (./clock.ts pins the page's Date to the same instant), so every
+ *  preview reads the same — and "today", which the selectors date from `new Date()`, is
+ *  the pinned day too. */
+const PINNED = new Date(PINNED_MS);
 
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const dayOffset = (n: number) => { const d = new Date(); d.setDate(d.getDate() + n); return iso(d); };
