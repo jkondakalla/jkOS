@@ -102,7 +102,7 @@ export interface WeatherState {
   slots: WeatherSlot[];
   // ── derived (presentation-ready for the spec factory) ──
   ready: boolean;          // loaded && !offline — bind the main body to this
-  statusLabel: string;     // 'LOADING…' | 'WEATHER FEED OFFLINE' (the else branch)
+  statusLabel: string;     // 'Loading…' | 'The weather feed is offline.' (the else branch)
   icon: string;            // registry ICONS key derived from desc (sun/cloud/rain/…)
   descLine: string;        // "Partly cloudy · feels 74°"
   hiLabel: string;         // "H 78°"
@@ -166,7 +166,7 @@ export function viewWeather(base: WeatherBase): WeatherState {
   return {
     ...base,
     ready: base.loaded && !base.offline,
-    statusLabel: !base.loaded ? 'LOADING…' : base.offline ? 'WEATHER FEED OFFLINE' : '',
+    statusLabel: !base.loaded ? 'Loading…' : base.offline ? 'The weather feed is offline.' : '',
     icon: weatherIcon(base.desc),
     descLine: base.loaded ? `${base.desc} · feels ${base.feels}°` : '',
     hiLabel: `H ${base.loaded ? base.hi : '--'}°`,
@@ -543,7 +543,7 @@ function viewToday(base: TodayBase, hm: string): TodayState {
     progressLabel: `${doneCount} / ${tasks.length}`,
     progress: tasks.length ? doneCount / tasks.length : 0,
     signedOut, showOffline, showTasks, showEmpty,
-    emptyLabel: base.loaded ? 'NOTHING SCHEDULED TODAY' : 'LOADING…',
+    emptyLabel: base.loaded ? 'Nothing scheduled today.' : 'Loading…',
     canAdd: base.authed && !base.offline,
   };
 }

@@ -9,19 +9,20 @@
     "mobile": {
       "w": 2,
       "h": 8
+    },
+    "min": {
+      "w": 3,
+      "h": 6
     }
   },
   "spec": {
     "frame": {
       "eyebrow": "TODAY",
-      "source": {
-        "src": "today",
-        "path": "progressLabel"
-      }
+      "source": "BEIGEBOARD"
     },
     "body": {
       "t": "stack",
-      "gap": 8,
+      "gap": 10,
       "grow": true,
       "children": [
         {
@@ -33,12 +34,11 @@
           "then": {
             "t": "stack",
             "gap": 8,
-            "grow": true,
             "children": [
               {
                 "t": "text",
-                "text": "SIGN IN TO SEE YOUR DAY",
-                "variant": "sub"
+                "text": "Sign in to see your day.",
+                "variant": "note"
               },
               {
                 "t": "link",
@@ -59,17 +59,19 @@
           "then": {
             "t": "stack",
             "gap": 8,
-            "grow": true,
             "children": [
               {
                 "t": "text",
-                "text": "BEIGEBOARD OFFLINE",
-                "variant": "sub"
+                "text": "BeigeBoard is offline.",
+                "variant": "note"
               },
               {
                 "t": "link",
                 "text": "OPEN BEIGEBOARD",
-                "href": { "src": "origins", "path": "beigeboard" }
+                "href": {
+                  "src": "origins",
+                  "path": "beigeboard"
+                }
               }
             ]
           }
@@ -81,19 +83,12 @@
             "path": "showEmpty"
           },
           "then": {
-            "t": "stack",
-            "gap": 8,
-            "grow": true,
-            "children": [
-              {
-                "t": "text",
-                "text": {
-                  "src": "today",
-                  "path": "emptyLabel"
-                },
-                "variant": "sub"
-              }
-            ]
+            "t": "text",
+            "text": {
+              "src": "today",
+              "path": "emptyLabel"
+            },
+            "variant": "note"
           }
         },
         {
@@ -104,53 +99,38 @@
           },
           "then": {
             "t": "stack",
-            "gap": 8,
+            "gap": 10,
             "grow": true,
             "children": [
               {
-                "t": "bar",
+                "t": "meter",
+                "label": "DONE",
                 "value": {
                   "src": "today",
                   "path": "progress"
                 },
-                "max": 1
+                "detail": {
+                  "src": "today",
+                  "path": "progressLabel"
+                }
               },
               {
-                "t": "list",
+                "t": "rows",
                 "from": {
                   "src": "today",
                   "path": "tasks"
                 },
-                "item": {
-                  "t": "row",
-                  "gap": 8,
-                  "justify": "space-between",
-                  "children": [
-                    {
-                      "t": "text",
-                      "text": {
-                        "src": "$",
-                        "path": "timeLabel"
-                      },
-                      "variant": "sub"
-                    },
-                    {
-                      "t": "text",
-                      "text": {
-                        "src": "$",
-                        "path": "title"
-                      },
-                      "variant": "mono",
-                      "grow": true
-                    },
-                    {
-                      "t": "dot",
-                      "tone": {
-                        "src": "$",
-                        "path": "tone"
-                      }
-                    }
-                  ]
+                "lead": {
+                  "src": "$",
+                  "path": "timeLabel"
+                },
+                "title": {
+                  "src": "$",
+                  "path": "title"
+                },
+                "mark": {
+                  "src": "$",
+                  "path": "tone"
                 }
               }
             ]

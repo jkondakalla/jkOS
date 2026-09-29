@@ -28,7 +28,7 @@ export type WidgetNode =
   /** Status dot — coloured indicator. */
   | { t: 'dot'; tone?: ToneBinding; pulse?: boolean }
   /** Text — heading or body line. */
-  | { t: 'text'; text: Binding; variant?: 'title' | 'body' | 'sub' | 'mono'; /** take the remaining width and ellipsize */ grow?: boolean }
+  | { t: 'text'; text: Binding; /** note: the suite's set, italic off-state voice (a signed-out or empty line) */ variant?: 'title' | 'body' | 'sub' | 'mono' | 'note'; /** take the remaining width and ellipsize */ grow?: boolean }
   /** Eyebrow label — small uppercase caption. */
   | { t: 'label'; text: Binding; size?: 'md' | 'sm' | 'xs' }
   /** Icon — a line glyph (sun, check, book…). */

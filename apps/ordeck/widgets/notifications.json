@@ -20,47 +20,28 @@
       }
     },
     "body": {
-      "t": "list",
+      "t": "feed",
       "from": {
         "src": "notifications",
         "path": "items"
       },
-      "empty": "ALL CLEAR — NO ALERTS",
-      "item": {
-        "t": "row",
-        "gap": 8,
-        "children": [
-          {
-            "t": "icon",
-            "name": {
-              "src": "$",
-              "path": "icon"
-            },
-            "tone": {
-              "src": "$",
-              "path": "tone"
-            },
-            "size": 14
-          },
-          {
-            "t": "text",
-            "text": {
-              "src": "$",
-              "path": "text"
-            },
-            "variant": "mono",
-            "grow": true
-          },
-          {
-            "t": "text",
-            "text": {
-              "src": "$",
-              "path": "detail"
-            },
-            "variant": "sub"
-          }
-        ]
-      }
+      "icon": {
+        "src": "$",
+        "path": "icon"
+      },
+      "tone": {
+        "src": "$",
+        "path": "tone"
+      },
+      "text": {
+        "src": "$",
+        "path": "text"
+      },
+      "detail": {
+        "src": "$",
+        "path": "detail"
+      },
+      "empty": "All clear."
     }
   }
 }

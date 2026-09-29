@@ -18,7 +18,7 @@ export const TONE_COLOR: Record<Tone, string> = {
   warn:   'var(--hub-warn)',
   danger: 'var(--hub-red)',
   muted:  'var(--hub-cream-dim)',
-  accent: 'var(--hub-amber)',
+  accent: 'var(--color-accent)',   // the suite accent chain: a theme's accent moves it
 };
 
 /** Severity order for feeds (notifications): problems first, ambient last. */

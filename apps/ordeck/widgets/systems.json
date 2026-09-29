@@ -9,15 +9,15 @@
     "mobile": {
       "w": 2,
       "h": 4
+    },
+    "min": {
+      "w": 2,
+      "h": 4
     }
   },
   "spec": {
     "frame": {
-      "eyebrow": "SYSTEMS",
-      "source": {
-        "src": "systems",
-        "path": "summary"
-      }
+      "eyebrow": "SYSTEMS"
     },
     "body": {
       "t": "stack",
@@ -25,7 +25,8 @@
       "grow": true,
       "children": [
         {
-          "t": "bar",
+          "t": "meter",
+          "label": "UP",
           "value": {
             "src": "systems",
             "path": "up"
@@ -33,45 +34,31 @@
           "max": {
             "src": "systems",
             "path": "total"
+          },
+          "detail": {
+            "src": "systems",
+            "path": "summary"
           }
         },
         {
-          "t": "list",
+          "t": "rows",
           "from": {
             "src": "systems",
             "path": "rows"
           },
-          "empty": "NO PROBES",
-          "item": {
-            "t": "row",
-            "gap": 8,
-            "children": [
-              {
-                "t": "dot",
-                "tone": {
-                  "src": "$",
-                  "path": "tone"
-                }
-              },
-              {
-                "t": "text",
-                "text": {
-                  "src": "$",
-                  "path": "name"
-                },
-                "variant": "mono",
-                "grow": true
-              },
-              {
-                "t": "text",
-                "text": {
-                  "src": "$",
-                  "path": "detail"
-                },
-                "variant": "sub"
-              }
-            ]
-          }
+          "mark": {
+            "src": "$",
+            "path": "tone"
+          },
+          "title": {
+            "src": "$",
+            "path": "name"
+          },
+          "detail": {
+            "src": "$",
+            "path": "detail"
+          },
+          "empty": "No probes."
         }
       ]
     }

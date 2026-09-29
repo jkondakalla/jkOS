@@ -123,13 +123,12 @@ function vars(v: Record<`--${string}`, string | number>): CSSProperties {
   return v as unknown as CSSProperties;
 }
 
-/** A tone for a PATTERN: the status palette, except that `accent` is the suite accent
- *  chain (--color-accent), which a theme can move — the built-ins' TONE_COLOR still maps
- *  it to amber, and moving them is the visual pass (TODO §7). */
+/** A tone for a PATTERN: the status palette (TONE_COLOR's `accent` is the suite accent
+ *  chain, --color-accent, which a theme moves). */
 function patternTone(t: ToneBinding | undefined, scope: Scope, fallback: Tone): string {
   const v = t == null ? fallback : typeof t === 'object' ? resolve(t as Binding, scope) : t;
   const tone = (typeof v === 'string' && v in TONE_COLOR ? v : fallback) as Tone;
-  return tone === 'accent' ? 'var(--color-accent)' : TONE_COLOR[tone];
+  return TONE_COLOR[tone];
 }
 
 /** An optional binding's text: '' when the prop is absent or resolves to nothing. */
@@ -234,7 +233,7 @@ const PRIMITIVES: Primitives = {
       <div className="hud-w-gauge">
         <svg width={size} height={size} viewBox="0 0 72 72">
           <circle cx="36" cy="36" r={R} fill="none" stroke="var(--hub-line)" strokeWidth="6" />
-          <circle cx="36" cy="36" r={R} fill="none" stroke="var(--hub-amber)" strokeWidth="6" strokeLinecap="round"
+          <circle cx="36" cy="36" r={R} fill="none" stroke="var(--color-accent)" strokeWidth="6" strokeLinecap="round"
             strokeDasharray={`${C * pct} ${C}`} transform="rotate(-90 36 36)" className="hud-w-gauge-arc" />
           <text x="36" y="41" textAnchor="middle" className="hud-w-gauge-num">{Math.round(pct * 100)}</text>
         </svg>
@@ -259,7 +258,7 @@ const PRIMITIVES: Primitives = {
   icon: (n, scope) => {
     const name = str(resolve(n.name, scope));
     const s = n.size ?? 24;
-    const color = n.tone != null ? toneColor(n.tone, scope, 'accent') : 'var(--hub-amber)';
+    const color = n.tone != null ? toneColor(n.tone, scope, 'accent') : 'var(--color-accent)';
     return (
       <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="hud-w-icon">
         {ICONS[name as IconName] ?? ICONS.dot}
@@ -313,7 +312,7 @@ const PRIMITIVES: Primitives = {
     const pts = values
       .map((v, i) => `${(i / (values.length - 1)) * 100},${4 + (1 - (v - min) / span) * (h - 8)}`)
       .join(' ');
-    const color = n.tone != null ? toneColor(n.tone, scope, 'accent') : 'var(--hub-amber)';
+    const color = n.tone != null ? toneColor(n.tone, scope, 'accent') : 'var(--color-accent)';
     return (
       <svg width="100%" height={h} viewBox={`0 0 100 ${h}`} preserveAspectRatio="none" className="hud-w-spark">
         <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
@@ -548,7 +547,7 @@ function CalendarBody({ cal }: { cal: MonthCalState }) {
           return (
             <div key={iso} className={`hud-cal-day${isToday ? ' today' : ''}${info ? ' has-tasks' : ''}`}>
               <span className="hud-cal-num">{day}</span>
-              {info && <span className="hud-cal-dot hud-w-toned" style={vars({ '--w-tone': info.doneCount === info.count ? 'var(--hub-green)' : 'var(--hub-amber)' })} />}
+              {info && <span className="hud-cal-dot hud-w-toned" style={vars({ '--w-tone': info.doneCount === info.count ? 'var(--hub-green)' : 'var(--color-accent)' })} />}
             </div>
           );
         })}
@@ -573,7 +572,7 @@ function WeatherBody({ w }: { w: WeatherState }) {
       ) : (
         <>
           <div className="hud-weather-compact-row">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--hub-amber)" strokeWidth="1.4" strokeLinecap="round" className="hud-w-weather-glyph">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" strokeWidth="1.4" strokeLinecap="round" className="hud-w-weather-glyph">
               <circle cx="12" cy="12" r="4.5" />
               <path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3L7 7M17 17l1.7 1.7M5.3 18.7L7 17M17 7l1.7-1.7" />
             </svg>
@@ -778,11 +777,19 @@ function FormNode({ node, scope }: { node: Extract<WidgetNode, { t: 'form' }>; s
       {/* A layout container, not a card — the spec frame provides the chrome
           (like every primitive except the calendar/weather molecules). */}
       <form onSubmit={submit} className="hud-w-form">
-        {node.children.map((c, i) => <Fragment key={i}>{renderNode(c, formScope)}</Fragment>)}
-        <button type="submit" disabled={!cmd.available || cmd.status === 'saving' || cmd.status === 'working'}
-          className={actionCls(cmd.available)} style={vars({ '--w-tone': 'var(--hub-amber)' })}>
-          {cmd.status === 'saving' ? '…' : label}
-        </button>
+        {(() => {
+          const button = (
+            <button type="submit" disabled={!cmd.available || cmd.status === 'saving' || cmd.status === 'working'}
+              className={actionCls(cmd.available)} style={vars({ '--w-tone': 'var(--color-accent)' })}>
+              {cmd.status === 'saving' ? '…' : label}
+            </button>
+          );
+          // One input is a quick-add: the button sits beside it, not under it.
+          if (node.children.length === 1 && node.children[0].t === 'input') {
+            return <div className="hud-w-form-bar">{renderNode(node.children[0], formScope)}{button}</div>;
+          }
+          return <>{node.children.map((c, i) => <Fragment key={i}>{renderNode(c, formScope)}</Fragment>)}{button}</>;
+        })()}
         {note.text && <span className="hud-w-note" style={vars({ '--w-tone': note.color })}>{note.text}</span>}
         {resultSlot(node.result, cmd.outcome, scope)}
       </form>
@@ -877,7 +884,7 @@ function AskNode({ node, scope }: { node: Extract<WidgetNode, { t: 'ask' }>; sco
 function ButtonNode({ node, scope }: { node: Extract<WidgetNode, { t: 'button' }>; scope: Scope }) {
   const cmd = useCommand(node.cmd);
   const label = str(resolve(node.text, scope));
-  const color = node.tone != null ? toneColor(node.tone, scope, 'accent') : 'var(--hub-amber)';
+  const color = node.tone != null ? toneColor(node.tone, scope, 'accent') : 'var(--color-accent)';
   const text = cmd.status === 'saving' ? '…' : cmd.status === 'working' ? 'WORKING…' : cmd.status === 'ok' ? 'DONE' : cmd.status === 'err' ? 'RETRY' : label;
   return (
     <>

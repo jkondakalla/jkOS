@@ -17,62 +17,40 @@
       "source": "BEIGEBOARD"
     },
     "body": {
-      "t": "stack",
-      "gap": 8,
-      "grow": true,
-      "children": [
-        {
-          "t": "when",
-          "cond": {
-            "src": "pinned",
-            "path": "authed"
-          },
-          "then": {
-            "t": "list",
-            "from": {
-              "src": "pinned",
-              "path": "items"
-            },
-            "empty": "NOTHING PINNED — PIN A TASK IN BEIGEBOARD",
-            "item": {
-              "t": "row",
-              "gap": 8,
-              "justify": "space-between",
-              "children": [
-                {
-                  "t": "text",
-                  "text": {
-                    "src": "$",
-                    "path": "timeLabel"
-                  },
-                  "variant": "sub"
-                },
-                {
-                  "t": "text",
-                  "text": {
-                    "src": "$",
-                    "path": "title"
-                  },
-                  "variant": "mono",
-                  "grow": true
-                },
-                {
-                  "t": "dot",
-                  "tone": {
-                    "src": "$",
-                    "path": "tone"
-                  }
-                }
-              ]
-            }
-          },
-          "else": {
-            "t": "text",
-            "text": "SIGN IN TO SEE PINNED TASKS",
-            "variant": "sub"
-          }
-        }
-      ]
+      "t": "when",
+      "cond": {
+        "src": "pinned",
+        "path": "authed"
+      },
+      "then": {
+        "t": "rows",
+        "from": {
+          "src": "pinned",
+          "path": "items"
+        },
+        "lead": {
+          "src": "$",
+          "path": "timeLabel"
+        },
+        "title": {
+          "src": "$",
+          "path": "title"
+        },
+        "mark": {
+          "src": "$",
+          "path": "tone"
+        },
+        "href": {
+          "src": "$",
+          "path": "deeplink"
+        },
+        "empty": "Nothing pinned — pin a task in BeigeBoard."
+      },
+      "else": {
+        "t": "text",
+        "text": "Sign in to see pinned tasks.",
+        "variant": "note"
+      }
     }
   }
 }

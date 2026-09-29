@@ -159,7 +159,7 @@ export const NODES = {
     kind: 'atom', label: 'Text', hint: 'heading or body line',
     props: {
       text: { type: 'binding', required: true },
-      variant: { type: 'enum', values: ['title', 'body', 'sub', 'mono'] },
+      variant: { type: 'enum', values: ['title', 'body', 'sub', 'mono', 'note'], doc: "note: the suite's set, italic off-state voice (a signed-out or empty line)" },
       grow: { type: 'boolean', doc: 'take the remaining width and ellipsize' },
     },
     example: { t: 'text', text: 'Heading', variant: 'title' },

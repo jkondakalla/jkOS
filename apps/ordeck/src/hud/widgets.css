@@ -71,6 +71,7 @@ a.hud-card.hud-w-frame { display: flex; }
 }
 .hud-w-text.is-sub { font-size: 11px; color: var(--hub-cream-dim); }
 .hud-w-text.is-mono { font-family: var(--hub-font-mono); font-size: 11px; color: var(--hub-cream); }
+.hud-w-text.is-note { font-family: var(--hub-font-serif); font-style: italic; font-size: 13px; color: var(--hub-cream-dim); }
 .hud-w-text.is-grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ── Atoms ───────────────────────────────────────────────────────────────── */
@@ -95,7 +96,7 @@ a.hud-card.hud-w-frame { display: flex; }
 }
 .hud-w-keyval-value { font-family: var(--hub-font-mono); font-size: 11px; color: var(--hub-cream-dim); }
 .hud-w-gauge { display: flex; flex-direction: column; align-items: center; gap: 6px; }
-.hud-w-gauge-arc { filter: drop-shadow(0 0 4px var(--hub-amber-glow)); transition: stroke-dasharray 0.4s ease; }
+.hud-w-gauge-arc { filter: drop-shadow(0 0 4px color-mix(in srgb, var(--color-accent) 50%, transparent)); transition: stroke-dasharray 0.4s ease; }
 .hud-w-gauge-num { font-family: var(--hub-font-mono); font-size: 17px; font-weight: 600; fill: var(--hub-cream-bright); }
 .hud-w-caption {
   font-family: var(--hub-font-mono); font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase;
@@ -107,16 +108,21 @@ a.hud-card.hud-w-frame { display: flex; }
 .hud-w-divider > .hud-w-caption { letter-spacing: 0.16em; }
 .hud-w-link {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-  font-family: var(--hub-font-mono); font-size: 11px; letter-spacing: 0.06em; color: var(--hub-amber);
-  text-decoration: none; border: 1px solid color-mix(in srgb, var(--hub-amber) 40%, transparent);
+  font-family: var(--hub-font-mono); font-size: 11px; letter-spacing: 0.06em; color: var(--color-accent);
+  text-decoration: none; border: 1px solid color-mix(in srgb, var(--color-accent) 40%, transparent);
   border-radius: var(--hub-radius-sm); padding: 7px 12px;
 }
 .hud-w-icon { flex: none; }
 .hud-w-spark { display: block; }
-.hud-w-spark > polyline { filter: drop-shadow(0 0 3px var(--hub-amber-glow)); }
+.hud-w-spark > polyline { filter: drop-shadow(0 0 3px color-mix(in srgb, var(--color-accent) 50%, transparent)); }
 
 /* ── Commands ────────────────────────────────────────────────────────────── */
-.hud-w-form { display: flex; flex-direction: column; gap: 8px; flex: 1; min-height: 0; }
+/* A form never grows: beside a list it used to take half the free space and float
+   mid-card. A form of one input is a quick-add — its button sits beside the input. */
+.hud-w-form { display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+.hud-w-form-bar { display: flex; gap: 6px; align-items: stretch; }
+.hud-w-form-bar > .hud-w-field { flex: 1; min-width: 0; }
+.hud-w-form-bar > .hud-w-action { align-self: stretch; }
 .hud-w-field { width: 100%; }
 .hud-w-action {
   align-self: flex-start; cursor: pointer; background: transparent;
@@ -138,7 +144,7 @@ a.hud-card.hud-w-frame { display: flex; }
 .hud-weather-strip.hud-w-foot { padding-top: 10px; margin-top: auto; }
 .hud-w-focus { padding: 14px; display: flex; flex-direction: column; height: 100%; }
 .hud-w-focus.is-idle { gap: 6px; }
-.hud-w-focus.is-on { gap: 10px; border-color: color-mix(in srgb, var(--hub-amber) 55%, transparent); }
+.hud-w-focus.is-on { gap: 10px; border-color: color-mix(in srgb, var(--color-accent) 55%, transparent); }
 .hud-w-focus-note { font-size: 11px; color: var(--hub-cream-dim); }
 .hud-w-focus-empty { font-family: var(--hub-font-serif, var(--hub-font-sans)); font-size: 15px; color: var(--hub-cream-dim); }
 .hud-w-focus-hint { font-family: var(--hub-font-mono); font-size: 10px; letter-spacing: 0.08em; color: var(--hub-cream-faint); }
@@ -150,9 +156,9 @@ a.hud-card.hud-w-frame { display: flex; }
 .hud-w-focus-title.is-done { text-decoration: line-through; opacity: 0.7; }
 .hud-w-focus-meta { font-family: var(--hub-font-mono); font-size: 11px; letter-spacing: 0.06em; color: var(--hub-cream-dim); }
 .hud-w-focus-end {
-  align-self: flex-start; cursor: pointer; background: transparent; color: var(--hub-amber);
+  align-self: flex-start; cursor: pointer; background: transparent; color: var(--color-accent);
   font-family: var(--hub-font-mono); font-size: 10px; letter-spacing: 0.1em; padding: 6px 11px;
-  border: 1px solid color-mix(in srgb, var(--hub-amber) 40%, transparent); border-radius: var(--hub-radius-sm);
+  border: 1px solid color-mix(in srgb, var(--color-accent) 40%, transparent); border-radius: var(--hub-radius-sm);
 }
 .hud-w-week { padding: 14px; display: flex; flex-direction: column; height: 100%; overflow: hidden; }
 .hud-w-week-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
@@ -325,3 +331,14 @@ a.hud-p-row:hover .hud-p-title { color: var(--color-accent); }
   .hud-p-row, .hud-p-event { padding: 7px 0; }
   .hud-p-title { font-size: 13px; }
 }
+
+/* ── The clock fits its card, not the viewport ───────────────────────────────
+ * hud.css sized the digits in vw, so a clock in a 2-column card on a wide screen drew
+ * desktop-size digits into the next card. The time atom's card is a size container:
+ * the digits take ~26% of its width (five mono figures and the seconds fit) and never
+ * more than ~58% of its height (the date line still fits under them). */
+.hud-clock { container-type: size; height: 100%; min-height: 0; }
+.hud-clock .hud-clock-hm { font-size: clamp(30px, min(26cqi, 58cqh), 104px); }
+.hud-clock .hud-clock-ss { font-size: clamp(12px, min(7.5cqi, 17cqh), 30px); }
+@container (max-height: 120px) { .hud-clock .hud-clock-utc { display: none; } .hud-clock .hud-clock-meta { margin-top: 6px; } }
+.hud-bar > .hud-w-fill { background: var(--color-accent); }

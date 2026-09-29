@@ -9,6 +9,10 @@
     "mobile": {
       "w": 2,
       "h": 4
+    },
+    "min": {
+      "w": 3,
+      "h": 3
     }
   },
   "spec": {
@@ -144,7 +148,7 @@
           "src": "weather",
           "path": "statusLabel"
         },
-        "variant": "sub"
+        "variant": "note"
       }
     }
   }
