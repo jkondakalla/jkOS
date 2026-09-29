@@ -62,6 +62,11 @@ export function checkDocShape(doc, listKey) {
        '/api/lazuros/query' — doubles it to '/api/lazuros/api/lazuros/query' and 404s
        at the edge while passing every local test, which hit the route directly. Every
        apiBase in the suite sits under '/api/', so that prefix is the tell. */
+    /* A dataset's cardinality is one of two words (datasetShape.js). Anything else
+       would be read as the default — a list — by every consumer. */
+    if (listKey === 'datasets' && entry.cardinality !== undefined && !['many', 'one'].includes(entry.cardinality)) {
+      return `datasets entry '${entry.id}' cardinality must be 'many' or 'one'`
+    }
     if (entry.path !== undefined) {
       if (typeof entry.path !== 'string' || !entry.path.startsWith('/')) {
         return `${listKey} entry '${entry.id}' path must be a string starting with '/'`

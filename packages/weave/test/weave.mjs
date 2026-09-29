@@ -7,6 +7,10 @@
 //  2. doc-shape validator: the single rule (shared/docShape.js) the producer
 //     (contracts.js, throw) and the peer reader (fetchCapabilities/fetchDatasets,
 //     return null) both run — proven to accept a good doc and reject each defect.
+//  3. AppId union ⇄ APPS parity.
+//  4. dataset answers vs declarations (shared/datasetShape.js): the check every app's
+//     smoke runs against its real endpoints — proven to pass a faithful answer and to
+//     name each way an answer can betray its declaration.
 
 import assert from 'node:assert/strict'
 import { createRequire } from 'node:module'
@@ -78,5 +82,34 @@ const dtsIds = tuple[1].split(',').map((s) => s.trim().replace(/^'|'$/g, '')).fi
 ok('apps.d.ts AppId union matches the runtime APPS ids',
   JSON.stringify(dtsIds) === JSON.stringify([...APP_IDS]),
   `\n    d.ts:    ${dtsIds}\n    runtime: ${[...APP_IDS]}`)
+
+// ── 4. dataset answers vs declarations ─────────────────────────────────────────
+console.log('4 · dataset answers vs declarations')
+const { checkDatasetAnswer, cardinalityOf } = await import('../src/shared/datasetShape.js')
+ok('a cardinality other than many/one is refused by the doc shape',
+  /cardinality/.test(checkDocShape({ app: 'x', version: 1, datasets: [{ id: 'd', cardinality: 'single' }] }, 'datasets') || ''))
+ok('cardinality one passes the doc shape', checkDocShape({ app: 'x', version: 1, datasets: [{ id: 'd', cardinality: 'one' }] }, 'datasets') === null)
+ok('cardinality defaults to many', cardinalityOf({ id: 'd' }) === 'many' && cardinalityOf({ id: 'd', cardinality: 'one' }) === 'one')
+
+const ROWS = { id: 'jobs', item: [
+  { name: 'id', type: 'string' }, { name: 'n', type: 'number' }, { name: 'done', type: 'boolean' },
+  { name: 'day', type: 'date' }, { name: 'at', type: 'time' }, { name: 'status', type: 'enum', enum: ['A', 'B'] },
+  { name: 'result', type: 'json' }, { name: 'task', type: 'ref' },
+] }
+const row = { id: 'x', n: 1, done: false, day: '2026-09-29', at: '09:41', status: 'A', result: { a: 1 }, task: 4 }
+ok('a faithful list answer has no problems', checkDatasetAnswer(ROWS, [row, { ...row, result: null, n: null }]).length === 0)
+ok('an empty list is a faithful answer', checkDatasetAnswer(ROWS, []).length === 0)
+ok('an enveloped list is named (the library / discover defect)',
+  /answered an object/.test(checkDatasetAnswer(ROWS, { count: 1, entries: [row] }).join()))
+ok('an undeclared field is named', /'extra'.*does not declare/.test(checkDatasetAnswer(ROWS, [{ ...row, extra: 1 }]).join()))
+ok('a declared field the row lacks is named', /'day' and row 0 does not carry it/.test(checkDatasetAnswer(ROWS, [(({ day, ...r }) => r)(row)]).join()))
+for (const [field, bad] of [['n', '1'], ['done', 1], ['day', '29/09/2026'], ['at', '9am'], ['status', 'C'], ['result', '{"a":1}'], ['task', true], ['id', 3]]) {
+  ok(`a ${field} of the wrong type is named`, checkDatasetAnswer(ROWS, [{ ...row, [field]: bad }]).some((p) => p.includes(`.${field} is declared`)))
+}
+const ONE = { id: 'stats', cardinality: 'one', item: [{ name: 'total', type: 'number' }] }
+ok('a faithful one-document answer has no problems', checkDatasetAnswer(ONE, { total: 3 }).length === 0)
+ok('a list where one document is declared is named', /one document.*an array/.test(checkDatasetAnswer(ONE, [{ total: 3 }]).join()))
+ok('a declared field named twice is named', /twice/.test(checkDatasetAnswer({ id: 'd', item: [{ name: 'a', type: 'json' }, { name: 'a', type: 'string' }] }, []).join()))
+ok('an undeclared item checks only the envelope', checkDatasetAnswer({ id: 'd' }, [{ anything: 1 }]).length === 0)
 
 console.log(`\nPASS: ${pass} passed, 0 failed`)

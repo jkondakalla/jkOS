@@ -14,6 +14,8 @@
  */
 
 import type { BodyField } from './capability';
+import type { Cardinality } from './shared/datasetShape.js';
+export { CARDINALITIES, cardinalityOf, checkDatasetAnswer, type Cardinality } from './shared/datasetShape.js';
 
 /** How a filter value is matched against its column. Mirrors the server-side
  *  `buildItemFilters` operators (@jkos/weave/server/filters) one-to-one. */
@@ -40,9 +42,16 @@ export interface DatasetDef {
   id: string;                // stable within the app, e.g. 'items'
   label: string;             // 'Tasks & events'
   path: string;              // RELATIVE to the app's apiBase: '/items'
+  /** What one GET answers. 'many' (the default): a bare JSON array of rows, each shaped
+   *  like `item` — the list contract (weaveClient.list reads a non-array as NO rows).
+   *  'one': a single JSON document (a session, a stats block, one book in full), whose
+   *  top-level fields `item` describes. A list with metadata beside it ({ basis,
+   *  results }) is a document: declare it 'one' and its list as a `json` field with a
+   *  `schema`. Each app's smoke holds its real answers to this (shared/datasetShape.js). */
+  cardinality?: Cardinality;
   filters?: FilterField[];   // query params the list endpoint honours (kind, since, …),
                              // carrying their own enforcement mapping (column/op)
-  item?: BodyField[];        // shape hint for one returned row (drives readers/AI)
+  item?: BodyField[];        // the fields of one row ('many') or of the document ('one')
   scopes?: string[];         // fine read gate, if the collection is scoped
   invalidates?: string[];    // the resource key writers bump (e.g. 'beigeboard.items') so a
                              // reader can subscribe its poll to live writes
