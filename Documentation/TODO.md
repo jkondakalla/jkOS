@@ -263,18 +263,17 @@ declaration with a reported state; same-origin `fetch` refused by the renderer, 
 and jkAuth), `cardinality` and every app's smoke sweeping its datasets (27 mismatches found and
 fixed), `map`/`fmt`/`eq`/`in`/`not`, `$result` with async jobs followed through a common jobs
 shape (probe 86), declared HUD slices, `ai` derived and enforced where a widget renders, and a
-second validation tier. Remaining, in order:
+second validation tier. Then the frame (it owns loading/offline/signed-out/empty), the seven
+patterns (`stat`/`meter`/`rows`/`feed`/`facts`/`media`/`ask`), Focus and Week as molecules
+(the `component` hatch retired), one `widgets.css` (the renderer writes no inline style), and
+the catalog as files (`apps/<app>/widgets/*.json`, ORDECK's own cards included, compiled in and
+referenced by id) — each built-in proven pixel-identical through the move. Remaining, in order:
 
-- **Frame, patterns, the visual pass.** The frame owns loading/offline/signed-out/empty
-  (through `AsyncView`); patterns `stat`/`rows`/`media`/`ask`/`facts`/`feed`/`meter`; molecules
-  declared in the manifest (retiring the `component` hatch); one `widgets.css` (no inline pixel
-  styles, `--color-accent` not `--hub-amber`, container-query density).
-  ⚠️ **You review before/after contact sheets before any built-in migrates.** Drive
-  `test/widget-render.baseline.json` to empty — today's 49 findings include the clock's seconds
-  colliding at mobile width and Weather/Today/Systems spilling at the smallest footprint.
-- **Catalog from files.** `apps/<app>/widgets/*.json` compiled into ORDECK; the ten built-ins
-  as pattern JSON in `apps/ordeck/widgets/`; stored HUD docs reference catalog widgets by id
-  (no version bump — the old `withBuiltins` re-adds, so a rollback is safe).
+- ⚠️ **Yours: review the visual pass.** [The before/after contact sheets](https://claude.ai/artifact/1EPUsLmziti4dozpskGizc).
+  It is one commit, `fc2c09a`, on the local branch `proposal/widget-visual-pass` — NOT on
+  staging: the built-ins on the patterns, the accent chain (`--color-accent`), the clock sized
+  to its card, honest minimum sizes, and `test/widget-render.baseline.json` driven from 54
+  findings to empty. Say approved (or what to change) and an agent brings it onto staging.
 - **The Workshop, derived:** a generic prop editor from the manifest, a JSON tab with live
   errors, a gallery of every widget in every state.
 - **The agent path and first consumers:** `pnpm widget new`, a `new-widget` skill,
