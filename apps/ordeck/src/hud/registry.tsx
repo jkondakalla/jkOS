@@ -40,6 +40,7 @@ import type { Binding, CommandRef, ComponentName, IconName, Tone, ToneBinding, W
 import { useDataSources } from './sources';
 import { TONE_COLOR } from './tone';
 import { safeHref, sourcesOf } from '@jkos/widgets';
+import { usesAi } from './ai';
 import { clearHudFocus } from '../lib/shelf';
 import { Field, SelectField, Check } from '@jkos/ui';
 import ErrorBoundary from '../components/ErrorBoundary';
@@ -65,6 +66,9 @@ export interface WidgetCtx {
   focus: FocusState;
   pinned: PinnedState;
   authUrl: string;
+  /** The suite-wide LazurOS kill switch (profile → AI). Off, a widget that binds an AI
+   *  app does not render — or read, or run anything. */
+  aiEnabled: boolean;
 }
 
 /* ═══ Declarative spec layer ═══════════════════════════════════════════════ */
@@ -732,7 +736,7 @@ const COMPONENT_SLICES: Record<ComponentName, (keyof WidgetCtx)[]> = {
  * memoised upstream (useHudContext) to keep its reference stable between real
  * changes, which is what makes this comparison meaningful. */
 const SLICE_KEYS = new Set<string>([
-  'clock', 'weather', 'systems', 'today', 'cal', 'items', 'todayIso', 'notifications', 'focus', 'pinned', 'authUrl',
+  'clock', 'weather', 'systems', 'today', 'cal', 'items', 'todayIso', 'notifications', 'focus', 'pinned', 'authUrl', 'aiEnabled',
 ]);
 const sliceCache = new WeakMap<object, Set<string>>();
 
@@ -750,6 +754,8 @@ function usedSlices(def: WidgetDef): Set<string> {
   if (!def.spec && def.component) for (const k of COMPONENT_SLICES[def.component] ?? []) acc.add(k);
   // `$now` is the clock's instant, so an `ago` re-renders with the clock.
   if (acc.has('$now')) acc.add('clock');
+  // An AI widget redraws when the kill switch flips.
+  if (usesAi(def)) acc.add('aiEnabled');
   // Drop non-ctx sources ($ list element, $form, fetch-source names) — they're
   // never on ctx, so they'd never (correctly) trigger a re-render anyway.
   for (const k of [...acc]) if (!SLICE_KEYS.has(k)) acc.delete(k);
@@ -798,7 +804,19 @@ function unknownWidget(name: string): ReactNode {
   );
 }
 
+/** What an AI widget draws while the kill switch is off: no source read, no command
+ *  armed — the switch is enforced here, not only by hiding the widget from the shelf. */
+function aiOffTile(def: WidgetDef): ReactNode {
+  return (
+    <div className="hud-card" data-widget-ai-off="" style={{ display: 'flex', flexDirection: 'column', gap: 6, justifyContent: 'center', padding: 16, height: '100%' }}>
+      <span className="hud-eyebrow">{(def.label || def.id).toUpperCase()}</span>
+      <span style={{ color: 'var(--hub-cream-dim)', fontFamily: 'var(--hub-font-mono)', fontSize: 10, letterSpacing: '0.12em' }}>AI IS OFF — TURN IT ON IN SETTINGS</span>
+    </div>
+  );
+}
+
 function renderWidgetBody(def: WidgetDef, ctx: WidgetCtx): ReactNode {
+  if (!ctx.aiEnabled && usesAi(def)) return aiOffTile(def);
   if (def.spec) return <SpecWidget spec={def.spec} ctx={ctx} />;
   if (def.component) {
     // A published def's `component` is data from the wire, so it may name nothing.

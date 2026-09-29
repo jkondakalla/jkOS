@@ -8,6 +8,7 @@ import { useHudContext } from './useHudContext';
 import { HudGrid, type HudGridHandle } from '../../hud/HudGrid';
 import { WidgetTray } from '../../hud/WidgetTray';
 import { renderWidget } from '../../hud/registry';
+import { usesAi } from '../../hud/ai';
 import { activeBreakpoint, layoutForBreakpoint, autoBalance } from '../../hud/engine';
 import {
   loadHudState, saveHudState, defaultHudState, mergePublished,
@@ -168,7 +169,7 @@ export default function RoomHUD() {
   // AI-backed widgets honor the suite-wide LazurOS kill switch. Memoised so the
   // tray (memo'd) skips the per-second clock re-render of this component.
   const shelf = useMemo(
-    () => shelvedWidgets(hud).filter(w => !w.ai || lazuros.enabled),
+    () => shelvedWidgets(hud).filter(w => !usesAi(w) || lazuros.enabled),
     [hud, lazuros.enabled],
   );
 

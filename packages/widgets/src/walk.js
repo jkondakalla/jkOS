@@ -54,3 +54,24 @@ export function sourcesOf(value, { commands = false } = {}) {
   visit(value)
   return acc
 }
+
+/**
+ * Every app a widget reaches: the app of each `dataset` source, and of every command
+ * in its tree (a form's, a button's — wherever one sits). What "is this an AI widget"
+ * is DERIVED from: a def used to carry a hand-set `ai` flag, which nothing checked
+ * against what it bound, and a widget binding LazurOS with `ai` unset ignored the
+ * suite's AI kill switch.
+ *
+ * @param {unknown} def a widget def (or a spec)
+ * @returns {Set<string>}
+ */
+export function appsOf(def) {
+  const acc = new Set()
+  const spec = isObj(def) && isObj(def.spec) ? def.spec : def
+  if (!isObj(spec)) return acc
+  for (const s of Object.values(isObj(spec.sources) ? spec.sources : {})) {
+    if (isObj(s) && s.kind === 'dataset' && typeof s.app === 'string') acc.add(s.app)
+  }
+  walkNodes(spec.body, (n) => { if (isObj(n.cmd) && typeof n.cmd.app === 'string' && n.cmd.app) acc.add(n.cmd.app) })
+  return acc
+}

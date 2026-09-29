@@ -93,5 +93,6 @@ export function sampleCtx(state: PreviewState): WidgetCtx {
     focus: selectFocus(state === 'ready' ? FOCUS : null, bb),
     pinned: selectPinned(state === 'ready' ? PINS : [], bb),
     authUrl: '/auth',
+    aiEnabled: true,
   };
 }

@@ -14,7 +14,7 @@
 // 3. The walker finds every source a def binds, skips command bodies only when asked,
 //    and sees the slice a molecule reads without a binding.
 // 4. safeHref: the href rule the validator and the renderer share.
-import { NODES, FRAME, KINDS, LIMITS, TONES, childProps, validateWidget, sourcesOf, walkNodes, safeHref } from '../src/index.js'
+import { NODES, FRAME, KINDS, LIMITS, TONES, childProps, validateWidget, sourcesOf, walkNodes, safeHref, appsOf } from '../src/index.js'
 
 let pass = 0, fail = 0
 const ok = (cond, msg, extra = '') => { if (cond) { pass++; console.log(`  ✓ ${msg}`) } else { fail++; console.error(`  ✗ ${msg} ${extra}`) } }
@@ -140,6 +140,17 @@ walkNodes(spec.body, (n, path) => seen.push(`${n.t}@${path}`))
 ok(JSON.stringify(seen) === JSON.stringify(['stack@', 'calendar@/children/0', 'list@/children/1', 'text@/children/1/item', 'form@/children/2']), 'walkNodes visits every node with its path', JSON.stringify(seen))
 
 // ── 4. hrefs ─────────────────────────────────────────────────────────────────
+console.log('3b · what a widget reaches (AI-backed is derived, never declared)')
+const reaching = { id: 'r', sizing, spec: {
+  sources: { jobs: { kind: 'dataset', app: 'lazuros', dataset: 'jobs' }, wx: { kind: 'fetch', url: 'https://api.example.com/x' } },
+  body: { t: 'stack', children: [
+    { t: 'form', cmd: { app: 'beigeboard', capability: 'createItem' }, submit: 'ADD', children: [] },
+    { t: 'list', from: { src: 'jobs' }, item: { t: 'button', text: 'GO', cmd: { app: 'kouros', capability: 'x' } } },
+  ] } } }
+ok(JSON.stringify([...appsOf(reaching)].sort()) === '["beigeboard","kouros","lazuros"]', 'appsOf: every dataset source\'s app and every command\'s, however deep')
+ok(appsOf({ id: 'c', sizing, spec: { body: { t: 'text', text: 'x' } } }).size === 0, 'appsOf: a widget that reaches no app reaches none')
+ok(has({ ...reaching, ai: true }, '/ai', 'derived'), 'a hand-set `ai` is refused — it is derived from what the widget binds')
+
 console.log('4 · the href rule')
 for (const h of ['https://x.test/', '/widgets', 'mailto:a@b.test', '#top']) ok(safeHref(h) === h, `keeps ${JSON.stringify(h)}`)
 for (const h of ['javascript:alert(1)', ' JavaScript:alert(1)', 'java\nscript:x', 'data:,x', 'vbscript:x']) ok(safeHref(h) === undefined, `refuses ${JSON.stringify(h)}`)

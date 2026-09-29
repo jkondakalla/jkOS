@@ -18,6 +18,7 @@ import { memo, useState, type CSSProperties, type PointerEvent as ReactPointerEv
 import { usePointerDrag, DRAG_THRESHOLD_PX, HOLD_MS, HOLD_CANCEL_PX } from '@jkos/ui';
 import { sourcesOf, walkNodes } from '@jkos/widgets';
 import type { WidgetDef, WidgetNode, WidgetSpec } from './types';
+import { usesAi } from './ai';
 
 interface WidgetTrayProps {
   open: boolean;
@@ -429,7 +430,7 @@ export const WidgetTray = memo(function WidgetTray({
                 >
                   <span className="hud-tile-view">
                     <WidgetGlyph def={w} />
-                    {w.ai && <span className="hud-tile-ai">AI</span>}
+                    {usesAi(w) && <span className="hud-tile-ai">AI</span>}
                     <span className="hud-tile-add" aria-hidden="true">+</span>
                   </span>
                   <span className="hud-tile-name">{w.label}</span>

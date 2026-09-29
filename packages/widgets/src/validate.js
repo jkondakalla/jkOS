@@ -18,7 +18,7 @@ import { safeHref } from './href.js'
 import { FORMATS, CONDITIONS } from '@jkos/weave/binding'
 
 const ID_RE = new RegExp(LIMITS.ID_PATTERN)
-const DEF_KEYS = ['id', 'label', 'sizing', 'spec', 'component', 'ai', 'refreshMs', 'allowed_roles']
+const DEF_KEYS = ['id', 'label', 'sizing', 'spec', 'component', 'refreshMs', 'allowed_roles']
 const SPEC_KEYS = ['frame', 'sources', 'body']
 const SIZING_TIERS = ['desktop', 'tablet', 'mobile']
 
@@ -122,7 +122,8 @@ export function validateWidget(def, ctx = {}) {
   }
 
   for (const k of Object.keys(def)) {
-    if (!DEF_KEYS.includes(k)) unknownKey(err, '', k, DEF_KEYS)
+    if (k === 'ai') err('/ai', 'derived', 'whether a widget is AI-backed is DERIVED from the apps it binds (appsOf) — a hand-set flag could disagree with them', 'remove `ai`')
+    else if (!DEF_KEYS.includes(k)) unknownKey(err, '', k, DEF_KEYS)
   }
 
   if (typeof def.id !== 'string' || !ID_RE.test(def.id)) {
@@ -131,7 +132,6 @@ export function validateWidget(def, ctx = {}) {
   if (def.label !== undefined && (typeof def.label !== 'string' || def.label.length > 100)) {
     err('/label', 'bad-type', 'label must be a string of at most 100 characters')
   }
-  if (def.ai !== undefined && typeof def.ai !== 'boolean') err('/ai', 'bad-type', 'ai must be a boolean')
   if (def.refreshMs !== undefined && !(Number.isFinite(def.refreshMs) && def.refreshMs >= 0)) {
     err('/refreshMs', 'bad-type', 'refreshMs must be a non-negative number of milliseconds')
   }

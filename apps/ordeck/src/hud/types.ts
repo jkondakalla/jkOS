@@ -171,8 +171,6 @@ export interface WidgetDef {
   spec?: WidgetSpec;
   /** Render a bespoke React component registered under this key. */
   component?: ComponentName;
-  /** AI-backed widgets honor the suite-wide LazurOS kill switch. */
-  ai?: boolean;
   /** Manual refresh override (ms). The card normally re-renders only when a slice
    *  it binds to changes (auto-detected). Set this to ALSO force a re-render at
    *  least every N ms — a safety valve for when the auto-detection misses a

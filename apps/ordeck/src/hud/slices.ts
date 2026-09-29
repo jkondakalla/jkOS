@@ -103,6 +103,7 @@ export const HUD_SLICES: { readonly [K in keyof WidgetCtx]-?: SliceField } = {
   focus: { type: 'json', label: 'The one item in focus, pushed from BeigeBoard', item: FOCUS },
   pinned: { type: 'json', label: 'Items pinned in BeigeBoard', item: PINNED },
   authUrl: { type: 'string', label: 'Where to sign in' },
+  aiEnabled: { type: 'boolean', label: 'The LazurOS kill switch allows AI (an AI widget does not render while it is off)' },
 };
 
 /** The fields a binding may reach at `src` (a slice's own fields), for suggestions. */

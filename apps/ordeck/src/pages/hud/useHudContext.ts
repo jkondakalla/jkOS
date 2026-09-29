@@ -48,5 +48,5 @@ export function useHudContext(aiEnabled: boolean, suite: Record<string, SuiteApp
 
   // todayIso is a plain string (changes only at midnight), so the card memo gate
   // compares it by value — the calendar widgets needn't depend on the per-second clock.
-  return { clock, weather, systems, today, cal, items, todayIso: clock.iso, notifications, focus, pinned, authUrl: AUTH_URL };
+  return { clock, weather, systems, today, cal, items, todayIso: clock.iso, notifications, focus, pinned, authUrl: AUTH_URL, aiEnabled };
 }

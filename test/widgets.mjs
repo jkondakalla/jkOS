@@ -23,6 +23,8 @@
 //      stubbed network) maps every way a read can go to a named state — never the bare
 //      `[]` that made "signed out" and "no rows" one value — and ORDECK's source runtime
 //      refuses a relative, plain-http or suite URL before it is ever requested.
+//   8. THE AI KILL SWITCH IS ENFORCED WHERE A WIDGET RENDERS, not only on the shelf: a
+//      placed widget that binds an AI app draws the off tile, reading and running nothing.
 //   7. AN ASYNC COMMAND IS FOLLOWED TO ITS ANSWER. weave's followJob (the REAL module)
 //      reads the app's common-shape jobs dataset until the job ends, hands back what it
 //      RESOLVED to, re-reads when the bus fires, and gives up as `lost`, never spinning.
@@ -249,6 +251,24 @@ for (const f of readdirSync(HUD).filter((n) => n.endsWith('.tsx'))) {
   const t0 = Date.now();
   check((await woke).phase === 'done' && Date.now() - t0 < 1000, 'followJob: an invalidation re-reads at once, not at the next interval');
   check(st.subs.length === 0, 'followJob: …and unsubscribes when it ends');
+}
+
+// ── 8. the AI kill switch is enforced where a widget renders ────────────────
+{
+  const reg = read('apps/ordeck/src/hud/registry.tsx');
+  const body = reg.match(/function renderWidgetBody\([^)]*\)[^{]*\{([\s\S]*?)\n\}/)?.[1] ?? '';
+  const first = body.trim().split('\n')[0];
+  check(/if \(!ctx\.aiEnabled && usesAi\(def\)\) return aiOffTile\(def\);/.test(first),
+    `renderWidgetBody's first act is the kill switch — before any source is read or command armed (got: ${first.trim()})`);
+  check(!/\bw\.ai\b|\bdef\.ai\b/.test(read('apps/ordeck/src/pages/hud/RoomHUD.tsx') + read('apps/ordeck/src/hud/WidgetTray.tsx') + reg),
+    'nothing in ORDECK reads a hand-set `ai` flag — AI-backed is usesAi(def), derived from the apps it binds');
+  const ai = await importTs('apps/ordeck/src/hud/ai.ts', 'ai.mjs', {
+    '@jkos/weave': `data:text/javascript,${encodeURIComponent("export const suiteApp = (id) => ({ lazuros: { ai: true }, beigeboard: {} })[id];")}`,
+    '@jkos/widgets': WIDGETS,
+  });
+  const lz = { id: 'l', label: 'L', sizing: {}, spec: { body: { t: 'button', text: 'GO', cmd: { app: 'lazuros', capability: 'query' } } } };
+  const bb = { id: 'b', label: 'B', sizing: {}, spec: { body: { t: 'button', text: 'GO', cmd: { app: 'beigeboard', capability: 'createItem' } } } };
+  check(ai.usesAi(lz) && !ai.usesAi(bb), 'usesAi: a widget whose command reaches LazurOS is AI-backed; one reaching only BeigeBoard is not');
 }
 
 done();
