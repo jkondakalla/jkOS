@@ -812,25 +812,3 @@ export function launchableApps(suite: Record<string, SuiteApp>): HudApp[] {
     .map((a) => ({ id: a.id, name: a.label, origin: a.origin }))
     .sort((x, y) => x.name.localeCompare(y.name));
 }
-
-// ── Slice schema (the bindable surface, for the workshop) ─────────────────────
-// The fields each always-in-scope slice exposes. This lives WITH the slice
-// interfaces above (not duplicated in the workshop) so adding a field is one edit
-// here and it shows up as a binding suggestion automatically. Keep in sync with
-// the interfaces — `scalars` are leaf values, `arrays` feed a list's `from`.
-
-export interface SliceSchema { scalars: string[]; arrays?: string[] }
-
-export const HUD_SCHEMA: Record<string, SliceSchema> = {
-  clock:         { scalars: ['hm', 'ss', 'dateLine', 'utcShort', 'jday', 'utcLine', 'iso'] },
-  weather:       { scalars: ['temp', 'feels', 'desc', 'hi', 'lo', 'label', 'offline', 'loaded', 'ready', 'statusLabel', 'icon', 'descLine', 'hiLabel', 'loLabel'], arrays: ['slots'] },
-  systems:       { scalars: ['up', 'total', 'summary'], arrays: ['rows'] },
-  cal:           { scalars: ['year', 'month'], arrays: ['days'] },
-  today:         { scalars: ['authed', 'progressLabel', 'progress', 'doneCount', 'emptyLabel', 'signedOut', 'showOffline', 'showTasks', 'showEmpty', 'canAdd'], arrays: ['tasks'] },
-  notifications: { scalars: ['summary', 'count', 'empty'], arrays: ['items'] },
-  focus:         { scalars: ['active', 'title', 'timeLabel', 'tag', 'done', 'authed', 'app', 'deeplink'] },
-  pinned:        { scalars: ['count', 'empty', 'authed'], arrays: ['items'] },
-};
-
-/** Fields exposed by `$` (the current array element) inside a list item. */
-export const HUD_ITEM_FIELDS = ['name', 'detail', 'tone', 'status', 'title', 'time', 'timeLabel', 'stateLabel', 'done', 'now', 'tag', 'label', 'temp', 'tempLabel', 'date', 'count', 'icon', 'text', 'app', 'deeplink'];

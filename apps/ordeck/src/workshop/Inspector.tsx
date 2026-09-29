@@ -13,7 +13,7 @@
 
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { useSuiteApps, fetchCapabilities, type AppId, type CapabilityDoc, normalizeBinding, isCondition } from '@jkos/weave';
-import { HUD_SCHEMA, HUD_ITEM_FIELDS } from '../pages/hud/useHudData';
+import { HUD_SLICES, sliceFields, listItemFields } from '../hud/slices';
 import type { Binding, CommandRef, DataSource, Tone, ToneBinding, WidgetNode } from '../hud/types';
 import { catalogEntry, type ENode } from './model';
 import { Field, NumField, SelectField, Check } from '@jkos/ui';
@@ -47,12 +47,12 @@ const derivedNote = (b: EB): string => (b.mode === 'cond'
   ? `condition ${JSON.stringify(b.derived)}`
   : Object.keys(b.derived ?? {}).map((k) => `${k} ${JSON.stringify(b.derived![k])}`).join(' · '));
 
-export const HUD_SOURCES = Object.keys(HUD_SCHEMA);
+/* The bindable surface is ORDECK's slice declaration (hud/slices.ts), typed against the
+   slice interfaces — this used to be a hand-kept HUD_SCHEMA that had drifted from them. */
+export const HUD_SOURCES = Object.keys(HUD_SLICES);
 const KNOWN_SUGGEST = [...HUD_SOURCES, '$'];
 export function pathSuggestions(src: string): string[] {
-  if (src === '$') return HUD_ITEM_FIELDS;
-  const s = HUD_SCHEMA[src];
-  return s ? [...s.scalars, ...(s.arrays ?? [])] : [];
+  return src === '$' ? listItemFields() : sliceFields(src);
 }
 
 /* ── shared field styling (same vocabulary as the old workshop forms) ───── */
