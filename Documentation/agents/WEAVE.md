@@ -144,7 +144,19 @@ which cannot name-import a workspace CJS module. Do not "fix" it.
 `returns`** (output); a `DatasetDef` declares a typed `item` row. That symmetry is the
 point — a GUI or an AI composer wires one primitive's result into the next without reading
 source. `ref: 'beigeboard.items'` says a field *is a task*, not a string. `json` is the
-opaque **escape hatch**: legal, but nothing can snap onto a blob.
+opaque **escape hatch**: legal, but nothing can snap onto a blob — unless it says what it holds:
+a `schema` pointer, `of: 'string'` (a list of scalars, like `tags`), or an inline `item` (its
+rows). A row or document field the answer may leave out is `optional: true`.
+
+**What a GET answers.** `cardinality: 'many'` (the default) is a bare JSON array of rows, each
+shaped like `item` — the list contract `weaveClient.list` relies on. `'one'` is a single
+document whose top-level fields `item` describes; a list with metadata beside it
+(`{ basis, results }`) is a document, with its rows inline in `results`. ⚠️ **As found
+(2026-09-29): 27 of the suite's datasets answered something other than what they declared** —
+nine documents declared as lists, `/library` answering `{ collections, count, entries }` for an
+entry row, `tags` declared a string and answered an array, every collection answering
+`user_id`/`created_at` undeclared. Nothing errored; a reader got nothing. Each app's smoke now
+sweeps every declared dataset with `checkDeclaredDatasets` (`test/lib/smoke.mjs`) — see §4 Step 2.
 
 **Declared == enforced, for reads.** A `FilterField` carries its enforcement mapping
 (`column`/`op`) next to its public `name`/`type`/`label`; `filterSpec()` projects that into
@@ -175,6 +187,21 @@ and must not be deleted.** `WidgetSpec` binds a dataset into a primitive tree (r
 one system that never met, and converging them on one binding model is the spec the widget
 factory is built from.
 
+**The one binding model** (`weave/src/shared/binding.js`, exported as `@jkos/weave/binding`) is
+what both halves speak — a widget's props and a trigger's DO body resolve through the same
+`resolveBinding`, and `@jkos/widgets`' validator and `validateTriggerTypes` read the same forms:
+
+| Form | Resolves to |
+|---|---|
+| `"text"`, `3`, `true` · `{ lit: … }` | the literal (`{lit}` for one that would look like a binding) |
+| `{ src, path?, fallback? }` · `{ from: 'a.b' }` | the value at `path` in the named source (`{from}` ≡ `{src:'event'}`) |
+| `… map: { DONE: 'ok' }` | a lookup table; a value not in it → `fallback`, else unchanged |
+| `… fmt: 'ago'` | one of `FORMATS` (`upper lower number percent time date ago duration`), applied last; `ago` measures against the `$now` source |
+| `{ eq: [a, b] }` · `{ in: [a, list] }` · `{ not: a }` | true/false; `eq`/`in` compare across string/number, `not` uses `when`'s truthiness |
+
+A condition type-checks as `boolean` and a formatted value as `string`; each operand that reads
+the event must name a field the WHEN produces.
+
 ---
 
 ## 3 · The contract rules
@@ -202,6 +229,16 @@ binds from it when present and refuses a handle binding. The PRESENCE of `resolv
 declaration — there is no separate `async: true` to disagree with it. Held by `86-async-contract`,
 which fails a bare-handle capability that declares no result **and one that re-declares the handle
 AS the result** — the shape that would satisfy a naive check while reinstating the exact defect.
+
+✅ **FOLLOWABLE (2026-09-29).** `resolves` said *what* the work produces and nothing said *where to
+read it*. An app with an async capability now declares exactly one dataset with `shape: 'jobs'`
+(`weave/src/shared/jobs.js`): a `job_id` filter matching the row `id`, rows carrying
+`id`/`status`/`result`/`error`, and `DONE`/`FAILED` as the only ends (every other status is the
+app's own "not yet"). A DONE row's `result` holds **exactly the fields `resolves` declares** —
+LazurOS used to store the worker's raw `{ response, model }`, so `parse-task` declared
+`{ items, defaults }` and answered neither. `86-async-contract` fails an app with no single jobs
+dataset, or a handle that is not its `job_id`. This is what lets a widget's form follow any
+app's async command to its answer with no per-app code.
 
 ### 3.2 Pagination — the `since` cursor only
 
@@ -396,6 +433,12 @@ Write `apps/<id>/backend/test/*.smoke.mjs` that boots the **real** server on a t
 port with a temp SQLite DB, and **run it from the backend's `test` script.** The gate
 (`test/gate.mjs`) runs every workspace package's `test`, so that script is the whole hook; a
 backend with no `test` script ships with no coverage and never joins the gate.
+
+**Sweep your declarations in it.** Once the smoke has real rows, call
+`checkDeclaredDatasets({ ok, doc: DATASETS, base })` from `test/lib/smoke.mjs`: it GETs every
+dataset you declare and holds the answer to its `cardinality` and `item`. Every dataset is checked
+or named in `skip` with a reason (one that answers from the network, say), and a list that answers
+no rows fails — seed one, or its row shape went unchecked.
 
 ⚠️ **Claim your port in `TEST_PORTS`** (`packages/suite-manifest/apps.js`) — the
 single-source registry covering service *and* test ports. `portTable()` throws at load on
