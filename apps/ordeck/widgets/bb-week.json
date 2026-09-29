@@ -1,0 +1,23 @@
+{
+  "id": "bb-week",
+  "label": "Week",
+  "sizing": {
+    "desktop": {
+      "w": 6,
+      "h": 8
+    },
+    "mobile": {
+      "w": 2,
+      "h": 6
+    },
+    "min": {
+      "w": 4,
+      "h": 5
+    }
+  },
+  "spec": {
+    "body": {
+      "t": "week"
+    }
+  }
+}

@@ -22,7 +22,7 @@ import {
 } from './types';
 import { layoutForBreakpoint, placeAtBottom } from './engine';
 import { BREAKPOINTS } from './types';
-import { appOrigin } from '@jkos/weave';
+import { CATALOG } from './catalog';
 import { sourcesOf, RETIRED_COMPONENTS } from '@jkos/widgets';
 
 /** Legacy per-device key — read once to migrate existing layouts into prefs. */
@@ -33,193 +33,12 @@ const LEGACY_STORAGE_KEY = 'ordeck-hud-v4';
  *  constant so the writer (RoomHUD) and reader (WidgetWorkshop) can't drift. */
 export const WIDGET_EDIT_KEY = 'ordeck-widget-edit';
 
-/** "Open the app" links in the built-in specs come from the app manifest, so a
- *  domain change is one edit in @jkos/weave, not scattered across widget specs. */
-const BB_URL = appOrigin('beigeboard');
-
-/** The v5 built-in catalog — 10 widgets, culled + redesigned for information
- *  density (waste no allotted space; absorb one-number cards into their parent).
- *  The fold-ins: quick-add lives INSIDE Today as a command form; progress is
- *  Today's head caption + bar; uptime is Systems' head + bar. Month is the dense
- *  `calendar` dot molecule; Week is the one @jkos/cards view that earns its
- *  footprint. Everything except Focus/Week is a declarative spec — editable in
- *  the workshop and the exact shape a text→widget AI step will emit. */
-const DEFAULT_WIDGETS: Record<string, WidgetDef> = {
-  clock: {
-    id: 'clock', label: 'Clock',
-    // Min a touch wider than the default: the time digits need the width to read.
-    sizing: { desktop: { w: 4, h: 3 }, mobile: { w: 2, h: 3 }, min: { w: 3, h: 2 } },
-    spec: {
-      body: {
-        t: 'time',
-        value: { src: 'clock', path: 'hm' },
-        seconds: { src: 'clock', path: 'ss' },
-        sub: { src: 'clock', path: 'dateLine' },
-        sub2: { src: 'clock', path: 'utcLine' },
-      },
-    },
-  },
-  // A real spec now (not the molecule): icon + temp + hi/lo on one row, hourly
-  // strip pinned to the card's bottom edge. Fully editable in the workshop.
-  weather: {
-    id: 'weather', label: 'Weather',
-    sizing: { desktop: { w: 4, h: 4 }, mobile: { w: 2, h: 4 } },
-    spec: {
-      frame: { eyebrow: 'WEATHER', source: { src: 'weather', path: 'label' } },
-      body: { t: 'when', cond: { src: 'weather', path: 'ready' },
-        then: { t: 'stack', gap: 10, grow: true, justify: 'space-between', children: [
-          { t: 'row', gap: 12, children: [
-            { t: 'icon', name: { src: 'weather', path: 'icon' }, size: 30 },
-            { t: 'stack', gap: 3, grow: true, children: [
-              { t: 'metric', value: { src: 'weather', path: 'temp' }, unit: '°F' },
-              { t: 'text', text: { src: 'weather', path: 'descLine' }, variant: 'sub' },
-            ] },
-            { t: 'stack', gap: 4, children: [
-              { t: 'text', text: { src: 'weather', path: 'hiLabel' }, variant: 'mono' },
-              { t: 'text', text: { src: 'weather', path: 'loLabel' }, variant: 'sub' },
-            ] },
-          ] },
-          { t: 'when', cond: { src: 'weather', path: 'slots' }, then:
-            { t: 'stack', gap: 6, children: [
-              { t: 'divider' },
-              { t: 'list', from: { src: 'weather', path: 'slots' }, dir: 'row',
-                item: { t: 'stack', gap: 2, children: [
-                  { t: 'label', text: { src: '$', path: 'label' }, size: 'xs' },
-                  { t: 'text', text: { src: '$', path: 'tempLabel' }, variant: 'mono' },
-                ] } },
-            ] } },
-        ] },
-        else: { t: 'text', text: { src: 'weather', path: 'statusLabel' }, variant: 'sub' },
-      },
-    },
-  },
-  // The flagship: agenda + progress (head caption + bar) + inline quick-add
-  // (command form, pinned to the bottom edge). Dense rows — time · title · dot.
-  today: {
-    id: 'today', label: 'Today',
-    sizing: { desktop: { w: 5, h: 13 }, mobile: { w: 2, h: 8 } },
-    spec: {
-      frame: { eyebrow: 'TODAY', source: { src: 'today', path: 'progressLabel' } },
-      body: { t: 'stack', gap: 8, grow: true, children: [
-        { t: 'when', cond: { src: 'today', path: 'signedOut' }, then:
-          { t: 'stack', gap: 8, grow: true, children: [
-            { t: 'text', text: 'SIGN IN TO SEE YOUR DAY', variant: 'sub' },
-            { t: 'link', text: 'LOG IN', href: { src: 'authUrl' } },
-          ] } },
-        { t: 'when', cond: { src: 'today', path: 'showOffline' }, then:
-          { t: 'stack', gap: 8, grow: true, children: [
-            { t: 'text', text: 'BEIGEBOARD OFFLINE', variant: 'sub' },
-            { t: 'link', text: 'OPEN BEIGEBOARD', href: { lit: BB_URL } },
-          ] } },
-        { t: 'when', cond: { src: 'today', path: 'showEmpty' }, then:
-          { t: 'stack', gap: 8, grow: true, children: [
-            { t: 'text', text: { src: 'today', path: 'emptyLabel' }, variant: 'sub' },
-          ] } },
-        { t: 'when', cond: { src: 'today', path: 'showTasks' }, then:
-          { t: 'stack', gap: 8, grow: true, children: [
-            { t: 'bar', value: { src: 'today', path: 'progress' }, max: 1 },
-            { t: 'list', from: { src: 'today', path: 'tasks' },
-              item: { t: 'row', gap: 8, justify: 'space-between', children: [
-                { t: 'text', text: { src: '$', path: 'timeLabel' }, variant: 'sub' },
-                { t: 'text', text: { src: '$', path: 'title' }, variant: 'mono', grow: true },
-                { t: 'dot', tone: { src: '$', path: 'tone' } },
-              ] } },
-          ] } },
-        { t: 'when', cond: { src: 'today', path: 'canAdd' }, then:
-          { t: 'form',
-            cmd: {
-              app: 'beigeboard', capability: 'createItem',
-              body: {
-                title:    { src: '$form', path: 'title' },
-                due_date: { src: 'clock', path: 'iso' },   // lands on today
-              },
-            },
-            submit: 'ADD',
-            children: [
-              { t: 'input', field: 'title', placeholder: 'Add a task for today…' },
-            ] } },
-      ] },
-    },
-  },
-  // The month at a glance — the dense dot molecule (done/pending per day), not
-  // the chip view: at HUD widths dots carry more signal per pixel than
-  // truncated titles. Week (below) is the titles view.
-  calendar: {
-    id: 'calendar', label: 'Calendar',
-    // The seven-column month grid needs width and enough rows to show the weeks.
-    sizing: { desktop: { w: 4, h: 6 }, mobile: { w: 2, h: 5 }, min: { w: 3, h: 5 } },
-    spec: { body: { t: 'calendar' } },
-  },
-  // Absorbs the old `uptime` card: the "3 / 4 UP" head caption it always had,
-  // plus the fill bar, over the same probe rows.
-  systems: {
-    id: 'systems', label: 'Systems',
-    sizing: { desktop: { w: 3, h: 5 }, mobile: { w: 2, h: 4 } },
-    spec: {
-      frame: { eyebrow: 'SYSTEMS', source: { src: 'systems', path: 'summary' } },
-      body: { t: 'stack', gap: 10, grow: true, children: [
-        { t: 'bar', value: { src: 'systems', path: 'up' }, max: { src: 'systems', path: 'total' } },
-        { t: 'list', from: { src: 'systems', path: 'rows' }, empty: 'NO PROBES',
-          item: { t: 'row', gap: 8, children: [
-            { t: 'dot', tone: { src: '$', path: 'tone' } },
-            { t: 'text', text: { src: '$', path: 'name' }, variant: 'mono', grow: true },
-            { t: 'text', text: { src: '$', path: 'detail' }, variant: 'sub' },
-          ] } },
-      ] },
-    },
-  },
-  // One feed for the whole suite: down systems, the task happening now, overdue
-  // items — derived (see deriveNotifications), not stored.
-  // Single-line rows: icon · text · detail.
-  notifications: {
-    id: 'notifications', label: 'Alerts',
-    sizing: { desktop: { w: 3, h: 5 }, mobile: { w: 2, h: 4 } },
-    spec: {
-      frame: { eyebrow: 'ALERTS', source: { src: 'notifications', path: 'summary' } },
-      body: { t: 'list', from: { src: 'notifications', path: 'items' }, empty: 'ALL CLEAR — NO ALERTS',
-        item: { t: 'row', gap: 8, children: [
-          { t: 'icon', name: { src: '$', path: 'icon' }, tone: { src: '$', path: 'tone' }, size: 14 },
-          { t: 'text', text: { src: '$', path: 'text' }, variant: 'mono', grow: true },
-          { t: 'text', text: { src: '$', path: 'detail' }, variant: 'sub' },
-        ] } },
-    },
-  },
-  // The single "now working on" task pushed from BeigeBoard, and END FOCUS — the
-  // `focus` molecule. When active, the HUD dims its siblings. Ships shelved.
-  focus: {
-    id: 'focus', label: 'Focus',
-    sizing: { desktop: { w: 4, h: 4 }, mobile: { w: 2, h: 4 } },
-    spec: { body: { t: 'focus' } },
-  },
-  // Tasks the user pinned in BeigeBoard, mirrored onto the HUD — read-only list,
-  // same dense row template as Today. Ships shelved.
-  pinned: {
-    id: 'pinned', label: 'Pinned',
-    sizing: { desktop: { w: 4, h: 5 }, mobile: { w: 2, h: 4 } },
-    spec: {
-      frame: { eyebrow: 'PINNED', source: 'BEIGEBOARD' },
-      body: { t: 'stack', gap: 8, grow: true, children: [
-        { t: 'when', cond: { src: 'pinned', path: 'authed' }, then:
-          { t: 'list', from: { src: 'pinned', path: 'items' }, empty: 'NOTHING PINNED — PIN A TASK IN BEIGEBOARD',
-            item: { t: 'row', gap: 8, justify: 'space-between', children: [
-              { t: 'text', text: { src: '$', path: 'timeLabel' }, variant: 'sub' },
-              { t: 'text', text: { src: '$', path: 'title' }, variant: 'mono', grow: true },
-              { t: 'dot', tone: { src: '$', path: 'tone' } },
-            ] } },
-          else: { t: 'text', text: 'SIGN IN TO SEE PINNED TASKS', variant: 'sub' } },
-      ] },
-    },
-  },
-  // The shared @jkos/cards Week view — the `week` molecule, read-only (no DragAdapter
-  // → no clash with the HUD grid's drag). The planning horizon the month dots can't
-  // give. Ships shelved.
-  'bb-week': {
-    id: 'bb-week', label: 'Week',
-    // A real seven-day time-grid — below this it stops being legible.
-    sizing: { desktop: { w: 6, h: 8 }, mobile: { w: 2, h: 6 }, min: { w: 4, h: 5 } },
-    spec: { body: { t: 'week' } },
-  },
-};
+/** Every widget the suite ships — ORDECK's own cards and every app's — is a FILE,
+ *  compiled in (./catalog.ts): apps/<app>/widgets/<id>.json. They used to be a literal
+ *  here (the v5 catalog: culled and redesigned for density, quick-add folded into Today,
+ *  uptime into Systems, Month the dot molecule and Week the one @jkos/cards view), which
+ *  only an edit to ORDECK could extend. Only the default ARRANGEMENT stays in code. */
+const CATALOG_IDS = new Set(Object.keys(CATALOG));
 
 /** Default desktop arrangement (12-col) — every column lands flush at 13 rows:
  *  left 3+4+6, centre 13, right 5+8. Mobile is derived by the engine (reflow
@@ -239,7 +58,7 @@ const DEFAULT_DESKTOP: GridItem[] = [
 export function defaultHudState(): HudState {
   return {
     version: HUD_STATE_VERSION,
-    widgets: structuredClone(DEFAULT_WIDGETS),
+    widgets: structuredClone({ ...CATALOG }),
     layouts: { desktop: structuredClone(DEFAULT_DESKTOP) },
     shelf: [],
   };
@@ -311,19 +130,29 @@ function validHud(v: unknown): HudState | null {
 }
 
 /**
- * Ensure every built-in widget exists in a loaded doc's registry — WITHOUT
- * touching layout. A stored doc carries the widget set from when it was saved,
- * so new built-ins (added in a later release) would otherwise be invisible.
- * Additive only: existing defs are left as-is, so user/workshop customisations
- * and placements survive. New built-ins land on the shelf (absent from layout).
+ * A doc references catalog widgets BY ID: on load, every catalog widget's def is the
+ * catalog's — WITHOUT touching layout. A stored doc used to keep its own copy of each
+ * built-in from the day it was saved, so a fixed or redesigned card never reached a HUD
+ * that already had it; and a new card (a new file, any app's) would be invisible. New
+ * ones land on the shelf (absent from layout). A published registry def under the same
+ * id still wins — mergePublished runs after this.
  */
-function withBuiltins(state: HudState): HudState {
+function withCatalog(state: HudState): HudState {
   let changed = false;
   const widgets = { ...state.widgets };
-  for (const [id, def] of Object.entries(DEFAULT_WIDGETS)) {
-    if (!widgets[id]) { widgets[id] = structuredClone(def); changed = true; }
+  for (const [id, def] of Object.entries(CATALOG)) {
+    if (widgets[id] !== def) { widgets[id] = def; changed = true; }
   }
   return changed ? { ...state, widgets } : state;
+}
+
+/** What is stored: the doc WITHOUT the catalog's defs, which are referenced by id and
+ *  come back from the catalog on load. (No version bump: an older build's withBuiltins
+ *  re-adds its own built-ins to a doc missing them, so a rollback still draws the HUD.) */
+export function toStored(state: HudState): HudState {
+  const widgets: Record<string, WidgetDef> = {};
+  for (const [id, def] of Object.entries(state.widgets)) if (!CATALOG_IDS.has(id)) widgets[id] = def;
+  return { ...state, widgets };
 }
 
 /** A published body that is just the clock — the bare `time` molecule, or the
@@ -403,7 +232,7 @@ export function mergePublished(state: HudState, published: WidgetDef[]): HudStat
   const placed = new Set<string>();
   for (const items of Object.values(layouts)) for (const it of items ?? []) placed.add(it.i);
   for (const id of Object.keys(widgets)) {
-    if (DEFAULT_WIDGETS[id] || pubIds.has(id) || placed.has(id)) continue;
+    if (CATALOG_IDS.has(id) || pubIds.has(id) || placed.has(id)) continue;
     delete widgets[id];
   }
   const shelf = state.shelf.filter((id) => !!widgets[id]);
@@ -459,7 +288,7 @@ export async function loadHudState(): Promise<HudState> {
   }
   if (profileHud) {
     const pruned = withoutComponents(withoutRetired(profileHud));
-    const doc = withBuiltins(pruned);
+    const doc = withCatalog(pruned);
     if (hasPlacedCards(doc)) {
       // A retired card was stripped (or a retired component repaired): persist it, or
       // every load repeats it and a save from another tab writes the old def back.
@@ -476,7 +305,7 @@ export async function loadHudState(): Promise<HudState> {
 
   const legacy = readLegacy();
   if (legacy) {
-    const merged = withBuiltins(withoutComponents(withoutRetired(legacy)));
+    const merged = withCatalog(withoutComponents(withoutRetired(legacy)));
     saveHudState(merged);                        // migrate device → prefs
     try { localStorage.removeItem(LEGACY_STORAGE_KEY); } catch { /* ignore */ }
     return merged;
@@ -491,7 +320,7 @@ let saveTimer: ReturnType<typeof setTimeout> | null = null;
 export function saveHudState(state: HudState): void {
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
-    patchProfile(writeHudPref('hud', state)).catch(() => {
+    patchProfile(writeHudPref('hud', toStored(state))).catch(() => {
       /* a failed save is non-fatal — the in-memory HUD is still correct and the
          next mutation retries. */
     });

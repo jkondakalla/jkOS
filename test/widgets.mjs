@@ -5,9 +5,8 @@
 //   1. GENERATED FILES ARE FRESH. ORDECK's `WidgetNode` union (hud/nodes.gen.ts) is
 //      projected from packages/widgets/src/manifest.js. Stale means the renderer is
 //      type-checked against a vocabulary the validator no longer speaks.
-//   2. EVERY WIDGET THE SUITE SHIPS IS VALID. ORDECK's built-in catalog (the REAL
-//      defaultHudState(), transpiled) and every committed widget file
-//      (apps/*/widgets/*.json) pass the validator jkAuth holds a publish to — so
+//   2. EVERY WIDGET THE SUITE SHIPS IS VALID. Every widget file (apps/*/widgets/*.json,
+//      ORDECK's own cards included) passes the validator jkAuth holds a publish to — so
 //      "committed" and "publishable" cannot disagree — AND its second tier: every
 //      binding, source and command against what its app declares and ORDECK's slices.
 //   3. THE WORKSHOP EDITS LOSSLESSLY. The real workshop/model.ts, whose tree shape is
@@ -56,10 +55,10 @@ try {
 }
 
 // ── 2. every widget the suite ships is valid ────────────────────────────────
-// ORDECK's built-ins (the REAL defaultHudState(), transpiled) and every app widget
+// Every widget file, ORDECK's own cards included —
 // file — read by scripts/widget/catalog.mjs, the same list the CLI and render gate use.
 const shipped = await shippedWidgets();
-check(shipped.some((w) => w.where.startsWith('built-in')), `ORDECK's built-in catalog loads (${shipped.filter((w) => w.where.startsWith('built-in')).length} widgets)`);
+check(shipped.filter((w) => w.app === 'ordeck').length >= 9, `ORDECK's own cards are widget files too (${shipped.filter((w) => w.app === 'ordeck').length} in apps/ordeck/widgets)`);
 for (const w of shipped) {
   if (!w.def) { check(false, `${w.where} is JSON — ${w.error}`); continue; }
   if (w.file) check(w.def.id === w.where.split('/').pop().replace(/\.json$/, ''), `${w.where}: the file is named for its widget id`);

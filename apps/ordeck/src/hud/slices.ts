@@ -18,7 +18,7 @@
  * Pure data with type-only imports, so a Node tool can transpile and read it.
  */
 
-import type { FieldType } from '@jkos/weave';
+import type { FieldType, AppId } from '@jkos/weave';
 import type {
   ClockState, WeatherState, WeatherSlot, SystemsState, SysRow, TodayState, TodayTask, MonthCalState, CalDay,
   NotificationsState, Notification, FocusState, PinnedState, PinnedTask,
@@ -90,6 +90,12 @@ const PIN: Fields<PinnedTask> = {
 };
 const PINNED: Fields<PinnedState> = { loaded: b(), authed: b(), items: rows(PIN), count: n(), empty: b('Signed in, loaded, nothing pinned') };
 
+/** One origin per suite app — every AppId, so a new app is declared here or tsc says so. */
+const ORIGINS: { readonly [K in AppId]: SliceField } = {
+  auth: s('jkAuth'), beigeboard: s('BeigeBoard'), ordeck: s('ORDECK'), staging: s('the staging origin'),
+  lazuros: s('LazurOS (none: it has no browsable origin)'), kouros: s('KourOS'), jkdeploy: s('jkDeploy'),
+};
+
 /** Every slice in a widget's scope, by the name a binding's `src` uses. */
 export const HUD_SLICES: { readonly [K in keyof WidgetCtx]-?: SliceField } = {
   clock: { type: 'json', label: 'The time, ticking every second', item: CLOCK },
@@ -103,6 +109,7 @@ export const HUD_SLICES: { readonly [K in keyof WidgetCtx]-?: SliceField } = {
   focus: { type: 'json', label: 'The one item in focus, pushed from BeigeBoard', item: FOCUS },
   pinned: { type: 'json', label: 'Items pinned in BeigeBoard', item: PINNED },
   authUrl: { type: 'string', label: 'Where to sign in' },
+  origins: { type: 'json', label: "Each app's origin on this deployment ({ beigeboard: 'https://…' })", item: ORIGINS },
   aiEnabled: { type: 'boolean', label: 'The LazurOS kill switch allows AI (an AI widget does not render while it is off)' },
 };
 

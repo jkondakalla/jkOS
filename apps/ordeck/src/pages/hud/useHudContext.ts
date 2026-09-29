@@ -10,7 +10,7 @@
 
 import { useMemo } from 'react';
 import { AUTH_URL } from '@jkos/auth-client';
-import type { SuiteApp } from '@jkos/weave';
+import { APP_IDS, appOrigin, type AppId, type SuiteApp } from '@jkos/weave';
 import { type WidgetCtx } from '../../hud/registry';
 import {
   useClock, useWeather, useSystems, useBbItems, useShelfRefs,
@@ -48,5 +48,12 @@ export function useHudContext(aiEnabled: boolean, suite: Record<string, SuiteApp
 
   // todayIso is a plain string (changes only at midnight), so the card memo gate
   // compares it by value — the calendar widgets needn't depend on the per-second clock.
-  return { clock, weather, systems, today, cal, items, todayIso: clock.iso, notifications, focus, pinned, authUrl: AUTH_URL, aiEnabled };
+  // Each app's origin on this deployment, from the hydrated directory (the manifest's as
+  // the fallback) — memoised on it, so a card linking to an app re-renders only if it moves.
+  const origins = useMemo(
+    () => Object.fromEntries(APP_IDS.map((id) => [id, suite[id]?.origin || appOrigin(id)])) as Record<AppId, string>,
+    [suite],
+  );
+
+  return { clock, weather, systems, today, cal, items, todayIso: clock.iso, notifications, focus, pinned, authUrl: AUTH_URL, origins, aiEnabled };
 }

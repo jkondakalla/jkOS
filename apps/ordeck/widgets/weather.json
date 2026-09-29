@@ -1,0 +1,151 @@
+{
+  "id": "weather",
+  "label": "Weather",
+  "sizing": {
+    "desktop": {
+      "w": 4,
+      "h": 4
+    },
+    "mobile": {
+      "w": 2,
+      "h": 4
+    }
+  },
+  "spec": {
+    "frame": {
+      "eyebrow": "WEATHER",
+      "source": {
+        "src": "weather",
+        "path": "label"
+      }
+    },
+    "body": {
+      "t": "when",
+      "cond": {
+        "src": "weather",
+        "path": "ready"
+      },
+      "then": {
+        "t": "stack",
+        "gap": 10,
+        "grow": true,
+        "justify": "space-between",
+        "children": [
+          {
+            "t": "row",
+            "gap": 12,
+            "children": [
+              {
+                "t": "icon",
+                "name": {
+                  "src": "weather",
+                  "path": "icon"
+                },
+                "size": 30
+              },
+              {
+                "t": "stack",
+                "gap": 3,
+                "grow": true,
+                "children": [
+                  {
+                    "t": "metric",
+                    "value": {
+                      "src": "weather",
+                      "path": "temp"
+                    },
+                    "unit": "°F"
+                  },
+                  {
+                    "t": "text",
+                    "text": {
+                      "src": "weather",
+                      "path": "descLine"
+                    },
+                    "variant": "sub"
+                  }
+                ]
+              },
+              {
+                "t": "stack",
+                "gap": 4,
+                "children": [
+                  {
+                    "t": "text",
+                    "text": {
+                      "src": "weather",
+                      "path": "hiLabel"
+                    },
+                    "variant": "mono"
+                  },
+                  {
+                    "t": "text",
+                    "text": {
+                      "src": "weather",
+                      "path": "loLabel"
+                    },
+                    "variant": "sub"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "t": "when",
+            "cond": {
+              "src": "weather",
+              "path": "slots"
+            },
+            "then": {
+              "t": "stack",
+              "gap": 6,
+              "children": [
+                {
+                  "t": "divider"
+                },
+                {
+                  "t": "list",
+                  "from": {
+                    "src": "weather",
+                    "path": "slots"
+                  },
+                  "dir": "row",
+                  "item": {
+                    "t": "stack",
+                    "gap": 2,
+                    "children": [
+                      {
+                        "t": "label",
+                        "text": {
+                          "src": "$",
+                          "path": "label"
+                        },
+                        "size": "xs"
+                      },
+                      {
+                        "t": "text",
+                        "text": {
+                          "src": "$",
+                          "path": "tempLabel"
+                        },
+                        "variant": "mono"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "else": {
+        "t": "text",
+        "text": {
+          "src": "weather",
+          "path": "statusLabel"
+        },
+        "variant": "sub"
+      }
+    }
+  }
+}

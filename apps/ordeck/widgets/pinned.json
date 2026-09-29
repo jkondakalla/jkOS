@@ -1,0 +1,78 @@
+{
+  "id": "pinned",
+  "label": "Pinned",
+  "sizing": {
+    "desktop": {
+      "w": 4,
+      "h": 5
+    },
+    "mobile": {
+      "w": 2,
+      "h": 4
+    }
+  },
+  "spec": {
+    "frame": {
+      "eyebrow": "PINNED",
+      "source": "BEIGEBOARD"
+    },
+    "body": {
+      "t": "stack",
+      "gap": 8,
+      "grow": true,
+      "children": [
+        {
+          "t": "when",
+          "cond": {
+            "src": "pinned",
+            "path": "authed"
+          },
+          "then": {
+            "t": "list",
+            "from": {
+              "src": "pinned",
+              "path": "items"
+            },
+            "empty": "NOTHING PINNED — PIN A TASK IN BEIGEBOARD",
+            "item": {
+              "t": "row",
+              "gap": 8,
+              "justify": "space-between",
+              "children": [
+                {
+                  "t": "text",
+                  "text": {
+                    "src": "$",
+                    "path": "timeLabel"
+                  },
+                  "variant": "sub"
+                },
+                {
+                  "t": "text",
+                  "text": {
+                    "src": "$",
+                    "path": "title"
+                  },
+                  "variant": "mono",
+                  "grow": true
+                },
+                {
+                  "t": "dot",
+                  "tone": {
+                    "src": "$",
+                    "path": "tone"
+                  }
+                }
+              ]
+            }
+          },
+          "else": {
+            "t": "text",
+            "text": "SIGN IN TO SEE PINNED TASKS",
+            "variant": "sub"
+          }
+        }
+      ]
+    }
+  }
+}

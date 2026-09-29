@@ -1,12 +1,10 @@
 // catalog.mjs — every widget the suite ships, loaded as data.
 //
-// Two places ship widgets: ORDECK's built-in catalog (defaultHudState() in
-// apps/ordeck/src/hud/state.ts) and app-owned widget files (apps/<app>/widgets/<id>.json,
-// with optional fixtures beside them in <id>.fixtures.json). The gate, the CLI and
-// the render harness all need the same list, so it is read here, once.
-//
-// The built-ins come from the REAL state.ts, transpiled with the repo's own TypeScript
-// (the network leaves stubbed, as check:hud does) — never a copy of the defaults.
+// Every widget the suite ships is a file — apps/<app>/widgets/<id>.json, with optional
+// fixtures beside it in <id>.fixtures.json — ORDECK's own cards included (they used to be
+// a literal in state.ts that each tool had to transpile to read). The gate, the CLI and
+// the render harness all need the same list, so it is read here, once; ORDECK compiles
+// the same files in (hud/catalog.ts).
 //
 // And every app's Weave declarations (CapabilityDoc / DatasetDoc), required as data
 // from the modules the suite-prober reads (BACKEND_DOCS), so a harness can serve a
@@ -32,32 +30,14 @@ export function suiteHosts() {
   return [...new Set(APPS.filter((a) => a.origin).map((a) => new URL(a.origin).hostname))];
 }
 
-/** ORDECK's built-in defs, from the real defaultHudState(). */
-export async function builtinDefs() {
-  const tmp = mkdtempSync(join(tmpdir(), 'jkos-widget-catalog-'));
-  try {
-    writeFileSync(join(tmp, 'stub-auth-client.mjs'),
-      'export const getProfile = async () => ({});\nexport const patchProfile = async () => ({});\n'
-      + 'export const readHudPref = () => null;\nexport const writeHudPref = () => ({});\n');
-    writeFileSync(join(tmp, 'stub-weave.mjs'), "export const appOrigin = (id) => 'https://' + id + '.jkos.net';\n");
-    const RW = {
-      './types': './types.mjs', './engine': './engine.mjs', '@jkos/design': './jkos-design.mjs',
-      '@jkos/auth-client': './stub-auth-client.mjs', '@jkos/weave': './stub-weave.mjs', '@jkos/widgets': WIDGETS_URL,
-    };
-    const emit = (rel, out) => {
-      let src = readFileSync(join(REPO_ROOT, rel), 'utf8');
-      for (const [from, to] of Object.entries(RW)) src = src.split(`'${from}'`).join(`'${to}'`);
-      writeFileSync(join(tmp, out), transpile(src, rel));
-      return pathToFileURL(join(tmp, out)).href;
-    };
-    emit('packages/design/responsive/breakpoints.ts', 'jkos-design.mjs');
-    emit('apps/ordeck/src/hud/types.ts', 'types.mjs');
-    emit('apps/ordeck/src/hud/engine.ts', 'engine.mjs');
-    const state = await import(emit('apps/ordeck/src/hud/state.ts', 'state.mjs'));
-    return Object.values(state.defaultHudState().widgets);
-  } finally {
-    rmSync(tmp, { recursive: true, force: true });
-  }
+/** The source of a module standing in for ORDECK's hud/catalog.ts under Node, where
+ *  there is no Vite to resolve its glob: the SAME files, as data. For harnesses that
+ *  transpile state.ts (check:hud). */
+export function catalogModuleSource() {
+  const files = widgetFiles().filter((w) => w.def);
+  const catalog = Object.fromEntries(files.map((w) => [w.def.id, w.def]));
+  const apps = Object.fromEntries(files.map((w) => [w.def.id, w.app]));
+  return `export const CATALOG = Object.freeze(${JSON.stringify(catalog)});\nexport const CATALOG_APP = Object.freeze(${JSON.stringify(apps)});\n`;
 }
 
 /** ORDECK's HUD slice declaration (hud/slices.ts HUD_SLICES) — its imports are type-only,
@@ -104,10 +84,9 @@ export function widgetFiles() {
   return out;
 }
 
-/** Everything the suite ships: built-ins first, then app files. */
+/** Everything the suite ships — ORDECK's own cards included — is a widget file. */
 export async function shippedWidgets() {
-  const builtins = (await builtinDefs()).map((def) => ({ where: `built-in '${def.id}'`, app: 'ordeck', file: null, def, fixtures: null }));
-  return [...builtins, ...widgetFiles()];
+  return widgetFiles();
 }
 
 /** Each app's Weave declarations as data: { [app]: { capabilities, datasets } }. */

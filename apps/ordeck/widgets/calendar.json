@@ -1,0 +1,23 @@
+{
+  "id": "calendar",
+  "label": "Calendar",
+  "sizing": {
+    "desktop": {
+      "w": 4,
+      "h": 6
+    },
+    "mobile": {
+      "w": 2,
+      "h": 5
+    },
+    "min": {
+      "w": 3,
+      "h": 5
+    }
+  },
+  "spec": {
+    "body": {
+      "t": "calendar"
+    }
+  }
+}

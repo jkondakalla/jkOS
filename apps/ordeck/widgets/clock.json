@@ -1,0 +1,39 @@
+{
+  "id": "clock",
+  "label": "Clock",
+  "sizing": {
+    "desktop": {
+      "w": 4,
+      "h": 3
+    },
+    "mobile": {
+      "w": 2,
+      "h": 3
+    },
+    "min": {
+      "w": 3,
+      "h": 2
+    }
+  },
+  "spec": {
+    "body": {
+      "t": "time",
+      "value": {
+        "src": "clock",
+        "path": "hm"
+      },
+      "seconds": {
+        "src": "clock",
+        "path": "ss"
+      },
+      "sub": {
+        "src": "clock",
+        "path": "dateLine"
+      },
+      "sub2": {
+        "src": "clock",
+        "path": "utcLine"
+      }
+    }
+  }
+}

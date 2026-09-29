@@ -1,0 +1,31 @@
+/**
+ * hud/catalog.ts — every widget the suite ships, compiled into ORDECK from files.
+ *
+ * A widget is a file: `apps/<app>/widgets/<id>.json` (its preview fixtures beside it as
+ * `<id>.fixtures.json`). ORDECK's own cards live in apps/ordeck/widgets/ like any app's —
+ * they used to be a TypeScript literal in state.ts, which no agent could add to without
+ * editing ORDECK, and which the gate, the CLI and the preview each had to transpile to
+ * read. Now an app adds a card by adding a file, and every tool reads the same files.
+ *
+ * Vite resolves the glob at BUILD time (the images build from the repo root, so every
+ * app's widgets/ is in the context). The gate holds this list to the files on disk
+ * (check:widget-render reads the preview build's CATALOG), and every file to both
+ * validation tiers (check:widgets).
+ */
+
+import type { WidgetDef } from './types';
+
+const files = import.meta.glob<WidgetDef>(
+  ['../../../*/widgets/*.json', '!../../../*/widgets/*.fixtures.json'],
+  { eager: true, import: 'default' },
+);
+
+/** id → def, for every widget file of every app. */
+export const CATALOG: Readonly<Record<string, WidgetDef>> = Object.freeze(
+  Object.fromEntries(Object.values(files).map((def) => [def.id, def])),
+);
+
+/** Which app ships each catalog widget (its file's folder). */
+export const CATALOG_APP: Readonly<Record<string, string>> = Object.freeze(
+  Object.fromEntries(Object.entries(files).map(([path, def]) => [def.id, path.split('/').at(-3) ?? ''])),
+);

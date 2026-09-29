@@ -36,6 +36,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { resolve, join } from 'node:path';
 import { unit } from '../../../test/lib/unit.mjs';
+import { catalogModuleSource } from '../../../scripts/widget/catalog.mjs';
 
 const { tmp, ok, fail, emitTs, done } = unit('check-hud-doc');
 
@@ -51,6 +52,8 @@ const REWRITES = {
   // The widget vocabulary is plain JS with no imports of its own — the REAL package,
   // by absolute URL, never a stub (state.ts asks it which slices a def binds).
   '@jkos/widgets': pathToFileURL(resolve(import.meta.dirname, '../../../packages/widgets/src/index.js')).href,
+  // hud/catalog.ts is a Vite glob; the SAME widget files, as data (scripts/widget/catalog.mjs).
+  './catalog': './catalog.mjs',
 };
 const transpileTo = (srcRel, outName) => emitTs(srcRel, outName, REWRITES);
 
@@ -72,6 +75,7 @@ transpileTo('packages/design/responsive/breakpoints.ts', 'jkos-design.mjs');
 transpileTo('packages/auth-client/src/hudPrefs.ts', 'hudPrefs.mjs');
 transpileTo('apps/ordeck/src/hud/types.ts', 'types.mjs');
 transpileTo('apps/ordeck/src/hud/engine.ts', 'engine.mjs');
+writeFileSync(join(tmp, 'catalog.mjs'), catalogModuleSource());
 transpileTo('apps/ordeck/src/hud/state.ts', 'state.mjs');
 // XC-3: the BeigeBoard delta merge — pure by construction, no imports at all.
 transpileTo('apps/ordeck/src/pages/hud/bbDelta.ts', 'bbDelta.mjs');
@@ -344,6 +348,27 @@ if (args.includes('--live')) {
   else fail(`component: a published component row was not repaired — ${JSON.stringify(merged.widgets.pubbed)}`);
   if (Object.values(defaultHudState().widgets).every((w) => w.spec && !('component' in w))) ok('component: every built-in is a spec');
   else fail('component: a built-in still uses the retired hatch');
+}
+
+// ── The catalog is referenced BY ID ────────────────────────────────────────────
+// Every card is a widget file (hud/catalog.ts). A stored doc used to keep its own copy
+// of each built-in from the day it was saved, so a fixed or redesigned card never
+// reached a HUD that already had it.
+{
+  const { toStored } = state;
+  const stored = defaultHudState();
+  stored.widgets.today = { ...stored.widgets.today, label: 'Today (a stale copy from an older build)' };
+  const saved = toStored(stored);
+  if (!saved.widgets.today && !saved.widgets.clock) ok('catalog: a saved doc stores no catalog def — it references them by id');
+  else fail('catalog: a catalog def was stored');
+  if (saved.layouts.desktop.some((it) => it.i === 'today')) ok('catalog: …while its placements are kept');
+  else fail('catalog: a placement was lost on save');
+  const own = defaultHudState();
+  own.widgets.mine = { id: 'mine', label: 'Mine', sizing: { desktop: { w: 2, h: 2 }, mobile: { w: 2, h: 2 } }, spec: { body: { t: 'text', text: 'x' } } };
+  if (toStored(own).widgets.mine) ok('catalog: a widget that is not in the catalog (a published one) is still stored');
+  else fail('catalog: a non-catalog def was stripped');
+  if (Object.keys(defaultHudState().widgets).includes('lazuros-jobs')) ok("catalog: a fresh HUD's registry holds every app's widget files (LazurOS's on the shelf)");
+  else fail('catalog: an app widget file is missing from the default registry');
 }
 
 done();

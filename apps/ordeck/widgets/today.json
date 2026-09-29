@@ -1,0 +1,194 @@
+{
+  "id": "today",
+  "label": "Today",
+  "sizing": {
+    "desktop": {
+      "w": 5,
+      "h": 13
+    },
+    "mobile": {
+      "w": 2,
+      "h": 8
+    }
+  },
+  "spec": {
+    "frame": {
+      "eyebrow": "TODAY",
+      "source": {
+        "src": "today",
+        "path": "progressLabel"
+      }
+    },
+    "body": {
+      "t": "stack",
+      "gap": 8,
+      "grow": true,
+      "children": [
+        {
+          "t": "when",
+          "cond": {
+            "src": "today",
+            "path": "signedOut"
+          },
+          "then": {
+            "t": "stack",
+            "gap": 8,
+            "grow": true,
+            "children": [
+              {
+                "t": "text",
+                "text": "SIGN IN TO SEE YOUR DAY",
+                "variant": "sub"
+              },
+              {
+                "t": "link",
+                "text": "LOG IN",
+                "href": {
+                  "src": "authUrl"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "t": "when",
+          "cond": {
+            "src": "today",
+            "path": "showOffline"
+          },
+          "then": {
+            "t": "stack",
+            "gap": 8,
+            "grow": true,
+            "children": [
+              {
+                "t": "text",
+                "text": "BEIGEBOARD OFFLINE",
+                "variant": "sub"
+              },
+              {
+                "t": "link",
+                "text": "OPEN BEIGEBOARD",
+                "href": { "src": "origins", "path": "beigeboard" }
+              }
+            ]
+          }
+        },
+        {
+          "t": "when",
+          "cond": {
+            "src": "today",
+            "path": "showEmpty"
+          },
+          "then": {
+            "t": "stack",
+            "gap": 8,
+            "grow": true,
+            "children": [
+              {
+                "t": "text",
+                "text": {
+                  "src": "today",
+                  "path": "emptyLabel"
+                },
+                "variant": "sub"
+              }
+            ]
+          }
+        },
+        {
+          "t": "when",
+          "cond": {
+            "src": "today",
+            "path": "showTasks"
+          },
+          "then": {
+            "t": "stack",
+            "gap": 8,
+            "grow": true,
+            "children": [
+              {
+                "t": "bar",
+                "value": {
+                  "src": "today",
+                  "path": "progress"
+                },
+                "max": 1
+              },
+              {
+                "t": "list",
+                "from": {
+                  "src": "today",
+                  "path": "tasks"
+                },
+                "item": {
+                  "t": "row",
+                  "gap": 8,
+                  "justify": "space-between",
+                  "children": [
+                    {
+                      "t": "text",
+                      "text": {
+                        "src": "$",
+                        "path": "timeLabel"
+                      },
+                      "variant": "sub"
+                    },
+                    {
+                      "t": "text",
+                      "text": {
+                        "src": "$",
+                        "path": "title"
+                      },
+                      "variant": "mono",
+                      "grow": true
+                    },
+                    {
+                      "t": "dot",
+                      "tone": {
+                        "src": "$",
+                        "path": "tone"
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "t": "when",
+          "cond": {
+            "src": "today",
+            "path": "canAdd"
+          },
+          "then": {
+            "t": "form",
+            "cmd": {
+              "app": "beigeboard",
+              "capability": "createItem",
+              "body": {
+                "title": {
+                  "src": "$form",
+                  "path": "title"
+                },
+                "due_date": {
+                  "src": "clock",
+                  "path": "iso"
+                }
+              }
+            },
+            "submit": "ADD",
+            "children": [
+              {
+                "t": "input",
+                "field": "title",
+                "placeholder": "Add a task for today…"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "id": "focus",
+  "label": "Focus",
+  "sizing": {
+    "desktop": {
+      "w": 4,
+      "h": 4
+    },
+    "mobile": {
+      "w": 2,
+      "h": 4
+    }
+  },
+  "spec": {
+    "body": {
+      "t": "focus"
+    }
+  }
+}

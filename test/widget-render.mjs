@@ -52,6 +52,14 @@ for (const r of results) {
 }
 if (!failed) ok(`${widgets.length} widgets × 2 faces × every tier and state render with no fault and no page error`);
 
+// ORDECK compiles the widget files in with a Vite glob (hud/catalog.ts); a pattern that
+// missed an app would ship a HUD without its cards and nothing else would say so. The
+// preview is a real Vite build of that module, so what it reports is what the glob found.
+const compiled = results.find((r) => r.report.catalog)?.report.catalog ?? [];
+const files = widgets.map((w) => w.def.id).sort();
+if (JSON.stringify(compiled) === JSON.stringify(files)) ok(`the build compiles in exactly the ${files.length} widget files on disk`);
+else fail(`the build's catalog is not the widget files — compiled [${compiled}] vs files [${files}]`);
+
 const now = [...found].sort();
 if (UPDATE) {
   writeFileSync(BASELINE, `${JSON.stringify(now, null, 2)}\n`);

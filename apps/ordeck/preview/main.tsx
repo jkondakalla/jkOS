@@ -29,6 +29,7 @@ import ReactDOM from 'react-dom/client';
 import { injectJkOSTheme, applyJkOSMode, applyJkOSMotion, applyJkOSTheme, ACCENT_SCHEMES } from '@jkos/design';
 import { renderWidget } from '../src/hud/registry';
 import { SourceReaderProvider, readExternal, type SourceReader } from '../src/hud/sources';
+import { CATALOG } from '../src/hud/catalog';
 import { readDataset } from '@jkos/weave';
 import { DEFAULT_MIN_SIZE, type WidgetDef } from '../src/hud/types';
 import { TIERS, ROW_H, unitsToPx } from '../src/workshop/EditorCanvas';
@@ -186,7 +187,8 @@ async function main() {
   }
   await frames();
   const fonts = [...document.fonts].filter((f) => f.status === 'loaded').map((f) => `${f.family} ${f.weight}`);
-  (window as unknown as Record<string, unknown>).__widgetReport = { ...measure(), unsettled: pending, fonts: [...new Set(fonts)] };
+  // What Vite's glob compiled in (hud/catalog.ts) — the render gate holds it to the files.
+  (window as unknown as Record<string, unknown>).__widgetReport = { ...measure(), unsettled: pending, fonts: [...new Set(fonts)], catalog: Object.keys(CATALOG).sort() };
   (window as unknown as Record<string, unknown>).__widgetReady = true;
 }
 

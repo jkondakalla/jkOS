@@ -14,6 +14,7 @@
 
 import type { HudFocus, HudPin } from '@jkos/auth-client';
 import { PINNED_MS } from './clock';
+import { APP_IDS, appOrigin } from '@jkos/weave';
 import type { WidgetCtx } from '../src/hud/registry';
 import {
   clockState, viewWeather, viewSystems, sysRow, selectToday, selectMonth, selectCalendarItems,
@@ -95,6 +96,7 @@ export function sampleCtx(state: PreviewState): WidgetCtx {
     focus: selectFocus(state === 'ready' ? FOCUS : null, bb),
     pinned: selectPinned(state === 'ready' ? PINS : [], bb),
     authUrl: '/auth',
+    origins: Object.fromEntries(APP_IDS.map((id) => [id, appOrigin(id)])) as WidgetCtx['origins'],
     aiEnabled: true,
   };
 }

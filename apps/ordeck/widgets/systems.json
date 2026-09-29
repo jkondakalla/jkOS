@@ -1,0 +1,79 @@
+{
+  "id": "systems",
+  "label": "Systems",
+  "sizing": {
+    "desktop": {
+      "w": 3,
+      "h": 5
+    },
+    "mobile": {
+      "w": 2,
+      "h": 4
+    }
+  },
+  "spec": {
+    "frame": {
+      "eyebrow": "SYSTEMS",
+      "source": {
+        "src": "systems",
+        "path": "summary"
+      }
+    },
+    "body": {
+      "t": "stack",
+      "gap": 10,
+      "grow": true,
+      "children": [
+        {
+          "t": "bar",
+          "value": {
+            "src": "systems",
+            "path": "up"
+          },
+          "max": {
+            "src": "systems",
+            "path": "total"
+          }
+        },
+        {
+          "t": "list",
+          "from": {
+            "src": "systems",
+            "path": "rows"
+          },
+          "empty": "NO PROBES",
+          "item": {
+            "t": "row",
+            "gap": 8,
+            "children": [
+              {
+                "t": "dot",
+                "tone": {
+                  "src": "$",
+                  "path": "tone"
+                }
+              },
+              {
+                "t": "text",
+                "text": {
+                  "src": "$",
+                  "path": "name"
+                },
+                "variant": "mono",
+                "grow": true
+              },
+              {
+                "t": "text",
+                "text": {
+                  "src": "$",
+                  "path": "detail"
+                },
+                "variant": "sub"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

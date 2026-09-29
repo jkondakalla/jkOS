@@ -22,7 +22,7 @@ import {
   type CSSProperties, type FormEvent, type ReactNode,
 } from 'react';
 import {
-  fetchCapabilities, getCapability, runCommand, suiteApp, followJob, format, type CapabilityDoc, type JobOutcome, resolveBinding, truthy } from '@jkos/weave';
+  fetchCapabilities, getCapability, runCommand, suiteApp, followJob, format, type AppId, type CapabilityDoc, type JobOutcome, resolveBinding, truthy } from '@jkos/weave';
 import {
   type ClockState,
   type WeatherState,
@@ -66,6 +66,9 @@ export interface WidgetCtx {
   focus: FocusState;
   pinned: PinnedState;
   authUrl: string;
+  /** Each app's browsable origin, from the directory the page hydrated — so a card links
+   *  to the app on THIS deployment (a literal URL in a widget file would be prod's). */
+  origins: Record<AppId, string>;
   /** The suite-wide LazurOS kill switch (profile → AI). Off, a widget that binds an AI
    *  app does not render — or read, or run anything. */
   aiEnabled: boolean;
@@ -950,7 +953,7 @@ function WeekBody({ items, todayIso }: { items: CalendarItem[]; todayIso: string
  * memoised upstream (useHudContext) to keep its reference stable between real
  * changes, which is what makes this comparison meaningful. */
 const SLICE_KEYS = new Set<string>([
-  'clock', 'weather', 'systems', 'today', 'cal', 'items', 'todayIso', 'notifications', 'focus', 'pinned', 'authUrl', 'aiEnabled',
+  'clock', 'weather', 'systems', 'today', 'cal', 'items', 'todayIso', 'notifications', 'focus', 'pinned', 'authUrl', 'origins', 'aiEnabled',
 ]);
 const sliceCache = new WeakMap<object, Set<string>>();
 
