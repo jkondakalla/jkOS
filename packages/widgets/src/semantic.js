@@ -174,11 +174,25 @@ export function checkBindings(def, { docs = {}, slices = {} } = {}) {
     const r = follow(sc.get(src), v.path, docs)
     if (r.problem) err(at, 'undeclared-path', `${src}${v.path ? `.${v.path}` : ''}: ${r.problem}`, r.fix)
   }
-  const bindingsIn = (obj, props, at, sc) => {
+  // `extra.row` is the scope a list pattern's per-row prop reads ($ = a row of `from`);
+  // `extra.result` the scope a command's answer reads ($result / $job).
+  const bindingsIn = (obj, props, at, sc, extra = {}) => {
     for (const [name, p] of Object.entries(props)) {
-      if (obj[name] === undefined) continue
-      if (p.type === 'binding' || p.type === 'tone') checkBinding(obj[name], `${at}/${esc(name)}`, sc)
+      const v = obj[name]
+      if (v === undefined) continue
+      const here = p.row ? extra.row ?? sc : p.result ? extra.result ?? sc : sc
+      if (p.type === 'binding' || p.type === 'tone') checkBinding(v, `${at}/${esc(name)}`, here)
+      if (p.type === 'pairs' && Array.isArray(v)) {
+        v.forEach((pair, i) => {
+          for (const k of ['label', 'value', 'tone']) if (isObj(pair) && pair[k] !== undefined) checkBinding(pair[k], `${at}/${esc(name)}/${i}/${k}`, here)
+        })
+      }
     }
+  }
+  /** The shape `$` has inside a list-like node: a row of what `from` reads. */
+  const rowOf = (from, sc) => {
+    const shape = isObj(from) && typeof from.src === 'string' && sc.has(from.src) ? follow(sc.get(from.src), from.path, docs) : ANY
+    return shape.kind === 'list' ? shape.item : shape.kind === 'fields' ? shape : ANY
   }
 
   if (isObj(spec.frame)) bindingsIn(spec.frame, FRAME, '/spec/frame', scope)
@@ -202,7 +216,7 @@ export function checkBindings(def, { docs = {}, slices = {} } = {}) {
     ;(node.children ?? []).forEach(visit)
     return fieldsShape(acc)
   }
-  const checkCmd = (cmd, at, sc) => {
+  const checkCmd = (cmd, at, sc, sent = {}) => {
     if (!isObj(cmd)) return null
     const capDoc = docs[cmd.app]?.capabilities
     if (!capDoc) { err(`${at}/app`, 'undeclared', `${JSON.stringify(cmd.app)} declares no capabilities (or is not an app)`); return null }
@@ -212,7 +226,7 @@ export function checkBindings(def, { docs = {}, slices = {} } = {}) {
       err(`${at}/capability`, 'undeclared', `${cmd.app} declares no capability ${JSON.stringify(cmd.capability)}`, near ? `did you mean ${JSON.stringify(near)}?` : `declared: ${capDoc.capabilities.map((c) => c.id).join(', ')}`)
       return null
     }
-    const body = isObj(cmd.body) ? cmd.body : {}
+    const body = { ...(isObj(cmd.body) ? cmd.body : {}), ...sent }
     const fields = new Map((cap.body ?? []).map((f) => [f.name, f]))
     for (const [k, b] of Object.entries(body)) {
       if (!fields.has(k)) {
@@ -238,16 +252,27 @@ export function checkBindings(def, { docs = {}, slices = {} } = {}) {
       here = new Map(sc)
       here.set('$form', formFields(node))
     }
-    bindingsIn(node, spec_.props, at, here)
-    const produced = spec_.props.cmd ? checkCmd(node.cmd, `${at}/cmd`, here) : null
+    // An `ask` sends its question as `field` (default "text") — a body field like any other.
+    const sent = node.t === 'ask' ? { [typeof node.field === 'string' ? node.field : 'text']: { lit: '' } } : {}
+    const produced = spec_.props.cmd ? checkCmd(node.cmd, `${at}/cmd`, here, sent) : null
+    const extra = {}
+    if (Object.values(spec_.props).some((p) => p.row)) {
+      extra.row = new Map(here)
+      extra.row.set('$', rowOf(node.from, here))
+    }
+    if (Object.values(spec_.props).some((p) => p.result)) {
+      extra.result = new Map(here)
+      extra.result.set('$result', produced ?? ANY)
+      extra.result.set('$job', JOB)
+    }
+    bindingsIn(node, spec_.props, at, here, extra)
     for (const { name, many } of childProps(node.t)) {
       const c = node[name]
       if (c === undefined) continue
       let inner = here
       if (node.t === 'list' && name === 'item') {
-        const from = isObj(node.from) && typeof node.from.src === 'string' && here.has(node.from.src) ? follow(here.get(node.from.src), node.from.path, docs) : ANY
         inner = new Map(here)
-        inner.set('$', from.kind === 'list' ? from.item : from.kind === 'fields' ? from : ANY)
+        inner.set('$', rowOf(node.from, here))
       }
       if (name === 'result') {
         inner = new Map(sc)                       // a result is drawn beside the form: no $form

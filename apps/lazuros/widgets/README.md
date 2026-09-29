@@ -18,26 +18,22 @@ job-status list" per git history.
 ## What each spec does
 
 ### `lazuros-query` — Ask LazurOS
-The body is one `form`: a text `input` (`field: "text"`) and an ASK button running
-`{ app: "lazuros", capability: "query", body: { text: $form.text } }`. `query` is async (it
-declares `resolves: [{ response }]`), so the call answers `202 { job_id }` and the form
-FOLLOWS the job through the jobs dataset until it ends. Its `result` slot then draws the
-answer (`$result.response`), a status pill while it runs (`$job.status` mapped to words),
-or the error if it failed or was not followed to an end.
+The body is one `ask` pattern: `{ t: "ask", cmd: { app: "lazuros", capability: "query" } }`.
+It sends the question as the capability's `text`; `query` is async (it declares
+`resolves: [{ response }]`), so the call answers `202 { job_id }` and the pattern FOLLOWS the
+job through the jobs dataset until it ends, then draws `$result.response` under the
+question — or the error, if it failed or was not followed to an end.
 
 ### `lazuros-jobs` — LazurOS Jobs
 One source, `jobs = { kind: "dataset", app: "lazuros", dataset: "jobs", poll: 8 }`: the
 jobs dataset LazurOS DECLARES (`backend/docs.js`), found through its DatasetDoc and
-refreshed whenever a capability invalidates `lazuros.jobs`. The endpoint is owner-scoped
-server-side (a non-admin only ever sees their own rows, newest 50). Each row: a status
-pill whose tone is the status mapped onto tones (`map`, falling back to `muted`), the
-capability, how long ago it was created (`fmt: "ago"`), and — only when present — the
-error. `lazuros-jobs.fixtures.json` is what the preview draws, and the gate holds it to
-the dataset's declared row.
-
-(It was a same-origin `fetch` of `/api/lazuros/jobs` — a read of an undeclared shape with
-the viewer's cookie. A widget reads only what an app declares now, and that fetch is
-refused by the validator, by jkAuth at publish, and by the renderer.)
+refreshed whenever a capability invalidates `lazuros.jobs`. It is owner-scoped server-side
+(a non-admin only ever sees their own rows, newest 50). The body is one `rows` pattern: a
+dot whose tone is the status mapped onto tones, the status as a word in the lead column,
+the capability as the title, the error (only on a row that has one) under it, and how
+long ago it was created. The frame draws loading, offline, signed-out, and — through
+`frame.empty` — the empty state. `lazuros-jobs.fixtures.json` is what the preview draws,
+and the gate holds it to the dataset's declared row.
 
 Both specs were sized against the existing v5 catalog's density (weather/
 systems footprints): `lazuros-query` 4×4 desktop / 2×4 mobile,

@@ -30,79 +30,44 @@
       }
     },
     "body": {
-      "t": "list",
+      "t": "rows",
       "from": {
         "src": "jobs"
       },
-      "item": {
-        "t": "stack",
-        "gap": 2,
-        "children": [
-          {
-            "t": "row",
-            "gap": 8,
-            "justify": "space-between",
-            "children": [
-              {
-                "t": "pill",
-                "text": {
-                  "src": "$",
-                  "path": "status",
-                  "map": {
-                    "IN_PROGRESS": "RUNNING",
-                    "PENDING_WAKEUP": "WAKING"
-                  }
-                },
-                "tone": {
-                  "src": "$",
-                  "path": "status",
-                  "map": {
-                    "DONE": "ok",
-                    "FAILED": "danger",
-                    "IN_PROGRESS": "accent",
-                    "PENDING_WAKEUP": "warn"
-                  },
-                  "fallback": "muted"
-                }
-              },
-              {
-                "t": "text",
-                "text": {
-                  "src": "$",
-                  "path": "capability"
-                },
-                "variant": "mono",
-                "grow": true
-              },
-              {
-                "t": "text",
-                "text": {
-                  "src": "$",
-                  "path": "created_at",
-                  "fmt": "ago"
-                },
-                "variant": "sub"
-              }
-            ]
-          },
-          {
-            "t": "when",
-            "cond": {
-              "src": "$",
-              "path": "error"
-            },
-            "then": {
-              "t": "text",
-              "text": {
-                "src": "$",
-                "path": "error"
-              },
-              "variant": "sub",
-              "grow": true
-            }
-          }
-        ]
-      }
+      "mark": {
+        "src": "$",
+        "path": "status",
+        "map": {
+          "DONE": "ok",
+          "FAILED": "danger",
+          "IN_PROGRESS": "accent",
+          "PENDING_WAKEUP": "warn"
+        },
+        "fallback": "muted"
+      },
+      "lead": {
+        "src": "$",
+        "path": "status",
+        "map": {
+          "PENDING": "QUEUED",
+          "PENDING_WAKEUP": "WAKING",
+          "IN_PROGRESS": "RUNNING"
+        }
+      },
+      "title": {
+        "src": "$",
+        "path": "capability"
+      },
+      "sub": {
+        "src": "$",
+        "path": "error"
+      },
+      "detail": {
+        "src": "$",
+        "path": "created_at",
+        "fmt": "ago"
+      },
+      "max": 8
     }
   }
 }

@@ -28,6 +28,7 @@
  *   enum      one of `values`
  *   field     a form field name (the key a control writes into $form)
  *   cmd       a CommandRef {app, capability, body?: Record<string, Binding>}
+ *   pairs     a list of { label: Binding, value: Binding, tone?: tone } (a facts grid)
  *   node      one child node (a slot)
  *   nodes     an ordered list of child nodes
  */
@@ -71,9 +72,12 @@ const ALIGN = ['flex-start', 'flex-end', 'center', 'baseline', 'stretch', 'start
 /**
  * Every node kind, in the Workshop's catalog order.
  *
- *   kind       atom | layout | logic | molecule | control   (what sort of part it is)
+ *   kind       atom | layout | logic | molecule | control | pattern   (what sort of part it
+ *              is). A PATTERN is a whole, finished layout for one common kind of card —
+ *              the polish comes from it, not from the author (TODO §7).
  *   label/hint the Workshop's name for it, and one line on what it is for
- *   props      name → { type, required?, values?, doc? }
+ *   props      name → { type, required?, values?, doc?, row?, result? } — `row`: a binding
+ *              into `$`, each row of the node's `from`; `result`: into `$result`/`$job`
  *   placement  { form: 'inside' | 'outside' } — a control only inside a form, a form
  *              never inside one; { root: true } — only directly on the card's root
  *   reads      the HUD slice(s) a molecule reads straight from scope (no binding says so)
@@ -250,6 +254,102 @@ export const NODES = {
     props: {}, placement: { root: true }, reads: ['items', 'todayIso'],
     example: { t: 'week' },
   },
+  /* ── Patterns — one node, a finished card body ───────────────────────────
+   * Each is the shape a common card already takes, drawn once, well: the type scale,
+   * the spacing, the accent, and what happens when it is narrow (container queries in
+   * widgets.css). A list pattern's per-row props are bindings into `$`, the row. */
+  stat: {
+    kind: 'pattern', label: 'Stat', hint: 'one headline number, with its context',
+    props: {
+      value: { type: 'binding', required: true },
+      label: { type: 'binding', doc: 'what the number is, above it' },
+      unit: { type: 'binding' },
+      delta: { type: 'binding', doc: 'the change, beside it ("+3", "−12%")' },
+      deltaTone: { type: 'tone' },
+      sub: { type: 'binding', doc: 'one line of context under it' },
+      trend: { type: 'binding', doc: 'an array to draw as a sparkline under it' },
+      trendPath: { type: 'string', doc: 'plucks the number from each trend element' },
+    },
+    example: { t: 'stat', label: 'Systems up', value: { src: 'systems', path: 'up' }, unit: { src: 'systems', path: 'total', fmt: 'number' }, sub: { src: 'systems', path: 'summary' } },
+  },
+  meter: {
+    kind: 'pattern', label: 'Meter', hint: 'a labelled bar: how far along',
+    props: {
+      value: { type: 'binding', required: true },
+      max: { type: 'binding', doc: 'default 1 (value is a fraction)' },
+      label: { type: 'binding' },
+      detail: { type: 'binding', doc: 'right of the label ("3 / 5", "60%")' },
+      tone: { type: 'tone', doc: 'the fill (default the accent)' },
+    },
+    example: { t: 'meter', label: 'Today', value: { src: 'today', path: 'progress' }, detail: { src: 'today', path: 'progressLabel' } },
+  },
+  rows: {
+    kind: 'pattern', label: 'Rows', hint: 'a dense list: mark · lead · title · detail',
+    props: {
+      from: { type: 'binding', required: true, doc: 'the rows; every per-row prop below binds into `$`' },
+      title: { type: 'binding', required: true, row: true },
+      lead: { type: 'binding', row: true, doc: 'a short leading column (a time, a rank)' },
+      mark: { type: 'tone', row: true, doc: "a status dot's tone" },
+      icon: { type: 'binding', row: true, values: ICON_NAMES, doc: 'a leading glyph instead of the dot' },
+      detail: { type: 'binding', row: true, doc: 'trailing, dim' },
+      sub: { type: 'binding', row: true, doc: 'a second line under the title' },
+      href: { type: 'binding', row: true, href: true, doc: 'the row links here' },
+      empty: { type: 'binding', doc: 'when there are no rows (the frame draws an empty SOURCE itself)' },
+      max: { type: 'number', doc: 'rows shown; the rest become "+N more"' },
+    },
+    example: {
+      t: 'rows', from: { src: 'today', path: 'tasks' }, lead: { src: '$', path: 'timeLabel' },
+      title: { src: '$', path: 'title' }, mark: { src: '$', path: 'tone' },
+    },
+  },
+  feed: {
+    kind: 'pattern', label: 'Feed', hint: 'what happened, newest first, with when',
+    props: {
+      from: { type: 'binding', required: true, doc: 'the events; every per-event prop binds into `$`' },
+      text: { type: 'binding', required: true, row: true },
+      at: { type: 'binding', row: true, doc: "when — an instant, drawn as 'ago' unless the binding formats it" },
+      icon: { type: 'binding', row: true, values: ICON_NAMES },
+      tone: { type: 'tone', row: true },
+      detail: { type: 'binding', row: true, doc: 'a second, dim line' },
+      empty: { type: 'binding' },
+      max: { type: 'number' },
+    },
+    example: { t: 'feed', from: { src: 'notifications', path: 'items' }, text: { src: '$', path: 'text' }, icon: { src: '$', path: 'icon' }, tone: { src: '$', path: 'tone' }, detail: { src: '$', path: 'detail' } },
+  },
+  facts: {
+    kind: 'pattern', label: 'Facts', hint: 'a grid of named values',
+    props: {
+      items: { type: 'pairs', required: true, doc: '[{ label, value, tone? }] — each a literal or a binding' },
+      cols: { type: 'number', doc: 'columns (default 2; one when narrow)' },
+    },
+    example: { t: 'facts', items: [{ label: 'High', value: { src: 'weather', path: 'hiLabel' } }, { label: 'Low', value: { src: 'weather', path: 'loLabel' } }] },
+  },
+  media: {
+    kind: 'pattern', label: 'Media', hint: 'art, a title, and where it is',
+    props: {
+      image: { type: 'binding', href: true, doc: 'the art (an http(s) or relative URL)' },
+      title: { type: 'binding', required: true },
+      subtitle: { type: 'binding' },
+      meta: { type: 'binding', doc: 'a small line under them (a time, a count)' },
+      progress: { type: 'binding' },
+      max: { type: 'binding', doc: 'default 1' },
+      href: { type: 'binding', href: true },
+    },
+    example: { t: 'media', title: { src: 'focus', path: 'title' }, subtitle: { src: 'focus', path: 'timeLabel' } },
+  },
+  ask: {
+    kind: 'pattern', label: 'Ask', hint: 'one question, its answer drawn under it',
+    props: {
+      cmd: { type: 'cmd', required: true, doc: 'the question is sent as `field` in its body' },
+      field: { type: 'field', doc: 'default "text"' },
+      placeholder: { type: 'binding' },
+      submit: { type: 'binding', doc: 'default "ASK"' },
+      answer: { type: 'binding', result: true, doc: 'what to show from $result when it is done (default $result.response)' },
+    },
+    placement: { form: 'outside' },
+    example: { t: 'ask', cmd: { app: 'lazuros', capability: 'query' }, placeholder: 'Ask…' },
+  },
+
   form: {
     kind: 'control', label: 'Action form', hint: 'inputs that submit a command',
     props: {

@@ -2,50 +2,31 @@
   "id": "lazuros-query",
   "label": "Ask LazurOS",
   "sizing": {
-    "desktop": { "w": 4, "h": 5 },
-    "mobile": { "w": 2, "h": 5 },
-    "min": { "w": 3, "h": 4 }
+    "desktop": {
+      "w": 4,
+      "h": 5
+    },
+    "mobile": {
+      "w": 2,
+      "h": 5
+    },
+    "min": {
+      "w": 3,
+      "h": 4
+    }
   },
   "spec": {
-    "frame": { "eyebrow": "LAZUROS", "source": "ASSISTANT" },
+    "frame": {
+      "eyebrow": "LAZUROS",
+      "source": "ASSISTANT"
+    },
     "body": {
-      "t": "form",
+      "t": "ask",
       "cmd": {
         "app": "lazuros",
-        "capability": "query",
-        "body": {
-          "text": { "src": "$form", "path": "text" }
-        }
+        "capability": "query"
       },
-      "submit": "ASK",
-      "children": [
-        { "t": "input", "field": "text", "placeholder": "Ask LazurOS…" }
-      ],
-      "result": {
-        "t": "stack",
-        "gap": 6,
-        "children": [
-          {
-            "t": "when",
-            "cond": { "eq": [{ "src": "$job", "path": "phase" }, "pending"] },
-            "then": {
-              "t": "pill",
-              "text": { "src": "$job", "path": "status", "map": { "PENDING": "QUEUED", "PENDING_WAKEUP": "WAKING THE GPU", "IN_PROGRESS": "THINKING" }, "fallback": "SENDING" },
-              "tone": "muted"
-            }
-          },
-          {
-            "t": "when",
-            "cond": { "eq": [{ "src": "$job", "path": "phase" }, "done"] },
-            "then": { "t": "text", "text": { "src": "$result", "path": "response" }, "variant": "body" }
-          },
-          {
-            "t": "when",
-            "cond": { "in": [{ "src": "$job", "path": "phase" }, ["failed", "lost"]] },
-            "then": { "t": "text", "text": { "src": "$job", "path": "error" }, "variant": "sub" }
-          }
-        ]
-      }
+      "placeholder": "Ask LazurOS…"
     }
   }
 }

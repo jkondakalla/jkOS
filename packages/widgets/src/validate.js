@@ -53,6 +53,8 @@ function editDistance(a, b) {
 }
 
 const SOURCE_KEYS = ['src', 'path', 'fallback', 'map', 'fmt']
+/** One entry of a `pairs` prop (a facts grid). */
+const PAIR_PROPS = { label: { type: 'binding', required: true }, value: { type: 'binding', required: true }, tone: { type: 'tone' } }
 const isScalar = (v) => v === null || ['string', 'number', 'boolean'].includes(typeof v)
 
 /** A Binding object: {lit} | {src, path?, fallback?, map?, fmt?} | {from} | a condition
@@ -366,6 +368,14 @@ function checkProps(obj, props, path, err, reserved = []) {
         break
       case 'cmd':
         checkCmd(v, here, err)
+        break
+      case 'pairs':
+        if (!Array.isArray(v) || !v.length) { err(here, 'bad-type', `${name} is a non-empty list of { label, value, tone? }`); break }
+        v.forEach((pair, i) => {
+          const pp = `${here}/${i}`
+          if (!isObj(pair)) { err(pp, 'bad-type', 'each item is { label, value, tone? }'); return }
+          checkProps(pair, PAIR_PROPS, pp, err)
+        })
         break
       case 'node':
       case 'nodes':

@@ -53,6 +53,20 @@ export type WidgetNode =
   | { t: 'focus' }
   /** Week — the seven-day time grid (@jkos/cards). Reads `items` and `todayIso`. */
   | { t: 'week' }
+  /** Stat — one headline number, with its context. */
+  | { t: 'stat'; value: Binding; /** what the number is, above it */ label?: Binding; unit?: Binding; /** the change, beside it ("+3", "−12%") */ delta?: Binding; deltaTone?: ToneBinding; /** one line of context under it */ sub?: Binding; /** an array to draw as a sparkline under it */ trend?: Binding; /** plucks the number from each trend element */ trendPath?: string }
+  /** Meter — a labelled bar: how far along. */
+  | { t: 'meter'; value: Binding; /** default 1 (value is a fraction) */ max?: Binding; label?: Binding; /** right of the label ("3 / 5", "60%") */ detail?: Binding; /** the fill (default the accent) */ tone?: ToneBinding }
+  /** Rows — a dense list: mark · lead · title · detail. */
+  | { t: 'rows'; /** the rows; every per-row prop below binds into `$` */ from: Binding; title: Binding; /** a short leading column (a time, a rank) */ lead?: Binding; /** a status dot's tone */ mark?: ToneBinding; /** a leading glyph instead of the dot */ icon?: Binding; /** trailing, dim */ detail?: Binding; /** a second line under the title */ sub?: Binding; /** the row links here */ href?: Binding; /** when there are no rows (the frame draws an empty SOURCE itself) */ empty?: Binding; /** rows shown; the rest become "+N more" */ max?: number }
+  /** Feed — what happened, newest first, with when. */
+  | { t: 'feed'; /** the events; every per-event prop binds into `$` */ from: Binding; text: Binding; /** when — an instant, drawn as 'ago' unless the binding formats it */ at?: Binding; icon?: Binding; tone?: ToneBinding; /** a second, dim line */ detail?: Binding; empty?: Binding; max?: number }
+  /** Facts — a grid of named values. */
+  | { t: 'facts'; /** [{ label, value, tone? }] — each a literal or a binding */ items: { label: Binding; value: Binding; tone?: ToneBinding }[]; /** columns (default 2; one when narrow) */ cols?: number }
+  /** Media — art, a title, and where it is. */
+  | { t: 'media'; /** the art (an http(s) or relative URL) */ image?: Binding; title: Binding; subtitle?: Binding; /** a small line under them (a time, a count) */ meta?: Binding; progress?: Binding; /** default 1 */ max?: Binding; href?: Binding }
+  /** Ask — one question, its answer drawn under it. */
+  | { t: 'ask'; /** the question is sent as `field` in its body */ cmd: CommandRef; /** default "text" */ field?: string; placeholder?: Binding; /** default "ASK" */ submit?: Binding; /** what to show from $result when it is done (default $result.response) */ answer?: Binding }
   /** Action form — inputs that submit a command. */
   | { t: 'form'; cmd: CommandRef; /** the submit button's label */ submit: Binding; children: WidgetNode[]; /** drawn once the command has answered: $result is what it produced (an async command is followed until it ends), $job is { phase: pending|done|failed|lost, status, error } */ result?: WidgetNode }
   /** Action button — one tap runs a command. */

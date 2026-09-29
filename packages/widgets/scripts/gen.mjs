@@ -31,6 +31,7 @@ function tsType(p) {
     case 'field': return 'string';
     case 'enum': return union(p.values);
     case 'cmd': return 'CommandRef';
+    case 'pairs': return '{ label: Binding; value: Binding; tone?: ToneBinding }[]';
     case 'node': return 'WidgetNode';
     case 'nodes': return 'WidgetNode[]';
     default: throw new Error(`gen: unknown prop type ${p.type}`);

@@ -18,11 +18,11 @@
  */
 
 import {
-  Fragment, createContext, memo, useCallback, useContext, useEffect, useRef, useState,
+  Fragment, createContext, memo, useCallback, useContext, useEffect, useMemo, useRef, useState,
   type CSSProperties, type FormEvent, type ReactNode,
 } from 'react';
 import {
-  fetchCapabilities, getCapability, runCommand, suiteApp, followJob, type CapabilityDoc, type JobOutcome, resolveBinding, truthy } from '@jkos/weave';
+  fetchCapabilities, getCapability, runCommand, suiteApp, followJob, format, type CapabilityDoc, type JobOutcome, resolveBinding, truthy } from '@jkos/weave';
 import {
   type ClockState,
   type WeatherState,
@@ -112,6 +112,29 @@ function vars(v: Record<`--${string}`, string | number>): CSSProperties {
   return v as unknown as CSSProperties;
 }
 
+/** A tone for a PATTERN: the status palette, except that `accent` is the suite accent
+ *  chain (--color-accent), which a theme can move — the built-ins' TONE_COLOR still maps
+ *  it to amber, and moving them is the visual pass (TODO §7). */
+function patternTone(t: ToneBinding | undefined, scope: Scope, fallback: Tone): string {
+  const v = t == null ? fallback : typeof t === 'object' ? resolve(t as Binding, scope) : t;
+  const tone = (typeof v === 'string' && v in TONE_COLOR ? v : fallback) as Tone;
+  return tone === 'accent' ? 'var(--color-accent)' : TONE_COLOR[tone];
+}
+
+/** An optional binding's text: '' when the prop is absent or resolves to nothing. */
+function opt(b: Binding | undefined, scope: Scope): string {
+  return b == null ? '' : str(resolve(b, scope));
+}
+
+/** A sparkline's points over a 100-wide box, with a 4px inset so round caps never clip. */
+function sparkPoints(arr: unknown[], path: string | undefined, h: number): string | null {
+  const values = arr.map((el) => num(path && el != null && typeof el === 'object' ? (el as Record<string, unknown>)[path] : el));
+  if (values.length < 2) return null;
+  const min = Math.min(...values), max = Math.max(...values);
+  const span = max - min || 1;
+  return values.map((v, i) => `${(i / (values.length - 1)) * 100},${4 + (1 - (v - min) / span) * (h - 8)}`).join(' ');
+}
+
 /** Curated line-icon set (inherits stroke colour + size). `dot` is the fallback. Keyed
  *  by the manifest's ICON_NAMES (IconName), so a name the validator accepts always draws. */
 const ICONS: Record<IconName, ReactNode> = {
@@ -130,6 +153,15 @@ const ICONS: Record<IconName, ReactNode> = {
   alert: <><path d="M10.3 3.9 1.8 18a2 2 0 001.7 3h16.9a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z" /><path d="M12 9v4M12 17h.01" /></>,
   dot: <circle cx="12" cy="12" r="6" />,
 };
+
+/** A pattern's leading glyph, stroked in its tone (an unknown name draws the dot). */
+function patternIcon(name: string, tone: string): ReactNode {
+  return (
+    <svg className="hud-p-icon" viewBox="0 0 24 24" fill="none" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={vars({ '--w-tone': tone })}>
+      {ICONS[name as IconName] ?? ICONS.dot}
+    </svg>
+  );
+}
 
 /** node type → renderer. Each case is one primitive; adding to the vocabulary is
  *  a new WidgetNode variant + a new entry here. */
@@ -278,6 +310,144 @@ const PRIMITIVES: Primitives = {
       </svg>
     );
   },
+  /* ── Patterns: one node, a finished card body (widgets.css § Patterns) ───── */
+  stat: (n, scope) => {
+    const trend = n.trend != null ? resolve(n.trend, scope) : null;
+    const pts = Array.isArray(trend) ? sparkPoints(trend, n.trendPath, 24) : null;
+    return (
+      <div className="hud-p hud-p-stat">
+        {(n.label != null || n.delta != null) && (
+          <div className="hud-p-line">
+            {n.label != null && <span className="hud-p-label">{str(resolve(n.label, scope))}</span>}
+            {n.delta != null && (
+              <span className="hud-p-delta" style={vars({ '--w-tone': patternTone(n.deltaTone, scope, 'muted') })}>{str(resolve(n.delta, scope))}</span>
+            )}
+          </div>
+        )}
+        <div className="hud-p-stat-value">
+          <b>{str(resolve(n.value, scope))}</b>
+          {n.unit != null && <span>{str(resolve(n.unit, scope))}</span>}
+        </div>
+        {opt(n.sub, scope) && <div className="hud-p-sub">{opt(n.sub, scope)}</div>}
+        {pts && (
+          <svg className="hud-p-trend" width="100%" height="24" viewBox="0 0 100 24" preserveAspectRatio="none">
+            <polyline points={pts} fill="none" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+          </svg>
+        )}
+      </div>
+    );
+  },
+  meter: (n, scope) => {
+    const v = num(resolve(n.value, scope));
+    const m = n.max != null ? num(resolve(n.max, scope)) : 1;
+    const pct = m > 0 ? Math.max(0, Math.min(100, (v / m) * 100)) : 0;
+    return (
+      <div className="hud-p hud-p-meter" style={vars({ '--w-tone': patternTone(n.tone, scope, 'accent'), '--w-fill': `${pct}%` })}>
+        {(n.label != null || n.detail != null) && (
+          <div className="hud-p-line">
+            {n.label != null && <span className="hud-p-label">{str(resolve(n.label, scope))}</span>}
+            {n.detail != null && <span className="hud-p-detail">{str(resolve(n.detail, scope))}</span>}
+          </div>
+        )}
+        <div className="hud-p-track"><span /></div>
+      </div>
+    );
+  },
+  rows: (n, scope) => {
+    const arr = resolve(n.from, scope);
+    const items = Array.isArray(arr) ? arr : [];
+    if (!items.length) return n.empty != null ? <div className="hud-p hud-p-empty">{str(resolve(n.empty, scope))}</div> : null;
+    const shown = n.max && n.max > 0 ? items.slice(0, n.max) : items;
+    return (
+      <div className="hud-p hud-p-rows">
+        {shown.map((el, i) => {
+          const s = { ...scope, $: el };
+          const href = n.href != null ? safeHref(resolve(n.href, s)) : undefined;
+          // An optional line whose value is empty draws nothing, not an empty line — so
+          // `sub: $.error` shows only on the rows that have one.
+          const lead = opt(n.lead, s), sub = opt(n.sub, s), detail = opt(n.detail, s);
+          const inner = (
+            <>
+              {n.icon != null ? patternIcon(str(resolve(n.icon, s)), patternTone(n.mark, s, 'muted'))
+                : n.mark != null ? <span className="hud-p-mark" style={vars({ '--w-tone': patternTone(n.mark, s, 'muted') })} /> : null}
+              {n.lead != null && <span className="hud-p-lead">{lead}</span>}
+              <span className="hud-p-main">
+                <span className="hud-p-title">{str(resolve(n.title, s))}</span>
+                {sub && <span className="hud-p-sub">{sub}</span>}
+              </span>
+              {detail && <span className="hud-p-detail">{detail}</span>}
+            </>
+          );
+          return href ? <a key={i} className="hud-p-row" href={href}>{inner}</a> : <div key={i} className="hud-p-row">{inner}</div>;
+        })}
+        {items.length > shown.length && <div className="hud-p-more">+{items.length - shown.length} MORE</div>}
+      </div>
+    );
+  },
+  feed: (n, scope) => {
+    const arr = resolve(n.from, scope);
+    const items = Array.isArray(arr) ? arr : [];
+    if (!items.length) return n.empty != null ? <div className="hud-p hud-p-empty">{str(resolve(n.empty, scope))}</div> : null;
+    const shown = n.max && n.max > 0 ? items.slice(0, n.max) : items;
+    return (
+      <div className="hud-p hud-p-feed">
+        {shown.map((el, i) => {
+          const s = { ...scope, $: el };
+          const tone = patternTone(n.tone, s, 'muted');
+          // An instant is drawn as 'ago' unless the binding already says how to draw it.
+          const at = n.at == null ? null
+            : typeof n.at === 'object' && 'fmt' in n.at ? str(resolve(n.at, s)) : str(format(resolve(n.at, s), 'ago', s));
+          return (
+            <div key={i} className="hud-p-event">
+              {n.icon != null ? patternIcon(str(resolve(n.icon, s)), tone) : <span className="hud-p-mark" style={vars({ '--w-tone': tone })} />}
+              <span className="hud-p-main">
+                <span className="hud-p-title">{str(resolve(n.text, s))}</span>
+                {opt(n.detail, s) && <span className="hud-p-sub">{opt(n.detail, s)}</span>}
+              </span>
+              {at && <span className="hud-p-when">{at}</span>}
+            </div>
+          );
+        })}
+        {items.length > shown.length && <div className="hud-p-more">+{items.length - shown.length} MORE</div>}
+      </div>
+    );
+  },
+  facts: (n, scope) => (
+    // The grid is INSIDE the pattern: a container query styles descendants, never the
+    // container itself, so the one-column narrow rule needs something to land on.
+    <div className="hud-p hud-p-facts"><div className="hud-p-facts-grid" style={vars({ '--w-cols': Math.max(1, Math.round(n.cols ?? 2)) })}>
+      {n.items.map((f, i) => (
+        <div key={i} className="hud-p-fact">
+          <span className="hud-p-label">{str(resolve(f.label, scope))}</span>
+          <span className="hud-p-fact-value" style={vars({ '--w-tone': f.tone != null ? patternTone(f.tone, scope, 'muted') : 'var(--hub-cream-bright)' })}>
+            {str(resolve(f.value, scope))}
+          </span>
+        </div>
+      ))}
+    </div></div>
+  ),
+  media: (n, scope) => {
+    const img = n.image != null ? safeHref(resolve(n.image, scope)) : undefined;
+    const href = n.href != null ? safeHref(resolve(n.href, scope)) : undefined;
+    const p = n.progress != null ? num(resolve(n.progress, scope)) : null;
+    const m = n.max != null ? num(resolve(n.max, scope)) : 1;
+    const pct = p != null && m > 0 ? Math.max(0, Math.min(100, (p / m) * 100)) : null;
+    const body = (
+      <>
+        <div className="hud-p-media-top">
+          {img ? <img className="hud-p-art" src={img} alt="" /> : <span className="hud-p-art is-blank"><svg viewBox="0 0 24 24" fill="none" strokeWidth="1.5">{ICONS.book}</svg></span>}
+          <span className="hud-p-main">
+            <span className="hud-p-media-title">{str(resolve(n.title, scope))}</span>
+            {n.subtitle != null && <span className="hud-p-sub">{str(resolve(n.subtitle, scope))}</span>}
+            {n.meta != null && <span className="hud-p-detail">{str(resolve(n.meta, scope))}</span>}
+          </span>
+        </div>
+        {pct != null && <div className="hud-p-track" style={vars({ '--w-tone': 'var(--color-accent)', '--w-fill': `${pct}%` })}><span /></div>}
+      </>
+    );
+    return href ? <a className="hud-p hud-p-media" href={href}>{body}</a> : <div className="hud-p hud-p-media">{body}</div>;
+  },
+  ask: (n, scope) => <AskNode node={n} scope={scope} />,
   // Write family — each delegates to a hook-bearing component (see below).
   form:   (n, scope) => <FormNode node={n} scope={scope} />,
   input:  (n, scope) => <InputNode node={n} scope={scope} />,
@@ -648,6 +818,48 @@ function ToggleNode({ node, scope }: { node: Extract<WidgetNode, { t: 'toggle' }
       <Check checked={checked} onChange={(next) => ctx?.set(node.field, next)} />
       {label && <span className="hud-w-toggle-label">{label}</span>}
     </label>
+  );
+}
+
+/** The `ask` pattern: one question, its answer drawn under it. The question is sent as
+ *  `field` (default "text") in the command's body; an async command is FOLLOWED to what
+ *  it resolved to (useCommand), and `answer` picks what to show from $result (default
+ *  $result.response). */
+function AskNode({ node, scope }: { node: Extract<WidgetNode, { t: 'ask' }>; scope: Scope }) {
+  const field = node.field ?? 'text';
+  const ref = useMemo<CommandRef>(
+    () => ({ ...node.cmd, body: { ...(node.cmd.body ?? {}), [field]: { src: '$ask', path: 'q' } } }),
+    [node.cmd, field],
+  );
+  const cmd = useCommand(ref);
+  const [q, setQ] = useState('');
+  const busy = cmd.status === 'saving' || cmd.status === 'working';
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (busy || !cmd.available || !q.trim()) return;
+    if (await cmd.run({ ...scope, $ask: { q: q.trim() } })) setQ('');
+  };
+  const o = cmd.outcome;
+  const answer = o?.phase === 'done'
+    ? str(resolve(node.answer ?? { src: '$result', path: 'response' }, { ...scope, $result: o.result, $job: o }))
+    : '';
+  return (
+    <form className="hud-p hud-p-ask" onSubmit={submit}>
+      <div className="hud-p-ask-bar">
+        <Field value={q} placeholder={node.placeholder != null ? str(resolve(node.placeholder, scope)) : 'Ask…'}
+          onChange={(e) => setQ(e.target.value)} className="hud-p-ask-input" />
+        <button type="submit" disabled={!cmd.available || busy} className={actionCls(cmd.available)}
+          style={vars({ '--w-tone': 'var(--color-accent)' })}>
+          {busy ? '…' : str(resolve(node.submit ?? 'ASK', scope))}
+        </button>
+      </div>
+      {!cmd.available && !cmd.loading && <span className="hud-p-note">Unavailable.</span>}
+      {o?.phase === 'pending' && (
+        <span className="hud-p-note">Working…{o.status ? ` ${o.status.toLowerCase().replace(/_/g, ' ')}` : ''}</span>
+      )}
+      {o?.phase === 'done' && <p className="hud-p-answer">{answer}</p>}
+      {(o?.phase === 'failed' || o?.phase === 'lost') && <p className="hud-p-answer is-error">{o.error}</p>}
+    </form>
   );
 }
 

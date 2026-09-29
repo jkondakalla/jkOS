@@ -1,7 +1,7 @@
 // Types for the widget manifest (manifest.js). The TS union ORDECK renders against is
 // GENERATED from these values (scripts/gen.mjs → apps/ordeck/src/hud/nodes.gen.ts).
 
-export type PropType = 'binding' | 'tone' | 'number' | 'boolean' | 'string' | 'enum' | 'field' | 'cmd' | 'node' | 'nodes';
+export type PropType = 'binding' | 'tone' | 'number' | 'boolean' | 'string' | 'enum' | 'field' | 'cmd' | 'pairs' | 'node' | 'nodes';
 
 export interface PropSpec {
   type: PropType;
@@ -10,10 +10,14 @@ export interface PropSpec {
   values?: readonly string[];
   /** The value is a URL — it must pass safeHref. */
   href?: boolean;
+  /** A binding into `$`, each row of the node's `from` (a list pattern's per-row prop). */
+  row?: boolean;
+  /** A binding into `$result` / `$job`, what the node's command produced. */
+  result?: boolean;
   doc?: string;
 }
 
-export type NodeKind = 'atom' | 'layout' | 'logic' | 'molecule' | 'control';
+export type NodeKind = 'atom' | 'layout' | 'logic' | 'molecule' | 'control' | 'pattern';
 
 export interface NodeSpec {
   kind: NodeKind;

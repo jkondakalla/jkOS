@@ -7,7 +7,7 @@
 /* ── The frame's states (loading, offline, signed-out, empty…) ─────────────
  * The note itself is @jkos/ui's AsyncView (.jk-async-note — the suite's set, italic
  * off-state voice); this only seats it in a card. */
-.hud-widget-state {
+.jk-async-note.hud-widget-state {
   margin: 2px 0 0;
 }
 .hud-widget-state a {
@@ -155,3 +155,165 @@
 .hud-w-aioff { display: flex; flex-direction: column; gap: 6px; justify-content: center; padding: 16px; height: 100%; }
 .hud-w-aioff-note { color: var(--hub-cream-dim); font-family: var(--hub-font-mono); font-size: 10px; letter-spacing: 0.12em; }
 .hud-bar > .hud-w-fill { width: var(--w-fill); }
+
+/* ── Patterns ────────────────────────────────────────────────────────────────
+ * One node, a finished card body. The type is the suite's: mono caps for what a
+ * thing IS (labels), serif for the name of one thing (a media title), mono tabular
+ * figures for numbers, sans for running titles, and the accent chain (--color-accent,
+ * which a theme moves) for emphasis. Each pattern is its own inline-size container,
+ * so it answers to the width IT is given — a 2-column card on a phone and a 3-column
+ * card on a desk read alike — rather than to the page. */
+.hud-p { container-type: inline-size; width: 100%; min-width: 0; }
+/* A frame holding a pattern is a SIZE container too, so a pattern can answer to how
+   short its card is (a stat's trend steps aside rather than spilling out). Only frames
+   with a pattern: the built-ins' frames are untouched until their visual pass. */
+.hud-w-frame:has(.hud-p) { container: card / size; }
+
+.hud-p-label {
+  font-family: var(--hub-font-mono); font-size: 9.5px; font-weight: 600;
+  letter-spacing: 0.16em; text-transform: uppercase; color: var(--hub-cream-dim);
+}
+.hud-p-line { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; min-width: 0; }
+.hud-p-detail {
+  font-family: var(--hub-font-mono); font-size: 10.5px; font-variant-numeric: tabular-nums;
+  color: var(--hub-cream-dim); white-space: nowrap;
+}
+.hud-p-sub {
+  font-size: 11px; color: var(--hub-cream-dim); line-height: 1.35;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.hud-p-empty, .hud-p-note {
+  font-family: var(--hub-font-serif); font-style: italic; font-size: 13px; color: var(--hub-cream-dim);
+}
+.hud-p-more {
+  font-family: var(--hub-font-mono); font-size: 9.5px; letter-spacing: 0.14em;
+  color: var(--hub-cream-faint); padding-top: 6px;
+}
+.hud-p-track {
+  height: 6px; border-radius: 999px; overflow: hidden;
+  background: color-mix(in srgb, var(--hub-line) 70%, transparent);
+}
+.hud-p-track > span {
+  display: block; height: 100%; width: var(--w-fill); border-radius: inherit;
+  background: var(--w-tone); box-shadow: 0 0 6px color-mix(in srgb, var(--w-tone) 45%, transparent);
+  transition: width 0.4s ease;
+}
+.hud-p-mark {
+  width: 7px; height: 7px; border-radius: 999px; flex: none; background: var(--w-tone);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--w-tone) 16%, transparent);
+}
+.hud-p-icon { width: 15px; height: 15px; flex: none; stroke: var(--w-tone); }
+.hud-p-main { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
+.hud-p-title {
+  font-family: var(--hub-font-sans); font-size: 12.5px; font-weight: 500; color: var(--hub-cream-bright);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* stat — one headline number */
+.hud-p-stat { display: flex; flex-direction: column; gap: 4px; }
+.hud-p-stat-value { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+.hud-p-stat-value > b {
+  font-family: var(--hub-font-mono); font-variant-numeric: tabular-nums; font-weight: 600;
+  font-size: clamp(24px, 17cqi, 52px); letter-spacing: -0.02em; line-height: 1; color: var(--hub-cream-bright);
+}
+.hud-p-stat-value > span { font-family: var(--hub-font-mono); font-size: 12px; letter-spacing: 0.06em; color: var(--hub-cream-dim); }
+.hud-p-delta {
+  font-family: var(--hub-font-mono); font-size: 10px; font-variant-numeric: tabular-nums;
+  color: var(--w-tone); padding: 1px 6px; border-radius: 999px;
+  background: color-mix(in srgb, var(--w-tone) 12%, transparent);
+}
+.hud-p-trend { display: block; margin-top: 4px; }
+.hud-p-trend > polyline { stroke: var(--color-accent); filter: drop-shadow(0 0 3px color-mix(in srgb, var(--color-accent) 50%, transparent)); }
+
+/* meter — a labelled bar */
+.hud-p-meter { display: flex; flex-direction: column; gap: 6px; }
+
+/* rows / feed — dense lists */
+/* A list takes the room its card has and scrolls the rest — an author cannot know how
+   many rows fit a footprint someone else will resize it to. */
+/* One grid for the whole list, each row a subgrid on named columns, so a lead, a title
+   and a detail line up down the list whatever each row's text is ("RUNNING" and
+   "DONE" were two lead widths). A column no row uses is 0 wide; spacing is margins, so
+   an empty column adds no gap. */
+.hud-p-rows, .hud-p-feed {
+  display: grid; align-content: start; flex: 1 1 auto; min-height: 0;
+  grid-template-columns: [mark] auto [lead] auto [main] minmax(0, 1fr) [end] auto;
+  overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin;
+}
+.hud-p-row, .hud-p-event {
+  grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; align-items: center;
+  min-width: 0; padding: 6px 0; color: inherit; text-decoration: none;
+}
+.hud-p-row > .hud-p-mark, .hud-p-row > .hud-p-icon,
+.hud-p-event > .hud-p-mark, .hud-p-event > .hud-p-icon { grid-column: mark; margin-right: 9px; }
+.hud-p-row > .hud-p-lead { grid-column: lead; margin-right: 9px; }
+.hud-p-row > .hud-p-main, .hud-p-event > .hud-p-main { grid-column: main; }
+.hud-p-row > .hud-p-detail, .hud-p-event > .hud-p-when { grid-column: end; margin-left: 9px; justify-self: end; }
+.hud-p-more { grid-column: 1 / -1; }
+.hud-p-row + .hud-p-row, .hud-p-event + .hud-p-event {
+  border-top: 1px solid color-mix(in srgb, var(--hub-line) 55%, transparent);
+}
+a.hud-p-row:hover .hud-p-title { color: var(--color-accent); }
+.hud-p-lead {
+  font-family: var(--hub-font-mono); font-size: 10.5px; font-variant-numeric: tabular-nums;
+  color: var(--hub-cream-dim);
+}
+.hud-p-event { align-items: flex-start; }
+.hud-p-event > .hud-p-mark, .hud-p-event > .hud-p-icon { margin-top: 3px; }
+.hud-p-when {
+  font-family: var(--hub-font-mono); font-size: 10px; font-variant-numeric: tabular-nums;
+  color: var(--hub-cream-faint); white-space: nowrap; padding-top: 2px;
+}
+
+/* facts — a grid of named values */
+.hud-p-facts-grid { display: grid; grid-template-columns: repeat(var(--w-cols), minmax(0, 1fr)); gap: 10px 14px; }
+.hud-p-fact { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.hud-p-fact-value {
+  font-family: var(--hub-font-mono); font-size: 14px; font-variant-numeric: tabular-nums; font-weight: 500;
+  color: var(--w-tone); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* media — art, a title, where it is */
+.hud-p-media { display: flex; flex-direction: column; gap: 10px; color: inherit; text-decoration: none; }
+.hud-p-media-top { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.hud-p-art {
+  width: 58px; height: 58px; flex: none; object-fit: cover; border-radius: var(--hub-radius-sm);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--hub-line) 80%, transparent), 0 6px 16px -8px rgb(0 0 0 / 0.45);
+}
+.hud-p-art.is-blank {
+  display: grid; place-items: center; background: color-mix(in srgb, var(--hub-line) 45%, transparent);
+}
+.hud-p-art.is-blank > svg { width: 22px; height: 22px; stroke: var(--hub-cream-faint); }
+.hud-p-media-title {
+  font-family: var(--hub-font-serif); font-size: 16px; font-weight: 600; line-height: 1.2; color: var(--hub-cream-bright);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* ask — one question, its answer under it */
+.hud-p-ask { display: flex; flex-direction: column; gap: 8px; flex: 1; min-height: 0; }
+.hud-p-ask-bar { display: flex; gap: 6px; align-items: stretch; }
+.hud-p-ask-bar > .hud-p-ask-input { flex: 1; min-width: 0; }
+.hud-p-ask-bar > .hud-w-action { align-self: stretch; }
+.hud-p-answer {
+  margin: 0; font-family: var(--hub-font-serif); font-size: 13.5px; line-height: 1.45; color: var(--hub-cream);
+  overflow-y: auto; min-height: 0; flex: 1; white-space: pre-wrap;
+}
+.hud-p-answer.is-error { font-style: italic; font-size: 12.5px; color: color-mix(in srgb, var(--hub-red) 75%, var(--hub-cream-dim)); }
+
+/* Narrow: what can go, goes — the lead column and the art shrinks; facts keep two
+   columns until they truly cannot (one column makes the card TALLER, not better). */
+@container (max-width: 150px) { .hud-p-facts-grid { grid-template-columns: minmax(0, 1fr); } }
+@container (max-width: 230px) {
+  .hud-p-lead { display: none; }
+  .hud-p-art { width: 42px; height: 42px; }
+  .hud-p-media-title { font-size: 14px; }
+  .hud-p-detail { font-size: 9.5px; }
+}
+/* Short: the stat keeps its number and drops what decorates it. */
+@container card (max-height: 130px) { .hud-p-trend { display: none; } }
+@container card (max-height: 95px) { .hud-p-stat .hud-p-sub { display: none; } }
+/* Roomy: the rows breathe. */
+@container (min-width: 420px) {
+  .hud-p-row, .hud-p-event { padding: 7px 0; }
+  .hud-p-title { font-size: 13px; }
+}

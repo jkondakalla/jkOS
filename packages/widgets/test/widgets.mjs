@@ -20,7 +20,7 @@ import { checkBindings } from '../src/semantic.js'
 let pass = 0, fail = 0
 const ok = (cond, msg, extra = '') => { if (cond) { pass++; console.log(`  ✓ ${msg}`) } else { fail++; console.error(`  ✗ ${msg} ${extra}`) } }
 
-const PROP_TYPES = new Set(['binding', 'tone', 'number', 'boolean', 'string', 'enum', 'field', 'cmd', 'node', 'nodes'])
+const PROP_TYPES = new Set(['binding', 'tone', 'number', 'boolean', 'string', 'enum', 'field', 'cmd', 'pairs', 'node', 'nodes'])
 const sizing = { desktop: { w: 3, h: 3 }, mobile: { w: 2, h: 3 } }
 const def = (body, extra = {}) => ({ id: 'probe', label: 'Probe', sizing, spec: { body }, ...extra })
 const problems = (d) => validateWidget(d)
@@ -197,6 +197,22 @@ ok(t2(form({ app: 'lz', capability: 'ask', body: { text: 'hi' } }, [], { t: 'tex
 ok(t2has(form({ app: 'lz', capability: 'ask', body: { text: 'hi' } }, [], { t: 'text', text: { src: '$result', path: 'job_id' } }), '/spec/body/result/text', 'undeclared-path'), '…never its job handle')
 ok(t2(form({ app: 'lz', capability: 'ask', body: { text: 'hi' } }, [], { t: 'text', text: { src: '$job', path: 'phase' } })).length === 0, '$job carries phase/status/result/error')
 ok(t2has(form({ app: 'lz', capability: 'note', body: { title: 'x' } }, [], { t: 'text', text: { src: '$form', path: 'title' } }), '/spec/body/result/text', 'unknown-source'), 'a result slot is drawn beside the form: $form is not in its scope')
+
+console.log('3d · patterns')
+ok(problems(def({ t: 'facts', items: [{ label: 'High', value: { src: 'weather', path: 'hiLabel' }, tone: 'accent' }] })).length === 0, 'facts takes a list of { label, value, tone? }')
+ok(has(def({ t: 'facts', items: [] }), '/spec/body/items', 'bad-type'), '…never an empty one')
+ok(has(def({ t: 'facts', items: [{ label: 'x' }] }), '/spec/body/items/0/value', 'missing-prop'), '…each with a value')
+ok(has(def({ t: 'facts', items: [{ label: 'x', value: 1, tone: 'green' }] }), '/spec/body/items/0/tone', 'unknown-value'), '…and a real tone')
+ok(has(def({ t: 'form', cmd: CMD, submit: 'S', children: [{ t: 'ask', cmd: CMD }] }), '/spec/body/children/0', 'misplaced'), 'an ask carries its own form, so it is never inside one')
+ok(has(def({ t: 'rows', from: { src: 'x' }, title: 't', icon: 'chek' }), '/spec/body/icon', 'unknown-value'), "a rows icon names a real icon")
+const ROWS = { sources: JOBS_SRC, body: { t: 'rows', from: { src: 'jobs' }, title: { src: '$', path: 'status' }, detail: { src: '$', path: 'result.response' }, mark: { src: '$', path: 'status', map: { DONE: 'ok' }, fallback: 'muted' } } }
+ok(t2(ROWS).length === 0, "rows' per-row props are checked against a ROW of `from` ($)")
+ok(t2has({ ...ROWS, body: { ...ROWS.body, title: { src: '$', path: 'titel' } } }, '/spec/body/title', 'undeclared-path'), '…so a row field nobody declares is refused')
+ok(t2has({ ...ROWS, body: { ...ROWS.body, from: { src: 'jobs' }, empty: { src: '$', path: 'status' } } }, '/spec/body/empty', 'unknown-source'), "…while a node-level prop (empty) has no $ — it is not per row")
+ok(t2({ body: { t: 'ask', cmd: { app: 'lz', capability: 'ask' }, answer: { src: '$result', path: 'response' } } }).length === 0, "ask: the question is the capability's `text`, and the answer reads what it RESOLVES to")
+ok(t2has({ body: { t: 'ask', cmd: { app: 'lz', capability: 'ask' }, answer: { src: '$result', path: 'job_id' } } }, '/spec/body/answer', 'undeclared-path'), '…never the job handle')
+ok(t2has({ body: { t: 'ask', cmd: { app: 'lz', capability: 'ask' }, field: 'q' } }, '/spec/body/cmd/body/q', 'undeclared'), "ask: a field the capability does not take is refused")
+ok(t2has({ body: { t: 'facts', items: [{ label: 'x', value: { src: 'clock', path: 'hmm' } }] } }, '/spec/body/items/0/value', 'undeclared-path'), 'facts: each value binding is checked')
 
 console.log('4 · the href rule')
 for (const h of ['https://x.test/', '/widgets', 'mailto:a@b.test', '#top']) ok(safeHref(h) === h, `keeps ${JSON.stringify(h)}`)
