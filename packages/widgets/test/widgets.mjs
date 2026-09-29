@@ -14,7 +14,7 @@
 // 3. The walker finds every source a def binds, skips command bodies only when asked,
 //    and sees the slice a molecule reads without a binding.
 // 4. safeHref: the href rule the validator and the renderer share.
-import { NODES, FRAME, KINDS, LIMITS, TONES, childProps, validateWidget, sourcesOf, walkNodes, safeHref, appsOf } from '../src/index.js'
+import { NODES, FRAME, KINDS, LIMITS, TONES, childProps, validateWidget, checkBindings, sourcesOf, walkNodes, safeHref, appsOf } from '../src/index.js'
 
 let pass = 0, fail = 0
 const ok = (cond, msg, extra = '') => { if (cond) { pass++; console.log(`  ✓ ${msg}`) } else { fail++; console.error(`  ✗ ${msg} ${extra}`) } }
@@ -150,6 +150,48 @@ const reaching = { id: 'r', sizing, spec: {
 ok(JSON.stringify([...appsOf(reaching)].sort()) === '["beigeboard","kouros","lazuros"]', 'appsOf: every dataset source\'s app and every command\'s, however deep')
 ok(appsOf({ id: 'c', sizing, spec: { body: { t: 'text', text: 'x' } } }).size === 0, 'appsOf: a widget that reaches no app reaches none')
 ok(has({ ...reaching, ai: true }, '/ai', 'derived'), 'a hand-set `ai` is refused — it is derived from what the widget binds')
+
+console.log('3c · the second tier: bindings against what the apps declare')
+const DOCS = {
+  lz: {
+    capabilities: { capabilities: [
+      { id: 'ask', body: [{ name: 'text', type: 'string', required: true }], returns: [{ name: 'job_id', type: 'string' }], resolves: [{ name: 'response', type: 'text' }] },
+      { id: 'note', body: [{ name: 'title', type: 'string', required: true }, { name: 'kind', type: 'string', required: true, default: 'task' }], returns: [{ name: 'id', type: 'number' }] },
+    ] },
+    datasets: { datasets: [
+      { id: 'jobs', path: '/jobs', filters: [{ name: 'job_id' }, { name: 'status' }], item: [{ name: 'id', type: 'string' }, { name: 'status', type: 'string' }, { name: 'result', type: 'json', item: [{ name: 'response', type: 'text' }] }] },
+      { id: 'one', path: '/one/:id', cardinality: 'one', item: [{ name: 'total', type: 'number' }] },
+      { id: 'radio', path: '/radio', filters: [{ name: 'seed', required: true }] },
+    ] },
+  },
+}
+const SLICES = { clock: { type: 'json', item: { hm: { type: 'string' } } }, todayIso: { type: 'date' } }
+const t2 = (spec) => checkBindings({ id: 'p', sizing, spec }, { docs: DOCS, slices: SLICES })
+const t2has = (spec, path, code) => t2(spec).some((p) => p.path === path && p.code === code)
+const JOBS_SRC = { jobs: { kind: 'dataset', app: 'lz', dataset: 'jobs' } }
+ok(t2({ sources: JOBS_SRC, body: { t: 'list', from: { src: 'jobs' }, item: { t: 'text', text: { src: '$', path: 'result.response' } } } }).length === 0, 'a row field, and one inside a declared json item, bind')
+ok(t2has({ sources: JOBS_SRC, body: { t: 'list', from: { src: 'jobs' }, item: { t: 'text', text: { src: '$', path: 'statsu' } } } }, '/spec/body/item/text', 'undeclared-path'), 'a row field nobody declares is refused')
+ok(t2({ sources: JOBS_SRC, body: { t: 'list', from: { src: 'jobs' }, item: { t: 'text', text: { src: '$', path: 'statsu' } } } })[0]?.fix === 'did you mean "status"?', '…naming the declared one')
+ok(t2has({ body: { t: 'text', text: { src: 'clock', path: 'hmm' } } }, '/spec/body/text', 'undeclared-path'), 'a slice field nobody declares is refused')
+ok(t2has({ body: { t: 'text', text: { src: 'todayIso', path: 'year' } } }, '/spec/body/text', 'undeclared-path'), 'a path below a scalar is refused')
+ok(t2({ body: { t: 'text', text: { src: 'clokc', path: 'hm' } } }).some((p) => p.code === 'unknown-source' && p.fix === 'did you mean "clock"?'), 'an unknown source is refused, with the likely one')
+ok(t2has({ body: { t: 'when', cond: { eq: [{ src: 'clock', path: 'nope' }, 1] }, then: { t: 'text', text: 'x' } } }, '/spec/body/cond', 'undeclared-path'), "a condition's operands are checked")
+ok(t2has({ sources: JOBS_SRC, body: { t: 'text', text: { src: 'jobs', path: 'status' } } }, '/spec/body/text', 'undeclared-path'), "a list read as if it were a row is refused (bind it to a list's from)")
+ok(t2has({ sources: { j: { kind: 'dataset', app: 'lz', dataset: 'jobz' } }, body: { t: 'text', text: 'x' } }, '/spec/sources/j/dataset', 'undeclared'), 'a dataset the app does not declare is refused')
+ok(t2has({ sources: { j: { kind: 'dataset', app: 'lz', dataset: 'jobs', params: { state: 'DONE' } } }, body: { t: 'text', text: 'x' } }, '/spec/sources/j/params/state', 'undeclared'), 'a parameter the dataset does not honour is refused')
+ok(t2has({ sources: { o: { kind: 'dataset', app: 'lz', dataset: 'one' } }, body: { t: 'text', text: 'x' } }, '/spec/sources/o/params', 'missing-param'), 'a path parameter left unfilled is refused')
+ok(t2has({ sources: { r: { kind: 'dataset', app: 'lz', dataset: 'radio' } }, body: { t: 'text', text: 'x' } }, '/spec/sources/r/params', 'missing-param'), 'a required filter left unset is refused')
+ok(t2({ sources: { o: { kind: 'dataset', app: 'lz', dataset: 'one', params: { id: 1 } } }, body: { t: 'text', text: { src: 'o', path: 'total' } } }).length === 0, 'a one-document dataset binds its fields directly')
+const form = (cmd, children, result) => ({ body: { t: 'form', cmd, submit: 'GO', children, ...(result ? { result } : {}) } })
+ok(t2(form({ app: 'lz', capability: 'note', body: { title: { src: '$form', path: 'title' } } }, [{ t: 'input', field: 'title' }])).length === 0, 'a form binding what its input writes passes (a defaulted required field need not be bound)')
+ok(t2has(form({ app: 'lz', capability: 'note', body: { title: { src: '$form', path: 'titel' } } }, [{ t: 'input', field: 'title' }]), '/spec/body/cmd/body/title', 'undeclared-path'), '$form.<field> that no control writes is refused')
+ok(t2has(form({ app: 'lz', capability: 'note', body: { titel: 'x' } }, []), '/spec/body/cmd/body/titel', 'undeclared'), 'a body field the capability does not take is refused')
+ok(t2has(form({ app: 'lz', capability: 'note', body: {} }, []), '/spec/body/cmd/body', 'missing-field'), 'a required body field nothing binds is refused')
+ok(t2has(form({ app: 'lz', capability: 'nope' }, []), '/spec/body/cmd/capability', 'undeclared'), 'a capability the app does not declare is refused')
+ok(t2(form({ app: 'lz', capability: 'ask', body: { text: 'hi' } }, [], { t: 'text', text: { src: '$result', path: 'response' } })).length === 0, "an async command's $result is what it RESOLVES to")
+ok(t2has(form({ app: 'lz', capability: 'ask', body: { text: 'hi' } }, [], { t: 'text', text: { src: '$result', path: 'job_id' } }), '/spec/body/result/text', 'undeclared-path'), '…never its job handle')
+ok(t2(form({ app: 'lz', capability: 'ask', body: { text: 'hi' } }, [], { t: 'text', text: { src: '$job', path: 'phase' } })).length === 0, '$job carries phase/status/result/error')
+ok(t2has(form({ app: 'lz', capability: 'note', body: { title: 'x' } }, [], { t: 'text', text: { src: '$form', path: 'title' } }), '/spec/body/result/text', 'unknown-source'), 'a result slot is drawn beside the form: $form is not in its scope')
 
 console.log('4 · the href rule')
 for (const h of ['https://x.test/', '/widgets', 'mailto:a@b.test', '#top']) ok(safeHref(h) === h, `keeps ${JSON.stringify(h)}`)

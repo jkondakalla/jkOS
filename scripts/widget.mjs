@@ -18,12 +18,18 @@
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
-import { shippedWidgets, suiteHosts, WIDGETS_URL } from './widget/catalog.mjs';
+import { shippedWidgets, suiteHosts, declarations, WIDGETS_URL } from './widget/catalog.mjs';
 import { renderWidgets } from './widget/render.mjs';
 
-const { validateWidget: validate } = await import(WIDGETS_URL);
+const { validateWidget: validate, checkBindings } = await import(WIDGETS_URL);
 const CTX = { suiteHosts: suiteHosts() };
-const validateWidget = (def) => validate(def, CTX);
+const DECLS = await declarations();
+/* Both tiers: the structure jkAuth checks at publish, then every binding, source and
+   command against what its app declares (and ORDECK's slices). */
+const validateWidget = (def) => {
+  const structural = validate(def, CTX);
+  return structural.length ? structural : checkBindings(def, DECLS);
+};
 const [cmd, ...rest] = process.argv.slice(2);
 
 const flags = {};

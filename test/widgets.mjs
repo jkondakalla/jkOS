@@ -8,7 +8,8 @@
 //   2. EVERY WIDGET THE SUITE SHIPS IS VALID. ORDECK's built-in catalog (the REAL
 //      defaultHudState(), transpiled) and every committed widget file
 //      (apps/*/widgets/*.json) pass the validator jkAuth holds a publish to — so
-//      "committed" and "publishable" cannot disagree.
+//      "committed" and "publishable" cannot disagree — AND its second tier: every
+//      binding, source and command against what its app declares and ORDECK's slices.
 //   3. THE WORKSHOP EDITS LOSSLESSLY. The real workshop/model.ts, whose tree shape is
 //      now derived from the manifest, round-trips every shipped body byte-for-byte:
 //      what you open in the canvas is what you publish.
@@ -35,10 +36,10 @@ import { execFileSync } from 'node:child_process';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { unit, REPO_ROOT } from './lib/unit.mjs';
-import { shippedWidgets, suiteHosts, appDocs, WIDGETS_URL as WIDGETS } from '../scripts/widget/catalog.mjs';
+import { shippedWidgets, suiteHosts, appDocs, declarations, WIDGETS_URL as WIDGETS } from '../scripts/widget/catalog.mjs';
 
 const { check, importTs, done } = unit('widgets');
-const { validateWidget } = await import(WIDGETS);
+const { validateWidget, checkBindings } = await import(WIDGETS);
 const read = (rel) => readFileSync(join(REPO_ROOT, rel), 'utf8');
 const fmt = (errs) => errs.map((e) => `${e.path} ${e.code}${e.fix ? ` (${e.fix})` : ''}`).join('; ');
 
@@ -60,9 +61,14 @@ for (const w of shipped) {
   if (w.file) check(w.def.id === w.where.split('/').pop().replace(/\.json$/, ''), `${w.where}: the file is named for its widget id`);
 }
 const CTX = { suiteHosts: suiteHosts() };
+const DECLS = await declarations();
 for (const { where, def } of shipped.filter((w) => w.def)) {
   const errs = validateWidget(def, CTX);
   check(errs.length === 0, `${where} is a valid widget${errs.length ? ` — ${fmt(errs)}` : ''}`);
+  // The second tier: every binding, source and command against what its app declares
+  // (and ORDECK's typed slice declaration) — a field nobody declares draws an empty string.
+  const t2 = errs.length ? [] : checkBindings(def, DECLS);
+  check(t2.length === 0, `${where} binds only what its apps declare${t2.length ? ` — ${fmt(t2)}` : ''}`);
 }
 
 // A widget's fixtures are what its preview draws; for a dataset source they must be

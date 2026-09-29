@@ -58,6 +58,26 @@ export async function builtinDefs() {
   }
 }
 
+/** ORDECK's HUD slice declaration (hud/slices.ts HUD_SLICES) — its imports are type-only,
+ *  so the real file transpiles to plain data. What the second validation tier checks a
+ *  binding into a slice against. */
+export async function hudSlices() {
+  const tmp = mkdtempSync(join(tmpdir(), 'jkos-widget-slices-'));
+  try {
+    const out = join(tmp, 'slices.mjs');
+    writeFileSync(out, transpile(readFileSync(join(REPO_ROOT, 'apps/ordeck/src/hud/slices.ts'), 'utf8'), 'slices.ts'));
+    return (await import(pathToFileURL(out).href)).HUD_SLICES;
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+}
+
+/** Everything the second tier checks a widget against: every app's declarations and
+ *  ORDECK's slices (@jkos/widgets checkBindings' ctx). */
+export async function declarations() {
+  return { docs: appDocs(), slices: await hudSlices() };
+}
+
 /** Every committed widget file: [{ where, app, file, def, fixtures, error? }]. */
 export function widgetFiles() {
   const out = [];
