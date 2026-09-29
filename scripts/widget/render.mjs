@@ -5,11 +5,10 @@
 //
 //   1. build ORDECK's preview entry (apps/ordeck/preview, vite.preview.config.ts) into a
 //      scratch directory — the page is never part of ORDECK's own build;
-//   2. serve it, with each job at /job.json?job=<n>, each source's request answered per
-//      state at /__fixture/<n>/<state>/<name> (the widget's fixtures, or the empty
-//      answer for its cardinality — offline is a 503, signed-out a 401, loading never
-//      answers), and every app's Weave declarations at /api/<app>/capabilities|datasets,
-//      so a dataset source is discovered and a form finds its command;
+//   2. serve it, with each job (its def and its fixtures) at /job.json?job=<n>, and every
+//      app's Weave declarations at /api/<app>/capabilities|datasets, so a dataset source is
+//      discovered and a form finds its command. A source's answer per state comes from the
+//      job's fixtures, in the page (hud/sample.ts fixtureReader — shared with the Workshop);
 //   3. drive headless Chromium over the DevTools Protocol (test/lib/cdp.mjs): open each
 //      job in each face, wait for the page's own ready signal, read its report, and
 //      optionally capture the contact sheet.
@@ -39,17 +38,8 @@ export function buildPreview() {
   return out;
 }
 
-/** The empty answer for a widget's source: null for a one-document dataset, else []. */
-function emptyAnswer(def, name, docs) {
-  const s = def?.spec?.sources?.[name];
-  if (s?.kind !== 'dataset') return [];
-  const ds = docs[s.app]?.datasets?.datasets?.find((d) => d.id === s.dataset);
-  return ds?.cardinality === 'one' ? null : [];
-}
-
 function serve(dist, jobs) {
   const docs = appDocs();
-  const held = new Set();
   const json = (res, status, body) => { res.writeHead(status, { 'content-type': 'application/json' }); res.end(JSON.stringify(body)); };
   const server = createServer((req, res) => {
     const url = new URL(req.url, 'http://x');
@@ -57,18 +47,6 @@ function serve(dist, jobs) {
     if (p === '/job.json') {
       const job = jobs[Number(url.searchParams.get('job'))];
       return job ? json(res, 200, job.page) : json(res, 404, { error: 'no such job' });
-    }
-    const fx = p.match(/^\/__fixture\/(\d+)\/([a-z-]+)\/(.+)$/);
-    if (fx) {
-      const [, n, state, name] = fx;
-      if (state === 'loading') { held.add(res); res.on('close', () => held.delete(res)); return; }   // the state IS no answer
-      if (state === 'offline') return json(res, 503, { error: 'unavailable' });
-      if (state === 'signed-out') return json(res, 401, { error: 'Not authenticated' });           // no code: authFetch will not try a refresh
-      const job = jobs[Number(n)];
-      const fixture = job?.fixtures?.[state]?.[name];
-      // No fixture: the EMPTY answer for what the source is — [] for a list, null for a
-      // one-document dataset (a [] there would be a declared document answering a list).
-      return json(res, 200, fixture !== undefined ? fixture : emptyAnswer(job?.page?.def, name, docs));
     }
     const api = p.match(/^\/api\/([a-z]+)\/(capabilities|datasets)$/);
     if (api) {
@@ -83,7 +61,7 @@ function serve(dist, jobs) {
   });
   return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve({
     base: `http://127.0.0.1:${server.address().port}`,
-    close: () => new Promise((r) => { for (const h of held) h.destroy(); server.close(r); }),
+    close: () => new Promise((r) => { server.closeAllConnections?.(); server.close(r); }),
   })));
 }
 
@@ -98,7 +76,7 @@ export async function renderWidgets(widgets, { modes = ['paper', 'dark'], states
   const dist = buildPreview();
   const jobs = [];
   for (const w of widgets) for (const mode of modes) {
-    jobs.push({ id: w.def.id, mode, fixtures: w.fixtures ?? {}, page: { def: w.def, mode, states, accent } });
+    jobs.push({ id: w.def.id, mode, page: { def: w.def, mode, states, accent, fixtures: w.fixtures ?? null } });
   }
   const srv = await serve(dist, jobs);
   const browser = await launch(chromium);

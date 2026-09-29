@@ -104,6 +104,9 @@ ok(srcHas({ d: { kind: 'dataset', app: 'lazuros', dataset: 'jobs', params: { job
 ok(problems('nope').length === 1 && problems('nope')[0].code === 'not-an-object', 'a non-object is refused outright')
 
 // ── 3. the walker ────────────────────────────────────────────────────────────
+ok(has(def({ t: 'stack', gap: 400, children: [] }), '/spec/body/gap', 'out-of-range'), "a number outside the manifest's bounds is refused (a 400px gap)")
+ok(problems(def({ t: 'stack', gap: 12, children: [] })).length === 0, '…one inside them passes')
+
 console.log('2b · derived bindings — map, fmt and the conditions (weave\'s one binding model)')
 const STATUS = { src: '$', path: 'status' }
 ok(problems(def({ t: 'dot', tone: { ...STATUS, map: { DONE: 'ok', FAILED: 'danger' }, fallback: 'muted' } })).length === 0, 'a status mapped onto tones passes')

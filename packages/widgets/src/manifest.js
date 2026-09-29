@@ -90,7 +90,7 @@ export const NODES = {
       value: { type: 'binding', required: true },
       unit: { type: 'binding' },
       sub: { type: 'binding', doc: 'caption pinned to the right' },
-      size: { type: 'number', doc: "the number's font-size in px (default 30) — small inline stats vs hero" },
+      size: { type: 'number', min: 12, max: 72, default: 30, doc: "the number's font-size in px — small inline stats vs hero" },
     },
     example: { t: 'metric', value: { src: 'systems', path: 'up' }, unit: '' },
   },
@@ -100,7 +100,7 @@ export const NODES = {
       value: { type: 'binding', required: true },
       max: { type: 'binding' },
       label: { type: 'binding' },
-      size: { type: 'number', doc: "the ring's outer diameter in px (default 76)" },
+      size: { type: 'number', min: 40, max: 160, default: 76, doc: "the ring's outer diameter in px" },
     },
     example: { t: 'gauge', value: { src: 'systems', path: 'up' }, max: { src: 'systems', path: 'total' } },
   },
@@ -117,7 +117,7 @@ export const NODES = {
     props: {
       from: { type: 'binding', required: true, doc: 'the array to plot' },
       path: { type: 'string', doc: 'plucks a number from each element (e.g. weather.slots → temp)' },
-      height: { type: 'number' },
+      height: { type: 'number', min: 12, max: 80, default: 28 },
       tone: { type: 'tone' },
     },
     example: { t: 'sparkline', from: { src: 'weather', path: 'slots' }, path: 'temp' },
@@ -138,7 +138,7 @@ export const NODES = {
       item: { type: 'node', required: true },
       empty: { type: 'binding', doc: 'shown when the array is empty' },
       dir: { type: 'enum', values: ['col', 'row'] },
-      cols: { type: 'number', doc: 'wraps a column list into an N-column grid (dense fact lists)' },
+      cols: { type: 'number', min: 1, max: 4, default: 1, doc: 'wraps a column list into an N-column grid (dense fact lists)' },
     },
     example: {
       t: 'list', from: { src: 'systems', path: 'rows' }, empty: 'NOTHING',
@@ -174,7 +174,7 @@ export const NODES = {
     props: {
       name: { type: 'binding', required: true, values: ICON_NAMES, doc: 'one of ICON_NAMES' },
       tone: { type: 'tone' },
-      size: { type: 'number' },
+      size: { type: 'number', min: 12, max: 64, default: 24 },
     },
     example: { t: 'icon', name: 'sun', tone: 'accent' },
   },
@@ -207,7 +207,7 @@ export const NODES = {
   row: {
     kind: 'layout', label: 'Row', hint: 'lay children side by side',
     props: {
-      gap: { type: 'number' },
+      gap: { type: 'number', min: 0, max: 40, default: 8 },
       justify: { type: 'enum', values: JUSTIFY },
       align: { type: 'enum', values: ALIGN },
       grow: { type: 'boolean' },
@@ -218,7 +218,7 @@ export const NODES = {
   stack: {
     kind: 'layout', label: 'Stack', hint: 'group children vertically',
     props: {
-      gap: { type: 'number' },
+      gap: { type: 'number', min: 0, max: 40, default: 8 },
       grow: { type: 'boolean' },
       justify: { type: 'enum', values: JUSTIFY, doc: 'distributes children along the column (space-between pins the last to the bottom edge)' },
       children: { type: 'nodes', required: true },
@@ -295,7 +295,7 @@ export const NODES = {
       sub: { type: 'binding', row: true, doc: 'a second line under the title' },
       href: { type: 'binding', row: true, href: true, doc: 'the row links here' },
       empty: { type: 'binding', doc: 'when there are no rows (the frame draws an empty SOURCE itself)' },
-      max: { type: 'number', doc: 'rows shown; the rest become "+N more"' },
+      max: { type: 'number', min: 1, max: 100, doc: 'rows shown; the rest become "+N more"' },
     },
     example: {
       t: 'rows', from: { src: 'today', path: 'tasks' }, lead: { src: '$', path: 'timeLabel' },
@@ -312,7 +312,7 @@ export const NODES = {
       tone: { type: 'tone', row: true },
       detail: { type: 'binding', row: true, doc: 'a second, dim line' },
       empty: { type: 'binding' },
-      max: { type: 'number' },
+      max: { type: 'number', min: 1, max: 100 },
     },
     example: { t: 'feed', from: { src: 'notifications', path: 'items' }, text: { src: '$', path: 'text' }, icon: { src: '$', path: 'icon' }, tone: { src: '$', path: 'tone' }, detail: { src: '$', path: 'detail' } },
   },
@@ -320,7 +320,7 @@ export const NODES = {
     kind: 'pattern', label: 'Facts', hint: 'a grid of named values',
     props: {
       items: { type: 'pairs', required: true, doc: '[{ label, value, tone? }] — each a literal or a binding' },
-      cols: { type: 'number', doc: 'columns (default 2; one when narrow)' },
+      cols: { type: 'number', min: 1, max: 4, default: 2, doc: 'columns (one when narrow)' },
     },
     example: { t: 'facts', items: [{ label: 'High', value: { src: 'weather', path: 'hiLabel' } }, { label: 'Low', value: { src: 'weather', path: 'loLabel' } }] },
   },
@@ -383,7 +383,7 @@ export const NODES = {
     kind: 'control', label: 'Form select', hint: 'pick from options',
     props: {
       field: { type: 'field', required: true },
-      options: { type: 'binding', required: true, doc: 'an array of strings or {value, label}' },
+      options: { type: 'binding', required: true, list: true, doc: 'an array of strings or {value, label}' },
       placeholder: { type: 'binding' },
     },
     placement: { form: 'inside' },

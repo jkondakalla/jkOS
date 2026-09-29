@@ -26,6 +26,9 @@
 //   9. ONE STYLESHEET. The renderer writes no inline visual style: every look is a class
 //      in hud/widgets.css, and the only `style=` it may write is vars({...}) — custom
 //      properties carrying what a node's DATA decides (a gap, a tone's colour, a size).
+//  10. THE WORKSHOP IS DERIVED. Its Inspector is each node's manifest props through one
+//      editor per prop type (no per-kind block can regrow), its JSON tab runs both tiers,
+//      and its gallery draws every widget in every state with the preview's own reader.
 //   8. THE AI KILL SWITCH IS ENFORCED WHERE A WIDGET RENDERS, not only on the shelf: a
 //      placed widget that binds an AI app draws the off tile, reading and running nothing.
 //   7. AN ASYNC COMMAND IS FOLLOWED TO ITS ANSWER. weave's followJob (the REAL module)
@@ -304,6 +307,20 @@ for (const f of readdirSync(HUD).filter((n) => n.endsWith('.tsx'))) {
   const notVar = setsVars.filter((body) => /(^|,)\s*[a-zA-Z]+\s*:/.test(body));
   check(notVar.length === 0, `vars() sets only custom properties (--w-*)${notVar.length ? ` — ${notVar[0]}` : ''}`);
   check(/import '\.\/widgets\.css';/.test(reg), 'the renderer imports widgets.css, so a widget carries its styles wherever it draws');
+}
+
+// ── 10. the Workshop is derived from the manifest ───────────────────────────
+{
+  const insp = read('apps/ordeck/src/workshop/Inspector.tsx');
+  const perKind = [...insp.matchAll(/\bn\.t === '([a-z]+)'/g)].map((m) => m[1]);
+  check(perKind.every((t) => t === 'form'), `the Inspector edits every node from its manifest props — no per-kind branch regrows${perKind.length ? ` (found ${perKind.join(', ')})` : ''}`);
+  check(/Object\.entries\(NODES\[n\.t\]\?\.props/.test(insp), "the Inspector's panel is the node's manifest props, in order");
+  const ws = read('apps/ordeck/src/pages/WidgetWorkshop.tsx');
+  check(/<JsonTab\b/.test(ws) && /<Gallery\b/.test(ws), 'the Workshop has the JSON tab (both tiers, live) and the gallery (every widget, every state)');
+  const json = read('apps/ordeck/src/workshop/JsonTab.tsx');
+  check(/validateWidget\(/.test(json) && /checkBindings\(/.test(json), 'the JSON tab runs BOTH validation tiers');
+  check(/fixtureReader\(/.test(read('apps/ordeck/src/workshop/Gallery.tsx')) && /fixtureReader\(/.test(read('apps/ordeck/preview/main.tsx')),
+    'the gallery and the preview harness draw a state with the SAME reader (hud/sample.ts fixtureReader)');
 }
 
 done();

@@ -16,6 +16,7 @@ import { useSuiteApps, fetchCapabilities, type AppId, type CapabilityDoc, normal
 import { HUD_SLICES, sliceFields, listItemFields } from '../hud/slices';
 import type { Binding, CommandRef, DataSource, Tone, ToneBinding, WidgetNode } from '../hud/types';
 import { catalogEntry, type ENode } from './model';
+import { NODES, type PropSpec } from '@jkos/widgets';
 import { Field, NumField, SelectField, Check } from '@jkos/ui';
 
 /* ── binding edit model (lit vs data), shared by every field ────────────── */
@@ -130,12 +131,6 @@ function BindField({ value, onChange, sources, optional }: {
 }
 
 const TONES: Tone[] = ['ok', 'warn', 'danger', 'accent', 'muted'];
-const SIZES = ['md', 'sm', 'xs'];
-const VARIANTS = ['title', 'body', 'sub', 'mono'];
-const JUSTIFY = ['flex-start', 'center', 'space-between', 'flex-end'];
-const ALIGN = ['center', 'flex-start', 'flex-end', 'baseline', 'stretch'];
-const ICON_NAMES = ['sun', 'moon', 'cloud', 'rain', 'bolt', 'check', 'book', 'clock', 'calendar', 'activity', 'star', 'alert', 'dot'];
-const ITYPES = ['text', 'number', 'date', 'time'];
 
 /** Tone that may be fixed OR data-bound (list rows colouring from $.tone). */
 function ToneField({ value, onChange, sources }: {
@@ -290,6 +285,114 @@ function CommandEditor({ cmd, sources, allowInputs, onChange }: {
   );
 }
 
+/* ── the generic prop editor ────────────────────────────────────────────────
+ * One editor per manifest PROP TYPE, not one per node kind: every node's panel is its
+ * manifest entry's props, in order, each drawn by the editor for its type. A new node
+ * kind or prop needs no Inspector code — it used to need a hand-written block (and the
+ * patterns would have needed seven). */
+
+/** A prop's label, with its manifest doc as the hover. */
+function PropLine({ name, spec, children }: { name: string; spec: PropSpec; children: ReactNode }) {
+  return (
+    <div style={rowLine} title={spec.doc}>
+      <span style={{ fontFamily: 'var(--hub-font-mono)', fontSize: 10, letterSpacing: '0.06em', color: 'var(--hub-cream-dim)', width: 72, flex: 'none', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        {name}{spec.required ? ' *' : ''}
+      </span>
+      {children}
+    </div>
+  );
+}
+
+/** A `pairs` prop (a facts grid): label + value per row, add and remove. */
+function PairsEditor({ value, onChange, sources }: {
+  value: { label: Binding; value: Binding; tone?: ToneBinding }[] | undefined;
+  onChange: (v: { label: Binding; value: Binding; tone?: ToneBinding }[]) => void;
+  sources: string[];
+}) {
+  const rows = value ?? [];
+  const set = (i: number, part: 'label' | 'value', b: Binding | undefined) =>
+    onChange(rows.map((r, j) => (j === i ? { ...r, [part]: b ?? '' } : r)));
+  return (
+    <div style={{ display: 'grid', gap: 4, flex: 1, minWidth: 0 }}>
+      {rows.map((r, i) => (
+        <div key={i} style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+          <BindField value={r.label} onChange={(b) => set(i, 'label', b)} sources={sources} />
+          <BindField value={r.value} onChange={(b) => set(i, 'value', b)} sources={sources} />
+          <button style={ghostBtn} onClick={() => onChange(rows.filter((_, j) => j !== i))}>×</button>
+        </div>
+      ))}
+      <button style={{ ...ghostBtn, justifySelf: 'start' }} onClick={() => onChange([...rows, { label: 'Label', value: '' }])}>+ add</button>
+    </div>
+  );
+}
+
+function PropEditor({ name, spec, node, sources, onChange, onCmd }: {
+  name: string;
+  spec: PropSpec;
+  node: WidgetNode;
+  sources: string[];
+  onChange: (v: unknown) => void;
+  onCmd: (cmd: CommandRef, cap: CapDef | null) => void;
+}) {
+  const v = (node as unknown as Record<string, unknown>)[name];
+  // A per-row prop reads `$` (a row of the node's `from`); an answer reads $result/$job.
+  const scoped = spec.result ? [...sources.filter((s) => s !== '$'), '$result', '$job'] : sources;
+  switch (spec.type) {
+    case 'node':
+    case 'nodes':
+      return null;   // children are edited on the canvas
+    case 'cmd':
+      return <CommandEditor cmd={(v as CommandRef) ?? { app: '' as AppId, capability: '' }} sources={sources} allowInputs={node.t === 'form'} onChange={onCmd} />;
+    case 'tone':
+      return <PropLine name={name} spec={spec}><ToneField value={v as ToneBinding | undefined} onChange={onChange} sources={scoped} /></PropLine>;
+    case 'number': {
+      const n = typeof v === 'number' ? v : spec.default ?? spec.min ?? 0;
+      return (
+        <PropLine name={name} spec={spec}>
+          <Num label="" value={n} min={spec.min ?? 0} max={spec.max ?? 999}
+            onChange={(x) => onChange(spec.default !== undefined && x === spec.default ? undefined : x)} />
+        </PropLine>
+      );
+    }
+    case 'boolean':
+      return <PropLine name={name} spec={spec}><Check checked={!!v} onChange={(next) => onChange(next || undefined)} /></PropLine>;
+    case 'enum':
+      return (
+        <PropLine name={name} spec={spec}>
+          <Select value={typeof v === 'string' ? v : ''} onChange={(x) => onChange(x || undefined)}
+            options={[...(spec.required ? [] : ['']), ...(spec.values ?? [])]} />
+        </PropLine>
+      );
+    case 'string':
+    case 'field':
+      return (
+        <PropLine name={name} spec={spec}>
+          <Field style={{ ...field, flex: 1 }} value={typeof v === 'string' ? v : ''} placeholder={spec.type === 'field' ? 'field name' : ''}
+            onChange={(e) => onChange(e.target.value || (spec.required ? '' : undefined))} />
+        </PropLine>
+      );
+    case 'pairs':
+      return <PropLine name={name} spec={spec}><PairsEditor value={v as never} onChange={onChange} sources={sources} /></PropLine>;
+    case 'binding':
+      if (spec.list) {
+        const lit = v && typeof v === 'object' && 'lit' in (v as object) && Array.isArray((v as { lit: unknown }).lit) ? (v as { lit: unknown[] }).lit : [];
+        return (
+          <PropLine name={name} spec={spec}>
+            <Field style={{ ...field, flex: 1 }} placeholder="comma, separated" value={lit.join(',')}
+              onChange={(e) => onChange({ lit: e.target.value.split(',').map((x) => x.trim()).filter(Boolean) })} />
+          </PropLine>
+        );
+      }
+      return (
+        <PropLine name={name} spec={spec}>
+          <BindField value={v as Binding | undefined} onChange={(b) => onChange(b ?? (spec.required ? '' : undefined))} sources={scoped} optional={!spec.required} />
+        </PropLine>
+      );
+    default:
+      return null;
+  }
+}
+
 /* ── the panel ──────────────────────────────────────────────────────────── */
 
 export interface FetchRow { name: string; url: string; poll: string }
@@ -407,137 +510,14 @@ export function Inspector(p: InspectorProps) {
         </span>
       </div>
 
-      {(n.t === 'label' || n.t === 'text' || n.t === 'pill' || n.t === 'link') && (
-        <Line t="text"><BindField value={n.text} onChange={(b) => patch({ text: b ?? '' })} sources={sources} /></Line>
+      {NODES[n.t]?.kind === 'molecule' && (
+        <p style={hintStyle}>Draws itself from {([] as string[]).concat(NODES[n.t].reads ?? []).map((r) => <code key={r}>{r} </code>)} — nothing to set.</p>
       )}
-      {n.t === 'label' && <Line t="size"><Select value={n.size || 'md'} onChange={(v) => patch({ size: v })} options={SIZES} /></Line>}
-      {n.t === 'text' && (
-        <>
-          <Line t="style"><Select value={n.variant || 'body'} onChange={(v) => patch({ variant: v })} options={VARIANTS} /></Line>
-          <Line t="grow"><Check checked={!!n.grow} onChange={(next) => patch({ grow: next || undefined })} /></Line>
-        </>
-      )}
-      {(n.t === 'metric' || n.t === 'bar' || n.t === 'gauge') && (
-        <Line t="value"><BindField value={n.value} onChange={(b) => patch({ value: b ?? '' })} sources={sources} /></Line>
-      )}
-      {n.t === 'metric' && (
-        <>
-          <Line t="unit"><BindField value={n.unit} onChange={(b) => patch({ unit: b })} sources={sources} optional /></Line>
-          <Line t="sub"><BindField value={n.sub} onChange={(b) => patch({ sub: b })} sources={sources} optional /></Line>
-          <Line t="size"><Num label="px" value={n.size ?? 30} min={12} max={72} onChange={(v) => patch({ size: v === 30 ? undefined : v })} /></Line>
-        </>
-      )}
-      {(n.t === 'bar' || n.t === 'gauge') && (
-        <Line t="max"><BindField value={n.max} onChange={(b) => patch({ max: b })} sources={sources} optional /></Line>
-      )}
-      {n.t === 'gauge' && (
-        <>
-          <Line t="caption"><BindField value={n.label} onChange={(b) => patch({ label: b })} sources={sources} optional /></Line>
-          <Line t="size"><Num label="px" value={n.size ?? 76} min={40} max={160} onChange={(v) => patch({ size: v === 76 ? undefined : v })} /></Line>
-        </>
-      )}
-      {n.t === 'sparkline' && (
-        <>
-          <Line t="from []"><BindField value={n.from} onChange={(b) => patch({ from: b ?? '' })} sources={sources} /></Line>
-          <Line t="field"><Field style={{ ...field, flex: 1 }} value={n.path ?? ''} placeholder="number field per element (blank = element itself)" onChange={(e) => patch({ path: e.target.value || undefined })} /></Line>
-          <Line t="height"><Num label="px" value={n.height ?? 28} min={12} max={80} onChange={(v) => patch({ height: v === 28 ? undefined : v })} /></Line>
-          <Line t="tone"><ToneField value={n.tone} onChange={(v) => patch({ tone: v })} sources={sources} /></Line>
-        </>
-      )}
-      {(n.t === 'pill' || n.t === 'dot' || n.t === 'keyval' || n.t === 'icon' || n.t === 'button') && (
-        <Line t="tone"><ToneField value={n.tone} onChange={(v) => patch({ tone: v })} sources={sources} /></Line>
-      )}
-      {n.t === 'dot' && <Line t="pulse"><Check checked={!!n.pulse} onChange={(next) => patch({ pulse: next || undefined })} /></Line>}
-      {n.t === 'keyval' && (
-        <>
-          <Line t="label"><BindField value={n.label} onChange={(b) => patch({ label: b ?? '' })} sources={sources} /></Line>
-          <Line t="value"><BindField value={n.value} onChange={(b) => patch({ value: b ?? '' })} sources={sources} /></Line>
-        </>
-      )}
-      {n.t === 'divider' && <Line t="caption"><BindField value={n.label} onChange={(b) => patch({ label: b })} sources={sources} optional /></Line>}
-      {n.t === 'link' && <Line t="url"><BindField value={n.href} onChange={(b) => patch({ href: b ?? '' })} sources={sources} /></Line>}
-      {n.t === 'icon' && (
-        <>
-          <Line t="glyph"><Select value={typeof n.name === 'string' ? n.name : 'sun'} onChange={(v) => patch({ name: v })} options={ICON_NAMES} /></Line>
-          <Line t="size"><Num label="px" value={n.size ?? 24} min={12} max={64} onChange={(v) => patch({ size: v })} /></Line>
-        </>
-      )}
-      {n.t === 'time' && (
-        <>
-          <Line t="time"><BindField value={n.value} onChange={(b) => patch({ value: b ?? '' })} sources={sources} /></Line>
-          <Line t="seconds"><BindField value={n.seconds} onChange={(b) => patch({ seconds: b })} sources={sources} optional /></Line>
-          <Line t="line 1"><BindField value={n.sub} onChange={(b) => patch({ sub: b })} sources={sources} optional /></Line>
-          <Line t="line 2"><BindField value={n.sub2} onChange={(b) => patch({ sub2: b })} sources={sources} optional /></Line>
-        </>
-      )}
-      {(n.t === 'calendar' || n.t === 'weather') && (
-        <p style={hintStyle}>Self-contained card — renders from its <code>{n.t === 'calendar' ? 'cal' : 'weather'}</code> slice, no fields to set.</p>
-      )}
-      {n.t === 'list' && (
-        <>
-          <Line t="from []"><BindField value={n.from} onChange={(b) => patch({ from: b ?? '' })} sources={sources} /></Line>
-          <Line t="empty"><BindField value={n.empty} onChange={(b) => patch({ empty: b })} sources={sources} optional /></Line>
-          <Line t="direction"><Select value={n.dir || 'col'} onChange={(v) => patch({ dir: v === 'row' ? 'row' : undefined })} options={['col', 'row']} /></Line>
-          {n.dir !== 'row' && (
-            <Line t="columns"><Num label="n" value={n.cols ?? 1} min={1} max={4} onChange={(v) => patch({ cols: v > 1 ? v : undefined })} /></Line>
-          )}
-          <p style={hintStyle}>The row template is on the canvas (EACH ITEM) — tap into it to edit; item fields bind via the <code>$</code> source.</p>
-        </>
-      )}
-      {n.t === 'when' && (
-        <>
-          <Line t="show if"><BindField value={n.cond} onChange={(b) => patch({ cond: b ?? '' })} sources={sources} /></Line>
-          <p style={hintStyle}>THEN/ELSE branches are edited on the canvas; the live branch is highlighted.</p>
-        </>
-      )}
-      {(n.t === 'stack' || n.t === 'row') && (
-        <>
-          <Line t="gap"><Num label="px" value={n.gap ?? 8} min={0} max={40} onChange={(v) => patch({ gap: v })} /></Line>
-          <Line t="justify"><Select value={n.justify || 'flex-start'} onChange={(v) => patch({ justify: v === 'flex-start' ? undefined : v })} options={JUSTIFY} /></Line>
-          {n.t === 'row' && (
-            <Line t="align"><Select value={n.align || 'center'} onChange={(v) => patch({ align: v })} options={ALIGN} /></Line>
-          )}
-          <Line t="grow"><Check checked={!!n.grow} onChange={(next) => patch({ grow: next || undefined })} /></Line>
-        </>
-      )}
-      {n.t === 'input' && (
-        <>
-          <Line t="field"><Field style={{ ...field, flex: 1 }} value={n.field} onChange={(e) => patch({ field: e.target.value })} /></Line>
-          <Line t="placeholder"><BindField value={n.placeholder} onChange={(b) => patch({ placeholder: b })} sources={sources} optional /></Line>
-          <Line t="type"><Select value={n.itype || 'text'} onChange={(v) => patch({ itype: v })} options={ITYPES} /></Line>
-        </>
-      )}
-      {n.t === 'select' && (
-        <>
-          <Line t="field"><Field style={{ ...field, flex: 1 }} value={n.field} onChange={(e) => patch({ field: e.target.value })} /></Line>
-          <Line t="options">
-            <Field style={{ ...field, flex: 1 }} placeholder="comma,separated"
-              value={n.options && typeof n.options === 'object' && 'lit' in n.options && Array.isArray(n.options.lit) ? (n.options.lit as unknown[]).join(',') : ''}
-              onChange={(e) => patch({ options: { lit: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) } })} />
-          </Line>
-          <Line t="placeholder"><BindField value={n.placeholder} onChange={(b) => patch({ placeholder: b })} sources={sources} optional /></Line>
-        </>
-      )}
-      {n.t === 'toggle' && (
-        <>
-          <Line t="field"><Field style={{ ...field, flex: 1 }} value={n.field} onChange={(e) => patch({ field: e.target.value })} /></Line>
-          <Line t="label"><BindField value={n.label} onChange={(b) => patch({ label: b })} sources={sources} optional /></Line>
-        </>
-      )}
-      {n.t === 'form' && (
-        <>
-          <Line t="submit"><BindField value={n.submit} onChange={(b) => patch({ submit: b ?? 'SUBMIT' })} sources={sources} /></Line>
-          <CommandEditor cmd={n.cmd} sources={sources} allowInputs
-            onChange={(cmd, cap) => p.onPatchForm(sel.id, cmd, controlsFor(cap, cmd.body ?? {}))} />
-        </>
-      )}
-      {n.t === 'button' && (
-        <>
-          <Line t="text"><BindField value={n.text} onChange={(b) => patch({ text: b ?? '' })} sources={sources} /></Line>
-          <CommandEditor cmd={n.cmd} sources={sources} allowInputs={false}
-            onChange={(cmd) => patch({ cmd })} />
-        </>
-      )}
+      {Object.entries(NODES[n.t]?.props ?? {}).map(([name, spec]) => (
+        <PropEditor key={name} name={name} spec={spec} node={n} sources={sources}
+          onChange={(v) => patch({ [name]: v })}
+          onCmd={(cmd, cap) => (n.t === 'form' ? p.onPatchForm(sel.id, cmd, controlsFor(cap, cmd.body ?? {})) : patch({ cmd }))} />
+      ))}
     </div>
   );
 }

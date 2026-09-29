@@ -9,8 +9,7 @@
  * Only `Date`: timers, animation frames and fonts run on their own clocks.
  */
 
-/** Monday 28 September 2026, 09:41:27 local — the instant every preview is drawn at. */
-export const PINNED_MS = new Date(2026, 8, 28, 9, 41, 27).getTime();
+import { PINNED_MS } from '../src/hud/pinned';
 
 const RealDate = Date;
 class PinnedDate extends RealDate {

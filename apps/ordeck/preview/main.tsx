@@ -12,10 +12,9 @@
  * smallest footprint a user may resize to), a column per state — each cell sized
  * exactly as the HUD grid sizes it (the Workshop canvas's geometry) and holding
  * `renderWidget(def, ctx)`, the same call RoomHUD makes. Built-in slices come from
- * sample.ts; each declared source is read through the real reader (dataset discovery,
- * the refusal of suite URLs, the shape checks) with only the request itself sent to
- * /__fixture/<job>/<state>/<name>, which the harness answers per state (data, empty,
- * 503, 401, or never).
+ * hud/sample.ts, and each declared source is read by its fixtureReader — the real
+ * discovery, refusal and shape checks, with only the request answered from the job's
+ * fixtures for that state (data, empty, 503, 401, or never).
  *
  * When everything that should arrive has arrived, the page measures itself and
  * raises `window.__widgetReady`, with the findings in `window.__widgetReport` — a
@@ -28,18 +27,17 @@ import { StrictMode } from 'react';
 import ReactDOM from 'react-dom/client';
 import { injectJkOSTheme, applyJkOSMode, applyJkOSMotion, applyJkOSTheme, ACCENT_SCHEMES } from '@jkos/design';
 import { renderWidget } from '../src/hud/registry';
-import { SourceReaderProvider, readExternal, type SourceReader } from '../src/hud/sources';
+import { SourceReaderProvider, type SourceReader } from '../src/hud/sources';
 import { CATALOG } from '../src/hud/catalog';
-import { readDataset } from '@jkos/weave';
 import { DEFAULT_MIN_SIZE, type WidgetDef } from '../src/hud/types';
 import { TIERS, ROW_H, unitsToPx } from '../src/workshop/EditorCanvas';
-import { sampleCtx, PREVIEW_STATES, type PreviewState } from './sample';
+import { sampleCtx, fixtureReader, PREVIEW_STATES, type PreviewState } from '../src/hud/sample';
 import '../src/styles/global.css';
 import '../src/styles/hud.css';
 import '../src/hud/grid.css';
 import './preview.css';
 
-interface Job { def: WidgetDef; mode?: 'paper' | 'dark'; accent?: number; states?: PreviewState[] }
+interface Job { def: WidgetDef; mode?: 'paper' | 'dark'; accent?: number; states?: PreviewState[]; fixtures?: Record<string, Record<string, unknown>> | null }
 
 type Tier = 'desktop' | 'mobile' | 'min';
 const TIER_ROWS: { tier: Tier; colW: number; label: string }[] = [
@@ -56,37 +54,24 @@ function footprint(def: WidgetDef, tier: Tier) {
 /** Which job this page is — the harness serves several through one page, in turn. */
 const JOB = new URLSearchParams(location.search).get('job') ?? '0';
 
-/** How a cell's sources are read: through the REAL reader's discovery, URL and shape
- *  checks (a dataset is looked up in the app's declaration, which the harness serves;
- *  a suite URL in a fetch source is refused as it would be live) — with only the request
- *  itself answered from this state's fixture. One reader per state, made once. */
+/** How a cell's sources are read for its state: the shared fixtureReader (hud/sample.ts)
+ *  over this job's fixtures — the real discovery, refusal and shape checks, with only
+ *  the request answered. One reader per state, made once. */
 const readers = new Map<PreviewState, SourceReader>();
-function readerFor(state: PreviewState): SourceReader {
+function readerFor(state: PreviewState, fixtures: Job['fixtures']): SourceReader {
   let r = readers.get(state);
-  if (!r) {
-    const answer = (name: string) => () => realFetch(`/__fixture/${JOB}/${state}/${encodeURIComponent(name)}`);
-    r = async (name, source, params) => {
-      if (source.kind === 'dataset') {
-        const read = await readDataset(source.app, source.dataset, params, { fetch: answer(name) });
-        return { ...read, invalidates: read.def?.invalidates };
-      }
-      if (source.kind === 'fetch') return readExternal(source.url, answer(name));
-      return { state: 'unavailable', error: 'unknown source kind' };
-    };
-    readers.set(state, r);
-  }
+  if (!r) { r = fixtureReader(state, fixtures); readers.set(state, r); }
   return r;
 }
 
-/* Count the fixture requests still owed an answer. A `loading` cell's are never
-   answered — that is the state — so they are not waited for. */
+/* Count the requests still owed an answer — the apps' declarations the readers discover
+   datasets through, and a form's capabilities. (A source's own answer is in memory, and a
+   `loading` cell's never comes: that is the state.) */
 let pending = 0;
 const realFetch = window.fetch.bind(window);
 window.fetch = (input, init) => {
-  const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
-  const owed = !/\/__fixture\/[^/]+\/loading\//.test(url);
-  if (owed) pending++;
-  return realFetch(input, init).finally(() => { if (owed) pending--; });
+  pending++;
+  return realFetch(input, init).finally(() => { pending--; });
 };
 
 function Sheet({ job }: { job: Job }) {
@@ -108,7 +93,7 @@ function Sheet({ job }: { job: Job }) {
               <div className="wp-cell" key={state} data-tier={tier} data-state={state}>
                 <div className="wp-label hud-eyebrow">{state}</div>
                 <div className="hud-cell wp-frame" style={{ width: w, height: h }}>
-                  <SourceReaderProvider value={readerFor(state)}>
+                  <SourceReaderProvider value={readerFor(state, job.fixtures)}>
                     {renderWidget(job.def, sampleCtx(state))}
                   </SourceReaderProvider>
                 </div>
@@ -173,7 +158,7 @@ async function main() {
 
   ReactDOM.createRoot(document.getElementById('root')!).render(<StrictMode><Sheet job={job} /></StrictMode>);
 
-  // Settle, in order: every owed fixture answered; React committed what arrived; every
+  // Settle, in order: every owed request answered; React committed what arrived; every
   // font face that text asked for finished loading (a face only starts loading once
   // text that uses it is laid out, so fonts are awaited AFTER the commit — awaiting
   // them first measured fallback metrics and made the gate flaky); then a last frame.

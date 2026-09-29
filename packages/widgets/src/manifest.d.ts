@@ -14,6 +14,12 @@ export interface PropSpec {
   row?: boolean;
   /** A binding into `$result` / `$job`, what the node's command produced. */
   result?: boolean;
+  /** number: the bounds the validator holds it to, and the renderer's default. */
+  min?: number;
+  max?: number;
+  default?: number;
+  /** binding: a literal value is a LIST (select options) — the Workshop edits it as one. */
+  list?: boolean;
   doc?: string;
 }
 

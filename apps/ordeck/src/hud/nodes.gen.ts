@@ -12,9 +12,9 @@ export type IconName = 'sun' | 'moon' | 'cloud' | 'rain' | 'snow' | 'bolt' | 'ch
 /** The composable display vocabulary — one variant per manifest kind. */
 export type WidgetNode =
   /** Metric — big number + unit. */
-  | { t: 'metric'; value: Binding; unit?: Binding; /** caption pinned to the right */ sub?: Binding; /** the number's font-size in px (default 30) — small inline stats vs hero */ size?: number }
+  | { t: 'metric'; value: Binding; unit?: Binding; /** caption pinned to the right */ sub?: Binding; /** the number's font-size in px — small inline stats vs hero */ size?: number }
   /** Gauge — circular % ring. */
-  | { t: 'gauge'; value: Binding; max?: Binding; label?: Binding; /** the ring's outer diameter in px (default 76) */ size?: number }
+  | { t: 'gauge'; value: Binding; max?: Binding; label?: Binding; /** the ring's outer diameter in px */ size?: number }
   /** Progress bar — value vs max. */
   | { t: 'bar'; value: Binding; max?: Binding }
   /** Sparkline — tiny trend line over an array. */
@@ -62,7 +62,7 @@ export type WidgetNode =
   /** Feed — what happened, newest first, with when. */
   | { t: 'feed'; /** the events; every per-event prop binds into `$` */ from: Binding; text: Binding; /** when — an instant, drawn as 'ago' unless the binding formats it */ at?: Binding; icon?: Binding; tone?: ToneBinding; /** a second, dim line */ detail?: Binding; empty?: Binding; max?: number }
   /** Facts — a grid of named values. */
-  | { t: 'facts'; /** [{ label, value, tone? }] — each a literal or a binding */ items: { label: Binding; value: Binding; tone?: ToneBinding }[]; /** columns (default 2; one when narrow) */ cols?: number }
+  | { t: 'facts'; /** [{ label, value, tone? }] — each a literal or a binding */ items: { label: Binding; value: Binding; tone?: ToneBinding }[]; /** columns (one when narrow) */ cols?: number }
   /** Media — art, a title, and where it is. */
   | { t: 'media'; /** the art (an http(s) or relative URL) */ image?: Binding; title: Binding; subtitle?: Binding; /** a small line under them (a time, a count) */ meta?: Binding; progress?: Binding; /** default 1 */ max?: Binding; href?: Binding }
   /** Ask — one question, its answer drawn under it. */

@@ -7,5 +7,7 @@ export interface WidgetProblem {
   fix?: string;
 }
 
-/** Validate a widget def (structural + security). [] means valid. */
-export function validateWidget(def: unknown): WidgetProblem[];
+/** Validate a widget def (structural + security). [] means valid.
+ *  `ctx.suiteHosts`: the suite's hostnames — a `fetch` source to one (or a subdomain) is
+ *  refused; suite data is read through a DECLARED dataset. jkAuth passes them. */
+export function validateWidget(def: unknown, ctx?: { suiteHosts?: string[] }): WidgetProblem[];

@@ -24,6 +24,11 @@ import { useHudContext } from './hud/useHudContext';
 import { renderWidget, type Scope } from '../hud/registry';
 import { useDataSources, type DataSource } from '../hud/sources';
 import { NODES } from '@jkos/widgets';
+import { JsonTab } from '../workshop/JsonTab';
+import { Gallery } from '../workshop/Gallery';
+
+/** Build on the canvas · the same widget as its file · every widget in every state · how. */
+type WorkshopTab = 'build' | 'json' | 'gallery' | 'guide';
 import type { WidgetDef, WidgetNode } from '../hud/types';
 import { WIDGET_EDIT_KEY } from '../hud/state';
 import ErrorBoundary from '../components/ErrorBoundary';
@@ -65,7 +70,7 @@ export default function WidgetWorkshop() {
   const bp = useBreakpoint();
   const isDesktop = bp === 'desktop';
 
-  const [tab, setTab] = useState<'build' | 'guide'>('build');
+  const [tab, setTab] = useState<WorkshopTab>('build');
   const [identity, setIdentity] = useState<IdentityState>({ id: '', label: '', eyebrow: '', source: '', refresh: '', fetches: [], declared: {} });
   const [sizing, setSizing] = useState<SizingState>({ dw: 3, dh: 5, mw: 2, mh: 4 });
   const [root, setRoot] = useState<ENode>(initialRoot);
@@ -393,7 +398,10 @@ export default function WidgetWorkshop() {
 
   return (
     <Shell tab={tab} setTab={setTab}>
-      {tab === 'guide' ? <Guide /> : (
+      {tab === 'guide' ? <Guide />
+        : tab === 'json' ? <JsonTab def={def} onLoad={(d) => { loadDef(d); setTab('build'); setMsg(`Loaded "${d.id}" from its file.`); }} />
+        : tab === 'gallery' ? <Gallery draft={def} />
+        : (
         <div className="wc-layout" style={isDesktop ? { display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 340px', gap: 24, alignItems: 'start' } : undefined}>
           <div>
             <div className="wc-toolbar">
@@ -498,8 +506,8 @@ function PublishedList({ published, onEdit, onUnpublish }: {
 
 /* ── layout shell ───────────────────────────────────────────────────────── */
 
-function Shell({ tab, setTab, children }: { tab: 'build' | 'guide'; setTab: (t: 'build' | 'guide') => void; children: ReactNode }) {
-  const tabBtn = (key: 'build' | 'guide'): CSSProperties => ({
+function Shell({ tab, setTab, children }: { tab: WorkshopTab; setTab: (t: WorkshopTab) => void; children: ReactNode }) {
+  const tabBtn = (key: WorkshopTab): CSSProperties => ({
     ...ghostBtn, padding: '5px 14px',
     background: tab === key ? 'var(--hub-amber)' : 'transparent',
     color: tab === key ? 'var(--hub-bg-0)' : 'var(--hub-cream)',
@@ -512,6 +520,8 @@ function Shell({ tab, setTab, children }: { tab: 'build' | 'guide'; setTab: (t: 
         <h1 style={{ fontFamily: 'var(--hub-font-serif, var(--hub-font-sans))', fontSize: 24, color: 'var(--hub-cream-bright)', margin: 0 }}>Widget Workshop</h1>
         <span style={{ display: 'flex', gap: 6, marginLeft: 'auto' }}>
           <button style={tabBtn('build')} onClick={() => setTab('build')}>Build</button>
+          <button style={tabBtn('json')} onClick={() => setTab('json')}>JSON</button>
+          <button style={tabBtn('gallery')} onClick={() => setTab('gallery')}>Gallery</button>
           <button style={tabBtn('guide')} onClick={() => setTab('guide')}>Guide</button>
         </span>
       </div>

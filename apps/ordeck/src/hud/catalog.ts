@@ -29,3 +29,18 @@ export const CATALOG: Readonly<Record<string, WidgetDef>> = Object.freeze(
 export const CATALOG_APP: Readonly<Record<string, string>> = Object.freeze(
   Object.fromEntries(Object.entries(files).map(([path, def]) => [def.id, path.split('/').at(-3) ?? ''])),
 );
+
+/** Each widget's preview fixtures (`<id>.fixtures.json`), loaded only when asked for —
+ *  the Workshop's gallery draws every widget in every state from them, as the preview
+ *  harness does; the HUD itself never loads them. */
+const fixtureFiles = import.meta.glob<Record<string, Record<string, unknown>>>(
+  '../../../*/widgets/*.fixtures.json',
+  { import: 'default' },
+);
+export async function loadFixtures(): Promise<Record<string, Record<string, Record<string, unknown>>>> {
+  const out: Record<string, Record<string, Record<string, unknown>>> = {};
+  await Promise.all(Object.entries(fixtureFiles).map(async ([path, load]) => {
+    out[path.split('/').pop()!.replace(/\.fixtures\.json$/, '')] = await load();
+  }));
+  return out;
+}

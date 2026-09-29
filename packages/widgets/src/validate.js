@@ -350,6 +350,9 @@ function checkProps(obj, props, path, err, reserved = []) {
         break
       case 'number':
         if (!Number.isFinite(v)) err(here, 'bad-type', `${name} must be a number`)
+        else if ((p.min !== undefined && v < p.min) || (p.max !== undefined && v > p.max)) {
+          err(here, 'out-of-range', `${name} ${v} is outside ${p.min ?? '−∞'}…${p.max ?? '∞'}`)
+        }
         break
       case 'boolean':
         if (typeof v !== 'boolean') err(here, 'bad-type', `${name} must be true or false`)

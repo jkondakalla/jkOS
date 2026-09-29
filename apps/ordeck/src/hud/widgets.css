@@ -7,8 +7,10 @@
 /* ── The frame's states (loading, offline, signed-out, empty…) ─────────────
  * The note itself is @jkos/ui's AsyncView (.jk-async-note — the suite's set, italic
  * off-state voice); this only seats it in a card. */
+/* In a card the note sits where the body would start: the page-level note's 1.5rem
+   padding is for a full view, not a card's first line. */
 .jk-async-note.hud-widget-state {
-  margin: 2px 0 0;
+  margin: 2px 0 0; padding: 0;
 }
 .hud-widget-state a {
   color: var(--color-accent);

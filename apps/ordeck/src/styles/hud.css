@@ -943,3 +943,39 @@ a.hud-card:hover { box-shadow: var(--od-shadow-lift); transform: translateY(-1px
   .hud-tray.open .hud-tile { animation: none; }
   .hud-tile { transition: none; }
 }
+
+/* ── Workshop · JSON tab (workshop/JsonTab.tsx) ─────────────────────────── */
+.wj { display: grid; gap: 10px; }
+.wj-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.wj-hint { font-family: var(--hub-font-mono); font-size: 11px; color: var(--hub-cream-faint); }
+.wj-btn {
+  font-family: var(--hub-font-mono); font-size: 11px; letter-spacing: 0.06em; cursor: pointer;
+  color: var(--hub-cream-bright); background: transparent; border: 1px solid var(--hub-line);
+  border-radius: var(--hub-radius-sm); padding: 6px 12px;
+}
+.wj-btn.is-primary { background: var(--color-accent); color: var(--hub-bg-0); border-color: transparent; font-weight: 600; }
+.wj-btn:disabled { opacity: 0.4; cursor: default; }
+.wj-body { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+@media (max-width: 900px) { .wj-body { grid-template-columns: minmax(0, 1fr); } }
+.wj-text {
+  width: 100%; min-height: 60vh; resize: vertical; font-family: var(--hub-font-mono); font-size: 12px; line-height: 1.5;
+  color: var(--hub-cream-bright); background: var(--hub-bg-1); border: 1px solid var(--hub-line);
+  border-radius: var(--hub-radius-sm); padding: 12px; tab-size: 2;
+}
+.wj-problems { font-size: 12px; color: var(--hub-cream); }
+.wj-problems ol { margin: 0; padding-left: 18px; display: grid; gap: 10px; }
+.wj-problems code { font-family: var(--hub-font-mono); font-size: 11px; color: var(--hub-cream-bright); }
+.wj-code { font-family: var(--hub-font-mono); font-size: 10px; letter-spacing: 0.08em; color: var(--hub-red); }
+.wj-fix { font-family: var(--hub-font-mono); font-size: 11px; color: var(--hub-cream-dim); }
+.wj-ok, .wj-bad { margin: 0; font-family: var(--hub-font-serif); font-style: italic; font-size: 13px; }
+.wj-ok { color: var(--hub-green); }
+.wj-bad { color: var(--hub-red); }
+
+/* ── Workshop · gallery (workshop/Gallery.tsx) ──────────────────────────── */
+.wg { display: grid; gap: 28px; }
+.wg-note { font-family: var(--hub-font-serif); font-style: italic; color: var(--hub-cream-dim); }
+.wg-widget { display: grid; gap: 8px; }
+.wg-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; }
+.wg-where { font-family: var(--hub-font-mono); font-size: 11px; color: var(--hub-cream-faint); }
+.wg-row { display: flex; gap: 14px; overflow-x: auto; padding-bottom: 6px; align-items: flex-start; }
+.wg-cell { margin: 0; display: grid; gap: 6px; flex: none; }
