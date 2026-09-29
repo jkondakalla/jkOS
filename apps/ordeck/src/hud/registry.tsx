@@ -103,16 +103,13 @@ function toneColor(t: ToneBinding | undefined, scope: Scope, fallback: Tone = 'm
  *  condition that must agree with it. Re-exported for the Workshop canvas. */
 export { truthy };
 
-function labelSize(size?: 'md' | 'sm' | 'xs'): CSSProperties {
-  if (size === 'sm') return { fontSize: 9 };
-  if (size === 'xs') return { fontSize: 8 };
-  return {};
-}
-function textStyle(variant?: 'title' | 'body' | 'sub' | 'mono'): CSSProperties {
-  if (variant === 'title') return { fontFamily: 'var(--hub-font-serif, var(--hub-font-sans))', fontSize: 15, fontWeight: 600, color: 'var(--hub-cream-bright)' };
-  if (variant === 'sub') return { fontSize: 11, color: 'var(--hub-cream-dim)' };
-  if (variant === 'mono') return { fontFamily: 'var(--hub-font-mono)', fontSize: 11, color: 'var(--hub-cream)' };
-  return { fontSize: 12, color: 'var(--hub-cream)' };
+/** The ONLY inline style a widget renderer writes: custom properties carrying what a
+ *  node's data decides (a gap, a tone's colour, a size). Every visual rule is a class in
+ *  widgets.css, and check:widgets holds every `style=` in this file to this helper.
+ *  ⚠️ Custom properties inherit — an element that reads one sets ALL of its own, defaults
+ *  included, or a nested stack would take its parent's gap. */
+function vars(v: Record<`--${string}`, string | number>): CSSProperties {
+  return v as unknown as CSSProperties;
 }
 
 /** Curated line-icon set (inherits stroke colour + size). `dot` is the fallback. Keyed
@@ -141,26 +138,26 @@ type Primitives = { [K in WidgetNode['t']]: (node: NodeOf<K>, scope: Scope) => R
 
 const PRIMITIVES: Primitives = {
   stack: (n, scope) => (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: n.gap ?? 8, justifyContent: n.justify ?? 'flex-start', flex: n.grow ? 1 : undefined, minHeight: 0 }}>
+    <div className={`hud-w-stack${n.grow ? ' is-grow' : ''}`} style={vars({ '--w-gap': `${n.gap ?? 8}px`, '--w-justify': n.justify ?? 'flex-start' })}>
       {n.children.map((c, i) => <Fragment key={i}>{renderNode(c, scope)}</Fragment>)}
     </div>
   ),
   row: (n, scope) => (
-    <div style={{ display: 'flex', alignItems: n.align ?? 'center', justifyContent: n.justify ?? 'flex-start', gap: n.gap ?? 8, flex: n.grow ? 1 : undefined, minWidth: 0 }}>
+    <div className={`hud-w-row${n.grow ? ' is-grow' : ''}`} style={vars({ '--w-gap': `${n.gap ?? 8}px`, '--w-justify': n.justify ?? 'flex-start', '--w-align': n.align ?? 'center' })}>
       {n.children.map((c, i) => <Fragment key={i}>{renderNode(c, scope)}</Fragment>)}
     </div>
   ),
-  label: (n, scope) => <span className="hud-eyebrow" style={labelSize(n.size)}>{str(resolve(n.text, scope))}</span>,
-  text: (n, scope) => <span style={{ ...textStyle(n.variant), ...(n.grow ? { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } : {}) }}>{str(resolve(n.text, scope))}</span>,
+  label: (n, scope) => <span className={`hud-eyebrow${n.size === 'sm' || n.size === 'xs' ? ` is-${n.size}` : ''}`}>{str(resolve(n.text, scope))}</span>,
+  text: (n, scope) => (
+    <span className={`hud-w-text${n.variant && n.variant !== 'body' ? ` is-${n.variant}` : ''}${n.grow ? ' is-grow' : ''}`}>{str(resolve(n.text, scope))}</span>
+  ),
   metric: (n, scope) => {
     const size = n.size ?? 30;
     return (
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
-        <b style={{ fontFamily: 'var(--hub-font-mono)', fontVariantNumeric: 'tabular-nums', fontSize: size, fontWeight: 600, color: 'var(--hub-cream-bright)', lineHeight: 1 }}>
-          {str(resolve(n.value, scope))}
-        </b>
-        {n.unit != null && <span style={{ fontSize: Math.max(10, Math.round(size * 0.4)), color: 'var(--hub-cream-dim)', letterSpacing: '0.08em' }}>{str(resolve(n.unit, scope))}</span>}
-        {n.sub != null && <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--hub-cream-faint)' }}>{str(resolve(n.sub, scope))}</span>}
+      <div className="hud-w-metric" style={vars({ '--w-size': `${size}px`, '--w-unit': `${Math.max(10, Math.round(size * 0.4))}px` })}>
+        <b>{str(resolve(n.value, scope))}</b>
+        {n.unit != null && <span className="hud-w-metric-unit">{str(resolve(n.unit, scope))}</span>}
+        {n.sub != null && <span className="hud-w-metric-sub">{str(resolve(n.sub, scope))}</span>}
       </div>
     );
   },
@@ -168,28 +165,20 @@ const PRIMITIVES: Primitives = {
     const v = num(resolve(n.value, scope));
     const m = n.max != null ? num(resolve(n.max, scope)) : 100;
     const pct = m > 0 ? Math.max(0, Math.min(100, (v / m) * 100)) : 0;
-    return <span className="hud-bar"><span style={{ width: `${pct}%` }} /></span>;
+    return <span className="hud-bar"><span style={vars({ '--w-fill': `${pct}%` })} className="hud-w-fill" /></span>;
   },
-  pill: (n, scope) => {
-    const c = toneColor(n.tone, scope, 'ok');
-    return (
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: 'var(--hub-font-mono)', fontSize: 8, letterSpacing: '0.16em', textTransform: 'uppercase', padding: '4px 9px', borderRadius: 'var(--hub-radius-lg)', color: c, border: `1px solid color-mix(in srgb, ${c} 40%, transparent)` }}>
-        {str(resolve(n.text, scope))}
-      </span>
-    );
-  },
-  dot: (n, scope) => {
-    const c = toneColor(n.tone, scope, 'muted');
-    return <span className={`hud-dot${n.pulse ? ' pulse' : ''}`} style={{ background: c, flex: 'none' }} />;
-  },
+  pill: (n, scope) => (
+    <span className="hud-w-pill" style={vars({ '--w-tone': toneColor(n.tone, scope, 'ok') })}>{str(resolve(n.text, scope))}</span>
+  ),
+  dot: (n, scope) => (
+    <span className={`hud-dot hud-w-dot${n.pulse ? ' pulse' : ''}`} style={vars({ '--w-tone': toneColor(n.tone, scope, 'muted') })} />
+  ),
   keyval: (n, scope) => (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0' }}>
-      <span style={{ minWidth: 0, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'var(--hub-font-mono)', fontSize: 11, color: n.tone ? toneColor(n.tone, scope) : 'var(--hub-cream)' }}>
+    <div className="hud-w-keyval">
+      <span className="hud-w-keyval-label" style={vars({ '--w-tone': n.tone ? toneColor(n.tone, scope) : 'var(--hub-cream)' })}>
         {str(resolve(n.label, scope))}
       </span>
-      <span style={{ fontFamily: 'var(--hub-font-mono)', fontSize: 11, color: 'var(--hub-cream-dim)' }}>
-        {str(resolve(n.value, scope))}
-      </span>
+      <span className="hud-w-keyval-value">{str(resolve(n.value, scope))}</span>
     </div>
   ),
   gauge: (n, scope) => {
@@ -199,42 +188,37 @@ const PRIMITIVES: Primitives = {
     const size = n.size ?? 76;
     const R = 26, C = 2 * Math.PI * R;
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+      <div className="hud-w-gauge">
         <svg width={size} height={size} viewBox="0 0 72 72">
           <circle cx="36" cy="36" r={R} fill="none" stroke="var(--hub-line)" strokeWidth="6" />
           <circle cx="36" cy="36" r={R} fill="none" stroke="var(--hub-amber)" strokeWidth="6" strokeLinecap="round"
-            strokeDasharray={`${C * pct} ${C}`} transform="rotate(-90 36 36)"
-            style={{ filter: 'drop-shadow(0 0 4px var(--hub-amber-glow))', transition: 'stroke-dasharray 0.4s ease' }} />
-          <text x="36" y="41" textAnchor="middle" style={{ fontFamily: 'var(--hub-font-mono)', fontSize: 17, fontWeight: 600, fill: 'var(--hub-cream-bright)' }}>
-            {Math.round(pct * 100)}
-          </text>
+            strokeDasharray={`${C * pct} ${C}`} transform="rotate(-90 36 36)" className="hud-w-gauge-arc" />
+          <text x="36" y="41" textAnchor="middle" className="hud-w-gauge-num">{Math.round(pct * 100)}</text>
         </svg>
-        {n.label != null && <span style={{ fontFamily: 'var(--hub-font-mono)', fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--hub-cream-dim)' }}>{str(resolve(n.label, scope))}</span>}
+        {n.label != null && <span className="hud-w-caption">{str(resolve(n.label, scope))}</span>}
       </div>
     );
   },
   divider: (n, scope) => {
     const label = n.label != null ? str(resolve(n.label, scope)) : '';
-    if (!label) return <div style={{ height: 1, background: 'var(--hub-line)', margin: '4px 0' }} />;
+    if (!label) return <div className="hud-w-rule" />;
     return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '2px 0' }}>
-        <span style={{ flex: 1, height: 1, background: 'var(--hub-line)' }} />
-        <span style={{ fontFamily: 'var(--hub-font-mono)', fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--hub-cream-dim)' }}>{label}</span>
-        <span style={{ flex: 1, height: 1, background: 'var(--hub-line)' }} />
+      <div className="hud-w-divider">
+        <span className="hud-w-divider-line" />
+        <span className="hud-w-caption">{label}</span>
+        <span className="hud-w-divider-line" />
       </div>
     );
   },
   link: (n, scope) => (
-    <a href={safeHref(resolve(n.href, scope))} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'var(--hub-font-mono)', fontSize: 11, letterSpacing: '0.06em', color: 'var(--hub-amber)', textDecoration: 'none', border: '1px solid color-mix(in srgb, var(--hub-amber) 40%, transparent)', borderRadius: 'var(--hub-radius-sm)', padding: '7px 12px' }}>
-      {str(resolve(n.text, scope))} →
-    </a>
+    <a href={safeHref(resolve(n.href, scope))} className="hud-w-link">{str(resolve(n.text, scope))} →</a>
   ),
   icon: (n, scope) => {
     const name = str(resolve(n.name, scope));
     const s = n.size ?? 24;
     const color = n.tone != null ? toneColor(n.tone, scope, 'accent') : 'var(--hub-amber)';
     return (
-      <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flex: 'none' }}>
+      <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="hud-w-icon">
         {ICONS[name as IconName] ?? ICONS.dot}
       </svg>
     );
@@ -265,14 +249,12 @@ const PRIMITIVES: Primitives = {
     const arr = resolve(n.from, scope);
     const items = Array.isArray(arr) ? arr : [];
     if (items.length === 0 && n.empty != null) {
-      return <div style={{ color: 'var(--hub-cream-faint)', fontFamily: 'var(--hub-font-mono)', fontSize: 10, letterSpacing: '0.12em', padding: '6px 0' }}>{str(resolve(n.empty, scope))}</div>;
+      return <div className="hud-w-list-empty">{str(resolve(n.empty, scope))}</div>;
     }
     const body = items.map((el, i) => <Fragment key={i}>{renderNode(n.item, { ...scope, $: el })}</Fragment>);
-    if (n.dir === 'row') {
-      return <div style={{ display: 'flex', gap: 10, justifyContent: 'space-between' }}>{body}</div>;
-    }
+    if (n.dir === 'row') return <div className="hud-w-list-row">{body}</div>;
     if (n.cols && n.cols > 1) {
-      return <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.round(n.cols)}, minmax(0, 1fr))`, columnGap: 14, alignContent: 'start' }}>{body}</div>;
+      return <div className="hud-w-list-grid" style={vars({ '--w-cols': Math.round(n.cols) })}>{body}</div>;
     }
     return <>{body}</>;
   },
@@ -290,9 +272,9 @@ const PRIMITIVES: Primitives = {
       .join(' ');
     const color = n.tone != null ? toneColor(n.tone, scope, 'accent') : 'var(--hub-amber)';
     return (
-      <svg width="100%" height={h} viewBox={`0 0 100 ${h}`} preserveAspectRatio="none" style={{ display: 'block' }}>
+      <svg width="100%" height={h} viewBox={`0 0 100 ${h}`} preserveAspectRatio="none" className="hud-w-spark">
         <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
-          vectorEffect="non-scaling-stroke" style={{ filter: 'drop-shadow(0 0 3px var(--hub-amber-glow))' }} />
+          vectorEffect="non-scaling-stroke" />
       </svg>
     );
   },
@@ -317,10 +299,10 @@ export function renderNode(node: WidgetNode, scope: Scope): ReactNode {
 function CardHead({ eyebrow, source, stale }: { eyebrow?: string; source?: string; stale?: string }) {
   if (!eyebrow && !source && !stale) return null;
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+    <div className="hud-w-head">
       {eyebrow && <span className="hud-eyebrow">{eyebrow}</span>}
       {(source || stale) && (
-        <span className="hud-eyebrow-src" style={{ marginLeft: 'auto' }}>
+        <span className="hud-eyebrow-src">
           {source}{stale && <span className="hud-widget-stale">{source ? ' · ' : ''}{stale}</span>}
         </span>
       )}
@@ -375,7 +357,7 @@ function CalendarBody({ cal }: { cal: MonthCalState }) {
     <div className="hud-card hud-calendar">
       <div className="hud-calendar-head">
         <span className="hud-eyebrow">CALENDAR</span>
-        <span className="hud-eyebrow-src" style={{ marginLeft: 'auto' }}>{MO_FULL[mo].toUpperCase()} {yr}</span>
+        <span className="hud-eyebrow-src hud-w-push">{MO_FULL[mo].toUpperCase()} {yr}</span>
       </div>
       <div className="hud-cal-grid">
         {DAY_ABBR.map((d) => <div key={d} className="hud-cal-dow">{d}</div>)}
@@ -387,7 +369,7 @@ function CalendarBody({ cal }: { cal: MonthCalState }) {
           return (
             <div key={iso} className={`hud-cal-day${isToday ? ' today' : ''}${info ? ' has-tasks' : ''}`}>
               <span className="hud-cal-num">{day}</span>
-              {info && <span className="hud-cal-dot" style={{ background: info.doneCount === info.count ? 'var(--hub-green)' : 'var(--hub-amber)' }} />}
+              {info && <span className="hud-cal-dot hud-w-toned" style={vars({ '--w-tone': info.doneCount === info.count ? 'var(--hub-green)' : 'var(--hub-amber)' })} />}
             </div>
           );
         })}
@@ -401,32 +383,32 @@ function WeatherBody({ w }: { w: WeatherState }) {
     <div className="hud-card hud-weather-compact">
       <div className="hud-weather-head">
         <span className="hud-eyebrow">WEATHER</span>
-        <span className="hud-eyebrow-src" style={{ marginLeft: 'auto' }}>
+        <span className="hud-eyebrow-src hud-w-push">
           {w.source === 'accuweather' ? 'ACCUWEATHER' : w.label}
         </span>
       </div>
       {w.offline ? (
-        <div style={{ color: 'var(--hub-cream-faint)', fontFamily: 'var(--hub-font-mono)', fontSize: 11, padding: '4px 0' }}>
+        <div className="hud-w-weather-off">
           WEATHER FEED OFFLINE
         </div>
       ) : (
         <>
           <div className="hud-weather-compact-row">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--hub-amber)" strokeWidth="1.4" strokeLinecap="round" style={{ flex: 'none', filter: 'drop-shadow(var(--glow))' }}>
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--hub-amber)" strokeWidth="1.4" strokeLinecap="round" className="hud-w-weather-glyph">
               <circle cx="12" cy="12" r="4.5" />
               <path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3L7 7M17 17l1.7 1.7M5.3 18.7L7 17M17 7l1.7-1.7" />
             </svg>
-            <div style={{ minWidth: 0, flex: 1 }}>
+            <div className="hud-w-grow">
               <div className="hud-weather-compact-temp"><b>{w.loaded ? w.temp : '--'}</b><span>°F</span></div>
               <div className="hud-weather-compact-desc">{w.loaded ? `${w.desc} · feels ${w.feels}°` : 'Loading…'}</div>
             </div>
-            <div className="hud-weather-hilo" style={{ marginLeft: 0 }}>
+            <div className="hud-weather-hilo hud-w-flush">
               <span className="hi">H {w.loaded ? w.hi : '--'}°</span>
               <span className="lo">L {w.loaded ? w.lo : '--'}°</span>
             </div>
           </div>
           {w.slots.length > 0 && (
-            <div className="hud-weather-strip" style={{ paddingTop: 10, marginTop: 'auto' }}>
+            <div className="hud-weather-strip hud-w-foot">
               {w.slots.map((s) => (
                 <div className="hud-weather-slot" key={s.label}>
                   <span className="t">{s.label}</span>
@@ -456,37 +438,37 @@ function FocusBody({ focus }: { focus: FocusState }) {
   const head = <CardHead eyebrow="FOCUS" source="BEIGEBOARD" />;
 
   if (!focus.authed) {
-    return <div className="hud-card" style={{ padding: 14, display: 'flex', flexDirection: 'column', height: '100%' }}>{head}<span style={{ fontSize: 11, color: 'var(--hub-cream-dim)' }}>SIGN IN TO SET A FOCUS</span></div>;
+    return <div className="hud-card hud-w-focus">{head}<span className="hud-w-focus-note">SIGN IN TO SET A FOCUS</span></div>;
   }
   if (!focus.active) {
     return (
-      <div className="hud-card" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 6, height: '100%' }}>
+      <div className="hud-card hud-w-focus is-idle">
         {head}
-        <span style={{ fontFamily: 'var(--hub-font-serif, var(--hub-font-sans))', fontSize: 15, color: 'var(--hub-cream-dim)' }}>Nothing in focus</span>
-        <span style={{ fontFamily: 'var(--hub-font-mono)', fontSize: 10, letterSpacing: '0.08em', color: 'var(--hub-cream-faint)' }}>PICK A TASK IN BEIGEBOARD → FOCUS ON ORDECK</span>
+        <span className="hud-w-focus-empty">Nothing in focus</span>
+        <span className="hud-w-focus-hint">PICK A TASK IN BEIGEBOARD → FOCUS ON ORDECK</span>
       </div>
     );
   }
 
   const clear = async () => { setBusy(true); await clearHudFocus(); setBusy(false); };
 
-  const titleStyle: CSSProperties = { fontFamily: 'var(--hub-font-serif, var(--hub-font-sans))', fontSize: 22, fontWeight: 600, color: 'var(--hub-cream-bright)', lineHeight: 1.2, textDecoration: focus.done ? 'line-through' : 'none', opacity: focus.done ? 0.7 : 1 };
+  const titleCls = `hud-w-focus-title${focus.done ? ' is-done' : ''}`;
 
   return (
-    <div className="hud-card" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10, height: '100%', borderColor: 'color-mix(in srgb, var(--hub-amber) 55%, transparent)' }}>
+    <div className="hud-card hud-w-focus is-on">
       {head}
-      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 6 }}>
+      <div className="hud-w-focus-body">
         {focus.deeplink
-          ? <a href={safeHref(focus.deeplink)} style={{ ...titleStyle, textDecorationLine: focus.done ? 'line-through' : 'none' }}>{focus.title}</a>
-          : <span style={titleStyle}>{focus.title}</span>}
-        <span style={{ fontFamily: 'var(--hub-font-mono)', fontSize: 11, letterSpacing: '0.06em', color: 'var(--hub-cream-dim)' }}>
+          ? <a href={safeHref(focus.deeplink)} className={titleCls}>{focus.title}</a>
+          : <span className={titleCls}>{focus.title}</span>}
+        <span className="hud-w-focus-meta">
           {focus.done ? 'DONE' : 'NOW'} · {focus.timeLabel}{focus.tag ? ` · ${focus.tag.toUpperCase()}` : ''}
         </span>
       </div>
       <button
         onClick={clear}
         disabled={busy}
-        style={{ alignSelf: 'flex-start', cursor: 'pointer', background: 'transparent', color: 'var(--hub-amber)', fontFamily: 'var(--hub-font-mono)', fontSize: 10, letterSpacing: '0.1em', padding: '6px 11px', border: '1px solid color-mix(in srgb, var(--hub-amber) 40%, transparent)', borderRadius: 'var(--hub-radius-sm)' }}
+        className="hud-w-focus-end"
       >
         {busy ? '…' : 'END FOCUS'}
       </button>
@@ -506,15 +488,9 @@ function FocusBody({ focus }: { focus: FocusState }) {
 interface FormCtxValue { values: Record<string, unknown>; set: (field: string, v: unknown) => void }
 const FormCtx = createContext<FormCtxValue | null>(null);
 
-// Was this file's private input skin; the face now comes from the primitives,
-// so all that is left is the widget-form layout (fill the card's width).
-const fieldStyle: CSSProperties = { width: '100%' };
-const actionStyle = (color: string, on: boolean): CSSProperties => ({
-  alignSelf: 'flex-start', cursor: on ? 'pointer' : 'default', background: 'transparent',
-  color, fontFamily: 'var(--hub-font-mono)', fontSize: 11, letterSpacing: '0.06em',
-  padding: '7px 12px', border: `1px solid color-mix(in srgb, ${color} 40%, transparent)`,
-  borderRadius: 'var(--hub-radius-sm)', opacity: on ? 1 : 0.4,
-});
+// The field faces come from the @jkos/ui primitives; the widget form only makes them
+// fill the card's width (.hud-w-field), and a command's button is .hud-w-action.
+const actionCls = (on: boolean) => `hud-w-action${on ? '' : ' is-off'}`;
 
 type CmdStatus = 'idle' | 'saving' | 'working' | 'ok' | 'err';
 
@@ -622,12 +598,13 @@ function FormNode({ node, scope }: { node: Extract<WidgetNode, { t: 'form' }>; s
     <FormCtx.Provider value={{ values, set }}>
       {/* A layout container, not a card — the spec frame provides the chrome
           (like every primitive except the calendar/weather molecules). */}
-      <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minHeight: 0 }}>
+      <form onSubmit={submit} className="hud-w-form">
         {node.children.map((c, i) => <Fragment key={i}>{renderNode(c, formScope)}</Fragment>)}
-        <button type="submit" disabled={!cmd.available || cmd.status === 'saving' || cmd.status === 'working'} style={actionStyle('var(--hub-amber)', cmd.available)}>
+        <button type="submit" disabled={!cmd.available || cmd.status === 'saving' || cmd.status === 'working'}
+          className={actionCls(cmd.available)} style={vars({ '--w-tone': 'var(--hub-amber)' })}>
           {cmd.status === 'saving' ? '…' : label}
         </button>
-        {note.text && <span style={{ fontFamily: 'var(--hub-font-mono)', fontSize: 9, letterSpacing: '0.12em', color: note.color }}>{note.text}</span>}
+        {note.text && <span className="hud-w-note" style={vars({ '--w-tone': note.color })}>{note.text}</span>}
         {resultSlot(node.result, cmd.outcome, scope)}
       </form>
     </FormCtx.Provider>
@@ -640,7 +617,7 @@ function InputNode({ node, scope }: { node: Extract<WidgetNode, { t: 'input' }>;
   const ph = node.placeholder != null ? str(resolve(node.placeholder, scope)) : '';
   return (
     <Field value={v} placeholder={ph} type={node.itype ?? 'text'}
-      onChange={(e) => ctx?.set(node.field, e.target.value)} style={fieldStyle} />
+      onChange={(e) => ctx?.set(node.field, e.target.value)} className="hud-w-field" />
   );
 }
 
@@ -655,7 +632,7 @@ function SelectNode({ node, scope }: { node: Extract<WidgetNode, { t: 'select' }
   const ph = node.placeholder != null ? str(resolve(node.placeholder, scope)) : '';
   return (
     <SelectField value={v} onChange={(e) => ctx?.set(node.field, e.target.value)}
-      wrapperStyle={fieldStyle} style={fieldStyle}>
+      wrapperClassName="hud-w-field" className="hud-w-field">
       {ph && <option value="">{ph}</option>}
       {opts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
     </SelectField>
@@ -667,9 +644,9 @@ function ToggleNode({ node, scope }: { node: Extract<WidgetNode, { t: 'toggle' }
   const checked = !!ctx?.values[node.field];
   const label = node.label != null ? str(resolve(node.label, scope)) : '';
   return (
-    <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+    <label className="hud-w-toggle">
       <Check checked={checked} onChange={(next) => ctx?.set(node.field, next)} />
-      {label && <span style={{ fontFamily: 'var(--hub-font-mono)', fontSize: 11, color: 'var(--hub-cream)' }}>{label}</span>}
+      {label && <span className="hud-w-toggle-label">{label}</span>}
     </label>
   );
 }
@@ -683,7 +660,8 @@ function ButtonNode({ node, scope }: { node: Extract<WidgetNode, { t: 'button' }
   const text = cmd.status === 'saving' ? '…' : cmd.status === 'working' ? 'WORKING…' : cmd.status === 'ok' ? 'DONE' : cmd.status === 'err' ? 'RETRY' : label;
   return (
     <>
-      <button onClick={() => cmd.available && cmd.run(scope)} disabled={!cmd.available || cmd.status === 'saving' || cmd.status === 'working'} style={actionStyle(color, cmd.available)}>
+      <button onClick={() => cmd.available && cmd.run(scope)} disabled={!cmd.available || cmd.status === 'saving' || cmd.status === 'working'}
+        className={actionCls(cmd.available)} style={vars({ '--w-tone': color })}>
         {text}
       </button>
       {resultSlot(node.result, cmd.outcome, scope)}
@@ -710,7 +688,7 @@ function SpecWidget({ spec, ctx }: { spec: WidgetSpec; ctx: WidgetCtx }) {
   // standing in for a state, which gets a card to stand in.
   if (!f) {
     return state.kind === 'ready' ? <>{body}</>
-      : <div className="hud-card" style={{ padding: 14, display: 'flex', flexDirection: 'column', height: '100%' }}>{body}</div>;
+      : <div className="hud-card hud-w-frame">{body}</div>;
   }
 
   const eyebrow = f.eyebrow != null ? str(resolve(f.eyebrow, scope)) : '';
@@ -721,11 +699,10 @@ function SpecWidget({ spec, ctx }: { spec: WidgetSpec; ctx: WidgetCtx }) {
   const head = <CardHead eyebrow={eyebrow} source={source} stale={stale} />;
 
   const inner = <>{head}{body}</>;
-  const cls = f.chrome === false ? 'hud-spec-raw' : 'hud-card';
-  const style: CSSProperties = { padding: f.chrome === false ? '14px 6px' : 14, display: 'flex', flexDirection: 'column', height: '100%' };
+  const cls = f.chrome === false ? 'hud-spec-raw hud-w-frame is-raw' : 'hud-card hud-w-frame';
   return href
-    ? <a className={cls} href={href} style={style}>{inner}</a>
-    : <div className={cls} style={style}>{inner}</div>;
+    ? <a className={cls} href={href}>{inner}</a>
+    : <div className={cls}>{inner}</div>;
 }
 
 /* ═══ The Week molecule's resolvers ═══════════════════════════════════════════ */
@@ -743,9 +720,9 @@ const ordeckResolvers: Partial<CardResolvers> = {
  *  scrolls inside it (minHeight 0 is what lets it shrink). */
 function WeekBody({ items, todayIso }: { items: CalendarItem[]; todayIso: string }) {
   return (
-    <div className="hud-card" style={{ padding: 14, display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+    <div className="hud-card hud-w-week">
       <CardHead eyebrow="WEEK" source="BEIGEBOARD" />
-      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      <div className="hud-w-week-body">
         <WeekView items={items} today={todayIso} resolvers={ordeckResolvers} density="compact" />
       </div>
     </div>
@@ -820,8 +797,8 @@ const WidgetCard = memo(function WidgetCard({ def, ctx }: CardProps) {
 
 function unknownWidget(name: string): ReactNode {
   return (
-    <div className="hud-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, height: '100%' }}>
-      <span style={{ color: 'var(--hub-cream-dim)', fontFamily: 'var(--hub-font-mono)', fontSize: 10, letterSpacing: '0.15em' }}>
+    <div className="hud-card hud-w-unknown">
+      <span>
         UNKNOWN WIDGET: {name.toUpperCase()}
       </span>
     </div>
@@ -832,9 +809,9 @@ function unknownWidget(name: string): ReactNode {
  *  armed — the switch is enforced here, not only by hiding the widget from the shelf. */
 function aiOffTile(def: WidgetDef): ReactNode {
   return (
-    <div className="hud-card" data-widget-ai-off="" style={{ display: 'flex', flexDirection: 'column', gap: 6, justifyContent: 'center', padding: 16, height: '100%' }}>
+    <div className="hud-card hud-w-aioff" data-widget-ai-off="">
       <span className="hud-eyebrow">{(def.label || def.id).toUpperCase()}</span>
-      <span style={{ color: 'var(--hub-cream-dim)', fontFamily: 'var(--hub-font-mono)', fontSize: 10, letterSpacing: '0.12em' }}>AI IS OFF — TURN IT ON IN SETTINGS</span>
+      <span className="hud-w-aioff-note">AI IS OFF — TURN IT ON IN SETTINGS</span>
     </div>
   );
 }

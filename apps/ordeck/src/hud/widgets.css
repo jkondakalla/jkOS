@@ -23,3 +23,135 @@
 .hud-widget-stale {
   color: color-mix(in srgb, var(--hub-red) 70%, var(--hub-cream-dim));
 }
+
+/* ── The frame ─────────────────────────────────────────────────────────────
+ * Values are exactly the renderer's former inline styles (proven pixel-identical by
+ * shooting every widget before and after). What a node's DATA decides — a gap, a
+ * tone's colour, a size — arrives as a custom property (registry.tsx `vars()`), never
+ * as an inline style. */
+.hud-w-frame { padding: 14px; display: flex; flex-direction: column; height: 100%; }
+.hud-w-frame.is-raw { padding: 14px 6px; }
+.hud-w-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.hud-w-head .hud-eyebrow-src,
+.hud-w-push { margin-left: auto; }
+
+/* ── Layout ──────────────────────────────────────────────────────────────── */
+.hud-w-stack {
+  display: flex; flex-direction: column; min-height: 0;
+  gap: var(--w-gap, 8px); justify-content: var(--w-justify, flex-start);
+}
+.hud-w-row {
+  display: flex; min-width: 0;
+  align-items: var(--w-align, center); justify-content: var(--w-justify, flex-start); gap: var(--w-gap, 8px);
+}
+.hud-w-stack.is-grow, .hud-w-row.is-grow { flex: 1; }
+.hud-w-list-empty {
+  color: var(--hub-cream-faint); font-family: var(--hub-font-mono); font-size: 10px;
+  letter-spacing: 0.12em; padding: 6px 0;
+}
+.hud-w-list-row { display: flex; gap: 10px; justify-content: space-between; }
+.hud-w-list-grid {
+  display: grid; grid-template-columns: repeat(var(--w-cols), minmax(0, 1fr));
+  column-gap: 14px; align-content: start;
+}
+
+/* ── Text ────────────────────────────────────────────────────────────────── */
+.hud-eyebrow.is-sm { font-size: 9px; }
+.hud-eyebrow.is-xs { font-size: 8px; }
+.hud-w-text { font-size: 12px; color: var(--hub-cream); }
+.hud-w-text.is-title {
+  font-family: var(--hub-font-serif, var(--hub-font-sans)); font-size: 15px; font-weight: 600;
+  color: var(--hub-cream-bright);
+}
+.hud-w-text.is-sub { font-size: 11px; color: var(--hub-cream-dim); }
+.hud-w-text.is-mono { font-family: var(--hub-font-mono); font-size: 11px; color: var(--hub-cream); }
+.hud-w-text.is-grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ── Atoms ───────────────────────────────────────────────────────────────── */
+.hud-w-metric { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.hud-w-metric > b {
+  font-family: var(--hub-font-mono); font-variant-numeric: tabular-nums;
+  font-size: var(--w-size); font-weight: 600; color: var(--hub-cream-bright); line-height: 1;
+}
+.hud-w-metric-unit { font-size: var(--w-unit); color: var(--hub-cream-dim); letter-spacing: 0.08em; }
+.hud-w-metric-sub { margin-left: auto; font-size: 11px; color: var(--hub-cream-faint); }
+.hud-w-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-family: var(--hub-font-mono); font-size: 8px; letter-spacing: 0.16em; text-transform: uppercase;
+  padding: 4px 9px; border-radius: var(--hub-radius-lg);
+  color: var(--w-tone); border: 1px solid color-mix(in srgb, var(--w-tone) 40%, transparent);
+}
+.hud-w-dot { background: var(--w-tone); flex: none; }
+.hud-w-keyval { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
+.hud-w-keyval-label {
+  min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: var(--hub-font-mono); font-size: 11px; color: var(--w-tone, var(--hub-cream));
+}
+.hud-w-keyval-value { font-family: var(--hub-font-mono); font-size: 11px; color: var(--hub-cream-dim); }
+.hud-w-gauge { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.hud-w-gauge-arc { filter: drop-shadow(0 0 4px var(--hub-amber-glow)); transition: stroke-dasharray 0.4s ease; }
+.hud-w-gauge-num { font-family: var(--hub-font-mono); font-size: 17px; font-weight: 600; fill: var(--hub-cream-bright); }
+.hud-w-caption {
+  font-family: var(--hub-font-mono); font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--hub-cream-dim);
+}
+.hud-w-rule { height: 1px; background: var(--hub-line); margin: 4px 0; }
+.hud-w-divider { display: flex; align-items: center; gap: 8px; margin: 2px 0; }
+.hud-w-divider > .hud-w-divider-line { flex: 1; height: 1px; background: var(--hub-line); }
+.hud-w-divider > .hud-w-caption { letter-spacing: 0.16em; }
+.hud-w-link {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  font-family: var(--hub-font-mono); font-size: 11px; letter-spacing: 0.06em; color: var(--hub-amber);
+  text-decoration: none; border: 1px solid color-mix(in srgb, var(--hub-amber) 40%, transparent);
+  border-radius: var(--hub-radius-sm); padding: 7px 12px;
+}
+.hud-w-icon { flex: none; }
+.hud-w-spark { display: block; }
+.hud-w-spark > polyline { filter: drop-shadow(0 0 3px var(--hub-amber-glow)); }
+
+/* ── Commands ────────────────────────────────────────────────────────────── */
+.hud-w-form { display: flex; flex-direction: column; gap: 8px; flex: 1; min-height: 0; }
+.hud-w-field { width: 100%; }
+.hud-w-action {
+  align-self: flex-start; cursor: pointer; background: transparent;
+  color: var(--w-tone); font-family: var(--hub-font-mono); font-size: 11px; letter-spacing: 0.06em;
+  padding: 7px 12px; border: 1px solid color-mix(in srgb, var(--w-tone) 40%, transparent);
+  border-radius: var(--hub-radius-sm); opacity: 1;
+}
+.hud-w-action.is-off { cursor: default; opacity: 0.4; }
+.hud-w-note { font-family: var(--hub-font-mono); font-size: 9px; letter-spacing: 0.12em; color: var(--w-tone); }
+.hud-w-toggle { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.hud-w-toggle-label { font-family: var(--hub-font-mono); font-size: 11px; color: var(--hub-cream); }
+
+/* ── Molecules ───────────────────────────────────────────────────────────── */
+.hud-cal-dot.hud-w-toned { background: var(--w-tone); }
+.hud-w-weather-off { color: var(--hub-cream-faint); font-family: var(--hub-font-mono); font-size: 11px; padding: 4px 0; }
+.hud-w-weather-glyph { flex: none; filter: drop-shadow(var(--glow)); }
+.hud-w-grow { min-width: 0; flex: 1; }
+.hud-weather-hilo.hud-w-flush { margin-left: 0; }
+.hud-weather-strip.hud-w-foot { padding-top: 10px; margin-top: auto; }
+.hud-w-focus { padding: 14px; display: flex; flex-direction: column; height: 100%; }
+.hud-w-focus.is-idle { gap: 6px; }
+.hud-w-focus.is-on { gap: 10px; border-color: color-mix(in srgb, var(--hub-amber) 55%, transparent); }
+.hud-w-focus-note { font-size: 11px; color: var(--hub-cream-dim); }
+.hud-w-focus-empty { font-family: var(--hub-font-serif, var(--hub-font-sans)); font-size: 15px; color: var(--hub-cream-dim); }
+.hud-w-focus-hint { font-family: var(--hub-font-mono); font-size: 10px; letter-spacing: 0.08em; color: var(--hub-cream-faint); }
+.hud-w-focus-body { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: center; gap: 6px; }
+.hud-w-focus-title {
+  font-family: var(--hub-font-serif, var(--hub-font-sans)); font-size: 22px; font-weight: 600;
+  color: var(--hub-cream-bright); line-height: 1.2; text-decoration: none; opacity: 1;
+}
+.hud-w-focus-title.is-done { text-decoration: line-through; opacity: 0.7; }
+.hud-w-focus-meta { font-family: var(--hub-font-mono); font-size: 11px; letter-spacing: 0.06em; color: var(--hub-cream-dim); }
+.hud-w-focus-end {
+  align-self: flex-start; cursor: pointer; background: transparent; color: var(--hub-amber);
+  font-family: var(--hub-font-mono); font-size: 10px; letter-spacing: 0.1em; padding: 6px 11px;
+  border: 1px solid color-mix(in srgb, var(--hub-amber) 40%, transparent); border-radius: var(--hub-radius-sm);
+}
+.hud-w-week { padding: 14px; display: flex; flex-direction: column; height: 100%; overflow: hidden; }
+.hud-w-week-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.hud-w-unknown { display: flex; align-items: center; justify-content: center; padding: 16px; height: 100%; }
+.hud-w-unknown > span { color: var(--hub-cream-dim); font-family: var(--hub-font-mono); font-size: 10px; letter-spacing: 0.15em; }
+.hud-w-aioff { display: flex; flex-direction: column; gap: 6px; justify-content: center; padding: 16px; height: 100%; }
+.hud-w-aioff-note { color: var(--hub-cream-dim); font-family: var(--hub-font-mono); font-size: 10px; letter-spacing: 0.12em; }
+.hud-bar > .hud-w-fill { width: var(--w-fill); }

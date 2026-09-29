@@ -24,6 +24,9 @@
 //      stubbed network) maps every way a read can go to a named state — never the bare
 //      `[]` that made "signed out" and "no rows" one value — and ORDECK's source runtime
 //      refuses a relative, plain-http or suite URL before it is ever requested.
+//   9. ONE STYLESHEET. The renderer writes no inline visual style: every look is a class
+//      in hud/widgets.css, and the only `style=` it may write is vars({...}) — custom
+//      properties carrying what a node's DATA decides (a gap, a tone's colour, a size).
 //   8. THE AI KILL SWITCH IS ENFORCED WHERE A WIDGET RENDERS, not only on the shelf: a
 //      placed widget that binds an AI app draws the off tile, reading and running nothing.
 //   7. AN ASYNC COMMAND IS FOLLOWED TO ITS ANSWER. weave's followJob (the REAL module)
@@ -290,6 +293,18 @@ for (const f of readdirSync(HUD).filter((n) => n.endsWith('.tsx'))) {
   const lz = { id: 'l', label: 'L', sizing: {}, spec: { body: { t: 'button', text: 'GO', cmd: { app: 'lazuros', capability: 'query' } } } };
   const bb = { id: 'b', label: 'B', sizing: {}, spec: { body: { t: 'button', text: 'GO', cmd: { app: 'beigeboard', capability: 'createItem' } } } };
   check(ai.usesAi(lz) && !ai.usesAi(bb), 'usesAi: a widget whose command reaches LazurOS is AI-backed; one reaching only BeigeBoard is not');
+}
+
+// ── 9. one stylesheet ───────────────────────────────────────────────────────
+{
+  const reg = read('apps/ordeck/src/hud/registry.tsx');
+  const code = reg.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+  const inline = [...code.matchAll(/\bstyle=\{(?!vars\()[^\n]{0,60}/g)].map((m) => m[0]);
+  check(inline.length === 0, `the widget renderer writes no inline style but vars({...})${inline.length ? ` — ${inline.slice(0, 4).join(' | ')}` : ''}`);
+  const setsVars = [...code.matchAll(/vars\(\{([^}]*)\}\)/g)].map((m) => m[1]);
+  const notVar = setsVars.filter((body) => /(^|,)\s*[a-zA-Z]+\s*:/.test(body));
+  check(notVar.length === 0, `vars() sets only custom properties (--w-*)${notVar.length ? ` — ${notVar[0]}` : ''}`);
+  check(/import '\.\/widgets\.css';/.test(reg), 'the renderer imports widgets.css, so a widget carries its styles wherever it draws');
 }
 
 done();
