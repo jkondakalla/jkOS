@@ -23,7 +23,7 @@ import {
 import { layoutForBreakpoint, placeAtBottom } from './engine';
 import { BREAKPOINTS } from './types';
 import { appOrigin } from '@jkos/weave';
-import { sourcesOf } from '@jkos/widgets';
+import { sourcesOf, RETIRED_COMPONENTS } from '@jkos/widgets';
 
 /** Legacy per-device key — read once to migrate existing layouts into prefs. */
 const LEGACY_STORAGE_KEY = 'ordeck-hud-v4';
@@ -184,13 +184,12 @@ const DEFAULT_WIDGETS: Record<string, WidgetDef> = {
         ] } },
     },
   },
-  // The single "now working on" task pushed from BeigeBoard. Interactive (it can
-  // clear focus), so a bespoke component. When active, the HUD dims its siblings.
-  // Ships shelved.
+  // The single "now working on" task pushed from BeigeBoard, and END FOCUS — the
+  // `focus` molecule. When active, the HUD dims its siblings. Ships shelved.
   focus: {
     id: 'focus', label: 'Focus',
     sizing: { desktop: { w: 4, h: 4 }, mobile: { w: 2, h: 4 } },
-    component: 'focus',
+    spec: { body: { t: 'focus' } },
   },
   // Tasks the user pinned in BeigeBoard, mirrored onto the HUD — read-only list,
   // same dense row template as Today. Ships shelved.
@@ -211,14 +210,14 @@ const DEFAULT_WIDGETS: Record<string, WidgetDef> = {
       ] },
     },
   },
-  // The shared @jkos/cards Week view via the `component` escape hatch (see
-  // registry.tsx) — read-only (no DragAdapter → no clash with the HUD grid's
-  // drag). The planning horizon the month dots can't give. Ships shelved.
+  // The shared @jkos/cards Week view — the `week` molecule, read-only (no DragAdapter
+  // → no clash with the HUD grid's drag). The planning horizon the month dots can't
+  // give. Ships shelved.
   'bb-week': {
     id: 'bb-week', label: 'Week',
     // A real seven-day time-grid — below this it stops being legible.
     sizing: { desktop: { w: 6, h: 8 }, mobile: { w: 2, h: 6 }, min: { w: 4, h: 5 } },
-    component: 'bb-week',
+    spec: { body: { t: 'week' } },
   },
 };
 
@@ -279,6 +278,32 @@ export function withoutRetired(state: HudState): HudState {
   return { ...state, widgets, layouts, shelf: (state.shelf ?? []).filter((id) => !drop.has(id)) };
 }
 
+/**
+ * The `component` escape hatch is retired: a def named a bespoke React card
+ * (`component: 'focus' | 'bb-week'`) that nothing could edit, validate or keep as a
+ * file. Each is a manifest molecule now. A stored doc — or a published registry row —
+ * still naming one is repaired to its molecule rather than drawn as an unknown widget.
+ * Returns the SAME def when there is nothing to repair.
+ */
+export function withoutComponent(def: WidgetDef): WidgetDef {
+  const legacy = def as WidgetDef & { component?: string };
+  if (legacy.component === undefined) return def;
+  const t = RETIRED_COMPONENTS[legacy.component];
+  const { component: _gone, ...rest } = legacy;
+  return t ? { ...rest, spec: { body: { t } as WidgetNode } } : rest;
+}
+
+/** Apply withoutComponent across a doc; the SAME doc when nothing changed. */
+function withoutComponents(state: HudState): HudState {
+  let changed = false;
+  const widgets: Record<string, WidgetDef> = {};
+  for (const [id, def] of Object.entries(state.widgets)) {
+    widgets[id] = withoutComponent(def);
+    if (widgets[id] !== def) changed = true;
+  }
+  return changed ? { ...state, widgets } : state;
+}
+
 /** Accept a value as a HudState only if it matches the current schema version. */
 function validHud(v: unknown): HudState | null {
   const s = v as HudState | null;
@@ -316,7 +341,8 @@ function isLoneTime(n: WidgetNode): boolean {
  * here — but ONLY the empty-frame + lone-time combination; an authored caption
  * (eyebrow/source/href) or explicit chrome flag means the card was intentional.
  */
-function normalizePublished(w: WidgetDef): WidgetDef {
+function normalizePublished(raw: WidgetDef): WidgetDef {
+  const w = withoutComponent(raw);
   const f = w.spec?.frame;
   if (!w.spec || !f) return w;
   if (f.eyebrow || f.source || f.href || f.chrome !== undefined) return w;
@@ -432,11 +458,11 @@ export async function loadHudState(): Promise<HudState> {
     /* offline / signed out — fall through to legacy/defaults */
   }
   if (profileHud) {
-    const pruned = withoutRetired(profileHud);
+    const pruned = withoutComponents(withoutRetired(profileHud));
     const doc = withBuiltins(pruned);
     if (hasPlacedCards(doc)) {
-      // A retired card was stripped: persist it, or every load strips it again and a
-      // save from another tab writes the dead card back.
+      // A retired card was stripped (or a retired component repaired): persist it, or
+      // every load repeats it and a save from another tab writes the old def back.
       if (pruned !== profileHud) saveHudState(doc);
       return doc;
     }
@@ -450,7 +476,7 @@ export async function loadHudState(): Promise<HudState> {
 
   const legacy = readLegacy();
   if (legacy) {
-    const merged = withBuiltins(withoutRetired(legacy));
+    const merged = withBuiltins(withoutComponents(withoutRetired(legacy)));
     saveHudState(merged);                        // migrate device → prefs
     try { localStorage.removeItem(LEGACY_STORAGE_KEY); } catch { /* ignore */ }
     return merged;

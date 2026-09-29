@@ -21,14 +21,15 @@ export interface NodeSpec {
   hint: string;
   props: Record<string, PropSpec>;
   placement?: { form?: 'inside' | 'outside'; root?: boolean };
-  /** The HUD slice a molecule reads straight from scope. */
-  reads?: string;
+  /** The HUD slice(s) a molecule reads straight from scope. */
+  reads?: string | string[];
   example: { t: string } & Record<string, unknown>;
 }
 
 export const TONES: readonly string[];
 export const ICON_NAMES: readonly string[];
-export const COMPONENTS: readonly string[];
+/** Retired `component` names → the molecule each became. */
+export const RETIRED_COMPONENTS: Readonly<Record<string, string>>;
 export const TIER_COLS: { desktop: number; tablet: number; mobile: number };
 export const LIMITS: {
   WIDGET_DEF_MAX: number;

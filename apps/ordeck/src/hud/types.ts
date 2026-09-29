@@ -128,8 +128,8 @@ export type ToneBinding = Tone | WeaveBinding;
  *  points at every renderer that must follow. `list` repeats its `item` over a bound
  *  array with the element as `$`; `when` shows `then`/`else` by truthiness; the write
  *  family (form/input/select/toggle/button) dispatches through registry useCommand. */
-import type { WidgetNode, Tone, ComponentName } from './nodes.gen';
-export type { WidgetNode, Tone, IconName, ComponentName } from './nodes.gen';
+import type { WidgetNode, Tone } from './nodes.gen';
+export type { WidgetNode, Tone, IconName } from './nodes.gen';
 
 /** A widget's reference to a declared cross-app command (a CapabilityDef in an
  *  app's CapabilityDoc, discovered via @jkos/weave fetchCapabilities). `body` maps
@@ -161,18 +161,16 @@ export interface WidgetSpec {
   body: WidgetNode;
 }
 
-/** A registered widget: metadata + sizing + EITHER a declarative spec (the
- *  granular, AI-emittable path) OR a `component` escape hatch (a registered React
- *  component, for cards too bespoke for primitives today — the ported v2 cards
- *  use this). The Module-Federation remote-widget path is retired. */
+/** A registered widget: metadata + sizing + a declarative spec. (The `component` escape
+ *  hatch — a bespoke React card named by the def — is retired; hud/state.ts repairs a
+ *  stored def that still names one.) */
 export interface WidgetDef {
   id: string;
   label: string;
   sizing: WidgetSizing;
-  /** Compose the widget from primitives + data bindings. */
+  /** Compose the widget from primitives + data bindings. Optional only because a def
+   *  arrives from the wire; one without a spec draws the unknown-widget tile. */
   spec?: WidgetSpec;
-  /** Render a bespoke React component registered under this key. */
-  component?: ComponentName;
   /** Manual refresh override (ms). The card normally re-renders only when a slice
    *  it binds to changes (auto-detected). Set this to ALSO force a re-render at
    *  least every N ms — a safety valve for when the auto-detection misses a

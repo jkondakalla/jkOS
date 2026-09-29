@@ -23,6 +23,7 @@ import { useSuiteApps } from '@jkos/weave';
 import { useHudContext } from './hud/useHudContext';
 import { renderWidget, type Scope } from '../hud/registry';
 import { useDataSources, type DataSource } from '../hud/sources';
+import { NODES } from '@jkos/widgets';
 import type { WidgetDef, WidgetNode } from '../hud/types';
 import { WIDGET_EDIT_KEY } from '../hud/state';
 import ErrorBoundary from '../components/ErrorBoundary';
@@ -202,8 +203,8 @@ export default function WidgetWorkshop() {
   // `time` is in the set because the clock is DESIGNED to sit raw on the
   // background (the one chromeless card): an empty frame around it would
   // wrap it in card chrome on every HUD.
-  const onlyMolecule = !!lone &&
-    (lone.node.t === 'calendar' || lone.node.t === 'weather' || lone.node.t === 'time');
+  // Which kinds those are is the manifest's to say (kind: 'molecule'), not a list here.
+  const onlyMolecule = !!lone && (NODES[lone.node.t]?.kind === 'molecule' || lone.node.t === 'time');
 
   const def = useMemo<WidgetDef>(() => {
     const body: WidgetNode = lone && (onlyMolecule || lone.node.t === 'form') ? enToNode(lone) : enToNode(root);

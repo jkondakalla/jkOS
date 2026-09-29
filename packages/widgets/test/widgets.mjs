@@ -72,8 +72,12 @@ ok(has(def({ t: 'text', text: { src: '' } }), '/spec/body/text', 'bad-binding'),
 ok(has(def({ t: 'text', text: 'x' }, { sizing: { desktop: { w: 13, h: 3 }, mobile: { w: 2, h: 3 } } }), '/sizing/desktop/w', 'out-of-range'), 'a footprint wider than its tier is refused')
 ok(has(def({ t: 'text', text: 'x' }, { sizing: { desktop: { w: 3, h: 3 } } }), '/sizing/mobile', 'missing-prop'), 'a missing tier footprint is refused')
 ok(has(def({ t: 'text', text: 'x' }, { id: 'Has Spaces' }), '/id', 'bad-id'), 'a malformed id is refused')
-ok(has({ id: 'x', sizing }, '', 'spec-or-component'), 'a def with neither spec nor component is refused')
-ok(has({ id: 'x', sizing, component: 'nope' }, '/component', 'unknown-component'), 'an unknown bespoke component is refused')
+ok(has({ id: 'x', sizing }, '/spec', 'missing-prop'), 'a def without a spec is refused')
+ok(has({ id: 'x', sizing, component: 'focus' }, '/component', 'retired'), 'the retired `component` hatch is refused…')
+ok(problems({ id: 'x', sizing, component: 'bb-week' })[0]?.fix === '{ "spec": { "body": { "t": "week" } } }', '…naming the molecule it became')
+ok(problems(def({ t: 'focus' })).length === 0 && problems(def({ t: 'week' })).length === 0, 'focus and week are molecules')
+ok(has(def({ t: 'stack', children: [{ t: 'row', children: [{ t: 'week' }] }] }), '/spec/body/children/0/children/0', 'misplaced'), '…placed like one (on the root)')
+ok(JSON.stringify([...sourcesOf({ t: 'week' })].sort()) === '["items","todayIso"]', "a molecule reading two slices reports both (the walker reads the manifest's `reads`)")
 ok(has(def({ t: 'text', text: 'x'.repeat(LIMITS.WIDGET_DEF_MAX) }), '', 'too-large'), 'a def over the size limit is refused')
 let deep = { t: 'text', text: 'leaf' }
 for (let i = 0; i < LIMITS.MAX_DEPTH + 2; i++) deep = { t: 'stack', children: [deep] }

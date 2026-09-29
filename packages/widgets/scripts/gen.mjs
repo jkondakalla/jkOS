@@ -5,14 +5,14 @@
 //
 // Outputs:
 //   apps/ordeck/src/hud/nodes.gen.ts — the `WidgetNode` union ORDECK renders against,
-//     plus `Tone`, `IconName` and `ComponentName`. Because the renderer's primitive map
+//     plus `Tone` and `IconName`. Because the renderer's primitive map
 //     is `{ [K in WidgetNode['t']]: … }`, tsc refuses one that misses a manifest kind
 //     or keeps a dead one — the manifest and the renderers cannot drift.
 
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { NODES, TONES, ICON_NAMES, COMPONENTS } from '../src/manifest.js';
+import { NODES, TONES, ICON_NAMES } from '../src/manifest.js';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const CHECK = process.argv.includes('--check');
@@ -46,12 +46,11 @@ function nodesTs() {
   out += `export type Tone = ${union(TONES)};\n\n`;
   out += '/** The curated line-icon set. */\n';
   out += `export type IconName = ${union(ICON_NAMES)};\n\n`;
-  out += '/** Bespoke React components a def may name instead of a spec (the escape hatch). */\n';
-  out += `export type ComponentName = ${union(COMPONENTS)};\n\n`;
   out += '/** The composable display vocabulary — one variant per manifest kind. */\n';
   out += 'export type WidgetNode =\n';
   for (const [t, spec] of Object.entries(NODES)) {
-    out += docLine(`${spec.label} — ${spec.hint}.${spec.reads ? ` Reads the \`${spec.reads}\` slice.` : ''}`, '  ');
+    const reads = [].concat(spec.reads ?? []);
+    out += docLine(`${spec.label} — ${spec.hint}.${reads.length ? ` Reads ${reads.map((r) => `\`${r}\``).join(' and ')}.` : ''}`, '  ');
     const fields = [`t: ${lit(t)}`];
     for (const [name, p] of Object.entries(spec.props)) {
       const f = `${name}${p.required ? '' : '?'}: ${tsType(p)}`;

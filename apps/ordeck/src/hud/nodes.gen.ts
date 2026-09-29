@@ -9,9 +9,6 @@ export type Tone = 'ok' | 'warn' | 'danger' | 'muted' | 'accent';
 /** The curated line-icon set. */
 export type IconName = 'sun' | 'moon' | 'cloud' | 'rain' | 'snow' | 'bolt' | 'check' | 'book' | 'clock' | 'calendar' | 'activity' | 'star' | 'alert' | 'dot';
 
-/** Bespoke React components a def may name instead of a spec (the escape hatch). */
-export type ComponentName = 'focus' | 'bb-week';
-
 /** The composable display vocabulary — one variant per manifest kind. */
 export type WidgetNode =
   /** Metric — big number + unit. */
@@ -48,10 +45,14 @@ export type WidgetNode =
   | { t: 'stack'; gap?: number; grow?: boolean; /** distributes children along the column (space-between pins the last to the bottom edge) */ justify?: 'flex-start' | 'flex-end' | 'center' | 'space-between' | 'space-around' | 'space-evenly' | 'start' | 'end'; children: WidgetNode[] }
   /** Condition — show a branch only when true. */
   | { t: 'when'; /** truthy → then; [] "" 0 "false" "0" are falsy */ cond: Binding; then: WidgetNode; else?: WidgetNode }
-  /** Calendar — month grid (cal slice). Reads the `cal` slice. */
+  /** Calendar — month grid (cal slice). Reads `cal`. */
   | { t: 'calendar' }
-  /** Weather — full weather card. Reads the `weather` slice. */
+  /** Weather — full weather card. Reads `weather`. */
   | { t: 'weather' }
+  /** Focus — the one item in focus, with END FOCUS (focus slice). Reads `focus`. */
+  | { t: 'focus' }
+  /** Week — the seven-day time grid (@jkos/cards). Reads `items` and `todayIso`. */
+  | { t: 'week' }
   /** Action form — inputs that submit a command. */
   | { t: 'form'; cmd: CommandRef; /** the submit button's label */ submit: Binding; children: WidgetNode[]; /** drawn once the command has answered: $result is what it produced (an async command is followed until it ends), $job is { phase: pending|done|failed|lost, status, error } */ result?: WidgetNode }
   /** Action button — one tap runs a command. */

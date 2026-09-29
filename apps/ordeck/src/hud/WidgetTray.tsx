@@ -90,8 +90,10 @@ function specHero(spec: WidgetSpec): WidgetHero {
 }
 
 export function widgetHero(def: WidgetDef): WidgetHero {
-  if (def.component === 'focus') return 'focus';
-  if (def.component === 'bb-week') return 'week';
+  const body = def.spec?.body;
+  const lone = body?.t === 'stack' && body.children.length === 1 ? body.children[0] : body;
+  if (lone?.t === 'focus') return 'focus';
+  if (lone?.t === 'week') return 'week';
   if (def.spec) return specHero(def.spec);
   return 'card';
 }

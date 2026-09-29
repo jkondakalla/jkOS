@@ -41,8 +41,11 @@ export const ICON_NAMES = [
   'calendar', 'activity', 'star', 'alert', 'dot',
 ]
 
-/** Bespoke React components a def may name instead of a spec. The escape hatch. */
-export const COMPONENTS = ['focus', 'bb-week']
+/** The escape hatch a def used to take instead of a spec — `component: '<name>'`, a
+ *  bespoke React card nothing could edit, validate or express as a file. Retired: each
+ *  is a manifest molecule now (focus → { t: 'focus' }, bb-week → { t: 'week' }), and
+ *  a stored def naming one is repaired on load (ORDECK hud/state.ts). */
+export const RETIRED_COMPONENTS = { focus: 'focus', 'bb-week': 'week' }
 
 /** Grid columns per viewport tier — the width ceiling a footprint is held to. */
 export const TIER_COLS = { desktop: 12, tablet: 6, mobile: 2 }
@@ -73,7 +76,7 @@ const ALIGN = ['flex-start', 'flex-end', 'center', 'baseline', 'stretch', 'start
  *   props      name → { type, required?, values?, doc? }
  *   placement  { form: 'inside' | 'outside' } — a control only inside a form, a form
  *              never inside one; { root: true } — only directly on the card's root
- *   reads      the HUD slice a molecule reads straight from scope (no binding says so)
+ *   reads      the HUD slice(s) a molecule reads straight from scope (no binding says so)
  *   example    a working node, and the default the Workshop drops in
  */
 export const NODES = {
@@ -236,6 +239,16 @@ export const NODES = {
     kind: 'molecule', label: 'Weather', hint: 'full weather card',
     props: {}, placement: { root: true }, reads: 'weather',
     example: { t: 'weather' },
+  },
+  focus: {
+    kind: 'molecule', label: 'Focus', hint: 'the one item in focus, with END FOCUS (focus slice)',
+    props: {}, placement: { root: true }, reads: 'focus',
+    example: { t: 'focus' },
+  },
+  week: {
+    kind: 'molecule', label: 'Week', hint: 'the seven-day time grid (@jkos/cards)',
+    props: {}, placement: { root: true }, reads: ['items', 'todayIso'],
+    example: { t: 'week' },
   },
   form: {
     kind: 'control', label: 'Action form', hint: 'inputs that submit a command',

@@ -320,4 +320,30 @@ if (args.includes('--live')) {
   else fail('retired: a new widget under the freed id was stripped');
 }
 
+// ── The retired `component` hatch: a stored or published def naming one is repaired ──
+// Focus and Week were `component: 'focus' | 'bb-week'` — bespoke cards nothing could
+// edit or keep as a file. They are molecules now. A doc saved before, or a registry row
+// published before, still names the old component; drawn as-is it would be an
+// UNKNOWN WIDGET tile on every HUD that had it placed.
+{
+  const { withoutComponent } = state;
+  const old = { id: 'focus', label: 'Focus', sizing: { desktop: { w: 4, h: 4 }, mobile: { w: 2, h: 4 } }, component: 'focus' };
+  const fixed = withoutComponent(structuredClone(old));
+  if (fixed.spec?.body?.t === 'focus' && !('component' in fixed)) ok('component: a stored `component: focus` becomes the focus molecule');
+  else fail(`component: not repaired — ${JSON.stringify(fixed)}`);
+  const week = withoutComponent({ ...old, id: 'bb-week', component: 'bb-week' });
+  if (week.spec?.body?.t === 'week') ok('component: `bb-week` becomes the week molecule');
+  else fail(`component: bb-week not repaired — ${JSON.stringify(week)}`);
+  const clean = defaultHudState().widgets.focus;
+  if (withoutComponent(clean) === clean) ok('component: a def with no component comes back as the SAME object (nothing to persist)');
+  else fail('component: a clean def was copied');
+  const doc = defaultHudState();
+  doc.layouts.desktop.push({ i: 'pubbed', x: 0, y: 20, w: 4, h: 4 });
+  const merged = mergePublished(doc, [{ ...old, id: 'pubbed' }]);
+  if (merged.widgets.pubbed?.spec?.body?.t === 'focus') ok('component: a PUBLISHED registry row naming a component is repaired on merge');
+  else fail(`component: a published component row was not repaired — ${JSON.stringify(merged.widgets.pubbed)}`);
+  if (Object.values(defaultHudState().widgets).every((w) => w.spec && !('component' in w))) ok('component: every built-in is a spec');
+  else fail('component: a built-in still uses the retired hatch');
+}
+
 done();

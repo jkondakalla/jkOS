@@ -11,11 +11,10 @@
  *   • structure  stack / row / list / when   (when = conditional, the states glue)
  *   • molecules  time / calendar / weather   (self-contained cards, like gauge)
  *
- * The six v2 cards that used a bespoke `component` escape hatch are now expressed
- * entirely as specs (see hud/state.ts) — clock/today/systems compose from
- * atoms + structure; weather/calendar are molecules. The escape hatch mechanism
- * stays (COMPONENT_REGISTRY) for anything a future card truly can't express, but
- * ships empty. The deprecated Module-Federation remote path is gone.
+ * Every card is a spec. The `component` escape hatch (a bespoke React card named by a
+ * def) is retired: Focus and Week, its last two, are manifest molecules, and a stored
+ * def naming one is repaired on load (state.ts). The Module-Federation remote path is
+ * gone too.
  */
 
 import {
@@ -36,7 +35,7 @@ import {
   type PinnedState,
 } from '../pages/hud/useHudData';
 import { WeekView, type CalendarItem, type CardResolvers } from '@jkos/cards';
-import type { Binding, CommandRef, ComponentName, IconName, Tone, ToneBinding, WidgetDef, WidgetNode, WidgetSpec } from './types';
+import type { Binding, CommandRef, IconName, Tone, ToneBinding, WidgetDef, WidgetNode, WidgetSpec } from './types';
 import { useDataSources, cardState, type CardState } from './sources';
 import './widgets.css';
 import { TONE_COLOR } from './tone';
@@ -258,6 +257,10 @@ const PRIMITIVES: Primitives = {
     truthy(resolve(n.cond, scope)) ? renderNode(n.then, scope) : (n.else ? renderNode(n.else, scope) : null),
   calendar: (_n, scope) => <CalendarBody cal={scope.cal as MonthCalState} />,
   weather: (_n, scope) => <WeatherBody w={scope.weather as WeatherState} />,
+  // Focus and Week were the `component` escape hatch — bespoke cards nothing could
+  // edit or keep as a file. They are molecules now, declared in the manifest.
+  focus: (_n, scope) => <FocusBody focus={scope.focus as FocusState} />,
+  week: (_n, scope) => <WeekBody items={scope.items as CalendarItem[]} todayIso={String(scope.todayIso ?? '')} />,
   list: (n, scope) => {
     const arr = resolve(n.from, scope);
     const items = Array.isArray(arr) ? arr : [];
@@ -725,10 +728,7 @@ function SpecWidget({ spec, ctx }: { spec: WidgetSpec; ctx: WidgetCtx }) {
     : <div className={cls} style={style}>{inner}</div>;
 }
 
-/* ═══ Bespoke component escape hatch ════════════════════════════════════════
- * For cards genuinely beyond the spec vocabulary. Two remain after the v5 cull:
- * Focus (clears suite-wide focus state + drives the dim-siblings behaviour) and
- * the shared @jkos/cards Week view (a real time-grid, not composable from atoms). */
+/* ═══ The Week molecule's resolvers ═══════════════════════════════════════════ */
 /** ORDECK has no goal tree or calendar-source map, so the shared kit's resolvers
  *  fall back to the suite accent chain — every item renders in the room's accent. */
 const ordeckResolvers: Partial<CardResolvers> = {
@@ -736,32 +736,21 @@ const ordeckResolvers: Partial<CardResolvers> = {
   sourceColorOf: () => 'var(--color-accent)',
 };
 
-const COMPONENT_REGISTRY: Record<ComponentName, (ctx: WidgetCtx) => ReactNode> = {
-  focus: (ctx) => <FocusBody focus={ctx.focus} />,
-  // The shared @jkos/cards Week view, read+light (no DragAdapter → no internal
-  // drag to clash with the HUD grid). The one kit view that earns its footprint
-  // here: the planning horizon the month dot-grid can't give. (Month is the
-  // denser `calendar` molecule; Day duplicated Today; Year was outsized for a
-  // dashboard — all culled in the v5 sweep.)
-  // Wrapped in ORDECK's own card chrome: the kit view carries BeigeBoard's
-  // internal styling, and bare on the canvas it read as a foreign patch with no
-  // defined border. The hud-card frame owns the boundary; the kit fills the
-  // body and scrolls inside it (minHeight 0 is what lets it shrink).
-  'bb-week': (ctx) => (
+/** The shared @jkos/cards Week view, read+light (no DragAdapter → no internal drag to
+ *  clash with the HUD grid): the planning horizon the month dot-grid can't give.
+ *  Wrapped in ORDECK's own card chrome — bare on the canvas the kit view read as a
+ *  foreign patch with no defined border; the hud-card owns the boundary and the kit
+ *  scrolls inside it (minHeight 0 is what lets it shrink). */
+function WeekBody({ items, todayIso }: { items: CalendarItem[]; todayIso: string }) {
+  return (
     <div className="hud-card" style={{ padding: 14, display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       <CardHead eyebrow="WEEK" source="BEIGEBOARD" />
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-        <WeekView items={ctx.items} today={ctx.todayIso} resolvers={ordeckResolvers} density="compact" />
+        <WeekView items={items} today={todayIso} resolvers={ordeckResolvers} density="compact" />
       </div>
     </div>
-  ),
-};
-/** Which ctx slices a bespoke component reads (a spec's are collected from its
- *  bindings; a component's can't be, so they're declared here). */
-const COMPONENT_SLICES: Record<ComponentName, (keyof WidgetCtx)[]> = {
-  focus: ['focus'],      // reads ctx.focus
-  'bb-week': ['items', 'todayIso'],
-};
+  );
+}
 
 /* ═══ Per-card update isolation ═════════════════════════════════════════════
  * The whole ctx object changes every second (the clock slice ticks), but a card
@@ -787,7 +776,6 @@ function usedSlices(def: WidgetDef): Set<string> {
   // resolve at SUBMIT time, so they are not display dependencies (else a form
   // defaulting due_date to clock.iso would re-render its card every second).
   const acc = def.spec ? sourcesOf(def.spec) : new Set<string>();
-  if (!def.spec && def.component) for (const k of COMPONENT_SLICES[def.component] ?? []) acc.add(k);
   // `$now` is the clock's instant, so an `ago` re-renders with the clock.
   if (acc.has('$now')) acc.add('clock');
   // An AI widget redraws when the kill switch flips.
@@ -854,16 +842,11 @@ function aiOffTile(def: WidgetDef): ReactNode {
 function renderWidgetBody(def: WidgetDef, ctx: WidgetCtx): ReactNode {
   if (!ctx.aiEnabled && usesAi(def)) return aiOffTile(def);
   if (def.spec) return <SpecWidget spec={def.spec} ctx={ctx} />;
-  if (def.component) {
-    // A published def's `component` is data from the wire, so it may name nothing.
-    const Component = COMPONENT_REGISTRY[def.component] as ((ctx: WidgetCtx) => ReactNode) | undefined;
-    return Component ? Component(ctx) : unknownWidget(def.component);
-  }
   return unknownWidget(def.id);
 }
 
-/** Render a widget definition behind its per-card update gate (see WidgetCard):
- *  declarative spec first, bespoke component second. Each card is isolated by an
+/** Render a widget definition behind its per-card update gate (see WidgetCard).
+ *  Each card is isolated by an
  *  ErrorBoundary so one malformed spec (a bad published/AI/workshop widget) shows
  *  a single fault tile instead of taking the whole dashboard down. resetKey=def
  *  clears the fault when the definition is edited/republished. The boundary wraps

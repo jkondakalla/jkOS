@@ -48,7 +48,7 @@ export function sourcesOf(value, { commands = false } = {}) {
     if (typeof v.src === 'string') acc.add(v.src)
     // A time measured from NOW depends on the clock, though no binding names it.
     if (v.fmt === 'ago') acc.add('$now')
-    if (typeof v.t === 'string' && NODES[v.t]?.reads) acc.add(NODES[v.t].reads)
+    if (typeof v.t === 'string' && NODES[v.t]?.reads) [].concat(NODES[v.t].reads).forEach((r) => acc.add(r))
     for (const k in v) if (commands || k !== 'cmd') visit(v[k])
   }
   visit(value)

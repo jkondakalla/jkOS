@@ -13,12 +13,12 @@
 // def against the data it binds (does that dataset exist, is that field declared) is
 // the semantic tier, and needs the apps' declarations in hand.
 
-import { NODES, FRAME, TONES, ICON_NAMES, COMPONENTS, TIER_COLS, LIMITS, childProps } from './manifest.js'
+import { NODES, FRAME, TONES, ICON_NAMES, RETIRED_COMPONENTS, TIER_COLS, LIMITS, childProps } from './manifest.js'
 import { safeHref } from './href.js'
 import { FORMATS, CONDITIONS } from '@jkos/weave/binding'
 
 const ID_RE = new RegExp(LIMITS.ID_PATTERN)
-const DEF_KEYS = ['id', 'label', 'sizing', 'spec', 'component', 'refreshMs', 'allowed_roles']
+const DEF_KEYS = ['id', 'label', 'sizing', 'spec', 'refreshMs', 'allowed_roles']
 const SPEC_KEYS = ['frame', 'sources', 'body']
 const SIZING_TIERS = ['desktop', 'tablet', 'mobile']
 
@@ -122,7 +122,11 @@ export function validateWidget(def, ctx = {}) {
   }
 
   for (const k of Object.keys(def)) {
-    if (k === 'ai') err('/ai', 'derived', 'whether a widget is AI-backed is DERIVED from the apps it binds (appsOf) — a hand-set flag could disagree with them', 'remove `ai`')
+    if (k === 'component') {
+      const mol = RETIRED_COMPONENTS[def.component]
+      err('/component', 'retired', 'the `component` escape hatch is retired — every card is a spec, so it can be edited, validated and kept as a file',
+        mol ? `{ "spec": { "body": { "t": "${mol}" } } }` : 'express it as a spec')
+    } else if (k === 'ai') err('/ai', 'derived', 'whether a widget is AI-backed is DERIVED from the apps it binds (appsOf) — a hand-set flag could disagree with them', 'remove `ai`')
     else if (!DEF_KEYS.includes(k)) unknownKey(err, '', k, DEF_KEYS)
   }
 
@@ -142,14 +146,10 @@ export function validateWidget(def, ctx = {}) {
 
   checkSizing(def.sizing, err)
 
+  if (def.spec === undefined) {
+    if (def.component === undefined) err('/spec', 'missing-prop', 'a def carries a `spec`: { frame?, sources?, body }')
+  }
   const hasSpec = def.spec !== undefined
-  const hasComponent = def.component !== undefined
-  if (hasSpec === hasComponent) {
-    err('', 'spec-or-component', 'a def carries exactly one of `spec` (the declarative widget) or `component` (a bespoke one)')
-  }
-  if (hasComponent && !COMPONENTS.includes(def.component)) {
-    err('/component', 'unknown-component', `no bespoke component named ${JSON.stringify(def.component)}`, `one of: ${COMPONENTS.join(', ')}`)
-  }
   if (hasSpec) checkSpec(def.spec, err, ctx)
   return out
 }
