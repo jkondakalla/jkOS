@@ -67,6 +67,9 @@ export function checkDocShape(doc, listKey) {
     if (listKey === 'datasets' && entry.cardinality !== undefined && !['many', 'one'].includes(entry.cardinality)) {
       return `datasets entry '${entry.id}' cardinality must be 'many' or 'one'`
     }
+    if (listKey === 'datasets' && entry.shape !== undefined && entry.shape !== 'jobs') {
+      return `datasets entry '${entry.id}' shape must be 'jobs' (the one common shape there is)`
+    }
     if (entry.path !== undefined) {
       if (typeof entry.path !== 'string' || !entry.path.startsWith('/')) {
         return `${listKey} entry '${entry.id}' path must be a string starting with '/'`

@@ -18,6 +18,9 @@ const { DATASETS_DOC } = require('../docs');
 const router = Router();
 
 const JOBS_DATASET = DATASETS_DOC.datasets.find((d) => d.id === 'jobs');
+/* The SELECT is the declared row, so the row a peer reads and the row docs.js promises
+   are one list (payload and acting_zone are the queue's own business, never answered). */
+const JOB_COLUMNS = JOBS_DATASET.item.map((f) => f.name).join(', ');
 const JOB_FILTER_SPEC = filterSpec(JOBS_DATASET.filters.filter((f) => f.name !== 'user_id'));
 
 router.get('/', (req, res) => {
@@ -34,7 +37,7 @@ router.get('/', (req, res) => {
   // filters.js): only declared params are ever read off req.query.
   const { where, params } = buildItemFilters(req.query, JOB_FILTER_SPEC, { base, baseParams });
 
-  const sql = `SELECT id, user_id, capability, tier_id, status, step_data, result, error, created_at, updated_at
+  const sql = `SELECT ${JOB_COLUMNS}
              FROM jobs WHERE ${where || '1=1'} ORDER BY created_at DESC LIMIT 50`;
 
   const jobs = db.prepare(sql).all(...params).map((j) => ({

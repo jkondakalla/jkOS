@@ -42,12 +42,12 @@ const claimJob = (id) =>
   db.prepare(`UPDATE jobs SET status = 'IN_PROGRESS', updated_at = ${SQL_NOW}
               WHERE id = ? AND ${CLAIMABLE}`).run(id).changes === 1;
 
-const setJobResult = (id, { status, result = null, error = null, step_data = null }) => {
+const setJobResult = (id, { status, result = null, error = null, step_data = null, model = null }) => {
   // step_data is a free-form breadcrumb (a string today, e.g. a writeback error). Guard
   // against a future caller handing an object — better-sqlite3 can only bind primitives.
   const stepText = step_data != null && typeof step_data === 'object' ? JSON.stringify(step_data) : step_data;
-  db.prepare(`UPDATE jobs SET status = ?, result = ?, error = ?, step_data = ?, updated_at = ${SQL_NOW}
-              WHERE id = ?`).run(status, result ? JSON.stringify(result) : null, error, stepText, id);
+  db.prepare(`UPDATE jobs SET status = ?, result = ?, error = ?, step_data = ?, model = ?, updated_at = ${SQL_NOW}
+              WHERE id = ?`).run(status, result ? JSON.stringify(result) : null, error, stepText, model, id);
 };
 
 // Reaper: a worker that claimed a job (PENDING → IN_PROGRESS) then died (crash/restart)

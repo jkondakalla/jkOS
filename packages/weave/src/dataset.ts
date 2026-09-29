@@ -16,6 +16,7 @@
 import type { BodyField } from './capability';
 import type { Cardinality } from './shared/datasetShape.js';
 export { CARDINALITIES, cardinalityOf, checkDatasetAnswer, type Cardinality } from './shared/datasetShape.js';
+export { JOB_HANDLE, JOB_DONE, JOB_FAILED, JOB_FIELDS, jobPhase, checkJobsDataset, type JobPhase } from './shared/jobs.js';
 
 /** How a filter value is matched against its column. Mirrors the server-side
  *  `buildItemFilters` operators (@jkos/weave/server/filters) one-to-one. */
@@ -49,6 +50,11 @@ export interface DatasetDef {
    *  results }) is a document: declare it 'one' and its list as a `json` field with a
    *  `schema`. Each app's smoke holds its real answers to this (shared/datasetShape.js). */
   cardinality?: Cardinality;
+  /** 'jobs': this dataset reads an app's asynchronous work in the common declared shape
+   *  (shared/jobs.js) — a `job_id` filter that finds the job an async capability's handle
+   *  names, rows carrying id/status/result/error, and DONE/FAILED as the only ends. An
+   *  app with an async capability declares exactly one (the async-contract probe). */
+  shape?: 'jobs';
   filters?: FilterField[];   // query params the list endpoint honours (kind, since, …),
                              // carrying their own enforcement mapping (column/op)
   item?: BodyField[];        // the fields of one row ('many') or of the document ('one')

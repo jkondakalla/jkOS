@@ -9,6 +9,7 @@ const { pageLimit } = require('@jkos/weave/server');
 const { Router } = require('express');
 const { getPendingJobs, claimJob, setJobResult, getJob, requeueStaleJobs } = require('../lib/queue');
 const { runWriteback } = require('../lib/writeback');
+const { projectResult } = require('../lib/resolves');
 
 const router = Router();
 
@@ -34,22 +35,37 @@ router.patch('/jobs/:id/claim', (req, res) =>
 // capability (parse-task/breakdown-goal) is committed into the target app AS the acting
 // user via delegated write-back (G1) — best-effort: a write-back failure is recorded on
 // the job (step_data) but never voids the result, which stays reviewable.
+//
+// A DONE answer is stored as what the capability RESOLVES to (lib/resolves.js), never as
+// the worker's raw { response, model } — the `jobs` dataset is where every follower reads
+// the result, and it answers in the common jobs shape (@jkos/weave shared/jobs.js). An
+// answer that is not what the capability promises lands FAILED, saying why.
 router.post('/jobs/:id/result', async (req, res) => {
   const { status, result, error, step_data } = req.body || {};
   if (!['DONE', 'FAILED', 'PENDING'].includes(status)) {
     return res.status(400).json({ error: 'invalid status' });
   }
-  setJobResult(req.params.id, { status, result, error, step_data });
+  const job = getJob(req.params.id);
+  if (!job) return res.status(404).json({ error: 'NO_SUCH_JOB' });
 
-  if (status === 'DONE') {
-    const job = getJob(req.params.id);
-    try {
-      const wb = await runWriteback(job, result);
-      if (wb.written) console.log(`[lazuros] job ${job.id} → ${wb.app} write-back ok`);
-    } catch (e) {
-      console.warn(`[lazuros] job ${req.params.id} write-back failed: ${e.message}`);
-      setJobResult(req.params.id, { status, result, error, step_data: `writeback_error: ${e.message}` });
-    }
+  if (status !== 'DONE') {
+    setJobResult(job.id, { status, result, error, step_data });
+    return res.json({ ok: true });
+  }
+
+  const p = projectResult(job.capability, result);
+  if (!p.ok) {
+    setJobResult(job.id, { status: 'FAILED', error: p.error, step_data, model: p.model });
+    console.warn(`[lazuros] job ${job.id} answered DONE with nothing '${job.capability}' resolves to: ${p.error}`);
+    return res.json({ ok: true, status: 'FAILED' });
+  }
+  setJobResult(job.id, { status, result: p.result, step_data, model: p.model });
+  try {
+    const wb = await runWriteback(job, p.result);
+    if (wb.written) console.log(`[lazuros] job ${job.id} → ${wb.app} write-back ok`);
+  } catch (e) {
+    console.warn(`[lazuros] job ${job.id} write-back failed: ${e.message}`);
+    setJobResult(job.id, { status, result: p.result, step_data: `writeback_error: ${e.message}`, model: p.model });
   }
   res.json({ ok: true });
 });

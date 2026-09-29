@@ -59,6 +59,10 @@ db.exec(`
  * be right on a fresh checkout and silently absent everywhere the app had ever run. */
 const jobCols = new Set(db.prepare('PRAGMA table_info(jobs)').all().map((c) => c.name));
 if (!jobCols.has('acting_zone')) db.exec('ALTER TABLE jobs ADD COLUMN acting_zone TEXT');
+/* Which model answered — provenance the worker always sent, inside `result`, where it
+   was not part of what the work RESOLVES to (docs.js). Its own column now, so `result`
+   holds exactly the capability's declared `resolves` fields. Guarded ALTER, as above. */
+if (!jobCols.has('model')) db.exec('ALTER TABLE jobs ADD COLUMN model TEXT');
 
 /* The write-door dedup store (WEAVE.md §3.4) — @jkos/weave's table, applied from its one
  * definition. Every capability here ENQUEUES WORK, and a retried trigger DO that enqueued

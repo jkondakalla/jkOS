@@ -27,6 +27,7 @@ import { dirname, join, resolve } from 'node:path';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { createRequire } from 'node:module';
+import { checkDeclaredDatasets } from '../../../../test/lib/smoke.mjs';
 
 const require = createRequire(import.meta.url);
 const Database = require('better-sqlite3');
@@ -176,8 +177,19 @@ async function main() {
   const ds = await jsonReq(node.base, 'GET', `/api/lazuros/jobs?job_id=${jobId}`);
   const row = Array.isArray(ds.json) ? ds.json.find((j) => j.id === jobId) : null;
   ok(row && row.status === 'DONE', 'jobs dataset shows the job DONE');
-  ok(row && row.result && row.result.response === CANNED && row.result.model === 'test-model',
-    'DONE job carries the worker result (response + model)');
+  // `query` is open-ended: it RESOLVES to { response } — the model's text, not the
+  // worker's { response, model } envelope (lib/resolves.js). The model is provenance, in
+  // its own column.
+  ok(row && JSON.stringify(row.result) === JSON.stringify({ response: CANNED }),
+    `DONE job carries exactly what query resolves to, { response } (got ${JSON.stringify(row?.result)})`);
+  ok(row && row.model === 'test-model', 'DONE job records which model answered');
+
+  // The jobs dataset answers what docs.js declares, in the common jobs shape.
+  const { DATASETS_DOC } = require(join(BACKEND, 'docs.js'));
+  await checkDeclaredDatasets({ ok, doc: DATASETS_DOC, base: `${node.base}/api/lazuros` });
+  const { checkJobsDataset } = await import('../../../../packages/weave/src/shared/jobs.js');
+  const shapeProblems = checkJobsDataset(DATASETS_DOC.datasets.find((d) => d.id === 'jobs'));
+  ok(shapeProblems.length === 0, `the jobs dataset is a common jobs dataset${shapeProblems.length ? `: ${shapeProblems.join('; ')}` : ''}`);
 
   // A second process_once has nothing to claim (idempotent drain).
   const run2 = await run('python3', [driver], driverEnv);

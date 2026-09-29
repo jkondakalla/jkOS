@@ -74,7 +74,9 @@ The first two block everything — no worker will even start without them.
 
 - [ ] **`prompts.json` authored** (per node). One Python `str.format()` template per capability.
       Placeholders are **not free** — they must match the capability's declared body fields (table
-      in Phase D). A missing key raises at render time.
+      in Phase D). A missing key raises at render time. And the **answer** is not free either: a
+      structured capability's model output must be a JSON object carrying the fields its
+      `resolves` declares (`docs.js`), or the job lands FAILED saying so — see below.
 - [ ] **`models.json` authored** (per node). Flat `{capability: model-tag}`. The shipped template
       is all literal `REPLACE_WITH_*` values; `worker.py` raises `ValueError` on a capability
       missing from the map.
@@ -284,10 +286,19 @@ suggestions.
 { "query": "You are a triage router. Classify the intent of the following query and respond with JSON only.\n\nQuery: {text}" }
 ```
 
-**The import-shape constraint (load-bearing).** `parse-task` and `breakdown-goal` results feed
-straight into BeigeBoard via `lib/writeback.js` → `POST beigeboard/import`, which does a bare
-`JSON.parse` and throws on anything else. BB's importer requires **`{items:[…]}`** (or a bare
-array), each item needing a **`title`**; children nest via `children` / `kids` / `subtasks` and
+**The result is what the capability RESOLVES to (load-bearing).** When a worker posts DONE, the
+State node stores the job's `result` as exactly the fields the capability's `resolves` declares
+(`lib/resolves.js`) — that row is where a widget, a trigger or an agent reads it. `query` is
+open-ended: its text becomes `{ response }`. Every other capability is structured: the model's
+answer must parse as a **JSON object** carrying its declared fields — `{ "items": [...],
+"defaults": {...} }` for parse-task / breakdown-goal / parse-document, `{ "spec": {...} }` for
+widget-generate. A bare array, prose, or an object with none of those fields lands the job
+**FAILED** with the reason in `error`. The model's name goes to the job's `model` column.
+
+**The import-shape constraint.** `parse-task` and `breakdown-goal` results then feed straight
+into BeigeBoard via `lib/writeback.js` → `POST beigeboard/import`. BB's importer requires
+**`{items:[…]}`** (the projection above already refuses a bare array), each item needing a
+**`title`**; children nest via `children` / `kids` / `subtasks` and
 **must be a non-empty array** — an explicit `children: []` reads as a *leaf task*, not an empty
 goal. So the `breakdown-goal` prompt must emit nested children and **must never emit
 `children: []`**. Make the templates force JSON-only output; anything conversational breaks the

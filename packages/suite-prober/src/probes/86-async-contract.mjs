@@ -22,12 +22,21 @@
  *
  * Reported as DRIFT, not gap: an undeclared async result is not a missing nicety, it
  * is type information that is actively WRONG, and a binder trusts it.
+ *
+ * ⭐ AND IT MUST BE FOLLOWABLE. `resolves` says WHAT the work produces; nothing said
+ * where to READ it. A caller holding a job_id had to learn from LazurOS's source that
+ * GET /jobs?job_id=… answers a row whose `result` holds it. So an app with an async
+ * capability declares exactly one dataset in the common jobs shape (@jkos/weave
+ * shared/jobs.js: a `job_id` filter, id/status/result/error rows, DONE/FAILED as the
+ * only ends), and every async capability's handle is that `job_id`. That is what lets a
+ * widget's form follow any app's async command to its result with no per-app code.
  */
 
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { REPO_ROOT } from '../topology.mjs';
 import { BACKEND_DOCS } from '../sources.mjs';
+import { JOB_HANDLE, checkJobsDataset } from '../../../weave/src/shared/jobs.js';
 
 const require = createRequire(import.meta.url);
 
@@ -47,12 +56,41 @@ export default {
     let declared = 0;
     let sync = 0;
 
+    let followable = 0;
     for (const entry of BACKEND_DOCS) {
-      let doc;
+      let doc, datasets;
       try {
         const mod = require(join(REPO_ROOT, entry.module));
         doc = mod.CAPABILITIES ?? mod.CAPABILITIES_DOC;
+        datasets = mod.DATASETS ?? mod.DATASETS_DOC;
       } catch { continue; }
+
+      /* Followable: one jobs dataset, and every async handle is its job_id. */
+      const asyncCaps = (doc?.capabilities ?? []).filter((c) => Array.isArray(c.resolves));
+      if (asyncCaps.length) {
+        const jobs = (datasets?.datasets ?? []).filter((d) => d.shape === 'jobs');
+        if (jobs.length !== 1) {
+          out.push({
+            level: 'drift',
+            msg: `'${entry.app}' has ${asyncCaps.length} async capability(ies) and declares ${jobs.length} dataset(s) with `
+              + "`shape: 'jobs'` — exactly one, or a caller holding a job_id cannot find where its result is read",
+            where: [entry.module, 'packages/weave/src/shared/jobs.js'],
+          });
+        } else {
+          const problems = checkJobsDataset(jobs[0]);
+          for (const p of problems) out.push({ level: 'drift', msg: `'${entry.app}': ${p}`, where: [entry.module] });
+          const badHandles = asyncCaps.filter((c) => !(Array.isArray(c.returns) && c.returns.length === 1 && c.returns[0].name === JOB_HANDLE));
+          for (const c of badHandles) {
+            out.push({
+              level: 'drift',
+              msg: `'${entry.app}'.${c.id} is async and does not return the handle '${JOB_HANDLE}' its jobs dataset looks jobs up by`,
+              where: [entry.module],
+            });
+          }
+          if (!problems.length && !badHandles.length) followable += asyncCaps.length;
+        }
+      }
+
       for (const cap of doc?.capabilities ?? []) {
         const where = [entry.module];
         const handle = isHandle(cap.returns);
@@ -106,6 +144,14 @@ export default {
       }
     }
 
+    if (followable) {
+      out.push({
+        level: 'ok',
+        msg: `${followable} asynchronous capability(ies) can be FOLLOWED to their result: each returns a ${JOB_HANDLE} `
+          + 'that its app\'s one common-shape jobs dataset looks up',
+        where: ['packages/weave/src/shared/jobs.js'],
+      });
+    }
     if (declared) {
       out.push({
         level: 'ok',

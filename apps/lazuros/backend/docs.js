@@ -144,11 +144,33 @@ const CAPABILITIES_DOC = {
 };
 
 /* ── What can be READ from LazurOS (the read contract) ───────────────────────── */
+/* The queue's statuses. DONE and FAILED are the common terminal states every jobs
+   dataset shares (@jkos/weave shared/jobs.js); the rest are LazurOS's own "not yet":
+   PENDING → (PENDING_WAKEUP, a job routed to a sleeping backend) → IN_PROGRESS. */
+const JOB_STATUSES = ['PENDING', 'PENDING_WAKEUP', 'IN_PROGRESS', 'DONE', 'FAILED'];
+
 const DATASETS_DOC = {
   app: 'lazuros', version: 1,
   datasets: [{
     id: 'jobs', label: 'AI Jobs', description: 'Async inference job queue.',
     path: '/jobs', invalidates: [JOBS_KEY],
+    /* ⭐ The common jobs shape: how anyone holding a `job_id` a capability returned
+       follows it to its result — a widget's form, a trigger, an agent — without reading
+       this app's source. Held by the async-contract probe. */
+    shape: 'jobs',
+    item: [
+      { name: 'id',         type: 'string', label: 'The job — the `job_id` its capability returned' },
+      { name: 'user_id',    type: 'string', label: 'Who asked' },
+      { name: 'capability', type: 'string', label: 'Which capability it runs' },
+      { name: 'tier_id',    type: 'number', label: 'The tier it routed to' },
+      { name: 'status',     type: 'enum',   enum: JOB_STATUSES },
+      { name: 'step_data',  type: 'string', label: 'A breadcrumb, e.g. a write-back that failed after the job finished' },
+      { name: 'result',     type: 'json',   label: "Once DONE: exactly the fields its capability's `resolves` declares", schema: 'Documentation/agents/WEAVE.md' },
+      { name: 'model',      type: 'string', label: 'Which model answered' },
+      { name: 'error',      type: 'string', label: 'Once FAILED: why' },
+      { name: 'created_at', type: 'string' },
+      { name: 'updated_at', type: 'string' },
+    ],
     filters: [
       { name: 'job_id', column: 'id', op: 'eq', type: 'string' },
       { name: 'status', column: 'status', op: 'eq', type: 'string' },
@@ -212,4 +234,4 @@ const ACTIVITY = defineActivity({
   },
 });
 
-module.exports = { CAPABILITIES_DOC, DATASETS_DOC, JOBS_KEY, ACTIVITY, ROUTE_PREFIX };
+module.exports = { CAPABILITIES_DOC, DATASETS_DOC, JOBS_KEY, JOB_STATUSES, ACTIVITY, ROUTE_PREFIX };

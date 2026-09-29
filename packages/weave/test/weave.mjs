@@ -11,6 +11,7 @@
 //  4. dataset answers vs declarations (shared/datasetShape.js): the check every app's
 //     smoke runs against its real endpoints — proven to pass a faithful answer and to
 //     name each way an answer can betray its declaration.
+//  5. the common jobs shape (shared/jobs.js): what makes an async capability followable.
 
 import assert from 'node:assert/strict'
 import { createRequire } from 'node:module'
@@ -125,5 +126,25 @@ ok('a document with declared rows passes', checkDatasetAnswer(DOCROWS, { basis: 
 ok('…its rows are held to their own item (an undeclared row field is named with its path)',
   /'similar\.results' answers the field 'extra'/.test(checkDatasetAnswer(DOCROWS, { basis: 'mesh', results: [{ id: 1, title: 'a', extra: 1 }] }).join()))
 ok('…and a row field of the wrong type is named', /'similar\.results'\.id is declared 'number'/.test(checkDatasetAnswer(DOCROWS, { basis: 'x', results: [{ id: '1', title: 'a' }] }).join()))
+
+// ── 5. the common jobs shape ────────────────────────────────────────────────────
+console.log('5 · the common jobs shape')
+const { checkJobsDataset, jobPhase } = await import('../src/shared/jobs.js')
+const JOBS = {
+  id: 'jobs', shape: 'jobs',
+  filters: [{ name: 'job_id', column: 'id', op: 'eq', type: 'string' }],
+  item: [{ name: 'id', type: 'string' }, { name: 'status', type: 'enum', enum: ['QUEUED', 'DONE', 'FAILED'] },
+    { name: 'result', type: 'json', schema: 'x' }, { name: 'error', type: 'string' }],
+}
+ok('a conforming jobs dataset has no problems', checkJobsDataset(JOBS).length === 0)
+ok('a jobs dataset must say so', /does not declare shape/.test(checkJobsDataset({ ...JOBS, shape: undefined }).join()))
+ok('…must be a list', /must be a list/.test(checkJobsDataset({ ...JOBS, cardinality: 'one' }).join()))
+ok('…must carry each common field', /declares no 'result' field/.test(checkJobsDataset({ ...JOBS, item: JOBS.item.filter((f) => f.name !== 'result') }).join()))
+ok('…must end in DONE and FAILED', /must include 'FAILED'/.test(checkJobsDataset({ ...JOBS, item: JOBS.item.map((f) => (f.name === 'status' ? { ...f, enum: ['QUEUED', 'DONE'] } : f)) }).join()))
+ok('…must look a job up by job_id', /no 'job_id' filter/.test(checkJobsDataset({ ...JOBS, filters: [] }).join()))
+ok('…exactly, by id', /op 'eq' over 'id'/.test(checkJobsDataset({ ...JOBS, filters: [{ name: 'job_id', column: 'id', op: 'prefix' }] }).join()))
+ok('jobPhase: DONE is done, FAILED failed, anything else pending',
+  jobPhase({ status: 'DONE' }) === 'done' && jobPhase({ status: 'FAILED' }) === 'failed' && jobPhase({ status: 'IN_PROGRESS' }) === 'pending' && jobPhase(null) === 'pending')
+ok('the doc shape refuses a shape other than jobs', /shape must be 'jobs'/.test(checkDocShape({ app: 'x', version: 1, datasets: [{ id: 'd', shape: 'queue' }] }, 'datasets') || ''))
 
 console.log(`\nPASS: ${pass} passed, 0 failed`)
