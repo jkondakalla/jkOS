@@ -22,6 +22,8 @@ import { BACKEND_DOCS } from '../../packages/suite-prober/src/sources.mjs';
 
 export { REPO_ROOT };
 export const WIDGETS_URL = pathToFileURL(join(REPO_ROOT, 'packages/widgets/src/index.js')).href;
+/** The second tier (checkBindings) — a subpath of its own, never bundled into ORDECK. */
+export const SEMANTIC_URL = pathToFileURL(join(REPO_ROOT, 'packages/widgets/src/semantic.js')).href;
 
 /** Every host the suite answers on — what jkAuth passes the validator at publish, so a
  *  file the gate passes is one jkAuth would accept (validateWidget's ctx.suiteHosts). */

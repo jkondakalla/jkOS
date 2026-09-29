@@ -18,10 +18,11 @@
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
-import { shippedWidgets, suiteHosts, declarations, WIDGETS_URL } from './widget/catalog.mjs';
+import { shippedWidgets, suiteHosts, declarations, WIDGETS_URL, SEMANTIC_URL } from './widget/catalog.mjs';
 import { renderWidgets } from './widget/render.mjs';
 
-const { validateWidget: validate, checkBindings } = await import(WIDGETS_URL);
+const { validateWidget: validate } = await import(WIDGETS_URL);
+const { checkBindings } = await import(SEMANTIC_URL);
 const CTX = { suiteHosts: suiteHosts() };
 const DECLS = await declarations();
 /* Both tiers: the structure jkAuth checks at publish, then every binding, source and

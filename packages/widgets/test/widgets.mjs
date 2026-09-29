@@ -14,7 +14,8 @@
 // 3. The walker finds every source a def binds, skips command bodies only when asked,
 //    and sees the slice a molecule reads without a binding.
 // 4. safeHref: the href rule the validator and the renderer share.
-import { NODES, FRAME, KINDS, LIMITS, TONES, childProps, validateWidget, checkBindings, sourcesOf, walkNodes, safeHref, appsOf } from '../src/index.js'
+import { NODES, FRAME, KINDS, LIMITS, TONES, childProps, validateWidget, sourcesOf, walkNodes, safeHref, appsOf } from '../src/index.js'
+import { checkBindings } from '../src/semantic.js'
 
 let pass = 0, fail = 0
 const ok = (cond, msg, extra = '') => { if (cond) { pass++; console.log(`  ✓ ${msg}`) } else { fail++; console.error(`  ✗ ${msg} ${extra}`) } }

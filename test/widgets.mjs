@@ -36,10 +36,11 @@ import { execFileSync } from 'node:child_process';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { unit, REPO_ROOT } from './lib/unit.mjs';
-import { shippedWidgets, suiteHosts, appDocs, declarations, WIDGETS_URL as WIDGETS } from '../scripts/widget/catalog.mjs';
+import { shippedWidgets, suiteHosts, appDocs, declarations, WIDGETS_URL as WIDGETS, SEMANTIC_URL } from '../scripts/widget/catalog.mjs';
 
 const { check, importTs, done } = unit('widgets');
-const { validateWidget, checkBindings } = await import(WIDGETS);
+const { validateWidget } = await import(WIDGETS);
+const { checkBindings } = await import(SEMANTIC_URL);
 const read = (rel) => readFileSync(join(REPO_ROOT, rel), 'utf8');
 const fmt = (errs) => errs.map((e) => `${e.path} ${e.code}${e.fix ? ` (${e.fix})` : ''}`).join('; ');
 
