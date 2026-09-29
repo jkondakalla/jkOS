@@ -19,8 +19,6 @@ export { TaskChip } from './TaskChip';
 export type { TaskChipProps, ChipSize } from './TaskChip';
 export { TimeBlock } from './TimeBlock';
 export type { TimeBlockProps } from './TimeBlock';
-export { CardFrame } from './CardFrame';
-export type { CardFrameProps } from './CardFrame';
 export { Checkbox, Eyebrow, RecLamp, ChromeBar, NowLine, HourLabel } from './primitives';
 export { WeekView } from './WeekView';
 export { CalendarView } from './CalendarView';
