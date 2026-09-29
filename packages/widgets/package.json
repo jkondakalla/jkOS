@@ -3,9 +3,12 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "The ORDECK widget vocabulary as data: the manifest every node kind is declared in, the validator jkAuth and the gate hold a widget to, the one tree walker, and the href gate. No React, no dependencies — requireable by a Node backend.",
+  "description": "The ORDECK widget vocabulary as data: the manifest every node kind is declared in, the validator jkAuth and the gate hold a widget to, the one tree walker, and the href gate. No React — requireable by a Node backend. Its one dependency is @jkos/weave's binding model (./binding, pure ESM), so a widget and a trigger speak one binding vocabulary.",
   "exports": {
     ".": "./src/index.js"
+  },
+  "dependencies": {
+    "@jkos/weave": "workspace:*"
   },
   "scripts": {
     "test": "node test/widgets.mjs"

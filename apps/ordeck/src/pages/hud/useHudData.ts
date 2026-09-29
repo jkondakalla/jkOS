@@ -34,6 +34,9 @@ export interface ClockState {
   /** Today's local date (YYYY-MM-DD) — a bindable "today" for command bodies
    *  (e.g. a quick-add form defaulting due_date to today). */
   iso: string;
+  /** This instant, epoch ms — what a binding's `fmt: 'ago'` measures against (the
+   *  renderer's `$now`), so a preview with a pinned clock draws the same text. */
+  now: number;
 }
 
 export function useClock(): ClockState {
@@ -57,6 +60,7 @@ export function clockState(now: Date): ClockState {
     jday,
     utcLine: `UTC ${utcShort} · DAY ${jday}`,
     iso: isoDate(now),
+    now: now.getTime(),
   };
 }
 

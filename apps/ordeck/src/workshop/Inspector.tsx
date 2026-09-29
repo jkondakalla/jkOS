@@ -12,7 +12,7 @@
  */
 
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
-import { useSuiteApps, fetchCapabilities, type AppId, type CapabilityDoc, normalizeBinding } from '@jkos/weave';
+import { useSuiteApps, fetchCapabilities, type AppId, type CapabilityDoc, normalizeBinding, isCondition } from '@jkos/weave';
 import { HUD_SCHEMA, HUD_ITEM_FIELDS } from '../pages/hud/useHudData';
 import type { Binding, CommandRef, Tone, ToneBinding, WidgetNode } from '../hud/types';
 import { catalogEntry, type ENode } from './model';
@@ -20,22 +20,32 @@ import { Field, NumField, SelectField, Check } from '@jkos/ui';
 
 /* ── binding edit model (lit vs data), shared by every field ────────────── */
 
-type EB = { mode: 'lit' | 'data'; lit: string; src: string; path: string };
+/* `derived` carries what this editor cannot show — a data binding's fallback/map/fmt —
+   through an edit of its source or path, and holds a CONDITION whole: the editor edits
+   {src, path}, and rebuilding one from those two fields used to drop everything else. */
+type EB = { mode: 'lit' | 'data' | 'cond'; lit: string; src: string; path: string; derived?: Record<string, unknown> };
 const eb = (lit = ''): EB => ({ mode: 'lit', lit, src: 'systems', path: '' });
 
 function bindingToEb(b?: Binding): EB {
   if (b == null) return eb('');
   if (typeof b !== 'object') return eb(String(b));
   if ('lit' in b) return eb(b.lit == null ? '' : String(b.lit));
+  if (isCondition(b)) return { mode: 'cond', lit: '', src: '', path: '', derived: b as Record<string, unknown> };
   /* Normalised (D13): the editor speaks the canonical {src,path} form, so a spec
      carrying weave's `{from:'x'}` sugar opens in the inspector as `event.x` instead
      of showing an empty source. One binding model means one editor. */
   const n = normalizeBinding(b);
-  return { mode: 'data', lit: '', src: n?.src ?? '', path: n?.path || '' };
+  const derived = Object.fromEntries(Object.entries({ fallback: n?.fallback, map: n?.map, fmt: n?.fmt }).filter(([, v]) => v !== undefined));
+  return { mode: 'data', lit: '', src: n?.src ?? '', path: n?.path || '', derived };
 }
 function ebToBinding(b: EB): Binding {
-  return b.mode === 'data' ? { src: b.src, ...(b.path ? { path: b.path } : {}) } : b.lit;
+  if (b.mode === 'cond') return b.derived as Binding;
+  return b.mode === 'data' ? { src: b.src, ...(b.path ? { path: b.path } : {}), ...(b.derived ?? {}) } as Binding : b.lit;
 }
+/** What the editor carries but does not show, in one line (so it is not invisible). */
+const derivedNote = (b: EB): string => (b.mode === 'cond'
+  ? `condition ${JSON.stringify(b.derived)}`
+  : Object.keys(b.derived ?? {}).map((k) => `${k} ${JSON.stringify(b.derived![k])}`).join(' · '));
 
 export const HUD_SOURCES = Object.keys(HUD_SCHEMA);
 const KNOWN_SUGGEST = [...HUD_SOURCES, '$'];
@@ -100,10 +110,12 @@ function BindField({ value, onChange, sources, optional }: {
     else onChange(ebToBinding(next));
   };
   const known = KNOWN_SUGGEST.includes(b.src);
+  const note = derivedNote(b);
   return (
-    <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center', flex: 1, minWidth: 0 }}>
-      <Select value={b.mode} onChange={(m) => emit({ ...b, mode: m as EB['mode'] })} options={['lit', 'data']} />
-      {b.mode === 'lit' ? (
+    <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center', flex: 1, minWidth: 0, flexWrap: 'wrap' }}>
+      <Select value={b.mode} onChange={(m) => emit({ ...b, mode: m as EB['mode'], derived: m === b.mode ? b.derived : undefined })}
+        options={b.mode === 'cond' ? ['cond', 'lit', 'data'] : ['lit', 'data']} />
+      {b.mode === 'cond' ? null : b.mode === 'lit' ? (
         <Field style={{ ...field, flex: 1 }} value={b.lit} placeholder="fixed value" onChange={(e) => emit({ ...b, lit: e.target.value })} />
       ) : (
         <>
@@ -112,6 +124,7 @@ function BindField({ value, onChange, sources, optional }: {
             placeholder="field" onChange={(e) => emit({ ...b, path: e.target.value })} />
         </>
       )}
+      {note && <span style={{ flexBasis: '100%', fontFamily: 'var(--hub-font-mono)', fontSize: 10, color: 'var(--hub-cream-faint)', overflowWrap: 'anywhere' }}>{note}</span>}
     </span>
   );
 }
@@ -127,19 +140,24 @@ const ITYPES = ['text', 'number', 'date', 'time'];
 /** Tone that may be fixed OR data-bound (list rows colouring from $.tone). */
 function ToneField({ value, onChange, sources }: {
   value: ToneBinding | undefined;
-  onChange: (v: Tone | { src: string; path?: string } | undefined) => void;
+  onChange: (v: ToneBinding | undefined) => void;
   sources: string[];
 }) {
   const isData = value != null && typeof value === 'object' && 'src' in value;
   const mode = isData ? 'data' : 'fixed';
+  // Every other key (a status → tone `map`, its `fallback`) rides through an edit.
+  const data = (isData ? value : {}) as { src: string; path?: string } & Record<string, unknown>;
+  const { src: _s, path: _p, ...derived } = data;
+  const note = Object.keys(derived).map((k) => `${k} ${JSON.stringify(derived[k])}`).join(' · ');
   return (
-    <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center', flex: 1, minWidth: 0 }}>
+    <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center', flex: 1, minWidth: 0, flexWrap: 'wrap' }}>
       <Select value={mode} onChange={(m) => onChange(m === 'data' ? { src: '$', path: 'tone' } : 'ok')} options={['fixed', 'data']} />
       {isData ? (
         <>
-          <Select value={(value as { src: string }).src} onChange={(s) => onChange({ src: s, path: (value as { path?: string }).path })} options={sources} />
-          <Field style={{ ...field, flex: 1 }} value={(value as { path?: string }).path || ''} placeholder="field"
-            onChange={(e) => onChange({ src: (value as { src: string }).src, ...(e.target.value ? { path: e.target.value } : {}) })} />
+          <Select value={data.src} onChange={(s) => onChange({ ...data, src: s } as ToneBinding)} options={sources} />
+          <Field style={{ ...field, flex: 1 }} value={data.path || ''} placeholder="field"
+            onChange={(e) => { const { path: _old, ...rest } = data; onChange({ ...rest, ...(e.target.value ? { path: e.target.value } : {}) } as ToneBinding); }} />
+          {note && <span style={{ flexBasis: '100%', fontFamily: 'var(--hub-font-mono)', fontSize: 10, color: 'var(--hub-cream-faint)', overflowWrap: 'anywhere' }}>{note}</span>}
         </>
       ) : (
         <Select value={typeof value === 'string' ? value : 'ok'} onChange={(v) => onChange(v as Tone)} options={TONES} />

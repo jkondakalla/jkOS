@@ -27,8 +27,9 @@ export function walkNodes(node, visit, path = '') {
 
 /**
  * Every data source a value depends on: the `src` of each `{src}` binding anywhere
- * inside it, plus the slice a molecule reads without a binding saying so (the
- * manifest's `reads`).
+ * inside it (a condition's operands included), plus the slice a molecule reads without
+ * a binding saying so (the manifest's `reads`), plus `$now` for a `fmt: 'ago'` — the
+ * one format that reads the clock.
  *
  * `commands: false` skips `cmd` subtrees. A command's body bindings resolve at SUBMIT
  * time against the scope of that render, not on screen, so they are not display
@@ -45,6 +46,8 @@ export function sourcesOf(value, { commands = false } = {}) {
     if (!isObj(v)) return
     if (Array.isArray(v)) { for (const e of v) visit(e); return }
     if (typeof v.src === 'string') acc.add(v.src)
+    // A time measured from NOW depends on the clock, though no binding names it.
+    if (v.fmt === 'ago') acc.add('$now')
     if (typeof v.t === 'string' && NODES[v.t]?.reads) acc.add(NODES[v.t].reads)
     for (const k in v) if (commands || k !== 'cmd') visit(v[k])
   }

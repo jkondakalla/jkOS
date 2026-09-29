@@ -23,7 +23,7 @@ import {
   type CSSProperties, type FormEvent, type ReactNode,
 } from 'react';
 import {
-  fetchCapabilities, getCapability, runCommand, suiteApp, subscribe, type CapabilityDoc, resolveBinding } from '@jkos/weave';
+  fetchCapabilities, getCapability, runCommand, suiteApp, subscribe, type CapabilityDoc, resolveBinding, truthy } from '@jkos/weave';
 import { authFetch } from '@jkos/auth-client';
 import {
   type ClockState,
@@ -95,13 +95,9 @@ function toneColor(t: ToneBinding | undefined, scope: Scope, fallback: Tone = 'm
   return TONE_COLOR[v as Tone] ?? TONE_COLOR[fallback];
 }
 
-/** Truthiness for `when` — empty arrays/strings and 0 are falsy (so "has tasks"
- *  is just a bound array, and a "0 / false / ''" condition hides cleanly). */
-export function truthy(v: unknown): boolean {
-  if (Array.isArray(v)) return v.length > 0;
-  if (typeof v === 'string') return v !== '' && v !== 'false' && v !== '0';
-  return Boolean(v);
-}
+/** Truthiness for `when` lives in @jkos/weave's binding model now, beside the `not`
+ *  condition that must agree with it. Re-exported for the Workshop canvas. */
+export { truthy };
 
 function labelSize(size?: 'md' | 'sm' | 'xs'): CSSProperties {
   if (size === 'sm') return { fontSize: 9 };
@@ -668,7 +664,8 @@ export function useDataSources(sources?: Record<string, DataSource>): Scope {
 
 function SpecWidget({ spec, ctx }: { spec: WidgetSpec; ctx: WidgetCtx }) {
   const fetched = useDataSources(spec.sources);
-  const scope: Scope = { ...(ctx as unknown as Scope), ...fetched };
+  // `$now` is the clock's instant: what `fmt: 'ago'` measures against.
+  const scope: Scope = { ...(ctx as unknown as Scope), ...fetched, $now: ctx.clock.now };
   const body = renderNode(spec.body, scope);
   const f = spec.frame;
 
@@ -753,6 +750,8 @@ function usedSlices(def: WidgetDef): Set<string> {
   // defaulting due_date to clock.iso would re-render its card every second).
   const acc = def.spec ? sourcesOf(def.spec) : new Set<string>();
   if (!def.spec && def.component) for (const k of COMPONENT_SLICES[def.component] ?? []) acc.add(k);
+  // `$now` is the clock's instant, so an `ago` re-renders with the clock.
+  if (acc.has('$now')) acc.add('clock');
   // Drop non-ctx sources ($ list element, $form, fetch-source names) — they're
   // never on ctx, so they'd never (correctly) trigger a re-render anyway.
   for (const k of [...acc]) if (!SLICE_KEYS.has(k)) acc.delete(k);

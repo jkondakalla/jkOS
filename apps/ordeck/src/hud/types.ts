@@ -117,10 +117,11 @@ export type DataSource =
   | { from: 'hud'; key: string }
   | { from: 'fetch'; url: string; poll?: number; invalidateOn?: string[] };
 
-/** A tone can be a fixed key OR bound to data (e.g. a list item's `$.tone`),
- *  so list rows can colour themselves by status. Resolves to 'muted' if the
- *  bound value isn't a known tone. */
-export type ToneBinding = Tone | { lit: unknown } | { src: string; path?: string; fallback?: unknown };
+/** A tone can be a fixed key OR bound to data (a list item's `$.tone`, or a status
+ *  mapped onto tones: `{ src: '$', path: 'status', map: { DONE: 'ok' }, fallback: 'muted' }`),
+ *  so list rows can colour themselves by status. Resolves to 'muted' if the bound
+ *  value isn't a known tone. */
+export type ToneBinding = Tone | WeaveBinding;
 
 /** The composable display vocabulary — one variant per node kind — is GENERATED from
  *  @jkos/widgets' manifest (packages/widgets/src/manifest.js → ./nodes.gen.ts), with

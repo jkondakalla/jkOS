@@ -238,7 +238,7 @@ importers:
         version: file:packages/weave(react@18.3.1)
       '@jkos/widgets':
         specifier: workspace:*
-        version: link:../../packages/widgets
+        version: file:packages/widgets(react@18.3.1)
       react:
         specifier: ^18.3.1
         version: 18.3.1
@@ -408,7 +408,11 @@ importers:
         specifier: ^5.7.2
         version: 5.9.3
 
-  packages/widgets: {}
+  packages/widgets:
+    dependencies:
+      '@jkos/weave':
+        specifier: workspace:*
+        version: link:../weave
 
 packages:
 
@@ -693,6 +697,9 @@ packages:
     resolution: {directory: packages/weave, type: directory}
     peerDependencies:
       react: '>=18'
+
+  '@jkos/widgets@file:packages/widgets':
+    resolution: {directory: packages/widgets, type: directory}
 
   '@jridgewell/gen-mapping@0.3.13':
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
@@ -2365,6 +2372,12 @@ snapshots:
       '@jkos/files': file:packages/files
       '@jkos/suite-manifest': file:packages/suite-manifest
       react: 18.3.1
+
+  '@jkos/widgets@file:packages/widgets(react@18.3.1)':
+    dependencies:
+      '@jkos/weave': file:packages/weave(react@18.3.1)
+    transitivePeerDependencies:
+      - react
 
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:

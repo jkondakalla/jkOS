@@ -15,6 +15,7 @@
 
 import { NODES, FRAME, TONES, ICON_NAMES, COMPONENTS, TIER_COLS, LIMITS, childProps } from './manifest.js'
 import { safeHref } from './href.js'
+import { FORMATS, CONDITIONS } from '@jkos/weave/binding'
 
 const ID_RE = new RegExp(LIMITS.ID_PATTERN)
 const DEF_KEYS = ['id', 'label', 'sizing', 'spec', 'component', 'ai', 'refreshMs', 'allowed_roles']
@@ -51,18 +52,47 @@ function editDistance(a, b) {
   return row[b.length]
 }
 
-/** A Binding object: {lit} | {src, path?, fallback?} | {from}. */
-function bindingProblem(v) {
+const SOURCE_KEYS = ['src', 'path', 'fallback', 'map', 'fmt']
+const isScalar = (v) => v === null || ['string', 'number', 'boolean'].includes(typeof v)
+
+/** A Binding object: {lit} | {src, path?, fallback?, map?, fmt?} | {from} | a condition
+ *  ({eq: [a, b]} | {in: [a, list]} | {not: a}) — @jkos/weave's one binding model. */
+function bindingProblem(v, depth = 0) {
   if (!isObj(v)) return null
+  if (depth > 8) return 'conditions nest at most 8 deep'
   if ('lit' in v) return Object.keys(v).length === 1 ? null : '{lit} takes no other keys'
+  const keys = Object.keys(v)
+  if (keys.length === 1 && CONDITIONS.includes(keys[0])) {
+    const op = keys[0]
+    const arg = v[op]
+    const operand = (x) => (isScalar(x) ? null : isObj(x) ? bindingProblem(x, depth + 1) : `${op}: an operand is a literal or a binding`)
+    if (op === 'not') return operand(arg)
+    if (!Array.isArray(arg) || arg.length !== 2) return `${op} takes exactly two operands: {${op}: [a, b]}`
+    if (op === 'eq') return operand(arg[0]) || operand(arg[1])
+    const list = arg[1]
+    const listProblem = Array.isArray(list) ? list.map(operand).find(Boolean) ?? null
+      : isObj(list) ? bindingProblem(list, depth + 1) : 'in: the second operand is an array, or a binding to one'
+    return operand(arg[0]) || listProblem
+  }
   if (typeof v.src === 'string') {
     if (!v.src) return 'src must be a non-empty string'
     if (v.path !== undefined && typeof v.path !== 'string') return 'path must be a string'
-    const extra = Object.keys(v).filter((k) => !['src', 'path', 'fallback'].includes(k))
-    return extra.length ? `unknown binding key(s): ${extra.join(', ')}` : null
+    const extra = keys.filter((k) => !SOURCE_KEYS.includes(k))
+    if (extra.length) {
+      const near = extra.map((k) => nearest(k, [...SOURCE_KEYS, ...CONDITIONS])).find(Boolean)
+      return `unknown binding key(s): ${extra.join(', ')}${near ? ` — did you mean ${JSON.stringify(near)}?` : ''}`
+    }
+    if (v.map !== undefined && !(isObj(v.map) && Object.values(v.map).every(isScalar))) {
+      return 'map is a lookup table: { "<value>": <string | number | boolean | null>, … }'
+    }
+    if (v.fmt !== undefined && !FORMATS.includes(v.fmt)) {
+      const near = typeof v.fmt === 'string' ? nearest(v.fmt, FORMATS) : null
+      return `unknown fmt ${JSON.stringify(v.fmt)}${near ? ` — did you mean ${JSON.stringify(near)}?` : ''} (one of: ${FORMATS.join(', ')})`
+    }
+    return null
   }
-  if (typeof v.from === 'string') return Object.keys(v).length === 1 ? null : '{from} takes no other keys'
-  return 'not a binding — expected a literal, {lit}, {src, path?, fallback?} or {from}'
+  if (typeof v.from === 'string') return keys.length === 1 ? null : '{from} takes no other keys'
+  return `not a binding — expected a literal, {lit}, {src, path?, fallback?, map?, fmt?}, {from} or a condition (${CONDITIONS.map((c) => `{${c}}`).join(' ')})`
 }
 
 const isLiteral = (v) => typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean'
@@ -250,6 +280,7 @@ function checkProps(obj, props, path, err, reserved = []) {
         const why = bindingProblem(v)
         if (why) err(here, 'bad-binding', why)
         else if (p.href && isObj(v) && 'lit' in v && (typeof v.lit !== 'string' || !safeHref(v.lit))) err(here, 'bad-url', `${name} must be http(s), mailto or relative`)
+        else if (p.values) mappedValues(v, p.values, name, here, err)
         break
       }
       case 'tone':
@@ -258,6 +289,7 @@ function checkProps(obj, props, path, err, reserved = []) {
         } else {
           const why = bindingProblem(v)
           if (why) err(here, 'bad-binding', why)
+          else mappedValues(v, TONES, 'tone', here, err)
         }
         break
       case 'number':
@@ -287,6 +319,22 @@ function checkProps(obj, props, path, err, reserved = []) {
       default:
         err(here, 'manifest', `the manifest gives ${name} an unknown type ${JSON.stringify(p.type)}`)
     }
+  }
+}
+
+/** A binding that maps data onto a closed vocabulary (a status onto a tone, a kind
+ *  onto an icon) maps onto real members of it — the lookup table and its fallback are
+ *  literals, so they can be checked here rather than degrading quietly on screen. */
+function mappedValues(v, allowed, name, path, err) {
+  if (!isObj(v) || !isObj(v.map)) return
+  for (const [k, out] of Object.entries(v.map)) {
+    if (typeof out === 'string' && !allowed.includes(out)) {
+      const near = nearest(out, allowed)
+      err(`${path}/map/${esc(k)}`, 'unknown-value', `${JSON.stringify(out)} is not a ${name}`, near ? `did you mean ${JSON.stringify(near)}?` : `one of: ${allowed.join(', ')}`)
+    }
+  }
+  if (typeof v.fallback === 'string' && !allowed.includes(v.fallback)) {
+    err(`${path}/fallback`, 'unknown-value', `${JSON.stringify(v.fallback)} is not a ${name}`, `one of: ${allowed.join(', ')}`)
   }
 }
 

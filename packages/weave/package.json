@@ -7,6 +7,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./resumeCursor": "./src/resumeCursor.ts",
+    "./binding": "./src/shared/binding.js",
     "./server": "./src/server/index.js",
     "./collection": "./src/server/collection.js",
     "./activity": "./src/server/activity.js",

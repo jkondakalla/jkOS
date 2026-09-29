@@ -83,6 +83,24 @@ ok(has(def({ t: 'text', text: 'x' }, { spec: { body: { t: 'text', text: 'x' }, s
 ok(problems('nope').length === 1 && problems('nope')[0].code === 'not-an-object', 'a non-object is refused outright')
 
 // ── 3. the walker ────────────────────────────────────────────────────────────
+console.log('2b · derived bindings — map, fmt and the conditions (weave\'s one binding model)')
+const STATUS = { src: '$', path: 'status' }
+ok(problems(def({ t: 'dot', tone: { ...STATUS, map: { DONE: 'ok', FAILED: 'danger' }, fallback: 'muted' } })).length === 0, 'a status mapped onto tones passes')
+ok(has(def({ t: 'dot', tone: { ...STATUS, map: { DONE: 'green' } } }), '/spec/body/tone/map/DONE', 'unknown-value'), '…a mapped value that is not a tone is refused, at its own pointer')
+ok(has(def({ t: 'dot', tone: { ...STATUS, map: { DONE: 'ok' }, fallback: 'grey' } }), '/spec/body/tone/fallback', 'unknown-value'), '…and so is a fallback that is not one')
+ok(has(def({ t: 'icon', name: { ...STATUS, map: { DONE: 'chek' } } }), '/spec/body/name/map/DONE', 'unknown-value'), 'an icon map onto an unknown icon is refused')
+ok(problems(def({ t: 'text', text: { src: '$', path: 'created_at', fmt: 'ago' } })).length === 0, 'a formatted binding passes')
+ok(problems(def({ t: 'text', text: { src: '$', path: 'at', fmt: 'agoo' } })).some((p) => p.code === 'bad-binding' && /did you mean "ago"/.test(p.message)), 'an unknown fmt is refused, with the likely one')
+ok(has(def({ t: 'text', text: { ...STATUS, map: { A: { nested: 1 } } } }), '/spec/body/text', 'bad-binding'), 'a map whose values are not scalars is refused')
+ok(problems(def({ t: 'when', cond: { eq: [STATUS, 'DONE'] }, then: { t: 'text', text: 'x' } })).length === 0, 'an eq condition passes')
+ok(problems(def({ t: 'when', cond: { in: [STATUS, ['DONE', 'FAILED']] }, then: { t: 'text', text: 'x' } })).length === 0, 'an in condition over a literal list passes')
+ok(problems(def({ t: 'when', cond: { not: { eq: [STATUS, 'DONE'] } }, then: { t: 'text', text: 'x' } })).length === 0, 'conditions nest')
+ok(has(def({ t: 'when', cond: { eq: [STATUS] }, then: { t: 'text', text: 'x' } }), '/spec/body/cond', 'bad-binding'), 'an eq with one operand is refused')
+ok(has(def({ t: 'when', cond: { in: [STATUS, 'DONE'] }, then: { t: 'text', text: 'x' } }), '/spec/body/cond', 'bad-binding'), 'an in over a non-list is refused')
+ok(has(def({ t: 'when', cond: { eq: [{ src: '' }, 1] }, then: { t: 'text', text: 'x' } }), '/spec/body/cond', 'bad-binding'), 'a malformed operand is refused')
+ok(problems(def({ t: 'text', text: { src: '$', path: 'x', fmat: 'ago' } })).some((p) => /did you mean "fmt"/.test(p.message)), 'a typo\'d binding key names the intended one')
+ok(sourcesOf(def({ t: 'when', cond: { not: { eq: [{ src: 'today', path: 'n' }, 1] } }, then: { t: 'text', text: 'x' } })).has('today'), 'the walker finds a source inside a condition')
+
 console.log('3 · one walker')
 const spec = {
   frame: { source: { src: 'today', path: 'progressLabel' } },

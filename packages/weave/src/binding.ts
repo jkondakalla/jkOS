@@ -7,5 +7,8 @@
  * trigger engine) and the browser (the widget renderer) share one implementation
  * rather than one idea spelled twice.
  */
-export type { Binding, SourceBinding, LiteralBinding, EventBinding, Bindable } from './shared/binding.js';
-export { EVENT_SOURCE, isBinding, normalizeBinding, dig, resolveBinding, resolveBody } from './shared/binding.js';
+export type { Binding, SourceBinding, LiteralBinding, EventBinding, ConditionBinding, Bindable, Format } from './shared/binding.js';
+export {
+  EVENT_SOURCE, FORMATS, CONDITIONS, isBinding, isCondition, truthy, normalizeBinding, sourceBindings,
+  dig, resolveBinding, resolveBody, format,
+} from './shared/binding.js';

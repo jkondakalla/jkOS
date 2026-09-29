@@ -430,6 +430,36 @@ ok('a required DO field left unbound is caught', (() => {
   return issues.some((i) => /required DO field 'title' is unbound/.test(i.msg))
 })())
 
+// Derived bindings (map / fmt / eq · in · not) — one model, so the trigger engine
+// resolves and type-checks them exactly as the widget renderer resolves them.
+const { resolveBinding, format, truthy } = await import('../src/shared/binding.js')
+const S = { event: { status: 'DONE', n: 7, tags: ['a', 'b'], at: '2026-09-28T14:05:00.000Z', day: '2026-09-28', secs: 3723 }, $now: '2026-09-28T14:10:00.000Z' }
+ok('map: a value in the table is replaced', resolveBinding({ src: 'event', path: 'status', map: { DONE: 'ok', FAILED: 'danger' } }, S) === 'ok')
+ok('map: a value not in it resolves to fallback', resolveBinding({ src: 'event', path: 'status', map: { FAILED: 'danger' }, fallback: 'muted' }, S) === 'muted')
+ok('map: …and passes through with no fallback', resolveBinding({ src: 'event', path: 'status', map: { FAILED: 'danger' } }, S) === 'DONE')
+ok('map: a prototype key is not a match', resolveBinding({ src: 'event', path: 'status', map: {} , fallback: 'x' }, { event: { status: 'constructor' } }) === 'x')
+ok('fmt applies after map', resolveBinding({ src: 'event', path: 'status', map: { DONE: 'finished' }, fmt: 'upper' }, S) === 'FINISHED')
+ok('fmt ago reads $now, so a pinned clock draws the same text', resolveBinding({ src: 'event', path: 'at', fmt: 'ago' }, S) === '5m ago')
+ok('fmt date reads a YYYY-MM-DD as a LOCAL day (not UTC midnight)', format('2026-09-28', 'date') === 'SEP 28')
+ok('fmt time: an HH:MM passes, an instant becomes local HH:MM', format('09:30:00', 'time') === '09:30' && /^\d{2}:\d{2}$/.test(format(S.event.at, 'time')))
+ok('fmt number / percent / duration', format(1234.56, 'number') === '1,234.6' && format(1000, 'number') === '1,000' && format(0.42, 'percent') === '42%' && format(3723, 'duration') === '1:02:03' && format(62, 'duration') === '1:02')
+ok('a format passes a value it cannot read through unchanged', format('soon', 'date') === 'soon' && format('x', 'number') === 'x')
+ok('eq compares loosely across string/number (an id is 7 or "7")', resolveBinding({ eq: [{ src: 'event', path: 'n' }, '7'] }, S) === true)
+ok('in: membership in a literal list or a bound array', resolveBinding({ in: [{ src: 'event', path: 'status' }, ['DONE', 'FAILED']] }, S) === true
+  && resolveBinding({ in: ['b', { src: 'event', path: 'tags' }] }, S) === true && resolveBinding({ in: ['z', { src: 'event', path: 'tags' }] }, S) === false)
+ok('not negates the same truthiness `when` uses', resolveBinding({ not: { src: 'event', path: 'missing' } }, S) === true && resolveBinding({ not: '0' }, S) === true && truthy([]) === false)
+ok('conditions nest', resolveBinding({ not: { eq: [{ src: 'event', path: 'status' }, 'FAILED'] } }, S) === true)
+ok('the engine resolves a derived DO body', (() => {
+  const r = resolveBindings({ title: { from: 'status' }, loud: { src: 'event', path: 'status', fmt: 'lower' }, failed: { eq: [{ from: 'status' }, 'FAILED'] } }, S.event)
+  return r.title === 'DONE' && r.loud === 'done' && r.failed === false
+})())
+ok('a condition is type-checked as a boolean (→ a string field is a mismatch)', (() => {
+  const issues = validateTriggerTypes(mkTrigger({ title: { eq: [{ from: 'title' }, 'x'] } }), { whenReturns, doBody })
+  return issues.length === 1 && /\(a condition\) is 'boolean'/.test(issues[0].msg)
+})())
+ok('a formatted value is text (a boolean formatted fits a string field)', validateTriggerTypes(mkTrigger({ title: { src: 'event', path: 'done', fmt: 'upper' } }), { whenReturns, doBody }).length === 0)
+ok("a condition's operands must name WHEN fields", validateTriggerTypes(mkTrigger({ title: { not: { from: 'ghost' } } }), { whenReturns, doBody }).some((i) => /no such field/.test(i.msg)))
+
 // The engine — what fires, with what resolved body, under whose authority.
 const calls = []
 const engine = createTriggerEngine({

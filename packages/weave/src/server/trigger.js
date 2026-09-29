@@ -49,7 +49,7 @@ const { IDEMPOTENCY_FIELD } = require('../shared/idempotency')
    degenerate case: `{from:'x'}` is `{src:'event', path:'x'}` with the source left
    implicit, since a trigger only ever had one. Both forms still resolve, identically,
    so every TriggerDef written before this is unchanged. */
-const { isBinding, normalizeBinding, resolveBody, EVENT_SOURCE } = require('../shared/binding')
+const { isBinding, isCondition, sourceBindings, resolveBody, EVENT_SOURCE } = require('../shared/binding')
 
 /**
  * Resolve a DO body TEMPLATE against an event PAYLOAD. The payload is bound as the
@@ -112,11 +112,13 @@ function validateTriggerTypes(trigger, { whenReturns = [], whenResolves = null, 
       /* Normalised, so a trigger written in either vocabulary type-checks the same
          way. A binding at a source other than the event is not the WHEN payload and
          cannot be type-checked against it — it is left to the renderer that owns
-         that source. */
-      const b = normalizeBinding(v)
-      if (b.src !== EVENT_SOURCE) continue
-      const src = whenByName.get(String(b.path).split('.')[0])
-      if (!src) {
+         that source. A condition reads each of its operands: every one that reads
+         the event must name a field the WHEN produces. */
+      const refs = sourceBindings(v).filter((b) => b.src === EVENT_SOURCE)
+      let missing = false
+      for (const b of refs) {
+        if (whenByName.has(String(b.path).split('.')[0])) continue
+        missing = true
         issues.push({
           field,
           msg: isAsync
@@ -124,10 +126,20 @@ function validateTriggerTypes(trigger, { whenReturns = [], whenResolves = null, 
               + '(its `returns` is a job handle; bind from what the work produces, not from the handle)'
             : `binding from '${b.path}' — WHEN '${trigger.when.capability}' returns no such field`,
         })
-        continue
       }
-      if (!String(b.path).includes('.') && !typeFits(src.type, target.type)) {
-        issues.push({ field, msg: `type mismatch: ${trigger.when.capability}.${b.path} is '${src.type}' but ${trigger.do.capability}.${field} expects '${target.type}'` })
+      if (missing || !refs.length) continue
+      /* What the binding PRODUCES: a condition is a boolean, a format is text, and
+         a plain pointer is the field's own type (a dotted path is inside a document,
+         and not type-checked). A `map` produces whatever its table holds, which is
+         left to the author. */
+      const b = refs[0]
+      const produced = isCondition(v) ? 'boolean'
+        : b.fmt ? 'string'
+        : b.map ? null
+        : String(b.path).includes('.') ? null
+        : whenByName.get(b.path).type
+      if (produced && !typeFits(produced, target.type)) {
+        issues.push({ field, msg: `type mismatch: ${trigger.when.capability}.${b.path}${isCondition(v) ? ' (a condition)' : b.fmt ? ` (fmt '${b.fmt}')` : ''} is '${produced}' but ${trigger.do.capability}.${field} expects '${target.type}'` })
       }
     }
   }
