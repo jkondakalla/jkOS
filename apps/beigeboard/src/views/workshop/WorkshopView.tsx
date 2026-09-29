@@ -103,7 +103,7 @@ export function WorkshopView(props: any) {
      worth holding a copy of the library in a parent for. */
   useEffect(() => {
     let live = true
-    api?.get('/api/library').then((r: any) => { if (live) setLibCount(r?.count ?? r?.entries?.length ?? 0) })
+    api?.get('/api/library').then((r: any) => { if (live) setLibCount(Array.isArray(r) ? r.length : 0) })
       .catch(() => { if (live) setLibCount(0) })
     return () => { live = false }
   }, [api])
@@ -238,7 +238,7 @@ export function WorkshopView(props: any) {
   const closeShelf = () => {
     setShelf(null)
     setPasting(false)
-    api?.get('/api/library').then((r: any) => setLibCount(r?.count ?? r?.entries?.length ?? 0)).catch(() => { /* keep what we had */ })
+    api?.get('/api/library').then((r: any) => setLibCount(Array.isArray(r) ? r.length : 0)).catch(() => { /* keep what we had */ })
   }
 
   return (

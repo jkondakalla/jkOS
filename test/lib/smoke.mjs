@@ -27,6 +27,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { generateKeyPairSync, sign as cryptoSign } from 'node:crypto';
+import { checkDatasetAnswer, cardinalityOf } from '../../packages/weave/src/shared/datasetShape.js';
 
 /** The Fetch spec's "bad ports" (fetch.spec.whatwg.org, "port blocking"). Node's fetch() refuses
  *  them with "bad port" before touching the network, so a test server bound to one can never be
@@ -158,4 +159,38 @@ export function forgeTokens({ issuer = 'jkos-auth' } = {}) {
     return `${input}.${b64url(cryptoSign('RSA-SHA256', Buffer.from(input), privateKey))}`;
   }
   return { publicKey, privateKey, mkToken };
+}
+
+/**
+ * Hold every dataset an app DECLARES to what its real endpoint ANSWERS (weave's
+ * checkDatasetAnswer: cardinality, every field declared, every declared field present,
+ * each the declared type). A widget, weaveClient and an AI composer bind to the
+ * declaration without seeing the server, so a declaration that does not match the
+ * answer hands every one of them a wrong contract, silently.
+ *
+ * Every declared dataset is either checked or named in `skip` with the reason — a new
+ * dataset with neither fails, so one cannot join the declaration unproven. A 'many'
+ * dataset that answers no rows proves only its envelope, so it fails too: seed a row.
+ *
+ *   await checkDeclaredDatasets({ ok, doc: DATASETS, base: `${BASE}/api`,
+ *     params: { id: 41 }, skip: { metadataSearch: 'calls iTunes' } });
+ *
+ * `params` fills `:name` path segments; `query` adds per-dataset query strings;
+ * `fetchOpts` carries headers (a bearer, for a server that verifies tokens).
+ */
+export async function checkDeclaredDatasets({ ok, doc, base, params = {}, query = {}, skip = {}, fetchOpts = {} }) {
+  for (const def of doc.datasets) {
+    if (skip[def.id]) { console.log(`  · ${doc.app}.${def.id}: not swept — ${skip[def.id]}`); continue; }
+    const path = def.path.replace(/:(\w+)/g, (_, k) => (k in params ? encodeURIComponent(params[k]) : `:${k}`));
+    if (path.includes('/:')) { ok(false, `${doc.app}.${def.id}: no value for a path parameter in ${def.path} — pass it in params, or skip it with a reason`); continue; }
+    const url = `${base}${path}${query[def.id] ? `?${new URLSearchParams(query[def.id])}` : ''}`;
+    const res = await fetch(url, fetchOpts);
+    const body = await res.json().catch(() => undefined);
+    if (!res.ok) { ok(false, `${doc.app}.${def.id}: GET ${path} answered ${res.status} ${JSON.stringify(body)?.slice(0, 120)}`); continue; }
+    const problems = checkDatasetAnswer(def, body);
+    ok(problems.length === 0, `${doc.app}.${def.id} answers what it declares${problems.length ? `:\n      ${problems.join('\n      ')}` : ''}`);
+    if (cardinalityOf(def) === 'many' && Array.isArray(body) && Array.isArray(def.item)) {
+      ok(body.length > 0, `${doc.app}.${def.id} answered no rows, so its declared row shape went unchecked — seed one before the sweep`);
+    }
+  }
 }

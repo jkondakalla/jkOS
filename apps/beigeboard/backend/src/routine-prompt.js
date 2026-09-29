@@ -67,7 +67,7 @@ function libraryIndex(entries, cap = 240) {
       'This copy of the prompt carries no library index. Fetch one before you write:',
       '',
       '```',
-      'GET /api/library            → { entries: [{ collection, slug, title, unit, variants, defaults }] }',
+      'GET /api/library            → [{ collection, slug, title, unit, variants, defaults }]',
       '```',
       '',
       'Or ask for the personalised prompt — `GET /api/routines/prompt` — which splices',

@@ -373,6 +373,7 @@ const DATASETS = {
          to be maintained by every write path that can complete an item, and would
          be wrong the moment one of them forgot. */
       id: 'itemDeps', label: 'What blocks this, and what it blocks', path: '/items/:id/deps',
+      cardinality: 'one',
       filters: [],
       item: [
         { name: 'blocked',    type: 'boolean', label: 'Any dependency still unfinished' },
@@ -392,12 +393,15 @@ const DATASETS = {
          otherwise have to reimplement routine-spec.js to get. */
       id: 'routines', label: 'Routines (with their step documents)', path: '/routines',
       filters: [],
+      /* The items row with `spec` REPLACED — parsed and normalised here, a string in
+         /items — not declared a second time beside it: a field named twice is a field
+         whose type a reader has to guess. `cadence` and `metric` were declared and
+         never answered; the metric is its own read (routineMetric). */
       item: [
-        ...ITEM_SHAPE,
-        { name: 'spec',    type: 'json',   label: 'The normalised step document' , schema: 'beigeboard.routineVocabulary' },
+        ...ITEM_SHAPE.map((f) => (f.name === 'spec'
+          ? { name: 'spec', type: 'json', label: 'The normalised step document', schema: 'beigeboard.routineVocabulary' }
+          : f)),
         { name: 'summary', type: 'string', label: 'The document in one line' },
-        { name: 'cadence', type: 'string', label: 'The cadence in words' },
-        { name: 'metric',  type: 'json',   label: 'What it contributes to its goal: {measure, unit, target, value, pct, window}' , schema: 'beigeboard.routineVocabulary' },
       ],
       invalidates: [ITEMS_KEY],
     },
@@ -418,15 +422,19 @@ const DATASETS = {
       ],
       item: [
         { name: 'id',         type: 'number' },
+        { name: 'user_id',    type: 'number' },
         { name: 'collection', type: 'enum',   enum: LIBRARY_COLLECTIONS },
         { name: 'slug',       type: 'string', label: 'What a step\'s `ref` names' },
         { name: 'title',      type: 'string' },
         { name: 'notes',      type: 'string' },
         { name: 'unit',       type: 'string' },
         { name: 'load_unit',  type: 'string' },
-        { name: 'tags',       type: 'json' , schema: 'beigeboard.items' },
-        { name: 'variants',   type: 'json',   label: 'The difficulty ladder, easiest → hardest' , schema: 'beigeboard.library' },
-        { name: 'defaults',   type: 'json',   label: 'Step defaults: sets, target, load, rest, progression' , schema: 'beigeboard.library' },
+        { name: 'tags',       type: 'json',   of: 'string' },
+        /* Their shape is the routine document's (a step's variants and defaults), which
+           the vocabulary declares — not this dataset, which is what they used to point at. */
+        { name: 'variants',   type: 'json',   label: 'The difficulty ladder, easiest → hardest', schema: 'beigeboard.routineVocabulary' },
+        { name: 'defaults',   type: 'json',   label: 'Step defaults: sets, target, load, rest, progression', schema: 'beigeboard.routineVocabulary' },
+        { name: 'source',     type: 'string', label: 'Where the entry came from (the starter set, or you)' },
         { name: 'created_at', type: 'string' },
         { name: 'updated_at', type: 'string' },
       ],
@@ -446,28 +454,65 @@ const DATASETS = {
      * parameters are `computed` — there is no WHERE clause to map them to. */
     {
       id: 'routineMetric', label: "A routine's goal metric", path: '/routines/:id/metric',
+      cardinality: 'one',
       filters: [],
+      item: [
+        { name: 'id',      type: 'number' },
+        { name: 'title',   type: 'string' },
+        { name: 'goal_id', type: 'ref', ref: 'beigeboard.items', label: 'The goal it contributes to' },
+        { name: 'metric',  type: 'json', label: '{measure, step, unit, label, target, value, pct, window, from}', schema: 'beigeboard.routineVocabulary' },
+      ],
       doc: 'What this routine is measured by, and where it currently stands.',
     },
     {
       id: 'routineSeries', label: "A routine's performance series", path: '/routines/:id/series',
+      cardinality: 'one',
+      item: [
+        { name: 'id',      type: 'number' },
+        { name: 'title',   type: 'string' },
+        { name: 'measure', type: 'string' },
+        { name: 'steps',   type: 'json', label: 'Per step: {key, title, points[]}', schema: 'beigeboard.routineVocabulary' },
+      ],
       filters: [{ name: 'weeks', type: 'number', label: 'How many weeks back', computed: true }],
       doc: 'Prescribed against performed over time — the series the charts read, and the '
         + 'same shape the variance analysis consumes.',
     },
     {
       id: 'routinePreview', label: 'What the next occurrences would be', path: '/routines/:id/preview',
+      cardinality: 'one',
+      item: [
+        { name: 'id',       type: 'number' },
+        { name: 'title',    type: 'string' },
+        { name: 'from',     type: 'number', label: 'The first cycle shown' },
+        { name: 'cycles',   type: 'number' },
+        { name: 'summary',  type: 'string' },
+        { name: 'warnings', type: 'json', label: 'The lint, as {path, code, message}', schema: 'beigeboard.routineVocabulary' },
+        { name: 'sessions', type: 'json', label: 'One rendered prescription per occurrence', schema: 'beigeboard.routineVocabulary' },
+      ],
       filters: [{ name: 'today', type: 'date', label: "The caller's local day", computed: true }],
       doc: 'The occurrences the current rules WOULD mint, without minting them — how an '
         + 'author checks a cadence before committing to it.',
     },
     {
       id: 'routineRevisions', label: "A routine's revision history", path: '/routines/:id/revisions',
+      cardinality: 'one',
       filters: [],
+      item: [
+        { name: 'id',        type: 'number' },
+        { name: 'current',   type: 'number', label: 'The version in force' },
+        { name: 'revisions', type: 'json', label: 'Newest first', item: [
+          { name: 'version',    type: 'number' },
+          { name: 'current',    type: 'boolean' },
+          { name: 'summary',    type: 'string' },
+          { name: 'note',       type: 'string' },
+          { name: 'created_at', type: 'string' },
+        ] },
+      ],
       doc: 'Every committed version of the routine document, newest first.',
     },
     {
       id: 'routineVocabulary', label: 'The routine authoring vocabulary', path: '/routines/vocabulary',
+      cardinality: 'one',
       filters: [],
       doc: 'Every cadence, progression, unit and field a routine document may use — the '
         + 'machine-readable half of the authoring contract. A GUI builds its pickers from '
@@ -475,7 +520,14 @@ const DATASETS = {
     },
     {
       id: 'routinePrompt', label: 'The generated routine-authoring prompt', path: '/routines/prompt',
+      cardinality: 'one',
       filters: [],
+      item: [
+        { name: 'spec_version',  type: 'number' },
+        { name: 'library_count', type: 'number', label: 'Library entries spliced into the prompt' },
+        { name: 'target',        type: 'string', label: 'The import endpoint the prompt names' },
+        { name: 'text',          type: 'text',   label: 'The prompt, as markdown' },
+      ],
       doc: 'The authoring instructions, GENERATED from the vocabulary above so the prose and '
         + 'the enum can never disagree (Documentation/agents/ROUTINE_PROMPT.md is this output, '
         + 'checked in and gated by check:routine).',

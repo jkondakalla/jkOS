@@ -41,7 +41,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { createRequire } from 'node:module';
-import { smoke, forgeTokens } from '../../../../test/lib/smoke.mjs';
+import { smoke, forgeTokens, checkDeclaredDatasets } from '../../../../test/lib/smoke.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const BACKEND = join(__dirname, '..');
@@ -120,14 +120,14 @@ try {
 
   // ── B. the library ──────────────────────────────────────────────────────────
   const lib1 = (await req('GET', '/api/library')).json;
-  ok(lib1?.count > 20, `B: the starter library seeds on first touch (got ${lib1?.count})`);
-  const squat = lib1.entries.find((e) => e.slug === 'back-squat');
+  ok(lib1?.length > 20, `B: the starter library seeds on first touch (got ${lib1?.length})`);
+  const squat = lib1.find((e) => e.slug === 'back-squat');
   ok(squat?.variants?.length >= 3, 'B: a library entry carries a difficulty LADDER, not just a name');
   ok(squat?.defaults?.progression?.type === 'double', 'B: …and a default progression');
   const lib2 = (await req('GET', '/api/library')).json;
-  ok(lib2.count === lib1.count, 'B: seeding is idempotent — a second read adds nothing');
+  ok(lib2.length === lib1.length, 'B: seeding is idempotent — a second read adds nothing');
   const filtered = (await req('GET', '/api/library?collection=recipe')).json;
-  ok(filtered.count > 0 && filtered.entries.every((e) => e.collection === 'recipe'),
+  ok(filtered.length > 0 && filtered.every((e) => e.collection === 'recipe'),
     'B: the same mechanism holds a recipe box — nothing here is training-shaped');
 
   // ── C. import: resolution, idempotency, dry run ─────────────────────────────
@@ -482,13 +482,13 @@ try {
     'Q: …and rendering the routine as NUMBERS before anything is written');
   ok(!bDry.json.warnings.some((w) => w.code === 'REF_UNRESOLVED'),
     'Q: a step may `ref` an entry the SAME bundle teaches — the resolver sees the pending entries');
-  ok(!(await req('GET', '/api/library?q=nordic')).json.entries.some((e) => e.slug === 'nordic-curl'),
+  ok(!(await req('GET', '/api/library?q=nordic')).json.some((e) => e.slug === 'nordic-curl'),
     'Q: …and the dry run wrote nothing');
 
   const bReal = await req('POST', '/api/routines/bundle', BUNDLE);
   ok(bReal.status === 201 && bReal.json?.library?.created === 1 && bReal.json.routines[0].created === true,
     `Q: the real import writes both halves (got ${bReal.status})`);
-  const nordic = (await req('GET', '/api/library?q=nordic')).json.entries.find((e) => e.slug === 'nordic-curl');
+  const nordic = (await req('GET', '/api/library?q=nordic')).json.find((e) => e.slug === 'nordic-curl');
   ok(nordic?.variants?.length === 3, 'Q: the entry landed with its ladder intact');
   const pcId = bReal.json.routines[0].id;
   const pcRows = await list();
@@ -588,6 +588,16 @@ try {
   const lb = rx(workedOccs[workedOccs.length - 1]);
   ok(lb?.steps?.length === 5 && lb.steps.every((s) => s.line && s.line !== '—'),
     `R: …and every step of a rendered session carries real numbers (${JSON.stringify(lb?.steps?.map((s) => s.line))})`);
+
+  /* ── S. every dataset BeigeBoard DECLARES answers what it declares ─────────────
+     The run above leaves a board with items, routines and a seeded library — the
+     real rows a widget, weaveClient or an AI composer would read against discovery.js. */
+  const { DATASETS } = createRequire(import.meta.url)(join(BACKEND, 'discovery.js'));
+  await checkDeclaredDatasets({
+    ok, doc: DATASETS, base: `${BASE}/api`,
+    params: { id: worked.json.routines[0].id },
+    fetchOpts: { headers: { Authorization: `Bearer ${A}`, 'X-JKOS-TODAY': TODAY } },
+  });
 
   done();
 } catch (e) {

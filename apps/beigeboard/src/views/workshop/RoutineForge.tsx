@@ -137,7 +137,7 @@ export function RoutineForge({
        full editor, and an entry may have been added, renamed or given a ladder
        while it was open. Resolving against a stale copy is how a step arrives
        without the defaults it was just given. */
-    api?.get('/api/library').then((r: any) => setLibrary(r?.entries || [])).catch(() => { /* keep what we had */ })
+    api?.get('/api/library').then((r: any) => setLibrary(Array.isArray(r) ? r : [])).catch(() => { /* keep what we had */ })
   })
 
   useEffect(() => {
@@ -167,7 +167,7 @@ export function RoutineForge({
      every default the library exists to supply. */
   useEffect(() => {
     let live = true
-    api?.get('/api/library').then((r: any) => { if (live) setLibrary(r?.entries || []) }).catch(() => { if (live) setLibrary([]) })
+    api?.get('/api/library').then((r: any) => { if (live) setLibrary(Array.isArray(r) ? r : []) }).catch(() => { if (live) setLibrary([]) })
     return () => { live = false }
   }, [api])
 

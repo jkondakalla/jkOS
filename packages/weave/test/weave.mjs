@@ -111,5 +111,19 @@ ok('a faithful one-document answer has no problems', checkDatasetAnswer(ONE, { t
 ok('a list where one document is declared is named', /one document.*an array/.test(checkDatasetAnswer(ONE, [{ total: 3 }]).join()))
 ok('a declared field named twice is named', /twice/.test(checkDatasetAnswer({ id: 'd', item: [{ name: 'a', type: 'json' }, { name: 'a', type: 'string' }] }, []).join()))
 ok('an undeclared item checks only the envelope', checkDatasetAnswer({ id: 'd' }, [{ anything: 1 }]).length === 0)
+// `of` — a json field that is a list of scalars (tags, genres)
+const TAGS = { id: 't', item: [{ name: 'tags', type: 'json', of: 'string' }] }
+ok('a json `of: string` field passes a string[]', checkDatasetAnswer(TAGS, [{ tags: ['a', 'b'] }, { tags: [] }]).length === 0)
+ok('…and names a number inside it', /tags is declared 'json' of 'string'/.test(checkDatasetAnswer(TAGS, [{ tags: ['a', 2] }]).join()))
+ok('…and names a bare string where the list belongs', checkDatasetAnswer(TAGS, [{ tags: 'a,b' }]).length === 1)
+// nested `item` — a one-document answer that carries rows ({ basis, results })
+const DOCROWS = { id: 'similar', cardinality: 'one', item: [
+  { name: 'basis', type: 'string' },
+  { name: 'results', type: 'json', item: [{ name: 'id', type: 'number' }, { name: 'title', type: 'string' }] },
+] }
+ok('a document with declared rows passes', checkDatasetAnswer(DOCROWS, { basis: 'mesh', results: [{ id: 1, title: 'a' }] }).length === 0)
+ok('…its rows are held to their own item (an undeclared row field is named with its path)',
+  /'similar\.results' answers the field 'extra'/.test(checkDatasetAnswer(DOCROWS, { basis: 'mesh', results: [{ id: 1, title: 'a', extra: 1 }] }).join()))
+ok('…and a row field of the wrong type is named', /'similar\.results'\.id is declared 'number'/.test(checkDatasetAnswer(DOCROWS, { basis: 'x', results: [{ id: '1', title: 'a' }] }).join()))
 
 console.log(`\nPASS: ${pass} passed, 0 failed`)

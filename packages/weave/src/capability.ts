@@ -75,6 +75,23 @@ export interface BodyField {
    *                              exists
    */
   schema?: string;
+
+  /**
+   * FOR `type: 'json'` ONLY — the two shapes a document field most often has, declared
+   * INLINE rather than pointed at, so a reader can bind into it without a lookup:
+   *
+   *   of    a list of scalars: `{ name: 'tags', type: 'json', of: 'string' }` is a
+   *         string[]. (`genres` and `tags` used to point `schema` at a doc that never
+   *         mentioned them — the escape hatch wearing a label.)
+   *   item  the fields of each row, when the value is a list of rows, or of the object
+   *         itself: `{ name: 'results', type: 'json', item: TRACK_ROW }`. What lets a
+   *         one-document dataset ({ basis, results }) keep its rows described.
+   *
+   * Either one satisfies `capability-completeness`, as `schema` does, and each app's
+   * smoke holds the answered value to it (shared/datasetShape.js).
+   */
+  of?: FieldType;
+  item?: BodyField[];
 }
 
 /** One action an app can perform on behalf of the caller. */

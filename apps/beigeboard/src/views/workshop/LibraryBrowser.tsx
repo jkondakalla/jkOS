@@ -77,7 +77,7 @@ export function LibraryBrowser({ api, items, readonly, onPick, onClose, onPaste 
   const [error, setError] = useState<string | null>(null)
 
   const load = () => api?.get('/api/library')
-    .then((r: any) => setEntries(r?.entries || []))
+    .then((r: any) => setEntries(Array.isArray(r) ? r : []))
     .catch(() => setEntries([]))
 
   useEffect(() => { load() }, [api])

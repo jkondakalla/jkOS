@@ -77,11 +77,12 @@ router.get('/api/library', (req, res) => {
       q: req.query.q || null,
       limit: req.query.limit,
     });
-    res.json({
-      collections: spec.COLLECTIONS,
-      count: entries.length,
-      entries,
-    });
+    /* A bare array: the list contract every dataset read keeps (WEAVE.md §3.2), and
+       what the `library` dataset declares. It answered { collections, count, entries }
+       while declaring an entry ROW, so weaveClient — and anything else trusting the
+       declaration — read no rows. The collection vocabulary lives in
+       /routines/vocabulary, and a count is the array's length. */
+    res.json(entries);
   } catch (e) { fail(res, e); }
 });
 

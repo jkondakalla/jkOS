@@ -12,7 +12,8 @@
  *     does not say WHAT document: `schema` names the dataset whose rows it carries or
  *     the doc where its shape is written, and this probe resolves that pointer (a
  *     dataset that does not exist, or a file that does not, is drift — an unverifiable
- *     pointer is the escape hatch again with a reassuring label on it).
+ *     pointer is the escape hatch again with a reassuring label on it). `of` (a list
+ *     of scalars) or an inline `item` (its rows) says what it is without a pointer.
  *   • filters  — a dataset's filters carry their OWN enforcement mapping (column/op) so
  *     the server derives its SQL filter from the declaration (single source, P3). A
  *     filter with no op means the enforcement is hand-written elsewhere — a drift surface.
@@ -39,7 +40,7 @@ function normalizeFields(v) {
      so the json check below could never have SEEN a schema pointer no matter how
      many were declared — it would have gone on reporting the same ten gaps against
      a fully annotated suite, which is the quietest way for a probe to be wrong. */
-  if (Array.isArray(v)) return v.map((f) => ({ name: f.name ?? f.id, type: f.type, schema: f.schema }));
+  if (Array.isArray(v)) return v.map((f) => ({ name: f.name ?? f.id, type: f.type, schema: f.schema, of: f.of, item: f.item }));
   if (v && typeof v === 'object') return Object.entries(v).map(([name, type]) => ({ name, type }));
   return [];
 }
@@ -104,7 +105,9 @@ export default {
            both are checked below — an unverifiable pointer is the same hole with a
            reassuring label on it. */
         const jsonFields = [...body, ...returns].filter((f) => f.type === 'json');
-        const undeclared = jsonFields.filter((f) => !f.schema).map((f) => f.name);
+        /* `of` (a list of scalars) and `item` (its rows, inline) say what it is as
+           well as a `schema` pointer does — better, since a binder needs no lookup. */
+        const undeclared = jsonFields.filter((f) => !f.schema && !f.of && !Array.isArray(f.item)).map((f) => f.name);
         if (undeclared.length) {
           out.push({ level: 'gap', msg: `${label}: \`json\` field(s) with no \`schema\` (${undeclared.join(', ')}) — an opaque blob a GUI/AI can't snap a stud onto. Name the dataset whose rows it carries, or the doc where its shape is written.`, where: [docs.file] });
         }

@@ -54,7 +54,9 @@ function fits(field, v) {
       return typeof v === 'string' || typeof v === 'number'
     case 'json':
       // A document or a list — never a JSON-encoded STRING, which a binder cannot dig into.
-      return typeof v === 'object'
+      if (typeof v !== 'object') return false
+      if (field.of) return Array.isArray(v) && v.every((e) => fits({ type: field.of, enum: field.enum }, e))
+      return true
     default:
       return false
   }
@@ -101,21 +103,35 @@ export function checkDatasetAnswer(def, body, { maxRows = 50 } = {}) {
   }
   if (!item) return out
 
+  checkFields(def.id, item, docs, card === 'many' ? 'row' : 'the document', out, maxRows)
+  return out
+}
+
+/** Hold each of `docs` to the field list `item`; recurse into a json field that
+ *  declares its own `item`. `label` names the thing for a message ('.results' etc.). */
+function checkFields(label, item, docs, what, out, maxRows) {
   const byName = new Map(item.map((f) => [f.name, f]))
   const reported = new Set()
   const once = (key, msg) => { if (!reported.has(key)) { reported.add(key); out.push(msg) } }
   docs.forEach((doc, i) => {
-    const where = card === 'many' ? `row ${i}` : 'the document'
-    if (!isObj(doc)) { once(`row:${i}`, `'${def.id}' ${where} is ${kind(doc)}, not an object`); return }
+    const where = what === 'row' ? `row ${i}` : what
+    if (!isObj(doc)) { once(`row:${i}`, `'${label}' ${where} is ${kind(doc)}, not an object`); return }
     for (const k of Object.keys(doc)) {
-      if (!byName.has(k)) once(`extra:${k}`, `'${def.id}' answers the field '${k}', which its \`item\` does not declare`)
+      if (!byName.has(k)) once(`extra:${k}`, `'${label}' answers the field '${k}', which its \`item\` does not declare`)
     }
     for (const f of item) {
-      if (!(f.name in doc)) { once(`missing:${f.name}`, `'${def.id}' declares the field '${f.name}' and ${where} does not carry it`); continue }
-      if (!fits(f, doc[f.name])) {
-        once(`type:${f.name}`, `'${def.id}'.${f.name} is declared '${f.type}'${f.enum ? ` (${f.enum.join('|')})` : ''} and ${where} holds ${kind(doc[f.name])}`)
+      if (!(f.name in doc)) { once(`missing:${f.name}`, `'${label}' declares the field '${f.name}' and ${where} does not carry it`); continue }
+      const v = doc[f.name]
+      if (!fits(f, v)) {
+        once(`type:${f.name}`, `'${label}'.${f.name} is declared '${f.type}'${f.of ? ` of '${f.of}'` : ''}${f.enum ? ` (${f.enum.join('|')})` : ''} and ${where} holds ${kind(v)}`)
+        continue
+      }
+      if (f.type === 'json' && Array.isArray(f.item) && v !== null && !reported.has(`nested:${f.name}`)) {
+        const inner = Array.isArray(v) ? v.slice(0, maxRows) : [v]
+        const before = out.length
+        checkFields(`${label}.${f.name}`, f.item, inner, Array.isArray(v) ? 'row' : 'the value', out, maxRows)
+        if (out.length > before) reported.add(`nested:${f.name}`)
       }
     }
   })
-  return out
 }

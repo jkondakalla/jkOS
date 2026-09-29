@@ -14,8 +14,9 @@
 //
 // Per-column keys:
 //   name       column name
-//   shape      ITEM_SHAPE type — 'number'|'string'|'enum'|'boolean'|'date'|'time'
+//   shape      ITEM_SHAPE type — 'number'|'string'|'enum'|'boolean'|'date'|'time'|'json'
 //   shapeEnum  enum members surfaced in ITEM_SHAPE (kind, status)
+//   shapeOf    for a json list of scalars, the element type (tags: 'string')
 //   client     client-writable → included in ITEM_COLUMNS (id/user_id/*_at are not)
 //   cap        max length for a text/date/time value → IMPORT_STR_CAP
 //   num        numeric import column (bounded integer) → IMPORT_NUM_COLS
@@ -67,7 +68,7 @@ const ITEM_FIELDS = [
   { name: 'target_date',    shape: 'date',    client: true,  cap: 10 },
   { name: 'position',       shape: 'number',  client: true,  num: true },
   { name: 'status',         shape: 'enum',    client: true,  cap: 20, shapeEnum: ['active', 'parked', 'done'], importEnum: ['active', 'parked', 'done'] },
-  { name: 'tags',           shape: 'string',  client: true },   // JSON array on the wire; coerced at insert
+  { name: 'tags',           shape: 'json',    client: true,  shapeOf: 'string' },   // a string[] on the wire (both ways); JSON-in-TEXT in the column
   { name: 'ext_ref',        shape: 'string',  client: true,  cap: 200 , indexed: true },
   // ── Routines (kind:'routine') ──────────────────────────────────────────────
   // A routine is a CADENCE, not an occurrence. These two columns are the whole
@@ -104,10 +105,10 @@ const ITEM_FIELDS = [
   //   cycle_index   on an OCCURRENCE — which cycle produced the snapshot.
   //   performed     on an OCCURRENCE — what the user actually did. The only
   //                 field the engine reads BACK, to autoregulate.
-  // All four are JSON-in-TEXT except cycle_index; `shape: 'json'` would be a new
-  // ITEM_SHAPE type every peer would have to learn, and the value is a string on
-  // the wire either way — so they declare as strings and the document contract
-  // lives in routine-spec.js, which peers can require().
+  // All four are JSON-in-TEXT except cycle_index, and — unlike `tags`, which toRow
+  // parses — the value is a STRING on the wire, so they declare as strings and the
+  // document contract lives in routine-spec.js, which peers can require(). (The
+  // `routines` dataset answers `spec` parsed, and declares it json there.)
   { name: 'spec',           shape: 'string',  client: true,  cap: 20000 },
   { name: 'prescription',   shape: 'string',  client: true,  cap: 20000 },
   { name: 'performed',      shape: 'string',  client: true,  cap: 20000 },
@@ -184,9 +185,10 @@ const ITEM_FIELDS = [
 
 /* ITEM_SHAPE — the returned row shape, one `{ name, type, enum? }` per column, in
    declaration order. discovery.js re-exports this AS its ITEM_SHAPE. */
-const ITEM_SHAPE = ITEM_FIELDS.map((f) => (
-  f.shapeEnum ? { name: f.name, type: f.shape, enum: f.shapeEnum }
-              : { name: f.name, type: f.shape }
-));
+const ITEM_SHAPE = ITEM_FIELDS.map((f) => ({
+  name: f.name, type: f.shape,
+  ...(f.shapeEnum ? { enum: f.shapeEnum } : {}),
+  ...(f.shapeOf ? { of: f.shapeOf } : {}),
+}));
 
 module.exports = { ITEM_FIELDS, ITEM_SHAPE };
