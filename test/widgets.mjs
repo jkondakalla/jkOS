@@ -23,6 +23,9 @@
 //      stubbed network) maps every way a read can go to a named state — never the bare
 //      `[]` that made "signed out" and "no rows" one value — and ORDECK's source runtime
 //      refuses a relative, plain-http or suite URL before it is ever requested.
+//   7. AN ASYNC COMMAND IS FOLLOWED TO ITS ANSWER. weave's followJob (the REAL module)
+//      reads the app's common-shape jobs dataset until the job ends, hands back what it
+//      RESOLVED to, re-reads when the bus fires, and gives up as `lost`, never spinning.
 //
 // Run:  node test/widgets.mjs      (wired as `pnpm check:widgets`, folded into
 //                                   `pnpm test:contracts`)
@@ -186,6 +189,66 @@ for (const f of readdirSync(HUD).filter((n) => n.endsWith('.tsx'))) {
     "liveReader: a dataset is read through its declaration, and hands back the dataset's invalidation keys to subscribe");
   check(JSON.stringify(src.resolveParams({ job_id: { src: '$result', path: 'job_id' }, status: 'DONE', gone: { src: 'x' } }, { $result: { job_id: 'j9' } }))
     === JSON.stringify({ job_id: 'j9', status: 'DONE', gone: null }), 'resolveParams: bindings resolve against the scope; a missing one is null (the read goes idle)');
+}
+
+// ── 7. an async command is followed to its answer ───────────────────────────
+{
+  const { tmp, emitTs } = unit('follow-job');
+  const { writeFileSync } = await import('node:fs');
+  const { pathToFileURL } = await import('node:url');
+  writeFileSync(join(tmp, 'stubs.mjs'), `
+    export const st = { rows: [], reads: 0, doc: null, subs: [] };
+    export const fetchDatasets = async () => st.doc;
+    export const readDataset = async (app, id, params) => { st.reads++; st.last = { app, id, params };
+      const next = st.rows.length > 1 ? st.rows.shift() : st.rows[0];
+      return typeof next === 'string' ? { state: next, error: next } : { state: next ? 'ready' : 'empty', data: next ? [next] : [] }; };
+    export const subscribe = (keys, fn) => { st.subs.push({ keys, fn }); return () => { st.subs = st.subs.filter((x) => x.fn !== fn); }; };
+  `);
+  const st = (await import(pathToFileURL(join(tmp, 'stubs.mjs')).href)).st;
+  const fj = await import(pathToFileURL(emitTs('packages/weave/src/followJob.ts', 'followJob.mjs', {
+    './fetchDatasets': './stubs.mjs', './readDataset': './stubs.mjs', './resource': './stubs.mjs',
+    './shared/jobs.js': pathToFileURL(join(REPO_ROOT, 'packages/weave/src/shared/jobs.js')).href,
+  })).href);
+  const FAST = { intervalMs: 5, maxIntervalMs: 10, timeoutMs: 2000 };
+  st.doc = { datasets: [{ id: 'jobs', shape: 'jobs', invalidates: ['lazuros.jobs'] }] };
+  const J = (status, extra = {}) => ({ id: 'j1', status, result: null, error: null, ...extra });
+
+  st.rows = [J('PENDING'), J('IN_PROGRESS'), J('DONE', { result: { response: '42' } })];
+  const seen = [];
+  const done = await fj.followJob('lazuros', 'j1', { ...FAST, onUpdate: (o) => seen.push(o.status) });
+  check(done.phase === 'done' && JSON.stringify(done.result) === '{"response":"42"}', 'followJob: a DONE job hands back what it RESOLVED to');
+  check(st.last.id === 'jobs' && st.last.params.job_id === 'j1', 'followJob: the job is looked up by job_id in the dataset declaring shape: jobs');
+  check(JSON.stringify(seen) === JSON.stringify(['PENDING', 'IN_PROGRESS', 'DONE']), 'followJob: every reading is reported, with the app\'s own status word');
+
+  st.rows = [J('FAILED', { error: 'the model answered no JSON' })];
+  const failed = await fj.followJob('lazuros', 'j1', FAST);
+  check(failed.phase === 'failed' && failed.error === 'the model answered no JSON', 'followJob: a FAILED job hands back its error');
+
+  st.rows = [J('PENDING')];
+  const lost = await fj.followJob('lazuros', 'j1', { ...FAST, timeoutMs: 40 });
+  check(lost.phase === 'lost' && /stopped waiting/.test(lost.error), 'followJob: a job that never ends is given up on as lost, not followed for ever');
+
+  st.rows = ['signed-out'];
+  check((await fj.followJob('lazuros', 'j1', FAST)).phase === 'lost', 'followJob: signed out ends the follow');
+  st.rows = [null];
+  check((await fj.followJob('lazuros', 'j1', FAST)).phase === 'lost', 'followJob: a job the app does not have is lost, not pending');
+
+  st.rows = ['offline', J('DONE', { result: { response: 'ok' } })];
+  check((await fj.followJob('lazuros', 'j1', FAST)).phase === 'done', 'followJob: a transient offline read is waited out');
+
+  st.doc = { datasets: [{ id: 'jobs' }] };
+  check(/declares no jobs dataset/.test((await fj.followJob('lazuros', 'j1', FAST)).error ?? ''), 'followJob: an app with no common-shape jobs dataset cannot be followed, and says so');
+
+  st.doc = { datasets: [{ id: 'jobs', shape: 'jobs', invalidates: ['lazuros.jobs'] }] };
+  st.rows = [J('PENDING'), J('DONE', { result: {} })]; st.reads = 0;
+  const slow = { intervalMs: 60_000, maxIntervalMs: 60_000, timeoutMs: 120_000 };
+  const woke = fj.followJob('lazuros', 'j1', slow);
+  await new Promise((r) => setTimeout(r, 20));
+  check(st.subs.some((x) => x.keys.includes('lazuros.jobs')), 'followJob: it subscribes to the jobs dataset\'s bus keys');
+  st.subs.forEach((x) => x.fn());
+  const t0 = Date.now();
+  check((await woke).phase === 'done' && Date.now() - t0 < 1000, 'followJob: an invalidation re-reads at once, not at the next interval');
+  check(st.subs.length === 0, 'followJob: …and unsubscribes when it ends');
 }
 
 done();

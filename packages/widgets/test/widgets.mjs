@@ -117,6 +117,11 @@ ok(has(def({ t: 'when', cond: { eq: [{ src: '' }, 1] }, then: { t: 'text', text:
 ok(problems(def({ t: 'text', text: { src: '$', path: 'x', fmat: 'ago' } })).some((p) => /did you mean "fmt"/.test(p.message)), 'a typo\'d binding key names the intended one')
 ok(sourcesOf(def({ t: 'when', cond: { not: { eq: [{ src: 'today', path: 'n' }, 1] } }, then: { t: 'text', text: 'x' } })).has('today'), 'the walker finds a source inside a condition')
 
+const CMD = { app: 'lazuros', capability: 'query' }
+ok(problems(def({ t: 'form', cmd: CMD, submit: 'ASK', children: [{ t: 'input', field: 'text' }], result: { t: 'text', text: { src: '$result', path: 'response' } } })).length === 0, 'a form may draw what its command produced in `result`')
+ok(problems(def({ t: 'button', text: 'GO', cmd: CMD, result: { t: 'text', text: { src: '$job', path: 'status' } } })).length === 0, '…and so may a button')
+ok(has(def({ t: 'form', cmd: CMD, submit: 'ASK', children: [], result: { t: 'input', field: 'x' } }), '/spec/body/result', 'misplaced'), 'a control in a form\'s result slot is refused — the result is drawn beside the form, not in it')
+
 console.log('3 · one walker')
 const spec = {
   frame: { source: { src: 'today', path: 'progressLabel' } },

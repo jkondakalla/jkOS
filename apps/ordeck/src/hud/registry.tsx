@@ -19,11 +19,11 @@
  */
 
 import {
-  Fragment, createContext, memo, useCallback, useContext, useEffect, useState,
+  Fragment, createContext, memo, useCallback, useContext, useEffect, useRef, useState,
   type CSSProperties, type FormEvent, type ReactNode,
 } from 'react';
 import {
-  fetchCapabilities, getCapability, runCommand, suiteApp, type CapabilityDoc, resolveBinding, truthy } from '@jkos/weave';
+  fetchCapabilities, getCapability, runCommand, suiteApp, followJob, type CapabilityDoc, type JobOutcome, resolveBinding, truthy } from '@jkos/weave';
 import {
   type ClockState,
   type WeatherState,
@@ -482,12 +482,18 @@ const actionStyle = (color: string, on: boolean): CSSProperties => ({
   borderRadius: 'var(--hub-radius-sm)', opacity: on ? 1 : 0.4,
 });
 
-type CmdStatus = 'idle' | 'saving' | 'ok' | 'err';
+type CmdStatus = 'idle' | 'saving' | 'working' | 'ok' | 'err';
 
 /** Resolve a CommandRef to its app + capability, and expose a run() that builds
  *  the body (capability defaults under the ref's bindings) and dispatches it.
  *  `available` is false until the capability is discovered (or if it's gone) —
- *  callers render disabled, the soft-fail equivalent of an offline data source. */
+ *  callers render disabled, the soft-fail equivalent of an offline data source.
+ *
+ *  `outcome` is what the command produced — `$result` / `$job` in a `result` slot. A
+ *  synchronous capability's is its answer. An ASYNC one's (it declares `resolves`)
+ *  answer is only a job handle, so the job is FOLLOWED (weave followJob, through the
+ *  app's common-shape jobs dataset) until it ends, and the outcome is what it
+ *  resolved to — the answer itself, never an id to go looking for. */
 function useCommand(ref: CommandRef) {
   const [doc, setDoc] = useState<CapabilityDoc | null | undefined>(undefined); // undefined = loading
   useEffect(() => {
@@ -500,10 +506,21 @@ function useCommand(ref: CommandRef) {
   const cap = doc ? getCapability(doc, ref.capability) : null;
   const available = !!(app?.apiBase && cap);
   const [status, setStatus] = useState<CmdStatus>('idle');
+  const [outcome, setOutcome] = useState<JobOutcome | null>(null);
+  const following = useRef<AbortController | null>(null);
+  useEffect(() => () => following.current?.abort(), []);
+
+  const settle = useCallback((o: JobOutcome) => {
+    setOutcome(o);
+    setStatus(o.phase === 'done' ? 'ok' : 'err');
+    if (o.phase === 'done') setTimeout(() => setStatus((s) => (s === 'ok' ? 'idle' : s)), 1600);
+  }, []);
 
   const run = useCallback(async (scope: Scope): Promise<boolean> => {
     if (!app || !cap) return false;
+    following.current?.abort();
     setStatus('saving');
+    setOutcome({ phase: 'pending' });
     const body: Record<string, unknown> = {};
     for (const fld of cap.body ?? []) if (fld.default !== undefined) body[fld.name] = fld.default;
     for (const [k, b] of Object.entries(ref.body ?? {})) {
@@ -511,12 +528,45 @@ function useCommand(ref: CommandRef) {
       if (v !== undefined && v !== null && v !== '') body[k] = v;  // keep optionals unset
     }
     const res = await runCommand(app, cap, body);
-    setStatus(res.ok ? 'ok' : 'err');
-    if (res.ok) setTimeout(() => setStatus((s) => (s === 'ok' ? 'idle' : s)), 1600);
-    return res.ok;
-  }, [app, cap, ref.body]);
+    if (!res.ok) { settle({ phase: 'failed', error: res.error }); return false; }
+    if (!Array.isArray(cap.resolves)) { settle({ phase: 'done', result: res.data }); return true; }
 
-  return { loading: doc === undefined, available, status, run };
+    const jobId = (res.data as { job_id?: unknown } | null)?.job_id;
+    if (typeof jobId !== 'string' && typeof jobId !== 'number') {
+      settle({ phase: 'lost', error: `${ref.app}.${ref.capability} is async and answered no job_id` });
+      return false;
+    }
+    setStatus('working');
+    const ac = new AbortController();
+    following.current = ac;
+    void followJob(ref.app, String(jobId), { signal: ac.signal, onUpdate: (o) => { if (!ac.signal.aborted) setOutcome(o); } })
+      .then((o) => { if (!ac.signal.aborted) settle(o); });
+    return true;   // accepted: the inputs clear while the job runs
+  }, [app, cap, ref.app, ref.capability, ref.body, settle]);
+
+  return { loading: doc === undefined, available, status, outcome, async: Array.isArray(cap?.resolves), run };
+}
+
+/** A command's `result` slot, drawn with what it produced: `$result` (the answer, or
+ *  what an async job resolved to) and `$job` ({ phase, status, error }). */
+function resultSlot(node: WidgetNode | undefined, outcome: JobOutcome | null, scope: Scope): ReactNode {
+  if (!node || !outcome) return null;
+  return renderNode(node, { ...scope, $result: outcome.result, $job: outcome });
+}
+
+/** The line under a command: what it is doing, or how it ended. */
+function commandNote(cmd: ReturnType<typeof useCommand>): { text: string; color: string } {
+  if (!cmd.available && !cmd.loading) return { text: 'UNAVAILABLE', color: 'var(--hub-cream-faint)' };
+  if (cmd.status === 'working') return { text: 'WORKING…', color: 'var(--hub-cream-faint)' };
+  if (cmd.status === 'ok') return { text: 'DONE', color: 'var(--hub-green)' };
+  if (cmd.status === 'err') {
+    // The job ran and failed; the job was not followed to an end; the call itself failed.
+    const text = cmd.async && cmd.outcome?.phase === 'failed' && cmd.outcome.status ? 'FAILED'
+      : cmd.outcome?.phase === 'lost' ? 'NO ANSWER YET'
+      : 'COULDN’T SAVE — RETRY';
+    return { text, color: 'var(--hub-red)' };
+  }
+  return { text: '', color: 'var(--hub-cream-faint)' };
 }
 
 function FormNode({ node, scope }: { node: Extract<WidgetNode, { t: 'form' }>; scope: Scope }) {
@@ -527,15 +577,12 @@ function FormNode({ node, scope }: { node: Extract<WidgetNode, { t: 'form' }>; s
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    if (cmd.status === 'saving' || !cmd.available) return;
+    if (cmd.status === 'saving' || cmd.status === 'working' || !cmd.available) return;
     if (await cmd.run(formScope)) setValues({});
   };
 
   const label = str(resolve(node.submit, scope));
-  const note = !cmd.available && !cmd.loading ? 'UNAVAILABLE'
-    : cmd.status === 'ok' ? 'DONE'
-    : cmd.status === 'err' ? 'COULDN’T SAVE — RETRY' : '';
-  const noteColor = cmd.status === 'err' ? 'var(--hub-red)' : cmd.status === 'ok' ? 'var(--hub-green)' : 'var(--hub-cream-faint)';
+  const note = commandNote(cmd);
 
   return (
     <FormCtx.Provider value={{ values, set }}>
@@ -543,10 +590,11 @@ function FormNode({ node, scope }: { node: Extract<WidgetNode, { t: 'form' }>; s
           (like every primitive except the calendar/weather molecules). */}
       <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minHeight: 0 }}>
         {node.children.map((c, i) => <Fragment key={i}>{renderNode(c, formScope)}</Fragment>)}
-        <button type="submit" disabled={!cmd.available || cmd.status === 'saving'} style={actionStyle('var(--hub-amber)', cmd.available)}>
+        <button type="submit" disabled={!cmd.available || cmd.status === 'saving' || cmd.status === 'working'} style={actionStyle('var(--hub-amber)', cmd.available)}>
           {cmd.status === 'saving' ? '…' : label}
         </button>
-        {note && <span style={{ fontFamily: 'var(--hub-font-mono)', fontSize: 9, letterSpacing: '0.12em', color: noteColor }}>{note}</span>}
+        {note.text && <span style={{ fontFamily: 'var(--hub-font-mono)', fontSize: 9, letterSpacing: '0.12em', color: note.color }}>{note.text}</span>}
+        {resultSlot(node.result, cmd.outcome, scope)}
       </form>
     </FormCtx.Provider>
   );
@@ -598,11 +646,14 @@ function ButtonNode({ node, scope }: { node: Extract<WidgetNode, { t: 'button' }
   const cmd = useCommand(node.cmd);
   const label = str(resolve(node.text, scope));
   const color = node.tone != null ? toneColor(node.tone, scope, 'accent') : 'var(--hub-amber)';
-  const text = cmd.status === 'saving' ? '…' : cmd.status === 'ok' ? 'DONE' : cmd.status === 'err' ? 'RETRY' : label;
+  const text = cmd.status === 'saving' ? '…' : cmd.status === 'working' ? 'WORKING…' : cmd.status === 'ok' ? 'DONE' : cmd.status === 'err' ? 'RETRY' : label;
   return (
-    <button onClick={() => cmd.available && cmd.run(scope)} disabled={!cmd.available || cmd.status === 'saving'} style={actionStyle(color, cmd.available)}>
-      {text}
-    </button>
+    <>
+      <button onClick={() => cmd.available && cmd.run(scope)} disabled={!cmd.available || cmd.status === 'saving' || cmd.status === 'working'} style={actionStyle(color, cmd.available)}>
+        {text}
+      </button>
+      {resultSlot(node.result, cmd.outcome, scope)}
+    </>
   );
 }
 

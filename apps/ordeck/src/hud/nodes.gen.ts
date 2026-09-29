@@ -53,9 +53,9 @@ export type WidgetNode =
   /** Weather — full weather card. Reads the `weather` slice. */
   | { t: 'weather' }
   /** Action form — inputs that submit a command. */
-  | { t: 'form'; cmd: CommandRef; /** the submit button's label */ submit: Binding; children: WidgetNode[] }
+  | { t: 'form'; cmd: CommandRef; /** the submit button's label */ submit: Binding; children: WidgetNode[]; /** drawn once the command has answered: $result is what it produced (an async command is followed until it ends), $job is { phase: pending|done|failed|lost, status, error } */ result?: WidgetNode }
   /** Action button — one tap runs a command. */
-  | { t: 'button'; text: Binding; cmd: CommandRef; tone?: ToneBinding }
+  | { t: 'button'; text: Binding; cmd: CommandRef; tone?: ToneBinding; /** drawn once the command has answered: $result is what it produced (an async command is followed until it ends), $job is { phase: pending|done|failed|lost, status, error } */ result?: WidgetNode }
   /** Form input — text/number/date field. */
   | { t: 'input'; field: string; placeholder?: Binding; itype?: 'text' | 'number' | 'date' | 'time' }
   /** Form select — pick from options. */

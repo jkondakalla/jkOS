@@ -57,6 +57,11 @@ export const LIMITS = {
   ID_PATTERN: '^[a-z0-9][a-z0-9_-]{0,63}$',
 }
 
+/* What a command answered, drawn under it. An async command (its capability declares
+   `resolves`) is FOLLOWED through its app's common-shape jobs dataset until it ends, so
+   the slot shows the answer itself, not a job id. */
+const RESULT_DOC = 'drawn once the command has answered: $result is what it produced (an async command is followed until it ends), $job is { phase: pending|done|failed|lost, status, error }'
+
 const JUSTIFY = ['flex-start', 'flex-end', 'center', 'space-between', 'space-around', 'space-evenly', 'start', 'end']
 const ALIGN = ['flex-start', 'flex-end', 'center', 'baseline', 'stretch', 'start', 'end']
 
@@ -238,13 +243,17 @@ export const NODES = {
       cmd: { type: 'cmd', required: true },
       submit: { type: 'binding', required: true, doc: "the submit button's label" },
       children: { type: 'nodes', required: true },
+      result: { type: 'node', doc: RESULT_DOC },
     },
     placement: { form: 'outside' },
     example: { t: 'form', cmd: { app: '', capability: '' }, submit: 'SUBMIT', children: [] },
   },
   button: {
     kind: 'control', label: 'Action button', hint: 'one tap runs a command',
-    props: { text: { type: 'binding', required: true }, cmd: { type: 'cmd', required: true }, tone: { type: 'tone' } },
+    props: {
+      text: { type: 'binding', required: true }, cmd: { type: 'cmd', required: true }, tone: { type: 'tone' },
+      result: { type: 'node', doc: RESULT_DOC },
+    },
     example: { t: 'button', text: 'GO', cmd: { app: '', capability: '' } },
   },
   input: {

@@ -18,15 +18,12 @@ job-status list" per git history.
 ## What each spec does
 
 ### `lazuros-query` — Ask LazurOS
-A card with one `form` node: a text `input` (`field: "text"`) and a submit
-button labelled ASK. Submitting runs `CommandRef{app:"lazuros",
-capability:"query", body:{text: $form.text}}` through ORDECK's existing
-command dispatcher (`useCommand`/`runCommand` in `hud/registry.tsx`), which
-`POST`s `/api/lazuros/query` and shows an inline DONE / COULDN'T SAVE note.
-The server responds `202 {job_id}` (see `apps/lazuros/backend/routes/
-capability.js`) — the job runs async. A static sub-line under the form tells
-the user to check the Jobs widget for the answer (see "Dialect gap" below for
-why the result can't be shown inline).
+The body is one `form`: a text `input` (`field: "text"`) and an ASK button running
+`{ app: "lazuros", capability: "query", body: { text: $form.text } }`. `query` is async (it
+declares `resolves: [{ response }]`), so the call answers `202 { job_id }` and the form
+FOLLOWS the job through the jobs dataset until it ends. Its `result` slot then draws the
+answer (`$result.response`), a status pill while it runs (`$job.status` mapped to words),
+or the error if it failed or was not followed to an end.
 
 ### `lazuros-jobs` — LazurOS Jobs
 One source, `jobs = { kind: "dataset", app: "lazuros", dataset: "jobs", poll: 8 }`: the
@@ -129,23 +126,12 @@ tedious (~15+ clicks) and worth it only if the console trick is unavailable.
 
 ## Dialect gaps (precise — nothing here was worked around by touching ORDECK)
 
-**1. A capability's response body cannot be captured into scope.**
-`form`/`button` dispatch through `useCommand.run()` in `hud/registry.tsx`,
-which calls `runCommand()` (returns `{ok, status, data, error}` — `data`
-*does* carry the `{job_id}` the server returns) but the hook only keeps
-`res.ok` for its inline DONE/RETRY note; `res.data` is discarded. There is no
-way for a spec to bind a sibling node — or a `sources.fetch` URL — to the
-`job_id` a submit just created. That is why `lazuros-query` cannot filter
-`lazuros-jobs`'s list down to "the job I just fired" or show its result
-inline; the closest full-fidelity spec is the two independent widgets
-shipped here (submit box + all-jobs list), which is a real but incomplete
-approximation of "input → command → poll that job".
-&nbsp;&nbsp;*Smallest enabling ORDECK change:* extend the form's local state
-to expose the last command's `res.data` as a bindable source (e.g. `$result`,
-alongside the existing `$form`), and let a `sources.fetch` `DataSource.url`
-accept a `Binding` (or a `{tmpl}` string with `{$result.job_id}`
-interpolation) instead of a fixed literal string, so a sibling/child node
-could poll `/api/lazuros/jobs?job_id={$result.job_id}`.
+**1. ~~A capability's response body cannot be captured into scope.~~ CLOSED (2026-09-29).**
+A form or a button may carry a `result` slot, drawn once its command answers, with
+`$result` (what it produced) and `$job` (`{ phase, status, error }`) in scope. An async
+command — one whose capability declares `resolves` — is FOLLOWED through its app's
+common-shape jobs dataset (weave `followJob`) until it ends, so `$result` is the answer
+itself, never a job id. `lazuros-query` shows the reply inline this way.
 
 **2. ~~No per-row derived tone / equality primitive.~~ CLOSED (2026-09-29).** A binding
 can map a value (`{ src, path, map: { DONE: "ok" }, fallback: "muted" }`), format it

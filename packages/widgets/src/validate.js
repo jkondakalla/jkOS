@@ -301,7 +301,8 @@ function checkNode(node, path, depth, where, counter, err) {
       if (!Array.isArray(v)) { err(at(path, name), 'bad-type', `${name} must be an array of nodes`); continue }
       v.forEach((c, i) => checkNode(c, `${at(path, name)}/${i}`, depth + 1, { inForm, atRoot: childAtRoot }, counter, err))
     } else {
-      checkNode(v, at(path, name), depth + 1, { inForm, atRoot: false }, counter, err)
+      // A form's `result` is drawn beside the form, not in it: no control writes there.
+      checkNode(v, at(path, name), depth + 1, { inForm: name === 'result' ? where.inForm : inForm, atRoot: false }, counter, err)
     }
   }
 }

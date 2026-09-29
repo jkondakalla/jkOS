@@ -18,7 +18,7 @@ import { KINDS, NODES, childProps } from '@jkos/widgets';
 import type { WidgetNode } from '../hud/types';
 
 export type NodeT = WidgetNode['t'];
-export type SlotName = 'item' | 'then' | 'else';
+export type SlotName = 'item' | 'then' | 'else' | 'result';
 /* Where children live is the manifest's to say: a kind's `nodes` prop is its ordered
    kids (stack/row/form → `children`), each `node` prop a named single-child slot. */
 const SLOT_NAMES = [...new Set(KINDS.flatMap((t) => childProps(t).filter((c) => !c.many).map((c) => c.name)))] as SlotName[];

@@ -2,38 +2,50 @@
   "id": "lazuros-query",
   "label": "Ask LazurOS",
   "sizing": {
-    "desktop": { "w": 4, "h": 4 },
-    "mobile": { "w": 2, "h": 4 },
-    "min": { "w": 3, "h": 3 }
+    "desktop": { "w": 4, "h": 5 },
+    "mobile": { "w": 2, "h": 5 },
+    "min": { "w": 3, "h": 4 }
   },
   "spec": {
     "frame": { "eyebrow": "LAZUROS", "source": "ASSISTANT" },
     "body": {
-      "t": "stack",
-      "gap": 10,
-      "grow": true,
-      "justify": "space-between",
+      "t": "form",
+      "cmd": {
+        "app": "lazuros",
+        "capability": "query",
+        "body": {
+          "text": { "src": "$form", "path": "text" }
+        }
+      },
+      "submit": "ASK",
       "children": [
-        {
-          "t": "form",
-          "cmd": {
-            "app": "lazuros",
-            "capability": "query",
-            "body": {
-              "text": { "src": "$form", "path": "text" }
+        { "t": "input", "field": "text", "placeholder": "Ask LazurOS…" }
+      ],
+      "result": {
+        "t": "stack",
+        "gap": 6,
+        "children": [
+          {
+            "t": "when",
+            "cond": { "eq": [{ "src": "$job", "path": "phase" }, "pending"] },
+            "then": {
+              "t": "pill",
+              "text": { "src": "$job", "path": "status", "map": { "PENDING": "QUEUED", "PENDING_WAKEUP": "WAKING THE GPU", "IN_PROGRESS": "THINKING" }, "fallback": "SENDING" },
+              "tone": "muted"
             }
           },
-          "submit": "ASK",
-          "children": [
-            { "t": "input", "field": "text", "placeholder": "Ask LazurOS…" }
-          ]
-        },
-        {
-          "t": "text",
-          "text": "Answers post as jobs — watch the LazurOS Jobs widget.",
-          "variant": "sub"
-        }
-      ]
+          {
+            "t": "when",
+            "cond": { "eq": [{ "src": "$job", "path": "phase" }, "done"] },
+            "then": { "t": "text", "text": { "src": "$result", "path": "response" }, "variant": "body" }
+          },
+          {
+            "t": "when",
+            "cond": { "in": [{ "src": "$job", "path": "phase" }, ["failed", "lost"]] },
+            "then": { "t": "text", "text": { "src": "$job", "path": "error" }, "variant": "sub" }
+          }
+        ]
+      }
     }
   }
 }
