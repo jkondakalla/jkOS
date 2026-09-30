@@ -56,7 +56,7 @@ if (!document.documentElement.hasAttribute('data-mode')) {
 // hardcoded radii), so the whole app retunes from this one call. Accents stay
 // user-driven (applyJkOSTheme, in useJkOSPreferences).
 injectJkOSTheme({
-  radius: { base: '8px', xs: '4px', sm: '7px', lg: '11px', soft: '9px', widget: '10px', button: '8px' },
+  radius: { base: '8px', xs: '4px', sm: '7px', lg: '11px', soft: '9px', button: '8px' },
 })
 
 const DEFAULT_API_URL  = import.meta.env.VITE_API_URL ?? ''

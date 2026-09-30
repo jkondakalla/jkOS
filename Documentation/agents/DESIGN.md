@@ -167,7 +167,6 @@ white-alpha family, not `--color-ink`: `--color-on-accent` `rgba(255,255,255,.95
 | `--hub-shadow-card` | `0 2px 8px ink@10%, 0 0 0 1px line` | same formula |
 | `--hub-accent-press` (the WELL shadow) | `inset 0 2px 3px ink@32%, inset 0 -1px 1px #fff@55%, 0 1px 0 #fff@45%` | `0 0 10px tint@38%, inset 0 0 0 1px tint@30%` (emissive; reads `--jk-tint`) |
 | `--accent-halo` / `--accent-halo-text` | `none` / `none` | `0 0 16px accent-glow` / `0 0 12px accent-glow` |
-| `--hub-glow-mul` | `0.5` | `1` |
 
 **The five accent slots (suite-wide chooser, `ACCENT_SCHEMES` in `@jkos/design`):**
 
@@ -357,16 +356,16 @@ their own `radius` are untouched). Any app that doesn't pass `radius` gets this:
 
 ```
 --hub-radius: 8px    --hub-radius-xs: 4px    --hub-radius-sm: 6px   --hub-radius-lg: 10px
---hub-radius-soft: 10px   --hub-radius-widget: 8px   --hub-radius-button: 5px
+--hub-radius-soft: 10px   --hub-radius-button: 5px
 ```
 
 Sharp is an opt-in, per app (a 0–2px scale through the factory `radius` input) or per card
 (zero the `--hub-radius*` tokens on that element) — and it should stay uncommon. Never
 hardcode a pixel radius; shapes read the tokens so a whole app retunes from one call.
 
-**Shell dimensions:** `--hub-header-h: 52px` · `--hub-bus-h`/`--hub-footer-h: 28px` ·
-`--hub-sidebar-w: 200px` (collapsed `40px`) · `--hub-rail-w: 56px` · `--hub-title-h: 34px`
-· `--hub-widget-pad: 12px` · `--hub-grid: 40px` (the canvas-grid pitch).
+**Grid:** `--hub-grid: 40px` (the canvas-grid pitch). The shell-dimension and widget-tuning
+tokens (`--hub-header-h`, `--hub-sidebar-w`, `--hub-widget-pad`, …) had no reader and were
+retired 2026-09-30; each shell sizes its own chrome.
 
 **The canvas — one measure per page.** A full-page view's **outermost** element is the
 canvas, and *everything lives inside it, rails included*. Panes never re-centre themselves:
@@ -396,7 +395,7 @@ Mobile needs no second implementation — term 1 wins outright and the gutter dr
 | `.jk-canvas-fill` | + fill a flex parent as a column (a full-height app page) |
 | `.jk-canvas-foot` | the optional bottom anchor: `margin-top:auto` + a tapered ink rule. A `.jk-colophon` inside sets on one line. BeigeBoard renders none — see "Vertical" below |
 
-**Rails** are one width, `--jk-rail: 360px` (`--jk-rail-sm: 260px`; `300px` on tablet, `100%`
+**Rails** are one width, `--jk-rail: 360px` (`300px` on tablet, `100%`
 on mobile where a rail stacks). A rail is a pane *inside* the canvas — never a sibling of
 the window.
 
@@ -435,7 +434,6 @@ override only the inputs and derivation follows:
 | Token | Desktop | Tablet ≤1023 | Mobile ≤767 |
 |---|---|---|---|
 | `--hub-tap-min` (tap floor) | `0px` | `44px` | `44px` |
-| `--hub-widget-pad` | `12px` | `14px` | `14px` |
 | `--hub-fs-bubble` / `-lg` | `9px` / `11px` | — | `11px` / `13px` |
 | `--hub-pad-bubble` / `-lg` | `5px 11px` / `7px 14px` | — | `7px 13px` / `9px 16px` |
 | `--hub-fs-pill` / `--hub-pad-pill` | `8px` / `4px 9px` | — | `10px` / `6px 11px` |
@@ -817,9 +815,9 @@ Class families: `.player-bar`, `.pb-left/center/right`, `.pb-meta` (artwork is `
   - `light` / `dark`: neutrals with friendly keys mapping 1:1 onto tokens — `bg0..bg4`,
     `screen`, `screenLine`, `metal0..2`, `bevelLight/Dark`, `line/lineStrong/lineBright`,
     `cream/creamBright/creamDim/creamFaint`
-  - `radius: { base, xs, sm, lg, soft, widget, button }`
+  - `radius: { base, xs, sm, lg, soft, button }`
   - `fonts: { mono, sans, seg, serif }`
-  - `responsive: { tablet?, mobile? }` with `tapMin/widgetPad/fsBubble(...)/fsLab(...)` keys
+  - `responsive: { tablet?, mobile? }` with `tapMin/fsBubble(...)/fsLab(...)` keys
   - `grain: false` to opt out · `selector` (default `:root`; e.g. `'html.od-v2'` scopes a
     subtree while derivation on `:root` still reads the inputs)
 - `applyJkOSMode('system'|'light'|'dark') → isDark` — stamps `data-mode`, persists to

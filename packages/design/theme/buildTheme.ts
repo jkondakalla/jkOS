@@ -44,7 +44,7 @@ export interface JkOSNeutrals {
  *  default. `xs` is the tiny-control rung (checkboxes, swatches). */
 export interface JkOSRadius {
   base?: string;  xs?: string;  sm?: string;  lg?: string;
-  soft?: string;  widget?: string;  button?: string;
+  soft?: string;  button?: string;
 }
 
 export interface JkOSFonts {
@@ -55,7 +55,7 @@ export interface JkOSFonts {
  *  key maps 1:1 onto a `--hub-*` scale token; set only what an app wants to tune.
  *  Apps need NOT set this — hub.css ships sensible tablet/mobile defaults. */
 export interface JkOSResponsiveScale {
-  tapMin?: string;  widgetPad?: string;
+  tapMin?: string;
   fsBubble?: string;  fsBubbleLg?: string;  padBubble?: string;  padBubbleLg?: string;
   fsPill?: string;  padPill?: string;
   fsTbtn?: string;  padTbtn?: string;
@@ -106,7 +106,7 @@ const NEUTRAL_VARS: Record<keyof JkOSNeutrals, string> = {
 
 const RADIUS_VARS: Record<keyof JkOSRadius, string> = {
   base: '--hub-radius', xs: '--hub-radius-xs', sm: '--hub-radius-sm', lg: '--hub-radius-lg',
-  soft: '--hub-radius-soft', widget: '--hub-radius-widget', button: '--hub-radius-button',
+  soft: '--hub-radius-soft', button: '--hub-radius-button',
 };
 
 const FONT_VARS: Record<keyof JkOSFonts, string> = {
@@ -114,7 +114,7 @@ const FONT_VARS: Record<keyof JkOSFonts, string> = {
 };
 
 const SCALE_VARS: Record<keyof JkOSResponsiveScale, string> = {
-  tapMin: '--hub-tap-min', widgetPad: '--hub-widget-pad',
+  tapMin: '--hub-tap-min',
   fsBubble: '--hub-fs-bubble', fsBubbleLg: '--hub-fs-bubble-lg',
   padBubble: '--hub-pad-bubble', padBubbleLg: '--hub-pad-bubble-lg',
   fsPill: '--hub-fs-pill', padPill: '--hub-pad-pill',

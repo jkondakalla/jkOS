@@ -1,6 +1,6 @@
 {
   "note": "Measured by test/token-identity.mjs from a real headless Chromium at the desktop, tablet and mobile widths. Per token: the desktop light/dark values, plus a tier entry only where that tier differs. Regenerate with `pnpm check:token-identity --update`; the diff is the review.",
-  "tokens": 152,
+  "tokens": 132,
   "widths": {
     "desktop": 1280,
     "tablet": 900,
@@ -45,16 +45,6 @@
       "dark": {
         "value": "0 0 16px color-mix(in srgb, #ffb000 38%, transparent)",
         "used": null
-      }
-    },
-    "--accent-halo-glow": {
-      "light": {
-        "value": "color-mix(in srgb, color-mix(in srgb, #ffb000   64%, #2a1c0e) 30%, transparent)",
-        "used": "color(srgb 0.699294 0.481255 0.0197647 / 0.3)"
-      },
-      "dark": {
-        "value": "color-mix(in srgb, #ffb000 38%, transparent)",
-        "used": "color(srgb 1 0.690196 0 / 0.38)"
       }
     },
     "--accent-halo-text": {
@@ -407,16 +397,6 @@
         "used": null
       }
     },
-    "--grain-opacity": {
-      "light": {
-        "value": "0.036",
-        "used": null
-      },
-      "dark": {
-        "value": "0.06",
-        "used": null
-      }
-    },
     "--hub-accent-press": {
       "light": {
         "value": "inset 0 2px 3px color-mix(in srgb, #1c1408 32%, transparent),\n    inset 0 -1px 1px color-mix(in srgb, #ffffff 55%, transparent),\n    0 1px 0 color-mix(in srgb, #ffffff 45%, transparent)",
@@ -545,36 +525,6 @@
       "dark": {
         "value": "#38321f",
         "used": "rgb(56, 50, 31)"
-      }
-    },
-    "--hub-bus-h": {
-      "light": {
-        "value": "28px",
-        "used": null
-      },
-      "dark": {
-        "value": "28px",
-        "used": null
-      }
-    },
-    "--hub-clip-title": {
-      "light": {
-        "value": "none",
-        "used": null
-      },
-      "dark": {
-        "value": "none",
-        "used": null
-      }
-    },
-    "--hub-clip-widget": {
-      "light": {
-        "value": "none",
-        "used": null
-      },
-      "dark": {
-        "value": "none",
-        "used": null
       }
     },
     "--hub-cream": {
@@ -724,16 +674,6 @@
       },
       "dark": {
         "value": "'Fraunces', Georgia, 'Times New Roman', serif",
-        "used": null
-      }
-    },
-    "--hub-footer-h": {
-      "light": {
-        "value": "28px",
-        "used": null
-      },
-      "dark": {
-        "value": "28px",
         "used": null
       }
     },
@@ -917,16 +857,6 @@
         }
       }
     },
-    "--hub-glow-mul": {
-      "light": {
-        "value": "0.5",
-        "used": null
-      },
-      "dark": {
-        "value": "1",
-        "used": null
-      }
-    },
     "--hub-grain-image": {
       "light": {
         "value": "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='jkg'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23jkg)' opacity='0.495'/%3E%3C/svg%3E\")",
@@ -974,16 +904,6 @@
       },
       "dark": {
         "value": "40px",
-        "used": null
-      }
-    },
-    "--hub-header-h": {
-      "light": {
-        "value": "52px",
-        "used": null
-      },
-      "dark": {
-        "value": "52px",
         "used": null
       }
     },
@@ -1307,16 +1227,6 @@
         "used": null
       }
     },
-    "--hub-radius-widget": {
-      "light": {
-        "value": "8px",
-        "used": null
-      },
-      "dark": {
-        "value": "8px",
-        "used": null
-      }
-    },
     "--hub-radius-xs": {
       "light": {
         "value": "4px",
@@ -1324,16 +1234,6 @@
       },
       "dark": {
         "value": "4px",
-        "used": null
-      }
-    },
-    "--hub-rail-w": {
-      "light": {
-        "value": "56px",
-        "used": null
-      },
-      "dark": {
-        "value": "56px",
         "used": null
       }
     },
@@ -1345,16 +1245,6 @@
       "dark": {
         "value": "#ff4530",
         "used": "rgb(255, 69, 48)"
-      }
-    },
-    "--hub-red-dim": {
-      "light": {
-        "value": "color-mix(in srgb, #b42010 60%, #000000)",
-        "used": "color(srgb 0.423529 0.0752941 0.0376471)"
-      },
-      "dark": {
-        "value": "#6b1c14",
-        "used": "rgb(107, 28, 20)"
       }
     },
     "--hub-red-glow": {
@@ -1447,16 +1337,6 @@
         "used": "color(srgb 1 0.690196 0 / 0.18)"
       }
     },
-    "--hub-shadow-amber": {
-      "light": {
-        "value": "0 0 6px color-mix(in srgb, color-mix(in srgb, #ffb000   64%, #2a1c0e) 30%, transparent)",
-        "used": null
-      },
-      "dark": {
-        "value": "0 0 6px color-mix(in srgb, #ffb000 38%, transparent)",
-        "used": null
-      }
-    },
     "--hub-shadow-card": {
       "light": {
         "value": "0 2px 8px color-mix(in srgb, #1c1408 10%, transparent),\n                       0 0 0 1px #c8ae88",
@@ -1485,36 +1365,6 @@
       "dark": {
         "value": "rgba(24, 16, 8, 0.20)",
         "used": "rgba(24, 16, 8, 0.2)"
-      }
-    },
-    "--hub-shadow-widget": {
-      "light": {
-        "value": "0 0 0 1px color-mix(in srgb, color-mix(in srgb, #ffb000   64%, #2a1c0e) 72%, #1a0a00)",
-        "used": null
-      },
-      "dark": {
-        "value": "0 0 0 1px color-mix(in srgb, #ffb000 72%, #1a1400)",
-        "used": null
-      }
-    },
-    "--hub-sidebar-collapsed": {
-      "light": {
-        "value": "40px",
-        "used": null
-      },
-      "dark": {
-        "value": "40px",
-        "used": null
-      }
-    },
-    "--hub-sidebar-w": {
-      "light": {
-        "value": "200px",
-        "used": null
-      },
-      "dark": {
-        "value": "200px",
-        "used": null
       }
     },
     "--hub-tap-min": {
@@ -1547,16 +1397,6 @@
         }
       }
     },
-    "--hub-title-h": {
-      "light": {
-        "value": "34px",
-        "used": null
-      },
-      "dark": {
-        "value": "34px",
-        "used": null
-      }
-    },
     "--hub-warn": {
       "light": {
         "value": "#a04010",
@@ -1575,56 +1415,6 @@
       "dark": {
         "value": "color-mix(in srgb, #fbbf24 11%, #232019)",
         "used": "color(srgb 0.230431 0.194078 0.102784)"
-      }
-    },
-    "--hub-widget-bg-alpha": {
-      "light": {
-        "value": "1",
-        "used": null
-      },
-      "dark": {
-        "value": "1",
-        "used": null
-      }
-    },
-    "--hub-widget-blur": {
-      "light": {
-        "value": "none",
-        "used": null
-      },
-      "dark": {
-        "value": "none",
-        "used": null
-      }
-    },
-    "--hub-widget-pad": {
-      "light": {
-        "value": "12px",
-        "used": null
-      },
-      "dark": {
-        "value": "12px",
-        "used": null
-      },
-      "tablet": {
-        "light": {
-          "value": "14px",
-          "used": null
-        },
-        "dark": {
-          "value": "14px",
-          "used": null
-        }
-      },
-      "mobile": {
-        "light": {
-          "value": "14px",
-          "used": null
-        },
-        "dark": {
-          "value": "14px",
-          "used": null
-        }
       }
     },
     "--jk-canvas": {
@@ -1765,16 +1555,6 @@
           "value": "100%",
           "used": null
         }
-      }
-    },
-    "--jk-rail-sm": {
-      "light": {
-        "value": "260px",
-        "used": null
-      },
-      "dark": {
-        "value": "260px",
-        "used": null
       }
     }
   }

@@ -65,7 +65,6 @@
 
   /* Semantic status (constants, not accent-derived) */
   --hub-red:        #b42010;
-  --hub-red-dim:    color-mix(in srgb, #b42010 60%, #000000);
   --hub-red-glow:   color-mix(in srgb, #b42010 22%, transparent);
   --hub-green:      #2a7040;
   --hub-green-glow: color-mix(in srgb, #2a7040 22%, transparent);
@@ -98,7 +97,6 @@
   --hub-radius-sm:        6px;
   --hub-radius-lg:        10px;
   --hub-radius-soft:      10px;
-  --hub-radius-widget:    8px;
   --hub-radius-button:    5px;
 
   /* ── The CANVAS (the MEASURE axis) ─────────────────────────────────────────
@@ -139,7 +137,6 @@
   /* Rails — the ONE width for an in-canvas side pane, so a rail carries the
      same weight in every view instead of BeigeBoard's old 388 / 340 / 220. */
   --jk-rail:    360px;
-  --jk-rail-sm: 260px;
 
   /* ── Responsive card scale (the VIEWPORT axis) ──────────────────────────────
    * Card primitives consume these instead of literal px, so they scale by tier.
@@ -181,25 +178,7 @@
   --hub-media-grid-gap:         0.85rem;
   --hub-media-grid-gap-tight:   0.75rem;
 
-  /* Widget layout tuning */
-  --hub-widget-pad:       12px;
-  --hub-title-h:          34px;
-  --hub-glow-mul:         0.5;
-  --hub-clip-widget:      none;
-  --hub-clip-title:       none;
-  --hub-widget-blur:      none;
-  --hub-widget-bg-alpha:  1;
-
-  /* Shell layout */
-  --hub-header-h:          52px;
-  --hub-bus-h:             28px;
-  --hub-footer-h:          28px;
-  --hub-sidebar-w:         200px;
-  --hub-sidebar-collapsed: 40px;
-  --hub-rail-w:            56px;
-
   /* Grain + CRT effects (CRT off in paper mode) */
-  --grain-opacity: 0.036;
   --grain-blend:   multiply;
   /* Film grain — a suite-wide DEFAULT texture for BACKGROUNDS only. Opacity is
      baked into the noise alpha: 0.495 on paper (multiply against warm beige needs
@@ -288,8 +267,6 @@
   --hub-warn-soft:  color-mix(in srgb, var(--color-warn) 11%, var(--hub-bg-2));
 
   /* Shadows */
-  --hub-shadow-amber:  0 0 6px var(--hub-amber-glow);
-  --hub-shadow-widget: 0 0 0 1px var(--hub-amber-dim);
   --hub-shadow-inset:  inset 0 1px 0 var(--hub-bevel-light), inset 0 -1px 0 var(--hub-bevel-dark);
   --hub-shadow-card:   0 2px 8px color-mix(in srgb, var(--hub-cream-bright) 10%, transparent),
                        0 0 0 1px var(--hub-line);
@@ -391,9 +368,8 @@
      `none` here and the dark block below lights them up. Anything coloured with
      the primary accent emits in dark mode — wire it with `box-shadow:
      var(--accent-halo)`, `text-shadow: var(--accent-halo-text)`, or the
-     .jk-halo / .jk-halo-text utility classes. --accent-halo-glow is the bare
-     colour, for call sites that compose their own multi-layer shadow. */
-  --accent-halo-glow: var(--color-accent-glow);
+     .jk-halo / .jk-halo-text utility classes. A call site composing its own
+     multi-layer shadow takes the bare colour from --color-accent-glow. */
   --accent-halo:      none;
   --accent-halo-text: none;
 
@@ -446,7 +422,6 @@
   --hub-cream-faint:  #5a543f;
 
   --hub-red:        #ff4530;
-  --hub-red-dim:    #6b1c14;
   --hub-red-glow:   rgba(255, 69, 48, 0.4);
   --hub-green:      #5cd66a;
   --hub-green-glow: rgba(92, 214, 106, 0.35);
@@ -455,10 +430,8 @@
   --color-warn:   #fbbf24;
   --color-danger: #f87171;
 
-  --grain-opacity: 0.06;
   --grain-blend:   screen;
   --hub-grain-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='jkg'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23jkg)' opacity='0.135'/%3E%3C/svg%3E");
-  --hub-glow-mul: 1;
   --crt-scanline-opacity: 0.012;
   --crt-vignette-opacity: 0.45;
   --crt-scanline-ink: #ffffff;
@@ -532,7 +505,6 @@
 
   /* Halation lights up in CRT: every primary-accent element emits. The text
      halo is tighter than the box halo so accent type stays legible. */
-  --accent-halo-glow: var(--color-accent-glow);
   --accent-halo:      0 0 16px var(--color-accent-glow);
   --accent-halo-text: 0 0 12px var(--color-accent-glow);
 
@@ -2732,11 +2704,10 @@ dialog::backdrop { background: var(--hub-scrim); }
  * ─────────────────────────────────────────────────────────────────────────── */
 
 /* TABLET — 768–1023px. Touch device, but desktop reading density holds; we only
-   raise the tap-target floor and give widget chrome a touch more breathing room. */
+   raise the tap-target floor. */
 @media (max-width: 1023px) {
   :root {
     --hub-tap-min:    44px;
-    --hub-widget-pad: 14px;
     /* The canvas needs no tier logic — below ~1440px its "window minus gutters"
        term already wins, so the sheet simply fills. All a touch tier has to do
        is give back the desk margin as usable width. */
@@ -2750,7 +2721,6 @@ dialog::backdrop { background: var(--hub-scrim); }
 @media (max-width: 767px) {
   :root {
     --hub-tap-min:       44px;
-    --hub-widget-pad:    14px;
     /* Phone: the sheet IS the screen. No desk to show, and a rail that stacks
        below the content is full-width, so --jk-rail stops meaning anything
        horizontal — it becomes the stacked block's max width. */
