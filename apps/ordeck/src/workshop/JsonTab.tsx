@@ -15,6 +15,7 @@ import { checkBindings } from '@jkos/widgets/semantic';
 import { fetchCapabilities, fetchDatasets, suiteApps, type AppId, type CapabilityDoc, type DatasetDoc } from '@jkos/weave';
 import { HUD_SLICES } from '../hud/slices';
 import type { WidgetDef } from '../hud/types';
+import { TextArea } from '@jkos/ui';
 
 type Docs = Record<string, { capabilities: CapabilityDoc | null; datasets: DatasetDoc | null }>;
 
@@ -67,7 +68,7 @@ export function JsonTab({ def, onLoad }: { def: WidgetDef; onLoad: (d: WidgetDef
         </span>
       </div>
       <div className="wj-body">
-        <textarea id="widget-json" className="wj-text" spellCheck={false} value={text} onChange={(e) => setText(e.target.value)} />
+        <TextArea id="widget-json" className="wj-text" spellCheck={false} value={text} onChange={(e) => setText(e.target.value)} />
         <div className="wj-problems" aria-live="polite">
           {parsed.error ? <p className="wj-bad">Not JSON — {parsed.error}</p>
             : problems.length === 0 ? <p className="wj-ok">Both tiers pass: the structure jkAuth checks at publish, and every binding against what its apps declare.</p>

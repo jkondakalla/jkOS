@@ -957,11 +957,8 @@ a.hud-card:hover { box-shadow: var(--od-shadow-lift); transform: translateY(-1px
 .wj-btn:disabled { opacity: 0.4; cursor: default; }
 .wj-body { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 14px; align-items: start; }
 @media (max-width: 900px) { .wj-body { grid-template-columns: minmax(0, 1fr); } }
-.wj-text {
-  width: 100%; min-height: 60vh; resize: vertical; font-family: var(--hub-font-mono); font-size: 12px; line-height: 1.5;
-  color: var(--hub-cream-bright); background: var(--hub-bg-1); border: 1px solid var(--hub-line);
-  border-radius: var(--hub-radius-sm); padding: 12px; tab-size: 2;
-}
+/* The field primitive (<TextArea>) draws the recess; this only sets it as code. */
+.wj-text { width: 100%; min-height: 60vh; font-family: var(--hub-font-mono); font-size: 12px; line-height: 1.5; tab-size: 2; }
 .wj-problems { font-size: 12px; color: var(--hub-cream); }
 .wj-problems ol { margin: 0; padding-left: 18px; display: grid; gap: 10px; }
 .wj-problems code { font-family: var(--hub-font-mono); font-size: 11px; color: var(--hub-cream-bright); }
