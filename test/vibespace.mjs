@@ -263,7 +263,7 @@ check(g.scrubTo(0.5, -100, 400) === 0.75 && g.scrubTo(0.5, 100, 400) === 0.25 &&
 {
   const lab = (rgb) => { const [L, C, h] = scene.srgbToOklch(rgb); return [L, C * Math.cos(h), C * Math.sin(h)]; };
   const dE = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
-  // hub.css --hub-bg-0 per face — the ground every glint and the haze are drawn on.
+  // hub.css --color-paper per face — the ground every glint and the haze are drawn on.
   const surfaces = { dark: [0x11, 0x10, 0x0d], paper: [0xed, 0xe2, 0xc8] };
   for (const face of ['dark', 'paper']) {
     // Neighbours, everywhere in the plane: steps of δ along x and z on a 201² grid.

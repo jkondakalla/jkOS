@@ -102,7 +102,7 @@ export function TimeBlock({
           top,
           height: Math.min(height, 22),
           background: accent,
-          borderRadius: 'var(--hub-radius-soft)',
+          borderRadius: 'var(--jk-radius-soft)',
           opacity: 0.28,
           zIndex: 8,
           pointerEvents: 'none',
@@ -117,7 +117,7 @@ export function TimeBlock({
     variant: 'solid',
     state,
     selected: isSelected,
-    radius: 'var(--hub-radius-soft)',
+    radius: 'var(--jk-radius-soft)',
   });
 
   return (

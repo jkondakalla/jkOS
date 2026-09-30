@@ -30,8 +30,8 @@ html body {
   margin: 0;
   background: var(--color-paper);
   color: var(--color-ink);
-  font-family: var(--hub-font-mono);
+  font-family: var(--jk-font-mono);
 }
 
-button { border-radius: var(--hub-radius-button); font-family: inherit; }
+button { border-radius: var(--jk-radius-button); font-family: inherit; }
 button:focus, input:focus, select:focus { outline: none; }

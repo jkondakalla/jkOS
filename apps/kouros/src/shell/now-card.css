@@ -11,35 +11,35 @@
   align-items: stretch;
   margin-bottom: 1.25rem;
   padding: 0.8rem;
-  border-radius: var(--hub-radius-xs);
+  border-radius: var(--jk-radius-xs);
   text-decoration: none;
   color: inherit;
-  box-shadow: inset 0 0 0 1px var(--hub-line);
+  box-shadow: inset 0 0 0 1px var(--color-line);
 }
 /* A book sits on a filled card; music sits on bare ground with a hairline. The
    book is the heavier object, and the chrome says so. */
-.kr-nowcard.is-book { background: var(--hub-bg-1); }
+.kr-nowcard.is-book { background: var(--color-paper-2); }
 
 .kr-nowcard-art {
   position: relative;
   flex: none;
   width: 108px;
   height: 108px;
-  border-radius: var(--hub-radius-xs);
+  border-radius: var(--jk-radius-xs);
   overflow: hidden;
   /* ⚠️ backgroundColor, never the `background` shorthand: React's diff does not
      restore backgroundImage after a shorthand write, so the art would vanish on
      the next render with nothing thrown. */
-  background-color: var(--hub-bg-3);
+  background-color: var(--color-card-2);
   background-size: cover;
   background-position: center;
-  box-shadow: var(--hub-shadow-card);
+  box-shadow: var(--color-shadow-card);
 }
 /* The spine: 2:3, square on the bound edge and rounded on the fore edge. */
 .kr-nowcard.is-book .kr-nowcard-art {
   width: 84px;
   height: 126px;
-  border-radius: 1px var(--hub-radius-xs) var(--hub-radius-xs) 1px;
+  border-radius: 1px var(--jk-radius-xs) var(--jk-radius-xs) 1px;
 }
 .kr-nowcard-gutter {
   position: absolute;
@@ -47,7 +47,7 @@
   top: 0;
   bottom: 0;
   width: 7px;
-  background: var(--hub-cream);
+  background: var(--color-muted);
   opacity: 0.5;
 }
 
@@ -63,34 +63,34 @@
 
 .kr-nowcard-pill {
   padding: 3px 7px;
-  border-radius: var(--hub-radius-xs);
-  font-family: var(--hub-font-mono);
+  border-radius: var(--jk-radius-xs);
+  font-family: var(--jk-font-mono);
   font-size: 8.5px;
   letter-spacing: 0.18em;
-  color: var(--hub-cream-dim);
-  box-shadow: inset 0 0 0 1px var(--hub-line);
+  color: var(--color-faint);
+  box-shadow: inset 0 0 0 1px var(--color-line);
 }
 /* Solid on a book, outlined on music — the same one-glance distinction the
    shape makes, carried into the type. */
 .kr-nowcard.is-book .kr-nowcard-pill {
-  background: var(--hub-cream);
-  color: var(--hub-bg-0);
+  background: var(--color-muted);
+  color: var(--color-paper);
   box-shadow: none;
 }
 
 .kr-nowcard-state {
-  font-family: var(--hub-font-mono);
+  font-family: var(--jk-font-mono);
   font-size: 9px;
   letter-spacing: 0.14em;
-  color: var(--hub-cream-faint);
+  color: var(--color-ghost);
 }
 
 .kr-nowcard-title {
-  font-family: var(--hub-font-serif);
+  font-family: var(--jk-font-serif);
   font-weight: 600;
   font-size: 1.15rem;
   line-height: 1.15;
-  color: var(--hub-cream);
+  color: var(--color-muted);
   /* A long book title must not push the ladder out of the card. */
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -99,10 +99,10 @@
 }
 
 .kr-nowcard-byline {
-  font-family: var(--hub-font-mono);
+  font-family: var(--jk-font-mono);
   font-size: 10px;
   letter-spacing: 0.13em;
-  color: var(--hub-cream-dim);
+  color: var(--color-faint);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -113,14 +113,14 @@
   position: relative;
   height: 2px;
   margin-top: auto;
-  background: var(--hub-bg-3);
+  background: var(--color-card-2);
 }
 .kr-nowcard-fill {
   position: absolute;
   left: 0;
   top: 0;
   bottom: 0;
-  background: var(--accent, var(--hub-cream));
+  background: var(--color-accent, var(--color-muted));
 }
 
 /* ── A book: a discrete ladder ───────────────────────────────────────────── */
@@ -139,17 +139,17 @@
   min-width: 2px;
   height: 55%;
   border-radius: 1px;
-  background: var(--hub-bg-4);
+  background: var(--color-lit);
 }
-.kr-nowcard-rung.is-done { background: var(--hub-cream-faint); }
-.kr-nowcard-rung.is-now { height: 100%; background: var(--hub-cream); }
+.kr-nowcard-rung.is-done { background: var(--color-ghost); }
+.kr-nowcard-rung.is-now { height: 100%; background: var(--color-muted); }
 
 .kr-nowcard-foot {
   display: flex;
   justify-content: space-between;
   gap: 0.5rem;
-  font-family: var(--hub-font-mono);
+  font-family: var(--jk-font-mono);
   font-size: 9.5px;
   letter-spacing: 0.1em;
-  color: var(--hub-cream-faint);
+  color: var(--color-ghost);
 }

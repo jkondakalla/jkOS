@@ -52,7 +52,7 @@ if (!document.documentElement.hasAttribute('data-mode')) {
 // fonts.serif input here is gone — BeigeBoard inherits the print voice for
 // free (the webfont still loads from index.html). Radius stays a first-class
 // per-app input: BeigeBoard runs its own rounder scale over the hub print
-// scale. Every BeigeBoard shape reads these --hub-radius-* tokens (no
+// scale. Every BeigeBoard shape reads these --jk-radius-* tokens (no
 // hardcoded radii), so the whole app retunes from this one call. Accents stay
 // user-driven (applyJkOSTheme, in useJkOSPreferences).
 injectJkOSTheme({
@@ -510,7 +510,7 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
           /* The old global SVG #halation lens filter was removed: it could only
              bloom WARM pixels, so it reddened the whole UI and made warm-accent
              (rust) cards halo while cool (sage) ones didn't. Halation is now the
-             per-element, colour-correct --accent-halo token from @jkos/design. */
+             per-element, colour-correct --hub-halo token from @jkos/design. */
         }}>
           {/* The header animates ONCE, on app boot — it doesn't remount on tab
               change, so it must not carry the view's cascade. Each view then

@@ -64,14 +64,14 @@ export function pathSuggestions(src: string): string[] {
 // face of its own, so it states one rather than borrowing an input's.
 const field: CSSProperties = { minWidth: 0 };
 const ghostBtn: CSSProperties = {
-  background: 'var(--hub-bg-0)', border: '1px solid var(--hub-line)', color: 'var(--hub-cream-bright)',
-  fontFamily: 'var(--hub-font-mono)', fontSize: 12, padding: '5px 8px',
-  borderRadius: 'var(--hub-radius-sm)', minWidth: 0, cursor: 'pointer',
+  background: 'var(--color-paper)', border: '1px solid var(--color-line)', color: 'var(--color-ink)',
+  fontFamily: 'var(--jk-font-mono)', fontSize: 12, padding: '5px 8px',
+  borderRadius: 'var(--jk-radius-sm)', minWidth: 0, cursor: 'pointer',
 };
 const rowLine: CSSProperties = { display: 'flex', gap: 6, alignItems: 'center', marginTop: 6 };
-const hintStyle: CSSProperties = { fontSize: 11, lineHeight: 1.5, color: 'var(--hub-cream-dim)', margin: '8px 0 0' };
+const hintStyle: CSSProperties = { fontSize: 11, lineHeight: 1.5, color: 'var(--color-faint)', margin: '8px 0 0' };
 const tag = (t: string) => (
-  <span style={{ fontFamily: 'var(--hub-font-mono)', fontSize: 10, letterSpacing: '0.06em', color: 'var(--hub-cream-dim)', width: 64, flex: 'none' }}>{t}</span>
+  <span style={{ fontFamily: 'var(--jk-font-mono)', fontSize: 10, letterSpacing: '0.06em', color: 'var(--color-faint)', width: 64, flex: 'none' }}>{t}</span>
 );
 
 function Line({ t, children }: { t: string; children: ReactNode }) {
@@ -91,7 +91,7 @@ const clampN = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, 
 function Num({ label, value, min, max, onChange }: { label: string; value: number; min: number; max: number; onChange: (n: number) => void }) {
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-      <span style={{ fontFamily: 'var(--hub-font-mono)', fontSize: 10, color: 'var(--hub-cream-faint)' }}>{label}</span>
+      <span style={{ fontFamily: 'var(--jk-font-mono)', fontSize: 10, color: 'var(--color-ghost)' }}>{label}</span>
       <NumField min={min} max={max} value={value} onChange={(e) => onChange(clampN(Number(e.target.value), min, max))} wrapperStyle={{ ...field, width: 48 }} />
     </span>
   );
@@ -125,7 +125,7 @@ function BindField({ value, onChange, sources, optional }: {
             placeholder="field" onChange={(e) => emit({ ...b, path: e.target.value })} />
         </>
       )}
-      {note && <span style={{ flexBasis: '100%', fontFamily: 'var(--hub-font-mono)', fontSize: 10, color: 'var(--hub-cream-faint)', overflowWrap: 'anywhere' }}>{note}</span>}
+      {note && <span style={{ flexBasis: '100%', fontFamily: 'var(--jk-font-mono)', fontSize: 10, color: 'var(--color-ghost)', overflowWrap: 'anywhere' }}>{note}</span>}
     </span>
   );
 }
@@ -152,7 +152,7 @@ function ToneField({ value, onChange, sources }: {
           <Select value={data.src} onChange={(s) => onChange({ ...data, src: s } as ToneBinding)} options={sources} />
           <Field style={{ ...field, flex: 1 }} value={data.path || ''} placeholder="field"
             onChange={(e) => { const { path: _old, ...rest } = data; onChange({ ...rest, ...(e.target.value ? { path: e.target.value } : {}) } as ToneBinding); }} />
-          {note && <span style={{ flexBasis: '100%', fontFamily: 'var(--hub-font-mono)', fontSize: 10, color: 'var(--hub-cream-faint)', overflowWrap: 'anywhere' }}>{note}</span>}
+          {note && <span style={{ flexBasis: '100%', fontFamily: 'var(--jk-font-mono)', fontSize: 10, color: 'var(--color-ghost)', overflowWrap: 'anywhere' }}>{note}</span>}
         </>
       ) : (
         <Select value={typeof value === 'string' ? value : 'ok'} onChange={(v) => onChange(v as Tone)} options={TONES} />
@@ -254,10 +254,10 @@ function CommandEditor({ cmd, sources, allowInputs, onChange }: {
             const b = body[f.name];
             const mode = fmModeOf(b);
             return (
-              <div key={f.name} style={{ borderTop: '1px solid var(--hub-line)', marginTop: 8, paddingTop: 6 }}>
+              <div key={f.name} style={{ borderTop: '1px solid var(--color-line)', marginTop: 8, paddingTop: 6 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontFamily: 'var(--hub-font-mono)', fontSize: 11, color: 'var(--hub-cream)' }}>
-                    {f.name}{f.required ? ' *' : ''} <span style={{ color: 'var(--hub-cream-faint)' }}>· {f.type}</span>
+                  <span style={{ fontFamily: 'var(--jk-font-mono)', fontSize: 11, color: 'var(--color-muted)' }}>
+                    {f.name}{f.required ? ' *' : ''} <span style={{ color: 'var(--color-ghost)' }}>· {f.type}</span>
                   </span>
                   <span style={{ marginLeft: 'auto' }}>
                     <Select value={mode} onChange={(m) => setField(f, m as FMMode)} options={modes} />
@@ -295,7 +295,7 @@ function CommandEditor({ cmd, sources, allowInputs, onChange }: {
 function PropLine({ name, spec, children }: { name: string; spec: PropSpec; children: ReactNode }) {
   return (
     <div style={rowLine} title={spec.doc}>
-      <span style={{ fontFamily: 'var(--hub-font-mono)', fontSize: 10, letterSpacing: '0.06em', color: 'var(--hub-cream-dim)', width: 72, flex: 'none', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+      <span style={{ fontFamily: 'var(--jk-font-mono)', fontSize: 10, letterSpacing: '0.06em', color: 'var(--color-faint)', width: 72, flex: 'none', overflow: 'hidden', textOverflow: 'ellipsis' }}>
         {name}{spec.required ? ' *' : ''}
       </span>
       {children}
@@ -476,8 +476,8 @@ export function Inspector(p: InspectorProps) {
           <span className="hud-eyebrow">DATA SOURCES</span>
           <p style={hintStyle}>HUD slices ({HUD_SOURCES.join(', ')}) are always available. Suite data is a dataset an app declares — <code>{'{ kind: "dataset", app, dataset }'}</code>. Below: an EXTERNAL public https endpoint (no cookies are sent; a suite URL is refused).</p>
           {Object.entries(idn.declared).map(([name, s]) => (
-            <div key={name} style={{ ...rowLine, fontFamily: 'var(--hub-font-mono)', fontSize: 11, color: 'var(--hub-cream-dim)' }}>
-              <span style={{ color: 'var(--hub-cream)' }}>{name}</span>
+            <div key={name} style={{ ...rowLine, fontFamily: 'var(--jk-font-mono)', fontSize: 11, color: 'var(--color-faint)' }}>
+              <span style={{ color: 'var(--color-muted)' }}>{name}</span>
               <span>{s.kind === 'dataset' ? `${s.app}.${s.dataset}${s.params ? ` ${JSON.stringify(s.params)}` : ''}` : s.kind}</span>
             </div>
           ))}
@@ -506,7 +506,7 @@ export function Inspector(p: InspectorProps) {
         <span className="hud-eyebrow">{entry.label.toUpperCase()}</span>
         <span style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
           <button style={ghostBtn} onClick={() => p.onDuplicate(sel.id)}>duplicate</button>
-          <button style={{ ...ghostBtn, color: 'var(--hub-red)' }} onClick={() => p.onDelete(sel.id)}>delete</button>
+          <button style={{ ...ghostBtn, color: 'var(--color-danger)' }} onClick={() => p.onDelete(sel.id)}>delete</button>
         </span>
       </div>
 

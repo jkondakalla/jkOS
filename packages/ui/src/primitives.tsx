@@ -6,7 +6,7 @@ import type { ComponentPropsWithoutRef, CSSProperties, ElementType, HTMLAttribut
 
    Thin React wrappers over the two-accent classes in @jkos/design/tokens.css.
    Primary = struck/pressed into the paper (glows in CRT); secondary = flat, one
-   rung down. The user's accent pair flows in through --accent / --accent-secondary
+   rung down. The user's accent pair flows in through --color-accent / --color-secondary
    (deepened for paper, raw + glow for dark), so these never hardcode a colour and
    always respond to the chosen pair + mode.
 
@@ -213,8 +213,8 @@ export function Pill<E extends ElementType = 'span'>({ as, className, children, 
 
 /** Progress meter — a `.bar-track` well with a tint-deepened fill.
  *
- *  The gradient runs from the tint deepened toward --bar-deepen-ink to the tint
- *  itself, which is exactly how --hub-amber-dim → --hub-amber works, generalised
+ *  The gradient runs from the tint deepened toward --hub-deepen-ink-meter to the tint
+ *  itself, which is exactly how --color-accent-dim → --color-accent works, generalised
  *  to an arbitrary per-item hue. It lived open-coded at six call sites before
  *  this, each inlining the deepen ink as a raw hex — a §13.3 fence violation
  *  that this component makes structurally unrepeatable.
@@ -223,7 +223,7 @@ export function Pill<E extends ElementType = 'span'>({ as, className, children, 
  *  5 on a rail card, 6 inside a branch row, 7 on the forge header. */
 export function Bar({
   value,
-  tint = 'var(--accent)',
+  tint = 'var(--color-accent)',
   height = 5,
   radius,
   className,
@@ -252,7 +252,7 @@ export function Bar({
         style={{
           width: `${pct}%`,
           height: '100%',
-          background: `linear-gradient(90deg, color-mix(in srgb, ${tint} 72%, var(--bar-deepen-ink)), ${tint})`,
+          background: `linear-gradient(90deg, color-mix(in srgb, ${tint} 72%, var(--hub-deepen-ink-meter)), ${tint})`,
         }}
       />
     </div>
@@ -292,7 +292,7 @@ export function EmptyState({
     >
       <span
         style={{
-          fontFamily: 'var(--hub-font-serif)',
+          fontFamily: 'var(--jk-font-serif)',
           fontStyle: 'italic',
           fontSize: 15,
           color: 'var(--color-muted)',

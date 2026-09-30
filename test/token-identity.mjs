@@ -7,7 +7,7 @@
  * Every other conformance check in this suite is a text scan. `check:design`
  * catches a token that is STALE and a primitive that is UNDEMOED; `check:tokens`
  * catches the jkAuth mirror drifting from hub.css. **Not one of them can tell you
- * a colour changed.** Rewrite `--hub-amber` from `#ffb000` to `#ffb100` and every
+ * a colour changed.** Rewrite `--hub-accent-raw` from `#ffb000` to `#ffb100` and every
  * gate in the repo stays green.
  *
  * Stage F is a 2,700-line restructure of exactly that file: naming the tiers,
@@ -257,7 +257,7 @@ const allKey = (entry) => { const f = faces(entry); return FACES.map((k) => key(
 
 /* Suffix affinity, for pairing renames when several new names share one value
  * (every 8px radius, every `none` halo): the new name that keeps the most of the
- * old one's tail is the likeliest heir, so the report reads `--hub-radius-sm →
+ * old one's tail is the likeliest heir, so the report reads `--jk-radius-sm →
  * --jk-radius-sm` instead of an arbitrary pairing that happens to pass. */
 const tail = (a, b) => {
   let i = 0;

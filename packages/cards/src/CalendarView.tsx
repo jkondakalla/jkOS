@@ -153,8 +153,8 @@ export function CalendarView({
           other three tabs. Unplaced work belongs on the Week bench strip. Kept
           behind a prop for any consumer that still wants the rail. */}
       {sidebar && (
-        <aside className="jk-scroll" style={{ width: 220, flexShrink: 0, borderRight: '1px solid var(--hub-line)', background: 'var(--color-paper-2)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <div style={{ padding: '16px 16px 12px', borderBottom: '1px solid var(--hub-line)' }}>
+        <aside className="jk-scroll" style={{ width: 220, flexShrink: 0, borderRight: '1px solid var(--color-line)', background: 'var(--color-paper-2)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ padding: '16px 16px 12px', borderBottom: '1px solid var(--color-line)' }}>
             <Eyebrow>Unscheduled · {unscheduled.length}</Eyebrow>
             <p style={{ fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 12, color: 'var(--color-muted)', margin: '4px 0 0', lineHeight: 1.35 }}>Drag onto a date to schedule</p>
           </div>
@@ -249,8 +249,8 @@ export function CalendarView({
                 }}
                 style={{
                   animationDelay: `${cellDelay(cell)}ms`,
-                  border: '1px solid var(--hub-line)',
-                  borderRadius: 'var(--hub-radius-xs)',
+                  border: '1px solid var(--color-line)',
+                  borderRadius: 'var(--jk-radius-xs)',
                   padding: '7px 9px',
                   display: 'flex',
                   flexDirection: 'column',
@@ -261,7 +261,7 @@ export function CalendarView({
                   background: isOver
                     ? 'color-mix(in srgb, var(--color-accent) 12%, transparent)'
                     : isToday
-                      ? 'color-mix(in srgb, var(--jk-tint, var(--accent)) 14%, var(--hub-bg-2))'
+                      ? 'color-mix(in srgb, var(--jk-tint, var(--color-accent)) 14%, var(--color-card))'
                       : 'var(--color-paper)',
                   boxShadow: isToday ? 'var(--hub-accent-press)' : 'none',
                   outline: isOver ? '1px dashed var(--color-accent)' : isTarget ? '1px dashed var(--color-accent-glow)' : 'none',

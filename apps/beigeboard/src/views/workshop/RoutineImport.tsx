@@ -488,7 +488,7 @@ function ResultCard({ routine: r, dryRun }: any) {
   return (
     <div style={{
       padding: '8px 10px', marginBottom: 8,
-      border: '1px solid var(--color-line)', borderRadius: 'var(--hub-radius-xs)',
+      border: '1px solid var(--color-line)', borderRadius: 'var(--jk-radius-xs)',
     }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
         <span style={{ fontFamily: FONT_HEAD, fontWeight: 700, fontSize: 14 }}>{r.title}</span>
@@ -512,8 +512,8 @@ function ResultCard({ routine: r, dryRun }: any) {
             {sessions.map((s: any, i: number) => (
               <div key={i} style={{
                 padding: '5px 8px',
-                border: '1px solid var(--color-line)', borderRadius: 'var(--hub-radius-xs)',
-                background: s.deload ? 'color-mix(in srgb, var(--hub-bg-4) 55%, transparent)' : 'transparent',
+                border: '1px solid var(--color-line)', borderRadius: 'var(--jk-radius-xs)',
+                background: s.deload ? 'color-mix(in srgb, var(--color-lit) 55%, transparent)' : 'transparent',
               }}>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
                   <span className="seg" style={{ fontSize: 11 }}>{String(i + 1).padStart(2, '0')}</span>

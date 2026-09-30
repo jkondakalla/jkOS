@@ -89,6 +89,6 @@ export function cardSurface(opts: CardSurfaceOpts): CardSurface {
 export function chipCheck(size: number): { className: string; style: CSSProperties } {
   return {
     className: 'jk-check',
-    style: { width: size, height: size, fontSize: Math.round(size * 0.62), borderRadius: 'var(--hub-radius-xs)' },
+    style: { width: size, height: size, fontSize: Math.round(size * 0.62), borderRadius: 'var(--jk-radius-xs)' },
   };
 }

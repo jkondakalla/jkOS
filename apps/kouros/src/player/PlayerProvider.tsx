@@ -78,7 +78,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   // this app's job (player/accent.ts).
   //
   // ⚠️ THE SCOPE IS THE WHOLE APP, DELIBERATELY. This wrapper contains the routed
-  // content as well as the player, so setting --accent here recolours every
+  // content as well as the player, so setting --color-accent here recolours every
   // surface that reads it — the tab bar's lit dot, an album's Play button, the
   // playing row, the map's pin — not just the transport. That is the intent: the
   // brief asks for the app to take its colour from the record, and a player that
@@ -88,26 +88,33 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   // It is still NOT set on documentElement. The distinction matters: the settings
   // drawer, the auth veil and anything else the shell renders OUTSIDE this
   // wrapper keep the user's own configured accent, so the app's identity survives
-  // whatever a sleeve happens to be. Everything derived from --accent is a
+  // whatever a sleeve happens to be. Everything derived from --color-accent is a
   // mid-tone by construction (accent.ts clamps saturation and lightness), so
   // contrast holds on both faces whatever the art does.
+  //
+  // It sets the TIER-2 names on purpose: --color-accent and --color-secondary are
+  // the one accent every component reads (hub.css's rule), so one override reaches
+  // them all. Until 2026-09-30 this set the old bare `--accent`, which half the
+  // suite's classes didn't read — a lit pill in the sleeve's colour sat beside a
+  // primary button still in the user's. A DERIVED token (-glow, -soft, the halo)
+  // is computed once on :root and keeps the user's accent, as it always has.
   const scopeRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     const el = scopeRef.current;
     if (!el) return;
     const art = nowPlayingArt(api);
     if (!art) {
-      el.style.removeProperty('--accent');
-      el.style.removeProperty('--accent-secondary');
+      el.style.removeProperty('--color-accent');
+      el.style.removeProperty('--color-secondary');
       return;
     }
     let cancelled = false;
     deriveAccentFromArt(art).then((accent) => {
       if (cancelled) return;
-      if (accent.primary) el.style.setProperty('--accent', accent.primary);
-      else el.style.removeProperty('--accent');
-      if (accent.secondary) el.style.setProperty('--accent-secondary', accent.secondary);
-      else el.style.removeProperty('--accent-secondary');
+      if (accent.primary) el.style.setProperty('--color-accent', accent.primary);
+      else el.style.removeProperty('--color-accent');
+      if (accent.secondary) el.style.setProperty('--color-secondary', accent.secondary);
+      else el.style.removeProperty('--color-secondary');
     });
     return () => { cancelled = true; };
   }, [api.item?.ref, api.item?.coverUrl]);

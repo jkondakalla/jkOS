@@ -393,7 +393,7 @@ function DayGrid({
                     // Bare paper + hour rules, no border and no tint — see the note
                     // on the frame above. The `isToday` wash that used to live here
                     // was WeekView's laneFrame() recipe, which is itself the FAINT
-                    // CHIP background (14% tint over --hub-bg-2). In Week that says
+                    // CHIP background (14% tint over --color-card). In Week that says
                     // which of seven lanes is today; here the single column is
                     // always today, so it painted the entire timeline as one giant
                     // chip — and every solid chip then sat on a chip-coloured
@@ -406,7 +406,7 @@ function DayGrid({
                       ? 'color-mix(in srgb, var(--color-accent) 12%, transparent)'
                       : 'transparent',
                     // tone 'strong' — the Day timeline is drawn directly on the
-                    // grained ground with no lane fill under it, and --hub-line
+                    // grained ground with no lane fill under it, and --color-line
                     // over grain is the faintest pairing in the app: the hour
                     // ledger was legible in theory and invisible in practice. This
                     // is also the ONE timeline on screen, a close-read surface that
@@ -532,7 +532,7 @@ function DayAgenda({
         <div style={{ marginBottom: 36 }}>
           <Eyebrow style={{ marginBottom: 6 }}>{dateStr}</Eyebrow>
           {greeting && (
-            <h1 style={{ fontFamily: FONT_HEAD, fontWeight: 500, fontSize: 32, lineHeight: 1, margin: 0, letterSpacing: '-0.025em', color: 'var(--color-ink)', textShadow: 'var(--accent-halo-text)' }}>
+            <h1 style={{ fontFamily: FONT_HEAD, fontWeight: 500, fontSize: 32, lineHeight: 1, margin: 0, letterSpacing: '-0.025em', color: 'var(--color-ink)', textShadow: 'var(--hub-halo-text)' }}>
               {greeting}
             </h1>
           )}
@@ -549,7 +549,7 @@ function DayAgenda({
         {carried.length > 0 && (
           <section style={{ marginTop: 40 }}>
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 4 }}>
-              <Eyebrow color="var(--color-accent)" style={{ textShadow: 'var(--accent-halo-text)' }}>
+              <Eyebrow color="var(--color-accent)" style={{ textShadow: 'var(--hub-halo-text)' }}>
                 Carried · {carried.length}
               </Eyebrow>
               <span style={{ fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 11.5, color: 'var(--color-faint)' }}>
@@ -627,8 +627,8 @@ function NextCard({
   const ancestors = ancestorsOf(item, items);
 
   return (
-    <div style={{ position: 'relative', background: 'var(--color-paper-2)', border: '1px solid var(--color-line)', borderRadius: 'var(--hub-radius-lg)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 16px rgba(0,0,0,0.18)', padding: '28px 32px 30px 44px', cursor: 'pointer' }}>
-      <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 5, background: accent, borderTopLeftRadius: 'var(--hub-radius-lg)', borderBottomLeftRadius: 'var(--hub-radius-lg)', boxShadow: `0 0 14px ${withAlpha(accent, 0.4)}` }} />
+    <div style={{ position: 'relative', background: 'var(--color-paper-2)', border: '1px solid var(--color-line)', borderRadius: 'var(--jk-radius-lg)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 16px rgba(0,0,0,0.18)', padding: '28px 32px 30px 44px', cursor: 'pointer' }}>
+      <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 5, background: accent, borderTopLeftRadius: 'var(--jk-radius-lg)', borderBottomLeftRadius: 'var(--jk-radius-lg)', boxShadow: `0 0 14px ${withAlpha(accent, 0.4)}` }} />
       <article onClick={() => onSelect?.(item)}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 18, marginBottom: 14 }}>
           <RecLamp size={7} label="Next" />
@@ -672,7 +672,7 @@ function EmptyDay({ onAdd, today }: { onAdd?: (partial: Partial<CalendarItem>) =
   };
 
   return (
-    <article style={{ padding: '40px 36px', border: '1px dashed var(--color-line)', borderRadius: 'var(--hub-radius-lg)', background: 'var(--color-paper-2)' }}>
+    <article style={{ padding: '40px 36px', border: '1px dashed var(--color-line)', borderRadius: 'var(--jk-radius-lg)', background: 'var(--color-paper-2)' }}>
       <Eyebrow style={{ marginBottom: 6 }}>The day is open.</Eyebrow>
       <p style={{ fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 20, color: 'var(--color-ink)', margin: '0 0 20px', lineHeight: 1.3 }}>
         Nothing has been written down yet.
@@ -708,7 +708,7 @@ function EmptyDay({ onAdd, today }: { onAdd?: (partial: Partial<CalendarItem>) =
 function ClearedDay({ onOpenWeek }: { onOpenWeek?: () => void }) {
   return (
     <Well as="article" style={{ padding: '40px 36px' }}>
-      <Eyebrow style={{ marginBottom: 6, color: 'var(--color-accent)', textShadow: 'var(--accent-halo-text)' }}>Today is clear.</Eyebrow>
+      <Eyebrow style={{ marginBottom: 6, color: 'var(--color-accent)', textShadow: 'var(--hub-halo-text)' }}>Today is clear.</Eyebrow>
       <p style={{ fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 22, color: 'var(--color-ink)', margin: '0 0 16px', lineHeight: 1.3 }}>
         Every task on today's list is done.
       </p>

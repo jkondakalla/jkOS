@@ -62,7 +62,7 @@ import { RoutineCard, WeekStrip } from './cadence'
 import { getRoutines, cadenceDays, weeklyTarget, weekCells, weekStart, streakOf } from '../../lib/routines'
 import { normalizeSpec, summarize } from '@jkos/routine-spec'
 
-const MONO = 'var(--hub-font-mono)'
+const MONO = 'var(--jk-font-mono)'
 
 /** What the rail has selected. `kind` is carried alongside the id rather than
  *  derived from it because the two shapes live in ONE table — a bare id would have
@@ -246,7 +246,7 @@ export function WorkshopView(props: any) {
       {/* ══ THE RAIL — goals over standing orders, one scroll ══════════════ */}
       <div style={{
         width: 'var(--jk-rail)', flex: 'none', display: 'flex', flexDirection: 'column',
-        borderRight: '1px solid var(--hub-line)', minHeight: 0,
+        borderRight: '1px solid var(--color-line)', minHeight: 0,
       }}>
         <div className="jk-scroll" style={{ flex: 1, minHeight: 0, padding: '0 18px 18px', display: 'flex', flexDirection: 'column', gap: 9 }}>
           {/* The section heads are STICKY and opaque. A single scroll carrying two
@@ -362,8 +362,8 @@ export function WorkshopView(props: any) {
               className="modal-in"
               style={{
                 position: 'relative', margin: 16, flex: 1, minHeight: 0,
-                borderRadius: 'var(--hub-radius-lg)', display: 'flex', flexDirection: 'column',
-                boxShadow: 'var(--hub-shadow-card)', overflow: 'hidden',
+                borderRadius: 'var(--jk-radius-lg)', display: 'flex', flexDirection: 'column',
+                boxShadow: 'var(--color-shadow-card)', overflow: 'hidden',
               }}
             >
               {pasting ? (
@@ -421,7 +421,7 @@ function RailHead({ label, meta, style }: { label: string; meta: string; style?:
          comment above warns about) — this repeats the same grain paint body
          gets so the sticky ground reads as MORE of the same sheet. */
       backgroundColor: 'var(--color-paper)', backgroundImage: 'var(--hub-grain-image)',
-      backgroundSize: '160px 160px', backgroundBlendMode: 'var(--grain-blend)',
+      backgroundSize: '160px 160px', backgroundBlendMode: 'var(--hub-grain-blend)',
       ...style,
     }}>
       <Press style={{ fontFamily: FONT_HEAD, fontWeight: 700, fontSize: '1.06rem', letterSpacing: '-0.015em' }}>
@@ -445,7 +445,7 @@ function GoalCard({ goal, items, selected, delay, onClick }: any) {
       className="jk-hit mo-item"
       onClick={onClick}
       style={{
-        border: '1px solid var(--hub-line)', borderRadius: 'var(--hub-radius)', padding: '13px 15px',
+        border: '1px solid var(--color-line)', borderRadius: 'var(--jk-radius)', padding: '13px 15px',
         cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 8,
         animationDelay: delay, ['--jk-tint' as string]: tint,
       }}
@@ -529,7 +529,7 @@ function Forge({
               <StandingOrder key={r.id} routine={r} items={items} today={today} onClick={() => onOpenRoutine?.(r.id)} />
             ))}
             {routines.length === 0 && (
-              <div style={{ border: '1px dashed var(--hub-line)', borderRadius: 'var(--hub-radius-sm)', padding: '11px 14px', gridColumn: '1 / -1' }}>
+              <div style={{ border: '1px dashed var(--color-line)', borderRadius: 'var(--jk-radius-sm)', padding: '11px 14px', gridColumn: '1 / -1' }}>
                 <span className="jk-async-note" style={{ fontSize: 14, color: 'var(--color-muted)' }}>
                   Nothing recurring under this goal yet — a routine is the part you don't re-decide each week.
                 </span>
@@ -550,7 +550,7 @@ function Forge({
           return (
             <React.Fragment key={b.id}>
               <div className="mo-item" style={{ display: 'flex', alignItems: 'center', animationDelay: delay() }}>
-                <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 11, padding: '10px 14px', borderRadius: 'var(--hub-radius-sm)', border: '1px solid var(--hub-line)', background: 'var(--hub-bg-3)' }}>
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 11, padding: '10px 14px', borderRadius: 'var(--jk-radius-sm)', border: '1px solid var(--color-line)', background: 'var(--color-card-2)' }}>
                   <span
                     className="jk-hit"
                     onClick={() => onToggleExpand(b.id)}
@@ -605,8 +605,8 @@ function StandingOrder({ routine, items, today, onClick }: any) {
       onClick={onClick}
       role="button"
       style={{
-        border: '1px solid var(--hub-line)', borderRadius: 'var(--hub-radius-sm)',
-        background: 'var(--hub-bg-3)', padding: '11px 14px', cursor: 'pointer',
+        border: '1px solid var(--color-line)', borderRadius: 'var(--jk-radius-sm)',
+        background: 'var(--color-card-2)', padding: '11px 14px', cursor: 'pointer',
         display: 'flex', alignItems: 'center', gap: 12, ['--jk-tint' as string]: tint,
       }}
     >

@@ -1,7 +1,7 @@
 /* player-ui.css — the @jkos/player UI kit's stylesheet (git history: Wave 16 item 16.6). The `player-bar` / `pb-*` rules are lifted VERBATIM from
    the audiobook bar's stylesheet; an app keeps only its bespoke rules (e.g. a
    body-class reserve-space rule). Layout + chrome only; every
-   colour, radius, font and tap-floor reads a suite --hub- / --accent token — no
+   colour, radius, font and tap-floor reads a suite --hub- / --color-accent token — no
    hardcoded hex or radius/font literals. Imported once, from this package's ui
    barrel (src/ui/index.ts); the consuming app's bundler ships it. */
 
@@ -15,9 +15,9 @@
   padding: 0.3rem 1.1rem;
   font-size: 0.78rem;
   text-align: center;
-  color: color-mix(in srgb, var(--hub-red) 80%, var(--hub-cream-dim));
-  background: var(--hub-red-soft);
-  border-top: 1px solid color-mix(in srgb, var(--hub-red) 35%, var(--hub-line));
+  color: color-mix(in srgb, var(--color-danger) 80%, var(--color-faint));
+  background: var(--color-danger-soft);
+  border-top: 1px solid color-mix(in srgb, var(--color-danger) 35%, var(--color-line));
 }
 
 /* ── The bar shell — desktop 3-column, mobile stacked compact row ─────────── */
@@ -35,9 +35,9 @@
      chrome visually merged into the page (especially dark mode) — the whole bar read
      as invisible except the bordered circular play button ("just a circle in a
      non-intuitive location", Jag 2026-07-10). */
-  background: var(--hub-bg-2);
-  border-top: 2px solid color-mix(in srgb, var(--accent) 35%, var(--hub-line));
-  box-shadow: var(--hub-shadow-card);
+  background: var(--color-card);
+  border-top: 2px solid color-mix(in srgb, var(--color-accent) 35%, var(--color-line));
+  box-shadow: var(--color-shadow-card);
 }
 
 .player-bar.is-mobile {
@@ -88,22 +88,22 @@
   gap: 0.1rem;
 }
 .pb-title {
-  font-family: var(--hub-font-serif);
+  font-family: var(--jk-font-serif);
   /* Full Press: the bar's title is already serif — weight it like a title. */
   font-weight: 600;
   letter-spacing: -0.01em;
   font-size: 0.95rem;
   line-height: 1.2;
-  color: var(--hub-cream-bright);
+  color: var(--color-ink);
   text-decoration: none;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.pb-title:hover { color: var(--accent-secondary); }
+.pb-title:hover { color: var(--color-secondary); }
 .pb-sub {
   font-size: 0.78rem;
-  color: var(--hub-cream-dim);
+  color: var(--color-faint);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -116,46 +116,46 @@
   align-items: center;
   justify-content: center;
   gap: 0.3rem;
-  min-width: var(--hub-tap-min);
-  min-height: var(--hub-tap-min);
+  min-width: var(--jk-tap-min);
+  min-height: var(--jk-tap-min);
   padding: 0 0.5rem;
   background: transparent;
   border: none;
-  border-radius: var(--hub-radius-sm);
-  color: var(--hub-cream);
-  font-family: var(--hub-font-mono);
+  border-radius: var(--jk-radius-sm);
+  color: var(--color-muted);
+  font-family: var(--jk-font-mono);
   font-size: 0.8rem;
   letter-spacing: 0.04em;
   cursor: pointer;
   transition: color 0.12s, background 0.12s;
 }
-.pb-btn:hover { color: var(--accent-secondary); background: color-mix(in srgb, var(--accent-secondary) 12%, transparent); }
+.pb-btn:hover { color: var(--color-secondary); background: color-mix(in srgb, var(--color-secondary) 12%, transparent); }
 .pb-btn:disabled { opacity: 0.4; cursor: default; }
-.pb-btn:disabled:hover { color: var(--hub-cream); background: transparent; }
+.pb-btn:disabled:hover { color: var(--color-muted); background: transparent; }
 .pb-btn-wide { padding: 0 0.6rem; }
 
 .pb-btn-primary {
   width: 46px;
   height: 46px;
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 14%, var(--hub-bg-1));
-  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 14%, var(--color-paper-2));
+  border: 1px solid color-mix(in srgb, var(--color-accent) 40%, transparent);
 }
 .pb-btn-primary:hover {
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 22%, var(--hub-bg-1));
+  color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 22%, var(--color-paper-2));
 }
 :root[data-mode="dark"] .pb-btn-primary {
-  box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 35%, transparent);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--color-accent) 35%, transparent);
 }
 
-.pb-btn.is-armed { color: var(--accent-secondary); }
+.pb-btn.is-armed { color: var(--color-secondary); }
 .pb-armed, .pb-count {
   font-size: 0.68rem;
-  font-family: var(--hub-font-mono);
+  font-family: var(--jk-font-mono);
   letter-spacing: 0.02em;
 }
-.pb-count { color: var(--accent-secondary); }
+.pb-count { color: var(--color-secondary); }
 
 .pb-transport {
   display: flex;
@@ -177,9 +177,9 @@
 }
 .pb-time {
   flex: none;
-  font-family: var(--hub-font-mono);
+  font-family: var(--jk-font-mono);
   font-size: 0.72rem;
-  color: var(--hub-cream-dim);
+  color: var(--color-faint);
   min-width: 3.2ch;
   text-align: center;
 }
@@ -209,7 +209,7 @@
   width: 1px;
   height: 8px;
   transform: translate(-50%, -50%);
-  background: color-mix(in srgb, var(--hub-cream-dim) 55%, transparent);
+  background: color-mix(in srgb, var(--color-faint) 55%, transparent);
 }
 
 /* ── Popover framework + scrim (menu-shaped stock controls, e.g. <SleepMenu>) ── */
@@ -233,42 +233,42 @@
   display: flex;
   flex-direction: column;
   padding: 0.35rem;
-  background: var(--hub-bg-3, var(--hub-bg-2));
-  border: 1px solid var(--hub-line);
-  border-radius: var(--hub-radius-lg);
-  box-shadow: var(--hub-shadow-card);
+  background: var(--color-card-2, var(--color-card));
+  border: 1px solid var(--color-line);
+  border-radius: var(--jk-radius-lg);
+  box-shadow: var(--color-shadow-card);
 }
 .pb-popover-wide { min-width: 240px; }
 
 .pb-popover-head {
-  font-family: var(--hub-font-mono);
-  font-size: var(--hub-fs-lab-xs, 0.66rem);
+  font-family: var(--jk-font-mono);
+  font-size: var(--jk-fs-lab-xs, 0.66rem);
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--hub-cream-dim);
+  color: var(--color-faint);
   padding: 0.4rem 0.5rem 0.25rem;
 }
 .pb-popover-row {
   display: flex;
   align-items: center;
-  min-height: var(--hub-tap-min);
+  min-height: var(--jk-tap-min);
   padding: 0.4rem 0.55rem;
   background: transparent;
   border: none;
-  border-radius: var(--hub-radius-sm);
-  color: var(--hub-cream);
-  font-family: var(--hub-font-sans);
+  border-radius: var(--jk-radius-sm);
+  color: var(--color-muted);
+  font-family: var(--jk-font-sans);
   font-size: 0.85rem;
   text-align: left;
   cursor: pointer;
 }
-.pb-popover-row:hover { background: color-mix(in srgb, var(--accent-secondary) 14%, transparent); color: var(--accent-secondary); }
-.pb-popover-row.is-active { color: var(--accent); }
+.pb-popover-row:hover { background: color-mix(in srgb, var(--color-secondary) 14%, transparent); color: var(--color-secondary); }
+.pb-popover-row.is-active { color: var(--color-accent); }
 .pb-popover-row.is-active::after { content: "•"; margin-left: auto; }
 
 .pb-popover-empty {
   padding: 0.5rem 0.55rem 0.6rem;
-  color: var(--hub-cream-dim);
+  color: var(--color-faint);
   font-size: 0.82rem;
 }
 
@@ -296,50 +296,50 @@
   display: flex;
   align-items: stretch;
   gap: 0.2rem;
-  border-radius: var(--hub-radius-sm);
+  border-radius: var(--jk-radius-sm);
 }
 .pb-q-row.is-dragging { opacity: 0.45; }
 .pb-q-row.is-drop-target {
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 55%, transparent);
 }
 .pb-q-handle {
   flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: var(--hub-tap-min);
+  min-width: var(--jk-tap-min);
   background: transparent;
   border: none;
-  border-radius: var(--hub-radius-sm);
-  color: var(--hub-cream-faint);
+  border-radius: var(--jk-radius-sm);
+  color: var(--color-ghost);
   cursor: grab;
   /* A dedicated drag affordance — never scrollable content — so claiming the touch
      gesture outright is correct here (the hold heuristic still gates activation). */
   touch-action: none;
 }
-.pb-q-handle:hover { color: var(--accent-secondary); }
+.pb-q-handle:hover { color: var(--color-secondary); }
 .pb-q-item {
   flex: 1 1 auto;
   min-width: 0;
   display: flex;
   align-items: baseline;
   gap: 0.5rem;
-  min-height: var(--hub-tap-min);
+  min-height: var(--jk-tap-min);
   padding: 0.35rem 0.5rem;
   background: transparent;
   border: none;
-  border-radius: var(--hub-radius-sm);
-  color: var(--hub-cream);
+  border-radius: var(--jk-radius-sm);
+  color: var(--color-muted);
   text-align: left;
   cursor: pointer;
 }
-.pb-q-item:hover { background: color-mix(in srgb, var(--accent-secondary) 14%, transparent); color: var(--accent-secondary); }
+.pb-q-item:hover { background: color-mix(in srgb, var(--color-secondary) 14%, transparent); color: var(--color-secondary); }
 .pb-q-index {
   flex: none;
   min-width: 1.6rem;
-  font-family: var(--hub-font-mono);
+  font-family: var(--jk-font-mono);
   font-size: 0.72rem;
-  color: var(--hub-cream-dim);
+  color: var(--color-faint);
   text-align: right;
 }
 .pb-q-title {
@@ -349,21 +349,21 @@
   white-space: nowrap;
   font-size: 0.82rem;
 }
-.pb-q-row.is-current .pb-q-item { color: var(--accent); }
-.pb-q-row.is-current .pb-q-index { color: var(--accent); }
+.pb-q-row.is-current .pb-q-item { color: var(--color-accent); }
+.pb-q-row.is-current .pb-q-index { color: var(--color-accent); }
 .pb-q-remove {
   flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: var(--hub-tap-min);
+  min-width: var(--jk-tap-min);
   background: transparent;
   border: none;
-  border-radius: var(--hub-radius-sm);
-  color: var(--hub-cream-dim);
+  border-radius: var(--jk-radius-sm);
+  color: var(--color-faint);
   cursor: pointer;
 }
-.pb-q-remove:hover { color: var(--hub-red, var(--accent)); }
+.pb-q-remove:hover { color: var(--color-danger, var(--color-accent)); }
 
 /* ── <SegmentList> — chapter/marker list, current row highlighted ─────────────
    Row anatomy mirrors BookDetail's chapter-row (fill wash painted first +
@@ -382,23 +382,23 @@
   align-items: center;
   gap: 0.7rem;
   width: 100%;
-  min-height: var(--hub-tap-min);
+  min-height: var(--jk-tap-min);
   padding: 0.5rem 0.7rem;
-  border: 1px solid var(--hub-line);
-  border-radius: var(--hub-radius-lg);
+  border: 1px solid var(--color-line);
+  border-radius: var(--jk-radius-lg);
   background: transparent;
-  color: var(--hub-cream);
+  color: var(--color-muted);
   text-align: left;
   cursor: pointer;
   overflow: hidden;
 }
 .pb-seg-row:hover {
-  border-color: color-mix(in srgb, var(--accent-secondary) 50%, transparent);
-  color: var(--accent-secondary);
+  border-color: color-mix(in srgb, var(--color-secondary) 50%, transparent);
+  color: var(--color-secondary);
 }
 .pb-seg-row.is-current {
-  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
-  color: var(--accent);
+  border-color: color-mix(in srgb, var(--color-accent) 55%, transparent);
+  color: var(--color-accent);
 }
 /* Loading-bar-style listened fill — width set inline per row from segmentFraction;
    a low-alpha accent wash so it never fights the row text's contrast in either
@@ -408,7 +408,7 @@
   inset: 0;
   z-index: 0;
   width: 0%;
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  background: color-mix(in srgb, var(--color-accent) 14%, transparent);
   pointer-events: none;
 }
 .pb-seg-index {
@@ -416,9 +416,9 @@
   z-index: 1;
   flex: none;
   width: 1.6rem;
-  font-family: var(--hub-font-mono);
+  font-family: var(--jk-font-mono);
   font-size: 0.78rem;
-  color: var(--hub-cream-dim);
+  color: var(--color-faint);
   text-align: right;
 }
 .pb-seg-title {
@@ -434,7 +434,7 @@
   position: relative;
   z-index: 1;
   flex: none;
-  font-family: var(--hub-font-mono);
+  font-family: var(--jk-font-mono);
   font-size: 0.78rem;
-  color: var(--hub-cream-dim);
+  color: var(--color-faint);
 }

@@ -7,34 +7,27 @@ the living style guide at **https://staging.jkos.net/design** — the page shows
 (both faces, live mode/accent/corner toggles, every primitive rendered by the real CSS);
 this file gives the *values and the rules*.
 
-> ## ⚠️ Snapshot honesty — READ THIS FIRST, THE TABLES ARE STALE
+> ## ⚠️ Snapshot honesty — READ THIS FIRST
 >
-> The value tables below were a faithful copy of `packages/design/tokens/hub.css` as of
-> **2026-07-19** (Full Press Waves 22–26). **They are not one now.** Measured 2026-09-08:
-> hub.css has gained **1,167 lines across 13 commits** since that date — the field
-> primitive, the scroll hairline, the canvas measure, the calendar kit and the motion
-> tokens all landed afterwards.
+> **§2–§3 (the token tiers, the palettes, the accent chain) are current** — rewritten
+> 2026-09-30 when Stage F's restructure landed. **Everything from §4 on is a guide to the
+> SHAPE of the system, not a register of values:** its class catalog and component notes date
+> from 2026-07-19 and hub.css has grown well past them (the field primitive, the scroll
+> hairline, the canvas measure, the calendar kit, the motion tokens). Token *names* in them
+> are current; values and class lists may not be. Read `packages/design/tokens/hub.css` as
+> authoritative. Where this doc and the code disagree, the code wins.
 >
-> **So the claim at the top of this file — that a design agent needs no other source in the
-> repo — does not hold today.** Read `packages/design/tokens/hub.css` as authoritative and
-> treat everything below as a guide to the SHAPE of the system (the tiers, the naming, the
-> two faces, the rules) rather than a current register of values. Where this doc and the
-> code disagree, the code wins.
+> **The register of values** is `packages/design/tokens/computed-baseline.json`: what every
+> `:root` token *actually computes to* on both faces at all three viewport tiers, measured
+> from a real headless Chromium (`pnpm check:token-identity`). The **design handoff** at
+> <https://claude.ai/code/artifact/5e53f12f-cf7d-4e22-b066-4087b47a3e80> renders measured
+> values as swatches alongside seventeen 2× screenshots of the running suite (2× originals are
+> generated into `Documentation/Images/`, which is gitignored — they are screenshots of real
+> personal data). Its token names predate the 2026-09-30 rename.
 >
-> **Two accurate sources exist in the meantime.** `packages/design/tokens/computed-baseline.json`
-> records what all 152 `:root` tokens *actually compute to* on both faces, measured from a real
-> headless Chromium (`pnpm check:token-identity`) — that is the register the tables below are not.
-> And the **design handoff** at
-> <https://claude.ai/code/artifact/5e53f12f-cf7d-4e22-b066-4087b47a3e80> renders those measured
-> values as swatches alongside seventeen 2× screenshots of the running suite
-> (2× originals are generated into `Documentation/Images/`, which is gitignored — they are
-> screenshots of real personal data). Hand a studio the handoff, not this file's tables.
->
-> **Re-syncing the tables is Stage F work and is deliberately not done piecemeal.**
-> Why: Stage F (`Documentation/TODO.md` §6) is a restructure, not a retune — the tiers get renamed,
-> the four accent schemes collapse, and the pigment names retire. Refreshing 1,167 lines of
-> values against a file that is about to be reorganised would be work done twice and
-> discarded once. §14 lists the regen commands for everything that IS kept in sync.
+> **Re-syncing §4 onward is the widget rescope's last phase** (`Documentation/TODO.md` §6,
+> phase 11): the rescope moves every screen onto primitives, so the catalog is rewritten once,
+> after it settles. §14 lists the regen commands for everything that IS kept in sync.
 
 ---
 
@@ -66,57 +59,59 @@ OS preference is inside `applyJkOSMode('system')`, which resolves it once and th
 
 ---
 
-## 2. The two faces — complete palettes
+## 2. The token tiers — and the two faces' palettes
 
-hub.css is split into **INPUTS** (the only things that legitimately vary per app) and a
-universal **DERIVATION** layer written once. These are the input values.
+**The prefix says the tier** (Stage F, decided 2026-09-16, built 2026-09-30). `pnpm check:tokens`
+derives every rule below from hub.css's declarations and refuses a violation.
 
-### Paper (`:root`)
+| Tier | Prefix | What it holds | Declared |
+|---|---|---|---|
+| 1 · raw | `--hub-*` | the palette's literal values, and every recipe whose formula differs per face | paper `:root` + the dark block — **the dark block sets tier 1 and nothing else** |
+| 2 · semantic | `--color-*` | what a component reads for a colour: an alias of tier 1, or one formula over it | once, on `:root`; it re-resolves per face through the tier-1 values under it |
+| 3 · face-invariant | `--jk-*` | type, radii, the responsive scale, the canvas | once, on `:root`; only the viewport `@media` blocks re-declare it |
 
-| Token | Value | Role |
-|---|---|---|
-| `--hub-bg-0` | `#ede2c8` | page ground (kraft tan) |
-| `--hub-bg-1` | `#e4d5b0` | second layer |
-| `--hub-bg-2` | `#f5ead4` | card |
-| `--hub-bg-3` | `#ead9bb` | card-2 |
-| `--hub-bg-4` | `#f7f1e3` | lightest lift |
-| `--hub-screen` / `--hub-screen-line` | `#f0e8d8` / `#d8c8b0` | inner "screen" panels + their border |
-| `--hub-metal-0/1/2` | `#d4c8a8` / `#c8bca0` / `#b8a888` | hardware metal ramp (brass-paper) |
-| `--hub-bevel-light` / `--hub-bevel-dark` | `rgba(255,252,230,.85)` / `rgba(80,50,20,.18)` | bevel highlights/shades |
-| `--hub-line` / `-strong` / `-bright` | `#c8ae88` / `#b09a72` / `#907854` | border ramp |
-| `--hub-cream-bright` | `#1c1408` | primary ink |
-| `--hub-cream` | `#6b5038` | muted body |
-| `--hub-cream-dim` | `#9c8060` | faint |
-| `--hub-cream-faint` | `#b8a888` | ghost |
-| `--accent-raw` / `--accent-2-raw` | `#ffb000` / `#4ecdc4` | THE only accent defaults (user pair overrides at runtime) |
-| `--accent-deepen-ink` | `#2a1c0e` | paper deepen target |
+**One name per value.** Where tier 2 aliases a tier-1 token one-to-one (`--color-ink:
+var(--hub-ink)`), components read the alias and the tier-1 name is **private to hub.css** —
+the gate refuses a `var(--hub-ink)` anywhere else. Tier-1 tokens with no alias (the halo, the
+field and menu recipes, the scroll mark, the grain and CRT knobs) are read directly. A
+subtree that must follow something local re-points **tier 2** (KourOS's player scope sets
+`--color-accent` from the playing sleeve); tier 1 is computed once, on `:root`.
 
-### Dark (`:root[data-mode="dark"]`)
+The per-app **inputs** (`buildJkOSTheme()`) are tier-1 colour values and tier-3 radius, type and
+scale; everything else derives once.
 
-| Token | Value | Role |
-|---|---|---|
-| `--hub-bg-0..4` | `#11100d` / `#1a1814` / `#232019` / `#2c2820` / `#38321f` | warm near-black ramp |
-| `--hub-screen` / `--hub-screen-line` | `#0e0c08` / `#2a2418` | CRT screen wells |
-| `--hub-metal-0/1/2` | `#2a2620` / `#3a342b` / `#4a4234` | dark metal |
-| `--hub-bevel-light` / `--hub-bevel-dark` | `rgba(255,220,160,.06)` / `rgba(0,0,0,.5)` | |
-| `--hub-line` / `-strong` / `-bright` | `#3a3528` / `#4a4232` / `#6a5d3e` | |
-| `--hub-cream-bright` | `#efe6c9` | primary ink |
-| `--hub-cream` | `#d6cba8` | muted |
-| `--hub-cream-dim` / `-faint` | `#8a8067` / `#5a543f` | |
+### The palettes — tier 1, and the name a component reads
+
+| Tier 1 (paper → dark) | Paper | Dark | Read as |
+|---|---|---|---|
+| `--hub-ground-0` | `#ede2c8` | `#11100d` | `--color-paper` — page ground |
+| `--hub-ground-1` | `#e4d5b0` | `#1a1814` | `--color-paper-2` — recessed page |
+| `--hub-ground-2` | `#f5ead4` | `#232019` | `--color-card` |
+| `--hub-ground-3` | `#ead9bb` | `#2c2820` | `--color-card-2` |
+| `--hub-ground-4` | `#f7f1e3` | `#38321f` | `--color-lit` — the brightest stock (a lit lane, a hover) |
+| `--hub-screen` / `-line` | `#f0e8d8` / `#d8c8b0` | `#0e0c08` / `#2a2418` | `--color-screen` / `--color-screen-line` |
+| `--hub-metal-0/1/2` | `#d4c8a8` / `#c8bca0` / `#b8a888` | `#2a2620` / `#3a342b` / `#4a4234` | `--color-metal-0/1/2` |
+| `--hub-bevel-light` / `-dark` | `rgba(255,252,230,.85)` / `rgba(80,50,20,.18)` | `rgba(255,220,160,.06)` / `rgba(0,0,0,.5)` | `--color-bevel-light` / `-dark` |
+| `--hub-line` / `-strong` / `-bright` | `#c8ae88` / `#b09a72` / `#907854` | `#3a3528` / `#4a4232` / `#6a5d3e` | `--color-line` / `-line-strong` / `-line-bright` |
+| `--hub-ink` | `#1c1408` | `#efe6c9` | `--color-ink` — primary |
+| `--hub-ink-muted` | `#6b5038` | `#d6cba8` | `--color-muted` — body |
+| `--hub-ink-faint` | `#9c8060` | `#8a8067` | `--color-faint` |
+| `--hub-ink-ghost` | `#b8a888` | `#5a543f` | `--color-ghost` |
+| `--hub-accent-raw` / `--hub-secondary-raw` | `#ffb000` / `#4ecdc4` | (same) | — THE only accent defaults; the user's pair overrides at runtime |
+| `--hub-deepen-ink` | `#2a1c0e` | (same) | — the paper deepen target |
 
 ### Status — semantic constants, never accent-derived
 
-| Token | Paper | Dark |
-|---|---|---|
-| `--hub-red` (danger) | `#b42010` | `#ff4530` (dim `#6b1c14`) |
-| `--hub-green` (ok) | `#2a7040` | `#5cd66a` |
-| `--hub-magenta` (accent-free data hue) | `#8a2060` | `#ff5d8f` |
-| `--color-ok` | `#2a7040` | `#34d399` |
-| `--color-warn` | `#a04010` | `#fbbf24` |
-| `--color-danger` | `#b42010` | `#f87171` |
+| Tier 1 | Paper | Dark | Read as |
+|---|---|---|---|
+| `--hub-danger` | `#b42010` | `#ff4530` | `--color-danger` (glow `--color-danger-glow`) |
+| `--hub-ok` | `#2a7040` | `#5cd66a` | `--color-ok` (glow `--color-ok-glow`) |
+| `--hub-warn` | `#a04010` | `#fbbf24` | `--color-warn` |
+| `--hub-tertiary` | `#8a2060` | `#ff5d8f` | `--color-tertiary` — the accent-free third data hue |
 
-Soft status fills derive once: `--hub-green-soft` / `--hub-red-soft` / `--hub-warn-soft` =
-`color-mix(status 10–12%, var(--hub-bg-2))`.
+Soft status fills derive once: `--color-ok-soft` / `--color-danger-soft` / `--color-warn-soft` =
+`color-mix(status 10–12%, var(--hub-ground-2))`. (Until 2026-09-30 `--color-ok`/`--color-danger`
+were a second, separate pair of literals with their own dark values; they are the one pair now.)
 
 ---
 
@@ -128,32 +123,29 @@ never a neutral. Apps supply only a *default* pair; the live pair is the signed-
 by `applyTheme` from `@jkos/auth-client`). From two raw inputs everything derives:
 
 ```
---accent-raw / --accent-2-raw            (the user's pair)
-   │  paper: deepen toward ink              dark: keep raw
+--hub-accent-raw / --hub-secondary-raw        (tier 1: the user's pair)
+   │  paper: deepen toward ink                dark: keep raw
    ▼
---accent           = color-mix(in srgb, var(--accent-raw)   64%, var(--accent-deepen-ink))   [paper]
-                   = var(--accent-raw)                                                        [dark]
---accent-secondary = same treatment on --accent-2-raw
+--hub-accent    = color-mix(in srgb, var(--hub-accent-raw) 64%, var(--hub-deepen-ink))   [paper]
+                = var(--hub-accent-raw)                                                  [dark]
+--hub-secondary = the same treatment on --hub-secondary-raw
+--hub-accent-dim    = color-mix(accent 72%, #1a0a00)   [paper] · 72%, #1a1400 [dark]
+--hub-accent-deep   = color-mix(accent 20%, ground-2)  [paper] · 26%, #000    [dark]
+--hub-accent-glow   = color-mix(accent 30%, transparent) [paper] · 38%        [dark]
+--hub-accent-ink    = color-mix(accent 80%, #000)      [paper] · 78%, #fff    [dark]
+--hub-secondary-dim / -glow = 60% #000 / 25% [paper] · 50% #000 / 38% [dark]
    ▼
-primary family  (tracks --accent):
-  --hub-amber        = var(--accent)
-  --hub-amber-bright = color-mix(accent 55%, #ffffff)                 (both modes)
-  --hub-amber-dim    = color-mix(accent 72%, #1a0a00)  [paper]  · 72%, #1a1400 [dark]
-  --hub-amber-deep   = color-mix(accent 20%, bg-2)     [paper]  · 26%, #000    [dark]
-  --hub-amber-glow   = color-mix(accent 30%, transparent) [paper] · 38% [dark]
-secondary family (tracks --accent-secondary):
-  --hub-cyan         = var(--accent-secondary)
-  --hub-cyan-dim     = color-mix(secondary 60%, #000)  [paper]  · 50% [dark]
-  --hub-cyan-glow    = color-mix(secondary 25%, transparent) [paper] · 38% [dark]
+tier 2 — what every component reads:
+--color-accent / -dim / -deep / -glow / -ink      = the tier-1 values above
+--color-accent-bright = color-mix(accent 55%, #fff)       (one formula, both faces)
+--color-accent-soft   = color-mix(accent 12%, ground-2)   (one formula, both faces)
+--color-accent-contrast                                    (derived from luminance, below)
+--color-secondary / -dim / -glow
 ```
 
-**Component-facing aliases** (use these in app code, not the families):
-`--color-paper`(bg-0) · `--color-paper-2`(bg-1) · `--color-card`(bg-2) · `--color-card-2`(bg-3)
-· `--color-ink`(cream-bright) · `--color-muted`(cream) · `--color-faint`(cream-dim)
-· `--color-line`/`-strong` · `--color-accent`/`-bright`/`-dim`/`-deep`/`-glow`
-· `--color-accent-soft` (12% over card) · `--color-accent-ink` (accent 80% black on paper,
-78% white in dark — readable accent type) · `--color-accent-contrast` (#fff paper / #000 dark)
-· `--color-secondary`/`-dim`/`-glow`.
+That is the whole accent system: **one consumer-facing family**. It replaced four overlapping
+schemes (`--accent-raw`, the bare `--accent`, `--hub-amber*`/`--hub-cyan*`, and `--color-accent*`)
+that all read the same colour under different names.
 
 **On-accent ink** — text sitting ON the accent or a data colour uses the constant
 white-alpha family, not `--color-ink`: `--color-on-accent` `rgba(255,255,255,.95)` /
@@ -163,10 +155,11 @@ white-alpha family, not `--color-ink`: `--color-on-accent` `rgba(255,255,255,.95
 
 | Token | Paper | Dark |
 |---|---|---|
-| `--hub-shadow-inset` | `inset 0 1px 0 bevel-light, inset 0 -1px 0 bevel-dark` | same (dark bevels) |
-| `--hub-shadow-card` | `0 2px 8px ink@10%, 0 0 0 1px line` | same formula |
+| `--color-shadow-inset` | `inset 0 1px 0 bevel-light, inset 0 -1px 0 bevel-dark` | same formula (dark bevels) |
+| `--color-shadow-card` | `0 2px 8px ink@10%, 0 0 0 1px line` | same formula |
+| `--color-shadow-panel-ink` | `rgba(24,16,8,.20)` | same |
 | `--hub-accent-press` (the WELL shadow) | `inset 0 2px 3px ink@32%, inset 0 -1px 1px #fff@55%, 0 1px 0 #fff@45%` | `0 0 10px tint@38%, inset 0 0 0 1px tint@30%` (emissive; reads `--jk-tint`) |
-| `--accent-halo` / `--accent-halo-text` | `none` / `none` | `0 0 16px accent-glow` / `0 0 12px accent-glow` |
+| `--hub-halo` / `--hub-halo-text` | `none` / `none` | `0 0 16px accent-glow` / `0 0 12px accent-glow` |
 
 **The five accent slots (suite-wide chooser, `ACCENT_SCHEMES` in `@jkos/design`):**
 
@@ -187,32 +180,23 @@ hex gets hex-concat, anything else (CSS vars!) gets `color-mix(… transparent)`
 `` `${color}66` `` pattern on a var produces invalid CSS the browser silently drops.
 `pnpm check:cards` bans the raw pattern in `@jkos/cards` + `@jkos/ui`.
 
-### Aliasing into the factory chain — the one direction you may not alias
+### Aliasing — the chain runs one way
 
-⚠️ **Never point a token that the chain DERIVES FROM at a token the chain derives.** The chain
-above flows one way:
+⚠️ **A custom-property cycle empties every token in the loop, silently.** Per CSS Variables §3
+every property in a cycle is invalid at computed-value time: all of them read `""` at once,
+`background: var(…)` falls through to transparent, and nothing errors. It happened: jkAuth's
+alias layer once wrote `--accent: var(--color-accent)` while the factory's own chain ran
+`--accent → --hub-amber → --color-accent`, and `.btn-primary` rendered white-on-cream at
+**1.19:1** on every server-rendered jkAuth page — the Sign in button was invisible.
 
-```
---accent  ──▶  --hub-amber  ──▶  --color-accent
-```
-
-so an alias layer that writes `--accent: var(--color-accent)` closes a **cycle**, and per CSS
-Variables §3 every property in a cycle is invalid at computed-value time. All three names go
-empty *at once*, `background: var(--accent)` falls through to transparent, and nothing errors.
-
-This is not hypothetical: that exact line sat in `apps/jkauth/public/style.css` and made
-`.btn-primary` render white-on-cream at **1.19:1** across every server-rendered jkAuth page — the
-suite's **Sign in button was invisible**, as were "Change password", the dashboard's app-tile
-letters and the custom checkbox tick. It survived because the line looks identical in shape to its
-legitimate neighbours (`--surface: var(--color-card)`, `--text: var(--color-ink)`), which alias
-*downstream* names and are fine.
-
-**The rule:** an app may alias any **component-facing** token (`--color-*`) onto a local name. It
-may **not** re-point a **derivation input** (`--accent`, `--accent-secondary`, `--accent-raw`,
-`--accent-2-raw`) at anything. Those are inherited from the mirror, never redeclared.
-**The tell for a cycle** is several unrelated tokens reading `""` together —
-`getComputedStyle(document.documentElement).getPropertyValue('--accent')` returning empty string
-means invalid, not unset. One empty token is a typo; three is a loop. See TRAPS.md § CSS.
+**Why it can't recur in the factory:** tier 1 never reads tier 2 (`pnpm check:tokens` holds it),
+and every factory token carries a tier prefix, so an app's local name can't shadow one. **The
+rule for an app:** alias any `--color-*` onto a local name freely (`--surface:
+var(--color-card)`); never declare a `--hub-*`, `--color-*` or `--jk-*` name in an app except
+to re-point tier 2 on a subtree or to set a tier-3 input. **The tell for a cycle** is several
+unrelated tokens reading `""` together — `getComputedStyle(el).getPropertyValue('--x')`
+returning empty means invalid, not unset. One empty token is a typo; three is a loop. See
+TRAPS.md § CSS.
 
 ### ✅ Decided and built 2026-09-16 — `--color-accent-contrast` is derived from the accent
 
@@ -226,8 +210,8 @@ is user-selectable and every static answer is wrong for somebody.
 luminance, computed exactly in CSS: `color(from var(--color-accent) srgb-linear …)` exposes the
 LINEAR channels, so `Y = 0.2126 r + 0.7152 g + 0.0722 b` is available per channel, and
 `clamp(0, (0.17913 − Y) × 100000, 1)` switches at the luminance where black and white give equal
-contrast. It is declared once for both faces in an `@supports` block after the dark face; each
-face block keeps a literal fallback (`#000000`, right for the house accent on both).
+contrast. It is declared once, for both faces, in an `@supports` block; tier 2 keeps a literal
+fallback (`#000000`, right for the house accent on both faces).
 
 | Accent (face) | Before | After |
 |---|---|---|
@@ -241,30 +225,6 @@ every one now gets the best contrast black-or-white can give, and the lowest is 
 visible change is on paper: primary buttons, selected segments and the settings drawer's active
 states read **black** on the accent, not white. `apps/kouros/src/glass.css`'s orb ink still
 deliberately does not use this token — the orb's fill is not `--color-accent`.
-
----|---|---|
-| `--color-accent-contrast` today = `#ffffff` | **3.67:1** | ✗ fails |
-| `--color-ink` = `#1c1408` | **4.96:1** | ✓ passes |
-
-The paper face deepens the raw accent toward ink (`color-mix(… 64%, --accent-deepen-ink)`), which
-darkens the ground *and* keeps white as the on-accent colour — so paper ends up with the low-
-contrast pairing while the dark face (which sets `--color-accent-contrast: #000000` over the
-undeepened raw accent) is fine. `.btn-primary` is 16px/600, which is **not** WCAG "large text",
-so 3:1 does not apply.
-
-**Not changed unilaterally, because it is a design decision with suite-wide reach.** The token is
-consumed by jkAuth, KourOS, ORDECK and `@jkos/ui`'s `SettingsDrawer`, and
-`apps/kouros/src/glass.css` already hand-rolls around it ("NOT `--color-accent-contrast`: that
-token flips to black…"). Three candidate fixes, in increasing order of correctness:
-
-1. Flip paper's `--color-accent-contrast` to the ink ramp — one line, but inverts every
-   accent-filled surface in the suite at once.
-2. Deepen the paper accent further so white clears 4.5:1 — changes the brand colour.
-3. **Derive it**: pick the on-accent colour automatically from the resolved accent's luminance,
-   so it stays correct for all five presets *and* a user's custom pair. The accent is
-   user-selectable, so any static answer is wrong for someone.
-
-(3) is the real fix and is design-pass work — it belongs to whoever owns Stage F.
 
 ---
 
@@ -292,11 +252,11 @@ halation on the tube — the doctrine is unchanged, only the cut.
 **The CHIP — the solid-ink item (suite default).** Where a bubble is a *pill/badge* and a
 well is a *region*, a **chip** is a single tinted **item**: a calendar event, a task leaf,
 a bench card. The default `.jk-chip.jk-chip-solid` is a saturated `--jk-tint` fill
-(`color-mix(--jk-tint 82%, --accent-deepen-ink)`) with the type **cream-knocked-out and
+(`color-mix(--jk-tint 82%, --hub-deepen-ink)`) with the type **cream-knocked-out and
 pressed in** (`.jk-press-rev`); the faint raised base `.jk-chip` keeps neutral ink
 (`.jk-press-ink`). State modifiers layer on: `-live` (now — brighter fill + ring), `-done`
 (spent — flat, dimmed), `-sm` (dense). It mode-flips like every accent surface — inset
-bevel + drop on paper, halation ring on the tube — and reads `--jk-tint` (unset → `--accent`)
+bevel + drop on paper, halation ring on the tube — and reads `--jk-tint` (unset → `--color-accent`)
 so an item carries its own data hue. It **supersedes the calendar kit's old `ACCENT_GLAZE`
 chip look** (that recipe retires as the kit adopts `.jk-chip` in Wave B). The pressed-type
 family that titles chips — `.jk-press-ink` (neutral ink, shadow only), `.jk-press-rev`
@@ -323,15 +283,15 @@ primitive layer — labels, text buttons, chips and stamps are now *printed*.
 
 | Token | Face | Use |
 |---|---|---|
-| `--hub-font-serif` | **Fraunces** (suite default; Georgia fallback) | the print voice: headings, `.jk-lab`, `.jk-tbtn`, `.jk-bubble`, `.stamp`, `.jk-folio`, `.jk-colophon`, `.jk-async-note`, paper-face `.seg` |
-| `--hub-font-mono` | **IBM Plex Mono** | the machine: data, annotation, tape text, `.mono-eyebrow`, `.jk-pill` |
-| `--hub-font-sans` | **IBM Plex Sans** | body copy — quiet, legible, never the event; `.jk-lab-sans` |
-| `--hub-font-seg` | **Big Shoulders Display** | phosphor numeric readouts (`.seg`, dark face) |
+| `--jk-font-serif` | **Fraunces** (suite default; Georgia fallback) | the print voice: headings, `.jk-lab`, `.jk-tbtn`, `.jk-bubble`, `.stamp`, `.jk-folio`, `.jk-colophon`, `.jk-async-note`, paper-face `.seg` |
+| `--jk-font-mono` | **IBM Plex Mono** | the machine: data, annotation, tape text, `.mono-eyebrow`, `.jk-pill` |
+| `--jk-font-sans` | **IBM Plex Sans** | body copy — quiet, legible, never the event; `.jk-lab-sans` |
+| `--jk-font-seg` | **Big Shoulders Display** | phosphor numeric readouts (`.seg`, dark face) |
 
 **Deliberately mono, untouched by the reface:** `.mono-eyebrow` and `.jk-pill` — machine
 annotations and machine statuses keep the mono voice. `.jk-lab-sans` remains the blessed
 softer (sans) eyebrow. The `.jk-lab` ladder is tracked Fraunces caps at
-`calc(--hub-fs-lab* + 1px)` (the serif needs the extra point at these sizes).
+`calc(--jk-fs-lab* + 1px)` (the serif needs the extra point at these sizes).
 
 **The seg verdict — `.seg` splits by medium.** The tube keeps Big Shoulders + glow
 (dark face, unchanged); paper *prints* the readout — Fraunces lining tabular figures, no
@@ -355,15 +315,15 @@ Press **print scale** (Wave 22 — a shade crisper than the old 10/6/8/11 cut; a
 their own `radius` are untouched). Any app that doesn't pass `radius` gets this:
 
 ```
---hub-radius: 8px    --hub-radius-xs: 4px    --hub-radius-sm: 6px   --hub-radius-lg: 10px
---hub-radius-soft: 10px   --hub-radius-button: 5px
+--jk-radius: 8px    --jk-radius-xs: 4px    --jk-radius-sm: 6px   --jk-radius-lg: 10px
+--jk-radius-soft: 10px   --jk-radius-button: 5px
 ```
 
 Sharp is an opt-in, per app (a 0–2px scale through the factory `radius` input) or per card
-(zero the `--hub-radius*` tokens on that element) — and it should stay uncommon. Never
+(zero the `--jk-radius*` tokens on that element) — and it should stay uncommon. Never
 hardcode a pixel radius; shapes read the tokens so a whole app retunes from one call.
 
-**Grid:** `--hub-grid: 40px` (the canvas-grid pitch). The shell-dimension and widget-tuning
+**Grid:** `--jk-grid: 40px` (the canvas-grid pitch). The shell-dimension and widget-tuning
 tokens (`--hub-header-h`, `--hub-sidebar-w`, `--hub-widget-pad`, …) had no reader and were
 retired 2026-09-30; each shell sizes its own chrome.
 
@@ -433,19 +393,19 @@ override only the inputs and derivation follows:
 
 | Token | Desktop | Tablet ≤1023 | Mobile ≤767 |
 |---|---|---|---|
-| `--hub-tap-min` (tap floor) | `0px` | `44px` | `44px` |
-| `--hub-fs-bubble` / `-lg` | `9px` / `11px` | — | `11px` / `13px` |
-| `--hub-pad-bubble` / `-lg` | `5px 11px` / `7px 14px` | — | `7px 13px` / `9px 16px` |
-| `--hub-fs-pill` / `--hub-pad-pill` | `8px` / `4px 9px` | — | `10px` / `6px 11px` |
-| `--hub-fs-tbtn` / `--hub-pad-tbtn` | `9px` / `6px 10px` | — | `11px` / `9px 13px` |
-| `--hub-fs-lab` / `-sm` / `-xs` | `10/9/8px` | — | `11/10/9px` |
+| `--jk-tap-min` (tap floor) | `0px` | `44px` | `44px` |
+| `--jk-fs-bubble` / `-lg` | `9px` / `11px` | — | `11px` / `13px` |
+| `--jk-pad-bubble` / `-lg` | `5px 11px` / `7px 14px` | — | `7px 13px` / `9px 16px` |
+| `--jk-fs-pill` / `--jk-pad-pill` | `8px` / `4px 9px` | — | `10px` / `6px 11px` |
+| `--jk-fs-tbtn` / `--jk-pad-tbtn` | `9px` / `6px 10px` | — | `11px` / `9px 13px` |
+| `--jk-fs-lab` / `-sm` / `-xs` | `10/9/8px` | — | `11/10/9px` |
 
 The tap floor applies only to **interactive** primitives (`button.jk-bubble`, `a.jk-bubble`,
 `button.jk-pill`, `a.jk-pill`, `.jk-tbtn`) — `@jkos/ui` wrappers render interactive
 instances as real `<button>`/`<a>` and static badges as `<span>`, so dense inline badges
 stay dense.
 
-**Media-grid density ladder:** `--hub-media-cols-compact/cozy/comfortable` = 2/3/4 columns,
+**Media-grid density ladder:** `--jk-media-cols-compact/cozy/comfortable` = 2/3/4 columns,
 gaps `0.85rem` / `0.75rem` (tight). Callers pick the density (usually from
 `useBreakpoint()`); the grid never guesses.
 
@@ -454,12 +414,12 @@ gaps `0.85rem` / `0.75rem` (tight). Callers pick the density (usually from
 ## 7. Atmosphere — grain, CRT veils, scrims, canvas
 
 - **Film grain** — a suite-wide backdrop texture, painted by the factory onto `<scope> body`
-  and blended into the body's own background (`--grain-blend`: `multiply` paper / `screen`
+  and blended into the body's own background (`--hub-grain-blend`: `multiply` paper / `screen`
   dark; noise alpha baked at ~0.495 paper / 0.135 dark). It textures the **backdrop only**
   — never content, cards or text; don't cover the body with an opaque fill. Opt a scope out
   with `grain: false`.
-- **CRT knobs — owned by hub.css in both modes:** `--crt-scanline-opacity` (`0` paper /
-  `0.012` dark), `--crt-vignette-opacity` (`0.08` paper / `0.45` dark), `--crt-scanline-ink`
+- **CRT knobs — owned by hub.css in both modes:** `--hub-crt-scanline-opacity` (`0` paper /
+  `0.012` dark), `--hub-crt-vignette-opacity` (`0.08` paper / `0.45` dark), `--hub-crt-scanline-ink`
   (`#000` paper / `#fff` dark — paper *scores* lines, dark *lifts* phosphor rows). The ONE
   sanctioned override: `@jkos/ui/tokens.css` flattens only the paper vignette to `0` for
   the full-shell apps. Never re-set a knob per app or bake an overlay opacity into a
@@ -467,11 +427,11 @@ gaps `0.85rem` / `0.75rem` (tight). Callers pick the density (usually from
 - **Veils** (`.jk-scanlines`, `.jk-vignette`) are absolute overlays reading those knobs, so
   one markup is correct in both faces (they fall to nothing on paper). Host needs
   `position`.
-- **Scrims:** `--hub-scrim` `rgba(10,8,6,.5)`, `--hub-scrim-heavy` `rgba(5,4,3,.85)` —
+- **Scrims:** `--color-scrim` `rgba(10,8,6,.5)`, `--color-scrim-heavy` `rgba(5,4,3,.85)` —
   warm-black in both modes (a scrim dims, it is not a themed surface). Classes `.jk-scrim`
   / `.jk-scrim-heavy`.
-- **Canvas:** `.canvas-grid` — the workshop/boot ground (line-colour grid at `--hub-grid`
-  pitch; opacity `0.5` paper / `1` dark via `--canvas-grid-opacity`); `.canvas-cell` — a
+- **Canvas:** `.canvas-grid` — the workshop/boot ground (line-colour grid at `--jk-grid`
+  pitch; opacity `0.5` paper / `1` dark via `--hub-canvas-grid-opacity`); `.canvas-cell` — a
   bordered cell on it; `.perf` — perforation texture.
 
 ---
@@ -513,7 +473,7 @@ rasterised at.
 the border box — `mask-clip: no-clip` does not lift it — so a drop-shadow comes out sliced
 flush, giving square ends to the one element whose entire identity is that it has points.
 Drawn inside the masked box, the same taper that shapes the bead shapes its light.
-Seams: `--jk-inlay-mask` / `--jk-inlay-face` (`.jk-masthead::after` renders the same object
+Seams: `--jk-taper-mask` / `--color-ink` (`.jk-masthead::after` renders the same object
 from the same recipe, so the two cannot drift). ·
 `.jk-folio` + `.jk-folio-no` — the folio mark that names **content** in print
 (running-head rules, serif caps, accent-italic number; the counterpart of `.label-tape`,
@@ -640,13 +600,13 @@ doesn't know drops the whole thing, same trap as `.jk-slider`'s track/thumb pair
 **The recess is a token pair, not a shared shadow** — `--hub-field-face` /
 `--hub-field-recess` (+ their `-focus` twins), overridden wholesale in the dark block:
 paper debosses (shadow off the top lip, light caught at the bottom, rim takes the accent
-on focus); the tube drops to unlit `--hub-screen` with an inner falloff, **no bevel at
+on focus); the tube drops to unlit `--color-screen` with an inner falloff, **no bevel at
 all** — there is no raking light on a CRT to catch — and then *emits* on focus. Re-tinting
 the paper bevel for dark is exactly what makes a dark field read as a light field with the
 colours swapped. The two faces also need different *amounts*: paper's focus has to carry
 the whole state on depth and rim, so its numbers run harder than a dark-mode eye expects.
 `:disabled` drops the recess entirely — a slot you cannot write in must stop looking like
-one. Mobile forces `--hub-fs-field` to 16px: below that iOS Safari zooms the viewport on
+one. Mobile forces `--jk-fs-field` to 16px: below that iOS Safari zooms the viewport on
 focus, and a form that jumps the page on every tap is broken.
 
 The stepper is **ink only** — stacked border-triangle carets on a hairline divider, ghosted
@@ -700,9 +660,9 @@ says the same two facts (how far down, how much there is) with a rule instead of
 painted, because a bar that is invisible until you touch it hides the one piece of information
 a scrollbar exists to give. `--hub-scroll-mark` deepens it while the pointer is inside the pane
 *or* the pane is moving; `--hub-scroll-mark-hover` brightens it with the pointer on the mark
-itself; a drag goes full `--accent`. Two-face as always, and the faces are not a re-tint: on
-paper the mark mixes `--accent-deepen-ink`, so it reads as a pencil rule on the sheet; on the
-tube it mixes the raw `--accent`, because a neutral 2px mark at these opacities simply
+itself; a drag goes full `--color-accent`. Two-face as always, and the faces are not a re-tint: on
+paper the mark mixes `--hub-deepen-ink`, so it reads as a pencil rule on the sheet; on the
+tube it mixes the raw accent (`--hub-accent`), because a neutral 2px mark at these opacities simply
 disappears against unlit stock — which is how the *first* ghost-thumb attempt failed. Set
 `--hub-scroll-mark-rest: transparent` for the fully-hidden face; nothing else changes.
 
@@ -720,7 +680,7 @@ resting mark work without it, which is why the static jkAuth pages need nothing.
 `background-clip: content-box`, so the hit box stays a comfortable pointer target while the
 mark stays fine. Restate `background-clip` on every state (and prefer `background-color` over
 the shorthand): a bare `background` resets clip to `border-box` and the 2px mark silently grows
-to fill the whole 10px bar. The radius is a full pill (`999px`), not a `--hub-radius` step — at
+to fill the whole 10px bar. The radius is a full pill (`999px`), not a `--jk-radius` step — at
 2px anything softer than round is indistinguishable from square. The **corner** stays
 transparent; an *unstyled* corner paints an opaque OS-grey square, and `::-webkit-scrollbar-track`
 is explicitly cleared because styling any part opts the bar into the legacy one, which paints
@@ -737,7 +697,7 @@ with the accent (or `--jk-tint`) as it engages; each hosts on a real form/aria e
 the platform keeps the keyboard, and state styling keys off the aria attribute:
 `.jk-switch` + `.jk-switch-knob` (46×26, `aria-checked`) · `.jk-check` (18px box) ·
 `.jk-slider` (the house fader: real `<input type="range">`, milled metal cap on a filling
-channel; the input box is `--hub-tap-min` tall while the track stays 6px; elapsed fill
+channel; the input box is `--jk-tap-min` tall while the track stays 6px; elapsed fill
 paints from `--jk-slider-fill` — a percentage the caller sets, `<Slider>` does it for you;
 never hand-roll a range with `accent-color`) · `.jk-vu` + `.jk-vu-seg.on` (segment meter).
 
@@ -761,19 +721,19 @@ never hand-roll a range with `accent-color`) · `.jk-vu` + `.jk-vu-seg.on` (segm
   widgets).
 - `.jk-hit` / `.jk-scroll` — the two generic affordances every app was hand-rolling.
   `.jk-hit` is the hover response for anything clickable with no button face (a goal card,
-  a calendar cell, a caret): it lifts the background to `--hub-bg-4` and takes a 1px press,
+  a calendar cell, a caret): it lifts the background to `--color-lit` and takes a 1px press,
   and that is deliberately all. `.jk-scroll` is the scroll region — **vertical only**, so a
   long title can never shove a pane sideways. It carries no *bar* styling: the hairline is
   stated on the bare pseudo-elements, so a pane that forgot the class still gets the mark.
 - `.jk-divider` — `.jk-rule`'s vertical sibling: the 1×14px hairline that separates clusters
   *inside* a bar (header sources | clock | avatar, a folio head, ORDECK's footer strip).
 
-**Deepen inks — two, and they are not interchangeable:** `--accent-deepen-ink` (`#2a1c0e`)
+**Deepen inks — two, and they are not interchangeable:** `--hub-deepen-ink` (`#2a1c0e`)
 is the ACCENT CHAIN's paper deepen target, used by the accent derivation and the solid chip
-fill. `--bar-deepen-ink` (`#1a0a00`) is one stop darker and belongs to METERS — it is the
-dark end of `--hub-amber-dim` and of every `<Bar>` gradient, so a per-item meter deepens
+fill. `--hub-deepen-ink-meter` (`#1a0a00`) is one stop darker and belongs to METERS — it is the
+dark end of `--color-accent-dim` and of every `<Bar>` gradient, so a per-item meter deepens
 exactly the way the amber family does. Never inline either hex (§13.3); `<Bar>` exists so
-the meter one can't be retyped. `--hub-shadow-panel-ink` is the shadow ink for a floating
+the meter one can't be retyped. `--color-shadow-panel-ink` is the shadow ink for a floating
 panel/drawer/modal — direction is the call site's business, the ink is not.
 
 **Global:** scrollbars (10px bar / 2px hairline mark, `--hub-scroll-mark-*` three-rung
@@ -812,9 +772,9 @@ Class families: `.player-bar`, `.pb-left/center/right`, `.pb-meta` (artwork is `
 - `buildJkOSTheme(config) → css` / `injectJkOSTheme(config, id?)` — the theme factory.
   Config (all optional; omitted keys inherit hub defaults):
   - `accent: { primary, secondary, deepenInk }` — pre-login defaults only
-  - `light` / `dark`: neutrals with friendly keys mapping 1:1 onto tokens — `bg0..bg4`,
-    `screen`, `screenLine`, `metal0..2`, `bevelLight/Dark`, `line/lineStrong/lineBright`,
-    `cream/creamBright/creamDim/creamFaint`
+  - `light` / `dark`: neutrals with friendly keys mapping 1:1 onto the tier-1 tokens —
+    `ground0..ground4`, `screen`, `screenLine`, `metal0..2`, `bevelLight/Dark`,
+    `line/lineStrong/lineBright`, `ink/inkMuted/inkFaint/inkGhost`
   - `radius: { base, xs, sm, lg, soft, button }`
   - `fonts: { mono, sans, seg, serif }`
   - `responsive: { tablet?, mobile? }` with `tapMin/fsBubble(...)/fsLab(...)` keys
@@ -857,7 +817,7 @@ theme → `applyTheme` (`@jkos/auth-client`) calls `applyJkOSMode` + `applyJkOST
 
 | App | Stack | Serif | Factory config (actual) | Notes |
 |---|---|---|---|---|
-| **BeigeBoard** (planner) | React 18, plain CSS (`src/app.css`) | Fraunces | `radius: { base 8, xs 4, sm 7, lg 11, soft 9, widget 10, button 8 }` | **Full Press rebuild (2026-07-20)** — a view-layer redesign onto the new solid-ink chip system (the editorial pass 2026-07-19 was its masthead/rules groundwork; the folio retired for bordered `.jk-lab` week/date chips). **Today** = kit `DayView` single-day timeline + a 388px right rail (`.jk-sheet` bench + goals-in-press rollups + `.jk-colophon`); **Week/Calendar** = the reskinned kit views unchanged at the app level (the kit now owns the chrome — seven framed gapped day-lanes, today = tinted `jk-well` + `jk-press`); **Workshop** = a two-pane forge (goal rail, `jk-well` when selected → header `jk-press-lg` + `jk-rule` + expand/collapse milestone→leaf tree, each leaf a `.jk-chip` + `.jk-check`), retiring the drill-down + weekly bench + carried/adrift/next planning intel; **header** = pressed serif wordmark + `.jk-lab` chips + **mono** nav (active = `jk-well` + `jk-press`) + `.seg` clock. Motion on the `data-motion` axis (`.mo-item` rows, ambient rake/buzz opt-in; intro presses on paper). DetailPanel kept + restyled as the edit surface. Desktop only — `src/mobile/*` untouched behind `useBreakpoint()`; drag via `usePointerDrag`. **Parity pass (2026-07-29)** brought it to the prototype: the timeline is 60px rows (17 × 60 = 1020px) with hour rules in `--hub-line` and a half-hour ghost rule on Today only, all keyed off `density` so ORDECK's HUD keeps 48px; the gutter speaks **mono** (`.seg` only on the now badge, §13.12); the three 30px serif mastheads became one 46px `<ChromeBar>`; **Calendar was rebuilt** from a hairline table + 220px sidebar into 7×N gapped, individually bordered cells (the Week lane idea at month scale — sidebar now off by default, spanning all-day bars become a chip per covered day); Today's now-line names the live event and counts down, and the timeline opens where the day is; every view cascades from `MO_DELAYS` and no view double-animates. **Masthead + panel pass (2026-07-29)**: the header became a `.jk-masthead` (no fill/border, tapered ink ladder, `.jk-folio` edition mark, thumb-index nav) and the DetailPanel a `.jk-panel` overlay — see §8. Today's rail gained **Loose leaves**, the one section listing tasks filed under no goal (no goal anywhere up the parent chain, not merely `!parent_id`); before it, an unfiled task with no date and no `week_start` appeared on no screen at all. **Today's lane is marked by LIGHT, not by pigment**: `--jk-tint` 5% over `--hub-bg-4` (the brightest stock) with a `--color-line-strong` frame and `gridRules(density, { tone: 'strong' })`. The old recipe was the faint-CHIP wash (14% over `--hub-bg-2`), a mid-tone that sat at nearly equal lightness to BOTH its `--color-paper` neighbours *and* `--hub-line` — so the lane didn't read as marked and its hour rules vanished inside it. A wash too weak to see and strong enough to erase the ledger is the worst of both; the lit lane differs in the axis the eye actually finds, and gains rule contrast instead of losing it. Day's timeline takes `tone: 'strong'` too — it is drawn straight on the grained ground with no lane fill, the faintest pairing in the app. **Head/foot + month-ring pass (2026-07-30)**: the masthead ladder became **the inlay** (one tapered metal bead, hammered steel on paper / lit silver on the tube — §04) and the thumb-index nav went back to **boxed** tabs, because the box is what states light-vs-dark at a glance; the **page footer is gone** (colophon + rule both — the canvas keeps an 18px bottom margin and the page ends in air); and Calendar's day cells now enter on the **month ring** (`ringOrder`), starting on today and wrapping, so the entrance itself points at the current date |
+| **BeigeBoard** (planner) | React 18, plain CSS (`src/app.css`) | Fraunces | `radius: { base 8, xs 4, sm 7, lg 11, soft 9, widget 10, button 8 }` | **Full Press rebuild (2026-07-20)** — a view-layer redesign onto the new solid-ink chip system (the editorial pass 2026-07-19 was its masthead/rules groundwork; the folio retired for bordered `.jk-lab` week/date chips). **Today** = kit `DayView` single-day timeline + a 388px right rail (`.jk-sheet` bench + goals-in-press rollups + `.jk-colophon`); **Week/Calendar** = the reskinned kit views unchanged at the app level (the kit now owns the chrome — seven framed gapped day-lanes, today = tinted `jk-well` + `jk-press`); **Workshop** = a two-pane forge (goal rail, `jk-well` when selected → header `jk-press-lg` + `jk-rule` + expand/collapse milestone→leaf tree, each leaf a `.jk-chip` + `.jk-check`), retiring the drill-down + weekly bench + carried/adrift/next planning intel; **header** = pressed serif wordmark + `.jk-lab` chips + **mono** nav (active = `jk-well` + `jk-press`) + `.seg` clock. Motion on the `data-motion` axis (`.mo-item` rows, ambient rake/buzz opt-in; intro presses on paper). DetailPanel kept + restyled as the edit surface. Desktop only — `src/mobile/*` untouched behind `useBreakpoint()`; drag via `usePointerDrag`. **Parity pass (2026-07-29)** brought it to the prototype: the timeline is 60px rows (17 × 60 = 1020px) with hour rules in `--color-line` and a half-hour ghost rule on Today only, all keyed off `density` so ORDECK's HUD keeps 48px; the gutter speaks **mono** (`.seg` only on the now badge, §13.12); the three 30px serif mastheads became one 46px `<ChromeBar>`; **Calendar was rebuilt** from a hairline table + 220px sidebar into 7×N gapped, individually bordered cells (the Week lane idea at month scale — sidebar now off by default, spanning all-day bars become a chip per covered day); Today's now-line names the live event and counts down, and the timeline opens where the day is; every view cascades from `MO_DELAYS` and no view double-animates. **Masthead + panel pass (2026-07-29)**: the header became a `.jk-masthead` (no fill/border, tapered ink ladder, `.jk-folio` edition mark, thumb-index nav) and the DetailPanel a `.jk-panel` overlay — see §8. Today's rail gained **Loose leaves**, the one section listing tasks filed under no goal (no goal anywhere up the parent chain, not merely `!parent_id`); before it, an unfiled task with no date and no `week_start` appeared on no screen at all. **Today's lane is marked by LIGHT, not by pigment**: `--jk-tint` 5% over `--color-lit` (the brightest stock) with a `--color-line-strong` frame and `gridRules(density, { tone: 'strong' })`. The old recipe was the faint-CHIP wash (14% over `--color-card`), a mid-tone that sat at nearly equal lightness to BOTH its `--color-paper` neighbours *and* `--color-line` — so the lane didn't read as marked and its hour rules vanished inside it. A wash too weak to see and strong enough to erase the ledger is the worst of both; the lit lane differs in the axis the eye actually finds, and gains rule contrast instead of losing it. Day's timeline takes `tone: 'strong'` too — it is drawn straight on the grained ground with no lane fill, the faintest pairing in the app. **Head/foot + month-ring pass (2026-07-30)**: the masthead ladder became **the inlay** (one tapered metal bead, hammered steel on paper / lit silver on the tube — §04) and the thumb-index nav went back to **boxed** tabs, because the box is what states light-vs-dark at a glance; the **page footer is gone** (colophon + rule both — the canvas keeps an 18px bottom margin and the page ends in air); and Calendar's day cells now enter on the **month ring** (`ringOrder`), starting on today and wrapping, so the entrance itself points at the current date |
 | **ORDECK** (HUD/portal) | React 18, plain CSS | Fraunces | `selector: 'html.od-v2'`, `radius: { base 10, xs 4, sm 7, lg 16, soft 8, button 9 }` | v2 HUD scopes its theme to `html.od-v2`; widget system + workshop; login page is minimal hardware (LED + glow title) |
 | **KourOS** (music + audiobooks) | React 18, plain CSS | Fraunces (suite default) | `accent: { #4b3f8f, #dba13c }`, `radius: { base 5, xs 3, sm 4, lg 8, soft 6, button 5 }` | The `@jkos/player` consumer for both kinds, with the audiobook offline cache + SW media; loads Fraunces since Full Press (the primitives are printed) |
 | **jkAuth** (login/portal) + **jkos-deploy** (console) | static HTML/JS | — | none (hub defaults) | Render a generated **mirror** of hub.css (`jkos-tokens.css`) — regen commands in §14 |
@@ -954,12 +914,14 @@ keyframes end at the resting style and revert. Keep that property when adding en
 
 Do not cross these in any design pass:
 
-1. **Token names are frozen** — never rename a `--hub-*` / `--color-*` token; every
-   consumer references them.
+1. **Token names follow the tiers** (§2) — a component reads `--color-*` and `--jk-*`, and a
+   `--hub-*` only where tier 2 has no name for it. A rename moves every consumer in the same
+   commit, judged by `pnpm check:token-identity` (values) and `pnpm check:tokens` (tiers, the
+   one-name rule, and no read of an undeclared token).
 2. **The mode contract** — `data-mode` ∈ {`"paper"`, `"dark"`} on `<html>`; no
    `prefers-color-scheme` in components.
-3. **Accents are universal and user-driven** — never hardcode `--accent` or a hex in a
-   component; per-app identity is expressed only through **accent defaults / neutrals /
+3. **Accents are universal and user-driven** — never hardcode an accent hex in a
+   component (read `--color-accent*`); per-app identity is expressed only through **accent defaults / neutrals /
    radius / fonts** passed to the factory. The derivation is written once in hub.css —
    never restate it.
 4. **Both faces, any accent** — every screen must hold up in paper and dark under all five

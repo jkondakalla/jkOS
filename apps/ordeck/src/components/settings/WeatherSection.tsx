@@ -6,10 +6,10 @@ import { weatherConfig, saveWeatherConfigLive, type WeatherConfig } from '../../
    Rendered into the shared @jkos/ui SettingsDrawer via its `extra` slot, so the
    rest of the tray stays identical to the other apps. */
 
-const FONT = 'var(--hub-font-mono)';
+const FONT = 'var(--jk-font-mono)';
 const TXT_MUTED = 'var(--color-muted)';
 const TXT_FAINT = 'var(--color-faint)';
-const LINE = 'var(--hub-line)';
+const LINE = 'var(--color-line)';
 const FIELD = 'color-mix(in srgb, var(--color-ink) 6%, transparent)';
 
 export function WeatherSection() {
@@ -60,8 +60,8 @@ export function WeatherSection() {
       </div>
       <button type="button" onClick={save} style={{
         padding: '7px 14px', border: `1px solid ${LINE}`,
-        background: saved ? 'color-mix(in srgb, var(--hub-green) 15%, transparent)' : FIELD,
-        color: saved ? 'var(--hub-green)' : TXT_MUTED,
+        background: saved ? 'color-mix(in srgb, var(--color-ok) 15%, transparent)' : FIELD,
+        color: saved ? 'var(--color-ok)' : TXT_MUTED,
         fontFamily: FONT, fontSize: 9.5, letterSpacing: '0.1em', cursor: 'pointer', transition: 'all 0.2s',
       }}>
         {saved ? 'SAVED ✓' : 'SAVE LOCATION'}

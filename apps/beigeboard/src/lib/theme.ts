@@ -1,9 +1,9 @@
 // Fonts flow from the @jkos/design token system (set per-app via the factory in
 // App.tsx: serif → Fraunces, sans/mono → IBM Plex). Referencing the tokens here
 // means every view that uses these constants adopts the brief typography at once.
-export const FONT_HEAD = 'var(--hub-font-serif)'   // Fraunces (serif headers)
-export const FONT_BODY = 'var(--hub-font-sans)'    // IBM Plex Sans
-export const FONT_NUM  = 'var(--hub-font-serif)'   // Fraunces (serif figures)
+export const FONT_HEAD = 'var(--jk-font-serif)'   // Fraunces (serif headers)
+export const FONT_BODY = 'var(--jk-font-sans)'    // IBM Plex Sans
+export const FONT_NUM  = 'var(--jk-font-serif)'   // Fraunces (serif figures)
 
 // Date/time + grid math is single-sourced in @jkos/cards (the calendar card kit);
 // re-exported here so existing BeigeBoard imports keep working without a second,
@@ -50,8 +50,8 @@ export const sourceTintOf = (id?: string | null): string => (id && SOURCES[id] ?
  *  to the parent goal, then to the theme. */
 const TAG_TINTS: Record<string, string> = {
   DESIGN: 'var(--color-accent)',
-  DOCS:   'var(--hub-cyan)',
-  INFRA:  'var(--hub-magenta)',
+  DOCS:   'var(--color-secondary)',
+  INFRA:  'var(--color-tertiary)',
 }
 
 export const tagTintOf = (tag?: string | null): string | null =>
@@ -71,4 +71,4 @@ export function getGreeting() {
 // @jkos/design factory as the .jk-glow / .jk-glow-text utility classes: add the
 // class + an intensity rung (.jk-glow-low/-mid/-hi) and set the colour inline via
 // --jk-glow-color. Mode-gating (none on paper, glow in CRT) is handled in CSS, so
-// there is no JS helper to call. Primary-accent glows use --accent-halo(-text).
+// there is no JS helper to call. Primary-accent glows use --hub-halo(-text).

@@ -22,7 +22,7 @@ export interface AllDayBarProps {
 
 export function AllDayBar({ bar, color, top, height, isSelected, isDragging, onPointerDown, onClick }: AllDayBarProps) {
   const surface = cardSurface({ accent: color, variant: 'solid', sm: true, selected: isSelected });
-  const rad = 'var(--hub-radius-xs)';
+  const rad = 'var(--jk-radius-xs)';
   return (
     <div
       onPointerDown={onPointerDown}
@@ -53,7 +53,7 @@ export function AllDayBar({ bar, color, top, height, isSelected, isDragging, onP
       <span
         className="jk-press-rev"
         style={{
-          fontFamily: 'var(--hub-font-serif)',
+          fontFamily: 'var(--jk-font-serif)',
           fontSize: 10,
           fontWeight: 600,
           overflow: 'hidden',

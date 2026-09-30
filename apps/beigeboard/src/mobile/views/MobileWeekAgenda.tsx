@@ -48,8 +48,8 @@ export function MobileWeekAgenda({ items, today, resolvers, onSelect, onToggle }
             return (
               <div key={iso}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 8 }}>
-                  <span style={{ fontFamily: FONT_NUM, fontStyle: 'italic', fontSize: 17, color: isToday ? 'var(--color-accent)' : 'var(--color-ink)', minWidth: 26, textShadow: isToday ? 'var(--accent-halo-text)' : 'none' }}>{d.getDate()}</span>
-                  <span style={{ fontFamily: FONT_BODY, fontSize: 10, fontWeight: 500, letterSpacing: '0.22em', textTransform: 'uppercase', color: isToday ? 'var(--color-accent)' : 'var(--color-muted)', textShadow: isToday ? 'var(--accent-halo-text)' : 'none' }}>
+                  <span style={{ fontFamily: FONT_NUM, fontStyle: 'italic', fontSize: 17, color: isToday ? 'var(--color-accent)' : 'var(--color-ink)', minWidth: 26, textShadow: isToday ? 'var(--hub-halo-text)' : 'none' }}>{d.getDate()}</span>
+                  <span style={{ fontFamily: FONT_BODY, fontSize: 10, fontWeight: 500, letterSpacing: '0.22em', textTransform: 'uppercase', color: isToday ? 'var(--color-accent)' : 'var(--color-muted)', textShadow: isToday ? 'var(--hub-halo-text)' : 'none' }}>
                     {d.toLocaleDateString('en-US', { weekday: 'long' })}
                   </span>
                   {isToday && <RecLamp size={6} label="Today" />}

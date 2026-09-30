@@ -1,6 +1,6 @@
 /* library.css — the real library browser (task 5.2): cover grid, toolbar
    (search/filter/group/sort), series sections. Owned entirely by this task; reads
-   only the suite's --hub- and --accent design tokens (app.css's header comment
+   only the suite's --hub- and --color-accent design tokens (app.css's header comment
    applies here too — no hardcoded hex/radius). Imported once, from Library.tsx. */
 
 /* ── Heading row ───────────────────────────────────────────────────────────── */
@@ -21,10 +21,10 @@
   min-width: 0;   /* an admin's two buttons wrap on a phone instead of leaving the screen */
 }
 .lib-count {
-  font-family: var(--hub-font-mono);
-  font-size: var(--hub-fs-lab-sm);
+  font-family: var(--jk-font-mono);
+  font-size: var(--jk-fs-lab-sm);
   letter-spacing: 0.1em;
-  color: var(--hub-cream-dim);
+  color: var(--color-faint);
 }
 
 /* Admin-only rescanLibrary trigger. Disabled while a walk is in flight — a rescan can
@@ -32,9 +32,9 @@
 .lib-rescan[disabled] { opacity: 0.55; cursor: progress; }
 .lib-rescan-note {
   margin: 0.5rem 0 0;
-  font-family: var(--hub-font-mono);
-  font-size: var(--hub-fs-lab-sm);
-  color: var(--hub-cream-dim);
+  font-family: var(--jk-font-mono);
+  font-size: var(--jk-fs-lab-sm);
+  color: var(--color-faint);
 }
 
 /* ── Toolbar ───────────────────────────────────────────────────────────────── */
@@ -76,20 +76,20 @@
 .lib-input,
 .lib-select {
   width: 100%;
-  min-height: var(--hub-tap-min);
-  font-family: var(--hub-font-sans);
+  min-height: var(--jk-tap-min);
+  font-family: var(--jk-font-sans);
   font-size: 0.85rem;
-  color: var(--hub-cream-bright);
-  background: var(--hub-bg-1);
-  border: 1px solid var(--hub-line);
-  border-radius: var(--hub-radius-sm);
+  color: var(--color-ink);
+  background: var(--color-paper-2);
+  border: 1px solid var(--color-line);
+  border-radius: var(--jk-radius-sm);
   padding: 0.5rem 0.7rem;
 }
-.lib-input::placeholder { color: var(--hub-cream-dim); }
+.lib-input::placeholder { color: var(--color-faint); }
 .lib-input:focus,
 .lib-select:focus {
   outline: none;
-  border-color: color-mix(in srgb, var(--accent-secondary) 55%, transparent);
+  border-color: color-mix(in srgb, var(--color-secondary) 55%, transparent);
 }
 .lib-search .lib-input { padding-right: 2.1rem; }
 
@@ -98,18 +98,18 @@
   top: 0;
   right: 0;
   height: 100%;
-  min-width: var(--hub-tap-min, 2rem);
+  min-width: var(--jk-tap-min, 2rem);
   display: flex;
   align-items: center;
   justify-content: center;
   background: transparent;
   border: none;
-  color: var(--hub-cream-dim);
+  color: var(--color-faint);
   font-size: 1.1rem;
   line-height: 1;
   cursor: pointer;
 }
-.lib-clear:hover { color: var(--accent-secondary); }
+.lib-clear:hover { color: var(--color-secondary); }
 
 .lib-seg {
   display: flex;
@@ -137,13 +137,13 @@
 .lib-group-title {
   display: inline-flex;
   align-items: center;
-  min-height: var(--hub-tap-min);
+  min-height: var(--jk-tap-min);
   background: none;
   border: none;
   padding: 0;
   cursor: pointer;
 }
-.lib-group-title:hover .jk-lab { color: var(--accent-secondary); }
+.lib-group-title:hover .jk-lab { color: var(--color-secondary); }
 
 /* ── Cover grid ────────────────────────────────────────────────────────────── */
 
@@ -163,7 +163,7 @@
   transition: transform 0.12s ease, border-color 0.12s ease;
 }
 .lib-card:hover {
-  border-color: color-mix(in srgb, var(--accent-secondary) 45%, var(--hub-line));
+  border-color: color-mix(in srgb, var(--color-secondary) 45%, var(--color-line));
   transform: translateY(-1px);
 }
 
@@ -180,7 +180,7 @@
 }
 .lib-card-title {
   margin: 0;
-  font-family: var(--hub-font-serif);
+  font-family: var(--jk-font-serif);
   font-size: 0.92rem;
   line-height: 1.25;
   display: -webkit-box;
@@ -191,7 +191,7 @@
 .lib-card-author {
   margin: 0;
   font-size: 0.78rem;
-  color: var(--hub-cream-dim);
+  color: var(--color-faint);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -212,7 +212,7 @@
   border: none;
   white-space: nowrap;
 }
-.lib-genre-chip:hover { border-color: color-mix(in srgb, var(--accent-secondary) 55%, transparent); }
+.lib-genre-chip:hover { border-color: color-mix(in srgb, var(--color-secondary) 55%, transparent); }
 
 .lib-card-meta {
   display: flex;
@@ -224,9 +224,9 @@
 }
 .lib-card-duration {
   flex: none;
-  font-family: var(--hub-font-mono);
+  font-family: var(--jk-font-mono);
   font-size: 0.7rem;
-  color: var(--hub-cream-dim);
+  color: var(--color-faint);
 }
 
 /* ── Compact tier tweaks ───────────────────────────────────────────────────── */

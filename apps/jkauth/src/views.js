@@ -294,11 +294,11 @@ function dashboardPage(user, nonce = '') {
   .dash { max-width: 720px; margin: 0 auto; padding: 2.5rem 1.25rem 4rem; display:flex; flex-direction:column; gap: 1.75rem; }
   .dash-top { display:flex; align-items:center; gap: 1rem; }
   .avatar { width: 46px; height: 46px; border-radius: 50%; flex-shrink:0; display:grid; place-items:center;
-    background: var(--accent); color:var(--color-on-accent); font-weight:700; font-size: 1rem; }
+    background: var(--color-accent); color:var(--color-on-accent); font-weight:700; font-size: 1rem; }
   .who { min-width:0; flex:1; }
   .who h1 { font-size: 1.15rem; font-weight: 700; letter-spacing:-0.01em; display:flex; align-items:center; gap:.5rem; }
   .who .email { color: var(--muted); font-size: .85rem; margin-top: 2px; }
-  .role { font-size: .6rem; letter-spacing:.12em; text-transform:uppercase; color:var(--color-on-accent); background:var(--accent);
+  .role { font-size: .6rem; letter-spacing:.12em; text-transform:uppercase; color:var(--color-on-accent); background:var(--color-accent);
     padding: 2px 7px; border-radius: 999px; font-weight:600; }
   .dash-actions { margin-left:auto; display:flex; gap:.5rem; align-items:center; }
   .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem 1.25rem 1.4rem; }
@@ -306,17 +306,17 @@ function dashboardPage(user, nonce = '') {
   .apps { display:grid; grid-template-columns: repeat(auto-fill, minmax(150px,1fr)); gap: .7rem; }
   .app { display:flex; align-items:center; gap:.7rem; padding:.8rem .9rem; border:1px solid var(--border); border-radius:10px;
     text-decoration:none; color:var(--text); background:var(--bg); transition: border-color .15s, transform .15s; }
-  .app:hover { border-color: var(--accent); transform: translateY(-1px); }
+  .app:hover { border-color: var(--color-accent); transform: translateY(-1px); }
   .app .ic { width:30px; height:30px; border-radius:8px; flex-shrink:0; display:grid; place-items:center;
-    background: var(--accent); color:var(--color-on-accent); font-weight:700; font-size:.85rem; }
+    background: var(--color-accent); color:var(--color-on-accent); font-weight:700; font-size:.85rem; }
   .app .nm { font-weight:600; font-size:.9rem; }
   .muted-note { color: var(--muted); font-size: .85rem; }
   .ai-head { display:flex; align-items:center; justify-content:space-between; margin-bottom: .25rem; }
   .ai-head h2 { margin-bottom: 0; }
-  .switch { width: 46px; height: 26px; border-radius: 999px; border:1px solid var(--border); background:var(--hub-bg-0);
+  .switch { width: 46px; height: 26px; border-radius: 999px; border:1px solid var(--border); background:var(--color-paper);
     position:relative; cursor:pointer; transition: background .18s; flex-shrink:0; }
-  .switch[aria-checked=true] { background: var(--accent); border-color: var(--accent); }
-  .switch .knob { position:absolute; top:2px; left:2px; width:20px; height:20px; border-radius:50%; background:var(--hub-bg-2);
+  .switch[aria-checked=true] { background: var(--color-accent); border-color: var(--color-accent); }
+  .switch .knob { position:absolute; top:2px; left:2px; width:20px; height:20px; border-radius:50%; background:var(--color-card);
     transition: left .18s; box-shadow:0 1px 3px rgba(0,0,0,.25); }
   .switch[aria-checked=true] .knob { left: 22px; }
   .ai-status { font-size:.8rem; color: var(--muted); margin-top:.6rem; min-height: 1em; }

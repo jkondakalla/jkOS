@@ -24,7 +24,7 @@ export function IconSkipArrow({ dir, seconds }: { dir: 'back' | 'fwd'; seconds: 
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" style={dir === 'fwd' ? { transform: 'scaleX(-1)' } : undefined}>
       <path d="M12 6V3L7 7l5 4V8a5 5 0 1 1-5 5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-      <text x="12.5" y="16.5" textAnchor="middle" fontSize="7" fontFamily="var(--hub-font-mono)" fill="currentColor" style={dir === 'fwd' ? { transform: 'scaleX(-1)', transformOrigin: '12.5px 14px' } : undefined}>{seconds}</text>
+      <text x="12.5" y="16.5" textAnchor="middle" fontSize="7" fontFamily="var(--jk-font-mono)" fill="currentColor" style={dir === 'fwd' ? { transform: 'scaleX(-1)', transformOrigin: '12.5px 14px' } : undefined}>{seconds}</text>
     </svg>
   );
 }

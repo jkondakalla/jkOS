@@ -7,9 +7,9 @@
 html, body {
   height: 100%;
   overflow: hidden;
-  background: var(--hub-bg-0);
-  color: var(--hub-cream);
-  font-family: var(--hub-font-mono);
+  background: var(--color-paper);
+  color: var(--color-muted);
+  font-family: var(--jk-font-mono);
   font-size: 13px;
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
@@ -18,7 +18,7 @@ html, body {
 }
 
 button { font: inherit; background: none; color: inherit; cursor: pointer; border: none; }
-input, textarea { font-family: var(--hub-font-mono); color: var(--hub-cream); }
+input, textarea { font-family: var(--jk-font-mono); color: var(--color-muted); }
 a { color: inherit; text-decoration: none; }
 
 /* === ORDECK animation classes === */

@@ -17,7 +17,7 @@ export function Checkbox({ id, completed, onToggle, color, size = 15 }: any) {
       style={{
         width: size, height: size,
         border: `1px solid ${completed ? accent : 'var(--color-line)'}`,
-        borderRadius: 'var(--hub-radius-xs)',
+        borderRadius: 'var(--jk-radius-xs)',
         background: completed ? accent : 'transparent',
         cursor: 'pointer', flexShrink: 0,
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
@@ -106,7 +106,7 @@ export function RecLamp({ size = 8, label }: any) {
         <span style={{
           fontFamily: FONT_BODY, fontSize: 9, letterSpacing: '0.22em',
           textTransform: 'uppercase', color: 'var(--color-accent)',
-          textShadow: 'var(--accent-halo-text)',
+          textShadow: 'var(--hub-halo-text)',
         }}>{label}</span>
       )}
     </div>

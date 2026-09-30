@@ -15,7 +15,7 @@
    paths. Static-mirror apps (jkAuth, jkos-deploy) render hub.css directly and so
    keep the paper vignette. Any NEW CRT knob belongs in hub.css, not here.
    See DESIGN.md § "CRT knob ownership". */
-:root { --crt-vignette-opacity: 0; }
+:root { --hub-crt-vignette-opacity: 0; }
 
 /* The --color-* aliases are defined once in @jkos/design (hub.css) and derive
    from the accent chain — no need to restate them here. */

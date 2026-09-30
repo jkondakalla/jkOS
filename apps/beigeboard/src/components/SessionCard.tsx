@@ -35,7 +35,7 @@ import {
   type RenderedStep,
 } from '@jkos/routine-spec'
 
-const MONO = 'var(--hub-font-mono)'
+const MONO = 'var(--jk-font-mono)'
 
 /** How long a set field waits after the last keystroke before it writes. Long
  *  enough to swallow a held arrow key or a run of stepper clicks, short enough
@@ -123,7 +123,7 @@ export function SessionCard({ occurrence, tint, readonly, onUpdateItem, onDeload
       {rest && (
         <div style={{
           display: 'flex', alignItems: 'center', gap: 9, marginBottom: 8,
-          padding: '5px 9px', borderRadius: 'var(--hub-radius-xs)',
+          padding: '5px 9px', borderRadius: 'var(--jk-radius-xs)',
           border: `1px solid ${restLeft > 0 ? tint || 'var(--color-accent)' : 'var(--color-line)'}`,
           background: restLeft > 0 ? 'color-mix(in srgb, var(--jk-tint, var(--color-accent)) 9%, transparent)' : 'transparent',
         }}>
@@ -286,7 +286,7 @@ function StepRow({ step, status, tint, readonly, onLog, onRest }: any) {
       style={{
         display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'center',
         padding: '6px 8px', marginBottom: 4,
-        border: '1px solid var(--color-line)', borderRadius: 'var(--hub-radius-xs)',
+        border: '1px solid var(--color-line)', borderRadius: 'var(--jk-radius-xs)',
         background: done ? 'color-mix(in srgb, var(--jk-tint, var(--color-accent)) 7%, transparent)' : 'transparent',
         opacity: done && !missed ? 0.85 : 1,
       }}
@@ -325,7 +325,7 @@ function StepRow({ step, status, tint, readonly, onLog, onRest }: any) {
               fontFamily: MONO, fontSize: 9.5, letterSpacing: '0.06em',
               padding: '3px 6px', cursor: 'pointer',
               color: status.sets?.length ? 'var(--color-accent)' : 'var(--color-faint)',
-              border: '1px solid var(--color-line)', borderRadius: 'var(--hub-radius-xs)',
+              border: '1px solid var(--color-line)', borderRadius: 'var(--jk-radius-xs)',
             }}
           >
             {sheet ? '×' : 'SETS'}
@@ -351,7 +351,7 @@ function StepRow({ step, status, tint, readonly, onLog, onRest }: any) {
           style={{
             width: 26, height: 26, display: 'grid', placeItems: 'center',
             border: `1px solid ${done ? tint || 'var(--color-accent)' : 'var(--color-line)'}`,
-            borderRadius: 'var(--hub-radius-xs)',
+            borderRadius: 'var(--jk-radius-xs)',
             background: done ? tint || 'var(--color-accent)' : 'transparent',
             color: done ? 'var(--color-on-accent)' : 'var(--color-faint)',
             fontFamily: MONO, fontSize: 12, cursor: readonly ? 'default' : 'pointer',

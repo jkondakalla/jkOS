@@ -36,20 +36,20 @@ function LoadingOverlay() {
     <div style={{
       position:       'fixed',
       inset:          0,
-      background:     'var(--hub-bg-0)',
+      background:     'var(--color-paper)',
       display:        'flex',
       flexDirection:  'column',
       alignItems:     'center',
       justifyContent: 'center',
       gap:            16,
       zIndex:         8000,
-      fontFamily:     'var(--hub-font-mono)',
+      fontFamily:     'var(--jk-font-mono)',
     }}>
       <Led color="amber" size="lg" />
       <span style={{
         fontSize:      9,
         letterSpacing: '0.24em',
-        color:         'var(--hub-cream-dim)',
+        color:         'var(--color-faint)',
         textTransform: 'uppercase',
       }}>
         VERIFYING SESSION

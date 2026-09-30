@@ -22,7 +22,7 @@ function getIntroIsDark(): boolean {
    FilmGrain overlay was removed. */
 
 /* The global lens-bloom SVG <filter id="halation"> lived here; it was removed
-   when halation became the per-accent --accent-halo token in @jkos/design (the
+   when halation became the per-accent --hub-halo token in @jkos/design (the
    filter could only bloom warm pixels, so rust cards haloed and sage didn't). */
 
 /* ── Artifacts (CRT corner glitches) ────────────────────────────────────── */
@@ -99,9 +99,9 @@ interface ScanLinesProps {
 }
 
 export function ScanLines({ strength = 1 }: ScanLinesProps) {
-  // Ink flips per mode via the factory's --crt-scanline-ink token (#000 paper /
+  // Ink flips per mode via the factory's --hub-crt-scanline-ink token (#000 paper /
   // #fff dark); `strength` scales the alpha. No JS mode-branch, no baked rgb.
-  const lineColor = `color-mix(in srgb, var(--crt-scanline-ink) ${(2 * strength).toFixed(2)}%, transparent)`
+  const lineColor = `color-mix(in srgb, var(--hub-crt-scanline-ink) ${(2 * strength).toFixed(2)}%, transparent)`
   return (
     <div
       aria-hidden="true"
@@ -196,7 +196,7 @@ export function CinematicIntro({ onDone }: { onDone: () => void }) {
         position: 'fixed', inset: 0, zIndex: 10000,
         // Backdrop + screen pull from the factory neutral ramp (mode-aware), so the
         // opening scroll matches whatever palette the suite is in.
-        background: 'var(--hub-bg-0)',
+        background: 'var(--color-paper)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         overflow: 'hidden',
         pointerEvents: phase === 3 ? 'none' : 'all',
@@ -206,7 +206,7 @@ export function CinematicIntro({ onDone }: { onDone: () => void }) {
         className={phase >= 1 ? (isDark ? 'crt-expand' : 'paper-expand') : ''}
         style={{
           position: 'absolute', inset: 0,
-          background: 'var(--hub-bg-2)',
+          background: 'var(--color-card)',
           clipPath: phase === 0 ? 'inset(50% 0 50% 0)' : undefined,
         }}
       />
@@ -236,7 +236,7 @@ export function CinematicIntro({ onDone }: { onDone: () => void }) {
           </div>
           <div style={{
             // machine annotation under the pressed brand — the mono voice
-            fontFamily: 'var(--hub-font-mono)', fontSize: 9, letterSpacing: '0.30em',
+            fontFamily: 'var(--jk-font-mono)', fontSize: 9, letterSpacing: '0.30em',
             textTransform: 'uppercase', color: 'var(--color-muted)',
             marginTop: 13,
           }}>

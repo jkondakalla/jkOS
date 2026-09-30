@@ -88,12 +88,12 @@ for (const [tier, px] of Object.entries(BREAKPOINT_MAX)) {
 const EXPECTED_TAP_SELECTOR =
   'button.jk-bubble, a.jk-bubble, button.jk-pill, a.jk-pill, .jk-tbtn';
 const hubNoComments = hub.replace(/\/\*[\s\S]*?\*\//g, '');
-const tapRule = hubNoComments.match(/([^{};]*?)\{\s*min-height:\s*var\(--hub-tap-min\)/);
+const tapRule = hubNoComments.match(/([^{};]*?)\{\s*min-height:\s*var\(--jk-tap-min\)/);
 const tapSelector = tapRule ? tapRule[1].trim().replace(/\s+/g, ' ').replace(/\s*,\s*/g, ', ') : null;
 if (tapSelector === EXPECTED_TAP_SELECTOR) {
   ok('hub.css tap-target floor applies to exactly the interactive primitives');
 } else if (!tapRule) {
-  fail('hub.css lost the tap-target floor rule (… { min-height: var(--hub-tap-min) })');
+  fail('hub.css lost the tap-target floor rule (… { min-height: var(--jk-tap-min) })');
 } else {
   fail(`hub.css tap-target selector drifted — a non-interactive selector (e.g. span.jk-bubble) ` +
        `would wrongly inherit the 44px floor.\n    expected: ${EXPECTED_TAP_SELECTOR}\n    got:      ${tapSelector}`);
@@ -187,25 +187,25 @@ if (!MEDIA_GRID_COLUMNS) {
   fail('could not find MEDIA_GRID_COLUMNS in packages/design/responsive/mediaGrid.ts');
 } else {
   for (const [tier, cols] of Object.entries(MEDIA_GRID_COLUMNS)) {
-    const re = new RegExp(`--hub-media-cols-${tier}:\\s*${cols};`);
-    if (re.test(hub)) ok(`hub.css --hub-media-cols-${tier} is ${cols} (matches MEDIA_GRID_COLUMNS.${tier})`);
-    else fail(`hub.css --hub-media-cols-${tier} drifted from MEDIA_GRID_COLUMNS.${tier} (${cols}) in ` +
+    const re = new RegExp(`--jk-media-cols-${tier}:\\s*${cols};`);
+    if (re.test(hub)) ok(`hub.css --jk-media-cols-${tier} is ${cols} (matches MEDIA_GRID_COLUMNS.${tier})`);
+    else fail(`hub.css --jk-media-cols-${tier} drifted from MEDIA_GRID_COLUMNS.${tier} (${cols}) in ` +
               'packages/design/responsive/mediaGrid.ts');
   }
   // The .jk-media-grid[data-density] rule must key off those SAME tokens (a
   // literal `repeat(2, 1fr)` creeping back in would silently un-link the two).
   const gridBlock = hubNoComments.match(/\.jk-media-grid\s*\{([\s\S]*?)\}/);
-  if (gridBlock && /var\(--hub-media-grid-gap\)/.test(gridBlock[1])) {
-    ok('.jk-media-grid derives its gap from --hub-media-grid-gap (no hardcoded literal)');
+  if (gridBlock && /var\(--jk-media-grid-gap\)/.test(gridBlock[1])) {
+    ok('.jk-media-grid derives its gap from --jk-media-grid-gap (no hardcoded literal)');
   } else {
-    fail('.jk-media-grid does not derive its gap from --hub-media-grid-gap — check hub.css');
+    fail('.jk-media-grid does not derive its gap from --jk-media-grid-gap — check hub.css');
   }
   for (const tier of Object.keys(MEDIA_GRID_COLUMNS)) {
     const tierRule = hubNoComments.match(new RegExp(`\\.jk-media-grid\\[data-density="${tier}"\\]\\s*\\{([^}]*)\\}`));
-    if (tierRule && new RegExp(`var\\(--hub-media-cols-${tier}\\)`).test(tierRule[1])) {
-      ok(`.jk-media-grid[data-density="${tier}"] derives its column count from --hub-media-cols-${tier}`);
+    if (tierRule && new RegExp(`var\\(--jk-media-cols-${tier}\\)`).test(tierRule[1])) {
+      ok(`.jk-media-grid[data-density="${tier}"] derives its column count from --jk-media-cols-${tier}`);
     } else {
-      fail(`.jk-media-grid[data-density="${tier}"] does not derive its columns from --hub-media-cols-${tier} — ` +
+      fail(`.jk-media-grid[data-density="${tier}"] does not derive its columns from --jk-media-cols-${tier} — ` +
            'a literal repeat(N, 1fr) would silently drift from MEDIA_GRID_COLUMNS');
     }
   }

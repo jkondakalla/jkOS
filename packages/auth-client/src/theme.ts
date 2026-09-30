@@ -19,7 +19,7 @@ export function normaliseTheme(raw: any): JkOSTheme {
 /**
  * Suite-wide theme application: sets data-mode + the accent pair on <html> via
  * @jkos/design. The per-mode treatment — paper deepens the pair for legibility,
- * dark uses it raw + glow — is derived in hub.css from --accent-raw / --accent-2-raw,
+ * dark uses it raw + glow — is derived in hub.css from --hub-accent-raw / --hub-secondary-raw,
  * so this only writes the two raw inputs. Returns whether dark mode is now active.
  */
 export function applyTheme(theme: JkOSTheme): boolean {

@@ -4,19 +4,20 @@
  * Apps no longer hand-write token CSS. They call buildJkOSTheme() with the few
  * things that legitimately vary per app — the default accent pair, the neutral
  * palettes (light + dark), radius, fonts — and get back the CSS that overrides
- * the INPUT tokens in hub.css. The universal DERIVATION (the accent chain, the
- * --hub-amber/--hub-cyan families, --color-* aliases, paper-deepen/dark-glow)
- * lives once in hub.css and recomputes from these inputs — never duplicated.
+ * the INPUT tokens in hub.css — tier 1 (`--hub-*`) for colour, tier 3 (`--jk-*`) for
+ * radius, type and scale. The universal DERIVATION (the accent chain, every
+ * `--color-*` a component reads, paper-deepen/dark-glow) lives once in hub.css and
+ * recomputes from these inputs — never duplicated.
  *
  *   buildJkOSTheme({
  *     accent: { primary: '#ffb000', secondary: '#4ecdc4' },  // DEFAULT pair only;
- *     light:  { bg0: '#c8cdd4', bg2: '#e8edf4', creamBright: '#0a1820', line: '#c0c8d2' },
- *     dark:   { bg0: '#0c1018', bg2: '#1c2432', creamBright: '#d0e4f0', line: '#2a3848' },
+ *     light:  { ground0: '#c8cdd4', ground2: '#e8edf4', ink: '#0a1820', line: '#c0c8d2' },
+ *     dark:   { ground0: '#0c1018', ground2: '#1c2432', ink: '#d0e4f0', line: '#2a3848' },
  *     radius: { base: '1rem' },
  *     fonts:  { sans: "'Hanken Grotesk'", serif: "'Fraunces'" },
  *   })
  *
- * The user's saved pair still overrides --accent-raw / --accent-2-raw at runtime
+ * The user's saved pair still overrides --hub-accent-raw / --hub-secondary-raw at runtime
  * via applyJkOSTheme(), so `accent` here is only the pre-login default.
  *
  * Framework-free: returns a CSS string. Inject it once with <JkOSTheme> (@jkos/ui)
@@ -28,18 +29,19 @@ import { installScrollHairline } from '../utils/scrollHairline';
 import { BREAKPOINT_MAX } from '../responsive/breakpoints';
 
 /** Neutral palette — only the keys you set are emitted; the rest fall back to
- *  hub.css defaults. Keys map 1:1 onto the --hub-* neutral tokens. */
+ *  hub.css defaults. Keys map 1:1 onto the tier-1 `--hub-*` neutrals (a theme
+ *  writes the raw values; components read the `--color-*` aliases over them). */
 export interface JkOSNeutrals {
-  bg0?: string;  bg1?: string;  bg2?: string;  bg3?: string;  bg4?: string;
+  ground0?: string;  ground1?: string;  ground2?: string;  ground3?: string;  ground4?: string;
   screen?: string;  screenLine?: string;
   metal0?: string;  metal1?: string;  metal2?: string;
   bevelLight?: string;  bevelDark?: string;
   line?: string;  lineStrong?: string;  lineBright?: string;
-  /** Text ramp. `creamBright` is primary text; `cream` is muted body. */
-  cream?: string;  creamBright?: string;  creamDim?: string;  creamFaint?: string;
+  /** Text ramp: `ink` is primary text, then muted body, faint, and ghost. */
+  ink?: string;  inkMuted?: string;  inkFaint?: string;  inkGhost?: string;
 }
 
-/** Radius scale — a per-app input. Every key maps 1:1 onto a `--hub-radius*`
+/** Radius scale — a per-app input. Every key maps 1:1 onto a `--jk-radius*`
  *  token; set the ones an app uses, omit the rest to inherit the (sharp) hub
  *  default. `xs` is the tiny-control rung (checkboxes, swatches). */
 export interface JkOSRadius {
@@ -52,7 +54,7 @@ export interface JkOSFonts {
 }
 
 /** Per-tier overrides for the responsive card scale (the viewport axis). Every
- *  key maps 1:1 onto a `--hub-*` scale token; set only what an app wants to tune.
+ *  key maps 1:1 onto a `--jk-*` scale token; set only what an app wants to tune.
  *  Apps need NOT set this — hub.css ships sensible tablet/mobile defaults. */
 export interface JkOSResponsiveScale {
   tapMin?: string;
@@ -85,7 +87,7 @@ export interface JkOSThemeConfig {
   responsive?: { tablet?: JkOSResponsiveScale; mobile?: JkOSResponsiveScale };
   /** Suite-wide film grain on the page background. Default ON: the factory paints
    *  the shared --hub-grain-image (~18%) onto `<scope> body`, blended INTO the
-   *  body's own background colour (--grain-blend: multiply on paper, screen in
+   *  body's own background colour (--hub-grain-blend: multiply on paper, screen in
    *  dark). It textures the backdrop only — never content/cards/text — so apps
    *  just let the body show through (don't cover it with an opaque fill). Pass
    *  `grain: false` to opt a scope out. */
@@ -96,30 +98,31 @@ export interface JkOSThemeConfig {
 }
 
 const NEUTRAL_VARS: Record<keyof JkOSNeutrals, string> = {
-  bg0: '--hub-bg-0', bg1: '--hub-bg-1', bg2: '--hub-bg-2', bg3: '--hub-bg-3', bg4: '--hub-bg-4',
+  ground0: '--hub-ground-0', ground1: '--hub-ground-1', ground2: '--hub-ground-2',
+  ground3: '--hub-ground-3', ground4: '--hub-ground-4',
   screen: '--hub-screen', screenLine: '--hub-screen-line',
   metal0: '--hub-metal-0', metal1: '--hub-metal-1', metal2: '--hub-metal-2',
   bevelLight: '--hub-bevel-light', bevelDark: '--hub-bevel-dark',
   line: '--hub-line', lineStrong: '--hub-line-strong', lineBright: '--hub-line-bright',
-  cream: '--hub-cream', creamBright: '--hub-cream-bright', creamDim: '--hub-cream-dim', creamFaint: '--hub-cream-faint',
+  ink: '--hub-ink', inkMuted: '--hub-ink-muted', inkFaint: '--hub-ink-faint', inkGhost: '--hub-ink-ghost',
 };
 
 const RADIUS_VARS: Record<keyof JkOSRadius, string> = {
-  base: '--hub-radius', xs: '--hub-radius-xs', sm: '--hub-radius-sm', lg: '--hub-radius-lg',
-  soft: '--hub-radius-soft', button: '--hub-radius-button',
+  base: '--jk-radius', xs: '--jk-radius-xs', sm: '--jk-radius-sm', lg: '--jk-radius-lg',
+  soft: '--jk-radius-soft', button: '--jk-radius-button',
 };
 
 const FONT_VARS: Record<keyof JkOSFonts, string> = {
-  mono: '--hub-font-mono', sans: '--hub-font-sans', seg: '--hub-font-seg', serif: '--hub-font-serif',
+  mono: '--jk-font-mono', sans: '--jk-font-sans', seg: '--jk-font-seg', serif: '--jk-font-serif',
 };
 
 const SCALE_VARS: Record<keyof JkOSResponsiveScale, string> = {
-  tapMin: '--hub-tap-min',
-  fsBubble: '--hub-fs-bubble', fsBubbleLg: '--hub-fs-bubble-lg',
-  padBubble: '--hub-pad-bubble', padBubbleLg: '--hub-pad-bubble-lg',
-  fsPill: '--hub-fs-pill', padPill: '--hub-pad-pill',
-  fsTbtn: '--hub-fs-tbtn', padTbtn: '--hub-pad-tbtn',
-  fsLab: '--hub-fs-lab', fsLabSm: '--hub-fs-lab-sm', fsLabXs: '--hub-fs-lab-xs',
+  tapMin: '--jk-tap-min',
+  fsBubble: '--jk-fs-bubble', fsBubbleLg: '--jk-fs-bubble-lg',
+  padBubble: '--jk-pad-bubble', padBubbleLg: '--jk-pad-bubble-lg',
+  fsPill: '--jk-fs-pill', padPill: '--jk-pad-pill',
+  fsTbtn: '--jk-fs-tbtn', padTbtn: '--jk-pad-tbtn',
+  fsLab: '--jk-fs-lab', fsLabSm: '--jk-fs-lab-sm', fsLabXs: '--jk-fs-lab-xs',
 };
 
 function decls<K extends string>(
@@ -140,9 +143,9 @@ export function buildJkOSTheme(config: JkOSThemeConfig = {}): string {
   const sel = config.selector ?? ':root';
 
   const base: string[] = [];
-  if (config.accent?.primary)   base.push(`--accent-raw: ${config.accent.primary};`);
-  if (config.accent?.secondary) base.push(`--accent-2-raw: ${config.accent.secondary};`);
-  if (config.accent?.deepenInk) base.push(`--accent-deepen-ink: ${config.accent.deepenInk};`);
+  if (config.accent?.primary)   base.push(`--hub-accent-raw: ${config.accent.primary};`);
+  if (config.accent?.secondary) base.push(`--hub-secondary-raw: ${config.accent.secondary};`);
+  if (config.accent?.deepenInk) base.push(`--hub-deepen-ink: ${config.accent.deepenInk};`);
   base.push(...decls(RADIUS_VARS, config.radius));
   base.push(...decls(FONT_VARS, config.fonts));
   base.push(...decls(NEUTRAL_VARS, config.light));
@@ -155,12 +158,12 @@ export function buildJkOSTheme(config: JkOSThemeConfig = {}): string {
 
   // Film grain — on by default. Blends the shared noise into the body's own
   // background paint, so it reads as a textured backdrop and never overlays
-  // content. --hub-grain-image (alpha ≈ 18%) + --grain-blend live in hub.css.
+  // content. --hub-grain-image (alpha ≈ 18%) + --hub-grain-blend live in hub.css.
   if (config.grain !== false) {
     css += `${sel} body {\n` +
            `  background-image: var(--hub-grain-image);\n` +
            `  background-size: 160px 160px;\n` +
-           `  background-blend-mode: var(--grain-blend);\n` +
+           `  background-blend-mode: var(--hub-grain-blend);\n` +
            `}\n`;
   }
 

@@ -102,8 +102,8 @@ const decls = css.replace(/\/\*[\s\S]*?\*\//g, ''); // comments may mention anyt
 
 check(!/#[0-9a-fA-F]{3,8}\b/.test(decls), 'player-ui.css: no hardcoded hex colours (tokens only)');
 const fontDecls = [...decls.matchAll(/font-family:\s*([^;]+);/g)].map((m) => m[1]);
-check(fontDecls.length > 0 && fontDecls.every((v) => v.includes('var(--hub-font-')),
-  'player-ui.css: every font-family reads a --hub-font token');
+check(fontDecls.length > 0 && fontDecls.every((v) => v.includes('var(--jk-font-')),
+  'player-ui.css: every font-family reads a --jk-font token');
 const classes = [...decls.matchAll(/(?<![\w-])\.([a-zA-Z][\w-]*)/g)].map((m) => m[1]);
 const foreign = [...new Set(classes.filter((c) => !/^(pb-|player-|jk-)/.test(c)))];
 check(foreign.length === 0, `player-ui.css: every class is the kit's own (pb-/player-) or a suite primitive (jk-) — no app selectors leaked (${foreign.join(', ')})`);

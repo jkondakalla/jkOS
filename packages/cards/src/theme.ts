@@ -6,9 +6,9 @@
 
 import type { CalendarItem, CardResolvers, PlanResolvers } from './types';
 
-export const FONT_HEAD = 'var(--hub-font-serif)';
-export const FONT_BODY = 'var(--hub-font-sans)';
-export const FONT_NUM = 'var(--hub-font-serif)';
+export const FONT_HEAD = 'var(--jk-font-serif)';
+export const FONT_BODY = 'var(--jk-font-sans)';
+export const FONT_NUM = 'var(--jk-font-serif)';
 
 /** Sensible resolvers when a host injects none: accent from the item itself, a
  *  neutral source colour. Hosts override via the view's `resolvers` prop. */

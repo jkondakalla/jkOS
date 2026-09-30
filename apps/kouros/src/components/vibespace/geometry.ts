@@ -412,7 +412,7 @@ export const STYLE = {
    *  library is densest, and flat past ρ ≈ 1 where the clamped outliers pile up. */
   gain: 1.8,
   chroma: { dark: 0.13, paper: 0.12 },
-  /** Held well off each face's surface (hub.css --hub-bg-0: L 0.16 dark, 0.91 paper). */
+  /** Held well off each face's surface (hub.css --color-paper: L 0.16 dark, 0.91 paper). */
   lightness: { dark: 0.78, paper: 0.62 },
   /** The lookup texture is lut × lut, NODE-aligned: node i sits at −1 + 2i/(lut − 1).
    *  128, not 64: where the gamut pull puts a crease in the paper face's teal, 64

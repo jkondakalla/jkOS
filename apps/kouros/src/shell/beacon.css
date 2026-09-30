@@ -35,7 +35,7 @@
   height: var(--kr-dock);
   padding-bottom: calc(var(--kr-safe-bottom) + 0.9rem);
   pointer-events: none;
-  background: linear-gradient(transparent, var(--hub-bg-0) 46%);
+  background: linear-gradient(transparent, var(--color-paper) 46%);
 }
 .kr-beacon-dock.is-open { background: none; }
 
@@ -52,19 +52,19 @@
 
 .kr-beacon-hint {
   min-height: 12px;
-  font-family: var(--hub-font-mono);
+  font-family: var(--jk-font-mono);
   font-size: 9px;
   letter-spacing: 0.18em;
-  color: var(--hub-cream-faint);
+  color: var(--color-ghost);
 }
 
 /* ── The beacon ──────────────────────────────────────────────────────────────
-   A filled bone dot with a slow breathing ring. --hub-tap-min is the suite's
+   A filled bone dot with a slow breathing ring. --jk-tap-min is the suite's
    44px floor; the drawn dot is that size, and the dock's padding gives it room. */
 .kr-beacon {
   position: relative;
-  width: var(--hub-tap-min);
-  height: var(--hub-tap-min);
+  width: var(--jk-tap-min);
+  height: var(--jk-tap-min);
   border: 0;
   border-radius: 50%;
   display: flex;
@@ -72,22 +72,22 @@
   justify-content: center;
   cursor: pointer;
   pointer-events: auto;
-  background: var(--hub-cream);
-  color: var(--hub-bg-0);
-  box-shadow: var(--hub-shadow-card);
+  background: var(--color-muted);
+  color: var(--color-paper);
+  box-shadow: var(--color-shadow-card);
   /* The gesture is a slide, so the browser must not also read it as a pan. */
   touch-action: none;
   -webkit-tap-highlight-color: transparent;
 }
 .kr-beacon-dock.is-open .kr-beacon { opacity: 0; }
 
-.kr-beacon-glyph { font-family: var(--hub-font-mono); font-size: 13px; }
+.kr-beacon-glyph { font-family: var(--jk-font-mono); font-size: 13px; }
 
 .kr-beacon-pulse {
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  box-shadow: inset 0 0 0 1px var(--hub-cream-dim);
+  box-shadow: inset 0 0 0 1px var(--color-faint);
   animation: kr-beacon-pulse 2600ms ease-out infinite;
 }
 @keyframes kr-beacon-pulse {
@@ -110,7 +110,7 @@
 .kr-radial-veil {
   position: absolute;
   inset: 0;
-  background: var(--hub-bg-0);
+  background: var(--color-paper);
   opacity: 0.82;
   animation: kr-fade 300ms ease-out both;
 }
@@ -121,7 +121,7 @@
   width: 200px;
   height: 200px;
   border-radius: 50%;
-  border: 2px solid var(--hub-cream-dim);
+  border: 2px solid var(--color-faint);
   animation: kr-ripple 620ms cubic-bezier(0.16, 0.7, 0.3, 1) both;
 }
 @keyframes kr-ripple {
@@ -133,25 +133,25 @@
   position: absolute;
   width: 84px;
   height: 70px;
-  border-radius: var(--hub-radius-xs);
+  border-radius: var(--jk-radius-xs);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 0.45rem;
-  background: var(--hub-bg-2);
-  color: var(--hub-cream-dim);
-  box-shadow: inset 0 0 0 1px var(--hub-line), var(--hub-shadow-card);
+  background: var(--color-card);
+  color: var(--color-faint);
+  box-shadow: inset 0 0 0 1px var(--color-line), var(--color-shadow-card);
   animation: kr-slab-in 500ms cubic-bezier(0.14, 0.9, 0.24, 1.06) var(--kr-delay, 0ms) both;
 }
 /* The sector you are already on, so a repeat trip reads as "still here". */
-.kr-radial-slab.is-current { box-shadow: inset 0 0 0 1px var(--hub-line-bright), var(--hub-shadow-card); }
+.kr-radial-slab.is-current { box-shadow: inset 0 0 0 1px var(--color-line-bright), var(--color-shadow-card); }
 /* The live sector. Inverted rather than tinted: at arm's length, under a thumb,
    a fill is legible where a border is not. */
 .kr-radial-slab.is-on {
-  background: var(--hub-cream);
-  color: var(--hub-bg-0);
-  box-shadow: var(--hub-shadow-card);
+  background: var(--color-muted);
+  color: var(--color-paper);
+  box-shadow: var(--color-shadow-card);
 }
 @keyframes kr-slab-in {
   0%   { transform: translate(calc(-50% + var(--kr-fx)), calc(-50% + var(--kr-fy))) scale(0.5); opacity: 0; }
@@ -159,9 +159,9 @@
   100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
 }
 
-.kr-radial-glyph { font-family: var(--hub-font-mono); font-size: 16px; }
+.kr-radial-glyph { font-family: var(--jk-font-mono); font-size: 16px; }
 .kr-radial-label {
-  font-family: var(--hub-font-mono);
+  font-family: var(--jk-font-mono);
   font-size: 8.5px;
   letter-spacing: 0.16em;
 }
@@ -176,12 +176,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--hub-bg-1);
-  box-shadow: inset 0 0 0 1px var(--hub-line);
-  font-family: var(--hub-font-mono);
+  background: var(--color-paper-2);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+  font-family: var(--jk-font-mono);
   font-size: 9px;
   letter-spacing: 0.14em;
-  color: var(--hub-cream);
+  color: var(--color-muted);
   animation: kr-hub-in 280ms cubic-bezier(0.2, 1.3, 0.4, 1) both;
 }
 @keyframes kr-hub-in {

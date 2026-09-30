@@ -79,10 +79,10 @@ function SignInButton({ onClick }: { onClick: () => void }) {
       onMouseLeave={() => setHovered(false)}
       style={{
         ...styles.button,
-        background:  hovered ? 'color-mix(in srgb, var(--hub-amber) 10%, transparent)' : 'transparent',
-        color:       hovered ? 'var(--hub-amber)' : 'var(--hub-cream-dim)',
-        borderColor: hovered ? 'var(--hub-amber)' : 'var(--hub-line-strong)',
-        boxShadow:   hovered ? '0 0 12px var(--hub-amber-glow), inset 0 0 6px color-mix(in srgb, var(--hub-amber) 6%, transparent)' : 'none',
+        background:  hovered ? 'color-mix(in srgb, var(--color-accent) 10%, transparent)' : 'transparent',
+        color:       hovered ? 'var(--color-accent)' : 'var(--color-faint)',
+        borderColor: hovered ? 'var(--color-accent)' : 'var(--color-line-strong)',
+        boxShadow:   hovered ? '0 0 12px var(--color-accent-glow), inset 0 0 6px color-mix(in srgb, var(--color-accent) 6%, transparent)' : 'none',
       }}
     >
       <KeyIcon style={{ marginRight: 10, opacity: hovered ? 1 : 0.6 }} />
@@ -134,18 +134,18 @@ const styles: Record<string, CSSProperties> = {
   root: {
     position:       'fixed',
     inset:          0,
-    background:     'var(--hub-bg-0)',
+    background:     'var(--color-paper)',
     display:        'flex',
     alignItems:     'center',
     justifyContent: 'center',
-    fontFamily:     'var(--hub-font-mono)',
+    fontFamily:     'var(--jk-font-mono)',
     zIndex:         8000,
   },
 
   panel: {
     position:  'relative',
-    background: 'var(--hub-bg-1)',
-    border:    '1px solid var(--hub-line-strong)',
+    background: 'var(--color-paper-2)',
+    border:    '1px solid var(--color-line-strong)',
     padding:   '40px 48px 32px',
     width:     340,
     display:   'flex',
@@ -164,14 +164,14 @@ const styles: Record<string, CSSProperties> = {
   eyebrow: {
     fontSize:      9,
     letterSpacing: '0.22em',
-    color:         'var(--hub-cream-dim)',
+    color:         'var(--color-faint)',
     textTransform: 'uppercase',
   },
 
   divider: {
     width:        '100%',
     height:       1,
-    background:   'var(--hub-line)',
+    background:   'var(--color-line)',
     marginBottom: 28,
   },
 
@@ -179,22 +179,22 @@ const styles: Record<string, CSSProperties> = {
     fontSize:      42,
     fontWeight:    700,
     letterSpacing: '0.18em',
-    color:         'var(--hub-amber)',
-    textShadow:    '0 0 12px var(--hub-amber-glow), 0 0 4px var(--hub-amber-glow)',
+    color:         'var(--color-accent)',
+    textShadow:    '0 0 12px var(--color-accent-glow), 0 0 4px var(--color-accent-glow)',
     marginBottom:  8,
   },
 
   subtitle: {
     fontSize:      10,
     letterSpacing: '0.2em',
-    color:         'var(--hub-cream-dim)',
+    color:         'var(--color-faint)',
     marginBottom:  24,
   },
 
   errorBox: {
     width:        '100%',
-    background:   'var(--hub-red-soft)',
-    border:       '1px solid color-mix(in srgb, var(--hub-red) 40%, transparent)',
+    background:   'var(--color-danger-soft)',
+    border:       '1px solid color-mix(in srgb, var(--color-danger) 40%, transparent)',
     padding:      '8px 12px',
     marginBottom: 16,
     display:      'flex',
@@ -205,7 +205,7 @@ const styles: Record<string, CSSProperties> = {
   errorLabel: {
     fontSize:      9,
     letterSpacing: '0.2em',
-    color:         'var(--hub-red)',
+    color:         'var(--color-danger)',
     fontWeight:    700,
     flexShrink:    0,
     paddingTop:    1,
@@ -213,7 +213,7 @@ const styles: Record<string, CSSProperties> = {
 
   errorText: {
     fontSize:   11,
-    color:      'var(--hub-cream-dim)',
+    color:      'var(--color-faint)',
     lineHeight: 1.5,
   },
 
@@ -227,7 +227,7 @@ const styles: Record<string, CSSProperties> = {
     fontSize:       11,
     letterSpacing:  '0.18em',
     cursor:         'pointer',
-    fontFamily:     'var(--hub-font-mono)',
+    fontFamily:     'var(--jk-font-mono)',
     fontWeight:     600,
     transition:     'background 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease',
     marginBottom:   24,
@@ -236,7 +236,7 @@ const styles: Record<string, CSSProperties> = {
   footer: {
     fontSize:      9,
     letterSpacing: '0.18em',
-    color:         'var(--hub-line-strong)',
+    color:         'var(--color-line-strong)',
     textTransform: 'uppercase',
   },
 };

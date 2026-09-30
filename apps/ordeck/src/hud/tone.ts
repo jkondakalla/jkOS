@@ -14,10 +14,10 @@ export type { Tone };
 
 /** Tone → CSS colour (hub.css tokens — no hardcoded hex). */
 export const TONE_COLOR: Record<Tone, string> = {
-  ok:     'var(--hub-green)',
-  warn:   'var(--hub-warn)',
-  danger: 'var(--hub-red)',
-  muted:  'var(--hub-cream-dim)',
+  ok:     'var(--color-ok)',
+  warn:   'var(--color-warn)',
+  danger: 'var(--color-danger)',
+  muted:  'var(--color-faint)',
   accent: 'var(--color-accent)',   // the suite accent chain: a theme's accent moves it
 };
 

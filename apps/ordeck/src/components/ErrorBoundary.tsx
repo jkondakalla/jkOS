@@ -41,11 +41,11 @@ export default class ErrorBoundary extends Component<Props, State> {
           alignItems: 'center', justifyContent: 'center',
           gap: 8, padding: 16, textAlign: 'center',
         }}>
-          <div style={{ fontSize: 20, color: 'var(--hub-red)' }}>⚠</div>
-          <div style={{ fontFamily: 'var(--hub-font-mono)', fontSize: 10, letterSpacing: '0.15em', color: 'var(--hub-red)' }}>
+          <div style={{ fontSize: 20, color: 'var(--color-danger)' }}>⚠</div>
+          <div style={{ fontFamily: 'var(--jk-font-mono)', fontSize: 10, letterSpacing: '0.15em', color: 'var(--color-danger)' }}>
             WIDGET FAULT
           </div>
-          <div style={{ fontSize: 9, color: 'var(--hub-cream-dim)', maxWidth: 200, lineHeight: 1.5 }}>
+          <div style={{ fontSize: 9, color: 'var(--color-faint)', maxWidth: 200, lineHeight: 1.5 }}>
             {this.props.widgetName.toUpperCase()} COULDN’T RENDER
           </div>
           <button
@@ -53,9 +53,9 @@ export default class ErrorBoundary extends Component<Props, State> {
             style={{
               marginTop: 8,
               background: 'transparent',
-              border: '1px solid var(--hub-line)',
-              color: 'var(--hub-cream-dim)',
-              fontFamily: 'var(--hub-font-mono)',
+              border: '1px solid var(--color-line)',
+              color: 'var(--color-faint)',
+              fontFamily: 'var(--jk-font-mono)',
               fontSize: 9,
               letterSpacing: '0.1em',
               padding: '4px 10px',

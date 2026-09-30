@@ -98,8 +98,8 @@ if (missing.length) {
     fail('.jk-slider has no ::-webkit- track/thumb — the range would render as OS chrome');
   } else if (!/var\(--jk-slider-fill/.test(track[1])) {
     fail('.jk-slider track does not read --jk-slider-fill — the elapsed fill would never paint');
-  } else if (!/var\(--jk-tint,\s*var\(--accent\)\)/.test(track[1])) {
-    fail('.jk-slider track does not fill from --jk-tint/--accent — retinting would break');
+  } else if (!/var\(--jk-tint,\s*var\(--color-accent\)\)/.test(track[1])) {
+    fail('.jk-slider track does not fill from --jk-tint/--color-accent — retinting would break');
   } else {
     ok('hub.css ships .jk-slider — track + cap, fills from --jk-slider-fill, retints via --jk-tint');
   }

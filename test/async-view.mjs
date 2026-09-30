@@ -105,10 +105,10 @@ if (!errorBlock) {
   fail('hub.css is missing the .jk-async-error rule');
 } else if (/#[0-9a-fA-F]{3,8}\b/.test(errorBlock[1])) {
   fail('.jk-async-error has a hardcoded hex colour — use a --hub-*/--color-* token');
-} else if (!/var\(--hub-red/.test(errorBlock[1])) {
-  fail('.jk-async-error does not derive its tint from --hub-red — check hub.css');
+} else if (!/var\(--color-danger/.test(errorBlock[1])) {
+  fail('.jk-async-error does not derive its tint from --color-danger — check hub.css');
 } else {
-  ok('hub.css ships .jk-async-error, tinted from --hub-red, hex-free');
+  ok('hub.css ships .jk-async-error, tinted from --color-danger, hex-free');
 }
 
 /* ── 5 & 6. the three audiobook call sites actually migrated ────────────────── */

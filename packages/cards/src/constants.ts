@@ -54,14 +54,14 @@ export const chipInset = (
 
 /** The background gridline stack.
  *
- *  Painted in --hub-line by default, NOT --color-line-strong: hour rules are a
+ *  Painted in --color-line by default, NOT --color-line-strong: hour rules are a
  *  faint ledger, not a spreadsheet. `halfHour` layers the prototype's ghost rule
  *  underneath — Today only, because the seven-lane week is deliberately quieter
  *  than the single day.
  *
  *  `tone` exists because a fixed rule colour is only faint RELATIVE TO the lane it
  *  is drawn on, and the lane colour varies. The today lane in Week used to be a
- *  mid-tone accent wash whose luminance sat almost exactly on --hub-line's, so the
+ *  mid-tone accent wash whose luminance sat almost exactly on --color-line's, so the
  *  one column a user looks at first was the one column with no visible hour rules —
  *  the ledger vanished precisely where it was needed. A rule that is a ledger on
  *  paper must stay a ledger on a tinted lane, so a tinted lane asks for 'strong'
@@ -71,7 +71,7 @@ export const gridRules = (
   opts: { halfHour?: boolean; tone?: 'default' | 'strong' } = {},
 ): string => {
   const row = rowHeight(density);
-  const ink = opts.tone === 'strong' ? 'var(--hub-line-strong)' : 'var(--hub-line)';
+  const ink = opts.tone === 'strong' ? 'var(--color-line-strong)' : 'var(--color-line)';
   const hour = `repeating-linear-gradient(to bottom, ${ink} 0 1px, transparent 1px ${row}px)`;
   if (!opts.halfHour) return hour;
   const half = row / 2;

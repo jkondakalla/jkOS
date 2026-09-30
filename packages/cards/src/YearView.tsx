@@ -100,7 +100,7 @@ function MiniMonth({
   const grid = buildMonthGrid(anchor);
 
   return (
-    <div style={{ background: 'var(--color-paper-2)', border: '1px solid var(--color-line)', borderRadius: 'var(--hub-radius-soft)', padding: '12px 12px 14px', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)' }}>
+    <div style={{ background: 'var(--color-paper-2)', border: '1px solid var(--color-line)', borderRadius: 'var(--jk-radius-soft)', padding: '12px 12px 14px', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)' }}>
       <div
         onClick={() => onMonthJump?.(anchor)}
         style={{ fontFamily: FONT_HEAD, fontStyle: 'italic', fontWeight: 500, fontSize: 15, color: 'var(--color-ink)', marginBottom: 8, cursor: onMonthJump ? 'pointer' : 'default' }}
@@ -137,14 +137,14 @@ function MiniMonth({
                 justifyContent: 'center',
                 gap: 1,
                 border: isSel ? '1px solid var(--color-accent)' : '1px solid transparent',
-                borderRadius: 'var(--hub-radius-xs)',
+                borderRadius: 'var(--jk-radius-xs)',
                 background: isToday ? 'var(--color-accent-soft)' : 'transparent',
                 cursor: 'pointer',
                 padding: 0,
                 opacity: cell.inMonth ? 1 : 0.32,
               }}
             >
-              <span style={{ fontFamily: FONT_NUM, fontSize: 9, lineHeight: 1, color: isToday ? 'var(--color-accent)' : 'var(--color-muted)', fontStyle: isToday ? 'italic' : 'normal', fontWeight: isToday ? 600 : 400, textShadow: isToday ? 'var(--accent-halo-text)' : 'none' }}>
+              <span style={{ fontFamily: FONT_NUM, fontSize: 9, lineHeight: 1, color: isToday ? 'var(--color-accent)' : 'var(--color-muted)', fontStyle: isToday ? 'italic' : 'normal', fontWeight: isToday ? 600 : 400, textShadow: isToday ? 'var(--hub-halo-text)' : 'none' }}>
                 {localDate(cell.iso).getDate()}
               </span>
               {info && cell.inMonth && (

@@ -150,7 +150,7 @@ function DragGhost({ drag, sourceColorOf }: { drag: DragState; sourceColorOf?: (
         color: 'var(--color-on-accent)',
         fontFamily: FONT_BODY, fontSize: 11, fontWeight: 500,
         padding: '4px 10px',
-        borderRadius: 'var(--hub-radius-soft)',
+        borderRadius: 'var(--jk-radius-soft)',
         boxShadow: `0 3px 16px rgba(0,0,0,0.45), 0 0 10px ${withAlpha(color, 0.4)}`,
         maxWidth: 220, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
       }}>{title}</div>
@@ -161,7 +161,7 @@ function DragGhost({ drag, sourceColorOf }: { drag: DragState; sourceColorOf?: (
           color: 'var(--color-muted)',
           fontFamily: FONT_BODY, fontSize: 8.5,
           letterSpacing: '0.14em', textTransform: 'uppercase',
-          padding: '2px 7px', borderRadius: 'var(--hub-radius-xs)',
+          padding: '2px 7px', borderRadius: 'var(--jk-radius-xs)',
         }}>{hint}</div>
       )}
     </div>

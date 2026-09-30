@@ -142,7 +142,7 @@ export function MobileBottomNav({ view, setView }: BottomNavProps) {
               border: 'none',
               cursor: 'pointer',
               color: isActive ? 'var(--color-accent)' : 'var(--color-muted)',
-              textShadow: isActive ? 'var(--accent-halo-text)' : 'none',
+              textShadow: isActive ? 'var(--hub-halo-text)' : 'none',
               transition: 'color 0.2s',
               borderTop: isActive ? `2px solid ${'var(--color-accent)'}` : '2px solid transparent',
               paddingTop: 0,
@@ -152,7 +152,7 @@ export function MobileBottomNav({ view, setView }: BottomNavProps) {
               style={{
                 fontSize: 16,
                 lineHeight: 1,
-                textShadow: isActive ? 'var(--accent-halo-text)' : 'none',
+                textShadow: isActive ? 'var(--hub-halo-text)' : 'none',
               }}
             >
               {v.glyph}

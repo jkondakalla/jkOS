@@ -5,7 +5,7 @@
    adds what's genuinely KourOS-specific: the reserve-space body rule and the two
    music-only controls (./controls.tsx's <VolumeControl>) the kit has no styling for.
    The suite's header rule: every colour, radius, font and tap-floor reads a
-   suite --hub- / --accent token — no hardcoded hex or radius literal. Imported once,
+   suite --hub- / --color-accent token — no hardcoded hex or radius literal. Imported once,
    from PlayerBar.tsx. */
 
 /* ── Reserve bottom space — scoped to <body> (this app's layout isn't this file's to
@@ -17,7 +17,7 @@
 
 /* ── The art-derived-accent scope wrapper (PlayerBar.tsx's `scopeRef`). Escapes
    normal flow entirely — the bar itself is `position: fixed` — so this wrapper never
-   affects layout; it exists only to hold the --accent/--accent-secondary custom
+   affects layout; it exists only to hold the --color-accent/--color-secondary custom
    property overrides that cascade down into the kit's pb-* rules underneath it. ──── */
 .kouros-player-scope { display: contents; }
 
@@ -46,9 +46,9 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 0.75rem;
-  border-top: 1px solid var(--hub-line);
+  border-top: 1px solid var(--color-line);
   font-size: 0.8rem;
-  color: var(--hub-cream-dim);
+  color: var(--color-faint);
 }
 .pb-crossfade-label {
   white-space: nowrap;
@@ -60,5 +60,5 @@
   min-width: 2.2em;
   text-align: right;
   font-variant-numeric: tabular-nums;
-  color: var(--accent);
+  color: var(--color-accent);
 }

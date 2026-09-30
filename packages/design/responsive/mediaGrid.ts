@@ -9,7 +9,7 @@
  * re-picking column counts by eye.
  *
  * This is the JS half of the ladder. The CSS half — `.jk-media-grid` in
- * `tokens/hub.css` — seeds its `--hub-media-cols-*` custom properties from
+ * `tokens/hub.css` — seeds its `--jk-media-cols-*` custom properties from
  * these same numbers; `test/responsive.mjs` text-parses both and fails if
  * they drift apart (the same trick it already uses for BREAKPOINT_MAX).
  *

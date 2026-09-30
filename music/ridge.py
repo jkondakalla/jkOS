@@ -78,11 +78,11 @@ def default_value_range():
 # heavy end, so on paper it is the deepest ink and on the tube it is the brightest
 # phosphor; the air bands recede toward the surface in both.
 PAPER = {
-    'surface':  '#ede2c8',   # --hub-bg-0, kraft stock
-    'ink':      '#1c1408',   # --hub-cream-bright
-    'ink_2':    '#6b5038',   # --hub-cream
-    'ink_3':    '#9c8060',   # --hub-cream-dim
-    'rule':     '#c8ae88',   # --hub-line
+    'surface':  '#ede2c8',   # --color-paper, kraft stock
+    'ink':      '#1c1408',   # --color-ink
+    'ink_2':    '#6b5038',   # --color-muted
+    'ink_3':    '#9c8060',   # --color-faint
+    'rule':     '#c8ae88',   # --color-line
     # bass → air. Validated: ordinal PASS, light end 2.61:1 vs surface, hue spread 6°.
     'ramp':    ('#1c1408', '#38290e', '#55401c', '#705630', '#8c6f40', '#a68851'),
 }

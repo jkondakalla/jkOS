@@ -54,7 +54,7 @@ export function MobileTasksView({
               background: 'transparent',
               border: `1px solid ${'var(--color-accent)'}`,
               color: 'var(--color-accent)',
-              textShadow: 'var(--accent-halo-text)',
+              textShadow: 'var(--hub-halo-text)',
               cursor: 'pointer',
               fontFamily: FONT_BODY,
               fontSize: 11,

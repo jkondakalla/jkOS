@@ -48,9 +48,9 @@ const clampU = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, 
 // ghostBtn, which is a button. Folded in so the input dialect stops being
 // copied forward with each new workshop page.
 const ghostBtn: CSSProperties = {
-  background: 'var(--hub-bg-0)', border: '1px solid var(--hub-line)', color: 'var(--hub-cream-bright)',
-  fontFamily: 'var(--hub-font-mono)', fontSize: 12, padding: '5px 8px',
-  borderRadius: 'var(--hub-radius-sm)', minWidth: 0, cursor: 'pointer',
+  background: 'var(--color-paper)', border: '1px solid var(--color-line)', color: 'var(--color-ink)',
+  fontFamily: 'var(--jk-font-mono)', fontSize: 12, padding: '5px 8px',
+  borderRadius: 'var(--jk-radius-sm)', minWidth: 0, cursor: 'pointer',
 };
 
 const initialRoot = (): ENode => ({
@@ -359,7 +359,7 @@ export default function WidgetWorkshop() {
   /* ── render ────────────────────────────────────────────────────────────── */
 
   if (user && !isAdmin) {
-    return <Shell tab={tab} setTab={setTab}><p style={{ color: 'var(--hub-cream-dim)', fontFamily: 'var(--hub-font-mono)' }}>The widget workshop is admin-only.</p></Shell>;
+    return <Shell tab={tab} setTab={setTab}><p style={{ color: 'var(--color-faint)', fontFamily: 'var(--jk-font-mono)' }}>The widget workshop is admin-only.</p></Shell>;
   }
 
   const selEn = sel && sel !== root.id ? findEn(root, sel) : null;
@@ -391,9 +391,9 @@ export default function WidgetWorkshop() {
 
   const toolBtn = (on: boolean): CSSProperties => ({
     ...ghostBtn, padding: '5px 10px',
-    background: on ? 'var(--hub-amber)' : 'transparent',
-    color: on ? 'var(--hub-bg-0)' : 'var(--hub-cream)',
-    border: on ? '1px solid var(--hub-amber)' : '1px solid var(--hub-line)',
+    background: on ? 'var(--color-accent)' : 'transparent',
+    color: on ? 'var(--color-paper)' : 'var(--color-muted)',
+    border: on ? '1px solid var(--color-accent)' : '1px solid var(--color-line)',
   });
 
   return (
@@ -420,12 +420,12 @@ export default function WidgetWorkshop() {
               </span>
               <span className="wc-toolhint">tap = select · hold / right-click = add · drag = move · edges = resize</span>
               <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
-                <button onClick={publish} disabled={busy} style={{ ...ghostBtn, background: 'var(--hub-amber)', color: 'var(--hub-bg-0)', fontWeight: 600, padding: '7px 14px', border: 'none' }}>
+                <button onClick={publish} disabled={busy} style={{ ...ghostBtn, background: 'var(--color-accent)', color: 'var(--color-paper)', fontWeight: 600, padding: '7px 14px', border: 'none' }}>
                   {busy ? 'Publishing…' : 'Publish'}
                 </button>
               </span>
             </div>
-            {msg && <p style={{ fontSize: 12, color: 'var(--hub-cream)', margin: '8px 0 0' }}>{msg}</p>}
+            {msg && <p style={{ fontSize: 12, color: 'var(--color-muted)', margin: '8px 0 0' }}>{msg}</p>}
 
             <div className="wc-canvaswrap">
               {view === 'edit' ? (
@@ -491,10 +491,10 @@ function PublishedList({ published, onEdit, onUnpublish }: {
     <>
       <span className="hud-eyebrow" style={{ display: 'block', marginTop: 20 }}>PUBLISHED ({published.length})</span>
       <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
-        {published.length === 0 && <span style={{ fontSize: 11, color: 'var(--hub-cream-faint)' }}>None yet.</span>}
+        {published.length === 0 && <span style={{ fontSize: 11, color: 'var(--color-ghost)' }}>None yet.</span>}
         {published.map((w) => (
-          <div key={w.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--hub-font-mono)', fontSize: 11, color: 'var(--hub-cream)' }}>
-            <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{w.label} <span style={{ color: 'var(--hub-cream-faint)' }}>· {w.id}</span></span>
+          <div key={w.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--jk-font-mono)', fontSize: 11, color: 'var(--color-muted)' }}>
+            <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{w.label} <span style={{ color: 'var(--color-ghost)' }}>· {w.id}</span></span>
             {w.spec && <button style={ghostBtn} onClick={() => onEdit(w)}>edit</button>}
             <button style={ghostBtn} onClick={() => onUnpublish(w.id)}>unpublish</button>
           </div>
@@ -509,15 +509,15 @@ function PublishedList({ published, onEdit, onUnpublish }: {
 function Shell({ tab, setTab, children }: { tab: WorkshopTab; setTab: (t: WorkshopTab) => void; children: ReactNode }) {
   const tabBtn = (key: WorkshopTab): CSSProperties => ({
     ...ghostBtn, padding: '5px 14px',
-    background: tab === key ? 'var(--hub-amber)' : 'transparent',
-    color: tab === key ? 'var(--hub-bg-0)' : 'var(--hub-cream)',
-    border: tab === key ? 'none' : '1px solid var(--hub-line)',
+    background: tab === key ? 'var(--color-accent)' : 'transparent',
+    color: tab === key ? 'var(--color-paper)' : 'var(--color-muted)',
+    border: tab === key ? 'none' : '1px solid var(--color-line)',
   });
   return (
-    <div style={{ position: 'fixed', inset: 0, overflow: 'auto', background: 'var(--hub-bg-1)', padding: '24px 32px' }}>
+    <div style={{ position: 'fixed', inset: 0, overflow: 'auto', background: 'var(--color-paper-2)', padding: '24px 32px' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 20 }}>
-        <a href="/" style={{ fontFamily: 'var(--hub-font-mono)', fontSize: 12, color: 'var(--hub-cream-dim)', textDecoration: 'none' }}>← HUD</a>
-        <h1 style={{ fontFamily: 'var(--hub-font-serif, var(--hub-font-sans))', fontSize: 24, color: 'var(--hub-cream-bright)', margin: 0 }}>Widget Workshop</h1>
+        <a href="/" style={{ fontFamily: 'var(--jk-font-mono)', fontSize: 12, color: 'var(--color-faint)', textDecoration: 'none' }}>← HUD</a>
+        <h1 style={{ fontFamily: 'var(--jk-font-serif, var(--jk-font-sans))', fontSize: 24, color: 'var(--color-ink)', margin: 0 }}>Widget Workshop</h1>
         <span style={{ display: 'flex', gap: 6, marginLeft: 'auto' }}>
           <button style={tabBtn('build')} onClick={() => setTab('build')}>Build</button>
           <button style={tabBtn('json')} onClick={() => setTab('json')}>JSON</button>
@@ -598,8 +598,8 @@ function GuideCard({ title, children }: { title: string; children: ReactNode }) 
 
 function Def({ k, children }: { k: string; children: ReactNode }) {
   return (
-    <div style={{ display: 'flex', gap: 12, fontSize: 12.5, lineHeight: 1.5, color: 'var(--hub-cream)' }}>
-      <span style={{ flex: 'none', width: 120, fontFamily: 'var(--hub-font-mono)', fontSize: 11, color: 'var(--hub-amber)' }}>{k}</span>
+    <div style={{ display: 'flex', gap: 12, fontSize: 12.5, lineHeight: 1.5, color: 'var(--color-muted)' }}>
+      <span style={{ flex: 'none', width: 120, fontFamily: 'var(--jk-font-mono)', fontSize: 11, color: 'var(--color-accent)' }}>{k}</span>
       <span style={{ minWidth: 0 }}>{children}</span>
     </div>
   );

@@ -217,7 +217,7 @@ const PRIMITIVES: Primitives = {
   ),
   keyval: (n, scope) => (
     <div className="hud-w-keyval">
-      <span className="hud-w-keyval-label" style={vars({ '--w-tone': n.tone ? toneColor(n.tone, scope) : 'var(--hub-cream)' })}>
+      <span className="hud-w-keyval-label" style={vars({ '--w-tone': n.tone ? toneColor(n.tone, scope) : 'var(--color-muted)' })}>
         {str(resolve(n.label, scope))}
       </span>
       <span className="hud-w-keyval-value">{str(resolve(n.value, scope))}</span>
@@ -232,7 +232,7 @@ const PRIMITIVES: Primitives = {
     return (
       <div className="hud-w-gauge">
         <svg width={size} height={size} viewBox="0 0 72 72">
-          <circle cx="36" cy="36" r={R} fill="none" stroke="var(--hub-line)" strokeWidth="6" />
+          <circle cx="36" cy="36" r={R} fill="none" stroke="var(--color-line)" strokeWidth="6" />
           <circle cx="36" cy="36" r={R} fill="none" stroke="var(--color-accent)" strokeWidth="6" strokeLinecap="round"
             strokeDasharray={`${C * pct} ${C}`} transform="rotate(-90 36 36)" className="hud-w-gauge-arc" />
           <text x="36" y="41" textAnchor="middle" className="hud-w-gauge-num">{Math.round(pct * 100)}</text>
@@ -429,7 +429,7 @@ const PRIMITIVES: Primitives = {
       {n.items.map((f, i) => (
         <div key={i} className="hud-p-fact">
           <span className="hud-p-label">{str(resolve(f.label, scope))}</span>
-          <span className="hud-p-fact-value" style={vars({ '--w-tone': f.tone != null ? patternTone(f.tone, scope, 'muted') : 'var(--hub-cream-bright)' })}>
+          <span className="hud-p-fact-value" style={vars({ '--w-tone': f.tone != null ? patternTone(f.tone, scope, 'muted') : 'var(--color-ink)' })}>
             {str(resolve(f.value, scope))}
           </span>
         </div>
@@ -547,7 +547,7 @@ function CalendarBody({ cal }: { cal: MonthCalState }) {
           return (
             <div key={iso} className={`hud-cal-day${isToday ? ' today' : ''}${info ? ' has-tasks' : ''}`}>
               <span className="hud-cal-num">{day}</span>
-              {info && <span className="hud-cal-dot hud-w-toned" style={vars({ '--w-tone': info.doneCount === info.count ? 'var(--hub-green)' : 'var(--color-accent)' })} />}
+              {info && <span className="hud-cal-dot hud-w-toned" style={vars({ '--w-tone': info.doneCount === info.count ? 'var(--color-ok)' : 'var(--color-accent)' })} />}
             </div>
           );
         })}
@@ -744,17 +744,17 @@ function resultSlot(node: WidgetNode | undefined, outcome: JobOutcome | null, sc
 
 /** The line under a command: what it is doing, or how it ended. */
 function commandNote(cmd: ReturnType<typeof useCommand>): { text: string; color: string } {
-  if (!cmd.available && !cmd.loading) return { text: 'UNAVAILABLE', color: 'var(--hub-cream-faint)' };
-  if (cmd.status === 'working') return { text: 'WORKING…', color: 'var(--hub-cream-faint)' };
-  if (cmd.status === 'ok') return { text: 'DONE', color: 'var(--hub-green)' };
+  if (!cmd.available && !cmd.loading) return { text: 'UNAVAILABLE', color: 'var(--color-ghost)' };
+  if (cmd.status === 'working') return { text: 'WORKING…', color: 'var(--color-ghost)' };
+  if (cmd.status === 'ok') return { text: 'DONE', color: 'var(--color-ok)' };
   if (cmd.status === 'err') {
     // The job ran and failed; the job was not followed to an end; the call itself failed.
     const text = cmd.async && cmd.outcome?.phase === 'failed' && cmd.outcome.status ? 'FAILED'
       : cmd.outcome?.phase === 'lost' ? 'NO ANSWER YET'
       : 'COULDN’T SAVE — RETRY';
-    return { text, color: 'var(--hub-red)' };
+    return { text, color: 'var(--color-danger)' };
   }
-  return { text: '', color: 'var(--hub-cream-faint)' };
+  return { text: '', color: 'var(--color-ghost)' };
 }
 
 function FormNode({ node, scope }: { node: Extract<WidgetNode, { t: 'form' }>; scope: Scope }) {

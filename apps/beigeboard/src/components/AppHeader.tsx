@@ -14,7 +14,7 @@
  *   · NO fill and NO border (.jk-masthead) — the grain runs unbroken from the
  *     first pixel, and the bottom edge is a TAPERED HAIRLINE that dies into the
  *     ground at both ends rather than being cropped (.jk-rule-taper's recipe,
- *     --jk-inlay-* in hub.css). It says "the page starts below this line"
+ *     --jk-taper-mask in hub.css). It says "the page starts below this line"
  *     without drawing a box to say it. It was briefly a hammered-metal bead;
  *     that made the boundary louder than the masthead it bounds.
  *   · The edition reads as a FOLIO MARK (.jk-folio) — the house primitive for
@@ -40,7 +40,7 @@ import { FONT_HEAD, localDate, sourceOf } from '../lib/theme'
 import { Press } from '@jkos/ui'
 import { TimeReadout } from './SharedComponents'
 
-const MONO = 'var(--hub-font-mono)'
+const MONO = 'var(--jk-font-mono)'
 
 const NAV_TABS = [
   { id: 'today',    label: 'Today',    sub: 'now' },

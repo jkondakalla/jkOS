@@ -4,8 +4,8 @@
  * Single source of truth for jkOS mode switching and user accent application.
  * Imported by @jkos/auth-client (and re-exported to the apps) — do not duplicate.
  *
- * The accent CHAIN lives in hub.css: --accent-raw / --accent-2-raw deepen for
- * paper and stay raw + glow for dark, then derive --accent / --hub-amber* etc.
+ * The accent CHAIN lives in hub.css: --hub-accent-raw / --hub-secondary-raw deepen for
+ * paper and stay raw + glow for dark, then derive --color-accent / --color-accent* etc.
  * So applying a user's pair is just writing the two raw inputs; the per-mode
  * deepening is no longer computed here (that removes the old double-deepen).
  */
@@ -73,6 +73,6 @@ export function applyJkOSTheme(
 ): void {
   if (!theme?.primary) return;
   const root = document.documentElement;
-  root.style.setProperty('--accent-raw', theme.primary);
-  if (theme.secondary) root.style.setProperty('--accent-2-raw', theme.secondary);
+  root.style.setProperty('--hub-accent-raw', theme.primary);
+  if (theme.secondary) root.style.setProperty('--hub-secondary-raw', theme.secondary);
 }

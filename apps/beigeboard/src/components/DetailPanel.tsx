@@ -84,7 +84,7 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
               background: 'transparent', border: 'none',
               color: 'var(--color-on-accent-dim)', fontSize: 14,
               cursor: 'pointer', lineHeight: 1, flex: 'none',
-              width: 22, height: 22, borderRadius: 'var(--hub-radius-sm)',
+              width: 22, height: 22, borderRadius: 'var(--jk-radius-sm)',
               display: 'grid', placeItems: 'center',
             }}
           >✕</button>
@@ -157,10 +157,10 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
                     {i > 0 && <span style={{ color: 'var(--color-faint)', marginRight: 2 }}>↳</span>}
                     <span style={{
                       // genealogy kind-marks are machine annotation → mono voice
-                      fontFamily: 'var(--hub-font-mono)', fontSize: 8.5, letterSpacing: '0.2em',
+                      fontFamily: 'var(--jk-font-mono)', fontSize: 8.5, letterSpacing: '0.2em',
                       textTransform: 'uppercase', color: aAccent || 'var(--color-muted)',
                       border: `1px solid ${(aAccent || 'var(--color-muted)') + '40'}`,
-                      borderRadius: 'var(--hub-radius-sm)',
+                      borderRadius: 'var(--jk-radius-sm)',
                       padding: '1px 6px', flexShrink: 0,
                     }}>{a.kind === 'goal' ? 'goal' : a.kind === 'milestone' ? 'checkpoint' : 'task'}</span>
                     <span style={{
@@ -282,7 +282,7 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
             {children.length === 0 ? (
               <div style={{
                 padding: '12px 14px', border: `1px dashed var(--color-line)`,
-                borderRadius: 'var(--hub-radius-soft)',
+                borderRadius: 'var(--jk-radius-soft)',
                 fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 13, color: 'var(--color-muted)',
               }}>Not broken down yet. Open in the workshop to add steps.</div>
             ) : (
@@ -500,7 +500,7 @@ function WhenField({ event, isTask, isEvent, onUpdateItem }: any) {
 
   const benchBtn: React.CSSProperties = {
     background: 'transparent', border: `1px solid var(--color-line)`,
-    borderRadius: 'var(--hub-radius-sm)',
+    borderRadius: 'var(--jk-radius-sm)',
     fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.06em',
     color: 'var(--color-muted)', padding: '7px 10px', cursor: 'pointer',
   }

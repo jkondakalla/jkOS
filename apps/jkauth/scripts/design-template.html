@@ -33,7 +33,7 @@
   </style>
 
   <!-- No per-page serif input any more: since Full Press (Wave 22) the Fraunces
-       stack IS the hub.css default for --hub-font-serif — this page shows the
+       stack IS the hub.css default for --jk-font-serif — this page shows the
        real default, unoverridden. -->
 
   <!-- ── Gallery layout (namespaced .dg-*; lays the page out, styles nothing in the system) ── -->
@@ -41,12 +41,12 @@
     * { box-sizing: border-box; }
     html, body { margin: 0; padding: 0; }
     body {
-      background-color: var(--hub-bg-0);
+      background-color: var(--color-paper);
       background-image: var(--hub-grain-image);
       background-size: 160px 160px;
-      background-blend-mode: var(--grain-blend);
+      background-blend-mode: var(--hub-grain-blend);
       color: var(--color-ink);
-      font-family: var(--hub-font-sans);
+      font-family: var(--jk-font-sans);
       font-size: 16px;
       line-height: 1.55;
       -webkit-font-smoothing: antialiased;
@@ -57,9 +57,9 @@
     /* ── Operator control deck (sticky) ─────────────────────────────────── */
     .dg-deck {
       position: sticky; top: 0; z-index: 50;
-      background: linear-gradient(180deg, var(--hub-metal-1), var(--hub-metal-0));
-      border-bottom: 1px solid var(--hub-line-bright);
-      box-shadow: 0 2px 12px rgba(0,0,0,0.35), inset 0 1px 0 var(--hub-bevel-light);
+      background: linear-gradient(180deg, var(--color-metal-1), var(--color-metal-0));
+      border-bottom: 1px solid var(--color-line-bright);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.35), inset 0 1px 0 var(--color-bevel-light);
     }
     .dg-deck-inner {
       max-width: 1120px; margin: 0 auto;
@@ -69,18 +69,18 @@
     .dg-deck .label-tape { font-size: 11px; }
     .dg-deck-spacer { flex: 1 1 auto; }
     .dg-deck-group { display: flex; align-items: center; gap: 8px; }
-    .dg-deck-group > .jk-lab { color: var(--hub-cream-bright); opacity: 0.7; }
+    .dg-deck-group > .jk-lab { color: var(--color-ink); opacity: 0.7; }
 
     /* segmented mode + radius controls */
-    .dg-seg { display: inline-flex; border: 1px solid var(--hub-line-bright); border-radius: var(--hub-radius-sm); overflow: hidden; }
+    .dg-seg { display: inline-flex; border: 1px solid var(--color-line-bright); border-radius: var(--jk-radius-sm); overflow: hidden; }
     .dg-seg button {
-      font-family: var(--hub-font-mono); font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
-      padding: 7px 11px; border: 0; background: var(--hub-bg-1); color: var(--hub-cream-dim); cursor: pointer;
+      font-family: var(--jk-font-mono); font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+      padding: 7px 11px; border: 0; background: var(--color-paper-2); color: var(--color-faint); cursor: pointer;
       min-height: 34px;
     }
-    .dg-seg button + button { border-left: 1px solid var(--hub-line-bright); }
-    .dg-seg button[aria-pressed="true"] { background: var(--accent); color: var(--color-accent-contrast); }
-    :root[data-mode="dark"] .dg-seg button[aria-pressed="true"] { box-shadow: inset 0 0 12px color-mix(in srgb, var(--accent) 55%, transparent); }
+    .dg-seg button + button { border-left: 1px solid var(--color-line-bright); }
+    .dg-seg button[aria-pressed="true"] { background: var(--color-accent); color: var(--color-accent-contrast); }
+    :root[data-mode="dark"] .dg-seg button[aria-pressed="true"] { box-shadow: inset 0 0 12px color-mix(in srgb, var(--color-accent) 55%, transparent); }
 
     /* accent scheme swatches */
     .dg-accents { display: inline-flex; gap: 6px; }
@@ -93,22 +93,22 @@
       background-clip: padding-box;
       box-shadow: inset 0 0 0 1px rgba(0,0,0,0.35);
     }
-    .dg-accent[aria-pressed="true"] { border-color: var(--hub-cream-bright); box-shadow: 0 0 0 2px var(--hub-bg-0), 0 0 10px rgba(0,0,0,0.4); }
-    .dg-accent.dg-custom { background: repeating-conic-gradient(from 0deg, var(--hub-metal-2) 0 25%, var(--hub-metal-1) 0 50%); font-size: 14px; color: var(--hub-cream-bright); }
+    .dg-accent[aria-pressed="true"] { border-color: var(--color-ink); box-shadow: 0 0 0 2px var(--color-paper), 0 0 10px rgba(0,0,0,0.4); }
+    .dg-accent.dg-custom { background: repeating-conic-gradient(from 0deg, var(--color-metal-2) 0 25%, var(--color-metal-1) 0 50%); font-size: 14px; color: var(--color-ink); }
     .dg-custom-pickers { display: none; gap: 6px; align-items: center; }
     .dg-custom-pickers.on { display: inline-flex; }
-    .dg-custom-pickers input[type="color"] { width: 30px; height: 30px; border: 1px solid var(--hub-line-bright); background: none; padding: 0; cursor: pointer; }
+    .dg-custom-pickers input[type="color"] { width: 30px; height: 30px; border: 1px solid var(--color-line-bright); background: none; padding: 0; cursor: pointer; }
 
     /* ── Hero ───────────────────────────────────────────────────────────── */
     .dg-hero { position: relative; margin: 34px 0 12px; padding: 40px clamp(20px, 4vw, 48px); overflow: hidden; }
-    .dg-hero .canvas-grid { position: absolute; inset: 0; opacity: calc(var(--canvas-grid-opacity) * 0.5); }
+    .dg-hero .canvas-grid { position: absolute; inset: 0; opacity: calc(var(--hub-canvas-grid-opacity) * 0.5); }
     .dg-hero-body { position: relative; }
     .dg-kicker { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
     .dg-hero h1 {
-      font-family: var(--hub-font-serif); font-weight: 600; font-size: clamp(2.4rem, 6vw, 4rem);
+      font-family: var(--jk-font-serif); font-weight: 600; font-size: clamp(2.4rem, 6vw, 4rem);
       line-height: 1.02; margin: 0 0 6px; text-wrap: balance; letter-spacing: -0.01em;
     }
-    .dg-hero .dg-ver { font-family: var(--hub-font-seg); font-size: clamp(2.4rem, 6vw, 4rem); }
+    .dg-hero .dg-ver { font-family: var(--jk-font-seg); font-size: clamp(2.4rem, 6vw, 4rem); }
     .dg-hero-lede { max-width: 62ch; font-size: 1.08rem; color: var(--color-muted); margin: 14px 0 0; }
     .dg-hero-meta { display: flex; flex-wrap: wrap; gap: 10px 22px; margin-top: 26px; }
 
@@ -116,10 +116,10 @@
     .dg-sec { position: relative; margin: 22px 0; padding: 30px clamp(18px, 3.5vw, 40px); }
     .dg-sec-head { margin-bottom: 24px; }
     .dg-sec-tag { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
-    .dg-sec-num { font-variant-numeric: tabular-nums; color: var(--hub-cream-faint); }
-    .dg-sec h2 { font-family: var(--hub-font-serif); font-weight: 600; font-size: clamp(1.5rem, 3vw, 2rem); margin: 0; line-height: 1.1; text-wrap: balance; }
+    .dg-sec-num { font-variant-numeric: tabular-nums; color: var(--color-ghost); }
+    .dg-sec h2 { font-family: var(--jk-font-serif); font-weight: 600; font-size: clamp(1.5rem, 3vw, 2rem); margin: 0; line-height: 1.1; text-wrap: balance; }
     .dg-lede { max-width: 68ch; color: var(--color-muted); margin: 10px 0 0; }
-    .dg-lede code, .dg-note code, li code, p code { font-family: var(--hub-font-mono); font-size: 0.85em; background: color-mix(in srgb, var(--hub-cream) 12%, transparent); padding: 1px 5px; border-radius: 3px; color: var(--color-ink); }
+    .dg-lede code, .dg-note code, li code, p code { font-family: var(--jk-font-mono); font-size: 0.85em; background: color-mix(in srgb, var(--color-muted) 12%, transparent); padding: 1px 5px; border-radius: 3px; color: var(--color-ink); }
 
     /* generic tile grids */
     .dg-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
@@ -130,32 +130,32 @@
 
     /* colour swatches */
     .dg-swatch { display: flex; flex-direction: column; gap: 8px; }
-    .dg-chip { height: 62px; border-radius: var(--hub-radius-lg); border: 1px solid var(--hub-line); box-shadow: var(--hub-shadow-inset); }
-    .dg-swatch code { font-family: var(--hub-font-mono); font-size: 11px; color: var(--color-ink); }
+    .dg-chip { height: 62px; border-radius: var(--jk-radius-lg); border: 1px solid var(--color-line); box-shadow: var(--color-shadow-inset); }
+    .dg-swatch code { font-family: var(--jk-font-mono); font-size: 11px; color: var(--color-ink); }
     .dg-swatch em { font-style: normal; font-size: 11px; color: var(--color-faint); letter-spacing: 0.04em; }
-    .dg-chip-text { display: flex; align-items: center; justify-content: center; font-family: var(--hub-font-serif); font-size: 1.5rem; background: var(--hub-bg-2); }
+    .dg-chip-text { display: flex; align-items: center; justify-content: center; font-family: var(--jk-font-serif); font-size: 1.5rem; background: var(--color-card); }
 
     /* spec list (used in the brief) */
     .dg-specs { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); margin: 0; padding: 0; list-style: none; }
-    .dg-specs li { padding: 14px 16px; border: 1px solid var(--hub-line); border-radius: var(--hub-radius-lg); background: color-mix(in srgb, var(--hub-bg-1) 60%, transparent); }
+    .dg-specs li { padding: 14px 16px; border: 1px solid var(--color-line); border-radius: var(--jk-radius-lg); background: color-mix(in srgb, var(--color-paper-2) 60%, transparent); }
     .dg-specs .dg-yes { color: var(--color-ok); } .dg-specs .dg-no { color: var(--color-danger); }
-    .dg-specs b { display: block; font-family: var(--hub-font-mono); font-size: 11px; letter-spacing: 0.08em; margin-bottom: 4px; }
+    .dg-specs b { display: block; font-family: var(--jk-font-mono); font-size: 11px; letter-spacing: 0.08em; margin-bottom: 4px; }
     .dg-specs span { font-size: 0.92rem; color: var(--color-muted); }
 
     /* typography specimen */
-    .dg-type-row { display: grid; grid-template-columns: 120px 1fr; gap: 18px; align-items: baseline; padding: 16px 0; border-top: 1px solid var(--hub-line); }
+    .dg-type-row { display: grid; grid-template-columns: 120px 1fr; gap: 18px; align-items: baseline; padding: 16px 0; border-top: 1px solid var(--color-line); }
     .dg-type-row:first-child { border-top: 0; }
-    .dg-type-role { font-family: var(--hub-font-mono); font-size: 11px; letter-spacing: 0.1em; color: var(--color-faint); text-transform: uppercase; }
+    .dg-type-role { font-family: var(--jk-font-mono); font-size: 11px; letter-spacing: 0.1em; color: var(--color-faint); text-transform: uppercase; }
     .dg-type-role small { display: block; margin-top: 4px; color: var(--color-faint); opacity: 0.7; text-transform: none; letter-spacing: 0; }
-    .dg-spec-mono { font-family: var(--hub-font-mono); }
-    .dg-spec-sans { font-family: var(--hub-font-sans); font-size: 1.15rem; }
-    .dg-spec-serif { font-family: var(--hub-font-serif); font-size: 1.7rem; font-weight: 600; }
-    .dg-spec-seg { font-family: var(--hub-font-seg); font-size: 2.4rem; font-weight: 700; color: var(--hub-amber); text-shadow: 0 0 8px var(--hub-amber-glow); }
+    .dg-spec-mono { font-family: var(--jk-font-mono); }
+    .dg-spec-sans { font-family: var(--jk-font-sans); font-size: 1.15rem; }
+    .dg-spec-serif { font-family: var(--jk-font-serif); font-size: 1.7rem; font-weight: 600; }
+    .dg-spec-seg { font-family: var(--jk-font-seg); font-size: 2.4rem; font-weight: 700; color: var(--color-accent); text-shadow: 0 0 8px var(--color-accent-glow); }
 
-    .dg-caption { font-family: var(--hub-font-mono); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-faint); margin: 0 0 8px; }
+    .dg-caption { font-family: var(--jk-font-mono); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-faint); margin: 0 0 8px; }
 
     /* screen panel (CRT atmosphere demo) */
-    .dg-screen { position: relative; overflow: hidden; padding: 26px; background: var(--hub-screen); border: 1px solid var(--hub-screen-line); border-radius: var(--hub-radius-lg); min-height: 120px; }
+    .dg-screen { position: relative; overflow: hidden; padding: 26px; background: var(--color-screen); border: 1px solid var(--color-screen-line); border-radius: var(--jk-radius-lg); min-height: 120px; }
 
     /* media grid demo tiles use the real .jk-media-* classes; give them a size */
     .dg-media-demo { max-width: 440px; }
@@ -170,18 +170,18 @@
        never a colour, size, radius or font. ─────────────────────────────────── */
     .dg-stage { position: relative; overflow: hidden; min-height: 128px; padding: 16px; }
     .dg-stage .jk-scrim { position: absolute; }
-    .dg-player { position: relative; overflow: hidden; border-radius: var(--hub-radius-lg); }
+    .dg-player { position: relative; overflow: hidden; border-radius: var(--jk-radius-lg); }
     .dg-player .player-bar { position: relative; z-index: 0; }
     .dg-player .pb-popover, .dg-player .pb-scrim { position: absolute; }
 
     /* Panel demos: give the stretch/flex components a bounded column to live in */
-    .dg-panel { max-width: 520px; border: 1px solid var(--hub-line); border-radius: var(--hub-radius-lg); background: var(--hub-bg-1); }
-    .dg-shell-demo { border: 1px solid var(--hub-line); border-radius: var(--hub-radius-lg); background: var(--hub-bg-1); overflow: hidden; }
+    .dg-panel { max-width: 520px; border: 1px solid var(--color-line); border-radius: var(--jk-radius-lg); background: var(--color-paper-2); }
+    .dg-shell-demo { border: 1px solid var(--color-line); border-radius: var(--jk-radius-lg); background: var(--color-paper-2); overflow: hidden; }
     .dg-shell-demo .jk-shell { min-height: 0; }
     /* The canvas demo — a scaled desk with a sheet centred on it. The canvas's
        "window minus gutters" term resolves against THIS box, so the sheet
        behaves here exactly as it does at full size. */
-    .dg-canvas-demo { display: flex; min-height: 250px; border-radius: var(--hub-radius-lg); overflow: hidden; padding-block: 18px; }
+    .dg-canvas-demo { display: flex; min-height: 250px; border-radius: var(--jk-radius-lg); overflow: hidden; padding-block: 18px; }
     /* Demo-only: the canvas is a MEASURE and draws nothing, so this dashed edge
        stands in for where it falls. Never do this in an app. */
     .dg-canvas-demo .jk-canvas { outline: 1px dashed var(--color-line-strong); }
@@ -196,7 +196,7 @@
        is stacked below the rail rather than on top of it so both are legible at
        once. In an app exactly one of them renders, sized by --jk-panel-w. */
     .dg-panel-demo { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
-    .dg-panel-stage { position: relative; min-height: 190px; border: 1px dashed var(--color-line-strong); border-radius: var(--hub-radius-lg); overflow: hidden; background-color: var(--color-paper); }
+    .dg-panel-stage { position: relative; min-height: 190px; border: 1px dashed var(--color-line-strong); border-radius: var(--jk-radius-lg); overflow: hidden; background-color: var(--color-paper); }
     .dg-panel-stage .jk-panel { --jk-panel-w: 190px; }
     .dg-panel-stage .jk-panel-head { padding: 12px 15px 13px; }
     .dg-panel-stage .dg-panel-body { padding: 13px 15px; }
@@ -205,33 +205,33 @@
        with a rest beat between plays; leave and it settles. */
     .dg-motion { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
     .dg-motion-cell { position: relative; display: flex; align-items: center; justify-content: center; min-height: 76px; padding: 10px; text-align: center; cursor: pointer; }
-    .dg-motion-cell code { font-family: var(--hub-font-mono); font-size: 10px; letter-spacing: 0.08em; color: var(--color-ink); }
+    .dg-motion-cell code { font-family: var(--jk-font-mono); font-size: 10px; letter-spacing: 0.08em; color: var(--color-ink); }
 
     /* ── §01 identity compare — the same specimen markup rendered in BOTH faces
        (two same-origin iframes, since hub.css keys mode off :root[data-mode]),
        revealed by a draggable split. The invisible full-area range input is the
        control: click, drag or arrow-key the divider. ── */
-    .dg-compare { position: relative; height: 420px; border: 1px solid var(--hub-line); border-radius: var(--hub-radius-lg); overflow: hidden; background: var(--hub-bg-1); --dg-split: 50%; }
+    .dg-compare { position: relative; height: 420px; border: 1px solid var(--color-line); border-radius: var(--jk-radius-lg); overflow: hidden; background: var(--color-paper-2); --dg-split: 50%; }
     .dg-compare-pane { position: absolute; inset: 0; }
     .dg-compare-pane iframe { display: block; width: 100%; height: 100%; border: 0; pointer-events: none; }
     .dg-compare-pane.dark { clip-path: inset(0 0 0 var(--dg-split)); }
     .dg-compare-divider { position: absolute; top: 0; bottom: 0; left: var(--dg-split); width: 0; z-index: 2; pointer-events: none; }
-    .dg-compare-divider::before { content: ''; position: absolute; top: 0; bottom: 0; left: -1px; width: 2px; background: var(--accent); box-shadow: 0 0 8px var(--hub-amber-glow); }
+    .dg-compare-divider::before { content: ''; position: absolute; top: 0; bottom: 0; left: -1px; width: 2px; background: var(--color-accent); box-shadow: 0 0 8px var(--color-accent-glow); }
     .dg-compare-grip {
       position: absolute; top: 50%; left: 0; transform: translate(-50%, -50%);
       width: 34px; height: 34px; border-radius: 50%;
-      background: linear-gradient(180deg, var(--hub-metal-2), var(--hub-metal-0));
-      border: 1px solid var(--hub-line-bright);
-      box-shadow: inset 0 1px 0 var(--hub-bevel-light), 0 2px 6px rgba(0,0,0,0.35);
+      background: linear-gradient(180deg, var(--color-metal-2), var(--color-metal-0));
+      border: 1px solid var(--color-line-bright);
+      box-shadow: inset 0 1px 0 var(--color-bevel-light), 0 2px 6px rgba(0,0,0,0.35);
       display: flex; align-items: center; justify-content: center;
-      color: var(--hub-cream-bright); font-family: var(--hub-font-mono); font-size: 11px;
+      color: var(--color-ink); font-family: var(--jk-font-mono); font-size: 11px;
     }
     .dg-compare > input[type="range"] { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: ew-resize; z-index: 3; }
 
     /* footer */
-    .dg-foot { margin-top: 40px; padding-top: 22px; border-top: 1px solid var(--hub-line); color: var(--color-faint); font-family: var(--hub-font-mono); font-size: 11px; letter-spacing: 0.06em; display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center; }
+    .dg-foot { margin-top: 40px; padding-top: 22px; border-top: 1px solid var(--color-line); color: var(--color-faint); font-family: var(--jk-font-mono); font-size: 11px; letter-spacing: 0.06em; display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center; }
 
-    a { color: var(--accent-secondary); }
+    a { color: var(--color-secondary); }
 
     @media (max-width: 640px) {
       .dg-type-row { grid-template-columns: 1fr; gap: 6px; }
@@ -330,7 +330,7 @@
           two values, <code>"paper"</code> and <code>"dark"</code>; the mode is controlled
           explicitly and <b>never</b> from <code>prefers-color-scheme</code>. Corners are
           <b>soft by default</b> (sharp is a per-app or per-card opt-in through the
-          <code>--hub-radius*</code> tokens); chrome is built from CSS hardware, spent sparingly.
+          <code>--jk-radius*</code> tokens); chrome is built from CSS hardware, spent sparingly.
         </p>
       </div>
 
@@ -373,14 +373,14 @@
         </div>
       </template>
       <template id="dg-cmp-css">
-        body { margin: 0; padding: 24px; background-color: var(--hub-bg-0);
+        body { margin: 0; padding: 24px; background-color: var(--color-paper);
                background-image: var(--hub-grain-image); background-size: 160px 160px;
-               background-blend-mode: var(--grain-blend); color: var(--color-ink);
-               font-family: var(--hub-font-sans); font-size: 15px; line-height: 1.5;
+               background-blend-mode: var(--hub-grain-blend); color: var(--color-ink);
+               font-family: var(--jk-font-sans); font-size: 15px; line-height: 1.5;
                overflow: hidden; }
         .spec-card { padding: 20px 22px; }
         .spec-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
-        .spec-title { font-family: var(--hub-font-serif); font-weight: 600; font-size: 1.5rem; margin: 0 0 6px; }
+        .spec-title { font-family: var(--jk-font-serif); font-weight: 600; font-size: 1.5rem; margin: 0 0 6px; }
         .spec-copy { color: var(--color-muted); margin: 0 0 16px; }
         .spec-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 16px; }
         .spec-seg { font-size: 1.5rem; }
@@ -410,23 +410,23 @@
           secondary, never a neutral. Apps supply only a <b>default</b> pair; the live pair
           is the signed-in user's. From two raw inputs the whole palette derives: paper deepens
           them toward ink for legibility, dark keeps them raw and adds glow. <b>Never hardcode
-          <code>--accent</code></b> — let it derive; components read the <code>--color-accent*</code> aliases.
+          <code>--color-accent</code></b> — let it derive; components read the <code>--color-accent*</code> aliases.
         </p>
       </div>
-      <p class="dg-caption">Primary family — tracks <code>--accent</code></p>
+      <p class="dg-caption">Primary family — tracks <code>--color-accent</code></p>
       <div class="dg-grid" style="margin-bottom:18px">
-        <div class="dg-swatch"><span class="dg-chip" style="background:var(--accent-raw)"></span><code>--accent-raw</code><em>raw input</em></div>
-        <div class="dg-swatch"><span class="dg-chip" style="background:var(--accent)"></span><code>--accent</code><em>derived / per-mode</em></div>
-        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-amber-bright)"></span><code>--hub-amber-bright</code><em>lift</em></div>
-        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-amber-dim)"></span><code>--hub-amber-dim</code><em>shade</em></div>
-        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-amber-deep)"></span><code>--hub-amber-deep</code><em>toward bg</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-accent-raw)"></span><code>--hub-accent-raw</code><em>raw input</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--color-accent)"></span><code>--color-accent</code><em>derived / per-mode</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--color-accent-bright)"></span><code>--color-accent-bright</code><em>lift</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--color-accent-dim)"></span><code>--color-accent-dim</code><em>shade</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--color-accent-deep)"></span><code>--color-accent-deep</code><em>toward bg</em></div>
       </div>
-      <p class="dg-caption">Secondary family — tracks <code>--accent-secondary</code></p>
+      <p class="dg-caption">Secondary family — tracks <code>--color-secondary</code></p>
       <div class="dg-grid">
-        <div class="dg-swatch"><span class="dg-chip" style="background:var(--accent-2-raw)"></span><code>--accent-2-raw</code><em>raw input</em></div>
-        <div class="dg-swatch"><span class="dg-chip" style="background:var(--accent-secondary)"></span><code>--accent-secondary</code><em>derived / per-mode</em></div>
-        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-cyan-dim)"></span><code>--hub-cyan-dim</code><em>shade</em></div>
-        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-cyan-glow)"></span><code>--hub-cyan-glow</code><em>glow</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-secondary-raw)"></span><code>--hub-secondary-raw</code><em>raw input</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--color-secondary)"></span><code>--color-secondary</code><em>derived / per-mode</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--color-secondary-dim)"></span><code>--color-secondary-dim</code><em>shade</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--color-secondary-glow)"></span><code>--color-secondary-glow</code><em>glow</em></div>
       </div>
     </section>
 
@@ -444,36 +444,36 @@
 
       <p class="dg-caption">Backgrounds &amp; screen</p>
       <div class="dg-grid" style="margin-bottom:18px">
-        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-bg-0)"></span><code>--hub-bg-0</code><em>paper</em></div>
-        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-bg-1)"></span><code>--hub-bg-1</code><em>paper-2</em></div>
-        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-bg-2)"></span><code>--hub-bg-2</code><em>card</em></div>
-        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-bg-3)"></span><code>--hub-bg-3</code><em>card-2</em></div>
-        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-screen)"></span><code>--hub-screen</code><em>inner screen</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--color-paper)"></span><code>--color-paper</code><em>paper</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--color-paper-2)"></span><code>--color-paper-2</code><em>paper-2</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--color-card)"></span><code>--color-card</code><em>card</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--color-card-2)"></span><code>--color-card-2</code><em>card-2</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--color-screen)"></span><code>--color-screen</code><em>inner screen</em></div>
       </div>
 
       <p class="dg-caption">Hardware metal &amp; lines</p>
       <div class="dg-grid" style="margin-bottom:18px">
-        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-metal-0)"></span><code>--hub-metal-0</code><em>metal</em></div>
-        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-metal-1)"></span><code>--hub-metal-1</code><em>metal</em></div>
-        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-metal-2)"></span><code>--hub-metal-2</code><em>metal</em></div>
-        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-line)"></span><code>--hub-line</code><em>border</em></div>
-        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-line-bright)"></span><code>--hub-line-bright</code><em>border+</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--color-metal-0)"></span><code>--color-metal-0</code><em>metal</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--color-metal-1)"></span><code>--color-metal-1</code><em>metal</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--color-metal-2)"></span><code>--color-metal-2</code><em>metal</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--color-line)"></span><code>--color-line</code><em>border</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--color-line-bright)"></span><code>--color-line-bright</code><em>border+</em></div>
       </div>
 
       <p class="dg-caption">Text ramp (ink on ground)</p>
       <div class="dg-grid" style="margin-bottom:18px">
-        <div class="dg-swatch"><span class="dg-chip dg-chip-text" style="color:var(--hub-cream-bright)">Aa</span><code>--hub-cream-bright</code><em>ink</em></div>
-        <div class="dg-swatch"><span class="dg-chip dg-chip-text" style="color:var(--hub-cream)">Aa</span><code>--hub-cream</code><em>muted</em></div>
-        <div class="dg-swatch"><span class="dg-chip dg-chip-text" style="color:var(--hub-cream-dim)">Aa</span><code>--hub-cream-dim</code><em>faint</em></div>
-        <div class="dg-swatch"><span class="dg-chip dg-chip-text" style="color:var(--hub-cream-faint)">Aa</span><code>--hub-cream-faint</code><em>ghost</em></div>
+        <div class="dg-swatch"><span class="dg-chip dg-chip-text" style="color:var(--color-ink)">Aa</span><code>--color-ink</code><em>ink</em></div>
+        <div class="dg-swatch"><span class="dg-chip dg-chip-text" style="color:var(--color-muted)">Aa</span><code>--color-muted</code><em>muted</em></div>
+        <div class="dg-swatch"><span class="dg-chip dg-chip-text" style="color:var(--color-faint)">Aa</span><code>--color-faint</code><em>faint</em></div>
+        <div class="dg-swatch"><span class="dg-chip dg-chip-text" style="color:var(--color-ghost)">Aa</span><code>--color-ghost</code><em>ghost</em></div>
       </div>
 
       <p class="dg-caption">Status — semantic constants, one lane</p>
       <div class="dg-grid">
-        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-green)"></span><code>--hub-green</code><em>ok</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--color-ok)"></span><code>--color-ok</code><em>ok</em></div>
         <div class="dg-swatch"><span class="dg-chip" style="background:var(--color-warn)"></span><code>--color-warn</code><em>warn</em></div>
-        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-red)"></span><code>--hub-red</code><em>danger</em></div>
-        <div class="dg-swatch"><span class="dg-chip" style="background:var(--hub-magenta)"></span><code>--hub-magenta</code><em>accent-free</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--color-danger)"></span><code>--color-danger</code><em>danger</em></div>
+        <div class="dg-swatch"><span class="dg-chip" style="background:var(--color-tertiary)"></span><code>--color-tertiary</code><em>accent-free</em></div>
       </div>
     </section>
 
@@ -537,7 +537,7 @@
       <p class="dg-caption">The badge — raised emphasis, on text and marks</p>
       <div class="dg-row" style="margin-bottom:18px">
         <span class="jk-press">jk-press · badged text</span>
-        <span class="jk-press-lg" style="font-size:1.4rem;font-family:var(--hub-font-serif)">jk-press-lg · display</span>
+        <span class="jk-press-lg" style="font-size:1.4rem;font-family:var(--jk-font-serif)">jk-press-lg · display</span>
         <span class="jk-bubble jk-bubble-primary">PRIMARY</span>
         <span class="jk-bubble jk-bubble-primary jk-bubble-lg">PRIMARY LG</span>
         <span class="label-tape">LABEL TAPE</span>
@@ -565,9 +565,9 @@
           <span class="jk-lab jk-lab-sm">jk-well · inset (accent tint)</span>
           <p style="margin:10px 0 0;color:var(--color-muted)">Debossed into the paper, emissive in CRT. A well <b>contains</b> — it is depth and boundary, not emphasis. Retint with <code>--jk-tint</code>.</p>
         </div>
-        <div class="dg-block jk-well" style="--jk-tint: var(--hub-magenta)">
+        <div class="dg-block jk-well" style="--jk-tint: var(--color-tertiary)">
           <span class="jk-lab jk-lab-sm">jk-well · retinted</span>
-          <p style="margin:10px 0 0;color:var(--color-muted)">Same well, <code>--jk-tint: var(--hub-magenta)</code> — a data colour.</p>
+          <p style="margin:10px 0 0;color:var(--color-muted)">Same well, <code>--jk-tint: var(--color-tertiary)</code> — a data colour.</p>
         </div>
       </div>
 
@@ -589,29 +589,29 @@
       </p>
       <div class="dg-row" style="margin-bottom:14px;align-items:stretch">
         <span class="jk-chip jk-chip-solid" style="padding:6px 12px;display:inline-flex;flex-direction:column;gap:1px">
-          <span class="jk-press-rev" style="font-family:var(--hub-font-serif);font-weight:600;font-size:13px">Deep work</span>
+          <span class="jk-press-rev" style="font-family:var(--jk-font-serif);font-weight:600;font-size:13px">Deep work</span>
           <span class="mono-eyebrow" style="font-size:8px">09:00 · 90 MIN</span>
         </span>
-        <span class="jk-chip jk-chip-solid jk-chip-live" style="padding:6px 12px;display:inline-flex;flex-direction:column;gap:1px;--jk-tint:var(--hub-cyan)">
-          <span class="jk-press-rev" style="font-family:var(--hub-font-serif);font-weight:600;font-size:13px">Live now</span>
+        <span class="jk-chip jk-chip-solid jk-chip-live" style="padding:6px 12px;display:inline-flex;flex-direction:column;gap:1px;--jk-tint:var(--color-secondary)">
+          <span class="jk-press-rev" style="font-family:var(--jk-font-serif);font-weight:600;font-size:13px">Live now</span>
           <span class="mono-eyebrow" style="font-size:8px">jk-chip-live</span>
         </span>
         <span class="jk-chip jk-chip-solid jk-chip-spent" style="padding:6px 12px;display:inline-flex;flex-direction:column;gap:1px">
-          <span class="jk-press-rev" style="font-family:var(--hub-font-serif);font-weight:600;font-size:13px">Ran over</span>
+          <span class="jk-press-rev" style="font-family:var(--jk-font-serif);font-weight:600;font-size:13px">Ran over</span>
           <span class="mono-eyebrow" style="font-size:8px">jk-chip-spent</span>
         </span>
         <span class="jk-chip jk-chip-solid jk-chip-done" style="padding:6px 12px;display:inline-flex;flex-direction:column;gap:1px">
-          <span class="jk-press-rev" style="font-family:var(--hub-font-serif);font-weight:600;font-size:13px">Shipped</span>
+          <span class="jk-press-rev" style="font-family:var(--jk-font-serif);font-weight:600;font-size:13px">Shipped</span>
           <span class="mono-eyebrow" style="font-size:8px">jk-chip-done</span>
         </span>
-        <span class="jk-chip jk-chip-solid jk-chip-sm" style="padding:4px 9px;--jk-tint:var(--hub-magenta)">
-          <span class="jk-press-rev" style="font-family:var(--hub-font-serif);font-weight:600;font-size:11px">Small · jk-chip-sm</span>
+        <span class="jk-chip jk-chip-solid jk-chip-sm" style="padding:4px 9px;--jk-tint:var(--color-tertiary)">
+          <span class="jk-press-rev" style="font-family:var(--jk-font-serif);font-weight:600;font-size:11px">Small · jk-chip-sm</span>
         </span>
       </div>
       <div class="dg-row" style="margin-bottom:6px">
-        <span class="jk-chip jk-press-ink" style="padding:5px 12px;font-family:var(--hub-font-serif);font-weight:600;font-size:12px">Faint base · jk-press-ink</span>
-        <span class="jk-chip jk-chip-live jk-press-ink" style="padding:5px 12px;font-family:var(--hub-font-serif);font-weight:600;font-size:12px;--jk-tint:var(--hub-cyan)">Base live</span>
-        <span class="jk-chip jk-chip-done" style="padding:5px 12px"><span class="jk-press-sm" style="font-family:var(--hub-font-serif);font-weight:600;font-size:12px">Base done · jk-press-sm</span></span>
+        <span class="jk-chip jk-press-ink" style="padding:5px 12px;font-family:var(--jk-font-serif);font-weight:600;font-size:12px">Faint base · jk-press-ink</span>
+        <span class="jk-chip jk-chip-live jk-press-ink" style="padding:5px 12px;font-family:var(--jk-font-serif);font-weight:600;font-size:12px;--jk-tint:var(--color-secondary)">Base live</span>
+        <span class="jk-chip jk-chip-done" style="padding:5px 12px"><span class="jk-press-sm" style="font-family:var(--jk-font-serif);font-weight:600;font-size:12px">Base done · jk-press-sm</span></span>
       </div>
       <p class="dg-note">
         <b>A toggle group is <code>.jk-chip-solid</code> against <code>.jk-chip-off</code></b>, never
@@ -622,13 +622,13 @@
         neutral hairline, faint ink. It borrows nothing from either face, so it reads the same in both.
       </p>
       <div class="dg-row" style="margin-bottom:6px">
-        <span class="jk-chip jk-chip-solid jk-chip-sm" style="padding:3px 10px;font-family:var(--hub-font-mono);font-size:10px">M</span>
-        <span class="jk-chip jk-chip-off jk-chip-sm" style="padding:3px 10px;font-family:var(--hub-font-mono);font-size:10px">T</span>
-        <span class="jk-chip jk-chip-solid jk-chip-sm" style="padding:3px 10px;font-family:var(--hub-font-mono);font-size:10px">W</span>
-        <span class="jk-chip jk-chip-off jk-chip-sm" style="padding:3px 10px;font-family:var(--hub-font-mono);font-size:10px">T</span>
-        <span class="jk-chip jk-chip-solid jk-chip-sm" style="padding:3px 10px;font-family:var(--hub-font-mono);font-size:10px">F</span>
-        <span class="jk-chip jk-chip-off jk-chip-sm" style="padding:3px 10px;font-family:var(--hub-font-mono);font-size:10px">S</span>
-        <span class="jk-chip jk-chip-off jk-chip-sm" style="padding:3px 10px;font-family:var(--hub-font-mono);font-size:10px">S</span>
+        <span class="jk-chip jk-chip-solid jk-chip-sm" style="padding:3px 10px;font-family:var(--jk-font-mono);font-size:10px">M</span>
+        <span class="jk-chip jk-chip-off jk-chip-sm" style="padding:3px 10px;font-family:var(--jk-font-mono);font-size:10px">T</span>
+        <span class="jk-chip jk-chip-solid jk-chip-sm" style="padding:3px 10px;font-family:var(--jk-font-mono);font-size:10px">W</span>
+        <span class="jk-chip jk-chip-off jk-chip-sm" style="padding:3px 10px;font-family:var(--jk-font-mono);font-size:10px">T</span>
+        <span class="jk-chip jk-chip-solid jk-chip-sm" style="padding:3px 10px;font-family:var(--jk-font-mono);font-size:10px">F</span>
+        <span class="jk-chip jk-chip-off jk-chip-sm" style="padding:3px 10px;font-family:var(--jk-font-mono);font-size:10px">S</span>
+        <span class="jk-chip jk-chip-off jk-chip-sm" style="padding:3px 10px;font-family:var(--jk-font-mono);font-size:10px">S</span>
         <span class="mono-eyebrow" style="font-size:8px;align-self:center">jk-chip-solid / jk-chip-off</span>
       </div>
     </section>
@@ -653,19 +653,19 @@
       <p class="dg-lede" style="margin-top:0;margin-bottom:14px">
         The recess is a <b>token pair, not a shared shadow</b>: paper debosses
         (<code>--hub-field-recess</code> — shadow off the top lip, light caught at the bottom),
-        the tube drops to unlit <code>--hub-screen</code> with an inner falloff and no bevel at
+        the tube drops to unlit <code>--color-screen</code> with an inner falloff and no bevel at
         all, then <i>emits</i> on focus. Flip the face above and watch the same markup change
         physics rather than palette. Every native part is off — <code>appearance: none</code>,
         the white spin buttons, the OS select arrow, autofill yellow, the search ×.
       </p>
       <div class="dg-grid wide">
-        <div class="dg-block jk-well" style="background:var(--hub-bg-1);box-shadow:none">
+        <div class="dg-block jk-well" style="background:var(--color-paper-2);box-shadow:none">
           <span class="jk-lab jk-lab-sm">title · text · textarea</span>
           <input class="jk-field jk-field-title" style="width:100%" value="Calf Raise" aria-label="Title field demo" />
           <input class="jk-field" style="width:100%" placeholder="legs, accessory" aria-label="Text field demo" />
           <textarea class="jk-field" rows="2" style="width:100%" placeholder="Form cues, the method, the thing worth remembering." aria-label="Textarea demo"></textarea>
         </div>
-        <div class="dg-block jk-well" style="background:var(--hub-bg-1);box-shadow:none">
+        <div class="dg-block jk-well" style="background:var(--color-paper-2);box-shadow:none">
           <span class="jk-lab jk-lab-sm">number · the house stepper</span>
           <p class="dg-caption" style="margin:0">carets ghost at rest, ink up on hover/focus</p>
           <span class="jk-field-num" style="width:78px">
@@ -679,7 +679,7 @@
             </select>
           </span>
         </div>
-        <div class="dg-block jk-well" style="background:var(--hub-bg-1);box-shadow:none">
+        <div class="dg-block jk-well" style="background:var(--color-paper-2);box-shadow:none">
           <span class="jk-lab jk-lab-sm">dense rung · disabled</span>
           <p class="dg-caption" style="margin:0">jk-field-sm — the workshop packs a dozen per row</p>
           <div class="dg-row" style="gap:6px">
@@ -718,7 +718,7 @@
         listbox. Engines without it keep the native list, face-correct.
       </p>
       <div class="dg-grid wide">
-        <div class="dg-block jk-well" style="background:var(--hub-bg-1);box-shadow:none">
+        <div class="dg-block jk-well" style="background:var(--color-paper-2);box-shadow:none">
           <span class="jk-lab jk-lab-sm">date · time · search</span>
           <div class="dg-row" style="gap:6px;flex-wrap:wrap">
             <input class="jk-field jk-field-sm" type="date" value="2026-08-17" aria-label="Date field demo" />
@@ -727,7 +727,7 @@
           <input class="jk-field jk-field-sm" type="search" style="width:100%" value="calf raise" aria-label="Search field demo" />
           <p class="dg-caption" style="margin:0">the segment you are editing takes the accent wash, not the OS highlight</p>
         </div>
-        <div class="dg-block jk-well" style="background:var(--hub-bg-1);box-shadow:none">
+        <div class="dg-block jk-well" style="background:var(--color-paper-2);box-shadow:none">
           <span class="jk-lab jk-lab-sm">file · colour</span>
           <input class="jk-field jk-field-sm" type="file" style="width:100%" aria-label="File field demo" />
           <div class="dg-row" style="gap:8px;align-items:center">
@@ -735,10 +735,10 @@
             <span class="dg-caption" style="margin:0">the OS button becomes a small press; the swatch keeps the field's own frame</span>
           </div>
         </div>
-        <div class="dg-block jk-well" style="background:var(--hub-bg-1);box-shadow:none">
+        <div class="dg-block jk-well" style="background:var(--color-paper-2);box-shadow:none">
           <span class="jk-lab jk-lab-sm">bare · fold · scroll</span>
           <p class="dg-caption" style="margin:0">jk-field-bare — the reset without the slot, for edits inside running text</p>
-          <input class="jk-field jk-field-bare" style="width:100%;border-bottom:1px solid var(--hub-line);font-family:var(--hub-font-serif);font-style:italic;font-size:15px;padding:2px 0 5px"
+          <input class="jk-field jk-field-bare" style="width:100%;border-bottom:1px solid var(--color-line);font-family:var(--jk-font-serif);font-style:italic;font-size:15px;padding:2px 0 5px"
                  value="A verifiable outcome" aria-label="Bare field demo" />
           <details class="jk-fold" open>
             <summary class="jk-lab jk-lab-sm">jk-fold — 3 done today</summary>
@@ -778,21 +778,21 @@
       <p class="dg-lede" style="margin-top:0;margin-bottom:14px">
         The continuous sibling of the switch: a milled metal cap riding a debossed
         channel that fills behind it. Hosted on a real <code>&lt;input type="range"&gt;</code>
-        — the input box is a full <code>--hub-tap-min</code> tall for the ≥44px hit area
+        — the input box is a full <code>--jk-tap-min</code> tall for the ≥44px hit area
         while the visible track stays thin. The elapsed fill paints from
         <code>--jk-slider-fill</code> (a percentage; <code>&lt;Slider&gt;</code> sets it from
         the value), so a bare class still renders — just unfilled.
       </p>
       <div class="dg-grid wide">
-        <div class="dg-block jk-well" style="background:var(--hub-bg-1);box-shadow:none">
+        <div class="dg-block jk-well" style="background:var(--color-paper-2);box-shadow:none">
           <span class="jk-lab jk-lab-sm">accent (default)</span>
           <input class="jk-slider dg-sl" type="range" min="0" max="100" value="62" style="width:100%;--jk-slider-fill:62%" aria-label="Accent slider demo" />
         </div>
-        <div class="dg-block jk-well" style="background:var(--hub-bg-1);box-shadow:none">
+        <div class="dg-block jk-well" style="background:var(--color-paper-2);box-shadow:none">
           <span class="jk-lab jk-lab-sm">retinted · --jk-tint</span>
-          <input class="jk-slider dg-sl" type="range" min="0" max="100" value="35" style="width:100%;--jk-tint:var(--hub-magenta);--jk-slider-fill:35%" aria-label="Retinted slider demo" />
+          <input class="jk-slider dg-sl" type="range" min="0" max="100" value="35" style="width:100%;--jk-tint:var(--color-tertiary);--jk-slider-fill:35%" aria-label="Retinted slider demo" />
         </div>
-        <div class="dg-block jk-well" style="background:var(--hub-bg-1);box-shadow:none">
+        <div class="dg-block jk-well" style="background:var(--color-paper-2);box-shadow:none">
           <span class="jk-lab jk-lab-sm">disabled</span>
           <input class="jk-slider" type="range" min="0" max="100" value="48" style="width:100%;--jk-slider-fill:48%" disabled aria-label="Disabled slider demo" />
         </div>
@@ -814,14 +814,14 @@
         </p>
       </div>
       <div class="dg-grid wide">
-        <div class="dg-block jk-well" style="background:var(--hub-bg-1);box-shadow:none">
+        <div class="dg-block jk-well" style="background:var(--color-paper-2);box-shadow:none">
           <p class="dg-caption">LEDs — .led · one per live thing</p>
           <div class="dg-row" style="gap:14px">
             <span class="led green"></span><span class="led amber"></span><span class="led red"></span><span class="led cyan"></span>
             <span class="led off"></span><span class="led green lg"></span><span class="led amber sm steady"></span>
           </div>
         </div>
-        <div class="dg-block jk-well" style="background:var(--hub-bg-1);box-shadow:none">
+        <div class="dg-block jk-well" style="background:var(--color-paper-2);box-shadow:none">
           <p class="dg-caption">Naming things — folio for content, tape for machine chrome</p>
           <div class="dg-row" style="gap:12px">
             <span class="jk-folio">Library <span class="jk-folio-no">No. 4</span></span>
@@ -830,15 +830,15 @@
           </div>
           <p class="dg-caption" style="margin:10px 0 0">.jk-folio names <i>content</i> in print; .label-tape stays for <i>machine</i> chrome only; .stamp is the printer's (serif now)</p>
         </div>
-        <div class="dg-block jk-well" style="background:var(--hub-bg-1);box-shadow:none">
+        <div class="dg-block jk-well" style="background:var(--color-paper-2);box-shadow:none">
           <p class="dg-caption">Grounds — .perf · .canvas-grid</p>
           <div class="dg-row" style="gap:14px">
-            <span class="perf" style="width:52px;height:32px;border:1px solid var(--hub-line);display:inline-block"></span>
-            <span class="canvas-grid" style="width:52px;height:32px;border:1px solid var(--hub-line);display:inline-block;--hub-grid:10px"></span>
+            <span class="perf" style="width:52px;height:32px;border:1px solid var(--color-line);display:inline-block"></span>
+            <span class="canvas-grid" style="width:52px;height:32px;border:1px solid var(--color-line);display:inline-block;--jk-grid:10px"></span>
           </div>
           <p class="dg-caption" style="margin:10px 0 0">canvas-grid is the workshop/boot ground — the hero plate above sits on it (§09 shows it at scale)</p>
         </div>
-        <div class="dg-block jk-well" style="background:var(--hub-bg-1);box-shadow:none">
+        <div class="dg-block jk-well" style="background:var(--color-paper-2);box-shadow:none">
           <p class="dg-caption">Meters — .bar / .seg</p>
           <div class="bar-track" style="height:12px;margin-bottom:12px"><div class="bar-fill" style="width:64%"></div></div>
           <span class="seg" style="font-size:1.8rem">1024 MB</span>
@@ -863,22 +863,22 @@
       <div class="dg-screen" style="margin-bottom:16px">
         <div class="jk-scanlines"></div>
         <div class="dg-row" style="gap:22px;position:relative">
-          <span class="glow" style="font-family:var(--hub-font-mono)">.glow amber</span>
-          <span class="glow-dim" style="font-family:var(--hub-font-mono)">.glow-dim</span>
-          <span class="glow-cyan" style="font-family:var(--hub-font-mono)">.glow-cyan</span>
-          <span class="jk-halo-text" style="font-family:var(--hub-font-seg);font-size:1.6rem;color:var(--hub-amber)">HALO TEXT</span>
+          <span class="glow" style="font-family:var(--jk-font-mono)">.glow amber</span>
+          <span class="glow-dim" style="font-family:var(--jk-font-mono)">.glow-dim</span>
+          <span class="glow-cyan" style="font-family:var(--jk-font-mono)">.glow-cyan</span>
+          <span class="jk-halo-text" style="font-family:var(--jk-font-seg);font-size:1.6rem;color:var(--color-accent)">HALO TEXT</span>
           <span class="jk-bubble jk-bubble-primary jk-halo">HALO SURFACE</span>
-          <span class="jk-glow-text jk-glow-mid" style="--jk-glow-color:var(--hub-cyan);font-family:var(--hub-font-mono);color:var(--hub-cyan)">.jk-glow-text</span>
+          <span class="jk-glow-text jk-glow-mid" style="--jk-glow-color:var(--color-secondary);font-family:var(--jk-font-mono);color:var(--color-secondary)">.jk-glow-text</span>
         </div>
       </div>
       <p class="dg-caption">.jk-glow ladder — one class, three intensities, any <code>--jk-glow-color</code></p>
       <div class="dg-screen">
         <div class="jk-scanlines"></div>
         <div class="dg-row" style="gap:16px;position:relative">
-          <span class="jk-glow jk-glow-low" style="--jk-glow-color:var(--accent);display:inline-block;padding:8px 12px;border:1px solid var(--accent);color:var(--accent);font-family:var(--hub-font-mono);font-size:11px">jk-glow-low</span>
-          <span class="jk-glow jk-glow-mid" style="--jk-glow-color:var(--accent);display:inline-block;padding:8px 12px;border:1px solid var(--accent);color:var(--accent);font-family:var(--hub-font-mono);font-size:11px">jk-glow-mid</span>
-          <span class="jk-glow jk-glow-hi" style="--jk-glow-color:var(--accent);display:inline-block;padding:8px 12px;border:1px solid var(--accent);color:var(--accent);font-family:var(--hub-font-mono);font-size:11px">jk-glow-hi</span>
-          <span class="jk-glow jk-glow-hi" style="--jk-glow-color:var(--hub-magenta);display:inline-block;padding:8px 12px;border:1px solid var(--hub-magenta);color:var(--hub-magenta);font-family:var(--hub-font-mono);font-size:11px">custom colour</span>
+          <span class="jk-glow jk-glow-low" style="--jk-glow-color:var(--color-accent);display:inline-block;padding:8px 12px;border:1px solid var(--color-accent);color:var(--color-accent);font-family:var(--jk-font-mono);font-size:11px">jk-glow-low</span>
+          <span class="jk-glow jk-glow-mid" style="--jk-glow-color:var(--color-accent);display:inline-block;padding:8px 12px;border:1px solid var(--color-accent);color:var(--color-accent);font-family:var(--jk-font-mono);font-size:11px">jk-glow-mid</span>
+          <span class="jk-glow jk-glow-hi" style="--jk-glow-color:var(--color-accent);display:inline-block;padding:8px 12px;border:1px solid var(--color-accent);color:var(--color-accent);font-family:var(--jk-font-mono);font-size:11px">jk-glow-hi</span>
+          <span class="jk-glow jk-glow-hi" style="--jk-glow-color:var(--color-tertiary);display:inline-block;padding:8px 12px;border:1px solid var(--color-tertiary);color:var(--color-tertiary);font-family:var(--jk-font-mono);font-size:11px">custom colour</span>
         </div>
       </div>
     </section>
@@ -890,7 +890,7 @@
         <h2>Atmosphere veils &amp; the canvas</h2>
         <p class="dg-lede">
           Absolute overlays that give a surface its air. All four read the suite
-          <code>--crt-*</code> / <code>--hub-scrim*</code> knobs, so <b>one</b> markup is
+          <code>--crt-*</code> / <code>--color-scrim*</code> knobs, so <b>one</b> markup is
           correct in both faces — the scanline and vignette simply fall to nothing on paper.
           <b>Never</b> bake an overlay opacity into a component; raise the atmosphere through
           the factory inputs. React: <code>&lt;Scanlines&gt;</code>, <code>&lt;Vignette&gt;</code>,
@@ -898,20 +898,20 @@
         </p>
       </div>
       <div class="dg-grid wide">
-        <div class="dg-stage" style="background:var(--hub-screen);border:1px solid var(--hub-screen-line);border-radius:var(--hub-radius-lg)">
+        <div class="dg-stage" style="background:var(--color-screen);border:1px solid var(--color-screen-line);border-radius:var(--jk-radius-lg)">
           <div class="jk-scanlines"></div>
           <span class="jk-lab jk-lab-sm" style="position:relative">jk-scanlines</span>
         </div>
-        <div class="dg-stage" style="background:var(--hub-screen);border:1px solid var(--hub-screen-line);border-radius:var(--hub-radius-lg)">
+        <div class="dg-stage" style="background:var(--color-screen);border:1px solid var(--color-screen-line);border-radius:var(--jk-radius-lg)">
           <div class="jk-vignette"></div>
           <span class="jk-lab jk-lab-sm" style="position:relative">jk-vignette</span>
         </div>
-        <div class="dg-stage" style="background:var(--hub-bg-2);border:1px solid var(--hub-line);border-radius:var(--hub-radius-lg)">
+        <div class="dg-stage" style="background:var(--color-card);border:1px solid var(--color-line);border-radius:var(--jk-radius-lg)">
           <span class="jk-lab jk-lab-sm">under the scrim</span>
           <div class="jk-scrim"></div>
           <span class="jk-bubble jk-bubble-primary" style="position:relative;z-index:1">jk-scrim</span>
         </div>
-        <div class="dg-stage" style="background:var(--hub-bg-2);border:1px solid var(--hub-line);border-radius:var(--hub-radius-lg)">
+        <div class="dg-stage" style="background:var(--color-card);border:1px solid var(--color-line);border-radius:var(--jk-radius-lg)">
           <span class="jk-lab jk-lab-sm">under the heavy scrim</span>
           <div class="jk-scrim jk-scrim-heavy"></div>
           <span class="jk-bubble jk-bubble-primary" style="position:relative;z-index:1">jk-scrim-heavy</span>
@@ -919,7 +919,7 @@
       </div>
 
       <p class="dg-caption" style="margin-top:22px">Canvas — the boot/workshop ground</p>
-      <div class="dg-stage" style="background:var(--hub-bg-1);border:1px solid var(--hub-line);border-radius:var(--hub-radius-lg)">
+      <div class="dg-stage" style="background:var(--color-paper-2);border:1px solid var(--color-line);border-radius:var(--jk-radius-lg)">
         <div class="canvas-grid" style="position:absolute;inset:0"></div>
         <div class="dg-row" style="position:relative;gap:12px">
           <span class="canvas-cell boot-sweep" style="padding:10px 14px"><span class="jk-lab jk-lab-sm">canvas-cell</span></span>
@@ -996,7 +996,7 @@
         <p class="dg-lede">
           <b>The head's edge is one hairline.</b> <code>.jk-masthead</code> spends no fill and no
           border: the ground's grain runs unbroken from the first pixel, and the bottom edge is the
-          tapered rule of §04, drawn from the same <code>--jk-inlay-*</code> seams so the two are one
+          tapered rule of §04, drawn from the same <code>--jk-taper-mask</code> so the two are one
           object rather than two that drift. It replaced an opaque bar with a square
           <code>border-bottom</code>, which was a slab: its fill was the one place in the app where
           the grain stopped, and because the canvas floats on the ground its edges were square cuts
@@ -1022,15 +1022,15 @@
             <span class="jk-folio">Masthead <span class="jk-folio-no">No. 11</span></span>
             <nav>
               <button class="jk-masthead-tab jk-well" aria-selected="true">
-                <span class="jk-press" style="font-family:var(--hub-font-mono);font-size:10px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;line-height:1.1">Today</span>
+                <span class="jk-press" style="font-family:var(--jk-font-mono);font-size:10px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;line-height:1.1">Today</span>
                 <span class="mono-eyebrow" style="font-size:7px;margin-top:3px">NOW</span>
               </button>
               <button class="jk-masthead-tab" aria-selected="false">
-                <span style="font-family:var(--hub-font-mono);font-size:10px;font-weight:500;letter-spacing:.18em;text-transform:uppercase;color:var(--color-muted);line-height:1.1">Week</span>
+                <span style="font-family:var(--jk-font-mono);font-size:10px;font-weight:500;letter-spacing:.18em;text-transform:uppercase;color:var(--color-muted);line-height:1.1">Week</span>
                 <span class="mono-eyebrow" style="font-size:7px;margin-top:3px;opacity:.5">7 DAYS</span>
               </button>
               <button class="jk-masthead-tab" aria-selected="false">
-                <span style="font-family:var(--hub-font-mono);font-size:10px;font-weight:500;letter-spacing:.18em;text-transform:uppercase;color:var(--color-muted);line-height:1.1">Month</span>
+                <span style="font-family:var(--jk-font-mono);font-size:10px;font-weight:500;letter-spacing:.18em;text-transform:uppercase;color:var(--color-muted);line-height:1.1">Month</span>
                 <span class="mono-eyebrow" style="font-size:7px;margin-top:3px;opacity:.5">GRID</span>
               </button>
             </nav>
@@ -1074,10 +1074,10 @@
       <p class="dg-caption">jk-panel + jk-panel-rail / jk-panel-sheet › jk-panel-head &nbsp;(dashed edge = the host region)</p>
       <div class="dg-panel-demo">
         <div class="dg-panel-stage">
-          <div class="jk-panel jk-panel-rail" style="--jk-tint:var(--hub-cyan)">
+          <div class="jk-panel jk-panel-rail" style="--jk-tint:var(--color-secondary)">
             <div class="jk-panel-head">
               <div class="mono-eyebrow" style="color:var(--color-on-accent-dim);margin-bottom:4px">TASK</div>
-              <div class="jk-press-rev" style="font-family:var(--hub-font-serif);font-weight:600;font-size:15px;letter-spacing:-.015em;line-height:1.2">Refine the masthead</div>
+              <div class="jk-press-rev" style="font-family:var(--jk-font-serif);font-weight:600;font-size:15px;letter-spacing:-.015em;line-height:1.2">Refine the masthead</div>
             </div>
             <div class="dg-panel-body">
               <span class="jk-lab jk-lab-xs">When</span>
@@ -1089,7 +1089,7 @@
           <div class="jk-panel jk-panel-sheet" style="--jk-tint:var(--color-accent)">
             <div class="jk-panel-head">
               <div class="mono-eyebrow" style="color:var(--color-on-accent-dim);margin-bottom:4px">GOAL</div>
-              <div class="jk-press-rev" style="font-family:var(--hub-font-serif);font-weight:600;font-size:15px;letter-spacing:-.015em;line-height:1.2">Ship the suite</div>
+              <div class="jk-press-rev" style="font-family:var(--jk-font-serif);font-weight:600;font-size:15px;letter-spacing:-.015em;line-height:1.2">Ship the suite</div>
             </div>
             <div class="dg-panel-body">
               <span class="jk-lab jk-lab-xs">Horizon</span>
@@ -1228,7 +1228,7 @@
 
       <p class="dg-caption" style="margin-top:22px">pb-popover — the menu framework · pb-error — the playback error strip</p>
       <div class="dg-grid wide">
-        <div class="dg-player dg-stage" style="background:var(--hub-bg-1);border:1px solid var(--hub-line);min-height:180px;display:flex;align-items:flex-end;justify-content:center">
+        <div class="dg-player dg-stage" style="background:var(--color-paper-2);border:1px solid var(--color-line);min-height:180px;display:flex;align-items:flex-end;justify-content:center">
           <div class="pb-popover" style="position:relative;bottom:auto;right:auto">
             <span class="pb-popover-head">Sleep timer</span>
             <button class="pb-popover-row">15 minutes</button>
@@ -1236,7 +1236,7 @@
             <button class="pb-popover-row">End of chapter</button>
           </div>
         </div>
-        <div class="dg-player dg-stage" style="background:var(--hub-bg-1);border:1px solid var(--hub-line);min-height:180px">
+        <div class="dg-player dg-stage" style="background:var(--color-paper-2);border:1px solid var(--color-line);min-height:180px">
           <div class="pb-popover pb-popover-wide" style="position:relative;bottom:auto;right:auto;margin-bottom:14px">
             <span class="pb-popover-head">Queue</span>
             <p class="pb-popover-empty">Nothing up next.</p>
@@ -1262,15 +1262,15 @@
 
       <p class="dg-caption">jk-async-note / jk-async-error — the AsyncView triad</p>
       <div class="dg-grid wide" style="margin-bottom:26px">
-        <div class="dg-block jk-well" style="background:var(--hub-bg-1);box-shadow:none">
+        <div class="dg-block jk-well" style="background:var(--color-paper-2);box-shadow:none">
           <span class="jk-lab jk-lab-sm">loading</span>
           <p class="jk-async-note" style="margin:8px 0 0">Loading library…</p>
         </div>
-        <div class="dg-block jk-well" style="background:var(--hub-bg-1);box-shadow:none">
+        <div class="dg-block jk-well" style="background:var(--color-paper-2);box-shadow:none">
           <span class="jk-lab jk-lab-sm">empty</span>
           <p class="jk-async-note" style="margin:8px 0 0">No books yet — add one to get started.</p>
         </div>
-        <div class="dg-block jk-well" style="background:var(--hub-bg-1);box-shadow:none">
+        <div class="dg-block jk-well" style="background:var(--color-paper-2);box-shadow:none">
           <span class="jk-lab jk-lab-sm">error</span>
           <p class="jk-async-error" style="margin:8px 0 0">Couldn't reach the library service.</p>
         </div>
@@ -1322,15 +1322,15 @@
         press a button.
       </p>
       <div class="dg-panel" style="padding:12px">
-        <div class="jk-cards-row" style="--hover-bg:color-mix(in srgb, var(--accent-secondary) 12%, transparent);display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:var(--hub-radius-sm);cursor:pointer">
+        <div class="jk-cards-row" style="--hover-bg:color-mix(in srgb, var(--color-secondary) 12%, transparent);display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:var(--jk-radius-sm);cursor:pointer">
           <span class="led amber sm steady"></span>
           <span style="flex:1">jk-cards-row — hover me</span>
-          <span class="jk-cards-chip" style="background:var(--accent-secondary);color:var(--color-on-accent);font-family:var(--hub-font-mono);font-size:10px;padding:2px 7px;border-radius:var(--hub-radius-xs)">CHIP</span>
+          <span class="jk-cards-chip" style="background:var(--color-secondary);color:var(--color-on-accent);font-family:var(--jk-font-mono);font-size:10px;padding:2px 7px;border-radius:var(--jk-radius-xs)">CHIP</span>
         </div>
-        <div class="jk-cards-row" style="--hover-bg:color-mix(in srgb, var(--accent-secondary) 12%, transparent);display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:var(--hub-radius-sm);cursor:pointer">
+        <div class="jk-cards-row" style="--hover-bg:color-mix(in srgb, var(--color-secondary) 12%, transparent);display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:var(--jk-radius-sm);cursor:pointer">
           <span class="led green sm steady"></span>
           <span style="flex:1">jk-cards-row — another</span>
-          <span class="jk-cards-chip" style="background:var(--accent);color:var(--color-on-accent);font-family:var(--hub-font-mono);font-size:10px;padding:2px 7px;border-radius:var(--hub-radius-xs)">CHIP</span>
+          <span class="jk-cards-chip" style="background:var(--color-accent);color:var(--color-on-accent);font-family:var(--jk-font-mono);font-size:10px;padding:2px 7px;border-radius:var(--jk-radius-xs)">CHIP</span>
         </div>
         <div class="dg-row" style="margin-top:12px">
           <button class="jk-cards-btn jk-tbtn">jk-cards-btn — press me</button>
@@ -1360,10 +1360,10 @@
       </p>
       <div class="dg-panel" style="padding:12px">
         <div class="jk-scroll" style="max-height:96px;display:flex;flex-direction:column;gap:6px">
-          <div class="jk-hit" style="padding:9px 11px;border:1px solid var(--hub-line);border-radius:var(--hub-radius-sm);cursor:pointer">jk-hit — hover me, then press</div>
-          <div class="jk-hit" style="padding:9px 11px;border:1px solid var(--hub-line);border-radius:var(--hub-radius-sm);cursor:pointer">jk-hit — inside a jk-scroll region</div>
-          <div class="jk-hit" style="padding:9px 11px;border:1px solid var(--hub-line);border-radius:var(--hub-radius-sm);cursor:pointer">jk-hit — scroll to reach me</div>
-          <div class="jk-hit" style="padding:9px 11px;border:1px solid var(--hub-line);border-radius:var(--hub-radius-sm);cursor:pointer">jk-hit — vertical only, never sideways</div>
+          <div class="jk-hit" style="padding:9px 11px;border:1px solid var(--color-line);border-radius:var(--jk-radius-sm);cursor:pointer">jk-hit — hover me, then press</div>
+          <div class="jk-hit" style="padding:9px 11px;border:1px solid var(--color-line);border-radius:var(--jk-radius-sm);cursor:pointer">jk-hit — inside a jk-scroll region</div>
+          <div class="jk-hit" style="padding:9px 11px;border:1px solid var(--color-line);border-radius:var(--jk-radius-sm);cursor:pointer">jk-hit — scroll to reach me</div>
+          <div class="jk-hit" style="padding:9px 11px;border:1px solid var(--color-line);border-radius:var(--jk-radius-sm);cursor:pointer">jk-hit — vertical only, never sideways</div>
         </div>
         <div style="display:flex;align-items:center;gap:12px;margin-top:12px">
           <span class="mono-eyebrow">4 SOURCES</span>
@@ -1429,7 +1429,7 @@
         <li><b class="dg-yes">DO</b><span>Reuse the shared classes &amp; <code>@jkos/ui</code> components; make both faces hold up.</span></li>
         <li><b class="dg-yes">DO</b><span>Accent with the paper pair — wells for boundary, badges for emphasis (glow in CRT).</span></li>
         <li><b class="dg-yes">DO</b><span>Fade colours with <code>withAlpha()</code>, never hex-concat on a CSS var.</span></li>
-        <li><b class="dg-no">DON'T</b><span>Rename any <code>--hub-*</code> token, or hardcode <code>--accent</code> / a hex in a component.</span></li>
+        <li><b class="dg-no">DON'T</b><span>Rename any <code>--hub-*</code> token, or hardcode <code>--color-accent</code> / a hex in a component.</span></li>
         <li><b class="dg-no">DON'T</b><span>Use <code>prefers-color-scheme</code> — mode is driven by <code>data-mode</code>.</span></li>
         <li><b class="dg-no">DON'T</b><span>Scatter hardware chrome decoratively — an LED on everything means nothing is live.</span></li>
         <li><b class="dg-no">DON'T</b><span>Add an icon library, or normalise the chrome toward flat modern UI.</span></li>
@@ -1469,7 +1469,7 @@
       ];
       // Sharp opt-in scale — the per-app/per-card override (soft is the hub
       // default now; sharp is specified, not assumed). Same seam an app uses.
-      var SHARP = { '--hub-radius':'0px','--hub-radius-xs':'0px','--hub-radius-sm':'0px','--hub-radius-lg':'2px','--hub-radius-soft':'2px','--hub-radius-button':'0px' };
+      var SHARP = { '--jk-radius':'0px','--jk-radius-xs':'0px','--jk-radius-sm':'0px','--jk-radius-lg':'2px','--jk-radius-soft':'2px','--jk-radius-button':'0px' };
 
       /* ── Mode ── */
       var modeBox = document.getElementById('dg-mode');
@@ -1483,7 +1483,7 @@
       var accBox = document.getElementById('dg-accents');
       var custom = document.getElementById('dg-custom');
       var cp = document.getElementById('dg-cp'), cs = document.getElementById('dg-cs');
-      function applyAccent(p, s) { root.style.setProperty('--accent-raw', p); root.style.setProperty('--accent-2-raw', s); syncPanes(); }
+      function applyAccent(p, s) { root.style.setProperty('--hub-accent-raw', p); root.style.setProperty('--hub-secondary-raw', s); syncPanes(); }
       function pressAccent(id) { accBox.querySelectorAll('.dg-accent').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.id === id)); }); }
       SCHEMES.forEach(function (sc, i) {
         var b = document.createElement('button');

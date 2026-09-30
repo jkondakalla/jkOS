@@ -70,16 +70,16 @@ import {
 } from '@jkos/routine-spec'
 
 /* The document's own panels (the scaling block, a step) read as
-   the milestone branch row does — a flat hairline card on --hub-bg-3 — not as
+   the milestone branch row does — a flat hairline card on --color-card-2 — not as
    a .jk-well. A well's --hub-accent-press is an EMPHASIS move (an alert, a
    picked state) and in dark mode that is a real emissive glow; stacking four
    of them down one column just to hold form fields turned the whole document
    into a wall of amber halation. */
 const PANEL: React.CSSProperties = {
   display: 'block',
-  border: '1px solid var(--hub-line)',
-  borderRadius: 'var(--hub-radius-sm)',
-  background: 'var(--hub-bg-3)',
+  border: '1px solid var(--color-line)',
+  borderRadius: 'var(--jk-radius-sm)',
+  background: 'var(--color-card-2)',
 }
 
 type Tab = 'ladder' | 'history' | 'revisions'
@@ -538,7 +538,7 @@ export function RoutineForge({
                       title={e.notes || e.title}
                       style={{
                         display: 'block', textAlign: 'left', padding: '5px 7px', cursor: 'pointer',
-                        border: '1px solid var(--color-line)', borderRadius: 'var(--hub-radius-xs)',
+                        border: '1px solid var(--color-line)', borderRadius: 'var(--jk-radius-xs)',
                       }}
                     >
                       <div style={{ fontFamily: FONT_HEAD, fontWeight: 600, fontSize: 12 }}>{e.title}</div>
@@ -762,8 +762,8 @@ export function RoutineForge({
                       style={{
                         padding: '6px 9px',
                         border: '1px solid var(--color-line)',
-                        borderRadius: 'var(--hub-radius-xs)',
-                        background: s.deload ? 'color-mix(in srgb, var(--hub-bg-4) 55%, transparent)' : 'transparent',
+                        borderRadius: 'var(--jk-radius-xs)',
+                        background: s.deload ? 'color-mix(in srgb, var(--color-lit) 55%, transparent)' : 'transparent',
                       }}
                     >
                       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
@@ -830,8 +830,8 @@ export function RoutineForge({
                     key={r.version}
                     style={{
                       padding: '6px 9px', marginBottom: 5,
-                      border: '1px solid var(--color-line)', borderRadius: 'var(--hub-radius-xs)',
-                      background: r.current ? 'color-mix(in srgb, var(--hub-bg-4) 55%, transparent)' : 'transparent',
+                      border: '1px solid var(--color-line)', borderRadius: 'var(--jk-radius-xs)',
+                      background: r.current ? 'color-mix(in srgb, var(--color-lit) 55%, transparent)' : 'transparent',
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>

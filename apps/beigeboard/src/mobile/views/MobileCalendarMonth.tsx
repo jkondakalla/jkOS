@@ -173,7 +173,7 @@ export function MobileCalendarMonth({ items, today, resolvers, onSelect, onToggl
                   transition: 'background 0.12s, border-color 0.12s',
                 }}
               >
-                <span style={{ fontFamily: FONT_NUM, fontStyle: 'italic', fontSize: 14, color: isToday ? 'var(--color-accent)' : 'var(--color-ink)', fontWeight: isToday ? 600 : 400, textShadow: isToday ? 'var(--accent-halo-text)' : 'none' }}>
+                <span style={{ fontFamily: FONT_NUM, fontStyle: 'italic', fontSize: 14, color: isToday ? 'var(--color-accent)' : 'var(--color-ink)', fontWeight: isToday ? 600 : 400, textShadow: isToday ? 'var(--hub-halo-text)' : 'none' }}>
                   {localDate(iso).getDate()}
                 </span>
                 <span style={{ display: 'flex', gap: 2, height: 5, alignItems: 'center' }}>
@@ -191,7 +191,7 @@ export function MobileCalendarMonth({ items, today, resolvers, onSelect, onToggl
             <Eyebrow color={sel === today ? 'var(--color-accent)' : 'var(--color-muted)'}>{fmtFull(sel)}</Eyebrow>
             {sel === today && <RecLamp size={6} />}
             <span style={{ flex: 1 }} />
-            <button onClick={triggerAdd} className="jk-cards-btn" style={{ background: 'transparent', border: 'none', color: 'var(--color-accent)', textShadow: 'var(--accent-halo-text)', cursor: 'pointer', fontFamily: FONT_BODY, fontSize: 10, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', display: 'inline-flex', alignItems: 'center', gap: 5, padding: '2px 0' }}>
+            <button onClick={triggerAdd} className="jk-cards-btn" style={{ background: 'transparent', border: 'none', color: 'var(--color-accent)', textShadow: 'var(--hub-halo-text)', cursor: 'pointer', fontFamily: FONT_BODY, fontSize: 10, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', display: 'inline-flex', alignItems: 'center', gap: 5, padding: '2px 0' }}>
               <span style={{ fontSize: 14, lineHeight: 1 }}>+</span> Add
             </button>
           </div>

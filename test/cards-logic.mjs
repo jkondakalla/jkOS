@@ -226,7 +226,7 @@ check(spillL.lane !== trip.lane, 'touching bars occupy separate lanes');
 
   // Hour rules are the faint ledger, never --color-line-strong.
   const weekRules = gridRules('comfortable');
-  check(weekRules.includes('var(--hub-line)'), 'grid rules paint --hub-line');
+  check(weekRules.includes('var(--color-line)'), 'grid rules paint --color-line');
   check(!weekRules.includes('--color-line-strong'), 'grid rules never paint --color-line-strong');
   check(weekRules.split('repeating-linear-gradient').length - 1 === 1,
     'Week gets the hour rule only — one gradient');

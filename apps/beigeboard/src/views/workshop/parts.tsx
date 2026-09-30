@@ -19,7 +19,7 @@ import React from 'react'
 import { TButton, Field as UIField, NumField as UINumField, SelectField as UISelectField, TextArea as UITextArea } from '@jkos/ui'
 import { PROGRESSIONS, DRIVES, PROGRESSION_LABEL } from '@jkos/routine-spec'
 
-export const MONO = 'var(--hub-font-mono)'
+export const MONO = 'var(--jk-font-mono)'
 
 /* The chrome is now the suite's — `.jk-field` and its family in @jkos/design
  * (see the "Fields" block in hub.css). What used to live here was a local style

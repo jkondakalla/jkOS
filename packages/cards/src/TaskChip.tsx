@@ -53,7 +53,7 @@ export function TaskChip({
         style={{
           height: size === 'md' ? 24 : 18,
           background: accent,
-          borderRadius: 'var(--hub-radius-xs)',
+          borderRadius: 'var(--jk-radius-xs)',
           opacity: 0.28,
           flexShrink: 0,
           userSelect: 'none',

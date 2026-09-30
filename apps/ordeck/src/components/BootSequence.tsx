@@ -28,13 +28,13 @@ export default function BootSequence({ onDone }: { onDone?: () => void }) {
   return (
     <div style={{
       position: 'fixed', inset: 0,
-      background: 'var(--hub-bg-0)',
+      background: 'var(--color-paper)',
       zIndex: 9000,
       display: 'flex', flexDirection: 'column',
       alignItems: 'flex-start', justifyContent: 'center',
       padding: '60px',
-      fontFamily: 'var(--hub-font-mono)',
-      color: 'var(--hub-amber)',
+      fontFamily: 'var(--jk-font-mono)',
+      color: 'var(--color-accent)',
       fontSize: '13px',
       lineHeight: '1.8',
       opacity: fading ? 0 : 1,
@@ -47,7 +47,7 @@ export default function BootSequence({ onDone }: { onDone?: () => void }) {
           style={{ opacity: 0, animation: `bootIn 0.05s ease ${i * 0.15}s forwards` }}
         >
           {line}
-          <span style={{ color: 'var(--hub-green)', marginLeft: 12 }}>
+          <span style={{ color: 'var(--color-ok)', marginLeft: 12 }}>
             {line === 'READY.' ? '▮' : '[OK]'}
           </span>
         </div>

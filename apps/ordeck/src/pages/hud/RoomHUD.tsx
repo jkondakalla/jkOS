@@ -173,8 +173,8 @@ export default function RoomHUD() {
     [hud, lazuros.enabled],
   );
 
-  const sysDot = ctx.systems.up === ctx.systems.total ? 'var(--hub-green)'
-    : ctx.systems.up === 0 ? 'var(--hub-red)' : 'var(--hub-warn)';
+  const sysDot = ctx.systems.up === ctx.systems.total ? 'var(--color-ok)'
+    : ctx.systems.up === 0 ? 'var(--color-danger)' : 'var(--color-warn)';
 
   // Focus mode: when a task is focused AND the Focus card is on the canvas, the
   // grid dims every other card around it. Skipped if the card is shelved (else
@@ -318,7 +318,7 @@ export default function RoomHUD() {
         )}
         <span style={{ flex: 1 }} />
         {editMode && (
-          <span style={{ color: 'var(--color-accent-ink)', fontFamily: 'var(--hub-font-mono)', fontSize: 10, letterSpacing: '0.1em' }}>
+          <span style={{ color: 'var(--color-accent-ink)', fontFamily: 'var(--jk-font-mono)', fontSize: 10, letterSpacing: '0.1em' }}>
             EDIT MODE · ESC TO EXIT
           </span>
         )}

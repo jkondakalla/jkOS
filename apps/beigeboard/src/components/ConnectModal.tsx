@@ -98,14 +98,14 @@ export function ConnectModal({ open, onClose, accounts, onConnect, onDisconnect,
   return (
     <div onClick={onClose} style={{
       position: 'fixed', inset: 0, zIndex: 500,
-      background: 'var(--hub-scrim)',
+      background: 'var(--color-scrim)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       padding: 32, backdropFilter: 'blur(3px)',
     }}>
       <div onClick={e => e.stopPropagation()} style={{
         width: 'min(640px, 100%)', maxHeight: '88vh',
         background: 'var(--color-paper)', border: `1px solid var(--color-line)`,
-        boxShadow: '0 24px 80px var(--hub-shadow-panel-ink)',
+        boxShadow: '0 24px 80px var(--color-shadow-panel-ink)',
         display: 'flex', flexDirection: 'column', overflow: 'hidden',
       }} className="modal-in">
         <div style={{
@@ -118,7 +118,7 @@ export function ConnectModal({ open, onClose, accounts, onConnect, onDisconnect,
             <h2 style={{
               fontFamily: FONT_HEAD, fontWeight: 500, fontSize: 26,
               margin: 0, letterSpacing: '-0.02em', color: 'var(--color-ink)',
-            }}>Connect a <em style={{ color: 'var(--color-accent)', textShadow: 'var(--accent-halo-text)' }}>calendar</em>.</h2>
+            }}>Connect a <em style={{ color: 'var(--color-accent)', textShadow: 'var(--hub-halo-text)' }}>calendar</em>.</h2>
             <p style={{
               fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 13,
               color: 'var(--color-muted)', margin: '6px 0 0', lineHeight: 1.4,
@@ -250,7 +250,7 @@ export function ConnectModal({ open, onClose, accounts, onConnect, onDisconnect,
                       <span style={{
                         fontFamily: FONT_HEAD, fontWeight: 600, fontSize: 9.5, letterSpacing: '0.14em',
                         textTransform: 'uppercase', color: 'var(--color-accent)',
-                        textShadow: 'var(--accent-halo-text)',
+                        textShadow: 'var(--hub-halo-text)',
                       }}>{isConn ? '…' : 'sign in →'}</span>
                     </button>
                   )

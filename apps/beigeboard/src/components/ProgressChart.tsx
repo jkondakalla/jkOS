@@ -40,7 +40,7 @@ import React, { useMemo, useRef, useState } from 'react'
 import { FONT_HEAD, localDate } from '../lib/theme'
 import type { SeriesPoint } from '@jkos/routine-spec'
 
-const MONO = 'var(--hub-font-mono)'
+const MONO = 'var(--jk-font-mono)'
 
 interface Props {
   points: SeriesPoint[]
@@ -173,7 +173,7 @@ export function ProgressChart({ points, title, unit, tint = 'var(--color-accent)
               key={`d${i}`}
               x={x(i) - (W / Math.max(1, pts.length - 1)) / 2} y={0}
               width={W / Math.max(1, pts.length - 1)} height={H}
-              fill="var(--hub-bg-4)" opacity={0.5}
+              fill="var(--color-lit)" opacity={0.5}
             />
           ) : null))}
 
@@ -201,8 +201,8 @@ export function ProgressChart({ points, title, unit, tint = 'var(--color-accent)
             <circle
               key={`m${i}`}
               cx={x(i)} cy={y(p.performed as number)} r="4"
-              fill={p.met === false ? 'var(--hub-bg-2)' : tint}
-              stroke={p.met === false ? tint : 'var(--hub-bg-2)'}
+              fill={p.met === false ? 'var(--color-card)' : tint}
+              stroke={p.met === false ? tint : 'var(--color-card)'}
               strokeWidth="2" vectorEffect="non-scaling-stroke"
             />
           ))}
@@ -237,8 +237,8 @@ export function ProgressChart({ points, title, unit, tint = 'var(--color-accent)
           <div style={{
             position: 'absolute', left: `${(x(hover as number) / W) * 100}%`, top: -4,
             transform: 'translate(-50%, -100%)', pointerEvents: 'none', zIndex: 2,
-            background: 'var(--hub-bg-2)', border: '1px solid var(--color-line)',
-            borderRadius: 'var(--hub-radius-xs)', padding: '4px 7px', whiteSpace: 'nowrap',
+            background: 'var(--color-card)', border: '1px solid var(--color-line)',
+            borderRadius: 'var(--jk-radius-xs)', padding: '4px 7px', whiteSpace: 'nowrap',
             fontFamily: MONO, fontSize: 10, color: 'var(--color-ink)',
             boxShadow: '0 2px 8px rgb(0 0 0 / 0.18)',
           }}>

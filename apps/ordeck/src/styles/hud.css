@@ -1,7 +1,7 @@
 /* ORDECK v2 "room HUD" — Claude Design pass (2026-06-11).
    Scoped under html.od-v2 so the legacy widget canvas keeps its own look.
 
-   NEUTRALS, accent chain, status colours/tints (--hub-green-soft etc.) and the
+   NEUTRALS, accent chain, status colours/tints (--color-ok-soft etc.) and the
    accent helpers (--color-accent-ink/-soft/-contrast) ALL come from the
    @jkos/design factory (hub.css) now — ORDECK no longer re-declares them. The
    only things v2 still owns are its two elevation shadows and the mode-flipped
@@ -21,8 +21,8 @@ html.od-v2[data-mode="dark"] {
   --od-shadow:      0 1px 2px rgba(0,0,0,0.35), 0 10px 30px -14px rgba(0,0,0,0.65);
   --od-shadow-lift: 0 2px 6px rgba(0,0,0,0.4), 0 22px 50px -18px rgba(0,0,0,0.75);
 
-  /* Icon halation — factory --hub-amber-glow tracks the user's accent. */
-  --glow: 0 0 14px var(--hub-amber-glow);
+  /* Icon halation — factory --color-accent-glow tracks the user's accent. */
+  --glow: 0 0 14px var(--color-accent-glow);
 }
 
 /* ── Base surface ──────────────────────────────────────────────────────── */
@@ -31,14 +31,14 @@ html.od-v2 body {
   /* background-color is the paper backdrop; the suite-wide film grain image +
      blend are painted onto this same `html.od-v2 body` by buildJkOSTheme()
      (injectJkOSTheme in App.tsx), so the grain rides this surface. */
-  background-color: var(--hub-bg-0);
-  color: var(--hub-cream-bright);
-  font-family: var(--hub-font-sans);
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--jk-font-sans);
   user-select: text;
   transition: background-color 0.4s ease, color 0.3s ease;
 }
 
-html.od-v2 ::selection { background: var(--accent); color: var(--color-accent-contrast); }
+html.od-v2 ::selection { background: var(--color-accent); color: var(--color-accent-contrast); }
 
 @keyframes od-fade-up { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 @keyframes od-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
@@ -62,28 +62,28 @@ html.od-v2 ::selection { background: var(--accent); color: var(--color-accent-co
 
 .hud-logo {
   width: 26px; height: 26px;
-  border-radius: var(--hub-radius-soft);
-  background: var(--accent);
+  border-radius: var(--jk-radius-soft);
+  background: var(--color-accent);
   color: var(--color-accent-contrast);
   display: grid; place-items: center;
-  font-family: var(--hub-font-mono);
+  font-family: var(--jk-font-mono);
   font-weight: 700; font-size: 11px;
   box-shadow: var(--hub-accent-press);
   border: none;
 }
 
 .hud-wordmark {
-  font-family: var(--hub-font-mono);
+  font-family: var(--jk-font-mono);
   font-size: 10px; font-weight: 600;
   letter-spacing: 0.24em;
-  color: var(--hub-cream-dim);
+  color: var(--color-faint);
 }
 
 .hud-syschip {
   display: inline-flex; align-items: center; gap: 7px;
-  font-family: var(--hub-font-mono);
+  font-family: var(--jk-font-mono);
   font-size: 10px; letter-spacing: 0.14em;
-  color: var(--hub-cream-dim);
+  color: var(--color-faint);
 }
 
 .hud-dot { width: 6px; height: 6px; border-radius: 999px; flex: none; }
@@ -91,21 +91,21 @@ html.od-v2 ::selection { background: var(--accent); color: var(--color-accent-co
 
 .hud-topbtn {
   width: 30px; height: 30px;
-  border-radius: var(--hub-radius-button);
-  border: 1px solid var(--hub-line);
+  border-radius: var(--jk-radius-button);
+  border: 1px solid var(--color-line);
   background: transparent;
-  color: var(--hub-cream);
+  color: var(--color-muted);
   display: grid; place-items: center;
   cursor: pointer;
   transition: border-color 0.15s, background 0.15s, color 0.15s;
 }
 .hud-topbtn:hover {
-  border-color: var(--hub-line-strong);
-  background: var(--hub-bg-2);
-  color: var(--hub-cream-bright);
+  border-color: var(--color-line-strong);
+  background: var(--color-card);
+  color: var(--color-ink);
 }
 .hud-topbtn[data-active="true"] {
-  border-color: var(--accent);
+  border-color: var(--color-accent);
   color: var(--color-accent-ink);
   background: var(--color-accent-soft);
 }
@@ -116,9 +116,9 @@ html.od-v2 ::selection { background: var(--accent); color: var(--color-accent-co
   top: 50px; left: 28px;
   z-index: 100;
   min-width: 240px;
-  border-radius: var(--hub-radius-lg);
-  background: var(--hub-bg-4);
-  border: 1px solid var(--hub-line-strong);
+  border-radius: var(--jk-radius-lg);
+  background: var(--color-lit);
+  border: 1px solid var(--color-line-strong);
   box-shadow: var(--od-shadow-lift);
   padding: 8px;
   animation: od-fade-up 0.25s cubic-bezier(0.22,1,0.36,1) both;
@@ -126,24 +126,24 @@ html.od-v2 ::selection { background: var(--accent); color: var(--color-accent-co
 .hud-apps-pop a {
   display: flex; align-items: center; gap: 10px;
   padding: 9px 10px;
-  border-radius: var(--hub-radius);
+  border-radius: var(--jk-radius);
   transition: background 0.12s;
 }
 .hud-apps-pop a:hover { background: var(--color-accent-soft); }
 .hud-app-glyph {
   width: 28px; height: 28px; flex: none;
-  border-radius: var(--hub-radius-soft);
+  border-radius: var(--jk-radius-soft);
   display: grid; place-items: center;
-  font-family: var(--hub-font-mono);
+  font-family: var(--jk-font-mono);
   font-size: 10px; font-weight: 700;
-  background: var(--hub-bg-2);
-  border: 1px solid var(--hub-line);
-  color: var(--hub-cream);
+  background: var(--color-card);
+  border: 1px solid var(--color-line);
+  color: var(--color-muted);
 }
-.hud-app-name { font-size: 13.5px; font-weight: 600; color: var(--hub-cream-bright); }
+.hud-app-name { font-size: 13.5px; font-weight: 600; color: var(--color-ink); }
 .hud-app-domain {
-  font-family: var(--hub-font-mono);
-  font-size: 10px; color: var(--hub-cream-dim);
+  font-family: var(--jk-font-mono);
+  font-size: 10px; color: var(--color-faint);
 }
 
 /* ── Main grid ─────────────────────────────────────────────────────────── */
@@ -165,22 +165,22 @@ html.od-v2 ::selection { background: var(--accent); color: var(--color-accent-co
 .hud-col:nth-child(3) { animation-delay: 0.12s; }
 
 .hud-card {
-  border-radius: var(--hub-radius-lg);
-  background: var(--hub-bg-2);
-  border: 1px solid var(--hub-line);
+  border-radius: var(--jk-radius-lg);
+  background: var(--color-card);
+  border: 1px solid var(--color-line);
   box-shadow: var(--od-shadow);
 }
 
 .hud-eyebrow {
-  font-family: var(--hub-font-mono);
+  font-family: var(--jk-font-mono);
   font-size: 10.5px; font-weight: 600;
   letter-spacing: 0.16em;
-  color: var(--hub-cream-dim);
+  color: var(--color-faint);
 }
 .hud-eyebrow-src {
-  font-family: var(--hub-font-mono);
+  font-family: var(--jk-font-mono);
   font-size: 10.5px;
-  color: var(--hub-cream-faint);
+  color: var(--color-ghost);
 }
 
 /* ── Clock (raw on background, no chrome) ──────────────────────────────── */
@@ -190,7 +190,7 @@ html.od-v2 ::selection { background: var(--accent); color: var(--color-accent-co
 .hud-clock-hm {
   /* Colour + text-shadow come from the .jk-press-lg primitive (struck into the
      paper on light, halation glow in dark); this rule owns size/weight/figures. */
-  font-family: var(--hub-font-mono);
+  font-family: var(--jk-font-mono);
   font-size: clamp(60px, 7vw, 104px);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
@@ -198,26 +198,26 @@ html.od-v2 ::selection { background: var(--accent); color: var(--color-accent-co
   line-height: 0.95;
 }
 .hud-clock-ss {
-  font-family: var(--hub-font-mono);
+  font-family: var(--jk-font-mono);
   font-size: clamp(20px, 2vw, 30px);
   font-weight: 500;
   font-variant-numeric: tabular-nums;
-  color: var(--hub-cream-dim);
+  color: var(--color-faint);
 }
 .hud-clock-meta {
   margin-top: 12px;
   display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
 }
 .hud-clock-date {
-  font-family: var(--hub-font-mono);
+  font-family: var(--jk-font-mono);
   font-size: 13.5px; font-weight: 600;
   letter-spacing: 0.16em;
-  color: var(--hub-cream);
+  color: var(--color-muted);
 }
 .hud-clock-utc {
-  font-family: var(--hub-font-mono);
+  font-family: var(--jk-font-mono);
   font-size: 11px; letter-spacing: 0.12em;
-  color: var(--hub-cream-dim);
+  color: var(--color-faint);
 }
 
 /* ── Weather ───────────────────────────────────────────────────────────── */
@@ -236,44 +236,44 @@ html.od-v2 ::selection { background: var(--accent); color: var(--color-accent-co
 .hud-weather-temp b {
   font-size: 50px; font-weight: 650;
   letter-spacing: -0.03em; line-height: 1;
-  color: var(--hub-cream-bright);
+  color: var(--color-ink);
 }
 .hud-weather-unit {
   font-size: 19px; font-weight: 600;
-  color: var(--hub-cream-dim);
+  color: var(--color-faint);
   margin-top: 4px;
 }
 .hud-weather-desc {
   margin-top: 5px;
   font-size: 14px; font-weight: 600;
-  color: var(--hub-cream);
+  color: var(--color-muted);
 }
 .hud-weather-hilo {
   margin-left: auto;
   display: flex; flex-direction: column; gap: 6px;
   text-align: right;
-  font-family: var(--hub-font-mono);
+  font-family: var(--jk-font-mono);
   font-size: 12.5px;
 }
-.hud-weather-hilo .hi { color: var(--hub-cream); }
-.hud-weather-hilo .lo { color: var(--hub-cream-dim); }
+.hud-weather-hilo .hi { color: var(--color-muted); }
+.hud-weather-hilo .lo { color: var(--color-faint); }
 .hud-weather-strip {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   gap: 8px;
   padding-top: 13px;
-  border-top: 1px solid var(--hub-line);
+  border-top: 1px solid var(--color-line);
 }
 .hud-weather-slot { display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .hud-weather-slot .t {
-  font-family: var(--hub-font-mono);
+  font-family: var(--jk-font-mono);
   font-size: 10px; letter-spacing: 0.1em;
-  color: var(--hub-cream-faint);
+  color: var(--color-ghost);
 }
 .hud-weather-slot .v {
-  font-family: var(--hub-font-mono);
+  font-family: var(--jk-font-mono);
   font-size: 13.5px; font-weight: 600;
-  color: var(--hub-cream);
+  color: var(--color-muted);
 }
 
 /* ── Compact weather ───────────────────────────────────────────────────── */
@@ -295,17 +295,17 @@ html.od-v2 ::selection { background: var(--accent); color: var(--color-accent-co
 .hud-weather-compact-temp b {
   font-size: 32px; font-weight: 650;
   letter-spacing: -0.03em; line-height: 1;
-  color: var(--hub-cream-bright);
+  color: var(--color-ink);
 }
 .hud-weather-compact-temp span {
   font-size: 14px; font-weight: 600;
-  color: var(--hub-cream-dim);
+  color: var(--color-faint);
   margin-top: 2px;
 }
 .hud-weather-compact-desc {
   margin-top: 3px;
   font-size: 11.5px; font-weight: 550;
-  color: var(--hub-cream);
+  color: var(--color-muted);
 }
 
 /* ── Monthly mini-calendar ─────────────────────────────────────────────── */
@@ -328,9 +328,9 @@ html.od-v2 ::selection { background: var(--accent); color: var(--color-accent-co
   align-content: start;
 }
 .hud-cal-dow {
-  font-family: var(--hub-font-mono);
+  font-family: var(--jk-font-mono);
   font-size: 8.5px; letter-spacing: 0.08em;
-  color: var(--hub-cream-faint);
+  color: var(--color-ghost);
   text-align: center;
   padding: 3px 0;
 }
@@ -338,7 +338,7 @@ html.od-v2 ::selection { background: var(--accent); color: var(--color-accent-co
   display: flex; flex-direction: column;
   align-items: center;
   padding: 3px 2px;
-  border-radius: var(--hub-radius-xs);
+  border-radius: var(--jk-radius-xs);
   cursor: default;
   position: relative;
   min-height: 26px;
@@ -348,9 +348,9 @@ html.od-v2 ::selection { background: var(--accent); color: var(--color-accent-co
 .hud-cal-day.today { background: var(--color-accent-soft); }
 .hud-cal-day.today .hud-cal-num { color: var(--color-accent-ink); font-weight: 700; }
 .hud-cal-num {
-  font-family: var(--hub-font-mono);
+  font-family: var(--jk-font-mono);
   font-size: 10.5px;
-  color: var(--hub-cream);
+  color: var(--color-muted);
   line-height: 1;
 }
 .hud-cal-dot {
@@ -362,16 +362,16 @@ html.od-v2 ::selection { background: var(--accent); color: var(--color-accent-co
 /* ── Edit mode ─────────────────────────────────────────────────────────── */
 
 .hud-root.edit-mode .hud-card {
-  outline: 1px dashed color-mix(in srgb, var(--accent) 40%, transparent);
+  outline: 1px dashed color-mix(in srgb, var(--color-accent) 40%, transparent);
   outline-offset: -2px;
 }
 .hud-edit-remove {
   position: absolute; top: 8px; right: 8px;
   width: 22px; height: 22px;
   border-radius: 50%;
-  border: 1px solid color-mix(in srgb, var(--hub-red) 50%, transparent);
-  background: color-mix(in srgb, var(--hub-red) 12%, transparent);
-  color: var(--hub-red);
+  border: 1px solid color-mix(in srgb, var(--color-danger) 50%, transparent);
+  background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+  color: var(--color-danger);
   font-size: 15px; line-height: 1;
   display: grid; place-items: center;
   cursor: pointer;
@@ -379,7 +379,7 @@ html.od-v2 ::selection { background: var(--accent); color: var(--color-accent-co
   transition: background 0.12s;
 }
 .hud-edit-remove:hover {
-  background: color-mix(in srgb, var(--hub-red) 25%, transparent);
+  background: color-mix(in srgb, var(--color-danger) 25%, transparent);
 }
 /* ── Widget tray (edit mode) ───────────────────────────────────────────────
    Slides down under the top strip when edit mode opens: grid-template-rows
@@ -406,46 +406,46 @@ html.od-v2 ::selection { background: var(--accent); color: var(--color-accent-co
 .hud-tray-inner {
   margin-top: 10px;
   padding: 10px 28px 13px;
-  border-top: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--color-accent) 22%, transparent);
   background:
     linear-gradient(180deg,
-      color-mix(in srgb, var(--accent) 10%, transparent),
-      color-mix(in srgb, var(--accent) 3%, transparent) 60%,
+      color-mix(in srgb, var(--color-accent) 10%, transparent),
+      color-mix(in srgb, var(--color-accent) 3%, transparent) 60%,
       transparent),
-    var(--hub-bg-1);
-  border-bottom: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+    var(--color-paper-2);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-accent) 28%, transparent);
   /* Inner top shadow — reads as sliding out from UNDER the top strip. */
   box-shadow: inset 0 12px 18px -16px color-mix(in srgb, #000 60%, transparent);
 }
 
 .hud-tray-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
 .hud-tray-eyebrow {
-  font-family: var(--hub-font-mono);
+  font-family: var(--jk-font-mono);
   font-size: 9.5px; font-weight: 700; letter-spacing: 0.22em;
   color: var(--color-accent-ink);
 }
 .hud-tray-count {
-  font-family: var(--hub-font-mono);
+  font-family: var(--jk-font-mono);
   font-size: 8.5px; letter-spacing: 0.14em;
-  color: var(--hub-cream-dim);
+  color: var(--color-faint);
   padding: 2px 8px;
-  border: 1px solid var(--hub-line);
+  border: 1px solid var(--color-line);
   border-radius: 999px;
 }
 .hud-tray-act {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 5px 11px;
-  border: 1px solid var(--hub-line-strong);
-  border-radius: var(--hub-radius-button);
-  background: var(--hub-bg-2);
-  color: var(--hub-cream);
-  font-family: var(--hub-font-mono);
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--jk-radius-button);
+  background: var(--color-card);
+  color: var(--color-muted);
+  font-family: var(--jk-font-mono);
   font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase;
   cursor: pointer;
   transition: border-color 0.15s, color 0.15s, background 0.15s;
 }
 .hud-tray-act:hover {
-  border-color: var(--accent);
+  border-color: var(--color-accent);
   color: var(--color-accent-ink);
   background: var(--color-accent-soft);
 }
@@ -462,9 +462,9 @@ html.od-v2 ::selection { background: var(--accent); color: var(--color-accent-co
   flex: none; width: 132px;
   padding: 7px 7px 8px;
   text-align: left;
-  background: var(--hub-bg-2);
-  border: 1px solid var(--hub-line);
-  border-radius: var(--hub-radius-lg);
+  background: var(--color-card);
+  border: 1px solid var(--color-line);
+  border-radius: var(--jk-radius-lg);
   box-shadow: var(--od-shadow);
   cursor: grab;
   /* pan-x: a horizontal touch swipe scrolls the strip natively; vertical
@@ -480,33 +480,33 @@ html.od-v2 ::selection { background: var(--accent); color: var(--color-accent-co
 }
 .hud-tile:hover {
   transform: translateY(-2px);
-  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  border-color: color-mix(in srgb, var(--color-accent) 55%, transparent);
   box-shadow: var(--od-shadow-lift);
 }
 .hud-tile:active { transform: none; }
 .hud-tile:focus-visible, .hud-tray-act:focus-visible {
-  outline: 1.5px solid var(--accent);
+  outline: 1.5px solid var(--color-accent);
   outline-offset: 2px;
 }
 
 .hud-tile-view {
   position: relative; display: block; height: 62px;
-  border: 1px solid var(--hub-line);
-  border-radius: var(--hub-radius);
-  background: var(--hub-bg-1);
+  border: 1px solid var(--color-line);
+  border-radius: var(--jk-radius);
+  background: var(--color-paper-2);
   overflow: hidden;
 }
 .hud-tile-view svg { display: block; width: 100%; height: 100%; }
 /* Presentation attributes can't carry var() for font-family; fill/stroke can. */
-.hud-tile-view text { font-family: var(--hub-font-mono); }
+.hud-tile-view text { font-family: var(--jk-font-mono); }
 
 .hud-tile-add {
   position: absolute; top: 5px; right: 5px;
   width: 17px; height: 17px;
   display: grid; place-items: center;
   border-radius: 50%;
-  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
-  background: color-mix(in srgb, var(--hub-bg-2) 72%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-accent) 45%, transparent);
+  background: color-mix(in srgb, var(--color-card) 72%, transparent);
   color: var(--color-accent-ink);
   font-size: 12px; line-height: 1;
   opacity: 0.85;
@@ -514,31 +514,31 @@ html.od-v2 ::selection { background: var(--accent); color: var(--color-accent-co
 }
 .hud-tile:hover .hud-tile-add {
   opacity: 1;
-  background: var(--accent);
-  border-color: var(--accent);
+  background: var(--color-accent);
+  border-color: var(--color-accent);
   color: var(--color-accent-contrast);
-  box-shadow: 0 0 10px var(--hub-amber-glow);
+  box-shadow: 0 0 10px var(--color-accent-glow);
 }
 .hud-tile-ai {
   position: absolute; top: 5px; left: 5px;
-  font-family: var(--hub-font-mono);
+  font-family: var(--jk-font-mono);
   font-size: 7px; font-weight: 700; letter-spacing: 0.14em;
   color: var(--color-accent-ink);
   background: var(--color-accent-soft);
-  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
-  border-radius: var(--hub-radius-xs);
+  border: 1px solid color-mix(in srgb, var(--color-accent) 35%, transparent);
+  border-radius: var(--jk-radius-xs);
   padding: 1px 4px;
 }
 .hud-tile-name {
   display: block;
   margin-top: 7px; padding: 0 2px;
-  font-family: var(--hub-font-mono);
+  font-family: var(--jk-font-mono);
   font-size: 9.5px; font-weight: 600; letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--hub-cream);
+  color: var(--color-muted);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.hud-tile:hover .hud-tile-name { color: var(--hub-cream-bright); }
+.hud-tile:hover .hud-tile-name { color: var(--color-ink); }
 
 /* Tile drag: the source tile recedes while its clone rides the pointer. */
 .hud-tile.lifting { opacity: 0.35; }
@@ -546,9 +546,9 @@ html.od-v2 ::selection { background: var(--accent); color: var(--color-accent-co
   position: fixed; z-index: 90;
   width: 132px;
   padding: 7px 7px 8px;
-  background: var(--hub-bg-2);
-  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
-  border-radius: var(--hub-radius-lg);
+  background: var(--color-card);
+  border: 1px solid color-mix(in srgb, var(--color-accent) 55%, transparent);
+  border-radius: var(--jk-radius-lg);
   box-shadow: var(--od-shadow-lift);
   transform: translate(-50%, -80%) scale(1.04);
   opacity: 0.92;
@@ -556,9 +556,9 @@ html.od-v2 ::selection { background: var(--accent); color: var(--color-accent-co
 }
 
 .hud-tray-empty {
-  font-family: var(--hub-font-mono);
+  font-family: var(--jk-font-mono);
   font-size: 10px; letter-spacing: 0.12em;
-  color: var(--hub-cream-faint);
+  color: var(--color-ghost);
   padding: 12px 2px 14px;
 }
 
@@ -569,27 +569,27 @@ html.od-v2 ::selection { background: var(--accent); color: var(--color-accent-co
 .ww-menu {
   position: absolute; z-index: 50; min-width: 230px; max-width: 280px;
   max-height: 320px; overflow-y: auto;
-  background: var(--hub-bg-1); border: 1px solid var(--hub-line-strong);
-  border-radius: var(--hub-radius-lg);
+  background: var(--color-paper-2); border: 1px solid var(--color-line-strong);
+  border-radius: var(--jk-radius-lg);
   box-shadow: 0 16px 40px color-mix(in srgb, #000 45%, transparent);
   padding: 5px;
 }
 .ww-menu-head {
-  font-family: var(--hub-font-mono);
-  font-size: 9px; letter-spacing: 0.16em; color: var(--hub-cream-faint);
+  font-family: var(--jk-font-mono);
+  font-size: 9px; letter-spacing: 0.16em; color: var(--color-ghost);
   padding: 5px 8px 6px;
 }
 .ww-menu-item {
   display: flex; flex-direction: column; gap: 1px; width: 100%; text-align: left;
   padding: 6px 8px; border: none; background: transparent; cursor: pointer;
-  border-radius: var(--hub-radius-sm); color: var(--hub-cream);
+  border-radius: var(--jk-radius-sm); color: var(--color-muted);
 }
 .ww-menu-item:hover, .ww-menu-item.is-on {
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  background: color-mix(in srgb, var(--color-accent) 16%, transparent);
 }
-.ww-menu-label { font-size: 12px; color: var(--hub-cream-bright); }
-.ww-menu-hint  { font-size: 10px; color: var(--hub-cream-faint); font-family: var(--hub-font-mono); }
-.ww-menu-item.is-danger .ww-menu-label { color: var(--hub-red); }
+.ww-menu-label { font-size: 12px; color: var(--color-ink); }
+.ww-menu-hint  { font-size: 10px; color: var(--color-ghost); font-family: var(--jk-font-mono); }
+.ww-menu-item.is-danger .ww-menu-label { color: var(--color-danger); }
 /* Coarse pointers get tap-sized menu rows (the canvas's touch "right-click"). */
 @media (pointer: coarse) {
   .ww-menu { min-width: 260px; max-height: 50vh; }
@@ -603,76 +603,76 @@ html.od-v2 ::selection { background: var(--accent); color: var(--color-accent-co
    nodes get labeled dashed boxes; when/list slots dim their inactive branch. */
 .wc-toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .wc-toolhint {
-  font-family: var(--hub-font-mono); font-size: 9px; letter-spacing: 0.06em;
-  color: var(--hub-cream-faint);
+  font-family: var(--jk-font-mono); font-size: 9px; letter-spacing: 0.06em;
+  color: var(--color-ghost);
 }
 .wc-canvaswrap { margin-top: 12px; }
 
 .wc-stage { position: relative; padding: 22px 18px; display: flex; justify-content: center; overflow-x: auto; }
 .wc-stage.is-dragging { cursor: grabbing; }
 .wc-card { position: relative; flex: none; display: flex; flex-direction: column; padding: 14px; }
-.wc-card.is-selected { outline: 1.5px solid color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: 3px; }
+.wc-card.is-selected { outline: 1.5px solid color-mix(in srgb, var(--color-accent) 70%, transparent); outline-offset: 3px; }
 .wc-framehead { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
 .wc-rootflow { flex: 1; min-height: 0; overflow-y: auto; }
 
-.wc-node { position: relative; touch-action: none; border-radius: var(--hub-radius-sm); cursor: grab; }
+.wc-node { position: relative; touch-action: none; border-radius: var(--jk-radius-sm); cursor: grab; }
 .wc-node .wc-leaf, .wc-node .wc-leaf * { pointer-events: none; }
 /* Only the innermost hovered node outlines — ancestors stay quiet. */
 .wc-node:hover:not(:has(.wc-node:hover)) {
-  outline: 1px dashed color-mix(in srgb, var(--accent) 40%, transparent);
+  outline: 1px dashed color-mix(in srgb, var(--color-accent) 40%, transparent);
   outline-offset: 2px;
 }
 .wc-node.is-selected,
-.wc-node.is-selected:hover { outline: 1.5px solid var(--accent); outline-offset: 2px; }
-.wc-node.is-lifted { opacity: 0.4; outline: 1.5px dashed color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: 2px; }
+.wc-node.is-selected:hover { outline: 1.5px solid var(--color-accent); outline-offset: 2px; }
+.wc-node.is-lifted { opacity: 0.4; outline: 1.5px dashed color-mix(in srgb, var(--color-accent) 70%, transparent); outline-offset: 2px; }
 .wc-ghost {
   opacity: 0.45; pointer-events: none;
-  outline: 1px dashed color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: 3px;
-  border-radius: var(--hub-radius-sm);
+  outline: 1px dashed color-mix(in srgb, var(--color-accent) 70%, transparent); outline-offset: 3px;
+  border-radius: var(--jk-radius-sm);
   animation: ww-ghost-in 0.12s ease;
 }
 
 .wc-box {
   display: flex; flex-direction: column; gap: 4px; padding: 6px;
-  border: 1px dashed color-mix(in srgb, var(--hub-line-strong) 80%, transparent);
-  border-radius: var(--hub-radius-sm);
+  border: 1px dashed color-mix(in srgb, var(--color-line-strong) 80%, transparent);
+  border-radius: var(--jk-radius-sm);
 }
 .wc-chip {
-  font-family: var(--hub-font-mono); font-size: 8px; letter-spacing: 0.14em;
-  text-transform: uppercase; color: var(--hub-cream-faint);
+  font-family: var(--jk-font-mono); font-size: 8px; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--color-ghost);
 }
 .wc-slot {
   display: flex; flex-direction: column; gap: 4px;
-  border-left: 2px solid var(--hub-line); padding: 4px 0 4px 8px; margin-top: 2px;
+  border-left: 2px solid var(--color-line); padding: 4px 0 4px 8px; margin-top: 2px;
   opacity: 0.55;
 }
-.wc-slot.is-live { opacity: 1; border-left-color: color-mix(in srgb, var(--accent) 60%, transparent); }
-.wc-slotlabel { font-family: var(--hub-font-mono); font-size: 8px; letter-spacing: 0.14em; color: var(--hub-cream-faint); }
+.wc-slot.is-live { opacity: 1; border-left-color: color-mix(in srgb, var(--color-accent) 60%, transparent); }
+.wc-slotlabel { font-family: var(--jk-font-mono); font-size: 8px; letter-spacing: 0.14em; color: var(--color-ghost); }
 .wc-empty {
-  border: 1px dashed var(--hub-line); background: transparent; color: var(--hub-cream-faint);
-  font-family: var(--hub-font-mono); font-size: 10px; letter-spacing: 0.1em;
-  padding: 8px; border-radius: var(--hub-radius-sm); cursor: pointer;
+  border: 1px dashed var(--color-line); background: transparent; color: var(--color-ghost);
+  font-family: var(--jk-font-mono); font-size: 10px; letter-spacing: 0.1em;
+  padding: 8px; border-radius: var(--jk-radius-sm); cursor: pointer;
 }
-.wc-empty:hover { border-color: var(--accent); color: var(--hub-cream); }
+.wc-empty:hover { border-color: var(--color-accent); color: var(--color-muted); }
 .wc-fakesubmit {
   align-self: flex-start; opacity: 0.8;
-  font-family: var(--hub-font-mono); font-size: 11px; letter-spacing: 0.06em; color: var(--hub-amber);
-  border: 1px solid color-mix(in srgb, var(--hub-amber) 40%, transparent);
-  border-radius: var(--hub-radius-sm); padding: 7px 12px;
+  font-family: var(--jk-font-mono); font-size: 11px; letter-spacing: 0.06em; color: var(--color-accent);
+  border: 1px solid color-mix(in srgb, var(--color-accent) 40%, transparent);
+  border-radius: var(--jk-radius-sm); padding: 7px 12px;
 }
 
 .wc-dropline {
   flex: none; height: 2px; margin: -1px 0; border-radius: 1px;
-  background: var(--accent);
-  box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 70%, transparent);
+  background: var(--color-accent);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--color-accent) 70%, transparent);
 }
 .wc-dropline.is-v { width: 2px; height: auto; min-height: 18px; align-self: stretch; margin: 0 -1px; }
 
 .wc-dragchip {
   position: absolute; z-index: 60; pointer-events: none;
-  font-family: var(--hub-font-mono); font-size: 10px; letter-spacing: 0.08em;
-  color: var(--hub-bg-0); background: var(--hub-amber);
-  padding: 3px 8px; border-radius: var(--hub-radius-sm);
+  font-family: var(--jk-font-mono); font-size: 10px; letter-spacing: 0.08em;
+  color: var(--color-paper); background: var(--color-accent);
+  padding: 3px 8px; border-radius: var(--jk-radius-sm);
   box-shadow: 0 6px 18px color-mix(in srgb, #000 40%, transparent);
 }
 
@@ -681,44 +681,44 @@ html.od-v2 ::selection { background: var(--accent); color: var(--color-accent-co
 .wc-handle-e { top: 10%; bottom: 10%; right: -7px; width: 14px; cursor: ew-resize; }
 .wc-handle-s { left: 10%; right: 10%; bottom: -7px; height: 14px; cursor: ns-resize; }
 .wc-handle-se { right: -8px; bottom: -8px; width: 22px; height: 22px; cursor: nwse-resize; }
-.wc-handle::after { content: ''; position: absolute; background: color-mix(in srgb, var(--accent) 55%, transparent); border-radius: 2px; }
+.wc-handle::after { content: ''; position: absolute; background: color-mix(in srgb, var(--color-accent) 55%, transparent); border-radius: 2px; }
 .wc-handle-e::after { top: 50%; right: 5px; width: 3px; height: 26px; transform: translateY(-50%); }
 .wc-handle-s::after { left: 50%; bottom: 5px; height: 3px; width: 26px; transform: translateX(-50%); }
 .wc-handle-se::after {
   right: 4px; bottom: 4px; width: 10px; height: 10px; background: transparent;
-  border-right: 3px solid color-mix(in srgb, var(--accent) 75%, transparent);
-  border-bottom: 3px solid color-mix(in srgb, var(--accent) 75%, transparent);
+  border-right: 3px solid color-mix(in srgb, var(--color-accent) 75%, transparent);
+  border-bottom: 3px solid color-mix(in srgb, var(--color-accent) 75%, transparent);
   border-radius: 0 0 3px 0;
 }
-.wc-handle:hover::after { background: var(--accent); }
-.wc-handle-se:hover::after { background: transparent; border-color: var(--accent); }
+.wc-handle:hover::after { background: var(--color-accent); }
+.wc-handle-se:hover::after { background: transparent; border-color: var(--color-accent); }
 .wc-badge {
   position: absolute; top: -24px; right: 0;
-  font-family: var(--hub-font-mono); font-size: 10px;
-  color: var(--hub-bg-0); background: var(--hub-amber);
-  padding: 2px 7px; border-radius: var(--hub-radius-sm);
+  font-family: var(--jk-font-mono); font-size: 10px;
+  color: var(--color-paper); background: var(--color-accent);
+  padding: 2px 7px; border-radius: var(--jk-radius-sm);
 }
 
 /* Inspector panel (desktop side column) + mobile bottom sheet. */
 .wc-inspector {
-  border: 1px solid var(--hub-line); border-radius: var(--hub-radius-lg);
-  background: var(--hub-bg-1); padding: 16px;
+  border: 1px solid var(--color-line); border-radius: var(--jk-radius-lg);
+  background: var(--color-paper-2); padding: 16px;
 }
 .wc-insp-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-.wc-insp-hint { font-family: var(--hub-font-mono); font-size: 9px; color: var(--hub-cream-faint); }
+.wc-insp-hint { font-family: var(--jk-font-mono); font-size: 9px; color: var(--color-ghost); }
 
 @keyframes wc-sheet-in { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
 .wc-sheet-scrim { position: fixed; inset: 0; z-index: 70; background: color-mix(in srgb, #000 45%, transparent); }
 .wc-sheet {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 71;
   max-height: 70vh; overflow-y: auto;
-  background: var(--hub-bg-1); border-top: 1px solid var(--hub-line-strong);
+  background: var(--color-paper-2); border-top: 1px solid var(--color-line-strong);
   border-radius: 14px 14px 0 0;
   padding: 8px 16px calc(16px + env(safe-area-inset-bottom));
   animation: wc-sheet-in 0.18s ease;
 }
 .wc-sheet .wc-inspector { border: none; background: transparent; padding: 8px 0 0; }
-.wc-sheet-handle { width: 44px; height: 4px; border-radius: 2px; background: var(--hub-line-strong); margin: 6px auto 4px; cursor: pointer; }
+.wc-sheet-handle { width: 44px; height: 4px; border-radius: 2px; background: var(--color-line-strong); margin: 6px auto 4px; cursor: pointer; }
 
 /* ── App widgets (Module Federation remotes from other jkOS apps) ────────── */
 .hud-col.scroll { overflow-y: auto; }
@@ -731,7 +731,7 @@ html.od-v2 ::selection { background: var(--accent); color: var(--color-accent-co
   flex: none;
   display: flex; align-items: center; gap: 8px;
   padding: 12px 16px 10px;
-  border-bottom: 1px solid var(--hub-line);
+  border-bottom: 1px solid var(--color-line);
 }
 .hud-widget-body {
   height: 280px;
@@ -750,25 +750,25 @@ html.od-v2 ::selection { background: var(--accent); color: var(--color-accent-co
   flex: none;
   display: flex; align-items: center; gap: 10px;
   padding: 15px 20px 12px;
-  border-bottom: 1px solid var(--hub-line);
+  border-bottom: 1px solid var(--color-line);
 }
 .hud-today-count {
-  font-family: var(--hub-font-mono);
+  font-family: var(--jk-font-mono);
   font-size: 11.5px;
   font-variant-numeric: tabular-nums;
-  color: var(--hub-cream);
+  color: var(--color-muted);
 }
 .hud-bar {
   width: 56px; height: 5px;
   border-radius: 999px;
-  background: var(--hub-line);
+  background: var(--color-line);
   overflow: hidden;
   display: inline-block;
 }
 .hud-bar > span {
   display: block; height: 100%;
   border-radius: 999px;
-  background: var(--hub-amber);
+  background: var(--color-accent);
   box-shadow: var(--hub-accent-press);
 }
 .hud-today-list {
@@ -781,71 +781,71 @@ html.od-v2 ::selection { background: var(--accent); color: var(--color-accent-co
 .hud-task {
   display: flex; align-items: center; gap: 14px;
   padding: 8px 0;
-  border-bottom: 1px solid var(--hub-line);
+  border-bottom: 1px solid var(--color-line);
 }
 .hud-task:last-child { border-bottom: none; }
 .hud-task.done { opacity: 0.45; }
 .hud-task.done .hud-task-title { text-decoration: line-through; }
 .hud-task-time {
-  font-family: var(--hub-font-mono);
+  font-family: var(--jk-font-mono);
   font-size: 12.5px;
   font-variant-numeric: tabular-nums;
-  color: var(--hub-cream-dim);
+  color: var(--color-faint);
   width: 46px; flex: none;
 }
 .hud-task-title {
-  font-family: var(--hub-font-serif);   /* Fraunces — editorial content headline */
+  font-family: var(--jk-font-serif);   /* Fraunces — editorial content headline */
   font-size: 16px; font-weight: 500;
-  color: var(--hub-cream-bright);
+  color: var(--color-ink);
   min-width: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .hud-task-tag {
   margin-left: auto; flex: none;
-  font-family: var(--hub-font-mono);
+  font-family: var(--jk-font-mono);
   font-size: 10.5px;
-  color: var(--hub-cream-dim);
+  color: var(--color-faint);
 }
 .hud-task-check {
   margin-left: auto;
   width: 20px; height: 20px; flex: none;
   border-radius: 999px;
-  background: var(--hub-green);
+  background: var(--color-ok);
   display: grid; place-items: center;
 }
 .hud-task.now {
   padding: 10px 14px;
   margin: 2px -14px;
-  border-radius: var(--hub-radius);
+  border-radius: var(--jk-radius);
   background: var(--color-accent-soft);
-  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-accent) 30%, transparent);
 }
 .hud-task.now .hud-task-time { font-weight: 600; color: var(--color-accent-ink); }
 .hud-task.now .hud-task-title { font-size: 16px; font-weight: 650; }
 .hud-task-sub {
   display: block;
-  font-family: var(--hub-font-mono);
+  font-family: var(--jk-font-mono);
   font-size: 10.5px;
-  color: var(--hub-cream-dim);
+  color: var(--color-faint);
   margin-top: 2px;
 }
 .hud-now-chip {
   margin-left: auto; flex: none;
   display: inline-flex; align-items: center; gap: 6px;
-  font-family: var(--hub-font-mono);
+  font-family: var(--jk-font-mono);
   font-size: 9.5px; font-weight: 700;
   letter-spacing: 0.16em;
   color: var(--color-accent-ink);
 }
-.hud-now-chip .hud-dot { background: var(--accent); box-shadow: var(--hub-accent-press); }
+.hud-now-chip .hud-dot { background: var(--color-accent); box-shadow: var(--hub-accent-press); }
 
 .hud-empty {
   flex: 1;
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;
   gap: 8px;
-  color: var(--hub-cream-dim);
-  font-family: var(--hub-font-mono);
+  color: var(--color-faint);
+  font-family: var(--jk-font-mono);
   font-size: 11px; letter-spacing: 0.12em;
   text-align: center;
   padding: 20px;
@@ -863,14 +863,14 @@ html.od-v2 ::selection { background: var(--accent); color: var(--color-accent-co
   flex: none;
   display: flex; align-items: center; gap: 8px;
   padding: 15px 18px 12px;
-  border-bottom: 1px solid var(--hub-line);
+  border-bottom: 1px solid var(--color-line);
 }
 .hud-systems-count {
   margin-left: auto;
-  font-family: var(--hub-font-mono);
+  font-family: var(--jk-font-mono);
   font-size: 10.5px;
   font-variant-numeric: tabular-nums;
-  color: var(--hub-cream-faint);
+  color: var(--color-ghost);
 }
 .hud-systems-list {
   flex: 1; min-height: 0;
@@ -884,26 +884,26 @@ html.od-v2 ::selection { background: var(--accent); color: var(--color-accent-co
   display: flex; align-items: center; gap: 10px;
   padding: 5px 0; flex: none;
 }
-.hud-sys-name { font-size: 13.5px; font-weight: 600; color: var(--hub-cream-bright); }
+.hud-sys-name { font-size: 13.5px; font-weight: 600; color: var(--color-ink); }
 .hud-sys-val {
   margin-left: auto; white-space: nowrap;
-  font-family: var(--hub-font-mono);
+  font-family: var(--jk-font-mono);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
-  color: var(--hub-cream-dim);
+  color: var(--color-faint);
 }
 .hud-sys.down {
   padding: 5px 8px; margin: 0 -8px;
-  border-radius: var(--hub-radius-sm);
-  background: var(--hub-red-soft);
+  border-radius: var(--jk-radius-sm);
+  background: var(--color-danger-soft);
 }
-.hud-sys.down .hud-sys-val { color: var(--hub-red); }
+.hud-sys.down .hud-sys-val { color: var(--color-danger); }
 .hud-sys.warn {
   padding: 5px 8px; margin: 0 -8px;
-  border-radius: var(--hub-radius-sm);
-  background: var(--hub-warn-soft);
+  border-radius: var(--jk-radius-sm);
+  background: var(--color-warn-soft);
 }
-.hud-sys.warn .hud-sys-val { color: var(--hub-warn); }
+.hud-sys.warn .hud-sys-val { color: var(--color-warn); }
 
 a.hud-card { display: block; transition: box-shadow 0.2s, transform 0.2s; }
 a.hud-card:hover { box-shadow: var(--od-shadow-lift); transform: translateY(-1px); }
@@ -914,13 +914,13 @@ a.hud-card:hover { box-shadow: var(--od-shadow-lift); transform: translateY(-1px
   flex: none;
   display: flex; align-items: center; gap: 16px;
   padding: 0 28px 14px;
-  font-family: var(--hub-font-mono);
+  font-family: var(--jk-font-mono);
   font-size: 10px; letter-spacing: 0.14em;
-  color: var(--hub-cream-faint);
+  color: var(--color-ghost);
   white-space: nowrap;
 }
 .hud-bottom .ready { display: inline-flex; align-items: center; gap: 7px; }
-.hud-bottom .ready .hud-dot { width: 5px; height: 5px; background: var(--hub-green); }
+.hud-bottom .ready .hud-dot { width: 5px; height: 5px; background: var(--color-ok); }
 
 /* ── Small screens ─────────────────────────────────────────────────────────
  * Aligned to the canonical tablet upper bound (BREAKPOINT_MAX.tablet, 1023px)
@@ -947,32 +947,32 @@ a.hud-card:hover { box-shadow: var(--od-shadow-lift); transform: translateY(-1px
 /* ── Workshop · JSON tab (workshop/JsonTab.tsx) ─────────────────────────── */
 .wj { display: grid; gap: 10px; }
 .wj-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
-.wj-hint { font-family: var(--hub-font-mono); font-size: 11px; color: var(--hub-cream-faint); }
+.wj-hint { font-family: var(--jk-font-mono); font-size: 11px; color: var(--color-ghost); }
 .wj-btn {
-  font-family: var(--hub-font-mono); font-size: 11px; letter-spacing: 0.06em; cursor: pointer;
-  color: var(--hub-cream-bright); background: transparent; border: 1px solid var(--hub-line);
-  border-radius: var(--hub-radius-sm); padding: 6px 12px;
+  font-family: var(--jk-font-mono); font-size: 11px; letter-spacing: 0.06em; cursor: pointer;
+  color: var(--color-ink); background: transparent; border: 1px solid var(--color-line);
+  border-radius: var(--jk-radius-sm); padding: 6px 12px;
 }
-.wj-btn.is-primary { background: var(--color-accent); color: var(--hub-bg-0); border-color: transparent; font-weight: 600; }
+.wj-btn.is-primary { background: var(--color-accent); color: var(--color-paper); border-color: transparent; font-weight: 600; }
 .wj-btn:disabled { opacity: 0.4; cursor: default; }
 .wj-body { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 14px; align-items: start; }
 @media (max-width: 900px) { .wj-body { grid-template-columns: minmax(0, 1fr); } }
 /* The field primitive (<TextArea>) draws the recess; this only sets it as code. */
-.wj-text { width: 100%; min-height: 60vh; font-family: var(--hub-font-mono); font-size: 12px; line-height: 1.5; tab-size: 2; }
-.wj-problems { font-size: 12px; color: var(--hub-cream); }
+.wj-text { width: 100%; min-height: 60vh; font-family: var(--jk-font-mono); font-size: 12px; line-height: 1.5; tab-size: 2; }
+.wj-problems { font-size: 12px; color: var(--color-muted); }
 .wj-problems ol { margin: 0; padding-left: 18px; display: grid; gap: 10px; }
-.wj-problems code { font-family: var(--hub-font-mono); font-size: 11px; color: var(--hub-cream-bright); }
-.wj-code { font-family: var(--hub-font-mono); font-size: 10px; letter-spacing: 0.08em; color: var(--hub-red); }
-.wj-fix { font-family: var(--hub-font-mono); font-size: 11px; color: var(--hub-cream-dim); }
-.wj-ok, .wj-bad { margin: 0; font-family: var(--hub-font-serif); font-style: italic; font-size: 13px; }
-.wj-ok { color: var(--hub-green); }
-.wj-bad { color: var(--hub-red); }
+.wj-problems code { font-family: var(--jk-font-mono); font-size: 11px; color: var(--color-ink); }
+.wj-code { font-family: var(--jk-font-mono); font-size: 10px; letter-spacing: 0.08em; color: var(--color-danger); }
+.wj-fix { font-family: var(--jk-font-mono); font-size: 11px; color: var(--color-faint); }
+.wj-ok, .wj-bad { margin: 0; font-family: var(--jk-font-serif); font-style: italic; font-size: 13px; }
+.wj-ok { color: var(--color-ok); }
+.wj-bad { color: var(--color-danger); }
 
 /* ── Workshop · gallery (workshop/Gallery.tsx) ──────────────────────────── */
 .wg { display: grid; gap: 28px; }
-.wg-note { font-family: var(--hub-font-serif); font-style: italic; color: var(--hub-cream-dim); }
+.wg-note { font-family: var(--jk-font-serif); font-style: italic; color: var(--color-faint); }
 .wg-widget { display: grid; gap: 8px; }
 .wg-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; }
-.wg-where { font-family: var(--hub-font-mono); font-size: 11px; color: var(--hub-cream-faint); }
+.wg-where { font-family: var(--jk-font-mono); font-size: 11px; color: var(--color-ghost); }
 .wg-row { display: flex; gap: 14px; overflow-x: auto; padding-bottom: 6px; align-items: flex-start; }
 .wg-cell { margin: 0; display: grid; gap: 6px; flex: none; }

@@ -101,7 +101,7 @@ export function TodayView(props: any) {
           style={{ width: 'var(--jk-rail)', flex: 'none', display: 'flex', flexDirection: 'column', gap: 14, padding: '16px 22px', minHeight: 0, overflowY: 'auto' }}
         >
           {/* The bench */}
-          <Sheet className="mo-item" style={{ borderRadius: 'var(--hub-radius)', padding: '16px 18px', display: 'flex', flexDirection: 'column', minHeight: 0, animationDelay: `${MO_DELAYS.railFirst}ms` }}>
+          <Sheet className="mo-item" style={{ borderRadius: 'var(--jk-radius)', padding: '16px 18px', display: 'flex', flexDirection: 'column', minHeight: 0, animationDelay: `${MO_DELAYS.railFirst}ms` }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 6 }}>
               <span className="jk-lab jk-lab-sm" style={{ color: 'var(--color-accent)' }}>The bench</span>
               <span className="mono-eyebrow" style={{ marginLeft: 'auto' }}>
@@ -153,7 +153,7 @@ export function TodayView(props: any) {
           </Sheet>
 
           {/* Goals in press */}
-          <Sheet className="mo-item" style={{ borderRadius: 'var(--hub-radius)', padding: '16px 18px', animationDelay: `${MO_DELAYS.railSecond}ms` }}>
+          <Sheet className="mo-item" style={{ borderRadius: 'var(--jk-radius)', padding: '16px 18px', animationDelay: `${MO_DELAYS.railSecond}ms` }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 12 }}>
               <span className="jk-lab jk-lab-sm" style={{ color: 'var(--color-accent)' }}>Goals in press</span>
               <button
@@ -198,7 +198,7 @@ export function TodayView(props: any) {
               exactly what these are. The section stays mounted when empty: an
               empty inbox is information (nothing is adrift), and a section that
               only exists when something is wrong can't be checked. */}
-          <Sheet className="mo-item" style={{ borderRadius: 'var(--hub-radius)', padding: '16px 18px', animationDelay: `${MO_DELAYS.railSecond + 60}ms` }}>
+          <Sheet className="mo-item" style={{ borderRadius: 'var(--jk-radius)', padding: '16px 18px', animationDelay: `${MO_DELAYS.railSecond + 60}ms` }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 8 }}>
               <span className="jk-lab jk-lab-sm" style={{ color: 'var(--color-accent)' }}>Loose leaves</span>
               <span className="mono-eyebrow" style={{ marginLeft: 'auto' }}>

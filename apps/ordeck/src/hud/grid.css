@@ -47,9 +47,9 @@
 
 /* Edit mode: dashed outline marks rearrangeable cells; hold + drag to move. */
 .hud-canvas.editing .hud-cell {
-  outline: 1px dashed color-mix(in srgb, var(--hub-amber) 45%, transparent);
+  outline: 1px dashed color-mix(in srgb, var(--color-accent) 45%, transparent);
   outline-offset: 2px;
-  border-radius: var(--hub-radius-lg);
+  border-radius: var(--jk-radius-lg);
   cursor: grab;
   user-select: none;
 }
@@ -65,7 +65,7 @@
 /* Being resized: a firmer amber outline reads as "you're changing this one" and
    the raised z-index keeps its growing edge over neighbours during their reflow. */
 .hud-canvas.editing .hud-cell.resizing {
-  outline: 1.5px solid color-mix(in srgb, var(--hub-amber) 70%, transparent);
+  outline: 1.5px solid color-mix(in srgb, var(--color-accent) 70%, transparent);
   cursor: nwse-resize;
 }
 
@@ -74,9 +74,9 @@
   position: absolute;
   z-index: 1;
   pointer-events: none;
-  border-radius: var(--hub-radius-lg);
-  background: color-mix(in srgb, var(--hub-amber) 10%, transparent);
-  outline: 1.5px dashed color-mix(in srgb, var(--hub-amber) 55%, transparent);
+  border-radius: var(--jk-radius-lg);
+  background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+  outline: 1.5px dashed color-mix(in srgb, var(--color-accent) 55%, transparent);
   outline-offset: -2px;
   transition: left 0.16s ease, top 0.16s ease, width 0.16s ease, height 0.16s ease;
 }
@@ -85,7 +85,7 @@
    drift off the edge. The `inset` shorthand rewrites all four offsets at once,
    cancelling the base `.hud-edit-remove` top/right pin; the `.hud-cell >` child
    selector guarantees we win regardless of stylesheet import order. The 10px
-   inset clears the --hub-radius-lg corner so each control sits in its curve.
+   inset clears the --jk-radius-lg corner so each control sits in its curve.
    One control per corner: pin → top-left, remove (→ shelf) → top-right,
    edit (→ workshop) → bottom-left, resize grip → bottom-right. */
 .hud-cell > .hud-cell-edit {
@@ -119,14 +119,14 @@
   align-items: center;
   justify-content: center;
   padding: 4px;
-  color: color-mix(in srgb, var(--hub-amber) 60%, transparent);
+  color: color-mix(in srgb, var(--color-accent) 60%, transparent);
   cursor: nwse-resize;
   touch-action: none;
   transition: color 0.15s ease;
 }
 .hud-cell > .hud-cell-resize:hover,
 .hud-cell.resizing > .hud-cell-resize {
-  color: var(--hub-amber);
+  color: var(--color-accent);
 }
 
 /* Session pin (top-left, the corner the controls above don't use): this card
@@ -142,9 +142,9 @@
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  border: 1px solid color-mix(in srgb, var(--hub-amber) 45%, transparent);
-  background: color-mix(in srgb, var(--hub-amber) 12%, transparent);
-  color: var(--hub-amber);
+  border: 1px solid color-mix(in srgb, var(--color-accent) 45%, transparent);
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  color: var(--color-accent);
   pointer-events: none;
 }
 

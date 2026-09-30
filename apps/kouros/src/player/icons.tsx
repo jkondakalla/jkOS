@@ -43,7 +43,7 @@ export function IconRepeatOne() {
       />
       <path d="M15.5 3.5 18.5 6l-3 2.5z" fill="currentColor" />
       <path d="M8.5 20.5 5.5 18l3-2.5z" fill="currentColor" />
-      <text x="12" y="15.5" textAnchor="middle" fontSize="8" fontFamily="var(--hub-font-mono)" fill="currentColor">1</text>
+      <text x="12" y="15.5" textAnchor="middle" fontSize="8" fontFamily="var(--jk-font-mono)" fill="currentColor">1</text>
     </svg>
   );
 }

@@ -59,7 +59,7 @@ export function TimelinePreview({ drag, sourceColorOf, density = 'comfortable' }
         right: 4,
         top,
         height,
-        borderRadius: 'var(--hub-radius-soft)',
+        borderRadius: 'var(--jk-radius-soft)',
         background: mode === 'timed' ? withAlpha(color, 0.8) : withAlpha(color, 0.333),
         border: `1px dashed ${color}`,
         borderTop: mode === 'timed' ? '2px solid var(--color-on-accent-faint)' : `1px dashed ${color}`,

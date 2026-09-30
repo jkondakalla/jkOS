@@ -337,7 +337,7 @@ function EntryCard({ entry: e, used, selected, picking, delay, onOpen, onPick }:
       style={{
         display: 'flex', flexDirection: 'column', gap: 5,
         padding: '9px 11px', cursor: 'pointer', animationDelay: delay,
-        border: '1px solid var(--color-line)', borderRadius: 'var(--hub-radius-sm)',
+        border: '1px solid var(--color-line)', borderRadius: 'var(--jk-radius-sm)',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 }}>

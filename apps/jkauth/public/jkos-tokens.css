@@ -4,42 +4,60 @@
 /*
  * Design/tokens/hub.css — jkOS shared design token system
  *
- * ONE chain, defined once:
- *   --accent-raw / --accent-2-raw   (the user's pair; the ONLY accent defaults)
- *      |  paper: deepen toward ink   |   dark: raw + glow
- *   --accent / --accent-secondary
+ * THREE TIERS, AND THE PREFIX SAYS WHICH (Stage F, decided 2026-09-16):
+ *
+ *   --hub-*    tier 1 · RAW. The palette's literal values, and every recipe whose
+ *              formula differs between the faces. The dark block re-declares tier 1
+ *              and nothing else.
+ *   --color-*  tier 2 · SEMANTIC. What a component reads for a colour: an alias of a
+ *              tier-1 value, or a derivation over tier 1 that is the same formula on
+ *              both faces. Declared once, on :root; it re-resolves per face because
+ *              the tier-1 values under it do.
+ *   --jk-*     tier 3 · FACE-INVARIANT. Type, geometry, the responsive scale, the
+ *              canvas. Identical on both faces; only the viewport tiers re-declare it.
+ *
+ * ONE NAME PER VALUE. Where tier 2 aliases a tier-1 token (`--color-ink:
+ * var(--hub-ink)`), components read the alias and the tier-1 name is private to this
+ * file. `pnpm check:tokens` derives that set from the declarations below and refuses a
+ * read of a private name anywhere else — which is what collapsed the four accent
+ * schemes (the old `--accent-raw`, `--accent`, `--hub-amber`, `--color-accent`) into one.
+ *
+ * THE ACCENT CHAIN:
+ *   --hub-accent-raw / --hub-secondary-raw      the user's pair — the only accent inputs
+ *      |  paper: deepened toward ink            |  dark: raw
+ *   --hub-accent / --hub-secondary, and their per-face -dim / -deep / -glow / -ink
  *      |
- *   --hub-amber* / --hub-cyan* / --color-*   (all derived)
+ *   --color-accent* / --color-secondary*        what every component reads
  *
- * INPUTS (the accent pair, neutrals, radius, fonts) are the only things that
- * legitimately vary per app. They are supplied by buildJkOSTheme() (@jkos/design)
- * and defined here only as universal defaults. The DERIVATION layer below is
- * universal and is never duplicated per app. applyJkOSTheme() overrides
- * --accent-raw / --accent-2-raw at runtime from the user's saved pair.
- *
- * Do not rename --hub-* tokens.
+ * INPUTS (the accent pair, the grounds and inks, radius, fonts) are the only things
+ * that legitimately vary per app: buildJkOSTheme() (@jkos/design) supplies them and
+ * this file holds the defaults. applyJkOSTheme() overrides the raw pair at runtime
+ * from the user's saved choice. A SUBTREE re-points tier 2 when it must follow
+ * something local — KourOS's player scope sets --color-accent from the playing
+ * sleeve — and never tier 1, which is computed once, on :root.
  */
 
-/* ─── Paper / light mode ──────────────────────────────────────────────────── */
+/* ─── Tier 1 · the paper face ──────────────────────────────────────────────── */
 :root {
   /* ░░ INPUTS — overridden per app by buildJkOSTheme(), else these defaults ░░ */
 
-  /* Accent pair — the ONLY accent defaults; everything else derives from these. */
-  --accent-raw:    #ffb000;
-  --accent-2-raw:  #4ecdc4;
-  --accent-deepen-ink: #2a1c0e;   /* paper deepen target (warm near-black) */
-  --bar-deepen-ink:    #1a0a00;   /* meter deepen target — the DARK end of a bar
+  /* The accent pair — the ONLY accent defaults; everything else derives from these. */
+  --hub-accent-raw:    #ffb000;
+  --hub-secondary-raw: #4ecdc4;
+  --hub-deepen-ink: #2a1c0e;   /* paper deepen target (warm near-black) */
+  --hub-deepen-ink-meter:    #1a0a00;   /* meter deepen target — the DARK end of a bar
                                      gradient, one stop below the accent chain's.
-                                     Consumed by --hub-amber-dim and by <Bar>, so
+                                     Consumed by --hub-accent-dim and by <Bar>, so
                                      a per-item meter deepens exactly like the
-                                     amber family does. Never inline this hex. */
+                                     accent family does. Never inline this hex. */
 
-  /* Background layers — warm kraft tan → light cream */
-  --hub-bg-0: #ede2c8;
-  --hub-bg-1: #e4d5b0;
-  --hub-bg-2: #f5ead4;
-  --hub-bg-3: #ead9bb;
-  --hub-bg-4: #f7f1e3;
+  /* Grounds — warm kraft tan → light cream. 0 is the page, 1 the recessed
+     page, 2 and 3 the card stocks, 4 the brightest (a lit lane, a hover). */
+  --hub-ground-0: #ede2c8;
+  --hub-ground-1: #e4d5b0;
+  --hub-ground-2: #f5ead4;
+  --hub-ground-3: #ead9bb;
+  --hub-ground-4: #f7f1e3;
 
   /* Inner content panels ("screen" areas inside widget frames) */
   --hub-screen:      #f0e8d8;
@@ -52,56 +70,373 @@
   --hub-bevel-light: rgba(255, 252, 230, 0.85);
   --hub-bevel-dark:  rgba(80, 50, 20, 0.18);
 
-  /* Border lines — warm paper lines */
+  /* Rules — warm paper lines */
   --hub-line:        #c8ae88;
   --hub-line-strong: #b09a72;
   --hub-line-bright: #907854;
 
-  /* Text — dark ink on paper */
-  --hub-cream:        #6b5038;
-  --hub-cream-bright: #1c1408;
-  --hub-cream-dim:    #9c8060;
-  --hub-cream-faint:  #b8a888;
+  /* Ink — dark on paper, four rungs */
+  --hub-ink:        #1c1408;
+  --hub-ink-muted:  #6b5038;
+  --hub-ink-faint:  #9c8060;
+  --hub-ink-ghost:  #b8a888;
 
-  /* Semantic status (constants, not accent-derived) */
-  --hub-red:        #b42010;
-  --hub-red-glow:   color-mix(in srgb, #b42010 22%, transparent);
-  --hub-green:      #2a7040;
-  --hub-green-glow: color-mix(in srgb, #2a7040 22%, transparent);
-  --hub-magenta:    #8a2060;
-  --color-warn:   #a04010;
-  /* ok and danger are the status pair above, not a second palette. Until
-     2026-09-30 these were literals with their own dark values (#34d399 /
-     #f87171) — a second green and a second red that only jkAuth read, on a
-     face jkAuth never renders. */
-  --color-ok:     var(--hub-green);
-  --color-danger: var(--hub-red);
+  /* Status (constants, not accent-derived), and the fixed third data hue */
+  --hub-danger:      #b42010;
+  --hub-danger-glow: color-mix(in srgb, #b42010 22%, transparent);
+  --hub-ok:          #2a7040;
+  --hub-ok-glow:     color-mix(in srgb, #2a7040 22%, transparent);
+  --hub-warn:        #a04010;
+  --hub-tertiary:    #8a2060;
 
-  /* Typography — the Full Press Voice: humans read print (the serif), the
-     machine speaks mono, the tube emits (seg). The serif default IS Fraunces
-     (2026-07-19, Full Press Wave 22) — it is no longer a per-app opt-in; apps
-     may still override via the factory `fonts.serif` input. Apps must load the
-     Fraunces webfont (incl. wght 700) in index.html; Big Shoulders is loaded
-     only by surfaces that actually render `.seg` (dark face). */
-  --hub-font-mono:  'IBM Plex Mono', ui-monospace, monospace;
-  --hub-font-sans:  'IBM Plex Sans', system-ui, sans-serif;
-  --hub-font-seg:   'Big Shoulders Display', 'IBM Plex Sans', sans-serif;
-  --hub-font-serif: 'Fraunces', Georgia, 'Times New Roman', serif;
+  /* ░░ ATMOSPHERE ░░ */
+
+  /* Film grain — a suite-wide DEFAULT texture for BACKGROUNDS only. Opacity is
+     baked into the noise alpha: 0.495 on paper (multiply against warm beige needs
+     real weight or the speckle washes out), 0.135 on dark (screen needs less).
+     buildJkOSTheme() paints it onto `<scope> body` and blends via
+     --hub-grain-blend, so it never sits over content, cards or text. */
+  --hub-grain-blend:   multiply;
+  --hub-grain-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='jkg'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23jkg)' opacity='0.495'/%3E%3C/svg%3E");
+  /* CRT overlay knobs — hub.css OWNS these base values (both faces). @jkos/ui
+     re-imports hub.css and flattens ONLY the paper vignette for the full-shell
+     apps (its one sanctioned opt-out); every other knob derives from here so the
+     atmosphere can't drift across import paths. DESIGN.md § "CRT knob ownership". */
+  --hub-crt-scanline-opacity: 0;
+  --hub-crt-vignette-opacity: 0.08;
+  --hub-canvas-grid-opacity: 0.5;
+  /* Scanline INK — the line colour for .jk-scanlines; visibility comes from
+     --hub-crt-scanline-opacity (an input apps may raise via their theme CSS). Paper
+     scores dark lines into the sheet; the dark face lifts pale phosphor rows. */
+  --hub-crt-scanline-ink: #000000;
+
+  /* ░░ THE ACCENT CHAIN, paper: the raw pair deepens so vivid and pastel picks
+        hold on kraft ░░ */
+  --hub-accent:    color-mix(in srgb, var(--hub-accent-raw)   64%, var(--hub-deepen-ink));
+  --hub-secondary: color-mix(in srgb, var(--hub-secondary-raw) 64%, var(--hub-deepen-ink));
+  --hub-accent-dim:    color-mix(in srgb, var(--hub-accent) 72%, var(--hub-deepen-ink-meter));
+  --hub-accent-deep:   color-mix(in srgb, var(--hub-accent) 20%, var(--hub-ground-2));
+  --hub-accent-glow:   color-mix(in srgb, var(--hub-accent) 30%, transparent);
+  /* Readable accent TEXT: darkens on paper, lightens on the tube, so accent type
+     stays legible instead of muddying into the ground. */
+  --hub-accent-ink:     color-mix(in srgb, var(--hub-accent) 80%, #000000);
+  --hub-secondary-dim:     color-mix(in srgb, var(--hub-secondary) 60%, #000000);
+  --hub-secondary-glow:    color-mix(in srgb, var(--hub-secondary) 25%, transparent);
+
+  /* ── Halation ────────────────────────────────────────────────────────────
+     The suite-wide emissive accent glow. Halation is a CRT phenomenon: on paper
+     an accent presses IN (the well below), so these are `none` here and the dark
+     block lights them up. Anything coloured with the primary accent emits on the
+     tube — wire it with `box-shadow: var(--hub-halo)`, `text-shadow:
+     var(--hub-halo-text)`, or the .jk-halo / .jk-halo-text utility classes. A call
+     site composing its own multi-layer shadow takes the bare colour from
+     --color-accent-glow. */
+  --hub-halo:      none;
+  --hub-halo-text: none;
+
+  /* The WELL shadow — an inner shadow that sinks a region INTO the sheet. On
+     paper the well is one of the two accent moves (wells give depth + boundary;
+     badges give emphasis — see the wells/badges block below). The dark face
+     overrides it with an emissive glow so the same class stays face-correct. */
+  --hub-accent-press:
+    inset 0 2px 3px color-mix(in srgb, var(--hub-ink) 32%, transparent),
+    inset 0 -1px 1px color-mix(in srgb, #ffffff 55%, transparent),
+    0 1px 0 color-mix(in srgb, #ffffff 45%, transparent);
+
+  /* ── The FIELD recess (the .jk-field block below) ─────────────────────────
+     A field is where the user writes, so it has to read as a place that will
+     TAKE ink — and the two faces say that with completely different physics.
+     These four tokens are the whole difference; the class body is shared.
+
+     On paper it is a real deboss: the stock drops to the recessed sheet, a soft
+     shadow falls from the top lip inward, and the bottom lip catches light. The
+     same reading as --hub-accent-press, one rung quieter (a well is a region, a
+     field is a slot). The dark block overrides all four with the tube's OWN
+     recipe rather than re-tinting this one: a bevel on a CRT is a lie. */
+  --hub-field-face:   var(--hub-ground-0);
+  --hub-field-recess:
+    inset 0 2px 3px color-mix(in srgb, var(--hub-ink) 22%, transparent),
+    inset 0 -1px 0 var(--hub-bevel-light);
+  /* Engaged: on paper the pen presses HARDER — the recess deepens and the rim
+     takes the accent. Nothing emits; the whole state has to be carried by depth
+     and by the rim, which is why both go further here than a dark-face eye would
+     expect. (Matching the CRT's numbers instead left the paper focus invisible
+     next to its glow — the two faces need different AMOUNTS to read as equal.) */
+  --hub-field-recess-focus:
+    inset 0 3px 5px color-mix(in srgb, var(--hub-ink) 30%, transparent),
+    inset 0 -1px 0 var(--hub-bevel-light),
+    0 0 0 2px color-mix(in srgb, var(--hub-accent) 16%, transparent);
+  --hub-field-face-focus: color-mix(in srgb, var(--hub-accent) 4%, var(--hub-ground-0));
+
+  /* ── The MENU surface (drawn select pickers, .jk-menu) ────────────────────
+     A picker is not part of the sheet — it came to rest ON TOP of it, so paper
+     gives it the BADGE move (raised, drop shadow, a lit top lip) rather than the
+     well's deboss. The tube can't cast a shadow onto phosphor, so the dark face
+     states "in front of everything" with an accent rim and an outward bloom. */
+  --hub-menu-face: var(--hub-ground-4);
+  --hub-menu-line: var(--hub-line-strong);
+  --hub-menu-lift:
+    0 8px 22px color-mix(in srgb, var(--hub-deepen-ink) 22%, transparent),
+    inset 0 1px 0 color-mix(in srgb, #ffffff 55%, transparent);
+
+  /* ── The SCROLL MARK (the ::-webkit-scrollbar block below) ────────────────
+     A HAIRLINE, not a gutter: 2px of ink laid straight on the stock, quiet at
+     rest and deepening while you are actually in the pane. On paper that ink is
+     the deepen target the whole light face darkens toward, so the mark reads as
+     a pencil rule on the sheet and not as chrome sitting over it.
+
+     THREE RUNGS, and they are tokens because Gecko can only be handed COLOURS
+     (scrollbar-color) and has to land on the same three:
+       -rest   always painted. A scrollbar you cannot see is a scrollbar whose
+               POSITION you cannot read — set it to `transparent` to hide it.
+       (base)  pointer inside the pane, or the pane is moving.
+       -hover  pointer on the mark itself: the "you can grab this" rung. */
+  --hub-scroll-mark-rest:  color-mix(in srgb, var(--hub-deepen-ink) 15%, transparent);
+  --hub-scroll-mark:       color-mix(in srgb, var(--hub-deepen-ink) 38%, transparent);
+  --hub-scroll-mark-hover: color-mix(in srgb, var(--hub-deepen-ink) 62%, transparent);
+
+  /* ── color-scheme: the one declaration the browser itself reads ───────────
+     Everything else in this file dresses OUR markup. This tells the ENGINE which
+     face it is painting — the select picker's popup, the date and time pickers,
+     the autofill dropdown, the caret, default scrollbars. Without it those come
+     back white on the tube no matter what the surrounding CSS says.
+     accent-color is its smaller sibling: it tints any native control we have not
+     drawn ourselves, so a stray checkbox lands in the accent instead of Chrome
+     blue. Both inherit everywhere. */
+  color-scheme: light;
+  accent-color: var(--hub-accent);
+}
+
+/* ─── Tier 1 · the dark face (the tube) ────────────────────────────────────── */
+:root[data-mode="dark"] {
+  --hub-ground-0: #11100d;
+  --hub-ground-1: #1a1814;
+  --hub-ground-2: #232019;
+  --hub-ground-3: #2c2820;
+  --hub-ground-4: #38321f;
+
+  --hub-screen:      #0e0c08;
+  --hub-screen-line: #2a2418;
+
+  --hub-metal-0: #2a2620;
+  --hub-metal-1: #3a342b;
+  --hub-metal-2: #4a4234;
+  --hub-bevel-light: rgba(255, 220, 160, 0.06);
+  --hub-bevel-dark:  rgba(0, 0, 0, 0.5);
+
+  --hub-line:        #3a3528;
+  --hub-line-strong: #4a4232;
+  --hub-line-bright: #6a5d3e;
+
+  --hub-ink:        #efe6c9;
+  --hub-ink-muted:  #d6cba8;
+  --hub-ink-faint:  #8a8067;
+  --hub-ink-ghost:  #5a543f;
+
+  --hub-danger:      #ff4530;
+  --hub-danger-glow: rgba(255, 69, 48, 0.4);
+  --hub-ok:          #5cd66a;
+  --hub-ok-glow:     rgba(92, 214, 106, 0.35);
+  --hub-warn:        #fbbf24;
+  --hub-tertiary:    #ff5d8f;
+
+  --hub-grain-blend:   screen;
+  --hub-grain-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='jkg'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23jkg)' opacity='0.135'/%3E%3C/svg%3E");
+  --hub-crt-scanline-opacity: 0.012;
+  --hub-crt-vignette-opacity: 0.45;
+  --hub-crt-scanline-ink: #ffffff;
+  --hub-canvas-grid-opacity: 1;
+
+  /* The chain on the tube uses the raw bright pair — no paper deepening. */
+  --hub-accent:           var(--hub-accent-raw);
+  --hub-secondary: var(--hub-secondary-raw);
+  --hub-accent-dim:    color-mix(in srgb, var(--hub-accent) 72%, #1a1400);
+  --hub-accent-deep:   color-mix(in srgb, var(--hub-accent) 26%, #000000);
+  --hub-accent-glow:   color-mix(in srgb, var(--hub-accent) 38%, transparent);
+  --hub-accent-ink:      color-mix(in srgb, var(--hub-accent) 78%, #ffffff);
+  --hub-secondary-dim:     color-mix(in srgb, var(--hub-secondary) 50%, #000000);
+  --hub-secondary-glow:    color-mix(in srgb, var(--hub-secondary) 38%, transparent);
+
+  /* Halation lights up on the tube: every primary-accent element emits. The text
+     halo is tighter than the box halo so accent type stays legible. */
+  --hub-halo:      0 0 16px var(--hub-accent-glow);
+  --hub-halo-text: 0 0 12px var(--hub-accent-glow);
+
+  /* Accents glow (halation) rather than press into the surface. Parameterised on
+     --jk-tint (the item-tint seam) so a tinted well or meter glows in ITS colour;
+     unset, it resolves to the accent. */
+  --hub-accent-press: 0 0 10px color-mix(in srgb, var(--jk-tint, var(--hub-accent)) 38%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--jk-tint, var(--hub-accent)) 30%, transparent);
+
+  /* THE FIELD, on the tube — its own recipe, not the paper bevel re-tinted. A CRT
+     has no raking light, so nothing bevels: a slot reads as a slot because it is
+     the DARKEST thing on the screen. The field drops past every ground rung to
+     --hub-screen (the tube's own unlit stock) with a soft inner falloff off the
+     top edge. Engaged, it EMITS: the rim takes the accent, a halo blooms outward,
+     and the face lifts one rung off black so the caret has something to sit on. */
+  --hub-field-face:   var(--hub-screen);
+  --hub-field-recess: inset 0 1px 5px rgba(0, 0, 0, 0.55);
+  --hub-field-face-focus: var(--hub-ground-0);
+  --hub-field-recess-focus:
+    inset 0 1px 5px rgba(0, 0, 0, 0.5),
+    inset 0 0 0 1px color-mix(in srgb, var(--hub-accent) 22%, transparent),
+    0 0 10px color-mix(in srgb, var(--hub-accent) 26%, transparent);
+
+  /* The menu, on the tube: phosphor takes no drop shadow, so "in front" is said
+     with an accent rim and an outward bloom instead of a cast shadow. */
+  --hub-menu-face: var(--hub-ground-1);
+  --hub-menu-line: color-mix(in srgb, var(--hub-accent) 28%, var(--hub-line-strong));
+  --hub-menu-lift:
+    0 10px 30px rgba(0, 0, 0, 0.72),
+    0 0 16px color-mix(in srgb, var(--hub-accent) 15%, transparent);
+
+  /* The mark, on the tube. The tube has no ink and nothing to press, so the same
+     hairline is stated as EMITTED accent. Mixing the raw accent rather than a
+     line tone is what keeps it findable against unlit stock: a neutral 2px mark
+     at these opacities simply disappears here. */
+  --hub-scroll-mark-rest:  color-mix(in srgb, var(--hub-accent) 18%, transparent);
+  --hub-scroll-mark:       color-mix(in srgb, var(--hub-accent) 45%, transparent);
+  --hub-scroll-mark-hover: color-mix(in srgb, var(--hub-accent) 72%, transparent);
+
+  /* The engine's half of the face flip. accent-color needs no twin: --hub-accent
+     already re-resolves here. */
+  color-scheme: dark;
+}
+
+/* ─── Tier 2 · semantic — what a component reads ───────────────────────────
+ * Declared once. Each is an alias of a tier-1 value or one formula over tier 1,
+ * so it re-resolves on the dark face without a dark block of its own. */
+:root {
+  /* Grounds */
+  --color-paper:          var(--hub-ground-0);
+  --color-paper-2:        var(--hub-ground-1);
+  --color-card:           var(--hub-ground-2);
+  --color-card-2:         var(--hub-ground-3);
+  --color-lit:            var(--hub-ground-4);
+  --color-screen:         var(--hub-screen);
+  --color-screen-line:    var(--hub-screen-line);
+  --color-metal-0:        var(--hub-metal-0);
+  --color-metal-1:        var(--hub-metal-1);
+  --color-metal-2:        var(--hub-metal-2);
+  --color-bevel-light:    var(--hub-bevel-light);
+  --color-bevel-dark:     var(--hub-bevel-dark);
+
+  /* Ink and rules */
+  --color-ink:            var(--hub-ink);
+  --color-muted:          var(--hub-ink-muted);
+  --color-faint:          var(--hub-ink-faint);
+  --color-ghost:          var(--hub-ink-ghost);
+  --color-line:           var(--hub-line);
+  --color-line-strong:    var(--hub-line-strong);
+  --color-line-bright:    var(--hub-line-bright);
+
+  /* The accent family */
+  --color-accent:         var(--hub-accent);
+  --color-accent-bright:  color-mix(in srgb, var(--hub-accent) 55%, #ffffff);
+  --color-accent-dim:     var(--hub-accent-dim);
+  --color-accent-deep:    var(--hub-accent-deep);
+  --color-accent-glow:    var(--hub-accent-glow);
+  --color-accent-soft:    color-mix(in srgb, var(--hub-accent) 12%, var(--hub-ground-2));
+  --color-accent-ink:     var(--hub-accent-ink);
+  /* On-accent text. The value that ships is DERIVED from the accent's luminance —
+     see the @supports block below. This literal is only the fallback for an
+     engine without relative colour syntax, and it is the answer that is right for
+     the house accent on paper: #000 on #b27b05 is 5.73:1. It was #ffffff until
+     2026-09-16 — 3.67:1, an AA failure on every primary button (D10). */
+  --color-accent-contrast: #000000;
+  --color-secondary:      var(--hub-secondary);
+  --color-secondary-dim:  var(--hub-secondary-dim);
+  --color-secondary-glow: var(--hub-secondary-glow);
+  --color-tertiary:       var(--hub-tertiary);
+
+  /* Ink over an accent- or item-coloured surface (task chips, tinted panel
+     headers, filled checks). Item colours are mid-tone on both faces, so this
+     is a constant white-alpha family — pick it over --color-ink ONLY when the
+     ground behind the text is the accent or a data colour. */
+  --color-on-accent:       rgba(255, 255, 255, 0.95);
+  --color-on-accent-dim:   rgba(255, 255, 255, 0.7);
+  --color-on-accent-faint: rgba(255, 255, 255, 0.45);
+
+  /* Status, and a soft fill behind each state (a "system down" row) */
+  --color-ok:     var(--hub-ok);
+  --color-warn:   var(--hub-warn);
+  --color-danger: var(--hub-danger);
+  --color-ok-glow:     var(--hub-ok-glow);
+  --color-danger-glow: var(--hub-danger-glow);
+  --color-ok-soft: color-mix(in srgb, var(--hub-ok) 12%, var(--hub-ground-2));
+  --color-danger-soft:   color-mix(in srgb, var(--hub-danger)   10%, var(--hub-ground-2));
+  --color-warn-soft:  color-mix(in srgb, var(--hub-warn) 11%, var(--hub-ground-2));
+
+  /* Shadows */
+  --color-shadow-inset:  inset 0 1px 0 var(--hub-bevel-light), inset 0 -1px 0 var(--hub-bevel-dark);
+  --color-shadow-card:   0 2px 8px color-mix(in srgb, var(--hub-ink) 10%, transparent),
+                       0 0 0 1px var(--hub-line);
+  /* The FLOATING PANEL shadow ink — what lifts a detail panel, drawer or modal
+     off the sheet. Direction is the call site's business (`0 24px 80px var(...)`);
+     the INK is not, which is why three components had each picked their own
+     rgba black. The same on both faces: a panel on the tube is defined by its
+     ring, and this shadow simply isn't seen there. */
+  --color-shadow-panel-ink: rgba(24, 16, 8, 0.20);
+
+  /* Veil scrims — the standard modal backdrop + a heavier variant for
+     destructive confirms. Warm-black on both faces (a scrim dims whatever is
+     behind it; it is not a themed surface). */
+  --color-scrim:       rgba(10, 8, 6, 0.5);
+  --color-scrim-heavy: rgba(5, 4, 3, 0.85);
+}
+
+/* ─── On-accent text, DERIVED from the accent (D10, 2026-09-16) ──────────────
+ *
+ * Text on an accent fill is black or white, chosen by the accent's WCAG relative
+ * luminance — computed exactly: `srgb-linear` exposes the LINEAR channels, and
+ * Y = 0.2126 r + 0.7152 g + 0.0722 b is the WCAG 2 definition. At Y = 0.17913 black
+ * and white give the SAME contrast ((Y+0.05)/0.05 = 1.05/(Y+0.05)); above it black
+ * wins, below it white does. So this always picks the higher of the two, which is
+ * the most any static pair can do for a colour it has not seen.
+ *
+ * ⚠️ WHY DERIVED AND NOT PINNED. The accent is user-selectable — five presets and a
+ * custom pair — so every literal was wrong for somebody. The pinned #ffffff on paper
+ * measured 3.67:1 against the house accent (AA wants 4.5:1 for the 16px/600
+ * .btn-primary), and flipping it to ink would have broken the first user who picked a
+ * dark custom accent. Ties are impossible in practice: the × 100000 turns the step
+ * into a hard switch inside a 0.00001 band of luminance.
+ *
+ * `clamp(0, (T − Y) × 100000, 1)` is 1 (white) when Y < T and 0 (black) when Y > T,
+ * written once per channel because relative colour syntax has no variables.
+ * One declaration serves both faces: the rule is face-invariant and only the
+ * accent it reads differs. Engines without relative colour syntax keep the
+ * literal fallback above. */
+@supports (color: color(from red srgb-linear r g b)) {
+  :root {
+    --color-accent-contrast: color(from var(--color-accent) srgb-linear
+      clamp(0, (0.17913 - (0.2126 * r + 0.7152 * g + 0.0722 * b)) * 100000, 1)
+      clamp(0, (0.17913 - (0.2126 * r + 0.7152 * g + 0.0722 * b)) * 100000, 1)
+      clamp(0, (0.17913 - (0.2126 * r + 0.7152 * g + 0.0722 * b)) * 100000, 1));
+  }
+}
+
+/* ─── Tier 3 · face-invariant — type, geometry, the responsive scale ──────── */
+:root {
+  /* Typography — the house voice: humans read print (the serif), the machine
+     speaks mono, the tube emits (seg). The serif default IS Fraunces; apps may
+     override it through the factory `fonts.serif` input. Apps load the Fraunces
+     webfont (incl. wght 700) in index.html; Big Shoulders is loaded only by
+     surfaces that actually render `.seg` (dark face). */
+  --jk-font-mono:  'IBM Plex Mono', ui-monospace, monospace;
+  --jk-font-sans:  'IBM Plex Sans', system-ui, sans-serif;
+  --jk-font-seg:   'Big Shoulders Display', 'IBM Plex Sans', sans-serif;
+  --jk-font-serif: 'Fraunces', Georgia, 'Times New Roman', serif;
 
   /* Spacing grid + radii (a per-app scale; SOFT by default — the house corner.
      Sharp is the opt-in: an app passes a 0–2px scale through the factory
-     `radius` input, or a single card zeroes the --hub-radius* tokens on its own
-     element. Sharp is deliberate punctuation, not the ground state.
-     Values are the Full Press PRINT scale (Wave 22) — a shade crisper than the
-     old 10/6/8/11 hub scale; same tokens, apps with their own `radius` input
-     are untouched. */
-  --hub-grid:             40px;
-  --hub-radius:           8px;
-  --hub-radius-xs:        4px;   /* tiny controls (checkboxes, swatches) */
-  --hub-radius-sm:        6px;
-  --hub-radius-lg:        10px;
-  --hub-radius-soft:      10px;
-  --hub-radius-button:    5px;
+     `radius` input, or a single card zeroes the --jk-radius* tokens on its own
+     element. Sharp is deliberate punctuation, not the ground state.) */
+  --jk-grid:             40px;
+  --jk-radius:           8px;
+  --jk-radius-xs:        4px;   /* tiny controls (checkboxes, swatches) */
+  --jk-radius-sm:        6px;
+  --jk-radius-lg:        10px;
+  --jk-radius-soft:      10px;
+  --jk-radius-button:    5px;
 
   /* ── The CANVAS (the MEASURE axis) ─────────────────────────────────────────
    * ONE measure for a full-page view. Before this, every view invented its own
@@ -146,403 +481,49 @@
    * Card primitives consume these instead of literal px, so they scale by tier.
    * Desktop defaults preserve the original dense look exactly; the @media blocks
    * at the foot of this file override ONLY these tokens for tablet/mobile (the
-   * same "override inputs, derivation follows" trick as the dark-mode flip).
+   * same "override inputs, derivation follows" trick as the dark-face flip).
    * Breakpoint px are pinned to packages/design/responsive/breakpoints.ts by
    * test/responsive.mjs — change the numbers there, not the bare px here. */
-  --hub-fs-bubble:        9px;
-  --hub-fs-bubble-lg:     11px;
-  --hub-pad-bubble:       5px 11px;
-  --hub-pad-bubble-lg:    7px 14px;
-  --hub-fs-pill:          8px;
-  --hub-pad-pill:         4px 9px;
-  --hub-fs-tbtn:          9px;
-  --hub-pad-tbtn:         6px 10px;
+  --jk-fs-bubble:        9px;
+  --jk-fs-bubble-lg:     11px;
+  --jk-pad-bubble:       5px 11px;
+  --jk-pad-bubble-lg:    7px 14px;
+  --jk-fs-pill:          8px;
+  --jk-pad-pill:         4px 9px;
+  --jk-fs-tbtn:          9px;
+  --jk-pad-tbtn:         6px 10px;
   /* The FIELD scale. `-sm` is the dense-editor rung (the workshop packs a dozen
      fields into one row and cannot spend the extra 2px); the base is everything
      else. Both go up on phones with the rest of the mono type. */
-  --hub-fs-field:         12px;
-  --hub-fs-field-sm:      11px;
-  --hub-pad-field:        5px 7px;
-  --hub-pad-field-sm:     3px 5px;
-  --hub-fs-lab:           10px;
-  --hub-fs-lab-sm:        9px;
-  --hub-fs-lab-xs:        8px;
+  --jk-fs-field:         12px;
+  --jk-fs-field-sm:      11px;
+  --jk-pad-field:        5px 7px;
+  --jk-pad-field-sm:     3px 5px;
+  --jk-fs-lab:           10px;
+  --jk-fs-lab-sm:        9px;
+  --jk-fs-lab-xs:        8px;
   /* Minimum tap target for INTERACTIVE primitives (button/a). 0 on desktop
      (pointer precise); the touch tiers below raise it to 44px. */
-  --hub-tap-min:          0px;
+  --jk-tap-min:          0px;
 
   /* Media grid density ladder (@jkos/ui MediaGrid) — the 2/3/4-column cover-
      grid progression, one source instead of a per-app `repeat(N, 1fr)`.
      Mirrors packages/design/responsive/mediaGrid.ts's MEDIA_GRID_COLUMNS —
      test/responsive.mjs pins the two together. Class rules are below,
      next to .jk-sheet. */
-  --hub-media-cols-compact:     2;
-  --hub-media-cols-cozy:        3;
-  --hub-media-cols-comfortable: 4;
-  --hub-media-grid-gap:         0.85rem;
-  --hub-media-grid-gap-tight:   0.75rem;
+  --jk-media-cols-compact:     2;
+  --jk-media-cols-cozy:        3;
+  --jk-media-cols-comfortable: 4;
+  --jk-media-grid-gap:         0.85rem;
+  --jk-media-grid-gap-tight:   0.75rem;
 
-  /* Grain + CRT effects (CRT off in paper mode) */
-  --grain-blend:   multiply;
-  /* Film grain — a suite-wide DEFAULT texture for BACKGROUNDS only. Opacity is
-     baked into the noise alpha: 0.495 on paper (multiply against warm beige needs
-     real weight or the speckle washes out), 0.135 on dark (screen needs less).
-     buildJkOSTheme()
-     paints it onto `<scope> body` and blends via --grain-blend, so it never sits
-     over content/cards/text. Dark mode redefines this variable below. */
-  --hub-grain-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='jkg'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23jkg)' opacity='0.495'/%3E%3C/svg%3E");
-  /* CRT overlay knobs — hub.css OWNS these base values (both modes). @jkos/ui
-     re-imports hub.css and flattens ONLY the paper vignette for the full-shell
-     apps (its one sanctioned opt-out); every other knob derives from here so the
-     atmosphere can't drift across import paths. DESIGN.md § "CRT knob ownership". */
-  --crt-scanline-opacity: 0;
-  --crt-vignette-opacity: 0.08;
-  --canvas-grid-opacity: 0.5;
-  /* Scanline INK — the line colour for .jk-scanlines; visibility comes from
-     --crt-scanline-opacity (an input apps may raise via their theme CSS). Paper
-     scores dark lines into the sheet; dark mode lifts pale phosphor rows. */
-  --crt-scanline-ink: #000000;
-
-  /* Veil scrims — the standard modal backdrop + a heavier variant for
-     destructive confirms. Warm-black in both modes (a scrim dims whatever is
-     behind it; it is not a themed surface). */
-  --hub-scrim:       rgba(10, 8, 6, 0.5);
-  --hub-scrim-heavy: rgba(5, 4, 3, 0.85);
-
-  /* ░░ DERIVATION — universal; consumes the inputs above. Do not duplicate. ░░ */
-
-  /* Accent chain: paper deepens the raw pair so vivid/pastel picks hold on kraft. */
-  --accent:           color-mix(in srgb, var(--accent-raw)   64%, var(--accent-deepen-ink));
-  --accent-secondary: color-mix(in srgb, var(--accent-2-raw) 64%, var(--accent-deepen-ink));
-
-  /* Primary family — tracks --accent */
-  --hub-amber:        var(--accent);
-  --hub-amber-bright: color-mix(in srgb, var(--accent) 55%, #ffffff);
-  --hub-amber-dim:    color-mix(in srgb, var(--accent) 72%, var(--bar-deepen-ink));
-  --hub-amber-deep:   color-mix(in srgb, var(--accent) 20%, var(--hub-bg-2));
-  --hub-amber-glow:   color-mix(in srgb, var(--accent) 30%, transparent);
-
-  /* Secondary family — tracks --accent-secondary */
-  --hub-cyan:         var(--accent-secondary);
-  --hub-cyan-dim:     color-mix(in srgb, var(--accent-secondary) 60%, #000000);
-  --hub-cyan-glow:    color-mix(in srgb, var(--accent-secondary) 25%, transparent);
-
-  /* --color-* aliases (component-facing) */
-  --color-paper:          var(--hub-bg-0);
-  --color-paper-2:        var(--hub-bg-1);
-  --color-card:           var(--hub-bg-2);
-  --color-card-2:         var(--hub-bg-3);
-  --color-ink:            var(--hub-cream-bright);
-  --color-muted:          var(--hub-cream);
-  --color-faint:          var(--hub-cream-dim);
-  --color-line:           var(--hub-line);
-  --color-line-strong:    var(--hub-line-strong);
-  --color-accent:         var(--hub-amber);
-  --color-accent-bright:  var(--hub-amber-bright);
-  --color-accent-dim:     var(--hub-amber-dim);
-  --color-accent-deep:    var(--hub-amber-deep);
-  --color-accent-glow:    var(--hub-amber-glow);
-  --color-accent-soft:    color-mix(in srgb, var(--hub-amber) 12%, var(--hub-bg-2));
-  --color-accent-ink:     color-mix(in srgb, var(--hub-amber) 80%, #000000);
-  /* On-accent text. The value that ships is DERIVED from the accent's luminance —
-     see the @supports block after the dark face. This literal is only the fallback
-     for an engine without relative colour syntax, and it is the answer that is
-     right for the house accent on paper: #000 on #b27b05 is 5.73:1. It was #ffffff
-     until 2026-09-16 — 3.67:1, an AA failure on every primary button (D10). */
-  --color-accent-contrast: #000000;
-  --color-secondary:      var(--hub-cyan);
-  --color-secondary-dim:  var(--hub-cyan-dim);
-  --color-secondary-glow: var(--hub-cyan-glow);
-
-  /* Ink over an accent- or item-coloured surface (task chips, tinted panel
-     headers, filled checks). Item colours are mid-tone in both modes, so this
-     is a constant white-alpha family — pick it over --color-ink ONLY when the
-     ground behind the text is the accent or a data colour. */
-  --color-on-accent:       rgba(255, 255, 255, 0.95);
-  --color-on-accent-dim:   rgba(255, 255, 255, 0.7);
-  --color-on-accent-faint: rgba(255, 255, 255, 0.45);
-
-  /* Status surface tints — a soft fill behind ok/warn/danger states (e.g. a
-     "system down" row). Derived from the semantic colours over the card bg;
-     defined once and re-resolve per mode via lazy var() substitution. */
-  --hub-green-soft: color-mix(in srgb, var(--hub-green) 12%, var(--hub-bg-2));
-  --hub-red-soft:   color-mix(in srgb, var(--hub-red)   10%, var(--hub-bg-2));
-  --hub-warn:       var(--color-warn);
-  --hub-warn-soft:  color-mix(in srgb, var(--color-warn) 11%, var(--hub-bg-2));
-
-  /* Shadows */
-  --hub-shadow-inset:  inset 0 1px 0 var(--hub-bevel-light), inset 0 -1px 0 var(--hub-bevel-dark);
-  --hub-shadow-card:   0 2px 8px color-mix(in srgb, var(--hub-cream-bright) 10%, transparent),
-                       0 0 0 1px var(--hub-line);
-  /* The FLOATING PANEL shadow — what lifts a detail panel, drawer or modal off
-     the sheet. Direction is the call site's business (`0 24px 80px var(...)`);
-     the INK is not, which is why three components had each picked their own
-     rgba black. Deepens toward the paper's own shadow ink rather than pure
-     black, and the dark face overrides it to near-nothing (a panel on the tube
-     is defined by its ring, not by a shadow nobody can see). */
-  --hub-shadow-panel-ink: rgba(24, 16, 8, 0.20);
-  /* The WELL shadow — an inner shadow that sinks a region INTO the sheet. On
-     paper the well is one of the two accent moves (wells give depth + boundary;
-     badges give emphasis — see the wells/badges block below). Dark mode
-     overrides this with an emissive glow so the same class stays mode-correct. */
-  --hub-accent-press:
-    inset 0 2px 3px color-mix(in srgb, var(--hub-cream-bright) 32%, transparent),
-    inset 0 -1px 1px color-mix(in srgb, #ffffff 55%, transparent),
-    0 1px 0 color-mix(in srgb, #ffffff 45%, transparent);
-
-  /* ── The FIELD recess (the .jk-field block below) ─────────────────────────
-     A field is where the user writes, so it has to read as a place that will
-     TAKE ink — and the two faces say that with completely different physics.
-     These four tokens are the whole difference; the class body is shared.
-
-     On paper it is a real deboss: the stock drops to the recessed sheet, a soft
-     shadow falls from the top lip inward, and the bottom lip catches light. The
-     same reading as --hub-accent-press, one rung quieter (a well is a region, a
-     field is a slot).
-
-     The dark block overrides all four with the tube's OWN recipe rather than
-     re-tinting this one — the recess is stated by unlit screen stock and an
-     inner falloff, because a bevel on a CRT is a lie: there is no raking light
-     to catch, only phosphor that is on or off. (Reusing the paper bevel here is
-     exactly what made a dark field read as a light field with the colours swapped.) */
-  --hub-field-face:   var(--hub-bg-0);
-  --hub-field-recess:
-    inset 0 2px 3px color-mix(in srgb, var(--hub-cream-bright) 22%, transparent),
-    inset 0 -1px 0 var(--hub-bevel-light);
-  /* Engaged: on paper the pen presses HARDER — the recess deepens and the rim
-     takes the accent. Nothing emits; the whole state has to be carried by depth
-     and by the rim, which is why both go further here than a dark-mode eye would
-     expect. (Matching the CRT's numbers instead left the paper focus invisible
-     next to its glow — the two faces need different AMOUNTS to read as equal.) */
-  --hub-field-recess-focus:
-    inset 0 3px 5px color-mix(in srgb, var(--hub-cream-bright) 30%, transparent),
-    inset 0 -1px 0 var(--hub-bevel-light),
-    0 0 0 2px color-mix(in srgb, var(--accent) 16%, transparent);
-  --hub-field-face-focus: color-mix(in srgb, var(--accent) 4%, var(--hub-bg-0));
-
-  /* ── The MENU surface (drawn select pickers, .jk-menu) ────────────────────
-     A picker is not part of the sheet — it is a thing that came to rest ON TOP
-     of it, so paper gives it the BADGE move (raised, drop shadow, a lit top
-     lip) rather than the well's deboss. The tube can't cast a shadow onto
-     phosphor, so dark states the same "in front of everything" with an
-     accent-tinted rim and an outward bloom. */
-  --hub-menu-face: var(--hub-bg-4);
-  --hub-menu-line: var(--hub-line-strong);
-  --hub-menu-lift:
-    0 8px 22px color-mix(in srgb, var(--accent-deepen-ink) 22%, transparent),
-    inset 0 1px 0 color-mix(in srgb, #ffffff 55%, transparent);
-
-  /* ── The SCROLL MARK (the ::-webkit-scrollbar block below) ────────────────
-     A HAIRLINE, not a gutter. There is no channel, no track and no plastic —
-     the bar is 2px of ink laid straight on the stock, quiet at rest and
-     deepening while you are actually in the pane. On paper that ink is the
-     deepen target the whole light face darkens toward, so the mark reads as a
-     pencil rule on the sheet and not as a piece of chrome sitting over it.
-
-     THREE RUNGS, and they are tokens because Gecko can only be handed COLOURS
-     (scrollbar-color) and has to land on the same three:
-       -rest   always painted. A scrollbar you cannot see is a scrollbar whose
-               POSITION you cannot read, so this rung never goes to zero by
-               default — set it to `transparent` for the fully-hidden face.
-       (base)  pointer inside the pane, or the pane is moving.
-       -hover  pointer on the mark itself: this is the "you can grab this" rung,
-               the same signal the old channel's amber gave. */
-  --hub-scroll-mark-rest:  color-mix(in srgb, var(--accent-deepen-ink) 15%, transparent);
-  --hub-scroll-mark:       color-mix(in srgb, var(--accent-deepen-ink) 38%, transparent);
-  --hub-scroll-mark-hover: color-mix(in srgb, var(--accent-deepen-ink) 62%, transparent);
-
-  /* ── color-scheme: the one declaration the browser itself reads ───────────
-     Everything else in this file dresses OUR markup. This tells the ENGINE
-     which face it is painting, and it is the only lever over chrome we never
-     get a selector for: the select picker's own popup window, the date and
-     time picker calendars, the autofill dropdown, the caret, and the default
-     scrollbars. Without it those all come back white on the tube no matter
-     what the surrounding CSS says — which is exactly how a dark-mode dropdown
-     ends up a blinding white OS list with a blue highlight bar.
-
-     accent-color is its smaller sibling: it tints any native control we have
-     not (or cannot) draw ourselves, so a stray checkbox lands amber instead of
-     Chrome blue. Both are set on :root and inherit everywhere. */
-  color-scheme: light;
-  accent-color: var(--accent);
-
-  /* ── Halation ────────────────────────────────────────────────────────────
-     The suite-wide emissive accent glow. Halation is a CRT phenomenon: on paper
-     an accent presses IN (the debossed stamp above), so these halo tokens are
-     `none` here and the dark block below lights them up. Anything coloured with
-     the primary accent emits in dark mode — wire it with `box-shadow:
-     var(--accent-halo)`, `text-shadow: var(--accent-halo-text)`, or the
-     .jk-halo / .jk-halo-text utility classes. A call site composing its own
-     multi-layer shadow takes the bare colour from --color-accent-glow. */
-  --accent-halo:      none;
-  --accent-halo-text: none;
-
-  /* ── The tapered rule ────────────────────────────────────────────────────
-     Two seams, so .jk-rule-taper and the masthead's boundary
-     (.jk-masthead::after) are the same object drawn once:
-       --jk-inlay-mask  the taper — both ends feather out, so the line can end
-                        in mid-air on the open canvas without reading as a slab
-                        edge. This is the only thing the fourth weight does
-                        differently from .jk-rule, and it is the only thing it
-                        needs to do.
-       --jk-inlay-face  the colour. Plain ink, held down by opacity at the call
-                        site, so it flips with the face like every other rule.
-     This WAS a hammered-steel inlay: a 15px box carrying a 5px five-band bevel,
-     two coprime radial dimple layers, and a lit silver twin on the tube. It was
-     a lot of hardware for a line under a header, and it read as one — a strip of
-     trim bolted to the page in both faces. Deleted 2026-08-12. If you find
-     yourself re-deriving a bevel here, the answer is the taper, not the metal.
-     (The --jk-inlay-* names are kept because two call sites and the generated
-     token mirrors reference them; there is no inlay left to name.) */
-  --jk-inlay-mask: linear-gradient(90deg, transparent 0, #000 5%, #000 95%, transparent 100%);
-  --jk-inlay-face: var(--color-ink);
-}
-
-/* ─── CRT / dark mode ─────────────────────────────────────────────────────── */
-:root[data-mode="dark"] {
-  /* ░░ INPUTS ░░ */
-  --hub-bg-0: #11100d;
-  --hub-bg-1: #1a1814;
-  --hub-bg-2: #232019;
-  --hub-bg-3: #2c2820;
-  --hub-bg-4: #38321f;
-
-  --hub-screen:      #0e0c08;
-  --hub-screen-line: #2a2418;
-
-  --hub-metal-0: #2a2620;
-  --hub-metal-1: #3a342b;
-  --hub-metal-2: #4a4234;
-  --hub-bevel-light: rgba(255, 220, 160, 0.06);
-  --hub-bevel-dark:  rgba(0, 0, 0, 0.5);
-
-  --hub-line:        #3a3528;
-  --hub-line-strong: #4a4232;
-  --hub-line-bright: #6a5d3e;
-
-  --hub-cream:        #d6cba8;
-  --hub-cream-bright: #efe6c9;
-  --hub-cream-dim:    #8a8067;
-  --hub-cream-faint:  #5a543f;
-
-  --hub-red:        #ff4530;
-  --hub-red-glow:   rgba(255, 69, 48, 0.4);
-  --hub-green:      #5cd66a;
-  --hub-green-glow: rgba(92, 214, 106, 0.35);
-  --hub-magenta:    #ff5d8f;
-  --color-warn:   #fbbf24;
-
-  --grain-blend:   screen;
-  --hub-grain-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='jkg'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23jkg)' opacity='0.135'/%3E%3C/svg%3E");
-  --crt-scanline-opacity: 0.012;
-  --crt-vignette-opacity: 0.45;
-  --crt-scanline-ink: #ffffff;
-  --canvas-grid-opacity: 1;
-
-  /* ░░ DERIVATION — CRT uses the raw bright pair (no paper deepening) ░░ */
-  --accent:           var(--accent-raw);
-  --accent-secondary: var(--accent-2-raw);
-
-  --hub-amber:        var(--accent);
-  --hub-amber-bright: color-mix(in srgb, var(--accent) 55%, #ffffff);
-  --hub-amber-dim:    color-mix(in srgb, var(--accent) 72%, #1a1400);
-  --hub-amber-deep:   color-mix(in srgb, var(--accent) 26%, #000000);
-  --hub-amber-glow:   color-mix(in srgb, var(--accent) 38%, transparent);
-
-  --hub-cyan:         var(--accent-secondary);
-  --hub-cyan-dim:     color-mix(in srgb, var(--accent-secondary) 50%, #000000);
-  --hub-cyan-glow:    color-mix(in srgb, var(--accent-secondary) 38%, transparent);
-
-  --color-accent-contrast: #000000;
-  /* Readable accent text flips: darken-on-paper → lighten-on-CRT (so accent type
-     stays legible against the dark ground instead of muddying into it). */
-  --color-accent-ink:      color-mix(in srgb, var(--hub-amber) 78%, #ffffff);
-
-  /* Dark mode: accents glow (halation) rather than press into the surface.
-     Parameterised on --jk-tint (the item-tint seam) so a tinted well/meter
-     glows in ITS colour; unset, it resolves to the accent — byte-identical to
-     the old accent-locked value. */
-  --hub-accent-press: 0 0 10px color-mix(in srgb, var(--jk-tint, var(--accent)) 38%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--jk-tint, var(--accent)) 30%, transparent);
-
-  /* THE FIELD, on the tube — its own recipe, not the paper bevel re-tinted.
-     A CRT has no raking light, so nothing bevels: what makes a slot read as a
-     slot here is that it is the DARKEST thing on the screen. The field drops
-     past every --hub-bg rung to --hub-screen (the tube's own unlit stock) and
-     takes a soft inner falloff off the top edge — the way the glass darkens
-     toward a masked area — with no light catch at the bottom at all.
-
-     Engaged, it does what everything on this face does: it EMITS. The rim takes
-     the accent, a halo blooms outward, and the face lifts one rung off black so
-     the caret has something to sit on. Same class, opposite physics. */
-  --hub-field-face:   var(--hub-screen);
-  --hub-field-recess: inset 0 1px 5px rgba(0, 0, 0, 0.55);
-  --hub-field-face-focus: var(--hub-bg-0);
-  --hub-field-recess-focus:
-    inset 0 1px 5px rgba(0, 0, 0, 0.5),
-    inset 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent),
-    0 0 10px color-mix(in srgb, var(--accent) 26%, transparent);
-
-  /* The menu, on the tube. Phosphor takes no drop shadow, so "in front" is
-     said with an accent rim and an outward bloom instead of a cast shadow. */
-  --hub-menu-face: var(--hub-bg-1);
-  --hub-menu-line: color-mix(in srgb, var(--accent) 28%, var(--hub-line-strong));
-  --hub-menu-lift:
-    0 10px 30px rgba(0, 0, 0, 0.72),
-    0 0 16px color-mix(in srgb, var(--accent) 15%, transparent);
-
-  /* The mark, on the tube. Paper's mark is ink pressed INTO the sheet; the tube
-     has no ink and nothing to press, so the same hairline is stated as EMITTED
-     accent — the one thing a phosphor screen can do that paper cannot. Mixing
-     the raw accent rather than a line tone is what keeps it findable against
-     unlit stock: a neutral 2px mark at these opacities simply disappears on the
-     dark face, which is how the earlier ghost-thumb pass failed here. */
-  --hub-scroll-mark-rest:  color-mix(in srgb, var(--accent) 18%, transparent);
-  --hub-scroll-mark:       color-mix(in srgb, var(--accent) 45%, transparent);
-  --hub-scroll-mark-hover: color-mix(in srgb, var(--accent) 72%, transparent);
-
-  /* The engine's own half of the face flip — see the note in the light block.
-     accent-color is inherited from :root and needs no dark twin: --accent
-     already re-resolves here. */
-  color-scheme: dark;
-
-  /* Halation lights up in CRT: every primary-accent element emits. The text
-     halo is tighter than the box halo so accent type stays legible. */
-  --accent-halo:      0 0 16px var(--color-accent-glow);
-  --accent-halo-text: 0 0 12px var(--color-accent-glow);
-
-  /* No dark override for the tapered rule: --jk-inlay-face is --color-ink,
-     which already flips to cream here. One rule, both faces. */
-}
-
-/* ─── On-accent text, DERIVED from the accent (D10, 2026-09-16) ──────────────
- *
- * Text on an accent fill is black or white, chosen by the accent's WCAG relative
- * luminance — computed exactly: `srgb-linear` exposes the LINEAR channels, and
- * Y = 0.2126 r + 0.7152 g + 0.0722 b is the WCAG 2 definition. At Y = 0.17913 black
- * and white give the SAME contrast ((Y+0.05)/0.05 = 1.05/(Y+0.05)); above it black
- * wins, below it white does. So this always picks the higher of the two, which is
- * the most any static pair can do for a colour it has not seen.
- *
- * ⚠️ WHY DERIVED AND NOT PINNED. The accent is user-selectable — five presets and a
- * custom pair — so every literal was wrong for somebody. The pinned #ffffff on paper
- * measured 3.67:1 against the house accent (AA wants 4.5:1 for the 16px/600
- * .btn-primary), and flipping it to ink would have broken the first user who picked a
- * dark custom accent. Ties are impossible in practice: the × 100000 turns the step
- * into a hard switch inside a 0.00001 band of luminance.
- *
- * `clamp(0, (T − Y) × 100000, 1)` is 1 (white) when Y < T and 0 (black) when Y > T,
- * written once per channel because relative colour syntax has no variables.
- * Declared for BOTH faces here rather than in each block: the rule is face-invariant
- * and only the accent it reads differs — --color-accent is already per-face.
- * Engines without relative colour syntax keep each block's literal fallback. */
-@supports (color: color(from red srgb-linear r g b)) {
-  :root,
-  :root[data-mode="dark"] {
-    --color-accent-contrast: color(from var(--color-accent) srgb-linear
-      clamp(0, (0.17913 - (0.2126 * r + 0.7152 * g + 0.0722 * b)) * 100000, 1)
-      clamp(0, (0.17913 - (0.2126 * r + 0.7152 * g + 0.0722 * b)) * 100000, 1)
-      clamp(0, (0.17913 - (0.2126 * r + 0.7152 * g + 0.0722 * b)) * 100000, 1));
-  }
+  /* The tapered rule's mask — both ends feather out, so the line can end in
+     mid-air on the open canvas without reading as a slab edge. .jk-rule-taper
+     and the masthead's boundary (.jk-masthead::after) are the same object drawn
+     once; its colour is plain --color-ink, held down by opacity at the call site.
+     (This was a hammered-steel "inlay" until 2026-08-12. If you find yourself
+     re-deriving a bevel here, the answer is the taper, not the metal.) */
+  --jk-taper-mask: linear-gradient(90deg, transparent 0, #000 5%, #000 95%, transparent 100%);
 }
 
 /* ─── Shared CSS component classes ─────────────────────────────────────── */
@@ -787,16 +768,16 @@
    is for is the AXIS. */
 .jk-scroll { overflow-y: auto; overflow-x: hidden; }
 .jk-hit { transition: background 0.12s, border-color 0.12s, color 0.12s, transform 0.1s; }
-.jk-hit:hover  { background: var(--hub-bg-4); }
+.jk-hit:hover  { background: var(--color-lit); }
 .jk-hit:active { transform: translateY(1px); }
 
 /* Halation utilities — the suite-wide accent glow. .jk-halo for surfaces/chips,
    .jk-halo-text for accent type. Both collapse to nothing on paper (the tokens
    are `none` in light mode) so a single class is mode-correct everywhere. */
-.jk-halo      { box-shadow:  var(--accent-halo); }
-.jk-halo-text { text-shadow: var(--accent-halo-text); }
+.jk-halo      { box-shadow:  var(--hub-halo); }
+.jk-halo-text { text-shadow: var(--hub-halo-text); }
 
-/* Arbitrary-colour glow — the per-ITEM analogue of --accent-halo (which is locked
+/* Arbitrary-colour glow — the per-ITEM analogue of --hub-halo (which is locked
    to the theme accent). Set the colour with --jk-glow-color inline (falls back to
    the accent), pick an intensity rung with .jk-glow-low / -mid / -hi. Mode-gated
    like the halo tokens: nothing on paper, emits in CRT. .jk-glow shadows a surface,
@@ -806,11 +787,11 @@
 .jk-glow-hi  { --jk-glow-size: 28px; --jk-glow-strength: 52%; }
 :root[data-mode="dark"] .jk-glow {
   box-shadow: 0 0 var(--jk-glow-size, 16px)
-    color-mix(in srgb, var(--jk-glow-color, var(--accent)) var(--jk-glow-strength, 33%), transparent);
+    color-mix(in srgb, var(--jk-glow-color, var(--color-accent)) var(--jk-glow-strength, 33%), transparent);
 }
 :root[data-mode="dark"] .jk-glow-text {
   text-shadow: 0 0 var(--jk-glow-size, 12px)
-    color-mix(in srgb, var(--jk-glow-color, var(--accent)) var(--jk-glow-strength, 38%), transparent);
+    color-mix(in srgb, var(--jk-glow-color, var(--color-accent)) var(--jk-glow-strength, 38%), transparent);
 }
 
 /* LEDs */
@@ -822,11 +803,11 @@
   animation: led-pulse 2.4s ease-in-out infinite;
   flex-shrink: 0;
 }
-.led.green  { background: var(--hub-green);   color: var(--hub-green); }
-.led.amber  { background: var(--hub-amber);   color: var(--hub-amber); }
-.led.red    { background: var(--hub-red);     color: var(--hub-red);   animation-duration: 1s; }
-.led.cyan   { background: var(--hub-cyan);    color: var(--hub-cyan); }
-.led.off    { background: var(--hub-metal-2); color: var(--hub-metal-2);
+.led.green  { background: var(--color-ok);   color: var(--color-ok); }
+.led.amber  { background: var(--color-accent);   color: var(--color-accent); }
+.led.red    { background: var(--color-danger);     color: var(--color-danger);   animation-duration: 1s; }
+.led.cyan   { background: var(--color-secondary);    color: var(--color-secondary); }
+.led.off    { background: var(--color-metal-2); color: var(--color-metal-2);
               box-shadow: inset 0 0 2px rgba(0,0,0,0.4); animation: none; }
 .led.steady { animation: none; }
 .led.sm     { width: 6px;  height: 6px; }
@@ -843,19 +824,19 @@
    shadow, sits ON the surface), rendered as hardware instead of accent. */
 .label-tape {
   display: inline-block;
-  background: linear-gradient(180deg, var(--hub-metal-1), var(--hub-metal-0));
-  color: var(--hub-cream-bright);
+  background: linear-gradient(180deg, var(--color-metal-1), var(--color-metal-0));
+  color: var(--color-ink);
   padding: 3px 8px;
-  font-family: var(--hub-font-mono);
+  font-family: var(--jk-font-mono);
   font-size: 9px;
   letter-spacing: 0.2em;
-  border: 1px solid var(--hub-metal-0);
-  box-shadow: inset 0 1px 0 var(--hub-bevel-light), 0 1px 0 rgba(0,0,0,0.4);
+  border: 1px solid var(--color-metal-0);
+  box-shadow: inset 0 1px 0 var(--color-bevel-light), 0 1px 0 rgba(0,0,0,0.4);
 }
 
 .perf {
-  background: var(--hub-bg-0);
-  background-image: radial-gradient(circle, var(--hub-metal-0) 1.2px, var(--hub-bg-2) 1.4px);
+  background: var(--color-paper);
+  background-image: radial-gradient(circle, var(--color-metal-0) 1.2px, var(--color-card) 1.4px);
   background-size: 6px 6px;
 }
 
@@ -868,7 +849,7 @@
 /* The rules ladder — editorial hairlines, three weights. An <hr> face:
    hairline for rows/exhibits, ink for chapter heads, double for the
    contents block and the colophon. */
-.jk-rule        { border: none; height: 1px; background: var(--hub-line); margin: 0; }
+.jk-rule        { border: none; height: 1px; background: var(--color-line); margin: 0; }
 /* The vertical sibling of .jk-rule — the hairline that separates clusters
    INSIDE a bar (header sources | clock | avatar, a folio head, ORDECK's footer
    strip). Three apps drew this by hand before it had a name. */
@@ -889,40 +870,40 @@
  *
  * It used to be a hammered-steel inlay, and the material was the mistake: a piece
  * of trim under the header competing with the type it was supposed to be quietly
- * separating. See --jk-inlay-mask for what was removed.
+ * separating. The note at --jk-taper-mask says what was removed.
  *
- * Both seams live in --jk-inlay-* so this class and .jk-masthead::after are the
+ * The mask lives in --jk-taper-mask so this class and .jk-masthead::after are the
  * SAME OBJECT, not a second recipe that drifts. Inside a bordered container keep
  * .jk-rule — a taper there is fussiness. */
 .jk-rule-taper {
   border: none;
   height: 1px;
   margin: 0;
-  background: var(--jk-inlay-face);
+  background: var(--color-ink);
   /* Ink at full strength is the chapter-head weight (.jk-rule-strong). A
      boundary rule is quieter than the thing it bounds. */
   opacity: 0.3;
-  -webkit-mask-image: var(--jk-inlay-mask);
-          mask-image: var(--jk-inlay-mask);
+  -webkit-mask-image: var(--jk-taper-mask);
+          mask-image: var(--jk-taper-mask);
 }
 
 /* The folio mark — names CONTENT in print: running-head rules above and
    below, serif caps, the number/count slot in accent italic. */
 .jk-folio { display: inline-flex; align-items: baseline; gap: 8px;
-  font-family: var(--hub-font-serif); font-weight: 700; font-size: 10.5px;
+  font-family: var(--jk-font-serif); font-weight: 700; font-size: 10.5px;
   letter-spacing: 0.2em; text-transform: uppercase; color: var(--color-ink);
   padding: 5px 2px; border-top: 1.5px solid var(--color-ink);
   border-bottom: 1px solid var(--color-ink); }
 .jk-folio .jk-folio-no { color: var(--color-accent); font-style: italic; }
-:root[data-mode="dark"] .jk-folio .jk-folio-no { text-shadow: var(--accent-halo-text); }
+:root[data-mode="dark"] .jk-folio .jk-folio-no { text-shadow: var(--hub-halo-text); }
 
 /* The colophon block — the end-of-sheet record. Centre-set serif over a
    fleuron; the fleuron takes the accent (and its halation in CRT). */
-.jk-colophon { text-align: center; font-family: var(--hub-font-serif);
+.jk-colophon { text-align: center; font-family: var(--jk-font-serif);
   font-size: 0.92rem; line-height: 1.75; color: var(--color-muted); }
 .jk-colophon::before { content: "❧"; display: block; font-size: 1.35rem;
   color: var(--color-accent); margin: 0 0 10px; }
-:root[data-mode="dark"] .jk-colophon::before { text-shadow: var(--accent-halo-text); }
+:root[data-mode="dark"] .jk-colophon::before { text-shadow: var(--hub-halo-text); }
 
 /* Rubber stamp — the printer's stamp: serif under Full Press, same rotation
    and currentColor discipline. */
@@ -930,7 +911,7 @@
   display: inline-block;
   border: 2px solid currentColor;
   padding: 2px 8px;
-  font-family: var(--hub-font-serif);
+  font-family: var(--jk-font-serif);
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.14em;
@@ -941,12 +922,12 @@
 
 /* 7-segment glow text */
 .seg {
-  font-family: var(--hub-font-seg);
+  font-family: var(--jk-font-seg);
   font-weight: 700;
   letter-spacing: 0.05em;
   font-variant-numeric: tabular-nums;
-  color: var(--hub-amber);
-  text-shadow: 0 0 8px var(--hub-amber-glow), 0 0 2px var(--hub-amber-glow);
+  color: var(--color-accent);
+  text-shadow: 0 0 8px var(--color-accent-glow), 0 0 2px var(--color-accent-glow);
 }
 /* THE SEG VERDICT (Full Press) — the readout splits by medium: the tube keeps
    its phosphor numerals (Big Shoulders + glow, unchanged in dark); paper
@@ -954,7 +935,7 @@
    correct. A 7-seg readout is phosphor hardware; printing one on kraft was a
    costume. Surfaces that render .seg must load Big Shoulders for the dark face. */
 :root:not([data-mode="dark"]) .seg {
-  font-family: var(--hub-font-serif);
+  font-family: var(--jk-font-serif);
   font-weight: 600;
   font-variant-numeric: lining-nums tabular-nums;
   letter-spacing: 0.03em;
@@ -963,44 +944,44 @@
 
 /* Bar meters */
 .bar-track {
-  background: var(--hub-bg-0);
-  border: 1px solid var(--hub-line);
+  background: var(--color-paper);
+  border: 1px solid var(--color-line);
   position: relative;
   overflow: hidden;
 }
 .bar-fill {
-  background: linear-gradient(90deg, var(--hub-amber-dim), var(--hub-amber));
-  box-shadow: 0 0 4px var(--hub-amber-glow);
+  background: linear-gradient(90deg, var(--color-accent-dim), var(--color-accent));
+  box-shadow: 0 0 4px var(--color-accent-glow);
   height: 100%;
 }
 
 /* Phosphor text glow */
-.glow     { text-shadow: 0 0 6px var(--hub-amber-glow), 0 0 2px var(--hub-amber-glow); }
-.glow-dim { text-shadow: 0 0 4px var(--hub-amber-glow); }
-.glow-cyan { text-shadow: 0 0 6px var(--hub-cyan-glow), 0 0 2px var(--hub-cyan-glow); }
+.glow     { text-shadow: 0 0 6px var(--color-accent-glow), 0 0 2px var(--color-accent-glow); }
+.glow-dim { text-shadow: 0 0 4px var(--color-accent-glow); }
+.glow-cyan { text-shadow: 0 0 6px var(--color-secondary-glow), 0 0 2px var(--color-secondary-glow); }
 
 /* Utility */
 .mono-eyebrow {
   font-size: 9px;
   letter-spacing: 0.2em;
-  color: var(--hub-cream-dim);
+  color: var(--color-faint);
   text-transform: uppercase;
 }
 
 /* Canvas grid background */
 .canvas-grid {
   background-image:
-    linear-gradient(var(--hub-line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--hub-line) 1px, transparent 1px);
-  background-size: var(--hub-grid) var(--hub-grid);
-  opacity: var(--canvas-grid-opacity, 1);
+    linear-gradient(var(--color-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--color-line) 1px, transparent 1px);
+  background-size: var(--jk-grid) var(--jk-grid);
+  opacity: var(--hub-canvas-grid-opacity, 1);
 }
 
 /* Boot / canvas layout cells */
 .canvas-cell {
   position: relative;
-  background: var(--hub-bg-1);
-  border: 1px solid var(--hub-line);
+  background: var(--color-paper-2);
+  border: 1px solid var(--color-line);
 }
 /* No fill-mode on purpose (same reasoning as .view-enter above): the keyframes
    end at the resting style, and a retained non-none clip-path would make the
@@ -1047,7 +1028,7 @@
  * THE GEOMETRY. The bar is 10px so it stays a real pointer target; the MARK is
  * 2px, inset by a 4px transparent border with `background-clip: content-box`.
  * That split is the whole trick — the hit box has to be big, the mark does not.
- * The radius is a full pill (999px) rather than a corner off the --hub-radius
+ * The radius is a full pill (999px) rather than a corner off the --jk-radius
  * scale because at 2px any corner softer than "round" is indistinguishable from
  * square.
  *
@@ -1122,7 +1103,7 @@
   transition-duration: 0.2s;
 }
 ::-webkit-scrollbar-thumb:hover  { background-color: var(--hub-scroll-mark-hover); background-clip: content-box; transition-duration: 0.12s; }
-::-webkit-scrollbar-thumb:active { background-color: var(--accent); background-clip: content-box; transition-duration: 0.06s; }
+::-webkit-scrollbar-thumb:active { background-color: var(--color-accent); background-clip: content-box; transition-duration: 0.06s; }
 
 /* Opt-out, for strips that scroll but must not show a bar (a tray, a chip row).
    Declared as a class so no app has to re-invent the three-engine incantation. */
@@ -1131,8 +1112,8 @@
 
 /* Selection */
 ::selection {
-  background: var(--hub-amber-dim);
-  color: var(--hub-cream-bright);
+  background: var(--color-accent-dim);
+  color: var(--color-ink);
 }
 
 /* ─── Wells & badges — the paper accent language ───────────────────────────
@@ -1147,42 +1128,42 @@
  *
  * In CRT both moves become emissive: the well's boundary is an accent ring +
  * glow, the badge's emphasis is halation. Both flow from the chain above
- * (--accent / --accent-secondary), so they deepen for paper and go raw + glow
+ * (--color-accent / --color-secondary), so they deepen for paper and go raw + glow
  * for dark automatically.
  *
  * Use the React components from @jkos/ui: <Bubble>, <Press>, <Well>, <Sheet>.
- * Corners follow the per-app --hub-radius* scale (soft by default); no
+ * Corners follow the per-app --jk-radius* scale (soft by default); no
  * texture/effect tokens are touched here.
  * ───────────────────────────────────────────────────────────────────────── */
 
 /* Badged PRIMARY text — raised off the sheet: highlight above, shade below */
 .jk-press {
-  color: var(--accent);
+  color: var(--color-accent);
   text-shadow:
     0 -0.5px 0 rgba(255, 255, 255, 0.45),
-    0 1px 0 color-mix(in srgb, var(--accent) 50%, var(--accent-deepen-ink)),
+    0 1px 0 color-mix(in srgb, var(--color-accent) 50%, var(--hub-deepen-ink)),
     0 2px 1.5px rgba(48, 34, 20, 0.20);
 }
 .jk-press-lg {
-  color: var(--accent);
+  color: var(--color-accent);
   text-shadow:
     0 -1px 0 rgba(255, 255, 255, 0.50),
-    0 1px 0 color-mix(in srgb, var(--accent) 58%, var(--accent-deepen-ink)),
-    0 2px 0 color-mix(in srgb, var(--accent) 48%, var(--accent-deepen-ink)),
+    0 1px 0 color-mix(in srgb, var(--color-accent) 58%, var(--hub-deepen-ink)),
+    0 2px 0 color-mix(in srgb, var(--color-accent) 48%, var(--hub-deepen-ink)),
     0 3px 4px rgba(48, 34, 20, 0.24);
 }
 :root[data-mode="dark"] .jk-press,
 :root[data-mode="dark"] .jk-press-lg {
   /* halation replaces the bevel — same scarcity, opposite physics */
   text-shadow:
-    0 0 12px color-mix(in srgb, var(--accent) 55%, transparent),
-    0 0 3px  color-mix(in srgb, var(--accent) 60%, transparent);
+    0 0 12px color-mix(in srgb, var(--color-accent) 55%, transparent),
+    0 0 3px  color-mix(in srgb, var(--color-accent) 60%, transparent);
 }
 
 /* ─── Pressed-type family — the chip CUT (Full Press chip system) ───────────
  * Where .jk-press badges PRIMARY accent text RAISED off the sheet, these press
  * DATA-tinted or NEUTRAL type INTO it — the letterpress impression on a chip.
- * All read --jk-tint (unset → --accent), so a chip in a goal's own hue presses
+ * All read --jk-tint (unset → --color-accent), so a chip in a goal's own hue presses
  * in that hue. Mode-flips like every accent move: debossed on paper (white top
  * catch-light + a tint-dark bottom lip), halated on the tube.
  *   -ink : neutral-ink title, pressed-shadow ONLY — task titles on a tinted
@@ -1194,7 +1175,7 @@
 .jk-press-ink {
   text-shadow:
     0 1px 0 color-mix(in srgb, #ffffff 55%, transparent),
-    0 -0.5px 0 color-mix(in srgb, var(--jk-tint, var(--accent)) 34%, var(--accent-deepen-ink));
+    0 -0.5px 0 color-mix(in srgb, var(--jk-tint, var(--color-accent)) 34%, var(--hub-deepen-ink));
 }
 .jk-press-rev {
   /* #f7efdc is a printed-cream knockout on a colour tab — a NEUTRAL ink, the
@@ -1203,46 +1184,46 @@
   text-shadow: 0 -1px 0 rgba(30, 18, 4, 0.42), 0 1px 0 rgba(255, 246, 226, 0.26);
 }
 .jk-press-sm {
-  color: color-mix(in srgb, var(--jk-tint, var(--accent)) 82%, var(--color-ink));
+  color: color-mix(in srgb, var(--jk-tint, var(--color-accent)) 82%, var(--color-ink));
   text-shadow: 0 0.5px 0 color-mix(in srgb, #ffffff 55%, transparent);
 }
 :root[data-mode="dark"] .jk-press-ink {
-  text-shadow: 0 0 9px color-mix(in srgb, var(--jk-tint, var(--accent)) 45%, transparent);
+  text-shadow: 0 0 9px color-mix(in srgb, var(--jk-tint, var(--color-accent)) 45%, transparent);
 }
 :root[data-mode="dark"] .jk-press-sm {
-  color: var(--jk-tint, var(--accent));
-  text-shadow: 0 0 10px color-mix(in srgb, var(--jk-tint, var(--accent)) 55%, transparent);
+  color: var(--jk-tint, var(--color-accent));
+  text-shadow: 0 0 10px color-mix(in srgb, var(--jk-tint, var(--color-accent)) 55%, transparent);
 }
 :root[data-mode="dark"] .jk-press-rev {
-  color: var(--jk-tint, var(--accent));
-  text-shadow: 0 0 10px color-mix(in srgb, var(--jk-tint, var(--accent)) 60%, transparent);
+  color: var(--jk-tint, var(--color-accent));
+  text-shadow: 0 0 10px color-mix(in srgb, var(--jk-tint, var(--color-accent)) 60%, transparent);
 }
 
 /* Flat SECONDARY text + link */
-.jk-sub { color: var(--accent-secondary); }
+.jk-sub { color: var(--color-secondary); }
 .jk-sub-link {
-  color: var(--accent-secondary);
+  color: var(--color-secondary);
   text-decoration: none;
-  border-bottom: 1px solid color-mix(in srgb, var(--accent-secondary) 45%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-secondary) 45%, transparent);
   padding-bottom: 1px;
 }
 :root[data-mode="dark"] .jk-sub,
 :root[data-mode="dark"] .jk-sub-link {
-  text-shadow: 0 0 8px color-mix(in srgb, var(--accent-secondary) 40%, transparent);
+  text-shadow: 0 0 8px color-mix(in srgb, var(--color-secondary) 40%, transparent);
 }
 :root[data-mode="dark"] .jk-sub-link {
-  border-bottom-color: color-mix(in srgb, var(--accent-secondary) 50%, transparent);
+  border-bottom-color: color-mix(in srgb, var(--color-secondary) 50%, transparent);
 }
 
 /* The WELL — inset accent-tinted container: debossed on paper, emissive in
    CRT. Wells give a region depth and a boundary; they are containment, not
    emphasis (that's the badge's job). Reuses --hub-accent-press so the mode
-   flip is inherited, not re-stated. --jk-tint (unset → --accent) lets a caller
+   flip is inherited, not re-stated. --jk-tint (unset → --color-accent) lets a caller
    retint the well in a data colour (e.g. a goal's own hue); the dark-mode
    press glow follows the same seam. */
 .jk-well {
-  background: color-mix(in srgb, var(--jk-tint, var(--accent)) 14%, var(--hub-bg-2));
-  border-radius: var(--hub-radius-lg);
+  background: color-mix(in srgb, var(--jk-tint, var(--color-accent)) 14%, var(--color-card));
+  border-radius: var(--jk-radius-lg);
   box-shadow: var(--hub-accent-press);
 }
 
@@ -1254,25 +1235,25 @@
   justify-content: center;
   gap: 6px;
   line-height: 1;
-  font-family: var(--hub-font-serif);
+  font-family: var(--jk-font-serif);
   font-weight: 700;
   letter-spacing: 0.11em;
   text-transform: uppercase;
-  border-radius: var(--hub-radius-lg);
-  font-size: var(--hub-fs-bubble);
-  padding: var(--hub-pad-bubble);
+  border-radius: var(--jk-radius-lg);
+  font-size: var(--jk-fs-bubble);
+  padding: var(--jk-pad-bubble);
 }
-.jk-bubble.jk-bubble-lg { font-size: var(--hub-fs-bubble-lg); letter-spacing: 0.14em; padding: var(--hub-pad-bubble-lg); }
+.jk-bubble.jk-bubble-lg { font-size: var(--jk-fs-bubble-lg); letter-spacing: 0.14em; padding: var(--jk-pad-bubble-lg); }
 
 /* Primary bubble = the BADGE: a raised chip that sits ON the sheet — top
    bevel highlight, drop shadow below. It used to borrow the well's inset
    shadow, which read as debossed; a badge is emphasis, so it rises. */
 .jk-bubble-primary {
-  background: color-mix(in srgb, var(--accent) 14%, var(--hub-bg-2));
-  color: var(--accent);
+  background: color-mix(in srgb, var(--color-accent) 14%, var(--color-card));
+  color: var(--color-accent);
   box-shadow:
     inset 0 1px 0 color-mix(in srgb, #ffffff 60%, transparent),
-    0 1px 0 color-mix(in srgb, var(--accent) 28%, var(--hub-line)),
+    0 1px 0 color-mix(in srgb, var(--color-accent) 28%, var(--color-line)),
     0 2px 5px rgba(48, 34, 20, 0.28);
   /* letterpress: light catches the lower edge of the pressed type */
   text-shadow: 0 1px 0 color-mix(in srgb, #ffffff 45%, transparent);
@@ -1280,26 +1261,26 @@
 :root[data-mode="dark"] .jk-bubble-primary {
   /* in CRT the badge's emphasis is halation, not elevation */
   box-shadow: var(--hub-accent-press);
-  text-shadow: var(--accent-halo-text);
+  text-shadow: var(--hub-halo-text);
 }
 
 /* Secondary bubble = flat pill (the chip) */
 .jk-bubble-secondary {
-  background: color-mix(in srgb, var(--accent-secondary) 11%, var(--hub-bg-2));
-  border: 1px solid color-mix(in srgb, var(--accent-secondary) 28%, transparent);
-  color: var(--accent-secondary);
+  background: color-mix(in srgb, var(--color-secondary) 11%, var(--color-card));
+  border: 1px solid color-mix(in srgb, var(--color-secondary) 28%, transparent);
+  color: var(--color-secondary);
 }
 :root[data-mode="dark"] .jk-bubble-secondary {
-  background: color-mix(in srgb, var(--accent-secondary) 10%, var(--hub-bg-1));
-  border-color: color-mix(in srgb, var(--accent-secondary) 36%, transparent);
+  background: color-mix(in srgb, var(--color-secondary) 10%, var(--color-paper-2));
+  border-color: color-mix(in srgb, var(--color-secondary) 36%, transparent);
 }
 
 /* Card surface */
 .jk-sheet {
-  background: var(--hub-bg-2);
-  border: 1px solid var(--hub-line);
-  border-radius: var(--hub-radius-lg);
-  box-shadow: var(--hub-shadow-card), inset 0 1px 0 var(--hub-bevel-light);
+  background: var(--color-card);
+  border: 1px solid var(--color-line);
+  border-radius: var(--jk-radius-lg);
+  box-shadow: var(--color-shadow-card), inset 0 1px 0 var(--color-bevel-light);
 }
 
 /* ─── The canvas — one measure for a full-page view ─────────────────────────
@@ -1343,7 +1324,7 @@
  *
  * So: NO fill (the grain runs unbroken from the first pixel), NO border, and the
  * bottom edge is the TAPERED RULE defined at .jk-rule-taper, rendered here as a
- * pseudo-element from the same --jk-inlay-* seams so the two can never drift
+ * pseudo-element from the same --jk-taper-mask so the two can never drift
  * into being two different objects.
  *
  * It went the other way first — a printed ladder (2px ink + a hairline), then a
@@ -1367,10 +1348,10 @@
   left: 0; right: 0; bottom: 0;
   height: 1px;
   pointer-events: none;
-  background: var(--jk-inlay-face);
+  background: var(--color-ink);
   opacity: 0.3;
-  -webkit-mask-image: var(--jk-inlay-mask);
-          mask-image: var(--jk-inlay-mask);
+  -webkit-mask-image: var(--jk-taper-mask);
+          mask-image: var(--jk-taper-mask);
 }
 
 /* A nav tab in the masthead — a BOX.
@@ -1389,12 +1370,12 @@
  * So this class is the reset and the hover fill only; the SELECTED tab adds
  * .jk-well — the suite's existing region primitive, reused rather than restated,
  * which is what keeps the mode flip in one place. The radius comes back down to
- * --hub-radius-sm (the well's own lg is a page-scale corner, too soft at tab
+ * --jk-radius-sm (the well's own lg is a page-scale corner, too soft at tab
  * scale); this rule is declared after .jk-well, so it wins without !important. */
 .jk-masthead-tab {
   position: relative;
   border: none;
-  border-radius: var(--hub-radius-sm);
+  border-radius: var(--jk-radius-sm);
   cursor: pointer;
   transition: background 0.14s, box-shadow 0.14s, color 0.14s;
 }
@@ -1427,7 +1408,7 @@
   padding: 9px 0 10px;
   border-top: none;
   background-image: linear-gradient(90deg, transparent 0,
-    var(--hub-line) 9%, var(--hub-line) 91%, transparent 100%);
+    var(--color-line) 9%, var(--color-line) 91%, transparent 100%);
   background-size: 100% 1px;
   background-repeat: no-repeat;
   background-position: left top;
@@ -1487,7 +1468,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: var(--hub-bg-2);
+  background: var(--color-card);
   color: var(--color-ink);
   /* the host layer runs pointer-events:none so it doesn't eat clicks on the view
      underneath; the panel is the part that must receive them. */
@@ -1500,17 +1481,17 @@
   /* soft on the INBOARD corners only: the panel is a leaf tipped in against the
      page's right edge, so the edge it shares with the window stays square and
      the two corners that face the content round. */
-  border-top-left-radius: var(--hub-radius-lg);
-  border-bottom-left-radius: var(--hub-radius-lg);
-  box-shadow: -10px 0 30px var(--hub-shadow-panel-ink);
+  border-top-left-radius: var(--jk-radius-lg);
+  border-bottom-left-radius: var(--jk-radius-lg);
+  box-shadow: -10px 0 30px var(--color-shadow-panel-ink);
 }
 .jk-panel-sheet {
   left: 0; right: 0; bottom: 0;
   max-height: 82vh;
   border-top: 1px solid var(--color-line);
-  border-top-left-radius: var(--hub-radius-lg);
-  border-top-right-radius: var(--hub-radius-lg);
-  box-shadow: 0 -10px 30px var(--hub-shadow-panel-ink);
+  border-top-left-radius: var(--jk-radius-lg);
+  border-top-right-radius: var(--jk-radius-lg);
+  box-shadow: 0 -10px 30px var(--color-shadow-panel-ink);
 }
 /* The panel's own masthead — the selected item's flag. A solid --jk-tint band
    (the item's colour, the chip system's seam) closed by a cream hairline, so the
@@ -1518,7 +1499,7 @@
    than as a coloured toolbar. */
 .jk-panel-head {
   flex: none;
-  background: color-mix(in srgb, var(--jk-tint, var(--accent)) 82%, var(--accent-deepen-ink));
+  background: color-mix(in srgb, var(--jk-tint, var(--color-accent)) 82%, var(--hub-deepen-ink));
   box-shadow: inset 0 -1px 0 rgba(247, 239, 220, 0.28), 0 2px 6px rgba(48, 34, 20, 0.26);
 }
 /* CRT — the same face flip .jk-chip-solid takes, and for the same reason: on the
@@ -1531,14 +1512,14 @@
    Getting this wrong is not cosmetic: keeping the paper recipe here put tinted
    type on a same-tinted band, and the panel's title became unreadable in dark. */
 :root[data-mode="dark"] .jk-panel-head {
-  background: color-mix(in srgb, var(--jk-tint, var(--accent)) 20%, #0e0b07);
-  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--jk-tint, var(--accent)) 45%, transparent),
-              0 0 18px color-mix(in srgb, var(--jk-tint, var(--accent)) 22%, transparent);
+  background: color-mix(in srgb, var(--jk-tint, var(--color-accent)) 20%, #0e0b07);
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--jk-tint, var(--color-accent)) 45%, transparent),
+              0 0 18px color-mix(in srgb, var(--jk-tint, var(--color-accent)) 22%, transparent);
 }
 
 /* ─── Chips — the Full Press solid-ink tab (SUITE DEFAULT) ──────────────────
  * The saturated letter-tab that supersedes the calendar kit's old ACCENT_GLAZE
- * chip: a --jk-tint (unset → --accent) fill deepened toward --accent-deepen-ink,
+ * chip: a --jk-tint (unset → --color-accent) fill deepened toward --hub-deepen-ink,
  * with the type cream-KNOCKED-OUT and pressed in (pair with .jk-press-rev on a
  * solid tab, .jk-press-ink on the faint base). Mode-flips like every accent
  * surface — inset bevel + drop on paper, halation ring on the tube. A chip is a
@@ -1553,34 +1534,34 @@
  *   .jk-chip-sm     dense (calendar cells, tight rails)
  * ───────────────────────────────────────────────────────────────────────── */
 .jk-chip {
-  border-radius: var(--hub-radius-xs);
-  background: color-mix(in srgb, var(--jk-tint, var(--accent)) 14%, var(--hub-bg-2));
+  border-radius: var(--jk-radius-xs);
+  background: color-mix(in srgb, var(--jk-tint, var(--color-accent)) 14%, var(--color-card));
   box-shadow:
     inset 0 1px 0 color-mix(in srgb, #ffffff 60%, transparent),
-    0 1px 0 color-mix(in srgb, var(--jk-tint, var(--accent)) 28%, var(--hub-line)),
+    0 1px 0 color-mix(in srgb, var(--jk-tint, var(--color-accent)) 28%, var(--color-line)),
     0 2px 5px rgba(48, 34, 20, 0.28);
   transition: box-shadow 0.16s, transform 0.12s, background 0.16s;
 }
 .jk-chip:hover {
   transform: translateY(1px);
-  background: color-mix(in srgb, var(--jk-tint, var(--accent)) 18%, var(--hub-bg-2));
+  background: color-mix(in srgb, var(--jk-tint, var(--color-accent)) 18%, var(--color-card));
   box-shadow: var(--hub-accent-press);
 }
 .jk-chip-live {
-  background: color-mix(in srgb, var(--jk-tint, var(--accent)) 18%, var(--hub-bg-2));
+  background: color-mix(in srgb, var(--jk-tint, var(--color-accent)) 18%, var(--color-card));
   box-shadow:
     inset 0 1px 0 color-mix(in srgb, #ffffff 62%, transparent),
-    0 1px 0 color-mix(in srgb, var(--jk-tint, var(--accent)) 32%, var(--hub-line)),
+    0 1px 0 color-mix(in srgb, var(--jk-tint, var(--color-accent)) 32%, var(--color-line)),
     0 4px 9px rgba(48, 34, 20, 0.28);
 }
 .jk-chip-done {
-  background: color-mix(in srgb, var(--jk-tint, var(--accent)) 7%, var(--hub-bg-2));
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--jk-tint, var(--accent)) 20%, transparent);
+  background: color-mix(in srgb, var(--jk-tint, var(--color-accent)) 7%, var(--color-card));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--jk-tint, var(--color-accent)) 20%, transparent);
   opacity: 0.62;
 }
 .jk-chip-done:hover {
   transform: none;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--jk-tint, var(--accent)) 28%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--jk-tint, var(--color-accent)) 28%, transparent);
 }
 /* Ended but not struck off. Deliberately ONLY an opacity — a spent chip is the
    same chip, just behind you, so it keeps its fill, its ring and its type. This
@@ -1596,27 +1577,27 @@
 }
 /* THE DEFAULT tab — Opt 4 solid-ink fill + Opt 1 pressed type (cream knockout) */
 .jk-chip-solid {
-  background: color-mix(in srgb, var(--jk-tint, var(--accent)) 82%, var(--accent-deepen-ink));
+  background: color-mix(in srgb, var(--jk-tint, var(--color-accent)) 82%, var(--hub-deepen-ink));
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 2px 5px rgba(48, 34, 20, 0.3);
 }
 .jk-chip-solid:hover {
   transform: translateY(1px);
-  background: color-mix(in srgb, var(--jk-tint, var(--accent)) 88%, var(--accent-deepen-ink));
+  background: color-mix(in srgb, var(--jk-tint, var(--color-accent)) 88%, var(--hub-deepen-ink));
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 1px 3px rgba(48, 34, 20, 0.34);
 }
 .jk-chip-solid.jk-chip-sm {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 1px 2px rgba(48, 34, 20, 0.26);
 }
 .jk-chip-solid.jk-chip-live {
-  background: color-mix(in srgb, var(--jk-tint, var(--accent)) 92%, var(--accent-deepen-ink));
+  background: color-mix(in srgb, var(--jk-tint, var(--color-accent)) 92%, var(--hub-deepen-ink));
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.28),
-    0 0 0 1.5px color-mix(in srgb, #ffffff 55%, var(--jk-tint, var(--accent))),
+    0 0 0 1.5px color-mix(in srgb, #ffffff 55%, var(--jk-tint, var(--color-accent))),
     0 3px 9px rgba(48, 34, 20, 0.36);
 }
 .jk-chip-solid.jk-chip-done {
-  background: color-mix(in srgb, var(--jk-tint, var(--accent)) 7%, var(--hub-bg-2));
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--jk-tint, var(--accent)) 20%, transparent);
+  background: color-mix(in srgb, var(--jk-tint, var(--color-accent)) 7%, var(--color-card));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--jk-tint, var(--color-accent)) 20%, transparent);
 }
 /* NOT CHOSEN — the other half of every toggle group (weekday selectors, filter
    rails, tabs). It exists because `solid={x === y}` is NOT a legible toggle on
@@ -1637,13 +1618,13 @@
    .jk-chip, which is a tinted ITEM, not a switch that happens to be off. */
 .jk-chip-off {
   background: transparent;
-  box-shadow: inset 0 0 0 1px var(--hub-line);
+  box-shadow: inset 0 0 0 1px var(--color-line);
   color: var(--color-faint);
 }
 .jk-chip-off:hover {
   transform: none;
-  background: var(--hub-bg-4);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--jk-tint, var(--accent)) 45%, var(--hub-line));
+  background: var(--color-lit);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--jk-tint, var(--color-accent)) 45%, var(--color-line));
   color: var(--color-ink);
 }
 
@@ -1657,32 +1638,32 @@
 :root[data-mode="dark"] .jk-chip,
 :root[data-mode="dark"] .jk-chip-live {
   box-shadow:
-    0 0 14px color-mix(in srgb, var(--jk-tint, var(--accent)) 48%, transparent),
-    inset 0 0 0 1px color-mix(in srgb, var(--jk-tint, var(--accent)) 42%, transparent);
+    0 0 14px color-mix(in srgb, var(--jk-tint, var(--color-accent)) 48%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--jk-tint, var(--color-accent)) 42%, transparent);
 }
 :root[data-mode="dark"] .jk-chip:hover {
   transform: none;
   box-shadow:
-    0 0 5px color-mix(in srgb, var(--jk-tint, var(--accent)) 30%, transparent),
-    inset 0 0 0 1px color-mix(in srgb, var(--jk-tint, var(--accent)) 55%, transparent);
+    0 0 5px color-mix(in srgb, var(--jk-tint, var(--color-accent)) 30%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--jk-tint, var(--color-accent)) 55%, transparent);
 }
 :root[data-mode="dark"] .jk-chip-done,
 :root[data-mode="dark"] .jk-chip-done:hover {
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--jk-tint, var(--accent)) 25%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--jk-tint, var(--color-accent)) 25%, transparent);
 }
 :root[data-mode="dark"] .jk-chip-solid {
-  background: color-mix(in srgb, var(--jk-tint, var(--accent)) 26%, #0e0b07);
+  background: color-mix(in srgb, var(--jk-tint, var(--color-accent)) 26%, #0e0b07);
   box-shadow:
-    0 0 14px color-mix(in srgb, var(--jk-tint, var(--accent)) 35%, transparent),
-    inset 0 0 0 1px color-mix(in srgb, var(--jk-tint, var(--accent)) 52%, transparent);
+    0 0 14px color-mix(in srgb, var(--jk-tint, var(--color-accent)) 35%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--jk-tint, var(--color-accent)) 52%, transparent);
 }
 :root[data-mode="dark"] .jk-chip-solid.jk-chip-live {
   box-shadow:
-    0 0 20px color-mix(in srgb, var(--jk-tint, var(--accent)) 55%, transparent),
-    inset 0 0 0 1px color-mix(in srgb, var(--jk-tint, var(--accent)) 70%, transparent);
+    0 0 20px color-mix(in srgb, var(--jk-tint, var(--color-accent)) 55%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--jk-tint, var(--color-accent)) 70%, transparent);
 }
 :root[data-mode="dark"] .jk-chip-solid .mono-eyebrow {
-  color: color-mix(in srgb, var(--jk-tint, var(--accent)) 55%, transparent);
+  color: color-mix(in srgb, var(--jk-tint, var(--color-accent)) 55%, transparent);
 }
 /* NOT CHOSEN stays unlit on the tube — restated because every rule above hands
    the chip a halation ring, and inheriting one is the whole bug this rung fixes.
@@ -1690,26 +1671,26 @@
 :root[data-mode="dark"] .jk-chip-off,
 :root[data-mode="dark"] .jk-chip-off:hover {
   background: transparent;
-  box-shadow: inset 0 0 0 1px var(--hub-line);
+  box-shadow: inset 0 0 0 1px var(--color-line);
 }
 :root[data-mode="dark"] .jk-chip-off:hover {
-  background: var(--hub-bg-4);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--jk-tint, var(--accent)) 45%, var(--hub-line));
+  background: var(--color-lit);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--jk-tint, var(--color-accent)) 45%, var(--color-line));
 }
 
 /* ─── Media grid + cover art (@jkos/ui MediaGrid / CoverArt) ───────────────
  * The suite's responsive cover grid + its image/fallback tile — lifted out
  * of the book library's library.css (git history: item 20.2) so the column ladder and cover
  * styling live once, not re-hardcoded per app. Density keys off the ladder
- * tokens declared with --hub-tap-min above (kept in sync with
+ * tokens declared with --jk-tap-min above (kept in sync with
  * packages/design/responsive/mediaGrid.ts by test/responsive.mjs). ───────── */
 .jk-media-grid {
   display: grid;
-  gap: var(--hub-media-grid-gap);
+  gap: var(--jk-media-grid-gap);
 }
-.jk-media-grid[data-density="compact"]     { grid-template-columns: repeat(var(--hub-media-cols-compact), 1fr); }
-.jk-media-grid[data-density="cozy"]        { grid-template-columns: repeat(var(--hub-media-cols-cozy), 1fr); gap: var(--hub-media-grid-gap-tight); }
-.jk-media-grid[data-density="comfortable"] { grid-template-columns: repeat(var(--hub-media-cols-comfortable), 1fr); gap: var(--hub-media-grid-gap-tight); }
+.jk-media-grid[data-density="compact"]     { grid-template-columns: repeat(var(--jk-media-cols-compact), 1fr); }
+.jk-media-grid[data-density="cozy"]        { grid-template-columns: repeat(var(--jk-media-cols-cozy), 1fr); gap: var(--jk-media-grid-gap-tight); }
+.jk-media-grid[data-density="comfortable"] { grid-template-columns: repeat(var(--jk-media-cols-comfortable), 1fr); gap: var(--jk-media-grid-gap-tight); }
 
 /* Cover image — square (audiobook/media artwork convention; a 2/3 book-
    jacket ratio would crop real covers). Placeholder reuses .jk-well (inset
@@ -1720,7 +1701,7 @@
   width: 100%;
   aspect-ratio: 1 / 1;
   object-fit: cover;
-  background: var(--hub-bg-1);
+  background: var(--color-paper-2);
 }
 /* `display: flex` is load-bearing: .jk-media-cover above sets `display: block`,
    and at equal specificity the later rule wins — so without this the centering
@@ -1747,16 +1728,16 @@
   flex: none;
   width: 48px;
   height: 48px;
-  border-radius: var(--hub-radius-sm);
+  border-radius: var(--jk-radius-sm);
   object-fit: cover;
-  background: var(--hub-bg-1);
-  border: 1px solid var(--hub-line);
+  background: var(--color-paper-2);
+  border: 1px solid var(--color-line);
 }
 .jk-media-thumb-placeholder {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--hub-cream-faint);
+  color: var(--color-ghost);
 }
 
 /* ─── Async state text (@jkos/ui <AsyncView>) ──────────────────────────────
@@ -1771,7 +1752,7 @@
   /* Full Press: off-states carry the idiom — the note is SET (serif italic),
      like a compositor's aside, not typed. Copy follows the print idiom too
      ("Setting type…", a stamped NO SIGNAL on error) — that part is per-app. */
-  font-family: var(--hub-font-serif);
+  font-family: var(--jk-font-serif);
   font-style: italic;
   font-size: 0.95rem;
   padding: 1.5rem 0;
@@ -1782,7 +1763,7 @@
    26 — the W23/W25 sweeps left zero call sites: MatchPanel rides .jk-async-note,
    metadata lines carry dim ink on their own classes.) */
 .jk-async-error {
-  color: color-mix(in srgb, var(--hub-red) 75%, var(--hub-cream-dim));
+  color: color-mix(in srgb, var(--color-danger) 75%, var(--color-faint));
   opacity: 1;
 }
 
@@ -1796,45 +1777,45 @@
    serif holds legibility at these sizes). The machine's own annotations stay
    mono — that's .mono-eyebrow, deliberately untouched. */
 .jk-lab {
-  font-family: var(--hub-font-serif);
+  font-family: var(--jk-font-serif);
   font-weight: 600;
-  font-size: calc(var(--hub-fs-lab) + 1px);
+  font-size: calc(var(--jk-fs-lab) + 1px);
   letter-spacing: 0.15em;
   text-transform: uppercase;
-  color: var(--hub-cream);
+  color: var(--color-muted);
 }
-.jk-lab.jk-lab-sm { font-size: calc(var(--hub-fs-lab-sm) + 1px); letter-spacing: 0.14em; color: var(--hub-cream-dim); }
-.jk-lab.jk-lab-xs { font-size: calc(var(--hub-fs-lab-xs) + 1px); letter-spacing: 0.13em; color: var(--hub-cream-dim); }
+.jk-lab.jk-lab-sm { font-size: calc(var(--jk-fs-lab-sm) + 1px); letter-spacing: 0.14em; color: var(--color-faint); }
+.jk-lab.jk-lab-xs { font-size: calc(var(--jk-fs-lab-xs) + 1px); letter-spacing: 0.13em; color: var(--color-faint); }
 /* Sans eyebrow — same tracked-caps label in the UI sans (softer than the mono
    default) for prose-adjacent section heads. Blessed variant, not a new type. */
-.jk-lab.jk-lab-sans { font-family: var(--hub-font-sans); letter-spacing: 0.14em; }
+.jk-lab.jk-lab-sans { font-family: var(--jk-font-sans); letter-spacing: 0.14em; }
 
 /* Compact text button — printed, not typed (Full Press): Fraunces caps, flat,
    hovers to the secondary accent (behaviour unchanged). */
 .jk-tbtn {
-  font-family: var(--hub-font-serif);
+  font-family: var(--jk-font-serif);
   font-weight: 600;
-  font-size: calc(var(--hub-fs-tbtn) + 1.5px);
+  font-size: calc(var(--jk-fs-tbtn) + 1.5px);
   letter-spacing: 0.09em;
   line-height: 1;
-  padding: var(--hub-pad-tbtn);
-  color: var(--hub-cream);
+  padding: var(--jk-pad-tbtn);
+  color: var(--color-muted);
   background: transparent;
-  border: 1px solid var(--hub-line);
-  border-radius: var(--hub-radius-sm);
+  border: 1px solid var(--color-line);
+  border-radius: var(--jk-radius-sm);
   cursor: pointer;
   transition: color 0.12s, border-color 0.12s;
 }
 .jk-tbtn.jk-tbtn-quiet {
-  color: var(--hub-cream-dim);
-  border-color: color-mix(in srgb, var(--hub-line) 55%, transparent);
+  color: var(--color-faint);
+  border-color: color-mix(in srgb, var(--color-line) 55%, transparent);
 }
 .jk-tbtn:hover {
-  color: var(--accent-secondary);
-  border-color: color-mix(in srgb, var(--accent-secondary) 50%, transparent);
+  color: var(--color-secondary);
+  border-color: color-mix(in srgb, var(--color-secondary) 50%, transparent);
 }
 :root[data-mode="dark"] .jk-tbtn:hover {
-  text-shadow: 0 0 8px color-mix(in srgb, var(--accent-secondary) 40%, transparent);
+  text-shadow: 0 0 8px color-mix(in srgb, var(--color-secondary) 40%, transparent);
 }
 
 /* Status pill — defaults to the OK/green status; glows in CRT. */
@@ -1842,16 +1823,16 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-family: var(--hub-font-mono);
-  font-size: var(--hub-fs-pill);
+  font-family: var(--jk-font-mono);
+  font-size: var(--jk-fs-pill);
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  padding: var(--hub-pad-pill);
-  border-radius: var(--hub-radius-lg);
-  color: var(--hub-green);
-  border: 1px solid color-mix(in srgb, var(--hub-green) 40%, transparent);
+  padding: var(--jk-pad-pill);
+  border-radius: var(--jk-radius-lg);
+  color: var(--color-ok);
+  border: 1px solid color-mix(in srgb, var(--color-ok) 40%, transparent);
 }
-:root[data-mode="dark"] .jk-pill { text-shadow: 0 0 8px var(--hub-green-glow); }
+:root[data-mode="dark"] .jk-pill { text-shadow: 0 0 8px var(--color-ok-glow); }
 
 /* ─── Fields — the WRITE half of the control set ───────────────────────────
  * Everything the user types into: text, number, select, textarea, search, date.
@@ -1877,30 +1858,30 @@
   -webkit-appearance: none;
   box-sizing: border-box;
   min-width: 0;
-  min-height: var(--hub-tap-min);
+  min-height: var(--jk-tap-min);
   margin: 0;
-  font-family: var(--hub-font-mono);
-  font-size: var(--hub-fs-field);
+  font-family: var(--jk-font-mono);
+  font-size: var(--jk-fs-field);
   line-height: 1.45;
   color: var(--color-ink);
-  caret-color: var(--accent);
+  caret-color: var(--color-accent);
   background: var(--hub-field-face);
-  border: 1px solid var(--hub-line);
-  border-radius: var(--hub-radius-xs);
+  border: 1px solid var(--color-line);
+  border-radius: var(--jk-radius-xs);
   box-shadow: var(--hub-field-recess);
-  padding: var(--hub-pad-field);
+  padding: var(--jk-pad-field);
   outline: none;
   transition: background 0.12s, border-color 0.12s, box-shadow 0.12s;
 }
 
 /* The dense rung — a workshop row fits a dozen of these. */
-.jk-field-sm { font-size: var(--hub-fs-field-sm); padding: var(--hub-pad-field-sm); }
+.jk-field-sm { font-size: var(--jk-fs-field-sm); padding: var(--jk-pad-field-sm); }
 
 /* The TITLE field — one per form, the thing being named. Set in the display
    serif at content weight, so the name of a thing looks like a name and not
    like another parameter of it. */
 .jk-field-title {
-  font-family: var(--hub-font-serif);
+  font-family: var(--jk-font-serif);
   font-size: 14px;
   font-weight: 600;
   letter-spacing: 0.01em;
@@ -1940,10 +1921,10 @@
    always warrants the state, however the user got there. */
 .jk-field:focus {
   background: var(--hub-field-face-focus);
-  border-color: color-mix(in srgb, var(--accent) 75%, var(--hub-line));
+  border-color: color-mix(in srgb, var(--color-accent) 75%, var(--color-line));
   box-shadow: var(--hub-field-recess-focus);
 }
-.jk-field:hover:not(:focus):not(:disabled) { border-color: var(--hub-line-strong); }
+.jk-field:hover:not(:focus):not(:disabled) { border-color: var(--color-line-strong); }
 
 /* Firefox dims placeholders on its own; opacity:1 takes the colour back. */
 .jk-field::placeholder { color: var(--color-faint); opacity: 1; }
@@ -1955,7 +1936,7 @@
   background: transparent;
   box-shadow: none;
   color: var(--color-muted);
-  border-color: color-mix(in srgb, var(--hub-line) 60%, transparent);
+  border-color: color-mix(in srgb, var(--color-line) 60%, transparent);
   cursor: default;
 }
 .jk-field:read-only:not(:disabled) { color: var(--color-muted); }
@@ -1964,7 +1945,7 @@ textarea.jk-field { resize: vertical; }
 
 /* The OS popup is the one part of a <select> nobody can draw; setting the option
    colours at least keeps it from opening as a stark white sheet on the tube. */
-.jk-field option { background: var(--hub-bg-1); color: var(--color-ink); }
+.jk-field option { background: var(--color-paper-2); color: var(--color-ink); }
 
 /* ── Native chrome removal ───────────────────────────────────────────────────
  * Vendor pseudo-elements CANNOT be grouped across engines — one selector an
@@ -2003,7 +1984,7 @@ textarea.jk-field { resize: vertical; }
 .jk-field:-webkit-autofill:hover,
 .jk-field:-webkit-autofill:focus {
   -webkit-text-fill-color: var(--color-ink);
-  caret-color: var(--accent);
+  caret-color: var(--color-accent);
   -webkit-box-shadow: var(--hub-field-recess), inset 0 0 0 100px var(--hub-field-face);
 }
 
@@ -2033,7 +2014,7 @@ textarea.jk-field { resize: vertical; }
   transition: border-color 0.12s;
 }
 .jk-field-sel:hover::after { border-color: var(--color-ink); }
-.jk-field-sel:focus-within::after { border-color: var(--accent); }
+.jk-field-sel:focus-within::after { border-color: var(--color-accent); }
 .jk-field-sel:has(> .jk-field:disabled)::after { opacity: 0.45; }
 
 /* ── Number — the field plus the house stepper ─────────────────────────────
@@ -2056,7 +2037,7 @@ textarea.jk-field { resize: vertical; }
   top: 4px;
   bottom: 4px;
   width: 1px;
-  background: var(--hub-line);
+  background: var(--color-line);
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.12s;
@@ -2097,8 +2078,8 @@ textarea.jk-field { resize: vertical; }
 
 .jk-field-num:hover .jk-field-step,
 .jk-field-num:focus-within .jk-field-step { opacity: 1; }
-.jk-field-step:hover { color: var(--accent); }
-.jk-field-step:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; opacity: 1; }
+.jk-field-step:hover { color: var(--color-accent); }
+.jk-field-step:focus-visible { outline: 1px solid var(--color-accent); outline-offset: -1px; opacity: 1; }
 /* Nothing to step and nothing to divide when the value is locked. */
 .jk-field-num:has(> .jk-field:disabled) .jk-field-step { display: none; }
 .jk-field-num:has(> .jk-field:disabled)::after { display: none; }
@@ -2136,14 +2117,14 @@ textarea.jk-field { resize: vertical; }
    engine is concerned, so it takes `highlight`/`highlighttext`. Replaced by
    the same accent wash ::selection uses, so moving the caret across a time
    field looks like moving it across any other text in the suite. */
-.jk-field::-webkit-datetime-edit-year-field:focus   { background: color-mix(in srgb, var(--accent) 26%, transparent); color: var(--color-ink); }
-.jk-field::-webkit-datetime-edit-month-field:focus  { background: color-mix(in srgb, var(--accent) 26%, transparent); color: var(--color-ink); }
-.jk-field::-webkit-datetime-edit-day-field:focus    { background: color-mix(in srgb, var(--accent) 26%, transparent); color: var(--color-ink); }
-.jk-field::-webkit-datetime-edit-hour-field:focus   { background: color-mix(in srgb, var(--accent) 26%, transparent); color: var(--color-ink); }
-.jk-field::-webkit-datetime-edit-minute-field:focus { background: color-mix(in srgb, var(--accent) 26%, transparent); color: var(--color-ink); }
-.jk-field::-webkit-datetime-edit-second-field:focus { background: color-mix(in srgb, var(--accent) 26%, transparent); color: var(--color-ink); }
-.jk-field::-webkit-datetime-edit-ampm-field:focus   { background: color-mix(in srgb, var(--accent) 26%, transparent); color: var(--color-ink); }
-.jk-field::-webkit-datetime-edit-week-field:focus   { background: color-mix(in srgb, var(--accent) 26%, transparent); color: var(--color-ink); }
+.jk-field::-webkit-datetime-edit-year-field:focus   { background: color-mix(in srgb, var(--color-accent) 26%, transparent); color: var(--color-ink); }
+.jk-field::-webkit-datetime-edit-month-field:focus  { background: color-mix(in srgb, var(--color-accent) 26%, transparent); color: var(--color-ink); }
+.jk-field::-webkit-datetime-edit-day-field:focus    { background: color-mix(in srgb, var(--color-accent) 26%, transparent); color: var(--color-ink); }
+.jk-field::-webkit-datetime-edit-hour-field:focus   { background: color-mix(in srgb, var(--color-accent) 26%, transparent); color: var(--color-ink); }
+.jk-field::-webkit-datetime-edit-minute-field:focus { background: color-mix(in srgb, var(--color-accent) 26%, transparent); color: var(--color-ink); }
+.jk-field::-webkit-datetime-edit-second-field:focus { background: color-mix(in srgb, var(--color-accent) 26%, transparent); color: var(--color-ink); }
+.jk-field::-webkit-datetime-edit-ampm-field:focus   { background: color-mix(in srgb, var(--color-accent) 26%, transparent); color: var(--color-ink); }
+.jk-field::-webkit-datetime-edit-week-field:focus   { background: color-mix(in srgb, var(--color-accent) 26%, transparent); color: var(--color-ink); }
 
 /* ── The DRAWN picker ──────────────────────────────────────────────────────
  * `appearance: none` only ever reached the select's BUTTON. The list it drops
@@ -2191,7 +2172,7 @@ textarea.jk-field { resize: vertical; }
   }
   .jk-field-sel > .jk-field:hover::picker-icon { border-color: var(--color-ink); }
   .jk-field-sel > .jk-field:open::picker-icon {
-    border-color: var(--accent);
+    border-color: var(--color-accent);
     /* Points at the list it opened, the same move the fold marker makes. */
     transform: rotate(-135deg);
     margin-top: 2px;
@@ -2209,10 +2190,10 @@ textarea.jk-field { resize: vertical; }
     padding: 3px;
     background: var(--hub-menu-face);
     border: 1px solid var(--hub-menu-line);
-    border-radius: var(--hub-radius-xs);
+    border-radius: var(--jk-radius-xs);
     box-shadow: var(--hub-menu-lift);
-    font-family: var(--hub-font-mono);
-    font-size: var(--hub-fs-field);
+    font-family: var(--jk-font-mono);
+    font-size: var(--jk-fs-field);
     color: var(--color-ink);
   }
 
@@ -2220,7 +2201,7 @@ textarea.jk-field { resize: vertical; }
     display: flex;
     align-items: center;
     gap: 6px;
-    min-height: var(--hub-tap-min);
+    min-height: var(--jk-tap-min);
     padding: 5px 7px;
     border-radius: 2px;
     background: transparent;
@@ -2232,17 +2213,17 @@ textarea.jk-field { resize: vertical; }
      driving an invisible cursor. */
   .jk-field-sel > .jk-field option:hover,
   .jk-field-sel > .jk-field option:focus {
-    background: color-mix(in srgb, var(--accent) 15%, transparent);
+    background: color-mix(in srgb, var(--color-accent) 15%, transparent);
     outline: none;
   }
-  .jk-field-sel > .jk-field option:checked { color: var(--accent); }
+  .jk-field-sel > .jk-field option:checked { color: var(--color-accent); }
   /* The engine's default is an OS tick. The house mark is the caret the rest of
      the suite uses for "this one" — held at a fixed width so labels still line
      up in the column when only one row carries it. */
   .jk-field-sel > .jk-field option::checkmark {
     content: "\25B8";
     width: 6px;
-    color: var(--accent);
+    color: var(--color-accent);
     order: -1;
   }
 }
@@ -2255,18 +2236,18 @@ textarea.jk-field { resize: vertical; }
 .jk-field::file-selector-button {
   margin-right: 7px;
   padding: 3px 8px;
-  font-family: var(--hub-font-mono);
-  font-size: var(--hub-fs-field-sm);
+  font-family: var(--jk-font-mono);
+  font-size: var(--jk-fs-field-sm);
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--color-ink);
-  background: var(--hub-bg-2);
-  border: 1px solid var(--hub-line);
+  background: var(--color-card);
+  border: 1px solid var(--color-line);
   border-radius: 2px;
   cursor: pointer;
   transition: background 0.12s, border-color 0.12s;
 }
-.jk-field::file-selector-button:hover { background: var(--hub-bg-3); border-color: var(--hub-line-strong); }
+.jk-field::file-selector-button:hover { background: var(--color-card-2); border-color: var(--color-line-strong); }
 
 /* ── Colour swatch ─────────────────────────────────────────────────────────
  * An unstyled `input[type=color]` is an OS button with a chip in it. Reduced to
@@ -2274,8 +2255,8 @@ textarea.jk-field { resize: vertical; }
  * swatch differently, so — separate rules. */
 .jk-field[type="color"] { width: 34px; padding: 2px; cursor: pointer; }
 .jk-field[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
-.jk-field[type="color"]::-webkit-color-swatch { border: 1px solid var(--hub-line); border-radius: 2px; }
-.jk-field[type="color"]::-moz-color-swatch    { border: 1px solid var(--hub-line); border-radius: 2px; }
+.jk-field[type="color"]::-webkit-color-swatch { border: 1px solid var(--color-line); border-radius: 2px; }
+.jk-field[type="color"]::-moz-color-swatch    { border: 1px solid var(--color-line); border-radius: 2px; }
 
 /* ── Fold — <details>/<summary> ────────────────────────────────────────────
  * The default disclosure triangle is an OS glyph in an OS colour, and it is
@@ -2304,20 +2285,20 @@ textarea.jk-field { resize: vertical; }
   transition: transform 0.14s ease, border-color 0.12s;
 }
 .jk-fold > summary:hover::before { border-color: var(--color-ink); }
-.jk-fold[open] > summary::before { transform: rotate(45deg); border-color: var(--accent); }
+.jk-fold[open] > summary::before { transform: rotate(45deg); border-color: var(--color-accent); }
 
 /* ── Keyboard focus, everywhere else ───────────────────────────────────────
  * The engine's default focus ring is a two-tone OS outline. This is the house
  * one, and it is the FLOOR: any control that states focus better (the field's
  * recess, the slider's thumb ring) overrides it on specificity. `:focus-visible`
  * and not `:focus`, so a mouse click never paints it. */
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
 /* The field carries its whole focus state in the recess + rim; a ring on top of
    that is one boundary too many. */
 .jk-field:focus-visible { outline: none; }
 
 /* Native <dialog>'s backdrop is a flat OS black. Same veil as <Scrim>. */
-dialog::backdrop { background: var(--hub-scrim); }
+dialog::backdrop { background: var(--color-scrim); }
 
 /* ── Check — the REAL checkbox ─────────────────────────────────────────────
  * <Check> (and .jk-check) is a drawn button that reports state through
@@ -2334,7 +2315,7 @@ dialog::backdrop { background: var(--hub-scrim); }
   flex: none;
   cursor: pointer;
 }
-.jk-field-check:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.jk-field-check:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
 
 /* ─── Toggles — switch + checkbox ──────────────────────────────────────────
  * Neutral track/box that fills with the accent (or --jk-tint) when checked and
@@ -2348,18 +2329,18 @@ dialog::backdrop { background: var(--hub-scrim); }
   width: 46px;
   height: 26px;
   padding: 0;
-  border: 1px solid var(--hub-line);
+  border: 1px solid var(--color-line);
   border-radius: 999px;
-  background: var(--hub-bg-0);
+  background: var(--color-paper);
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
 }
 .jk-switch[aria-checked="true"] {
-  background: var(--jk-tint, var(--accent));
-  border-color: var(--jk-tint, var(--accent));
+  background: var(--jk-tint, var(--color-accent));
+  border-color: var(--jk-tint, var(--color-accent));
 }
 :root[data-mode="dark"] .jk-switch[aria-checked="true"] {
-  box-shadow: 0 0 10px color-mix(in srgb, var(--jk-tint, var(--accent)) 45%, transparent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--jk-tint, var(--color-accent)) 45%, transparent);
 }
 .jk-switch-knob {
   position: absolute;
@@ -2368,7 +2349,7 @@ dialog::backdrop { background: var(--hub-scrim); }
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: var(--hub-bg-2);
+  background: var(--color-card);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
   transition: transform 0.15s;
 }
@@ -2383,20 +2364,20 @@ dialog::backdrop { background: var(--hub-scrim); }
   width: 18px;
   height: 18px;
   padding: 0;
-  border: 1px solid var(--hub-line-strong);
-  border-radius: var(--hub-radius-sm);
-  background: var(--hub-bg-1);
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--jk-radius-sm);
+  background: var(--color-paper-2);
   color: transparent;
   cursor: pointer;
   transition: background 0.12s, border-color 0.12s, color 0.12s;
 }
 .jk-check[aria-checked="true"] {
-  background: var(--jk-tint, var(--accent));
-  border-color: var(--jk-tint, var(--accent));
+  background: var(--jk-tint, var(--color-accent));
+  border-color: var(--jk-tint, var(--color-accent));
   color: var(--color-on-accent);
 }
 :root[data-mode="dark"] .jk-check[aria-checked="true"] {
-  box-shadow: 0 0 8px color-mix(in srgb, var(--jk-tint, var(--accent)) 40%, transparent);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--jk-tint, var(--color-accent)) 40%, transparent);
 }
 
 /* ─── Slider — continuous range control ────────────────────────────────────
@@ -2405,7 +2386,7 @@ dialog::backdrop { background: var(--hub-scrim); }
  * switch/check pair above, for continuous values (seek, volume, rate).
  *
  * Host a real <input type="range" class="jk-slider"> so keyboard, aria and the
- * step semantics come from the platform. The input box is a full --hub-tap-min
+ * step semantics come from the platform. The input box is a full --jk-tap-min
  * tall (the ≥44px hit area) while the visible track stays thin — the same trick
  * the player scrubber used, kept.
  *
@@ -2420,7 +2401,7 @@ dialog::backdrop { background: var(--hub-scrim); }
   -webkit-appearance: none;
   flex: 1 1 auto;
   min-width: 0;
-  height: var(--hub-tap-min);
+  height: var(--jk-tap-min);
   margin: 0;
   background: transparent;
   cursor: pointer;
@@ -2430,26 +2411,26 @@ dialog::backdrop { background: var(--hub-scrim); }
 /* Track — debossed channel, accent to the left of the cap, neutral to the right. */
 .jk-slider::-webkit-slider-runnable-track {
   height: 6px;
-  border: 1px solid var(--hub-line);
-  border-radius: var(--hub-radius-xs);
-  box-shadow: var(--hub-shadow-inset);
+  border: 1px solid var(--color-line);
+  border-radius: var(--jk-radius-xs);
+  box-shadow: var(--color-shadow-inset);
   background:
     linear-gradient(
       to right,
-      var(--jk-tint, var(--accent)) 0 var(--jk-slider-fill, 0%),
-      var(--hub-bg-0) var(--jk-slider-fill, 0%)
+      var(--jk-tint, var(--color-accent)) 0 var(--jk-slider-fill, 0%),
+      var(--color-paper) var(--jk-slider-fill, 0%)
     );
 }
 .jk-slider::-moz-range-track {
   height: 6px;
-  border: 1px solid var(--hub-line);
-  border-radius: var(--hub-radius-xs);
-  box-shadow: var(--hub-shadow-inset);
+  border: 1px solid var(--color-line);
+  border-radius: var(--jk-radius-xs);
+  box-shadow: var(--color-shadow-inset);
   background:
     linear-gradient(
       to right,
-      var(--jk-tint, var(--accent)) 0 var(--jk-slider-fill, 0%),
-      var(--hub-bg-0) var(--jk-slider-fill, 0%)
+      var(--jk-tint, var(--color-accent)) 0 var(--jk-slider-fill, 0%),
+      var(--color-paper) var(--jk-slider-fill, 0%)
     );
 }
 
@@ -2462,39 +2443,39 @@ dialog::backdrop { background: var(--hub-scrim); }
   width: 12px;
   height: 22px;
   margin-top: -7px;
-  border: 1px solid var(--hub-line-bright);
-  border-radius: var(--hub-radius-xs);
+  border: 1px solid var(--color-line-bright);
+  border-radius: var(--jk-radius-xs);
   background:
-    linear-gradient(to bottom, var(--hub-metal-2), var(--hub-metal-0));
-  box-shadow: inset 0 1px 0 var(--hub-bevel-light), 0 1px 3px rgba(0, 0, 0, 0.4);
+    linear-gradient(to bottom, var(--color-metal-2), var(--color-metal-0));
+  box-shadow: inset 0 1px 0 var(--color-bevel-light), 0 1px 3px rgba(0, 0, 0, 0.4);
 }
 .jk-slider::-moz-range-thumb {
   width: 12px;
   height: 22px;
-  border: 1px solid var(--hub-line-bright);
-  border-radius: var(--hub-radius-xs);
+  border: 1px solid var(--color-line-bright);
+  border-radius: var(--jk-radius-xs);
   background:
-    linear-gradient(to bottom, var(--hub-metal-2), var(--hub-metal-0));
-  box-shadow: inset 0 1px 0 var(--hub-bevel-light), 0 1px 3px rgba(0, 0, 0, 0.4);
+    linear-gradient(to bottom, var(--color-metal-2), var(--color-metal-0));
+  box-shadow: inset 0 1px 0 var(--color-bevel-light), 0 1px 3px rgba(0, 0, 0, 0.4);
 }
 
 /* CRT: the filled run emits, and the cap picks up the accent edge it rides. */
 :root[data-mode="dark"] .jk-slider::-webkit-slider-thumb {
-  border-color: color-mix(in srgb, var(--jk-tint, var(--accent)) 60%, var(--hub-line-bright));
+  border-color: color-mix(in srgb, var(--jk-tint, var(--color-accent)) 60%, var(--color-line-bright));
   box-shadow:
-    inset 0 1px 0 var(--hub-bevel-light),
-    0 0 10px color-mix(in srgb, var(--jk-tint, var(--accent)) 45%, transparent);
+    inset 0 1px 0 var(--color-bevel-light),
+    0 0 10px color-mix(in srgb, var(--jk-tint, var(--color-accent)) 45%, transparent);
 }
 :root[data-mode="dark"] .jk-slider::-moz-range-thumb {
-  border-color: color-mix(in srgb, var(--jk-tint, var(--accent)) 60%, var(--hub-line-bright));
+  border-color: color-mix(in srgb, var(--jk-tint, var(--color-accent)) 60%, var(--color-line-bright));
   box-shadow:
-    inset 0 1px 0 var(--hub-bevel-light),
-    0 0 10px color-mix(in srgb, var(--jk-tint, var(--accent)) 45%, transparent);
+    inset 0 1px 0 var(--color-bevel-light),
+    0 0 10px color-mix(in srgb, var(--jk-tint, var(--color-accent)) 45%, transparent);
 }
 
 .jk-slider:focus-visible { outline: none; }
-.jk-slider:focus-visible::-webkit-slider-thumb { outline: 2px solid var(--accent); outline-offset: 2px; }
-.jk-slider:focus-visible::-moz-range-thumb     { outline: 2px solid var(--accent); outline-offset: 2px; }
+.jk-slider:focus-visible::-webkit-slider-thumb { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.jk-slider:focus-visible::-moz-range-thumb     { outline: 2px solid var(--color-accent); outline-offset: 2px; }
 
 /* ─── VU meter — segmented level bar ────────────────────────────────────────
  * Flex row of segments; add `.on` to lit segments. Accent by default; retint a
@@ -2504,14 +2485,14 @@ dialog::backdrop { background: var(--hub-scrim); }
   flex: 1;
   min-width: 2px;
   border-radius: 1px;
-  background: var(--hub-line);
+  background: var(--color-line);
   transition: background 0.1s, box-shadow 0.1s;
 }
 .jk-vu-seg.on {
-  background: var(--jk-tint, var(--hub-amber));
+  background: var(--jk-tint, var(--color-accent));
 }
 :root[data-mode="dark"] .jk-vu-seg.on {
-  box-shadow: 0 0 4px color-mix(in srgb, var(--jk-tint, var(--hub-amber)) 60%, transparent);
+  box-shadow: 0 0 4px color-mix(in srgb, var(--jk-tint, var(--color-accent)) 60%, transparent);
 }
 /* The two faces a PER-SLOT strip needs that a value meter does not. A VU driven by
    a number has exactly two states (lit below the level, unlit above it); a VU whose
@@ -2524,37 +2505,37 @@ dialog::backdrop { background: var(--hub-scrim); }
             struck out) and an accent GHOST on the tube, where a darker segment
             would simply be indistinguishable from unlit stock. */
 .jk-vu-seg.rest { opacity: 0.24; }
-.jk-vu-seg.miss { background: color-mix(in srgb, var(--accent-deepen-ink) 22%, var(--hub-line)); }
+.jk-vu-seg.miss { background: color-mix(in srgb, var(--hub-deepen-ink) 22%, var(--color-line)); }
 :root[data-mode="dark"] .jk-vu-seg.miss {
-  background: color-mix(in srgb, var(--jk-tint, var(--hub-amber)) 18%, var(--hub-bg-0));
+  background: color-mix(in srgb, var(--jk-tint, var(--color-accent)) 18%, var(--color-paper));
 }
 
 /* ─── CRT atmosphere — scanline + vignette veils ───────────────────────────
  * Absolute overlays for a screen surface (host needs position). Driven by the
- * suite CRT knobs (--crt-scanline-opacity / --crt-vignette-opacity: 0 in paper,
- * lit in dark) and --crt-scanline-ink (#000 paper / #fff dark), so a single
+ * suite CRT knobs (--hub-crt-scanline-opacity / --hub-crt-vignette-opacity: 0 in paper,
+ * lit in dark) and --hub-crt-scanline-ink (#000 paper / #fff dark), so a single
  * markup renders correctly in both faces with no per-app opacity literals. */
 .jk-scanlines {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  opacity: var(--crt-scanline-opacity);
+  opacity: var(--hub-crt-scanline-opacity);
   background-image: repeating-linear-gradient(
     to bottom,
     transparent 0px,
     transparent 2.5px,
-    color-mix(in srgb, var(--crt-scanline-ink) 5%, transparent) 2.5px,
-    color-mix(in srgb, var(--crt-scanline-ink) 5%, transparent) 3.5px
+    color-mix(in srgb, var(--hub-crt-scanline-ink) 5%, transparent) 2.5px,
+    color-mix(in srgb, var(--hub-crt-scanline-ink) 5%, transparent) 3.5px
   );
 }
 .jk-vignette {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  opacity: var(--crt-vignette-opacity);
+  opacity: var(--hub-crt-vignette-opacity);
   background:
-    radial-gradient(120% 80% at 50% 28%, color-mix(in srgb, var(--accent) 10%, transparent) 0%, transparent 45%),
-    radial-gradient(140% 120% at 50% 50%, transparent 58%, var(--hub-scrim-heavy) 100%);
+    radial-gradient(120% 80% at 50% 28%, color-mix(in srgb, var(--color-accent) 10%, transparent) 0%, transparent 45%),
+    radial-gradient(140% 120% at 50% 50%, transparent 58%, var(--color-scrim-heavy) 100%);
 }
 
 /* ─── Scrim — modal backdrop veil ──────────────────────────────────────────
@@ -2563,9 +2544,9 @@ dialog::backdrop { background: var(--hub-scrim); }
 .jk-scrim {
   position: fixed;
   inset: 0;
-  background: var(--hub-scrim);
+  background: var(--color-scrim);
 }
-.jk-scrim-heavy { background: var(--hub-scrim-heavy); }
+.jk-scrim-heavy { background: var(--color-scrim-heavy); }
 
 /* ─── App shell — invariant guard→header→drawer frame (@jkos/ui <AppShell>) ──
  * git history: Wave 20 item 20.1: the frame every full-shell app hand-wrote
@@ -2583,7 +2564,7 @@ dialog::backdrop { background: var(--hub-scrim); }
   justify-content: space-between;
   gap: 1rem;
   padding: 1.1rem 1.5rem;
-  border-bottom: 1px solid var(--hub-line);
+  border-bottom: 1px solid var(--color-line);
 }
 .jk-shell-brand {
   display: flex;
@@ -2592,11 +2573,11 @@ dialog::backdrop { background: var(--hub-scrim); }
   min-width: 0;
 }
 .jk-shell-wordmark {
-  font-family: var(--hub-font-serif);
+  font-family: var(--jk-font-serif);
   font-size: 1.4rem;
   text-decoration: none;
 }
-/* Opens the SettingsDrawer. --hub-tap-min is 0 on desktop and 44px on
+/* Opens the SettingsDrawer. --jk-tap-min is 0 on desktop and 44px on
    mobile/tablet, so it is a FLOOR over the base size, never the size itself. */
 .jk-shell-settings-btn {
   display: inline-flex;
@@ -2605,17 +2586,17 @@ dialog::backdrop { background: var(--hub-scrim); }
   flex: none;
   width: 40px;
   height: 40px;
-  min-width: var(--hub-tap-min);
-  min-height: var(--hub-tap-min);
+  min-width: var(--jk-tap-min);
+  min-height: var(--jk-tap-min);
   padding: 0;
-  border: 1px solid var(--hub-line);
-  border-radius: var(--hub-radius-button);
-  background: var(--hub-bg-1);
-  color: var(--hub-cream-bright);
+  border: 1px solid var(--color-line);
+  border-radius: var(--jk-radius-button);
+  background: var(--color-paper-2);
+  color: var(--color-ink);
   cursor: pointer;
 }
-.jk-shell-settings-btn:hover { border-color: var(--accent); color: var(--accent); }
-.jk-shell-settings-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.jk-shell-settings-btn:hover { border-color: var(--color-accent); color: var(--color-accent); }
+.jk-shell-settings-btn:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
 
 /* ─── Match panel — search→candidates→apply (@jkos/ui <MatchPanel>) ────────
  * git history: Wave 20 item 20.4: lifted verbatim (same properties, `.match-*`
@@ -2659,37 +2640,37 @@ dialog::backdrop { background: var(--hub-scrim); }
   align-items: flex-start;
   gap: 0.75rem;
   padding: 0.6rem;
-  border: 1px solid var(--hub-line);
-  border-radius: var(--hub-radius-lg);
-  background: var(--hub-bg-1);
+  border: 1px solid var(--color-line);
+  border-radius: var(--jk-radius-lg);
+  background: var(--color-paper-2);
 }
 
 .jk-match-candidate-cover {
   flex: none;
   width: 56px;
   height: 56px;
-  border-radius: var(--hub-radius-sm);
+  border-radius: var(--jk-radius-sm);
   object-fit: cover;
-  background: var(--hub-bg-2);
+  background: var(--color-card);
 }
 .jk-match-candidate-cover-placeholder {
-  border: 1px dashed var(--hub-line);
+  border: 1px dashed var(--color-line);
 }
 
 .jk-match-candidate-info { flex: 1; min-width: 0; }
 .jk-match-candidate-title {
-  font-family: var(--hub-font-serif);
+  font-family: var(--jk-font-serif);
   font-weight: 600;
 }
 /* Dim ink directly — this line used to ride the `.muted` alias, which dragged
    in an unintended 1.5rem vertical padding (the author cancelled it on
    .jk-match-msg one rule away and missed this one). Retired Full Press Wave 23. */
-.jk-match-candidate-meta { font-size: 0.8rem; color: var(--hub-cream-dim); }
+.jk-match-candidate-meta { font-size: 0.8rem; color: var(--color-faint); }
 .jk-match-candidate-desc {
   margin: 0.3rem 0 0;
   font-size: 0.82rem;
   line-height: 1.4;
-  color: var(--hub-cream-dim);
+  color: var(--color-faint);
 }
 
 .jk-match-candidate-apply { flex: none; align-self: center; }
@@ -2709,7 +2690,7 @@ dialog::backdrop { background: var(--hub-scrim); }
    raise the tap-target floor. */
 @media (max-width: 1023px) {
   :root {
-    --hub-tap-min:    44px;
+    --jk-tap-min:    44px;
     /* The canvas needs no tier logic — below ~1440px its "window minus gutters"
        term already wins, so the sheet simply fills. All a touch tier has to do
        is give back the desk margin as usable width. */
@@ -2722,42 +2703,42 @@ dialog::backdrop { background: var(--hub-scrim); }
    roomier padding so the tap-floor doesn't visually crush the labels. */
 @media (max-width: 767px) {
   :root {
-    --hub-tap-min:       44px;
+    --jk-tap-min:       44px;
     /* Phone: the sheet IS the screen. No desk to show, and a rail that stacks
        below the content is full-width, so --jk-rail stops meaning anything
        horizontal — it becomes the stacked block's max width. */
     --jk-canvas-gutter:  0px;
     --jk-rail:           100%;
-    --hub-fs-bubble:     11px;
-    --hub-fs-bubble-lg:  13px;
-    --hub-pad-bubble:    7px 13px;
-    --hub-pad-bubble-lg: 9px 16px;
-    --hub-fs-pill:       10px;
-    --hub-pad-pill:      6px 11px;
-    --hub-fs-tbtn:       11px;
-    --hub-pad-tbtn:      9px 13px;
+    --jk-fs-bubble:     11px;
+    --jk-fs-bubble-lg:  13px;
+    --jk-pad-bubble:    7px 13px;
+    --jk-pad-bubble-lg: 9px 16px;
+    --jk-fs-pill:       10px;
+    --jk-pad-pill:      6px 11px;
+    --jk-fs-tbtn:       11px;
+    --jk-pad-tbtn:      9px 13px;
     /* 16px is not a style choice: iOS Safari zooms the viewport on focus for any
        field under it, and a form that jumps the page on every tap is broken. The
        dense rung gives up its density here rather than its usability. */
-    --hub-fs-field:      16px;
-    --hub-fs-field-sm:   16px;
-    --hub-pad-field:     9px 11px;
-    --hub-pad-field-sm:  7px 9px;
-    --hub-fs-lab:        11px;
-    --hub-fs-lab-sm:     10px;
-    --hub-fs-lab-xs:     9px;
+    --jk-fs-field:      16px;
+    --jk-fs-field-sm:   16px;
+    --jk-pad-field:     9px 11px;
+    --jk-pad-field-sm:  7px 9px;
+    --jk-fs-lab:        11px;
+    --jk-fs-lab-sm:     10px;
+    --jk-fs-lab-xs:     9px;
   }
 }
 
 /* Tap-target floor for INTERACTIVE primitives only. The @jkos/ui wrappers render
    interactive instances as real <button>/<a> (via the `as` prop) and static
    badges as <span>, so this tag+class selector lifts only the things you tap and
-   leaves dense inline badges alone. --hub-tap-min is 0 on desktop (no effect),
+   leaves dense inline badges alone. --jk-tap-min is 0 on desktop (no effect),
    44px on the touch tiers above. inline-flex keeps the label centred when the box
    grows to the floor. */
 button.jk-bubble, a.jk-bubble,
 button.jk-pill,   a.jk-pill,
 .jk-tbtn {
-  min-height: var(--hub-tap-min);
-  min-width:  var(--hub-tap-min);
+  min-height: var(--jk-tap-min);
+  min-width:  var(--jk-tap-min);
 }

@@ -38,8 +38,8 @@ export function CreateDialog({ pending, onSubmit, onCancel }: CreateDialogProps)
 
   return (
     <div onClick={onCancel} style={{ position: 'fixed', inset: 0, zIndex: 400, background: 'rgba(10,8,6,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(2px)' }}>
-      <div onClick={(e) => e.stopPropagation()} className="modal-in" style={{ width: 'min(460px, 90vw)', background: 'var(--color-paper-2)', border: '1px solid var(--color-line)', borderRadius: 'var(--hub-radius-lg)', boxShadow: '0 24px 64px rgba(0,0,0,0.5), 0 0 0 1px color-mix(in srgb, var(--color-accent) 30%, transparent)', padding: '22px 26px 24px' }}>
-        <div style={{ fontFamily: FONT_BODY, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'var(--color-accent)', textShadow: 'var(--accent-halo-text)', marginBottom: 10 }}>
+      <div onClick={(e) => e.stopPropagation()} className="modal-in" style={{ width: 'min(460px, 90vw)', background: 'var(--color-paper-2)', border: '1px solid var(--color-line)', borderRadius: 'var(--jk-radius-lg)', boxShadow: '0 24px 64px rgba(0,0,0,0.5), 0 0 0 1px color-mix(in srgb, var(--color-accent) 30%, transparent)', padding: '22px 26px 24px' }}>
+        <div style={{ fontFamily: FONT_BODY, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'var(--color-accent)', textShadow: 'var(--hub-halo-text)', marginBottom: 10 }}>
           {pending.allDay ? `${fmtWeekday(pending.startDay)} · all‑day event` : `${fmtWeekday(pending.startDay)} · ${fmtTime(pending.scheduled_time)} – ${fmtTime(pending.scheduled_end)}`}
         </div>
         <Field
@@ -58,7 +58,7 @@ export function CreateDialog({ pending, onSubmit, onCancel }: CreateDialogProps)
           <button onClick={onCancel} style={{ background: 'transparent', border: '1px solid var(--color-line)', fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--color-muted)', padding: '8px 16px', cursor: 'pointer' }}>
             Cancel
           </button>
-          <button onClick={handle} className="jk-cards-btn" style={{ background: 'var(--color-accent)', border: 'none', color: 'var(--color-paper)', fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', padding: '8px 20px', cursor: 'pointer', boxShadow: 'var(--accent-halo)' }}>
+          <button onClick={handle} className="jk-cards-btn" style={{ background: 'var(--color-accent)', border: 'none', color: 'var(--color-paper)', fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', padding: '8px 20px', cursor: 'pointer', boxShadow: 'var(--hub-halo)' }}>
             Add →
           </button>
         </div>

@@ -153,10 +153,12 @@ that code can reopen it.
   **The tell is that several *unrelated* tokens read empty at once** — a single missing token
   takes out one name, a cycle takes out the whole ring. Diagnose with
   `getComputedStyle(document.documentElement).getPropertyValue('--x')` on each suspect: `""`
-  across the set means a loop, not a typo. Live defence: the alias is gone (that line is now a
-  comment explaining why it must stay gone) and `apps/jkauth/public/style.css` inherits `--accent`
-  from the imported mirror. ⚠️ **Every semantic alias into a derivation chain is a candidate** —
-  before aliasing `--x: var(--y)`, check whether `--y` derives from `--x`.
+  across the set means a loop, not a typo. (The names above are the pre-2026-09-30 chain.) Live
+  defence, now structural: every factory token carries a tier prefix (`--hub-*` / `--color-*` /
+  `--jk-*`), so an app's local alias can no longer shadow one; jkAuth's views read
+  `--color-accent` directly; and `pnpm check:tokens` refuses a tier-1 token that reads tier 2,
+  so the factory's own chain runs one way. ⚠️ **An app-local alias chain can still loop** — before
+  aliasing `--x: var(--y)` in an app's own stylesheet, check whether `--y` derives from `--x`.
 
 - **WebGL contexts are a capped, shared resource, and deleting everything you made does not give
   one back.** Chromium keeps ~16 live contexts (iOS Safari fewer); past the cap it prints "Too many

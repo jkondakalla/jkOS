@@ -57,13 +57,13 @@ export interface SettingsDrawerProps {
   width?: number;
 }
 
-const FONT = 'var(--hub-font-mono)';
+const FONT = 'var(--jk-font-mono)';
 const ACCENT = 'var(--color-accent)';
 const CONTRAST = 'var(--color-accent-contrast)';
 const TXT = 'var(--color-ink)';
 const TXT_MUTED = 'var(--color-muted)';
 const TXT_FAINT = 'var(--color-faint)';
-const LINE = 'var(--hub-line)';
+const LINE = 'var(--color-line)';
 const FIELD = 'color-mix(in srgb, var(--color-ink) 6%, transparent)';
 const FIELD_HI = 'color-mix(in srgb, var(--color-ink) 11%, transparent)';
 const PRESS = 'var(--hub-accent-press)';
@@ -94,7 +94,7 @@ export function SettingsDrawer({
   const panelBase: CSSProperties = {
     position: 'fixed', top: 0, right: 0,
     height: '100dvh', width,
-    background: 'color-mix(in srgb, var(--hub-bg-1) 96%, transparent)',
+    background: 'color-mix(in srgb, var(--color-paper-2) 96%, transparent)',
     backdropFilter: 'blur(32px) saturate(160%)',
     WebkitBackdropFilter: 'blur(32px) saturate(160%)',
     borderLeft: `1px solid ${LINE}`,
@@ -104,7 +104,7 @@ export function SettingsDrawer({
     overflowY: 'auto', overflowX: 'hidden',
     transition: 'transform 0.28s cubic-bezier(0.4, 0.2, 0.2, 1)',
     transform: open ? 'translateX(0)' : 'translateX(105%)',
-    fontFamily: 'var(--hub-font-sans)',
+    fontFamily: 'var(--jk-font-sans)',
   };
 
   return (
@@ -113,7 +113,7 @@ export function SettingsDrawer({
         onClick={onClose}
         style={{
           position: 'fixed', inset: 0,
-          background: open ? 'var(--hub-scrim)' : 'transparent',
+          background: open ? 'var(--color-scrim)' : 'transparent',
           backdropFilter: open ? 'blur(1px)' : 'none',
           opacity: open ? 1 : 0,
           pointerEvents: open ? 'auto' : 'none',
@@ -142,7 +142,7 @@ export function SettingsDrawer({
         <section style={{ ...sect, display: 'flex', alignItems: 'center', gap: 14 }}>
           <div style={{
             width: 38, height: 38, borderRadius: '50%', flexShrink: 0,
-            background: 'linear-gradient(135deg, var(--hub-amber-dim), var(--hub-amber))',
+            background: 'linear-gradient(135deg, var(--color-accent-dim), var(--color-accent))',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontFamily: FONT, fontSize: 14, fontWeight: 700, color: CONTRAST,
             boxShadow: PRESS,
@@ -211,18 +211,18 @@ export function SettingsDrawer({
             <button type="button" onClick={handleLogout}
               style={{
                 flex: 1, padding: '8px 12px',
-                border: '1px solid color-mix(in srgb, var(--hub-red) 35%, transparent)',
-                background: 'transparent', color: 'color-mix(in srgb, var(--hub-red) 75%, var(--color-ink))',
+                border: '1px solid color-mix(in srgb, var(--color-danger) 35%, transparent)',
+                background: 'transparent', color: 'color-mix(in srgb, var(--color-danger) 75%, var(--color-ink))',
                 fontSize: 10, letterSpacing: '0.1em', cursor: 'pointer',
                 fontFamily: FONT, transition: 'all 0.12s',
               }}
               onMouseEnter={e => {
-                (e.currentTarget as HTMLElement).style.borderColor = 'var(--hub-red)';
-                (e.currentTarget as HTMLElement).style.color = 'var(--hub-red)';
+                (e.currentTarget as HTMLElement).style.borderColor = 'var(--color-danger)';
+                (e.currentTarget as HTMLElement).style.color = 'var(--color-danger)';
               }}
               onMouseLeave={e => {
-                (e.currentTarget as HTMLElement).style.borderColor = 'color-mix(in srgb, var(--hub-red) 35%, transparent)';
-                (e.currentTarget as HTMLElement).style.color = 'color-mix(in srgb, var(--hub-red) 75%, var(--color-ink))';
+                (e.currentTarget as HTMLElement).style.borderColor = 'color-mix(in srgb, var(--color-danger) 35%, transparent)';
+                (e.currentTarget as HTMLElement).style.color = 'color-mix(in srgb, var(--color-danger) 75%, var(--color-ink))';
               }}
             >Sign out</button>
           </div>
@@ -340,7 +340,7 @@ function ColorRow({ label, color, onChange }: { label: string; color: string; on
       <Field bare ref={ref} type="color" value={color} aria-label={`${label} accent colour`} tabIndex={-1} onChange={e => onChange(e.target.value)} style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', width: 0, height: 0 }} />
       <Field type="text" value={draft} onChange={e => handleText(e.target.value)} aria-label={`${label} accent colour, as hex`}
         onBlur={() => { if (!/^#[0-9a-fA-F]{6}$/.test(draft)) setDraft(color); }} maxLength={7} spellCheck={false}
-        style={{ flex: 1, color: /^#[0-9a-fA-F]{6}$/.test(draft) ? undefined : 'var(--hub-red)', padding: '5px 10px', fontSize: 11, letterSpacing: '0.08em' }} />
+        style={{ flex: 1, color: /^#[0-9a-fA-F]{6}$/.test(draft) ? undefined : 'var(--color-danger)', padding: '5px 10px', fontSize: 11, letterSpacing: '0.08em' }} />
     </div>
   );
 }

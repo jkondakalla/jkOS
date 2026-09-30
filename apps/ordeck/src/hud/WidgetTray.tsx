@@ -104,15 +104,15 @@ export function widgetHero(def: WidgetDef): WidgetHero {
  * text font-family comes from `.hud-tile-view text` in hud.css (presentation
  * attributes can't carry var() reliably, fill/stroke can). */
 
-const ACC    = 'var(--hub-amber)';
-const BRIGHT = 'var(--hub-cream-bright)';
-const DIM    = 'var(--hub-cream-dim)';
-const FAINT  = 'var(--hub-cream-faint)';
-const LINE   = 'var(--hub-line)';
-const STRONG = 'var(--hub-line-strong)';
-const OK     = 'var(--hub-green)';
-const WARN   = 'var(--hub-warn)';
-const RED    = 'var(--hub-red)';
+const ACC    = 'var(--color-accent)';
+const BRIGHT = 'var(--color-ink)';
+const DIM    = 'var(--color-faint)';
+const FAINT  = 'var(--color-ghost)';
+const LINE   = 'var(--color-line)';
+const STRONG = 'var(--color-line-strong)';
+const OK     = 'var(--color-ok)';
+const WARN   = 'var(--color-warn)';
+const RED    = 'var(--color-danger)';
 
 function G({ children }: { children: ReactNode }) {
   return <svg viewBox="0 0 120 64" preserveAspectRatio="none" aria-hidden="true">{children}</svg>;

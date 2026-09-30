@@ -69,7 +69,7 @@ import {
 import { Bubble, Chip, TButton, Bar, TimeField } from '@jkos/ui'
 import { Field, NumField, SelectField, NUM_W } from './parts'
 
-const MONO = 'var(--hub-font-mono)'
+const MONO = 'var(--jk-font-mono)'
 const DOW = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
 const DOW_NAME = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
@@ -104,7 +104,7 @@ export function RoutineCard({ routine, items, goals, today, selected, delay, onC
       role="button"
       aria-pressed={selected}
       style={{
-        border: '1px solid var(--hub-line)', borderRadius: 'var(--hub-radius)', padding: '12px 15px',
+        border: '1px solid var(--color-line)', borderRadius: 'var(--jk-radius)', padding: '12px 15px',
         cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 8,
         opacity: parked ? 0.55 : 1,
         animationDelay: delay, ['--jk-tint' as string]: tint,
@@ -266,7 +266,7 @@ export function CadenceBand({
                   onClick={readonly ? undefined : () => patch({ cadence_days: toggleDay(routine, off) })}
                   style={{
                     width: 34, padding: '3px 0', textAlign: 'center',
-                    borderRadius: 'var(--hub-radius-xs)',
+                    borderRadius: 'var(--jk-radius-xs)',
                     cursor: readonly ? 'default' : 'pointer',
                     fontFamily: MONO, fontSize: 10, letterSpacing: '0.04em',
                   }}
@@ -297,7 +297,7 @@ export function CadenceBand({
               style={{
                 width: 34, height: 2, borderRadius: 1,
                 background: iso === today ? 'var(--color-accent)' : 'transparent',
-                boxShadow: iso === today ? 'var(--accent-halo)' : undefined,
+                boxShadow: iso === today ? 'var(--hub-halo)' : undefined,
               }}
             />
           ))}
@@ -485,7 +485,7 @@ function DayCell({ cell, tint, readonly, onClick }: { cell: Cell; tint: string; 
         onClick={live ? onClick : undefined}
         style={{
           ...common,
-          borderRadius: 'var(--hub-radius-xs)',
+          borderRadius: 'var(--jk-radius-xs)',
           border: skipped
             ? '1px solid var(--color-line)'
             : `1px dashed ${cell.state === 'idle' ? 'color-mix(in srgb, var(--jk-tint) 55%, transparent)' : 'var(--color-line)'}`,
@@ -494,7 +494,7 @@ function DayCell({ cell, tint, readonly, onClick }: { cell: Cell; tint: string; 
              mid-tone tint (DESIGN doctrine). Held to a WASH of it rather than the
              full stock: at full strength an empty cell on today read as a filled
              one, and `filled` is the vocabulary the occurrence states own. */
-          background: cell.isToday ? 'color-mix(in srgb, var(--hub-bg-4) 62%, transparent)' : 'transparent',
+          background: cell.isToday ? 'color-mix(in srgb, var(--color-lit) 62%, transparent)' : 'transparent',
           opacity: cell.isPast ? 0.5 : 1,
         }}
       >

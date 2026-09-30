@@ -96,14 +96,14 @@ export function ChromeBar({
         alignItems: 'baseline',
         gap: 14,
         padding: '0 28px',
-        borderBottom: '1px solid var(--hub-line)',
+        borderBottom: '1px solid var(--color-line)',
         ...style,
       }}
     >
       <span
         className="jk-press"
         style={{
-          fontFamily: 'var(--hub-font-serif)',
+          fontFamily: 'var(--jk-font-serif)',
           fontWeight: 700,
           fontSize: '1.15rem',
           letterSpacing: '-0.015em',
@@ -140,7 +140,7 @@ export function NowLine({ label, dot = 8 }: { label?: string; dot?: number }) {
           height: dot,
           borderRadius: '50%',
           background: 'var(--color-accent)',
-          boxShadow: 'var(--accent-halo)',
+          boxShadow: 'var(--hub-halo)',
           marginLeft: -(dot / 2),
           flex: 'none',
         }}
@@ -150,7 +150,7 @@ export function NowLine({ label, dot = 8 }: { label?: string; dot?: number }) {
         <span
           className="jk-press"
           style={{
-            fontFamily: 'var(--hub-font-mono)',
+            fontFamily: 'var(--jk-font-mono)',
             fontSize: 8.5,
             fontWeight: 600,
             letterSpacing: '0.2em',
@@ -176,7 +176,7 @@ export function HourLabel({ children }: { children: React.ReactNode }) {
   return (
     <span
       style={{
-        fontFamily: 'var(--hub-font-mono)',
+        fontFamily: 'var(--jk-font-mono)',
         fontSize: 9,
         letterSpacing: '0.06em',
         color: 'var(--color-faint)',
