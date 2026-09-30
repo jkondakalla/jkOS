@@ -152,7 +152,7 @@ export function TimeBlock({
         <div style={{ display: 'flex', alignItems: isDay ? 'baseline' : 'center', gap: isDay ? 9 : 5 }}>
           {outWindow && (
             <span
-              className="mono-eyebrow"
+              className="jk-mono-eyebrow"
               title={`${fmtTime(item.scheduled_time)} — outside the ${WV_FIRST_H}:00–${WV_LAST_H}:00 grid`}
               style={{ flexShrink: 0, fontSize: 8, lineHeight: 1 }}
             >
@@ -195,14 +195,14 @@ export function TimeBlock({
           {/* Today sets the meta on the title's baseline; Week stacks it below,
               where there is width but no height to spare. */}
           {isDay && showTime && (
-            <span className="mono-eyebrow" style={{ marginLeft: 'auto', flex: 'none', fontSize: 8, opacity: 0.8 }}>
+            <span className="jk-mono-eyebrow" style={{ marginLeft: 'auto', flex: 'none', fontSize: 8, opacity: 0.8 }}>
               {fmtTime(item.scheduled_time)}
               {item.scheduled_end ? ` – ${fmtTime(item.scheduled_end)}` : ''}
             </span>
           )}
         </div>
         {!isDay && showTime && (
-          <div className="mono-eyebrow" style={{ fontSize: 8, marginTop: 3, opacity: 0.8 }}>
+          <div className="jk-mono-eyebrow" style={{ fontSize: 8, marginTop: 3, opacity: 0.8 }}>
             {fmtTime(item.scheduled_time)}
             {item.scheduled_end ? ` – ${fmtTime(item.scheduled_end)}` : ''}
           </div>

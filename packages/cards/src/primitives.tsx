@@ -35,7 +35,7 @@ export function Checkbox({
       aria-checked={!!completed}
       onClick={handle}
       onMouseDown={(e) => e.stopPropagation()}
-      className={`jk-check${pop ? ' check-pop' : ''}`}
+      className={`jk-check${pop ? ' jk-check-pop' : ''}`}
       style={{
         width: size,
         height: size,
@@ -112,7 +112,7 @@ export function ChromeBar({
       >
         {title}
       </span>
-      {stats != null && <span className="mono-eyebrow" style={{ alignSelf: 'center' }}>{stats}</span>}
+      {stats != null && <span className="jk-mono-eyebrow" style={{ alignSelf: 'center' }}>{stats}</span>}
       {nav != null && (
         <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 7, alignSelf: 'center' }}>
           {nav}
@@ -134,7 +134,7 @@ export function NowLine({ label, dot = 8 }: { label?: string; dot?: number }) {
   return (
     <>
       <span
-        className="now-dot"
+        className="jk-now-dot"
         style={{
           width: dot,
           height: dot,
@@ -169,8 +169,8 @@ export function NowLine({ label, dot = 8 }: { label?: string; dot?: number }) {
 /**
  * HourLabel — the gutter annotation.
  *
- * Mono, not `.seg`: the gutter is the MACHINE annotating the grid, not a readout
- * (DESIGN.md §13.12). `.seg` stays on the now-time badge, which genuinely is one.
+ * Mono, not `.jk-seg`: the gutter is the MACHINE annotating the grid, not a readout
+ * (DESIGN.md §13.12). `.jk-seg` stays on the now-time badge, which genuinely is one.
  */
 export function HourLabel({ children }: { children: React.ReactNode }) {
   return (
@@ -191,7 +191,7 @@ export function RecLamp({ size = 8, label }: { size?: number; label?: string }) 
   return (
     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
       <span
-        className="now-dot"
+        className="jk-now-dot"
         style={{
           width: size,
           height: size,

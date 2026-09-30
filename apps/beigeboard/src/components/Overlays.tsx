@@ -191,7 +191,7 @@ export function CinematicIntro({ onDone }: { onDone: () => void }) {
 
   return (
     <div
-      className={phase === 3 ? 'intro-out' : ''}
+      className={phase === 3 ? 'jk-intro-out' : ''}
       style={{
         position: 'fixed', inset: 0, zIndex: 10000,
         // Backdrop + screen pull from the factory neutral ramp (mode-aware), so the
@@ -203,7 +203,7 @@ export function CinematicIntro({ onDone }: { onDone: () => void }) {
       }}
     >
       <div
-        className={phase >= 1 ? (isDark ? 'crt-expand' : 'paper-expand') : ''}
+        className={phase >= 1 ? (isDark ? 'jk-crt-expand' : 'paper-expand') : ''}
         style={{
           position: 'absolute', inset: 0,
           background: 'var(--color-card)',
@@ -224,7 +224,7 @@ export function CinematicIntro({ onDone }: { onDone: () => void }) {
         }} />
       )}
       {phase >= 2 && (
-        <div className="intro-title" style={{ position: 'relative', zIndex: 2, textAlign: 'center' }}>
+        <div className="jk-intro-title" style={{ position: 'relative', zIndex: 2, textAlign: 'center' }}>
           {/* The brand PRESSES on paper (debossed via .jk-press-lg) and halates on
               the tube — the class owns both faces, so no inline paper glow. */}
           <div className="jk-press-lg" style={{

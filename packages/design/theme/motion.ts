@@ -3,7 +3,7 @@
  *
  * hub.css owns the physics (`inkDry` on paper, `crtOn` on the tube, the
  * `data-motion` axis, `prefers-reduced-motion`). What it cannot own is the
- * ORDER: `.mo-item` carries `both`, so an element with no delay just appears,
+ * ORDER: `.jk-mo-item` carries `both`, so an element with no delay just appears,
  * and the entire cascade lives in the offsets. Those offsets were prose in a
  * work order, which meant four apps were about to invent four sets of ms values.
  *

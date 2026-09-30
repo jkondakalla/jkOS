@@ -119,7 +119,7 @@ export function TaskChip({
         {item.title}
       </span>
       {showTime && item.scheduled_time && (
-        <span className="mono-eyebrow" style={{ fontSize: 8, flexShrink: 0, opacity: 0.85 }}>
+        <span className="jk-mono-eyebrow" style={{ fontSize: 8, flexShrink: 0, opacity: 0.85 }}>
           {fmtTime(item.scheduled_time)}
         </span>
       )}

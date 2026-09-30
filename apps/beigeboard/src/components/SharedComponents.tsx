@@ -13,7 +13,7 @@ export function Checkbox({ id, completed, onToggle, color, size = 15 }: any) {
   return (
     <button
       onClick={handle}
-      className={pop ? 'check-pop' : ''}
+      className={pop ? 'jk-check-pop' : ''}
       style={{
         width: size, height: size,
         border: `1px solid ${completed ? accent : 'var(--color-line)'}`,
@@ -97,7 +97,7 @@ export function TapeReel({ size = 36, color, spinning = false, style }: any) {
 export function RecLamp({ size = 8, label }: any) {
   return (
     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-      <span className="now-dot" style={{
+      <span className="jk-now-dot" style={{
         width: size, height: size, borderRadius: '50%',
         background: 'var(--color-accent)',
         boxShadow: `0 0 8px var(--color-accent-glow), 0 0 14px var(--color-accent-glow), inset 0 -1px 0 rgba(255,255,255,0.18)`,
@@ -123,7 +123,7 @@ export function TimeReadout({ style }: any) {
   const mm = String(now.getMinutes()).padStart(2, '0')
   const ss = String(now.getSeconds()).padStart(2, '0')
   return (
-    <span className="seg" style={{ fontSize: 13, ...style }}>
+    <span className="jk-seg" style={{ fontSize: 13, ...style }}>
       {hh}<span style={{ opacity: 0.4 }}>:</span>{mm}<span style={{ opacity: 0.6, fontSize: 10 }}>:{ss}</span>
     </span>
   )

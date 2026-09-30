@@ -76,7 +76,7 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
   // Keep the access token fresh so a long-open board never 401s mid-session.
   useSessionKeepalive()
 
-  // Motion axis (Full Press): per-item .mo-item entrances ride the default
+  // Motion axis (Full Press): per-item .jk-mo-item entrances ride the default
   // 'entrance', and the ambient rake (paper) / buzz (tube) is the opt-in 'full'
   // tier — wired to the CRT-atmosphere toggle so it's user-controlled. hub.css
   // still honours prefers-reduced-motion regardless.
@@ -524,7 +524,7 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
               declared 1fr row collapsed to 0px — every view lost the panel at
               once. Explicit placement makes the shell's rows a fact rather than
               a consequence of the render tree. */}
-          <div className="mo-item" style={{ gridRow: 1, gridColumn: '1 / -1', animationDelay: '0ms' }}>
+          <div className="jk-mo-item" style={{ gridRow: 1, gridColumn: '1 / -1', animationDelay: '0ms' }}>
             <AppHeader
               view={view} setView={setView}
               today={today}
@@ -539,9 +539,9 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
           <main
             key={view}
             // NO entrance class here, deliberately. All four views now stagger
-            // their own regions with .mo-item — Calendar was the last holdout and
-            // took the day-cell ring — and .mo-item carries `both`, so an
-            // .mo-item inside an .ink-in parent double-animates: the parent fades
+            // their own regions with .jk-mo-item — Calendar was the last holdout and
+            // took the day-cell ring — and .jk-mo-item carries `both`, so an
+            // .jk-mo-item inside an .jk-ink-in parent double-animates: the parent fades
             // the whole pane in while each child is still holding its pre-delay
             // frame, which mushes exactly the cascade the child is there to draw.
             // ONE entrance per surface, and the inner one wins wherever a view has

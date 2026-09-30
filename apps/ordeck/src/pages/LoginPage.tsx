@@ -28,7 +28,7 @@ export default function LoginPage() {
       <div style={{ ...styles.panel, opacity: visible ? 1 : 0, transition: 'opacity 0.5s ease' }}>
         {/* Header row */}
         <div style={styles.headerRow}>
-          <Led color="amber" steady style={{ marginRight: 8 }} />
+          <Led tone="accent" steady style={{ marginRight: 8 }} />
           <span style={styles.eyebrow}>ORDECK OS v1.0.0</span>
         </div>
 
@@ -36,7 +36,7 @@ export default function LoginPage() {
         <div style={styles.divider} />
 
         {/* Title */}
-        <div style={styles.title} className="glow">ORDECK</div>
+        <div style={styles.title}>ORDECK</div>
 
         {/* Subtitle */}
         <div style={styles.subtitle}>// AUTHENTICATION REQUIRED</div>

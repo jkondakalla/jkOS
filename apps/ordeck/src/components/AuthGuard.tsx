@@ -45,7 +45,7 @@ function LoadingOverlay() {
       zIndex:         8000,
       fontFamily:     'var(--jk-font-mono)',
     }}>
-      <Led color="amber" size="lg" />
+      <Led tone="accent" size="lg" />
       <span style={{
         fontSize:      9,
         letterSpacing: '0.24em',

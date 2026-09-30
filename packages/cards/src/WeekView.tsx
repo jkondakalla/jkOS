@@ -346,7 +346,7 @@ export function WeekView({
               no information the stat line doesn't carry better. */}
           {!compact && (
             <ChromeBar
-              className="mo-item"
+              className="jk-mo-item"
               style={{ margin: `0 -${PAD_X}px`, animationDelay: `${MO_DELAYS.header}ms` }}
               title={weekRange}
               stats={`7 DAYS · ${String(scheduledCount).padStart(2, '0')} SCHEDULED · ${String(benched.length).padStart(2, '0')} ON THE BENCH`}
@@ -368,7 +368,7 @@ export function WeekView({
               return (
                 <div
                   data-drop-zone="bench"
-                  className={compact ? undefined : 'mo-item'}
+                  className={compact ? undefined : 'jk-mo-item'}
                   style={{
                     flexShrink: 0, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
                     padding: compact ? '6px 6px' : '10px 28px',
@@ -384,9 +384,9 @@ export function WeekView({
                 >
                   <span className="jk-lab jk-lab-xs" style={{ color: 'var(--color-accent)' }}>The bench</span>
                   {benched.length === 0 ? (
-                    <span className="mono-eyebrow">{isTarget ? 'DROP TO HOLD FOR THE WEEK' : 'NOTHING BENCHED THIS WEEK'}</span>
+                    <span className="jk-mono-eyebrow">{isTarget ? 'DROP TO HOLD FOR THE WEEK' : 'NOTHING BENCHED THIS WEEK'}</span>
                   ) : (
-                    <span className="mono-eyebrow">UNSCHEDULED — DROP ONTO A DAY</span>
+                    <span className="jk-mono-eyebrow">UNSCHEDULED — DROP ONTO A DAY</span>
                   )}
                   <span style={{ marginLeft: 'auto', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     {benched.map((it) => (
@@ -409,7 +409,7 @@ export function WeekView({
             })()}
 
             {/* ── Day-header band — framed column tops (rounded on top) ── */}
-            <div className={compact ? undefined : 'mo-item'} style={{ ...headBand, animationDelay: `${MO_DELAYS.weekDayHeads}ms` }}>
+            <div className={compact ? undefined : 'jk-mo-item'} style={{ ...headBand, animationDelay: `${MO_DELAYS.weekDayHeads}ms` }}>
               <div />
               {days.map((d) => {
                 const dd = localDate(d);
@@ -420,7 +420,7 @@ export function WeekView({
                         content (print). Today's number stays in INK — the tinted
                         lane well plus the press carry the state, so the number
                         doesn't have to shout it a third time. */}
-                    <span className="mono-eyebrow" style={{ fontSize: 8, color: isToday ? 'var(--color-accent)' : undefined }}>
+                    <span className="jk-mono-eyebrow" style={{ fontSize: 8, color: isToday ? 'var(--color-accent)' : undefined }}>
                       {dd.toLocaleDateString('en-US', { weekday: 'short' })}
                     </span>
                     <span
@@ -438,7 +438,7 @@ export function WeekView({
             {(anyAllday || (anyDrag && drag?.mode === 'allday')) && (
               <div style={headBand}>
                 <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-start', padding: '4px 6px 0 0' }}>
-                  <span className="mono-eyebrow" style={{ fontSize: 7 }}>ALL-DAY</span>
+                  <span className="jk-mono-eyebrow" style={{ fontSize: 7 }}>ALL-DAY</span>
                 </div>
                 {days.map((d) => {
                   const isToday = d === today;
@@ -481,7 +481,7 @@ export function WeekView({
             {/* ── Untimed band — framed sides ── */}
             <div style={headBand}>
               <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-start', padding: '5px 6px 0 0' }}>
-                <span className="mono-eyebrow" style={{ fontSize: 7 }}>UNTIMED</span>
+                <span className="jk-mono-eyebrow" style={{ fontSize: 7 }}>UNTIMED</span>
               </div>
               {days.map((d) => {
                 const dayItems = byDay[d]?.untimed || [];
@@ -524,7 +524,7 @@ export function WeekView({
             <div
               ref={scrollRef}
               data-hour-scroll
-              className={compact ? undefined : 'mo-item'}
+              className={compact ? undefined : 'jk-mo-item'}
               style={{
                 flex: 1, minHeight: 0, overflowY: 'auto', position: 'relative',
                 // Reserve the gutter even when the grid happens to fit, so the
@@ -545,7 +545,7 @@ export function WeekView({
                   ))}
                   {days.includes(today) && nowFrac >= WV_FIRST_H && nowFrac <= WV_LAST_H + 1 && (
                     <div style={{ position: 'absolute', top: (nowFrac - WV_FIRST_H) * ROW_H, right: 6, transform: 'translateY(-50%)' }}>
-                      <span className="seg" style={{ fontSize: 10, color: 'var(--color-accent)' }}>
+                      <span className="jk-seg" style={{ fontSize: 10, color: 'var(--color-accent)' }}>
                         {String(now.getHours()).padStart(2, '0')}:{String(now.getMinutes()).padStart(2, '0')}
                       </span>
                     </div>

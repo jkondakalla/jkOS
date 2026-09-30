@@ -101,10 +101,10 @@ export function TodayView(props: any) {
           style={{ width: 'var(--jk-rail)', flex: 'none', display: 'flex', flexDirection: 'column', gap: 14, padding: '16px 22px', minHeight: 0, overflowY: 'auto' }}
         >
           {/* The bench */}
-          <Sheet className="mo-item" style={{ borderRadius: 'var(--jk-radius)', padding: '16px 18px', display: 'flex', flexDirection: 'column', minHeight: 0, animationDelay: `${MO_DELAYS.railFirst}ms` }}>
+          <Sheet className="jk-mo-item" style={{ borderRadius: 'var(--jk-radius)', padding: '16px 18px', display: 'flex', flexDirection: 'column', minHeight: 0, animationDelay: `${MO_DELAYS.railFirst}ms` }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 6 }}>
               <span className="jk-lab jk-lab-sm" style={{ color: 'var(--color-accent)' }}>The bench</span>
-              <span className="mono-eyebrow" style={{ marginLeft: 'auto' }}>
+              <span className="jk-mono-eyebrow" style={{ marginLeft: 'auto' }}>
                 {bench.length === 0 ? 'EMPTY' : `${benchDone} OF ${bench.length} DONE`}
               </span>
             </div>
@@ -143,7 +143,7 @@ export function TodayView(props: any) {
                         {t.title}
                       </Press>
                       {t.source && t.source !== 'bb' && (
-                        <span className="mono-eyebrow" style={{ marginLeft: 'auto', flex: 'none', fontSize: 8 }}>{sourceOf(t.source).label}</span>
+                        <span className="jk-mono-eyebrow" style={{ marginLeft: 'auto', flex: 'none', fontSize: 8 }}>{sourceOf(t.source).label}</span>
                       )}
                     </Chip>
                   )
@@ -153,11 +153,11 @@ export function TodayView(props: any) {
           </Sheet>
 
           {/* Goals in press */}
-          <Sheet className="mo-item" style={{ borderRadius: 'var(--jk-radius)', padding: '16px 18px', animationDelay: `${MO_DELAYS.railSecond}ms` }}>
+          <Sheet className="jk-mo-item" style={{ borderRadius: 'var(--jk-radius)', padding: '16px 18px', animationDelay: `${MO_DELAYS.railSecond}ms` }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 12 }}>
               <span className="jk-lab jk-lab-sm" style={{ color: 'var(--color-accent)' }}>Goals in press</span>
               <button
-                className="jk-hit mono-eyebrow"
+                className="jk-hit jk-mono-eyebrow"
                 onClick={() => setView?.('tasks')}
                 style={{ marginLeft: 'auto', cursor: 'pointer', padding: '2px 4px', borderRadius: 4, background: 'transparent', border: 'none' }}
               >
@@ -181,10 +181,10 @@ export function TodayView(props: any) {
                     <div key={g.id} style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
                         <span style={{ fontFamily: FONT_HEAD, fontWeight: 600, fontSize: 14, letterSpacing: '-0.01em' }}>{g.title}</span>
-                        <span className="seg" style={{ marginLeft: 'auto', fontSize: 14 }}>{prog.pct}%</span>
+                        <span className="jk-seg" style={{ marginLeft: 'auto', fontSize: 14 }}>{prog.pct}%</span>
                       </div>
                       <Bar value={prog.pct / 100} tint={tint} height={5} radius={3} />
-                      <span className="mono-eyebrow">{meta || `${prog.done}/${prog.total} LEAVES`}</span>
+                      <span className="jk-mono-eyebrow">{meta || `${prog.done}/${prog.total} LEAVES`}</span>
                     </div>
                   )
                 })}
@@ -198,10 +198,10 @@ export function TodayView(props: any) {
               exactly what these are. The section stays mounted when empty: an
               empty inbox is information (nothing is adrift), and a section that
               only exists when something is wrong can't be checked. */}
-          <Sheet className="mo-item" style={{ borderRadius: 'var(--jk-radius)', padding: '16px 18px', animationDelay: `${MO_DELAYS.railSecond + 60}ms` }}>
+          <Sheet className="jk-mo-item" style={{ borderRadius: 'var(--jk-radius)', padding: '16px 18px', animationDelay: `${MO_DELAYS.railSecond + 60}ms` }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 8 }}>
               <span className="jk-lab jk-lab-sm" style={{ color: 'var(--color-accent)' }}>Loose leaves</span>
-              <span className="mono-eyebrow" style={{ marginLeft: 'auto' }}>
+              <span className="jk-mono-eyebrow" style={{ marginLeft: 'auto' }}>
                 {loose.length === 0 ? 'ALL FILED' : `${String(looseOpen).padStart(2, '0')} UNFILED`}
               </span>
             </div>
@@ -242,7 +242,7 @@ export function TodayView(props: any) {
                           state that takes accent — it's the only one that's a
                           problem rather than a location. */}
                       <span
-                        className="mono-eyebrow"
+                        className="jk-mono-eyebrow"
                         style={{ marginLeft: 'auto', flex: 'none', fontSize: 8, color: state.urgent ? 'var(--color-accent)' : undefined }}
                       >{state.label}</span>
                     </Chip>

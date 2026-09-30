@@ -39,7 +39,7 @@ export function applyJkOSMode(
   return isDark;
 }
 
-/** The motion axis (Full Press). Drives .mo-item entrances + the ambient
+/** The motion axis (Full Press). Drives .jk-mo-item entrances + the ambient
  *  rake/buzz, gated in hub.css:
  *    full     — per-item entrances + ambient atmosphere
  *    entrance — per-item entrances, ambient quiet (the sensible default)

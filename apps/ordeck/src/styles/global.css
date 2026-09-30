@@ -23,7 +23,7 @@ a { color: inherit; text-decoration: none; }
 
 /* === ORDECK animation classes === */
 /* The shared motion vocabulary (spin/fadeSlideUp/panelIn/… keyframes + the
-   .view-enter/.panel-enter/.item-in/… utility classes) lives in @jkos/design
+   .jk-view-enter/.jk-panel-enter/.jk-item-in/… utility classes) lives in @jkos/design
    hub.css — one copy for the whole suite. Only ORDECK-specific frames stay. */
 @keyframes reel-spin     { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 @keyframes ticker-scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }

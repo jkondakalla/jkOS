@@ -58,7 +58,7 @@ function Pair({ children }: { children: React.ReactNode }) {
   return <span style={PAIR}>{children}</span>
 }
 const Label = ({ children }: { children: React.ReactNode }) => (
-  <span className="mono-eyebrow" style={{ whiteSpace: 'nowrap' }}>{children}</span>
+  <span className="jk-mono-eyebrow" style={{ whiteSpace: 'nowrap' }}>{children}</span>
 )
 
 /** One progression rule, written as a sentence: what makes it harder, what moves,

@@ -420,7 +420,7 @@
      speaks mono, the tube emits (seg). The serif default IS Fraunces; apps may
      override it through the factory `fonts.serif` input. Apps load the Fraunces
      webfont (incl. wght 700) in index.html; Big Shoulders is loaded only by
-     surfaces that actually render `.seg` (dark face). */
+     surfaces that actually render `.jk-seg` (dark face). */
   --jk-font-mono:  'IBM Plex Mono', ui-monospace, monospace;
   --jk-font-sans:  'IBM Plex Sans', system-ui, sans-serif;
   --jk-font-seg:   'Big Shoulders Display', 'IBM Plex Sans', sans-serif;
@@ -606,7 +606,7 @@
   68%  { filter: brightness(1.05); }
   100% { filter: brightness(1); clip-path: inset(0% 0 0% 0); }
 }
-/* Per-item phosphor flick — the .mo-item dark entrance (crtExpand's leaner
+/* Per-item phosphor flick — the .jk-mo-item dark entrance (crtExpand's leaner
    sibling: one clip-open + brighten, cheap enough to stagger across many rows). */
 @keyframes crtOn {
   0%   { clip-path: inset(49% 0 49% 0); filter: brightness(5); opacity: 0.4; }
@@ -622,7 +622,7 @@
   to   { opacity: 0; }
 }
 
-/* Motion utility classes. `.view-enter`/`.panel-enter` carry NO fill-mode on
+/* Motion utility classes. `.jk-view-enter`/`.jk-panel-enter` carry NO fill-mode on
    purpose: while an animation targeting `transform` is "in effect" on an
    element, Chromium keeps treating it as transformed (stacking context +
    fixed-position containing block) even once it reaches a `transform: none`
@@ -631,15 +631,15 @@
    animation end and revert to the non-animated cascade is a visual no-op,
    and fixed-position popups hosted by (or siblings of) the animated element
    keep stacking/positioning correctly. */
-.view-enter   { animation: fadeSlideUp 0.32s cubic-bezier(0.16, 1, 0.3, 1); }
-.panel-enter  { animation: panelIn     0.34s cubic-bezier(0.16, 1, 0.3, 1); }
-.item-in      { animation: itemIn      0.26s cubic-bezier(0.16, 1, 0.3, 1) both; }
-.modal-in     { animation: modalIn     0.22s cubic-bezier(0.16, 1, 0.3, 1) both; }
-.crt-expand   { animation: crtExpand 0.55s ease-out both; }
-.intro-title  { animation: introTitleReveal 0.7s cubic-bezier(0.16, 1, 0.3, 1) both; }
-.intro-out    { animation: introFadeOut 0.45s ease-in forwards; }
-.now-dot      { animation: pulseOpacity 1.8s ease-in-out infinite; }
-.check-pop    { animation: checkBounce 0.25s ease-out; }
+.jk-view-enter   { animation: fadeSlideUp 0.32s cubic-bezier(0.16, 1, 0.3, 1); }
+.jk-panel-enter  { animation: panelIn     0.34s cubic-bezier(0.16, 1, 0.3, 1); }
+.jk-item-in      { animation: itemIn      0.26s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.jk-modal-in     { animation: modalIn     0.22s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.jk-crt-expand   { animation: crtExpand 0.55s ease-out both; }
+.jk-intro-title  { animation: introTitleReveal 0.7s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.jk-intro-out    { animation: introFadeOut 0.45s ease-in forwards; }
+.jk-now-dot      { animation: pulseOpacity 1.8s ease-in-out infinite; }
+.jk-check-pop    { animation: checkBounce 0.25s ease-out; }
 
 /* ─── Full Press entrance physics (Wave 24) ────────────────────────────────
  * ONE face-aware entrance: on paper the ink DRIES onto the sheet (rise +
@@ -647,7 +647,7 @@
  * crtExpand keyframes — the dark-native entrance the system already had).
  * Same class, opposite physics — apply at view/panel/item boundaries, ONCE
  * per surface; never stack it on an element that already carries another
- * entrance utility. NO fill-mode, same reasoning as .view-enter above: a
+ * entrance utility. NO fill-mode, same reasoning as .jk-view-enter above: a
  * retained transform/filter/clip-path would leave the element a containing
  * block for fixed descendants; both keyframe sets end at the resting style. */
 @keyframes inkDry {
@@ -656,30 +656,30 @@
   55%  { filter: blur(0.5px) brightness(0.82) contrast(1.06); }
   100% { opacity: 1; transform: none; filter: none; }
 }
-.ink-in { animation: inkDry 0.44s cubic-bezier(0.2, 0.7, 0.25, 1); }
-:root[data-mode="dark"] .ink-in { animation: crtExpand 0.5s ease-out; }
+.jk-ink-in { animation: inkDry 0.44s cubic-bezier(0.2, 0.7, 0.25, 1); }
+:root[data-mode="dark"] .jk-ink-in { animation: crtExpand 0.5s ease-out; }
 
-/* Per-item staggered entrance — the .ink-in physics applied ROW-BY-ROW, gated by
- * the data-motion axis (see .jk-buzz below). Unlike .ink-in this carries `both`:
+/* Per-item staggered entrance — the .jk-ink-in physics applied ROW-BY-ROW, gated by
+ * the data-motion axis (see .jk-buzz below). Unlike .jk-ink-in this carries `both`:
  * pre-delay the row must sit hidden (opacity 0) until its inline animation-delay
- * fires, so a list of .mo-item children ripples in. Both keyframe sets END at the
+ * fires, so a list of .jk-mo-item children ripples in. Both keyframe sets END at the
  * resting style (no retained transform), so the fill-mode is safe HERE — but only
- * put .mo-item on elements that DON'T host a fixed-position popup (a retained
- * `both` keeps the element a containing block; that's the .ink-in caveat, and the
- * reason view/panel boundaries use .ink-in while rows use .mo-item).
+ * put .jk-mo-item on elements that DON'T host a fixed-position popup (a retained
+ * `both` keeps the element a containing block; that's the .jk-ink-in caveat, and the
+ * reason view/panel boundaries use .jk-ink-in while rows use .jk-mo-item).
  *   data-motion  absent/entrance → entrances fire, ambient off (the default)
  *                full            → entrances + ambient (rake/buzz)
  *                static          → nothing moves */
-:root:not([data-motion="static"]):not([data-mode="dark"]) .mo-item {
+:root:not([data-motion="static"]):not([data-mode="dark"]) .jk-mo-item {
   animation: inkDry 0.5s cubic-bezier(0.2, 0.7, 0.25, 1) both;
 }
-:root:not([data-motion="static"])[data-mode="dark"] .mo-item {
+:root:not([data-motion="static"])[data-mode="dark"] .jk-mo-item {
   animation: crtOn 0.62s ease-out both;
 }
 
 /* Ambient atmosphere (Wave 24; Full Press folds it onto the data-motion axis) —
  * the sheet and the tube each get their own slow, OFF-by-default beat, shown only
- * under <html data-motion="full"> (the axis that also drives .mo-item). Absent or
+ * under <html data-motion="full"> (the axis that also drives .jk-mo-item). Absent or
  * "entrance", entrances still fire but the ambient stays quiet; "static" stops
  * everything. Mount one fixed overlay div per page (.jk-rake on paper, .jk-buzz on
  * dark — render both; each self-gates on face); the host app owns the z-index.
@@ -732,12 +732,12 @@
  * Entrances snap to their final frame; the loops (LED pulse, now-dot, rake)
  * stop. Bespoke app frames still add their own page-level guard. */
 @media (prefers-reduced-motion: reduce) {
-  .ink-in, .mo-item, .view-enter, .panel-enter, .item-in, .modal-in,
-  .boot-sweep, .crt-expand, .intro-title, .check-pop {
+  .jk-ink-in, .jk-mo-item, .jk-view-enter, .jk-panel-enter, .jk-item-in, .jk-modal-in,
+  .jk-boot-sweep, .jk-crt-expand, .jk-intro-title, .jk-check-pop {
     animation-duration: 0.01ms;
     animation-iteration-count: 1;
   }
-  .led, .now-dot { animation: none; }
+  .jk-led, .jk-now-dot { animation: none; }
   .jk-rake, .jk-buzz { display: none !important; }
 }
 
@@ -795,7 +795,7 @@
 }
 
 /* LEDs */
-.led {
+.jk-led {
   width: 8px; height: 8px;
   border-radius: 50%;
   display: inline-block;
@@ -803,15 +803,15 @@
   animation: led-pulse 2.4s ease-in-out infinite;
   flex-shrink: 0;
 }
-.led.green  { background: var(--color-ok);   color: var(--color-ok); }
-.led.amber  { background: var(--color-accent);   color: var(--color-accent); }
-.led.red    { background: var(--color-danger);     color: var(--color-danger);   animation-duration: 1s; }
-.led.cyan   { background: var(--color-secondary);    color: var(--color-secondary); }
-.led.off    { background: var(--color-metal-2); color: var(--color-metal-2);
+.jk-led.ok  { background: var(--color-ok);   color: var(--color-ok); }
+.jk-led.accent  { background: var(--color-accent);   color: var(--color-accent); }
+.jk-led.danger    { background: var(--color-danger);     color: var(--color-danger);   animation-duration: 1s; }
+.jk-led.secondary   { background: var(--color-secondary);    color: var(--color-secondary); }
+.jk-led.off    { background: var(--color-metal-2); color: var(--color-metal-2);
               box-shadow: inset 0 0 2px rgba(0,0,0,0.4); animation: none; }
-.led.steady { animation: none; }
-.led.sm     { width: 6px;  height: 6px; }
-.led.lg     { width: 12px; height: 12px; }
+.jk-led.steady { animation: none; }
+.jk-led.sm     { width: 6px;  height: 6px; }
+.jk-led.lg     { width: 12px; height: 12px; }
 
 /* Hardware bits — SCARCE punctuation, not decoration. One LED marks THE live
    thing; a strip of tape names THE important panel. Spamming hardware chrome
@@ -822,7 +822,7 @@
 /* Label tape — the PHYSICAL alternative to the .jk-bubble text badge: an
    embossed strip you stick on a panel to name it. Same badge doctrine (drop
    shadow, sits ON the surface), rendered as hardware instead of accent. */
-.label-tape {
+.jk-label-tape {
   display: inline-block;
   background: linear-gradient(180deg, var(--color-metal-1), var(--color-metal-0));
   color: var(--color-ink);
@@ -834,7 +834,7 @@
   box-shadow: inset 0 1px 0 var(--color-bevel-light), 0 1px 0 rgba(0,0,0,0.4);
 }
 
-.perf {
+.jk-perf {
   background: var(--color-paper);
   background-image: radial-gradient(circle, var(--color-metal-0) 1.2px, var(--color-card) 1.4px);
   background-size: 6px 6px;
@@ -842,7 +842,7 @@
 
 /* ─── Print marks (Full Press) — the press's own hardware ──────────────────
  * Editorial rules, the folio mark, the colophon. Doctrine: content is named
- * in PRINT (.jk-folio); .label-tape remains for MACHINE chrome only. The
+ * in PRINT (.jk-folio); .jk-label-tape remains for MACHINE chrome only. The
  * scarcity rule applies to these like any hardware — one folio names THE
  * content panel, one colophon closes THE sheet. */
 
@@ -907,7 +907,7 @@
 
 /* Rubber stamp — the printer's stamp: serif under Full Press, same rotation
    and currentColor discipline. */
-.stamp {
+.jk-stamp {
   display: inline-block;
   border: 2px solid currentColor;
   padding: 2px 8px;
@@ -921,7 +921,7 @@
 }
 
 /* 7-segment glow text */
-.seg {
+.jk-seg {
   font-family: var(--jk-font-seg);
   font-weight: 700;
   letter-spacing: 0.05em;
@@ -933,8 +933,8 @@
    its phosphor numerals (Big Shoulders + glow, unchanged in dark); paper
    PRINTS them — Fraunces lining tabular figures, no glow. One class, mode-
    correct. A 7-seg readout is phosphor hardware; printing one on kraft was a
-   costume. Surfaces that render .seg must load Big Shoulders for the dark face. */
-:root:not([data-mode="dark"]) .seg {
+   costume. Surfaces that render .jk-seg must load Big Shoulders for the dark face. */
+:root:not([data-mode="dark"]) .jk-seg {
   font-family: var(--jk-font-serif);
   font-weight: 600;
   font-variant-numeric: lining-nums tabular-nums;
@@ -943,25 +943,20 @@
 }
 
 /* Bar meters */
-.bar-track {
+.jk-bar-track {
   background: var(--color-paper);
   border: 1px solid var(--color-line);
   position: relative;
   overflow: hidden;
 }
-.bar-fill {
+.jk-bar-fill {
   background: linear-gradient(90deg, var(--color-accent-dim), var(--color-accent));
   box-shadow: 0 0 4px var(--color-accent-glow);
   height: 100%;
 }
 
-/* Phosphor text glow */
-.glow     { text-shadow: 0 0 6px var(--color-accent-glow), 0 0 2px var(--color-accent-glow); }
-.glow-dim { text-shadow: 0 0 4px var(--color-accent-glow); }
-.glow-cyan { text-shadow: 0 0 6px var(--color-secondary-glow), 0 0 2px var(--color-secondary-glow); }
-
 /* Utility */
-.mono-eyebrow {
+.jk-mono-eyebrow {
   font-size: 9px;
   letter-spacing: 0.2em;
   color: var(--color-faint);
@@ -969,7 +964,7 @@
 }
 
 /* Canvas grid background */
-.canvas-grid {
+.jk-canvas-grid {
   background-image:
     linear-gradient(var(--color-line) 1px, transparent 1px),
     linear-gradient(90deg, var(--color-line) 1px, transparent 1px);
@@ -978,17 +973,17 @@
 }
 
 /* Boot / canvas layout cells */
-.canvas-cell {
+.jk-canvas-cell {
   position: relative;
   background: var(--color-paper-2);
   border: 1px solid var(--color-line);
 }
-/* No fill-mode on purpose (same reasoning as .view-enter above): the keyframes
+/* No fill-mode on purpose (same reasoning as .jk-view-enter above): the keyframes
    end at the resting style, and a retained non-none clip-path would make the
    cell a containing block for fixed/absolute descendants forever after. The
    old `to`-only keyframe animated opacity 1→1 — the entrance was invisibly a
    no-op until 2026-07-17. The sweep is a fade + left-to-right reveal. */
-.boot-sweep {
+.jk-boot-sweep {
   animation: bootIn 0.4s ease-out;
 }
 @keyframes bootIn {
@@ -1438,7 +1433,7 @@
  *   1st: it took `transform`-animated entrance classes with a fill-mode, and a
  *        transform "in effect" makes an element a containing block — so fixed
  *        popups inside it mispositioned. (Fixed by dropping fill-mode; see the
- *        note on .panel-enter.)
+ *        note on .jk-panel-enter.)
  *   2nd: it was the only grid item with an EXPLICIT row/column. CSS grid places
  *        definite items before auto ones, so the panel claimed row 2 / col 1
  *        first, auto-placement then found that cell taken and pushed <main> into
@@ -1461,7 +1456,7 @@
  * pin to the .jk-canvas: the canvas spans the masthead, and a panel pinned to it
  * would either cover the masthead or need the masthead's height hardcoded.
  *
- * --jk-panel-w sets the rail width (default 340px). Pair with .panel-enter.  */
+ * --jk-panel-w sets the rail width (default 340px). Pair with .jk-panel-enter.  */
 .jk-panel {
   position: absolute;
   z-index: 20;
@@ -1630,8 +1625,8 @@
 
 /* a spent solid chip's knockout title + mono meta fall back to faint ink */
 .jk-chip-done .jk-press-rev { color: var(--color-faint); text-shadow: none; }
-.jk-chip-solid .mono-eyebrow { color: rgba(247, 239, 220, 0.78); }
-.jk-chip-done.jk-chip-solid .mono-eyebrow { color: var(--color-faint); }
+.jk-chip-solid .jk-mono-eyebrow { color: rgba(247, 239, 220, 0.78); }
+.jk-chip-done.jk-chip-solid .jk-mono-eyebrow { color: var(--color-faint); }
 
 /* CRT — every chip becomes emissive: halation ring, no bevel/drop. #0e0b07 is a
    neutral phosphor-black base (like the dark neutral ramp), tinted per --jk-tint. */
@@ -1662,7 +1657,7 @@
     0 0 20px color-mix(in srgb, var(--jk-tint, var(--color-accent)) 55%, transparent),
     inset 0 0 0 1px color-mix(in srgb, var(--jk-tint, var(--color-accent)) 70%, transparent);
 }
-:root[data-mode="dark"] .jk-chip-solid .mono-eyebrow {
+:root[data-mode="dark"] .jk-chip-solid .jk-mono-eyebrow {
   color: color-mix(in srgb, var(--jk-tint, var(--color-accent)) 55%, transparent);
 }
 /* NOT CHOSEN stays unlit on the tube — restated because every rule above hands
@@ -1775,7 +1770,7 @@
 /* Uppercase label — eyebrows + field labels, three sizes. Full Press re-set
    the ladder in PRINT: tracked Fraunces caps (+1px over the mono scale so the
    serif holds legibility at these sizes). The machine's own annotations stay
-   mono — that's .mono-eyebrow, deliberately untouched. */
+   mono — that's .jk-mono-eyebrow, deliberately untouched. */
 .jk-lab {
   font-family: var(--jk-font-serif);
   font-weight: 600;

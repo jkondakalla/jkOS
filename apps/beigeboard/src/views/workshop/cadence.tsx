@@ -75,7 +75,7 @@ const DOW_NAME = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Satur
 
 /* ── The rail entry ─────────────────────────────────────────────────────────
  * The goal card's sibling, and shaped to rhyme with it on purpose: same box, same
- * serif title, same .seg readout on the right. The two differences are the two
+ * serif title, same .jk-seg readout on the right. The two differences are the two
  * facts that separate the shapes — the goal's dot is ROUND and a routine's is
  * SQUARE (a thing with an end vs a thing with a rhythm), and where the goal shows
  * a percentage bar the routine shows a seven-slot week, because a routine has no
@@ -119,13 +119,13 @@ export function RoutineCard({ routine, items, goals, today, selected, delay, onC
           {routine.title}
         </span>
         {parked && <Bubble tone="secondary" style={{ fontSize: 8, padding: '2px 7px' }}>PARKED</Bubble>}
-        <span className="seg" style={{ marginLeft: 'auto', fontSize: 15 }}>{streak}</span>
-        <span className="mono-eyebrow" style={{ fontSize: 8 }}>IN A ROW</span>
+        <span className="jk-seg" style={{ marginLeft: 'auto', fontSize: 15 }}>{streak}</span>
+        <span className="jk-mono-eyebrow" style={{ fontSize: 8 }}>IN A ROW</span>
       </div>
       <WeekStrip cells={cells} tint={tint} height={7} />
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 }}>
-        <span className="mono-eyebrow">{line}</span>
-        <span className="mono-eyebrow" style={{
+        <span className="jk-mono-eyebrow">{line}</span>
+        <span className="jk-mono-eyebrow" style={{
           marginLeft: 'auto', opacity: 0.8, maxWidth: 170,
           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}>
@@ -279,7 +279,7 @@ export function CadenceBand({
         ) : (
           <div style={{ display: 'flex', gap: 5 }}>
             {dates.map((iso, i) => (
-              <span key={iso} className="mono-eyebrow" style={{ width: 34, textAlign: 'center', fontSize: 8, color: 'var(--color-faint)' }}>
+              <span key={iso} className="jk-mono-eyebrow" style={{ width: 34, textAlign: 'center', fontSize: 8, color: 'var(--color-faint)' }}>
                 {DOW[i]}
               </span>
             ))}
@@ -333,7 +333,7 @@ export function CadenceBand({
                 onChange={(e) => patch({ cadence_rule: formatCadence({ ...cadence, n: Math.max(1, Number(e.target.value) || 1) }) })}
                 wrapperStyle={NUM_W}
               />
-              <span className="mono-eyebrow">{cadence.type === 'rolling' ? 'A WEEK' : 'DAYS APART'}</span>
+              <span className="jk-mono-eyebrow">{cadence.type === 'rolling' ? 'A WEEK' : 'DAYS APART'}</span>
             </>
           )}
 
@@ -358,16 +358,16 @@ export function CadenceBand({
         </div>
 
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-          <span className="mono-eyebrow" style={{ color: 'var(--color-accent)' }}>
+          <span className="jk-mono-eyebrow" style={{ color: 'var(--color-accent)' }}>
             {describeCadence(cadence, committed).toUpperCase()}
           </span>
         </div>
-        <span className="mono-eyebrow" style={{ color: 'var(--color-faint)' }}>
+        <span className="jk-mono-eyebrow" style={{ color: 'var(--color-faint)' }}>
           NEXT: {upcoming.filter((d) => d.date).slice(0, 4).map((d) => d.date!.slice(5)).join('  ') || 'NOTHING SCHEDULED'}
           {upcoming.some((d) => d.float) ? `  ·  ${upcoming.filter((d) => d.float).length} UNDATED` : ''}
         </span>
         {cadence.rrule_error && (
-          <span className="mono-eyebrow" style={{ color: 'var(--color-accent)' }}>
+          <span className="jk-mono-eyebrow" style={{ color: 'var(--color-accent)' }}>
             {cadence.rrule_error.toUpperCase()} — RUNNING THE WEEKDAYS ABOVE INSTEAD
           </span>
         )}
@@ -376,24 +376,24 @@ export function CadenceBand({
       {/* The week's attainment, and the streak. */}
       <div style={{ flex: '1 1 200px', minWidth: 180, maxWidth: 300, display: 'flex', flexDirection: 'column', gap: 5 }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-          <span className="mono-eyebrow">THIS WEEK</span>
-          <span className="seg" style={{ marginLeft: 'auto', fontSize: 15 }}>{meter.done}/{meter.target}</span>
+          <span className="jk-mono-eyebrow">THIS WEEK</span>
+          <span className="jk-seg" style={{ marginLeft: 'auto', fontSize: 15 }}>{meter.done}/{meter.target}</span>
         </div>
         <Bar value={meter.target ? meter.done / meter.target : 0} tint={tint} height={6} radius={3} />
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-          <span className="mono-eyebrow">{streak > 0 ? `${streak} IN A ROW` : 'NO STREAK'}</span>
+          <span className="jk-mono-eyebrow">{streak > 0 ? `${streak} IN A ROW` : 'NO STREAK'}</span>
           {floatCount(routine) > 0 && (
-            <span className="mono-eyebrow" style={{ marginLeft: 'auto', color: 'var(--color-accent)' }}>
+            <span className="jk-mono-eyebrow" style={{ marginLeft: 'auto', color: 'var(--color-accent)' }}>
               {floats.filter((f: any) => !f.completed).length} ON THE BENCH
             </span>
           )}
         </div>
         {metric && (
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }} title={`Toward this routine's goal, this ${metric.window}`}>
-            <span className="mono-eyebrow" style={{ color: 'var(--color-accent)' }}>
+            <span className="jk-mono-eyebrow" style={{ color: 'var(--color-accent)' }}>
               {metric.value}/{metric.target} {metric.unit.toUpperCase()}
             </span>
-            <span className="mono-eyebrow" style={{ marginLeft: 'auto' }}>{metric.pct}%</span>
+            <span className="jk-mono-eyebrow" style={{ marginLeft: 'auto' }}>{metric.pct}%</span>
           </div>
         )}
       </div>
@@ -413,7 +413,7 @@ export function CadenceBand({
               plannable without a second mechanism. */}
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
             <TButton quiet disabled={readonly} onClick={() => setTarget(target - 1)} style={{ padding: '1px 6px', cursor: 'pointer' }}>−</TButton>
-            <span className="mono-eyebrow" style={{ minWidth: 42, textAlign: 'center' }}>{target}×/WK</span>
+            <span className="jk-mono-eyebrow" style={{ minWidth: 42, textAlign: 'center' }}>{target}×/WK</span>
             <TButton quiet disabled={readonly} onClick={() => setTarget(target + 1)} style={{ padding: '1px 6px', cursor: 'pointer' }}>+</TButton>
           </span>
         </div>
@@ -435,7 +435,7 @@ export function CadenceBand({
             particular had no business sitting a few pixels from the target stepper
             with no confirmation: it takes every session the routine ever minted. */}
         {parked && (
-          <span className="mono-eyebrow" style={{ color: 'var(--color-faint)' }}>
+          <span className="jk-mono-eyebrow" style={{ color: 'var(--color-faint)' }}>
             PARKED — MINTING NOTHING
           </span>
         )}

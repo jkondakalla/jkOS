@@ -7,7 +7,7 @@
 //
 //   1st  It took a transform-animated entrance class WITH a fill-mode. A transform
 //        "in effect" makes an element a containing block, so fixed-position popups
-//        it hosted mispositioned. (Fix: .view-enter/.panel-enter carry no fill-mode
+//        it hosted mispositioned. (Fix: .jk-view-enter/.jk-panel-enter carry no fill-mode
 //        — see the note above them in hub.css.)
 //   2nd  It was the only grid child with an EXPLICIT grid-row/grid-column. CSS grid
 //        places definite items before auto ones, so the panel claimed row 2 / col 1

@@ -189,10 +189,10 @@ export function LibraryBrowser({ api, items, readonly, onPick, onClose, onPaste 
   return (
     <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       {/* ── Head ── */}
-      <div className="mo-item" style={{ flex: 'none', padding: '16px 28px 12px' }}>
+      <div className="jk-mo-item" style={{ flex: 'none', padding: '16px 28px 12px' }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 14 }}>
           <span className="jk-lab jk-lab-xs" style={{ color: 'var(--color-accent)' }}>THE LIBRARY</span>
-          <span className="mono-eyebrow">
+          <span className="jk-mono-eyebrow">
             {picking
               ? 'PICK ONE — IT BRINGS ITS UNIT, ITS REST, ITS LADDER AND A SANE PROGRESSION'
               : 'THE VOCABULARY EVERY ROUTINE IS WRITTEN IN'}
@@ -202,7 +202,7 @@ export function LibraryBrowser({ api, items, readonly, onPick, onClose, onPaste 
           <span style={{ fontFamily: FONT_HEAD, fontWeight: 700, fontSize: '1.85rem', lineHeight: 1, letterSpacing: '-0.02em' }}>
             {collection === 'all' ? 'Everything' : collection.replace(/^\w/, (c) => c.toUpperCase())}
           </span>
-          <span className="mono-eyebrow" style={{ marginBottom: 5 }}>
+          <span className="jk-mono-eyebrow" style={{ marginBottom: 5 }}>
             {String(shown.length).padStart(2, '0')} OF {String(total).padStart(2, '0')} ENTRIES
           </span>
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -260,9 +260,9 @@ export function LibraryBrowser({ api, items, readonly, onPick, onClose, onPaste 
         }}>
           {/* ══ The shelf ═══════════════════════════════════════════════════ */}
           <div style={{ minWidth: 0 }}>
-            {entries === null && <div className="mono-eyebrow">LOADING…</div>}
+            {entries === null && <div className="jk-mono-eyebrow">LOADING…</div>}
             {entries !== null && shown.length === 0 && (
-              <div className="mono-eyebrow" style={{ color: 'var(--color-faint)' }}>
+              <div className="jk-mono-eyebrow" style={{ color: 'var(--color-faint)' }}>
                 {query ? 'NOTHING MATCHES' : 'THIS SHELF IS EMPTY — ADD AN ENTRY OR PASTE A SET'}
               </div>
             )}
@@ -331,7 +331,7 @@ function EntryCard({ entry: e, used, selected, picking, delay, onOpen, onPick }:
 
   return (
     <As
-      className="jk-hit mo-item"
+      className="jk-hit jk-mo-item"
       onClick={picking && onPick ? onPick : onOpen}
       title={picking ? `Add ${e.title} as a step` : e.notes || e.title}
       style={{
@@ -348,10 +348,10 @@ function EntryCard({ entry: e, used, selected, picking, delay, onOpen, onPick }:
           {e.title}
         </span>
         {prog && <Bubble tone="secondary" style={{ fontSize: 8, padding: '1px 6px' }}>{prog}</Bubble>}
-        <span className="mono-eyebrow" style={{ marginLeft: 'auto', flex: 'none' }}>{dose}</span>
+        <span className="jk-mono-eyebrow" style={{ marginLeft: 'auto', flex: 'none' }}>{dose}</span>
       </div>
 
-      <span className="mono-eyebrow" style={{ color: 'var(--color-faint)' }}>
+      <span className="jk-mono-eyebrow" style={{ color: 'var(--color-faint)' }}>
         {e.slug}{d.rest ? ` · REST ${d.rest}S` : ''}{e.source === 'starter' ? ' · STARTER' : ''}
       </span>
 
@@ -372,10 +372,10 @@ function EntryCard({ entry: e, used, selected, picking, delay, onOpen, onPick }:
       {(e.tags?.length > 0 || used.length > 0) && (
         <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap' }}>
           {(e.tags || []).slice(0, 4).map((t: string) => (
-            <span key={t} className="mono-eyebrow" style={{ color: 'var(--color-faint)' }}>#{t}</span>
+            <span key={t} className="jk-mono-eyebrow" style={{ color: 'var(--color-faint)' }}>#{t}</span>
           ))}
           {used.length > 0 && (
-            <span className="mono-eyebrow" style={{ marginLeft: 'auto', color: 'var(--color-accent)' }}
+            <span className="jk-mono-eyebrow" style={{ marginLeft: 'auto', color: 'var(--color-accent)' }}
               title={used.join(', ')}>
               IN {used.length} ROUTINE{used.length > 1 ? 'S' : ''}
             </span>
@@ -407,10 +407,10 @@ function EntryEditor({ draft: e, readonly, saving, error, used, onEdit, onSave, 
   return (
     <Well style={{ display: 'block', padding: 12 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 8 }}>
-        <span className="mono-eyebrow" style={{ color: 'var(--color-accent)' }}>
+        <span className="jk-mono-eyebrow" style={{ color: 'var(--color-accent)' }}>
           {isNew ? 'NEW ENTRY' : 'ENTRY'}
         </span>
-        <span className="mono-eyebrow">EVERY FIELD IS A DEFAULT — A STEP CAN OVERRIDE ANY OF IT</span>
+        <span className="jk-mono-eyebrow">EVERY FIELD IS A DEFAULT — A STEP CAN OVERRIDE ANY OF IT</span>
         <TButton quiet onClick={onClose} style={{ marginLeft: 'auto', padding: '1px 7px', cursor: 'pointer' }}>×</TButton>
       </div>
 
@@ -440,12 +440,12 @@ function EntryEditor({ draft: e, readonly, saving, error, used, onEdit, onSave, 
       <Rule style={{ margin: '9px 0' }} />
 
       {/* THE DOSE */}
-      <div className="mono-eyebrow" style={{ marginBottom: 5 }}>ONE OF IT LOOKS LIKE</div>
+      <div className="jk-mono-eyebrow" style={{ marginBottom: 5 }}>ONE OF IT LOOKS LIKE</div>
       <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
         <NumField min={1} value={d.sets ?? ''} disabled={readonly} placeholder="1"
           onChange={(ev) => setDefault('sets', ev.target.value === '' ? null : Math.max(1, Number(ev.target.value) || 1))}
           wrapperStyle={NUM_W} title="Sets" />
-        <span className="mono-eyebrow">×</span>
+        <span className="jk-mono-eyebrow">×</span>
         <NumField value={d.target ?? ''} disabled={readonly} placeholder="—"
           onChange={(ev) => setDefault('target', ev.target.value === '' ? null : Number(ev.target.value))}
           wrapperStyle={NUM_W} title="Target per set" />
@@ -453,7 +453,7 @@ function EntryEditor({ draft: e, readonly, saving, error, used, onEdit, onSave, 
           onChange={(ev) => onEdit((n: any) => { n.unit = ev.target.value })}>
           {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
         </SelectField>
-        <span className="mono-eyebrow">@</span>
+        <span className="jk-mono-eyebrow">@</span>
         <NumField step={0.5} value={d.load ?? ''} disabled={readonly} placeholder="—"
           onChange={(ev) => setDefault('load', ev.target.value === '' ? null : Number(ev.target.value))}
           wrapperStyle={NUM_W} title="Starting load" />
@@ -462,7 +462,7 @@ function EntryEditor({ draft: e, readonly, saving, error, used, onEdit, onSave, 
           <option value="">—</option>
           {LOAD_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
         </SelectField>
-        <span className="mono-eyebrow">REST</span>
+        <span className="jk-mono-eyebrow">REST</span>
         <NumField min={0} value={d.rest ?? ''} disabled={readonly} placeholder="—"
           onChange={(ev) => setDefault('rest', ev.target.value === '' ? null : Number(ev.target.value))}
           wrapperStyle={NUM_W} />
@@ -471,7 +471,7 @@ function EntryEditor({ draft: e, readonly, saving, error, used, onEdit, onSave, 
       <Rule style={{ margin: '9px 0' }} />
 
       {/* THE LADDER — the most valuable field in an entry. */}
-      <div className="mono-eyebrow" style={{ marginBottom: 5 }}>
+      <div className="jk-mono-eyebrow" style={{ marginBottom: 5 }}>
         THE LADDER — EASIEST TO HARDEST
       </div>
       <Field
@@ -484,20 +484,20 @@ function EntryEditor({ draft: e, readonly, saving, error, used, onEdit, onSave, 
       />
       {e.variants?.length > 1 && (
         <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', marginTop: 5 }}>
-          <span className="mono-eyebrow">START AT</span>
+          <span className="jk-mono-eyebrow">START AT</span>
           <SelectField value={d.variant_index ?? 0} disabled={readonly}
             onChange={(ev) => setDefault('variant_index', Number(ev.target.value))}>
             {e.variants.map((v: string, i: number) => <option key={i} value={i}>{v}</option>)}
           </SelectField>
-          <span className="mono-eyebrow">CLIMB EVERY</span>
+          <span className="jk-mono-eyebrow">CLIMB EVERY</span>
           <NumField min={0} value={d.variant_every ?? 0} disabled={readonly}
             onChange={(ev) => setDefault('variant_every', Math.max(0, Number(ev.target.value) || 0))}
             wrapperStyle={NUM_W} title="0 = never climb on a clock" />
-          <span className="mono-eyebrow">SESSIONS</span>
+          <span className="jk-mono-eyebrow">SESSIONS</span>
         </div>
       )}
       {(!e.variants || e.variants.length < 2) && (
-        <div className="mono-eyebrow" style={{ color: 'var(--color-faint)', marginTop: 4 }}>
+        <div className="jk-mono-eyebrow" style={{ color: 'var(--color-faint)', marginTop: 4 }}>
           NO LADDER — BODYWEIGHT WORK WITH NO LADDER CAN ONLY PLATEAU
         </div>
       )}
@@ -505,7 +505,7 @@ function EntryEditor({ draft: e, readonly, saving, error, used, onEdit, onSave, 
       <Rule style={{ margin: '9px 0' }} />
 
       {/* HOW IT GETS HARDER */}
-      <div className="mono-eyebrow" style={{ marginBottom: 5 }}>ITS DEFAULT PROGRESSION</div>
+      <div className="jk-mono-eyebrow" style={{ marginBottom: 5 }}>ITS DEFAULT PROGRESSION</div>
       {d.progression && d.progression.type && d.progression.type !== 'fixed' ? (
         <RuleRow
           rule={d.progression}
@@ -516,7 +516,7 @@ function EntryEditor({ draft: e, readonly, saving, error, used, onEdit, onSave, 
         />
       ) : (
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <span className="mono-eyebrow" style={{ color: 'var(--color-faint)' }}>NEVER GETS HARDER</span>
+          <span className="jk-mono-eyebrow" style={{ color: 'var(--color-faint)' }}>NEVER GETS HARDER</span>
           {!readonly && (
             <TButton quiet style={{ padding: '2px 8px', cursor: 'pointer' }}
               onClick={() => setDefault('progression', { type: 'linear', drives: 'target', increment: 1, every: 1, cap: null })}>
@@ -529,7 +529,7 @@ function EntryEditor({ draft: e, readonly, saving, error, used, onEdit, onSave, 
       <Rule style={{ margin: '9px 0' }} />
 
       {/* THE REST */}
-      <div className="mono-eyebrow" style={{ marginBottom: 5 }}>TAGS — HOW YOU WILL FIND IT AGAIN</div>
+      <div className="jk-mono-eyebrow" style={{ marginBottom: 5 }}>TAGS — HOW YOU WILL FIND IT AGAIN</div>
       <Field
         value={(e.tags || []).join(', ')} disabled={readonly} placeholder="push, chest, bodyweight"
         onChange={(ev) => onEdit((n: any) => {
@@ -545,16 +545,16 @@ function EntryEditor({ draft: e, readonly, saving, error, used, onEdit, onSave, 
       />
 
       {used.length > 0 && (
-        <div className="mono-eyebrow" style={{ marginTop: 8, color: 'var(--color-accent)' }} title={used.join(', ')}>
+        <div className="jk-mono-eyebrow" style={{ marginTop: 8, color: 'var(--color-accent)' }} title={used.join(', ')}>
           USED BY {used.join(' · ').toUpperCase()}
         </div>
       )}
       {error && (
-        <div className="mono-eyebrow" style={{ marginTop: 8, color: 'var(--color-accent)' }}>{error.toUpperCase()}</div>
+        <div className="jk-mono-eyebrow" style={{ marginTop: 8, color: 'var(--color-accent)' }}>{error.toUpperCase()}</div>
       )}
 
       {confirming && (
-        <div className="mono-eyebrow" style={{ marginTop: 8, color: 'var(--color-accent)', lineHeight: 1.6 }}>
+        <div className="jk-mono-eyebrow" style={{ marginTop: 8, color: 'var(--color-accent)', lineHeight: 1.6 }}>
           {used.length > 0
             ? `${used.length} ROUTINE${used.length > 1 ? 'S' : ''} REFERENCE THIS. THEIR STEPS KEEP WHAT THEY ALREADY INHERITED, BUT STOP PICKING UP EDITS.`
             : 'NOTHING REFERENCES THIS ENTRY.'}

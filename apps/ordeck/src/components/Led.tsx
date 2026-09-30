@@ -6,17 +6,18 @@ import type { CSSProperties } from 'react';
 // view has a job for it.
 
 interface LedProps {
-  color?: 'amber' | 'cyan' | 'red' | 'green';
+  /** The status role, as hub.css's `.jk-led` modifiers name it — never a pigment. */
+  tone?: 'accent' | 'secondary' | 'danger' | 'ok';
   steady?: boolean;
   size?: 'sm' | 'md' | 'lg';
   off?: boolean;
   style?: CSSProperties;
 }
 
-export function Led({ color = 'amber', steady, size = 'md', off, style }: LedProps) {
+export function Led({ tone = 'accent', steady, size = 'md', off, style }: LedProps) {
   const cls = [
-    'led',
-    color,
+    'jk-led',
+    tone,
     steady ? 'steady' : '',
     size === 'sm' ? 'sm' : size === 'lg' ? 'lg' : '',
     off ? 'off' : '',

@@ -75,8 +75,8 @@ export function ProgressChart({ points, title, unit, tint = 'var(--color-accent)
   if (!model) {
     return (
       <div style={{ padding: '8px 0' }}>
-        <div className="mono-eyebrow">{title.toUpperCase()}</div>
-        <div className="mono-eyebrow" style={{ color: 'var(--color-faint)' }}>
+        <div className="jk-mono-eyebrow">{title.toUpperCase()}</div>
+        <div className="jk-mono-eyebrow" style={{ color: 'var(--color-faint)' }}>
           NOT ENOUGH SESSIONS YET
         </div>
       </div>
@@ -132,7 +132,7 @@ export function ProgressChart({ points, title, unit, tint = 'var(--color-accent)
           teaches the encoding instead of just naming it. */}
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 3 }}>
         <span style={{ fontFamily: FONT_HEAD, fontWeight: 600, fontSize: 12 }}>{title}</span>
-        <span className="mono-eyebrow" style={{ marginLeft: 'auto', display: 'inline-flex', gap: 9, alignItems: 'center' }}>
+        <span className="jk-mono-eyebrow" style={{ marginLeft: 'auto', display: 'inline-flex', gap: 9, alignItems: 'center' }}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
             <svg width="14" height="4" aria-hidden><line x1="0" y1="2" x2="14" y2="2" stroke="var(--color-faint)" strokeWidth="1.5" strokeDasharray="3 2" /></svg>
             PLAN
@@ -254,11 +254,11 @@ export function ProgressChart({ points, title, unit, tint = 'var(--color-accent)
       {/* The x band lives INSIDE the component's own flow, so the container always
           has room for it rather than clipping it into a nested scrollbar. */}
       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 3 }}>
-        <span className="mono-eyebrow">{dayOf(pts[0].date)}</span>
-        <span className="mono-eyebrow" style={{ color: 'var(--color-faint)' }}>
+        <span className="jk-mono-eyebrow">{dayOf(pts[0].date)}</span>
+        <span className="jk-mono-eyebrow" style={{ color: 'var(--color-faint)' }}>
           {Math.round(lo)}–{Math.round(hi)}{unit ? ` ${unit}` : ''}
         </span>
-        <span className="mono-eyebrow">{dayOf(pts[pts.length - 1].date)}</span>
+        <span className="jk-mono-eyebrow">{dayOf(pts[pts.length - 1].date)}</span>
       </div>
 
       {/* The table view. Present because a chart is not the only way anyone should

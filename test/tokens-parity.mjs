@@ -213,8 +213,8 @@ else
 
 // ── 3. Full Press face checks (Wave 22, 2026-07-19) ─────────────────────────
 // The Voice: humans read PRINT (--jk-font-serif, Fraunces by default), the
-// machine speaks MONO (.jk-pill keeps its mono face; .mono-eyebrow is untouched
-// by doctrine), the tube EMITS (.seg keeps Big Shoulders + glow in dark while
+// machine speaks MONO (.jk-pill keeps its mono face; .jk-mono-eyebrow is untouched
+// by doctrine), the tube EMITS (.jk-seg keeps Big Shoulders + glow in dark while
 // paper prints serif lining figures — "the seg verdict"). These pins stop a
 // future cleanup from quietly un-cutting the press or re-facing the machine.
 {
@@ -232,20 +232,20 @@ else
          'Full Press promoted the serif to a suite default; apps only override via the factory fonts.serif input');
 
   // The seg verdict — one class, two faces.
-  const segBase = ruleOf('.seg');
-  const segPaper = ruleOf(':root:not([data-mode="dark"]) .seg');
+  const segBase = ruleOf('.jk-seg');
+  const segPaper = ruleOf(':root:not([data-mode="dark"]) .jk-seg');
   if (segBase && /var\(--jk-font-seg\)/.test(segBase))
-    ok('.seg keeps the phosphor face (--jk-font-seg) as its base — the tube still emits');
+    ok('.jk-seg keeps the phosphor face (--jk-font-seg) as its base — the tube still emits');
   else
-    fail('.seg no longer reads --jk-font-seg — the dark-face readout lost its phosphor numerals');
+    fail('.jk-seg no longer reads --jk-font-seg — the dark-face readout lost its phosphor numerals');
   if (segPaper && /var\(--jk-font-serif\)/.test(segPaper) && /text-shadow:\s*none/.test(segPaper))
-    ok('paper .seg override prints serif lining figures with no glow (the seg verdict holds)');
+    ok('paper .jk-seg override prints serif lining figures with no glow (the seg verdict holds)');
   else
-    fail('the paper .seg override (:root:not([data-mode="dark"]) .seg) must set font-family: ' +
+    fail('the paper .jk-seg override (:root:not([data-mode="dark"]) .jk-seg) must set font-family: ' +
          'var(--jk-font-serif) and text-shadow: none — the readout face splits by medium');
 
   // Print voice on the re-cut primitives; mono voice retained where doctrine says.
-  for (const cls of ['.jk-lab', '.jk-tbtn', '.jk-bubble', '.stamp']) {
+  for (const cls of ['.jk-lab', '.jk-tbtn', '.jk-bubble', '.jk-stamp']) {
     const body = ruleOf(cls);
     if (body && /var\(--jk-font-serif\)/.test(body)) ok(`${cls} is set in print (var(--jk-font-serif))`);
     else fail(`${cls} no longer reads var(--jk-font-serif) — the Full Press voice was un-cut`);

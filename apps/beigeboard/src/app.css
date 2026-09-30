@@ -8,7 +8,7 @@ button:focus, input:focus, select:focus { outline: none; }
 
 /* ── Animations ──────────────────────────────────────────────────────── */
 /* The shared motion vocabulary (spin/fadeSlideUp/panelIn/… keyframes + the
-   .view-enter/.panel-enter/.item-in/… utility classes) lives in @jkos/design
+   .jk-view-enter/.jk-panel-enter/.jk-item-in/… utility classes) lives in @jkos/design
    hub.css — one copy for the whole suite, including the no-fill-mode rule that
    keeps fixed-position popups (CreateDialog, DetailPanel) stacking correctly.
    Only BeigeBoard's bespoke paper-mode frame stays here. */

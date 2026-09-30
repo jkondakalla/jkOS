@@ -264,7 +264,7 @@ family that titles chips — `.jk-press-ink` (neutral ink, shadow only), `.jk-pr
 row-by-row, distinct from `.jk-press`'s raised primary badge. React: `<Chip>` +
 `<Press variant="ink|rev|sm">` (`@jkos/ui`).
 
-`.label-tape` is the badge made **physical** — an embossed metal strip for naming a panel.
+`.jk-label-tape` is the badge made **physical** — an embossed metal strip for naming a panel.
 Reach for it when the thing being named is *chrome* rather than *content*.
 
 Glow (§8 of the live page) is the same doctrine on the dark face: `.jk-halo` /
@@ -283,27 +283,27 @@ primitive layer — labels, text buttons, chips and stamps are now *printed*.
 
 | Token | Face | Use |
 |---|---|---|
-| `--jk-font-serif` | **Fraunces** (suite default; Georgia fallback) | the print voice: headings, `.jk-lab`, `.jk-tbtn`, `.jk-bubble`, `.stamp`, `.jk-folio`, `.jk-colophon`, `.jk-async-note`, paper-face `.seg` |
-| `--jk-font-mono` | **IBM Plex Mono** | the machine: data, annotation, tape text, `.mono-eyebrow`, `.jk-pill` |
+| `--jk-font-serif` | **Fraunces** (suite default; Georgia fallback) | the print voice: headings, `.jk-lab`, `.jk-tbtn`, `.jk-bubble`, `.jk-stamp`, `.jk-folio`, `.jk-colophon`, `.jk-async-note`, paper-face `.jk-seg` |
+| `--jk-font-mono` | **IBM Plex Mono** | the machine: data, annotation, tape text, `.jk-mono-eyebrow`, `.jk-pill` |
 | `--jk-font-sans` | **IBM Plex Sans** | body copy — quiet, legible, never the event; `.jk-lab-sans` |
-| `--jk-font-seg` | **Big Shoulders Display** | phosphor numeric readouts (`.seg`, dark face) |
+| `--jk-font-seg` | **Big Shoulders Display** | phosphor numeric readouts (`.jk-seg`, dark face) |
 
-**Deliberately mono, untouched by the reface:** `.mono-eyebrow` and `.jk-pill` — machine
+**Deliberately mono, untouched by the reface:** `.jk-mono-eyebrow` and `.jk-pill` — machine
 annotations and machine statuses keep the mono voice. `.jk-lab-sans` remains the blessed
 softer (sans) eyebrow. The `.jk-lab` ladder is tracked Fraunces caps at
 `calc(--jk-fs-lab* + 1px)` (the serif needs the extra point at these sizes).
 
-**The seg verdict — `.seg` splits by medium.** The tube keeps Big Shoulders + glow
+**The seg verdict — `.jk-seg` splits by medium.** The tube keeps Big Shoulders + glow
 (dark face, unchanged); paper *prints* the readout — Fraunces lining tabular figures, no
-glow (`:root:not([data-mode="dark"]) .seg`). One class, mode-correct.
+glow (`:root:not([data-mode="dark"]) .jk-seg`). One class, mode-correct.
 
 **What each app actually loads** (Google Fonts, per `index.html` / jkAuth's `views.js`
 layout): BeigeBoard, ORDECK, KourOS and jkAuth all load Plex Mono + Plex Sans +
 **Fraunces** (wght 400/600/**700** + italics — 700 is required by the chips/folio/stamps).
 jkos-deploy's console deliberately loads Mono only — it is machine chrome end to end.
 **Big Shoulders** is loaded only by
-surfaces that actually render `.seg` — today that is the design page and **BeigeBoard**
-(its masthead clock became the app's one `.seg` readout in the 2026-07-19 editorial pass);
+surfaces that actually render `.jk-seg` — today that is the design page and **BeigeBoard**
+(its masthead clock became the app's one `.jk-seg` readout in the 2026-07-19 editorial pass);
 if an app grows a phosphor readout, add the font to that app's `index.html`.
 
 ---
@@ -430,9 +430,9 @@ gaps `0.85rem` / `0.75rem` (tight). Callers pick the density (usually from
 - **Scrims:** `--color-scrim` `rgba(10,8,6,.5)`, `--color-scrim-heavy` `rgba(5,4,3,.85)` —
   warm-black in both modes (a scrim dims, it is not a themed surface). Classes `.jk-scrim`
   / `.jk-scrim-heavy`.
-- **Canvas:** `.canvas-grid` — the workshop/boot ground (line-colour grid at `--jk-grid`
-  pitch; opacity `0.5` paper / `1` dark via `--hub-canvas-grid-opacity`); `.canvas-cell` — a
-  bordered cell on it; `.perf` — perforation texture.
+- **Canvas:** `.jk-canvas-grid` — the workshop/boot ground (line-colour grid at `--jk-grid`
+  pitch; opacity `0.5` paper / `1` dark via `--hub-canvas-grid-opacity`); `.jk-canvas-cell` — a
+  bordered cell on it; `.jk-perf` — perforation texture.
 
 ---
 
@@ -442,11 +442,11 @@ Everything here is demonstrated live on staging.jkos.net/design; `pnpm check:des
 if a class exists and isn't on the page. Reuse these — don't recreate them.
 
 **Hardware (scarce punctuation):**
-`.led` + `.green/.amber/.red/.cyan/.off/.steady/.sm/.lg` (8px pulsing dot; red pulses
-faster) · `.label-tape` (embossed metal naming strip — **machine chrome only** under Full
-Press) · `.stamp` (rotated rubber stamp, `currentColor`, serif — the printer's) · `.perf`
-· `.canvas-grid` / `.canvas-cell` · `.seg` (phosphor numerals in dark; printed Fraunces
-lining figures on paper — §5) · `.bar-track` / `.bar-fill` (amber-gradient meter).
+`.jk-led` + `.green/.amber/.red/.cyan/.off/.steady/.sm/.lg` (8px pulsing dot; red pulses
+faster) · `.jk-label-tape` (embossed metal naming strip — **machine chrome only** under Full
+Press) · `.jk-stamp` (rotated rubber stamp, `currentColor`, serif — the printer's) · `.jk-perf`
+· `.jk-canvas-grid` / `.jk-canvas-cell` · `.jk-seg` (phosphor numerals in dark; printed Fraunces
+lining figures on paper — §5) · `.jk-bar-track` / `.jk-bar-fill` (amber-gradient meter).
 
 **Print marks (Full Press — the press's own hardware, same scarcity rule):**
 `.jk-rule` / `.jk-rule-strong` / `.jk-rule-double` / `.jk-rule-taper` — the rules ladder,
@@ -476,7 +476,7 @@ Drawn inside the masked box, the same taper that shapes the bead shapes its ligh
 Seams: `--jk-taper-mask` / `--color-ink` (`.jk-masthead::after` renders the same object
 from the same recipe, so the two cannot drift). ·
 `.jk-folio` + `.jk-folio-no` — the folio mark that names **content** in print
-(running-head rules, serif caps, accent-italic number; the counterpart of `.label-tape`,
+(running-head rules, serif caps, accent-italic number; the counterpart of `.jk-label-tape`,
 which keeps naming machine panels) · `.jk-colophon` — the end-of-sheet record
 (centre-set serif over an accent fleuron; halates in CRT).
 
@@ -526,7 +526,7 @@ styling**, and the reason is a bug that shipped twice:
 
 1. It took a fill-moded transform entrance; a transform "in effect" makes an element a
    containing block, so `position: fixed` popups it hosted mispositioned. (Fixed by the
-   no-fill-mode rule on `.view-enter` / `.panel-enter` — §12.)
+   no-fill-mode rule on `.jk-view-enter` / `.jk-panel-enter` — §12.)
 2. It was the app shell grid's only **definitely**-placed child (`grid-row: 2; grid-column: 1`,
    sharing the content cell with `<main>`). Grid places definite items before auto ones, so
    the panel claimed the cell first, auto-placement found it taken and pushed `<main>` into an
@@ -557,12 +557,13 @@ now-line read as a position in the day rather than a line drawn across it. **The
 not a per-call-site choice:** `chipState(item, now)` in `@jkos/cards` decides, so an item
 carries the same weight in every view that renders it.
 
-**Glow:** `.glow` / `.glow-dim` / `.glow-cyan` (phosphor text, accent families) ·
-`.jk-halo` / `.jk-halo-text` · `.jk-glow` / `.jk-glow-text` + `.jk-glow-low/-mid/-hi` +
-`--jk-glow-color`.
+**Glow — mode-gated, nothing on paper:** `.jk-halo` / `.jk-halo-text` (the accent) ·
+`.jk-glow` / `.jk-glow-text` + `.jk-glow-low/-mid/-hi` + `--jk-glow-color` (any colour).
+(`.glow` / `.glow-dim` / `.glow-cyan` retired 2026-09-30: they glowed on paper too, against
+the doctrine, and their one call site was overridden by an inline shadow.)
 
 **Text system (the Voice, §5):** `.jk-lab` (+ `-sm`, `-xs` — tracked Fraunces caps;
-`-sans` stays sans) · `.mono-eyebrow` (machine, mono, untouched) · `.jk-tbtn`
+`-sans` stays sans) · `.jk-mono-eyebrow` (machine, mono, untouched) · `.jk-tbtn`
 (+ `.jk-tbtn-quiet`; printed serif caps, hovers to the secondary accent) · `.jk-pill`
 (green status pill — machine, stays mono) · `.jk-async-note` is set serif-italic (the
 compositor's aside).
@@ -817,7 +818,7 @@ theme → `applyTheme` (`@jkos/auth-client`) calls `applyJkOSMode` + `applyJkOST
 
 | App | Stack | Serif | Factory config (actual) | Notes |
 |---|---|---|---|---|
-| **BeigeBoard** (planner) | React 18, plain CSS (`src/app.css`) | Fraunces | `radius: { base 8, xs 4, sm 7, lg 11, soft 9, widget 10, button 8 }` | **Full Press rebuild (2026-07-20)** — a view-layer redesign onto the new solid-ink chip system (the editorial pass 2026-07-19 was its masthead/rules groundwork; the folio retired for bordered `.jk-lab` week/date chips). **Today** = kit `DayView` single-day timeline + a 388px right rail (`.jk-sheet` bench + goals-in-press rollups + `.jk-colophon`); **Week/Calendar** = the reskinned kit views unchanged at the app level (the kit now owns the chrome — seven framed gapped day-lanes, today = tinted `jk-well` + `jk-press`); **Workshop** = a two-pane forge (goal rail, `jk-well` when selected → header `jk-press-lg` + `jk-rule` + expand/collapse milestone→leaf tree, each leaf a `.jk-chip` + `.jk-check`), retiring the drill-down + weekly bench + carried/adrift/next planning intel; **header** = pressed serif wordmark + `.jk-lab` chips + **mono** nav (active = `jk-well` + `jk-press`) + `.seg` clock. Motion on the `data-motion` axis (`.mo-item` rows, ambient rake/buzz opt-in; intro presses on paper). DetailPanel kept + restyled as the edit surface. Desktop only — `src/mobile/*` untouched behind `useBreakpoint()`; drag via `usePointerDrag`. **Parity pass (2026-07-29)** brought it to the prototype: the timeline is 60px rows (17 × 60 = 1020px) with hour rules in `--color-line` and a half-hour ghost rule on Today only, all keyed off `density` so ORDECK's HUD keeps 48px; the gutter speaks **mono** (`.seg` only on the now badge, §13.12); the three 30px serif mastheads became one 46px `<ChromeBar>`; **Calendar was rebuilt** from a hairline table + 220px sidebar into 7×N gapped, individually bordered cells (the Week lane idea at month scale — sidebar now off by default, spanning all-day bars become a chip per covered day); Today's now-line names the live event and counts down, and the timeline opens where the day is; every view cascades from `MO_DELAYS` and no view double-animates. **Masthead + panel pass (2026-07-29)**: the header became a `.jk-masthead` (no fill/border, tapered ink ladder, `.jk-folio` edition mark, thumb-index nav) and the DetailPanel a `.jk-panel` overlay — see §8. Today's rail gained **Loose leaves**, the one section listing tasks filed under no goal (no goal anywhere up the parent chain, not merely `!parent_id`); before it, an unfiled task with no date and no `week_start` appeared on no screen at all. **Today's lane is marked by LIGHT, not by pigment**: `--jk-tint` 5% over `--color-lit` (the brightest stock) with a `--color-line-strong` frame and `gridRules(density, { tone: 'strong' })`. The old recipe was the faint-CHIP wash (14% over `--color-card`), a mid-tone that sat at nearly equal lightness to BOTH its `--color-paper` neighbours *and* `--color-line` — so the lane didn't read as marked and its hour rules vanished inside it. A wash too weak to see and strong enough to erase the ledger is the worst of both; the lit lane differs in the axis the eye actually finds, and gains rule contrast instead of losing it. Day's timeline takes `tone: 'strong'` too — it is drawn straight on the grained ground with no lane fill, the faintest pairing in the app. **Head/foot + month-ring pass (2026-07-30)**: the masthead ladder became **the inlay** (one tapered metal bead, hammered steel on paper / lit silver on the tube — §04) and the thumb-index nav went back to **boxed** tabs, because the box is what states light-vs-dark at a glance; the **page footer is gone** (colophon + rule both — the canvas keeps an 18px bottom margin and the page ends in air); and Calendar's day cells now enter on the **month ring** (`ringOrder`), starting on today and wrapping, so the entrance itself points at the current date |
+| **BeigeBoard** (planner) | React 18, plain CSS (`src/app.css`) | Fraunces | `radius: { base 8, xs 4, sm 7, lg 11, soft 9, widget 10, button 8 }` | **Full Press rebuild (2026-07-20)** — a view-layer redesign onto the new solid-ink chip system (the editorial pass 2026-07-19 was its masthead/rules groundwork; the folio retired for bordered `.jk-lab` week/date chips). **Today** = kit `DayView` single-day timeline + a 388px right rail (`.jk-sheet` bench + goals-in-press rollups + `.jk-colophon`); **Week/Calendar** = the reskinned kit views unchanged at the app level (the kit now owns the chrome — seven framed gapped day-lanes, today = tinted `jk-well` + `jk-press`); **Workshop** = a two-pane forge (goal rail, `jk-well` when selected → header `jk-press-lg` + `jk-rule` + expand/collapse milestone→leaf tree, each leaf a `.jk-chip` + `.jk-check`), retiring the drill-down + weekly bench + carried/adrift/next planning intel; **header** = pressed serif wordmark + `.jk-lab` chips + **mono** nav (active = `jk-well` + `jk-press`) + `.jk-seg` clock. Motion on the `data-motion` axis (`.jk-mo-item` rows, ambient rake/buzz opt-in; intro presses on paper). DetailPanel kept + restyled as the edit surface. Desktop only — `src/mobile/*` untouched behind `useBreakpoint()`; drag via `usePointerDrag`. **Parity pass (2026-07-29)** brought it to the prototype: the timeline is 60px rows (17 × 60 = 1020px) with hour rules in `--color-line` and a half-hour ghost rule on Today only, all keyed off `density` so ORDECK's HUD keeps 48px; the gutter speaks **mono** (`.jk-seg` only on the now badge, §13.12); the three 30px serif mastheads became one 46px `<ChromeBar>`; **Calendar was rebuilt** from a hairline table + 220px sidebar into 7×N gapped, individually bordered cells (the Week lane idea at month scale — sidebar now off by default, spanning all-day bars become a chip per covered day); Today's now-line names the live event and counts down, and the timeline opens where the day is; every view cascades from `MO_DELAYS` and no view double-animates. **Masthead + panel pass (2026-07-29)**: the header became a `.jk-masthead` (no fill/border, tapered ink ladder, `.jk-folio` edition mark, thumb-index nav) and the DetailPanel a `.jk-panel` overlay — see §8. Today's rail gained **Loose leaves**, the one section listing tasks filed under no goal (no goal anywhere up the parent chain, not merely `!parent_id`); before it, an unfiled task with no date and no `week_start` appeared on no screen at all. **Today's lane is marked by LIGHT, not by pigment**: `--jk-tint` 5% over `--color-lit` (the brightest stock) with a `--color-line-strong` frame and `gridRules(density, { tone: 'strong' })`. The old recipe was the faint-CHIP wash (14% over `--color-card`), a mid-tone that sat at nearly equal lightness to BOTH its `--color-paper` neighbours *and* `--color-line` — so the lane didn't read as marked and its hour rules vanished inside it. A wash too weak to see and strong enough to erase the ledger is the worst of both; the lit lane differs in the axis the eye actually finds, and gains rule contrast instead of losing it. Day's timeline takes `tone: 'strong'` too — it is drawn straight on the grained ground with no lane fill, the faintest pairing in the app. **Head/foot + month-ring pass (2026-07-30)**: the masthead ladder became **the inlay** (one tapered metal bead, hammered steel on paper / lit silver on the tube — §04) and the thumb-index nav went back to **boxed** tabs, because the box is what states light-vs-dark at a glance; the **page footer is gone** (colophon + rule both — the canvas keeps an 18px bottom margin and the page ends in air); and Calendar's day cells now enter on the **month ring** (`ringOrder`), starting on today and wrapping, so the entrance itself points at the current date |
 | **ORDECK** (HUD/portal) | React 18, plain CSS | Fraunces | `selector: 'html.od-v2'`, `radius: { base 10, xs 4, sm 7, lg 16, soft 8, button 9 }` | v2 HUD scopes its theme to `html.od-v2`; widget system + workshop; login page is minimal hardware (LED + glow title) |
 | **KourOS** (music + audiobooks) | React 18, plain CSS | Fraunces (suite default) | `accent: { #4b3f8f, #dba13c }`, `radius: { base 5, xs 3, sm 4, lg 8, soft 6, button 5 }` | The `@jkos/player` consumer for both kinds, with the audiobook offline cache + SW media; loads Fraunces since Full Press (the primitives are printed) |
 | **jkAuth** (login/portal) + **jkos-deploy** (console) | static HTML/JS | — | none (hub defaults) | Render a generated **mirror** of hub.css (`jkos-tokens.css`) — regen commands in §14 |
@@ -836,17 +837,17 @@ Utilities (hub.css, one copy — app sheets keep only bespoke frames like BeigeB
 
 | Class | Keyframe | Duration/fill | Feel |
 |---|---|---|---|
-| `.view-enter` | fadeSlideUp | 0.32s, no fill | view mounts: rise 10px + fade |
-| `.panel-enter` | panelIn | 0.34s, no fill | side panel: slide 28px from right |
-| `.item-in` | itemIn | 0.26s both | list item: drop 4px + fade |
-| `.modal-in` | modalIn | 0.22s both | dialog: scale .96 → 1 |
-| `.boot-sweep` | bootIn | 0.4s, no fill | boot cell: fade + left-to-right clip reveal |
-| `.crt-expand` | crtExpand | 0.55s both | CRT power-on: line collapse + brightness flutter |
-| `.intro-title` / `.intro-out` | introTitleReveal / introFadeOut | 0.7s both / 0.45s forwards | boot title in / boot screen out |
-| `.now-dot` | pulseOpacity | 1.8s infinite | "live now" marker |
-| `.check-pop` | checkBounce | 0.25s | check confirmation pop |
-| `.ink-in` (Full Press) | inkDry / crtExpand | 0.44s / 0.5s, no fill | **the face-aware entrance**: ink dries on paper; the tube powers on in dark — same class, opposite physics. Apply at view/panel/item boundaries once; never stack on another entrance |
-| `.mo-item` (Full Press) | inkDry / crtOn | 0.5s / 0.62s **both** | the `.ink-in` physics applied **row-by-row**, staggered via inline `animation-delay`. Carries `both` so a row sits hidden until its delay fires — so ONLY on elements that don't host a `position: fixed` popup (fill-mode caveat below). Gated by `data-motion` |
+| `.jk-view-enter` | fadeSlideUp | 0.32s, no fill | view mounts: rise 10px + fade |
+| `.jk-panel-enter` | panelIn | 0.34s, no fill | side panel: slide 28px from right |
+| `.jk-item-in` | itemIn | 0.26s both | list item: drop 4px + fade |
+| `.jk-modal-in` | modalIn | 0.22s both | dialog: scale .96 → 1 |
+| `.jk-boot-sweep` | bootIn | 0.4s, no fill | boot cell: fade + left-to-right clip reveal |
+| `.jk-crt-expand` | crtExpand | 0.55s both | CRT power-on: line collapse + brightness flutter |
+| `.jk-intro-title` / `.jk-intro-out` | introTitleReveal / introFadeOut | 0.7s both / 0.45s forwards | boot title in / boot screen out |
+| `.jk-now-dot` | pulseOpacity | 1.8s infinite | "live now" marker |
+| `.jk-check-pop` | checkBounce | 0.25s | check confirmation pop |
+| `.jk-ink-in` (Full Press) | inkDry / crtExpand | 0.44s / 0.5s, no fill | **the face-aware entrance**: ink dries on paper; the tube powers on in dark — same class, opposite physics. Apply at view/panel/item boundaries once; never stack on another entrance |
+| `.jk-mo-item` (Full Press) | inkDry / crtOn | 0.5s / 0.62s **both** | the `.jk-ink-in` physics applied **row-by-row**, staggered via inline `animation-delay`. Carries `both` so a row sits hidden until its delay fires — so ONLY on elements that don't host a `position: fixed` popup (fill-mode caveat below). Gated by `data-motion` |
 | `.jk-rake` (Full Press) | rakeSweep | 26s infinite | ambient raking light across the **paper** sheet — gated `<html data-motion="full">`, off otherwise |
 | `.jk-buzz` (Full Press) | crtBuzz | 4.3s infinite | ambient phosphor glow breathing in the **tube** — the CRT companion to the rake, same `data-motion="full"` gate, dark face only |
 
@@ -857,11 +858,11 @@ behaves as `entrance`** (entrances fire, ambient off — the sensible default), 
 *into* atmosphere with `full`. `'system'` resolves to `static` under `prefers-reduced-motion`.
 It folded the old `data-ambient="on"` rake gate onto one axis.
 
-Ambient keyframes: `led-pulse` (2.4s, on every `.led`), `blink`, `data-flicker` (rare
+Ambient keyframes: `led-pulse` (2.4s, on every `.jk-led`), `blink`, `data-flicker` (rare
 4s-cycle dip), `grain`, `spin`, `scanRoll`, `scanPulse`, `artifactFlash`.
 
 **The choreography — `MO_DELAYS` / `stagger()` (`@jkos/design`).** hub.css owns the
-physics; it cannot own the ORDER. `.mo-item` carries `both`, so an element with no delay
+physics; it cannot own the ORDER. `.jk-mo-item` carries `both`, so an element with no delay
 just *appears* — the entire cascade lives in the offsets, and those offsets were prose in a
 work order until they became data. Import the region; never pick a number at the call site:
 
@@ -890,20 +891,20 @@ function with a unit test (`test/cards-logic.mjs`) asserting it is a **permutati
 `0..count-1`: get the wrap wrong and the pointer aims at the wrong date, which no typecheck
 and no eyeball on a single month would catch.
 
-**Never stack entrances.** An `.mo-item` inside an `.ink-in` parent double-animates: the
+**Never stack entrances.** An `.jk-mo-item` inside an `.jk-ink-in` parent double-animates: the
 parent fades the whole pane in while the child still holds its pre-animation frame. A view
 that staggers internally must NOT also carry `ink-in` at the `<main>` boundary — the inner
 cascade wins wherever there is one, because it says more. In BeigeBoard that is now **every**
 view (Calendar was the last holdout and took the ring), so `<main>` carries no entrance class
 at all; a future view with no internal cascade should take `ink-in` there. **The app header animates once,
-on boot**, not with the view: it doesn't remount on tab change, so it takes a lone `.mo-item`
+on boot**, not with the view: it doesn't remount on tab change, so it takes a lone `.jk-mo-item`
 at `0ms` and each view then owns its own cascade from `0ms`.
 
 Rules: ambient effects are subtle and **opacity-only**; entrances land in **200–400ms**.
 `prefers-reduced-motion` is now honoured **once in hub.css** for the shared entrances and
 ambient loops (entrances snap to their final frame; LED pulse / now-dot / rake / buzz stop) —
 app sheets still guard their own bespoke frames. **Fill-mode gotcha:**
-`.view-enter`/`.panel-enter`/`.boot-sweep` carry no fill-mode on purpose — a retained
+`.jk-view-enter`/`.jk-panel-enter`/`.jk-boot-sweep` carry no fill-mode on purpose — a retained
 `transform`/`clip-path` makes the element a containing block for `position: fixed`
 descendants (Chromium keeps treating it as such while the animation is "in effect"), so
 keyframes end at the resting style and revert. Keep that property when adding entrances.
@@ -939,9 +940,9 @@ Do not cross these in any design pass:
 10. **`withAlpha()` for fades** — never hex-concat on a var.
 11. *(Retired.)*
 12. **The Voice holds (Full Press):** content is named in **print** (`.jk-folio`);
-    `.label-tape` is for **machine** chrome only. The machine speaks mono — never re-face
-    `.mono-eyebrow` or `.jk-pill` into the serif, and never take Big Shoulders off the
-    dark-face `.seg`. Off-state copy follows the print idiom ("Setting type…", a stamped
+    `.jk-label-tape` is for **machine** chrome only. The machine speaks mono — never re-face
+    `.jk-mono-eyebrow` or `.jk-pill` into the serif, and never take Big Shoulders off the
+    dark-face `.jk-seg`. Off-state copy follows the print idiom ("Setting type…", a stamped
     NO SIGNAL), not generic spinner prose.
 
 ---

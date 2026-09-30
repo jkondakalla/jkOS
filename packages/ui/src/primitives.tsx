@@ -211,7 +211,7 @@ export function Pill<E extends ElementType = 'span'>({ as, className, children, 
   return <As className={cx('jk-pill', className)} {...rest}>{children}</As>;
 }
 
-/** Progress meter — a `.bar-track` well with a tint-deepened fill.
+/** Progress meter — a `.jk-bar-track` well with a tint-deepened fill.
  *
  *  The gradient runs from the tint deepened toward --hub-deepen-ink-meter to the tint
  *  itself, which is exactly how --color-accent-dim → --color-accent works, generalised
@@ -239,7 +239,7 @@ export function Bar({
   const r = radius ?? Math.round(height / 2) + 1;
   return (
     <div
-      className={cx('bar-track', className)}
+      className={cx('jk-bar-track', className)}
       style={{ height, borderRadius: r, ...style }}
       role="progressbar"
       aria-valuenow={Math.round(pct)}
@@ -248,7 +248,7 @@ export function Bar({
       {...rest}
     >
       <div
-        className="bar-fill"
+        className="jk-bar-fill"
         style={{
           width: `${pct}%`,
           height: '100%',
@@ -300,7 +300,7 @@ export function EmptyState({
       >
         {line}
       </span>
-      {sub != null && <span className="mono-eyebrow" style={{ fontSize: 8 }}>{sub}</span>}
+      {sub != null && <span className="jk-mono-eyebrow" style={{ fontSize: 8 }}>{sub}</span>}
     </div>
   );
 }
@@ -308,7 +308,7 @@ export function EmptyState({
 /* ─────────────────────────────────────────────────────────────────────────────
    Print marks (Full Press, Wave 23) — thin wrappers over the .jk-rule* /
    .jk-folio / .jk-colophon classes. Doctrine: content is named in PRINT
-   (<Folio>); .label-tape stays for machine chrome. Same scarcity rule as the
+   (<Folio>); .jk-label-tape stays for machine chrome. Same scarcity rule as the
    hardware — one folio names THE content panel, one colophon closes THE sheet.
    ───────────────────────────────────────────────────────────────────────────── */
 
@@ -335,7 +335,7 @@ export function Rule<E extends ElementType = 'hr'>({
 
 /** The folio mark — names CONTENT in print: running-head rules above/below,
  *  serif caps, with `no` filling the accent-italic number/count slot
- *  ("No. 4", "3 / 12"). Chrome keeps `.label-tape`; content takes the folio. */
+ *  ("No. 4", "3 / 12"). Chrome keeps `.jk-label-tape`; content takes the folio. */
 export function Folio<E extends ElementType = 'span'>({
   as,
   no,

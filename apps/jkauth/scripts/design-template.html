@@ -66,7 +66,7 @@
       padding: 10px clamp(14px, 4vw, 40px);
       display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
     }
-    .dg-deck .label-tape { font-size: 11px; }
+    .dg-deck .jk-label-tape { font-size: 11px; }
     .dg-deck-spacer { flex: 1 1 auto; }
     .dg-deck-group { display: flex; align-items: center; gap: 8px; }
     .dg-deck-group > .jk-lab { color: var(--color-ink); opacity: 0.7; }
@@ -101,7 +101,7 @@
 
     /* ── Hero ───────────────────────────────────────────────────────────── */
     .dg-hero { position: relative; margin: 34px 0 12px; padding: 40px clamp(20px, 4vw, 48px); overflow: hidden; }
-    .dg-hero .canvas-grid { position: absolute; inset: 0; opacity: calc(var(--hub-canvas-grid-opacity) * 0.5); }
+    .dg-hero .jk-canvas-grid { position: absolute; inset: 0; opacity: calc(var(--hub-canvas-grid-opacity) * 0.5); }
     .dg-hero-body { position: relative; }
     .dg-kicker { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
     .dg-hero h1 {
@@ -247,8 +247,8 @@
   <!-- ══ Operator deck ══ -->
   <div class="dg-deck">
     <div class="dg-deck-inner">
-      <span class="label-tape">jkOS // DESIGN</span>
-      <span class="led green steady" title="live tokens"></span>
+      <span class="jk-label-tape">jkOS // DESIGN</span>
+      <span class="jk-led ok steady" title="live tokens"></span>
       <div class="dg-deck-spacer"></div>
 
       <div class="dg-deck-group">
@@ -296,14 +296,14 @@
 
     <!-- ══ Hero ══ -->
     <section class="dg-hero jk-sheet">
-      <div class="canvas-grid"></div>
+      <div class="jk-canvas-grid"></div>
       <div class="dg-hero-body">
         <div class="dg-kicker">
-          <span class="label-tape">REFERENCE PLATE</span>
-          <span class="mono-eyebrow">two-faced retro hardware</span>
+          <span class="jk-label-tape">REFERENCE PLATE</span>
+          <span class="jk-mono-eyebrow">two-faced retro hardware</span>
         </div>
         <h1>jkOS Design System</h1>
-        <div class="dg-ver seg">v1.0</div>
+        <div class="dg-ver jk-seg">v1.0</div>
         <p class="dg-hero-lede">
           A living style plate for the whole suite. Everything below is rendered by the
           real <code>hub.css</code> token chain — flip the <b>Face</b>, <b>Accent</b> and
@@ -314,7 +314,7 @@
         <div class="dg-hero-meta">
           <span class="jk-bubble jk-bubble-primary">PAPER · office</span>
           <span class="jk-bubble jk-bubble-secondary">DARK · CRT</span>
-          <span class="jk-pill"><span class="led green sm"></span>tokens live</span>
+          <span class="jk-pill"><span class="jk-led ok sm"></span>tokens live</span>
         </div>
       </div>
     </section>
@@ -322,7 +322,7 @@
     <!-- ══ 01 The two faces ══ -->
     <section class="dg-sec jk-sheet" id="faces">
       <div class="dg-sec-head">
-        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">01</span><span class="label-tape">IDENTITY</span></div>
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">01</span><span class="jk-label-tape">IDENTITY</span></div>
         <h2>One identity, two faces</h2>
         <p class="dg-lede">
           jkOS is <b>skeuomorphic, not flat-SaaS</b>. A single attribute — <code>data-mode</code>
@@ -354,7 +354,7 @@
         <div class="jk-sheet spec-card">
           <div class="spec-head">
             <span class="jk-lab jk-lab-sm">SPECIMEN · SAME MARKUP</span>
-            <span class="jk-pill"><span class="led green sm"></span>LIVE</span>
+            <span class="jk-pill"><span class="jk-led ok sm"></span>LIVE</span>
           </div>
           <h3 class="spec-title">Two faces, one system</h3>
           <p class="spec-copy">Paper presses ink and shadow into kraft stock; the CRT lights
@@ -364,11 +364,11 @@
             <span class="jk-bubble jk-bubble-primary">BADGE</span>
             <span class="jk-bubble jk-bubble-secondary">CHIP</span>
             <span class="jk-press">jk-press</span>
-            <span class="seg spec-seg">18:42</span>
+            <span class="jk-seg spec-seg">18:42</span>
           </div>
           <div class="jk-well spec-well">
             <span class="jk-lab jk-lab-sm">jk-well · boundary</span>
-            <div class="bar-track spec-bar"><div class="bar-fill" style="width:64%"></div></div>
+            <div class="jk-bar-track spec-bar"><div class="jk-bar-fill" style="width:64%"></div></div>
           </div>
         </div>
       </template>
@@ -403,7 +403,7 @@
     <!-- ══ 02 Accent chain ══ -->
     <section class="dg-sec jk-sheet" id="accent">
       <div class="dg-sec-head">
-        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">02</span><span class="label-tape">ACCENT CHAIN</span></div>
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">02</span><span class="jk-label-tape">ACCENT CHAIN</span></div>
         <h2>The two-accent chain</h2>
         <p class="dg-lede">
           Both accents are <b>user-driven and co-equal</b> — a vivid primary and a vivid
@@ -433,7 +433,7 @@
     <!-- ══ 03 Neutrals + status ══ -->
     <section class="dg-sec jk-sheet" id="colour">
       <div class="dg-sec-head">
-        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">03</span><span class="label-tape">NEUTRALS · STATUS</span></div>
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">03</span><span class="jk-label-tape">NEUTRALS · STATUS</span></div>
         <h2>Neutrals, hardware &amp; status</h2>
         <p class="dg-lede">
           Neutrals are the only <b>designed</b> defaults (backgrounds + readable text). They are
@@ -480,9 +480,9 @@
     <!-- ══ 04 Typography ══ -->
     <section class="dg-sec jk-sheet" id="type">
       <div class="dg-sec-head">
-        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">04</span><span class="label-tape">TYPE</span></div>
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">04</span><span class="jk-label-tape">TYPE</span></div>
         <h2>The Voice — four type roles</h2>
-        <p class="dg-lede">The Full Press doctrine: <b>humans read print</b> (Fraunces — headings, labels, buttons, chips), <b>the machine speaks mono</b> (Plex Mono — data, annotation, tape, <code>.mono-eyebrow</code>, <code>.jk-pill</code>), <b>the tube emits</b> (Big Shoulders + halation, dark face). Body copy stays in Plex Sans — quiet, legible, never the event.</p>
+        <p class="dg-lede">The Full Press doctrine: <b>humans read print</b> (Fraunces — headings, labels, buttons, chips), <b>the machine speaks mono</b> (Plex Mono — data, annotation, tape, <code>.jk-mono-eyebrow</code>, <code>.jk-pill</code>), <b>the tube emits</b> (Big Shoulders + halation, dark face). Body copy stays in Plex Sans — quiet, legible, never the event.</p>
       </div>
       <div class="dg-type-row"><div class="dg-type-role">mono<small>IBM Plex Mono</small></div><div class="dg-spec-mono">READOUT 0x1A · data · annotation · tape</div></div>
       <div class="dg-type-row"><div class="dg-type-role">sans<small>IBM Plex Sans</small></div><div class="dg-spec-sans">The quick brown fox reads the manual.</div></div>
@@ -494,13 +494,13 @@
         <span class="jk-lab jk-lab-sm">jk-lab-sm</span>
         <span class="jk-lab jk-lab-xs">jk-lab-xs</span>
         <span class="jk-lab jk-lab-sans">jk-lab-sans · stays sans</span>
-        <span class="mono-eyebrow">mono-eyebrow · the machine's, untouched</span>
+        <span class="jk-mono-eyebrow">mono-eyebrow · the machine's, untouched</span>
       </div>
       <p class="dg-caption" style="margin-top:22px">the rules ladder — an <code>&lt;hr&gt;</code> face: hairline for rows, ink for chapter heads, double for contents &amp; colophon</p>
-      <hr class="jk-rule" style="margin:0 0 4px"><span class="mono-eyebrow">jk-rule</span>
-      <hr class="jk-rule-strong" style="margin:12px 0 4px"><span class="mono-eyebrow">jk-rule-strong</span>
-      <hr class="jk-rule-double" style="margin:12px 0 4px"><span class="mono-eyebrow">jk-rule-double</span>
-      <hr class="jk-rule-taper" style="margin:12px 0 4px"><span class="mono-eyebrow">jk-rule-taper</span>
+      <hr class="jk-rule" style="margin:0 0 4px"><span class="jk-mono-eyebrow">jk-rule</span>
+      <hr class="jk-rule-strong" style="margin:12px 0 4px"><span class="jk-mono-eyebrow">jk-rule-strong</span>
+      <hr class="jk-rule-double" style="margin:12px 0 4px"><span class="jk-mono-eyebrow">jk-rule-double</span>
+      <hr class="jk-rule-taper" style="margin:12px 0 4px"><span class="jk-mono-eyebrow">jk-rule-taper</span>
       <p class="dg-caption" style="margin-top:8px">
         the fourth weight is <b>the tapered rule</b> — same ink as the three above, and the only one
         that <b>dies into the ground</b> at both ends instead of being cut square. That is the whole
@@ -518,7 +518,7 @@
     <!-- ══ 05 Accent bubbles ══ -->
     <section class="dg-sec jk-sheet" id="bubbles">
       <div class="dg-sec-head">
-        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">05</span><span class="label-tape">WELLS · BADGES</span></div>
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">05</span><span class="jk-label-tape">WELLS · BADGES</span></div>
         <h2>Wells &amp; badges — the paper accent language</h2>
         <p class="dg-lede">
           Paper mode has exactly <b>two physical accent moves</b>. The <b>well</b> sinks
@@ -540,10 +540,10 @@
         <span class="jk-press-lg" style="font-size:1.4rem;font-family:var(--jk-font-serif)">jk-press-lg · display</span>
         <span class="jk-bubble jk-bubble-primary">PRIMARY</span>
         <span class="jk-bubble jk-bubble-primary jk-bubble-lg">PRIMARY LG</span>
-        <span class="label-tape">LABEL TAPE</span>
+        <span class="jk-label-tape">LABEL TAPE</span>
       </div>
       <p class="dg-lede" style="margin-top:0;margin-bottom:18px">
-        <code>.label-tape</code> is the badge made <b>physical</b> — an embossed hardware strip
+        <code>.jk-label-tape</code> is the badge made <b>physical</b> — an embossed hardware strip
         for naming a panel, the alternative to an accent badge when the thing labelled is
         chrome rather than content (§07).
       </p>
@@ -554,7 +554,7 @@
         <span class="jk-sub">jk-sub</span>
         <span class="jk-bubble jk-bubble-secondary">SECONDARY</span>
         <span class="jk-bubble jk-bubble-secondary jk-bubble-lg">SECONDARY LG</span>
-        <span class="jk-pill"><span class="led green sm"></span>ONLINE</span>
+        <span class="jk-pill"><span class="jk-led ok sm"></span>ONLINE</span>
         <button class="jk-tbtn">Text button</button>
         <button class="jk-tbtn jk-tbtn-quiet">Quiet</button>
       </div>
@@ -590,19 +590,19 @@
       <div class="dg-row" style="margin-bottom:14px;align-items:stretch">
         <span class="jk-chip jk-chip-solid" style="padding:6px 12px;display:inline-flex;flex-direction:column;gap:1px">
           <span class="jk-press-rev" style="font-family:var(--jk-font-serif);font-weight:600;font-size:13px">Deep work</span>
-          <span class="mono-eyebrow" style="font-size:8px">09:00 · 90 MIN</span>
+          <span class="jk-mono-eyebrow" style="font-size:8px">09:00 · 90 MIN</span>
         </span>
         <span class="jk-chip jk-chip-solid jk-chip-live" style="padding:6px 12px;display:inline-flex;flex-direction:column;gap:1px;--jk-tint:var(--color-secondary)">
           <span class="jk-press-rev" style="font-family:var(--jk-font-serif);font-weight:600;font-size:13px">Live now</span>
-          <span class="mono-eyebrow" style="font-size:8px">jk-chip-live</span>
+          <span class="jk-mono-eyebrow" style="font-size:8px">jk-chip-live</span>
         </span>
         <span class="jk-chip jk-chip-solid jk-chip-spent" style="padding:6px 12px;display:inline-flex;flex-direction:column;gap:1px">
           <span class="jk-press-rev" style="font-family:var(--jk-font-serif);font-weight:600;font-size:13px">Ran over</span>
-          <span class="mono-eyebrow" style="font-size:8px">jk-chip-spent</span>
+          <span class="jk-mono-eyebrow" style="font-size:8px">jk-chip-spent</span>
         </span>
         <span class="jk-chip jk-chip-solid jk-chip-done" style="padding:6px 12px;display:inline-flex;flex-direction:column;gap:1px">
           <span class="jk-press-rev" style="font-family:var(--jk-font-serif);font-weight:600;font-size:13px">Shipped</span>
-          <span class="mono-eyebrow" style="font-size:8px">jk-chip-done</span>
+          <span class="jk-mono-eyebrow" style="font-size:8px">jk-chip-done</span>
         </span>
         <span class="jk-chip jk-chip-solid jk-chip-sm" style="padding:4px 9px;--jk-tint:var(--color-tertiary)">
           <span class="jk-press-rev" style="font-family:var(--jk-font-serif);font-weight:600;font-size:11px">Small · jk-chip-sm</span>
@@ -629,14 +629,14 @@
         <span class="jk-chip jk-chip-solid jk-chip-sm" style="padding:3px 10px;font-family:var(--jk-font-mono);font-size:10px">F</span>
         <span class="jk-chip jk-chip-off jk-chip-sm" style="padding:3px 10px;font-family:var(--jk-font-mono);font-size:10px">S</span>
         <span class="jk-chip jk-chip-off jk-chip-sm" style="padding:3px 10px;font-family:var(--jk-font-mono);font-size:10px">S</span>
-        <span class="mono-eyebrow" style="font-size:8px;align-self:center">jk-chip-solid / jk-chip-off</span>
+        <span class="jk-mono-eyebrow" style="font-size:8px;align-self:center">jk-chip-solid / jk-chip-off</span>
       </div>
     </section>
 
     <!-- ══ 06 Controls ══ -->
     <section class="dg-sec jk-sheet" id="controls">
       <div class="dg-sec-head">
-        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">06</span><span class="label-tape">CONTROLS</span></div>
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">06</span><span class="jk-label-tape">CONTROLS</span></div>
         <h2>Fields, toggles, faders &amp; meters</h2>
         <p class="dg-lede">
           One rule across the set: a neutral, debossed track or slot that fills with the accent
@@ -802,7 +802,7 @@
     <!-- ══ 07 Hardware chrome ══ -->
     <section class="dg-sec jk-sheet" id="chrome">
       <div class="dg-sec-head">
-        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">07</span><span class="label-tape">HARDWARE</span></div>
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">07</span><span class="jk-label-tape">HARDWARE</span></div>
         <h2>Hardware chrome — scarce punctuation</h2>
         <p class="dg-lede">
           The CSS "hardware kit" — reuse these classes, don't invent new chrome, and
@@ -815,33 +815,33 @@
       </div>
       <div class="dg-grid wide">
         <div class="dg-block jk-well" style="background:var(--color-paper-2);box-shadow:none">
-          <p class="dg-caption">LEDs — .led · one per live thing</p>
+          <p class="dg-caption">LEDs — .jk-led · one per live thing</p>
           <div class="dg-row" style="gap:14px">
-            <span class="led green"></span><span class="led amber"></span><span class="led red"></span><span class="led cyan"></span>
-            <span class="led off"></span><span class="led green lg"></span><span class="led amber sm steady"></span>
+            <span class="jk-led ok"></span><span class="jk-led accent"></span><span class="jk-led danger"></span><span class="jk-led secondary"></span>
+            <span class="jk-led off"></span><span class="jk-led ok lg"></span><span class="jk-led accent sm steady"></span>
           </div>
         </div>
         <div class="dg-block jk-well" style="background:var(--color-paper-2);box-shadow:none">
           <p class="dg-caption">Naming things — folio for content, tape for machine chrome</p>
           <div class="dg-row" style="gap:12px">
             <span class="jk-folio">Library <span class="jk-folio-no">No. 4</span></span>
-            <span class="label-tape">LABEL TAPE</span>
-            <span class="stamp">APPROVED</span>
+            <span class="jk-label-tape">LABEL TAPE</span>
+            <span class="jk-stamp">APPROVED</span>
           </div>
-          <p class="dg-caption" style="margin:10px 0 0">.jk-folio names <i>content</i> in print; .label-tape stays for <i>machine</i> chrome only; .stamp is the printer's (serif now)</p>
+          <p class="dg-caption" style="margin:10px 0 0">.jk-folio names <i>content</i> in print; .jk-label-tape stays for <i>machine</i> chrome only; .jk-stamp is the printer's (serif now)</p>
         </div>
         <div class="dg-block jk-well" style="background:var(--color-paper-2);box-shadow:none">
-          <p class="dg-caption">Grounds — .perf · .canvas-grid</p>
+          <p class="dg-caption">Grounds — .jk-perf · .jk-canvas-grid</p>
           <div class="dg-row" style="gap:14px">
-            <span class="perf" style="width:52px;height:32px;border:1px solid var(--color-line);display:inline-block"></span>
-            <span class="canvas-grid" style="width:52px;height:32px;border:1px solid var(--color-line);display:inline-block;--jk-grid:10px"></span>
+            <span class="jk-perf" style="width:52px;height:32px;border:1px solid var(--color-line);display:inline-block"></span>
+            <span class="jk-canvas-grid" style="width:52px;height:32px;border:1px solid var(--color-line);display:inline-block;--jk-grid:10px"></span>
           </div>
           <p class="dg-caption" style="margin:10px 0 0">canvas-grid is the workshop/boot ground — the hero plate above sits on it (§09 shows it at scale)</p>
         </div>
         <div class="dg-block jk-well" style="background:var(--color-paper-2);box-shadow:none">
-          <p class="dg-caption">Meters — .bar / .seg</p>
-          <div class="bar-track" style="height:12px;margin-bottom:12px"><div class="bar-fill" style="width:64%"></div></div>
-          <span class="seg" style="font-size:1.8rem">1024 MB</span>
+          <p class="dg-caption">Meters — .bar / .jk-seg</p>
+          <div class="jk-bar-track" style="height:12px;margin-bottom:12px"><div class="jk-bar-fill" style="width:64%"></div></div>
+          <span class="jk-seg" style="font-size:1.8rem">1024 MB</span>
         </div>
       </div>
     </section>
@@ -849,7 +849,7 @@
     <!-- ══ 08 Glow + halation ══ -->
     <section class="dg-sec jk-sheet" id="glow">
       <div class="dg-sec-head">
-        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">08</span><span class="label-tape">GLOW · HALATION</span></div>
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">08</span><span class="jk-label-tape">GLOW · HALATION</span></div>
         <h2>Phosphor glow &amp; halation</h2>
         <p class="dg-lede">
           Glow is the <b>dark face's badge</b>: where paper raises a chip off the sheet (§05),
@@ -863,9 +863,6 @@
       <div class="dg-screen" style="margin-bottom:16px">
         <div class="jk-scanlines"></div>
         <div class="dg-row" style="gap:22px;position:relative">
-          <span class="glow" style="font-family:var(--jk-font-mono)">.glow amber</span>
-          <span class="glow-dim" style="font-family:var(--jk-font-mono)">.glow-dim</span>
-          <span class="glow-cyan" style="font-family:var(--jk-font-mono)">.glow-cyan</span>
           <span class="jk-halo-text" style="font-family:var(--jk-font-seg);font-size:1.6rem;color:var(--color-accent)">HALO TEXT</span>
           <span class="jk-bubble jk-bubble-primary jk-halo">HALO SURFACE</span>
           <span class="jk-glow-text jk-glow-mid" style="--jk-glow-color:var(--color-secondary);font-family:var(--jk-font-mono);color:var(--color-secondary)">.jk-glow-text</span>
@@ -886,7 +883,7 @@
     <!-- ══ 09 Veils & canvas ══ -->
     <section class="dg-sec jk-sheet" id="veils">
       <div class="dg-sec-head">
-        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">09</span><span class="label-tape">VEILS · CANVAS</span></div>
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">09</span><span class="jk-label-tape">VEILS · CANVAS</span></div>
         <h2>Atmosphere veils &amp; the canvas</h2>
         <p class="dg-lede">
           Absolute overlays that give a surface its air. All four read the suite
@@ -920,11 +917,11 @@
 
       <p class="dg-caption" style="margin-top:22px">Canvas — the boot/workshop ground</p>
       <div class="dg-stage" style="background:var(--color-paper-2);border:1px solid var(--color-line);border-radius:var(--jk-radius-lg)">
-        <div class="canvas-grid" style="position:absolute;inset:0"></div>
+        <div class="jk-canvas-grid" style="position:absolute;inset:0"></div>
         <div class="dg-row" style="position:relative;gap:12px">
-          <span class="canvas-cell boot-sweep" style="padding:10px 14px"><span class="jk-lab jk-lab-sm">canvas-cell</span></span>
-          <span class="canvas-cell boot-sweep" style="padding:10px 14px"><span class="jk-lab jk-lab-sm">.boot-sweep</span></span>
-          <span class="jk-pill"><span class="led green sm now-dot"></span>now-dot · live</span>
+          <span class="jk-canvas-cell jk-boot-sweep" style="padding:10px 14px"><span class="jk-lab jk-lab-sm">canvas-cell</span></span>
+          <span class="jk-canvas-cell jk-boot-sweep" style="padding:10px 14px"><span class="jk-lab jk-lab-sm">.jk-boot-sweep</span></span>
+          <span class="jk-pill"><span class="jk-led ok sm jk-now-dot"></span>now-dot · live</span>
         </div>
       </div>
     </section>
@@ -932,7 +929,7 @@
     <!-- ══ 10 App shell ══ -->
     <section class="dg-sec jk-sheet" id="shell">
       <div class="dg-sec-head">
-        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">10</span><span class="label-tape">APP SHELL</span></div>
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">10</span><span class="jk-label-tape">APP SHELL</span></div>
         <h2>The shell frame</h2>
         <p class="dg-lede">
           The frame every full-shell app used to hand-write — auth guard → header →
@@ -947,8 +944,8 @@
           <header class="jk-shell-header">
             <div class="jk-shell-brand">
               <a class="jk-shell-wordmark" href="#shell">BeigeBoard</a>
-              <span class="mono-eyebrow">workshop</span>
-              <span class="led green sm steady"></span>
+              <span class="jk-mono-eyebrow">workshop</span>
+              <span class="jk-led ok sm steady"></span>
             </div>
             <button class="jk-shell-settings-btn" aria-label="Settings">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -967,7 +964,7 @@
     <!-- ══ 11 Measure ══ -->
     <section class="dg-sec jk-sheet" id="measure">
       <div class="dg-sec-head">
-        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">11</span><span class="label-tape">MEASURE</span></div>
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">11</span><span class="jk-label-tape">MEASURE</span></div>
         <h2>The canvas</h2>
         <p class="dg-lede">
           One measure per page. A full-page view's <b>outermost</b> element is the canvas, and
@@ -1023,15 +1020,15 @@
             <nav>
               <button class="jk-masthead-tab jk-well" aria-selected="true">
                 <span class="jk-press" style="font-family:var(--jk-font-mono);font-size:10px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;line-height:1.1">Today</span>
-                <span class="mono-eyebrow" style="font-size:7px;margin-top:3px">NOW</span>
+                <span class="jk-mono-eyebrow" style="font-size:7px;margin-top:3px">NOW</span>
               </button>
               <button class="jk-masthead-tab" aria-selected="false">
                 <span style="font-family:var(--jk-font-mono);font-size:10px;font-weight:500;letter-spacing:.18em;text-transform:uppercase;color:var(--color-muted);line-height:1.1">Week</span>
-                <span class="mono-eyebrow" style="font-size:7px;margin-top:3px;opacity:.5">7 DAYS</span>
+                <span class="jk-mono-eyebrow" style="font-size:7px;margin-top:3px;opacity:.5">7 DAYS</span>
               </button>
               <button class="jk-masthead-tab" aria-selected="false">
                 <span style="font-family:var(--jk-font-mono);font-size:10px;font-weight:500;letter-spacing:.18em;text-transform:uppercase;color:var(--color-muted);line-height:1.1">Month</span>
-                <span class="mono-eyebrow" style="font-size:7px;margin-top:3px;opacity:.5">GRID</span>
+                <span class="jk-mono-eyebrow" style="font-size:7px;margin-top:3px;opacity:.5">GRID</span>
               </button>
             </nav>
           </header>
@@ -1040,7 +1037,7 @@
               <p class="dg-lede" style="margin:0">The view. Top-set like a printed page.</p>
             </div>
             <aside class="dg-canvas-rail">
-              <span class="mono-eyebrow">RAIL</span>
+              <span class="jk-mono-eyebrow">RAIL</span>
               <p class="dg-caption" style="margin:6px 0 0">--jk-rail · a pane <b>inside</b> the canvas</p>
             </aside>
           </div>
@@ -1076,7 +1073,7 @@
         <div class="dg-panel-stage">
           <div class="jk-panel jk-panel-rail" style="--jk-tint:var(--color-secondary)">
             <div class="jk-panel-head">
-              <div class="mono-eyebrow" style="color:var(--color-on-accent-dim);margin-bottom:4px">TASK</div>
+              <div class="jk-mono-eyebrow" style="color:var(--color-on-accent-dim);margin-bottom:4px">TASK</div>
               <div class="jk-press-rev" style="font-family:var(--jk-font-serif);font-weight:600;font-size:15px;letter-spacing:-.015em;line-height:1.2">Refine the masthead</div>
             </div>
             <div class="dg-panel-body">
@@ -1088,7 +1085,7 @@
         <div class="dg-panel-stage">
           <div class="jk-panel jk-panel-sheet" style="--jk-tint:var(--color-accent)">
             <div class="jk-panel-head">
-              <div class="mono-eyebrow" style="color:var(--color-on-accent-dim);margin-bottom:4px">GOAL</div>
+              <div class="jk-mono-eyebrow" style="color:var(--color-on-accent-dim);margin-bottom:4px">GOAL</div>
               <div class="jk-press-rev" style="font-family:var(--jk-font-serif);font-weight:600;font-size:15px;letter-spacing:-.015em;line-height:1.2">Ship the suite</div>
             </div>
             <div class="dg-panel-body">
@@ -1103,7 +1100,7 @@
     <!-- ══ 12 Media ══ -->
     <section class="dg-sec jk-sheet" id="media">
       <div class="dg-sec-head">
-        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">12</span><span class="label-tape">MEDIA</span></div>
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">12</span><span class="jk-label-tape">MEDIA</span></div>
         <h2>Media grid &amp; covers</h2>
         <p class="dg-lede">The suite cover grid + tile — <code>@jkos/ui</code> <code>&lt;MediaGrid&gt;</code> / <code>&lt;CoverArt&gt;</code>. Density keys off one token ladder (compact/cozy/comfortable).</p>
       </div>
@@ -1123,7 +1120,7 @@
     <!-- ══ 12 Player ══ -->
     <section class="dg-sec jk-sheet" id="player">
       <div class="dg-sec-head">
-        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">13</span><span class="label-tape">PLAYER</span></div>
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">13</span><span class="jk-label-tape">PLAYER</span></div>
         <h2>The player bar</h2>
         <p class="dg-lede">
           <code>@jkos/player/ui</code>'s <code>&lt;PlayerBar&gt;</code> — a slotted shell, not a
@@ -1251,7 +1248,7 @@
     <!-- ══ 13 Panels & states ══ -->
     <section class="dg-sec jk-sheet" id="panels">
       <div class="dg-sec-head">
-        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">14</span><span class="label-tape">PANELS · STATES</span></div>
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">14</span><span class="jk-label-tape">PANELS · STATES</span></div>
         <h2>Panels &amp; the async triad</h2>
         <p class="dg-lede">
           Every view that loads has the same three off-states — <b>loading, error, empty</b> —
@@ -1323,12 +1320,12 @@
       </p>
       <div class="dg-panel" style="padding:12px">
         <div class="jk-cards-row" style="--hover-bg:color-mix(in srgb, var(--color-secondary) 12%, transparent);display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:var(--jk-radius-sm);cursor:pointer">
-          <span class="led amber sm steady"></span>
+          <span class="jk-led accent sm steady"></span>
           <span style="flex:1">jk-cards-row — hover me</span>
           <span class="jk-cards-chip" style="background:var(--color-secondary);color:var(--color-on-accent);font-family:var(--jk-font-mono);font-size:10px;padding:2px 7px;border-radius:var(--jk-radius-xs)">CHIP</span>
         </div>
         <div class="jk-cards-row" style="--hover-bg:color-mix(in srgb, var(--color-secondary) 12%, transparent);display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:var(--jk-radius-sm);cursor:pointer">
-          <span class="led green sm steady"></span>
+          <span class="jk-led ok sm steady"></span>
           <span style="flex:1">jk-cards-row — another</span>
           <span class="jk-cards-chip" style="background:var(--color-accent);color:var(--color-on-accent);font-family:var(--jk-font-mono);font-size:10px;padding:2px 7px;border-radius:var(--jk-radius-xs)">CHIP</span>
         </div>
@@ -1366,11 +1363,11 @@
           <div class="jk-hit" style="padding:9px 11px;border:1px solid var(--color-line);border-radius:var(--jk-radius-sm);cursor:pointer">jk-hit — vertical only, never sideways</div>
         </div>
         <div style="display:flex;align-items:center;gap:12px;margin-top:12px">
-          <span class="mono-eyebrow">4 SOURCES</span>
+          <span class="jk-mono-eyebrow">4 SOURCES</span>
           <span class="jk-divider"></span>
-          <span class="seg" style="font-size:15px">09:41</span>
+          <span class="jk-seg" style="font-size:15px">09:41</span>
           <span class="jk-divider"></span>
-          <span class="mono-eyebrow">jk-divider</span>
+          <span class="jk-mono-eyebrow">jk-divider</span>
         </div>
       </div>
     </section>
@@ -1378,7 +1375,7 @@
     <!-- ══ 14 Motion ══ -->
     <section class="dg-sec jk-sheet" id="motion">
       <div class="dg-sec-head">
-        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">15</span><span class="label-tape">MOTION</span></div>
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">15</span><span class="jk-label-tape">MOTION</span></div>
         <h2>Motion vocabulary</h2>
         <p class="dg-lede">
           Ambient hardware effects (LED pulse, occasional flicker) are the house idiom —
@@ -1391,26 +1388,26 @@
       </div>
       <p class="dg-caption">Entrances — one-shot · hover to replay · <code>ink-in</code> is the Full Press face-aware entrance (ink dries on paper; the tube powers on in dark — flip the face)</p>
       <div class="dg-motion" id="dg-motion">
-        <div class="dg-motion-cell jk-well ink-in" data-anim="ink-in"><code>ink-in</code></div>
-        <div class="dg-motion-cell jk-well view-enter" data-anim="view-enter"><code>view-enter</code></div>
-        <div class="dg-motion-cell jk-well panel-enter" data-anim="panel-enter"><code>panel-enter</code></div>
-        <div class="dg-motion-cell jk-well item-in" data-anim="item-in"><code>item-in</code></div>
-        <div class="dg-motion-cell jk-well modal-in" data-anim="modal-in"><code>modal-in</code></div>
-        <div class="dg-motion-cell jk-well boot-sweep" data-anim="boot-sweep"><code>boot-sweep</code></div>
-        <div class="dg-motion-cell jk-well crt-expand" data-anim="crt-expand"><code>crt-expand</code></div>
-        <div class="dg-motion-cell jk-well intro-title" data-anim="intro-title"><code>intro-title</code></div>
-        <div class="dg-motion-cell jk-well check-pop" data-anim="check-pop"><code>check-pop</code></div>
+        <div class="dg-motion-cell jk-well jk-ink-in" data-anim="jk-ink-in"><code>.jk-ink-in</code></div>
+        <div class="dg-motion-cell jk-well jk-view-enter" data-anim="jk-view-enter"><code>.jk-view-enter</code></div>
+        <div class="dg-motion-cell jk-well jk-panel-enter" data-anim="jk-panel-enter"><code>.jk-panel-enter</code></div>
+        <div class="dg-motion-cell jk-well jk-item-in" data-anim="jk-item-in"><code>.jk-item-in</code></div>
+        <div class="dg-motion-cell jk-well jk-modal-in" data-anim="jk-modal-in"><code>.jk-modal-in</code></div>
+        <div class="dg-motion-cell jk-well jk-boot-sweep" data-anim="jk-boot-sweep"><code>.jk-boot-sweep</code></div>
+        <div class="dg-motion-cell jk-well jk-crt-expand" data-anim="jk-crt-expand"><code>.jk-crt-expand</code></div>
+        <div class="dg-motion-cell jk-well jk-intro-title" data-anim="jk-intro-title"><code>.jk-intro-title</code></div>
+        <div class="dg-motion-cell jk-well jk-check-pop" data-anim="jk-check-pop"><code>.jk-check-pop</code></div>
       </div>
 
       <p class="dg-caption" style="margin-top:26px">Ambient — continuous</p>
       <div class="dg-row">
-        <span class="jk-pill"><span class="led green sm"></span>led-pulse (on every .led)</span>
-        <span class="jk-pill"><span class="led amber sm now-dot"></span>now-dot · pulseOpacity</span>
+        <span class="jk-pill"><span class="jk-led ok sm"></span>led-pulse (on every .jk-led)</span>
+        <span class="jk-pill"><span class="jk-led accent sm jk-now-dot"></span>now-dot · pulseOpacity</span>
         <span class="jk-bubble jk-bubble-secondary" style="animation:data-flicker 4s infinite">data-flicker</span>
         <span class="jk-bubble jk-bubble-secondary" style="animation:blink 1.4s step-end infinite">blink</span>
       </div>
       <p class="dg-lede" style="margin-top:16px">
-        <code>.intro-out</code> is <code>intro-title</code>'s partner — the boot screen's fade
+        <code>.jk-intro-out</code> is <code>intro-title</code>'s partner — the boot screen's fade
         <i>out</i>, <code>forwards</code>-filled so it stays gone. It's omitted from the grid
         above for the obvious reason: a correct demo of it is an empty box.
       </p>
@@ -1419,7 +1416,7 @@
     <!-- ══ 15 The brief ══ -->
     <section class="dg-sec jk-sheet" id="brief">
       <div class="dg-sec-head">
-        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">16</span><span class="label-tape">FOR A DESIGN PASS</span></div>
+        <div class="dg-sec-tag"><span class="dg-sec-num jk-lab jk-lab-sm">16</span><span class="jk-label-tape">FOR A DESIGN PASS</span></div>
         <h2>The fence — elevate inside these lines</h2>
         <p class="dg-lede">The invariants a design pass must not cross. Push craft on spacing, hierarchy, composition and atmosphere; keep the token names, the two-mode contract and the derivation chain intact.</p>
       </div>
@@ -1451,7 +1448,7 @@
     </div>
 
     <div class="dg-foot">
-      <span class="led green sm steady"></span>
+      <span class="jk-led ok sm steady"></span>
       <span>jkOS DESIGN SYSTEM — rendered by hub.css</span>
       <span class="dg-deck-spacer"></span>
       <span>packages/design · Documentation/agents/DESIGN.md</span>

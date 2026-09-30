@@ -359,7 +359,7 @@ export function WorkshopView(props: any) {
           <div style={{ position: 'absolute', inset: 0, zIndex: 18, display: 'flex', flexDirection: 'column' }}>
             <Scrim onClick={closeShelf} style={{ position: 'absolute', inset: 0 }} />
             <Sheet
-              className="modal-in"
+              className="jk-modal-in"
               style={{
                 position: 'relative', margin: 16, flex: 1, minHeight: 0,
                 borderRadius: 'var(--jk-radius-lg)', display: 'flex', flexDirection: 'column',
@@ -409,11 +409,11 @@ export function WorkshopView(props: any) {
 }
 
 /* A rail section head. Serif and sticky: the print voice names CONTENT (the
-   .label-tape it replaces is machine chrome, and two lists of user things are not
+   .jk-label-tape it replaces is machine chrome, and two lists of user things are not
    that), and it needs an opaque ground of its own or the cards scroll under it. */
 function RailHead({ label, meta, style }: { label: string; meta: string; style?: React.CSSProperties }) {
   return (
-    <div className="mo-item" style={{
+    <div className="jk-mo-item" style={{
       flex: 'none', display: 'flex', alignItems: 'baseline', gap: 10,
       padding: '16px 2px 4px', position: 'sticky', top: 0, zIndex: 4,
       /* Opaque, not the flat --color-paper: that painted a bare rectangle where
@@ -427,7 +427,7 @@ function RailHead({ label, meta, style }: { label: string; meta: string; style?:
       <Press style={{ fontFamily: FONT_HEAD, fontWeight: 700, fontSize: '1.06rem', letterSpacing: '-0.015em' }}>
         {label}
       </Press>
-      <span className="mono-eyebrow" style={{ marginLeft: 'auto' }}>{meta}</span>
+      <span className="jk-mono-eyebrow" style={{ marginLeft: 'auto' }}>{meta}</span>
     </div>
   )
 }
@@ -442,7 +442,7 @@ function GoalCard({ goal, items, selected, delay, onClick }: any) {
 
   return (
     <As
-      className="jk-hit mo-item"
+      className="jk-hit jk-mo-item"
       onClick={onClick}
       style={{
         border: '1px solid var(--color-line)', borderRadius: 'var(--jk-radius)', padding: '13px 15px',
@@ -453,12 +453,12 @@ function GoalCard({ goal, items, selected, delay, onClick }: any) {
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
         <span style={{ width: 9, height: 9, borderRadius: '50%', background: tint, flex: 'none', alignSelf: 'center' }} />
         <span style={{ fontFamily: FONT_HEAD, fontWeight: 700, fontSize: 15, letterSpacing: '-0.015em' }}>{goal.title}</span>
-        <span className="seg" style={{ marginLeft: 'auto', fontSize: 16 }}>{prog.pct}%</span>
+        <span className="jk-seg" style={{ marginLeft: 'auto', fontSize: 16 }}>{prog.pct}%</span>
       </div>
       <Bar value={prog.pct / 100} tint={tint} height={5} radius={3} />
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-        <span className="mono-eyebrow">{meta || 'GOAL'}</span>
-        <span className="mono-eyebrow" style={{ marginLeft: 'auto' }}>{prog.done}/{prog.total} LEAVES</span>
+        <span className="jk-mono-eyebrow">{meta || 'GOAL'}</span>
+        <span className="jk-mono-eyebrow" style={{ marginLeft: 'auto' }}>{prog.done}/{prog.total} LEAVES</span>
       </div>
     </As>
   )
@@ -486,10 +486,10 @@ function Forge({
 
   return (
     <>
-      <div className="mo-item" style={{ flex: 'none', padding: '16px 28px 12px' }}>
+      <div className="jk-mo-item" style={{ flex: 'none', padding: '16px 28px 12px' }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 14 }}>
           <span className="jk-lab jk-lab-xs" style={{ color: 'var(--color-accent)' }}>THE FORGE</span>
-          <span className="mono-eyebrow">BREAK IT DOWN — LEAVES ROLL UP TO THE GOAL</span>
+          <span className="jk-mono-eyebrow">BREAK IT DOWN — LEAVES ROLL UP TO THE GOAL</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16, marginTop: 12 }}>
           <Press
@@ -500,10 +500,10 @@ function Forge({
             {goal.title}
           </Press>
           {goal.category && <Bubble tone="secondary" style={{ marginBottom: 4 }}>{goal.category}</Bubble>}
-          <span className="mono-eyebrow" style={{ marginBottom: 5 }}>
+          <span className="jk-mono-eyebrow" style={{ marginBottom: 5 }}>
             {goal.target_date ? `DUE ${fmtTarget(goal.target_date)}` : 'ONGOING'} · {prog.done}/{prog.total} LEAVES DONE
           </span>
-          <span className="seg" style={{ marginLeft: 'auto', fontSize: 30 }}>{prog.pct}%</span>
+          <span className="jk-seg" style={{ marginLeft: 'auto', fontSize: 30 }}>{prog.pct}%</span>
         </div>
         <Bar value={prog.pct / 100} tint={tint} height={7} radius={4} style={{ marginTop: 8 }} />
       </div>
@@ -516,10 +516,10 @@ function Forge({
           "what am I doing every week toward this" is a peer of the breakdown and
           not an annotation on the title. */}
       {!readonly || routines.length > 0 ? (
-        <div className="mo-item" style={{ flex: 'none', padding: '2px 28px 14px', animationDelay: '80ms' }}>
+        <div className="jk-mo-item" style={{ flex: 'none', padding: '2px 28px 14px', animationDelay: '80ms' }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 8 }}>
             <span className="jk-lab jk-lab-xs" style={{ color: 'var(--color-secondary)' }}>ROUTINES</span>
-            <span className="mono-eyebrow">RUN ON THEIR OWN CLOCK — TRACKED APART FROM THE %</span>
+            <span className="jk-mono-eyebrow">RUN ON THEIR OWN CLOCK — TRACKED APART FROM THE %</span>
             {!readonly && (
               <TButton quiet onClick={onAddRoutine} style={{ marginLeft: 'auto', cursor: 'pointer' }}>+ routine</TButton>
             )}
@@ -549,7 +549,7 @@ function Forge({
           const br = getProgress(b, items)
           return (
             <React.Fragment key={b.id}>
-              <div className="mo-item" style={{ display: 'flex', alignItems: 'center', animationDelay: delay() }}>
+              <div className="jk-mo-item" style={{ display: 'flex', alignItems: 'center', animationDelay: delay() }}>
                 <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 11, padding: '10px 14px', borderRadius: 'var(--jk-radius-sm)', border: '1px solid var(--color-line)', background: 'var(--color-card-2)' }}>
                   <span
                     className="jk-hit"
@@ -566,14 +566,14 @@ function Forge({
                   </span>
                   <Bubble tone="secondary" style={{ fontSize: 8, padding: '2px 8px' }}>{br.done}/{br.total}</Bubble>
                   <Bar value={br.pct / 100} tint={tint} height={6} radius={3} style={{ marginLeft: 'auto', width: 130, flex: 'none' }} />
-                  <span className="seg" style={{ fontSize: 15, minWidth: 46, textAlign: 'right' }}>{br.pct}%</span>
+                  <span className="jk-seg" style={{ fontSize: 15, minWidth: 46, textAlign: 'right' }}>{br.pct}%</span>
                   {!readonly && (
                     <TButton quiet onClick={() => onAddLeaf(b.id)} style={{ flex: 'none', cursor: 'pointer' }}>+ task</TButton>
                   )}
                 </div>
               </div>
               {open && getChildren(b, items).map((leaf: any) => (
-                <div key={leaf.id} className="mo-item" style={{ display: 'flex', alignItems: 'center', paddingLeft: 30, animationDelay: delay() }}>
+                <div key={leaf.id} className="jk-mo-item" style={{ display: 'flex', alignItems: 'center', paddingLeft: 30, animationDelay: delay() }}>
                   <Leaf node={leaf} tint={tint} readonly={readonly} onSelect={onSelect} onToggle={onToggle} items={items} nested />
                 </div>
               ))}
@@ -618,12 +618,12 @@ function StandingOrder({ routine, items, today, onClick }: any) {
         }}>
           {routine.title}
         </span>
-        <span className="mono-eyebrow" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <span className="jk-mono-eyebrow" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {cadenceDays(routine).length ? `${weeklyTarget(routine)}×/WK` : 'NO CADENCE'} · {(summarize(spec) || 'NO STEPS').toUpperCase()}
         </span>
       </div>
       <WeekStrip cells={cells} tint={tint} height={7} style={{ marginLeft: 'auto', width: 74, flex: 'none' }} />
-      <span className="seg" style={{ fontSize: 15, minWidth: 34, textAlign: 'right', flex: 'none' }}>{streak}</span>
+      <span className="jk-seg" style={{ fontSize: 15, minWidth: 34, textAlign: 'right', flex: 'none' }}>{streak}</span>
     </div>
   )
 }
@@ -654,7 +654,7 @@ function Leaf({ node, tint, delay, readonly, onSelect, onToggle, items, nested }
           />
         </span>
       ) : (
-        <span className="seg" style={{ fontSize: 12, color: 'var(--color-accent)' }}>{prog!.pct}%</span>
+        <span className="jk-seg" style={{ fontSize: 12, color: 'var(--color-accent)' }}>{prog!.pct}%</span>
       )}
       <Press
         variant="ink"
@@ -667,7 +667,7 @@ function Leaf({ node, tint, delay, readonly, onSelect, onToggle, items, nested }
   )
   if (nested) return chip
   return (
-    <div className="mo-item" style={{ display: 'flex', alignItems: 'center', animationDelay: delay }}>
+    <div className="jk-mo-item" style={{ display: 'flex', alignItems: 'center', animationDelay: delay }}>
       {chip}
     </div>
   )

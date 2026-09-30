@@ -34,7 +34,7 @@ function loginPage(opts = {}) {
   const isRegister = mode === 'register'
 
   return layout(isRegister ? 'Register' : 'Sign in', `
-<div class="card ink-in">
+<div class="card jk-ink-in">
   <h1 class="wordmark">jk<span>OS</span></h1>
   <p class="subtitle">${isRegister ? 'Create your account' : 'Sign in to your workspace'}</p>
   ${errorHtml}
@@ -63,7 +63,7 @@ function loginPage(opts = {}) {
 function forgotPage(opts = {}) {
   const { error, notice } = opts
   return layout('Reset your password', `
-<div class="card ink-in">
+<div class="card jk-ink-in">
   <h1 class="wordmark">jk<span>OS</span></h1>
   <p class="subtitle">Reset your password</p>
   ${error ? `<p class="error">${escHtml(error)}</p>` : ''}
@@ -82,7 +82,7 @@ function forgotPage(opts = {}) {
 function resetPage(opts = {}) {
   const { error, notice, email } = opts
   return layout('Choose a new password', `
-<div class="card ink-in">
+<div class="card jk-ink-in">
   <h1 class="wordmark">jk<span>OS</span></h1>
   <p class="subtitle">Choose a new password</p>
   ${error ? `<p class="error">${escHtml(error)}</p>` : ''}
@@ -118,7 +118,7 @@ function verifyEmailPage(opts = {}) {
        </form>
        <p class="toggle"><a href="/auth/security">Back to security</a></p>`
   return layout('Confirm your email', `
-<div class="card ink-in">
+<div class="card jk-ink-in">
   <h1 class="wordmark">jk<span>OS</span></h1>
   <p class="subtitle">Confirm your email</p>
   ${error ? `<p class="error">${escHtml(error)}</p>` : ''}
@@ -143,7 +143,7 @@ function twoFactorPage(opts = {}) {
     ? `<p class="toggle">Lost your device? Enter one of your recovery codes above.</p>` : ''
   const backHref = `/auth/login${redirectTo ? '?redirect_to=' + encodeURIComponent(redirectTo) : ''}`
   return layout('Verify', `
-<div class="card ink-in">
+<div class="card jk-ink-in">
   <h1 class="wordmark">jk<span>OS</span></h1>
   <p class="subtitle">Two-step verification</p>
   ${errorHtml}
@@ -210,7 +210,7 @@ function securityPage(user, info = {}, opts = {}) {
       </div>`).join('')
 
   return layout('Security', `
-<div class="card ink-in" style="max-width:460px">
+<div class="card jk-ink-in" style="max-width:460px">
   <h1 class="wordmark">jk<span>OS</span></h1>
   <p class="subtitle">Account security · ${escHtml(user.email)}</p>
   ${noticeHtml}${errorHtml}
@@ -248,7 +248,7 @@ function totpSetupPage(opts = {}) {
   const { qr, secret, error } = opts
   const errorHtml = error ? `<p class="error">${escHtml(error)}</p>` : ''
   return layout('Set up authenticator', `
-<div class="card ink-in" style="max-width:460px">
+<div class="card jk-ink-in" style="max-width:460px">
   <h1 class="wordmark">jk<span>OS</span></h1>
   <p class="subtitle">Scan, then enter a code to confirm</p>
   ${errorHtml}
@@ -269,7 +269,7 @@ function totpSetupPage(opts = {}) {
 function recoveryCodesPage(codes = []) {
   const list = codes.map(c => `<li>${escHtml(c)}</li>`).join('')
   return layout('Recovery codes', `
-<div class="card ink-in" style="max-width:460px">
+<div class="card jk-ink-in" style="max-width:460px">
   <h1 class="wordmark">jk<span>OS</span></h1>
   <p class="subtitle">Save your recovery codes</p>
   <p class="muted-note">Each works once if you lose your authenticator. Store them somewhere safe — they won't be shown again.</p>

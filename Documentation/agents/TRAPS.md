@@ -84,7 +84,7 @@ that code can reopen it.
   descendants.** A popup hosted inside an entrance-animated container mispositions the moment the
   animation plays. Fix, documented directly in `packages/design/tokens/hub.css` ("NO fill-mode on
   purpose … the fill-mode, not the resolved value, is what matters"): entrance keyframes end on
-  `transform: none`, and classes like `.view-enter`/`.panel-enter` carry no fill-mode at all.
+  `transform: none`, and classes like `.jk-view-enter`/`.jk-panel-enter` carry no fill-mode at all.
 
 - **The React `background` shorthand and `backgroundImage` fight, and React's diffing loses the
   image.** Setting `style={{ background: color }}` on hover after mounting with

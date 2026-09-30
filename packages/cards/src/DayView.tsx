@@ -250,11 +250,11 @@ function DayGrid({
         <div style={{ flex: 1, minHeight: 0, padding: '14px 28px 12px', display: 'flex', flexDirection: 'column', width: '100%' }}>
           {/* The masthead. The full stop is deliberate — it is the prototype's
               voice: a day is a statement, not a heading. */}
-          <div className="mo-item" style={{ display: 'flex', alignItems: 'baseline', gap: 14, marginBottom: 10, animationDelay: `${MO_DELAYS.header}ms` }}>
+          <div className="jk-mo-item" style={{ display: 'flex', alignItems: 'baseline', gap: 14, marginBottom: 10, animationDelay: `${MO_DELAYS.header}ms` }}>
             <Press large style={{ fontFamily: FONT_HEAD, fontWeight: 700, fontSize: '2rem', lineHeight: 1, letterSpacing: '-0.025em', whiteSpace: 'nowrap' }}>
               {dayLabel(day)}.
             </Press>
-            <span className="mono-eyebrow">
+            <span className="jk-mono-eyebrow">
               {`DAY ${String(dayOfYear(day)).padStart(2, '0')} · ${String(timed.length + untimed.length).padStart(2, '0')} EVENTS · ${String(untimed.length).padStart(2, '0')} UNTIMED`}
             </span>
             <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 7 }}>
@@ -263,7 +263,7 @@ function DayGrid({
               <TButton quiet onClick={() => setCursor((c) => addDays(c, 1))}>Next →</TButton>
             </span>
           </div>
-          <hr className="jk-rule-strong mo-item" style={{ margin: '0 0 12px', animationDelay: `${MO_DELAYS.todayRule}ms` }} />
+          <hr className="jk-rule-strong jk-mo-item" style={{ margin: '0 0 12px', animationDelay: `${MO_DELAYS.todayRule}ms` }} />
 
           {/* NO frame. Today runs masthead → rule → bare sheet: the timeline is
               drawn ON the page, not inside a panel. The framed paper-2 box this
@@ -275,7 +275,7 @@ function DayGrid({
             {/* All-day lane */}
             {(alldayLanes > 0 || (anyDrag && drag?.mode === 'allday')) && (
               <div style={{ ...laneBand, flexShrink: 0 }}>
-                <div className="mono-eyebrow" style={{ borderRight: '1px solid var(--color-line)', fontSize: 7, padding: '5px 5px 0 0', textAlign: 'right' }}>
+                <div className="jk-mono-eyebrow" style={{ borderRight: '1px solid var(--color-line)', fontSize: 7, padding: '5px 5px 0 0', textAlign: 'right' }}>
                   ALL-DAY
                 </div>
                 {/* No isToday wash here either — one always-today column. */}
@@ -307,7 +307,7 @@ function DayGrid({
                 dragging a timed block out to unschedule it keeps a target. */}
             {(untimed.length > 0 || (anyDrag && (drag?.mode === 'untimed' || drag?.mode === 'timed'))) && (
             <div style={{ ...laneBand, minHeight: 44 }}>
-              <div className="mono-eyebrow" style={{ borderRight: '1px solid var(--color-line)', fontSize: 7, padding: '6px 6px 0 0', textAlign: 'right' }}>
+              <div className="jk-mono-eyebrow" style={{ borderRight: '1px solid var(--color-line)', fontSize: 7, padding: '6px 6px 0 0', textAlign: 'right' }}>
                 UNTIMED
               </div>
               <div
@@ -347,7 +347,7 @@ function DayGrid({
             <div
               ref={scrollRef}
               data-hour-scroll
-              className="mo-item"
+              className="jk-mo-item"
               style={{
                 flex: 1, minHeight: 0, overflowY: 'auto', position: 'relative',
                 // Always reserve the gutter, so the measured lane padding above
@@ -366,7 +366,7 @@ function DayGrid({
                   ))}
                   {isToday && nowFrac >= WV_FIRST_H && nowFrac <= WV_LAST_H + 1 && (
                     <div style={{ position: 'absolute', top: (nowFrac - WV_FIRST_H) * ROW_H, right: 6, transform: 'translateY(-50%)' }}>
-                      <span className="seg" style={{ fontSize: 10, color: 'var(--color-accent)' }}>
+                      <span className="jk-seg" style={{ fontSize: 10, color: 'var(--color-accent)' }}>
                         {String(now.getHours()).padStart(2, '0')}:{String(now.getMinutes()).padStart(2, '0')}
                       </span>
                     </div>
@@ -585,7 +585,7 @@ function DayAgenda({
         {done.length > 0 && (
           <Fold
             style={{ marginTop: 36, opacity: 0.7 }}
-            summaryClassName="mono-eyebrow"
+            summaryClassName="jk-mono-eyebrow"
             summary={`${done.length} done today`}
           >
             <div style={{ marginTop: 10 }}>

@@ -282,10 +282,10 @@ export function RoutineForge({
   return (
     <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       {/* ── Head ── */}
-      <div className="mo-item" style={{ flex: 'none', padding: '16px 28px 12px' }}>
+      <div className="jk-mo-item" style={{ flex: 'none', padding: '16px 28px 12px' }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 14 }}>
           <span className="jk-lab jk-lab-xs" style={{ color: 'var(--color-accent)' }}>THE FORGE · ROUTINE</span>
-          <span className="mono-eyebrow">HOW OFTEN · WHAT THE SESSION IS · HOW IT GETS HARDER</span>
+          <span className="jk-mono-eyebrow">HOW OFTEN · WHAT THE SESSION IS · HOW IT GETS HARDER</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16, marginTop: 12, flexWrap: 'wrap' }}>
           {naming && !readonly ? (
@@ -324,11 +324,11 @@ export function RoutineForge({
               {routine.title}
             </Press>
           )}
-          <span className="mono-eyebrow" style={{ marginBottom: 5 }}>
+          <span className="jk-mono-eyebrow" style={{ marginBottom: 5 }}>
             {(summarize(spec) || 'NO STEPS YET').toUpperCase()}
           </span>
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
-            {dirty && <span className="mono-eyebrow" style={{ color: 'var(--color-accent)' }}>UNSAVED</span>}
+            {dirty && <span className="jk-mono-eyebrow" style={{ color: 'var(--color-accent)' }}>UNSAVED</span>}
             {!readonly && (
               <TButton onClick={save} disabled={!dirty || saving} style={{ cursor: dirty ? 'pointer' : 'default' }}>
                 {saving ? 'Saving…' : 'Save'}
@@ -402,7 +402,7 @@ export function RoutineForge({
                 clicking anything else, and does not steal the page. */}
             <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 6, alignItems: 'center' }}>
               {confirmDelete && (
-                <span className="mono-eyebrow" style={{ color: 'var(--color-accent)' }}>
+                <span className="jk-mono-eyebrow" style={{ color: 'var(--color-accent)' }}>
                   THIS TAKES ITS {occurrences.length} SESSION{occurrences.length === 1 ? '' : 'S'} TOO
                 </span>
               )}
@@ -447,7 +447,7 @@ export function RoutineForge({
       {warnings.length > 0 && (
         <div style={{ padding: '10px 28px 0' }}>
           <Well style={{ padding: '8px 10px', display: 'block' }}>
-            <div className="mono-eyebrow" style={{ marginBottom: 4 }}>SAVED — WORTH A LOOK</div>
+            <div className="jk-mono-eyebrow" style={{ marginBottom: 4 }}>SAVED — WORTH A LOOK</div>
             {warnings.map((w, i) => (
               <div key={i} style={{ fontSize: 11.5, color: 'var(--color-muted)' }}>
                 <span style={{ fontFamily: MONO, fontSize: 10 }}>{w.path || 'spec'}</span> — {w.message}
@@ -462,7 +462,7 @@ export function RoutineForge({
 
           {/* ══ Left: the document ═══════════════════════════════════════════ */}
           <div style={{ minWidth: 0 }}>
-            <span className="mono-eyebrow">THE STEPS</span>
+            <span className="jk-mono-eyebrow">THE STEPS</span>
             <div style={{ marginTop: 8 }}>
               {spec.steps.map((s, i) => (
                 <StepEditor
@@ -527,8 +527,8 @@ export function RoutineForge({
                     style={{ marginLeft: 'auto', width: 150 }}
                   />
                 </div>
-                {library === null && <div className="mono-eyebrow">LOADING…</div>}
-                {library !== null && shown.length === 0 && <div className="mono-eyebrow">NOTHING MATCHES</div>}
+                {library === null && <div className="jk-mono-eyebrow">LOADING…</div>}
+                {library !== null && shown.length === 0 && <div className="jk-mono-eyebrow">NOTHING MATCHES</div>}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 5, maxHeight: 260, overflowY: 'auto' }}>
                   {shown.map((e) => (
                     <Press
@@ -542,7 +542,7 @@ export function RoutineForge({
                       }}
                     >
                       <div style={{ fontFamily: FONT_HEAD, fontWeight: 600, fontSize: 12 }}>{e.title}</div>
-                      <div className="mono-eyebrow">
+                      <div className="jk-mono-eyebrow">
                         {e.unit || 'reps'}{e.variants?.length ? ` · ${e.variants.length} RUNGS` : ''}
                       </div>
                     </Press>
@@ -553,13 +553,13 @@ export function RoutineForge({
 
             {/* ══ The programme ═══════════════════════════════════════════════ */}
             <div style={{ marginTop: 22 }}>
-              <span className="mono-eyebrow">THE PROGRAM</span>
+              <span className="jk-mono-eyebrow">THE PROGRAM</span>
 
               {/* ── HOW IT SCALES ──────────────────────────────────────────── */}
               <div style={{ ...PANEL, padding: 10, marginTop: 8 }}>
                 <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center' }}>
                   <label style={{ display: 'inline-flex', gap: 5, alignItems: 'center' }}>
-                    <span className="mono-eyebrow">MOVE TO THE NEXT SESSION AFTER</span>
+                    <span className="jk-mono-eyebrow">MOVE TO THE NEXT SESSION AFTER</span>
                     <SelectField
                       value={spec.advance_on} disabled={readonly}
                       onChange={(e) => edit((d) => { d.advance_on = e.target.value })}
@@ -569,17 +569,17 @@ export function RoutineForge({
                     </SelectField>
                   </label>
                   <label style={{ display: 'inline-flex', gap: 5, alignItems: 'center' }}>
-                    <span className="mono-eyebrow">TAKE AN EASIER SESSION EVERY</span>
+                    <span className="jk-mono-eyebrow">TAKE AN EASIER SESSION EVERY</span>
                     <NumField
                       min={0} max={52} value={spec.deload_every} disabled={readonly}
                       onChange={(e) => edit((d) => { d.deload_every = Math.max(0, Math.min(52, Number(e.target.value) || 0)) })}
                       wrapperStyle={NUM_W}
                       title="Every Nth session drops its weights and its sets. Set 0 for never. Any single session can also be made easier from its own card."
                     />
-                    <span className="mono-eyebrow">{spec.deload_every ? 'SESSIONS' : 'SESSIONS — 0 IS NEVER'}</span>
+                    <span className="jk-mono-eyebrow">{spec.deload_every ? 'SESSIONS' : 'SESSIONS — 0 IS NEVER'}</span>
                   </label>
                   <label style={{ display: 'inline-flex', gap: 5, alignItems: 'center' }}>
-                    <span className="mono-eyebrow">ROUND WEIGHTS TO THE NEAREST</span>
+                    <span className="jk-mono-eyebrow">ROUND WEIGHTS TO THE NEAREST</span>
                     <NumField
                       min={0} step={0.5} value={spec.round_load} disabled={readonly}
                       onChange={(e) => edit((d) => { d.round_load = Math.max(0, Number(e.target.value) || 0) })}
@@ -591,7 +591,7 @@ export function RoutineForge({
 
                 <Rule style={{ margin: '9px 0' }} />
 
-                <div className="mono-eyebrow" style={{ marginBottom: 5 }}>
+                <div className="jk-mono-eyebrow" style={{ marginBottom: 5 }}>
                   PHASES — RUNS OF SESSIONS THAT MAKE EVERY WEIGHT LIGHTER OR HEAVIER
                 </div>
                 {spec.phases.map((p, i) => (
@@ -601,20 +601,20 @@ export function RoutineForge({
                       onChange={(e) => edit((d) => { d.phases[i].name = e.target.value })}
                       style={{ width: 110 }}
                     />
-                    <span className="mono-eyebrow">LASTS</span>
+                    <span className="jk-mono-eyebrow">LASTS</span>
                     <NumField
                       min={1} value={p.cycles} disabled={readonly}
                       onChange={(e) => edit((d) => { d.phases[i].cycles = Math.max(1, Number(e.target.value) || 1) })}
                       wrapperStyle={NUM_W}
                     />
-                    <span className="mono-eyebrow">SESSIONS, AT</span>
+                    <span className="jk-mono-eyebrow">SESSIONS, AT</span>
                     <NumField
                       step={0.05} min={0.1} value={p.intensity} disabled={readonly}
                       onChange={(e) => edit((d) => { d.phases[i].intensity = Number(e.target.value) || 1 })}
                       wrapperStyle={NUM_W}
                       title="Multiplies every weight in the session. 0.9 is a 10% lighter block; 1 changes nothing."
                     />
-                    <span className="mono-eyebrow">× THE USUAL WEIGHT</span>
+                    <span className="jk-mono-eyebrow">× THE USUAL WEIGHT</span>
                     {!readonly && (
                       <TButton quiet onClick={() => edit((d) => { d.phases.splice(i, 1) })} style={{ padding: '1px 7px', cursor: 'pointer' }}>×</TButton>
                     )}
@@ -630,7 +630,7 @@ export function RoutineForge({
 
                 <Rule style={{ margin: '9px 0' }} />
 
-                <div className="mono-eyebrow" style={{ marginBottom: 5 }}>
+                <div className="jk-mono-eyebrow" style={{ marginBottom: 5 }}>
                   YOUR NUMBERS — A STEP WRITTEN IN PERCENTAGES TAKES ITS 100% FROM ONE OF THESE
                 </div>
                 {Object.entries(spec.vars).map(([k, v]) => (
@@ -653,7 +653,7 @@ export function RoutineForge({
 
               {/* ── WHAT IT FEEDS ──────────────────────────────────────────── */}
               <div style={{ ...PANEL, padding: 10, marginTop: 8 }}>
-                <div className="mono-eyebrow" style={{ marginBottom: 5 }}>
+                <div className="jk-mono-eyebrow" style={{ marginBottom: 5 }}>
                   WHAT THIS ROUTINE COUNTS TOWARD ITS GOAL
                 </div>
                 {/* A routine never finishes, so it cannot contribute percent-complete
@@ -661,7 +661,7 @@ export function RoutineForge({
                     MEASUREMENT instead — "run 100 km this month". */}
                 {!spec.contributes ? (
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <span className="mono-eyebrow" style={{ color: 'var(--color-faint)' }}>
+                    <span className="jk-mono-eyebrow" style={{ color: 'var(--color-faint)' }}>
                       NOTHING COUNTED. A ROUTINE NEVER FINISHES, SO IT ADDS UP A NUMBER INSTEAD OF A PERCENTAGE.
                     </span>
                     {!readonly && (
@@ -683,7 +683,7 @@ export function RoutineForge({
                       >
                         {MEASURES.map((m) => <option key={m} value={m}>{MEASURE_LABEL[m]}</option>)}
                       </SelectField>
-                      <span className="mono-eyebrow">FROM</span>
+                      <span className="jk-mono-eyebrow">FROM</span>
                       <SelectField
                         value={spec.contributes.step ?? ''} disabled={readonly}
                         onChange={(e) => edit((d) => { d.contributes!.step = e.target.value || null })}
@@ -691,13 +691,13 @@ export function RoutineForge({
                         <option value="">the whole session</option>
                         {spec.steps.map((s) => <option key={s.key} value={s.key}>{s.title}</option>)}
                       </SelectField>
-                      <span className="mono-eyebrow">ADDING UP TO</span>
+                      <span className="jk-mono-eyebrow">ADDING UP TO</span>
                       <NumField
                         min={1} value={spec.contributes.target} disabled={readonly}
                         onChange={(e) => edit((d) => { d.contributes!.target = Math.max(1, Number(e.target.value) || 1) })}
                         wrapperStyle={NUM_W}
                       />
-                      <span className="mono-eyebrow">EVERY</span>
+                      <span className="jk-mono-eyebrow">EVERY</span>
                       <SelectField
                         value={spec.contributes.window} disabled={readonly}
                         onChange={(e) => edit((d) => { d.contributes!.window = e.target.value })}
@@ -711,8 +711,8 @@ export function RoutineForge({
                     {metric && (
                       <div style={{ marginTop: 7 }}>
                         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                          <span className="seg" style={{ fontSize: 15 }}>{metric.value}</span>
-                          <span className="mono-eyebrow">/ {metric.target} {metric.unit.toUpperCase()} THIS {metric.window.toUpperCase()}</span>
+                          <span className="jk-seg" style={{ fontSize: 15 }}>{metric.value}</span>
+                          <span className="jk-mono-eyebrow">/ {metric.target} {metric.unit.toUpperCase()} THIS {metric.window.toUpperCase()}</span>
                         </div>
                         <Bar value={metric.pct / 100} tint={routine.accent || 'var(--color-accent)'} height={5} radius={3} />
                       </div>
@@ -741,18 +741,18 @@ export function RoutineForge({
             {tab === 'ladder' && (
               <>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                  <span className="mono-eyebrow">THE NEXT {horizon} SESSIONS</span>
+                  <span className="jk-mono-eyebrow">THE NEXT {horizon} SESSIONS</span>
                   <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
                     <TButton quiet onClick={() => setHorizon((h) => Math.max(4, h - 4))} style={{ padding: '1px 7px', cursor: 'pointer' }}>−</TButton>
                     <TButton quiet onClick={() => setHorizon((h) => Math.min(32, h + 4))} style={{ padding: '1px 7px', cursor: 'pointer' }}>+</TButton>
                   </div>
                 </div>
-                <div className="mono-eyebrow" style={{ marginTop: 3, color: 'var(--color-faint)' }}>
+                <div className="jk-mono-eyebrow" style={{ marginTop: 3, color: 'var(--color-faint)' }}>
                   RENDERED FROM THE RULES — THIS IS WHAT THE ENGINE WILL MINT
                 </div>
                 <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 5 }}>
                   {spec.steps.length === 0 && (
-                    <div className="mono-eyebrow" style={{ color: 'var(--color-faint)' }}>
+                    <div className="jk-mono-eyebrow" style={{ color: 'var(--color-faint)' }}>
                       ADD A STEP AND THE LADDER APPEARS
                     </div>
                   )}
@@ -767,8 +767,8 @@ export function RoutineForge({
                       }}
                     >
                       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                        <span className="seg" style={{ fontSize: 12 }}>{String(i + 1).padStart(2, '0')}</span>
-                        <span className="mono-eyebrow">
+                        <span className="jk-seg" style={{ fontSize: 12 }}>{String(i + 1).padStart(2, '0')}</span>
+                        <span className="jk-mono-eyebrow">
                           {[s.phase, s.deload ? 'DELOAD' : null].filter(Boolean).join(' · ').toUpperCase() || ''}
                         </span>
                       </div>
@@ -789,7 +789,7 @@ export function RoutineForge({
             {tab === 'history' && (
               <>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 3 }}>
-                  <span className="mono-eyebrow">PLAN vs DONE</span>
+                  <span className="jk-mono-eyebrow">PLAN vs DONE</span>
                   <SelectField
                     value={chartMeasure}
                     onChange={(e) => setChartMeasure(e.target.value)}
@@ -801,10 +801,10 @@ export function RoutineForge({
                     <option value="volume">volume</option>
                   </SelectField>
                 </div>
-                <div className="mono-eyebrow" style={{ color: 'var(--color-faint)', marginBottom: 8 }}>
+                <div className="jk-mono-eyebrow" style={{ color: 'var(--color-faint)', marginBottom: 8 }}>
                   WHEN THE TWO LINES SPLIT, THE PROGRAM IS ASKING FOR MORE THAN YOU ARE DOING
                 </div>
-                {spec.steps.length === 0 && <div className="mono-eyebrow" style={{ color: 'var(--color-faint)' }}>NO STEPS YET</div>}
+                {spec.steps.length === 0 && <div className="jk-mono-eyebrow" style={{ color: 'var(--color-faint)' }}>NO STEPS YET</div>}
                 {spec.steps.map((s) => (
                   <ProgressChart
                     key={s.key}
@@ -819,12 +819,12 @@ export function RoutineForge({
 
             {tab === 'revisions' && (
               <>
-                <span className="mono-eyebrow">EVERY VERSION OF THIS DOCUMENT</span>
-                <div className="mono-eyebrow" style={{ color: 'var(--color-faint)', marginTop: 3, marginBottom: 8 }}>
+                <span className="jk-mono-eyebrow">EVERY VERSION OF THIS DOCUMENT</span>
+                <div className="jk-mono-eyebrow" style={{ color: 'var(--color-faint)', marginTop: 3, marginBottom: 8 }}>
                   EACH SESSION RECORDS THE VERSION IT WAS BUILT FROM. LOOK HERE WHEN AN OLD SESSION SHOWS A NUMBER TODAY&apos;S RULES WOULD NOT PRODUCE.
                 </div>
-                {revisions === null && <div className="mono-eyebrow">LOADING…</div>}
-                {revisions?.length === 0 && <div className="mono-eyebrow" style={{ color: 'var(--color-faint)' }}>NO HISTORY YET</div>}
+                {revisions === null && <div className="jk-mono-eyebrow">LOADING…</div>}
+                {revisions?.length === 0 && <div className="jk-mono-eyebrow" style={{ color: 'var(--color-faint)' }}>NO HISTORY YET</div>}
                 {(revisions || []).map((r) => (
                   <div
                     key={r.version}
@@ -835,14 +835,14 @@ export function RoutineForge({
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                      <span className="seg" style={{ fontSize: 12 }}>v{r.version}</span>
+                      <span className="jk-seg" style={{ fontSize: 12 }}>v{r.version}</span>
                       {r.current && <Bubble tone="secondary" style={{ fontSize: 8, padding: '1px 6px' }}>CURRENT</Bubble>}
-                      <span className="mono-eyebrow" style={{ marginLeft: 'auto' }}>
+                      <span className="jk-mono-eyebrow" style={{ marginLeft: 'auto' }}>
                         {String(r.created_at || '').slice(0, 10)}
                       </span>
                     </div>
                     <div style={{ fontSize: 11.5, color: 'var(--color-muted)' }}>{r.summary || '—'}</div>
-                    {r.note && <div className="mono-eyebrow">{r.note}</div>}
+                    {r.note && <div className="jk-mono-eyebrow">{r.note}</div>}
                   </div>
                 ))}
               </>
@@ -889,20 +889,20 @@ function StepEditor({ step, index, count, vars, readonly, onEdit, onMove, onRemo
       <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', marginTop: 5 }}>
         <NumField min={1} value={step.sets} disabled={readonly}
           onChange={(e) => set('sets', Math.max(1, Number(e.target.value) || 1))} wrapperStyle={NUM_W} title="Sets" />
-        <span className="mono-eyebrow">×</span>
+        <span className="jk-mono-eyebrow">×</span>
         <NumField value={step.target ?? ''} disabled={readonly} placeholder="—"
           onChange={(e) => set('target', e.target.value === '' ? null : Number(e.target.value))} wrapperStyle={NUM_W} title="Target per set" />
         <SelectField value={step.unit} disabled={readonly} onChange={(e) => set('unit', e.target.value)}>
           {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
         </SelectField>
-        <span className="mono-eyebrow">@</span>
+        <span className="jk-mono-eyebrow">@</span>
         <NumField step={0.5} value={step.load ?? ''} disabled={readonly} placeholder="—"
           onChange={(e) => set('load', e.target.value === '' ? null : Number(e.target.value))} wrapperStyle={NUM_W} title="Starting load" />
         <SelectField value={step.load_unit ?? ''} disabled={readonly} onChange={(e) => set('load_unit', e.target.value || null)}>
           <option value="">—</option>
           {LOAD_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
         </SelectField>
-        <span className="mono-eyebrow">REST</span>
+        <span className="jk-mono-eyebrow">REST</span>
         <NumField min={0} value={step.rest ?? ''} disabled={readonly} placeholder="—"
           onChange={(e) => set('rest', e.target.value === '' ? null : Number(e.target.value))} wrapperStyle={NUM_W} />
       </div>
@@ -910,7 +910,7 @@ function StepEditor({ step, index, count, vars, readonly, onEdit, onMove, onRemo
       {/* The rules */}
       <div style={{ marginTop: 6 }}>
         {step.progression.length === 0 && (
-          <span className="mono-eyebrow" style={{ color: 'var(--color-faint)' }}>NEVER GETS HARDER</span>
+          <span className="jk-mono-eyebrow" style={{ color: 'var(--color-faint)' }}>NEVER GETS HARDER</span>
         )}
         {step.progression.map((p: Progression, ri: number) => (
           <RuleRow
@@ -940,7 +940,7 @@ function StepEditor({ step, index, count, vars, readonly, onEdit, onMove, onRemo
           step has. Edited as a comma list because it is a short ordered list of
           names and any richer control would be more chrome than content. */}
       <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', marginTop: 6 }}>
-        <span className="mono-eyebrow">LADDER</span>
+        <span className="jk-mono-eyebrow">LADDER</span>
         <Field
           value={step.variants.join(', ')} disabled={readonly} placeholder="easiest, …, hardest"
           onChange={(e) => onEdit((s: Step) => {
@@ -951,12 +951,12 @@ function StepEditor({ step, index, count, vars, readonly, onEdit, onMove, onRemo
         />
         {step.variants.length > 1 && (
           <>
-            <span className="mono-eyebrow">START AT</span>
+            <span className="jk-mono-eyebrow">START AT</span>
             <SelectField value={step.variant_index} disabled={readonly}
               onChange={(e) => set('variant_index', Number(e.target.value))}>
               {step.variants.map((v: string, i: number) => <option key={i} value={i}>{v}</option>)}
             </SelectField>
-            <span className="mono-eyebrow">CLIMB EVERY</span>
+            <span className="jk-mono-eyebrow">CLIMB EVERY</span>
             <NumField min={0} value={step.variant_every} disabled={readonly}
               onChange={(e) => set('variant_every', Math.max(0, Number(e.target.value) || 0))} wrapperStyle={NUM_W}
               title="0 = never climb on a clock" />
@@ -967,7 +967,7 @@ function StepEditor({ step, index, count, vars, readonly, onEdit, onMove, onRemo
               title="When a capped load rule tops out, climb the ladder instead of pinning">
               <Check checked={step.promote_on_cap} disabled={readonly}
                 onChange={(next) => set('promote_on_cap', next)} />
-              <span className="mono-eyebrow">CLIMB AT THE CAP</span>
+              <span className="jk-mono-eyebrow">CLIMB AT THE CAP</span>
             </label>
           </>
         )}

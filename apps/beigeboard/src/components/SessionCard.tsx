@@ -100,8 +100,8 @@ export function SessionCard({ occurrence, tint, readonly, onUpdateItem, onDeload
     <div style={{ marginTop: 4 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 8 }}>
         <span className="jk-lab jk-lab-xs" style={{ color: 'var(--color-accent)' }}>THE SESSION</span>
-        <span className="mono-eyebrow">{rx.line.toUpperCase()}</span>
-        <span className="mono-eyebrow" style={{ marginLeft: 'auto' }}>
+        <span className="jk-mono-eyebrow">{rx.line.toUpperCase()}</span>
+        <span className="jk-mono-eyebrow" style={{ marginLeft: 'auto' }}>
           {doneCount}/{rx.steps.length} LOGGED
         </span>
       </div>
@@ -127,8 +127,8 @@ export function SessionCard({ occurrence, tint, readonly, onUpdateItem, onDeload
           border: `1px solid ${restLeft > 0 ? tint || 'var(--color-accent)' : 'var(--color-line)'}`,
           background: restLeft > 0 ? 'color-mix(in srgb, var(--jk-tint, var(--color-accent)) 9%, transparent)' : 'transparent',
         }}>
-          <span className="mono-eyebrow">{restLeft > 0 ? 'REST' : 'GO'}</span>
-          <span className="seg" style={{ fontSize: 16, minWidth: 46 }}>
+          <span className="jk-mono-eyebrow">{restLeft > 0 ? 'REST' : 'GO'}</span>
+          <span className="jk-seg" style={{ fontSize: 16, minWidth: 46 }}>
             {restLeft > 0 ? `${Math.floor(restLeft / 60)}:${String(restLeft % 60).padStart(2, '0')}` : '0:00'}
           </span>
           <div style={{ flex: 1, height: 3, borderRadius: 2, background: 'var(--color-line)', overflow: 'hidden' }}>
@@ -145,7 +145,7 @@ export function SessionCard({ occurrence, tint, readonly, onUpdateItem, onDeload
       {groups.map((g, gi) => (
         <div key={`${g.block}-${gi}`} style={{ marginBottom: 10 }}>
           {groups.length > 1 && (
-            <div className="mono-eyebrow" style={{ marginBottom: 5 }}>{BLOCK_LABEL[g.block] || g.block.toUpperCase()}</div>
+            <div className="jk-mono-eyebrow" style={{ marginBottom: 5 }}>{BLOCK_LABEL[g.block] || g.block.toUpperCase()}</div>
           )}
           {g.steps.map((s) => (
             <StepRow
@@ -301,11 +301,11 @@ function StepRow({ step, status, tint, readonly, onLog, onRest }: any) {
         </div>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
           <span style={{ fontFamily: MONO, fontSize: 11.5, color: 'var(--color-ink)' }}>{step.line}</span>
-          {step.rest ? <span className="mono-eyebrow">REST {step.rest}s</span> : null}
+          {step.rest ? <span className="jk-mono-eyebrow">REST {step.rest}s</span> : null}
           {/* The variant is named as well as printed in the title, because "which
               rung am I on" is the question a ladder exists to answer. */}
           {step.variant && step.variant !== step.base_title
-            ? <span className="mono-eyebrow" style={{ color: 'var(--color-accent)' }}>{step.base_title.toUpperCase()} LADDER</span>
+            ? <span className="jk-mono-eyebrow" style={{ color: 'var(--color-accent)' }}>{step.base_title.toUpperCase()} LADDER</span>
             : null}
         </div>
       </div>
@@ -369,30 +369,30 @@ function StepRow({ step, status, tint, readonly, onLog, onRest }: any) {
         <div style={{ gridColumn: '1 / -1', marginTop: 6, display: 'flex', flexDirection: 'column', gap: 3 }}>
           {sets.map((st, i) => (
             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span className="mono-eyebrow" style={{ width: 22 }}>{i + 1}</span>
+              <span className="jk-mono-eyebrow" style={{ width: 22 }}>{i + 1}</span>
               <NumField
                 size="sm" inputMode="decimal" value={st.value ?? ''} placeholder={String(step.target ?? '')}
                 onChange={(e) => writeSet(i, 'value', e.target.value)}
                 onBlur={settleSet}
                 wrapperStyle={setField} title={step.unit}
               />
-              <span className="mono-eyebrow">{step.unit}</span>
+              <span className="jk-mono-eyebrow">{step.unit}</span>
               {step.load_unit && step.load_unit !== 'bw' && (
                 <>
-                  <span className="mono-eyebrow">@</span>
+                  <span className="jk-mono-eyebrow">@</span>
                   <NumField
                     size="sm" inputMode="decimal" step="0.5" value={st.load ?? ''} placeholder={String(step.load ?? '')}
                     onChange={(e) => writeSet(i, 'load', e.target.value)}
                     onBlur={settleSet}
                     wrapperStyle={setField}
                   />
-                  <span className="mono-eyebrow">{step.load_unit}</span>
+                  <span className="jk-mono-eyebrow">{step.load_unit}</span>
                 </>
               )}
               {/* The prescription, restated per row — so a short set is visible as
                   short without the reader holding the target in their head. */}
               {st.value !== null && step.target !== null && Number(st.value) < Number(step.target) && (
-                <span className="mono-eyebrow" style={{ color: 'var(--color-accent)' }}>
+                <span className="jk-mono-eyebrow" style={{ color: 'var(--color-accent)' }}>
                   −{Math.round((Number(step.target) - Number(st.value)) * 100) / 100}
                 </span>
               )}

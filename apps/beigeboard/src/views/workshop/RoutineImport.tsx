@@ -242,16 +242,16 @@ export function RoutineImport({ api, readonly, onClose, onImported }: any) {
   return (
     <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       {/* ── Head ── */}
-      <div className="mo-item" style={{ flex: 'none', padding: '16px 28px 12px' }}>
+      <div className="jk-mo-item" style={{ flex: 'none', padding: '16px 28px 12px' }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 14 }}>
           <span className="jk-lab jk-lab-xs" style={{ color: 'var(--color-accent)' }}>PASTE</span>
-          <span className="mono-eyebrow">A DOCUMENT IN · A ROUTINE OUT · CHECKED BEFORE ANYTHING IS WRITTEN</span>
+          <span className="jk-mono-eyebrow">A DOCUMENT IN · A ROUTINE OUT · CHECKED BEFORE ANYTHING IS WRITTEN</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16, marginTop: 12, flexWrap: 'wrap' }}>
           <span style={{ fontFamily: FONT_HEAD, fontWeight: 700, fontSize: '1.85rem', lineHeight: 1, letterSpacing: '-0.02em' }}>
             Import a routine
           </span>
-          <span className="mono-eyebrow" style={{ marginBottom: 5 }}>
+          <span className="jk-mono-eyebrow" style={{ marginBottom: 5 }}>
             {doc
               ? `${String(shape.routines).padStart(2, '0')} ROUTINE${shape.routines === 1 ? '' : 'S'} · ${String(shape.entries).padStart(2, '0')} LIBRARY ENTRIES`
               : 'JSON — FENCED OR BARE'}
@@ -274,7 +274,7 @@ export function RoutineImport({ api, readonly, onClose, onImported }: any) {
           {/* ══ Left: the document ═══════════════════════════════════════════ */}
           <div style={{ minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 6 }}>
-              <span className="mono-eyebrow">THE DOCUMENT</span>
+              <span className="jk-mono-eyebrow">THE DOCUMENT</span>
               <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
                 <TButton quiet onClick={() => { setText(EXAMPLE); setResult(null); setFailure(null) }}
                   style={{ padding: '2px 8px', cursor: 'pointer' }}>example</TButton>
@@ -306,23 +306,23 @@ export function RoutineImport({ api, readonly, onClose, onImported }: any) {
             {/* What the local parse made of it — before any round trip. */}
             <div style={{ marginTop: 7, minHeight: 18 }}>
               {parsed && 'error' in parsed && (
-                <span className="mono-eyebrow" style={{ color: 'var(--color-accent)' }}>
+                <span className="jk-mono-eyebrow" style={{ color: 'var(--color-accent)' }}>
                   NOT VALID JSON — {parsed.error.toUpperCase()}
                 </span>
               )}
               {parsed && 'value' in parsed && (
                 <div style={{ display: 'flex', gap: 10, alignItems: 'baseline', flexWrap: 'wrap' }}>
-                  <span className="mono-eyebrow" style={{ color: 'var(--color-accent)' }}>
+                  <span className="jk-mono-eyebrow" style={{ color: 'var(--color-accent)' }}>
                     READS AS {shape.routines} ROUTINE{shape.routines === 1 ? '' : 'S'}
                     {shape.entries ? ` + ${shape.entries} LIBRARY ENTR${shape.entries === 1 ? 'Y' : 'IES'}` : ''}
                   </span>
                   {shape.titles.length > 0 && (
-                    <span className="mono-eyebrow" style={{ color: 'var(--color-faint)' }}>
+                    <span className="jk-mono-eyebrow" style={{ color: 'var(--color-faint)' }}>
                       {shape.titles.slice(0, 4).join(' · ').toUpperCase()}
                     </span>
                   )}
                   {parsed.repaired.length > 0 && (
-                    <span className="mono-eyebrow" style={{ color: 'var(--color-faint)' }}>
+                    <span className="jk-mono-eyebrow" style={{ color: 'var(--color-faint)' }}>
                       ({parsed.repaired.join(', ')})
                     </span>
                   )}
@@ -347,7 +347,7 @@ export function RoutineImport({ api, readonly, onClose, onImported }: any) {
               >
                 {busy === 'import' ? 'Importing…' : 'Import'}
               </TButton>
-              <span className="mono-eyebrow" style={{ color: 'var(--color-faint)' }}>
+              <span className="jk-mono-eyebrow" style={{ color: 'var(--color-faint)' }}>
                 CHECK RENDERS THE SESSIONS AND WRITES NOTHING
               </span>
             </div>
@@ -356,10 +356,10 @@ export function RoutineImport({ api, readonly, onClose, onImported }: any) {
             {prompt && (
               <Well style={{ display: 'block', padding: 10, marginTop: 14 }}>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 6 }}>
-                  <span className="mono-eyebrow" style={{ color: 'var(--color-accent)' }}>
+                  <span className="jk-mono-eyebrow" style={{ color: 'var(--color-accent)' }}>
                     {copied ? 'COPIED TO THE CLIPBOARD' : 'THE PROMPT'}
                   </span>
-                  <span className="mono-eyebrow">
+                  <span className="jk-mono-eyebrow">
                     HAND THIS TO ANY ASSISTANT — IT CARRIES YOUR LIBRARY AND THE EXACT OUTPUT SHAPE
                   </span>
                   <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
@@ -379,20 +379,20 @@ export function RoutineImport({ api, readonly, onClose, onImported }: any) {
           <div style={{ minWidth: 0, position: 'sticky', top: 0 }}>
             {!result && !failure && (
               <>
-                <span className="mono-eyebrow">WHAT IT WILL DO</span>
-                <div className="mono-eyebrow" style={{ color: 'var(--color-faint)', marginTop: 6, lineHeight: 1.7 }}>
+                <span className="jk-mono-eyebrow">WHAT IT WILL DO</span>
+                <div className="jk-mono-eyebrow" style={{ color: 'var(--color-faint)', marginTop: 6, lineHeight: 1.7 }}>
                   CHECK IT FIRST. THE RULES COME BACK RENDERED AS NUMBERS — WHICH IS THE ONLY WAY TO SEE
                   THAT A PROGRESSION WHICH IS LEGAL AND PLAUSIBLE HAS YOU SQUATTING 400 LB BY NOVEMBER.
                 </div>
                 <Rule style={{ margin: '12px 0' }} />
-                <span className="mono-eyebrow">THE SHAPE IT ACCEPTS</span>
+                <span className="jk-mono-eyebrow">THE SHAPE IT ACCEPTS</span>
                 <div style={{ fontFamily: MONO, fontSize: 10.5, lineHeight: 1.6, color: 'var(--color-muted)', marginTop: 6 }}>
                   {'{'}<br />
                   &nbsp;&nbsp;"library": [ … ] &nbsp;<span style={{ color: 'var(--color-faint)' }}>// optional</span><br />
                   &nbsp;&nbsp;"routines": [ … ]<br />
                   {'}'}
                 </div>
-                <div className="mono-eyebrow" style={{ color: 'var(--color-faint)', marginTop: 8, lineHeight: 1.7 }}>
+                <div className="jk-mono-eyebrow" style={{ color: 'var(--color-faint)', marginTop: 8, lineHeight: 1.7 }}>
                   ENTRIES LAND FIRST, SO A ROUTINE CAN REFERENCE A MOVEMENT THE SAME PASTE TEACHES.
                   BOTH HALVES ARE IDEMPOTENT BY SLUG — RE-PASTING EDITS, IT NEVER DUPLICATES.
                 </div>
@@ -402,7 +402,7 @@ export function RoutineImport({ api, readonly, onClose, onImported }: any) {
             {/* ── Refused ─────────────────────────────────────────────────── */}
             {failure && (
               <Well style={{ display: 'block', padding: 10 }}>
-                <div className="mono-eyebrow" style={{ color: 'var(--color-accent)', marginBottom: 6 }}>
+                <div className="jk-mono-eyebrow" style={{ color: 'var(--color-accent)', marginBottom: 6 }}>
                   REFUSED — NOTHING WAS WRITTEN
                 </div>
                 <div style={{ fontSize: 12.5, color: 'var(--color-ink)', marginBottom: errors.length ? 8 : 0 }}>
@@ -425,7 +425,7 @@ export function RoutineImport({ api, readonly, onClose, onImported }: any) {
             {result && (
               <>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 8 }}>
-                  <span className="mono-eyebrow" style={{ color: 'var(--color-accent)' }}>
+                  <span className="jk-mono-eyebrow" style={{ color: 'var(--color-accent)' }}>
                     {result.dryRun ? 'DRY RUN — NOTHING WRITTEN' : 'IMPORTED'}
                   </span>
                   {!result.dryRun && (
@@ -438,7 +438,7 @@ export function RoutineImport({ api, readonly, onClose, onImported }: any) {
                 {/* The library half */}
                 {(result.library?.entries?.length > 0) && (
                   <Well style={{ display: 'block', padding: 9, marginBottom: 8 }}>
-                    <div className="mono-eyebrow" style={{ marginBottom: 5 }}>
+                    <div className="jk-mono-eyebrow" style={{ marginBottom: 5 }}>
                       LIBRARY — {result.library.created} NEW · {result.library.updated} UPDATED
                     </div>
                     <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
@@ -461,7 +461,7 @@ export function RoutineImport({ api, readonly, onClose, onImported }: any) {
                 {/* The lint tier, kept visually apart from the refusals above. */}
                 {warnings.length > 0 && (
                   <Well style={{ display: 'block', padding: 9, marginTop: 8 }}>
-                    <div className="mono-eyebrow" style={{ marginBottom: 5 }}>
+                    <div className="jk-mono-eyebrow" style={{ marginBottom: 5 }}>
                       ACCEPTED — WORTH A LOOK
                     </div>
                     {warnings.map((w, i) => (
@@ -496,16 +496,16 @@ function ResultCard({ routine: r, dryRun }: any) {
           {r.action === 'update' ? 'UPDATES' : 'NEW'}
         </Bubble>
         {!dryRun && r.minted > 0 && (
-          <span className="mono-eyebrow" style={{ marginLeft: 'auto' }}>{r.minted} SESSIONS ON THE BOARD</span>
+          <span className="jk-mono-eyebrow" style={{ marginLeft: 'auto' }}>{r.minted} SESSIONS ON THE BOARD</span>
         )}
       </div>
       {r.summary && (
-        <div className="mono-eyebrow" style={{ marginTop: 2 }}>{String(r.summary).toUpperCase()}</div>
+        <div className="jk-mono-eyebrow" style={{ marginTop: 2 }}>{String(r.summary).toUpperCase()}</div>
       )}
 
       {sessions.length > 0 && (
         <>
-          <div className="mono-eyebrow" style={{ color: 'var(--color-faint)', margin: '7px 0 4px' }}>
+          <div className="jk-mono-eyebrow" style={{ color: 'var(--color-faint)', margin: '7px 0 4px' }}>
             THE FIRST {sessions.length} SESSIONS, RENDERED
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -516,8 +516,8 @@ function ResultCard({ routine: r, dryRun }: any) {
                 background: s.deload ? 'color-mix(in srgb, var(--color-lit) 55%, transparent)' : 'transparent',
               }}>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                  <span className="seg" style={{ fontSize: 11 }}>{String(i + 1).padStart(2, '0')}</span>
-                  <span className="mono-eyebrow">
+                  <span className="jk-seg" style={{ fontSize: 11 }}>{String(i + 1).padStart(2, '0')}</span>
+                  <span className="jk-mono-eyebrow">
                     {[s.phase, s.deload ? 'DELOAD' : null].filter(Boolean).join(' · ').toUpperCase()}
                   </span>
                 </div>

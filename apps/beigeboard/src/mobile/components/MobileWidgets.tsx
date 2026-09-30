@@ -120,7 +120,7 @@ export function Checkbox({ id, completed, onToggle, color, size = 14 }: any) {
   return (
     <button
       onClick={handle}
-      className={pop ? 'check-pop' : ''}
+      className={pop ? 'jk-check-pop' : ''}
       style={{
         width: size,
         height: size,

@@ -21,7 +21,7 @@ function TimeReadout() {
   return (
     // The seg verdict, same as the desktop masthead clock: Big Shoulders + glow
     // on the tube, Fraunces lining figures on paper — hub.css owns the flip.
-    <span className="seg" style={{ fontSize: 13 }}>
+    <span className="jk-seg" style={{ fontSize: 13 }}>
       {hh}
       <span style={{ opacity: 0.4 }}>:</span>
       {mm}

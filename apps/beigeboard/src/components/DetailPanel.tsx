@@ -62,7 +62,7 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
     // any of this. `--jk-tint` hands the item's colour to the head + chips below,
     // so the panel presses in the same hue the item does everywhere else.
     <aside
-      className={`panel-enter jk-panel ${asSheet ? 'jk-panel-sheet' : 'jk-panel-rail'}`}
+      className={`jk-panel-enter jk-panel ${asSheet ? 'jk-panel-sheet' : 'jk-panel-rail'}`}
       style={{ '--jk-tint': accent } as React.CSSProperties}
     >
       {/* The item's own masthead: folio eyebrow, serif title, closed by the same

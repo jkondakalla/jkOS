@@ -183,7 +183,7 @@ export function CalendarView({
           cells were 350px wide on a 2560 monitor before the canvas capped it. */}
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: '16px 28px 18px' }}>
         <ChromeBar
-          className="mo-item"
+          className="jk-mo-item"
           style={{ height: 'auto', padding: 0, border: 'none', marginBottom: 14, animationDelay: `${MO_DELAYS.header}ms` }}
           title={
             <span style={{ fontSize: '1.9rem', letterSpacing: '-0.02em', lineHeight: 1 }}>
@@ -201,7 +201,7 @@ export function CalendarView({
         />
 
         {/* Day-of-week row — no borders, no background: the cells carry the frame. */}
-        <div className="mo-item" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6, marginBottom: 6, flexShrink: 0, animationDelay: `${MO_DELAYS.calendarDow}ms` }}>
+        <div className="jk-mo-item" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6, marginBottom: 6, flexShrink: 0, animationDelay: `${MO_DELAYS.calendarDow}ms` }}>
           {DOW.map((d) => (
             <div key={d} className="jk-lab jk-lab-xs" style={{ color: 'var(--color-muted)', textAlign: 'center' }}>
               {d}
@@ -213,7 +213,7 @@ export function CalendarView({
             at month scale. Rows are 1fr so the grid fills the pane instead of
             scrolling a fixed 90px-per-row table.
             The container itself does NOT animate: the entrance belongs to the
-            cells (see cellDelay), and a .mo-item wrapper around .mo-item children
+            cells (see cellDelay), and a .jk-mo-item wrapper around .jk-mo-item children
             fades the whole pane in while each child is still holding its
             pre-delay frame — one entrance per surface. */}
         <div
@@ -240,7 +240,7 @@ export function CalendarView({
                 key={cell.iso}
                 data-drop-zone="cell"
                 data-drop-day={cell.iso}
-                className={cell.inMonth ? 'mo-item jk-hit' : 'mo-item'}
+                className={cell.inMonth ? 'jk-mo-item jk-hit' : 'jk-mo-item'}
                 onClick={(e) => {
                   if (e.target !== e.currentTarget || !cell.inMonth || anyDrag) return;
                   // Clicking the cell opens that day; the quick-add lives on the
@@ -330,7 +330,7 @@ export function CalendarView({
                       );
                     })}
                     {cellItems.length > 4 && (
-                      <span className="mono-eyebrow" style={{ fontSize: 8 }}>+{cellItems.length - 4} MORE</span>
+                      <span className="jk-mono-eyebrow" style={{ fontSize: 8 }}>+{cellItems.length - 4} MORE</span>
                     )}
                     {quickAdd === cell.iso && (
                       <Field

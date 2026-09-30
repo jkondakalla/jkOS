@@ -107,7 +107,7 @@ export function ConnectModal({ open, onClose, accounts, onConnect, onDisconnect,
         background: 'var(--color-paper)', border: `1px solid var(--color-line)`,
         boxShadow: '0 24px 80px var(--color-shadow-panel-ink)',
         display: 'flex', flexDirection: 'column', overflow: 'hidden',
-      }} className="modal-in">
+      }} className="jk-modal-in">
         <div style={{
           padding: '22px 28px 18px',
           borderBottom: `1px solid var(--color-line)`, background: 'var(--color-paper-2)',

@@ -50,7 +50,7 @@ const hub = read('packages/design/tokens/hub.css');
 /* ── 2. Every shared class hub.css defines is demonstrated ─────────────────── */
 
 // Top-level class selectors only: a rule that starts at column 0. Nested/state
-// selectors (`.led.green`, `:root[data-mode] .jk-glow`) ride on their base class,
+// selectors (`.jk-led.ok`, `:root[data-mode] .jk-glow`) ride on their base class,
 // and the base is what must be demoed.
 const hubNoComments = hub.replace(/\/\*[\s\S]*?\*\//g, '');
 const declared = new Set();
@@ -64,7 +64,7 @@ for (const line of hubNoComments.split('\n')) {
 // entry needs a new reason, not just a new line.
 const EXEMPT = new Map([
   // Terminal state of a pair whose correct demo is "nothing there".
-  ['intro-out', 'the boot screen fading OUT — a correct demo is an empty box (§14 says so in prose)'],
+  ['jk-intro-out', 'the boot screen fading OUT — a correct demo is an empty box (§14 says so in prose)'],
 ]);
 
 // The classes the template actually PUTS ON something. Tokenised out of class="…"
@@ -86,6 +86,39 @@ if (missing.length) {
   );
 } else {
   ok(`every shared class in hub.css (${declared.size - EXEMPT.size} of them) is demonstrated on the page`);
+}
+
+/* ── 2b. Every class hub.css declares is in the .jk- namespace ────────────────
+ * hub.css is imported globally by every app, so a bare class name it declares
+ * (`.led`, `.seg`, `.stamp`) is a claim on that name in every stylesheet in the
+ * suite — and an app's own `.stamp` would silently merge with it. Twenty-five of
+ * them lived here until 2026-09-30. A bare MODIFIER is allowed only compounded
+ * onto a namespaced base in the same selector (`.jk-led.ok`, `.jk-vu-seg.on`),
+ * where it cannot match anything the base doesn't. */
+{
+  const bare = new Map();
+  for (const [, prelude] of hubNoComments.matchAll(/([^{}]+)\{/g)) {
+    const sel = prelude.trim();
+    if (sel.startsWith('@') || /^(from|to|\d)/.test(sel)) continue;
+    for (const part of sel.split(',')) {
+      // Walk each compound (the run of simple selectors between combinators).
+      for (const compound of part.trim().split(/\s*[\s>+~]\s*/)) {
+        const classes = [...compound.matchAll(/\.([a-zA-Z][\w-]*)/g)].map((m) => m[1]);
+        const anchored = classes.some((c) => c.startsWith('jk-'));
+        for (const c of classes) {
+          if (c.startsWith('jk-') || anchored) continue;
+          if (!bare.has(c)) bare.set(c, part.trim().slice(0, 70));
+        }
+      }
+    }
+  }
+  if (bare.size) {
+    fail(`hub.css declares ${bare.size} class(es) outside the .jk- namespace:\n` +
+      [...bare].map(([c, s]) => `      .${c}   (in \`${s}\`)`).join('\n') +
+      '\n    Name it .jk-*, or compound a modifier onto a .jk-* base.');
+  } else {
+    ok('every class hub.css declares is in the .jk- namespace (modifiers compound onto a .jk- base)');
+  }
 }
 
 /* ── 3. The slider primitive is real, tokenised, and wired ─────────────────── */
@@ -142,4 +175,4 @@ if (failed) {
   console.error(`\n${failed} design-page check(s) failed.`);
   process.exit(1);
 }
-console.log('\n✓ design page: fresh, complete, and the slider is one primitive');
+console.log('\n✓ design page: fresh, complete, namespaced, and the slider is one primitive');

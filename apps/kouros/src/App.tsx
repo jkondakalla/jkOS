@@ -108,7 +108,7 @@ function Content() {
           route.view === 'now' ? <RuneLayer><NowPlaying /></RuneLayer> : <Queue />
         ) : (
           <>
-            <main className="kr-main ink-in">
+            <main className="kr-main jk-ink-in">
               {route.view === 'artist' && route.artist != null ? (
                 <Artist artist={route.artist} />
               ) : route.view === 'album' && route.artist != null && route.album != null ? (
