@@ -17,8 +17,8 @@
   },
   "spec": {
     "frame": {
-      "eyebrow": "LAZUROS",
-      "source": "JOBS",
+      "eyebrow": "JOBS",
+      "source": "LAZUROS",
       "empty": "No jobs yet — ask LazurOS something."
     },
     "sources": {

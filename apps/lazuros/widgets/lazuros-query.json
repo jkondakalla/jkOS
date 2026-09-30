@@ -17,8 +17,8 @@
   },
   "spec": {
     "frame": {
-      "eyebrow": "LAZUROS",
-      "source": "ASSISTANT"
+      "eyebrow": "ASK",
+      "source": "LAZUROS"
     },
     "body": {
       "t": "ask",
