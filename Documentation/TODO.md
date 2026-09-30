@@ -267,21 +267,16 @@ second validation tier. Then the frame (it owns loading/offline/signed-out/empty
 patterns (`stat`/`meter`/`rows`/`feed`/`facts`/`media`/`ask`), Focus and Week as molecules
 (the `component` hatch retired), one `widgets.css` (the renderer writes no inline style), and
 the catalog as files (`apps/<app>/widgets/*.json`, ORDECK's own cards included, compiled in and
-referenced by id) — each built-in proven pixel-identical through the move. Remaining, in order:
+referenced by id) — each built-in proven pixel-identical through the move. Then the
+derived Workshop, the agent path (`pnpm widget new`, the `new-widget` skill, WIDGETS.md),
+LazurOS's and KourOS's first widgets, and a cold agent building one from the skill alone
+(2026-09-29: its friction became per-row progress and the `silent-empty` rule). Remaining:
 
 - ⚠️ **Yours: review the visual pass.** [The before/after contact sheets](https://claude.ai/artifact/1EPUsLmziti4dozpskGizc).
   It is one commit, `fc2c09a`, on the local branch `proposal/widget-visual-pass` — NOT on
   staging: the built-ins on the patterns, the accent chain (`--color-accent`), the clock sized
   to its card, honest minimum sizes, and `test/widget-render.baseline.json` driven from 54
   findings to empty. Say approved (or what to change) and an agent brings it onto staging.
-- **The Workshop, derived:** a generic prop editor from the manifest, a JSON tab with live
-  errors, a gallery of every widget in every state.
-- **The agent path and first consumers:** `pnpm widget new`, a `new-widget` skill,
-  `Documentation/agents/WIDGETS.md`; LazurOS query/jobs rewritten (declare `jobs.item`, delete
-  the README's localStorage publish hack); KourOS now-playing (declare `session`'s shape) and
-  recently played; then a cold agent given only the skill builds one, and its friction is fixed.
-- **Docs:** an ARCHITECTURE widget-factory section; point `widget-generate`'s `resolves.schema`
-  at WIDGETS.md (it names ARCHITECTURE.md, which describes no WidgetSpec).
 
 Found on the way, not in scope: the AccuWeather key sits in `localStorage` and request URLs
 (ORDECK has no backend to host a `defineConnector`); ORDECK's `BbItem` is hand-typed rather
