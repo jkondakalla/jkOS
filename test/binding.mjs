@@ -78,7 +78,7 @@ const b = await import(resolve(root, 'packages/weave/src/shared/binding.js'));
     'it does not re-walk the template itself');
   check(!/^function dig\(/m.test(trigger), 'it does not carry its own `dig` any more');
 
-  const registry = read('apps/ordeck/src/hud/registry.tsx');
+  const registry = read('packages/widget-render/src/render.tsx');
   check(/resolveBinding/.test(registry) && /@jkos\/weave/.test(registry),
     'the widget renderer (READ) takes the same resolver from @jkos/weave');
   /* ⚠️ Asserted as DELEGATION, not as the absence of the old body. A first pass
@@ -93,9 +93,9 @@ const b = await import(resolve(root, 'packages/weave/src/shared/binding.js'));
       `resolve() DELEGATES rather than re-implementing (its body is ${stmts.length} statement(s): ${stmts.join(' ')})`);
   }
 
-  const types = read('apps/ordeck/src/hud/types.ts');
+  const types = read('packages/widget-render/src/types.ts');
   check(/WeaveBinding/.test(types),
-    "ORDECK's Binding type IS weave's — not a second declaration that happens to match");
+    "the widget Binding type IS weave's — not a second declaration that happens to match");
 
   const inspector = read('apps/ordeck/src/workshop/Inspector.tsx');
   check(/normalizeBinding/.test(inspector),
@@ -124,7 +124,7 @@ const b = await import(resolve(root, 'packages/weave/src/shared/binding.js'));
     'packages/weave/src/shared/binding.d.ts',
     'packages/weave/src/binding.ts',
     'packages/weave/src/trigger.ts',
-    'apps/ordeck/src/hud/types.ts',
+    'packages/widget-render/src/types.ts',
   ]);
   const offenders = [];
   for (const rel of files) {

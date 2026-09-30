@@ -9,6 +9,10 @@ export type Tone = 'ok' | 'warn' | 'danger' | 'muted' | 'accent';
 /** The curated line-icon set. */
 export type IconName = 'sun' | 'moon' | 'cloud' | 'rain' | 'snow' | 'bolt' | 'check' | 'book' | 'clock' | 'calendar' | 'activity' | 'star' | 'alert' | 'dot';
 
+/** The kinds a HOST draws, not the renderer: the manifest's molecules, each reading the
+ *  host slice its `reads` names. A host that has none of them draws a not-here tile. */
+export type HostKind = 'calendar' | 'weather' | 'focus' | 'week';
+
 /** The composable display vocabulary — one variant per manifest kind. */
 export type WidgetNode =
   /** Metric — big number + unit. */

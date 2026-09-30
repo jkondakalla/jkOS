@@ -11,7 +11,7 @@
 import { useMemo } from 'react';
 import { AUTH_URL } from '@jkos/auth-client';
 import { APP_IDS, appOrigin, type AppId, type SuiteApp } from '@jkos/weave';
-import { type WidgetCtx } from '../../hud/registry';
+import { type WidgetCtx } from '../../hud/host';
 import {
   useClock, useWeather, useSystems, useBbItems, useShelfRefs,
   selectToday, selectMonth, selectCalendarItems, selectFocus, selectPinned, deriveNotifications,

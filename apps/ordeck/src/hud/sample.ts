@@ -14,10 +14,10 @@
 
 import type { HudFocus, HudPin } from '@jkos/auth-client';
 import { readDataset, fetchDatasets, getDataset } from '@jkos/weave';
-import { readExternal, type SourceReader } from './sources';
+import { readExternal, type SourceReader } from '@jkos/widget-render';
 import { PINNED_MS } from './pinned';
 import { APP_IDS, appOrigin } from '@jkos/weave';
-import type { WidgetCtx } from './registry';
+import type { WidgetCtx } from './host';
 import {
   clockState, viewWeather, viewSystems, sysRow, selectToday, selectMonth, selectCalendarItems,
   selectFocus, selectPinned, deriveNotifications, type BbItem, type BbItemsState, type WeatherBase,

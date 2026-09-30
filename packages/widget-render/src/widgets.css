@@ -1,8 +1,9 @@
-/* hud/widgets.css — the widget factory's own stylesheet.
+/* widgets.css — the widget renderer's own stylesheet.
  *
- * Imported by the renderer (registry.tsx), so a widget carries its styles wherever it
- * is drawn: the HUD, the Workshop canvas, the preview harness. New widget styling lands
- * here as classes on tokens — never as inline pixel styles in a renderer. */
+ * Imported by the renderer (render.tsx), so a widget carries its styles wherever it is
+ * drawn: any host app, a workshop canvas, the preview harness. New widget styling lands
+ * here as classes on tokens — never as inline pixel styles in a renderer. A HOST KIND's
+ * styles are its host's (ORDECK's molecules: apps/ordeck/src/hud/molecules.css). */
 
 /* ── The frame's states (loading, offline, signed-out, empty…) ─────────────
  * The note itself is @jkos/ui's AsyncView (.jk-async-note — the suite's set, italic
@@ -135,33 +136,6 @@ a.hud-card.hud-w-frame { display: flex; }
 .hud-w-toggle { display: flex; align-items: center; gap: 8px; cursor: pointer; }
 .hud-w-toggle-label { font-family: var(--jk-font-mono); font-size: 11px; color: var(--color-muted); }
 
-/* ── Molecules ───────────────────────────────────────────────────────────── */
-.hud-cal-dot.hud-w-toned { background: var(--w-tone); }
-.hud-w-weather-off { color: var(--color-ghost); font-family: var(--jk-font-mono); font-size: 11px; padding: 4px 0; }
-.hud-w-weather-glyph { flex: none; filter: drop-shadow(var(--glow)); }
-.hud-w-grow { min-width: 0; flex: 1; }
-.hud-weather-hilo.hud-w-flush { margin-left: 0; }
-.hud-weather-strip.hud-w-foot { padding-top: 10px; margin-top: auto; }
-.hud-w-focus { padding: 14px; display: flex; flex-direction: column; height: 100%; }
-.hud-w-focus.is-idle { gap: 6px; }
-.hud-w-focus.is-on { gap: 10px; border-color: color-mix(in srgb, var(--color-accent) 55%, transparent); }
-.hud-w-focus-note { font-size: 11px; color: var(--color-faint); }
-.hud-w-focus-empty { font-family: var(--jk-font-serif, var(--jk-font-sans)); font-size: 15px; color: var(--color-faint); }
-.hud-w-focus-hint { font-family: var(--jk-font-mono); font-size: 10px; letter-spacing: 0.08em; color: var(--color-ghost); }
-.hud-w-focus-body { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: center; gap: 6px; }
-.hud-w-focus-title {
-  font-family: var(--jk-font-serif, var(--jk-font-sans)); font-size: 22px; font-weight: 600;
-  color: var(--color-ink); line-height: 1.2; text-decoration: none; opacity: 1;
-}
-.hud-w-focus-title.is-done { text-decoration: line-through; opacity: 0.7; }
-.hud-w-focus-meta { font-family: var(--jk-font-mono); font-size: 11px; letter-spacing: 0.06em; color: var(--color-faint); }
-.hud-w-focus-end {
-  align-self: flex-start; cursor: pointer; background: transparent; color: var(--color-accent);
-  font-family: var(--jk-font-mono); font-size: 10px; letter-spacing: 0.1em; padding: 6px 11px;
-  border: 1px solid color-mix(in srgb, var(--color-accent) 40%, transparent); border-radius: var(--jk-radius-sm);
-}
-.hud-w-week { padding: 14px; display: flex; flex-direction: column; height: 100%; overflow: hidden; }
-.hud-w-week-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .hud-w-unknown { display: flex; align-items: center; justify-content: center; padding: 16px; height: 100%; }
 .hud-w-unknown > span { color: var(--color-faint); font-family: var(--jk-font-mono); font-size: 10px; letter-spacing: 0.15em; }
 .hud-w-aioff { display: flex; flex-direction: column; gap: 6px; justify-content: center; padding: 16px; height: 100%; }
@@ -342,3 +316,101 @@ a.hud-p-row:hover .hud-p-title { color: var(--color-accent); }
 .hud-clock .hud-clock-ss { font-size: clamp(12px, min(7.5cqi, 17cqh), 30px); }
 @container (max-height: 120px) { .hud-clock .hud-clock-utc { display: none; } .hud-clock .hud-clock-meta { margin-top: 6px; } }
 .hud-bar > .hud-w-fill { background: var(--color-accent); }
+
+/* ── A card's fault (boundary.tsx) ───────────────────────────────────────── */
+.hud-w-fault {
+  height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px; padding: 16px; text-align: center;
+}
+.hud-w-fault-mark { font-size: 20px; color: var(--color-danger); }
+.hud-w-fault-title { font-family: var(--jk-font-mono); font-size: 10px; letter-spacing: 0.15em; color: var(--color-danger); }
+.hud-w-fault-name { font-size: 9px; color: var(--color-faint); max-width: 200px; line-height: 1.5; }
+.hud-w-fault-retry {
+  margin-top: 8px; background: transparent; border: 1px solid var(--color-line); color: var(--color-faint);
+  font-family: var(--jk-font-mono); font-size: 9px; letter-spacing: 0.1em; padding: 4px 10px; cursor: pointer;
+}
+
+/* ── The chrome every card is drawn in ───────────────────────────────────────
+ * The card surface, its eyebrow, the status dot, the bar and the clock's type. These
+ * were ORDECK's (styles/hud.css) until the renderer left it on 2026-09-30; a widget
+ * drawn in any other app needs them, so they are the renderer's. They sit at the END of
+ * this file on purpose: they were read after the rules above, and the order decides
+ * equal-specificity ties (TRAPS.md § CSS). */
+.hud-dot { width: 6px; height: 6px; border-radius: 999px; flex: none; }
+.hud-dot.pulse { animation: hud-w-pulse 2.4s ease-in-out infinite; }
+@keyframes hud-w-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+
+.hud-card {
+  border-radius: var(--jk-radius-lg);
+  background: var(--color-card);
+  border: 1px solid var(--color-line);
+  box-shadow: var(--hub-shadow-raised);
+}
+a.hud-card { display: block; transition: box-shadow 0.2s, transform 0.2s; }
+a.hud-card:hover { box-shadow: var(--hub-shadow-lifted); transform: translateY(-1px); }
+
+.hud-eyebrow {
+  font-family: var(--jk-font-mono);
+  font-size: 10.5px; font-weight: 600;
+  letter-spacing: 0.16em;
+  color: var(--color-faint);
+}
+.hud-eyebrow-src {
+  font-family: var(--jk-font-mono);
+  font-size: 10.5px;
+  color: var(--color-ghost);
+}
+
+/* The time atom: raw on the background, no chrome. */
+.hud-clock { padding: 14px 6px 2px; }
+.hud-clock-time { display: flex; align-items: baseline; gap: 10px; }
+.hud-clock-hm {
+  /* Colour + text-shadow come from the .jk-press-lg primitive (struck into the
+     paper on light, halation glow in dark); this rule owns size/weight/figures. */
+  font-family: var(--jk-font-mono);
+  font-size: clamp(60px, 7vw, 104px);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  line-height: 0.95;
+}
+.hud-clock-ss {
+  font-family: var(--jk-font-mono);
+  font-size: clamp(20px, 2vw, 30px);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-faint);
+}
+.hud-clock-meta {
+  margin-top: 12px;
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+}
+.hud-clock-date {
+  font-family: var(--jk-font-mono);
+  font-size: 13.5px; font-weight: 600;
+  letter-spacing: 0.16em;
+  color: var(--color-muted);
+}
+.hud-clock-utc {
+  font-family: var(--jk-font-mono);
+  font-size: 11px; letter-spacing: 0.12em;
+  color: var(--color-faint);
+}
+
+.hud-bar {
+  width: 56px; height: 5px;
+  border-radius: 999px;
+  background: var(--color-line);
+  overflow: hidden;
+  display: inline-block;
+}
+.hud-bar > span {
+  display: block; height: 100%;
+  border-radius: 999px;
+  background: var(--color-accent);
+  box-shadow: var(--hub-accent-press);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hud-dot.pulse { animation: none; }
+}

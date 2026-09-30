@@ -236,6 +236,9 @@ importers:
       '@jkos/weave':
         specifier: workspace:*
         version: file:packages/weave(react@18.3.1)
+      '@jkos/widget-render':
+        specifier: workspace:*
+        version: link:../../packages/widget-render
       '@jkos/widgets':
         specifier: workspace:*
         version: file:packages/widgets(react@18.3.1)
@@ -400,6 +403,31 @@ importers:
       react:
         specifier: '>=18'
         version: 19.2.7
+    devDependencies:
+      '@types/react':
+        specifier: ^18.3.3
+        version: 18.3.29
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+
+  packages/widget-render:
+    dependencies:
+      '@jkos/ui':
+        specifier: workspace:*
+        version: link:../ui
+      '@jkos/weave':
+        specifier: workspace:*
+        version: file:packages/weave(react@18.3.1)
+      '@jkos/widgets':
+        specifier: workspace:*
+        version: file:packages/widgets(react@18.3.1)
+      react:
+        specifier: '>=18'
+        version: 18.3.1
+      react-dom:
+        specifier: '>=18'
+        version: 18.3.1(react@18.3.1)
     devDependencies:
       '@types/react':
         specifier: ^18.3.3

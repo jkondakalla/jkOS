@@ -26,7 +26,7 @@
 
 import { useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { usePointerDrag, DRAG_THRESHOLD_PX, HOLD_MS, HOLD_CANCEL_PX } from '@jkos/ui';
-import { renderNode, resolve, truthy, type Scope } from '../hud/registry';
+import { renderNode, resolve, truthy, type Scope } from '@jkos/widget-render';
 import {
   bindingLabel, canInsert, catalogEntry, enToNode, findEn, findPlace, isInside, isKidContainer, newNode,
   type ENode, type NodeT,

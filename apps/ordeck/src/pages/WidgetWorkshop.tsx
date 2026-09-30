@@ -21,8 +21,8 @@ import { AUTH_URL, authFetch, useJkOSPreferences } from '@jkos/auth-client';
 import { useBreakpoint } from '@jkos/ui';
 import { useSuiteApps } from '@jkos/weave';
 import { useHudContext } from './hud/useHudContext';
-import { renderWidget, type Scope } from '../hud/registry';
-import { useDataSources, type DataSource } from '../hud/sources';
+import { renderWidget, useDataSources, HostKindsProvider, WidgetBoundary, type Scope, type DataSource } from '@jkos/widget-render';
+import { hudHost } from '../hud/host';
 import { NODES } from '@jkos/widgets';
 import { JsonTab } from '../workshop/JsonTab';
 import { Gallery } from '../workshop/Gallery';
@@ -31,7 +31,6 @@ import { Gallery } from '../workshop/Gallery';
 type WorkshopTab = 'build' | 'json' | 'gallery' | 'guide';
 import type { WidgetDef, WidgetNode } from '../hud/types';
 import { WIDGET_EDIT_KEY } from '../hud/state';
-import ErrorBoundary from '../components/ErrorBoundary';
 import {
   allowedTypes, catalogEntry, duplicateEn, emptyStack, enToNode, findEn, findPlace, insertKid,
   isKidContainer, moveEn, newId, newNode, nodeToEn, patchEn, removeEn, rewrite, setSlot, wrapEn,
@@ -67,6 +66,7 @@ export default function WidgetWorkshop() {
 
   // The canvas renders against the real HUD context, so edits show real values.
   const ctx = useHudContext(true, useSuiteApps());
+  const host = hudHost(ctx);
   const bp = useBreakpoint();
   const isDesktop = bp === 'desktop';
 
@@ -231,7 +231,7 @@ export default function WidgetWorkshop() {
   }, [identity, sizing, root, sourcesObj, lone, onlyMolecule]);
 
   // Canvas binding scope = the live HUD slices + the spec's sources, as the HUD reads them.
-  const base: Scope = { ...(ctx as unknown as Scope), $now: ctx.clock.now };
+  const base: Scope = { ...host.slices, $now: host.now };
   const fetched = useDataSources(sourcesObj, base);
   const scope: Scope = { ...base, ...fetched.data, $sources: fetched.status };
 
@@ -430,7 +430,8 @@ export default function WidgetWorkshop() {
             <div className="wc-canvaswrap">
               {view === 'edit' ? (
                 <div style={{ position: 'relative' }}>
-                  <ErrorBoundary widgetName="canvas" resetKey={root}>
+                  <WidgetBoundary widgetName="canvas" resetKey={root}>
+                    <HostKindsProvider value={host.kinds ?? {}}>
                     <EditorCanvas
                       root={root}
                       scope={scope}
@@ -444,12 +445,13 @@ export default function WidgetWorkshop() {
                       onMoveNode={(id, parentId, index) => commit({ root: moveEn(root, id, parentId, index) })}
                       onResize={handleResize}
                     />
-                  </ErrorBoundary>
+                    </HostKindsProvider>
+                  </WidgetBoundary>
                   {menu && menuGroups && <ContextMenu x={menu.x} y={menu.y} groups={menuGroups} onClose={closeMenu} />}
                 </div>
               ) : (
                 <div className="wc-stage">
-                  <div style={{ width: cardW, height: cardH }}>{renderWidget(def, ctx)}</div>
+                  <div style={{ width: cardW, height: cardH }}>{renderWidget(def, host)}</div>
                 </div>
               )}
             </div>

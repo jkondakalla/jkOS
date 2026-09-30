@@ -85,8 +85,8 @@ Do not push or deploy — that is Jag's.
 ## Don'ts
 
 - Don't edit `apps/ordeck/src` to make a widget work. If the vocabulary can't express it,
-  that is a change to `packages/widgets` (manifest + renderer) — say so and stop, or do it as
-  its own piece of work (WIDGETS.md § 7).
+  that is a change to `packages/widgets` (the manifest) and `packages/widget-render` (the
+  renderer) — say so and stop, or do it as its own piece of work (WIDGETS.md § 7).
 - Don't put `allowed_roles` in a file (the gate refuses it — nothing could enforce it). Who
   may see data is the dataset's scopes.
 - Don't point a `fetch` source at a suite app — suite data is a `dataset` source.

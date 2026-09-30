@@ -21,7 +21,6 @@
  *  top. Desktop is the 12-col matrix, tablet an intermediate 6-col, mobile the
  *  strict 2-up. (Retires ORDECK's old bespoke 880px crossover.) */
 import { BREAKPOINTS as BASE_BREAKPOINTS, type BreakpointName } from '@jkos/design';
-import type { AppId } from '@jkos/weave';
 
 export type { BreakpointName };
 
@@ -62,122 +61,21 @@ export interface GridItem {
 
 export type BreakpointLayouts = Partial<Record<BreakpointName, GridItem[]>>;
 
-/** A widget's default footprint per tier — used when it's first placed (off the
- *  shelf) and when a tier's layout has to be derived rather than stored. */
-export interface WidgetSizing {
-  desktop: { w: number; h: number };
-  /** Optional intermediate footprint; when omitted the tablet tier derives from
-   *  the desktop layout by reflowing into 6 cols (engine layoutForBreakpoint). */
-  tablet?: { w: number; h: number };
-  mobile: { w: number; h: number };
-  /** Smallest footprint (grid units) the user may drag this card down to in
-   *  edit mode — the legibility floor. Applies across tiers (width auto-clamps
-   *  to the tier's columns). Omit to use DEFAULT_MIN_SIZE; set it per widget
-   *  when a card needs more room to stay readable (e.g. the clock's digits, the
-   *  month grid's seven columns). One value to tune, right next to the card. */
-  min?: { w: number; h: number };
-}
-
 /** Global legibility floor for a hand-resize, in grid units — the minimum any
  *  card may be shrunk to unless its sizing.min overrides it. Two columns and two
  *  rows keep a card's frame + a line of content readable. Tune here (or per card
  *  via WidgetSizing.min) to change how small cards are allowed to get. */
 export const DEFAULT_MIN_SIZE = { w: 2, h: 2 } as const;
 
-/* ── Declarative widget spec ────────────────────────────────────────────────
- * The granular, data-driven layer — same philosophy as the @jkos/design theme
- * factory (buildJkOSTheme): a widget is COMPOSED from small declarative parts,
- * each optional, rendered by fixed registries. Adding a display primitive or a
- * data-source kind is a one-line registry entry; adding a WIDGET is pure data.
- * That data-only shape is exactly what makes text→widget (AI) generation
- * tractable later — for now it just keeps the infrastructure expandable.
- * ─────────────────────────────────────────────────────────────────────────── */
-
-import type { Binding as WeaveBinding } from '@jkos/weave';
-
-/** A value resolved at render time: a literal, or a path into a named source
- *  (`fallback` used when the path is missing).
- *
- *  ⭐ THE MODEL IS SHARED (D13). This is `@jkos/weave`'s binding model, not
- *  ORDECK's — a WidgetSpec binds a dataset into a tree of primitives (READ) and a
- *  TriggerDef binds a capability's typed output into another capability's body
- *  (WRITE), and those were two halves of one system that never met. ORDECK's form
- *  was the richer of the two (it had `{lit}` and `fallback`; the trigger form had
- *  neither), so it is the one that survived — and weave's `{from:'x'}` is now sugar
- *  for `{src:'event', path:'x'}` against it.
- *
- *  Re-exported rather than imported-and-aliased so every `Binding` in this app's
- *  ~40 spec types keeps its name and there is still exactly one definition. */
-export type Binding = string | number | boolean | WeaveBinding;
-
-/** Where a named source's data comes from — a dataset an app DECLARES, or an external
- *  public URL — and the state each reports. See ./sources.ts. (HUD slices need no
- *  source: they are always in scope.) */
-export type { DataSource, SourceState, SourceStatus } from './sources';
-import type { DataSource } from './sources';
-
-/** A tone can be a fixed key OR bound to data (a list item's `$.tone`, or a status
- *  mapped onto tones: `{ src: '$', path: 'status', map: { DONE: 'ok' }, fallback: 'muted' }`),
- *  so list rows can colour themselves by status. Resolves to 'muted' if the bound
- *  value isn't a known tone. */
-export type ToneBinding = Tone | WeaveBinding;
-
-/** The composable display vocabulary — one variant per node kind — is GENERATED from
- *  @jkos/widgets' manifest (packages/widgets/src/manifest.js → ./nodes.gen.ts), with
- *  Tone and IconName. Add or change a primitive there, run `pnpm widgets:gen`, and tsc
- *  points at every renderer that must follow. `list` repeats its `item` over a bound
- *  array with the element as `$`; `when` shows `then`/`else` by truthiness; the write
- *  family (form/input/select/toggle/button) dispatches through registry useCommand. */
-import type { WidgetNode, Tone } from './nodes.gen';
-export type { WidgetNode, Tone, IconName } from './nodes.gen';
-
-/** A widget's reference to a declared cross-app command (a CapabilityDef in an
- *  app's CapabilityDoc, discovered via @jkos/weave fetchCapabilities). `body` maps
- *  capability fields to Bindings — literals, live slices, or `$form.<field>` values
- *  captured by a form's inputs. The renderer resolves these to a plain body, then
- *  weave's runCommand issues the request and invalidates the declared resources. */
-export interface CommandRef {
-  app: AppId;             // canonical manifest id, e.g. 'beigeboard' (typo = type error)
-  capability: string;     // CapabilityDef id, e.g. 'createItem'
-  body?: Record<string, Binding>;
-}
-
-/** Card chrome around a body. The captions are Bindings so they can show live
- *  values (e.g. a systems card's "3 / 4 UP" on the right). */
-export interface WidgetFrame {
-  eyebrow?: Binding;
-  source?: Binding;
-  href?: Binding;
-  /** Bordered card surface (default true). Set false for raw-on-background (clock). */
-  chrome?: boolean;
-  /** The empty state's copy, when every source answered nothing. */
-  empty?: Binding;
-}
-
-export interface WidgetSpec {
-  frame?: WidgetFrame;
-  /** Named sources beyond the always-available hud slices (e.g. fetch endpoints). */
-  sources?: Record<string, DataSource>;
-  body: WidgetNode;
-}
-
-/** A registered widget: metadata + sizing + a declarative spec. (The `component` escape
- *  hatch — a bespoke React card named by the def — is retired; hud/state.ts repairs a
- *  stored def that still names one.) */
-export interface WidgetDef {
-  id: string;
-  label: string;
-  sizing: WidgetSizing;
-  /** Compose the widget from primitives + data bindings. Optional only because a def
-   *  arrives from the wire; one without a spec draws the unknown-widget tile. */
-  spec?: WidgetSpec;
-  /** Manual refresh override (ms). The card normally re-renders only when a slice
-   *  it binds to changes (auto-detected). Set this to ALSO force a re-render at
-   *  least every N ms — a safety valve for when the auto-detection misses a
-   *  dependency, and the way to make a "live" card tick faster or a heavy one
-   *  refresh on a fixed beat. Omit/0 = pure auto. */
-  refreshMs?: number;
-}
+/* ── The widget file ────────────────────────────────────────────────────────
+ * A widget def — its spec, its sizing on this grid, its node vocabulary — is the widget
+ * renderer's format (@jkos/widget-render), not ORDECK's: ORDECK is one app that hosts
+ * widgets. Re-exported here so the HUD's modules name it in one place. */
+export type {
+  Binding, ToneBinding, CommandRef, WidgetFrame, WidgetSpec, WidgetSizing, WidgetDef,
+  WidgetNode, Tone, IconName, DataSource, SourceState, SourceStatus,
+} from '@jkos/widget-render';
+import type { WidgetDef } from '@jkos/widget-render';
 
 /** The whole per-user HUD document. `version` guards future migrations. */
 export interface HudState {

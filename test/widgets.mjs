@@ -116,20 +116,22 @@ for (const { where, def } of shipped.filter((w) => w.def)) {
 }
 
 // ── 4. one walker ────────────────────────────────────────────────────────────
-for (const rel of ['apps/ordeck/src/hud/registry.tsx', 'apps/ordeck/src/hud/state.ts', 'apps/ordeck/src/hud/WidgetTray.tsx']) {
+for (const rel of ['packages/widget-render/src/render.tsx', 'apps/ordeck/src/hud/state.ts', 'apps/ordeck/src/hud/WidgetTray.tsx']) {
   const src = read(rel);
   check(/\bsourcesOf\b/.test(src) && /from '@jkos\/widgets'/.test(src), `${rel} asks @jkos/widgets' sourcesOf which slices a widget binds`);
   const regrown = ['collectSrcs', 'scanSrcs', 'bindsSlice'].filter((n) => new RegExp(`function ${n}\\b`).test(src));
   check(regrown.length === 0, `${rel} does not regrow a binding walker${regrown.length ? ` (${regrown.join(', ')})` : ''}`);
 }
 
-// ── 5. every dynamic href in the widget renderer goes through safeHref ──────
-const HUD = join(REPO_ROOT, 'apps/ordeck/src/hud');
-for (const f of readdirSync(HUD).filter((n) => n.endsWith('.tsx'))) {
-  const src = readFileSync(join(HUD, f), 'utf8');
-  for (const [, expr] of src.matchAll(/href=\{([^}]*)\}/g)) {
-    const ok = /^\s*safeHref\(/.test(expr) || /^\s*href\s*$/.test(expr) && /const href = [^;]*safeHref\(/.test(src);
-    check(ok, `hud/${f}: href={${expr.trim()}} passes through safeHref`);
+// ── 5. every dynamic href a widget draws goes through safeHref ──────────────
+// The renderer's, and every host's kinds (ORDECK's molecules in hud/).
+for (const dir of ['packages/widget-render/src', 'apps/ordeck/src/hud']) {
+  for (const f of readdirSync(join(REPO_ROOT, dir)).filter((n) => n.endsWith('.tsx'))) {
+    const src = readFileSync(join(REPO_ROOT, dir, f), 'utf8');
+    for (const [, expr] of src.matchAll(/href=\{([^}]*)\}/g)) {
+      const ok = /^\s*safeHref\(/.test(expr) || /^\s*href\s*$/.test(expr) && /const href = [^;]*safeHref\(/.test(src);
+      check(ok, `${dir}/${f}: href={${expr.trim()}} passes through safeHref`);
+    }
   }
 }
 
@@ -196,7 +198,7 @@ for (const f of readdirSync(HUD).filter((n) => n.endsWith('.tsx'))) {
     export const subscribe = () => () => {};
     export const suiteApps = () => ({ beigeboard: { origin: 'https://beigeboard.jkos.net' }, ordeck: { origin: 'https://jkos.net' } });
   `);
-  const src = await import(pathToFileURL(emitTs('apps/ordeck/src/hud/sources.ts', 'sources.mjs', { react: './react.mjs', '@jkos/weave': './weave.mjs' })).href);
+  const src = await import(pathToFileURL(emitTs('packages/widget-render/src/sources.ts', 'sources.mjs', { react: './react.mjs', '@jkos/weave': './weave.mjs' })).href);
   const weaveStub = await import(pathToFileURL(join(tmp, 'weave.mjs')).href);
   const ORIGINS = ['https://jkos.net', 'https://beigeboard.jkos.net'];
   check(src.refusedUrl('/api/lazuros/jobs', ORIGINS) !== null, 'refusedUrl: a relative URL (this origin) is refused');
@@ -291,14 +293,14 @@ for (const f of readdirSync(HUD).filter((n) => n.endsWith('.tsx'))) {
 
 // ── 8. the AI kill switch is enforced where a widget renders ────────────────
 {
-  const reg = read('apps/ordeck/src/hud/registry.tsx');
+  const reg = read('packages/widget-render/src/render.tsx');
   const body = reg.match(/function renderWidgetBody\([^)]*\)[^{]*\{([\s\S]*?)\n\}/)?.[1] ?? '';
   const first = body.trim().split('\n')[0];
-  check(/if \(!ctx\.aiEnabled && usesAi\(def\)\) return aiOffTile\(def\);/.test(first),
+  check(/if \(!host\.aiEnabled && usesAi\(def\)\) return aiOffTile\(def\);/.test(first),
     `renderWidgetBody's first act is the kill switch — before any source is read or command armed (got: ${first.trim()})`);
   check(!/\bw\.ai\b|\bdef\.ai\b/.test(read('apps/ordeck/src/pages/hud/RoomHUD.tsx') + read('apps/ordeck/src/hud/WidgetTray.tsx') + reg),
     'nothing in ORDECK reads a hand-set `ai` flag — AI-backed is usesAi(def), derived from the apps it binds');
-  const ai = await importTs('apps/ordeck/src/hud/ai.ts', 'ai.mjs', {
+  const ai = await importTs('packages/widget-render/src/ai.ts', 'ai.mjs', {
     '@jkos/weave': `data:text/javascript,${encodeURIComponent("export const suiteApp = (id) => ({ lazuros: { ai: true }, beigeboard: {} })[id];")}`,
     '@jkos/widgets': WIDGETS,
   });
@@ -308,14 +310,17 @@ for (const f of readdirSync(HUD).filter((n) => n.endsWith('.tsx'))) {
 }
 
 // ── 9. one stylesheet ───────────────────────────────────────────────────────
+// Every file that draws part of a widget: the renderer's, and ORDECK's host kinds.
 {
-  const reg = read('apps/ordeck/src/hud/registry.tsx');
-  const code = reg.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
-  const inline = [...code.matchAll(/\bstyle=\{(?!vars\()[^\n]{0,60}/g)].map((m) => m[0]);
-  check(inline.length === 0, `the widget renderer writes no inline style but vars({...})${inline.length ? ` — ${inline.slice(0, 4).join(' | ')}` : ''}`);
-  const setsVars = [...code.matchAll(/vars\(\{([^}]*)\}\)/g)].map((m) => m[1]);
-  const notVar = setsVars.filter((body) => /(^|,)\s*[a-zA-Z]+\s*:/.test(body));
-  check(notVar.length === 0, `vars() sets only custom properties (--w-*)${notVar.length ? ` — ${notVar[0]}` : ''}`);
+  const reg = read('packages/widget-render/src/render.tsx');
+  for (const rel of ['packages/widget-render/src/render.tsx', 'packages/widget-render/src/boundary.tsx', 'apps/ordeck/src/hud/host.tsx']) {
+    const code = read(rel).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+    const inline = [...code.matchAll(/\bstyle=\{(?!vars\()[^\n]{0,60}/g)].map((m) => m[0]);
+    check(inline.length === 0, `${rel} writes no inline style but vars({...})${inline.length ? ` — ${inline.slice(0, 4).join(' | ')}` : ''}`);
+    const setsVars = [...code.matchAll(/vars\(\{([^}]*)\}\)/g)].map((m) => m[1]);
+    const notVar = setsVars.filter((body) => /(^|,)\s*[a-zA-Z]+\s*:/.test(body));
+    check(notVar.length === 0, `${rel}: vars() sets only custom properties (--w-*)${notVar.length ? ` — ${notVar[0]}` : ''}`);
+  }
   check(/import '\.\/widgets\.css';/.test(reg), 'the renderer imports widgets.css, so a widget carries its styles wherever it draws');
 }
 

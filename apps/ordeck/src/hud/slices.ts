@@ -23,7 +23,7 @@ import type {
   ClockState, WeatherState, WeatherSlot, SystemsState, SysRow, TodayState, TodayTask, MonthCalState, CalDay,
   NotificationsState, Notification, FocusState, PinnedState, PinnedTask,
 } from '../pages/hud/useHudData';
-import type { WidgetCtx } from './registry';
+import type { WidgetCtx } from './host';
 
 /** One declared field — the slice of weave's BodyField a reader binds against. */
 export interface SliceField {

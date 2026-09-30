@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { getProfile, authFetch, type HudPin, type HudFocus, readHudPref } from '@jkos/auth-client';
 import { usePolledResource, invalidate, subscribe, apiBase, resourceKey, probeApps, extRef, type SuiteApp } from '@jkos/weave';
 import { isoDate, type CalendarItem } from '@jkos/cards';
-import { TONE_RANK, type Tone } from '../../hud/tone';
+import { TONE_RANK, type Tone } from '@jkos/widget-render';
 import { emptyCache, shouldResync, mergeDelta, type BbCacheState } from './bbDelta';
 
 /* Data hooks for the room HUD. All service calls are same-origin paths proxied

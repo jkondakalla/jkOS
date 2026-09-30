@@ -185,11 +185,11 @@ for (const [file, { retired }] of Object.entries(CALL_SITES)) {
 // offline, signed-out and empty for every widget (hud/sources.ts cardState) and draws
 // them through AsyncView, so a widget file never hand-rolls the triad.
 {
-  const reg = stripComments(read('apps/ordeck/src/hud/registry.tsx'));
+  const reg = stripComments(read('packages/widget-render/src/render.tsx'));
   if (/<AsyncView\b/.test(reg) && /cardState|state\.kind === 'loading'/.test(reg)) {
-    ok("ORDECK's widget frame draws its sources' states through <AsyncView>");
+    ok("the widget frame (@jkos/widget-render) draws its sources' states through <AsyncView>");
   } else {
-    fail("ORDECK's widget frame no longer draws its states through <AsyncView> — the widget triad is hand-rolled again");
+    fail("the widget frame (@jkos/widget-render) no longer draws its states through <AsyncView> — the widget triad is hand-rolled again");
   }
 }
 

@@ -1,0 +1,31 @@
+/* hud/molecules.css — ORDECK's host kinds (hud/host.tsx): the month calendar, the
+ * weather card, Focus and the Week. The rest of a card's styling is the widget
+ * renderer's (@jkos/widget-render widgets.css); the calendar and weather grids
+ * themselves are in styles/hud.css with the HUD's other chrome. */
+
+.hud-cal-dot.hud-w-toned { background: var(--w-tone); }
+.hud-w-weather-off { color: var(--color-ghost); font-family: var(--jk-font-mono); font-size: 11px; padding: 4px 0; }
+.hud-w-weather-glyph { flex: none; filter: drop-shadow(var(--glow)); }
+.hud-w-grow { min-width: 0; flex: 1; }
+.hud-weather-hilo.hud-w-flush { margin-left: 0; }
+.hud-weather-strip.hud-w-foot { padding-top: 10px; margin-top: auto; }
+.hud-w-focus { padding: 14px; display: flex; flex-direction: column; height: 100%; }
+.hud-w-focus.is-idle { gap: 6px; }
+.hud-w-focus.is-on { gap: 10px; border-color: color-mix(in srgb, var(--color-accent) 55%, transparent); }
+.hud-w-focus-note { font-size: 11px; color: var(--color-faint); }
+.hud-w-focus-empty { font-family: var(--jk-font-serif, var(--jk-font-sans)); font-size: 15px; color: var(--color-faint); }
+.hud-w-focus-hint { font-family: var(--jk-font-mono); font-size: 10px; letter-spacing: 0.08em; color: var(--color-ghost); }
+.hud-w-focus-body { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: center; gap: 6px; }
+.hud-w-focus-title {
+  font-family: var(--jk-font-serif, var(--jk-font-sans)); font-size: 22px; font-weight: 600;
+  color: var(--color-ink); line-height: 1.2; text-decoration: none; opacity: 1;
+}
+.hud-w-focus-title.is-done { text-decoration: line-through; opacity: 0.7; }
+.hud-w-focus-meta { font-family: var(--jk-font-mono); font-size: 11px; letter-spacing: 0.06em; color: var(--color-faint); }
+.hud-w-focus-end {
+  align-self: flex-start; cursor: pointer; background: transparent; color: var(--color-accent);
+  font-family: var(--jk-font-mono); font-size: 10px; letter-spacing: 0.1em; padding: 6px 11px;
+  border: 1px solid color-mix(in srgb, var(--color-accent) 40%, transparent); border-radius: var(--jk-radius-sm);
+}
+.hud-w-week { padding: 14px; display: flex; flex-direction: column; height: 100%; overflow: hidden; }
+.hud-w-week-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }

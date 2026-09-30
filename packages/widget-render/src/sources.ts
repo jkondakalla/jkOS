@@ -1,5 +1,5 @@
 /**
- * hud/sources.ts — where a widget's named data comes from, and what state it is in.
+ * sources.ts — where a widget's named data comes from, and what state it is in.
  *
  * A spec declares its sources by KIND (never `from`, which collided with the binding
  * model's `{from}` sugar — two meanings of one word in one document):

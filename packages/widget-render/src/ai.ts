@@ -1,5 +1,5 @@
 /**
- * hud/ai.ts — is a widget AI-backed?
+ * ai.ts — is a widget AI-backed?
  *
  * DERIVED from the apps it binds (@jkos/widgets appsOf: its dataset sources and every
  * command in its tree), against the suite directory's `ai` flag. It used to be a

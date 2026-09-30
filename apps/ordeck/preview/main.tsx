@@ -11,7 +11,7 @@
  * The page lays out a contact sheet — a row per tier (desktop, mobile, and the
  * smallest footprint a user may resize to), a column per state — each cell sized
  * exactly as the HUD grid sizes it (the Workshop canvas's geometry) and holding
- * `renderWidget(def, ctx)`, the same call RoomHUD makes. Built-in slices come from
+ * `renderWidget(def, hudHost(ctx))`, the same call RoomHUD makes. Built-in slices come from
  * hud/sample.ts, and each declared source is read by its fixtureReader — the real
  * discovery, refusal and shape checks, with only the request answered from the job's
  * fixtures for that state (data, empty, 503, 401, or never).
@@ -26,8 +26,8 @@ import './clock';   // FIRST: the page's Date is pinned before anything reads it
 import { StrictMode } from 'react';
 import ReactDOM from 'react-dom/client';
 import { injectJkOSTheme, applyJkOSMode, applyJkOSMotion, applyJkOSTheme, ACCENT_SCHEMES } from '@jkos/design';
-import { renderWidget } from '../src/hud/registry';
-import { SourceReaderProvider, type SourceReader } from '../src/hud/sources';
+import { renderWidget, SourceReaderProvider, type SourceReader } from '@jkos/widget-render';
+import { hudHost } from '../src/hud/host';
 import { CATALOG } from '../src/hud/catalog';
 import { DEFAULT_MIN_SIZE, type WidgetDef } from '../src/hud/types';
 import { TIERS, ROW_H, unitsToPx } from '../src/workshop/EditorCanvas';
@@ -94,7 +94,7 @@ function Sheet({ job }: { job: Job }) {
                 <div className="wp-label hud-eyebrow">{state}</div>
                 <div className="hud-cell wp-frame" style={{ width: w, height: h }}>
                   <SourceReaderProvider value={readerFor(state, job.fixtures)}>
-                    {renderWidget(job.def, sampleCtx(state))}
+                    {renderWidget(job.def, hudHost(sampleCtx(state)))}
                   </SourceReaderProvider>
                 </div>
               </div>

@@ -1,0 +1,30 @@
+{
+  "name": "@jkos/widget-render",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The widget renderer: draws a widget file (@jkos/widgets' vocabulary) in whatever app hosts it. The host hands in its declared slices and the kinds only it can draw; the renderer owns the frame, the sources and their states, the bindings, the patterns and the command family. React; @jkos/widgets stays the React-free half a Node backend requires.",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "types": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@jkos/ui": "workspace:*",
+    "@jkos/weave": "workspace:*",
+    "@jkos/widgets": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.3",
+    "typescript": "^5.7.2"
+  }
+}

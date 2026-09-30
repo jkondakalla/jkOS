@@ -7,8 +7,8 @@ import { launchableApps } from './useHudData';
 import { useHudContext } from './useHudContext';
 import { HudGrid, type HudGridHandle } from '../../hud/HudGrid';
 import { WidgetTray } from '../../hud/WidgetTray';
-import { renderWidget } from '../../hud/registry';
-import { usesAi } from '../../hud/ai';
+import { renderWidget, usesAi } from '@jkos/widget-render';
+import { hudHost } from '../../hud/host';
 import { activeBreakpoint, layoutForBreakpoint, autoBalance } from '../../hud/engine';
 import {
   loadHudState, saveHudState, defaultHudState, mergePublished,
@@ -34,6 +34,7 @@ export default function RoomHUD() {
   // All widget slices in one context (single BeigeBoard fetch shared across them).
   const suite = useSuiteApps();          // the suite directory, hydrated once for the page
   const ctx  = useHudContext(lazuros.enabled, suite);
+  const host = hudHost(ctx);
   const apps = useMemo(() => launchableApps(suite), [suite]);
 
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -302,7 +303,7 @@ export default function RoomHUD() {
         }}
         onBreakpoint={setGridBp}
         sessionPinned={sessionMoved}
-        renderWidget={(def) => renderWidget(def, ctx)}
+        renderWidget={(def) => renderWidget(def, host)}
       />
 
       {/* ── Bottom strip ── */}

@@ -5,8 +5,16 @@ declares, checked twice, drawn in every state, looked at, committed.
 
 The code is the source of truth: the vocabulary is `packages/widgets/src/manifest.js`
 (print it with `pnpm widget vocab`), the checks are `validate.js` and `semantic.js` beside
-it, the renderer is `apps/ordeck/src/hud/registry.tsx`. Where this file disagrees with
-them, this file is wrong — fix it.
+it, the renderer is `@jkos/widget-render` (`packages/widget-render/src/render.tsx`). Where
+this file disagrees with them, this file is wrong — fix it.
+
+**The renderer is not ORDECK's.** An app draws a widget with `renderWidget(def, host)`, where
+the host is what that app hands it: its declared slices (a binding's `src` may name them
+beside the widget's own sources), where to sign in, the AI kill switch, this instant, and
+the kinds only it can draw (the manifest's molecules, `HostKind`). ORDECK is one host —
+`apps/ordeck/src/hud/host.tsx`, with its slices declared in `hud/slices.ts` and its four
+molecules (calendar, weather, focus, week). A host kind may be `React.lazy`; it draws under
+Suspense, so a heavy one is downloaded only when placed.
 
 ---
 
@@ -172,5 +180,5 @@ them real-looking — they are what a reviewer sees.
 **Changing the vocabulary** (a new pattern, a prop, a format) is a change to
 `packages/widgets` — the manifest drives the generated `WidgetNode` union
 (`pnpm widgets:gen`; `check:widgets` fails while it is stale), the Workshop and `vocab` — plus its renderer in
-`registry.tsx` and `widgets.css`. After adding a file under `packages/`, run
+`packages/widget-render/src/render.tsx` and `widgets.css` (or, for a molecule, the host's kind). After adding a file under `packages/`, run
 `pnpm install --offline` (TRAPS.md: injected workspace copies).

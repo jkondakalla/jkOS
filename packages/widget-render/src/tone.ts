@@ -1,11 +1,11 @@
 /**
- * hud/tone.ts — the single tone registry.
+ * tone.ts — the single tone registry.
  *
- * `Tone` is the spec layer's status vocabulary (hud/types). The data layer used
- * to re-declare it as `ViewTone` and keep its own colour/severity maps; both now
- * live here so adding a tone is one edit: extend `Tone` in types, then add its
- * colour + rank below. Both the renderer (registry) and the data hooks import
- * from here, so the layers can't drift.
+ * `Tone` is the spec layer's status vocabulary (the manifest's TONES). ORDECK's data
+ * layer used to re-declare it as `ViewTone` and keep its own colour/severity maps; both
+ * live here so adding a tone is one edit: extend TONES in the manifest, then add its
+ * colour + rank below. The renderer and a host's data hooks import from here, so the
+ * layers can't drift.
  */
 
 import type { Tone } from './types';

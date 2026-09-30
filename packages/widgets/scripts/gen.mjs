@@ -4,10 +4,11 @@
 //   node packages/widgets/scripts/gen.mjs --check   exit 1 if any is stale (pnpm check:widgets)
 //
 // Outputs:
-//   apps/ordeck/src/hud/nodes.gen.ts — the `WidgetNode` union ORDECK renders against,
-//     plus `Tone` and `IconName`. Because the renderer's primitive map
-//     is `{ [K in WidgetNode['t']]: … }`, tsc refuses one that misses a manifest kind
-//     or keeps a dead one — the manifest and the renderers cannot drift.
+//   packages/widget-render/src/nodes.gen.ts — the `WidgetNode` union the renderer draws,
+//     plus `Tone`, `IconName` and `HostKind` (the molecules: kinds a host draws itself).
+//     Because the renderer's primitive map is `{ [K in Exclude<WidgetNode['t'], HostKind>]: … }`
+//     and a host's is `{ [K in HostKind]: … }`, tsc refuses either one missing a manifest
+//     kind or keeping a dead one — the manifest and the renderers cannot drift.
 
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -47,6 +48,9 @@ function nodesTs() {
   out += `export type Tone = ${union(TONES)};\n\n`;
   out += '/** The curated line-icon set. */\n';
   out += `export type IconName = ${union(ICON_NAMES)};\n\n`;
+  out += '/** The kinds a HOST draws, not the renderer: the manifest\'s molecules, each reading the\n';
+  out += ' *  host slice its `reads` names. A host that has none of them draws a not-here tile. */\n';
+  out += `export type HostKind = ${union(Object.entries(NODES).filter(([, s]) => s.kind === 'molecule').map(([t]) => t))};\n\n`;
   out += '/** The composable display vocabulary — one variant per manifest kind. */\n';
   out += 'export type WidgetNode =\n';
   for (const [t, spec] of Object.entries(NODES)) {
@@ -64,7 +68,7 @@ function nodesTs() {
 }
 
 const OUTPUTS = [
-  { path: 'apps/ordeck/src/hud/nodes.gen.ts', build: nodesTs },
+  { path: 'packages/widget-render/src/nodes.gen.ts', build: nodesTs },
 ];
 
 let stale = 0;

@@ -9,8 +9,8 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { renderWidget } from '../hud/registry';
-import { SourceReaderProvider } from '../hud/sources';
+import { renderWidget, SourceReaderProvider } from '@jkos/widget-render';
+import { hudHost } from '../hud/host';
 import { sampleCtx, fixtureReader, PREVIEW_STATES } from '../hud/sample';
 import { CATALOG, CATALOG_APP, loadFixtures } from '../hud/catalog';
 import type { WidgetDef } from '../hud/types';
@@ -50,7 +50,7 @@ export function Gallery({ draft }: { draft: WidgetDef | null }) {
                   <figcaption className="hud-eyebrow">{state}</figcaption>
                   <div className="hud-cell" style={{ width: w, height: h }}>
                     <SourceReaderProvider value={readers.get(`${def.id}|${state}`)!}>
-                      {renderWidget(def, sampleCtx(state))}
+                      {renderWidget(def, hudHost(sampleCtx(state)))}
                     </SourceReaderProvider>
                   </div>
                 </figure>

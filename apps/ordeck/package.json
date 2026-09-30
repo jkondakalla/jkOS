@@ -15,6 +15,7 @@
     "@jkos/design": "workspace:*",
     "@jkos/ui": "workspace:*",
     "@jkos/weave": "workspace:*",
+    "@jkos/widget-render": "workspace:*",
     "@jkos/widgets": "workspace:*",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"

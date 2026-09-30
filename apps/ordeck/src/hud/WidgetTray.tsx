@@ -18,7 +18,7 @@ import { memo, useState, type CSSProperties, type PointerEvent as ReactPointerEv
 import { usePointerDrag, DRAG_THRESHOLD_PX, HOLD_MS, HOLD_CANCEL_PX } from '@jkos/ui';
 import { sourcesOf, walkNodes } from '@jkos/widgets';
 import type { WidgetDef, WidgetNode, WidgetSpec } from './types';
-import { usesAi } from './ai';
+import { usesAi } from '@jkos/widget-render';
 
 interface WidgetTrayProps {
   open: boolean;

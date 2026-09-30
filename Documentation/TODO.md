@@ -240,7 +240,7 @@ failing against the old code before it is trusted.
 sorted file changes what 175 elements render, because the order decides equal-specificity
 ties (TRAPS.md § CSS). The component classes get grouped when they move into their primitives.
 
-2. **Lift the renderer.** `apps/ordeck/src/hud/registry.tsx` moves into a package; its
+2. **Lift the renderer.** ORDECK's `hud/registry.tsx` moves into a package; its
    HUD-shaped `WidgetCtx` becomes declared host slices (ORDECK's `slices.ts` is the model);
    heavy primitives load per kind, so ORDECK never downloads KourOS's WebGL unplaced. One atom
    set: widget atoms render `@jkos/ui` (`pill`/`Pill`, `bar`/`Bar`, and `.hud-p-track`, the

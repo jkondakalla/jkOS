@@ -37,7 +37,6 @@ html.od-v2 body {
 html.od-v2 ::selection { background: var(--color-accent); color: var(--color-accent-contrast); }
 
 @keyframes od-fade-up { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
-@keyframes od-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
 
 /* ── Shell layout ──────────────────────────────────────────────────────── */
 
@@ -81,9 +80,6 @@ html.od-v2 ::selection { background: var(--color-accent); color: var(--color-acc
   font-size: 10px; letter-spacing: 0.14em;
   color: var(--color-faint);
 }
-
-.hud-dot { width: 6px; height: 6px; border-radius: 999px; flex: none; }
-.hud-dot.pulse { animation: od-pulse 2.4s ease-in-out infinite; }
 
 .hud-topbtn {
   width: 30px; height: 30px;
@@ -160,61 +156,8 @@ html.od-v2 ::selection { background: var(--color-accent); color: var(--color-acc
 .hud-col:nth-child(2) { animation-delay: 0.06s; }
 .hud-col:nth-child(3) { animation-delay: 0.12s; }
 
-.hud-card {
-  border-radius: var(--jk-radius-lg);
-  background: var(--color-card);
-  border: 1px solid var(--color-line);
-  box-shadow: var(--hub-shadow-raised);
-}
-
-.hud-eyebrow {
-  font-family: var(--jk-font-mono);
-  font-size: 10.5px; font-weight: 600;
-  letter-spacing: 0.16em;
-  color: var(--color-faint);
-}
-.hud-eyebrow-src {
-  font-family: var(--jk-font-mono);
-  font-size: 10.5px;
-  color: var(--color-ghost);
-}
-
-/* ── Clock (raw on background, no chrome) ──────────────────────────────── */
-
-.hud-clock { padding: 14px 6px 2px; }
-.hud-clock-time { display: flex; align-items: baseline; gap: 10px; }
-.hud-clock-hm {
-  /* Colour + text-shadow come from the .jk-press-lg primitive (struck into the
-     paper on light, halation glow in dark); this rule owns size/weight/figures. */
-  font-family: var(--jk-font-mono);
-  font-size: clamp(60px, 7vw, 104px);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.01em;
-  line-height: 0.95;
-}
-.hud-clock-ss {
-  font-family: var(--jk-font-mono);
-  font-size: clamp(20px, 2vw, 30px);
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-  color: var(--color-faint);
-}
-.hud-clock-meta {
-  margin-top: 12px;
-  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
-}
-.hud-clock-date {
-  font-family: var(--jk-font-mono);
-  font-size: 13.5px; font-weight: 600;
-  letter-spacing: 0.16em;
-  color: var(--color-muted);
-}
-.hud-clock-utc {
-  font-family: var(--jk-font-mono);
-  font-size: 11px; letter-spacing: 0.12em;
-  color: var(--color-faint);
-}
+/* .hud-card, .hud-eyebrow(-src), .hud-dot, .hud-bar and the clock's type are the widget
+   renderer's (@jkos/widget-render widgets.css) — every card in any app draws with them. */
 
 /* ── Weather ───────────────────────────────────────────────────────────── */
 
@@ -754,19 +697,6 @@ html.od-v2 ::selection { background: var(--color-accent); color: var(--color-acc
   font-variant-numeric: tabular-nums;
   color: var(--color-muted);
 }
-.hud-bar {
-  width: 56px; height: 5px;
-  border-radius: 999px;
-  background: var(--color-line);
-  overflow: hidden;
-  display: inline-block;
-}
-.hud-bar > span {
-  display: block; height: 100%;
-  border-radius: 999px;
-  background: var(--color-accent);
-  box-shadow: var(--hub-accent-press);
-}
 .hud-today-list {
   flex: 1; min-height: 0;
   display: flex; flex-direction: column;
@@ -901,9 +831,6 @@ html.od-v2 ::selection { background: var(--color-accent); color: var(--color-acc
 }
 .hud-sys.warn .hud-sys-val { color: var(--color-warn); }
 
-a.hud-card { display: block; transition: box-shadow 0.2s, transform 0.2s; }
-a.hud-card:hover { box-shadow: var(--hub-shadow-lifted); transform: translateY(-1px); }
-
 /* ── Bottom strip ──────────────────────────────────────────────────────── */
 
 .hud-bottom {
@@ -934,7 +861,6 @@ a.hud-card:hover { box-shadow: var(--hub-shadow-lifted); transform: translateY(-
 
 @media (prefers-reduced-motion: reduce) {
   .hud-col, .hud-apps-pop { animation: none; }
-  .hud-dot.pulse { animation: none; }
   .hud-tray, .hud-tray.open { transition: none; }
   .hud-tray.open .hud-tile { animation: none; }
   .hud-tile { transition: none; }

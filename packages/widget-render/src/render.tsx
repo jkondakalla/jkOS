@@ -1,78 +1,62 @@
 /**
- * hud/registry.tsx — the widget factory.
+ * render.tsx — the widget renderer, for whichever app hosts a widget.
  *
- * A widget is a declarative SPEC: a frame (card chrome) + named data sources +
- * a tree of PRIMITIVES bound to data. Adding a primitive is one entry in the map
- * below; adding a WIDGET is pure data — the shape a text→widget AI step emits.
+ * A widget is a declarative SPEC: a frame (card chrome) + named data sources + a tree of
+ * PRIMITIVES bound to data. Adding a primitive is one entry in the map below; adding a
+ * WIDGET is pure data — the shape a text→widget AI step emits.
  *
- * The vocabulary spans three granularities, all composable:
- *   • atoms      label / text / metric / bar / gauge / pill / dot / keyval /
- *                divider / link / icon
- *   • structure  stack / row / list / when   (when = conditional, the states glue)
- *   • molecules  time / calendar / weather   (self-contained cards, like gauge)
+ * The HOST is the app the widget is drawn in. It hands the renderer a WidgetHost: its
+ * declared slices (what a binding's `src` may name besides the widget's own sources),
+ * where to sign in, the AI kill switch, this instant, and the kinds only it can draw —
+ * the manifest's molecules (HostKind), each reading one of its slices. Everything else
+ * is here, once: the frame and the states it owns, the sources, the bindings, the
+ * patterns, the command family, and the per-card update gate. It lived in ORDECK as
+ * hud/registry.tsx until 2026-09-30, typed against ORDECK's own data hooks, so no other
+ * app could draw a widget.
  *
- * Every card is a spec. The `component` escape hatch (a bespoke React card named by a
- * def) is retired: Focus and Week, its last two, are manifest molecules, and a stored
- * def naming one is repaired on load (state.ts). The Module-Federation remote path is
- * gone too.
+ * A host kind may be a React.lazy component: it is drawn under Suspense, so a heavy one
+ * (a WebGL map) is downloaded only when a widget that uses it is placed.
  */
 
 import {
-  Fragment, createContext, memo, useCallback, useContext, useEffect, useMemo, useRef, useState,
-  type CSSProperties, type FormEvent, type ReactNode,
+  Fragment, Suspense, createContext, memo, useCallback, useContext, useEffect, useMemo, useRef, useState,
+  type ComponentType, type CSSProperties, type FormEvent, type ReactNode,
 } from 'react';
 import {
-  fetchCapabilities, getCapability, runCommand, suiteApp, followJob, format, type AppId, type CapabilityDoc, type JobOutcome, resolveBinding, truthy } from '@jkos/weave';
-import {
-  type ClockState,
-  type WeatherState,
-  type SystemsState,
-  type TodayState,
-  type MonthCalState,
-  type CalDay,
-  type NotificationsState,
-  type FocusState,
-  type PinnedState,
-} from '../pages/hud/useHudData';
-import { WeekView, type CalendarItem, type CardResolvers } from '@jkos/cards';
-import type { Binding, CommandRef, IconName, Tone, ToneBinding, WidgetDef, WidgetNode, WidgetSpec } from './types';
+  fetchCapabilities, getCapability, runCommand, suiteApp, followJob, format, type CapabilityDoc, type JobOutcome, resolveBinding, truthy } from '@jkos/weave';
+import type { Binding, CommandRef, HostKind, IconName, Tone, ToneBinding, WidgetDef, WidgetNode, WidgetSpec } from './types';
 import { useDataSources, cardState, type CardState } from './sources';
 import './widgets.css';
 import { TONE_COLOR } from './tone';
 import { safeHref, sourcesOf } from '@jkos/widgets';
 import { usesAi } from './ai';
-import { clearHudFocus } from '../lib/shelf';
 import { Field, SelectField, Check, AsyncView } from '@jkos/ui';
-import ErrorBoundary from '../components/ErrorBoundary';
+import { WidgetBoundary } from './boundary';
 
-const MO_FULL = ['January', 'February', 'March', 'April', 'May', 'June',
-                 'July', 'August', 'September', 'October', 'November', 'December'];
-const DAY_ABBR = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
-
-/** Everything a widget renderer can read. RoomHUD assembles this once from its
- *  data hooks; built-in hud slices (clock/weather/today/systems/cal) are
- *  always in a spec's binding scope, alongside `authUrl`. */
-export interface WidgetCtx {
-  clock: ClockState;
-  weather: WeatherState;
-  systems: SystemsState;
-  today: TodayState;
-  cal: MonthCalState;
-  /** Full BeigeBoard item list (CalendarItem shape) for the @jkos/cards widgets. */
-  items: CalendarItem[];
-  /** Today's local date (YYYY-MM-DD) — what the calendar widgets centre on. */
-  todayIso: string;
-  notifications: NotificationsState;
-  focus: FocusState;
-  pinned: PinnedState;
+/** What the app drawing a widget hands the renderer. */
+export interface WidgetHost {
+  /** The host's slices, by the name a binding's `src` uses (ORDECK: clock, weather, today…).
+   *  Each is in every widget's scope beside its own sources. Keep each slice's reference
+   *  stable between real changes: a card re-renders when a slice it binds changes
+   *  REFERENCE, so a host that rebuilds a slice every tick re-renders every card on it. */
+  slices: Readonly<Record<string, unknown>>;
+  /** Where the frame's signed-out state sends someone to sign in. */
   authUrl: string;
-  /** Each app's browsable origin, from the directory the page hydrated — so a card links
-   *  to the app on THIS deployment (a literal URL in a widget file would be prod's). */
-  origins: Record<AppId, string>;
-  /** The suite-wide LazurOS kill switch (profile → AI). Off, a widget that binds an AI
-   *  app does not render — or read, or run anything. */
+  /** The suite-wide LazurOS kill switch (profile → AI). Off, a widget that binds an AI app
+   *  does not render — or read, or run anything. */
   aiEnabled: boolean;
+  /** This instant, epoch ms: `$now`, what `fmt: 'ago'` measures against. A host that ticks
+   *  a clock passes it here, and a widget that draws an `ago` re-renders with it. */
+  now: number;
+  /** The kinds only this host can draw — the manifest's molecules, each reading one of its
+   *  slices. A widget using a kind its host lacks draws a not-here tile. */
+  kinds?: HostKinds;
 }
+
+/** A host kind's renderer: the node, and the scope it is drawn in (the host's slices, the
+ *  widget's sources). May be React.lazy — it draws under Suspense. */
+export type HostKindComponent<K extends HostKind> = ComponentType<{ node: NodeOf<K>; scope: Scope }>;
+export type HostKinds = { readonly [K in HostKind]?: HostKindComponent<K> };
 
 /* ═══ Declarative spec layer ═══════════════════════════════════════════════ */
 
@@ -119,7 +103,7 @@ export { truthy };
  *  widgets.css, and check:widgets holds every `style=` in this file to this helper.
  *  ⚠️ Custom properties inherit — an element that reads one sets ALL of its own, defaults
  *  included, or a nested stack would take its parent's gap. */
-function vars(v: Record<`--${string}`, string | number>): CSSProperties {
+export function vars(v: Record<`--${string}`, string | number>): CSSProperties {
   return v as unknown as CSSProperties;
 }
 
@@ -173,10 +157,11 @@ function patternIcon(name: string, tone: string): ReactNode {
   );
 }
 
-/** node type → renderer. Each case is one primitive; adding to the vocabulary is
- *  a new WidgetNode variant + a new entry here. */
-type NodeOf<K extends WidgetNode['t']> = Extract<WidgetNode, { t: K }>;
-type Primitives = { [K in WidgetNode['t']]: (node: NodeOf<K>, scope: Scope) => ReactNode };
+/** node type → renderer. Each case is one primitive; adding to the vocabulary is a new
+ *  manifest kind + a new entry here. The host's kinds (HostKind) are not here: the host
+ *  draws them, and tsc holds each side to its half of the manifest. */
+export type NodeOf<K extends WidgetNode['t']> = Extract<WidgetNode, { t: K }>;
+type Primitives = { [K in Exclude<WidgetNode['t'], HostKind>]: (node: NodeOf<K>, scope: Scope) => ReactNode };
 
 const PRIMITIVES: Primitives = {
   stack: (n, scope) => (
@@ -281,12 +266,6 @@ const PRIMITIVES: Primitives = {
   ),
   when: (n, scope) =>
     truthy(resolve(n.cond, scope)) ? renderNode(n.then, scope) : (n.else ? renderNode(n.else, scope) : null),
-  calendar: (_n, scope) => <CalendarBody cal={scope.cal as MonthCalState} />,
-  weather: (_n, scope) => <WeatherBody w={scope.weather as WeatherState} />,
-  // Focus and Week were the `component` escape hatch — bespoke cards nothing could
-  // edit or keep as a file. They are molecules now, declared in the manifest.
-  focus: (_n, scope) => <FocusBody focus={scope.focus as FocusState} />,
-  week: (_n, scope) => <WeekBody items={scope.items as CalendarItem[]} todayIso={String(scope.todayIso ?? '')} />,
   list: (n, scope) => {
     const arr = resolve(n.from, scope);
     const items = Array.isArray(arr) ? arr : [];
@@ -464,17 +443,31 @@ const PRIMITIVES: Primitives = {
   button: (n, scope) => <ButtonNode node={n} scope={scope} />,
 };
 
-/** Exported for the workshop's canvas editor, which reuses the SAME primitive
- *  renderers for its editable leaves (so what you edit is what ships). */
+/** The kinds of the host a widget is being drawn in — provided around every card by
+ *  renderWidget, and by a host drawing loose nodes itself (a workshop canvas). */
+const KindsCtx = createContext<HostKinds>({});
+export const HostKindsProvider = KindsCtx.Provider;
+
+/** A host kind, drawn by its host: under Suspense (a lazy kind loads on first use), or as
+ *  a not-here tile when this host does not draw it. */
+function HostNode({ node, scope }: { node: WidgetNode; scope: Scope }) {
+  const Kind = useContext(KindsCtx)[node.t as HostKind] as ComponentType<{ node: WidgetNode; scope: Scope }> | undefined;
+  if (!Kind) return notHere(node.t);
+  return <Suspense fallback={stateView({ kind: 'loading' }, '', '')}><Kind node={node} scope={scope} /></Suspense>;
+}
+
+/** Exported for a workshop's canvas editor, which reuses the SAME primitive renderers
+ *  for its editable leaves (so what you edit is what ships). */
 export function renderNode(node: WidgetNode, scope: Scope): ReactNode {
-  const fn = PRIMITIVES[node.t] as (n: WidgetNode, s: Scope) => ReactNode;
-  return fn ? fn(node, scope) : null;
+  const fn = (PRIMITIVES as Record<string, (n: WidgetNode, s: Scope) => ReactNode>)[node.t];
+  if (fn) return fn(node, scope);
+  return <HostNode node={node} scope={scope} />;
 }
 
 /** The eyebrow + right-aligned source row at the top of a card. One definition
  *  for the spec frame and every bespoke card, instead of the same inline div
  *  copy-pasted per component. Renders nothing when both captions are empty. */
-function CardHead({ eyebrow, source, stale }: { eyebrow?: string; source?: string; stale?: string }) {
+export function CardHead({ eyebrow, source, stale }: { eyebrow?: string; source?: string; stale?: string }) {
   if (!eyebrow && !source && !stale) return null;
   return (
     <div className="hud-w-head">
@@ -507,150 +500,6 @@ function stateView(state: CardState, emptyText: string, authUrl: string): ReactN
       empty={state.kind === 'empty' || state.kind === 'signed-out'} errorText={fault} emptyText={neutral}>
       {null}
     </AsyncView>
-  );
-}
-
-/* ── Molecule bodies (self-contained cards) ─────────────────────────────────
- * These are the structurally-bespoke cards (a 7-col month grid; a multi-region
- * weather layout) that don't decompose cleanly into stack/row. They're regular
- * primitives — one registry entry, read their slice from scope, render a full
- * `.hud-card`. Specs using them carry no frame; the molecule owns its chrome. */
-
-function CalendarBody({ cal }: { cal: MonthCalState }) {
-  const today = new Date();
-  const yr = cal.year;
-  const mo = cal.month;
-  const first = new Date(yr, mo, 1).getDay();
-  const daysInMonth = new Date(yr, mo + 1, 0).getDate();
-  const cells: (number | null)[] = [
-    ...Array(first).fill(null),
-    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
-  ];
-  while (cells.length % 7 !== 0) cells.push(null);
-
-  const dayMap = new Map<string, CalDay>();
-  for (const d of cal.days) dayMap.set(d.date, d);
-
-  return (
-    <div className="hud-card hud-calendar">
-      <div className="hud-calendar-head">
-        <span className="hud-eyebrow">CALENDAR</span>
-        <span className="hud-eyebrow-src hud-w-push">{MO_FULL[mo].toUpperCase()} {yr}</span>
-      </div>
-      <div className="hud-cal-grid">
-        {DAY_ABBR.map((d) => <div key={d} className="hud-cal-dow">{d}</div>)}
-        {cells.map((day, i) => {
-          if (!day) return <div key={`e-${i}`} />;
-          const iso = `${yr}-${String(mo + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-          const info = dayMap.get(iso);
-          const isToday = day === today.getDate() && mo === today.getMonth() && yr === today.getFullYear();
-          return (
-            <div key={iso} className={`hud-cal-day${isToday ? ' today' : ''}${info ? ' has-tasks' : ''}`}>
-              <span className="hud-cal-num">{day}</span>
-              {info && <span className="hud-cal-dot hud-w-toned" style={vars({ '--w-tone': info.doneCount === info.count ? 'var(--color-ok)' : 'var(--color-accent)' })} />}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function WeatherBody({ w }: { w: WeatherState }) {
-  return (
-    <div className="hud-card hud-weather-compact">
-      <div className="hud-weather-head">
-        <span className="hud-eyebrow">WEATHER</span>
-        <span className="hud-eyebrow-src hud-w-push">
-          {w.source === 'accuweather' ? 'ACCUWEATHER' : w.label}
-        </span>
-      </div>
-      {w.offline ? (
-        <div className="hud-w-weather-off">
-          WEATHER FEED OFFLINE
-        </div>
-      ) : (
-        <>
-          <div className="hud-weather-compact-row">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" strokeWidth="1.4" strokeLinecap="round" className="hud-w-weather-glyph">
-              <circle cx="12" cy="12" r="4.5" />
-              <path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3L7 7M17 17l1.7 1.7M5.3 18.7L7 17M17 7l1.7-1.7" />
-            </svg>
-            <div className="hud-w-grow">
-              <div className="hud-weather-compact-temp"><b>{w.loaded ? w.temp : '--'}</b><span>°F</span></div>
-              <div className="hud-weather-compact-desc">{w.loaded ? `${w.desc} · feels ${w.feels}°` : 'Loading…'}</div>
-            </div>
-            <div className="hud-weather-hilo hud-w-flush">
-              <span className="hi">H {w.loaded ? w.hi : '--'}°</span>
-              <span className="lo">L {w.loaded ? w.lo : '--'}°</span>
-            </div>
-          </div>
-          {w.slots.length > 0 && (
-            <div className="hud-weather-strip hud-w-foot">
-              {w.slots.map((s) => (
-                <div className="hud-weather-slot" key={s.label}>
-                  <span className="t">{s.label}</span>
-                  <span className="v">{s.temp}°</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </>
-      )}
-    </div>
-  );
-}
-
-/* ── Interactive escape-hatch cards ─────────────────────────────────────────
- * The spec vocabulary's write path is the command family (form/button →
- * capability dispatch); quick-add now lives INSIDE the Today spec as a form.
- * What remains bespoke is Focus (clears suite-wide focus state, drives the
- * dim-siblings behaviour) — the sanctioned COMPONENT_REGISTRY use. */
-
-/** Focus: the single "now working on" task pushed from BeigeBoard. Interactive
- *  (it can clear focus → a write), so it's a bespoke component. When focus is
- *  active the HUD dims its other cards around this one (see RoomHUD/HudGrid). */
-function FocusBody({ focus }: { focus: FocusState }) {
-  const [busy, setBusy] = useState(false);
-
-  const head = <CardHead eyebrow="FOCUS" source="BEIGEBOARD" />;
-
-  if (!focus.authed) {
-    return <div className="hud-card hud-w-focus">{head}<span className="hud-w-focus-note">SIGN IN TO SET A FOCUS</span></div>;
-  }
-  if (!focus.active) {
-    return (
-      <div className="hud-card hud-w-focus is-idle">
-        {head}
-        <span className="hud-w-focus-empty">Nothing in focus</span>
-        <span className="hud-w-focus-hint">PICK A TASK IN BEIGEBOARD → FOCUS ON ORDECK</span>
-      </div>
-    );
-  }
-
-  const clear = async () => { setBusy(true); await clearHudFocus(); setBusy(false); };
-
-  const titleCls = `hud-w-focus-title${focus.done ? ' is-done' : ''}`;
-
-  return (
-    <div className="hud-card hud-w-focus is-on">
-      {head}
-      <div className="hud-w-focus-body">
-        {focus.deeplink
-          ? <a href={safeHref(focus.deeplink)} className={titleCls}>{focus.title}</a>
-          : <span className={titleCls}>{focus.title}</span>}
-        <span className="hud-w-focus-meta">
-          {focus.done ? 'DONE' : 'NOW'} · {focus.timeLabel}{focus.tag ? ` · ${focus.tag.toUpperCase()}` : ''}
-        </span>
-      </div>
-      <button
-        onClick={clear}
-        disabled={busy}
-        className="hud-w-focus-end"
-      >
-        {busy ? '…' : 'END FOCUS'}
-      </button>
-    </div>
   );
 }
 
@@ -897,9 +746,10 @@ function ButtonNode({ node, scope }: { node: Extract<WidgetNode, { t: 'button' }
   );
 }
 
-function SpecWidget({ spec, ctx }: { spec: WidgetSpec; ctx: WidgetCtx }) {
-  // `$now` is the clock's instant: what `fmt: 'ago'` measures against.
-  const base: Scope = { ...(ctx as unknown as Scope), $now: ctx.clock.now };
+function SpecWidget({ spec, host }: { spec: WidgetSpec; host: WidgetHost }) {
+  // The host's slices are in scope by name, and `$now` is this instant: what `fmt: 'ago'`
+  // measures against.
+  const base: Scope = { ...host.slices, $now: host.now };
   // Each declared source by name, and `$sources.<name>.state` beside it — ready, empty,
   // loading, signed-out, offline… (./sources.ts), so a card can tell "nothing" from "down".
   const { data, status } = useDataSources(spec.sources, base);
@@ -909,7 +759,7 @@ function SpecWidget({ spec, ctx }: { spec: WidgetSpec; ctx: WidgetCtx }) {
   const state = cardState(spec.sources, status, data);
   const f = spec.frame;
   const emptyText = f?.empty != null ? str(resolve(f.empty, scope)) : 'Nothing here yet.';
-  const body = state.kind === 'ready' ? renderNode(spec.body, scope) : stateView(state, emptyText, ctx.authUrl);
+  const body = state.kind === 'ready' ? renderNode(spec.body, scope) : stateView(state, emptyText, host.authUrl);
 
   // No frame: the body is a self-contained card (a molecule, or chrome:false
   // raw content). Render it bare so it fills the grid cell directly — unless it is
@@ -933,80 +783,52 @@ function SpecWidget({ spec, ctx }: { spec: WidgetSpec; ctx: WidgetCtx }) {
     : <div className={cls}>{inner}</div>;
 }
 
-/* ═══ The Week molecule's resolvers ═══════════════════════════════════════════ */
-/** ORDECK has no goal tree or calendar-source map, so the shared kit's resolvers
- *  fall back to the suite accent chain — every item renders in the room's accent. */
-const ordeckResolvers: Partial<CardResolvers> = {
-  accentOf: () => 'var(--color-accent)',
-  sourceColorOf: () => 'var(--color-accent)',
-};
-
-/** The shared @jkos/cards Week view, read+light (no DragAdapter → no internal drag to
- *  clash with the HUD grid): the planning horizon the month dot-grid can't give.
- *  Wrapped in ORDECK's own card chrome — bare on the canvas the kit view read as a
- *  foreign patch with no defined border; the hud-card owns the boundary and the kit
- *  scrolls inside it (minHeight 0 is what lets it shrink). */
-function WeekBody({ items, todayIso }: { items: CalendarItem[]; todayIso: string }) {
-  return (
-    <div className="hud-card hud-w-week">
-      <CardHead eyebrow="WEEK" source="BEIGEBOARD" />
-      <div className="hud-w-week-body">
-        <WeekView items={items} today={todayIso} resolvers={ordeckResolvers} density="compact" />
-      </div>
-    </div>
-  );
-}
-
 /* ═══ Per-card update isolation ═════════════════════════════════════════════
- * The whole ctx object changes every second (the clock slice ticks), but a card
- * only depends on the SLICES its spec binds to. We collect those once per def
- * and gate each card behind a memo that re-renders only when one of THOSE slices
- * changes reference — so the clock card updates every second, weather on its
- * 15-min poll, systems every 30s, a static card almost never. Each slice is
- * memoised upstream (useHudContext) to keep its reference stable between real
- * changes, which is what makes this comparison meaningful. */
-const SLICE_KEYS = new Set<string>([
-  'clock', 'weather', 'systems', 'today', 'cal', 'items', 'todayIso', 'notifications', 'focus', 'pinned', 'authUrl', 'origins', 'aiEnabled',
-]);
-const sliceCache = new WeakMap<object, Set<string>>();
+ * A host's slices change on their own clocks (ORDECK's clock every second, its
+ * weather on a 15-minute poll), but a card only depends on the SLICES its spec binds
+ * to. Those are collected once per def and each card is gated behind a memo that
+ * re-renders only when one of THOSE changes reference — so a clock card updates every
+ * second and a static card almost never. The host keeps each slice's reference stable
+ * between real changes (WidgetHost.slices), which is what makes the comparison mean
+ * something. */
+const bindsCache = new WeakMap<object, { names: Set<string>; now: boolean; ai: boolean }>();
 
-/** The ctx slices a widget reads — cached per def (spec object identity), so it's
- *  recomputed only when the def actually changes (workshop edit / published merge). */
-function usedSlices(def: WidgetDef): Set<string> {
+/** What a widget reads besides its own sources — cached per def (spec object identity), so
+ *  it's recomputed only when the def actually changes (a workshop edit, a published merge). */
+function binds(def: WidgetDef) {
   const key: object = def.spec ?? def;
-  const cached = sliceCache.get(key);
+  const cached = bindsCache.get(key);
   if (cached) return cached;
   // One walker (@jkos/widgets sourcesOf): every `{src}` binding plus each molecule's
   // manifest-declared slice. `cmd` subtrees are skipped — a command's body bindings
   // resolve at SUBMIT time, so they are not display dependencies (else a form
   // defaulting due_date to clock.iso would re-render its card every second).
-  const acc = def.spec ? sourcesOf(def.spec) : new Set<string>();
-  // `$now` is the clock's instant, so an `ago` re-renders with the clock.
-  if (acc.has('$now')) acc.add('clock');
-  // An AI widget redraws when the kill switch flips.
-  if (usesAi(def)) acc.add('aiEnabled');
-  // Drop non-ctx sources ($ list element, $form, fetch-source names) — they're
-  // never on ctx, so they'd never (correctly) trigger a re-render anyway.
-  for (const k of [...acc]) if (!SLICE_KEYS.has(k)) acc.delete(k);
-  sliceCache.set(key, acc);
-  return acc;
+  const names = def.spec ? sourcesOf(def.spec) : new Set<string>();
+  const out = { names, now: names.has('$now'), ai: usesAi(def) };
+  bindsCache.set(key, out);
+  return out;
 }
 
-interface CardProps { def: WidgetDef; ctx: WidgetCtx }
+interface CardProps { def: WidgetDef; host: WidgetHost }
 
-/** Last time each card actually rendered, for the refreshMs heartbeat. The parent
- *  re-renders ~once a second (the clock), so cardPropsEqual is consulted at that
- *  cadence — fine-grained enough to honour any sane refresh interval. */
+/** Last time each card actually rendered, for the refreshMs heartbeat. ORDECK re-renders
+ *  its cards ~once a second (the clock), so cardPropsEqual is consulted at that cadence —
+ *  fine-grained enough to honour any sane refresh interval. */
 const lastRenderAt = new Map<string, number>();
 
 function cardPropsEqual(prev: CardProps, next: CardProps): boolean {
   if (prev.def !== next.def) return false;     // def changed → re-render
-  for (const k of usedSlices(next.def)) {
-    if (prev.ctx[k as keyof WidgetCtx] !== next.ctx[k as keyof WidgetCtx]) return false;
+  const b = binds(next.def);
+  // A name that is not one of the host's slices ($ list element, $form, a source's own
+  // name) is never on the host, so it never (correctly) triggers a re-render here.
+  for (const k of b.names) {
+    if (k in next.host.slices && prev.host.slices[k] !== next.host.slices[k]) return false;
   }
+  if (b.now && prev.host.now !== next.host.now) return false;          // an `ago` moves with the clock
+  if (b.ai && prev.host.aiEnabled !== next.host.aiEnabled) return false; // the kill switch flipped
   // Manual override: force a render once refreshMs has elapsed since the last one.
-  // Because the gate runs on the parent's per-second tick, the card re-renders
-  // with the LATEST ctx (no staleness) — this is the safety valve over auto-detect.
+  // Because the gate runs on the host's tick, the card re-renders with the LATEST
+  // slices (no staleness) — this is the safety valve over auto-detect.
   const ms = next.def.refreshMs;
   if (ms && ms > 0 && Date.now() - (lastRenderAt.get(next.def.id) ?? 0) >= ms) return false;
   return true;                                 // every bound slice stable + not due → skip
@@ -1015,19 +837,31 @@ function cardPropsEqual(prev: CardProps, next: CardProps): boolean {
 /** One card, isolated: re-renders when a slice it binds to changes, when its
  *  refreshMs heartbeat is due, or on its own internal state (a form's inputs, a
  *  fetch source's polled data) — so interactive/live cards still update themselves. */
-const WidgetCard = memo(function WidgetCard({ def, ctx }: CardProps) {
+const WidgetCard = memo(function WidgetCard({ def, host }: CardProps) {
   // Stamp the render time post-commit (not during render) for the heartbeat above.
   useEffect(() => { if (def.refreshMs) lastRenderAt.set(def.id, Date.now()); });
-  return <>{renderWidgetBody(def, ctx)}</>;
+  return <>{renderWidgetBody(def, host)}</>;
 }, cardPropsEqual);
 
-/* ═══ Factory entry point ══════════════════════════════════════════════════ */
+/* ═══ Entry point ══════════════════════════════════════════════════════════ */
 
 function unknownWidget(name: string): ReactNode {
   return (
     <div className="hud-card hud-w-unknown">
       <span>
         UNKNOWN WIDGET: {name.toUpperCase()}
+      </span>
+    </div>
+  );
+}
+
+/** A host kind this host does not draw — a molecule placed where its slice does not
+ *  exist. Drawn in the node's place, so the rest of the card still renders. */
+function notHere(kind: string): ReactNode {
+  return (
+    <div className="hud-card hud-w-unknown">
+      <span>
+        NOT AVAILABLE HERE: {kind.toUpperCase()}
       </span>
     </div>
   );
@@ -1044,22 +878,24 @@ function aiOffTile(def: WidgetDef): ReactNode {
   );
 }
 
-function renderWidgetBody(def: WidgetDef, ctx: WidgetCtx): ReactNode {
-  if (!ctx.aiEnabled && usesAi(def)) return aiOffTile(def);
-  if (def.spec) return <SpecWidget spec={def.spec} ctx={ctx} />;
+function renderWidgetBody(def: WidgetDef, host: WidgetHost): ReactNode {
+  if (!host.aiEnabled && usesAi(def)) return aiOffTile(def);
+  if (def.spec) return <SpecWidget spec={def.spec} host={host} />;
   return unknownWidget(def.id);
 }
 
-/** Render a widget definition behind its per-card update gate (see WidgetCard).
- *  Each card is isolated by an
- *  ErrorBoundary so one malformed spec (a bad published/AI/workshop widget) shows
- *  a single fault tile instead of taking the whole dashboard down. resetKey=def
- *  clears the fault when the definition is edited/republished. The boundary wraps
- *  the memo, so a stable card still bails out of re-render on the parent tick. */
-export function renderWidget(def: WidgetDef, ctx: WidgetCtx): ReactNode {
+/** Render a widget file in `host`, behind its per-card update gate (see WidgetCard). Each
+ *  card is isolated by a boundary, so one malformed spec (a bad published/AI/workshop
+ *  widget) shows a single fault tile instead of taking the whole page down; resetKey=def
+ *  clears the fault when the definition is edited/republished. The boundary wraps the
+ *  memo, so a stable card still bails out of re-render on the host's tick. */
+export function renderWidget(def: WidgetDef, host: WidgetHost): ReactNode {
   return (
-    <ErrorBoundary widgetName={def.label} resetKey={def}>
-      <WidgetCard def={def} ctx={ctx} />
-    </ErrorBoundary>
+    <WidgetBoundary widgetName={def.label} resetKey={def}>
+      <KindsCtx.Provider value={host.kinds ?? NO_KINDS}>
+        <WidgetCard def={def} host={host} />
+      </KindsCtx.Provider>
+    </WidgetBoundary>
   );
 }
+const NO_KINDS: HostKinds = {};
