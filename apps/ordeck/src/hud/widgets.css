@@ -32,6 +32,10 @@
  * tone's colour, a size — arrives as a custom property (registry.tsx `vars()`), never
  * as an inline style. */
 .hud-w-frame { padding: 14px; display: flex; flex-direction: column; height: 100%; }
+/* A frame with an href is an <a>, and hud.css's `a.hud-card { display: block }` outranks
+   the class alone (and loads later, so equal weight loses too) — a linked card's list then
+   grew past its footprint instead of scrolling. */
+a.hud-card.hud-w-frame { display: flex; }
 .hud-w-frame.is-raw { padding: 14px 6px; }
 .hud-w-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
 .hud-w-head .hud-eyebrow-src,
