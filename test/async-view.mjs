@@ -156,23 +156,16 @@ for (const [file, { retired }] of Object.entries(CALL_SITES)) {
 }
 
 /* ── XC-6: what is NOT a triad, and why ───────────────────────────────────────
-   Two places look like candidates and are not. Written down here rather than left
+   One place looks like a candidate and is not. Written down here rather than left
    for the next reader to re-decide, because "adopt it everywhere" is the wrong
-   instinct and the reasons are specific:
+   instinct and the reason is specific:
 
    · apps/beigeboard/.../LibraryBrowser.tsx renders `{error && …}` as an inline
      banner NEXT TO a form that stays on screen. AsyncView REPLACES its children with
      a state; using it here would blank the form the user is trying to fix. It is a
      field-level error, not a view-level one.
 
-   · ORDECK expresses loading/empty/offline through the WidgetSpec `when` vocabulary
-     — declarative data an AI or the Workshop emits, resolved by the renderer. That
-     IS its triad, in the language its widgets are written in. Importing a React
-     component into a data document is not possible, and making the widget bodies
-     imperative to accommodate one would trade the whole factory for a consistency
-     that only looks like one.
-
-   The check below pins the first: if that inline error ever becomes a view-level
+   The check below pins it: if that inline error ever becomes a view-level
    replacement, it should come here instead. */
 {
   const lib = stripComments(read('apps/beigeboard/src/views/workshop/LibraryBrowser.tsx'));
@@ -184,6 +177,19 @@ for (const [file, { retired }] of Object.entries(CALL_SITES)) {
     ok('LibraryBrowser routes through AsyncView (it became a view-level state)');
   } else {
     fail("LibraryBrowser's error state changed shape — re-decide whether it is now a view-level triad (see the note above)");
+  }
+}
+
+// ORDECK's widgets were once the other exception: their bodies are data, and a data
+// document cannot import a component. The FRAME is code, though — it owns loading,
+// offline, signed-out and empty for every widget (hud/sources.ts cardState) and draws
+// them through AsyncView, so a widget file never hand-rolls the triad.
+{
+  const reg = stripComments(read('apps/ordeck/src/hud/registry.tsx'));
+  if (/<AsyncView\b/.test(reg) && /cardState|state\.kind === 'loading'/.test(reg)) {
+    ok("ORDECK's widget frame draws its sources' states through <AsyncView>");
+  } else {
+    fail("ORDECK's widget frame no longer draws its states through <AsyncView> — the widget triad is hand-rolled again");
   }
 }
 
