@@ -446,7 +446,9 @@ if a class exists and isn't on the page. Reuse these — don't recreate them.
 faster) · `.jk-label-tape` (embossed metal naming strip — **machine chrome only** under Full
 Press) · `.jk-stamp` (rotated rubber stamp, `currentColor`, serif — the printer's) · `.jk-perf`
 · `.jk-canvas-grid` / `.jk-canvas-cell` · `.jk-seg` (phosphor numerals in dark; printed Fraunces
-lining figures on paper — §5) · `.jk-bar-track` / `.jk-bar-fill` (amber-gradient meter).
+lining figures on paper — §5) · `.jk-bar-track` / `.jk-bar-fill` — THE bar (the one meter
+`@jkos/ui` `<Bar>` and every widget draw): a paper well, the fill the tint deepened toward
+`--hub-deepen-ink-meter` → the tint, tinted through `--jk-tint` (unset, the accent).
 
 **Print marks (Full Press — the press's own hardware, same scarcity rule):**
 `.jk-rule` / `.jk-rule-strong` / `.jk-rule-double` / `.jk-rule-taper` — the rules ladder,
@@ -565,7 +567,8 @@ the doctrine, and their one call site was overridden by an inline shadow.)
 **Text system (the Voice, §5):** `.jk-lab` (+ `-sm`, `-xs` — tracked Fraunces caps;
 `-sans` stays sans) · `.jk-mono-eyebrow` (machine, mono, untouched) · `.jk-tbtn`
 (+ `.jk-tbtn-quiet`; printed serif caps, hovers to the secondary accent) · `.jk-pill`
-(green status pill — machine, stays mono) · `.jk-async-note` is set serif-italic (the
+(status pill — machine, stays mono; OK-green unless `--jk-tint` names another status, and the
+ring and the tube's glow follow it) · `.jk-async-note` is set serif-italic (the
 compositor's aside).
 
 **Fields — the WRITE half of the control set (2026-08-17):**

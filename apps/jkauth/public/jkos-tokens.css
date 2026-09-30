@@ -952,7 +952,12 @@
   text-shadow: none;
 }
 
-/* Bar meters */
+/* Bar meters — THE bar. One well, one fill, tinted through --jk-tint (unset, the
+   accent): the tint deepened toward --hub-deepen-ink-meter at the start, the tint itself
+   at the end — the same move --color-accent-dim → --color-accent makes, for any hue.
+   @jkos/ui <Bar> draws it (sizing the track, setting the tint), and so does the widget
+   renderer, with classes and custom properties. There were three bars until 2026-09-30:
+   this one, the widget bar atom's and the widget patterns' track. */
 .jk-bar-track {
   background: var(--color-paper);
   border: 1px solid var(--color-line);
@@ -960,7 +965,9 @@
   overflow: hidden;
 }
 .jk-bar-fill {
-  background: linear-gradient(90deg, var(--color-accent-dim), var(--color-accent));
+  background: linear-gradient(90deg,
+    color-mix(in srgb, var(--jk-tint, var(--color-accent)) 72%, var(--hub-deepen-ink-meter)),
+    var(--jk-tint, var(--color-accent)));
   box-shadow: 0 0 4px var(--color-accent-glow);
   height: 100%;
 }
@@ -1833,10 +1840,14 @@
   text-transform: uppercase;
   padding: var(--jk-pad-pill);
   border-radius: var(--jk-radius-lg);
-  color: var(--color-ok);
-  border: 1px solid color-mix(in srgb, var(--color-ok) 40%, transparent);
+  /* A status pill is OK-green unless tinted: --jk-tint takes any status colour (the
+     widget renderer's `pill` sets it from its tone), and the ring and the glow follow. */
+  color: var(--jk-tint, var(--color-ok));
+  border: 1px solid color-mix(in srgb, var(--jk-tint, var(--color-ok)) 40%, transparent);
 }
-:root[data-mode="dark"] .jk-pill { text-shadow: 0 0 8px var(--color-ok-glow); }
+/* The glow is the pill's colour at 35% — on the tube that IS --color-ok-glow for the
+   default, and the same glow for any tint. */
+:root[data-mode="dark"] .jk-pill { text-shadow: 0 0 8px color-mix(in srgb, var(--jk-tint, var(--color-ok)) 35%, transparent); }
 
 /* ─── Fields — the WRITE half of the control set ───────────────────────────
  * Everything the user types into: text, number, select, textarea, search, date.

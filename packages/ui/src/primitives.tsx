@@ -211,13 +211,15 @@ export function Pill<E extends ElementType = 'span'>({ as, className, children, 
   return <As className={cx('jk-pill', className)} {...rest}>{children}</As>;
 }
 
-/** Progress meter — a `.jk-bar-track` well with a tint-deepened fill.
+/** Progress meter — the suite's one bar: a `.jk-bar-track` well with a tint-deepened
+ *  `.jk-bar-fill`.
  *
  *  The gradient runs from the tint deepened toward --hub-deepen-ink-meter to the tint
  *  itself, which is exactly how --color-accent-dim → --color-accent works, generalised
- *  to an arbitrary per-item hue. It lived open-coded at six call sites before
- *  this, each inlining the deepen ink as a raw hex — a §13.3 fence violation
- *  that this component makes structurally unrepeatable.
+ *  to an arbitrary per-item hue. It is hub.css's, read through --jk-tint, so the widget
+ *  renderer draws the same bar with classes alone. It lived open-coded at six call
+ *  sites before this component, each inlining the deepen ink as a raw hex, and then in
+ *  this component's inline style until 2026-09-30.
  *
  *  `value` is 0–1 and clamps. `height` is the one number that varies by context:
  *  5 on a rail card, 6 inside a branch row, 7 on the forge header. */
@@ -240,7 +242,7 @@ export function Bar({
   return (
     <div
       className={cx('jk-bar-track', className)}
-      style={{ height, borderRadius: r, ...style }}
+      style={{ height, borderRadius: r, '--jk-tint': tint, ...style } as CSSProperties}
       role="progressbar"
       aria-valuenow={Math.round(pct)}
       aria-valuemin={0}
@@ -249,11 +251,7 @@ export function Bar({
     >
       <div
         className="jk-bar-fill"
-        style={{
-          width: `${pct}%`,
-          height: '100%',
-          background: `linear-gradient(90deg, color-mix(in srgb, ${tint} 72%, var(--hub-deepen-ink-meter)), ${tint})`,
-        }}
+        style={{ width: `${pct}%` }}
       />
     </div>
   );

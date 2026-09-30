@@ -148,6 +148,12 @@ const ICONS: Record<IconName, ReactNode> = {
   dot: <circle cx="12" cy="12" r="6" />,
 };
 
+/** A pattern's progress: the suite's one bar (hub.css .jk-bar-track / .jk-bar-fill, the
+ *  bar @jkos/ui <Bar> draws), tinted, at the pattern track's height. */
+function track(pct: number, tint: string): ReactNode {
+  return <span className="jk-bar-track hud-p-track" style={vars({ '--jk-tint': tint, '--w-fill': `${pct}%` })}><span className="jk-bar-fill" /></span>;
+}
+
 /** A pattern's leading glyph, stroked in its tone (an unknown name draws the dot). */
 function patternIcon(name: string, tone: string): ReactNode {
   return (
@@ -192,10 +198,10 @@ const PRIMITIVES: Primitives = {
     const v = num(resolve(n.value, scope));
     const m = n.max != null ? num(resolve(n.max, scope)) : 100;
     const pct = m > 0 ? Math.max(0, Math.min(100, (v / m) * 100)) : 0;
-    return <span className="hud-bar"><span style={vars({ '--w-fill': `${pct}%` })} className="hud-w-fill" /></span>;
+    return <span className="jk-bar-track hud-w-bar" style={vars({ '--w-fill': `${pct}%` })}><span className="jk-bar-fill" /></span>;
   },
   pill: (n, scope) => (
-    <span className="hud-w-pill" style={vars({ '--w-tone': toneColor(n.tone, scope, 'ok') })}>{str(resolve(n.text, scope))}</span>
+    <span className="jk-pill" style={vars({ '--jk-tint': toneColor(n.tone, scope, 'ok') })}>{str(resolve(n.text, scope))}</span>
   ),
   dot: (n, scope) => (
     <span className={`hud-dot hud-w-dot${n.pulse ? ' pulse' : ''}`} style={vars({ '--w-tone': toneColor(n.tone, scope, 'muted') })} />
@@ -329,14 +335,14 @@ const PRIMITIVES: Primitives = {
   meter: (n, scope) => {
     const pct = fraction(resolve(n.value, scope), n.max != null ? resolve(n.max, scope) : 1) ?? 0;
     return (
-      <div className="hud-p hud-p-meter" style={vars({ '--w-tone': patternTone(n.tone, scope, 'accent'), '--w-fill': `${pct}%` })}>
+      <div className="hud-p hud-p-meter">
         {(n.label != null || n.detail != null) && (
           <div className="hud-p-line">
             {n.label != null && <span className="hud-p-label">{str(resolve(n.label, scope))}</span>}
             {n.detail != null && <span className="hud-p-detail">{str(resolve(n.detail, scope))}</span>}
           </div>
         )}
-        <div className="hud-p-track"><span /></div>
+        {track(pct, patternTone(n.tone, scope, 'accent'))}
       </div>
     );
   },
@@ -362,7 +368,7 @@ const PRIMITIVES: Primitives = {
               <span className="hud-p-main">
                 <span className="hud-p-title">{str(resolve(n.title, s))}</span>
                 {sub && <span className="hud-p-sub">{sub}</span>}
-                {pct != null && <span className="hud-p-track" style={vars({ '--w-tone': 'var(--color-accent)', '--w-fill': `${pct}%` })}><span /></span>}
+                {pct != null && track(pct, 'var(--color-accent)')}
               </span>
               {detail && <span className="hud-p-detail">{detail}</span>}
             </>
@@ -429,7 +435,7 @@ const PRIMITIVES: Primitives = {
             {n.meta != null && <span className="hud-p-detail">{str(resolve(n.meta, scope))}</span>}
           </span>
         </div>
-        {pct != null && <div className="hud-p-track" style={vars({ '--w-tone': 'var(--color-accent)', '--w-fill': `${pct}%` })}><span /></div>}
+        {pct != null && track(pct, 'var(--color-accent)')}
       </>
     );
     return href ? <a className="hud-p hud-p-media" href={href}>{body}</a> : <div className="hud-p hud-p-media">{body}</div>;

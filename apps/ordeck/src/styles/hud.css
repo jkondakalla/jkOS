@@ -156,7 +156,7 @@ html.od-v2 ::selection { background: var(--color-accent); color: var(--color-acc
 .hud-col:nth-child(2) { animation-delay: 0.06s; }
 .hud-col:nth-child(3) { animation-delay: 0.12s; }
 
-/* .hud-card, .hud-eyebrow(-src), .hud-dot, .hud-bar and the clock's type are the widget
+/* .hud-card, .hud-eyebrow(-src), .hud-dot, the bar atom and the clock's type are the widget
    renderer's (@jkos/widget-render widgets.css) — every card in any app draws with them. */
 
 /* ── Weather ───────────────────────────────────────────────────────────── */
