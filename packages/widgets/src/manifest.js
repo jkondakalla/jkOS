@@ -74,7 +74,7 @@ const ALIGN = ['flex-start', 'flex-end', 'center', 'baseline', 'stretch', 'start
  *
  *   kind       atom | layout | logic | molecule | control | pattern   (what sort of part it
  *              is). A PATTERN is a whole, finished layout for one common kind of card —
- *              the polish comes from it, not from the author (TODO §7).
+ *              the polish comes from it, not from the author.
  *   label/hint the Workshop's name for it, and one line on what it is for
  *   props      name → { type, required?, values?, doc?, row?, result? } — `row`: a binding
  *              into `$`, each row of the node's `from`; `result`: into `$result`/`$job`

@@ -126,7 +126,6 @@ Each one blocks work an agent could otherwise do alone. Answer in place.
   - (b) Add `jag` to `docker`. The Docker path is written but has **never run** (no access), so its
     first run is its test.
 - **Scope for the next agent run:**
-  - Is Stage F (§6) its main job?
   - Is LazurOS in scope? L1 needs the workstation GPU and a live Ollama, but L2 is plain code and
     could be built first.
   - May an agent install systemd units / change machine state? The default until you say otherwise
@@ -194,98 +193,108 @@ Reasoning: [ALGORITHMS.md §5–§8](agents/ALGORITHMS.md).
 
 ---
 
-## 6 · Stage F — the design factory
+## 6 · The widget rescope — every screen is widgets (Stage F folded in)
 
-**Not started.** The widget factory no longer waits on it (overruled 2026-09-28, §7); the
-token rename sweeps the widget stylesheet like any other.
-The goal is a **machine-readable manifest** of the design primitives: pure data,
-requireable with no browser, the way `discovery.js` is for backends. Today nothing can enumerate
-what `hub.css` (2,700+ lines) offers. ⚠️ **The visual language is parked for the duration.** This
-is a restructure, not a retune; `pnpm check:token-identity` pins every token's computed value on
-both faces, so a rename that preserves values passes and anything else is caught.
+Widgets stop being ORDECK's HUD cards and become what the whole suite is built from, so any
+piece of UI can be lifted out and reused. The survey and reasoning:
+[the rescope report](https://claude.ai/artifact/GLLHmuTZkCnkLmjNzX37zf). Widget factory v2 is
+finished (its visual pass, `e2fe9e5`, approved and on staging 2026-09-29 — its message still
+says PROPOSAL; history is not rewritten).
 
-Decided (2026-09-16): keep `--hub-*` / `--color-*` / `--jk-*` as tiers 1 / 2 / 3 (raw per-face /
-semantic alias / face-invariant geometry), only tier 1 gets a dark block, and pigment names become
-role names (`--ink-*`, `--ground-*`, `--accent`). The jkAuth token mirror stays a checked-in
-generated file held by `check:tokens`.
+**Decided with you 2026-09-29 — don't re-propose:**
 
-- **BeigeBoard is the specification.** The factory is correct iff it can express BeigeBoard with
-  identical computed values. Anything that needs an escape hatch is a missing primitive. Build a
-  harness that dumps every BB element's computed style, against the factory.
-- **Make the prefix carry the tier.** 152 tokens (62 on both faces, 90 light-only). `--hub-*`
-  currently spans tiers 1 and 3, so moving its tier-3 tokens is most of the work.
-- **Collapse the four accent schemes** (`--accent-raw`, `--hub-amber`, `--color-accent`, `--accent`)
-  and retire the pigment names. Blast radius was 927 occurrences across 48 files (2026-09-10; re-measure).
-  ⚠️ `music/ridge.py` copies the face values as literals and `apps/kouros/src/components/Pulsarmap.tsx`
-  aliases the names, so both move with it.
-- **Reorder `hub.css` by system** (ground → type → colour chain → geometry → materials → controls →
-  motion) and delete the labels named after old programs ("Full Press", "Wave 24").
-- **Move the 26 un-namespaced global classes into `.jk-*`** (`.glow`, `.led`, `.seg`, `.stamp`, …)
-  and delete duplicates (`.glow` and `.jk-glow` both exist).
-- **Glass is the imported-asset material:** glass for pixels the suite didn't author, paper and press
-  for pixels it drew. Delete the ambient decoration in [`apps/kouros/src/glass.css`](../apps/kouros/src/glass.css)
-  (275 lines, all chrome), promote the glass tokens into the factory, and apply them on the one
-  cover primitive (`CoverArt` in `@jkos/ui` / `.jk-media-cover`). ⚠️ First converge the two covers
-  that don't use it: [`apps/kouros/src/components/Cover.tsx`](../apps/kouros/src/components/Cover.tsx)
-  (11 call sites, a wrapper div + letter fallback that `views.css` styles by descendant) and the
-  inline hero in [`apps/kouros/src/views/books/BookDetail.tsx`](../apps/kouros/src/views/books/BookDetail.tsx).
-  That changes DOM, so do it behind the computed-style harness, not as a blind swap.
-- **Bring KourOS's inputs onto `.jk-field`.** Six raw `<input>`/`<select>`s (search, the audiobook
-  library toolbar, the playlist picker and playlists page) and a local `appearance` reset in
-  `views.css` are drawn in the glass material. `check:fields` names KourOS as its one exemption
-  until this lands, so remove it from that list in the same commit.
-- **Fold the time-grid JSX that `DayView.tsx` and `WeekView.tsx` share** in `@jkos/cards`: about
-  150 identical lines (the now-line, the block layer, the create flow), the largest copy left in
-  the source (measured 2026-09-25). It changes DOM, so it goes behind the computed-style harness
-  too.
-- **Draw the jkOS mark.** `apps/ordeck/public/icon.svg` / `icon-maskable.svg` (and their PNGs) are a
-  placeholder dial. They're what the jkOS and jkOS Home apps and ORDECK's PWA install show, derived at
-  build time, so redrawing them re-skins every shell.
-- **Then re-sync [DESIGN.md](agents/DESIGN.md).** Its value tables are stale by 1,100+ lines of
-  `hub.css`, on purpose: refreshing them before the restructure is work done twice.
+- **Three layers.** *Engines* (code, no JSX: the player, the listening session, the offline
+  book store, calendar drag, the routine engine, the router) publish declared **slices** and
+  **actions**. *Widgets* (JSON files) are every screen. *Primitives* (code, in packages) exist
+  only for novel elements — something no composition of existing kinds can draw. Small one-off
+  CSS may stay in an app's stylesheet; a hand-built component may not.
+- **Scope is everything:** ORDECK, BeigeBoard, KourOS, the shared kits, jkAuth's pages and
+  jkDeploy's console. **jkAuth and jkDeploy server-render:** widgets become HTML per request
+  (jkAuth) or at build time into a checked-in generated file (jkDeploy). Forms keep posting,
+  login works with JS off, and the nonce CSP does not loosen. A control that needs script
+  hydrates from a same-origin nonce'd bundle, on that page only.
+- **Bindings stay `map`/`fmt`/`eq`/`in`/`not`.** A computed value is a declared field or an
+  engine action, never a formula in a file. This is the line that keeps the JSON from becoming
+  a worse programming language.
+- **Screens are repo files.** No runtime screen editing in this program, but the format must
+  admit per-user rearranging later (the HUD already does it) without a rewrite.
+- **A widget published through jkAuth binds only declared server contracts** — datasets and
+  capabilities, already scope-checked — never engine actions or host slices. Held by the
+  validator and by jkAuth's publish.
+- **Visuals may improve while moving** (overrules Stage F's "the visual language is parked").
+  Each screen lands on staging with its before/after contact sheets on one running review page;
+  the agent keeps going and stops only on what you flag. Nothing reaches production until you
+  deploy.
+- **Phones:** one widget per screen, responsive by container; a screen may declare a mobile-tier
+  body where the phone UI genuinely differs (BeigeBoard's agenda week).
+- **Pilot:** KourOS — Home, then Now Playing, then the Vibe Map.
+- **Stage F's token decisions stand** (2026-09-16): `--hub-*` / `--color-*` / `--jk-*` are
+  tiers 1 / 2 / 3 (raw per-face / semantic alias / face-invariant geometry), only tier 1 has a
+  dark block, pigment names become role names (`--ink-*`, `--ground-*`, `--accent`), and the
+  jkAuth token mirror stays a checked-in generated file held by `check:tokens`.
+
+**The phases, in order.** Each ends in something the gate proves; a new assertion is shown
+failing against the old code before it is trusted.
+
+1. **Tokens** (Stage F's restructure, value-preserving — `check:token-identity` holds it). Make
+   the prefix carry the tier (152 tokens; `--hub-*` spans tiers 1 and 3). Collapse the four
+   accent schemes (`--accent-raw`, `--hub-amber`, `--color-accent`, `--accent`) and retire the
+   pigment names — ⚠️ re-measure the blast radius (927 occurrences in 48 files on 2026-09-10);
+   `music/ridge.py` copies the face values as literals and `Pulsarmap.tsx` aliases the names.
+   Reorder `hub.css` by system (ground → type → colour → geometry → materials → controls →
+   motion), delete labels named after old programs, move the 26 un-namespaced global classes
+   into `.jk-*` and delete the duplicates (`.glow` / `.jk-glow`).
+2. **Lift the renderer.** `apps/ordeck/src/hud/registry.tsx` moves into a package; its
+   HUD-shaped `WidgetCtx` becomes declared host slices (ORDECK's `slices.ts` is the model);
+   heavy primitives load per kind, so ORDECK never downloads KourOS's WebGL unplaced. One atom
+   set: widget atoms render `@jkos/ui` (`pill`/`Pill`, `bar`/`Bar`, and `.hud-p-track`, the
+   third bar). ORDECK's HUD re-hosted on it, every shipped widget shot before and after.
+3. **The language.** Widget inputs + `use`; per-instance `state` + `set`; `on:` events → a
+   capability, an engine action, `set` or `go`; host actions declared and typed per app;
+   routes (a path → a page widget, a `route` slice, `go`); source `debounce`; `sizing` optional
+   (HUD placement only); mobile-tier bodies; portability derived from what a widget binds (like
+   `ai`); the published-contract limit above. Each: manifest, a second-tier check, package
+   tests, `pnpm widget vocab`, WIDGETS.md.
+4. **The harness and the ratchets.** Contact sheets per route (screen × tier × state × face,
+   fixtures for slices as well as datasets), the running review page, and two gate ratchets
+   pinned at today's counts that only go down: JSX in `apps/*/src` outside the entry, router
+   and providers; inline `style={{…}}` (1,119 — 763 in BeigeBoard) down to `vars()` only.
+5. **KourOS pilot.** Home (patterns, pages, `use`, routes) → Now Playing (the player engine's
+   slices and actions, transport, a `scrubber` primitive) → Vibe Map (a `vibespace` primitive
+   with its GL code, density worker and no-WebGL list; local pin/energy state; the debounced
+   near list).
+6. **KourOS, the rest.** A virtual list first (47,000 tracks). Library, books, book detail,
+   playlists (a `sortable` primitive), queue, search, album, artist; the shell (tab bar,
+   beacon, rune layer, device picker, action sheet, mini player); offline books. Stage F lands
+   here too:
+   - **One `cover` primitive, glass as the imported-asset material** (glass for pixels the
+     suite didn't author, paper and press for pixels it drew). Converge the two covers that
+     skip `CoverArt` — [`Cover.tsx`](../apps/kouros/src/components/Cover.tsx) (11 call sites)
+     and [`BookDetail.tsx`](../apps/kouros/src/views/books/BookDetail.tsx)'s inline hero —
+     promote the glass tokens, and delete the ambient decoration in
+     [`glass.css`](../apps/kouros/src/glass.css) (275 lines, all chrome).
+   - **KourOS's inputs on `.jk-field`** — six raw `<input>`/`<select>`s and a local
+     `appearance` reset in `views.css`. `check:fields` names KourOS as its one exemption; remove
+     it from that list in the same commit.
+7. **BeigeBoard.** One tree: `MobileApp` goes, and the phone detail sheet (title, breadcrumbs
+   and Delete, nothing else) reaches the desktop panel's parity for free. 763 inline styles to
+   zero. A `timegrid` primitive folds the ~150 identical lines `DayView.tsx` and `WeekView.tsx`
+   share in `@jkos/cards`. The Workshop (RoutineForge, cadence) on the form controls.
+8. **ORDECK's own chrome.** Tray, settings, login, boot; the HUD grid and the Workshop canvas
+   become primitives, the Workshop's panels widgets.
+9. **jkAuth and jkDeploy, server-rendered.** A prebuilt server renderer in jkAuth's image; its
+   nine pages as widgets; login, 2FA and recovery with no client JS; the CSP unchanged; every
+   jkAuth security suite green. jkDeploy's console generated and checked in, held by a check.
+10. **The UI action inventory.** Generated from the files: every screen → every capability and
+    action it can fire → the scopes those require → the roles that reach them. Gated, so a new
+    destructive control shows up in the diff.
+11. **Then:** draw the jkOS mark (`apps/ordeck/public/icon.svg` / `icon-maskable.svg` and their
+    PNGs are a placeholder dial that every shell derives its icon from), and re-sync
+    [DESIGN.md](agents/DESIGN.md), stale on purpose until the restructure is done.
 
 ---
 
-## 7 · Widget factory v2 — make widgets trivial for agents
-
-The goal: an agent building a feature in app Y writes one `apps/Y/widgets/<id>.json`, binds it
-to Y's *declared* data, runs `pnpm widget check` + `pnpm widget shot`, looks at the PNGs, and
-commits. Polish comes from the patterns, not the author. Decided with you 2026-09-28: widget
-files are compiled into ORDECK at build time; the Workshop stays (derived from the manifest);
-LazurOS `widget-generate` is enabled but wired later (§5).
-
-**Done 2026-09-28:** registry integrity (migration 023, 413 not truncation), relative declared
-paths (LazurOS's Ask widget could never have reached its route), `safeHref`, `@jkos/widgets`
-(manifest, validator, one walker, generated `WidgetNode` union; jkAuth validates every publish),
-and the render harness (`pnpm widget list|check|shot`, `check:widget-render`). **Done
-2026-09-29:** data binds to declarations — sources by `kind` (a `dataset` read through its
-declaration with a reported state; same-origin `fetch` refused by the renderer, the validator
-and jkAuth), `cardinality` and every app's smoke sweeping its datasets (27 mismatches found and
-fixed), `map`/`fmt`/`eq`/`in`/`not`, `$result` with async jobs followed through a common jobs
-shape (probe 86), declared HUD slices, `ai` derived and enforced where a widget renders, and a
-second validation tier. Then the frame (it owns loading/offline/signed-out/empty), the seven
-patterns (`stat`/`meter`/`rows`/`feed`/`facts`/`media`/`ask`), Focus and Week as molecules
-(the `component` hatch retired), one `widgets.css` (the renderer writes no inline style), and
-the catalog as files (`apps/<app>/widgets/*.json`, ORDECK's own cards included, compiled in and
-referenced by id) — each built-in proven pixel-identical through the move. Then the
-derived Workshop, the agent path (`pnpm widget new`, the `new-widget` skill, WIDGETS.md),
-LazurOS's and KourOS's first widgets, and a cold agent building one from the skill alone
-(2026-09-29: its friction became per-row progress and the `silent-empty` rule). Remaining:
-
-- ⚠️ **Yours: review the visual pass.** [The before/after contact sheets](https://claude.ai/artifact/1EPUsLmziti4dozpskGizc).
-  It is one commit, `fc2c09a`, on the local branch `proposal/widget-visual-pass` — NOT on
-  staging: the built-ins on the patterns, the accent chain (`--color-accent`), the clock sized
-  to its card, honest minimum sizes, and `test/widget-render.baseline.json` driven from 54
-  findings to empty. Say approved (or what to change) and an agent brings it onto staging.
-
-Found on the way, not in scope: the AccuWeather key sits in `localStorage` and request URLs
-(ORDECK has no backend to host a `defineConnector`); ORDECK's `BbItem` is hand-typed rather
-than BeigeBoard's `ITEM_SHAPE`; `doc`/`description` and `scope`/`scopes` are spelled both ways
-across apps (the prober misses LazurOS's scopes).
-
----
-
-## 8 · Smaller open items
+## 7 · Smaller open items
 
 - **Node 20 is end-of-life (2026-04-30)** and every app image is `node:20-slim`, as is the dev
   runtime. Found building the desktop app: every supported Electron needs Node ≥ 22.12, which is
@@ -304,10 +313,10 @@ across apps (the prober misses LazurOS's scopes).
   binary's sandbox). Test through the installed `.deb`, or give `node_modules/electron`'s binary
   an AppArmor profile. Never `--no-sandbox`.
 
-- **BeigeBoard's mobile detail sheet shows a title, breadcrumbs and Delete — nothing else.** The
-  desktop DetailPanel has status, notes, schedule, subtasks, "on ORDECK" and more; the mobile sheet
-  had scaffolding for subtasks/move-to-goal that never rendered (retired 2026-09-25). Completion
-  works from every mobile list; parity is a feature, not a fix.
+- **Found building the widget factory:** the AccuWeather key sits in `localStorage` and request URLs
+  (ORDECK has no backend to host a `defineConnector`); ORDECK's `BbItem` is hand-typed rather
+  than BeigeBoard's `ITEM_SHAPE`; `doc`/`description` and `scope`/`scopes` are spelled both ways
+  across apps (the prober misses LazurOS's scopes).
 - **jkAuth has two authorization policies.** `policy.js` holds route actions; `roleClaims()` in
   `db.js` decides the `aud`/`scope` claims every token carries. Folding it in touches the
   token-minting path. It's pinned as an exact three-comparison exception so it can't grow.
@@ -322,7 +331,7 @@ across apps (the prober misses LazurOS's scopes).
 
 ---
 
-## 9 · Standing decisions — don't re-propose these
+## 8 · Standing decisions — don't re-propose these
 
 - **No scheduler / no cron in this suite.** A decision, not an omission.
 - **Git history is never rewritten.** Destructive, and it coordinates with GitHub.
