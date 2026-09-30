@@ -236,14 +236,10 @@ says PROPOSAL; history is not rewritten).
 **The phases, in order.** Each ends in something the gate proves; a new assertion is shown
 failing against the old code before it is trusted.
 
-1. **Tokens** (Stage F's restructure, value-preserving — `check:token-identity` holds it). Make
-   the prefix carry the tier (152 tokens; `--hub-*` spans tiers 1 and 3). Collapse the four
-   accent schemes (`--accent-raw`, `--hub-amber`, `--color-accent`, `--accent`) and retire the
-   pigment names — ⚠️ re-measure the blast radius (927 occurrences in 48 files on 2026-09-10);
-   `music/ridge.py` copies the face values as literals and `Pulsarmap.tsx` aliases the names.
-   Reorder `hub.css` by system (ground → type → colour → geometry → materials → controls →
-   motion), delete labels named after old programs, move the 26 un-namespaced global classes
-   into `.jk-*` and delete the duplicates (`.glow` / `.jk-glow`).
+**hub.css keeps its order** (2026-09-30, overruling Stage F's reorder-by-system): measured, a
+sorted file changes what 175 elements render, because the order decides equal-specificity
+ties (TRAPS.md § CSS). The component classes get grouped when they move into their primitives.
+
 2. **Lift the renderer.** `apps/ordeck/src/hud/registry.tsx` moves into a package; its
    HUD-shaped `WidgetCtx` becomes declared host slices (ORDECK's `slices.ts` is the model);
    heavy primitives load per kind, so ORDECK never downloads KourOS's WebGL unplaced. One atom

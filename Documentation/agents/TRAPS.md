@@ -138,6 +138,19 @@ that code can reopen it.
   (arithmetic-averaging 359° and 1° gives 180° — cyan — for two reds; hue is an angle, not a
   scalar), clamped into a usable chrome range.
 
+- **hub.css's rule ORDER is load-bearing — sorting it "by system" changes what renders.** Many
+  of its rules meet the same element at equal specificity (a field inside a forced-face demo, a
+  chip that is also a well, an LED that is also a now-dot), so the later rule wins by position.
+  Stage F planned a reorder (ground → type → colour → geometry → materials → controls → motion);
+  done as a stable sort of whole sections, it changed the computed style of **175 elements** on
+  the /design page at desktop width and 20 at phone width (2026-09-30), across a dozen unrelated
+  root causes. It was reverted. Move a rule only with a before/after computed-style dump of the
+  /design page on both faces (check:design keeps every class demoed there); the component
+  classes leave hub.css for their primitives in the widget rescope, which is where they get
+  grouped. One latent case the dump exposed: `.jk-led` is declared after `.jk-now-dot`, so an
+  element with both pulses `led-pulse`, not the `pulseOpacity` its demo caption names — no app
+  combines them today.
+
 - **A custom-property CYCLE deletes every token in the loop, silently, and an alias layer is how
   you build one by accident.** jkAuth aliases the factory's semantic names onto its own local ones
   (`--surface: var(--color-card)`, `--text: var(--color-ink)`, …). One of those lines read
