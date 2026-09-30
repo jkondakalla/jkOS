@@ -260,6 +260,8 @@ a.hud-card.hud-w-frame { display: flex; }
   border-top: 1px solid color-mix(in srgb, var(--hub-line) 55%, transparent);
 }
 a.hud-p-row:hover .hud-p-title { color: var(--color-accent); }
+/* A row's own progress: a thin track under its title and second line. */
+.hud-p-main > .hud-p-track { height: 3px; margin-top: 5px; }
 .hud-p-lead {
   font-family: var(--hub-font-mono); font-size: 10.5px; font-variant-numeric: tabular-nums;
   color: var(--hub-cream-dim);

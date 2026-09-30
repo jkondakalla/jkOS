@@ -132,7 +132,7 @@ narrow are already right. **Reach for one before composing primitives.**
 |---|---|---|
 | `stat` | one headline number | `value`, `label`, `unit`, `delta`, `sub`, `trend` |
 | `meter` | how far along | `value` (a fraction, or with `max`), `label`, `detail` |
-| `rows` | a dense list | `from` (the rows), per row: `title`, `lead`, `mark`/`icon`, `detail`, `sub`, `href` |
+| `rows` | a dense list | `from` (the rows), per row: `title`, `lead`, `mark`/`icon`, `detail`, `sub`, `href`, `progress` (out of `total`) |
 | `feed` | what happened, newest first | `from`, per event: `text`, `at`, `icon`, `tone`, `detail` |
 | `facts` | a grid of named values | `items: [{ label, value, tone? }]`, `cols` |
 | `media` | art, a title, where it is | `image`, `title`, `subtitle`, `meta`, `progress`, `href` |

@@ -80,6 +80,14 @@ export type Scope = Record<string, unknown>;
 
 const str = (v: unknown): string => (v == null ? '' : String(v));
 const num = (v: unknown): number => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
+/** How far along, as a percent 0–100 — or null when it cannot be known (no value, or
+ *  nothing to be out of): a bar that is not drawn, rather than one drawn empty. */
+const fraction = (v: unknown, total: unknown): number | null => {
+  if (v == null || v === '') return null;
+  const n = Number(v), t = Number(total);
+  if (!Number.isFinite(n) || !Number.isFinite(t) || t <= 0) return null;
+  return Math.max(0, Math.min(100, (n / t) * 100));
+};
 
 /** Resolve a binding against the current scope (literal, {lit}, or {src,path}).
  *
@@ -341,9 +349,7 @@ const PRIMITIVES: Primitives = {
     );
   },
   meter: (n, scope) => {
-    const v = num(resolve(n.value, scope));
-    const m = n.max != null ? num(resolve(n.max, scope)) : 1;
-    const pct = m > 0 ? Math.max(0, Math.min(100, (v / m) * 100)) : 0;
+    const pct = fraction(resolve(n.value, scope), n.max != null ? resolve(n.max, scope) : 1) ?? 0;
     return (
       <div className="hud-p hud-p-meter" style={vars({ '--w-tone': patternTone(n.tone, scope, 'accent'), '--w-fill': `${pct}%` })}>
         {(n.label != null || n.detail != null) && (
@@ -369,6 +375,7 @@ const PRIMITIVES: Primitives = {
           // An optional line whose value is empty draws nothing, not an empty line — so
           // `sub: $.error` shows only on the rows that have one.
           const lead = opt(n.lead, s), sub = opt(n.sub, s), detail = opt(n.detail, s);
+          const pct = n.progress != null ? fraction(resolve(n.progress, s), n.total != null ? resolve(n.total, s) : 1) : null;
           const inner = (
             <>
               {n.icon != null ? patternIcon(str(resolve(n.icon, s)), patternTone(n.mark, s, 'muted'))
@@ -377,6 +384,7 @@ const PRIMITIVES: Primitives = {
               <span className="hud-p-main">
                 <span className="hud-p-title">{str(resolve(n.title, s))}</span>
                 {sub && <span className="hud-p-sub">{sub}</span>}
+                {pct != null && <span className="hud-p-track" style={vars({ '--w-tone': 'var(--color-accent)', '--w-fill': `${pct}%` })}><span /></span>}
               </span>
               {detail && <span className="hud-p-detail">{detail}</span>}
             </>
@@ -432,9 +440,7 @@ const PRIMITIVES: Primitives = {
   media: (n, scope) => {
     const img = n.image != null ? safeHref(resolve(n.image, scope)) : undefined;
     const href = n.href != null ? safeHref(resolve(n.href, scope)) : undefined;
-    const p = n.progress != null ? num(resolve(n.progress, scope)) : null;
-    const m = n.max != null ? num(resolve(n.max, scope)) : 1;
-    const pct = p != null && m > 0 ? Math.max(0, Math.min(100, (p / m) * 100)) : null;
+    const pct = n.progress != null ? fraction(resolve(n.progress, scope), n.max != null ? resolve(n.max, scope) : 1) : null;
     const body = (
       <>
         <div className="hud-p-media-top">

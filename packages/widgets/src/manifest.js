@@ -294,8 +294,10 @@ export const NODES = {
       detail: { type: 'binding', row: true, doc: 'trailing, dim' },
       sub: { type: 'binding', row: true, doc: 'a second line under the title' },
       href: { type: 'binding', row: true, href: true, doc: 'the row links here' },
-      empty: { type: 'binding', doc: 'when there are no rows (the frame draws an empty SOURCE itself)' },
-      max: { type: 'number', min: 1, max: 100, doc: 'rows shown; the rest become "+N more"' },
+      progress: { type: 'binding', row: true, doc: 'a thin bar under the title: how far along — a fraction, or out of `total`' },
+      total: { type: 'binding', row: true, doc: 'what `progress` is out of (default 1): a duration beside a position' },
+      empty: { type: 'binding', doc: 'when there are no rows (the frame draws an empty SOURCE itself; a list inside one document needs this)' },
+      max: { type: 'number', min: 1, max: 100, doc: 'rows shown; the rest become "+N more" (the list scrolls within its card)' },
     },
     example: {
       t: 'rows', from: { src: 'today', path: 'tasks' }, lead: { src: '$', path: 'timeLabel' },
