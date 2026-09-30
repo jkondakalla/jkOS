@@ -3,14 +3,13 @@
 
    NEUTRALS, accent chain, status colours/tints (--color-ok-soft etc.) and the
    accent helpers (--color-accent-ink/-soft/-contrast) ALL come from the
-   @jkos/design factory (hub.css) now — ORDECK no longer re-declares them. The
-   only things v2 still owns are its two elevation shadows and the mode-flipped
-   icon glow; radius + fonts arrive via injectJkOSTheme() in App.tsx. */
+   @jkos/design factory (hub.css) now — ORDECK no longer re-declares them, and
+   its two elevation shadows became hub.css's --hub-shadow-raised / -lifted
+   (2026-09-30) so a widget card is raised the same way in any app. The only
+   thing v2 still owns is the mode-flipped icon glow; radius + fonts arrive via
+   injectJkOSTheme() in App.tsx. */
 
 html.od-v2 {
-  --od-shadow:      0 1px 2px rgba(60, 40, 15, 0.05), 0 8px 24px -12px rgba(60, 40, 15, 0.16);
-  --od-shadow-lift: 0 2px 4px rgba(60, 40, 15, 0.06), 0 18px 40px -16px rgba(60, 40, 15, 0.26);
-
   /* No emissive glow on paper. Must stay a VALID drop-shadow() value (not `none`,
      which makes `filter: drop-shadow(var(--glow))` invalid): a zero/transparent
      shadow renders nothing while keeping the declaration live. */
@@ -18,9 +17,6 @@ html.od-v2 {
 }
 
 html.od-v2[data-mode="dark"] {
-  --od-shadow:      0 1px 2px rgba(0,0,0,0.35), 0 10px 30px -14px rgba(0,0,0,0.65);
-  --od-shadow-lift: 0 2px 6px rgba(0,0,0,0.4), 0 22px 50px -18px rgba(0,0,0,0.75);
-
   /* Icon halation — factory --color-accent-glow tracks the user's accent. */
   --glow: 0 0 14px var(--color-accent-glow);
 }
@@ -119,7 +115,7 @@ html.od-v2 ::selection { background: var(--color-accent); color: var(--color-acc
   border-radius: var(--jk-radius-lg);
   background: var(--color-lit);
   border: 1px solid var(--color-line-strong);
-  box-shadow: var(--od-shadow-lift);
+  box-shadow: var(--hub-shadow-lifted);
   padding: 8px;
   animation: od-fade-up 0.25s cubic-bezier(0.22,1,0.36,1) both;
 }
@@ -168,7 +164,7 @@ html.od-v2 ::selection { background: var(--color-accent); color: var(--color-acc
   border-radius: var(--jk-radius-lg);
   background: var(--color-card);
   border: 1px solid var(--color-line);
-  box-shadow: var(--od-shadow);
+  box-shadow: var(--hub-shadow-raised);
 }
 
 .hud-eyebrow {
@@ -465,7 +461,7 @@ html.od-v2 ::selection { background: var(--color-accent); color: var(--color-acc
   background: var(--color-card);
   border: 1px solid var(--color-line);
   border-radius: var(--jk-radius-lg);
-  box-shadow: var(--od-shadow);
+  box-shadow: var(--hub-shadow-raised);
   cursor: grab;
   /* pan-x: a horizontal touch swipe scrolls the strip natively; vertical
      movement keeps delivering pointer events, so press-and-HOLD can lift the
@@ -481,7 +477,7 @@ html.od-v2 ::selection { background: var(--color-accent); color: var(--color-acc
 .hud-tile:hover {
   transform: translateY(-2px);
   border-color: color-mix(in srgb, var(--color-accent) 55%, transparent);
-  box-shadow: var(--od-shadow-lift);
+  box-shadow: var(--hub-shadow-lifted);
 }
 .hud-tile:active { transform: none; }
 .hud-tile:focus-visible, .hud-tray-act:focus-visible {
@@ -549,7 +545,7 @@ html.od-v2 ::selection { background: var(--color-accent); color: var(--color-acc
   background: var(--color-card);
   border: 1px solid color-mix(in srgb, var(--color-accent) 55%, transparent);
   border-radius: var(--jk-radius-lg);
-  box-shadow: var(--od-shadow-lift);
+  box-shadow: var(--hub-shadow-lifted);
   transform: translate(-50%, -80%) scale(1.04);
   opacity: 0.92;
   pointer-events: none;
@@ -906,7 +902,7 @@ html.od-v2 ::selection { background: var(--color-accent); color: var(--color-acc
 .hud-sys.warn .hud-sys-val { color: var(--color-warn); }
 
 a.hud-card { display: block; transition: box-shadow 0.2s, transform 0.2s; }
-a.hud-card:hover { box-shadow: var(--od-shadow-lift); transform: translateY(-1px); }
+a.hud-card:hover { box-shadow: var(--hub-shadow-lifted); transform: translateY(-1px); }
 
 /* ── Bottom strip ──────────────────────────────────────────────────────── */
 

@@ -123,6 +123,13 @@
   --hub-secondary-dim:     color-mix(in srgb, var(--hub-secondary) 60%, #000000);
   --hub-secondary-glow:    color-mix(in srgb, var(--hub-secondary) 25%, transparent);
 
+  /* The RAISED surface — a card that sits on the ground (the widget card): a
+     short contact shadow and a long soft one, and the deeper pair it lifts to
+     on hover. Warm ink on paper; near-black and heavier on the tube, where a
+     shadow has to work harder against an unlit ground. */
+  --hub-shadow-raised: 0 1px 2px rgba(60, 40, 15, 0.05), 0 8px 24px -12px rgba(60, 40, 15, 0.16);
+  --hub-shadow-lifted: 0 2px 4px rgba(60, 40, 15, 0.06), 0 18px 40px -16px rgba(60, 40, 15, 0.26);
+
   /* ── Halation ────────────────────────────────────────────────────────────
      The suite-wide emissive accent glow. Halation is a CRT phenomenon: on paper
      an accent presses IN (the well below), so these are `none` here and the dark
@@ -256,6 +263,9 @@
   --hub-accent-ink:      color-mix(in srgb, var(--hub-accent) 78%, #ffffff);
   --hub-secondary-dim:     color-mix(in srgb, var(--hub-secondary) 50%, #000000);
   --hub-secondary-glow:    color-mix(in srgb, var(--hub-secondary) 38%, transparent);
+
+  --hub-shadow-raised: 0 1px 2px rgba(0,0,0,0.35), 0 10px 30px -14px rgba(0,0,0,0.65);
+  --hub-shadow-lifted: 0 2px 6px rgba(0,0,0,0.4), 0 22px 50px -18px rgba(0,0,0,0.75);
 
   /* Halation lights up on the tube: every primary-accent element emits. The text
      halo is tighter than the box halo so accent type stays legible. */
