@@ -641,7 +641,7 @@
 .jk-now-dot      { animation: pulseOpacity 1.8s ease-in-out infinite; }
 .jk-check-pop    { animation: checkBounce 0.25s ease-out; }
 
-/* ─── Full Press entrance physics (Wave 24) ────────────────────────────────
+/* ─── Entrance physics ─────────────────────────────────────────────────────
  * ONE face-aware entrance: on paper the ink DRIES onto the sheet (rise +
  * sharpen + darken to full ink); in CRT the tube POWERS ON (reuses the
  * crtExpand keyframes — the dark-native entrance the system already had).
@@ -677,7 +677,7 @@
   animation: crtOn 0.62s ease-out both;
 }
 
-/* Ambient atmosphere (Wave 24; Full Press folds it onto the data-motion axis) —
+/* Ambient atmosphere, on the data-motion axis —
  * the sheet and the tube each get their own slow, OFF-by-default beat, shown only
  * under <html data-motion="full"> (the axis that also drives .jk-mo-item). Absent or
  * "entrance", entrances still fire but the ambient stays quiet; "static" stops
@@ -815,7 +815,7 @@
 
 /* Hardware bits — SCARCE punctuation, not decoration. One LED marks THE live
    thing; a strip of tape names THE important panel. Spamming hardware chrome
-   removes the importance it exists to grant. (The v0.1 screw/vent/dymo pieces
+   removes the importance it exists to grant. (The old screw/vent/dymo pieces
    were dead code and are gone — reintroduce from git history only with a job
    to do.) */
 
@@ -840,7 +840,7 @@
   background-size: 6px 6px;
 }
 
-/* ─── Print marks (Full Press) — the press's own hardware ──────────────────
+/* ─── Print marks — the press's own hardware ───────────────────────────────
  * Editorial rules, the folio mark, the colophon. Doctrine: content is named
  * in PRINT (.jk-folio); .jk-label-tape remains for MACHINE chrome only. The
  * scarcity rule applies to these like any hardware — one folio names THE
@@ -905,8 +905,8 @@
   color: var(--color-accent); margin: 0 0 10px; }
 :root[data-mode="dark"] .jk-colophon::before { text-shadow: var(--hub-halo-text); }
 
-/* Rubber stamp — the printer's stamp: serif under Full Press, same rotation
-   and currentColor discipline. */
+/* Rubber stamp — the printer's stamp: serif caps, a slight rotation and
+   currentColor. */
 .jk-stamp {
   display: inline-block;
   border: 2px solid currentColor;
@@ -929,7 +929,7 @@
   color: var(--color-accent);
   text-shadow: 0 0 8px var(--color-accent-glow), 0 0 2px var(--color-accent-glow);
 }
-/* THE SEG VERDICT (Full Press) — the readout splits by medium: the tube keeps
+/* THE SEG VERDICT — the readout splits by medium: the tube keeps
    its phosphor numerals (Big Shoulders + glow, unchanged in dark); paper
    PRINTS them — Fraunces lining tabular figures, no glow. One class, mode-
    correct. A 7-seg readout is phosphor hardware; printing one on kraft was a
@@ -1155,7 +1155,7 @@
     0 0 3px  color-mix(in srgb, var(--color-accent) 60%, transparent);
 }
 
-/* ─── Pressed-type family — the chip CUT (Full Press chip system) ───────────
+/* ─── Pressed-type family — the chip CUT (the chip system) ──────────────────
  * Where .jk-press badges PRIMARY accent text RAISED off the sheet, these press
  * DATA-tinted or NEUTRAL type INTO it — the letterpress impression on a chip.
  * All read --jk-tint (unset → --color-accent), so a chip in a goal's own hue presses
@@ -1222,7 +1222,7 @@
   box-shadow: var(--hub-accent-press);
 }
 
-/* Single-element BUBBLES (pills/badges) — letterpress chips under Full Press:
+/* Single-element BUBBLES (pills/badges) — letterpress chips:
    serif caps with the ink pressed in on paper, halation on the tube. */
 .jk-bubble {
   display: inline-flex;
@@ -1512,7 +1512,7 @@
               0 0 18px color-mix(in srgb, var(--jk-tint, var(--color-accent)) 22%, transparent);
 }
 
-/* ─── Chips — the Full Press solid-ink tab (SUITE DEFAULT) ──────────────────
+/* ─── Chips — the solid-ink tab (SUITE DEFAULT) ─────────────────────────────
  * The saturated letter-tab that supersedes the calendar kit's old ACCENT_GLAZE
  * chip: a --jk-tint (unset → --color-accent) fill deepened toward --hub-deepen-ink,
  * with the type cream-KNOCKED-OUT and pressed in (pair with .jk-press-rev on a
@@ -1736,7 +1736,7 @@
 }
 
 /* ─── Async state text (@jkos/ui <AsyncView>) ──────────────────────────────
- * git history: Wave 20 item 20.3: the loading/error/empty triad's single state
+ * The loading/error/empty triad's single state
  * paragraph, unified out of three hand-rolled versions (the book views' local
  * `.muted` in Library.tsx/BookDetail.tsx, `.offline-empty` in
  * OfflineSettings.tsx). Neutral/muted by default like the retired `.muted`;
@@ -1744,7 +1744,7 @@
  * offline.css's `.is-error` hint) rather than going pure red — legible in
  * both modes without a hardcoded hex. ───────────────────────────────────── */
 .jk-async-note {
-  /* Full Press: off-states carry the idiom — the note is SET (serif italic),
+  /* Off-states carry the idiom — the note is SET (serif italic),
      like a compositor's aside, not typed. Copy follows the print idiom too
      ("Setting type…", a stamped NO SIGNAL on error) — that part is per-app. */
   font-family: var(--jk-font-serif);
@@ -1754,8 +1754,8 @@
   opacity: 0.6;
 }
 
-/* (.muted, the legacy alias of .jk-async-note, was retired in Full Press Wave
-   26 — the W23/W25 sweeps left zero call sites: MatchPanel rides .jk-async-note,
+/* (.muted, the legacy alias of .jk-async-note, is retired — the sweeps that
+   replaced it left zero call sites: MatchPanel rides .jk-async-note,
    metadata lines carry dim ink on their own classes.) */
 .jk-async-error {
   color: color-mix(in srgb, var(--color-danger) 75%, var(--color-faint));
@@ -1767,8 +1767,7 @@
  * <Pill> components. All neutral/semantic — never hardcode an accent; the two
  * accent families above own the accent surfaces. ────────────────────────── */
 
-/* Uppercase label — eyebrows + field labels, three sizes. Full Press re-set
-   the ladder in PRINT: tracked Fraunces caps (+1px over the mono scale so the
+/* Uppercase label — eyebrows + field labels, three sizes, set in PRINT: tracked Fraunces caps (+1px over the mono scale so the
    serif holds legibility at these sizes). The machine's own annotations stay
    mono — that's .jk-mono-eyebrow, deliberately untouched. */
 .jk-lab {
@@ -1785,7 +1784,7 @@
    default) for prose-adjacent section heads. Blessed variant, not a new type. */
 .jk-lab.jk-lab-sans { font-family: var(--jk-font-sans); letter-spacing: 0.14em; }
 
-/* Compact text button — printed, not typed (Full Press): Fraunces caps, flat,
+/* Compact text button — printed, not typed: Fraunces caps, flat,
    hovers to the secondary accent (behaviour unchanged). */
 .jk-tbtn {
   font-family: var(--jk-font-serif);
@@ -2544,7 +2543,7 @@ dialog::backdrop { background: var(--color-scrim); }
 .jk-scrim-heavy { background: var(--color-scrim-heavy); }
 
 /* ─── App shell — invariant guard→header→drawer frame (@jkos/ui <AppShell>) ──
- * git history: Wave 20 item 20.1: the frame every full-shell app hand-wrote
+ * The frame every full-shell app hand-wrote
  * (auth guard, header row, SettingsDrawer, useJkOSPreferences wiring) — lifted
  * so a hand-copy can't drop a step again. Purely structural/neutral, same as
  * the scrim above; the header carries no accent of its own. */
@@ -2594,7 +2593,7 @@ dialog::backdrop { background: var(--color-scrim); }
 .jk-shell-settings-btn:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
 
 /* ─── Match panel — search→candidates→apply (@jkos/ui <MatchPanel>) ────────
- * git history: Wave 20 item 20.4: lifted verbatim (same properties, `.match-*`
+ * Lifted verbatim (same properties, `.match-*`
  * renamed `.jk-match-*`) out of book-detail.css — the "Fix metadata"
  * panel was the ONLY consumer, so a hand-copy per future consumer would repeat
  * the original single-app mistake (20.1's brief). Reads the same --hub-
@@ -2659,7 +2658,7 @@ dialog::backdrop { background: var(--color-scrim); }
 }
 /* Dim ink directly — this line used to ride the `.muted` alias, which dragged
    in an unintended 1.5rem vertical padding (the author cancelled it on
-   .jk-match-msg one rule away and missed this one). Retired Full Press Wave 23. */
+   .jk-match-msg one rule away and missed this one). Retired. */
 .jk-match-candidate-meta { font-size: 0.8rem; color: var(--color-faint); }
 .jk-match-candidate-desc {
   margin: 0.3rem 0 0;

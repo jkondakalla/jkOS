@@ -211,7 +211,7 @@ else
   fail(`@jkos/ui/tokens.css re-overrides CRT knobs beyond its sanctioned opt-out: ${extra.map((n) => '--' + n).join(', ')}\n` +
     `  → these belong in hub.css (the base owner) so atmosphere can't fork between import paths. See DESIGN.md § "CRT knob ownership".`);
 
-// ── 3. Full Press face checks (Wave 22, 2026-07-19) ─────────────────────────
+// ── 8. The voice (pinned 2026-07-19) ────────────────────────────────────────
 // The Voice: humans read PRINT (--jk-font-serif, Fraunces by default), the
 // machine speaks MONO (.jk-pill keeps its mono face; .jk-mono-eyebrow is untouched
 // by doctrine), the tube EMITS (.jk-seg keeps Big Shoulders + glow in dark while
@@ -229,7 +229,7 @@ else
     ok('--jk-font-serif defaults to the Fraunces stack (the print voice is the default)');
   else
     fail(`--jk-font-serif no longer defaults to Fraunces (got: ${serifDef || 'missing'}) — ` +
-         'Full Press promoted the serif to a suite default; apps only override via the factory fonts.serif input');
+         'the serif is the suite default; apps only override it via the factory fonts.serif input');
 
   // The seg verdict — one class, two faces.
   const segBase = ruleOf('.jk-seg');
@@ -248,7 +248,7 @@ else
   for (const cls of ['.jk-lab', '.jk-tbtn', '.jk-bubble', '.jk-stamp']) {
     const body = ruleOf(cls);
     if (body && /var\(--jk-font-serif\)/.test(body)) ok(`${cls} is set in print (var(--jk-font-serif))`);
-    else fail(`${cls} no longer reads var(--jk-font-serif) — the Full Press voice was un-cut`);
+    else fail(`${cls} no longer reads var(--jk-font-serif) — the print voice was un-cut`);
   }
   const pill = ruleOf('.jk-pill');
   if (pill && /var\(--jk-font-mono\)/.test(pill))
@@ -259,7 +259,7 @@ else
   // The print marks exist.
   for (const cls of ['.jk-rule', '.jk-rule-strong', '.jk-rule-double', '.jk-folio', '.jk-colophon']) {
     if (ruleOf(cls) !== null) ok(`${cls} print mark present`);
-    else fail(`${cls} is missing from hub.css — the Full Press print marks were dropped`);
+    else fail(`${cls} is missing from hub.css — the print marks were dropped`);
   }
 }
 
