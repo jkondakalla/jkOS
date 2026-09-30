@@ -21,6 +21,13 @@
  * the paper face, once with `data-mode="dark"` — plus, for anything that resolves
  * to a colour, the USED value after `color-mix()` and friends are evaluated.
  *
+ * ⚠️ **AT ALL THREE VIEWPORT TIERS.** hub.css re-declares the scale tokens inside
+ * two `@media` blocks, so a token has up to six values, not two. Until 2026-09-30
+ * this measured once, at headless Chrome's default 800px window — the TABLET tier
+ * only — so a rename done in `:root` and missed in the MOBILE block passed green.
+ * Each tier is now its own window width, and the baseline records a tier's values
+ * only where they differ from desktop.
+ *
  * ⚠️ **THE SUBSTITUTED TEXT IS NOT ENOUGH ON ITS OWN.** A custom property's
  * computed value has `var()` substituted but leaves `color-mix()` unevaluated, so
  * two tokens whose mix percentages differ can share a text form's shape and only
@@ -79,9 +86,15 @@ const hub = readFileSync(HUB, 'utf8');
  * that resolves to a colour comes back as `rgb(...)`/`color(...)` with every
  * `color-mix()` already evaluated, and anything that does not simply inherits the
  * sentinel below and is recorded as a non-colour. */
+/* The sentinel sits on BODY, not on the probe. A token that is not a colour makes
+ * the probe's `color: var(--x)` invalid at computed-value time, which resolves to
+ * `unset` — and `color` inherits, so the probe takes its PARENT's colour. With the
+ * sentinel on the probe itself that parent was body's CanvasText, and every
+ * radius, font and length recorded a black/white "used colour" that flipped with
+ * color-scheme (fixed 2026-09-30). */
 const PROBE = `<!doctype html><html><head>
 <link rel="stylesheet" href="/hub.css">
-<style>html,body{margin:0}#probe{color:rgb(1,2,3)}</style>
+<style>html,body{margin:0}body{color:rgb(1,2,3)}</style>
 </head><body><span id="probe"></span><script>
 (function(){
   var SENTINEL = 'rgb(1, 2, 3)';
@@ -166,7 +179,12 @@ function findChromium() {
   return null;
 }
 
-function measure(chromium) {
+/* The three tiers, each measured at a window width inside it. The bounds are
+ * responsive/breakpoints.ts's (desktop ≥1024, tablet 768–1023, mobile ≤767);
+ * test/responsive.mjs pins hub.css's @media blocks to the same numbers. */
+const TIERS = { desktop: 1280, tablet: 900, mobile: 390 };
+
+function measure(chromium, width) {
   return new Promise((done) => {
     let settled = false;
     const server = createServer((req, res) => {
@@ -193,6 +211,7 @@ function measure(chromium) {
     server.listen(0, '127.0.0.1', () => {
       const url = `http://127.0.0.1:${server.address().port}/probe.html`;
       child = spawn(chromium, ['--headless=new', '--disable-gpu', '--no-sandbox',
+                               `--window-size=${width},900`,
                                '--virtual-time-budget=8000', url], { stdio: 'ignore' });
       child.on('error', () => finish(null));
       timer = setTimeout(() => finish(null), 60_000);
@@ -200,12 +219,55 @@ function measure(chromium) {
   });
 }
 
+/* ── The baseline's shape ─────────────────────────────────────────────────────
+ * Per token: its desktop `light` and `dark`, plus `tablet`/`mobile` entries holding
+ * only the faces whose value differs from desktop. Most tokens never move with the
+ * viewport, so the file stays about the size it was and a rename still reads as
+ * one block moving in the diff. `faces()` expands an entry back to all six. */
+const FACES = Object.keys(TIERS).flatMap((t) => ['light', 'dark'].map((f) => `${t}/${f}`));
+
+function faces(entry) {
+  const out = {};
+  for (const tier of Object.keys(TIERS)) {
+    for (const face of ['light', 'dark']) {
+      out[`${tier}/${face}`] = (tier !== 'desktop' && entry[tier]?.[face]) || entry[face];
+    }
+  }
+  return out;
+}
+
+function toBaseline(byTier) {
+  const entries = {};
+  for (const n of byTier.desktop.names) {
+    const e = { light: byTier.desktop.light[n], dark: byTier.desktop.dark[n] };
+    for (const tier of Object.keys(TIERS).filter((t) => t !== 'desktop')) {
+      for (const face of ['light', 'dark']) {
+        const v = byTier[tier][face][n];
+        if (v && key(v) !== key(e[face])) (e[tier] ||= {})[face] = v;
+      }
+    }
+    entries[n] = e;
+  }
+  return entries;
+}
+
 /* ── The comparison ───────────────────────────────────────────────────────── */
 const key = (t) => `${t.value}\u0000${t.used || ''}`;
+const allKey = (entry) => { const f = faces(entry); return FACES.map((k) => key(f[k])).join('\u0001'); };
+
+/* Suffix affinity, for pairing renames when several new names share one value
+ * (every 8px radius, every `none` halo): the new name that keeps the most of the
+ * old one's tail is the likeliest heir, so the report reads `--hub-radius-sm →
+ * --jk-radius-sm` instead of an arbitrary pairing that happens to pass. */
+const tail = (a, b) => {
+  let i = 0;
+  while (i < a.length && i < b.length && a[a.length - 1 - i] === b[b.length - 1 - i]) i++;
+  return i;
+};
 
 function compare(base, now) {
-  const oldNames = new Set(Object.keys(base.light));
-  const newNames = new Set(Object.keys(now.light));
+  const oldNames = new Set(Object.keys(base));
+  const newNames = new Set(Object.keys(now));
 
   const survived = [...newNames].filter((n) => oldNames.has(n));
   const gone = [...oldNames].filter((n) => !newNames.has(n));
@@ -214,11 +276,11 @@ function compare(base, now) {
   // 1. A surviving name whose value moved. The silent visual change.
   const moved = [];
   for (const n of survived) {
-    for (const face of ['light', 'dark']) {
-      if (key(base[face][n]) !== key(now[face][n])) {
-        moved.push(`${n} (${face}): ${base[face][n].value} → ${now[face][n].value}` +
-          (base[face][n].used !== now[face][n].used
-            ? `   [used ${base[face][n].used} → ${now[face][n].used}]` : ''));
+    const was = faces(base[n]), is = faces(now[n]);
+    for (const face of FACES) {
+      if (key(was[face]) !== key(is[face])) {
+        moved.push(`${n} (${face}): ${was[face].value} → ${is[face].value}` +
+          (was[face].used !== is[face].used ? `   [used ${was[face].used} → ${is[face].used}]` : ''));
       }
     }
   }
@@ -228,24 +290,27 @@ function compare(base, now) {
     for (const m of moved.slice(0, 40)) console.error(`      ${m}`);
     if (moved.length > 40) console.error(`      … and ${moved.length - 40} more`);
   } else {
-    pass(`${survived.length} surviving token(s) compute byte-identically on both faces`);
+    pass(`${survived.length} surviving token(s) compute byte-identically on both faces at all ` +
+      `${Object.keys(TIERS).length} tiers`);
   }
 
   // 2. Renames: a name that vanished and one that appeared carrying the same
-  //    value on both faces. This is the edit Stage F is made of.
+  //    value on every face at every tier. This is the edit Stage F is made of.
   const byValue = new Map();
   for (const n of added) {
-    const k = `${key(now.light[n])}\u0001${key(now.dark[n])}`;
+    const k = allKey(now[n]);
     if (!byValue.has(k)) byValue.set(k, []);
     byValue.get(k).push(n);
   }
   const renamed = [];
   const orphaned = [];
   for (const n of gone) {
-    const k = `${key(base.light[n])}\u0001${key(base.dark[n])}`;
-    const candidates = byValue.get(k);
-    if (candidates && candidates.length) renamed.push([n, candidates.shift()]);
-    else orphaned.push(n);
+    const candidates = byValue.get(allKey(base[n]));
+    if (candidates && candidates.length) {
+      let best = 0;
+      for (let i = 1; i < candidates.length; i++) if (tail(n, candidates[i]) > tail(n, candidates[best])) best = i;
+      renamed.push([n, candidates.splice(best, 1)[0]]);
+    } else orphaned.push(n);
   }
   const arrived = [...byValue.values()].flat();
 
@@ -257,13 +322,13 @@ function compare(base, now) {
   if (orphaned.length) {
     fail(`${orphaned.length} token(s) disappeared with no same-valued replacement — ` +
       'either a value moved during the rename, or a token was dropped:');
-    for (const n of orphaned.slice(0, 30)) console.error(`      ${n} (was ${base.light[n].value})`);
+    for (const n of orphaned.slice(0, 30)) console.error(`      ${n} (was ${base[n].light.value})`);
     if (orphaned.length > 30) console.error(`      … and ${orphaned.length - 30} more`);
   }
   if (arrived.length) {
     fail(`${arrived.length} NEW token(s) that are not a rename of anything — ` +
       'legitimate when the factory grows a primitive, and never silent:');
-    for (const n of arrived.slice(0, 30)) console.error(`      ${n} = ${now.light[n].value}`);
+    for (const n of arrived.slice(0, 30)) console.error(`      ${n} = ${now[n].light.value}`);
     if (arrived.length > 30) console.error(`      … and ${arrived.length - 30} more`);
   }
   if (orphaned.length || arrived.length || moved.length) {
@@ -282,23 +347,31 @@ if (!chromium) {
   if (!existsSync(BASELINE)) fail(`no baseline at ${BASELINE} and no browser to build one`);
   else pass('the committed baseline is present (unverified without a browser)');
 } else {
-  const now = await measure(chromium);
-  if (!now) {
-    fail('Chromium never reported back — could not measure the token layer');
+  const byTier = {};
+  for (const [tier, width] of Object.entries(TIERS)) byTier[tier] = await measure(chromium, width);
+  const missing = Object.keys(TIERS).filter((t) => !byTier[t]);
+  if (missing.length) {
+    fail(`Chromium never reported back at the ${missing.join(', ')} tier — could not measure the token layer`);
   } else {
-    const both = now.names.filter((n) => key(now.light[n]) !== key(now.dark[n]));
-    console.log(`    ${now.names.length} tokens on :root — ${both.length} differ between the ` +
-      `faces, ${now.names.length - both.length} are the same on both`);
+    const now = toBaseline(byTier);
+    const names = Object.keys(now);
+    const both = names.filter((n) => key(now[n].light) !== key(now[n].dark));
+    const tiered = names.filter((n) => now[n].tablet || now[n].mobile);
+    console.log(`    ${names.length} tokens on :root — ${both.length} differ between the faces, ` +
+      `${tiered.length} move with the viewport tier`);
 
     if (UPDATE || !existsSync(BASELINE)) {
       writeFileSync(BASELINE, JSON.stringify(
-        { note: 'Measured by test/token-identity.mjs from a real headless Chromium. ' +
-                'Regenerate with `pnpm check:token-identity --update`; the diff is the review.',
-          tokens: now.names.length, light: now.light, dark: now.dark }, null, 2) + '\n');
-      pass(`${UPDATE ? 'rewrote' : 'created'} the baseline — ${now.names.length} tokens`);
+        { note: 'Measured by test/token-identity.mjs from a real headless Chromium at the desktop, ' +
+                'tablet and mobile widths. Per token: the desktop light/dark values, plus a tier ' +
+                'entry only where that tier differs. Regenerate with ' +
+                '`pnpm check:token-identity --update`; the diff is the review.',
+          tokens: names.length, widths: TIERS, values: now }, null, 2) + '\n');
+      pass(`${UPDATE ? 'rewrote' : 'created'} the baseline — ${names.length} tokens`);
     } else {
       const base = JSON.parse(readFileSync(BASELINE, 'utf8'));
-      compare(base, now);
+      if (!base.values) fail('the baseline predates the per-tier format — regenerate it with --update');
+      else compare(base.values, now);
     }
     measured = true;
   }
@@ -315,7 +388,7 @@ if (measured) {
   skip('the measured half ran — it subsumes this');
 } else if (existsSync(BASELINE)) {
   const base = JSON.parse(readFileSync(BASELINE, 'utf8'));
-  const names = Object.keys(base.light);
+  const names = Object.keys(base.values || {});
   // Every baselined name must still be DECLARED somewhere in hub.css. Cheap, and
   // it catches a deletion even on a machine with no browser.
   const missing = names.filter((n) => !hub.includes(`${n}:`));
