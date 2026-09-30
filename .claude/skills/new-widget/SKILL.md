@@ -35,7 +35,8 @@ pnpm widget new <app> <app>-<thing> --ask <capability>
 
 - A list dataset → `rows` (default) or `feed` (things that happened, with a time).
 - One document → `facts` (default), `stat` (one number), `meter` (a fraction), `media` (art +
-  title + progress). A list *inside* the document → `--from <field>` with `rows`/`feed`.
+  title + progress). A list *inside* the document → `--from <field>` with `rows`/`feed`; its `empty` line sits on
+  the list, not the frame (the document is not empty when the list is).
 - A path parameter or required filter → `--params id=3`. It tells you if one is missing.
 
 It writes the widget and a fixtures file that pass both validation tiers. If it refuses, the

@@ -171,6 +171,9 @@ export function draftWidget({ app, id, dataset, from, ask, pattern, params, docs
 
   const body = shape === 'many' ? listBody(choice, src, r, from) : docBody(choice, src, r);
   const empty = shape === 'many' ? `No ${words(from ?? dataset).toLowerCase()} yet.` : undefined;
+  // A list read from inside one document says its own empty line: the document is not
+  // empty when the list is, so the frame's would never show (semantic.js `silent-empty`).
+  if (from) body.empty = empty;
   // Sizes a first draft fits at (min included — `pnpm widget shot` draws it); a
   // grid of facts needs its rows, a single stat or meter fits a small tile.
   const size = shape === 'many' ? { desktop: { w: 4, h: 5 }, mobile: { w: 2, h: 5 }, min: { w: 3, h: 3 } }
@@ -179,7 +182,7 @@ export function draftWidget({ app, id, dataset, from, ask, pattern, params, docs
   const draft = tidy({
     id, label: words(from ?? dataset), sizing: size,
     spec: {
-      frame: { eyebrow: words(from ?? dataset).toUpperCase(), source, empty },
+      frame: { eyebrow: words(from ?? dataset).toUpperCase(), source, empty: from ? undefined : empty },
       sources: { [src]: { kind: 'dataset', app, dataset, params: params && Object.keys(params).length ? params : undefined, poll: 60 } },
       body,
     },

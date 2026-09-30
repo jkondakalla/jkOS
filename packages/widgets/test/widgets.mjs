@@ -169,6 +169,7 @@ const DOCS = {
     datasets: { datasets: [
       { id: 'jobs', path: '/jobs', filters: [{ name: 'job_id' }, { name: 'status' }], item: [{ name: 'id', type: 'string' }, { name: 'status', type: 'string' }, { name: 'result', type: 'json', item: [{ name: 'response', type: 'text' }] }] },
       { id: 'one', path: '/one/:id', cardinality: 'one', item: [{ name: 'total', type: 'number' }] },
+      { id: 'home', path: '/home', cardinality: 'one', item: [{ name: 'recent', type: 'json', item: [{ name: 'title', type: 'string' }] }] },
       { id: 'radio', path: '/radio', filters: [{ name: 'seed', required: true }] },
     ] },
   },
@@ -216,6 +217,13 @@ ok(t2({ body: { t: 'ask', cmd: { app: 'lz', capability: 'ask' }, answer: { src: 
 ok(t2has({ body: { t: 'ask', cmd: { app: 'lz', capability: 'ask' }, answer: { src: '$result', path: 'job_id' } } }, '/spec/body/answer', 'undeclared-path'), '…never the job handle')
 ok(t2has({ body: { t: 'ask', cmd: { app: 'lz', capability: 'ask' }, field: 'q' } }, '/spec/body/cmd/body/q', 'undeclared'), "ask: a field the capability does not take is refused")
 ok(t2has({ body: { t: 'facts', items: [{ label: 'x', value: { src: 'clock', path: 'hmm' } }] } }, '/spec/body/items/0/value', 'undeclared-path'), 'facts: each value binding is checked')
+const HOME = { h: { kind: 'dataset', app: 'lz', dataset: 'home' } }
+const recent = (extra = {}) => ({ t: 'feed', from: { src: 'h', path: 'recent' }, text: { src: '$', path: 'title' }, ...extra })
+ok(t2has({ sources: HOME, body: recent() }, '/spec/body/empty', 'silent-empty'), 'a list INSIDE one document with no `empty` is refused — the source is not empty, so the card would be blank')
+ok(t2({ sources: HOME, body: recent({ empty: 'Nothing yet.' }) }).length === 0, '…one that says its own empty passes')
+ok(t2({ sources: HOME, body: { t: 'when', cond: { src: 'h', path: 'recent' }, then: recent(), else: { t: 'text', text: 'Nothing yet.' } } }).length === 0, '…as does one under a `when` on that same list')
+ok(t2has({ sources: HOME, body: { t: 'when', cond: { src: 'h', path: 'recent' }, then: { t: 'text', text: 'x' }, else: recent() } }, '/spec/body/else/empty', 'silent-empty'), "…but not one in the `when`'s else")
+ok(t2(ROWS).length === 0, "a list that IS its source (a 'many' dataset) needs no `empty` of its own — the frame draws an empty source")
 
 console.log('4 · the href rule')
 for (const h of ['https://x.test/', '/widgets', 'mailto:a@b.test', '#top']) ok(safeHref(h) === h, `keeps ${JSON.stringify(h)}`)

@@ -34,6 +34,8 @@
 //   7. AN ASYNC COMMAND IS FOLLOWED TO ITS ANSWER. weave's followJob (the REAL module)
 //      reads the app's common-shape jobs dataset until the job ends, hands back what it
 //      RESOLVED to, re-reads when the bus fires, and gives up as `lost`, never spinning.
+//  11. EVERY DRAFT PASSES. `pnpm widget new` over every declared dataset, in every
+//      pattern, and over every list inside one, writes only widgets both tiers accept.
 //
 // Run:  node test/widgets.mjs      (wired as `pnpm check:widgets`, folded into
 //                                   `pnpm test:contracts`)
@@ -329,6 +331,40 @@ for (const f of readdirSync(HUD).filter((n) => n.endsWith('.tsx'))) {
   check(/validateWidget\(/.test(json) && /checkBindings\(/.test(json), 'the JSON tab runs BOTH validation tiers');
   check(/fixtureReader\(/.test(read('apps/ordeck/src/workshop/Gallery.tsx')) && /fixtureReader\(/.test(read('apps/ordeck/preview/main.tsx')),
     'the gallery and the preview harness draw a state with the SAME reader (hud/sample.ts fixtureReader)');
+}
+
+// ── 11. every draft `pnpm widget new` makes passes both tiers ───────────────
+// The scaffolder promises a draft that passes; a validator rule it does not know about
+// breaks `widget new` for every agent while every shipped file stays green (silent-empty
+// did, 2026-09-29). So draft every declared dataset in every pattern, and every list
+// inside a one-document dataset in each list pattern. A draft may REFUSE (nothing to title
+// a row with, no number for a stat); what it writes may never be invalid.
+{
+  const { draftWidget, DRAFT_PATTERNS } = await import(new URL('../scripts/widget/scaffold.mjs', import.meta.url).href);
+  const patterns = [...DRAFT_PATTERNS.many, ...DRAFT_PATTERNS.one];
+  let drafted = 0;
+  for (const [app, decl] of Object.entries(DECLS.docs)) {
+    for (const ds of decl.datasets?.datasets ?? []) {
+      if (!Array.isArray(ds.item)) continue;
+      const needed = [...[...ds.path.matchAll(/:(\w+)/g)].map((m) => m[1]), ...(ds.filters ?? []).filter((f) => f.required).map((f) => f.name)];
+      const params = needed.length ? Object.fromEntries(needed.map((k) => [k, 1])) : undefined;
+      const lists = ds.item.filter((f) => f.type === 'json' && Array.isArray(f.item)).map((f) => f.name);
+      const tries = [
+        ...patterns.map((pattern) => ({ pattern })),
+        ...lists.flatMap((from) => DRAFT_PATTERNS.many.map((pattern) => ({ pattern, from }))),
+      ];
+      for (const t of tries) {
+        const d = draftWidget({ app, id: `${app}-draft`, dataset: ds.id, params, docs: DECLS.docs, ...t });
+        if (d.error) continue;
+        drafted++;
+        const at = `widget new ${app} --dataset ${ds.id}${t.from ? ` --from ${t.from}` : ''} --pattern ${t.pattern}`;
+        const errs = validateWidget(d.def, CTX);
+        const t2 = errs.length ? [] : checkBindings(d.def, DECLS);
+        if (errs.length || t2.length) check(false, `${at} drafts a widget that fails validation — ${fmt([...errs, ...t2])}`);
+      }
+    }
+  }
+  check(drafted >= 20, `every draft \`pnpm widget new\` can make passes both tiers (${drafted} drafted, over every declared dataset and every list inside one)`);
 }
 
 done();

@@ -160,7 +160,7 @@ derived from what it binds, not declared — there is nothing to set.
 | Check | Where | What it refuses |
 |---|---|---|
 | Tier 1 — structure | `validateWidget` (`@jkos/widgets`); jkAuth runs it on every publish | unknown kinds and props (with the likely one), missing required props, controls outside a form, unsafe hrefs, footprints off the grid, suite hosts in a `fetch`, a def over the size limit |
-| Tier 2 — meaning | `checkBindings` (`@jkos/widgets/semantic`) | a binding to a field the source does not declare, a source naming an undeclared dataset or param, a missing path param or required filter, a command with an unbound required field, a `map` onto a closed vocabulary (a tone, an icon) with a value outside it |
+| Tier 2 — meaning | `checkBindings` (`@jkos/widgets/semantic`) | a binding to a field the source does not declare, a source naming an undeclared dataset or param, a missing path param or required filter, a command with an unbound required field, a `map` onto a closed vocabulary (a tone, an icon) with a value outside it, a list read from inside a one-document dataset with no `empty` of its own (the document is not empty when the list is, so the card would draw blank) |
 | `check:widgets` | `test/widgets.mjs` | every shipped file through both tiers, named for its id, no `allowed_roles`, and its fixtures shaped as the dataset declares |
 | `check:widget-render` | `test/widget-render.mjs` | every shipped widget drawn in every tier × state through the real renderer; a new layout finding fails the gate (`test/widget-render.baseline.json` only ratchets down) |
 

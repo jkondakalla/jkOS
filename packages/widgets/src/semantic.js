@@ -244,9 +244,30 @@ export function checkBindings(def, { docs = {}, slices = {} } = {}) {
     return Array.isArray(cap.resolves) ? fieldsShape(cap.resolves) : Array.isArray(cap.returns) ? fieldsShape(cap.returns) : ANY
   }
 
-  const visit = (node, at, sc) => {
+  /* A list read from INSIDE a one-document dataset (`home.continue_books`) can be empty
+     while its source is not: the frame calls a document empty only when it is null, so it
+     draws the body — and a list with nothing to say draws a blank card. Such a list says
+     its own `empty`, or sits under a `when` on that same list (an empty array is false). */
+  const oneDoc = new Set()
+  for (const [name, s] of Object.entries(sources)) {
+    if (!isObj(s) || s.kind !== 'dataset') continue
+    const ds = docs[s.app]?.datasets?.datasets?.find((d) => d.id === s.dataset)
+    if (ds?.cardinality === 'one') oneDoc.add(name)
+  }
+  const guardOf = (b) => (isObj(b) && typeof b.src === 'string' && !b.map && !b.fmt ? `${b.src}\u0000${b.path ?? ''}` : null)
+  const silentEmpty = (node, at, guards) => {
+    const spec_ = NODES[node.t]
+    if (!spec_.props.from || !spec_.props.empty || node.empty !== undefined) return
+    const from = node.from
+    if (!isObj(from) || !oneDoc.has(from.src) || !from.path || guards.has(guardOf(from))) return
+    err(`${at}/empty`, 'silent-empty', `${from.src}.${from.path} is a list inside one document — when it is empty the source is not, so the frame draws the body and this ${node.t} draws nothing: a blank card`,
+      `give it an \`empty\` line, or put it under { "t": "when", "cond": { "src": "${from.src}", "path": "${from.path}" }, "then": …, "else": … }`)
+  }
+
+  const visit = (node, at, sc, guards = new Set()) => {
     if (!isObj(node) || !NODES[node.t]) return
     const spec_ = NODES[node.t]
+    silentEmpty(node, at, guards)
     let here = sc
     if (node.t === 'form') {
       here = new Map(sc)
@@ -279,8 +300,9 @@ export function checkBindings(def, { docs = {}, slices = {} } = {}) {
         inner.set('$result', produced ?? ANY)
         inner.set('$job', JOB)
       }
-      if (many && Array.isArray(c)) c.forEach((x, i) => visit(x, `${at}/${esc(name)}/${i}`, inner))
-      else if (!many) visit(c, `${at}/${esc(name)}`, inner)
+      const g = node.t === 'when' && name === 'then' && guardOf(node.cond) ? new Set([...guards, guardOf(node.cond)]) : guards
+      if (many && Array.isArray(c)) c.forEach((x, i) => visit(x, `${at}/${esc(name)}/${i}`, inner, g))
+      else if (!many) visit(c, `${at}/${esc(name)}`, inner, g)
     }
   }
   visit(spec.body, '/spec/body', scope)
