@@ -1,0 +1,66 @@
+{
+  "id": "kouros-continue-books",
+  "label": "Continue listening",
+  "sizing": {
+    "desktop": {
+      "w": 4,
+      "h": 5
+    },
+    "mobile": {
+      "w": 2,
+      "h": 5
+    },
+    "min": {
+      "w": 3,
+      "h": 4
+    }
+  },
+  "spec": {
+    "frame": {
+      "eyebrow": "CONTINUE LISTENING",
+      "source": "KOUROS",
+      "href": {
+        "src": "origins",
+        "path": "kouros"
+      }
+    },
+    "sources": {
+      "home": {
+        "kind": "dataset",
+        "app": "kouros",
+        "dataset": "discoverHome",
+        "poll": 300
+      }
+    },
+    "body": {
+      "t": "rows",
+      "from": {
+        "src": "home",
+        "path": "continue_books"
+      },
+      "title": {
+        "src": "$",
+        "path": "title"
+      },
+      "sub": {
+        "src": "$",
+        "path": "author"
+      },
+      "detail": {
+        "src": "$",
+        "path": "played_at",
+        "fmt": "ago"
+      },
+      "progress": {
+        "src": "$",
+        "path": "position"
+      },
+      "total": {
+        "src": "$",
+        "path": "duration"
+      },
+      "empty": "No audiobooks in progress.",
+      "max": 6
+    }
+  }
+}

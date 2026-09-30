@@ -13,6 +13,13 @@ no publishing step.
 - **`kouros-recent.json` — Recently played.** The `recent` rail of `discoverHome` (albums,
   stations, playlists and books by the context they were played in, newest first) as a
   `feed`: a glyph by kind, the title, its subtitle, and how long ago.
+- **`kouros-continue-books.json` — Continue listening.** The `continue_books` rail of
+  `discoverHome` (audiobooks with a saved position that are not finished, newest first, at
+  most 12) as `rows`: the title, the author, when it was last played, and a thin bar of
+  `position` out of `duration` under each. Six are shown and the rest become "+N more"
+  (the list scrolls within the card). The rail is a list inside one document, so an empty
+  one is not an empty source — the pattern says its own empty line. Built by a cold agent
+  from the new-widget skill alone (2026-09-29); its friction shaped per-row progress.
 
 The fixtures beside each are what the preview draws; the gate holds them to what KourOS
 declares (`backend/discovery.js`). Change one, then:
