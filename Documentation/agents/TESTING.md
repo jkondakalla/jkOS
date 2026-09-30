@@ -20,6 +20,7 @@ Everything runs from the repo root `/media/jag/The Forge/jkOS` (quote it — the
 | `pnpm test:cards` | Pure-logic unit tests for `@jkos/design` colour + `@jkos/cards` datetime math. |
 | `pnpm check:<name>` | One conformance gate on its own (table below); each is also inside `test:contracts`. |
 | `pnpm new-app <id>` | Scaffold a conformant app — see [WEAVE.md §4](WEAVE.md). `--remove` undoes it. |
+| `pnpm widget new\|check\|shot\|vocab\|list` | Draft, validate (both tiers), draw (every tier × state, both faces) and look up an ORDECK widget — see [WIDGETS.md](WIDGETS.md). |
 
 Per-app runners, to localize a gate failure:
 
@@ -48,9 +49,10 @@ node packages/suite-prober/prove.mjs --live https://staging.jkos.net --token <jw
 node packages/suite-prober/roundtrip.mjs --live <base> --token <jwt>    # live WRITE check, staging-safe
 ```
 
-Two Claude Code skills encode the suite's knowledge: **`/suite-health`** (runs these layers
-in order and maps failure signatures to known causes) and **`/new-tester`** (the house-pattern
-playbook for adding a test and wiring it into the gate).
+Three Claude Code skills encode the suite's knowledge: **`/suite-health`** (runs these layers
+in order and maps failure signatures to known causes), **`/new-tester`** (the house-pattern
+playbook for adding a test and wiring it into the gate) and **`/new-widget`** (an app's HUD
+card, from its declaration to a looked-at PNG).
 
 ## The layers (run in this order, stop at the first red)
 

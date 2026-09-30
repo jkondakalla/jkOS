@@ -121,7 +121,7 @@ const CAPABILITIES_DOC = {
         IDEMPOTENCY,
       ],
       returns: JOB_HANDLE,
-      resolves: [{ name: 'spec', type: 'json', label: 'A WidgetSpec document', schema: 'Documentation/ARCHITECTURE.md' }],
+      resolves: [{ name: 'spec', type: 'json', label: 'A WidgetSpec document', schema: 'Documentation/agents/WIDGETS.md' }],
       invalidates: [JOBS_KEY],
     },
     {

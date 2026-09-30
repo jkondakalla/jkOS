@@ -172,6 +172,18 @@ reports findings in five buckets (`drift` / `consolidate` / `gap` / `info` / `ok
 build. `pnpm prove` runs it in file mode; `--live <url>` turns on a handful of
 liveness-only probes against a deployed stack.
 
+**Widgets are declarations, drawn.** ORDECK's HUD cards are data — a JSON file in the app
+each belongs to (`apps/<app>/widgets/<id>.json`, ORDECK's own cards included), compiled into
+ORDECK at build time. A card binds only what its app *declares*: a dataset source is read
+through its DatasetDoc with a state the card's frame draws, and a form runs a declared
+capability (an async one is followed through the app's common-shape jobs dataset to its
+answer), in the same binding model triggers use (`@jkos/weave/binding`). `packages/widgets`
+holds the vocabulary as data — the manifest ORDECK's node types, the Workshop's editors and
+`pnpm widget vocab` are derived from — and two validation tiers: structure and safety (what
+jkAuth holds a publish to) and meaning (every binding against the declarations). The gate
+draws every card in every state. So an app adds its card without touching ORDECK. How:
+[WIDGETS.md](agents/WIDGETS.md).
+
 **The edge proxy is the trust boundary**, not app-side CORS — see §2. Every backend still
 verifies its own JWT independently; the proxy only removes the need for cross-origin
 requests.
@@ -378,6 +390,8 @@ Full anatomy of both: [TESTING.md](agents/TESTING.md).
   [OPERATIONS.md](OPERATIONS.md).
 - **The integration contract** — what an app implements to weave in, the transport and
   security model: [WEAVE.md](agents/WEAVE.md).
+- **Widgets** — how an app puts a card on the HUD, and what checks it:
+  [WIDGETS.md](agents/WIDGETS.md).
 - **Routines** — the cadence engine, the spec document, the mint rules:
   [ROUTINES.md](agents/ROUTINES.md).
 - **The music/LazurOS design record** — why the vector space and the AI gateway are built

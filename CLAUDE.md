@@ -10,16 +10,18 @@ Repo root is `/media/jag/The Forge/jkOS` — **the path has a space; quote it.**
   in a second list. Its "Standing decisions" section is settled — don't re-propose those.
 - **`Documentation/agents/`** holds the engineering references: `TRAPS.md` (check it before
   debugging anything that smells familiar), `TESTING.md` (every command, gate and suite),
-  `WEAVE.md` (the contract an app implements), `DESIGN.md`, `ALGORITHMS.md` (music + LazurOS
-  design record — code cites its § numbers, so don't renumber), `ROUTINES.md`, `NATIVE.md` (the
-  Android + desktop shells), and the generated `ROUTINE_PROMPT.md` (regenerate, never hand-edit).
+  `WEAVE.md` (the contract an app implements), `WIDGETS.md` (an app's cards on ORDECK's HUD),
+  `DESIGN.md`, `ALGORITHMS.md` (music + LazurOS design record — code cites its § numbers, so
+  don't renumber), `ROUTINES.md`, `NATIVE.md` (the Android + desktop shells), and the generated
+  `ROUTINE_PROMPT.md` (regenerate, never hand-edit).
 - **`native/`** holds the installable apps (jkOS, KourOS, jkOS Home). `native/shells.js` is the one
   list; `pnpm native:gen` projects it into the Android and desktop builds, and `check:native` holds
   their security posture.
 - `Documentation/ARCHITECTURE.md` and `OPERATIONS.md` are the map and the runbook.
 - **The code is the source of truth. A doc is a map;** where they disagree, fix the doc.
-- Two skills encode suite knowledge: `suite-health` (run the gates in order, map a failure to its
-  cause) and `new-tester` (write a test in the house pattern and wire it into the gate).
+- Three skills encode suite knowledge: `suite-health` (run the gates in order, map a failure to
+  its cause), `new-tester` (write a test in the house pattern and wire it into the gate) and
+  `new-widget` (an app's ORDECK card, from its declaration to a looked-at PNG).
 
 ## What this project is for
 
