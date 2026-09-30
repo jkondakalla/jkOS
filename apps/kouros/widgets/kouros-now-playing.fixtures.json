@@ -1,0 +1,83 @@
+{
+  "ready": {
+    "session": {
+      "session": {
+        "rev": 7,
+        "active_device": "3f2a9c1e-5b7d-4e2a-9c1f-0a8b7c6d5e4f",
+        "queue": {
+          "items": [
+            "kouros:41",
+            "kouros:42"
+          ],
+          "cursor": 0,
+          "policy": {
+            "shuffle": false,
+            "repeat": "off",
+            "shuffleSeed": 1,
+            "shuffleOrder": []
+          }
+        },
+        "context": "album/Low/The%20Great%20Destroyer",
+        "item_ref": "kouros:41",
+        "position_ms": 112000,
+        "playing": true,
+        "rate": 1,
+        "sleep_mode": null,
+        "sleep_remaining_ms": null,
+        "reported_at": "2026-09-28T14:41:20.000Z"
+      },
+      "now": {
+        "kind": "track",
+        "id": 41,
+        "title": "Monkey",
+        "subtitle": "Low — The Great Destroyer",
+        "duration": 260,
+        "cover_url": null,
+        "position_ms": 112000,
+        "progress": 0.43
+      },
+      "devices": [
+        {
+          "id": "3f2a9c1e-5b7d-4e2a-9c1f-0a8b7c6d5e4f",
+          "name": "Emily",
+          "kind": "desktop",
+          "platform": "Linux",
+          "volume": 0.8,
+          "muted": false,
+          "last_seen_at": "2026-09-28T14:41:20.000Z",
+          "online": true
+        }
+      ],
+      "serverNow": "2026-09-28T14:41:27.000Z"
+    }
+  },
+  "empty": {
+    "session": {
+      "session": {
+        "rev": 0,
+        "active_device": null,
+        "queue": {
+          "items": [],
+          "cursor": -1,
+          "policy": {
+            "shuffle": false,
+            "repeat": "off",
+            "shuffleSeed": 1,
+            "shuffleOrder": []
+          }
+        },
+        "context": null,
+        "item_ref": null,
+        "position_ms": 0,
+        "playing": false,
+        "rate": 1,
+        "sleep_mode": null,
+        "sleep_remaining_ms": null,
+        "reported_at": null
+      },
+      "now": null,
+      "devices": [],
+      "serverNow": "2026-09-28T14:41:27.000Z"
+    }
+  }
+}

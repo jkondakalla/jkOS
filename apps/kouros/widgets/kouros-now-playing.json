@@ -1,0 +1,75 @@
+{
+  "id": "kouros-now-playing",
+  "label": "Now playing",
+  "sizing": {
+    "desktop": {
+      "w": 4,
+      "h": 3
+    },
+    "mobile": {
+      "w": 2,
+      "h": 3
+    },
+    "min": {
+      "w": 3,
+      "h": 3
+    }
+  },
+  "spec": {
+    "frame": {
+      "eyebrow": "NOW PLAYING",
+      "source": "KOUROS",
+      "href": {
+        "src": "origins",
+        "path": "kouros"
+      }
+    },
+    "sources": {
+      "session": {
+        "kind": "dataset",
+        "app": "kouros",
+        "dataset": "session",
+        "poll": 10
+      }
+    },
+    "body": {
+      "t": "when",
+      "cond": {
+        "src": "session",
+        "path": "now"
+      },
+      "then": {
+        "t": "media",
+        "image": {
+          "src": "session",
+          "path": "now.cover_url"
+        },
+        "title": {
+          "src": "session",
+          "path": "now.title"
+        },
+        "subtitle": {
+          "src": "session",
+          "path": "now.subtitle"
+        },
+        "meta": {
+          "src": "session",
+          "path": "session.playing",
+          "map": {
+            "true": "PLAYING",
+            "false": "PAUSED"
+          }
+        },
+        "progress": {
+          "src": "session",
+          "path": "now.progress"
+        }
+      },
+      "else": {
+        "t": "text",
+        "text": "Nothing playing.",
+        "variant": "sub"
+      }
+    }
+  }
+}

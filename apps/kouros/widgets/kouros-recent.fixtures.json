@@ -1,0 +1,68 @@
+{
+  "ready": {
+    "home": {
+      "stats": {
+        "tracks": 0
+      },
+      "time_of_day": null,
+      "runs": [],
+      "deep_in": [],
+      "recent": [
+        {
+          "kind": "album",
+          "title": "The Great Destroyer",
+          "subtitle": "Low",
+          "cover": {
+            "kind": "track",
+            "id": 41
+          },
+          "route": "album/Low/The%20Great%20Destroyer",
+          "played_at": "2026-09-28T14:39:02.000Z"
+        },
+        {
+          "kind": "station",
+          "title": "Monkey",
+          "subtitle": "Station · Low",
+          "seed": 41,
+          "cover": null,
+          "route": "station/41",
+          "played_at": "2026-09-28T12:10:44.000Z"
+        },
+        {
+          "kind": "book",
+          "title": "The Auditor's Handbook",
+          "subtitle": "J. Kondakalla",
+          "cover": {
+            "kind": "book",
+            "id": 3
+          },
+          "route": "book/3",
+          "played_at": "2026-09-27T21:05:00.000Z"
+        },
+        {
+          "kind": "playlist",
+          "title": "Deep work",
+          "subtitle": "Playlist",
+          "cover": null,
+          "route": "playlist/2",
+          "played_at": "2026-09-26T09:00:00.000Z"
+        }
+      ],
+      "continue_books": [],
+      "fresh_albums": []
+    }
+  },
+  "empty": {
+    "home": {
+      "stats": {
+        "tracks": 0
+      },
+      "time_of_day": null,
+      "runs": [],
+      "deep_in": [],
+      "recent": [],
+      "continue_books": [],
+      "fresh_albums": []
+    }
+  }
+}

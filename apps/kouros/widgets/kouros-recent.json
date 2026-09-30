@@ -1,0 +1,72 @@
+{
+  "id": "kouros-recent",
+  "label": "Recently played",
+  "sizing": {
+    "desktop": {
+      "w": 3,
+      "h": 5
+    },
+    "mobile": {
+      "w": 2,
+      "h": 5
+    },
+    "min": {
+      "w": 3,
+      "h": 3
+    }
+  },
+  "spec": {
+    "frame": {
+      "eyebrow": "RECENTLY PLAYED",
+      "source": "KOUROS",
+      "empty": "Nothing played yet."
+    },
+    "sources": {
+      "home": {
+        "kind": "dataset",
+        "app": "kouros",
+        "dataset": "discoverHome",
+        "poll": 300
+      }
+    },
+    "body": {
+      "t": "feed",
+      "from": {
+        "src": "home",
+        "path": "recent"
+      },
+      "icon": {
+        "src": "$",
+        "path": "kind",
+        "map": {
+          "book": "book",
+          "station": "activity",
+          "playlist": "star"
+        },
+        "fallback": "dot"
+      },
+      "tone": {
+        "src": "$",
+        "path": "kind",
+        "map": {
+          "book": "accent"
+        },
+        "fallback": "muted"
+      },
+      "text": {
+        "src": "$",
+        "path": "title"
+      },
+      "detail": {
+        "src": "$",
+        "path": "subtitle"
+      },
+      "at": {
+        "src": "$",
+        "path": "played_at"
+      },
+      "empty": "Nothing played yet.",
+      "max": 8
+    }
+  }
+}
