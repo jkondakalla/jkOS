@@ -58,13 +58,21 @@ try {
 }
 
 // ── 2. every widget the suite ships is valid ────────────────────────────────
-// Every widget file, ORDECK's own cards included —
-// file — read by scripts/widget/catalog.mjs, the same list the CLI and render gate use.
+// Every widget file, ORDECK's own cards included — read by scripts/widget/catalog.mjs,
+// the same list the CLI and render gate use.
 const shipped = await shippedWidgets();
 check(shipped.filter((w) => w.app === 'ordeck').length >= 9, `ORDECK's own cards are widget files too (${shipped.filter((w) => w.app === 'ordeck').length} in apps/ordeck/widgets)`);
 for (const w of shipped) {
   if (!w.def) { check(false, `${w.where} is JSON — ${w.error}`); continue; }
   if (w.file) check(w.def.id === w.where.split('/').pop().replace(/\.json$/, ''), `${w.where}: the file is named for its widget id`);
+}
+// A file is compiled into ORDECK's bundle and reaches every HUD. `allowed_roles` is
+// enforced only on PUBLISHED defs (jkAuth's GET /auth/widgets filters by role) — in a
+// file it would be a role gate nothing enforces, and a card in a public bundle cannot be
+// hidden from anyone anyway. Gate the DATA (the dataset's scopes); the card follows.
+{
+  const gated = shipped.filter((w) => w.def?.allowed_roles !== undefined).map((w) => w.where);
+  check(gated.length === 0, `no widget file claims allowed_roles — only a published def is role-filtered${gated.length ? ` — ${gated.join(', ')}` : ''}`);
 }
 const CTX = { suiteHosts: suiteHosts() };
 const DECLS = await declarations();
