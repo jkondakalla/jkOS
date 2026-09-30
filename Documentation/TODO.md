@@ -236,15 +236,14 @@ says PROPOSAL; history is not rewritten).
 **The phases, in order.** Each ends in something the gate proves; a new assertion is shown
 failing against the old code before it is trusted.
 
+**The renderer is `@jkos/widget-render`**, and an app draws a widget in a `WidgetHost` it
+declares (its slices, its host kinds — WIDGETS.md). Every visible change the rescope makes is
+logged, before and after, on [the Rescope Review](https://claude.ai/artifact/5Ti5JYSCumLMNzhzeBYZaY).
+
 **hub.css keeps its order** (2026-09-30, overruling Stage F's reorder-by-system): measured, a
 sorted file changes what 175 elements render, because the order decides equal-specificity
 ties (TRAPS.md § CSS). The component classes get grouped when they move into their primitives.
 
-2. **Lift the renderer.** ORDECK's `hud/registry.tsx` moves into a package; its
-   HUD-shaped `WidgetCtx` becomes declared host slices (ORDECK's `slices.ts` is the model);
-   heavy primitives load per kind, so ORDECK never downloads KourOS's WebGL unplaced. One atom
-   set: widget atoms render `@jkos/ui` (`pill`/`Pill`, `bar`/`Bar`, and `.hud-p-track`, the
-   third bar). ORDECK's HUD re-hosted on it, every shipped widget shot before and after.
 3. **The language.** Widget inputs + `use`; per-instance `state` + `set`; `on:` events → a
    capability, an engine action, `set` or `go`; host actions declared and typed per app;
    routes (a path → a page widget, a `route` slice, `go`); source `debounce`; `sizing` optional
