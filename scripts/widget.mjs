@@ -8,6 +8,8 @@
 //                                             --params gives the path parameters and required filters it is read with)
 //   pnpm widget new <app> <id> --ask <capability>
 //                                             draft an ask over a capability the app declares
+//   pnpm widget vocab [<kind> …]               the node vocabulary, read from the manifest: every
+//                                             kind, its props, an example (a kind's name: just that one)
 //   pnpm widget list                          every widget the suite ships, and where it lives
 //   pnpm widget check [<id|file> …]           validate (all shipped widgets when none named)
 //   pnpm widget shot <id|file> … [options]    draw it — every tier × state — and write PNGs
@@ -29,7 +31,7 @@ import { shippedWidgets, suiteHosts, declarations, WIDGETS_URL, SEMANTIC_URL, RE
 import { renderWidgets } from './widget/render.mjs';
 import { draftWidget } from './widget/scaffold.mjs';
 
-const { validateWidget: validate } = await import(WIDGETS_URL);
+const { validateWidget: validate, NODES, FRAME, TONES } = await import(WIDGETS_URL);
 const { checkBindings } = await import(SEMANTIC_URL);
 const CTX = { suiteHosts: suiteHosts() };
 const DECLS = await declarations();
@@ -91,6 +93,19 @@ if (cmd === 'new') {
   }
   for (const n of draft.notes) console.log(`  · ${n}`);
   console.log(`\nIt is a draft: choose the fields that matter, write the empty line, size it. Then\n  pnpm widget check ${id}\n  pnpm widget shot ${id}\nand LOOK at both faces. Documentation/agents/WIDGETS.md is the reference.`);
+} else if (cmd === 'vocab') {
+  const prop = (name, p) => `    ${(name + (p.required ? '*' : '')).padEnd(12)} ${p.type}${p.values ? ` (${p.values.join('|')})` : p.type === 'tone' ? ` (${TONES.join('|')})` : ''}${p.row ? ' · per row, binds into $' : ''}${p.result ? ' · reads $result' : ''}${p.doc ? ` — ${p.doc}` : ''}`;
+  const kinds = names.length ? names : Object.keys(NODES);
+  for (const t of kinds) {
+    const n = NODES[t];
+    if (!n) { console.error(`✗ no kind '${t}' — one of: ${Object.keys(NODES).join(', ')}`); process.exit(2); }
+    console.log(`\n${t}  [${n.kind}] ${n.label} — ${n.hint ?? ''}`);
+    for (const [name, p] of Object.entries(n.props)) console.log(prop(name, p));
+    if (n.placement) console.log(`    placement: ${Object.entries(n.placement).map(([k, v]) => `${k} ${v}`).join(', ')}`);
+    if (n.example) console.log(`    e.g. ${JSON.stringify(n.example)}`);
+  }
+  if (!names.length) { console.log('\nframe (spec.frame)'); for (const [name, p] of Object.entries(FRAME)) console.log(prop(name, p)); }
+  console.log('\n* required');
 } else if (cmd === 'list') {
   for (const w of await shippedWidgets()) console.log(`${(w.def?.id ?? '?').padEnd(22)} ${w.where}${w.fixtures ? '  (+ fixtures)' : ''}`);
 } else if (cmd === 'check') {
