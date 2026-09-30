@@ -137,6 +137,7 @@ Engineering references, written for whoever is changing the code. Agents also ge
 | [agents/TRAPS.md](agents/TRAPS.md) | 117 durable traps — browser engines and WebGL, Node/pnpm, SQLite, numpy, Docker, the native shells, this repo's shape. |
 | [agents/TESTING.md](agents/TESTING.md) | Every command, gate and test suite, what each asserts, and how to add one. |
 | [agents/WEAVE.md](agents/WEAVE.md) | The integration contract — what an app must implement, the rulings, the checklist for a new app. |
+| [agents/WIDGETS.md](agents/WIDGETS.md) | An app's cards on ORDECK's HUD — the file, sources, bindings, patterns, commands, and what checks them. |
 | [agents/DESIGN.md](agents/DESIGN.md) | The design system — tokens, the accent chain, class catalog, per-app constraints. |
 | [agents/ALGORITHMS.md](agents/ALGORITHMS.md) | The music vector space and LazurOS design record — measurements, gates, traps. |
 | [agents/NATIVE.md](agents/NATIVE.md) | The native shells — the Android apps (jkOS, KourOS, jkOS Home) and the Linux desktop apps: what derives from what, the trust model, the launcher's bridge, building, what holds it. |
