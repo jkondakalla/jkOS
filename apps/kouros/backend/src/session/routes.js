@@ -1,4 +1,5 @@
 'use strict';
+const { APPS, apiBaseOf } = require('@jkos/suite-manifest');
 // session/routes.js — the listening session over HTTP: one live stream DOWN (SSE),
 // plain POSTs UP. Every KourOS instance signed in as one listener sees the same
 // session, any of them can be the OUTPUT (the one device that plays), and every other
@@ -97,11 +98,51 @@ function createSessionRouter({ db, store, hub, offlineGraceMs = OFFLINE_GRACE_MS
   const stale = new Map();
 
   const uid = (req) => req.user && req.user.sub;
-  const snapshot = (userId) => ({
-    session: store.session(userId),
-    devices: store.devices(userId, hub.online(userId)),
-    serverNow: new Date().toISOString(),
+  /* What is playing, as a reader outside KourOS can show it. The session carries only a
+     ref (`kouros:<id>`, `book:<id>`, or a bare legacy id); a peer — an ORDECK widget —
+     cannot resolve that without reading this app's catalog, so the snapshot resolves it:
+     a title, a subtitle, a duration, and the art as the edge path a peer loads it from. */
+  const API_BASE = apiBaseOf(APPS.find((a) => a.id === 'kouros'));
+  // Prepared on first use: the session router is also mounted over a database that holds
+  // no catalog (its own smoke), and a session with nothing playing never asks.
+  let q = null;
+  const lookups = () => (q ??= {
+    track: db.prepare('SELECT id, title, artist, album, duration, cover_path FROM tracks WHERE id = ?'),
+    book: db.prepare('SELECT id, title, author, duration, cover_path FROM books WHERE id = ?'),
   });
+  function nowPlaying(session) {
+    const item = resolveItem(session.item_ref);
+    if (!item) return null;
+    // Where it is NOW (extrapolated from the last report, as a remote does), as a fraction —
+    // a widget cannot divide milliseconds by seconds itself.
+    const pos = livePositionMs(session, Date.now(), reportStaleMs);
+    const progress = item.duration > 0 ? Math.max(0, Math.min(1, pos / (item.duration * 1000))) : null;
+    return { ...item, position_ms: pos, progress };
+  }
+  function resolveItem(ref) {
+    const m = typeof ref === 'string' ? ref.match(/^(?:(kouros|book):)?(\d+)$/) : null;
+    if (!m) return null;
+    let L;
+    try { L = lookups(); } catch { return null; }   // no catalog here: nothing to resolve against
+    const id = Number(m[2]);
+    if (m[1] === 'book') {
+      const b = L.book.get(id);
+      return b ? { kind: 'book', id: b.id, title: b.title, subtitle: b.author || '', duration: b.duration ?? null,
+        cover_url: b.cover_path ? `${API_BASE}/books/cover/${b.id}` : null } : null;
+    }
+    const t = L.track.get(id);
+    return t ? { kind: 'track', id: t.id, title: t.title, subtitle: [t.artist, t.album].filter(Boolean).join(' — '), duration: t.duration ?? null,
+      cover_url: t.cover_path ? `${API_BASE}/cover/${t.id}` : null } : null;
+  }
+  const snapshot = (userId) => {
+    const session = store.session(userId);
+    return {
+      session,
+      now: nowPlaying(session),
+      devices: store.devices(userId, hub.online(userId)),
+      serverNow: new Date().toISOString(),
+    };
+  };
   const publishSession = (userId, session) => hub.publish(userId, 'session', { session, serverNow: new Date().toISOString() });
   const publishDevices = (userId) => hub.publish(userId, 'devices', { devices: store.devices(userId, hub.online(userId)) });
   const bad = (res, error) => res.status(400).json({ error });

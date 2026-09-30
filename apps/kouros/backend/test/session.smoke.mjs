@@ -240,6 +240,7 @@ try {
   const empty = (await req('GET', '/api/session', undefined, A)).json;
   ok(empty && empty.session.rev === 0 && empty.session.active_device === null && empty.devices.length === 0 && typeof empty.serverNow === 'string',
     'a listener with no session reads rev 0, no output, no devices, and serverNow');
+  ok(empty.now === null, 'nothing playing → `now` is null');
 
   /* ── Devices ── */
   const A1 = randomUUID(), A2 = randomUUID(), A3 = randomUUID(), B1 = randomUUID(), B2 = randomUUID();
@@ -310,6 +311,22 @@ try {
   ok(typeof good.json.session.reported_at === 'string' && Math.abs(Date.parse(good.json.session.reported_at) - tReport) < 2000,
     'reported_at is stamped by the server at receipt');
   ok(good.json.session.context === 'album/The%20Band/First', 'the context the queue came from is kept');
+
+  /* What is playing, resolved for a reader outside KourOS (an ORDECK widget cannot read
+     this app's catalog to turn `kouros:1` into a title). The catalog here is empty, so
+     one track goes in beside the running server — WAL lets a second connection write. */
+  {
+    const Database = require('better-sqlite3');
+    const side = new Database(DB_PATH);
+    side.prepare("INSERT OR REPLACE INTO tracks (id, path, title, artist, album, duration, cover_path) VALUES (1, '/x/1.flac', 'First Light', 'The Band', 'First', 241, 'covers/1.jpg')").run();
+    side.close();
+    const snap = (await req('GET', '/api/session', undefined, A)).json;
+    ok(snap.now?.kind === 'track' && snap.now.title === 'First Light' && snap.now.subtitle === 'The Band — First' && snap.now.duration === 241,
+      `the snapshot resolves what is playing: title, artist — album, duration (got ${JSON.stringify(snap.now)})`);
+    ok(snap.now?.cover_url === '/api/kouros/cover/1', `…and its art as the edge path a peer loads it from (got ${snap.now?.cover_url})`);
+    ok(snap.now.position_ms >= 30_000 && snap.now.progress > 0.12 && snap.now.progress < 0.2,
+      `…and where it is now, as a fraction a widget can draw (30 s into 241 s ≈ 0.125, a moment later) (got ${snap.now.position_ms} ms, ${snap.now.progress})`);
+  }
   const seenByA2 = await sA2.take(isSession((s) => s.rev === 2));
   ok(seenByA2 && seenByA2.data.session.position_ms === 30_000 && typeof seenByA2.data.serverNow === 'string', 'A2 receives the report as a session event, with serverNow');
   ok(!(await sB1.saw((e) => e.event === 'session', 50)), "B never receives A's session");
