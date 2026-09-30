@@ -203,8 +203,8 @@
         "used": "rgb(180, 32, 16)"
       },
       "dark": {
-        "value": "#f87171",
-        "used": "rgb(248, 113, 113)"
+        "value": "#ff4530",
+        "used": "rgb(255, 69, 48)"
       }
     },
     "--color-faint": {
@@ -263,8 +263,8 @@
         "used": "rgb(42, 112, 64)"
       },
       "dark": {
-        "value": "#34d399",
-        "used": "rgb(52, 211, 153)"
+        "value": "#5cd66a",
+        "used": "rgb(92, 214, 106)"
       }
     },
     "--color-on-accent": {

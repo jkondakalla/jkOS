@@ -87,9 +87,13 @@
   --hub-green:      #2a7040;
   --hub-green-glow: color-mix(in srgb, #2a7040 22%, transparent);
   --hub-magenta:    #8a2060;
-  --color-ok:     #2a7040;
   --color-warn:   #a04010;
-  --color-danger: #b42010;
+  /* ok and danger are the status pair above, not a second palette. Until
+     2026-09-30 these were literals with their own dark values (#34d399 /
+     #f87171) — a second green and a second red that only jkAuth read, on a
+     face jkAuth never renders. */
+  --color-ok:     var(--hub-green);
+  --color-danger: var(--hub-red);
 
   /* Typography — the Full Press Voice: humans read print (the serif), the
      machine speaks mono, the tube emits (seg). The serif default IS Fraunces
@@ -444,9 +448,7 @@
   --hub-green:      #5cd66a;
   --hub-green-glow: rgba(92, 214, 106, 0.35);
   --hub-magenta:    #ff5d8f;
-  --color-ok:     #34d399;
   --color-warn:   #fbbf24;
-  --color-danger: #f87171;
 
   --grain-blend:   screen;
   --hub-grain-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='jkg'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23jkg)' opacity='0.135'/%3E%3C/svg%3E");
