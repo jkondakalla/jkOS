@@ -1,6 +1,13 @@
 #!/usr/bin/env node
 // pnpm widget — build, check and LOOK AT an ORDECK widget.
 //
+//   pnpm widget new <app> <id> --dataset <name> [--from <field>] [--pattern P] [--params k=v,…]
+//                                             draft a widget over a dataset the app declares
+//                                             (P: rows | feed for a list; facts | stat | meter | media for one document;
+//                                             --from drafts a list over a list field inside one document;
+//                                             --params gives the path parameters and required filters it is read with)
+//   pnpm widget new <app> <id> --ask <capability>
+//                                             draft an ask over a capability the app declares
 //   pnpm widget list                          every widget the suite ships, and where it lives
 //   pnpm widget check [<id|file> …]           validate (all shipped widgets when none named)
 //   pnpm widget shot <id|file> … [options]    draw it — every tier × state — and write PNGs
@@ -16,10 +23,11 @@
 // Then read the PNGs — a widget is not done until it has been looked at in both faces.
 
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { join, resolve, relative } from 'node:path';
 import { tmpdir } from 'node:os';
-import { shippedWidgets, suiteHosts, declarations, WIDGETS_URL, SEMANTIC_URL } from './widget/catalog.mjs';
+import { shippedWidgets, suiteHosts, declarations, WIDGETS_URL, SEMANTIC_URL, REPO_ROOT } from './widget/catalog.mjs';
 import { renderWidgets } from './widget/render.mjs';
+import { draftWidget } from './widget/scaffold.mjs';
 
 const { validateWidget: validate } = await import(WIDGETS_URL);
 const { checkBindings } = await import(SEMANTIC_URL);
@@ -57,7 +65,33 @@ async function resolveWidgets(list) {
 
 const fmt = (p) => `    ${p.path || '/'}  ${p.code} — ${p.message}${p.fix ? `\n      ↳ ${p.fix}` : ''}`;
 
-if (cmd === 'list') {
+if (cmd === 'new') {
+  const [app, id] = names;
+  if (!app || !id || (!flags.dataset === !flags.ask)) {
+    console.error('usage: pnpm widget new <app> <id> --dataset <name> [--pattern P]   |   pnpm widget new <app> <id> --ask <capability>');
+    process.exit(2);
+  }
+  if ((await shippedWidgets()).some((w) => w.def?.id === id)) { console.error(`✗ a widget '${id}' already ships — \`pnpm widget list\``); process.exit(2); }
+  const params = typeof flags.params === 'string'
+    ? Object.fromEntries(flags.params.split(',').map((kv) => { const [k, ...v] = kv.split('='); const val = v.join('='); return [k.trim(), /^-?\d+(\.\d+)?$/.test(val) ? Number(val) : val]; }))
+    : undefined;
+  const draft = draftWidget({ app, id, dataset: flags.dataset, from: typeof flags.from === 'string' ? flags.from : undefined, ask: flags.ask, pattern: typeof flags.pattern === 'string' ? flags.pattern : undefined, params, docs: DECLS.docs });
+  if (draft.error) { console.error(`✗ ${draft.error}`); process.exit(2); }
+  const problems = validateWidget(draft.def);
+  if (problems.length) { console.error('✗ the draft does not pass validation — a scaffolder bug:'); for (const p of problems) console.error(fmt(p)); process.exit(1); }
+  const dir = join(REPO_ROOT, 'apps', app, 'widgets');
+  const file = join(dir, `${id}.json`);
+  if (existsSync(file)) { console.error(`✗ ${relative(REPO_ROOT, file)} exists`); process.exit(2); }
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(file, `${JSON.stringify(draft.def, null, 2)}\n`);
+  console.log(`✓ ${relative(REPO_ROOT, file)} — passes both tiers`);
+  if (draft.fixtures) {
+    writeFileSync(join(dir, `${id}.fixtures.json`), `${JSON.stringify(draft.fixtures, null, 2)}\n`);
+    console.log(`✓ ${relative(REPO_ROOT, join(dir, `${id}.fixtures.json`))}`);
+  }
+  for (const n of draft.notes) console.log(`  · ${n}`);
+  console.log(`\nIt is a draft: choose the fields that matter, write the empty line, size it. Then\n  pnpm widget check ${id}\n  pnpm widget shot ${id}\nand LOOK at both faces. Documentation/agents/WIDGETS.md is the reference.`);
+} else if (cmd === 'list') {
   for (const w of await shippedWidgets()) console.log(`${(w.def?.id ?? '?').padEnd(22)} ${w.where}${w.fixtures ? '  (+ fixtures)' : ''}`);
 } else if (cmd === 'check') {
   let bad = 0;
