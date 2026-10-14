@@ -27,8 +27,7 @@
 // ⚠️ **THE SHADER DERIVES (line, segment) FROM `gl_InstanceID`, AND `cellOf` /
 // `lineOf` ARE THE SAME ARITHMETIC IN TYPESCRIPT.** The gate reads the shader source
 // for the expressions and checks these against every instance. An off-by-one there
-// draws a plausible picture of the wrong rows. (The texel a row lands in is the
-// package's `texelOf` / `matrixTexel`, held by its own test.)
+// draws a plausible picture of the wrong rows.
 
 import { bandFraction, liveRow } from '../pulsarmap';
 import { clamp, DEG, type OrbitDragLimits, type Vec3 } from '@jkos/scene/math';

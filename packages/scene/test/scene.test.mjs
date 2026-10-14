@@ -224,44 +224,6 @@ const math = await import(transpileSceneMath(tmp));
   check(kept.length === 8 && !kept.includes(99), 'thinLabels: at most 8, and an overlapping fainter label yields');
 }
 
-/* ── a matrix as a texture ────────────────────────────────────────────────── */
-{
-  const { textureLayout, texelOf, packTexture, MATRIX_TEXEL_GLSL } = math;
-  for (const rows of [10, 600, 2500]) {
-    const cols = 128;
-    const layout = textureLayout(rows, cols, 2048);
-    check(layout.width <= 2048 && layout.height <= 2048,
-      `textureLayout: ${rows} rows fit a 2048 texture (${layout.width}×${layout.height})`);
-    const bytes = new Uint8Array(rows * cols);
-    for (let i = 0; i < bytes.length; i++) bytes[i] = (i * 2654435761) % 251;   // no two neighbours alike
-    const tex = packTexture(bytes, layout);
-    let bad = 0;
-    const seen = new Set();
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
-        const [x, y] = texelOf(r, c, layout);
-        const key = y * layout.width + x;
-        if (seen.has(key) || x >= layout.width || y >= layout.height || tex[key] !== bytes[r * cols + c]) bad++;
-        seen.add(key);
-      }
-    }
-    check(bad === 0,
-      `textureLayout: every one of ${rows}×${cols} cells round-trips through its own texel` +
-      (rows > 2048 ? ' — including across the WRAP into a second column' : ''));
-  }
-  let threw = false;
-  try { packTexture(new Uint8Array(5), textureLayout(3, 4)); } catch { threw = true; }
-  check(threw, 'packTexture: a length that does not match the declared shape throws');
-  let tooBig = false;
-  try { textureLayout(2048 * 17, 128, 2048); } catch { tooBig = true; }
-  check(tooBig, 'textureLayout: a matrix that cannot fit even wrapped throws, rather than drawing part of it');
-  // ⚠️ The GLSL is texelOf, expression for expression — a shader that pastes it in
-  // cannot drift from the TypeScript the round-trip above proves.
-  check(/int column = row \/ rowsPerColumn;/.test(MATRIX_TEXEL_GLSL) &&
-        /return ivec2\(col \+ column \* cols, row - column \* rowsPerColumn\);/.test(MATRIX_TEXEL_GLSL),
-    'MATRIX_TEXEL_GLSL: the same column / offset arithmetic as texelOf');
-}
-
 /* ── colour ───────────────────────────────────────────────────────────────── */
 {
   const { parseColor } = math;

@@ -5,6 +5,5 @@ export * from './motion';
 export * from './rig';
 export * from './gesture';
 export * from './pick';
-export * from './texture';
 export * from './color';
 export * from './renderer';
