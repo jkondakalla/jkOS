@@ -20,7 +20,7 @@ import { checkBindings } from '../src/semantic.js'
 let pass = 0, fail = 0
 const ok = (cond, msg, extra = '') => { if (cond) { pass++; console.log(`  ✓ ${msg}`) } else { fail++; console.error(`  ✗ ${msg} ${extra}`) } }
 
-const PROP_TYPES = new Set(['binding', 'tone', 'number', 'boolean', 'string', 'enum', 'field', 'cmd', 'pairs', 'node', 'nodes', 'state', 'events', 'params'])
+const PROP_TYPES = new Set(['binding', 'tone', 'number', 'boolean', 'string', 'enum', 'field', 'cmd', 'pairs', 'node', 'nodes', 'state', 'events', 'params', 'action'])
 const sizing = { desktop: { w: 3, h: 3 }, mobile: { w: 2, h: 3 } }
 const def = (body, extra = {}) => ({ id: 'probe', label: 'Probe', sizing, spec: { body }, ...extra })
 const problems = (d) => validateWidget(d)
@@ -188,6 +188,9 @@ const rowsOn = { t: 'rows', from: { src: 'x' }, title: { src: '$', path: 't' }, 
 ok(problems(withState(rowsOn)).length === 0, 'a row may be an action (on.select)')
 ok(sHas({ ...rowsOn, href: { src: '$', path: 'url' } }, '/spec/body/on', 'conflict'), '…or a link — never both')
 ok(problems(withState({ t: 'form', cmd: CMD, submit: 'GO', children: [], on: { done: flip } })).length === 0, 'a form may act once its command is done')
+ok(problems(withState({ t: 'button', text: 'END', on: { press: { do: 'focus.clear' } } })).length === 0, 'a button may fire a host action (do)')
+ok(sHas({ t: 'button', text: 'END', on: { press: { do: 'clearFocus' } } }, '/spec/body/on/press/do', 'bad-type'), "…named <engine>.<verb>")
+ok(pubHas({ body: { t: 'button', text: 'END', on: { press: { do: 'focus.clear' } } } }, '/spec/body/on/press', 'unpublishable'), "a published widget fires no host action — it is one host's engine")
 
 console.log('3 · one walker')
 const spec = {
@@ -285,6 +288,18 @@ ok(t2({ sources: JOBS_SRC, state: ST, body: { t: 'rows', from: { src: 'jobs' }, 
   "a row's event reads that row as $")
 ok(t2({ state: ST, body: { t: 'form', cmd: NOTE, submit: 'GO', children: [], on: { done: { set: 'q', to: { src: '$result', path: 'id' } } } } }).length === 0,
   "a form's `done` reads what its command produced")
+const HOST = { 'player.play': { label: 'Play', args: [{ name: 'id', type: 'number', required: true }, { name: 'from', type: 'number' }], returns: [{ name: 'queued', type: 'number' }] } }
+const t2h = (spec) => checkBindings({ id: 'p', spec }, { docs: DOCS, slices: SLICES, actions: HOST })
+const t2hHas = (spec, path, code) => t2h(spec).some((p) => p.path === path && p.code === code)
+const play = (a) => ({ state: ST, body: { t: 'button', text: 'PLAY', on: { press: a } } })
+ok(t2h(play([{ do: 'player.play', with: { id: 7 } }, { set: 'q', to: { src: '$result', path: 'queued' } }])).length === 0, 'a host action its host declares passes, and what it returns is $result after it')
+ok(t2hHas(play({ do: 'player.pley', with: { id: 7 } }), '/spec/body/on/press/do', 'undeclared'), 'an action the host does not declare is refused…')
+ok(t2h(play({ do: 'player.pley', with: { id: 7 } }))[0]?.fix === 'did you mean "player.play"?', '…naming the declared one')
+ok(t2hHas(play({ do: 'player.play', with: { id: 7, form: 1 } }), '/spec/body/on/press/with/form', 'undeclared'), 'an argument it does not take is refused')
+ok(t2hHas(play({ do: 'player.play' }), '/spec/body/on/press/with', 'missing-field'), 'a required argument nothing binds is refused')
+ok(t2hHas(play({ do: 'player.play', with: { id: { src: 'clock', path: 'hmm' } } }), '/spec/body/on/press/with/id', 'undeclared-path'), "an argument's binding is checked")
+ok(t2hHas(play([{ do: 'player.play', with: { id: 7 } }, { set: 'q', to: { src: '$result', path: 'qeued' } }]), '/spec/body/on/press/1/to', 'undeclared-path'), "…and $result after it is what it declares it returns")
+ok(t2has(play({ do: 'player.play', with: { id: 7 } }), '/spec/body/on/press/do', 'undeclared'), 'a host that declares no actions refuses every do')
 
 console.log('3d · patterns')
 ok(problems(def({ t: 'facts', items: [{ label: 'High', value: { src: 'weather', path: 'hiLabel' }, tone: 'accent' }] })).length === 0, 'facts takes a list of { label, value, tone? }')

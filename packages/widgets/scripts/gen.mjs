@@ -25,7 +25,8 @@ const docLine = (text, indent) => `${indent}/** ${text.replace(/\*\//g, '*\\/')}
 
 function tsType(p, spec = {}) {
   switch (p.type) {
-    case 'state': return 'string';
+    case 'state':
+    case 'action': return 'string';
     case 'params': return 'Record<string, Binding>';
     case 'events': return `{ ${Object.keys(spec.events ?? {}).map((e) => `${e}?: ActionChain`).join('; ')} }`;
     case 'binding': return 'Binding';

@@ -7,6 +7,8 @@ import type { Binding, ToneBinding, CommandRef } from './types';
 export type WidgetAction =
   /** Run a capability — a capability its app declares — an async one is followed to its end. */
   | { run: CommandRef }
+  /** Host action — an action its HOST declares — an engine the app runs in the page (the player, focus…). */
+  | { do: string; with?: Record<string, Binding> }
   /** Set state — write one of this widget's own state variables. */
   | { set: string; to: Binding };
 

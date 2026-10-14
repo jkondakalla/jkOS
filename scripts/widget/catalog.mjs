@@ -40,24 +40,25 @@ export function catalogModuleSource() {
   return `export const CATALOG = Object.freeze(${JSON.stringify(catalog)});\nexport const CATALOG_APP = Object.freeze(${JSON.stringify(apps)});\n`;
 }
 
-/** ORDECK's HUD slice declaration (hud/slices.ts HUD_SLICES) — its imports are type-only,
- *  so the real file transpiles to plain data. What the second validation tier checks a
- *  binding into a slice against. */
-export async function hudSlices() {
+/** ORDECK's host declaration (hud/slices.ts): its slices (HUD_SLICES) and its actions
+ *  (HUD_ACTIONS). Its imports are type-only, so the real file transpiles to plain data —
+ *  what the second validation tier checks a binding into a slice, or a `do`, against. */
+export async function hudDeclaration() {
   const tmp = mkdtempSync(join(tmpdir(), 'jkos-widget-slices-'));
   try {
     const out = join(tmp, 'slices.mjs');
     writeFileSync(out, transpile(readFileSync(join(REPO_ROOT, 'apps/ordeck/src/hud/slices.ts'), 'utf8'), 'slices.ts'));
-    return (await import(pathToFileURL(out).href)).HUD_SLICES;
+    const mod = await import(pathToFileURL(out).href);
+    return { slices: mod.HUD_SLICES, actions: mod.HUD_ACTIONS };
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
 }
 
 /** Everything the second tier checks a widget against: every app's declarations and
- *  ORDECK's slices (@jkos/widgets checkBindings' ctx). */
+ *  ORDECK's slices and actions (@jkos/widgets checkBindings' ctx). */
 export async function declarations() {
-  return { docs: appDocs(), slices: await hudSlices() };
+  return { docs: appDocs(), ...(await hudDeclaration()) };
 }
 
 /** Every committed widget file: [{ where, app, file, def, fixtures, error? }]. */

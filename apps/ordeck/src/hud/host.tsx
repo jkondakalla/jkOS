@@ -11,7 +11,7 @@
  */
 
 import { useState } from 'react';
-import { CardHead, vars, type HostKindComponent, type WidgetHost } from '@jkos/widget-render';
+import { CardHead, vars, type HostActions, type HostKindComponent, type WidgetHost } from '@jkos/widget-render';
 import type { AppId } from '@jkos/weave';
 import { WeekView, type CalendarItem, type CardResolvers } from '@jkos/cards';
 import { safeHref } from '@jkos/widgets';
@@ -27,6 +27,7 @@ import {
   type PinnedState,
 } from '../pages/hud/useHudData';
 import { clearHudFocus } from '../lib/shelf';
+import { HUD_ACTIONS } from './slices';
 import './molecules.css';
 
 /** Every slice a widget on the HUD can read by name. RoomHUD assembles this once from its
@@ -238,6 +239,11 @@ const KINDS: { readonly [K in import('@jkos/widget-render').HostKind]: HostKindC
   week: ({ scope }) => <WeekBody items={scope.items as CalendarItem[]} todayIso={String(scope.todayIso ?? '')} />,
 };
 
+/** What ORDECK's engines do when a widget says so — one per declared HUD_ACTIONS entry. */
+const ACTIONS: HostActions<typeof HUD_ACTIONS> = {
+  'focus.clear': () => clearHudFocus(),
+};
+
 /** The HUD's context, as a widget host. */
 export function hudHost(ctx: WidgetCtx): WidgetHost {
   return {
@@ -246,5 +252,6 @@ export function hudHost(ctx: WidgetCtx): WidgetHost {
     aiEnabled: ctx.aiEnabled,
     now: ctx.clock.now,
     kinds: KINDS,
+    actions: ACTIONS,
   };
 }

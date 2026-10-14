@@ -182,6 +182,7 @@ command succeeded, read as `$result`). Each event runs one action or an ordered 
 | Action | Does |
 |---|---|
 | `{ "run": { app, capability, body? } }` | a capability its app declares — an async one is followed to its end. A failure stops the rest; the actions after it read what it produced as `$result` |
+| `{ "do": "focus.clear", "with"?: { … } }` | an action its **host** declares — an engine the app runs in the page (the player, focus). What it returns is `$result` after it |
 | `{ "set": "q", "to": <binding> }` | write a state variable — `{ "not": { "src": "$state", "path": "open" } }` flips a flag |
 
 A button takes `cmd` or `on.press`, exactly one (`cmd` keeps its `result` slot). A row or
@@ -190,6 +191,15 @@ when the event fires, so they never re-render a card. The second tier checks eve
 action as it checks a node: a `set` names a declared variable, a `run` binds its
 capability's required fields, and `$result` after a `run` is what that capability
 declares it returns (or resolves to).
+
+**Host actions are declared, then implemented.** A host declares each action as data —
+`{ label, args?: [{ name, type, required? }], returns?: […] }`, ORDECK's in
+`hud/slices.ts` `HUD_ACTIONS` beside its slices — and implements it in its
+`WidgetHost.actions`, typed `HostActions<typeof DECL>`, so tsc refuses one declared and
+not implemented or the reverse. The second tier checks a `do` against the declaration:
+it exists, takes the arguments given, gets each one it requires. A `do` its host does
+not implement fails the chain with "<name> is not available here". A published widget
+fires none — a host action is one host's engine, not a server contract.
 
 **AI.** A widget that reaches an app declared `ai` (LazurOS) is AI-backed: the suite's kill
 switch hides it from the shelf and turns a placed one into an "AI is off" tile. That is

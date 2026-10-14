@@ -24,7 +24,7 @@ import {
 } from 'react';
 import {
   fetchCapabilities, getCapability, runCommand, suiteApp, followJob, format, type CapabilityDef, type CapabilityDoc, type JobOutcome,
-  type SuiteApp, resolveBinding, truthy } from '@jkos/weave';
+  type FieldType, type SuiteApp, resolveBinding, truthy } from '@jkos/weave';
 import type { ActionChain, Binding, CommandRef, HostKind, IconName, Tone, ToneBinding, WidgetAction, WidgetDef, WidgetNode, WidgetSpec } from './types';
 import { useDataSources, cardState, type CardState } from './sources';
 import './widgets.css';
@@ -52,7 +52,25 @@ export interface WidgetHost {
   /** The kinds only this host can draw — the manifest's molecules, each reading one of its
    *  slices. A widget using a kind its host lacks draws a not-here tile. */
   kinds?: HostKinds;
+  /** The actions this host's engines take (a `do` action names one): the host DECLARES
+   *  each (HostActionDecl — the second tier checks a widget against the declaration) and
+   *  implements it here, typed by HostActions so none is declared without an
+   *  implementation or implemented without a declaration. What one returns is `$result`
+   *  to the actions after it. */
+  actions?: Readonly<Record<string, HostActionFn>>;
 }
+
+/** One field of a host action's declaration — the field vocabulary a dataset uses. */
+export interface DeclField { name: string; type: FieldType; required?: boolean; label?: string }
+/** A host action, as its host declares it: what it does, its arguments, what it returns. */
+export interface HostActionDecl { label: string; args?: readonly DeclField[]; returns?: readonly DeclField[] }
+/** A host action's implementation: its arguments, resolved from the widget's bindings. */
+export type HostActionFn = (args: Record<string, unknown>) => unknown | Promise<unknown>;
+/** A host's implementations of its declared actions — every one of them, and nothing else. */
+export type HostActions<D extends Readonly<Record<string, HostActionDecl>>> = { readonly [K in keyof D]: HostActionFn };
+
+/** The host a widget is drawn in, for what runs inside it (an event's `do`). */
+const HostCtx = createContext<WidgetHost | null>(null);
 
 /** A host kind's renderer: the node, and the scope it is drawn in (the host's slices, the
  *  widget's sources). May be React.lazy — it draws under Suspense. */
@@ -586,6 +604,7 @@ async function runToEnd(ref: CommandRef, scope: Scope, signal: AbortSignal): Pro
  */
 function useActions() {
   const state = useContext(StateCtx);
+  const host = useContext(HostCtx);
   const [status, setStatus] = useState<CmdStatus>('idle');
   const [error, setError] = useState<string | undefined>(undefined);
   const live = useRef<AbortController | null>(null);
@@ -600,6 +619,18 @@ function useActions() {
     for (const a of ([] as WidgetAction[]).concat(chain)) {
       if ('set' in a) {
         state?.set(a.set, resolve(a.to, here));
+      } else if ('do' in a) {
+        const fn = host?.actions?.[a.do];
+        if (!fn) { setStatus('err'); setError(`${a.do} is not available here`); return false; }
+        const args = Object.fromEntries(Object.entries(a.with ?? {}).map(([k, b]) => [k, resolve(b, here)]));
+        try {
+          const out = await fn(args);
+          here = { ...here, $result: out };
+        } catch (e) {
+          if (!ac.signal.aborted) { setStatus('err'); setError(e instanceof Error ? e.message : String(e)); }
+          return false;
+        }
+        if (ac.signal.aborted) return false;
       } else if ('run' in a) {
         const o = await runToEnd(a.run, here, ac.signal);
         if (ac.signal.aborted) return false;
@@ -611,7 +642,7 @@ function useActions() {
     setStatus('ok');
     setTimeout(() => setStatus((st) => (st === 'ok' ? 'idle' : st)), 1600);
     return true;
-  }, [state]);
+  }, [state, host]);
 
   return { status, error, busy: status === 'working', fire };
 }
@@ -1043,9 +1074,11 @@ function renderWidgetBody(def: WidgetDef, host: WidgetHost): ReactNode {
 export function renderWidget(def: WidgetDef, host: WidgetHost): ReactNode {
   return (
     <WidgetBoundary widgetName={def.label} resetKey={def}>
-      <KindsCtx.Provider value={host.kinds ?? NO_KINDS}>
-        <WidgetCard def={def} host={host} />
-      </KindsCtx.Provider>
+      <HostCtx.Provider value={host}>
+        <KindsCtx.Provider value={host.kinds ?? NO_KINDS}>
+          <WidgetCard def={def} host={host} />
+        </KindsCtx.Provider>
+      </HostCtx.Provider>
     </WidgetBoundary>
   );
 }

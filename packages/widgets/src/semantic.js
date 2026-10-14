@@ -114,7 +114,7 @@ const JOB = fieldsShape([
  * @param {{ docs?: Record<string, { capabilities?: { capabilities: object[] }, datasets?: { datasets: object[] } }>,
  *           slices?: Record<string, object> }} ctx
  */
-export function checkBindings(def, { docs = {}, slices = {} } = {}) {
+export function checkBindings(def, { docs = {}, slices = {}, actions = {} } = {}) {
   const out = []
   const err = (path, code, message, fix) => out.push(fix ? { path, code, message, fix } : { path, code, message })
   const spec = def?.spec
@@ -294,11 +294,37 @@ export function checkBindings(def, { docs = {}, slices = {} } = {}) {
       } else if ('set' in a) {
         checkStateName(a.set, `${p}/set`)
         checkBinding(a.to, `${p}/to`, here)
+      } else if ('do' in a) {
+        const produced = checkHostAction(a, p)
+        here = new Map(here)
+        here.set('$result', produced)
       }
       for (const [name, spec_] of Object.entries(ACTIONS[Object.keys(a).find((k) => ACTIONS[k])]?.props ?? {})) {
         if (spec_.type === 'params' && isObj(a[name])) for (const [k, b] of Object.entries(a[name])) checkBinding(b, `${p}/${esc(name)}/${esc(k)}`, here)
       }
     })
+  }
+
+  /* A host action, against what the HOST declares (ctx.actions — ORDECK's HUD_ACTIONS):
+     it exists, takes the arguments given, and gets each one it requires. What it returns,
+     if declared, is $result to the actions after it. */
+  function checkHostAction(a, p) {
+    const decl = actions[a.do]
+    if (!decl) {
+      const near = nearest(a.do, Object.keys(actions))
+      err(`${p}/do`, 'undeclared', `this host declares no action ${JSON.stringify(a.do)}`, near ? `did you mean ${JSON.stringify(near)}?` : Object.keys(actions).length ? `declared: ${Object.keys(actions).join(', ')}` : 'this host declares no actions')
+      return ANY
+    }
+    const args = new Map((decl.args ?? []).map((f) => [f.name, f]))
+    const given = isObj(a.with) ? a.with : {}
+    for (const k of Object.keys(given)) {
+      if (!args.has(k)) {
+        const near = nearest(k, [...args.keys()])
+        err(`${p}/with/${esc(k)}`, 'undeclared', `${a.do} takes no argument ${JSON.stringify(k)}`, near ? `did you mean ${JSON.stringify(near)}?` : `it takes: ${[...args.keys()].join(', ') || 'nothing'}`)
+      }
+    }
+    for (const f of args.values()) if (f.required && !(f.name in given)) err(`${p}/with`, 'missing-field', `${a.do} requires '${f.name}', and nothing binds it`)
+    return Array.isArray(decl.returns) ? fieldsShape(decl.returns) : ANY
   }
 
   const visit = (node, at, sc, guards = new Set()) => {

@@ -13,7 +13,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { validateWidget, appsOf } from '@jkos/widgets';
 import { checkBindings } from '@jkos/widgets/semantic';
 import { fetchCapabilities, fetchDatasets, suiteApps, type AppId, type CapabilityDoc, type DatasetDoc } from '@jkos/weave';
-import { HUD_SLICES } from '../hud/slices';
+import { HUD_ACTIONS, HUD_SLICES } from '../hud/slices';
 import type { WidgetDef } from '../hud/types';
 import { TextArea } from '@jkos/ui';
 
@@ -51,7 +51,7 @@ export function JsonTab({ def, onLoad }: { def: WidgetDef; onLoad: (d: WidgetDef
   // declared server contracts, never a HUD slice (a slice-bound card is a file in an app).
   const structural = useMemo(() => (parsed.def ? validateWidget(parsed.def, { suiteHosts: suiteHosts(), published: true }) : []), [parsed.def]);
   const problems = useMemo(
-    () => (structural.length || !parsed.def ? structural : checkBindings(parsed.def, { docs, slices: HUD_SLICES as Record<string, object> })),
+    () => (structural.length || !parsed.def ? structural : checkBindings(parsed.def, { docs, slices: HUD_SLICES as Record<string, object>, actions: HUD_ACTIONS })),
     [structural, parsed.def, docs],
   );
 

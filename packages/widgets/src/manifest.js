@@ -34,6 +34,7 @@
  *   state     the name of one of the widget's own state variables (spec.state)
  *   events    `on`: the node's events (its manifest `events`) → an action or a list of them
  *   params    a map of name → literal or Binding (a dataset's params, an action's arguments)
+ *   action    the name of an action the HOST declares, `<engine>.<verb>` ("player.play")
  */
 
 /** The status palette a tone names. Semantic constants, never accent-derived (DESIGN §2). */
@@ -63,6 +64,14 @@ export const ACTIONS = {
     label: 'Run a capability', hint: 'a capability its app declares — an async one is followed to its end',
     props: { run: { type: 'cmd', required: true } },
     example: { run: { app: 'beigeboard', capability: 'createItem', body: { title: { src: '$state', path: 'title' } } } },
+  },
+  do: {
+    label: 'Host action', hint: 'an action its HOST declares — an engine the app runs in the page (the player, focus…)',
+    props: {
+      do: { type: 'action', required: true, doc: '<engine>.<verb>, as the host declares it (ORDECK: hud/slices.ts HUD_ACTIONS)' },
+      with: { type: 'params', doc: "its arguments, by the names the host declares — each a literal or a binding" },
+    },
+    example: { do: 'focus.clear' },
   },
   set: {
     label: 'Set state', hint: "write one of this widget's own state variables",

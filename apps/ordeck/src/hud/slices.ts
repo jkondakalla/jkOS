@@ -19,6 +19,7 @@
  */
 
 import type { FieldType, AppId } from '@jkos/weave';
+import type { HostActionDecl } from '@jkos/widget-render';
 import type {
   ClockState, WeatherState, WeatherSlot, SystemsState, SysRow, TodayState, TodayTask, MonthCalState, CalDay,
   NotificationsState, Notification, FocusState, PinnedState, PinnedTask,
@@ -112,6 +113,14 @@ export const HUD_SLICES: { readonly [K in keyof WidgetCtx]-?: SliceField } = {
   origins: { type: 'json', label: "Each app's origin on this deployment ({ beigeboard: 'https://…' })", item: ORIGINS },
   aiEnabled: { type: 'boolean', label: 'The LazurOS kill switch allows AI (an AI widget does not render while it is off)' },
 };
+
+/** Every action ORDECK's engines take that a widget may fire (`{ "do": "<name>" }`), as
+ *  data: what the second tier checks a `do` against. host.tsx implements each, typed by
+ *  HostActions<typeof HUD_ACTIONS> — so one declared here and not implemented there (or
+ *  the reverse) is a tsc error. */
+export const HUD_ACTIONS = {
+  'focus.clear': { label: 'End the focus — clear the one item in focus, suite-wide (what END FOCUS does)' },
+} as const satisfies Readonly<Record<string, HostActionDecl>>;
 
 /** The fields a binding may reach at `src` (a slice's own fields), for suggestions. */
 export function sliceFields(src: string): string[] {

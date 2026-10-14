@@ -2,6 +2,7 @@
 export {
   renderWidget, renderNode, resolve, truthy, CardHead, vars, HostKindsProvider,
   type WidgetHost, type HostKinds, type HostKindComponent, type Scope, type NodeOf,
+  type HostActionDecl, type HostActionFn, type HostActions, type DeclField,
 } from './render';
 export {
   useDataSources, cardState, SourceReaderProvider, liveReader, readExternal, refusedUrl, resolveParams, suiteOrigins,

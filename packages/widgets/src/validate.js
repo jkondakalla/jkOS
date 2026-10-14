@@ -21,6 +21,8 @@ const ID_RE = new RegExp(LIMITS.ID_PATTERN)
 const DEF_KEYS = ['id', 'label', 'sizing', 'spec', 'refreshMs', 'allowed_roles']
 const SPEC_KEYS = ['frame', 'sources', 'state', 'body']
 const IDENT = /^[A-Za-z_][A-Za-z0-9_]*$/
+/** A host action's name: the engine, then the verb ("player.play", "focus.clear"). */
+const ACTION_NAME = /^[a-z][a-zA-Z0-9]*(\.[a-z][a-zA-Z0-9]*)+$/
 /** The most actions one event runs — a chain, not a program. */
 const MAX_CHAIN = 8
 const SIZING_TIERS = ['desktop', 'tablet', 'mobile']
@@ -187,6 +189,9 @@ function checkPublished(spec, err) {
     }
     if (typeof v.t === 'string' && NODES[v.t]?.kind === 'molecule') {
       err(path, 'unpublishable', `a ${v.t} is drawn by its host from the host's own state — a published widget cannot carry one`, 'keep this widget as a file in its app')
+    }
+    if (typeof v.do === 'string') {
+      err(path, 'unpublishable', `${JSON.stringify(v.do)} is an action of one host's engine — a published widget runs only declared capabilities`, '{ "run": { app, capability } }, or keep this widget as a file in its app')
     }
     for (const [k, x] of Object.entries(v)) visit(x, at(path, k))
   }
@@ -449,6 +454,9 @@ function checkProps(obj, props, path, err, reserved = [], events = {}) {
         break
       case 'events':
         checkEvents(v, here, err, events)
+        break
+      case 'action':
+        if (typeof v !== 'string' || !ACTION_NAME.test(v)) err(here, 'bad-type', `${name} names a host action as <engine>.<verb> ("player.play")`)
         break
       case 'enum':
         if (!p.values.includes(v)) {
