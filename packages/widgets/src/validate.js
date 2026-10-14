@@ -13,13 +13,16 @@
 // def against the data it binds (does that dataset exist, is that field declared) is
 // the semantic tier, and needs the apps' declarations in hand.
 
-import { NODES, FRAME, SOURCES, TONES, ICON_NAMES, RETIRED_COMPONENTS, TIER_COLS, LIMITS, childProps } from './manifest.js'
+import { NODES, FRAME, SOURCES, ACTIONS, STATE_TYPES, TONES, ICON_NAMES, RETIRED_COMPONENTS, TIER_COLS, LIMITS, childProps } from './manifest.js'
 import { safeHref } from './href.js'
 import { FORMATS, CONDITIONS } from '@jkos/weave/binding'
 
 const ID_RE = new RegExp(LIMITS.ID_PATTERN)
 const DEF_KEYS = ['id', 'label', 'sizing', 'spec', 'refreshMs', 'allowed_roles']
-const SPEC_KEYS = ['frame', 'sources', 'body']
+const SPEC_KEYS = ['frame', 'sources', 'state', 'body']
+const IDENT = /^[A-Za-z_][A-Za-z0-9_]*$/
+/** The most actions one event runs — a chain, not a program. */
+const MAX_CHAIN = 8
 const SIZING_TIERS = ['desktop', 'tablet', 'mobile']
 
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v)
@@ -167,7 +170,7 @@ export function validateWidget(def, ctx = {}) {
 /** The names the RENDERER puts in every widget's scope — never a host's: the row of a
  *  list (`$`), the clock instant (`$now`), each source's state (`$sources`), a form's
  *  values (`$form`) and what a command produced (`$result` / `$job`). */
-export const RUNTIME_NAMES = ['$', '$now', '$sources', '$form', '$result', '$job']
+export const RUNTIME_NAMES = ['$', '$now', '$sources', '$form', '$result', '$job', '$state']
 
 /* A published widget is drawn on every user's HUD and binds only what jkAuth can vouch
    for: the datasets and capabilities apps DECLARE (scope-checked by their app on every
@@ -231,12 +234,31 @@ function checkSpec(spec, err, ctx) {
     else for (const [name, s] of Object.entries(spec.sources)) checkSource(name, s, `/spec/sources/${esc(name)}`, err, ctx)
   }
 
+  if (spec.state !== undefined) checkState(spec.state, err)
+
   if (spec.body === undefined) { err('/spec/body', 'missing-prop', 'spec.body is required'); return }
   const counter = { nodes: 0, overflowReported: false }
   checkNode(spec.body, '/spec/body', 0, { inForm: false, atRoot: true }, counter, err)
 }
 
 /** Each source kind's keys — the manifest's SOURCES, plus the `kind` that names it. */
+/** spec.state: this widget's own variables — `$state.<name>`, written by `set` and by a
+ *  control with `state`. Each instance of the widget has its own. */
+function checkState(state, err) {
+  if (!isObj(state)) { err('/spec/state', 'bad-type', 'state maps a variable name to { type, default? }'); return }
+  for (const [name, d] of Object.entries(state)) {
+    const p = `/spec/state/${esc(name)}`
+    if (!IDENT.test(name)) err(p, 'bad-name', `state variable ${JSON.stringify(name)} must be an identifier`)
+    if (!isObj(d)) { err(p, 'bad-type', '{ "type": "string" | "number" | "boolean" | "json", "default"?: … }'); continue }
+    for (const k of Object.keys(d)) if (k !== 'type' && k !== 'default') unknownKey(err, p, k, ['type', 'default'])
+    if (!STATE_TYPES.includes(d.type)) { err(`${p}/type`, 'unknown-value', `${JSON.stringify(d.type)} is not a state type`, `one of: ${STATE_TYPES.join(', ')}`); continue }
+    const v = d.default
+    const fits = v === undefined || v === null || d.type === 'json'
+      || (d.type === 'string' && typeof v === 'string') || (d.type === 'number' && Number.isFinite(v)) || (d.type === 'boolean' && typeof v === 'boolean')
+    if (!fits) err(`${p}/default`, 'bad-type', `the default of a ${d.type} must be a ${d.type}`)
+  }
+}
+
 const SOURCE_KEYS_BY_KIND = Object.fromEntries(Object.entries(SOURCES).map(([k, s]) => [k, ['kind', ...Object.keys(s.props)]]))
 const APP_ID = /^[a-z][a-z0-9-]{0,39}$/
 
@@ -322,11 +344,25 @@ function checkNode(node, path, depth, where, counter, err) {
   }
 
   const place = spec.placement ?? {}
-  if (place.form === 'inside' && !where.inForm) err(path, 'misplaced', `a ${node.t} only works inside a form (it writes the form's $form values)`)
-  if (place.form === 'outside' && where.inForm) err(path, 'misplaced', 'forms do not nest')
+  // A control with `state` writes the widget's state, so it sits OUTSIDE any form.
+  const formRule = place.outside && node[place.outside] !== undefined ? 'outside' : place.form
+  if (formRule === 'inside' && !where.inForm) err(path, 'misplaced', `a ${node.t} with a \`field\` only works inside a form (it writes the form's $form values)`, place.outside ? `outside a form it writes a state variable: { "${place.outside}": "<name>" }` : undefined)
+  if (formRule === 'outside' && where.inForm) err(path, 'misplaced', node.t === 'form' || node.t === 'ask' ? 'forms do not nest' : `inside a form a ${node.t} writes $form — give it a \`field\`, not \`${place.outside}\``)
   if (place.root && !where.atRoot) err(path, 'misplaced', `a ${node.t} is a whole card — it sits directly on the widget body (or the root stack)`)
 
-  checkProps(node, spec.props, path, err, ['t'])
+  for (const group of spec.oneOf ?? []) {
+    const given = group.filter((k) => node[k] !== undefined)
+    if (given.length !== 1) err(path, given.length ? 'conflict' : 'missing-prop', `a ${node.t} takes exactly one of ${group.join(' | ')}${given.length ? ` — it has ${given.join(' and ')}` : ''}`)
+  }
+  for (const [name, p] of Object.entries(spec.props)) {
+    if (p.with && node[name] !== undefined && node[p.with] === undefined) err(at(path, name), 'misplaced', `${name} draws what \`${p.with}\` produced, and this ${node.t} has no ${p.with}`)
+  }
+  // A row (or a media card) is a link or an action, never both: one tap, one meaning.
+  if (node.href !== undefined && isObj(node.on) && Object.keys(spec.events ?? {}).some((e) => node.on[e] !== undefined)) {
+    err(at(path, 'on'), 'conflict', `a ${node.t} is a link (href) or an action (on), not both`)
+  }
+
+  checkProps(node, spec.props, path, err, ['t'], spec.events)
 
   const inForm = where.inForm || node.t === 'form'
   // A molecule sits on the body itself, or directly in the body's root stack (the
@@ -345,8 +381,9 @@ function checkNode(node, path, depth, where, counter, err) {
   }
 }
 
-/** Check an object's keys against a prop table (node props, or the frame). */
-function checkProps(obj, props, path, err, reserved = []) {
+/** Check an object's keys against a prop table (node props, the frame, an action).
+ *  `events`: what an `events` prop may name (the node's manifest `events`). */
+function checkProps(obj, props, path, err, reserved = [], events = {}) {
   const allowed = Object.keys(props)
   for (const k of Object.keys(obj)) {
     if (reserved.includes(k)) continue
@@ -397,7 +434,21 @@ function checkProps(obj, props, path, err, reserved = []) {
         if (typeof v !== 'string') err(here, 'bad-type', `${name} must be a string`)
         break
       case 'field':
-        if (typeof v !== 'string' || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(v)) err(here, 'bad-type', `${name} must be a field name (an identifier)`)
+        if (typeof v !== 'string' || !IDENT.test(v)) err(here, 'bad-type', `${name} must be a field name (an identifier)`)
+        break
+      case 'state':
+        if (typeof v !== 'string' || !IDENT.test(v)) err(here, 'bad-type', `${name} names a state variable (an identifier, declared in spec.state)`)
+        break
+      case 'params':
+        if (!isObj(v)) { err(here, 'bad-type', `${name} maps a name to a literal or a binding`); break }
+        for (const [k, b] of Object.entries(v)) {
+          if (isLiteral(b) || b === null) continue
+          const why = bindingProblem(b)
+          if (why) err(at(here, k), 'bad-binding', why)
+        }
+        break
+      case 'events':
+        checkEvents(v, here, err, events)
         break
       case 'enum':
         if (!p.values.includes(v)) {
@@ -439,6 +490,33 @@ function mappedValues(v, allowed, name, path, err) {
   if (typeof v.fallback === 'string' && !allowed.includes(v.fallback)) {
     err(`${path}/fallback`, 'unknown-value', `${JSON.stringify(v.fallback)} is not a ${name}`, `one of: ${allowed.join(', ')}`)
   }
+}
+
+/** `on`: each of the node's events → one action, or an ordered list of them. */
+function checkEvents(on, path, err, events) {
+  if (!isObj(on)) { err(path, 'bad-type', `on maps an event (${Object.keys(events).join(', ') || 'none here'}) to an action or a list of them`); return }
+  for (const [ev, chain] of Object.entries(on)) {
+    const here = at(path, ev)
+    if (!events[ev]) { unknownKey(err, path, ev, Object.keys(events)); continue }
+    const list = Array.isArray(chain) ? chain : [chain]
+    if (!list.length) err(here, 'bad-type', 'an event runs at least one action')
+    if (list.length > MAX_CHAIN) err(here, 'out-of-range', `an event runs at most ${MAX_CHAIN} actions — a chain, not a program`)
+    list.forEach((a, i) => checkAction(a, Array.isArray(chain) ? `${here}/${i}` : here, err))
+  }
+}
+
+/** One action: a one-key object named by what it does (the manifest's ACTIONS). */
+function checkAction(a, path, err) {
+  const names = Object.keys(ACTIONS)
+  if (!isObj(a)) { err(path, 'bad-type', `an action is one of: ${names.map((n) => `{ "${n}": … }`).join(' ')}`); return }
+  const kinds = Object.keys(a).filter((k) => ACTIONS[k])
+  if (kinds.length !== 1) {
+    const near = kinds.length ? null : Object.keys(a).map((k) => nearest(k, names)).find(Boolean)
+    err(path, kinds.length ? 'conflict' : 'unknown-action', kinds.length ? `an action does one thing — this one says ${kinds.join(' and ')}` : `not an action — one of: ${names.join(', ')}`,
+      near ? `did you mean ${JSON.stringify(near)}?` : undefined)
+    return
+  }
+  checkProps(a, ACTIONS[kinds[0]].props, path, err)
 }
 
 function checkCmd(v, path, err) {

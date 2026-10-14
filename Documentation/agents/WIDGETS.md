@@ -110,8 +110,8 @@ deployment), `authUrl`, `aiEnabled`. Their fields are declared in `hud/slices.ts
 
 Reserved names in scope: `$` (the row, inside a list pattern), `$sources.<name>.state`
 (`ready`/`empty`/`idle`/`signed-out`/`forbidden`/`offline`/`unavailable`), `$now` (the
-clock's instant — what `fmt: "ago"` measures against), and in a command's result slot
-`$result` and `$job`.
+clock's instant — what `fmt: "ago"` measures against), `$state` (the widget's own
+variables, §6b), and in a command's result slot (or after a `run`) `$result` and `$job`.
 
 **Declare first.** A widget can only bind what its app declares, so a card that needs a
 field the dataset does not declare is a Weave change in that app (`discovery.js` /
@@ -163,9 +163,38 @@ answers `202 { job_id }` and the renderer follows the job through the app's jobs
 (the common shape, WEAVE.md) until it ends, so `result` / `answer` draw what it resolved
 to — `$result` — and `$job` is `{ phase, status, error }`.
 
+## 6b · State and events
+
+**State** is a widget's own variables — a search query, whether a panel is open, a sort
+order. Declare each in `spec.state` (`{ "q": { "type": "string", "default": "" } }`;
+types `string` `number` `boolean` `json`), read it as `{ "src": "$state", "path": "q" }`.
+Every instance has its own: two placed copies of one widget never share a value.
+
+Two things write it. A control outside a form takes `state` instead of `field` — an
+`input`, `select` or `toggle` with `"state": "q"` is a search box, a sort picker, a
+switch (inside a form a control still writes `$form` with `field`; exactly one of the
+two). And a `set` action, below.
+
+**Events.** A node that can be pressed says what happens in `on` — `button` (`press`),
+`rows` (`select`: a tapped row, read as `$`), `media` (`press`), `form` (`done`: its
+command succeeded, read as `$result`). Each event runs one action or an ordered list:
+
+| Action | Does |
+|---|---|
+| `{ "run": { app, capability, body? } }` | a capability its app declares — an async one is followed to its end. A failure stops the rest; the actions after it read what it produced as `$result` |
+| `{ "set": "q", "to": <binding> }` | write a state variable — `{ "not": { "src": "$state", "path": "open" } }` flips a flag |
+
+A button takes `cmd` or `on.press`, exactly one (`cmd` keeps its `result` slot). A row or
+a media card is a link (`href`) or an action (`on`), never both. Event bindings resolve
+when the event fires, so they never re-render a card. The second tier checks every
+action as it checks a node: a `set` names a declared variable, a `run` binds its
+capability's required fields, and `$result` after a `run` is what that capability
+declares it returns (or resolves to).
+
 **AI.** A widget that reaches an app declared `ai` (LazurOS) is AI-backed: the suite's kill
 switch hides it from the shelf and turns a placed one into an "AI is off" tile. That is
-derived from what it binds, not declared — there is nothing to set.
+derived from what it binds — its sources, its commands and every event's `run` — not
+declared; there is nothing to set.
 
 ## 7 · What checks it
 

@@ -71,7 +71,7 @@ export default function WidgetWorkshop() {
   const isDesktop = bp === 'desktop';
 
   const [tab, setTab] = useState<WorkshopTab>('build');
-  const [identity, setIdentity] = useState<IdentityState>({ id: '', label: '', eyebrow: '', source: '', refresh: '', fetches: [], declared: {} });
+  const [identity, setIdentity] = useState<IdentityState>({ id: '', label: '', eyebrow: '', source: '', refresh: '', fetches: [], declared: {}, carried: {} });
   const [sizing, setSizing] = useState<SizingState>({ dw: 3, dh: 5, mw: 2, mh: 4 });
   const [root, setRoot] = useState<ENode>(initialRoot);
   const [sel, setSel] = useState<string | null>(null);
@@ -148,7 +148,9 @@ export default function WidgetWorkshop() {
       if (s?.kind === 'fetch') fetches.push({ name, url: s.url, poll: s.poll != null ? String(s.poll) : '' });
       else if (s) declared[name] = s;
     }
+    const { frame: _f, sources: _s, body: _b, ...carried } = def.spec;
     setIdentity({
+      carried,
       id: def.id || '',
       label: def.label || '',
       eyebrow: frameText(def.spec.frame?.eyebrow),
@@ -223,6 +225,7 @@ export default function WidgetWorkshop() {
       },
       ...(refreshMs > 0 ? { refreshMs } : {}),
       spec: {
+        ...identity.carried,
         frame: onlyMolecule ? undefined : { eyebrow: identity.eyebrow || undefined, source: identity.source || undefined },
         sources: sourcesObj,
         body,

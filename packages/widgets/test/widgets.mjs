@@ -14,13 +14,13 @@
 // 3. The walker finds every source a def binds, skips command bodies only when asked,
 //    and sees the slice a molecule reads without a binding.
 // 4. safeHref: the href rule the validator and the renderer share.
-import { NODES, FRAME, KINDS, LIMITS, TONES, childProps, validateWidget, sourcesOf, walkNodes, safeHref, appsOf } from '../src/index.js'
+import { NODES, FRAME, KINDS, LIMITS, TONES, ACTIONS, childProps, validateWidget, sourcesOf, walkNodes, safeHref, appsOf } from '../src/index.js'
 import { checkBindings } from '../src/semantic.js'
 
 let pass = 0, fail = 0
 const ok = (cond, msg, extra = '') => { if (cond) { pass++; console.log(`  ✓ ${msg}`) } else { fail++; console.error(`  ✗ ${msg} ${extra}`) } }
 
-const PROP_TYPES = new Set(['binding', 'tone', 'number', 'boolean', 'string', 'enum', 'field', 'cmd', 'pairs', 'node', 'nodes'])
+const PROP_TYPES = new Set(['binding', 'tone', 'number', 'boolean', 'string', 'enum', 'field', 'cmd', 'pairs', 'node', 'nodes', 'state', 'events', 'params'])
 const sizing = { desktop: { w: 3, h: 3 }, mobile: { w: 2, h: 3 } }
 const def = (body, extra = {}) => ({ id: 'probe', label: 'Probe', sizing, spec: { body }, ...extra })
 const problems = (d) => validateWidget(d)
@@ -34,8 +34,12 @@ for (const [t, spec] of Object.entries(NODES)) {
     if (p.type === 'enum') ok(Array.isArray(p.values) && p.values.length > 0, `${t}.${name} lists its enum values`)
   }
   ok(childProps(t).filter((c) => c.many).length <= 1, `${t} has at most one ordered-children prop`)
+  ok(!!spec.props.on === !!spec.events, `${t}: an \`on\` prop and a list of events come together`)
+  for (const g of spec.oneOf ?? []) ok(g.every((k) => spec.props[k] && !spec.props[k].required), `${t}: each of oneOf ${g.join('|')} is an optional prop`)
+  for (const [name, p] of Object.entries(spec.props)) if (p.with) ok(!!spec.props[p.with], `${t}.${name}: \`with\` names a prop of ${t}`)
   const pl = spec.placement ?? {}
-  ok(Object.keys(pl).every((k) => k === 'form' || k === 'root') && [undefined, 'inside', 'outside'].includes(pl.form), `${t}'s placement is a known rule`)
+  ok(Object.keys(pl).every((k) => ['form', 'root', 'outside'].includes(k)) && [undefined, 'inside', 'outside'].includes(pl.form)
+    && (pl.outside === undefined || !!spec.props[pl.outside]), `${t}'s placement is a known rule`)
   ok(spec.example?.t === t, `${t}'s example is a ${t}`)
   // A control's example is checked where a control may sit; a form's/button's example
   // names no app yet (the Workshop's inspector picks it), so only that problem may show.
@@ -47,6 +51,12 @@ for (const [t, spec] of Object.entries(NODES)) {
 }
 ok(Object.values(FRAME).every((p) => PROP_TYPES.has(p.type)), 'every frame prop has a known type')
 ok(KINDS.length === Object.keys(NODES).length && KINDS.every((k) => NODES[k]), 'KINDS lists every node kind, in order')
+for (const [name, a] of Object.entries(ACTIONS)) {
+  ok(a.props[name]?.required === true, `the ${name} action is named by its own required key`)
+  ok(Object.values(a.props).every((p) => PROP_TYPES.has(p.type)), `the ${name} action's props have known types`)
+  const errs = problems(def({ t: 'button', text: 'GO', on: { press: a.example } }, { spec: { state: { open: { type: 'boolean' } }, body: { t: 'button', text: 'GO', on: { press: a.example } } } }))
+  ok(errs.length === 0, `the ${name} action's example is a valid action`, JSON.stringify(errs))
+}
 
 // ── 2. the validator refuses, and names the place ──────────────────────────
 console.log('2 · the validator refuses what the renderer must not draw')
@@ -148,6 +158,37 @@ ok(problems(def({ t: 'form', cmd: CMD, submit: 'ASK', children: [{ t: 'input', f
 ok(problems(def({ t: 'button', text: 'GO', cmd: CMD, result: { t: 'text', text: { src: '$job', path: 'status' } } })).length === 0, '…and so may a button')
 ok(has(def({ t: 'form', cmd: CMD, submit: 'ASK', children: [], result: { t: 'input', field: 'x' } }), '/spec/body/result', 'misplaced'), 'a control in a form\'s result slot is refused — the result is drawn beside the form, not in it')
 
+console.log('2c · state and events')
+const S = { q: { type: 'string', default: '' }, open: { type: 'boolean', default: false } }
+const withState = (body, state = S) => ({ id: 'probe', label: 'Probe', spec: { state, body } })
+const sHas = (body, path, code, state) => problems(withState(body, state)).some((p) => p.path === path && p.code === code)
+ok(problems(withState({ t: 'stack', children: [{ t: 'input', state: 'q', placeholder: 'Search…' }, { t: 'toggle', state: 'open', label: 'Open' }] })).length === 0,
+  'a control with `state` sits outside any form — it writes the widget\'s own state')
+ok(sHas({ t: 'input', field: 'q' }, '/spec/body', 'misplaced'), '…one with `field` still needs a form')
+ok(sHas({ t: 'form', cmd: CMD, submit: 'GO', children: [{ t: 'input', state: 'q' }] }, '/spec/body/children/0', 'misplaced'), "…and inside a form a control writes $form, never state")
+ok(sHas({ t: 'input' }, '/spec/body', 'missing-prop'), 'a control names exactly one of field | state…')
+ok(sHas({ t: 'form', cmd: CMD, submit: 'GO', children: [{ t: 'input', field: 'q', state: 'q' }] }, '/spec/body/children/0', 'conflict'), '…never both')
+ok(sHas({ t: 'text', text: 'x' }, '/spec/state/q/type', 'unknown-value', { q: { type: 'text' } }), 'a state variable has a known type')
+ok(sHas({ t: 'text', text: 'x' }, '/spec/state/n/default', 'bad-type', { n: { type: 'number', default: 'zero' } }), "…and a default of that type")
+ok(sHas({ t: 'text', text: 'x' }, '/spec/state/1q', 'bad-name', { '1q': { type: 'string' } }), '…and an identifier for a name')
+const flip = { set: 'open', to: { not: { src: '$state', path: 'open' } } }
+ok(problems(withState({ t: 'button', text: 'MORE', on: { press: flip } })).length === 0, 'a button may set state instead of running a command')
+ok(problems(withState({ t: 'button', text: 'SAVE', on: { press: [{ run: CMD }, flip] } })).length === 0, '…or run a chain of actions')
+ok(sHas({ t: 'button', text: 'GO' }, '/spec/body', 'missing-prop'), 'a button has a cmd or an on.press — something must happen')
+ok(sHas({ t: 'button', text: 'GO', cmd: CMD, on: { press: flip } }, '/spec/body', 'conflict'), '…exactly one of them')
+ok(sHas({ t: 'button', text: 'GO', on: { press: flip }, result: { t: 'text', text: 'x' } }, '/spec/body/result', 'misplaced'), "a button's result draws what its cmd produced — none without one")
+ok(sHas({ t: 'button', text: 'GO', on: { tap: flip } }, '/spec/body/on/tap', 'unknown-prop'), "an event the node does not have is refused")
+ok(problems(withState({ t: 'button', text: 'GO', on: { tap: flip } }))[0]?.fix === 'allowed: press', '…naming the ones it has')
+ok(sHas({ t: 'button', text: 'GO', on: { press: { toggle: 'open' } } }, '/spec/body/on/press', 'unknown-action'), 'an action that is not one is refused')
+ok(sHas({ t: 'button', text: 'GO', on: { press: { set: 'open', to: true, run: CMD } } }, '/spec/body/on/press', 'conflict'), 'an action does one thing')
+ok(sHas({ t: 'button', text: 'GO', on: { press: [] } }, '/spec/body/on/press', 'bad-type'), 'an event runs at least one action')
+ok(sHas({ t: 'button', text: 'GO', on: { press: Array.from({ length: 9 }, () => flip) } }, '/spec/body/on/press', 'out-of-range'), '…and at most eight — a chain, not a program')
+ok(sHas({ t: 'button', text: 'GO', on: { press: { set: 'open' } } }, '/spec/body/on/press/to', 'missing-prop'), "an action's props are checked like a node's")
+const rowsOn = { t: 'rows', from: { src: 'x' }, title: { src: '$', path: 't' }, on: { select: flip } }
+ok(problems(withState(rowsOn)).length === 0, 'a row may be an action (on.select)')
+ok(sHas({ ...rowsOn, href: { src: '$', path: 'url' } }, '/spec/body/on', 'conflict'), '…or a link — never both')
+ok(problems(withState({ t: 'form', cmd: CMD, submit: 'GO', children: [], on: { done: flip } })).length === 0, 'a form may act once its command is done')
+
 console.log('3 · one walker')
 const spec = {
   frame: { source: { src: 'today', path: 'progressLabel' } },
@@ -175,6 +216,9 @@ const reaching = { id: 'r', sizing, spec: {
   ] } } }
 ok(JSON.stringify([...appsOf(reaching)].sort()) === '["beigeboard","kouros","lazuros"]', 'appsOf: every dataset source\'s app and every command\'s, however deep')
 ok(appsOf({ id: 'c', sizing, spec: { body: { t: 'text', text: 'x' } } }).size === 0, 'appsOf: a widget that reaches no app reaches none')
+ok(appsOf({ id: 'e', spec: { body: { t: 'button', text: 'ASK', on: { press: [{ set: 'q', to: '' }, { run: { app: 'lazuros', capability: 'query' } }] } } } }).has('lazuros'),
+  "appsOf: an event's `run` reaches its app too — the AI kill switch is derived from it")
+ok(!sourcesOf({ t: 'button', text: 'GO', on: { press: { set: 'x', to: { src: 'clock', path: 'iso' } } } }).has('clock'), 'sourcesOf: an event resolves when it fires — not a display dependency')
 ok(has({ ...reaching, ai: true }, '/ai', 'derived'), 'a hand-set `ai` is refused — it is derived from what the widget binds')
 
 console.log('3c · the second tier: bindings against what the apps declare')
@@ -221,6 +265,26 @@ ok(t2(form({ app: 'lz', capability: 'ask', body: { text: 'hi' } }, [], { t: 'tex
 ok(t2has(form({ app: 'lz', capability: 'ask', body: { text: 'hi' } }, [], { t: 'text', text: { src: '$result', path: 'job_id' } }), '/spec/body/result/text', 'undeclared-path'), '…never its job handle')
 ok(t2(form({ app: 'lz', capability: 'ask', body: { text: 'hi' } }, [], { t: 'text', text: { src: '$job', path: 'phase' } })).length === 0, '$job carries phase/status/result/error')
 ok(t2has(form({ app: 'lz', capability: 'note', body: { title: 'x' } }, [], { t: 'text', text: { src: '$form', path: 'title' } }), '/spec/body/result/text', 'unknown-source'), 'a result slot is drawn beside the form: $form is not in its scope')
+
+const ST = { q: { type: 'string' }, open: { type: 'boolean' } }
+ok(t2({ state: ST, body: { t: 'input', state: 'q' } }).length === 0, '$state: a control writes a declared variable')
+ok(t2has({ state: ST, body: { t: 'input', state: 'qq' } }, '/spec/body/state', 'undeclared'), '…one nobody declared is refused')
+ok(t2({ state: ST, body: { t: 'input', state: 'qq' } })[0]?.fix === 'did you mean "q"?', '…naming the declared one')
+ok(t2has({ state: ST, body: { t: 'button', text: 'x', on: { press: { set: 'opne', to: true } } } }, '/spec/body/on/press/set', 'undeclared'), 'a `set` of an undeclared variable is refused')
+ok(t2has({ state: ST, body: { t: 'text', text: { src: '$state', path: 'query' } } }, '/spec/body/text', 'undeclared-path'), '$state.<name> must be declared')
+ok(t2has({ state: ST, body: { t: 'button', text: 'x', on: { press: { set: 'q', to: { src: 'clock', path: 'mm' } } } } }, '/spec/body/on/press/to', 'undeclared-path'), "a set's value is checked like any binding")
+const NOTE = { app: 'lz', capability: 'note', body: { title: 'x' } }
+ok(t2({ state: ST, body: { t: 'button', text: 'x', on: { press: [{ run: NOTE }, { set: 'q', to: { src: '$result', path: 'id' } }] } } }).length === 0,
+  "the actions after a `run` read what it produced as $result")
+ok(t2has({ state: ST, body: { t: 'button', text: 'x', on: { press: [{ run: NOTE }, { set: 'q', to: { src: '$result', path: 'idd' } }] } } }, '/spec/body/on/press/1/to', 'undeclared-path'),
+  '…checked against what the capability declares it returns')
+ok(t2has({ state: ST, body: { t: 'button', text: 'x', on: { press: [{ set: 'q', to: { src: '$result', path: 'id' } }, { run: NOTE }] } } }, '/spec/body/on/press/0/to', 'unknown-source'),
+  '…and not before it runs')
+ok(t2has({ body: { t: 'button', text: 'x', on: { press: { run: { app: 'lz', capability: 'note' } } } } }, '/spec/body/on/press/run/body', 'missing-field'), "a `run` is checked like any command (its required fields)")
+ok(t2({ sources: JOBS_SRC, state: ST, body: { t: 'rows', from: { src: 'jobs' }, title: { src: '$', path: 'status' }, on: { select: { set: 'q', to: { src: '$', path: 'id' } } } } }).length === 0,
+  "a row's event reads that row as $")
+ok(t2({ state: ST, body: { t: 'form', cmd: NOTE, submit: 'GO', children: [], on: { done: { set: 'q', to: { src: '$result', path: 'id' } } } } }).length === 0,
+  "a form's `done` reads what its command produced")
 
 console.log('3d · patterns')
 ok(problems(def({ t: 'facts', items: [{ label: 'High', value: { src: 'weather', path: 'hiLabel' }, tone: 'accent' }] })).length === 0, 'facts takes a list of { label, value, tone? }')

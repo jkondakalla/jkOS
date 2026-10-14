@@ -31,10 +31,11 @@ export function walkNodes(node, visit, path = '') {
  * a binding saying so (the manifest's `reads`), plus `$now` for a `fmt: 'ago'` — the
  * one format that reads the clock.
  *
- * `commands: false` skips `cmd` subtrees. A command's body bindings resolve at SUBMIT
- * time against the scope of that render, not on screen, so they are not display
- * dependencies — else a form defaulting due_date to clock.iso would re-render its
- * card every second. Pass `commands: true` to ask "does this def bind X ANYWHERE".
+ * `commands: false` skips `cmd` and `on` subtrees. A command's body bindings, and an
+ * event's actions, resolve when it is SUBMITTED or fired, against the scope of that
+ * moment, not on screen, so they are not display dependencies — else a form defaulting
+ * due_date to clock.iso would re-render its card every second. Pass `commands: true`
+ * to ask "does this def bind X ANYWHERE".
  *
  * @param {unknown} value a def, spec, node, or any part of one
  * @param {{ commands?: boolean }} [opts]
@@ -49,16 +50,22 @@ export function sourcesOf(value, { commands = false } = {}) {
     // A time measured from NOW depends on the clock, though no binding names it.
     if (v.fmt === 'ago') acc.add('$now')
     if (typeof v.t === 'string' && NODES[v.t]?.reads) [].concat(NODES[v.t].reads).forEach((r) => acc.add(r))
-    for (const k in v) if (commands || k !== 'cmd') visit(v[k])
+    for (const k in v) if (commands || (k !== 'cmd' && k !== 'on')) visit(v[k])
   }
   visit(value)
   return acc
 }
 
+/** Every action in a node's `on`, flattened: [{ event, action }]. */
+export function actionsOf(node) {
+  if (!isObj(node) || !isObj(node.on)) return []
+  return Object.entries(node.on).flatMap(([event, chain]) => [].concat(chain).filter(isObj).map((action) => ({ event, action })))
+}
+
 /**
  * Every app a widget reaches: the app of each `dataset` source, and of every command
- * in its tree (a form's, a button's — wherever one sits). What "is this an AI widget"
- * is DERIVED from: a def used to carry a hand-set `ai` flag, which nothing checked
+ * in its tree — a form's, a button's, an event's `run` — wherever one sits. What "is
+ * this an AI widget" is DERIVED from: a def used to carry a hand-set `ai` flag, which nothing checked
  * against what it bound, and a widget binding LazurOS with `ai` unset ignored the
  * suite's AI kill switch.
  *
@@ -72,6 +79,10 @@ export function appsOf(def) {
   for (const s of Object.values(isObj(spec.sources) ? spec.sources : {})) {
     if (isObj(s) && s.kind === 'dataset' && typeof s.app === 'string') acc.add(s.app)
   }
-  walkNodes(spec.body, (n) => { if (isObj(n.cmd) && typeof n.cmd.app === 'string' && n.cmd.app) acc.add(n.cmd.app) })
+  const add = (cmd) => { if (isObj(cmd) && typeof cmd.app === 'string' && cmd.app) acc.add(cmd.app) }
+  walkNodes(spec.body, (n) => {
+    add(n.cmd)
+    for (const { action } of actionsOf(n)) add(action.run)
+  })
   return acc
 }

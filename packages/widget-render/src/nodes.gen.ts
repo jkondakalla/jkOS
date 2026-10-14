@@ -3,6 +3,16 @@
 
 import type { Binding, ToneBinding, CommandRef } from './types';
 
+/** What an event runs — one variant per manifest action, named by its key. */
+export type WidgetAction =
+  /** Run a capability — a capability its app declares — an async one is followed to its end. */
+  | { run: CommandRef }
+  /** Set state — write one of this widget's own state variables. */
+  | { set: string; to: Binding };
+
+/** An event's actions: one, or an ordered list (a failed `run` stops the rest). */
+export type ActionChain = WidgetAction | WidgetAction[];
+
 /** The status palette a tone names — semantic constants, never accent-derived. */
 export type Tone = 'ok' | 'warn' | 'danger' | 'muted' | 'accent';
 
@@ -62,22 +72,22 @@ export type WidgetNode =
   /** Meter — a labelled bar: how far along. */
   | { t: 'meter'; value: Binding; /** default 1 (value is a fraction) */ max?: Binding; label?: Binding; /** right of the label ("3 / 5", "60%") */ detail?: Binding; /** the fill (default the accent) */ tone?: ToneBinding }
   /** Rows — a dense list: mark · lead · title · detail. */
-  | { t: 'rows'; /** the rows; every per-row prop below binds into `$` */ from: Binding; title: Binding; /** a short leading column (a time, a rank) */ lead?: Binding; /** a status dot's tone */ mark?: ToneBinding; /** a leading glyph instead of the dot */ icon?: Binding; /** trailing, dim */ detail?: Binding; /** a second line under the title */ sub?: Binding; /** the row links here */ href?: Binding; /** a thin bar under the title: how far along — a fraction, or out of `total` */ progress?: Binding; /** what `progress` is out of (default 1): a duration beside a position */ total?: Binding; /** when there are no rows (the frame draws an empty SOURCE itself; a list inside one document needs this) */ empty?: Binding; /** rows shown; the rest become "+N more" (the list scrolls within its card) */ max?: number }
+  | { t: 'rows'; /** the rows; every per-row prop below binds into `$` */ from: Binding; title: Binding; /** a short leading column (a time, a rank) */ lead?: Binding; /** a status dot's tone */ mark?: ToneBinding; /** a leading glyph instead of the dot */ icon?: Binding; /** trailing, dim */ detail?: Binding; /** a second line under the title */ sub?: Binding; /** the row links here */ href?: Binding; /** a thin bar under the title: how far along — a fraction, or out of `total` */ progress?: Binding; /** what `progress` is out of (default 1): a duration beside a position */ total?: Binding; /** when there are no rows (the frame draws an empty SOURCE itself; a list inside one document needs this) */ empty?: Binding; /** rows shown; the rest become "+N more" (the list scrolls within its card) */ max?: number; on?: { select?: ActionChain } }
   /** Feed — what happened, newest first, with when. */
   | { t: 'feed'; /** the events; every per-event prop binds into `$` */ from: Binding; text: Binding; /** when — an instant, drawn as 'ago' unless the binding formats it */ at?: Binding; icon?: Binding; tone?: ToneBinding; /** a second, dim line */ detail?: Binding; empty?: Binding; max?: number }
   /** Facts — a grid of named values. */
   | { t: 'facts'; /** [{ label, value, tone? }] — each a literal or a binding */ items: { label: Binding; value: Binding; tone?: ToneBinding }[]; /** columns (one when narrow) */ cols?: number }
   /** Media — art, a title, and where it is. */
-  | { t: 'media'; /** the art (an http(s) or relative URL) */ image?: Binding; title: Binding; subtitle?: Binding; /** a small line under them (a time, a count) */ meta?: Binding; progress?: Binding; /** default 1 */ max?: Binding; href?: Binding }
+  | { t: 'media'; /** the art (an http(s) or relative URL) */ image?: Binding; title: Binding; subtitle?: Binding; /** a small line under them (a time, a count) */ meta?: Binding; progress?: Binding; /** default 1 */ max?: Binding; href?: Binding; on?: { press?: ActionChain } }
   /** Ask — one question, its answer drawn under it. */
   | { t: 'ask'; /** the question is sent as `field` in its body */ cmd: CommandRef; /** default "text" */ field?: string; placeholder?: Binding; /** default "ASK" */ submit?: Binding; /** what to show from $result when it is done (default $result.response) */ answer?: Binding }
   /** Action form — inputs that submit a command. */
-  | { t: 'form'; cmd: CommandRef; /** the submit button's label */ submit: Binding; children: WidgetNode[]; /** drawn once the command has answered: $result is what it produced (an async command is followed until it ends), $job is { phase: pending|done|failed|lost, status, error } */ result?: WidgetNode }
-  /** Action button — one tap runs a command. */
-  | { t: 'button'; text: Binding; cmd: CommandRef; tone?: ToneBinding; /** drawn once the command has answered: $result is what it produced (an async command is followed until it ends), $job is { phase: pending|done|failed|lost, status, error } */ result?: WidgetNode }
-  /** Form input — text/number/date field. */
-  | { t: 'input'; field: string; placeholder?: Binding; itype?: 'text' | 'number' | 'date' | 'time' }
-  /** Form select — pick from options. */
-  | { t: 'select'; field: string; /** an array of strings or {value, label} */ options: Binding; placeholder?: Binding }
-  /** Form toggle — on/off checkbox. */
-  | { t: 'toggle'; field: string; label?: Binding };
+  | { t: 'form'; cmd: CommandRef; /** the submit button's label */ submit: Binding; children: WidgetNode[]; /** drawn once the command has answered: $result is what it produced (an async command is followed until it ends), $job is { phase: pending|done|failed|lost, status, error } */ result?: WidgetNode; on?: { done?: ActionChain } }
+  /** Action button — one tap runs a command, or its actions. */
+  | { t: 'button'; text: Binding; /** the command a tap runs — or `on.press`, for anything else (set state, several steps) */ cmd?: CommandRef; tone?: ToneBinding; /** drawn once the command has answered: $result is what it produced (an async command is followed until it ends), $job is { phase: pending|done|failed|lost, status, error } */ result?: WidgetNode; on?: { press?: ActionChain } }
+  /** Input — text/number/date field. */
+  | { t: 'input'; /** inside a form: the $form field it writes */ field?: string; /** outside a form: the widget's state variable it writes (a search box) */ state?: string; placeholder?: Binding; itype?: 'text' | 'number' | 'date' | 'time' }
+  /** Select — pick from options. */
+  | { t: 'select'; /** inside a form: the $form field it writes */ field?: string; /** outside a form: the widget's state variable it writes (a sort order) */ state?: string; /** an array of strings or {value, label} */ options: Binding; placeholder?: Binding }
+  /** Toggle — on/off checkbox. */
+  | { t: 'toggle'; /** inside a form: the $form field it writes */ field?: string; /** outside a form: the widget's state variable it writes */ state?: string; label?: Binding };

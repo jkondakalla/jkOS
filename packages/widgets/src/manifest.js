@@ -31,6 +31,9 @@
  *   pairs     a list of { label: Binding, value: Binding, tone?: tone } (a facts grid)
  *   node      one child node (a slot)
  *   nodes     an ordered list of child nodes
+ *   state     the name of one of the widget's own state variables (spec.state)
+ *   events    `on`: the node's events (its manifest `events`) → an action or a list of them
+ *   params    a map of name → literal or Binding (a dataset's params, an action's arguments)
  */
 
 /** The status palette a tone names. Semantic constants, never accent-derived (DESIGN §2). */
@@ -47,6 +50,26 @@ export const ICON_NAMES = [
  *  is a manifest molecule now (focus → { t: 'focus' }, bb-week → { t: 'week' }), and
  *  a stored def naming one is repaired on load (ORDECK hud/state.ts). */
 export const RETIRED_COMPONENTS = { focus: 'focus', 'bb-week': 'week' }
+
+/** What a state variable (spec.state) may hold. */
+export const STATE_TYPES = ['string', 'number', 'boolean', 'json']
+
+/** What an event does — each action is a one-key object (like a condition), named by the
+ *  key that says what it is. A node's `on.<event>` is one action or an ordered list of
+ *  them: they run in turn, a failed `run` stops the rest, and the actions after a `run`
+ *  read what it produced as `$result`. Its `props` are checked like a node's. */
+export const ACTIONS = {
+  run: {
+    label: 'Run a capability', hint: 'a capability its app declares — an async one is followed to its end',
+    props: { run: { type: 'cmd', required: true } },
+    example: { run: { app: 'beigeboard', capability: 'createItem', body: { title: { src: '$state', path: 'title' } } } },
+  },
+  set: {
+    label: 'Set state', hint: "write one of this widget's own state variables",
+    props: { set: { type: 'state', required: true }, to: { type: 'binding', required: true, doc: "the new value — e.g. { not: { src: '$state', path: 'open' } } flips a flag" } },
+    example: { set: 'open', to: { not: { src: '$state', path: 'open' } } },
+  },
+}
 
 /** Grid columns per viewport tier — the width ceiling a footprint is held to. */
 export const TIER_COLS = { desktop: 12, tablet: 6, mobile: 2 }
@@ -79,7 +102,11 @@ const ALIGN = ['flex-start', 'flex-end', 'center', 'baseline', 'stretch', 'start
  *   props      name → { type, required?, values?, doc?, row?, result? } — `row`: a binding
  *              into `$`, each row of the node's `from`; `result`: into `$result`/`$job`
  *   placement  { form: 'inside' | 'outside' } — a control only inside a form, a form
- *              never inside one; { root: true } — only directly on the card's root
+ *              never inside one; { outside: '<prop>' } — …unless it has that prop (a
+ *              control with `state` writes the widget's state, outside any form);
+ *              { root: true } — only directly on the card's root
+ *   oneOf      groups of props of which exactly one is given (a control's field | state)
+ *   events     what `on` may name: event → what it means, and what its actions read
  *   reads      the HUD slice(s) a molecule reads straight from scope (no binding says so)
  *   example    a working node, and the default the Workshop drops in
  */
@@ -298,7 +325,9 @@ export const NODES = {
       total: { type: 'binding', row: true, doc: 'what `progress` is out of (default 1): a duration beside a position' },
       empty: { type: 'binding', doc: 'when there are no rows (the frame draws an empty SOURCE itself; a list inside one document needs this)' },
       max: { type: 'number', min: 1, max: 100, doc: 'rows shown; the rest become "+N more" (the list scrolls within its card)' },
+      on: { type: 'events' },
     },
+    events: { select: 'a row is tapped — its actions read that row as `$` (a row is a link or an action, not both)' },
     example: {
       t: 'rows', from: { src: 'today', path: 'tasks' }, lead: { src: '$', path: 'timeLabel' },
       title: { src: '$', path: 'title' }, mark: { src: '$', path: 'tone' },
@@ -336,7 +365,9 @@ export const NODES = {
       progress: { type: 'binding' },
       max: { type: 'binding', doc: 'default 1' },
       href: { type: 'binding', href: true },
+      on: { type: 'events' },
     },
+    events: { press: 'it is tapped (a link or an action, not both)' },
     example: { t: 'media', title: { src: 'focus', path: 'title' }, subtitle: { src: 'focus', path: 'timeLabel' } },
   },
   ask: {
@@ -359,42 +390,58 @@ export const NODES = {
       submit: { type: 'binding', required: true, doc: "the submit button's label" },
       children: { type: 'nodes', required: true },
       result: { type: 'node', doc: RESULT_DOC },
+      on: { type: 'events' },
     },
     placement: { form: 'outside' },
+    events: { done: 'its command succeeded — its actions read what it produced as `$result`' },
     example: { t: 'form', cmd: { app: '', capability: '' }, submit: 'SUBMIT', children: [] },
   },
   button: {
-    kind: 'control', label: 'Action button', hint: 'one tap runs a command',
+    kind: 'control', label: 'Action button', hint: 'one tap runs a command, or its actions',
     props: {
-      text: { type: 'binding', required: true }, cmd: { type: 'cmd', required: true }, tone: { type: 'tone' },
-      result: { type: 'node', doc: RESULT_DOC },
+      text: { type: 'binding', required: true },
+      cmd: { type: 'cmd', doc: 'the command a tap runs — or `on.press`, for anything else (set state, several steps)' },
+      tone: { type: 'tone' },
+      result: { type: 'node', with: 'cmd', doc: RESULT_DOC },
+      on: { type: 'events' },
     },
+    oneOf: [['cmd', 'on']],
+    events: { press: 'it is tapped' },
     example: { t: 'button', text: 'GO', cmd: { app: '', capability: '' } },
   },
   input: {
-    kind: 'control', label: 'Form input', hint: 'text/number/date field',
+    kind: 'control', label: 'Input', hint: 'text/number/date field',
     props: {
-      field: { type: 'field', required: true },
+      field: { type: 'field', doc: "inside a form: the $form field it writes" },
+      state: { type: 'state', doc: "outside a form: the widget's state variable it writes (a search box)" },
       placeholder: { type: 'binding' },
       itype: { type: 'enum', values: ['text', 'number', 'date', 'time'] },
     },
-    placement: { form: 'inside' },
+    placement: { form: 'inside', outside: 'state' },
+    oneOf: [['field', 'state']],
     example: { t: 'input', field: 'value', placeholder: 'Value…' },
   },
   select: {
-    kind: 'control', label: 'Form select', hint: 'pick from options',
+    kind: 'control', label: 'Select', hint: 'pick from options',
     props: {
-      field: { type: 'field', required: true },
+      field: { type: 'field', doc: "inside a form: the $form field it writes" },
+      state: { type: 'state', doc: "outside a form: the widget's state variable it writes (a sort order)" },
       options: { type: 'binding', required: true, list: true, doc: 'an array of strings or {value, label}' },
       placeholder: { type: 'binding' },
     },
-    placement: { form: 'inside' },
+    placement: { form: 'inside', outside: 'state' },
+    oneOf: [['field', 'state']],
     example: { t: 'select', field: 'choice', options: { lit: ['A', 'B'] }, placeholder: 'Pick…' },
   },
   toggle: {
-    kind: 'control', label: 'Form toggle', hint: 'on/off checkbox',
-    props: { field: { type: 'field', required: true }, label: { type: 'binding' } },
-    placement: { form: 'inside' },
+    kind: 'control', label: 'Toggle', hint: 'on/off checkbox',
+    props: {
+      field: { type: 'field', doc: "inside a form: the $form field it writes" },
+      state: { type: 'state', doc: "outside a form: the widget's state variable it writes" },
+      label: { type: 'binding' },
+    },
+    placement: { form: 'inside', outside: 'state' },
+    oneOf: [['field', 'state']],
     example: { t: 'toggle', field: 'flag', label: 'Flag' },
   },
 }

@@ -12,7 +12,7 @@ import type { AppId, Binding as WeaveBinding } from '@jkos/weave';
 import type { DataSource } from './sources';
 import type { WidgetNode, Tone } from './nodes.gen';
 
-export type { WidgetNode, Tone, IconName, HostKind } from './nodes.gen';
+export type { WidgetNode, Tone, IconName, HostKind, WidgetAction, ActionChain } from './nodes.gen';
 export type { DataSource, SourceState, SourceStatus } from './sources';
 
 /** A value resolved at render time: a literal, or a path into a named source
@@ -52,10 +52,19 @@ export interface WidgetFrame {
   empty?: Binding;
 }
 
+/** One of a widget's own variables: `$state.<name>`, written by a `set` action and by a
+ *  control with `state`. Every instance of the widget has its own, from `default`. */
+export interface StateVar {
+  type: 'string' | 'number' | 'boolean' | 'json';
+  default?: unknown;
+}
+
 export interface WidgetSpec {
   frame?: WidgetFrame;
   /** Named sources beyond the host's slices, which are always in scope. */
   sources?: Record<string, DataSource>;
+  /** This widget's own variables (`$state`). */
+  state?: Record<string, StateVar>;
   body: WidgetNode;
 }
 

@@ -31,7 +31,7 @@ import { shippedWidgets, suiteHosts, declarations, WIDGETS_URL, SEMANTIC_URL, RE
 import { renderWidgets } from './widget/render.mjs';
 import { draftWidget } from './widget/scaffold.mjs';
 
-const { validateWidget: validate, NODES, FRAME, SOURCES, TONES } = await import(WIDGETS_URL);
+const { validateWidget: validate, NODES, FRAME, SOURCES, ACTIONS, STATE_TYPES, TONES } = await import(WIDGETS_URL);
 const { checkBindings } = await import(SEMANTIC_URL);
 const CTX = { suiteHosts: suiteHosts() };
 const DECLS = await declarations();
@@ -101,7 +101,9 @@ if (cmd === 'new') {
     if (!n) { console.error(`✗ no kind '${t}' — one of: ${Object.keys(NODES).join(', ')}`); process.exit(2); }
     console.log(`\n${t}  [${n.kind}] ${n.label} — ${n.hint ?? ''}`);
     for (const [name, p] of Object.entries(n.props)) console.log(prop(name, p));
-    if (n.placement) console.log(`    placement: ${Object.entries(n.placement).map(([k, v]) => `${k} ${v}`).join(', ')}`);
+    if (n.placement) console.log(`    placement: ${Object.entries(n.placement).map(([k, v]) => (k === 'outside' ? `outside a form with ${v}` : `${k} ${v}`)).join(', ')}`);
+    for (const g of n.oneOf ?? []) console.log(`    exactly one of: ${g.join(' | ')}`);
+    for (const [ev, doc] of Object.entries(n.events ?? {})) console.log(`    on.${ev} — ${doc}`);
     if (n.example) console.log(`    e.g. ${JSON.stringify(n.example)}`);
   }
   if (!names.length) {
@@ -109,6 +111,12 @@ if (cmd === 'new') {
     for (const [kind, s] of Object.entries(SOURCES)) {
       console.log(`\nsource  { "kind": "${kind}" }  ${s.label} — ${s.hint}`);
       for (const [name, p] of Object.entries(s.props)) console.log(prop(name, p));
+    }
+    console.log(`\nstate (spec.state)  name → { type: ${STATE_TYPES.join('|')}, default? } — read as $state.<name>; written by \`set\` and by a control with \`state\``);
+    for (const [name, a] of Object.entries(ACTIONS)) {
+      console.log(`\naction  { "${name}": … }  ${a.label} — ${a.hint}`);
+      for (const [k, p] of Object.entries(a.props)) console.log(prop(k, p));
+      console.log(`    e.g. ${JSON.stringify(a.example)}`);
     }
   }
   console.log('\n* required');

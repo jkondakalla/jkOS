@@ -19,7 +19,7 @@
 //   scalar  no fields below it
 //   any     not declared deeply enough to check (a `schema` pointer, a fetch source)
 
-import { NODES, FRAME, childProps } from './manifest.js'
+import { NODES, FRAME, ACTIONS, childProps } from './manifest.js'
 import { CONDITIONS } from '@jkos/weave/binding'
 
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v)
@@ -158,6 +158,14 @@ export function checkBindings(def, { docs = {}, slices = {} } = {}) {
     scope.set(name, datasetShape(ds))
   }
   scope.set('$sources', fieldsShape([...sourceStates.values()]))
+  // $state: this widget's own variables, each as declared (a json one is not checked deeper).
+  const stateDecl = isObj(spec.state) ? spec.state : {}
+  scope.set('$state', fieldsShape(Object.entries(stateDecl).map(([name, d]) => ({ name, type: isObj(d) ? d.type : 'json' }))))
+  const checkStateName = (name, at) => {
+    if (typeof name !== 'string' || name in stateDecl) return
+    const near = nearest(name, Object.keys(stateDecl))
+    err(at, 'undeclared', `no state variable ${JSON.stringify(name)} is declared in spec.state`, near ? `did you mean ${JSON.stringify(near)}?` : `declare it: "state": { "${name}": { "type": "string" } }`)
+  }
 
   // A binding (and its operands) in `v`, read against `sc`, found at `at`.
   const checkBinding = (v, at, sc) => {
@@ -187,6 +195,7 @@ export function checkBindings(def, { docs = {}, slices = {} } = {}) {
       if (v === undefined) continue
       const here = p.row ? extra.row ?? sc : p.result ? extra.result ?? sc : sc
       if (p.type === 'binding' || p.type === 'tone') checkBinding(v, `${at}/${esc(name)}`, here)
+      if (p.type === 'state') checkStateName(v, `${at}/${esc(name)}`)
       if (p.type === 'pairs' && Array.isArray(v)) {
         v.forEach((pair, i) => {
           for (const k of ['label', 'value', 'tone']) if (isObj(pair) && pair[k] !== undefined) checkBinding(pair[k], `${at}/${esc(name)}/${i}/${k}`, here)
@@ -269,6 +278,29 @@ export function checkBindings(def, { docs = {}, slices = {} } = {}) {
       `give it an \`empty\` line, or put it under { "t": "when", "cond": { "src": "${from.src}", "path": "${from.path}" }, "then": …, "else": … }`)
   }
 
+  /* An event's actions, in order, each read in the event's scope — and the actions after a
+     `run` read what it produced as $result (an async capability: what it RESOLVES to). */
+  const checkChain = (chain, at, sc) => {
+    let here = sc
+    const list = Array.isArray(chain) ? chain : [chain]
+    list.forEach((a, i) => {
+      if (!isObj(a)) return
+      const p = Array.isArray(chain) ? `${at}/${i}` : at
+      if ('run' in a) {
+        const produced = checkCmd(a.run, `${p}/run`, here)
+        here = new Map(here)
+        here.set('$result', produced ?? ANY)
+        here.set('$job', JOB)
+      } else if ('set' in a) {
+        checkStateName(a.set, `${p}/set`)
+        checkBinding(a.to, `${p}/to`, here)
+      }
+      for (const [name, spec_] of Object.entries(ACTIONS[Object.keys(a).find((k) => ACTIONS[k])]?.props ?? {})) {
+        if (spec_.type === 'params' && isObj(a[name])) for (const [k, b] of Object.entries(a[name])) checkBinding(b, `${p}/${esc(name)}/${esc(k)}`, here)
+      }
+    })
+  }
+
   const visit = (node, at, sc, guards = new Set()) => {
     if (!isObj(node) || !NODES[node.t]) return
     const spec_ = NODES[node.t]
@@ -292,6 +324,14 @@ export function checkBindings(def, { docs = {}, slices = {} } = {}) {
       extra.result.set('$job', JOB)
     }
     bindingsIn(node, spec_.props, at, here, extra)
+    if (isObj(node.on)) {
+      for (const [ev, chain] of Object.entries(node.on)) {
+        // A row's event reads that row ($); a form's `done` reads what its command produced.
+        let evScope = node.t === 'rows' ? extra.row ?? here : here
+        if (node.t === 'form') { evScope = new Map(sc); evScope.set('$result', produced ?? ANY); evScope.set('$job', JOB) }
+        checkChain(chain, `${at}/on/${esc(ev)}`, evScope)
+      }
+    }
     for (const { name, many } of childProps(node.t)) {
       const c = node[name]
       if (c === undefined) continue

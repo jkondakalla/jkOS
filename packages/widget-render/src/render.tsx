@@ -23,8 +23,9 @@ import {
   type ComponentType, type CSSProperties, type FormEvent, type ReactNode,
 } from 'react';
 import {
-  fetchCapabilities, getCapability, runCommand, suiteApp, followJob, format, type CapabilityDoc, type JobOutcome, resolveBinding, truthy } from '@jkos/weave';
-import type { Binding, CommandRef, HostKind, IconName, Tone, ToneBinding, WidgetDef, WidgetNode, WidgetSpec } from './types';
+  fetchCapabilities, getCapability, runCommand, suiteApp, followJob, format, type CapabilityDef, type CapabilityDoc, type JobOutcome,
+  type SuiteApp, resolveBinding, truthy } from '@jkos/weave';
+import type { ActionChain, Binding, CommandRef, HostKind, IconName, Tone, ToneBinding, WidgetAction, WidgetDef, WidgetNode, WidgetSpec } from './types';
 import { useDataSources, cardState, type CardState } from './sources';
 import './widgets.css';
 import { TONE_COLOR } from './tone';
@@ -168,6 +169,44 @@ function patternIcon(name: string, tone: string): ReactNode {
  *  draws them, and tsc holds each side to its half of the manifest. */
 export type NodeOf<K extends WidgetNode['t']> = Extract<WidgetNode, { t: K }>;
 type Primitives = { [K in Exclude<WidgetNode['t'], HostKind>]: (node: NodeOf<K>, scope: Scope) => ReactNode };
+
+/** The `rows` pattern's body. `onSelect`: each row is an action (the node's `on.select`),
+ *  drawn as a button that hands back that row's scope; otherwise a row with `href` is a
+ *  link. (The validator refuses both on one node — one tap, one meaning.) */
+function rowsBody(n: NodeOf<'rows'>, scope: Scope, onSelect?: (rowScope: Scope) => void, busy = false): ReactNode {
+  const arr = resolve(n.from, scope);
+  const items = Array.isArray(arr) ? arr : [];
+  if (!items.length) return n.empty != null ? <div className="hud-p hud-p-empty">{str(resolve(n.empty, scope))}</div> : null;
+  const shown = n.max && n.max > 0 ? items.slice(0, n.max) : items;
+  return (
+    <div className="hud-p hud-p-rows">
+      {shown.map((el, i) => {
+        const s = { ...scope, $: el };
+        const href = n.href != null ? safeHref(resolve(n.href, s)) : undefined;
+        // An optional line whose value is empty draws nothing, not an empty line — so
+        // `sub: $.error` shows only on the rows that have one.
+        const lead = opt(n.lead, s), sub = opt(n.sub, s), detail = opt(n.detail, s);
+        const pct = n.progress != null ? fraction(resolve(n.progress, s), n.total != null ? resolve(n.total, s) : 1) : null;
+        const inner = (
+          <>
+            {n.icon != null ? patternIcon(str(resolve(n.icon, s)), patternTone(n.mark, s, 'muted'))
+              : n.mark != null ? <span className="hud-p-mark" style={vars({ '--w-tone': patternTone(n.mark, s, 'muted') })} /> : null}
+            {n.lead != null && <span className="hud-p-lead">{lead}</span>}
+            <span className="hud-p-main">
+              <span className="hud-p-title">{str(resolve(n.title, s))}</span>
+              {sub && <span className="hud-p-sub">{sub}</span>}
+              {pct != null && track(pct, 'var(--color-accent)')}
+            </span>
+            {detail && <span className="hud-p-detail">{detail}</span>}
+          </>
+        );
+        if (onSelect) return <button key={i} type="button" className="hud-p-row is-action" disabled={busy} onClick={() => onSelect(s)}>{inner}</button>;
+        return href ? <a key={i} className="hud-p-row" href={href}>{inner}</a> : <div key={i} className="hud-p-row">{inner}</div>;
+      })}
+      {items.length > shown.length && <div className="hud-p-more">+{items.length - shown.length} MORE</div>}
+    </div>
+  );
+}
 
 const PRIMITIVES: Primitives = {
   stack: (n, scope) => (
@@ -346,39 +385,7 @@ const PRIMITIVES: Primitives = {
       </div>
     );
   },
-  rows: (n, scope) => {
-    const arr = resolve(n.from, scope);
-    const items = Array.isArray(arr) ? arr : [];
-    if (!items.length) return n.empty != null ? <div className="hud-p hud-p-empty">{str(resolve(n.empty, scope))}</div> : null;
-    const shown = n.max && n.max > 0 ? items.slice(0, n.max) : items;
-    return (
-      <div className="hud-p hud-p-rows">
-        {shown.map((el, i) => {
-          const s = { ...scope, $: el };
-          const href = n.href != null ? safeHref(resolve(n.href, s)) : undefined;
-          // An optional line whose value is empty draws nothing, not an empty line — so
-          // `sub: $.error` shows only on the rows that have one.
-          const lead = opt(n.lead, s), sub = opt(n.sub, s), detail = opt(n.detail, s);
-          const pct = n.progress != null ? fraction(resolve(n.progress, s), n.total != null ? resolve(n.total, s) : 1) : null;
-          const inner = (
-            <>
-              {n.icon != null ? patternIcon(str(resolve(n.icon, s)), patternTone(n.mark, s, 'muted'))
-                : n.mark != null ? <span className="hud-p-mark" style={vars({ '--w-tone': patternTone(n.mark, s, 'muted') })} /> : null}
-              {n.lead != null && <span className="hud-p-lead">{lead}</span>}
-              <span className="hud-p-main">
-                <span className="hud-p-title">{str(resolve(n.title, s))}</span>
-                {sub && <span className="hud-p-sub">{sub}</span>}
-                {pct != null && track(pct, 'var(--color-accent)')}
-              </span>
-              {detail && <span className="hud-p-detail">{detail}</span>}
-            </>
-          );
-          return href ? <a key={i} className="hud-p-row" href={href}>{inner}</a> : <div key={i} className="hud-p-row">{inner}</div>;
-        })}
-        {items.length > shown.length && <div className="hud-p-more">+{items.length - shown.length} MORE</div>}
-      </div>
-    );
-  },
+  rows: (n, scope) => (n.on?.select ? <ActionRows node={n} scope={scope} /> : rowsBody(n, scope)),
   feed: (n, scope) => {
     const arr = resolve(n.from, scope);
     const items = Array.isArray(arr) ? arr : [];
@@ -438,6 +445,7 @@ const PRIMITIVES: Primitives = {
         {pct != null && track(pct, 'var(--color-accent)')}
       </>
     );
+    if (n.on?.press) return <ActionTarget chain={n.on.press} scope={scope} className="hud-p hud-p-media is-action">{body}</ActionTarget>;
     return href ? <a className="hud-p hud-p-media" href={href}>{body}</a> : <div className="hud-p hud-p-media">{body}</div>;
   },
   ask: (n, scope) => <AskNode node={n} scope={scope} />,
@@ -521,11 +529,115 @@ function stateView(state: CardState, emptyText: string, authUrl: string): ReactN
 interface FormCtxValue { values: Record<string, unknown>; set: (field: string, v: unknown) => void }
 const FormCtx = createContext<FormCtxValue | null>(null);
 
+/** A widget instance's own variables (spec.state → `$state`): what a `set` action and a
+ *  control with `state` write. Each SpecWidget provides its own, so two placed copies of
+ *  one widget — or two `use`s of a part — never share a value. */
+const StateCtx = createContext<FormCtxValue | null>(null);
+
+/** The initial `$state`: each declared variable's default (null when it has none). */
+function initialState(spec: WidgetSpec): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(spec.state ?? {}).map(([k, d]) => [k, d.default ?? null]));
+}
+
 // The field faces come from the @jkos/ui primitives; the widget form only makes them
 // fill the card's width (.hud-w-field), and a command's button is .hud-w-action.
 const actionCls = (on: boolean) => `hud-w-action${on ? '' : ' is-off'}`;
 
 type CmdStatus = 'idle' | 'saving' | 'working' | 'ok' | 'err';
+
+/** Issue one command: its body is the capability's defaults under the ref's bindings
+ *  (resolved against `scope`; an empty optional stays unset). A synchronous capability
+ *  answers an outcome; an async one (it declares `resolves`) answers the job to follow. */
+async function issue(app: SuiteApp, cap: CapabilityDef, ref: CommandRef, scope: Scope): Promise<{ outcome: JobOutcome } | { jobId: string }> {
+  const body: Record<string, unknown> = {};
+  for (const fld of cap.body ?? []) if (fld.default !== undefined) body[fld.name] = fld.default;
+  for (const [k, b] of Object.entries(ref.body ?? {})) {
+    const v = resolve(b, scope);
+    if (v !== undefined && v !== null && v !== '') body[k] = v;  // keep optionals unset
+  }
+  const res = await runCommand(app, cap, body);
+  if (!res.ok) return { outcome: { phase: 'failed', error: res.error } };
+  if (!Array.isArray(cap.resolves)) return { outcome: { phase: 'done', result: res.data } };
+  const jobId = (res.data as { job_id?: unknown } | null)?.job_id;
+  if (typeof jobId !== 'string' && typeof jobId !== 'number') {
+    return { outcome: { phase: 'lost', error: `${ref.app}.${ref.capability} is async and answered no job_id` } };
+  }
+  return { jobId: String(jobId) };
+}
+
+/** Run a command to its END: discover its capability, issue it, and follow an async one
+ *  until the job ends — what an event's `run` action waits on before the next action. */
+async function runToEnd(ref: CommandRef, scope: Scope, signal: AbortSignal): Promise<JobOutcome> {
+  const app = suiteApp(ref.app);
+  const doc = await fetchCapabilities(ref.app);
+  const cap = doc ? getCapability(doc, ref.capability) : null;
+  if (!app?.apiBase || !cap) return { phase: 'failed', error: `${ref.app}.${ref.capability} is not available` };
+  const res = await issue(app, cap, ref, scope);
+  if ('outcome' in res) return res.outcome;
+  return followJob(ref.app, res.jobId, { signal });
+}
+
+/**
+ * Run an event's actions, in order, against the scope the event fired in. A `set` writes
+ * the widget's state; a `run` issues a capability and waits for its end — a failure stops
+ * the rest, and the actions after it read what it produced as `$result`.
+ *
+ * `status` is the chain's, for the control that fired it: idle → working → ok | err.
+ */
+function useActions() {
+  const state = useContext(StateCtx);
+  const [status, setStatus] = useState<CmdStatus>('idle');
+  const [error, setError] = useState<string | undefined>(undefined);
+  const live = useRef<AbortController | null>(null);
+  useEffect(() => () => live.current?.abort(), []);
+
+  const fire = useCallback(async (chain: ActionChain, scope: Scope): Promise<boolean> => {
+    live.current?.abort();
+    const ac = new AbortController();
+    live.current = ac;
+    setStatus('working'); setError(undefined);
+    let here = scope;
+    for (const a of ([] as WidgetAction[]).concat(chain)) {
+      if ('set' in a) {
+        state?.set(a.set, resolve(a.to, here));
+      } else if ('run' in a) {
+        const o = await runToEnd(a.run, here, ac.signal);
+        if (ac.signal.aborted) return false;
+        if (o.phase !== 'done') { setStatus('err'); setError(o.error); return false; }
+        here = { ...here, $result: o.result, $job: o };
+      }
+    }
+    if (ac.signal.aborted) return false;
+    setStatus('ok');
+    setTimeout(() => setStatus((st) => (st === 'ok' ? 'idle' : st)), 1600);
+    return true;
+  }, [state]);
+
+  return { status, error, busy: status === 'working', fire };
+}
+
+/** Something tapped to fire its actions (a media card's `on.press`), drawn as a button. */
+function ActionTarget({ chain, scope, className, children }: { chain: ActionChain; scope: Scope; className: string; children: ReactNode }) {
+  const act = useActions();
+  return (
+    <button type="button" className={className} disabled={act.busy} onClick={() => { void act.fire(chain, scope); }}>
+      {children}
+      {act.status === 'err' && <span className="hud-p-note is-error">{act.error ?? 'COULDN’T — RETRY'}</span>}
+    </button>
+  );
+}
+
+/** A rows pattern whose rows are actions (`on.select`): a tap fires them with that row as `$`. */
+function ActionRows({ node, scope }: { node: NodeOf<'rows'>; scope: Scope }) {
+  const act = useActions();
+  const chain = node.on?.select;
+  return (
+    <>
+      {rowsBody(node, scope, chain ? (row) => { void act.fire(chain, row); } : undefined, act.busy)}
+      {act.status === 'err' && <span className="hud-p-note is-error">{act.error ?? 'COULDN’T — RETRY'}</span>}
+    </>
+  );
+}
 
 /** Resolve a CommandRef to its app + capability, and expose a run() that builds
  *  the body (capability defaults under the ref's bindings) and dispatches it.
@@ -564,28 +676,15 @@ function useCommand(ref: CommandRef) {
     following.current?.abort();
     setStatus('saving');
     setOutcome({ phase: 'pending' });
-    const body: Record<string, unknown> = {};
-    for (const fld of cap.body ?? []) if (fld.default !== undefined) body[fld.name] = fld.default;
-    for (const [k, b] of Object.entries(ref.body ?? {})) {
-      const v = resolve(b, scope);
-      if (v !== undefined && v !== null && v !== '') body[k] = v;  // keep optionals unset
-    }
-    const res = await runCommand(app, cap, body);
-    if (!res.ok) { settle({ phase: 'failed', error: res.error }); return false; }
-    if (!Array.isArray(cap.resolves)) { settle({ phase: 'done', result: res.data }); return true; }
-
-    const jobId = (res.data as { job_id?: unknown } | null)?.job_id;
-    if (typeof jobId !== 'string' && typeof jobId !== 'number') {
-      settle({ phase: 'lost', error: `${ref.app}.${ref.capability} is async and answered no job_id` });
-      return false;
-    }
+    const res = await issue(app, cap, ref, scope);
+    if ('outcome' in res) { settle(res.outcome); return res.outcome.phase === 'done'; }
     setStatus('working');
     const ac = new AbortController();
     following.current = ac;
-    void followJob(ref.app, String(jobId), { signal: ac.signal, onUpdate: (o) => { if (!ac.signal.aborted) setOutcome(o); } })
+    void followJob(ref.app, res.jobId, { signal: ac.signal, onUpdate: (o) => { if (!ac.signal.aborted) setOutcome(o); } })
       .then((o) => { if (!ac.signal.aborted) settle(o); });
     return true;   // accepted: the inputs clear while the job runs
-  }, [app, cap, ref.app, ref.capability, ref.body, settle]);
+  }, [app, cap, ref, settle]);
 
   return { loading: doc === undefined, available, status, outcome, async: Array.isArray(cap?.resolves), run };
 }
@@ -616,6 +715,7 @@ function FormNode({ node, scope }: { node: Extract<WidgetNode, { t: 'form' }>; s
   const [values, setValues] = useState<Record<string, unknown>>({});
   const set = useCallback((field: string, v: unknown) => setValues((s) => ({ ...s, [field]: v })), []);
   const cmd = useCommand(node.cmd);
+  const done = useActions();
   const formScope: Scope = { ...scope, $form: values };
 
   const submit = async (e: FormEvent) => {
@@ -623,6 +723,17 @@ function FormNode({ node, scope }: { node: Extract<WidgetNode, { t: 'form' }>; s
     if (cmd.status === 'saving' || cmd.status === 'working' || !cmd.available) return;
     if (await cmd.run(formScope)) setValues({});
   };
+  // `on.done` fires once the command has SUCCEEDED (an async one: its job has ended), with
+  // what it produced as $result — so an event can go to the thing it just made.
+  const fired = useRef<JobOutcome | null>(null);
+  const onDone = node.on?.done;
+  const { fire } = done;
+  useEffect(() => {
+    const o = cmd.outcome;
+    if (!onDone || o?.phase !== 'done' || fired.current === o) return;
+    fired.current = o;
+    void fire(onDone, { ...scope, $result: o.result, $job: o });
+  }, [cmd.outcome, onDone, scope, fire]);
 
   const label = str(resolve(node.submit, scope));
   const note = commandNote(cmd);
@@ -652,27 +763,35 @@ function FormNode({ node, scope }: { node: Extract<WidgetNode, { t: 'form' }>; s
   );
 }
 
+/** Where a control reads and writes: the form's `$form.<field>`, or — a control with
+ *  `state`, outside any form — the widget's `$state.<name>`. */
+function useControl(node: { field?: string; state?: string }): { value: unknown; set: (v: unknown) => void } {
+  const form = useContext(FormCtx);
+  const state = useContext(StateCtx);
+  const ctx = node.state != null ? state : form;
+  const key = node.state ?? node.field ?? '';
+  return { value: ctx?.values[key], set: (v) => ctx?.set(key, v) };
+}
+
 function InputNode({ node, scope }: { node: Extract<WidgetNode, { t: 'input' }>; scope: Scope }) {
-  const ctx = useContext(FormCtx);
-  const v = str(ctx?.values[node.field] ?? '');
+  const c = useControl(node);
   const ph = node.placeholder != null ? str(resolve(node.placeholder, scope)) : '';
   return (
-    <Field value={v} placeholder={ph} type={node.itype ?? 'text'}
-      onChange={(e) => ctx?.set(node.field, e.target.value)} className="hud-w-field" />
+    <Field value={str(c.value ?? '')} placeholder={ph} type={node.itype ?? 'text'}
+      onChange={(e) => c.set(e.target.value)} className="hud-w-field" />
   );
 }
 
 function SelectNode({ node, scope }: { node: Extract<WidgetNode, { t: 'select' }>; scope: Scope }) {
-  const ctx = useContext(FormCtx);
+  const c = useControl(node);
   const raw = resolve(node.options, scope);
   const opts = (Array.isArray(raw) ? raw : []).map((o) =>
     o && typeof o === 'object'
       ? { value: str((o as { value?: unknown }).value), label: str((o as { label?: unknown }).label ?? (o as { value?: unknown }).value) }
       : { value: str(o), label: str(o) });
-  const v = str(ctx?.values[node.field] ?? '');
   const ph = node.placeholder != null ? str(resolve(node.placeholder, scope)) : '';
   return (
-    <SelectField value={v} onChange={(e) => ctx?.set(node.field, e.target.value)}
+    <SelectField value={str(c.value ?? '')} onChange={(e) => c.set(e.target.value)}
       wrapperClassName="hud-w-field" className="hud-w-field">
       {ph && <option value="">{ph}</option>}
       {opts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -681,12 +800,12 @@ function SelectNode({ node, scope }: { node: Extract<WidgetNode, { t: 'select' }
 }
 
 function ToggleNode({ node, scope }: { node: Extract<WidgetNode, { t: 'toggle' }>; scope: Scope }) {
-  const ctx = useContext(FormCtx);
-  const checked = !!ctx?.values[node.field];
+  const c = useControl(node);
+  const checked = truthy(c.value);
   const label = node.label != null ? str(resolve(node.label, scope)) : '';
   return (
     <label className="hud-w-toggle">
-      <Check checked={checked} onChange={(next) => ctx?.set(node.field, next)} />
+      <Check checked={checked} onChange={(next) => c.set(next)} />
       {label && <span className="hud-w-toggle-label">{label}</span>}
     </label>
   );
@@ -737,7 +856,27 @@ function AskNode({ node, scope }: { node: Extract<WidgetNode, { t: 'ask' }>; sco
 /** Standalone action button (outside a form): runs its command with body bound
  *  against the live scope — e.g. a "mark done" with a fixed id, or a list-row action. */
 function ButtonNode({ node, scope }: { node: Extract<WidgetNode, { t: 'button' }>; scope: Scope }) {
-  const cmd = useCommand(node.cmd);
+  // A button runs its `cmd`, or its `on.press` actions (exactly one: the validator's oneOf).
+  return node.cmd ? <CommandButton node={node} cmdRef={node.cmd} scope={scope} /> : <ActionButton node={node} scope={scope} />;
+}
+
+function ActionButton({ node, scope }: { node: Extract<WidgetNode, { t: 'button' }>; scope: Scope }) {
+  const act = useActions();
+  const chain = node.on?.press;
+  const label = str(resolve(node.text, scope));
+  const color = node.tone != null ? toneColor(node.tone, scope, 'accent') : 'var(--color-accent)';
+  const text = act.busy ? '…' : act.status === 'ok' ? 'DONE' : act.status === 'err' ? 'RETRY' : label;
+  return (
+    <button type="button" title={act.status === 'err' ? act.error : undefined} disabled={act.busy || !chain}
+      onClick={() => { if (chain) void act.fire(chain, scope); }}
+      className={actionCls(!!chain)} style={vars({ '--w-tone': color })}>
+      {text}
+    </button>
+  );
+}
+
+function CommandButton({ node, cmdRef, scope }: { node: Extract<WidgetNode, { t: 'button' }>; cmdRef: CommandRef; scope: Scope }) {
+  const cmd = useCommand(cmdRef);
   const label = str(resolve(node.text, scope));
   const color = node.tone != null ? toneColor(node.tone, scope, 'accent') : 'var(--color-accent)';
   const text = cmd.status === 'saving' ? '…' : cmd.status === 'working' ? 'WORKING…' : cmd.status === 'ok' ? 'DONE' : cmd.status === 'err' ? 'RETRY' : label;
@@ -753,32 +892,38 @@ function ButtonNode({ node, scope }: { node: Extract<WidgetNode, { t: 'button' }
 }
 
 function SpecWidget({ spec, host }: { spec: WidgetSpec; host: WidgetHost }) {
-  // The host's slices are in scope by name, and `$now` is this instant: what `fmt: 'ago'`
-  // measures against.
-  const base: Scope = { ...host.slices, $now: host.now };
+  // This instance's own variables — `$state`, written by `set` and by a control with `state`.
+  const [vars_, setVars] = useState(() => initialState(spec));
+  const setVar = useCallback((k: string, v: unknown) => setVars((st) => (Object.is(st[k], v) ? st : { ...st, [k]: v })), []);
+  const stateCtx = useMemo(() => ({ values: vars_, set: setVar }), [vars_, setVar]);
+  // The host's slices are in scope by name, `$now` is this instant (what `fmt: 'ago'`
+  // measures against), and `$state` is this instance's.
+  const base: Scope = { ...host.slices, $now: host.now, $state: vars_ };
   // Each declared source by name, and `$sources.<name>.state` beside it — ready, empty,
   // loading, signed-out, offline… (./sources.ts), so a card can tell "nothing" from "down".
   const { data, status } = useDataSources(spec.sources, base);
   const scope: Scope = { ...base, ...data, $sources: status };
   // The FRAME owns the states — loading, offline, signed-out, forbidden, unavailable,
   // empty — so no author draws them and none can forget one (sources.ts cardState).
-  const state = cardState(spec.sources, status, data);
+  const card = cardState(spec.sources, status, data);
   const f = spec.frame;
   const emptyText = f?.empty != null ? str(resolve(f.empty, scope)) : 'Nothing here yet.';
-  const body = state.kind === 'ready' ? renderNode(spec.body, scope) : stateView(state, emptyText, host.authUrl);
+  const body = card.kind === 'ready'
+    ? <StateCtx.Provider value={stateCtx}>{renderNode(spec.body, scope)}</StateCtx.Provider>
+    : stateView(card, emptyText, host.authUrl);
 
   // No frame: the body is a self-contained card (a molecule, or chrome:false
   // raw content). Render it bare so it fills the grid cell directly — unless it is
   // standing in for a state, which gets a card to stand in.
   if (!f) {
-    return state.kind === 'ready' ? <>{body}</>
+    return card.kind === 'ready' ? <>{body}</>
       : <div className="hud-card hud-w-frame">{body}</div>;
   }
 
   const eyebrow = f.eyebrow != null ? str(resolve(f.eyebrow, scope)) : '';
   const source = f.source != null ? str(resolve(f.source, scope)) : '';
   const href = f.href != null ? safeHref(resolve(f.href, scope)) : undefined;
-  const stale = state.kind === 'ready' && state.stale ? 'OFFLINE' : undefined;
+  const stale = card.kind === 'ready' && card.stale ? 'OFFLINE' : undefined;
 
   const head = <CardHead eyebrow={eyebrow} source={source} stale={stale} />;
 

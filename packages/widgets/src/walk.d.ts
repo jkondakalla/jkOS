@@ -5,6 +5,9 @@ export function walkNodes(node: unknown, visit: (node: { t: string } & Record<st
  *  `commands: false` (the default) skips `cmd` subtrees — they resolve at submit time. */
 export function sourcesOf(value: unknown, opts?: { commands?: boolean }): Set<string>;
 
+/** Every action in a node's `on`, flattened, with the event that fires it. */
+export function actionsOf(node: unknown): { event: string; action: Record<string, unknown> }[];
+
 /** Every app a widget reaches: each dataset source's app, and every command's. What
  *  "AI-backed" is derived from. */
 export function appsOf(def: unknown): Set<string>;

@@ -14,7 +14,7 @@
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { useSuiteApps, fetchCapabilities, type AppId, type CapabilityDoc, normalizeBinding, isCondition } from '@jkos/weave';
 import { HUD_SLICES, sliceFields, listItemFields } from '../hud/slices';
-import type { Binding, CommandRef, DataSource, Tone, ToneBinding, WidgetNode } from '../hud/types';
+import type { Binding, CommandRef, DataSource, Tone, ToneBinding, WidgetNode, WidgetSpec } from '../hud/types';
 import { catalogEntry, type ENode } from './model';
 import { NODES, type PropSpec } from '@jkos/widgets';
 import { Field, NumField, SelectField, Check } from '@jkos/ui';
@@ -303,6 +303,21 @@ function PropLine({ name, spec, children }: { name: string; spec: PropSpec; chil
   );
 }
 
+/** A structured prop (`on`, `params`) as JSON: applied when it parses, left alone when not. */
+function JsonField({ value, onChange }: { value: unknown; onChange: (v: unknown) => void }) {
+  const [text, setText] = useState(() => (value === undefined ? '' : JSON.stringify(value)));
+  const [bad, setBad] = useState(false);
+  return (
+    <Field style={{ ...field, flex: 1 }} value={text} placeholder="{ … }" aria-invalid={bad || undefined}
+      onChange={(e) => {
+        const t = e.target.value;
+        setText(t);
+        if (!t.trim()) { setBad(false); onChange(undefined); return; }
+        try { onChange(JSON.parse(t)); setBad(false); } catch { setBad(true); }
+      }} />
+  );
+}
+
 /** A `pairs` prop (a facts grid): label + value per row, add and remove. */
 function PairsEditor({ value, onChange, sources }: {
   value: { label: Binding; value: Binding; tone?: ToneBinding }[] | undefined;
@@ -365,12 +380,18 @@ function PropEditor({ name, spec, node, sources, onChange, onCmd }: {
       );
     case 'string':
     case 'field':
+    case 'state':
       return (
         <PropLine name={name} spec={spec}>
-          <Field style={{ ...field, flex: 1 }} value={typeof v === 'string' ? v : ''} placeholder={spec.type === 'field' ? 'field name' : ''}
+          <Field style={{ ...field, flex: 1 }} value={typeof v === 'string' ? v : ''} placeholder={spec.type === 'field' ? 'field name' : spec.type === 'state' ? 'state variable' : ''}
             onChange={(e) => onChange(e.target.value || (spec.required ? '' : undefined))} />
         </PropLine>
       );
+    case 'events':
+    case 'params':
+      // Structured, rarely hand-edited here: shown as JSON, edited in place (the JSON tab
+      // checks it with both tiers).
+      return <PropLine name={name} spec={spec}><JsonField value={v} onChange={onChange} /></PropLine>;
     case 'pairs':
       return <PropLine name={name} spec={spec}><PairsEditor value={v as never} onChange={onChange} sources={sources} /></PropLine>;
     case 'binding':
@@ -402,6 +423,9 @@ export interface IdentityState {
   /** Dataset sources, carried through an edit whole. This panel edits external fetch
    *  rows only; dropping the rest on load is how a republish used to lose them. */
   declared: Record<string, DataSource>;
+  /** The spec's other keys (its `state`, …), carried through an edit whole for the same
+   *  reason: the canvas edits the frame, the sources and the body, and nothing else. */
+  carried: Omit<WidgetSpec, 'frame' | 'sources' | 'body'>;
 }
 export interface SizingState { dw: number; dh: number; mw: number; mh: number }
 
