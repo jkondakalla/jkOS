@@ -1142,31 +1142,56 @@ and a direct render at the same time are the same picture (0 px, both renderers)
 
 **In 3-D, too (2026-09-16, Jag: "a 3-D visual of the pulsar map").** The same mesh, stood up as
 real geometry — `apps/kouros/src/components/ridges3d/` — replacing the 2-D strip, which survives
-whole as the no-WebGL2 fallback. Decided that day: **ridgelines, not a lit terrain** (the line IS
-the form); **replace, not toggle** (two renderers maintained forever); **the camera follows the
-playhead, a drag orbits, a release springs home** (a whole-track orbit loses "how far in are we").
-What carries over unchanged is everything above: the reveal is `rowsRevealed(currentTime)`, the
-value scale is shared, the ramp is position-in-track, new rows arrive in FRONT. What 3-D changes:
-- **The painter's algorithm becomes a depth buffer.** Each segment draws a curtain from its ridge
-  to the floor in the surface colour, pushed back with polygon offset, then its line — exactly the
-  fill-then-stroke occlusion the 2-D renderer fakes, now true from any angle.
-- **The append-only optimisation is gone, and nothing is lost by it.** The mesh is one R8 texture
-  (wrapped into columns past the texture limit — `@jkos/scene`'s `textureLayout`; at 0.093 s rows a
-  four-minute track is two columns at the guaranteed 2,048) and every vertex is derived in the
-  shader from `gl_InstanceID`; a frame is two instanced draws over at most 44 rows. A paused,
-  settled view draws nothing at all.
-- **The camera rides the playhead exactly** (2026-09-23). At 2 s rows the focus sprang forward a
-  row at a time and a seek cut; now the focus is `rowZ(scrollRow(t))`, continuous, so the stack
-  streams back at the track's own rate — a row arrives at the front the instant its time begins —
-  and a row leaving the 44-row window has already faded fully into the fog (`check:pulsarmap`
-  asserts both, over a whole 20-minute track).
-- **Lines are screen-space quads**, because `gl.lineWidth` is one device pixel almost everywhere.
-- ⚠️ **A fourth place per-track normalisation could enter** — the shader. `check:pulsarmap` scans
-  `heightAt` for max/min/clamp/gain. (That scan was vacuous for its first commit: a raw backspace
-  byte stood where `\b` belonged. `check:text` caught the byte.)
+whole as the fallback. Decided that day: **replace, not toggle** (two renderers maintained
+forever); **the camera follows the playhead, a drag orbits, a release springs home** (a
+whole-track orbit loses "how far in are we"); and **ridgelines, not a lit terrain** — ⚠️
+**overruled by Jag on 2026-10-14**, below. What carries over unchanged: the value scale is shared,
+the ramp is position-in-track, the band axis is `bandFraction`, the time is `currentTime` read
+every frame.
+
+**A live line and a terrain (2026-10-14).** Jag: "the slices should be spaced closer together,
+there's too much dead space between each curve · the snapshots should connect so it creates a 3-D
+mesh rather than a 2-D line · the front-most line should be static and be a live, hi-res curve;
+the snapshots should look like they're being taken from this live version and pushed back."
+- **The live line** stands at `liveRow(t) = t / rowSeconds − ½` (pulsarmap.ts), and is the two
+  rows either side of it blended by the fraction. ⚠️ **The −½ is the semantics:** a row describes
+  a window, so its value belongs to the window's centre; the live line equals row r exactly when
+  row r's centre plays, and that is the instant row r leaves the front as a snapshot. The camera
+  rides `liveRow`, so the live line holds still on screen while the history streams away from it.
+  `check:pulsarmap` asserts the hand-off (newest snapshot at the live line's depth, then behind it
+  a frame later) and that the live line moves the same step every frame of a 20-minute track.
+- **"Hi-res" is smooth, not new information.** Every line — live and snapshot alike, so a
+  snapshot keeps the shape it left with — is a Catmull-Rom curve through the bands' own bytes, 4
+  segments to a gap (`rowCurve`); it passes through every stored value. The live line moves at
+  60 fps instead of stepping at ~10.8 Hz. ⚠️ **It is still the stored analysis, not a live
+  spectrum** — the reasons above against a Web Audio analyser stand (a second mel, a suspended
+  AudioContext on a locked phone, a picture that disagrees with the store). A truly finer front
+  would need a finer mesh from `music/mesh.py` (re-analysis of the library); not done.
+- **The terrain.** Each line is joined to the next by a surface lit by its own facet normal
+  (`dFdx`/`dFdy`), with a grid running back in time along every 4th band. The surface is the
+  depth buffer's occluder — the hidden-line removal the curtains used to be — and the live line
+  keeps a curtain to the floor as the terrain's front face. Lines are screen-space quads, because
+  `gl.lineWidth` is one device pixel almost everywhere; the live one is drawn heavier.
+- **Closer:** `PITCH` 0.085 → 0.0425 and the window 44 → 88 rows, so the history still reaches the
+  same depth (~8 s) and the follow framing, solved in world units, did not move.
+- **The curves live in a ring texture**, `RING` (128) rows × `segments + 1` floats: each row is
+  splined once, in TypeScript, when it enters the window, into slot `row % RING`, and each vertex
+  is one `texelFetch`. Sized by the window, not the track — a 70-minute track costs what a
+  3-minute one does — and a slot's content is a pure function of its row, so a seek or a new track
+  is no special case. (The R8 whole-track texture it replaced wrapped into columns past 4,096
+  rows; at 509 values a row it would not have fitted a 50-minute track at all.)
+- **Cost, measured** (real component, real clock, Feel Good Inc): 60 fps at 1080p and at phone
+  size on a desktop GPU, also with the CPU throttled 6×. ~190 k triangles a frame (it was ~22 k).
+  ⚠️ **A software rasteriser pays per triangle**: SwiftShader fell from 11.9 to 1.9 fps (3.4 at 2
+  segments a gap, 6.3 at 1). So `RidgeStage` refuses one (`@jkos/scene` `isSoftwareRenderer`, read
+  off the unmasked renderer name) and the 2-D strip draws instead. A phone GPU is unmeasured.
+- ⚠️ **A fourth place per-track normalisation could enter** — the shader, and now `rowCurve`.
+  `check:pulsarmap` scans `heightAt` for max/min/clamp/gain, and asserts the curve is linear in the
+  bytes (a row half as loud draws exactly half as high). That linearity is also what lets the
+  shader blend two CURVES for the live line and get the curve of the blended row.
 
 The old verdict against a 3-D heightmap stands for what it was aimed at: the FULL matrix is
-1.3 M vertices. The decimated mesh is ~5,600 visible segments.
+1.3 M vertices. The window is 89 lines of 509 points.
 
 **The one number the renderer owns.** M2 measured that below **~9 px of row pitch** every line's
 excursion crosses two neighbours and the stack collapses into a uniform hatch — "a picture that

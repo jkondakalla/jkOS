@@ -56,12 +56,6 @@ export function revealIndex(currentTime: number, rowSeconds: number, rows: numbe
   return Math.min(rows - 1, Math.floor(t / rowSeconds));
 }
 
-/** How many rows have arrived at `currentTime` — `revealIndex` + 1, so row 0 is
- *  present from t = 0 rather than appearing a row in. */
-export function rowsRevealed(currentTime: number, rowSeconds: number, rows: number): number {
-  return revealIndex(currentTime, rowSeconds, rows) + 1;
-}
-
 /**
  * Where the stack has scrolled to at `currentTime`, in ROWS — continuous, so the
  * picture flows at the track's own rate rather than stepping a row at a time.
@@ -88,6 +82,32 @@ export function scrollRow(currentTime: number, rowSeconds: number, rows: number)
   if (!Number.isFinite(rowSeconds) || rowSeconds <= 0) return -1;
   const t = Number.isFinite(currentTime) && currentTime > 0 ? currentTime : 0;
   return Math.min(rows - 1, t / rowSeconds);
+}
+
+/**
+ * Where the LIVE line stands at `currentTime`, in rows — continuous, for the 3-D
+ * pulsarmap's front edge (Jag 2026-10-14: "the front-most line should be static and
+ * be a live, hi-res curve; the snapshots should look like they're being taken from it
+ * and pushed back").
+ *
+ *   live = clamp(currentTime / rowSeconds − ½, 0, rows − 1)
+ *
+ * ⚠️ **THE −½ IS THE SEMANTICS, NOT A TWEAK.** A row describes a WINDOW of audio, so
+ * its value belongs to the window's centre, (r + ½)·rowSeconds. The live line is the
+ * two rows around `live` blended (ridges3d/stage.ts `liveValue`), which makes it EQUAL
+ * to row r at the instant that row's centre plays — and that instant is when row r
+ * leaves the front as a snapshot. Without the ½ the live line would run half a row
+ * (46 ms) ahead of the music; with `floor` instead of a blend it would step ~11 times
+ * a second, which is the row-by-row picture this line exists to replace.
+ *
+ * Still `currentTime`, every frame — nothing here holds a clock. −1 for a mesh with no
+ * rows or a non-positive row duration; NaN or a negative time is the first row.
+ */
+export function liveRow(currentTime: number, rowSeconds: number, rows: number): number {
+  if (!Number.isFinite(rows) || rows <= 0) return -1;
+  if (!Number.isFinite(rowSeconds) || rowSeconds <= 0) return -1;
+  const t = Number.isFinite(currentTime) && currentTime > 0 ? currentTime : 0;
+  return Math.min(rows - 1, Math.max(0, t / rowSeconds - 0.5));
 }
 
 /* ── The 2-D strip ───────────────────────────────────────────────────────────

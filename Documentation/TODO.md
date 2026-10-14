@@ -156,8 +156,9 @@ yours. Both current snapshots are in `music/out/`.
 - **Try the runes on a real phone.** Now Playing fits one screen at every common size since
   2026-09-25 (measured headless: 0 px overflow from 375×667 to 1920×1080, music and books), so
   the rune layer is live on a phone for the first time. It has never met a thumb.
-- **Check on a real phone:** the 3-D pulsarmap's frame rate (~44 × 127 × 2 quads a frame; headless
-  swiftshader managed ~12 fps) and its feel under a thumb; the vibe space's scrub frame rate, whether
+- **Check on a real phone:** the 3-D pulsarmap's frame rate since it became a terrain (2026-10-14:
+  ~190 k triangles a frame; 60 fps on a desktop GPU at phone size, and a software rasteriser now
+  gets the 2-D strip) and its feel under a thumb; the vibe space's scrub frame rate, whether
   the adaptive render scale settles, and how the density worker (1.5 s for 3,000 tracks on the
   workstation) scales to 47,000 on a phone CPU.
 - **Listening session, not yet built:**

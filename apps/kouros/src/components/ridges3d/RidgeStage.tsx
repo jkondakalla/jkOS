@@ -1,18 +1,17 @@
 import { useEffect, useRef } from 'react';
-import { tokenColor } from '@jkos/scene/gl';
-import { DEG, createRig, cutRig, rigView, stepRig } from '@jkos/scene/math';
+import { rendererName, tokenColor } from '@jkos/scene/gl';
+import { DEG, createRig, cutRig, isSoftwareRenderer, rigView, stepRig } from '@jkos/scene/math';
 import { useOrbitControls, useScene } from '@jkos/scene/react';
-import { scrollRow } from '../pulsarmap';
 import { RidgeRenderer, type RidgeColors } from './gl';
 import {
-  FOLLOW_DISTANCE, FOLLOW_PITCH, FOV, LOOK_BEHIND, ORBIT, RETURN_OMEGA, TARGET_Y, followPose, visibleWindow,
+  FOLLOW_DISTANCE, FOLLOW_PITCH, FOV, LOOK_BEHIND, ORBIT, RETURN_OMEGA, TARGET_Y, followPose, liveWindow,
 } from './stage';
 
 /**
- * The pulsarmap in 3-D (ALGORITHMS.md §9): the same ridgelines, stood up
- * in space, FLOWING — ~10.8 rows a second arrive at the front and the stack streams
- * back at the track's own rate, a visualizer of the music from the music's own
- * analysis. A drag orbits it and a release springs home.
+ * The pulsarmap in 3-D (ALGORITHMS.md §9): a LIVE line held still at the front,
+ * moving every frame; behind it a snapshot of that line every ~93 ms row, streaming
+ * back at the track's own rate, joined into a lit terrain — a visualizer of the music
+ * from the music's own analysis. A drag orbits it and a release springs home.
  *
  * ⚠️ **THE REVEAL IS STILL `currentTime`, NEVER A TIMER — READ EVERY FRAME.** While
  * the track plays, each frame reads the media element's own time through
@@ -80,6 +79,11 @@ export default function RidgeStage({
     name: 'kouros pulsarmap',
     attributes: { antialias: true, alpha: false, depth: true, powerPreference: 'low-power' },
     create: (gl) => {
+      // ⚠️ A CPU rasteriser is a WebGL2 context like any other, and pays per triangle:
+      // the terrain is ~190k a frame, 60 fps on any GPU and ~2 on SwiftShader. Refused
+      // here, `onUnsupported` mounts the 2-D strip, which a CPU draws easily.
+      const name = rendererName(gl);
+      if (isSoftwareRenderer(name)) throw new Error(`a software rasteriser (${name}) — the 2-D strip draws instead`);
       const renderer = new RidgeRenderer(gl);
       const m = meshRef.current;
       renderer.setMesh(m.bytes, m.rows, m.bands);
@@ -97,8 +101,8 @@ export default function RidgeStage({
     frame: ({ renderer, canvas, dt, reduced, aspect, dpr }) => {
       const live = liveRef.current;
       const t = live.livePosition ? live.livePosition() : live.position;
-      const win = visibleWindow(t, live.rowSeconds, live.rows);
-      const pose = followPose(scrollRow(t, live.rowSeconds, live.rows));
+      const win = liveWindow(t, live.rowSeconds, live.rows);
+      const pose = followPose(win.live);
       rig.targetGoal = pose.target;
       cutRig(rig, 'target');
       const moving = stepRig(rig, dt, reduced);
