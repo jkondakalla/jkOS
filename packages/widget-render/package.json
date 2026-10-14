@@ -9,6 +9,14 @@
     ".": {
       "import": "./src/index.ts",
       "types": "./src/index.ts"
+    },
+    "./preview": {
+      "import": "./src/preview/kit.tsx",
+      "types": "./src/preview/kit.tsx"
+    },
+    "./preview-clock": {
+      "import": "./src/preview/clock.ts",
+      "types": "./src/preview/clock.ts"
     }
   },
   "scripts": {

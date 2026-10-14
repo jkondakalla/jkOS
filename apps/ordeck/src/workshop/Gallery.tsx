@@ -9,9 +9,9 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { renderWidget, SourceReaderProvider } from '@jkos/widget-render';
+import { renderWidget, SourceReaderProvider, fixtureReader, PREVIEW_STATES } from '@jkos/widget-render';
 import { hudHost } from '../hud/host';
-import { sampleCtx, fixtureReader, PREVIEW_STATES } from '../hud/sample';
+import { sampleCtx } from '../hud/sample';
 import { CATALOG, CATALOG_APP, loadFixtures } from '../hud/catalog';
 import type { WidgetDef } from '../hud/types';
 import { TIERS, ROW_H, unitsToPx } from './EditorCanvas';

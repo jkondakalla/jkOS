@@ -10,6 +10,7 @@ export {
 } from './sources';
 export { TONE_COLOR, TONE_RANK } from './tone';
 export { usesAi } from './ai';
+export { fixtureReader, PREVIEW_STATES, type PreviewState } from './fixtures';
 export { WidgetBoundary } from './boundary';
 export type {
   Binding, ToneBinding, CommandRef, WidgetFrame, WidgetSpec, WidgetSizing, WidgetDef, WidgetInput, StateVar,

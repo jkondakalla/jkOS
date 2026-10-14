@@ -401,8 +401,8 @@ for (const dir of ['packages/widget-render/src', 'apps/ordeck/src/hud']) {
   check(/<JsonTab\b/.test(ws) && /<Gallery\b/.test(ws), 'the Workshop has the JSON tab (both tiers, live) and the gallery (every widget, every state)');
   const json = read('apps/ordeck/src/workshop/JsonTab.tsx');
   check(/validateWidget\(/.test(json) && /checkBindings\(/.test(json), 'the JSON tab runs BOTH validation tiers');
-  check(/fixtureReader\(/.test(read('apps/ordeck/src/workshop/Gallery.tsx')) && /fixtureReader\(/.test(read('apps/ordeck/preview/main.tsx')),
-    'the gallery and the preview harness draw a state with the SAME reader (hud/sample.ts fixtureReader)');
+  check(/fixtureReader\(/.test(read('apps/ordeck/src/workshop/Gallery.tsx')) && /fixtureReader\(/.test(read('packages/widget-render/src/preview/kit.tsx')),
+    "the gallery and every app's contact sheet draw a state with the SAME reader (@jkos/widget-render fixtureReader)");
 }
 
 // ── 11. every draft `pnpm widget new` makes passes both tiers ───────────────
