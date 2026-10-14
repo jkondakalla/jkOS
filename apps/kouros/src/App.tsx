@@ -10,7 +10,6 @@ import TabBar from './components/TabBar'
 import Beacon from './shell/Beacon'
 import RuneLayer from './shell/RuneLayer'
 import { useHashRoute } from './hooks/useHashRoute'
-import Home from './views/Home'
 import Browse from './views/Browse'
 import Artist from './views/Artist'
 import Album from './views/Album'
@@ -26,6 +25,8 @@ import { OfflineSettings } from './books/offline'
 import { PlayerProvider } from './player/PlayerProvider'
 import MiniPlayer from './player/MiniPlayer'
 import DevicePicker from './components/DevicePicker'
+import { WidgetPage, pageAt } from './widgets/host'
+import { WidgetHostProvider } from './widgets/WidgetHostProvider'
 
 // Set the mode before React hydrates to prevent a flash. Read the user's last-known
 // preference (written by the design utils), fall back to paper.
@@ -96,61 +97,66 @@ function Content() {
   const route = useHashRoute()
   const overlay = route.view === 'now' || route.view === 'queue'
   const desktop = useBreakpoint() === 'desktop'
+  // A screen that is a widget page (apps/kouros/widgets/*.json with a `route`) is drawn
+  // by the renderer; the rest are still hand-built views. A path nothing answers is Home.
+  const page = pageAt(route.view === 'home' ? '/' : route.path)
 
   return (
     <PlayerProvider>
-      <div className={`kr-app${overlay ? ' is-overlay' : ''}`}>
-        {overlay ? (
-          /* Now Playing is the rune surface: one screen, nothing to scroll, and
-             the only place where every transport verb is about the thing on
-             show. The Queue scrolls, so it is not wrapped — see RuneLayer's
-             header on why those two cannot share a pointer. */
-          route.view === 'now' ? <RuneLayer><NowPlaying /></RuneLayer> : <Queue />
-        ) : (
-          <>
-            <main className="kr-main jk-ink-in">
-              {route.view === 'artist' && route.artist != null ? (
-                <Artist artist={route.artist} />
-              ) : route.view === 'album' && route.artist != null && route.album != null ? (
-                <Album artist={route.artist} album={route.album} />
-              ) : route.view === 'browse' || route.view === 'artists' ? (
-                <Browse />
-              ) : route.view === 'playlist' && route.playlistId != null ? (
-                <PlaylistDetail playlistId={route.playlistId} />
-              ) : route.view === 'playlists' ? (
-                <Playlists />
-              ) : route.view === 'book' && route.bookId != null ? (
-                <BookDetail bookId={route.bookId} />
-              ) : route.view === 'books' ? (
-                <BooksLibrary />
-              ) : route.view === 'search' ? (
-                <Search initialQuery={route.query} />
-              ) : route.view === 'map' ? (
-                <VibeMap />
-              ) : (
-                <Home />
+      <WidgetHostProvider>
+        <div className={`kr-app${overlay ? ' is-overlay' : ''}`}>
+          {overlay ? (
+            /* Now Playing is the rune surface: one screen, nothing to scroll, and
+               the only place where every transport verb is about the thing on
+               show. The Queue scrolls, so it is not wrapped — see RuneLayer's
+               header on why those two cannot share a pointer. */
+            route.view === 'now' ? <RuneLayer><NowPlaying /></RuneLayer> : <Queue />
+          ) : (
+            <>
+              <main className="kr-main jk-ink-in">
+                {page ? (
+                  <WidgetPage key={page.def.id} def={page.def} params={page.params} />
+                ) : route.view === 'artist' && route.artist != null ? (
+                  <Artist artist={route.artist} />
+                ) : route.view === 'album' && route.artist != null && route.album != null ? (
+                  <Album artist={route.artist} album={route.album} />
+                ) : route.view === 'browse' || route.view === 'artists' ? (
+                  <Browse />
+                ) : route.view === 'playlist' && route.playlistId != null ? (
+                  <PlaylistDetail playlistId={route.playlistId} />
+                ) : route.view === 'playlists' ? (
+                  <Playlists />
+                ) : route.view === 'book' && route.bookId != null ? (
+                  <BookDetail bookId={route.bookId} />
+                ) : route.view === 'books' ? (
+                  <BooksLibrary />
+                ) : route.view === 'search' ? (
+                  <Search initialQuery={route.query} />
+                ) : route.view === 'map' ? (
+                  <VibeMap />
+                ) : null}
+              </main>
+
+              {desktop && (
+                <>
+                  <MiniPlayer />
+                  <TabBar active={route.view} />
+                </>
               )}
-            </main>
+            </>
+          )}
 
-            {desktop && (
-              <>
-                <MiniPlayer />
-                <TabBar active={route.view} />
-              </>
-            )}
-          </>
-        )}
-
-        {/* The beacon rides OUTSIDE the overlay branch, because Queue and the
-            Vibe Map are two of the three destinations it offers — arriving at
-            one only to find no way onward is the trap of replacing a persistent
-            tab bar with a summoned menu. Now Playing is the one exception: it is
-            a state rather than a place, its own surface is the rune layer, and
-            the system back gesture is what collapses it. */}
-        {!desktop && route.view !== 'now' && <Beacon view={route.view} />}
-        {/* The one device picker — every speaker button opens this (DevicePicker's seam). */}
-        <DevicePicker />
-      </div>
+          {/* The beacon rides OUTSIDE the overlay branch, because Queue and the
+              Vibe Map are two of the three destinations it offers — arriving at
+              one only to find no way onward is the trap of replacing a persistent
+              tab bar with a summoned menu. Now Playing is the one exception: it is
+              a state rather than a place, its own surface is the rune layer, and
+              the system back gesture is what collapses it. */}
+          {!desktop && route.view !== 'now' && <Beacon view={route.view} />}
+          {/* The one device picker — every speaker button opens this (DevicePicker's seam). */}
+          <DevicePicker />
+        </div>
+      </WidgetHostProvider>
     </PlayerProvider>
   )
 }

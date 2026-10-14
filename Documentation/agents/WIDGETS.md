@@ -11,10 +11,16 @@ this file disagrees with them, this file is wrong — fix it.
 **The renderer is not ORDECK's.** An app draws a widget with `renderWidget(def, host)`, where
 the host is what that app hands it: its declared slices (a binding's `src` may name them
 beside the widget's own sources), where to sign in, the AI kill switch, this instant, and
-the kinds only it can draw (the manifest's molecules, `HostKind`). ORDECK is one host —
-`apps/ordeck/src/hud/host.tsx`, with its slices declared in `hud/slices.ts` and its four
-molecules (calendar, weather, focus, week). A host kind may be `React.lazy`; it draws under
-Suspense, so a heavy one is downloaded only when placed.
+the kinds only it can draw (the manifest's molecules, `HostKind`). A host kind may be
+`React.lazy`; it draws under Suspense, so a heavy one is downloaded only when placed.
+
+| Host | Implemented in | Declared in | What it adds |
+|---|---|---|---|
+| ORDECK | `apps/ordeck/src/hud/host.tsx` | `hud/slices.ts` (`HUD_SLICES`, `HUD_ACTIONS`) | the HUD's slices, four molecules (calendar, weather, focus, week), `focus.clear`; no routes |
+| KourOS | `apps/kouros/src/widgets/host.tsx` | `src/widgets/declaration.ts` (`KOUROS_SLICES`, `KOUROS_ACTIONS`, `KOUROS_LEGACY_ROUTES`) | the `player` slice, the player's actions (`player.play`, `player.book`, `player.station`, `context.open`, `sheet.open`), and a router: its pages are widget files |
+
+Both declarations are data the tools read (`scripts/widget/catalog.mjs` `hostDeclarations()`),
+so a widget's second tier runs against each host that can draw it.
 
 ---
 
@@ -124,10 +130,12 @@ Every source is named in `spec.sources`, and a binding's `src` is that name.
 | `dataset` | `{ app, dataset, params?, poll?, debounce? }` — a dataset the app **declares** (its DatasetDoc) | Read through the declaration (`readDataset`), with a state the frame draws. `params` fill the path's `:x` and the declared filters (literals or bindings). The dataset's `invalidates` keys re-read it when a capability writes; `poll` (seconds) is for changes no capability announces. `debounce` (ms) holds a re-read until a bound param stops changing — a search box; it needs a bound param to wait on, and holds up only its own source. |
 | `fetch` | `{ url, poll? }` — an **external** public https endpoint | A relative URL, `http:`, or any suite host is refused by the validator, jkAuth and the renderer: suite data is a `dataset`. |
 
-ORDECK's own slices are in scope too, by name — `clock`, `weather`, `systems`, `today`,
-`cal`, `items`, `notifications`, `focus`, `pinned`, `origins` (each app's origin on this
-deployment), `authUrl`, `aiEnabled`. Their fields are declared in `hud/slices.ts`
-(`HUD_SLICES`); the second tier checks a binding into one exactly as into a dataset.
+The host's slices are in scope too, by name. ORDECK's: `clock`, `weather`, `systems`,
+`today`, `cal`, `items`, `notifications`, `focus`, `pinned`, `origins` (each app's origin on
+this deployment), `authUrl`, `aiEnabled` — declared in `hud/slices.ts` (`HUD_SLICES`).
+KourOS's: `player` (what is playing, wherever it plays; whole seconds, so it moves at most
+once a second) — declared in `src/widgets/declaration.ts`. The second tier checks a binding
+into one exactly as into a dataset.
 
 Reserved names in scope: `$` (the row, inside a list pattern), `$sources.<name>.state`
 (`ready`/`empty`/`idle`/`signed-out`/`forbidden`/`offline`/`unavailable`), `$now` (the
@@ -223,7 +231,8 @@ declares it returns (or resolves to).
 
 **Host actions are declared, then implemented.** A host declares each action as data —
 `{ label, args?: [{ name, type, required? }], returns?: […] }`, ORDECK's in
-`hud/slices.ts` `HUD_ACTIONS` beside its slices — and implements it in its
+`hud/slices.ts` `HUD_ACTIONS` beside its slices, KourOS's in `src/widgets/declaration.ts`
+`KOUROS_ACTIONS` — and implements it in its
 `WidgetHost.actions`, typed `HostActions<typeof DECL>`, so tsc refuses one declared and
 not implemented or the reverse. The second tier checks a `do` against the declaration:
 it exists, takes the arguments given, gets each one it requires. A `do` its host does
@@ -265,6 +274,14 @@ alike. A host that routes passes `navigate` and the matched `route` params on it
 `WidgetHost`; in one that does not, a `go` stops its chain with "navigation is not
 available here". The second tier checks a `go` against the app's pages and the route's
 own `:params` — every one filled, nothing else.
+
+**KourOS routes its pages** (`App.tsx` asks `widgets/host.tsx` `pageAt` first): its hash
+path is the route path, so `#/album/Low/The%20Great%20Destroyer` is `/album/:artist/:album`.
+A screen not converted yet is still a hand-built view, and its route is declared in
+`KOUROS_LEGACY_ROUTES` so a page can already `go` there. That list only shrinks: the gate
+refuses a route that is both a page file and a legacy route, and parses each legacy route
+through KourOS's own router to prove it answers. A page is drawn in `.hud-w-page`, where
+nothing is squeezed to fit — a screen scrolls.
 
 **Portability is derived, like AI.** What a widget needs from its host is read off what
 it binds (`needsOf`): the host slices it reads, the molecules it draws, the actions it

@@ -244,8 +244,7 @@ logged, before and after, on [the Rescope Review](https://claude.ai/artifact/5Ti
 `on:` events running `run` / `do` / `set` / `go`, typed host actions, pages (`route`,
 read as `$route` — a renderer-provided name, not a host slice, so every host gets it the
 same way), `debounce`, phone bodies, derived portability and the published limit —
-WIDGETS.md §4–§7. KourOS is the first host that will route and declare engine actions;
-until then only ORDECK is declared (`scripts/widget/catalog.mjs` `hosts()`).
+WIDGETS.md §4–§7.
 
 **The harness and the ratchets are in** (phase 4, 2026-10-14). `check:ratchets` pins two
 counts per file that only go down: inline styles that are not `vars()` (1,201) and JSX in
@@ -258,10 +257,28 @@ proof as one command (WIDGETS.md §1).
 sorted file changes what 175 elements render, because the order decides equal-specificity
 ties (TRAPS.md § CSS). The component classes get grouped when they move into their primitives.
 
-5. **KourOS pilot.** Home (patterns, pages, `use`, routes) → Now Playing (the player engine's
-   slices and actions, transport, a `scrubber` primitive) → Vibe Map (a `vibespace` primitive
-   with its GL code, density worker and no-WebGL list; local pin/energy state; the debounced
-   near list).
+**KourOS hosts widgets, and Home is a page** (phase 5's first screen, 2026-10-14).
+`apps/kouros/widgets/kouros-home.json` (route `/`) is Home: rails of tiles (`rail`, `tile`),
+the now-playing card as a part (`kouros-now-card`, `steps` for a book's chapters), the
+player's actions and `go`. KourOS's host is `src/widgets/host.tsx`, declared in
+`declaration.ts` (the `player` slice, five actions, and `KOUROS_LEGACY_ROUTES` — the
+screens still hand-built, a list the gate holds to shrink). `discoverHome` is declared to
+the field, each tile with its `cover_url`. Before/after on the review page.
+
+5. **KourOS pilot, the rest of it.** Now Playing (the player engine's slices and actions,
+   transport, a `scrubber` primitive) → Vibe Map (a `vibespace` primitive with its GL code,
+   density worker and no-WebGL list; local pin/energy state; the debounced near list). Owed
+   from Home:
+   - **The now-playing card lost its book shape**: the 2:3 spine with its gutter and the
+     solid/outlined kind pill are a `media` and an eyebrow now. Bring them back with Now
+     Playing's player surfaces (a `cover` shape, or the `scrubber`'s), not as a one-off.
+   - **Four lines Home can no longer say**, because a binding cannot join text: an album
+     tile's "12 tracks", deep-in's "31 plays · 148 in library", a book's "3h 10m *left*"
+     (it reads `10:12:00` under a "TIME LEFT" note), and a run's track count. Either a
+     `fmt` that counts ("12 tracks") or a declared label field — decide once, for every
+     screen after this one.
+   - **KourOS's host holds the AI kill switch closed** (`aiEnabled: false`): no KourOS
+     screen reaches LazurOS. Read the profile's switch when one does.
 6. **KourOS, the rest.** A virtual list first (47,000 tracks). Library, books, book detail,
    playlists (a `sortable` primitive), queue, search, album, artist; the shell (tab bar,
    beacon, rune layer, device picker, action sheet, mini player); offline books. Stage F lands

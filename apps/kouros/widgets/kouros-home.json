@@ -1,0 +1,750 @@
+{
+  "id": "kouros-home",
+  "label": "Home",
+  "route": "/",
+  "spec": {
+    "sources": {
+      "home": {
+        "kind": "dataset",
+        "app": "kouros",
+        "dataset": "discoverHome",
+        "poll": 300
+      }
+    },
+    "body": {
+      "t": "stack",
+      "gap": 20,
+      "children": [
+        {
+          "t": "stack",
+          "gap": 4,
+          "children": [
+            {
+              "t": "text",
+              "text": {
+                "src": "home",
+                "path": "time_of_day.slot",
+                "map": {
+                  "morning": "Good morning",
+                  "working": "Good afternoon",
+                  "evening": "Good evening",
+                  "late": "Still up"
+                },
+                "fallback": "Home"
+              },
+              "variant": "display"
+            },
+            {
+              "t": "row",
+              "gap": 5,
+              "children": [
+                {
+                  "t": "text",
+                  "text": {
+                    "src": "home",
+                    "path": "stats.tracks",
+                    "fmt": "number"
+                  },
+                  "variant": "mono"
+                },
+                {
+                  "t": "text",
+                  "text": "tracks in the library",
+                  "variant": "mono"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "t": "when",
+          "cond": {
+            "src": "player",
+            "path": "loaded"
+          },
+          "then": {
+            "t": "use",
+            "widget": "kouros-now-card"
+          }
+        },
+        {
+          "t": "when",
+          "cond": {
+            "eq": [
+              {
+                "src": "home",
+                "path": "stats.tracks"
+              },
+              0
+            ]
+          },
+          "then": {
+            "t": "text",
+            "text": "The library is empty — point MUSIC_DIR at your music and rescan.",
+            "variant": "note"
+          },
+          "else": {
+            "t": "stack",
+            "gap": 28,
+            "children": [
+              {
+                "t": "when",
+                "cond": {
+                  "src": "home",
+                  "path": "continue_books"
+                },
+                "then": {
+                  "t": "stack",
+                  "gap": 10,
+                  "children": [
+                    {
+                      "t": "row",
+                      "justify": "space-between",
+                      "align": "baseline",
+                      "gap": 12,
+                      "children": [
+                        {
+                          "t": "text",
+                          "text": "Continue listening",
+                          "variant": "heading"
+                        },
+                        {
+                          "t": "label",
+                          "text": "AUDIOBOOKS · TIME LEFT",
+                          "size": "sm"
+                        }
+                      ]
+                    },
+                    {
+                      "t": "rail",
+                      "from": {
+                        "src": "home",
+                        "path": "continue_books"
+                      },
+                      "item": {
+                        "t": "tile",
+                        "image": {
+                          "src": "$",
+                          "path": "cover_url"
+                        },
+                        "title": {
+                          "src": "$",
+                          "path": "title"
+                        },
+                        "sub": {
+                          "src": "$",
+                          "path": "author",
+                          "fallback": "Unknown author"
+                        },
+                        "meta": {
+                          "src": "$",
+                          "path": "remaining",
+                          "fmt": "duration"
+                        },
+                        "progress": {
+                          "src": "$",
+                          "path": "position"
+                        },
+                        "total": {
+                          "src": "$",
+                          "path": "duration"
+                        },
+                        "on": {
+                          "press": {
+                            "do": "player.book",
+                            "with": {
+                              "id": {
+                                "src": "$",
+                                "path": "id"
+                              },
+                              "position": {
+                                "src": "$",
+                                "path": "position"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "t": "when",
+                "cond": {
+                  "src": "home",
+                  "path": "recent"
+                },
+                "then": {
+                  "t": "stack",
+                  "gap": 10,
+                  "children": [
+                    {
+                      "t": "row",
+                      "justify": "space-between",
+                      "align": "baseline",
+                      "gap": 12,
+                      "children": [
+                        {
+                          "t": "text",
+                          "text": "Recently played",
+                          "variant": "heading"
+                        }
+                      ]
+                    },
+                    {
+                      "t": "rail",
+                      "from": {
+                        "src": "home",
+                        "path": "recent"
+                      },
+                      "item": {
+                        "t": "when",
+                        "cond": {
+                          "eq": [
+                            {
+                              "src": "$",
+                              "path": "kind"
+                            },
+                            "artist"
+                          ]
+                        },
+                        "then": {
+                          "t": "tile",
+                          "shape": "round",
+                          "image": {
+                            "src": "$",
+                            "path": "cover_url"
+                          },
+                          "title": {
+                            "src": "$",
+                            "path": "title"
+                          },
+                          "sub": {
+                            "src": "$",
+                            "path": "subtitle"
+                          },
+                          "on": {
+                            "press": {
+                              "do": "context.open",
+                              "with": {
+                                "context": {
+                                  "src": "$",
+                                  "path": "route"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "else": {
+                          "t": "tile",
+                          "image": {
+                            "src": "$",
+                            "path": "cover_url"
+                          },
+                          "title": {
+                            "src": "$",
+                            "path": "title"
+                          },
+                          "sub": {
+                            "src": "$",
+                            "path": "subtitle"
+                          },
+                          "on": {
+                            "press": {
+                              "do": "context.open",
+                              "with": {
+                                "context": {
+                                  "src": "$",
+                                  "path": "route"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "t": "when",
+                "cond": {
+                  "src": "home",
+                  "path": "runs"
+                },
+                "then": {
+                  "t": "stack",
+                  "gap": 10,
+                  "children": [
+                    {
+                      "t": "row",
+                      "justify": "space-between",
+                      "align": "baseline",
+                      "gap": 12,
+                      "children": [
+                        {
+                          "t": "text",
+                          "text": "Runs",
+                          "variant": "heading"
+                        },
+                        {
+                          "t": "label",
+                          "text": "BUILT FROM THE SOUND",
+                          "size": "sm"
+                        }
+                      ]
+                    },
+                    {
+                      "t": "rail",
+                      "size": "wide",
+                      "from": {
+                        "src": "home",
+                        "path": "runs"
+                      },
+                      "item": {
+                        "t": "stack",
+                        "gap": 8,
+                        "children": [
+                          {
+                            "t": "tile",
+                            "images": {
+                              "src": "$",
+                              "path": "tracks"
+                            },
+                            "imagesPath": "cover_url",
+                            "icon": {
+                              "src": "$",
+                              "path": "arc",
+                              "map": {
+                                "rise": "rise",
+                                "wind_down": "fall",
+                                "peak": "peak"
+                              },
+                              "fallback": "dot"
+                            },
+                            "title": {
+                              "src": "$",
+                              "path": "title"
+                            },
+                            "sub": {
+                              "src": "$",
+                              "path": "blurb"
+                            },
+                            "meta": {
+                              "src": "$",
+                              "path": "duration",
+                              "fmt": "duration"
+                            }
+                          },
+                          {
+                            "t": "row",
+                            "gap": 8,
+                            "children": [
+                              {
+                                "t": "button",
+                                "text": "PLAY",
+                                "on": {
+                                  "press": {
+                                    "do": "player.play",
+                                    "with": {
+                                      "tracks": {
+                                        "src": "$",
+                                        "path": "tracks"
+                                      }
+                                    }
+                                  }
+                                }
+                              },
+                              {
+                                "t": "button",
+                                "text": "MORE…",
+                                "tone": "muted",
+                                "on": {
+                                  "press": {
+                                    "do": "sheet.open",
+                                    "with": {
+                                      "tracks": {
+                                        "src": "$",
+                                        "path": "tracks"
+                                      },
+                                      "title": {
+                                        "src": "$",
+                                        "path": "title"
+                                      },
+                                      "subtitle": {
+                                        "src": "$",
+                                        "path": "seed.title"
+                                      },
+                                      "seed": {
+                                        "src": "$",
+                                        "path": "seed.id"
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "t": "when",
+                "cond": {
+                  "src": "home",
+                  "path": "time_of_day.results"
+                },
+                "then": {
+                  "t": "stack",
+                  "gap": 10,
+                  "children": [
+                    {
+                      "t": "row",
+                      "justify": "space-between",
+                      "align": "baseline",
+                      "gap": 12,
+                      "children": [
+                        {
+                          "t": "row",
+                          "gap": 6,
+                          "children": [
+                            {
+                              "t": "icon",
+                              "name": "clock",
+                              "size": 16,
+                              "tone": "muted"
+                            },
+                            {
+                              "t": "text",
+                              "text": {
+                                "src": "home",
+                                "path": "time_of_day.slot",
+                                "map": {
+                                  "morning": "Morning picks",
+                                  "working": "Working picks",
+                                  "evening": "Evening picks",
+                                  "late": "Late picks"
+                                },
+                                "fallback": "Picks"
+                              },
+                              "variant": "heading"
+                            }
+                          ]
+                        },
+                        {
+                          "t": "label",
+                          "text": {
+                            "src": "home",
+                            "path": "time_of_day.basis",
+                            "map": {
+                              "features": "MATCHED BY SOUND",
+                              "genre": "MATCHED BY GENRE"
+                            }
+                          },
+                          "size": "sm"
+                        }
+                      ]
+                    },
+                    {
+                      "t": "rail",
+                      "from": {
+                        "src": "home",
+                        "path": "time_of_day.results"
+                      },
+                      "item": {
+                        "t": "tile",
+                        "image": {
+                          "src": "$",
+                          "path": "cover_url"
+                        },
+                        "title": {
+                          "src": "$",
+                          "path": "title"
+                        },
+                        "sub": {
+                          "src": "$",
+                          "path": "artist",
+                          "fallback": "Unknown artist"
+                        },
+                        "active": {
+                          "eq": [
+                            {
+                              "src": "$",
+                              "path": "id"
+                            },
+                            {
+                              "src": "player",
+                              "path": "track_id"
+                            }
+                          ]
+                        },
+                        "on": {
+                          "press": {
+                            "do": "player.play",
+                            "with": {
+                              "tracks": {
+                                "src": "home",
+                                "path": "time_of_day.results"
+                              },
+                              "from": {
+                                "src": "$",
+                                "path": "id"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "t": "when",
+                "cond": {
+                  "src": "home",
+                  "path": "deep_in"
+                },
+                "then": {
+                  "t": "stack",
+                  "gap": 10,
+                  "children": [
+                    {
+                      "t": "row",
+                      "justify": "space-between",
+                      "align": "baseline",
+                      "gap": 12,
+                      "children": [
+                        {
+                          "t": "text",
+                          "text": "You’re deep in",
+                          "variant": "heading"
+                        },
+                        {
+                          "t": "label",
+                          "text": "LATELY",
+                          "size": "sm"
+                        }
+                      ]
+                    },
+                    {
+                      "t": "rail",
+                      "from": {
+                        "src": "home",
+                        "path": "deep_in"
+                      },
+                      "item": {
+                        "t": "tile",
+                        "shape": "round",
+                        "image": {
+                          "src": "$",
+                          "path": "cover_url"
+                        },
+                        "title": {
+                          "src": "$",
+                          "path": "artist"
+                        },
+                        "on": {
+                          "press": {
+                            "go": "/artist/:artist",
+                            "params": {
+                              "artist": {
+                                "src": "$",
+                                "path": "artist"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "t": "when",
+                "cond": {
+                  "src": "home",
+                  "path": "fresh_albums"
+                },
+                "then": {
+                  "t": "stack",
+                  "gap": 10,
+                  "children": [
+                    {
+                      "t": "row",
+                      "justify": "space-between",
+                      "align": "baseline",
+                      "gap": 12,
+                      "children": [
+                        {
+                          "t": "text",
+                          "text": "New in the library",
+                          "variant": "heading"
+                        },
+                        {
+                          "t": "button",
+                          "text": "ALL",
+                          "tone": "muted",
+                          "on": {
+                            "press": {
+                              "go": "/browse"
+                            }
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "t": "rail",
+                      "from": {
+                        "src": "home",
+                        "path": "fresh_albums"
+                      },
+                      "item": {
+                        "t": "tile",
+                        "image": {
+                          "src": "$",
+                          "path": "cover_url"
+                        },
+                        "title": {
+                          "src": "$",
+                          "path": "album"
+                        },
+                        "sub": {
+                          "src": "$",
+                          "path": "artist"
+                        },
+                        "meta": {
+                          "src": "$",
+                          "path": "year"
+                        },
+                        "on": {
+                          "press": {
+                            "go": "/album/:artist/:album",
+                            "params": {
+                              "artist": {
+                                "src": "$",
+                                "path": "artist"
+                              },
+                              "album": {
+                                "src": "$",
+                                "path": "album"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "t": "when",
+                "cond": {
+                  "src": "home",
+                  "path": "stats.dim"
+                },
+                "then": {
+                  "t": "stack",
+                  "gap": 8,
+                  "children": [
+                    {
+                      "t": "row",
+                      "gap": 5,
+                      "children": [
+                        {
+                          "t": "text",
+                          "text": {
+                            "src": "home",
+                            "path": "stats.measured",
+                            "fmt": "number"
+                          },
+                          "variant": "mono"
+                        },
+                        {
+                          "t": "text",
+                          "text": "of",
+                          "variant": "mono"
+                        },
+                        {
+                          "t": "text",
+                          "text": {
+                            "src": "home",
+                            "path": "stats.tracks",
+                            "fmt": "number"
+                          },
+                          "variant": "mono"
+                        },
+                        {
+                          "t": "text",
+                          "text": "tracks analysed",
+                          "variant": "mono"
+                        },
+                        {
+                          "t": "when",
+                          "cond": {
+                            "src": "home",
+                            "path": "stats.inferred"
+                          },
+                          "then": {
+                            "t": "row",
+                            "gap": 5,
+                            "children": [
+                              {
+                                "t": "text",
+                                "text": "·",
+                                "variant": "mono"
+                              },
+                              {
+                                "t": "text",
+                                "text": {
+                                  "src": "home",
+                                  "path": "stats.inferred",
+                                  "fmt": "number"
+                                },
+                                "variant": "mono"
+                              },
+                              {
+                                "t": "text",
+                                "text": "matched by album",
+                                "variant": "mono"
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "t": "meter",
+                      "value": {
+                        "src": "home",
+                        "path": "stats.coverage"
+                      }
+                    },
+                    {
+                      "t": "row",
+                      "children": [
+                        {
+                          "t": "button",
+                          "text": "OPEN THE VIBE MAP",
+                          "tone": "muted",
+                          "on": {
+                            "press": {
+                              "go": "/map"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

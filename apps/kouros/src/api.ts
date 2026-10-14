@@ -288,69 +288,6 @@ export interface RunResult {
   results: DiscoveredTrack[];
 }
 
-/** A Home rail's run — a sequenced set with an arc. */
-export interface HomeRun {
-  id: string;
-  title: string;
-  blurb: string;
-  arc: string;
-  seed: { id: number; title: string; artist: string | null };
-  length: number;
-  duration: number;
-  tracks: DiscoveredTrack[];
-}
-
-/** One "Recently played" tile (backend/src/discover/recent.js). `route` IS the
- *  context — the KourOS route of the thing, so the tile links there as `#/<route>`. */
-export interface RecentContext {
-  kind: 'album' | 'playlist' | 'artist' | 'station' | 'book';
-  route: string;
-  title: string;
-  subtitle: string;
-  /** Whose art: a track's (by track id) or a book's (by book id). Null when none. */
-  cover: { kind: 'track' | 'book'; id: number } | null;
-  /** A station's seed track — a station has no page, so its tile replays it. */
-  seed?: number;
-  /** The art's URL (home.js artOf) — null when there is none. */
-  cover_url: string | null;
-  played_at: string;
-}
-
-/** A "Continue listening" audiobook. */
-export interface ContinueBook {
-  id: number;
-  title: string;
-  author: string | null;
-  has_cover: boolean;
-  duration: number;
-  position: number;
-  /** Seconds left. */
-  remaining: number;
-  cover_url: string | null;
-  played_at: string;
-}
-
-export interface DeepInArtist {
-  artist: string;
-  weight: number;
-  plays: number;
-  library_tracks: number;
-  anchor_id: number | null;
-  cover_url: string | null;
-}
-
-export interface HomePayload {
-  stats: DiscoveryStats;
-  time_of_day: { slot: string; label: string; basis: 'features' | 'genre'; results: DiscoveredTrack[] };
-  runs: HomeRun[];
-  deep_in: DeepInArtist[];
-  /** Where you played FROM, newest first — one tile per context. */
-  recent: RecentContext[];
-  /** Unfinished audiobooks with a saved position, most recently touched first. */
-  continue_books: ContinueBook[];
-  fresh_albums: Array<{ album: string; artist: string; year: number | null; tracks: number; duration: number; anchor_id: number; added: string; cover_url: string | null }>;
-}
-
 /** A named axis of the vibe space — the readable feature the fit found it correlates
  *  with, and the pole words ("dark" → "bright"). Null when no feature explains it. */
 export interface MapAxis {
@@ -442,13 +379,6 @@ export function radioFrom(seedIds: number[], k = 60): Promise<SimilarResult> {
 
 export function buildRun(seedId: number, arc = 'rise', length = 14): Promise<RunResult> {
   return apiJson<RunResult>(`/api/discover/run?seed=${seedId}&arc=${arc}&length=${length}`);
-}
-
-/** The Home page in one request — five rails, assembled server-side. The local
- *  HOUR is sent from the browser on purpose: "morning" is a property of where the
- *  listener is, and the server's clock is UTC in a container. */
-export function fetchHome(hour = new Date().getHours()): Promise<HomePayload> {
-  return apiJson<HomePayload>(`/api/discover/home?hour=${hour}`);
 }
 
 export function fetchVibeMap(): Promise<VibeMap> {

@@ -156,32 +156,14 @@
 }
 .kr-browse-sorts { flex: none; }
 
+/* A widget page (widgets/host.tsx WidgetPage) starts where a view's page head would. */
+.kr-main > .hud-w-page { padding-top: 1rem; }
+
 /* ── Cards: extra shapes ──────────────────────────────────────────────────── */
-.kr-card-btn { border: 0; background: none; padding: 0; cursor: pointer; text-align: left; width: 100%; }
 .kr-card-round .kr-cover { border-radius: 50%; }
 .kr-card-round .kr-card-title,
 .kr-card-round .kr-card-meta { text-align: center; }
-.kr-card-btn.is-playing .kr-card-title { color: var(--color-accent); }
-/* "Continue listening": how far into the book, as a hairline under the jacket —
-   the same "how far in" answer the mini player's bottom edge gives, at card size. */
-.kr-card-progress {
-  display: block;
-  height: 3px;
-  margin-top: 0.35rem;
-  border-radius: 999px;
-  background: var(--color-ghost);
-  overflow: hidden;
-}
-.kr-card-progress > span { display: block; height: 100%; background: var(--color-accent); }
 
-/* ── Section "more" link ──────────────────────────────────────────────────── */
-.kr-section-more {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.2rem;
-  color: var(--color-accent);
-  text-decoration: none;
-}
 .kr-section-title {
   display: inline-flex;
   align-items: center;
@@ -254,85 +236,6 @@
 @media (min-width: 768px) {
   .kr-detail-head { grid-template-columns: 200px 1fr; gap: 1.5rem; padding: 1.5rem 0 1.75rem; }
   .kr-detail-title { font-size: 2.1rem; }
-}
-
-/* ── Runs ─────────────────────────────────────────────────────────────────── */
-.kr-run {
-  display: flex;
-  flex-direction: column;
-  padding: 0.7rem;
-  border-radius: var(--jk-radius-lg);
-}
-/* Four sleeves in a 2×2, so a set reads as a set rather than as one record. */
-.kr-run-art {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 3px;
-  border-radius: var(--jk-radius-soft);
-  overflow: hidden;
-}
-.kr-run-art .kr-cover { border-radius: 0; box-shadow: none; }
-.kr-run-body { padding-top: 0.6rem; }
-.kr-run-title {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  margin: 0;
-  font-family: var(--jk-font-serif);
-  font-size: 1.02rem;
-  font-weight: 600;
-  color: var(--kr-glass-ink);
-}
-.kr-run-blurb {
-  margin: 0.15rem 0 0;
-  font-family: var(--jk-font-sans);
-  font-size: 0.8rem;
-  color: var(--kr-glass-ink-dim);
-}
-.kr-run-meta { margin: 0.3rem 0 0; font-size: var(--jk-fs-lab-xs); }
-.kr-run-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  margin-top: 0.6rem;
-}
-.kr-run-play {
-  flex: 1;
-  min-height: 36px;
-  border: 0;
-  border-radius: 999px;
-  background: var(--color-accent);
-  color: var(--color-accent-contrast, #fff);
-  font-family: var(--jk-font-sans);
-  font-size: 0.85rem;
-  font-weight: 600;
-  cursor: pointer;
-  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.3);
-}
-
-/* ── The coverage footer ──────────────────────────────────────────────────── */
-.kr-coverage { margin: 2rem 0 1rem; }
-.kr-coverage-link {
-  display: block;
-  padding: 0.75rem;
-  border-radius: var(--jk-radius-soft);
-  background: var(--color-card);
-  text-decoration: none;
-}
-.kr-coverage-bar {
-  display: block;
-  height: 3px;
-  margin-top: 0.5rem;
-  border-radius: 999px;
-  background: var(--color-line);
-  overflow: hidden;
-}
-.kr-coverage-bar > span {
-  display: block;
-  height: 100%;
-  background: var(--color-accent);
-  border-radius: inherit;
 }
 
 /* ── Search box ───────────────────────────────────────────────────────────── */

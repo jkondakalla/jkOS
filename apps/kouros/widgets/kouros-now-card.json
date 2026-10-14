@@ -1,0 +1,150 @@
+{
+  "id": "kouros-now-card",
+  "label": "Now playing",
+  "spec": {
+    "frame": {
+      "eyebrow": {
+        "src": "player",
+        "path": "kind",
+        "map": {
+          "music": "MUSIC",
+          "audiobook": "AUDIOBOOK"
+        }
+      },
+      "source": {
+        "src": "player",
+        "path": "status"
+      }
+    },
+    "body": {
+      "t": "stack",
+      "gap": 10,
+      "children": [
+        {
+          "t": "media",
+          "image": {
+            "src": "player",
+            "path": "cover_url"
+          },
+          "title": {
+            "src": "player",
+            "path": "title"
+          },
+          "subtitle": {
+            "src": "player",
+            "path": "byline"
+          },
+          "on": {
+            "press": {
+              "go": "/now"
+            }
+          }
+        },
+        {
+          "t": "when",
+          "cond": {
+            "eq": [
+              {
+                "src": "player",
+                "path": "kind"
+              },
+              "audiobook"
+            ]
+          },
+          "then": {
+            "t": "stack",
+            "gap": 6,
+            "children": [
+              {
+                "t": "steps",
+                "count": {
+                  "src": "player",
+                  "path": "chapters"
+                },
+                "at": {
+                  "src": "player",
+                  "path": "chapter"
+                }
+              },
+              {
+                "t": "row",
+                "justify": "space-between",
+                "children": [
+                  {
+                    "t": "text",
+                    "text": {
+                      "src": "player",
+                      "path": "chapter_label"
+                    },
+                    "variant": "mono"
+                  },
+                  {
+                    "t": "row",
+                    "gap": 4,
+                    "children": [
+                      {
+                        "t": "text",
+                        "text": {
+                          "src": "player",
+                          "path": "remaining",
+                          "fmt": "duration"
+                        },
+                        "variant": "mono"
+                      },
+                      {
+                        "t": "text",
+                        "text": "LEFT",
+                        "variant": "mono"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "else": {
+            "t": "stack",
+            "gap": 6,
+            "children": [
+              {
+                "t": "meter",
+                "value": {
+                  "src": "player",
+                  "path": "position"
+                },
+                "max": {
+                  "src": "player",
+                  "path": "total"
+                }
+              },
+              {
+                "t": "row",
+                "justify": "space-between",
+                "children": [
+                  {
+                    "t": "text",
+                    "text": {
+                      "src": "player",
+                      "path": "position",
+                      "fmt": "duration"
+                    },
+                    "variant": "mono"
+                  },
+                  {
+                    "t": "text",
+                    "text": {
+                      "src": "player",
+                      "path": "total",
+                      "fmt": "duration"
+                    },
+                    "variant": "mono"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,8 +1,34 @@
-# KourOS's ORDECK widgets
+# KourOS's widgets
 
-Each `<id>.json` here is a widget; ORDECK compiles every app's `widgets/*.json` in at build
-time (`apps/ordeck/src/hud/catalog.ts`), so they are on every HUD's shelf after a deploy —
-no publishing step.
+Each `<id>.json` here is a widget. Three kinds live here:
+
+- **Cards** (a `sizing`): ORDECK compiles every app's `widgets/*.json` in at build time
+  (`apps/ordeck/src/hud/catalog.ts`), so they are on every HUD's shelf after a deploy —
+  no publishing step.
+- **Pages** (a `route`): KourOS's own screens, drawn by KourOS's host
+  (`src/widgets/host.tsx`) when the location matches — never on the HUD.
+- **Parts** (neither): drawn inside another widget by a `use`.
+
+## Pages
+
+- **`kouros-home.json` — Home (`/`).** One source, `discoverHome` (the rails in one
+  request, polled every 5 min). A greeting by the hour's slot, the library's size, the
+  now-playing card (when something is loaded), then the rails — continue listening,
+  recently played, runs, the hour's picks, deep in, new in the library — each a `rail` of
+  `tile`s, and each ABSENT rather than empty (a `when` on the list). The coverage line
+  closes it. Taps fire the player's host actions (`player.book`, `context.open`,
+  `player.play`, `sheet.open`) or `go` to an artist, an album, Browse or the Vibe Map.
+  The empty fixture is an empty library.
+
+## Parts
+
+- **`kouros-now-card.json` — what is playing, at the top of Home.** Binds the host's
+  `player` slice: its kind as the eyebrow, its status ("PAUSED ON KITCHEN") as the source,
+  the art, title and byline as a `media` (a tap goes to Now Playing), and under it the
+  item's own unit — a book's chapters as `steps` with the time left, a track's position
+  as a `meter` between its clock times. The page draws it only while `player.loaded`.
+
+## Cards
 
 - **`kouros-now-playing.json` — Now playing.** One source, the `session` dataset (one
   document per user: the listening session, `now`, the devices), polled every 10 s. `now`

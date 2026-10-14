@@ -1,0 +1,601 @@
+{
+  "ready": {
+    "home": {
+      "stats": {
+        "tracks": 47213,
+        "dim": 512,
+        "measured": 46120,
+        "inferred": 804,
+        "coverage": 0.994
+      },
+      "time_of_day": {
+        "slot": "evening",
+        "label": "Evening",
+        "basis": "features",
+        "results": [
+          {
+            "id": 101,
+            "title": "Monkey",
+            "artist": "Low",
+            "album": "The Great Destroyer",
+            "year": 2005,
+            "duration": 241,
+            "genres": [
+              "slowcore"
+            ],
+            "has_cover": true,
+            "cover_url": "/api/kouros/cover/101",
+            "fit": 0.912
+          },
+          {
+            "id": 102,
+            "title": "Pink Frost",
+            "artist": "The Chills",
+            "album": "Kaleidoscope World",
+            "year": 1986,
+            "duration": 236,
+            "genres": [
+              "jangle pop"
+            ],
+            "has_cover": true,
+            "cover_url": "/api/kouros/cover/102",
+            "fit": 0.904
+          },
+          {
+            "id": 103,
+            "title": "Ceremony",
+            "artist": "New Order",
+            "album": "Substance",
+            "year": 1987,
+            "duration": 264,
+            "genres": [
+              "post-punk"
+            ],
+            "has_cover": true,
+            "cover_url": "/api/kouros/cover/103",
+            "fit": 0.897
+          },
+          {
+            "id": 104,
+            "title": "Blue Light",
+            "artist": "Mazzy Star",
+            "album": "So Tonight That I Might See",
+            "year": 1993,
+            "duration": 307,
+            "genres": [
+              "dream pop"
+            ],
+            "has_cover": false,
+            "cover_url": null,
+            "fit": 0.889
+          },
+          {
+            "id": 105,
+            "title": "Harvest Moon",
+            "artist": "Neil Young",
+            "album": "Harvest Moon",
+            "year": 1992,
+            "duration": 303,
+            "genres": [
+              "folk rock"
+            ],
+            "has_cover": true,
+            "cover_url": "/api/kouros/cover/105",
+            "fit": 0.881
+          },
+          {
+            "id": 106,
+            "title": "Teen Age Riot",
+            "artist": "Sonic Youth",
+            "album": "Daydream Nation",
+            "year": 1988,
+            "duration": 417,
+            "genres": [
+              "noise rock"
+            ],
+            "has_cover": true,
+            "cover_url": "/api/kouros/cover/106",
+            "fit": 0.874
+          },
+          {
+            "id": 107,
+            "title": "Strange",
+            "artist": "Galaxie 500",
+            "album": "On Fire",
+            "year": 1989,
+            "duration": 201,
+            "genres": [
+              "dream pop"
+            ],
+            "has_cover": true,
+            "cover_url": "/api/kouros/cover/107",
+            "fit": 0.866
+          }
+        ]
+      },
+      "runs": [
+        {
+          "id": "rise:101",
+          "title": "Build",
+          "blurb": "starts easy, ends loud",
+          "arc": "rise",
+          "seed": {
+            "id": 101,
+            "title": "Monkey",
+            "artist": "Low"
+          },
+          "length": 6,
+          "duration": 1768,
+          "tracks": [
+            {
+              "id": 101,
+              "title": "Monkey",
+              "artist": "Low",
+              "album": "The Great Destroyer",
+              "year": 2005,
+              "duration": 241,
+              "genres": [
+                "slowcore"
+              ],
+              "has_cover": true,
+              "cover_url": "/api/kouros/cover/101",
+              "step": 0,
+              "energy": 0.2,
+              "basis": "measured"
+            },
+            {
+              "id": 102,
+              "title": "Pink Frost",
+              "artist": "The Chills",
+              "album": "Kaleidoscope World",
+              "year": 1986,
+              "duration": 236,
+              "genres": [
+                "jangle pop"
+              ],
+              "has_cover": true,
+              "cover_url": "/api/kouros/cover/102",
+              "step": 1,
+              "energy": 0.25,
+              "basis": "measured"
+            },
+            {
+              "id": 103,
+              "title": "Ceremony",
+              "artist": "New Order",
+              "album": "Substance",
+              "year": 1987,
+              "duration": 264,
+              "genres": [
+                "post-punk"
+              ],
+              "has_cover": true,
+              "cover_url": "/api/kouros/cover/103",
+              "step": 2,
+              "energy": 0.3,
+              "basis": "measured"
+            },
+            {
+              "id": 104,
+              "title": "Blue Light",
+              "artist": "Mazzy Star",
+              "album": "So Tonight That I Might See",
+              "year": 1993,
+              "duration": 307,
+              "genres": [
+                "dream pop"
+              ],
+              "has_cover": false,
+              "cover_url": null,
+              "step": 3,
+              "energy": 0.35,
+              "basis": "measured"
+            },
+            {
+              "id": 105,
+              "title": "Harvest Moon",
+              "artist": "Neil Young",
+              "album": "Harvest Moon",
+              "year": 1992,
+              "duration": 303,
+              "genres": [
+                "folk rock"
+              ],
+              "has_cover": true,
+              "cover_url": "/api/kouros/cover/105",
+              "step": 4,
+              "energy": 0.4,
+              "basis": "measured"
+            },
+            {
+              "id": 106,
+              "title": "Teen Age Riot",
+              "artist": "Sonic Youth",
+              "album": "Daydream Nation",
+              "year": 1988,
+              "duration": 417,
+              "genres": [
+                "noise rock"
+              ],
+              "has_cover": true,
+              "cover_url": "/api/kouros/cover/106",
+              "step": 5,
+              "energy": 0.45,
+              "basis": "measured"
+            }
+          ]
+        },
+        {
+          "id": "wind_down:103",
+          "title": "Wind down",
+          "blurb": "comes back down",
+          "arc": "wind_down",
+          "seed": {
+            "id": 103,
+            "title": "Ceremony",
+            "artist": "New Order"
+          },
+          "length": 7,
+          "duration": 1969,
+          "tracks": [
+            {
+              "id": 103,
+              "title": "Ceremony",
+              "artist": "New Order",
+              "album": "Substance",
+              "year": 1987,
+              "duration": 264,
+              "genres": [
+                "post-punk"
+              ],
+              "has_cover": true,
+              "cover_url": "/api/kouros/cover/103",
+              "step": 0,
+              "energy": 0.2,
+              "basis": "measured"
+            },
+            {
+              "id": 104,
+              "title": "Blue Light",
+              "artist": "Mazzy Star",
+              "album": "So Tonight That I Might See",
+              "year": 1993,
+              "duration": 307,
+              "genres": [
+                "dream pop"
+              ],
+              "has_cover": false,
+              "cover_url": null,
+              "step": 1,
+              "energy": 0.25,
+              "basis": "measured"
+            },
+            {
+              "id": 105,
+              "title": "Harvest Moon",
+              "artist": "Neil Young",
+              "album": "Harvest Moon",
+              "year": 1992,
+              "duration": 303,
+              "genres": [
+                "folk rock"
+              ],
+              "has_cover": true,
+              "cover_url": "/api/kouros/cover/105",
+              "step": 2,
+              "energy": 0.3,
+              "basis": "measured"
+            },
+            {
+              "id": 106,
+              "title": "Teen Age Riot",
+              "artist": "Sonic Youth",
+              "album": "Daydream Nation",
+              "year": 1988,
+              "duration": 417,
+              "genres": [
+                "noise rock"
+              ],
+              "has_cover": true,
+              "cover_url": "/api/kouros/cover/106",
+              "step": 3,
+              "energy": 0.35,
+              "basis": "measured"
+            },
+            {
+              "id": 107,
+              "title": "Strange",
+              "artist": "Galaxie 500",
+              "album": "On Fire",
+              "year": 1989,
+              "duration": 201,
+              "genres": [
+                "dream pop"
+              ],
+              "has_cover": true,
+              "cover_url": "/api/kouros/cover/107",
+              "step": 4,
+              "energy": 0.4,
+              "basis": "measured"
+            },
+            {
+              "id": 101,
+              "title": "Monkey",
+              "artist": "Low",
+              "album": "The Great Destroyer",
+              "year": 2005,
+              "duration": 241,
+              "genres": [
+                "slowcore"
+              ],
+              "has_cover": true,
+              "cover_url": "/api/kouros/cover/101",
+              "step": 5,
+              "energy": 0.45,
+              "basis": "measured"
+            },
+            {
+              "id": 102,
+              "title": "Pink Frost",
+              "artist": "The Chills",
+              "album": "Kaleidoscope World",
+              "year": 1986,
+              "duration": 236,
+              "genres": [
+                "jangle pop"
+              ],
+              "has_cover": true,
+              "cover_url": "/api/kouros/cover/102",
+              "step": 6,
+              "energy": 0.5,
+              "basis": "measured"
+            }
+          ]
+        }
+      ],
+      "deep_in": [
+        {
+          "artist": "Low",
+          "weight": 9.412,
+          "plays": 31,
+          "library_tracks": 148,
+          "anchor_id": 101,
+          "cover_url": "/api/kouros/cover/101"
+        },
+        {
+          "artist": "Galaxie 500",
+          "weight": 5.08,
+          "plays": 17,
+          "library_tracks": 42,
+          "anchor_id": 107,
+          "cover_url": "/api/kouros/cover/107"
+        },
+        {
+          "artist": "Mazzy Star",
+          "weight": 3.3,
+          "plays": 11,
+          "library_tracks": 38,
+          "anchor_id": 104,
+          "cover_url": null
+        },
+        {
+          "artist": "The Chills",
+          "weight": 2.1,
+          "plays": 7,
+          "library_tracks": 61,
+          "anchor_id": 102,
+          "cover_url": "/api/kouros/cover/102"
+        }
+      ],
+      "recent": [
+        {
+          "kind": "album",
+          "title": "The Great Destroyer",
+          "subtitle": "Low",
+          "cover": {
+            "kind": "track",
+            "id": 101
+          },
+          "cover_url": "/api/kouros/cover/101",
+          "route": "album/Low/The%20Great%20Destroyer",
+          "played_at": "2026-10-14T14:39:02.000Z"
+        },
+        {
+          "kind": "station",
+          "title": "Ceremony",
+          "subtitle": "Station · New Order",
+          "seed": 103,
+          "cover": {
+            "kind": "track",
+            "id": 103
+          },
+          "cover_url": "/api/kouros/cover/103",
+          "route": "station/103",
+          "played_at": "2026-10-14T12:10:44.000Z"
+        },
+        {
+          "kind": "book",
+          "title": "Project Hail Mary",
+          "subtitle": "Andy Weir",
+          "cover": {
+            "kind": "book",
+            "id": 14
+          },
+          "cover_url": "/api/kouros/books/cover/14",
+          "route": "book/14",
+          "played_at": "2026-10-13T21:05:00.000Z"
+        },
+        {
+          "kind": "artist",
+          "title": "Galaxie 500",
+          "subtitle": "Artist",
+          "cover": {
+            "kind": "track",
+            "id": 107
+          },
+          "cover_url": "/api/kouros/cover/107",
+          "route": "artist/Galaxie%20500",
+          "played_at": "2026-10-13T18:22:31.000Z"
+        },
+        {
+          "kind": "playlist",
+          "title": "Road",
+          "subtitle": "Playlist",
+          "cover": null,
+          "cover_url": null,
+          "route": "playlist/4",
+          "played_at": "2026-10-12T08:01:10.000Z"
+        }
+      ],
+      "continue_books": [
+        {
+          "id": 14,
+          "title": "Project Hail Mary",
+          "author": "Andy Weir",
+          "has_cover": true,
+          "duration": 58260,
+          "position": 21540,
+          "remaining": 36720,
+          "cover_url": "/api/kouros/books/cover/14",
+          "played_at": "2026-10-13T21:05:00.000Z"
+        },
+        {
+          "id": 31,
+          "title": "The Hitchhiker's Guide to the Galaxy",
+          "author": "Douglas Adams",
+          "has_cover": true,
+          "duration": 21060,
+          "position": 17380,
+          "remaining": 3680,
+          "cover_url": "/api/kouros/books/cover/31",
+          "played_at": "2026-10-10T07:48:05.000Z"
+        },
+        {
+          "id": 9,
+          "title": "The Three-Body Problem",
+          "author": "Cixin Liu",
+          "has_cover": false,
+          "duration": 49920,
+          "position": 9480,
+          "remaining": 40440,
+          "cover_url": null,
+          "played_at": "2026-10-02T18:30:12.000Z"
+        }
+      ],
+      "fresh_albums": [
+        {
+          "album": "Getting Killed",
+          "artist": "Geese",
+          "year": 2025,
+          "tracks": 11,
+          "duration": 2904,
+          "anchor_id": 201,
+          "added": "2026-10-11T09:00:00.000Z",
+          "cover_url": "/api/kouros/cover/201"
+        },
+        {
+          "album": "Black Medium Current",
+          "artist": "Dodheimsgard",
+          "year": 2023,
+          "tracks": 8,
+          "duration": 3290,
+          "anchor_id": 211,
+          "added": "2026-10-09T09:00:00.000Z",
+          "cover_url": "/api/kouros/cover/211"
+        },
+        {
+          "album": "Fear of Music",
+          "artist": "Talking Heads",
+          "year": 1979,
+          "tracks": 11,
+          "duration": 2465,
+          "anchor_id": 221,
+          "added": "2026-10-04T09:00:00.000Z",
+          "cover_url": null
+        },
+        {
+          "album": "Spiderland",
+          "artist": "Slint",
+          "year": 1991,
+          "tracks": 6,
+          "duration": 2387,
+          "anchor_id": 231,
+          "added": "2026-10-01T09:00:00.000Z",
+          "cover_url": "/api/kouros/cover/231"
+        },
+        {
+          "album": "Loveless",
+          "artist": "My Bloody Valentine",
+          "year": 1991,
+          "tracks": 11,
+          "duration": 2919,
+          "anchor_id": 241,
+          "added": "2026-09-28T09:00:00.000Z",
+          "cover_url": "/api/kouros/cover/241"
+        }
+      ]
+    },
+    "$slices": {
+      "player": {
+        "loaded": true,
+        "kind": "music",
+        "playing": true,
+        "status": "PLAYING",
+        "title": "Ceremony",
+        "byline": "New Order",
+        "cover_url": "/api/kouros/cover/103",
+        "track_id": 103,
+        "book_id": null,
+        "position": 97,
+        "total": 264,
+        "progress": 0.367,
+        "remaining": 167,
+        "chapter": 0,
+        "chapters": 1,
+        "chapter_label": ""
+      }
+    }
+  },
+  "empty": {
+    "home": {
+      "stats": {
+        "tracks": 0,
+        "dim": 0,
+        "measured": 0,
+        "inferred": 0,
+        "coverage": 0
+      },
+      "time_of_day": {
+        "slot": "evening",
+        "label": "Evening",
+        "basis": "genre",
+        "results": []
+      },
+      "runs": [],
+      "deep_in": [],
+      "recent": [],
+      "continue_books": [],
+      "fresh_albums": []
+    },
+    "$slices": {
+      "player": {
+        "loaded": false,
+        "kind": null,
+        "playing": false,
+        "status": "",
+        "title": "",
+        "byline": "",
+        "cover_url": null,
+        "track_id": null,
+        "book_id": null,
+        "position": 0,
+        "total": 0,
+        "progress": 0,
+        "remaining": 0,
+        "chapter": 0,
+        "chapters": 1,
+        "chapter_label": ""
+      }
+    }
+  }
+}

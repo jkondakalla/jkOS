@@ -57,11 +57,60 @@ export async function ordeckHost() {
   };
 }
 
-/** Every declared host, by app — what the gate finds each widget file a home in. (KourOS
- *  joins when it hosts widgets; a host is its slices, its molecules, its actions, and
- *  whether it routes.) */
+/** Every declared host, by app — what the gate finds each widget file a home in. A host is
+ *  its slices, its molecules, its actions, and whether it routes. */
 export async function hosts() {
-  return { ordeck: await ordeckHost() };
+  const decls = await hostDeclarations();
+  return Object.fromEntries(Object.entries(decls).map(([id, d]) => [id, {
+    slices: Object.keys(d.slices), actions: Object.keys(d.actions), navigate: d.navigate, kinds: d.kinds,
+  }]));
+}
+
+/** Every host's DECLARATION, by app: its slices and actions as data (what the second tier
+ *  checks a widget drawn there against), the molecules it draws, whether it routes, and
+ *  the screens it routes that are not widget pages yet (`legacyRoutes` — a `go` may name
+ *  one). ORDECK's is hud/slices.ts; KourOS's is src/widgets/declaration.ts. */
+export async function hostDeclarations() {
+  const { NODES } = await import(WIDGETS_URL);
+  const hud = await hudDeclaration();
+  const k = await kourosDeclaration();
+  return {
+    ordeck: { slices: hud.slices, actions: hud.actions, navigate: false, legacyRoutes: [],
+      kinds: Object.keys(NODES).filter((t) => NODES[t].kind === 'molecule') },
+    kouros: { slices: k.slices, actions: k.actions, navigate: true, legacyRoutes: k.legacyRoutes, kinds: [] },
+  };
+}
+
+/** KourOS's host declaration (src/widgets/declaration.ts): its slices, its actions, and
+ *  its routes still drawn by hand-built views. Type-only imports, so it transpiles to data. */
+export async function kourosDeclaration() {
+  const mod = await transpiledModule('apps/kouros/src/widgets/declaration.ts');
+  return { slices: mod.KOUROS_SLICES, actions: mod.KOUROS_ACTIONS, legacyRoutes: [...mod.KOUROS_LEGACY_ROUTES] };
+}
+
+/**
+ * The contexts the second tier checks one widget file in: one per host that can draw it
+ * (its homes — portability is derived, drawableIn), each with that host's slices and
+ * actions, and the app's pages — the routes its page files declare, plus the routes its
+ * own host still draws by hand (a `go` may name either). A file with no home is checked
+ * against its own app's host, or ORDECK's (the gate reports the missing home on its own).
+ * @returns {Promise<{ host: string, ctx: object }[]>}
+ */
+export async function secondTierContexts(def, app, { files } = {}) {
+  const { drawableIn, routeTable } = await import(WIDGETS_URL);
+  const all = files ?? widgetFiles();
+  const widgets = Object.fromEntries(all.filter((w) => w.def).map((w) => [w.def.id, w.def]));
+  const decls = await hostDeclarations();
+  const shapes = await hosts();
+  const pages = [
+    ...routeTable(all.filter((w) => w.app === app && w.def).map((w) => w.def)).routes.keys(),
+    ...(decls[app]?.legacyRoutes ?? []),
+  ];
+  const homes = Object.keys(shapes).filter((id) => drawableIn(def, shapes[id], widgets).length === 0);
+  return (homes.length ? homes : [decls[app] ? app : 'ordeck']).map((host) => ({
+    host,
+    ctx: { docs: appDocs(), widgets, slices: decls[host].slices, actions: decls[host].actions, pages },
+  }));
 }
 
 /** Every widget file's def, by id — what the second tier checks a `use` against. */
@@ -73,12 +122,17 @@ export function widgetsById() {
  *  (HUD_ACTIONS). Its imports are type-only, so the real file transpiles to plain data —
  *  what the second validation tier checks a binding into a slice, or a `do`, against. */
 export async function hudDeclaration() {
-  const tmp = mkdtempSync(join(tmpdir(), 'jkos-widget-slices-'));
+  const mod = await transpiledModule('apps/ordeck/src/hud/slices.ts');
+  return { slices: mod.HUD_SLICES, actions: mod.HUD_ACTIONS };
+}
+
+/** A TypeScript module whose imports are type-only, transpiled and imported as data. */
+async function transpiledModule(rel) {
+  const tmp = mkdtempSync(join(tmpdir(), 'jkos-widget-decl-'));
   try {
-    const out = join(tmp, 'slices.mjs');
-    writeFileSync(out, transpile(readFileSync(join(REPO_ROOT, 'apps/ordeck/src/hud/slices.ts'), 'utf8'), 'slices.ts'));
-    const mod = await import(pathToFileURL(out).href);
-    return { slices: mod.HUD_SLICES, actions: mod.HUD_ACTIONS };
+    const out = join(tmp, 'decl.mjs');
+    writeFileSync(out, transpile(readFileSync(join(REPO_ROOT, rel), 'utf8'), rel.split('/').pop()));
+    return await import(pathToFileURL(out).href);
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }

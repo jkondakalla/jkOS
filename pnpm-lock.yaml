@@ -153,6 +153,12 @@ importers:
       '@jkos/weave':
         specifier: workspace:*
         version: file:packages/weave(react@18.3.1)
+      '@jkos/widget-render':
+        specifier: workspace:*
+        version: link:../../packages/widget-render
+      '@jkos/widgets':
+        specifier: workspace:*
+        version: file:packages/widgets(react@18.3.1)
       react:
         specifier: ^18.3.1
         version: 18.3.1
