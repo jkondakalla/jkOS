@@ -1,5 +1,5 @@
 'use strict';
-const { APPS, apiBaseOf } = require('@jkos/suite-manifest');
+const { trackCoverUrl, bookCoverUrl } = require('../art');
 // session/routes.js — the listening session over HTTP: one live stream DOWN (SSE),
 // plain POSTs UP. Every KourOS instance signed in as one listener sees the same
 // session, any of them can be the OUTPUT (the one device that plays), and every other
@@ -102,7 +102,6 @@ function createSessionRouter({ db, store, hub, offlineGraceMs = OFFLINE_GRACE_MS
      ref (`kouros:<id>`, `book:<id>`, or a bare legacy id); a peer — an ORDECK widget —
      cannot resolve that without reading this app's catalog, so the snapshot resolves it:
      a title, a subtitle, a duration, and the art as the edge path a peer loads it from. */
-  const API_BASE = apiBaseOf(APPS.find((a) => a.id === 'kouros'));
   // Prepared on first use: the session router is also mounted over a database that holds
   // no catalog (its own smoke), and a session with nothing playing never asks.
   let q = null;
@@ -128,11 +127,11 @@ function createSessionRouter({ db, store, hub, offlineGraceMs = OFFLINE_GRACE_MS
     if (m[1] === 'book') {
       const b = L.book.get(id);
       return b ? { kind: 'book', id: b.id, title: b.title, subtitle: b.author || '', duration: b.duration ?? null,
-        cover_url: b.cover_path ? `${API_BASE}/books/cover/${b.id}` : null } : null;
+        cover_url: bookCoverUrl(b.id, !!b.cover_path) } : null;
     }
     const t = L.track.get(id);
     return t ? { kind: 'track', id: t.id, title: t.title, subtitle: [t.artist, t.album].filter(Boolean).join(' — '), duration: t.duration ?? null,
-      cover_url: t.cover_path ? `${API_BASE}/cover/${t.id}` : null } : null;
+      cover_url: trackCoverUrl(t.id, !!t.cover_path) } : null;
   }
   const snapshot = (userId) => {
     const session = store.session(userId);

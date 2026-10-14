@@ -175,8 +175,15 @@ function createDiscoverRouter({ discovery, db }) {
       // invented its own answer to it — a per-app query param for a question the
       // whole suite asks — which is exactly the reinvention D5 exists to stop.
       const hour = clamp(req.query.hour, zonedParts(new Date(), callerZone(req)).hour, 0, 23);
+      const st = space.stats;
       res.json({
-        stats: space.stats,
+        stats: st,
+        // The page's two lines about the library, said here (a widget computes nothing).
+        library_label: `${Number(st.tracks || 0).toLocaleString('en-US')} tracks in the library`,
+        coverage_label: st.dim > 0
+          ? `${Number(st.measured || 0).toLocaleString('en-US')} of ${Number(st.tracks || 0).toLocaleString('en-US')} tracks analysed`
+            + (st.inferred > 0 ? ` · ${Number(st.inferred).toLocaleString('en-US')} matched by album` : '')
+          : null,
         time_of_day: home.timeOfDay(space, { hour, k: clamp(req.query.k, 18, 1, 60) }),
         runs: home.runs(space, history, { count: 3, length: 14 }),
         deep_in: home.deepIn(space, history, { k: 8 }),

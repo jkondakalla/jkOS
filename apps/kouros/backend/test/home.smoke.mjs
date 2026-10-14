@@ -141,6 +141,22 @@ try {
   ok(deep.length > 0, `deep_in: NOT empty for a listener with history — the item_ref lookup holds (got ${JSON.stringify(deep)})`);
   ok(deep[0]?.artist === 'Artist One', `deep_in: led by the artist A played most (got ${deep[0]?.artist})`);
 
+  /* The answer IS its declaration, to the leaf (discovery.js discoverHome). The Home page
+     is a widget, and a widget binds only declared fields — a field the server stopped
+     sending, or one it sends undeclared, would draw blank with nothing to say why. */
+  {
+    const { DATASETS } = await import(join(BACKEND, 'discovery.js'));
+    const { checkDatasetAnswer } = await import(join(__dirname, '../../../../packages/weave/src/shared/datasetShape.js'));
+    const decl = DATASETS.datasets.find((d) => d.id === 'discoverHome');
+    const problems = checkDatasetAnswer(decl, homeA);
+    ok(problems.length === 0, `discoverHome answers exactly what it declares${problems.length ? ` — ${problems.join('; ')}` : ''}`);
+    ok(homeA.recent.every((r) => r.cover == null ? r.cover_url === null : /^\/api\/kouros\/(books\/)?cover\/\d+$/.test(r.cover_url)),
+      `recent: each tile's art is an edge path a page can load (got ${JSON.stringify(homeA.recent.map((r) => r.cover_url))})`);
+    ok(/ left$/.test(cont[0]?.remaining_label ?? '') && cont[0].remaining === Math.round(cont[0].duration - cont[0].position),
+      `continue_books: the time left, said ("${cont[0]?.remaining_label}")`);
+    ok(/^[\d,]+ tracks in the library$/.test(homeA.library_label ?? ''), `the library line, said ("${homeA.library_label}")`);
+  }
+
   // ── B's home ───────────────────────────────────────────────────────────────
   const homeB = (await req('GET', '/api/discover/home?hour=9', undefined, B)).json;
   const recentB = homeB?.recent || [];

@@ -17,6 +17,7 @@
 // identified from metadata, never from "cosine ≥ 0.999" — a high cosine is what a
 // correct neighbour looks like, and thresholding on it throws away real answers.
 const { contentKeyFromTags } = require('./vectors');
+const { trackCoverUrl } = require('../art');
 const { NFEAT, FEATURE_NAMES, ORIGIN, ORIGIN_NAMES } = require('./space');
 
 /* ── small helpers ─────────────────────────────────────────────────────────── */
@@ -73,6 +74,7 @@ function present(space, i, extra = {}) {
     duration: space.meta.duration[i],
     genres: space.meta.genres[i],
     has_cover: !!space.meta.cover[i],
+    cover_url: trackCoverUrl(space.ids[i], !!space.meta.cover[i]),
     ...extra,
   };
 }

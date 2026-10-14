@@ -19,6 +19,8 @@
 const { NFEAT, FEATURE_NAMES, ORIGIN } = require('./space');
 const { present, diversify, round } = require('./queries');
 const { makeRun } = require('./queries');
+const { trackCoverUrl } = require('../art');
+const { span, count } = require('./labels');
 
 /* ── time of day ──────────────────────────────────────────────────────────────
    Targets in the readable feature space (all 0–1 percentile ranks). These are
@@ -158,6 +160,8 @@ function deepIn(space, history, { k = 8, halfLifeDays = 10, now = Date.now() } =
       plays: rows.length,
       library_tracks: total,
       anchor_id: anchor != null ? space.ids[anchor] : null,
+      cover_url: anchor != null ? trackCoverUrl(space.ids[anchor], !!space.meta.cover[anchor]) : null,
+      meta: `${count(rows.length, 'play')} · ${Number(total).toLocaleString('en-US')} in library`,
     };
   });
 }
@@ -214,6 +218,7 @@ function runs(space, history, { count = 3, length = 14 } = {}) {
       seed: { id: seedRow.id, title: seedRow.title, artist: seedRow.artist },
       length: built.results.length,
       duration: Math.round(built.results.reduce((s, r) => s + (r.duration || 0), 0)),
+      meta: `${built.results.length} tracks · ${span(built.results.reduce((s, r) => s + (r.duration || 0), 0))}`,
       tracks: built.results,
     });
   }
@@ -227,6 +232,7 @@ function runs(space, history, { count = 3, length = 14 } = {}) {
 function freshAlbums(db, space, { k = 18 } = {}) {
   const rows = db.prepare(`
     SELECT album, albumartist, artist, MAX(updated_at) AS added, MIN(id) AS anchor_id,
+           MIN(CASE WHEN cover_path IS NOT NULL THEN id END) AS cover_id,
            COUNT(*) AS tracks, SUM(duration) AS duration, MAX(year) AS year
       FROM tracks
      WHERE album IS NOT NULL AND album <> ''
@@ -242,6 +248,8 @@ function freshAlbums(db, space, { k = 18 } = {}) {
     duration: Math.round(r.duration || 0),
     anchor_id: r.anchor_id,
     added: r.added,
+    cover_url: trackCoverUrl(r.cover_id),
+    meta: `${r.year ? `${r.year} · ` : ''}${count(r.tracks, 'track')}`,
   }));
 }
 

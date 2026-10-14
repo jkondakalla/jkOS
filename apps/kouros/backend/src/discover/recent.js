@@ -17,6 +17,8 @@
 // every join CASTs.
 
 const { parsePlayContext } = require('../playContext');
+const { trackCoverUrl, bookCoverUrl } = require('../art');
+const { span } = require('./labels');
 
 /** Newest-first distinct contexts across both ledgers, resolved to tiles. */
 function recentContexts(db, userId, { k = 14 } = {}) {
@@ -43,7 +45,7 @@ function recentContexts(db, userId, { k = 14 } = {}) {
     if (seen.has(ctx)) continue;
     seen.add(ctx);
     const tile = resolve(db, userId, ctx);
-    if (tile) out.push({ ...tile, route: ctx, played_at: at });
+    if (tile) out.push({ ...tile, cover_url: urlOf(tile.cover), route: ctx, played_at: at });
   }
   return out;
 }
@@ -97,6 +99,12 @@ function coverOf(kind, id) {
   return id != null ? { kind, id } : null;
 }
 
+/** A tile's art, as the URL a page loads it from. */
+function urlOf(cover) {
+  if (!cover) return null;
+  return cover.kind === 'book' ? bookCoverUrl(cover.id) : trackCoverUrl(cover.id);
+}
+
 /** Unfinished audiobooks with a saved position, most recently touched first. */
 function continueBooks(db, userId, { k = 12 } = {}) {
   if (userId == null) return [];
@@ -107,7 +115,13 @@ function continueBooks(db, userId, { k = 12 } = {}) {
       JOIN books b ON b.id = CAST(p.book_ref AS INTEGER)
      WHERE p.user_id = ? AND p.finished = 0 AND p.position > 0
      ORDER BY p.updated_at DESC
-     LIMIT ?`).all(userId, k).map((r) => ({ ...r, has_cover: !!r.has_cover }));
+     LIMIT ?`).all(userId, k).map((r) => {
+    const remaining = Math.max(0, Math.round((r.duration || 0) - (r.position || 0)));
+    return {
+      ...r, has_cover: !!r.has_cover, cover_url: bookCoverUrl(r.id, !!r.has_cover),
+      remaining, remaining_label: `${span(remaining)} left`,
+    };
+  });
 }
 
 module.exports = { recentContexts, continueBooks };

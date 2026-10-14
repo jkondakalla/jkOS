@@ -703,6 +703,7 @@ const HIT = [
   { name: 'duration',  type: 'number', label: 'Seconds' },
   { name: 'genres',    type: 'json',   of: 'string' },
   { name: 'has_cover', type: 'boolean' },
+  { name: 'cover_url', type: 'string', label: 'The art, as the edge path any page loads it from (null: none) — src/art.js' },
 ];
 const ALGORITHMS = 'Documentation/agents/ALGORITHMS.md';
 /* Present only once a space exists: a seed the space has never seen answers
@@ -859,11 +860,36 @@ const DISCOVER_DATASETS = [
     // container, and "morning" is a property of where the listener is.
     filters: [{ name: 'hour', type: 'number', label: "Listener's local hour (0–23)", computed: true }],
     cardinality: 'one',
+    /* Declared to the leaf: the Home page is a widget (apps/kouros/widgets/kouros-home.json),
+       and a widget can bind only what is declared — its second tier refuses a field nobody
+       declares, and home.smoke holds this answer to this declaration. The *_label fields
+       are the page's few lines of text: a widget binds values, it never computes them. */
     item: [
       { name: 'stats',          type: 'json', label: 'discoverStats, once, for the whole page', schema: 'kouros.discoverStats' },
-      { name: 'time_of_day',    type: 'json', label: 'The rail for this hour: {slot, label, basis, results}', schema: ALGORITHMS },
-      { name: 'runs',           type: 'json', label: 'Sequenced sets from recent listening', schema: ALGORITHMS },
-      { name: 'deep_in',        type: 'json', label: 'What the listener keeps returning to', schema: ALGORITHMS },
+      { name: 'library_label',  type: 'string', label: '"47,212 tracks in the library"' },
+      { name: 'coverage_label', type: 'string', label: '"8,140 of 47,212 tracks analysed · 312 matched by album" (null: no space yet)' },
+      { name: 'time_of_day',    type: 'json', label: 'The rail for this hour', item: [
+        { name: 'slot',    type: 'enum', enum: ['morning', 'working', 'evening', 'late'] },
+        { name: 'label',   type: 'string', label: '"Evening"' },
+        { name: 'basis',   type: 'enum', enum: ['features', 'genre'], label: 'Matched by sound, or by genre (no vectors yet)' },
+        { name: 'results', type: 'json', item: [...HIT, { name: 'fit', type: 'number' }] },
+      ] },
+      { name: 'runs',           type: 'json', label: 'Sequenced sets from recent listening (ALGORITHMS.md)', item: [
+        { name: 'id', type: 'string' }, { name: 'title', type: 'string' }, { name: 'blurb', type: 'string' },
+        { name: 'arc', type: 'string' },
+        { name: 'seed', type: 'json', item: [{ name: 'id', type: 'number' }, { name: 'title', type: 'string' }, { name: 'artist', type: 'string' }] },
+        { name: 'length', type: 'number' }, { name: 'duration', type: 'number', label: 'Seconds' },
+        { name: 'meta', type: 'string', label: '"14 tracks · 52 min"' },
+        { name: 'tracks', type: 'json', label: 'In play order', item: [
+          ...HIT, { name: 'step', type: 'number' }, { name: 'energy', type: 'number' }, { name: 'basis', type: 'string' },
+        ] },
+      ] },
+      { name: 'deep_in',        type: 'json', label: 'What the listener keeps returning to', item: [
+        { name: 'artist', type: 'string' }, { name: 'weight', type: 'number' }, { name: 'plays', type: 'number' },
+        { name: 'library_tracks', type: 'number' }, { name: 'anchor_id', type: 'ref', ref: 'kouros.tracks' },
+        { name: 'cover_url', type: 'string', label: 'The art (null: none)' },
+        { name: 'meta', type: 'string', label: '"12 plays · 340 in library"' },
+      ] },
       { name: 'recent',         type: 'json', label: 'Recently played, by context', item: [
         { name: 'kind', type: 'enum', enum: ['album', 'artist', 'playlist', 'station', 'book'] },
         { name: 'title', type: 'string' }, { name: 'subtitle', type: 'string' },
@@ -871,17 +897,23 @@ const DISCOVER_DATASETS = [
           { name: 'kind', type: 'enum', enum: ['track', 'book'] }, { name: 'id', type: 'number' },
         ] },
         { name: 'seed', type: 'ref', ref: 'kouros.tracks', label: "A station's seed track", optional: true },
+        { name: 'cover_url', type: 'string', label: 'The art (null: none)' },
         { name: 'route', type: 'string' }, { name: 'played_at', type: 'string' },
       ] },
       { name: 'continue_books', type: 'json', label: 'Unfinished audiobooks', item: [
         { name: 'id', type: 'number' }, { name: 'title', type: 'string' }, { name: 'author', type: 'string' },
         { name: 'has_cover', type: 'boolean' }, { name: 'duration', type: 'number' }, { name: 'position', type: 'number' },
         { name: 'played_at', type: 'string' },
+        { name: 'cover_url', type: 'string', label: 'The jacket (null: none)' },
+        { name: 'remaining', type: 'number', label: 'Seconds left' },
+        { name: 'remaining_label', type: 'string', label: '"3 hr 12 min left"' },
       ] },
       { name: 'fresh_albums',   type: 'json', label: 'Albums newest to the catalog', item: [
         { name: 'album', type: 'string' }, { name: 'artist', type: 'string' }, { name: 'year', type: 'number' },
         { name: 'tracks', type: 'number' }, { name: 'duration', type: 'number' },
         { name: 'anchor_id', type: 'ref', ref: 'kouros.tracks' }, { name: 'added', type: 'string' },
+        { name: 'cover_url', type: 'string', label: 'The sleeve (null: none)' },
+        { name: 'meta', type: 'string', label: '"2021 · 12 tracks"' },
       ] },
     ],
   },

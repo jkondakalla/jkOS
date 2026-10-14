@@ -16,7 +16,10 @@
           "has_cover": true,
           "duration": 58260,
           "position": 21540,
-          "played_at": "2026-09-28T12:12:40.000Z"
+          "played_at": "2026-09-28T12:12:40.000Z",
+          "cover_url": "/api/kouros/books/cover/14",
+          "remaining": 36720,
+          "remaining_label": "10 hr 12 min left"
         },
         {
           "id": 31,
@@ -25,7 +28,10 @@
           "has_cover": true,
           "duration": 21060,
           "position": 17380,
-          "played_at": "2026-09-26T07:48:05.000Z"
+          "played_at": "2026-09-26T07:48:05.000Z",
+          "cover_url": "/api/kouros/books/cover/31",
+          "remaining": 3680,
+          "remaining_label": "1 hr 1 min left"
         },
         {
           "id": 9,
@@ -34,7 +40,10 @@
           "has_cover": false,
           "duration": 49920,
           "position": 9480,
-          "played_at": "2026-09-21T18:30:12.000Z"
+          "played_at": "2026-09-21T18:30:12.000Z",
+          "cover_url": null,
+          "remaining": 40440,
+          "remaining_label": "11 hr 14 min left"
         },
         {
           "id": 22,
@@ -43,7 +52,10 @@
           "has_cover": true,
           "duration": 71880,
           "position": 2210,
-          "played_at": "2026-09-04T12:02:51.000Z"
+          "played_at": "2026-09-04T12:02:51.000Z",
+          "cover_url": "/api/kouros/books/cover/22",
+          "remaining": 69670,
+          "remaining_label": "19 hr 21 min left"
         },
         {
           "id": 5,
@@ -52,7 +64,10 @@
           "has_cover": true,
           "duration": 43740,
           "position": 30110,
-          "played_at": "2026-08-30T20:15:00.000Z"
+          "played_at": "2026-08-30T20:15:00.000Z",
+          "cover_url": "/api/kouros/books/cover/5",
+          "remaining": 13630,
+          "remaining_label": "3 hr 47 min left"
         },
         {
           "id": 17,
@@ -61,7 +76,10 @@
           "has_cover": true,
           "duration": 76980,
           "position": 64020,
-          "played_at": "2026-08-22T06:40:31.000Z"
+          "played_at": "2026-08-22T06:40:31.000Z",
+          "cover_url": "/api/kouros/books/cover/17",
+          "remaining": 12960,
+          "remaining_label": "3 hr 36 min left"
         },
         {
           "id": 26,
@@ -70,7 +88,10 @@
           "has_cover": true,
           "duration": 39000,
           "position": 5200,
-          "played_at": "2026-08-11T17:05:09.000Z"
+          "played_at": "2026-08-11T17:05:09.000Z",
+          "cover_url": "/api/kouros/books/cover/26",
+          "remaining": 33800,
+          "remaining_label": "9 hr 23 min left"
         },
         {
           "id": 3,
@@ -79,10 +100,15 @@
           "has_cover": false,
           "duration": 55440,
           "position": 880,
-          "played_at": "2026-07-29T09:33:47.000Z"
+          "played_at": "2026-07-29T09:33:47.000Z",
+          "cover_url": null,
+          "remaining": 54560,
+          "remaining_label": "15 hr 9 min left"
         }
       ],
-      "fresh_albums": []
+      "fresh_albums": [],
+      "library_label": "0 tracks in the library",
+      "coverage_label": null
     }
   },
   "empty": {
@@ -95,7 +121,9 @@
       "deep_in": [],
       "recent": [],
       "continue_books": [],
-      "fresh_albums": []
+      "fresh_albums": [],
+      "library_label": "0 tracks in the library",
+      "coverage_label": null
     }
   }
 }
