@@ -60,8 +60,8 @@ Work through every unblocked item without waiting for approval between them.
    format change that signs every device out. Reversible migration first, then ask.
 5. **Rewriting git history.** Refused by standing decision — report, don't rewrite.
 6. **Changing machine state** (installing systemd units etc.) — stop at "here is the installer".
-7. **The Android release key** (`~/.jkos/android-release.keystore`) — the permanent identity of all
-   three apps. Never create, replace or delete it; `pnpm android:signing` is Jag's to run, with a
+7. **The Android release key** (`~/.jkos/android-release.keystore`) — the permanent identity of every
+   jkOS Android app. Never create, replace or delete it; `pnpm android:signing` is Jag's to run, with a
    password Jag chooses.
 
 ## ⚠️ The four files that silently invalidate the music index

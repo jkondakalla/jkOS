@@ -181,7 +181,7 @@ expected staging behaviour, not a regression. Re-run with `--token <admin jwt>` 
 
 ## Native apps (Android + desktop)
 
-Three Android apps and two Linux desktop apps, all declared in `native/shells.js`. Every one
+Four Android apps and two Linux desktop apps, all declared in `native/shells.js`. Every one
 loads the live site at its real origin, so auth needs **zero changes**. How they're built and
 why they're shaped this way is in [agents/NATIVE.md](agents/NATIVE.md); this is the runbook.
 
@@ -190,6 +190,17 @@ why they're shaped this way is in [agents/NATIVE.md](agents/NATIVE.md); this is 
 | **jkOS** | `net.jkos.app` | The suite on your phone (Android) or desktop (Linux). Long-press the Android icon for KourOS / BeigeBoard shortcuts. |
 | **KourOS** | `net.jkos.kouros` | Music and audiobooks as their own app (Plexamp to jkOS's Plex). |
 | **jkOS Home** | `net.jkos.home` | ORDECK as the home screen of a dedicated tablet or phone. |
+| **jkOS Alpha** | `net.jkos.alpha` | **Testing.** Every app in one download: a plain list, and a tap opens that app. |
+
+**The alpha APK**, to put on a phone:
+```bash
+eval "$(node native/android/toolchain.mjs env ~/Android/jkos)"
+pnpm android:build -- :selector:assembleDebug      # → native/android/out/alpha-0.1.0-staging.apk
+adb install -r native/android/out/alpha-0.1.0-staging.apk   # or copy the file over and open it
+```
+The phone has to allow installs from wherever you open it (Android asks once per source).
+It's a staging build: it opens `staging.jkos.net` under a URL bar, and installs beside every
+other jkOS app.
 
 A **staging build** (`pnpm android:build`) is named "… (staging)", opens `staging.jkos.net`,
 and installs beside the real app. A **release build** opens production.
@@ -223,7 +234,7 @@ The four traps:
    echo | openssl s_client -connect kouros.jkos.net:443 -servername kouros.jkos.net 2>/dev/null \
      | openssl x509 -noout -issuer     # must be Let's Encrypt, NOT Cloudflare Origin CA
    ```
-4. **Keep the keystore.** One key signs all three apps. Lose it and you can never ship an
+4. **Keep the keystore.** One key signs all four apps. Lose it and you can never ship an
    upgrade to any of them. Back it up somewhere that isn't this machine; it's deliberately not
    in the repo.
 
@@ -235,7 +246,7 @@ node native/android/toolchain.mjs install ~/Android/jkos --adb
 eval "$(node native/android/toolchain.mjs env ~/Android/jkos)"
 
 # 1. The release key (asks for a password: yours, recorded in your password manager).
-#    Writes net.jkos.app + net.jkos.kouros with its fingerprint into assetlinks.json.
+#    Writes net.jkos.app, net.jkos.kouros and net.jkos.alpha with its fingerprint into assetlinks.json.
 pnpm android:signing
 
 # 2. Put the asset links on every origin, then deploy staging (it owns the nginx config)

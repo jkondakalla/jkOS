@@ -12,10 +12,13 @@ operator's runbook (build, sign, install, verify), see
 | **jkOS** | `net.jkos.app` | Android, Linux | TWA / Electron | ORDECK | every suite app with its own origin |
 | **KourOS** | `net.jkos.kouros` | Android, Linux | TWA / Electron | KourOS | KourOS + jkAuth |
 | **jkOS Home** | `net.jkos.home` | Android | home-screen launcher | ORDECK | every suite app with its own origin |
+| **jkOS Alpha** | `net.jkos.alpha` | Android | selector → TWA | a native list of every app | every suite app with its own origin |
 
 KourOS is part of jkOS **and** its own app (Plex and Plexamp): its own icon, its own entry in
 recents, and `kouros.jkos.net` links open in it. jkOS Home is ORDECK as a home panel on a
-dedicated tablet or phone, as a kiosk (see [below](#jkos-home--the-launcher)).
+dedicated tablet or phone, as a kiosk (see [below](#jkos-home--the-launcher)). jkOS Alpha is
+the whole suite as **one test download**: a plain list of every app, each opened as a TWA (see
+[below](#jkos-alpha--the-selector)). Its version carries the channel (`0.1.0-alpha`).
 
 A **debug build is a staging build**: package `<id>.staging`, name "… (staging)", pointed at
 `staging.jkos.net`. It installs beside the release app, never over it.
@@ -39,8 +42,10 @@ native/
 │   ├── gradle/verification-metadata.xml   sha256 of every Maven artifact
 │   ├── twa/               :twa — one flavor per TWA shell; no app code
 │   │   └── src/<shell><Debug|Release>/res/   GENERATED per variant
-│   └── home/              :home — the launcher (Kotlin)
-│       └── src/<debug|release>/res/          GENERATED per build type
+│   ├── home/              :home — the launcher (Kotlin)
+│   │   └── src/<debug|release>/res/          GENERATED per build type
+│   └── selector/          :selector — jkOS Alpha's app list (Kotlin, no WebView)
+│       └── src/<debug|release>/res/          GENERATED per build type (the list itself)
 └── desktop/               Electron — OUTSIDE the pnpm workspace (own lockfile)
     ├── src/policy.js      every security decision, pure (the gate requires it)
     ├── src/main.js        applies policy.js; nothing else
@@ -81,6 +86,7 @@ it lands on one of its origins. What happens to anything else depends on the she
 | | Off-list navigation | Page gets | Native code beside the page |
 |---|---|---|---|
 | TWA (jkOS, KourOS) | Chrome shows its URL bar / opens it in the browser | nothing Chrome doesn't give any site | none |
+| jkOS Alpha | as a TWA: each app it opens *is* a TWA | nothing Chrome doesn't give any site | a list of buttons; nothing beside a page |
 | Desktop (Electron) | handed to the system browser (`https:`/`http:`/`mailto:` only; never `file:` or a custom scheme) | no Node, no preload, one permission (`clipboard-sanitized-write`) | the main process, which decides by `policy.js` |
 | jkOS Home | **refused**: a kiosk doesn't give a guest the browser | the `jkosShell` bridge on the start origin only | the launcher |
 
@@ -145,11 +151,34 @@ origin-scoped listeners gets no bridge at all (the page still works).
   WebView doesn't forward Media Session the way Chrome does, so for music on a phone, use the
   KourOS app.
 
-## 5 · Building
+## 5 · jkOS Alpha — the selector
+
+The whole suite as one APK, for testing: open it, pick an app, and Back returns to the list.
+Its screen says what it is (`ALPHA · staging · 0.1.0-alpha-staging`), and so does Android's app
+info, because the channel (`channel: 'alpha'` in `shells.js`) is part of `versionName`.
+
+- **The list is generated**, not typed: `selectorApps()` in `shells.js` gives every app the shell
+  reaches, with ORDECK first and jkAuth last. Its dashboard is the account page, so it's worth
+  testing too. `gen-native.mjs` writes it into `selector/src/<env>/res/values/shell.xml`.
+  An app added to the suite shows up in the list with no edit in `native/`.
+- **A tap starts androidbrowserhelper's `LauncherActivity`** with that URL, so each app opens
+  exactly as the jkOS TWA would. Chrome holds the cookie jar, so one sign-in serves every app,
+  and KourOS keeps Chrome's media notification and lock-screen controls.
+- **`LauncherActivity` isn't exported** and has no intent filter. Only the list can start a
+  trusted session, so no other app can aim one at a URL of its choosing. The app **claims no
+  links**: `jkos.net` links stay with the jkOS and KourOS apps.
+- **No WebView, no permissions.** `check:native` holds both, plus backups off, the Custom Tab
+  fallback, and every listed app being on an origin the shell trusts.
+- **It's a TWA launcher, so it needs asset links:** `twaLaunchers()` puts its package in
+  `signing.mjs`'s output, and its origins in `check:nginx`'s coverage. Until then each app opens
+  under a URL bar, like the other staging builds.
+
+## 6 · Building
 
 ```bash
 pnpm native:gen                         # after editing shells.js or a start app's web manifest
 pnpm android:build                      # staging APKs → native/android/out/*-staging.apk
+pnpm android:build -- :selector:assembleDebug   # just jkOS Alpha → out/alpha-0.1.0-staging.apk
 pnpm android:build -- assembleRelease   # production (signed if the keystore env is set)
 pnpm android:build -- :home:testDebugUnitTest   # OriginPolicy vs origin-cases.json
 ```
@@ -189,11 +218,11 @@ one and only runs with `--no-sandbox`. For the same reason, `pnpm start` (an unp
 **crashes on Emily**: the dev Electron binary has no profile. Test through the installed `.deb`,
 or give the dev binary a profile as root. Don't add `--no-sandbox`.
 
-## 6 · What holds it
+## 7 · What holds it
 
 | Check | Where | What |
 |---|---|---|
-| `pnpm check:native` | `native/gen-native.mjs --check` + `test/native.mjs` | generated files in sync (and no stale variant dirs); desktop policy vs origin-cases; webPreferences, permissions, external schemes; main.js applies the policy; fuses; .deb-only; manifests least-privilege; no `addJavascriptInterface`/`proceed()`/file access/mixed content; signing from env; wrapper, dependencies, toolchain and image pinned; staging URLs routed |
+| `pnpm check:native` | `native/gen-native.mjs --check` + `test/native.mjs` | generated files in sync (and no stale variant dirs); desktop policy vs origin-cases; webPreferences, permissions, external schemes; main.js applies the policy; fuses; .deb-only; manifests least-privilege; no `addJavascriptInterface`/`proceed()`/file access/mixed content; the selector has no WebView, no exported launcher, no link claims, and lists only trusted origins; signing from env; wrapper, dependencies, toolchain and image pinned; staging URLs routed |
 | `pnpm check:nginx` | `infra/nginx/gen-nginx-weave.mjs --check` | every origin a TWA trusts serves `/.well-known/assetlinks.json` |
 | `pnpm check:audit` | `test/supply-chain.mjs` | **every tracked** `pnpm-lock.yaml`, so the desktop's too, at the `high` floor |
 | Gradle unit test | `:home:testDebugUnitTest` | `OriginPolicy` vs origin-cases (not on the node gate: it needs the JDK) |
@@ -201,12 +230,12 @@ or give the dev binary a profile as root. Don't add `--no-sandbox`.
 
 Each `check:native` assertion was seen to fail on a mutated copy before it was trusted.
 
-## 7 · Adding a shell
+## 8 · Adding a shell
 
 1. Add a row to `SHELLS` in `native/shells.js`. Its `start` app needs a web manifest with 512 px
    `any` and `maskable` PNGs and a `theme_color`.
 2. `pnpm native:gen`. A TWA becomes a new flavor automatically. A second `home` shell isn't
-   supported (the generator refuses it).
+   supported, nor is a second `selector` (the generator refuses both).
 3. For a TWA: `pnpm android:signing`, which adds its package to `assetlinks.json`. Then
    `node infra/nginx/gen-nginx-weave.mjs` and deploy.
 4. `pnpm check:native && pnpm check:nginx`. For a desktop shell, `pnpm dist` picks it up.

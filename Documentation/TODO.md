@@ -47,19 +47,22 @@ Roughly in order: the first one gates every deploy.
   parts that need you. Steps in [OPERATIONS.md § Native apps](OPERATIONS.md#native-apps-android--desktop).
   1. **An Android toolchain.** `node native/android/toolchain.mjs install ~/Android/jkos --adb` (no
      sudo, one directory), or give `jag` Docker access (§2 has the decision).
-  2. **`pnpm android:signing`**: create the one release key for jkOS, KourOS and jkOS Home. You
+  2. **`pnpm android:signing`**: create the one release key for every jkOS Android app. You
      choose the password. ⚠️ **Back up `~/.jkos/android-release.keystore` off this machine**: losing
      it means no app can ever be upgraded in place.
   3. **Asset links to the edge**: `node infra/nginx/gen-nginx-weave.mjs`, commit, deploy, restart
      nginx. Until then the TWAs open under a URL bar.
-  4. **Install.** Staging APKs (`pnpm android:build`) work today, with a URL bar. KourOS's release app
+  4. **Install.** Staging APKs (`pnpm android:build`) work today, with a URL bar. For testing,
+     **`native/android/out/alpha-0.1.0-staging.apk`** (jkOS Alpha) is the whole suite in one APK:
+     a list of every app, a tap opens it. KourOS's release app
      also needs the production DNS record below.
   5. **Desktop**: `sudo apt install ./native/desktop/out/jkos/jkos-jkos_0.1.0_amd64.deb` (and the
      KourOS one) after `pnpm dist` (Node ≥ 22.12, see OPERATIONS). The `.deb` installs an AppArmor
      profile; that's the sudo.
   6. **Try them on real hardware**: none has run on a phone, a tablet or an installed `.deb` yet.
      The TWAs' URL bar, KourOS's lock-screen controls through Chrome, jkOS Home as the default home
-     (the corner hold, the offline screen with Wi-Fi off, rotation), and the desktop app's KDE
+     (the corner hold, the offline screen with Wi-Fi off, rotation), jkOS Alpha (each row opens its
+     app, Back returns to the list, one sign-in serves all four), and the desktop app's KDE
      media keys (Chromium's MPRIS bridge, expected but unseen).
 - **Give `truenas_admin` docker back — durably.** The NAS rebooted 2026-09-23 and the Post-Init
   script (`usermod -aG docker truenas_admin`, `initshutdownscript` id 1) runs but does not stick:
