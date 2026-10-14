@@ -61,7 +61,7 @@ function slotForHour(h) {
   return 'working';
 }
 
-function timeOfDay(space, { hour, k = 18 } = {}) {
+function timeOfDay(space, { hour, k = 18, art = NO_ART } = {}) {
   const key = slotForHour(hour);
   const slot = SLOTS[key];
 
@@ -87,7 +87,7 @@ function timeOfDay(space, { hour, k = 18 } = {}) {
       const rows = diversify(space, scored, { k, perArtist: 2, perAlbum: 1 });
       return {
         slot: key, label: slot.label, basis: 'features',
-        results: rows.map(([i, s]) => present(space, i, { fit: round(1 + s) })),
+        results: rows.map(([i, s]) => withArt(present(space, i, { fit: round(1 + s) }), art)),
       };
     }
   }
@@ -103,7 +103,7 @@ function timeOfDay(space, { hour, k = 18 } = {}) {
   }
   scored.sort((a, b) => b[1] - a[1]);
   const rows = diversify(space, scored, { k, perArtist: 2, perAlbum: 1 });
-  return { slot: key, label: slot.label, basis: 'genre', results: rows.map(([i, s]) => present(space, i, { fit: round(s) })) };
+  return { slot: key, label: slot.label, basis: 'genre', results: rows.map(([i, s]) => withArt(present(space, i, { fit: round(s) }), art)) };
 }
 
 /** A history row's track, as an index into the space — or undefined.
@@ -125,7 +125,7 @@ function trackIndexOf(space, ref) {
    from three weeks ago, so each play contributes exp(-age/halfLife) rather than
    1. Without that, "deep in right now" degenerates into "your all-time top
    artists", which never changes and is therefore never interesting. */
-function deepIn(space, history, { k = 8, halfLifeDays = 10, now = Date.now() } = {}) {
+function deepIn(space, history, { k = 8, halfLifeDays = 10, now = Date.now(), art = NO_ART } = {}) {
   const weightByArtist = new Map();
   const tracksByArtist = new Map();
   const HALF = halfLifeDays * 864e5;
@@ -158,6 +158,7 @@ function deepIn(space, history, { k = 8, halfLifeDays = 10, now = Date.now() } =
       plays: rows.length,
       library_tracks: total,
       anchor_id: anchor != null ? space.ids[anchor] : null,
+      cover_url: withCover != null ? art.track(space.ids[withCover]) : null,
     };
   });
 }
@@ -173,7 +174,7 @@ const RUN_SHAPES = [
   { arc: 'peak',      title: 'Arc',        blurb: 'rises, peaks, settles' },
 ];
 
-function runs(space, history, { count = 3, length = 14 } = {}) {
+function runs(space, history, { count = 3, length = 14, art = NO_ART } = {}) {
   if (!space.dim || !space.stats.covered) return [];
 
   const seeds = [];
@@ -214,7 +215,7 @@ function runs(space, history, { count = 3, length = 14 } = {}) {
       seed: { id: seedRow.id, title: seedRow.title, artist: seedRow.artist },
       length: built.results.length,
       duration: Math.round(built.results.reduce((s, r) => s + (r.duration || 0), 0)),
-      tracks: built.results,
+      tracks: built.results.map((t) => withArt(t, art)),
     });
   }
   return out;
@@ -224,9 +225,10 @@ function runs(space, history, { count = 3, length = 14 } = {}) {
 
 /** Newest ALBUMS rather than newest tracks: a freshly-added record would
  *  otherwise fill the whole rail with its own twelve tracks. */
-function freshAlbums(db, space, { k = 18 } = {}) {
+function freshAlbums(db, space, { k = 18, art = NO_ART } = {}) {
   const rows = db.prepare(`
     SELECT album, albumartist, artist, MAX(updated_at) AS added, MIN(id) AS anchor_id,
+           MIN(CASE WHEN cover_path IS NOT NULL THEN id END) AS cover_id,
            COUNT(*) AS tracks, SUM(duration) AS duration, MAX(year) AS year
       FROM tracks
      WHERE album IS NOT NULL AND album <> ''
@@ -242,7 +244,26 @@ function freshAlbums(db, space, { k = 18 } = {}) {
     duration: Math.round(r.duration || 0),
     anchor_id: r.anchor_id,
     added: r.added,
+    cover_url: r.cover_id != null ? art.track(r.cover_id) : null,
   }));
 }
 
-module.exports = { timeOfDay, deepIn, runs, freshAlbums, slotForHour, SLOTS, trackIndexOf };
+/* ── the art a tile shows ─────────────────────────────────────────────────────
+   Every tile on Home carries `cover_url`, the edge path its art loads from (null:
+   none, and the tile draws its letter). A widget binds a URL and cannot build one
+   from an id — a computed value is a declared field (the widget rescope's rule), as
+   the session dataset's `now.cover_url` already is. `art` is apiBaseOf(kouros)'s
+   two cover routes; without one (a unit test) every URL is null. */
+const NO_ART = Object.freeze({ track: () => null, book: () => null });
+
+/** The cover routes under an app's API base ('/kouros/api'). */
+function artOf(apiBase) {
+  return { track: (id) => `${apiBase}/cover/${id}`, book: (id) => `${apiBase}/books/cover/${id}` };
+}
+
+/** A presented track (queries.present), with its art. */
+function withArt(t, art) {
+  return { ...t, cover_url: t.has_cover ? art.track(t.id) : null };
+}
+
+module.exports = { timeOfDay, deepIn, runs, freshAlbums, slotForHour, SLOTS, trackIndexOf, artOf, NO_ART };

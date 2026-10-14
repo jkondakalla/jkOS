@@ -311,6 +311,8 @@ export interface RecentContext {
   cover: { kind: 'track' | 'book'; id: number } | null;
   /** A station's seed track — a station has no page, so its tile replays it. */
   seed?: number;
+  /** The art's URL (home.js artOf) — null when there is none. */
+  cover_url: string | null;
   played_at: string;
 }
 
@@ -322,6 +324,9 @@ export interface ContinueBook {
   has_cover: boolean;
   duration: number;
   position: number;
+  /** Seconds left. */
+  remaining: number;
+  cover_url: string | null;
   played_at: string;
 }
 
@@ -331,6 +336,7 @@ export interface DeepInArtist {
   plays: number;
   library_tracks: number;
   anchor_id: number | null;
+  cover_url: string | null;
 }
 
 export interface HomePayload {
@@ -342,7 +348,7 @@ export interface HomePayload {
   recent: RecentContext[];
   /** Unfinished audiobooks with a saved position, most recently touched first. */
   continue_books: ContinueBook[];
-  fresh_albums: Array<{ album: string; artist: string; year: number | null; tracks: number; duration: number; anchor_id: number; added: string }>;
+  fresh_albums: Array<{ album: string; artist: string; year: number | null; tracks: number; duration: number; anchor_id: number; added: string; cover_url: string | null }>;
 }
 
 /** A named axis of the vibe space — the readable feature the fit found it correlates

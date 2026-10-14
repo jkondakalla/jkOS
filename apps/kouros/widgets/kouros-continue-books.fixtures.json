@@ -16,7 +16,9 @@
           "has_cover": true,
           "duration": 58260,
           "position": 21540,
-          "played_at": "2026-09-28T12:12:40.000Z"
+          "played_at": "2026-09-28T12:12:40.000Z",
+          "remaining": 36720,
+          "cover_url": "/api/kouros/books/cover/14"
         },
         {
           "id": 31,
@@ -25,7 +27,9 @@
           "has_cover": true,
           "duration": 21060,
           "position": 17380,
-          "played_at": "2026-09-26T07:48:05.000Z"
+          "played_at": "2026-09-26T07:48:05.000Z",
+          "remaining": 3680,
+          "cover_url": "/api/kouros/books/cover/31"
         },
         {
           "id": 9,
@@ -34,7 +38,9 @@
           "has_cover": false,
           "duration": 49920,
           "position": 9480,
-          "played_at": "2026-09-21T18:30:12.000Z"
+          "played_at": "2026-09-21T18:30:12.000Z",
+          "remaining": 40440,
+          "cover_url": null
         },
         {
           "id": 22,
@@ -43,7 +49,9 @@
           "has_cover": true,
           "duration": 71880,
           "position": 2210,
-          "played_at": "2026-09-04T12:02:51.000Z"
+          "played_at": "2026-09-04T12:02:51.000Z",
+          "remaining": 69670,
+          "cover_url": "/api/kouros/books/cover/22"
         },
         {
           "id": 5,
@@ -52,7 +60,9 @@
           "has_cover": true,
           "duration": 43740,
           "position": 30110,
-          "played_at": "2026-08-30T20:15:00.000Z"
+          "played_at": "2026-08-30T20:15:00.000Z",
+          "remaining": 13630,
+          "cover_url": "/api/kouros/books/cover/5"
         },
         {
           "id": 17,
@@ -61,7 +71,9 @@
           "has_cover": true,
           "duration": 76980,
           "position": 64020,
-          "played_at": "2026-08-22T06:40:31.000Z"
+          "played_at": "2026-08-22T06:40:31.000Z",
+          "remaining": 12960,
+          "cover_url": "/api/kouros/books/cover/17"
         },
         {
           "id": 26,
@@ -70,7 +82,9 @@
           "has_cover": true,
           "duration": 39000,
           "position": 5200,
-          "played_at": "2026-08-11T17:05:09.000Z"
+          "played_at": "2026-08-11T17:05:09.000Z",
+          "remaining": 33800,
+          "cover_url": "/api/kouros/books/cover/26"
         },
         {
           "id": 3,
@@ -79,7 +93,9 @@
           "has_cover": false,
           "duration": 55440,
           "position": 880,
-          "played_at": "2026-07-29T09:33:47.000Z"
+          "played_at": "2026-07-29T09:33:47.000Z",
+          "remaining": 54560,
+          "cover_url": null
         }
       ],
       "fresh_albums": []

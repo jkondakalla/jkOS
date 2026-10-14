@@ -18,8 +18,11 @@
 
 const { parsePlayContext } = require('../playContext');
 
+/** No art routes (a unit test): every cover_url is null. home.js artOf builds the real ones. */
+const NO_ART = Object.freeze({ track: () => null, book: () => null });
+
 /** Newest-first distinct contexts across both ledgers, resolved to tiles. */
-function recentContexts(db, userId, { k = 14 } = {}) {
+function recentContexts(db, userId, { k = 14, art = NO_ART } = {}) {
   if (userId == null) return [];
   const over = k * 3;   // a context whose row has vanished is skipped, so over-fetch
   const tracks = db.prepare(`
@@ -43,7 +46,7 @@ function recentContexts(db, userId, { k = 14 } = {}) {
     if (seen.has(ctx)) continue;
     seen.add(ctx);
     const tile = resolve(db, userId, ctx);
-    if (tile) out.push({ ...tile, route: ctx, played_at: at });
+    if (tile) out.push({ ...tile, cover_url: tile.cover ? art[tile.cover.kind](tile.cover.id) : null, route: ctx, played_at: at });
   }
   return out;
 }
@@ -98,7 +101,7 @@ function coverOf(kind, id) {
 }
 
 /** Unfinished audiobooks with a saved position, most recently touched first. */
-function continueBooks(db, userId, { k = 12 } = {}) {
+function continueBooks(db, userId, { k = 12, art = NO_ART } = {}) {
   if (userId == null) return [];
   return db.prepare(`
     SELECT b.id, b.title, b.author, b.cover_path IS NOT NULL AS has_cover, b.duration,
@@ -107,7 +110,12 @@ function continueBooks(db, userId, { k = 12 } = {}) {
       JOIN books b ON b.id = CAST(p.book_ref AS INTEGER)
      WHERE p.user_id = ? AND p.finished = 0 AND p.position > 0
      ORDER BY p.updated_at DESC
-     LIMIT ?`).all(userId, k).map((r) => ({ ...r, has_cover: !!r.has_cover }));
+     LIMIT ?`).all(userId, k).map((r) => ({
+       ...r, has_cover: !!r.has_cover,
+       // What is left, in seconds — the tile says "3h 10m left", and a widget cannot subtract.
+       remaining: Math.max(0, (r.duration || 0) - (r.position || 0)),
+       cover_url: r.has_cover ? art.book(r.id) : null,
+     }));
 }
 
 module.exports = { recentContexts, continueBooks };

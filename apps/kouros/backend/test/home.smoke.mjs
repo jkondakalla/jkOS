@@ -20,13 +20,19 @@
 //   · continue_books — A's unfinished book with a position, not the finished one;
 //     B sees none.
 //   · deep_in — non-empty, and led by the artist A played most.
+//   · the whole answer is what discoverHome DECLARES (checkDatasetAnswer, with A's
+//     rails populated), every tile carries `cover_url` — the art as a URL a widget
+//     binds, never an id it would have to build one from — and a book says what is
+//     left of it (`remaining`).
 //
 //   node apps/kouros/backend/test/home.smoke.mjs
 
 import { execFile } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { createRequire } from 'node:module';
 import { smoke, forgeTokens } from '../../../../test/lib/smoke.mjs';
+import { checkDatasetAnswer } from '../../../../packages/weave/src/shared/datasetShape.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const BACKEND = join(__dirname, '..');
@@ -140,6 +146,22 @@ try {
   const deep = homeA?.deep_in || [];
   ok(deep.length > 0, `deep_in: NOT empty for a listener with history — the item_ref lookup holds (got ${JSON.stringify(deep)})`);
   ok(deep[0]?.artist === 'Artist One', `deep_in: led by the artist A played most (got ${deep[0]?.artist})`);
+
+  // ── what a widget binds ────────────────────────────────────────────────────
+  const require = createRequire(import.meta.url);
+  const { DATASETS } = require('../discovery.js');
+  const { APPS, apiBaseOf } = require('@jkos/suite-manifest');
+  const API_BASE = apiBaseOf(APPS.find((a) => a.id === 'kouros'));
+  const declared = DATASETS.datasets.find((d) => d.id === 'discoverHome');
+  const problems = checkDatasetAnswer(declared, homeA);
+  ok(problems.length === 0, `discoverHome answers what it declares, with A's rails populated${problems.length ? `:\n      ${problems.join('\n      ')}` : ''}`);
+  const tiles = [...recentA, ...cont, ...deep, ...(homeA?.fresh_albums || []), ...(homeA?.time_of_day?.results || [])];
+  ok(tiles.length > 0 && tiles.every((t) => 'cover_url' in t),
+    `every Home tile carries cover_url (got ${tiles.filter((t) => !('cover_url' in t)).length} of ${tiles.length} without)`);
+  const art = tiles.map((t) => t.cover_url).filter((u) => u != null);
+  ok(art.length > 0 && art.every((u) => new RegExp(`^${API_BASE}/(books/)?cover/\\d+$`).test(u)),
+    `cover_url is an edge path under KourOS's API base, ${API_BASE} (got ${JSON.stringify(art.slice(0, 3))})`);
+  ok(cont[0]?.remaining === Math.max(0, cont[0]?.duration - cont[0]?.position), `continue_books: remaining is duration − position (got ${JSON.stringify(cont[0])})`);
 
   // ── B's home ───────────────────────────────────────────────────────────────
   const homeB = (await req('GET', '/api/discover/home?hour=9', undefined, B)).json;

@@ -17,7 +17,8 @@
             "id": 41
           },
           "route": "album/Low/The%20Great%20Destroyer",
-          "played_at": "2026-09-28T14:39:02.000Z"
+          "played_at": "2026-09-28T14:39:02.000Z",
+          "cover_url": "/api/kouros/cover/41"
         },
         {
           "kind": "station",
@@ -26,7 +27,8 @@
           "seed": 41,
           "cover": null,
           "route": "station/41",
-          "played_at": "2026-09-28T12:10:44.000Z"
+          "played_at": "2026-09-28T12:10:44.000Z",
+          "cover_url": null
         },
         {
           "kind": "book",
@@ -37,7 +39,8 @@
             "id": 3
           },
           "route": "book/3",
-          "played_at": "2026-09-27T21:05:00.000Z"
+          "played_at": "2026-09-27T21:05:00.000Z",
+          "cover_url": "/api/kouros/books/cover/3"
         },
         {
           "kind": "playlist",
@@ -45,7 +48,8 @@
           "subtitle": "Playlist",
           "cover": null,
           "route": "playlist/2",
-          "played_at": "2026-09-26T09:00:00.000Z"
+          "played_at": "2026-09-26T09:00:00.000Z",
+          "cover_url": null
         }
       ],
       "continue_books": [],

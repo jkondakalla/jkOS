@@ -10,6 +10,7 @@
 // feature stops being trusted. Cheaper to be honest on the wire.
 const { Router } = require('express');
 const { callerZone, zonedParts } = require('@jkos/weave/server');
+const { APPS, apiBaseOf } = require('@jkos/suite-manifest');
 
 function ids(param) {
   return String(param || '')
@@ -36,6 +37,8 @@ function num(v, dflt) {
 function createDiscoverRouter({ discovery, db }) {
   const router = Router();
   const home = require('../discover/home');
+  // Every Home tile's art, as the edge path it loads from (home.js artOf).
+  const ART = home.artOf(apiBaseOf(APPS.find((a) => a.id === 'kouros')));
   const recent = require('../discover/recent');
 
   /** This user's play history, newest first — the input to every personalised
@@ -177,17 +180,17 @@ function createDiscoverRouter({ discovery, db }) {
       const hour = clamp(req.query.hour, zonedParts(new Date(), callerZone(req)).hour, 0, 23);
       res.json({
         stats: space.stats,
-        time_of_day: home.timeOfDay(space, { hour, k: clamp(req.query.k, 18, 1, 60) }),
-        runs: home.runs(space, history, { count: 3, length: 14 }),
-        deep_in: home.deepIn(space, history, { k: 8 }),
+        time_of_day: home.timeOfDay(space, { hour, k: clamp(req.query.k, 18, 1, 60), art: ART }),
+        runs: home.runs(space, history, { count: 3, length: 14, art: ART }),
+        deep_in: home.deepIn(space, history, { k: 8, art: ART }),
         // Where you played FROM — albums, playlists, artists, stations, books — one
         // tile each, newest first (discover/recent.js). Replaced a per-TRACK rail
         // that had been empty for every listener since it shipped (home.js's
         // trackIndexOf).
-        recent: recent.recentContexts(db, req.user && req.user.sub, { k: 14 }),
+        recent: recent.recentContexts(db, req.user && req.user.sub, { k: 14, art: ART }),
         // Unfinished audiobooks with a saved position — long-term resume is a book's.
-        continue_books: recent.continueBooks(db, req.user && req.user.sub, { k: 12 }),
-        fresh_albums: home.freshAlbums(db, space, { k: 18 }),
+        continue_books: recent.continueBooks(db, req.user && req.user.sub, { k: 12, art: ART }),
+        fresh_albums: home.freshAlbums(db, space, { k: 18, art: ART }),
       });
     } catch (err) {
       console.error(`[kouros] home failed: ${err.message}`);
