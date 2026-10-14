@@ -1,0 +1,1075 @@
+{
+  "id": "kouros-now",
+  "label": "Now Playing",
+  "route": "/now",
+  "spec": {
+    "state": {
+      "menu": {
+        "type": "string",
+        "default": ""
+      }
+    },
+    "body": {
+      "t": "when",
+      "cond": {
+        "src": "player",
+        "path": "loaded"
+      },
+      "then": {
+        "t": "when",
+        "cond": {
+          "eq": [
+            {
+              "src": "player",
+              "path": "kind"
+            },
+            "audiobook"
+          ]
+        },
+        "then": {
+          "t": "stack",
+          "screen": true,
+          "gap": 10,
+          "children": [
+            {
+              "t": "row",
+              "justify": "space-between",
+              "children": [
+                {
+                  "t": "button",
+                  "text": "Close now playing",
+                  "icon": "down",
+                  "variant": "ghost",
+                  "on": {
+                    "press": {
+                      "do": "overlay.close"
+                    }
+                  }
+                },
+                {
+                  "t": "when",
+                  "cond": {
+                    "src": "player",
+                    "path": "on_device"
+                  },
+                  "then": {
+                    "t": "label",
+                    "text": {
+                      "src": "player",
+                      "path": "status"
+                    },
+                    "size": "sm"
+                  },
+                  "else": {
+                    "t": "label",
+                    "text": {
+                      "src": "player",
+                      "path": "place",
+                      "fmt": "upper"
+                    },
+                    "size": "sm"
+                  }
+                },
+                {
+                  "t": "button",
+                  "text": "Open this book",
+                  "icon": "book",
+                  "variant": "ghost",
+                  "on": {
+                    "press": {
+                      "go": "/book/:id",
+                      "params": {
+                        "id": {
+                          "src": "player",
+                          "path": "book_id"
+                        }
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "t": "cover",
+              "image": {
+                "src": "player",
+                "path": "cover_url"
+              },
+              "title": {
+                "src": "player",
+                "path": "title"
+              },
+              "shape": "book",
+              "fill": true,
+              "ambient": true
+            },
+            {
+              "t": "stack",
+              "gap": 4,
+              "children": [
+                {
+                  "t": "row",
+                  "justify": "center",
+                  "children": [
+                    {
+                      "t": "text",
+                      "text": {
+                        "src": "player",
+                        "path": "title"
+                      },
+                      "variant": "display"
+                    }
+                  ]
+                },
+                {
+                  "t": "row",
+                  "justify": "center",
+                  "children": [
+                    {
+                      "t": "text",
+                      "text": {
+                        "src": "player",
+                        "path": "byline"
+                      },
+                      "variant": "sub"
+                    }
+                  ]
+                },
+                {
+                  "t": "when",
+                  "cond": {
+                    "src": "player",
+                    "path": "chapter_label"
+                  },
+                  "then": {
+                    "t": "row",
+                    "justify": "center",
+                    "children": [
+                      {
+                        "t": "label",
+                        "text": {
+                          "src": "player",
+                          "path": "chapter_label"
+                        },
+                        "size": "sm"
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "t": "scrubber",
+              "position": {
+                "src": "playhead",
+                "path": "position"
+              },
+              "total": {
+                "src": "playhead",
+                "path": "total"
+              },
+              "points": {
+                "src": "player",
+                "path": "points"
+              },
+              "at": {
+                "src": "player",
+                "path": "chapter"
+              },
+              "mode": "segment",
+              "label": "Seek position in chapter",
+              "on": {
+                "seek": {
+                  "do": "player.seek",
+                  "with": {
+                    "to": {
+                      "src": "$seek",
+                      "path": "to"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "t": "row",
+              "justify": "center",
+              "gap": 5,
+              "children": [
+                {
+                  "t": "text",
+                  "text": {
+                    "src": "player",
+                    "path": "remaining",
+                    "fmt": "duration"
+                  },
+                  "variant": "mono"
+                },
+                {
+                  "t": "text",
+                  "text": "left in the book",
+                  "variant": "mono"
+                }
+              ]
+            },
+            {
+              "t": "row",
+              "justify": "space-between",
+              "children": [
+                {
+                  "t": "button",
+                  "text": "Previous chapter",
+                  "icon": "prev",
+                  "variant": "ghost",
+                  "on": {
+                    "press": {
+                      "do": "player.chapter",
+                      "with": {
+                        "step": -1
+                      }
+                    }
+                  }
+                },
+                {
+                  "t": "button",
+                  "text": "Back 30 seconds",
+                  "icon": "back",
+                  "variant": "ghost",
+                  "on": {
+                    "press": {
+                      "do": "player.skip",
+                      "with": {
+                        "by": -30
+                      }
+                    }
+                  }
+                },
+                {
+                  "t": "when",
+                  "cond": {
+                    "src": "player",
+                    "path": "buffering"
+                  },
+                  "then": {
+                    "t": "button",
+                    "text": "Loading",
+                    "icon": "spinner",
+                    "variant": "orb",
+                    "on": {
+                      "press": {
+                        "do": "player.toggle"
+                      }
+                    }
+                  },
+                  "else": {
+                    "t": "button",
+                    "text": {
+                      "src": "player",
+                      "path": "playing",
+                      "map": {
+                        "true": "Pause"
+                      },
+                      "fallback": "Play"
+                    },
+                    "icon": {
+                      "src": "player",
+                      "path": "playing",
+                      "map": {
+                        "true": "pause"
+                      },
+                      "fallback": "play"
+                    },
+                    "variant": "orb",
+                    "on": {
+                      "press": {
+                        "do": "player.toggle"
+                      }
+                    }
+                  }
+                },
+                {
+                  "t": "button",
+                  "text": "Forward 30 seconds",
+                  "icon": "forward",
+                  "variant": "ghost",
+                  "on": {
+                    "press": {
+                      "do": "player.skip",
+                      "with": {
+                        "by": 30
+                      }
+                    }
+                  }
+                },
+                {
+                  "t": "button",
+                  "text": "Next chapter",
+                  "icon": "next",
+                  "variant": "ghost",
+                  "on": {
+                    "press": {
+                      "do": "player.chapter",
+                      "with": {
+                        "step": 1
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "t": "row",
+              "justify": "center",
+              "gap": 8,
+              "children": [
+                {
+                  "t": "when",
+                  "cond": {
+                    "src": "player",
+                    "path": "devices"
+                  },
+                  "then": {
+                    "t": "button",
+                    "text": "Choose where to listen",
+                    "icon": "devices",
+                    "variant": "ghost",
+                    "on": {
+                      "press": {
+                        "do": "devices.open"
+                      }
+                    }
+                  }
+                },
+                {
+                  "t": "button",
+                  "text": {
+                    "src": "player",
+                    "path": "rate_label"
+                  },
+                  "variant": "ghost",
+                  "on": {
+                    "press": {
+                      "do": "player.rate"
+                    }
+                  }
+                },
+                {
+                  "t": "button",
+                  "text": {
+                    "src": "player",
+                    "path": "sleep_label"
+                  },
+                  "variant": "ghost",
+                  "active": {
+                    "src": "player",
+                    "path": "sleep_on"
+                  },
+                  "on": {
+                    "press": {
+                      "set": "menu",
+                      "to": {
+                        "src": "$state",
+                        "path": "menu",
+                        "map": {
+                          "sleep": ""
+                        },
+                        "fallback": "sleep"
+                      }
+                    }
+                  }
+                },
+                {
+                  "t": "button",
+                  "text": "BOOKMARKS",
+                  "variant": "ghost",
+                  "active": {
+                    "eq": [
+                      {
+                        "src": "$state",
+                        "path": "menu"
+                      },
+                      "marks"
+                    ]
+                  },
+                  "on": {
+                    "press": {
+                      "set": "menu",
+                      "to": {
+                        "src": "$state",
+                        "path": "menu",
+                        "map": {
+                          "marks": ""
+                        },
+                        "fallback": "marks"
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "t": "when",
+              "cond": {
+                "eq": [
+                  {
+                    "src": "$state",
+                    "path": "menu"
+                  },
+                  "sleep"
+                ]
+              },
+              "then": {
+                "t": "row",
+                "justify": "center",
+                "gap": 4,
+                "children": [
+                  {
+                    "t": "button",
+                    "text": "Off",
+                    "variant": "ghost",
+                    "on": {
+                      "press": [
+                        {
+                          "do": "player.sleep",
+                          "with": {
+                            "mode": "off"
+                          }
+                        },
+                        {
+                          "set": "menu",
+                          "to": ""
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "t": "button",
+                    "text": "15 min",
+                    "variant": "ghost",
+                    "on": {
+                      "press": [
+                        {
+                          "do": "player.sleep",
+                          "with": {
+                            "mode": "15"
+                          }
+                        },
+                        {
+                          "set": "menu",
+                          "to": ""
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "t": "button",
+                    "text": "30 min",
+                    "variant": "ghost",
+                    "on": {
+                      "press": [
+                        {
+                          "do": "player.sleep",
+                          "with": {
+                            "mode": "30"
+                          }
+                        },
+                        {
+                          "set": "menu",
+                          "to": ""
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "t": "button",
+                    "text": "45 min",
+                    "variant": "ghost",
+                    "on": {
+                      "press": [
+                        {
+                          "do": "player.sleep",
+                          "with": {
+                            "mode": "45"
+                          }
+                        },
+                        {
+                          "set": "menu",
+                          "to": ""
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "t": "button",
+                    "text": "60 min",
+                    "variant": "ghost",
+                    "on": {
+                      "press": [
+                        {
+                          "do": "player.sleep",
+                          "with": {
+                            "mode": "60"
+                          }
+                        },
+                        {
+                          "set": "menu",
+                          "to": ""
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "t": "button",
+                    "text": "End of chapter",
+                    "variant": "ghost",
+                    "on": {
+                      "press": [
+                        {
+                          "do": "player.sleep",
+                          "with": {
+                            "mode": "segment"
+                          }
+                        },
+                        {
+                          "set": "menu",
+                          "to": ""
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "t": "when",
+              "cond": {
+                "eq": [
+                  {
+                    "src": "$state",
+                    "path": "menu"
+                  },
+                  "marks"
+                ]
+              },
+              "then": {
+                "t": "stack",
+                "gap": 4,
+                "children": [
+                  {
+                    "t": "button",
+                    "text": "+ ADD A BOOKMARK HERE",
+                    "variant": "ghost",
+                    "on": {
+                      "press": {
+                        "do": "bookmark.add"
+                      }
+                    }
+                  },
+                  {
+                    "t": "when",
+                    "cond": {
+                      "src": "player",
+                      "path": "bookmarks"
+                    },
+                    "then": {
+                      "t": "list",
+                      "from": {
+                        "src": "player",
+                        "path": "bookmarks"
+                      },
+                      "item": {
+                        "t": "row",
+                        "gap": 8,
+                        "children": [
+                          {
+                            "t": "text",
+                            "text": {
+                              "src": "$",
+                              "path": "position",
+                              "fmt": "duration"
+                            },
+                            "variant": "mono"
+                          },
+                          {
+                            "t": "button",
+                            "text": {
+                              "src": "$",
+                              "path": "title"
+                            },
+                            "variant": "link",
+                            "on": {
+                              "press": [
+                                {
+                                  "do": "bookmark.jump",
+                                  "with": {
+                                    "position": {
+                                      "src": "$",
+                                      "path": "position"
+                                    }
+                                  }
+                                },
+                                {
+                                  "set": "menu",
+                                  "to": ""
+                                }
+                              ]
+                            }
+                          },
+                          {
+                            "t": "button",
+                            "text": "Delete bookmark",
+                            "icon": "close",
+                            "variant": "ghost",
+                            "on": {
+                              "press": {
+                                "do": "bookmark.remove",
+                                "with": {
+                                  "id": {
+                                    "src": "$",
+                                    "path": "id"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    "else": {
+                      "t": "text",
+                      "text": "No bookmarks yet.",
+                      "variant": "note"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "else": {
+          "t": "stack",
+          "screen": true,
+          "gap": 10,
+          "children": [
+            {
+              "t": "row",
+              "justify": "space-between",
+              "children": [
+                {
+                  "t": "button",
+                  "text": "Close now playing",
+                  "icon": "down",
+                  "variant": "ghost",
+                  "on": {
+                    "press": {
+                      "do": "overlay.close"
+                    }
+                  }
+                },
+                {
+                  "t": "when",
+                  "cond": {
+                    "src": "player",
+                    "path": "on_device"
+                  },
+                  "then": {
+                    "t": "label",
+                    "text": {
+                      "src": "player",
+                      "path": "status"
+                    },
+                    "size": "sm"
+                  },
+                  "else": {
+                    "t": "label",
+                    "text": {
+                      "src": "player",
+                      "path": "place",
+                      "fmt": "upper"
+                    },
+                    "size": "sm"
+                  }
+                },
+                {
+                  "t": "button",
+                  "text": "Open queue",
+                  "icon": "queue",
+                  "variant": "ghost",
+                  "on": {
+                    "press": {
+                      "go": "/queue"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "t": "cover",
+              "image": {
+                "src": "player",
+                "path": "cover_url"
+              },
+              "title": {
+                "src": "player",
+                "path": "title"
+              },
+              "fill": true,
+              "ambient": true
+            },
+            {
+              "t": "stack",
+              "gap": 4,
+              "children": [
+                {
+                  "t": "row",
+                  "justify": "center",
+                  "children": [
+                    {
+                      "t": "text",
+                      "text": {
+                        "src": "player",
+                        "path": "title"
+                      },
+                      "variant": "display"
+                    }
+                  ]
+                },
+                {
+                  "t": "row",
+                  "justify": "center",
+                  "gap": 6,
+                  "children": [
+                    {
+                      "t": "button",
+                      "text": {
+                        "src": "player",
+                        "path": "artist"
+                      },
+                      "variant": "link",
+                      "on": {
+                        "press": {
+                          "go": "/artist/:artist",
+                          "params": {
+                            "artist": {
+                              "src": "player",
+                              "path": "album_artist"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "t": "when",
+                      "cond": {
+                        "src": "player",
+                        "path": "album"
+                      },
+                      "then": {
+                        "t": "row",
+                        "gap": 6,
+                        "children": [
+                          {
+                            "t": "text",
+                            "text": "·"
+                          },
+                          {
+                            "t": "button",
+                            "text": {
+                              "src": "player",
+                              "path": "album"
+                            },
+                            "variant": "link",
+                            "on": {
+                              "press": {
+                                "go": "/album/:artist/:album",
+                                "params": {
+                                  "artist": {
+                                    "src": "player",
+                                    "path": "album_artist"
+                                  },
+                                  "album": {
+                                    "src": "player",
+                                    "path": "album"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "t": "pulsarmap"
+            },
+            {
+              "t": "scrubber",
+              "position": {
+                "src": "playhead",
+                "path": "position"
+              },
+              "total": {
+                "src": "playhead",
+                "path": "total"
+              },
+              "mode": "timeline",
+              "label": "Seek position in track",
+              "on": {
+                "seek": {
+                  "do": "player.seek",
+                  "with": {
+                    "to": {
+                      "src": "$seek",
+                      "path": "to"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "t": "row",
+              "justify": "space-between",
+              "children": [
+                {
+                  "t": "button",
+                  "text": "Shuffle",
+                  "icon": "shuffle",
+                  "variant": "ghost",
+                  "active": {
+                    "src": "player",
+                    "path": "shuffle"
+                  },
+                  "on": {
+                    "press": {
+                      "do": "player.shuffle"
+                    }
+                  }
+                },
+                {
+                  "t": "button",
+                  "text": "Previous track",
+                  "icon": "prev",
+                  "variant": "ghost",
+                  "on": {
+                    "press": {
+                      "do": "player.prev"
+                    }
+                  }
+                },
+                {
+                  "t": "when",
+                  "cond": {
+                    "src": "player",
+                    "path": "buffering"
+                  },
+                  "then": {
+                    "t": "button",
+                    "text": "Loading",
+                    "icon": "spinner",
+                    "variant": "orb",
+                    "on": {
+                      "press": {
+                        "do": "player.toggle"
+                      }
+                    }
+                  },
+                  "else": {
+                    "t": "button",
+                    "text": {
+                      "src": "player",
+                      "path": "playing",
+                      "map": {
+                        "true": "Pause"
+                      },
+                      "fallback": "Play"
+                    },
+                    "icon": {
+                      "src": "player",
+                      "path": "playing",
+                      "map": {
+                        "true": "pause"
+                      },
+                      "fallback": "play"
+                    },
+                    "variant": "orb",
+                    "on": {
+                      "press": {
+                        "do": "player.toggle"
+                      }
+                    }
+                  }
+                },
+                {
+                  "t": "button",
+                  "text": "Next track",
+                  "icon": "next",
+                  "variant": "ghost",
+                  "on": {
+                    "press": {
+                      "do": "player.next"
+                    }
+                  }
+                },
+                {
+                  "t": "button",
+                  "text": {
+                    "src": "player",
+                    "path": "repeat",
+                    "map": {
+                      "off": "Repeat: off",
+                      "all": "Repeat: all",
+                      "one": "Repeat: one"
+                    }
+                  },
+                  "icon": {
+                    "src": "player",
+                    "path": "repeat",
+                    "map": {
+                      "one": "repeat-one"
+                    },
+                    "fallback": "repeat"
+                  },
+                  "variant": "ghost",
+                  "active": {
+                    "not": {
+                      "eq": [
+                        {
+                          "src": "player",
+                          "path": "repeat"
+                        },
+                        "off"
+                      ]
+                    }
+                  },
+                  "on": {
+                    "press": {
+                      "do": "player.repeat"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "t": "row",
+              "justify": "center",
+              "gap": 8,
+              "children": [
+                {
+                  "t": "when",
+                  "cond": {
+                    "src": "player",
+                    "path": "devices"
+                  },
+                  "then": {
+                    "t": "button",
+                    "text": "Choose where to listen",
+                    "icon": "devices",
+                    "variant": "ghost",
+                    "on": {
+                      "press": {
+                        "do": "devices.open"
+                      }
+                    }
+                  }
+                },
+                {
+                  "t": "button",
+                  "text": "START A STATION FROM THIS",
+                  "variant": "ghost",
+                  "on": {
+                    "press": {
+                      "do": "player.station",
+                      "with": {
+                        "seed": {
+                          "src": "player",
+                          "path": "track_id"
+                        }
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "t": "when",
+              "cond": {
+                "src": "player",
+                "path": "next"
+              },
+              "then": {
+                "t": "row",
+                "gap": 8,
+                "align": "baseline",
+                "children": [
+                  {
+                    "t": "label",
+                    "text": "UP NEXT",
+                    "size": "sm"
+                  },
+                  {
+                    "t": "button",
+                    "text": {
+                      "src": "player",
+                      "path": "next.title"
+                    },
+                    "variant": "link",
+                    "on": {
+                      "press": {
+                        "go": "/queue"
+                      }
+                    }
+                  },
+                  {
+                    "t": "text",
+                    "text": {
+                      "src": "player",
+                      "path": "next.artist"
+                    },
+                    "variant": "sub",
+                    "grow": true
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "else": {
+        "t": "stack",
+        "screen": true,
+        "justify": "space-between",
+        "children": [
+          {
+            "t": "row",
+            "children": [
+              {
+                "t": "button",
+                "text": "Close now playing",
+                "icon": "down",
+                "variant": "ghost",
+                "on": {
+                  "press": {
+                    "do": "overlay.close"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "t": "row",
+            "justify": "center",
+            "children": [
+              {
+                "t": "text",
+                "text": "Nothing playing",
+                "variant": "mono"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

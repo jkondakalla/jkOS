@@ -15,7 +15,6 @@ import Artist from './views/Artist'
 import Album from './views/Album'
 import Search from './views/Search'
 import VibeMap from './views/VibeMap'
-import NowPlaying from './views/NowPlaying'
 import Queue from './views/Queue'
 import Playlists from './views/playlists/Playlists'
 import PlaylistDetail from './views/playlists/PlaylistDetail'
@@ -106,11 +105,11 @@ function Content() {
       <WidgetHostProvider>
         <div className={`kr-app${overlay ? ' is-overlay' : ''}`}>
           {overlay ? (
-            /* Now Playing is the rune surface: one screen, nothing to scroll, and
+            /* Now Playing (a widget page, kouros-now) is the rune surface: one screen, nothing to scroll, and
                the only place where every transport verb is about the thing on
                show. The Queue scrolls, so it is not wrapped — see RuneLayer's
                header on why those two cannot share a pointer. */
-            route.view === 'now' ? <RuneLayer><NowPlaying /></RuneLayer> : <Queue />
+            route.view === 'now' ? <RuneLayer>{page && <WidgetPage key={page.def.id} def={page.def} params={page.params} />}</RuneLayer> : <Queue />
           ) : (
             <>
               <main className="kr-main jk-ink-in">

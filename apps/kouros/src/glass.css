@@ -216,7 +216,6 @@
   outline: 2px solid color-mix(in srgb, var(--color-accent) 70%, #ffffff);
   outline-offset: 3px;
 }
-.kr-orb-lg { width: 64px; height: 64px; }
 .kr-orb-md { width: 44px; height: 44px; }
 
 /* A quiet glass control — transport secondaries, chips on glass. No fill of its
@@ -242,15 +241,6 @@
 .kr-ghost.is-on  { color: var(--color-accent); }
 .kr-ghost:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
 
-/* ── Depth ────────────────────────────────────────────────────────────────────
-   Parallax is opt-in per element and driven by a --kr-par variable the component
-   sets from scroll/drag. Kept to translate only — a transform the compositor can
-   run without touching layout. */
-.kr-par {
-  will-change: transform;
-  transform: translate3d(0, calc(var(--kr-par, 0) * 1px), 0);
-}
-
 /* Motion respect: the suite's [data-motion="static"] and the OS setting both
    flatten the material's animated parts. The glass itself stays — it is a
    material, not an animation. */
@@ -258,10 +248,8 @@
   .kr-ambient::after,
   .kr-orb,
   .kr-ghost { transition: none; }
-  .kr-par { transform: none; }
 }
 :root[data-motion="static"] .kr-ambient::after { transition: none; }
-:root[data-motion="static"] .kr-par { transform: none; }
 
 /* ── The fallback that matters ────────────────────────────────────────────────
    Firefox shipped backdrop-filter long ago, but it is still disabled behind a

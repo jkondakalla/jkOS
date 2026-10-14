@@ -20,6 +20,17 @@ Each `<id>.json` here is a widget. Three kinds live here:
   `player.play`, `sheet.open`) or `go` to an artist, an album, Browse or the Vibe Map.
   The empty fixture is an empty library.
 
+- **`kouros-now.json` — Now Playing (`/now`).** No source: it binds the host's `player`
+  slice, and `playhead` only in its seek bar. A track's face and a book's, chosen by
+  `player.kind`, each a `screen` stack — one screen high, the `fill` cover taking what the
+  rest leaves, so it never scrolls and the rune layer (App.tsx wraps it) keeps its
+  gestures. A track: the queue place, the cover and its room light, artist · album
+  (each a `go`), the `pulsarmap`, the scrubber, shuffle · previous · play · next ·
+  repeat, the device picker, a station, and the next track. A book: the chapter, the
+  jacket, the chapter's scrubber, time left, chapter ⇤ −30 s · play · +30 s chapter ⇥,
+  rate, the sleep timer and bookmarks (two menus held in `$state.menu`). The fixtures'
+  ready state is a track and empty a book.
+
 ## Parts
 
 - **`kouros-now-card.json` — what is playing, at the top of Home.** Binds the host's

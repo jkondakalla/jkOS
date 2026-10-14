@@ -74,7 +74,7 @@ export interface WidgetHost {
 }
 
 /** One field of a host action's declaration — the field vocabulary a dataset uses. */
-export interface DeclField { name: string; type: FieldType; required?: boolean; label?: string }
+export interface DeclField { name: string; type: FieldType; required?: boolean; label?: string; /** an enum's values */ enum?: readonly string[] }
 /** A host action, as its host declares it: what it does, its arguments, what it returns. */
 export interface HostActionDecl { label: string; args?: readonly DeclField[]; returns?: readonly DeclField[] }
 /** A host action's implementation: its arguments, resolved from the widget's bindings. */

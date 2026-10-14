@@ -13,8 +13,11 @@
  * KOUROS_LEGACY_ROUTES, so a page can already `go` to it.
  */
 
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { renderWidget, type HostActions, type WidgetDef, type WidgetHost } from '@jkos/widget-render';
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { renderWidget, type HostActions, type HostKindComponent, type HostKindsOf, type WidgetDef, type WidgetHost } from '@jkos/widget-render';
+import { fmtClock } from '@jkos/player/core';
+import { formatRate } from '@jkos/player/ui';
+import type { SleepMode } from '@jkos/player/engine';
 import { pageFor, routeTable } from '@jkos/widgets';
 import { AUTH_URL } from '@jkos/auth-client';
 import { useBreakpoint } from '@jkos/ui';
@@ -24,7 +27,28 @@ import { startStation } from '../player/station';
 import { bookContext } from '../player/context';
 import { encodeRef } from '../player/sources';
 import type { ActionTarget } from '../components/ActionSheet';
-import { KOUROS_ACTIONS, type PlayerSlice } from './declaration';
+import { openDevicePicker } from '../components/DevicePicker';
+import Pulsarmap from '../components/Pulsarmap';
+import { closeOverlay } from '../hooks/useHashRoute';
+import { KOUROS_ACTIONS, type PlayerSlice, type PlayheadSlice } from './declaration';
+
+const SLEEP_MODES: readonly SleepMode[] = ['off', '15', '30', '45', '60', 'segment'];
+
+/* ── The kinds only KourOS draws ───────────────────────────────────────────── */
+
+/** The pulsarmap reads the engine itself: it positions every FRAME from the media
+ *  element's own clock (livePosition), which no slice — data — could carry. */
+function PulsarmapKind() {
+  const p = usePlayer();
+  if (!p.track) return null;
+  return <Pulsarmap trackId={p.track.id} position={p.globalPos} livePosition={p.livePosition} playing={p.playing} />;
+}
+
+/** Every molecule the manifest gives KourOS (HostKindsOf), so a new one is drawn here or
+ *  tsc says so. */
+const KINDS: { readonly [K in HostKindsOf['kouros']]: HostKindComponent<K> } = {
+  pulsarmap: PulsarmapKind,
+};
 
 const files = import.meta.glob<WidgetDef>(
   ['../../widgets/*.json', '!../../widgets/*.fixtures.json'],
@@ -46,11 +70,27 @@ export function pageAt(path: string): { def: WidgetDef; params: Record<string, s
   return hit && def ? { def, params: hit.params } : null;
 }
 
-/* ── The player's slice ────────────────────────────────────────────────────
- * What is playing, from the ONE engine (PlayerProvider). Positions are whole seconds and
- * the object is memoised on its values, so the slice's reference — what the renderer's
- * per-card gate compares — moves at most once a second while playing, not at the
- * engine's ~4 Hz. */
+/* ── The player's slices ───────────────────────────────────────────────────
+ * What is playing, from the ONE engine (PlayerProvider). `player` carries positions in
+ * whole seconds and keeps its reference while its VALUES hold (useStable), so it — what
+ * the renderer's per-card gate compares — moves at most once a second while playing.
+ * `playhead` is the one thing that moves faster: the media element's clock at ~4 Hz, for
+ * a seek bar. */
+
+/** The previous object while `next` is equal to it, value for value — a slice's
+ *  reference moves only when its data does. */
+function useStable<T>(next: T): T {
+  const ref = useRef<{ key: string; value: T } | null>(null);
+  const key = JSON.stringify(next);
+  if (!ref.current || ref.current.key !== key) ref.current = { key, value: next };
+  return ref.current.value;
+}
+
+const SLEEP_LABEL = (mode: SleepMode, remainingMs: number | null): string =>
+  mode === 'off' ? 'Sleep'
+    : mode === 'segment' ? 'Sleep · end of chapter'
+    : `Sleep · ${fmtClock(Math.max(0, (remainingMs ?? 0) / 1000))}`;
+
 function usePlayerSlice(): PlayerSlice {
   const p = usePlayer();
   const { mode, output } = usePlayerSession();
@@ -58,17 +98,28 @@ function usePlayerSlice(): PlayerSlice {
   const book = p.composition?.spec.kind === 'audiobook';
   const position = Math.max(0, Math.floor(p.globalPos));
   const total = Math.max(0, Math.round(p.total));
-  const where = mode === 'remote' && output ? ` ON ${output.name.toUpperCase()}` : '';
-  const chapter = book ? p.segmentIndex : 0;
-  const chapterLabel = book ? p.segmentLabel ?? `CH ${String(p.segmentIndex + 1).padStart(2, '0')}` : '';
+  const remote = mode === 'remote' && output ? output.name.toUpperCase() : null;
+  const track = p.track;
+  const artist = track ? track.artist || track.albumartist || 'Unknown artist' : '';
+  const nextId = p.queue.cursor + 1 < p.queue.items.length ? Number(p.queue.items[p.queue.cursor + 1]) : null;
+  const nextTrack = nextId != null ? p.tracksById.get(nextId) : undefined;
   const chapters = book ? p.points.length : 1;
-  return useMemo<PlayerSlice>(() => ({
+  return useStable<PlayerSlice>({
     loaded: item != null,
     kind: item ? (book ? 'audiobook' : 'music') : null,
     playing: item != null && p.playing,
-    status: item ? `${p.playing ? 'PLAYING' : 'PAUSED'}${where}` : '',
+    buffering: p.buffering,
+    status: item ? `${p.playing ? 'PLAYING' : 'PAUSED'}${remote ? ` ON ${remote}` : ''}` : '',
+    on_device: remote,
+    devices: mode !== 'solo',
+    place: book
+      ? (chapters > 1 && p.segmentIndex >= 0 ? `Chapter ${p.segmentIndex + 1} of ${chapters}` : 'Audiobook')
+      : (p.queue.items.length > 1 ? `${p.queue.cursor + 1} of ${p.queue.items.length}` : 'Now playing'),
     title: item?.title ?? '',
     byline: item?.byline ?? '',
+    artist,
+    album_artist: track ? track.albumartist || artist : '',
+    album: track?.album ?? null,
     cover_url: item?.coverUrl ?? null,
     track_id: item && item.src === 'kouros' ? item.id : null,
     book_id: item && item.src === 'book' ? item.id : null,
@@ -76,10 +127,23 @@ function usePlayerSlice(): PlayerSlice {
     total,
     progress: total > 0 ? Math.min(1, position / total) : 0,
     remaining: Math.max(0, total - position),
-    chapter,
+    chapter: book ? p.segmentIndex : 0,
     chapters,
-    chapter_label: chapterLabel,
-  }), [item, book, p.playing, where, position, total, chapter, chapters, chapterLabel]);
+    chapter_label: book ? p.segmentLabel ?? `CH ${String(p.segmentIndex + 1).padStart(2, '0')}` : '',
+    points: book ? p.points.map((pt) => ({ start: pt.start, end: pt.end })) : [],
+    shuffle: p.shuffle,
+    repeat: p.repeat,
+    next: nextId != null ? { id: nextId, title: nextTrack?.title ?? '…', artist: nextTrack?.artist ?? null } : null,
+    rate_label: formatRate(p.rate),
+    sleep_on: p.sleepMode !== 'off',
+    sleep_label: SLEEP_LABEL(p.sleepMode, p.sleepRemainingMs),
+    bookmarks: p.bookmarks.map((bm) => ({ id: String(bm.id), position: bm.position, title: bm.title || 'Bookmark' })),
+  });
+}
+
+function usePlayheadSlice(): PlayheadSlice {
+  const p = usePlayer();
+  return useMemo(() => ({ position: Math.max(0, p.globalPos), total: Math.max(0, p.total) }), [p.globalPos, p.total]);
 }
 
 /** Track ids from what a widget hands an action: rows carrying an `id`, or ids. */
@@ -117,11 +181,38 @@ function useMinute(): number {
 /** KourOS's WidgetHost, for a page drawn with `route` params. */
 function useKourosHost(route: Record<string, string>): WidgetHost {
   const player = usePlayerSlice();
+  const playhead = usePlayheadSlice();
+  const p = usePlayer();
+  // The actions read the engine at the moment they fire, not the one they were made with —
+  // so the action table (and every card behind the gate) need not move when it does.
+  const engine = useRef(p);
+  engine.current = p;
   const openSheet = useContext(SheetCtx);
   const bp = useBreakpoint();
   const now = useMinute();
 
   const actions = useMemo<HostActions<typeof KOUROS_ACTIONS>>(() => ({
+    'player.toggle': () => engine.current.toggle(),
+    'player.next': () => engine.current.trackNext(),
+    'player.prev': () => engine.current.trackPrev(),
+    'player.seek': ({ to }) => { const t = num(to); if (t != null) engine.current.seekTo(t); },
+    'player.skip': ({ by }) => { const d = num(by); if (d != null) engine.current.skip(d); },
+    'player.shuffle': () => engine.current.setShuffle(!engine.current.shuffle),
+    'player.repeat': () => engine.current.cycleRepeat(),
+    'player.chapter': ({ step }) => { if ((num(step) ?? 0) < 0) engine.current.prevSegment(); else engine.current.nextSegment(); },
+    'player.rate': () => engine.current.cycleRate(),
+    'player.sleep': ({ mode }) => {
+      if (!SLEEP_MODES.includes(mode as SleepMode)) throw new Error(`no sleep mode ${String(mode)}`);
+      engine.current.setSleep(mode as SleepMode);
+    },
+    'bookmark.add': () => engine.current.addBookmarkHere(),
+    'bookmark.jump': ({ position }) => { const t = num(position); if (t != null) engine.current.jumpBookmark(t); },
+    'bookmark.remove': ({ id }) => {
+      const bm = engine.current.bookmarks.find((b) => String(b.id) === String(id));
+      if (bm) engine.current.removeBookmark(bm.id);
+    },
+    'devices.open': () => openDevicePicker(),
+    'overlay.close': () => closeOverlay(),
     'player.play': ({ tracks, from, context }) => {
       const ids = idsOf(tracks);
       if (!ids.length) throw new Error('nothing to play');
@@ -157,7 +248,7 @@ function useKourosHost(route: Record<string, string>): WidgetHost {
     },
   }), [openSheet]);
 
-  const slices = useMemo(() => ({ player }), [player]);
+  const slices = useMemo(() => ({ player, playhead }), [player, playhead]);
   return useMemo<WidgetHost>(() => ({
     slices,
     authUrl: AUTH_URL,
@@ -170,6 +261,7 @@ function useKourosHost(route: Record<string, string>): WidgetHost {
     navigate: go,
     route,
     widgets: WIDGETS,
+    kinds: KINDS,
     tier: bp,
   }), [slices, now, actions, route, bp]);
 }

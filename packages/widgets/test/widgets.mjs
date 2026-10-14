@@ -312,6 +312,11 @@ ok(t2hHas(play([{ do: 'player.play', with: { id: 7 } }, { set: 'q', to: { src: '
 ok(t2has(play({ do: 'player.play', with: { id: 7 } }), '/spec/body/on/press/do', 'undeclared'), 'a host that declares no actions refuses every do')
 const SEEK = { 'player.seek': { label: 'Seek', args: [{ name: 'to', type: 'number', required: true }] } }
 const scrub = (to, extra = {}) => checkBindings({ id: 'p', spec: { body: { t: 'scrubber', position: 1, total: 2, on: { seek: { do: 'player.seek', with: { to } } } }, ...extra } }, { docs: DOCS, slices: SLICES, actions: SEEK })
+const SLEEP = { 'player.sleep': { label: 'Sleep', args: [{ name: 'mode', type: 'enum', enum: ['off', '15'], required: true }] }, 'player.skip': { label: 'Skip', args: [{ name: 'by', type: 'number', required: true }] } }
+const t2s = (a) => checkBindings({ id: 'p', spec: { body: { t: 'button', text: 'x', on: { press: a } } } }, { actions: SLEEP })
+ok(t2s({ do: 'player.sleep', with: { mode: '15' } }).length === 0 && t2s({ do: 'player.skip', with: { by: -30 } }).length === 0, "a literal argument that fits its declared type passes")
+ok(t2s({ do: 'player.sleep', with: { mode: '20' } }).some((p) => p.code === 'bad-value') && t2s({ do: 'player.skip', with: { by: '30' } }).some((p) => p.code === 'bad-value'),
+  "…one that does not — an enum's stranger, a number given as text — is refused")
 ok(scrub({ src: '$seek', path: 'to' }).length === 0, "a scrubber's seek hands its actions the second chosen as $seek.to")
 ok(scrub({ src: '$seek', path: 'too' }).some((p) => p.code === 'undeclared-path'), '…and $seek holds only what the manifest says it does')
 ok(checkBindings({ id: 'p', spec: { body: { t: 'text', text: { src: '$seek', path: 'to' } } } }, { slices: SLICES }).some((p) => p.code === 'unknown-source'), '$seek exists only inside a seek')

@@ -17,7 +17,7 @@ the kinds only it can draw (the manifest's molecules, `HostKind`). A host kind m
 | Host | Implemented in | Declared in | What it adds |
 |---|---|---|---|
 | ORDECK | `apps/ordeck/src/hud/host.tsx` | `hud/slices.ts` (`HUD_SLICES`, `HUD_ACTIONS`) | the HUD's slices, four molecules (calendar, weather, focus, week), `focus.clear`; no routes |
-| KourOS | `apps/kouros/src/widgets/host.tsx` | `src/widgets/declaration.ts` (`KOUROS_SLICES`, `KOUROS_ACTIONS`, `KOUROS_LEGACY_ROUTES`) | the `player` slice, the player's actions (`player.play`, `player.book`, `player.station`, `context.open`, `sheet.open`), and a router: its pages are widget files |
+| KourOS | `apps/kouros/src/widgets/host.tsx` | `src/widgets/declaration.ts` (`KOUROS_SLICES`, `KOUROS_ACTIONS`, `KOUROS_LEGACY_ROUTES`) | the `player` and `playhead` slices, the player engine's actions (play, the transport, seek and skip, chapters, rate, sleep, bookmarks, the device picker, the action sheet…), the `pulsarmap` molecule, and a router: its pages are widget files |
 
 Both declarations are data the tools read (`scripts/widget/catalog.mjs` `hostDeclarations()`),
 so a widget's second tier runs against each host that can draw it.
@@ -134,7 +134,8 @@ The host's slices are in scope too, by name. ORDECK's: `clock`, `weather`, `syst
 `today`, `cal`, `items`, `notifications`, `focus`, `pinned`, `origins` (each app's origin on
 this deployment), `authUrl`, `aiEnabled` — declared in `hud/slices.ts` (`HUD_SLICES`).
 KourOS's: `player` (what is playing, wherever it plays; whole seconds, so it moves at most
-once a second) — declared in `src/widgets/declaration.ts`. The second tier checks a binding
+once a second) and `playhead` (the media element's clock at ~4 Hz — bind it only from a
+seek bar, or the widget re-renders with it) — declared in `src/widgets/declaration.ts`. The second tier checks a binding
 into one exactly as into a dataset.
 
 Reserved names in scope: `$` (the row, inside a list pattern), `$sources.<name>.state`

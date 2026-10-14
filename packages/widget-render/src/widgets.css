@@ -582,3 +582,5 @@ a.hud-card:hover { box-shadow: var(--hub-shadow-lifted); transform: translateY(-
 .hud-w-stack.is-screen { height: var(--w-screen-h, 100dvh); min-height: 0; }
 .hud-w-page .hud-w-stack.is-screen > .is-grow,
 .hud-w-page .hud-w-stack.is-screen > .hud-w-cover-room { flex: 1 1 0; min-height: 0; }
+/* A kind this host does not draw is a line in a page, not a card the height of the screen. */
+.hud-w-page .hud-w-unknown { height: auto; }

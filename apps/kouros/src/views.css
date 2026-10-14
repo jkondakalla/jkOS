@@ -343,95 +343,22 @@
   background: var(--color-paper);
 }
 
-/* ── Now Playing ──────────────────────────────────────────────────────────── */
-.kr-now {
+/* ── Now Playing ──────────────────────────────────────────────────────────────
+   A widget page (widgets/kouros-now.json) in the full-screen overlay. What is KourOS's
+   here is the room around it: the safe areas and the gutter, the screen height its
+   screen-high stack is (the viewport, less that padding), the ambient light's tuning
+   from the glass tokens, and a centred column on a desk. The page is its own stacking
+   context, so the room light sits behind its content and above the overlay's paper. */
+.kr-app.is-overlay .hud-w-page {
   position: relative;
   isolation: isolate;
-  /* A DEFINITE height, not min-height: the stage below is a size container, and a flex
-     item growing inside an indefinite (min-height) column has no definite block size to
-     give its children — `100cqh` resolved to 0 and the cover vanished. If the controls
-     alone ever outgrow the screen (a landscape phone), the stage shrinks first and the
-     rest overflows into the scroller exactly as before. */
-  height: 100dvh;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
   padding: calc(env(safe-area-inset-top, 0px) + 0.75rem) var(--kr-gutter) calc(env(safe-area-inset-bottom, 0px) + 1rem);
+  --w-screen-h: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 1.75rem);
+  --w-ambient-blur: var(--kr-ambient-blur);
+  --w-ambient-scale: var(--kr-ambient-scale);
+  --w-ambient-opacity: var(--kr-ambient-opacity);
+  --w-orb-ink: var(--kr-orb-ink);
 }
-.kr-now-ambient {
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  border-radius: 0;
-}
-.kr-now-empty { align-items: center; justify-content: center; }
-.kr-now-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-}
-.kr-now-eyebrow {
-  margin: 0;
-  font-family: var(--jk-font-mono);
-  font-size: var(--jk-fs-lab-xs);
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--kr-glass-ink-dim);
-}
-.kr-now-queue-label {
-  font-family: var(--jk-font-mono);
-  font-size: var(--jk-fs-lab-xs);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-.kr-now-close { position: absolute; top: 1rem; left: 1rem; }
-
-.kr-now-stage {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.25rem 0;
-  min-height: 0;
-  /* ⚠️ THE COVER TAKES THE HEIGHT THAT IS LEFT. Now Playing has to fit one screen: the
-     rune layer stands down whenever this surface scrolls. Sized off a fixed share of the
-     viewport, the cover overflowed every common phone (390×844 by 145 px, 360×740 by
-     226, measured in headless Chromium with a track playing). As a size container the
-     stage is exactly the column's leftover, and the art is the largest square in it —
-     the one piece of Now Playing that can give without losing anything. */
-  container-type: size;
-}
-.kr-now-art {
-  width: min(78vw, 42vh, 420px);          /* no container units: the old sizing */
-  width: min(78vw, 100cqh, 420px);
-}
-.kr-now-art .kr-cover {
-  border-radius: var(--jk-radius-lg);
-  box-shadow:
-    0 24px 60px rgba(0, 0, 0, 0.45),
-    0 6px 18px rgba(0, 0, 0, 0.28),
-    inset 0 0 0 1px var(--kr-glass-rim-light);
-}
-
-.kr-now-meta { text-align: center; }
-.kr-now-title {
-  margin: 0;
-  font-family: var(--jk-font-serif);
-  font-size: 1.5rem;
-  font-weight: 700;
-  line-height: 1.15;
-  letter-spacing: -0.015em;
-  color: var(--kr-glass-ink);
-}
-.kr-now-artist {
-  margin: 0.3rem 0 0;
-  font-family: var(--jk-font-sans);
-  font-size: 0.95rem;
-  color: var(--kr-glass-ink-dim);
-}
-.kr-now-artist a { color: inherit; text-decoration: none; }
-.kr-now-artist a:hover { text-decoration: underline; }
 
 /* ── The pulsarmap (ALGORITHMS.md §9) ─────────────────────────────────────────
    The track's mel spectrogram as a stack of ridgelines, revealed as it plays.
@@ -486,77 +413,9 @@
   opacity: 0.7;
 }
 
-.kr-now-scrub { margin-top: 0.5rem; }
-.kr-now-times {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 0.3rem;
-  font-family: var(--jk-font-mono);
-  font-size: var(--jk-fs-lab-xs);
-  font-variant-numeric: tabular-nums;
-  color: var(--kr-glass-ink-dim);
-}
-
-.kr-now-transport {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  margin: 0.6rem 0 0.1rem;
-  padding: 0 0.5rem;
-}
-.kr-now-skip svg { width: 30px; height: 30px; }
-.kr-now-extra { display: flex; justify-content: center; }
-.kr-now-radio {
-  gap: 0.45rem;
-  padding: 0.5rem 0.9rem;
-  border-radius: 999px;
-  font-family: var(--jk-font-sans);
-  font-size: 0.82rem;
-}
-
-.kr-now-next {
-  display: flex;
-  align-items: baseline;
-  gap: 0.6rem;
-  margin-top: 0.5rem;
-  padding: 0.7rem 0.85rem;
-  border-radius: var(--jk-radius-soft);
-  text-decoration: none;
-  color: inherit;
-  overflow: hidden;
-}
-.kr-now-next-label {
-  flex: none;
-  font-family: var(--jk-font-mono);
-  font-size: var(--jk-fs-lab-xs);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--kr-glass-ink-dim);
-}
-.kr-now-next-list { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
-.kr-now-next-item {
-  font-family: var(--jk-font-serif);
-  font-size: 0.85rem;
-  color: var(--kr-glass-ink);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.kr-now-next-artist { font-family: var(--jk-font-sans); color: var(--kr-glass-ink-dim); }
-
-/* Short screens — phones, and short desktop windows alike. Up Next shrinks to the one
-   track that matters, and below ~760px it steps aside entirely: the queue is one tap away
-   in the header, and it would otherwise cost the cover ~55px it cannot spare. (Before
-   this, a 1280×720 window pushed the transport itself below the fold.) */
-@media (max-height: 900px) {
-  .kr-now-next-item:nth-child(n + 2) { display: none; }
-}
-@media (max-height: 760px) {
-  .kr-now-next { display: none; }
-}
-
 @media (min-width: 1024px) {
-  .kr-now { max-width: 560px; margin: 0 auto; }
-  .kr-now-title { font-size: 1.9rem; }
+  .kr-app.is-overlay .hud-w-page { max-width: 560px; margin: 0 auto; }
+}
 }
 
 /* ── Queue ────────────────────────────────────────────────────────────────── */
@@ -825,7 +684,6 @@
 /* In the mini bar it takes the error line's slot — see MiniPlayer.tsx. */
 .kr-mini-on { position: absolute; left: 0.75rem; bottom: 4px; max-width: calc(100% - 1.5rem); }
 .kr-mini-on span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.kr-now-on { min-width: 0; }
 .kr-devices-button.is-remote { color: var(--color-accent); }
 
 @keyframes kr-fade-in { from { opacity: 0; } to { opacity: 1; } }

@@ -265,13 +265,28 @@ player's actions and `go`. KourOS's host is `src/widgets/host.tsx`, declared in
 screens still hand-built, a list the gate holds to shrink). `discoverHome` is declared to
 the field, each tile with its `cover_url`. Before/after on the review page.
 
-5. **KourOS pilot, the rest of it.** Now Playing (the player engine's slices and actions,
-   transport, a `scrubber` primitive) → Vibe Map (a `vibespace` primitive with its GL code,
-   density worker and no-WebGL list; local pin/energy state; the debounced near list). Owed
-   from Home:
+**Now Playing is a page** (phase 5's second screen, 2026-10-14): `kouros-now.json`, a
+track's face and a book's in one file, one screen high (a `screen` stack, the `fill`
+cover giving way), under the rune layer. KourOS's host gained the `playhead` slice, the
+engine's transport, chapter, rate, sleep and bookmark actions, and the `pulsarmap`
+molecule (a molecule now names its host). Driven in the real app: one screen at
+1280×800 and 390×844, next, shuffle and close work as before.
+
+5. **KourOS pilot, the rest of it.** Vibe Map (a `vibespace` primitive with its GL code,
+   density worker and no-WebGL list; local pin/energy state; the debounced near list).
+   Owed from Home and Now Playing:
    - **The now-playing card lost its book shape**: the 2:3 spine with its gutter and the
-     solid/outlined kind pill are a `media` and an eyebrow now. Bring them back with Now
-     Playing's player surfaces (a `cover` shape, or the `scrubber`'s), not as a one-off.
+     solid/outlined kind pill are a `media` and an eyebrow now. The `cover` primitive's
+     `book` shape exists since Now Playing; the card needs a cover at a fixed small size
+     beside its text (a `size` on `cover`), then it can use it.
+   - **Now Playing's small losses**: the desktop pointer parallax (a few pixels of the
+     cover against the room light) is gone; a book's ±30 s glyphs no longer print "30";
+     "Bookmarks · 3" is "BOOKMARKS"; the sleep menu is a row of buttons rather than the
+     player kit's popover; "Start a station" lost its radio glyph (a glyph button draws
+     its glyph OR its text).
+   - **Never driven with real audio, on a real device, or as a book**: the book face is
+     seen only in its contact sheet; the play/seek/skip/rate/sleep/bookmark actions call
+     the same engine methods the old views did, but no headless run has a stream.
    - **Four lines Home can no longer say**, because a binding cannot join text: an album
      tile's "12 tracks", deep-in's "31 plays · 148 in library", a book's "3h 10m *left*"
      (it reads `10:12:00` under a "TIME LEFT" note), and a run's track count. Either a

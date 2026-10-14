@@ -333,6 +333,15 @@ export function checkBindings(def, { docs = {}, slices = {}, actions = {}, pages
       }
     }
     for (const f of args.values()) if (f.required && !(f.name in given)) err(`${p}/with`, 'missing-field', `${a.do} requires '${f.name}', and nothing binds it`)
+    // An argument given as a literal is held to its declared type — an enum to its values.
+    for (const [k, v] of Object.entries(given)) {
+      const f = args.get(k)
+      const lit = !isObj(v) ? v : 'lit' in v ? v.lit : undefined
+      if (!f || lit === undefined || lit === null) continue
+      const bad = f.type === 'enum' ? Array.isArray(f.enum) && !f.enum.includes(lit)
+        : ['string', 'number', 'boolean'].includes(f.type) && !fitsType(f.type, lit)
+      if (bad) err(`${p}/with/${esc(k)}`, 'bad-value', `${a.do}'s '${k}' is ${f.type === 'enum' ? `one of ${f.enum.join(', ')}` : `a ${f.type}`} — not ${JSON.stringify(lit)}`)
+    }
     return Array.isArray(decl.returns) ? fieldsShape(decl.returns) : ANY
   }
 
