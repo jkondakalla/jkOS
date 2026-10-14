@@ -28,6 +28,12 @@
 //   5. Supply chain + signing: release signing only from the environment, no key tracked,
 //      Gradle's wrapper and every dependency pinned by checksum, the build image by digest.
 //   6. Every staging URL a debug build opens is actually routed by the staging server.
+//   7. The NATIVE app (KourOS Alpha, native/android/kouros): exactly four permissions; only the
+//      launcher, the sign-in redirect and the media service exported; the redirect filter's
+//      scheme is the applicationId placeholder; no WebView at all; tokens reach storage only
+//      sealed by the Keystore helper, a Bearer token only reaches apiBase, redirects are not
+//      followed, refreshes are serialised; and its play-context encoder agrees with the
+//      server's grammar on native/play-context-cases.json.
 //
 // The generated files (per-variant origins, shells.json) are held by
 // `node native/gen-native.mjs --check`, which runs first in the same check:native script.
@@ -167,7 +173,11 @@ const policy = require(resolve(root, 'native/desktop/src/policy.js'));
 
 // ── 3. Android manifests: least privilege, read from the files themselves ────
 {
-  const MANIFESTS = { twa: 'native/android/twa/src/main/AndroidManifest.xml', home: 'native/android/home/src/main/AndroidManifest.xml' };
+  const MANIFESTS = {
+    twa: 'native/android/twa/src/main/AndroidManifest.xml',
+    home: 'native/android/home/src/main/AndroidManifest.xml',
+    kouros: 'native/android/kouros/src/main/AndroidManifest.xml',
+  };
   const m = Object.fromEntries(Object.entries(MANIFESTS).map(([k, p]) => [k, stripXml(read(p))]));
   const all = walk('native/android', /^AndroidManifest\.xml$/).map((p) => [p, stripXml(read(p))]);
 
@@ -202,13 +212,15 @@ const policy = require(resolve(root, 'native/desktop/src/policy.js'));
       && [...queries.matchAll(/<(intent|package|provider)\b/g)].length === 1,
     'jkOS Home sees only launcher apps (<queries> is exactly MAIN/LAUNCHER)',
     'jkOS Home <queries> is not exactly one MAIN/LAUNCHER intent — its package visibility widened');
-  check(/android:networkSecurityConfig="@xml\/network_security_config"/.test(m.home),
-    'jkOS Home carries a network security config', 'jkOS Home lost its networkSecurityConfig');
-  const nsc = stripXml(read('native/android/home/src/main/res/xml/network_security_config.xml'));
-  check(/<base-config cleartextTrafficPermitted="false">/.test(nsc) && /<certificates src="system" \/>/.test(nsc)
-      && !/src="user"/.test(nsc) && !/<domain-config|<debug-overrides/.test(nsc),
-    'network security: https only, system CAs only, no per-domain or debug exceptions',
-    'network_security_config.xml allows cleartext, trusts user CAs, or carves out an exception');
+  for (const k of ['home', 'kouros']) {
+    check(/android:networkSecurityConfig="@xml\/network_security_config"/.test(m[k]),
+      `${k}: carries a network security config`, `${k} lost its networkSecurityConfig`);
+    const nsc = stripXml(read(`native/android/${k}/src/main/res/xml/network_security_config.xml`));
+    check(/<base-config cleartextTrafficPermitted="false">/.test(nsc) && /<certificates src="system" \/>/.test(nsc)
+        && !/src="user"/.test(nsc) && !/<domain-config|<debug-overrides/.test(nsc),
+      `${k}: network security is https only, system CAs only, no per-domain or debug exceptions`,
+      `${k} network_security_config.xml allows cleartext, trusts user CAs, or carves out an exception`);
+  }
   check(/<activity\s+android:name="\.DrawerActivity"[^>]*android:exported="false"/.test(m.home),
     'the app drawer is not exported (no other app can open it)', 'DrawerActivity is exported');
   check(/FALLBACK_STRATEGY"\s+android:value="customtabs"/.test(m.twa),
@@ -219,7 +231,10 @@ const policy = require(resolve(root, 'native/desktop/src/policy.js'));
 // ── 4. Android WebView source ────────────────────────────────────────────────
 {
   const src = walk('native/android', /\.(kt|java)$/).filter((p) => !/\/src\/test\//.test(p)).map((p) => [p, stripCode(read(p))]);
-  check(src.length >= 5, `scanned ${src.length} Android source files`, `found only ${src.length} Android source files — the walk is not seeing the code`);
+  const inModule = (mod) => src.filter(([p]) => p.startsWith(`native/android/${mod}/`)).length;
+  check(src.length >= 15 && inModule('home') >= 5 && inModule('kouros') >= 10,
+    `scanned ${src.length} Android source files (home ${inModule('home')}, kouros ${inModule('kouros')})`,
+    `found only ${src.length} Android source files (home ${inModule('home')}, kouros ${inModule('kouros')}) — the walk is not seeing the code`);
   const banned = [
     ['addJavascriptInterface (the bridge must be origin-scoped)', /addJavascriptInterface\s*\(/],
     ['SslErrorHandler.proceed()', /\.proceed\s*\(/],
@@ -291,6 +306,128 @@ const policy = require(resolve(root, 'native/desktop/src/policy.js'));
   check(unrouted.length === 0,
     `every debug-build URL is routed on staging (${[...urls].map((u) => new URL(u).pathname).join(' ')})`,
     `a debug build would open a path staging does not route: ${unrouted.join(', ')}`);
+}
+
+// ── 7. The native app: KourOS Alpha ──────────────────────────────────────────
+{
+  const MOD = 'native/android/kouros';
+  const man = stripXml(read(`${MOD}/src/main/AndroidManifest.xml`));
+  const perms = [...man.matchAll(/<uses-permission\s+android:name="([^"]+)"/g)].map((x) => x[1]).sort();
+  const want = ['android.permission.FOREGROUND_SERVICE', 'android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK',
+    'android.permission.INTERNET', 'android.permission.WAKE_LOCK'];
+  check(JSON.stringify(perms) === JSON.stringify(want),
+    'KourOS Alpha asks for exactly INTERNET, FOREGROUND_SERVICE(+_MEDIA_PLAYBACK) and WAKE_LOCK',
+    `KourOS Alpha permissions are ${JSON.stringify(perms)} — expected exactly ${JSON.stringify(want)}`);
+
+  // Every component, and which are exported. A component with an intent filter and no explicit
+  // android:exported is refused by the build for targetSdk ≥ 31 — but an explicit "true" on the
+  // wrong one is silent, so the exported set is pinned by name.
+  const comps = [...man.matchAll(/<(activity|service|receiver|provider)\b([^>]*)>/g)].map(([, kind, attrs]) => ({
+    kind, name: (/android:name="([^"]+)"/.exec(attrs) || [])[1], exported: /android:exported="true"/.test(attrs),
+  }));
+  const exported = comps.filter((c) => c.exported).map((c) => c.name).sort();
+  check(JSON.stringify(exported) === JSON.stringify(['.MainActivity', '.PlaybackService', '.RedirectActivity']),
+    'KourOS Alpha exports only the launcher, the sign-in redirect and the media service',
+    `KourOS Alpha exports ${JSON.stringify(exported)} — expected exactly .MainActivity, .PlaybackService, .RedirectActivity`);
+  const block = (name) => (new RegExp(`<(?:activity|service)\\s+android:name="\\${name}"[\\s\\S]*?</(?:activity|service)>`).exec(man) || [''])[0];
+  const redirect = block('.RedirectActivity');
+  const datas = [...redirect.matchAll(/<data\b[^>]*>/g)].map((x) => x[0]);
+  check(/android\.intent\.action\.VIEW/.test(redirect) && /android\.intent\.category\.BROWSABLE/.test(redirect)
+      && datas.length === 1 && /^<data android:scheme="\$\{applicationId\}" \/>$/.test(datas[0]),
+    "the sign-in redirect's only filter is VIEW/BROWSABLE on the scheme ${applicationId} (the client id jkAuth knows)",
+    `the RedirectActivity filter changed: ${datas.join(' ') || 'no <data>'} — it must be exactly the applicationId scheme`);
+  const service = block('.PlaybackService');
+  check(/android:foregroundServiceType="mediaPlayback"/.test(service)
+      && /<action android:name="androidx\.media3\.session\.MediaSessionService" \/>/.test(service)
+      && [...service.matchAll(/<action\b/g)].length === 1,
+    'the media service is a mediaPlayback foreground service answering only the MediaSessionService action',
+    'PlaybackService lost foregroundServiceType="mediaPlayback" or answers an action besides MediaSessionService');
+  check(/<activity\s+android:name="\.MainActivity"[\s\S]*?android\.intent\.category\.LAUNCHER[\s\S]*?<\/activity>/.test(man)
+      && !/android\.intent\.category\.LAUNCHER/.test(redirect),
+    'MainActivity is the launcher (and the redirect is not)', 'the launcher intent moved off MainActivity');
+  const gradle = read(`${MOD}/build.gradle.kts`);
+  check(/applicationId = shell\["package"\] as String/.test(gradle) && /versionNameSuffix = shell\["versionSuffix"\] as String/.test(gradle),
+    'the applicationId (= the redirect scheme = the jkAuth client id) comes from shells.json, not a literal',
+    `${MOD}/build.gradle.kts no longer reads applicationId / versionNameSuffix from shells.json`);
+
+  // The source itself.
+  const kt = Object.fromEntries(walk(`${MOD}/src/main`, /\.kt$/).map((p) => [p.split('/').pop(), stripCode(read(p))]));
+  const all = Object.entries(kt);
+  const hits = (re) => all.filter(([, s]) => re.test(s)).map(([f]) => f);
+  check(hits(/\bWebView\b|android\.webkit|addJavascriptInterface|evaluateJavascript/).length === 0,
+    'KourOS Alpha contains no WebView (no page, no bridge)',
+    `WebView / android.webkit in ${hits(/\bWebView\b|android\.webkit|addJavascriptInterface|evaluateJavascript/).join(', ')}`);
+  const prefs = hits(/SharedPreferences|getSharedPreferences|PreferenceManager|DataStore|openFileOutput|getExternal/);
+  check(prefs.length === 0,
+    'no SharedPreferences, DataStore or external storage anywhere in the app',
+    `token-capable storage outside SessionStore: ${prefs.join(', ')}`);
+  const writers = hits(/FileOutputStream|\.writeText\(|\.writeBytes\(|startWrite\(|Files\.write/);
+  check(writers.length === 1 && writers[0] === 'SessionStore.kt',
+    'only SessionStore.kt writes files', `files are written from ${writers.join(', ') || 'nowhere'} — only SessionStore.kt may`);
+  const store = kt['SessionStore.kt'] || '';
+  const writes = [...store.matchAll(/out\.write\(([^\n]*)\)/g)].map((x) => x[1]);
+  check(writes.length >= 1 && writes.every((w) => /^box\.seal\(/.test(w))
+      && /KeyStore\.getInstance\(KEYSTORE\)/.test(store) && /KEYSTORE = "AndroidKeyStore"/.test(store)
+      && /TRANSFORM = "AES\/GCM\/NoPadding"/.test(store) && /setRandomizedEncryptionRequired\(true\)/.test(store)
+      && /context\.noBackupFilesDir/.test(store),
+    'every byte SessionStore writes is sealed by the Android Keystore (AES-GCM) into noBackupFilesDir',
+    'SessionStore writes something not passed through box.seal, or its key is no longer a Keystore AES-GCM key, or it left noBackupFilesDir');
+  const tokenMentions = hits(/refresh_token|refreshToken/).sort();
+  check(JSON.stringify(tokenMentions) === JSON.stringify(['Auth.kt', 'Models.kt', 'SessionStore.kt']),
+    'the refresh token is handled in Auth.kt, Models.kt and SessionStore.kt only',
+    `the refresh token is touched in ${JSON.stringify(tokenMentions)} — a new place that holds it needs review here`);
+
+  const auth = kt['Auth.kt'] || '';
+  const calls = [...auth.matchAll(/refreshLocked\(\)/g)].length - 1; // minus the definition
+  const locked = [...auth.matchAll(/mutex\.withLock \{[^}]*?refreshLocked\(\)/g)].length;
+  check(calls >= 2 && calls === locked && !/private val mutex = Mutex\(\)[\s\S]*private val mutex/.test(auth),
+    `every token refresh runs under the one Mutex (${locked} call site(s)) — a rotated token is never spent twice`,
+    `refreshLocked() is called ${calls} time(s) but only ${locked} under mutex.withLock`);
+  check(/private fun adopt\(grant: TokenGrant\): String \{\s*store\.writeSession\(/.test(auth),
+    'a new refresh token is stored before the new access token is used',
+    'Auth.adopt no longer writes the session first — a crash after a refresh would leave only the spent token');
+  check(/constantTimeEquals\(state, pending\.state\)/.test(auth) && /store\.clearPending\(\)/.test(auth),
+    'sign-in checks the state against the pending attempt (and spends it)', 'Auth.completeSignIn no longer checks the state');
+  const http = kt['Http.kt'] || '';
+  check(/instanceFollowRedirects = false/.test(http) && /startsWith\("https:\/\/"\)/.test(http),
+    'HTTP never follows a redirect and refuses http:', 'Http.kt follows redirects or accepts non-https URLs');
+  const api = kt['Api.kt'] || '';
+  const svc = kt['PlaybackService.kt'] || '';
+  check(/fun authorized\(url: String\): Boolean = url\.startsWith\(Auth\.config\.apiBase \+ "\/api\/"\)/.test(api)
+      && /check\(authorized\(target\)\)/.test(api)
+      && /if \(!Api\.authorized\(spec\.uri\.toString\(\)\)\) return spec/.test(svc),
+    'a Bearer token is attached only to URLs under apiBase — by the API client and the player alike',
+    'Api.authorized changed, or the API client / the player data source attaches the token without asking it');
+  const bearerFiles = hits(/"Bearer /).sort();
+  check(JSON.stringify(bearerFiles) === JSON.stringify(['Api.kt', 'PlaybackService.kt']),
+    'the Authorization header is built in exactly two places (the API client and the player)',
+    `"Bearer " appears in ${JSON.stringify(bearerFiles)}`);
+
+  // One play-context grammar: the Kotlin encoder's vectors pass the SERVER's parser here,
+  // with JavaScript's own encodeURIComponent; the Kotlin test runs the same file under Gradle.
+  const pc = JSON.parse(read('native/play-context-cases.json'));
+  const { parsePlayContext, PLAY_CONTEXT_MAX } = require(resolve(root, 'apps/kouros/backend/src/playContext.js'));
+  const enc = (v) => { try { return encodeURIComponent(v); } catch { return null; } };
+  const wrong = pc.cases.filter((c) => {
+    switch (c.kind) {
+      case 'encode': return enc(c.input) !== c.expect;
+      case 'album': { if (c.expect === null) return parsePlayContext(`album/${enc(c.artist)}/${enc(c.album)}`) !== null && c.artist !== '';
+        const p = parsePlayContext(c.expect); return !p || p.artist !== c.artist || p.album !== c.album; }
+      case 'artist': { if (c.expect === null) return c.artist !== '';
+        const p = parsePlayContext(c.expect); return !p || p.artist !== c.artist; }
+      case 'station': { if (c.expect === null) return parsePlayContext(`station/${c.id}`) !== null;
+        const p = parsePlayContext(c.expect); return !p || p.id !== c.id; }
+      default: return true;
+    }
+  });
+  check(pc.maxLen === PLAY_CONTEXT_MAX && pc.cases.length >= 20 && wrong.length === 0,
+    `play contexts: all ${pc.cases.length} vectors agree with encodeURIComponent and the server's parsePlayContext`,
+    `play-context-cases.json disagrees with the server (maxLen ${pc.maxLen} vs ${PLAY_CONTEXT_MAX}):\n    ${wrong.map((c) => JSON.stringify(c).slice(0, 140)).join('\n    ')}`);
+  const pcTest = read(`${MOD}/src/test/java/net/jkos/kouros/CoreTest.kt`);
+  check(/System\.getProperty\("jkos\.playContextCases"\)/.test(pcTest) && /systemProperty\("jkos\.playContextCases", playContextCases\.absolutePath\)/.test(gradle)
+      && /rootProject\.file\("\.\.\/play-context-cases\.json"\)/.test(gradle),
+    'the Kotlin PlayContext test reads the same play-context-cases.json',
+    'CoreTest.kt no longer reads native/play-context-cases.json — the encoder and the server can now drift apart');
 }
 
 if (failed) {
