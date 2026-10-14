@@ -74,6 +74,10 @@ have, that is a vocabulary change (§7), not a special case.
 }
 ```
 
+**`sizing` is what makes it a HUD card.** A widget with no `sizing` is a screen or a part
+(drawn by its own app, or `use`d by another widget) and never reaches the HUD's shelf —
+`hud/catalog.ts` admits only placeable files, and jkAuth refuses an unsized publish.
+
 Optional at the top: `refreshMs`. **Not** `allowed_roles`: it is honoured only on a def
 published through jkAuth (`GET /auth/widgets` filters by role), and a file is compiled into
 ORDECK's bundle, where nothing could hide it — `check:widgets` refuses it in a file. Who
@@ -168,6 +172,7 @@ derived from what it binds, not declared — there is nothing to set.
 | Check | Where | What it refuses |
 |---|---|---|
 | Tier 1 — structure | `validateWidget` (`@jkos/widgets`); jkAuth runs it on every publish | unknown kinds and props (with the likely one), missing required props, controls outside a form, unsafe hrefs, footprints off the grid, suite hosts in a `fetch`, a def over the size limit |
+| Tier 1 — published | `validateWidget(def, { published: true })` — jkAuth's publish and the Workshop | anything but **declared server contracts**: a binding to a host's slice, a molecule, a missing `sizing`. A published widget reaches every user's HUD and binds only its own datasets and capabilities, which their apps scope-check; a slice-bound card is a file in its app |
 | Tier 2 — meaning | `checkBindings` (`@jkos/widgets/semantic`) | a binding to a field the source does not declare, a source naming an undeclared dataset or param, a missing path param or required filter, a command with an unbound required field, a `map` onto a closed vocabulary (a tone, an icon) with a value outside it, a list read from inside a one-document dataset with no `empty` of its own (the document is not empty when the list is, so the card would draw blank) |
 | `check:widgets` | `test/widgets.mjs` | every shipped file through both tiers, named for its id, no `allowed_roles`, and its fixtures shaped as the dataset declares |
 | `check:widget-render` | `test/widget-render.mjs` | every shipped widget drawn in every tier × state through the real renderer; a new layout finding fails the gate (`test/widget-render.baseline.json` only ratchets down) |

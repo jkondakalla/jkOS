@@ -346,7 +346,11 @@ export default function WidgetWorkshop() {
       });
       if (r.ok) { setMsg(`Published "${def.id}" — it's on every HUD's add strip now.`); loadPublished(); }
       else if (r.status === 403) setMsg('Admin access required to publish.');
-      else setMsg(`Publish failed (${r.status}).`);
+      else {
+        // jkAuth names each problem (INVALID_WIDGET): say the first, not just the status.
+        const first = ((await r.json().catch(() => null)) as { problems?: { path: string; message: string }[] } | null)?.problems?.[0];
+        setMsg(first ? `Publish refused — ${first.path || '/'}: ${first.message} (the JSON tab lists every problem).` : `Publish failed (${r.status}).`);
+      }
     } catch { setMsg('Network error while publishing.'); }
     setBusy(false);
   }

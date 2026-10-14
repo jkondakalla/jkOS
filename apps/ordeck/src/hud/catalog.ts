@@ -13,21 +13,26 @@
  * validation tiers (check:widgets).
  */
 
+import type { WidgetDef as AnyWidgetDef } from '@jkos/widget-render';
 import type { WidgetDef } from './types';
 
-const files = import.meta.glob<WidgetDef>(
+const files = import.meta.glob<AnyWidgetDef>(
   ['../../../*/widgets/*.json', '!../../../*/widgets/*.fixtures.json'],
   { eager: true, import: 'default' },
 );
 
-/** id → def, for every widget file of every app. */
+/** The files that are HUD cards: placed by a footprint. A widget with no `sizing` is a
+ *  screen or a part, drawn by its own app — never on the HUD's shelf. */
+const placeable = Object.entries(files).filter((e): e is [string, WidgetDef] => e[1].sizing != null);
+
+/** id → def, for every HUD card of every app. */
 export const CATALOG: Readonly<Record<string, WidgetDef>> = Object.freeze(
-  Object.fromEntries(Object.values(files).map((def) => [def.id, def])),
+  Object.fromEntries(placeable.map(([, def]) => [def.id, def])),
 );
 
 /** Which app ships each catalog widget (its file's folder). */
 export const CATALOG_APP: Readonly<Record<string, string>> = Object.freeze(
-  Object.fromEntries(Object.entries(files).map(([path, def]) => [def.id, path.split('/').at(-3) ?? ''])),
+  Object.fromEntries(placeable.map(([path, def]) => [def.id, path.split('/').at(-3) ?? ''])),
 );
 
 /** Each widget's preview fixtures (`<id>.fixtures.json`), loaded only when asked for —

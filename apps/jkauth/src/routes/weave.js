@@ -149,8 +149,10 @@ router.post('/auth/widgets', (req, res) => {
      checked here, against the one vocabulary (@jkos/widgets): known node kinds and
      props, placement, footprint, and no href a browser would run. The same validator
      holds the widget files the gate checks, so "passes the gate" and "publishable"
-     cannot disagree. Every problem comes back with a JSON Pointer into the def. */
-  const problems = validateWidget(def, { suiteHosts: SUITE_HOSTS })
+     cannot disagree. Every problem comes back with a JSON Pointer into the def.
+     `published`: a def stored here binds only declared server contracts — its own
+     datasets and capabilities, which their apps scope-check — never one host's slices. */
+  const problems = validateWidget(def, { suiteHosts: SUITE_HOSTS, published: true })
   if (problems.length) {
     logEvent('widget_publish_rejected', user.sub, req, {
       id, reason: 'invalid', problems: problems.slice(0, 5).map((p) => `${p.path} ${p.code}`),

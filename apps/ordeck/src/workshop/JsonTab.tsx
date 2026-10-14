@@ -47,7 +47,9 @@ export function JsonTab({ def, onLoad }: { def: WidgetDef; onLoad: (d: WidgetDef
   }, [apps]);
 
   // Structure first (what jkAuth refuses — it blocks loading); bindings once that passes.
-  const structural = useMemo(() => (parsed.def ? validateWidget(parsed.def, { suiteHosts: suiteHosts() }) : []), [parsed.def]);
+  // `published`: what this tab edits is published, so it is held to jkAuth's rule — only
+  // declared server contracts, never a HUD slice (a slice-bound card is a file in an app).
+  const structural = useMemo(() => (parsed.def ? validateWidget(parsed.def, { suiteHosts: suiteHosts(), published: true }) : []), [parsed.def]);
   const problems = useMemo(
     () => (structural.length || !parsed.def ? structural : checkBindings(parsed.def, { docs, slices: HUD_SLICES as Record<string, object> })),
     [structural, parsed.def, docs],

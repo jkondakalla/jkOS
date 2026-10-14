@@ -72,13 +72,16 @@ export interface WidgetSizing {
   min?: { w: number; h: number };
 }
 
-/** A widget file: metadata + sizing + a declarative spec. (The `component` escape hatch —
- *  a bespoke React card named by the def — is retired; ORDECK's hud/state.ts repairs a
- *  stored def that still names one.) */
+/** A widget file: metadata + a declarative spec, and a footprint if it is placed on a
+ *  grid. (The `component` escape hatch — a bespoke React card named by the def — is
+ *  retired; ORDECK's hud/state.ts repairs a stored def that still names one.) */
 export interface WidgetDef {
   id: string;
   label: string;
-  sizing: WidgetSizing;
+  /** Its footprint on a placement grid (ORDECK's HUD). A widget that is not placed — a
+   *  screen, or a part another widget `use`s — has none; a HUD card always does (the
+   *  catalog and jkAuth's publish keep a sizing-less widget off the HUD). */
+  sizing?: WidgetSizing;
   /** Compose the widget from primitives + data bindings. Optional only because a def
    *  arrives from the wire; one without a spec draws the unknown-widget tile. */
   spec?: WidgetSpec;

@@ -107,8 +107,14 @@ const isLiteral = (v) => typeof v === 'string' || typeof v === 'number' || typeo
  * through a DECLARED dataset. jkAuth passes them; without them only relative and
  * non-https URLs are refused (the renderer refuses the rest again at run time).
  *
+ * `ctx.published` — the def is being PUBLISHED through jkAuth, onto every user's HUD. A
+ * published widget binds only declared server contracts — its own sources (datasets,
+ * already scope-checked by their app) and capabilities — never a host's slices, a
+ * molecule (which reads one), or anything else only one host can supply. It is placed,
+ * so its `sizing` is required. jkAuth's publish passes it; so does the Workshop.
+ *
  * @param {unknown} def
- * @param {{ suiteHosts?: string[] }} [ctx]
+ * @param {{ suiteHosts?: string[], published?: boolean }} [ctx]
  * @returns {{path: string, code: string, message: string, fix?: string}[]}
  */
 export function validateWidget(def, ctx = {}) {
@@ -146,14 +152,42 @@ export function validateWidget(def, ctx = {}) {
     err('/allowed_roles', 'bad-type', 'allowed_roles must be an array of role names or a comma string')
   }
 
-  checkSizing(def.sizing, err)
+  if (def.sizing !== undefined) checkSizing(def.sizing, err)
+  else if (ctx.published) err('/sizing', 'missing-prop', 'a published widget is placed on the HUD: sizing is required — { desktop: {w,h}, mobile: {w,h}, tablet?, min? }')
 
   if (def.spec === undefined) {
     if (def.component === undefined) err('/spec', 'missing-prop', 'a def carries a `spec`: { frame?, sources?, body }')
   }
   const hasSpec = def.spec !== undefined
   if (hasSpec) checkSpec(def.spec, err, ctx)
+  if (ctx.published && isObj(def.spec)) checkPublished(def.spec, err)
   return out
+}
+
+/** The names the RENDERER puts in every widget's scope — never a host's: the row of a
+ *  list (`$`), the clock instant (`$now`), each source's state (`$sources`), a form's
+ *  values (`$form`) and what a command produced (`$result` / `$job`). */
+export const RUNTIME_NAMES = ['$', '$now', '$sources', '$form', '$result', '$job']
+
+/* A published widget is drawn on every user's HUD and binds only what jkAuth can vouch
+   for: the datasets and capabilities apps DECLARE (scope-checked by their app on every
+   read and write). A host slice is one app's in-page state, not a server contract — a
+   widget that binds one is that host's, and belongs in a file. */
+function checkPublished(spec, err) {
+  const own = new Set(isObj(spec.sources) ? Object.keys(spec.sources) : [])
+  const visit = (v, path) => {
+    if (Array.isArray(v)) { v.forEach((x, i) => visit(x, `${path}/${i}`)); return }
+    if (!isObj(v)) return
+    if (typeof v.src === 'string' && !own.has(v.src) && !RUNTIME_NAMES.includes(v.src)) {
+      err(path, 'unpublishable', `a published widget binds only its own sources — ${JSON.stringify(v.src)} is a host's slice, which no server declares`,
+        own.size ? `bind one of its sources (${[...own].join(', ')}), or keep this widget as a file in its app` : 'declare a dataset source for it, or keep this widget as a file in its app')
+    }
+    if (typeof v.t === 'string' && NODES[v.t]?.kind === 'molecule') {
+      err(path, 'unpublishable', `a ${v.t} is drawn by its host from the host's own state — a published widget cannot carry one`, 'keep this widget as a file in its app')
+    }
+    for (const [k, x] of Object.entries(v)) visit(x, at(path, k))
+  }
+  visit(spec, '/spec')
 }
 
 function unknownKey(err, path, key, allowed) {

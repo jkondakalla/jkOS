@@ -72,10 +72,14 @@ export const DEFAULT_MIN_SIZE = { w: 2, h: 2 } as const;
  * renderer's format (@jkos/widget-render), not ORDECK's: ORDECK is one app that hosts
  * widgets. Re-exported here so the HUD's modules name it in one place. */
 export type {
-  Binding, ToneBinding, CommandRef, WidgetFrame, WidgetSpec, WidgetSizing, WidgetDef,
+  Binding, ToneBinding, CommandRef, WidgetFrame, WidgetSpec, WidgetSizing,
   WidgetNode, Tone, IconName, DataSource, SourceState, SourceStatus,
 } from '@jkos/widget-render';
-import type { WidgetDef } from '@jkos/widget-render';
+import type { WidgetDef as AnyWidgetDef, WidgetSizing } from '@jkos/widget-render';
+/** A widget ON THE HUD. The HUD places a card by its footprint, so `sizing` is required
+ *  here, where the renderer's format leaves it optional (a screen has none): the catalog
+ *  (hud/catalog.ts) admits only placeable files, and jkAuth refuses an unsized publish. */
+export type WidgetDef = AnyWidgetDef & { sizing: WidgetSizing };
 
 /** The whole per-user HUD document. `version` guards future migrations. */
 export interface HudState {

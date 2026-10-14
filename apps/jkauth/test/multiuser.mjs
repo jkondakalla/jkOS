@@ -144,7 +144,7 @@ try {
   // `{ id, label, kind: 'metric' }` these used to publish (not a widget at all) is refused.
   const widget = (id, label, extra = {}) => ({
     id, label, sizing: { desktop: { w: 3, h: 3 }, mobile: { w: 2, h: 3 } },
-    spec: { frame: { eyebrow: label.toUpperCase() }, body: { t: 'metric', value: { src: 'systems', path: 'up' } } },
+    spec: { frame: { eyebrow: label.toUpperCase() }, body: { t: 'metric', value: 7 } },
     ...extra,
   });
   const pubOpen = await api(A, 'POST', '/auth/widgets', { json: widget('w-open', 'Open') });
@@ -181,7 +181,13 @@ try {
   const relFetch = await api(A, 'POST', '/auth/widgets', { json: widget('w-rf', 'RF', { spec: {
     sources: { jobs: { kind: 'fetch', url: '/api/lazuros/jobs' } }, body: { t: 'text', text: 'x' } } }) });
   ok('…and so is a relative one (this origin)', relFetch.status === 400 && (relFetch.json?.problems || []).some((p) => p.path === '/spec/sources/jobs/url' && p.code === 'bad-url'), JSON.stringify(relFetch.json));
-  ok('neither refused def landed', !idsFor(await api(A, 'GET', '/auth/widgets')).some((i) => ['w-junk', 'w-js', 'w-sf', 'w-rf'].includes(i)));
+  /* A published def reaches every HUD and binds only declared server contracts: a host's
+     slice (ORDECK's `systems`) is one app's in-page state, which no server declares. */
+  const slice = await api(A, 'POST', '/auth/widgets', { json: widget('w-sl', 'SL', { spec: { body: { t: 'metric', value: { src: 'systems', path: 'up' } } } }) });
+  ok("a binding to a host's slice is refused at publish", slice.status === 400 && (slice.json?.problems || []).some((p) => p.path === '/spec/body/value' && p.code === 'unpublishable'), JSON.stringify(slice.json));
+  const unsized = await api(A, 'POST', '/auth/widgets', { json: widget('w-ns', 'NS', { sizing: undefined }) });
+  ok('…and so is one without a footprint — a published widget is placed', unsized.status === 400 && (unsized.json?.problems || []).some((p) => p.path === '/sizing' && p.code === 'missing-prop'), JSON.stringify(unsized.json));
+  ok('none of the refused defs landed', !idsFor(await api(A, 'GET', '/auth/widgets')).some((i) => ['w-junk', 'w-js', 'w-sf', 'w-rf', 'w-sl', 'w-ns'].includes(i)));
   const invalidEv = ((await api(A, 'GET', '/auth/events')).json?.events || []).find((e) => e.type === 'widget_publish_rejected' && JSON.parse(e.meta || '{}').id === 'w-js');
   ok('the refusal is in the audit trail, with the problem', !!invalidEv && JSON.stringify(JSON.parse(invalidEv.meta).problems).includes('/spec/body/href bad-url'), JSON.stringify(invalidEv));
 

@@ -73,6 +73,20 @@ ok(has(def({ t: 'text', text: 'x' }, { sizing: { desktop: { w: 13, h: 3 }, mobil
 ok(has(def({ t: 'text', text: 'x' }, { sizing: { desktop: { w: 3, h: 3 } } }), '/sizing/mobile', 'missing-prop'), 'a missing tier footprint is refused')
 ok(has(def({ t: 'text', text: 'x' }, { id: 'Has Spaces' }), '/id', 'bad-id'), 'a malformed id is refused')
 ok(has({ id: 'x', sizing }, '/spec', 'missing-prop'), 'a def without a spec is refused')
+ok(problems({ id: 'screen', spec: { body: { t: 'text', text: 'x' } } }).length === 0, 'sizing is optional — a widget that is not placed on a grid (a screen, a part) has none')
+
+console.log('2a · published: only declared server contracts')
+const pub = (spec, extra = {}) => validateWidget({ id: 'pub', label: 'Pub', sizing, spec, ...extra }, { published: true })
+const pubHas = (spec, path, code, extra) => pub(spec, extra).some((p) => p.path === path && p.code === code)
+const JOBS = { jobs: { kind: 'dataset', app: 'lazuros', dataset: 'jobs' } }
+ok(pub({ sources: JOBS, body: { t: 'rows', from: { src: 'jobs' }, title: { src: '$', path: 'title' }, empty: { src: '$sources', path: 'jobs.state' } } }).length === 0,
+  'a published widget binding its own dataset (and the renderer\'s $, $sources) passes')
+ok(pubHas({ body: { t: 'metric', value: { src: 'systems', path: 'up' } } }, '/spec/body/value', 'unpublishable'), "a published widget binding a host's slice is refused, at the binding")
+ok(pubHas({ frame: { href: { src: 'origins', path: 'kouros' } }, body: { t: 'text', text: 'x' } }, '/spec/frame/href', 'unpublishable'), '…in its frame too')
+ok(pubHas({ body: { t: 'button', text: 'GO', cmd: { app: 'beigeboard', capability: 'createItem', body: { due: { src: 'clock', path: 'iso' } } } } }, '/spec/body/cmd/body/due', 'unpublishable'), "…and in a command's body")
+ok(pubHas({ body: { t: 'calendar' } }, '/spec/body', 'unpublishable'), 'a published molecule is refused — it reads its host\'s state')
+ok(pubHas({ body: { t: 'text', text: 'x' } }, '/sizing', 'missing-prop', { sizing: undefined }), 'a published widget is placed, so its sizing is required')
+ok(problems(def({ t: 'metric', value: { src: 'systems', path: 'up' } })).length === 0, 'the same slice binding in a FILE passes — a file is its host\'s')
 ok(has({ id: 'x', sizing, component: 'focus' }, '/component', 'retired'), 'the retired `component` hatch is refused…')
 ok(problems({ id: 'x', sizing, component: 'bb-week' })[0]?.fix === '{ "spec": { "body": { "t": "week" } } }', '…naming the molecule it became')
 ok(problems(def({ t: 'focus' })).length === 0 && problems(def({ t: 'week' })).length === 0, 'focus and week are molecules')
