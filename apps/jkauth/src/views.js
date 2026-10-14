@@ -2,7 +2,7 @@
 // Server-rendered HTML: the shared shell, the login/register card, and the jkOS
 // portal dashboard (app launcher + account + suite-wide AI controls).
 
-const { GUEST_PASSWORD } = require('./config')
+const { GUEST_PASSWORD, NATIVE_CLIENTS } = require('./config')
 const { escHtml, jsonForScript } = require('./util')
 
 function layout(title, body) {
@@ -198,7 +198,8 @@ function securityPage(user, info = {}, opts = {}) {
     : devices.map((d) => `
       <div class="sec-device">
         <p class="muted-note">
-          ${d.current ? '<strong>This device</strong> · ' : ''}${d.revoked
+          ${d.current ? '<strong>This device</strong> · ' : ''}${d.client_id
+            ? `<strong>${escHtml(NATIVE_CLIENTS.get(d.client_id)?.name || d.client_id)}</strong> app · ` : ''}${d.revoked
             ? `signed out (${escHtml(d.revoked_reason || 'revoked')})`
             : `last used ${escHtml(fmt(d.last_used_at))}`}
           · started ${escHtml(fmt(d.created_at))}
@@ -484,7 +485,40 @@ tzSel.addEventListener('change', saveTz);
 </script>`)
 }
 
+// The native sign-in consent (routes/native.js). One button, on purpose: a native app's
+// redirect is a private-use URI scheme any installed app could also claim (RFC 8252 §8.6),
+// so a signed-in browser must never hand a code to whichever app asked without a person
+// saying yes. `consent` is the signed request; the page carries nothing else of weight.
+function nativeConsentPage({ client, user, consent }) {
+  return layout('Sign in to ' + client.name, `
+<div class="card jk-ink-in">
+  <h1 class="wordmark">jk<span>OS</span></h1>
+  <p class="subtitle">Sign in to <strong>${escHtml(client.name)}</strong> on this device?</p>
+  <p class="muted-note">As ${escHtml(user.name || user.email)} (${escHtml(user.email)}). The app stays signed in until you
+    sign it out — from the app, or from Your devices on the Security page.</p>
+  <form method="POST" action="/auth/native/authorize">
+    <input type="hidden" name="consent" value="${escHtml(consent)}">
+    <button type="submit" name="decision" value="allow" class="btn-primary">Sign in to ${escHtml(client.name)}</button>
+    <button type="submit" name="decision" value="deny" class="btn-ghost">Cancel</button>
+  </form>
+  <p class="toggle">Not you? <a href="/auth/dashboard">Open your account</a> to sign out first.</p>
+</div>`)
+}
+
+// A native sign-in that cannot go back to the app (unknown client, a redirect URI that isn't
+// the client's own): RFC 6749 §4.1.2.1 — never redirect to an unverified URI; say so here.
+function nativeErrorPage(message) {
+  return layout('Sign-in problem', `
+<div class="card jk-ink-in">
+  <h1 class="wordmark">jk<span>OS</span></h1>
+  <p class="subtitle">This sign-in can't continue</p>
+  <p class="error">${escHtml(message)}</p>
+  <p class="toggle"><a href="/auth/dashboard">Go to your account</a></p>
+</div>`)
+}
+
 module.exports = {
+  nativeConsentPage, nativeErrorPage,
   layout, loginPage, dashboardPage,
   twoFactorPage, securityPage, totpSetupPage, recoveryCodesPage,
   forgotPage, resetPage, verifyEmailPage,

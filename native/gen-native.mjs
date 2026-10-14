@@ -14,7 +14,8 @@
 //   native/android/twa/src/<shell><Env>/res/values/shell.xml   per TWA × debug/release
 //   native/android/twa/src/<shell><Env>/res/xml/shortcuts.xml
 //   native/android/home/src/<env>/res/values/shell.xml         the home launcher × debug/release
-//   native/android/selector/src/<env>/res/values/shell.xml     the alpha selector × debug/release
+//   native/android/<start>/src/<env>/res/values/shell.xml      the native app × debug/release
+//   apps/jkauth/src/native-clients.json                 jkAuth's native client registry
 //   native/desktop/src/shells.json                      what the Electron shell reads
 //
 // A shell's ICON and BAR COLOUR are not declared in shells.js: they are its start app's own
@@ -33,7 +34,8 @@ const HERE = dirname(fileURLToPath(import.meta.url))
 const ROOT = join(HERE, '..')
 const require = createRequire(import.meta.url)
 const {
-  VERSION, STAGING_SUFFIX, shellConfig, versionCode, androidShells, desktopShells, selectorApps,
+  VERSION, STAGING_SUFFIX, shellConfig, versionCode, androidShells, desktopShells,
+  nativeConfig, nativeClients,
 } = require('./shells.js')
 
 const ENVS = ['debug', 'release']
@@ -113,25 +115,21 @@ function homeValues(cfg, face) {
 `
 }
 
-function selectorValues(shell, env, cfg, face) {
-  const apps = selectorApps(shell, env)
-  const items = (key) => lines(apps.map((a) => `        <item>${androidString(a[key])}</item>`))
+function nativeValues(shell, env, face) {
+  const c = nativeConfig(shell, env)
   return `<?xml version="1.0" encoding="utf-8"?>
 <!-- ${BANNER} -->
 <resources>
-    <string name="app_name">${androidString(cfg.name)}</string>
-    <string name="start_url">${androidString(cfg.startUrl)}</string>
+    <string name="app_name">${androidString(c.name)}</string>
     <color name="shell_bar">${face.themeColor}</color>
     <string name="channel">${androidString(shell.channel || '')}</string>
     <string name="environment">${env === 'debug' ? 'staging' : 'production'}</string>
-    <!-- The app half of Digital Asset Links: the origins this APK claims. The web half is
-         infra/nginx/assetlinks.json, served by every one of these origins. -->
-    <string name="asset_statements">${androidString(assetStatements(cfg.origins))}</string>
-    <!-- Every origin a launched app stays full-screen on. Anything else opens in the browser. -->
-    <string-array name="additional_trusted_origins">${lines(cfg.origins.map((o) => `        <item>${androidString(o)}</item>`))}    </string-array>
-    <!-- The list the selector shows, one row per app: name[i] opens url[i]. -->
-    <string-array name="selector_names">${items('name')}    </string-array>
-    <string-array name="selector_urls">${items('url')}    </string-array>
+    <!-- The only two places this app talks to. Requests go to api_base + "/api/...". -->
+    <string name="api_base">${androidString(c.apiBase)}</string>
+    <string name="auth_origin">${androidString(c.authOrigin)}</string>
+    <!-- Its jkAuth client: apps/jkauth/src/native-clients.json carries the same pair. -->
+    <string name="client_id">${androidString(c.clientId)}</string>
+    <string name="redirect_uri">${androidString(c.redirectUri)}</string>
 </resources>
 `
 }
@@ -156,16 +154,19 @@ function webManifest(appId) {
 
 const files = new Map()   // repo-relative path → content
 const expectVariantDirs = {
-  'native/android/twa/src': new Set(), 'native/android/home/src': new Set(), 'native/android/selector/src': new Set(),
+  'native/android/twa/src': new Set(), 'native/android/home/src': new Set(),
 }
 
 const twa = androidShells().filter((s) => s.android === 'twa')
 const homes = androidShells().filter((s) => s.android === 'home')
 if (homes.length !== 1) throw new Error(`gen-native: exactly one home shell expected, found ${homes.length}`)
 const home = homes[0]
-const selectors = androidShells().filter((s) => s.android === 'selector')
-if (selectors.length !== 1) throw new Error(`gen-native: exactly one selector shell expected, found ${selectors.length}`)
-const selector = selectors[0]
+// A native shell's module is named after its start app: native/android/<start>/.
+const natives = androidShells().filter((s) => s.android === 'native')
+if (new Set(natives.map((s) => s.start)).size !== natives.length) {
+  throw new Error('gen-native: two native shells share a start app — one module per app')
+}
+for (const s of natives) expectVariantDirs[`native/android/${s.start}/src`] = new Set()
 
 files.set('native/android/shells.json', JSON.stringify({
   _comment: BANNER,
@@ -174,10 +175,10 @@ files.set('native/android/shells.json', JSON.stringify({
   stagingSuffix: STAGING_SUFFIX,
   twa: twa.map((s) => ({ id: s.id, package: s.package, icon: webManifest(s.start).maskable })),
   home: { id: home.id, package: home.package, icon: webManifest(home.start).maskable },
-  selector: {
-    id: selector.id, package: selector.package, icon: webManifest(selector.start).maskable,
-    versionSuffix: selector.channel ? `-${selector.channel}` : '',
-  },
+  native: natives.map((s) => ({
+    id: s.id, module: s.start, package: s.package, icon: webManifest(s.start).maskable,
+    versionSuffix: s.channel ? `-${s.channel}` : '',
+  })),
 }, null, 2) + '\n')
 
 for (const s of twa) {
@@ -194,11 +195,17 @@ for (const env of ENVS) {
   files.set(`native/android/home/src/${env}/res/values/shell.xml`, homeValues(shellConfig(home, env), webManifest(home.start)))
 }
 
-for (const env of ENVS) {
-  expectVariantDirs['native/android/selector/src'].add(env)
-  files.set(`native/android/selector/src/${env}/res/values/shell.xml`,
-    selectorValues(selector, env, shellConfig(selector, env), webManifest(selector.start)))
+for (const s of natives) {
+  for (const env of ENVS) {
+    expectVariantDirs[`native/android/${s.start}/src`].add(env)
+    files.set(`native/android/${s.start}/src/${env}/res/values/shell.xml`, nativeValues(s, env, webManifest(s.start)))
+  }
 }
+// jkAuth reads this at boot (src/config.js): which native clients exist, the one redirect URI
+// each may use, and which jkAuth (production / staging) may sign each in.
+files.set('apps/jkauth/src/native-clients.json', JSON.stringify({
+  _comment: BANNER, ...nativeClients(),
+}, null, 2) + '\n')
 
 const desktop = {}
 for (const s of desktopShells()) {

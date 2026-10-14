@@ -218,6 +218,22 @@ const DELEGATION_CLIENTS = new Set(
   String(process.env.JKOS_DELEGATION_CLIENTS || '').split(',').map(s => s.trim()).filter(Boolean)
 )
 
+// Native app clients (RFC 8252: a phone app signs in through the system browser + PKCE and
+// holds a revocable device token). The registry is GENERATED from native/shells.js into
+// native-clients.json — never typed here — and split by environment: a staging (debug) build
+// signs in against staging jkAuth only, a release build against production only. Staging
+// sets JKOS_NATIVE_ENV=staging; anything other than unset/production/staging refuses to boot
+// rather than quietly serving production's list.
+const NATIVE_ENV = process.env.JKOS_NATIVE_ENV || 'production'
+if (NATIVE_ENV !== 'production' && NATIVE_ENV !== 'staging') {
+  throw new Error(`JKOS_NATIVE_ENV is '${NATIVE_ENV}' — expected 'production' or 'staging'`)
+}
+const NATIVE_CLIENTS = new Map(require('./native-clients.json')[NATIVE_ENV].map(c => [c.client_id, Object.freeze(c)]))
+// An authorization code lives a minute: the app exchanges it the instant the browser hands
+// it back. The consent page's signed form lives five — long enough to read it.
+const NATIVE_CODE_TTL_MS = numEnv('NATIVE_CODE_TTL_MS', 60 * 1000)
+const NATIVE_CONSENT_TTL_MS = numEnv('NATIVE_CONSENT_TTL_MS', 5 * 60 * 1000)
+
 const JWT_ISSUER = resolveIssuer()   // shared default ('jkos-auth'), JKOS_AUTH_ISSUER overrides
 // kid of the ACTIVE signing key (must appear in /auth/jwks). Env-overridable so a
 // rotation can advance it without a code change. (S4/U3)
@@ -237,4 +253,5 @@ module.exports = {
   COOKIE_DOMAIN, COOKIE_OPTS,
   JWT_ISSUER, JWT_KID, JWT_KID_NEXT,
   SERVICE_CLIENTS, DELEGATION_CLIENTS,
+  NATIVE_ENV, NATIVE_CLIENTS, NATIVE_CODE_TTL_MS, NATIVE_CONSENT_TTL_MS,
 }

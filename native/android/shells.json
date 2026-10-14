@@ -20,10 +20,13 @@
     "package": "net.jkos.home",
     "icon": "apps/ordeck/public/icon-maskable-512.png"
   },
-  "selector": {
-    "id": "alpha",
-    "package": "net.jkos.alpha",
-    "icon": "apps/ordeck/public/icon-maskable-512.png",
-    "versionSuffix": "-alpha"
-  }
+  "native": [
+    {
+      "id": "kouros-alpha",
+      "module": "kouros",
+      "package": "net.jkos.kouros.alpha",
+      "icon": "apps/kouros/public/icon-maskable-512.png",
+      "versionSuffix": "-alpha"
+    }
+  ]
 }

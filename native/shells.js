@@ -42,9 +42,11 @@ const STAGING_SUFFIX = '.staging'
  *            stay up with the network down and hide the device's apps behind a gesture. The
  *            one shell with native code beside the page, so the one with a bridge
  *            (origin-scoped to `start` only — see NATIVE.md).
- *   'selector' — a native list of every reachable app; a tap opens that app as a TWA. Our
- *            code draws the list and nothing else: no WebView, no permissions, so — like a
- *            TWA — nothing of ours runs beside a page.
+ *   'native' — the start app rebuilt as a NATIVE Android app (Kotlin + Compose), in the
+ *            module named after it (native/android/<start>/). No web page at all: it signs in
+ *            through jkAuth's native flow (RFC 8252 — the system browser + PKCE, a revocable
+ *            device token) and calls the app's API with a Bearer token. `reach` is unused:
+ *            it trusts no origin to render, it only calls its API origin and jkAuth.
  *
  * start      the app the shell opens on (a suite-manifest id).
  * reach      'suite' — every suite app with its own production origin (derived, below);
@@ -77,11 +79,11 @@ const SHELLS = [
     android: 'home',
   },
   {
-    // The whole suite as ONE download, for testing: a plain list of every app, each opened as
-    // a TWA. Alpha — a test build, not the way the suite is meant to be installed.
-    id: 'alpha', name: 'jkOS Alpha', package: 'net.jkos.alpha',
-    start: 'ordeck', reach: 'suite',
-    android: 'selector', channel: 'alpha',
+    // KourOS as a native phone app — the first app rebuilt natively, for testing. It installs
+    // beside the KourOS TWA (its own package), so the two can be compared on one phone.
+    id: 'kouros-alpha', name: 'KourOS Alpha', package: 'net.jkos.kouros.alpha',
+    start: 'kouros', reach: [],
+    android: 'native', channel: 'alpha',
   },
 ]
 
@@ -164,17 +166,47 @@ const androidShells = () => SHELLS.filter((s) => s.android)
 const desktopShells = () => SHELLS.filter((s) => s.desktop)
 /** Android shells that open origins in a Trusted Web Activity — what Chrome verifies against
  *  assetlinks.json, so what signing.mjs lists and what the edge must serve asset links for. */
-const twaLaunchers = () => SHELLS.filter((s) => s.android === 'twa' || s.android === 'selector')
+const twaLaunchers = () => SHELLS.filter((s) => s.android === 'twa')
 
-/** The apps a selector lists: the start app first, jkAuth last (its dashboard is the account
- *  page — a place worth testing, not only the sign-in redirect), the rest in suite order. */
-function selectorApps(shell, env) {
-  const ids = reachIds(shell).filter((id) => id !== 'auth').concat('auth')
-  return ids.map((id) => ({ id, name: app(id).name, url: urlOf(id, env) }))
+/** Where a native app's sign-in returns: a private-use URI scheme named after its package
+ *  (RFC 8252 §7.1). jkAuth accepts exactly this URI for exactly this client id. */
+const NATIVE_REDIRECT_PATH = ':/oauth2redirect'
+
+/**
+ * What a native shell needs in one environment — and what jkAuth needs to know about it.
+ *   apiBase     the start app's API root, without a trailing slash; requests go to
+ *               `${apiBase}/api/...` (staging: https://staging.jkos.net/kouros)
+ *   authOrigin  the jkAuth that signs it in (staging: https://staging.jkos.net)
+ *   clientId    its OAuth client id — the package, so one install is one client
+ *   redirectUri `${clientId}:/oauth2redirect`
+ */
+function nativeConfig(shell, env) {
+  if (shell.android !== 'native') throw new Error(`native/shells.js: '${shell.id}' is not a native shell`)
+  const cfg = shellConfig(shell, env)
+  return {
+    applicationId: cfg.applicationId,
+    name: cfg.name,
+    app: shell.start,
+    apiBase: cfg.startUrl.replace(/\/$/, ''),
+    authOrigin: originOf(urlOf('auth', env)),
+    clientId: cfg.applicationId,
+    redirectUri: cfg.applicationId + NATIVE_REDIRECT_PATH,
+  }
+}
+
+/** jkAuth's native client registry, by jkAuth environment: a staging (debug) build signs in
+ *  against staging jkAuth only, a release build against production only. */
+function nativeClients() {
+  const native = SHELLS.filter((s) => s.android === 'native')
+  const rows = (env) => native.map((s) => {
+    const c = nativeConfig(s, env)
+    return { client_id: c.clientId, redirect_uri: c.redirectUri, name: c.name, app: c.app }
+  })
+  return { production: rows('release'), staging: rows('debug') }
 }
 
 module.exports = {
   VERSION, STAGING_SUFFIX, SHELLS,
   shellConfig, versionCode, stagingPathOf, reachIds, suiteApps,
-  androidShells, desktopShells, twaLaunchers, selectorApps,
+  androidShells, desktopShells, twaLaunchers, nativeConfig, nativeClients,
 }

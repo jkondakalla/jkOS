@@ -18,6 +18,8 @@ services:
       COOKIE_DOMAIN: "staging.jkos.net"
       JKOS_COOKIE_SUFFIX: "_staging"
       JKOS_AUTH_ISSUER: "jkos-auth-staging"
+      # Native apps: a staging (debug) build signs in here, a release build only in prod.
+      JKOS_NATIVE_ENV: "staging"
     volumes:
       - ${JKOS_AUTH_DATA_PATH:-/mnt/Luna/Backends/Staging/jkos-auth-data}:/data
     networks:
