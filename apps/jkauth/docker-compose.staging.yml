@@ -18,6 +18,10 @@ services:
       COOKIE_DOMAIN: "staging.jkos.net"
       JKOS_COOKIE_SUFFIX: "_staging"
       JKOS_AUTH_ISSUER: "jkos-auth-staging"
+      # Native sign-in (src/routes/native.js) for the STAGING native apps — the debug builds
+      # (`net.jkos.kouros.alpha.staging`), listed in src/native-clients.json. Production
+      # leaves it unset, so its /auth/native routes answer 404 until that is decided.
+      JKOS_NATIVE_ENV: "staging"
     volumes:
       - ${JKOS_AUTH_DATA_PATH:-/mnt/Luna/Backends/Staging/jkos-auth-data}:/data
     networks:

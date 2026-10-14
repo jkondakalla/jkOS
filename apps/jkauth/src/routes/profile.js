@@ -7,7 +7,7 @@
 const express = require('express')
 const { get, run, logEvent } = require('../db')
 const { deepMerge } = require('../util')
-const { resolveUser, liveSession, clearTokens, publicUser } = require('../tokens')
+const { resolveUser, resolveBearerUser, liveSession, clearTokens, publicUser } = require('../tokens')
 const { can } = require('../policy')
 
 const router = express.Router()
@@ -16,8 +16,13 @@ const router = express.Router()
 // Falls back to the refresh-cookie session (read-only — auth_request cannot deliver Set-Cookie to
 // the browser, so we never rotate here) so a remembered admin whose 15-min access token has lapsed
 // still passes the staging gate; the SPA behind it then refreshes its own access token.
+//
+// A native app holds no cookie: it sends its access token as `Authorization: Bearer`, which
+// nginx's auth_request forwards with the rest of the original request's headers. Only a USER
+// token counts (resolveBearerUser refuses a service token) — the gate asks for an admin, and
+// a client-credentials grant is not a person.
 router.get('/auth/require-admin', (req, res) => {
-  const user = resolveUser(req) || liveSession(req)?.user
+  const user = resolveUser(req) || liveSession(req)?.user || resolveBearerUser(req)
   if (!user) return res.status(401).json({ error: 'Authentication required' })
   if (!can(user, 'staging:enter')) return res.status(403).json({ error: 'Admin access required', code: 'FORBIDDEN' })
   res.status(200).json({ ok: true })

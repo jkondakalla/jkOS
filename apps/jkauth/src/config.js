@@ -218,6 +218,21 @@ const DELEGATION_CLIENTS = new Set(
   String(process.env.JKOS_DELEGATION_CLIENTS || '').split(',').map(s => s.trim()).filter(Boolean)
 )
 
+// Native sign-in (routes/native.js): which environment's native apps this jkAuth signs in.
+// 'staging' or 'production' — matched against `env` in native-clients.json, which
+// native/gen-native.mjs generates from native/shells.js. Unset means native sign-in is OFF
+// and every /auth/native route answers 404: a jkAuth that was never told which apps it
+// serves serves none, rather than all of them.
+const NATIVE_ENV = process.env.JKOS_NATIVE_ENV || null
+if (NATIVE_ENV !== null && NATIVE_ENV !== 'staging' && NATIVE_ENV !== 'production') {
+  throw new Error(`JKOS_NATIVE_ENV must be 'staging' or 'production' (or unset), got ${JSON.stringify(NATIVE_ENV)}`)
+}
+// An authorization code is a one-shot hand-off from the browser to the app, which redeems it
+// within a second of receiving it. A minute is generous; RFC 6749 §4.1.2 caps it at ten.
+const NATIVE_CODE_TTL_MS = numEnv('NATIVE_CODE_TTL_MS', 60 * 1000)
+// How long the consent page may sit open before its Allow button stops working.
+const NATIVE_CONSENT_TTL_MS = 10 * 60 * 1000
+
 const JWT_ISSUER = resolveIssuer()   // shared default ('jkos-auth'), JKOS_AUTH_ISSUER overrides
 // kid of the ACTIVE signing key (must appear in /auth/jwks). Env-overridable so a
 // rotation can advance it without a code change. (S4/U3)
@@ -237,4 +252,5 @@ module.exports = {
   COOKIE_DOMAIN, COOKIE_OPTS,
   JWT_ISSUER, JWT_KID, JWT_KID_NEXT,
   SERVICE_CLIENTS, DELEGATION_CLIENTS,
+  NATIVE_ENV, NATIVE_CODE_TTL_MS, NATIVE_CONSENT_TTL_MS,
 }

@@ -378,6 +378,43 @@ const MIGRATIONS = [
     run(`CREATE TRIGGER widget_registry_def_insert BEFORE INSERT ON widget_registry FOR EACH ROW ${guard}`)
     run(`CREATE TRIGGER widget_registry_def_update BEFORE UPDATE ON widget_registry FOR EACH ROW ${guard}`)
   }],
+
+  /* 024 — NATIVE SIGN-IN (routes/native.js). Two things, both held here rather than in a
+   * route so no other writer can undo them:
+   *
+   *   sessions.client_id — NULL for a browser session (its refresh token travels as a
+   *   cookie), the app's client id for a native one (its refresh token travels in a JSON
+   *   body). The two transports never accept each other's tokens: the cookie paths in
+   *   tokens.js claim only `client_id IS NULL`, the native path only `client_id = ?`. The
+   *   trigger makes the binding permanent: a row's transport cannot be rewritten, so a
+   *   later "helpful" UPDATE can't turn a phone's refresh token into a cookie.
+   *
+   *   native_auth_codes — one row per authorization code, stored as a sha256 (like every
+   *   refresh token), single-use. `used_at` may go NULL → a value once and never change
+   *   again; `family_id` is the session the code minted, so a code presented twice can
+   *   burn what its first redemption produced (RFC 6749 §4.1.2). */
+  ['024_native_sign_in', () => {
+    addColumn('sessions', 'client_id', 'TEXT')
+    run(`CREATE TABLE IF NOT EXISTS native_auth_codes (
+      code_hash      TEXT PRIMARY KEY,
+      user_id        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      client_id      TEXT NOT NULL,
+      redirect_uri   TEXT NOT NULL,
+      code_challenge TEXT NOT NULL,
+      expires_at     TEXT NOT NULL,
+      used_at        TEXT,
+      family_id      TEXT,
+      created_at     TEXT NOT NULL DEFAULT (${SQL_NOW})
+    )`)
+    run('DROP TRIGGER IF EXISTS sessions_client_id_fixed')
+    run(`CREATE TRIGGER sessions_client_id_fixed BEFORE UPDATE OF client_id ON sessions FOR EACH ROW
+         WHEN OLD.client_id IS NOT NEW.client_id
+         BEGIN SELECT RAISE(ABORT, 'sessions.client_id is fixed at creation: a session never changes transport'); END`)
+    run('DROP TRIGGER IF EXISTS native_auth_codes_single_use')
+    run(`CREATE TRIGGER native_auth_codes_single_use BEFORE UPDATE OF used_at ON native_auth_codes FOR EACH ROW
+         WHEN OLD.used_at IS NOT NULL
+         BEGIN SELECT RAISE(ABORT, 'native_auth_codes.used_at is set once: a code is redeemed at most once'); END`)
+  }],
 ]
 
 function runMigrations() {

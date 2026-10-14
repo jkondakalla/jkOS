@@ -118,7 +118,11 @@ function signService(clientId, scope, { act } = {}) {
 // tryRotate wraps it with the claim so claim-then-issue is atomic (JK-A6: a
 // crash between the two used to leave the only live token consumed and its
 // replacement unborn, which reads as theft and burns every device on the login).
-function writeSessionRow(user, { refreshHash, remember, family, familyCreatedAt, now }) {
+//
+// clientId: null for a browser (cookie) session, the native app's client id for a native one
+// (routes/native.js). It is the session's TRANSPORT, fixed for life: rotation copies it, and
+// migration 024's trigger refuses any UPDATE that would change it.
+function writeSessionRow(user, { refreshHash, remember, family, familyCreatedAt, now, clientId = null }) {
   // JK-A3: "Remember me" used to change cookie persistence only — every session
   // was 30 days server-side. Now the unremembered idle window is SESSION_TTL_MS.
   const ttl = remember ? REFRESH_TTL_MS : SESSION_TTL_MS
@@ -137,9 +141,9 @@ function writeSessionRow(user, { refreshHash, remember, family, familyCreatedAt,
      just below compared the two forms as strings. Migration 020 converted the rows
      that already exist; this stops new ones being written mixed. */
   run(`INSERT INTO sessions (user_id, token_hash, expires_at, remember_me, family_id,
-                             family_created_at, last_used_at, created_at)
-       VALUES (?,?,?,?,?,?,?,${SQL_NOW})`,
-    [user.id, refreshHash, expiresAt, remember ? 1 : 0, family, familyCreatedAt, now])
+                             family_created_at, last_used_at, client_id, created_at)
+       VALUES (?,?,?,?,?,?,?,?,${SQL_NOW})`,
+    [user.id, refreshHash, expiresAt, remember ? 1 : 0, family, familyCreatedAt, now, clientId])
   // Cap active (un-rotated, un-revoked) sessions per user at 10. `, id DESC`
   // is JK-A5: created_at is whole-second, so ten logins in one second tie and
   // SQLite's tiebreak is unspecified — the cap could delete the session it was
@@ -176,14 +180,16 @@ function clearTokens(res) {
 // Find the live (unexpired, un-rotated) refresh-cookie session + its user, or
 // null. The refresh cookie persists for 30 days when "Remember me" was checked;
 // the access JWT expires in 15 min. This is what lets a remembered session be
-// revived after the access token has expired. A rotated token is NOT live.
+// revived after the access token has expired. A rotated token is NOT live, and neither is a
+// NATIVE app's refresh token (client_id set): it was issued to travel in a JSON body, and a
+// copy of it turning up in a cookie is not a browser session.
 function liveSession(req) {
   const refresh = req.cookies?.[REFRESH_COOKIE]
   if (!refresh) return null
   const hash = sha256(refresh)
   // Expiry binds an ISO parameter, never datetime('now') — see parseTs above.
   const session = get(
-    'SELECT * FROM sessions WHERE token_hash=? AND rotated_at IS NULL AND revoked_at IS NULL AND expires_at > ?',
+    'SELECT * FROM sessions WHERE token_hash=? AND client_id IS NULL AND rotated_at IS NULL AND revoked_at IS NULL AND expires_at > ?',
     [hash, nowIso()])
   if (!session) return null
   const user = get('SELECT * FROM users WHERE id=?', [session.user_id])
@@ -204,13 +210,17 @@ function liveSession(req) {
 // crash there consumed the only live refresh token with no successor, which
 // the next request could only read as theft. Cookie writes happen after the
 // transaction commits; token material is generated before it (all sync).
-const _rotateTx = db.transaction((hash, refreshHash, now) => {
+//
+// clientId is the TRANSPORT being claimed through: null for the cookie path, the app's client
+// id for the native one. `client_id IS ?` matches NULL to NULL, so each path can only ever
+// claim its own kind of session (migration 024).
+const _rotateTx = db.transaction((hash, refreshHash, now, clientId) => {
   // Only one caller can flip rotated_at NULL→now: wins the race (S9) and is the
   // gate for reuse detection (S2). rotated_at is now millisecond ISO, so the
   // grace window is no longer measured against a 1-second clock (JK-A11).
   const claim = run(
-    'UPDATE sessions SET rotated_at=?, last_used_at=? WHERE token_hash=? AND rotated_at IS NULL AND revoked_at IS NULL AND expires_at > ?',
-    [now, now, hash, now])
+    'UPDATE sessions SET rotated_at=?, last_used_at=? WHERE token_hash=? AND client_id IS ? AND rotated_at IS NULL AND revoked_at IS NULL AND expires_at > ?',
+    [now, now, hash, clientId, now])
   if (claim.changes !== 1) return { claimed: false }
 
   const session = get('SELECT * FROM sessions WHERE token_hash=?', [hash])
@@ -233,45 +243,33 @@ const _rotateTx = db.transaction((hash, refreshHash, now) => {
     family: session.family_id,
     familyCreatedAt: session.family_created_at || session.created_at,
     now,
+    clientId: session.client_id,
   })
   return { claimed: true, session, user }
 })
 
-function tryRotate(req, res) {
-  const refresh = req.cookies?.[REFRESH_COOKIE]
-  if (!refresh) return { status: 'none' }
-  const hash = sha256(refresh)
-
-  const newRefresh = crypto.randomBytes(64).toString('hex')
-  const now = nowIso()
-  const result = _rotateTx(hash, sha256(newRefresh), now)
-
-  if (result.claimed) {
-    if (result.dead) { clearTokens(res); return { status: 'expired' } }
-    if (result.absolute) {
-      clearTokens(res)
-      logEvent('session_absolute_timeout', result.session.user_id, req, { family: result.session.family_id })
-      return { status: 'expired' }
-    }
-    const { session, user } = result
-    const token = signAccess(user, { azp: provenance(req, redirectFromReq(req)) })
-    const opts = session.remember_me ? { ...COOKIE_OPTS, maxAge: REMEMBER_TTL_MS } : { ...COOKIE_OPTS }
-    res.cookie(TOKEN_COOKIE, token, opts)
-    res.cookie(REFRESH_COOKIE, newRefresh, opts)
-    return { status: 'ok', user }
-  }
-
-  // Claim failed — figure out why.
+// Why did a claim fail? Shared by the cookie path (tryRotate) and the native one
+// (rotateNative) so the two cannot disagree about what is theft. Returns
+//   { status: 'expired' }            unknown, revoked, expired — or the wrong transport
+//   { status: 'race', session }      rotated inside REFRESH_GRACE_MS: a benign double-refresh
+//   { status: 'reuse', session }     rotated long ago and presented again: the family is burned
+function classifyFailedClaim(req, hash, clientId) {
   const session = get('SELECT * FROM sessions WHERE token_hash=?', [hash])
-  if (!session) { clearTokens(res); return { status: 'expired' } }
-  if (session.revoked_at) { clearTokens(res); return { status: 'expired' } }
-  if (parseTs(session.expires_at) <= Date.now()) { clearTokens(res); return { status: 'expired' } }
+  if (!session) return { status: 'expired' }
+  // A token presented through the transport it was NOT issued for is simply not a token
+  // here. Not burned: whoever holds it could burn the family anyway by replaying it
+  // through the right door, and refusing it is enough to make the copy worthless.
+  if ((session.client_id ?? null) !== (clientId ?? null)) {
+    logEvent('refresh_wrong_transport', session.user_id, req, { family: session.family_id, via: clientId ? 'native' : 'cookie' })
+    return { status: 'expired' }
+  }
+  if (session.revoked_at) return { status: 'expired' }
+  if (parseTs(session.expires_at) <= Date.now()) return { status: 'expired' }
 
   // Token exists, not expired, but the claim failed → it was already rotated.
   const rotatedAgoMs = Date.now() - parseTs(session.rotated_at)
   if (rotatedAgoMs >= 0 && rotatedAgoMs <= REFRESH_GRACE_MS) {
-    // Benign concurrent refresh (two tabs / retry): the winner already minted
-    // and Set-Cookie'd a new pair, so DON'T clear cookies — just signal a no-op.
+    // Benign concurrent refresh (two tabs / retry): the winner already minted a new pair.
     //
     // ⚠️ The SESSION comes back with it, and that is not decoration. This
     // response cannot see the winner's `Set-Cookie` — it is a different HTTP
@@ -288,9 +286,82 @@ function tryRotate(req, res) {
   // 30-day token life instead of the old 1-hour prune window (JK-A2).
   run('UPDATE sessions SET revoked_at=?, revoked_reason=? WHERE family_id=? AND revoked_at IS NULL',
     [nowIso(), 'reuse', session.family_id])
+  logEvent('refresh_reuse', session.user_id, req, { family: session.family_id, ...(clientId ? { client_id: clientId } : {}) })
+  return { status: 'reuse', session }
+}
+
+function tryRotate(req, res) {
+  const refresh = req.cookies?.[REFRESH_COOKIE]
+  if (!refresh) return { status: 'none' }
+  const hash = sha256(refresh)
+
+  const newRefresh = crypto.randomBytes(64).toString('hex')
+  const now = nowIso()
+  const result = _rotateTx(hash, sha256(newRefresh), now, null)
+
+  if (result.claimed) {
+    if (result.dead) { clearTokens(res); return { status: 'expired' } }
+    if (result.absolute) {
+      clearTokens(res)
+      logEvent('session_absolute_timeout', result.session.user_id, req, { family: result.session.family_id })
+      return { status: 'expired' }
+    }
+    const { session, user } = result
+    const token = signAccess(user, { azp: provenance(req, redirectFromReq(req)) })
+    const opts = session.remember_me ? { ...COOKIE_OPTS, maxAge: REMEMBER_TTL_MS } : { ...COOKIE_OPTS }
+    res.cookie(TOKEN_COOKIE, token, opts)
+    res.cookie(REFRESH_COOKIE, newRefresh, opts)
+    return { status: 'ok', user }
+  }
+
+  // Claim failed — figure out why. A benign race leaves the cookies alone: the winner
+  // already Set-Cookie'd a new pair into the same jar.
+  const why = classifyFailedClaim(req, hash, null)
+  if (why.status === 'race') return why
   clearTokens(res)
-  logEvent('refresh_reuse', session.user_id, req, { family: session.family_id })
-  return { status: 'reuse' }
+  return { status: why.status }
+}
+
+// The NATIVE twin of tryRotate (routes/native.js, grant_type=refresh_token): the same claim,
+// the same reuse detection, the same absolute cap — but the refresh token arrives in a JSON
+// body and the new pair leaves in one, and only a session issued to `clientId` qualifies.
+// Returns { status: 'ok', user, refresh, family } | { status: 'race' | 'reuse' | 'expired' }.
+//
+// ⚠️ 'race' means something different here than for a browser. Two tabs share one cookie
+// jar, so the loser of a race already holds the winner's tokens. A phone has no jar: the
+// loser of a native race holds a token that is now spent, and if it presents it again after
+// REFRESH_GRACE_MS that is reuse and the device is signed out. The app therefore serialises
+// its refreshes (one Mutex) and treats 409 REFRESH_RACE as a bug report, not a retry signal.
+function rotateNative(req, refresh, clientId) {
+  if (!refresh || !clientId) return { status: 'expired' }
+  const hash = sha256(String(refresh))
+  const newRefresh = crypto.randomBytes(64).toString('hex')
+  const now = nowIso()
+  const result = _rotateTx(hash, sha256(newRefresh), now, clientId)
+  if (result.claimed) {
+    if (result.dead) return { status: 'expired' }
+    if (result.absolute) {
+      logEvent('session_absolute_timeout', result.session.user_id, req, { family: result.session.family_id, client_id: clientId })
+      return { status: 'expired' }
+    }
+    return { status: 'ok', user: result.user, refresh: newRefresh, family: result.session.family_id }
+  }
+  const why = classifyFailedClaim(req, hash, clientId)
+  return { status: why.status }
+}
+
+// Mint a NATIVE session (routes/native.js, grant_type=authorization_code): a remembered
+// session — a phone stays signed in like a "remember me" browser, under the same idle window
+// and absolute cap — whose transport is `clientId`. Returns the raw refresh token (only its
+// hash is stored) and the family, which the code row records so a replayed code can burn it.
+function issueNativeSession(user, clientId) {
+  const refresh = crypto.randomBytes(64).toString('hex')
+  const family = crypto.randomUUID()
+  const now = nowIso()
+  db.transaction(() => {
+    writeSessionRow(user, { refreshHash: sha256(refresh), remember: true, family, familyCreatedAt: now, now, clientId })
+  })()
+  return { refresh, family }
 }
 
 // jkAuth's own app id in the registry, and therefore its own audience. It sits
@@ -305,6 +376,22 @@ function resolveUser(req) {
   try {
     return jwt.verify(token, PUBLIC_KEY,
       { algorithms: ['RS256'], issuer: JWT_ISSUER, audience: SELF_AUD })
+  } catch {
+    return null
+  }
+}
+
+// A USER access token presented as `Authorization: Bearer` — what a native app sends, since
+// it holds no cookie. Same verification as resolveUser, plus: a service token (typ:'service',
+// a client-credentials grant with no human behind it) is not a user and is refused here, so
+// a backend's service token can never pass a gate that asks "which person is this?".
+function resolveBearerUser(req) {
+  const auth = req.headers?.authorization
+  if (!auth || !auth.startsWith('Bearer ') || !PUBLIC_KEY) return null
+  try {
+    const p = jwt.verify(auth.slice(7).trim(), PUBLIC_KEY,
+      { algorithms: ['RS256'], issuer: JWT_ISSUER, audience: SELF_AUD })
+    return p.typ === 'service' || p.pending_2fa ? null : p
   } catch {
     return null
   }
@@ -418,6 +505,7 @@ function sessionFamilies(userId, currentFamily = null) {
             MAX(remember_me)                             AS remember_me,
             MAX(CASE WHEN revoked_at IS NULL THEN 0 ELSE 1 END) AS revoked,
             MAX(COALESCE(revoked_reason, ''))            AS revoked_reason,
+            MAX(client_id)                               AS client_id,
             COUNT(*)                                     AS rotations
        FROM sessions WHERE user_id=? AND family_id IS NOT NULL
       GROUP BY family_id ORDER BY last_used_at DESC`, [userId],
@@ -428,6 +516,8 @@ function sessionFamilies(userId, currentFamily = null) {
     remember_me: !!r.remember_me,
     revoked: !!r.revoked,
     revoked_reason: r.revoked_reason || null,
+    // The native app this login is (its client id), or null for a browser.
+    client_id: r.client_id || null,
     rotations: r.rotations,
     current: r.family_id === currentFamily,
   }))
@@ -449,5 +539,6 @@ function publicUser(u) {
 module.exports = {
   DUMMY_HASH, sha256, signAccess, signService, issueTokens, clearTokens,
   liveSession, tryRotate, resolveUser, resolveOrRefresh, publicUser,
+  rotateNative, issueNativeSession, resolveBearerUser,
   signPending, verifyPending, provenance, sessionFamilies, currentFamilyOf,
 }

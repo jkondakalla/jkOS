@@ -99,6 +99,11 @@ app.use('/auth/token', mkLimiter(RL_CREDENTIALS))
 app.use('/auth/password', mkLimiter(RL_CREDENTIALS))
 app.use('/auth/reset', mkLimiter(RL_CREDENTIALS))
 app.use('/auth/verify', mkLimiter(RL_CREDENTIALS))
+// Native sign-in (routes/native.js). The token endpoint is a phone's refresh path — one
+// call per access-token lifetime per device — so it shares refresh's budget. The consent
+// POST mints codes and sits on the credential budget; its GET (the page) is never counted.
+app.use(['/auth/native/token', '/auth/native/revoke'], mkLimiter(RL_REFRESH))
+app.use('/auth/native/authorize', mkLimiter(RL_CREDENTIALS))
 
 // Security headers on every dynamic response (static assets are served above and
 // stay cacheable): clickjacking defence + nosniff + a tight referrer policy +
@@ -138,6 +143,7 @@ app.use(require('./routes/twofactor'))
 app.use(require('./routes/account'))
 app.use(require('./routes/profile'))
 app.use(require('./routes/weave'))
+app.use(require('./routes/native'))
 
 app.get('/health', healthHandler('jkauth'))
 

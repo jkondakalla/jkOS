@@ -198,7 +198,7 @@ function securityPage(user, info = {}, opts = {}) {
     : devices.map((d) => `
       <div class="sec-device">
         <p class="muted-note">
-          ${d.current ? '<strong>This device</strong> · ' : ''}${d.revoked
+          ${d.current ? '<strong>This device</strong> · ' : ''}${d.client_id ? `app <strong>${escHtml(d.client_id)}</strong> · ` : ''}${d.revoked
             ? `signed out (${escHtml(d.revoked_reason || 'revoked')})`
             : `last used ${escHtml(fmt(d.last_used_at))}`}
           · started ${escHtml(fmt(d.created_at))}
@@ -484,7 +484,40 @@ tzSel.addEventListener('change', saveTz);
 </script>`)
 }
 
+// Native sign-in consent (routes/native.js). The app is named by what jkAuth's own list says
+// it is — never by anything the request supplied — and the page says who is signing in, so a
+// person signed in as the wrong account sees it before a code is minted. `consent` is the
+// signed ticket binding this exact request (user, client, redirect, challenge, state).
+function nativeConsentPage({ appName, user, consent, environment }) {
+  return layout('Sign in to an app', `
+<div class="card jk-ink-in">
+  <h1 class="wordmark">jk<span>OS</span></h1>
+  <p class="subtitle">Sign in to <strong>${escHtml(appName)}</strong></p>
+  <p class="muted-note">${escHtml(appName)} will act as <strong>${escHtml(user.email)}</strong>
+    (${escHtml(user.role)}) on ${escHtml(environment)} until you sign it out, here or in the app.</p>
+  <form method="POST" action="/auth/native/authorize">
+    <input type="hidden" name="consent" value="${escHtml(consent)}">
+    <button type="submit" name="decision" value="allow" class="btn-primary">Allow</button>
+    <button type="submit" name="decision" value="deny" class="btn-ghost">Cancel</button>
+  </form>
+  <p class="toggle">Not you? <a href="/auth/security">Your account</a></p>
+</div>`)
+}
+
+// A native sign-in request jkAuth will not honour. Deliberately a dead end: when the client
+// or its redirect URI is unknown there is nowhere safe to send the browser back to.
+function nativeErrorPage(message) {
+  return layout('Sign-in refused', `
+<div class="card jk-ink-in">
+  <h1 class="wordmark">jk<span>OS</span></h1>
+  <p class="subtitle">This app's sign-in request was refused</p>
+  <p class="error">${escHtml(message)}</p>
+  <p class="muted-note">Close this tab and try signing in from the app again.</p>
+</div>`)
+}
+
 module.exports = {
+  nativeConsentPage, nativeErrorPage,
   layout, loginPage, dashboardPage,
   twoFactorPage, securityPage, totpSetupPage, recoveryCodesPage,
   forgotPage, resetPage, verifyEmailPage,
