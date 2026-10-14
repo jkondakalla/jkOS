@@ -6,3 +6,4 @@ export { validateWidget } from './validate.js'
 // a new file breaks every consumer's injected copy until a reinstall (TRAPS.md).
 export { walkNodes, sourcesOf, appsOf, actionsOf } from './walk.js'
 export { safeHref } from './href.js'
+export { routeProblem, routeParams, matchRoute, fillRoute, routeTable, pageFor } from './routes.js'

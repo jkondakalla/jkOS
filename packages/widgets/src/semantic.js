@@ -21,6 +21,7 @@
 
 import { NODES, FRAME, ACTIONS, childProps } from './manifest.js'
 import { CONDITIONS } from '@jkos/weave/binding'
+import { routeParams } from './routes.js'
 
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v)
 const esc = (k) => String(k).replace(/~/g, '~0').replace(/\//g, '~1')
@@ -114,7 +115,7 @@ const JOB = fieldsShape([
  * @param {{ docs?: Record<string, { capabilities?: { capabilities: object[] }, datasets?: { datasets: object[] } }>,
  *           slices?: Record<string, object> }} ctx
  */
-export function checkBindings(def, { docs = {}, slices = {}, actions = {} } = {}) {
+export function checkBindings(def, { docs = {}, slices = {}, actions = {}, pages } = {}) {
   const out = []
   const err = (path, code, message, fix) => out.push(fix ? { path, code, message, fix } : { path, code, message })
   const spec = def?.spec
@@ -124,6 +125,8 @@ export function checkBindings(def, { docs = {}, slices = {}, actions = {} } = {}
   const scope = new Map()
   for (const [name, f] of Object.entries(slices)) scope.set(name, shapeOfField({ ...f, name }, docs))
   scope.set('$now', SCALAR)
+  // A page reads its route's params; any other widget has no route to read.
+  if (typeof def.route === 'string') scope.set('$route', fieldsShape(routeParams(def.route).map((name) => ({ name, type: 'string' }))))
   const sources = isObj(spec.sources) ? spec.sources : {}
   const sourceStates = new Map()
   for (const [name, s] of Object.entries(sources)) {
@@ -298,6 +301,8 @@ export function checkBindings(def, { docs = {}, slices = {}, actions = {} } = {}
         const produced = checkHostAction(a, p)
         here = new Map(here)
         here.set('$result', produced)
+      } else if ('go' in a) {
+        checkGo(a, p)
       }
       for (const [name, spec_] of Object.entries(ACTIONS[Object.keys(a).find((k) => ACTIONS[k])]?.props ?? {})) {
         if (spec_.type === 'params' && isObj(a[name])) for (const [k, b] of Object.entries(a[name])) checkBinding(b, `${p}/${esc(name)}/${esc(k)}`, here)
@@ -325,6 +330,20 @@ export function checkBindings(def, { docs = {}, slices = {}, actions = {} } = {}
     }
     for (const f of args.values()) if (f.required && !(f.name in given)) err(`${p}/with`, 'missing-field', `${a.do} requires '${f.name}', and nothing binds it`)
     return Array.isArray(decl.returns) ? fieldsShape(decl.returns) : ANY
+  }
+
+  /* A `go`: its params fill exactly the route's :params, and — given the app's pages
+     (ctx.pages, every route its page widgets declare) — the route is one of them. */
+  function checkGo(a, p) {
+    if (typeof a.go !== 'string') return
+    if (Array.isArray(pages) && !pages.includes(a.go)) {
+      const near = nearest(a.go, pages)
+      err(`${p}/go`, 'undeclared', `no page of this app answers ${a.go}`, near ? `did you mean ${JSON.stringify(near)}?` : pages.length ? `its pages: ${pages.join(', ')}` : 'this app has no pages yet — a page is a widget file with a `route`')
+    }
+    const want = routeParams(a.go)
+    const given = isObj(a.params) ? a.params : {}
+    for (const k of Object.keys(given)) if (!want.includes(k)) err(`${p}/params/${esc(k)}`, 'undeclared', `${a.go} has no :${k}`, want.length ? `its params: ${want.join(', ')}` : 'it takes none')
+    for (const k of want) if (!(k in given)) err(`${p}/params`, 'missing-param', `${a.go} needs a value for :${k}`)
   }
 
   const visit = (node, at, sc, guards = new Set()) => {

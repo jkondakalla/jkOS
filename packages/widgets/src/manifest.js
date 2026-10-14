@@ -35,6 +35,7 @@
  *   events    `on`: the node's events (its manifest `events`) → an action or a list of them
  *   params    a map of name → literal or Binding (a dataset's params, an action's arguments)
  *   action    the name of an action the HOST declares, `<engine>.<verb>` ("player.play")
+ *   route     a route pattern — a page's path, "/books/:id" (routes.js)
  */
 
 /** The status palette a tone names. Semantic constants, never accent-derived (DESIGN §2). */
@@ -72,6 +73,14 @@ export const ACTIONS = {
       with: { type: 'params', doc: "its arguments, by the names the host declares — each a literal or a binding" },
     },
     example: { do: 'focus.clear' },
+  },
+  go: {
+    label: 'Go', hint: "navigate to a page of this app — a route one of its page widgets declares",
+    props: {
+      go: { type: 'route', required: true, doc: 'the route pattern, exactly as the page declares it ("/books/:id")' },
+      params: { type: 'params', doc: 'a value for each of its :params — each a literal or a binding' },
+    },
+    example: { go: '/books/:id', params: { id: { src: '$', path: 'id' } } },
   },
   set: {
     label: 'Set state', hint: "write one of this widget's own state variables",

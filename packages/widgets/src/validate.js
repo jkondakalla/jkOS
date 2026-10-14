@@ -15,10 +15,11 @@
 
 import { NODES, FRAME, SOURCES, ACTIONS, STATE_TYPES, TONES, ICON_NAMES, RETIRED_COMPONENTS, TIER_COLS, LIMITS, childProps } from './manifest.js'
 import { safeHref } from './href.js'
+import { routeProblem } from './routes.js'
 import { FORMATS, CONDITIONS } from '@jkos/weave/binding'
 
 const ID_RE = new RegExp(LIMITS.ID_PATTERN)
-const DEF_KEYS = ['id', 'label', 'sizing', 'spec', 'refreshMs', 'allowed_roles']
+const DEF_KEYS = ['id', 'label', 'sizing', 'route', 'spec', 'refreshMs', 'allowed_roles']
 const SPEC_KEYS = ['frame', 'sources', 'state', 'body']
 const IDENT = /^[A-Za-z_][A-Za-z0-9_]*$/
 /** A host action's name: the engine, then the verb ("player.play", "focus.clear"). */
@@ -157,6 +158,13 @@ export function validateWidget(def, ctx = {}) {
     err('/allowed_roles', 'bad-type', 'allowed_roles must be an array of role names or a comma string')
   }
 
+  if (def.route !== undefined) {
+    const why = routeProblem(def.route)
+    if (why) err('/route', 'bad-route', why)
+    // A page is a screen its app draws at a path — never a card placed on the HUD.
+    if (def.sizing !== undefined) err('/route', 'conflict', 'a page (route) is a screen, not a HUD card (sizing) — it takes one or the other')
+    if (ctx.published) err('/route', 'unpublishable', "a page is one app's screen — a published widget is a HUD card", 'keep this page as a file in its app')
+  }
   if (def.sizing !== undefined) checkSizing(def.sizing, err)
   else if (ctx.published) err('/sizing', 'missing-prop', 'a published widget is placed on the HUD: sizing is required — { desktop: {w,h}, mobile: {w,h}, tablet?, min? }')
 
@@ -189,6 +197,9 @@ function checkPublished(spec, err) {
     }
     if (typeof v.t === 'string' && NODES[v.t]?.kind === 'molecule') {
       err(path, 'unpublishable', `a ${v.t} is drawn by its host from the host's own state — a published widget cannot carry one`, 'keep this widget as a file in its app')
+    }
+    if (typeof v.go === 'string') {
+      err(path, 'unpublishable', `go ${JSON.stringify(v.go)} navigates one app's pages — a published widget is a HUD card, and links out with an href`, 'a `link` or a frame `href`')
     }
     if (typeof v.do === 'string') {
       err(path, 'unpublishable', `${JSON.stringify(v.do)} is an action of one host's engine — a published widget runs only declared capabilities`, '{ "run": { app, capability } }, or keep this widget as a file in its app')
@@ -458,6 +469,11 @@ function checkProps(obj, props, path, err, reserved = [], events = {}) {
       case 'action':
         if (typeof v !== 'string' || !ACTION_NAME.test(v)) err(here, 'bad-type', `${name} names a host action as <engine>.<verb> ("player.play")`)
         break
+      case 'route': {
+        const why = routeProblem(v)
+        if (why) err(here, 'bad-route', why)
+        break
+      }
       case 'enum':
         if (!p.values.includes(v)) {
           const near = typeof v === 'string' ? nearest(v, p.values) : null

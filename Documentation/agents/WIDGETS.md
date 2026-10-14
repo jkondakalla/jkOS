@@ -111,7 +111,8 @@ deployment), `authUrl`, `aiEnabled`. Their fields are declared in `hud/slices.ts
 Reserved names in scope: `$` (the row, inside a list pattern), `$sources.<name>.state`
 (`ready`/`empty`/`idle`/`signed-out`/`forbidden`/`offline`/`unavailable`), `$now` (the
 clock's instant — what `fmt: "ago"` measures against), `$state` (the widget's own
-variables, §6b), and in a command's result slot (or after a `run`) `$result` and `$job`.
+variables, §6b), `$route` (a page's route params, §6c), and in a command's result slot
+(or after a `run` or a `do`) `$result` and `$job`.
 
 **Declare first.** A widget can only bind what its app declares, so a card that needs a
 field the dataset does not declare is a Weave change in that app (`discovery.js` /
@@ -182,6 +183,7 @@ command succeeded, read as `$result`). Each event runs one action or an ordered 
 | Action | Does |
 |---|---|
 | `{ "run": { app, capability, body? } }` | a capability its app declares — an async one is followed to its end. A failure stops the rest; the actions after it read what it produced as `$result` |
+| `{ "go": "/books/:id", "params": { "id": … } }` | navigate to a page of this app (§6c) — the route exactly as the page declares it, a value for each `:param` |
 | `{ "do": "focus.clear", "with"?: { … } }` | an action its **host** declares — an engine the app runs in the page (the player, focus). What it returns is `$result` after it |
 | `{ "set": "q", "to": <binding> }` | write a state variable — `{ "not": { "src": "$state", "path": "open" } }` flips a flag |
 
@@ -200,6 +202,23 @@ not implemented or the reverse. The second tier checks a `do` against the declar
 it exists, takes the arguments given, gets each one it requires. A `do` its host does
 not implement fails the chain with "<name> is not available here". A published widget
 fires none — a host action is one host's engine, not a server contract.
+
+## 6c · Pages and routes
+
+A widget with a top-level `"route": "/books/:id"` is a **page**: the app it belongs to
+draws it when the location matches, and its params are in scope as `$route`
+(`{ "src": "$route", "path": "id" }`). A page is a screen, so it has no `sizing` (never
+both), and it is never published. Route syntax: `/`, or `/`-separated lowercase
+literals and `:params`, no trailing `/`.
+
+An app's route table is **derived from its files** — each page says its own route
+(`@jkos/widgets` `routeTable`; the gate refuses two pages that answer the same paths).
+`matchRoute`, `fillRoute` and `pageFor` (the most literal route wins: `/books/new` over
+`/books/:id`) are the one way a path meets a route, for the renderer and a host's router
+alike. A host that routes passes `navigate` and the matched `route` params on its
+`WidgetHost`; in one that does not, a `go` stops its chain with "navigation is not
+available here". The second tier checks a `go` against the app's pages and the route's
+own `:params` — every one filled, nothing else.
 
 **AI.** A widget that reaches an app declared `ai` (LazurOS) is AI-backed: the suite's kill
 switch hides it from the shelf and turns a placed one into an "AI is off" tile. That is

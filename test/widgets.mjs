@@ -78,12 +78,21 @@ for (const w of shipped) {
 }
 const CTX = { suiteHosts: suiteHosts() };
 const DECLS = await declarations();
-for (const { where, def } of shipped.filter((w) => w.def)) {
+// Each app's pages, derived from its files (a widget with a `route`): one route per page,
+// and no two answering the same paths — what a `go` in that app is checked against.
+const { routeTable } = await import(WIDGETS);
+const PAGES = {};
+for (const app of new Set(shipped.map((w) => w.app))) {
+  const table = routeTable(shipped.filter((w) => w.app === app && w.def).map((w) => w.def));
+  check(table.problems.length === 0, `${app}'s pages answer distinct paths${table.problems.length ? ` — ${table.problems.join('; ')}` : ''}`);
+  PAGES[app] = [...table.routes.keys()];
+}
+for (const { where, app, def } of shipped.filter((w) => w.def)) {
   const errs = validateWidget(def, CTX);
   check(errs.length === 0, `${where} is a valid widget${errs.length ? ` — ${fmt(errs)}` : ''}`);
   // The second tier: every binding, source and command against what its app declares
   // (and ORDECK's typed slice declaration) — a field nobody declares draws an empty string.
-  const t2 = errs.length ? [] : checkBindings(def, DECLS);
+  const t2 = errs.length ? [] : checkBindings(def, { ...DECLS, pages: PAGES[app] });
   check(t2.length === 0, `${where} binds only what its apps declare${t2.length ? ` — ${fmt(t2)}` : ''}`);
 }
 

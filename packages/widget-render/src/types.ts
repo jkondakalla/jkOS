@@ -87,6 +87,9 @@ export interface WidgetSizing {
 export interface WidgetDef {
   id: string;
   label: string;
+  /** A PAGE's route ("/books/:id"): a host that routes draws it at a matching path, with
+   *  the params as `$route` (@jkos/widgets routes.js). A page has no `sizing`. */
+  route?: string;
   /** Its footprint on a placement grid (ORDECK's HUD). A widget that is not placed — a
    *  screen, or a part another widget `use`s — has none; a HUD card always does (the
    *  catalog and jkAuth's publish keep a sizing-less widget off the HUD). */

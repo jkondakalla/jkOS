@@ -8,6 +8,9 @@ export interface Declarations {
   slices?: Record<string, object>;
   /** The host's action declaration (ORDECK: HUD_ACTIONS): name → { args?, returns? }. */
   actions?: Record<string, { label?: string; args?: { name: string; type: string; required?: boolean }[]; returns?: { name: string; type: string }[] }>;
+  /** The routes of the widget's app's pages (routeTable over its files). Omitted: a `go`'s
+   *  route is not checked against them, only its params against its own pattern. */
+  pages?: string[];
 }
 
 /** Problems (JSON Pointer + code + message + fix?) — [] when every binding reaches a declaration. */

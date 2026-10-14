@@ -14,13 +14,14 @@
 // 3. The walker finds every source a def binds, skips command bodies only when asked,
 //    and sees the slice a molecule reads without a binding.
 // 4. safeHref: the href rule the validator and the renderer share.
-import { NODES, FRAME, KINDS, LIMITS, TONES, ACTIONS, childProps, validateWidget, sourcesOf, walkNodes, safeHref, appsOf } from '../src/index.js'
+import { NODES, FRAME, KINDS, LIMITS, TONES, ACTIONS, childProps, validateWidget, sourcesOf, walkNodes, safeHref, appsOf,
+  routeProblem, matchRoute, fillRoute, routeTable, pageFor } from '../src/index.js'
 import { checkBindings } from '../src/semantic.js'
 
 let pass = 0, fail = 0
 const ok = (cond, msg, extra = '') => { if (cond) { pass++; console.log(`  ✓ ${msg}`) } else { fail++; console.error(`  ✗ ${msg} ${extra}`) } }
 
-const PROP_TYPES = new Set(['binding', 'tone', 'number', 'boolean', 'string', 'enum', 'field', 'cmd', 'pairs', 'node', 'nodes', 'state', 'events', 'params', 'action'])
+const PROP_TYPES = new Set(['binding', 'tone', 'number', 'boolean', 'string', 'enum', 'field', 'cmd', 'pairs', 'node', 'nodes', 'state', 'events', 'params', 'action', 'route'])
 const sizing = { desktop: { w: 3, h: 3 }, mobile: { w: 2, h: 3 } }
 const def = (body, extra = {}) => ({ id: 'probe', label: 'Probe', sizing, spec: { body }, ...extra })
 const problems = (d) => validateWidget(d)
@@ -323,6 +324,41 @@ ok(t2({ sources: HOME, body: recent({ empty: 'Nothing yet.' }) }).length === 0, 
 ok(t2({ sources: HOME, body: { t: 'when', cond: { src: 'h', path: 'recent' }, then: recent(), else: { t: 'text', text: 'Nothing yet.' } } }).length === 0, '…as does one under a `when` on that same list')
 ok(t2has({ sources: HOME, body: { t: 'when', cond: { src: 'h', path: 'recent' }, then: { t: 'text', text: 'x' }, else: recent() } }, '/spec/body/else/empty', 'silent-empty'), "…but not one in the `when`'s else")
 ok(t2(ROWS).length === 0, "a list that IS its source (a 'many' dataset) needs no `empty` of its own — the frame draws an empty source")
+
+console.log('3e · routes — a page, its $route, and go')
+for (const r of ['/', '/books', '/books/:id', '/a/:x/b/:y', '/v1.2/x_y-z']) ok(routeProblem(r) === null, `${r} is a route`)
+for (const r of ['books', '/books/', '/Books', '/a//b', '/:id/:id', '/a b', 7]) ok(routeProblem(r) !== null, `${JSON.stringify(r)} is not`)
+ok(JSON.stringify(matchRoute('/books/:id', '/books/a%20b')) === '{"id":"a b"}', 'matchRoute: a param is decoded')
+ok(JSON.stringify(matchRoute('/books/:id', '/books/7/?x=1#y')) === '{"id":"7"}', 'matchRoute: the query, the hash and one trailing / are ignored')
+ok(matchRoute('/books/:id', '/books') === null && matchRoute('/books/:id', '/albums/7') === null, 'matchRoute: a different shape or literal does not match')
+ok(JSON.stringify(matchRoute('/', '/')) === '{}', 'matchRoute: the root matches the root')
+ok(fillRoute('/books/:id', { id: 'a/b c' }) === '/books/a%2Fb%20c', 'fillRoute: a param is encoded — it can never add a segment')
+ok(fillRoute('/books/:id', {}) === null && fillRoute('/books/:id', { id: '' }) === null, 'fillRoute: a missing param builds no path (never /books/undefined)')
+const RT = routeTable([{ id: 'home', route: '/' }, { id: 'book', route: '/books/:id' }, { id: 'new', route: '/books/new' }, { id: 'card' }])
+ok(RT.problems.length === 0 && RT.routes.size === 3, 'routeTable: every page by its route; a widget with no route is no page')
+ok(routeTable([{ id: 'a', route: '/books/:id' }, { id: 'b', route: '/books/:slug' }]).problems.length === 1, 'routeTable: two patterns that answer the same paths conflict')
+ok(pageFor(RT.routes, '/books/new')?.id === 'new' && pageFor(RT.routes, '/books/9')?.params.id === '9', 'pageFor: the most literal route wins, whatever order the files came in')
+ok(pageFor(RT.routes, '/nowhere') === null, 'pageFor: a path no page answers is null')
+const page = (body, extra = {}) => ({ id: 'book', label: 'Book', route: '/books/:id', spec: { body }, ...extra })
+ok(problems(page({ t: 'text', text: { src: '$route', path: 'id' } })).length === 0, 'a page declares its route')
+ok(problems(page({ t: 'text', text: 'x' }, { route: '/books/' })).some((p) => p.path === '/route' && p.code === 'bad-route'), '…a real one')
+ok(problems(page({ t: 'text', text: 'x' }, { sizing })).some((p) => p.path === '/route' && p.code === 'conflict'), 'a page is a screen, not a HUD card — never both route and sizing')
+ok(validateWidget(page({ t: 'text', text: 'x' }), { published: true }).some((p) => p.path === '/route' && p.code === 'unpublishable'), 'a page is never published')
+const goTo = (a) => ({ t: 'button', text: 'OPEN', on: { press: a } })
+ok(problems(withState(goTo({ go: '/books/:id', params: { id: 7 } }))).length === 0, 'a button may go to a page')
+ok(sHas(goTo({ go: 'books' }), '/spec/body/on/press/go', 'bad-route'), '…by a route pattern')
+ok(pubHas({ body: goTo({ go: '/books/:id', params: { id: 7 } }) }, '/spec/body/on/press', 'unpublishable'), 'a published widget does not go — it links out with an href')
+const PAGES = ['/', '/books/:id']
+const t2p = (spec, extra = {}) => checkBindings({ id: 'p', ...extra, spec }, { docs: DOCS, slices: SLICES, pages: PAGES })
+const t2pHas = (spec, path, code, extra) => t2p(spec, extra).some((p) => p.path === path && p.code === code)
+ok(t2p({ body: { t: 'text', text: { src: '$route', path: 'id' } } }, { route: '/books/:id' }).length === 0, "a page reads its route's params as $route")
+ok(t2pHas({ body: { t: 'text', text: { src: '$route', path: 'slug' } } }, '/spec/body/text', 'undeclared-path', { route: '/books/:id' }), '…only the ones its route names')
+ok(t2pHas({ body: { t: 'text', text: { src: '$route', path: 'id' } } }, '/spec/body/text', 'unknown-source'), 'a widget that is no page has no $route')
+ok(t2p({ body: goTo({ go: '/books/:id', params: { id: 7 } }) }).length === 0, 'a go to a page its app has passes')
+ok(t2pHas({ body: goTo({ go: '/book/:id', params: { id: 7 } }) }, '/spec/body/on/press/go', 'undeclared'), 'a go to a route no page answers is refused…')
+ok(t2p({ body: goTo({ go: '/book/:id', params: { id: 7 } }) })[0]?.fix === 'did you mean "/books/:id"?', '…naming the likely one')
+ok(t2pHas({ body: goTo({ go: '/books/:id' }) }, '/spec/body/on/press/params', 'missing-param'), 'a go fills every :param of its route')
+ok(t2pHas({ body: goTo({ go: '/books/:id', params: { id: 7, page: 2 } }) }, '/spec/body/on/press/params/page', 'undeclared'), '…and nothing else')
 
 console.log('4 · the href rule')
 for (const h of ['https://x.test/', '/widgets', 'mailto:a@b.test', '#top']) ok(safeHref(h) === h, `keeps ${JSON.stringify(h)}`)

@@ -9,6 +9,8 @@ export type WidgetAction =
   | { run: CommandRef }
   /** Host action — an action its HOST declares — an engine the app runs in the page (the player, focus…). */
   | { do: string; with?: Record<string, Binding> }
+  /** Go — navigate to a page of this app — a route one of its page widgets declares. */
+  | { go: string; params?: Record<string, Binding> }
   /** Set state — write one of this widget's own state variables. */
   | { set: string; to: Binding };
 

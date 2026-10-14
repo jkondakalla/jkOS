@@ -29,7 +29,7 @@ import type { ActionChain, Binding, CommandRef, HostKind, IconName, Tone, ToneBi
 import { useDataSources, cardState, type CardState } from './sources';
 import './widgets.css';
 import { TONE_COLOR } from './tone';
-import { safeHref, sourcesOf } from '@jkos/widgets';
+import { fillRoute, safeHref, sourcesOf } from '@jkos/widgets';
 import { usesAi } from './ai';
 import { Field, SelectField, Check, AsyncView } from '@jkos/ui';
 import { WidgetBoundary } from './boundary';
@@ -58,6 +58,11 @@ export interface WidgetHost {
    *  implementation or implemented without a declaration. What one returns is `$result`
    *  to the actions after it. */
   actions?: Readonly<Record<string, HostActionFn>>;
+  /** Go to a path in this host (its router). A host that routes passes it; without it a
+   *  `go` fails its chain ("navigation is not available here"). */
+  navigate?: (path: string) => void;
+  /** The params of the route the page being drawn matched (pageFor) — `$route`. */
+  route?: Readonly<Record<string, string>>;
 }
 
 /** One field of a host action's declaration — the field vocabulary a dataset uses. */
@@ -631,6 +636,13 @@ function useActions() {
           return false;
         }
         if (ac.signal.aborted) return false;
+      } else if ('go' in a) {
+        const path = fillRoute(a.go, Object.fromEntries(Object.entries(a.params ?? {}).map(([k, b]) => [k, resolve(b, here)])));
+        if (!host?.navigate || path == null) {
+          setStatus('err'); setError(!host?.navigate ? 'navigation is not available here' : `${a.go}: a param has no value`);
+          return false;
+        }
+        host.navigate(path);
       } else if ('run' in a) {
         const o = await runToEnd(a.run, here, ac.signal);
         if (ac.signal.aborted) return false;
@@ -929,7 +941,7 @@ function SpecWidget({ spec, host }: { spec: WidgetSpec; host: WidgetHost }) {
   const stateCtx = useMemo(() => ({ values: vars_, set: setVar }), [vars_, setVar]);
   // The host's slices are in scope by name, `$now` is this instant (what `fmt: 'ago'`
   // measures against), and `$state` is this instance's.
-  const base: Scope = { ...host.slices, $now: host.now, $state: vars_ };
+  const base: Scope = { ...host.slices, $now: host.now, $state: vars_, $route: host.route ?? {} };
   // Each declared source by name, and `$sources.<name>.state` beside it — ready, empty,
   // loading, signed-out, offline… (./sources.ts), so a card can tell "nothing" from "down".
   const { data, status } = useDataSources(spec.sources, base);
