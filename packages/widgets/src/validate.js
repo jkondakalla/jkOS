@@ -480,6 +480,9 @@ function checkProps(obj, props, path, err, reserved = [], events = {}) {
       case 'state':
         if (typeof v !== 'string' || !IDENT.test(v)) err(here, 'bad-type', `${name} names a state variable (an identifier, declared in spec.state)`)
         break
+      case 'source':
+        if (typeof v !== 'string' || !IDENT.test(v)) err(here, 'bad-type', `${name} names one of the widget's sources (spec.sources)`)
+        break
       case 'params':
         if (!isObj(v)) { err(here, 'bad-type', `${name} maps a name to a literal or a binding`); break }
         for (const [k, b] of Object.entries(v)) {

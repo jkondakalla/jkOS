@@ -40,17 +40,19 @@ export type WidgetNode =
   /** Key / value — name left, value right. */
   | { t: 'keyval'; label: Binding; value: Binding; tone?: ToneBinding }
   /** List — repeat a template over an array. */
-  | { t: 'list'; /** the array; each element is `$` inside `item` */ from: Binding; item: WidgetNode; /** shown when the array is empty */ empty?: Binding; dir?: 'col' | 'row'; /** wraps a column list into an N-column grid (dense fact lists) */ cols?: number }
+  | { t: 'list'; /** the array; each element is `$` inside `item` */ from: Binding; item: WidgetNode; /** shown when the array is empty */ empty?: Binding; /** rail: a horizontal strip that scrolls and snaps, each item a wide card (a run, a station) */ dir?: 'col' | 'row' | 'rail'; /** wraps a column list into an N-column grid (dense fact lists) */ cols?: number; /** items drawn; the rest are left off (the first four sleeves of a set) */ max?: number }
   /** Status pill — small coloured badge. */
   | { t: 'pill'; text: Binding; tone?: ToneBinding }
   /** Status dot — coloured indicator. */
   | { t: 'dot'; tone?: ToneBinding; pulse?: boolean }
   /** Text — heading or body line. */
-  | { t: 'text'; text: Binding; /** note: the suite's set, italic off-state voice (a signed-out or empty line) */ variant?: 'title' | 'body' | 'sub' | 'mono' | 'note'; /** take the remaining width and ellipsize */ grow?: boolean }
+  | { t: 'text'; text: Binding; /** page: a screen's own heading; note: the suite's set, italic off-state voice (a signed-out or empty line) */ variant?: 'page' | 'title' | 'body' | 'sub' | 'mono' | 'note'; /** take the remaining width and ellipsize */ grow?: boolean }
   /** Eyebrow label — small uppercase caption. */
   | { t: 'label'; text: Binding; size?: 'md' | 'sm' | 'xs' }
   /** Icon — a line glyph (sun, check, book…). */
   | { t: 'icon'; /** one of ICON_NAMES */ name: Binding; tone?: ToneBinding; size?: number }
+  /** Cover — a square of art (round for a person), with the suite's one fallback. */
+  | { t: 'cover'; /** the art (an http(s) or relative URL); none, or one that fails to load, draws the fallback */ image?: Binding; /** whose art it is: the fallback shows its first letter, and it is the image's alt text */ name?: Binding; /** round for a person (an artist), square for a work — a binding, so a row can say which */ shape?: Binding }
   /** Divider — rule, optional caption. */
   | { t: 'divider'; label?: Binding }
   /** Link button — opens a URL. */
@@ -63,6 +65,10 @@ export type WidgetNode =
   | { t: 'stack'; gap?: number; grow?: boolean; /** distributes children along the column (space-between pins the last to the bottom edge) */ justify?: 'flex-start' | 'flex-end' | 'center' | 'space-between' | 'space-around' | 'space-evenly' | 'start' | 'end'; children: WidgetNode[] }
   /** Use — draw another widget here, handing it its inputs. */
   | { t: 'use'; /** the part's id — a widget file in this app (or the suite) */ widget: string; /** its inputs, by the names it declares (spec.inputs) — each a literal or a binding; it reads them as $in */ with?: Record<string, Binding> }
+  /** Section — a titled group: a heading, a note, an "All →" link, and what it holds. */
+  | { t: 'section'; title: Binding; /** small, at the end of the head ("matched by sound") */ note?: Binding; /** a link at the end of the head ("All") — with `href` */ more?: Binding; /** where `more` goes */ href?: Binding; children: WidgetNode[] }
+  /** Await — where a source's loading, offline and empty states are drawn — the rest of the screen stays. */
+  | { t: 'await'; /** the source whose states this draws (the frame then leaves them to it) */ src: string; /** drawn once the source has answered something */ then: WidgetNode; /** what it says when the source answered nothing */ empty?: Binding }
   /** Condition — show a branch only when true. */
   | { t: 'when'; /** truthy → then; [] "" 0 "false" "0" are falsy */ cond: Binding; then: WidgetNode; else?: WidgetNode }
   /** Calendar — month grid (cal slice). Reads `cal`. */
@@ -76,11 +82,13 @@ export type WidgetNode =
   /** Stat — one headline number, with its context. */
   | { t: 'stat'; value: Binding; /** what the number is, above it */ label?: Binding; unit?: Binding; /** the change, beside it ("+3", "−12%") */ delta?: Binding; deltaTone?: ToneBinding; /** one line of context under it */ sub?: Binding; /** an array to draw as a sparkline under it */ trend?: Binding; /** plucks the number from each trend element */ trendPath?: string }
   /** Meter — a labelled bar: how far along. */
-  | { t: 'meter'; value: Binding; /** default 1 (value is a fraction) */ max?: Binding; label?: Binding; /** right of the label ("3 / 5", "60%") */ detail?: Binding; /** the fill (default the accent) */ tone?: ToneBinding }
+  | { t: 'meter'; /** the meter links here */ href?: Binding; value: Binding; /** default 1 (value is a fraction) */ max?: Binding; label?: Binding; /** right of the label ("3 / 5", "60%") */ detail?: Binding; /** the fill (default the accent) */ tone?: ToneBinding }
   /** Rows — a dense list: mark · lead · title · detail. */
   | { t: 'rows'; /** the rows; every per-row prop below binds into `$` */ from: Binding; title: Binding; /** a short leading column (a time, a rank) */ lead?: Binding; /** a status dot's tone */ mark?: ToneBinding; /** a leading glyph instead of the dot */ icon?: Binding; /** trailing, dim */ detail?: Binding; /** a second line under the title */ sub?: Binding; /** the row links here */ href?: Binding; /** a thin bar under the title: how far along — a fraction, or out of `total` */ progress?: Binding; /** what `progress` is out of (default 1): a duration beside a position */ total?: Binding; /** when there are no rows (the frame draws an empty SOURCE itself; a list inside one document needs this) */ empty?: Binding; /** rows shown; the rest become "+N more" (the list scrolls within its card) */ max?: number; on?: { select?: ActionChain } }
   /** Feed — what happened, newest first, with when. */
   | { t: 'feed'; /** the events; every per-event prop binds into `$` */ from: Binding; text: Binding; /** when — an instant, drawn as 'ago' unless the binding formats it */ at?: Binding; icon?: Binding; tone?: ToneBinding; /** a second, dim line */ detail?: Binding; empty?: Binding; max?: number }
+  /** Rail — a horizontal strip of cover cards — art, a title, who, a line of meta. */
+  | { t: 'rail'; /** the cards; every per-card prop below binds into `$` */ from: Binding; title: Binding; /** the art (none: the fallback letter of the title) */ image?: Binding; /** round for a person */ shape?: Binding; /** who — an artist, an author */ sub?: Binding; /** a small mono line (a year, a count, time left) */ meta?: Binding; /** a hairline under the art: how far in — a fraction, or out of `total` */ progress?: Binding; total?: Binding; /** true: this card is the one playing (its title takes the accent) */ active?: Binding; /** the card links here */ href?: Binding; /** when there are no cards */ empty?: Binding; max?: number; on?: { select?: ActionChain } }
   /** Facts — a grid of named values. */
   | { t: 'facts'; /** [{ label, value, tone? }] — each a literal or a binding */ items: { label: Binding; value: Binding; tone?: ToneBinding }[]; /** columns (one when narrow) */ cols?: number }
   /** Media — art, a title, and where it is. */

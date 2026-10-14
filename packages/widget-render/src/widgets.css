@@ -404,3 +404,81 @@ a.hud-card:hover { box-shadow: var(--hub-shadow-lifted); transform: translateY(-
 @media (prefers-reduced-motion: reduce) {
   .hud-dot.pulse { animation: none; }
 }
+
+
+/* ── Screens: a heading, sections, covers, rails ──────────────────────────────
+   What a whole screen is built from (the rescope's KourOS pilot first). Metadata is
+   SERIF and machine state is MONO — the split KourOS chose, kept wherever these draw.
+   Sizes follow the CONTAINER (cqi), never the viewport: a rail inside a narrow column
+   sizes for the column. */
+.hud-w-text.is-page {
+  margin: 0; padding: 16px 0 4px;
+  font-family: var(--jk-font-serif); font-size: 28px; font-weight: 600;
+  letter-spacing: -0.015em; line-height: 1.1; color: var(--color-ink);
+}
+
+.hud-w-section { display: flex; flex-direction: column; gap: 11px; margin: 10px 0; min-width: 0; }
+.hud-w-section-head { display: flex; align-items: baseline; gap: 12px; }
+.hud-w-section-title {
+  margin: 0; flex: 1; min-width: 0;
+  font-family: var(--jk-font-serif); font-size: 17px; font-weight: 600; color: var(--color-ink);
+}
+.hud-w-section-note, .hud-w-section-more {
+  font-family: var(--jk-font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
+  white-space: nowrap; color: var(--color-faint); text-decoration: none;
+}
+.hud-w-section-more { color: var(--color-accent); }
+.hud-w-section-more:hover { text-decoration: underline; }
+
+/* One square of art, one radius, one placeholder, everywhere. aspect-ratio keeps a
+   strip from reflowing as images arrive. */
+.hud-w-cover {
+  position: relative; display: block; width: 100%; aspect-ratio: 1; overflow: hidden;
+  border-radius: var(--jk-radius-soft); background: var(--color-card);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.16), inset 0 0 0 1px var(--color-line);
+}
+.hud-w-cover.is-round { border-radius: 50%; }
+.hud-w-cover > img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.hud-w-cover-fallback {
+  display: flex; align-items: center; justify-content: center; width: 100%; height: 100%;
+  font-family: var(--jk-font-serif); font-size: 24px; font-weight: 600; color: var(--color-ghost);
+  background: linear-gradient(145deg, var(--color-card-2, var(--color-card)), var(--color-paper-2, var(--color-paper)));
+}
+
+/* rail — a strip that scrolls and snaps, so a swipe lands on a card edge. */
+.hud-p-rail, .hud-w-list-rail { container-type: inline-size; min-width: 0; }
+.hud-p-rail-strip, .hud-w-list-rail-strip {
+  display: grid; grid-auto-flow: column; gap: 12px;
+  overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; padding: 2px 0 8px;
+}
+.hud-p-rail-strip { grid-auto-columns: var(--w-rail-card, 44cqi); }
+.hud-w-list-rail-strip { grid-auto-columns: var(--w-rail-card, 78cqi); align-items: start; }
+.hud-p-rail-strip > *, .hud-w-list-rail-strip > * { scroll-snap-align: start; min-width: 0; }
+@container (min-width: 560px) {
+  .hud-p-rail-strip { --w-rail-card: 30cqi; }
+  .hud-w-list-rail-strip { --w-rail-card: 44cqi; }
+}
+@container (min-width: 900px) {
+  .hud-p-rail-strip { --w-rail-card: 200px; }
+  .hud-w-list-rail-strip { --w-rail-card: 320px; }
+}
+.hud-p-rail-card { display: flex; flex-direction: column; min-width: 0; color: inherit; text-decoration: none; }
+.hud-p-rail-card > .hud-p-track { height: 3px; margin-top: 6px; }
+.hud-p-rail-title, .hud-p-rail-sub, .hud-p-rail-meta { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hud-p-rail-title { margin-top: 7px; font-family: var(--jk-font-serif); font-size: 14.5px; font-weight: 600; color: var(--color-ink); }
+.hud-p-rail-sub { margin-top: 2px; font-size: 12.5px; color: var(--color-faint); }
+.hud-p-rail-meta { margin-top: 2px; font-family: var(--jk-font-mono); font-size: 10px; letter-spacing: 0.07em; color: var(--color-ghost); }
+.hud-p-rail-card.is-round .hud-p-rail-title, .hud-p-rail-card.is-round .hud-p-rail-sub,
+.hud-p-rail-card.is-round .hud-p-rail-meta { text-align: center; }
+.hud-p-rail-card.is-active .hud-p-rail-title,
+a.hud-p-rail-card:hover .hud-p-rail-title, .hud-p-rail-card.is-action:hover .hud-p-rail-title { color: var(--color-accent); }
+:where(.hud-p-rail-card.is-action) {
+  appearance: none; background: none; border: 0; padding: 0; margin: 0; width: 100%;
+  font: inherit; text-align: left; cursor: pointer;
+}
+.hud-p-rail-card.is-action:focus-visible, a.hud-p-rail-card:focus-visible { outline: 1px solid var(--color-accent); outline-offset: 3px; }
+.hud-p-rail-card.is-action:disabled { cursor: progress; opacity: 0.7; }
+
+/* A meter that links somewhere (a coverage line that opens the map). */
+a.hud-p-meter.is-link { color: inherit; text-decoration: none; }
+a.hud-p-meter.is-link:hover .hud-p-label { color: var(--color-accent); }

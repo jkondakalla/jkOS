@@ -68,6 +68,14 @@ export function bodiesOf(spec) {
   return isObj(spec) ? [spec.body, spec.mobile].filter(isObj) : []
 }
 
+/** The sources an `await` in the widget draws the states of — the frame leaves those to it. */
+export function awaitsOf(def) {
+  const spec = isObj(def) && isObj(def.spec) ? def.spec : def
+  const acc = new Set()
+  for (const b of bodiesOf(spec)) walkNodes(b, (n) => { if (n.t === 'await' && typeof n.src === 'string') acc.add(n.src) })
+  return acc
+}
+
 /** The ids of the parts a widget draws (`use`), directly. */
 export function partsOf(def) {
   const spec = isObj(def) && isObj(def.spec) ? def.spec : def

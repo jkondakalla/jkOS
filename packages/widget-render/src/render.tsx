@@ -26,10 +26,10 @@ import {
   fetchCapabilities, getCapability, runCommand, suiteApp, followJob, format, type CapabilityDef, type CapabilityDoc, type JobOutcome,
   type FieldType, type SuiteApp, resolveBinding, truthy } from '@jkos/weave';
 import type { ActionChain, Binding, CommandRef, HostKind, IconName, Tone, ToneBinding, WidgetAction, WidgetDef, WidgetNode, WidgetSpec } from './types';
-import { useDataSources, cardState, type CardState } from './sources';
+import { useDataSources, cardState, type CardState, type DataSource, type SourceStatus } from './sources';
 import './widgets.css';
 import { TONE_COLOR } from './tone';
-import { fillRoute, safeHref, sourcesOf, partsOf, MAX_USE_DEPTH } from '@jkos/widgets';
+import { fillRoute, safeHref, sourcesOf, partsOf, awaitsOf, MAX_USE_DEPTH } from '@jkos/widgets';
 import { usesAi } from './ai';
 import { Field, SelectField, Check, AsyncView } from '@jkos/ui';
 import { WidgetBoundary } from './boundary';
@@ -227,6 +227,56 @@ function patternIcon(name: string, tone: string): ReactNode {
 export type NodeOf<K extends WidgetNode['t']> = Extract<WidgetNode, { t: K }>;
 type Primitives = { [K in Exclude<WidgetNode['t'], HostKind>]: (node: NodeOf<K>, scope: Scope) => ReactNode };
 
+/** One square of art (round for a person), with the suite's one fallback: the first
+ *  letter of whose art it is, on the paper gradient. An image that fails to load falls
+ *  back too. `loading="lazy"` and `decoding="async"` are load-bearing: a rail of these
+ *  mounts dozens at once, and a synchronous decode is what makes a cover strip stutter
+ *  under a thumb. Keyed by the URL, so a new image gets a fresh chance to load. */
+function CoverArt({ image, name, round }: { image?: string; name: string; round?: boolean }) {
+  const [failed, setFailed] = useState<string | null>(null);
+  const letter = name.trim().charAt(0).toUpperCase() || '?';
+  return (
+    <span className={`hud-w-cover${round ? ' is-round' : ''}`}>
+      {image && failed !== image
+        ? <img src={image} alt={name} loading="lazy" decoding="async" onError={() => setFailed(image)} />
+        : <span className="hud-w-cover-fallback" aria-hidden="true">{letter}</span>}
+    </span>
+  );
+}
+
+/** The `rail` pattern's body: a horizontal strip of cover cards. `onSelect`: each card
+ *  is an action (the node's `on.select`); otherwise a card with `href` is a link. */
+function railBody(n: NodeOf<'rail'>, scope: Scope, onSelect?: (cardScope: Scope) => void, busy = false): ReactNode {
+  const arr = resolve(n.from, scope);
+  const all = Array.isArray(arr) ? arr : [];
+  if (!all.length) return n.empty != null ? <div className="hud-p hud-p-empty">{str(resolve(n.empty, scope))}</div> : null;
+  const shown = n.max && n.max > 0 ? all.slice(0, n.max) : all;
+  return (
+    <div className="hud-p hud-p-rail"><div className="hud-p-rail-strip jk-scroll-none">
+      {shown.map((el, i) => {
+        const s = { ...scope, $: el };
+        const title = str(resolve(n.title, s));
+        const round = n.shape != null && str(resolve(n.shape, s)) === 'round';
+        const pct = n.progress != null ? fraction(resolve(n.progress, s), n.total != null ? resolve(n.total, s) : 1) : null;
+        const sub = opt(n.sub, s), meta = opt(n.meta, s);
+        const cls = `hud-p-rail-card${round ? ' is-round' : ''}${n.active != null && truthy(resolve(n.active, s)) ? ' is-active' : ''}`;
+        const inner = (
+          <>
+            <CoverArt image={n.image != null ? safeHref(resolve(n.image, s)) : undefined} name={title} round={round} />
+            {pct != null && track(pct, 'var(--color-accent)')}
+            <span className="hud-p-rail-title">{title}</span>
+            {sub && <span className="hud-p-rail-sub">{sub}</span>}
+            {meta && <span className="hud-p-rail-meta">{meta}</span>}
+          </>
+        );
+        if (onSelect) return <button key={i} type="button" className={`${cls} is-action`} disabled={busy} onClick={() => onSelect(s)}>{inner}</button>;
+        const href = n.href != null ? safeHref(resolve(n.href, s)) : undefined;
+        return href ? <a key={i} className={cls} href={href}>{inner}</a> : <div key={i} className={cls}>{inner}</div>;
+      })}
+    </div></div>
+  );
+}
+
 /** The `rows` pattern's body. `onSelect`: each row is an action (the node's `on.select`),
  *  drawn as a button that hands back that row's scope; otherwise a row with `href` is a
  *  link. (The validator refuses both on one node — one tap, one meaning.) */
@@ -277,9 +327,11 @@ const PRIMITIVES: Primitives = {
     </div>
   ),
   label: (n, scope) => <span className={`hud-eyebrow${n.size === 'sm' || n.size === 'xs' ? ` is-${n.size}` : ''}`}>{str(resolve(n.text, scope))}</span>,
-  text: (n, scope) => (
-    <span className={`hud-w-text${n.variant && n.variant !== 'body' ? ` is-${n.variant}` : ''}${n.grow ? ' is-grow' : ''}`}>{str(resolve(n.text, scope))}</span>
-  ),
+  text: (n, scope) => {
+    const cls = `hud-w-text${n.variant && n.variant !== 'body' ? ` is-${n.variant}` : ''}${n.grow ? ' is-grow' : ''}`;
+    // A screen's own heading is its heading, to a reader and to assistive tech.
+    return n.variant === 'page' ? <h1 className={cls}>{str(resolve(n.text, scope))}</h1> : <span className={cls}>{str(resolve(n.text, scope))}</span>;
+  },
   metric: (n, scope) => {
     const size = n.size ?? 30;
     return (
@@ -328,6 +380,25 @@ const PRIMITIVES: Primitives = {
       </div>
     );
   },
+  cover: (n, scope) => (
+    <CoverArt image={n.image != null ? safeHref(resolve(n.image, scope)) : undefined}
+      name={opt(n.name, scope)} round={str(resolve(n.shape ?? 'square', scope)) === 'round'} />
+  ),
+  section: (n, scope) => {
+    const note = opt(n.note, scope), more = opt(n.more, scope);
+    const href = n.href != null ? safeHref(resolve(n.href, scope)) : undefined;
+    return (
+      <section className="hud-w-section">
+        <div className="hud-w-section-head">
+          <h2 className="hud-w-section-title">{str(resolve(n.title, scope))}</h2>
+          {note && <span className="hud-w-section-note">{note}</span>}
+          {more && href && <a className="hud-w-section-more" href={href}>{more} →</a>}
+        </div>
+        {n.children.map((c, i) => <Fragment key={i}>{renderNode(c, scope)}</Fragment>)}
+      </section>
+    );
+  },
+  await: (n, scope) => <AwaitNode node={n} scope={scope} />,
   divider: (n, scope) => {
     const label = n.label != null ? str(resolve(n.label, scope)) : '';
     if (!label) return <div className="hud-w-rule" />;
@@ -370,12 +441,14 @@ const PRIMITIVES: Primitives = {
     truthy(resolve(n.cond, scope)) ? renderNode(n.then, scope) : (n.else ? renderNode(n.else, scope) : null),
   list: (n, scope) => {
     const arr = resolve(n.from, scope);
-    const items = Array.isArray(arr) ? arr : [];
+    const all = Array.isArray(arr) ? arr : [];
+    const items = n.max && n.max > 0 ? all.slice(0, n.max) : all;
     if (items.length === 0 && n.empty != null) {
       return <div className="hud-w-list-empty">{str(resolve(n.empty, scope))}</div>;
     }
     const body = items.map((el, i) => <Fragment key={i}>{renderNode(n.item, { ...scope, $: el })}</Fragment>);
     if (n.dir === 'row') return <div className="hud-w-list-row">{body}</div>;
+    if (n.dir === 'rail') return <div className="hud-w-list-rail"><div className="hud-w-list-rail-strip jk-scroll-none">{body}</div></div>;
     if (n.cols && n.cols > 1) {
       return <div className="hud-w-list-grid" style={vars({ '--w-cols': Math.round(n.cols) })}>{body}</div>;
     }
@@ -430,8 +503,9 @@ const PRIMITIVES: Primitives = {
   },
   meter: (n, scope) => {
     const pct = fraction(resolve(n.value, scope), n.max != null ? resolve(n.max, scope) : 1) ?? 0;
-    return (
-      <div className="hud-p hud-p-meter">
+    const href = n.href != null ? safeHref(resolve(n.href, scope)) : undefined;
+    const body = (
+      <>
         {(n.label != null || n.detail != null) && (
           <div className="hud-p-line">
             {n.label != null && <span className="hud-p-label">{str(resolve(n.label, scope))}</span>}
@@ -439,8 +513,9 @@ const PRIMITIVES: Primitives = {
           </div>
         )}
         {track(pct, patternTone(n.tone, scope, 'accent'))}
-      </div>
+      </>
     );
+    return href ? <a className="hud-p hud-p-meter is-link" href={href}>{body}</a> : <div className="hud-p hud-p-meter">{body}</div>;
   },
   rows: (n, scope) => (n.on?.select ? <ActionRows node={n} scope={scope} /> : rowsBody(n, scope)),
   feed: (n, scope) => {
@@ -471,6 +546,7 @@ const PRIMITIVES: Primitives = {
       </div>
     );
   },
+  rail: (n, scope) => (n.on?.select ? <ActionRail node={n} scope={scope} /> : railBody(n, scope)),
   facts: (n, scope) => (
     // The grid is INSIDE the pattern: a container query styles descendants, never the
     // container itself, so the one-column narrow rule needs something to land on.
@@ -703,6 +779,34 @@ function ActionTarget({ chain, scope, className, children }: { chain: ActionChai
       {act.status === 'err' && <span className="hud-p-note is-error">{act.error ?? 'COULDN’T — RETRY'}</span>}
     </button>
   );
+}
+
+/** A rail whose cards are actions (`on.select`): a tap fires them with that card as `$`. */
+function ActionRail({ node, scope }: { node: NodeOf<'rail'>; scope: Scope }) {
+  const act = useActions();
+  const chain = node.on?.select;
+  return (
+    <>
+      {railBody(node, scope, chain ? (card) => { void act.fire(chain, card); } : undefined, act.busy)}
+      {act.status === 'err' && <span className="hud-p-note is-error">{act.error ?? 'COULDN’T — RETRY'}</span>}
+    </>
+  );
+}
+
+/** What an `await` reads: the widget's sources, their states and their data. */
+interface SourcesCtxValue { sources?: Record<string, DataSource>; status: Record<string, SourceStatus>; data: Record<string, unknown>; authUrl: string }
+const SourcesCtx = createContext<SourcesCtxValue | null>(null);
+
+/** Where a source's states are drawn: loading, offline, signed out, empty — in this
+ *  node's place, while the rest of the screen (a heading, what is playing) stays. The
+ *  frame leaves an awaited source to it (SpecWidget). */
+function AwaitNode({ node, scope }: { node: NodeOf<'await'>; scope: Scope }) {
+  const ctx = useContext(SourcesCtx);
+  const def = ctx?.sources?.[node.src];
+  if (!ctx || !def) return <>{renderNode(node.then, scope)}</>;
+  const st = cardState({ [node.src]: def }, ctx.status, ctx.data);
+  if (st.kind === 'ready') return <>{renderNode(node.then, scope)}</>;
+  return <>{stateView(st, node.empty != null ? str(resolve(node.empty, scope)) : 'Nothing here yet.', ctx.authUrl)}</>;
 }
 
 /** A rows pattern whose rows are actions (`on.select`): a tap fires them with that row as `$`. */
@@ -984,14 +1088,19 @@ function SpecWidget({ spec, host, inputs }: { spec: WidgetSpec; host: WidgetHost
   const scope: Scope = { ...base, ...data, $sources: status };
   // The FRAME owns the states — loading, offline, signed-out, forbidden, unavailable,
   // empty — so no author draws them and none can forget one (sources.ts cardState).
-  const card = cardState(spec.sources, status, data);
+  // The FRAME draws the states of every source no `await` draws itself — so a screen can
+  // keep its heading and what is playing while its rails load.
+  const awaited = useMemo(() => awaitsOf(spec), [spec]);
+  const gated = useMemo(() => (spec.sources ? Object.fromEntries(Object.entries(spec.sources).filter(([k]) => !awaited.has(k))) : undefined), [spec.sources, awaited]);
+  const card = cardState(gated, status, data);
+  const sourcesCtx: SourcesCtxValue = { sources: spec.sources, status, data, authUrl: host.authUrl };
   const f = spec.frame;
   const emptyText = f?.empty != null ? str(resolve(f.empty, scope)) : 'Nothing here yet.';
   // The phone draws its own body where the widget has one; one widget either way, so its
   // sources, state and frame are the same on every tier.
   const tree = host.tier === 'mobile' && spec.mobile ? spec.mobile : spec.body;
   const body = card.kind === 'ready'
-    ? <StateCtx.Provider value={stateCtx}>{renderNode(tree, scope)}</StateCtx.Provider>
+    ? <SourcesCtx.Provider value={sourcesCtx}><StateCtx.Provider value={stateCtx}>{renderNode(tree, scope)}</StateCtx.Provider></SourcesCtx.Provider>
     : stateView(card, emptyText, host.authUrl);
 
   // No frame: the body is a self-contained card (a molecule, or chrome:false

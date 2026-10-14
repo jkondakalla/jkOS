@@ -15,13 +15,13 @@
 //    and sees the slice a molecule reads without a binding.
 // 4. safeHref: the href rule the validator and the renderer share.
 import { NODES, FRAME, KINDS, LIMITS, TONES, ACTIONS, childProps, validateWidget, sourcesOf, walkNodes, safeHref, appsOf,
-  routeProblem, matchRoute, fillRoute, routeTable, pageFor, needsOf, isPortable, drawableIn } from '../src/index.js'
+  routeProblem, matchRoute, fillRoute, routeTable, pageFor, needsOf, isPortable, drawableIn, awaitsOf } from '../src/index.js'
 import { checkBindings } from '../src/semantic.js'
 
 let pass = 0, fail = 0
 const ok = (cond, msg, extra = '') => { if (cond) { pass++; console.log(`  ✓ ${msg}`) } else { fail++; console.error(`  ✗ ${msg} ${extra}`) } }
 
-const PROP_TYPES = new Set(['binding', 'tone', 'number', 'boolean', 'string', 'enum', 'field', 'cmd', 'pairs', 'node', 'nodes', 'state', 'events', 'params', 'action', 'route', 'widget'])
+const PROP_TYPES = new Set(['binding', 'tone', 'number', 'boolean', 'string', 'enum', 'field', 'cmd', 'pairs', 'node', 'nodes', 'state', 'events', 'params', 'action', 'route', 'widget', 'source'])
 const sizing = { desktop: { w: 3, h: 3 }, mobile: { w: 2, h: 3 } }
 const def = (body, extra = {}) => ({ id: 'probe', label: 'Probe', sizing, spec: { body }, ...extra })
 const problems = (d) => validateWidget(d)
@@ -422,6 +422,22 @@ ok(JSON.stringify(drawableIn(bound, HUDLIKE)) === '["slice player","action playe
 ok(drawableIn({ id: 'c', spec: { body: { t: 'text', text: { src: 'clock', path: 'hm' } } } }, HUDLIKE).length === 0, '…and nothing when it has it all')
 ok(needsOf({ id: 'u', spec: { body: { t: 'use', widget: 'kouros-ai' } } }, { ...WIDGETS, 'kouros-ai': { id: 'kouros-ai', spec: { body: { t: 'text', text: { src: 'player', path: 'title' } } } } }).slices.has('player'),
   'needsOf: a part needs what its part needs')
+
+console.log('3i · screens — cover, section, rail, await')
+ok(problems(def({ t: 'cover', image: { src: '$', path: 'cover_url' }, name: 'Bloom', shape: 'round' })).length === 0, 'a cover takes art, a name and a shape')
+ok(has(def({ t: 'cover', name: 'x', shape: 'circle' }), '/spec/body/shape', 'unknown-value'), "…a shape is square or round")
+ok(has(def({ t: 'cover', name: 'x', shape: { src: '$', path: 'kind', map: { artist: 'circle' } } }), '/spec/body/shape/map/artist', 'unknown-value'), '…mapped too')
+ok(has(def({ t: 'cover', image: 'javascript:alert(1)' }), '/spec/body/image', 'bad-url'), "…and its art is a URL a browser won't run")
+ok(problems(def({ t: 'section', title: 'New', more: 'All', href: '#/browse', children: [{ t: 'text', text: 'x' }] })).length === 0, 'a section: a title, an All link, and what it holds')
+const RAIL = { t: 'rail', from: { src: 'jobs' }, title: { src: '$', path: 'status' }, image: { src: '$', path: 'id' }, active: { eq: [{ src: '$', path: 'id' }, 1] } }
+ok(t2({ sources: JOBS_SRC, body: RAIL }).length === 0, "a rail's per-card props read a card of `from` ($)")
+ok(t2has({ sources: JOBS_SRC, body: { ...RAIL, sub: { src: '$', path: 'author' } } }, '/spec/body/sub', 'undeclared-path'), '…a card field nobody declares is refused')
+ok(has(def({ ...RAIL, href: { src: '$', path: 'id' }, on: { select: flip } }), '/spec/body/on', 'conflict'), 'a rail card is a link or an action, never both')
+ok(problems(def({ t: 'list', from: { src: 'x' }, dir: 'rail', max: 4, item: { t: 'text', text: 'x' } })).length === 0, 'a list may be a rail of wide cards, and show only its first few')
+const AW = { sources: JOBS_SRC, body: { t: 'stack', children: [{ t: 'text', text: 'Heading' }, { t: 'await', src: 'jobs', then: { t: 'text', text: 'rows' } }] } }
+ok(t2(AW).length === 0, 'an await names one of the widget\'s sources')
+ok(t2has({ ...AW, body: { t: 'await', src: 'jbos', then: { t: 'text', text: 'x' } } }, '/spec/body/src', 'undeclared'), '…a source it does not have is refused')
+ok(JSON.stringify([...awaitsOf({ spec: AW })]) === '["jobs"]', 'awaitsOf: the sources the frame leaves to an await')
 
 console.log('4 · the href rule')
 for (const h of ['https://x.test/', '/widgets', 'mailto:a@b.test', '#top']) ok(safeHref(h) === h, `keeps ${JSON.stringify(h)}`)
