@@ -12,5 +12,8 @@ export function actionsOf(node: unknown): { event: string; action: Record<string
  *  "AI-backed" is derived from. */
 export function appsOf(def: unknown, widgets?: Readonly<Record<string, unknown>>): Set<string>;
 
+/** A spec's bodies: `body`, and `mobile` when it has one. */
+export function bodiesOf(spec: unknown): unknown[];
+
 /** The ids of the parts a widget draws (`use`), directly. */
 export function partsOf(def: unknown): Set<string>;

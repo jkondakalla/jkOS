@@ -99,7 +99,7 @@ function Sheet({ job }: { job: Job }) {
                 <div className="wp-label hud-eyebrow">{state}</div>
                 <div className="hud-cell wp-frame" style={{ width: w, height: h }}>
                   <SourceReaderProvider value={readerFor(state, job.fixtures)}>
-                    {renderWidget(job.def, hudHost(sampleCtx(state)))}
+                    {renderWidget(job.def, hudHost(sampleCtx(state), tier === 'mobile' ? 'mobile' : 'desktop'))}
                   </SourceReaderProvider>
                 </div>
               </div>

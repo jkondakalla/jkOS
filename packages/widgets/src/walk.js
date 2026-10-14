@@ -62,11 +62,17 @@ export function actionsOf(node) {
   return Object.entries(node.on).flatMap(([event, chain]) => [].concat(chain).filter(isObj).map((action) => ({ event, action })))
 }
 
+/** A spec's bodies: `body`, and `mobile` (the phone's) when it has one. Anything that asks
+ *  what a widget can DO walks both — a command only the phone body has is still one. */
+export function bodiesOf(spec) {
+  return isObj(spec) ? [spec.body, spec.mobile].filter(isObj) : []
+}
+
 /** The ids of the parts a widget draws (`use`), directly. */
 export function partsOf(def) {
   const spec = isObj(def) && isObj(def.spec) ? def.spec : def
   const acc = new Set()
-  if (isObj(spec)) walkNodes(spec.body, (n) => { if (n.t === 'use' && typeof n.widget === 'string') acc.add(n.widget) })
+  for (const b of bodiesOf(spec)) walkNodes(b, (n) => { if (n.t === 'use' && typeof n.widget === 'string') acc.add(n.widget) })
   return acc
 }
 
@@ -98,7 +104,7 @@ export function appsOf(def, widgets, seen = new Set()) {
     if (isObj(s) && s.kind === 'dataset' && typeof s.app === 'string') acc.add(s.app)
   }
   const add = (cmd) => { if (isObj(cmd) && typeof cmd.app === 'string' && cmd.app) acc.add(cmd.app) }
-  walkNodes(spec.body, (n) => {
+  for (const b of bodiesOf(spec)) walkNodes(b, (n) => {
     add(n.cmd)
     for (const { action } of actionsOf(n)) add(action.run)
   })

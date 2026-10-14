@@ -396,6 +396,14 @@ ok(t2wHas({ t: 'text', text: { src: '$in', path: 'title' } }, '/spec/body/text',
 ok(appsOf({ id: 'c', spec: { body: { t: 'use', widget: 'kouros-ai' } } }, WIDGETS).has('lazuros'), "appsOf follows a use into its part — a LazurOS part makes its card AI-backed")
 ok(appsOf({ id: 'c', spec: { body: { t: 'use', widget: 'kouros-loop-a' } } }, WIDGETS).size === 0, '…and survives a cycle')
 
+console.log('3g · a phone body (spec.mobile)')
+const phone = (mobile, body = { t: 'text', text: 'wide' }) => ({ id: 'probe', label: 'Probe', sizing, spec: { body, mobile } })
+ok(problems(phone({ t: 'stack', children: [{ t: 'calendar' }] })).length === 0, 'a widget may carry a phone body, checked as a body (a molecule on its root)')
+ok(problems(phone({ t: 'input', field: 'x' })).some((p) => p.path === '/spec/mobile' && p.code === 'misplaced'), "…the same placement rules, at the phone body's own pointer")
+ok(checkBindings(phone({ t: 'text', text: { src: 'clock', path: 'hmm' } }), { slices: SLICES }).some((p) => p.path === '/spec/mobile/text' && p.code === 'undeclared-path'), '…and the same second tier')
+ok(appsOf(phone({ t: 'button', text: 'ASK', cmd: { app: 'lazuros', capability: 'query' } })).has('lazuros'), 'appsOf reads the phone body too — a command only the phone has still reaches its app (the kill switch)')
+ok(appsOf(phone({ t: 'use', widget: 'kouros-ai' }), WIDGETS).has('lazuros'), '…and so does a part only the phone uses')
+
 console.log('4 · the href rule')
 for (const h of ['https://x.test/', '/widgets', 'mailto:a@b.test', '#top']) ok(safeHref(h) === h, `keeps ${JSON.stringify(h)}`)
 for (const h of ['javascript:alert(1)', ' JavaScript:alert(1)', 'java\nscript:x', 'data:,x', 'vbscript:x']) ok(safeHref(h) === undefined, `refuses ${JSON.stringify(h)}`)

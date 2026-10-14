@@ -90,6 +90,12 @@ return for whoever is signed in.
 signed-out and forbidden itself, from the sources' states — never draw those in the body.
 `empty` is what it says when every source answered nothing: a sentence, sentence case.
 
+**One widget per screen, responsive by container.** Where the phone UI genuinely differs
+(BeigeBoard's agenda week), a widget carries a second body, `spec.mobile`, which a host
+on the `mobile` tier draws instead of `spec.body` (`WidgetHost.tier`; ORDECK passes the
+tier its grid shows). Same sources, state and frame; both tiers check it as a body, and
+whatever it can do (a command, a part) counts for the AI kill switch like the body's.
+
 **`min` is a promise.** `shot` draws the card at `min`, and a card taller than its
 footprint there is a gate finding. Pick the size where it still reads, not the smallest
 the grid allows.

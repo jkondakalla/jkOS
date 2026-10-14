@@ -34,7 +34,6 @@ export default function RoomHUD() {
   // All widget slices in one context (single BeigeBoard fetch shared across them).
   const suite = useSuiteApps();          // the suite directory, hydrated once for the page
   const ctx  = useHudContext(lazuros.enabled, suite);
-  const host = hudHost(ctx);
   const apps = useMemo(() => launchableApps(suite), [suite]);
 
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -47,6 +46,8 @@ export default function RoomHUD() {
   // past the 768/1024 boundaries (the canvas padding) and mutate a tier the
   // user isn't looking at; the window fallback only covers the first frame.
   const [gridBp, setGridBp]             = useState<Breakpoint | null>(null);
+  // The host at the tier the grid shows: a card with a phone body draws it on mobile.
+  const host = hudHost(ctx, (gridBp ?? activeBreakpoint(window.innerWidth)).name);
   // Cards the user hand-placed since entering edit mode. Auto-balance packs
   // around these instead of moving them — their spot is intent, not accident.
   const [sessionMoved, setSessionMoved] = useState<ReadonlySet<string>>(new Set());

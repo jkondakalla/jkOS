@@ -66,6 +66,9 @@ export interface WidgetHost {
   /** Every widget a `use` may draw, by id (the host's catalog — parts included). Without
    *  it a `use` draws a not-here tile. */
   widgets?: Readonly<Record<string, WidgetDef>>;
+  /** The viewport tier it is drawn at: on `mobile`, a widget with a phone body
+   *  (spec.mobile) draws that instead of its body. Omitted = desktop. */
+  tier?: 'desktop' | 'tablet' | 'mobile';
 }
 
 /** One field of a host action's declaration — the field vocabulary a dataset uses. */
@@ -984,8 +987,11 @@ function SpecWidget({ spec, host, inputs }: { spec: WidgetSpec; host: WidgetHost
   const card = cardState(spec.sources, status, data);
   const f = spec.frame;
   const emptyText = f?.empty != null ? str(resolve(f.empty, scope)) : 'Nothing here yet.';
+  // The phone draws its own body where the widget has one; one widget either way, so its
+  // sources, state and frame are the same on every tier.
+  const tree = host.tier === 'mobile' && spec.mobile ? spec.mobile : spec.body;
   const body = card.kind === 'ready'
-    ? <StateCtx.Provider value={stateCtx}>{renderNode(spec.body, scope)}</StateCtx.Provider>
+    ? <StateCtx.Provider value={stateCtx}>{renderNode(tree, scope)}</StateCtx.Provider>
     : stateView(card, emptyText, host.authUrl);
 
   // No frame: the body is a self-contained card (a molecule, or chrome:false
@@ -1018,7 +1024,7 @@ function SpecWidget({ spec, host, inputs }: { spec: WidgetSpec; host: WidgetHost
  * second and a static card almost never. The host keeps each slice's reference stable
  * between real changes (WidgetHost.slices), which is what makes the comparison mean
  * something. */
-const bindsCache = new WeakMap<object, { names: Set<string>; now: boolean; ai: boolean }>();
+const bindsCache = new WeakMap<object, { names: Set<string>; now: boolean; ai: boolean; mobile: boolean }>();
 
 /** What a widget reads besides its own sources — cached per def (spec object identity), so
  *  it's recomputed only when the def actually changes (a workshop edit, a published merge). */
@@ -1039,7 +1045,7 @@ function binds(def: WidgetDef, widgets?: Readonly<Record<string, WidgetDef>>) {
     for (const id of partsOf(d)) if (!seen.has(id)) { seen.add(id); add(widgets?.[id]); }
   };
   add(def);
-  const out = { names, now: names.has('$now'), ai: usesAi(def, widgets) };
+  const out = { names, now: names.has('$now'), ai: usesAi(def, widgets), mobile: !!def.spec?.mobile };
   bindsCache.set(key, out);
   return out;
 }
@@ -1061,6 +1067,7 @@ function cardPropsEqual(prev: CardProps, next: CardProps): boolean {
   }
   if (b.now && prev.host.now !== next.host.now) return false;          // an `ago` moves with the clock
   if (b.ai && prev.host.aiEnabled !== next.host.aiEnabled) return false; // the kill switch flipped
+  if (b.mobile && prev.host.tier !== next.host.tier) return false;        // its phone body comes or goes
   // Manual override: force a render once refreshMs has elapsed since the last one.
   // Because the gate runs on the host's tick, the card re-renders with the LATEST
   // slices (no staleness) — this is the safety valve over auto-detect.

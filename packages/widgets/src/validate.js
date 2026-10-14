@@ -20,7 +20,7 @@ import { FORMATS, CONDITIONS } from '@jkos/weave/binding'
 
 const ID_RE = new RegExp(LIMITS.ID_PATTERN)
 const DEF_KEYS = ['id', 'label', 'sizing', 'route', 'spec', 'refreshMs', 'allowed_roles']
-const SPEC_KEYS = ['frame', 'inputs', 'sources', 'state', 'body']
+const SPEC_KEYS = ['frame', 'inputs', 'sources', 'state', 'body', 'mobile']
 const IDENT = /^[A-Za-z_][A-Za-z0-9_]*$/
 /** A host action's name: the engine, then the verb ("player.play", "focus.clear"). */
 const ACTION_NAME = /^[a-z][a-zA-Z0-9]*(\.[a-z][a-zA-Z0-9]*)+$/
@@ -260,6 +260,8 @@ function checkSpec(spec, err, ctx) {
   if (spec.body === undefined) { err('/spec/body', 'missing-prop', 'spec.body is required'); return }
   const counter = { nodes: 0, overflowReported: false }
   checkNode(spec.body, '/spec/body', 0, { inForm: false, atRoot: true }, counter, err)
+  // The phone's body, where the phone UI genuinely differs: a whole body of its own.
+  if (spec.mobile !== undefined) checkNode(spec.mobile, '/spec/mobile', 0, { inForm: false, atRoot: true }, { nodes: 0, overflowReported: false }, err)
 }
 
 /** Each source kind's keys — the manifest's SOURCES, plus the `kind` that names it. */
@@ -406,7 +408,7 @@ function checkNode(node, path, depth, where, counter, err) {
   const inForm = where.inForm || node.t === 'form'
   // A molecule sits on the body itself, or directly in the body's root stack (the
   // Workshop's shape) — never deeper.
-  const childAtRoot = path === '/spec/body' && node.t === 'stack'
+  const childAtRoot = (path === '/spec/body' || path === '/spec/mobile') && node.t === 'stack'
   for (const { name, many } of childProps(node.t)) {
     const v = node[name]
     if (v === undefined) continue

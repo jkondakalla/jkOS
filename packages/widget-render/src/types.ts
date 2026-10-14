@@ -75,6 +75,9 @@ export interface WidgetSpec {
   /** This widget's own variables (`$state`). */
   state?: Record<string, StateVar>;
   body: WidgetNode;
+  /** The phone's body, where the phone UI genuinely differs (a host on the `mobile` tier
+   *  draws it instead of `body`). Same sources, state and frame. */
+  mobile?: WidgetNode;
 }
 
 /** A widget's default footprint per tier on a placement grid (ORDECK's HUD) — used when

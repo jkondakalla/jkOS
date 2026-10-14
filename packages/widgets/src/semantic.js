@@ -439,5 +439,6 @@ export function checkBindings(def, { docs = {}, slices = {}, actions = {}, pages
     }
   }
   visit(spec.body, '/spec/body', scope)
+  if (spec.mobile !== undefined) visit(spec.mobile, '/spec/mobile', scope)
   return out
 }

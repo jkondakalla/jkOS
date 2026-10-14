@@ -245,8 +245,9 @@ const ACTIONS: HostActions<typeof HUD_ACTIONS> = {
   'focus.clear': () => clearHudFocus(),
 };
 
-/** The HUD's context, as a widget host. */
-export function hudHost(ctx: WidgetCtx): WidgetHost {
+/** The HUD's context, as a widget host — at the tier the grid is showing, so a card with
+ *  a phone body (spec.mobile) draws it on the mobile tier. */
+export function hudHost(ctx: WidgetCtx, tier?: WidgetHost['tier']): WidgetHost {
   return {
     slices: ctx as unknown as Record<string, unknown>,
     authUrl: ctx.authUrl,
@@ -255,5 +256,6 @@ export function hudHost(ctx: WidgetCtx): WidgetHost {
     kinds: KINDS,
     actions: ACTIONS,
     widgets: WIDGETS,
+    tier,
   };
 }
