@@ -1,8 +1,10 @@
 // jkOS native shells — the Android build. See Documentation/agents/NATIVE.md.
 //
-// Two modules, two kinds of app (native/shells.js is the one list of which shell is which):
-//   :twa   Trusted Web Activities — one flavor per shell (jkOS, KourOS). No app code.
-//   :home  the jkOS Home launcher — our own WebView, origin policy, kiosk drawer.
+// The modules, one per kind of app (native/shells.js is the one list of which shell is which):
+//   :twa     Trusted Web Activities — one flavor per shell (jkOS, KourOS). No app code.
+//   :home    the jkOS Home launcher — our own WebView, origin policy, kiosk drawer.
+//   :<app>   a NATIVE app (android: 'native'), named after its start app — :kouros is
+//            KourOS Alpha. Included from shells.json's `native` list, not typed here.
 
 pluginManagement {
     repositories {
@@ -36,3 +38,8 @@ dependencyResolutionManagement {
 
 rootProject.name = "jkos-native"
 include(":twa", ":home")
+
+@Suppress("UNCHECKED_CAST")
+val nativeShells = (groovy.json.JsonSlurper().parse(file("shells.json")) as Map<String, Any>)["native"]
+    as List<Map<String, Any>>? ?: emptyList()
+nativeShells.forEach { include(":${it["module"]}") }

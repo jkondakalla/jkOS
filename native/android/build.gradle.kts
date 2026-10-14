@@ -12,6 +12,7 @@ import groovy.json.JsonSlurper
 
 plugins {
     alias(libs.plugins.android.application) apply false
+    alias(libs.plugins.kotlin.compose) apply false
 }
 
 @Suppress("UNCHECKED_CAST")
@@ -26,7 +27,9 @@ val repoRoot: Directory = layout.projectDirectory.dir("../..")
 fun iconFor(module: String, flavor: String?): String = when (module) {
     "twa" -> (shells["twa"] as List<Map<String, Any>>).single { it["id"] == flavor }["icon"] as String
     "home" -> (shells["home"] as Map<String, Any>)["icon"] as String
-    else -> throw GradleException("no shell icon rule for module :$module")
+    else -> ((shells["native"] as List<Map<String, Any>>?) ?: emptyList())
+        .singleOrNull { it["module"] == module }?.get("icon") as String?
+        ?: throw GradleException("no shell icon rule for module :$module")
 }
 
 /**

@@ -112,7 +112,10 @@ if (status !== 0) die(`gradle ${gradleArgs.join(' ')} failed (exit ${status})`)
 // AGP names outputs <module>-[<flavor>-]<buildType>[-unsigned].apk. out/ MIRRORS every APK
 // Gradle currently holds — not only the ones this run wrote. An up-to-date task writes
 // nothing, so a "newer than this run" filter left out/ holding an APK from an older tree.
-const shellOf = (module, flavor) => module === 'home' ? SHELLS.home.id : flavor
+// A native app's module is named after its start app (:kouros), its shell id differs
+// (kouros-alpha) — shells.json's `native` list maps one to the other.
+const NATIVE = new Map((SHELLS.native || []).map((n) => [n.module, n.id]))
+const shellOf = (module, flavor) => module === 'home' ? SHELLS.home.id : NATIVE.get(module) ?? flavor
 const found = []
 const walk = (d) => {
   if (!existsSync(d)) return
@@ -122,13 +125,14 @@ const walk = (d) => {
     else if (e.name.endsWith('.apk')) found.push(p)
   }
 }
-for (const module of ['twa', 'home']) walk(join(HERE, module, 'build', 'outputs', 'apk'))
+const MODULES = ['twa', 'home', ...NATIVE.keys()]
+for (const module of MODULES) walk(join(HERE, module, 'build', 'outputs', 'apk'))
 
 if (found.length) {
   mkdirSync(OUT, { recursive: true })
   console.log('')
   for (const p of found) {
-    const m = /^(twa|home)-(?:([a-z0-9]+)-)?(debug|release)(-unsigned)?\.apk$/.exec(basename(p))
+    const m = new RegExp(`^(${MODULES.join('|')})-(?:([a-z0-9]+)-)?(debug|release)(-unsigned)?\\.apk$`).exec(basename(p))
     if (!m) continue
     const [, module, flavor, type, unsigned] = m
     const name = `${shellOf(module, flavor)}-${SHELLS.version}-${type === 'debug' ? 'staging' : 'release'}${unsigned || ''}.apk`

@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  KourOS Alpha — the native KourOS app (Compose UI, Media3 playback, no WebView).
+
+  Least privilege, by line:
+   • Four permissions: INTERNET (the API), FOREGROUND_SERVICE + FOREGROUND_SERVICE_MEDIA_PLAYBACK
+     (playback keeps going with the screen off — Android 14 requires the typed one), WAKE_LOCK
+     (ExoPlayer's network wake mode holds the CPU and Wi-Fi while it streams). No
+     POST_NOTIFICATIONS: a media session's notification is exempt from it.
+   • Three components are exported, each because something outside the app must reach it:
+       MainActivity      the launcher icon
+       RedirectActivity  the browser hands the sign-in code back to it (see below)
+       PlaybackService   system UI, Bluetooth and the lock screen bind to a media session
+     Nothing else is.
+   • allowBackup="false" + dataExtractionRules: the sealed refresh token never leaves the
+     device, by cloud backup or device transfer.
+   • networkSecurityConfig: https only, system CAs only — a user-installed CA cannot read the
+     Bearer token off the wire.
+  check:native asserts each of these against this file.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <application
+        android:name=".KourosApp"
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.KourOS">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Where jkAuth's sign-in returns: <applicationId>:/oauth2redirect?code=…&state=…
+             (RFC 8252 §7.1 — a private-use scheme in reverse-domain form, which only this
+             package should register). Only the SCHEME is in the filter: Android ignores a
+             path when the filter names no host, so a path here would read as a restriction
+             that does not exist. The path and the state are checked in code
+             (RedirectActivity → Auth.completeSignIn), and a code is useless without the
+             PKCE verifier that never left this app. -->
+        <activity
+            android:name=".RedirectActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@style/Theme.KourOS.Redirect">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="${applicationId}" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".PlaybackService"
+            android:exported="true"
+            android:foregroundServiceType="mediaPlayback">
+            <intent-filter>
+                <action android:name="androidx.media3.session.MediaSessionService" />
+            </intent-filter>
+        </service>
+    </application>
+</manifest>

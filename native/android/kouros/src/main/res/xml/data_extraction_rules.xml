@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Nothing leaves the device. allowBackup="false" alone does NOT stop Android 12+'s
+     device-to-device transfer, and this app's data root holds a live jkOS session: the sealed
+     refresh token (no_backup/session.bin). Its Keystore key cannot leave the device anyway,
+     so a copied blob would be undecryptable — but a session is re-established by signing in,
+     never copied, and the rule says so rather than leaning on that. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="database" path="." />
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="external" path="." />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="database" path="." />
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="external" path="." />
+    </device-transfer>
+</data-extraction-rules>

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The window behind the first Compose frame: the app's dark surface, so a cold start
+         never flashes white. Compose draws everything else (Theme.kt). -->
+    <color name="surface_dark">#141220</color>
+
+    <style name="Theme.KourOS" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/surface_dark</item>
+    </style>
+
+    <!-- The sign-in redirect: no window of its own; it hands the code over and finishes. -->
+    <style name="Theme.KourOS.Redirect" parent="android:Theme.Translucent.NoTitleBar" />
+</resources>

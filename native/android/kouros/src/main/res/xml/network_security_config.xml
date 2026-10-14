@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- https only, and only the system's CAs. Android already defaults user CAs off for a modern
+     targetSdk; this says so where an auditor can read it, and check:native holds it. The
+     jkOS origins sit behind Cloudflare, which presents a publicly trusted certificate. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
