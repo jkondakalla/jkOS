@@ -22,8 +22,5 @@ export function drawableIn(def: unknown, host: { slices?: readonly string[]; kin
 /** A spec's bodies: `body`, and `mobile` when it has one. */
 export function bodiesOf(spec: unknown): unknown[];
 
-/** The sources an `await` in the widget draws the states of. */
-export function awaitsOf(def: unknown): Set<string>;
-
 /** The ids of the parts a widget draws (`use`), directly. */
 export function partsOf(def: unknown): Set<string>;

@@ -204,10 +204,6 @@ export function checkBindings(def, { docs = {}, slices = {}, actions = {}, pages
       const here = p.row ? extra.row ?? sc : p.result ? extra.result ?? sc : sc
       if (p.type === 'binding' || p.type === 'tone') checkBinding(v, `${at}/${esc(name)}`, here)
       if (p.type === 'state') checkStateName(v, `${at}/${esc(name)}`)
-      if (p.type === 'source' && typeof v === 'string' && !(v in sources)) {
-        const near = nearest(v, Object.keys(sources))
-        err(`${at}/${esc(name)}`, 'undeclared', `no source ${JSON.stringify(v)} is declared in spec.sources`, near ? `did you mean ${JSON.stringify(near)}?` : `declared: ${Object.keys(sources).join(', ') || 'none'}`)
-      }
       if (p.type === 'pairs' && Array.isArray(v)) {
         v.forEach((pair, i) => {
           for (const k of ['label', 'value', 'tone']) if (isObj(pair) && pair[k] !== undefined) checkBinding(pair[k], `${at}/${esc(name)}/${i}/${k}`, here)

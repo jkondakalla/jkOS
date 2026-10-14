@@ -37,7 +37,6 @@
  *   action    the name of an action the HOST declares, `<engine>.<verb>` ("player.play")
  *   route     a route pattern — a page's path, "/books/:id" (routes.js)
  *   widget    another widget's id — the part a `use` draws
- *   source    the name of one of the widget's own sources (spec.sources)
  */
 
 /** The status palette a tone names. Semantic constants, never accent-derived (DESIGN §2). */
@@ -188,9 +187,8 @@ export const NODES = {
       from: { type: 'binding', required: true, doc: 'the array; each element is `$` inside `item`' },
       item: { type: 'node', required: true },
       empty: { type: 'binding', doc: 'shown when the array is empty' },
-      dir: { type: 'enum', values: ['col', 'row', 'rail'], doc: 'rail: a horizontal strip that scrolls and snaps, each item a wide card (a run, a station)' },
+      dir: { type: 'enum', values: ['col', 'row'] },
       cols: { type: 'number', min: 1, max: 4, default: 1, doc: 'wraps a column list into an N-column grid (dense fact lists)' },
-      max: { type: 'number', min: 1, max: 100, doc: 'items drawn; the rest are left off (the first four sleeves of a set)' },
     },
     example: {
       t: 'list', from: { src: 'systems', path: 'rows' }, empty: 'NOTHING',
@@ -211,7 +209,7 @@ export const NODES = {
     kind: 'atom', label: 'Text', hint: 'heading or body line',
     props: {
       text: { type: 'binding', required: true },
-      variant: { type: 'enum', values: ['page', 'title', 'body', 'sub', 'mono', 'note'], doc: "page: a screen's own heading; note: the suite's set, italic off-state voice (a signed-out or empty line)" },
+      variant: { type: 'enum', values: ['title', 'body', 'sub', 'mono', 'note'], doc: "note: the suite's set, italic off-state voice (a signed-out or empty line)" },
       grow: { type: 'boolean', doc: 'take the remaining width and ellipsize' },
     },
     example: { t: 'text', text: 'Heading', variant: 'title' },
@@ -229,15 +227,6 @@ export const NODES = {
       size: { type: 'number', min: 12, max: 64, default: 24 },
     },
     example: { t: 'icon', name: 'sun', tone: 'accent' },
-  },
-  cover: {
-    kind: 'atom', label: 'Cover', hint: "a square of art (round for a person), with the suite's one fallback",
-    props: {
-      image: { type: 'binding', href: true, doc: 'the art (an http(s) or relative URL); none, or one that fails to load, draws the fallback' },
-      name: { type: 'binding', doc: "whose art it is: the fallback shows its first letter, and it is the image's alt text" },
-      shape: { type: 'binding', values: ['square', 'round'], doc: 'round for a person (an artist), square for a work — a binding, so a row can say which' },
-    },
-    example: { t: 'cover', image: { src: '$', path: 'cover_url' }, name: { src: '$', path: 'title' } },
   },
   divider: {
     kind: 'atom', label: 'Divider', hint: 'rule, optional caption',
@@ -294,26 +283,6 @@ export const NODES = {
     },
     example: { t: 'use', widget: 'kouros-cover', with: { title: { src: '$', path: 'title' } } },
   },
-  section: {
-    kind: 'layout', label: 'Section', hint: 'a titled group: a heading, a note, an "All →" link, and what it holds',
-    props: {
-      title: { type: 'binding', required: true },
-      note: { type: 'binding', doc: 'small, at the end of the head ("matched by sound")' },
-      more: { type: 'binding', doc: 'a link at the end of the head ("All") — with `href`' },
-      href: { type: 'binding', href: true, doc: 'where `more` goes' },
-      children: { type: 'nodes', required: true },
-    },
-    example: { t: 'section', title: 'Recently played', children: [] },
-  },
-  await: {
-    kind: 'logic', label: 'Await', hint: "where a source's loading, offline and empty states are drawn — the rest of the screen stays",
-    props: {
-      src: { type: 'source', required: true, doc: 'the source whose states this draws (the frame then leaves them to it)' },
-      then: { type: 'node', required: true, doc: 'drawn once the source has answered something' },
-      empty: { type: 'binding', doc: 'what it says when the source answered nothing' },
-    },
-    example: { t: 'await', src: 'home', then: { t: 'stack', children: [] } },
-  },
   when: {
     kind: 'logic', label: 'Condition', hint: 'show a branch only when true',
     props: {
@@ -364,7 +333,6 @@ export const NODES = {
   meter: {
     kind: 'pattern', label: 'Meter', hint: 'a labelled bar: how far along',
     props: {
-      href: { type: 'binding', href: true, doc: 'the meter links here' },
       value: { type: 'binding', required: true },
       max: { type: 'binding', doc: 'default 1 (value is a fraction)' },
       label: { type: 'binding' },
@@ -409,26 +377,6 @@ export const NODES = {
       max: { type: 'number', min: 1, max: 100 },
     },
     example: { t: 'feed', from: { src: 'notifications', path: 'items' }, text: { src: '$', path: 'text' }, icon: { src: '$', path: 'icon' }, tone: { src: '$', path: 'tone' }, detail: { src: '$', path: 'detail' } },
-  },
-  rail: {
-    kind: 'pattern', label: 'Rail', hint: 'a horizontal strip of cover cards — art, a title, who, a line of meta',
-    props: {
-      from: { type: 'binding', required: true, doc: 'the cards; every per-card prop below binds into `$`' },
-      title: { type: 'binding', required: true, row: true },
-      image: { type: 'binding', row: true, href: true, doc: 'the art (none: the fallback letter of the title)' },
-      shape: { type: 'binding', row: true, values: ['square', 'round'], doc: 'round for a person' },
-      sub: { type: 'binding', row: true, doc: 'who — an artist, an author' },
-      meta: { type: 'binding', row: true, doc: 'a small mono line (a year, a count, time left)' },
-      progress: { type: 'binding', row: true, doc: 'a hairline under the art: how far in — a fraction, or out of `total`' },
-      total: { type: 'binding', row: true },
-      active: { type: 'binding', row: true, doc: 'true: this card is the one playing (its title takes the accent)' },
-      href: { type: 'binding', row: true, href: true, doc: 'the card links here' },
-      empty: { type: 'binding', doc: 'when there are no cards' },
-      max: { type: 'number', min: 1, max: 100 },
-      on: { type: 'events' },
-    },
-    events: { select: 'a card is tapped — its actions read that card as `$` (a card is a link or an action, not both)' },
-    example: { t: 'rail', from: { src: 'pinned', path: 'items' }, title: { src: '$', path: 'title' }, sub: { src: '$', path: 'timeLabel' } },
   },
   facts: {
     kind: 'pattern', label: 'Facts', hint: 'a grid of named values',

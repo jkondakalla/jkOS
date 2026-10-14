@@ -28,8 +28,7 @@ function tsType(p, spec = {}) {
     case 'state':
     case 'action':
     case 'route':
-    case 'widget':
-    case 'source': return 'string';
+    case 'widget': return 'string';
     case 'params': return 'Record<string, Binding>';
     case 'events': return `{ ${Object.keys(spec.events ?? {}).map((e) => `${e}?: ActionChain`).join('; ')} }`;
     case 'binding': return 'Binding';

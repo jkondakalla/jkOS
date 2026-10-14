@@ -170,22 +170,11 @@ narrow are already right. **Reach for one before composing primitives.**
 | `feed` | what happened, newest first | `from`, per event: `text`, `at`, `icon`, `tone`, `detail` |
 | `facts` | a grid of named values | `items: [{ label, value, tone? }]`, `cols` |
 | `media` | art, a title, where it is | `image`, `title`, `subtitle`, `meta`, `progress`, `href` |
-| `rail` | a horizontal strip of cover cards | `from`, per card: `title`, `image`, `shape` (`round` for a person), `sub`, `meta`, `progress`/`total`, `active`, `href` — or `on.select` |
 | `ask` | one question, the answer under it | `cmd`, `field`, `placeholder`, `answer` |
 
 Inside a list pattern, per-row props bind into `$`: `{ "src": "$", "path": "title" }`.
 `when` (`cond`, `then`, `else`) switches between bodies — e.g. a session with nothing
-loaded.
-
-**Screens** add three: `section` (a titled group — `title`, `note`, an `All →` link via
-`more` + `href`, then its `children`), `cover` (one square of art, round for a person,
-with the suite's one fallback letter), and `await`. By default the frame draws a
-source's loading, offline, signed-out and empty states INSTEAD of the whole body; an
-`{ "t": "await", "src": "home", "then": … }` draws them in its own place instead, so a
-screen keeps its heading and what is playing while its rails load (the frame then
-gates only the sources no `await` covers). A `list` may run as a `rail` of wide cards
-(`dir: "rail"`) and show only its first `max`; `text` has a `page` variant, a screen's
-own heading. The rest of the vocabulary (primitives, layout, the molecules, form controls) and
+loaded. The rest of the vocabulary (primitives, layout, the molecules, form controls) and
 every prop's type: `pnpm widget vocab [kind]`, or the Workshop's Guide tab.
 
 **Commands.** `form` (with `input`/`select`/`toggle` inside), `button` and `ask` run a
