@@ -208,6 +208,16 @@ that code can reopen it.
   buffering and on a rate change. Read the element's own time each frame instead:
   `@jkos/player`'s `livePosition()`.
 
+- **A software rasteriser is a WebGL2 context like any other, and pays per triangle.** Chrome on
+  a blocklisted GPU, a VM or a headless run hands out SwiftShader; Linux without a driver,
+  llvmpipe. Both pass `hasWebGL2()` and every shader compiles. Measured 2026-10-14 on the 3-D
+  pulsarmap at phone size: 60 fps on a GPU, 1.9 on SwiftShader, scaling with the triangle count.
+  Only the renderer name says so — `@jkos/scene` `rendererName` + `isSoftwareRenderer`; a view
+  with heavy geometry refuses one and falls back (RidgeStage).
+- **Headless Chromium on Emily: `--use-angle=vulkan` loses the WebGL context at once** (the RTX
+  3080 is reported, the first draw finds `isContextLost()`, the canvas stays blank and nothing
+  falls back). `--use-angle=gl --ignore-gpu-blocklist` renders on the GPU. For a GPU-rendered
+  capture of a 3-D view, use GL; for the software floor, `--use-angle=swiftshader`.
 - **In a headless pixel comparison, CSS effects are not deterministic between runs — WebGL is.**
   Two runs of the SAME build differed by ~600 px on `backdrop-filter` label boxes and by one level
   on a CSS gradient, while every WebGL pixel matched. Compare a 3-D view with its HTML overlays
@@ -826,6 +836,12 @@ that code can reopen it.
   watchdog).
 
 ## git & shell
+
+- **Two sessions share one working tree, and `git commit` takes the INDEX — including what the
+  other session staged.** Seen 2026-10-14: a pulsarmap commit swept in the widget session's staged
+  `preview.css` rename, leaving that one commit with an import of a moved file. In a shared tree,
+  commit with explicit paths (`git commit -- <paths>`, which commits exactly those) and check
+  `git diff --cached --stat` first. A gate run sees the other session's uncommitted edits too.
 
 - **`git checkout <file>` over uncommitted work-in-progress discards it — there is no undo.**
   This has happened more than once in this project's history, always while trying to "just look
