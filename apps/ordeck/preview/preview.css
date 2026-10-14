@@ -6,6 +6,8 @@ html.od-v2 body { overflow: auto; }
 .wp-tier { flex: none; width: 70px; padding-top: 18px; line-height: 1.6; }
 .wp-cell { flex: none; display: flex; flex-direction: column; gap: 6px; }
 .wp-label { opacity: 0.7; }
+/* A page is drawn as a screen: the frame is the viewport, and the page scrolls in it. */
+.wp-screen { overflow-y: auto; overscroll-behavior: contain; }
 
 /* A camera wants the settled picture: no transition caught halfway (the body's
    background eases 0.4 s between faces, and a capture caught it grey), no pulse

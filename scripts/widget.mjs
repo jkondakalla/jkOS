@@ -11,8 +11,15 @@
 //   pnpm widget vocab [<kind> …]               the node vocabulary, read from the manifest: every
 //                                             kind, its props, an example (a kind's name: just that one)
 //   pnpm widget list                          every widget the suite ships, and where it lives
+//   pnpm widget routes [<app>]                each app's pages: route → page widget (derived from the files)
 //   pnpm widget check [<id|file> …]           validate (all shipped widgets when none named)
 //   pnpm widget shot <id|file> … [options]    draw it — every tier × state — and write PNGs
+//   pnpm widget shot --routes <app> [options] draw every page of an app — screen × tier × state × face
+//   pnpm widget diff [<id> …] [--against REV] [--out DIR]
+//                                             did this change move any widget's pixels? Shoots every
+//                                             widget at REV (default HEAD, in a scratch worktree) and
+//                                             here; identical sheets are the review page's "proven
+//                                             unchanged", differing ones are kept as before/after PNGs
 //       --mode paper|dark|both   face(s) to draw (default both)
 //       --state ready,empty,…    states to draw (default: ready, empty, offline, signed-out, loading)
 //       --out DIR                where the PNGs go (default: $TMPDIR/jkos-widget-shots)
@@ -30,8 +37,9 @@ import { tmpdir } from 'node:os';
 import { shippedWidgets, suiteHosts, declarations, hosts, WIDGETS_URL, SEMANTIC_URL, REPO_ROOT } from './widget/catalog.mjs';
 import { renderWidgets } from './widget/render.mjs';
 import { draftWidget } from './widget/scaffold.mjs';
+import { diffWidgets } from './widget/diff.mjs';
 
-const { validateWidget: validate, NODES, FRAME, SOURCES, ACTIONS, STATE_TYPES, TONES, isPortable, drawableIn } = await import(WIDGETS_URL);
+const { validateWidget: validate, NODES, FRAME, SOURCES, ACTIONS, STATE_TYPES, TONES, isPortable, drawableIn, routeTable } = await import(WIDGETS_URL);
 const { checkBindings } = await import(SEMANTIC_URL);
 const CTX = { suiteHosts: suiteHosts() };
 const DECLS = await declarations();
@@ -123,6 +131,24 @@ if (cmd === 'new') {
     }
   }
   console.log('\n* required');
+} else if (cmd === 'diff') {
+  const out = resolve(typeof flags.out === 'string' ? flags.out : join(tmpdir(), 'jkos-widget-diff'));
+  const r = diffWidgets({ against: typeof flags.against === 'string' ? flags.against : 'HEAD', ids: names, out });
+  console.log(`against ${r.against}: ${r.identical.length} sheet(s) byte-identical, ${r.differ.length} differ`);
+  for (const d of r.differ) console.log(`  ≠ ${d}  →  ${out}/${d.replace(' · ', '-')}-{before,after}.png`);
+  for (const id of r.added) console.log(`  + ${id} (new — nothing to compare)`);
+  for (const id of r.removed) console.log(`  − ${id} (gone)`);
+  if (!r.differ.length) console.log('Nothing moved: log it on the review page as proven unchanged.');
+  else console.log('Something moved: LOOK at each pair, then put it on the review page.');
+} else if (cmd === 'routes') {
+  const shipped = (await shippedWidgets()).filter((w) => w.def);
+  const apps = names.length ? names : [...new Set(shipped.map((w) => w.app))];
+  for (const app of apps) {
+    const { routes, problems } = routeTable(shipped.filter((w) => w.app === app).map((w) => w.def));
+    console.log(`\n${app}${routes.size ? '' : '  (no pages yet — a page is a widget file with a "route")'}`);
+    for (const [route, id] of routes) console.log(`  ${route.padEnd(28)} ${id}`);
+    for (const p of problems) console.log(`  ✗ ${p}`);
+  }
 } else if (cmd === 'list') {
   for (const w of await shippedWidgets()) console.log(`${(w.def?.id ?? '?').padEnd(22)} ${w.where}${w.fixtures ? '  (+ fixtures)' : ''}`);
 } else if (cmd === 'check') {
@@ -141,7 +167,13 @@ if (cmd === 'new') {
   }
   process.exit(bad ? 1 : 0);
 } else if (cmd === 'shot') {
-  if (!names.length) { console.error('name at least one widget: pnpm widget shot <id|file> …'); process.exit(2); }
+  // --routes <app>: every page of the app, from its route table.
+  if (typeof flags.routes === 'string') {
+    const pages = (await shippedWidgets()).filter((w) => w.def && w.app === flags.routes && typeof w.def.route === 'string');
+    if (!pages.length) { console.error(`✗ ${flags.routes} has no pages yet — a page is a widget file with a "route" (pnpm widget routes)`); process.exit(2); }
+    names.push(...pages.map((w) => w.def.id));
+  }
+  if (!names.length) { console.error('name at least one widget: pnpm widget shot <id|file> …, or --routes <app>'); process.exit(2); }
   const widgets = await resolveWidgets(names);
   for (const w of widgets) {
     const problems = validateWidget(w.def);

@@ -8,13 +8,20 @@
  *
  *   { def, mode: 'paper' | 'dark', accent?: 0..3, states?: PreviewState[] }
  *
- * The page lays out a contact sheet — a row per tier (desktop, mobile, and the
- * smallest footprint a user may resize to), a column per state — each cell sized
- * exactly as the HUD grid sizes it (the Workshop canvas's geometry) and holding
- * `renderWidget(def, hudHost(ctx))`, the same call RoomHUD makes. Built-in slices come from
- * hud/sample.ts, and each declared source is read by its fixtureReader — the real
- * discovery, refusal and shape checks, with only the request answered from the job's
- * fixtures for that state (data, empty, 503, 401, or never).
+ * The page lays out a contact sheet — a row per tier, a column per state. A HUD card's
+ * rows are desktop, mobile and the smallest footprint a user may resize to, each cell
+ * sized exactly as the HUD grid sizes it (the Workshop canvas's geometry); a PAGE's are
+ * the three screen tiers at a screen's size, where the page scrolls; a part's are a
+ * generous cell per tier. Each cell holds `renderWidget(def, hudHost(ctx, tier))`, the
+ * same call RoomHUD makes. Built-in slices come from hud/sample.ts, and each declared
+ * source is read by its fixtureReader — the real discovery, refusal and shape checks,
+ * with only the request answered from the job's fixtures for that state (data, empty,
+ * 503, 401, or never).
+ *
+ * A state's fixtures may also carry what no source answers: `$slices` (host slices the
+ * widget binds, over the sample's — a KourOS page's player), `$route` (a page's route
+ * params) and `$in` (a part's inputs). The synthesised states (loading, offline, signed
+ * out) use the `ready` ones.
  *
  * When everything that should arrive has arrived, the page measures itself and
  * raises `window.__widgetReady`, with the findings in `window.__widgetReport` — a
@@ -26,7 +33,7 @@ import './clock';   // FIRST: the page's Date is pinned before anything reads it
 import { StrictMode } from 'react';
 import ReactDOM from 'react-dom/client';
 import { injectJkOSTheme, applyJkOSMode, applyJkOSMotion, applyJkOSTheme, ACCENT_SCHEMES } from '@jkos/design';
-import { renderWidget, SourceReaderProvider, type SourceReader } from '@jkos/widget-render';
+import { renderWidget, SourceReaderProvider, type SourceReader, type WidgetHost } from '@jkos/widget-render';
 import { hudHost } from '../src/hud/host';
 import { WIDGETS } from '../src/hud/catalog';
 import { DEFAULT_MIN_SIZE, type WidgetDef } from '../src/hud/types';
@@ -37,23 +44,56 @@ import '../src/styles/hud.css';
 import '../src/hud/grid.css';
 import './preview.css';
 
-interface Job { def: WidgetDef; mode?: 'paper' | 'dark'; accent?: number; states?: PreviewState[]; fixtures?: Record<string, Record<string, unknown>> | null }
+type AnyDef = Omit<WidgetDef, 'sizing'> & { sizing?: WidgetDef['sizing'] };
+interface Job { def: AnyDef; mode?: 'paper' | 'dark'; accent?: number; states?: PreviewState[]; fixtures?: Record<string, Record<string, unknown>> | null }
 
-type Tier = 'desktop' | 'mobile' | 'min';
-const TIER_ROWS: { tier: Tier; colW: number; label: string }[] = [
-  { tier: 'desktop', colW: TIERS.desktop.colW, label: 'DESKTOP' },
-  { tier: 'mobile', colW: TIERS.mobile.colW, label: 'MOBILE' },
-  { tier: 'min', colW: TIERS.desktop.colW, label: 'SMALLEST' },
+type Tier = 'desktop' | 'tablet' | 'mobile' | 'min';
+interface Row { tier: Tier; label: string; w: number; h: number; dims: string }
+
+/** A page is a SCREEN: drawn at a screen's size per tier, and it scrolls. */
+const SCREENS: { tier: Tier; label: string; w: number; h: number }[] = [
+  { tier: 'desktop', label: 'DESKTOP', w: 1280, h: 800 },
+  { tier: 'tablet', label: 'TABLET', w: 820, h: 1000 },
+  { tier: 'mobile', label: 'MOBILE', w: 390, h: 844 },
 ];
+/** A part (no footprint, no route) is drawn in a generous cell per tier, in grid units. */
+const PART = { desktop: { w: 6, h: 8 }, mobile: { w: 2, h: 10 }, min: { w: 4, h: 6 } } as const;
 
-/** Where a widget with no footprint (a part, a screen) is drawn: a generous cell per
- *  tier, so it can be looked at — its own contact sheets come with the rescope's harness. */
-const UNPLACED = { desktop: { w: 6, h: 8 }, mobile: { w: 2, h: 10 }, min: { w: 4, h: 6 } } as const;
+/** The sheet's rows: a page's screens, a card's footprints, or a part's cells. */
+function rowsFor(def: AnyDef): Row[] {
+  if (def.route) return SCREENS.map((s) => ({ ...s, dims: `${s.w}×${s.h}px` }));
+  const cards: { tier: Tier; colW: number; label: string }[] = [
+    { tier: 'desktop', colW: TIERS.desktop.colW, label: 'DESKTOP' },
+    { tier: 'mobile', colW: TIERS.mobile.colW, label: 'MOBILE' },
+    { tier: 'min', colW: TIERS.desktop.colW, label: 'SMALLEST' },
+  ];
+  return cards.map(({ tier, colW, label }) => {
+    const size = !def.sizing ? PART[tier as keyof typeof PART]
+      : tier === 'min' ? def.sizing.min ?? DEFAULT_MIN_SIZE : def.sizing[tier as 'desktop' | 'mobile'];
+    return {
+      tier, label, dims: `${size.w}×${size.h}`,
+      w: unitsToPx(Math.min(size.w, tier === 'mobile' ? 2 : 12), colW), h: unitsToPx(size.h, ROW_H),
+    };
+  });
+}
 
-function footprint(def: Omit<WidgetDef, 'sizing'> & { sizing?: WidgetDef['sizing'] }, tier: Tier) {
-  if (!def.sizing) return UNPLACED[tier];
-  if (tier === 'min') return def.sizing.min ?? DEFAULT_MIN_SIZE;
-  return def.sizing[tier];
+/** What a state's fixtures give besides sources: `$slices`, `$route`, `$in` — the state's
+ *  own, else `ready`'s (the synthesised states have no fixtures of their own). */
+function extra(job: Job, state: PreviewState, key: '$slices' | '$route' | '$in'): Record<string, unknown> | undefined {
+  return (job.fixtures?.[state]?.[key] ?? job.fixtures?.ready?.[key]) as Record<string, unknown> | undefined;
+}
+
+/** The host a cell draws in: ORDECK's (sample slices, at this tier), with the fixtures'
+ *  slices over them, the page's route params, and a router that goes nowhere — so a `go`
+ *  is armed as it would be in an app that routes. */
+function hostFor(job: Job, state: PreviewState, tier: Tier): WidgetHost {
+  const base = hudHost(sampleCtx(state), tier === 'min' ? 'desktop' : tier);
+  return {
+    ...base,
+    slices: { ...base.slices, ...extra(job, state, '$slices') },
+    route: extra(job, state, '$route') as Record<string, string> | undefined,
+    navigate: () => {},
+  };
 }
 
 /** Which job this page is — the harness serves several through one page, in turn. */
@@ -87,26 +127,21 @@ function Sheet({ job }: { job: Job }) {
         <span className="hud-eyebrow">{job.def.label || job.def.id}</span>
         <span className="hud-eyebrow-src">{job.def.id} · {job.mode ?? 'paper'}</span>
       </div>
-      {TIER_ROWS.map(({ tier, colW, label }) => {
-        const size = footprint(job.def, tier);
-        const w = unitsToPx(Math.min(size.w, tier === 'mobile' ? 2 : 12), colW);
-        const h = unitsToPx(size.h, ROW_H);
-        return (
-          <div className="wp-row" key={tier}>
-            <div className="wp-tier hud-eyebrow">{label}<br />{size.w}×{size.h}</div>
-            {states.map((state) => (
-              <div className="wp-cell" key={state} data-tier={tier} data-state={state}>
-                <div className="wp-label hud-eyebrow">{state}</div>
-                <div className="hud-cell wp-frame" style={{ width: w, height: h }}>
-                  <SourceReaderProvider value={readerFor(state, job.fixtures)}>
-                    {renderWidget(job.def, hudHost(sampleCtx(state), tier === 'mobile' ? 'mobile' : 'desktop'))}
-                  </SourceReaderProvider>
-                </div>
+      {rowsFor(job.def).map(({ tier, label, w, h, dims }) => (
+        <div className="wp-row" key={tier}>
+          <div className="wp-tier hud-eyebrow">{label}<br />{dims}</div>
+          {states.map((state) => (
+            <div className="wp-cell" key={state} data-tier={tier} data-state={state} data-kind={job.def.route ? 'screen' : 'card'}>
+              <div className="wp-label hud-eyebrow">{state}</div>
+              <div className={`hud-cell wp-frame${job.def.route ? ' wp-screen' : ''}`} style={{ width: w, height: h }}>
+                <SourceReaderProvider value={readerFor(state, job.fixtures)}>
+                  {renderWidget(job.def as WidgetDef, hostFor(job, state, tier), extra(job, state, '$in'))}
+                </SourceReaderProvider>
               </div>
-            ))}
-          </div>
-        );
-      })}
+            </div>
+          ))}
+        </div>
+      ))}
     </div>
   );
 }
@@ -116,6 +151,8 @@ function Sheet({ job }: { job: Job }) {
 function measure() {
   const cells = [...document.querySelectorAll<HTMLElement>('.wp-cell')].map((cell) => {
     const frame = cell.querySelector<HTMLElement>('.wp-frame')!;
+    // A screen scrolls: content below its fold is reachable, not lost.
+    const screen = cell.dataset.kind === 'screen';
     const card = frame.firstElementChild as HTMLElement | null;
     const fr = frame.getBoundingClientRect();
     const clipped: string[] = [];
@@ -134,7 +171,7 @@ function measure() {
       if (scrollable(el)) continue;
       const r = el.getBoundingClientRect();
       if (r.width === 0 && r.height === 0) continue;
-      const outside = r.right > fr.right + 1 || r.bottom > fr.bottom + 1;
+      const outside = r.right > fr.right + 1 || (!screen && r.bottom > fr.bottom + 1);
       if (el.scrollWidth > el.clientWidth + 1 && cs.overflowX !== 'visible' || outside) {
         clipped.push(el.textContent!.trim().slice(0, 40));
       }
@@ -144,7 +181,7 @@ function measure() {
       rect: { x: fr.x + window.scrollX, y: fr.y + window.scrollY, width: fr.width, height: fr.height },
       fault: !!frame.querySelector('[data-widget-fault]'),
       overflowX: !!card && card.scrollWidth > card.clientWidth + 1,
-      overflowY: !!card && card.scrollHeight > card.clientHeight + 1,
+      overflowY: !screen && !!card && card.scrollHeight > card.clientHeight + 1,
       clipped: [...new Set(clipped)].slice(0, 6),
     };
   });

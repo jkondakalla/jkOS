@@ -120,9 +120,38 @@ for (const { where, app, def } of shipped.filter((w) => w.def)) {
 {
   const { checkDatasetAnswer } = await import(new URL('../packages/weave/src/shared/datasetShape.js', import.meta.url).href);
   const docs = appDocs();
+  const { needsOf, routeParams, fitsType } = { ...(await import(WIDGETS)), ...(await import(new URL('../packages/widgets/src/validate.js', import.meta.url).href)) };
+  const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+  /* What no source answers: `$slices` (host slices the widget binds), `$route` (a page's
+     params), `$in` (a part's inputs) — each held to what the widget actually reads, so a
+     sheet never draws a slice it does not bind or a param its route does not have. */
+  const extras = (w, state, name, value) => {
+    const at = `${w.where}: fixtures.${state}.${name}`;
+    if (!isObj(value)) { check(false, `${at} is an object`); return; }
+    if (name === '$slices') {
+      const binds = needsOf(w.def, DECLS.widgets).slices;
+      const extra = Object.keys(value).filter((k) => !binds.has(k));
+      check(!extra.length, `${at} names only slices the widget binds${extra.length ? ` — not ${extra.join(', ')}` : ''}`);
+    } else if (name === '$route') {
+      const want = routeParams(w.def.route).sort().join();
+      check(Object.keys(value).sort().join() === want, `${at} gives exactly its route's params (${want || 'it is no page'})`);
+    } else if (name === '$in') {
+      const inputs = w.def.spec?.inputs ?? {};
+      const bad = Object.entries(value).filter(([k, v]) => !inputs[k] || !fitsType(inputs[k].type, v)).map(([k]) => k);
+      check(!bad.length, `${at} gives only declared inputs, each of its type${bad.length ? ` — not ${bad.join(', ')}` : ''}`);
+    } else check(false, `${at}: a $ key is $slices, $route or $in`);
+  };
+  // A page with params, or a part with required inputs, draws nothing real without them.
+  for (const w of shipped.filter((x) => x.def)) {
+    const params = routeParams(w.def.route);
+    if (params.length) check(params.every((k) => w.fixtures?.ready?.$route?.[k] != null), `${w.where}: its fixtures give every route param ($route), so its sheet draws a real page`);
+    const required = Object.entries(w.def.spec?.inputs ?? {}).filter(([, d]) => d.required).map(([k]) => k);
+    if (required.length) check(required.every((k) => w.fixtures?.ready?.$in?.[k] != null), `${w.where}: its fixtures give every required input ($in), so its sheet draws a real part`);
+  }
   for (const w of shipped.filter((x) => x.def && x.fixtures)) {
     for (const [state, byName] of Object.entries(w.fixtures)) {
       for (const [name, value] of Object.entries(byName ?? {})) {
+        if (name.startsWith('$')) { extras(w, state, name, value); continue; }
         const s = w.def.spec?.sources?.[name];
         if (!s) { check(false, `${w.where}: fixtures.${state}.${name} names no source of the widget`); continue; }
         if (s.kind !== 'dataset') continue;

@@ -39,6 +39,21 @@ pnpm widget new <app> <id> --dataset <name> [--from <field>] [--pattern P] [--pa
 pnpm widget new <app> <id> --ask <capability>
 ```
 
+Pages and the review page have their own forms:
+
+```
+pnpm widget routes [<app>]                    each app's pages, route → widget (derived from the files)
+pnpm widget shot --routes <app>               every page of an app: screen × tier × state × face
+pnpm widget diff [<id> …] [--against REV]     did this change move any widget's pixels?
+```
+
+`shot` draws a HUD card at its footprints (desktop, mobile, smallest), a page at screen
+sizes (desktop 1280×800, tablet 820×1000, mobile 390×844 — the page scrolls, so a tall
+one is not a finding), and a part in a generous cell. `diff` shoots every widget at `REV`
+(default HEAD, in a scratch worktree installed from the lockfile) and in your tree, and
+compares the sheets byte for byte: identical ones are the review page's *proven
+unchanged*, differing ones come out as `<id>-<face>-{before,after}.png` for its entry.
+
 A widget is not done until someone has looked at the PNGs in both faces. The measurements
 `shot` prints (a card taller than its footprint, text cut without an ellipsis, a fault
 tile) catch the mechanical failures, not the ugly ones.
@@ -272,6 +287,13 @@ Fixtures are what `shot` and the gate draw: `{ "<state>": { "<source>": <answer>
 for the states `ready` and `empty` (loading, offline and signed-out are synthesised). A
 source missing from a state answers `[]` (or `null` for a one-document dataset). Make
 them real-looking — they are what a reviewer sees.
+
+What no source answers goes beside them, under three `$` keys: `$slices` (host slices
+the widget binds, over the sample ORDECK's — a page's player), `$route` (a page's route
+params) and `$in` (a part's inputs). The synthesised states use `ready`'s. The gate
+holds each to what the widget reads — only slices it binds, exactly its route's params,
+only declared inputs of their type — and requires them where the sheet would otherwise
+draw nothing real: every param of a page, every required input of a part.
 
 **Changing the vocabulary** (a new pattern, a prop, a format) is a change to
 `packages/widgets` — the manifest drives the generated `WidgetNode` union

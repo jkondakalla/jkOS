@@ -1050,7 +1050,7 @@ function binds(def: WidgetDef, widgets?: Readonly<Record<string, WidgetDef>>) {
   return out;
 }
 
-interface CardProps { def: WidgetDef; host: WidgetHost }
+interface CardProps { def: WidgetDef; host: WidgetHost; inputs?: Record<string, unknown> }
 
 /** Last time each card actually rendered, for the refreshMs heartbeat. ORDECK re-renders
  *  its cards ~once a second (the clock), so cardPropsEqual is consulted at that cadence —
@@ -1059,6 +1059,7 @@ const lastRenderAt = new Map<string, number>();
 
 function cardPropsEqual(prev: CardProps, next: CardProps): boolean {
   if (prev.def !== next.def) return false;     // def changed → re-render
+  if (prev.inputs !== next.inputs) return false; // a part handed new inputs
   const b = binds(next.def, next.host.widgets);
   // A name that is not one of the host's slices ($ list element, $form, a source's own
   // name) is never on the host, so it never (correctly) triggers a re-render here.
@@ -1079,10 +1080,10 @@ function cardPropsEqual(prev: CardProps, next: CardProps): boolean {
 /** One card, isolated: re-renders when a slice it binds to changes, when its
  *  refreshMs heartbeat is due, or on its own internal state (a form's inputs, a
  *  fetch source's polled data) — so interactive/live cards still update themselves. */
-const WidgetCard = memo(function WidgetCard({ def, host }: CardProps) {
+const WidgetCard = memo(function WidgetCard({ def, host, inputs }: CardProps) {
   // Stamp the render time post-commit (not during render) for the heartbeat above.
   useEffect(() => { if (def.refreshMs) lastRenderAt.set(def.id, Date.now()); });
-  return <>{renderWidgetBody(def, host)}</>;
+  return <>{renderWidgetBody(def, host, inputs)}</>;
 }, cardPropsEqual);
 
 /* ═══ Entry point ══════════════════════════════════════════════════════════ */
@@ -1120,23 +1121,24 @@ function aiOffTile(def: WidgetDef): ReactNode {
   );
 }
 
-function renderWidgetBody(def: WidgetDef, host: WidgetHost): ReactNode {
+function renderWidgetBody(def: WidgetDef, host: WidgetHost, inputs?: Record<string, unknown>): ReactNode {
   if (!host.aiEnabled && usesAi(def, host.widgets)) return aiOffTile(def);
-  if (def.spec) return <SpecWidget spec={def.spec} host={host} />;
+  if (def.spec) return <SpecWidget spec={def.spec} host={host} inputs={inputs} />;
   return unknownWidget(def.id);
 }
 
-/** Render a widget file in `host`, behind its per-card update gate (see WidgetCard). Each
+/** Render a widget file in `host`, behind its per-card update gate (see WidgetCard) —
+ *  `inputs` are a part's `$in`, when a host (a contact sheet) draws a part on its own. Each
  *  card is isolated by a boundary, so one malformed spec (a bad published/AI/workshop
  *  widget) shows a single fault tile instead of taking the whole page down; resetKey=def
  *  clears the fault when the definition is edited/republished. The boundary wraps the
  *  memo, so a stable card still bails out of re-render on the host's tick. */
-export function renderWidget(def: WidgetDef, host: WidgetHost): ReactNode {
+export function renderWidget(def: WidgetDef, host: WidgetHost, inputs?: Record<string, unknown>): ReactNode {
   return (
     <WidgetBoundary widgetName={def.label} resetKey={def}>
       <HostCtx.Provider value={host}>
         <KindsCtx.Provider value={host.kinds ?? NO_KINDS}>
-          <WidgetCard def={def} host={host} />
+          <WidgetCard def={def} host={host} inputs={inputs} />
         </KindsCtx.Provider>
       </HostCtx.Provider>
     </WidgetBoundary>
