@@ -10,4 +10,7 @@ export function actionsOf(node: unknown): { event: string; action: Record<string
 
 /** Every app a widget reaches: each dataset source's app, and every command's. What
  *  "AI-backed" is derived from. */
-export function appsOf(def: unknown): Set<string>;
+export function appsOf(def: unknown, widgets?: Readonly<Record<string, unknown>>): Set<string>;
+
+/** The ids of the parts a widget draws (`use`), directly. */
+export function partsOf(def: unknown): Set<string>;

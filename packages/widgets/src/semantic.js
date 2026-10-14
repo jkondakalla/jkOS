@@ -22,6 +22,8 @@
 import { NODES, FRAME, ACTIONS, childProps } from './manifest.js'
 import { CONDITIONS } from '@jkos/weave/binding'
 import { routeParams } from './routes.js'
+import { walkNodes } from './walk.js'
+import { fitsType } from './validate.js'
 
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v)
 const esc = (k) => String(k).replace(/~/g, '~0').replace(/\//g, '~1')
@@ -115,7 +117,7 @@ const JOB = fieldsShape([
  * @param {{ docs?: Record<string, { capabilities?: { capabilities: object[] }, datasets?: { datasets: object[] } }>,
  *           slices?: Record<string, object> }} ctx
  */
-export function checkBindings(def, { docs = {}, slices = {}, actions = {}, pages } = {}) {
+export function checkBindings(def, { docs = {}, slices = {}, actions = {}, pages, widgets } = {}) {
   const out = []
   const err = (path, code, message, fix) => out.push(fix ? { path, code, message, fix } : { path, code, message })
   const spec = def?.spec
@@ -125,6 +127,8 @@ export function checkBindings(def, { docs = {}, slices = {}, actions = {}, pages
   const scope = new Map()
   for (const [name, f] of Object.entries(slices)) scope.set(name, shapeOfField({ ...f, name }, docs))
   scope.set('$now', SCALAR)
+  // A part reads what it is handed as $in — each input as declared.
+  if (isObj(spec.inputs)) scope.set('$in', fieldsShape(Object.entries(spec.inputs).map(([name, d]) => ({ name, type: isObj(d) ? d.type : 'json' }))))
   // A page reads its route's params; any other widget has no route to read.
   if (typeof def.route === 'string') scope.set('$route', fieldsShape(routeParams(def.route).map((name) => ({ name, type: 'string' }))))
   const sources = isObj(spec.sources) ? spec.sources : {}
@@ -346,9 +350,48 @@ export function checkBindings(def, { docs = {}, slices = {}, actions = {}, pages
     for (const k of want) if (!(k in given)) err(`${p}/params`, 'missing-param', `${a.go} needs a value for :${k}`)
   }
 
+  /* A `use`, against the part it draws (ctx.widgets — every widget file, by id): it
+     exists, is handed only inputs it declares, gets every required one, a literal fits
+     its input's type, and the parts never come back round to this widget. */
+  function checkUse(node, at, sc) {
+    for (const [k, b] of Object.entries(isObj(node.with) ? node.with : {})) checkBinding(b, `${at}/with/${esc(k)}`, sc)
+    if (!widgets || typeof node.widget !== 'string') return
+    const part = widgets[node.widget]
+    if (!part) {
+      const near = nearest(node.widget, Object.keys(widgets))
+      err(`${at}/widget`, 'undeclared', `no widget ${JSON.stringify(node.widget)} exists`, near ? `did you mean ${JSON.stringify(near)}?` : 'a part is a widget file (apps/<app>/widgets/<id>.json)')
+      return
+    }
+    const inputs = isObj(part.spec?.inputs) ? part.spec.inputs : {}
+    const given = isObj(node.with) ? node.with : {}
+    for (const [k, b] of Object.entries(given)) {
+      const decl = inputs[k]
+      if (!decl) {
+        const near = nearest(k, Object.keys(inputs))
+        err(`${at}/with/${esc(k)}`, 'undeclared', `${node.widget} takes no input ${JSON.stringify(k)}`, near ? `did you mean ${JSON.stringify(near)}?` : `it takes: ${Object.keys(inputs).join(', ') || 'none'}`)
+      } else if ((typeof b !== 'object' || b === null) && !fitsType(decl.type, b)) {
+        err(`${at}/with/${esc(k)}`, 'bad-type', `${node.widget}'s input ${k} is a ${decl.type}`)
+      }
+    }
+    for (const [k, d] of Object.entries(inputs)) if (isObj(d) && d.required && !(k in given)) err(`${at}/with`, 'missing-field', `${node.widget} requires the input '${k}', and nothing hands it one`)
+    // A cycle: following the parts' own `use`s comes back to a widget already on the way
+    // down. (Two parts that both use a third is a diamond, not a cycle — `done` skips it.)
+    const done = new Set()
+    const walk = (id, trail) => {
+      if (trail.includes(id)) { err(`${at}/widget`, 'cycle', `${[...trail, id].join(' → ')} — a widget cannot contain itself`); return true }
+      if (done.has(id)) return false
+      let found = false
+      walkNodes(widgets[id]?.spec?.body, (n) => { if (!found && n.t === 'use' && typeof n.widget === 'string') found = walk(n.widget, [...trail, id]) })
+      done.add(id)
+      return found
+    }
+    walk(node.widget, [def.id])
+  }
+
   const visit = (node, at, sc, guards = new Set()) => {
     if (!isObj(node) || !NODES[node.t]) return
     const spec_ = NODES[node.t]
+    if (node.t === 'use') checkUse(node, at, sc)
     silentEmpty(node, at, guards)
     let here = sc
     if (node.t === 'form') {

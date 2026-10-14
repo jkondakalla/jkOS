@@ -21,7 +21,7 @@ import { checkBindings } from '../src/semantic.js'
 let pass = 0, fail = 0
 const ok = (cond, msg, extra = '') => { if (cond) { pass++; console.log(`  ✓ ${msg}`) } else { fail++; console.error(`  ✗ ${msg} ${extra}`) } }
 
-const PROP_TYPES = new Set(['binding', 'tone', 'number', 'boolean', 'string', 'enum', 'field', 'cmd', 'pairs', 'node', 'nodes', 'state', 'events', 'params', 'action', 'route'])
+const PROP_TYPES = new Set(['binding', 'tone', 'number', 'boolean', 'string', 'enum', 'field', 'cmd', 'pairs', 'node', 'nodes', 'state', 'events', 'params', 'action', 'route', 'widget'])
 const sizing = { desktop: { w: 3, h: 3 }, mobile: { w: 2, h: 3 } }
 const def = (body, extra = {}) => ({ id: 'probe', label: 'Probe', sizing, spec: { body }, ...extra })
 const problems = (d) => validateWidget(d)
@@ -359,6 +359,42 @@ ok(t2pHas({ body: goTo({ go: '/book/:id', params: { id: 7 } }) }, '/spec/body/on
 ok(t2p({ body: goTo({ go: '/book/:id', params: { id: 7 } }) })[0]?.fix === 'did you mean "/books/:id"?', '…naming the likely one')
 ok(t2pHas({ body: goTo({ go: '/books/:id' }) }, '/spec/body/on/press/params', 'missing-param'), 'a go fills every :param of its route')
 ok(t2pHas({ body: goTo({ go: '/books/:id', params: { id: 7, page: 2 } }) }, '/spec/body/on/press/params/page', 'undeclared'), '…and nothing else')
+
+console.log('3f · inputs and use — a widget drawn inside another')
+const part = (body, inputs) => ({ id: 'kouros-cover', label: 'Cover', spec: { inputs, body } })
+const IN = { title: { type: 'string', required: true }, size: { type: 'number', default: 48 } }
+ok(problems(part({ t: 'text', text: { src: '$in', path: 'title' } }, IN)).length === 0, 'a part declares its inputs')
+ok(problems(part({ t: 'text', text: 'x' }, { title: { type: 'string', required: true, default: 'x' } })).some((p) => p.path === '/spec/inputs/title/default' && p.code === 'conflict'), '…a required one has no default')
+ok(problems(part({ t: 'text', text: 'x' }, { n: { type: 'number', default: 'big' } })).some((p) => p.path === '/spec/inputs/n/default' && p.code === 'bad-type'), '…a default fits its type')
+ok(validateWidget({ ...part({ t: 'text', text: 'x' }, IN), sizing }, { published: true }).some((p) => p.path === '/spec/inputs' && p.code === 'unpublishable'), 'a published widget has no inputs — nothing on the HUD hands it any')
+const useIt = (w) => ({ t: 'use', widget: 'kouros-cover', ...(w ? { with: w } : {}) })
+ok(problems(def(useIt({ title: { src: 'today', path: 'emptyLabel' } }))).length === 0, 'a widget may use another, handing it its inputs')
+ok(has(def({ t: 'use', widget: 'Not An Id' }), '/spec/body/widget', 'bad-type'), '…named by its id')
+ok(pubHas({ body: useIt({ title: 'x' }) }, '/spec/body', 'unpublishable'), 'a published widget uses no part — it is whole in itself')
+const WIDGETS = {
+  'kouros-cover': part({ t: 'text', text: { src: '$in', path: 'title' } }, IN),
+  'kouros-ai': { id: 'kouros-ai', spec: { body: { t: 'ask', cmd: { app: 'lazuros', capability: 'query' } } } },
+  'kouros-loop-a': { id: 'kouros-loop-a', spec: { body: { t: 'use', widget: 'kouros-loop-b' } } },
+  'kouros-loop-b': { id: 'kouros-loop-b', spec: { body: { t: 'use', widget: 'kouros-loop-a' } } },
+  'kouros-leaf': { id: 'kouros-leaf', spec: { body: { t: 'text', text: 'x' } } },
+  'kouros-mid': { id: 'kouros-mid', spec: { body: { t: 'stack', children: [{ t: 'use', widget: 'kouros-leaf' }, { t: 'use', widget: 'kouros-leaf' }] } } },
+}
+const t2w = (body, extra = {}) => checkBindings({ id: 'host-card', ...extra, spec: { body, ...(extra.spec ?? {}) } }, { docs: DOCS, slices: SLICES, widgets: WIDGETS })
+const t2wHas = (body, path, code, extra) => t2w(body, extra).some((p) => p.path === path && p.code === code)
+ok(t2w(useIt({ title: { src: 'clock', path: 'hm' }, size: 32 })).length === 0, "a use hands a part the inputs it declares")
+ok(t2wHas({ t: 'use', widget: 'kouros-covr' }, '/spec/body/widget', 'undeclared'), 'a part that does not exist is refused…')
+ok(t2w({ t: 'use', widget: 'kouros-covr' })[0]?.fix === 'did you mean "kouros-cover"?', '…naming the likely one')
+ok(t2wHas(useIt({ title: 'x', tilte: 'y' }), '/spec/body/with/tilte', 'undeclared'), 'an input the part does not declare is refused')
+ok(t2wHas(useIt({ size: 32 }), '/spec/body/with', 'missing-field'), 'a required input nothing hands it is refused')
+ok(t2wHas(useIt({ title: 'x', size: 'big' }), '/spec/body/with/size', 'bad-type'), 'a literal input fits its type')
+ok(t2wHas(useIt({ title: { src: 'clock', path: 'hmm' } }), '/spec/body/with/title', 'undeclared-path'), "an input's binding is checked in the caller's scope")
+ok(t2wHas({ t: 'use', widget: 'kouros-loop-b' }, '/spec/body/widget', 'cycle'), 'a cycle of parts is refused')
+ok(checkBindings(WIDGETS['kouros-loop-a'], { widgets: WIDGETS }).some((p) => p.code === 'cycle'), '…including a widget that comes back round to itself')
+ok(!t2w({ t: 'use', widget: 'kouros-mid' }).some((p) => p.code === 'cycle'), 'two uses of one part (a diamond) is not a cycle')
+ok(t2wHas({ t: 'text', text: { src: '$in', path: 'titel' } }, '/spec/body/text', 'undeclared-path', { spec: { inputs: IN } }), "$in.<name> must be an input the widget declares")
+ok(t2wHas({ t: 'text', text: { src: '$in', path: 'title' } }, '/spec/body/text', 'unknown-source'), 'a widget with no inputs has no $in')
+ok(appsOf({ id: 'c', spec: { body: { t: 'use', widget: 'kouros-ai' } } }, WIDGETS).has('lazuros'), "appsOf follows a use into its part — a LazurOS part makes its card AI-backed")
+ok(appsOf({ id: 'c', spec: { body: { t: 'use', widget: 'kouros-loop-a' } } }, WIDGETS).size === 0, '…and survives a cycle')
 
 console.log('4 · the href rule')
 for (const h of ['https://x.test/', '/widgets', 'mailto:a@b.test', '#top']) ok(safeHref(h) === h, `keeps ${JSON.stringify(h)}`)

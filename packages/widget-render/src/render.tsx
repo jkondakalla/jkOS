@@ -29,7 +29,7 @@ import type { ActionChain, Binding, CommandRef, HostKind, IconName, Tone, ToneBi
 import { useDataSources, cardState, type CardState } from './sources';
 import './widgets.css';
 import { TONE_COLOR } from './tone';
-import { fillRoute, safeHref, sourcesOf } from '@jkos/widgets';
+import { fillRoute, safeHref, sourcesOf, partsOf, MAX_USE_DEPTH } from '@jkos/widgets';
 import { usesAi } from './ai';
 import { Field, SelectField, Check, AsyncView } from '@jkos/ui';
 import { WidgetBoundary } from './boundary';
@@ -63,6 +63,9 @@ export interface WidgetHost {
   navigate?: (path: string) => void;
   /** The params of the route the page being drawn matched (pageFor) — `$route`. */
   route?: Readonly<Record<string, string>>;
+  /** Every widget a `use` may draw, by id (the host's catalog — parts included). Without
+   *  it a `use` draws a not-here tile. */
+  widgets?: Readonly<Record<string, WidgetDef>>;
 }
 
 /** One field of a host action's declaration — the field vocabulary a dataset uses. */
@@ -74,8 +77,36 @@ export type HostActionFn = (args: Record<string, unknown>) => unknown | Promise<
 /** A host's implementations of its declared actions — every one of them, and nothing else. */
 export type HostActions<D extends Readonly<Record<string, HostActionDecl>>> = { readonly [K in keyof D]: HostActionFn };
 
-/** The host a widget is drawn in, for what runs inside it (an event's `do`). */
+/** The host a widget is drawn in, for what runs inside it (an event's `do`, a `use`). */
 const HostCtx = createContext<WidgetHost | null>(null);
+/** How many `use`s deep this node is drawn — the guard against a cycle at run time. */
+const UseDepthCtx = createContext(0);
+
+/** A part, drawn where a `use` sits: the widget its id names, handed its inputs (`with`,
+ *  resolved here) as `$in`, with its own sources, state and frame. The kill switch holds
+ *  for a part as for a card. */
+function UseNode({ node, scope }: { node: NodeOf<'use'>; scope: Scope }) {
+  const host = useContext(HostCtx);
+  const depth = useContext(UseDepthCtx);
+  const part = host?.widgets?.[node.widget];
+  if (!host || !part?.spec) return notHere(`use ${node.widget}`);
+  if (depth >= MAX_USE_DEPTH) return notHere(`use ${node.widget} (nested too deep)`);
+  if (!host.aiEnabled && usesAi(part, host.widgets)) return aiOffTile(part);
+  const inputs = Object.fromEntries(Object.entries(node.with ?? {}).map(([k, b]) => [k, resolve(b, scope)]));
+  return (
+    <UseDepthCtx.Provider value={depth + 1}>
+      <SpecWidget spec={part.spec} host={host} inputs={inputs} />
+    </UseDepthCtx.Provider>
+  );
+}
+
+/** A part's `$in`: each declared input's default, under what the `use` handed it. */
+function inputScope(spec: WidgetSpec, given: Record<string, unknown> | undefined): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, d] of Object.entries(spec.inputs ?? {})) out[k] = d.default ?? null;
+  for (const [k, v] of Object.entries(given ?? {})) if (v !== undefined) out[k] = v;
+  return out;
+}
 
 /** A host kind's renderer: the node, and the scope it is drawn in (the host's slices, the
  *  widget's sources). May be React.lazy — it draws under Suspense. */
@@ -471,6 +502,7 @@ const PRIMITIVES: Primitives = {
     if (n.on?.press) return <ActionTarget chain={n.on.press} scope={scope} className="hud-p hud-p-media is-action">{body}</ActionTarget>;
     return href ? <a className="hud-p hud-p-media" href={href}>{body}</a> : <div className="hud-p hud-p-media">{body}</div>;
   },
+  use: (n, scope) => <UseNode node={n} scope={scope} />,
   ask: (n, scope) => <AskNode node={n} scope={scope} />,
   // Write family — each delegates to a hook-bearing component (see below).
   form:   (n, scope) => <FormNode node={n} scope={scope} />,
@@ -934,14 +966,15 @@ function CommandButton({ node, cmdRef, scope }: { node: Extract<WidgetNode, { t:
   );
 }
 
-function SpecWidget({ spec, host }: { spec: WidgetSpec; host: WidgetHost }) {
+function SpecWidget({ spec, host, inputs }: { spec: WidgetSpec; host: WidgetHost; inputs?: Record<string, unknown> }) {
   // This instance's own variables — `$state`, written by `set` and by a control with `state`.
   const [vars_, setVars] = useState(() => initialState(spec));
   const setVar = useCallback((k: string, v: unknown) => setVars((st) => (Object.is(st[k], v) ? st : { ...st, [k]: v })), []);
   const stateCtx = useMemo(() => ({ values: vars_, set: setVar }), [vars_, setVar]);
   // The host's slices are in scope by name, `$now` is this instant (what `fmt: 'ago'`
   // measures against), and `$state` is this instance's.
-  const base: Scope = { ...host.slices, $now: host.now, $state: vars_, $route: host.route ?? {} };
+  const $in = useMemo(() => inputScope(spec, inputs), [spec, inputs]);
+  const base: Scope = { ...host.slices, $now: host.now, $state: vars_, $route: host.route ?? {}, $in };
   // Each declared source by name, and `$sources.<name>.state` beside it — ready, empty,
   // loading, signed-out, offline… (./sources.ts), so a card can tell "nothing" from "down".
   const { data, status } = useDataSources(spec.sources, base);
@@ -989,16 +1022,24 @@ const bindsCache = new WeakMap<object, { names: Set<string>; now: boolean; ai: b
 
 /** What a widget reads besides its own sources — cached per def (spec object identity), so
  *  it's recomputed only when the def actually changes (a workshop edit, a published merge). */
-function binds(def: WidgetDef) {
+function binds(def: WidgetDef, widgets?: Readonly<Record<string, WidgetDef>>) {
   const key: object = def.spec ?? def;
   const cached = bindsCache.get(key);
   if (cached) return cached;
   // One walker (@jkos/widgets sourcesOf): every `{src}` binding plus each molecule's
-  // manifest-declared slice. `cmd` subtrees are skipped — a command's body bindings
-  // resolve at SUBMIT time, so they are not display dependencies (else a form
-  // defaulting due_date to clock.iso would re-render its card every second).
-  const names = def.spec ? sourcesOf(def.spec) : new Set<string>();
-  const out = { names, now: names.has('$now'), ai: usesAi(def) };
+  // manifest-declared slice. `cmd` and `on` subtrees are skipped — they resolve when
+  // submitted or fired, so they are not display dependencies (else a form defaulting
+  // due_date to clock.iso would re-render its card every second). A part it `use`s is
+  // drawn inside this card, so what the part binds is this card's to watch too.
+  const names = new Set<string>();
+  const seen = new Set<string>();
+  const add = (d: WidgetDef | undefined) => {
+    if (!d?.spec) return;
+    for (const n of sourcesOf(d.spec)) names.add(n);
+    for (const id of partsOf(d)) if (!seen.has(id)) { seen.add(id); add(widgets?.[id]); }
+  };
+  add(def);
+  const out = { names, now: names.has('$now'), ai: usesAi(def, widgets) };
   bindsCache.set(key, out);
   return out;
 }
@@ -1012,7 +1053,7 @@ const lastRenderAt = new Map<string, number>();
 
 function cardPropsEqual(prev: CardProps, next: CardProps): boolean {
   if (prev.def !== next.def) return false;     // def changed → re-render
-  const b = binds(next.def);
+  const b = binds(next.def, next.host.widgets);
   // A name that is not one of the host's slices ($ list element, $form, a source's own
   // name) is never on the host, so it never (correctly) triggers a re-render here.
   for (const k of b.names) {
@@ -1073,7 +1114,7 @@ function aiOffTile(def: WidgetDef): ReactNode {
 }
 
 function renderWidgetBody(def: WidgetDef, host: WidgetHost): ReactNode {
-  if (!host.aiEnabled && usesAi(def)) return aiOffTile(def);
+  if (!host.aiEnabled && usesAi(def, host.widgets)) return aiOffTile(def);
   if (def.spec) return <SpecWidget spec={def.spec} host={host} />;
   return unknownWidget(def.id);
 }

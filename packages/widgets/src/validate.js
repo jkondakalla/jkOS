@@ -20,7 +20,7 @@ import { FORMATS, CONDITIONS } from '@jkos/weave/binding'
 
 const ID_RE = new RegExp(LIMITS.ID_PATTERN)
 const DEF_KEYS = ['id', 'label', 'sizing', 'route', 'spec', 'refreshMs', 'allowed_roles']
-const SPEC_KEYS = ['frame', 'sources', 'state', 'body']
+const SPEC_KEYS = ['frame', 'inputs', 'sources', 'state', 'body']
 const IDENT = /^[A-Za-z_][A-Za-z0-9_]*$/
 /** A host action's name: the engine, then the verb ("player.play", "focus.clear"). */
 const ACTION_NAME = /^[a-z][a-zA-Z0-9]*(\.[a-z][a-zA-Z0-9]*)+$/
@@ -188,6 +188,7 @@ export const RUNTIME_NAMES = ['$', '$now', '$sources', '$form', '$result', '$job
    widget that binds one is that host's, and belongs in a file. */
 function checkPublished(spec, err) {
   const own = new Set(isObj(spec.sources) ? Object.keys(spec.sources) : [])
+  if (spec.inputs !== undefined) err('/spec/inputs', 'unpublishable', 'a published widget is placed on the HUD, where nothing hands it inputs', 'keep this part as a file in its app')
   const visit = (v, path) => {
     if (Array.isArray(v)) { v.forEach((x, i) => visit(x, `${path}/${i}`)); return }
     if (!isObj(v)) return
@@ -197,6 +198,9 @@ function checkPublished(spec, err) {
     }
     if (typeof v.t === 'string' && NODES[v.t]?.kind === 'molecule') {
       err(path, 'unpublishable', `a ${v.t} is drawn by its host from the host's own state — a published widget cannot carry one`, 'keep this widget as a file in its app')
+    }
+    if (v.t === 'use') {
+      err(path, 'unpublishable', `a use draws ${JSON.stringify(v.widget)}, a file in one app — a published widget is whole in itself`, 'keep this widget as a file in its app')
     }
     if (typeof v.go === 'string') {
       err(path, 'unpublishable', `go ${JSON.stringify(v.go)} navigates one app's pages — a published widget is a HUD card, and links out with an href`, 'a `link` or a frame `href`')
@@ -251,6 +255,7 @@ function checkSpec(spec, err, ctx) {
   }
 
   if (spec.state !== undefined) checkState(spec.state, err)
+  if (spec.inputs !== undefined) checkInputs(spec.inputs, err)
 
   if (spec.body === undefined) { err('/spec/body', 'missing-prop', 'spec.body is required'); return }
   const counter = { nodes: 0, overflowReported: false }
@@ -268,11 +273,29 @@ function checkState(state, err) {
     if (!isObj(d)) { err(p, 'bad-type', '{ "type": "string" | "number" | "boolean" | "json", "default"?: … }'); continue }
     for (const k of Object.keys(d)) if (k !== 'type' && k !== 'default') unknownKey(err, p, k, ['type', 'default'])
     if (!STATE_TYPES.includes(d.type)) { err(`${p}/type`, 'unknown-value', `${JSON.stringify(d.type)} is not a state type`, `one of: ${STATE_TYPES.join(', ')}`); continue }
-    const v = d.default
-    const fits = v === undefined || v === null || d.type === 'json'
-      || (d.type === 'string' && typeof v === 'string') || (d.type === 'number' && Number.isFinite(v)) || (d.type === 'boolean' && typeof v === 'boolean')
-    if (!fits) err(`${p}/default`, 'bad-type', `the default of a ${d.type} must be a ${d.type}`)
+    if (d.default !== undefined && !fitsType(d.type, d.default)) err(`${p}/default`, 'bad-type', `the default of a ${d.type} must be a ${d.type}`)
   }
+}
+
+/** spec.inputs: what a widget is handed by the widget that `use`s it — `$in.<name>`.
+ *  Each { type, required?, default? }; a required input has no default. */
+function checkInputs(inputs, err) {
+  if (!isObj(inputs)) { err('/spec/inputs', 'bad-type', 'inputs maps a name to { type, required?, default? }'); return }
+  for (const [name, d] of Object.entries(inputs)) {
+    const p = `/spec/inputs/${esc(name)}`
+    if (!IDENT.test(name)) err(p, 'bad-name', `input ${JSON.stringify(name)} must be an identifier`)
+    if (!isObj(d)) { err(p, 'bad-type', '{ "type": "string" | "number" | "boolean" | "json", "required"?: true, "default"?: … }'); continue }
+    for (const k of Object.keys(d)) if (!['type', 'required', 'default'].includes(k)) unknownKey(err, p, k, ['type', 'required', 'default'])
+    if (!STATE_TYPES.includes(d.type)) { err(`${p}/type`, 'unknown-value', `${JSON.stringify(d.type)} is not an input type`, `one of: ${STATE_TYPES.join(', ')}`); continue }
+    if (d.required !== undefined && typeof d.required !== 'boolean') err(`${p}/required`, 'bad-type', 'required is true or false')
+    if (d.required && d.default !== undefined) err(`${p}/default`, 'conflict', 'a required input has no default — the widget that uses it always gives one')
+    if (d.default !== undefined && !fitsType(d.type, d.default)) err(`${p}/default`, 'bad-type', `the default of a ${d.type} must be a ${d.type}`)
+  }
+}
+
+/** Does `v` fit a state/input type? (json fits anything; null fits all.) */
+export function fitsType(type, v) {
+  return v === null || type === 'json' || (type === 'string' && typeof v === 'string') || (type === 'number' && Number.isFinite(v)) || (type === 'boolean' && typeof v === 'boolean')
 }
 
 const SOURCE_KEYS_BY_KIND = Object.fromEntries(Object.entries(SOURCES).map(([k, s]) => [k, ['kind', ...Object.keys(s.props)]]))
@@ -474,6 +497,9 @@ function checkProps(obj, props, path, err, reserved = [], events = {}) {
         if (why) err(here, 'bad-route', why)
         break
       }
+      case 'widget':
+        if (typeof v !== 'string' || !ID_RE.test(v)) err(here, 'bad-type', `${name} names a widget by its id (${LIMITS.ID_PATTERN})`)
+        break
       case 'enum':
         if (!p.values.includes(v)) {
           const near = typeof v === 'string' ? nearest(v, p.values) : null

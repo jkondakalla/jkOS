@@ -61,6 +61,8 @@ export type WidgetNode =
   | { t: 'row'; gap?: number; justify?: 'flex-start' | 'flex-end' | 'center' | 'space-between' | 'space-around' | 'space-evenly' | 'start' | 'end'; align?: 'flex-start' | 'flex-end' | 'center' | 'baseline' | 'stretch' | 'start' | 'end'; grow?: boolean; children: WidgetNode[] }
   /** Stack — group children vertically. */
   | { t: 'stack'; gap?: number; grow?: boolean; /** distributes children along the column (space-between pins the last to the bottom edge) */ justify?: 'flex-start' | 'flex-end' | 'center' | 'space-between' | 'space-around' | 'space-evenly' | 'start' | 'end'; children: WidgetNode[] }
+  /** Use — draw another widget here, handing it its inputs. */
+  | { t: 'use'; /** the part's id — a widget file in this app (or the suite) */ widget: string; /** its inputs, by the names it declares (spec.inputs) — each a literal or a binding; it reads them as $in */ with?: Record<string, Binding> }
   /** Condition — show a branch only when true. */
   | { t: 'when'; /** truthy → then; [] "" 0 "false" "0" are falsy */ cond: Binding; then: WidgetNode; else?: WidgetNode }
   /** Calendar — month grid (cal slice). Reads `cal`. */

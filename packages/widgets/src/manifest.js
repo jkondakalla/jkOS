@@ -36,6 +36,7 @@
  *   params    a map of name → literal or Binding (a dataset's params, an action's arguments)
  *   action    the name of an action the HOST declares, `<engine>.<verb>` ("player.play")
  *   route     a route pattern — a page's path, "/books/:id" (routes.js)
+ *   widget    another widget's id — the part a `use` draws
  */
 
 /** The status palette a tone names. Semantic constants, never accent-derived (DESIGN §2). */
@@ -53,8 +54,12 @@ export const ICON_NAMES = [
  *  a stored def naming one is repaired on load (ORDECK hud/state.ts). */
 export const RETIRED_COMPONENTS = { focus: 'focus', 'bb-week': 'week' }
 
-/** What a state variable (spec.state) may hold. */
+/** What a state variable (spec.state) or an input (spec.inputs) may hold. */
 export const STATE_TYPES = ['string', 'number', 'boolean', 'json']
+
+/** How deep `use` may nest (a part using a part…) — the renderer's guard against a cycle
+ *  the second tier would also refuse. */
+export const MAX_USE_DEPTH = 6
 
 /** What an event does — each action is a one-key object (like a condition), named by the
  *  key that says what it is. A node's `on.<event>` is one action or an ordered list of
@@ -269,6 +274,14 @@ export const NODES = {
       children: { type: 'nodes', required: true },
     },
     example: { t: 'stack', gap: 8, children: [] },
+  },
+  use: {
+    kind: 'layout', label: 'Use', hint: "draw another widget here, handing it its inputs",
+    props: {
+      widget: { type: 'widget', required: true, doc: "the part's id — a widget file in this app (or the suite)" },
+      with: { type: 'params', doc: 'its inputs, by the names it declares (spec.inputs) — each a literal or a binding; it reads them as $in' },
+    },
+    example: { t: 'use', widget: 'kouros-cover', with: { title: { src: '$', path: 'title' } } },
   },
   when: {
     kind: 'logic', label: 'Condition', hint: 'show a branch only when true',

@@ -12,7 +12,9 @@ import { suiteApp, type AppId } from '@jkos/weave';
 import { appsOf } from '@jkos/widgets';
 import type { WidgetDef } from './types';
 
-export function usesAi(def: WidgetDef): boolean {
-  for (const id of appsOf(def)) if (suiteApp(id as AppId)?.ai) return true;
+/** `widgets`: every widget by id, so a part it `use`s counts — a LazurOS part makes the
+ *  card that draws it AI-backed. */
+export function usesAi(def: WidgetDef, widgets?: Readonly<Record<string, WidgetDef>>): boolean {
+  for (const id of appsOf(def, widgets)) if (suiteApp(id as AppId)?.ai) return true;
   return false;
 }

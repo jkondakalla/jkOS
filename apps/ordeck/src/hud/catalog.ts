@@ -21,6 +21,12 @@ const files = import.meta.glob<AnyWidgetDef>(
   { eager: true, import: 'default' },
 );
 
+/** Every widget file, by id — HUD cards, and the parts a card may `use` (and pages, which
+ *  ORDECK never draws). What the renderer resolves a `use` against (WidgetHost.widgets). */
+export const WIDGETS: Readonly<Record<string, AnyWidgetDef>> = Object.freeze(
+  Object.fromEntries(Object.values(files).map((def) => [def.id, def])),
+);
+
 /** The files that are HUD cards: placed by a footprint. A widget with no `sizing` is a
  *  screen or a part, drawn by its own app — never on the HUD's shelf. */
 const placeable = Object.entries(files).filter((e): e is [string, WidgetDef] => e[1].sizing != null);

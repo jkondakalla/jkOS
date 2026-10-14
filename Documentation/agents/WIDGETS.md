@@ -111,7 +111,7 @@ deployment), `authUrl`, `aiEnabled`. Their fields are declared in `hud/slices.ts
 Reserved names in scope: `$` (the row, inside a list pattern), `$sources.<name>.state`
 (`ready`/`empty`/`idle`/`signed-out`/`forbidden`/`offline`/`unavailable`), `$now` (the
 clock's instant — what `fmt: "ago"` measures against), `$state` (the widget's own
-variables, §6b), `$route` (a page's route params, §6c), and in a command's result slot
+variables, §6b), `$in` (a part's inputs, §6b′), `$route` (a page's route params, §6c), and in a command's result slot
 (or after a `run` or a `do`) `$result` and `$job`.
 
 **Declare first.** A widget can only bind what its app declares, so a card that needs a
@@ -202,6 +202,25 @@ not implemented or the reverse. The second tier checks a `do` against the declar
 it exists, takes the arguments given, gets each one it requires. A `do` its host does
 not implement fails the chain with "<name> is not available here". A published widget
 fires none — a host action is one host's engine, not a server contract.
+
+## 6b′ · Parts — inputs and `use`
+
+A widget can be drawn **inside** another: `{ "t": "use", "widget": "kouros-cover",
+"with": { "title": { "src": "$", "path": "title" } } }`. The part declares what it is
+handed in `spec.inputs` (`{ "title": { "type": "string", "required": true }, "size":
+{ "type": "number", "default": 48 } }`) and reads it as `$in.title`. It keeps its own
+sources, state and frame — two uses of one part never share state — and sees only the
+host's slices, its inputs and its own sources, never its caller's `$` or `$state`.
+
+A part has no `sizing` (it is not placed on the HUD): ORDECK compiles every file in
+(`hud/catalog.ts` `WIDGETS`, what a `use` resolves against) but its shelf (`CATALOG`)
+admits only files with a footprint. The second tier checks a `use` against the part:
+it exists, is handed only inputs it declares, gets every required one, a literal fits its
+type, and the parts never come back round (a cycle; a diamond is fine). What a part
+reaches counts for its card: `appsOf` follows `use`, so a LazurOS part makes its card
+AI-backed, and a card re-renders when a slice its part binds changes. A use of a widget
+its host lacks draws a not-here tile; the renderer stops at `MAX_USE_DEPTH`. A
+published widget neither uses a part nor declares inputs.
 
 ## 6c · Pages and routes
 

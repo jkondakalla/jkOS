@@ -35,9 +35,17 @@ export function suiteHosts() {
  *  transpile state.ts (check:hud). */
 export function catalogModuleSource() {
   const files = widgetFiles().filter((w) => w.def);
-  const catalog = Object.fromEntries(files.map((w) => [w.def.id, w.def]));
-  const apps = Object.fromEntries(files.map((w) => [w.def.id, w.app]));
-  return `export const CATALOG = Object.freeze(${JSON.stringify(catalog)});\nexport const CATALOG_APP = Object.freeze(${JSON.stringify(apps)});\n`;
+  const all = Object.fromEntries(files.map((w) => [w.def.id, w.def]));
+  // CATALOG is the HUD cards only (a footprint), as hud/catalog.ts filters it.
+  const placeable = files.filter((w) => w.def.sizing != null);
+  const catalog = Object.fromEntries(placeable.map((w) => [w.def.id, w.def]));
+  const apps = Object.fromEntries(placeable.map((w) => [w.def.id, w.app]));
+  return `export const WIDGETS = Object.freeze(${JSON.stringify(all)});\nexport const CATALOG = Object.freeze(${JSON.stringify(catalog)});\nexport const CATALOG_APP = Object.freeze(${JSON.stringify(apps)});\n`;
+}
+
+/** Every widget file's def, by id — what the second tier checks a `use` against. */
+export function widgetsById() {
+  return Object.fromEntries(widgetFiles().filter((w) => w.def).map((w) => [w.def.id, w.def]));
 }
 
 /** ORDECK's host declaration (hud/slices.ts): its slices (HUD_SLICES) and its actions
@@ -58,7 +66,7 @@ export async function hudDeclaration() {
 /** Everything the second tier checks a widget against: every app's declarations and
  *  ORDECK's slices and actions (@jkos/widgets checkBindings' ctx). */
 export async function declarations() {
-  return { docs: appDocs(), ...(await hudDeclaration()) };
+  return { docs: appDocs(), ...(await hudDeclaration()), widgets: widgetsById() };
 }
 
 /** Every committed widget file: [{ where, app, file, def, fixtures, error? }]. */

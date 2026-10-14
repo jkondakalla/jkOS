@@ -28,6 +28,7 @@ import {
 } from '../pages/hud/useHudData';
 import { clearHudFocus } from '../lib/shelf';
 import { HUD_ACTIONS } from './slices';
+import { WIDGETS } from './catalog';
 import './molecules.css';
 
 /** Every slice a widget on the HUD can read by name. RoomHUD assembles this once from its
@@ -253,5 +254,6 @@ export function hudHost(ctx: WidgetCtx): WidgetHost {
     now: ctx.clock.now,
     kinds: KINDS,
     actions: ACTIONS,
+    widgets: WIDGETS,
   };
 }

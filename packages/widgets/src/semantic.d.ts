@@ -11,6 +11,8 @@ export interface Declarations {
   /** The routes of the widget's app's pages (routeTable over its files). Omitted: a `go`'s
    *  route is not checked against them, only its params against its own pattern. */
   pages?: string[];
+  /** Every widget file, by id — what a `use` is checked against (the part's inputs, a cycle). */
+  widgets?: Record<string, { id: string; spec?: { inputs?: Record<string, object>; body?: unknown } }>;
 }
 
 /** Problems (JSON Pointer + code + message + fix?) — [] when every binding reaches a declaration. */

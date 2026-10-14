@@ -113,6 +113,8 @@ if (cmd === 'new') {
       for (const [name, p] of Object.entries(s.props)) console.log(prop(name, p));
     }
     console.log(`\nstate (spec.state)  name → { type: ${STATE_TYPES.join('|')}, default? } — read as $state.<name>; written by \`set\` and by a control with \`state\``);
+    console.log(`inputs (spec.inputs)  name → { type: ${STATE_TYPES.join('|')}, required?, default? } — read as $in.<name>; handed by a \`use\`'s \`with\``);
+    console.log('route (top level)  "/books/:id" — a page; its params are $route.<name>');
     for (const [name, a] of Object.entries(ACTIONS)) {
       console.log(`\naction  { "${name}": … }  ${a.label} — ${a.hint}`);
       for (const [k, p] of Object.entries(a.props)) console.log(prop(k, p));

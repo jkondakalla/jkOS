@@ -62,20 +62,38 @@ export function actionsOf(node) {
   return Object.entries(node.on).flatMap(([event, chain]) => [].concat(chain).filter(isObj).map((action) => ({ event, action })))
 }
 
+/** The ids of the parts a widget draws (`use`), directly. */
+export function partsOf(def) {
+  const spec = isObj(def) && isObj(def.spec) ? def.spec : def
+  const acc = new Set()
+  if (isObj(spec)) walkNodes(spec.body, (n) => { if (n.t === 'use' && typeof n.widget === 'string') acc.add(n.widget) })
+  return acc
+}
+
 /**
  * Every app a widget reaches: the app of each `dataset` source, and of every command
- * in its tree — a form's, a button's, an event's `run` — wherever one sits. What "is
+ * in its tree — a form's, a button's, an event's `run` — wherever one sits, and (given
+ * `widgets`, every widget by id) everything each part it `use`s reaches. What "is
  * this an AI widget" is DERIVED from: a def used to carry a hand-set `ai` flag, which nothing checked
  * against what it bound, and a widget binding LazurOS with `ai` unset ignored the
  * suite's AI kill switch.
  *
  * @param {unknown} def a widget def (or a spec)
+ * @param {Record<string, unknown>} [widgets] every widget by id — to follow `use` into parts
  * @returns {Set<string>}
  */
-export function appsOf(def) {
+export function appsOf(def, widgets, seen = new Set()) {
   const acc = new Set()
   const spec = isObj(def) && isObj(def.spec) ? def.spec : def
   if (!isObj(spec)) return acc
+  // A part reaches what it reaches: a LazurOS part inside a card makes the card AI-backed.
+  if (widgets) {
+    for (const id of partsOf(spec)) {
+      if (seen.has(id) || !widgets[id]) continue
+      seen.add(id)
+      for (const app of appsOf(widgets[id], widgets, seen)) acc.add(app)
+    }
+  }
   for (const s of Object.values(isObj(spec.sources) ? spec.sources : {})) {
     if (isObj(s) && s.kind === 'dataset' && typeof s.app === 'string') acc.add(s.app)
   }

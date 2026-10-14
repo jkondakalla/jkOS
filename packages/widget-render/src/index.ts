@@ -12,6 +12,6 @@ export { TONE_COLOR, TONE_RANK } from './tone';
 export { usesAi } from './ai';
 export { WidgetBoundary } from './boundary';
 export type {
-  Binding, ToneBinding, CommandRef, WidgetFrame, WidgetSpec, WidgetSizing, WidgetDef,
+  Binding, ToneBinding, CommandRef, WidgetFrame, WidgetSpec, WidgetSizing, WidgetDef, WidgetInput, StateVar,
   WidgetNode, Tone, IconName, HostKind, DataSource, SourceState, SourceStatus,
 } from './types';

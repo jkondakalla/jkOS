@@ -28,7 +28,7 @@ import ReactDOM from 'react-dom/client';
 import { injectJkOSTheme, applyJkOSMode, applyJkOSMotion, applyJkOSTheme, ACCENT_SCHEMES } from '@jkos/design';
 import { renderWidget, SourceReaderProvider, type SourceReader } from '@jkos/widget-render';
 import { hudHost } from '../src/hud/host';
-import { CATALOG } from '../src/hud/catalog';
+import { WIDGETS } from '../src/hud/catalog';
 import { DEFAULT_MIN_SIZE, type WidgetDef } from '../src/hud/types';
 import { TIERS, ROW_H, unitsToPx } from '../src/workshop/EditorCanvas';
 import { sampleCtx, fixtureReader, PREVIEW_STATES, type PreviewState } from '../src/hud/sample';
@@ -46,7 +46,12 @@ const TIER_ROWS: { tier: Tier; colW: number; label: string }[] = [
   { tier: 'min', colW: TIERS.desktop.colW, label: 'SMALLEST' },
 ];
 
-function footprint(def: WidgetDef, tier: Tier) {
+/** Where a widget with no footprint (a part, a screen) is drawn: a generous cell per
+ *  tier, so it can be looked at — its own contact sheets come with the rescope's harness. */
+const UNPLACED = { desktop: { w: 6, h: 8 }, mobile: { w: 2, h: 10 }, min: { w: 4, h: 6 } } as const;
+
+function footprint(def: Omit<WidgetDef, 'sizing'> & { sizing?: WidgetDef['sizing'] }, tier: Tier) {
+  if (!def.sizing) return UNPLACED[tier];
   if (tier === 'min') return def.sizing.min ?? DEFAULT_MIN_SIZE;
   return def.sizing[tier];
 }
@@ -173,7 +178,7 @@ async function main() {
   await frames();
   const fonts = [...document.fonts].filter((f) => f.status === 'loaded').map((f) => `${f.family} ${f.weight}`);
   // What Vite's glob compiled in (hud/catalog.ts) — the render gate holds it to the files.
-  (window as unknown as Record<string, unknown>).__widgetReport = { ...measure(), unsettled: pending, fonts: [...new Set(fonts)], catalog: Object.keys(CATALOG).sort() };
+  (window as unknown as Record<string, unknown>).__widgetReport = { ...measure(), unsettled: pending, fonts: [...new Set(fonts)], catalog: Object.keys(WIDGETS).sort() };
   (window as unknown as Record<string, unknown>).__widgetReady = true;
 }
 

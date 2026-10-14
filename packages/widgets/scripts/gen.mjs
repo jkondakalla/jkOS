@@ -27,7 +27,8 @@ function tsType(p, spec = {}) {
   switch (p.type) {
     case 'state':
     case 'action':
-    case 'route': return 'string';
+    case 'route':
+    case 'widget': return 'string';
     case 'params': return 'Record<string, Binding>';
     case 'events': return `{ ${Object.keys(spec.events ?? {}).map((e) => `${e}?: ActionChain`).join('; ')} }`;
     case 'binding': return 'Binding';

@@ -59,8 +59,17 @@ export interface StateVar {
   default?: unknown;
 }
 
+/** One input a part declares — what the widget that `use`s it hands it, read as `$in`. */
+export interface WidgetInput {
+  type: 'string' | 'number' | 'boolean' | 'json';
+  required?: boolean;
+  default?: unknown;
+}
+
 export interface WidgetSpec {
   frame?: WidgetFrame;
+  /** What the widget that `use`s this one hands it (`$in`). */
+  inputs?: Record<string, WidgetInput>;
   /** Named sources beyond the host's slices, which are always in scope. */
   sources?: Record<string, DataSource>;
   /** This widget's own variables (`$state`). */

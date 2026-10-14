@@ -381,6 +381,7 @@ function PropEditor({ name, spec, node, sources, onChange, onCmd }: {
     case 'string':
     case 'field':
     case 'state':
+    case 'widget':
       return (
         <PropLine name={name} spec={spec}>
           <Field style={{ ...field, flex: 1 }} value={typeof v === 'string' ? v : ''} placeholder={spec.type === 'field' ? 'field name' : spec.type === 'state' ? 'state variable' : ''}

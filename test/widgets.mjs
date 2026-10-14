@@ -68,6 +68,15 @@ for (const w of shipped) {
   if (!w.def) { check(false, `${w.where} is JSON — ${w.error}`); continue; }
   if (w.file) check(w.def.id === w.where.split('/').pop().replace(/\.json$/, ''), `${w.where}: the file is named for its widget id`);
 }
+// The HUD's shelf is its CATALOG: only placeable files (a footprint). A part or a page has
+// none, and drawn as a card it would be sized from nothing. (Every file is still compiled
+// in — WIDGETS — for a card that `use`s a part.)
+{
+  const cat = read('apps/ordeck/src/hud/catalog.ts');
+  check(/const placeable = [^;]*\.sizing != null/.test(cat) && /export const CATALOG[^;]*placeable\.map/.test(cat),
+    "ORDECK's CATALOG (the HUD's shelf) admits only widget files with a footprint");
+  check(/widgets: WIDGETS/.test(read('apps/ordeck/src/hud/host.tsx')), "ORDECK's host hands the renderer every widget file, so a card can use a part");
+}
 // A file is compiled into ORDECK's bundle and reaches every HUD. `allowed_roles` is
 // enforced only on PUBLISHED defs (jkAuth's GET /auth/widgets filters by role) — in a
 // file it would be a role gate nothing enforces, and a card in a public bundle cannot be
@@ -313,8 +322,10 @@ for (const dir of ['packages/widget-render/src', 'apps/ordeck/src/hud']) {
   const reg = read('packages/widget-render/src/render.tsx');
   const body = reg.match(/function renderWidgetBody\([^)]*\)[^{]*\{([\s\S]*?)\n\}/)?.[1] ?? '';
   const first = body.trim().split('\n')[0];
-  check(/if \(!host\.aiEnabled && usesAi\(def\)\) return aiOffTile\(def\);/.test(first),
-    `renderWidgetBody's first act is the kill switch — before any source is read or command armed (got: ${first.trim()})`);
+  check(/if \(!host\.aiEnabled && usesAi\(def, host\.widgets\)\) return aiOffTile\(def\);/.test(first),
+    `renderWidgetBody's first act is the kill switch — before any source is read or command armed, counting the parts it uses (got: ${first.trim()})`);
+  check(/if \(!host\.aiEnabled && usesAi\(part, host\.widgets\)\) return aiOffTile\(part\);/.test(reg),
+    'a part a card uses is held to the kill switch where it draws, too');
   check(!/\bw\.ai\b|\bdef\.ai\b/.test(read('apps/ordeck/src/pages/hud/RoomHUD.tsx') + read('apps/ordeck/src/hud/WidgetTray.tsx') + reg),
     'nothing in ORDECK reads a hand-set `ai` flag — AI-backed is usesAi(def), derived from the apps it binds');
   const ai = await importTs('packages/widget-render/src/ai.ts', 'ai.mjs', {
