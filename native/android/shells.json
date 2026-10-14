@@ -19,5 +19,14 @@
     "id": "home",
     "package": "net.jkos.home",
     "icon": "apps/ordeck/public/icon-maskable-512.png"
-  }
+  },
+  "native": [
+    {
+      "id": "kouros-alpha",
+      "module": "kouros",
+      "package": "net.jkos.kouros.alpha",
+      "icon": "apps/kouros/public/icon-maskable-512.png",
+      "versionSuffix": "-alpha"
+    }
+  ]
 }

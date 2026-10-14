@@ -14,7 +14,14 @@
 //   native/android/twa/src/<shell><Env>/res/values/shell.xml   per TWA × debug/release
 //   native/android/twa/src/<shell><Env>/res/xml/shortcuts.xml
 //   native/android/home/src/<env>/res/values/shell.xml         the home launcher × debug/release
+//   native/android/<module>/src/<env>/res/values/shell.xml     each native app × debug/release
 //   native/desktop/src/shells.json                      what the Electron shell reads
+//   apps/jkauth/src/native-clients.json                 the native apps jkAuth will sign in
+//
+// native-clients.json is the one generated file OUTSIDE native/: a native app's package is its
+// jkAuth client id and its redirect scheme, and a redirect URI is a grant (where a signed-in
+// code may be sent). Typed by hand in jkAuth it would drift from the APK the first time a
+// package was renamed — and the drift would be silent: sign-in would simply never return.
 //
 // A shell's ICON and BAR COLOUR are not declared in shells.js: they are its start app's own
 // web manifest (`apps/<start>/public/manifest.webmanifest` — the 512 px PNGs by purpose, and
@@ -32,7 +39,7 @@ const HERE = dirname(fileURLToPath(import.meta.url))
 const ROOT = join(HERE, '..')
 const require = createRequire(import.meta.url)
 const {
-  VERSION, STAGING_SUFFIX, shellConfig, versionCode, androidShells, desktopShells,
+  VERSION, STAGING_SUFFIX, shellConfig, nativeConfig, versionCode, androidShells, desktopShells,
 } = require('./shells.js')
 
 const ENVS = ['debug', 'release']
@@ -112,6 +119,26 @@ function homeValues(cfg, face) {
 `
 }
 
+function nativeValues(cfg, face) {
+  return `<?xml version="1.0" encoding="utf-8"?>
+<!-- ${BANNER} -->
+<resources>
+    <string name="app_name">${androidString(cfg.name)}</string>
+    <color name="shell_bar">${face.themeColor}</color>
+    <string name="channel">${androidString(cfg.channel)}</string>
+    <string name="environment">${androidString(cfg.environment)}</string>
+    <!-- The API this app calls (\${api_base}/api/…) and the jkAuth that signs it in. With the
+         redirect URI below, these are the app's whole trust list. -->
+    <string name="api_base">${androidString(cfg.apiBase)}</string>
+    <string name="auth_origin">${androidString(cfg.authOrigin)}</string>
+    <!-- The client id IS the applicationId, and the redirect scheme is it too: a scheme only
+         this package can register. apps/jkauth/src/native-clients.json holds the same pair. -->
+    <string name="client_id">${androidString(cfg.clientId)}</string>
+    <string name="redirect_uri">${androidString(cfg.redirectUri)}</string>
+</resources>
+`
+}
+
 /** Icon paths (repo-relative) and theme colour from an app's web manifest. */
 function webManifest(appId) {
   const rel = `apps/${appId}/public/manifest.webmanifest`
@@ -137,6 +164,15 @@ const twa = androidShells().filter((s) => s.android === 'twa')
 const homes = androidShells().filter((s) => s.android === 'home')
 if (homes.length !== 1) throw new Error(`gen-native: exactly one home shell expected, found ${homes.length}`)
 const home = homes[0]
+const natives = androidShells().filter((s) => s.android === 'native')
+// A native app's Gradle module is named after its start app, so two native shells of one
+// app would collide in one module. Refuse rather than let the second overwrite the first.
+const moduleOf = (s) => s.start
+const dupModule = natives.map(moduleOf).find((m, i, all) => all.indexOf(m) !== i)
+if (dupModule) throw new Error(`gen-native: two native shells share module '${dupModule}'`)
+for (const m of natives.map(moduleOf)) {
+  if (m === 'twa' || m === 'home') throw new Error(`gen-native: native module '${m}' collides with a built-in module`)
+}
 
 files.set('native/android/shells.json', JSON.stringify({
   _comment: BANNER,
@@ -145,6 +181,10 @@ files.set('native/android/shells.json', JSON.stringify({
   stagingSuffix: STAGING_SUFFIX,
   twa: twa.map((s) => ({ id: s.id, package: s.package, icon: webManifest(s.start).maskable })),
   home: { id: home.id, package: home.package, icon: webManifest(home.start).maskable },
+  native: natives.map((s) => ({
+    id: s.id, module: moduleOf(s), package: s.package,
+    icon: webManifest(s.start).maskable, versionSuffix: `-${s.channel}`,
+  })),
 }, null, 2) + '\n')
 
 for (const s of twa) {
@@ -160,6 +200,26 @@ for (const env of ENVS) {
   expectVariantDirs['native/android/home/src'].add(env)
   files.set(`native/android/home/src/${env}/res/values/shell.xml`, homeValues(shellConfig(home, env), webManifest(home.start)))
 }
+
+const nativeClients = []
+for (const s of natives) {
+  const base = `native/android/${moduleOf(s)}/src`
+  expectVariantDirs[base] = new Set()
+  for (const env of ENVS) {
+    const cfg = nativeConfig(s, env)
+    expectVariantDirs[base].add(env)
+    files.set(`${base}/${env}/res/values/shell.xml`, nativeValues(cfg, webManifest(s.start)))
+    nativeClients.push({
+      shell: s.id, name: cfg.name, env: cfg.environment,
+      client_id: cfg.clientId, redirect_uri: cfg.redirectUri, app: s.start,
+    })
+  }
+}
+// jkAuth reads this and keeps only the clients of ITS environment (JKOS_NATIVE_ENV), so a
+// staging jkAuth never signs in a release app and production never a staging one.
+files.set('apps/jkauth/src/native-clients.json', JSON.stringify({
+  _comment: BANNER, clients: nativeClients,
+}, null, 2) + '\n')
 
 const desktop = {}
 for (const s of desktopShells()) {
