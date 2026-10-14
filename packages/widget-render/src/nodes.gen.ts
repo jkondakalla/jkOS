@@ -35,6 +35,8 @@ export type WidgetNode =
   | { t: 'gauge'; value: Binding; max?: Binding; label?: Binding; /** the ring's outer diameter in px */ size?: number }
   /** Progress bar — value vs max. */
   | { t: 'bar'; value: Binding; max?: Binding }
+  /** Steps — a discrete ladder — N steps, the current one raised (a book's chapters). */
+  | { t: 'steps'; /** how many steps */ count: Binding; /** the current one, 0-based — those before it are done */ at?: Binding }
   /** Sparkline — tiny trend line over an array. */
   | { t: 'sparkline'; /** the array to plot */ from: Binding; /** plucks a number from each element (e.g. weather.slots → temp) */ path?: string; height?: number; tone?: ToneBinding }
   /** Key / value — name left, value right. */

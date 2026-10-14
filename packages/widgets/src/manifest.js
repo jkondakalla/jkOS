@@ -167,6 +167,14 @@ export const NODES = {
     },
     example: { t: 'bar', value: { src: 'systems', path: 'up' }, max: { src: 'systems', path: 'total' } },
   },
+  steps: {
+    kind: 'atom', label: 'Steps', hint: "a discrete ladder — N steps, the current one raised (a book's chapters)",
+    props: {
+      count: { type: 'binding', required: true, doc: 'how many steps' },
+      at: { type: 'binding', doc: 'the current one, 0-based — those before it are done' },
+    },
+    example: { t: 'steps', count: 12, at: 4 },
+  },
   sparkline: {
     kind: 'atom', label: 'Sparkline', hint: 'tiny trend line over an array',
     props: {

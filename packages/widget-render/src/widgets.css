@@ -83,6 +83,13 @@ a.hud-card.hud-w-frame { display: flex; }
 .hud-w-text.is-note { font-family: var(--jk-font-serif); font-style: italic; font-size: 13px; color: var(--color-faint); }
 .hud-w-text.is-grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+/* ── Steps — a discrete ladder (a book's chapters): past ones dim, the current one full
+ * height. Many compress, never wrap. */
+.hud-w-steps { display: flex; gap: 2px; align-items: flex-end; height: 22px; overflow: hidden; }
+.hud-w-step { flex: 1 1 0; min-width: 2px; height: 55%; border-radius: 1px; background: var(--color-lit); }
+.hud-w-step.is-done { background: var(--color-ghost); }
+.hud-w-step.is-now { height: 100%; background: var(--color-muted); }
+
 /* ── Rail — a strip that scrolls sideways ──────────────────────────────────
  * The box is the container the column width answers to — the width the PAGE gives the
  * strip, never the viewport — so a rail reads alike in a phone, a tablet, a desk's main
@@ -475,3 +482,14 @@ a.hud-card:hover { box-shadow: var(--hub-shadow-lifted); transform: translateY(-
 @media (prefers-reduced-motion: reduce) {
   .hud-dot.pulse { animation: none; }
 }
+
+/* ── Pages ─────────────────────────────────────────────────────────────────
+ * A page (a widget with a `route`) is a screen, and a screen scrolls: a stack in it keeps
+ * every child at its own height instead of shrinking them to fit (which is what a card,
+ * held to a footprint, wants), and a part's card is as tall as its content — so its frame
+ * is a width container only (a SIZE container with an auto height collapses to nothing).
+ * Last in the file: these settle the ties with the card rules above. */
+.hud-w-page { min-width: 0; }
+.hud-w-page .hud-w-stack > * { flex-shrink: 0; }
+.hud-w-page .hud-w-frame { height: auto; }
+.hud-w-page .hud-w-frame:has(.hud-p) { container-type: inline-size; }

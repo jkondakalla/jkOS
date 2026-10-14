@@ -224,6 +224,9 @@ function patternIcon(name: string, tone: string): ReactNode {
   );
 }
 
+/** The most steps a ladder draws — beyond it, a step is under a pixel wide anyway. */
+const MAX_STEPS = 400;
+
 /** Up to four URLs from an array — each element a URL, or (with `path`) an object holding
  *  one — each through safeHref: a tile's mosaic. */
 function pluck(arr: unknown, path: string | undefined): string[] {
@@ -414,6 +417,16 @@ const PRIMITIVES: Primitives = {
       return <div className="hud-w-list-grid" style={vars({ '--w-cols': Math.round(n.cols) })}>{body}</div>;
     }
     return <>{body}</>;
+  },
+  steps: (n, scope) => {
+    // Compressed, never wrapped: a ladder that wraps stops reading as one axis.
+    const count = Math.max(0, Math.min(MAX_STEPS, Math.round(num(resolve(n.count, scope)))));
+    const at = n.at != null ? Math.round(num(resolve(n.at, scope))) : -1;
+    return (
+      <span className="hud-w-steps" aria-hidden="true">
+        {Array.from({ length: count }, (_, i) => <span key={i} className={`hud-w-step${i < at ? ' is-done' : i === at ? ' is-now' : ''}`} />)}
+      </span>
+    );
   },
   sparkline: (n, scope) => {
     const arr = resolve(n.from, scope);
@@ -1193,8 +1206,11 @@ function aiOffTile(def: WidgetDef): ReactNode {
 
 function renderWidgetBody(def: WidgetDef, host: WidgetHost, inputs?: Record<string, unknown>): ReactNode {
   if (!host.aiEnabled && usesAi(def, host.widgets)) return aiOffTile(def);
-  if (def.spec) return <SpecWidget spec={def.spec} host={host} inputs={inputs} />;
-  return unknownWidget(def.id);
+  if (!def.spec) return unknownWidget(def.id);
+  const body = <SpecWidget spec={def.spec} host={host} inputs={inputs} />;
+  // A page is a SCREEN: it scrolls, so nothing in it is squeezed to fit a footprint
+  // (widgets.css § Pages). A card fits its cell; a page is as tall as what it holds.
+  return def.route ? <div className="hud-w-page">{body}</div> : body;
 }
 
 /** Render a widget file in `host`, behind its per-card update gate (see WidgetCard) —
