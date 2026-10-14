@@ -266,6 +266,10 @@ for (const dir of ['packages/widget-render/src', 'apps/ordeck/src/hud']) {
   const jobs = { id: 'jobs', path: '/jobs', filters: [{ name: 'job_id' }, { name: 'status' }] };
   check(rd.datasetUrl(jobs, { job_id: 'a b', typo_id: 1, status: '' }) === '/jobs?job_id=a+b', 'datasetUrl: declared filters only, empty ones dropped (an undeclared one would hide a typo)');
   check(rd.datasetUrl({ id: 'r', path: '/routines/:id/series', filters: [{ name: 'weeks' }] }, { id: '7/x', weeks: 4 }) === '/routines/7%2Fx/series?weeks=4', 'datasetUrl: a path parameter is filled and encoded, not repeated as a query');
+  const near = { id: 'near', path: '/near', filters: [{ name: 'x', required: true }, { name: 'k' }] };
+  check(rd.datasetUrl(near, { k: 40 }) === null && rd.datasetUrl(near, { x: '', k: 40 }) === null,
+    'datasetUrl: a required filter with no value asks nothing (idle) — the server would refuse it');
+  check(rd.datasetUrl(near, { x: 0, k: 40 }) === '/near?x=0&k=40', '…and once it has one (0 is a value), the read goes');
 
   // ORDECK's runtime: the refusal, before any request.
   writeFileSync(join(tmp, 'react.mjs'), 'export const createContext = (v) => ({ Provider: null, v }); export const useContext = () => null; export const useEffect = () => {}; export const useMemo = (f) => f(); export const useState = (v) => [v, () => {}];');
