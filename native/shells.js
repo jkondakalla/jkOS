@@ -42,6 +42,9 @@ const STAGING_SUFFIX = '.staging'
  *            stay up with the network down and hide the device's apps behind a gesture. The
  *            one shell with native code beside the page, so the one with a bridge
  *            (origin-scoped to `start` only — see NATIVE.md).
+ *   'selector' — a native list of every reachable app; a tap opens that app as a TWA. Our
+ *            code draws the list and nothing else: no WebView, no permissions, so — like a
+ *            TWA — nothing of ours runs beside a page.
  *
  * start      the app the shell opens on (a suite-manifest id).
  * reach      'suite' — every suite app with its own production origin (derived, below);
@@ -50,6 +53,8 @@ const STAGING_SUFFIX = '.staging'
  *            sign in.
  * shortcuts  (TWA only) 'suite' — a long-press launcher shortcut to every other reachable app.
  * desktop    also ship a Linux desktop build of this shell.
+ * channel    (optional) 'alpha' — a pre-release build: its versionName carries the channel
+ *            (0.1.0-alpha) and the app says so on its own screen.
  */
 const SHELLS = [
   {
@@ -70,6 +75,13 @@ const SHELLS = [
     id: 'home', name: 'jkOS Home', package: 'net.jkos.home',
     start: 'ordeck', reach: 'suite',
     android: 'home',
+  },
+  {
+    // The whole suite as ONE download, for testing: a plain list of every app, each opened as
+    // a TWA. Alpha — a test build, not the way the suite is meant to be installed.
+    id: 'alpha', name: 'jkOS Alpha', package: 'net.jkos.alpha',
+    start: 'ordeck', reach: 'suite',
+    android: 'selector', channel: 'alpha',
   },
 ]
 
@@ -101,6 +113,11 @@ function stagingPathOf(id) {
   return id === 'ordeck' ? '/' : `/${id}/`
 }
 
+/** Where a shell in `env` opens app `id`: its production origin, or its staging path. */
+function urlOf(id, env) {
+  return env === 'debug' ? STAGING_ORIGIN + stagingPathOf(id) : app(id).origin.replace(/\/?$/, '/')
+}
+
 /** The app ids a shell reaches, jkAuth included, start first, no duplicates. */
 function reachIds(shell) {
   const ids = shell.reach === 'suite' ? suiteApps().map((a) => a.id) : [...shell.reach]
@@ -124,7 +141,7 @@ function versionCode(v = VERSION) {
 function shellConfig(shell, env) {
   if (env !== 'release' && env !== 'debug') throw new Error(`native/shells.js: env '${env}'`)
   const staging = env === 'debug'
-  const url = (id) => staging ? STAGING_ORIGIN + stagingPathOf(id) : app(id).origin.replace(/\/?$/, '/')
+  const url = (id) => urlOf(id, env)
   const startUrl = url(shell.start)
   const origins = [...new Set(reachIds(shell).map((id) => originOf(url(id))))]
   const shortcuts = shell.shortcuts === 'suite'
@@ -145,9 +162,19 @@ function shellConfig(shell, env) {
 
 const androidShells = () => SHELLS.filter((s) => s.android)
 const desktopShells = () => SHELLS.filter((s) => s.desktop)
+/** Android shells that open origins in a Trusted Web Activity — what Chrome verifies against
+ *  assetlinks.json, so what signing.mjs lists and what the edge must serve asset links for. */
+const twaLaunchers = () => SHELLS.filter((s) => s.android === 'twa' || s.android === 'selector')
+
+/** The apps a selector lists: the start app first, jkAuth last (its dashboard is the account
+ *  page — a place worth testing, not only the sign-in redirect), the rest in suite order. */
+function selectorApps(shell, env) {
+  const ids = reachIds(shell).filter((id) => id !== 'auth').concat('auth')
+  return ids.map((id) => ({ id, name: app(id).name, url: urlOf(id, env) }))
+}
 
 module.exports = {
   VERSION, STAGING_SUFFIX, SHELLS,
   shellConfig, versionCode, stagingPathOf, reachIds, suiteApps,
-  androidShells, desktopShells,
+  androidShells, desktopShells, twaLaunchers, selectorApps,
 }

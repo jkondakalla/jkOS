@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fixed strings. The shell's name, environment and app list are generated per build type
+     into src/debug|release/res/values/shell.xml (native/gen-native.mjs). -->
+<resources>
+    <!-- channel · environment · versionName, e.g. "ALPHA · staging · 0.1.0-alpha-staging" -->
+    <string name="build_line">%1$s · %2$s · %3$s</string>
+    <string name="footnote">Each app opens in Chrome. Sign in once and every app shares it. Back returns here.</string>
+    <string name="no_browser">No browser installed that can open %1$s</string>
+</resources>

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="selector_ink">#ede2c8</color>
+    <color name="selector_ink_dim">#a39a86</color>
+    <color name="selector_rule">#2a2824</color>
+    <color name="selector_badge">#c8553d</color>
+
+    <style name="Theme.JkosSelector" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/shell_bar</item>
+        <item name="android:statusBarColor">@color/shell_bar</item>
+        <item name="android:navigationBarColor">@color/shell_bar</item>
+    </style>
+</resources>

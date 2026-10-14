@@ -1,8 +1,9 @@
 // jkOS native shells — the Android build. See Documentation/agents/NATIVE.md.
 //
-// Two modules, two kinds of app (native/shells.js is the one list of which shell is which):
-//   :twa   Trusted Web Activities — one flavor per shell (jkOS, KourOS). No app code.
-//   :home  the jkOS Home launcher — our own WebView, origin policy, kiosk drawer.
+// Three modules, three kinds of app (native/shells.js is the one list of which shell is which):
+//   :twa       Trusted Web Activities — one flavor per shell (jkOS, KourOS). No app code.
+//   :home      the jkOS Home launcher — our own WebView, origin policy, kiosk drawer.
+//   :selector  jkOS Alpha — a native list of every app, each opened as a TWA. No WebView.
 
 pluginManagement {
     repositories {
@@ -35,4 +36,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "jkos-native"
-include(":twa", ":home")
+include(":twa", ":home", ":selector")

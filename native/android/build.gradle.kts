@@ -26,6 +26,7 @@ val repoRoot: Directory = layout.projectDirectory.dir("../..")
 fun iconFor(module: String, flavor: String?): String = when (module) {
     "twa" -> (shells["twa"] as List<Map<String, Any>>).single { it["id"] == flavor }["icon"] as String
     "home" -> (shells["home"] as Map<String, Any>)["icon"] as String
+    "selector" -> (shells["selector"] as Map<String, Any>)["icon"] as String
     else -> throw GradleException("no shell icon rule for module :$module")
 }
 

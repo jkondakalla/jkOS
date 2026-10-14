@@ -36,7 +36,7 @@ import { dirname, join } from 'node:path'
 // from (ToDo A2). Relative path, not the bare specifier — this script is run from the
 // repo root (`node infra/nginx/...`), where @jkos/* is not resolvable. CJS via interop.
 import { peers, edgeApps } from '../../packages/suite-manifest/apps.js'
-import { androidShells, shellConfig } from '../../native/shells.js'
+import { twaLaunchers, shellConfig } from '../../native/shells.js'
 
 const DIR = dirname(fileURLToPath(import.meta.url))
 const OUT = join(DIR, 'weave-proxy.conf')
@@ -386,7 +386,7 @@ function serverBlocks(text) {
 function checkTwaCoverage(text) {
   const generated = new Set(EDGE_APPS.map((a) => a.host))
   const blocks = serverBlocks(text).filter((b) => b.tls)
-  const hosts = new Set(androidShells().filter((s) => s.android === 'twa')
+  const hosts = new Set(twaLaunchers()
     .flatMap((s) => shellConfig(s, 'release').origins.map((o) => new URL(o).host)))
   const missing = []
   for (const host of hosts) {

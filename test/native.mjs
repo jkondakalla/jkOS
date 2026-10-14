@@ -21,13 +21,15 @@
 //   3. Android least privilege, read from the manifests themselves: backups and device
 //      transfer off, HOME only in the home launcher, package visibility limited to launcher
 //      apps (never QUERY_ALL_PACKAGES), INTERNET the home launcher's only permission, the TWAs
-//      none, https + system CAs only.
+//      and the alpha selector none, https + system CAs only. The selector's TWA launcher is
+//      not exported (only its own list may start a session) and it claims no links.
 //   4. Android WebView source: no addJavascriptInterface (the bridge is origin-scoped
 //      addWebMessageListener), no SSL proceed(), no file access, no mixed content, debugging
-//      only on debug builds.
+//      only on debug builds. The alpha selector has no WebView at all.
 //   5. Supply chain + signing: release signing only from the environment, no key tracked,
 //      Gradle's wrapper and every dependency pinned by checksum, the build image by digest.
 //   6. Every staging URL a debug build opens is actually routed by the staging server.
+//   7. Every app the alpha selector lists sits on an origin its TWAs trust.
 //
 // The generated files (per-variant origins, shells.json) are held by
 // `node native/gen-native.mjs --check`, which runs first in the same check:native script.
@@ -167,7 +169,11 @@ const policy = require(resolve(root, 'native/desktop/src/policy.js'));
 
 // ── 3. Android manifests: least privilege, read from the files themselves ────
 {
-  const MANIFESTS = { twa: 'native/android/twa/src/main/AndroidManifest.xml', home: 'native/android/home/src/main/AndroidManifest.xml' };
+  const MANIFESTS = {
+    twa: 'native/android/twa/src/main/AndroidManifest.xml',
+    home: 'native/android/home/src/main/AndroidManifest.xml',
+    selector: 'native/android/selector/src/main/AndroidManifest.xml',
+  };
   const m = Object.fromEntries(Object.entries(MANIFESTS).map(([k, p]) => [k, stripXml(read(p))]));
   const all = walk('native/android', /^AndroidManifest\.xml$/).map((p) => [p, stripXml(read(p))]);
 
@@ -214,6 +220,21 @@ const policy = require(resolve(root, 'native/desktop/src/policy.js'));
   check(/FALLBACK_STRATEGY"\s+android:value="customtabs"/.test(m.twa),
     'TWA fallback is a Custom Tab, never an in-app WebView the APK would own',
     'TWA FALLBACK_STRATEGY is no longer customtabs');
+
+  // jkOS Alpha: a list that starts TWAs — so the TWA rules, plus: only its own list may start one.
+  check(!/<uses-permission/.test(m.selector),
+    'the alpha selector asks for no permissions (Chrome holds the network)',
+    'the selector manifest now asks for a permission');
+  check(/FALLBACK_STRATEGY"\s+android:value="customtabs"/.test(m.selector),
+    'the selector\'s TWA fallback is a Custom Tab, never an in-app WebView',
+    'the selector\'s FALLBACK_STRATEGY is no longer customtabs');
+  const launcher = /<activity\s+android:name="com\.google\.androidbrowserhelper\.trusted\.LauncherActivity"([^>]*)>([\s\S]*?)<\/activity>/.exec(m.selector);
+  check(launcher && /android:exported="false"/.test(launcher[1]) && !/<intent-filter/.test(launcher[2]),
+    'the selector\'s LauncherActivity is not exported and has no intent filter (no other app can aim its trusted session)',
+    'the selector\'s LauncherActivity is exported or filters intents — another app could open any URL in its trusted session');
+  check(!/android:autoVerify|android\.intent\.action\.VIEW/.test(m.selector),
+    'the alpha selector claims no links (jkos.net links stay with the jkOS and KourOS apps)',
+    'the selector manifest claims links (VIEW / autoVerify) — a test build competing for jkos.net links');
 }
 
 // ── 4. Android WebView source ────────────────────────────────────────────────
@@ -236,6 +257,10 @@ const policy = require(resolve(root, 'native/desktop/src/policy.js'));
   check(/addWebMessageListener\(web, NAME, setOf\(expected\)\)/.test(bridge) && /if \(!isMainFrame \|\|/.test(bridge),
     'the bridge is addWebMessageListener scoped to the one start origin, main frame only',
     'Bridge.kt no longer scopes addWebMessageListener to setOf(expected) with a main-frame check');
+  const selector = src.filter(([p]) => p.startsWith('native/android/selector/'));
+  check(selector.length > 0 && selector.every(([, s]) => !/\bWebView\b/.test(s)),
+    'the alpha selector has no WebView (nothing of ours runs beside a page)',
+    selector.length ? `the alpha selector uses a WebView in ${selector.filter(([, s]) => /\bWebView\b/.test(s)).map(([p]) => p).join(', ')}` : 'no selector source found');
   const home = src.find(([p]) => p.endsWith('/HomeActivity.kt'))?.[1] || '';
   check(/onReceivedSslError[\s\S]{0,200}handler\.cancel\(\)/.test(home),
     'certificate errors are cancelled, never waved through', 'HomeActivity.onReceivedSslError no longer calls handler.cancel()');
@@ -283,6 +308,7 @@ const policy = require(resolve(root, 'native/desktop/src/policy.js'));
     const c = shells.shellConfig(s, 'debug');
     urls.add(c.startUrl);
     for (const sc of c.shortcuts) urls.add(sc.url);
+    if (s.android === 'selector') for (const a of shells.selectorApps(s, 'debug')) urls.add(a.url);
   }
   const unrouted = [...urls].filter((u) => {
     const path = new URL(u).pathname;
@@ -291,6 +317,17 @@ const policy = require(resolve(root, 'native/desktop/src/policy.js'));
   check(unrouted.length === 0,
     `every debug-build URL is routed on staging (${[...urls].map((u) => new URL(u).pathname).join(' ')})`,
     `a debug build would open a path staging does not route: ${unrouted.join(', ')}`);
+}
+
+// ── 7. The selector lists only what its TWAs trust ───────────────────────────
+{
+  const stray = shells.SHELLS.filter((s) => s.android === 'selector').flatMap((s) => ['debug', 'release'].flatMap((env) => {
+    const { origins } = shells.shellConfig(s, env);
+    return shells.selectorApps(s, env).filter((a) => !origins.includes(new URL(a.url).origin)).map((a) => `${s.id}/${env}: ${a.url}`);
+  }));
+  check(stray.length === 0,
+    'every app the selector lists is on an origin its TWAs trust',
+    `the selector lists an app off its trusted origins (it would open with a URL bar, or in the browser): ${stray.join(', ')}`);
 }
 
 if (failed) {

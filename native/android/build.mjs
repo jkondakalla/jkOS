@@ -112,7 +112,7 @@ if (status !== 0) die(`gradle ${gradleArgs.join(' ')} failed (exit ${status})`)
 // AGP names outputs <module>-[<flavor>-]<buildType>[-unsigned].apk. out/ MIRRORS every APK
 // Gradle currently holds — not only the ones this run wrote. An up-to-date task writes
 // nothing, so a "newer than this run" filter left out/ holding an APK from an older tree.
-const shellOf = (module, flavor) => module === 'home' ? SHELLS.home.id : flavor
+const shellOf = (module, flavor) => module === 'twa' ? flavor : SHELLS[module].id
 const found = []
 const walk = (d) => {
   if (!existsSync(d)) return
@@ -122,13 +122,13 @@ const walk = (d) => {
     else if (e.name.endsWith('.apk')) found.push(p)
   }
 }
-for (const module of ['twa', 'home']) walk(join(HERE, module, 'build', 'outputs', 'apk'))
+for (const module of ['twa', 'home', 'selector']) walk(join(HERE, module, 'build', 'outputs', 'apk'))
 
 if (found.length) {
   mkdirSync(OUT, { recursive: true })
   console.log('')
   for (const p of found) {
-    const m = /^(twa|home)-(?:([a-z0-9]+)-)?(debug|release)(-unsigned)?\.apk$/.exec(basename(p))
+    const m = /^(twa|home|selector)-(?:([a-z0-9]+)-)?(debug|release)(-unsigned)?\.apk$/.exec(basename(p))
     if (!m) continue
     const [, module, flavor, type, unsigned] = m
     const name = `${shellOf(module, flavor)}-${SHELLS.version}-${type === 'debug' ? 'staging' : 'release'}${unsigned || ''}.apk`
