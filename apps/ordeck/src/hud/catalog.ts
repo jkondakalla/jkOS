@@ -14,7 +14,7 @@
  */
 
 import type { WidgetDef as AnyWidgetDef } from '@jkos/widget-render';
-import { KINDS, NODES, drawableIn } from '@jkos/widgets';
+import { moleculesOf, drawableIn } from '@jkos/widgets';
 import type { WidgetDef } from './types';
 import { HUD_ACTIONS, HUD_SLICES } from './slices';
 
@@ -29,11 +29,11 @@ export const WIDGETS: Readonly<Record<string, AnyWidgetDef>> = Object.freeze(
   Object.fromEntries(Object.values(files).map((def) => [def.id, def])),
 );
 
-/** What ORDECK, as a host, can draw: its declared slices and actions, every manifest
- *  molecule (host.tsx's KINDS is typed to all of them), and no routes. */
+/** What ORDECK, as a host, can draw: its declared slices and actions, its own manifest
+ *  molecules (host.tsx's KINDS is typed to exactly them), and no routes. */
 export const ORDECK_HOST = {
   slices: Object.keys(HUD_SLICES),
-  kinds: KINDS.filter((t) => NODES[t].kind === 'molecule'),
+  kinds: moleculesOf('ordeck'),
   actions: Object.keys(HUD_ACTIONS),
   navigate: false,
 } as const;

@@ -417,6 +417,9 @@ export function checkBindings(def, { docs = {}, slices = {}, actions = {}, pages
         // A row's event reads that row ($); a form's `done` reads what its command produced.
         let evScope = node.t === 'rows' ? extra.row ?? here : here
         if (node.t === 'form') { evScope = new Map(sc); evScope.set('$result', produced ?? ANY); evScope.set('$job', JOB) }
+        // What the event itself hands its actions (a scrubber's `$seek`), as the manifest says.
+        const handed = spec_.eventScope?.[ev]
+        if (handed) { evScope = new Map(evScope); for (const [n, f] of Object.entries(handed)) evScope.set(n, fieldsShape(f)) }
         checkChain(chain, `${at}/on/${esc(ev)}`, evScope)
       }
     }

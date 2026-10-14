@@ -14,7 +14,7 @@
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { NODES, ACTIONS, TONES, ICON_NAMES } from '../src/manifest.js';
+import { NODES, ACTIONS, TONES, ICON_NAMES, moleculesOf, DEFAULT_MOLECULE_HOST } from '../src/manifest.js';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const CHECK = process.argv.includes('--check');
@@ -67,6 +67,10 @@ function nodesTs() {
   out += '/** The kinds a HOST draws, not the renderer: the manifest\'s molecules, each reading the\n';
   out += ' *  host slice its `reads` names. A host that has none of them draws a not-here tile. */\n';
   out += `export type HostKind = ${union(Object.entries(NODES).filter(([, s]) => s.kind === 'molecule').map(([t]) => t))};\n\n`;
+  out += '/** Each host\'s own kinds — the molecules whose `host` it is (ORDECK\'s by default), so a\n';
+  out += ' *  host is typed to draw exactly its own and never another\'s. */\n';
+  const hostsOf = [...new Set(Object.values(NODES).filter((s) => s.kind === 'molecule').map((s) => s.host ?? DEFAULT_MOLECULE_HOST))].sort();
+  out += `export interface HostKindsOf {\n${hostsOf.map((h) => `  ${h}: ${union(moleculesOf(h))};\n`).join('')}}\n\n`;
   out += '/** The composable display vocabulary — one variant per manifest kind. */\n';
   out += 'export type WidgetNode =\n';
   for (const [t, spec] of Object.entries(NODES)) {

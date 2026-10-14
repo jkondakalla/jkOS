@@ -133,7 +133,7 @@ function Sheet({ job }: { job: Job }) {
           {states.map((state) => (
             <div className="wp-cell" key={state} data-tier={tier} data-state={state} data-kind={job.def.route ? 'screen' : 'card'}>
               <div className="wp-label hud-eyebrow">{state}</div>
-              <div className={`hud-cell wp-frame${job.def.route ? ' wp-screen' : ''}`} style={{ width: w, height: h }}>
+              <div className={`hud-cell wp-frame${job.def.route ? ' wp-screen' : ''}`} style={{ width: w, height: h, ['--w-screen-h' as string]: `${h}px` }}>
                 <SourceReaderProvider value={readerFor(state, job.fixtures)}>
                   {renderWidget(job.def as WidgetDef, hostFor(job, state, tier), extra(job, state, '$in'))}
                 </SourceReaderProvider>

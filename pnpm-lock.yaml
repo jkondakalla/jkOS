@@ -421,6 +421,9 @@ importers:
 
   packages/widget-render:
     dependencies:
+      '@jkos/player':
+        specifier: workspace:*
+        version: file:packages/player(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@jkos/ui':
         specifier: workspace:*
         version: link:../ui

@@ -15,7 +15,7 @@
 //    and sees the slice a molecule reads without a binding.
 // 4. safeHref: the href rule the validator and the renderer share.
 import { NODES, FRAME, KINDS, LIMITS, TONES, ACTIONS, childProps, validateWidget, sourcesOf, walkNodes, safeHref, appsOf,
-  routeProblem, matchRoute, fillRoute, routeTable, pageFor, needsOf, isPortable, drawableIn } from '../src/index.js'
+  routeProblem, matchRoute, fillRoute, routeTable, pageFor, needsOf, isPortable, drawableIn, moleculesOf } from '../src/index.js'
 import { checkBindings } from '../src/semantic.js'
 
 let pass = 0, fail = 0
@@ -310,6 +310,14 @@ ok(t2hHas(play({ do: 'player.play' }), '/spec/body/on/press/with', 'missing-fiel
 ok(t2hHas(play({ do: 'player.play', with: { id: { src: 'clock', path: 'hmm' } } }), '/spec/body/on/press/with/id', 'undeclared-path'), "an argument's binding is checked")
 ok(t2hHas(play([{ do: 'player.play', with: { id: 7 } }, { set: 'q', to: { src: '$result', path: 'qeued' } }]), '/spec/body/on/press/1/to', 'undeclared-path'), "…and $result after it is what it declares it returns")
 ok(t2has(play({ do: 'player.play', with: { id: 7 } }), '/spec/body/on/press/do', 'undeclared'), 'a host that declares no actions refuses every do')
+const SEEK = { 'player.seek': { label: 'Seek', args: [{ name: 'to', type: 'number', required: true }] } }
+const scrub = (to, extra = {}) => checkBindings({ id: 'p', spec: { body: { t: 'scrubber', position: 1, total: 2, on: { seek: { do: 'player.seek', with: { to } } } }, ...extra } }, { docs: DOCS, slices: SLICES, actions: SEEK })
+ok(scrub({ src: '$seek', path: 'to' }).length === 0, "a scrubber's seek hands its actions the second chosen as $seek.to")
+ok(scrub({ src: '$seek', path: 'too' }).some((p) => p.code === 'undeclared-path'), '…and $seek holds only what the manifest says it does')
+ok(checkBindings({ id: 'p', spec: { body: { t: 'text', text: { src: '$seek', path: 'to' } } } }, { slices: SLICES }).some((p) => p.code === 'unknown-source'), '$seek exists only inside a seek')
+ok(moleculesOf('ordeck').includes('week') && !moleculesOf('ordeck').includes('pulsarmap') && moleculesOf('kouros').includes('pulsarmap'), 'each molecule is one host\'s: ORDECK is never asked to draw KourOS\'s pulsarmap')
+ok(drawableIn({ spec: { body: { t: 'pulsarmap' } } }, { kinds: moleculesOf('ordeck'), slices: ['player'] }).includes('kind pulsarmap'), '…so a widget drawing one has no home on the HUD')
+ok(validateWidget({ id: 'p', spec: { body: { t: 'button', text: 'Play', icon: 'plya', variant: 'orb', on: { press: { set: 'x', to: 1 } } }, state: { x: { type: 'number' } } } }).some((p) => p.code === 'unknown-value'), "a button's glyph is one of the icon set")
 
 console.log('3d · patterns')
 ok(problems(def({ t: 'facts', items: [{ label: 'High', value: { src: 'weather', path: 'hiLabel' }, tone: 'accent' }] })).length === 0, 'facts takes a list of { label, value, tone? }')

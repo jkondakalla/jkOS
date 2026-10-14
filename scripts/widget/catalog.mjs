@@ -47,14 +47,11 @@ export async function catalogModuleSource() {
 }
 
 /** ORDECK as a host, as hud/catalog.ts ORDECK_HOST builds it: its declared slices and
- *  actions, every manifest molecule, and no routes — what drawableIn holds a widget to. */
+ *  actions, its own manifest molecules, and no routes — what drawableIn holds a widget to. */
 export async function ordeckHost() {
-  const { NODES } = await import(WIDGETS_URL);
+  const { moleculesOf } = await import(WIDGETS_URL);
   const { slices, actions } = await hudDeclaration();
-  return {
-    slices: Object.keys(slices), actions: Object.keys(actions), navigate: false,
-    kinds: Object.keys(NODES).filter((t) => NODES[t].kind === 'molecule'),
-  };
+  return { slices: Object.keys(slices), actions: Object.keys(actions), navigate: false, kinds: moleculesOf('ordeck') };
 }
 
 /** Every declared host, by app — what the gate finds each widget file a home in. A host is
@@ -71,13 +68,12 @@ export async function hosts() {
  *  the screens it routes that are not widget pages yet (`legacyRoutes` — a `go` may name
  *  one). ORDECK's is hud/slices.ts; KourOS's is src/widgets/declaration.ts. */
 export async function hostDeclarations() {
-  const { NODES } = await import(WIDGETS_URL);
+  const { moleculesOf } = await import(WIDGETS_URL);
   const hud = await hudDeclaration();
   const k = await kourosDeclaration();
   return {
-    ordeck: { slices: hud.slices, actions: hud.actions, navigate: false, legacyRoutes: [],
-      kinds: Object.keys(NODES).filter((t) => NODES[t].kind === 'molecule') },
-    kouros: { slices: k.slices, actions: k.actions, navigate: true, legacyRoutes: k.legacyRoutes, kinds: [] },
+    ordeck: { slices: hud.slices, actions: hud.actions, navigate: false, legacyRoutes: [], kinds: moleculesOf('ordeck') },
+    kouros: { slices: k.slices, actions: k.actions, navigate: true, legacyRoutes: k.legacyRoutes, kinds: moleculesOf('kouros') },
   };
 }
 

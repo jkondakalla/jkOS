@@ -32,6 +32,8 @@ import { TONE_COLOR } from './tone';
 import { fillRoute, safeHref, sourcesOf, partsOf, MAX_USE_DEPTH } from '@jkos/widgets';
 import { usesAi } from './ai';
 import { Field, SelectField, Check, AsyncView } from '@jkos/ui';
+import { Scrubber } from '@jkos/player/ui';
+import type { NavPoint } from '@jkos/player/core';
 import { WidgetBoundary } from './boundary';
 
 /** What the app drawing a widget hands the renderer. */
@@ -207,7 +209,33 @@ const ICONS: Record<IconName, ReactNode> = {
   rise: <path d="M4 17C12 17 16 7 20 7" />,
   fall: <path d="M4 7c4 0 8 4 16 10" />,
   peak: <path d="M4 18c4 0 5-11 8-11s4 11 8 11" />,
+  // The transport's glyphs are FILLED (a play triangle is a shape, not a line): each
+  // says so itself, so the stroked icons above keep their fill: none.
+  play: <path d="M8 5v14l11-7z" fill="currentColor" stroke="none" />,
+  pause: <path d="M7 5h4v14H7zM13 5h4v14h-4z" fill="currentColor" stroke="none" />,
+  prev: <path d="M7 6v12M19 6l-9 6 9 6z" fill="currentColor" />,
+  next: <path d="M17 6v12M5 6l9 6-9 6z" fill="currentColor" />,
+  back: <path d="M12 6V3L7 7l5 4V8a5 5 0 1 1-5 5" />,
+  forward: <path d="M12 6V3l5 4-5 4V8a5 5 0 1 0 5 5" />,
+  shuffle: <><path d="M3 6h3.5l8 12H18M3 18h3.5l2.4-3.6M14.1 9.6 16.5 6H18" /><path d="M15.5 4.5 18.5 6l-3 1.7zM15.5 19.5l3-1.5-3-1.7z" fill="currentColor" stroke="none" /></>,
+  repeat: <><path d="M6 9V7a2 2 0 0 1 2-2h9M18 5v3M18 15v2a2 2 0 0 1-2 2H7M6 19v-3" /><path d="M15.5 3.5 18.5 6l-3 2.5zM8.5 20.5 5.5 18l3-2.5z" fill="currentColor" stroke="none" /></>,
+  'repeat-one': <><path d="M6 9V7a2 2 0 0 1 2-2h9M18 5v3M18 15v2a2 2 0 0 1-2 2H7M6 19v-3" /><path d="M15.5 3.5 18.5 6l-3 2.5zM8.5 20.5 5.5 18l3-2.5z" fill="currentColor" stroke="none" /><path d="M11 10.5l1.5-1v5" /></>,
+  spinner: <><circle cx="12" cy="12" r="9" opacity="0.25" /><path d="M12 3a9 9 0 0 1 9 9" className="hud-w-spin" /></>,
+  radio: <><circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none" /><path d="M8.2 8.2a5.4 5.4 0 0 0 0 7.6M15.8 15.8a5.4 5.4 0 0 0 0-7.6" /><path d="M5.5 5.5a9.2 9.2 0 0 0 0 13M18.5 18.5a9.2 9.2 0 0 0 0-13" opacity="0.5" /></>,
+  devices: <><rect x="2.5" y="5" width="11" height="8.5" rx="1.2" /><path d="M5.5 17h5M8 13.5V17" /><rect x="15.5" y="4" width="6" height="15.5" rx="1.4" /><circle cx="18.5" cy="14.8" r="2" /></>,
+  down: <path d="m5.5 9.5 6.5 6.5 6.5-6.5" />,
+  close: <path d="M6 6l12 12M18 6L6 18" />,
+  queue: <><path d="M4 6h12M4 12h12M4 18h8" /><path d="M18 9v10M18 9l-3 3M18 9l3 3" /></>,
 };
+
+/** A control's glyph: stroked in its button's colour (currentColor). */
+function glyph(name: string): ReactNode {
+  return (
+    <svg className="hud-w-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {ICONS[name as IconName] ?? ICONS.dot}
+    </svg>
+  );
+}
 
 /** A pattern's progress: the suite's one bar (hub.css .jk-bar-track / .jk-bar-fill, the
  *  bar @jkos/ui <Bar> draws), tinted, at the pattern track's height. */
@@ -258,6 +286,52 @@ function TileArt({ one, many, letter }: { one?: string; many: string[]; letter: 
   );
 }
 
+/** The art of one thing: the image, or — none, or one that fails to load — the title's
+ *  letter on the blank sleeve. `fill` makes it the largest it can be in the room it is
+ *  given (a size container — widgets.css § Cover); `ambient` also paints a blurred copy
+ *  behind the whole screen. */
+function CoverNode({ node, scope }: { node: NodeOf<'cover'>; scope: Scope }) {
+  const title = str(resolve(node.title, scope));
+  const url = node.image != null ? safeHref(resolve(node.image, scope)) : undefined;
+  const [failed, setFailed] = useState<string | null>(null);
+  const show = url && failed !== url;
+  const art = (
+    <span className={`hud-w-cover${node.shape && node.shape !== 'square' ? ` is-${node.shape}` : ''}`}>
+      {show ? <img src={url} alt={title} decoding="async" onError={() => setFailed(url)} />
+        : <span className="hud-p-tile-letter" role="img" aria-label={title}>{(title.trim().charAt(0) || '?').toUpperCase()}</span>}
+    </span>
+  );
+  return (
+    <>
+      {node.ambient && url && <span className="hud-w-ambient" aria-hidden="true" style={vars({ '--w-art': `url("${url.replace(/"/g, '%22')}")` })} />}
+      {node.fill ? <span className="hud-w-cover-room">{art}</span> : art}
+    </>
+  );
+}
+
+/** A seek bar: @jkos/player's Scrubber (the suite's one), its release firing `on.seek`
+ *  with the second chosen as `$seek.to`. */
+function ScrubberNode({ node, scope }: { node: NodeOf<'scrubber'>; scope: Scope }) {
+  const act = useActions();
+  const pts = node.points != null ? resolve(node.points, scope) : null;
+  const points = Array.isArray(pts) ? (pts as NavPoint[]) : undefined;
+  const chain = node.on?.seek;
+  return (
+    <div className="hud-w-scrubber">
+      <Scrubber
+        position={num(resolve(node.position, scope))}
+        total={Math.max(0, num(resolve(node.total, scope)))}
+        points={points}
+        currentIndex={node.at != null ? Math.round(num(resolve(node.at, scope))) : -1}
+        mode={node.mode ?? 'timeline'}
+        disabled={!chain}
+        ariaLabel={node.label != null ? str(resolve(node.label, scope)) : undefined}
+        onSeek={(to) => { if (chain) void act.fire(chain, { ...scope, $seek: { to } }); }}
+      />
+    </div>
+  );
+}
+
 /** node type → renderer. Each case is one primitive; adding to the vocabulary is a new
  *  manifest kind + a new entry here. The host's kinds (HostKind) are not here: the host
  *  draws them, and tsc holds each side to its half of the manifest. */
@@ -304,7 +378,7 @@ function rowsBody(n: NodeOf<'rows'>, scope: Scope, onSelect?: (rowScope: Scope) 
 
 const PRIMITIVES: Primitives = {
   stack: (n, scope) => (
-    <div className={`hud-w-stack${n.grow ? ' is-grow' : ''}`} style={vars({ '--w-gap': `${n.gap ?? 8}px`, '--w-justify': n.justify ?? 'flex-start' })}>
+    <div className={`hud-w-stack${n.grow ? ' is-grow' : ''}${n.screen ? ' is-screen' : ''}`} style={vars({ '--w-gap': `${n.gap ?? 8}px`, '--w-justify': n.justify ?? 'flex-start' })}>
       {n.children.map((c, i) => <Fragment key={i}>{renderNode(c, scope)}</Fragment>)}
     </div>
   ),
@@ -428,6 +502,8 @@ const PRIMITIVES: Primitives = {
       </span>
     );
   },
+  cover: (n, scope) => <CoverNode node={n} scope={scope} />,
+  scrubber: (n, scope) => <ScrubberNode node={n} scope={scope} />,
   sparkline: (n, scope) => {
     const arr = resolve(n.from, scope);
     const values = (Array.isArray(arr) ? arr : [])
@@ -1026,6 +1102,21 @@ function ActionButton({ node, scope }: { node: Extract<WidgetNode, { t: 'button'
   const chain = node.on?.press;
   const label = str(resolve(node.text, scope));
   const color = node.tone != null ? toneColor(node.tone, scope, 'accent') : 'var(--color-accent)';
+  const variant = node.variant ?? 'action';
+  // A glyph button is its glyph: the label is its name (a screen reader's, a tooltip's),
+  // and a failure says so in the tooltip rather than swapping the face for a word.
+  if (node.icon != null || variant !== 'action') {
+    const icon = node.icon != null ? str(resolve(node.icon, scope)) : null;
+    const on = node.active != null && truthy(resolve(node.active, scope));
+    return (
+      <button type="button" disabled={act.busy || !chain} onClick={() => { if (chain) void act.fire(chain, scope); }}
+        className={`hud-w-btn is-${variant}${on ? ' is-on' : ''}${act.status === 'err' ? ' is-err' : ''}`}
+        aria-label={icon ? label : undefined} aria-pressed={node.active != null ? on : undefined}
+        title={act.status === 'err' ? act.error : icon ? label : undefined}>
+        {icon ? glyph(icon) : act.busy ? '…' : label}
+      </button>
+    );
+  }
   const text = act.busy ? '…' : act.status === 'ok' ? 'DONE' : act.status === 'err' ? 'RETRY' : label;
   return (
     <button type="button" title={act.status === 'err' ? act.error : undefined} disabled={act.busy || !chain}

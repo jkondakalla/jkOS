@@ -187,6 +187,21 @@ its `item` is drawn once per element of `from`, with the element as `$` — usua
 `tile`; `size: "wide"` for a card wider than a cover. Its column width answers to the
 width the page gives it, not the viewport. A tile with no art, or art that fails to
 load, draws its title's first letter.
+
+**A player's screen** has its own few pieces. `cover` is the art of one thing — square, a
+`round` face, or a `book` jacket (2:3, its spine's gutter, never cropped); `fill` makes it
+the largest it can be in the room it is given, and `ambient` paints a blurred copy behind
+the whole screen. `scrubber` is the suite's seek bar (`@jkos/player`'s): `on.seek` hands
+its actions the second chosen as `$seek.to`. A `button` with an `icon` is a glyph (its
+`text` becomes its accessible name), in a `variant` — `ghost` for a transport's quiet
+controls, `orb` for the one lit primary, `link` for inline text that goes somewhere — and
+`active` marks it on (shuffle, repeat). A `stack` with `screen: true` is exactly one
+screen high, and its growing child (or a filling cover) takes what is left, so the page
+never scrolls — what a surface that owns its gestures needs.
+
+**A molecule belongs to one host** (its manifest `host`, ORDECK's when absent):
+`HostKindsOf` types each host to draw exactly its own, and `moleculesOf(host)` is what
+it declares — KourOS's `pulsarmap` is never asked of ORDECK.
 `when` (`cond`, `then`, `else`) switches between bodies — e.g. a session with nothing
 loaded. The rest of the vocabulary (primitives, layout, the molecules, form controls) and
 every prop's type: `pnpm widget vocab [kind]`, or the Workshop's Guide tab.

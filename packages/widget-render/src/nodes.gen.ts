@@ -21,11 +21,18 @@ export type ActionChain = WidgetAction | WidgetAction[];
 export type Tone = 'ok' | 'warn' | 'danger' | 'muted' | 'accent';
 
 /** The curated line-icon set. */
-export type IconName = 'sun' | 'moon' | 'cloud' | 'rain' | 'snow' | 'bolt' | 'check' | 'book' | 'clock' | 'calendar' | 'activity' | 'star' | 'alert' | 'dot' | 'rise' | 'fall' | 'peak';
+export type IconName = 'sun' | 'moon' | 'cloud' | 'rain' | 'snow' | 'bolt' | 'check' | 'book' | 'clock' | 'calendar' | 'activity' | 'star' | 'alert' | 'dot' | 'rise' | 'fall' | 'peak' | 'play' | 'pause' | 'prev' | 'next' | 'back' | 'forward' | 'shuffle' | 'repeat' | 'repeat-one' | 'spinner' | 'radio' | 'devices' | 'down' | 'close' | 'queue';
 
 /** The kinds a HOST draws, not the renderer: the manifest's molecules, each reading the
  *  host slice its `reads` names. A host that has none of them draws a not-here tile. */
-export type HostKind = 'calendar' | 'weather' | 'focus' | 'week';
+export type HostKind = 'calendar' | 'weather' | 'focus' | 'week' | 'pulsarmap';
+
+/** Each host's own kinds — the molecules whose `host` it is (ORDECK's by default), so a
+ *  host is typed to draw exactly its own and never another's. */
+export interface HostKindsOf {
+  kouros: 'pulsarmap';
+  ordeck: 'calendar' | 'weather' | 'focus' | 'week';
+}
 
 /** The composable display vocabulary — one variant per manifest kind. */
 export type WidgetNode =
@@ -37,6 +44,10 @@ export type WidgetNode =
   | { t: 'bar'; value: Binding; max?: Binding }
   /** Steps — a discrete ladder — N steps, the current one raised (a book's chapters). */
   | { t: 'steps'; /** how many steps */ count: Binding; /** the current one, 0-based — those before it are done */ at?: Binding }
+  /** Cover — the art of one thing — a sleeve, a jacket, a face. */
+  | { t: 'cover'; /** the art (an http(s) or relative URL); none, or one that fails to load, draws the title's first letter */ image?: Binding; /** what it is the art of — its alt text, and the letter it falls back to */ title: Binding; /** book: a 2:3 jacket, square on the bound edge, its art never cropped; round: a person */ shape?: 'square' | 'round' | 'book'; /** the largest it can be in the room it is given — in a screen-high stack, what the rest leaves (a hero) */ fill?: boolean; /** also paints a blown-up, blurred copy of the art behind the whole screen — the room light a player sits in */ ambient?: boolean }
+  /** Scrubber — a seek bar — where it is, dragged to where it should be. */
+  | { t: 'scrubber'; /** the playhead, seconds */ position: Binding; /** seconds */ total: Binding; /** segments, [{ start, end }] in seconds (a book's chapters) */ points?: Binding; /** the current segment, 0-based */ at?: Binding; /** timeline (default): the whole span, segments as ticks; segment: only the current segment's window */ mode?: 'timeline' | 'segment'; /** what it seeks, for a screen reader ("Seek position in track") */ label?: Binding; on?: { seek?: ActionChain } }
   /** Sparkline — tiny trend line over an array. */
   | { t: 'sparkline'; /** the array to plot */ from: Binding; /** plucks a number from each element (e.g. weather.slots → temp) */ path?: string; height?: number; tone?: ToneBinding }
   /** Key / value — name left, value right. */
@@ -62,7 +73,7 @@ export type WidgetNode =
   /** Row — lay children side by side. */
   | { t: 'row'; gap?: number; justify?: 'flex-start' | 'flex-end' | 'center' | 'space-between' | 'space-around' | 'space-evenly' | 'start' | 'end'; align?: 'flex-start' | 'flex-end' | 'center' | 'baseline' | 'stretch' | 'start' | 'end'; grow?: boolean; children: WidgetNode[] }
   /** Stack — group children vertically. */
-  | { t: 'stack'; gap?: number; grow?: boolean; /** distributes children along the column (space-between pins the last to the bottom edge) */ justify?: 'flex-start' | 'flex-end' | 'center' | 'space-between' | 'space-around' | 'space-evenly' | 'start' | 'end'; children: WidgetNode[] }
+  | { t: 'stack'; gap?: number; grow?: boolean; /** distributes children along the column (space-between pins the last to the bottom edge) */ justify?: 'flex-start' | 'flex-end' | 'center' | 'space-between' | 'space-around' | 'space-evenly' | 'start' | 'end'; /** exactly one screen high: a child that grows takes what is left, so the page never scrolls (a surface that owns its gestures) */ screen?: boolean; children: WidgetNode[] }
   /** Rail — a strip that scrolls sideways — repeat a template over an array. */
   | { t: 'rail'; /** the array; each element is `$` inside `item` */ from: Binding; /** drawn once per element — usually a tile */ item: WidgetNode; /** shown when the array is empty */ empty?: Binding; /** each item's width: a cover tile (default), or a wide card */ size?: 'tile' | 'wide' }
   /** Use — draw another widget here, handing it its inputs. */
@@ -77,6 +88,8 @@ export type WidgetNode =
   | { t: 'focus' }
   /** Week — the seven-day time grid (@jkos/cards). Reads `items` and `todayIso`. */
   | { t: 'week' }
+  /** Pulsarmap — the playing track's spectrogram as ridgelines, revealed as it plays (KourOS). Reads `player`. */
+  | { t: 'pulsarmap' }
   /** Stat — one headline number, with its context. */
   | { t: 'stat'; value: Binding; /** what the number is, above it */ label?: Binding; unit?: Binding; /** the change, beside it ("+3", "−12%") */ delta?: Binding; deltaTone?: ToneBinding; /** one line of context under it */ sub?: Binding; /** an array to draw as a sparkline under it */ trend?: Binding; /** plucks the number from each trend element */ trendPath?: string }
   /** Meter — a labelled bar: how far along. */
@@ -96,7 +109,7 @@ export type WidgetNode =
   /** Action form — inputs that submit a command. */
   | { t: 'form'; cmd: CommandRef; /** the submit button's label */ submit: Binding; children: WidgetNode[]; /** drawn once the command has answered: $result is what it produced (an async command is followed until it ends), $job is { phase: pending|done|failed|lost, status, error } */ result?: WidgetNode; on?: { done?: ActionChain } }
   /** Action button — one tap runs a command, or its actions. */
-  | { t: 'button'; text: Binding; /** the command a tap runs — or `on.press`, for anything else (set state, several steps) */ cmd?: CommandRef; tone?: ToneBinding; /** drawn once the command has answered: $result is what it produced (an async command is followed until it ends), $job is { phase: pending|done|failed|lost, status, error } */ result?: WidgetNode; on?: { press?: ActionChain } }
+  | { t: 'button'; /** its label — with an `icon`, its name for a screen reader and a tooltip instead */ text: Binding; /** the command a tap runs — or `on.press`, for anything else (set state, several steps) */ cmd?: CommandRef; /** a glyph, drawn instead of the text */ icon?: Binding; /** action (default): the bordered caps button; ghost: a quiet control on a surface (a transport's secondaries); orb: the lit primary (play); link: inline text that goes somewhere */ variant?: 'action' | 'ghost' | 'orb' | 'link'; /** truthy: it is on — shuffle, repeat (pressed, in the accent) */ active?: Binding; tone?: ToneBinding; /** drawn once the command has answered: $result is what it produced (an async command is followed until it ends), $job is { phase: pending|done|failed|lost, status, error } */ result?: WidgetNode; on?: { press?: ActionChain } }
   /** Input — text/number/date field. */
   | { t: 'input'; /** inside a form: the $form field it writes */ field?: string; /** outside a form: the widget's state variable it writes (a search box) */ state?: string; placeholder?: Binding; itype?: 'text' | 'number' | 'date' | 'time' }
   /** Select — pick from options. */

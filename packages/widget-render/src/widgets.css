@@ -90,6 +90,89 @@ a.hud-card.hud-w-frame { display: flex; }
 .hud-w-step.is-done { background: var(--color-ghost); }
 .hud-w-step.is-now { height: 100%; background: var(--color-muted); }
 
+/* ── Cover — the art of one thing ──────────────────────────────────────────
+ * Square by default, a 2:3 jacket for a book (square on the bound edge, never cropped:
+ * its title is the art), a circle for a person. `fill` puts it in a size container and
+ * makes it the largest it can be there: in a screen-high stack, the cover is what gives
+ * when the screen is short, so the transport never falls below the fold. */
+.hud-w-cover {
+  position: relative; display: block; width: 100%; aspect-ratio: 1; overflow: hidden;
+  border-radius: var(--jk-radius-lg); background: var(--color-card);
+  box-shadow: 0 24px 60px rgb(0 0 0 / 0.45), 0 6px 18px rgb(0 0 0 / 0.28), inset 0 0 0 1px var(--color-line);
+}
+.hud-w-cover > img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.hud-w-cover.is-round { border-radius: 50%; }
+.hud-w-cover.is-book { aspect-ratio: 2 / 3; border-radius: 2px var(--jk-radius-soft) var(--jk-radius-soft) 2px; }
+.hud-w-cover.is-book > img { object-fit: contain; background: var(--color-card-2); }
+/* The bound edge: a darker gutter down the spine, the jacket's one-glance tell. */
+.hud-w-cover.is-book::before {
+  content: ""; position: absolute; inset: 0 auto 0 0; width: 7px; z-index: 1;
+  background: var(--color-muted); opacity: 0.5;
+}
+.hud-w-cover-room {
+  display: flex; align-items: center; justify-content: center; width: 100%; min-height: 0;
+  container-type: size; flex: 1 1 0;
+}
+.hud-w-cover-room > .hud-w-cover { width: min(100cqw, 100cqh, 420px); }
+.hud-w-cover-room > .hud-w-cover.is-book { width: min(100cqw, calc(100cqh * 2 / 3), 300px); }
+/* The room light: a blown-up, blurred copy of the art behind the whole screen. A host
+   tunes it through --w-ambient-* (KourOS from its glass tokens). */
+.hud-w-ambient { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
+.hud-w-ambient::after {
+  content: ""; position: absolute; inset: -25%;
+  background-image: var(--w-art); background-size: cover; background-position: center;
+  filter: blur(var(--w-ambient-blur, 64px)) saturate(1.8);
+  transform: scale(var(--w-ambient-scale, 1.6)); opacity: var(--w-ambient-opacity, 0.5);
+}
+
+/* ── Scrubber — the suite's seek bar (@jkos/player's), at a widget's width ── */
+.hud-w-scrubber { width: 100%; min-width: 0; }
+
+/* ── Glyph buttons ─────────────────────────────────────────────────────────
+ * ghost: a quiet control that borrows its surface and lights up when touched (a
+ * transport's secondaries); orb: the one lit primary (play); link: inline text that
+ * goes somewhere. A glyph is drawn in the button's colour. */
+.hud-w-glyph { display: block; width: 22px; height: 22px; }
+.hud-w-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-width: var(--jk-tap-min, 44px); min-height: var(--jk-tap-min, 44px); padding: 6px;
+  border: 0; border-radius: var(--jk-radius-soft); background: transparent; cursor: pointer;
+  font: inherit; color: var(--color-muted);
+  transition: background 160ms ease, color 160ms ease, transform 120ms ease;
+}
+.hud-w-btn:disabled { cursor: default; opacity: 0.6; }
+.hud-w-btn:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.hud-w-btn.is-ghost:hover:not(:disabled) { background: color-mix(in srgb, var(--color-line) 40%, transparent); color: var(--color-ink); }
+.hud-w-btn.is-ghost:active:not(:disabled) { transform: scale(0.92); }
+.hud-w-btn.is-on { color: var(--color-accent); }
+.hud-w-btn.is-err { color: color-mix(in srgb, var(--color-danger) 75%, var(--color-muted)); }
+.hud-w-btn.is-orb {
+  position: relative; isolation: isolate; width: 64px; height: 64px; border-radius: 50%;
+  color: var(--w-orb-ink, rgb(255 255 255 / 0.96));
+  background: linear-gradient(to bottom,
+    color-mix(in srgb, var(--color-accent) 92%, #ffffff) 0%, var(--color-accent) 46%,
+    color-mix(in srgb, var(--color-accent) 84%, #000000) 100%);
+  box-shadow: inset 0 1px 0 0 rgb(255 255 255 / 0.55), inset 0 -2px 4px 0 rgb(0 0 0 / 0.18),
+    0 4px 14px color-mix(in srgb, var(--color-accent) 42%, transparent), 0 1px 3px rgb(0 0 0 / 0.25);
+}
+.hud-w-btn.is-orb::before {
+  content: ""; position: absolute; inset: 6% 14% auto 14%; height: 38%; border-radius: 50%;
+  background: linear-gradient(to bottom, rgb(255 255 255 / 0.62), rgb(255 255 255 / 0)); pointer-events: none;
+}
+.hud-w-btn.is-orb > .hud-w-glyph { width: 26px; height: 26px; }
+.hud-w-btn.is-orb:hover:not(:disabled) { filter: brightness(1.06); }
+.hud-w-btn.is-orb:active:not(:disabled) { transform: scale(0.94); }
+.hud-w-btn.is-link {
+  min-width: 0; min-height: 0; padding: 0; border-radius: 0; color: inherit; text-decoration: none;
+}
+.hud-w-btn.is-link:hover:not(:disabled) { text-decoration: underline; }
+.hud-w-spin { transform-origin: 12px 12px; animation: hud-w-spin 0.9s linear infinite; }
+@keyframes hud-w-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .hud-w-btn { transition: none; }
+  .hud-w-spin { animation-duration: 2.4s; }
+}
+
 /* ── Rail — a strip that scrolls sideways ──────────────────────────────────
  * The box is the container the column width answers to — the width the PAGE gives the
  * strip, never the viewport — so a rail reads alike in a phone, a tablet, a desk's main
@@ -493,3 +576,9 @@ a.hud-card:hover { box-shadow: var(--hub-shadow-lifted); transform: translateY(-
 .hud-w-page .hud-w-stack > * { flex-shrink: 0; }
 .hud-w-page .hud-w-frame { height: auto; }
 .hud-w-page .hud-w-frame:has(.hud-p) { container-type: inline-size; }
+/* A screen-high stack (`screen`): exactly the screen tall — the host says how tall
+   (--w-screen-h; the viewport by default) — and the one child that grows, or a filling
+   cover's room, takes what the rest leaves. Nothing in it scrolls the page. */
+.hud-w-stack.is-screen { height: var(--w-screen-h, 100dvh); min-height: 0; }
+.hud-w-page .hud-w-stack.is-screen > .is-grow,
+.hud-w-page .hud-w-stack.is-screen > .hud-w-cover-room { flex: 1 1 0; min-height: 0; }

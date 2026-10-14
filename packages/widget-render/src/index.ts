@@ -13,5 +13,5 @@ export { usesAi } from './ai';
 export { WidgetBoundary } from './boundary';
 export type {
   Binding, ToneBinding, CommandRef, WidgetFrame, WidgetSpec, WidgetSizing, WidgetDef, WidgetInput, StateVar,
-  WidgetNode, Tone, IconName, HostKind, DataSource, SourceState, SourceStatus,
+  WidgetNode, Tone, IconName, HostKind, HostKindsOf, DataSource, SourceState, SourceStatus,
 } from './types';
