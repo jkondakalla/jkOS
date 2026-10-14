@@ -4,6 +4,6 @@ export { validateWidget } from './validate.js'
 // checkBindings (the second tier) is `@jkos/widgets/semantic`, not re-exported here: it is
 // dev-time only, and this index is bundled into ORDECK — an index that gains an import of
 // a new file breaks every consumer's injected copy until a reinstall (TRAPS.md).
-export { walkNodes, sourcesOf, appsOf, actionsOf, partsOf, bodiesOf } from './walk.js'
+export { walkNodes, sourcesOf, appsOf, actionsOf, partsOf, bodiesOf, needsOf, isPortable, drawableIn } from './walk.js'
 export { safeHref } from './href.js'
 export { routeProblem, routeParams, matchRoute, fillRoute, routeTable, pageFor } from './routes.js'

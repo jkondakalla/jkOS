@@ -15,7 +15,7 @@
 //    and sees the slice a molecule reads without a binding.
 // 4. safeHref: the href rule the validator and the renderer share.
 import { NODES, FRAME, KINDS, LIMITS, TONES, ACTIONS, childProps, validateWidget, sourcesOf, walkNodes, safeHref, appsOf,
-  routeProblem, matchRoute, fillRoute, routeTable, pageFor } from '../src/index.js'
+  routeProblem, matchRoute, fillRoute, routeTable, pageFor, needsOf, isPortable, drawableIn } from '../src/index.js'
 import { checkBindings } from '../src/semantic.js'
 
 let pass = 0, fail = 0
@@ -403,6 +403,23 @@ ok(problems(phone({ t: 'input', field: 'x' })).some((p) => p.path === '/spec/mob
 ok(checkBindings(phone({ t: 'text', text: { src: 'clock', path: 'hmm' } }), { slices: SLICES }).some((p) => p.path === '/spec/mobile/text' && p.code === 'undeclared-path'), '…and the same second tier')
 ok(appsOf(phone({ t: 'button', text: 'ASK', cmd: { app: 'lazuros', capability: 'query' } })).has('lazuros'), 'appsOf reads the phone body too — a command only the phone has still reaches its app (the kill switch)')
 ok(appsOf(phone({ t: 'use', widget: 'kouros-ai' }), WIDGETS).has('lazuros'), '…and so does a part only the phone uses')
+
+console.log('3h · portability — derived from what a widget binds')
+const portableDef = { id: 'p', spec: { sources: { jobs: { kind: 'dataset', app: 'lazuros', dataset: 'jobs' } }, state: { q: { type: 'string' } },
+  body: { t: 'rows', from: { src: 'jobs' }, title: { src: '$', path: 'title' }, on: { select: { set: 'q', to: { src: '$', path: 'id' } } } } } }
+ok(isPortable(portableDef), 'a widget binding only its own sources and the renderer\'s $ names is portable — any host can draw it')
+const bound = { id: 'b', spec: { body: { t: 'stack', children: [
+  { t: 'text', text: { src: 'clock', path: 'hm' } }, { t: 'calendar' },
+  { t: 'button', text: 'GO', on: { press: [{ do: 'player.play', with: { id: { src: 'player', path: 'id' } } }, { go: '/books/:id', params: { id: 1 } }] } },
+] } } }
+const n = needsOf(bound)
+ok(JSON.stringify([...n.slices].sort()) === '["cal","clock","player"]' && [...n.kinds].join() === 'calendar' && [...n.actions].join() === 'player.play' && n.navigates,
+  `needsOf: the slices it binds (a molecule's reads, an action's argument included), the molecules, the actions, navigation (${JSON.stringify({ ...n, slices: [...n.slices], kinds: [...n.kinds], actions: [...n.actions] })})`)
+const HUDLIKE = { slices: ['clock', 'cal'], kinds: ['calendar'], actions: [], navigate: false }
+ok(JSON.stringify(drawableIn(bound, HUDLIKE)) === '["slice player","action player.play","navigation"]', 'drawableIn: says what a host lacks')
+ok(drawableIn({ id: 'c', spec: { body: { t: 'text', text: { src: 'clock', path: 'hm' } } } }, HUDLIKE).length === 0, '…and nothing when it has it all')
+ok(needsOf({ id: 'u', spec: { body: { t: 'use', widget: 'kouros-ai' } } }, { ...WIDGETS, 'kouros-ai': { id: 'kouros-ai', spec: { body: { t: 'text', text: { src: 'player', path: 'title' } } } } }).slices.has('player'),
+  'needsOf: a part needs what its part needs')
 
 console.log('4 · the href rule')
 for (const h of ['https://x.test/', '/widgets', 'mailto:a@b.test', '#top']) ok(safeHref(h) === h, `keeps ${JSON.stringify(h)}`)

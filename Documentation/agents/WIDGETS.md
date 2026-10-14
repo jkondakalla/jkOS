@@ -245,6 +245,14 @@ alike. A host that routes passes `navigate` and the matched `route` params on it
 available here". The second tier checks a `go` against the app's pages and the route's
 own `:params` — every one filled, nothing else.
 
+**Portability is derived, like AI.** What a widget needs from its host is read off what
+it binds (`needsOf`): the host slices it reads, the molecules it draws, the actions it
+fires, whether it navigates — through its parts. A widget that needs nothing is
+**portable**: any host can draw it. `drawableIn(def, host)` says what a host lacks;
+ORDECK's shelf admits only cards ORDECK can draw (`ORDECK_HOST`), the gate requires every
+file to have a home among the declared hosts (`scripts/widget/catalog.mjs` `hosts()`),
+and `pnpm widget check` prints where each one can live.
+
 **AI.** A widget that reaches an app declared `ai` (LazurOS) is AI-backed: the suite's kill
 switch hides it from the shelf and turns a placed one into an "AI is off" tile. That is
 derived from what it binds — its sources, its commands and every event's `run` — not

@@ -14,7 +14,9 @@
  */
 
 import type { WidgetDef as AnyWidgetDef } from '@jkos/widget-render';
+import { KINDS, NODES, drawableIn } from '@jkos/widgets';
 import type { WidgetDef } from './types';
+import { HUD_ACTIONS, HUD_SLICES } from './slices';
 
 const files = import.meta.glob<AnyWidgetDef>(
   ['../../../*/widgets/*.json', '!../../../*/widgets/*.fixtures.json'],
@@ -27,9 +29,21 @@ export const WIDGETS: Readonly<Record<string, AnyWidgetDef>> = Object.freeze(
   Object.fromEntries(Object.values(files).map((def) => [def.id, def])),
 );
 
-/** The files that are HUD cards: placed by a footprint. A widget with no `sizing` is a
- *  screen or a part, drawn by its own app — never on the HUD's shelf. */
-const placeable = Object.entries(files).filter((e): e is [string, WidgetDef] => e[1].sizing != null);
+/** What ORDECK, as a host, can draw: its declared slices and actions, every manifest
+ *  molecule (host.tsx's KINDS is typed to all of them), and no routes. */
+export const ORDECK_HOST = {
+  slices: Object.keys(HUD_SLICES),
+  kinds: KINDS.filter((t) => NODES[t].kind === 'molecule'),
+  actions: Object.keys(HUD_ACTIONS),
+  navigate: false,
+} as const;
+
+/** The files that are HUD cards: placed by a footprint, and drawable here — portability
+ *  is derived from what a widget binds (drawableIn), so another app's screen that binds
+ *  its own engine's slices never lands on the HUD's shelf as a broken card. A widget with
+ *  no `sizing` is a screen or a part, drawn by its own app. */
+const placeable = Object.entries(files).filter((e): e is [string, WidgetDef] =>
+  e[1].sizing != null && drawableIn(e[1], ORDECK_HOST, WIDGETS).length === 0);
 
 /** id → def, for every HUD card of every app. */
 export const CATALOG: Readonly<Record<string, WidgetDef>> = Object.freeze(

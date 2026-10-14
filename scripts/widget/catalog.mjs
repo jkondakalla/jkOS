@@ -33,14 +33,35 @@ export function suiteHosts() {
 /** The source of a module standing in for ORDECK's hud/catalog.ts under Node, where
  *  there is no Vite to resolve its glob: the SAME files, as data. For harnesses that
  *  transpile state.ts (check:hud). */
-export function catalogModuleSource() {
+export async function catalogModuleSource() {
+  const { drawableIn } = await import(WIDGETS_URL);
+  const host = await ordeckHost();
   const files = widgetFiles().filter((w) => w.def);
   const all = Object.fromEntries(files.map((w) => [w.def.id, w.def]));
-  // CATALOG is the HUD cards only (a footprint), as hud/catalog.ts filters it.
-  const placeable = files.filter((w) => w.def.sizing != null);
+  // CATALOG is the HUD cards only — a footprint, and drawable in ORDECK — as
+  // hud/catalog.ts filters it.
+  const placeable = files.filter((w) => w.def.sizing != null && drawableIn(w.def, host, all).length === 0);
   const catalog = Object.fromEntries(placeable.map((w) => [w.def.id, w.def]));
   const apps = Object.fromEntries(placeable.map((w) => [w.def.id, w.app]));
   return `export const WIDGETS = Object.freeze(${JSON.stringify(all)});\nexport const CATALOG = Object.freeze(${JSON.stringify(catalog)});\nexport const CATALOG_APP = Object.freeze(${JSON.stringify(apps)});\n`;
+}
+
+/** ORDECK as a host, as hud/catalog.ts ORDECK_HOST builds it: its declared slices and
+ *  actions, every manifest molecule, and no routes — what drawableIn holds a widget to. */
+export async function ordeckHost() {
+  const { NODES } = await import(WIDGETS_URL);
+  const { slices, actions } = await hudDeclaration();
+  return {
+    slices: Object.keys(slices), actions: Object.keys(actions), navigate: false,
+    kinds: Object.keys(NODES).filter((t) => NODES[t].kind === 'molecule'),
+  };
+}
+
+/** Every declared host, by app — what the gate finds each widget file a home in. (KourOS
+ *  joins when it hosts widgets; a host is its slices, its molecules, its actions, and
+ *  whether it routes.) */
+export async function hosts() {
+  return { ordeck: await ordeckHost() };
 }
 
 /** Every widget file's def, by id — what the second tier checks a `use` against. */

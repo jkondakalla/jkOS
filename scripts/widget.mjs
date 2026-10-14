@@ -27,11 +27,11 @@
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { join, resolve, relative } from 'node:path';
 import { tmpdir } from 'node:os';
-import { shippedWidgets, suiteHosts, declarations, WIDGETS_URL, SEMANTIC_URL, REPO_ROOT } from './widget/catalog.mjs';
+import { shippedWidgets, suiteHosts, declarations, hosts, WIDGETS_URL, SEMANTIC_URL, REPO_ROOT } from './widget/catalog.mjs';
 import { renderWidgets } from './widget/render.mjs';
 import { draftWidget } from './widget/scaffold.mjs';
 
-const { validateWidget: validate, NODES, FRAME, SOURCES, ACTIONS, STATE_TYPES, TONES } = await import(WIDGETS_URL);
+const { validateWidget: validate, NODES, FRAME, SOURCES, ACTIONS, STATE_TYPES, TONES, isPortable, drawableIn } = await import(WIDGETS_URL);
 const { checkBindings } = await import(SEMANTIC_URL);
 const CTX = { suiteHosts: suiteHosts() };
 const DECLS = await declarations();
@@ -130,8 +130,14 @@ if (cmd === 'new') {
   for (const w of await resolveWidgets(names)) {
     if (!w.def) { console.log(`✗ ${w.where}: not JSON — ${w.error}`); bad++; continue; }
     const problems = validateWidget(w.def);
-    if (problems.length) { bad++; console.log(`✗ ${w.where}`); for (const p of problems) console.log(fmt(p)); }
-    else console.log(`✓ ${w.where}`);
+    if (problems.length) { bad++; console.log(`✗ ${w.where}`); for (const p of problems) console.log(fmt(p)); continue; }
+    // Where it can live — derived from what it binds, never declared.
+    const HOSTS = await hosts();
+    const homes = Object.entries(HOSTS).filter(([, h]) => drawableIn(w.def, h, DECLS.widgets).length === 0).map(([id]) => id);
+    const where = isPortable(w.def, DECLS.widgets) ? 'portable — any host can draw it'
+      : homes.length ? `drawn by: ${homes.join(', ')}` : `no host can draw it — ${Object.entries(HOSTS).map(([id, h]) => `${id} lacks ${drawableIn(w.def, h, DECLS.widgets).join(', ')}`).join('; ')}`;
+    if (!homes.length) bad++;
+    console.log(`${homes.length ? '✓' : '✗'} ${w.where}  (${where})`);
   }
   process.exit(bad ? 1 : 0);
 } else if (cmd === 'shot') {

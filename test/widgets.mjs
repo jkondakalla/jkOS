@@ -43,7 +43,7 @@ import { execFileSync } from 'node:child_process';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { unit, REPO_ROOT } from './lib/unit.mjs';
-import { shippedWidgets, suiteHosts, appDocs, declarations, WIDGETS_URL as WIDGETS, SEMANTIC_URL } from '../scripts/widget/catalog.mjs';
+import { shippedWidgets, suiteHosts, appDocs, declarations, hosts, WIDGETS_URL as WIDGETS, SEMANTIC_URL } from '../scripts/widget/catalog.mjs';
 
 const { check, importTs, done } = unit('widgets');
 const { validateWidget } = await import(WIDGETS);
@@ -73,8 +73,8 @@ for (const w of shipped) {
 // in — WIDGETS — for a card that `use`s a part.)
 {
   const cat = read('apps/ordeck/src/hud/catalog.ts');
-  check(/const placeable = [^;]*\.sizing != null/.test(cat) && /export const CATALOG[^;]*placeable\.map/.test(cat),
-    "ORDECK's CATALOG (the HUD's shelf) admits only widget files with a footprint");
+  check(/const placeable = [^;]*\.sizing != null && drawableIn\(e\[1\], ORDECK_HOST, WIDGETS\)\.length === 0/.test(cat) && /export const CATALOG[^;]*placeable\.map/.test(cat),
+    "ORDECK's CATALOG (the HUD's shelf) admits only widget files with a footprint that ORDECK can draw (drawableIn)");
   check(/widgets: WIDGETS/.test(read('apps/ordeck/src/hud/host.tsx')), "ORDECK's host hands the renderer every widget file, so a card can use a part");
 }
 // A file is compiled into ORDECK's bundle and reaches every HUD. `allowed_roles` is
@@ -95,6 +95,16 @@ for (const app of new Set(shipped.map((w) => w.app))) {
   const table = routeTable(shipped.filter((w) => w.app === app && w.def).map((w) => w.def));
   check(table.problems.length === 0, `${app}'s pages answer distinct paths${table.problems.length ? ` — ${table.problems.join('; ')}` : ''}`);
   PAGES[app] = [...table.routes.keys()];
+}
+/* Portability is derived from what a widget binds (needsOf): each file must have a home —
+   a declared host that has every slice, molecule and action it needs (and routes, if it
+   navigates). Its second tier runs against that host's declaration. */
+const HOSTS = await hosts();
+const { drawableIn } = await import(WIDGETS);
+for (const { where, def } of shipped.filter((w) => w.def)) {
+  const homes = Object.entries(HOSTS).filter(([, h]) => drawableIn(def, h, DECLS.widgets).length === 0).map(([id]) => id);
+  const lacks = Object.entries(HOSTS).map(([id, h]) => `${id} lacks ${drawableIn(def, h, DECLS.widgets).join(', ')}`).join('; ');
+  check(homes.length > 0, `${where} can be drawn by a host the suite declares${homes.length ? ` (${homes.join(', ')})` : ` — ${lacks}`}`);
 }
 for (const { where, app, def } of shipped.filter((w) => w.def)) {
   const errs = validateWidget(def, CTX);

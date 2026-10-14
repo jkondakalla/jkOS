@@ -77,6 +77,67 @@ export function partsOf(def) {
 }
 
 /**
+ * What a widget needs from the HOST that draws it — DERIVED from what it binds, as `ai`
+ * is, never declared: the host slices it reads (a `{src}` that is neither its own source
+ * nor a `$` name the renderer provides, and each molecule's `reads`), the molecules it
+ * draws, the host actions it fires (`do`), and whether it navigates (`go`). A part it
+ * `use`s needs what the part needs. A widget that needs nothing is PORTABLE: any host
+ * can draw it.
+ *
+ * @param {unknown} def
+ * @param {Record<string, unknown>} [widgets] every widget by id — to follow `use`
+ * @returns {{ slices: Set<string>, kinds: Set<string>, actions: Set<string>, navigates: boolean }}
+ */
+export function needsOf(def, widgets, seen = new Set()) {
+  const out = { slices: new Set(), kinds: new Set(), actions: new Set(), navigates: false }
+  const spec = isObj(def) && isObj(def.spec) ? def.spec : def
+  if (!isObj(spec)) return out
+  const own = new Set(isObj(spec.sources) ? Object.keys(spec.sources) : [])
+  // Every binding, events and commands included: a `do` handed a slice needs the slice.
+  for (const name of sourcesOf(spec, { commands: true })) if (!name.startsWith('$') && !own.has(name)) out.slices.add(name)
+  for (const b of bodiesOf(spec)) walkNodes(b, (n) => {
+    if (NODES[n.t]?.kind === 'molecule') out.kinds.add(n.t)
+    for (const { action } of actionsOf(n)) {
+      if (typeof action.do === 'string') out.actions.add(action.do)
+      if (typeof action.go === 'string') out.navigates = true
+    }
+  })
+  if (widgets) {
+    for (const id of partsOf(spec)) {
+      if (seen.has(id) || !widgets[id]) continue
+      seen.add(id)
+      const p = needsOf(widgets[id], widgets, seen)
+      p.slices.forEach((x) => out.slices.add(x)); p.kinds.forEach((x) => out.kinds.add(x)); p.actions.forEach((x) => out.actions.add(x))
+      out.navigates ||= p.navigates
+    }
+  }
+  return out
+}
+
+/** Does the widget need nothing of its host — can ANY host draw it? */
+export function isPortable(def, widgets) {
+  const n = needsOf(def, widgets)
+  return !n.slices.size && !n.kinds.size && !n.actions.size && !n.navigates
+}
+
+/**
+ * What `host` lacks to draw the widget: [] when it can. `host` is what a host DECLARES —
+ * its slices, the molecules it draws, its actions, and whether it routes.
+ * @param {{ slices?: string[], kinds?: string[], actions?: string[], navigate?: boolean }} host
+ * @returns {string[]} e.g. ['slice clock', 'kind calendar', 'action player.play', 'navigation']
+ */
+export function drawableIn(def, host, widgets) {
+  const n = needsOf(def, widgets)
+  const has = (list, x) => (list ?? []).includes(x)
+  return [
+    ...[...n.slices].filter((x) => !has(host.slices, x)).map((x) => `slice ${x}`),
+    ...[...n.kinds].filter((x) => !has(host.kinds, x)).map((x) => `kind ${x}`),
+    ...[...n.actions].filter((x) => !has(host.actions, x)).map((x) => `action ${x}`),
+    ...(n.navigates && !host.navigate ? ['navigation'] : []),
+  ]
+}
+
+/**
  * Every app a widget reaches: the app of each `dataset` source, and of every command
  * in its tree — a form's, a button's, an event's `run` — wherever one sits, and (given
  * `widgets`, every widget by id) everything each part it `use`s reaches. What "is

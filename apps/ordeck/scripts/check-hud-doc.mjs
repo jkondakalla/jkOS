@@ -75,7 +75,7 @@ transpileTo('packages/design/responsive/breakpoints.ts', 'jkos-design.mjs');
 transpileTo('packages/auth-client/src/hudPrefs.ts', 'hudPrefs.mjs');
 transpileTo('apps/ordeck/src/hud/types.ts', 'types.mjs');
 transpileTo('apps/ordeck/src/hud/engine.ts', 'engine.mjs');
-writeFileSync(join(tmp, 'catalog.mjs'), catalogModuleSource());
+writeFileSync(join(tmp, 'catalog.mjs'), await catalogModuleSource());
 transpileTo('apps/ordeck/src/hud/state.ts', 'state.mjs');
 // XC-3: the BeigeBoard delta merge — pure by construction, no imports at all.
 transpileTo('apps/ordeck/src/pages/hud/bbDelta.ts', 'bbDelta.mjs');
