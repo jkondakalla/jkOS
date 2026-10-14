@@ -181,15 +181,18 @@ expected staging behaviour, not a regression. Re-run with `--token <admin jwt>` 
 
 ## Native apps (Android + desktop)
 
-Three Android apps and two Linux desktop apps, all declared in `native/shells.js`. Every one
-loads the live site at its real origin, so auth needs **zero changes**. How they're built and
-why they're shaped this way is in [agents/NATIVE.md](agents/NATIVE.md); this is the runbook.
+Four Android apps and two Linux desktop apps, all declared in `native/shells.js`. The three web
+shells load the live site at its real origin, so their auth needs **zero changes**. **KourOS
+Alpha** is a native app: it signs in through jkAuth's native sign-in and calls KourOS's API with
+a Bearer token. How they're built and why they're shaped this way is in
+[agents/NATIVE.md](agents/NATIVE.md); this is the runbook.
 
 | App | Package | What it's for |
 |---|---|---|
 | **jkOS** | `net.jkos.app` | The suite on your phone (Android) or desktop (Linux). Long-press the Android icon for KourOS / BeigeBoard shortcuts. |
 | **KourOS** | `net.jkos.kouros` | Music and audiobooks as their own app (Plexamp to jkOS's Plex). |
 | **jkOS Home** | `net.jkos.home` | ORDECK as the home screen of a dedicated tablet or phone. |
+| **KourOS Alpha** | `net.jkos.kouros.alpha` | KourOS as a truly native app (Compose UI, Media3 playback), for testing. Installs beside the KourOS TWA. |
 
 A **staging build** (`pnpm android:build`) is named "… (staging)", opens `staging.jkos.net`,
 and installs beside the real app. A **release build** opens production.
@@ -223,7 +226,7 @@ The four traps:
    echo | openssl s_client -connect kouros.jkos.net:443 -servername kouros.jkos.net 2>/dev/null \
      | openssl x509 -noout -issuer     # must be Let's Encrypt, NOT Cloudflare Origin CA
    ```
-4. **Keep the keystore.** One key signs all three apps. Lose it and you can never ship an
+4. **Keep the keystore.** One key signs all four apps. Lose it and you can never ship an
    upgrade to any of them. Back it up somewhere that isn't this machine; it's deliberately not
    in the repo.
 
@@ -254,6 +257,51 @@ adb install native/android/out/jkos-0.1.0-release.apk
 A staging build needs no key: `pnpm android:build`, then
 `adb install native/android/out/jkos-0.1.0-staging.apk`. It shows a URL bar (staging serves no
 asset links), and that's expected.
+
+### Android: KourOS Alpha (the native app)
+
+It needs three things in place before it can sign in. Do them in order:
+
+1. **Staging jkAuth deployed with native sign-in.** `apps/jkauth/docker-compose.staging.yml`
+   sets `JKOS_NATIVE_ENV=staging`, and jkAuth's migration 024 (a new `sessions.client_id`
+   column and a `native_auth_codes` table, both additive) runs on boot. Without the variable,
+   every `/auth/native` route is a 404 and the app's Custom Tab shows `Native sign-in is not
+   enabled`. Production leaves it unset, so a **release** build can't sign in until that is
+   decided.
+2. **nginx needs no change.** Its `auth_request` already forwards `Authorization`, and the
+   staging gate now accepts a Bearer user token (staging jkAuth's own code). If you restart
+   nginx for anything else, **restart, never reload**.
+3. **The build's checksums.** The app adds Compose, Media3, activity-compose, browser and
+   coroutines, which `gradle/verification-metadata.xml` doesn't pin yet, so Gradle refuses
+   them. Regenerate and **read the diff**: every new sha256 is something you're trusting.
+   ```bash
+   eval "$(node native/android/toolchain.mjs env ~/Android/jkos)"
+   cd native/android && ./gradlew --write-verification-metadata sha256 \
+     assembleDebug assembleRelease :home:testDebugUnitTest :kouros:testDebugUnitTest
+   git diff --stat gradle/verification-metadata.xml
+   ```
+
+Then build, test and install the staging alpha (no key needed: it's debug-signed):
+
+```bash
+pnpm android:build -- :kouros:testDebugUnitTest :kouros:assembleDebug
+adb install native/android/out/kouros-alpha-0.1.0-staging.apk
+```
+
+On the phone: **Sign in with jkOS** opens a Custom Tab on `staging.jkos.net`. Sign in (an
+**admin** account: the staging gate admits nobody else) and press **Allow**, and the app comes
+back signed in. "ALPHA · staging · 0.1.0-alpha-staging" sits under the title. Things to try, none
+of which has been seen on a device yet: playback with the screen off; the lock-screen and
+notification controls, with covers; pulling the headphones (it should pause); a call (it should
+duck or pause); **Start radio**; sign out, then confirm `/auth/security` on staging shows the
+app's session as signed out. Each listen should appear in KourOS's recently played. Their
+`auth_events` rows (`native_consent`, `native_code`, `native_token`, `native_revoke`) are the
+audit trail.
+
+`aapt2 dump badging` and `apksigner verify --print-certs` on the APK should show package
+`net.jkos.kouros.alpha.staging`, versionName `0.1.0-alpha-staging`, and exactly the permissions
+INTERNET, FOREGROUND_SERVICE, FOREGROUND_SERVICE_MEDIA_PLAYBACK and WAKE_LOCK. A library that
+merges in another permission shows up here first.
 
 ### Android: jkOS Home on a panel device
 

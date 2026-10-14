@@ -47,7 +47,7 @@ Roughly in order: the first one gates every deploy.
   parts that need you. Steps in [OPERATIONS.md § Native apps](OPERATIONS.md#native-apps-android--desktop).
   1. **An Android toolchain.** `node native/android/toolchain.mjs install ~/Android/jkos --adb` (no
      sudo, one directory), or give `jag` Docker access (§2 has the decision).
-  2. **`pnpm android:signing`**: create the one release key for jkOS, KourOS and jkOS Home. You
+  2. **`pnpm android:signing`**: create the one release key for jkOS, KourOS, jkOS Home and KourOS Alpha. You
      choose the password. ⚠️ **Back up `~/.jkos/android-release.keystore` off this machine**: losing
      it means no app can ever be upgraded in place.
   3. **Asset links to the edge**: `node infra/nginx/gen-nginx-weave.mjs`, commit, deploy, restart
@@ -57,7 +57,27 @@ Roughly in order: the first one gates every deploy.
   5. **Desktop**: `sudo apt install ./native/desktop/out/jkos/jkos-jkos_0.1.0_amd64.deb` (and the
      KourOS one) after `pnpm dist` (Node ≥ 22.12, see OPERATIONS). The `.deb` installs an AppArmor
      profile; that's the sudo.
-  6. **Try them on real hardware**: none has run on a phone, a tablet or an installed `.deb` yet.
+  6. **KourOS Alpha, the native app** ([OPERATIONS.md § KourOS Alpha](OPERATIONS.md#android-kouros-alpha-the-native-app)).
+     It has **never been built by Gradle or run on a device**. The session that wrote it couldn't
+     reach Google's Maven repository, so its sources were type-checked with kotlinc against
+     stand-ins and its pure core ran on the JVM, and that's all. In order:
+     a. **Deploy staging jkAuth.** It carries the native sign-in, `JKOS_NATIVE_ENV=staging` and
+        migration 024 (additive). nginx needs **no change**: `auth_request` already forwards the
+        Bearer header, and the gate's acceptance of it is in jkAuth's code.
+     b. **Regenerate `gradle/verification-metadata.xml`** (OPERATIONS has the command) and read
+        the new checksums (Compose, Media3, activity-compose, browser, coroutines).
+     c. **Build** `pnpm android:build -- :kouros:testDebugUnitTest :kouros:assembleDebug` and also
+        `:kouros:assembleRelease` (unsigned until step 2's key exists, which is expected). Check
+        `aapt2 dump badging` shows versionName `0.1.0-alpha-staging` and exactly four permissions.
+        If the build fails, Media3 signatures are the likeliest cause: they were the part checked
+        against stubs only.
+     d. **Install** `native/android/out/kouros-alpha-0.1.0-staging.apk` and test on a phone with an
+        admin account: sign-in round trip, screen-off playback, lock-screen covers and controls,
+        headphones out, Start radio, sign out (then `/auth/security` shows it revoked), listens
+        appearing in recently played.
+     e. **Production is off** (`JKOS_NATIVE_ENV` unset in the prod compose), so a release build
+        can't sign in. Turning it on is a separate decision.
+  7. **Try them on real hardware**: none has run on a phone, a tablet or an installed `.deb` yet.
      The TWAs' URL bar, KourOS's lock-screen controls through Chrome, jkOS Home as the default home
      (the corner hold, the offline screen with Wi-Fi off, rotation), and the desktop app's KDE
      media keys (Chromium's MPRIS bridge, expected but unseen).
@@ -137,8 +157,9 @@ Each one blocks work an agent could otherwise do alone. Answer in place.
 
 **Everything since 2026-08-26.** Stages A–E of the reset program, the security fixes (including
 the email-OTP expiry fix), the audiobook fold and the listening session. That includes
-**migrations across jkAuth (through 023), BeigeBoard and KourOS (8–15)**, which is why the
-backup comes first.
+**migrations across jkAuth (through 024: native sign-in, additive), BeigeBoard and KourOS
+(8–15)**, which is why the backup comes first. Staging jkAuth also turns on native sign-in
+(`JKOS_NATIVE_ENV=staging`) for KourOS Alpha.
 
 **Music data on staging:** none that staging reads. Its KourOS now reads `/analysis/…`, which is
 empty until delivery is set up (§1). The hand-copied `music-index.db` (2026-09-23) and the old 2 s

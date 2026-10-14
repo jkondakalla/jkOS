@@ -11,7 +11,7 @@
 // — and each hop is silent when it goes wrong. Android reports a failed verification by
 // simply... showing the browser chrome.
 //
-// ONE KEY SIGNS EVERY jkOS APP (alias `jkos`): jkOS, KourOS and jkOS Home. Separate keys in one
+// ONE KEY SIGNS EVERY jkOS APP (alias `jkos`): jkOS, KourOS, jkOS Home and KourOS Alpha. Separate keys in one
 // keystore file behind one password would look like isolation without being any; one key is
 // the honest shape, and one thing to back up. The TWA packages written into assetlinks.json
 // come from native/shells.js, so a new TWA shell is covered by re-running this.

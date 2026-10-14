@@ -14,7 +14,8 @@ Repo root is `/media/jag/The Forge/jkOS` — **the path has a space; quote it.**
   `DESIGN.md`, `ALGORITHMS.md` (music + LazurOS design record — code cites its § numbers, so
   don't renumber), `ROUTINES.md`, `NATIVE.md` (the Android + desktop shells), and the generated
   `ROUTINE_PROMPT.md` (regenerate, never hand-edit).
-- **`native/`** holds the installable apps (jkOS, KourOS, jkOS Home). `native/shells.js` is the one
+- **`native/`** holds the installable apps (jkOS, KourOS, jkOS Home, and KourOS Alpha, the native
+  Compose + Media3 app that signs in through jkAuth's native sign-in). `native/shells.js` is the one
   list; `pnpm native:gen` projects it into the Android and desktop builds, and `check:native` holds
   their security posture.
 - `Documentation/ARCHITECTURE.md` and `OPERATIONS.md` are the map and the runbook.
@@ -61,7 +62,7 @@ Work through every unblocked item without waiting for approval between them.
 5. **Rewriting git history.** Refused by standing decision — report, don't rewrite.
 6. **Changing machine state** (installing systemd units etc.) — stop at "here is the installer".
 7. **The Android release key** (`~/.jkos/android-release.keystore`) — the permanent identity of all
-   three apps. Never create, replace or delete it; `pnpm android:signing` is Jag's to run, with a
+   four apps. Never create, replace or delete it; `pnpm android:signing` is Jag's to run, with a
    password Jag chooses.
 
 ## ⚠️ The four files that silently invalidate the music index

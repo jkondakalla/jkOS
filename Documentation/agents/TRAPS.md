@@ -915,7 +915,26 @@ Every trap here was hit building `native/` on 2026-09-24; see [NATIVE.md](NATIVE
   Gradle asks every repository for every coordinate, so a same-named artifact on the second one
   can win. `native/android/settings.gradle.kts` filters Google's repo to Google/AndroidX groups.
   `gradle/verification-metadata.xml` then pins every artifact's sha256; after bumping a version,
-  regenerate it (NATIVE.md § 5) and read the diff.
+  regenerate it (NATIVE.md § 6) and read the diff.
+
+- **Chrome enforces CSP `form-action` on the REDIRECT a form submission answers with.** jkAuth's
+  global CSP says `form-action 'self'`, so a consent page's Allow button whose POST answers
+  `302 net.jkos.kouros.alpha:/oauth2redirect?code=…` is blocked in Chrome (and so in a Custom
+  Tab). The code is minted, never delivered, and the app waits forever. The native consent page
+  adds the app's scheme to its own `form-action` (`routes/native.js`, held by
+  `apps/jkauth/test/native.mjs`).
+
+- **An intent filter's `android:path` is ignored when the filter names no `host`.** Android
+  only matches a path when both the scheme and the host are given. A private-use redirect
+  (`<package>:/oauth2redirect`) has no host, so `path="/oauth2redirect"` there reads like a
+  restriction and matches every URI of the scheme. KourOS Alpha's filter is the scheme alone,
+  and the path is checked in code (`parseRedirect`).
+
+- **An API call behind the staging edge gate gets a 302, not a 401.** `/_auth_admin_check`'s
+  401 is turned into `@staging_unauthorized`, a redirect to the sign-in page. A client that
+  follows redirects (HttpURLConnection's default) then reads a 200 of HTML and fails to parse
+  it, with nothing saying "signed out". The native app sets `instanceFollowRedirects = false`
+  and treats a 3xx as a 401 (`check:native` holds it).
 
 ## This repo's shape
 

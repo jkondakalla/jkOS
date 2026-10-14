@@ -1,10 +1,17 @@
 # jkOS — Native shells (Android + Linux desktop)
 
-Installable apps that show the suite. **Every one loads the live site at its real origin.**
-None bundles a copy of a frontend, so auth, the `.jkos.net` session cookie and the CORS-free
-peer proxy work unchanged. A bundled app would run at a local origin (`capacitor://localhost`,
-`file://`) where none of them do, which is why Capacitor was rejected for KourOS. For the
-operator's runbook (build, sign, install, verify), see
+Installable apps that show the suite. They come in two kinds:
+
+- **Web shells** load the live site at its real origin. None bundles a copy of a frontend, so
+  auth, the `.jkos.net` session cookie and the CORS-free peer proxy work unchanged. A bundled
+  app would run at a local origin (`capacitor://localhost`, `file://`) where none of them do,
+  which is why Capacitor was rejected for KourOS.
+- **Native apps** (`android: 'native'`) have no page at all. Their UI is Kotlin and Compose,
+  they call their start app's API directly, and they sign in through jkAuth's **native sign-in**
+  (PKCE in a Custom Tab), holding a Bearer token rather than a cookie. KourOS Alpha is the
+  first (§ [5](#5--kouros-alpha--the-native-app)).
+
+For the operator's runbook (build, sign, install, verify), see
 [OPERATIONS.md § Native apps](../OPERATIONS.md#native-apps-android--desktop).
 
 | Shell | Package | Platforms | Kind | Opens on | Keeps inside itself |
@@ -12,6 +19,7 @@ operator's runbook (build, sign, install, verify), see
 | **jkOS** | `net.jkos.app` | Android, Linux | TWA / Electron | ORDECK | every suite app with its own origin |
 | **KourOS** | `net.jkos.kouros` | Android, Linux | TWA / Electron | KourOS | KourOS + jkAuth |
 | **jkOS Home** | `net.jkos.home` | Android | home-screen launcher | ORDECK | every suite app with its own origin |
+| **KourOS Alpha** | `net.jkos.kouros.alpha` | Android | native (Compose + Media3) | KourOS | its API + jkAuth, by Bearer token |
 
 KourOS is part of jkOS **and** its own app (Plex and Plexamp): its own icon, its own entry in
 recents, and `kouros.jkos.net` links open in it. jkOS Home is ORDECK as a home panel on a
@@ -39,8 +47,11 @@ native/
 │   ├── gradle/verification-metadata.xml   sha256 of every Maven artifact
 │   ├── twa/               :twa — one flavor per TWA shell; no app code
 │   │   └── src/<shell><Debug|Release>/res/   GENERATED per variant
-│   └── home/              :home — the launcher (Kotlin)
-│       └── src/<debug|release>/res/          GENERATED per build type
+│   ├── home/              :home — the launcher (Kotlin)
+│   │   └── src/<debug|release>/res/          GENERATED per build type
+│   └── kouros/            :kouros — KourOS Alpha, a native app (Kotlin + Compose + Media3)
+│       └── src/<debug|release>/res/          GENERATED: api_base, auth_origin, client_id, redirect_uri
+├── play-context-cases.json  what a listen's `context` must be, as vectors the app and the server pass
 └── desktop/               Electron — OUTSIDE the pnpm workspace (own lockfile)
     ├── src/policy.js      every security decision, pure (the gate requires it)
     ├── src/main.js        applies policy.js; nothing else
@@ -70,8 +81,16 @@ name, package, which app it opens on, what it reaches, and its Android kind. Fro
   and Gradle read. **The version** (`VERSION` in `shells.js`) sets Android's `versionName` and
   `versionCode` (`1.2.3` → `10203`), and the desktop `package.json` must equal it.
 
+- **A native app's identity** comes from `nativeConfig()`: its package is its jkAuth client id,
+  and `<package>:/oauth2redirect` its redirect URI. `gen-native.mjs` writes the same pair into
+  the app's `shell.xml` *and* into `apps/jkauth/src/native-clients.json`, the list jkAuth
+  honours, so the APK and the server can't disagree about where a code may be sent. A native
+  app's Gradle module is named after its start app (`:kouros`), and `settings.gradle.kts`
+  includes every one listed in `shells.json`.
+
 The generated files are **checked in**, not built inside Gradle: an origin list is a grant, and a
-grant should be reviewable in a diff in the exact form the APK will carry it.
+grant should be reviewable in a diff in the exact form the APK will carry it. So is a redirect
+URI.
 
 ## 3 · The trust model
 
@@ -83,6 +102,7 @@ it lands on one of its origins. What happens to anything else depends on the she
 | TWA (jkOS, KourOS) | Chrome shows its URL bar / opens it in the browser | nothing Chrome doesn't give any site | none |
 | Desktop (Electron) | handed to the system browser (`https:`/`http:`/`mailto:` only; never `file:` or a custom scheme) | no Node, no preload, one permission (`clipboard-sanitized-write`) | the main process, which decides by `policy.js` |
 | jkOS Home | **refused**: a kiosk doesn't give a guest the browser | the `jkosShell` bridge on the start origin only | the launcher |
+| KourOS Alpha | there are no navigations: no WebView, no page | nothing | the whole app; its trust list is `api_base` (the only host that gets its token) and `auth_origin` |
 
 **One navigation rule, two implementations.** The rule is https only, no userinfo, the default
 port only, and the origin exactly equal to a listed origin, with no prefix, suffix or pattern
@@ -145,13 +165,115 @@ origin-scoped listeners gets no bridge at all (the page still works).
   WebView doesn't forward Media Session the way Chrome does, so for music on a phone, use the
   KourOS app.
 
-## 5 · Building
+## 5 · KourOS Alpha — the native app
+
+KourOS as a real Android app: Compose UI, Media3 playback, no WebView, no bundled frontend.
+Package `net.jkos.kouros.alpha` (a debug build is `….staging`, against `staging.jkos.net`), so
+it installs beside the KourOS TWA. Its versionName carries the channel: `0.1.0-alpha` (release),
+`0.1.0-alpha-staging` (debug). That string is on screen as "ALPHA · staging · …".
+
+### Sign-in: jkAuth's native sign-in
+
+OAuth 2.0 for native apps (RFC 8252), authorization code + PKCE (RFC 7636):
+
+1. The app makes a PKCE pair and a `state`, **seals them to disk first**, then opens
+   `${auth_origin}/auth/native/authorize?…&code_challenge=…&code_challenge_method=S256&state=…`
+   in a **Custom Tab**: the system browser's engine, with its cookies. The password is typed into
+   jkAuth's own page, never into the app.
+2. jkAuth signs the person in if needed (its normal login and 2FA), then shows a consent page
+   naming the app and the account. **Allow** → `302 <applicationId>:/oauth2redirect?code&state`.
+3. `RedirectActivity` (the only filter: VIEW/BROWSABLE on scheme `${applicationId}`) hands the
+   URI to `Auth`, which requires the exact registered redirect path, a `state` equal to the
+   pending attempt's (and no older than 15 min), and then spends the attempt.
+4. `POST /auth/native/token` (`authorization_code` + the verifier) → an access token (the
+   suite's ordinary user JWT, `azp: kouros`) and a refresh token.
+
+Android ignores a filter's `path` when it names no `host`, so the filter is the scheme alone and
+the path is checked in code. Any app could fire the redirect intent, which is why `state` and
+PKCE exist: an injected code fails the state check, and an intercepted one has no verifier.
+
+### The session is transport-bound
+
+A native session is a jkAuth `sessions` row like a browser's (same 30-day idle window, same
+absolute cap, same rotation and reuse detection), with one more column: **`client_id`**.
+NULL means a cookie session and the app's client id means a native one, and each path accepts
+only its own kind. A native refresh token presented as the `jkos_refresh` cookie is a
+non-session (`/auth/refresh` 401s and the gate's cookie fallback ignores it). A browser's
+refresh cookie at `/auth/native/token` is `invalid_grant`. A trigger (migration 024) makes the
+column immutable, and the devices list at `/auth/security` names the app. Codes are 256 bits,
+stored as sha256, live 60 s, single-use (another trigger), and are bound to client, redirect
+and challenge. A code presented twice burns the session its first redemption minted.
+
+In the app:
+
+- **The refresh token** lives only in `no_backup/session.bin`: AES-256-GCM under an Android
+  Keystore key, written atomically. The **access token** lives in memory and renews 60 s
+  before it expires.
+- **Refreshes are serialised** (one `Mutex`). jkAuth rotates refresh tokens, and a phone has no
+  shared cookie jar, so two concurrent refreshes would spend one token twice and the second
+  use, seconds later, is theft to the server. A new refresh token is written to disk *before*
+  the new access token is used. `invalid_grant` = signed out. A `409 REFRESH_RACE` should be
+  impossible with the lock and is reported, not retried.
+- **Sign out** calls `POST /auth/native/revoke` (the whole family) and deletes both files.
+- **The Bearer header** goes only to URLs under `api_base` (`Api.authorized`), from the API
+  client and from the player's data source, and from nowhere else.
+- **Redirects are not followed.** Behind the staging edge gate an unauthenticated API call is
+  answered with a **302 to the sign-in page**, not a 401. Followed, it becomes a 200 of HTML.
+  A 3xx is treated as a 401: renew once, retry once.
+- **The staging gate** (`/_auth_admin_check` → `/auth/require-admin`) accepts the app's Bearer
+  token. nginx's `auth_request` forwards the request's `Authorization` header by default. Only
+  a *user* token passes; a service token is refused there. Staging is admin-only, so the
+  staging app works for admins only.
+
+### Playback and history
+
+`PlaybackService` is a Media3 `MediaSessionService` around ExoPlayer, so the notification, the
+lock screen and Bluetooth drive it with the screen off. It uses music audio attributes, audio
+focus, pause-on-unplug and the network wake mode. One `ResolvingDataSource` adds the token to
+every request: each range request of a stream, and the artwork the notification draws.
+Queue items are rebuilt from their track id in `onAddMediaItems`, so a controller never
+chooses a URL. Any media controller on the device can drive playback (that is what a media
+session is for); none can read a token through it.
+
+The history ledger is written **from the service** (`HistoryRecorder` → `ListenLedger`), so a
+listen counts with the UI closed. It follows the web player's `flushSession`: one row per track
+per playing stretch, at least 1 s, closed on pause, on a track change (completed when the
+player moved on by itself) and when the app goes to the background (then reopened). The
+`context` is `album/…`, `artist/…` or `station/<seed>`, encoded exactly as JavaScript's
+`encodeURIComponent`. `PlayContext.kt` does it in plain Kotlin, and
+`native/play-context-cases.json` holds the vectors that both its JVM test and the server's own
+`parsePlayContext` (in `check:native`) pass. A context longer than the server's 600 characters
+is dropped, not sent: the server would refuse the whole row.
+
+### The screens
+
+Sign-in → **Library** (Albums: a cover grid with sort and search, paged 120 at a time; Artists)
+→ **Artist** (their albums) → **Album** (tap a track: the album plays from there) → a mini
+player bar and **Now Playing** (cover, seek bar, previous/play/next, **Start radio** from the
+current track: it keeps playing and the station becomes the rest of the queue) → **Account**
+(who, which environment, sign out). Edge-to-edge with `safeDrawing` insets. Back is the app's
+own stack plus `BackHandler`, with no navigation library. Icons are hand-drawn `ImageVector`s,
+and covers are `HttpURLConnection` + `BitmapFactory` + an `LruCache`, with no image library.
+
+### What hasn't been seen yet
+
+**It has never been built by Gradle or run on a device.** The session that wrote it couldn't reach
+Google's Maven repository. Before the first build, `gradle/verification-metadata.xml` must be
+regenerated (§ 6 below) and its new checksums reviewed. What *was* checked: the 17 JVM tests
+(PKCE against RFC 7636's own vector, redirect parsing, the ledger, the JSON shapes, the play
+context vectors), and all 15 sources compiled by kotlinc 2.2.10 with the Compose compiler
+plugin against the API 36 framework, Compose 1.7 and Guava, with stubs for Media3, activity
+and browser. A wrong Media3 signature would therefore only show up in the first real build.
+
+## 6 · Building
 
 ```bash
 pnpm native:gen                         # after editing shells.js or a start app's web manifest
 pnpm android:build                      # staging APKs → native/android/out/*-staging.apk
 pnpm android:build -- assembleRelease   # production (signed if the keystore env is set)
 pnpm android:build -- :home:testDebugUnitTest   # OriginPolicy vs origin-cases.json
+pnpm android:build -- :kouros:testDebugUnitTest # KourOS Alpha's pure core vs play-context-cases.json
+pnpm android:build -- :kouros:assembleDebug     # → out/kouros-alpha-0.1.0-staging.apk
 ```
 
 `build.mjs` uses the **local SDK** when `JAVA_HOME` and `ANDROID_HOME` are set, otherwise
@@ -169,7 +291,7 @@ checksums, or the build refuses the new artifact, which is the point:
 
 ```bash
 cd native/android && ./gradlew --write-verification-metadata sha256 \
-  assembleDebug assembleRelease :home:testDebugUnitTest
+  assembleDebug assembleRelease :home:testDebugUnitTest :kouros:testDebugUnitTest
 # review the diff: every new sha256 is a new thing you are trusting
 ```
 
@@ -189,11 +311,13 @@ one and only runs with `--no-sandbox`. For the same reason, `pnpm start` (an unp
 **crashes on Emily**: the dev Electron binary has no profile. Test through the installed `.deb`,
 or give the dev binary a profile as root. Don't add `--no-sandbox`.
 
-## 6 · What holds it
+## 7 · What holds it
 
 | Check | Where | What |
 |---|---|---|
-| `pnpm check:native` | `native/gen-native.mjs --check` + `test/native.mjs` | generated files in sync (and no stale variant dirs); desktop policy vs origin-cases; webPreferences, permissions, external schemes; main.js applies the policy; fuses; .deb-only; manifests least-privilege; no `addJavascriptInterface`/`proceed()`/file access/mixed content; signing from env; wrapper, dependencies, toolchain and image pinned; staging URLs routed |
+| `pnpm check:native` | `native/gen-native.mjs --check` + `test/native.mjs` | generated files in sync (and no stale variant dirs, and jkAuth's `native-clients.json`); desktop policy vs origin-cases; webPreferences, permissions, external schemes; main.js applies the policy; fuses; .deb-only; manifests least-privilege; no `addJavascriptInterface`/`proceed()`/file access/mixed content; signing from env; wrapper, dependencies, toolchain and image pinned; staging URLs routed; **KourOS Alpha (§ 7 of the test):** exactly four permissions, exactly three exported components, the redirect filter's scheme = `${applicationId}`, no WebView, tokens written only Keystore-sealed into `noBackupFilesDir`, every refresh under the Mutex, store-before-use, the state check, no redirect following, Bearer only to `api_base`, play-context vectors vs the server's parser |
+| `apps/jkauth/test/native.mjs` | `npm test` in jkAuth (gate step 2) | the native sign-in, over real HTTP: dead-end refusals, the login round trip, consent bound to person and request, the scheme in `form-action`, codes single-use / verifier-bound / short-lived / replay-burns, refresh rotation + 409 race + reuse burn, the transport binding both ways (and its triggers), the Bearer gate, revoke, the audit trail, off when `JKOS_NATIVE_ENV` is unset |
+| Gradle unit test | `:kouros:testDebugUnitTest` | PKCE (RFC 7636 vector), redirect parsing, `ListenLedger`, JSON shapes, `PlayContext` vs play-context-cases |
 | `pnpm check:nginx` | `infra/nginx/gen-nginx-weave.mjs --check` | every origin a TWA trusts serves `/.well-known/assetlinks.json` |
 | `pnpm check:audit` | `test/supply-chain.mjs` | **every tracked** `pnpm-lock.yaml`, so the desktop's too, at the `high` floor |
 | Gradle unit test | `:home:testDebugUnitTest` | `OriginPolicy` vs origin-cases (not on the node gate: it needs the JDK) |
@@ -201,12 +325,14 @@ or give the dev binary a profile as root. Don't add `--no-sandbox`.
 
 Each `check:native` assertion was seen to fail on a mutated copy before it was trusted.
 
-## 7 · Adding a shell
+## 8 · Adding a shell
 
 1. Add a row to `SHELLS` in `native/shells.js`. Its `start` app needs a web manifest with 512 px
    `any` and `maskable` PNGs and a `theme_color`.
 2. `pnpm native:gen`. A TWA becomes a new flavor automatically. A second `home` shell isn't
-   supported (the generator refuses it).
+   supported (the generator refuses it). A **native** shell (`android: 'native'`, plus a
+   `channel`) needs its own module at `native/android/<start>/` (copy `kouros/`'s shape), and
+   its client lands in jkAuth's `native-clients.json`. Deploying jkAuth is what lets it sign in.
 3. For a TWA: `pnpm android:signing`, which adds its package to `assetlinks.json`. Then
    `node infra/nginx/gen-nginx-weave.mjs` and deploy.
 4. `pnpm check:native && pnpm check:nginx`. For a desktop shell, `pnpm dist` picks it up.
