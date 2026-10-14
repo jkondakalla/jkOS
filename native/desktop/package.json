@@ -18,6 +18,9 @@
     "electron-builder": "26.15.3"
   },
   "pnpm": {
+    "overrides": {
+      "http-cache-semantics@<=4.2.0": "^4.3.0"
+    },
     "onlyBuiltDependencies": [],
     "ignoredBuiltDependencies": [
       "electron",

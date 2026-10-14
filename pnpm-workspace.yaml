@@ -30,3 +30,10 @@ overrides:
   # RUNTIME, not only at build time: BeigeBoard's backend → googleapis → gaxios → rimraf →
   # glob → minimatch → brace-expansion, which ships in its deployed container.
   "brace-expansion@>=2.0.0 <2.1.4": "^2.1.4"
+  # IP spoofing via an IPv4-mapped IPv6 address matching a trust subnet (CRITICAL). Reached at
+  # RUNTIME: express → proxy-addr in all four backends, jkAuth included — it decides which
+  # client address the rate limits and the audit log record behind the edge.
+  "proxy-addr@>=1.1.0 <2.0.8": "^2.0.8"
+  # Event-loop DoS through indexed source-map section offsets (HIGH). Build-time: every Vite
+  # app → postcss → source-map-js.
+  "source-map-js@>=1.0.0 <1.2.2": "^1.2.2"
