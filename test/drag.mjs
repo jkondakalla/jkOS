@@ -62,7 +62,6 @@ const SURFACES = [
   'apps/kouros/src/components/ridges3d/RidgeStage.tsx',
   'packages/scene/src/react/useOrbitControls.ts',
   'apps/kouros/src/components/vibespace/VibeSpace.tsx',
-  'apps/kouros/src/views/VibeMap.tsx',
 ];
 
 // ── 1. The primitive exports the activation constants ───────────────────────

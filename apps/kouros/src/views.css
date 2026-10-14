@@ -868,14 +868,6 @@
   white-space: nowrap;
 }
 
-.kr-map-readout {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.7rem 0.85rem;
-  border-radius: var(--jk-radius-soft);
-}
 .kr-map-region-name {
   margin: 0;
   font-family: var(--jk-font-serif);
@@ -883,4 +875,3 @@
   font-weight: 600;
   color: var(--kr-glass-ink);
 }
-.kr-map-readout .kr-mono { margin: 0.1rem 0 0; }

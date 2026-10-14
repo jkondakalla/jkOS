@@ -164,6 +164,10 @@ export const KOUROS_ACTIONS = {
   'bookmark.add': { label: 'Bookmark where the book is now' },
   'bookmark.jump': { label: 'Go to a bookmark', args: [{ name: 'position', type: 'number', required: true }] },
   'bookmark.remove': { label: 'Delete a bookmark', args: [{ name: 'id', type: 'string', required: true }] },
+  'player.near': {
+    label: 'Play what sits near a place in the vibe space, nearest first',
+    args: ['x', 'y', 'z', 'w'].map((name) => ({ name, type: 'number' as const, required: true })),
+  },
   'devices.open': { label: 'The device picker — where the sound comes out' },
   'overlay.close': { label: 'Close a full-screen route (Now Playing, the queue) — back where it was opened from' },
   'context.open': {
@@ -196,7 +200,6 @@ export const KOUROS_LEGACY_ROUTES = [
   '/book/:id',
   '/books',
   '/browse',
-  '/map',
   '/playlist/:id',
   '/playlists',
   '/queue',

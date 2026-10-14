@@ -14,7 +14,6 @@ import Browse from './views/Browse'
 import Artist from './views/Artist'
 import Album from './views/Album'
 import Search from './views/Search'
-import VibeMap from './views/VibeMap'
 import Queue from './views/Queue'
 import Playlists from './views/playlists/Playlists'
 import PlaylistDetail from './views/playlists/PlaylistDetail'
@@ -131,8 +130,6 @@ function Content() {
                   <BooksLibrary />
                 ) : route.view === 'search' ? (
                   <Search initialQuery={route.query} />
-                ) : route.view === 'map' ? (
-                  <VibeMap />
                 ) : null}
               </main>
 

@@ -21,16 +21,16 @@ export type ActionChain = WidgetAction | WidgetAction[];
 export type Tone = 'ok' | 'warn' | 'danger' | 'muted' | 'accent';
 
 /** The curated line-icon set. */
-export type IconName = 'sun' | 'moon' | 'cloud' | 'rain' | 'snow' | 'bolt' | 'check' | 'book' | 'clock' | 'calendar' | 'activity' | 'star' | 'alert' | 'dot' | 'rise' | 'fall' | 'peak' | 'play' | 'pause' | 'prev' | 'next' | 'back' | 'forward' | 'shuffle' | 'repeat' | 'repeat-one' | 'spinner' | 'radio' | 'devices' | 'down' | 'close' | 'queue';
+export type IconName = 'sun' | 'moon' | 'cloud' | 'rain' | 'snow' | 'bolt' | 'check' | 'book' | 'clock' | 'calendar' | 'activity' | 'star' | 'alert' | 'dot' | 'rise' | 'fall' | 'peak' | 'play' | 'pause' | 'prev' | 'next' | 'back' | 'forward' | 'shuffle' | 'repeat' | 'repeat-one' | 'spinner' | 'radio' | 'devices' | 'down' | 'close' | 'queue' | 'more';
 
 /** The kinds a HOST draws, not the renderer: the manifest's molecules, each reading the
  *  host slice its `reads` names. A host that has none of them draws a not-here tile. */
-export type HostKind = 'calendar' | 'weather' | 'focus' | 'week' | 'pulsarmap';
+export type HostKind = 'calendar' | 'weather' | 'focus' | 'week' | 'pulsarmap' | 'vibespace';
 
 /** Each host's own kinds — the molecules whose `host` it is (ORDECK's by default), so a
  *  host is typed to draw exactly its own and never another's. */
 export interface HostKindsOf {
-  kouros: 'pulsarmap';
+  kouros: 'pulsarmap' | 'vibespace';
   ordeck: 'calendar' | 'weather' | 'focus' | 'week';
 }
 
@@ -90,6 +90,8 @@ export type WidgetNode =
   | { t: 'week' }
   /** Pulsarmap — the playing track's spectrogram as ridgelines, revealed as it plays (KourOS). Reads `player`. */
   | { t: 'pulsarmap' }
+  /** Vibe space — the library as a cloud you move through — energy one way, the sound the others; tap to pin a place (KourOS). */
+  | { t: 'vibespace'; /** the vibe space — KourOS's discoverMap document (its packed points, regions, stops, axes) */ map: Binding; /** the pinned place, { x, y, z, w } — what the cloud marks; none: it pins the densest region itself */ pin?: Binding; /** the playing track's id — its point glints */ playing?: Binding; on?: { pin?: ActionChain; play?: ActionChain } }
   /** Stat — one headline number, with its context. */
   | { t: 'stat'; value: Binding; /** what the number is, above it */ label?: Binding; unit?: Binding; /** the change, beside it ("+3", "−12%") */ delta?: Binding; deltaTone?: ToneBinding; /** one line of context under it */ sub?: Binding; /** an array to draw as a sparkline under it */ trend?: Binding; /** plucks the number from each trend element */ trendPath?: string }
   /** Meter — a labelled bar: how far along. */

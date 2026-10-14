@@ -31,7 +31,22 @@ Each `<id>.json` here is a widget. Three kinds live here:
   rate, the sleep timer and bookmarks (two menus held in `$state.menu`). The fixtures'
   ready state is a track and empty a book.
 
+- **`kouros-map.json` — the Vibe Map (`/map`).** One source, `discoverMap`. The heading,
+  then the `vibespace` molecule (KourOS's WebGL cloud, or without WebGL2 every region as a
+  list to pin from) and the near list as a part. The pin is the page's own state
+  (`$state.pin`, set by `on.pin` from `$pin`); the cloud pins the densest region itself on
+  the first draw. A double-tap on the pin plays from it (`player.near`). When the map is
+  held or not ready, it says why and how far the analysis has got. The empty fixture is a
+  map that is not ready.
+
 ## Parts
+
+- **`kouros-map-near.json` — what sits near the pin.** Handed `pin`; reads
+  `discoverNear` at it, debounced 160 ms, so a moving pin updates the list once it
+  settles and never plays anything by itself (and before the first pin asks nothing — a
+  required filter unset is `idle`). The region and mood, "Reading…" while it re-reads, Play
+  from here, then each track: play from it, or its action sheet. A part so its loading is
+  its own: the cloud above never blanks while the list re-reads.
 
 - **`kouros-now-card.json` — what is playing, at the top of Home.** Binds the host's
   `player` slice: its kind as the eyebrow, its status ("PAUSED ON KITCHEN") as the source,

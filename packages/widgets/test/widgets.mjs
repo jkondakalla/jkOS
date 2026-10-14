@@ -262,6 +262,9 @@ const PAGE_SRC = { pg: { kind: 'dataset', app: 'lz', dataset: 'page' } }
 ok(t2({ sources: PAGE_SRC, body: { t: 'text', text: { src: 'pg', path: 'stats.total' } } }).length === 0, "a field pointing at a one-document dataset's shape (`schema`) binds its fields")
 ok(t2has({ sources: PAGE_SRC, body: { t: 'text', text: { src: 'pg', path: 'rows.status' } } }, '/spec/body/text', 'undeclared-path'), "…and one pointing at a list dataset's is still a list")
 const HOME_SRC = { h: { kind: 'dataset', app: 'lz', dataset: 'home' } }
+ok(t2({ sources: { h: { kind: 'dataset', app: 'lz', dataset: 'home' } }, body: { t: 'stack', children: [{ t: 'text', text: { src: 'h', path: 'recent.length' } }, { t: 'text', text: { src: 'h', path: 'recent.0.title' } }] } }).length === 0,
+  "a json field with item fields is rows of them too: its length, and a row by index, bind")
+ok(t2has({ sources: { h: { kind: 'dataset', app: 'lz', dataset: 'home' } }, body: { t: 'text', text: { src: 'h', path: 'recent.0.titel' } } }, '/spec/body/text', 'undeclared-path'), '…and a row by index still holds to its fields')
 const rail = (title) => ({ sources: HOME_SRC, body: { t: 'rail', from: { src: 'h', path: 'recent' }, empty: 'None.', item: { t: 'tile', title } } })
 ok(t2(rail({ src: '$', path: 'title' })).length === 0, "a rail's item reads a row of its `from` as $")
 ok(t2has(rail({ src: '$', path: 'titel' }), '/spec/body/item/title', 'undeclared-path'), '…and a row field nobody declares is refused there')

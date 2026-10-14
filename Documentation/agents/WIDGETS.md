@@ -17,7 +17,7 @@ the kinds only it can draw (the manifest's molecules, `HostKind`). A host kind m
 | Host | Implemented in | Declared in | What it adds |
 |---|---|---|---|
 | ORDECK | `apps/ordeck/src/hud/host.tsx` | `hud/slices.ts` (`HUD_SLICES`, `HUD_ACTIONS`) | the HUD's slices, four molecules (calendar, weather, focus, week), `focus.clear`; no routes |
-| KourOS | `apps/kouros/src/widgets/host.tsx` | `src/widgets/declaration.ts` (`KOUROS_SLICES`, `KOUROS_ACTIONS`, `KOUROS_LEGACY_ROUTES`) | the `player` and `playhead` slices, the player engine's actions (play, the transport, seek and skip, chapters, rate, sleep, bookmarks, the device picker, the action sheet…), the `pulsarmap` molecule, and a router: its pages are widget files |
+| KourOS | `apps/kouros/src/widgets/host.tsx` (its molecules in `kinds.tsx`) | `src/widgets/declaration.ts` (`KOUROS_SLICES`, `KOUROS_ACTIONS`, `KOUROS_LEGACY_ROUTES`) | the `player` and `playhead` slices, the player engine's actions (play, the transport, seek and skip, chapters, rate, sleep, bookmarks, playing from a place in the vibe space, the device picker, the action sheet…), the `pulsarmap` and `vibespace` molecules, and a router: its pages are widget files |
 
 Both declarations are data the tools read (`scripts/widget/catalog.mjs` `hostDeclarations()`),
 so a widget's second tier runs against each host that can draw it.
@@ -159,6 +159,7 @@ One model for the whole suite (`@jkos/weave/binding`, shared with triggers):
 | `{ "lit": … }` | a literal that might look like a binding |
 | `{ "src": "session", "path": "now.title", "fallback": "—" }` | read a value; `fallback` when it is missing |
 | `… "map": { "DONE": "ok", "FAILED": "danger" }` | a lookup; a value not in it passes through, or becomes `fallback` if given |
+| `{ "src": "near", "path": "results.length" }` | a list's length, or a row by index (`results.0.title`) — on any declared list, and on a json field with `item` fields (rows of them, or one) |
 | `… "fmt": "ago"` | one of `upper` `lower` `number` `percent` `time` `date` `ago` `duration`, applied after `map` |
 | `{ "eq": [a, b] }` `{ "in": [a, [x, y]] }` `{ "not": a }` | conditions, for `when.cond` or any boolean |
 
@@ -202,7 +203,11 @@ never scrolls — what a surface that owns its gestures needs.
 
 **A molecule belongs to one host** (its manifest `host`, ORDECK's when absent):
 `HostKindsOf` types each host to draw exactly its own, and `moleculesOf(host)` is what
-it declares — KourOS's `pulsarmap` is never asked of ORDECK.
+it declares — KourOS's `pulsarmap` is never asked of ORDECK. A molecule may take bound
+props and fire events like any node: KourOS's `vibespace` binds the map document, the pin
+and the playing track, and fires `on.pin` (with `$pin` — the point, its region, its mood)
+and `on.play`. A host kind fires them with `useWidgetActions()`, the renderer's own event
+engine, so a `set`, `do` or `go` from a molecule is checked and runs as one from a button.
 `when` (`cond`, `then`, `else`) switches between bodies — e.g. a session with nothing
 loaded. The rest of the vocabulary (primitives, layout, the molecules, form controls) and
 every prop's type: `pnpm widget vocab [kind]`, or the Workshop's Guide tab.

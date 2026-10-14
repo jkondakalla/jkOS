@@ -1,0 +1,270 @@
+{
+  "id": "kouros-map-near",
+  "label": "Near the pin",
+  "spec": {
+    "inputs": {
+      "pin": {
+        "type": "json"
+      }
+    },
+    "sources": {
+      "near": {
+        "kind": "dataset",
+        "app": "kouros",
+        "dataset": "discoverNear",
+        "debounce": 160,
+        "params": {
+          "x": {
+            "src": "$in",
+            "path": "pin.x"
+          },
+          "y": {
+            "src": "$in",
+            "path": "pin.y"
+          },
+          "z": {
+            "src": "$in",
+            "path": "pin.z"
+          },
+          "w": {
+            "src": "$in",
+            "path": "pin.w"
+          },
+          "k": 40
+        }
+      }
+    },
+    "frame": {
+      "chrome": false,
+      "empty": "Pin a place to hear what is there."
+    },
+    "body": {
+      "t": "stack",
+      "gap": 10,
+      "children": [
+        {
+          "t": "row",
+          "justify": "space-between",
+          "align": "center",
+          "gap": 12,
+          "children": [
+            {
+              "t": "stack",
+              "gap": 2,
+              "children": [
+                {
+                  "t": "text",
+                  "text": {
+                    "src": "$in",
+                    "path": "pin.region",
+                    "fallback": "Somewhere"
+                  },
+                  "variant": "heading"
+                },
+                {
+                  "t": "when",
+                  "cond": {
+                    "eq": [
+                      {
+                        "src": "$sources",
+                        "path": "near.state"
+                      },
+                      "loading"
+                    ]
+                  },
+                  "then": {
+                    "t": "text",
+                    "text": "Reading…",
+                    "variant": "mono"
+                  },
+                  "else": {
+                    "t": "row",
+                    "gap": 5,
+                    "children": [
+                      {
+                        "t": "text",
+                        "text": {
+                          "src": "$in",
+                          "path": "pin.mood"
+                        },
+                        "variant": "mono"
+                      },
+                      {
+                        "t": "text",
+                        "text": "·",
+                        "variant": "mono"
+                      },
+                      {
+                        "t": "text",
+                        "text": {
+                          "src": "near",
+                          "path": "results.length"
+                        },
+                        "variant": "mono"
+                      },
+                      {
+                        "t": "text",
+                        "text": "tracks near the pin",
+                        "variant": "mono"
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "t": "button",
+              "text": "PLAY FROM HERE",
+              "on": {
+                "press": {
+                  "do": "player.play",
+                  "with": {
+                    "tracks": {
+                      "src": "near",
+                      "path": "results"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "t": "list",
+          "from": {
+            "src": "near",
+            "path": "results"
+          },
+          "empty": "Pin a place to hear what is there.",
+          "item": {
+            "t": "row",
+            "gap": 10,
+            "children": [
+              {
+                "t": "stack",
+                "gap": 2,
+                "grow": true,
+                "children": [
+                  {
+                    "t": "button",
+                    "text": {
+                      "src": "$",
+                      "path": "title"
+                    },
+                    "variant": "link",
+                    "active": {
+                      "eq": [
+                        {
+                          "src": "$",
+                          "path": "id"
+                        },
+                        {
+                          "src": "player",
+                          "path": "track_id"
+                        }
+                      ]
+                    },
+                    "on": {
+                      "press": {
+                        "do": "player.play",
+                        "with": {
+                          "tracks": {
+                            "src": "near",
+                            "path": "results"
+                          },
+                          "from": {
+                            "src": "$",
+                            "path": "id"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "t": "row",
+                    "gap": 4,
+                    "children": [
+                      {
+                        "t": "text",
+                        "text": {
+                          "src": "$",
+                          "path": "artist",
+                          "fallback": "Unknown artist"
+                        },
+                        "variant": "sub"
+                      },
+                      {
+                        "t": "when",
+                        "cond": {
+                          "src": "$",
+                          "path": "album"
+                        },
+                        "then": {
+                          "t": "row",
+                          "gap": 4,
+                          "children": [
+                            {
+                              "t": "text",
+                              "text": "·",
+                              "variant": "sub"
+                            },
+                            {
+                              "t": "text",
+                              "text": {
+                                "src": "$",
+                                "path": "album"
+                              },
+                              "variant": "sub",
+                              "grow": true
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "t": "text",
+                "text": {
+                  "src": "$",
+                  "path": "duration",
+                  "fmt": "duration"
+                },
+                "variant": "mono"
+              },
+              {
+                "t": "button",
+                "text": "More",
+                "icon": "more",
+                "variant": "ghost",
+                "on": {
+                  "press": {
+                    "do": "sheet.open",
+                    "with": {
+                      "tracks": {
+                        "src": "$"
+                      },
+                      "title": {
+                        "src": "$",
+                        "path": "title"
+                      },
+                      "subtitle": {
+                        "src": "$",
+                        "path": "artist"
+                      },
+                      "seed": {
+                        "src": "$",
+                        "path": "id"
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

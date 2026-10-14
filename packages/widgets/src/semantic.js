@@ -35,8 +35,10 @@ function shapeOfField(f, docs) {
   if (!f) return ANY
   if (f.type !== 'json') return SCALAR
   if (f.of) return { kind: 'list', item: SCALAR }
-  if (Array.isArray(f.item)) return fieldsShape(f.item)
-  if (isObj(f.item)) return fieldsShape(Object.entries(f.item).map(([name, x]) => ({ name, ...x })))
+  // A json field with an `item` holds rows of it, or one of it (BodyField's own words) —
+  // so it reads as the row's fields, and also as a list: `length`, or a row by index.
+  if (Array.isArray(f.item)) return { ...fieldsShape(f.item), maybeList: true }
+  if (isObj(f.item)) return { ...fieldsShape(Object.entries(f.item).map(([name, x]) => ({ name, ...x }))), maybeList: true }
   if (typeof f.schema === 'string') {
     const m = f.schema.match(/^([a-z][a-z0-9-]*)\.([A-Za-z_][\w]*)$/)
     const ds = m && docs[m[1]]?.datasets?.datasets?.find((d) => d.id === m[2])
@@ -68,6 +70,8 @@ function follow(shape, path, docs) {
       if (/^\d+$/.test(seg)) { cur = cur.item; continue }
       return { problem: `'${seg}' — this is a list: bind it to a list's \`from\` and read '${seg}' from $ inside it`, fix: 'list.from, then { src: "$", path: "…" }' }
     }
+    if (cur.maybeList && seg === 'length') { cur = SCALAR; continue }
+    if (cur.maybeList && /^\d+$/.test(seg)) { cur = { kind: 'fields', fields: cur.fields }; continue }
     const f = cur.fields.get(seg)
     if (!f) {
       const near = nearest(seg, [...cur.fields.keys()])

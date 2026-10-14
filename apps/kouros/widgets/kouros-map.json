@@ -1,0 +1,218 @@
+{
+  "id": "kouros-map",
+  "label": "Map",
+  "route": "/map",
+  "spec": {
+    "sources": {
+      "map": {
+        "kind": "dataset",
+        "app": "kouros",
+        "dataset": "discoverMap"
+      }
+    },
+    "state": {
+      "pin": {
+        "type": "json",
+        "default": null
+      }
+    },
+    "body": {
+      "t": "stack",
+      "gap": 16,
+      "children": [
+        {
+          "t": "stack",
+          "gap": 4,
+          "children": [
+            {
+              "t": "text",
+              "text": "Map",
+              "variant": "display"
+            },
+            {
+              "t": "when",
+              "cond": {
+                "src": "map",
+                "path": "available"
+              },
+              "then": {
+                "t": "row",
+                "gap": 5,
+                "children": [
+                  {
+                    "t": "text",
+                    "text": {
+                      "src": "map",
+                      "path": "total",
+                      "fmt": "number"
+                    },
+                    "variant": "mono"
+                  },
+                  {
+                    "t": "text",
+                    "text": "tracks placed",
+                    "variant": "mono"
+                  }
+                ]
+              },
+              "else": {
+                "t": "text",
+                "text": "Vibe space",
+                "variant": "mono"
+              }
+            }
+          ]
+        },
+        {
+          "t": "when",
+          "cond": {
+            "src": "map",
+            "path": "available"
+          },
+          "then": {
+            "t": "stack",
+            "gap": 14,
+            "children": [
+              {
+                "t": "vibespace",
+                "map": {
+                  "src": "map"
+                },
+                "pin": {
+                  "src": "$state",
+                  "path": "pin"
+                },
+                "playing": {
+                  "src": "player",
+                  "path": "track_id"
+                },
+                "on": {
+                  "pin": {
+                    "set": "pin",
+                    "to": {
+                      "src": "$pin"
+                    }
+                  },
+                  "play": {
+                    "do": "player.near",
+                    "with": {
+                      "x": {
+                        "src": "$state",
+                        "path": "pin.x"
+                      },
+                      "y": {
+                        "src": "$state",
+                        "path": "pin.y"
+                      },
+                      "z": {
+                        "src": "$state",
+                        "path": "pin.z"
+                      },
+                      "w": {
+                        "src": "$state",
+                        "path": "pin.w"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "t": "use",
+                "widget": "kouros-map-near",
+                "with": {
+                  "pin": {
+                    "src": "$state",
+                    "path": "pin"
+                  }
+                }
+              }
+            ]
+          },
+          "else": {
+            "t": "when",
+            "cond": {
+              "src": "map",
+              "path": "held"
+            },
+            "then": {
+              "t": "row",
+              "gap": 5,
+              "children": [
+                {
+                  "t": "text",
+                  "text": "The vibe space is held —",
+                  "variant": "note"
+                },
+                {
+                  "t": "text",
+                  "text": {
+                    "src": "map",
+                    "path": "reason",
+                    "fallback": "the analysis did not pass its gate"
+                  },
+                  "variant": "note"
+                }
+              ]
+            },
+            "else": {
+              "t": "stack",
+              "gap": 4,
+              "children": [
+                {
+                  "t": "text",
+                  "text": {
+                    "src": "map",
+                    "path": "reason",
+                    "fallback": "The map is not ready"
+                  },
+                  "variant": "note"
+                },
+                {
+                  "t": "when",
+                  "cond": {
+                    "src": "map",
+                    "path": "coverage"
+                  },
+                  "then": {
+                    "t": "row",
+                    "gap": 5,
+                    "children": [
+                      {
+                        "t": "text",
+                        "text": {
+                          "src": "map",
+                          "path": "coverage.measured",
+                          "fmt": "number"
+                        },
+                        "variant": "mono"
+                      },
+                      {
+                        "t": "text",
+                        "text": "of",
+                        "variant": "mono"
+                      },
+                      {
+                        "t": "text",
+                        "text": {
+                          "src": "map",
+                          "path": "coverage.tracks",
+                          "fmt": "number"
+                        },
+                        "variant": "mono"
+                      },
+                      {
+                        "t": "text",
+                        "text": "tracks analysed so far",
+                        "variant": "mono"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+}

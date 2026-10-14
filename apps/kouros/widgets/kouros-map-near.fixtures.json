@@ -1,0 +1,98 @@
+{
+  "ready": {
+    "near": {
+      "results": [
+        {
+          "id": 101,
+          "title": "Monkey",
+          "artist": "Low",
+          "album": "The Great Destroyer",
+          "year": 2005,
+          "duration": 241,
+          "genres": [],
+          "has_cover": true,
+          "distance": 0.041
+        },
+        {
+          "id": 107,
+          "title": "Strange",
+          "artist": "Galaxie 500",
+          "album": "On Fire",
+          "year": 1989,
+          "duration": 201,
+          "genres": [],
+          "has_cover": true,
+          "distance": 0.058
+        },
+        {
+          "id": 104,
+          "title": "Blue Light",
+          "artist": "Mazzy Star",
+          "album": "So Tonight That I Might See",
+          "year": 1993,
+          "duration": 307,
+          "genres": [],
+          "has_cover": true,
+          "distance": 0.066
+        },
+        {
+          "id": 230,
+          "title": "Nosferatu Man",
+          "artist": "Slint",
+          "album": "Spiderland",
+          "year": 1991,
+          "duration": 334,
+          "genres": [],
+          "has_cover": true,
+          "distance": 0.071
+        },
+        {
+          "id": 301,
+          "title": "Sometimes",
+          "artist": "My Bloody Valentine",
+          "album": "Loveless",
+          "year": 1991,
+          "duration": 319,
+          "genres": [],
+          "has_cover": true,
+          "distance": 0.083
+        }
+      ]
+    },
+    "$in": {
+      "pin": {
+        "x": -0.42,
+        "y": 0.1,
+        "z": 0.33,
+        "w": 0.22,
+        "region": "Slowcore hush",
+        "mood": "hushed"
+      }
+    },
+    "$slices": {
+      "player": {
+        "track_id": 104
+      }
+    }
+  },
+  "empty": {
+    "near": {
+      "results": []
+    },
+    "$in": {
+      "pin": {
+        "x": -0.42,
+        "y": 0.1,
+        "z": 0.33,
+        "w": 0.22,
+        "region": "Slowcore hush",
+        "mood": "hushed"
+      }
+    },
+    "$slices": {
+      "player": {
+        "track_id": null
+      }
+    }
+  }
+}

@@ -14,7 +14,7 @@
  */
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { renderWidget, type HostActions, type HostKindComponent, type HostKindsOf, type WidgetDef, type WidgetHost } from '@jkos/widget-render';
+import { renderWidget, type HostActions, type WidgetDef, type WidgetHost } from '@jkos/widget-render';
 import { fmtClock } from '@jkos/player/core';
 import { formatRate } from '@jkos/player/ui';
 import type { SleepMode } from '@jkos/player/engine';
@@ -28,27 +28,12 @@ import { bookContext } from '../player/context';
 import { encodeRef } from '../player/sources';
 import type { ActionTarget } from '../components/ActionSheet';
 import { openDevicePicker } from '../components/DevicePicker';
-import Pulsarmap from '../components/Pulsarmap';
 import { closeOverlay } from '../hooks/useHashRoute';
+import { tracksNear } from '../api';
+import { KINDS } from './kinds';
 import { KOUROS_ACTIONS, type PlayerSlice, type PlayheadSlice } from './declaration';
 
 const SLEEP_MODES: readonly SleepMode[] = ['off', '15', '30', '45', '60', 'segment'];
-
-/* ── The kinds only KourOS draws ───────────────────────────────────────────── */
-
-/** The pulsarmap reads the engine itself: it positions every FRAME from the media
- *  element's own clock (livePosition), which no slice — data — could carry. */
-function PulsarmapKind() {
-  const p = usePlayer();
-  if (!p.track) return null;
-  return <Pulsarmap trackId={p.track.id} position={p.globalPos} livePosition={p.livePosition} playing={p.playing} />;
-}
-
-/** Every molecule the manifest gives KourOS (HostKindsOf), so a new one is drawn here or
- *  tsc says so. */
-const KINDS: { readonly [K in HostKindsOf['kouros']]: HostKindComponent<K> } = {
-  pulsarmap: PulsarmapKind,
-};
 
 const files = import.meta.glob<WidgetDef>(
   ['../../widgets/*.json', '!../../widgets/*.fixtures.json'],
@@ -148,8 +133,8 @@ function usePlayheadSlice(): PlayheadSlice {
 
 /** Track ids from what a widget hands an action: rows carrying an `id`, or ids. */
 function idsOf(tracks: unknown): number[] {
-  if (!Array.isArray(tracks)) return [];
-  return tracks
+  const list = Array.isArray(tracks) ? tracks : tracks != null ? [tracks] : [];
+  return list
     .map((t) => (t != null && typeof t === 'object' ? (t as { id?: unknown }).id : t))
     .map(Number)
     .filter((n) => Number.isFinite(n));
@@ -210,6 +195,13 @@ function useKourosHost(route: Record<string, string>): WidgetHost {
     'bookmark.remove': ({ id }) => {
       const bm = engine.current.bookmarks.find((b) => String(b.id) === String(id));
       if (bm) engine.current.removeBookmark(bm.id);
+    },
+    'player.near': async ({ x, y, z, w }) => {
+      const pt = { x: num(x), y: num(y), z: num(z), w: num(w) };
+      if (pt.x == null || pt.y == null || pt.z == null || pt.w == null) throw new Error('nothing is pinned');
+      const ids = (await tracksNear(pt as { x: number; y: number; z: number; w: number }, 40)).results.map((t) => t.id);
+      if (!ids.length) throw new Error('nothing sits there');
+      requestPlay({ trackIds: ids, startIndex: 0 });
     },
     'devices.open': () => openDevicePicker(),
     'overlay.close': () => closeOverlay(),

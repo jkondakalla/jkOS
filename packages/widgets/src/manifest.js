@@ -53,7 +53,7 @@ export const ICON_NAMES = [
   'rise', 'fall', 'peak',
   // A player's transport and its neighbours (KourOS's Now Playing).
   'play', 'pause', 'prev', 'next', 'back', 'forward', 'shuffle', 'repeat', 'repeat-one',
-  'spinner', 'radio', 'devices', 'down', 'close', 'queue',
+  'spinner', 'radio', 'devices', 'down', 'close', 'queue', 'more',
 ]
 
 /** Which host draws each molecule when its manifest entry names none. */
@@ -383,6 +383,29 @@ export const NODES = {
     kind: 'molecule', label: 'Pulsarmap', hint: "the playing track's spectrogram as ridgelines, revealed as it plays (KourOS)",
     props: {}, host: 'kouros', reads: 'player',
     example: { t: 'pulsarmap' },
+  },
+  vibespace: {
+    kind: 'molecule', label: 'Vibe space', hint: 'the library as a cloud you move through — energy one way, the sound the others; tap to pin a place (KourOS)',
+    props: {
+      map: { type: 'binding', required: true, doc: "the vibe space — KourOS's discoverMap document (its packed points, regions, stops, axes)" },
+      pin: { type: 'binding', doc: 'the pinned place, { x, y, z, w } — what the cloud marks; none: it pins the densest region itself' },
+      playing: { type: 'binding', doc: "the playing track's id — its point glints" },
+      on: { type: 'events' },
+    },
+    host: 'kouros',
+    events: {
+      pin: 'a place is pinned (a tap, a region from the list without WebGL, or the first draw) — its actions read it as `$pin`',
+      play: 'the cloud asks to play from the pin (a double-tap on it)',
+    },
+    eventScope: {
+      pin: { $pin: [
+        { name: 'x', type: 'number' }, { name: 'y', type: 'number' }, { name: 'z', type: 'number' },
+        { name: 'w', type: 'number', label: 'Energy, 0..1' },
+        { name: 'region', type: 'string', label: 'The labelled region nearest the pin' },
+        { name: 'mood', type: 'string', label: 'The energy, as a word ("calm", "driving")' },
+      ] },
+    },
+    example: { t: 'vibespace', map: { src: 'map' }, pin: { src: '$state', path: 'pin' }, on: { pin: { set: 'pin', to: { src: '$pin' } } } },
   },
   /* ── Patterns — one node, a finished card body ───────────────────────────
    * Each is the shape a common card already takes, drawn once, well: the type scale,

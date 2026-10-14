@@ -226,6 +226,7 @@ const ICONS: Record<IconName, ReactNode> = {
   down: <path d="m5.5 9.5 6.5 6.5 6.5-6.5" />,
   close: <path d="M6 6l12 12M18 6L6 18" />,
   queue: <><path d="M4 6h12M4 12h12M4 18h8" /><path d="M18 9v10M18 9l-3 3M18 9l3 3" /></>,
+  more: <><circle cx="6" cy="12" r="1.4" fill="currentColor" /><circle cx="12" cy="12" r="1.4" fill="currentColor" /><circle cx="18" cy="12" r="1.4" fill="currentColor" /></>,
 };
 
 /** A control's glyph: stroked in its button's colour (currentColor). */
@@ -851,6 +852,14 @@ function useActions() {
   }, [state, host]);
 
   return { status, error, busy: status === 'working', fire };
+}
+
+/** For a HOST KIND that fires its node's events (`on`): run an event's actions in the
+ *  scope it fired in — the same engine every renderer event uses, so a `set`, a `do` or a
+ *  `go` from a molecule is checked and runs exactly as one from a button. */
+export function useWidgetActions(): { fire: (chain: ActionChain, scope: Scope) => Promise<boolean>; busy: boolean; error?: string } {
+  const { fire, busy, error } = useActions();
+  return { fire, busy, error };
 }
 
 /** Something tapped to fire its actions (a media card's `on.press`), drawn as a button. */

@@ -180,7 +180,7 @@ export function validateWidget(def, ctx = {}) {
 /** The names the RENDERER puts in every widget's scope — never a host's: the row of a
  *  list (`$`), the clock instant (`$now`), each source's state (`$sources`), a form's
  *  values (`$form`) and what a command produced (`$result` / `$job`). */
-export const RUNTIME_NAMES = ['$', '$now', '$sources', '$form', '$result', '$job', '$state', '$seek']
+export const RUNTIME_NAMES = ['$', '$now', '$sources', '$form', '$result', '$job', '$state', '$seek', '$pin']
 
 /* A published widget is drawn on every user's HUD and binds only what jkAuth can vouch
    for: the datasets and capabilities apps DECLARE (scope-checked by their app on every
