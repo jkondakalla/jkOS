@@ -27,6 +27,7 @@ const { check, importTs, tmp, done } = unit('pulsarmap');
 const pm = await importTs('apps/kouros/src/components/pulsarmap.ts', 'pulsarmap.mjs');
 const {
   MIN_ROW_PITCH, rowPitch, revealIndex, rowsRevealed, scrollRow, stripWindow, stripBaseline, rowPoints, toRows,
+  X_WARP, bandFraction,
 } = pm;
 
 /* The mesh music/mesh.py actually builds at the baseline configuration. The row
@@ -150,8 +151,10 @@ check(rowPitch(4) === MIN_ROW_PITCH && rowPitch(20) === 20 && rowPitch(NaN) === 
 {
   const pts = rowPoints(new Uint8Array([0, 255, 0]), 100, 200, 40);
   check(pts.length === 6, 'rowPoints: two numbers per band');
-  check(pts[0] === 0 && pts[2] === 100 && pts[4] === 200,
+  check(pts[0] === 0 && pts[4] === 200,
     'rowPoints: bands span the full width, first at 0 and last at width');
+  check(pts[2] === bandFraction(1, 3) * 200,
+    'rowPoints: a band sits where bandFraction puts it — the one band axis, shared with the 3-D shader');
   check(pts[1] === 100 && pts[3] === 60,
     'rowPoints: 0 sits on the baseline and 255 is a full amplitude above it');
 
@@ -165,6 +168,28 @@ check(rowPitch(4) === MIN_ROW_PITCH && rowPitch(20) === 20 && rowPitch(NaN) === 
     'which is the one edit that would make the whole picture meaningless');
   check(rowPoints(new Uint8Array([]), 100, 200, 40).length === 0,
     'rowPoints: an empty row is an empty polyline, not a crash');
+}
+
+/* ── The band axis ────────────────────────────────────────────────────────────
+   ⚠️ Warped, not linear (Jag 2026-10-14, "a right-leaning tail"): the lows are
+   where the peaks are sharp, so they get the width. Measured, not tuned — see
+   pulsarmap.ts and ALGORITHMS.md §9. */
+{
+  check(bandFraction(0, 128) === 0 && bandFraction(127, 128) === 1,
+    'bandFraction: the lowest band is the left edge and the highest the right — nothing cropped');
+  let rising = true;
+  for (let b = 1; b <= 127 * 4; b++) if (!(bandFraction(b / 4, 128) > bandFraction((b - 1) / 4, 128))) rising = false;
+  check(rising, 'bandFraction: strictly increasing, fractional bands included — no two bands ever swap or meet');
+  check(X_WARP > 0.6 && X_WARP < 0.85 && bandFraction(63.5, 128) > 0.6,
+    `bandFraction: the axis widens the lows (u^${X_WARP}) — the middle band sits right of centre, ` +
+    'so the left half of the line is no longer where every peak is');
+  // The measured target: band 46 holds the cumulative median of peak sharpness.
+  // Linear drew it at 36 % of the width; warped it lands near the middle.
+  const median = bandFraction(46, 128);
+  check(median > 0.43 && median < 0.55,
+    `bandFraction: the sharpness median (band 46) lands mid-line (${(median * 100).toFixed(0)} %), not at 36 %`);
+  check(bandFraction(5, 1) === 0 && bandFraction(-3, 128) === 0 && bandFraction(999, 128) === 1,
+    'bandFraction: a one-band row and out-of-range bands stay on the line');
 }
 
 /* ── The purity contract ──────────────────────────────────────────────────────
@@ -249,6 +274,12 @@ const glSrc = readFileSync(resolve(root, 'apps/kouros/src/components/ridges3d/gl
   check(/texelFetch\(u_mesh, texel, 0\)\.r \* AMPLITUDE;/.test(heightFn) && !/\b(max|min|clamp)\(/.test(heightFn)
         && !/u_(max|min|peak|gain|scale)/i.test(shader),
     'shader: a height is the byte over the fixed span × AMPLITUDE — no max/min/gain, nothing per track');
+  check(/const float X_WARP = \$\{X_WARP\.toFixed\(6\)\};/.test(src) && /pow\([^;]*, X_WARP\)/.test(shader)
+        && /import \{[^}]*\bX_WARP\b[^}]*\} from '\.\.\/pulsarmap'/.test(src),
+    'shader: x is the warped band axis, its exponent pasted in from pulsarmap.ts — one band axis for 2-D and 3-D');
+  check(stage.bandX(0, 128) === -stage.HALF_WIDTH && stage.bandX(127, 128) === stage.HALF_WIDTH
+        && stage.bandX(46, 128) === -stage.HALF_WIDTH + 2 * stage.HALF_WIDTH * pm.bandFraction(46, 128),
+    'bandX: the 3-D band axis is bandFraction scaled to the world');
   check(rowHeight(255) === AMPLITUDE && rowHeight(0) === 0 && rowHeight(51) < rowHeight(204),
     'rowHeight: bytes over the fixed 0…255 span, the one definition the shader mirrors');
 }

@@ -146,11 +146,35 @@ export function rowPoints(
   const n = row.length;
   const out: number[] = [];
   if (n === 0) return out;
-  const step = n > 1 ? width / (n - 1) : 0;
   for (let b = 0; b < n; b++) {
-    out.push(b * step, baseline - (row[b] / 255) * amplitude);
+    out.push(bandFraction(b, n) * width, baseline - (row[b] / 255) * amplitude);
   }
   return out;
+}
+
+/* ── The band axis ───────────────────────────────────────────────────────────
+   Where a band sits across the line, as a fraction 0 (lowest) … 1 (highest). ONE
+   definition for both renderers: the 2-D strip multiplies it by a width, the 3-D
+   shader mirrors it (ridges3d/stage.ts `bandX`, the GLSL `X_WARP` pasted in from here).
+
+   ⚠️ **NOT LINEAR IN BAND — Jag, 2026-10-14: "the curve always has a right-leaning
+   tail".** Measured over ~400 stored meshes (two disjoint samples, ALGORITHMS.md §9):
+   peaks are as FREQUENT in every band, but half of all peak-and-valley SHARPNESS
+   (mean |second difference| across bands) sits in the lowest 46 of 128 bands, and
+   the top quarter carries 13 %. Drawn evenly, the left third holds the picture and
+   the right half is a slow downhill ripple. The axis is warped `u^X_WARP`, the power
+   that best fits that sharpness CDF (0.719 and 0.724 on the two samples), which moves
+   the four screen quarters from 34/31/21/13 % of the sharpness to 20/32/29/19 %.
+
+   A fixed library-wide warp, NOT one fitted per track — the same reason the value
+   range is shared: two tracks' pictures stay comparable, band for band. */
+export const X_WARP = 0.72;
+
+/** Band `band` (fractional between bands is fine) of `bands`, as 0 … 1 across the line. */
+export function bandFraction(band: number, bands: number): number {
+  if (!(bands > 1)) return 0;
+  const u = Math.min(1, Math.max(0, band / (bands - 1)));
+  return Math.pow(u, X_WARP);
 }
 
 /** The stored bytes as a row-major grid of rows. Throws on a length that does not

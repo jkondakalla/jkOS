@@ -18,6 +18,7 @@ import { MATRIX_TEXEL_GLSL, packTexture, textureLayout, type RGB, type TextureLa
 import {
   AMPLITUDE, FLOOR_Y, FOG_FAR, FOG_NEAR, HALF_WIDTH, LINE_WIDTH_PX, PITCH, type RowWindow,
 } from './stage';
+import { X_WARP } from '../pulsarmap';
 
 /* ⚠️ The (row, band) arithmetic below is mirrored by `cellOf` in stage.ts, and
    test/pulsarmap.mjs scans this source for these exact expressions. The texel a
@@ -49,6 +50,7 @@ const float HALF_WIDTH = ${HALF_WIDTH.toFixed(6)};
 const float FLOOR_Y = ${FLOOR_Y.toFixed(6)};
 const float FOG_NEAR = ${FOG_NEAR.toFixed(6)};
 const float FOG_FAR = ${FOG_FAR.toFixed(6)};
+const float X_WARP = ${X_WARP.toFixed(6)};
 
 ${MATRIX_TEXEL_GLSL}
 
@@ -59,7 +61,8 @@ float heightAt(int row, int band) {
 }
 
 vec3 cell(int row, int band) {
-  float x = -HALF_WIDTH + 2.0 * HALF_WIDTH * float(band) / float(u_bands - 1);
+  // pulsarmap.ts bandFraction: the warped band axis both renderers share.
+  float x = -HALF_WIDTH + 2.0 * HALF_WIDTH * pow(float(band) / float(u_bands - 1), X_WARP);
   return vec3(x, heightAt(row, band), float(row) * PITCH);
 }
 

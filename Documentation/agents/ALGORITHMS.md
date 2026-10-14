@@ -1085,6 +1085,25 @@ picture). The 2 s store was set aside as `music/meshes-2s.db`; the recipe (`row_
   equally loud. It is the same mistake M2 warns about and M3's descriptor z-score warns about,
   now a third time and in one byte. 18 ln units over 255 steps is 0.07 ln ≈ 0.31 dB per step,
   far below anything an eye resolves off a ridgeline.
+- **The band axis is warped `u^0.72`, one warp for the library (2026-10-14).** Jag: "the curve
+  always has a right-leaning tail". Measured over the shipped store, two disjoint samples of ~400
+  meshes (`rowid % 120 = 7` and `= 61`, read `immutable=1`):
+
+  | per band, averaged over tracks | band 0 → 127 |
+  |---|---|
+  | mean byte | 130, peaks ~194 by band 8, then falls steadily to 115 |
+  | movement over time (σ) | flat, 35 – 38 in every band |
+  | local maxima per row | flat — peaks are as *frequent* everywhere (a power fit gives γ 0.98) |
+  | peak **sharpness**, mean \|second difference\| | 28 → 8; half of it in bands 0 – 46 |
+
+  So the tail is not fewer peaks on the right, it is *smaller* ones: drawn linearly, the four
+  screen quarters held 34 / 31 / 21 / 13 % of the sharpness. The power that best fits the
+  sharpness CDF is 0.719 and 0.724 on the two samples; at 0.72 the quarters hold 20 / 32 / 29 /
+  19 %. `pulsarmap.ts` `bandFraction` is the one definition — the 2-D strip uses it, the 3-D
+  shader pastes in its exponent, `check:pulsarmap` holds both. ⚠️ **Library-wide, not per track,
+  for the value scale's reason:** a per-track warp would put "band 46" at a different place in
+  every picture, and two tracks would stop being comparable band for band. The warp moves where
+  a band is drawn, never how high — the heights stay bytes over the shared span.
 
 **Where it is built: `music/`, because the transform has one home.** KourOS's image carries
 ffmpeg (the scanner needs ffprobe), so decoding in the container is possible — but the mel

@@ -26,7 +26,7 @@
 // plausible picture of the wrong rows. (The texel a row lands in is the package's
 // `texelOf` / `matrixTexel`, held by its own test.)
 
-import { rowsRevealed } from '../pulsarmap';
+import { bandFraction, rowsRevealed } from '../pulsarmap';
 import { clamp, DEG, type OrbitDragLimits, type Vec3 } from '@jkos/scene/math';
 
 /** World units. The line spans x ∈ [−HALF_WIDTH, HALF_WIDTH]. */
@@ -70,8 +70,10 @@ export const RETURN_OMEGA = 7;
 
 export const rowZ = (row: number): number => row * PITCH;
 export const rowHeight = (byte: number): number => (byte / 255) * AMPLITUDE;
+/** Where band `band` sits across the line — pulsarmap.ts `bandFraction` (the warped
+ *  axis, shared with 2-D), scaled to the world. The shader mirrors it. */
 export function bandX(band: number, bands: number): number {
-  return bands > 1 ? -HALF_WIDTH + (2 * HALF_WIDTH * band) / (bands - 1) : 0;
+  return bands > 1 ? -HALF_WIDTH + 2 * HALF_WIDTH * bandFraction(band, bands) : 0;
 }
 
 /* ── the mesh on the GPU ─────────────────────────────────────────────────────── */
