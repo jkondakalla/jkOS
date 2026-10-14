@@ -7,3 +7,4 @@ export * from './gesture';
 export * from './pick';
 export * from './texture';
 export * from './color';
+export * from './renderer';

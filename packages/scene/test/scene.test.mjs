@@ -32,6 +32,19 @@ const check = (cond, msg) => (cond ? ok(msg) : fail(msg));
 
 const math = await import(transpileSceneMath(tmp));
 
+/* ── isSoftwareRenderer ───────────────────────────────────────────────────── */
+{
+  const { isSoftwareRenderer } = math;
+  check(isSoftwareRenderer('ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)')
+        && isSoftwareRenderer('llvmpipe (LLVM 15.0.7, 256 bits)') && isSoftwareRenderer('Microsoft Basic Render Driver'),
+    'isSoftwareRenderer: SwiftShader, llvmpipe and the Windows basic driver are CPU rasterisers');
+  check(!isSoftwareRenderer('ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 3080/PCIe/SSE2, OpenGL ES 3.2)')
+        && !isSoftwareRenderer('Adreno (TM) 650') && !isSoftwareRenderer('Mali-G78') && !isSoftwareRenderer('Apple GPU'),
+    'isSoftwareRenderer: desktop and phone GPUs are not');
+  check(!isSoftwareRenderer('') && !isSoftwareRenderer(null) && !isSoftwareRenderer('WebKit WebGL'),
+    'isSoftwareRenderer: a masked or missing name is not software — the browser chose not to say');
+}
+
 /* ── the spring ───────────────────────────────────────────────────────────── */
 {
   const { springStep, springSettled } = math;

@@ -23,6 +23,13 @@ import { parseColor, type RGB } from '../math/color';
 
 let webgl2: boolean | null = null;
 
+/** The renderer behind a context — the unmasked name where the browser offers it
+ *  (Chromium does), else the generic one. For `isSoftwareRenderer` (../math). */
+export function rendererName(gl: WebGL2RenderingContext): string {
+  const ext = gl.getExtension('WEBGL_debug_renderer_info');
+  return String(gl.getParameter(ext ? ext.UNMASKED_RENDERER_WEBGL : gl.RENDERER) ?? '');
+}
+
 /** Whether this browser can make a WebGL2 context at all. Cached: creating a probe
  *  context per mount costs a GPU allocation and counts toward the context limit. */
 export function hasWebGL2(): boolean {
