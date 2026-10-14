@@ -247,14 +247,17 @@ same way), `debounce`, phone bodies, derived portability and the published limit
 WIDGETS.md §4–§7. KourOS is the first host that will route and declare engine actions;
 until then only ORDECK is declared (`scripts/widget/catalog.mjs` `hosts()`).
 
+**The harness and the ratchets are in** (phase 4, 2026-10-14). `check:ratchets` pins two
+counts per file that only go down: inline styles that are not `vars()` (1,201) and JSX in
+`apps/*/src` (2,538, of which 2,478 sit outside an entry, router or provider).
+`pnpm widget shot --routes <app>` draws every page at screen sizes, fixtures carry
+`$slices` / `$route` / `$in`, and `pnpm widget diff` is the review page's before/after
+proof as one command (WIDGETS.md §1).
+
 **hub.css keeps its order** (2026-09-30, overruling Stage F's reorder-by-system): measured, a
 sorted file changes what 175 elements render, because the order decides equal-specificity
 ties (TRAPS.md § CSS). The component classes get grouped when they move into their primitives.
 
-4. **The harness and the ratchets.** Contact sheets per route (screen × tier × state × face,
-   fixtures for slices as well as datasets), the running review page, and two gate ratchets
-   pinned at today's counts that only go down: JSX in `apps/*/src` outside the entry, router
-   and providers; inline `style={{…}}` (1,119 — 763 in BeigeBoard) down to `vars()` only.
 5. **KourOS pilot.** Home (patterns, pages, `use`, routes) → Now Playing (the player engine's
    slices and actions, transport, a `scrubber` primitive) → Vibe Map (a `vibespace` primitive
    with its GL code, density worker and no-WebGL list; local pin/energy state; the debounced
