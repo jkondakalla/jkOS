@@ -40,7 +40,8 @@ function shapeOfField(f, docs) {
   if (typeof f.schema === 'string') {
     const m = f.schema.match(/^([a-z][a-z0-9-]*)\.([A-Za-z_][\w]*)$/)
     const ds = m && docs[m[1]]?.datasets?.datasets?.find((d) => d.id === m[2])
-    if (ds && Array.isArray(ds.item)) return { kind: 'list', item: fieldsShape(ds.item) }
+    // The shape of what that dataset answers: one document's fields, or a list of rows.
+    if (ds && Array.isArray(ds.item)) return ds.cardinality === 'one' ? fieldsShape(ds.item) : { kind: 'list', item: fieldsShape(ds.item) }
   }
   return ANY
 }

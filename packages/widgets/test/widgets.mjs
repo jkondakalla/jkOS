@@ -235,7 +235,7 @@ const DOCS = {
     datasets: { datasets: [
       { id: 'jobs', path: '/jobs', filters: [{ name: 'job_id' }, { name: 'status' }], item: [{ name: 'id', type: 'string' }, { name: 'status', type: 'string' }, { name: 'result', type: 'json', item: [{ name: 'response', type: 'text' }] }] },
       { id: 'one', path: '/one/:id', cardinality: 'one', item: [{ name: 'total', type: 'number' }] },
-      { id: 'home', path: '/home', cardinality: 'one', item: [{ name: 'recent', type: 'json', item: [{ name: 'title', type: 'string' }] }] },
+      { id: 'home', path: '/home', cardinality: 'one', item: [{ name: 'recent', type: 'json', item: [{ name: 'title', type: 'string' }] }, { name: 'stats', type: 'json', schema: 'lz.one' }, { name: 'all', type: 'json', schema: 'lz.jobs' }] },
       { id: 'radio', path: '/radio', filters: [{ name: 'seed', required: true }] },
     ] },
   },
@@ -324,6 +324,8 @@ ok(t2({ sources: HOME, body: recent({ empty: 'Nothing yet.' }) }).length === 0, 
 ok(t2({ sources: HOME, body: { t: 'when', cond: { src: 'h', path: 'recent' }, then: recent(), else: { t: 'text', text: 'Nothing yet.' } } }).length === 0, '…as does one under a `when` on that same list')
 ok(t2has({ sources: HOME, body: { t: 'when', cond: { src: 'h', path: 'recent' }, then: { t: 'text', text: 'x' }, else: recent() } }, '/spec/body/else/empty', 'silent-empty'), "…but not one in the `when`'s else")
 ok(t2(ROWS).length === 0, "a list that IS its source (a 'many' dataset) needs no `empty` of its own — the frame draws an empty source")
+ok(t2({ sources: HOME, body: { t: 'text', text: { src: 'h', path: 'stats.total' } } }).length === 0, "a field whose `schema` is a ONE-document dataset binds that document's fields")
+ok(t2has({ sources: HOME, body: { t: 'text', text: { src: 'h', path: 'all.status' } } }, '/spec/body/text', 'undeclared-path'), "…one whose schema is a list dataset is a list")
 
 console.log('3e · routes — a page, its $route, and go')
 for (const r of ['/', '/books', '/books/:id', '/a/:x/b/:y', '/v1.2/x_y-z']) ok(routeProblem(r) === null, `${r} is a route`)
