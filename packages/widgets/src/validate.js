@@ -13,7 +13,7 @@
 // def against the data it binds (does that dataset exist, is that field declared) is
 // the semantic tier, and needs the apps' declarations in hand.
 
-import { NODES, FRAME, TONES, ICON_NAMES, RETIRED_COMPONENTS, TIER_COLS, LIMITS, childProps } from './manifest.js'
+import { NODES, FRAME, SOURCES, TONES, ICON_NAMES, RETIRED_COMPONENTS, TIER_COLS, LIMITS, childProps } from './manifest.js'
 import { safeHref } from './href.js'
 import { FORMATS, CONDITIONS } from '@jkos/weave/binding'
 
@@ -236,10 +236,8 @@ function checkSpec(spec, err, ctx) {
   checkNode(spec.body, '/spec/body', 0, { inForm: false, atRoot: true }, counter, err)
 }
 
-const SOURCE_KEYS_BY_KIND = {
-  dataset: ['kind', 'app', 'dataset', 'params', 'poll'],
-  fetch: ['kind', 'url', 'poll'],
-}
+/** Each source kind's keys — the manifest's SOURCES, plus the `kind` that names it. */
+const SOURCE_KEYS_BY_KIND = Object.fromEntries(Object.entries(SOURCES).map(([k, s]) => [k, ['kind', ...Object.keys(s.props)]]))
 const APP_ID = /^[a-z][a-z0-9-]{0,39}$/
 
 /** Is `host` one of the suite's, or under one? (`www.` aside.) */
@@ -272,7 +270,11 @@ function checkSource(name, s, path, err, ctx = {}) {
     return
   }
   for (const k of Object.keys(s)) if (!allowed.includes(k)) unknownKey(err, path, k, allowed)
-  if (s.poll !== undefined && !(Number.isFinite(s.poll) && s.poll > 0)) err(`${path}/poll`, 'bad-type', 'poll is a number of seconds > 0')
+  for (const [k, p] of Object.entries(SOURCES[s.kind].props)) {
+    if (p.type !== 'number' || s[k] === undefined) continue
+    if (!Number.isFinite(s[k])) err(`${path}/${k}`, 'bad-type', `${k} must be a number`)
+    else if (s[k] < p.min || s[k] > p.max) err(`${path}/${k}`, 'out-of-range', `${k} ${s[k]} is outside ${p.min}…${p.max} (${p.doc.split(':')[0]})`)
+  }
 
   if (s.kind === 'dataset') {
     if (typeof s.app !== 'string' || !APP_ID.test(s.app)) err(`${path}/app`, 'missing-prop', 'a dataset source names its app by id (e.g. "lazuros")')

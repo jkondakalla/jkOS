@@ -399,6 +399,29 @@ export const NODES = {
   },
 }
 
+/** Where a widget's named data comes from (spec.sources), by `kind`. The renderer reads
+ *  each through @jkos/widget-render's sources.ts; the validator holds a source to these
+ *  props, and the second tier holds a dataset source to what its app declares. */
+export const SOURCES = {
+  dataset: {
+    label: 'Dataset', hint: 'a dataset its app declares (its DatasetDoc) — how a widget reads suite data',
+    props: {
+      app: { type: 'string', required: true, doc: 'the app, by id ("kouros")' },
+      dataset: { type: 'string', required: true, doc: 'the dataset it declares ("discoverHome")' },
+      params: { type: 'params', doc: "fills the path's :params and the declared filters — each a literal or a binding" },
+      poll: { type: 'number', min: 1, max: 86400, doc: 'seconds: re-read on a timer, for changes no capability announces' },
+      debounce: { type: 'number', min: 50, max: 5000, doc: 'ms: when a bound param changes, wait this long for it to settle before re-reading (a search box)' },
+    },
+  },
+  fetch: {
+    label: 'External fetch', hint: 'an EXTERNAL public https endpoint — never a suite host',
+    props: {
+      url: { type: 'string', required: true, doc: 'absolute https; a relative URL or any suite host is refused' },
+      poll: { type: 'number', min: 1, max: 86400, doc: 'seconds' },
+    },
+  },
+}
+
 /** Card chrome around a body. Captions are bindings so they can show live values. */
 export const FRAME = {
   eyebrow: { type: 'binding' },

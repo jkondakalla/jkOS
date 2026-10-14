@@ -116,6 +116,10 @@ ok(srcHas({ d: { kind: 'dataset', dataset: 'jobs' } }, '/spec/sources/d/app', 'm
 ok(srcHas({ d: { kind: 'dataset', app: 'lazuros', dataset: 'jobs', url: '/x' } }, '/spec/sources/d/url', 'unknown-prop'), 'a key another kind uses is refused')
 ok(srcHas({ d: { kind: 'dataset', app: 'lazuros', dataset: 'jobs', params: { job_id: { src: '' } } } }, '/spec/sources/d/params/job_id', 'bad-binding'), 'a malformed param binding is refused')
 ok(problems('nope').length === 1 && problems('nope')[0].code === 'not-an-object', 'a non-object is refused outright')
+ok(withSources({ s: { kind: 'dataset', app: 'kouros', dataset: 'search', params: { q: { src: '$form', path: 'q' } }, debounce: 300 } }).length === 0, 'a dataset source may debounce (ms)')
+ok(srcHas({ s: { kind: 'dataset', app: 'kouros', dataset: 'search', debounce: 10 } }, '/spec/sources/s/debounce', 'out-of-range'), "…within the manifest's bounds")
+ok(srcHas({ wx: { kind: 'fetch', url: 'https://api.example.com/x', debounce: 300 } }, '/spec/sources/wx/debounce', 'unknown-prop'), '…and only a dataset: a fetch has no params to settle')
+ok(srcHas({ d: { kind: 'dataset', app: 'lazuros', dataset: 'jobs', poll: 0 } }, '/spec/sources/d/poll', 'out-of-range'), 'a poll of 0 seconds is refused')
 
 // ── 3. the walker ────────────────────────────────────────────────────────────
 ok(has(def({ t: 'stack', gap: 400, children: [] }), '/spec/body/gap', 'out-of-range'), "a number outside the manifest's bounds is refused (a 400px gap)")
@@ -205,6 +209,8 @@ ok(t2has({ sources: { j: { kind: 'dataset', app: 'lz', dataset: 'jobs', params: 
 ok(t2has({ sources: { o: { kind: 'dataset', app: 'lz', dataset: 'one' } }, body: { t: 'text', text: 'x' } }, '/spec/sources/o/params', 'missing-param'), 'a path parameter left unfilled is refused')
 ok(t2has({ sources: { r: { kind: 'dataset', app: 'lz', dataset: 'radio' } }, body: { t: 'text', text: 'x' } }, '/spec/sources/r/params', 'missing-param'), 'a required filter left unset is refused')
 ok(t2({ sources: { o: { kind: 'dataset', app: 'lz', dataset: 'one', params: { id: 1 } } }, body: { t: 'text', text: { src: 'o', path: 'total' } } }).length === 0, 'a one-document dataset binds its fields directly')
+ok(t2has({ sources: { j: { kind: 'dataset', app: 'lz', dataset: 'jobs', params: { status: 'DONE' }, debounce: 300 } }, body: { t: 'text', text: 'x' } }, '/spec/sources/j/debounce', 'debounce-unbound'), 'a debounce over only literal params is refused — nothing ever changes for it to wait on')
+ok(t2({ sources: { j: { kind: 'dataset', app: 'lz', dataset: 'jobs', params: { status: { src: 'clock', path: 'hm' } }, debounce: 300 } }, body: { t: 'text', text: 'x' } }).length === 0, '…one over a bound param passes')
 const form = (cmd, children, result) => ({ body: { t: 'form', cmd, submit: 'GO', children, ...(result ? { result } : {}) } })
 ok(t2(form({ app: 'lz', capability: 'note', body: { title: { src: '$form', path: 'title' } } }, [{ t: 'input', field: 'title' }])).length === 0, 'a form binding what its input writes passes (a defaulted required field need not be bound)')
 ok(t2has(form({ app: 'lz', capability: 'note', body: { title: { src: '$form', path: 'titel' } } }, [{ t: 'input', field: 'title' }]), '/spec/body/cmd/body/title', 'undeclared-path'), '$form.<field> that no control writes is refused')

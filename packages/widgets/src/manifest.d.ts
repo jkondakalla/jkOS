@@ -1,7 +1,7 @@
 // Types for the widget manifest (manifest.js). The TS union ORDECK renders against is
 // GENERATED from these values (scripts/gen.mjs → packages/widget-render/src/nodes.gen.ts).
 
-export type PropType = 'binding' | 'tone' | 'number' | 'boolean' | 'string' | 'enum' | 'field' | 'cmd' | 'pairs' | 'node' | 'nodes';
+export type PropType = 'binding' | 'tone' | 'number' | 'boolean' | 'string' | 'enum' | 'field' | 'cmd' | 'pairs' | 'node' | 'nodes' | 'params';
 
 export interface PropSpec {
   type: PropType;
@@ -50,5 +50,7 @@ export const LIMITS: {
 };
 export const NODES: Record<string, NodeSpec>;
 export const FRAME: Record<string, PropSpec>;
+/** The source kinds (spec.sources): each kind's props. */
+export const SOURCES: Record<string, { label: string; hint: string; props: Record<string, PropSpec> }>;
 export const KINDS: string[];
 export function childProps(t: string): { name: string; many: boolean; required: boolean }[];

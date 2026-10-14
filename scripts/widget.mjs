@@ -31,7 +31,7 @@ import { shippedWidgets, suiteHosts, declarations, WIDGETS_URL, SEMANTIC_URL, RE
 import { renderWidgets } from './widget/render.mjs';
 import { draftWidget } from './widget/scaffold.mjs';
 
-const { validateWidget: validate, NODES, FRAME, TONES } = await import(WIDGETS_URL);
+const { validateWidget: validate, NODES, FRAME, SOURCES, TONES } = await import(WIDGETS_URL);
 const { checkBindings } = await import(SEMANTIC_URL);
 const CTX = { suiteHosts: suiteHosts() };
 const DECLS = await declarations();
@@ -104,7 +104,13 @@ if (cmd === 'new') {
     if (n.placement) console.log(`    placement: ${Object.entries(n.placement).map(([k, v]) => `${k} ${v}`).join(', ')}`);
     if (n.example) console.log(`    e.g. ${JSON.stringify(n.example)}`);
   }
-  if (!names.length) { console.log('\nframe (spec.frame)'); for (const [name, p] of Object.entries(FRAME)) console.log(prop(name, p)); }
+  if (!names.length) {
+    console.log('\nframe (spec.frame)'); for (const [name, p] of Object.entries(FRAME)) console.log(prop(name, p));
+    for (const [kind, s] of Object.entries(SOURCES)) {
+      console.log(`\nsource  { "kind": "${kind}" }  ${s.label} — ${s.hint}`);
+      for (const [name, p] of Object.entries(s.props)) console.log(prop(name, p));
+    }
+  }
   console.log('\n* required');
 } else if (cmd === 'list') {
   for (const w of await shippedWidgets()) console.log(`${(w.def?.id ?? '?').padEnd(22)} ${w.where}${w.fixtures ? '  (+ fixtures)' : ''}`);

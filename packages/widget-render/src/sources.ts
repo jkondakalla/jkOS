@@ -29,7 +29,7 @@ import { readDataset, resolveBinding, subscribe, suiteApps, type AppId, type Dat
 import type { Binding } from './types';
 
 export type DataSource =
-  | { kind: 'dataset'; app: AppId; dataset: string; params?: Record<string, Binding>; poll?: number }
+  | { kind: 'dataset'; app: AppId; dataset: string; params?: Record<string, Binding>; poll?: number; debounce?: number }
   | { kind: 'fetch'; url: string; poll?: number };
 
 export type SourceState = DatasetRead['state'] | 'loading' | 'refused';
@@ -117,10 +117,39 @@ const ReaderCtx = createContext<SourceReader>(liveReader);
 export const SourceReaderProvider = ReaderCtx.Provider;
 
 /**
+ * How long a change of resolved params waits before it is read: the longest `debounce` of
+ * the sources whose params actually changed between `prev` and `next` (each the JSON of
+ * one entry per source, as useDataSources keys them) — 0 when none of those debounces, so
+ * a source without one is never held up by its neighbour's.
+ */
+export function settleDelay(sources: DataSource[], prev: string, next: string): number {
+  const a: unknown[] = JSON.parse(prev), b: unknown[] = JSON.parse(next);
+  let wait = 0;
+  sources.forEach((s, i) => {
+    if (s.kind === 'dataset' && s.debounce && JSON.stringify(a[i]) !== JSON.stringify(b[i])) wait = Math.max(wait, s.debounce);
+  });
+  return wait;
+}
+
+/** `key`, held back while a debounced source's params are still changing (settleDelay). */
+function useSettled(sources: DataSource[], key: string): string {
+  const [settled, setSettled] = useState(key);
+  useEffect(() => {
+    if (key === settled) return;
+    const wait = settleDelay(sources, settled, key);
+    if (!wait) { setSettled(key); return; }
+    const t = setTimeout(() => setSettled(key), wait);
+    return () => clearTimeout(t);
+  }, [sources, key, settled]);
+  return settled;
+}
+
+/**
  * Read a spec's sources, keep them fresh, and report each one's state. Re-reads when a
- * dataset's resolved params change, on its `poll`, when one of its declared bus keys is
- * invalidated, and when the tab becomes visible. A failed re-read keeps the last good
- * data and reports the failure beside it — the card decides whether stale data shows.
+ * dataset's resolved params change (after its `debounce`, when it has one), on its `poll`,
+ * when one of its declared bus keys is invalidated, and when the tab becomes visible. A
+ * failed re-read keeps the last good data and reports the failure beside it — the card
+ * decides whether stale data shows.
  */
 export function useDataSources(
   sources: Record<string, DataSource> | undefined,
@@ -130,7 +159,8 @@ export function useDataSources(
   const entries = useMemo(() => Object.entries(sources ?? {}), [sources]);
   // The resolved params, as one string: the effect re-runs when a VALUE changes, not
   // every time the scope object does (the clock ticks it every second).
-  const paramsKey = JSON.stringify(entries.map(([, s]) => (s.kind === 'dataset' ? resolveParams(s.params, scope) : null)));
+  const kinds = useMemo(() => entries.map(([, s]) => s), [entries]);
+  const paramsKey = useSettled(kinds, JSON.stringify(entries.map(([, s]) => (s.kind === 'dataset' ? resolveParams(s.params, scope) : null))));
   const [data, setData] = useState<Record<string, unknown>>({});
   const [status, setStatus] = useState<Record<string, SourceStatus>>(() =>
     Object.fromEntries(entries.map(([name]) => [name, { state: 'loading' as SourceState }])));

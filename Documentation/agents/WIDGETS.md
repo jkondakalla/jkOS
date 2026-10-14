@@ -100,7 +100,7 @@ Every source is named in `spec.sources`, and a binding's `src` is that name.
 
 | `kind` | What it reads | Notes |
 |---|---|---|
-| `dataset` | `{ app, dataset, params?, poll? }` — a dataset the app **declares** (its DatasetDoc) | Read through the declaration (`readDataset`), with a state the frame draws. `params` fill the path's `:x` and the declared filters (literals or bindings). The dataset's `invalidates` keys re-read it when a capability writes; `poll` (seconds) is for changes no capability announces. |
+| `dataset` | `{ app, dataset, params?, poll?, debounce? }` — a dataset the app **declares** (its DatasetDoc) | Read through the declaration (`readDataset`), with a state the frame draws. `params` fill the path's `:x` and the declared filters (literals or bindings). The dataset's `invalidates` keys re-read it when a capability writes; `poll` (seconds) is for changes no capability announces. `debounce` (ms) holds a re-read until a bound param stops changing — a search box; it needs a bound param to wait on, and holds up only its own source. |
 | `fetch` | `{ url, poll? }` — an **external** public https endpoint | A relative URL, `http:`, or any suite host is refused by the validator, jkAuth and the renderer: suite data is a `dataset`. |
 
 ORDECK's own slices are in scope too, by name — `clock`, `weather`, `systems`, `today`,

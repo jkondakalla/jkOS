@@ -216,6 +216,14 @@ for (const dir of ['packages/widget-render/src', 'apps/ordeck/src/hud']) {
   check(JSON.stringify(src.resolveParams({ job_id: { src: '$result', path: 'job_id' }, status: 'DONE', gone: { src: 'x' } }, { $result: { job_id: 'j9' } }))
     === JSON.stringify({ job_id: 'j9', status: 'DONE', gone: null }), 'resolveParams: bindings resolve against the scope; a missing one is null (the read goes idle)');
 
+  // debounce: a changed param waits for the source's own debounce, and only its own.
+  const SEARCH = { kind: 'dataset', app: 'kouros', dataset: 'search', debounce: 300 };
+  const PLAIN = { kind: 'dataset', app: 'kouros', dataset: 'home' };
+  const k = (...ps) => JSON.stringify(ps);
+  check(src.settleDelay([SEARCH, PLAIN], k({ q: 'a' }, {}), k({ q: 'ab' }, {})) === 300, 'settleDelay: a debounced source whose params changed waits its debounce');
+  check(src.settleDelay([SEARCH, PLAIN], k({ q: 'a' }, { id: 1 }), k({ q: 'a' }, { id: 2 })) === 0, "settleDelay: …a source without one is read at once, never held by its neighbour's");
+  check(src.settleDelay([SEARCH, PLAIN], k({ q: 'a' }, {}), k({ q: 'a' }, {})) === 0, 'settleDelay: nothing changed, nothing waits');
+
   // The frame's state: what a card shows instead of its body. The ORDER is the contract.
   const TWO = { a: { kind: 'dataset', app: 'lazuros', dataset: 'jobs' }, b: { kind: 'dataset', app: 'kouros', dataset: 'tracks' } };
   const cs = (a, b, data = {}) => src.cardState(TWO, { a: { state: a }, b: { state: b } }, data).kind;

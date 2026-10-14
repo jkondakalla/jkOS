@@ -150,6 +150,11 @@ export function checkBindings(def, { docs = {}, slices = {} } = {}) {
     }
     for (const p of pathParams) if (!(p in given)) err(`${at}/params`, 'missing-param', `${s.app}.${s.dataset} is read at ${ds.path} — give '${p}' a value`)
     for (const f of ds.filters ?? []) if (f.required && !(f.name in given)) err(`${at}/params`, 'missing-param', `${s.app}.${s.dataset} requires the filter '${f.name}'`)
+    // A debounce waits for a BOUND param to settle; with only literals nothing ever changes.
+    if (s.debounce !== undefined && !Object.values(given).some((b) => isObj(b) && !('lit' in b))) {
+      err(`${at}/debounce`, 'debounce-unbound', `${s.app}.${s.dataset} binds no param, so nothing changes for debounce to wait on`,
+        'bind the param it waits on (a search box writes `$state.q`: { "params": { "q": { "src": "$state", "path": "q" } } }), or drop debounce')
+    }
     scope.set(name, datasetShape(ds))
   }
   scope.set('$sources', fieldsShape([...sourceStates.values()]))
