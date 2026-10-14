@@ -237,6 +237,7 @@ const DOCS = {
       { id: 'one', path: '/one/:id', cardinality: 'one', item: [{ name: 'total', type: 'number' }] },
       { id: 'home', path: '/home', cardinality: 'one', item: [{ name: 'recent', type: 'json', item: [{ name: 'title', type: 'string' }] }] },
       { id: 'radio', path: '/radio', filters: [{ name: 'seed', required: true }] },
+      { id: 'page', path: '/page', cardinality: 'one', item: [{ name: 'stats', type: 'json', schema: 'lz.one' }, { name: 'rows', type: 'json', schema: 'lz.jobs' }] },
     ] },
   },
 }
@@ -257,6 +258,14 @@ ok(t2has({ sources: { j: { kind: 'dataset', app: 'lz', dataset: 'jobs', params: 
 ok(t2has({ sources: { o: { kind: 'dataset', app: 'lz', dataset: 'one' } }, body: { t: 'text', text: 'x' } }, '/spec/sources/o/params', 'missing-param'), 'a path parameter left unfilled is refused')
 ok(t2has({ sources: { r: { kind: 'dataset', app: 'lz', dataset: 'radio' } }, body: { t: 'text', text: 'x' } }, '/spec/sources/r/params', 'missing-param'), 'a required filter left unset is refused')
 ok(t2({ sources: { o: { kind: 'dataset', app: 'lz', dataset: 'one', params: { id: 1 } } }, body: { t: 'text', text: { src: 'o', path: 'total' } } }).length === 0, 'a one-document dataset binds its fields directly')
+const PAGE_SRC = { pg: { kind: 'dataset', app: 'lz', dataset: 'page' } }
+ok(t2({ sources: PAGE_SRC, body: { t: 'text', text: { src: 'pg', path: 'stats.total' } } }).length === 0, "a field pointing at a one-document dataset's shape (`schema`) binds its fields")
+ok(t2has({ sources: PAGE_SRC, body: { t: 'text', text: { src: 'pg', path: 'rows.status' } } }, '/spec/body/text', 'undeclared-path'), "…and one pointing at a list dataset's is still a list")
+const HOME_SRC = { h: { kind: 'dataset', app: 'lz', dataset: 'home' } }
+const rail = (title) => ({ sources: HOME_SRC, body: { t: 'rail', from: { src: 'h', path: 'recent' }, empty: 'None.', item: { t: 'tile', title } } })
+ok(t2(rail({ src: '$', path: 'title' })).length === 0, "a rail's item reads a row of its `from` as $")
+ok(t2has(rail({ src: '$', path: 'titel' }), '/spec/body/item/title', 'undeclared-path'), '…and a row field nobody declares is refused there')
+ok(t2has({ sources: HOME_SRC, body: { t: 'rail', from: { src: 'h', path: 'recent' }, item: { t: 'tile', title: 'x' } } }, '/spec/body/empty', 'silent-empty'), 'a rail over a list inside one document needs its own empty line (or a when)')
 ok(t2has({ sources: { j: { kind: 'dataset', app: 'lz', dataset: 'jobs', params: { status: 'DONE' }, debounce: 300 } }, body: { t: 'text', text: 'x' } }, '/spec/sources/j/debounce', 'debounce-unbound'), 'a debounce over only literal params is refused — nothing ever changes for it to wait on')
 ok(t2({ sources: { j: { kind: 'dataset', app: 'lz', dataset: 'jobs', params: { status: { src: 'clock', path: 'hm' } }, debounce: 300 } }, body: { t: 'text', text: 'x' } }).length === 0, '…one over a bound param passes')
 const form = (cmd, children, result) => ({ body: { t: 'form', cmd, submit: 'GO', children, ...(result ? { result } : {}) } })

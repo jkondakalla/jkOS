@@ -37,6 +37,9 @@
  *   action    the name of an action the HOST declares, `<engine>.<verb>` ("player.play")
  *   route     a route pattern — a page's path, "/books/:id" (routes.js)
  *   widget    another widget's id — the part a `use` draws
+ *
+ * A `node` prop with `each: true` is a TEMPLATE, drawn once per element of the node's
+ * `from` with that element as `$` (a list's or a rail's `item`).
  */
 
 /** The status palette a tone names. Semantic constants, never accent-derived (DESIGN §2). */
@@ -46,6 +49,8 @@ export const TONES = ['ok', 'warn', 'danger', 'muted', 'accent']
 export const ICON_NAMES = [
   'sun', 'moon', 'cloud', 'rain', 'snow', 'bolt', 'check', 'book', 'clock',
   'calendar', 'activity', 'star', 'alert', 'dot',
+  // An energy arc's shape (KourOS's runs): climbs, comes back down, peaks and settles.
+  'rise', 'fall', 'peak',
 ]
 
 /** The escape hatch a def used to take instead of a spec — `component: '<name>'`, a
@@ -185,7 +190,7 @@ export const NODES = {
     kind: 'layout', label: 'List', hint: 'repeat a template over an array',
     props: {
       from: { type: 'binding', required: true, doc: 'the array; each element is `$` inside `item`' },
-      item: { type: 'node', required: true },
+      item: { type: 'node', required: true, each: true },
       empty: { type: 'binding', doc: 'shown when the array is empty' },
       dir: { type: 'enum', values: ['col', 'row'] },
       cols: { type: 'number', min: 1, max: 4, default: 1, doc: 'wraps a column list into an N-column grid (dense fact lists)' },
@@ -209,7 +214,7 @@ export const NODES = {
     kind: 'atom', label: 'Text', hint: 'heading or body line',
     props: {
       text: { type: 'binding', required: true },
-      variant: { type: 'enum', values: ['title', 'body', 'sub', 'mono', 'note'], doc: "note: the suite's set, italic off-state voice (a signed-out or empty line)" },
+      variant: { type: 'enum', values: ['display', 'heading', 'title', 'body', 'sub', 'mono', 'note'], doc: "display: a page's own heading; heading: a section's; note: the suite's set, italic off-state voice (a signed-out or empty line)" },
       grow: { type: 'boolean', doc: 'take the remaining width and ellipsize' },
     },
     example: { t: 'text', text: 'Heading', variant: 'title' },
@@ -274,6 +279,19 @@ export const NODES = {
       children: { type: 'nodes', required: true },
     },
     example: { t: 'stack', gap: 8, children: [] },
+  },
+  rail: {
+    kind: 'layout', label: 'Rail', hint: 'a strip that scrolls sideways — repeat a template over an array',
+    props: {
+      from: { type: 'binding', required: true, doc: 'the array; each element is `$` inside `item`' },
+      item: { type: 'node', required: true, each: true, doc: 'drawn once per element — usually a tile' },
+      empty: { type: 'binding', doc: 'shown when the array is empty' },
+      size: { type: 'enum', values: ['tile', 'wide'], doc: "each item's width: a cover tile (default), or a wide card" },
+    },
+    example: {
+      t: 'rail', from: { src: 'home', path: 'fresh_albums' },
+      item: { t: 'tile', image: { src: '$', path: 'cover_url' }, title: { src: '$', path: 'album' }, sub: { src: '$', path: 'artist' } },
+    },
   },
   use: {
     kind: 'layout', label: 'Use', hint: "draw another widget here, handing it its inputs",
@@ -400,6 +418,26 @@ export const NODES = {
     },
     events: { press: 'it is tapped (a link or an action, not both)' },
     example: { t: 'media', title: { src: 'focus', path: 'title' }, subtitle: { src: 'focus', path: 'timeLabel' } },
+  },
+  tile: {
+    kind: 'pattern', label: 'Tile', hint: 'a cover and its caption — one record, person, book or track',
+    props: {
+      image: { type: 'binding', href: true, doc: "the cover (an http(s) or relative URL); none, or one that fails to load, draws the title's first letter" },
+      images: { type: 'binding', list: true, doc: 'up to four covers drawn as a 2×2 mosaic — a set, instead of `image`' },
+      imagesPath: { type: 'string', doc: "plucks the URL from each element of `images` (a run's tracks → cover_url)" },
+      title: { type: 'binding', required: true },
+      sub: { type: 'binding', doc: 'a second line (the artist, the author)' },
+      meta: { type: 'binding', doc: 'a small third line (a year, a count, "3h 10m left")' },
+      icon: { type: 'binding', values: ICON_NAMES, doc: 'a glyph before the title' },
+      shape: { type: 'enum', values: ['square', 'round'], doc: 'round: a person (an artist) — the convention every music app keeps' },
+      progress: { type: 'binding', doc: 'a hairline under the cover: how far along — a fraction, or out of `total`' },
+      total: { type: 'binding', doc: 'what `progress` is out of (default 1)' },
+      active: { type: 'binding', doc: 'truthy: this is the one playing — its title takes the accent' },
+      href: { type: 'binding', href: true },
+      on: { type: 'events' },
+    },
+    events: { press: 'it is tapped (a link or an action, not both)' },
+    example: { t: 'tile', image: { src: '$', path: 'cover_url' }, title: { src: '$', path: 'title' }, sub: { src: '$', path: 'artist' } },
   },
   ask: {
     kind: 'pattern', label: 'Ask', hint: 'one question, its answer drawn under it',

@@ -40,7 +40,7 @@ function shapeOfField(f, docs) {
   if (typeof f.schema === 'string') {
     const m = f.schema.match(/^([a-z][a-z0-9-]*)\.([A-Za-z_][\w]*)$/)
     const ds = m && docs[m[1]]?.datasets?.datasets?.find((d) => d.id === m[2])
-    if (ds && Array.isArray(ds.item)) return { kind: 'list', item: fieldsShape(ds.item) }
+    if (ds && Array.isArray(ds.item)) return datasetShape(ds)
   }
   return ANY
 }
@@ -424,7 +424,7 @@ export function checkBindings(def, { docs = {}, slices = {}, actions = {}, pages
       const c = node[name]
       if (c === undefined) continue
       let inner = here
-      if (node.t === 'list' && name === 'item') {
+      if (spec_.props[name]?.each) {
         inner = new Map(here)
         inner.set('$', rowOf(node.from, here))
       }

@@ -70,10 +70,39 @@ a.hud-card.hud-w-frame { display: flex; }
   font-family: var(--jk-font-serif, var(--jk-font-sans)); font-size: 15px; font-weight: 600;
   color: var(--color-ink);
 }
+/* A page's own heading, and a section's — the serif of a title, at a screen's scale. */
+.hud-w-text.is-display {
+  font-family: var(--jk-font-serif); font-size: 28px; font-weight: 600; letter-spacing: -0.015em;
+  line-height: 1.1; color: var(--color-ink);
+}
+.hud-w-text.is-heading {
+  font-family: var(--jk-font-serif); font-size: 17px; font-weight: 600; line-height: 1.25; color: var(--color-ink);
+}
 .hud-w-text.is-sub { font-size: 11px; color: var(--color-faint); }
 .hud-w-text.is-mono { font-family: var(--jk-font-mono); font-size: 11px; color: var(--color-muted); }
 .hud-w-text.is-note { font-family: var(--jk-font-serif); font-style: italic; font-size: 13px; color: var(--color-faint); }
 .hud-w-text.is-grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ── Rail — a strip that scrolls sideways ──────────────────────────────────
+ * The box is the container the column width answers to — the width the PAGE gives the
+ * strip, never the viewport — so a rail reads alike in a phone, a tablet, a desk's main
+ * column, or a contact sheet's cell: a little over two tiles across a phone, three and a
+ * bit on a tablet, 200px each on a desk. Scroll-snap lands a swipe on a tile's edge. */
+.hud-w-rail-box { container-type: inline-size; width: 100%; min-width: 0; }
+.hud-w-rail {
+  display: grid; grid-auto-flow: column; grid-auto-columns: var(--w-rail-col, 42cqi); gap: 12px;
+  overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; padding: 2px 0 8px;
+}
+.hud-w-rail-item { min-width: 0; scroll-snap-align: start; }
+.is-wide > .hud-w-rail { --w-rail-col: 76cqi; }
+@container (min-width: 640px) {
+  .hud-w-rail { --w-rail-col: 28cqi; }
+  .is-wide > .hud-w-rail { --w-rail-col: 44cqi; }
+}
+@container (min-width: 900px) {
+  .hud-w-rail { --w-rail-col: 200px; }
+  .is-wide > .hud-w-rail { --w-rail-col: 320px; }
+}
 
 /* ── Atoms ───────────────────────────────────────────────────────────────── */
 .hud-w-metric { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
@@ -277,6 +306,48 @@ a.hud-p-row:hover .hud-p-title { color: var(--color-accent); }
   font-family: var(--jk-font-serif); font-size: 16px; font-weight: 600; line-height: 1.2; color: var(--color-ink);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+
+/* tile — a cover and its caption (in a rail, usually). Serif for the work's own name,
+   sans for who made it, mono for what the machine reports — KourOS's split. The cover
+   is square at any width (aspect-ratio keeps a strip from reflowing as art arrives). */
+.hud-p-tile { display: flex; flex-direction: column; gap: 0; color: inherit; text-decoration: none; }
+.hud-p-tile-art {
+  position: relative; display: block; width: 100%; aspect-ratio: 1; overflow: hidden;
+  border-radius: var(--jk-radius-soft); background: var(--color-card);
+  box-shadow: 0 2px 10px rgb(0 0 0 / 0.16), inset 0 0 0 1px var(--color-line);
+}
+.hud-p-tile-art img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.hud-p-tile-letter, .hud-p-tile-cell {
+  display: flex; align-items: center; justify-content: center; width: 100%; height: 100%;
+  background: linear-gradient(145deg, var(--color-card-2), var(--color-paper-2));
+}
+.hud-p-tile-letter {
+  font-family: var(--jk-font-serif); font-size: 1.5rem; font-weight: 600; color: var(--color-ghost);
+}
+.hud-p-tile-art.is-mosaic { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; background: var(--color-line); }
+.hud-p-tile-cell { overflow: hidden; }
+.hud-p-tile.is-round .hud-p-tile-art { border-radius: 50%; }
+.hud-p-tile.is-round > :not(.hud-p-tile-art) { text-align: center; justify-content: center; }
+.hud-p-tile > .hud-p-track { height: 3px; margin-top: 6px; }
+.hud-p-tile-title {
+  display: flex; align-items: center; gap: 5px; min-width: 0; margin-top: 7px;
+  font-family: var(--jk-font-serif); font-size: 14.5px; font-weight: 600; color: var(--color-ink);
+}
+.hud-p-tile-title > .hud-p-icon { width: 16px; height: 16px; stroke: currentColor; opacity: 0.75; }
+.hud-p-tile-text, .hud-p-tile-sub, .hud-p-tile-meta { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hud-p-tile-sub { margin-top: 2px; font-family: var(--jk-font-sans); font-size: 12.5px; color: var(--color-faint); }
+.hud-p-tile-meta {
+  margin-top: 2px; font-family: var(--jk-font-mono); font-size: var(--jk-fs-lab-xs, 10px);
+  letter-spacing: 0.07em; color: var(--color-ghost);
+}
+.hud-p-tile.is-active .hud-p-tile-title { color: var(--color-accent); }
+:where(.hud-p-tile.is-action) {
+  appearance: none; background: none; border: 0; border-radius: 0; margin: 0; padding: 0; width: 100%;
+  font: inherit; text-align: left; cursor: pointer;
+}
+a.hud-p-tile:hover .hud-p-tile-title, .hud-p-tile.is-action:hover .hud-p-tile-title { color: var(--color-accent); }
+.hud-p-tile:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; border-radius: var(--jk-radius-soft); }
+.hud-p-tile.is-action:disabled { cursor: progress; opacity: 0.7; }
 
 /* ask — one question, its answer under it */
 .hud-p-ask { display: flex; flex-direction: column; gap: 8px; flex: 1; min-height: 0; }

@@ -170,9 +170,15 @@ narrow are already right. **Reach for one before composing primitives.**
 | `feed` | what happened, newest first | `from`, per event: `text`, `at`, `icon`, `tone`, `detail` |
 | `facts` | a grid of named values | `items: [{ label, value, tone? }]`, `cols` |
 | `media` | art, a title, where it is | `image`, `title`, `subtitle`, `meta`, `progress`, `href` |
+| `tile` | one cover and its caption — a record, a person, a book | `image` (or `images` + `imagesPath`, a 2×2 mosaic), `title`, `sub`, `meta`, `icon`, `shape: round`, `progress`/`total`, `active`, `href` or `on.press` |
 | `ask` | one question, the answer under it | `cmd`, `field`, `placeholder`, `answer` |
 
 Inside a list pattern, per-row props bind into `$`: `{ "src": "$", "path": "title" }`.
+A `rail` is the strip that scrolls sideways (a screen's shelf of covers): like a `list`,
+its `item` is drawn once per element of `from`, with the element as `$` — usually a
+`tile`; `size: "wide"` for a card wider than a cover. Its column width answers to the
+width the page gives it, not the viewport. A tile with no art, or art that fails to
+load, draws its title's first letter.
 `when` (`cond`, `then`, `else`) switches between bodies — e.g. a session with nothing
 loaded. The rest of the vocabulary (primitives, layout, the molecules, form controls) and
 every prop's type: `pnpm widget vocab [kind]`, or the Workshop's Guide tab.

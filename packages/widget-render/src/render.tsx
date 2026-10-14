@@ -204,6 +204,9 @@ const ICONS: Record<IconName, ReactNode> = {
   star: <path d="M12 2l3 7h7l-5.5 4.5L18.5 21 12 16.5 5.5 21l2-7.5L2 9h7z" />,
   alert: <><path d="M10.3 3.9 1.8 18a2 2 0 001.7 3h16.9a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z" /><path d="M12 9v4M12 17h.01" /></>,
   dot: <circle cx="12" cy="12" r="6" />,
+  rise: <path d="M4 17C12 17 16 7 20 7" />,
+  fall: <path d="M4 7c4 0 8 4 16 10" />,
+  peak: <path d="M4 18c4 0 5-11 8-11s4 11 8 11" />,
 };
 
 /** A pattern's progress: the suite's one bar (hub.css .jk-bar-track / .jk-bar-fill, the
@@ -218,6 +221,37 @@ function patternIcon(name: string, tone: string): ReactNode {
     <svg className="hud-p-icon" viewBox="0 0 24 24" fill="none" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={vars({ '--w-tone': tone })}>
       {ICONS[name as IconName] ?? ICONS.dot}
     </svg>
+  );
+}
+
+/** Up to four URLs from an array — each element a URL, or (with `path`) an object holding
+ *  one — each through safeHref: a tile's mosaic. */
+function pluck(arr: unknown, path: string | undefined): string[] {
+  if (!Array.isArray(arr)) return [];
+  const urls = arr.map((el) => safeHref(path && el != null && typeof el === 'object' ? (el as Record<string, unknown>)[path] : el));
+  return urls.filter((u): u is string => !!u).slice(0, 4);
+}
+
+/** A tile's cover: its image, a 2×2 mosaic of several, or — none, or one that fails to
+ *  load — the title's first letter on the blank sleeve. A mosaic keeps its four cells
+ *  when a cover is missing (a set reads as a set), each blank cell its sleeve. */
+function TileArt({ one, many, letter }: { one?: string; many: string[]; letter: string }) {
+  const [failed, setFailed] = useState<ReadonlySet<string>>(() => new Set());
+  const fail = (u: string) => setFailed((f) => new Set(f).add(u));
+  const img = (u: string) => <img src={u} alt="" loading="lazy" decoding="async" onError={() => fail(u)} />;
+  if (many.length > 1) {
+    const cells = [0, 1, 2, 3].map((i) => many[i]);
+    return (
+      <span className="hud-p-tile-art is-mosaic">
+        {cells.map((u, i) => <span key={i} className="hud-p-tile-cell">{u && !failed.has(u) ? img(u) : null}</span>)}
+      </span>
+    );
+  }
+  const u = one ?? many[0];
+  return (
+    <span className="hud-p-tile-art">
+      {u && !failed.has(u) ? img(u) : <span className="hud-p-tile-letter" aria-hidden="true">{letter}</span>}
+    </span>
   );
 }
 
@@ -504,6 +538,42 @@ const PRIMITIVES: Primitives = {
     );
     if (n.on?.press) return <ActionTarget chain={n.on.press} scope={scope} className="hud-p hud-p-media is-action">{body}</ActionTarget>;
     return href ? <a className="hud-p hud-p-media" href={href}>{body}</a> : <div className="hud-p hud-p-media">{body}</div>;
+  },
+  rail: (n, scope) => {
+    const arr = resolve(n.from, scope);
+    const items = Array.isArray(arr) ? arr : [];
+    if (!items.length) return n.empty != null ? <div className="hud-w-list-empty">{str(resolve(n.empty, scope))}</div> : null;
+    // The box is the container the strip's column width answers to (widgets.css § Rail).
+    return (
+      <div className={`hud-w-rail-box${n.size === 'wide' ? ' is-wide' : ''}`}>
+        <div className="hud-w-rail jk-scroll-none">
+          {items.map((el, i) => <div key={i} className="hud-w-rail-item">{renderNode(n.item, { ...scope, $: el })}</div>)}
+        </div>
+      </div>
+    );
+  },
+  tile: (n, scope) => {
+    const title = str(resolve(n.title, scope));
+    const one = n.image != null ? safeHref(resolve(n.image, scope)) : undefined;
+    const many = n.images != null ? pluck(resolve(n.images, scope), n.imagesPath) : [];
+    const pct = n.progress != null ? fraction(resolve(n.progress, scope), n.total != null ? resolve(n.total, scope) : 1) : null;
+    const sub = opt(n.sub, scope), meta = opt(n.meta, scope);
+    const href = n.href != null ? safeHref(resolve(n.href, scope)) : undefined;
+    const cls = `hud-p hud-p-tile${n.shape === 'round' ? ' is-round' : ''}${n.active != null && truthy(resolve(n.active, scope)) ? ' is-active' : ''}`;
+    const body = (
+      <>
+        <TileArt one={one} many={many} letter={(title.trim().charAt(0) || '?').toUpperCase()} />
+        {pct != null && track(pct, 'var(--color-accent)')}
+        <span className="hud-p-tile-title">
+          {n.icon != null && patternIcon(str(resolve(n.icon, scope)), 'currentColor')}
+          <span className="hud-p-tile-text">{title}</span>
+        </span>
+        {sub && <span className="hud-p-tile-sub">{sub}</span>}
+        {meta && <span className="hud-p-tile-meta">{meta}</span>}
+      </>
+    );
+    if (n.on?.press) return <ActionTarget chain={n.on.press} scope={scope} className={`${cls} is-action`}>{body}</ActionTarget>;
+    return href ? <a className={cls} href={href}>{body}</a> : <div className={cls}>{body}</div>;
   },
   use: (n, scope) => <UseNode node={n} scope={scope} />,
   ask: (n, scope) => <AskNode node={n} scope={scope} />,

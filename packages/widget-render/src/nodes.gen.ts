@@ -21,7 +21,7 @@ export type ActionChain = WidgetAction | WidgetAction[];
 export type Tone = 'ok' | 'warn' | 'danger' | 'muted' | 'accent';
 
 /** The curated line-icon set. */
-export type IconName = 'sun' | 'moon' | 'cloud' | 'rain' | 'snow' | 'bolt' | 'check' | 'book' | 'clock' | 'calendar' | 'activity' | 'star' | 'alert' | 'dot';
+export type IconName = 'sun' | 'moon' | 'cloud' | 'rain' | 'snow' | 'bolt' | 'check' | 'book' | 'clock' | 'calendar' | 'activity' | 'star' | 'alert' | 'dot' | 'rise' | 'fall' | 'peak';
 
 /** The kinds a HOST draws, not the renderer: the manifest's molecules, each reading the
  *  host slice its `reads` names. A host that has none of them draws a not-here tile. */
@@ -46,7 +46,7 @@ export type WidgetNode =
   /** Status dot — coloured indicator. */
   | { t: 'dot'; tone?: ToneBinding; pulse?: boolean }
   /** Text — heading or body line. */
-  | { t: 'text'; text: Binding; /** note: the suite's set, italic off-state voice (a signed-out or empty line) */ variant?: 'title' | 'body' | 'sub' | 'mono' | 'note'; /** take the remaining width and ellipsize */ grow?: boolean }
+  | { t: 'text'; text: Binding; /** display: a page's own heading; heading: a section's; note: the suite's set, italic off-state voice (a signed-out or empty line) */ variant?: 'display' | 'heading' | 'title' | 'body' | 'sub' | 'mono' | 'note'; /** take the remaining width and ellipsize */ grow?: boolean }
   /** Eyebrow label — small uppercase caption. */
   | { t: 'label'; text: Binding; size?: 'md' | 'sm' | 'xs' }
   /** Icon — a line glyph (sun, check, book…). */
@@ -61,6 +61,8 @@ export type WidgetNode =
   | { t: 'row'; gap?: number; justify?: 'flex-start' | 'flex-end' | 'center' | 'space-between' | 'space-around' | 'space-evenly' | 'start' | 'end'; align?: 'flex-start' | 'flex-end' | 'center' | 'baseline' | 'stretch' | 'start' | 'end'; grow?: boolean; children: WidgetNode[] }
   /** Stack — group children vertically. */
   | { t: 'stack'; gap?: number; grow?: boolean; /** distributes children along the column (space-between pins the last to the bottom edge) */ justify?: 'flex-start' | 'flex-end' | 'center' | 'space-between' | 'space-around' | 'space-evenly' | 'start' | 'end'; children: WidgetNode[] }
+  /** Rail — a strip that scrolls sideways — repeat a template over an array. */
+  | { t: 'rail'; /** the array; each element is `$` inside `item` */ from: Binding; /** drawn once per element — usually a tile */ item: WidgetNode; /** shown when the array is empty */ empty?: Binding; /** each item's width: a cover tile (default), or a wide card */ size?: 'tile' | 'wide' }
   /** Use — draw another widget here, handing it its inputs. */
   | { t: 'use'; /** the part's id — a widget file in this app (or the suite) */ widget: string; /** its inputs, by the names it declares (spec.inputs) — each a literal or a binding; it reads them as $in */ with?: Record<string, Binding> }
   /** Condition — show a branch only when true. */
@@ -85,6 +87,8 @@ export type WidgetNode =
   | { t: 'facts'; /** [{ label, value, tone? }] — each a literal or a binding */ items: { label: Binding; value: Binding; tone?: ToneBinding }[]; /** columns (one when narrow) */ cols?: number }
   /** Media — art, a title, and where it is. */
   | { t: 'media'; /** the art (an http(s) or relative URL) */ image?: Binding; title: Binding; subtitle?: Binding; /** a small line under them (a time, a count) */ meta?: Binding; progress?: Binding; /** default 1 */ max?: Binding; href?: Binding; on?: { press?: ActionChain } }
+  /** Tile — a cover and its caption — one record, person, book or track. */
+  | { t: 'tile'; /** the cover (an http(s) or relative URL); none, or one that fails to load, draws the title's first letter */ image?: Binding; /** up to four covers drawn as a 2×2 mosaic — a set, instead of `image` */ images?: Binding; /** plucks the URL from each element of `images` (a run's tracks → cover_url) */ imagesPath?: string; title: Binding; /** a second line (the artist, the author) */ sub?: Binding; /** a small third line (a year, a count, "3h 10m left") */ meta?: Binding; /** a glyph before the title */ icon?: Binding; /** round: a person (an artist) — the convention every music app keeps */ shape?: 'square' | 'round'; /** a hairline under the cover: how far along — a fraction, or out of `total` */ progress?: Binding; /** what `progress` is out of (default 1) */ total?: Binding; /** truthy: this is the one playing — its title takes the accent */ active?: Binding; href?: Binding; on?: { press?: ActionChain } }
   /** Ask — one question, its answer drawn under it. */
   | { t: 'ask'; /** the question is sent as `field` in its body */ cmd: CommandRef; /** default "text" */ field?: string; placeholder?: Binding; /** default "ASK" */ submit?: Binding; /** what to show from $result when it is done (default $result.response) */ answer?: Binding }
   /** Action form — inputs that submit a command. */
