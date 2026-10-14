@@ -119,7 +119,10 @@ and the staging admin gate — every `staging.jkos.net` location runs `auth_requ
 `$auth_upstream` to `staging-jkos-auth:3100`). The isolation comes from the first two facts
 rather than from crossing environments: staging jkAuth reads `jkos_token_staging` and verifies
 issuer `jkos-auth-staging`, so a prod session grants nothing there and vice versa — and a prod
-jkAuth outage does not take `staging.jkos.net/deploy`, the recovery tool, down with it.
+jkAuth outage does not take `staging.jkos.net/deploy`, the recovery tool, down with it. The gate also accepts a
+staging **user** token sent as `Authorization: Bearer` (`auth_request` forwards the header): that
+is how the native KourOS Alpha app, which holds no cookie, reaches `staging.jkos.net/kouros/api`.
+A service token is refused there.
 Code defaults are prod values; staging
 overrides live exclusively in `docker-compose.staging.yml`, so a merge into prod is safe
 by construction.

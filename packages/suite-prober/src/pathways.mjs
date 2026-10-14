@@ -25,6 +25,12 @@ export const PATHWAYS = [
   { system: 'jkauth', id: 'logout', method: 'POST', path: '/auth/logout', helper: null, kind: 'token' },
   { system: 'jkauth', id: 'service-token', method: 'POST', path: '/auth/token', helper: null, kind: 'token',
     gap: 'disabled unless JKOS_SERVICE_CLIENTS is set; no contract test asserts the env is present for a new service client' },
+  // Native sign-in (routes/native.js): an installed app's PKCE code flow. No shared helper —
+  // the caller is Kotlin (native/android/kouros), not a frontend that could import one.
+  { system: 'jkauth', id: 'native-authorize', method: 'GET', path: '/auth/native/authorize', helper: null, kind: 'page-auth' },
+  { system: 'jkauth', id: 'native-consent', method: 'POST', path: '/auth/native/authorize', helper: null, kind: 'page-auth' },
+  { system: 'jkauth', id: 'native-token', method: 'POST', path: '/auth/native/token', helper: null, kind: 'token' },
+  { system: 'jkauth', id: 'native-revoke', method: 'POST', path: '/auth/native/revoke', helper: null, kind: 'token' },
   { system: 'jkauth', id: 'me', method: 'GET', path: '/auth/me', helper: 'authFetch', kind: 'identity' },
   { system: 'jkauth', id: 'profile-get', method: 'GET', path: '/auth/profile', helper: 'useJkOSPreferences', kind: 'prefs' },
   // The old gap here ('last-write-wins, no optimistic lock') was FIXED by ARCH-7.2/G8

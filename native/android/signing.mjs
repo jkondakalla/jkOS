@@ -11,7 +11,7 @@
 // — and each hop is silent when it goes wrong. Android reports a failed verification by
 // simply... showing the browser chrome.
 //
-// ONE KEY SIGNS EVERY jkOS APP (alias `jkos`): jkOS, KourOS, jkOS Home and jkOS Alpha. Separate keys in one
+// ONE KEY SIGNS EVERY jkOS APP (alias `jkos`): jkOS, KourOS, jkOS Home and KourOS Alpha. Separate keys in one
 // keystore file behind one password would look like isolation without being any; one key is
 // the honest shape, and one thing to back up. The TWA packages written into assetlinks.json
 // come from native/shells.js, so a new TWA shell is covered by re-running this.
@@ -48,8 +48,8 @@ const VALIDITY_DAYS = 10000     // ~27 years; an app signing key should outlive 
 const KEYTOOL = process.env.JAVA_HOME && existsSync(join(process.env.JAVA_HOME, 'bin', 'keytool'))
   ? join(process.env.JAVA_HOME, 'bin', 'keytool') : 'keytool'
 
-// Only an app that opens origins as a TWA needs asset links — the TWAs and jkOS Alpha's
-// selector: they are what Chrome verifies. jkOS Home is our own WebView and claims no origin.
+// Only the TWAs need asset links: they are what Chrome verifies. jkOS Home is our own
+// WebView and claims no origin.
 const PACKAGES = twaLaunchers().map((s) => s.package)
 
 const show = process.argv.includes('--show')

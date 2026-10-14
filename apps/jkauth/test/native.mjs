@@ -1,39 +1,50 @@
-// Native app sign-in harness — RFC 8252 + PKCE (routes/native.js, tokens.js "the native
-// transport", migration 024).
+// TEST-6 · Native sign-in (routes/native.js) — PKCE, single-use codes, transport-bound
+// sessions, and the staging gate's Bearer path.
 //
 //   node apps/jkauth/test/native.mjs
 //
-// A native app's sign-in is the one place jkAuth hands a token to something that is not a
-// browser, so every control here is one a phone app's attacker would probe:
-//   A  a client and its redirect URI are known before anything redirects to them; PKCE is
-//      S256 or nothing; a staging client cannot sign in against production
-//   B  a signed-out request goes through the ordinary login; a signed-in one gets a CONSENT
-//      page, and only that person, in that browser, can answer it
-//   C  a code is spent on its first exchange — a wrong verifier burns it, a replay revokes
-//      the family it minted
-//   D  the device session is a real session: rotation, reuse detection, the devices list,
-//      revocation — and a refresh token only spends on the transport it was issued to
-//   E  a Bearer USER token passes the staging gate; a service token never does
-//   F  the schema holds the rules on its own (S256-shaped challenge, spend-once trigger),
-//      and an unknown JKOS_NATIVE_ENV refuses to boot
+// A native app (KourOS Alpha) signs in through a Custom Tab and keeps its tokens itself.
+// Every control below is one that would fail SILENTLY if it went missing — sign-in would
+// still "work", for the app and for whoever else had the code or the token:
+//   A  an unknown client, a redirect URI that is not the registered one, a client of the
+//      other environment, or a request without S256 PKCE gets a dead end — never a redirect
+//   B  signing in round-trips back to the exact authorize request; the consent page names
+//      the account and lets the app's scheme through form-action (Chrome enforces it on the
+//      302, so without it the code is minted and never delivered)
+//   C  the consent ticket is bound to the person and the request: tampered, cross-user or
+//      cookie-less posts are refused; Cancel returns access_denied with the state
+//   D  a code is redeemed once, only with its verifier, client and redirect URI; a wrong
+//      verifier spends it; an expired one is dead; a replay burns what it minted
+//   E  refresh rotates; a benign race is 409 REFRESH_RACE; a replay past the grace window
+//      burns the family
+//   F  the TRANSPORT binding: a native refresh token is no cookie, a cookie is no native
+//      refresh token, and the database refuses to rewrite either (migration 024's triggers);
+//      the schema refuses any challenge that is not S256-shaped, whoever writes it
+//   G  the staging gate (/auth/require-admin) takes a Bearer USER token — an admin's passes,
+//      a user's is 403, a service token or garbage is 401
+//   H  revoke signs the app out (always 200); the trail is in auth_events
+//   I  with JKOS_NATIVE_ENV unset, every /auth/native route is 404; an unknown value refuses
+//      to boot
+//   J  a role the app does not admit (a guest, for KourOS) gets access_denied, never a consent
+//      page — the same answer its token's `aud` would give
 //
-// Boots the REAL server on a throwaway port + temp DB and drives it over real HTTP.
+// Boots the REAL server on a throwaway port + temp DB and drives it over real HTTP, like
+// security.mjs.
 
-import { spawnSync } from 'node:child_process';
 import { generateKeyPairSync, createHash, randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
-import { createRequire } from 'node:module';
 import Database from 'better-sqlite3';
 import { startServer, testPort } from '../../../test/lib/smoke.mjs';
 
-const require = createRequire(import.meta.url);
-const jwt = require('jsonwebtoken');
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SERVER = join(__dirname, '..', 'server.js');
-const CLIENTS = require('../src/native-clients.json');
+const CLIENTS = JSON.parse(readFileSync(join(__dirname, '..', 'src', 'native-clients.json'), 'utf8')).clients;
+const STAGING = CLIENTS.find((c) => c.env === 'staging');
+const PRODUCTION = CLIENTS.find((c) => c.env === 'production');
 
 const { privateKey, publicKey } = generateKeyPairSync('rsa', {
   modulusLength: 2048,
@@ -43,90 +54,105 @@ const { privateKey, publicKey } = generateKeyPairSync('rsa', {
 
 let pass = 0, fail = 0;
 const ok = (name, cond, extra = '') => { if (cond) { pass++; } else { fail++; console.error(`  ✗ ${name}  ${extra}`); } };
-const sleep = ms => new Promise(r => setTimeout(r, ms));
+const section = (s) => console.log(s);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const tmp = mkdtempSync(join(tmpdir(), 'jkauth-native-'));
 const DB_PATH = join(tmp, 'auth.db');
-// Band clear of the test-port registry and security.mjs's 6100–6599.
-const port = testPort(6700, 400);
+// A band no other jkAuth test uses (4300, 5500, 6100–7100 are taken).
+const port = testPort(7300, 400);
 const base = `http://127.0.0.1:${port}`;
-const GRACE_MS = 300;
-const GUEST_PW = 'guestpass123';
+const GRACE_MS = 400;
+const CODE_TTL_MS = 1500;
+const GUEST_PW = 'native-guest-pw';
 
 const env = {
   DB_PATH,
   JKOS_AUTH_PRIVATE_KEY: privateKey, JKOS_AUTH_PUBLIC_KEY: publicKey,
   COOKIE_DOMAIN: 'localhost', AUTH_ORIGIN: base, PORTAL_URL: base,
   NODE_ENV: 'test', GUEST_PASSWORD: GUEST_PW,
+  JKOS_NATIVE_ENV: 'staging',
   REFRESH_GRACE_MS: String(GRACE_MS),
-  // An auth-audience scope on purpose: the token then verifies for jkAuth, so only resolveBearer's
-  // typ check stands between it and the gate.
-  JKOS_SERVICE_CLIENTS: 'bot:bot-secret-0123456789:auth:read|kouros:read',
+  NATIVE_CODE_TTL_MS: String(CODE_TTL_MS),
+  JKOS_SERVICE_CLIENTS: 'robot:robotsecret:auth:read',
   RL_CREDENTIALS: '10000', RL_REFRESH: '10000',
 };
 const server = startServer({ port, service: 'jkauth', args: [SERVER], env });
 
-const jar = new Map();
-function foldCookies(res) {
-  for (const c of res.headers.getSetCookie?.() ?? []) {
-    const pair = c.split(';')[0];
-    const i = pair.indexOf('=');
-    const name = pair.slice(0, i).trim(), val = pair.slice(i + 1).trim();
-    if (val === '') jar.delete(name); else jar.set(name, val);
-  }
+// ── a minimal browser: one cookie jar per person ─────────────────────────────
+function browser() {
+  const jar = new Map();
+  const fold = (res) => {
+    for (const c of res.headers.getSetCookie?.() ?? []) {
+      const pair = c.split(';')[0];
+      const i = pair.indexOf('=');
+      const name = pair.slice(0, i).trim(), val = pair.slice(i + 1).trim();
+      if (val === '') jar.delete(name); else jar.set(name, val);
+    }
+  };
+  return {
+    jar,
+    async req(method, path, { json, form, headers = {}, noCookies } = {}) {
+      const h = { ...headers };
+      if (!noCookies && jar.size) h.Cookie = [...jar].map(([k, v]) => `${k}=${v}`).join('; ');
+      let body;
+      if (json !== undefined) { h['Content-Type'] = 'application/json'; body = JSON.stringify(json); }
+      if (form !== undefined) { h['Content-Type'] = 'application/x-www-form-urlencoded'; body = new URLSearchParams(form).toString(); }
+      const res = await fetch((path.startsWith('http') ? '' : base) + path, { method, headers: h, body, redirect: 'manual' });
+      if (!noCookies) fold(res);
+      const text = await res.text();
+      let data = null; try { data = JSON.parse(text); } catch { /* HTML */ }
+      return { status: res.status, json: data, text, location: res.headers.get('location'), csp: res.headers.get('content-security-policy') || '' };
+    },
+  };
 }
-const cookieHeader = () => [...jar.entries()].map(([k, v]) => `${k}=${v}`).join('; ');
-async function api(method, path, { json, form, cookie, bearer, noStore } = {}) {
-  const h = {};
-  if (cookie !== undefined) { if (cookie) h.Cookie = cookie; }
-  else if (jar.size) h.Cookie = cookieHeader();
-  if (bearer) h.Authorization = `Bearer ${bearer}`;
-  let body;
-  if (json !== undefined) { h['Content-Type'] = 'application/json'; body = JSON.stringify(json); }
-  if (form !== undefined) { h['Content-Type'] = 'application/x-www-form-urlencoded'; body = new URLSearchParams(form).toString(); }
-  const res = await fetch(base + path, { method, headers: h, body, redirect: 'manual' });
-  if (!noStore) foldCookies(res);
-  const text = await res.text();
-  let data = null; try { data = JSON.parse(text); } catch { /* HTML */ }
-  return { status: res.status, json: data, text, location: res.headers.get('location') || '', headers: res.headers };
+const app = browser();   // the native app's own HTTP client — never holds a cookie
+const api = (path, json, headers) => app.req('POST', path, { json, headers, noCookies: true });
+
+// ── PKCE, as the app does it ──────────────────────────────────────────────────
+const b64url = (buf) => buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+function pkce() {
+  const verifier = b64url(randomBytes(32));
+  return { verifier, challenge: b64url(createHash('sha256').update(verifier).digest()), state: b64url(randomBytes(16)) };
 }
-function done() {
+function authorizePath(client, p, over = {}) {
+  const q = new URLSearchParams({
+    response_type: 'code', client_id: client.client_id, redirect_uri: client.redirect_uri,
+    code_challenge: p.challenge, code_challenge_method: 'S256', state: p.state, ...over,
+  });
+  return `/auth/native/authorize?${q}`;
+}
+const consentOf = (html) => (/name="consent" value="([^"]+)"/.exec(html) || [])[1];
+const paramsOf = (location) => new URL(location).searchParams;
+
+/** Drive one person's browser from authorize to the app's redirect; returns { code, state, location }. */
+async function signIn(person, p, decision = 'allow') {
+  const page = await person.req('GET', authorizePath(STAGING, p));
+  const consent = consentOf(page.text);
+  const back = await person.req('POST', '/auth/native/authorize', { form: { consent, decision } });
+  const q = back.location ? paramsOf(back.location) : new URLSearchParams();
+  return { page, back, code: q.get('code'), state: q.get('state'), error: q.get('error') };
+}
+const exchange = (code, verifier, over = {}) => api('/auth/native/token', {
+  grant_type: 'authorization_code', code, code_verifier: verifier,
+  client_id: STAGING.client_id, redirect_uri: STAGING.redirect_uri, ...over,
+});
+const refresh = (token, over = {}) => api('/auth/native/token', {
+  grant_type: 'refresh_token', refresh_token: token, client_id: STAGING.client_id, ...over,
+});
+const claims = (jwt) => JSON.parse(Buffer.from(jwt.split('.')[1], 'base64url').toString());
+const db = () => new Database(DB_PATH);
+
+function done(extra) {
   server.stop();
+  extra?.stop?.();
   try { rmSync(tmp, { recursive: true, force: true }); } catch { /* best effort */ }
   if (fail && server.log()) console.error('\n── server log ──\n' + server.log());
   console.log(`\nnative: ${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 }
 
-const client = CLIENTS.production[0];
-const stagingClient = CLIENTS.staging[0];
-const pkce = () => {
-  const verifier = randomBytes(32).toString('base64url');
-  return { verifier, challenge: createHash('sha256').update(verifier).digest('base64url') };
-};
-const authorizeQs = (over = {}) => '/auth/native/authorize?' + new URLSearchParams({
-  response_type: 'code', client_id: client.client_id, redirect_uri: client.redirect_uri,
-  code_challenge_method: 'S256', state: 'st-' + randomBytes(6).toString('hex'), ...over,
-}).toString();
-const consentOf = (html) => /name="consent" value="([^"]+)"/.exec(html)?.[1]?.replace(/&amp;/g, '&');
-const appParams = (location) => {
-  if (!location.startsWith(client.redirect_uri)) return null;
-  return Object.fromEntries(new URL(location).searchParams);
-};
-/** A full sign-in as the jar's user → { code, verifier, state }. */
-async function signIn() {
-  const { verifier, challenge } = pkce();
-  const state = 'st-' + randomBytes(6).toString('hex');
-  const page = await api('GET', authorizeQs({ code_challenge: challenge, state }));
-  const r = await api('POST', '/auth/native/authorize', { form: { consent: consentOf(page.text), decision: 'allow' } });
-  return { code: appParams(r.location)?.code, verifier, state, returnedState: appParams(r.location)?.state };
-}
-const exchange = (code, verifier, over = {}) => api('POST', '/auth/native/token', { cookie: '', json: {
-  grant_type: 'authorization_code', client_id: client.client_id, redirect_uri: client.redirect_uri,
-  code, code_verifier: verifier, ...over } });
-const refresh = (token, clientId = client.client_id) => api('POST', '/auth/native/token', { cookie: '', json: {
-  grant_type: 'refresh_token', client_id: clientId, refresh_token: token } });
-
+let off = null;
 try {
   const up = await server.ready();
   if (!up.ok) {
@@ -134,172 +160,214 @@ try {
     console.error(`jkAuth never became healthy — ${up.why}:\n` + server.log());
     done();
   }
-  const db = new Database(DB_PATH);
-  const { challenge } = pkce();
+  ok('native-clients.json lists a staging and a production client', !!STAGING && !!PRODUCTION
+    && STAGING.redirect_uri === `${STAGING.client_id}:/oauth2redirect`);
 
-  // ── A · nothing redirects to an app jkAuth doesn't know ─────────────────────
-  ok('the generated registry has a production and a staging client, each with its own redirect',
-    client?.redirect_uri === `${client?.client_id}:/oauth2redirect` && stagingClient?.client_id === `${client?.client_id}.staging`,
-    JSON.stringify(CLIENTS));
-  let r = await api('GET', authorizeQs({ client_id: 'com.evil.app', redirect_uri: 'com.evil.app:/oauth2redirect', code_challenge: challenge }));
-  ok('unknown client → 400 page, no redirect', r.status === 400 && !r.location, `${r.status} ${r.location}`);
-  r = await api('GET', authorizeQs({ redirect_uri: 'https://evil.example/cb', code_challenge: challenge }));
-  ok('known client with a foreign redirect URI → 400 page, no redirect', r.status === 400 && !r.location, `${r.status} ${r.location}`);
-  r = await api('GET', authorizeQs({ client_id: stagingClient.client_id, redirect_uri: stagingClient.redirect_uri, code_challenge: challenge }));
-  ok('a STAGING client is unknown to a production jkAuth', r.status === 400 && !r.location, `${r.status}`);
-  r = await api('GET', authorizeQs({ code_challenge_method: 'plain', code_challenge: challenge }));
-  ok('PKCE "plain" → back to the app with invalid_request', appParams(r.location)?.error === 'invalid_request', r.location);
-  r = await api('GET', authorizeQs({}));
-  ok('no PKCE challenge at all → invalid_request', appParams(r.location)?.error === 'invalid_request', r.location);
+  // Two people: the first registration is the admin, the second an ordinary user.
+  const admin = browser(), user = browser();
+  ok('admin registers', (await admin.req('POST', '/auth/register', { json: { email: 'admin@native.test', password: 'native-admin-pw' } })).status === 201);
+  ok('user registers', (await user.req('POST', '/auth/register', { json: { email: 'user@native.test', password: 'native-user-pw' } })).status === 201);
 
-  // ── B · sign-in goes through the ordinary login; consent belongs to one person ─
-  r = await api('GET', authorizeQs({ code_challenge: challenge }));
-  ok('signed out → the ordinary login page, returning to authorize',
-    r.status === 302 && r.location.startsWith('/auth/login?redirect_to=') && decodeURIComponent(r.location).includes('/auth/native/authorize?'),
-    r.location);
-  r = await api('POST', '/auth/register', { json: { email: 'alice@x.net', password: 'password-a1', name: 'Alice' } });
-  ok('register alice (first user → admin)', r.status === 201, `${r.status}`);
-  const aliceId = db.prepare("SELECT id FROM users WHERE email='alice@x.net'").get().id;
-  const aliceCookies = cookieHeader();
-  r = await api('GET', authorizeQs({ code_challenge: challenge, state: 'abc' }));
-  const consent = consentOf(r.text);
-  ok('signed in → a consent page naming the app, nothing issued yet',
-    r.status === 200 && r.text.includes(client.name) && !!consent
-      && !db.prepare('SELECT 1 FROM native_auth_codes').get(), `${r.status}`);
-  ok('the consent token is not an access token (no aud, no role)', (() => {
-    const p = jwt.decode(consent); return p?.typ === 'native_consent' && !p.aud && !p.role;
-  })());
-  r = await api('POST', '/auth/native/authorize', { cookie: '', form: { consent, decision: 'allow' } });
-  ok('consent posted WITHOUT the session cookie (a cross-site post) → 403, no code',
-    r.status === 403 && !db.prepare('SELECT 1 FROM native_auth_codes').get(), `${r.status}`);
-  r = await api('POST', '/auth/native/authorize', { form: { consent: consent.slice(0, -4) + 'AAAA', decision: 'allow' } });
-  ok('a tampered consent token → 400', r.status === 400, `${r.status}`);
-  r = await api('POST', '/auth/native/authorize', { form: { consent, decision: 'deny' } });
-  ok('Cancel → back to the app with access_denied and its state',
-    appParams(r.location)?.error === 'access_denied' && appParams(r.location)?.state === 'abc', r.location);
-  ok('a refusal is audited', !!db.prepare("SELECT 1 FROM auth_events WHERE type='native_authorize_denied'").get());
+  // ── A · refusals are dead ends ──────────────────────────────────────────────
+  section('A · refused requests never redirect');
+  const p0 = pkce();
+  for (const [what, path] of [
+    ['an unknown client', authorizePath({ client_id: 'net.evil.app', redirect_uri: 'net.evil.app:/oauth2redirect' }, p0)],
+    ['a redirect URI that is not the registered one', authorizePath(STAGING, p0, { redirect_uri: 'https://evil.example/cb' })],
+    ['a registered scheme with another path', authorizePath(STAGING, p0, { redirect_uri: STAGING.client_id + ':/elsewhere' })],
+    ["the other environment's client", authorizePath(PRODUCTION, p0)],
+    ['no PKCE', authorizePath(STAGING, p0, { code_challenge: '' })],
+    ['PKCE plain', authorizePath(STAGING, p0, { code_challenge_method: 'plain' })],
+    ['response_type=token', authorizePath(STAGING, p0, { response_type: 'token' })],
+    ['no state', authorizePath(STAGING, p0, { state: '' })],
+  ]) {
+    const r = await admin.req('GET', path);
+    ok(`${what} → 400, no Location`, r.status === 400 && !r.location, `got ${r.status} ${r.location || ''}`);
+  }
 
-  // ── C · a code is one exchange, bound to its verifier ───────────────────────
-  let s = await signIn();
-  ok('allow → a code back to the app, state round-tripped', !!s.code && s.returnedState === s.state, JSON.stringify(s));
-  ok('the code is stored only as a hash', !db.prepare('SELECT 1 FROM native_auth_codes WHERE code_hash=?').get(s.code)
-    && !!db.prepare('SELECT 1 FROM native_auth_codes WHERE code_hash=?').get(createHash('sha256').update(s.code).digest('hex')));
-  r = await exchange(s.code, pkce().verifier);
-  ok('the wrong PKCE verifier → invalid_grant', r.status === 400 && r.json?.error === 'invalid_grant', `${r.status} ${r.text}`);
-  r = await exchange(s.code, s.verifier);
-  ok('…and the code is now spent: even the right verifier fails', r.status === 400 && r.json?.error === 'invalid_grant', `${r.status}`);
-  ok('a PKCE failure is audited', !!db.prepare("SELECT 1 FROM auth_events WHERE type='native_token_denied'").get());
+  // ── B · sign-in round trip + consent page ───────────────────────────────────
+  section('B · the round trip and the consent page');
+  const anon = browser();
+  const p1 = pkce();
+  const bounce = await anon.req('GET', authorizePath(STAGING, p1));
+  const loginTo = bounce.location ? new URL(bounce.location, base).searchParams.get('redirect_to') : null;
+  ok('signed out → 302 to the login page, carrying the exact authorize URL',
+    bounce.status === 302 && loginTo === base + authorizePath(STAGING, p1), `${bounce.status} ${bounce.location}`);
+  // Sign in through the form (as the Custom Tab would) and land back on the request.
+  const login = await anon.req('POST', '/auth/login', { form: { email: 'admin@native.test', password: 'native-admin-pw', remember_me: '1', redirect_to: loginTo } });
+  ok('the login form returns to the authorize request', login.status === 302 && login.location === loginTo, `${login.status} ${login.location}`);
+  const page = await anon.req('GET', login.location);
+  ok('consent page renders for the signed-in account', page.status === 200 && page.text.includes('admin@native.test') && !!consentOf(page.text));
+  ok('consent page names the app from jkAuth\'s own list', page.text.includes(STAGING.name));
+  const scheme = STAGING.redirect_uri.split(':')[0];
+  ok("consent page's form-action admits the app's scheme (and only adds that)",
+    page.csp.includes(`form-action 'self' ${scheme}:`) && !/form-action[^;]*https?:/.test(page.csp), page.csp);
+  const plainCsp = (await anon.req('GET', '/auth/login')).csp;
+  ok("every other page keeps form-action 'self' alone", /form-action 'self';/.test(plainCsp), plainCsp);
 
-  s = await signIn();
-  r = await exchange(s.code, s.verifier, { redirect_uri: 'net.other:/oauth2redirect' });
-  ok('the token request must name the client\'s own redirect URI', r.status === 400, `${r.status}`);
-  s = await signIn();
-  r = await exchange(s.code, s.verifier);
-  const t1 = r.json;
-  ok('the right verifier → tokens, no-store', r.status === 200 && !!t1?.access_token && !!t1?.refresh_token
-    && t1.token_type === 'Bearer' && r.headers.get('cache-control')?.includes('no-store'), `${r.status} ${r.text}`);
-  const claims = (() => { try { return jwt.verify(t1.access_token, publicKey, { algorithms: ['RS256'] }); } catch { return null; } })();
-  ok('the access token is a normal user token for KourOS (azp, aud, role)',
-    claims?.sub === String(aliceId) && claims.azp === client.app && claims.aud?.includes(client.app) && claims.role === 'admin',
-    JSON.stringify(claims));
-  const fam1 = db.prepare('SELECT family_id, client_id, remember_me FROM sessions WHERE token_hash=?')
-    .get(createHash('sha256').update(t1.refresh_token).digest('hex'));
-  ok('the device session is a session row on the native transport', fam1?.client_id === client.client_id && fam1.remember_me === 1,
-    JSON.stringify(fam1));
-  r = await exchange(s.code, s.verifier);
-  ok('the same code replayed → invalid_grant', r.status === 400, `${r.status}`);
-  ok('…and the family it minted is revoked (code_replay)',
-    db.prepare('SELECT revoked_reason FROM sessions WHERE family_id=?').all(fam1.family_id).every(x => x.revoked_reason === 'code_replay'));
-  r = await refresh(t1.refresh_token);
-  ok('a refresh from the revoked family fails', r.status === 400 && r.json?.code === 'SESSION_EXPIRED', `${r.status} ${r.text}`);
+  // ── C · the consent ticket ──────────────────────────────────────────────────
+  section('C · consent is bound to the person and the request');
+  const pc = pkce();
+  const cpage = await admin.req('GET', authorizePath(STAGING, pc));
+  const ticket = consentOf(cpage.text);
+  const parts = ticket.split('.');
+  const forged = [parts[0], Buffer.from(JSON.stringify({ ...claims(ticket), ruri: 'https://evil.example/cb' })).toString('base64url'), parts[2]].join('.');
+  ok('a tampered ticket → 400', (await admin.req('POST', '/auth/native/authorize', { form: { consent: forged, decision: 'allow' } })).status === 400);
+  ok('a ticket posted with no session cookie → 400 (cross-site POSTs carry none)',
+    (await admin.req('POST', '/auth/native/authorize', { form: { consent: ticket, decision: 'allow' }, noCookies: true })).status === 400);
+  ok("another person's session cannot spend the admin's ticket",
+    (await user.req('POST', '/auth/native/authorize', { form: { consent: ticket, decision: 'allow' } })).status === 400);
+  const deny = await admin.req('POST', '/auth/native/authorize', { form: { consent: ticket, decision: 'deny' } });
+  const dq = deny.location ? paramsOf(deny.location) : null;
+  ok('Cancel → back to the app with access_denied and the state, no code',
+    deny.status === 302 && deny.location.startsWith(STAGING.redirect_uri + '?') && dq.get('error') === 'access_denied'
+      && dq.get('state') === pc.state && !dq.get('code'), deny.location);
 
-  // ── D · the device session behaves like any session ─────────────────────────
-  s = await signIn();
-  const t2 = (await exchange(s.code, s.verifier)).json;
-  r = await refresh(t2.refresh_token);
-  const t3 = r.json;
-  ok('refresh → new pair', r.status === 200 && !!t3?.refresh_token && t3.refresh_token !== t2.refresh_token, `${r.status} ${r.text}`);
-  r = await api('POST', '/auth/refresh', { json: {}, cookie: `jkos_refresh=${t3.refresh_token}`, noStore: true });
-  ok('a native refresh token presented as a browser cookie is unknown there', r.status === 401, `${r.status}`);
-  r = await refresh(t3.refresh_token);
-  const t4 = r.json;
-  ok('…and did not burn the native family (it still rotates)', r.status === 200 && !!t4?.refresh_token, `${r.status} ${r.text}`);
-  const browserRefresh = [...jar.entries()].find(([k]) => k.startsWith('jkos_refresh'))?.[1];
-  r = await refresh(browserRefresh);
-  ok('a browser refresh cookie presented to the native endpoint is unknown there', r.status === 400 && r.json?.code === 'SESSION_EXPIRED', `${r.status}`);
-  r = await api('GET', '/auth/sessions', { json: undefined });
-  const devices = r.json?.sessions || [];
-  ok('the phone shows in the devices list as its client', devices.some(d => d.client_id === client.client_id && !d.revoked),
-    JSON.stringify(devices));
-  r = await api('GET', '/auth/security');
-  ok('the Security page names the app', r.status === 200 && r.text.includes(`${client.name}</strong> app`), `${r.status}`);
+  // ── D · codes ───────────────────────────────────────────────────────────────
+  section('D · a code is single-use, verifier-bound, short-lived');
+  const p2 = pkce();
+  const s2 = await signIn(admin, p2);
+  ok('Allow → back to the registered redirect with a code and the same state',
+    s2.back.status === 302 && s2.back.location.startsWith(STAGING.redirect_uri + '?') && /^[A-Za-z0-9_-]{43}$/.test(s2.code || '') && s2.state === p2.state, s2.back.location);
+  const stored = db().prepare('SELECT * FROM native_auth_codes').all();
+  ok('the code is stored only as its hash', stored.length === 1 && stored[0].code_hash !== s2.code && !JSON.stringify(stored).includes(s2.code));
+  const wrongV = await exchange(s2.code, pkce().verifier);
+  ok('a wrong verifier → invalid_grant', wrongV.status === 400 && wrongV.json?.error === 'invalid_grant');
+  ok('…and it SPENT the code: the right verifier is now refused too', (await exchange(s2.code, p2.verifier)).json?.error === 'invalid_grant');
+
+  const p3 = pkce();
+  const s3 = await signIn(admin, p3);
+  ok('another client id at the token endpoint → 401 invalid_client', (await exchange(s3.code, p3.verifier, { client_id: PRODUCTION.client_id })).status === 401);
+  ok('a mismatched redirect_uri → invalid_grant', (await exchange(s3.code, p3.verifier, { redirect_uri: STAGING.client_id + ':/x' })).json?.error === 'invalid_grant');
+
+  const p4 = pkce();
+  const s4 = await signIn(admin, p4);
+  const t4 = await exchange(s4.code, p4.verifier);
+  ok('the right code + verifier → 200 with a token pair', t4.status === 200 && t4.json?.token_type === 'Bearer'
+    && t4.json.expires_in === 900 && /^[0-9a-f]{128}$/.test(t4.json.refresh_token || '') && t4.json.user?.email === 'admin@native.test', JSON.stringify(t4.json));
+  const c4 = claims(t4.json.access_token);
+  ok("the access token is the suite's user token, minted for KourOS", c4.sub === String(t4.json.user.id)
+    && c4.azp === STAGING.app && [].concat(c4.aud).includes('kouros') && c4.typ === undefined, JSON.stringify(c4));
+  const row4 = db().prepare('SELECT * FROM sessions WHERE token_hash=?').get(createHash('sha256').update(t4.json.refresh_token).digest('hex'));
+  ok('the session row is bound to the client (client_id) and remembered', row4?.client_id === STAGING.client_id && row4.remember_me === 1);
+  const replay = await exchange(s4.code, p4.verifier);
+  ok('a replayed code → invalid_grant', replay.json?.error === 'invalid_grant');
+  ok('…and it BURNED the session the first redemption minted', (await refresh(t4.json.refresh_token)).json?.error === 'invalid_grant'
+    && db().prepare("SELECT COUNT(*) AS c FROM sessions WHERE family_id=? AND revoked_reason='code_reuse'").get(row4.family_id).c >= 1);
+
+  const p5 = pkce();
+  const s5 = await signIn(admin, p5);
+  await sleep(CODE_TTL_MS + 200);
+  ok('an expired code → invalid_grant', (await exchange(s5.code, p5.verifier)).json?.error === 'invalid_grant');
+
+  // ── E · refresh ─────────────────────────────────────────────────────────────
+  section('E · refresh rotates, races and reuse');
+  const p6 = pkce();
+  const t6 = (await exchange((await signIn(admin, p6)).code, p6.verifier)).json;
+  const r1 = await refresh(t6.refresh_token);
+  ok('refresh → a new pair', r1.status === 200 && r1.json.refresh_token && r1.json.refresh_token !== t6.refresh_token && r1.json.access_token);
+  const race = await refresh(t6.refresh_token);
+  ok('the old token again inside the grace window → 409 REFRESH_RACE', race.status === 409 && race.json?.code === 'REFRESH_RACE', JSON.stringify(race.json));
+  const r2 = await refresh(r1.json.refresh_token);
+  ok('the new token keeps working', r2.status === 200);
   await sleep(GRACE_MS + 150);
-  r = await refresh(t2.refresh_token);
-  ok('a rotated native token replayed after grace → SESSION_REVOKED', r.status === 400 && r.json?.code === 'SESSION_REVOKED', `${r.status} ${r.text}`);
-  const fam2 = db.prepare('SELECT family_id FROM sessions WHERE token_hash=?').get(createHash('sha256').update(t2.refresh_token).digest('hex')).family_id;
-  ok('…the whole native family is burned as reuse, and audited',
-    db.prepare('SELECT revoked_reason FROM sessions WHERE family_id=?').all(fam2).every(x => x.revoked_reason === 'reuse')
-      && !!db.prepare("SELECT 1 FROM auth_events WHERE type='refresh_reuse'").get());
-  r = await api('GET', '/auth/dashboard');
-  ok('…without touching the browser session beside it', r.status === 200, `${r.status}`);
+  const theft = await refresh(r1.json.refresh_token);
+  ok('a spent token past the grace window → invalid_grant', theft.status === 400 && theft.json?.error === 'invalid_grant');
+  ok('…and the whole family is burned (the live token dies with it)', (await refresh(r2.json.refresh_token)).json?.error === 'invalid_grant');
+  ok('refresh with an unknown client → 401', (await refresh('x', { client_id: 'net.evil.app' })).status === 401);
+  ok('an unknown grant type → 400 unsupported_grant_type', (await api('/auth/native/token', { grant_type: 'password', client_id: STAGING.client_id })).json?.error === 'unsupported_grant_type');
 
-  s = await signIn();
-  const t5 = (await exchange(s.code, s.verifier)).json;
-  r = await api('POST', '/auth/native/revoke', { cookie: '', json: { client_id: client.client_id, token: t5.refresh_token } });
-  ok('sign out from the app → 200', r.status === 200, `${r.status}`);
-  r = await refresh(t5.refresh_token);
-  ok('…and its refresh token is dead', r.status === 400 && r.json?.code === 'SESSION_EXPIRED', `${r.status}`);
-  r = await api('POST', '/auth/native/revoke', { cookie: '', json: { client_id: client.client_id, token: 'not-a-token' } });
-  ok('revoking an unknown token still answers 200 (RFC 7009)', r.status === 200, `${r.status}`);
-  s = await signIn();
-  const t6 = (await exchange(s.code, s.verifier)).json;
-  const fam6 = db.prepare('SELECT family_id FROM sessions WHERE token_hash=?').get(createHash('sha256').update(t6.refresh_token).digest('hex')).family_id;
-  r = await api('POST', '/auth/sessions/revoke', { json: { family_id: fam6 } });
-  ok('the phone can be signed out from the browser\'s devices list', r.status === 200, `${r.status} ${r.text}`);
-  r = await refresh(t6.refresh_token);
-  ok('…which kills the app\'s refresh token', r.status === 400, `${r.status}`);
-
-  // ── E · the staging edge gate ───────────────────────────────────────────────
-  s = await signIn();
-  const t7 = (await exchange(s.code, s.verifier)).json;
-  r = await api('GET', '/auth/require-admin', { cookie: '', bearer: t7.access_token });
-  ok('an admin\'s native Bearer token passes the staging gate', r.status === 200, `${r.status}`);
-  r = await api('GET', '/auth/require-admin', { cookie: '', bearer: t7.access_token.slice(0, -3) + 'abc' });
-  ok('a forged Bearer token does not', r.status === 401, `${r.status}`);
-  r = await api('POST', '/auth/token', { cookie: '', json: { client_id: 'bot', client_secret: 'bot-secret-0123456789' } });
-  const svc = r.json?.access_token;
-  r = await api('GET', '/auth/require-admin', { cookie: '', bearer: svc });
-  ok('a SERVICE token as Bearer never counts as a signed-in user', !!svc && r.status === 401, `${r.status}`);
-
-  // guest: KourOS doesn't admit the guest role, so neither does its native sign-in
-  jar.clear();
-  r = await api('POST', '/auth/guest', { json: { password: GUEST_PW } });
-  r = await api('GET', authorizeQs({ code_challenge: challenge, state: 'g' }));
-  ok('a role the app does not admit → access_denied, no consent page', appParams(r.location)?.error === 'access_denied', `${r.status} ${r.location}`);
-  jar.clear();
-
-  // ── F · the schema holds the rules without the route ───────────────────────
+  // ── F · transport binding ───────────────────────────────────────────────────
+  section('F · a native token is no cookie; a cookie is no native token');
+  const p7 = pkce();
+  const t7 = (await exchange((await signIn(admin, p7)).code, p7.verifier)).json;
+  const asCookie = await app.req('POST', '/auth/refresh', { headers: { Cookie: `jkos_refresh=${t7.refresh_token}` }, noCookies: true });
+  ok("a native refresh token presented as the browser's cookie → 401", asCookie.status === 401, `${asCookie.status}`);
+  const t7b = await refresh(t7.refresh_token);
+  ok('…and it was NOT consumed (the app can still refresh)', t7b.status === 200);
+  // The LIVE token (t7's was just rotated, and a rotated token proves nothing here).
+  const gateByCookie = await app.req('GET', '/auth/require-admin', { headers: { Cookie: `jkos_refresh=${t7b.json.refresh_token}` }, noCookies: true });
+  ok("a native refresh token is not a session the gate's cookie fallback accepts", gateByCookie.status === 401);
+  const browserRefresh = admin.jar.get('jkos_refresh');
+  ok("the browser's refresh cookie at the native token endpoint → invalid_grant", (await refresh(browserRefresh)).json?.error === 'invalid_grant');
+  ok("…and the browser's session survives that", (await admin.req('POST', '/auth/refresh')).status === 200);
+  const d = db();
+  let threw = null;
+  try { d.prepare('UPDATE sessions SET client_id=NULL WHERE client_id IS NOT NULL').run(); } catch (e) { threw = e.message; }
+  ok('the database refuses to change a session\'s transport (trigger)', /never changes transport/.test(threw || ''), threw);
+  threw = null;
+  try { d.prepare("UPDATE native_auth_codes SET used_at='2000-01-01T00:00:00.000Z' WHERE used_at IS NOT NULL").run(); } catch (e) { threw = e.message; }
+  ok('the database refuses to re-stamp a redeemed code (trigger)', /redeemed at most once/.test(threw || ''), threw);
+  const uid = d.prepare('SELECT id FROM users LIMIT 1').get().id;
   const insert = (ch) => { try {
-    db.prepare(`INSERT INTO native_auth_codes (code_hash, client_id, redirect_uri, code_challenge, user_id, expires_at)
-                VALUES (?,?,?,?,?,?)`).run('h' + randomBytes(8).toString('hex'), 'c', 'c:/r', ch, aliceId, new Date().toISOString());
+    d.prepare(`INSERT INTO native_auth_codes (code_hash, user_id, client_id, redirect_uri, code_challenge, expires_at)
+               VALUES (?,?,?,?,?,?)`).run('h' + randomBytes(8).toString('hex'), uid, 'c', 'c:/r', ch, new Date().toISOString());
     return true; } catch { return false; } };
-  ok('the table refuses a non-S256 challenge (a plain verifier, 64 chars)', !insert('a'.repeat(64)));
+  ok('the database refuses a non-S256 challenge (a plain verifier, 64 characters)', !insert('a'.repeat(64)));
   ok('…and one with characters outside base64url', !insert('+'.repeat(43)));
-  ok('…and accepts a real S256 challenge', insert(challenge));
-  const spentRow = db.prepare('SELECT code_hash FROM native_auth_codes WHERE used_at IS NOT NULL').get();
-  let reSpent = true;
-  try { db.prepare('UPDATE native_auth_codes SET used_at=? WHERE code_hash=?').run(new Date().toISOString(), spentRow.code_hash); }
-  catch { reSpent = false; }
-  ok('the spend-once trigger refuses to re-spend a code, whoever writes', !!spentRow && !reSpent);
-  db.close();
+  ok('…and accepts a real S256 challenge', insert(pkce().challenge));
+  d.close();
 
+  // ── G · the staging gate's Bearer path ──────────────────────────────────────
+  section('G · /auth/require-admin takes a Bearer user token');
+  const p8 = pkce();
+  const t8 = (await exchange((await signIn(admin, p8)).code, p8.verifier)).json;
+  const bearer = (tok) => app.req('GET', '/auth/require-admin', { headers: { Authorization: `Bearer ${tok}` }, noCookies: true });
+  ok("an admin's native access token passes the gate", (await bearer(t8.access_token)).status === 200);
+  const p9 = pkce();
+  const t9 = (await exchange((await signIn(user, p9)).code, p9.verifier)).json;
+  ok("a non-admin's native access token → 403", (await bearer(t9.access_token)).status === 403);
+  const svc = await api('/auth/token', { client_id: 'robot', client_secret: 'robotsecret', scope: 'auth:read' });
+  ok('a service token carrying aud auth is minted (the precondition)', svc.status === 200 && [].concat(claims(svc.json.access_token).aud).includes('auth'), JSON.stringify(svc.json));
+  ok('…and a service token is not a person: the gate refuses it (401)', (await bearer(svc.json.access_token)).status === 401);
+  ok('a garbage Bearer → 401', (await bearer('not.a.jwt')).status === 401);
+  ok('a consent ticket is not an access token (401)', (await bearer(ticket)).status === 401);
+
+  // ── H · revoke + audit trail ────────────────────────────────────────────────
+  section('H · revoke, and the trail');
+  ok('revoke → 200', (await api('/auth/native/revoke', { client_id: STAGING.client_id, token: t8.refresh_token })).status === 200);
+  ok('…and the app is signed out', (await refresh(t8.refresh_token)).json?.error === 'invalid_grant');
+  ok('revoking an unknown token is still 200 (RFC 7009)', (await api('/auth/native/revoke', { client_id: STAGING.client_id, token: 'nope' })).status === 200);
+  ok('revoke with an unknown client → 401', (await api('/auth/native/revoke', { client_id: 'net.evil.app', token: t9.refresh_token })).status === 401);
+  ok("a refresh token can't be revoked through another client", (await refresh(t9.refresh_token)).status === 200);
+  const types = new Set(db().prepare('SELECT type FROM auth_events').all().map((r) => r.type));
+  for (const t of ['native_authorize_refused', 'native_consent', 'native_consent_denied', 'native_code', 'native_token',
+    'native_token_refused', 'native_code_reuse', 'refresh_reuse', 'refresh_wrong_transport', 'native_revoke']) {
+    ok(`audited: ${t}`, types.has(t));
+  }
+  const devices = await admin.req('GET', '/auth/security');
+  ok("the account's devices list names the app", devices.status === 200 && devices.text.includes(STAGING.client_id));
+
+  // ── J · the app's roles ─────────────────────────────────────────────────────
+  section('J · a role the app does not admit never reaches consent');
+  const guest = browser();
+  ok('a guest signs in (the precondition)', (await guest.req('POST', '/auth/guest', { json: { password: GUEST_PW } })).status === 200);
+  const pg = pkce();
+  const gp = await guest.req('GET', authorizePath(STAGING, pg));
+  ok('a guest → access_denied back to the app, no consent page',
+    gp.status === 302 && paramsOf(gp.location).get('error') === 'access_denied' && paramsOf(gp.location).get('state') === pg.state
+      && !consentOf(gp.text), `${gp.status} ${gp.location}`);
+
+  // ── I · off unless configured ───────────────────────────────────────────────
+  section('I · JKOS_NATIVE_ENV unset → native sign-in is off');
+  const port2 = testPort(7300, 400);
+  off = startServer({ port: port2 === port ? port + 1 : port2, service: 'jkauth', args: [SERVER],
+    env: { ...env, JKOS_NATIVE_ENV: '', DB_PATH: join(tmp, 'off.db') } });
+  const up2 = await off.ready();
+  ok('the second server boots', up2.ok, up2.why);
+  if (up2.ok) {
+    const b2 = `http://127.0.0.1:${port2 === port ? port + 1 : port2}`;
+    const g = await fetch(b2 + authorizePath(STAGING, pkce()), { redirect: 'manual' });
+    const t = await fetch(b2 + '/auth/native/token', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    ok('authorize and token both 404', g.status === 404 && t.status === 404, `${g.status} ${t.status}`);
+  }
   const bad = spawnSync(process.execPath, [SERVER], {
-    env: { ...process.env, ...env, PORT: String(testPort(7200, 200)), DB_PATH: join(tmp, 'other.db'), JKOS_NATIVE_ENV: 'stagign' },
+    env: { ...process.env, ...env, PORT: String(testPort(7300, 400)), DB_PATH: join(tmp, 'bad.db'), JKOS_NATIVE_ENV: 'stagign' },
     encoding: 'utf8', timeout: 15000,
   });
   ok('an unknown JKOS_NATIVE_ENV refuses to boot', bad.status !== 0 && /JKOS_NATIVE_ENV/.test(bad.stderr), `exit ${bad.status}`);
 } catch (e) {
   fail++;
-  console.error('harness error:', e);
+  console.error('  ✗ threw:', e);
 }
-done();
+done(off);

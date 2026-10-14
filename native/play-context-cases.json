@@ -1,0 +1,173 @@
+{
+  "_comment": [
+    "WHERE a KourOS listen was played from — the vectors two implementations must agree on.",
+    "The Android app's PlayContext.kt (its JVM unit test) and the server's grammar",
+    "(apps/kouros/backend/src/playContext.js, held by test/native.mjs with JavaScript's own",
+    "encodeURIComponent) both pass every case. `expect: null` = no context (the listen is kept",
+    "without one). Album/artist names are hostile on purpose: they are real library names."
+  ],
+  "maxLen": 600,
+  "cases": [
+    {
+      "kind": "encode",
+      "input": "Radiohead",
+      "expect": "Radiohead"
+    },
+    {
+      "kind": "encode",
+      "input": "AC/DC",
+      "expect": "AC%2FDC"
+    },
+    {
+      "kind": "encode",
+      "input": "!!!",
+      "expect": "!!!"
+    },
+    {
+      "kind": "encode",
+      "input": "Simon & Garfunkel",
+      "expect": "Simon%20%26%20Garfunkel"
+    },
+    {
+      "kind": "encode",
+      "input": "Guns N' Roses",
+      "expect": "Guns%20N'%20Roses"
+    },
+    {
+      "kind": "encode",
+      "input": "Sigur Rós",
+      "expect": "Sigur%20R%C3%B3s"
+    },
+    {
+      "kind": "encode",
+      "input": "Björk",
+      "expect": "Bj%C3%B6rk"
+    },
+    {
+      "kind": "encode",
+      "input": "東京事変",
+      "expect": "%E6%9D%B1%E4%BA%AC%E4%BA%8B%E5%A4%89"
+    },
+    {
+      "kind": "encode",
+      "input": "Mötley Crüe",
+      "expect": "M%C3%B6tley%20Cr%C3%BCe"
+    },
+    {
+      "kind": "encode",
+      "input": "Tame Impala [24B-96kHz]",
+      "expect": "Tame%20Impala%20%5B24B-96kHz%5D"
+    },
+    {
+      "kind": "encode",
+      "input": "100% Pure",
+      "expect": "100%25%20Pure"
+    },
+    {
+      "kind": "encode",
+      "input": "C++ ~*()",
+      "expect": "C%2B%2B%20~*()"
+    },
+    {
+      "kind": "encode",
+      "input": "What? #1",
+      "expect": "What%3F%20%231"
+    },
+    {
+      "kind": "encode",
+      "input": "A+B=C",
+      "expect": "A%2BB%3DC"
+    },
+    {
+      "kind": "encode",
+      "input": "Emoji 😀 Band",
+      "expect": "Emoji%20%F0%9F%98%80%20Band"
+    },
+    {
+      "kind": "encode",
+      "input": "tab\there",
+      "expect": "tab%09here"
+    },
+    {
+      "kind": "encode",
+      "input": "semi;colon,comma",
+      "expect": "semi%3Bcolon%2Ccomma"
+    },
+    {
+      "kind": "encode",
+      "input": "\ud800 lone high",
+      "expect": null
+    },
+    {
+      "kind": "encode",
+      "input": "lone low \udc00",
+      "expect": null
+    },
+    {
+      "kind": "album",
+      "artist": "AC/DC",
+      "album": "Back in Black",
+      "expect": "album/AC%2FDC/Back%20in%20Black"
+    },
+    {
+      "kind": "album",
+      "artist": "Sigur Rós",
+      "album": "( )",
+      "expect": "album/Sigur%20R%C3%B3s/(%20)"
+    },
+    {
+      "kind": "album",
+      "artist": "Tame Impala",
+      "album": "Currents [24B-96kHz]",
+      "expect": "album/Tame%20Impala/Currents%20%5B24B-96kHz%5D"
+    },
+    {
+      "kind": "album",
+      "artist": "",
+      "album": "No artist",
+      "expect": null
+    },
+    {
+      "kind": "album",
+      "artist": "x",
+      "album": "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé",
+      "expect": "album/x/%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9%C3%A9"
+    },
+    {
+      "kind": "album",
+      "artist": "x",
+      "album": "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé",
+      "expect": null
+    },
+    {
+      "kind": "artist",
+      "artist": "Guns N' Roses",
+      "expect": "artist/Guns%20N'%20Roses"
+    },
+    {
+      "kind": "artist",
+      "artist": "東京事変",
+      "expect": "artist/%E6%9D%B1%E4%BA%AC%E4%BA%8B%E5%A4%89"
+    },
+    {
+      "kind": "artist",
+      "artist": "",
+      "expect": null
+    },
+    {
+      "kind": "station",
+      "id": 4821,
+      "expect": "station/4821"
+    },
+    {
+      "kind": "station",
+      "id": 0,
+      "expect": "station/0"
+    },
+    {
+      "kind": "station",
+      "id": -1,
+      "expect": null
+    }
+  ]
+}

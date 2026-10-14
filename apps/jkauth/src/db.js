@@ -379,39 +379,44 @@ const MIGRATIONS = [
     run(`CREATE TRIGGER widget_registry_def_update BEFORE UPDATE ON widget_registry FOR EACH ROW ${guard}`)
   }],
 
-  /* 024 — NATIVE APP SIGN-IN (RFC 8252 + PKCE; routes/native.js).
+  /* 024 — NATIVE SIGN-IN (routes/native.js). Two things, both held here rather than in a
+   * route so no other writer can undo them:
    *
-   * `sessions.client_id` says WHICH TRANSPORT a session family belongs to: NULL is a browser
-   * (cookies), a value is a native app's client id (a JSON body). Rotation claims bind it
-   * (`client_id IS ?`), so a refresh token can only ever be spent through the transport it
-   * was issued to. Additive and nullable — every existing row is a browser session.
+   *   sessions.client_id — NULL for a browser session (its refresh token travels as a
+   *   cookie), the app's client id for a native one (its refresh token travels in a JSON
+   *   body). The two transports never accept each other's tokens: the cookie paths in
+   *   tokens.js claim only `client_id IS NULL`, the native path only `client_id = ?`. The
+   *   trigger makes the binding permanent: a row's transport cannot be rewritten, so a
+   *   later "helpful" UPDATE can't turn a phone's refresh token into a cookie.
    *
-   * `native_auth_codes` holds one row per authorization code, by HASH (the code itself is a
-   * bearer secret for its one minute of life). Two rules live in the schema rather than only
-   * in the route, so no future writer can break them:
-   *   · the PKCE challenge is exactly an S256 one (43 base64url characters) — a `plain`
-   *     challenge, or none, cannot be stored at all;
-   *   · a code is spent ONCE: once `used_at` is set, the trigger refuses to change it again.
-   * `family_id` records the session family the code minted, so a replayed code can burn it
-   * (RFC 6749 §4.1.2: a code used twice SHOULD revoke what it issued). */
-  ['024_native_clients', () => {
+   *   native_auth_codes — one row per authorization code, stored as a sha256 (like every
+   *   refresh token), single-use. `used_at` may go NULL → a value once and never change
+   *   again; `family_id` is the session the code minted, so a code presented twice can
+   *   burn what its first redemption produced (RFC 6749 §4.1.2). The PKCE challenge is
+   *   exactly an S256 one (43 base64url characters): a `plain` challenge, or none, cannot
+   *   be stored at all, whichever writer tries. */
+  ['024_native_sign_in', () => {
     addColumn('sessions', 'client_id', 'TEXT')
     run(`CREATE TABLE IF NOT EXISTS native_auth_codes (
       code_hash      TEXT PRIMARY KEY,
+      user_id        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       client_id      TEXT NOT NULL,
       redirect_uri   TEXT NOT NULL,
       code_challenge TEXT NOT NULL CHECK (length(code_challenge) = 43
                                           AND code_challenge NOT GLOB '*[^A-Za-z0-9_-]*'),
-      user_id        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       expires_at     TEXT NOT NULL,
       used_at        TEXT,
       family_id      TEXT,
       created_at     TEXT NOT NULL DEFAULT (${SQL_NOW})
     )`)
-    run(`CREATE TRIGGER IF NOT EXISTS native_auth_codes_spend_once
-           BEFORE UPDATE OF used_at ON native_auth_codes FOR EACH ROW
-           WHEN OLD.used_at IS NOT NULL
-           BEGIN SELECT RAISE(ABORT, 'native_auth_codes: a code is spent once'); END`)
+    run('DROP TRIGGER IF EXISTS sessions_client_id_fixed')
+    run(`CREATE TRIGGER sessions_client_id_fixed BEFORE UPDATE OF client_id ON sessions FOR EACH ROW
+         WHEN OLD.client_id IS NOT NEW.client_id
+         BEGIN SELECT RAISE(ABORT, 'sessions.client_id is fixed at creation: a session never changes transport'); END`)
+    run('DROP TRIGGER IF EXISTS native_auth_codes_single_use')
+    run(`CREATE TRIGGER native_auth_codes_single_use BEFORE UPDATE OF used_at ON native_auth_codes FOR EACH ROW
+         WHEN OLD.used_at IS NOT NULL
+         BEGIN SELECT RAISE(ABORT, 'native_auth_codes.used_at is set once: a code is redeemed at most once'); END`)
     run('CREATE INDEX IF NOT EXISTS idx_native_codes_expiry ON native_auth_codes(expires_at)')
   }],
 ]
