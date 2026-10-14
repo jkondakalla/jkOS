@@ -240,16 +240,17 @@ failing against the old code before it is trusted.
 declares (its slices, its host kinds — WIDGETS.md). Every visible change the rescope makes is
 logged, before and after, on [the Rescope Review](https://claude.ai/artifact/5Ti5JYSCumLMNzhzeBYZaY).
 
+**The language is built** (phase 3, 2026-10-14): parts (`inputs` + `use`), `state`,
+`on:` events running `run` / `do` / `set` / `go`, typed host actions, pages (`route`,
+read as `$route` — a renderer-provided name, not a host slice, so every host gets it the
+same way), `debounce`, phone bodies, derived portability and the published limit —
+WIDGETS.md §4–§7. KourOS is the first host that will route and declare engine actions;
+until then only ORDECK is declared (`scripts/widget/catalog.mjs` `hosts()`).
+
 **hub.css keeps its order** (2026-09-30, overruling Stage F's reorder-by-system): measured, a
 sorted file changes what 175 elements render, because the order decides equal-specificity
 ties (TRAPS.md § CSS). The component classes get grouped when they move into their primitives.
 
-3. **The language.** Widget inputs + `use`; per-instance `state` + `set`; `on:` events → a
-   capability, an engine action, `set` or `go`; host actions declared and typed per app;
-   routes (a path → a page widget, a `route` slice, `go`); source `debounce`; `sizing` optional
-   (HUD placement only); mobile-tier bodies; portability derived from what a widget binds (like
-   `ai`); the published-contract limit above. Each: manifest, a second-tier check, package
-   tests, `pnpm widget vocab`, WIDGETS.md.
 4. **The harness and the ratchets.** Contact sheets per route (screen × tier × state × face,
    fixtures for slices as well as datasets), the running review page, and two gate ratchets
    pinned at today's counts that only go down: JSX in `apps/*/src` outside the entry, router
