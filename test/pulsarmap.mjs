@@ -399,8 +399,9 @@ const glSrc = readFileSync(resolve(root, 'apps/kouros/src/components/ridges3d/gl
         && low.subdivisions === 1 && segmentsOf(shaped.bands, low.subdivisions) === low.columns - 1,
     `shapeMesh: low-poly is ${low.columns} straight-edged columns × a line every ${low.rowsPer} rows — ` +
     'the row duration it carries is the pooled one, so the reveal is still currentTime / rowSeconds');
-  check(low.columns * Math.ceil(VISIBLE_ROWS / low.rowsPer) * 2 < 1000,
-    'DETAIL.low: under a thousand triangles a frame — as low as still reads as the track');
+  const lowTris = low.columns * Math.ceil(VISIBLE_ROWS / low.rowsPer) * 2;
+  check(lowTris < 4000 && lowTris * 40 < segmentsOf(128) * VISIBLE_ROWS * 2,
+    `DETAIL.low: ~${lowTris} triangles a frame, under a fortieth of the detailed terrain — polygonal, and cheap anywhere`);
 
   // Columns sit evenly along the WARPED axis: every band pools into the column nearest
   // where bandFraction draws it, the columns cover every band once, in order.
@@ -421,9 +422,9 @@ const glSrc = readFileSync(resolve(root, 'apps/kouros/src/components/ridges3d/gl
   // ⚠️ A cell is its LOUDEST byte: one kick in a block of quiet rows survives. (A mean
   // drew a flat sheet — measured on three stored tracks — and fails this.)
   const kick = new Uint8Array(low.rowsPer * bands).fill(40);
-  kick[2 * bands + 1] = 250;
+  kick[(low.rowsPer - 1) * bands] = 250;         // band 0 (column 0), the block's last row
   const k = shapeMesh(kick, low.rowsPer, bands, ROW_SECONDS, low);
-  check(k.values[0] === 250 && k.values[1] === 40,
+  check(k.values[0] === 250 && k.values[k.bands - 1] === 40,
     'shapeMesh: a cell is the loudest byte it covers — one loud row among quiet ones is not averaged away');
   const halfBytes = Float32Array.from(bytes, (v) => v / 2);
   const half = shapeMesh(halfBytes, rows, bands, ROW_SECONDS, low);
@@ -453,7 +454,7 @@ const glSrc = readFileSync(resolve(root, 'apps/kouros/src/components/ridges3d/gl
   check(steady, 'low-poly window: the camera flows the same step every frame of a 20-minute track — no step per line');
   check(handoff, 'low-poly window: a line is taken from the live line at its centre, as in the detailed picture');
   check(columnsOf(12, 0) === 0 && low.columnEvery === 0,
-    'columnsOf: no grid on the low-poly picture — on 12 columns it turns the triangles back into a lattice');
+    'columnsOf: no grid on the low-poly picture — on this few columns it turns the triangles back into a lattice');
 }
 
 /* ── the camera ───────────────────────────────────────────────────────────── */

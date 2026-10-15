@@ -179,15 +179,16 @@ export interface Detail {
 export const DETAIL: { readonly [K in DetailName]: Detail } = {
   high: { rowsPer: 1, columns: 0, subdivisions: SUBDIVISIONS, columnEvery: COLUMN_EVERY, relief: 0.22,
           light: [-0.33, 0.85, 0.41] },
-  /* As few polygons as still read as THIS track: ~500 triangles a frame against ~190k.
-     12 columns keep a bass, a body and a top that move independently (fewer and every
-     track is the same tent); 4 rows to a line (~0.37 s) make a cell about as deep as it
-     is wide, so the triangles read as facets, not slivers — and still ~2.7 lines a
-     second, so the flow is the music's. No grid: on 12 columns it turns the triangles
-     back into a quad lattice. The light rakes from behind and to the left — overhead,
-     the shallow facets (~7° at 12 columns) all shade alike and the polygons vanish. */
-  low: { rowsPer: 4, columns: 12, subdivisions: 1, columnEvery: 0, relief: 1,
-         light: [-0.6017, 0.6217, -0.5014] },
+  /* Polygonal, but still a visualizer: ~2,100 triangles a frame against ~190k. Jag,
+     2026-10-14, of the first cut (12 columns × 4 rows, ~500): "way too little detail to
+     make it a cool visual — the goal is a music visualizer". 24 columns give the
+     spectrum its peaks back, and 2 rows to a line (~0.19 s, ~5.4 lines a second) let a
+     beat be its own ridge; at 1 row the facets turn to slivers and the lines bury them.
+     No grid: on this few columns it turns the triangles back into a quad lattice. The
+     light comes from above, behind and to the left — overhead, the shallow facets all
+     shade alike and the polygons vanish. */
+  low: { rowsPer: 2, columns: 24, subdivisions: 1, columnEvery: 0, relief: 1,
+         light: [-0.5007, 0.751, -0.4306] },
 };
 
 /** The mesh the renderer draws, in a detail. */

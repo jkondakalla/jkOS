@@ -1198,10 +1198,15 @@ pulsar map is too smooth. The goal is a polygonal look. Keep a detailed pulsar m
 low a poly version as possible." The widget's `detail` prop picks (`low` default, `high`); both are
 `ridges3d/stage.ts` `DETAIL` profiles drawn by one shader, and `high` renders byte-identical to the
 picture above.
-- **Low-poly is a coarser mesh, not a different analysis.** `shapeMesh` pools each block of 4 rows
-  × one of 12 columns into one cell, joins cells with straight edges, and lights every triangle as
-  one flat facet. ~500 triangles a frame against ~190 k — cheap enough that a software rasteriser
-  draws it instead of falling back to 2-D.
+- **Low-poly is a coarser mesh, not a different analysis.** `shapeMesh` pools each block of 2 rows
+  × one of 24 columns into one cell, joins cells with straight edges, and lights every triangle as
+  one flat facet. ~2,100 triangles a frame against ~190 k — 71 fps on SwiftShader (the terrain:
+  1.9), so a software rasteriser draws it instead of falling back to 2-D.
+- ⚠️ **The first cut was too low (12 columns × 4 rows, ~500 triangles).** Jag: "way too little
+  detail to make it a cool visual. The goal of this is to be a music visualizer." At ~0.37 s a
+  line the beat was gone, and 12 columns flattened every spectrum to the same slope. 24 × 2
+  (~0.19 s, ~5.4 lines a second) is the middle ground; 1 row a line turned the facets to slivers
+  under the lines, and 32 columns read as spikes again.
 - **The columns sit evenly along the warped axis.** Each band pools into the column nearest where
   `bandFraction` draws it, so the shader draws the columns at warp 1 and the low-poly picture
   keeps the shared band axis.
@@ -1209,10 +1214,11 @@ picture above.
   mean drew a near-flat sheet: it averages a kick drum away (the M2 argument above) and cut the
   row-to-row variation by up to 40 %. The max is still a byte off the fixed span — a block half as
   loud draws half as high — so nothing per track enters. `check:pulsarmap` fails on a mean.
-- **The light rakes from behind-left on the low-poly picture.** At 12 columns a facet tilts ~7°,
-  and under the overhead light every facet shades alike and the polygons vanish. There is no grid
-  either: on 12 columns it turned the triangles back into a lattice of quads.
-- The window is 22 lines × 4 rows' pitch — the same ~8 s of depth, so the follow framing did not
+- **The light comes from above, behind and to the left on the low-poly picture.** Its facets are
+  far shallower than the terrain's, and under the overhead light they all shade alike and the
+  polygons vanish. There is no grid
+  either: on this few columns it turned the triangles back into a lattice of quads.
+- The window is 44 lines × 2 rows' pitch — the same ~8 s of depth, so the follow framing did not
   move, and the fog still reaches each line before it leaves.
 
 **The one number the renderer owns.** M2 measured that below **~9 px of row pitch** every line's
