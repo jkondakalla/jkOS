@@ -4,6 +4,8 @@
       "stats": {
         "tracks": 0
       },
+      "library_label": "0 tracks in the library",
+      "coverage_label": null,
       "time_of_day": null,
       "runs": [],
       "deep_in": [],
@@ -23,7 +25,7 @@
         {
           "kind": "station",
           "title": "Monkey",
-          "subtitle": "Station \u00b7 Low",
+          "subtitle": "Station · Low",
           "seed": 41,
           "cover": null,
           "route": "station/41",
@@ -53,9 +55,7 @@
         }
       ],
       "continue_books": [],
-      "fresh_albums": [],
-      "library_label": "0 tracks in the library",
-      "coverage_label": null
+      "fresh_albums": []
     }
   },
   "empty": {
@@ -63,14 +63,14 @@
       "stats": {
         "tracks": 0
       },
+      "library_label": "0 tracks in the library",
+      "coverage_label": null,
       "time_of_day": null,
       "runs": [],
       "deep_in": [],
       "recent": [],
       "continue_books": [],
-      "fresh_albums": [],
-      "library_label": "0 tracks in the library",
-      "coverage_label": null
+      "fresh_albums": []
     }
   }
 }

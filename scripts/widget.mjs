@@ -34,7 +34,7 @@
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { join, resolve, relative } from 'node:path';
 import { tmpdir } from 'node:os';
-import { shippedWidgets, suiteHosts, declarations, hosts, WIDGETS_URL, SEMANTIC_URL, REPO_ROOT } from './widget/catalog.mjs';
+import { shippedWidgets, suiteHosts, declarations, hosts, secondTierContexts, WIDGETS_URL, SEMANTIC_URL, REPO_ROOT } from './widget/catalog.mjs';
 import { renderWidgets } from './widget/render.mjs';
 import { draftWidget } from './widget/scaffold.mjs';
 import { diffWidgets } from './widget/diff.mjs';
@@ -44,11 +44,23 @@ const { checkBindings } = await import(SEMANTIC_URL);
 const CTX = { suiteHosts: suiteHosts() };
 const DECLS = await declarations();
 /* Both tiers: the structure jkAuth checks at publish, then every binding, source and
-   command against what its app declares (and ORDECK's slices). */
-const validateWidget = (def) => {
+   command against what its app declares and what each host that can draw it declares
+   (its slices, its actions, the app's pages) — the gate's check (test/widgets.mjs). */
+const validateWidget = async (def, app) => {
   const structural = validate(def, CTX);
-  return structural.length ? structural : checkBindings(def, DECLS);
+  if (structural.length) return structural;
+  const seen = new Set();
+  const out = [];
+  for (const { ctx } of await secondTierContexts(def, app)) {
+    for (const p of checkBindings(def, ctx)) {
+      const k = `${p.path} ${p.code} ${p.message}`;
+      if (!seen.has(k)) { seen.add(k); out.push(p); }
+    }
+  }
+  return out;
 };
+/** The app a widget file belongs to: its folder (apps/<app>/widgets/). */
+const appOf = (w) => w.app ?? String(w.where).match(/apps\/([^/]+)\/widgets\//)?.[1];
 const [cmd, ...rest] = process.argv.slice(2);
 
 const flags = {};
@@ -87,7 +99,7 @@ if (cmd === 'new') {
     : undefined;
   const draft = draftWidget({ app, id, dataset: flags.dataset, from: typeof flags.from === 'string' ? flags.from : undefined, ask: flags.ask, pattern: typeof flags.pattern === 'string' ? flags.pattern : undefined, params, docs: DECLS.docs });
   if (draft.error) { console.error(`✗ ${draft.error}`); process.exit(2); }
-  const problems = validateWidget(draft.def);
+  const problems = await validateWidget(draft.def, app);
   if (problems.length) { console.error('✗ the draft does not pass validation — a scaffolder bug:'); for (const p of problems) console.error(fmt(p)); process.exit(1); }
   const dir = join(REPO_ROOT, 'apps', app, 'widgets');
   const file = join(dir, `${id}.json`);
@@ -155,7 +167,7 @@ if (cmd === 'new') {
   let bad = 0;
   for (const w of await resolveWidgets(names)) {
     if (!w.def) { console.log(`✗ ${w.where}: not JSON — ${w.error}`); bad++; continue; }
-    const problems = validateWidget(w.def);
+    const problems = await validateWidget(w.def, appOf(w));
     if (problems.length) { bad++; console.log(`✗ ${w.where}`); for (const p of problems) console.log(fmt(p)); continue; }
     // Where it can live — derived from what it binds, never declared.
     const HOSTS = await hosts();
@@ -176,7 +188,7 @@ if (cmd === 'new') {
   if (!names.length) { console.error('name at least one widget: pnpm widget shot <id|file> …, or --routes <app>'); process.exit(2); }
   const widgets = await resolveWidgets(names);
   for (const w of widgets) {
-    const problems = validateWidget(w.def);
+    const problems = await validateWidget(w.def, appOf(w));
     if (problems.length) { console.log(`✗ ${w.where} is not a valid widget — fix these first:`); for (const p of problems) console.log(fmt(p)); process.exit(1); }
   }
   const modes = flags.mode === 'paper' || flags.mode === 'dark' ? [flags.mode] : ['paper', 'dark'];

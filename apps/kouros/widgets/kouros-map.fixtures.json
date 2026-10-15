@@ -1,0 +1,90 @@
+{
+  "ready": {
+    "map": {
+      "available": true,
+      "total": 46924,
+      "measured": 46120,
+      "coverage": {
+        "tracks": 47213,
+        "measured": 46120
+      },
+      "stops": [
+        0.1,
+        0.3,
+        0.5,
+        0.7,
+        0.9
+      ],
+      "regions": [
+        {
+          "id": 1,
+          "label": "Slowcore hush",
+          "x": -0.42,
+          "y": 0.1,
+          "z": 0.33,
+          "w": 0.22,
+          "count": 4120
+        },
+        {
+          "id": 2,
+          "label": "Jangle and shimmer",
+          "x": 0.31,
+          "y": -0.2,
+          "z": 0.12,
+          "w": 0.48,
+          "count": 6880
+        },
+        {
+          "id": 3,
+          "label": "Noise and drive",
+          "x": 0.12,
+          "y": 0.44,
+          "z": -0.51,
+          "w": 0.81,
+          "count": 3302
+        }
+      ],
+      "anchor": {
+        "feature": "energy",
+        "low": "calm",
+        "high": "intense",
+        "spearman": 0.82
+      },
+      "axes": [
+        {
+          "feature": "brightness",
+          "r": 0.6,
+          "low": "dark",
+          "high": "bright"
+        },
+        null,
+        {
+          "feature": "fuzz",
+          "r": 0.5,
+          "low": "clean",
+          "high": "fuzzy"
+        }
+      ]
+    },
+    "$slices": {
+      "player": {
+        "track_id": 104
+      }
+    }
+  },
+  "empty": {
+    "map": {
+      "available": false,
+      "reason": "Too few tracks are analysed yet",
+      "coverage": {
+        "tracks": 47213,
+        "measured": 1210
+      }
+    },
+    "$slices": {
+      "player": {
+        "track_id": null
+      }
+    }
+  }
+}

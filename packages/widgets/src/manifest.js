@@ -37,6 +37,9 @@
  *   action    the name of an action the HOST declares, `<engine>.<verb>` ("player.play")
  *   route     a route pattern — a page's path, "/books/:id" (routes.js)
  *   widget    another widget's id — the part a `use` draws
+ *
+ * A `node` prop with `each: true` is a TEMPLATE, drawn once per element of the node's
+ * `from` with that element as `$` (a list's or a rail's `item`).
  */
 
 /** The status palette a tone names. Semantic constants, never accent-derived (DESIGN §2). */
@@ -46,7 +49,20 @@ export const TONES = ['ok', 'warn', 'danger', 'muted', 'accent']
 export const ICON_NAMES = [
   'sun', 'moon', 'cloud', 'rain', 'snow', 'bolt', 'check', 'book', 'clock',
   'calendar', 'activity', 'star', 'alert', 'dot',
+  // An energy arc's shape (KourOS's runs): climbs, comes back down, peaks and settles.
+  'rise', 'fall', 'peak',
+  // A player's transport and its neighbours (KourOS's Now Playing).
+  'play', 'pause', 'prev', 'next', 'back', 'forward', 'shuffle', 'repeat', 'repeat-one',
+  'spinner', 'radio', 'devices', 'down', 'close', 'queue', 'more',
 ]
+
+/** Which host draws each molecule when its manifest entry names none. */
+export const DEFAULT_MOLECULE_HOST = 'ordeck'
+
+/** The molecules one host draws (a molecule's `host`, ORDECK's by default). */
+export function moleculesOf(host) {
+  return Object.keys(NODES).filter((t) => NODES[t].kind === 'molecule' && (NODES[t].host ?? DEFAULT_MOLECULE_HOST) === host)
+}
 
 /** The escape hatch a def used to take instead of a spec — `component: '<name>'`, a
  *  bespoke React card nothing could edit, validate or express as a file. Retired: each
@@ -130,7 +146,10 @@ const ALIGN = ['flex-start', 'flex-end', 'center', 'baseline', 'stretch', 'start
  *              { root: true } — only directly on the card's root
  *   oneOf      groups of props of which exactly one is given (a control's field | state)
  *   events     what `on` may name: event → what it means, and what its actions read
- *   reads      the HUD slice(s) a molecule reads straight from scope (no binding says so)
+ *   reads      the host slice(s) a molecule reads straight from scope (no binding says so)
+ *   host       which host draws a molecule (ORDECK's when absent) — its implementation is
+ *              that host's code, so a host is typed to draw exactly its own
+ *   eventScope what an event's actions read besides the node's scope: event → { name → fields }
  *   example    a working node, and the default the Workshop drops in
  */
 export const NODES = {
@@ -162,6 +181,40 @@ export const NODES = {
     },
     example: { t: 'bar', value: { src: 'systems', path: 'up' }, max: { src: 'systems', path: 'total' } },
   },
+  steps: {
+    kind: 'atom', label: 'Steps', hint: "a discrete ladder — N steps, the current one raised (a book's chapters)",
+    props: {
+      count: { type: 'binding', required: true, doc: 'how many steps' },
+      at: { type: 'binding', doc: 'the current one, 0-based — those before it are done' },
+    },
+    example: { t: 'steps', count: 12, at: 4 },
+  },
+  cover: {
+    kind: 'atom', label: 'Cover', hint: 'the art of one thing — a sleeve, a jacket, a face',
+    props: {
+      image: { type: 'binding', href: true, doc: "the art (an http(s) or relative URL); none, or one that fails to load, draws the title's first letter" },
+      title: { type: 'binding', required: true, doc: 'what it is the art of — its alt text, and the letter it falls back to' },
+      shape: { type: 'enum', values: ['square', 'round', 'book'], doc: 'book: a 2:3 jacket, square on the bound edge, its art never cropped; round: a person' },
+      fill: { type: 'boolean', doc: "the largest it can be in the room it is given — in a screen-high stack, what the rest leaves (a hero)" },
+      ambient: { type: 'boolean', doc: 'also paints a blown-up, blurred copy of the art behind the whole screen — the room light a player sits in' },
+    },
+    example: { t: 'cover', image: { src: 'player', path: 'cover_url' }, title: { src: 'player', path: 'title' }, fill: true },
+  },
+  scrubber: {
+    kind: 'atom', label: 'Scrubber', hint: 'a seek bar — where it is, dragged to where it should be',
+    props: {
+      position: { type: 'binding', required: true, doc: 'the playhead, seconds' },
+      total: { type: 'binding', required: true, doc: 'seconds' },
+      points: { type: 'binding', list: true, doc: 'segments, [{ start, end }] in seconds (a book\'s chapters)' },
+      at: { type: 'binding', doc: 'the current segment, 0-based' },
+      mode: { type: 'enum', values: ['timeline', 'segment'], doc: "timeline (default): the whole span, segments as ticks; segment: only the current segment's window" },
+      label: { type: 'binding', doc: 'what it seeks, for a screen reader ("Seek position in track")' },
+      on: { type: 'events' },
+    },
+    events: { seek: 'it is released somewhere — its actions read the second chosen as `$seek.to`' },
+    eventScope: { seek: { $seek: [{ name: 'to', type: 'number', label: 'The second chosen, over the whole span' }] } },
+    example: { t: 'scrubber', position: { src: 'playhead', path: 'position' }, total: { src: 'playhead', path: 'total' }, on: { seek: { do: 'player.seek', with: { to: { src: '$seek', path: 'to' } } } } },
+  },
   sparkline: {
     kind: 'atom', label: 'Sparkline', hint: 'tiny trend line over an array',
     props: {
@@ -185,7 +238,7 @@ export const NODES = {
     kind: 'layout', label: 'List', hint: 'repeat a template over an array',
     props: {
       from: { type: 'binding', required: true, doc: 'the array; each element is `$` inside `item`' },
-      item: { type: 'node', required: true },
+      item: { type: 'node', required: true, each: true },
       empty: { type: 'binding', doc: 'shown when the array is empty' },
       dir: { type: 'enum', values: ['col', 'row'] },
       cols: { type: 'number', min: 1, max: 4, default: 1, doc: 'wraps a column list into an N-column grid (dense fact lists)' },
@@ -209,7 +262,7 @@ export const NODES = {
     kind: 'atom', label: 'Text', hint: 'heading or body line',
     props: {
       text: { type: 'binding', required: true },
-      variant: { type: 'enum', values: ['title', 'body', 'sub', 'mono', 'note'], doc: "note: the suite's set, italic off-state voice (a signed-out or empty line)" },
+      variant: { type: 'enum', values: ['display', 'heading', 'title', 'body', 'sub', 'mono', 'note'], doc: "display: a page's own heading; heading: a section's; note: the suite's set, italic off-state voice (a signed-out or empty line)" },
       grow: { type: 'boolean', doc: 'take the remaining width and ellipsize' },
     },
     example: { t: 'text', text: 'Heading', variant: 'title' },
@@ -271,9 +324,23 @@ export const NODES = {
       gap: { type: 'number', min: 0, max: 40, default: 8 },
       grow: { type: 'boolean' },
       justify: { type: 'enum', values: JUSTIFY, doc: 'distributes children along the column (space-between pins the last to the bottom edge)' },
+      screen: { type: 'boolean', doc: "exactly one screen high: a child that grows takes what is left, so the page never scrolls (a surface that owns its gestures)" },
       children: { type: 'nodes', required: true },
     },
     example: { t: 'stack', gap: 8, children: [] },
+  },
+  rail: {
+    kind: 'layout', label: 'Rail', hint: 'a strip that scrolls sideways — repeat a template over an array',
+    props: {
+      from: { type: 'binding', required: true, doc: 'the array; each element is `$` inside `item`' },
+      item: { type: 'node', required: true, each: true, doc: 'drawn once per element — usually a tile' },
+      empty: { type: 'binding', doc: 'shown when the array is empty' },
+      size: { type: 'enum', values: ['tile', 'wide'], doc: "each item's width: a cover tile (default), or a wide card" },
+    },
+    example: {
+      t: 'rail', from: { src: 'home', path: 'fresh_albums' },
+      item: { t: 'tile', image: { src: '$', path: 'cover_url' }, title: { src: '$', path: 'album' }, sub: { src: '$', path: 'artist' } },
+    },
   },
   use: {
     kind: 'layout', label: 'Use', hint: "draw another widget here, handing it its inputs",
@@ -311,6 +378,34 @@ export const NODES = {
     kind: 'molecule', label: 'Week', hint: 'the seven-day time grid (@jkos/cards)',
     props: {}, placement: { root: true }, reads: ['items', 'todayIso'],
     example: { t: 'week' },
+  },
+  pulsarmap: {
+    kind: 'molecule', label: 'Pulsarmap', hint: "the playing track's spectrogram as ridgelines, revealed as it plays (KourOS)",
+    props: {}, host: 'kouros', reads: 'player',
+    example: { t: 'pulsarmap' },
+  },
+  vibespace: {
+    kind: 'molecule', label: 'Vibe space', hint: 'the library as a cloud you move through — energy one way, the sound the others; tap to pin a place (KourOS)',
+    props: {
+      map: { type: 'binding', required: true, doc: "the vibe space — KourOS's discoverMap document (its packed points, regions, stops, axes)" },
+      pin: { type: 'binding', doc: 'the pinned place, { x, y, z, w } — what the cloud marks; none: it pins the densest region itself' },
+      playing: { type: 'binding', doc: "the playing track's id — its point glints" },
+      on: { type: 'events' },
+    },
+    host: 'kouros',
+    events: {
+      pin: 'a place is pinned (a tap, a region from the list without WebGL, or the first draw) — its actions read it as `$pin`',
+      play: 'the cloud asks to play from the pin (a double-tap on it)',
+    },
+    eventScope: {
+      pin: { $pin: [
+        { name: 'x', type: 'number' }, { name: 'y', type: 'number' }, { name: 'z', type: 'number' },
+        { name: 'w', type: 'number', label: 'Energy, 0..1' },
+        { name: 'region', type: 'string', label: 'The labelled region nearest the pin' },
+        { name: 'mood', type: 'string', label: 'The energy, as a word ("calm", "driving")' },
+      ] },
+    },
+    example: { t: 'vibespace', map: { src: 'map' }, pin: { src: '$state', path: 'pin' }, on: { pin: { set: 'pin', to: { src: '$pin' } } } },
   },
   /* ── Patterns — one node, a finished card body ───────────────────────────
    * Each is the shape a common card already takes, drawn once, well: the type scale,
@@ -401,6 +496,26 @@ export const NODES = {
     events: { press: 'it is tapped (a link or an action, not both)' },
     example: { t: 'media', title: { src: 'focus', path: 'title' }, subtitle: { src: 'focus', path: 'timeLabel' } },
   },
+  tile: {
+    kind: 'pattern', label: 'Tile', hint: 'a cover and its caption — one record, person, book or track',
+    props: {
+      image: { type: 'binding', href: true, doc: "the cover (an http(s) or relative URL); none, or one that fails to load, draws the title's first letter" },
+      images: { type: 'binding', list: true, doc: 'up to four covers drawn as a 2×2 mosaic — a set, instead of `image`' },
+      imagesPath: { type: 'string', doc: "plucks the URL from each element of `images` (a run's tracks → cover_url)" },
+      title: { type: 'binding', required: true },
+      sub: { type: 'binding', doc: 'a second line (the artist, the author)' },
+      meta: { type: 'binding', doc: 'a small third line (a year, a count, "3h 10m left")' },
+      icon: { type: 'binding', values: ICON_NAMES, doc: 'a glyph before the title' },
+      shape: { type: 'enum', values: ['square', 'round'], doc: 'round: a person (an artist) — the convention every music app keeps' },
+      progress: { type: 'binding', doc: 'a hairline under the cover: how far along — a fraction, or out of `total`' },
+      total: { type: 'binding', doc: 'what `progress` is out of (default 1)' },
+      active: { type: 'binding', doc: 'truthy: this is the one playing — its title takes the accent' },
+      href: { type: 'binding', href: true },
+      on: { type: 'events' },
+    },
+    events: { press: 'it is tapped (a link or an action, not both)' },
+    example: { t: 'tile', image: { src: '$', path: 'cover_url' }, title: { src: '$', path: 'title' }, sub: { src: '$', path: 'artist' } },
+  },
   ask: {
     kind: 'pattern', label: 'Ask', hint: 'one question, its answer drawn under it',
     props: {
@@ -430,8 +545,11 @@ export const NODES = {
   button: {
     kind: 'control', label: 'Action button', hint: 'one tap runs a command, or its actions',
     props: {
-      text: { type: 'binding', required: true },
+      text: { type: 'binding', required: true, doc: 'its label — with an `icon`, its name for a screen reader and a tooltip instead' },
       cmd: { type: 'cmd', doc: 'the command a tap runs — or `on.press`, for anything else (set state, several steps)' },
+      icon: { type: 'binding', values: ICON_NAMES, doc: 'a glyph, drawn instead of the text' },
+      variant: { type: 'enum', values: ['action', 'ghost', 'orb', 'link'], doc: "action (default): the bordered caps button; ghost: a quiet control on a surface (a transport's secondaries); orb: the lit primary (play); link: inline text that goes somewhere" },
+      active: { type: 'binding', doc: 'truthy: it is on — shuffle, repeat (pressed, in the accent)' },
       tone: { type: 'tone' },
       result: { type: 'node', with: 'cmd', doc: RESULT_DOC },
       on: { type: 'events' },

@@ -121,7 +121,7 @@ export function runPreview(config: PreviewConfig): void {
             {states.map((state) => (
               <div className="wp-cell" key={state} data-tier={tier} data-state={state} data-kind={screen ? 'screen' : 'card'}>
                 <div className="wp-label hud-eyebrow">{state}</div>
-                <div className={`wp-frame${config.cellClass ? ` ${config.cellClass}` : ''}${screen ? ' wp-screen' : ''}`} style={vars({ '--wp-w': `${w}px`, '--wp-h': `${h}px` })}>
+                <div className={`wp-frame${config.cellClass ? ` ${config.cellClass}` : ''}${screen ? ' wp-screen' : ''}`} style={vars({ '--wp-w': `${w}px`, '--wp-h': `${h}px`, '--w-screen-h': `${h}px` })}>
                   <SourceReaderProvider value={readerFor(state, job.fixtures)}>
                     {renderWidget(job.def, hostFor(job, state, tier), extra(job, state, '$in'))}
                   </SourceReaderProvider>

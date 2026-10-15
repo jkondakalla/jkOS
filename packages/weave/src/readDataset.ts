@@ -14,7 +14,7 @@
  *
  *   ready        rows (cardinality 'many') or the document ('one')
  *   empty        a list with no rows, or a document that is null
- *   idle         a path parameter has no value yet — nothing was asked
+ *   idle         a path parameter or a required filter has no value yet — nothing was asked
  *   signed-out   401
  *   forbidden    403
  *   offline      the app, or its declaration, could not be reached
@@ -44,8 +44,8 @@ export interface DatasetRead {
 
 export type ReadParams = Record<string, string | number | boolean | null | undefined>;
 
-/** `/routines/:id` + { id: 7, weeks: 4 } → `/routines/7?weeks=4`. null when a `:param`
- *  has no value. Only DECLARED filters go on the query string: an undeclared one is
+/** `/routines/:id` + { id: 7, weeks: 4 } → `/routines/7?weeks=4`. null when a `:param`,
+ *  or a filter the dataset declares `required`, has no value. Only DECLARED filters go on the query string: an undeclared one is
  *  ignored by the server anyway (filters.js), and sending it hides a typo. */
 export function datasetUrl(def: DatasetDef, params: ReadParams = {}): string | null {
   const used = new Set<string>();
@@ -57,6 +57,9 @@ export function datasetUrl(def: DatasetDef, params: ReadParams = {}): string | n
     return encodeURIComponent(String(v));
   });
   if (missing) return null;
+  // A REQUIRED filter with no value is as unknown as a missing path parameter: the server
+  // would refuse the read (400), so nothing is asked — a pin not dropped yet is not an error.
+  if ((def.filters ?? []).some((f) => f.required && !used.has(f.name) && (params[f.name] == null || params[f.name] === ''))) return null;
   const declared = new Set((def.filters ?? []).map((f) => f.name));
   const q = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) {

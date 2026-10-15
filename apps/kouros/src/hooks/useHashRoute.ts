@@ -49,6 +49,9 @@ export interface HashRoute {
   playlistId: number | null;
   /** The `books.id` — set for 'book' only. */
   bookId: number | null;
+  /** The path itself ('/album/Low/The%20Great%20Destroyer'), query dropped — what a
+   *  widget page's route is matched against (widgets/host.tsx pageAt). */
+  path: string;
 }
 
 const ALBUM_RE = /^\/album\/([^/]+)\/([^/]+)$/;
@@ -56,7 +59,15 @@ const ARTIST_RE = /^\/artist\/([^/]+)$/;
 const PLAYLIST_RE = /^\/playlist\/(\d+)$/;
 const BOOK_RE = /^\/book\/(\d+)$/;
 
-function parse(hash: string): HashRoute {
+/** Parse a location hash into the view it shows. Exported for the gate, which holds
+ *  every route KourOS declares as still hand-built (widgets/declaration.ts
+ *  KOUROS_LEGACY_ROUTES) to a path this answers. */
+export function parseHash(hash: string): HashRoute {
+  const path = (hash.replace(/^#/, '') || '/').split('?')[0] || '/';
+  return { ...parseView(hash), path };
+}
+
+function parseView(hash: string): Omit<HashRoute, 'path'> {
   const raw = hash.replace(/^#/, '') || '/';
   const [rawPath, rawQuery] = raw.split('?');
   const path = rawPath || '/';
@@ -97,10 +108,10 @@ function parse(hash: string): HashRoute {
 }
 
 export function useHashRoute(): HashRoute {
-  const [route, setRoute] = useState<HashRoute>(() => parse(window.location.hash));
+  const [route, setRoute] = useState<HashRoute>(() => parseHash(window.location.hash));
 
   useEffect(() => {
-    const onHashChange = () => setRoute(parse(window.location.hash));
+    const onHashChange = () => setRoute(parseHash(window.location.hash));
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);

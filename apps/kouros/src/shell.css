@@ -189,7 +189,6 @@
    that re-declares it — which is what caught this. A rail that wants no visible
    bar wears .jk-scroll-none, the primitive for exactly that. */
 .kr-rail > * { scroll-snap-align: start; }
-.kr-rail-wide { --kr-rail-card: 78vw; }
 
 /* ── Cover art ────────────────────────────────────────────────────────────────
    One square, one radius, one placeholder, everywhere. `aspect-ratio` keeps the
@@ -349,7 +348,6 @@
   :root { --kr-gutter: 1.5rem; }
   .kr-grid { --kr-cols: 4; }
   .kr-rail { --kr-rail-card: 30vw; }
-  .kr-rail-wide { --kr-rail-card: 44vw; }
 }
 
 /* ── Desktop ──────────────────────────────────────────────────────────────────
@@ -400,7 +398,6 @@
 
   .kr-grid { --kr-cols: 5; }
   .kr-rail { --kr-rail-card: 200px; }
-  .kr-rail-wide { --kr-rail-card: 320px; }
 }
 
 @media (min-width: 1500px) {

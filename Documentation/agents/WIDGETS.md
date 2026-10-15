@@ -11,10 +11,16 @@ this file disagrees with them, this file is wrong — fix it.
 **The renderer is not ORDECK's.** An app draws a widget with `renderWidget(def, host)`, where
 the host is what that app hands it: its declared slices (a binding's `src` may name them
 beside the widget's own sources), where to sign in, the AI kill switch, this instant, and
-the kinds only it can draw (the manifest's molecules, `HostKind`). ORDECK is one host —
-`apps/ordeck/src/hud/host.tsx`, with its slices declared in `hud/slices.ts` and its four
-molecules (calendar, weather, focus, week). A host kind may be `React.lazy`; it draws under
-Suspense, so a heavy one is downloaded only when placed.
+the kinds only it can draw (the manifest's molecules, `HostKind`). A host kind may be
+`React.lazy`; it draws under Suspense, so a heavy one is downloaded only when placed.
+
+| Host | Implemented in | Declared in | What it adds |
+|---|---|---|---|
+| ORDECK | `apps/ordeck/src/hud/host.tsx` | `hud/slices.ts` (`HUD_SLICES`, `HUD_ACTIONS`) | the HUD's slices, four molecules (calendar, weather, focus, week), `focus.clear`; no routes |
+| KourOS | `apps/kouros/src/widgets/host.tsx` (its molecules in `kinds.tsx`) | `src/widgets/declaration.ts` (`KOUROS_SLICES`, `KOUROS_ACTIONS`, `KOUROS_LEGACY_ROUTES`) | the `player` and `playhead` slices, the player engine's actions (play, the transport, seek and skip, chapters, rate, sleep, bookmarks, playing from a place in the vibe space, the device picker, the action sheet…), the `pulsarmap` and `vibespace` molecules, and a router: its pages are widget files |
+
+Both declarations are data the tools read (`scripts/widget/catalog.mjs` `hostDeclarations()`),
+so a widget's second tier runs against each host that can draw it.
 
 ---
 
@@ -121,13 +127,16 @@ Every source is named in `spec.sources`, and a binding's `src` is that name.
 
 | `kind` | What it reads | Notes |
 |---|---|---|
-| `dataset` | `{ app, dataset, params?, poll?, debounce? }` — a dataset the app **declares** (its DatasetDoc) | Read through the declaration (`readDataset`), with a state the frame draws. `params` fill the path's `:x` and the declared filters (literals or bindings). The dataset's `invalidates` keys re-read it when a capability writes; `poll` (seconds) is for changes no capability announces. `debounce` (ms) holds a re-read until a bound param stops changing — a search box; it needs a bound param to wait on, and holds up only its own source. |
+| `dataset` | `{ app, dataset, params?, poll?, debounce? }` — a dataset the app **declares** (its DatasetDoc) | Read through the declaration (`readDataset`), with a state the frame draws. `params` fill the path's `:x` and the declared filters (literals or bindings); while a path param or a `required` filter has no value, nothing is asked (the source is `idle`). The dataset's `invalidates` keys re-read it when a capability writes; `poll` (seconds) is for changes no capability announces. `debounce` (ms) holds a re-read until a bound param stops changing — a search box; it needs a bound param to wait on, and holds up only its own source. |
 | `fetch` | `{ url, poll? }` — an **external** public https endpoint | A relative URL, `http:`, or any suite host is refused by the validator, jkAuth and the renderer: suite data is a `dataset`. |
 
-ORDECK's own slices are in scope too, by name — `clock`, `weather`, `systems`, `today`,
-`cal`, `items`, `notifications`, `focus`, `pinned`, `origins` (each app's origin on this
-deployment), `authUrl`, `aiEnabled`. Their fields are declared in `hud/slices.ts`
-(`HUD_SLICES`); the second tier checks a binding into one exactly as into a dataset.
+The host's slices are in scope too, by name. ORDECK's: `clock`, `weather`, `systems`,
+`today`, `cal`, `items`, `notifications`, `focus`, `pinned`, `origins` (each app's origin on
+this deployment), `authUrl`, `aiEnabled` — declared in `hud/slices.ts` (`HUD_SLICES`).
+KourOS's: `player` (what is playing, wherever it plays; whole seconds, so it moves at most
+once a second) and `playhead` (the media element's clock at ~4 Hz — bind it only from a
+seek bar, or the widget re-renders with it) — declared in `src/widgets/declaration.ts`. The second tier checks a binding
+into one exactly as into a dataset.
 
 Reserved names in scope: `$` (the row, inside a list pattern), `$sources.<name>.state`
 (`ready`/`empty`/`idle`/`signed-out`/`forbidden`/`offline`/`unavailable`), `$now` (the
@@ -150,6 +159,7 @@ One model for the whole suite (`@jkos/weave/binding`, shared with triggers):
 | `{ "lit": … }` | a literal that might look like a binding |
 | `{ "src": "session", "path": "now.title", "fallback": "—" }` | read a value; `fallback` when it is missing |
 | `… "map": { "DONE": "ok", "FAILED": "danger" }` | a lookup; a value not in it passes through, or becomes `fallback` if given |
+| `{ "src": "near", "path": "results.length" }` | a list's length, or a row by index (`results.0.title`) — on any declared list, and on a json field with `item` fields (rows of them, or one) |
 | `… "fmt": "ago"` | one of `upper` `lower` `number` `percent` `time` `date` `ago` `duration`, applied after `map` |
 | `{ "eq": [a, b] }` `{ "in": [a, [x, y]] }` `{ "not": a }` | conditions, for `when.cond` or any boolean |
 
@@ -170,9 +180,34 @@ narrow are already right. **Reach for one before composing primitives.**
 | `feed` | what happened, newest first | `from`, per event: `text`, `at`, `icon`, `tone`, `detail` |
 | `facts` | a grid of named values | `items: [{ label, value, tone? }]`, `cols` |
 | `media` | art, a title, where it is | `image`, `title`, `subtitle`, `meta`, `progress`, `href` |
+| `tile` | one cover and its caption — a record, a person, a book | `image` (or `images` + `imagesPath`, a 2×2 mosaic), `title`, `sub`, `meta`, `icon`, `shape: round`, `progress`/`total`, `active`, `href` or `on.press` |
 | `ask` | one question, the answer under it | `cmd`, `field`, `placeholder`, `answer` |
 
 Inside a list pattern, per-row props bind into `$`: `{ "src": "$", "path": "title" }`.
+A `rail` is the strip that scrolls sideways (a screen's shelf of covers): like a `list`,
+its `item` is drawn once per element of `from`, with the element as `$` — usually a
+`tile`; `size: "wide"` for a card wider than a cover. Its column width answers to the
+width the page gives it, not the viewport. A tile with no art, or art that fails to
+load, draws its title's first letter.
+
+**A player's screen** has its own few pieces. `cover` is the art of one thing — square, a
+`round` face, or a `book` jacket (2:3, its spine's gutter, never cropped); `fill` makes it
+the largest it can be in the room it is given, and `ambient` paints a blurred copy behind
+the whole screen. `scrubber` is the suite's seek bar (`@jkos/player`'s): `on.seek` hands
+its actions the second chosen as `$seek.to`. A `button` with an `icon` is a glyph (its
+`text` becomes its accessible name), in a `variant` — `ghost` for a transport's quiet
+controls, `orb` for the one lit primary, `link` for inline text that goes somewhere — and
+`active` marks it on (shuffle, repeat). A `stack` with `screen: true` is exactly one
+screen high, and its growing child (or a filling cover) takes what is left, so the page
+never scrolls — what a surface that owns its gestures needs.
+
+**A molecule belongs to one host** (its manifest `host`, ORDECK's when absent):
+`HostKindsOf` types each host to draw exactly its own, and `moleculesOf(host)` is what
+it declares — KourOS's `pulsarmap` is never asked of ORDECK. A molecule may take bound
+props and fire events like any node: KourOS's `vibespace` binds the map document, the pin
+and the playing track, and fires `on.pin` (with `$pin` — the point, its region, its mood)
+and `on.play`. A host kind fires them with `useWidgetActions()`, the renderer's own event
+engine, so a `set`, `do` or `go` from a molecule is checked and runs as one from a button.
 `when` (`cond`, `then`, `else`) switches between bodies — e.g. a session with nothing
 loaded. The rest of the vocabulary (primitives, layout, the molecules, form controls) and
 every prop's type: `pnpm widget vocab [kind]`, or the Workshop's Guide tab.
@@ -217,7 +252,8 @@ declares it returns (or resolves to).
 
 **Host actions are declared, then implemented.** A host declares each action as data —
 `{ label, args?: [{ name, type, required? }], returns?: […] }`, ORDECK's in
-`hud/slices.ts` `HUD_ACTIONS` beside its slices — and implements it in its
+`hud/slices.ts` `HUD_ACTIONS` beside its slices, KourOS's in `src/widgets/declaration.ts`
+`KOUROS_ACTIONS` — and implements it in its
 `WidgetHost.actions`, typed `HostActions<typeof DECL>`, so tsc refuses one declared and
 not implemented or the reverse. The second tier checks a `do` against the declaration:
 it exists, takes the arguments given, gets each one it requires. A `do` its host does
@@ -259,6 +295,14 @@ alike. A host that routes passes `navigate` and the matched `route` params on it
 `WidgetHost`; in one that does not, a `go` stops its chain with "navigation is not
 available here". The second tier checks a `go` against the app's pages and the route's
 own `:params` — every one filled, nothing else.
+
+**KourOS routes its pages** (`App.tsx` asks `widgets/host.tsx` `pageAt` first): its hash
+path is the route path, so `#/album/Low/The%20Great%20Destroyer` is `/album/:artist/:album`.
+A screen not converted yet is still a hand-built view, and its route is declared in
+`KOUROS_LEGACY_ROUTES` so a page can already `go` there. That list only shrinks: the gate
+refuses a route that is both a page file and a legacy route, and parses each legacy route
+through KourOS's own router to prove it answers. A page is drawn in `.hud-w-page`, where
+nothing is squeezed to fit — a screen scrolls.
 
 **Portability is derived, like AI.** What a widget needs from its host is read off what
 it binds (`needsOf`): the host slices it reads, the molecules it draws, the actions it

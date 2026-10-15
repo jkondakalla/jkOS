@@ -1,0 +1,148 @@
+{
+  "ready": {
+    "$slices": {
+      "player": {
+        "loaded": true,
+        "playing": true,
+        "buffering": false,
+        "on_device": null,
+        "devices": true,
+        "byline": "New Order",
+        "artist": "New Order",
+        "album_artist": "New Order",
+        "album": "Substance",
+        "track_id": 103,
+        "book_id": null,
+        "chapter": 0,
+        "chapters": 1,
+        "chapter_label": "",
+        "points": [],
+        "shuffle": true,
+        "repeat": "all",
+        "next": {
+          "id": 104,
+          "title": "Blue Light",
+          "artist": "Mazzy Star"
+        },
+        "rate_label": "1×",
+        "sleep_on": false,
+        "sleep_label": "Sleep",
+        "bookmarks": [],
+        "kind": "music",
+        "status": "PLAYING",
+        "place": "3 of 14",
+        "title": "Ceremony",
+        "cover_url": "/api/kouros/cover/103",
+        "position": 97,
+        "total": 264,
+        "progress": 0.367,
+        "remaining": 167
+      },
+      "playhead": {
+        "position": 97.4,
+        "total": 264
+      }
+    }
+  },
+  "empty": {
+    "$slices": {
+      "player": {
+        "loaded": true,
+        "playing": false,
+        "buffering": false,
+        "on_device": "KITCHEN",
+        "devices": true,
+        "byline": "Andy Weir · Ray Porter",
+        "artist": "",
+        "album_artist": "",
+        "album": null,
+        "track_id": null,
+        "book_id": 14,
+        "chapter": 7,
+        "chapters": 12,
+        "chapter_label": "Chapter 8 — Astrophage",
+        "points": [
+          {
+            "start": 0,
+            "end": 1180
+          },
+          {
+            "start": 1180,
+            "end": 2802
+          },
+          {
+            "start": 2802,
+            "end": 4807
+          },
+          {
+            "start": 4807,
+            "end": 6217
+          },
+          {
+            "start": 6217,
+            "end": 8107
+          },
+          {
+            "start": 8107,
+            "end": 9840
+          },
+          {
+            "start": 9840,
+            "end": 12050
+          },
+          {
+            "start": 12050,
+            "end": 13594
+          },
+          {
+            "start": 13594,
+            "end": 15554
+          },
+          {
+            "start": 15554,
+            "end": 17354
+          },
+          {
+            "start": 17354,
+            "end": 19004
+          },
+          {
+            "start": 19004,
+            "end": 20706
+          }
+        ],
+        "shuffle": false,
+        "repeat": "off",
+        "next": null,
+        "rate_label": "1.25×",
+        "sleep_on": true,
+        "sleep_label": "Sleep · 14:59",
+        "bookmarks": [
+          {
+            "id": "3",
+            "position": 5210,
+            "title": "The petrova line"
+          },
+          {
+            "id": "9",
+            "position": 11980,
+            "title": "Rocky"
+          }
+        ],
+        "kind": "audiobook",
+        "status": "PAUSED ON KITCHEN",
+        "place": "Chapter 8 of 12",
+        "title": "Project Hail Mary",
+        "cover_url": "/api/kouros/books/cover/14",
+        "position": 13150,
+        "total": 20706,
+        "progress": 0.635,
+        "remaining": 7556
+      },
+      "playhead": {
+        "position": 13150.2,
+        "total": 20706
+      }
+    }
+  }
+}

@@ -152,28 +152,6 @@ export function IconTrash({ size = 18 }: GlyphProps = {}) {
   );
 }
 
-/** An arc glyph for a Run — the shape of the set, drawn. `arc` picks the curve so
- *  "Build", "Wind down" and "Arc" are distinguishable at a glance in the rail. */
-export function IconArc({ size = 20, arc = 'rise' }: GlyphProps & { arc?: string }) {
-  const d = arc === 'wind_down' ? 'M4 7c4 0 8 4 16 10'
-    : arc === 'peak' ? 'M4 18c4 0 5-11 8-11s4 11 8 11'
-    : 'M4 17C12 17 16 7 20 7';
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
-      <path d={d} {...S} />
-    </svg>
-  );
-}
-
-export function IconClock({ size = 20 }: GlyphProps = {}) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
-      <circle cx="12" cy="12" r="8" {...S} />
-      <path d="M12 7.5V12l3 2" {...S} />
-    </svg>
-  );
-}
-
 /** The device picker's button — a screen and a speaker: "where the sound comes out". */
 export function IconDevices({ size = 20 }: GlyphProps = {}) {
   return (

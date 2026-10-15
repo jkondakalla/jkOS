@@ -35,13 +35,14 @@ function shapeOfField(f, docs) {
   if (!f) return ANY
   if (f.type !== 'json') return SCALAR
   if (f.of) return { kind: 'list', item: SCALAR }
-  if (Array.isArray(f.item)) return fieldsShape(f.item)
-  if (isObj(f.item)) return fieldsShape(Object.entries(f.item).map(([name, x]) => ({ name, ...x })))
+  // A json field with an `item` holds rows of it, or one of it (BodyField's own words) —
+  // so it reads as the row's fields, and also as a list: `length`, or a row by index.
+  if (Array.isArray(f.item)) return { ...fieldsShape(f.item), maybeList: true }
+  if (isObj(f.item)) return { ...fieldsShape(Object.entries(f.item).map(([name, x]) => ({ name, ...x }))), maybeList: true }
   if (typeof f.schema === 'string') {
     const m = f.schema.match(/^([a-z][a-z0-9-]*)\.([A-Za-z_][\w]*)$/)
     const ds = m && docs[m[1]]?.datasets?.datasets?.find((d) => d.id === m[2])
-    // The shape of what that dataset answers: one document's fields, or a list of rows.
-    if (ds && Array.isArray(ds.item)) return ds.cardinality === 'one' ? fieldsShape(ds.item) : { kind: 'list', item: fieldsShape(ds.item) }
+    if (ds && Array.isArray(ds.item)) return datasetShape(ds)
   }
   return ANY
 }
@@ -69,6 +70,8 @@ function follow(shape, path, docs) {
       if (/^\d+$/.test(seg)) { cur = cur.item; continue }
       return { problem: `'${seg}' — this is a list: bind it to a list's \`from\` and read '${seg}' from $ inside it`, fix: 'list.from, then { src: "$", path: "…" }' }
     }
+    if (cur.maybeList && seg === 'length') { cur = SCALAR; continue }
+    if (cur.maybeList && /^\d+$/.test(seg)) { cur = { kind: 'fields', fields: cur.fields }; continue }
     const f = cur.fields.get(seg)
     if (!f) {
       const near = nearest(seg, [...cur.fields.keys()])
@@ -334,6 +337,15 @@ export function checkBindings(def, { docs = {}, slices = {}, actions = {}, pages
       }
     }
     for (const f of args.values()) if (f.required && !(f.name in given)) err(`${p}/with`, 'missing-field', `${a.do} requires '${f.name}', and nothing binds it`)
+    // An argument given as a literal is held to its declared type — an enum to its values.
+    for (const [k, v] of Object.entries(given)) {
+      const f = args.get(k)
+      const lit = !isObj(v) ? v : 'lit' in v ? v.lit : undefined
+      if (!f || lit === undefined || lit === null) continue
+      const bad = f.type === 'enum' ? Array.isArray(f.enum) && !f.enum.includes(lit)
+        : ['string', 'number', 'boolean'].includes(f.type) && !fitsType(f.type, lit)
+      if (bad) err(`${p}/with/${esc(k)}`, 'bad-value', `${a.do}'s '${k}' is ${f.type === 'enum' ? `one of ${f.enum.join(', ')}` : `a ${f.type}`} — not ${JSON.stringify(lit)}`)
+    }
     return Array.isArray(decl.returns) ? fieldsShape(decl.returns) : ANY
   }
 
@@ -418,6 +430,9 @@ export function checkBindings(def, { docs = {}, slices = {}, actions = {}, pages
         // A row's event reads that row ($); a form's `done` reads what its command produced.
         let evScope = node.t === 'rows' ? extra.row ?? here : here
         if (node.t === 'form') { evScope = new Map(sc); evScope.set('$result', produced ?? ANY); evScope.set('$job', JOB) }
+        // What the event itself hands its actions (a scrubber's `$seek`), as the manifest says.
+        const handed = spec_.eventScope?.[ev]
+        if (handed) { evScope = new Map(evScope); for (const [n, f] of Object.entries(handed)) evScope.set(n, fieldsShape(f)) }
         checkChain(chain, `${at}/on/${esc(ev)}`, evScope)
       }
     }
@@ -425,7 +440,7 @@ export function checkBindings(def, { docs = {}, slices = {}, actions = {}, pages
       const c = node[name]
       if (c === undefined) continue
       let inner = here
-      if (node.t === 'list' && name === 'item') {
+      if (spec_.props[name]?.each) {
         inner = new Map(here)
         inner.set('$', rowOf(node.from, here))
       }

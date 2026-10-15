@@ -1,6 +1,6 @@
 // @jkos/widget-render — draw a widget file in whichever app hosts it. See render.tsx.
 export {
-  renderWidget, renderNode, resolve, truthy, CardHead, vars, HostKindsProvider,
+  renderWidget, renderNode, resolve, truthy, CardHead, vars, HostKindsProvider, useWidgetActions,
   type WidgetHost, type HostKinds, type HostKindComponent, type Scope, type NodeOf,
   type HostActionDecl, type HostActionFn, type HostActions, type DeclField,
 } from './render';
@@ -14,5 +14,5 @@ export { fixtureReader, PREVIEW_STATES, type PreviewState } from './fixtures';
 export { WidgetBoundary } from './boundary';
 export type {
   Binding, ToneBinding, CommandRef, WidgetFrame, WidgetSpec, WidgetSizing, WidgetDef, WidgetInput, StateVar,
-  WidgetNode, Tone, IconName, HostKind, DataSource, SourceState, SourceStatus,
+  WidgetNode, Tone, IconName, HostKind, HostKindsOf, ActionChain, DataSource, SourceState, SourceStatus,
 } from './types';

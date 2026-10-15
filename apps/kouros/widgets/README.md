@@ -1,8 +1,60 @@
-# KourOS's ORDECK widgets
+# KourOS's widgets
 
-Each `<id>.json` here is a widget; ORDECK compiles every app's `widgets/*.json` in at build
-time (`apps/ordeck/src/hud/catalog.ts`), so they are on every HUD's shelf after a deploy —
-no publishing step.
+Each `<id>.json` here is a widget. Three kinds live here:
+
+- **Cards** (a `sizing`): ORDECK compiles every app's `widgets/*.json` in at build time
+  (`apps/ordeck/src/hud/catalog.ts`), so they are on every HUD's shelf after a deploy —
+  no publishing step.
+- **Pages** (a `route`): KourOS's own screens, drawn by KourOS's host
+  (`src/widgets/host.tsx`) when the location matches — never on the HUD.
+- **Parts** (neither): drawn inside another widget by a `use`.
+
+## Pages
+
+- **`kouros-home.json` — Home (`/`).** One source, `discoverHome` (the rails in one
+  request, polled every 5 min). A greeting by the hour's slot, the library's size, the
+  now-playing card (when something is loaded), then the rails — continue listening,
+  recently played, runs, the hour's picks, deep in, new in the library — each a `rail` of
+  `tile`s, and each ABSENT rather than empty (a `when` on the list). The coverage line
+  closes it. Taps fire the player's host actions (`player.book`, `context.open`,
+  `player.play`, `sheet.open`) or `go` to an artist, an album, Browse or the Vibe Map.
+  The empty fixture is an empty library.
+
+- **`kouros-now.json` — Now Playing (`/now`).** No source: it binds the host's `player`
+  slice, and `playhead` only in its seek bar. A track's face and a book's, chosen by
+  `player.kind`, each a `screen` stack — one screen high, the `fill` cover taking what the
+  rest leaves, so it never scrolls and the rune layer (App.tsx wraps it) keeps its
+  gestures. A track: the queue place, the cover and its room light, artist · album
+  (each a `go`), the `pulsarmap`, the scrubber, shuffle · previous · play · next ·
+  repeat, the device picker, a station, and the next track. A book: the chapter, the
+  jacket, the chapter's scrubber, time left, chapter ⇤ −30 s · play · +30 s chapter ⇥,
+  rate, the sleep timer and bookmarks (two menus held in `$state.menu`). The fixtures'
+  ready state is a track and empty a book.
+
+- **`kouros-map.json` — the Vibe Map (`/map`).** One source, `discoverMap`. The heading,
+  then the `vibespace` molecule (KourOS's WebGL cloud, or without WebGL2 every region as a
+  list to pin from) and the near list as a part. The pin is the page's own state
+  (`$state.pin`, set by `on.pin` from `$pin`); the cloud pins the densest region itself on
+  the first draw. A double-tap on the pin plays from it (`player.near`). When the map is
+  held or not ready, it says why and how far the analysis has got. The empty fixture is a
+  map that is not ready.
+
+## Parts
+
+- **`kouros-map-near.json` — what sits near the pin.** Handed `pin`; reads
+  `discoverNear` at it, debounced 160 ms, so a moving pin updates the list once it
+  settles and never plays anything by itself (and before the first pin asks nothing — a
+  required filter unset is `idle`). The region and mood, "Reading…" while it re-reads, Play
+  from here, then each track: play from it, or its action sheet. A part so its loading is
+  its own: the cloud above never blanks while the list re-reads.
+
+- **`kouros-now-card.json` — what is playing, at the top of Home.** Binds the host's
+  `player` slice: its kind as the eyebrow, its status ("PAUSED ON KITCHEN") as the source,
+  the art, title and byline as a `media` (a tap goes to Now Playing), and under it the
+  item's own unit — a book's chapters as `steps` with the time left, a track's position
+  as a `meter` between its clock times. The page draws it only while `player.loaded`.
+
+## Cards
 
 - **`kouros-now-playing.json` — Now playing.** One source, the `session` dataset (one
   document per user: the listening session, `now`, the devices), polled every 10 s. `now`

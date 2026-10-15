@@ -12,7 +12,7 @@ import type { AppId, Binding as WeaveBinding } from '@jkos/weave';
 import type { DataSource } from './sources';
 import type { WidgetNode, Tone } from './nodes.gen';
 
-export type { WidgetNode, Tone, IconName, HostKind, WidgetAction, ActionChain } from './nodes.gen';
+export type { WidgetNode, Tone, IconName, HostKind, HostKindsOf, WidgetAction, ActionChain } from './nodes.gen';
 export type { DataSource, SourceState, SourceStatus } from './sources';
 
 /** A value resolved at render time: a literal, or a path into a named source

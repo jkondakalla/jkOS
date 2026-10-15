@@ -229,9 +229,9 @@ function WeekBody({ items, todayIso }: { items: CalendarItem[]; todayIso: string
   );
 }
 
-/** The kinds only ORDECK draws — every HostKind in the manifest, so a new molecule is
- *  declared here or tsc says so. */
-const KINDS: { readonly [K in import('@jkos/widget-render').HostKind]: HostKindComponent<K> } = {
+/** The kinds only ORDECK draws — every molecule the manifest gives ORDECK (HostKindsOf),
+ *  so a new one is declared here or tsc says so, and another host's is never asked of it. */
+const KINDS: { readonly [K in import('@jkos/widget-render').HostKindsOf['ordeck']]: HostKindComponent<K> } = {
   calendar: ({ scope }) => <CalendarBody cal={scope.cal as MonthCalState} />,
   weather: ({ scope }) => <WeatherBody w={scope.weather as WeatherState} />,
   // Focus and Week were the `component` escape hatch — bespoke cards nothing could

@@ -43,7 +43,7 @@ import { execFileSync } from 'node:child_process';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { unit, REPO_ROOT } from './lib/unit.mjs';
-import { shippedWidgets, suiteHosts, appDocs, declarations, hosts, WIDGETS_URL as WIDGETS, SEMANTIC_URL } from '../scripts/widget/catalog.mjs';
+import { shippedWidgets, suiteHosts, appDocs, declarations, hosts, hostDeclarations, secondTierContexts, WIDGETS_URL as WIDGETS, SEMANTIC_URL } from '../scripts/widget/catalog.mjs';
 
 const { check, importTs, done } = unit('widgets');
 const { validateWidget } = await import(WIDGETS);
@@ -109,10 +109,32 @@ for (const { where, def } of shipped.filter((w) => w.def)) {
 for (const { where, app, def } of shipped.filter((w) => w.def)) {
   const errs = validateWidget(def, CTX);
   check(errs.length === 0, `${where} is a valid widget${errs.length ? ` — ${fmt(errs)}` : ''}`);
-  // The second tier: every binding, source and command against what its app declares
-  // (and ORDECK's typed slice declaration) — a field nobody declares draws an empty string.
-  const t2 = errs.length ? [] : checkBindings(def, { ...DECLS, pages: PAGES[app] });
-  check(t2.length === 0, `${where} binds only what its apps declare${t2.length ? ` — ${fmt(t2)}` : ''}`);
+  // The second tier: every binding, source and command against what its app declares,
+  // and against each host it can be drawn in (that host's typed slices and actions) —
+  // a field nobody declares draws an empty string.
+  if (errs.length) continue;
+  for (const { host, ctx } of await secondTierContexts(def, app, { files: shipped })) {
+    const t2 = checkBindings(def, ctx);
+    check(t2.length === 0, `${where} binds only what its apps and ${host} declare${t2.length ? ` — ${fmt(t2)}` : ''}`);
+  }
+}
+
+/* A host's routes still drawn by hand-built views (a `go` may name one) are a list that
+   only shrinks: a screen that becomes a page takes its route into its file, never both —
+   and each is a path the host's router really answers. */
+{
+  const decls = await hostDeclarations();
+  for (const [host, d] of Object.entries(decls)) {
+    const both = d.legacyRoutes.filter((r) => (PAGES[host] ?? []).includes(r));
+    check(both.length === 0, `${host}: no route is both a page file and a hand-built view${both.length ? ` — ${both.join(', ')}` : ''}`);
+  }
+  const { parseHash } = await importTs('apps/kouros/src/hooks/useHashRoute.ts', 'useHashRoute.mjs', { react: 'data:text/javascript,export const useState=()=>{};export const useEffect=()=>{};' });
+  const { fillRoute, routeParams } = await import(WIDGETS);
+  for (const r of decls.kouros.legacyRoutes) {
+    const path = fillRoute(r, Object.fromEntries(routeParams(r).map((k) => [k, k === 'id' ? '7' : 'X'])));
+    const view = parseHash(`#${path}`).view;
+    check(view !== 'home', `kouros: the hand-built route ${r} is one KourOS's hash router answers${view === 'home' ? ' — it parses as Home' : ` (${view})`}`);
+  }
 }
 
 // A widget's fixtures are what its preview draws; for a dataset source they must be
@@ -244,6 +266,10 @@ for (const dir of ['packages/widget-render/src', 'apps/ordeck/src/hud']) {
   const jobs = { id: 'jobs', path: '/jobs', filters: [{ name: 'job_id' }, { name: 'status' }] };
   check(rd.datasetUrl(jobs, { job_id: 'a b', typo_id: 1, status: '' }) === '/jobs?job_id=a+b', 'datasetUrl: declared filters only, empty ones dropped (an undeclared one would hide a typo)');
   check(rd.datasetUrl({ id: 'r', path: '/routines/:id/series', filters: [{ name: 'weeks' }] }, { id: '7/x', weeks: 4 }) === '/routines/7%2Fx/series?weeks=4', 'datasetUrl: a path parameter is filled and encoded, not repeated as a query');
+  const near = { id: 'near', path: '/near', filters: [{ name: 'x', required: true }, { name: 'k' }] };
+  check(rd.datasetUrl(near, { k: 40 }) === null && rd.datasetUrl(near, { x: '', k: 40 }) === null,
+    'datasetUrl: a required filter with no value asks nothing (idle) — the server would refuse it');
+  check(rd.datasetUrl(near, { x: 0, k: 40 }) === '/near?x=0&k=40', '…and once it has one (0 is a value), the read goes');
 
   // ORDECK's runtime: the refusal, before any request.
   writeFileSync(join(tmp, 'react.mjs'), 'export const createContext = (v) => ({ Provider: null, v }); export const useContext = () => null; export const useEffect = () => {}; export const useMemo = (f) => f(); export const useState = (v) => [v, () => {}];');

@@ -15,7 +15,7 @@
 //    and sees the slice a molecule reads without a binding.
 // 4. safeHref: the href rule the validator and the renderer share.
 import { NODES, FRAME, KINDS, LIMITS, TONES, ACTIONS, childProps, validateWidget, sourcesOf, walkNodes, safeHref, appsOf,
-  routeProblem, matchRoute, fillRoute, routeTable, pageFor, needsOf, isPortable, drawableIn } from '../src/index.js'
+  routeProblem, matchRoute, fillRoute, routeTable, pageFor, needsOf, isPortable, drawableIn, moleculesOf } from '../src/index.js'
 import { checkBindings } from '../src/semantic.js'
 
 let pass = 0, fail = 0
@@ -237,6 +237,7 @@ const DOCS = {
       { id: 'one', path: '/one/:id', cardinality: 'one', item: [{ name: 'total', type: 'number' }] },
       { id: 'home', path: '/home', cardinality: 'one', item: [{ name: 'recent', type: 'json', item: [{ name: 'title', type: 'string' }] }, { name: 'stats', type: 'json', schema: 'lz.one' }, { name: 'all', type: 'json', schema: 'lz.jobs' }] },
       { id: 'radio', path: '/radio', filters: [{ name: 'seed', required: true }] },
+      { id: 'page', path: '/page', cardinality: 'one', item: [{ name: 'stats', type: 'json', schema: 'lz.one' }, { name: 'rows', type: 'json', schema: 'lz.jobs' }] },
     ] },
   },
 }
@@ -257,6 +258,17 @@ ok(t2has({ sources: { j: { kind: 'dataset', app: 'lz', dataset: 'jobs', params: 
 ok(t2has({ sources: { o: { kind: 'dataset', app: 'lz', dataset: 'one' } }, body: { t: 'text', text: 'x' } }, '/spec/sources/o/params', 'missing-param'), 'a path parameter left unfilled is refused')
 ok(t2has({ sources: { r: { kind: 'dataset', app: 'lz', dataset: 'radio' } }, body: { t: 'text', text: 'x' } }, '/spec/sources/r/params', 'missing-param'), 'a required filter left unset is refused')
 ok(t2({ sources: { o: { kind: 'dataset', app: 'lz', dataset: 'one', params: { id: 1 } } }, body: { t: 'text', text: { src: 'o', path: 'total' } } }).length === 0, 'a one-document dataset binds its fields directly')
+const PAGE_SRC = { pg: { kind: 'dataset', app: 'lz', dataset: 'page' } }
+ok(t2({ sources: PAGE_SRC, body: { t: 'text', text: { src: 'pg', path: 'stats.total' } } }).length === 0, "a field pointing at a one-document dataset's shape (`schema`) binds its fields")
+ok(t2has({ sources: PAGE_SRC, body: { t: 'text', text: { src: 'pg', path: 'rows.status' } } }, '/spec/body/text', 'undeclared-path'), "…and one pointing at a list dataset's is still a list")
+const HOME_SRC = { h: { kind: 'dataset', app: 'lz', dataset: 'home' } }
+ok(t2({ sources: { h: { kind: 'dataset', app: 'lz', dataset: 'home' } }, body: { t: 'stack', children: [{ t: 'text', text: { src: 'h', path: 'recent.length' } }, { t: 'text', text: { src: 'h', path: 'recent.0.title' } }] } }).length === 0,
+  "a json field with item fields is rows of them too: its length, and a row by index, bind")
+ok(t2has({ sources: { h: { kind: 'dataset', app: 'lz', dataset: 'home' } }, body: { t: 'text', text: { src: 'h', path: 'recent.0.titel' } } }, '/spec/body/text', 'undeclared-path'), '…and a row by index still holds to its fields')
+const rail = (title) => ({ sources: HOME_SRC, body: { t: 'rail', from: { src: 'h', path: 'recent' }, empty: 'None.', item: { t: 'tile', title } } })
+ok(t2(rail({ src: '$', path: 'title' })).length === 0, "a rail's item reads a row of its `from` as $")
+ok(t2has(rail({ src: '$', path: 'titel' }), '/spec/body/item/title', 'undeclared-path'), '…and a row field nobody declares is refused there')
+ok(t2has({ sources: HOME_SRC, body: { t: 'rail', from: { src: 'h', path: 'recent' }, item: { t: 'tile', title: 'x' } } }, '/spec/body/empty', 'silent-empty'), 'a rail over a list inside one document needs its own empty line (or a when)')
 ok(t2has({ sources: { j: { kind: 'dataset', app: 'lz', dataset: 'jobs', params: { status: 'DONE' }, debounce: 300 } }, body: { t: 'text', text: 'x' } }, '/spec/sources/j/debounce', 'debounce-unbound'), 'a debounce over only literal params is refused — nothing ever changes for it to wait on')
 ok(t2({ sources: { j: { kind: 'dataset', app: 'lz', dataset: 'jobs', params: { status: { src: 'clock', path: 'hm' } }, debounce: 300 } }, body: { t: 'text', text: 'x' } }).length === 0, '…one over a bound param passes')
 const form = (cmd, children, result) => ({ body: { t: 'form', cmd, submit: 'GO', children, ...(result ? { result } : {}) } })
@@ -301,6 +313,19 @@ ok(t2hHas(play({ do: 'player.play' }), '/spec/body/on/press/with', 'missing-fiel
 ok(t2hHas(play({ do: 'player.play', with: { id: { src: 'clock', path: 'hmm' } } }), '/spec/body/on/press/with/id', 'undeclared-path'), "an argument's binding is checked")
 ok(t2hHas(play([{ do: 'player.play', with: { id: 7 } }, { set: 'q', to: { src: '$result', path: 'qeued' } }]), '/spec/body/on/press/1/to', 'undeclared-path'), "…and $result after it is what it declares it returns")
 ok(t2has(play({ do: 'player.play', with: { id: 7 } }), '/spec/body/on/press/do', 'undeclared'), 'a host that declares no actions refuses every do')
+const SEEK = { 'player.seek': { label: 'Seek', args: [{ name: 'to', type: 'number', required: true }] } }
+const scrub = (to, extra = {}) => checkBindings({ id: 'p', spec: { body: { t: 'scrubber', position: 1, total: 2, on: { seek: { do: 'player.seek', with: { to } } } }, ...extra } }, { docs: DOCS, slices: SLICES, actions: SEEK })
+const SLEEP = { 'player.sleep': { label: 'Sleep', args: [{ name: 'mode', type: 'enum', enum: ['off', '15'], required: true }] }, 'player.skip': { label: 'Skip', args: [{ name: 'by', type: 'number', required: true }] } }
+const t2s = (a) => checkBindings({ id: 'p', spec: { body: { t: 'button', text: 'x', on: { press: a } } } }, { actions: SLEEP })
+ok(t2s({ do: 'player.sleep', with: { mode: '15' } }).length === 0 && t2s({ do: 'player.skip', with: { by: -30 } }).length === 0, "a literal argument that fits its declared type passes")
+ok(t2s({ do: 'player.sleep', with: { mode: '20' } }).some((p) => p.code === 'bad-value') && t2s({ do: 'player.skip', with: { by: '30' } }).some((p) => p.code === 'bad-value'),
+  "…one that does not — an enum's stranger, a number given as text — is refused")
+ok(scrub({ src: '$seek', path: 'to' }).length === 0, "a scrubber's seek hands its actions the second chosen as $seek.to")
+ok(scrub({ src: '$seek', path: 'too' }).some((p) => p.code === 'undeclared-path'), '…and $seek holds only what the manifest says it does')
+ok(checkBindings({ id: 'p', spec: { body: { t: 'text', text: { src: '$seek', path: 'to' } } } }, { slices: SLICES }).some((p) => p.code === 'unknown-source'), '$seek exists only inside a seek')
+ok(moleculesOf('ordeck').includes('week') && !moleculesOf('ordeck').includes('pulsarmap') && moleculesOf('kouros').includes('pulsarmap'), 'each molecule is one host\'s: ORDECK is never asked to draw KourOS\'s pulsarmap')
+ok(drawableIn({ spec: { body: { t: 'pulsarmap' } } }, { kinds: moleculesOf('ordeck'), slices: ['player'] }).includes('kind pulsarmap'), '…so a widget drawing one has no home on the HUD')
+ok(validateWidget({ id: 'p', spec: { body: { t: 'button', text: 'Play', icon: 'plya', variant: 'orb', on: { press: { set: 'x', to: 1 } } }, state: { x: { type: 'number' } } } }).some((p) => p.code === 'unknown-value'), "a button's glyph is one of the icon set")
 
 console.log('3d · patterns')
 ok(problems(def({ t: 'facts', items: [{ label: 'High', value: { src: 'weather', path: 'hiLabel' }, tone: 'accent' }] })).length === 0, 'facts takes a list of { label, value, tone? }')

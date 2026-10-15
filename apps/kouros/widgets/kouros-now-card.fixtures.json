@@ -1,0 +1,46 @@
+{
+  "ready": {
+    "$slices": {
+      "player": {
+        "loaded": true,
+        "kind": "audiobook",
+        "playing": false,
+        "status": "PAUSED ON KITCHEN",
+        "title": "Project Hail Mary",
+        "byline": "Andy Weir · Ray Porter",
+        "cover_url": "/api/kouros/books/cover/14",
+        "track_id": null,
+        "book_id": 14,
+        "position": 21540,
+        "total": 58260,
+        "progress": 0.37,
+        "remaining": 36720,
+        "chapter": 11,
+        "chapters": 31,
+        "chapter_label": "CH 12"
+      }
+    }
+  },
+  "empty": {
+    "$slices": {
+      "player": {
+        "loaded": true,
+        "kind": "music",
+        "playing": true,
+        "status": "PLAYING",
+        "title": "Ceremony",
+        "byline": "New Order",
+        "cover_url": "/api/kouros/cover/103",
+        "track_id": 103,
+        "book_id": null,
+        "position": 97,
+        "total": 264,
+        "progress": 0.367,
+        "remaining": 167,
+        "chapter": 0,
+        "chapters": 1,
+        "chapter_label": ""
+      }
+    }
+  }
+}

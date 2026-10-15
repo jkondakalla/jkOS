@@ -32,6 +32,8 @@ import { TONE_COLOR } from './tone';
 import { fillRoute, safeHref, sourcesOf, partsOf, MAX_USE_DEPTH } from '@jkos/widgets';
 import { usesAi } from './ai';
 import { Field, SelectField, Check, AsyncView } from '@jkos/ui';
+import { Scrubber } from '@jkos/player/ui';
+import type { NavPoint } from '@jkos/player/core';
 import { WidgetBoundary } from './boundary';
 
 /** What the app drawing a widget hands the renderer. */
@@ -72,7 +74,7 @@ export interface WidgetHost {
 }
 
 /** One field of a host action's declaration — the field vocabulary a dataset uses. */
-export interface DeclField { name: string; type: FieldType; required?: boolean; label?: string }
+export interface DeclField { name: string; type: FieldType; required?: boolean; label?: string; /** an enum's values */ enum?: readonly string[] }
 /** A host action, as its host declares it: what it does, its arguments, what it returns. */
 export interface HostActionDecl { label: string; args?: readonly DeclField[]; returns?: readonly DeclField[] }
 /** A host action's implementation: its arguments, resolved from the widget's bindings. */
@@ -204,7 +206,37 @@ const ICONS: Record<IconName, ReactNode> = {
   star: <path d="M12 2l3 7h7l-5.5 4.5L18.5 21 12 16.5 5.5 21l2-7.5L2 9h7z" />,
   alert: <><path d="M10.3 3.9 1.8 18a2 2 0 001.7 3h16.9a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z" /><path d="M12 9v4M12 17h.01" /></>,
   dot: <circle cx="12" cy="12" r="6" />,
+  rise: <path d="M4 17C12 17 16 7 20 7" />,
+  fall: <path d="M4 7c4 0 8 4 16 10" />,
+  peak: <path d="M4 18c4 0 5-11 8-11s4 11 8 11" />,
+  // The transport's glyphs are FILLED (a play triangle is a shape, not a line): each
+  // says so itself, so the stroked icons above keep their fill: none.
+  play: <path d="M8 5v14l11-7z" fill="currentColor" stroke="none" />,
+  pause: <path d="M7 5h4v14H7zM13 5h4v14h-4z" fill="currentColor" stroke="none" />,
+  prev: <path d="M7 6v12M19 6l-9 6 9 6z" fill="currentColor" />,
+  next: <path d="M17 6v12M5 6l9 6-9 6z" fill="currentColor" />,
+  back: <path d="M12 6V3L7 7l5 4V8a5 5 0 1 1-5 5" />,
+  forward: <path d="M12 6V3l5 4-5 4V8a5 5 0 1 0 5 5" />,
+  shuffle: <><path d="M3 6h3.5l8 12H18M3 18h3.5l2.4-3.6M14.1 9.6 16.5 6H18" /><path d="M15.5 4.5 18.5 6l-3 1.7zM15.5 19.5l3-1.5-3-1.7z" fill="currentColor" stroke="none" /></>,
+  repeat: <><path d="M6 9V7a2 2 0 0 1 2-2h9M18 5v3M18 15v2a2 2 0 0 1-2 2H7M6 19v-3" /><path d="M15.5 3.5 18.5 6l-3 2.5zM8.5 20.5 5.5 18l3-2.5z" fill="currentColor" stroke="none" /></>,
+  'repeat-one': <><path d="M6 9V7a2 2 0 0 1 2-2h9M18 5v3M18 15v2a2 2 0 0 1-2 2H7M6 19v-3" /><path d="M15.5 3.5 18.5 6l-3 2.5zM8.5 20.5 5.5 18l3-2.5z" fill="currentColor" stroke="none" /><path d="M11 10.5l1.5-1v5" /></>,
+  spinner: <><circle cx="12" cy="12" r="9" opacity="0.25" /><path d="M12 3a9 9 0 0 1 9 9" className="hud-w-spin" /></>,
+  radio: <><circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none" /><path d="M8.2 8.2a5.4 5.4 0 0 0 0 7.6M15.8 15.8a5.4 5.4 0 0 0 0-7.6" /><path d="M5.5 5.5a9.2 9.2 0 0 0 0 13M18.5 18.5a9.2 9.2 0 0 0 0-13" opacity="0.5" /></>,
+  devices: <><rect x="2.5" y="5" width="11" height="8.5" rx="1.2" /><path d="M5.5 17h5M8 13.5V17" /><rect x="15.5" y="4" width="6" height="15.5" rx="1.4" /><circle cx="18.5" cy="14.8" r="2" /></>,
+  down: <path d="m5.5 9.5 6.5 6.5 6.5-6.5" />,
+  close: <path d="M6 6l12 12M18 6L6 18" />,
+  queue: <><path d="M4 6h12M4 12h12M4 18h8" /><path d="M18 9v10M18 9l-3 3M18 9l3 3" /></>,
+  more: <><circle cx="6" cy="12" r="1.4" fill="currentColor" /><circle cx="12" cy="12" r="1.4" fill="currentColor" /><circle cx="18" cy="12" r="1.4" fill="currentColor" /></>,
 };
+
+/** A control's glyph: stroked in its button's colour (currentColor). */
+function glyph(name: string): ReactNode {
+  return (
+    <svg className="hud-w-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {ICONS[name as IconName] ?? ICONS.dot}
+    </svg>
+  );
+}
 
 /** A pattern's progress: the suite's one bar (hub.css .jk-bar-track / .jk-bar-fill, the
  *  bar @jkos/ui <Bar> draws), tinted, at the pattern track's height. */
@@ -218,6 +250,86 @@ function patternIcon(name: string, tone: string): ReactNode {
     <svg className="hud-p-icon" viewBox="0 0 24 24" fill="none" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={vars({ '--w-tone': tone })}>
       {ICONS[name as IconName] ?? ICONS.dot}
     </svg>
+  );
+}
+
+/** The most steps a ladder draws — beyond it, a step is under a pixel wide anyway. */
+const MAX_STEPS = 400;
+
+/** Up to four URLs from an array — each element a URL, or (with `path`) an object holding
+ *  one — each through safeHref: a tile's mosaic. */
+function pluck(arr: unknown, path: string | undefined): string[] {
+  if (!Array.isArray(arr)) return [];
+  const urls = arr.map((el) => safeHref(path && el != null && typeof el === 'object' ? (el as Record<string, unknown>)[path] : el));
+  return urls.filter((u): u is string => !!u).slice(0, 4);
+}
+
+/** A tile's cover: its image, a 2×2 mosaic of several, or — none, or one that fails to
+ *  load — the title's first letter on the blank sleeve. A mosaic keeps its four cells
+ *  when a cover is missing (a set reads as a set), each blank cell its sleeve. */
+function TileArt({ one, many, letter }: { one?: string; many: string[]; letter: string }) {
+  const [failed, setFailed] = useState<ReadonlySet<string>>(() => new Set());
+  const fail = (u: string) => setFailed((f) => new Set(f).add(u));
+  const img = (u: string) => <img src={u} alt="" loading="lazy" decoding="async" onError={() => fail(u)} />;
+  if (many.length > 1) {
+    const cells = [0, 1, 2, 3].map((i) => many[i]);
+    return (
+      <span className="hud-p-tile-art is-mosaic">
+        {cells.map((u, i) => <span key={i} className="hud-p-tile-cell">{u && !failed.has(u) ? img(u) : null}</span>)}
+      </span>
+    );
+  }
+  const u = one ?? many[0];
+  return (
+    <span className="hud-p-tile-art">
+      {u && !failed.has(u) ? img(u) : <span className="hud-p-tile-letter" aria-hidden="true">{letter}</span>}
+    </span>
+  );
+}
+
+/** The art of one thing: the image, or — none, or one that fails to load — the title's
+ *  letter on the blank sleeve. `fill` makes it the largest it can be in the room it is
+ *  given (a size container — widgets.css § Cover); `ambient` also paints a blurred copy
+ *  behind the whole screen. */
+function CoverNode({ node, scope }: { node: NodeOf<'cover'>; scope: Scope }) {
+  const title = str(resolve(node.title, scope));
+  const url = node.image != null ? safeHref(resolve(node.image, scope)) : undefined;
+  const [failed, setFailed] = useState<string | null>(null);
+  const show = url && failed !== url;
+  const art = (
+    <span className={`hud-w-cover${node.shape && node.shape !== 'square' ? ` is-${node.shape}` : ''}`}>
+      {show ? <img src={url} alt={title} decoding="async" onError={() => setFailed(url)} />
+        : <span className="hud-p-tile-letter" role="img" aria-label={title}>{(title.trim().charAt(0) || '?').toUpperCase()}</span>}
+    </span>
+  );
+  return (
+    <>
+      {node.ambient && url && <span className="hud-w-ambient" aria-hidden="true" style={vars({ '--w-art': `url("${url.replace(/"/g, '%22')}")` })} />}
+      {node.fill ? <span className="hud-w-cover-room">{art}</span> : art}
+    </>
+  );
+}
+
+/** A seek bar: @jkos/player's Scrubber (the suite's one), its release firing `on.seek`
+ *  with the second chosen as `$seek.to`. */
+function ScrubberNode({ node, scope }: { node: NodeOf<'scrubber'>; scope: Scope }) {
+  const act = useActions();
+  const pts = node.points != null ? resolve(node.points, scope) : null;
+  const points = Array.isArray(pts) ? (pts as NavPoint[]) : undefined;
+  const chain = node.on?.seek;
+  return (
+    <div className="hud-w-scrubber">
+      <Scrubber
+        position={num(resolve(node.position, scope))}
+        total={Math.max(0, num(resolve(node.total, scope)))}
+        points={points}
+        currentIndex={node.at != null ? Math.round(num(resolve(node.at, scope))) : -1}
+        mode={node.mode ?? 'timeline'}
+        disabled={!chain}
+        ariaLabel={node.label != null ? str(resolve(node.label, scope)) : undefined}
+        onSeek={(to) => { if (chain) void act.fire(chain, { ...scope, $seek: { to } }); }}
+      />
+    </div>
   );
 }
 
@@ -267,7 +379,7 @@ function rowsBody(n: NodeOf<'rows'>, scope: Scope, onSelect?: (rowScope: Scope) 
 
 const PRIMITIVES: Primitives = {
   stack: (n, scope) => (
-    <div className={`hud-w-stack${n.grow ? ' is-grow' : ''}`} style={vars({ '--w-gap': `${n.gap ?? 8}px`, '--w-justify': n.justify ?? 'flex-start' })}>
+    <div className={`hud-w-stack${n.grow ? ' is-grow' : ''}${n.screen ? ' is-screen' : ''}`} style={vars({ '--w-gap': `${n.gap ?? 8}px`, '--w-justify': n.justify ?? 'flex-start' })}>
       {n.children.map((c, i) => <Fragment key={i}>{renderNode(c, scope)}</Fragment>)}
     </div>
   ),
@@ -381,6 +493,18 @@ const PRIMITIVES: Primitives = {
     }
     return <>{body}</>;
   },
+  steps: (n, scope) => {
+    // Compressed, never wrapped: a ladder that wraps stops reading as one axis.
+    const count = Math.max(0, Math.min(MAX_STEPS, Math.round(num(resolve(n.count, scope)))));
+    const at = n.at != null ? Math.round(num(resolve(n.at, scope))) : -1;
+    return (
+      <span className="hud-w-steps" aria-hidden="true">
+        {Array.from({ length: count }, (_, i) => <span key={i} className={`hud-w-step${i < at ? ' is-done' : i === at ? ' is-now' : ''}`} />)}
+      </span>
+    );
+  },
+  cover: (n, scope) => <CoverNode node={n} scope={scope} />,
+  scrubber: (n, scope) => <ScrubberNode node={n} scope={scope} />,
   sparkline: (n, scope) => {
     const arr = resolve(n.from, scope);
     const values = (Array.isArray(arr) ? arr : [])
@@ -504,6 +628,42 @@ const PRIMITIVES: Primitives = {
     );
     if (n.on?.press) return <ActionTarget chain={n.on.press} scope={scope} className="hud-p hud-p-media is-action">{body}</ActionTarget>;
     return href ? <a className="hud-p hud-p-media" href={href}>{body}</a> : <div className="hud-p hud-p-media">{body}</div>;
+  },
+  rail: (n, scope) => {
+    const arr = resolve(n.from, scope);
+    const items = Array.isArray(arr) ? arr : [];
+    if (!items.length) return n.empty != null ? <div className="hud-w-list-empty">{str(resolve(n.empty, scope))}</div> : null;
+    // The box is the container the strip's column width answers to (widgets.css § Rail).
+    return (
+      <div className={`hud-w-rail-box${n.size === 'wide' ? ' is-wide' : ''}`}>
+        <div className="hud-w-rail jk-scroll-none">
+          {items.map((el, i) => <div key={i} className="hud-w-rail-item">{renderNode(n.item, { ...scope, $: el })}</div>)}
+        </div>
+      </div>
+    );
+  },
+  tile: (n, scope) => {
+    const title = str(resolve(n.title, scope));
+    const one = n.image != null ? safeHref(resolve(n.image, scope)) : undefined;
+    const many = n.images != null ? pluck(resolve(n.images, scope), n.imagesPath) : [];
+    const pct = n.progress != null ? fraction(resolve(n.progress, scope), n.total != null ? resolve(n.total, scope) : 1) : null;
+    const sub = opt(n.sub, scope), meta = opt(n.meta, scope);
+    const href = n.href != null ? safeHref(resolve(n.href, scope)) : undefined;
+    const cls = `hud-p hud-p-tile${n.shape === 'round' ? ' is-round' : ''}${n.active != null && truthy(resolve(n.active, scope)) ? ' is-active' : ''}`;
+    const body = (
+      <>
+        <TileArt one={one} many={many} letter={(title.trim().charAt(0) || '?').toUpperCase()} />
+        {pct != null && track(pct, 'var(--color-accent)')}
+        <span className="hud-p-tile-title">
+          {n.icon != null && patternIcon(str(resolve(n.icon, scope)), 'currentColor')}
+          <span className="hud-p-tile-text">{title}</span>
+        </span>
+        {sub && <span className="hud-p-tile-sub">{sub}</span>}
+        {meta && <span className="hud-p-tile-meta">{meta}</span>}
+      </>
+    );
+    if (n.on?.press) return <ActionTarget chain={n.on.press} scope={scope} className={`${cls} is-action`}>{body}</ActionTarget>;
+    return href ? <a className={cls} href={href}>{body}</a> : <div className={cls}>{body}</div>;
   },
   use: (n, scope) => <UseNode node={n} scope={scope} />,
   ask: (n, scope) => <AskNode node={n} scope={scope} />,
@@ -692,6 +852,14 @@ function useActions() {
   }, [state, host]);
 
   return { status, error, busy: status === 'working', fire };
+}
+
+/** For a HOST KIND that fires its node's events (`on`): run an event's actions in the
+ *  scope it fired in — the same engine every renderer event uses, so a `set`, a `do` or a
+ *  `go` from a molecule is checked and runs exactly as one from a button. */
+export function useWidgetActions(): { fire: (chain: ActionChain, scope: Scope) => Promise<boolean>; busy: boolean; error?: string } {
+  const { fire, busy, error } = useActions();
+  return { fire, busy, error };
 }
 
 /** Something tapped to fire its actions (a media card's `on.press`), drawn as a button. */
@@ -943,6 +1111,21 @@ function ActionButton({ node, scope }: { node: Extract<WidgetNode, { t: 'button'
   const chain = node.on?.press;
   const label = str(resolve(node.text, scope));
   const color = node.tone != null ? toneColor(node.tone, scope, 'accent') : 'var(--color-accent)';
+  const variant = node.variant ?? 'action';
+  // A glyph button is its glyph: the label is its name (a screen reader's, a tooltip's),
+  // and a failure says so in the tooltip rather than swapping the face for a word.
+  if (node.icon != null || variant !== 'action') {
+    const icon = node.icon != null ? str(resolve(node.icon, scope)) : null;
+    const on = node.active != null && truthy(resolve(node.active, scope));
+    return (
+      <button type="button" disabled={act.busy || !chain} onClick={() => { if (chain) void act.fire(chain, scope); }}
+        className={`hud-w-btn is-${variant}${on ? ' is-on' : ''}${act.status === 'err' ? ' is-err' : ''}`}
+        aria-label={icon ? label : undefined} aria-pressed={node.active != null ? on : undefined}
+        title={act.status === 'err' ? act.error : icon ? label : undefined}>
+        {icon ? glyph(icon) : act.busy ? '…' : label}
+      </button>
+    );
+  }
   const text = act.busy ? '…' : act.status === 'ok' ? 'DONE' : act.status === 'err' ? 'RETRY' : label;
   return (
     <button type="button" title={act.status === 'err' ? act.error : undefined} disabled={act.busy || !chain}
@@ -1123,8 +1306,11 @@ function aiOffTile(def: WidgetDef): ReactNode {
 
 function renderWidgetBody(def: WidgetDef, host: WidgetHost, inputs?: Record<string, unknown>): ReactNode {
   if (!host.aiEnabled && usesAi(def, host.widgets)) return aiOffTile(def);
-  if (def.spec) return <SpecWidget spec={def.spec} host={host} inputs={inputs} />;
-  return unknownWidget(def.id);
+  if (!def.spec) return unknownWidget(def.id);
+  const body = <SpecWidget spec={def.spec} host={host} inputs={inputs} />;
+  // A page is a SCREEN: it scrolls, so nothing in it is squeezed to fit a footprint
+  // (widgets.css § Pages). A card fits its cell; a page is as tall as what it holds.
+  return def.route ? <div className="hud-w-page">{body}</div> : body;
 }
 
 /** Render a widget file in `host`, behind its per-card update gate (see WidgetCard) —

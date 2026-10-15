@@ -22,6 +22,8 @@ export interface PropSpec {
   list?: boolean;
   /** Only meaningful beside this other prop (a button's `result` draws what its `cmd` produced). */
   with?: string;
+  /** node: a TEMPLATE, drawn once per element of the node's `from`, the element as `$`. */
+  each?: boolean;
   doc?: string;
 }
 
@@ -37,12 +39,20 @@ export interface NodeSpec {
   oneOf?: string[][];
   /** The events its `on` may name → what each means. */
   events?: Record<string, string>;
-  /** The HUD slice(s) a molecule reads straight from scope. */
+  /** The host slice(s) a molecule reads straight from scope. */
   reads?: string | string[];
+  /** Which host draws this molecule (ORDECK's when absent). */
+  host?: string;
+  /** What an event's actions read besides the node's scope: event → name → its fields. */
+  eventScope?: Record<string, Record<string, readonly { name: string; type: string; label?: string }[]>>;
   example: { t: string } & Record<string, unknown>;
 }
 
 export const TONES: readonly string[];
+/** Which host draws a molecule whose entry names none. */
+export const DEFAULT_MOLECULE_HOST: string;
+/** The molecules one host draws. */
+export function moleculesOf(host: string): string[];
 export const ICON_NAMES: readonly string[];
 /** Retired `component` names → the molecule each became. */
 export const RETIRED_COMPONENTS: Readonly<Record<string, string>>;
